@@ -123,6 +123,15 @@ def _assert_findings_structurally_valid(findings: list, provider_label: str) -> 
     Empty lists are valid (model may find no issues). fallback_exhausted entries
     have a reduced schema and are also accepted.
     """
+    # If any fallback_exhausted finding is present it must be the only finding —
+    # a successful run emits real findings; a fully-exhausted run emits only the sentinel.
+    fallback_exhausted = [f for f in findings if f.get("type") == "fallback_exhausted"]
+    if fallback_exhausted:
+        assert len(findings) == len(fallback_exhausted), (
+            f"{provider_label}: when fallback_exhausted findings are present they must be "
+            f"the only findings in the list; got mixed list: {findings!r}"
+        )
+
     for i, finding in enumerate(findings):
         assert isinstance(finding, dict), (
             f"{provider_label} findings[{i}] must be a dict; got {type(finding)}"

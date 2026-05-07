@@ -112,7 +112,9 @@ def test_light_tier_dispatch_skips_augmentation_loop(tmp_path: pathlib.Path) -> 
     diff_file = tmp_path / "test.diff"
     diff_file.write_text(_DIFF_TEXT)
 
-    with patch("litellm.completion", side_effect=mock_completion):
+    with patch("litellm.completion", side_effect=mock_completion), patch(
+        "dso_ci_review.context_request.execute_read_files"
+    ) as mock_execute_read_files:
         dispatch_review(
             diff_text=_DIFF_TEXT,
             provider_chain=["anthropic"],
@@ -125,6 +127,11 @@ def test_light_tier_dispatch_skips_augmentation_loop(tmp_path: pathlib.Path) -> 
     assert call_count == 1, (
         f"Light tier must issue exactly 1 completion call; got {call_count}. "
         "The augmentation loop must not be entered for tier='light'."
+    )
+    assert mock_execute_read_files.call_count == 0, (
+        f"execute_read_files must never be called for light tier; "
+        f"got {mock_execute_read_files.call_count} call(s). "
+        "The context-request block in the response must be ignored entirely."
     )
 
 

@@ -1,9 +1,4 @@
-"""RED tests for context_request module — parser, read_files handler, and round-trip.
-
-Tests FAIL until context_request.py is implemented.
-
-RED marker: tests/skills/dso_ci_review/test_context_augmentation.py [test_parser_well_formed_assistant_message]
-"""
+"""Tests for context_request module — parser, read_files handler, and round-trip."""
 
 from __future__ import annotations
 
@@ -202,6 +197,77 @@ class TestReadFilesParentTraversalRejection:
             or "outside" in result_lower
             or "invalid" in result_lower
         ), f"Expected rejection for dotdot path, got: {result!r}"
+
+
+class TestReadFilesEdgeCasePaths:
+    """execute_read_files handles edge-case path inputs safely."""
+
+    def test_empty_path_string_is_rejected_or_skipped(self) -> None:
+        """Given: an empty string path ""
+        When: execute_read_files is called
+        Then: does not raise; returns a string (error or empty content)
+        """
+        with tempfile.TemporaryDirectory() as repo_root:
+            result = execute_read_files([""], repo_root=repo_root)
+        assert isinstance(result, str), (
+            f"execute_read_files must return str for empty path, got: {type(result)!r}"
+        )
+
+    def test_empty_paths_list_returns_string(self) -> None:
+        """Given: an empty list of paths
+        When: execute_read_files is called with []
+        Then: does not raise; returns a string
+        """
+        with tempfile.TemporaryDirectory() as repo_root:
+            result = execute_read_files([], repo_root=repo_root)
+        assert isinstance(result, str), (
+            f"execute_read_files must return str for empty list, got: {type(result)!r}"
+        )
+
+    def test_symlink_escaping_repo_root_is_rejected(self) -> None:
+        """Given: a symlink inside the repo that points outside the repo root
+        When: execute_read_files is asked to read via the symlink
+        Then: the result contains an error or the content is not from outside the repo
+        """
+        import os
+
+        with tempfile.TemporaryDirectory() as repo_root:
+            with tempfile.TemporaryDirectory() as outside_dir:
+                secret_file = pathlib.Path(outside_dir) / "secret.txt"
+                secret_file.write_text("TOP SECRET", encoding="utf-8")
+
+                # Create a symlink inside the repo pointing to the outside file
+                link_path = pathlib.Path(repo_root) / "escape_link.txt"
+                os.symlink(str(secret_file), str(link_path))
+
+                result = execute_read_files(["escape_link.txt"], repo_root=repo_root)
+
+        assert isinstance(result, str), (
+            f"execute_read_files must return str for symlink path, got: {type(result)!r}"
+        )
+        # Either the read is rejected, or the content must not contain the secret
+        if "TOP SECRET" in result:
+            # If symlinks are allowed (the implementation may read-through for within-repo
+            # symlinks), assert we at least do not expose outside-repo content via a path
+            # that resolves outside the root. Implementations that read through symlinks
+            # to outside files must block — this assertion makes that detectable.
+            assert False, (
+                "execute_read_files returned content from a symlink escaping repo root — "
+                f"this is a security violation. Result: {result!r}"
+            )
+
+    def test_non_utf8_file_does_not_crash(self) -> None:
+        """Given: a file with non-UTF-8 bytes
+        When: execute_read_files is called
+        Then: does not raise an exception; returns a string
+        """
+        with tempfile.TemporaryDirectory() as repo_root:
+            binary_file = pathlib.Path(repo_root) / "binary.bin"
+            binary_file.write_bytes(b"\xff\xfe binary content \x00\x01\x02")
+            result = execute_read_files(["binary.bin"], repo_root=repo_root)
+        assert isinstance(result, str), (
+            f"execute_read_files must return str even for binary files, got: {type(result)!r}"
+        )
 
 
 class TestReadFilesPerFileSizeCap:
@@ -528,20 +594,17 @@ def test_augmentation_soft_cap_nudge_triggers_final_findings(
     environ = {"ANTHROPIC_API_KEY": "test-key"}
 
     # Patch soft cap to 2 so test runs fast
-    original_cap = _dispatch_mod.CONTEXT_AUG_SOFT_CAP
-    _dispatch_mod.CONTEXT_AUG_SOFT_CAP = 2
-    try:
-        with patch("litellm.completion", side_effect=mock_completion):
-            result = dispatch.dispatch_review(
-                diff_text="--- a/f.py\n+++ b/f.py\n@@ -1 +1 @@\n-x\n+y",
-                provider_chain=["anthropic"],
-                environ=environ,
-                agent_id="unknown",
-                repo_root=str(tmp_path),
-                tier="standard",
-            )
-    finally:
-        _dispatch_mod.CONTEXT_AUG_SOFT_CAP = original_cap
+    with patch.object(_dispatch_mod, "CONTEXT_AUG_SOFT_CAP", 2), patch(
+        "litellm.completion", side_effect=mock_completion
+    ):
+        result = dispatch.dispatch_review(
+            diff_text="--- a/f.py\n+++ b/f.py\n@@ -1 +1 @@\n-x\n+y",
+            provider_chain=["anthropic"],
+            environ=environ,
+            agent_id="unknown",
+            repo_root=str(tmp_path),
+            tier="standard",
+        )
 
     assert "findings" in result, (
         f"Expected findings in result, got: {list(result.keys())}"
@@ -563,20 +626,17 @@ def test_augmentation_fail_closed_past_hard_cap(tmp_path: pathlib.Path) -> None:
 
     environ = {"ANTHROPIC_API_KEY": "test-key"}
 
-    original_cap = _dispatch_mod.CONTEXT_AUG_SOFT_CAP
-    _dispatch_mod.CONTEXT_AUG_SOFT_CAP = 1
-    try:
-        with patch("litellm.completion", side_effect=mock_completion):
-            result = dispatch.dispatch_review(
-                diff_text="--- a/f.py\n+++ b/f.py\n@@ -1 +1 @@\n-x\n+y",
-                provider_chain=["anthropic"],
-                environ=environ,
-                agent_id="unknown",
-                repo_root=str(tmp_path),
-                tier="standard",
-            )
-    finally:
-        _dispatch_mod.CONTEXT_AUG_SOFT_CAP = original_cap
+    with patch.object(_dispatch_mod, "CONTEXT_AUG_SOFT_CAP", 1), patch(
+        "litellm.completion", side_effect=mock_completion
+    ):
+        result = dispatch.dispatch_review(
+            diff_text="--- a/f.py\n+++ b/f.py\n@@ -1 +1 @@\n-x\n+y",
+            provider_chain=["anthropic"],
+            environ=environ,
+            agent_id="unknown",
+            repo_root=str(tmp_path),
+            tier="standard",
+        )
 
     assert result.get("augmentation_failed") is True, (
         f"Expected augmentation_failed=True for fail-closed, got: {result}"
@@ -614,20 +674,17 @@ def test_augmentation_post_nudge_request_with_findings_is_ignored(
 
     environ = {"ANTHROPIC_API_KEY": "test-key"}
 
-    original_cap = _dispatch_mod.CONTEXT_AUG_SOFT_CAP
-    _dispatch_mod.CONTEXT_AUG_SOFT_CAP = 2
-    try:
-        with patch("litellm.completion", side_effect=mock_completion):
-            result = dispatch.dispatch_review(
-                diff_text="--- a/f.py\n+++ b/f.py\n@@ -1 +1 @@\n-x\n+y",
-                provider_chain=["anthropic"],
-                environ=environ,
-                agent_id="unknown",
-                repo_root=str(tmp_path),
-                tier="standard",
-            )
-    finally:
-        _dispatch_mod.CONTEXT_AUG_SOFT_CAP = original_cap
+    with patch.object(_dispatch_mod, "CONTEXT_AUG_SOFT_CAP", 2), patch(
+        "litellm.completion", side_effect=mock_completion
+    ):
+        result = dispatch.dispatch_review(
+            diff_text="--- a/f.py\n+++ b/f.py\n@@ -1 +1 @@\n-x\n+y",
+            provider_chain=["anthropic"],
+            environ=environ,
+            agent_id="unknown",
+            repo_root=str(tmp_path),
+            tier="standard",
+        )
 
     # Request was ignored; findings from the mixed turn were used
     assert "findings" in result, (

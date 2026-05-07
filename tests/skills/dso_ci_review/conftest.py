@@ -89,10 +89,12 @@ def fixture_diff_path():
 
 
 def pytest_configure(config):
-    config.addinivalue_line(
-        "markers",
-        "integration: mark test as a live-provider integration test (skipped without API keys)",
-    )
+    existing = config.getini("markers")
+    if not any("integration:" in m for m in existing):
+        config.addinivalue_line(
+            "markers",
+            "integration: mark test as a live-provider integration test (skipped without API keys)",
+        )
 
 
 @pytest.fixture()

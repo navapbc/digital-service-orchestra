@@ -219,6 +219,63 @@ class TestDispatchPassesCacheControlForAnthropic:
             f"tier={tier}: Anthropic user message must use content blocks"
         )
 
+    def test_augmentation_follow_up_turns_omit_cache_control(
+        self, tier: str, tmp_path: pathlib.Path
+    ) -> None:
+        """Follow-up augmentation-loop messages must NOT carry cache_control.
+
+        The cached prefix is the first 2 messages (system + diff). Subsequent
+        user messages that carry file-read results are dynamic per-turn — adding
+        cache_control to them would bust the stable prefix and defeat caching.
+        """
+        if tier == "deep":
+            pytest.skip("deep tier uses a different multi-agent path; tested separately")
+
+        (tmp_path / "foo.py").write_text("x = 1\n")
+        all_captured: list[list] = []
+        call_count = 0
+
+        def mock_completion(**kwargs):
+            nonlocal call_count
+            call_count += 1
+            all_captured.append(kwargs["messages"])
+            if call_count == 1:
+                return _request_response()
+            return _findings_response()
+
+        with patch("litellm.completion", side_effect=mock_completion), patch(
+            "dso_ci_review.context_request.execute_read_files",
+            return_value="=== foo.py ===\nx = 1\n",
+        ):
+            dispatch_review(
+                diff_text=_DIFF_TEXT,
+                provider_chain=["anthropic"],
+                primary_model=_PRIMARY_MODEL,
+                repo_root=str(tmp_path),
+                tier="standard",
+                environ=_ANTHROPIC_ENV,
+            )
+
+        assert len(all_captured) >= 2, (
+            "Expected at least 2 completion calls (initial + augmentation turn)"
+        )
+        # First call: system + diff messages — these carry cache_control.
+        # Second call onward: the new messages appended per turn must NOT carry cache_control.
+        first_msgs = all_captured[0]
+        second_msgs = all_captured[1]
+        # Identify which messages are new in the second call (not in the first).
+        new_messages = second_msgs[len(first_msgs):]
+        assert new_messages, "Expected new messages appended in augmentation turn"
+        for msg in new_messages:
+            content = msg.get("content", "")
+            if isinstance(content, list):
+                for blk in content:
+                    if isinstance(blk, dict):
+                        assert "cache_control" not in blk, (
+                            f"Augmentation-turn message must not carry cache_control; "
+                            f"found it in role={msg['role']!r} block: {blk!r}"
+                        )
+
     def test_openai_completion_receives_string_messages(
         self, tier: str, tmp_path: pathlib.Path
     ) -> None:

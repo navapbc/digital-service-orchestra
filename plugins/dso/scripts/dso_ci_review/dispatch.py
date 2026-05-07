@@ -35,6 +35,8 @@ _SYSTEM_PROMPT = (
 
 _PLUGIN_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 _AGENTS_DIR = _PLUGIN_ROOT / "agents"
+# Git-relative path to this module (used in synthetic cited_lines to avoid literal plugin paths).
+_THIS_FILE_GIT_REL = str(pathlib.Path(__file__).resolve().relative_to(_PLUGIN_ROOT.parent.parent))
 
 # SC4: context-augmentation soft cap (default 15 turns).
 # Module-level so tests can patch it without modifying the function signature.
@@ -478,7 +480,7 @@ def dispatch_review(
                                     f"continued emitting context requests past turn "
                                     f"{_AUG_SOFT_CAP + 3} without providing final findings."
                                 ),
-                                "cited_lines": [],
+                                "cited_lines": [f"{_THIS_FILE_GIT_REL}:418"],
                             }
                         ],
                         "augmentation_failed": True,
