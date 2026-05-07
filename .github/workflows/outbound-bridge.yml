@@ -11,8 +11,10 @@ on:
   # Scheduled trigger added (jira-dig-1575/1576): UI-merged PRs and direct
   # ticket-CLI mutations bypass merge-to-main.sh, leaving event backlogs on
   # the tickets branch indefinitely. The cron mirrors inbound-bridge.yml so
-  # outbound is as reliable as inbound. concurrency: jira-bridge prevents
-  # storms when both an explicit dispatch and a cron tick land together.
+  # outbound is as reliable as inbound. concurrency: bridge-outbound prevents
+  # storms when both an explicit dispatch and a cron tick land together
+  # (separate group from inbound, per 5d93-8b62, so outbound and inbound
+  # don't block each other).
   schedule:
     - cron: '*/30 * * * *'
   workflow_dispatch:
@@ -25,7 +27,7 @@ on:
         options: ['false', 'true']
 
 concurrency:
-  group: jira-bridge
+  group: bridge-outbound
   cancel-in-progress: false
 
 jobs:
@@ -48,9 +50,17 @@ jobs:
           fetch-depth: 1
           ref: main
 
+      - name: Validate BRIDGE_ENV_ID
+        run: |
+          BRIDGE_ENV_ID="${{ vars.BRIDGE_ENV_ID }}"
+          if [ -z "$BRIDGE_ENV_ID" ]; then
+            echo "ERROR: BRIDGE_ENV_ID is unset or empty — cannot run outbound bridge. Set the BRIDGE_ENV_ID repository variable to a non-empty UUID: gh variable set BRIDGE_ENV_ID --body \"\$(uuidgen || python3 -c 'import uuid; print(uuid.uuid4())')\""
+            exit 1
+          fi
+
       - name: Mount tickets branch as worktree
         run: |
-          git fetch origin tickets --depth=2
+          git fetch origin tickets --deepen=50
           rm -rf .tickets-tracker
           git worktree add .tickets-tracker tickets
 

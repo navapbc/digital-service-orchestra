@@ -1770,6 +1770,30 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 
 ---
 
+### `BRIDGE_ENV_ID`
+
+| | |
+|---|---|
+| **Description** | Required non-empty UUID identifying this repo's bridge environment. Both the outbound and inbound bridges fail-fast on startup when this variable is empty or unset. Also drives BRIDGE_ALERT migration semantics: the first run after `BRIDGE_ENV_ID` transitions from empty emits a one-shot alert. Provision with: `gh variable set BRIDGE_ENV_ID --body "$(python3 -c 'import uuid; print(uuid.uuid4())')"` |
+| **Type** | GitHub repo variable (set via `gh variable set`) |
+| **Required** | Required — bridges will not start without it |
+| **Default** | None |
+| **Usage context** | `scripts/bridge/bridge-outbound.py`, `scripts/bridge/bridge-inbound.py` | # shim-exempt: internal implementation references in config documentation
+
+---
+
+### `BRIDGE_USER_MAP`
+
+| | |
+|---|---|
+| **Description** | Optional JSON object mapping contributor email addresses (case-insensitive) to Jira account IDs for outbound assignee resolution. When `handle_create_event` cannot find the commit author's email in this map, it emits BRIDGE_ALERT and calls `unassign_issue()`. Example: `{"eng@example.com": "5b10ac8d82e05b22cc7d4ef5"}`. |
+| **Type** | Environment variable (JSON string) |
+| **Required** | Optional — defaults to `{}` (all contributors fall through to BRIDGE_ALERT + unassigned path) |
+| **Default** | `{}` |
+| **Usage context** | `scripts/bridge/bridge-outbound.py` | # shim-exempt: internal implementation reference in config documentation
+
+---
+
 ### `ARTIFACTS_DIR`
 
 | | |

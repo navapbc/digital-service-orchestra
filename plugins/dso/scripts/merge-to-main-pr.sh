@@ -883,7 +883,7 @@ _pr_commit_code_change_threads() {
 #   PR_THREAD_LOOP_INTERVAL           — overrides config default (30)
 #   PR_THREAD_LOOP_START_OVERRIDE_SECONDS — simulate elapsed time at start (default 0)
 #   PR_THREAD_LOOP_TEST_STOP_AFTER_RESET  — exit 0 after first POLL_WINDOW_RESET (testing)
-#   _LLM_DISPATCH_CMD                 — override LLM dispatch command (required; no default — deleted in S3)
+#   _LLM_DISPATCH_CMD                 — REQUIRED LLM dispatch command (no default; unset → ESCALATE+exit 1)
 _phase_resolve_threads() {
     local _pr_number="$1" _pr_url="$2"
 
@@ -896,11 +896,14 @@ _phase_resolve_threads() {
     local _last_thread_seen_ts=0
     local _last_thread_count=0
     local _last_head_sha=""
-    # compat-shim: LLM helper was deleted in S3; set _LLM_DISPATCH_CMD to provide an LLM helper
+    # compat-shim: LLM helper was deleted in S3; _LLM_DISPATCH_CMD must be set.
+    # Fail-loud (not return 0) when unset: a silent skip lets the merge proceed
+    # without resolving review threads, defeating the safety property the user
+    # asked for ("we cannot merge without LLM review"). Bug 9e04-0eb6.
     local _llm_cmd="${_LLM_DISPATCH_CMD:-}"
     if [[ -z "$_llm_cmd" ]]; then
-        echo "WARNING: _LLM_DISPATCH_CMD not set; no LLM helper available (deleted in S3) — LLM step skipped" >&2
-        return 0
+        echo "ESCALATE: _LLM_DISPATCH_CMD not set; no LLM helper available (deleted in S3). Configure _LLM_DISPATCH_CMD to a compat-shim or override per-environment to enable PR thread resolution. Refusing to silently skip." >&2
+        return 1
     fi
     # Track threads the LLM escalated so they are skipped on subsequent iterations
     # instead of burning the dispatch budget repeatedly on unresolvable threads.
@@ -1207,11 +1210,14 @@ _dispatch_resolve_conflicts() {
             "Session agent must run /dso:resolve-conflicts (or rebase manually), push, and re-run merge-to-main.sh."
         return 2
     fi
-    # compat-shim: LLM helper was deleted in S3; set _RESOLVE_CONFLICTS_LLM_CMD to provide an LLM helper
+    # compat-shim: LLM helper was deleted in S3; _RESOLVE_CONFLICTS_LLM_CMD must be set.
+    # Fail-loud (return 2 = ESCALATE per this function's exit-code contract)
+    # when unset: a silent skip would leave a CONFLICTING PR queued for
+    # auto-merge with no resolution attempt. Bug 9e04-0eb6.
     local _llm_cmd="${_RESOLVE_CONFLICTS_LLM_CMD:-}"
     if [[ -z "$_llm_cmd" ]]; then
-        echo "WARNING: _RESOLVE_CONFLICTS_LLM_CMD not set; no LLM helper available (deleted in S3) — LLM step skipped" >&2
-        return 0
+        echo "ESCALATE: _RESOLVE_CONFLICTS_LLM_CMD not set; no LLM helper available (deleted in S3). Configure _RESOLVE_CONFLICTS_LLM_CMD to enable LLM-driven conflict resolution. Refusing to silently skip." >&2
+        return 2
     fi
     local _prompt_file="${CLAUDE_PLUGIN_ROOT}/docs/workflows/prompts/resolve-conflicts-dispatch.md"
     local _context_file
@@ -1234,7 +1240,16 @@ _phase_conflict_resolution() {
     local _merge_state
     _merge_state=$(gh pr view "$_pr_number" --json mergeStateStatus --jq '.mergeStateStatus' 2>/dev/null || true)
     [[ "$_merge_state" != "CONFLICTING" ]] && return 0
-    _dispatch_resolve_conflicts "$_pr_number" "$_pr_url" 2>/dev/null || true
+    # Capture rc and propagate stderr so an ESCALATE: from _dispatch_resolve_conflicts
+    # (e.g., _RESOLVE_CONFLICTS_LLM_CMD unset → return 2) reaches the caller and
+    # is visible in logs. A bare `2>/dev/null || true` would swallow both, making
+    # the fail-loud guard in _dispatch_resolve_conflicts ineffective. Bug 9e04-0eb6.
+    local _dispatch_rc=0
+    _dispatch_resolve_conflicts "$_pr_number" "$_pr_url" || _dispatch_rc=$?
+    if (( _dispatch_rc == 2 )); then
+        echo "ESCALATION_REASON: Conflict resolution dispatch escalated (rc=2)" >&2
+        return 1
+    fi
     _merge_state=$(gh pr view "$_pr_number" --json mergeStateStatus --jq '.mergeStateStatus' 2>/dev/null || true)
     if [[ "$_merge_state" == "CONFLICTING" ]]; then
         echo "ESCALATION_REASON: Conflict resolution failed" >&2
@@ -1328,7 +1343,7 @@ print(json.dumps(d))
 # --- _dispatch_fix_agent: invoke LLM sub-agent to apply fixes from findings ---
 #
 # ENV OVERRIDES (for testing):
-#   _REMEDIATE_LLM_CMD  — override LLM command (required; no default — deleted in S3)
+#   _REMEDIATE_LLM_CMD  — REQUIRED LLM command (no default; unset → ESCALATE+return 2)
 #                         Separate from _LLM_DISPATCH_CMD to avoid colliding with
 #                         the thread-resolution override in _phase_resolve_threads.
 #
@@ -1343,11 +1358,14 @@ _dispatch_fix_agent() {
             "Session agent must invoke /dso:fix-bug on the failing CI run, push the fix, and re-run merge-to-main.sh."
         return 2
     fi
-    # compat-shim: LLM helper was deleted in S3; set _REMEDIATE_LLM_CMD to provide an LLM helper
+    # compat-shim: LLM helper was deleted in S3; _REMEDIATE_LLM_CMD must be set.
+    # Fail-loud (return 2 = ESCALATE per this function's exit-code contract)
+    # when unset: a silent skip would leave failing CI checks unaddressed and
+    # the PR queued for auto-merge with no remediation attempt. Bug 9e04-0eb6.
     local _llm_cmd="${_REMEDIATE_LLM_CMD:-}"
     if [[ -z "$_llm_cmd" ]]; then
-        echo "WARNING: _REMEDIATE_LLM_CMD not set; no LLM helper available (deleted in S3) — LLM step skipped" >&2
-        return 0
+        echo "ESCALATE: _REMEDIATE_LLM_CMD not set; no LLM helper available (deleted in S3). Configure _REMEDIATE_LLM_CMD to enable LLM-driven CI remediation. Refusing to silently skip." >&2
+        return 2
     fi
     local _prompt_file="${CLAUDE_PLUGIN_ROOT}/docs/workflows/prompts/review-fix-dispatch.md"
     local _result

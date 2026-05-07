@@ -18,7 +18,7 @@ except ImportError:  # Python < 3.9
     from backports.zoneinfo import ZoneInfo  # type: ignore[no-redef]
 
 from bridge._atomic import atomic_write_json
-from bridge._inbound_utils import parse_jira_timestamp
+from bridge._inbound_utils import _adf_to_text, parse_jira_timestamp
 from bridge._sync_io import has_existing_sync, write_sync_event
 
 # Jira priority name → local 0-4 integer scale
@@ -234,10 +234,8 @@ def write_create_events(
             else "Task"
         )
         jira_summary = normalized_fields.get("summary", "")
-        _raw_desc = normalized_fields.get("description", "")
-        jira_description = (
-            _raw_desc if isinstance(_raw_desc, str) and _raw_desc.strip() else None
-        )
+        _raw_desc = normalized_fields.get("description")
+        jira_description = _adf_to_text(_raw_desc) or None
 
         jira_priority_obj = normalized_fields.get("priority", {})
         local_priority: int | None = None

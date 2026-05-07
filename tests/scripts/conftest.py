@@ -23,6 +23,13 @@ _TESTS_SCRIPTS_DIR = str(Path(__file__).resolve().parent)
 if _TESTS_SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _TESTS_SCRIPTS_DIR)
 
+# Ensure the bridge package is importable via `from bridge._inbound_utils import ...`.
+_BRIDGE_SCRIPTS_DIR = str(
+    Path(__file__).resolve().parents[2] / "plugins" / "dso" / "scripts"
+)
+if _BRIDGE_SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _BRIDGE_SCRIPTS_DIR)
+
 # ---------------------------------------------------------------------------
 # Module loading
 # ---------------------------------------------------------------------------
