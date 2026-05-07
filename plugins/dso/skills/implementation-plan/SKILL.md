@@ -621,16 +621,19 @@ The sub-agent executing the task is responsible for running Playwright as part o
 
 ### Documentation Updates
 
-If the story introduces or modifies patterns, conventions, or significant technical decisions, include a documentation task:
+If the story introduces or modifies patterns, conventions, or significant technical decisions, **run the gates in `${CLAUDE_PLUGIN_ROOT}/skills/shared/prompts/doc-router.md`** to select the target file. Do not infer the target from intuition; the router replaces the legacy heuristic that biased toward CLAUDE.md and away from skill-scoped docs.
 
-- **New pattern** approved in Step 2 → create or update ADR in `docs/adr/`
-- **Modified pattern** → update the relevant ADR with rationale
-- **New conventions** → update Standardization Guide or relevant docs
-- **New integration/dependency** → document in architecture docs
-- **Config changes** → update environment or deployment docs
-- Follow `.claude/docs/DOCUMENTATION-GUIDE.md` for formatting and structure.
+If at least one router gate fires, include a documentation task. The task MUST:
 
-The doc task depends on implementation tasks and references Step 2 feedback if applicable. If no docs needed, note rationale (e.g., "No new patterns; existing ADRs remain accurate").
+- **State which router gate fired** (1–5) and the resolved target file in the task description.
+- **Set the target per the router**, in order of preference: Gate 1 → `${CLAUDE_PLUGIN_ROOT}/skills/<skill>/SKILL.md`; Gate 2 → existing reference doc (`HOOKS-REFERENCE.md`, `AGENTS.md`, `WORKTREE-GUIDE.md`, `CONFIGURATION-REFERENCE.md`, `CI-INTEGRATION.md`, contract docs, `KNOWN-ISSUES.md`); Gate 3 → `INSTALL.md` / `README.md` / `docs/user/`; Gate 4 → new ADR in `docs/adr/`; Gate 5 → `CLAUDE_MD_SUGGESTED_CHANGE` report only (no direct CLAUDE.md edit).
+- **Never name CLAUDE.md as the direct target.** A task that would edit CLAUDE.md must instead emit a `CLAUDE_MD_SUGGESTED_CHANGE` report and route through the orchestrator.
+- **Include the attestation requirement** in the task acceptance criteria: the executing sub-agent emits `DOC_ROUTER_ATTESTATION` in its completion report.
+- **Follow `.claude/docs/DOCUMENTATION-GUIDE.md`** for formatting and structure.
+
+If no router gate fires, omit the documentation task and note the rationale (e.g., "doc-router: no gate fired — internal refactor; existing docs remain accurate").
+
+The doc task depends on the implementation tasks it documents and references Step 2 feedback if applicable.
 
 ### Contract Detection Pass
 
