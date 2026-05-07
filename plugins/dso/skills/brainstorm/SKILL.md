@@ -429,6 +429,8 @@ fi
 
 Use for: validating whether the proposed approach conflicts with existing patterns; checking whether an assumed dependency is already imported; tracing bidirectional data flow to detect sync loops or race conditions. If neither produces results, log the pattern and continue.
 
+**Part B inferred-source re-entry**: When the pipeline's Inference-Signal Scan raises one or more inferred-source gaps (sources that could not be verified), re-enter Phase 1 Step 2 with a targeted Socratic question for each unverified source before continuing the pipeline. Treat each source as a new intent gap and apply the standard gap-question loop.
+
 #### Post-Scrutiny Handlers
 
 After the pipeline returns, read `phases/post-scrutiny-handlers.md` and execute in order:
