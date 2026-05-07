@@ -1,0 +1,1 @@
+{"author":"Test","data":{"body":"Classification: mechanical — relative path derivation in plugin script blocked by portability test. Fix: replace line 34 cd traversal with git rev-parse --show-toplevel"},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1778189062839839000,"uuid":"b0361da6-0f7d-41df-a959-b810cb770135"}
