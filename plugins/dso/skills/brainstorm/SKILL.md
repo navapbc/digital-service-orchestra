@@ -385,6 +385,8 @@ As you draft the epic spec, classify the origin of each SC and key context claim
 
 Track provenance internally — the approval gate (Step 4) uses these categories for annotation.
 
+When drafting the epic spec narrative in Phase 2, wrap inferred input source noun phrases with `<<inferred:source-name>>` structural markers. For example, if the spec mentions "data fetched from the user service" and the user service was inferred (not explicitly stated), write `<<inferred:user-service>>` around the reference. See `${CLAUDE_PLUGIN_ROOT}/docs/contracts/inferred-source-marker.md` for the full contract specification.
+
 ### Step 2.25: Cross-Epic Interaction Scan
 
 <HARD-GATE>
