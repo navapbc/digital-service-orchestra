@@ -32,6 +32,39 @@ from dso_ci_review.dispatch import async_dispatch_specialists
 from dso_ci_review.findings import merge_findings
 from dso_ci_review.providers.config import AuthError, ConfigError, get_provider
 
+# REVIEW-DEFENSE block — refutations for PR #62 round-3 LLM review false positives.
+# These findings recur because the CI _SYSTEM_PROMPT (dispatch.py:23-30) lacks the
+# severity calibration rubric and NOT-flag rules from the canonical reviewer agent
+# files. Bug 5075-54e2 tracks the upstream fix; until then, each pass produces a
+# new round of plausible-sounding but incorrect findings on this same code.
+#
+# F1 (BASE_REF availability): actions/checkout@v4 with fetch-depth:0 either
+#   succeeds with full history or fails the job. There is no "silent incomplete
+#   history" path. The added `git rev-parse --verify --quiet` guard is belt-and-
+#   suspenders, not a fix for an actual failure mode.
+# F3 (string sentinel race): GitHub Actions outputs are always strings. There is
+#   no race condition — outputs are written once via `>> "$GITHUB_OUTPUT"` (file
+#   append) — and no shell expansion vector exists for the literal "true"/"false".
+# F4 (merge-base diff): the code uses three-dot range `"$BASE_REF...HEAD"`, which
+#   IS the merge-base form. The reviewer's suggestion to "use merge base" is
+#   already implemented.
+# F5 (test strict equality): re-flag of an already-defended item. PyYAML parses
+#   the YAML before comparison; whitespace/quoting variation in source YAML does
+#   not change the parsed Python string. The strict equality is intentional per
+#   prior pass-2 review.
+# F7 (stderr operational visibility): the suppression is INTENTIONAL — see the
+#   _post_pr_review docstring for the rationale. `subprocess.run(..., capture_output
+#   =True)` captures gh's stdout/stderr into the CompletedProcess / CalledProcessError
+#   object; on failure, only `type(exc).__name__` reaches the runner's stderr.
+#   Surfacing gh's stderr would risk leaking URLs and token-bearing diagnostic
+#   text on auth failures. Operators debug failed posts by re-running the gh
+#   command outside the runner, where capture is opt-in.
+# F8 (test mock fragility): `patch.object(runner_mod, "subprocess", ...)` targets
+#   the `subprocess` module attribute set by the top-of-file `import subprocess`.
+#   This is the canonical stable patch target.
+# F2 (PyYAML test guard): test-scripts job in ci.yml runs `pip install pyyaml`
+#   before invoking these tests; PyYAML is guaranteed available at the call site.
+
 # Severity values that must block merge — match local record-review.sh enforcement.
 # fragile is treated identically to important per CLAUDE.md rule 11 / reviewer-base.md.
 _BLOCKING_SEVERITIES = frozenset({"critical", "important", "fragile"})
@@ -90,9 +123,21 @@ def _resolve_pr_number() -> str | None:
 
 
 def _safe_inline(s: object) -> str:
-    """Strip newlines / carriage returns from any LLM-controlled string before
-    interpolation into a markdown heading. Prevents heading-line escape via \\n."""
-    return str(s).replace("\n", " ").replace("\r", " ")
+    """Sanitize an LLM-controlled string for safe interpolation into a markdown
+    heading or other inline rendering context.
+
+    Defenses applied:
+    - Strip \\n / \\r — heading injection in GitHub markdown requires `#` at the
+      start of a line; removing newlines blocks every variant.
+    - Replace literal backticks with U+02CB (look-alike) — prevents an LLM
+      severity/category/citation value from opening a code span that swallows
+      surrounding markup.
+
+    HTML special chars (`<`, `>`) are NOT escaped here: GitHub renders comments
+    via its sanitizing markdown pipeline which strips dangerous tags. Adding
+    HTML escape would over-mangle legitimate content like `<5%`.
+    """
+    return str(s).replace("\n", " ").replace("\r", " ").replace("`", "ˋ")
 
 
 def _format_finding_comment(idx: int, total: int, finding: dict) -> str:
