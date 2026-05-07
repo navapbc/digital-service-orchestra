@@ -35,6 +35,10 @@ _SYSTEM_PROMPT = (
 _PLUGIN_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 _AGENTS_DIR = _PLUGIN_ROOT / "agents"
 
+# SC4: context-augmentation soft cap (default 15 turns).
+# Module-level so tests can patch it without modifying the function signature.
+CONTEXT_AUG_SOFT_CAP: int = 15
+
 
 @functools.lru_cache(maxsize=32)
 def _load_agent_prompt(agent_id: str) -> str:
@@ -229,7 +233,7 @@ def dispatch_review(
                 fallbacks=fallbacks,  # DD1: SDK-native cross-provider fallback (Axis 1)
             )
 
-            # Axis 3: single-turn context-augmentation loop (non-light tiers only).
+            # Axis 3: multi-turn context-augmentation loop (non-light tiers only, SC4).
             # Light tier: single-shot, no augmentation.
             if tier != "light":
                 from dso_ci_review.context_request import (
@@ -238,12 +242,92 @@ def dispatch_review(
                     parse_request_blocks,
                 )
 
-                assistant_content = response.choices[0].message.content or ""
-                turn_messages = [{"role": "assistant", "content": assistant_content}]
-                request_blocks = parse_request_blocks(turn_messages)
+                # SC4: per-tier configurable soft cap (module constant, patchable in tests).
+                _AUG_SOFT_CAP = CONTEXT_AUG_SOFT_CAP
+                _AUG_FIRST_NUDGE = (
+                    "You have reached the context-augmentation turn limit. "
+                    "Please provide your final code review findings now without "
+                    "issuing any additional context requests."
+                )
+                _AUG_SECOND_NUDGE = (
+                    "FINAL WARNING: You must provide your final review findings "
+                    "immediately. No further context requests will be processed. "
+                    "Failure to comply will result in this review being recorded as failed."
+                )
 
-                if request_blocks:
-                    # Execute each context request and collect results
+                aug_messages = list(messages)
+                current_response = response
+                aug_turn = 0
+                nudge_count = (
+                    0  # 0=pre-nudge, 1=after first nudge, 2=after second nudge
+                )
+                aug_failed = False
+
+                while aug_turn <= _AUG_SOFT_CAP + 4:
+                    assistant_content = (
+                        current_response.choices[0].message.content or ""
+                    )
+                    turn_msgs = [{"role": "assistant", "content": assistant_content}]
+                    request_blocks = parse_request_blocks(turn_msgs)
+
+                    # Check if this turn has parseable final findings
+                    has_findings = False
+                    try:
+                        parsed_attempt = _parse_response(current_response)
+                        has_findings = bool(parsed_attempt.get("findings") is not None)
+                    except (ValueError, KeyError, AttributeError):
+                        has_findings = False
+
+                    # No context requests → assistant provided final findings
+                    if not request_blocks:
+                        response = current_response
+                        break
+
+                    # Post-nudge state machine (SC4): when both request AND findings
+                    # are present, ignore the request and count as a strike.
+                    if nudge_count >= 1 and has_findings:
+                        # Request is ignored; treat this turn as final findings.
+                        response = current_response
+                        break
+
+                    # Soft-cap nudge at turn soft_cap
+                    if aug_turn >= _AUG_SOFT_CAP and nudge_count == 0:
+                        nudge_count = 1
+                        aug_messages = aug_messages + [
+                            {"role": "assistant", "content": assistant_content},
+                            {"role": "user", "content": _AUG_FIRST_NUDGE},
+                        ]
+                        current_response = litellm.completion(
+                            model=ctx_model,
+                            messages=aug_messages,
+                            stream=False,
+                            fallbacks=fallbacks,
+                        )
+                        aug_turn += 1
+                        continue
+
+                    # Second nudge at soft_cap+3
+                    if aug_turn >= _AUG_SOFT_CAP + 3 and nudge_count == 1:
+                        nudge_count = 2
+                        aug_messages = aug_messages + [
+                            {"role": "assistant", "content": assistant_content},
+                            {"role": "user", "content": _AUG_SECOND_NUDGE},
+                        ]
+                        current_response = litellm.completion(
+                            model=ctx_model,
+                            messages=aug_messages,
+                            stream=False,
+                            fallbacks=fallbacks,
+                        )
+                        aug_turn += 1
+                        continue
+
+                    # Fail-closed: reviewer ignored both nudges
+                    if aug_turn >= _AUG_SOFT_CAP + 4 and nudge_count >= 2:
+                        aug_failed = True
+                        break
+
+                    # Normal turn: execute context requests and re-complete
                     augmentation_parts: list[str] = []
                     for req in request_blocks:
                         action = req.get("action")
@@ -268,22 +352,46 @@ def dispatch_review(
                                 )
 
                     if augmentation_parts:
-                        # Append file contents as a new user message and re-complete
                         augmented_user_content = (
                             "File contents requested:\n\n"
                             + "\n\n".join(augmentation_parts)
                         )
-                        augmented_messages = list(messages) + [
+                        aug_messages = aug_messages + [
                             {"role": "assistant", "content": assistant_content},
                             {"role": "user", "content": augmented_user_content},
                         ]
-                        follow_up_response = litellm.completion(
+                        current_response = litellm.completion(
                             model=ctx_model,
-                            messages=augmented_messages,
-                            stream=False,  # DD1: never stream
+                            messages=aug_messages,
+                            stream=False,
                             fallbacks=fallbacks,
                         )
-                        response = follow_up_response
+                    else:
+                        # Requests were all unknown actions; treat as done
+                        response = current_response
+                        break
+
+                    aug_turn += 1
+
+                if aug_failed:
+                    # Fail-closed: record as failed (SC4)
+                    failed_result: dict[str, Any] = {
+                        "findings": [
+                            {
+                                "severity": "critical",
+                                "description": (
+                                    "Context-augmentation loop failed-closed: reviewer "
+                                    f"continued emitting context requests past turn "
+                                    f"{_AUG_SOFT_CAP + 3} without providing final findings."
+                                ),
+                                "cited_lines": [],
+                            }
+                        ],
+                        "augmentation_failed": True,
+                    }
+                    if fallback_hops:
+                        failed_result["fallback_hops"] = fallback_hops
+                    return failed_result
 
             result = _parse_response(response)
 

@@ -457,3 +457,182 @@ def test_grep_rejects_path_outside_repo_root(tmp_path: pathlib.Path) -> None:
     assert "secret content" not in result.get("output", ""), (
         "Security jail breach: secret content appeared in output"
     )
+
+
+# ---------------------------------------------------------------------------
+# Multi-turn augmentation loop tests (d7fa-a6a2-e3a6-4076)
+# ---------------------------------------------------------------------------
+
+
+def _make_mock_response(content: str):
+    """Return a minimal litellm-compatible response mock."""
+
+    class _Choice:
+        class _Message:
+            pass
+
+        message = _Message()
+
+    r = object.__new__(type("MockResponse", (), {}))
+    choice = _Choice()
+    choice.message.content = content
+    r.choices = [choice]
+    r._hidden_params = {}
+    return r
+
+
+def _findings_content() -> str:
+    return json.dumps(
+        {"findings": [{"severity": "minor", "description": "ok", "cited_lines": []}]}
+    )
+
+
+def _request_content() -> str:
+    return (
+        f"```json\n{json.dumps({'action': 'read_files', 'paths': ['README.md']})}\n```"
+    )
+
+
+def _request_and_findings_content() -> str:
+    """Turn that contains BOTH a context-request block AND final findings."""
+    return (
+        f"Here is a request:\n```json\n{json.dumps({'action': 'read_files', 'paths': ['x.py']})}\n```\n\n"
+        f"And here are my findings:\n{_findings_content()}"
+    )
+
+
+def test_augmentation_soft_cap_nudge_triggers_final_findings(
+    tmp_path: pathlib.Path,
+) -> None:
+    """At soft_cap turns, wrap-up nudge is injected and assistant emits final findings.
+
+    Satisfies SC4 (nudge → JSON path).
+    """
+    import dso_ci_review.dispatch as _dispatch_mod
+    from dso_ci_review import dispatch
+
+    call_count = 0
+
+    def mock_completion(**kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            # Initial response: emits a context request
+            return _make_mock_response(_request_content())
+        if call_count <= 3:
+            # After file results provided: still requests (approaching soft cap)
+            return _make_mock_response(_request_content())
+        # After nudge: emit final findings
+        return _make_mock_response(_findings_content())
+
+    environ = {"ANTHROPIC_API_KEY": "test-key"}
+
+    # Patch soft cap to 2 so test runs fast
+    original_cap = _dispatch_mod.CONTEXT_AUG_SOFT_CAP
+    _dispatch_mod.CONTEXT_AUG_SOFT_CAP = 2
+    try:
+        with patch("litellm.completion", side_effect=mock_completion):
+            result = dispatch.dispatch_review(
+                diff_text="--- a/f.py\n+++ b/f.py\n@@ -1 +1 @@\n-x\n+y",
+                provider_chain=["anthropic"],
+                environ=environ,
+                agent_id="unknown",
+                repo_root=str(tmp_path),
+                tier="standard",
+            )
+    finally:
+        _dispatch_mod.CONTEXT_AUG_SOFT_CAP = original_cap
+
+    assert "findings" in result, (
+        f"Expected findings in result, got: {list(result.keys())}"
+    )
+    assert not result.get("augmentation_failed"), "Expected success (not fail-closed)"
+
+
+def test_augmentation_fail_closed_past_hard_cap(tmp_path: pathlib.Path) -> None:
+    """Reviewer continuing to emit requests past soft_cap+3 records as failed.
+
+    Satisfies SC4 (fail-closed recording).
+    """
+    import dso_ci_review.dispatch as _dispatch_mod
+    from dso_ci_review import dispatch
+
+    def mock_completion(**kwargs):
+        # Always emit a context request — never complies
+        return _make_mock_response(_request_content())
+
+    environ = {"ANTHROPIC_API_KEY": "test-key"}
+
+    original_cap = _dispatch_mod.CONTEXT_AUG_SOFT_CAP
+    _dispatch_mod.CONTEXT_AUG_SOFT_CAP = 1
+    try:
+        with patch("litellm.completion", side_effect=mock_completion):
+            result = dispatch.dispatch_review(
+                diff_text="--- a/f.py\n+++ b/f.py\n@@ -1 +1 @@\n-x\n+y",
+                provider_chain=["anthropic"],
+                environ=environ,
+                agent_id="unknown",
+                repo_root=str(tmp_path),
+                tier="standard",
+            )
+    finally:
+        _dispatch_mod.CONTEXT_AUG_SOFT_CAP = original_cap
+
+    assert result.get("augmentation_failed") is True, (
+        f"Expected augmentation_failed=True for fail-closed, got: {result}"
+    )
+    findings = result.get("findings", [])
+    assert findings, "Expected a synthetic critical finding for fail-closed path"
+    assert findings[0]["severity"] == "critical", (
+        f"Expected critical severity for fail-closed finding, got: {findings[0]['severity']}"
+    )
+
+
+def test_augmentation_post_nudge_request_with_findings_is_ignored(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Post-nudge: turn containing both request AND findings has request ignored; findings used.
+
+    Satisfies SC4 (post-nudge state-machine rule).
+    """
+    import dso_ci_review.dispatch as _dispatch_mod
+    from dso_ci_review import dispatch
+
+    call_count = 0
+
+    def mock_completion(**kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            # Initial: context request only
+            return _make_mock_response(_request_content())
+        if call_count == 2:
+            # After file results: another request (triggers soft cap nudge)
+            return _make_mock_response(_request_content())
+        # After nudge: emits BOTH request AND findings (post-nudge mixed turn)
+        return _make_mock_response(_request_and_findings_content())
+
+    environ = {"ANTHROPIC_API_KEY": "test-key"}
+
+    original_cap = _dispatch_mod.CONTEXT_AUG_SOFT_CAP
+    _dispatch_mod.CONTEXT_AUG_SOFT_CAP = 2
+    try:
+        with patch("litellm.completion", side_effect=mock_completion):
+            result = dispatch.dispatch_review(
+                diff_text="--- a/f.py\n+++ b/f.py\n@@ -1 +1 @@\n-x\n+y",
+                provider_chain=["anthropic"],
+                environ=environ,
+                agent_id="unknown",
+                repo_root=str(tmp_path),
+                tier="standard",
+            )
+    finally:
+        _dispatch_mod.CONTEXT_AUG_SOFT_CAP = original_cap
+
+    # Request was ignored; findings from the mixed turn were used
+    assert "findings" in result, (
+        f"Expected findings (request should be ignored, findings used), got: {list(result.keys())}"
+    )
+    assert not result.get("augmentation_failed"), (
+        "Expected success (findings accepted from mixed turn)"
+    )
