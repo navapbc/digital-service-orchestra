@@ -145,6 +145,7 @@ def dispatch_review(
     primary_model: str | None = None,
     repo_root: str | None = None,
     tier: str = "standard",
+    soft_cap: int | None = None,
 ) -> dict[str, Any]:
     """Dispatch a code review using LiteLLM with manual context-window escalation.
 
@@ -166,6 +167,9 @@ def dispatch_review(
         repo_root: Repository root path for the context-augmentation file jail.
                    Defaults to the current working directory when None.
         tier: Review tier — "light" skips context augmentation; all others enable it.
+        soft_cap: Per-call soft cap override for context-augmentation turns. When None,
+                  falls back to the module-level CONTEXT_AUG_SOFT_CAP constant (patchable
+                  in tests). Use this to set per-tier caps at the call site.
 
     Returns:
         A dict containing "findings" (list). When a fallback hop occurred,
@@ -242,8 +246,10 @@ def dispatch_review(
                     parse_request_blocks,
                 )
 
-                # SC4: per-tier configurable soft cap (module constant, patchable in tests).
-                _AUG_SOFT_CAP = CONTEXT_AUG_SOFT_CAP
+                # SC4: per-call soft_cap parameter takes precedence over module constant.
+                _AUG_SOFT_CAP = (
+                    soft_cap if soft_cap is not None else CONTEXT_AUG_SOFT_CAP
+                )
                 _AUG_FIRST_NUDGE = (
                     "You have reached the context-augmentation turn limit. "
                     "Please provide your final code review findings now without "

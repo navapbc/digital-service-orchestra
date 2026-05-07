@@ -636,3 +636,120 @@ def test_augmentation_post_nudge_request_with_findings_is_ignored(
     assert not result.get("augmentation_failed"), (
         "Expected success (findings accepted from mixed turn)"
     )
+
+
+def test_explicit_soft_cap_argument_takes_precedence_over_module_constant(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Explicit soft_cap= argument overrides CONTEXT_AUG_SOFT_CAP module constant.
+
+    Satisfies DD4 (per-tier soft-cap override): dispatch_review accepts soft_cap
+    and uses it instead of the module-level constant, allowing per-tier configuration
+    at the call site without patching globals.
+    """
+    import dso_ci_review.dispatch as _dispatch_mod
+    from dso_ci_review import dispatch
+
+    call_count = 0
+
+    def mock_completion(**kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count <= 2:
+            # Return requests for first two calls; triggers nudge at aug_turn=soft_cap=1
+            return _make_mock_response(_request_content())
+        return _make_mock_response(_findings_content())
+
+    environ = {"ANTHROPIC_API_KEY": "test-key"}
+
+    # Module constant is 15; explicit soft_cap=1 must override it
+    assert _dispatch_mod.CONTEXT_AUG_SOFT_CAP == 15, (
+        "Module constant must be 15 for this test to validate override behavior"
+    )
+
+    with patch("litellm.completion", side_effect=mock_completion):
+        result = dispatch.dispatch_review(
+            diff_text="--- a/f.py\n+++ b/f.py\n@@ -1 +1 @@\n-x\n+y",
+            provider_chain=["anthropic"],
+            environ=environ,
+            agent_id="unknown",
+            repo_root=str(tmp_path),
+            tier="standard",
+            soft_cap=1,  # explicit override: nudge fires after 1 normal turn
+        )
+
+    assert "findings" in result, (
+        f"Expected findings from soft_cap=1 override, got: {list(result.keys())}"
+    )
+    assert not result.get("augmentation_failed"), (
+        "Expected success (soft_cap=1 override caused early nudge then compliance)"
+    )
+    # With soft_cap=1: initial call (aug_turn=0→request), normal turn call (aug_turn=0→request→aug_turn=1),
+    # nudge fires at aug_turn=1>=soft_cap=1, then findings returned → at least 3 calls
+    assert call_count >= 3, (
+        f"Expected ≥3 calls with soft_cap=1 (initial+normal+nudge), got {call_count}"
+    )
+
+
+def test_per_tier_soft_cap_via_explicit_argument(tmp_path: pathlib.Path) -> None:
+    """Per-tier soft caps are achievable by passing different soft_cap values per tier.
+
+    Satisfies DD4 (per-tier soft-cap override): a lower soft_cap fires the nudge after
+    fewer turns; a higher soft_cap allows more turns before nudge. Verified by counting
+    LLM calls: a nudge-aware mock returns findings only after the nudge message appears,
+    so tight nudge = fewer total calls.
+    """
+    from dso_ci_review import dispatch
+
+    environ = {"ANTHROPIC_API_KEY": "test-key"}
+    call_counts: dict[str, int] = {}
+
+    _NUDGE_PHRASE = "context-augmentation turn limit"
+
+    def make_nudge_aware_mock(label: str):
+        """Returns findings only after the nudge message appears in messages."""
+
+        def mock_completion(**kwargs):
+            call_counts[label] = call_counts.get(label, 0) + 1
+            messages = kwargs.get("messages", [])
+            # Check if any user message contains the nudge phrase
+            nudged = any(
+                _NUDGE_PHRASE in m.get("content", "")
+                for m in messages
+                if m.get("role") == "user"
+            )
+            if nudged:
+                return _make_mock_response(_findings_content())
+            return _make_mock_response(_request_content())
+
+        return mock_completion
+
+    # tight cap: soft_cap=1 — nudge fires after 1 normal turn
+    with patch("litellm.completion", side_effect=make_nudge_aware_mock("tight")):
+        dispatch.dispatch_review(
+            diff_text="--- a/f.py\n+++ b/f.py\n@@ -1 +1 @@\n-x\n+y",
+            provider_chain=["anthropic"],
+            environ=environ,
+            agent_id="unknown",
+            repo_root=str(tmp_path),
+            tier="standard",
+            soft_cap=1,
+        )
+
+    # loose cap: soft_cap=3 — nudge fires after 3 normal turns
+    with patch("litellm.completion", side_effect=make_nudge_aware_mock("loose")):
+        dispatch.dispatch_review(
+            diff_text="--- a/f.py\n+++ b/f.py\n@@ -1 +1 @@\n-x\n+y",
+            provider_chain=["anthropic"],
+            environ=environ,
+            agent_id="unknown",
+            repo_root=str(tmp_path),
+            tier="standard",
+            soft_cap=3,
+        )
+
+    # Loose cap allows more turns before nudge — it takes more calls to reach the nudge
+    assert call_counts.get("loose", 0) > call_counts.get("tight", 0), (
+        f"Expected loose soft_cap=3 to require more LLM calls before nudge than tight soft_cap=1, "
+        f"got tight={call_counts.get('tight')} loose={call_counts.get('loose')}"
+    )
