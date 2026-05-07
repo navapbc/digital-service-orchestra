@@ -1718,7 +1718,9 @@ def _make_tmp_git_tracker(tmp_path, n_event_commits=3):
     for i in range(n_event_commits):
         ticket_dir = repo / f"ticket-{i:04d}"
         ticket_dir.mkdir(exist_ok=True)
-        event_file = ticket_dir / f"1000{i}-uuid{i}-STATUS.json"
+        event_file = (
+            ticket_dir / f"1000{i}-deadbeef-cafe-4a1b-8f2d-{i:012x}-STATUS.json"
+        )
         event_file.write_text(
             f'{{"event_type": "STATUS", "ticket_id": "ticket-{i:04d}"}}'
         )
