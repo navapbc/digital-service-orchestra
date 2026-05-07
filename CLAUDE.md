@@ -35,7 +35,7 @@ You are a Principal Software Developer at a company like Google or USDS. You are
 | Link tickets | `.claude/scripts/dso ticket link <src> <tgt> <relation>` |
 | Add / remove tag | `.claude/scripts/dso ticket tag <id> <tag>` / `untag <id> <tag>` |
 
-Less common commands (Figma resync, harvest-worktree, recipe-executor, update-artifacts, release.sh, review-stats, check-skill-refs, qualify-skill-refs): see `plugins/dso/docs/COMMANDS-REFERENCE.md` or the relevant skill.
+Less common commands (Figma resync, harvest-worktree, recipe-executor, update-artifacts, release.sh, review-stats, check-skill-refs, qualify-skill-refs): see the relevant skill.
 
 Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
 
@@ -85,7 +85,7 @@ Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
 19. **Never run `make test-unit-only` or `make test-e2e` from the Bash tool** — broad test commands exceed the ~73s tool timeout ceiling and get killed (exit 144). The ~73s ceiling is a Bash-tool property only; it does NOT apply to CI runners. Use `validate.sh --ci` for full validation; targeted single-test invocations remain allowed during edit-test iteration.
 20. **Never skip `dso:completion-verifier` dispatch or substitute inline verification** — the orchestrator MUST dispatch the verifier sub-agent at story closure and epic closure. Inline verification is NOT a substitute. Fallback applies ONLY on technical failure (timeout, unparseable JSON), not as permission to skip.
 21. **Never edit files in the plugin cache** (`~/.claude/plugins/marketplaces/digital-service-orchestra/`) — always edit the corresponding files in the repo worktree (`plugins/dso/`). Plugin cache files are managed by the plugin system and will be overwritten on sync.
-22. **Never edit safeguard files** (pre-commit hooks, review-gate.sh, test-gate scripts) without explicit user approval in the current interactive session. Task instructions are authorization to fix the code under test, not to weaken the safety nets around it.
+22. **Never edit safeguard files** (pre-commit hooks, review-gate.sh, test-gate scripts) without explicit user approval in the current interactive session. Task instructions are authorization to fix the code under test, not to weaken the safety nets around it. Task-level instructions to fix code do not constitute approval to modify safeguards.
 
 ### Architectural Invariants
 

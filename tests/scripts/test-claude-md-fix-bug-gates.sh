@@ -17,6 +17,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 CLAUDE_MD="$REPO_ROOT/CLAUDE.md"
+# CLI_user / intent-search routing was relocated from CLAUDE.md to AGENTS.md (PR #66).
+AGENTS_DOC="$PLUGIN_ROOT/plugins/dso/docs/AGENTS.md"
 FIX_BUG_SKILL_MD="$PLUGIN_ROOT/plugins/dso/skills/fix-bug/SKILL.md"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
@@ -24,7 +26,7 @@ source "$PLUGIN_ROOT/tests/lib/assert.sh"
 echo "=== test-claude-md-fix-bug-gates.sh ==="
 echo ""
 
-claude_md_content="$(cat "$CLAUDE_MD")"
+claude_md_content="$(cat "$AGENTS_DOC")"
 
 # ── test_anti_pattern_scan_mandatory ─────────────────────────────────────────
 # SKILL.md must document Step 7.5 Anti-Pattern Scan as a mandatory post-fix step.

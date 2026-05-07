@@ -97,12 +97,15 @@ test_allowlist_no_code_patterns() {
     fi
 }
 
-# --- Test: CLAUDE.md safeguard rule 20 references the file ---
+# --- Test: HOOKS-REFERENCE.md references the file ---
+# The review-gate-allowlist documentation was relocated from CLAUDE.md to
+# HOOKS-REFERENCE.md (PR #66). The structural assertion still ensures the
+# allowlist file is documented somewhere agents read.
 test_claude_md_references_allowlist() {
-    if grep -q 'review-gate-allowlist' "$REPO_ROOT/CLAUDE.md" 2>/dev/null; then
-        assert_eq "CLAUDE.md references review-gate-allowlist" "true" "true"
+    if grep -q 'review-gate-allowlist' "$REPO_ROOT/plugins/dso/docs/HOOKS-REFERENCE.md" 2>/dev/null; then
+        assert_eq "HOOKS-REFERENCE.md references review-gate-allowlist" "true" "true"
     else
-        assert_eq "CLAUDE.md references review-gate-allowlist" "true" "false"
+        assert_eq "HOOKS-REFERENCE.md references review-gate-allowlist" "true" "false"
     fi
 }
 

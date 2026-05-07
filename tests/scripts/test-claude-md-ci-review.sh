@@ -5,7 +5,8 @@
 set -euo pipefail
 
 REPO_ROOT=$(git rev-parse --show-toplevel)
-CLAUDE_MD="$REPO_ROOT/CLAUDE.md"
+# Content trimmed from CLAUDE.md (PR #66) was relocated to CI-INTEGRATION.md.
+TARGET_DOC="$REPO_ROOT/plugins/dso/docs/CI-INTEGRATION.md"
 
 pass=0
 fail=0
@@ -13,11 +14,23 @@ fail=0
 _assert_contains() {
     local description="$1"
     local pattern="$2"
-    if grep -qF "$pattern" "$CLAUDE_MD"; then
+    if grep -qF "$pattern" "$TARGET_DOC"; then
         echo "PASS: $description"
         ((pass++)) || true
     else
         echo "FAIL: $description — pattern not found: $pattern"
+        ((fail++)) || true
+    fi
+}
+
+_assert_contains_icase_regex() {
+    local description="$1"
+    local pattern="$2"
+    if grep -qiE "$pattern" "$TARGET_DOC"; then
+        echo "PASS: $description"
+        ((pass++)) || true
+    else
+        echo "FAIL: $description — pattern not found (case-insensitive regex): $pattern"
         ((fail++)) || true
     fi
 }
@@ -27,7 +40,8 @@ _assert_contains "ci-llm-review-runner.sh referenced" "ci-llm-review-runner.sh"
 _assert_contains "llm-api-call.sh dispatch referenced" "llm-api-call.sh"
 _assert_contains "source-of-truth marker file referenced" ".dso-source-of-truth"
 _assert_contains "parallel overlay dispatch documented" "fan-out"
-_assert_contains "check-usage.sh exclusion documented" "does not consult"
+# Tolerate markdown emphasis between "not" and "consult" (e.g., "Does **not** consult").
+_assert_contains_icase_regex "check-usage.sh exclusion documented" "not(\\*\\*)? consult"
 
 # CI version resolution chain entry
 _assert_contains "CI version resolution entry present" "CI version resolution"

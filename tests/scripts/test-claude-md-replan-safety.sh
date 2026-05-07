@@ -23,13 +23,21 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 CLAUDE_MD="$REPO_ROOT/CLAUDE.md"
+# Replan safety mechanics were externalized from CLAUDE.md (PR #66) into the
+# replan/gap-classification contract files. Aggregate them for these structural
+# presence assertions.
+REPLAN_CONTRACTS=(
+    "$PLUGIN_ROOT/plugins/dso/docs/contracts/replan-escalate-signal.md"
+    "$PLUGIN_ROOT/plugins/dso/docs/contracts/gap-classification-output.md"
+    "$PLUGIN_ROOT/plugins/dso/docs/contracts/replan-observability.md"
+)
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 echo "=== test-claude-md-replan-safety.sh ==="
 echo ""
 
-claude_md_content="$(cat "$CLAUDE_MD")"
+claude_md_content="$(cat "${REPLAN_CONTRACTS[@]}")"
 
 # ── test_claude_md_contains_replan_escalate ───────────────────────────────────
 # CLAUDE.md must document the REPLAN_ESCALATE signal and associate it with

@@ -7,7 +7,8 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-CLAUDE_MD="$PLUGIN_ROOT/CLAUDE.md"
+# Hook error handler documentation was relocated from CLAUDE.md to HOOKS-REFERENCE.md (PR #66).
+CLAUDE_MD="$PLUGIN_ROOT/plugins/dso/docs/HOOKS-REFERENCE.md"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
@@ -38,7 +39,7 @@ assert_eq "test_claude_md_no_legacy_log_path" "1" "$_legacy_path_absent"
 # test_claude_md_hook_error_handler_path_correct
 # The hook-error-handler.sh reference must use the full plugin path
 _full_path_present=0
-grep -q "plugins/dso/hooks/lib/hook-error-handler.sh" "$CLAUDE_MD" && _full_path_present=1
+grep -q "hooks/lib/hook-error-handler.sh" "$CLAUDE_MD" && _full_path_present=1
 assert_eq "test_claude_md_hook_error_handler_path_correct" "1" "$_full_path_present"
 
 print_summary
