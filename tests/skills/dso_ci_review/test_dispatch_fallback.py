@@ -680,3 +680,71 @@ def test_parse_response_emits_stderr_on_total_parse_failure(capsys) -> None:
         "_parse_response() must write an error message to stderr when no JSON "
         "can be extracted from the response"
     )
+
+
+# ---------------------------------------------------------------------------
+# Scenario 12 — _build_messages: canonical agent prompt parity (5075-54e2)
+# ---------------------------------------------------------------------------
+
+
+def test_build_messages_loads_canonical_agent_prompt() -> None:
+    """
+    Given: agent_id='code-reviewer-standard' references a canonical agent file
+           at plugins/dso/agents/code-reviewer-standard.md
+    When: _build_messages is called with that agent_id
+    Then: the system message contains the canonical agent body (frontmatter
+          stripped) — not the 5-line fallback _SYSTEM_PROMPT constant.
+
+    RED marker: tests/skills/dso_ci_review/test_dispatch_fallback.py [test_build_messages_loads_canonical_agent_prompt]
+
+    Covers 5075-54e2: 5-line _SYSTEM_PROMPT diverged from ~600-line agent files,
+    causing empty summary, missing scoring, severity over-escalation in CI runs.
+    """
+    if hasattr(_dispatch_mod, "_load_agent_prompt"):
+        _dispatch_mod._load_agent_prompt.cache_clear()
+
+    msgs = _dispatch_mod._build_messages(
+        "dummy diff", agent_id="code-reviewer-standard"
+    )
+    system_content = next(m["content"] for m in msgs if m["role"] == "system")
+
+    assert not system_content.startswith("---"), (
+        "system prompt must not include leading YAML frontmatter delimiter"
+    )
+    assert "name: code-reviewer-standard" not in system_content, (
+        "frontmatter `name:` field leaked into system prompt"
+    )
+    assert "Code Reviewer" in system_content, (
+        "canonical agent file body (heading 'Code Reviewer') missing from system prompt"
+    )
+    assert len(system_content) > len(_dispatch_mod._SYSTEM_PROMPT) * 5, (
+        f"system prompt length {len(system_content)} suggests fallback "
+        f"constant ({len(_dispatch_mod._SYSTEM_PROMPT)}) was used instead "
+        f"of the ~600-line canonical agent file"
+    )
+
+
+def test_build_messages_falls_back_for_unknown_agent_id() -> None:
+    """
+    Given: agent_id='unknown' (the dispatch_review default sentinel)
+    When: _build_messages is called
+    Then: the system message is the inline _SYSTEM_PROMPT fallback constant.
+    """
+    msgs = _dispatch_mod._build_messages("dummy diff", agent_id="unknown")
+    system_content = next(m["content"] for m in msgs if m["role"] == "system")
+    assert system_content == _dispatch_mod._SYSTEM_PROMPT
+
+
+def test_build_messages_falls_back_when_agent_file_missing() -> None:
+    """
+    Given: agent_id refers to an agent file that does not exist on disk
+    When: _build_messages is called
+    Then: the system message falls back to _SYSTEM_PROMPT rather than raising.
+    """
+    if hasattr(_dispatch_mod, "_load_agent_prompt"):
+        _dispatch_mod._load_agent_prompt.cache_clear()
+    msgs = _dispatch_mod._build_messages(
+        "dummy diff", agent_id="code-reviewer-nonexistent-fake"
+    )
+    system_content = next(m["content"] for m in msgs if m["role"] == "system")
+    assert system_content == _dispatch_mod._SYSTEM_PROMPT
