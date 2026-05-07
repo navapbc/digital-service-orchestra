@@ -94,8 +94,15 @@ def handle_create_event(
     tickets_root: Path,
     bridge_env_id: str,
     run_id: str = "",
+    _suppress_user_map_alert: bool = False,
 ) -> list[dict[str, Any]]:
-    """Handle a CREATE event: create issue in Jira and write SYNC event."""
+    """Handle a CREATE event: create issue in Jira and write SYNC event.
+
+    _suppress_user_map_alert: when True (set by handle_status_event's
+    retroactive-CREATE path), skip writing the BRIDGE_USER_MAP no-map alert.
+    The caller writes its own consolidated alert covering both the
+    missing-SYNC condition and any retroactive-CREATE failure (b557-3bad).
+    """
     ticket_id = event.get("ticket_id", "")
     ticket_dir = tickets_root / ticket_id
 
@@ -129,13 +136,15 @@ def handle_create_event(
         return []
 
     if not account_id and raw_assignee and jira_key:
-        # Write BRIDGE_ALERT for no-map entry
-        write_bridge_alert(
-            ticket_dir,
-            ticket_id=ticket_id,
-            reason=f"no BRIDGE_USER_MAP entry for {raw_assignee}",
-            bridge_env_id=bridge_env_id,
-        )
+        # Write BRIDGE_ALERT for no-map entry (unless caller is retroactive
+        # path which writes its own consolidated alert — b557-3bad)
+        if not _suppress_user_map_alert:
+            write_bridge_alert(
+                ticket_dir,
+                ticket_id=ticket_id,
+                reason=f"no BRIDGE_USER_MAP entry for {raw_assignee}",
+                bridge_env_id=bridge_env_id,
+            )
         try:
             acli_client.unassign_issue(jira_key)
         except Exception as exc:  # noqa: BLE001
@@ -287,6 +296,7 @@ def handle_status_event(
             # Attempt retroactive CREATE so the latest status can propagate
             # in this same run rather than being silently dropped. (7299-ff41)
             create_files = sorted(ticket_dir.glob("*-CREATE.json"))
+            retroactive_attempted = bool(create_files)
             if create_files:
                 synthetic_create_event = {
                     "ticket_id": ticket_id,
@@ -299,6 +309,7 @@ def handle_status_event(
                         tickets_root=tickets_root,
                         bridge_env_id=bridge_env_id,
                         run_id=run_id,
+                        _suppress_user_map_alert=True,
                     )
                 except Exception as exc:  # noqa: BLE001
                     logger.warning(
@@ -334,6 +345,19 @@ def handle_status_event(
                                 retroactive_jira_key,
                                 exc,
                             )
+
+            # When retroactive-CREATE was attempted but didn't produce a SYNC
+            # (e.g. the synthetic create_issue call failed), we still need ONE
+            # alert that references the missing-SYNC condition so consumers can
+            # detect dropped STATUS events. handle_create_event may have also
+            # written its own no-map BRIDGE_USER_MAP alert; that's a separate
+            # signal and is preserved. We deduplicate the previously-redundant
+            # second SYNC alert by checking whether retroactive succeeded:
+            # only write the SYNC alert when retroactive failed or wasn't
+            # attempted (b557-3bad).
+            retroactive_succeeded = bool(create_syncs) if retroactive_attempted else False
+            if retroactive_succeeded:
+                return []
 
             logger.warning(
                 "STATUS event dropped for %s: no SYNC.json marker — "

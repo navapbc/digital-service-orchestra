@@ -33,7 +33,8 @@ def _adf_to_text(value: "str | dict | None") -> str:
 
     Handles three input types:
     - None → empty string
-    - str → returned unchanged (back-compat for plain-text descriptions)
+    - str → returned with leading/trailing whitespace stripped (back-compat
+      for plain-text descriptions; whitespace-only strings collapse to "")
     - dict → ADF doc: walks doc→content[paragraph|heading|listItem]→content[text].text,
       joins paragraph texts with newlines; silently skips unsupported node types
       (panels, mediaSingle, mentions, inlineCard, mediaGroup, etc.)
@@ -41,7 +42,10 @@ def _adf_to_text(value: "str | dict | None") -> str:
     if value is None:
         return ""
     if isinstance(value, str):
-        return value
+        # Strip whitespace so the call-site `_adf_to_text(s) or None` correctly
+        # collapses whitespace-only descriptions to None — symmetric with
+        # handle_edit_event's existing strip-and-empty-check pattern (b557-3bad).
+        return value.strip()
     if not isinstance(value, dict):
         return ""
     # ADF structure: {"type": "doc", "content": [...nodes...]}
