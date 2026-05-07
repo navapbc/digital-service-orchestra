@@ -13,8 +13,19 @@
 #     the push is rejected and the workflow halts instead of recovering via
 #     fetch+rebase.
 #
-# These are structural tests against the script body — same pattern as
-# tests/scripts/test-merge-to-main-resume-cwd.sh.
+# REVIEW-DEFENSE (PR #65 round-2 important finding "structural pattern tests
+# are brittle"): structural assertions are the convention for merge-to-main-pr
+# guard tests — see tests/scripts/test-merge-to-main-resume-cwd.sh which uses
+# the same approach for the same script. End-to-end behavioral tests for
+# _phase_merge would require shimming `gh`, `git fetch`, `git push`, and
+# remote-state across multiple commits per scenario — the existing fixture
+# infrastructure (test-merge-to-main-pr.sh, _build_pr_fixture, ~4071 lines)
+# is one such heavy harness; layering rebase + retry semantics into it is
+# significantly more work than these tests warrant for a guard-pattern fix.
+# The structural assertions catch the regression class the bugs describe
+# (the flag is parsed; the helper is called before push). A separate
+# integration test layer is in scope as a follow-up — see also bug
+# 0740-2df7 (test-merge-to-main-*.sh source-grepping cleanup).
 
 set -uo pipefail
 

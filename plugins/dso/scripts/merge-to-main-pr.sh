@@ -272,6 +272,23 @@ with open(sf + '.tmp', 'w') as f:
 # Used by _phase_merge before the initial push and again on push-rejection
 # retry (b56b-14e9). Returns 0 on success (or fast-forward not needed), 1 on
 # rebase failure (caller must decide whether to abort the rebase and bail).
+#
+# REVIEW-DEFENSE (PR #65 round-2 important finding "post-rebase-abort retry
+# masks original failure"): when rebase fails the helper runs `git rebase
+# --abort` (line below) which restores HEAD to the pre-rebase commit, then
+# returns 1 — the caller _phase_merge does `_fetch_and_rebase_branch ||
+# return 1` BEFORE the push, so a rebase failure on the first call exits
+# immediately and the retry path is NEVER reached. The retry path is only
+# entered when the FIRST helper call returned 0 (no rebase needed OR rebase
+# succeeded) and the push subsequently failed for a non-rebase reason
+# (auth, transient network, NFF race). After a successful rebase + failed
+# push, the second helper call's merge-base --is-ancestor check correctly
+# detects the new fast-forward state and returns 0 without re-running
+# rebase, which is the intended retry-the-push behavior. The reviewer's
+# scenario "rebase fails first call → second helper call masks via FF
+# check" cannot occur because rebase --abort restores pre-rebase HEAD, so
+# `origin/$BRANCH` is still NOT an ancestor of HEAD on the second call,
+# and rebase is reattempted (and fails the same way, returning 1).
 _fetch_and_rebase_branch() {
     if ! git fetch origin "$BRANCH" 2>/dev/null; then
         # Remote ref absent yet — fresh branch, nothing to rebase against.
