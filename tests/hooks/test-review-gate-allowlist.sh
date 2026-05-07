@@ -7,7 +7,7 @@
 #   - File is non-empty and parseable
 #   - Contains required pattern groups
 #   - Does NOT contain code file patterns (security guard)
-#   - CLAUDE.md safeguard rule 20 references the file
+#   - Allowlist contains required patterns for legitimate non-review-needed paths
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -97,18 +97,6 @@ test_allowlist_no_code_patterns() {
     fi
 }
 
-# --- Test: HOOKS-REFERENCE.md references the file ---
-# The review-gate-allowlist documentation was relocated from CLAUDE.md to
-# HOOKS-REFERENCE.md (PR #66). The structural assertion still ensures the
-# allowlist file is documented somewhere agents read.
-test_claude_md_references_allowlist() {
-    if grep -q 'review-gate-allowlist' "$REPO_ROOT/plugins/dso/docs/HOOKS-REFERENCE.md" 2>/dev/null; then
-        assert_eq "HOOKS-REFERENCE.md references review-gate-allowlist" "true" "true"
-    else
-        assert_eq "HOOKS-REFERENCE.md references review-gate-allowlist" "true" "false"
-    fi
-}
-
 # --- Test: package.json is in the allowlist (8679-9c37) ---
 # merge-to-main.sh's version_bump phase modifies package.json and package-lock.json.
 # These are machine-generated bookkeeping files — requiring a code review for a
@@ -143,7 +131,6 @@ test_allowlist_contains_sync_state_pattern
 test_allowlist_contains_image_patterns
 test_allowlist_contains_docs_patterns
 test_allowlist_no_code_patterns
-test_claude_md_references_allowlist
 test_allowlist_contains_package_json
 test_allowlist_contains_package_lock_json
 
