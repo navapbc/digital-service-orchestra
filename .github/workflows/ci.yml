@@ -22,13 +22,30 @@ concurrency:
 
 jobs:
   # ── Path-change detection ───────────────────────────────────
-  # Replaces the prior paths-ignore filter + ci-skip.yml stub workflow.
-  # When a PR contains only documentation (.md) changes, code_changed=false
-  # and downstream required-check jobs gate their substantive steps off,
-  # reporting SUCCESS without doing work. This satisfies branch protection
-  # without the duplicate-context-name bypass that the paired-trigger pattern
-  # introduced (bug cb67-2265: ci-skip.yml's no-op llm-review SUCCESS could
-  # satisfy required checks before ci.yml's real review completed).
+  # Mirrors the local review-gate skip logic by invoking
+  # plugins/dso/scripts/skip-review-check.sh — the SAME script used by
+  # COMMIT-WORKFLOW.md Step 0.5 to decide whether a local commit can skip
+  # review. This eliminates the divergence that allowed PR #66 to merge
+  # silently: the prior `.md`-blanket exclude let CLAUDE.md and skill .md
+  # changes skip tests entirely, even though those files affect agent
+  # behavior and ARE classified as reviewable by the local gate.
+  #
+  # skip-review-check.sh classifies a file list (one file per line on stdin):
+  #   exit 0 → SKIP_REVIEW=true  (all files allowlisted, e.g. tickets, images,
+  #                                lockfiles); CI can skip downstream tests.
+  #   exit 1 → SKIP_REVIEW=false (at least one reviewable file: CLAUDE.md,
+  #                                hooks/, skills/, docs/workflows/, or any
+  #                                file not matched by review-gate-allowlist.conf);
+  #                                CI MUST run downstream tests.
+  #
+  # DSO_FORCE_LOCAL_REVIEW=1 disables skip-review-check.sh's
+  # enforcement.strategy=ci short-circuit (which is intended for the local
+  # pipeline, NOT for CI itself).
+  #
+  # Bug f776-d7ef: PR #66 merged with green CI because the prior `.md`-only
+  # filter classified its 8 .md changes as code_changed=false. Hook/Script/
+  # Python tests then "ran" in 4-5s (no-op) and reported SUCCESS — but the
+  # underlying tests would have failed (and did, on the post-merge push event).
   changes:
     name: Detect Changed Paths
     runs-on: ubuntu-latest
@@ -39,7 +56,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Detect non-md changes
+      - name: Detect reviewable changes (mirrors local review-gate)
         id: filter
         run: |
           set -euo pipefail
@@ -62,11 +79,33 @@ jobs:
           CHANGED=$(git diff --name-only "$BASE_REF...HEAD")
           echo "Changed files:"
           echo "$CHANGED"
-          NON_MD=$(echo "$CHANGED" | grep -v '\.md$' || true)
-          if [[ -n "$NON_MD" ]]; then
+          # Verify the local review-gate skip script is present. Fail-loud if
+          # absent rather than silently falling back to the broken `.md`-only
+          # heuristic (the very gap that landed PR #66 with broken tests).
+          SKIP_SCRIPT="plugins/dso/scripts/skip-review-check.sh"
+          if [[ ! -x "$SKIP_SCRIPT" ]]; then
+            echo "ERROR: ${SKIP_SCRIPT} not found or not executable. Forcing code_changed=true to be safe." >&2
+            echo "code_changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Run the same classifier the local review gate uses.
+          # exit 0 → all files allowlisted (tests can skip)
+          # exit 1 → at least one reviewable file (tests MUST run)
+          # DSO_FORCE_LOCAL_REVIEW=1 disables the enforcement.strategy=ci
+          # short-circuit (we ARE the CI; that short-circuit would no-op us).
+          set +e
+          echo "$CHANGED" | DSO_FORCE_LOCAL_REVIEW=1 bash "$SKIP_SCRIPT"
+          SKIP_RC=$?
+          set -e
+          if [[ "$SKIP_RC" -eq 0 ]]; then
+            echo "skip-review-check: all changes allowlisted — code_changed=false"
+            echo "code_changed=false" >> "$GITHUB_OUTPUT"
+          elif [[ "$SKIP_RC" -eq 1 ]]; then
+            echo "skip-review-check: reviewable changes detected — code_changed=true"
             echo "code_changed=true" >> "$GITHUB_OUTPUT"
           else
-            echo "code_changed=false" >> "$GITHUB_OUTPUT"
+            echo "ERROR: skip-review-check.sh exited ${SKIP_RC} (expected 0 or 1). Forcing code_changed=true to be safe." >&2
+            echo "code_changed=true" >> "$GITHUB_OUTPUT"
           fi
 
   # ── Fast gates ──────────────────────────────────────────────
