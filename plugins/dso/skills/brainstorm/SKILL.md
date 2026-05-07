@@ -174,6 +174,7 @@ Ask **one question at a time**. Use *"Tell me more about [concept]..."* to encou
 | Scope | What's clearly in scope? What are you explicitly NOT building? |
 | Access Path | If this feature creates a new page or UI surface: how will users reach it? (global nav link, in-flow step, modal trigger, deep link, or not applicable?) |
 | Constraints | Any technical constraints, deadlines, or dependencies on other epics? |
+| Inputs | What external data sources, lookup tables, reference data, policy/rules data, model weights, or copy/templates does the approach require? |
 | Surface | Where does this feature manifest? (web page, form, screen, CLI flag, endpoint, background job, internal API, migration, or "no user-facing surface") |
 | Success | How will you know this worked? What would "done" look like? |
 
@@ -193,6 +194,7 @@ Before we move to approaches, here's my understanding:
 - **Scope**: [what's in scope; what's explicitly out of scope]
 - **Access Path**: [if this feature creates a new page or UI surface: how will users reach it? (global nav link, in-flow step, modal trigger, deep link, or not applicable)] *(omit if feature does not introduce a new page or UI surface)*
 - **Surface**: [where the feature manifests]
+- **Inputs**: [explicit source statement OR "no external inputs"]
 - **Success**: [how the user will know this worked — observable outcome]
 
 Does this capture your intent? If anything is off, tell me what to adjust.
@@ -383,6 +385,8 @@ As you draft the epic spec, classify the origin of each SC and key context claim
 
 Track provenance internally — the approval gate (Step 4) uses these categories for annotation.
 
+When drafting the epic spec narrative in Phase 2, wrap inferred input source noun phrases with `<<inferred:source-name>>` structural markers. For example, if the spec mentions "data fetched from the user service" and the user service was inferred (not explicitly stated), write `<<inferred:user-service>>` around the reference. See `${CLAUDE_PLUGIN_ROOT}/docs/contracts/inferred-source-marker.md` for the full contract specification.
+
 ### Step 2.25: Cross-Epic Interaction Scan
 
 <HARD-GATE>
@@ -424,6 +428,8 @@ fi
 ```
 
 Use for: validating whether the proposed approach conflicts with existing patterns; checking whether an assumed dependency is already imported; tracing bidirectional data flow to detect sync loops or race conditions. If neither produces results, log the pattern and continue.
+
+**Part B inferred-source re-entry**: When the pipeline's Inference-Signal Scan raises one or more inferred-source gaps (sources that could not be verified), re-enter Phase 1 Step 2 with a targeted Socratic question for each unverified source before continuing the pipeline. Treat each source as a new intent gap and apply the standard gap-question loop.
 
 #### Post-Scrutiny Handlers
 
