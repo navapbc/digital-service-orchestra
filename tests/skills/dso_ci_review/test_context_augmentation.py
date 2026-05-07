@@ -12,7 +12,14 @@ import pathlib
 import tempfile
 
 
-from dso_ci_review.context_request import execute_read_files, parse_request_blocks
+import subprocess
+from unittest.mock import patch
+
+from dso_ci_review.context_request import (
+    execute_grep,
+    execute_read_files,
+    parse_request_blocks,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -328,3 +335,125 @@ class TestSingleTurnRoundTripIntegration:
             assert "findings" in result, (
                 f"Expected 'findings' in round-trip result, got keys: {list(result.keys())!r}"
             )
+
+
+# ---------------------------------------------------------------------------
+# grep handler tests (f607-c098-1bee-4021)
+# ---------------------------------------------------------------------------
+
+
+def test_grep_adversarial_regex_aborts_at_timeout(tmp_path: pathlib.Path) -> None:
+    """An adversarial regex causes wall-clock timeout; execute_grep returns a
+    timeout error dict rather than hanging or propagating an exception.
+
+    The subprocess.TimeoutExpired exception is mocked because catastrophic
+    backtracking is platform/grep-implementation-specific. The contract under
+    test is that execute_grep catches TimeoutExpired and returns a clear error.
+    """
+    (tmp_path / "victim.txt").write_text("a" * 500 + "b\n", encoding="utf-8")
+
+    request = {
+        "action": "grep",
+        "patterns": ["(a+)+$"],
+        "paths": [str(tmp_path)],
+        "timeout_seconds": 1,
+    }
+
+    import dso_ci_review.context_request as _cr_mod
+
+    with patch.object(
+        _cr_mod.subprocess,
+        "run",
+        side_effect=subprocess.TimeoutExpired(cmd=["grep"], timeout=1),
+    ):
+        result = execute_grep(request=request, repo_root=str(tmp_path))
+
+    assert result.get("timed_out") is True, f"Expected timed_out=True, got: {result}"
+    assert "error" in result, f"Expected error key in timeout result, got: {result}"
+    assert "timed out" in result["error"].lower(), (
+        f"Expected 'timed out' in error message, got: {result['error']!r}"
+    )
+
+
+def test_grep_excludes_binary_files(tmp_path: pathlib.Path) -> None:
+    """grep on a directory containing binary files skips them silently."""
+    (tmp_path / "image.png").write_bytes(b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00")
+    (tmp_path / "source.py").write_text("hello world\nfoo bar\n", encoding="utf-8")
+
+    result = execute_grep(
+        request={"action": "grep", "patterns": ["hello"], "paths": [str(tmp_path)]},
+        repo_root=str(tmp_path),
+    )
+
+    output = result.get("output", "")
+    assert "PNG" not in output, "Binary file content must not appear in grep output"
+    assert b"\x00" not in output.encode("utf-8", errors="replace"), (
+        "Null bytes from binary files must not appear in grep output"
+    )
+    assert "hello" in output or "source.py" in output, (
+        f"Expected text-file match in output, got: {output!r}"
+    )
+
+
+def test_grep_multi_pattern_multi_path(tmp_path: pathlib.Path) -> None:
+    """execute_grep accepts multiple patterns and multiple paths."""
+    dir_a = tmp_path / "dir_a"
+    dir_b = tmp_path / "dir_b"
+    dir_a.mkdir()
+    dir_b.mkdir()
+    (dir_a / "a.txt").write_text("alpha pattern_one here\n", encoding="utf-8")
+    (dir_b / "b.txt").write_text("beta pattern_two there\n", encoding="utf-8")
+
+    result = execute_grep(
+        request={
+            "action": "grep",
+            "patterns": ["pattern_one", "pattern_two"],
+            "paths": [str(dir_a), str(dir_b)],
+        },
+        repo_root=str(tmp_path),
+    )
+
+    output = result.get("output", "")
+    assert "pattern_one" in output, f"Expected pattern_one match, got: {output!r}"
+    assert "pattern_two" in output, f"Expected pattern_two match, got: {output!r}"
+
+
+def test_grep_output_truncated_at_64kb(tmp_path: pathlib.Path) -> None:
+    """Output exceeding 64 KB is truncated and marked."""
+    lines = [f"MATCH_{i:05d}: " + "x" * 100 for i in range(5000)]
+    (tmp_path / "large.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    result = execute_grep(
+        request={"action": "grep", "patterns": ["MATCH_"], "paths": [str(tmp_path)]},
+        repo_root=str(tmp_path),
+    )
+
+    output = result.get("output", "")
+    output_bytes = output.encode("utf-8", errors="replace")
+    assert len(output_bytes) <= 64 * 1024 + 200, (
+        f"Output must be truncated at ~64 KB, got {len(output_bytes)} bytes"
+    )
+    assert result.get("truncated") or "truncated" in output.lower(), (
+        f"Expected truncation marker, got truncated={result.get('truncated')}, tail={output[-200:]!r}"
+    )
+
+
+def test_grep_rejects_path_outside_repo_root(tmp_path: pathlib.Path) -> None:
+    """Paths outside the repo root are rejected (security jail)."""
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "secret.txt").write_text("secret content\n", encoding="utf-8")
+
+    result = execute_grep(
+        request={"action": "grep", "patterns": ["secret"], "paths": [str(outside)]},
+        repo_root=str(repo_root),
+    )
+
+    assert "error" in result or result.get("output", "") == "", (
+        f"Expected error or empty output for out-of-jail path, got: {result}"
+    )
+    assert "secret content" not in result.get("output", ""), (
+        "Security jail breach: secret content appeared in output"
+    )

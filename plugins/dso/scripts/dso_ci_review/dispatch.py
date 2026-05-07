@@ -233,6 +233,7 @@ def dispatch_review(
             # Light tier: single-shot, no augmentation.
             if tier != "light":
                 from dso_ci_review.context_request import (
+                    execute_grep,
                     execute_read_files,
                     parse_request_blocks,
                 )
@@ -242,16 +243,29 @@ def dispatch_review(
                 request_blocks = parse_request_blocks(turn_messages)
 
                 if request_blocks:
-                    # Execute each read_files request and collect results
+                    # Execute each context request and collect results
                     augmentation_parts: list[str] = []
                     for req in request_blocks:
-                        if req.get("action") == "read_files":
+                        action = req.get("action")
+                        if action == "read_files":
                             paths = req.get("paths", [])
                             file_content = execute_read_files(
                                 paths=paths,
                                 repo_root=resolved_repo_root,
                             )
                             augmentation_parts.append(file_content)
+                        elif action == "grep":
+                            grep_result = execute_grep(
+                                request=req,
+                                repo_root=resolved_repo_root,
+                            )
+                            grep_output = grep_result.get("output") or grep_result.get(
+                                "error", ""
+                            )
+                            if grep_output:
+                                augmentation_parts.append(
+                                    f"Grep results:\n\n{grep_output}"
+                                )
 
                     if augmentation_parts:
                         # Append file contents as a new user message and re-complete

@@ -15,6 +15,8 @@ import logging
 import os
 import pathlib
 import re
+import subprocess
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +28,12 @@ _FENCED_JSON_RE = re.compile(
 
 # Required field for a message to be treated as a context request
 _ACTION_KEY = "action"
-_SUPPORTED_ACTIONS = frozenset(["read_files"])
+_SUPPORTED_ACTIONS = frozenset(["read_files", "grep"])
+
+# grep handler constants
+_GREP_MAX_OUTPUT_BYTES: int = 64 * 1024  # 64 KB
+_GREP_DEFAULT_TIMEOUT_SECONDS: int = 5
+_GREP_TRUNCATION_MARKER: str = "\n[truncated: output exceeded 64 KB limit]\n"
 
 # Truncation marker appended when a file exceeds the size cap (contract §Security Notes)
 _TRUNCATION_MARKER_TEMPLATE = (
@@ -196,3 +203,91 @@ def execute_read_files(
         return "[No files returned — all paths were rejected or empty list provided]"
 
     return "\n\n".join(output_parts)
+
+
+def execute_grep(
+    request: dict[str, Any],
+    repo_root: str,
+) -> dict[str, Any]:
+    """Run grep (multi-pattern, multi-path) within the repo-root security jail.
+
+    Security:
+    - Each path is canonicalized via os.path.realpath() and validated against repo_root.
+    - Binary files are excluded via --binary-files=without-match.
+    - Wall-clock timeout prevents ReDoS (subprocess.run timeout).
+
+    Args:
+        request:   Dict with action="grep", patterns (list), paths (list),
+                   and optional timeout_seconds (default 5).
+        repo_root: Absolute path to the repository root (security boundary).
+
+    Returns:
+        {"output": str, "truncated": bool} on success,
+        {"output": "", "timed_out": True, "error": str} on timeout,
+        {"error": str, "output": ""} on all-paths-rejected or other errors.
+    """
+    patterns: list[str] = request.get("patterns") or []
+    raw_paths: list[str] = request.get("paths") or []
+    timeout_seconds: int = int(
+        request.get("timeout_seconds", _GREP_DEFAULT_TIMEOUT_SECONDS)
+    )
+
+    if not patterns:
+        return {"error": "grep: no patterns provided", "output": ""}
+    if not raw_paths:
+        return {"error": "grep: no paths provided", "output": ""}
+
+    canonical_root = os.path.realpath(repo_root)
+    root_prefix = (
+        canonical_root if canonical_root.endswith(os.sep) else canonical_root + os.sep
+    )
+
+    jailed_paths: list[str] = []
+    jail_errors: list[str] = []
+    for raw in raw_paths:
+        real_path = os.path.realpath(raw)
+        if real_path != canonical_root and not real_path.startswith(root_prefix):
+            jail_errors.append(f"path outside repo root: {raw!r}")
+        else:
+            jailed_paths.append(real_path)
+
+    if not jailed_paths:
+        return {"error": "; ".join(jail_errors), "output": ""}
+
+    cmd: list[str] = ["grep", "--binary-files=without-match", "-r"]
+    for pattern in patterns:
+        cmd.extend(["-e", pattern])
+    cmd.extend(jailed_paths)
+
+    try:
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+        )
+        raw_output: str = proc.stdout
+    except subprocess.TimeoutExpired:
+        return {
+            "output": "",
+            "timed_out": True,
+            "error": f"grep timed out after {timeout_seconds}s",
+        }
+    except FileNotFoundError:
+        return {"error": "grep: command not found on PATH", "output": ""}
+    except OSError as exc:
+        return {"error": f"grep: OS error: {exc}", "output": ""}
+
+    raw_bytes: bytes = raw_output.encode("utf-8", errors="replace")
+    truncated = False
+    if len(raw_bytes) > _GREP_MAX_OUTPUT_BYTES:
+        raw_bytes = raw_bytes[:_GREP_MAX_OUTPUT_BYTES]
+        raw_output = (
+            raw_bytes.decode("utf-8", errors="replace") + _GREP_TRUNCATION_MARKER
+        )
+        truncated = True
+
+    result: dict[str, Any] = {"output": raw_output, "truncated": truncated}
+    if jail_errors:
+        result["jail_errors"] = jail_errors
+    return result
