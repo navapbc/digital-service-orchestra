@@ -13,7 +13,9 @@
 #   6. When 10+ worktrees exist → auto-runs worktree-cleanup.sh
 #
 # Usage:
-#   claude-safe                    # Launch claude in a new worktree
+#   claude-safe                    # Launch claude in a new worktree (from origin/main)
+#   claude-safe --from=REF         # Base the new worktree on REF (default: origin/main)
+#                                  # e.g. --from=origin/develop, --from=my-feature-branch
 #   claude-safe --resume           # Pass flags through to claude
 #   claude-safe --help-wrapper     # Show this script's help
 #
@@ -213,6 +215,23 @@ if [ -f "$REPO_ROOT/.git" ]; then
     exec claude "$@"
 fi
 
+# ── Parse claude-safe-specific flags (rest pass through to `claude`) ─────────
+# --from=REF: source ref for the new worktree (forwarded to worktree-create.sh).
+# Anything not consumed here is forwarded verbatim to `claude`.
+FROM_REF="origin/main"
+CLAUDE_ARGS=()
+for arg in "$@"; do
+    case "$arg" in
+        --from=*) FROM_REF="${arg#--from=}" ;;
+        *)        CLAUDE_ARGS+=("$arg") ;;
+    esac
+done
+if [ "${#CLAUDE_ARGS[@]}" -gt 0 ]; then
+    set -- "${CLAUDE_ARGS[@]}"
+else
+    set --
+fi
+
 # ── In main repo: create a new worktree via worktree-create.sh ───────────────
 CREATE_SCRIPT="$PLUGIN_SCRIPTS/worktree-create.sh"
 if [ ! -x "$CREATE_SCRIPT" ]; then
@@ -224,7 +243,7 @@ if [ ! -x "$CREATE_SCRIPT" ]; then
     exit 1
 fi
 
-WORKTREE_PATH=$("$CREATE_SCRIPT")
+WORKTREE_PATH=$("$CREATE_SCRIPT" --from="$FROM_REF")
 if [ -z "$WORKTREE_PATH" ] || [ ! -d "$WORKTREE_PATH" ]; then
     echo "ERROR: Failed to create worktree" >&2
     echo "Create one manually: $CREATE_SCRIPT" >&2
