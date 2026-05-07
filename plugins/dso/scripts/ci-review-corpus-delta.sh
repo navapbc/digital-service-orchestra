@@ -29,9 +29,7 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 # Resolve repo root and plugin root
 # ---------------------------------------------------------------------------
-_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_SCRIPT_DIR/.." && pwd)}"
-_REPO_ROOT="$(cd "$_PLUGIN_ROOT/../.." && pwd)"
+_REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 # ---------------------------------------------------------------------------
 # Defaults
