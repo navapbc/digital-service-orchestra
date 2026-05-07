@@ -59,6 +59,7 @@ Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
 - **Testing-mode classification** (per task: RED / GREEN / UPDATE; default RED): emitted by implementation-plan and fix-bug, routed by sprint.
 - **Scrutiny pipeline & `scrutiny:pending` / `ui_probes:deferred` gates**: see brainstorm SKILL.md and `plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md`.
 - **File placement**: design documents go in `docs/designs/` (project-local) or `plugins/dso/skills/<skill>/docs/` (plugin-local) — not bare `designs/` at repo root.
+- **Jira bridge** (`BRIDGE_ENV_ID` required UUID repo variable; bridges fail-fast when empty. `BRIDGE_USER_MAP` JSON env var, email→Jira accountId, case-insensitive. Outbound SHA-cursor checkpoint in `.outbound-checkpoint.json` on tickets branch; cold-start or corrupt checkpoint seeds at HEAD + emits BRIDGE_ALERT. Full reference: `plugins/dso/scripts/bridge/README.md`.)
 
 ## Critical Rules
 
