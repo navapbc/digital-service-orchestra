@@ -764,17 +764,16 @@ def main() -> int:
         )
         return 1
 
-    # Warn (non-blocking) when all findings are synthetic (e840-327f).
-    # fallback_exhausted / specialist_error / parse_error findings indicate review
-    # infrastructure issues but are not hard failures — alert the operator without
-    # blocking CI. Use _SYNTHETIC_TYPES (single source of truth for what counts as
-    # synthetic) so this WARNING and _real_blocking_findings agree.
+    # Block (fail-closed) when all findings are synthetic (a8f6-4c5e reverses e840-327f).
+    # An all-synthetic outcome means zero usable review content was produced — no valid
+    # reviewer ever ran. Blocking prevents silent approval of unreviewed PRs.
     if _findings and all(f.get("type", "") in _SYNTHETIC_TYPES for f in _findings):
         print(
-            f"WARNING: all {len(_findings)} finding(s) are synthetic "
-            f"({'/'.join(sorted(_SYNTHETIC_TYPES))}) — review content may be incomplete",
+            f"ERROR: all {len(_findings)} finding(s) are synthetic "
+            f"({'/'.join(sorted(_SYNTHETIC_TYPES))}) — no valid review content produced",
             file=sys.stderr,
         )
+        return 1
 
     # Surface blocking findings to the PR (best-effort) before deciding exit code,
     # so the author has visible context whether the gate passes or fails. Returns
