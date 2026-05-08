@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -1068,9 +1069,26 @@ def handle_edit_event(
                     update_kwargs["parent"] = parent_jira_key
                 else:
                     # Fall back to raw value for jira-prefixed ids (best effort:
-                    # strip the "jira-" prefix and uppercase).
+                    # strip the "jira-" prefix and uppercase). Validate the
+                    # result matches Jira key format (PROJECT-NUMBER) before
+                    # passing to acli, so garbage like "jira-!!!invalid" is
+                    # caught with a specific BRIDGE_ALERT instead of bubbling
+                    # up as a generic handler exception.
                     if parent_id.lower().startswith("jira-"):
-                        update_kwargs["parent"] = parent_id[len("jira-") :].upper()
+                        candidate = parent_id[len("jira-") :].upper()
+                        if re.match(r"^[A-Z][A-Z0-9_]*-[0-9]+$", candidate):
+                            update_kwargs["parent"] = candidate
+                        else:
+                            write_bridge_alert(
+                                ticket_dir,
+                                ticket_id=ticket_id,
+                                reason=(
+                                    f"EDIT parent_id={parent_id} skipped: "
+                                    f"derived Jira key '{candidate}' does not "
+                                    "match Jira key format (PROJECT-NUMBER)"
+                                ),
+                                bridge_env_id=bridge_env_id,
+                            )
                     else:
                         # Unsynced local parent — surface via BRIDGE_ALERT but
                         # don't block the rest of the EDIT.
