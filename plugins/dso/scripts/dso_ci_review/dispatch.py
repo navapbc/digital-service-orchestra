@@ -622,6 +622,104 @@ def review_with_fallbacks(
 # ---------------------------------------------------------------------------
 
 
+def dispatch_two_call_review(
+    diff_text: str,
+    prior_findings_index: list[dict[str, Any]],
+    prior_findings: list[dict[str, Any]],
+    defenses: list[dict[str, Any]],
+    provider_chain: list[str],
+    environ: dict[str, str] | None = None,
+    agent_id: str = "unknown",
+    primary_model: str | None = None,
+) -> dict[str, Any]:
+    """Two-call review architecture for re-review cycles (DSO_REVIEW_CYCLE >= 2).
+
+    Call 1 receives the stripped prior_findings_index (id, cited_lines, dimension only —
+    no defense_text) so the reviewer evaluates findings independently without seeing
+    existing defenses.
+
+    Call 2 receives Call 1's output plus the full prior_findings (with defense_text)
+    and defenses so the reviewer can weigh new findings against existing defenses.
+
+    Args:
+        diff_text: Unified diff text to review.
+        prior_findings_index: Stripped prior findings — id, cited_lines, dimension only.
+                              Must NOT contain defense_text.
+        prior_findings: Full prior findings including defense_text.
+        defenses: Full defense records for prior findings.
+        provider_chain: Ordered list of provider names.
+        environ: Environment variable mapping for credential checks. When None, uses
+                 os.environ. Applied via os.environ before each dispatch_review call
+                 and cleaned up after.
+        agent_id: Identifier of the reviewing agent.
+        primary_model: Override the primary model for the first provider call.
+
+    Returns:
+        The Call 2 result dict — a dict with a "findings" key.
+    """
+    import litellm  # noqa: PLC0415 — deferred import; test patches dso_ci_review.dispatch.litellm
+
+    from dso_ci_review.providers.config import ConfigError
+
+    _environ = dict(environ) if environ else dict(os.environ)
+
+    # Credential pre-check
+    first_provider = provider_chain[0]
+    key_var = _PROVIDER_API_KEY.get(first_provider)
+    if not key_var:
+        raise ConfigError(f"Unknown provider: {first_provider!r}")
+    if not _environ.get(key_var):
+        raise ConfigError(f"Missing {key_var} for provider {first_provider!r}")
+
+    resolved_model = primary_model or _PROVIDER_DEFAULT_MODEL.get(
+        first_provider, first_provider
+    )
+    fallbacks = _build_fallbacks(provider_chain, first_provider)
+
+    # Resolve litellm via module attribute so tests patching
+    # ``dso_ci_review.dispatch.litellm`` intercept these calls.
+    import dso_ci_review.dispatch as _self_mod  # noqa: PLC0415
+    _litellm = getattr(_self_mod, "litellm", litellm)
+
+    # --- Call 1: pass only the stripped index (no defense_text) ---
+    index_context = (
+        "\n\n## Prior review findings index (no defenses — evaluate independently)\n\n"
+        + json.dumps(prior_findings_index, indent=2)
+    )
+    call1_diff = diff_text + index_context
+    call1_messages = _build_messages(call1_diff, agent_id=agent_id, provider=first_provider)
+
+    call1_response = _litellm.completion(
+        model=resolved_model,
+        messages=call1_messages,
+        stream=False,
+        fallbacks=fallbacks,
+    )
+    call1_result = _parse_response(call1_response)
+
+    # --- Call 2: pass Call 1 output + full prior_findings + defenses ---
+    call2_context = (
+        "\n\n## Call 1 findings\n\n"
+        + json.dumps(call1_result, indent=2)
+        + "\n\n## Prior findings (with defenses)\n\n"
+        + json.dumps(prior_findings, indent=2)
+        + "\n\n## Defenses\n\n"
+        + json.dumps(defenses, indent=2)
+    )
+    call2_diff = diff_text + call2_context
+    call2_messages = _build_messages(call2_diff, agent_id=agent_id, provider=first_provider)
+
+    call2_response = _litellm.completion(
+        model=resolved_model,
+        messages=call2_messages,
+        stream=False,
+        fallbacks=fallbacks,
+    )
+    call2_result = _parse_response(call2_response)
+
+    return call2_result
+
+
 async def _call_single_agent(
     agent_id: str,
     diff_text: str,

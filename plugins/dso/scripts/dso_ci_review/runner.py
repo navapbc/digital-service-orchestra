@@ -684,6 +684,9 @@ def main() -> int:
         classification = _classify_tier_via_bash(diff_text)
         tier = classification["selected_tier"]
 
+        # Read review cycle number — used by two-call architecture on re-review passes.
+        _cycle_number = int(os.environ.get('DSO_REVIEW_CYCLE', '1'))  # noqa: F841
+
         # Resolve config_path once for overlay agent construction
         config_path: str | None = None
 

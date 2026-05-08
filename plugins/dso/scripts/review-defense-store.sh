@@ -9,6 +9,23 @@ set -euo pipefail
 _TICKET_CMD="${TICKET_CMD:-.claude/scripts/dso ticket}"
 
 # ---------------------------------------------------------------------------
+# sha256sum/shasum portability shim
+if command -v sha256sum >/dev/null 2>&1; then
+    _DSO_HASH_CMD='sha256sum'
+else
+    _DSO_HASH_CMD='shasum -a 256'
+fi
+
+# _defense_compute_fingerprint content path lineno
+# Returns 64-char hex SHA-256 of "path:lineno:<whitespace-collapsed content>"
+_defense_compute_fingerprint() {
+    local content="$1" path="$2" lineno="$3"
+    local collapsed
+    collapsed=$(printf '%s' "$content" | tr -s ' \t' ' ' | sed 's/^ //;s/ $//')
+    printf '%s:%s:%s' "$path" "$lineno" "$collapsed" | $_DSO_HASH_CMD | cut -c1-64
+}
+
+# ---------------------------------------------------------------------------
 # _defense_store_require_ticket_binding
 # Guard: ensures DSO_SESSION_TICKET_ID is set before any store operation.
 # Uses return 1 (not exit 1) because this file is sourced, not executed.
@@ -45,8 +62,58 @@ defense_store_write() {
     return 1
   fi
 
-  # Post the record as a ticket comment
-  $_TICKET_CMD comment "$DSO_SESSION_TICKET_ID" "DEFENSE_RECORD: $defense_json"
+  # Embed cited_lines_fingerprint when cited_lines entries include content
+  local enriched_json
+  enriched_json=$(python3 - "$defense_json" <<'PYEOF'
+import json, sys
+
+record = json.loads(sys.argv[1])
+cited_lines = record.get("cited_lines", [])
+if cited_lines:
+    first = cited_lines[0]
+    # Expected format: "path:lineno:content" — split on first two colons only
+    parts = first.split(":", 2)
+    if len(parts) == 3:
+        record["_fp_path"] = parts[0]
+        record["_fp_lineno"] = parts[1]
+        record["_fp_content"] = parts[2]
+print(json.dumps(record))
+PYEOF
+) || enriched_json="$defense_json"
+
+  # Compute fingerprint if the parse succeeded and fields were extracted
+  local fp_path fp_lineno fp_content fingerprint
+  fp_path=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d.get('_fp_path',''))" "$enriched_json" 2>/dev/null) || fp_path=""
+  if [[ -n "$fp_path" ]]; then
+    fp_lineno=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d.get('_fp_lineno',''))" "$enriched_json" 2>/dev/null) || fp_lineno=""
+    fp_content=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d.get('_fp_content',''))" "$enriched_json" 2>/dev/null) || fp_content=""
+    fingerprint=$(_defense_compute_fingerprint "$fp_content" "$fp_path" "$fp_lineno")
+    enriched_json=$(python3 -c "
+import json, sys
+d = json.loads(sys.argv[1])
+# Remove temp fields
+d.pop('_fp_path', None)
+d.pop('_fp_lineno', None)
+d.pop('_fp_content', None)
+d['cited_lines_fingerprint'] = sys.argv[2]
+print(json.dumps(d))
+" "$enriched_json" "$fingerprint" 2>/dev/null) || enriched_json="$defense_json"
+  else
+    # Strip temp fields if present but no path found
+    enriched_json=$(python3 -c "
+import json, sys
+d = json.loads(sys.argv[1])
+d.pop('_fp_path', None)
+d.pop('_fp_lineno', None)
+d.pop('_fp_content', None)
+print(json.dumps(d))
+" "$enriched_json" 2>/dev/null) || enriched_json="$defense_json"
+  fi
+
+  # Post the record as a ticket comment; redirect ticket cmd stdout to suppress noise
+  $_TICKET_CMD comment "$DSO_SESSION_TICKET_ID" "DEFENSE_RECORD: $enriched_json" >/dev/null
+  # Emit the enriched record to stdout for callers and test inspection
+  printf '%s\n' "$enriched_json"
 }
 
 # ---------------------------------------------------------------------------

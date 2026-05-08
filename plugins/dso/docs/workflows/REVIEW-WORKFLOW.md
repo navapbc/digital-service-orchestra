@@ -205,6 +205,22 @@ Use the `REVIEW_TIER` and `REVIEW_AGENT` values in Step 4. When `REVIEW_AGENT_OV
 
 **Deep tier + upgrade — no rationalization exemptions**: When `REVIEW_TIER=deep` and `SIZE_ACTION=upgrade`, you MUST dispatch the full deep tier (3 parallel sonnet agents + opus arch synthesis) with the opus model override. Do not substitute a lighter tier, a standard-tier agent, or a general-purpose agent due to perceived overhead, time constraints, or commit urgency. The deep tier exists precisely for high-blast-radius changes — "overhead" objections do not override the classifier.
 
+### Step 3c: Two-Call Architecture for Re-Review Passes (DSO_REVIEW_CYCLE >= 2)
+
+When `DSO_REVIEW_CYCLE` is 2 or greater (a re-review pass after autonomous resolution attempts), the CI runner uses a two-call dispatch architecture via `dispatch_two_call_review`. This architecture prevents defense_text from anchoring Call 1's findings.
+
+**Call 1** receives a stripped `prior_findings_index` (fields: `id`, `cited_lines`, `dimension` only — no `defense_text`). The reviewer evaluates findings independently without seeing existing defenses, avoiding confirmation bias.
+
+**Call 2** receives Call 1's output combined with the full `prior_findings` (including `defense_text`) and the `defenses` list. The reviewer can then weigh Call 1's independent assessment against the existing defenses before producing the final consolidated finding set.
+
+The function is called from `dso_ci_review.dispatch.dispatch_two_call_review`. The CI runner reads `DSO_REVIEW_CYCLE` from the environment:
+
+```python
+cycle_number = int(os.environ.get('DSO_REVIEW_CYCLE', '1'))
+```
+
+When `cycle_number >= 2`, orchestrators should supply `prior_findings_index` (stripped) and `prior_findings` + `defenses` (full) from the previous cycle's findings and recorded defenses.
+
 ## Step 4: Dispatch Code Review Sub-Agent (MANDATORY)
 
 **Single parallel batch: tier reviewer + every overlay flagged true in Step 3.** Before writing the dispatch prompt(s), read overlay flags from the classifier output captured in Step 3 and add the corresponding overlay agents to this Step 4 dispatch — they MUST launch in the same parallel Agent tool batch as the tier reviewer, never as a follow-up step. The `record-review.sh` gate enforces this: when the classifier flagged an overlay true, a corresponding `reviewer-findings-<dim>.json` MUST exist or the gate fails with `OVERLAY_MISSING`.

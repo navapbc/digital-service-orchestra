@@ -524,5 +524,55 @@ def main() -> None:
     print(format_table(metrics))
 
 
+def compute_p90_cycle_count(events: list[dict]) -> float:
+    """Return 90th-percentile cycle_count across all events.
+
+    Uses the exclusive (Type 6 / Minitab) percentile method:
+    virtual index = (N + 1) * 0.9 - 1, with linear interpolation.
+    """
+    values = [e["cycle_count"] for e in events if "cycle_count" in e]
+    if not values:
+        return 0.0
+    values.sort()
+    n = len(values)
+    idx = (n + 1) * 0.9 - 1
+    if idx <= 0:
+        return float(values[0])
+    if idx >= n - 1:
+        return float(values[-1])
+    lo = int(idx)
+    frac = idx - lo
+    return values[lo] + frac * (values[lo + 1] - values[lo])
+
+
+def compute_phantom_escalation_rate(events: list[dict]) -> float:
+    """Return fraction of escalated events that were phantom escalations."""
+    escalated = [e for e in events if e.get("escalated")]
+    if not escalated:
+        return 0.0
+    phantom = sum(1 for e in escalated if e.get("phantom_escalation"))
+    return phantom / len(escalated)
+
+
+def compute_prior_region_resustain_skew(events: list[dict]) -> float:
+    """Return ratio of in-prior-region resustains to out-of-region resustains."""
+    resustains = [e for e in events if e.get("event_type") == "resustain"]
+    in_region = sum(1 for e in resustains if e.get("in_prior_region"))
+    out_region = sum(1 for e in resustains if not e.get("in_prior_region"))
+    if out_region == 0:
+        return 0.0
+    return in_region / out_region
+
+
+def compute_call2_finding_drop_rate(events: list[dict]) -> float:
+    """Return fraction of Call 1 findings absent in Call 2 output."""
+    total_call1 = sum(e.get("call1_finding_count", 0) for e in events)
+    total_call2 = sum(e.get("call2_finding_count", 0) for e in events)
+    if total_call1 == 0:
+        return 0.0
+    dropped = total_call1 - total_call2
+    return dropped / total_call1
+
+
 if __name__ == "__main__":
     main()
