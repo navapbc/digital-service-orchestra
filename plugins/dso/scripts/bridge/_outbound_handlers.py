@@ -90,6 +90,24 @@ def _resolve_assignee(
     return account_id
 
 
+def _resolve_link_orientation(
+    relation: str, source_jira_key: str, target_jira_key: str
+) -> tuple[str, str, str]:
+    """Map a local relation to (jira_link_type, out_key, in_key).
+
+    Single source of truth used by both handle_link_event and
+    handle_unlink_event so any future relation type or direction change is
+    made in exactly one place. `depends_on` is the inverse of `blocks`, so
+    its out/in are swapped.
+    """
+    if relation in ("relates_to", "supersedes"):
+        return "Relates", source_jira_key, target_jira_key
+    if relation == "blocks":
+        return "Blocks", source_jira_key, target_jira_key
+    # depends_on
+    return "Blocks", target_jira_key, source_jira_key
+
+
 def handle_create_event(
     event: dict[str, Any],
     *,
@@ -688,18 +706,11 @@ def handle_link_event(
         )
         return [], link_types_cache
 
-    # Map relation → required Jira link type and outward-source orientation.
-    # `out_key` is the issue passed as `--out` to set_relationship (outward
-    # source); `in_key` is the inward target.
-    if relation in ("relates_to", "supersedes"):
-        required_type = "Relates"
-        out_key, in_key = source_jira_key, target_jira_key
-    elif relation == "blocks":
-        required_type = "Blocks"
-        out_key, in_key = source_jira_key, target_jira_key
-    else:  # depends_on
-        required_type = "Blocks"
-        out_key, in_key = target_jira_key, source_jira_key
+    # Map relation → required Jira link type and outward-source orientation
+    # via the shared helper (single source of truth with handle_unlink_event).
+    required_type, out_key, in_key = _resolve_link_orientation(
+        relation, source_jira_key, target_jira_key
+    )
 
     if link_types_cache is None:
         link_types_cache = acli_client.get_issue_link_types()
@@ -818,15 +829,9 @@ def handle_unlink_event(
     if not target_jira_key:
         return []
 
-    if relation in ("relates_to", "supersedes"):
-        required_type = "Relates"
-        out_key, in_key = source_jira_key, target_jira_key
-    elif relation == "blocks":
-        required_type = "Blocks"
-        out_key, in_key = source_jira_key, target_jira_key
-    else:  # depends_on
-        required_type = "Blocks"
-        out_key, in_key = target_jira_key, source_jira_key
+    required_type, out_key, in_key = _resolve_link_orientation(
+        relation, source_jira_key, target_jira_key
+    )
 
     try:
         existing_links = acli_client.get_issue_links(out_key)

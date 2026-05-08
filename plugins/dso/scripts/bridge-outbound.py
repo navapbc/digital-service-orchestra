@@ -190,10 +190,22 @@ def process_outbound(
 
         # Advance cursor after each successful handler regardless of event_type —
         # last successful commit_sha wins, partial-success semantics handled at
-        # process_events level (5d93-8b62).
+        # process_events level (5d93-8b62). Wrapped in try/except so a cursor
+        # write failure (filesystem permission / disk full) does not abort the
+        # batch — preserves per-event failure isolation contract (5ef3-24eb).
         commit_sha = event.get("commit_sha", "")
         if cursor_advance_fn and commit_sha:
-            cursor_advance_fn(commit_sha)
+            try:
+                cursor_advance_fn(commit_sha)
+            except Exception as cursor_exc:  # noqa: BLE001
+                logger.error(
+                    "process_outbound: cursor_advance_fn failed for "
+                    "ticket=%s commit_sha=%s: %s — batch continues, cursor "
+                    "left at previous position (next run will retry)",
+                    ticket_id,
+                    commit_sha,
+                    cursor_exc,
+                )
 
     if failed_count:
         logger.info(
