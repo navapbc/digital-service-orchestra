@@ -767,13 +767,22 @@ If `collect-discoveries.sh` fails, log a warning and proceed without discovery p
 
 ### Step 13: Continuation Decision (/dso:debug-everything)
 
-**Default is CONTINUE, not shutdown.** Only shut down on a concrete, verifiable signal — never on a "felt sense" of context fullness (a54a-95fc).
+**Default is CONTINUE, not shutdown.** Only shut down on a concrete, verifiable signal — never on a "felt sense" of context fullness (a54a-95fc, f9b5-213b).
 
 - If you received a **literal context-compaction event banner** from Claude Code during this session → Phase K (graceful shutdown). **CRITICAL**: On compaction, LOCK_ID may be lost from context. Recover it from the artifact file before Phase K: `LOCK_ID=$(cat "$(get_artifacts_dir)/debug-lock-id" 2>/dev/null)`. Phase K MUST release the lock and write epic summary notes — these are the two obligations that prior sessions lost after compaction.
 - If more failures remain in this tier → Phase G (next batch)
 - If tier is clear → Phase I (re-diagnose)
 
 Do NOT shut down based on an internal estimate of session context usage. There is no way to self-measure context fill. If no compaction event occurred, keep fixing bugs.
+
+**Anti-pattern guard (f9b5-213b) — premature shutdown is bypass, not graceful shutdown.** The following are all PROHIBITED shutdown rationales:
+
+- "Context is at <X>%, I should stop now." — there is no internal context-fill measurement; any percentage cited is fabricated.
+- "Sub-agent dispatches are expensive, so few-bug-shutdown is responsible." — sub-agent budget is not a shutdown gate.
+- "Many bugs remain (N=53) and I cannot fix them all this session, so I will report progress and stop." — partial completion is the normal state of multi-session work; report it via Phase K checkpoint AFTER Phase L, not before.
+- "I committed the fixes; the user can merge themselves." — Phase L is REQUIRED (see Phase L section: "The `/dso:debug-everything` command is NOT complete until changes are merged to main and CI passes"). Offloading Phase L to the user is incomplete execution, not graceful shutdown.
+
+Only a literal compaction-event banner authorizes shutdown. When that banner arrives, the path is mandatory: Phase K → Phase L → Phase M, no off-ramps.
 
 ---
 
@@ -828,6 +837,12 @@ This is a remediation pass. Apply the same discipline: triage new failures, crea
 
 ## Phase K: Issue Closure & Graceful Shutdown (/dso:debug-everything)
 
+**Entry gate (f9b5-213b)**: Phase K is reachable from exactly two paths:
+1. Phase J reports `ALL_PASS` AND zero open bugs (success path).
+2. A literal context-compaction event banner was received (graceful-shutdown path).
+
+No other entry to Phase K is valid. In particular: "context usage feels high", "many bugs remain", "few commits made", "sub-agents are expensive", and "user can merge themselves" are all PROHIBITED entry rationales — they are the exact failure mode this gate prevents. If you find yourself reasoning toward Phase K without one of the two valid signals, STOP and return to Phase G/I/J.
+
 ### On Success (All Checks Pass + Zero Open Bugs)
 
 1. Clean up discoveries and release the session lock:
@@ -878,6 +893,8 @@ This is a remediation pass. Apply the same discipline: triage new failures, crea
 ## Phase L: Merge to Main & Verify (/dso:debug-everything)
 
 This phase is REQUIRED for both success and graceful shutdown. The `/dso:debug-everything` command is NOT complete until changes are merged to main and CI passes.
+
+**Phase L is non-skippable (f9b5-213b).** A session with committed-on-worktree changes that has not run Phase L is in an INCOMPLETE state, regardless of how many bugs were fixed or how the session is otherwise wrapping up. The orchestrator MUST NOT report completion, summarize results, or hand off to the user before Phase L has been invoked. Telling the user "you can merge with `merge-to-main.sh` when ready" is a Phase L skip and is prohibited.
 
 ### Step 1: Merge + CI + Validate (sub-agent)
 
