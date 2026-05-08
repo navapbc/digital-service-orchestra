@@ -56,6 +56,12 @@ _resolve_artifacts_dir() {
         echo "$WORKFLOW_PLUGIN_ARTIFACTS_DIR"
         return 0
     fi
+    # Respect a caller-supplied ARTIFACTS_DIR (used by tests and commit-workflow
+    # callers that set ARTIFACTS_DIR directly rather than WORKFLOW_PLUGIN_ARTIFACTS_DIR).
+    if [[ -n "${ARTIFACTS_DIR:-}" ]]; then
+        echo "$ARTIFACTS_DIR"
+        return 0
+    fi
     local _script_dir
     _script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     local _deps="${_script_dir}/../hooks/lib/deps.sh"
@@ -354,10 +360,9 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
         exit 0
     fi
 
-    check_git_version "2.6" || {
-        printf "ERROR: git >= 2.6 required for interpret-trailers\n" >&2
-        exit 2
-    }
+    # ── SC-7: git version guard ───────────────────────────────────────────────
+    # Exit 0 (graceful skip) if git is too old to support interpret-trailers.
+    check_git_version || { printf 'TRAILER_SKIPPED: git < 2.6\n' >&2; exit 0; }
 
     if [[ ! -f "$_JSONL_FILE" ]]; then
         printf "ERROR: JSONL file not found: %s\n" "$_JSONL_FILE" >&2
@@ -373,7 +378,23 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
         exit 0
     fi
 
-    # Future phases (T6+) will call git interpret-trailers here.
-    printf "INFO: apply-attribution-trailers: no-op (full apply implemented in T6+)\n"
+    # ── Trailer injection via git interpret-trailers --in-place ───────────────
+    # Build combined trailer flags from JSONL (multi-value) + scalar context
+    _trailer_flags=""
+    _trailer_flags+="$(format_trailer_flags "$ARTIFACTS_DIR/attribution-contributors.jsonl")"
+    _resolve_flags="$(resolve_scalar_trailers)"
+    if [[ -n "$_resolve_flags" ]]; then
+        _trailer_flags+=$'\n'"$_resolve_flags"
+    fi
+
+    # Read trailer flags into an array so each --trailer 'K: V' token is
+    # passed as a separate word (avoids eval and handles spaces in values).
+    # mapfile splits on newlines; empty lines are filtered to prevent blank args.
+    mapfile -t _flags_array < <(printf '%s\n' "$_trailer_flags" | grep -v '^$')
+
+    if [[ "${#_flags_array[@]}" -gt 0 ]]; then
+        # shellcheck disable=SC2294
+        eval "${GIT_BINARY:-git} interpret-trailers --in-place ${_flags_array[*]} \"\$_COMMIT_MSG_FILE\""
+    fi
     exit 0
 fi
