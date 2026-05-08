@@ -653,10 +653,10 @@ def test_runner_warns_on_all_synthetic_findings(tmp_path, capsys):
     """
     Given: all findings are synthetic (fallback_exhausted type)
     When: runner.main() completes
-    Then: exit code is 0 (fail-open) and stderr contains WARNING about synthetic findings
+    Then: exit code is 1 (fail-closed) and stderr contains ERROR about synthetic findings
 
-    Covers e840-327f: runner silently succeeds with all-synthetic findings,
-    giving no signal to operators that review content is missing.
+    Reverses e840-327f: all-synthetic is a complete-failure case (zero usable review
+    content) and must block the PR. Bug a8f6-4c5e.
     """
     import dso_ci_review.runner as runner_mod
 
@@ -723,13 +723,13 @@ def test_runner_warns_on_all_synthetic_findings(tmp_path, capsys):
     ):
         exit_code = runner_mod.main()
 
-    assert exit_code == 0, (
-        f"Expected exit code 0 (fail-open for fallback_exhausted), got {exit_code}. "
+    assert exit_code == 1, (
+        f"Expected exit code 1 (fail-closed for all-synthetic findings), got {exit_code}. "
         f"stderr: {stderr_capture.getvalue()!r}"
     )
     stderr_text = stderr_capture.getvalue()
-    assert "WARNING" in stderr_text and "synthetic" in stderr_text.lower(), (
-        f"Expected WARNING about synthetic findings in stderr, got: {stderr_text!r}"
+    assert "ERROR" in stderr_text and "synthetic" in stderr_text.lower(), (
+        f"Expected ERROR about synthetic findings in stderr, got: {stderr_text!r}"
     )
 
 
