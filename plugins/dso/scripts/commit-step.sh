@@ -58,6 +58,7 @@ print(json.dumps(data, indent=2))
 " "$_step_name" "$_ts" > "$ARTIFACTS_DIR/${_step_name}.timeout"
 else
     # Result artifact
+    # Write artifact before any stdout to ensure truncation immunity
     python3 -c "
 import json, sys
 data = {
