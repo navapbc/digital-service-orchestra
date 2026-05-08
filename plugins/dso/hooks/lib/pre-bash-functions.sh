@@ -773,9 +773,10 @@ hook_tickets_tracker_bash_guard() {
     done
     local _CMD_FIRST="${_CMD_TRIMMED%%[[:space:]]*}"
 
-    # Write-redirect check FIRST: if the command contains a redirect (> or >>)
-    # targeting a .tickets-tracker/ path, it's a write operation — skip all
-    # allow filters and fall through to the allowlist/block logic below.
+    # Write-redirect check FIRST: if the command does NOT contain a redirect (> or >>)
+    # targeting a .tickets-tracker/ path, it's safe to read — apply allow filters.
+    # If it does contain a redirect targeting .tickets-tracker/, skip allow filters
+    # and fall through to the allowlist/block logic below.
     if [[ "$COMMAND" != *">"*".tickets-tracker/"* ]]; then
         # No redirect targeting .tickets-tracker/ — safe to apply allow filters.
 
