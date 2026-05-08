@@ -118,6 +118,7 @@ plugins/dso/hooks/lib/enforcement-gate.sh:tests/hooks/lib/test-enforcement-gate-
 plugins/dso/hooks/lib/hook-error-handler.sh:tests/hooks/test-hook-error-handler.sh
 plugins/dso/hooks/lib/merge-helpers.sh:tests/integration/test-merge-to-main-pr-thread-resolution.sh,tests/integration/test-conflict-data-schema-parity.sh,tests/scripts/test-merge-to-main-dispatcher.sh,tests/hooks/test-merge-helpers-pr-repo-cache.sh,tests/hooks/test-merge-helpers-special-chars.sh,tests/scripts/test-merge-to-main-pr.sh
 plugins/dso/hooks/lib/planning-config.sh:tests/hooks/test-planning-config.sh
+plugins/dso/hooks/lib/post-functions.sh:tests/hooks/test-post-functions-attribution.sh [test_hook_record_agent_attribution_writes_jsonl_entry_when_enabled]
 plugins/dso/hooks/lib/pre-all-functions.sh:tests/hooks/test-hook-inline-trap-consolidation.sh
 plugins/dso/hooks/lib/pre-bash-functions.sh:tests/hooks/test-hook-inline-trap-consolidation.sh
 plugins/dso/hooks/lib/preconditions-validator-lib.sh:tests/hooks/test-preconditions-validator-lib.sh,tests/integration/test-preconditions-chain-5stage.sh
