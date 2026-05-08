@@ -171,6 +171,22 @@ Files are already staged from Step 5. The diff stat summary is already in contex
 
 Create a single git commit following the repository's commit message conventions visible in the recent commits from Step 1.
 
+### Attribution Pre-Commit (skip if attribution.enabled ≠ true)
+
+**SKIP ENTIRELY when `attribution.enabled` is absent or not `true` in `dso-config.conf`.**
+
+If `attribution.enabled=true`:
+- Run `bash apply-attribution-trailers.sh "$COMMIT_MSG_FILE" "${DSO_TASK_ID:-}"` with `ARTIFACTS_DIR` set to the session artifacts dir
+- If the script exits non-zero: emit a warning to stderr and continue — this step is **non-blocking**
+
+```bash
+ATTRIBUTION_ENABLED=$(grep -m1 '^attribution\.enabled=' "$REPO_ROOT/.claude/dso-config.conf" 2>/dev/null | cut -d= -f2-)
+if [[ "${ATTRIBUTION_ENABLED:-}" == "true" ]]; then
+    bash apply-attribution-trailers.sh "$COMMIT_MSG_FILE" "${DSO_TASK_ID:-}" || \
+        echo "WARNING: apply-attribution-trailers.sh failed (non-blocking)" >&2
+fi
+```
+
 ```bash
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-6-commit" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
 ```
@@ -186,6 +202,21 @@ Then emit the end event:
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
 ".claude/scripts/dso" emit-commit-workflow-event.sh --phase=end --success=true
+```
+
+### Attribution Post-Commit Truncate (skip if attribution.enabled ≠ true)
+
+**SKIP ENTIRELY when `attribution.enabled` is absent or not `true` in `dso-config.conf`.**
+
+If `attribution.enabled=true` and the commit exited 0:
+- Run `bash apply-attribution-trailers.sh --truncate "$COMMIT_MSG_FILE"` with `ARTIFACTS_DIR` set to the session artifacts dir
+- If truncation exits non-zero: emit a warning to stderr but do **not** fail
+
+```bash
+if [[ "${ATTRIBUTION_ENABLED:-}" == "true" ]]; then
+    bash apply-attribution-trailers.sh --truncate "$COMMIT_MSG_FILE" || \
+        echo "WARNING: apply-attribution-trailers.sh --truncate failed (non-blocking)" >&2
+fi
 ```
 
 After committing, report the SHA and **immediately return control to the caller** — do NOT wait for user input. Resume the calling workflow at the step after this commit invocation. If you were executing `/dso:debug-everything`, continue at the step after this commit invocation (Phase F Step 5 for auto-fix commits, or Phase H Step 11 for post-batch commits). If you were executing `/dso:sprint`, continue at Phase F Step 17 (Commit & Push) or the step that invoked this workflow. Do NOT output any text that implies the session is complete.
