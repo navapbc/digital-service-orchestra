@@ -171,18 +171,12 @@ SIZE_ACTION=$(echo "$CLASSIFIER_OUTPUT" | python3 -c 'import json,sys; d=json.lo
 IS_MERGE=$(echo "$CLASSIFIER_OUTPUT" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(str(d.get("is_merge_commit",False)).lower())' 2>/dev/null || echo "false")
 DIFF_SIZE_LINES=$(echo "$CLASSIFIER_OUTPUT" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("diff_size_lines",0))' 2>/dev/null || echo "0")
 
-# REVIEW_PASS_NUM tracks initial vs re-review passes.
-# Pass 1 = initial review dispatch; pass >= 2 = re-review from Autonomous Resolution Loop.
-# Size limits apply ONLY to pass 1. The Autonomous Resolution Loop caller must set
-# REVIEW_PASS_NUM before invoking this workflow for re-review passes.
-REVIEW_PASS_NUM="${REVIEW_PASS_NUM:-1}"
 # TIER LOCK: REVIEW_TIER is set once (above) and carried into all re-review passes.
-# The classifier MUST NOT be re-run for re-review passes (REVIEW_PASS_NUM >= 2).
+# The classifier MUST NOT be re-run for re-review passes.
 # Re-review passes use the REVIEW_TIER/REVIEW_AGENT from the initial Step 3 classification.
 
 # Merge commits bypass size limits entirely (contract: is_merge_commit always checked first)
-# re-review passes (REVIEW_PASS_NUM >= 2) bypass size limits (re-review exemption rule)
-if [[ "$IS_MERGE" != "true" ]] && [[ "$REVIEW_PASS_NUM" -le 1 ]]; then
+if [[ "$IS_MERGE" != "true" ]]; then
     # Size action branching (initial review, non-merge only)
     if [[ "$SIZE_ACTION" == "upgrade" ]]; then
         # Upgrade: size_action=upgrade triggers a model_override — use opus reviewer
@@ -201,7 +195,7 @@ fi
 
 Use the `REVIEW_TIER` and `REVIEW_AGENT` values in Step 4. When `REVIEW_AGENT_OVERRIDE` is set (size upgrade case), Step 4 dispatch uses `REVIEW_AGENT_OVERRIDE` instead of `REVIEW_AGENT`. Do not override the classifier's tier selection.
 
-**TIER IMMUTABILITY**: Once `REVIEW_TIER` is set by the classifier output in Step 3, it is immutable for the lifetime of this review pass. You MUST NOT re-run the classifier, select a different tier, or interpret the re-review escalation table (REVIEW_PASS_NUM) as permission to move to a lighter tier. The re-review escalation table governs upward escalation only. Any rationalization for downgrading — including "stale diff," "false positives," "user preference context," or "sprint batch context" — is prohibited. Tier direction is one-way: light → standard → deep. Never standard → light or deep → standard.
+**TIER IMMUTABILITY**: Once `REVIEW_TIER` is set by the classifier output in Step 3, it is immutable for the lifetime of this review pass. You MUST NOT re-run the classifier, select a different tier, or downgrade the tier for any reason. Tier upgrades happen ONLY via `ESCALATE_REVIEW` signals from the reviewer (Step 4a) — never via cycle count, diff size changes, or orchestrator judgment. Any rationalization for downgrading — including "stale diff," "false positives," "user preference context," or "sprint batch context" — is prohibited. Tier direction is one-way: light → standard → deep. Never standard → light or deep → standard.
 
 **Deep tier + upgrade — no rationalization exemptions**: When `REVIEW_TIER=deep` and `SIZE_ACTION=upgrade`, you MUST dispatch the full deep tier (3 parallel sonnet agents + opus arch synthesis) with the opus model override. Do not substitute a lighter tier, a standard-tier agent, or a general-purpose agent due to perceived overhead, time constraints, or commit urgency. The deep tier exists precisely for high-blast-radius changes — "overhead" objections do not override the classifier.
 
@@ -889,7 +883,7 @@ that causes `[Tool result missing due to internal error]`:
 
 This design keeps nesting at one level (orchestrator → sub-agent) for both the fix and re-review steps.
 
-**Before dispatching**, record the current time for freshness verification and initialize the ratchet variable:
+**Before dispatching**, record the current time for freshness verification and initialize loop variables:
 
 ```bash
 DISPATCH_TIME=$(date +%s)
@@ -897,8 +891,12 @@ source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
 ARTIFACTS_DIR="$(get_artifacts_dir)"
 # RATCHETED_TIER tracks escalation from ESCALATE_REVIEW (Step 4a).
 # Once set, it ensures re-review passes use at least the escalated tier.
+# Tier upgrades ONLY via ESCALATE_REVIEW — never via cycle count.
 # Initialized to empty (no ratchet in effect) before the first dispatch.
 RATCHETED_TIER=''
+# ATTEMPT_NUM tracks resolution loop iterations for the oscillation gate and max-attempts check.
+# It is incremented at the start of each resolution sub-agent dispatch.
+ATTEMPT_NUM=0
 ```
 
 Read `${CLAUDE_PLUGIN_ROOT}/docs/workflows/prompts/review-fix-dispatch.md` and use its contents as the sub-agent prompt, filling in:
@@ -939,34 +937,34 @@ Task tool:
    "$REPO_ROOT/.claude/scripts/dso" capture-review-diff.sh "$NEW_DIFF_FILE" "$NEW_STAT_FILE"
    ```
 
-2. **Re-review model escalation**: Increment `REVIEW_PASS_NUM` by 1 before each re-review dispatch, then select the re-review agent based on the updated value. On repeated failures, upgrade the reviewer model to prevent infinite loops with a reviewer that cannot process the context (e.g., light-tier reviewers producing recurring false positives on REVIEW-DEFENSE comments). `RATCHETED_TIER` (set in Step 4a when `ESCALATE_REVIEW` triggered escalation) is respected as a one-way floor — once set, the re-review tier never drops below it:
+2. **Re-review agent selection**: Use `REVIEW_AGENT` from Step 3 for all re-review dispatches. Tier upgrades MUST NOT be triggered by cycle count — they happen ONLY via `ESCALATE_REVIEW` signals (Step 4a). `RATCHETED_TIER` (set in Step 4a when `ESCALATE_REVIEW` triggered escalation) is respected as a one-way floor across all re-review passes — once set, the re-review tier never drops below it:
 
-   | `REVIEW_PASS_NUM` (after increment) | Re-review Agent | Rationale |
+   | Condition | Re-review Agent | Rationale |
    |---|---|---|
-   | 2 | `REVIEW_AGENT` from Step 3 (unchanged for standard); deep → full deep-multi-reviewer pipeline; light → upgrade to `dso:code-reviewer-standard` | Deep tier always requires 3 sonnet + opus sequence; light-tier haiku lacks context for REVIEW-DEFENSE |
-   | Any pass with `RATCHETED_TIER` set | Use `max(RATCHETED_TIER, current escalation result)` — ratchet only goes up, never down | Preserves escalation from Step 4a `ESCALATE_REVIEW` across all re-review passes; ordinal: light=1, standard=2, deep=3 |
+   | `REVIEW_TIER=deep` (any pass) | full deep-multi-reviewer pipeline | Deep tier always requires 3 sonnet + opus sequence (bug d7e6-216a) |
+   | `RATCHETED_TIER` set (from ESCALATE_REVIEW) | Use `max(RATCHETED_TIER, REVIEW_TIER)` — ratchet only goes up | Preserves escalation from Step 4a `ESCALATE_REVIEW` across all re-review passes; ordinal: light=1, standard=2, deep=3 |
+   | All other cases | `REVIEW_AGENT` from Step 3 (unchanged) | Tier is locked; only ESCALATE_REVIEW may change it |
 
    ```bash
-   # Re-review model escalation logic
+   # Re-review agent selection logic
+   # Increment ATTEMPT_NUM at the start of each re-review dispatch (for oscillation gate and max-attempts).
+   ((ATTEMPT_NUM++))
    # RATCHETED_TIER is initialized before the first dispatch and updated by Step 4a.
    # It defaults to empty here if not previously set (no ESCALATE_REVIEW escalation occurred).
    RATCHETED_TIER="${RATCHETED_TIER:-}"
-   ((REVIEW_PASS_NUM++))
    RE_REVIEW_AGENT="$REVIEW_AGENT"
    RE_REVIEW_DEEP_FULL=false
-   if [[ "$REVIEW_PASS_NUM" -ge 2 ]] && [[ "$REVIEW_TIER" == "deep" ]]; then
+   if [[ "$REVIEW_TIER" == "deep" ]]; then
        # Deep tier always requires full pipeline — opus arch without fresh
        # sonnet findings produces incomplete reviews (bug d7e6-216a)
        RE_REVIEW_DEEP_FULL=true
-   elif [[ "$REVIEW_PASS_NUM" -ge 2 ]] && [[ "$REVIEW_TIER" == "light" ]]; then
-       RE_REVIEW_AGENT="dso:code-reviewer-standard"
    fi
    # Apply RATCHETED_TIER: one-way floor from any prior ESCALATE_REVIEW dispatch (Step 4a).
+   # Tier upgrades ONLY come from ESCALATE_REVIEW — never from cycle count.
    # Ordinal mapping: light=1, standard=2, deep=3. Ratchet only goes up.
    if [[ -n "$RATCHETED_TIER" ]]; then
        _tier_ordinal() { case "$1" in light) echo 1;; standard) echo 2;; deep) echo 3;; *) echo 0;; esac; }
        _current_tier="$REVIEW_TIER"
-       [[ "$RE_REVIEW_AGENT" == "dso:code-reviewer-standard" ]] && _current_tier="standard"
        [[ "$RE_REVIEW_DEEP_FULL" == "true" ]] && _current_tier="deep"
        if [[ $(_tier_ordinal "$RATCHETED_TIER") -gt $(_tier_ordinal "$_current_tier") ]]; then
            case "$RATCHETED_TIER" in
@@ -984,7 +982,7 @@ Task tool:
    # sequence (3 parallel sonnet + opus synthesis) instead of a single agent.
    ```
 
-   **Do NOT re-run the classifier** for re-review passes — the diff shrank after fixes, which would produce a lower score and potentially route back to `light`. `REVIEW_TIER` is locked to its Step 3 value for the lifetime of this review session. The `RE_REVIEW_AGENT` escalation table above is the only permitted source of tier changes in re-review passes.
+   **Do NOT re-run the classifier** for re-review passes — the diff shrank after fixes, which would produce a lower score and potentially route back to `light`. `REVIEW_TIER` is locked to its Step 3 value for the lifetime of this review session. Tier upgrades during re-review happen ONLY via `ESCALATE_REVIEW` signals (Step 4a), never by cycle count.
 
    **Mid-resolution approach_viability_concern check (DD3)**: After the ratchet state update above and before dispatching the next re-review attempt, re-read `approach_viability_concern` from the most recent `reviewer-findings.json`. This catches cases where the signal was emitted by a re-review (not present in the initial review).
 
@@ -1060,7 +1058,7 @@ Task tool:
    ```bash
    ".claude/scripts/dso" emit-review-result.sh \
      --pass-fail=passed \
-     --revision-cycles="$REVIEW_PASS_NUM" \
+     --revision-cycles="$ATTEMPT_NUM" \
      --resolution-code-changes="$RESOLUTION_CODE_CHANGES" \
      --resolution-defenses="$RESOLUTION_DEFENSES" \
      --tier-original="$REVIEW_TIER" \
@@ -1073,19 +1071,21 @@ Task tool:
 
 5. **If re-review fails**: run the OSCILLATION GATE before dispatching another resolution sub-agent.
 
-   **OSCILLATION GATE (mandatory on attempt 2+)**:
-   - If attempt >= 2: run `/dso:oscillation-check` unconditionally. Do NOT skip based on whether findings appear new.
+   **OSCILLATION GATE (mandatory on ATTEMPT_NUM >= 2)**:
+   - If `ATTEMPT_NUM >= 2`: run `/dso:oscillation-check` unconditionally. Do NOT skip based on whether findings appear new.
    - If OSCILLATION detected: escalate immediately. Do NOT dispatch another resolution sub-agent.
    - If CLEAR: dispatch the next resolution sub-agent.
 
-   **Max attempts**: Read `review.max_resolution_attempts` from `dso-config.conf` (default: 5). When attempts exceed this value, **STOP — DO NOT PROCEED to user escalation**. First, check whether a tier upgrade is available: if the current reviewer is light or standard tier, you MUST upgrade to the deep tier (3 parallel sonnet specialists + opus architectural synthesis) before any user escalation. Only after the deep tier has been dispatched and also failed may you escalate to the user. Do NOT escalate to user while a higher-tier reviewer is still available and untried.
+   **Call 2 oscillation short-circuit**: When 2 consecutive Call 2 redispatches (DSO_REVIEW_CYCLE >= 2) produce the exact same set of proximity overlaps (same file + line pairs), skip further Call 2 redispatch and treat the overlapping findings as stable — proceed to the OSCILLATION GATE escalation path rather than continuing the loop.
+
+   **Max attempts**: Read `review.max_resolution_attempts` from `dso-config.conf` (default: 5). When attempts exceed this value, **STOP — DO NOT PROCEED to user escalation**. First, check whether a tier upgrade is available via `ESCALATE_REVIEW` signal: if the reviewer emitted `ESCALATE_REVIEW` and a higher tier is available (light → standard, standard → deep), dispatch the escalated reviewer before user escalation. Only after the highest available tier has been dispatched and also failed may you escalate to the user. Do NOT escalate to user while a higher-tier reviewer is still available and untried via ESCALATE_REVIEW.
 
    ```bash
    MAX_ATTEMPTS=$("$REPO_ROOT/.claude/scripts/dso" read-config.sh review.max_resolution_attempts)
    MAX_ATTEMPTS="${MAX_ATTEMPTS:-5}"
    ```
 
-6. **If re-review fails** (attempt count exceeds `MAX_ATTEMPTS`, or oscillation detected): **DO NOT commit with a failing review.** A failing review is never a reason to bypass the review gate — the pre-commit hook will block it regardless, and attempting it wastes context. Instead: before escalating to user, verify that the full deep-multi-reviewer path at PASS_NUM 3+ has been attempted (3 parallel sonnet specialists + opus arch synthesis — for ALL tiers, not just deep). User escalation is the **last resort**, after the full deep tier review has been exhausted. Only then: escalate to user.
+6. **If re-review fails** (attempt count exceeds `MAX_ATTEMPTS`, or oscillation detected): **DO NOT commit with a failing review.** A failing review is never a reason to bypass the review gate — the pre-commit hook will block it regardless, and attempting it wastes context. Instead: before escalating to user, check whether the reviewer emitted an `ESCALATE_REVIEW` signal pointing to a higher tier. If so, dispatch the escalated reviewer (light → standard, standard → deep full pipeline) before user escalation. User escalation is the **last resort**, after all available `ESCALATE_REVIEW`-gated tier upgrades have been exhausted. Only then: escalate to user.
 
 **Escalation message format** (when sub-agent returns FAIL or ESCALATE, or re-review fails twice):
 

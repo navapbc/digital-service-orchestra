@@ -176,7 +176,9 @@ plugins/dso/scripts/ci-review-corpus-delta.sh:tests/skills/dso_ci_review/test-ci
 plugins/dso/scripts/dso_ci_review/classifier.py:tests/skills/dso_ci_review/test_classifier.py
 plugins/dso/scripts/dso_ci_review/context_request.py:tests/skills/dso_ci_review/test_context_augmentation.py
 plugins/dso/scripts/dso_ci_review/dispatch.py:tests/skills/dso_ci_review/test_dispatch_fallback.py,tests/skills/dso_ci_review/test_tier_wiring.py,tests/skills/dso_ci_review/test_context_augmentation.py,tests/skills/dso_ci_review/test_prompt_caching.py,tests/skills/dso_ci_review/test_integration_full_loop.py
+plugins/dso/scripts/dso_ci_review/arbiter.py: [test_dispatch_arbiter_called_on_resustain_of_with_prior_defense] tests/skills/dso_ci_review/test_arbiter.py
 plugins/dso/scripts/dso_ci_review/findings.py:tests/skills/dso_ci_review/test_findings.py
+plugins/dso/scripts/dso_ci_review/proximity.py: [test_proximity_overlap_same_file_within_5_lines] tests/skills/dso_ci_review/test_proximity.py
 plugins/dso/scripts/dso_ci_review/speculation_markers.py:tests/skills/dso_ci_review/test_speculation_markers.py
 plugins/dso/scripts/dso_ci_review/providers/config.py:tests/skills/dso_ci_review/test_providers_config.py,tests/skills/dso_ci_review/test_dispatch_config.py
 plugins/dso/scripts/dso_ci_review/providers/openai.py:tests/skills/dso_ci_review/test_providers_unit.py [test_openai_provider_review_diff]

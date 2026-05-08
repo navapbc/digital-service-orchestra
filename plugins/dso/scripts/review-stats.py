@@ -461,6 +461,62 @@ def format_table(metrics: dict) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _resolve_events_dir(events_dir_arg: Path | None) -> Path:
+    """Resolve the events directory from arg or repo root detection."""
+    if events_dir_arg:
+        return events_dir_arg
+    try:
+        import subprocess
+
+        repo_root = subprocess.check_output(
+            ["git", "rev-parse", "--show-toplevel"],
+            text=True,
+        ).strip()
+        return Path(repo_root) / ".review-events"
+    except Exception:
+        return Path(".review-events")
+
+
+def format_metrics_table(events_all: list[dict]) -> str:
+    """Compute and format the 4 advanced metrics over 7-day and 30-day windows.
+
+    # ---------------------------------------------------------------------------
+    # PLAYBOOK — Advanced Metrics Interpretation
+    # ---------------------------------------------------------------------------
+    # phantom_escalation_rate > 0.3 for 2 consecutive 7-day windows:
+    #   -> Open a P2 bug against the cycle-1 severity rubric. The classifier
+    #      is over-escalating; tighten the escalation threshold or audit the
+    #      rubric for over-broad severity definitions.
+    #
+    # prior_region_resustain_skew > 3.0 for 2 consecutive windows:
+    #   -> Investigate proximity-overlap false positives. A high skew means
+    #      resustains are clustering inside prior regions, suggesting the
+    #      overlap detection window is too wide and creating phantom hits.
+    # ---------------------------------------------------------------------------
+    """
+    windows = {
+        "7d": filter_by_time_window(events_all, 7),
+        "30d": filter_by_time_window(events_all, 30),
+    }
+
+    rows = [
+        ("p90_cycle_count", compute_p90_cycle_count, "{:.1f}"),
+        ("phantom_escalation_rate", compute_phantom_escalation_rate, "{:.3f}"),
+        ("call2_finding_drop_rate", compute_call2_finding_drop_rate, "{:.3f}"),
+        ("prior_region_resustain_skew", compute_prior_region_resustain_skew, "{:.3f}"),
+    ]
+
+    col_metric = max(len(r[0]) for r in rows)
+    lines: list[str] = []
+    lines.append(f"{'Metric':<{col_metric}}  {'7-day':>8}  {'30-day':>8}")
+    lines.append("-" * (col_metric + 20))
+    for name, fn, fmt in rows:
+        v7 = fn(windows["7d"])
+        v30 = fn(windows["30d"])
+        lines.append(f"{name:<{col_metric}}  {fmt.format(v7):>8}  {fmt.format(v30):>8}")
+    return "\n".join(lines)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Review stats aggregation and reporting.",
@@ -483,21 +539,26 @@ def main() -> None:
         default=None,
         help="Path to events directory (default: .review-events/ in repo root).",
     )
+    parser.add_argument(
+        "--metrics",
+        action="store_true",
+        help=(
+            "Compute and print advanced metrics (p90_cycle_count, "
+            "phantom_escalation_rate, call2_finding_drop_rate, "
+            "prior_region_resustain_skew) over rolling 7-day and 30-day windows."
+        ),
+    )
     args = parser.parse_args()
 
-    if args.events_dir:
-        events_dir = args.events_dir
-    else:
-        try:
-            import subprocess
+    events_dir = _resolve_events_dir(args.events_dir)
 
-            repo_root = subprocess.check_output(
-                ["git", "rev-parse", "--show-toplevel"],
-                text=True,
-            ).strip()
-            events_dir = Path(repo_root) / ".review-events"
-        except Exception:
-            events_dir = Path(".review-events")
+    if args.metrics:
+        # For --metrics, an absent events dir is not fatal — show zero values.
+        events_all: list[dict] = []
+        if events_dir.is_dir():
+            events_all = read_events_dir(events_dir, since=None)
+        print(format_metrics_table(events_all))
+        sys.exit(0)
 
     if not events_dir.is_dir():
         print(f"Events directory not found: {events_dir}", file=sys.stderr)
