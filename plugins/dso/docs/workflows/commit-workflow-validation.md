@@ -164,10 +164,10 @@ echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-4-validation-state" >> "$ARTIFACTS_DIR
 
 Run `record-test-status.sh` **after** `git add -u` (Step 5 of the parent COMMIT-WORKFLOW.md) so that the recorded diff hash matches the staged index — the pre-commit test gate validates against the staged hash, not the working-tree hash.
 
-The invocation must be prefixed with `DSO_COMMIT_WORKFLOW=1` — the PreToolUse `hook_record_test_status_guard` rejects unprefixed direct calls to prevent casual misuse. See `${CLAUDE_PLUGIN_ROOT}/hooks/lib/pre-bash-functions.sh` for the allowlist and `${CLAUDE_PLUGIN_ROOT}/hooks/pre-commit-test-gate.sh` for the defense-in-depth diff_hash check that catches mismatched status regardless.
+The load-bearing defense against stale-diff status writes is the diff_hash check inside `${CLAUDE_PLUGIN_ROOT}/hooks/pre-commit-test-gate.sh` — it rejects any `test-gate-status` whose `diff_hash` does not match the current staged tree, regardless of how the status was recorded.
 
 ```bash
-DSO_COMMIT_WORKFLOW=1 bash "${CLAUDE_PLUGIN_ROOT}/hooks/record-test-status.sh"
+bash "${CLAUDE_PLUGIN_ROOT}/hooks/record-test-status.sh"
 ```
 
 - **exit 0**: all associated tests passed (or no associated tests found) — continue to Step 6 (Review Gate).

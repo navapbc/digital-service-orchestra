@@ -14,8 +14,9 @@
 #   5. hook_worktree_edit_guard
 #   6. hook_review_integrity_guard
 #   7. hook_blocked_test_command (block broad test commands, redirect to validate.sh)
-#   8. hook_record_test_status_guard — block direct record-test-status.sh calls (allow --attest)
-#   9. hook_tickets_tracker_bash_guard — block Bash commands referencing .tickets-tracker/
+#   8. hook_tickets_tracker_bash_guard — block Bash commands referencing tickets-tracker dir
+# Removed (ce62-624e): hook_record_test_status_guard — non-load-bearing speed-bump;
+#   diff_hash check in pre-commit-test-gate.sh is the load-bearing defense.
 #
 # NOTE: hook_review_gate was removed in Story 1idf. Review gate enforcement is
 #   now two-layer:
@@ -108,7 +109,6 @@ _pre_bash_dispatch() {
         hook_worktree_edit_guard \
         hook_review_integrity_guard \
         hook_blocked_test_command \
-        hook_record_test_status_guard \
         hook_tickets_tracker_bash_guard
     do
         local _fn_exit=0
