@@ -1137,7 +1137,8 @@ test_truncate_clears_populated_jsonl_to_zero_bytes() {
     assert_eq "SC-6 truncate populated: exits 0" "0" "$exit_code"
 
     local byte_count
-    byte_count="$(wc -c < "$_jsonl" 2>/dev/null || echo "-1")"
+    # Trim whitespace: macOS `wc -c` pads with leading spaces
+    byte_count="$(wc -c < "$_jsonl" 2>/dev/null | tr -d ' ' || echo "-1")"
     assert_eq "SC-6 truncate populated: JSONL has zero bytes after truncation" "0" "$byte_count"
 
     assert_pass_if_clean "test_truncate_clears_populated_jsonl_to_zero_bytes"
