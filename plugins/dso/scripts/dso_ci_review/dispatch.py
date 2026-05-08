@@ -24,19 +24,18 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-_SYSTEM_PROMPT = (
-    "You are a code reviewer. Analyze the provided diff and return a JSON object "
-    'with a single key "findings" whose value is a list of finding objects. '
-    'Each finding object must have: severity (one of: "critical", "important", '
-    '"minor", "fragile"), description (string), '
-    "cited_lines (list of strings in 'path:lineno' format). "
-    "Return ONLY the JSON object, no markdown fences, no explanatory text."
+_PLUGIN_ROOT = pathlib.Path(
+    os.environ.get(
+        "CLAUDE_PLUGIN_ROOT", str(pathlib.Path(__file__).resolve().parent.parent.parent)
+    )
 )
-
-_PLUGIN_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 _AGENTS_DIR = _PLUGIN_ROOT / "agents"
 # Git-relative path to this module (used in synthetic cited_lines to avoid literal plugin paths).
-_THIS_FILE_GIT_REL = str(pathlib.Path(__file__).resolve().relative_to(_PLUGIN_ROOT.parent.parent))
+# Always derived from __file__ itself (5 levels up to repo root), independent of _PLUGIN_ROOT
+# so that CLAUDE_PLUGIN_ROOT overrides don't break the computation.
+_THIS_FILE_RESOLVED = pathlib.Path(__file__).resolve()
+_REPO_ROOT_FROM_FILE = _THIS_FILE_RESOLVED.parent.parent.parent.parent.parent
+_THIS_FILE_GIT_REL = str(_THIS_FILE_RESOLVED.relative_to(_REPO_ROOT_FROM_FILE))
 
 # SC4: context-augmentation soft cap (default 15 turns).
 # Module-level so tests can patch it without modifying the function signature.
@@ -48,23 +47,58 @@ def _load_agent_prompt(agent_id: str) -> str:
     """Load the canonical agent file body for ``agent_id``.
 
     Resolves ``<plugin-root>/agents/<agent_id>.md``, strips YAML frontmatter
-    (the leading ``---\\n...\\n---\\n`` block), and returns the body. Falls
-    back to the inline ``_SYSTEM_PROMPT`` constant when the agent file is
-    missing or empty so dispatch remains functional on agent_id typos.
+    (the leading ``---\\n...\\n---\\n`` block), and returns the body. Raises
+    RuntimeError when the agent file is missing or empty.
     """
     if not agent_id or agent_id == "unknown":
-        return _SYSTEM_PROMPT
+        raise RuntimeError(
+            f'agent_id must not be empty or "unknown"; got: {agent_id!r}'
+        )
     agent_file = _AGENTS_DIR / f"{agent_id}.md"
     try:
         text = agent_file.read_text(encoding="utf-8")
     except OSError:
-        return _SYSTEM_PROMPT
+        raise RuntimeError(
+            f"Agent file not found: {agent_file}. "
+            "Ensure CLAUDE_PLUGIN_ROOT points to the plugin directory containing agents/."
+        ) from None
     if text.startswith("---\n"):
         end = text.find("\n---\n", 4)
         if end != -1:
             text = text[end + len("\n---\n") :]
     body = text.strip()
-    return body or _SYSTEM_PROMPT
+    if not body:
+        raise RuntimeError(f"Agent file is empty: {agent_file}")
+    return body
+
+
+_REQUIRED_AGENT_IDS: list[str] = [
+    "code-reviewer-light",
+    "code-reviewer-standard",
+    "code-reviewer-deep-arch",
+    "code-reviewer-deep-correctness",
+    "code-reviewer-deep-verification",
+    "code-reviewer-deep-hygiene",
+    "code-reviewer-security-red-team",
+    "code-reviewer-security-blue-team",
+    "code-reviewer-performance",
+    "code-reviewer-test-quality",
+]
+
+
+def _validate_agent_files(required_ids: list[str] | None = None) -> None:
+    """Verify all required agent .md files exist. Raises RuntimeError listing all missing files."""
+    if required_ids is None:
+        required_ids = _REQUIRED_AGENT_IDS
+    missing = [
+        str(_AGENTS_DIR / f"{agent_id}.md")
+        for agent_id in required_ids
+        if not (_AGENTS_DIR / f"{agent_id}.md").exists()
+    ]
+    if missing:
+        raise RuntimeError(
+            "Missing agent files (check CLAUDE_PLUGIN_ROOT): " + ", ".join(missing)
+        )
 
 
 # Default per-provider model identifiers (primary → context escalation chain)

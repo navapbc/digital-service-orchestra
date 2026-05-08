@@ -27,7 +27,7 @@ import subprocess
 import sys
 import tempfile
 
-from dso_ci_review.dispatch import async_dispatch_specialists
+from dso_ci_review.dispatch import async_dispatch_specialists, _validate_agent_files
 from dso_ci_review.findings import merge_findings
 from dso_ci_review.providers.config import AuthError, ConfigError, get_provider
 
@@ -537,6 +537,13 @@ def main() -> int:
         findings = {"findings": [], "dry_run": True}
         _write_output(findings)
         return 0
+
+    # Validate all required agent files exist before dispatching any LLM calls.
+    try:
+        _validate_agent_files()
+    except RuntimeError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
 
     diff_text = _read_diff()
     if not diff_text.strip():
