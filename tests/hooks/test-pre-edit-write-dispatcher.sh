@@ -148,7 +148,6 @@ assert_eq "test_pre_write_dispatcher_exits_0_for_allowed_write" "0" "$_exit_code
 # ============================================================
 echo "--- test_pre_edit_write_functions_loaded_via_lib_file ---"
 
-# REVIEW-DEFENSE: hook_block_generated_reviewer_agents has dedicated tests in
 # tests/hooks/test-edit-block-generated-agents.sh (created in w22-ds0m).
 _fns_loaded=0
 (

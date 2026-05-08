@@ -425,7 +425,6 @@ E2E_AVAILABLE=1
 if [ -z "$CMD_TEST_E2E" ] || [ "$CMD_TEST_E2E" = "none" ]; then
     E2E_AVAILABLE=0
 elif [[ "$CMD_TEST_E2E" == make\ * ]]; then
-    # REVIEW-DEFENSE: Availability check is scoped to make-based commands only. The default
     # CMD_TEST_E2E is make-based (e.g., make test-e2e), and the FAIL-vs-SKIP bug this guard
     # fixes is most common when the make target does not exist. Non-make commands (e.g.,
     # 'pytest e2e/', 'npm run e2e', './scripts/run-e2e.sh') are left at E2E_AVAILABLE=1
@@ -441,7 +440,6 @@ elif [[ "$CMD_TEST_E2E" == make\ * ]]; then
 fi
 
 # Track launched checks for crash detection (missing .rc file = process crash)
-# REVIEW-DEFENSE: Keep this list in sync with the run_check/check_* calls below.
 # Each name must match the first argument passed to run_check or check_*.
 LAUNCHED_CHECKS="syntax format tests migrate"
 if [[ -n "$CMD_LINT" ]]; then
@@ -462,7 +460,6 @@ if [ "${VALIDATE_SKIP_PLUGIN_CHECKS:-}" != "1" ]; then
     [ -f "$PLUGIN_SCRIPTS/check-referential-integrity.sh" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS referential-integrity"
 fi
 [ -n "$CMD_BUILD" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS build"
-# REVIEW-DEFENSE: CMD_* variables are intentionally unquoted to allow word splitting.
 # Commands like "make format-check" must split into ["make", "format-check"] for run_check.
 # This is the standard bash pattern for stored multi-word commands.
 # shellcheck disable=SC2086

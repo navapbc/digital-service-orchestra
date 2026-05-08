@@ -14,7 +14,6 @@
 # Usage: bash tests/scripts/test-check-portability.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
-# REVIEW-DEFENSE: '-e' is intentionally omitted. The test harness captures
 # non-zero exit codes from script invocations via || assignment. With '-e',
 # expected non-zero exits would abort the script before assertions run.
 set -uo pipefail

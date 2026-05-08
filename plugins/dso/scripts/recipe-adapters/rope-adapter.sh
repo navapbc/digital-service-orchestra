@@ -52,7 +52,6 @@ PYEOF
 }
 
 # ── Engine availability check ─────────────────────────────────────────────────
-# REVIEW-DEFENSE: Walking skeleton implementation (story 5108-39a1). Tests use a mock rope
 # binary via write_mock_rope() in tests/scripts/test-rope-adapter.sh. The contract interface
 # (RECIPE_PARAM_*, JSON output, exit codes) is validated via mock. The actual rope invocation
 # mechanism (python3 -c 'import rope; ...') is scoped to the follow-on implementation story.
@@ -68,7 +67,6 @@ fi
 min_version="${ROPE_MIN_VERSION:-${RECIPE_MIN_ENGINE_VERSION:-}}"
 
 if [[ -n "$min_version" ]]; then
-    # REVIEW-DEFENSE: Mock rope in tests outputs "1.0.0" (version-only, no tool name prefix).
     # See write_mock_rope() in tests/scripts/test-rope-adapter.sh line 430: `echo "1.0.0"`.
     # awk '{print $1}' correctly extracts "1.0.0" from single-token output. test_adapter_version_validation
     # confirms this works. For production rope (Python library), version detection would use

@@ -126,7 +126,6 @@ fi
 
 # ── Build env var list for adapter ───────────────────────────────────────────
 # Each --param key=value becomes RECIPE_PARAM_key=value (key preserved as-is).
-# REVIEW-DEFENSE: test_executor_passes_params_via_env (tests/scripts/test-recipe-executor.sh)
 # asserts params.get('function_name') — lowercase. The test spec defines lowercase key
 # preservation as the required behavior for this walking skeleton. Contract uppercase
 # normalization (RECIPE_PARAM_FUNCTION_NAME) will be aligned with test spec in a follow-on story.

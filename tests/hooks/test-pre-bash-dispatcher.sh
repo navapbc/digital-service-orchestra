@@ -205,7 +205,6 @@ rm -rf "$_timing_test_dir"
 # in the dispatch loop, before hook_tickets_tracker_bash_guard) must
 # intercept these calls and return exit 2.
 #
-# REVIEW-DEFENSE: This test covers the FULL regression path for bug 530e-13d8
 # (EXIT trap override). It invokes the complete dispatcher script via
 # `bash "$DISPATCHER"` (not sourced), with CLAUDE_PLUGIN_ROOT set so
 # hook-error-handler.sh is sourced and the EXIT trap is registered, and

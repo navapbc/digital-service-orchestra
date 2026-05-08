@@ -116,7 +116,6 @@ test_setup_is_idempotent() {
     assert_eq "test_setup_is_idempotent (pre-existing entry)" "1" "$count2"
 }
 
-# REVIEW-DEFENSE: Error-path tests (missing arguments, invalid TARGET_DIR) are out of
 # scope for this RED-phase task. The RED phase covers the happy-path contract that the
 # script must satisfy. Error-path and edge-case coverage belongs in the GREEN implementation
 # task (dso-jl2z), where the script's full interface is defined and tested.

@@ -11,7 +11,6 @@
 # Usage: bash tests/scripts/test-validate-referential-integrity-integration.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 #
-# REVIEW-DEFENSE: These tests verify REGISTRATION of the referential-integrity-check hook — that validate.sh
 # wires check-referential-integrity.sh and that both pre-commit config files declare the hook. This is the
 # correct scope for integration tests at this layer. End-to-end execution correctness (broken references,
 # missing scripts, edge-case skill/agent files) is the responsibility of the dedicated script-level test

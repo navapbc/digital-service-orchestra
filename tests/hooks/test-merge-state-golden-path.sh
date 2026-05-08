@@ -25,7 +25,6 @@
 # Usage: bash tests/hooks/test-merge-state-golden-path.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 #
-# REVIEW-DEFENSE: This file intentionally implements all 35 scenario/consumer matrix tests
 # in a single file rather than splitting by scenario or consumer. The rationale:
 # (1) All 5 scenarios share the same fixture-builder helpers (_make_normal_repo,
 #     _make_merge_repo, _make_rebase_merge_repo, _make_rebase_apply_repo,

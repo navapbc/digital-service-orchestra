@@ -484,7 +484,6 @@ _has_config_file() {
     return 1
 }
 
-# REVIEW-DEFENSE: Finding 1 — DIFF_CONTENT is a script-level global defined at line 52
 # (DIFF_CONTENT="$(cat)") and used by all floor rule functions in the same pattern
 # (e.g., _has_anti_shortcut_signal, _has_exception_broadening). This function follows
 # the established convention; DIFF_CONTENT is always in scope when floor rules execute.

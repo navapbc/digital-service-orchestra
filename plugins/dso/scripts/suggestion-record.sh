@@ -152,7 +152,6 @@ STAGING_TEMP=$(mktemp "$TRACKER_DIR/.tmp-suggestion-stage-XXXXXX")
 trap 'rm -f "${STAGING_TEMP:-}"' EXIT
 
 # Build JSON payload and write directly to staging temp (single python3 call).
-# REVIEW-DEFENSE: Tests for --source required validation, --metrics JSON handling,
 # and schema_version presence are in tests/scripts/test-suggestion-record.sh
 # (test_source_required, test_metrics_valid, test_schema_version_present).
 python3 -c "

@@ -34,7 +34,6 @@ THIS_TEST_FILE="$(basename "${BASH_SOURCE[0]}")"
 # plugins/dso/docs/workflows/REVIEW-WORKFLOW.md, plugins/dso/hooks/pre-commit-test-quality-gate.sh,
 # plugins/dso/skills/fix-bug/SKILL.md, plugins/dso/skills/implementation-plan/SKILL.md,
 # and additional consumers in skills/, docs/, tests/.
-# REVIEW-DEFENSE: The threshold uses >= (lower bound) rather than == (exact count) per story
 # e644-9a50 Considerations: "the exact count of files referencing behavioral-testing-standard.md
 # may change as the codebase evolves — assert >= 7 rather than an exact count." The lower bound
 # prevents test breakage when new consumers are added and avoids the change-detector failure mode

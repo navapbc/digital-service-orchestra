@@ -16,7 +16,6 @@
 # Usage: bash tests/scripts/test-model-id-lint.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
-# REVIEW-DEFENSE: '-e' is intentionally omitted. The test harness captures
 # non-zero exit codes from script invocations via || assignment. With '-e',
 # expected non-zero exits would abort the script before assertions run.
 set -uo pipefail
@@ -104,7 +103,6 @@ test_excludes_test_index() {
     _dir=$(_make_tmpdir)
     # Place .test-index INSIDE the scanned tree so the test verifies
     # name-based exclusion, not just filesystem boundary.
-    # REVIEW-DEFENSE: _file is set to $_dir/plugins/dso/.test-index, which is
     # inside the --scan-dir tree ($dir/plugins/dso). The script receives no
     # explicit file path argument here — only --scan-dir. A file-system boundary
     # exclusion would pass trivially; this placement proves the exclusion is
@@ -148,6 +146,7 @@ test_passes_clean_file() {
     _dir=$(_make_tmpdir)
     mkdir -p "$_dir/plugins/dso/scripts"
     _file="$_dir/plugins/dso/scripts/clean-script.sh"
+    # shellcheck disable=SC2016
     printf '#!/usr/bin/env bash\n# Uses model from config, not hardcoded\nMODEL="$(_cfg model.haiku)"\necho "Using model: $MODEL"\n' > "$_file"
     _exit=0
     _out=$(bash "$SCRIPT" --scan-dir "$_dir/plugins/dso" 2>&1) || _exit=$?

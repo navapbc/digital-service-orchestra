@@ -171,7 +171,6 @@ assert_eq "test_write_new_dimension_names_accepted" "0" "$new_exit_code"
 # --review-tier flag tests (RED: write-reviewer-findings.sh does not support
 # --review-tier yet; these tests document the expected behaviour)
 # ---------------------------------------------------------------------------
-# REVIEW-DEFENSE: field_in_json tests assert review_tier as a top-level key.
 # validate-review-output.sh accepts 2-key schema {findings, summary} and optionally
 # review_tier / selected_tier injected by write-reviewer-findings.sh flags.
 # These tests remain RED until write-reviewer-findings.sh implements --review-tier

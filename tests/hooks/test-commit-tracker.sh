@@ -217,7 +217,6 @@ fi
 printf "failed\nfailed_checks=lint\n" > "$_CT2_ARTIFACTS_DIR/status"
 
 INPUT='{"tool_name":"Bash","tool_input":{"command":"git commit -m \"test config-driven\""}}'
-# REVIEW-DEFENSE: SEARCH_LOG, CREATE_LOG, SEARCH_CMD, CREATE_CMD are all prefixed to
 # `bash "$HOOK"` (right side of pipe). The multi-line continuation means they apply
 # to the final `bash "$HOOK"` command, not to `echo`. The hook inherits all four vars.
 echo "$INPUT" | SEARCH_LOG="$_CT2_SEARCH_LOG" CREATE_LOG="$_CT2_CREATE_LOG" \

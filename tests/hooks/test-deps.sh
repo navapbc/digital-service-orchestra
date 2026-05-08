@@ -17,6 +17,7 @@ source "$DSO_PLUGIN_DIR/hooks/lib/deps.sh"
 
 # Temp dir cleanup on exit
 _CLEANUP_DIRS=()
+# shellcheck disable=SC2329
 _cleanup() { for d in "${_CLEANUP_DIRS[@]}"; do rm -rf "$d"; done; }
 trap _cleanup EXIT
 
@@ -69,6 +70,7 @@ assert_eq "jq: missing nested" "" "$(parse_json_field "$INPUT" '.tool_input.none
 echo "=== parse_json_field (bash fallback) ==="
 # Override check_tool to force bash fallback
 _real_check_tool=$(declare -f check_tool)
+# shellcheck disable=SC2329
 check_tool() { return 1; }
 
 assert_eq "bash: tool_name" "Bash" "$(parse_json_field "$INPUT" '.tool_name')"
@@ -102,6 +104,7 @@ RESULT5=$(parse_json_field "$INPUT5" '.tool_input.command')
 rm -f "$_deps_escape_file"
 # The key assertion: parsing completes without consuming past the closing quote
 # (i.e., we don't get "echo \\"}}" or similar garbage)
+# shellcheck disable=SC1003
 assert_eq "bash: double-backslash terminates correctly" 'echo \\' "$RESULT5"
 
 # Restore check_tool
@@ -188,9 +191,12 @@ assert_eq "load_allowlist: no blank lines" "0" "$BLANK_LINES"
 MISSING_STDERR=$(_load_allowlist_patterns "/tmp/nonexistent-allowlist-$$" 2>&1 1>/dev/null)
 MISSING_RC=$?
 assert_ne "load_allowlist: missing file returns non-zero" "0" "$MISSING_RC"
-# REVIEW-DEFENSE: bash [[ =~ ]] uses ERE where | is the alternation operator (verified empirically).
 # "warn|not\ found" correctly matches either "warn" or "not found" — no parentheses needed.
-_tmp="$MISSING_STDERR"; shopt -s nocasematch; [[ "$_tmp" =~ warn|not\ found ]]; _rc=$?; shopt -u nocasematch; (exit $_rc)
+_tmp="$MISSING_STDERR"
+shopt -s nocasematch
+if [[ "$_tmp" =~ warn|not\ found ]]; then _rc=0; else _rc=1; fi
+shopt -u nocasematch
+(exit "$_rc")
 assert_eq "load_allowlist: missing file warns on stderr" "0" "$?"
 
 # --- _allowlist_to_pathspecs ---

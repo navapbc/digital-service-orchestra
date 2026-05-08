@@ -106,7 +106,6 @@ else
     (( ++FAIL ))
 fi
 
-# REVIEW-DEFENSE: Tests 8 and 9 (test_phase8_has_orchestrator_resume_after_epic_close
 # and test_a711_resume_warns_closure_is_not_done) were change-detector tests that
 # grepped for the literal <ORCHESTRATOR_RESUME> XML tag and the bug reference
 # "a711-bd7e" inside it. They were removed because the ORCHESTRATOR_RESUME blocks

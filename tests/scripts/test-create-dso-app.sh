@@ -278,7 +278,6 @@ test_installer_writes_plugin_root_to_config() {
         detect_dso_plugin_root '$project_dir'
     " 2>/dev/null || invoke_exit=$?
 
-    # REVIEW-DEFENSE: early return only fires when invoke_exit != 0 (function missing/failed).
     # When invoke_exit == 0 (function exists and succeeded), we fall through to the
     # config assertion below — which correctly verifies the write side-effect.
     if [[ "$invoke_exit" -ne 0 ]]; then

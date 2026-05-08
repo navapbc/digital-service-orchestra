@@ -3,16 +3,18 @@
 # One-shot migration of # REVIEW-DEFENSE: inline comments to TrackerDefenseStore.
 #
 # Usage:
-#   migrate-review-defenses.sh [--dry-run]
+#   migrate-review-defenses.sh --dry-run   # report without changes
+#   migrate-review-defenses.sh --execute   # perform migration (required to modify files)
+#   migrate-review-defenses.sh --help      # show this help
 #
 # Modes:
-#   (default)  Migrate all # REVIEW-DEFENSE: comments: bind to owning ticket,
-#              write to TrackerDefenseStore, delete inline comment.
 #   --dry-run  Report what would be migrated without making any changes.
+#   --execute  Migrate all # REVIEW-DEFENSE: comments: bind to owning ticket,
+#              write to TrackerDefenseStore, delete inline comment.
 #
 # Exit codes:
 #   0  Success (all records processed; unbound records noted but not fatal)
-#   1  Fatal pre-flight error (e.g., REPO_ROOT not found)
+#   1  Fatal pre-flight error (e.g., REPO_ROOT not found, no mode flag)
 
 set -euo pipefail
 
@@ -20,7 +22,21 @@ set -euo pipefail
 # Config
 # ---------------------------------------------------------------------------
 DRY_RUN=false
-[[ "${1:-}" == "--dry-run" ]] && DRY_RUN=true
+_MODE="${1:-}"
+
+if [[ "$_MODE" == "--help" || -z "$_MODE" ]]; then
+    grep '^#' "$0" | head -15 | sed 's/^# \?//'
+    exit 0
+fi
+
+if [[ "$_MODE" == "--dry-run" ]]; then
+    DRY_RUN=true
+elif [[ "$_MODE" == "--execute" ]]; then
+    DRY_RUN=false
+else
+    printf 'ERROR: unrecognized flag: %s\nUsage: %s --dry-run | --execute | --help\n' "$_MODE" "$0" >&2
+    exit 1
+fi
 
 REPO_ROOT=$(git rev-parse --show-toplevel)
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -142,9 +158,17 @@ _ensure_legacy_ticket() {
 _log "Starting migration (dry_run=$DRY_RUN)"
 _log "Scanning: $REPO_ROOT"
 
-# Collect all inline # REVIEW-DEFENSE: occurrences in code files (not .md)
+# Collect all inline # REVIEW-DEFENSE: occurrences in code files (not .md).
+# Exclude this script itself to avoid false positives from its own comment strings.
+# Sort by file ascending, then line number DESCENDING so within-file deletions
+# proceed bottom-to-top: deleting a lower line does not shift the target of
+# a higher line that was already deleted in the same pass.
 mapfile -t MATCHES < <(
-    grep -rn '# REVIEW-DEFENSE:' "${INCLUDE_ARGS[@]}" "$REPO_ROOT" 2>/dev/null || true
+    grep -rn '# REVIEW-DEFENSE:' "${INCLUDE_ARGS[@]}" \
+        --exclude="$(basename "${BASH_SOURCE[0]}")" \
+        "$REPO_ROOT" 2>/dev/null \
+      | sort -t: -k1,1 -k2,2rn \
+      || true
 )
 
 total=${#MATCHES[@]}
@@ -217,9 +241,11 @@ for match in "${MATCHES[@]}"; do
         unbound_records+=("$filepath:$lineno: $defense_text")
 
         if $DRY_RUN; then
-            _log "  DRY_RUN: would add to legacy corpus ticket (tag: $LEGACY_TICKET_TAG)"
+            _log "  DRY_RUN: would delete inline comment (unbound — no TrackerDefenseStore write)"
         else
-            _log "  Audit (unbound): $defense_text"
+            _log "  Audit (unbound — no owning ticket): $defense_text"
+            _delete_inline_comment "$filepath" "$lineno"
+            _log "  Deleted inline comment (unbound)"
         fi
     fi
 done

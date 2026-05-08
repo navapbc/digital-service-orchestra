@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 _PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/..}"
+# shellcheck disable=SC2295
 _PLUGIN_GIT_PATH="${_PLUGIN_ROOT#$(cd "$_PLUGIN_ROOT" && git rev-parse --show-toplevel)/}"
 # check-referential-integrity.sh
 # Verify that path references in skill/agent/workflow/prompt markdown files
@@ -58,6 +59,7 @@ PLUGIN_DIR="${_PLUGIN_ROOT}"
 # ── Temp files for intermediate data ─────────────────────────────────────────
 _git_cache_file=$(mktemp)
 _refs_file=$(mktemp)
+# shellcheck disable=SC2329
 _cleanup() {
     rm -f "$_git_cache_file" "$_refs_file"
 }
@@ -95,7 +97,6 @@ fi
 
 # ── Reference pattern ────────────────────────────────────────────────────────
 # Matches: ${CLAUDE_PLUGIN_ROOT}/(scripts|agents|docs)/...(sh|py|md)
-_REF_PATTERN="${_PLUGIN_GIT_PATH}/(scripts|agents|docs)/[^[:space:]\`,)>\"|']+\.(sh|py|md)" # REVIEW-DEFENSE: Finding confirmed false positive — assignment uses double quotes, so ${_PLUGIN_GIT_PATH} IS expanded by the shell. Single-quote prevention only applies when the entire assignment is in single quotes.
 
 # ── Scan (optimized: awk does all filtering + reference extraction) ──────────
 #

@@ -538,7 +538,6 @@ TEST_ID="${CMD// /_}"
 TEST_ID="${TEST_ID//[^a-zA-Z0-9_-]/}"
 TEST_ID="${TEST_ID:-test_run}"
 
-# REVIEW-DEFENSE: TOTAL=1 is intentional for the generic fallback runner.
 # The generic fallback runs CMD as a single unit because it cannot enumerate
 # individual tests without a runner driver (pytest, node, etc.). The state file
 # and resume machinery exist for the runner drivers added in Tasks 2 and 3,

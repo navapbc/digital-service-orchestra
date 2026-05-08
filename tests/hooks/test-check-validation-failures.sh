@@ -88,7 +88,6 @@ _CVF_INPUT='{"tool_name":"Bash","tool_input":{"command":"validate.sh --ci"},"too
 # Create an empty TICKETS_DIR so no pre-existing tickets are found.
 _CVF_EMPTY_TICKETS=$(mktemp -d)
 _CLEANUP_DIRS+=("$_CVF_EMPTY_TICKETS")
-# REVIEW-DEFENSE: TICKET_CMD, TICKET_LOG_FILE, and TICKETS_DIR are prefixed to `bash "$HOOK"`
 # (right side of pipe). Bash applies inline env assignments to the immediately following
 # command, so the hook process inherits the mock TICKET_CMD, log path, and empty TICKETS_DIR.
 echo "$_CVF_INPUT" | TICKET_CMD="$PLUGIN_ROOT/tests/lib/fake-ticket.sh" TICKET_LOG_FILE="$_CVF_TICKET_LOG" TICKETS_DIR="$_CVF_EMPTY_TICKETS" bash "$HOOK" >/dev/null 2>/dev/null || true

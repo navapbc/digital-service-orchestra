@@ -10,7 +10,6 @@
 _DSO_CENTRALITY_LOADED=1
 
 # ── Centrality scoring ───────────────────────────────────────────────────────
-# REVIEW-DEFENSE: grep is used here for file-level fan-in counting, consistent with
 # the project pattern in blast-radius.sh count_fan_in() (line 226). The
 # CLAUDE.md directive to prefer built-in tools over Bash grep applies to *Claude Code
 # tool calls*, not to shell script logic. grep -rlE is the standard tool for recursive

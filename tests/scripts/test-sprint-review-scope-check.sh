@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # tests/scripts/test-sprint-review-scope-check.sh
 # RED tests for plugins/dso/scripts/sprint/sprint-review-scope-check.sh (does not exist yet).
-# REVIEW-DEFENSE: Script intentionally absent — TDD RED phase. Sprint 9d3e-957d batch 4
 # creates these tests; the script will be implemented in a subsequent batch. All 7 tests
 # are registered with RED markers in .test-index.
 #

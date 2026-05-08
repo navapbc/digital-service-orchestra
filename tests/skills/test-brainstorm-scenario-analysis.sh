@@ -106,7 +106,6 @@ echo ""
 echo "=== test_skill_md_scenario_analysis ==="
 SECTION="test_skill_md_scenario_analysis"
 
-# REVIEW-DEFENSE: The two tests below are intentionally RED in this batch. SKILL.md integration of
 # the Scenario Analysis phase is the subject of a separate implementation task (c846-99c2) scheduled
 # in a future sprint batch. The .test-index RED marker [test_skill_md_scenario_analysis] scopes
 # RED-zone tolerance to this section only — the prompt file structure tests above

@@ -42,7 +42,6 @@ echo "=== test-single-agent-integrate-structure.sh ==="
 # that references this path must find the file there.
 # ===========================================================================
 echo "--- test_file_exists ---"
-# REVIEW-DEFENSE: This test is intentionally RED (TDD). The target file does not exist yet
 # because it will be created in the subsequent implementation batch (bb34-0581). This is the
 # correct TDD workflow — commit the RED test first, then create the implementation file that
 # makes it GREEN. See epic c737-977d and CLAUDE.md rule 19 (TDD requirement).
@@ -104,7 +103,6 @@ fi
 # ===========================================================================
 echo "--- test_worktree_path_bash_guard ---"
 # shellcheck disable=SC2016  # single quotes intentional: grepping for literal string
-# REVIEW-DEFENSE: -qF (fixed-string) required — the pattern contains `[` which grep
 # interprets as a bracket expression in BRE/ERE mode, causing exit 2 instead of 1.
 # Fixed-string mode matches the literal characters without regex interpretation.
 if grep -qF '[ "$WORKTREE_PATH" =' "$TARGET_FILE" 2>/dev/null; then

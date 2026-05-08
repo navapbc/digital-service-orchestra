@@ -92,7 +92,6 @@ with open(sys.argv[1]) as f:
 # Strip fenced code blocks (```...```) to check prose only
 prose = re.sub(r'```[^`]*```', '', content, flags=re.DOTALL)
 # Look for explicit classifier-failure → standard-tier mandate in prose.
-# REVIEW-DEFENSE: Three independent patterns are required (all must match), providing
 # defense-in-depth: a false positive on one pattern (e.g., unrelated prose containing
 # "fail") does not pass the test unless the other two also match. If the section title
 # were renamed, has_failure_mention would still match via the body sentence

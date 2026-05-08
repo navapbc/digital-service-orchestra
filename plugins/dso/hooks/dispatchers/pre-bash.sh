@@ -69,7 +69,6 @@ source "$HOOKS_LIB_DIR/review-gate-bypass-sentinel.sh"
 # (fail-open design): each hook function has its own ERR trap that logs the
 # error and returns 0, so a non-2 exit from _run_hook_fn means the hook chose
 # to allow. This matches the original per-hook ERR-trap fail-open contract.
-# REVIEW-DEFENSE: Fail-open is deliberate — each hook's ERR trap (return 0)
 # ensures non-2 exits are safe. Blocking on unknown codes would break the
 # fail-open contract and risk false denials on transient errors.
 # Only executed when this script is run directly (not sourced).

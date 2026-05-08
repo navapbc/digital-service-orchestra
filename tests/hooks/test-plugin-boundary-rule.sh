@@ -14,7 +14,6 @@
 #
 # Assertion 4: This test file itself is executable
 
-# REVIEW-DEFENSE: set -uo (without -e) is the established project convention for hook test files.
 # test-check-plugin-boundary.sh and test-process-cleanup.sh use the same pattern.
 # Omitting -e is intentional: test functions must complete all assertions even when earlier ones fail.
 set -uo pipefail
@@ -24,7 +23,6 @@ PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CLAUDE_MD="$PLUGIN_ROOT/CLAUDE.md"
 PLAYWRIGHT_DEBUG_SKILL="$PLUGIN_ROOT/plugins/dso/skills/playwright-debug/SKILL.md"
 
-# REVIEW-DEFENSE: direct PASS/FAIL counter manipulation is the established project pattern.
 # test-check-plugin-boundary.sh (the canonical hook test) uses the same (( ++PASS ))/(( ++FAIL ))
 # style with manual printf messages. The assert.sh helpers (assert_eq/assert_ne) are used when
 # comparing two values — these tests check boolean conditions (file exists, pattern present/absent)

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../..}" # REVIEW-DEFENSE: Finding confirmed false positive — file lives at hooks/lib/; dirname gives hooks/lib/, then /../.. ascends two levels to the plugin root. Depth is correct.
 # hooks/lib/pre-edit-write-functions.sh
 # Sourceable function definitions for the PreToolUse Edit/Write hooks.
 #
@@ -237,7 +236,6 @@ hook_title_length_validator() {
 #   3. If file_path contains /.tickets-tracker/: return 2 (block)
 #   4. All other cases: return 0 (allow, fail-open)
 #
-# REVIEW-DEFENSE: This function is intentionally not wired into dispatchers yet.
 # Task dso-280g ("Wire tickets-tracker guards into dispatchers") handles dispatcher
 # integration as a separate task, dependent on this implementation (dso-4cb7).
 # See: ticket show dso-280g

@@ -30,7 +30,6 @@ _DSO_PLUGIN_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "$_DSO_PLUGIN_DIR/hooks/lib/merge-state.sh"
 
 # --- Build exclusion list ---
-# REVIEW-DEFENSE: hardcoded default matches the v3 ticket system path; config-driven
 # ticket directory support (reading tickets.directory from dso-config.conf) is tracked
 # as a follow-up improvement — see bug ticket 3f9b-421d for stale path cleanup.
 EXCLUDES=(':!.tickets-tracker/' ':!.sync-state.json')
@@ -52,7 +51,6 @@ done
 # ms_get_worktree_only_files_from_head: diff merge-base..HEAD (HEAD-anchored variant
 # required here; other consumers use orig-head-anchored ms_get_worktree_only_files).
 #
-# REVIEW-DEFENSE: _merge_base and _MERGE_FILE_PATHSPECS are computed via separate
 # library calls. If ms_get_merge_base fails (returns empty) we must also discard the
 # pathspecs — otherwise git diff "" -- <pathspecs> uses HEAD as the base while
 # applying merge-filtered pathspecs, producing a contradictory diff that excludes
