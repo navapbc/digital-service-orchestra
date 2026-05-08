@@ -567,6 +567,25 @@ if [[ ${#ASSOCIATED_TESTS[@]} -eq 0 ]] && [[ "$FULL_SUITE" != "true" ]]; then
     # harvest-worktree.sh finds the file (without this, harvest exits 2 with
     # "test-gate-status not found" even though the pre-commit gate passed the
     # doc-only commit as exempt — a2e0-3ae8).
+    #
+    # Bug A guard (11d5-0429): refuse to downgrade an existing richer record at
+    # the same diff_hash. Without this, a doc-only invocation truncates the
+    # tested_files audit produced by a prior code-file invocation at the same
+    # hash, and the pre-commit gate then blocks the commit despite all required
+    # tests having run.
+    # Defensive validation (PR #70 review): grep with explicit '=' anchor ensures
+    # we only match key=value lines, and we require DIFF_HASH non-empty before
+    # comparison to prevent an empty-string match from masking initialization errors.
+    if [[ -n "$DIFF_HASH" ]] && [[ -f "$ARTIFACTS_DIR/test-gate-status" ]]; then
+        _existing_hash=$(grep -E '^diff_hash=' "$ARTIFACTS_DIR/test-gate-status" 2>/dev/null | head -1 | cut -d= -f2-)
+        _existing_tested=$(grep -E '^tested_files=' "$ARTIFACTS_DIR/test-gate-status" 2>/dev/null | head -1 | cut -d= -f2-)
+        if [[ -n "$_existing_hash" ]] \
+           && [[ "$_existing_hash" == "$DIFF_HASH" ]] \
+           && [[ -n "$_existing_tested" ]] \
+           && [[ "$_existing_tested" != "doc-only-exempt" ]]; then
+            exit 0
+        fi
+    fi
     cat > "$ARTIFACTS_DIR/test-gate-status" <<EOF
 passed
 diff_hash=${DIFF_HASH}
@@ -857,6 +876,21 @@ if [[ -n "$SOURCE_FILE" ]] && [[ -f "$STATUS_FILE" ]]; then
     if [[ -n "$_existing_tested" ]]; then
         # Merge: append new tested_files, deduplicate
         _merged=$(printf '%s\n' "$_existing_tested" "$TESTED_FILES_LIST" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep -v '^$' | sort -u | paste -sd ',' -)
+        # Bug B fix (11d5-0429): strip the doc-only-exempt sentinel when concrete
+        # test paths are also present in the merged list. The sentinel means
+        # "no associated tests" — once concrete paths exist at the same hash,
+        # the sentinel is semantically false and must not propagate.
+        #
+        # REVIEW-DEFENSE (PR #70): grep -vx requires a FULL-LINE exact match,
+        # not substring. After the tr/sort/paste pipeline above, each comma-separated
+        # token is on its own line; grep -vx 'doc-only-exempt' keeps every line
+        # except those that equal the sentinel verbatim. A test path that contains
+        # 'doc-only-exempt' as a substring (e.g., 'tests/doc-only-exempt-test.sh')
+        # is on a line of its own that does NOT exact-match 'doc-only-exempt' and
+        # is therefore retained. The -x flag is precisely the right tool here.
+        if [[ ",${_merged}," == *",doc-only-exempt,"* ]] && [[ "$_merged" != "doc-only-exempt" ]]; then
+            _merged=$(printf '%s\n' "$_merged" | tr ',' '\n' | grep -vx 'doc-only-exempt' | paste -sd ',' -)
+        fi
         TESTED_FILES_LIST="$_merged"
     fi
     # Merge failed_tests list.
