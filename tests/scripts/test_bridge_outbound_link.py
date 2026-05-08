@@ -728,18 +728,19 @@ def test_link_type_not_found_writes_bridge_alert_with_available_types(
 
 
 # ---------------------------------------------------------------------------
-# LINK test 10: non-relates_to LINK events -> filtered out
+# LINK test 10: blocks LINK events -> Jira "Blocks" link, source-outward
+# (5492-58d7 part 3/4) — formerly asserted filtering, now asserts sync.
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.unit
 @pytest.mark.scripts
-def test_link_non_relates_to_relation_is_filtered_out(
+def test_link_blocks_relation_creates_blocks_link_source_outward(
     tmp_path: Path, bridge: ModuleType
 ) -> None:
-    """Given a LINK event with relation='blocks' (not 'relates_to'),
+    """Given a LINK event with relation='blocks',
     when process_outbound is called,
-    then set_relationship() is NOT called (only relates_to is processed).
+    then set_relationship() is called with link_type='Blocks' and source as outward.
     """
     src_dir = tmp_path / "src-blocks"
     tgt_dir = tmp_path / "tgt-blocks"
@@ -756,7 +757,7 @@ def test_link_non_relates_to_relation_is_filtered_out(
         event_type="LINK",
         source_id="src-blocks",
         target_id="tgt-blocks",
-        relation="blocks",  # NOT relates_to
+        relation="blocks",
     )
 
     events = [
@@ -784,9 +785,64 @@ def test_link_non_relates_to_relation_is_filtered_out(
         bridge_env_id=_BRIDGE_ENV_ID,
     )
 
-    assert mock_client.set_relationship.call_count == 0, (
-        "set_relationship must NOT be called for non-relates_to LINK events (only relates_to is supported)"
+    mock_client.set_relationship.assert_called_once_with("DSO-900", "DSO-901", "Blocks")
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_link_depends_on_relation_creates_blocks_link_target_outward(
+    tmp_path: Path, bridge: ModuleType
+) -> None:
+    """Given a LINK event with relation='depends_on',
+    when process_outbound is called,
+    then set_relationship() is called with link_type='Blocks' and TARGET as outward
+    (because depends_on is the inverse of blocks).
+    """
+    src_dir = tmp_path / "src-dep"
+    tgt_dir = tmp_path / "tgt-dep"
+    src_dir.mkdir()
+    tgt_dir.mkdir()
+
+    _write_sync_for(src_dir, "DSO-902", "src-dep")
+    _write_sync_for(tgt_dir, "DSO-903", "tgt-dep")
+
+    link_file = _write_link_event(
+        src_dir,
+        timestamp=1742606001,
+        uuid=_UUID1,
+        event_type="LINK",
+        source_id="src-dep",
+        target_id="tgt-dep",
+        relation="depends_on",
     )
+
+    events = [
+        {
+            "ticket_id": "src-dep",
+            "event_type": "LINK",
+            "file_path": str(link_file),
+        }
+    ]
+
+    mock_client = MagicMock()
+    mock_client.get_issue_link_types = MagicMock(
+        return_value=[
+            {"name": "Relates", "inward": "relates to", "outward": "relates to"},
+            {"name": "Blocks", "inward": "is blocked by", "outward": "blocks"},
+        ]
+    )
+    mock_client.get_issue_links = MagicMock(return_value=[])
+    mock_client.set_relationship = MagicMock(return_value={"status": "created"})
+
+    bridge.process_outbound(
+        events,
+        acli_client=mock_client,
+        tickets_root=tmp_path,
+        bridge_env_id=_BRIDGE_ENV_ID,
+    )
+
+    # depends_on(src→tgt) maps to Blocks(tgt→src): tgt is outward, src is inward.
+    mock_client.set_relationship.assert_called_once_with("DSO-903", "DSO-902", "Blocks")
 
 
 # ---------------------------------------------------------------------------
@@ -1167,18 +1223,20 @@ def test_unlink_concurrent_modification_404_or_409_treated_as_already_gone(
 
 
 # ---------------------------------------------------------------------------
-# UNLINK test 16: non-relates_to UNLINK events -> filtered out
+# UNLINK test 16: blocks UNLINK -> deletes matching "Blocks" link
+# (5492-58d7 part 3/4) — formerly asserted filtering, now asserts deletion.
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.unit
 @pytest.mark.scripts
-def test_unlink_non_relates_to_relation_is_filtered_out(
+def test_unlink_blocks_relation_deletes_blocks_link_source_outward(
     tmp_path: Path, bridge: ModuleType
 ) -> None:
-    """Given an UNLINK event with relation='blocks' (not 'relates_to'),
+    """Given an UNLINK event with relation='blocks',
     when process_outbound is called,
-    then delete_issue_link() is NOT called (only relates_to is processed).
+    then delete_issue_link() is called for the matching "Blocks" link with
+    the source as outward.
     """
     src_dir = tmp_path / "src-unlink-blocks"
     tgt_dir = tmp_path / "tgt-unlink-blocks"
@@ -1195,7 +1253,7 @@ def test_unlink_non_relates_to_relation_is_filtered_out(
         event_type="UNLINK",
         source_id="src-unlink-blocks",
         target_id="tgt-unlink-blocks",
-        relation="blocks",  # NOT relates_to
+        relation="blocks",
     )
 
     events = [
@@ -1213,7 +1271,17 @@ def test_unlink_non_relates_to_relation_is_filtered_out(
             {"name": "Blocks", "inward": "is blocked by", "outward": "blocks"},
         ]
     )
-    mock_client.get_issue_links = MagicMock(return_value=[])
+    # Pre-existing Blocks link: src outward → tgt
+    mock_client.get_issue_links = MagicMock(
+        return_value=[
+            {
+                "id": "blocks-link-1",
+                "type": {"name": "Blocks"},
+                "outwardIssue": {"key": "DSO-1110"},
+                "inwardIssue": None,
+            }
+        ]
+    )
     mock_client.delete_issue_link = MagicMock(return_value={"status": "deleted"})
 
     bridge.process_outbound(
@@ -1223,9 +1291,7 @@ def test_unlink_non_relates_to_relation_is_filtered_out(
         bridge_env_id=_BRIDGE_ENV_ID,
     )
 
-    assert mock_client.delete_issue_link.call_count == 0, (
-        "delete_issue_link must NOT be called for non-relates_to UNLINK events"
-    )
+    mock_client.delete_issue_link.assert_called_once_with("blocks-link-1")
 
 
 # ---------------------------------------------------------------------------

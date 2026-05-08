@@ -608,6 +608,134 @@ class TestInboundTags:
                 )
 
 
+class TestInboundBlocksLinks:
+    """Test that Jira "Blocks" issuelinks emit local LINK events with correct relations."""
+
+    def test_inbound_blocks_outward_writes_blocks_and_depends_on_pair(
+        self, inbound: ModuleType, tmp_path: Path
+    ) -> None:
+        """outwardIssue means THIS issue blocks the target.
+
+        Source ticket gets relation='blocks'; reciprocal (target) gets 'depends_on'.
+        """
+        tracker = tmp_path / ".tickets-tracker"
+        tracker.mkdir(parents=True)
+
+        jira_issue = {
+            "key": "DSO-BL-1",
+            "fields": {
+                "summary": "Blocks-source",
+                "issuetype": {"name": "Bug"},
+                "status": {"name": "Open"},
+                "created": "2026-03-20T10:00:00.000+0000",
+                "updated": "2026-03-20T11:00:00.000+0000",
+                "issuelinks": [
+                    {
+                        "type": {"name": "Blocks"},
+                        "outwardIssue": {"key": "DSO-BL-2"},
+                    }
+                ],
+            },
+        }
+
+        mock_acli = MagicMock()
+        mock_acli.get_myself.return_value = {"timeZone": "UTC"}
+        config = {
+            "bridge_env_id": BRIDGE_ENV_ID,
+            "overlap_buffer_minutes": 15,
+            "checkpoint_file": "",
+            "status_mapping": {"Open": "open"},
+            "type_mapping": {"Bug": "bug"},
+            "run_id": "test-run",
+        }
+
+        with patch.object(inbound, "fetch_jira_changes", return_value=[jira_issue]):
+            inbound.process_inbound(
+                tickets_root=tracker,
+                acli_client=mock_acli,
+                last_pull_ts="2026-03-20T09:00:00Z",
+                config=config,
+            )
+
+        # Source: relation='blocks' targeting jira-dso-bl-2
+        src_dir = tracker / "jira-dso-bl-1"
+        src_links = [
+            json.loads(p.read_text(encoding="utf-8"))
+            for p in src_dir.glob("*-LINK.json")
+        ]
+        assert any(
+            ev["data"].get("relation") == "blocks"
+            and ev["data"].get("target_id") == "jira-dso-bl-2"
+            for ev in src_links
+        ), f"src LINK with relation=blocks not found: {src_links!r}"
+
+        # Reciprocal: relation='depends_on' on target ticket
+        tgt_dir = tracker / "jira-dso-bl-2"
+        tgt_links = [
+            json.loads(p.read_text(encoding="utf-8"))
+            for p in tgt_dir.glob("*-LINK.json")
+        ]
+        assert any(
+            ev["data"].get("relation") == "depends_on"
+            and ev["data"].get("target_id") == "jira-dso-bl-1"
+            for ev in tgt_links
+        ), f"reciprocal LINK with relation=depends_on not found: {tgt_links!r}"
+
+    def test_inbound_blocks_inward_writes_depends_on_and_blocks_pair(
+        self, inbound: ModuleType, tmp_path: Path
+    ) -> None:
+        """inwardIssue means THIS issue is blocked by the target → relation='depends_on'."""
+        tracker = tmp_path / ".tickets-tracker"
+        tracker.mkdir(parents=True)
+
+        jira_issue = {
+            "key": "DSO-BL-3",
+            "fields": {
+                "summary": "Blocks-inward",
+                "issuetype": {"name": "Bug"},
+                "status": {"name": "Open"},
+                "created": "2026-03-20T10:00:00.000+0000",
+                "updated": "2026-03-20T11:00:00.000+0000",
+                "issuelinks": [
+                    {
+                        "type": {"name": "Blocks"},
+                        "inwardIssue": {"key": "DSO-BL-4"},
+                    }
+                ],
+            },
+        }
+
+        mock_acli = MagicMock()
+        mock_acli.get_myself.return_value = {"timeZone": "UTC"}
+        config = {
+            "bridge_env_id": BRIDGE_ENV_ID,
+            "overlap_buffer_minutes": 15,
+            "checkpoint_file": "",
+            "status_mapping": {"Open": "open"},
+            "type_mapping": {"Bug": "bug"},
+            "run_id": "test-run",
+        }
+
+        with patch.object(inbound, "fetch_jira_changes", return_value=[jira_issue]):
+            inbound.process_inbound(
+                tickets_root=tracker,
+                acli_client=mock_acli,
+                last_pull_ts="2026-03-20T09:00:00Z",
+                config=config,
+            )
+
+        src_dir = tracker / "jira-dso-bl-3"
+        src_links = [
+            json.loads(p.read_text(encoding="utf-8"))
+            for p in src_dir.glob("*-LINK.json")
+        ]
+        assert any(
+            ev["data"].get("relation") == "depends_on"
+            and ev["data"].get("target_id") == "jira-dso-bl-4"
+            for ev in src_links
+        ), f"src LINK with relation=depends_on not found: {src_links!r}"
+
+
 class TestInboundParentId:
     """Test that Jira parent (Epic Link / parent issue) emits a local EDIT(parent_id) event."""
 

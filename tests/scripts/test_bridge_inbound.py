@@ -1392,9 +1392,13 @@ class TestRelationshipRejection:
                     "updated": "2026-03-21T10:00:00.000+0000",
                     "resolutiondate": None,
                     "priority": {"name": "High"},
+                    # Use "Cloners" — a non-native link type that still falls
+                    # through to acli_client.set_relationship() for rejection
+                    # handling. ("Blocks" and "Relates" are now handled
+                    # natively as inbound LINK events; see 5492-58d7 part 3/4.)
                     "issuelinks": [
                         {
-                            "type": {"name": "Blocks"},
+                            "type": {"name": "Cloners"},
                             "outwardIssue": {"key": "DSO-93"},
                         }
                     ],
@@ -1405,9 +1409,9 @@ class TestRelationshipRejection:
         mock_client = MagicMock()
         mock_client.search_issues = MagicMock(return_value=jira_issues)
         mock_client.get_myself = MagicMock(return_value={"timeZone": "UTC"})
-        # set_relationship raises for DSO-92's epic-blocks-epic link
+        # set_relationship raises for DSO-92's Cloners link
         mock_client.set_relationship = MagicMock(
-            side_effect=RuntimeError("epic-blocks-epic relationship not allowed")
+            side_effect=RuntimeError("Cloners relationship not allowed")
         )
 
         checkpoint_file = tmp_path / "bridge-checkpoint.json"
