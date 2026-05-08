@@ -90,7 +90,7 @@ _inprog_bugs=$((.claude/scripts/dso ticket list --type=bug --status=in_progress 
 OPEN_BUG_COUNT=$((_open_bugs + _inprog_bugs))
 ```
 
-- If `OPEN_BUG_COUNT > 0`: **Enter Bug-Fix Mode.** Skip Phase B diagnostic scan (Steps 3, 4, 5, 6, 7) and Phase C triage entirely. Proceed to the **Bug-Fix Mode** section below.
+- If `OPEN_BUG_COUNT > 0`: **Enter Bug-Fix Mode.** Skip Phase B diagnostic scan (Steps 3, 4, 5, 6, 7) and Phase C triage entirely. Proceed to the **Bug-Fix Mode** section below. **MUST NOT dispatch `AskUserQuestion` in this branch (guard 4369-a264 — instruction-locality co-locator for the fuller HARD-GATE at the Bug-Fix Mode header).** The user invoking `/dso:debug-everything` IS the scope authorization regardless of `OPEN_BUG_COUNT` magnitude (1, 54, or 540). No "should I do P1 only / triage first / split this up?" prompt is valid here.
 - If `OPEN_BUG_COUNT == 0`: Continue to Step 3 (normal diagnostic flow).
 
 ### Step 3: Context Budget Check (/dso:debug-everything)
@@ -248,7 +248,15 @@ The sub-agent returns: the path to the diagnostic file + a ≤15-line summary (c
 
 **Rationale**: When open bug tickets already exist, the diagnostic scan (Phase B) and triage sub-agent (Phase C) are unnecessary — they exist to *discover* new issues. Bug-Fix Mode skips both and applies `/dso:fix-bug` directly to each known ticket. **All bugs are in scope — including pre-existing ones.** "Pre-existing" means the bug existed before this session; it does not mean the bug should be skipped or deferred. Every open bug ticket must be investigated and resolved via `/dso:fix-bug`.
 
-**Anti-pattern guard (dd88-afb6) — DO NOT ASK THE USER TO CONFIRM OR NARROW SCOPE.** When `OPEN_BUG_COUNT` is large (e.g., N=53), the orchestrator may pattern-match toward "this is a lot — let me ask which subset to do." That instinct is wrong: scope is fixed by this skill's contract — every open bug, in priority order, until graceful shutdown is authorized by a literal compaction-event banner. Asking the user "should I do P1 only, P1+P2, all 53, or triage duplicates first?" is a violation of this contract and is PROHIBITED. The user invoking `/dso:debug-everything` is the scope authorization; no further confirmation is valid. Begin processing immediately. (Companion to f9b5-213b — same drift pattern, different surface.)
+<HARD-GATE>
+**Bug-Fix Mode entry — two prohibited drift patterns.** The orchestrator MUST observe both before doing anything else in this mode:
+
+1. **DO NOT ask the user to confirm or narrow scope** (guard dd88-afb6 + 5554-9125). When `OPEN_BUG_COUNT` is large (e.g., N=53), the instinct to ask "P1 only, P1+P2, all 53, or triage duplicates first?" is exactly the failure mode this gate prevents. Scope is fixed by the skill's contract: every open bug, in priority order, until graceful shutdown is authorized by a literal compaction-event banner. The user invoking `/dso:debug-everything` IS the scope authorization. No `AskUserQuestion` between Phase A and Bug-Fix Mode Step 2 is valid. Begin processing immediately.
+
+2. **DO NOT fix bugs directly from the orchestrator** (guard jira-dig-1662). When the bug list is long, the instinct to dispatch parallel `general-purpose` sub-agents that "investigate + fix + commit inline" is also a violation. Each ticket MUST go through `/dso:fix-bug` (read `$PLUGIN_ROOT/skills/fix-bug/SKILL.md` inline and execute its steps for that ticket). Inline orchestrator fixes, parallel batch sub-agents that bypass fix-bug, and ad-hoc patches without fix-bug's HARD-GATE all violate this contract. Fix-bug owns the investigation discipline (intent search, complexity scoring, RED test, Phase D approval). Skipping it is prohibited regardless of how mechanical the fix appears.
+
+Companion guards: f9b5-213b (Phase K premature shutdown drift). All three drift patterns share root cause: orchestrator pattern-matches toward "make progress fast" and skips the contract.
+</HARD-GATE>
 
 ### What is skipped in Bug-Fix Mode
 
