@@ -227,11 +227,40 @@ except Exception as e:
     assert_eq "e2e_verifier: verifier blocked (exits 1)" "1" "$verifier_exit"
 }
 
+# ── Test 6: test_python_artifact_write_failure_exits_nonzero ──
+# When: the python3 process used to write the artifact fails (simulated via PATH override)
+# Then: commit-step.sh must exit non-zero AND must NOT produce a corrupt artifact
+test_python_artifact_write_failure_exits_nonzero() {
+    local artifacts_dir
+    artifacts_dir=$(_make_artifacts_dir)
+
+    # Inject a fake python3 that exits 1 on every call
+    local fake_bin
+    fake_bin=$(mktemp -d)
+    _TEST_TMPDIRS+=("$fake_bin")
+    cat > "$fake_bin/python3" <<'PYEOF'
+#!/usr/bin/env bash
+exit 1
+PYEOF
+    chmod +x "$fake_bin/python3"
+
+    local exit_code=0
+    PATH="$fake_bin:$PATH" WORKFLOW_PLUGIN_ARTIFACTS_DIR="$artifacts_dir" \
+        bash "$COMMIT_STEP" lint 5 bash -c 'echo ok' 2>/dev/null || exit_code=$?
+
+    assert_eq "python_fail: commit-step exits non-zero" "1" "$exit_code"
+
+    local artifact_exists="no"
+    [[ -f "$artifacts_dir/lint.result" ]] && artifact_exists="yes"
+    assert_eq "python_fail: no corrupt artifact on disk" "no" "$artifact_exists"
+}
+
 # ── Run all tests ──
 test_pipe_to_tail_artifact_intact
 test_pipe_to_devnull_artifact_intact
 test_grep_filter_artifact_intact
 test_failing_cmd_artifact_records_failure
 test_verifier_sees_failure_through_tail
+test_python_artifact_write_failure_exits_nonzero
 
 print_summary
