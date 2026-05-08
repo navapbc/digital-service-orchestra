@@ -100,7 +100,7 @@ plugins/dso/hooks/check-plugin-self-ref.sh:tests/hooks/test-enforcement-gate.sh
 plugins/dso/hooks/check-portability.sh:tests/hooks/test-enforcement-gate.sh
 plugins/dso/hooks/check-tickets-boundary.sh:tests/hooks/test-check-tickets-boundary.sh
 plugins/dso/hooks/compute-diff-hash.sh:tests/hooks/test-compute-diff-hash-staging-invariance.sh,tests/hooks/test-compute-diff-hash-autostash-invariance.sh,tests/hooks/test-behavioral-equivalence-allowlist.sh
-plugins/dso/hooks/dispatchers/post-agent.sh:tests/hooks/test-post-agent-sentinel.sh,tests/hooks/test-post-dispatcher-err-handler.sh
+plugins/dso/hooks/dispatchers/post-agent.sh:tests/hooks/test-post-agent-sentinel.sh,tests/hooks/test-post-dispatcher-err-handler.sh,tests/hooks/test-post-agent-attribution.sh [test_post_agent_dispatcher_writes_attribution_jsonl_entry]
 plugins/dso/hooks/dispatchers/post-all.sh:tests/hooks/test-post-dispatchers.sh,tests/hooks/test-post-dispatcher-err-handler.sh
 plugins/dso/hooks/dispatchers/post-bash.sh:tests/hooks/test-post-dispatchers.sh,tests/hooks/test-post-dispatcher-err-handler.sh
 plugins/dso/hooks/dispatchers/post-edit.sh:tests/hooks/test-post-dispatchers.sh,tests/hooks/test-post-dispatcher-err-handler.sh
