@@ -92,6 +92,31 @@ def handle_status(
                 pass
 
     if mapped_local_status != current_local_status:
+        # Terminal-state protection: if local is terminal (closed/deleted) and
+        # inbound proposes a non-terminal status, treat as Jira-lagging
+        # divergence. Do NOT downgrade local state — fail loud via BRIDGE_ALERT
+        # so an operator can reconcile (either replay outbound or update Jira).
+        # Hard-coded on; no config knob (a `bridge.inbound_terminal_authoritative`
+        # toggle can be added later if a use-case for the inverse appears).
+        # Bug ca94-8e51.
+        _TERMINAL_LOCAL_STATUSES = {"closed", "deleted"}
+        if (
+            current_local_status in _TERMINAL_LOCAL_STATUSES
+            and mapped_local_status not in _TERMINAL_LOCAL_STATUSES
+        ):
+            write_bridge_alert_fn(
+                ticket_id=local_id,
+                reason=(
+                    "local_terminal_jira_lagging: "
+                    f"local={current_local_status}, "
+                    f"inbound_proposed={mapped_local_status}, "
+                    f"jira_key={jira_key}"
+                ),
+                tickets_root=tickets_root,
+                bridge_env_id=bridge_env_id,
+            )
+            return
+
         write_status_event_fn(
             ticket_id=local_id,
             status=mapped_local_status,
