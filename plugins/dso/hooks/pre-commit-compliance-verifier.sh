@@ -31,6 +31,7 @@ if [[ -n "${WORKFLOW_PLUGIN_ARTIFACTS_DIR:-}" && ! -d "${WORKFLOW_PLUGIN_ARTIFAC
 fi
 
 # Resolve artifacts dir (WORKFLOW_PLUGIN_ARTIFACTS_DIR override handled by get_artifacts_dir())
+# get_artifacts_dir() derives path from REPO_ROOT — each worktree gets its own isolated ARTIFACTS_DIR
 ARTIFACTS_DIR=$(get_artifacts_dir)
 
 # First-run guard: ARTIFACTS_DIR absent → warn and exit 0 (not a blocker)
