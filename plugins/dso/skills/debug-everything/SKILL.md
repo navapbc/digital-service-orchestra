@@ -248,6 +248,8 @@ The sub-agent returns: the path to the diagnostic file + a ≤15-line summary (c
 
 **Rationale**: When open bug tickets already exist, the diagnostic scan (Phase B) and triage sub-agent (Phase C) are unnecessary — they exist to *discover* new issues. Bug-Fix Mode skips both and applies `/dso:fix-bug` directly to each known ticket. **All bugs are in scope — including pre-existing ones.** "Pre-existing" means the bug existed before this session; it does not mean the bug should be skipped or deferred. Every open bug ticket must be investigated and resolved via `/dso:fix-bug`.
 
+**Anti-pattern guard (dd88-afb6) — DO NOT ASK THE USER TO CONFIRM OR NARROW SCOPE.** When `OPEN_BUG_COUNT` is large (e.g., N=53), the orchestrator may pattern-match toward "this is a lot — let me ask which subset to do." That instinct is wrong: scope is fixed by this skill's contract — every open bug, in priority order, until graceful shutdown is authorized by a literal compaction-event banner. Asking the user "should I do P1 only, P1+P2, all 53, or triage duplicates first?" is a violation of this contract and is PROHIBITED. The user invoking `/dso:debug-everything` is the scope authorization; no further confirmation is valid. Begin processing immediately. (Companion to f9b5-213b — same drift pattern, different surface.)
+
 ### What is skipped in Bug-Fix Mode
 
 - **Diagnostic scan skipped** (Phase B Steps 3, 4, 5, 6, 7): No `validate.sh --ci`, no preflight checks, no diagnostic sub-agent, no clustering.
