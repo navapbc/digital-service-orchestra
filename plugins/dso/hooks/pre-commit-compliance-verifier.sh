@@ -56,4 +56,72 @@ for _step in "${_required_steps[@]}"; do
         _failed=1
     fi
 done
+# Overlay verification: check overlay-specific findings files
+_classifier_result="$ARTIFACTS_DIR/classifier-dispatch.result"
+if [[ -f "$_classifier_result" ]]; then
+    _registry="$_SCRIPT_DIR/../docs/contracts/overlay-registry.json"
+    _CLASSIFIER_RESULT="$_classifier_result" \
+    _REGISTRY="$_registry" \
+    _ARTIFACTS_DIR="$ARTIFACTS_DIR" \
+    python3 -c "
+import json, re, sys, os
+
+result_file = os.environ['_CLASSIFIER_RESULT']
+registry_file = os.environ['_REGISTRY']
+artifacts_dir = os.environ['_ARTIFACTS_DIR']
+
+def extract_overlays(raw_content):
+    # Try standard JSON parse first (properly-escaped stdout field)
+    try:
+        result = json.loads(raw_content)
+        stdout_val = result.get('stdout', '')
+        if stdout_val:
+            try:
+                stdout_obj = json.loads(stdout_val)
+                return stdout_obj.get('overlays') or []
+            except (json.JSONDecodeError, ValueError):
+                pass
+        return []
+    except (json.JSONDecodeError, ValueError):
+        pass
+    # Fallback: regex extraction from raw content.
+    # Handles inline-embedded JSON where stdout value is not properly escaped.
+    pat = r'\"overlays\"\s*:\s*(\[[^\]]*\])'
+    m = re.search(pat, raw_content)
+    if m:
+        try:
+            return json.loads(m.group(1))
+        except (json.JSONDecodeError, ValueError):
+            pass
+    return []
+
+try:
+    with open(result_file) as f:
+        raw_content = f.read()
+    overlays = extract_overlays(raw_content)
+    if not overlays:
+        sys.exit(0)
+    with open(registry_file) as f:
+        registry = json.load(f)
+    failed = 0
+    for overlay in overlays:
+        findings_file = registry.get(overlay)
+        if findings_file is None:
+            print('WARNING: pre-commit-compliance-verifier: overlay ' + overlay + ' not in registry, skipping', file=sys.stderr)
+            continue
+        findings_path = os.path.join(artifacts_dir, findings_file)
+        if not os.path.isfile(findings_path):
+            print('ERROR: pre-commit-compliance-verifier: overlay ' + overlay + ' findings file ' + findings_file + ' not found, commit blocked', file=sys.stderr)
+            failed = 1
+    sys.exit(failed)
+except Exception as e:
+    print('ERROR: pre-commit-compliance-verifier: overlay check failed: ' + str(e), file=sys.stderr)
+    sys.exit(1)
+"
+    _overlay_exit=$?
+    if [[ $_overlay_exit -ne 0 ]]; then
+        _failed=1
+    fi
+fi
+
 exit $_failed
