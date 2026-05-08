@@ -54,11 +54,15 @@ assert_eq "test_blocks_missing_artifact" "1" "$EXIT_CODE"
 
 # ---------------------------------------------------------------------------
 # test_passes_present_artifact
-# enabled=true, lint.result present (any content) → exits 0
+# enabled=true, all required artifacts present → exits 0
 # ---------------------------------------------------------------------------
 ARTIFACTS_DIR_3=$(mktemp -d "${TMPDIR:-/tmp}/test-cv-present-XXXXXX")
 trap 'rm -rf "$ARTIFACTS_DIR_3"' EXIT
+echo "pass" > "$ARTIFACTS_DIR_3/test.result"
+echo "pass" > "$ARTIFACTS_DIR_3/format.result"
 echo "pass" > "$ARTIFACTS_DIR_3/lint.result"
+echo "pass" > "$ARTIFACTS_DIR_3/classifier-dispatch.result"
+echo "pass" > "$ARTIFACTS_DIR_3/reviewer-record.result"
 
 EXIT_CODE=$(run_hook \
     "DSO_COMPLIANCE_VERIFIER_ENABLED=true" \
@@ -80,11 +84,15 @@ assert_eq "test_first_run_warning" "0" "$EXIT_CODE"
 
 # ---------------------------------------------------------------------------
 # test_host_hook_chain (simplified)
-# enabled=true, valid lint.result in WORKFLOW_PLUGIN_ARTIFACTS_DIR → exits 0
+# enabled=true, all required artifacts in WORKFLOW_PLUGIN_ARTIFACTS_DIR → exits 0
 # ---------------------------------------------------------------------------
 ARTIFACTS_DIR_5=$(mktemp -d "${TMPDIR:-/tmp}/test-cv-chain-XXXXXX")
 trap 'rm -rf "$ARTIFACTS_DIR_5"' EXIT
+echo "success" > "$ARTIFACTS_DIR_5/test.result"
+echo "success" > "$ARTIFACTS_DIR_5/format.result"
 echo "success" > "$ARTIFACTS_DIR_5/lint.result"
+echo "success" > "$ARTIFACTS_DIR_5/classifier-dispatch.result"
+echo "success" > "$ARTIFACTS_DIR_5/reviewer-record.result"
 
 EXIT_CODE=$(run_hook \
     "DSO_COMPLIANCE_VERIFIER_ENABLED=true" \
@@ -93,11 +101,15 @@ assert_eq "test_host_hook_chain" "0" "$EXIT_CODE"
 
 # ---------------------------------------------------------------------------
 # test_ci_artifacts_dir
-# WORKFLOW_PLUGIN_ARTIFACTS_DIR set to temp path with lint.result → exits 0
+# WORKFLOW_PLUGIN_ARTIFACTS_DIR set to temp path with all required artifacts → exits 0
 # ---------------------------------------------------------------------------
 ARTIFACTS_DIR_6=$(mktemp -d "${TMPDIR:-/tmp}/test-cv-ci-XXXXXX")
 trap 'rm -rf "$ARTIFACTS_DIR_6"' EXIT
+echo "ci-pass" > "$ARTIFACTS_DIR_6/test.result"
+echo "ci-pass" > "$ARTIFACTS_DIR_6/format.result"
 echo "ci-pass" > "$ARTIFACTS_DIR_6/lint.result"
+echo "ci-pass" > "$ARTIFACTS_DIR_6/classifier-dispatch.result"
+echo "ci-pass" > "$ARTIFACTS_DIR_6/reviewer-record.result"
 
 EXIT_CODE=$(run_hook \
     "DSO_COMPLIANCE_VERIFIER_ENABLED=true" \

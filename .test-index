@@ -62,7 +62,7 @@ plugins/dso/docs/SUB-AGENT-BOUNDARIES.md:tests/docs/test_sub_agent_boundaries_an
 plugins/dso/docs/templates/KNOWN-ISSUES.md:tests/scripts/test-known-issues-smoke.sh,tests/scripts/test-known-issues-template.sh
 plugins/dso/docs/ticket-system-v3-architecture.md:tests/scripts/test-tag-policy-docs.sh
 plugins/dso/docs/workflow-config-schema.json:tests/scripts/test-workflow-config-schema.sh
-plugins/dso/docs/workflows/commit-workflow-validation.md:tests/docs/test-commit-workflow-validation-canonical-list.sh
+plugins/dso/docs/workflows/commit-workflow-validation.md:tests/docs/test-commit-workflow-validation-canonical-list.sh,tests/hooks/test-workflow-doc-wrapping.sh [test_commit_workflow_test_wrapped]
 plugins/dso/docs/workflows/COMMIT-WORKFLOW.md:tests/scripts/test-commit-workflow-step-1-5.sh,tests/scripts/test-emit-commit-workflow-event.sh,tests/skills/test-preconditions-commit-validator.sh
 plugins/dso/docs/workflows/prompts/investigator-base.md:tests/unit/scripts/test-build-review-agents.sh
 plugins/dso/docs/workflows/prompts/investigator-delta-advanced-code-tracer.md:tests/unit/scripts/test-build-review-agents.sh
