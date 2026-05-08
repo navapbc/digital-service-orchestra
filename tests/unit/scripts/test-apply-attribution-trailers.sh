@@ -733,6 +733,162 @@ MOCK
     assert_pass_if_clean "test_script_exits_0_without_modifying_commit_msg_when_jsonl_empty"
 }
 
+# ── Test 18: inject DSO-Agent trailer into commit message (end-to-end) ────────
+# RED: main block does not call git interpret-trailers yet — commit message file
+# will be unchanged after the script runs, so the DSO-Agent assertion will FAIL.
+
+test_injection_appends_dso_agent_trailer_to_commit_message() {
+    _snapshot_fail
+
+    if [[ ! -f "$SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_injection_appends_dso_agent_trailer_to_commit_message\n  script not found: %s\n" "$SCRIPT" >&2
+        assert_pass_if_clean "test_injection_appends_dso_agent_trailer_to_commit_message"
+        return
+    fi
+
+    local _artifacts
+    _artifacts="$(_make_tmpdir)"
+
+    # Populate JSONL with one agent entry
+    printf '{"type":"agent","subagent_type":"dso:red-test-writer","model":"sonnet"}\n' \
+        > "$_artifacts/attribution-contributors.jsonl"
+
+    # Commit message file
+    local _commit_msg_file="$_artifacts/COMMIT_EDITMSG"
+    printf 'Initial commit\n' > "$_commit_msg_file"
+
+    # Mock read-config.sh: attribution.enabled → true
+    local _mock_dir
+    _mock_dir="$(_make_tmpdir)/bin"
+    mkdir -p "$_mock_dir"
+    # shellcheck disable=SC2016
+    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
+        > "$_mock_dir/read-config.sh"
+    chmod +x "$_mock_dir/read-config.sh"
+
+    local exit_code=0
+    ARTIFACTS_DIR="$_artifacts" PATH="$_mock_dir:$PATH" \
+        bash "$SCRIPT" "$_commit_msg_file" 2>/dev/null || exit_code=$?
+
+    assert_eq "injection: exits 0" "0" "$exit_code"
+
+    # Assert commit message file now contains a DSO-Agent: trailer line
+    local has_trailer=0
+    grep -q "^DSO-Agent:" "$_commit_msg_file" 2>/dev/null && has_trailer=1
+    assert_eq "injection: commit message contains DSO-Agent trailer" "1" "$has_trailer"
+
+    assert_pass_if_clean "test_injection_appends_dso_agent_trailer_to_commit_message"
+}
+
+# ── Test 19: two distinct agents produce exactly two DSO-Agent lines ───────────
+# RED: no git interpret-trailers call in main block → commit message unchanged
+# → count of ^DSO-Agent: lines will be 0, not 2.
+
+test_two_distinct_agents_produce_two_dso_agent_lines() {
+    _snapshot_fail
+
+    if [[ ! -f "$SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_two_distinct_agents_produce_two_dso_agent_lines\n  script not found: %s\n" "$SCRIPT" >&2
+        assert_pass_if_clean "test_two_distinct_agents_produce_two_dso_agent_lines"
+        return
+    fi
+
+    local _artifacts
+    _artifacts="$(_make_tmpdir)"
+
+    # Two distinct subagent_type values
+    printf '{"type":"agent","subagent_type":"dso:red-test-writer","model":"sonnet"}\n' \
+        > "$_artifacts/attribution-contributors.jsonl"
+    printf '{"type":"agent","subagent_type":"dso:code-reviewer-correctness","model":"sonnet"}\n' \
+        >> "$_artifacts/attribution-contributors.jsonl"
+
+    local _commit_msg_file="$_artifacts/COMMIT_EDITMSG"
+    printf 'Initial commit\n' > "$_commit_msg_file"
+
+    local _mock_dir
+    _mock_dir="$(_make_tmpdir)/bin"
+    mkdir -p "$_mock_dir"
+    # shellcheck disable=SC2016
+    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
+        > "$_mock_dir/read-config.sh"
+    chmod +x "$_mock_dir/read-config.sh"
+
+    local exit_code=0
+    ARTIFACTS_DIR="$_artifacts" PATH="$_mock_dir:$PATH" \
+        bash "$SCRIPT" "$_commit_msg_file" 2>/dev/null || exit_code=$?
+
+    assert_eq "two agents: exits 0" "0" "$exit_code"
+
+    local agent_line_count
+    agent_line_count="$(grep -c "^DSO-Agent:" "$_commit_msg_file" 2>/dev/null || true)"
+    assert_eq "two agents: exactly 2 DSO-Agent lines in commit message" "2" "$agent_line_count"
+
+    assert_pass_if_clean "test_two_distinct_agents_produce_two_dso_agent_lines"
+}
+
+# ── Test 20: old git exits 0, emits TRAILER_SKIPPED, leaves commit msg intact ─
+# RED: main block's check_git_version call exits non-zero and propagates as
+# exit 2 (the current code path after SC-2 and SC-4 guards, before T6 impl).
+# After correct T6 implementation the version check must cause a graceful exit 0
+# with TRAILER_SKIPPED on stderr and the commit message file unchanged.
+
+test_injection_emits_trailer_skipped_and_exits_0_when_git_below_2_6() {
+    _snapshot_fail
+
+    if [[ ! -f "$SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_injection_emits_trailer_skipped_and_exits_0_when_git_below_2_6\n  script not found: %s\n" "$SCRIPT" >&2
+        assert_pass_if_clean "test_injection_emits_trailer_skipped_and_exits_0_when_git_below_2_6"
+        return
+    fi
+
+    local _artifacts
+    _artifacts="$(_make_tmpdir)"
+    printf '{"type":"agent","subagent_type":"dso:red-test-writer","model":"sonnet"}\n' \
+        > "$_artifacts/attribution-contributors.jsonl"
+
+    local _commit_msg_file="$_artifacts/COMMIT_EDITMSG"
+    printf 'Initial commit\n' > "$_commit_msg_file"
+    local _original_content
+    _original_content="$(cat "$_commit_msg_file")"
+
+    # Mock read-config.sh: attribution.enabled → true
+    local _mock_dir
+    _mock_dir="$(_make_tmpdir)/bin"
+    mkdir -p "$_mock_dir"
+    # shellcheck disable=SC2016
+    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
+        > "$_mock_dir/read-config.sh"
+    chmod +x "$_mock_dir/read-config.sh"
+
+    # Mock git binary that reports version 1.9.0
+    # shellcheck disable=SC2016
+    printf '#!/bin/bash\n[[ "$1" == "--version" ]] && echo "git version 1.9.0" || git "$@"\n' \
+        > "$_mock_dir/mock-git"
+    chmod +x "$_mock_dir/mock-git"
+
+    local _stderr_file
+    _stderr_file="$(_make_tmpdir)/stderr.txt"
+
+    local exit_code=0
+    GIT_BINARY="$_mock_dir/mock-git" ARTIFACTS_DIR="$_artifacts" PATH="$_mock_dir:$PATH" \
+        bash "$SCRIPT" "$_commit_msg_file" 2>"$_stderr_file" || exit_code=$?
+
+    assert_eq "old git: exits 0" "0" "$exit_code"
+
+    local has_trailer_skipped=0
+    grep -q "TRAILER_SKIPPED" "$_stderr_file" 2>/dev/null && has_trailer_skipped=1
+    assert_eq "old git: stderr contains TRAILER_SKIPPED" "1" "$has_trailer_skipped"
+
+    local _current_content
+    _current_content="$(cat "$_commit_msg_file")"
+    assert_eq "old git: commit message unchanged" "$_original_content" "$_current_content"
+
+    assert_pass_if_clean "test_injection_emits_trailer_skipped_and_exits_0_when_git_below_2_6"
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 
 test_read_and_deduplicate_returns_single_value_for_duplicate_agents
@@ -752,5 +908,8 @@ test_exits_0_and_omits_scalar_trailers_when_ticket_show_fails
 test_script_exits_0_without_modifying_commit_msg_when_attribution_disabled
 test_script_exits_0_without_modifying_commit_msg_when_jsonl_absent
 test_script_exits_0_without_modifying_commit_msg_when_jsonl_empty
+test_injection_appends_dso_agent_trailer_to_commit_message
+test_two_distinct_agents_produce_two_dso_agent_lines
+test_injection_emits_trailer_skipped_and_exits_0_when_git_below_2_6
 
 print_summary
