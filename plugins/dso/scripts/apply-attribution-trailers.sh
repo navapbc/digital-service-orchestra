@@ -410,6 +410,28 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     mapfile -t _flags_array < <(printf '%s\n' "$_trailer_flags" | grep -v '^$')
 
     if [[ "${#_flags_array[@]}" -gt 0 ]]; then
+        # ── Idempotency guard ─────────────────────────────────────────────────
+        # If ALL would-be trailer key:value pairs already appear as lines in the
+        # commit message file, skip the interpret-trailers call. This makes the
+        # second invocation (hook + orchestrator) a no-op rather than duplicating.
+        _all_present=1
+        for _flag_entry in "${_flags_array[@]}"; do
+            # Each entry has the form: --trailer 'KEY: VALUE'
+            # Extract the trailer token (the 'KEY: VALUE' part) by stripping the
+            # leading "--trailer " and surrounding single quotes.
+            _trailer_token="${_flag_entry#--trailer }"
+            _trailer_token="${_trailer_token#\'}"
+            _trailer_token="${_trailer_token%\'}"
+            if ! grep -qF "$_trailer_token" "$_COMMIT_MSG_FILE" 2>/dev/null; then
+                _all_present=0
+                break
+            fi
+        done
+
+        if [[ "$_all_present" -eq 1 ]]; then
+            exit 0
+        fi
+
         # shellcheck disable=SC2294
         eval "${GIT_BINARY:-git} interpret-trailers --in-place ${_flags_array[*]} \"\$_COMMIT_MSG_FILE\""
     fi
