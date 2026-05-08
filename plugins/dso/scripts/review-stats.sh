@@ -5,7 +5,7 @@
 # Resolves .review-events/ from the tickets tracker directory and passes
 # CLI arguments through to the Python module.
 #
-# Usage: review-stats.sh [--since=YYYY-MM-DD] [--all]
+# Usage: review-stats.sh [--since=YYYY-MM-DD] [--all] [--metrics] [--window=7d|30d]
 #
 # Exit codes:
 #   0 = success (including when no events are found)
@@ -51,12 +51,18 @@ for arg in "$@"; do
         --all)
             py_args+=("$arg")
             ;;
+        --metrics)
+            py_args+=("$arg")
+            ;;
+        --window=*)
+            py_args+=("$arg")
+            ;;
         -h|--help)
             py_args+=("$arg")
             ;;
         *)
             echo "Error: unknown argument '$arg'" >&2
-            echo "Usage: review-stats.sh [--since=YYYY-MM-DD] [--all]" >&2
+            echo "Usage: review-stats.sh [--since=YYYY-MM-DD] [--all] [--metrics] [--window=7d|30d]" >&2
             exit 1
             ;;
     esac

@@ -171,7 +171,6 @@ test_enforcement_ci_test_quality_gate_skips() {
 # Then exits 1 (structural hooks always block regardless of enforcement.strategy)
 # FAILS: hook doesn't read enforcement.strategy (can't distinguish structural yet)
 #
-# REVIEW-DEFENSE: Only this function is listed as the .test-index RED marker for
 # tests/hooks/test-enforcement-gate.sh. The suite-engine _RED_MARKER_MAP stores ONE
 # value per file path (last entry wins). By anchoring the RED zone at this FIRST
 # structural test, ALL 5 structural tests (which appear at/after this line) are

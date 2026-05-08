@@ -696,7 +696,6 @@ hook_brainstorm_gate() {
     local ARTIFACTS_DIR
     ARTIFACTS_DIR=$(get_artifacts_dir)
 
-    # REVIEW-DEFENSE: The allowlist bypass reads $ARTIFACTS_DIR/active-skill-context, which
     # is written by each skill's SKILL.md at entry (e.g., "echo 'sprint' > $ARTIFACTS_DIR/active-skill-context").
     # No production writer exists yet — this is Phase 1 infrastructure. Skills adopt the
     # writer in their own enhancement cycles. The mechanism is tested via unit tests that
@@ -866,7 +865,6 @@ print(f'{total} {timeouts}')
     local TOOL_USE_THRESHOLD
     TOOL_USE_THRESHOLD="${DSO_SUGGESTION_TOOL_USE_THRESHOLD:-$(bash "$_PLUGIN_ROOT/scripts/read-config.sh" suggestion.tool_use_count_threshold 2>/dev/null || echo "")}"
     [[ -z "$TOOL_USE_THRESHOLD" ]] && TOOL_USE_THRESHOLD=200
-    # REVIEW-DEFENSE: Using today's date is a deliberate design tradeoff. JSONL files are named
     # by calendar day (tool-use-YYYY-MM-DD.jsonl) — this convention is used consistently across
     # all hooks that read tool-use logs. Sessions spanning midnight are a rare edge case; scanning
     # yesterday's file would require probing two paths and merging counts for marginal benefit.

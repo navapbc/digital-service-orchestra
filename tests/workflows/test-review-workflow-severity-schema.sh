@@ -22,7 +22,6 @@ SPRINT_SKILL="$REPO_ROOT/plugins/dso/skills/sprint/SKILL.md"
 # ---------------------------------------------------------------------------
 # test_review_workflow_severity_pass_fail_criterion
 # Positive: REVIEW-WORKFLOW.md documents severity-based pass/fail via findings[].severity
-# REVIEW-DEFENSE: Change-detector — per behavioral-testing-standard.md Rule 5, these tests
 # verify REQUIRED contract elements (severity schema terms) exist in instruction files.
 # Removing these terms would break the downstream LLM agent contract. This is structural
 # boundary testing, not arbitrary prose pinning.
@@ -40,7 +39,6 @@ fi
 # test_review_workflow_no_min_score_passfail_criterion
 # Negative: REVIEW-WORKFLOW.md must NOT use MIN_SCORE (legacy score-based schema,
 # removed in epic 4b8f-924d; severity-based schema documented above is the replacement).
-# REVIEW-DEFENSE: Source-file-grepping — per behavioral-testing-standard.md Rule 5,
 # instruction-file tests MUST test structural boundaries via grep. These negative
 # assertions lock out deprecated severity fields from the review workflow contract.
 # Behavioral correctness testing is non-deterministic for LLM instruction files and
@@ -58,7 +56,6 @@ fi
 # ---------------------------------------------------------------------------
 # test_review_workflow_severity_trigger_language
 # Positive: REVIEW-WORKFLOW.md documents that critical/important findings trigger resolution.
-# REVIEW-DEFENSE: Change-detector — per behavioral-testing-standard.md Rule 5, these tests
 # verify REQUIRED contract elements (severity schema terms) exist in instruction files.
 # Removing these terms would break the downstream LLM agent contract. This is structural
 # boundary testing, not arbitrary prose pinning.
@@ -76,7 +73,6 @@ fi
 # test_review_workflow_no_all_scores_criterion
 # Negative: REVIEW-WORKFLOW.md must NOT use 'all scores >= 4' (legacy schema,
 # removed in epic 4b8f-924d; critical/important severity trigger is the replacement).
-# REVIEW-DEFENSE: Source-file-grepping — per behavioral-testing-standard.md Rule 5,
 # instruction-file tests MUST test structural boundaries via grep. These negative
 # assertions lock out deprecated severity fields from the review workflow contract.
 # Behavioral correctness testing is non-deterministic for LLM instruction files and
@@ -94,7 +90,6 @@ fi
 # ---------------------------------------------------------------------------
 # test_sprint_skill_severity_pass_criterion
 # Positive: sprint SKILL.md documents severity-based pass language (no critical/important findings).
-# REVIEW-DEFENSE: Change-detector — per behavioral-testing-standard.md Rule 5, these tests
 # verify REQUIRED contract elements (severity schema terms) exist in instruction files.
 # Removing these terms would break the downstream LLM agent contract. This is structural
 # boundary testing, not arbitrary prose pinning.
@@ -112,7 +107,6 @@ fi
 # test_sprint_skill_no_all_scores_criterion
 # Negative: sprint SKILL.md must NOT use 'all scores >= 4' (legacy schema,
 # removed in epic 4b8f-924d; critical/important severity language is the replacement).
-# REVIEW-DEFENSE: Source-file-grepping — per behavioral-testing-standard.md Rule 5,
 # instruction-file tests MUST test structural boundaries via grep. These negative
 # assertions lock out deprecated severity fields from the review workflow contract.
 # Behavioral correctness testing is non-deterministic for LLM instruction files and

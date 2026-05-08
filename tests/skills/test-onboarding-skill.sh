@@ -1519,7 +1519,6 @@ test_step2b_empty_string_treated_as_not_set
 # test_onboarding_skill_has_merge_strategy_question: SKILL.md Phase 3 / Step 2b section
 # must contain merge strategy selection with direct/pr options, provision-ruleset trigger,
 # and idempotency guard.
-# REVIEW-DEFENSE: grepping plugins/dso/skills/onboarding/SKILL.md for structural contract anchors
 # is the ONLY valid test for non-executable instruction files per behavioral-testing-standard.md Rule 5.
 # Rule 5 requires testing the structural boundary (that the contract phrase exists) rather than
 # behavioral correctness (that the agent follows the instruction at runtime, which is non-deterministic).

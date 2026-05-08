@@ -14,7 +14,7 @@ description: >
 This fragment is composed with a tier-specific delta file by build-review-agents.sh to produce
 a complete code-reviewer agent definition. It contains universal guidance that applies to all
 review tiers: output contract, JSON schema, scoring rules, category mapping,
-no-formatting/linting-exclusion rule, REVIEW-DEFENSE evaluation, and the
+no-formatting/linting-exclusion rule, and the
 write-reviewer-findings.sh call procedure.
 
 ---
@@ -186,20 +186,6 @@ Each finding's `category` must be exactly one of these five dimensions:
 
 ---
 
-## REVIEW-DEFENSE Evaluation
-
-When you encounter a `# REVIEW-DEFENSE:` comment in the code:
-
-1. Read the defense. Does it reference verifiable artifacts (code, tests, ADRs, documented
-   patterns)?
-2. If you agree: lower severity or remove finding; note acceptance in description.
-3. If you disagree: maintain severity; explain why the defense is insufficient.
-
-Defenses based on unverifiable claims (e.g., "for performance reasons" with no benchmark,
-test, or documented tradeoff) should be treated skeptically.
-
----
-
 ## Pre-Output Category Coverage Check
 
 Before writing your findings JSON, verify you have considered all 5 review categories:
@@ -257,8 +243,8 @@ FILES: {comma-separated list of files referenced in findings}
 
 This delta file is composed with reviewer-base.md by build-review-agents.sh. It contains
 only tier-specific additions. The base file supplies the universal output contract, JSON
-schema, scoring rules, category mapping, no-formatting/linting-exclusion rule, REVIEW-DEFENSE
-evaluation section, and write-reviewer-findings.sh call procedure.
+schema, scoring rules, category mapping, no-formatting/linting-exclusion rule,
+and write-reviewer-findings.sh call procedure.
 
 ---
 

@@ -1,0 +1,29 @@
+[
+  {
+    "id": "f0-pr62-cycle1-resustain",
+    "relation": "NEW_INTRODUCED",
+    "finding_id": "f0-pr62-cycle1-resustain",
+    "dimension": "correctness",
+    "severity": "important",
+    "description": "The ci.yml `changes-detection` step uses `${{ github.base_sha }}` which is not guaranteed to be populated on push events; this silently collapses the diff range.",
+    "cited_lines": [
+      ".github/workflows/ci.yml:87"
+    ],
+    "defense_text": "REVIEW-DEFENSE block added at runner.py:23-30: actions/checkout@v4 with fetch-depth:0 always succeeds with full history or fails the job; there is no silent incomplete-history path.",
+    "cycle": 1,
+    "status": "defended"
+  },
+  {
+    "id": "f1-pr62-cycle1-new-introduced",
+    "relation": "NEW_INTRODUCED",
+    "finding_id": "f1-pr62-cycle1-new-introduced",
+    "dimension": "correctness",
+    "severity": "important",
+    "description": "Duplicate-context bypass path is removed but no migration note is emitted; operators who relied on the bypass will silently get different behavior.",
+    "cited_lines": [
+      ".github/workflows/ci.yml:203"
+    ],
+    "cycle": 1,
+    "status": "open"
+  }
+]

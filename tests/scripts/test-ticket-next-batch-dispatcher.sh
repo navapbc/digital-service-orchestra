@@ -14,7 +14,6 @@
 
 # NOTE: -e intentionally omitted — test assertions return non-zero by design;
 # -e would abort the script on the first failing test instead of collecting all results.
-# REVIEW-DEFENSE: PASS/FAIL counters initialized by run_test.sh `: "${PASS:=0}"` (line 14).
 # All test files in this suite use the same sourced-library initialization pattern.
 set -uo pipefail
 

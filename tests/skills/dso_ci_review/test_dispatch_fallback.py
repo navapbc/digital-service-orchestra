@@ -83,6 +83,7 @@ def test_fallback_rate_limit_falls_back_to_provider(monkeypatch) -> None:
     result = dispatch_review(
         diff_text=_DIFF_TEXT,
         provider_chain=["anthropic", "openai"],
+        agent_id="code-reviewer-light",
         environ={
             "ANTHROPIC_API_KEY": "test-key",
             "OPENAI_API_KEY": "test-key",
@@ -154,6 +155,7 @@ def test_fallback_context_window_exceeded_escalates_to_sonnet(monkeypatch) -> No
     result = dispatch_review(
         diff_text=_DIFF_TEXT,
         provider_chain=["anthropic"],
+        agent_id="code-reviewer-light",
         context_model_chain=["claude-haiku-4-5-20251001", "claude-sonnet-4-5"],
         environ={"ANTHROPIC_API_KEY": "test-key"},
     )
@@ -214,6 +216,7 @@ def test_fallback_full_chain_failure_emits_exhausted_entry(monkeypatch) -> None:
     result = dispatch_review(
         diff_text=_DIFF_TEXT,
         provider_chain=["anthropic", "openai"],
+        agent_id="code-reviewer-light",
         environ={
             "ANTHROPIC_API_KEY": "test-key",
             "OPENAI_API_KEY": "test-key",
@@ -261,7 +264,7 @@ def test_fallback_exhausted_entry_has_required_fields(monkeypatch) -> None:
     result = dispatch_review(
         diff_text=_DIFF_TEXT,
         provider_chain=["anthropic", "openai"],
-        agent_id="test-agent-001",
+        agent_id="code-reviewer-light",
         environ={
             "ANTHROPIC_API_KEY": "test-key",
             "OPENAI_API_KEY": "test-key",
@@ -333,6 +336,7 @@ def test_fallback_all_litellm_calls_have_streaming_false(monkeypatch) -> None:
     dispatch_review(
         diff_text=_DIFF_TEXT,
         provider_chain=["anthropic", "openai"],
+        agent_id="code-reviewer-light",
         environ={
             "ANTHROPIC_API_KEY": "test-key",
             "OPENAI_API_KEY": "test-key",
@@ -422,19 +426,22 @@ def test_async_dispatch_partial_failure(monkeypatch) -> None:
     monkeypatch.setattr("litellm.completion", _mock_completion)
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
 
-    # Patch dispatch_review for the failing agent to raise directly
-    _orig_dispatch = _dispatch_mod.dispatch_review
-
+    # Patch dispatch_review: failing agent raises, succeeding agent returns hardcoded findings.
+    # We cannot call _orig_dispatch with fake agent IDs because _load_agent_prompt now raises
+    # on missing agent files; patch at the dispatch level instead.
     def _patched_dispatch(diff_text, agent_id, primary_model, provider_chain, **kwargs):
         if agent_id == "agent-fail":
             raise RuntimeError("Simulated agent failure")
-        return _orig_dispatch(
-            diff_text=diff_text,
-            agent_id=agent_id,
-            primary_model=primary_model,
-            provider_chain=provider_chain,
-            **kwargs,
-        )
+        # Return a canned success response for agent-ok (no disk access needed)
+        return {
+            "findings": [
+                {
+                    "severity": "minor",
+                    "description": "Good agent finding",
+                    "cited_lines": ["foo.py:1"],
+                }
+            ]
+        }
 
     monkeypatch.setattr(_dispatch_mod, "dispatch_review", _patched_dispatch)
 
@@ -630,24 +637,23 @@ def test_parse_response_extracts_json_from_markdown_fenced_response() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_system_prompt_enumerates_valid_severity_values() -> None:
+def test_agent_prompt_enumerates_severity_values() -> None:
     """
-    Given: the _SYSTEM_PROMPT used in CI code review dispatch
+    Given: the code-reviewer-light agent prompt loaded from the agents/ directory
     When: inspected for severity vocabulary constraints
     Then: it enumerates all valid DSO severity values (critical, important, minor, fragile)
 
-    RED marker: tests/skills/dso_ci_review/test_dispatch_fallback.py [test_system_prompt_enumerates_valid_severity_values]
-
-    Covers 4297-a1d6: _SYSTEM_PROMPT says 'severity (string)' with no enumeration;
-    models use their own vocabulary ('medium', 'low') instead of the DSO schema values.
+    Covers 4297-a1d6: agent files must enumerate severity values so models do not use
+    their own vocabulary ('medium', 'low') instead of the DSO schema values.
     Observed in PR #56 CI run (job 74669479348): severity='medium' and severity='low'.
     """
-    prompt = _dispatch_mod._SYSTEM_PROMPT
+    if hasattr(_dispatch_mod, "_load_agent_prompt"):
+        _dispatch_mod._load_agent_prompt.cache_clear()
+    prompt = _dispatch_mod._load_agent_prompt("code-reviewer-light")
     for value in ("critical", "important", "minor", "fragile"):
         assert value in prompt, (
-            f"_SYSTEM_PROMPT must enumerate valid severity value {value!r} "
+            f"code-reviewer-light agent prompt must enumerate valid severity value {value!r} "
             f"so models do not use their own vocabulary (e.g. 'medium', 'low'). "
-            f"Current prompt: {prompt!r}"
         )
 
 
@@ -717,34 +723,36 @@ def test_build_messages_loads_canonical_agent_prompt() -> None:
     assert "Code Reviewer" in system_content, (
         "canonical agent file body (heading 'Code Reviewer') missing from system prompt"
     )
-    assert len(system_content) > len(_dispatch_mod._SYSTEM_PROMPT) * 5, (
-        f"system prompt length {len(system_content)} suggests fallback "
-        f"constant ({len(_dispatch_mod._SYSTEM_PROMPT)}) was used instead "
-        f"of the ~600-line canonical agent file"
+    # The canonical agent file is ~600 lines; verify it contains known marker phrases
+    # rather than comparing against the removed _SYSTEM_PROMPT fallback.
+    assert (
+        "cited_lines" in system_content or "You are a code reviewer" in system_content
+    ), (
+        "system prompt must contain canonical agent content ('cited_lines' or "
+        "'You are a code reviewer') — the inline fallback constant was removed; "
+        "check that the agent file loaded correctly"
     )
 
 
-def test_build_messages_falls_back_for_unknown_agent_id() -> None:
+def test_unknown_agent_id_raises() -> None:
     """
     Given: agent_id='unknown' (the dispatch_review default sentinel)
-    When: _build_messages is called
-    Then: the system message is the inline _SYSTEM_PROMPT fallback constant.
-    """
-    msgs = _dispatch_mod._build_messages("dummy diff", agent_id="unknown")
-    system_content = next(m["content"] for m in msgs if m["role"] == "system")
-    assert system_content == _dispatch_mod._SYSTEM_PROMPT
-
-
-def test_build_messages_falls_back_when_agent_file_missing() -> None:
-    """
-    Given: agent_id refers to an agent file that does not exist on disk
-    When: _build_messages is called
-    Then: the system message falls back to _SYSTEM_PROMPT rather than raising.
+    When: _load_agent_prompt is called (or _build_messages, which calls it)
+    Then: RuntimeError is raised — unknown agent_id is not a valid input.
     """
     if hasattr(_dispatch_mod, "_load_agent_prompt"):
         _dispatch_mod._load_agent_prompt.cache_clear()
-    msgs = _dispatch_mod._build_messages(
-        "dummy diff", agent_id="code-reviewer-nonexistent-fake"
-    )
-    system_content = next(m["content"] for m in msgs if m["role"] == "system")
-    assert system_content == _dispatch_mod._SYSTEM_PROMPT
+    with pytest.raises(RuntimeError):
+        _dispatch_mod._load_agent_prompt("unknown")
+
+
+def test_missing_agent_file_raises() -> None:
+    """
+    Given: agent_id refers to an agent file that does not exist on disk
+    When: _load_agent_prompt is called
+    Then: RuntimeError is raised rather than silently falling back.
+    """
+    if hasattr(_dispatch_mod, "_load_agent_prompt"):
+        _dispatch_mod._load_agent_prompt.cache_clear()
+    with pytest.raises(RuntimeError):
+        _dispatch_mod._load_agent_prompt("code-reviewer-nonexistent-fake")

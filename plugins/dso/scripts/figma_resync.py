@@ -179,7 +179,6 @@ def _run_merge(
 
     Returns (exit_code, output_dict).
     """
-    # REVIEW-DEFENSE: --non-interactive is intentionally always passed here. figma_resync.run()
     # is the orchestration layer that owns the user confirmation (step 7 in run()): it displays
     # the change summary from FIGMA_MERGE_OUTPUT and prompts the user BEFORE calling _do_tag_swap.
     # Delegating a second interactive confirmation inside figma-merge.py would double-prompt the
@@ -357,7 +356,6 @@ def _display_and_confirm(
         for w in merge_warnings:
             print(f"  ! {w}")
 
-    # REVIEW-DEFENSE: The merge step writes artifacts to disk BEFORE this prompt.
     # This is intentional: the change summary displayed IS the merged artifact
     # output, and showing it requires the merge to have already run. The confirmation here
     # gates only the irreversible side effects — the tag swap and metadata ticket comment.
@@ -450,7 +448,6 @@ def run(
             ticket_id, merge_output, non_interactive
         )
         if not proceed:
-            # REVIEW-DEFENSE: Returning 0 for user cancellation is intentional and follows
             # Unix convention — cancellation is a clean, non-error exit (not a failure).
             # Callers that need to distinguish cancellation from success can check stderr
             # for the "Re-sync cancelled." message.

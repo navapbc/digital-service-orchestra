@@ -130,7 +130,6 @@ run_check() {
     local label="$1"
     local cmd="$2"
     local output
-    # REVIEW-DEFENSE: eval is used here to execute config-supplied command strings from
     # .claude/dso-config.conf. This file is project-controlled (committed to the repo) and is
     # not user-supplied at runtime. All current config values are simple make targets
     # (e.g., "make lint", "make format-check"). The threat model for a developer-facing
@@ -246,7 +245,6 @@ collect_modified() {
     local cmd="$2"
     local before after modified
     # Build find arguments for all configured source dirs and extensions
-    # REVIEW-DEFENSE: Literal "(" and ")" as bash array elements are safe on macOS BSD find.
     # When passed via "${find_args[@]}" (quoted array expansion), bash does NOT interpret them
     # as subshell operators — each element is passed as a separate, verbatim argument to find.
     # BSD find (macOS) accepts unescaped "(" and ")" as grouping operators when they arrive

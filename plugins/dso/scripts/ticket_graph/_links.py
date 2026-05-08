@@ -139,7 +139,6 @@ def _write_link_event(
 
     # Best-effort push — mirrors bash _push_tickets_branch behavior.
     # Skipped in test environments (_TICKET_TEST_NO_SYNC=1) and when no remote exists.
-    # REVIEW-DEFENSE: For relates_to, add_dependency calls _write_link_event twice (once
     # per direction). Each call pushes independently. Double best-effort pushes are harmless:
     # the second push is a no-op if no new commits exist between the two calls, and both are
     # non-fatal. This matches how bash write_commit_event works (one push per commit).

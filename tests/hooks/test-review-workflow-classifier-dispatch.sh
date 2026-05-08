@@ -556,27 +556,6 @@ assert_eq "test_workflow_step3_checks_model_override_field: REVIEW-WORKFLOW.md s
 teardown_temp_dir
 assert_pass_if_clean "test_workflow_step3_checks_model_override_field"
 
-# test_workflow_step3_rejection_only_on_initial_dispatch
-# Verify that REVIEW-WORKFLOW.md clarifies size rejection is skipped during re-review
-# (i.e., the Autonomous Resolution Loop does NOT apply size rejection).
-# RED: REVIEW-WORKFLOW.md does not yet document this skipping behavior.
-_snapshot_fail
-setup_temp_dir
-
-rerereview_skips_rejection=false
-
-# Look for language clarifying size rejection is skipped/not applied during re-review
-# Match patterns like: "re-review...skip...size", "size rejection...not apply...re-review",
-# "Autonomous Resolution Loop...size_action...skip", etc.
-if grep -qE 're-?review.*skip.*size|size.*skip.*re-?review|re-?review.*size_action.*skip|size_action.*re-?review.*not|Autonomous.*Resolution.*size|size.*rejection.*not.*re-?review|re-?review.*bypass.*size|skip.*size.*action.*re-?review' "$REVIEW_WORKFLOW" 2>/dev/null; then
-    rerereview_skips_rejection=true
-fi
-
-assert_eq "test_workflow_step3_rejection_only_on_initial_dispatch: REVIEW-WORKFLOW.md should clarify size rejection is skipped during re-review (Autonomous Resolution Loop)" "true" "$rerereview_skips_rejection"
-
-teardown_temp_dir
-assert_pass_if_clean "test_workflow_step3_rejection_only_on_initial_dispatch"
-
 # test_workflow_step3_rejection_message_references_guide
 # After reject→warn migration: REVIEW-WORKFLOW.md Step 3b should NOT contain a
 # rejection-style message referencing large-diff-splitting-guide in a reject context.

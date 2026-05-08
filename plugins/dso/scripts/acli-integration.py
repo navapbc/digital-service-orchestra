@@ -196,7 +196,6 @@ def create_issue(
     result = _create_issue_no_json(
         project, issue_type, summary, acli_cmd=acli_cmd, **kwargs
     )
-    # REVIEW-DEFENSE: The "cannot be assigned" error only occurs when an assignee
     # field is present in the ACLI command. _create_issue_no_json returns None only
     # on that specific permission error. When no assignee kwarg is provided, the
     # --assignee flag is never sent, so this error cannot occur and result will
@@ -273,7 +272,6 @@ def _create_from_json_payload(
     """
     fd, json_path = tempfile.mkstemp(suffix=".json", prefix="acli-create-")
     try:
-        # REVIEW-DEFENSE: Exception control flow in the fd_owned guard is correct.
         # os.fdopen transfers ownership of fd to the file object. After fdopen
         # succeeds (fd_owned=True), the context manager's __exit__ closes fd —
         # so os.close(fd) is correctly skipped. If fdopen itself fails
@@ -344,7 +342,6 @@ def _create_issue_from_json(
     result = _create_from_json_payload(payload, acli_cmd=acli_cmd)
 
     # If the assignee field caused a permission error, retry without it.
-    # REVIEW-DEFENSE: _create_from_json_payload returns None only on
     # _ASSIGNEE_PERMISSION_ERROR, which requires an assignee in the payload.
     # When no assignee is present, the error cannot occur, so we only need
     # the "assignee in payload" branch — no separate elif for result is None
@@ -689,7 +686,6 @@ class AcliClient:
                 )
         except (urllib.error.URLError, json.JSONDecodeError, UnicodeDecodeError) as exc:
             logging.warning("get_myself: failed to fetch /rest/api/2/myself: %s", exc)
-            # REVIEW-DEFENSE: Caching {} on error is intentional — callers handle
             # missing keys gracefully (defaulting to UTC), and caching prevents a
             # second network failure on the same run from the verify+fetch double-call.
             self._myself_cache = {}

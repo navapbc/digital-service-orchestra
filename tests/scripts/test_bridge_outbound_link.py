@@ -39,7 +39,6 @@ def _load_module() -> ModuleType:
 def bridge() -> ModuleType:
     """Return the bridge-outbound module, failing all tests if absent (RED)."""
     if not SCRIPT_PATH.exists():
-        # REVIEW-DEFENSE: pre-existing guard pattern (not introduced by this diff).
         # The "expected RED state" comment reflects TDD workflow convention for stub-first
         # scripts; bridge-outbound.py already exists in production, so this path is
         # unreachable in normal test runs. No behavior change from this diff.

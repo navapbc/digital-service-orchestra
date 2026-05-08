@@ -74,7 +74,6 @@ HASH_CALLER_IMPLEMENTATION_PLAN="0271e511c0161eec"
 HASH_CALLER_RETRO="8a1a3dd74e54f101"
 HASH_CALLER_DESIGN_REVIEW="1a50fe899037ef49"
 HASH_CALLER_DEV_ONBOARDING="9ec70789c77bcca2"
-# REVIEW-DEFENSE: architect-foundation intentionally shares the same hash as dev-onboarding
 # (9ec70789c77bcca2). This is a SCHEMA hash (SHA-256[:16] of the canonical JSON schema
 # definition), not a skill identity hash. Both skills use the same review output schema
 # — identical field names, required structure, and allowed severity values. The hash

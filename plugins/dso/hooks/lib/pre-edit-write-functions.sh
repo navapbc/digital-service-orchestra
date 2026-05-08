@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../..}" # REVIEW-DEFENSE: Finding confirmed false positive — file lives at hooks/lib/; dirname gives hooks/lib/, then /../.. ascends two levels to the plugin root. Depth is correct.
 # hooks/lib/pre-edit-write-functions.sh
 # Sourceable function definitions for the PreToolUse Edit/Write hooks.
 #
@@ -237,7 +236,6 @@ hook_title_length_validator() {
 #   3. If file_path contains /.tickets-tracker/: return 2 (block)
 #   4. All other cases: return 0 (allow, fail-open)
 #
-# REVIEW-DEFENSE: This function is intentionally not wired into dispatchers yet.
 # Task dso-280g ("Wire tickets-tracker guards into dispatchers") handles dispatcher
 # integration as a separate task, dependent on this implementation (dso-4cb7).
 # See: ticket show dso-280g
@@ -330,7 +328,7 @@ hook_block_generated_reviewer_agents() {
         if [[ -n "$CONTENT" ]] && echo "$CONTENT" | grep -q '<<<<<<<'; then
             echo "BLOCKED [block-generated-reviewer-agents]: $BASENAME is auto-generated and contains conflict markers." >&2
             echo "Do not resolve conflicts in generated files. Instead:" >&2
-            echo "  1. Resolve conflicts in the source fragments under ${_PLUGIN_ROOT}/docs/workflows/prompts/" >&2
+            echo "  1. Resolve conflicts in the source fragments under ${_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-}}/docs/workflows/prompts/" >&2
             echo "  2. Run build-review-agents.sh to regenerate from source" >&2
             echo "The embedded content hash ensures stale content is caught." >&2
             trap - ERR; return 2
@@ -338,7 +336,7 @@ hook_block_generated_reviewer_agents() {
 
         echo "BLOCKED [block-generated-reviewer-agents]: $BASENAME is auto-generated." >&2
         echo "Do not edit generated files directly. Instead, edit the source fragments in" >&2
-        echo "${_PLUGIN_ROOT}/docs/workflows/prompts/ and run build-review-agents.sh to regenerate." >&2
+        echo "${_PLUGIN_ROOT:-${CLAUDE_PLUGIN_ROOT:-}}/docs/workflows/prompts/ and run build-review-agents.sh to regenerate." >&2
         trap - ERR; return 2
     fi
 

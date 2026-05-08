@@ -125,7 +125,6 @@ if [ ! -f "$TRACKER_DIR/.env-id" ]; then
 fi
 
 # ── Step 1b: Open-children guard (before flock — read-only check) ────────────
-# REVIEW-DEFENSE: This check intentionally runs outside the flock. The TOCTOU
 # window (a child ticket being created after this check but before the STATUS
 # event is committed inside the flock) is an acceptable trade-off: the worst case
 # is that a close succeeds while a sibling create is racing — which is already

@@ -428,7 +428,6 @@ RUNNER_EOF
 # test fails; if it contains the canonical path, it passes.
 # ---------------------------------------------------------------------------
 
-# REVIEW-DEFENSE: _assert_canonical_log_path uses grep on source files (structural probe).
 # This is an accepted tradeoff, not a test-quality anti-pattern, for the following reasons:
 #
 # (1) TESTABILITY CONSTRAINT — These 8 hooks are standalone scripts with top-level execution

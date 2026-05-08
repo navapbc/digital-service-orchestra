@@ -15,7 +15,6 @@
 # Usage: bash tests/scripts/test-check-local-env-portability.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
-# REVIEW-DEFENSE: '-e' is intentionally omitted. The test harness captures
 # non-zero exit codes from _run_script via || assignment. With '-e', expected
 # non-zero exits would abort the script before assertions run.
 set -uo pipefail
@@ -106,7 +105,7 @@ CURL_STUB
     (
         export PATH="$stub_bin:$PATH"
         export WORKFLOW_CONFIG="$skeleton_dir/dso-config.conf"
-        cd "$skeleton_dir"
+        cd "$skeleton_dir" || exit
         bash "$CANONICAL_SCRIPT" "$@"
     )
 }

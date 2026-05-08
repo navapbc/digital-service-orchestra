@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # tests/hooks/test-test-gate-coexistence.sh
 # Coexistence tests: test gate + review gate working together.
+# shellcheck disable=SC2030,SC2031
 #
 # Verifies that the two pre-commit gates (test gate and review gate)
 # operate independently — each gate's failure does not corrupt or modify
@@ -75,7 +76,6 @@ make_artifacts_dir() {
 
 # ── Helper: run the test gate hook in a test repo ────────────────────────────
 # Returns exit code on stdout.
-# REVIEW-DEFENSE: COMPUTE_DIFF_HASH_OVERRIDE is honored by pre-commit-test-gate.sh at line 51
 # (_COMPUTE_DIFF_HASH="${COMPUTE_DIFF_HASH_OVERRIDE:-$HOOK_DIR/compute-diff-hash.sh}"),
 # implemented in batch 7 (w21-wzgp). The export here is a test seam — not dead code.
 run_test_gate_hook() {
@@ -83,7 +83,7 @@ run_test_gate_hook() {
     local artifacts_dir="$2"
     local exit_code=0
     (
-        cd "$repo_dir"
+        cd "$repo_dir" || exit
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$artifacts_dir"
         export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$DSO_PLUGIN_DIR}"
         # Override compute-diff-hash to use the real one from the plugin
@@ -98,11 +98,11 @@ run_test_gate_hook_stderr() {
     local repo_dir="$1"
     local artifacts_dir="$2"
     (
-        cd "$repo_dir"
+        cd "$repo_dir" || exit
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$artifacts_dir"
         export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$DSO_PLUGIN_DIR}"
         export COMPUTE_DIFF_HASH_OVERRIDE="$DSO_PLUGIN_DIR/hooks/compute-diff-hash.sh"
-        bash "$TEST_GATE_HOOK" 2>&1 >/dev/null
+        { bash "$TEST_GATE_HOOK" >/dev/null; } 2>&1
     ) || true
 }
 
@@ -113,7 +113,7 @@ run_review_gate_hook() {
     local artifacts_dir="$2"
     local exit_code=0
     (
-        cd "$repo_dir"
+        cd "$repo_dir" || exit
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$artifacts_dir"
         export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$DSO_PLUGIN_DIR}"
         bash "$REVIEW_GATE_HOOK" 2>/dev/null
@@ -126,7 +126,7 @@ compute_hash_in_repo() {
     local repo_dir="$1"
     local artifacts_dir="$2"
     (
-        cd "$repo_dir"
+        cd "$repo_dir" || exit
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$artifacts_dir"
         export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$DSO_PLUGIN_DIR}"
         bash "$DSO_PLUGIN_DIR/hooks/compute-diff-hash.sh" 2>/dev/null

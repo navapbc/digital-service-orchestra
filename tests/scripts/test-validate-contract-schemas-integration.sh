@@ -11,7 +11,6 @@
 # Usage: bash tests/scripts/test-validate-contract-schemas-integration.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 #
-# REVIEW-DEFENSE: These tests verify REGISTRATION of the contract-schema-check hook — that validate.sh
 # wires check-contract-schemas.sh and that both pre-commit config files declare the hook. This is the
 # correct scope for integration tests at this layer. End-to-end execution correctness (what happens when
 # the hook runs against malformed YAML, missing sections, or fixture files) is the responsibility of the

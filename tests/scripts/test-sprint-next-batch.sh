@@ -243,7 +243,6 @@ if [ "$exit_code" -eq 1 ]; then
     echo "  PASS: nonexistent epic exits 1"
     (( PASS++ ))
 elif [ "$exit_code" -eq 124 ]; then
-    # REVIEW-DEFENSE: The 30s timeout guard prevents the CI test-runner's 90s
     # per-file ceiling from killing the entire suite when sprint-next-batch.sh
     # hangs in Alpine/BusyBox environments. In normal CI and local runs the
     # script exits with code 1 in <1s (confirmed: 27/27 passing in CI run

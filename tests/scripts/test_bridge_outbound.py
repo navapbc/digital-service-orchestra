@@ -1262,7 +1262,6 @@ def test_write_sync_event_timestamp_is_nanosecond_scale(
     seconds-scale integer (~1.7e9), well below the 1e12 threshold. After the
     fix uses time.time_ns() the value will be ~1.7e18, above the threshold.
     """
-    # REVIEW-DEFENSE: Direct import is required here — bridge-outbound.py does not re-export
     # write_sync_event, so the bridge module fixture cannot access it. The other three timestamp
     # tests use module fixtures that do expose the tested functions. See bridge-outbound.py
     # line 34-40 (only filter_bridge_events, get_compiled_status, has_existing_sync, etc. are

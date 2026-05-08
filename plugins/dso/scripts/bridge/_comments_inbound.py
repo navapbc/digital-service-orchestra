@@ -39,7 +39,6 @@ def _strip_uuid_marker(body: str) -> str:
     return re.sub(r"\n?<!-- origin-uuid: [0-9a-f-]+ -->", "", body).rstrip()
 
 
-# REVIEW-DEFENSE: pull_comments, _read_dedup_map, _write_dedup_map, and
 # _strip_uuid_marker are all covered by tests/scripts/test_bridge_inbound_comment.py
 # (6 unit tests written in batch 7, passing GREEN in this batch). Those tests
 # exercise all code paths including primary dedup, secondary dedup, dedup-map

@@ -6,6 +6,8 @@
 - Date: 2026-04-05
 - schema_version: 1
 
+> **Scope disambiguation**: This contract defines review lifecycle events (tier selection, overlay triggers, review results, commit outcomes). For finding records and relation taxonomy see [review-findings-schema.md](review-findings-schema.md).
+
 ## Purpose
 
 This document defines the versioned JSONL event schema for review observability events. Each event is a self-contained JSON record appended to an append-only JSONL log file. The schema covers four event types emitted during the review and commit workflow: tier selection, overlay triggers, review results, and commit workflow outcomes.

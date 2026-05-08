@@ -81,7 +81,6 @@ source "$HOOK_DIR/lib/merge-state.sh"
 
 # ── Determine path to compute-diff-hash.sh ───────────────────────────────────
 # Supports COMPUTE_DIFF_HASH_OVERRIDE env var for test injection.
-# REVIEW-DEFENSE: COMPUTE_DIFF_HASH_OVERRIDE is a test-only seam, not a production bypass vector.
 # Layer 2 (review-gate-bypass-sentinel.sh) blocks direct writes to test-gate-status and prevents
 # --no-verify from circumventing PreToolUse hooks. The fail-open behavior on hash error is a
 # deliberate safety-over-correctness tradeoff documented in the epic spec (dso-ppwp AC6).
@@ -478,7 +477,6 @@ _fp_artifacts_dir=$(get_artifacts_dir)
 _fp_status_file="$_fp_artifacts_dir/test-gate-status"
 if [[ -f "$_fp_status_file" ]]; then
     _fp_status_line=$(head -1 "$_fp_status_file" 2>/dev/null || echo "")
-    # REVIEW-DEFENSE: 'resource_exhaustion' is accepted here as a non-blocking status even though
     # no production code path writes it yet. The writer lives in record-test-status.sh as an EAGAIN
     # safety-net (story 861e-6dee), which depends on this story (ea0c-08b0). The gate must accept
     # the value before the writer can be tested end-to-end. This is intentional cross-story
@@ -621,7 +619,6 @@ TEST_STATUS_LINE=$(head -1 "$TEST_GATE_STATUS_FILE" 2>/dev/null || echo "")
 if [[ "$TEST_STATUS_LINE" != "passed" ]]; then
     # Fail-open on timeout/partial/resource_exhaustion — infrastructure constraint, not test failure.
     # CI will catch failures; blocking commits on timeout creates an unrecoverable loop.
-    # REVIEW-DEFENSE: 'resource_exhaustion' is accepted here before the writer (record-test-status.sh
     # EAGAIN safety-net, story 861e-6dee) lands. Cross-story sequencing: gate (ea0c-08b0) first,
     # writer (861e-6dee) second. See fast-path block above for full rationale.
     if [[ "$TEST_STATUS_LINE" == "timeout" || "$TEST_STATUS_LINE" == "partial" || "$TEST_STATUS_LINE" == "resource_exhaustion" ]]; then

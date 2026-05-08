@@ -391,7 +391,7 @@ class TestSingleTurnRoundTripIntegration:
                     diff_text="--- a/example.py\n+++ b/example.py\n@@ -1 +1 @@\n-old\n+new",
                     provider_chain=["anthropic"],
                     environ=environ,
-                    agent_id="unknown",
+                    agent_id="code-reviewer-light",
                     repo_root=repo_root,
                 )
 
@@ -601,7 +601,7 @@ def test_augmentation_soft_cap_nudge_triggers_final_findings(
             diff_text="--- a/f.py\n+++ b/f.py\n@@ -1 +1 @@\n-x\n+y",
             provider_chain=["anthropic"],
             environ=environ,
-            agent_id="unknown",
+            agent_id="code-reviewer-light",
             repo_root=str(tmp_path),
             tier="standard",
         )
@@ -633,7 +633,7 @@ def test_augmentation_fail_closed_past_hard_cap(tmp_path: pathlib.Path) -> None:
             diff_text="--- a/f.py\n+++ b/f.py\n@@ -1 +1 @@\n-x\n+y",
             provider_chain=["anthropic"],
             environ=environ,
-            agent_id="unknown",
+            agent_id="code-reviewer-light",
             repo_root=str(tmp_path),
             tier="standard",
         )
@@ -681,7 +681,7 @@ def test_augmentation_post_nudge_request_with_findings_is_ignored(
             diff_text="--- a/f.py\n+++ b/f.py\n@@ -1 +1 @@\n-x\n+y",
             provider_chain=["anthropic"],
             environ=environ,
-            agent_id="unknown",
+            agent_id="code-reviewer-light",
             repo_root=str(tmp_path),
             tier="standard",
         )
@@ -729,7 +729,7 @@ def test_explicit_soft_cap_argument_takes_precedence_over_module_constant(
             diff_text="--- a/f.py\n+++ b/f.py\n@@ -1 +1 @@\n-x\n+y",
             provider_chain=["anthropic"],
             environ=environ,
-            agent_id="unknown",
+            agent_id="code-reviewer-light",
             repo_root=str(tmp_path),
             tier="standard",
             soft_cap=1,  # explicit override: nudge fires after 1 normal turn
@@ -787,7 +787,7 @@ def test_per_tier_soft_cap_via_explicit_argument(tmp_path: pathlib.Path) -> None
             diff_text="--- a/f.py\n+++ b/f.py\n@@ -1 +1 @@\n-x\n+y",
             provider_chain=["anthropic"],
             environ=environ,
-            agent_id="unknown",
+            agent_id="code-reviewer-light",
             repo_root=str(tmp_path),
             tier="standard",
             soft_cap=1,
@@ -799,7 +799,7 @@ def test_per_tier_soft_cap_via_explicit_argument(tmp_path: pathlib.Path) -> None
             diff_text="--- a/f.py\n+++ b/f.py\n@@ -1 +1 @@\n-x\n+y",
             provider_chain=["anthropic"],
             environ=environ,
-            agent_id="unknown",
+            agent_id="code-reviewer-light",
             repo_root=str(tmp_path),
             tier="standard",
             soft_cap=3,

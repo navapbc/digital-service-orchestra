@@ -447,7 +447,6 @@ write_commit_event() {
 
     # ── Stage temp file in .tickets-tracker/ (same filesystem for atomic rename)
     # mktemp in .tickets-tracker/ ensures same-filesystem atomic mv inside flock
-    # REVIEW-DEFENSE: jq is used here intentionally as the canonical JSON serializer
     # to replace the python3 subprocess that epic 78fc-3858 targets for elimination.
     # jq -S -c '.' produces output byte-for-byte identical to Python's
     # json.dumps(ensure_ascii=False,separators=(',',':'),sort_keys=True) — verified
@@ -955,7 +954,6 @@ print(f'[compact_preconditions] snapshot written: {tmp_path}', file=sys.stderr)
 # For "brainstorm:complete", requires _ticket_has_pil to return 0 first;
 # emits an error to stderr and returns 1 if the PIL marker is absent.
 #
-# REVIEW-DEFENSE: ticket-tag.sh is wired to call _tag_add_checked (instead of
 # _tag_add directly) in task fd3c-21b5, which follows this task in the same story.
 # The TDD decomposition: this task (0abf-422e) implements the guard in ticket-lib.sh;
 # the CLI wire-up is the next task. The RED marker for test_ticket_tag_cli_rejects_

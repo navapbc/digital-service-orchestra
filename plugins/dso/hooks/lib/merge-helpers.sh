@@ -836,7 +836,6 @@ _squash_rebase_recovery() {
         _CONFLICTED_FILES=$(git diff --name-only --diff-filter=U 2>/dev/null || true)
     fi
 
-    # REVIEW-DEFENSE: export conflicted files BEFORE rebase --abort so callers
     # (e.g., _phase_merge's recovery-failed branch in merge-to-main-direct.sh)
     # can populate CONFLICT_DATA after we return — otherwise the abort plus the
     # caller's `cd "$_MERGE_SAVED_DIR"` strips all conflict signal from the
@@ -886,7 +885,6 @@ _emit_conflict_data() {
         _conflicted_files=$(git diff --name-only --diff-filter=U 2>/dev/null || true)
     fi
 
-    # REVIEW-DEFENSE: when the live computation returns empty (e.g., the caller
     # has already aborted the merge/rebase or cd'd to a non-conflicted repo),
     # fall back to _SQUASH_REBASE_CONFLICTS captured by _squash_rebase_recovery
     # before its rebase --abort. Preserves the contract on the recovery-failed

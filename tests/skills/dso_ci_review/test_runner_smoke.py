@@ -306,7 +306,7 @@ def test_runner_pipeline_standard_tier(tmp_path):
             },
         ),
         patch(
-            "dso_ci_review.runner.classify_tier", return_value=tier_result
+            "dso_ci_review.runner._classify_tier_via_bash", return_value=tier_result
         ) as mock_classify,
         patch(
             "dso_ci_review.runner.async_dispatch_specialists", side_effect=mock_dispatch
@@ -346,7 +346,7 @@ def test_runner_pipeline_deep_tier_dispatches_three_agents(tmp_path):
     tier_result = {
         "selected_tier": "deep",
         "size_action": "none",
-        "security_overlay": True,
+        "security_overlay": False,
         "performance_overlay": False,
         "test_quality_overlay": False,
         "diff_size_lines": 10,
@@ -409,7 +409,7 @@ def test_runner_pipeline_deep_tier_dispatches_three_agents(tmp_path):
                 "ANTHROPIC_API_KEY": "test-key",
             },
         ),
-        patch("dso_ci_review.runner.classify_tier", return_value=tier_result),
+        patch("dso_ci_review.runner._classify_tier_via_bash", return_value=tier_result),
         patch(
             "dso_ci_review.runner.async_dispatch_specialists", side_effect=mock_dispatch
         ),
@@ -513,7 +513,7 @@ def test_runner_exits_1_when_all_specialists_fail(tmp_path):
                 "ANTHROPIC_API_KEY": "test-key",
             },
         ),
-        patch("dso_ci_review.runner.classify_tier", return_value=tier_result),
+        patch("dso_ci_review.runner._classify_tier_via_bash", return_value=tier_result),
         patch(
             "dso_ci_review.runner.async_dispatch_specialists",
             side_effect=mock_dispatch,
@@ -715,7 +715,7 @@ def test_runner_warns_on_all_synthetic_findings(tmp_path, capsys):
                 "ANTHROPIC_API_KEY": "test-key",
             },
         ),
-        patch("dso_ci_review.runner.classify_tier", return_value=tier_result),
+        patch("dso_ci_review.runner._classify_tier_via_bash", return_value=tier_result),
         patch(
             "dso_ci_review.runner.async_dispatch_specialists", side_effect=mock_dispatch
         ),
@@ -812,7 +812,7 @@ def _run_main_with(diff_path, output_path, dispatch_findings, env_extra=None):
     with (
         patch.dict("os.environ", env, clear=False),
         patch(
-            "dso_ci_review.runner.classify_tier",
+            "dso_ci_review.runner._classify_tier_via_bash",
             return_value=_standard_tier_classification(),
         ),
         patch(
@@ -1234,4 +1234,431 @@ def test_read_tier_model_resolves_repo_root_config(tmp_path, monkeypatch):
     assert isinstance(auto, str) and auto, (
         "_read_tier_model('light') must return a non-empty string after the "
         "5-level dirname chain resolves the live config (0e2a-77b0)"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Bash classifier migration tests — classify_tier → _classify_tier_via_bash
+# ---------------------------------------------------------------------------
+#
+# RED marker:
+#   tests/skills/dso_ci_review/test_runner_smoke.py [test_runner_uses_bash_classifier]
+#
+# Task 6430-6a72: assert runner.py calls _classify_tier_via_bash helper
+# (the bash subprocess wrapper) instead of the Python classify_tier function.
+# These tests must fail (RED) before Task B lands the implementation.
+
+
+def test_runner_uses_bash_classifier(tmp_path):
+    """
+    Given: a non-empty diff and mocked _classify_tier_via_bash + async_dispatch_specialists
+    When: runner.main() is called in-process
+    Then: _classify_tier_via_bash is called once with the diff text argument
+
+    RED marker: tests/skills/dso_ci_review/test_runner_smoke.py [test_runner_uses_bash_classifier]
+
+    This test must FAIL before Task B replaces classify_tier() with _classify_tier_via_bash()
+    in runner.py. The helper does not exist yet in the runner module.
+    """
+    import io
+    from contextlib import redirect_stderr
+
+    import dso_ci_review.runner as runner_mod
+
+    diff_text = "diff --git a/foo.py b/foo.py\n+added line\n"
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text(diff_text)
+    output_file = tmp_path / "findings.json"
+
+    bash_tier_result = {
+        "selected_tier": "standard",
+        "security_overlay": False,
+        "performance_overlay": False,
+        "test_quality_overlay": False,
+        "diff_size_lines": 5,
+        "blast_radius": 0,
+        "critical_path": 0,
+        "anti_shortcut": 0,
+        "staleness": 0,
+        "cross_cutting": 0,
+        "diff_lines": 1,
+        "change_volume": 0,
+        "computed_total": 0,
+        "is_merge_commit": False,
+        "size_action": "none",
+    }
+
+    async def mock_dispatch(agents):
+        return [{"findings": [], "scores": {}, "summary": "ok"}]
+
+    stderr_capture = io.StringIO()
+    with (
+        patch.dict(
+            "os.environ",
+            {
+                "DSO_CI_REVIEW_DIFF_PATH": str(diff_file),
+                "DSO_CI_REVIEW_OUTPUT_PATH": str(output_file),
+                "CI_REVIEW_PROVIDER": "anthropic",
+                "ANTHROPIC_API_KEY": "test-key",
+                "GITHUB_EVENT_NAME": "",
+                "GITHUB_REF": "",
+                "GITHUB_TOKEN": "",
+                "PR_NUMBER": "",
+            },
+        ),
+        patch(
+            "dso_ci_review.runner._classify_tier_via_bash",
+            return_value=bash_tier_result,
+        ) as mock_bash_classify,
+        patch(
+            "dso_ci_review.runner.async_dispatch_specialists",
+            side_effect=mock_dispatch,
+        ),
+        redirect_stderr(stderr_capture),
+    ):
+        runner_mod.main()
+
+    mock_bash_classify.assert_called_once_with(diff_text), (
+        f"runner.main() must call _classify_tier_via_bash(diff_text) exactly once; "
+        f"call_args={mock_bash_classify.call_args!r}. "
+        "Task B must replace classify_tier() with _classify_tier_via_bash() in runner.py."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Overlay agent dispatch tests — tasks 3c18-91b8, a643-4a2a, d189-d70f
+# ---------------------------------------------------------------------------
+#
+# RED markers:
+#   tests/skills/dso_ci_review/test_runner_smoke.py [test_overlay_agents_dispatched_in_parallel_when_flagged_by_classifier]
+#   tests/skills/dso_ci_review/test_runner_smoke.py [test_overlay_warranted_fallback_dispatched_serially]
+#   tests/skills/dso_ci_review/test_runner_smoke.py [test_deep_tier_runs_arch_synthesis_after_specialists]
+
+
+def test_overlay_agents_dispatched_in_parallel_when_flagged_by_classifier(tmp_path):
+    """
+    Given: classifier returns standard tier with security_overlay=True
+    When: runner.main() executes
+    Then: _classify_tier_via_bash is called
+          AND the dispatch call includes a security overlay agent
+          (code-reviewer-security-red-team) dispatched in parallel alongside
+          the standard specialist
+
+    RED marker: tests/skills/dso_ci_review/test_runner_smoke.py [test_overlay_agents_dispatched_in_parallel_when_flagged_by_classifier]
+
+    FAILS pre-implementation because _build_overlay_agents does not exist in runner.py.
+    """
+    import io
+    from contextlib import redirect_stderr
+
+    import dso_ci_review.runner as runner_mod
+
+    diff_text = "diff --git a/auth.py b/auth.py\n+secret = token\n"
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text(diff_text)
+    output_file = tmp_path / "findings.json"
+
+    tier_result = {
+        "selected_tier": "standard",
+        "size_action": "none",
+        "security_overlay": True,
+        "performance_overlay": False,
+        "test_quality_overlay": False,
+        "diff_size_lines": 1,
+        "blast_radius": 1,
+        "critical_path": 0,
+        "anti_shortcut": 0,
+        "staleness": 0,
+        "cross_cutting": 0,
+        "diff_lines": 0,
+        "change_volume": 0,
+        "computed_total": 1,
+        "is_merge_commit": False,
+    }
+
+    captured_agents: list = []
+
+    async def mock_dispatch(agents):
+        captured_agents.extend(agents)
+        return [{"findings": [], "scores": {}, "summary": "ok"}]
+
+    stderr_capture = io.StringIO()
+    with (
+        patch.dict(
+            "os.environ",
+            {
+                "DSO_CI_REVIEW_DIFF_PATH": str(diff_file),
+                "DSO_CI_REVIEW_OUTPUT_PATH": str(output_file),
+                "CI_REVIEW_PROVIDER": "anthropic",
+                "ANTHROPIC_API_KEY": "test-key",
+                "GITHUB_EVENT_NAME": "",
+                "GITHUB_REF": "",
+                "GITHUB_TOKEN": "",
+                "PR_NUMBER": "",
+            },
+        ),
+        patch(
+            "dso_ci_review.runner._classify_tier_via_bash",
+            return_value=tier_result,
+        ) as mock_classify,
+        patch(
+            "dso_ci_review.runner.async_dispatch_specialists",
+            side_effect=mock_dispatch,
+        ),
+        redirect_stderr(stderr_capture),
+    ):
+        runner_mod.main()
+
+    mock_classify.assert_called_once_with(diff_text)
+
+    agent_ids = {a["agent_id"] for a in captured_agents}
+    assert "code-reviewer-security-red-team" in agent_ids, (
+        f"When security_overlay=True, the first parallel dispatch must include "
+        f"'code-reviewer-security-red-team'. Captured agent_ids: {agent_ids!r}. "
+        "Implement _build_overlay_agents in runner.py (task 3c18-91b8)."
+    )
+    assert "code-reviewer-standard" in agent_ids, (
+        f"Standard specialist must still be dispatched alongside the overlay; "
+        f"captured agent_ids: {agent_ids!r}"
+    )
+
+
+def test_overlay_warranted_fallback_dispatched_serially(tmp_path):
+    """
+    Given: classifier returns standard tier with NO overlay flags set
+           AND the first-pass findings include a finding with
+           type="overlay_warranted" and dimension="security"
+    When: runner.main() executes
+    Then: a security overlay agent is dispatched in a SECOND serial pass
+          (not the first parallel pass)
+
+    RED marker: tests/skills/dso_ci_review/test_runner_smoke.py [test_overlay_warranted_fallback_dispatched_serially]
+
+    FAILS pre-implementation because _overlay_agents_from_findings does not exist.
+    """
+    import io
+    from contextlib import redirect_stderr
+
+    import dso_ci_review.runner as runner_mod
+
+    diff_text = "diff --git a/secrets.py b/secrets.py\n+API_KEY = hardcoded\n"
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text(diff_text)
+    output_file = tmp_path / "findings.json"
+
+    tier_result = {
+        "selected_tier": "standard",
+        "size_action": "none",
+        "security_overlay": False,
+        "performance_overlay": False,
+        "test_quality_overlay": False,
+        "diff_size_lines": 1,
+        "blast_radius": 1,
+        "critical_path": 0,
+        "anti_shortcut": 0,
+        "staleness": 0,
+        "cross_cutting": 0,
+        "diff_lines": 0,
+        "change_volume": 0,
+        "computed_total": 1,
+        "is_merge_commit": False,
+    }
+
+    # First-pass findings include an overlay_warranted signal
+    first_pass_findings = [
+        {
+            "findings": [
+                {
+                    "type": "overlay_warranted",
+                    "dimension": "security",
+                    "severity": "minor",
+                    "description": "Possible secret exposure detected — security overlay recommended",
+                    "cited_lines": ["secrets.py:1"],
+                }
+            ],
+            "scores": {"correctness": 3},
+            "summary": "overlay recommended",
+        }
+    ]
+
+    dispatch_call_count = {"n": 0}
+    second_pass_agents: list = []
+
+    async def mock_dispatch(agents):
+        dispatch_call_count["n"] += 1
+        if dispatch_call_count["n"] == 2:
+            # Record what was dispatched in the second (serial) pass
+            second_pass_agents.extend(agents)
+            return [{"findings": [], "scores": {}, "summary": "security ok"}]
+        return first_pass_findings
+
+    stderr_capture = io.StringIO()
+    with (
+        patch.dict(
+            "os.environ",
+            {
+                "DSO_CI_REVIEW_DIFF_PATH": str(diff_file),
+                "DSO_CI_REVIEW_OUTPUT_PATH": str(output_file),
+                "CI_REVIEW_PROVIDER": "anthropic",
+                "ANTHROPIC_API_KEY": "test-key",
+                "GITHUB_EVENT_NAME": "",
+                "GITHUB_REF": "",
+                "GITHUB_TOKEN": "",
+                "PR_NUMBER": "",
+            },
+        ),
+        patch(
+            "dso_ci_review.runner._classify_tier_via_bash",
+            return_value=tier_result,
+        ),
+        patch(
+            "dso_ci_review.runner.async_dispatch_specialists",
+            side_effect=mock_dispatch,
+        ),
+        redirect_stderr(stderr_capture),
+    ):
+        runner_mod.main()
+
+    assert dispatch_call_count["n"] >= 2, (
+        f"Expected at least 2 dispatch calls (first pass + serial overlay); "
+        f"got {dispatch_call_count['n']}. "
+        "Implement _overlay_agents_from_findings in runner.py (task a643-4a2a)."
+    )
+    second_pass_ids = {a["agent_id"] for a in second_pass_agents}
+    assert "code-reviewer-security-red-team" in second_pass_ids, (
+        f"Second (serial) dispatch must include 'code-reviewer-security-red-team' "
+        f"when first-pass findings contain overlay_warranted/security. "
+        f"Second-pass agent_ids: {second_pass_ids!r}. "
+        "Implement _overlay_agents_from_findings in runner.py (task a643-4a2a)."
+    )
+
+
+def test_deep_tier_runs_arch_synthesis_after_specialists(tmp_path):
+    """
+    Given: classifier returns deep tier
+    When: runner.main() executes
+    Then: 3 parallel specialist calls run first (correctness, verification, hygiene)
+          AND dispatch_arch_synthesis is called AFTER specialists complete
+          AND the final output is the arch synthesis result, not raw specialist output
+
+    RED marker: tests/skills/dso_ci_review/test_runner_smoke.py [test_deep_tier_runs_arch_synthesis_after_specialists]
+
+    FAILS pre-implementation with AttributeError because dispatch_arch_synthesis
+    does not exist in dso_ci_review.runner (or dso_ci_review.dispatch).
+    """
+    import io
+    from contextlib import redirect_stderr
+
+    import dso_ci_review.runner as runner_mod
+
+    diff_text = "diff --git a/auth/login.py b/auth/login.py\n+token = secret\n" * 10
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text(diff_text)
+    output_file = tmp_path / "findings.json"
+
+    tier_result = {
+        "selected_tier": "deep",
+        "size_action": "none",
+        "security_overlay": False,
+        "performance_overlay": False,
+        "test_quality_overlay": False,
+        "diff_size_lines": 10,
+        "blast_radius": 1,
+        "critical_path": 3,
+        "anti_shortcut": 0,
+        "staleness": 0,
+        "cross_cutting": 0,
+        "diff_lines": 1,
+        "change_volume": 0,
+        "computed_total": 7,
+        "is_merge_commit": False,
+    }
+
+    specialist_results = [
+        {
+            "findings": [
+                {"severity": "important", "description": "correctness issue", "cited_lines": ["auth/login.py:1"]}
+            ],
+            "scores": {"correctness": 2},
+            "summary": "correctness",
+        },
+        {
+            "findings": [],
+            "scores": {"verification": 3},
+            "summary": "verification ok",
+        },
+        {
+            "findings": [
+                {"severity": "minor", "description": "style nit", "cited_lines": ["auth/login.py:5"]}
+            ],
+            "scores": {"hygiene": 4},
+            "summary": "hygiene",
+        },
+    ]
+
+    synthesis_output = {
+        "findings": [
+            {
+                "severity": "important",
+                "description": "arch-synthesized: correctness issue confirmed",
+                "cited_lines": ["auth/login.py:1"],
+            }
+        ],
+        "scores": {"correctness": 2, "verification": 3, "hygiene": 4},
+        "summary": "Arch synthesis complete.",
+    }
+
+    captured_synthesis_calls: list = []
+
+    async def mock_dispatch(agents):
+        return specialist_results
+
+    def mock_arch_synthesis(merged_findings_json, **kwargs):
+        captured_synthesis_calls.append(merged_findings_json)
+        return synthesis_output
+
+    stderr_capture = io.StringIO()
+    with (
+        patch.dict(
+            "os.environ",
+            {
+                "DSO_CI_REVIEW_DIFF_PATH": str(diff_file),
+                "DSO_CI_REVIEW_OUTPUT_PATH": str(output_file),
+                "CI_REVIEW_PROVIDER": "anthropic",
+                "ANTHROPIC_API_KEY": "test-key",
+                "GITHUB_EVENT_NAME": "",
+                "GITHUB_REF": "",
+                "GITHUB_TOKEN": "",
+                "PR_NUMBER": "",
+            },
+        ),
+        patch(
+            "dso_ci_review.runner._classify_tier_via_bash",
+            return_value=tier_result,
+        ),
+        patch(
+            "dso_ci_review.runner.async_dispatch_specialists",
+            side_effect=mock_dispatch,
+        ),
+        patch(
+            "dso_ci_review.runner.dispatch_arch_synthesis",
+            side_effect=mock_arch_synthesis,
+        ),
+        redirect_stderr(stderr_capture),
+    ):
+        runner_mod.main()
+
+    assert len(captured_synthesis_calls) == 1, (
+        f"dispatch_arch_synthesis must be called exactly once after deep-tier specialists; "
+        f"got {len(captured_synthesis_calls)} calls. "
+        "Implement dispatch_arch_synthesis in dispatch.py and call it from runner.py "
+        "after specialist results are collected (task d189-d70f)."
+    )
+
+    parsed = json.loads(output_file.read_text())
+    assert parsed.get("summary") == "Arch synthesis complete.", (
+        f"Final output must be the arch synthesis result, not raw specialist output. "
+        f"Got summary: {parsed.get('summary')!r}. "
+        "runner.main() must use dispatch_arch_synthesis return value as the merged output "
+        "for deep tier (task d189-d70f)."
     )

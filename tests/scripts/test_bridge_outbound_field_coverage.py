@@ -376,7 +376,6 @@ class TestOutboundEditFields:
     the outbound bridge processes EDIT events at all.
     """
 
-    # REVIEW-DEFENSE: strict=True with parametrize is intentional here.
     # Each parametrized case independently tests a separate field (title,
     # priority, assignee).  All three fail identically because
     # bridge-outbound.py has zero EDIT event handling — process_outbound()

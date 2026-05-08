@@ -2,7 +2,6 @@
 # Structural validation for cross-epic interaction scan integration.
 # Tests: classifier agent existence, scan prompt existence, SKILL.md reference,
 # N=0 behavior, batch size reference, and four-tier classification names.
-# REVIEW-DEFENSE: Behavioral testing standard rule 5 — instruction files (SKILL.md, agent .md, prompt .md)
 # are tested at the structural boundary: presence, section ordering, required content. Dispatching a live
 # classifier agent in tests would require mocking the LLM — see fixture-based tests in
 # tests/scripts/test-cross-epic-classifier-fixture.sh for input/output contract coverage.

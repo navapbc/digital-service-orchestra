@@ -19,7 +19,6 @@ set -euo pipefail
 
 set -euo pipefail
 
-# REVIEW-DEFENSE: The backward-compat wrapper at scripts/check-persistence-coverage.sh
 # still retains the full original hardcoded-array implementation. Converting that wrapper
 # to a thin exec-delegation (like merge-to-main.sh, check-local-env.sh, etc.) is
 # explicitly the job of downstream task lockpick-doc-to-logic-rs81 and is out of scope
