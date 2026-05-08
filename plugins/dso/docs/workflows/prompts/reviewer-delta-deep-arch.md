@@ -75,6 +75,7 @@ Perform architectural synthesis and oversight. Use Read, Grep, and Glob extensiv
   reading the actual code.
 - [ ] Are any specialist findings false positives due to limited context? Downgrade
   severity where the architectural context makes the specialist's concern moot.
+- [ ] **Synthesis dependency tracking** — Before emitting any meta-finding (a finding whose description references or depends on one or more specialist findings as premises), verify that every premise finding still holds. If a specialist finding that your meta-finding depends on is a false positive (disproved during your architectural review), DROP the meta-finding entirely — do not emit an architectural conclusion built on an invalid premise. A meta-finding with zero surviving premises must be suppressed. This prevents synthesis amplification: cascading hallucinations where a false base finding generates additional false critical/important findings at the architectural level.
 
 ### Specialist Conflict Detection
 

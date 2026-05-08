@@ -667,9 +667,11 @@ def test_augmentation_post_nudge_request_with_findings_is_ignored(
             # Initial: context request only
             return _make_mock_response(_request_content())
         if call_count == 2:
-            # After file results: another request (triggers soft cap nudge)
+            # aug_turn=0 normal turn: another context request (soft_cap=2 not yet reached)
             return _make_mock_response(_request_content())
-        # After nudge: emits BOTH request AND findings (post-nudge mixed turn)
+        # call 3+: returns mixed request+findings. First fires at aug_turn=1 normal turn;
+        # fires again after nudge at aug_turn=2 (call 4). Post-nudge check (nudge_count>=1
+        # and has_findings) then breaks the loop, using findings and ignoring the request.
         return _make_mock_response(_request_and_findings_content())
 
     environ = {"ANTHROPIC_API_KEY": "test-key"}
@@ -713,7 +715,8 @@ def test_explicit_soft_cap_argument_takes_precedence_over_module_constant(
         nonlocal call_count
         call_count += 1
         if call_count <= 2:
-            # Return requests for first two calls; triggers nudge at aug_turn=soft_cap=1
+            # call 1: initial call (before aug loop); call 2: aug_turn=0 normal turn.
+            # Both return requests; nudge fires at aug_turn=1 (call 3, else branch).
             return _make_mock_response(_request_content())
         return _make_mock_response(_findings_content())
 
@@ -809,4 +812,119 @@ def test_per_tier_soft_cap_via_explicit_argument(tmp_path: pathlib.Path) -> None
     assert call_counts.get("loose", 0) > call_counts.get("tight", 0), (
         f"Expected loose soft_cap=3 to require more LLM calls before nudge than tight soft_cap=1, "
         f"got tight={call_counts.get('tight')} loose={call_counts.get('loose')}"
+    )
+
+
+def test_second_nudge_message_sent_before_fail_closed(tmp_path: pathlib.Path) -> None:
+    """Second nudge (_AUG_SECOND_NUDGE) is sent to a reviewer that ignores the first nudge.
+
+    The reviewer ignores the first nudge and continues emitting context requests. The
+    dispatcher must send the second nudge message before eventually reaching fail-closed.
+    This test verifies that the second nudge message text appears in the messages list
+    passed to litellm after the first nudge is already in-flight.
+
+    Satisfies: bug ab71-1ce0 — second nudge message delivery assertion.
+    """
+    import dso_ci_review.dispatch as _dispatch_mod
+    from dso_ci_review import dispatch
+
+    _SECOND_NUDGE_PHRASE = "FINAL WARNING"
+    second_nudge_seen = False
+
+    def mock_completion(**kwargs):
+        nonlocal second_nudge_seen
+        messages = kwargs.get("messages", [])
+        # Detect if the second nudge message has been injected into the conversation
+        for msg in messages:
+            content = msg.get("content", "")
+            if isinstance(content, str) and _SECOND_NUDGE_PHRASE in content:
+                second_nudge_seen = True
+        # Always emit a context request — never complies
+        return _make_mock_response(_request_content())
+
+    environ = {"ANTHROPIC_API_KEY": "test-key"}
+
+    # soft_cap=1: first nudge fires at aug_turn=1, second nudge at aug_turn=4 (soft_cap+3),
+    # fail-closed at aug_turn=5 (soft_cap+4)
+    with patch.object(_dispatch_mod, "CONTEXT_AUG_SOFT_CAP", 1), patch(
+        "litellm.completion", side_effect=mock_completion
+    ):
+        result = dispatch.dispatch_review(
+            diff_text="--- a/f.py\n+++ b/f.py\n@@ -1 +1 @@\n-x\n+y",
+            provider_chain=["anthropic"],
+            environ=environ,
+            agent_id="code-reviewer-light",
+            repo_root=str(tmp_path),
+            tier="standard",
+        )
+
+    assert second_nudge_seen, (
+        "Expected _AUG_SECOND_NUDGE ('FINAL WARNING') to appear in messages sent to the LLM "
+        "before fail-closed, but it was never detected in any litellm.completion call"
+    )
+    # Confirm we also end up fail-closed (the reviewer never complied)
+    assert result.get("augmentation_failed") is True, (
+        f"Expected augmentation_failed=True (reviewer never complied), got: {result}"
+    )
+
+
+def test_reviewer_complies_after_second_nudge(tmp_path: pathlib.Path) -> None:
+    """Reviewer that ignores both nudges but returns valid findings before fail-closed is accepted.
+
+    The reviewer:
+      - Responds with context requests for several turns (ignoring the first nudge)
+      - Receives the second nudge (_AUG_SECOND_NUDGE)
+      - Then returns valid findings on the very next turn (before the fail-closed threshold)
+
+    The dispatcher must accept those findings and NOT mark augmentation_failed=True.
+
+    Satisfies: bug ab71-1ce0 — compliance after second nudge grace period.
+    """
+    import dso_ci_review.dispatch as _dispatch_mod
+    from dso_ci_review import dispatch
+
+    _SECOND_NUDGE_PHRASE = "FINAL WARNING"
+    call_count = 0
+
+    def mock_completion(**kwargs):
+        nonlocal call_count
+        call_count += 1
+        messages = kwargs.get("messages", [])
+        # Comply (return findings) only after the second nudge has been injected
+        second_nudge_present = any(
+            _SECOND_NUDGE_PHRASE in m.get("content", "")
+            for m in messages
+            if isinstance(m.get("content"), str) and m.get("role") == "user"
+        )
+        if second_nudge_present:
+            return _make_mock_response(_findings_content())
+        # Before second nudge: always emit a context request (ignores first nudge too)
+        return _make_mock_response(_request_content())
+
+    environ = {"ANTHROPIC_API_KEY": "test-key"}
+
+    # soft_cap=1: first nudge at aug_turn=1, second nudge at aug_turn=4 (soft_cap+3=4),
+    # fail-closed at aug_turn=5 (soft_cap+4=5). Reviewer complies at aug_turn=4.
+    with patch.object(_dispatch_mod, "CONTEXT_AUG_SOFT_CAP", 1), patch(
+        "litellm.completion", side_effect=mock_completion
+    ):
+        result = dispatch.dispatch_review(
+            diff_text="--- a/f.py\n+++ b/f.py\n@@ -1 +1 @@\n-x\n+y",
+            provider_chain=["anthropic"],
+            environ=environ,
+            agent_id="code-reviewer-light",
+            repo_root=str(tmp_path),
+            tier="standard",
+        )
+
+    assert "findings" in result, (
+        f"Expected findings to be accepted after second-nudge compliance, got keys: {list(result.keys())!r}"
+    )
+    assert not result.get("augmentation_failed"), (
+        f"Expected augmentation_failed to be falsy (reviewer complied after second nudge), got: {result}"
+    )
+    findings = result.get("findings", [])
+    assert findings, "Expected non-empty findings list after second-nudge compliance"
+    assert findings[0].get("severity") != "critical" or findings[0].get("description", "").startswith("ok"), (
+        f"Expected accepted reviewer findings (not a fail-closed synthetic finding), got: {findings[0]!r}"
     )

@@ -223,6 +223,8 @@ When `cycle_number >= 2`, orchestrators should supply `prior_findings_index` (st
 
 ## Step 4: Dispatch Code Review Sub-Agent (MANDATORY)
 
+**NO RE-CONFIRMATION AFTER USER SELECTED FULL REVIEW WORKFLOW.** When the user has already selected "full review workflow" at any point in the current session, the classifier's tier verdict and overlay set are routing inputs — NOT a reason to pause and re-confirm. "Full review workflow" means: run whatever the classifier prescribes, including deep tier + all three overlays (up to ~7 sub-agents). The orchestrator MUST dispatch immediately. Emitting a confirmation prompt such as "Classifier returned deep tier + 3 overlays — that's ~7 sub-agents, confirming before kicking off" after the user selected full review workflow is a violation of this rule (bug 3a87-43b3). Agent count and sub-agent composition are not valid triggers for a second confirmation when the user already authorized the workflow. If no prior user selection exists (i.e., the review workflow was invoked non-interactively or without a tier preference), dispatch per the classifier's verdict without confirmation — it is authoritative.
+
 **Single parallel batch: tier reviewer + every overlay flagged true in Step 3.** Before writing the dispatch prompt(s), read overlay flags from the classifier output captured in Step 3 and add the corresponding overlay agents to this Step 4 dispatch — they MUST launch in the same parallel Agent tool batch as the tier reviewer, never as a follow-up step. The `record-review.sh` gate enforces this: when the classifier flagged an overlay true, a corresponding `reviewer-findings-<dim>.json` MUST exist or the gate fails with `OVERLAY_MISSING`.
 
 ```bash
@@ -825,6 +827,7 @@ Scores come exclusively from `reviewer-findings.json` (written by the code-revie
 - **R3 - Critical/important resolution**: Any critical or important finding triggers the Autonomous Resolution Loop (see "After Review").
 - **R4 - Verbatim severity**: The summary must reference the reviewer's severity levels exactly as stated. Do not downgrade or rephrase severity.
 - **R5 - Defense mechanism**: To dispute a finding without user involvement, the resolver sub-agent returns a defense explanation in its `RESOLUTION_RESULT` output. The orchestrator persists it to the DefenseStore via `defense_store_write` (see `.claude/scripts/dso review-defense-store.sh` and contract `review-defenses.md`). The orchestrator MUST NOT silently dismiss findings or override scores. Defenses must reference verifiable artifacts (existing code, tests, ADRs, or documented patterns) — not unverifiable claims like "for performance reasons." The defense must be substantive enough that a human would understand the tradeoff. **Structural findings** (type annotations, test coverage gaps, missing error handling) should prefer Fix over Defend — the reviewer scores these based on code patterns, and a defense record is unlikely to change the score.
+- **R6 - No raw `gh pr comment` for CI finding responses**: When responding to CI reviewer findings (e.g., findings from `dso_ci_review` in a PR), **NEVER** use `gh pr comment` directly to summarize finding responses. Raw PR comments are not machine-readable, are not consulted by the next CI review pass, and bypass the two-path defense process entirely. The only valid response paths are: (1) **Fix**: implement a code change and commit — the diff is the defense; (2) **Defend**: write inline `REVIEW-DEFENSE` comment blocks into the affected source files AND record the defense via `review-defense-store.sh` so `mirror-defenses-to-pr.sh` can post the machine-readable `DEFENSE_RECORD: {...}` PR comment before the next CI run. Human-readable PR comments may supplement a defense but MUST NOT replace the machine-readable artifacts.
 
 ### Record the review
 
@@ -889,13 +892,19 @@ Review failed. Enter the Autonomous Resolution Loop.
 
 **INLINE FIX PROHIBITION**: The orchestrator MUST NOT use Edit, Write, or Bash to fix review findings directly. All fixes MUST go through a resolution sub-agent dispatch. There are no exceptions.
 
+**TDD REQUIREMENT — applies to all Fix findings**: Every code fix applied in response to a reviewer finding MUST follow a test-first discipline. This requirement is non-negotiable and applies equally here as it does to `/dso:fix-bug` and `/dso:sprint`. The resolution sub-agent (via `review-fix-dispatch.md`) is responsible for executing the TDD cycle:
+
+- **RED** (new behavior, no existing test): Write a failing test FIRST. Confirm it fails. Apply the fix. Confirm the test turns GREEN.
+- **UPDATE** (new behavior, existing test covers the path): Update the existing test assertions FIRST so they fail. Apply the fix. Confirm tests turn GREEN.
+- **GREEN** (no behavior change — refactor, rename, comment): Apply fix; existing tests validate.
+
+The orchestrator MUST verify `TESTING_MODES` in the resolution sub-agent's output. If the sub-agent routed any finding to Fix (non-zero fix count in `FINDINGS_ADDRESSED`) but reports `red=0 update=0` in `TESTING_MODES`, the orchestrator MUST flag this as a TDD violation before dispatching re-review. Do NOT accept `FIXES_APPLIED` with a `green`-only `TESTING_MODES` for fixes that change observable behavior — challenge the classification or send back for a RED/UPDATE cycle.
+
 **Architecture**: The resolution loop is split across two levels to avoid nested sub-agent nesting
 that causes `[Tool result missing due to internal error]`:
 
-1. **Resolution sub-agent** (fix only): reads findings, applies fixes/defenses/defers, validates.
-   Returns `FIXES_APPLIED` when local validation passes. Does NOT dispatch a re-review sub-agent.
-2. **Orchestrator** (re-review): after the resolution sub-agent returns `FIXES_APPLIED`, dispatches
-   a re-review sub-agent, interprets results, and calls `record-review.sh`.
+1. **Resolution sub-agent** (fix + TDD only): reads findings, classifies testing mode per finding, executes TDD cycle for each Fix finding (RED test → fix → GREEN), applies defenses/defers, validates. Returns `FIXES_APPLIED` when local validation passes. Does NOT dispatch a re-review sub-agent.
+2. **Orchestrator** (TDD verification + re-review): after the resolution sub-agent returns `FIXES_APPLIED`, verifies `TESTING_MODES` for TDD compliance, dispatches re-review sub-agent, interprets results, and calls `record-review.sh`.
 
 This design keeps nesting at one level (orchestrator → sub-agent) for both the fix and re-review steps.
 
@@ -942,11 +951,35 @@ Task tool:
 
 | `RESOLUTION_RESULT` | Action |
 |---------------------|--------|
-| `FIXES_APPLIED` | Fixes passed local validation. Orchestrator dispatches re-review sub-agent (see below). |
+| `FIXES_APPLIED` | Fixes passed local validation. Verify TDD compliance (see below), then orchestrator dispatches re-review sub-agent. |
 | `FAIL` | **Before escalating to user**: check whether a tier upgrade is available (e6ba-5afa). If current tier is light, upgrade to standard. If standard, upgrade to deep (3 sonnet + opus arch). Only escalate to user after the highest available tier has been exhausted. Use `REMAINING_CRITICAL` and `ESCALATION_REASON` for escalation context. |
 | `ESCALATE` | **Before presenting to user**: same tier-upgrade check as FAIL. Only present `ESCALATION_REASON` to user after all reviewer tiers have been attempted. |
 
-**When `RESOLUTION_RESULT: FIXES_APPLIED`** — orchestrator dispatches re-review sub-agent:
+**When `RESOLUTION_RESULT: FIXES_APPLIED`** — orchestrator TDD compliance check (mandatory before re-review dispatch):
+
+Parse `FINDINGS_ADDRESSED` and `TESTING_MODES` from the sub-agent output:
+
+```
+FINDINGS_ADDRESSED: N fixed, M defended, K deferred
+TESTING_MODES: red=N1 update=N2 green=N3
+```
+
+If `N > 0` (at least one finding was Fixed) AND `N1 == 0` AND `N2 == 0` (all fixes classified GREEN):
+- This is **only acceptable** if the findings fixed were purely structural/non-behavioral changes (refactors, renames, dead-code removal, comment-only). Non-behavioral changes legitimately produce `green=N, red=0, update=0`.
+- If any Fix finding changed observable behavior (added error handling, fixed a logic bug, changed a return value, modified I/O), then `red=0 update=0` is a TDD violation. The orchestrator MUST NOT proceed to re-review. Instead, re-dispatch the resolution sub-agent with an explicit correction:
+
+```
+TDD_VIOLATION_DETECTED: TESTING_MODES reports green-only for fixes that change observable behavior.
+Per CLAUDE.md rule 16 and REVIEW-WORKFLOW.md TDD requirement, each behavioral fix requires:
+  - A RED failing test written BEFORE the fix
+  - The fix applied to make it GREEN
+Re-examine your Fix findings. For each finding that changes observable behavior (error handling, logic,
+return values, I/O), re-classify as RED or UPDATE and execute the test-first cycle. Then resubmit.
+```
+
+If all Fix findings are genuinely non-behavioral (GREEN classification is correct), proceed directly to re-review dispatch.
+
+**When `RESOLUTION_RESULT: FIXES_APPLIED` and TDD compliance confirmed** — orchestrator dispatches re-review sub-agent:
 
 1. Capture a fresh diff hash and diff file (the resolution sub-agent changed the code):
    ```bash

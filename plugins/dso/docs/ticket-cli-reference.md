@@ -312,7 +312,7 @@ $ .claude/scripts/dso ticket list --format=llm
 Transition a ticket's status with optimistic concurrency control.
 
 ```
-.claude/scripts/dso ticket transition <ticket_id> <current_status> <target_status> [--reason <text>]
+.claude/scripts/dso ticket transition <ticket_id> <current_status> <target_status> [--reason <text>] [--force]
 ```
 
 **Arguments:**
@@ -323,6 +323,7 @@ Transition a ticket's status with optimistic concurrency control.
 | `current_status` | Yes | Status the caller believes the ticket is currently in |
 | `target_status` | Yes | Status to move the ticket to |
 | `--reason <text>` | Conditional | Required when closing a bug ticket. Must start with `Fixed:` or `Escalated to user:`. |
+| `--force` | No | Skip the open-children guard when closing. Open children remain open (not reparented). Use when bug tickets filed under an epic scope-shifted out and should not block epic closure. |
 
 **Allowed status values:** `open`, `in_progress`, `closed`, `blocked`
 
@@ -332,7 +333,7 @@ Transition a ticket's status with optimistic concurrency control.
 - Idempotent: if `current_status == target_status`, exits 0 immediately with "No transition needed".
 - Ghost-prevention: verifies the ticket directory and CREATE event exist before acquiring the lock.
 - Bug-close guard: when `target_status=closed` and the ticket type is `bug`, `--reason` is required and must begin with `Fixed:` or `Escalated to user:`. Exits non-zero if missing or malformed.
-- Open-children guard: when `target_status=closed`, checks for open (non-closed) child tickets. Exits non-zero listing the open children if any are found.
+- Open-children guard: when `target_status=closed`, checks for open (non-closed) child tickets. Exits non-zero listing the open children (and suggesting `--force`) if any are found. When `--force` is passed, the guard is skipped and the parent closes with children remaining open; a warning lists the orphaned-open children on stderr.
 - On close (`target_status=closed`): runs `ticket-unblock.py` to detect newly unblocked tickets and prints `UNBLOCKED: <ids>` (or `UNBLOCKED: none`) to stdout.
 
 **Exit codes:**
@@ -357,6 +358,15 @@ Error: closing a bug ticket requires --reason with prefix "Fixed:" or "Escalated
 
 $ .claude/scripts/dso ticket transition w21-b1c2 open closed --reason "Fixed: corrected null check in parser"
 UNBLOCKED: none
+
+# Closing an epic that has open child bug tickets that belong to a different scope
+$ .claude/scripts/dso ticket transition epic1 in_progress closed --force
+Warning: closing ticket 'epic1' with 2 open child ticket(s) (--force).
+The following children remain open:
+02fc-901d-b806-4d61
+925d-804c-385d-4cfa
+UNBLOCKED: none
+REMINDER: Epic closed — run /dso:end-session to complete the sprint cleanly.
 ```
 
 ---

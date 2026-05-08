@@ -826,3 +826,76 @@ def test_batch_close_single_reduce_call(unblock: ModuleType) -> None:
             f"Expected reduce_all_tickets to be called exactly once, "
             f"got {mock_reduce.call_count} calls"
         )
+
+
+# ---------------------------------------------------------------------------
+# Bug c7a6-96e8: detect_newly_unblocked must skip hidden dirs (.suggestions)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_detect_newly_unblocked_ignores_suggestions_dir(
+    unblock: ModuleType, tmp_path: Path
+) -> None:
+    """detect_newly_unblocked must not emit 'skipping corrupt event' warnings
+    when the tracker directory contains a .suggestions/ subdirectory.
+
+    Bug c7a6-96e8: the scanner in ticket-unblock.py iterated all directories
+    via os.scandir() without filtering hidden directories.  When .suggestions/
+    was present, reduce_ticket() was called on it, causing the reducer to emit
+    a WARNING for each suggestion file (which lacks 'event_type').
+
+    After the fix, hidden directories (names starting with '.') are skipped.
+    """
+    import io
+    import sys
+
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    # Write regular tickets: ticket-a (closed) blocks ticket-b (open)
+    _write_ticket(tracker_dir, "ticket-a", status="closed")
+    _write_ticket(tracker_dir, "ticket-b", status="open", deps=["ticket-a"])
+
+    # Write a .suggestions/ directory with a well-formed suggestion file
+    # (schema_version, not event_type — exactly what suggestion-record.sh writes)
+    suggestions_dir = tracker_dir / ".suggestions"
+    suggestions_dir.mkdir()
+    suggestion_payload = {
+        "schema_version": 1,
+        "timestamp": 1778262194332,
+        "session_id": "b25af26e-4e7d-6a27-ad27-4d6a8184522b",
+        "source": "stop-hook",
+        "observation": "test suggestion for bug c7a6-96e8",
+    }
+    suggestion_file = (
+        suggestions_dir
+        / "1778262194332-b25af26e-4e7d6a27-ad27-4d6a-8184-5f894b522b0e.json"
+    )
+    suggestion_file.write_text(json.dumps(suggestion_payload))
+
+    # Capture stderr to detect any spurious warnings
+    captured_stderr = io.StringIO()
+    old_stderr = sys.stderr
+    sys.stderr = captured_stderr
+    try:
+        result = unblock.detect_newly_unblocked(
+            closed_ticket_ids=["ticket-a"],
+            tracker_dir=str(tracker_dir),
+            event_source="local-close",
+        )
+    finally:
+        sys.stderr = old_stderr
+
+    stderr_output = captured_stderr.getvalue()
+
+    # The suggestion file must NOT trigger the "skipping corrupt event" warning
+    assert "skipping corrupt event" not in stderr_output, (
+        f"Expected no 'skipping corrupt event' warnings, but got:\n{stderr_output}\n"
+        "Fix: skip hidden directories (starting with '.') in the scandir loop."
+    )
+    # Functional correctness: ticket-b must be unblocked now that ticket-a is closed
+    assert "ticket-b" in result, (
+        f"Expected 'ticket-b' to be newly unblocked (ticket-a closed), got {result!r}"
+    )

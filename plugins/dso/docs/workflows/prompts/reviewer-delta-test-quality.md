@@ -65,9 +65,32 @@ Apply these rules to assign severity:
 
 1. **Source-file-grepping** → always **critical** (Rule 3 hard prohibition; these tests will break on any refactoring and provide zero behavioral assurance)
 2. **Tautological tests** → always **critical** (tests that cannot fail provide false coverage metrics)
-3. **Change-detector tests** and **implementation-coupled assertions** → **important** (these will break on safe refactoring and need rewriting, but at least exercise some code path)
+3. **Change-detector tests** and **implementation-coupled assertions** → **important** ONLY when the finding meets at least ONE defect criterion (see Four-Criterion Test below). When none of the four criteria are met, the finding is a philosophy disagreement — emit at **minor** at most.
 4. **Existence-only assertions** → **important** when the sole assertion; **minor** when combined with behavioral assertions
 5. **Test runtime waste** → **minor** (tests are behaviorally correct; the issue is efficiency, not correctness). Escalate to **important** when a single test wastes >10s due to the pattern.
+
+### Four-Criterion Test for Change-Detector / Implementation-Coupled Findings
+
+Before emitting a "change-detector" or "implementation-coupled" finding at `important` severity, verify that at least ONE of these defect criteria is met:
+
+1. **Refactoring violation**: The test would break on a safe refactoring that does not change observable behavior — for example, renaming a private method, extracting a helper, reorganizing module internals. Verify this by confirming the assertion targets an internal name (private method, internal variable, implementation-internal call count) rather than an observable output.
+
+2. **Tautological assertion**: The test sets a mock return value and then asserts that value is returned, verifying the mock framework instead of the code under test. This is already captured by pattern 3 (tautological tests → critical), but when the coupling takes the form of "assert mock.method.called_with(exact_value_from_setup)" it may present as implementation-coupled.
+
+3. **Isolation failure**: The test exhibits cross-test state leakage, fixture pollution, order dependency, or non-deterministic behavior (network/wall-clock dependency). These are real defects regardless of the assertion style.
+
+4. **Regression blindness**: The test cannot detect a regression in the specific behavior introduced by the diff — for example, a new code path (branch, conditional arm) introduced in the diff has no test that would fail if that path produced the wrong output.
+
+**When NONE of the four criteria are met**, the finding is a test-style philosophy disagreement: both the existing approach and the reviewer's preferred approach are valid. The assertion targets an observable output, the test exercises real code, and it would only break on a behavioral change. In this case:
+
+- Emit at **minor** only, phrased as a suggestion: "Consider X instead of Y for reduced coupling."
+- Do NOT emit as **important** or **critical**.
+- Do NOT require deletion or rewriting — the test is behaviorally correct.
+
+**Examples of misapplied `important` findings (must be downgraded to `minor` or omitted):**
+
+- "This test asserts `call_kwargs['parent'] == 'DSO-9999'` — implementation-coupled." — The call_kwargs value IS the observable output: what argument was passed to the dependency. This is the behavioral contract. Criterion 1 not met (it would not break on renaming internals); criterion 2 not met (not tautological); criterion 3 not met (no isolation issue); criterion 4 not met (the new bridge field IS what the diff introduces — this test would catch a regression). Result: `minor` at most.
+- "This test asserts batch continuation by checking `add_comment` was called for ticket C — tautological." — The batch-continuation behavior IS the behavioral assertion. If `add_comment` is the observable side-effect of processing ticket C, asserting it was called after ticket B's failure is not tautological — it verifies the failure-continue contract. Check criterion 2 carefully before applying this label.
 
 ## Remediation Directive — Remove, Do Not Patch Change Detectors
 

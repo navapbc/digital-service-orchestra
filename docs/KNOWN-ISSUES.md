@@ -16,7 +16,7 @@
 | [Hooks/Gates](#hooks-and-gates) | 1 | 2026-03 |
 | [Tickets/Version Control](#tickets-and-version-control) | 2 | 2026-04 |
 | [Recipe Execution](#recipe-execution) | 1 | 2026-04 |
-| [Plugin System](#plugin-system) | 2 | 2026-04 |
+| [Plugin System](#plugin-system) | 3 | 2026-05 |
 | [Bridge](#bridge) | 1 | 2026-05 |
 | [Compliance Verifier / Commit Steps](#compliance-verifier-and-commit-steps) | 6 | 2026-05 |
 
@@ -37,6 +37,7 @@
 | INC-018 | Recipe Engine Prerequisites | Recipe Execution | recipe, rope, ts-morph, isort, scaffold |
 | INC-019 | /reload-plugins Skill Count Undercounts | Plugin System | reload-plugins, skill count, 3 skills, commands, allowed-tools |
 | INC-020 | validate.sh ENOBUFS / OSError 75 in CI | Plugin System | validate.sh, ENOBUFS, OSError 75, file descriptor, ulimit, CI |
+| INC-030 | DSO Skills Unavailable on Session Start — Require /reload-plugins | Plugin System | plugin-loader, session start, skills unavailable, reload-plugins, 57cb-ea0c |
 | INC-022 | `git checkout tickets` Fails Silently, Rebase Hits Wrong Branch | Tickets/Version Control | checkout tickets, tickets worktree, rebase wrong branch, .tickets-tracker, push ticket changes |
 | INC-023 | Bridge: silent event drops (HEAD~1..HEAD blindness pattern) | Bridge | bridge, outbound, checkpoint, HEAD~1, silent drop, SHA cursor, BRIDGE_ENV_ID, BRIDGE_USER_MAP |
 | INC-024 | Hook executable bit lost — compliance verifier stops running | Compliance Verifier / Commit Steps | pre-commit-compliance-verifier, executable bit, chmod, reinstall-hooks |
@@ -258,6 +259,20 @@
 - **History**: Three fix attempts targeted `allowed-tools` frontmatter (bugs 06fc-1ebc, 9a3b-7426, 844b-f190) before root cause was identified as upstream. The `allowed-tools` fixes were not wrong (null values did need fixing) but were unrelated to the reported count.
 - **Upstream**: [anthropics/claude-code#41842](https://github.com/anthropics/claude-code/issues/41842), [#35641](https://github.com/anthropics/claude-code/issues/35641), [#36646](https://github.com/anthropics/claude-code/issues/36646)
 - **Rule candidate**: Do not treat the `/reload-plugins` skill count as a correctness indicator. Verify skill availability via the system-reminder skill list or by invoking the Skill tool directly.
+
+---
+
+### INC-030: DSO Skills Unavailable on Session Start — Require /reload-plugins
+
+- **Date**: 2026-05
+- **Keywords**: plugin-loader, session start, skills unavailable, reload-plugins, DSO skills, /dso:sprint, /dso:fix-bug, session init, harness, 57cb-ea0c
+- **Symptom**: When a new Claude Code session starts in a project where the DSO plugin is installed, DSO skills (`/dso:sprint`, `/dso:fix-bug`, `/dso:create-bug`, etc.) are not registered and not invocable. The user must run `/reload-plugins` to load them. After running it, the harness reports "1 plugin · 3 skills · 45 agents · 14 hooks". Skills and agents are then fully available.
+- **Root cause**: Upstream Claude Code harness behavior. The plugin loader lifecycle hook that registers skills at session initialization does not fire reliably for marketplace plugins. This is NOT a DSO defect — the plugin's `plugin.json`, `skills/*/SKILL.md`, and agent files are correctly defined and load correctly once `/reload-plugins` is triggered. Upstream references: [anthropics/claude-code#48963](https://github.com/anthropics/claude-code/issues/48963) (Plugin skills not appearing in / menu after v2.1.110), [#37862](https://github.com/anthropics/claude-code/issues/37862) (/reload-plugins doesn't rebuild slash-command index).
+- **Detection**: Attempting to invoke a DSO skill falls back to non-skill behavior, OR the Skill tool is called but the skill is not in the `system-reminder` available-skills list. After `/reload-plugins`, skills appear normally.
+- **Workaround**: Run `/reload-plugins` at the start of every new session as a precaution. After it runs, verify the system-reminder skill list contains the expected `dso:*` entries.
+- **DSO-side action**: Documented in KNOWN-ISSUES.md. No code fix possible within DSO — this is owned by the Claude Code harness. The CLAUDE.md "Always Do These" rules (e.g., rule 1: use `/dso:sprint` or `/dso:fix-bug`) silently no-op if skills are not loaded, so the `/reload-plugins` workaround must precede any skill invocation in an affected session.
+- **Rule candidate**: Add a one-line note to INSTALL.md advising users to run `/reload-plugins` at the start of each session if DSO skills are not available.
+- **Upstream ticket**: Bug 57cb-ea0c-066b-4ba1.
 
 ---
 

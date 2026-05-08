@@ -47,11 +47,16 @@ try:
     value = json.loads(raw) if kind == 'json' else raw
 except Exception:
     value = raw
-with open(sf) as f:
-    d = json.load(f)
-d[field] = value
-with open(sf + '.tmp', 'w') as f:
-    json.dump(d, f)
+try:
+    with open(sf) as f:
+        d = json.load(f)
+    d[field] = value
+    with open(sf + '.tmp', 'w') as f:
+        json.dump(d, f)
+        f.flush()
+        os.fsync(f.fileno())
+except Exception:
+    sys.exit(1)
 " 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true
     return 0
 }
@@ -128,6 +133,8 @@ sf = os.environ['_DSO_SF']
 d = {'branch': os.environ['_DSO_BRANCH'], 'merge_sha': '', 'completed_phases': [], 'current_phase': '', 'phases': {}, 'merge_strategy': os.environ.get('MERGE_STRATEGY', 'direct')}
 with open(sf + '.tmp', 'w') as f:
     json.dump(d, f)
+    f.flush()
+    os.fsync(f.fileno())
 " 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true
     fi
     # Write a per-process marker so phases can distinguish a fresh init from inherited state.

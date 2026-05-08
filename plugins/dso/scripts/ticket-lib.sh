@@ -763,6 +763,16 @@ with open(out_path, 'w', encoding='utf-8') as f:
 # any event (CREATE description, EDIT fields.description, or COMMENT body).
 # Returns exit 1 if the marker is absent.
 #
+# WHY THE EXACT MARKER IS REQUIRED:
+# The "### Planning Intelligence Log" heading is written exclusively by the
+# canonical epic-scrutiny-pipeline.md (brainstorm Steps 2.5/2.6/2.75/3). It is
+# a load-bearing integrity signal: its presence proves that the full pipeline ran
+# (gap analysis, web research, scenario analysis, fidelity review). Substitute
+# paths such as /dso:plan-review (red-team-reviewer + blue-team-filter) do NOT
+# write this marker because they bypass the pipeline. Accepting any other comment
+# format as evidence would silently allow incomplete scrutiny to gate-pass.
+# See: ${CLAUDE_PLUGIN_ROOT}/skills/brainstorm/SKILL.md Steps 2.5 HARD-GATE.
+#
 # Honors TICKET_CMD and TICKETS_TRACKER_DIR env vars for testability.
 _ticket_has_pil() {
     local ticket_id="$1"

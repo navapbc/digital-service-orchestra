@@ -193,4 +193,38 @@ INPUT='{"tool_name":"Bash","tool_input":{"command":"cat << EOF > /repo/.tickets-
 EXIT_CODE=$(run_bash_guard "$INPUT")
 assert_eq_verbose "test_bash_heredoc_with_redirect_blocks" "2" "$EXIT_CODE"
 
+# =============================================================================
+# Bug 590c-9df4: /tmp fixture paths with .tickets-tracker should not be blocked
+# =============================================================================
+# These tests verify that the guard is anchored to REPO_ROOT and does NOT fire
+# for read-only operations on /tmp paths that happen to contain ".tickets-tracker"
+# as a directory component (e.g., test fixtures created by CI or other scripts).
+
+# --- test_bash_tmp_tickets_tracker_readonly_cat_allows ---
+# cat reading from /tmp/.../tickets-tracker/ must be allowed (exit 0).
+# The guard must not fire on /tmp paths — only REPO_ROOT-anchored paths should block.
+INPUT='{"tool_name":"Bash","tool_input":{"command":"cat /tmp/test-fixture/.tickets-tracker/events/event-001.json"}}'
+EXIT_CODE=$(run_bash_guard "$INPUT")
+assert_eq_verbose "test_bash_tmp_tickets_tracker_readonly_cat_allows" "0" "$EXIT_CODE"
+
+# --- test_bash_tmp_tickets_tracker_readonly_find_allows ---
+# find reading from /tmp/.../tickets-tracker/ must be allowed (exit 0).
+INPUT='{"tool_name":"Bash","tool_input":{"command":"find /tmp/mytest/.tickets-tracker -name \"*.json\""}}'
+EXIT_CODE=$(run_bash_guard "$INPUT")
+assert_eq_verbose "test_bash_tmp_tickets_tracker_readonly_find_allows" "0" "$EXIT_CODE"
+
+# --- test_bash_tmp_tickets_tracker_write_redirect_blocks ---
+# A write redirect targeting /tmp/.../tickets-tracker/ MUST still be blocked (exit 2).
+# Even temp paths: if the command writes to any .tickets-tracker/, it must be blocked
+# because .tickets-tracker/ is always event-sourced and bypass corrupts the log.
+INPUT='{"tool_name":"Bash","tool_input":{"command":"echo foo > /tmp/mytest/.tickets-tracker/event.json"}}'
+EXIT_CODE=$(run_bash_guard "$INPUT")
+assert_eq_verbose "test_bash_tmp_tickets_tracker_write_redirect_blocks" "2" "$EXIT_CODE"
+
+# --- test_bash_tmp_tickets_tracker_python3_readonly_allows ---
+# python3 reading from /tmp/.../tickets-tracker/ must be allowed (exit 0).
+INPUT='{"tool_name":"Bash","tool_input":{"command":"python3 -c \"import json; data=json.load(open('/tmp/fix/.tickets-tracker/e.json'))\""}}'
+EXIT_CODE=$(run_bash_guard "$INPUT")
+assert_eq_verbose "test_bash_tmp_tickets_tracker_python3_readonly_allows" "0" "$EXIT_CODE"
+
 print_summary

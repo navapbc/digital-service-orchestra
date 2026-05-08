@@ -40,6 +40,18 @@ _THIS_FILE_GIT_REL = str(_THIS_FILE_RESOLVED.relative_to(_REPO_ROOT_FROM_FILE))
 # SC4: context-augmentation soft cap (default 15 turns).
 # Module-level so tests can patch it without modifying the function signature.
 CONTEXT_AUG_SOFT_CAP: int = 15
+# Number of additional turns after soft_cap before the second nudge fires.
+_NUDGE_SECOND_OFFSET: int = 3
+# Number of additional turns after soft_cap before fail-closed triggers.
+_FAIL_CLOSED_OFFSET: int = 4
+
+# Canonical set of valid severity values for review findings.
+# "fallback_exhausted" is a sentinel written by dispatch_review() when the full
+# provider chain is exhausted; it is NOT a reviewer-assigned severity but is
+# returned in the findings list and must be tolerated by callers.
+_VALID_SEVERITIES: frozenset[str] = frozenset(
+    {"critical", "important", "minor", "fragile", "fallback_exhausted"}
+)
 
 
 @functools.lru_cache(maxsize=32)
@@ -198,7 +210,12 @@ def _check_cache_usage(
             "nor cache_read_input_tokens > 0 — cache_control breakpoints may be "
             "misplaced or the provider downgraded the request"
         )
-    elif turn > 0 and prev_cache_read is not None and cache_read <= prev_cache_read:
+    elif (
+        turn > 0
+        and prev_cache_read is not None
+        and cache_read > 0  # skip warming turns where cache_read is still 0
+        and cache_read <= prev_cache_read
+    ):
         logger.warning(
             "Anthropic cache_read_input_tokens did not increase on turn %d "
             "(prev=%d, current=%d) — stable prefix may have been invalidated",
@@ -384,7 +401,7 @@ def dispatch_review(
                     response, 0, None, first_provider
                 )
 
-                while aug_turn <= _AUG_SOFT_CAP + 4:
+                while aug_turn <= _AUG_SOFT_CAP + _FAIL_CLOSED_OFFSET:
                     assistant_content = (
                         current_response.choices[0].message.content or ""
                     )
@@ -431,7 +448,7 @@ def dispatch_review(
                         continue
 
                     # Second nudge at soft_cap+3
-                    if aug_turn >= _AUG_SOFT_CAP + 3 and nudge_count == 1:
+                    if aug_turn >= _AUG_SOFT_CAP + _NUDGE_SECOND_OFFSET and nudge_count == 1:
                         nudge_count = 2
                         aug_messages = aug_messages + [
                             {"role": "assistant", "content": assistant_content},
@@ -450,7 +467,7 @@ def dispatch_review(
                         continue
 
                     # Fail-closed: reviewer ignored both nudges
-                    if aug_turn >= _AUG_SOFT_CAP + 4 and nudge_count >= 2:
+                    if aug_turn >= _AUG_SOFT_CAP + _FAIL_CLOSED_OFFSET and nudge_count >= 2:
                         aug_failed = True
                         break
 
@@ -512,7 +529,7 @@ def dispatch_review(
                                 "description": (
                                     "Context-augmentation loop failed-closed: reviewer "
                                     f"continued emitting context requests past turn "
-                                    f"{_AUG_SOFT_CAP + 3} without providing final findings."
+                                    f"{_AUG_SOFT_CAP + _NUDGE_SECOND_OFFSET} without providing final findings."
                                 ),
                                 "cited_lines": [f"{_THIS_FILE_GIT_REL}:418"],
                             }

@@ -28,6 +28,8 @@ Run the following commands inside Claude Code while your working directory is se
 
 After the plugin is installed, proceed to [Getting Started with /dso:onboarding](#getting-started-with-dsoonboarding) below.
 
+> **Session-start note**: If DSO skills (e.g. `/dso:sprint`, `/dso:fix-bug`) are not available at the start of a new session, run `/reload-plugins` to register them. This is a known upstream Claude Code harness issue (INC-030 in `docs/KNOWN-ISSUES.md`); the workaround is to run `/reload-plugins` once at the top of each affected session.
+
 ### Release Channels
 
 DSO is published on two channels. Choose the channel that fits your team's risk tolerance:

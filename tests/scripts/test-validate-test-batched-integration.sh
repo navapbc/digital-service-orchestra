@@ -133,6 +133,9 @@ CONF
 # - VALIDATE_TEST_STATE_FILE points to an empty state (no cached pass)
 # validate.sh (line ~100: CONFIG_FILE="${CONFIG_FILE:-...}"). This ensures
 # non-test checks (format, lint, etc.) use the stub config with `true` commands.
+_partial_artifacts_dir="$TMPDIR_TEST/artifacts-partial"
+mkdir -p "$_partial_artifacts_dir"
+
 rc=0
 output=""
 output=$(
@@ -140,6 +143,7 @@ output=$(
     VALIDATE_TEST_BATCHED_SCRIPT="$_stub_dir/test-batched.sh" \
     VALIDATE_SKIP_PLUGIN_CHECKS=1 \
     CONFIG_FILE="$_stub_config" \
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_partial_artifacts_dir" \
     bash "$VALIDATE_SCRIPT" \
     2>&1
 ) || rc=$?
@@ -147,7 +151,7 @@ output=$(
 # validate.sh must exit 2 when tests are pending
 assert_eq "test_validate_exits_2_on_partial_tests exits 2 (pending)" "2" "$rc"
 
-# Bug dso-w7bs: verify the state file was written with expected partial content
+# Bug dso-w7bs: verify the test-batched JSON state file was written with expected partial content
 if [[ -f "$_partial_state_file" ]]; then
     _state_has_interrupted=$(python3 -c "
 import json,sys
@@ -158,6 +162,27 @@ print('yes' if d.get('signal_interrupted') else 'no')
 else
     (( ++FAIL ))
     echo "FAIL: test_validate_exits_2_on_partial_tests — state file not created at $_partial_state_file" >&2
+fi
+
+# Assert the VALIDATION_STATE_FILE (validate.sh status file) was written with "pending" content.
+# validate.sh writes: "pending\ntimestamp=<ts>\ntest_state_file=<path>" when exiting 2.
+# We use WORKFLOW_PLUGIN_ARTIFACTS_DIR to control the artifacts dir and know the exact path.
+_validation_state_file="$_partial_artifacts_dir/status"
+if [[ -f "$_validation_state_file" ]]; then
+    _vs_first_line=$(head -n 1 "$_validation_state_file" 2>/dev/null || echo "")
+    assert_eq "test_validate_exits_2_on_partial_tests: VALIDATION_STATE_FILE starts with 'pending'" \
+        "pending" "$_vs_first_line"
+
+    _vs_has_test_state_file=$(grep -c "^test_state_file=" "$_validation_state_file" 2>/dev/null || echo "0")
+    assert_eq "test_validate_exits_2_on_partial_tests: VALIDATION_STATE_FILE contains test_state_file= line" \
+        "1" "$_vs_has_test_state_file"
+
+    _vs_test_state_path=$(grep "^test_state_file=" "$_validation_state_file" 2>/dev/null | cut -d= -f2-)
+    assert_eq "test_validate_exits_2_on_partial_tests: VALIDATION_STATE_FILE test_state_file points to correct path" \
+        "$_partial_state_file" "$_vs_test_state_path"
+else
+    (( ++FAIL ))
+    echo "FAIL: test_validate_exits_2_on_partial_tests — VALIDATION_STATE_FILE not found at $_validation_state_file" >&2
 fi
 
 assert_pass_if_clean "test_validate_exits_2_on_partial_tests"

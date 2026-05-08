@@ -253,7 +253,13 @@ The sub-agent returns: the path to the diagnostic file + a ≤15-line summary (c
 
 1. **DO NOT ask the user to confirm or narrow scope** (guard dd88-afb6 + 5554-9125). When `OPEN_BUG_COUNT` is large (e.g., N=53), the instinct to ask "P1 only, P1+P2, all 53, or triage duplicates first?" is exactly the failure mode this gate prevents. Scope is fixed by the skill's contract: every open bug, in priority order, until graceful shutdown is authorized by a literal compaction-event banner. The user invoking `/dso:debug-everything` IS the scope authorization. No `AskUserQuestion` between Phase A and Bug-Fix Mode Step 2 is valid. Begin processing immediately.
 
-2. **DO NOT fix bugs directly from the orchestrator** (guard jira-dig-1662). When the bug list is long, the instinct to dispatch parallel `general-purpose` sub-agents that "investigate + fix + commit inline" is also a violation. Each ticket MUST go through `/dso:fix-bug` (read `$PLUGIN_ROOT/skills/fix-bug/SKILL.md` inline and execute its steps for that ticket). Inline orchestrator fixes, parallel batch sub-agents that bypass fix-bug, and ad-hoc patches without fix-bug's HARD-GATE all violate this contract. Fix-bug owns the investigation discipline (intent search, complexity scoring, RED test, Phase D approval). Skipping it is prohibited regardless of how mechanical the fix appears.
+2. **DO NOT fix bugs directly from the orchestrator** (guard jira-dig-1662). When the bug list is long, the instinct to dispatch parallel `general-purpose` sub-agents that "investigate + fix + commit inline" is also a violation. Each ticket MUST go through `/dso:fix-bug` (read `$PLUGIN_ROOT/skills/fix-bug/SKILL.md` inline and follow it as a script — the orchestrator coordinates, fix-bug's sub-agents investigate and fix). The following are all PROHIBITED regardless of how mechanical or obvious the fix appears:
+   - Reading source files to understand a bug and then writing the fix yourself
+   - Dispatching a `general-purpose` agent with an inline fix prompt instead of reading fix-bug/SKILL.md
+   - Producing a patch or code change without going through fix-bug's HARD-GATE (intent search, complexity scoring, RED test, Phase D approval)
+   - Skipping fix-bug because the bug "looks simple" or "the fix is obvious from the title"
+
+   Inline orchestrator fixes, parallel batch sub-agents that bypass fix-bug, and ad-hoc patches all violate this contract. Fix-bug owns the investigation discipline. Delegating to it is not optional.
 
 Companion guards: f9b5-213b (Phase K premature shutdown drift). All three drift patterns share root cause: orchestrator pattern-matches toward "make progress fast" and skips the contract.
 </HARD-GATE>
@@ -293,7 +299,9 @@ Begin the loop. Process each ticket via `/dso:fix-bug` per the steps below. Cont
 
    Each ticket is an independent fix-bug invocation; **fix-bug enforces its own HARD-GATE** ("Do NOT investigate inline", "Do NOT modify code until Steps 1–5 are complete") and its own investigation-dispatch requirement per ticket. Do not duplicate those gates here, and do not pre-write fixes or reuse prior-ticket findings in the orchestrator prompt.
 
-   Read `$PLUGIN_ROOT/skills/fix-bug/SKILL.md` inline and execute its steps directly — NOT via the Skill tool or Task tool. This orchestrator-level invocation preserves Agent tool access for fix-bug's investigation sub-agents (BASIC/INTERMEDIATE/ADVANCED), which require the Agent tool themselves. CLI_user-tagged bugs are handled inside fix-bug Phase B Step 1 — no debug-everything-side check.
+   **PROHIBITED (jira-dig-1662)**: The orchestrator MUST NOT investigate the bug, write code, read source files related to the bug, or produce a fix itself. These are fix-bug's responsibilities, not the orchestrator's. The orchestrator's sole role here is to read fix-bug/SKILL.md and follow it as a script — which means dispatching fix-bug's investigation sub-agents, not substituting for them.
+
+   Read `$PLUGIN_ROOT/skills/fix-bug/SKILL.md` inline — NOT via the Skill tool or Task tool — so fix-bug's HARD-GATEs execute in this Agent tool context and fix-bug can dispatch its own investigation sub-agents (BASIC/INTERMEDIATE/ADVANCED). The orchestrator follows the SKILL.md steps as an instruction script; fix-bug's sub-agents do the actual investigation and code changes. CLI_user-tagged bugs are handled inside fix-bug Phase B Step 1 — no debug-everything-side check.
 
    Pass the ticket as bug context. Always include `ORCHESTRATOR_ROOT=$(git rev-parse --show-toplevel)` in the dispatch prompt. When `DISPATCH_ISOLATION=true`, also add `isolation: "worktree"` to each fix-bug sub-agent dispatch.
 

@@ -165,8 +165,7 @@ _phase_check_pr_comments_since_push() {
         --json comments,reviews,reviewThreads \
         --jq '{
             issue_comments: [.comments[]? | {createdAt, body, author: .author.login}],
-            review_comments: [.reviews[]?.body? | select(. != null and . != "") ] | map({body: .}) +
-                             [.reviews[]? | select(.body != null and .body != "") | {createdAt: .submittedAt, body: .body, author: .author.login}],
+            review_comments: [.reviews[]? | select(.body != null and .body != "") | {createdAt: .submittedAt, body: .body, author: .author.login}],
             thread_comments: [.reviewThreads[]?.comments[]? | {createdAt, body, author: .author.login}]
         }' 2>/dev/null || true)
     [[ -z "$_gh_payload" ]] && return 0
@@ -314,22 +313,23 @@ _fetch_and_rebase_branch() {
     return 0
 }
 
-# --- _phase_merge (PR mode): push branch, create PR, queue auto-merge ---
-# DD1: gh pr create + gh pr merge --auto --merge
+# --- _phase_merge (PR mode): sync to main, push branch, create PR ---
+# DD1: gh pr create
 # DD6: emit CONFLICT_DATA when gh reports mergeable=CONFLICTING
 #
 # Steps:
-#   1. git push -u origin "$BRANCH"           — publish branch
-#   2. gh pr create --base main --head "$BRANCH" --title <derived> --body <auto>
+#   1. git fetch origin main                  — ensure origin/main is current
+#   1b. merge origin/main into HEAD if branch is behind (a456-c689)
+#   2. git push -u origin "$BRANCH"           — publish branch
+#   3. gh pr create --base main --head "$BRANCH" --title <derived> --body <auto>
 #      → capture PR url + number
-#   3. Persist pr_url, pr_number into state file
-#   4. gh pr view <num> --json mergeable      — detect CONFLICTING up-front
-#   5. gh pr merge <num> --auto --merge       — queue auto-merge
-#      → on "auto-merge not allowed" stderr: WARN, persist auto_merge_disabled=true,
-#        and fall through to soft-success (return 0). _phase_poll then issues
-#        `gh pr merge --merge` (no --auto) once all checks pass.
+#   4. Persist pr_url, pr_number into state file
+#   5. gh pr view <num> --json mergeable      — detect CONFLICTING up-front
 #
-# Returns 0 on success (including auto-merge-disabled fall-through),
+# Auto-merge is NOT enqueued here. It is enqueued by _phase_queue_auto_merge
+# in the top-level flow, AFTER _phase_resolve_threads completes (ea7b-0038).
+#
+# Returns 0 on success,
 # 1 on conflict / push-failure / pr-create-failure / unrecoverable error.
 # CONFLICT_DATA emission is performed by the caller (top-level error handler
 # below) so the contract surface is identical to direct mode.
@@ -338,7 +338,40 @@ _phase_merge() {
         _state_write_phase "merge" 2>/dev/null || true
     fi
 
-    # --- 1. Publish branch ---
+    # --- 1. Sync against origin/main before push (a456-c689) ---
+    # Ensure the branch incorporates the current origin/main tip so CI runs on
+    # the same base that will be used at merge time. Without this, a PR created
+    # after a prior PR merged to main would be immediately out-of-date and the
+    # subsequent merge-queue sync would invalidate the just-completed CI run.
+    if git fetch origin "main:refs/remotes/origin/main" --quiet 2>/dev/null || \
+       git fetch origin main --quiet 2>/dev/null; then
+        if ! git merge-base --is-ancestor origin/main HEAD 2>/dev/null; then
+            # Only attempt the merge when a common ancestor exists. Unrelated
+            # histories (no common ancestor) means the worktree was initialised
+            # independently of origin/main and forcing a merge would be wrong.
+            local _common_ancestor
+            _common_ancestor=$(git merge-base HEAD origin/main 2>/dev/null || true)
+            if [[ -n "$_common_ancestor" ]]; then
+                echo "INFO: Branch is behind origin/main — merging before push to avoid stale CI." >&2
+                local _merge_main_out _merge_main_rc=0
+                _merge_main_out=$(git merge --no-edit origin/main 2>&1) || _merge_main_rc=$?
+                if [[ "$_merge_main_rc" -ne 0 ]]; then
+                    git merge --abort 2>/dev/null || true
+                    local _merge_hint="(merge failed)"
+                    if echo "$_merge_main_out" | grep -qiE "CONFLICT|merge conflict"; then
+                        _merge_hint="(merge conflicts — run /dso:resolve-conflicts)"
+                    fi
+                    echo "ERROR: git merge origin/main failed $_merge_hint" >&2
+                    return 1
+                fi
+            fi
+            # No common ancestor → skip sync; branch and main are unrelated histories.
+        fi
+    else
+        echo "WARNING: git fetch origin main failed — skipping origin/main sync; proceeding with current HEAD." >&2
+    fi
+
+    # --- 1b. Publish branch ---
     # Pre-push sync: when the remote ref already exists and has advanced
     # past our local HEAD (e.g. a previous "Merge branch 'main' into <branch>"
     # landed via UI or another session), `git push -u` will be rejected
@@ -358,7 +391,7 @@ _phase_merge() {
         fi
     fi
 
-    # --- 2. Derive PR title from last meaningful commit subject ---
+    # --- 3. Derive PR title from last meaningful commit subject ---
     local _title
     _title=$(git log -1 --pretty=%s 2>/dev/null || echo "Merge $BRANCH")
     if [[ -z "$_title" ]]; then
@@ -368,7 +401,7 @@ _phase_merge() {
     local _body
     _body="Auto-generated PR for branch \`$BRANCH\` (created by merge-to-main-pr.sh)."
 
-    # --- 3. Create the PR ---
+    # --- 4. Create the PR ---
     local _pr_url _pr_create_rc=0
     _pr_url=$(gh pr create --base main --head "$BRANCH" \
                           --title "$_title" --body "$_body" 2>&1) || _pr_create_rc=$?
@@ -396,12 +429,12 @@ _phase_merge() {
         return 1
     fi
 
-    # --- 4. Persist PR url + number to state file (best-effort) ---
+    # --- 5. Persist PR url + number to state file (best-effort) ---
     _state_write_pr_meta "$_final_url" "$_pr_number" 2>/dev/null || true
 
     echo "INFO: Created PR #${_pr_number}: $_final_url"
 
-    # --- 5. Detect CONFLICTING up-front via `gh pr view --json mergeable` ---
+    # --- 6. Detect CONFLICTING up-front via `gh pr view --json mergeable` ---
     # If GitHub reports the PR as CONFLICTING, return 1 so the caller emits
     # CONFLICT_DATA. We do not enqueue auto-merge for a known-conflicting PR.
     local _mergeable_json _mergeable
@@ -420,11 +453,32 @@ except Exception:
         return 1
     fi
 
-    # --- 6. Queue auto-merge (--merge to match direct mode's --no-ff semantics) ---
-    # When auto-merge is disabled at the repo level, fall through to manual-merge
-    # mode: the PR exists, CI will run, and _phase_poll will issue `gh pr merge`
-    # itself once all required checks pass. The agent still drives any remediation
-    # required, regardless of whether auto-merge is available.
+    # Auto-merge is NOT enqueued here. It is deferred to _phase_queue_auto_merge,
+    # called in the top-level flow AFTER _phase_resolve_threads completes (ea7b-0038).
+    # This ensures that if thread resolution fails or produces a new push, auto-merge
+    # has not already been queued and cannot fire prematurely.
+
+    if type _state_mark_complete >/dev/null 2>&1; then
+        _state_mark_complete "merge" 2>/dev/null || true
+    fi
+
+    return 0
+}
+
+# --- _phase_queue_auto_merge: enqueue auto-merge AFTER thread resolution (ea7b-0038) ---
+# Called in the top-level flow after _phase_resolve_threads succeeds.
+# Moved out of _phase_merge so that if thread resolution fails or produces a
+# new push, auto-merge is not already queued GitHub-side.
+#
+# When auto-merge is disabled at the repo level, falls through to manual-merge
+# mode: the PR exists, CI will run, and _phase_poll will issue `gh pr merge`
+# itself once all required checks pass.
+#
+# Returns 0 on success (including auto-merge-disabled fall-through),
+# 1 on unrecoverable error.
+_phase_queue_auto_merge() {
+    local _pr_number="$1"
+
     local _merge_out _merge_rc=0
     _merge_out=$(gh pr merge "$_pr_number" --auto --merge 2>&1) || _merge_rc=$?
     if [[ "$_merge_rc" -ne 0 ]]; then
@@ -440,10 +494,6 @@ except Exception:
         fi
     else
         echo "INFO: Auto-merge queued for PR #${_pr_number}."
-    fi
-
-    if type _state_mark_complete >/dev/null 2>&1; then
-        _state_mark_complete "merge" 2>/dev/null || true
     fi
 
     return 0
@@ -910,7 +960,12 @@ _phase_resolve_threads() {
         local _threads_arr=()
         local _threads_count=0
         if type _pr_fetch_unresolved_threads >/dev/null 2>&1; then
-            _threads_raw=$(_pr_fetch_unresolved_threads "$_pr_number" 2>/dev/null || true)
+            local _fetch_rc=0
+            _threads_raw=$(_pr_fetch_unresolved_threads "$_pr_number" 2>/dev/null) || _fetch_rc=$?
+            if [[ "$_fetch_rc" -ne 0 ]]; then
+                echo "ESCALATE:thread_resolution REASON:gh_api_failure PR:${_pr_url} FETCH_RC:${_fetch_rc}" >&2
+                return 1
+            fi
         fi
         if [[ -n "$_threads_raw" ]]; then
             mapfile -t _threads_arr <<< "$_threads_raw"
@@ -1779,6 +1834,14 @@ fi
 
 # --- Resolve review threads before polling for merge ---
 if ! _phase_resolve_threads "$_PR_NUMBER" "$_PR_URL"; then
+    exit 1
+fi
+
+# --- Queue auto-merge AFTER thread resolution (ea7b-0038) ---
+# Enqueue only after _phase_resolve_threads succeeds. If thread resolution
+# produced a new push, the branches are now in sync and CI will run on the
+# correct base. If it failed (exit above), auto-merge is never queued.
+if ! _phase_queue_auto_merge "$_PR_NUMBER"; then
     exit 1
 fi
 

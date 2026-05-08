@@ -688,7 +688,10 @@ For each ready task from `.claude/scripts/dso ticket ready --epic=<epic-id>`:
 |---------------|------------|--------|
 | TRIVIAL | high | Skip `/dso:implementation-plan`. **File-count guard**: estimate the file count from the story description or `enrich-file-impact.sh`. If > 30 files, split into child tasks (≤ 30 files each) by directory or alphabetical range before proceeding. Log: `"Story <id> classified as TRIVIAL — skipping /dso:implementation-plan"` |
 | TRIVIAL | medium | Treat as COMPLEX (medium confidence = plan) |
+| MODERATE | any | Run `/dso:implementation-plan` via Skill tool (see Step 2) |
 | COMPLEX | any | Run `/dso:implementation-plan` via Skill tool (see Step 2) |
+
+**HARD PROHIBITION — never create tasks directly for stories without tasks.** When a story has zero children tasks, the orchestrator MUST follow this routing table. Creating tasks directly using `ticket create task` is ALWAYS prohibited — regardless of how much codebase context the orchestrator has accumulated, how "detailed" the story description is, or how "obvious" the implementation appears. The formal planning pipeline (complexity evaluator → `/dso:implementation-plan` Skill invocation → STATUS parse) is not optional. Bypassing it skips: proposal generation, distinctness gate, approach-decision-maker, and plan review. These gates exist precisely because "I know what to do" is not the same as "the planning gate has been satisfied." (bug e903-873d)
 
 **Post-routing action for COMPLEX stories**: After routing a story to `/dso:implementation-plan`, tag it so Phase E can upgrade implementation task models:
 ```bash

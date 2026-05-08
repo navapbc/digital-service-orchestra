@@ -677,6 +677,8 @@ Before dispatching a RED test or modifying existing tests, classify the fix into
 
 **Default**: `GREEN` — most bug fixes change implementation rather than observable behavior. Apply this default when the fix is an internal correction that does not alter public-facing outputs, return values, exit codes, or emitted events.
 
+**Visual/UI/CSS changes are behavioral — do NOT default to GREEN.** Any fix that changes rendered output, CSS classes applied, layout, component appearance, or UI structure changes observable behavior (what the user sees). Classify as `RED` or `UPDATE` (per existing test coverage), NOT `GREEN`. The reasoning "unit tests don't assert on CSS classes" is invalid here — the classification is based on whether observable behavior changes, not on whether the current test suite happens to cover it. If no test covers the visual change, that is precisely the gap `RED` mode exists to fill. Do NOT make a test-layer inference at classification time; default to `RED` for visual changes and let the red-test-writer determine the appropriate assertion strategy.
+
 **Emit the classification signal on its own line:**
 ```
 testing_mode=<GREEN|UPDATE|RED>
@@ -790,6 +792,18 @@ Launch a sub-agent to implement the approved fix per the worktree-isolation bloc
 - One logical change at a time
 - **Model override for LLM-behavioral fixes**: When the fix requires editing files in `skills/`, `agents/`, or `prompts/` directories (LLM prompt creation or editing), dispatch the fix sub-agent with `model: "opus"`. These changes alter agent reasoning and require deeper judgment than code changes.
 
+**Multi-commit RED→GREEN discipline** (applies when the fix spans ≥2 atomic commits across multiple axes — e.g., multiple subsystems, sync directions, or independent behavior paths): Each atomic commit MUST independently demonstrate RED→GREEN. The fix sub-agent MUST follow this sequence for every behavioral commit:
+
+1. Write the RED test for this commit's behavior FIRST
+2. Run the test — it MUST fail (RED); capture the failure output
+3. Implement the fix for this commit
+4. Re-run the test — it MUST pass (GREEN)
+5. Commit only when GREEN is confirmed; proceed to the next axis
+
+Do NOT batch test+implementation into a single commit and report "GREEN" at the end. The per-commit RED capture is the TDD verification artifact. If a commit cannot demonstrate RED before the fix (e.g., it is a purely mechanical scaffolding commit with no observable behavior change), classify it explicitly as `testing_mode=GREEN` in the sub-agent prompt for that axis.
+
+Include per-axis RED captures in the `FIX_RESULT` report using the `red_captures` field (see Phase H Step 1 reporting format).
+
 ### Step 4: Verify Fix (/dso:fix-bug)
 
 When `worktree.isolation_enabled=true`, post-dispatch gates (review, test-gate, commit, harvest) are handled by `single-agent-integrate.md` per the worktree-isolation block — proceed directly to commit. When `isolation_enabled=false`, verify that RED tests are now GREEN:
@@ -846,7 +860,7 @@ Populate `AFFECTED_FILES_ARR` once before the gates from the investigation RESUL
 | `reversal` | primary | `reversal-check.sh` | >50% of a recent commit's changed lines are inverted by the proposed fix | Yes — pass `--intent-aligned` when `INTENT_GATE_RESULT=intent-aligned` | Revert-of-revert exemption: when the reversed commit's message matches `^Revert` (case-insensitive), the inversion is an intentional re-application and does not fire |
 | `blast_radius` | **modifier** | `blast-radius.sh` | File has a convention match or fan-in > 0 | n/a | Annotation prefix `"Note:"`; appended to dialog context when another primary signal fires; ast-grep preferred (`command -v ast-grep`), grep fallback when absent; never blocks alone |
 | `assertion_regression` | primary | `assertion-regression-check.py` (stdin: `git diff` of test dir) | Assertion removal, specificity reduction, weakened matcher, literal→variable, or skip/xfail addition detected | Yes — pass `--intent-aligned` (Intent Gate→Assertion-Regression Gate suppression interaction) | Specific-to-specific value swap (e.g., `assertEqual(x,42)` → `assertEqual(x,57)`) does NOT fire — both literals, specificity preserved |
-| `dependency` | primary | `dependency-check.sh` | Fix introduces a dependency not declared in the project manifest and not used elsewhere in the codebase | n/a | Existing-pattern exemption: imports/requires already used elsewhere are pre-existing dependency patterns and do not fire |
+| `dependency` | primary | `dependency-check.sh` | Fix introduces a dependency not declared in the project manifest and not used elsewhere in the codebase | n/a | Existing-pattern exemption (two-check logic): (1) if the imported package appears in the project manifest (package.json `dependencies`/`devDependencies`, pyproject.toml `[project].dependencies`, etc.) the gate does NOT fire — adding new named imports from an already-declared package (e.g., `import { FormGroup } from '@trussworks/react-uswds'` when `@trussworks/react-uswds` is already in package.json) is not a new dependency event; (2) if the package is not in the manifest but is already imported in other files in the codebase, the gate also does NOT fire. The gate fires ONLY when the package is absent from both the manifest AND the rest of the codebase — i.e., a genuinely new supply-chain introduction. False-positive reports where the gate fires for manifest-declared packages indicate the script is scanning per-file import history rather than manifest presence; if this occurs, verify `dependency-check.sh` is resolving the manifest at `REPO_ROOT` (not a subdirectory). (bug ebaf-190d) |
 
 **Invocations** (each captures stdout into the corresponding `*_GATE_OUTPUT` env var for the Escalation Routing collector below; all bash calls are `# shim-exempt: internal orchestration script`):
 
@@ -1089,7 +1103,15 @@ FIX_RESULT: resolved
 BUG_TICKET_ID: <ticket-id>
 fix_summary: <one-line description of what was fixed>
 files_changed: <comma-separated list of modified files>
+RED_TEST_FAILED_AS_EXPECTED: yes | no | n/a (llm-behavioral) | n/a (testing_mode=GREEN)
+red_captures: <for multi-commit fixes (≥2 behavioral commits): one line per axis — "axis N: <test-name> FAILED: <one-line failure summary>"; omit for single-commit fixes>
 ```
+
+`RED_TEST_FAILED_AS_EXPECTED` is REQUIRED in all sub-agent FIX_RESULT reports:
+- `yes` — the RED test failed before the fix was applied, confirming the bug
+- `no` — the RED test did not fail (investigation failure; report this to the orchestrator)
+- `n/a (llm-behavioral)` — LLM-behavioral bug; RED unit test requirement replaced by eval-based verification per Phase E Step 2 exemption
+- `n/a (testing_mode=GREEN)` — fix is implementation-only with no observable behavior change; existing tests validate correctness
 
 If the bug CANNOT be fixed (all investigation tiers exhausted, COMPLEX escalation, LLM-behavioral with no testable surface, etc.), return the unresolved signal instead — do NOT close the ticket:
 

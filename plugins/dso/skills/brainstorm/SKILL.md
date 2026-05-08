@@ -408,6 +408,15 @@ Route signals by severity:
 
 ### Steps 2.5, 2.6, 2.75, Step 3: Epic Scrutiny Pipeline
 
+<HARD-GATE>
+SUBSTITUTIONS PROHIBITED. The canonical scrutiny pipeline (epic-scrutiny-pipeline.md) is the ONLY valid path for scrutiny. The following are NOT substitutes and MUST NOT be used in place of the pipeline:
+- /dso:plan-review (dispatches red-team-reviewer + blue-team-filter + plan-review — does NOT write the Planning Intelligence Log marker that the brainstorm:complete tag validator requires)
+- Inline reviewer reasoning by the orchestrator
+- Any agent or workflow not named in epic-scrutiny-pipeline.md
+
+When /dso:plan-review or any non-canonical substitute was used, the brainstorm:complete tag will be REJECTED by the validator because no "### Planning Intelligence Log" event will be present. The only remedy is to run the canonical pipeline from the beginning. There is no bypass, annotation, or override — the PIL marker must be written by the canonical pipeline.
+</HARD-GATE>
+
 Read and execute `skills/shared/workflows/epic-scrutiny-pipeline.md`. Pass the current epic spec as input, with:
 
 - `{caller_name}` = `brainstorm`

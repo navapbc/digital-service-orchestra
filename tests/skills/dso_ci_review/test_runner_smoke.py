@@ -733,6 +733,110 @@ def test_runner_warns_on_all_synthetic_findings(tmp_path, capsys):
     )
 
 
+def test_runner_exits_1_when_all_agents_hit_context_window(tmp_path, capsys):
+    """
+    Given: ALL reviewer agents fail with ContextWindowExceededError (full chain exhaustion)
+    When: runner.main() completes
+    Then: exit code is 1 (fail-closed), not 0
+
+    Regression test for bug 223d-7e08-8a4b-4a3a:
+    Before fix (e840-327f era): all-synthetic WARNING was emitted but runner returned 0.
+    After fix (01b3e02 / a8f6-4c5e): all-synthetic triggers exit 1 with ERROR.
+
+    Each agent returns a fallback_exhausted entry (the DD3 sentinel emitted by
+    dispatch_review when the full context_model_chain is exhausted).  From the
+    runner's perspective, this is identical to every agent hitting
+    ContextWindowExceededError on every model in the chain.
+    """
+    import dso_ci_review.runner as runner_mod
+    import contextlib
+    import io
+
+    diff_text = "diff --git a/foo.py b/foo.py\n+added line\n"
+    output_file = tmp_path / "findings.json"
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text(diff_text)
+
+    tier_result = {
+        "selected_tier": "deep",
+        "size_action": "none",
+        "security_overlay": False,
+        "performance_overlay": False,
+        "test_quality_overlay": False,
+        "diff_size_lines": 1,
+        "blast_radius": 0,
+        "critical_path": 0,
+        "anti_shortcut": 0,
+        "staleness": 0,
+        "cross_cutting": 0,
+        "diff_lines": 0,
+        "change_volume": 0,
+        "computed_total": 0,
+        "is_merge_commit": False,
+    }
+
+    # Simulate 5 agents (deep-correctness, deep-verification, deep-hygiene,
+    # test-quality, deep-arch) all returning fallback_exhausted — the sentinel
+    # emitted when ContextWindowExceededError exhausts the full context chain.
+    def _exhausted_entry(agent_id: str) -> dict:
+        return {
+            "type": "fallback_exhausted",
+            "agent_id": agent_id,
+            "primary_model": "claude-sonnet-4-6",
+            "attempted_cross_provider": [],
+            "attempted_context_models": ["claude-sonnet-4-6"],
+            "final_exception_class": "ContextWindowExceededError",
+            "final_exception_message": "Prompt is too long: 208432 tokens > 200000 limit",
+        }
+
+    all_exhausted_findings = [
+        {"findings": [_exhausted_entry("code-reviewer-deep-correctness")]},
+        {"findings": [_exhausted_entry("code-reviewer-deep-verification")]},
+        {"findings": [_exhausted_entry("code-reviewer-deep-hygiene")]},
+        {"findings": [_exhausted_entry("code-reviewer-test-quality")]},
+        {"findings": [_exhausted_entry("code-reviewer-deep-arch")]},
+    ]
+
+    async def mock_dispatch(agents):
+        return all_exhausted_findings
+
+    # Arch synthesis also returns exhausted — no non-synthetic fallback possible.
+    def mock_arch_synthesis(*args, **kwargs):
+        return {"findings": [_exhausted_entry("arch-synthesis")]}
+
+    stderr_capture = io.StringIO()
+    with (
+        patch.dict(
+            "os.environ",
+            {
+                "DSO_CI_REVIEW_DIFF_PATH": str(diff_file),
+                "DSO_CI_REVIEW_OUTPUT_PATH": str(output_file),
+                "CI_REVIEW_PROVIDER": "anthropic",
+                "ANTHROPIC_API_KEY": "test-key",
+            },
+        ),
+        patch("dso_ci_review.runner._classify_tier_via_bash", return_value=tier_result),
+        patch(
+            "dso_ci_review.runner.async_dispatch_specialists", side_effect=mock_dispatch
+        ),
+        patch(
+            "dso_ci_review.runner.dispatch_arch_synthesis", side_effect=mock_arch_synthesis
+        ),
+        contextlib.redirect_stderr(stderr_capture),
+    ):
+        exit_code = runner_mod.main()
+
+    stderr_text = stderr_capture.getvalue()
+    assert exit_code == 1, (
+        "Expected exit code 1 when all agents hit ContextWindowExceededError "
+        f"(all findings are fallback_exhausted), got {exit_code}. "
+        f"stderr: {stderr_text!r}"
+    )
+    assert "ERROR" in stderr_text and "synthetic" in stderr_text.lower(), (
+        f"Expected ERROR about synthetic findings in stderr, got: {stderr_text!r}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Severity gate + PR comment posting tests — bug f2c7-257e
 # ---------------------------------------------------------------------------
@@ -1661,4 +1765,240 @@ def test_deep_tier_runs_arch_synthesis_after_specialists(tmp_path):
         f"Got summary: {parsed.get('summary')!r}. "
         "runner.main() must use dispatch_arch_synthesis return value as the merged output "
         "for deep tier (task d189-d70f)."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Cycle-2 dismissal-memory tests — bug c59e-a197
+# ---------------------------------------------------------------------------
+#
+# The review pipeline lacked dismissal memory: on cycle N≥2, previously-defended
+# findings could be re-emitted verbatim and block merge again. These tests cover:
+#   1. _fetch_pr_defenses: parses DEFENSE_RECORD: lines from gh output
+#   2. _suppress_defended_findings: downgrades verbatim defended findings
+#   3. runner.main() on cycle 2 with defenses: dispatches two-call path and
+#      applies the suppression filter
+#   4. runner.main() on cycle 1 (no defenses): standard path unchanged
+
+
+def test_fetch_pr_defenses_parses_defense_records():
+    """_fetch_pr_defenses must parse DEFENSE_RECORD: lines from gh pr view output.
+
+    Given: gh pr view returns comment bodies containing DEFENSE_RECORD: lines
+    When: _fetch_pr_defenses is called with a PR number
+    Then: it returns a list of dicts parsed from the DEFENSE_RECORD JSON values
+    """
+    import dso_ci_review.runner as runner_mod
+    from subprocess import CompletedProcess
+
+    gh_output = (
+        "Some unrelated comment\n"
+        'DEFENSE_RECORD: {"severity": "critical", "description": "write_bridge_alert signature mismatch"}\n'
+        "Another line\n"
+        'DEFENSE_RECORD: {"severity": "important", "description": "ticket_reducer NameError"}\n'
+    )
+
+    def _mock_run(cmd, **kwargs):
+        return CompletedProcess(args=cmd, returncode=0, stdout=gh_output, stderr="")
+
+    with (
+        patch.dict("os.environ", {"GITHUB_TOKEN": "test-token"}),
+        patch.object(runner_mod, "subprocess", create=True) as mock_sub,
+    ):
+        import subprocess as _real_sub
+        mock_sub.run.side_effect = _mock_run
+        mock_sub.TimeoutExpired = _real_sub.TimeoutExpired
+        mock_sub.CalledProcessError = _real_sub.CalledProcessError
+
+        result = runner_mod._fetch_pr_defenses("123")
+
+    assert len(result) == 2, (
+        f"Expected 2 defense records parsed from DEFENSE_RECORD: lines; got {len(result)}: {result!r}"
+    )
+    assert result[0]["severity"] == "critical"
+    assert result[1]["description"] == "ticket_reducer NameError"
+
+
+def test_fetch_pr_defenses_returns_empty_without_token():
+    """_fetch_pr_defenses must return [] when GITHUB_TOKEN is absent (no gh call)."""
+    import dso_ci_review.runner as runner_mod
+
+    called = []
+    with patch.dict("os.environ", {}, clear=True):  # no GITHUB_TOKEN
+        with patch.object(runner_mod, "subprocess", create=True) as mock_sub:
+            mock_sub.run.side_effect = lambda *a, **kw: called.append(a)
+            result = runner_mod._fetch_pr_defenses("123")
+
+    assert result == [], f"Expected [] without GITHUB_TOKEN; got {result!r}"
+    assert not called, "gh must NOT be called when GITHUB_TOKEN is absent"
+
+
+def test_suppress_defended_findings_downgrades_matching_findings():
+    """_suppress_defended_findings must downgrade findings that match prior defenses.
+
+    Given: findings list with one finding that matches a prior defense (same severity+desc[:80])
+    When: _suppress_defended_findings is called
+    Then: the matching finding's severity is downgraded to 'suggestion'
+          AND non-matching findings are unchanged
+    """
+    import dso_ci_review.runner as runner_mod
+
+    defended_desc = "write_bridge_alert signature mismatch — wrong positional arg"
+    defenses = [
+        {"severity": "critical", "description": defended_desc}
+    ]
+    findings = [
+        {"severity": "critical", "description": defended_desc, "cited_lines": ["foo.py:1"]},
+        {"severity": "important", "description": "unrelated new finding", "cited_lines": ["bar.py:5"]},
+    ]
+
+    result = runner_mod._suppress_defended_findings(findings, defenses)
+
+    assert len(result) == 2, f"Should return same count; got {len(result)}: {result!r}"
+    # Defended finding is downgraded
+    assert result[0]["severity"] == "suggestion", (
+        f"Matched finding must be downgraded to 'suggestion'; got {result[0]['severity']!r}"
+    )
+    assert "_suppressed_reason" in result[0], "Suppressed finding must have _suppressed_reason"
+    # Unmatched finding is unchanged
+    assert result[1]["severity"] == "important", (
+        f"Unmatched finding must be unchanged; got {result[1]['severity']!r}"
+    )
+
+
+def test_suppress_defended_findings_noop_when_no_defenses():
+    """_suppress_defended_findings must return findings unchanged when defenses is empty."""
+    import dso_ci_review.runner as runner_mod
+
+    findings = [
+        {"severity": "critical", "description": "real issue", "cited_lines": ["x.py:1"]}
+    ]
+    result = runner_mod._suppress_defended_findings(findings, [])
+    assert result == findings, f"No-op with empty defenses; got {result!r}"
+
+
+def test_runner_cycle2_with_defenses_suppresses_reemitted_findings(tmp_path):
+    """On cycle 2, a finding that matches a prior defense must be downgraded to 'suggestion'.
+
+    Given: DSO_REVIEW_CYCLE=2, GITHUB_EVENT_NAME=pull_request, PR has a DEFENSE_RECORD
+           for a critical finding, and the LLM re-emits the same critical finding verbatim
+    When: runner.main() executes
+    Then: the re-emitted finding is downgraded to 'suggestion' (not blocking)
+          AND exit code is 0 (no blocking findings remain)
+
+    Mocking strategy:
+    - _fetch_pr_defenses patched to return a defense record without needing gh CLI.
+    - dispatch_two_call_review patched to return the re-emitted finding (simulating LLM
+      ignoring the defense context and re-firing the finding anyway).
+    - async_dispatch_specialists not used on the two-call path (standard tier + defenses).
+    """
+    import io
+    from contextlib import redirect_stderr
+
+    import dso_ci_review.runner as runner_mod
+
+    defended_desc = "write_bridge_alert signature mismatch — outbound vs inbound confusion"
+    defense_record = {"severity": "critical", "description": defended_desc}
+
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text("diff --git a/foo b/foo\n+x\n")
+    output_file = tmp_path / "out.json"
+
+    # LLM re-emits the exact same finding that was defended (worst-case: ignores context)
+    reemitted_findings = {"findings": [
+        {"severity": "critical", "description": defended_desc, "cited_lines": ["bridge.py:1"]}
+    ]}
+
+    stderr_capture = io.StringIO()
+    with (
+        patch.dict(
+            "os.environ",
+            {
+                "DSO_CI_REVIEW_DIFF_PATH": str(diff_file),
+                "DSO_CI_REVIEW_OUTPUT_PATH": str(output_file),
+                "CI_REVIEW_PROVIDER": "anthropic",
+                "ANTHROPIC_API_KEY": "test-key",
+                "DSO_REVIEW_CYCLE": "2",
+                "GITHUB_EVENT_NAME": "pull_request",
+                "GITHUB_REF": "refs/pull/77/merge",
+                "GITHUB_TOKEN": "test-token",
+            },
+        ),
+        patch("dso_ci_review.runner._classify_tier_via_bash", return_value=_standard_tier_classification()),
+        patch("dso_ci_review.runner._fetch_pr_defenses", return_value=[defense_record]),
+        patch("dso_ci_review.runner.dispatch_two_call_review", return_value=reemitted_findings),
+        redirect_stderr(stderr_capture),
+    ):
+        exit_code = runner_mod.main()
+
+    parsed = json.loads(output_file.read_text())
+    findings = parsed.get("findings", [])
+
+    assert exit_code == 0, (
+        f"Exit code must be 0 after cycle-2 suppression of defended finding; "
+        f"got {exit_code}. stderr={stderr_capture.getvalue()!r}"
+    )
+    assert len(findings) == 1, f"Expected 1 finding (downgraded); got {len(findings)}: {findings!r}"
+    assert findings[0]["severity"] == "suggestion", (
+        f"Re-emitted defended finding must be downgraded to 'suggestion'; "
+        f"got severity={findings[0]['severity']!r}"
+    )
+
+
+def test_runner_cycle1_no_defenses_unaffected(tmp_path):
+    """On cycle 1 (default), the standard path is used — no defense fetching, no suppression.
+
+    Given: DSO_REVIEW_CYCLE=1 (or absent), an important finding from the LLM
+    When: runner.main() executes
+    Then: exit code is 1 (important finding blocks)
+          AND no defense fetch is attempted
+    """
+    import io
+    from contextlib import redirect_stderr
+
+    import dso_ci_review.runner as runner_mod
+
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text("diff --git a/foo b/foo\n+x\n")
+    output_file = tmp_path / "out.json"
+
+    findings = [
+        {"severity": "important", "description": "genuine new finding", "cited_lines": ["foo:1"]}
+    ]
+
+    async def mock_dispatch(agents):
+        return [{"findings": findings}]
+
+    gh_called = []
+
+    import subprocess as _real_sub
+
+    stderr_capture = io.StringIO()
+    with (
+        patch.dict(
+            "os.environ",
+            {
+                "DSO_CI_REVIEW_DIFF_PATH": str(diff_file),
+                "DSO_CI_REVIEW_OUTPUT_PATH": str(output_file),
+                "CI_REVIEW_PROVIDER": "anthropic",
+                "ANTHROPIC_API_KEY": "test-key",
+                # DSO_REVIEW_CYCLE absent → defaults to 1
+                "GITHUB_EVENT_NAME": "",
+                "GITHUB_REF": "",
+                "GITHUB_TOKEN": "",
+                "PR_NUMBER": "",
+            },
+        ),
+        patch("dso_ci_review.runner._classify_tier_via_bash", return_value=_standard_tier_classification()),
+        patch("dso_ci_review.runner.async_dispatch_specialists", side_effect=mock_dispatch),
+        patch("dso_ci_review.runner._fetch_pr_defenses", side_effect=lambda pr: gh_called.append(pr) or []) as mock_fetch,
+        redirect_stderr(stderr_capture),
+    ):
+        exit_code = runner_mod.main()
+
+    assert exit_code == 1, (
+        f"Cycle 1 with important finding must block (exit 1); got {exit_code}"
+    )
+    assert not gh_called, (
+        f"_fetch_pr_defenses must NOT be called on cycle 1; was called with: {gh_called!r}"
     )
