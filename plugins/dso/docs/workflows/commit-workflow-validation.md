@@ -44,9 +44,10 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 TEST_CHANGED_CMD="$(".claude/scripts/dso read-config.sh" commands.test_changed)"
 if [ -z "$TEST_CHANGED_CMD" ]; then
     echo "commands.test_changed not configured — skipping changed-test step"
+    .claude/scripts/dso commit-step skip test "test_changed not configured"
     # continue to Step 2
 else
-    "$REPO_ROOT/$TEST_CHANGED_CMD"
+    .claude/scripts/dso commit-step test "$TEST_CHANGED_CMD"
 fi
 ```
 
@@ -106,7 +107,8 @@ CHANGED_FILES=$(git diff --name-only)
 Run formatting on modified files so file edits are complete before staging.
 
 ```bash
-cd app && make format-modified
+FORMAT_CHECK_CMD="cd app && make format-modified"
+.claude/scripts/dso commit-step format "$FORMAT_CHECK_CMD"
 ```
 
 ```bash
@@ -118,11 +120,13 @@ echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-2-format" >> "$ARTIFACTS_DIR/commit-br
 Run lint and type checks before staging. Any tool that may edit files must run before `git add`.
 
 ```bash
-cd app && make lint-ruff 2>&1 | tail -3
+LINT_CMD="cd app && make lint-ruff 2>&1 | tail -3"
+.claude/scripts/dso commit-step lint "$LINT_CMD"
 ```
 
 ```bash
-cd app && make lint-mypy 2>&1 | tail -5
+LINT_CMD="cd app && make lint-mypy 2>&1 | tail -5"
+.claude/scripts/dso commit-step lint "$LINT_CMD"
 ```
 
 On success, only the summary lines are needed. If either exit code is non-zero, re-run with full output to see errors.
@@ -195,8 +199,20 @@ echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-5-record-test-status" >> "$ARTIFACTS_D
 
 ## Step 6: Review Gate
 
+When `enforcement.strategy=ci`, the review gate is deferred to CI. Emit skip markers for both review artifacts and proceed to commit:
+
+```bash
+ENFORCEMENT_STRATEGY="$(".claude/scripts/dso read-config.sh" enforcement.strategy)"
+if [[ "$ENFORCEMENT_STRATEGY" == "ci" ]]; then
+    .claude/scripts/dso commit-step skip reviewer-record "enforcement.strategy=ci"
+    .claude/scripts/dso commit-step skip classifier-dispatch "enforcement.strategy=ci"
+    # proceed to commit — review runs in CI
+fi
+```
+
 Decide whether a review is needed:
 
+- **`enforcement.strategy=ci`**: Emit `.skipped` markers for `reviewer-record` and `classifier-dispatch` (shown above), then proceed to commit. CI enforces the review gate.
 - **Review ran earlier this session and no files changed since**: Skip to Step 6 of the parent COMMIT-WORKFLOW.md (Commit).
 - **No recent review, or files changed since the last review**: Execute the review workflow (REVIEW-WORKFLOW.md). If you have already read this file earlier in this conversation and have not compacted since, use the version in context. Note: Steps 1–4 above already ran format/lint/type-check and wrote the validation-status file, so REVIEW-WORKFLOW.md Step 1 (auto-fix pass) will skip via the fresh validation-status check. This ensures the diff hash captured in REVIEW-WORKFLOW.md Step 2 reflects the post-auto-fix state and will not be invalidated by pre-commit hooks.
 - **The commit in Step 6 of the parent COMMIT-WORKFLOW.md is blocked** with "Review is stale" or "No code review recorded": Run REVIEW-WORKFLOW.md, then retry the commit step. Do NOT inspect, copy, or modify review state files — the commit gate enforces correctness and any workaround will be caught at the merge step.

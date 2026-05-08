@@ -1,4 +1,13 @@
 
+# REVIEW-DEFENSE (PR #78 finding 2): marker syntax is `source.py:[test_name] test_file.py`
+# (no space between the colon and the opening bracket). Lines 179 and 181 use the correct
+# format. The finding claimed a space was present; inspection of the file confirms none exists.
+#
+# REVIEW-DEFENSE (PR #78 cycle-2 finding 3): `test_file.sh [test_name]` with a space before
+# the bracket on the TEST-FILE side is valid syntax — it is a test-function filter.
+# parse_test_index() (pre-commit-test-gate.sh:267) explicitly strips `\s+\[.*\]$` from test
+# paths. check-test-index-duplicates.sh normalizes the same pattern. This is distinct from
+# the source-file-side `source.py:[test_name]` format (no space). Both are intentional.
 .claude-plugin/marketplace.json:tests/scripts/test-marketplace-json.sh
 .github/workflows/ci-python-skills.yml:tests/skills/test_ci_workflow_pip_cache.py
 .github/workflows/ci.yml:tests/scripts/test-ci-hyperfine-installed.sh,tests/scripts/test-ci-consolidated-changes-detection.sh
@@ -62,7 +71,7 @@ plugins/dso/docs/SUB-AGENT-BOUNDARIES.md:tests/docs/test_sub_agent_boundaries_an
 plugins/dso/docs/templates/KNOWN-ISSUES.md:tests/scripts/test-known-issues-smoke.sh,tests/scripts/test-known-issues-template.sh
 plugins/dso/docs/ticket-system-v3-architecture.md:tests/scripts/test-tag-policy-docs.sh
 plugins/dso/docs/workflow-config-schema.json:tests/scripts/test-workflow-config-schema.sh
-plugins/dso/docs/workflows/commit-workflow-validation.md:tests/docs/test-commit-workflow-validation-canonical-list.sh
+plugins/dso/docs/workflows/commit-workflow-validation.md:tests/docs/test-commit-workflow-validation-canonical-list.sh,tests/hooks/test-workflow-doc-wrapping.sh [test_commit_workflow_test_wrapped]
 plugins/dso/docs/workflows/COMMIT-WORKFLOW.md:tests/scripts/test-commit-workflow-step-1-5.sh,tests/scripts/test-emit-commit-workflow-event.sh,tests/skills/test-preconditions-commit-validator.sh
 plugins/dso/docs/workflows/prompts/investigator-base.md:tests/unit/scripts/test-build-review-agents.sh
 plugins/dso/docs/workflows/prompts/investigator-delta-advanced-code-tracer.md:tests/unit/scripts/test-build-review-agents.sh
@@ -176,9 +185,9 @@ plugins/dso/scripts/ci-review-corpus-delta.sh:tests/skills/dso_ci_review/test-ci
 plugins/dso/scripts/dso_ci_review/classifier.py:tests/skills/dso_ci_review/test_classifier.py
 plugins/dso/scripts/dso_ci_review/context_request.py:tests/skills/dso_ci_review/test_context_augmentation.py
 plugins/dso/scripts/dso_ci_review/dispatch.py:tests/skills/dso_ci_review/test_dispatch_fallback.py,tests/skills/dso_ci_review/test_tier_wiring.py,tests/skills/dso_ci_review/test_context_augmentation.py,tests/skills/dso_ci_review/test_prompt_caching.py,tests/skills/dso_ci_review/test_integration_full_loop.py
-plugins/dso/scripts/dso_ci_review/arbiter.py: [test_dispatch_arbiter_called_on_resustain_of_with_prior_defense] tests/skills/dso_ci_review/test_arbiter.py
+plugins/dso/scripts/dso_ci_review/arbiter.py:[test_dispatch_arbiter_called_on_resustain_of_with_prior_defense] tests/skills/dso_ci_review/test_arbiter.py
 plugins/dso/scripts/dso_ci_review/findings.py:tests/skills/dso_ci_review/test_findings.py
-plugins/dso/scripts/dso_ci_review/proximity.py: [test_proximity_overlap_same_file_within_5_lines] tests/skills/dso_ci_review/test_proximity.py
+plugins/dso/scripts/dso_ci_review/proximity.py:[test_proximity_overlap_same_file_within_5_lines] tests/skills/dso_ci_review/test_proximity.py
 plugins/dso/scripts/dso_ci_review/speculation_markers.py:tests/skills/dso_ci_review/test_speculation_markers.py
 plugins/dso/scripts/dso_ci_review/providers/config.py:tests/skills/dso_ci_review/test_providers_config.py,tests/skills/dso_ci_review/test_dispatch_config.py
 plugins/dso/scripts/dso_ci_review/providers/openai.py:tests/skills/dso_ci_review/test_providers_unit.py [test_openai_provider_review_diff]
@@ -402,3 +411,8 @@ tests/scripts/test-sigpipe-canary.sh:tests/scripts/test-sigpipe-canary.sh
 tests/scripts/test-ticket-delete.sh:tests/scripts/test-ticket-delete.sh
 tests/scripts/test-ticket-link-duplicates-supersedes.sh:tests/scripts/test-ticket-link-duplicates-supersedes.sh
 tests/scripts/test-ticket-transition-deleted.sh:tests/scripts/test-ticket-transition-deleted.sh
+plugins/dso/scripts/commit-override.sh:tests/scripts/test-commit-override.sh [test_requires_reason_flag]
+plugins/dso/hooks/prepare-commit-msg-override-audit.sh:tests/hooks/test-prepare-commit-msg-override-audit.sh [test_no_token_no_trailer] [test_token_appends_trailer]
+plugins/dso/hooks/post-commit-override-cleanup.sh:tests/hooks/test-post-commit-override-cleanup.sh [test_cleanup_removes_token],tests/scripts/test-reinstall-hooks.sh [test_post_commit_registered]
+plugins/dso/scripts/commit-step.sh: tests/scripts/test-commit-step.sh [test_writes_result_artifact],tests/scripts/test-commit-step-worktree.sh [test_cwd_mismatch_fails_fast] [test_harvest_mode_bypasses_cwd_check],tests/scripts/test-commit-step-truncation.sh [test_pipe_to_tail_artifact_intact],tests/hooks/test-verifier-baseline.sh [test_bug_7b41_breadcrumb_not_empty]
+plugins/dso/hooks/pre-commit-compliance-verifier.sh: tests/hooks/test-pre-commit-compliance-verifier.sh [test_blocks_missing_artifact],tests/scripts/test-reinstall-hooks.sh [test_compliance_verifier_registered],tests/hooks/test-verifier-worktree-context.sh [test_verifier_reads_correct_worktree],tests/hooks/test-overlay-verification.sh [test_security_overlay_flagged_missing],tests/hooks/test-verifier-baseline.sh [test_validate_ci_clean],tests/hooks/test-skip-markers.sh [test_skipped_marker_accepted]

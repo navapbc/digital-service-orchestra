@@ -16,6 +16,12 @@ The artifacts directory is computed by `get_artifacts_dir()` in `hooks/lib/deps.
 
 ---
 
+**SKIP PATHS — produce `.skipped` markers instead of running this workflow:**
+- **`enforcement.strategy=ci`**: emit `dso commit-step skip reviewer-record "enforcement.strategy=ci"` and `dso commit-step skip classifier-dispatch "enforcement.strategy=ci"`. CI enforces the review gate; local steps are deferred. See `commit-workflow-validation.md` Step 6.
+- **`SKIP_REVIEW=true`**: emit `dso commit-step skip reviewer-record "SKIP_REVIEW=true"`. The `.skipped` marker satisfies the compliance verifier in place of a `.result` file.
+
+The pre-commit compliance verifier accepts `.skipped` markers as valid substitutes for `.result` files. `.skipped` markers are written by `commit-step skip <name> "<reason>"` and contain `{"step", "reason", "timestamp"}`.
+
 **CRITICAL**: Steps 0-5 are mandatory and sequential. Step 0 clears stale artifacts — always start here, even when restarting. Step 1 runs auto-fixers (format/lint/type-check) BEFORE Step 2 captures the diff hash — this ordering prevents pre-commit hooks from invalidating the hash. You MUST dispatch the code-reviewer sub-agent in Step 4. Skipping the sub-agent and recording review JSON directly is fabrication — it violates CLAUDE.md rule #15 regardless of how "simple" the changes appear.
 
 **Worktree context (sprint Phase F / per-worktree-review-commit.md)**: If reviewing code inside an isolated worktree, do NOT follow this document directly. Use `per-worktree-review-commit.md` Step 2 instead — it wraps these steps with mandatory `cd $WORKTREE_PATH &&` prefixes and `WORKFLOW_PLUGIN_ARTIFACTS_DIR="$WORKTREE_ARTIFACTS"` exports that must be set for both the classifier (Step 3) and the review sub-agent (Step 4). Following REVIEW-WORKFLOW.md directly from the orchestrator's CWD will produce a `DIFF_VALID: no` error because diff hash and findings land in the wrong artifacts directory.
@@ -140,7 +146,7 @@ HUGE_EXIT=$?
 
 ```bash
 # Run complexity classifier to determine review tier
-CLASSIFIER_OUTPUT=$("$REPO_ROOT/.claude/scripts/dso" review-complexity-classifier.sh --diff-hash "$DIFF_HASH" < "$DIFF_FILE" 2>/dev/null) || CLASSIFIER_EXIT=$?
+CLASSIFIER_OUTPUT=$(.claude/scripts/dso commit-step classifier-dispatch 30 "review-complexity-classifier.sh --diff-hash \"$DIFF_HASH\"" < "$DIFF_FILE" 2>/dev/null) || CLASSIFIER_EXIT=$?
 if [[ "${CLASSIFIER_EXIT:-0}" -ne 0 ]] || ! echo "$CLASSIFIER_OUTPUT" | python3 -c 'import json,sys; json.load(sys.stdin)' 2>/dev/null; then
     # Classifier failed — default to standard tier per contract (classifier-tier-output.md)
     REVIEW_TIER="standard"
@@ -826,9 +832,7 @@ Call `record-review.sh` with `--expected-hash` from Step 2 and `--reviewer-hash`
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-"${CLAUDE_PLUGIN_ROOT}/hooks/record-review.sh" \
-  --expected-hash "<DIFF_HASH from Step 2>" \
-  --reviewer-hash "<REVIEWER_HASH from sub-agent>"
+.claude/scripts/dso commit-step reviewer-record 30 "record-review.sh --expected-hash \"<DIFF_HASH from Step 2>\" --reviewer-hash \"<REVIEWER_HASH from sub-agent>\""
 ```
 
 `record-review.sh` reads scores, summary, and findings from `reviewer-findings.json`, verifies `--reviewer-hash` integrity, validates findings against scores, checks file overlap with the actual diff, verifies `--expected-hash` against the current diff hash, and writes the review state file that the commit gate checks. If it rejects, fix and retry.
@@ -1064,9 +1068,7 @@ Task tool:
 4. **If re-review passes** (no critical/important/fragile findings):
    Call `record-review.sh` with the NEW diff hash and re-review's REVIEWER_HASH:
    ```bash
-   "${CLAUDE_PLUGIN_ROOT}/hooks/record-review.sh" \
-     --expected-hash "<NEW_DIFF_HASH>" \
-     --reviewer-hash "<REVIEWER_HASH from re-review sub-agent>"
+   .claude/scripts/dso commit-step reviewer-record "record-review.sh --expected-hash \"<NEW_DIFF_HASH>\" --reviewer-hash \"<REVIEWER_HASH from re-review sub-agent>\""
    ```
 
    **Emit review result event** (best-effort — does not block the workflow):

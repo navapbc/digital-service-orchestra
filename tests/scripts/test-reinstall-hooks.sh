@@ -494,6 +494,162 @@ fi
 rm -rf "$TMPDIR_T11"
 
 # ---------------------------------------------------------------------------
+# Test 12: post-commit hook is registered after reinstall (T6a RED)
+#
+# reinstall-hooks.sh currently only installs pre-commit, pre-push, and
+# prepare-commit-msg. This test asserts that post-commit is also registered.
+# It MUST FAIL until T6b adds post-commit registration to reinstall-hooks.sh.
+# ---------------------------------------------------------------------------
+echo "Test 12: post-commit hook registered after reinstall [RED]"
+
+TMPDIR_T12=$(mktemp -d)
+_CLEANUP_DIRS+=("$TMPDIR_T12")
+FAKE_REPO12="$TMPDIR_T12/repo"
+mkdir -p "$FAKE_REPO12/app/.venv/bin"
+git -C "$TMPDIR_T12" init -q "$FAKE_REPO12"
+git -C "$FAKE_REPO12" config user.email "test@test.com"
+git -C "$FAKE_REPO12" config user.name "Test"
+
+# Create a mock pre-commit that records which hook types were installed
+INSTALLED_HOOKS_LOG12="$TMPDIR_T12/installed-hooks.log"
+cat > "$FAKE_REPO12/app/.venv/bin/pre-commit" << MOCK_T12
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "install" ]]; then
+    HOOK_TYPE="pre-commit"
+    prev_arg=""
+    for arg in "\$@"; do
+        if [[ "\$prev_arg" == "--hook-type" ]]; then
+            HOOK_TYPE="\$arg"
+        fi
+        prev_arg="\$arg"
+    done
+    echo "\$HOOK_TYPE" >> "$INSTALLED_HOOKS_LOG12"
+    HOOK_DIR="\$(git -C "\$(pwd)" rev-parse --git-dir)/hooks"
+    mkdir -p "\$HOOK_DIR"
+    echo "#!/usr/bin/env bash" > "\$HOOK_DIR/\$HOOK_TYPE"
+    chmod +x "\$HOOK_DIR/\$HOOK_TYPE"
+    exit 0
+fi
+exit 1
+MOCK_T12
+chmod +x "$FAKE_REPO12/app/.venv/bin/pre-commit"
+
+WORKTREE_PATH="$FAKE_REPO12" bash "$SCRIPT" 2>/dev/null || true
+
+# Assert that post-commit hook exists and is executable
+if [ -f "$INSTALLED_HOOKS_LOG12" ] && grep -q "^post-commit$" "$INSTALLED_HOOKS_LOG12"; then
+    assert_eq "test_post_commit_registered" "installed" "installed"
+else
+    assert_eq "test_post_commit_registered" "installed" "not-installed"
+fi
+
+rm -rf "$TMPDIR_T12"
+
+# ---------------------------------------------------------------------------
+# Test 13: pre-commit-compliance-verifier hook is registered after reinstall [RED]
+#
+# reinstall-hooks.sh currently does not install pre-commit-compliance-verifier.
+# This test asserts that it IS registered. It MUST FAIL until T6 adds
+# pre-commit-compliance-verifier registration to reinstall-hooks.sh.
+# ---------------------------------------------------------------------------
+echo "Test 13: pre-commit-compliance-verifier hook registered after reinstall [RED]"
+
+TMPDIR_T13=$(mktemp -d)
+_CLEANUP_DIRS+=("$TMPDIR_T13")
+FAKE_REPO13="$TMPDIR_T13/repo"
+mkdir -p "$FAKE_REPO13/app/.venv/bin"
+git -C "$TMPDIR_T13" init -q "$FAKE_REPO13"
+git -C "$FAKE_REPO13" config user.email "test@test.com"
+git -C "$FAKE_REPO13" config user.name "Test"
+
+# Create a mock pre-commit that records which hook types were installed
+INSTALLED_HOOKS_LOG13="$TMPDIR_T13/installed-hooks.log"
+cat > "$FAKE_REPO13/app/.venv/bin/pre-commit" << MOCK_T13
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "install" ]]; then
+    HOOK_TYPE="pre-commit"
+    prev_arg=""
+    for arg in "\$@"; do
+        if [[ "\$prev_arg" == "--hook-type" ]]; then
+            HOOK_TYPE="\$arg"
+        fi
+        prev_arg="\$arg"
+    done
+    echo "\$HOOK_TYPE" >> "$INSTALLED_HOOKS_LOG13"
+    HOOK_DIR="\$(git -C "\$(pwd)" rev-parse --git-dir)/hooks"
+    mkdir -p "\$HOOK_DIR"
+    echo "#!/usr/bin/env bash" > "\$HOOK_DIR/\$HOOK_TYPE"
+    chmod +x "\$HOOK_DIR/\$HOOK_TYPE"
+    exit 0
+fi
+exit 1
+MOCK_T13
+chmod +x "$FAKE_REPO13/app/.venv/bin/pre-commit"
+
+WORKTREE_PATH="$FAKE_REPO13" bash "$SCRIPT" 2>/dev/null || true
+
+# Assert that pre-commit-compliance-verifier hook was registered
+if [ -f "$INSTALLED_HOOKS_LOG13" ] && grep -q "^pre-commit-compliance-verifier$" "$INSTALLED_HOOKS_LOG13"; then
+    assert_eq "test_compliance_verifier_registered" "installed" "installed"
+else
+    assert_eq "test_compliance_verifier_registered" "installed" "not-installed"
+fi
+
+rm -rf "$TMPDIR_T13"
+
+# ---------------------------------------------------------------------------
+# Test 14: compliance-verifier hook shim is executable after reinstall [RED]
+#
+# After reinstall-hooks.sh adds pre-commit-compliance-verifier registration
+# (T6), the generated shim at .git/hooks/pre-commit-compliance-verifier must
+# be executable. This test MUST FAIL until T6 adds the registration.
+# ---------------------------------------------------------------------------
+echo "Test 14: compliance-verifier hook shim is executable after reinstall [RED]"
+
+TMPDIR_T14=$(mktemp -d)
+_CLEANUP_DIRS+=("$TMPDIR_T14")
+FAKE_REPO14="$TMPDIR_T14/repo"
+mkdir -p "$FAKE_REPO14/app/.venv/bin"
+git -C "$TMPDIR_T14" init -q "$FAKE_REPO14"
+git -C "$FAKE_REPO14" config user.email "test@test.com"
+git -C "$FAKE_REPO14" config user.name "Test"
+
+# Create a mock pre-commit that writes hook shims for any hook type
+cat > "$FAKE_REPO14/app/.venv/bin/pre-commit" << MOCK_T14
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "install" ]]; then
+    HOOK_TYPE="pre-commit"
+    prev_arg=""
+    for arg in "\$@"; do
+        if [[ "\$prev_arg" == "--hook-type" ]]; then
+            HOOK_TYPE="\$arg"
+        fi
+        prev_arg="\$arg"
+    done
+    HOOK_DIR="\$(git -C "\$(pwd)" rev-parse --git-dir)/hooks"
+    mkdir -p "\$HOOK_DIR"
+    echo "#!/usr/bin/env bash" > "\$HOOK_DIR/\$HOOK_TYPE"
+    echo "# INSTALL_PYTHON=/some/path/.venv/bin/python" >> "\$HOOK_DIR/\$HOOK_TYPE"
+    chmod +x "\$HOOK_DIR/\$HOOK_TYPE"
+    exit 0
+fi
+exit 1
+MOCK_T14
+chmod +x "$FAKE_REPO14/app/.venv/bin/pre-commit"
+
+WORKTREE_PATH="$FAKE_REPO14" bash "$SCRIPT" 2>/dev/null || true
+
+# Assert that the compliance-verifier shim was created and is executable
+SHIM_T14="$FAKE_REPO14/.git/hooks/pre-commit-compliance-verifier"
+if [ -f "$SHIM_T14" ] && [ -x "$SHIM_T14" ]; then
+    assert_eq "test_exec_bit_preserved_after_sync" "executable" "executable"
+else
+    assert_eq "test_exec_bit_preserved_after_sync" "executable" "not-installed-or-not-executable"
+fi
+
+rm -rf "$TMPDIR_T14"
+
+# ---------------------------------------------------------------------------
 # Print summary
 # ---------------------------------------------------------------------------
 print_summary

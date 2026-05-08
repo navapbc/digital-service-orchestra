@@ -1,0 +1,6 @@
+{
+  "security": "security-redteam-findings.json",
+  "performance": "performance-findings.json",
+  "test_quality": "test-quality-findings.json",
+  "accessibility": "accessibility-findings.json"
+}

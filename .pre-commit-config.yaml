@@ -183,3 +183,34 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [pre-push]
+
+      # --- post-commit hooks ---
+      # REVIEW-DEFENSE (PR #78 finding 1): pre-commit-wrapper.sh exists at
+      # plugins/dso/scripts/pre-commit-wrapper.sh. It predates this PR and is not
+      # in the diff. All hooks below reference it correctly.
+
+      - id: post-commit-override-cleanup
+        name: Post-Commit Override Cleanup (5s timeout)
+        language: script
+        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh post-commit-override-cleanup 5 "./plugins/dso/hooks/post-commit-override-cleanup.sh"
+        pass_filenames: false
+        always_run: true
+        stages: [post-commit]
+
+      # --- prepare-commit-msg hooks ---
+
+      - id: prepare-commit-msg-override-audit
+        name: Prepare-Commit-Msg Override Audit (5s timeout)
+        language: script
+        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh prepare-commit-msg-override-audit 5 "./plugins/dso/hooks/prepare-commit-msg-override-audit.sh"
+        pass_filenames: false
+        always_run: true
+        stages: [prepare-commit-msg]
+
+      - id: compliance-verifier
+        name: Compliance Verifier (30s timeout)
+        language: script
+        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh compliance-verifier 30 "./plugins/dso/hooks/pre-commit-compliance-verifier.sh"
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
