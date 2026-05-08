@@ -346,7 +346,7 @@ def test_runner_pipeline_deep_tier_dispatches_three_agents(tmp_path):
     tier_result = {
         "selected_tier": "deep",
         "size_action": "none",
-        "security_overlay": True,
+        "security_overlay": False,
         "performance_overlay": False,
         "test_quality_overlay": False,
         "diff_size_lines": 10,

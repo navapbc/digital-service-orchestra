@@ -27,7 +27,7 @@ import subprocess
 import sys
 import tempfile
 
-from dso_ci_review.dispatch import async_dispatch_specialists, _validate_agent_files
+from dso_ci_review.dispatch import async_dispatch_specialists, _validate_agent_files, dispatch_arch_synthesis
 from dso_ci_review.findings import merge_findings
 from dso_ci_review.providers.config import AuthError, ConfigError, get_provider
 
@@ -431,6 +431,7 @@ _TIER_MODEL_DEFAULTS: dict[str, str] = {
     "light": "claude-haiku-4-5-20251001",
     "standard": "claude-sonnet-4-6",
     "deep": "claude-sonnet-4-6",
+    "deep-arch": "claude-opus-4-7",
 }
 
 
@@ -529,6 +530,96 @@ def _build_agents_for_tier(
     return agents
 
 
+_OVERLAY_AGENT_IDS: dict[str, str] = {
+    "security": "code-reviewer-security-red-team",
+    "performance": "code-reviewer-performance",
+    "test_quality": "code-reviewer-test-quality",
+}
+
+
+def _build_overlay_agents(
+    classification: dict,
+    diff_text: str,
+    config_path: str | None = None,
+) -> list[dict]:
+    """Build overlay agent descriptors based on classifier flags.
+
+    Reads ``security_overlay``, ``performance_overlay``, and
+    ``test_quality_overlay`` from the classification dict.  For each flag
+    that is True, an agent descriptor is appended to the returned list.
+    """
+    agents: list[dict] = []
+    flag_map = {
+        "security_overlay": "security",
+        "performance_overlay": "performance",
+        "test_quality_overlay": "test_quality",
+    }
+    for flag, dimension in flag_map.items():
+        if classification.get(flag):
+            agents.append(
+                {
+                    "agent_id": _OVERLAY_AGENT_IDS[dimension],
+                    "diff_text": diff_text,
+                    "config_path": config_path,
+                }
+            )
+    return agents
+
+
+def _overlay_agents_from_findings(
+    findings_list: list[dict],
+    diff_text: str = "",
+    config_path: str | None = None,
+) -> list[dict]:
+    """Scan first-pass findings for warranted overlay signals.
+
+    Checks each finding dict for:
+    - ``type == "overlay_warranted"`` with a ``dimension`` field
+      (``security``, ``performance``, or ``test_quality``)
+    - Boolean/string fields ``security_overlay_warranted``,
+      ``performance_overlay_warranted``, ``test_quality_overlay_warranted``
+    - The ``summary`` string field for patterns like
+      ``security_overlay_warranted: yes``
+
+    Returns a deduplicated list of overlay agent descriptors.
+    """
+    warranted: set[str] = set()
+
+    for findings_dict in findings_list:
+        for finding in findings_dict.get("findings") or []:
+            # Pattern 1: explicit type=overlay_warranted with dimension
+            if finding.get("type") == "overlay_warranted":
+                dimension = finding.get("dimension", "")
+                if dimension in _OVERLAY_AGENT_IDS:
+                    warranted.add(dimension)
+
+            # Pattern 2: boolean/string flag fields
+            for flag_field, dimension in (
+                ("security_overlay_warranted", "security"),
+                ("performance_overlay_warranted", "performance"),
+                ("test_quality_overlay_warranted", "test_quality"),
+            ):
+                val = finding.get(flag_field)
+                if val is True or str(val).lower() == "yes":
+                    warranted.add(dimension)
+
+            # Pattern 3: summary field string scan
+            summary = str(finding.get("summary", ""))
+            for dimension in _OVERLAY_AGENT_IDS:
+                pattern = f"{dimension}_overlay_warranted: yes"
+                if pattern in summary.lower():
+                    warranted.add(dimension)
+
+    return [
+        {
+            "agent_id": _OVERLAY_AGENT_IDS[dim],
+            "diff_text": diff_text,
+            "config_path": config_path,
+        }
+        for dim in warranted
+    ]
+
+
 def main() -> int:
     """Run the CI review and return an exit code."""
     dry_run = os.environ.get("DSO_CI_REVIEW_DRY_RUN") == "1"
@@ -593,16 +684,64 @@ def main() -> int:
         classification = _classify_tier_via_bash(diff_text)
         tier = classification["selected_tier"]
 
-        # Step 2: build agent list based on tier
-        agents = _build_agents_for_tier(tier, diff_text, classification)
+        # Resolve config_path once for overlay agent construction
+        config_path: str | None = None
 
-        # Step 3: dispatch agents (async)
-        all_findings = asyncio.run(async_dispatch_specialists(agents))
+        # Step 2: build agent list based on tier, plus any classifier-flagged overlays
+        tier_agents = _build_agents_for_tier(tier, diff_text, classification, config_path)
+        overlay_agents = _build_overlay_agents(classification, diff_text, config_path)
 
-        # Step 4: merge findings
+        # Enrich overlay descriptors with model + provider_chain for dispatch
+        base_model = _read_tier_model(tier, config_path)
+        provider_chain = [os.environ.get("CI_REVIEW_PROVIDER", "anthropic")]
+        for agent in overlay_agents:
+            agent.setdefault("model", base_model)
+            agent.setdefault("provider_chain", provider_chain)
+
+        # Step 3: dispatch tier agents + classifier-flagged overlays together (parallel)
+        first_pass_findings = asyncio.run(
+            async_dispatch_specialists(tier_agents + overlay_agents)
+        )
+
+        # Step 4: check first-pass findings for warranted second-pass overlays
+        warranted_overlay_agents = _overlay_agents_from_findings(
+            first_pass_findings, diff_text, config_path
+        )
+        all_findings = list(first_pass_findings)
+        if warranted_overlay_agents:
+            # Enrich warranted overlay descriptors with model + provider_chain
+            for agent in warranted_overlay_agents:
+                agent.setdefault("model", base_model)
+                agent.setdefault("provider_chain", provider_chain)
+            second_pass_findings = asyncio.run(
+                async_dispatch_specialists(warranted_overlay_agents)
+            )
+            all_findings.extend(second_pass_findings)
+
+        # Step 5: merge findings
         merged = merge_findings(*all_findings)
 
-        # Step 5: write output
+        # Step 6: for deep tier, run arch synthesis after specialists; the arch
+        # synthesis result replaces the merged specialist output as the final result
+        # when it succeeds (non-synthetic findings or no findings at all).
+        # On infrastructure failure (fallback_exhausted / specialist_error), the
+        # merged specialist output is preserved so the severity gate still fires.
+        if tier == "deep":
+            arch_model = _read_tier_model("deep-arch", config_path)
+            arch_result = dispatch_arch_synthesis(
+                json.dumps(merged),
+                diff_text=diff_text,
+                model=arch_model,
+                provider_chain=provider_chain,
+            )
+            arch_findings = arch_result.get("findings") or []
+            arch_all_synthetic = bool(arch_findings) and all(
+                f.get("type", "") in _SYNTHETIC_TYPES for f in arch_findings
+            )
+            if not arch_all_synthetic:
+                merged = arch_result
+
+        # Step 7: write output
         _write_output(merged)
     except Exception as exc:  # noqa: BLE001
         print(f"ERROR: LLM call failed: {exc}", file=sys.stderr)

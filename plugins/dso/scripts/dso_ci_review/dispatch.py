@@ -654,6 +654,23 @@ async def _call_single_agent(
         }
 
 
+def dispatch_arch_synthesis(
+    merged_findings_json: str,
+    diff_text: str,
+    model: str,
+    provider_chain: list[str],
+) -> dict:
+    """Approximate opus arch synthesis: sequential call after 3 parallel specialists."""
+    augmented_input = f"{diff_text}\n\n## Prior specialist findings\n\n{merged_findings_json}"
+    return dispatch_review(
+        diff_text=augmented_input,
+        agent_id="code-reviewer-deep-arch",
+        primary_model=model,
+        provider_chain=provider_chain,
+        tier="deep",
+    )
+
+
 async def async_dispatch_specialists(
     agents: list[dict],
 ) -> list[dict]:
