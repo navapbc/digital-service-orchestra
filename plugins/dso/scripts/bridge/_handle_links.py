@@ -132,6 +132,15 @@ def _local_has_supersedes_to(
     Used by the lossy supersedes/Relates precedence rule: when Jira sends a
     Relates link for which local has already recorded a supersedes link, we
     do not overwrite the local supersedes by emitting a competing relates_to.
+
+    None semantics (intentional, fail-open): when ticket_reducer is None or
+    ticket_dir does not exist, this returns False so the caller falls through
+    to the standard relates_to write path. Production callers in process_inbound
+    always supply ticket_reducer; the None-tolerant branch exists for unit tests
+    that exercise non-supersedes Relates paths and for direct set_relationship
+    calls outside the inbound pipeline. The downside is that a missing reducer
+    silently shadows local supersedes links — an upstream caller bug would
+    surface as duplicated relates_to events rather than a hard failure.
     """
     if ticket_reducer is None or not ticket_dir.is_dir():
         return False
