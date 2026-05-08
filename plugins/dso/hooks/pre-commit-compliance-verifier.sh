@@ -50,9 +50,10 @@ try:
     with open(sys.argv[1]) as f:
         data = json.load(f)
     print(data.get('diff_hash', ''))
-except Exception:
+except Exception as e:
+    print('WARNING: pre-commit-compliance-verifier: override.token is malformed (' + str(e) + ') — ignoring token', file=sys.stderr)
     print('')
-" "$_token_file" 2>/dev/null || echo "")
+" "$_token_file" || echo "")
     if [[ -n "$_token_hash" && "$_token_hash" == "$_current_hash" ]]; then
         exit 0
     fi

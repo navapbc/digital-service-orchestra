@@ -89,7 +89,7 @@ run_precommit_install() {
     fi
 }
 
-for hook_type in pre-commit pre-push prepare-commit-msg post-commit pre-commit-compliance-verifier; do
+for hook_type in pre-commit pre-push prepare-commit-msg post-commit; do
     if run_precommit_install "$hook_type"; then
         echo "  Installed hook: $hook_type" >&2
     else
@@ -210,7 +210,7 @@ patch_hook_shim() {
 }
 
 patched_count=0
-for hook_type in pre-commit pre-push prepare-commit-msg post-commit pre-commit-compliance-verifier; do
+for hook_type in pre-commit pre-push prepare-commit-msg post-commit; do
     hook_file="$HOOKS_DIR/$hook_type"
     if [ -f "$hook_file" ]; then
         patch_hook_shim "$hook_file"

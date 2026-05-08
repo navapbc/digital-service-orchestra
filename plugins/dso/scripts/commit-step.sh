@@ -127,7 +127,11 @@ data = {
 if sys.argv[6]:
     data['harvest_mode'] = True
 print(json.dumps(data, indent=2))
-" "$_step_name" "$_exit" "$_stdout" "$_stderr" "$_ts" "$_harvest_flag" > "$_artifact_tmp"
+" "$_step_name" "$_exit" "$_stdout" "$_stderr" "$_ts" "$_harvest_flag" > "$_artifact_tmp" || {
+        echo "ERROR: commit-step: failed to write artifact JSON for '${_step_name}'" >&2
+        rm -f "$_artifact_tmp"
+        exit 1
+    }
     mv "$_artifact_tmp" "$ARTIFACTS_DIR/${_step_name}.result"
 fi
 
