@@ -4,6 +4,7 @@
 #
 # Hook execution order:
 #   1. hook_extract_agent_suggestion  — extract first SUGGESTION: line and call suggestion-record.sh
+#   2. hook_record_agent_attribution  — append agent/model entry to attribution-contributors.jsonl
 #
 # PostToolUse hooks always exit 0 (non-blocking).
 # Always emits at least '{}' on stdout per Claude Code bug #10463 workaround.
@@ -54,6 +55,7 @@ _post_agent_dispatch() {
     INPUT=$(cat)
 
     _run_post_fn hook_extract_agent_suggestion "$INPUT"
+    _run_post_fn hook_record_agent_attribution "$INPUT"
 }
 
 # Only execute dispatch logic when run as a script (not sourced).

@@ -101,7 +101,7 @@ assert_contains \
 
 assert_contains \
     "test_post_agent_dispatcher_writes_attribution_jsonl_entry: jsonl contains type=agent" \
-    '"type":"agent"' \
+    '"type": "agent"' \
     "$_T1_JSONL_CONTENT"
 
 # ============================================================
