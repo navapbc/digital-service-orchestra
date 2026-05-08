@@ -91,6 +91,8 @@ For EACH finding, assign ONE action:
 | **Defend** | Finding is a false positive or acceptable tradeoff. Best for subjective findings (readability, design). NEVER for minor findings. Valid for `critical`, `important`, and `fragile` findings when a genuine tradeoff exists. | Add a `# REVIEW-DEFENSE: <explanation>` comment near the flagged code. Must reference verifiable artifacts (code, tests, ADRs). |
 | **Defer** | Finding is pre-existing, out of scope, or minor severity. **NEVER for `critical`, `important`, or `fragile` findings.** | Create a ticket: `.claude/scripts/dso ticket create bug "Fix: <finding>" --priority <P>`. Then note it in FINDINGS_ADDRESSED. |
 
+**Schema contracts:** [`review-findings-schema.md`](../../contracts/review-findings-schema.md) defines the relation taxonomy (`NEW_INTRODUCED`, `NEW_PRE_EXISTING`, `RESUSTAIN_OF`, `REFRAME_OF`) used in cycle-N+1 reviews. [`review-defenses.md`](../../contracts/review-defenses.md) defines the DefenseStore record shape and `DEFENSE_RECORD:` canonical parsing prefix.
+
 If ALL findings are Deferred, return immediately:
 ```
 RESOLUTION_RESULT: ESCALATE

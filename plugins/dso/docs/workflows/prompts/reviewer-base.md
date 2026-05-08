@@ -305,6 +305,8 @@ When you encounter a `# REVIEW-DEFENSE:` comment in the code:
 Defenses based on unverifiable claims (e.g., "for performance reasons" with no benchmark,
 test, or documented tradeoff) should be treated skeptically.
 
+**Schema contracts**: [`review-findings-schema.md`](../../contracts/review-findings-schema.md) — defines the `relation` field taxonomy (`NEW_INTRODUCED`, `NEW_PRE_EXISTING`, `RESUSTAIN_OF`, `REFRAME_OF`) for reviewer-findings.json. [`review-defenses.md`](../../contracts/review-defenses.md) — defines the DefenseStore record shape, `cited_lines_fingerprint` algorithm, and `DEFENSE_RECORD:` canonical parsing prefix.
+
 ---
 
 ## Pre-Output Category Coverage Check
