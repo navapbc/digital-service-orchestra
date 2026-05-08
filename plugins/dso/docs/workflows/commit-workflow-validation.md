@@ -46,7 +46,7 @@ if [ -z "$TEST_CHANGED_CMD" ]; then
     echo "commands.test_changed not configured — skipping changed-test step"
     # continue to Step 2
 else
-    "$REPO_ROOT/$TEST_CHANGED_CMD"
+    .claude/scripts/dso commit-step test "$TEST_CHANGED_CMD"
 fi
 ```
 
@@ -106,7 +106,8 @@ CHANGED_FILES=$(git diff --name-only)
 Run formatting on modified files so file edits are complete before staging.
 
 ```bash
-cd app && make format-modified
+FORMAT_CHECK_CMD="cd app && make format-modified"
+.claude/scripts/dso commit-step format "$FORMAT_CHECK_CMD"
 ```
 
 ```bash
@@ -118,11 +119,13 @@ echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-2-format" >> "$ARTIFACTS_DIR/commit-br
 Run lint and type checks before staging. Any tool that may edit files must run before `git add`.
 
 ```bash
-cd app && make lint-ruff 2>&1 | tail -3
+LINT_CMD="cd app && make lint-ruff 2>&1 | tail -3"
+.claude/scripts/dso commit-step lint "$LINT_CMD"
 ```
 
 ```bash
-cd app && make lint-mypy 2>&1 | tail -5
+LINT_CMD="cd app && make lint-mypy 2>&1 | tail -5"
+.claude/scripts/dso commit-step lint "$LINT_CMD"
 ```
 
 On success, only the summary lines are needed. If either exit code is non-zero, re-run with full output to see errors.

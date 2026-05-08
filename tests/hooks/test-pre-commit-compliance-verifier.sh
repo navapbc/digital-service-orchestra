@@ -132,4 +132,93 @@ EXIT_CODE=$(run_hook \
 assert_eq "test_timeout_artifact_handling" "1" "$EXIT_CODE"
 
 # ---------------------------------------------------------------------------
+# test_verifier_passes_all_artifacts_present  [GREEN now, stays GREEN after T2]
+# All 5 required artifacts present → exits 0
+# ---------------------------------------------------------------------------
+ARTIFACTS_DIR_9=$(mktemp -d "${TMPDIR:-/tmp}/test-cv-all-present-XXXXXX")
+trap 'rm -rf "$ARTIFACTS_DIR_9"' EXIT
+echo "pass" > "$ARTIFACTS_DIR_9/test.result"
+echo "pass" > "$ARTIFACTS_DIR_9/format.result"
+echo "pass" > "$ARTIFACTS_DIR_9/lint.result"
+echo "pass" > "$ARTIFACTS_DIR_9/classifier-dispatch.result"
+echo "pass" > "$ARTIFACTS_DIR_9/reviewer-record.result"
+
+EXIT_CODE=$(run_hook \
+    "DSO_COMPLIANCE_VERIFIER_ENABLED=true" \
+    "WORKFLOW_PLUGIN_ARTIFACTS_DIR=$ARTIFACTS_DIR_9")
+assert_eq "test_verifier_passes_all_artifacts_present" "0" "$EXIT_CODE"
+
+# ---------------------------------------------------------------------------
+# test_verifier_blocks_missing_test  [RED until T2]
+# lint.result present but test.result absent → exits 1
+# Current verifier only checks lint.result → exits 0 → RED
+# ---------------------------------------------------------------------------
+ARTIFACTS_DIR_10=$(mktemp -d "${TMPDIR:-/tmp}/test-cv-no-test-XXXXXX")
+trap 'rm -rf "$ARTIFACTS_DIR_10"' EXIT
+# Intentionally omit test.result
+echo "pass" > "$ARTIFACTS_DIR_10/format.result"
+echo "pass" > "$ARTIFACTS_DIR_10/lint.result"
+echo "pass" > "$ARTIFACTS_DIR_10/classifier-dispatch.result"
+echo "pass" > "$ARTIFACTS_DIR_10/reviewer-record.result"
+
+EXIT_CODE=$(run_hook \
+    "DSO_COMPLIANCE_VERIFIER_ENABLED=true" \
+    "WORKFLOW_PLUGIN_ARTIFACTS_DIR=$ARTIFACTS_DIR_10")
+assert_eq "test_verifier_blocks_missing_test" "1" "$EXIT_CODE"
+
+# ---------------------------------------------------------------------------
+# test_verifier_blocks_missing_format  [RED until T2]
+# lint.result present but format.result absent → exits 1
+# Current verifier only checks lint.result → exits 0 → RED
+# ---------------------------------------------------------------------------
+ARTIFACTS_DIR_11=$(mktemp -d "${TMPDIR:-/tmp}/test-cv-no-format-XXXXXX")
+trap 'rm -rf "$ARTIFACTS_DIR_11"' EXIT
+echo "pass" > "$ARTIFACTS_DIR_11/test.result"
+# Intentionally omit format.result
+echo "pass" > "$ARTIFACTS_DIR_11/lint.result"
+echo "pass" > "$ARTIFACTS_DIR_11/classifier-dispatch.result"
+echo "pass" > "$ARTIFACTS_DIR_11/reviewer-record.result"
+
+EXIT_CODE=$(run_hook \
+    "DSO_COMPLIANCE_VERIFIER_ENABLED=true" \
+    "WORKFLOW_PLUGIN_ARTIFACTS_DIR=$ARTIFACTS_DIR_11")
+assert_eq "test_verifier_blocks_missing_format" "1" "$EXIT_CODE"
+
+# ---------------------------------------------------------------------------
+# test_verifier_blocks_missing_reviewer_record  [RED until T2]
+# lint.result present but reviewer-record.result absent → exits 1
+# Current verifier only checks lint.result → exits 0 → RED
+# ---------------------------------------------------------------------------
+ARTIFACTS_DIR_12=$(mktemp -d "${TMPDIR:-/tmp}/test-cv-no-reviewer-XXXXXX")
+trap 'rm -rf "$ARTIFACTS_DIR_12"' EXIT
+echo "pass" > "$ARTIFACTS_DIR_12/test.result"
+echo "pass" > "$ARTIFACTS_DIR_12/format.result"
+echo "pass" > "$ARTIFACTS_DIR_12/lint.result"
+echo "pass" > "$ARTIFACTS_DIR_12/classifier-dispatch.result"
+# Intentionally omit reviewer-record.result
+
+EXIT_CODE=$(run_hook \
+    "DSO_COMPLIANCE_VERIFIER_ENABLED=true" \
+    "WORKFLOW_PLUGIN_ARTIFACTS_DIR=$ARTIFACTS_DIR_12")
+assert_eq "test_verifier_blocks_missing_reviewer_record" "1" "$EXIT_CODE"
+
+# ---------------------------------------------------------------------------
+# test_verifier_blocks_missing_classifier_dispatch  [RED until T2]
+# lint.result present but classifier-dispatch.result absent → exits 1
+# Current verifier only checks lint.result → exits 0 → RED
+# ---------------------------------------------------------------------------
+ARTIFACTS_DIR_13=$(mktemp -d "${TMPDIR:-/tmp}/test-cv-no-classifier-XXXXXX")
+trap 'rm -rf "$ARTIFACTS_DIR_13"' EXIT
+echo "pass" > "$ARTIFACTS_DIR_13/test.result"
+echo "pass" > "$ARTIFACTS_DIR_13/format.result"
+echo "pass" > "$ARTIFACTS_DIR_13/lint.result"
+# Intentionally omit classifier-dispatch.result
+echo "pass" > "$ARTIFACTS_DIR_13/reviewer-record.result"
+
+EXIT_CODE=$(run_hook \
+    "DSO_COMPLIANCE_VERIFIER_ENABLED=true" \
+    "WORKFLOW_PLUGIN_ARTIFACTS_DIR=$ARTIFACTS_DIR_13")
+assert_eq "test_verifier_blocks_missing_classifier_dispatch" "1" "$EXIT_CODE"
+
+# ---------------------------------------------------------------------------
 print_summary
