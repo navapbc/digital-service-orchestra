@@ -46,8 +46,11 @@ _failed=0
 for _step in "${_required_steps[@]}"; do
     _result="$ARTIFACTS_DIR/${_step}.result"
     _timeout="$ARTIFACTS_DIR/${_step}.timeout"
+    _skipped="$ARTIFACTS_DIR/${_step}.skipped"
     if [[ -f "$_result" ]]; then
         : # step passed
+    elif [[ -f "$_skipped" ]]; then
+        : # step explicitly skipped — accepted in place of .result
     elif [[ -f "$_timeout" ]]; then
         echo "ERROR: pre-commit-compliance-verifier: step '${_step}' timed out (exit 144) — commit blocked" >&2
         _failed=1

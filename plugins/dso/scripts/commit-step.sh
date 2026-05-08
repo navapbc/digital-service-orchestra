@@ -11,6 +11,48 @@ if [[ $# -lt 1 ]]; then
 fi
 
 _step_name="$1"
+
+# ── Handle skip subcommand ──
+# Usage: commit-step.sh skip <name> "<reason>"
+# Writes $ARTIFACTS_DIR/<name>.skipped JSON: {"step": "...", "reason": "...", "timestamp": "..."}
+if [[ "$_step_name" == "skip" ]]; then
+    if [[ $# -lt 3 ]]; then
+        echo "ERROR: skip subcommand requires <name> and <reason>" >&2
+        echo "Usage: $(basename "$0") skip <name> \"<reason>\"" >&2
+        exit 1
+    fi
+    _skip_name="$2"
+    _skip_reason="$3"
+
+    # ── Resolve plugin root and source deps.sh ──
+    _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    _DEPS_PATH="$_SCRIPT_DIR/../hooks/lib/deps.sh"
+    if [[ -f "$_DEPS_PATH" ]]; then
+        # shellcheck source=../hooks/lib/deps.sh
+        source "$_DEPS_PATH"
+    else
+        echo "ERROR: deps.sh not found at $_DEPS_PATH" >&2
+        exit 1
+    fi
+
+    ARTIFACTS_DIR=$(get_artifacts_dir)
+    mkdir -p "$ARTIFACTS_DIR"
+
+    _ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    python3 -c "
+import json, sys
+data = {
+    'step': sys.argv[1],
+    'reason': sys.argv[2],
+    'timestamp': sys.argv[3]
+}
+print(json.dumps(data, indent=2))
+" "$_skip_name" "$_skip_reason" "$_ts" > "$ARTIFACTS_DIR/${_skip_name}.skipped"
+
+    echo "commit-step: skipped step '${_skip_name}' — ${_skip_reason}"
+    exit 0
+fi
+
 shift  # skip step-name
 shift  # skip timeout-seconds (recorded for future use, not enforced here)
 
