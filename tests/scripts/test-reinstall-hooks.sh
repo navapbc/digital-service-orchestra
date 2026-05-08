@@ -494,6 +494,58 @@ fi
 rm -rf "$TMPDIR_T11"
 
 # ---------------------------------------------------------------------------
+# Test 12: post-commit hook is registered after reinstall (T6a RED)
+#
+# reinstall-hooks.sh currently only installs pre-commit, pre-push, and
+# prepare-commit-msg. This test asserts that post-commit is also registered.
+# It MUST FAIL until T6b adds post-commit registration to reinstall-hooks.sh.
+# ---------------------------------------------------------------------------
+echo "Test 12: post-commit hook registered after reinstall [RED]"
+
+TMPDIR_T12=$(mktemp -d)
+_CLEANUP_DIRS+=("$TMPDIR_T12")
+FAKE_REPO12="$TMPDIR_T12/repo"
+mkdir -p "$FAKE_REPO12/app/.venv/bin"
+git -C "$TMPDIR_T12" init -q "$FAKE_REPO12"
+git -C "$FAKE_REPO12" config user.email "test@test.com"
+git -C "$FAKE_REPO12" config user.name "Test"
+
+# Create a mock pre-commit that records which hook types were installed
+INSTALLED_HOOKS_LOG12="$TMPDIR_T12/installed-hooks.log"
+cat > "$FAKE_REPO12/app/.venv/bin/pre-commit" << MOCK_T12
+#!/usr/bin/env bash
+if [[ "\${1:-}" == "install" ]]; then
+    HOOK_TYPE="pre-commit"
+    prev_arg=""
+    for arg in "\$@"; do
+        if [[ "\$prev_arg" == "--hook-type" ]]; then
+            HOOK_TYPE="\$arg"
+        fi
+        prev_arg="\$arg"
+    done
+    echo "\$HOOK_TYPE" >> "$INSTALLED_HOOKS_LOG12"
+    HOOK_DIR="\$(git -C "\$(pwd)" rev-parse --git-dir)/hooks"
+    mkdir -p "\$HOOK_DIR"
+    echo "#!/usr/bin/env bash" > "\$HOOK_DIR/\$HOOK_TYPE"
+    chmod +x "\$HOOK_DIR/\$HOOK_TYPE"
+    exit 0
+fi
+exit 1
+MOCK_T12
+chmod +x "$FAKE_REPO12/app/.venv/bin/pre-commit"
+
+WORKTREE_PATH="$FAKE_REPO12" bash "$SCRIPT" 2>/dev/null || true
+
+# Assert that post-commit hook exists and is executable
+if [ -f "$INSTALLED_HOOKS_LOG12" ] && grep -q "^post-commit$" "$INSTALLED_HOOKS_LOG12"; then
+    assert_eq "test_post_commit_registered" "installed" "installed"
+else
+    assert_eq "test_post_commit_registered" "installed" "not-installed"
+fi
+
+rm -rf "$TMPDIR_T12"
+
+# ---------------------------------------------------------------------------
 # Print summary
 # ---------------------------------------------------------------------------
 print_summary
