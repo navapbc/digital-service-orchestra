@@ -85,15 +85,16 @@ mkdir -p "$_T1_ARTIFACTS"
 _T1_AGENT_INPUT='{"tool_name":"Agent","tool_input":{"prompt":"do review","subagent_type":"code-reviewer"},"tool_response":{"output":"Done.","model":"claude-sonnet-4-6"}}'
 
 _t1_exit=0
-_t1_output=$(bash -c '
+_t1_output=$(
+    env PATH="$_T1_MOCKBIN:$PATH" \
+        ARTIFACTS_DIR="$_T1_ARTIFACTS" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        SCRIPTS_DIR="$_T1_MOCKBIN" \
+        bash -c "
     set -uo pipefail
-    export PATH="'"$_T1_MOCKBIN"':$PATH"
-    export ARTIFACTS_DIR="'"$_T1_ARTIFACTS"'"
-    export CLAUDE_PLUGIN_ROOT="'"$DSO_PLUGIN_DIR"'"
-    export SCRIPTS_DIR="'"$_T1_MOCKBIN"'"
-    source "'"$POST_FUNCTIONS"'" 2>/dev/null
-    hook_record_agent_attribution "'"$_T1_AGENT_INPUT"'"
-' 2>&1) || _t1_exit=$?
+    source \"$POST_FUNCTIONS\" 2>/dev/null
+    hook_record_agent_attribution '$_T1_AGENT_INPUT'
+" 2>&1) || _t1_exit=$?
 
 _T1_JSONL="$_T1_ARTIFACTS/attribution-contributors.jsonl"
 
@@ -166,15 +167,15 @@ mkdir -p "$_T2_ARTIFACTS"
 _T2_AGENT_INPUT='{"tool_name":"Agent","tool_input":{"prompt":"do review","subagent_type":"code-reviewer"},"tool_response":{"output":"Done.","model":"claude-sonnet-4-6"}}'
 
 _t2_exit=0
-bash -c '
+env PATH="$_T2_MOCKBIN:$PATH" \
+    ARTIFACTS_DIR="$_T2_ARTIFACTS" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    SCRIPTS_DIR="$_T2_MOCKBIN" \
+    bash -c "
     set -uo pipefail
-    export PATH="'"$_T2_MOCKBIN"':$PATH"
-    export ARTIFACTS_DIR="'"$_T2_ARTIFACTS"'"
-    export CLAUDE_PLUGIN_ROOT="'"$DSO_PLUGIN_DIR"'"
-    export SCRIPTS_DIR="'"$_T2_MOCKBIN"'"
-    source "'"$POST_FUNCTIONS"'" 2>/dev/null
-    hook_record_agent_attribution "'"$_T2_AGENT_INPUT"'"
-' 2>/dev/null || _t2_exit=$?
+    source \"$POST_FUNCTIONS\" 2>/dev/null
+    hook_record_agent_attribution '$_T2_AGENT_INPUT'
+" 2>/dev/null || _t2_exit=$?
 
 _T2_JSONL="$_T2_ARTIFACTS/attribution-contributors.jsonl"
 

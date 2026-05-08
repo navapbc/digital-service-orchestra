@@ -343,6 +343,74 @@ except Exception:
     return 0
 }
 
+# ---------------------------------------------------------------------------
+# hook_record_agent_attribution
+# ---------------------------------------------------------------------------
+# PostToolUse hook: record agent attribution data when an Agent tool completes.
+# Only fires when attribution.enabled=true in dso-config.conf.
+#
+# Reads subagent_type from tool_input.subagent_type and model from
+# tool_response.model, then appends a JSONL entry to
+# $ARTIFACTS_DIR/attribution-contributors.jsonl.
+#
+# Guard: early-return if attribution.enabled != "true" (checked via read-config.sh).
+hook_record_agent_attribution() {
+    local INPUT="$1"
+    trap 'return 0' ERR
+
+    # Guard: check attribution.enabled via read-config.sh (SCRIPTS_DIR must be set)
+    local _enabled=""
+    if [[ -n "${SCRIPTS_DIR:-}" && -f "$SCRIPTS_DIR/read-config.sh" ]]; then
+        _enabled=$(bash "$SCRIPTS_DIR/read-config.sh" attribution.enabled 2>/dev/null) || _enabled=""
+    fi
+    [[ "$_enabled" == "true" ]] || return 0
+
+    # Extract subagent_type and model using python3 for reliable JSON parsing
+    local _subagent_type=""
+    local _model=""
+    _subagent_type=$(python3 -c "
+import json, sys
+try:
+    d = json.loads(sys.argv[1])
+    ti = d.get('tool_input', {})
+    print(ti.get('subagent_type', '') if isinstance(ti, dict) else '')
+except Exception:
+    pass
+" "$INPUT" 2>/dev/null) || _subagent_type=""
+
+    _model=$(python3 -c "
+import json, sys
+try:
+    d = json.loads(sys.argv[1])
+    tr = d.get('tool_response', {})
+    print(tr.get('model', '') if isinstance(tr, dict) else '')
+except Exception:
+    pass
+" "$INPUT" 2>/dev/null) || _model=""
+
+    # Resolve ARTIFACTS_DIR (use existing env var or call get_artifacts_dir)
+    local _art_dir="${ARTIFACTS_DIR:-}"
+    if [[ -z "$_art_dir" ]]; then
+        _art_dir=$(get_artifacts_dir)
+    fi
+    mkdir -p "$_art_dir"
+
+    # Build and append JSONL entry
+    local _entry
+    _entry=$(python3 -c "
+import json, sys
+entry = {'type': 'agent', 'subagent_type': sys.argv[1], 'model': sys.argv[2]}
+print(json.dumps(entry))
+" "$_subagent_type" "$_model" 2>/dev/null) || _entry=""
+
+    if [[ -n "$_entry" ]]; then
+        printf '%s\n' "$_entry" >> "$_art_dir/attribution-contributors.jsonl"
+    fi
+
+    trap - ERR
+    return 0
+}
+
 # hook_tool_logging_pre
 # ---------------------------------------------------------------------------
 # PreToolUse hook: log tool call with MODE hardcoded to "pre".
