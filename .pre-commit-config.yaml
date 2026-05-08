@@ -203,3 +203,11 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [prepare-commit-msg]
+
+      - id: compliance-verifier
+        name: Compliance Verifier (30s timeout)
+        language: script
+        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh compliance-verifier 30 "./plugins/dso/hooks/pre-commit-compliance-verifier.sh"
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
