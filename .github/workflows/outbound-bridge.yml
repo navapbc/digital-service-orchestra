@@ -261,3 +261,23 @@ jobs:
       - name: Job timing report
         if: always()
         run: echo "outbound-bridge completed at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+      - name: Notify on bridge failure
+        if: failure()
+        env:
+          GH_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          {
+            echo "## :rotating_light: Outbound Bridge run FAILED"
+            echo ""
+            echo "- **Workflow:** \`${{ github.workflow }}\`"
+            echo "- **Run:** $GH_RUN_URL"
+            echo "- **Run ID:** \`${{ github.run_id }}\`"
+            echo "- **Triggered by:** \`${{ github.event_name }}\`"
+            echo "- **Timestamp:** $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo ""
+            echo "Ticket tracking chronic silent-failure: \`7273-997c-9c4d-4e50\`"
+            echo ""
+            echo "Investigate via the run link above. If this is a recurring failure, check the Jira bridge logs and BRIDGE_ENV_ID / ACLI_VERSION repo variables."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::error title=Outbound Bridge run failed::See run summary for details; tracker ticket 7273-997c-9c4d-4e50 — $GH_RUN_URL"

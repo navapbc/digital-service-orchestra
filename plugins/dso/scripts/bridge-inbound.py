@@ -326,6 +326,7 @@ def _process_single_issue(
         acli_client=acli_client,
         persist_relationship_rejection_fn=persist_relationship_rejection,
         write_bridge_alert_fn=write_bridge_alert,
+        ticket_reducer=ticket_reducer,
     )
 
 

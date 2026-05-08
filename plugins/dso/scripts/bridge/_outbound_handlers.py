@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -73,7 +74,9 @@ def _parse_user_map(env_val: str) -> dict[str, str]:
     return {k.lower(): v for k, v in raw.items()}
 
 
-def _resolve_assignee(name_or_email: str | None, user_map: dict[str, str]) -> str | None:
+def _resolve_assignee(
+    name_or_email: str | None, user_map: dict[str, str]
+) -> str | None:
     """Resolve a display name/email to a Jira accountId via BRIDGE_USER_MAP.
 
     Returns None when name_or_email is absent, not in map, or maps to empty string.
@@ -85,6 +88,24 @@ def _resolve_assignee(name_or_email: str | None, user_map: dict[str, str]) -> st
     if not account_id:  # None or empty string → no-match
         return None
     return account_id
+
+
+def _resolve_link_orientation(
+    relation: str, source_jira_key: str, target_jira_key: str
+) -> tuple[str, str, str]:
+    """Map a local relation to (jira_link_type, out_key, in_key).
+
+    Single source of truth used by both handle_link_event and
+    handle_unlink_event so any future relation type or direction change is
+    made in exactly one place. `depends_on` is the inverse of `blocks`, so
+    its out/in are swapped.
+    """
+    if relation in ("relates_to", "supersedes"):
+        return "Relates", source_jira_key, target_jira_key
+    if relation == "blocks":
+        return "Blocks", source_jira_key, target_jira_key
+    # depends_on
+    return "Blocks", target_jira_key, source_jira_key
 
 
 def handle_create_event(
@@ -364,7 +385,9 @@ def handle_status_event(
             # the inner alert path, not via this outer SYNC alert. Suppressing
             # the redundant outer alert (when create_syncs is non-empty) does
             # NOT hide unassign failures.
-            retroactive_succeeded = bool(create_syncs) if retroactive_attempted else False
+            retroactive_succeeded = (
+                bool(create_syncs) if retroactive_attempted else False
+            )
             if retroactive_succeeded:
                 return []
 
@@ -636,7 +659,13 @@ def handle_link_event(
     link_data = event_data.get("data", {})
     relation = link_data.get("relation", "")
 
-    if relation != "relates_to":
+    # Supported relations and their Jira mapping:
+    #   relates_to → "Relates" link type, source-outward
+    #   blocks     → "Blocks"  link type, source-outward (source blocks target)
+    #   depends_on → "Blocks"  link type, target-outward (target blocks source)
+    #   supersedes → "Relates" link type, source-outward (Jira lacks supersedes;
+    #                lossy mapping handled symmetrically on inbound)
+    if relation not in ("relates_to", "blocks", "depends_on", "supersedes"):
         return [], link_types_cache
 
     target_id = link_data.get("target_id", "")
@@ -677,46 +706,61 @@ def handle_link_event(
         )
         return [], link_types_cache
 
+    # Map relation → required Jira link type and outward-source orientation
+    # via the shared helper (single source of truth with handle_unlink_event).
+    required_type, out_key, in_key = _resolve_link_orientation(
+        relation, source_jira_key, target_jira_key
+    )
+
     if link_types_cache is None:
         link_types_cache = acli_client.get_issue_link_types()
     link_types = link_types_cache
 
-    relates_type = next((lt for lt in link_types if lt.get("name") == "Relates"), None)
-    if relates_type is None:
+    chosen_type = next(
+        (lt for lt in link_types if lt.get("name") == required_type), None
+    )
+    if chosen_type is None:
         available = ", ".join(lt.get("name", "") for lt in link_types if lt.get("name"))
         write_bridge_alert(
             ticket_dir,
             ticket_id=ticket_id,
             reason=(
-                f"LINK event: 'Relates' link type not found in Jira instance. "
+                f"LINK event: '{required_type}' link type not found in Jira instance. "
                 f"Available types: {available}"
             ),
             bridge_env_id=bridge_env_id,
         )
         return [], link_types_cache
 
-    pair = frozenset([source_jira_key, target_jira_key])
+    # Pair-key includes the link type so blocks(A,B) and relates_to(A,B) can
+    # coexist as distinct edges within a single run.
+    pair = frozenset([out_key, in_key, required_type])
     if pair in created_link_pairs:
         return [], link_types_cache
 
-    existing_links = acli_client.get_issue_links(source_jira_key)
+    existing_links = acli_client.get_issue_links(out_key)
     already_exists = False
     for link in existing_links:
-        if link.get("type", {}).get("name") == "Relates":
+        if link.get("type", {}).get("name") == required_type:
             outward = link.get("outwardIssue") or {}
             inward = link.get("inwardIssue") or {}
-            if (
-                outward.get("key") == target_jira_key
-                or inward.get("key") == target_jira_key
-            ):
-                already_exists = True
-                break
+            # For directional types (Blocks), only outward match counts as
+            # "same-direction"; inward match represents the inverse edge and
+            # must NOT be treated as a duplicate.
+            if required_type == "Blocks":
+                if outward.get("key") == in_key:
+                    already_exists = True
+                    break
+            else:
+                if outward.get("key") == in_key or inward.get("key") == in_key:
+                    already_exists = True
+                    break
     if already_exists:
         created_link_pairs.add(pair)
         return [], link_types_cache
 
     try:
-        acli_client.set_relationship(source_jira_key, target_jira_key, "Relates")
+        acli_client.set_relationship(out_key, in_key, required_type)
         created_link_pairs.add(pair)
         _write_sync_event(
             ticket_dir,
@@ -735,16 +779,15 @@ def handle_link_event(
     except subprocess.CalledProcessError as exc:
         logger.warning(
             "LINK event: set_relationship(%s, %s) failed: %s — writing BRIDGE_ALERT",
-            source_jira_key,
-            target_jira_key,
+            out_key,
+            in_key,
             exc,
         )
         write_bridge_alert(
             ticket_dir,
             ticket_id=ticket_id,
             reason=(
-                f"LINK sync failed for {source_jira_key} -> {target_jira_key}: "
-                f"{exc.stderr or str(exc)}"
+                f"LINK sync failed for {out_key} -> {in_key}: {exc.stderr or str(exc)}"
             ),
             bridge_env_id=bridge_env_id,
         )
@@ -770,7 +813,7 @@ def handle_unlink_event(
     link_data = event_data.get("data", {})
     relation = link_data.get("relation", "")
 
-    if relation != "relates_to":
+    if relation not in ("relates_to", "blocks", "depends_on", "supersedes"):
         return []
 
     target_id = link_data.get("target_id", "")
@@ -786,22 +829,28 @@ def handle_unlink_event(
     if not target_jira_key:
         return []
 
+    required_type, out_key, in_key = _resolve_link_orientation(
+        relation, source_jira_key, target_jira_key
+    )
+
     try:
-        existing_links = acli_client.get_issue_links(source_jira_key)
+        existing_links = acli_client.get_issue_links(out_key)
     except subprocess.CalledProcessError:
         return []
 
     link_id_to_delete: str | None = None
     for link in existing_links:
-        if link.get("type", {}).get("name") == "Relates":
+        if link.get("type", {}).get("name") == required_type:
             outward = link.get("outwardIssue") or {}
             inward = link.get("inwardIssue") or {}
-            if (
-                outward.get("key") == target_jira_key
-                or inward.get("key") == target_jira_key
-            ):
-                link_id_to_delete = link.get("id")
-                break
+            if required_type == "Blocks":
+                if outward.get("key") == in_key:
+                    link_id_to_delete = link.get("id")
+                    break
+            else:
+                if outward.get("key") == in_key or inward.get("key") == in_key:
+                    link_id_to_delete = link.get("id")
+                    break
 
     if link_id_to_delete is None:
         return []
@@ -998,6 +1047,65 @@ def handle_edit_event(
             assignee_str = str(field_value).strip()
             if assignee_str:
                 update_kwargs[field_name] = assignee_str
+        elif field_name == "tags":
+            # Local tags (list[str]) → Jira labels. Jira labels are a
+            # whitespace-free, comma-free single token per entry. Sanitize by
+            # stripping whitespace and dropping empties; pass as a list so the
+            # acli client can serialize accordingly.
+            if isinstance(field_value, list):
+                clean_labels = [
+                    str(lbl).strip()
+                    for lbl in field_value
+                    if isinstance(lbl, str) and lbl.strip()
+                ]
+                update_kwargs["labels"] = clean_labels
+            elif isinstance(field_value, str):
+                clean_labels = [t.strip() for t in field_value.split(",") if t.strip()]
+                update_kwargs["labels"] = clean_labels
+        elif field_name == "parent_id":
+            # Local parent_id → Jira parent (Epic Link / parent issue).
+            # Translate local jira-{key} ticket id back to the bare Jira key
+            # by looking up the parent ticket's SYNC marker; this avoids
+            # leaking the local "jira-" prefix to Jira's parent field.
+            parent_id = str(field_value).strip() if field_value is not None else ""
+            if parent_id:
+                parent_jira_key = _resolve_jira_key(tickets_root / parent_id)
+                if parent_jira_key:
+                    update_kwargs["parent"] = parent_jira_key
+                else:
+                    # Fall back to raw value for jira-prefixed ids (best effort:
+                    # strip the "jira-" prefix and uppercase). Validate the
+                    # result matches Jira key format (PROJECT-NUMBER) before
+                    # passing to acli, so garbage like "jira-!!!invalid" is
+                    # caught with a specific BRIDGE_ALERT instead of bubbling
+                    # up as a generic handler exception.
+                    if parent_id.lower().startswith("jira-"):
+                        candidate = parent_id[len("jira-") :].upper()
+                        if re.match(r"^[A-Z][A-Z0-9_]*-[0-9]+$", candidate):
+                            update_kwargs["parent"] = candidate
+                        else:
+                            write_bridge_alert(
+                                ticket_dir,
+                                ticket_id=ticket_id,
+                                reason=(
+                                    f"EDIT parent_id={parent_id} skipped: "
+                                    f"derived Jira key '{candidate}' does not "
+                                    "match Jira key format (PROJECT-NUMBER)"
+                                ),
+                                bridge_env_id=bridge_env_id,
+                            )
+                    else:
+                        # Unsynced local parent — surface via BRIDGE_ALERT but
+                        # don't block the rest of the EDIT.
+                        write_bridge_alert(
+                            ticket_dir,
+                            ticket_id=ticket_id,
+                            reason=(
+                                f"EDIT parent_id={parent_id} skipped: parent "
+                                "ticket has no Jira SYNC marker"
+                            ),
+                            bridge_env_id=bridge_env_id,
+                        )
     if update_kwargs:
         acli_client.update_issue(jira_key, **update_kwargs)
 

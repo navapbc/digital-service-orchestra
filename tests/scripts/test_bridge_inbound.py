@@ -1228,6 +1228,123 @@ class TestInboundStatusEvents:
             f"got {new_data.get('status')!r}"
         )
 
+    @pytest.mark.unit
+    @pytest.mark.scripts
+    def test_inbound_status_does_not_downgrade_closed_to_open_writes_bridge_alert(
+        self, tmp_path: Path, bridge: ModuleType
+    ) -> None:
+        """When local current status is terminal ('closed') and the inbound bridge
+        proposes a non-terminal status (e.g., 'open'), the inbound STATUS handler
+        MUST NOT write a STATUS event downgrading local state. Instead it MUST
+        write a BRIDGE_ALERT event under the ticket directory whose ``reason``
+        identifies the divergence (key fragment: 'local_terminal_jira_lagging').
+
+        Setup:
+        - Local jira-dso-99 is currently 'closed' (latest STATUS event).
+        - Jira reports DSO-99 as 'To Do' (maps to 'open').
+
+        Asserts:
+        - No NEW STATUS event was written (only the pre-existing closed one).
+        - A BRIDGE_ALERT event was written under the ticket dir whose reason
+          contains 'local_terminal_jira_lagging'.
+        - process_inbound did not raise.
+        """
+        tickets_root = tmp_path / ".tickets-tracker"
+        tickets_root.mkdir()
+
+        ticket_dir = tickets_root / "jira-dso-99"
+        ticket_dir.mkdir()
+
+        # SYNC marker so CREATE is idempotently skipped
+        sync_payload = {
+            "event_type": "SYNC",
+            "jira_key": "DSO-99",
+            "local_id": "jira-dso-99",
+            "env_id": _BRIDGE_ENV_ID,
+            "timestamp": 1742524200,
+            "run_id": "prev-run",
+        }
+        (ticket_dir / f"1742524200-{_UUID1}-SYNC.json").write_text(
+            json.dumps(sync_payload), encoding="utf-8"
+        )
+
+        # Pre-existing STATUS event: local is terminal 'closed'
+        existing_status_payload = {
+            "event_type": "STATUS",
+            "env_id": _BRIDGE_ENV_ID,
+            "timestamp": 1742524300,
+            "uuid": _UUID2,
+            "data": {"status": "closed"},
+        }
+        existing_status_path = ticket_dir / f"1742524300-{_UUID2}-STATUS.json"
+        existing_status_path.write_text(
+            json.dumps(existing_status_payload), encoding="utf-8"
+        )
+
+        # Jira lags — still 'To Do' (maps to 'open')
+        jira_issue = {
+            "key": "DSO-99",
+            "fields": {
+                "summary": "Lagging Jira ticket",
+                "issuetype": {"name": "Task"},
+                "status": {"name": "To Do"},
+                "created": "2026-03-21T10:00:00.000+0000",
+                "updated": "2026-03-21T12:00:00.000+0000",
+                "resolutiondate": None,
+                "priority": {"name": "Medium"},
+            },
+        }
+
+        mock_client = MagicMock()
+        mock_client.search_issues = MagicMock(return_value=[jira_issue])
+        mock_client.get_myself = MagicMock(return_value={"timeZone": "UTC"})
+
+        config = {
+            "bridge_env_id": _BRIDGE_ENV_ID,
+            "overlap_buffer_minutes": 0,
+            "checkpoint_file": "",
+            "status_mapping": {"In Progress": "in_progress", "To Do": "open"},
+            "type_mapping": {"Task": "task"},
+        }
+
+        bridge.process_inbound(
+            tickets_root=tickets_root,
+            acli_client=mock_client,
+            last_pull_ts="2026-03-21T12:00:00Z",
+            config=config,
+        )
+
+        # No NEW STATUS event was written downgrading local state
+        all_status_files = list(ticket_dir.glob("*-STATUS.json"))
+        new_status_files = [
+            f for f in all_status_files if f.name != existing_status_path.name
+        ]
+        assert not new_status_files, (
+            "Inbound MUST NOT write a STATUS event when local is terminal "
+            f"and inbound proposes non-terminal; found new STATUS files: "
+            f"{new_status_files}"
+        )
+
+        # A BRIDGE_ALERT was written under the ticket dir
+        alert_files = list(ticket_dir.glob("*-BRIDGE_ALERT.json"))
+        assert alert_files, (
+            "Inbound MUST write a BRIDGE_ALERT under the ticket dir when local "
+            "is terminal and inbound proposes a non-terminal downgrade; "
+            "no BRIDGE_ALERT files found."
+        )
+
+        reasons = []
+        for af in alert_files:
+            try:
+                payload = json.loads(af.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            reasons.append(payload.get("reason", ""))
+        assert any("local_terminal_jira_lagging" in r for r in reasons), (
+            "BRIDGE_ALERT reason must contain 'local_terminal_jira_lagging'; "
+            f"got reasons: {reasons!r}"
+        )
+
 
 # ---------------------------------------------------------------------------
 # TestRelationshipRejection
@@ -1392,9 +1509,13 @@ class TestRelationshipRejection:
                     "updated": "2026-03-21T10:00:00.000+0000",
                     "resolutiondate": None,
                     "priority": {"name": "High"},
+                    # Use "Cloners" — a non-native link type that still falls
+                    # through to acli_client.set_relationship() for rejection
+                    # handling. ("Blocks" and "Relates" are now handled
+                    # natively as inbound LINK events; see 5492-58d7 part 3/4.)
                     "issuelinks": [
                         {
-                            "type": {"name": "Blocks"},
+                            "type": {"name": "Cloners"},
                             "outwardIssue": {"key": "DSO-93"},
                         }
                     ],
@@ -1405,9 +1526,9 @@ class TestRelationshipRejection:
         mock_client = MagicMock()
         mock_client.search_issues = MagicMock(return_value=jira_issues)
         mock_client.get_myself = MagicMock(return_value={"timeZone": "UTC"})
-        # set_relationship raises for DSO-92's epic-blocks-epic link
+        # set_relationship raises for DSO-92's Cloners link
         mock_client.set_relationship = MagicMock(
-            side_effect=RuntimeError("epic-blocks-epic relationship not allowed")
+            side_effect=RuntimeError("Cloners relationship not allowed")
         )
 
         checkpoint_file = tmp_path / "bridge-checkpoint.json"
