@@ -118,7 +118,7 @@ plugins/dso/hooks/lib/enforcement-gate.sh:tests/hooks/lib/test-enforcement-gate-
 plugins/dso/hooks/lib/hook-error-handler.sh:tests/hooks/test-hook-error-handler.sh
 plugins/dso/hooks/lib/merge-helpers.sh:tests/integration/test-merge-to-main-pr-thread-resolution.sh,tests/integration/test-conflict-data-schema-parity.sh,tests/scripts/test-merge-to-main-dispatcher.sh,tests/hooks/test-merge-helpers-pr-repo-cache.sh,tests/hooks/test-merge-helpers-special-chars.sh,tests/scripts/test-merge-to-main-pr.sh
 plugins/dso/hooks/lib/planning-config.sh:tests/hooks/test-planning-config.sh
-plugins/dso/hooks/lib/post-functions.sh:tests/hooks/test-post-functions-attribution.sh,tests/hooks/test-post-skill-attribution.sh [test_hook_record_skill_attribution_writes_jsonl_entry_when_enabled]
+plugins/dso/hooks/lib/post-functions.sh:tests/hooks/test-post-functions-attribution.sh,tests/hooks/test-post-skill-attribution.sh
 plugins/dso/hooks/lib/pre-all-functions.sh:tests/hooks/test-hook-inline-trap-consolidation.sh
 plugins/dso/hooks/lib/pre-bash-functions.sh:tests/hooks/test-hook-inline-trap-consolidation.sh
 plugins/dso/hooks/lib/preconditions-validator-lib.sh:tests/hooks/test-preconditions-validator-lib.sh,tests/integration/test-preconditions-chain-5stage.sh
@@ -417,5 +417,5 @@ plugins/dso/hooks/prepare-commit-msg-override-audit.sh:tests/hooks/test-prepare-
 plugins/dso/hooks/post-commit-override-cleanup.sh:tests/hooks/test-post-commit-override-cleanup.sh [test_cleanup_removes_token],tests/scripts/test-reinstall-hooks.sh [test_post_commit_registered]
 plugins/dso/scripts/commit-step.sh:tests/scripts/test-commit-step.sh [test_writes_result_artifact],tests/scripts/test-commit-step-worktree.sh [test_cwd_mismatch_fails_fast] [test_harvest_mode_bypasses_cwd_check],tests/scripts/test-commit-step-truncation.sh [test_pipe_to_tail_artifact_intact],tests/hooks/test-verifier-baseline.sh [test_bug_7b41_breadcrumb_not_empty]
 plugins/dso/hooks/pre-commit-compliance-verifier.sh:tests/hooks/test-pre-commit-compliance-verifier.sh [test_blocks_missing_artifact],tests/scripts/test-reinstall-hooks.sh [test_compliance_verifier_registered],tests/hooks/test-verifier-worktree-context.sh [test_verifier_reads_correct_worktree],tests/hooks/test-overlay-verification.sh [test_security_overlay_flagged_missing],tests/hooks/test-verifier-baseline.sh [test_validate_ci_clean],tests/hooks/test-skip-markers.sh [test_skipped_marker_accepted]
-plugins/dso/scripts/apply-attribution-trailers.sh:tests/unit/scripts/test-apply-attribution-trailers.sh
-plugins/dso/hooks/dispatchers/post-skill.sh:tests/hooks/test-post-skill-attribution.sh [test_post_skill_dispatcher_appends_skill_entry_to_jsonl]
+plugins/dso/scripts/apply-attribution-trailers.sh:tests/unit/scripts/test-apply-attribution-trailers.sh [test_format_trailer_flags_produces_two_flags_for_two_distinct_agents]
+plugins/dso/hooks/dispatchers/post-skill.sh:tests/hooks/test-post-skill-attribution.sh
