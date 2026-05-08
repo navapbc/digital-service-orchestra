@@ -824,40 +824,8 @@ hook_tickets_tracker_bash_guard() {
     trap - ERR; return 2
 }
 
-# hook_record_test_status_guard
-# Speed-bump against casual misuse of record-test-status.sh. Allows legitimate
-# commit-workflow and worktree-harvest callers via sentinel allowlists.
-# The load-bearing defense against status recorded on a mismatched diff is the
-# diff_hash check inside pre-commit-test-gate.sh (lines 611-618) — this hook
-# does not need to be load-bearing.
-# Allowlist:
-#   --attest flag            harvest-worktree.sh worktree trust transfer
-#   DSO_COMMIT_WORKFLOW=1    env-var sentinel set by commit-workflow-validation.md Step 5
-#                            and related commit-flow prompts (single-agent-integrate,
-#                            per-worktree-review-commit)
-hook_record_test_status_guard() {
-    local _json="$1"
-    local _cmd
-    _cmd=$(parse_json_field "$_json" '.tool_input.command' 2>/dev/null || true)
-
-    # Only applies to commands that reference record-test-status.sh
-    if [[ "$_cmd" != *"record-test-status.sh"* ]]; then
-        return 0
-    fi
-
-    # Allow --attest flag: legitimate worktree trust transfer by harvest-worktree.sh
-    if [[ "$_cmd" == *"--attest"* ]]; then
-        return 0
-    fi
-
-    # Allow DSO_COMMIT_WORKFLOW=1 sentinel: legitimate commit-workflow invocation.
-    if [[ "$_cmd" == *"DSO_COMMIT_WORKFLOW=1"* ]]; then
-        return 0
-    fi
-
-    echo "BLOCKED [record-test-status-guard]: Direct calls to record-test-status.sh are not allowed." >&2
-    echo "Test status is recorded automatically by the test gate during commits." >&2
-    echo "If you need to transfer test status from a worktree, use harvest-worktree.sh (--attest flag)." >&2
-    echo "If you are executing the commit workflow, prefix the call with DSO_COMMIT_WORKFLOW=1." >&2
-    trap - ERR; return 2
-}
+# hook_record_test_status_guard removed (ce62-624e).
+# The load-bearing defense against stale-diff status writes is the diff_hash
+# check inside pre-commit-test-gate.sh; this guard was a non-load-bearing
+# speed-bump that produced doc/runtime contradictions and pushed the orchestrator
+# to silently skip COMMIT-WORKFLOW.md Step 4.5.
