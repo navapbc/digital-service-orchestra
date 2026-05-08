@@ -27,7 +27,6 @@ import subprocess
 import sys
 import tempfile
 
-from dso_ci_review.classifier import classify_tier
 from dso_ci_review.dispatch import async_dispatch_specialists
 from dso_ci_review.findings import merge_findings
 from dso_ci_review.providers.config import AuthError, ConfigError, get_provider
@@ -315,6 +314,119 @@ def _write_output(data: dict) -> None:
         print(serialized)
 
 
+_CLASSIFIER_FALLBACK: dict = {
+    "selected_tier": "standard",
+    "security_overlay": False,
+    "performance_overlay": False,
+    "test_quality_overlay": False,
+}
+
+
+def _classify_tier_via_bash(
+    diff_text: str,
+    repo_root: str | None = None,
+    plugin_root: str | None = None,
+) -> dict:
+    """Call review-complexity-classifier.sh via subprocess and return the classification dict.
+
+    Resolution order for the classifier script:
+      1. plugin_root argument (explicit override)
+      2. CLAUDE_PLUGIN_ROOT env var
+      3. 5-dirname-levels from __file__:
+         runner.py → dso_ci_review → scripts → dso → plugins → repo_root,
+         then os.path.join(repo_root, "plugins", "dso") for the plugin root
+
+    Failure semantics (per GAP_AMENDMENT):
+      - FileNotFoundError (script not found): re-raise — deployment bug, not a runtime case.
+      - subprocess.TimeoutExpired: log warning to stderr, return _CLASSIFIER_FALLBACK.
+      - Non-zero exit or JSON parse error: log warning to stderr, return _CLASSIFIER_FALLBACK.
+
+    The repo_root is resolved for the subprocess cwd so that review-complexity-classifier.sh
+    can call `git rev-parse --show-toplevel` internally. Resolution order:
+      1. repo_root argument
+      2. REPO_ROOT env var
+      3. git rev-parse from __file__-relative directory (best-effort; falls back to None)
+    """
+    # Resolve plugin_root
+    if plugin_root is None:
+        plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+    if plugin_root is None:
+        # 5 dirname levels: runner.py → dso_ci_review → scripts → dso → plugins → repo_root,
+        # then descend two levels to reach the plugin root
+        _five_up = os.path.dirname(
+            os.path.dirname(
+                os.path.dirname(
+                    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                )
+            )
+        )
+        plugin_root = os.path.join(_five_up, "plugins", "dso")
+
+    classifier_script = os.path.join(
+        plugin_root, "scripts", "review-complexity-classifier.sh"
+    )
+
+    # Resolve repo_root for cwd
+    if repo_root is None:
+        repo_root = os.environ.get("REPO_ROOT")
+    if repo_root is None:
+        try:
+            _rr = subprocess.run(
+                ["git", "rev-parse", "--show-toplevel"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                cwd=os.path.dirname(os.path.abspath(__file__)),
+            )
+            if _rr.returncode == 0:
+                repo_root = _rr.stdout.strip() or None
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            repo_root = None
+
+    # Build env with CLAUDE_PLUGIN_ROOT set so classifier can resolve _PLUGIN_ROOT
+    run_env = os.environ.copy()
+    run_env["CLAUDE_PLUGIN_ROOT"] = str(plugin_root)
+
+    try:
+        result = subprocess.run(
+            ["bash", str(classifier_script)],
+            input=diff_text,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            cwd=repo_root,
+            env=run_env,
+        )
+    except subprocess.TimeoutExpired:
+        print(
+            "WARNING: review-complexity-classifier.sh timed out; "
+            "falling back to standard tier",
+            file=sys.stderr,
+        )
+        return _CLASSIFIER_FALLBACK.copy()
+    # FileNotFoundError propagates — deployment bug, fail loud
+
+    if result.returncode != 0:
+        print(
+            f"WARNING: review-complexity-classifier.sh exited {result.returncode}; "
+            f"falling back to standard tier. stderr: {result.stderr.strip()!r}",
+            file=sys.stderr,
+        )
+        return _CLASSIFIER_FALLBACK.copy()
+
+    try:
+        parsed = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        print(
+            f"WARNING: review-complexity-classifier.sh produced invalid JSON "
+            f"({exc}); falling back to standard tier. stdout: {result.stdout!r}",
+            file=sys.stderr,
+        )
+        return _CLASSIFIER_FALLBACK.copy()
+
+    return parsed
+
+
 _TIER_MODEL_DEFAULTS: dict[str, str] = {
     "light": "claude-haiku-4-5-20251001",
     "standard": "claude-sonnet-4-6",
@@ -471,7 +583,7 @@ def main() -> int:
 
     try:
         # Step 1: classify tier
-        classification = classify_tier(diff_text)
+        classification = _classify_tier_via_bash(diff_text)
         tier = classification["selected_tier"]
 
         # Step 2: build agent list based on tier

@@ -1235,3 +1235,91 @@ def test_read_tier_model_resolves_repo_root_config(tmp_path, monkeypatch):
         "_read_tier_model('light') must return a non-empty string after the "
         "5-level dirname chain resolves the live config (0e2a-77b0)"
     )
+
+
+# ---------------------------------------------------------------------------
+# Bash classifier migration tests — classify_tier → _classify_tier_via_bash
+# ---------------------------------------------------------------------------
+#
+# RED marker:
+#   tests/skills/dso_ci_review/test_runner_smoke.py [test_runner_uses_bash_classifier]
+#
+# Task 6430-6a72: assert runner.py calls _classify_tier_via_bash helper
+# (the bash subprocess wrapper) instead of the Python classify_tier function.
+# These tests must fail (RED) before Task B lands the implementation.
+
+
+def test_runner_uses_bash_classifier(tmp_path):
+    """
+    Given: a non-empty diff and mocked _classify_tier_via_bash + async_dispatch_specialists
+    When: runner.main() is called in-process
+    Then: _classify_tier_via_bash is called once with the diff text argument
+
+    RED marker: tests/skills/dso_ci_review/test_runner_smoke.py [test_runner_uses_bash_classifier]
+
+    This test must FAIL before Task B replaces classify_tier() with _classify_tier_via_bash()
+    in runner.py. The helper does not exist yet in the runner module.
+    """
+    import io
+    from contextlib import redirect_stderr
+
+    import dso_ci_review.runner as runner_mod
+
+    diff_text = "diff --git a/foo.py b/foo.py\n+added line\n"
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text(diff_text)
+    output_file = tmp_path / "findings.json"
+
+    bash_tier_result = {
+        "selected_tier": "standard",
+        "security_overlay": False,
+        "performance_overlay": False,
+        "test_quality_overlay": False,
+        "diff_size_lines": 5,
+        "blast_radius": 0,
+        "critical_path": 0,
+        "anti_shortcut": 0,
+        "staleness": 0,
+        "cross_cutting": 0,
+        "diff_lines": 1,
+        "change_volume": 0,
+        "computed_total": 0,
+        "is_merge_commit": False,
+        "size_action": "none",
+    }
+
+    async def mock_dispatch(agents):
+        return [{"findings": [], "scores": {}, "summary": "ok"}]
+
+    stderr_capture = io.StringIO()
+    with (
+        patch.dict(
+            "os.environ",
+            {
+                "DSO_CI_REVIEW_DIFF_PATH": str(diff_file),
+                "DSO_CI_REVIEW_OUTPUT_PATH": str(output_file),
+                "CI_REVIEW_PROVIDER": "anthropic",
+                "ANTHROPIC_API_KEY": "test-key",
+                "GITHUB_EVENT_NAME": "",
+                "GITHUB_REF": "",
+                "GITHUB_TOKEN": "",
+                "PR_NUMBER": "",
+            },
+        ),
+        patch(
+            "dso_ci_review.runner._classify_tier_via_bash",
+            return_value=bash_tier_result,
+        ) as mock_bash_classify,
+        patch(
+            "dso_ci_review.runner.async_dispatch_specialists",
+            side_effect=mock_dispatch,
+        ),
+        redirect_stderr(stderr_capture),
+    ):
+        runner_mod.main()
+
+    mock_bash_classify.assert_called_once_with(diff_text), (
+        f"runner.main() must call _classify_tier_via_bash(diff_text) exactly once; "
+        f"call_args={mock_bash_classify.call_args!r}. "
+        "Task B must replace classify_tier() with _classify_tier_via_bash() in runner.py."
+    )

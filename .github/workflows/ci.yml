@@ -286,12 +286,31 @@ jobs:
         if: needs.changes.outputs.code_changed == 'true'
         run: pip install litellm==1.83.7
 
+      - name: Smoke-test review-complexity-classifier.sh
+        if: needs.changes.outputs.code_changed == 'true'
+        env:
+          CLAUDE_PLUGIN_ROOT: "${{ github.workspace }}/plugins/dso"
+        run: |
+          set -euo pipefail
+          FIXTURE="tests/fixtures/ci-review-corpus/fixture-diff.txt"
+          if [[ -f "$FIXTURE" ]]; then
+            DIFF_FILE="$FIXTURE"
+          else
+            echo 'No fixture diff found — generating minimal synthetic diff'
+            DIFF_FILE=$(mktemp /tmp/smoke-test-diff.XXXXXX)
+            printf '+foo\n-bar\n' > "$DIFF_FILE"
+          fi
+          OUTPUT=$(bash plugins/dso/scripts/review-complexity-classifier.sh < "$DIFF_FILE")
+          echo "$OUTPUT" | python3 -c 'import sys,json; d=json.load(sys.stdin); assert d.get("selected_tier") in {"light","standard","deep"}, f"invalid: {d}"'
+          echo "Smoke test passed: $OUTPUT"
+
       - name: Run LLM review
         if: needs.changes.outputs.code_changed == 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CLAUDE_PLUGIN_ROOT: "${{ github.workspace }}/plugins/dso"
         shell: bash -eo pipefail {0}
         run: |
           PR_NUMBER="${GITHUB_REF#refs/pull/}"
