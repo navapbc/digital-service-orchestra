@@ -59,7 +59,7 @@ done
 # Overlay verification: check overlay-specific findings files
 _classifier_result="$ARTIFACTS_DIR/classifier-dispatch.result"
 if [[ -f "$_classifier_result" ]]; then
-    _registry="$_SCRIPT_DIR/../docs/contracts/overlay-registry.json"
+    _registry="${OVERLAY_REGISTRY_PATH:-$_SCRIPT_DIR/../docs/contracts/overlay-registry.json}"
     _CLASSIFIER_RESULT="$_classifier_result" \
     _REGISTRY="$_registry" \
     _ARTIFACTS_DIR="$ARTIFACTS_DIR" \
