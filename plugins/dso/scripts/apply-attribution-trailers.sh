@@ -106,14 +106,28 @@ if [[ -z "$_JSONL_FILE" ]]; then
 fi
 
 # ── check_git_version ─────────────────────────────────────────────────────────
-# STUB — T6-impl replaces this with a real semver comparison against git >= 2.6.
-# Returns 0 for any input to prevent broken intermediate states.
+# Checks that the installed git version meets the minimum requirement (>= 2.6).
+# Uses ${GIT_BINARY:-git} so tests can inject a mock binary via GIT_BINARY.
+# Strips vendor suffixes (e.g. 2.39.3-1.el9 → 2.39.3) before comparison.
+# NOTE: uses 'return' (not 'exit') so set -euo pipefail does not abort callers.
 #
-# Usage: check_git_version "<required-version>"
-# Returns: 0 (always, until T6-impl provides the real implementation)
+# Usage: check_git_version "<required-version>"  (argument unused; min is 2.6)
+# Returns: 0 if git >= 2.6; non-zero + TRAILER_SKIPPED on stderr if too old
 check_git_version() {
-    # STUB: always pass — real version check implemented in T6-impl
-    return 0
+    local min_major=2 min_minor=6
+    local ver
+    ver="$("${GIT_BINARY:-git}" --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1)"
+    # Strip vendor suffix (e.g., 2.39.3-1.el9 → 2.39.3)
+    ver="${ver%%-*}"
+    local major minor
+    major="${ver%%.*}"
+    minor="${ver#*.}"
+    minor="${minor%%.*}"
+    if [[ "$major" -gt "$min_major" || ( "$major" -eq "$min_major" && "$minor" -ge "$min_minor" ) ]]; then
+        return 0
+    fi
+    echo "TRAILER_SKIPPED: git version $ver < $min_major.$min_minor" >&2
+    return 1
 }
 
 # ── read_and_deduplicate ──────────────────────────────────────────────────────
@@ -153,6 +167,82 @@ with open(path, "r") as fh:
         if key not in seen:
             seen.add(key)
             print(line)
+PYEOF
+}
+
+# ── format_trailer_flags ──────────────────────────────────────────────────────
+# Reads a JSONL file and emits git --trailer flags for each unique entry.
+#
+# Emits:
+#   --trailer 'DSO-Agent: <subagent_type>'  — one per unique agent entry
+#   --trailer 'DSO-Skill: <skill_name>'     — one per unique skill entry
+#   --trailer 'DSO-Model: <model>'          — one per unique model value
+#
+# Scalar trailers (DSO-Session etc.) are a placeholder filled by T4-impl.
+#
+# Usage: format_trailer_flags <jsonl_file>
+# Output: newline-separated --trailer flag strings, empty if no entries
+# Returns: 0 on success
+format_trailer_flags() {
+    local jsonl_file="$1"
+
+    # Missing or empty file → no trailers (not an error; JSONL may simply be absent)
+    if [[ ! -f "$jsonl_file" ]]; then
+        return 0
+    fi
+
+    python3 - "$jsonl_file" <<'PYEOF'
+import sys
+import json
+
+path = sys.argv[1]
+
+seen_agents = []
+seen_skills = []
+seen_models = []
+
+agent_set = set()
+skill_set = set()
+model_set = set()
+
+with open(path, "r") as fh:
+    for raw_line in fh:
+        line = raw_line.rstrip("\n")
+        if not line.strip():
+            continue
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+
+        entry_type = obj.get("type", "")
+
+        if entry_type == "agent":
+            subagent_type = obj.get("subagent_type", "")
+            if subagent_type and subagent_type not in agent_set:
+                agent_set.add(subagent_type)
+                seen_agents.append(subagent_type)
+            model = obj.get("model", "")
+            if model and model not in model_set:
+                model_set.add(model)
+                seen_models.append(model)
+
+        elif entry_type == "skill":
+            skill_name = obj.get("skill_name", "")
+            if skill_name and skill_name not in skill_set:
+                skill_set.add(skill_name)
+                seen_skills.append(skill_name)
+            model = obj.get("model", "")
+            if model and model not in model_set:
+                model_set.add(model)
+                seen_models.append(model)
+
+for agent in seen_agents:
+    print("--trailer 'DSO-Agent: {}'".format(agent))
+for skill in seen_skills:
+    print("--trailer 'DSO-Skill: {}'".format(skill))
+for model in seen_models:
+    print("--trailer 'DSO-Model: {}'".format(model))
 PYEOF
 }
 
