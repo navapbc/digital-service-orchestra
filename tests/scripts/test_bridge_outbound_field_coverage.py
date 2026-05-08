@@ -454,6 +454,50 @@ class TestOutboundEditFields:
         )
 
 
+class TestOutboundEditTags:
+    """Test tags (Jira labels) sync on outbound EDIT."""
+
+    def test_edit_tags_list_pushes_labels_to_jira(
+        self, outbound: ModuleType, tmp_path: Path
+    ) -> None:
+        tracker = tmp_path / ".tickets-tracker"
+        ticket_id = "test-edit-tags-1"
+        ticket_dir = tracker / ticket_id
+        ticket_dir.mkdir(parents=True)
+        make_create_event(ticket_dir, title="Tagged")
+        write_sync(ticket_dir, JIRA_KEY)
+
+        edit_path = write_event(
+            ticket_dir,
+            "EDIT",
+            {"fields": {"tags": ["alpha", "beta", "  ", "gamma"]}},
+        )
+
+        mock_acli = MagicMock()
+        events = [
+            {
+                "ticket_id": ticket_id,
+                "event_type": "EDIT",
+                "file_path": str(edit_path),
+            }
+        ]
+        outbound.process_outbound(
+            events,
+            acli_client=mock_acli,
+            tickets_root=tracker,
+            bridge_env_id=BRIDGE_ENV_ID,
+        )
+
+        assert mock_acli.update_issue.called
+        call_kwargs = mock_acli.update_issue.call_args[1] or {}
+        assert "labels" in call_kwargs, (
+            f"OUTBOUND EDIT(tags) must send 'labels' to Jira. Got: {call_kwargs!r}"
+        )
+        assert call_kwargs["labels"] == ["alpha", "beta", "gamma"], (
+            f"labels must be sanitized list. Got: {call_kwargs['labels']!r}"
+        )
+
+
 class TestOutboundEditParentId:
     """Test parent_id (Jira Epic Link / parent issue) sync on outbound EDIT.
 

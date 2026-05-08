@@ -121,6 +121,24 @@ def handle_edit(
         if local_parent_id != (local_state.get("parent_id") or ""):
             edit_fields["parent_id"] = local_parent_id
 
+    # Tags ↔ Jira labels: compare as order-insensitive sets.
+    # Jira labels is a list[str]; local tags is a list[str]. Empty Jira labels
+    # safeguard: when Jira returns [] but local has tags, do NOT write an EDIT
+    # event — labels are commonly stripped on Jira if not actively curated, and
+    # an empty inbound list could destructively wipe local tags. Only sync
+    # when Jira has at least one label OR both sides agree the list is empty
+    # but differ in members (handled naturally by the set comparison).
+    jira_labels = fields.get("labels")
+    if isinstance(jira_labels, list):
+        jira_labels_clean = [
+            lbl.strip() for lbl in jira_labels if isinstance(lbl, str) and lbl.strip()
+        ]
+        local_tags = local_state.get("tags") or []
+        if not isinstance(local_tags, list):
+            local_tags = []
+        if jira_labels_clean and set(jira_labels_clean) != set(local_tags):
+            edit_fields["tags"] = jira_labels_clean
+
     if edit_fields:
         write_edit_event_fn(
             ticket_id=local_id,

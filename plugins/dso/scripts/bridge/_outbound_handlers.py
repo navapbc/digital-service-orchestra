@@ -998,6 +998,23 @@ def handle_edit_event(
             assignee_str = str(field_value).strip()
             if assignee_str:
                 update_kwargs[field_name] = assignee_str
+        elif field_name == "tags":
+            # Local tags (list[str]) → Jira labels. Jira labels are a
+            # whitespace-free, comma-free single token per entry. Sanitize by
+            # stripping whitespace and dropping empties; pass as a list so the
+            # acli client can serialize accordingly.
+            if isinstance(field_value, list):
+                clean_labels = [
+                    str(lbl).strip()
+                    for lbl in field_value
+                    if isinstance(lbl, str) and lbl.strip()
+                ]
+                update_kwargs["labels"] = clean_labels
+            elif isinstance(field_value, str):
+                clean_labels = [
+                    t.strip() for t in field_value.split(",") if t.strip()
+                ]
+                update_kwargs["labels"] = clean_labels
         elif field_name == "parent_id":
             # Local parent_id → Jira parent (Epic Link / parent issue).
             # Translate local jira-{key} ticket id back to the bare Jira key

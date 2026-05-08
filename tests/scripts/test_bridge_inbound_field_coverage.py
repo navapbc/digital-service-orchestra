@@ -24,7 +24,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from bridge_test_helpers import BRIDGE_ENV_ID, make_create_event, write_sync
+from bridge_test_helpers import (
+    BRIDGE_ENV_ID,
+    make_create_event,
+    write_event,
+    write_sync,
+)
 
 
 class TestInboundTitle:
@@ -483,6 +488,124 @@ class TestInboundEditEventPath:
         assert len(edit_files) == 0, (
             f"Expected 0 EDIT events when fields are unchanged. Found: {len(edit_files)}"
         )
+
+
+class TestInboundTags:
+    """Test that Jira labels emit a local EDIT(tags) event when they differ."""
+
+    def test_inbound_labels_change_writes_edit_tags(
+        self, inbound: ModuleType, tmp_path: Path
+    ) -> None:
+        tracker = tmp_path / ".tickets-tracker"
+        ticket_id = "jira-dso-edit-tags"
+        ticket_dir = tracker / ticket_id
+        ticket_dir.mkdir(parents=True)
+
+        make_create_event(ticket_dir, title="Title", priority=2, assignee="Alice")
+        write_sync(ticket_dir, "DSO-EDIT-TAGS")
+
+        jira_issue = {
+            "key": "DSO-EDIT-TAGS",
+            "fields": {
+                "summary": "Title",
+                "description": "A test description",
+                "priority": {"name": "Medium"},
+                "assignee": {"displayName": "Alice"},
+                "issuetype": {"name": "Bug"},
+                "status": {"name": "Open"},
+                "created": "2026-03-20T10:00:00.000+0000",
+                "updated": "2026-03-20T11:00:00.000+0000",
+                "labels": ["red", "blue"],
+            },
+        }
+
+        mock_acli = MagicMock()
+        mock_acli.get_myself.return_value = {"timeZone": "UTC"}
+        config = {
+            "bridge_env_id": BRIDGE_ENV_ID,
+            "overlap_buffer_minutes": 15,
+            "checkpoint_file": "",
+            "status_mapping": {"Open": "open"},
+            "type_mapping": {"Bug": "bug"},
+            "run_id": "test-run",
+        }
+
+        with patch.object(inbound, "fetch_jira_changes", return_value=[jira_issue]):
+            inbound.process_inbound(
+                tickets_root=tracker,
+                acli_client=mock_acli,
+                last_pull_ts="2026-03-20T09:00:00Z",
+                config=config,
+            )
+
+        edit_files = list(ticket_dir.glob("*-EDIT.json"))
+        assert len(edit_files) >= 1
+        edit_data = json.loads(edit_files[0].read_text(encoding="utf-8"))
+        edited_fields = edit_data.get("data", {}).get("fields", {})
+        assert "tags" in edited_fields, (
+            f"EDIT must include tags. Got: {list(edited_fields.keys())}"
+        )
+        assert set(edited_fields["tags"]) == {"red", "blue"}
+
+    def test_inbound_empty_labels_does_not_overwrite_local_tags(
+        self, inbound: ModuleType, tmp_path: Path
+    ) -> None:
+        """Empty Jira labels MUST NOT clear local tags (destructive safeguard)."""
+        tracker = tmp_path / ".tickets-tracker"
+        ticket_id = "jira-dso-edit-tags-empty"
+        ticket_dir = tracker / ticket_id
+        ticket_dir.mkdir(parents=True)
+
+        # Seed local tags via a CREATE event then a tags EDIT
+        make_create_event(ticket_dir, title="Title", priority=2, assignee="Alice")
+        write_sync(ticket_dir, "DSO-EDIT-TAGS-EMPTY")
+        write_event(
+            ticket_dir,
+            "EDIT",
+            {"fields": {"tags": ["keep-me"]}},
+            env_id=BRIDGE_ENV_ID,  # avoid bridge re-emitting on inbound
+        )
+
+        jira_issue = {
+            "key": "DSO-EDIT-TAGS-EMPTY",
+            "fields": {
+                "summary": "Title",
+                "description": "A test description",
+                "priority": {"name": "Medium"},
+                "assignee": {"displayName": "Alice"},
+                "issuetype": {"name": "Bug"},
+                "status": {"name": "Open"},
+                "created": "2026-03-20T10:00:00.000+0000",
+                "updated": "2026-03-20T11:00:00.000+0000",
+                "labels": [],
+            },
+        }
+        mock_acli = MagicMock()
+        mock_acli.get_myself.return_value = {"timeZone": "UTC"}
+        config = {
+            "bridge_env_id": BRIDGE_ENV_ID,
+            "overlap_buffer_minutes": 15,
+            "checkpoint_file": "",
+            "status_mapping": {"Open": "open"},
+            "type_mapping": {"Bug": "bug"},
+            "run_id": "test-run",
+        }
+        with patch.object(inbound, "fetch_jira_changes", return_value=[jira_issue]):
+            inbound.process_inbound(
+                tickets_root=tracker,
+                acli_client=mock_acli,
+                last_pull_ts="2026-03-20T09:00:00Z",
+                config=config,
+            )
+
+        # No new EDIT event should write tags=[]
+        for ef in ticket_dir.glob("*-EDIT.json"):
+            d = json.loads(ef.read_text(encoding="utf-8"))
+            fields_in = d.get("data", {}).get("fields", {})
+            if "tags" in fields_in and d.get("env_id") == BRIDGE_ENV_ID:
+                assert fields_in["tags"], (
+                    "Empty Jira labels must not produce an EDIT(tags=[]) event"
+                )
 
 
 class TestInboundParentId:
