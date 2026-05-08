@@ -233,4 +233,44 @@ EXIT_CODE=$(run_hook \
 assert_eq "test_verifier_blocks_missing_classifier_dispatch" "1" "$EXIT_CODE"
 
 # ---------------------------------------------------------------------------
+# test_override_token_bypasses_block  [RED until SC3 fix]
+# override.token present with matching diff_hash → verifier exits 0
+# even when all 5 required step artifacts are missing.
+# Current verifier ignores override.token → exits 1 → RED
+# ---------------------------------------------------------------------------
+ARTIFACTS_DIR_14=$(mktemp -d "${TMPDIR:-/tmp}/test-cv-override-XXXXXX")
+trap 'rm -rf "$ARTIFACTS_DIR_14"' EXIT
+
+# Write override.token with diff_hash = sha256 of empty staged diff (no staged files in test)
+_DIFF_HASH=$(git diff --cached 2>/dev/null | sha256sum | cut -c1-12)
+python3 -c "
+import json, sys
+data = {'diff_hash': sys.argv[1], 'reason': 'test override', 'timestamp': '2026-05-08T00:00:00Z', 'attribution': {'skill_name': None, 'agent_id': None}}
+print(json.dumps(data, indent=2))
+" "$_DIFF_HASH" > "$ARTIFACTS_DIR_14/override.token"
+
+EXIT_CODE=$(run_hook \
+    "DSO_COMPLIANCE_VERIFIER_ENABLED=true" \
+    "WORKFLOW_PLUGIN_ARTIFACTS_DIR=$ARTIFACTS_DIR_14")
+assert_eq "test_override_token_bypasses_block" "0" "$EXIT_CODE"
+
+# ---------------------------------------------------------------------------
+# test_stale_override_token_does_not_bypass  [RED until SC3 fix]
+# override.token with WRONG diff_hash → verifier still blocks
+# ---------------------------------------------------------------------------
+ARTIFACTS_DIR_15=$(mktemp -d "${TMPDIR:-/tmp}/test-cv-stale-token-XXXXXX")
+trap 'rm -rf "$ARTIFACTS_DIR_15"' EXIT
+
+python3 -c "
+import json, sys
+data = {'diff_hash': 'deadbeef0000', 'reason': 'stale override', 'timestamp': '2026-05-08T00:00:00Z', 'attribution': {'skill_name': None, 'agent_id': None}}
+print(json.dumps(data, indent=2))
+" > "$ARTIFACTS_DIR_15/override.token"
+
+EXIT_CODE=$(run_hook \
+    "DSO_COMPLIANCE_VERIFIER_ENABLED=true" \
+    "WORKFLOW_PLUGIN_ARTIFACTS_DIR=$ARTIFACTS_DIR_15")
+assert_eq "test_stale_override_token_does_not_bypass" "1" "$EXIT_CODE"
+
+# ---------------------------------------------------------------------------
 print_summary

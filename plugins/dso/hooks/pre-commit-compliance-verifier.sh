@@ -40,6 +40,24 @@ if [[ ! -d "$ARTIFACTS_DIR" ]]; then
     exit 0
 fi
 
+# Override path: if override.token exists with a matching diff_hash, allow this commit
+_token_file="$ARTIFACTS_DIR/override.token"
+if [[ -f "$_token_file" ]]; then
+    _current_hash=$(git diff --cached 2>/dev/null | sha256sum | cut -c1-12)
+    _token_hash=$(python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        data = json.load(f)
+    print(data.get('diff_hash', ''))
+except Exception:
+    print('')
+" "$_token_file" 2>/dev/null || echo "")
+    if [[ -n "$_token_hash" && "$_token_hash" == "$_current_hash" ]]; then
+        exit 0
+    fi
+fi
+
 # Check all required workflow steps
 _required_steps=(test format lint classifier-dispatch reviewer-record)
 _failed=0
