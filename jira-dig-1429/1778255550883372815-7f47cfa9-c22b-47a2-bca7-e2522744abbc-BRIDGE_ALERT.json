@@ -1,0 +1,1 @@
+{"event_type": "BRIDGE_ALERT", "timestamp": 1778255550883372815, "uuid": "7f47cfa9-c22b-47a2-bca7-e2522744abbc", "env_id": "87bd1065-0264-4126-94b7-ae8c71b8d506", "ticket_id": "jira-dig-1429", "data": {"reason": "STATUS event dropped: ticket-reducer returned empty compiled status"}}
