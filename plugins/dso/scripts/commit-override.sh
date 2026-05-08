@@ -47,9 +47,10 @@ fi
 
 # ── Resolve plugin root and source deps.sh ──
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-_DEPS_PATH="$_SCRIPT_DIR/../hooks/lib/deps.sh"
+CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-${_SCRIPT_DIR}/..}"
+_DEPS_PATH="${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
 if [[ -f "$_DEPS_PATH" ]]; then
-    # shellcheck source=../hooks/lib/deps.sh
+    # shellcheck source=hooks/lib/deps.sh
     source "$_DEPS_PATH"
 else
     echo "ERROR: deps.sh not found at $_DEPS_PATH" >&2
