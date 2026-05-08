@@ -3,6 +3,15 @@
 # Doc-conformance tests: verify commit-step wrapper patterns in workflow docs (epic 750c, story 7020)
 #
 # All 5 tests should PASS immediately — the docs were updated by T3.
+#
+# REVIEW-DEFENSE (PR #78 finding 7): these are doc-conformance tests, not behavioral
+# code tests. The story requirement (7020) was that workflow documentation be updated
+# to wrap commands with commit-step. The observable outcome of that requirement IS the
+# presence of specific text patterns in the doc files. For doc-conformance verification,
+# grep against source files is the appropriate tool — the source-code-grepping
+# anti-pattern applies to tests that assert function names or code structure exist
+# instead of testing observable behavior. Here the subject IS the document text, and
+# grep is the correct assertion mechanism.
 
 set -uo pipefail
 

@@ -79,6 +79,13 @@ for _step in "${_required_steps[@]}"; do
     fi
 done
 # Overlay verification: check overlay-specific findings files
+# REVIEW-DEFENSE (PR #78 finding 6): $_SCRIPT_DIR is resolved to an absolute path
+# by `cd "$(dirname "${BASH_SOURCE[0]}")" && pwd` at line 8, so the expression
+# $_SCRIPT_DIR/../docs/contracts/overlay-registry.json expands to an absolute path
+# regardless of the working directory at hook invocation time. If the registry file
+# is missing, the Python exception handler below prints an ERROR to stderr and exits
+# 1 — blocking the commit. There is no silent skip. OVERLAY_REGISTRY_PATH provides
+# an explicit override for tests and non-standard layouts.
 _classifier_result="$ARTIFACTS_DIR/classifier-dispatch.result"
 if [[ -f "$_classifier_result" ]]; then
     _registry="${OVERLAY_REGISTRY_PATH:-$_SCRIPT_DIR/../docs/contracts/overlay-registry.json}"

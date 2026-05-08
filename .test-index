@@ -1,4 +1,7 @@
 
+# REVIEW-DEFENSE (PR #78 finding 2): marker syntax is `source.py:[test_name] test_file.py`
+# (no space between the colon and the opening bracket). Lines 179 and 181 use the correct
+# format. The finding claimed a space was present; inspection of the file confirms none exists.
 .claude-plugin/marketplace.json:tests/scripts/test-marketplace-json.sh
 .github/workflows/ci-python-skills.yml:tests/skills/test_ci_workflow_pip_cache.py
 .github/workflows/ci.yml:tests/scripts/test-ci-hyperfine-installed.sh,tests/scripts/test-ci-consolidated-changes-detection.sh

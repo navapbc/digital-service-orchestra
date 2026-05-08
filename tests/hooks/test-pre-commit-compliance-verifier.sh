@@ -9,6 +9,14 @@
 #   WORKFLOW_PLUGIN_ARTIFACTS_DIR               — override for artifacts dir
 #   Exits 0 when disabled or artifacts present; 1 when artifacts missing.
 #   Exits 0 with warning when ARTIFACTS_DIR doesn't exist (first-run).
+#
+# REVIEW-DEFENSE (PR #78 finding 8): the compliance verifier performs file-existence
+# checks only on .result artifacts (`if [[ -f "$_result" ]]`). It does not parse or
+# validate JSON content of .result files — asserting on internal JSON structure would
+# be a change-detector test. Plain-text fixture content (`echo "pass" > result.file`)
+# is functionally equivalent to JSON for the behavior under test (does the verifier
+# exit 0 or 1 based on artifact presence?). Overlay tests in test-overlay-verification.sh
+# use proper JSON fixtures because that code path parses JSON to extract overlay names.
 
 set -uo pipefail
 

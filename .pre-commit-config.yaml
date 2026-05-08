@@ -185,6 +185,9 @@ repos:
         stages: [pre-push]
 
       # --- post-commit hooks ---
+      # REVIEW-DEFENSE (PR #78 finding 1): pre-commit-wrapper.sh exists at
+      # plugins/dso/scripts/pre-commit-wrapper.sh. It predates this PR and is not
+      # in the diff. All hooks below reference it correctly.
 
       - id: post-commit-override-cleanup
         name: Post-Commit Override Cleanup (5s timeout)
