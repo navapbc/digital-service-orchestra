@@ -97,6 +97,7 @@ fi
 
 # ── Reference pattern ────────────────────────────────────────────────────────
 # Matches: ${CLAUDE_PLUGIN_ROOT}/(scripts|agents|docs)/...(sh|py|md)
+_REF_PATTERN="${_PLUGIN_GIT_PATH}/(scripts|agents|docs)/[^[:space:]\`,)>\"|']+\.(sh|py|md)"
 
 # ── Scan (optimized: awk does all filtering + reference extraction) ──────────
 #

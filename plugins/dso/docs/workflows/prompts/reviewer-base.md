@@ -293,7 +293,7 @@ Each finding's `category` must be exactly one of these five dimensions:
 
 ---
 
-**Schema contracts**: [`review-findings-schema.md`](../../contracts/review-findings-schema.md) — defines the `relation` field taxonomy (`NEW_INTRODUCED`, `NEW_PRE_EXISTING`, `RESUSTAIN_OF`, `REFRAME_OF`) for reviewer-findings.json. Defense suppression (when a prior defense covers a stable code region) is handled by the REVIEW-WORKFLOW.md orchestrator before dispatch — reviewers do not evaluate inline defense comments.
+**Schema contracts**: [`review-findings-schema.md`](../../contracts/review-findings-schema.md) — defines the `relation` field taxonomy (`NEW_INTRODUCED`, `NEW_PRE_EXISTING`, `RESUSTAIN_OF`, `REFRAME_OF`) for reviewer-findings.json. [`review-defenses.md`](../../contracts/review-defenses.md) — defines the defense record shape used by the orchestrator's DefenseStore. Defense suppression (when a prior defense covers a stable code region) is handled by the REVIEW-WORKFLOW.md orchestrator before dispatch — reviewers do not evaluate inline defense comments.
 
 ---
 

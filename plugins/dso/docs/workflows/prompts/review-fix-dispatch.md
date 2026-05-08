@@ -147,7 +147,7 @@ For each finding, follow the order dictated by its testing-mode classification (
 1. Apply the source-code fix.
 2. Existing tests remain valid; rely on Step 4 (Validate) to confirm they still pass.
 
-**Defend findings**: return a defense explanation in your `RESOLUTION_RESULT` output. The orchestrator persists it to the DefenseStore via `defense_store_write` (see `${CLAUDE_PLUGIN_ROOT}/scripts/review-defense-store.sh` and contract `review-defenses.md`). Do NOT write inline comments. No test changes.
+**Defend findings**: return a defense explanation in your `RESOLUTION_RESULT` output. The orchestrator persists it to the DefenseStore via `defense_store_write` (see `.claude/scripts/dso review-defense-store.sh` and contract `review-defenses.md`). Do NOT write inline comments. No test changes.
 
 **Test-first discipline**: For RED and UPDATE findings, the test write/update MUST happen before the source-code fix. Do not batch all source edits and then write tests at the end — that order forfeits the RED→GREEN signal that proves the test actually exercises the buggy path.
 

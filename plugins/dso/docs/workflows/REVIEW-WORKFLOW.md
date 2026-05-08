@@ -810,7 +810,7 @@ Scores come exclusively from `reviewer-findings.json` (written by the code-revie
 - **R2 - No dismissal**: "Pre-existing", "not a runtime bug", "trivial/cosmetic" are not valid grounds for dismissing findings. Create tracking issues for pre-existing problems instead.
 - **R3 - Critical/important resolution**: Any critical or important finding triggers the Autonomous Resolution Loop (see "After Review").
 - **R4 - Verbatim severity**: The summary must reference the reviewer's severity levels exactly as stated. Do not downgrade or rephrase severity.
-- **R5 - Defense mechanism**: To dispute a finding without user involvement, the resolver sub-agent returns a defense explanation in its `RESOLUTION_RESULT` output. The orchestrator persists it to the DefenseStore via `defense_store_write` (see `${CLAUDE_PLUGIN_ROOT}/scripts/review-defense-store.sh` and contract `review-defenses.md`). The orchestrator MUST NOT silently dismiss findings or override scores. Defenses must reference verifiable artifacts (existing code, tests, ADRs, or documented patterns) — not unverifiable claims like "for performance reasons." The defense must be substantive enough that a human would understand the tradeoff. **Structural findings** (type annotations, test coverage gaps, missing error handling) should prefer Fix over Defend — the reviewer scores these based on code patterns, and a defense record is unlikely to change the score.
+- **R5 - Defense mechanism**: To dispute a finding without user involvement, the resolver sub-agent returns a defense explanation in its `RESOLUTION_RESULT` output. The orchestrator persists it to the DefenseStore via `defense_store_write` (see `.claude/scripts/dso review-defense-store.sh` and contract `review-defenses.md`). The orchestrator MUST NOT silently dismiss findings or override scores. Defenses must reference verifiable artifacts (existing code, tests, ADRs, or documented patterns) — not unverifiable claims like "for performance reasons." The defense must be substantive enough that a human would understand the tradeoff. **Structural findings** (type annotations, test coverage gaps, missing error handling) should prefer Fix over Defend — the reviewer scores these based on code patterns, and a defense record is unlikely to change the score.
 
 ### Record the review
 
@@ -945,7 +945,7 @@ Task tool:
    "$REPO_ROOT/.claude/scripts/dso" capture-review-diff.sh "$NEW_DIFF_FILE" "$NEW_STAT_FILE"
    ```
 
-2. **Re-review agent selection**: Use `REVIEW_AGENT` from Step 3 for all re-review dispatches. Tier upgrades MUST NOT be triggered by cycle count — they happen ONLY via `ESCALATE_REVIEW` signals (Step 4a). `RATCHETED_TIER` (set in Step 4a when `ESCALATE_REVIEW` triggered escalation) is respected as a one-way floor across all re-review passes — once set, the re-review tier never drops below it:
+2. **Re-review model escalation**: Use `REVIEW_AGENT` from Step 3 for all re-review dispatches. Tier upgrades MUST NOT be triggered by cycle count — they happen ONLY via `ESCALATE_REVIEW` signals (Step 4a). When `ESCALATE_REVIEW` fires, the upgrade path is: light → standard → deep (one-way, monotonic). `RATCHETED_TIER` (set in Step 4a when `ESCALATE_REVIEW` triggered escalation) is respected as a one-way floor across all re-review passes — once set, the re-review tier never drops below it:
 
    | Condition | Re-review Agent | Rationale |
    |---|---|---|
@@ -954,7 +954,7 @@ Task tool:
    | All other cases | `REVIEW_AGENT` from Step 3 (unchanged) | Tier is locked; only ESCALATE_REVIEW may change it |
 
    ```bash
-   # Re-review agent selection logic
+   # Re-review model escalation logic
    # Increment ATTEMPT_NUM at the start of each re-review dispatch (for oscillation gate and max-attempts).
    ((ATTEMPT_NUM++))
    # RATCHETED_TIER is initialized before the first dispatch and updated by Step 4a.

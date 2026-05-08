@@ -105,7 +105,7 @@ class TestBuildMessagesAnthropicCacheControl:
         When: _build_messages is called
         Then: system message content is a list with an ephemeral cache_control block
         """
-        msgs = _build_messages(_DIFF_TEXT, agent_id="unknown", provider="anthropic")
+        msgs = _build_messages(_DIFF_TEXT, agent_id="code-reviewer-light", provider="anthropic")
         sys_msg = msgs[0]
         assert sys_msg["role"] == "system"
         assert isinstance(sys_msg["content"], list), (
@@ -125,7 +125,7 @@ class TestBuildMessagesAnthropicCacheControl:
         When: _build_messages is called
         Then: user (diff) message content is a list with an ephemeral cache_control block
         """
-        msgs = _build_messages(_DIFF_TEXT, agent_id="unknown", provider="anthropic")
+        msgs = _build_messages(_DIFF_TEXT, agent_id="code-reviewer-light", provider="anthropic")
         user_msg = msgs[1]
         assert user_msg["role"] == "user"
         assert isinstance(user_msg["content"], list), (
@@ -142,7 +142,7 @@ class TestBuildMessagesAnthropicCacheControl:
 
     def test_diff_text_preserved_in_content_block(self) -> None:
         """Diff text is embedded in the text field, not lost in the content block."""
-        msgs = _build_messages(_DIFF_TEXT, agent_id="unknown", provider="anthropic")
+        msgs = _build_messages(_DIFF_TEXT, agent_id="code-reviewer-light", provider="anthropic")
         user_blocks = msgs[1]["content"]
         combined_text = " ".join(
             blk.get("text", "") for blk in user_blocks if isinstance(blk, dict)
@@ -161,7 +161,7 @@ class TestBuildMessagesNonAnthropicNoCache:
         When: _build_messages is called
         Then: both messages use plain string content (no content-block list)
         """
-        msgs = _build_messages(_DIFF_TEXT, agent_id="unknown", provider=provider)
+        msgs = _build_messages(_DIFF_TEXT, agent_id="code-reviewer-light", provider=provider)
         for msg in msgs:
             assert isinstance(msg["content"], str), (
                 f"Non-Anthropic provider '{provider}' message content must be a string; "

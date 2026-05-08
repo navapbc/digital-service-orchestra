@@ -46,6 +46,7 @@ title="$2"
 shift 2
 
 # Parse remaining args: support both positional parent_id and --parent <id>
+priority="2"
 parent_id=""
 assignee=""
 description=""
