@@ -1120,6 +1120,21 @@ After each resolution of an AMBIGUITY or CONFLICT cross-epic signal, brainstorm 
 
 ---
 
+### `hooks.compliance_verifier.enabled`
+
+| | |
+|---|---|
+| **Description** | Enables or disables the pre-commit compliance verifier gate. When `true` (default), the gate runs on every local commit and checks that required review, test, and lint steps have been recorded as completed before allowing the commit to proceed. When `false`, the gate exits 0 immediately with no checks. |
+| **Accepted values** | `true`, `false` |
+| **Default** | `true` |
+| **Used by** | `hooks/pre-commit-compliance-verifier.sh` |
+
+**`enforcement.strategy=ci` interaction**: When `enforcement.strategy=ci`, the compliance verifier gate is skipped locally (enforcement is deferred to CI). In this mode, the individual steps checked by the gate — `test`, `format`, `lint`, `classifier-dispatch`, and `reviewer-record` — should be written with `skip` markers (via `commit-step.sh skip <step> "enforcement.strategy=ci"`) so the gate does not block commits that are intentionally deferring to CI enforcement.
+
+**Example**: `hooks.compliance_verifier.enabled=true`
+
+---
+
 ## Ruleset Provisioning Knobs
 
 The following are CLI flags accepted by `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh`. They are NOT `dso-config.conf` keys — they are passed as command-line arguments when provisioning the GitHub Ruleset. Each flag has a default that matches the prior hardcoded behavior so existing invocations remain backward compatible.
