@@ -75,6 +75,7 @@ def _ensure_plugin_package() -> None:
     _load_from_plugin("proximity")
     _load_from_plugin("speculation_markers")
     _load_from_plugin("runner")
+    _load_from_plugin("arbiter")
 
 
 _ensure_plugin_package()

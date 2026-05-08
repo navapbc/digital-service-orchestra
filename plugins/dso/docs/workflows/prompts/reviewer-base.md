@@ -3,7 +3,7 @@
 This fragment is composed with a tier-specific delta file by build-review-agents.sh to produce
 a complete code-reviewer agent definition. It contains universal guidance that applies to all
 review tiers: output contract, JSON schema, scoring rules, category mapping,
-no-formatting/linting-exclusion rule, REVIEW-DEFENSE evaluation, and the
+no-formatting/linting-exclusion rule, and the
 write-reviewer-findings.sh call procedure.
 
 ---
@@ -293,19 +293,7 @@ Each finding's `category` must be exactly one of these five dimensions:
 
 ---
 
-## REVIEW-DEFENSE Evaluation
-
-When you encounter a `# REVIEW-DEFENSE:` comment in the code:
-
-1. Read the defense. Does it reference verifiable artifacts (code, tests, ADRs, documented
-   patterns)?
-2. If you agree: lower severity or remove finding; note acceptance in description.
-3. If you disagree: maintain severity; explain why the defense is insufficient.
-
-Defenses based on unverifiable claims (e.g., "for performance reasons" with no benchmark,
-test, or documented tradeoff) should be treated skeptically.
-
-**Schema contracts**: [`review-findings-schema.md`](../../contracts/review-findings-schema.md) — defines the `relation` field taxonomy (`NEW_INTRODUCED`, `NEW_PRE_EXISTING`, `RESUSTAIN_OF`, `REFRAME_OF`) for reviewer-findings.json. [`review-defenses.md`](../../contracts/review-defenses.md) — defines the DefenseStore record shape, `cited_lines_fingerprint` algorithm, and `DEFENSE_RECORD:` canonical parsing prefix.
+**Schema contracts**: [`review-findings-schema.md`](../../contracts/review-findings-schema.md) — defines the `relation` field taxonomy (`NEW_INTRODUCED`, `NEW_PRE_EXISTING`, `RESUSTAIN_OF`, `REFRAME_OF`) for reviewer-findings.json. Defense suppression (when a prior defense covers a stable code region) is handled by the REVIEW-WORKFLOW.md orchestrator before dispatch — reviewers do not evaluate inline defense comments.
 
 ---
 

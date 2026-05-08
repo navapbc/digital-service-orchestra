@@ -79,8 +79,7 @@ Parse the JSON: extract the `findings` array.
 For EACH finding, assign ONE action:
 
 > **Minor findings always go to Defer** — never Defend. Minor findings do not affect pass/fail
-> (min score ≥ 4 means minor findings alone cannot cause failure). Do NOT add a `# REVIEW-DEFENSE:`
-> comment for a minor finding — it pollutes the codebase. Defer only if the finding represents
+> (min score ≥ 4 means minor findings alone cannot cause failure). Defer only if the finding represents
 > actionable future work; otherwise ignore entirely.
 > **`fragile` is NOT minor** — fragile findings NEVER go to Defer. Always route fragile findings
 > to Fix or Defend (see table below).
@@ -88,7 +87,7 @@ For EACH finding, assign ONE action:
 | Action | When | What to do |
 |--------|------|------------|
 | **Fix** | Finding is correct and fixable. Prefer Fix for structural findings (types, tests, error handling). Also the primary route for `critical`, `important`, and `fragile` findings. | Fix the code, write/update tests as needed. |
-| **Defend** | Finding is a false positive or acceptable tradeoff. Best for subjective findings (readability, design). NEVER for minor findings. Valid for `critical`, `important`, and `fragile` findings when a genuine tradeoff exists. | Add a `# REVIEW-DEFENSE: <explanation>` comment near the flagged code. Must reference verifiable artifacts (code, tests, ADRs). |
+| **Defend** | Finding is a false positive or acceptable tradeoff. Best for subjective findings (readability, design). NEVER for minor findings. Valid for `critical`, `important`, and `fragile` findings when a genuine tradeoff exists. | Write a defense record to the DefenseStore (see `review-defenses.md`). The orchestrator calls `defense_store_write` after the resolver returns a defense explanation. Must reference verifiable artifacts (code, tests, ADRs). |
 | **Defer** | Finding is pre-existing, out of scope, or minor severity. **NEVER for `critical`, `important`, or `fragile` findings.** | Create a ticket: `.claude/scripts/dso ticket create bug "Fix: <finding>" --priority <P>`. Then note it in FINDINGS_ADDRESSED. |
 
 **Schema contracts:** [`review-findings-schema.md`](../../contracts/review-findings-schema.md) defines the relation taxonomy (`NEW_INTRODUCED`, `NEW_PRE_EXISTING`, `RESUSTAIN_OF`, `REFRAME_OF`) used in cycle-N+1 reviews. [`review-defenses.md`](../../contracts/review-defenses.md) defines the DefenseStore record shape and `DEFENSE_RECORD:` canonical parsing prefix.
@@ -148,7 +147,7 @@ For each finding, follow the order dictated by its testing-mode classification (
 1. Apply the source-code fix.
 2. Existing tests remain valid; rely on Step 4 (Validate) to confirm they still pass.
 
-**Defend findings**: add `# REVIEW-DEFENSE: <explanation>` inline in the relevant file. No test changes.
+**Defend findings**: return a defense explanation in your `RESOLUTION_RESULT` output. The orchestrator persists it to the DefenseStore via `defense_store_write` (see `${CLAUDE_PLUGIN_ROOT}/scripts/review-defense-store.sh` and contract `review-defenses.md`). Do NOT write inline comments. No test changes.
 
 **Test-first discipline**: For RED and UPDATE findings, the test write/update MUST happen before the source-code fix. Do not batch all source edits and then write tests at the end — that order forfeits the RED→GREEN signal that proves the test actually exercises the buggy path.
 
