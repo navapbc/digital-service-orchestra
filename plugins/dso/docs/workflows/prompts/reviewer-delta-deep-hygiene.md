@@ -6,8 +6,8 @@
 
 This delta file is composed with reviewer-base.md by build-review-agents.sh. It contains
 only tier-specific additions. The base file supplies the universal output contract, JSON
-schema, scoring rules, category mapping, no-formatting/linting-exclusion rule, REVIEW-DEFENSE
-evaluation section, and write-reviewer-findings.sh call procedure.
+schema, scoring rules, category mapping, no-formatting/linting-exclusion rule,
+and write-reviewer-findings.sh call procedure.
 
 ---
 

@@ -27,8 +27,7 @@ import subprocess
 import sys
 import tempfile
 
-from dso_ci_review.classifier import classify_tier
-from dso_ci_review.dispatch import async_dispatch_specialists
+from dso_ci_review.dispatch import async_dispatch_specialists, _validate_agent_files, dispatch_arch_synthesis
 from dso_ci_review.findings import merge_findings
 from dso_ci_review.providers.config import AuthError, ConfigError, get_provider
 
@@ -315,10 +314,124 @@ def _write_output(data: dict) -> None:
         print(serialized)
 
 
+_CLASSIFIER_FALLBACK: dict = {
+    "selected_tier": "standard",
+    "security_overlay": False,
+    "performance_overlay": False,
+    "test_quality_overlay": False,
+}
+
+
+def _classify_tier_via_bash(
+    diff_text: str,
+    repo_root: str | None = None,
+    plugin_root: str | None = None,
+) -> dict:
+    """Call review-complexity-classifier.sh via subprocess and return the classification dict.
+
+    Resolution order for the classifier script:
+      1. plugin_root argument (explicit override)
+      2. CLAUDE_PLUGIN_ROOT env var
+      3. 5-dirname-levels from __file__:
+         runner.py → dso_ci_review → scripts → dso → plugins → repo_root,
+         then os.path.join(repo_root, "plugins", "dso") for the plugin root
+
+    Failure semantics (per GAP_AMENDMENT):
+      - FileNotFoundError (script not found): re-raise — deployment bug, not a runtime case.
+      - subprocess.TimeoutExpired: log warning to stderr, return _CLASSIFIER_FALLBACK.
+      - Non-zero exit or JSON parse error: log warning to stderr, return _CLASSIFIER_FALLBACK.
+
+    The repo_root is resolved for the subprocess cwd so that review-complexity-classifier.sh
+    can call `git rev-parse --show-toplevel` internally. Resolution order:
+      1. repo_root argument
+      2. REPO_ROOT env var
+      3. git rev-parse from __file__-relative directory (best-effort; falls back to None)
+    """
+    # Resolve plugin_root
+    if plugin_root is None:
+        plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+    if plugin_root is None:
+        # 5 dirname levels: runner.py → dso_ci_review → scripts → dso → plugins → repo_root,
+        # then descend two levels to reach the plugin root
+        _five_up = os.path.dirname(
+            os.path.dirname(
+                os.path.dirname(
+                    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                )
+            )
+        )
+        plugin_root = os.path.join(_five_up, "plugins", "dso")
+
+    classifier_script = os.path.join(
+        plugin_root, "scripts", "review-complexity-classifier.sh"
+    )
+
+    # Resolve repo_root for cwd
+    if repo_root is None:
+        repo_root = os.environ.get("REPO_ROOT")
+    if repo_root is None:
+        try:
+            _rr = subprocess.run(
+                ["git", "rev-parse", "--show-toplevel"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                cwd=os.path.dirname(os.path.abspath(__file__)),
+            )
+            if _rr.returncode == 0:
+                repo_root = _rr.stdout.strip() or None
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            repo_root = None
+
+    # Build env with CLAUDE_PLUGIN_ROOT set so classifier can resolve _PLUGIN_ROOT
+    run_env = os.environ.copy()
+    run_env["CLAUDE_PLUGIN_ROOT"] = str(plugin_root)
+
+    try:
+        result = subprocess.run(
+            ["bash", str(classifier_script)],
+            input=diff_text,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            cwd=repo_root,
+            env=run_env,
+        )
+    except subprocess.TimeoutExpired:
+        print(
+            "WARNING: review-complexity-classifier.sh timed out; "
+            "falling back to standard tier",
+            file=sys.stderr,
+        )
+        return _CLASSIFIER_FALLBACK.copy()
+    # FileNotFoundError propagates — deployment bug, fail loud
+
+    if result.returncode != 0:
+        print(
+            f"WARNING: review-complexity-classifier.sh exited {result.returncode}; "
+            f"falling back to standard tier. stderr: {result.stderr.strip()!r}",
+            file=sys.stderr,
+        )
+        return _CLASSIFIER_FALLBACK.copy()
+
+    try:
+        parsed = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        print(
+            f"WARNING: review-complexity-classifier.sh produced invalid JSON "
+            f"({exc}); falling back to standard tier. stdout: {result.stdout!r}",
+            file=sys.stderr,
+        )
+        return _CLASSIFIER_FALLBACK.copy()
+
+    return parsed
+
+
 _TIER_MODEL_DEFAULTS: dict[str, str] = {
     "light": "claude-haiku-4-5-20251001",
     "standard": "claude-sonnet-4-6",
     "deep": "claude-sonnet-4-6",
+    "deep-arch": "claude-opus-4-7",
 }
 
 
@@ -417,6 +530,96 @@ def _build_agents_for_tier(
     return agents
 
 
+_OVERLAY_AGENT_IDS: dict[str, str] = {
+    "security": "code-reviewer-security-red-team",
+    "performance": "code-reviewer-performance",
+    "test_quality": "code-reviewer-test-quality",
+}
+
+
+def _build_overlay_agents(
+    classification: dict,
+    diff_text: str,
+    config_path: str | None = None,
+) -> list[dict]:
+    """Build overlay agent descriptors based on classifier flags.
+
+    Reads ``security_overlay``, ``performance_overlay``, and
+    ``test_quality_overlay`` from the classification dict.  For each flag
+    that is True, an agent descriptor is appended to the returned list.
+    """
+    agents: list[dict] = []
+    flag_map = {
+        "security_overlay": "security",
+        "performance_overlay": "performance",
+        "test_quality_overlay": "test_quality",
+    }
+    for flag, dimension in flag_map.items():
+        if classification.get(flag):
+            agents.append(
+                {
+                    "agent_id": _OVERLAY_AGENT_IDS[dimension],
+                    "diff_text": diff_text,
+                    "config_path": config_path,
+                }
+            )
+    return agents
+
+
+def _overlay_agents_from_findings(
+    findings_list: list[dict],
+    diff_text: str = "",
+    config_path: str | None = None,
+) -> list[dict]:
+    """Scan first-pass findings for warranted overlay signals.
+
+    Checks each finding dict for:
+    - ``type == "overlay_warranted"`` with a ``dimension`` field
+      (``security``, ``performance``, or ``test_quality``)
+    - Boolean/string fields ``security_overlay_warranted``,
+      ``performance_overlay_warranted``, ``test_quality_overlay_warranted``
+    - The ``summary`` string field for patterns like
+      ``security_overlay_warranted: yes``
+
+    Returns a deduplicated list of overlay agent descriptors.
+    """
+    warranted: set[str] = set()
+
+    for findings_dict in findings_list:
+        for finding in findings_dict.get("findings") or []:
+            # Pattern 1: explicit type=overlay_warranted with dimension
+            if finding.get("type") == "overlay_warranted":
+                dimension = finding.get("dimension", "")
+                if dimension in _OVERLAY_AGENT_IDS:
+                    warranted.add(dimension)
+
+            # Pattern 2: boolean/string flag fields
+            for flag_field, dimension in (
+                ("security_overlay_warranted", "security"),
+                ("performance_overlay_warranted", "performance"),
+                ("test_quality_overlay_warranted", "test_quality"),
+            ):
+                val = finding.get(flag_field)
+                if val is True or str(val).lower() == "yes":
+                    warranted.add(dimension)
+
+            # Pattern 3: summary field string scan
+            summary = str(finding.get("summary", ""))
+            for dimension in _OVERLAY_AGENT_IDS:
+                pattern = f"{dimension}_overlay_warranted: yes"
+                if pattern in summary.lower():
+                    warranted.add(dimension)
+
+    return [
+        {
+            "agent_id": _OVERLAY_AGENT_IDS[dim],
+            "diff_text": diff_text,
+            "config_path": config_path,
+        }
+        for dim in warranted
+    ]
+
+
 def main() -> int:
     """Run the CI review and return an exit code."""
     dry_run = os.environ.get("DSO_CI_REVIEW_DRY_RUN") == "1"
@@ -425,6 +628,13 @@ def main() -> int:
         findings = {"findings": [], "dry_run": True}
         _write_output(findings)
         return 0
+
+    # Validate all required agent files exist before dispatching any LLM calls.
+    try:
+        _validate_agent_files()
+    except RuntimeError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
 
     diff_text = _read_diff()
     if not diff_text.strip():
@@ -471,19 +681,70 @@ def main() -> int:
 
     try:
         # Step 1: classify tier
-        classification = classify_tier(diff_text)
+        classification = _classify_tier_via_bash(diff_text)
         tier = classification["selected_tier"]
 
-        # Step 2: build agent list based on tier
-        agents = _build_agents_for_tier(tier, diff_text, classification)
+        # Read review cycle number — used by two-call architecture on re-review passes.
+        _cycle_number = int(os.environ.get('DSO_REVIEW_CYCLE', '1'))  # noqa: F841
 
-        # Step 3: dispatch agents (async)
-        all_findings = asyncio.run(async_dispatch_specialists(agents))
+        # Resolve config_path once for overlay agent construction
+        config_path: str | None = None
 
-        # Step 4: merge findings
+        # Step 2: build agent list based on tier, plus any classifier-flagged overlays
+        tier_agents = _build_agents_for_tier(tier, diff_text, classification, config_path)
+        overlay_agents = _build_overlay_agents(classification, diff_text, config_path)
+
+        # Enrich overlay descriptors with model + provider_chain for dispatch
+        base_model = _read_tier_model(tier, config_path)
+        provider_chain = [os.environ.get("CI_REVIEW_PROVIDER", "anthropic")]
+        for agent in overlay_agents:
+            agent.setdefault("model", base_model)
+            agent.setdefault("provider_chain", provider_chain)
+
+        # Step 3: dispatch tier agents + classifier-flagged overlays together (parallel)
+        first_pass_findings = asyncio.run(
+            async_dispatch_specialists(tier_agents + overlay_agents)
+        )
+
+        # Step 4: check first-pass findings for warranted second-pass overlays
+        warranted_overlay_agents = _overlay_agents_from_findings(
+            first_pass_findings, diff_text, config_path
+        )
+        all_findings = list(first_pass_findings)
+        if warranted_overlay_agents:
+            # Enrich warranted overlay descriptors with model + provider_chain
+            for agent in warranted_overlay_agents:
+                agent.setdefault("model", base_model)
+                agent.setdefault("provider_chain", provider_chain)
+            second_pass_findings = asyncio.run(
+                async_dispatch_specialists(warranted_overlay_agents)
+            )
+            all_findings.extend(second_pass_findings)
+
+        # Step 5: merge findings
         merged = merge_findings(*all_findings)
 
-        # Step 5: write output
+        # Step 6: for deep tier, run arch synthesis after specialists; the arch
+        # synthesis result replaces the merged specialist output as the final result
+        # when it succeeds (non-synthetic findings or no findings at all).
+        # On infrastructure failure (fallback_exhausted / specialist_error), the
+        # merged specialist output is preserved so the severity gate still fires.
+        if tier == "deep":
+            arch_model = _read_tier_model("deep-arch", config_path)
+            arch_result = dispatch_arch_synthesis(
+                json.dumps(merged),
+                diff_text=diff_text,
+                model=arch_model,
+                provider_chain=provider_chain,
+            )
+            arch_findings = arch_result.get("findings") or []
+            arch_all_synthetic = bool(arch_findings) and all(
+                f.get("type", "") in _SYNTHETIC_TYPES for f in arch_findings
+            )
+            if not arch_all_synthetic:
+                merged = arch_result
+
+        # Step 7: write output
         _write_output(merged)
     except Exception as exc:  # noqa: BLE001
         print(f"ERROR: LLM call failed: {exc}", file=sys.stderr)
@@ -503,17 +764,16 @@ def main() -> int:
         )
         return 1
 
-    # Warn (non-blocking) when all findings are synthetic (e840-327f).
-    # fallback_exhausted / specialist_error / parse_error findings indicate review
-    # infrastructure issues but are not hard failures — alert the operator without
-    # blocking CI. Use _SYNTHETIC_TYPES (single source of truth for what counts as
-    # synthetic) so this WARNING and _real_blocking_findings agree.
+    # Block (fail-closed) when all findings are synthetic (a8f6-4c5e reverses e840-327f).
+    # An all-synthetic outcome means zero usable review content was produced — no valid
+    # reviewer ever ran. Blocking prevents silent approval of unreviewed PRs.
     if _findings and all(f.get("type", "") in _SYNTHETIC_TYPES for f in _findings):
         print(
-            f"WARNING: all {len(_findings)} finding(s) are synthetic "
-            f"({'/'.join(sorted(_SYNTHETIC_TYPES))}) — review content may be incomplete",
+            f"ERROR: all {len(_findings)} finding(s) are synthetic "
+            f"({'/'.join(sorted(_SYNTHETIC_TYPES))}) — no valid review content produced",
             file=sys.stderr,
         )
+        return 1
 
     # Surface blocking findings to the PR (best-effort) before deciding exit code,
     # so the author has visible context whether the gate passes or fails. Returns

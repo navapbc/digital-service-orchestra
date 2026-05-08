@@ -168,7 +168,6 @@ fi
 # retry after a short wait. This handles the case where the tracker symlink
 # or filesystem isn't fully ready yet (common during worktree creation).
 # ---------------------------------------------------------------------------
-# REVIEW-DEFENSE: MAX_RETRIES is the number of additional attempts after the initial build,
 # not the total number of attempts. Total attempts = MAX_RETRIES + 1 (initial attempt + retries).
 # The retry loop condition `attempt < MAX_RETRIES` is intentional: attempt starts at 0 and
 # increments after each retry, so the loop runs at most MAX_RETRIES times (additional attempts).

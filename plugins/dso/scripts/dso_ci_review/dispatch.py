@@ -24,19 +24,18 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-_SYSTEM_PROMPT = (
-    "You are a code reviewer. Analyze the provided diff and return a JSON object "
-    'with a single key "findings" whose value is a list of finding objects. '
-    'Each finding object must have: severity (one of: "critical", "important", '
-    '"minor", "fragile"), description (string), '
-    "cited_lines (list of strings in 'path:lineno' format). "
-    "Return ONLY the JSON object, no markdown fences, no explanatory text."
+_PLUGIN_ROOT = pathlib.Path(
+    os.environ.get(
+        "CLAUDE_PLUGIN_ROOT", str(pathlib.Path(__file__).resolve().parent.parent.parent)
+    )
 )
-
-_PLUGIN_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 _AGENTS_DIR = _PLUGIN_ROOT / "agents"
 # Git-relative path to this module (used in synthetic cited_lines to avoid literal plugin paths).
-_THIS_FILE_GIT_REL = str(pathlib.Path(__file__).resolve().relative_to(_PLUGIN_ROOT.parent.parent))
+# Always derived from __file__ itself (5 levels up to repo root), independent of _PLUGIN_ROOT
+# so that CLAUDE_PLUGIN_ROOT overrides don't break the computation.
+_THIS_FILE_RESOLVED = pathlib.Path(__file__).resolve()
+_REPO_ROOT_FROM_FILE = _THIS_FILE_RESOLVED.parent.parent.parent.parent.parent
+_THIS_FILE_GIT_REL = str(_THIS_FILE_RESOLVED.relative_to(_REPO_ROOT_FROM_FILE))
 
 # SC4: context-augmentation soft cap (default 15 turns).
 # Module-level so tests can patch it without modifying the function signature.
@@ -48,23 +47,58 @@ def _load_agent_prompt(agent_id: str) -> str:
     """Load the canonical agent file body for ``agent_id``.
 
     Resolves ``<plugin-root>/agents/<agent_id>.md``, strips YAML frontmatter
-    (the leading ``---\\n...\\n---\\n`` block), and returns the body. Falls
-    back to the inline ``_SYSTEM_PROMPT`` constant when the agent file is
-    missing or empty so dispatch remains functional on agent_id typos.
+    (the leading ``---\\n...\\n---\\n`` block), and returns the body. Raises
+    RuntimeError when the agent file is missing or empty.
     """
     if not agent_id or agent_id == "unknown":
-        return _SYSTEM_PROMPT
+        raise RuntimeError(
+            f'agent_id must not be empty or "unknown"; got: {agent_id!r}'
+        )
     agent_file = _AGENTS_DIR / f"{agent_id}.md"
     try:
         text = agent_file.read_text(encoding="utf-8")
     except OSError:
-        return _SYSTEM_PROMPT
+        raise RuntimeError(
+            f"Agent file not found: {agent_file}. "
+            "Ensure CLAUDE_PLUGIN_ROOT points to the plugin directory containing agents/."
+        ) from None
     if text.startswith("---\n"):
         end = text.find("\n---\n", 4)
         if end != -1:
             text = text[end + len("\n---\n") :]
     body = text.strip()
-    return body or _SYSTEM_PROMPT
+    if not body:
+        raise RuntimeError(f"Agent file is empty: {agent_file}")
+    return body
+
+
+_REQUIRED_AGENT_IDS: list[str] = [
+    "code-reviewer-light",
+    "code-reviewer-standard",
+    "code-reviewer-deep-arch",
+    "code-reviewer-deep-correctness",
+    "code-reviewer-deep-verification",
+    "code-reviewer-deep-hygiene",
+    "code-reviewer-security-red-team",
+    "code-reviewer-security-blue-team",
+    "code-reviewer-performance",
+    "code-reviewer-test-quality",
+]
+
+
+def _validate_agent_files(required_ids: list[str] | None = None) -> None:
+    """Verify all required agent .md files exist. Raises RuntimeError listing all missing files."""
+    if required_ids is None:
+        required_ids = _REQUIRED_AGENT_IDS
+    missing = [
+        str(_AGENTS_DIR / f"{agent_id}.md")
+        for agent_id in required_ids
+        if not (_AGENTS_DIR / f"{agent_id}.md").exists()
+    ]
+    if missing:
+        raise RuntimeError(
+            "Missing agent files (check CLAUDE_PLUGIN_ROOT): " + ", ".join(missing)
+        )
 
 
 # Default per-provider model identifiers (primary → context escalation chain)
@@ -588,6 +622,104 @@ def review_with_fallbacks(
 # ---------------------------------------------------------------------------
 
 
+def dispatch_two_call_review(
+    diff_text: str,
+    prior_findings_index: list[dict[str, Any]],
+    prior_findings: list[dict[str, Any]],
+    defenses: list[dict[str, Any]],
+    provider_chain: list[str],
+    environ: dict[str, str] | None = None,
+    agent_id: str = "unknown",
+    primary_model: str | None = None,
+) -> dict[str, Any]:
+    """Two-call review architecture for re-review cycles (DSO_REVIEW_CYCLE >= 2).
+
+    Call 1 receives the stripped prior_findings_index (id, cited_lines, dimension only —
+    no defense_text) so the reviewer evaluates findings independently without seeing
+    existing defenses.
+
+    Call 2 receives Call 1's output plus the full prior_findings (with defense_text)
+    and defenses so the reviewer can weigh new findings against existing defenses.
+
+    Args:
+        diff_text: Unified diff text to review.
+        prior_findings_index: Stripped prior findings — id, cited_lines, dimension only.
+                              Must NOT contain defense_text.
+        prior_findings: Full prior findings including defense_text.
+        defenses: Full defense records for prior findings.
+        provider_chain: Ordered list of provider names.
+        environ: Environment variable mapping for credential checks. When None, uses
+                 os.environ. Applied via os.environ before each dispatch_review call
+                 and cleaned up after.
+        agent_id: Identifier of the reviewing agent.
+        primary_model: Override the primary model for the first provider call.
+
+    Returns:
+        The Call 2 result dict — a dict with a "findings" key.
+    """
+    import litellm  # noqa: PLC0415 — deferred import; test patches dso_ci_review.dispatch.litellm
+
+    from dso_ci_review.providers.config import ConfigError
+
+    _environ = dict(environ) if environ else dict(os.environ)
+
+    # Credential pre-check
+    first_provider = provider_chain[0]
+    key_var = _PROVIDER_API_KEY.get(first_provider)
+    if not key_var:
+        raise ConfigError(f"Unknown provider: {first_provider!r}")
+    if not _environ.get(key_var):
+        raise ConfigError(f"Missing {key_var} for provider {first_provider!r}")
+
+    resolved_model = primary_model or _PROVIDER_DEFAULT_MODEL.get(
+        first_provider, first_provider
+    )
+    fallbacks = _build_fallbacks(provider_chain, first_provider)
+
+    # Resolve litellm via module attribute so tests patching
+    # ``dso_ci_review.dispatch.litellm`` intercept these calls.
+    import dso_ci_review.dispatch as _self_mod  # noqa: PLC0415
+    _litellm = getattr(_self_mod, "litellm", litellm)
+
+    # --- Call 1: pass only the stripped index (no defense_text) ---
+    index_context = (
+        "\n\n## Prior review findings index (no defenses — evaluate independently)\n\n"
+        + json.dumps(prior_findings_index, indent=2)
+    )
+    call1_diff = diff_text + index_context
+    call1_messages = _build_messages(call1_diff, agent_id=agent_id, provider=first_provider)
+
+    call1_response = _litellm.completion(
+        model=resolved_model,
+        messages=call1_messages,
+        stream=False,
+        fallbacks=fallbacks,
+    )
+    call1_result = _parse_response(call1_response)
+
+    # --- Call 2: pass Call 1 output + full prior_findings + defenses ---
+    call2_context = (
+        "\n\n## Call 1 findings\n\n"
+        + json.dumps(call1_result, indent=2)
+        + "\n\n## Prior findings (with defenses)\n\n"
+        + json.dumps(prior_findings, indent=2)
+        + "\n\n## Defenses\n\n"
+        + json.dumps(defenses, indent=2)
+    )
+    call2_diff = diff_text + call2_context
+    call2_messages = _build_messages(call2_diff, agent_id=agent_id, provider=first_provider)
+
+    call2_response = _litellm.completion(
+        model=resolved_model,
+        messages=call2_messages,
+        stream=False,
+        fallbacks=fallbacks,
+    )
+    call2_result = _parse_response(call2_response)
+
+    return call2_result
+
+
 async def _call_single_agent(
     agent_id: str,
     diff_text: str,
@@ -618,6 +750,23 @@ async def _call_single_agent(
                 }
             ]
         }
+
+
+def dispatch_arch_synthesis(
+    merged_findings_json: str,
+    diff_text: str,
+    model: str,
+    provider_chain: list[str],
+) -> dict:
+    """Approximate opus arch synthesis: sequential call after 3 parallel specialists."""
+    augmented_input = f"{diff_text}\n\n## Prior specialist findings\n\n{merged_findings_json}"
+    return dispatch_review(
+        diff_text=augmented_input,
+        agent_id="code-reviewer-deep-arch",
+        primary_model=model,
+        provider_chain=provider_chain,
+        tier="deep",
+    )
 
 
 async def async_dispatch_specialists(

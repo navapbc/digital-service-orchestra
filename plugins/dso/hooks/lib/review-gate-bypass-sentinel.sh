@@ -92,7 +92,6 @@ _PY_EOF
     # process environment never contains this var. We must parse the COMMAND string
     # directly to detect the pattern.
     if [[ "$COMMAND" =~ DSO_MECHANICAL_AMEND=1 ]]; then
-        # REVIEW-DEFENSE: Use `git[[:space:]].*commit` (word-boundary via [[:space:]].*) instead of
         # `git[[:space:]]+(commit|[^[:space:]]*[[:space:]]+commit)` so that `git -C /path commit`
         # is also matched. The existing Pattern b has the same regex limitation for -n detection,
         # but fixing it there risks false positives (git log -n). Here, since we already know

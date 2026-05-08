@@ -725,7 +725,6 @@ if [[ "$FULL_SUITE" == true ]]; then
         TESTED_FILES_LIST="$_all_test_files"
         _runner_cmd=()
         read -ra _runner_cmd <<< "$RECORD_TEST_STATUS_RUNNER"
-        # REVIEW-DEFENSE: First-failure-wins is intentional. The full-suite path
         # uses _full_exit to decide passed/failed/timeout (3 branches at line 626).
         # Exit 144 (SIGURG timeout) must take precedence over non-zero (test failure)
         # since the status file distinguishes "timeout" from "failed". Capturing only
@@ -740,7 +739,6 @@ if [[ "$FULL_SUITE" == true ]]; then
             fi
         done
     elif [[ -n "$_FULL_SUITE_CMD" ]]; then
-        # REVIEW-DEFENSE: TESTED_FILES_LIST is set BEFORE the suite runs so the
         # SIGURG trap (_write_partial_status) can report which files were targeted.
         # The trap writes status "partial" (not "passed"), so the pre-commit gate
         # never accepts this as a valid pass — it indicates an interrupted full-suite
@@ -768,7 +766,6 @@ if [[ "$FULL_SUITE" == true ]]; then
         TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
         # Write test-gate-status in standard format
-        # REVIEW-DEFENSE: failed_tests is intentionally empty for full-suite runs.
         # The full suite runs as a single commands.test invocation — individual
         # failing test file names are not available (unlike the per-file path which
         # tracks each test_file independently). The pre-commit gate reads only the

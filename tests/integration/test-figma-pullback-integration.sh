@@ -12,7 +12,6 @@
 #            figma-node-mapper.sh, figma-merge.sh, and figma-id-validate.sh are implemented.
 # Script-not-found is the expected failure mode — do NOT skip on missing scripts.
 #
-# REVIEW-DEFENSE: FP-MERGE-1..4 and FP-LINK-1..2 intentionally target figma-merge.sh and
 # figma-id-validate.sh (bash scripts), not figma-merge.py (Python CLI). This is a deliberate
 # dual-implementation design: figma-merge.sh covers the pullback pipeline's merge algorithm
 # (story f921-e2d6), while figma-merge.py covers the interactive manifest-merge CLI workflow

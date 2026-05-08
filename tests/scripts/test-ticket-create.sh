@@ -722,7 +722,6 @@ test_ticket_create_show_includes_description_after_create_with_d() {
     fi
 
     # Call ticket show via the reducer and verify description appears in compiled output
-    # REVIEW-DEFENSE: This is a RED test — it is intentionally written to fail before the
     # --description/-d flag is implemented. `ticket show` currently does not emit a description
     # field, so show_output may not be valid JSON or may lack the field. The empty-string guard
     # below (`if [ -z "$show_output" ]`) catches blank output, and the || true fallback on the
@@ -738,7 +737,6 @@ test_ticket_create_show_includes_description_after_create_with_d() {
     fi
 
     local desc_check
-    # REVIEW-DEFENSE: || true on the python3 call is intentional for this RED test. If show_output
     # is not valid JSON (because the feature is unimplemented), the parse error is caught by the
     # || true fallback and desc_check is left empty, causing the subsequent assert_eq to fail with
     # a clear MISMATCH message. Silent-discard here is acceptable in the RED phase — the test will

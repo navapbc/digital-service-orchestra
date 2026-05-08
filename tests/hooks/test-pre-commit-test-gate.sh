@@ -424,7 +424,6 @@ exit 1
 MOCKEOF
     chmod +x "$mock_hash_script"
 
-    # REVIEW-DEFENSE: RED-phase limitation — mock injection is incomplete.
     # pre-commit-test-gate.sh does not yet exist; when it is implemented by
     # task w21-wzgp (IMPL story), it MUST support a COMPUTE_DIFF_HASH_OVERRIDE
     # env var so this test can inject a failing mock hash script directly.

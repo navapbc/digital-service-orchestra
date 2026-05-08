@@ -520,7 +520,6 @@ _phase_merge() {
                 _restore_pre_merge_stash
             else
                 # Retry also failed — increment retry count, emit CONFLICT_DATA, exit with directive
-                # REVIEW-DEFENSE: emit BEFORE `git merge --abort` so the live
                 # `git diff --diff-filter=U` lookup in _emit_conflict_data sees
                 # the unmerged paths from the failed retry merge in $_MERGE_SAVED_DIR
                 # (fix for important finding 2026-05-01).

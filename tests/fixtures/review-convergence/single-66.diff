@@ -1,0 +1,639 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index b0b76e82e5..281f44e02f 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -4,9 +4,7 @@ You are a Principal Software Developer at a company like Google or USDS. You are
+ 
+ **Repo root**: Use `REPO_ROOT=$(git rev-parse --show-toplevel)` — all script paths below are relative to the repo root.
+ 
+-## Working Directory & Paths
+-
+-**Worktree sessions**: If in a worktree (`test -f .git`), use `REPO_ROOT=$(git rev-parse --show-toplevel)`. See `plugins/dso/docs/WORKTREE-GUIDE.md`.
++**Worktree sessions**: If in a worktree (`test -f .git`), `REPO_ROOT=$(git rev-parse --show-toplevel)` still resolves correctly. See `plugins/dso/docs/WORKTREE-GUIDE.md`.
+ 
+ ## Quick Reference
+ 
+@@ -21,12 +19,9 @@ You are a Principal Software Developer at a company like Google or USDS. You are
+ | Commit with review gates | `/dso:commit` |
+ | Code review via sub-agent | `/dso:review` |
+ | Update project docs | `/dso:update-docs` |
+-| Approve Figma design for a story | `.claude/scripts/dso design-approve.sh <story-id>` |
+-| Re-sync Figma design to manifest (pull-back) | `python3 plugins/dso/scripts/figma-resync.py <ticket-id> [--non-interactive]` |
+ | Clean session close | `/dso:end-session` |
+ | Full validation suite | `.claude/scripts/dso validate.sh [--ci]` |
+ | Merge worktree to main | `.claude/scripts/dso merge-to-main.sh [--resume]` |
+-| Harvest worktree to session | `.claude/scripts/dso harvest-worktree <branch> <artifacts-dir>` |
+ | List tickets (JSON; filter with `--type=`, `--status=`, `--parent=`) | `.claude/scripts/dso ticket list [--type=<type>] [--status=<status>] [--parent=<id>] [--format=llm]` |
+ | Check if ticket exists | `.claude/scripts/dso ticket exists <id>` |
+ | List open epics | `.claude/scripts/dso ticket list-epics [--all] [--has-tag=TAG]` |
+@@ -38,92 +33,32 @@ You are a Principal Software Developer at a company like Google or USDS. You are
+ | Close a ticket | `.claude/scripts/dso ticket transition <id> <current-status> closed` (bug tickets require `--reason="Fixed: <summary>"`) |
+ | Delete a ticket (human-approved gate) | `.claude/scripts/dso ticket delete <id> --user-approved` |
+ | Link tickets | `.claude/scripts/dso ticket link <src> <tgt> <relation>` |
+-| Add tag to a ticket | `.claude/scripts/dso ticket tag <id> <tag>` |
+-| Remove tag from a ticket | `.claude/scripts/dso ticket untag <id> <tag>` |
+-| Review event stats | `.claude/scripts/dso review-stats.sh` |
+-| Run a recipe transform | `.claude/scripts/dso recipe-executor.sh <recipe-name> [--param key=value ...]` |
+-| Sync stale host-project artifacts to current plugin version | `.claude/scripts/dso update-artifacts` |
+-| Cut a plugin release (stable channel) | `scripts/release.sh` |
++| Add / remove tag | `.claude/scripts/dso ticket tag <id> <tag>` / `untag <id> <tag>` |
+ 
+-Less common: `check-skill-refs.sh`, `qualify-skill-refs.sh`.
++Less common commands (Figma resync, harvest-worktree, recipe-executor, update-artifacts, release.sh, review-stats, check-skill-refs, qualify-skill-refs): see `plugins/dso/docs/COMMANDS-REFERENCE.md` or the relevant skill.
+ 
+ Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
+ 
+-**Ticket type terminology**: `epic` = container for a feature area; `story` = user story (epic children, written as "As a [user], [goal]"); `task` = implementation work item. Ticket titles must be ≤ 255 characters (Jira sync limit). `deleted` = terminal status; ticket is excluded from ticket list by default; requires `--user-approved` gate; all children must be deleted first
+-
+-## Architecture
+-
+-**DSO NextJS template repo**: `navapbc/digital-service-orchestra-nextjs-template` is the live template the `scripts/create-dso-app.sh` installer clones. Apache-2.0 attribution to upstream `navapbc/template-application-nextjs` is preserved in the template's NOTICE file. Real-URL e2e validation lives at `tests/scripts/test-create-dso-app-real-url.sh` (opt-in via `RUN_REAL_URL_E2E=1`; runs daily in CI). Interface contract: `docs/designs/create-dso-app-template-contract.md`.
+-
+-**Ticket system v3 (event-sourced)**: Orphan branch `tickets` → `.tickets-tracker/`. CLI: `.claude/scripts/dso ticket <subcommand>` (ref: `plugins/dso/docs/ticket-cli-reference.md`). Archived tickets excluded from list/deps by default; `--include-archived` to override. The --tags flag sets tags atomically at creation time (comma-separated). The CLI_user tag marks bugs reported explicitly by a human during an interactive session; See `plugins/dso/docs/ticket-cli-reference.md` for full rules and examples. The dispatcher routes all subcommand calls through `ticket-lib-api.sh` (bash-native sourced library) by default; set `DSO_TICKET_LEGACY=1` to roll back to legacy per-op `.sh` subprocess scripts (debugging/rollback only). Scheduled for removal after 2 stable plugin releases with no reported issues against the bash-native path.  <!-- tickets-boundary-ok: pre-existing reference, documents tracker layout, not direct access --><!-- # tickets-boundary-ok -->
+-**Suggestion capture**: `suggestion-record.sh` records agent friction/suggestions as immutable JSON files to `.tickets-tracker/.suggestions/`; fields include `source`, `observation`, `recommendation`, `skill_name`, `affected_file`, and `metrics`.   <!-- tickets-boundary-ok: pre-existing reference, documents tracker layout, not direct access --><!-- # tickets-boundary-ok -->
+-**Review gate (two-layer)**: Layer 1 — `pre-commit-review-gate.sh` (git hook); Layer 2 — `review-gate.sh` (PreToolUse hook) blocks `--no-verify` and plumbing bypasses. Both layers handle MERGE_HEAD and REBASE_HEAD via `merge-state.sh`. 
+-**Test gate**: `pre-commit-test-gate.sh` verifies test status per staged file. Centrality-aware (`record-test-status.sh`): high fan-in files trigger full suite. Use `--restart` to clear stale status when the test gate is stuck on a previous failed recording. Config: `test_gate.*` in `dso-config.conf`. `.test-index` maps source → tests; RED marker format: `tests/foo.sh [test_name]` (space before bracket required) tolerates intentionally failing RED tests at/after that boundary. **Test gate Status values**: `passed`, `failed`, `timeout`, `resource_exhaustion` (distinct from `failed`; written by `record-test-status.sh` when exit 254 + EAGAIN stderr pattern is detected). Severity hierarchy: `timeout > failed > resource_exhaustion > passed`. 
+-**Test quality gate** (`pre-commit-test-quality-gate.sh`): Pre-commit hook that detects anti-patterns in staged test files (source-file-grepping, tautological tests, change-detector tests, implementation-coupled assertions, existence-only assertions). Scoped to files matching `^tests/`. Config: `test_quality.enabled` (default `true`) and `test_quality.tool` (`bash-grep` | `semgrep` | `disabled`, default `bash-grep`). When `semgrep` is selected, uses rules at `plugins/dso/hooks/semgrep-rules/test-anti-patterns.yaml`. Timeout budget: 15 seconds.
+-**GitHub CI Ruleset enforcement**: `.github/required-checks.txt` lists required GitHub check-context names (must match workflow `name:` fields exactly). Provisioned during `/dso:onboarding` via `github-bootstrap.sh` (fail-open — never blocks setup). After editing workflow job names, run `bash plugins/dso/scripts/onboarding/validate-required-checks.sh` to catch alignment drift before pushing.
+-**Pre-commit hooks** (self-enforcing — print errors with fix instructions): `check-portability.sh` (hardcoded paths; suppress: `# portability-ok`), `check-shim-refs.sh` (direct plugin script refs; suppress: `# shim-exempt: <reason>`; use `.claude/scripts/dso <script-name>` shim instead), `check-contract-schemas.sh` (contract markdown structure), `check-referential-integrity.sh` (dead path references in instruction files), `check-plugin-self-ref.sh` (blocks all `plugins/dso/` literal paths in plugin scripts — no suppression annotation exists; use `_PLUGIN_ROOT` / `_PLUGIN_GIT_PATH` instead).
+-**Hook error handler** (`plugins/dso/hooks/lib/hook-error-handler.sh`): Shared ERR/EXIT trap library for non-enforcement hooks. Usage: source with a fail-open guard, then call `_dso_register_hook_err_handler "hook-name.sh"`. Errors are logged to `~/.claude/logs/dso-hook-errors.jsonl` (fail-open: handler always exits 0, never blocks hook execution). Enforcement hooks (annotated `# hook-boundary: enforcement`) MUST NOT source this library — `pre-commit-enforcement-boundary-check.sh` enforces this boundary at commit time.
+-**Agent routing**: `discover-agents.sh` resolves routing categories to agents via `agent-routing.conf`; all fall back to `general-purpose`. See `INSTALL.md`. **Named-agent dispatch** (agent files in `plugins/dso/agents/`): the `dso:*` labels below are **agent file identifiers** (strip `dso:` prefix to get filename). Use `subagent_type: "dso:<name>"` directly when the agent is registered in the Agent tool's available types list (check the session's available subagent_type list at startup). Fall back to `subagent_type: "general-purpose"` with the agent file loaded verbatim only when the named type is not registered. See REVIEW-WORKFLOW.md Step 4 for the canonical dispatch block.
+-
+-| Agent | Model | Dispatched by |
+-|-------|-------|---------------|
+-| `dso:complexity-evaluator` | haiku | `/dso:sprint`, `/dso:brainstorm`; read inline by `/dso:fix-bug` |
+-| `dso:conflict-analyzer` | sonnet | `/dso:resolve-conflicts` |
+-| `dso:cross-epic-interaction-classifier` | haiku | `/dso:brainstorm` (cross-epic scan step — dispatched in batches of 20 open epics via cross-epic-scan.md prompt; emits interaction_signals JSON with 4-tier severity) |
+-| `dso:bot-psychologist` | sonnet | `/dso:fix-bug` llm-behavioral path (dispatched or read inline when sub-agent) |
+-| `dso:doc-writer` | sonnet | `/dso:sprint` (doc stories), `/dso:update-docs` |
+-| `dso:intent-search` | sonnet | `/dso:fix-bug` Phase B Step 1 (Intent Gate — pre-investigation intent search; skipped for CLI_user-tagged bugs); emits INTENT_CONFLICT signal when callers depend on current behavior |
+-| `dso:scope-drift-reviewer` | sonnet | `/dso:fix-bug` Phase F Step 1 (scope-drift review after fix verification; skipped when `scope_drift.enabled=false`) |
+-| `dso:feasibility-reviewer` | sonnet | `/dso:brainstorm` (conditional, on integration signals) |
+-| `dso:red-team-reviewer` | opus | `/dso:preplanning` Phase E |
+-| `dso:blue-team-filter` | sonnet | `/dso:preplanning` Phase E |
+-| `dso:completion-verifier` | sonnet | `/dso:sprint` story closure (Step 10a) + epic closure (Phase 7 Step 0.75) |
+-| `dso:red-test-writer` | sonnet | `/dso:sprint` Phase 5, `/dso:fix-bug` Phase E Step 1 |
+-| `dso:red-test-evaluator` | opus | On red-test-writer rejection (REVISE/REJECT/CONFIRM) |
+-| `dso:code-reviewer-light` | haiku | `/dso:review` (score 0–2) |
+-| `dso:code-reviewer-standard` | sonnet | `/dso:review` (score 3–6) |
+-| `dso:code-reviewer-deep-*` (3 agents) | sonnet | `/dso:review` (score 7+, parallel) |
+-| `dso:code-reviewer-deep-arch` | opus | `/dso:review` (score 7+, synthesis) |
+-| `dso:code-reviewer-security-red-team` | opus | `/dso:review` overlay — parallel when classifier flags `security_overlay:true`; serial when tier reviewer flags `security_overlay_warranted:yes` |
+-| `dso:code-reviewer-security-blue-team` | opus | `/dso:review` overlay — triages red team findings with dismiss/downgrade/sustain; dispatched after red team |
+-| `dso:code-reviewer-performance` | opus | `/dso:review` overlay — parallel when classifier flags `performance_overlay:true`; serial when tier reviewer flags `performance_overlay_warranted:yes` |
+-| `dso:code-reviewer-test-quality` | opus | `/dso:review` overlay — parallel when classifier flags `test_quality_overlay:true` (diff touches `tests/`); serial when tier reviewer flags `test_quality_overlay_warranted:yes`; detects 5 test bloat patterns against behavioral testing standard |
+-| `dso:approach-decision-maker` | opus | `/dso:implementation-plan` proposal resolution loop — evaluates distinct implementation proposals against 5 dimensions; emits `APPROACH_DECISION` signal (contract: `plugins/dso/docs/contracts/approach-decision-output.md`) |
+-| `dso:ui-designer` | sonnet | `/dso:preplanning` Step 6 — creates design artifacts (spatial layout, SVG wireframe, token overlay, manifest) for UI stories via Agent tool dispatch; returns `UI_DESIGNER_PAYLOAD` (contract: `plugins/dso/docs/contracts/ui-designer-payload.md`) |
+-| `dso:plan-review` | sonnet | `/dso:plan-review` — evaluates implementation plans and design artifacts on feasibility, completeness, YAGNI, and codebase alignment before the user sees them |
+-| `dso:bloat-blue-team` | opus | `/dso:remediate` — evaluates probabilistic bloat candidates, classifying as CONFIRM/DISMISS/NEEDS_HUMAN with asymmetric error policy (defaults to DISMISS when uncertain) |
+-| `dso:bloat-resolver` | opus | `/dso:remediate` Path B (auto-resolve) — applies confirmed bloat removals with dependency checks before each deletion |
+-| `dso:inference-incident-curator` | opus | `/dso:brainstorm` SC4 dogfooding (runnable quarterly) — scans ticket history for inference incidents and emits JSONL corpus records (contract: `plugins/dso/docs/contracts/inference-incident-schema.md`) |
+-
+-**Tiered review**: Classifier scores 0–2 → light (haiku), 3–6 → standard (sonnet), 7+ → deep (3×sonnet + opus synthesis). 300+ lines → opus upgrade; 600+ lines → SIZE_WARNING (non-blocking, review proceeds); ≥20 files → routed to REVIEW-WORKFLOW-HUGE.md. Security, performance, and test quality overlays auto-dispatched when classifier flags them. Test quality overlay fires when the diff touches `tests/` files. Review dimensions: `correctness`, `verification`, `hygiene`, `design`, `maintainability`. **Finding schema invariants**: each finding requires `cited_lines` (min 1 entry; format `<path>:<line>` or `~<path>:<line>`); severity calibration rubric and NOT-flag auto-downgrade rules defined in `reviewer-base.md`; CI dispatches prepend `REVIEW_CONTEXT: ci` to the user message.
+-**Conflict avoidance** (multi-agent): Static file impact analysis, shared blackboard, agent discovery protocol, semantic conflict check — integrated into `/dso:sprint` and `/dso:debug-everything`.
+-**Usage-aware throttling** (`check-usage.sh` + `agent-batch-lifecycle.sh`): `check-usage.sh` polls the Claude OAuth usage endpoint, caches results (TTL: 5 min), and returns an exit code reflecting current consumption: `0` = unlimited (below throttle thresholds), `1` = throttled (high usage), `2` = paused (critical usage). `agent-batch-lifecycle.sh`'s `_compute_max_agents()` combines the usage verdict with the `orchestration.max_agents` config cap and `CLAUDE_CONTEXT_WINDOW_USAGE` to emit a `MAX_AGENTS` signal before each batch. Three-tier protocol: unlimited → dispatch up to `orchestration.max_agents` (or no cap when absent); throttled (90%/95% rolling 5hr/7day windows) → `MAX_AGENTS: 1`; paused (95%/98%) → `MAX_AGENTS: 0` (all dispatch halted). `_check_rate_limit_error()` provides error-reactive fallback: rate-limit errors during dispatch trigger an immediate re-evaluation and batch suspension. Config: `orchestration.max_agents` (integer or null; null = no cap).
+-**scrutiny:pending gate**: epics tagged with `scrutiny:pending` (via `/dso:roadmap` opt-out) are blocked at `/dso:preplanning` and `/dso:implementation-plan` entry until `/dso:brainstorm` is run. 
+-**Brainstorm non-epic support**: `/dso:brainstorm` accepts any ticket type; non-epics can convert-to-epic or enrich-in-place. 
+-**Brainstorm Phase 1 UX probe loop**: Non-interactive runs tag the epic `ui_probes:deferred`. See brainstorm SKILL.md for probe dimensions, loop-back state machine, and UNRESOLVABLE_INTENT_GAP escape details.
+-**ui_probes:deferred tag lifecycle**: Emitted by brainstorm in non-interactive mode. Consumed by the preplanning UI Probes Deferred Gate (halts `/dso:preplanning` until brainstorm runs interactively).
+-**Epic scrutiny pipeline**: See brainstorm SKILL.md and `plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md`. Scrutiny emits `FEASIBILITY_GAP` for critical findings; preplanning emits `REPLAN_ESCALATE: brainstorm` for unresolved gaps. `META_QUESTION` is distinct from `REPLAN_ESCALATE`: it fires only at the Phase 1 Gate when `blocking_for` resolves to brainstorm itself, escalating directly to the user to prevent an infinite loop (contract: `plugins/dso/docs/contracts/phase1-gate-attestation.md`). 
+-**Value-effort scoring**: `plugins/dso/skills/shared/prompts/value-effort-scorer.md` — shared rubric for epic value vs. effort, used by `/dso:roadmap`.
+-**Prior-art search**: Before writing or modifying code, consult `plugins/dso/skills/shared/prompts/prior-art-search.md`. Routine exclusions: single-file logic fixes, formatting/lint, test reversions, doc-only edits, config value updates.
+-**Behavioral testing standard** (`plugins/dso/skills/shared/prompts/behavioral-testing-standard.md`): 5-rule standard consumed by all test-writing agents. Rules: (1) check existing coverage, (2) test observable behavior, (3) execute code and assert outcomes, (4) refactoring litmus test, (5) instruction files — test the structural boundary, not the content.
+-**Testing mode classification**: Implementation-plan and fix-bug emit `testing_mode` per task (RED: new behavior, GREEN: implementation-only, UPDATE: behavior change with coverage). Sprint routes tasks by testing_mode. Tasks without testing_mode default to RED (backward compatible).
+-**Namespace policy**: in-scope files MUST use `/dso:<skill-name>` (enforced by `check-skill-refs.sh`). Host project shim: `.claude/scripts/dso <script-name>`. Config: `.claude/dso-config.conf` (KEY=VALUE; see file for keys).
+-**Plugin path pattern**: All plugin scripts use `_PLUGIN_ROOT` (resolved via `BASH_SOURCE` / `readlink`) for filesystem access (sourcing libs, reading config). For git commands that need repo-relative paths, derive `_PLUGIN_GIT_PATH` from `_PLUGIN_ROOT` relative to `git rev-parse --show-toplevel`. Never hardcode `plugins/dso/` in scripts — use these variables so the plugin works in any install location.
+-**GAP_CLASSIFICATION** (contract: `plugins/dso/docs/contracts/gap-classification-output.md`): `intent_gap` → brainstorm (with user confirmation), `implementation_gap` → remediation (`ROUTING: implementation-plan` is a signal label, NOT a direct skill invocation).
+-**INFERENCE_CHALLENGE / INFERENCE_SKIP** (contract: `plugins/dso/docs/contracts/inference-envelope.md`): envelope signals for the inference-challenge workflow — `INFERENCE_CHALLENGE` proposes a decision for adversarial review; `INFERENCE_SKIP` records that the decision was bypassed (with `reason: sampling | not_in_scope` and `hash_bucket` fields).
+-**Figma design collaboration** (config-gated, `design.figma_collaboration`; default false): Sprint filters `design:awaiting_import` stories from batch execution. See sprint SKILL.md and preplanning SKILL.md for details. **Pull-back workflow**: when a story has `design:awaiting_review`, run `figma-resync.py <ticket-id>` to pull Figma changes via REST API (requires `design.figma_pat` or `FIGMA_PAT` env var), merge visual updates into the 3-artifact manifest (spatial-layout.json, wireframe.svg, tokens.md) while preserving behavioral specs, confirm with the designer, then swap tag to `design:approved`. Use `--non-interactive` in CI. The merge uses an advisory file lock (30-min TTL, stale-lock auto-cleanup) to prevent concurrent re-syncs on the same ticket. Schema fields added by pull-back: `designer_added` (boolean) and `behavioral_spec_status` (COMPLETE/INCOMPLETE/PENDING) on each component in spatial-layout.json. **Manual review tag**: `manual:awaiting_user` marks stories blocked on human input outside the Figma workflow (e.g., access credentials, stakeholder decisions).
+-**External Dependencies planning** (config-gated, `planning.external_dependency_block_enabled`; default off): When enabled, `/dso:brainstorm` Phase 1 runs an External Dependencies shape heuristic and classification dialogue; Phase 2 approval gate checks for contradiction resolution. Stories with `handling=user_manual` become `manual:awaiting_user`-tagged stories handled via the Phase 3.5 manual-pause handshake in sprint. Contract: `plugins/dso/docs/contracts/external-dependencies-block.md`. Config: `planning.verification_command_timeout_seconds` (default 30s).
+-**Stack-agnostic gate pipeline**: `validate.sh`, `gate-2b`, `gate-2d`, and `auto-format.sh` read `commands.lint`, `commands.format`, and `commands.format_check` from config — replacing hardcoded Python/ruff calls. When a key is absent, each script emits `[DSO WARN]` and falls back gracefully (ruff for `.py`; skip for other extensions). Per-stack defaults: see `plugins/dso/docs/CONFIGURATION-REFERENCE.md`.
+-**Config keys:** see `plugins/dso/docs/CONFIGURATION-REFERENCE.md` (`merge.strategy`, `enforcement.strategy`). Merge-to-main phases: `sync → merge → version_bump → validate → push → archive → ci_trigger`; PR-mode appends `remediate` phase (bounded retry loop, per-tier ceiling=5, global ceiling=15; exit 2 = remediation exhaustion with escalation JSON on stdout; exit 1 = pre-remediation failure); state file `/tmp/merge-to-main-state-<branch>.json` (4h TTL); `--resume` continues from checkpoint.
+-**Two-channel release model**: The plugin marketplace (`marketplace.json`) exposes two channels: `dso` (stable, pinned to a release tag after the first `scripts/release.sh` run) and `dso-dev` (dev, pinned to `main` HEAD). Advancing the stable channel requires running `scripts/release.sh` at the repo root, which enforces 10 precondition gates (semver validation, gh auth, tag uniqueness, on-main, clean tree, upstream sync, CI green, validate.sh --ci, marketplace.json validity, and interactive confirmation) before creating and pushing the release tag. Consumers who want stability should install `dso`; consumers who want every merge should install `dso-dev`.
+-**CI llm-review orchestrator** (`plugins/dso/scripts/dso_ci_review/` Python package): `ci-llm-review-runner.sh` is a 29-line shim that resolves `_PLUGIN_ROOT` and execs `python3 -m dso_ci_review.runner`; `llm-api-call.sh` deleted in S3. Auto-detects local-checkout vs fetched-assets mode via marker file `plugins/dso/.dso-source-of-truth`; parallel overlay dispatch (`&` fan-out + single `wait`); does not consult `check-usage.sh`.
+-**CI version resolution** (3-tier): host-project CI uses local `plugins/dso/` when the marker file is present; falls back to `dso` channel then `dso-dev` channel.
+-
+-**Worktree lifecycle** (`claude-safe`): After Claude exits, `_offer_worktree_cleanup` auto-removes the worktree if: (1) branch is ancestor of main (`is_merged`), AND (2) `git status --porcelain` is empty (`is_clean`). No special filtering — `.tickets-tracker/` files block removal like any other dirty file. `/dso:end-session` ensures the worktree meets these criteria by: generating technical learnings (Step 2.8) and creating bug tickets (Step 2.85) before commit/merge, and verifying `is_merged` + `is_clean` (Step 4.75) before session summary.  <!-- tickets-boundary-ok: pre-existing reference, documents tracker layout, not direct access --><!-- # tickets-boundary-ok -->
+-**Worktree isolation** (`worktree.isolation_enabled`, default: true): Sprint, fix-bug, and debug-everything dispatch implementation sub-agents with `isolation: worktree`, giving each agent its own working directory. Orchestrator reviews and commits each worktree serially via `per-worktree-review-commit.md`, then merges into session branch via `harvest-worktree.sh` which verifies gate artifacts (test-gate-status + review-status) and writes attested status to the session (contract: `plugins/dso/docs/contracts/harvest-attestation-format.md`). See `plugins/dso/skills/shared/prompts/worktree-dispatch.md`.
+-**WORKTREE_TRACKING comment lifecycle**: Sprint, fix-bug, and sub-agent task-execution write `WORKTREE_TRACKING:start` (on transition to in_progress), `:complete` (via `harvest-worktree.sh` `_harvest_cleanup` trap — `outcome=merged` or `discarded`), and `:landed` (in end-session after `merge-to-main.sh`) as ticket comments. At resume time, sprint and fix-bug scan for unmatched `:start` comments and autonomously merge (unique commits, no conflicts) or discard (already merged / conflict) each abandoned branch, applying a 4-stage tiebreak cascade for multiple competing branches. See `plugins/dso/docs/contracts/worktree-tracking-comment.md` for comment format. Known gap: debug-everything dispatches bug-fix sub-agents with worktree isolation but does not include a resume scan; follow-up tracked in KNOWN-ISSUES.md INC-021.
+-
+-**File placement**: Design documents go in `docs/designs/` (project-local) or `plugins/dso/skills/<skill>/docs/` (plugin-local) — not bare `designs/` at repo root.
++**Ticket type terminology**: `epic` = container for a feature area; `story` = user story (epic children, written as "As a [user], [goal]"); `task` = implementation work item. Ticket titles must be ≤ 255 characters (Jira sync limit). `deleted` = terminal status; ticket is excluded from ticket list by default; requires `--user-approved` gate; all children must be deleted first.
++
++## Architecture (pointers)
++
++- **Ticket system v3 (event-sourced)**: orphan branch `tickets` → `.tickets-tracker/`. CLI: `.claude/scripts/dso ticket <subcommand>`. Full reference and rules: `plugins/dso/docs/ticket-cli-reference.md`. The CLI_user tag marks bugs reported explicitly by a human during an interactive session.  <!-- tickets-boundary-ok -->
++- **Sub-agents and routing**: `plugins/dso/docs/AGENTS.md` (full named-agent table), `plugins/dso/docs/SUB-AGENT-BOUNDARIES.md` (rules), `INSTALL.md` (routing config).
++- **Hooks, gates, test gate, review gate, hook error handler**: `plugins/dso/docs/HOOKS-REFERENCE.md`.
++- **CI integration, llm-review orchestrator, two-channel release**: `plugins/dso/docs/CI-INTEGRATION.md`.
++- **Worktree lifecycle, isolation, WORKTREE_TRACKING comments**: `plugins/dso/docs/WORKTREE-GUIDE.md` and `plugins/dso/skills/shared/prompts/worktree-dispatch.md`.
++- **Config keys** (`merge.strategy`, `enforcement.strategy`, `orchestration.max_agents`, `test_gate.*`, `test_quality.*`, `commands.lint`/`format`/`format_check`, `worktree.isolation_enabled`, `design.figma_collaboration`, `planning.external_dependency_block_enabled`, `scope_drift.enabled`, `review.max_resolution_attempts`): `plugins/dso/docs/CONFIGURATION-REFERENCE.md`.
++- **Behavioral testing standard** (5-rule standard for all test-writing agents): `plugins/dso/skills/shared/prompts/behavioral-testing-standard.md`.
++- **Prior-art search** (consult before writing/modifying code; routine exclusions: single-file logic fixes, formatting/lint, test reversions, doc-only edits, config value updates): `plugins/dso/skills/shared/prompts/prior-art-search.md`.
++- **Value-effort scoring** (used by `/dso:roadmap`): `plugins/dso/skills/shared/prompts/value-effort-scorer.md`.
++- **Contracts** (`GAP_CLASSIFICATION`, `INFERENCE_CHALLENGE` / `INFERENCE_SKIP`, `APPROACH_DECISION`, `UI_DESIGNER_PAYLOAD`, harvest attestation, phase1-gate attestation, external-dependencies-block, worktree-tracking-comment): `plugins/dso/docs/contracts/`.
++- **Figma design collaboration** (config-gated, `design.figma_collaboration`; default false): see sprint and preplanning SKILL.md.
++- **External Dependencies planning** (config-gated, `planning.external_dependency_block_enabled`; default off): see brainstorm SKILL.md.
++- **Namespace policy**: in-scope files MUST use `/dso:<skill-name>` (enforced by `check-skill-refs.sh`). Host project shim: `.claude/scripts/dso <script-name>`. Plugin scripts use `_PLUGIN_ROOT` / `_PLUGIN_GIT_PATH`, never literal `plugins/dso/` paths.
++- **Testing-mode classification** (per task: RED / GREEN / UPDATE; default RED): emitted by implementation-plan and fix-bug, routed by sprint.
++- **Scrutiny pipeline & `scrutiny:pending` / `ui_probes:deferred` gates**: see brainstorm SKILL.md and `plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md`.
++- **File placement**: design documents go in `docs/designs/` (project-local) or `plugins/dso/skills/<skill>/docs/` (plugin-local) — not bare `designs/` at repo root.
+ 
+ ## Critical Rules
+ 
+@@ -141,21 +76,21 @@ Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
+ 11. **Never override reviewer severity** — critical->1-2, important->3. Autonomous resolution via code-visible defense (R5) for up to `review.max_resolution_attempts` (default: 5) attempts; user escalation after. See REVIEW-WORKFLOW.md R1-R5.
+ 12. **Never write/modify/delete `reviewer-findings.json`** — written by code-reviewer sub-agent only. Integrity verified via `--reviewer-hash`.
+ 13. **Never edit `.github/workflows/` files via the GitHub API** — always edit workflow files in the worktree source and commit normally. API calls bypass review, hooks, and leave the worktree out of sync.
+-14. **Never autonomously close a bug without a code change** — when no code fix is possible, add investigation findings as a ticket comment and leave the ticket OPEN. Only close a bug after (a) a code change fixes it: `--reason="Fixed: <summary>"`, or (b) the user **explicitly** says to close it: `--reason="Escalated to user: <summary>"`. 
++14. **Never autonomously close a bug without a code change** — when no code fix is possible, add investigation findings as a ticket comment and leave the ticket OPEN. Only close a bug after (a) a code change fixes it: `--reason="Fixed: <summary>"`, or (b) the user **explicitly** says to close it: `--reason="Escalated to user: <summary>"`.
+ 15. **NEVER use `--reason="Escalated to user:"` autonomously** — closing removes the bug from `ticket list` visibility, the opposite of escalation.
+ 16. **Never make changes without a way to validate them** — this project strictly follows TDD. Every code change requires a corresponding test that fails before the change (RED) and passes after (GREEN). For non-code changes (skills, CLAUDE.md, agent guidance), skip this step.
+-17. **Resolution sub-agents must NOT dispatch nested Task calls for re-review** — nesting (orchestrator → resolution → re-review) causes `[Tool result missing due to internal error]`. The orchestrator handles all re-review dispatching after the resolution sub-agent returns `RESOLUTION_RESULT`. See `plugins/dso/docs/workflows/prompts/review-fix-dispatch.md` NESTING PROHIBITION.
+-18. **Never bypass the review gate or use `--no-verify`**. The review gate is two-layer: Layer 1 (git pre-commit hook) enforces `review-gate-allowlist.conf` allowlist + review-status + diff hash; Layer 2 (PreToolUse hook `review-gate.sh`) blocks `--no-verify`, `core.hooksPath=` overrides, and git plumbing commands. **`--no-verify` cannot bypass Layer 2** — it is a Claude Code tool-use hook, not a git hook. When blocked, run the full commit workflow (`/dso:commit` or COMMIT-WORKFLOW.md). Rationalizing around it (e.g., "these are just docs", "this is trivial") is exactly the failure mode this gate prevents. Exception: when `enforcement.strategy=ci`, both the pre-commit layer (Layer 1) and the PreToolUse layer (Layer 2) emit `HOOK_GATE: skipped reason=enforcement.strategy=ci` and skip enforcement — under ci strategy, `--no-verify` and other bypass patterns are not blocked locally (CI enforces via the parity-uplifted llm-review job).
+-19. **Never run `make test-unit-only` or `make test-e2e` as a full-suite validation command from the Claude Code Bash tool** — these broad test commands exceed the ~73s tool timeout ceiling and will be killed mid-run (exit 144), producing spurious failures. The ~73s ceiling is a property of the Claude Code Bash tool runtime ONLY; it does NOT apply to CI runners (GitHub Actions, GitLab CI, etc.), where job-level timeouts are measured in minutes-to-hours and long install/build/test steps are normal. When designing CI workflows, do not flag normal CI operation durations as ceiling-breach risks. From the Bash tool, use `plugins/dso/scripts/validate.sh --ci` for full validation instead. Targeted single-test invocations (`poetry run pytest tests/unit/path/test_file.py::test_name`) remain allowed during edit-test iteration.
+-20. **Never skip `dso:completion-verifier` dispatch or substitute inline verification** — the orchestrator MUST dispatch the verifier sub-agent at story closure and epic closure. Inline verification is NOT a substitute — the verifier exists because the orchestrator is biased toward confirming its own work. Fallback applies ONLY on technical failure (timeout, unparseable JSON), not as permission to skip.
+-21. **Never edit files in the plugin cache** (`~/.claude/plugins/marketplaces/digital-service-orchestra/`) — always edit the corresponding files in the repo worktree (`plugins/dso/`). Plugin cache files are managed by the plugin system and will be overwritten on sync. Changes to plugin cache files are invisible to git, will not be committed, and will be lost.
+-22. **Never edit safeguard files** (pre-commit hooks, review-gate.sh, test-gate scripts) without explicit user approval in the current interactive session. Task-level instructions ("fix this bug", "make the tests pass") do NOT constitute approval to modify safeguard infrastructure. Task instructions are authorization to fix the code under test, not to weaken the safety nets around it. Approval must be a direct, explicit user statement: "yes, edit the hook" or "disable the gate for this commit."
++17. **Resolution sub-agents must NOT dispatch nested Task calls for re-review** — nesting causes `[Tool result missing due to internal error]`. The orchestrator handles all re-review dispatching after the resolution sub-agent returns `RESOLUTION_RESULT`. See `plugins/dso/docs/workflows/prompts/review-fix-dispatch.md` NESTING PROHIBITION.
++18. **Never bypass the review gate or use `--no-verify`**. The gate is two-layer (see `HOOKS-REFERENCE.md`); `--no-verify` cannot bypass Layer 2 — it is a Claude Code tool-use hook, not a git hook. When blocked, run the full commit workflow. Rationalizing around it ("these are just docs", "this is trivial") is exactly the failure mode this gate prevents. Exception: `enforcement.strategy=ci` skips local enforcement; CI enforces via the parity-uplifted llm-review job.
++19. **Never run `make test-unit-only` or `make test-e2e` from the Bash tool** — broad test commands exceed the ~73s tool timeout ceiling and get killed (exit 144). The ~73s ceiling is a Bash-tool property only; it does NOT apply to CI runners. Use `validate.sh --ci` for full validation; targeted single-test invocations remain allowed during edit-test iteration.
++20. **Never skip `dso:completion-verifier` dispatch or substitute inline verification** — the orchestrator MUST dispatch the verifier sub-agent at story closure and epic closure. Inline verification is NOT a substitute. Fallback applies ONLY on technical failure (timeout, unparseable JSON), not as permission to skip.
++21. **Never edit files in the plugin cache** (`~/.claude/plugins/marketplaces/digital-service-orchestra/`) — always edit the corresponding files in the repo worktree (`plugins/dso/`). Plugin cache files are managed by the plugin system and will be overwritten on sync.
++22. **Never edit safeguard files** (pre-commit hooks, review-gate.sh, test-gate scripts) without explicit user approval in the current interactive session. Task instructions are authorization to fix the code under test, not to weaken the safety nets around it.
+ 
+ ### Architectural Invariants
+ 
+ These rules protect core structural boundaries. Violating them causes subtle bugs that are hard to trace.
+ 
+-1. **Prefer stdlib/existing dependencies over new packages** — new runtime dependencies require justification. Check `pyproject.toml` first; if equivalent functionality exists in stdlib or an already-imported library, use it. When a new package is genuinely needed, note why in the PR description and get user approval (see rule 11 in Never Do These).
++1. **Prefer stdlib/existing dependencies over new packages** — new runtime dependencies require justification. Check `pyproject.toml` first; if equivalent functionality exists in stdlib or an already-imported library, use it. When a new package is genuinely needed, note why in the PR description and get user approval (see rule 7 in Never Do These).
+ 2. **CLAUDE.md is for agent instructions, rules, and command references — not feature descriptions.** Feature and implementation documentation belongs in codebase-overview (consuming projects maintain their own project-local `.claude/docs/DOCUMENTATION-GUIDE.md`; that file is intentionally NOT shipped by the dso plugin). **Bloat criteria — do NOT add content that fits any of these (ref: c5478928):** (a) **Architectural implementation details** the agent does not need per-session to make decisions (sub-agent guard mechanics, phase-by-phase skill internals, dispatch plumbing — these belong in the relevant SKILL.md or a docs file linked by one line here); (b) **Duplicate rules** — if a rule already exists in "Never Do These" / "Always Do These" / "Architectural Invariants", strengthen the existing rule instead of adding a new numbered item; (c) **Onboarding-only content** that applies once at project setup (dep pre-scan steps, integration setup flows, first-run shim checks — these belong in `INSTALL.md`, `plugins/dso/docs/WORKTREE-GUIDE.md`, or the relevant skill); (d) **Verbose examples inside rules** — rules should state the rule in one sentence plus one short clarifier; move long examples to the referenced doc. When adding a rule, prefer a one-line reference (`See <doc>`) over inline expansion. When a section exceeds ~25 lines, audit for (a)–(d) before adding more.
+ 3. **NEVER place dev-team artifacts inside `plugins/dso/`.** NEVER write design documents, investigation findings, archive files, or other dev-team work to any directory inside `plugins/dso/`. Dev-team artifacts belong in project-local directories: `docs/designs/`, `docs/findings/`, `docs/archive/`, `tests/`. The `plugins/dso/` tree is a distributed artifact — only plugin-shipped content belongs there (agents, skills, hooks, scripts, config, reference docs).
+ 
+@@ -164,56 +99,45 @@ These rules protect core structural boundaries. Violating them causes subtle bug
+ 2. **Formatting runs automatically** via PostToolUse hook on `.py` edits (ruff). If a hook failure is reported, run `make format` manually.
+ 3. **Create tracking issues** for ALL failures discovered, even "infrastructure" ones and pre-existing ones.
+ 4. **Use the correct code review tool:** `/dso:review` or the review workflow.
+-5. **Use WebSearch/WebFetch when facing significant tradeoffs** — before committing to an approach involving meaningful tradeoffs in testing, maintainability, readability, functionality, or usability, use WebSearch or WebFetch to research current best practices. See `plugins/dso/docs/RESEARCH-PATTERN.md` for when and how to apply this.
+-6. **During edit-test iteration, run targeted tests — not the full suite.** 
+-7. **Parallelize independent tool calls — always.** When issuing Read, Grep, Glob, or Bash calls with no data dependency between them, place them all in the same response so they run concurrently in the background (e.g., two independent Read calls in one response; Grep + Glob for unrelated patterns). Never serialize calls that could be parallel.
++5. **Use WebSearch/WebFetch when facing significant tradeoffs** — before committing to an approach involving meaningful tradeoffs in testing, maintainability, readability, functionality, or usability, research current best practices. See `plugins/dso/docs/RESEARCH-PATTERN.md`.
++6. **During edit-test iteration, run targeted tests — not the full suite.**
++7. **Parallelize independent tool calls — always.** When issuing Read, Grep, Glob, or Bash calls with no data dependency between them, place them all in the same response so they run concurrently. This applies equally to multi-target searches: each Explore sub-agent or Grep/Glob call should target ONE specific objective; dispatch them as parallel calls, not one broad search covering multiple unrelated targets (7c45-ee60).
+ 8. **Always set `timeout: 600000` on Bash calls.** Without it, the timeout ceiling drops from ~73s to ~48s.
+ 9. **Use `test-batched.sh` for running tests.** Runners: `bash` (test-*.sh), `node` (*.test.js), `pytest`. Prefer `--runner=bash --test-dir=<dir>` for bash suites. Run the printed `RUN:` command in subsequent Bash calls until summary appears. Do NOT use `while` polling loops (killed by ~73s ceiling). See INC-016 in KNOWN-ISSUES.md.
+-10. **When using external API model IDs, tool versions, or service identifiers, verify against authoritative sources before using them.** Run discovery commands (`--help`, `--list-models`, API endpoints), check official documentation, or search for confirmed working examples. 
+-11. **When creating a new `.sh` file, always set the executable bit.** Run `chmod +x <file>` immediately after creating any shell script. The test gate and pre-commit hooks skip non-executable `.sh` files, causing silent test coverage gaps.
+-12. **Before any `.claude/scripts/dso ticket` command, verify the exact syntax using `plugins/dso/docs/ticket-cli-reference.md`.** Never guess flag names or option formats. This rule applies to all ticket subcommands: list, show, create, transition, comment, link, sync.
+-13. **When the user explicitly says to act (e.g., "apply it", "do it", "yes, fix it"), act immediately without asking for further confirmation (e71a-733f).** A direct user instruction is authorization. Asking "Are you sure?" or "Should I proceed?" when the user just said yes is unnecessary friction. The only valid reason to pause after an explicit "yes" is if you lack the information needed to perform the action safely.
+-14. **When searching for multiple independent targets, parallelize into separate targeted tool calls (7c45-ee60).** Each Explore sub-agent or Grep/Glob call should target ONE specific search objective. Do NOT dispatch a single broad search covering multiple unrelated targets. Example: searching for "isolation guard code" AND "all references to it" are two independent searches — dispatch them as two parallel Grep calls, not one Explore sub-agent that searches everything.
+-15. **When creating a bug ticket, read `plugins/dso/skills/create-bug/SKILL.md` first.** It is the required entry point for the title format (`[Component]: [Condition] -> [Observed Result]`), integer priority rubric (0–4, never "high/medium/low"), Zero Inference Rule, and description template. Do not compose bug reports ad-hoc — the template is authoritative and drift from it produces low-signal tickets that clog triage.
+-16. **When writing to `/tmp` or any shared temp directory, always use `mktemp` to generate the path — never hardcoded names.** Use `mktemp /tmp/<prefix>.XXXXXX` (portable across macOS BSD and GNU coreutils — do NOT use the `-t` flag, which has divergent semantics on macOS vs. GNU). This applies to script-internal scratch files, agent-written intermediate artifacts, documented invocation examples in `SKILL.md` / workflow docs, and test fixtures. Hardcoded paths (e.g., `/tmp/bug-stderr.tmp`, `/tmp/brainstorm-sentinel`) cause cross-session conflicts when two agents or sub-agents operate concurrently — a failure mode that is silent in single-session development and emerges only under parallel worktree / multi-session load.
+-17. **Before any destructive git op on a working tree with uncommitted changes, capture a patch first.** Run `git diff > /tmp/session-wip-$(date +%s).patch && git diff --cached >> /tmp/session-wip-$(date +%s).patch` before `git checkout HEAD -- <file>`, `git reset --hard`, `git stash drop`, or any op that discards uncommitted state. Recovering from reflog is not possible for uncommitted work — the patch is the only safety net. See bug 8988-91be for the incident that prompted this rule.
++10. **When using external API model IDs, tool versions, or service identifiers, verify against authoritative sources before using them.** Run discovery commands (`--help`, `--list-models`, API endpoints), check official documentation, or search for confirmed working examples.
++11. **When creating a new `.sh` file, always set the executable bit.** Run `chmod +x <file>` immediately. The test gate and pre-commit hooks skip non-executable `.sh` files, causing silent test coverage gaps.
++12. **Before any `.claude/scripts/dso ticket` command, verify the exact syntax using `plugins/dso/docs/ticket-cli-reference.md`.** Never guess flag names or option formats.
++13. **When the user explicitly says to act (e.g., "apply it", "do it", "yes, fix it"), act immediately without asking for further confirmation (e71a-733f).** A direct user instruction is authorization. The only valid reason to pause after an explicit "yes" is if you lack information needed to act safely.
++14. **When creating a bug ticket, read `plugins/dso/skills/create-bug/SKILL.md` first.** It is the required entry point for the title format, integer priority rubric (0–4), Zero Inference Rule, and description template.
++15. **When writing to `/tmp` or any shared temp directory, always use `mktemp` to generate the path — never hardcoded names.** Use `mktemp /tmp/<prefix>.XXXXXX` (do NOT use the `-t` flag — divergent semantics on macOS vs. GNU). Hardcoded paths cause cross-session conflicts under parallel worktree / multi-session load — silent in single-session development.
++16. **Before any destructive git op on a working tree with uncommitted changes, capture a patch first.** Run `git diff > /tmp/session-wip-$(date +%s).patch && git diff --cached >> /tmp/session-wip-$(date +%s).patch` before `git checkout HEAD -- <file>`, `git reset --hard`, `git stash drop`, or any op that discards uncommitted state. Reflog cannot recover uncommitted work — the patch is the only safety net (bug 8988-91be).
+ 
+ ## Task Completion Workflow (Orchestrator/main session only — does NOT apply inside sub-agents)
+ 
+-```bash
+-# 1. /dso:commit — auto-runs /dso:review if needed, then commits. Fix issues and re-run if review fails.
+-#    Review uses autonomous resolution (review.max_resolution_attempts fix/defend attempts before user escalation, default: 5).
+-#    On attempt 2+, /dso:oscillation-check runs automatically if same files targeted.
+-# 2. git push (or .claude/scripts/dso merge-to-main.sh in worktree sessions — handles .claude/scripts/dso ticket sync + merge + push)
+-#    Supports --resume (continue from last state file checkpoint).
+-#    Phases: sync → merge → version_bump → validate → push → archive → ci_trigger
+-#    State file: /tmp/merge-to-main-state-<branch>.json (expires after 4h); lock file: /tmp/merge-to-main-lock-<hash>
+-#    On interruption (SIGURG), current phase is saved to state file — re-run with --resume to continue.
+-#    merge.strategy=direct (default): 7-phase pipeline above. merge.strategy=pr: step 2 becomes gh pr create + auto-merge wait
+-#    via merge-to-main-pr.sh (validate phase skipped — CI enforces; ci_trigger implicit); appends `remediate` phase on CI failure (exit 2 = escalation JSON). See CONFIGURATION-REFERENCE.md for both keys.
+-# 3. .claude/scripts/dso ticket transition <id> <current-status> closed --reason="Fixed: <summary>"  # bug tickets require --reason
+-```
+-
+-**Session close**: Use `/dso:end-session`.
++1. **Commit**: `/dso:commit` — auto-runs `/dso:review` if needed, then commits. Review uses autonomous resolution (`review.max_resolution_attempts` fix/defend attempts before user escalation, default 5); `/dso:oscillation-check` runs automatically on attempt 2+ if same files targeted.
++2. **Push / merge**: `git push`, or in worktree sessions `.claude/scripts/dso merge-to-main.sh` (handles ticket sync + merge + push; `--resume` continues from checkpoint). Pipeline phases and `merge.strategy=direct|pr` semantics: see `plugins/dso/docs/CI-INTEGRATION.md`.
++3. **Close ticket**: `.claude/scripts/dso ticket transition <id> <current-status> closed --reason="Fixed: <summary>"` (bug tickets require `--reason`).
++
++**Session close**: `/dso:end-session`.
+ 
+ ## Multi-Agent Orchestration
+ 
+-**Sub-agent boundaries**: See `plugins/dso/docs/SUB-AGENT-BOUNDARIES.md` for all sub-agent rules (prohibited/required/permitted actions, checkpoint protocol, report format, model selection, recovery).
++**Sub-agent boundaries**: see `plugins/dso/docs/SUB-AGENT-BOUNDARIES.md` (prohibited/required/permitted actions, checkpoint protocol, report format, model selection, recovery).
+ 
+-Orchestrator-level models: `haiku` (structured I/O), `sonnet` (code gen, review), `opus` (architecture, high-blast-radius); escalate on failure. Recovery: `.claude/scripts/dso ticket list --status=in_progress` + `.claude/scripts/dso ticket show <id>` to read CHECKPOINT notes → `git log --oneline -5 && git status --short` for git state.
++Orchestrator-level models: `haiku` (structured I/O), `sonnet` (code gen, review), `opus` (architecture, high-blast-radius); escalate on failure. Recovery: `.claude/scripts/dso ticket list --status=in_progress` + `.claude/scripts/dso ticket show <id>` for CHECKPOINT notes → `git log --oneline -5 && git status --short` for git state.
+ 
+ ## Context Efficiency
+ 
+-**After editing a file**: Do not re-read the entire file to verify. The Edit tool confirms success. Use `Read` with `offset`/`limit` for surrounding context if needed.
+-**After reading a workflow file**: If already read earlier in this conversation (and not compacted since), use the version in context.
+-**Use built-in Grep and Read tools — not Bash equivalents**: Bash `grep`/`cat` only when piping to other commands or in scripts.
++- **After editing a file**: do not re-read the entire file to verify. The Edit tool confirms success. Use `Read` with `offset`/`limit` for surrounding context if needed.
++- **After reading a workflow file**: if already read earlier in this conversation (and not compacted since), use the version in context.
++- **Use built-in Grep and Read tools — not Bash equivalents**: Bash `grep`/`cat` only when piping to other commands or in scripts.
+ 
+ ## Structural Code Search (ast-grep)
+ 
+-**Prefer `sg` (ast-grep) over text grep for cross-file dependency discovery** — syntax-aware, distinguishes real references from comments. Binary: `sg`. Check availability: `command -v sg`. When unavailable, fall back to Grep tool. Guard pattern: `if command -v sg >/dev/null 2>&1; then sg ...; else grep ...; fi`.
++**Prefer `sg` (ast-grep) over text grep for cross-file dependency discovery** — syntax-aware, distinguishes real references from comments. Check availability: `command -v sg`. When unavailable, fall back to Grep tool. Guard pattern: `if command -v sg >/dev/null 2>&1; then sg ...; else grep ...; fi`.
+ 
+ ## Common Fixes
+ 
+-See .claude/docs/KNOWN-ISSUES.md for common operational fixes and workarounds.
++See `.claude/docs/KNOWN-ISSUES.md` for common operational fixes and workarounds.
+ 
+ **Before debugging**: Search the consuming project's `KNOWN-ISSUES.md` first (if available). After solving: add to it (3+ similar incidents → propose CLAUDE.md rule).
+diff --git a/plugins/dso/agents/doc-writer.md b/plugins/dso/agents/doc-writer.md
+index e9f50deff0..da37c52ceb 100644
+--- a/plugins/dso/agents/doc-writer.md
++++ b/plugins/dso/agents/doc-writer.md
+@@ -99,15 +99,19 @@ If any gate fires, continue evaluating all remaining gates and collect all requi
+ 
+ `CLAUDE.md` and other safeguard files are **read only** for this agent. **Do not write to them directly.**
+ 
+-When the Constraint Gate fires and changes affect content that would normally belong in `CLAUDE.md` (naming conventions, tool commands, file locations, agent rules), emit a **suggested-change report** to the orchestrator instead of modifying the file:
++When the Constraint Gate fires and changes affect content that would normally belong in `CLAUDE.md` (naming conventions, tool commands, file locations, agent rules), apply the shared doc router (`${CLAUDE_PLUGIN_ROOT}/skills/shared/prompts/doc-router.md`) — specifically Gate 5 — to confirm CLAUDE.md is the correct target. If Gate 5 holds, emit a `CLAUDE_MD_SUGGESTED_CHANGE` report in the format defined by the router:
+ 
+ ```
+-CLAUDE.md Suggested Change:
++CLAUDE_MD_SUGGESTED_CHANGE:
+ Section: <section heading>
+-Current text: <existing content>
+-Proposed change: <what should be updated and why>
++Gate 5 self-check: <every-session, not-duplicated, not-enforceable, ≤ 2 lines>
++Proposed line(s): <the exact ≤ 2 lines>
++Pointer target: <the doc that holds the full detail>
++Rationale (1 sentence): <why this rule is load-bearing per session>
+ ```
+ 
++If Gate 5 does not hold, route to the gate that does (Gate 1 → SKILL.md, Gate 2 → existing reference doc, Gate 3 → onboarding doc, Gate 4 → ADR) and update that file instead.
++
+ The orchestrator or user must apply any `CLAUDE.md` changes manually after review. This agent is not an authorized writer of safeguard files.
+ 
+ ## 3. Repository Documentation Schema
+diff --git a/plugins/dso/docs/AGENTS.md b/plugins/dso/docs/AGENTS.md
+new file mode 100644
+index 0000000000..da11414005
+--- /dev/null
++++ b/plugins/dso/docs/AGENTS.md
+@@ -0,0 +1,50 @@
++# DSO Named-Agent Routing Reference
++
++The full table of named sub-agents, their default model tier, and the workflow that dispatches them. CLAUDE.md keeps only the high-frequency rows; this file is the authoritative reference.
++
++## Dispatch protocol
++
++Agent files live in `${CLAUDE_PLUGIN_ROOT}/agents/`. The `dso:*` labels below are agent file identifiers (strip `dso:` prefix to get the filename).
++
++- Use `subagent_type: "dso:<name>"` directly when the agent is registered in the Agent tool's available types list (check the session's available `subagent_type` list at startup).
++- Fall back to `subagent_type: "general-purpose"` with the agent file loaded verbatim only when the named type is not registered.
++- See `REVIEW-WORKFLOW.md` Step 4 for the canonical dispatch block.
++- `discover-agents.sh` resolves routing categories to agents via `agent-routing.conf`; all fall back to `general-purpose`.
++
++## Agents
++
++| Agent | Model | Dispatched by |
++|-------|-------|---------------|
++| `dso:complexity-evaluator` | haiku | `/dso:sprint`, `/dso:brainstorm`; read inline by `/dso:fix-bug` |
++| `dso:conflict-analyzer` | sonnet | `/dso:resolve-conflicts` |
++| `dso:cross-epic-interaction-classifier` | haiku | `/dso:brainstorm` (cross-epic scan step — dispatched in batches of 20 open epics via cross-epic-scan.md prompt; emits interaction_signals JSON with 4-tier severity) |
++| `dso:bot-psychologist` | sonnet | `/dso:fix-bug` llm-behavioral path (dispatched or read inline when sub-agent) |
++| `dso:doc-writer` | sonnet | `/dso:sprint` (doc stories), `/dso:update-docs` |
++| `dso:intent-search` | sonnet | `/dso:fix-bug` Phase B Step 1 (Intent Gate — pre-investigation intent search; skipped for CLI_user-tagged bugs); emits INTENT_CONFLICT signal when callers depend on current behavior |
++| `dso:scope-drift-reviewer` | sonnet | `/dso:fix-bug` Phase F Step 1 (scope-drift review after fix verification; skipped when `scope_drift.enabled=false`) |
++| `dso:feasibility-reviewer` | sonnet | `/dso:brainstorm` (conditional, on integration signals) |
++| `dso:red-team-reviewer` | opus | `/dso:preplanning` Phase E |
++| `dso:blue-team-filter` | sonnet | `/dso:preplanning` Phase E |
++| `dso:completion-verifier` | sonnet | `/dso:sprint` story closure (Step 10a) + epic closure (Phase 7 Step 0.75) |
++| `dso:red-test-writer` | sonnet | `/dso:sprint` Phase 5, `/dso:fix-bug` Phase E Step 1 |
++| `dso:red-test-evaluator` | opus | On red-test-writer rejection (REVISE/REJECT/CONFIRM) |
++| `dso:code-reviewer-light` | haiku | `/dso:review` (score 0–2) |
++| `dso:code-reviewer-standard` | sonnet | `/dso:review` (score 3–6) |
++| `dso:code-reviewer-deep-*` (3 agents) | sonnet | `/dso:review` (score 7+, parallel) |
++| `dso:code-reviewer-deep-arch` | opus | `/dso:review` (score 7+, synthesis) |
++| `dso:code-reviewer-security-red-team` | opus | `/dso:review` overlay — parallel when classifier flags `security_overlay:true`; serial when tier reviewer flags `security_overlay_warranted:yes` |
++| `dso:code-reviewer-security-blue-team` | opus | `/dso:review` overlay — triages red team findings with dismiss/downgrade/sustain; dispatched after red team |
++| `dso:code-reviewer-performance` | opus | `/dso:review` overlay — parallel when classifier flags `performance_overlay:true`; serial when tier reviewer flags `performance_overlay_warranted:yes` |
++| `dso:code-reviewer-test-quality` | opus | `/dso:review` overlay — parallel when classifier flags `test_quality_overlay:true` (diff touches `tests/`); serial when tier reviewer flags `test_quality_overlay_warranted:yes`; detects 5 test bloat patterns against behavioral testing standard |
++| `dso:approach-decision-maker` | opus | `/dso:implementation-plan` proposal resolution loop — evaluates distinct implementation proposals against 5 dimensions; emits `APPROACH_DECISION` signal (contract: `${CLAUDE_PLUGIN_ROOT}/docs/contracts/approach-decision-output.md`) |
++| `dso:ui-designer` | sonnet | `/dso:preplanning` Step 6 — creates design artifacts (spatial layout, SVG wireframe, token overlay, manifest) for UI stories via Agent tool dispatch; returns `UI_DESIGNER_PAYLOAD` (contract: `${CLAUDE_PLUGIN_ROOT}/docs/contracts/ui-designer-payload.md`) |
++| `dso:plan-review` | sonnet | `/dso:plan-review` — evaluates implementation plans and design artifacts on feasibility, completeness, YAGNI, and codebase alignment before the user sees them |
++| `dso:bloat-blue-team` | opus | `/dso:remediate` — evaluates probabilistic bloat candidates, classifying as CONFIRM/DISMISS/NEEDS_HUMAN with asymmetric error policy (defaults to DISMISS when uncertain) |
++| `dso:bloat-resolver` | opus | `/dso:remediate` Path B (auto-resolve) — applies confirmed bloat removals with dependency checks before each deletion |
++| `dso:inference-incident-curator` | opus | `/dso:brainstorm` SC4 dogfooding (runnable quarterly) — scans ticket history for inference incidents and emits JSONL corpus records (contract: `${CLAUDE_PLUGIN_ROOT}/docs/contracts/inference-incident-schema.md`) |
++
++## Tiered review summary
++
++Classifier scores 0–2 → light (haiku), 3–6 → standard (sonnet), 7+ → deep (3×sonnet + opus synthesis). 300+ lines → opus upgrade; 600+ lines → SIZE_WARNING (non-blocking, review proceeds); ≥20 files → routed to `REVIEW-WORKFLOW-HUGE.md`. Security, performance, and test quality overlays auto-dispatched when classifier flags them. Test quality overlay fires when the diff touches `tests/` files. Review dimensions: `correctness`, `verification`, `hygiene`, `design`, `maintainability`.
++
++**Finding schema invariants**: each finding requires `cited_lines` (min 1 entry; format `<path>:<line>` or `~<path>:<line>`); severity calibration rubric and NOT-flag auto-downgrade rules defined in `reviewer-base.md`; CI dispatches prepend `REVIEW_CONTEXT: ci` to the user message.
+diff --git a/plugins/dso/docs/CI-INTEGRATION.md b/plugins/dso/docs/CI-INTEGRATION.md
+new file mode 100644
+index 0000000000..21135c5ca3
+--- /dev/null
++++ b/plugins/dso/docs/CI-INTEGRATION.md
+@@ -0,0 +1,34 @@
++# CI Integration
++
++How the DSO plugin participates in CI: llm-review orchestration, version resolution, and the two-channel release model.
++
++## CI llm-review orchestrator
++
++`${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/` is a Python package; `ci-llm-review-runner.sh` is a 29-line shim that resolves `_PLUGIN_ROOT` and execs `python3 -m dso_ci_review.runner`. (`llm-api-call.sh` was deleted in S3.)
++
++- Auto-detects local-checkout vs fetched-assets mode via marker file `${CLAUDE_PLUGIN_ROOT}/.dso-source-of-truth`.
++- Parallel overlay dispatch (`&` fan-out + single `wait`).
++- Does **not** consult `check-usage.sh` — CI is not subject to interactive throttling.
++
++## CI version resolution (3-tier)
++
++Host-project CI uses the local plugin checkout when the marker file is present; falls back to `dso` channel, then `dso-dev` channel.
++
++## Two-channel release model
++
++The plugin marketplace (`marketplace.json`) exposes two channels:
++
++- `dso` — stable; pinned to a release tag after the first `scripts/release.sh` run.
++- `dso-dev` — dev; pinned to `main` HEAD.
++
++Advancing the stable channel requires running `scripts/release.sh` at the repo root, which enforces 10 precondition gates (semver validation, gh auth, tag uniqueness, on-main, clean tree, upstream sync, CI green, `validate.sh --ci`, marketplace.json validity, and interactive confirmation) before creating and pushing the release tag.
++
++Consumers who want stability install `dso`; consumers who want every merge install `dso-dev`. See `VERSIONING.md` for the broader release discipline.
++
++## Merge-to-main pipeline
++
++Phases: `sync → merge → version_bump → validate → push → archive → ci_trigger`.
++
++- PR mode (`merge.strategy=pr`) appends a `remediate` phase (bounded retry loop, per-tier ceiling=5, global ceiling=15; exit 2 = remediation exhaustion with escalation JSON on stdout; exit 1 = pre-remediation failure).
++- State file: `/tmp/merge-to-main-state-<branch>.json` (4h TTL); `--resume` continues from checkpoint.
++- See `CONFIGURATION-REFERENCE.md` for `merge.strategy` and `enforcement.strategy` keys.
+diff --git a/plugins/dso/docs/HOOKS-REFERENCE.md b/plugins/dso/docs/HOOKS-REFERENCE.md
+new file mode 100644
+index 0000000000..771da0d721
+--- /dev/null
++++ b/plugins/dso/docs/HOOKS-REFERENCE.md
+@@ -0,0 +1,62 @@
++# Hooks & Gates Reference
++
++Self-enforcing pre-commit hooks, the test/review gates, the hook error handler, and the stack-agnostic gate pipeline. CLAUDE.md no longer enumerates these — agents learn the rules at error time. This file is the reference for plugin authors and for debugging hook failures.
++
++## Pre-commit hooks (self-enforcing)
++
++Each hook prints its own error and fix instructions. Suppression annotations are inline comments in the offending file.
++
++| Hook | Purpose | Suppression |
++|------|---------|-------------|
++| `check-portability.sh` | Hardcoded paths in scripts | `# portability-ok` |
++| `check-shim-refs.sh` | Direct plugin script refs in host-project files; use `.claude/scripts/dso <script-name>` shim instead | `# shim-exempt: <reason>` |
++| `check-contract-schemas.sh` | Contract markdown structure | (none) |
++| `check-referential-integrity.sh` | Dead path references in instruction files | (none) |
++| `check-plugin-self-ref.sh` | Blocks literal plugin-root paths in plugin scripts; use `_PLUGIN_ROOT` / `_PLUGIN_GIT_PATH` | (no annotation — absolute) |
++| `pre-commit-enforcement-boundary-check.sh` | Enforces that enforcement hooks do not source the hook-error-handler library | (none) |
++
++## Review gate (two-layer)
++
++- **Layer 1** — `pre-commit-review-gate.sh` (git hook) enforces `review-gate-allowlist.conf` allowlist + `review-status` + diff hash.
++- **Layer 2** — `review-gate.sh` (PreToolUse hook) blocks `--no-verify`, `core.hooksPath=` overrides, and git plumbing bypasses.
++
++Both layers handle MERGE_HEAD and REBASE_HEAD via `merge-state.sh`. `--no-verify` cannot bypass Layer 2 — it is a Claude Code tool-use hook, not a git hook.
++
++**Exception**: when `enforcement.strategy=ci`, both layers emit `HOOK_GATE: skipped reason=enforcement.strategy=ci` and skip enforcement; CI enforces via the parity-uplifted llm-review job.
++
++## Test gate
++
++`pre-commit-test-gate.sh` verifies test status per staged file.
++
++- Centrality-aware (`record-test-status.sh`): high fan-in files trigger full suite.
++- Use `--restart` to clear stale status when stuck on a previous failed recording.
++- Config: `test_gate.*` in `dso-config.conf`.
++- `.test-index` maps source → tests.
++- **RED marker format**: `tests/foo.sh [test_name]` (space before bracket required) tolerates intentionally failing RED tests at/after that boundary.
++
++**Status values**: `passed`, `failed`, `timeout`, `resource_exhaustion` (distinct from `failed`; written by `record-test-status.sh` when exit 254 + EAGAIN stderr pattern is detected).
++
++**Severity hierarchy**: `timeout > failed > resource_exhaustion > passed`.
++
++## Test quality gate
++
++`pre-commit-test-quality-gate.sh` detects anti-patterns in staged test files: source-file-grepping, tautological tests, change-detector tests, implementation-coupled assertions, existence-only assertions.
++
++- Scoped to files matching `^tests/`.
++- Config: `test_quality.enabled` (default `true`); `test_quality.tool` (`bash-grep` | `semgrep` | `disabled`, default `bash-grep`).
++- When `semgrep` is selected, uses rules at `${CLAUDE_PLUGIN_ROOT}/hooks/semgrep-rules/test-anti-patterns.yaml`.
++- Timeout budget: 15 seconds.
++
++## Hook error handler
++
++`${CLAUDE_PLUGIN_ROOT}/hooks/lib/hook-error-handler.sh` — shared ERR/EXIT trap library for **non-enforcement** hooks. Source with a fail-open guard, then call `_dso_register_hook_err_handler "hook-name.sh"`. Errors logged to `~/.claude/logs/dso-hook-errors.jsonl` (handler always exits 0, never blocks hook execution).
++
++Enforcement hooks (annotated `# hook-boundary: enforcement`) MUST NOT source this library — `pre-commit-enforcement-boundary-check.sh` enforces this boundary at commit time.
++
++## Stack-agnostic gate pipeline
++
++`validate.sh`, `gate-2b`, `gate-2d`, and `auto-format.sh` read `commands.lint`, `commands.format`, and `commands.format_check` from config — replacing hardcoded Python/ruff calls. When a key is absent, each script emits `[DSO WARN]` and falls back gracefully (ruff for `.py`; skip for other extensions). Per-stack defaults: see `CONFIGURATION-REFERENCE.md`.
++
++## GitHub CI Ruleset enforcement
++
++`.github/required-checks.txt` lists required GitHub check-context names (must match workflow `name:` fields exactly). Provisioned during `/dso:onboarding` via `github-bootstrap.sh` (fail-open — never blocks setup). After editing workflow job names, run `bash ${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/validate-required-checks.sh` to catch alignment drift before pushing.
+diff --git a/plugins/dso/skills/implementation-plan/SKILL.md b/plugins/dso/skills/implementation-plan/SKILL.md
+index 621e44d6d0..5e3d72e4ca 100644
+--- a/plugins/dso/skills/implementation-plan/SKILL.md
++++ b/plugins/dso/skills/implementation-plan/SKILL.md
+@@ -621,16 +621,19 @@ The sub-agent executing the task is responsible for running Playwright as part o
+ 
+ ### Documentation Updates
+ 
+-If the story introduces or modifies patterns, conventions, or significant technical decisions, include a documentation task:
++If the story introduces or modifies patterns, conventions, or significant technical decisions, **run the gates in `${CLAUDE_PLUGIN_ROOT}/skills/shared/prompts/doc-router.md`** to select the target file. Do not infer the target from intuition; the router replaces the legacy heuristic that biased toward CLAUDE.md and away from skill-scoped docs.
+ 
+-- **New pattern** approved in Step 2 → create or update ADR in `docs/adr/`
+-- **Modified pattern** → update the relevant ADR with rationale
+-- **New conventions** → update Standardization Guide or relevant docs
+-- **New integration/dependency** → document in architecture docs
+-- **Config changes** → update environment or deployment docs
+-- Follow `.claude/docs/DOCUMENTATION-GUIDE.md` for formatting and structure.
++If at least one router gate fires, include a documentation task. The task MUST:
+ 
+-The doc task depends on implementation tasks and references Step 2 feedback if applicable. If no docs needed, note rationale (e.g., "No new patterns; existing ADRs remain accurate").
++- **State which router gate fired** (1–5) and the resolved target file in the task description.
++- **Set the target per the router**, in order of preference: Gate 1 → `${CLAUDE_PLUGIN_ROOT}/skills/<skill>/SKILL.md`; Gate 2 → existing reference doc (`HOOKS-REFERENCE.md`, `AGENTS.md`, `WORKTREE-GUIDE.md`, `CONFIGURATION-REFERENCE.md`, `CI-INTEGRATION.md`, contract docs, `KNOWN-ISSUES.md`); Gate 3 → `INSTALL.md` / `README.md` / `docs/user/`; Gate 4 → new ADR in `docs/adr/`; Gate 5 → `CLAUDE_MD_SUGGESTED_CHANGE` report only (no direct CLAUDE.md edit).
++- **Never name CLAUDE.md as the direct target.** A task that would edit CLAUDE.md must instead emit a `CLAUDE_MD_SUGGESTED_CHANGE` report and route through the orchestrator.
++- **Include the attestation requirement** in the task acceptance criteria: the executing sub-agent emits `DOC_ROUTER_ATTESTATION` in its completion report.
++- **Follow `.claude/docs/DOCUMENTATION-GUIDE.md`** for formatting and structure.
++
++If no router gate fires, omit the documentation task and note the rationale (e.g., "doc-router: no gate fired — internal refactor; existing docs remain accurate").
++
++The doc task depends on the implementation tasks it documents and references Step 2 feedback if applicable.
+ 
+ ### Contract Detection Pass
+ 
+diff --git a/plugins/dso/skills/preplanning/SKILL.md b/plugins/dso/skills/preplanning/SKILL.md
+index a4334d13b7..a2deeb5578 100644
+--- a/plugins/dso/skills/preplanning/SKILL.md
++++ b/plugins/dso/skills/preplanning/SKILL.md
+@@ -609,21 +609,31 @@ Add blocking relationships:
+ 
+ ### Documentation Update Story
+ 
+-After all implementation stories are drafted, create one final story to update project documentation. This story:
++After all implementation stories are drafted, **decide whether a documentation update story is warranted** by running the gates in `${CLAUDE_PLUGIN_ROOT}/skills/shared/prompts/doc-router.md`. The story is **not** unconditional. Default to **no story** unless at least one router gate fires.
+ 
+-- **Updates existing docs only** — do not create new documentation files or patterns
+-- **Targets**: `CLAUDE.md` (architecture section, quick reference), `.claude/design-notes.md`, ADRs, `KNOWN-ISSUES.md`, or other docs that already exist and would become stale after the epic is complete
+-- **Scope**: Concise updates that ensure future agents have accurate awareness of the project state (new routes, changed patterns, updated commands, removed features)
+-- **Style guide**: Follow `.claude/docs/DOCUMENTATION-GUIDE.md` for formatting, structure, and conventions when writing documentation updates
+-- **Depends on**: All implementation stories (runs last)
+-- **Title format**: "Update project docs to reflect [epic summary]"
+-- **Skip if**: The epic makes no changes that would affect existing documentation (document rationale)
++**Skip the doc story (no router gate fires) when**: the epic is purely internal refactor, bug fix, or test work; user-visible behavior, public APIs, conventions, top-level commands, and every-session rules are unchanged. Document the skip rationale in the epic's preplanning summary (e.g., "doc-router: no gate fired — internal refactor only").
+ 
+-When creating the documentation update story via `.claude/scripts/dso ticket create`, add a note with the guide reference so sub-agents find it in their ticket payload:
++**Create the doc story (at least one gate fires) with these properties**:
++
++- **Updates existing docs only** — do not create new documentation files unless a router gate explicitly directs to a new ADR (Gate 4) or the change introduces a contract that requires a new contract doc.
++- **Default targets, in order of preference** (set by `doc-router.md` gates, NOT by author intuition):
++  - **Gate 1 — skill-scoped change** → `${CLAUDE_PLUGIN_ROOT}/skills/<skill>/SKILL.md` or skill-local prompt.
++  - **Gate 2 — extends an existing reference doc** → that doc (`HOOKS-REFERENCE.md`, `AGENTS.md`, `WORKTREE-GUIDE.md`, `CONFIGURATION-REFERENCE.md`, `CI-INTEGRATION.md`, `ticket-cli-reference.md`, `contracts/`, `KNOWN-ISSUES.md`).
++  - **Gate 3 — onboarding/user-facing** → `INSTALL.md`, `README.md`, or `docs/user/`.
++  - **Gate 4 — decision rationale** → new ADR in `docs/adr/`.
++  - **Gate 5 — strictly every-session, not skill-scoped, not enforceable as a hook, ≤ 2 lines** → CLAUDE.md, **but only as a `CLAUDE_MD_SUGGESTED_CHANGE` report**; the sub-agent must NOT write CLAUDE.md directly. The orchestrator surfaces the report to the user for approval before any CLAUDE.md edit lands.
++- **CLAUDE.md is not a default target.** Authoring a doc story whose primary target is CLAUDE.md is an anti-pattern; the router prefers SKILL.md / reference docs / ADRs and only escalates to CLAUDE.md when Gate 5 strictly holds. See CLAUDE.md Architectural Invariant #2 (bloat criteria a–d).
++- **Depends on**: all implementation stories (runs last).
++- **Title format**: "Update project docs to reflect [epic summary]".
++- **Style guide**: follow `.claude/docs/DOCUMENTATION-GUIDE.md` for formatting and structure.
++
++When creating the documentation update story via `.claude/scripts/dso ticket create`, attach the router and style references so sub-agents find them in the ticket payload:
+ ```bash
+-.claude/scripts/dso ticket comment <story-id> "Follow .claude/docs/DOCUMENTATION-GUIDE.md for documentation formatting, structure, and conventions."
++.claude/scripts/dso ticket comment <story-id> "Apply ${CLAUDE_PLUGIN_ROOT}/skills/shared/prompts/doc-router.md gates before writing. CLAUDE.md edits require a CLAUDE_MD_SUGGESTED_CHANGE report — do not edit CLAUDE.md directly. Follow .claude/docs/DOCUMENTATION-GUIDE.md for formatting."
+ ```
+ 
++**Acceptance criterion** for the doc story: the completion report MUST include the `DOC_ROUTER_ATTESTATION` block (see `doc-router.md`), and any `CLAUDE_MD_SUGGESTED_CHANGE` reports MUST be surfaced to the user before the story closes.
++
+ ### TDD Test Story Requirements (/dso:preplanning)
+ 
+ After all implementation stories are drafted and the documentation update story is planned, evaluate whether the epic requires dedicated TDD test stories. A TDD test story is a story whose sole purpose is to write failing tests (RED) that implementation stories must make pass (GREEN).
+diff --git a/plugins/dso/skills/shared/prompts/doc-router.md b/plugins/dso/skills/shared/prompts/doc-router.md
+new file mode 100644
+index 0000000000..d6ce8250eb
+--- /dev/null
++++ b/plugins/dso/skills/shared/prompts/doc-router.md
+@@ -0,0 +1,111 @@
++# Doc Target Router
++
++Shared decision prompt for any task or sub-agent that intends to add or update project documentation. Runs at planning time (preplanning, implementation-plan) and at execution time (sprint sub-agents executing doc tasks). Replaces ad-hoc target selection that biases toward CLAUDE.md.
++
++This prompt enforces a write-time CLAUDE.md guard and complements the `dso:doc-writer` agent's Constraint Gate (`agents/doc-writer.md` §2). The doc-writer guard fires only at the late `/dso:update-docs` stage; this router fires for **every** doc-creating task.
++
++## When to invoke
++
++- Inside `/dso:preplanning` Phase H Step 2 (Documentation Update Story decision).
++- Inside `/dso:implementation-plan` Step 3 (Documentation Updates task decision).
++- Inside any sprint sub-agent dispatched to execute a doc task.
++- Whenever an orchestrator considers editing CLAUDE.md, a SKILL.md, or a reference doc as part of a workflow.
++
++## Decision gates
++
++Evaluate in order; route to the **first matching** target and stop.
++
++### Gate 1 — Skill-scoped rule or workflow detail
++
++The content describes a rule, phase step, contract field, or internal behavior of **one** skill, agent, or workflow.
++
++→ **Target**: `${CLAUDE_PLUGIN_ROOT}/skills/<skill>/SKILL.md` (or a prompt under that skill's directory).
++→ Do **not** add to CLAUDE.md.
++
++Examples: a new phase in `/dso:fix-bug`; a contract field for `dso:completion-verifier`; a sub-step inside `/dso:sprint`.
++
++### Gate 2 — Reference content for an existing doc
++
++The content extends or supersedes material that already lives in a reference doc.
++
++→ **Target**: the existing doc. The current set:
++- `${CLAUDE_PLUGIN_ROOT}/docs/AGENTS.md` — named-agent routing
++- `${CLAUDE_PLUGIN_ROOT}/docs/HOOKS-REFERENCE.md` — pre-commit hooks, gates, hook error handler
++- `${CLAUDE_PLUGIN_ROOT}/docs/WORKTREE-GUIDE.md` — worktree lifecycle and isolation
++- `${CLAUDE_PLUGIN_ROOT}/docs/CONFIGURATION-REFERENCE.md` — config keys
++- `${CLAUDE_PLUGIN_ROOT}/docs/CI-INTEGRATION.md` — CI llm-review, version resolution, release channels
++- `${CLAUDE_PLUGIN_ROOT}/docs/ticket-cli-reference.md` — ticket CLI
++- `${CLAUDE_PLUGIN_ROOT}/docs/contracts/` — contract schemas
++- `${CLAUDE_PLUGIN_ROOT}/docs/SUB-AGENT-BOUNDARIES.md` — sub-agent rules
++- `${CLAUDE_PLUGIN_ROOT}/docs/REVIEW-SCHEMA.md`, `REVIEWER-FILE-CHECKLIST.md` — review internals
++- `.claude/docs/KNOWN-ISSUES.md` — operational fixes
++→ Do **not** add to CLAUDE.md.
++
++### Gate 3 — User-facing or onboarding content
++
++The content applies once at install/setup, targets humans rather than agents, or describes external behavior.
++
++→ **Target**: `INSTALL.md`, `README.md`, or `docs/user/` (consuming projects).
++→ Do **not** add to CLAUDE.md.
++
++### Gate 4 — Decision rationale (why, not what)
++
++The content explains *why* a choice was made; future agents need only the outcome.
++
++→ **Target**: a new sequentially numbered ADR in `docs/adr/`.
++→ Do **not** add to CLAUDE.md.
++
++### Gate 5 — Eligible for CLAUDE.md (strict)
++
++All four conditions must hold:
++
++1. The rule or pointer applies to **every session**, not to one workflow or one skill.
++2. The content is **not already covered** by an existing entry in CLAUDE.md (Quick Reference, Never Do These, Always Do These, Architectural Invariants, Architecture pointers). Strengthen the existing entry if drift is the issue.
++3. The behavior **cannot be enforced by a hook, skill, or settings change** instead. Deterministic enforcement belongs in code, not prose.
++4. The addition is **≤ 2 lines** in CLAUDE.md, with all detail externalized to a referenced doc.
++
++If all four hold, the eligible target is CLAUDE.md — but **do not write directly**. Emit a `CLAUDE_MD_SUGGESTED_CHANGE` report (format below) and stop. The orchestrator collects the report and routes it to the user for approval.
++
++## `CLAUDE_MD_SUGGESTED_CHANGE` format
++
++```
++CLAUDE_MD_SUGGESTED_CHANGE:
++Section: <Quick Reference | Never Do These | Always Do These | Architectural Invariants | Architecture pointers>
++Gate 5 self-check:
++  - Every-session: <yes — why>
++  - Not duplicated: <yes — confirmed against existing rules X, Y>
++  - Not enforceable as hook/skill: <yes — why>
++  - ≤ 2 lines: <yes>
++Proposed line(s): <the exact ≤ 2 lines to add, verbatim>
++Pointer target: <the doc that holds the full detail; the line(s) reference it>
++Rationale (1 sentence): <why this rule is load-bearing per session>
++```
++
++The orchestrator MUST surface every `CLAUDE_MD_SUGGESTED_CHANGE` to the user before any CLAUDE.md edit lands. Sub-agents are not authorized writers of CLAUDE.md.
++
++## Self-check before any doc write
++
++Every doc task MUST include this attestation in its completion report:
++
++```
++DOC_ROUTER_ATTESTATION:
++Gate fired: <1 | 2 | 3 | 4 | 5 | none — no doc change warranted>
++Target file: <path>
++CLAUDE.md edited directly: <no — N/A | no — emitted CLAUDE_MD_SUGGESTED_CHANGE>
++Lines added to CLAUDE.md: <0, or count if a prior CLAUDE_MD_SUGGESTED_CHANGE was approved>
++```
++
++If any answer is uncertain, halt and emit:
++
++```
++DOC_ROUTER_AMBIGUOUS: <which gate boundary is unclear, what content>
++```
++
++The orchestrator resolves ambiguity (typically by escalating to the user) before the doc task proceeds.
++
++## Anti-patterns
++
++- **"This rule is important so it must go in CLAUDE.md"**: importance ≠ universal scope. Skill-specific rules belong in the skill's SKILL.md, where they are loaded with full attention only when relevant. CLAUDE.md rules compete for attention every session — context-rot research (Chroma 2025; lost-in-the-middle) shows degradation at all length increments.
++- **"This is architectural so it must go in CLAUDE.md"**: architecture descriptions belong in reference docs (Gate 2). CLAUDE.md holds **pointers** to architecture, not architecture itself. See CLAUDE.md Architectural Invariant #2 (bloat criteria a–d).
++- **"It's only a few lines"**: bloat is cumulative. Rules added as 2-line entries become 6-line entries with examples and exceptions over time. Externalize first; let CLAUDE.md hold the one-liner pointer.
++- **Duplicating an existing rule under a slightly different framing**: strengthen the existing rule instead.

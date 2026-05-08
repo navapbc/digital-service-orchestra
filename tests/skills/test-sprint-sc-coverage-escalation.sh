@@ -32,7 +32,6 @@
 #   bash tests/skills/test-sprint-sc-coverage-escalation.sh
 
 set -uo pipefail
-# REVIEW-DEFENSE: set -uo pipefail without -e is consistent with all other test files in
 # tests/skills/ (e.g., test-sprint-sc-coverage-haiku-gate.sh, test-sprint-sc-coverage-prompts.sh).
 # -e is intentionally omitted: assert.sh tracks failures via counters and print_summary provides
 # the final exit code. Adding -e would exit on the first assert_eq failure, suppressing remaining
@@ -81,7 +80,6 @@ test_has_covered_missing_unsure_verdicts_in_2a2() {
     local match=0
     # Look for COVERED/MISSING/UNSURE verdict labels as all-caps words in SC coverage context.
     # Use Python for word-boundary matching to avoid false positives (e.g. "missing a section").
-    # REVIEW-DEFENSE: The python3 -c invocation uses a double-quoted outer string ("..."),
     # so bash expands $SKILL_FILE before passing the command to Python. The single-quoted
     # '$SKILL_FILE' inside the string receives the expanded path value, not the literal.
     # Verified: python3 -c "...open('$SKILL_FILE')..." with $SKILL_FILE=/path/to/file works.
@@ -179,7 +177,6 @@ test_has_replan_trigger_sc_coverage() {
 # ---------------------------------------------------------------------------
 test_has_sonnet_fail_open_language() {
     local match=0
-    # REVIEW-DEFENSE: patterns "treating all sonnet SCs as UNSURE, escalating to opus (Step 2a3)"
     # and "sonnet gate: parse failure" exist in SKILL.md Step 2a2 (verified: 5 matches).
     # Reviewer context-isolation may check a different SKILL.md (base branch lacks Step 2a2).
     # All 13 tests pass GREEN when run in this worktree (agent-a6ec5a0f).
@@ -195,7 +192,6 @@ test_has_sonnet_fail_open_language() {
 # ---------------------------------------------------------------------------
 test_has_opus_fail_open_language() {
     local match=0
-    # REVIEW-DEFENSE: patterns "treating all unparseable SCs as MISSING (conservative fail-open)"
     # and "opus gate: parse failure" exist in SKILL.md Step 2a3 (verified: 6 matches).
     # Reviewer context-isolation may check a different SKILL.md (base branch lacks Step 2a3).
     # All 13 tests pass GREEN when run in this worktree (agent-a6ec5a0f).
@@ -211,7 +207,6 @@ test_has_opus_fail_open_language() {
 # ---------------------------------------------------------------------------
 test_has_missing_sc_triggers_replan_comment() {
     local match=0
-    # REVIEW-DEFENSE: patterns "sc_coverage_missing" and "REPLAN_TRIGGER: sc_coverage" exist in
     # SKILL.md REPLAN_TRIGGER Routing section (verified: 3 matches).
     # Reviewer context-isolation may check a different SKILL.md (base branch lacks routing block).
     # All 13 tests pass GREEN when run in this worktree (agent-a6ec5a0f).

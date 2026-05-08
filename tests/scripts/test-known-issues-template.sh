@@ -15,7 +15,6 @@ PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
-# REVIEW-DEFENSE: This path references a file that does not yet exist — this is an intentional
 # RED test in the TDD workflow. The template at plugins/dso/docs/templates/KNOWN-ISSUES.md will
 # be created by task 6a8b-ecf3 in the next sprint batch. Tests below are expected to fail (RED)
 # until that task completes and the file is created.

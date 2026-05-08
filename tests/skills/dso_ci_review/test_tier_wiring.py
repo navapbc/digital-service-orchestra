@@ -121,6 +121,7 @@ def test_light_tier_dispatch_skips_augmentation_loop(tmp_path: pathlib.Path) -> 
             primary_model=_PRIMARY_MODEL,
             repo_root=str(tmp_path),
             tier="light",
+            agent_id="code-reviewer-light",
             environ={"ANTHROPIC_API_KEY": "test-key"},
         )
 
@@ -166,6 +167,7 @@ def test_standard_tier_dispatch_enters_augmentation_loop(
             primary_model=_PRIMARY_MODEL,
             repo_root=str(tmp_path),
             tier="standard",
+            agent_id="code-reviewer-standard",
             soft_cap=5,
             environ={"ANTHROPIC_API_KEY": "test-key"},
         )
@@ -202,6 +204,7 @@ def test_deep_tier_dispatch_enters_augmentation_loop(tmp_path: pathlib.Path) -> 
             primary_model=_PRIMARY_MODEL,
             repo_root=str(tmp_path),
             tier="deep",
+            agent_id="code-reviewer-standard",
             soft_cap=5,
             environ={"ANTHROPIC_API_KEY": "test-key"},
         )

@@ -12,7 +12,6 @@
 # Usage: bash tests/integration/test-figma-merge-integration.sh
 # Returns: exit 0 if all pass, exit 1 if any fail (RED state expected until implementation)
 #
-# REVIEW-DEFENSE: FP-MERGE-INT-1..4 and FP-LINK-INT-1 test the figma-merge.py CLI with the
 # following pinned interface contract (story 3042-e00d):
 #
 #   python3 figma-merge.py \

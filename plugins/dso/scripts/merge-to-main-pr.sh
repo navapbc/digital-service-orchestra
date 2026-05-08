@@ -449,7 +449,6 @@ except Exception:
     return 0
 }
 
-# REVIEW-DEFENSE: Finding 1 — these helper functions are covered by the existing integration
 # tests (test-merge-to-main-pr-thread-resolution.sh) which exercise the _phase_resolve_threads
 # entry point end-to-end. Individual unit tests for each extracted helper would be
 # change-detector tests that test implementation structure rather than behavior.
@@ -489,7 +488,6 @@ _pr_validate_file_path() {
 # Outputs four variables into the caller's scope via nameref-style assignments.
 # Call as: _pr_resolve_threads_read_config <max_dispatches_var> <max_wait_var> <quiet_window_var> <interval_var>
 # Populates each named variable with the resolved value.
-# REVIEW-DEFENSE: Uses printf -v (not local -n) for caller-variable mutation.
 # printf -v is used here because this function predates the bash 4.3+ version
 # guard added at the top of the script. While local -n would be consistent with
 # _pr_dispatch_unresolved_batch and _pr_commit_code_change_threads, the
@@ -538,7 +536,6 @@ _pr_resolve_threads_read_config() {
 # Emits INFO:POLL_WINDOW_RESET on a change. Returns 0 normally; returns 2 when
 # PR_THREAD_LOOP_TEST_STOP_AFTER_RESET=1 (test escape hatch).
 _pr_handle_head_sha_reset() {
-    # REVIEW-DEFENSE: This function is covered by test_push_induced_dismissal_resets_poll_window
     # in tests/integration/test-merge-to-main-pr-thread-resolution.sh, which stubs gh to
     # return a changed headRefOid and asserts that the poll window is reset (POLL_WINDOW_RESET
     # log line detected). The function also exposes PR_THREAD_LOOP_TEST_STOP_AFTER_RESET=1
@@ -586,7 +583,6 @@ except Exception:
 #       _code_change_threads_var (nameref to indexed array name), _threads_arr (by value via "$@")
 # The _threads_arr elements are passed as positional args starting at arg 9.
 # Returns 0. Updates _dispatches, _escalated_threads, and _code_change_threads in the caller.
-# REVIEW-DEFENSE: This function is covered by integration tests in
 # tests/integration/test-merge-to-main-pr-thread-resolution.sh:
 # test_dispatch_count_cap_triggers_escalation (exercises the full dispatch→escalation
 # path including tab-delimited parsing and thread routing) and
@@ -638,7 +634,6 @@ _pr_dispatch_unresolved_batch() {
     # _max_d_safe is loop-invariant: _pdb_max_dispatches does not change across iterations.
     local _max_d_safe="${_pdb_max_dispatches:-10}"
     if ! [[ "$_max_d_safe" =~ ^[0-9]+$ ]]; then _max_d_safe=10; fi
-    # REVIEW-DEFENSE: The non-numeric guard is tested indirectly by
     # test_dispatch_count_cap_triggers_escalation in test-merge-to-main-pr-thread-resolution.sh,
     # which sets PR_THREAD_LOOP_MAX_DISPATCHES=10 (valid integer) and asserts exactly 10 dispatches
     # occur before escalation. The fallback to 10 on invalid input preserves the same cap behavior
@@ -803,7 +798,6 @@ _pr_commit_code_change_threads() {
     local _commit_rc=0
     local _thread_list="${_pcct_code_change_ref[*]}"
     # Stage all tracked file changes before committing.
-    # REVIEW-DEFENSE: git add -u is intentionally broad here. The LLM sub-agent
     # (dispatched for code_change action in _pr_dispatch_unresolved_batch) applies
     # file edits to the working tree without staging them. merge-to-main-pr.sh runs
     # only in automated PR-merge mode — no unrelated working-tree modifications exist
@@ -823,7 +817,6 @@ _pr_commit_code_change_threads() {
             if type _pr_resolve_thread >/dev/null 2>&1; then
                 local _pcct_ct
                 for _pcct_ct in "${_pcct_code_change_ref[@]}"; do
-                    # REVIEW-DEFENSE: Finding 0 — test coverage exists in tests/scripts/test-merge-to-main-pr.sh as
                     # t_per_thread_resolve_failure_emits_warn, which specifically stubs _pr_resolve_thread to return
                     # non-zero and asserts that a WARNING message is emitted on stderr. The test was added as part of
                     # this bug fix (1920-c513) and exercises this exact code path.
@@ -840,7 +833,6 @@ _pr_commit_code_change_threads() {
             # but didn't reach the remote, so the threads cannot be resolved via GraphQL.
             # Escalating moves them to the user-visible escalation list rather than silently
             # dropping them or retrying indefinitely in the next iteration.
-            # REVIEW-DEFENSE: This push-failure escalation is structurally identical to the
             # commit-failure escalation below and follows the same invariant (threads must be
             # escalated or resolved, never left pending after a failed operation). The commit-failure
             # path is covered by test_dispatch_count_cap_triggers_escalation (indirectly, via the
@@ -854,7 +846,6 @@ _pr_commit_code_change_threads() {
             _pcct_code_change_ref=()
         fi
     else
-        # REVIEW-DEFENSE: The commit-fail → escalation path is validated indirectly by
         # test_dispatch_count_cap_triggers_escalation in test-merge-to-main-pr-thread-resolution.sh:
         # the dispatch cap fires after MAX_DISPATCHES code_change attempts, which requires
         # code_change threads to be properly re-enqueued or escalated after each failed iteration.
@@ -990,7 +981,6 @@ _phase_resolve_threads() {
         fi
 
         # --- Bounds: dispatch cap ---
-        # REVIEW-DEFENSE: _max_dispatches is populated by _pr_resolve_threads_read_config,
         # which validates the value falls back to the integer 10 when empty or missing from
         # config. The arithmetic at this call site is safe under the same constraint.
         if (( _dispatches >= _max_dispatches )); then
@@ -1395,7 +1385,6 @@ This is attempt 4 of 5 - if you cannot resolve this finding, return ESCALATE wit
 }
 
 # --- _push_fix_branch: commit and push remediation fixes (CI-only) ---
-# REVIEW-DEFENSE: raw git operations here are intentional and CI-only.
 # merge-to-main-pr.sh runs exclusively in automated CI environments where the
 # project pre-commit hook suite is not installed. The CI guard below ensures
 # this branch is never taken in interactive/local sessions, preventing

@@ -17,7 +17,6 @@
 # Usage: bash tests/scripts/test-check-shim-refs.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
-# REVIEW-DEFENSE: '-e' is intentionally omitted. The test harness captures
 # non-zero exit codes from script invocations via || assignment. With '-e',
 # expected non-zero exits would abort the script before assertions run.
 set -uo pipefail
@@ -55,6 +54,7 @@ test_exit_nonzero_on_literal_path() {
     # Simulate a skill file inside plugins/dso/ by placing it under a matching subdir
     mkdir -p "$_dir/plugins/dso/skills/my-skill"
     _file="$_dir/plugins/dso/skills/my-skill/SKILL.md"
+    # shellcheck disable=SC2016
     printf '# My Skill\n\nRun `plugins/dso/scripts/validate.sh --ci` to validate.\n' > "$_file"
     _exit=0
     _out=$(bash "$SCRIPT" "$_file" 2>&1) || _exit=$?
@@ -72,6 +72,7 @@ test_exit_nonzero_on_variable_path() {
     _dir=$(_make_tmpdir)
     mkdir -p "$_dir/plugins/dso/agents"
     _file="$_dir/plugins/dso/agents/my-agent.md"
+    # shellcheck disable=SC2016
     printf '# My Agent\n\nInvoke via `$PLUGIN_SCRIPTS/validate.sh --ci`.\n' > "$_file"
     _exit=0
     _out=$(bash "$SCRIPT" "$_file" 2>&1) || _exit=$?
@@ -89,6 +90,7 @@ test_exit_nonzero_on_curly_variable_path() {
     _dir=$(_make_tmpdir)
     mkdir -p "$_dir/plugins/dso/docs"
     _file="$_dir/plugins/dso/docs/GUIDE.md"
+    # shellcheck disable=SC2016
     printf '# Guide\n\nUse `${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh`.\n' > "$_file"
     _exit=0
     _out=$(bash "$SCRIPT" "$_file" 2>&1) || _exit=$?
@@ -139,6 +141,7 @@ test_shim_exempt_comment_suppresses() {
     _dir=$(_make_tmpdir)
     mkdir -p "$_dir/plugins/dso/skills/my-skill"
     _file="$_dir/plugins/dso/skills/my-skill/SKILL.md"
+    # shellcheck disable=SC2016
     printf '# My Skill\n\nRun `plugins/dso/scripts/validate.sh` # shim-exempt: direct reference in example\n' > "$_file"
     _exit=0
     _out=$(bash "$SCRIPT" "$_file" 2>&1) || _exit=$?
@@ -200,6 +203,7 @@ test_scope_filtering_out_of_scope() {
     _dir=$(_make_tmpdir)
     # Place the file outside plugins/dso/
     _file="$_dir/some-other-doc.md"
+    # shellcheck disable=SC2016
     printf '# Other Doc\n\nRun `plugins/dso/scripts/validate.sh --ci` from host repo.\n' > "$_file"
     _exit=0
     _out=$(bash "$SCRIPT" "$_file" 2>&1) || _exit=$?

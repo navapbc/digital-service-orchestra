@@ -10,7 +10,6 @@ from ticket_graph._loader import reduce_ticket
 _BLOCKING_RELATIONS = frozenset({"blocks", "depends_on"})
 
 
-# REVIEW-DEFENSE: _get_ticket_status is defined here and called from _graph.py and _links.py.
 # The reviewer noted the function "may not exist" — it does exist and is the authoritative
 # status resolver for graph operations.
 def _get_ticket_status(ticket_id: str, tracker_dir: str) -> str:

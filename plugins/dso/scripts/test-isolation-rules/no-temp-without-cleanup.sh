@@ -28,7 +28,6 @@ if ! grep -qE '\bmktemp\b' "$file" 2>/dev/null; then
 fi
 
 # Check if file contains a trap ... EXIT cleanup handler
-# REVIEW-DEFENSE: This is a file-level check — if ANY trap EXIT exists, the file passes.
 # Multiple mktemp calls with only one trap is a design limitation, not a bug. The file-level
 # check catches the common case (mktemp with zero cleanup). Per-call trap association would
 # require control-flow analysis beyond what a grep-based rule can reliably provide.

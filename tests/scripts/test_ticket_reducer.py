@@ -607,7 +607,6 @@ def test_reducer_returns_error_state_for_ticket_dir_with_zero_valid_events(
     Ghost prevention: zero-valid-events → error state, not crash.
     The returned dict must have status='error'.
 
-    # REVIEW-DEFENSE: This test deliberately extends the docstring contract
     # ("returns None if … dir is empty") to differentiate two cases:
     #   - Empty dir (no files at all)     → None  (Tests 4 and 5)
     #   - Corrupt-only dir (no parseable events) → error dict (this test)

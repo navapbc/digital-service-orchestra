@@ -131,7 +131,6 @@ CONF
 # - config that maps all non-test checks to "true" (instant pass)
 # - VALIDATE_TEST_BATCHED_SCRIPT points to our stub
 # - VALIDATE_TEST_STATE_FILE points to an empty state (no cached pass)
-# REVIEW-DEFENSE: CONFIG_FILE env var is a documented override recognized by
 # validate.sh (line ~100: CONFIG_FILE="${CONFIG_FILE:-...}"). This ensures
 # non-test checks (format, lint, etc.) use the stub config with `true` commands.
 rc=0

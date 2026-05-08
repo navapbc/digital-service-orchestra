@@ -46,8 +46,8 @@ title="$2"
 shift 2
 
 # Parse remaining args: support both positional parent_id and --parent <id>
+priority="2"
 parent_id=""
-priority="2"  # REVIEW-DEFENSE: default P2 is intentional — user-requested behavior change so all tickets have a priority
 assignee=""
 description=""
 tags=""
@@ -199,7 +199,6 @@ temp_event=$(mktemp "$TRACKER_DIR/.tmp-create-XXXXXX")
 # Write description to temp file to avoid ARG_MAX limits on large payloads (195e-b410)
 desc_file=$(mktemp "$TRACKER_DIR/.tmp-desc-XXXXXX")
 # Ensure both temp files are cleaned up on any exit path.
-# REVIEW-DEFENSE: The trap EXIT is the safety net for unexpected exits (signal, set -e, unhandled error).
 # The explicit rm -f calls in error blocks below are intentional belt-and-suspenders: they make the
 # cleanup intent visible at the failure site and run before `exit 1` in the normal error path.
 # rm -f is idempotent so double-cleanup is harmless. The pattern is: trap covers unexpected paths;

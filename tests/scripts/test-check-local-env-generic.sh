@@ -13,7 +13,6 @@
 # Usage: bash tests/scripts/test-check-local-env-generic.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
-# REVIEW-DEFENSE: '-e' is intentionally omitted from set flags. The test harness must
 # capture non-zero exit codes from _run_script (e.g., test_env_check_app_error_exits_nonzero
 # expects a non-zero exit). With '-e', the script would abort on those expected failures
 # before the assert_ne can verify them. Setup failures in _make_skeleton are detectable
@@ -24,7 +23,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
-# REVIEW-DEFENSE: This path points to the future canonical script location inside the
 # workflow plugin. The test is intentionally RED — it will pass only after task
 # lockpick-doc-to-logic-sn0y creates the canonical script at this path. Per TDD workflow,
 # tests are written before the implementation exists. The reviewer's suggestion to point
@@ -121,7 +119,7 @@ CURL_STUB
     (
         export PATH="$stub_bin:$PATH"
         export WORKFLOW_CONFIG="$skeleton_dir/dso-config.conf"
-        cd "$skeleton_dir"
+        cd "$skeleton_dir" || exit
         bash "$CANONICAL_SCRIPT" "$@"
     )
 }

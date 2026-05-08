@@ -191,7 +191,6 @@ PYEOF
 
 ${details}"
 
-        # REVIEW-DEFENSE: The two-step `ticket create` + `ticket comment` pattern is correct
         # v3 behavior. The v2 tk binary had an atomic `-d` description flag; v3 separates
         # ticket creation (returns just the ID) from description attachment (via comment).
         # If `ticket create` exits 0 but returns an empty ID (an edge case), the `if [ -n

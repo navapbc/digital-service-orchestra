@@ -530,7 +530,6 @@ print(desc)
     assert_eq "test_threshold_override: high threshold exits 1 (fail)" "1" "$exit_high"
 
     # Verdicts must differ
-    # REVIEW-DEFENSE: assert_ne is defined in tests/lib/assert.sh (line 39), sourced at line 36 of this file
     assert_ne "test_threshold_override: verdicts differ between low and high threshold" \
         "$verdict_low" "$verdict_high"
 

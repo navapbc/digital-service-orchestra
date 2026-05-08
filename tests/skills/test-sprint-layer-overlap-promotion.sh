@@ -29,7 +29,6 @@
 #   bash tests/skills/test-sprint-layer-overlap-promotion.sh
 
 set -uo pipefail
-# REVIEW-DEFENSE: set -uo pipefail without -e is consistent with all other
 # test files in tests/skills/. -e is intentionally omitted: assert.sh tracks
 # failures via counters and print_summary provides the final exit code.
 # Adding -e would exit on the first assert_eq failure, suppressing remaining

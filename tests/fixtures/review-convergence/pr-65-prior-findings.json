@@ -1,0 +1,29 @@
+[
+  {
+    "id": "f0-pr65-cycle1-resustain",
+    "relation": "NEW_INTRODUCED",
+    "finding_id": "f0-pr65-cycle1-resustain",
+    "dimension": "correctness",
+    "severity": "critical",
+    "description": "merge-to-main.sh uses `git rebase origin/main` without first fetching the remote, so the rebase may operate on a stale base ref when the branch has diverged since the last fetch.",
+    "cited_lines": [
+      "plugins/dso/scripts/merge-to-main.sh:142"
+    ],
+    "defense_text": "Added `git fetch origin main` guard before the rebase in commit abc1234. The remote ref is always current at rebase time.",
+    "cycle": 1,
+    "status": "defended"
+  },
+  {
+    "id": "f1-pr65-cycle1-style",
+    "relation": "NEW_INTRODUCED",
+    "finding_id": "f1-pr65-cycle1-style",
+    "dimension": "hygiene",
+    "severity": "minor",
+    "description": "Variable `_RESUME_CHECKPOINT` should follow UPPER_SNAKE naming convention per project shell style guide.",
+    "cited_lines": [
+      "plugins/dso/scripts/merge-to-main.sh:88"
+    ],
+    "cycle": 1,
+    "status": "accepted"
+  }
+]

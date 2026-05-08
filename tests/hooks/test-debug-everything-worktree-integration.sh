@@ -33,7 +33,6 @@ echo "=== test-debug-everything-worktree-integration.sh ==="
 # its absence means the worktree integration path is never invoked.
 # ===========================================================================
 echo "--- test_skill_contains_single_agent_integrate ---"
-# REVIEW-DEFENSE: grep -c returns an integer (0 or more); `|| true` ensures exit 0 when file
 # is absent (grep exits non-zero). ${_count:-0} sets empty string to 0 as a defensive guard.
 # Both assertions in this file use the same consistent pattern intentionally.
 _count=$(grep -c 'single-agent-integrate' "$SKILL_FILE" 2>/dev/null || true)

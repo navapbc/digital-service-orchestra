@@ -10,6 +10,7 @@
     "./agents/bloat-resolver.md",
     "./agents/blue-team-filter.md",
     "./agents/bot-psychologist.md",
+    "./agents/code-reviewer-arbiter.md",
     "./agents/code-reviewer-deep-arch.md",
     "./agents/code-reviewer-deep-correctness.md",
     "./agents/code-reviewer-deep-hygiene.md",

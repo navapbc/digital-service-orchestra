@@ -1,0 +1,126 @@
+diff --git a/.test-index b/.test-index
+index 79695a1495..a7b03d02bd 100644
+--- a/.test-index
++++ b/.test-index
+@@ -396,3 +396,5 @@ tests/fixtures/inference-incidents/holdout.txt:tests/docs/test-inference-inciden
+ tests/fixtures/affects-fields-classifier.json:tests/scripts/test-red-team-affects-fields-classifier.sh [test_classifier_fixture_exists]
+ plugins/dso/docs/contracts/inference-recall-result.md:tests/test-inference-recall-replay.sh [test_recall_result_contract_exists]
+ plugins/dso/scripts/inference-recall-replay.sh:tests/test-inference-recall-replay.sh [test_recall_all_at_threshold]
++
++tests/docs/test-inference-review-docs.sh [test_config_ref_rate_rationale]
+diff --git a/CLAUDE.md b/CLAUDE.md
+index c7b8eafd94..f0be18ca2a 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -93,6 +93,7 @@ Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
+ | `dso:plan-review` | sonnet | `/dso:plan-review` — evaluates implementation plans and design artifacts on feasibility, completeness, YAGNI, and codebase alignment before the user sees them |
+ | `dso:bloat-blue-team` | opus | `/dso:remediate` — evaluates probabilistic bloat candidates, classifying as CONFIRM/DISMISS/NEEDS_HUMAN with asymmetric error policy (defaults to DISMISS when uncertain) |
+ | `dso:bloat-resolver` | opus | `/dso:remediate` Path B (auto-resolve) — applies confirmed bloat removals with dependency checks before each deletion |
++| `dso:inference-incident-curator` | opus | `/dso:brainstorm` SC4 dogfooding (runnable quarterly) — scans ticket history for inference incidents and emits JSONL corpus records (contract: `plugins/dso/docs/contracts/inference-incident-schema.md`) |
+ 
+ **Tiered review**: Classifier scores 0–2 → light (haiku), 3–6 → standard (sonnet), 7+ → deep (3×sonnet + opus synthesis). 300+ lines → opus upgrade; 600+ lines → SIZE_WARNING (non-blocking, review proceeds); ≥20 files → routed to REVIEW-WORKFLOW-HUGE.md. Security, performance, and test quality overlays auto-dispatched when classifier flags them. Test quality overlay fires when the diff touches `tests/` files. Review dimensions: `correctness`, `verification`, `hygiene`, `design`, `maintainability`. **Finding schema invariants**: each finding requires `cited_lines` (min 1 entry; format `<path>:<line>` or `~<path>:<line>`); severity calibration rubric and NOT-flag auto-downgrade rules defined in `reviewer-base.md`; CI dispatches prepend `REVIEW_CONTEXT: ci` to the user message.
+ **Conflict avoidance** (multi-agent): Static file impact analysis, shared blackboard, agent discovery protocol, semantic conflict check — integrated into `/dso:sprint` and `/dso:debug-everything`.
+@@ -101,7 +102,7 @@ Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
+ **Brainstorm non-epic support**: `/dso:brainstorm` accepts any ticket type; non-epics can convert-to-epic or enrich-in-place. 
+ **Brainstorm Phase 1 UX probe loop**: Non-interactive runs tag the epic `ui_probes:deferred`. See brainstorm SKILL.md for probe dimensions, loop-back state machine, and UNRESOLVABLE_INTENT_GAP escape details.
+ **ui_probes:deferred tag lifecycle**: Emitted by brainstorm in non-interactive mode. Consumed by the preplanning UI Probes Deferred Gate (halts `/dso:preplanning` until brainstorm runs interactively).
+-**Epic scrutiny pipeline**: See brainstorm SKILL.md and `plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md`. Scrutiny emits `FEASIBILITY_GAP` for critical findings; preplanning emits `REPLAN_ESCALATE: brainstorm` for unresolved gaps. 
++**Epic scrutiny pipeline**: See brainstorm SKILL.md and `plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md`. Scrutiny emits `FEASIBILITY_GAP` for critical findings; preplanning emits `REPLAN_ESCALATE: brainstorm` for unresolved gaps. `META_QUESTION` is distinct from `REPLAN_ESCALATE`: it fires only at the Phase 1 Gate when `blocking_for` resolves to brainstorm itself, escalating directly to the user to prevent an infinite loop (contract: `plugins/dso/docs/contracts/phase1-gate-attestation.md`). 
+ **Value-effort scoring**: `plugins/dso/skills/shared/prompts/value-effort-scorer.md` — shared rubric for epic value vs. effort, used by `/dso:roadmap`.
+ **Prior-art search**: Before writing or modifying code, consult `plugins/dso/skills/shared/prompts/prior-art-search.md`. Routine exclusions: single-file logic fixes, formatting/lint, test reversions, doc-only edits, config value updates.
+ **Behavioral testing standard** (`plugins/dso/skills/shared/prompts/behavioral-testing-standard.md`): 5-rule standard consumed by all test-writing agents. Rules: (1) check existing coverage, (2) test observable behavior, (3) execute code and assert outcomes, (4) refactoring litmus test, (5) instruction files — test the structural boundary, not the content.
+@@ -109,6 +110,7 @@ Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
+ **Namespace policy**: in-scope files MUST use `/dso:<skill-name>` (enforced by `check-skill-refs.sh`). Host project shim: `.claude/scripts/dso <script-name>`. Config: `.claude/dso-config.conf` (KEY=VALUE; see file for keys).
+ **Plugin path pattern**: All plugin scripts use `_PLUGIN_ROOT` (resolved via `BASH_SOURCE` / `readlink`) for filesystem access (sourcing libs, reading config). For git commands that need repo-relative paths, derive `_PLUGIN_GIT_PATH` from `_PLUGIN_ROOT` relative to `git rev-parse --show-toplevel`. Never hardcode `plugins/dso/` in scripts — use these variables so the plugin works in any install location.
+ **GAP_CLASSIFICATION** (contract: `plugins/dso/docs/contracts/gap-classification-output.md`): `intent_gap` → brainstorm (with user confirmation), `implementation_gap` → remediation (`ROUTING: implementation-plan` is a signal label, NOT a direct skill invocation).
++**INFERENCE_CHALLENGE / INFERENCE_SKIP** (contract: `plugins/dso/docs/contracts/inference-envelope.md`): envelope signals for the inference-challenge workflow — `INFERENCE_CHALLENGE` proposes a decision for adversarial review; `INFERENCE_SKIP` records that the decision was bypassed (with `reason: sampling | not_in_scope` and `hash_bucket` fields).
+ **Figma design collaboration** (config-gated, `design.figma_collaboration`; default false): Sprint filters `design:awaiting_import` stories from batch execution. See sprint SKILL.md and preplanning SKILL.md for details. **Pull-back workflow**: when a story has `design:awaiting_review`, run `figma-resync.py <ticket-id>` to pull Figma changes via REST API (requires `design.figma_pat` or `FIGMA_PAT` env var), merge visual updates into the 3-artifact manifest (spatial-layout.json, wireframe.svg, tokens.md) while preserving behavioral specs, confirm with the designer, then swap tag to `design:approved`. Use `--non-interactive` in CI. The merge uses an advisory file lock (30-min TTL, stale-lock auto-cleanup) to prevent concurrent re-syncs on the same ticket. Schema fields added by pull-back: `designer_added` (boolean) and `behavioral_spec_status` (COMPLETE/INCOMPLETE/PENDING) on each component in spatial-layout.json. **Manual review tag**: `manual:awaiting_user` marks stories blocked on human input outside the Figma workflow (e.g., access credentials, stakeholder decisions).
+ **External Dependencies planning** (config-gated, `planning.external_dependency_block_enabled`; default off): When enabled, `/dso:brainstorm` Phase 1 runs an External Dependencies shape heuristic and classification dialogue; Phase 2 approval gate checks for contradiction resolution. Stories with `handling=user_manual` become `manual:awaiting_user`-tagged stories handled via the Phase 3.5 manual-pause handshake in sprint. Contract: `plugins/dso/docs/contracts/external-dependencies-block.md`. Config: `planning.verification_command_timeout_seconds` (default 30s).
+ **Stack-agnostic gate pipeline**: `validate.sh`, `gate-2b`, `gate-2d`, and `auto-format.sh` read `commands.lint`, `commands.format`, and `commands.format_check` from config — replacing hardcoded Python/ruff calls. When a key is absent, each script emits `[DSO WARN]` and falls back gracefully (ruff for `.py`; skip for other extensions). Per-stack defaults: see `plugins/dso/docs/CONFIGURATION-REFERENCE.md`.
+diff --git a/tests/docs/test-inference-review-docs.sh b/tests/docs/test-inference-review-docs.sh
+new file mode 100755
+index 0000000000..c82cfeaa1e
+--- /dev/null
++++ b/tests/docs/test-inference-review-docs.sh
+@@ -0,0 +1,81 @@
++#!/usr/bin/env bash
++# tests/docs/test-inference-review-docs.sh
++# Structural boundary tests for inference-review documentation sections.
++# Verifies presence of config keys, contract files, and dispatch parameter
++# added by epic c183-ed2a (story ec78-d60d). Per behavioral testing standard
++# Rule 5: test the structural boundary, not the content.
++set -uo pipefail
++
++SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
++REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
++source "$REPO_ROOT/tests/lib/assert.sh"
++
++echo "=== test-inference-review-docs.sh ==="
++
++CONFIG_REF="$REPO_ROOT/plugins/dso/docs/CONFIGURATION-REFERENCE.md"
++PREPLANNING_SKILL="$REPO_ROOT/plugins/dso/skills/preplanning/SKILL.md"
++CONTRACTS_DIR="$REPO_ROOT/plugins/dso/docs/contracts"
++
++# ── 1. CONFIGURATION-REFERENCE.md: rate_rationale key section ────────────────
++
++test_config_ref_rate_rationale() {
++    local hit
++    hit=$(grep -c "preconditions\.inference_review\.rate_rationale" "$CONFIG_REF" || true)
++    assert_eq "CONFIGURATION-REFERENCE.md documents preconditions.inference_review.rate_rationale" \
++        "1" "$([ "$hit" -gt 0 ] && echo 1 || echo 0)"
++}
++
++# ── 2. CONFIGURATION-REFERENCE.md: rate_high_stakes key section ──────────────
++
++test_config_ref_rate_high_stakes() {
++    local hit
++    hit=$(grep -c "preconditions\.inference_review\.rate_high_stakes" "$CONFIG_REF" || true)
++    assert_eq "CONFIGURATION-REFERENCE.md documents preconditions.inference_review.rate_high_stakes" \
++        "1" "$([ "$hit" -gt 0 ] && echo 1 || echo 0)"
++}
++
++# ── 3. CONFIGURATION-REFERENCE.md: rate_high_stakes default/floor is 100 ─────
++
++test_config_ref_rate_high_stakes_floor_100() {
++    # The section must document the floor value of 100.
++    # grep -A10 captures the section lines following the heading, where
++    # Default and Value rows both reference "100".
++    local hit
++    hit=$(grep -A10 "preconditions\.inference_review\.rate_high_stakes" "$CONFIG_REF" | grep -c "100" || true)
++    assert_eq "CONFIGURATION-REFERENCE.md rate_high_stakes section contains value 100" \
++        "1" "$([ "$hit" -gt 0 ] && echo 1 || echo 0)"
++}
++
++# ── 4. preplanning/SKILL.md: mode: story_review in Phase E dispatch ──────────
++
++test_preplanning_skill_mode_story_review() {
++    local hit
++    hit=$(grep -c "mode: story_review" "$PREPLANNING_SKILL" || true)
++    assert_eq "preplanning SKILL.md Phase E dispatch contains 'mode: story_review'" \
++        "1" "$([ "$hit" -gt 0 ] && echo 1 || echo 0)"
++}
++
++# ── 5. Contract: phase1-gate-attestation.md exists ───────────────────────────
++
++test_contract_phase1_gate_attestation_exists() {
++    local file="$CONTRACTS_DIR/phase1-gate-attestation.md"
++    assert_eq "plugins/dso/docs/contracts/phase1-gate-attestation.md exists" \
++        "1" "$([ -f "$file" ] && echo 1 || echo 0)"
++}
++
++# ── 6. Contract: inference-recall-result.md exists ───────────────────────────
++
++test_contract_inference_recall_result_exists() {
++    local file="$CONTRACTS_DIR/inference-recall-result.md"
++    assert_eq "plugins/dso/docs/contracts/inference-recall-result.md exists" \
++        "1" "$([ -f "$file" ] && echo 1 || echo 0)"
++}
++
++test_config_ref_rate_rationale
++test_config_ref_rate_high_stakes
++test_config_ref_rate_high_stakes_floor_100
++test_preplanning_skill_mode_story_review
++test_contract_phase1_gate_attestation_exists
++test_contract_inference_recall_result_exists
++
++print_summary

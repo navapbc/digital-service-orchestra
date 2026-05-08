@@ -90,7 +90,6 @@ except (json.JSONDecodeError, IndexError, TypeError, AttributeError):
 
 echo "=== test-test-quality-overlay.sh ==="
 echo ""
-# REVIEW-DEFENSE: FAIL counter initialization before _snapshot_fail calls.
 # assert.sh (sourced above) initializes FAIL=0 at source time via `: "${FAIL:=0}"` (line 22).
 # All _snapshot_fail calls below operate on an already-initialized FAIL counter.
 # assert_pass_if_clean checks `[[ -z "${_fail_snapshot+x}" ]]` to guard against

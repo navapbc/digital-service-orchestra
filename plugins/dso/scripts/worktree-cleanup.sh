@@ -60,7 +60,6 @@ BACKUP_DIR="$HOME/.worktree-backups"
 CLEANUP_LOG="${CLEANUP_LOG:-$HOME/.claude-safe-cleanup.log}"
 
 # ── Project config (read once at startup via read-config.sh) ─────────────────
-# REVIEW-DEFENSE: The CONFIG_* variables below appear unused because this is task 2 of 6
 # in a linear implementation chain (parent story: lockpick-doc-to-logic-o364). This task
 # specifically adds the startup config cache; follow-on tasks (pigg, e4f5, 7t7i, 4sfu)
 # wire these values into the script logic (replacing the current hardcoded defaults for

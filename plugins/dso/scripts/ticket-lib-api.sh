@@ -80,7 +80,6 @@ ticket_show() {
             TRACKER_DIR="$TICKETS_TRACKER_DIR"
         else
             local REPO_ROOT
-            # REVIEW-DEFENSE: 2>/dev/null suppresses git error noise; REPO_ROOT-empty is pre-existing behavior
             # (empty REPO_ROOT → TRACKER_DIR="/.tickets-tracker" → file ops fail downstream with clear errors).
             # A hard return 1 here breaks callers (e.g., test setups using isolated $tmp repos) that supply
             # GIT_DIR directly or rely on subshell fall-through. GIT_DISCOVERY_ACROSS_FILESYSTEM=1 is the
@@ -178,7 +177,6 @@ ticket_show() {
         # Implements the same event-sourcing logic as ticket_reducer/_api.py.
         # Supports: CREATE, STATUS, COMMENT, LINK, UNLINK, EDIT, ARCHIVED,
         # BRIDGE_ALERT, REVERT, SNAPSHOT. Unknown types are silently ignored.
-        # REVIEW-DEFENSE: jq is used here as the zero-python3 JSON processor for
         # the ticket show bash-native path (epic 78fc-3858, story 564c-e391).
         # shellcheck disable=SC2016
         # SC2016 suppressed: single quotes intentional — _JQ_REDUCE is a jq program
@@ -484,7 +482,6 @@ ticket_list() {
             TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
         else
             local REPO_ROOT
-            # REVIEW-DEFENSE: 2>/dev/null suppresses git error noise; REPO_ROOT-empty is pre-existing behavior
             # (empty REPO_ROOT → TRACKER_DIR="/.tickets-tracker" → file ops fail downstream with clear errors).
             # A hard return 1 here breaks callers (e.g., test setups using isolated $tmp repos) that supply
             # GIT_DIR directly or rely on subshell fall-through. GIT_DISCOVERY_ACROSS_FILESYSTEM=1 is the
@@ -634,7 +631,6 @@ ticket_create() {
             TRACKER_DIR="$TICKETS_TRACKER_DIR"
         else
             local REPO_ROOT
-            # REVIEW-DEFENSE: 2>/dev/null suppresses git error noise; REPO_ROOT-empty is pre-existing behavior
             # (empty REPO_ROOT → TRACKER_DIR="/.tickets-tracker" → file ops fail downstream with clear errors).
             # A hard return 1 here breaks callers (e.g., test setups using isolated $tmp repos) that supply
             # GIT_DIR directly or rely on subshell fall-through. GIT_DISCOVERY_ACROSS_FILESYSTEM=1 is the
@@ -922,7 +918,6 @@ ticket_comment() {
             TRACKER_DIR="$TICKETS_TRACKER_DIR"
         else
             local REPO_ROOT
-            # REVIEW-DEFENSE: 2>/dev/null suppresses git error noise; REPO_ROOT-empty is pre-existing behavior
             # (empty REPO_ROOT → TRACKER_DIR="/.tickets-tracker" → file ops fail downstream with clear errors).
             # A hard return 1 here breaks callers (e.g., test setups using isolated $tmp repos) that supply
             # GIT_DIR directly or rely on subshell fall-through. GIT_DISCOVERY_ACROSS_FILESYSTEM=1 is the
@@ -1032,7 +1027,6 @@ ticket_set_file_impact() {
             TRACKER_DIR="$TICKETS_TRACKER_DIR"
         else
             local REPO_ROOT
-            # REVIEW-DEFENSE: 2>/dev/null suppresses git error noise; REPO_ROOT-empty is pre-existing behavior
             # (empty REPO_ROOT → TRACKER_DIR="/.tickets-tracker" → file ops fail downstream with clear errors).
             # A hard return 1 here breaks callers (e.g., test setups using isolated $tmp repos) that supply
             # GIT_DIR directly or rely on subshell fall-through. GIT_DISCOVERY_ACROSS_FILESYSTEM=1 is the
@@ -1054,7 +1048,6 @@ ticket_set_file_impact() {
             return 1
         fi
 
-        # REVIEW-DEFENSE: jq is used here for input validation only — same approved
         # exception as ticket_show (epic 78fc-3858, story 564c-e391). python3 would
         # require a subshell + subprocess; jq is already the project-standard JSON
         # processor on the bash-native path and is available wherever ticket-lib-api.sh runs.
@@ -1151,7 +1144,6 @@ ticket_get_file_impact() {
             TRACKER_DIR="$TICKETS_TRACKER_DIR"
         else
             local REPO_ROOT
-            # REVIEW-DEFENSE: 2>/dev/null suppresses git error noise; REPO_ROOT-empty is pre-existing behavior
             # (empty REPO_ROOT → TRACKER_DIR="/.tickets-tracker" → file ops fail downstream with clear errors).
             # A hard return 1 here breaks callers (e.g., test setups using isolated $tmp repos) that supply
             # GIT_DIR directly or rely on subshell fall-through. GIT_DISCOVERY_ACROSS_FILESYSTEM=1 is the
@@ -1191,7 +1183,6 @@ ticket_get_file_impact() {
             return 0
         fi
 
-        # REVIEW-DEFENSE: SC2016 suppressed — single quotes are intentional; $-refs are jq variables.
         # shellcheck disable=SC2016
         local _JQ_REDUCE='
 def initial_state($tid):
@@ -1303,7 +1294,6 @@ def apply_event(ev):
 reduce $_events[] as $ev (initial_state($TID); apply_event($ev))
 '
 
-        # REVIEW-DEFENSE: jq is used here for event reduction — same approved exception
         # as ticket_show (epic 78fc-3858, story 564c-e391). ticket_get_file_impact reuses
         # the shared $_JQ_REDUCE program (defined in ticket_show's scope and available via
         # the _ticketlib_dispatch subshell) to avoid duplicating reducer logic.
@@ -1369,7 +1359,6 @@ ticket_tag() {
             TRACKER_DIR="$TICKETS_TRACKER_DIR"
         else
             local REPO_ROOT
-            # REVIEW-DEFENSE: 2>/dev/null suppresses git error noise; REPO_ROOT-empty is pre-existing
             # behavior in 7 sibling ops (ticket_show, ticket_comment, ticket_edit, etc.) — empty
             # REPO_ROOT → TRACKER_DIR="/.tickets-tracker" → file ops fail downstream with clear
             # errors. A hard return 1 here breaks callers that supply GIT_DIR directly or rely on
@@ -1417,7 +1406,6 @@ ticket_untag() {
             TRACKER_DIR="$TICKETS_TRACKER_DIR"
         else
             local REPO_ROOT
-            # REVIEW-DEFENSE: 2>/dev/null suppresses git error noise; REPO_ROOT-empty is pre-existing
             # behavior in 7 sibling ops (ticket_show, ticket_comment, ticket_edit, etc.) — empty
             # REPO_ROOT → TRACKER_DIR="/.tickets-tracker" → file ops fail downstream with clear
             # errors. A hard return 1 here breaks callers that supply GIT_DIR directly or rely on
@@ -1451,7 +1439,6 @@ ticket_edit() {
             TRACKER_DIR="$TICKETS_TRACKER_DIR"
         else
             local REPO_ROOT
-            # REVIEW-DEFENSE: 2>/dev/null suppresses git error noise; REPO_ROOT-empty is pre-existing behavior
             # (empty REPO_ROOT → TRACKER_DIR="/.tickets-tracker" → file ops fail downstream with clear errors).
             # A hard return 1 here breaks callers (e.g., test setups using isolated $tmp repos) that supply
             # GIT_DIR directly or rely on subshell fall-through. GIT_DISCOVERY_ACROSS_FILESYSTEM=1 is the
@@ -1736,7 +1723,6 @@ ticket_archive() {
             TRACKER_DIR="$TICKETS_TRACKER_DIR"
         else
             local REPO_ROOT
-            # REVIEW-DEFENSE: 2>/dev/null suppresses git error noise; REPO_ROOT-empty is pre-existing behavior
             # (empty REPO_ROOT → TRACKER_DIR="/.tickets-tracker" → file ops fail downstream with clear errors).
             # A hard return 1 here breaks callers (e.g., test setups using isolated $tmp repos) that supply
             # GIT_DIR directly or rely on subshell fall-through. GIT_DISCOVERY_ACROSS_FILESYSTEM=1 is the

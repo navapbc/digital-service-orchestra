@@ -21,7 +21,6 @@
 set -euo pipefail
 
 # ── Lock file ────────────────────────────────────────────────────────────────
-# REVIEW-DEFENSE: hardcoded /tmp lock path is intentional — a lock file must be
 # stable across concurrent invocations (mktemp would produce different paths per
 # invocation, defeating the mutex). sibling script uses the same pattern.
 _LOCK_FILE="/tmp/ticket-migrate-schema-hardening.lock"

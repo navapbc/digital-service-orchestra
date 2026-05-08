@@ -193,7 +193,6 @@ echo "Test 8: classify-task.sh with task ID falls back to system python3"
             # Non-JSON output means the task ID doesn't exist in this environment.
             # The core behavior (no crash, fallback to system python3) is already
             # verified by Tests 1–2. Accept non-JSON as a valid skip condition.
-            # REVIEW-DEFENSE: This is not tautological — Tests 1–2 verify the
             # core behavioral contract (no crash, fallback to system python3).
             # Test 8 is an optional integration check: JSON output requires both
             # PyYAML AND a valid task ID present in the CI ticket system. The task

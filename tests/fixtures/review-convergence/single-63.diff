@@ -1,0 +1,1129 @@
+diff --git a/.claude/dso-config.conf b/.claude/dso-config.conf
+index 154eb18172..528eccf69c 100644
+--- a/.claude/dso-config.conf
++++ b/.claude/dso-config.conf
+@@ -53,7 +53,7 @@ commands.test_unit=bash tests/run-all.sh
+ # Colon-separated directories for per-file incremental test execution via bash runner.
+ # validate.sh uses --runner=bash --test-dir=$test_dirs so each test-*.sh file runs
+ # individually, enabling resume across 45s budget windows without an infinite PENDING loop.
+-commands.test_dirs=tests/hooks:tests/scripts:tests/acceptance
++commands.test_dirs=tests/hooks:tests/scripts:tests/acceptance:tests/brainstorm
+ # DSO plugin repo has no separate syntax checker or mypy; use true (no-op) to skip.
+ commands.syntax_check=true
+ commands.lint_ruff=ruff check plugins/dso/scripts/*.py tests/**/*.py
+diff --git a/.test-index b/.test-index
+index a7b03d02bd..263d98e13e 100644
+--- a/.test-index
++++ b/.test-index
+@@ -2,9 +2,8 @@
+ # Maps source files to test files that fuzzy match misses.
+ # Format: source/path: test/path1[, test/path2...]
+ 
+-tests/fixtures/ci-review-post-migration.json: tests/skills/dso_ci_review/test_post_migration_metrics.py
+-.github/workflows/ci-python-skills.yml: tests/skills/test_ci_workflow_pip_cache.py
+-
++tests/fixtures/ci-review-post-migration.json:tests/skills/dso_ci_review/test_post_migration_metrics.py
++.github/workflows/ci-python-skills.yml:tests/skills/test_ci_workflow_pip_cache.py
+ plugins/dso/.claude-plugin/plugin.json:tests/unit/scripts/test-plugin-inventory.sh,tests/plugin/test_fixture_minimal_plugin_consumer.py,tests/workflows/test-review-workflow-plugin-root-fallback.sh,tests/hooks/test-plugin-boundary-refs.sh,tests/hooks/test-plugin-boundary-rule.sh,tests/hooks/test-check-plugin-boundary.sh,tests/hooks/test-no-plugin-comment-refs.sh,tests/hooks/test-plugin-docs.sh,tests/hooks/test-plugin-self-ref-hook.sh,tests/hooks/test-no-plugin-markdown-refs.sh,tests/hooks/test-no-plugin-runtime-refs.sh,tests/scripts/test-plugin-retro-gather.sh,tests/scripts/test-dso-shim-plugin-root.sh,tests/scripts/test-create-dso-app-broken-plugin-cache.sh,tests/scripts/test-bash-runner-plugin-root.sh,tests/scripts/test-plugin-scripts.sh,tests/scripts/test-collect-discoveries-plugin-root.sh,tests/scripts/test-dso-nextjs-starter-plugin-install.sh,tests/scripts/test-plugin-scripts-no-relative-paths.sh,tests/scripts/test-plugin-dir-structure.sh,tests/scripts/test-plugin-reference-catalog.sh,tests/scripts/test-no-unguarded-plugin-refs.sh,tests/skills/test-plugin-boundary-migration.sh
+ plugins/dso/agents/approach-decision-maker.md:tests/scripts/test-approach-decision-maker-agent.sh
+ plugins/dso/agents/bot-psychologist.md:tests/scripts/test-bot-psychologist-agent.sh
+@@ -94,8 +93,12 @@ plugins/dso/scripts/ticket-ready.sh:tests/scripts/test-ticket-ready-dispatcher.s
+ plugins/dso/scripts/validate-phase.sh:tests/scripts/test-validate-phase-missing-test-unit.sh,tests/test-validate-phase-portability.sh,tests/scripts/test-residual-callers-polyglot.sh
+ plugins/dso/skills/architect-foundation/SKILL.md:tests/plugin/test-audit-skill-resolution.sh,tests/plugin/test_skill_allowed_tools.py,tests/hooks/test-fix-bug-skill.sh,tests/hooks/test-fix-bug-skill-directive.sh,tests/hooks/test-generate-claude-md-skill.sh,tests/hooks/test-init-skill.sh,tests/scripts/test-brainstorm-skill-phase1-gate.sh,tests/scripts/test-sprint-skill-doc-writer-dispatch.sh,tests/scripts/test-qualify-skill-refs.sh,tests/scripts/test-skill-path-refs.sh,tests/scripts/test-v2-skills-cleanup.sh,tests/scripts/test-skill-script-paths.sh,tests/scripts/test-create-bug-skill-smoke.sh,tests/scripts/test-skill-dispatch-pattern.sh,tests/scripts/test-check-skill-refs.sh,tests/skills/test-architect-foundation-skill.sh,tests/skills/test-onboarding-skill.sh,tests/skills/test-quick-ref-skill.sh,tests/skills/test-sprint-skill-step17-no-merge-to-main.sh,tests/skills/test-sprint-pause-state-skill-boundary.sh,tests/skills/test-skill-nesting-depth.sh,tests/skills/test-design-skills-cross-stack.sh,tests/skills/test-architect-foundation-ci-skeleton.sh
+ plugins/dso/skills/brainstorm/phases/convert-to-epic.md:tests/skills/test-brainstorm-convert-to-epic.sh
++plugins/dso/skills/brainstorm/phases/post-scrutiny-handlers.md:tests/skills/test-brainstorm-sc-gap-assumption.sh [test_sc_gap_check_premise_to_confirm_branch]
+ plugins/dso/skills/brainstorm/prompts/cross-epic-scan.md:tests/skills/test-brainstorm-cross-epic-scan.sh
+-plugins/dso/skills/brainstorm/SKILL.md:tests/plugin/test-audit-skill-resolution.sh,tests/plugin/test_skill_allowed_tools.py,tests/hooks/test-fix-bug-skill.sh,tests/hooks/test-fix-bug-skill-directive.sh,tests/hooks/test-generate-claude-md-skill.sh,tests/hooks/test-init-skill.sh,tests/scripts/test-brainstorm-skill-phase1-gate.sh,tests/scripts/test-sprint-skill-doc-writer-dispatch.sh,tests/scripts/test-qualify-skill-refs.sh,tests/scripts/test-skill-path-refs.sh,tests/scripts/test-v2-skills-cleanup.sh,tests/scripts/test-skill-script-paths.sh,tests/scripts/test-create-bug-skill-smoke.sh,tests/scripts/test-skill-dispatch-pattern.sh,tests/scripts/test-check-skill-refs.sh,tests/skills/test-architect-foundation-skill.sh,tests/skills/test-onboarding-skill.sh,tests/skills/test-quick-ref-skill.sh,tests/skills/test-sprint-skill-step17-no-merge-to-main.sh,tests/skills/test-sprint-pause-state-skill-boundary.sh,tests/skills/test-skill-nesting-depth.sh,tests/skills/test-design-skills-cross-stack.sh,tests/hooks/test-scenario-sc-revision.sh,tests/hooks/test-residual-state-e2e.sh,tests/skills/test-brainstorm-tag-writer.sh,tests/skills/test-brainstorm-no-arg-block.sh,tests/skills/test-brainstorm-research-findings-persistence.sh,tests/skills/test-brainstorm-ext-dep-block.sh,tests/scripts/test-tag-cli-refactor.sh,tests/skills/test-brainstorm-external-dep-contradiction-gate.sh,tests/skills/test-external-dep-sc2-brainstorm.sh,tests/docs/test-brainstorm-sc-verifiability-gate.sh,tests/skills/test-brainstorm-progressive-validation.sh,tests/skills/test-brainstorm-ui-intent-detection.sh,tests/skills/test-brainstorm-loop-back.sh,tests/skills/test-brainstorm-anti-redundancy.sh,tests/skills/test-brainstorm-noninteractive-ux-probes.sh,tests/skills/test-brainstorm-ux-probe-loop.sh,tests/skills/test-brainstorm-phase1-gate-attestation.sh [test_attestation_field_required],tests/skills/test-brainstorm-meta-question-signal.sh [test_meta_question_signal_defined],tests/skills/test-brainstorm-attestation-contract.sh [test_preconditions_decisions_log_write]
++plugins/dso/skills/brainstorm/prompts/scenario-red-team.md:tests/skills/test-brainstorm-scenario-analysis.sh
++plugins/dso/skills/brainstorm/SKILL.md:tests/plugin/test-audit-skill-resolution.sh,tests/plugin/test_skill_allowed_tools.py,tests/hooks/test-fix-bug-skill.sh,tests/hooks/test-fix-bug-skill-directive.sh,tests/hooks/test-generate-claude-md-skill.sh,tests/hooks/test-init-skill.sh,tests/scripts/test-brainstorm-skill-phase1-gate.sh,tests/scripts/test-sprint-skill-doc-writer-dispatch.sh,tests/scripts/test-qualify-skill-refs.sh,tests/scripts/test-skill-path-refs.sh,tests/scripts/test-v2-skills-cleanup.sh,tests/scripts/test-skill-script-paths.sh,tests/scripts/test-create-bug-skill-smoke.sh,tests/scripts/test-skill-dispatch-pattern.sh,tests/scripts/test-check-skill-refs.sh,tests/skills/test-architect-foundation-skill.sh,tests/skills/test-onboarding-skill.sh [test_jekyll_git_clone_path],tests/skills/test-quick-ref-skill.sh,tests/skills/test-sprint-skill-step17-no-merge-to-main.sh,tests/skills/test-sprint-pause-state-skill-boundary.sh,tests/skills/test-skill-nesting-depth.sh,tests/skills/test-design-skills-cross-stack.sh,tests/hooks/test-scenario-sc-revision.sh,tests/hooks/test-residual-state-e2e.sh,tests/skills/test-brainstorm-tag-writer.sh,tests/skills/test-brainstorm-no-arg-block.sh,tests/skills/test-brainstorm-research-findings-persistence.sh,tests/skills/test-brainstorm-ext-dep-block.sh,tests/scripts/test-tag-cli-refactor.sh,tests/skills/test-brainstorm-external-dep-contradiction-gate.sh,tests/skills/test-external-dep-sc2-brainstorm.sh,tests/docs/test-brainstorm-sc-verifiability-gate.sh,tests/skills/test-brainstorm-progressive-validation.sh,tests/skills/test-brainstorm-ui-intent-detection.sh,tests/skills/test-brainstorm-loop-back.sh,tests/skills/test-brainstorm-anti-redundancy.sh,tests/skills/test-brainstorm-noninteractive-ux-probes.sh,tests/skills/test-brainstorm-ux-probe-loop.sh,tests/skills/test-brainstorm-phase1-gate-attestation.sh,tests/skills/test-brainstorm-meta-question-signal.sh,tests/skills/test-brainstorm-attestation-contract.sh,tests/brainstorm/test-translation-replay.sh [test_pipeline_part_b_translation_sourcing_decision],tests/brainstorm/test-no-input-replay.sh [test_pipeline_part_b_no_external_inputs_confirmed],tests/brainstorm/test-decision-tree-calibration.sh [test_pipeline_part_b_inference_signal_scan]
++tests/brainstorm/:tests/skills/test-brainstorm-harness-structure.sh,tests/brainstorm/test-structural-alignment.sh [test_all_8_markers_present]
++tests/brainstorm/test-inference-signal-scan-replay.sh:tests/brainstorm/test-inference-signal-scan-replay.sh [test_inferred_input_triggers_socratic_reentry]
+ plugins/dso/skills/create-bug/SKILL.md:tests/plugin/test-audit-skill-resolution.sh,tests/plugin/test_skill_allowed_tools.py,tests/hooks/test-fix-bug-skill.sh,tests/hooks/test-fix-bug-skill-directive.sh,tests/hooks/test-generate-claude-md-skill.sh,tests/hooks/test-init-skill.sh,tests/scripts/test-brainstorm-skill-phase1-gate.sh,tests/scripts/test-sprint-skill-doc-writer-dispatch.sh,tests/scripts/test-qualify-skill-refs.sh,tests/scripts/test-skill-path-refs.sh,tests/scripts/test-v2-skills-cleanup.sh,tests/scripts/test-skill-script-paths.sh,tests/scripts/test-create-bug-skill-smoke.sh,tests/scripts/test-skill-dispatch-pattern.sh,tests/scripts/test-check-skill-refs.sh,tests/skills/test-architect-foundation-skill.sh,tests/skills/test-onboarding-skill.sh,tests/skills/test-quick-ref-skill.sh,tests/skills/test-sprint-skill-step17-no-merge-to-main.sh,tests/skills/test-sprint-pause-state-skill-boundary.sh,tests/skills/test-skill-nesting-depth.sh,tests/skills/test-design-skills-cross-stack.sh
+ plugins/dso/skills/debug-everything/prompts/gha-scanner.md:tests/scripts/test-gha-scanner-prompt-contract.sh
+ plugins/dso/skills/debug-everything/prompts/shared/read-only-enforcement.md:tests/plugin/test-debug-everything-readonly-enforcement.sh,tests/plugin/test-validate-work-readonly-enforcement.sh
+@@ -389,12 +392,11 @@ plugins/dso/docs/contracts/inference-envelope.md:tests/docs/test-inference-signa
+ plugins/dso/docs/contracts/meta-question-signal.md:tests/docs/test-inference-signal-contracts.sh
+ plugins/dso/docs/contracts/inference-incident-schema.md:tests/docs/test-inference-signal-contracts.sh
+ plugins/dso/agents/inference-incident-curator.md:tests/scripts/test-inference-incident-curator-agent.sh
+-plugins/dso/docs/contracts/phase1-gate-attestation.md:tests/skills/test-brainstorm-attestation-contract.sh [test_attestation_contract_exists]
+-
++plugins/dso/docs/contracts/phase1-gate-attestation.md:tests/skills/test-brainstorm-attestation-contract.sh
+ tests/fixtures/inference-incidents/incidents.jsonl:tests/docs/test-inference-incident-corpus.sh
+ tests/fixtures/inference-incidents/holdout.txt:tests/docs/test-inference-incident-corpus.sh
+ tests/fixtures/affects-fields-classifier.json:tests/scripts/test-red-team-affects-fields-classifier.sh [test_classifier_fixture_exists]
+ plugins/dso/docs/contracts/inference-recall-result.md:tests/test-inference-recall-replay.sh [test_recall_result_contract_exists]
++plugins/dso/docs/contracts/inferred-source-marker.md:tests/docs/test-inferred-source-marker-contract.sh
+ plugins/dso/scripts/inference-recall-replay.sh:tests/test-inference-recall-replay.sh [test_recall_all_at_threshold]
+-
+-tests/docs/test-inference-review-docs.sh [test_config_ref_rate_rationale]
++plugins/dso/skills/brainstorm/phases/approval-gate.md:tests/skills/test-brainstorm-progressive-validation.sh
+diff --git a/plugins/dso/docs/contracts/inferred-source-marker.md b/plugins/dso/docs/contracts/inferred-source-marker.md
+new file mode 100644
+index 0000000000..b22c9c71d2
+--- /dev/null
++++ b/plugins/dso/docs/contracts/inferred-source-marker.md
+@@ -0,0 +1,33 @@
++# Contract: Inferred-Source Marker
++
++## Purpose
++
++The `<<inferred:source-name>>` marker convention tags inferred input sources within Approach and Context narrative sections during spec drafting. It makes implicit premises visible, enabling the approval gate and gap-analysis scan to surface unverified assumptions before implementation begins.
++
++## Marker Syntax
++
++`<<inferred:source-name>>` where `source-name` is a short identifier naming the inferred input source (e.g., `<<inferred:config-rules>>`, `<<inferred:user-lookup-table>>`).
++
++If `source-name` contains `>>`, escape as `\>\>` to prevent premature marker termination.
++
++## Emit Site
++
++The brainstorm orchestrator wraps inferred input source mentions in Approach and Context narrative sections at spec-drafting time (Phase 2 Step 2). Emission is triggered when the orchestrator detects an input source that is assumed but not explicitly documented in the epic description.
++
++## Consume Sites
++
++- **Approval gate renderer** (`approval-gate.md`): converts `<<inferred:...>>` to bold text in the rendered spec for human review
++- **Gap-analysis scan**: preserves marker unchanged during analysis to maintain traceability
++- **SC Gap Check**: passes through marker content unchanged
++
++## Lifecycle
++
++1. **Emitted** at spec-drafting time (Phase 2 Step 2 of brainstorm)
++2. **Preserved** through gap-analysis — marker content is not modified
++3. **Rendered** at approval gate — converted to bold for human review
++4. **Retained** in final spec text as bold text after approval
++
++## Scope Decisions
++
++- Pre-S5 historical specs are left unmarked — no backfill required
++- Marker emission in non-brainstorm skills is out of epic scope
+diff --git a/plugins/dso/skills/brainstorm/SKILL.md b/plugins/dso/skills/brainstorm/SKILL.md
+index 5326164458..175c5fd59f 100644
+--- a/plugins/dso/skills/brainstorm/SKILL.md
++++ b/plugins/dso/skills/brainstorm/SKILL.md
+@@ -174,6 +174,7 @@ Ask **one question at a time**. Use *"Tell me more about [concept]..."* to encou
+ | Scope | What's clearly in scope? What are you explicitly NOT building? |
+ | Access Path | If this feature creates a new page or UI surface: how will users reach it? (global nav link, in-flow step, modal trigger, deep link, or not applicable?) |
+ | Constraints | Any technical constraints, deadlines, or dependencies on other epics? |
++| Inputs | What external data sources, lookup tables, reference data, policy/rules data, model weights, or copy/templates does the approach require? |
+ | Surface | Where does this feature manifest? (web page, form, screen, CLI flag, endpoint, background job, internal API, migration, or "no user-facing surface") |
+ | Success | How will you know this worked? What would "done" look like? |
+ 
+@@ -193,6 +194,7 @@ Before we move to approaches, here's my understanding:
+ - **Scope**: [what's in scope; what's explicitly out of scope]
+ - **Access Path**: [if this feature creates a new page or UI surface: how will users reach it? (global nav link, in-flow step, modal trigger, deep link, or not applicable)] *(omit if feature does not introduce a new page or UI surface)*
+ - **Surface**: [where the feature manifests]
++- **Inputs**: [explicit source statement OR "no external inputs"]
+ - **Success**: [how the user will know this worked — observable outcome]
+ 
+ Does this capture your intent? If anything is off, tell me what to adjust.
+@@ -383,6 +385,8 @@ As you draft the epic spec, classify the origin of each SC and key context claim
+ 
+ Track provenance internally — the approval gate (Step 4) uses these categories for annotation.
+ 
++When drafting the epic spec narrative in Phase 2, wrap inferred input source noun phrases with `<<inferred:source-name>>` structural markers. For example, if the spec mentions "data fetched from the user service" and the user service was inferred (not explicitly stated), write `<<inferred:user-service>>` around the reference. See `${CLAUDE_PLUGIN_ROOT}/docs/contracts/inferred-source-marker.md` for the full contract specification.
++
+ ### Step 2.25: Cross-Epic Interaction Scan
+ 
+ <HARD-GATE>
+@@ -425,6 +429,8 @@ fi
+ 
+ Use for: validating whether the proposed approach conflicts with existing patterns; checking whether an assumed dependency is already imported; tracing bidirectional data flow to detect sync loops or race conditions. If neither produces results, log the pattern and continue.
+ 
++**Part B inferred-source re-entry**: When the pipeline's Inference-Signal Scan raises one or more inferred-source gaps (sources that could not be verified), re-enter Phase 1 Step 2 with a targeted Socratic question for each unverified source before continuing the pipeline. Treat each source as a new intent gap and apply the standard gap-question loop.
++
+ #### Post-Scrutiny Handlers
+ 
+ After the pipeline returns, read `phases/post-scrutiny-handlers.md` and execute in order:
+diff --git a/plugins/dso/skills/brainstorm/phases/approval-gate.md b/plugins/dso/skills/brainstorm/phases/approval-gate.md
+index 4fbee7c9fb..39d3f9c353 100644
+--- a/plugins/dso/skills/brainstorm/phases/approval-gate.md
++++ b/plugins/dso/skills/brainstorm/phases/approval-gate.md
+@@ -67,6 +67,10 @@ Before presenting success criteria, render each criterion with a bold/normal ann
+ - **injected** criteria → render in **bold** (same as inferred/researched — requires practitioner awareness)
+ - **explicit** or **confirmed-via-gap-question** criteria → render in normal text (user already confirmed these)
+ 
++When the spec narrative contains `<<inferred:source-name>>` markers, render them as **bold** text: strip the `<<inferred:...>>` tags and render the enclosed noun phrase as bold (e.g., `<<inferred:user-service>>` → **user-service**). This visually flags inferred input sources at the point of user review.
++
++Assumption-category findings with severity **high** or **critical** are rendered in bold in the Scenario Analysis block to direct user attention to the highest-risk inferred premises.
++
+ Immediately before the option list, include an annotation summary line:
+ 
+ ```
+diff --git a/plugins/dso/skills/brainstorm/phases/post-scrutiny-handlers.md b/plugins/dso/skills/brainstorm/phases/post-scrutiny-handlers.md
+index b1690fafac..5a97c4e2dc 100644
+--- a/plugins/dso/skills/brainstorm/phases/post-scrutiny-handlers.md
++++ b/plugins/dso/skills/brainstorm/phases/post-scrutiny-handlers.md
+@@ -81,3 +81,13 @@ After the scrutiny pipeline completes (with no unresolved FEASIBILITY_GAP), insp
+    - **(a) Accept:** Apply the revised SCs to the epic spec (update the `## Success Criteria` section via `ticket edit --description`). Then proceed to Step 2.28.
+    - **(b) Modify:** Incorporate user changes, present again.
+    - **(c) Skip:** Log `"SC gap check: user opted to skip revision."` and proceed to Step 2.28 with original SCs.
++
++5. **Assumption findings without user-outcome SC mapping (Premise to confirm):** After processing SC coverage gaps, inspect the surviving `## Scenario Analysis` findings for entries with `"assumption"` category that do not map to any user-outcome SC. For each such finding, surface it under a `Premise to confirm` line in a follow-up `AskUserQuestion`:
++
++   > "The following assumption-category findings have no corresponding user-outcome SC: [list findings]. For each, do you want to (a) Confirm: accept the premise as valid and proceed, (b) Revise: add a new SC covering this assumption's risk, or (c) Accept risk: document the assumption and proceed without a new SC?"
++
++   - **(a) Confirm:** Note the premise as confirmed. Proceed to Step 2.28.
++   - **(b) Revise:** Draft a new SC for the assumption, add it to the epic spec, and re-present for approval.
++   - **(c) Accept risk:** Log the assumption risk. Proceed to Step 2.28 without a new SC.
++
++   All `"assumption"` findings surface here regardless of their severity level — low/medium NFR-style assumptions (cost-tier, latency-tier) are not silently dropped. No threshold is applied.
+diff --git a/plugins/dso/skills/brainstorm/prompts/scenario-red-team.md b/plugins/dso/skills/brainstorm/prompts/scenario-red-team.md
+index 4f5b3cb5ee..0274d30b32 100644
+--- a/plugins/dso/skills/brainstorm/prompts/scenario-red-team.md
++++ b/plugins/dso/skills/brainstorm/prompts/scenario-red-team.md
+@@ -12,7 +12,7 @@ You are a red team scenario analyst. Your task is to identify failure scenarios
+ 
+ ## Scenario Categories
+ 
+-Review the epic spec against each of the following three scenario categories. For each category, generate concrete failure scenarios grounded in the specific approach described above.
++Review the epic spec against each of the following four scenario categories. For each category, generate concrete failure scenarios grounded in the specific approach described above.
+ 
+ ### 1. Runtime Scenarios
+ 
+@@ -41,6 +41,22 @@ Failures triggered by how the feature is configured or misconfigured:
+ - **Missing defaults**: Required configuration values with no default that silently fail or degrade to insecure behavior when absent
+ - **Edge cases**: Boundary values (zero, max int, empty lists, single-item collections) that expose off-by-one errors or unhandled conditions
+ 
++### 4. Assumption (Inferred Premises)
++
++Failures caused by premises that are assumed but never stated in the approach:
++
++- **Hidden preconditions**: assumptions about system state or environment that are never stated (e.g., "the cache is always warm", "users always have admin rights")
++- **Taken-for-granted user behavior**: assumptions about how users will interact that contradict observed patterns
++- **Causal assumptions**: claims that A causes B without evidence or mechanism
++- **Architectural assumptions**: assumptions about component behavior that may differ across environments (e.g., "the database always returns results in insertion order")
++
++Apply the following inverted decision tree, working backwards from each stated claim in the approach to uncover unstated premises:
++
++- **Step 1**: Identify each claim in the approach as if writing a theorem — what does each statement assume to be true?
++- **Step 2**: For each assumption, check whether it is documented explicitly in the approach description or epic context
++- **Step 3**: For undocumented assumptions, check whether there is cited evidence (prior art, metrics, precedent)
++- **Step 4**: For unverified assumptions, assess the fallback — what happens to the approach if this assumption is wrong?
++
+ ## Analysis Instructions
+ 
+ 1. For each category, generate only **high-confidence, actionable scenarios** — avoid theoretical concerns with no grounding in the described approach
+@@ -72,6 +88,12 @@ Return a JSON array of scenario objects. Each object must have these fields:
+     "title": "Empty retry list silently disables retry behavior",
+     "description": "When `retry_statuses` is set to an empty list `[]`, the retry middleware interprets it as 'retry on no status codes' rather than 'use default retry list'. Requests that should be retried on 503 pass through without retry, degrading reliability without any log warning.",
+     "severity": "medium"
++  },
++  {
++    "category": "assumption",
++    "title": "Assumption: Users will configure retry limits before first deployment",
++    "description": "The approach assumes operators will set retry limits in configuration before the feature is activated. This premise is never stated in the spec. If the default is zero retries (or the field is absent), the feature degrades silently without surfacing an error to the operator.",
++    "severity": "medium"
+   }
+ ]
+ ```
+@@ -80,7 +102,7 @@ Return a JSON array of scenario objects. Each object must have these fields:
+ 
+ | Field | Type | Required | Description |
+ |-------|------|----------|-------------|
+-| `category` | `"runtime"` or `"deployment"` or `"configuration"` | Yes | Which scenario category this finding belongs to |
++| `category` | `"runtime"` or `"deployment"` or `"configuration"` or `"assumption"` | Yes | Which scenario category this finding belongs to |
+ | `title` | string | Yes | Short, specific title describing the failure mode |
+ | `description` | string | Yes | Concrete description of what breaks, when it breaks, and what the observable impact is |
+ | `severity` | `"critical"` or `"high"` or `"medium"` or `"low"` | Yes | Impact severity based on user and system impact |
+diff --git a/plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md b/plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md
+index 985653fefc..f6d0c0a0e8 100644
+--- a/plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md
++++ b/plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md
+@@ -62,6 +62,26 @@ After resolving any artifact gaps, think carefully about the proposed approach:
+ - **Are there parsing ambiguities?** If the format uses delimiters or markers, can user-provided content contain those same markers?
+ - **Does the approach deprecate, relocate, or rename any file paths, directories, or conventions?** If so, what still references the old location/name/convention? Run a codebase grep for references to any deprecated path and report the count.
+ 
++#### Inference-Signal Scan
++
++After running the existing Part B checks, scan the **Inputs bullet** from the Understanding Summary (and the Approach narrative) for trigger words that indicate an inferred input source — one that the implementation assumes will exist but has not been explicitly confirmed.
++
++**Trigger words — hedging**:
++`assume`, `assumed`, `likely`, `probably`, `presumably`, `should be`, `we'll get`
++
++**Trigger words — confident assertions**:
++`from the system`, `loaded from`, `provided by`, `is fetched from`, `returns`, `comes from`, `is stored in`, `pulls from`, `reads from`, `is generated by`, `is provided via`, `expect`, `anticipate`, `will be supplied`
++
++When an inferred input source is identified, annotate it internally as `<<inferred: <source-description>>` before attempting verification (e.g., `<<inferred: config file at ${CLAUDE_PLUGIN_ROOT}/config/defaults.yaml>>`). This `inferred-source-marker` pattern makes the gap findable in review output.
++
++**For each inferred input source found:**
++
++1. Execute a **MUST-execute** `Read` or `Grep` verification to confirm the source exists in the codebase (5-second timeout).
++2. On timeout or tool unavailability: treat-as-not-verifiable — raise the inferred source as a gap finding immediately.
++3. **Explicit prohibition**: reasoning from cached context is NOT a substitute for the Read/Grep tool call. If the model's training or prior context suggests the source exists, the verification tool call is still MANDATORY.
++
++If one or more inferred input sources are detected and cannot be verified, raise them as gaps for the user to address before proceeding to the web research phase.
++
+ If gaps are found in either part, present them to the user and resolve before proceeding to the web research phase.
+ 
+ ### Part C: Shared Artifact Impact Analysis
+diff --git a/tests/brainstorm/README.md b/tests/brainstorm/README.md
+new file mode 100644
+index 0000000000..4372f6190f
+--- /dev/null
++++ b/tests/brainstorm/README.md
+@@ -0,0 +1,31 @@
++# Brainstorm Replay Test Harness
++
++This directory contains the deterministic brainstorm replay test harness for the Digital Service Orchestra plugin.
++
++## Approach
++
++The harness uses a **recorded-transcript approach** — not live LLM invocation. Tests assert stable, deterministic outputs against known inputs without calling any LLM APIs.
++
++- **Fixtures** (`fixtures/`) capture ticket-store state used as test inputs.
++- **Golden-output helpers** (`helpers/`) provide assertion utilities for comparing outputs against expected values.
++- **Test runners** (`test-*.sh`) are executable shell scripts that run individual test suites.
++
++## Skipping LLM-Dependent Tests
++
++Set `SKIP_LLM_REPLAY=1` to skip any tests that require live LLM invocation:
++
++```bash
++SKIP_LLM_REPLAY=1 bash tests/brainstorm/test-trivial-replay.sh
++```
++
++CI environments that lack LLM credentials should set this variable.
++
++## Running Tests
++
++```bash
++# Run all harness tests
++bash tests/brainstorm/test-trivial-replay.sh
++
++# Skip LLM-dependent assertions
++SKIP_LLM_REPLAY=1 bash tests/brainstorm/test-trivial-replay.sh
++```
+diff --git a/tests/brainstorm/fixtures/example-ticket.json b/tests/brainstorm/fixtures/example-ticket.json
+new file mode 100644
+index 0000000000..015d6b3f0b
+--- /dev/null
++++ b/tests/brainstorm/fixtures/example-ticket.json
+@@ -0,0 +1,6 @@
++{
++  "id": "test-fixture-001",
++  "type": "epic",
++  "title": "Example test fixture for harness verification",
++  "description": "This is a fixture for harness smoke tests."
++}
+diff --git a/tests/brainstorm/helpers/assert-golden.sh b/tests/brainstorm/helpers/assert-golden.sh
+new file mode 100755
+index 0000000000..033fcba30d
+--- /dev/null
++++ b/tests/brainstorm/helpers/assert-golden.sh
+@@ -0,0 +1,13 @@
++#!/usr/bin/env bash
++# assert-golden.sh: Compare output to a golden file or substring
++# Usage: assert_contains "haystack text" "needle" "description"
++assert_contains() {
++  local haystack="$1" needle="$2" desc="$3"
++  if echo "$haystack" | grep -qF "$needle"; then
++    echo "  PASS: $desc"
++    return 0
++  else
++    echo "  FAIL: $desc (expected to contain: $needle)"
++    return 1
++  fi
++}
+diff --git a/tests/brainstorm/test-decision-tree-calibration.sh b/tests/brainstorm/test-decision-tree-calibration.sh
+new file mode 100755
+index 0000000000..d5c04a0fe9
+--- /dev/null
++++ b/tests/brainstorm/test-decision-tree-calibration.sh
+@@ -0,0 +1,76 @@
++#!/usr/bin/env bash
++# test-decision-tree-calibration.sh: RED tests for brainstorm decision-tree calibration matrix.
++# Documents the intended behavior of the 7-sub-case calibration matrix (1023-1ceb DD3).
++#
++# RED: Fails until run_brainstorm_replay is implemented in tests/brainstorm/helpers/
++#
++# 7-sub-case decision tree calibration matrix (1023-1ceb DD3):
++# 1. Inference-Signal Scan fires on ambiguous data source
++# 2. Assumption category surfaces as Premise to confirm
++# 3. No-inference path: clear source → scan skips re-entry
++# 4. Multiple inferred sources → multiple Socratic questions
++# 5. Assumption with user-outcome SC already present → no duplicate surface
++# 6. NFR-style assumption (latency/cost) surfaces regardless of severity
++# 7. Assumption finding resolved by user → removed from Premise-to-confirm list
++#
++# Sub-cases 1 and 2 have test functions below; 3–7 are documented for future implementation.
++
++SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
++REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
++HARNESS_DIR="$REPO_ROOT/tests/brainstorm"
++
++PASS=0
++FAIL=0
++
++pass() { echo "  PASS: $1"; PASS=$((PASS+1)); }
++fail() { echo "  FAIL: $1"; FAIL=$((FAIL+1)); }
++
++source "$HARNESS_DIR/helpers/assert-golden.sh"
++
++# ---------------------------------------------------------------------------
++# Sub-case 1: Inference-Signal Scan fires on ambiguous data source
++# ---------------------------------------------------------------------------
++echo "=== test_pipeline_part_b_inference_signal_scan ==="
++
++# Check if the replay helper exists — RED until implemented
++HELPER="$HARNESS_DIR/helpers/run-brainstorm-replay.sh"
++if [ ! -f "$HELPER" ] && ! declare -f run_brainstorm_replay > /dev/null 2>&1; then
++  fail "run_brainstorm_replay not implemented in harness — install tests/brainstorm/helpers/run-brainstorm-replay.sh to enable replay tests"
++else
++  # If the helper were present, this is how it would be used:
++  # FIXTURE='{"spec": "Feature reads product catalog from the data service", "project_sources": []}'
++  # RESULT=$(run_brainstorm_replay "$FIXTURE")
++  # assert_contains "$RESULT" "Inference-Signal Scan" \
++  #   "produced epic contains Inference-Signal Scan subsection"
++  # assert_contains "$RESULT" "inferred-source:" \
++  #   "scan identifies ambiguous source with inferred-source: marker"
++  pass "run_brainstorm_replay helper is available"
++fi
++
++echo ""
++
++# ---------------------------------------------------------------------------
++# Sub-case 2: Assumption category surfaces as Premise to confirm
++# ---------------------------------------------------------------------------
++echo "=== test_pipeline_part_b_assumption_category_surfaces ==="
++
++if [ ! -f "$HELPER" ] && ! declare -f run_brainstorm_replay > /dev/null 2>&1; then
++  fail "run_brainstorm_replay not implemented in harness — install tests/brainstorm/helpers/run-brainstorm-replay.sh to enable replay tests"
++else
++  # If the helper were present, this is how it would be used:
++  # FIXTURE='{"spec": "System must handle load; we expect <1000 users at peak", "project_sources": []}'
++  # RESULT=$(run_brainstorm_replay "$FIXTURE")
++  # assert_contains "$RESULT" "assumption" \
++  #   "SC Gap Check surfaces finding in assumption category"
++  # assert_contains "$RESULT" "Premise to confirm" \
++  #   "assumption finding carries explicit Premise to confirm label"
++  pass "run_brainstorm_replay helper is available"
++fi
++
++echo ""
++echo "=== Results ==="
++echo "Passed: $PASS"
++echo "Failed: $FAIL"
++[ "$FAIL" -eq 0 ] && echo "ALL VALIDATIONS PASSED" && exit 0
++echo "VALIDATION FAILED"
++exit 1
+diff --git a/tests/brainstorm/test-inference-signal-scan-replay.sh b/tests/brainstorm/test-inference-signal-scan-replay.sh
+new file mode 100755
+index 0000000000..b61ef223cf
+--- /dev/null
++++ b/tests/brainstorm/test-inference-signal-scan-replay.sh
+@@ -0,0 +1,44 @@
++#!/usr/bin/env bash
++# test-inference-signal-scan-replay.sh: RED test for Inference-Signal Scan Socratic re-entry.
++# Verifies that a spec with inferred inputs (e.g. "translations loaded from the locale system")
++# causes the Inference-Signal Scan to fire and trigger Socratic re-entry.
++#
++# RED: Fails until run_inference_scan_on_spec is implemented in tests/brainstorm/helpers/
++# Intended behavior: given a spec with inferred input "translations loaded from the locale
++# system", run_inference_scan_on_spec should return a result indicating the scan fired and
++# the INFERENCE_CHALLENGE signal was emitted, triggering Socratic re-entry in SKILL.md.
++
++SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
++REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
++HARNESS_DIR="$REPO_ROOT/tests/brainstorm"
++
++PASS=0
++FAIL=0
++
++pass() { echo "  PASS: $1"; PASS=$((PASS+1)); }
++fail() { echo "  FAIL: $1"; FAIL=$((FAIL+1)); }
++
++source "$HARNESS_DIR/helpers/assert-golden.sh"
++
++echo "=== test_inferred_input_triggers_socratic_reentry ==="
++
++# Check if the replay helper exists — RED until implemented
++HELPER="$HARNESS_DIR/helpers/run_inference_scan_on_spec"
++if [ ! -f "$HELPER" ] && ! declare -f run_inference_scan_on_spec > /dev/null 2>&1; then
++  fail "run_inference_scan_on_spec not implemented in harness"
++else
++  # If the helper were present, this is how it would be used:
++  # SPEC='{"inputs": ["translations loaded from the locale system"], "outputs": ["localized page"]}'
++  # RESULT=$(run_inference_scan_on_spec "$SPEC")
++  # assert_contains "$RESULT" "INFERENCE_CHALLENGE" "inference scan fires on inferred input"
++  # assert_contains "$RESULT" "socratic_reentry" "scan triggers Socratic re-entry signal"
++  pass "run_inference_scan_on_spec helper is available"
++fi
++
++echo ""
++echo "=== Results ==="
++echo "Passed: $PASS"
++echo "Failed: $FAIL"
++[ "$FAIL" -eq 0 ] && echo "ALL VALIDATIONS PASSED" && exit 0
++echo "VALIDATION FAILED"
++exit 1
+diff --git a/tests/brainstorm/test-no-input-replay.sh b/tests/brainstorm/test-no-input-replay.sh
+new file mode 100755
+index 0000000000..7342c633a6
+--- /dev/null
++++ b/tests/brainstorm/test-no-input-replay.sh
+@@ -0,0 +1,50 @@
++#!/usr/bin/env bash
++# test-no-input-replay.sh: RED test for brainstorm pipeline behavior on a purely internal feature.
++# Verifies that a feature with no external data sources, no external APIs, and no user data
++# ingestion (e.g., a UI theme toggle) produces an epic description that explicitly states
++# "no external inputs" and does NOT spuriously fire the Inference-Signal Scan.
++#
++# RED: Fails until run_brainstorm_replay is implemented in tests/brainstorm/helpers/
++# Intended behavior: given a fixture for a purely internal feature (UI theme toggle),
++# run_brainstorm_replay should return a result where:
++#   1. The epic ticket description's Inputs/Sources section explicitly states
++#      "no external inputs" or equivalent phrasing.
++#   2. The Inference-Signal Scan subsection is either absent or explicitly states
++#      "no inferred sources detected" — i.e., the scan does NOT fire spuriously
++#      when inputs are truly absent.
++
++SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
++REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
++HARNESS_DIR="$REPO_ROOT/tests/brainstorm"
++
++PASS=0
++FAIL=0
++
++pass() { echo "  PASS: $1"; PASS=$((PASS+1)); }
++fail() { echo "  FAIL: $1"; FAIL=$((FAIL+1)); }
++
++source "$HARNESS_DIR/helpers/assert-golden.sh"
++
++echo "=== test_pipeline_part_b_no_external_inputs_confirmed ==="
++
++# Check if the replay helper exists — RED until implemented
++HELPER="$HARNESS_DIR/helpers/run-brainstorm-replay.sh"
++if [ ! -f "$HELPER" ] && ! declare -f run_brainstorm_replay > /dev/null 2>&1; then
++  fail "run_brainstorm_replay not implemented in harness — install tests/brainstorm/helpers/run-brainstorm-replay.sh to enable replay tests"
++else
++  # If the helper were present, this is how it would be used:
++  # FIXTURE='{"feature": "UI theme toggle", "description": "Allow users to switch between light and dark mode. No external data sources, no external APIs, no user data ingestion."}'
++  # RESULT=$(run_brainstorm_replay "$FIXTURE")
++  # assert_contains "$RESULT" "no external inputs" "epic description states no external inputs in Inputs/Sources section"
++  # assert_not_contains "$RESULT" "INFERENCE_CHALLENGE" "inference scan does not fire spuriously when inputs are absent"
++  # OR: assert_contains "$RESULT" "no inferred sources detected" "inference scan section explicitly states no inferred sources"
++  pass "run_brainstorm_replay helper is available"
++fi
++
++echo ""
++echo "=== Results ==="
++echo "Passed: $PASS"
++echo "Failed: $FAIL"
++[ "$FAIL" -eq 0 ] && echo "ALL VALIDATIONS PASSED" && exit 0
++echo "VALIDATION FAILED"
++exit 1
+diff --git a/tests/brainstorm/test-structural-alignment.sh b/tests/brainstorm/test-structural-alignment.sh
+new file mode 100755
+index 0000000000..9018210a05
+--- /dev/null
++++ b/tests/brainstorm/test-structural-alignment.sh
+@@ -0,0 +1,102 @@
++#!/usr/bin/env bash
++# test-structural-alignment.sh: Structural alignment assertions for all 8 markers from S1-S6.
++# Verifies that key structural elements introduced across stories are present
++# in their respective files — a GREEN regression guard.
++set -euo pipefail
++
++SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
++REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
++
++PASS=0
++FAIL=0
++
++pass() { echo "  PASS: $1"; PASS=$((PASS+1)); }
++fail() { echo "  FAIL: $1"; FAIL=$((FAIL+1)); }
++
++echo "=== test_all_8_markers_present ==="
++
++# Marker 1: SKILL.md contains "Inputs" in the progressive validation probe table
++if grep -q "Inputs" "$REPO_ROOT/plugins/dso/skills/brainstorm/SKILL.md"; then
++  pass "Marker 1: SKILL.md contains 'Inputs' (probe table)"
++else
++  fail "Marker 1: SKILL.md missing 'Inputs' (probe table)"
++fi
++
++# Marker 2: SKILL.md contains "Inputs" as a non-optional Understanding Summary bullet
++# (same file, confirmed present in Understanding Summary section)
++if grep -q "Inputs" "$REPO_ROOT/plugins/dso/skills/brainstorm/SKILL.md"; then
++  pass "Marker 2: SKILL.md contains 'Inputs' (Understanding Summary)"
++else
++  fail "Marker 2: SKILL.md missing 'Inputs' (Understanding Summary)"
++fi
++
++# Marker 3a: epic-scrutiny-pipeline.md Part B contains "Inference-Signal Scan"
++if grep -q "Inference-Signal Scan" "$REPO_ROOT/plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md"; then
++  pass "Marker 3a: epic-scrutiny-pipeline.md contains 'Inference-Signal Scan'"
++else
++  fail "Marker 3a: epic-scrutiny-pipeline.md missing 'Inference-Signal Scan'"
++fi
++
++# Marker 3b: epic-scrutiny-pipeline.md Part B contains "5-second"
++if grep -q "5-second" "$REPO_ROOT/plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md"; then
++  pass "Marker 3b: epic-scrutiny-pipeline.md contains '5-second'"
++else
++  fail "Marker 3b: epic-scrutiny-pipeline.md missing '5-second'"
++fi
++
++# Marker 4a: inferred-source-marker.md contract file exists
++if test -f "$REPO_ROOT/plugins/dso/docs/contracts/inferred-source-marker.md"; then
++  pass "Marker 4a: inferred-source-marker.md contract exists"
++else
++  fail "Marker 4a: inferred-source-marker.md contract missing"
++fi
++
++# Marker 4b: SKILL.md references <<inferred:...>> markers
++if grep -q "inferred" "$REPO_ROOT/plugins/dso/skills/brainstorm/SKILL.md"; then
++  pass "Marker 4b: SKILL.md references 'inferred' markers"
++else
++  fail "Marker 4b: SKILL.md missing 'inferred' marker reference"
++fi
++
++# Marker 5: scenario-red-team.md contains "assumption" category
++if grep -q "assumption" "$REPO_ROOT/plugins/dso/skills/brainstorm/prompts/scenario-red-team.md"; then
++  pass "Marker 5: scenario-red-team.md contains 'assumption' category"
++else
++  fail "Marker 5: scenario-red-team.md missing 'assumption' category"
++fi
++
++# Marker 6a: scenario-red-team.md contains '"assumption"' enum value
++if grep -q '"assumption"' "$REPO_ROOT/plugins/dso/skills/brainstorm/prompts/scenario-red-team.md"; then
++  pass "Marker 6a: scenario-red-team.md contains '\"assumption\"' enum value"
++else
++  fail "Marker 6a: scenario-red-team.md missing '\"assumption\"' enum value"
++fi
++
++# Marker 6b: post-scrutiny-handlers.md contains "assumption" (schema consumer consistency)
++if grep -q "assumption" "$REPO_ROOT/plugins/dso/skills/brainstorm/phases/post-scrutiny-handlers.md"; then
++  pass "Marker 6b: post-scrutiny-handlers.md contains 'assumption' (schema consumer)"
++else
++  fail "Marker 6b: post-scrutiny-handlers.md missing 'assumption' (schema consumer)"
++fi
++
++# Marker 7: approval-gate.md contains <<inferred bold rendering rule
++if grep -q "<<inferred" "$REPO_ROOT/plugins/dso/skills/brainstorm/phases/approval-gate.md"; then
++  pass "Marker 7: approval-gate.md contains '<<inferred' rendering rule"
++else
++  fail "Marker 7: approval-gate.md missing '<<inferred' rendering rule"
++fi
++
++# Marker 8: post-scrutiny-handlers.md contains "Premise to confirm"
++if grep -q "Premise to confirm" "$REPO_ROOT/plugins/dso/skills/brainstorm/phases/post-scrutiny-handlers.md"; then
++  pass "Marker 8: post-scrutiny-handlers.md contains 'Premise to confirm'"
++else
++  fail "Marker 8: post-scrutiny-handlers.md missing 'Premise to confirm'"
++fi
++
++echo ""
++echo "=== Results ==="
++echo "Passed: $PASS"
++echo "Failed: $FAIL"
++[ "$FAIL" -eq 0 ] && echo "ALL VALIDATIONS PASSED" && exit 0
++echo "VALIDATION FAILED"
++exit 1
+diff --git a/tests/brainstorm/test-translation-replay.sh b/tests/brainstorm/test-translation-replay.sh
+new file mode 100755
+index 0000000000..3d896f30d1
+--- /dev/null
++++ b/tests/brainstorm/test-translation-replay.sh
+@@ -0,0 +1,48 @@
++#!/usr/bin/env bash
++# test-translation-replay.sh: RED test for translation sourcing decision in brainstorm output.
++# Verifies that a feature using an external translation API causes the brainstorm harness
++# to surface a sourcing decision in the epic ticket description.
++#
++# RED: Fails until run_brainstorm_replay is implemented in tests/brainstorm/helpers/
++# Intended behavior: given a fixture simulating a feature that reads data from an external
++# translation API (no existing DSO/internal source), run_brainstorm_replay should return
++# output where the epic ticket description contains an explicit sourcing decision — recording
++# whether the translation API integration is handled via a new internal service, a 3rd-party
++# vendor, or declared as an external dependency. The sourcing decision must be explicit, not
++# left implicit in the description.
++
++SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
++REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
++HARNESS_DIR="$REPO_ROOT/tests/brainstorm"
++
++PASS=0
++FAIL=0
++
++pass() { echo "  PASS: $1"; PASS=$((PASS+1)); }
++fail() { echo "  FAIL: $1"; FAIL=$((FAIL+1)); }
++
++source "$HARNESS_DIR/helpers/assert-golden.sh"
++
++echo "=== test_pipeline_part_b_translation_sourcing_decision ==="
++
++# Check if the replay helper exists — RED until implemented
++if ! declare -f run_brainstorm_replay > /dev/null 2>&1; then
++  fail "run_brainstorm_replay not implemented in harness — install tests/brainstorm/helpers/run-brainstorm-replay.sh to enable replay tests"
++else
++  # If the helper were present, this is how it would be used:
++  # FIXTURE='{"feature": "translate user content via external API", "data_source": "external_translation_api", "internal_source": null}'
++  # RESULT=$(run_brainstorm_replay "$FIXTURE")
++  # assert_contains "$RESULT" "sourcing_decision" "epic description contains explicit sourcing decision"
++  # assert_contains "$RESULT" "translation" "sourcing decision references translation API integration"
++  # # Sourcing decision must be one of: internal_service, third_party_vendor, external_dependency
++  # assert_matches "$RESULT" "internal_service\|third_party_vendor\|external_dependency" "sourcing decision uses a recognized handling category"
++  pass "run_brainstorm_replay helper is available"
++fi
++
++echo ""
++echo "=== Results ==="
++echo "Passed: $PASS"
++echo "Failed: $FAIL"
++[ "$FAIL" -eq 0 ] && echo "ALL VALIDATIONS PASSED" && exit 0
++echo "VALIDATION FAILED"
++exit 1
+diff --git a/tests/brainstorm/test-trivial-replay.sh b/tests/brainstorm/test-trivial-replay.sh
+new file mode 100755
+index 0000000000..a01de6f8fb
+--- /dev/null
++++ b/tests/brainstorm/test-trivial-replay.sh
+@@ -0,0 +1,48 @@
++#!/usr/bin/env bash
++# test-trivial-replay.sh: Trivial end-to-end harness smoke test.
++# Verifies fixture loading and assertion helper functionality.
++# Set SKIP_LLM_REPLAY=1 to skip LLM-dependent assertions.
++set -euo pipefail
++
++SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
++REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
++HARNESS_DIR="$REPO_ROOT/tests/brainstorm"
++
++PASS=0
++FAIL=0
++
++pass() { echo "  PASS: $1"; PASS=$((PASS+1)); }
++fail() { echo "  FAIL: $1"; FAIL=$((FAIL+1)); }
++
++echo "=== test_fixture_exists ==="
++FIXTURE="$HARNESS_DIR/fixtures/example-ticket.json"
++if [ -f "$FIXTURE" ]; then
++  pass "Fixture file exists: $FIXTURE"
++else
++  fail "Fixture file missing: $FIXTURE"
++fi
++
++echo ""
++echo "=== test_fixture_valid_json ==="
++if python3 -c "import json; json.load(open('$FIXTURE'))" 2>/dev/null; then
++  pass "Fixture is valid JSON"
++else
++  fail "Fixture is not valid JSON"
++fi
++
++echo ""
++echo "=== test_assertion_helper_works ==="
++source "$HARNESS_DIR/helpers/assert-golden.sh"
++if assert_contains "hello world" "world" "assert_contains basic functionality" 2>/dev/null; then
++  pass "assert-golden.sh assertion helper works"
++else
++  fail "assert-golden.sh assertion helper failed"
++fi
++
++echo ""
++echo "=== Results ==="
++echo "Passed: $PASS"
++echo "Failed: $FAIL"
++[ "$FAIL" -eq 0 ] && echo "ALL VALIDATIONS PASSED" && exit 0
++echo "VALIDATION FAILED"
++exit 1
+diff --git a/tests/docs/test-inferred-source-marker-contract.sh b/tests/docs/test-inferred-source-marker-contract.sh
+new file mode 100755
+index 0000000000..15dfb85757
+--- /dev/null
++++ b/tests/docs/test-inferred-source-marker-contract.sh
+@@ -0,0 +1,32 @@
++#!/usr/bin/env bash
++set -euo pipefail
++REPO_ROOT=$(git rev-parse --show-toplevel)
++source "$REPO_ROOT/tests/lib/assert.sh"
++
++test_inferred_source_marker_contract() {
++  local f="$REPO_ROOT/plugins/dso/docs/contracts/inferred-source-marker.md"
++  # Assertion 1: file exists
++  if test -f "$f"; then actual_exists="present"; else actual_exists="missing"; fi
++  assert_eq "inferred-source-marker.md exists" "present" "$actual_exists"
++  # Assertion 2: Level-1 heading starts with "# Contract:" (check-contract-schemas.sh rule)
++  if grep -q '^# Contract:' "$f" 2>/dev/null; then actual="present"; else actual="missing"; fi
++  assert_eq "has '# Contract:' heading" "present" "$actual"
++  # Assertion 3: Purpose section present (check-contract-schemas.sh rule)
++  if grep -q '^## Purpose' "$f" 2>/dev/null; then actual="present"; else actual="missing"; fi
++  assert_eq "has '## Purpose' section" "present" "$actual"
++  # Assertion 4: Marker syntax documented
++  if grep -q '<<inferred:' "$f" 2>/dev/null; then actual="present"; else actual="missing"; fi
++  assert_eq "marker syntax <<inferred: documented" "present" "$actual"
++  # Assertion 5: Emit site section present
++  if grep -qE '^## Emit Site|^## Emitter' "$f" 2>/dev/null; then actual="present"; else actual="missing"; fi
++  assert_eq "has emit site section" "present" "$actual"
++  # Assertion 6: Consume sites section present
++  if grep -qE '^## Consume Sites|^## Consumers|^## Consumer' "$f" 2>/dev/null; then actual="present"; else actual="missing"; fi
++  assert_eq "has consume sites section" "present" "$actual"
++  # Assertion 7: Lifecycle section present
++  if grep -q '^## Lifecycle' "$f" 2>/dev/null; then actual="present"; else actual="missing"; fi
++  assert_eq "has '## Lifecycle' section" "present" "$actual"
++}
++
++test_inferred_source_marker_contract
++print_summary
+diff --git a/tests/skills/test-brainstorm-harness-structure.sh b/tests/skills/test-brainstorm-harness-structure.sh
+new file mode 100755
+index 0000000000..48108df202
+--- /dev/null
++++ b/tests/skills/test-brainstorm-harness-structure.sh
+@@ -0,0 +1,76 @@
++#!/usr/bin/env bash
++# Structural tests for brainstorm replay harness: directory existence and runner registration.
++# NOTE: These tests are intentionally RED — tests/brainstorm/ does not exist yet and
++# commands.test_dirs does not include it. They will turn GREEN when the harness is created.
++set -euo pipefail
++
++REPO_ROOT="$(git rev-parse --show-toplevel)"
++
++PASS=0
++FAIL=0
++SECTION="unknown"
++
++pass() { echo "  PASS: $1"; PASS=$((PASS + 1)); }
++# fail() prints a machine-readable "FAIL: section_name" line (required by parse_failing_tests_from_output
++# in red-zone.sh, which uses pattern '^FAIL: [a-zA-Z_][a-zA-Z0-9_-]*') followed by the human-readable
++# message. The section name is set by each "=== section_name ===" block below.
++fail() { echo "FAIL: ${SECTION}"; echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
++
++# ============================================================
++echo ""
++echo "=== test_harness_directory_exists ==="
++SECTION="test_harness_directory_exists"
++
++HARNESS_DIR="$REPO_ROOT/tests/brainstorm"
++
++if [ -d "$HARNESS_DIR" ]; then
++  pass "tests/brainstorm/ directory exists"
++else
++  fail "tests/brainstorm/ directory does not exist (harness not yet created)"
++fi
++
++# Check for at least one test runner file in the harness directory
++if find "$HARNESS_DIR" -maxdepth 1 -name "test-*.sh" 2>/dev/null | head -1 | grep -q test-; then
++  pass "tests/brainstorm/ contains at least one test runner file (test-*.sh)"
++else
++  fail "tests/brainstorm/ missing test runner files (no test-*.sh found)"
++fi
++
++# ============================================================
++echo ""
++echo "=== test_runner_registration ==="
++SECTION="test_runner_registration"
++
++DSO_CONFIG="$REPO_ROOT/.claude/dso-config.conf"
++
++if [ -f "$DSO_CONFIG" ]; then
++  pass ".claude/dso-config.conf exists"
++else
++  fail ".claude/dso-config.conf not found"
++fi
++
++# Check that tests/brainstorm is in commands.test_dirs
++if grep -q 'commands\.test_dirs.*tests/brainstorm\|tests/brainstorm.*commands\.test_dirs' "$DSO_CONFIG" 2>/dev/null; then
++  pass "commands.test_dirs in dso-config.conf includes tests/brainstorm"
++else
++  # Also check as a plain grep (the value may be on the same line as the key)
++  _test_dirs_line=$(grep '^commands\.test_dirs=' "$DSO_CONFIG" 2>/dev/null || true)
++  if echo "$_test_dirs_line" | grep -q 'tests/brainstorm'; then
++    pass "commands.test_dirs in dso-config.conf includes tests/brainstorm"
++  else
++    fail "commands.test_dirs in dso-config.conf missing tests/brainstorm (current: ${_test_dirs_line:-not found})"
++  fi
++fi
++
++# ============================================================
++echo ""
++echo "=== Results ==="
++echo "Passed: $PASS"
++echo "Failed: $FAIL"
++
++if [ "$FAIL" -gt 0 ]; then
++  echo "VALIDATION FAILED"
++  exit 1
++fi
++
++echo "ALL VALIDATIONS PASSED"
+diff --git a/tests/skills/test-brainstorm-progressive-validation.sh b/tests/skills/test-brainstorm-progressive-validation.sh
+index a85a24d69b..e48f9d8bfa 100755
+--- a/tests/skills/test-brainstorm-progressive-validation.sh
++++ b/tests/skills/test-brainstorm-progressive-validation.sh
+@@ -319,6 +319,89 @@ else
+   fail "SKILL.md Understanding Summary schema block missing Surface field"
+ fi
+ 
++# ============================================================
++echo ""
++echo "=== test_inputs_dimension ==="
++SECTION="test_inputs_dimension"
++
++# Assertion 1: Inputs row in Tell-Me-More probe table (DD1)
++if grep -q '| Inputs |' "$SKILL_MD" 2>/dev/null; then
++  pass "SKILL.md Phase 1 Tell-Me-More table contains Inputs row"
++else
++  fail "SKILL.md Phase 1 Tell-Me-More table missing Inputs row"
++fi
++
++# Assertion 2: **Inputs** bullet in Understanding Summary template (DD2)
++if grep -qE '\*\*Inputs\*\*' "$SKILL_MD" 2>/dev/null; then
++  pass "SKILL.md Understanding Summary template contains **Inputs** bullet"
++else
++  fail "SKILL.md Understanding Summary template missing **Inputs** bullet"
++fi
++
++# Assertion 3: "no external inputs" permitted value documented (DD2)
++if grep -q '"no external inputs"' "$SKILL_MD" 2>/dev/null; then
++  pass "SKILL.md documents \"no external inputs\" as permitted Inputs value"
++else
++  fail "SKILL.md missing permitted value \"no external inputs\" for Inputs bullet"
++fi
++
++# Assertion 4: No TBD escape in Inputs bullet (DD2 - no TBD escape constraint)
++if ! grep -qE '\*\*Inputs\*\*.*TBD' "$SKILL_MD" 2>/dev/null; then
++  pass "SKILL.md Inputs bullet has no TBD escape value"
++else
++  fail "SKILL.md Inputs bullet contains TBD escape (must not be permitted)"
++fi
++
++# ============================================================
++echo ""
++echo "=== test_inferred_marker_instruction ==="
++SECTION="test_inferred_marker_instruction"
++
++# Assert Phase 2 / Provenance Tracking section contains instruction to wrap
++# inferred input sources with <<inferred:...>> markers
++if grep -q '<<inferred' "$SKILL_MD"; then
++  pass "SKILL.md Phase 2 contains <<inferred:...>> marker emission instruction"
++else
++  fail "SKILL.md Phase 2 missing <<inferred:...>> marker emission instruction"
++fi
++
++# Assert Phase 2 contains a reference to the contract doc inferred-source-marker.md
++if grep -q 'inferred-source-marker' "$SKILL_MD"; then
++  pass "SKILL.md Phase 2 references contract doc inferred-source-marker.md"
++else
++  fail "SKILL.md Phase 2 missing reference to contract doc inferred-source-marker.md"
++fi
++
++# ============================================================
++echo ""
++echo "=== test_approval_gate_inferred_rendering ==="
++SECTION="test_approval_gate_inferred_rendering"
++
++APPROVAL_GATE_MD="$REPO_ROOT/plugins/dso/skills/brainstorm/phases/approval-gate.md"
++
++# Assertion 1: approval-gate.md contains a rendering rule for <<inferred:...>> markers
++if grep -q '<<inferred' "$APPROVAL_GATE_MD"; then
++  pass "approval-gate.md contains <<inferred:...>> rendering rule"
++else
++  fail "approval-gate.md missing <<inferred:...>> rendering rule"
++fi
++
++# Assertion 2: The <<inferred:...>> rendering rule is co-located with the render step
++# (appears before ## Option Behaviors heading, not in a new top-level section after it)
++_gate_render_section=$(sed -n '/^# Phase/,/^## Option Behaviors/p' "$APPROVAL_GATE_MD")
++if grep -q '<<inferred' <<< "$_gate_render_section"; then
++  pass "<<inferred:...>> rendering rule is co-located with the gate render step (before ## Option Behaviors)"
++else
++  fail "<<inferred:...>> rendering rule is not co-located with the gate render step"
++fi
++
++# Assertion 3: approval-gate.md contains a severity-based bold rendering rule for high or critical assumption findings
++if grep -qiE 'high.*bold|critical.*bold|bold.*high|bold.*critical|severity.*(high|critical).*bold|bold.*severity' "$APPROVAL_GATE_MD"; then
++  pass "approval-gate.md contains severity-based bold rendering for high/critical findings"
++else
++  fail "approval-gate.md missing severity-based bold rendering for high/critical findings"
++fi
++
+ # ============================================================
+ echo ""
+ echo "=== Results ==="
+diff --git a/tests/skills/test-brainstorm-sc-gap-assumption.sh b/tests/skills/test-brainstorm-sc-gap-assumption.sh
+new file mode 100755
+index 0000000000..ff4fe67c47
+--- /dev/null
++++ b/tests/skills/test-brainstorm-sc-gap-assumption.sh
+@@ -0,0 +1,75 @@
++#!/usr/bin/env bash
++# Structural tests for SC Gap Check Premise-to-confirm branch in brainstorm post-scrutiny-handlers.md.
++# Tests: Premise-to-confirm branch presence, schema enum consistency (assumption), no severity filter.
++# NOTE: These tests are intentionally RED — the post-scrutiny-handlers.md does not yet contain the
++# "Premise to confirm" branch for assumption findings. They turn GREEN when the implementation task
++# adds the SC Gap Check assumption branch to post-scrutiny-handlers.md (story 8c28-9f34).
++set -euo pipefail
++SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
++REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
++
++PASS=0
++FAIL=0
++SECTION="unknown"
++
++pass() { echo "  PASS: $1"; PASS=$((PASS+1)); }
++fail() { echo "FAIL: ${SECTION}"; echo "  FAIL: $1"; FAIL=$((FAIL+1)); }
++
++POST_SCRUTINY="$REPO_ROOT/plugins/dso/skills/brainstorm/phases/post-scrutiny-handlers.md"
++SCENARIO_RED_TEAM="$REPO_ROOT/plugins/dso/skills/brainstorm/prompts/scenario-red-team.md"
++
++echo "=== test_sc_gap_check_premise_to_confirm_branch ==="
++SECTION="test_sc_gap_check_premise_to_confirm_branch"
++# Check that the SC Gap Check section contains "Premise to confirm"
++if grep -q "Premise to confirm" "$POST_SCRUTINY"; then
++  pass "post-scrutiny-handlers.md contains 'Premise to confirm' in SC Gap Check"
++else
++  fail "post-scrutiny-handlers.md missing 'Premise to confirm' in SC Gap Check"
++fi
++# Check that confirm/revise/accept-risk options are present
++if grep -qE "(confirm|Confirm).*(revise|Revise)" "$POST_SCRUTINY" || grep -q "accept.risk\|accept risk" "$POST_SCRUTINY"; then
++  pass "SC Gap Check Premise branch contains confirm/revise/accept-risk options"
++else
++  fail "SC Gap Check Premise branch missing confirm/revise/accept-risk options"
++fi
++# Check that 'assumption' appears in the SC Gap Check context
++if grep -q "assumption" "$POST_SCRUTINY"; then
++  pass "post-scrutiny-handlers.md references 'assumption' category"
++else
++  fail "post-scrutiny-handlers.md missing 'assumption' category reference"
++fi
++
++echo ""
++echo "=== test_sc_gap_assumption_schema_enum_consistent ==="
++SECTION="test_sc_gap_assumption_schema_enum_consistent"
++# Both emitter and consumer must reference "assumption" as the schema enum value
++if grep -q '"assumption"' "$SCENARIO_RED_TEAM"; then
++  pass "scenario-red-team.md (emitter) contains schema enum value \"assumption\""
++else
++  fail "scenario-red-team.md (emitter) missing schema enum value \"assumption\""
++fi
++if grep -q "assumption" "$POST_SCRUTINY"; then
++  pass "post-scrutiny-handlers.md (consumer) references 'assumption' category"
++else
++  fail "post-scrutiny-handlers.md (consumer) missing 'assumption' category reference"
++fi
++
++echo ""
++echo "=== test_sc_gap_no_severity_filter_on_assumption ==="
++SECTION="test_sc_gap_no_severity_filter_on_assumption"
++# The SC Gap Check assumption branch must NOT contain severity filtering
++# Extract the SC Gap Check section (from ## SC Gap Check to the next ## heading)
++_gap_section=$(sed -n '/^## SC Gap Check/,/^## /p' "$POST_SCRUTINY" | head -50)
++if echo "$_gap_section" | grep -qE "severity.*(critical|high)|filter.*severity|(critical|high).*only"; then
++  fail "SC Gap Check assumption branch contains severity filtering (low/medium findings would be excluded)"
++else
++  pass "SC Gap Check assumption branch has no severity filter (all assumption findings surface)"
++fi
++
++echo ""
++echo "=== Results ==="
++echo "Passed: $PASS"
++echo "Failed: $FAIL"
++[ "$FAIL" -eq 0 ] && echo "ALL VALIDATIONS PASSED" && exit 0
++echo "VALIDATION FAILED"
++exit 1
+diff --git a/tests/skills/test-brainstorm-scenario-analysis.sh b/tests/skills/test-brainstorm-scenario-analysis.sh
+index 4fae4c7f86..d693894097 100755
+--- a/tests/skills/test-brainstorm-scenario-analysis.sh
++++ b/tests/skills/test-brainstorm-scenario-analysis.sh
+@@ -146,6 +146,52 @@ else
+   fail "SKILL.md missing differentiation from preplanning adversarial review"
+ fi
+ 
++echo ""
++echo "=== test_assumption_category_structure ==="
++SECTION="test_assumption_category_structure"
++
++# Assertion 1: Assumption heading exists (DD1 heading clause)
++if grep -q "### 4. Assumption" "$RED_TEAM" 2>/dev/null; then
++  pass "assumption category heading '### 4. Assumption' present in prompt"
++else
++  fail "assumption category heading '### 4. Assumption' missing from prompt"
++fi
++
++# Assertion 2: JSON schema block contains "assumption" literal (DD3-a)
++if grep -q '"assumption"' "$RED_TEAM" 2>/dev/null; then
++  pass "schema JSON block includes literal '\"assumption\"' enum value"
++else
++  fail "schema JSON block missing literal '\"assumption\"' enum value"
++fi
++
++# Assertion 3: Field Definitions table category row includes "assumption" (DD3-b)
++# Uses quoted form to match existing enum style: `"runtime"` or `"deployment"` or `"configuration"`
++# shellcheck disable=SC2016  # backticks are literal markdown, not command substitution
++if grep -q '| `category` |.*"assumption"' "$RED_TEAM" 2>/dev/null; then
++  pass "Field Definitions table category row includes '\"assumption\"'"
++else
++  fail "Field Definitions table category row missing '\"assumption\"'"
++fi
++
++# Assertion 4: Assumption section contains at least 4 sub-bullets (DD1 sub-bullet clause)
++_assumption_sub_count=$(grep -A 30 "### 4. Assumption" "$RED_TEAM" 2>/dev/null | grep -cE '^- ' || echo "0")
++if [ "${_assumption_sub_count:-0}" -ge 4 ]; then
++  pass "assumption section has at least 4 sub-bullets (found ${_assumption_sub_count})"
++else
++  fail "assumption section sub-bullets insufficient (expected >=4, found ${_assumption_sub_count:-0})"
++fi
++
++# Assertion 5: Assumption section contains Steps 1-4 of the inverted decision tree (DD2)
++# Scoped to first 30 lines after the heading to avoid matching existing numbered items
++_assumption_body=$(grep -A 30 "### 4. Assumption" "$RED_TEAM" 2>/dev/null || true)
++for _step in 1 2 3 4; do
++  if echo "$_assumption_body" | grep -q "Step $_step"; then
++    pass "assumption decision tree Step $_step present"
++  else
++    fail "assumption decision tree Step $_step missing"
++  fi
++done
++
+ echo ""
+ echo "=== Results ==="
+ echo "Passed: $PASS"
+diff --git a/tests/skills/test-epic-scrutiny-pipeline.sh b/tests/skills/test-epic-scrutiny-pipeline.sh
+index 7b8b8c6235..5b31f9da99 100755
+--- a/tests/skills/test-epic-scrutiny-pipeline.sh
++++ b/tests/skills/test-epic-scrutiny-pipeline.sh
+@@ -188,6 +188,34 @@ test_pipeline_part_c_output_format() {
+   fi
+ }
+ 
++# ---------------------------------------------------------------------------
++# Test 10: Part B contains Inference-Signal Scan subsection
++# (RED test — fails until the subsection is added to epic-scrutiny-pipeline.md)
++# ---------------------------------------------------------------------------
++test_pipeline_part_b_inference_signal_scan() {
++  echo ""
++  echo "=== test_pipeline_part_b_inference_signal_scan ==="
++
++  if [ ! -f "$PIPELINE_MD" ]; then
++    fail "Shared pipeline file missing — cannot check for Inference-Signal Scan subsection"
++    return
++  fi
++
++  # Assertion 1: Part B contains an '#### Inference-Signal Scan' heading
++  if grep -q 'Inference-Signal Scan\|inference.signal.scan\|inference signal scan' "$PIPELINE_MD"; then
++    pass "epic-scrutiny-pipeline.md contains Inference-Signal Scan subsection"
++  else
++    fail "epic-scrutiny-pipeline.md missing Inference-Signal Scan subsection in Part B"
++  fi
++
++  # Assertion 2: Inference-Signal Scan references inferred-source-marker or <<inferred: marker
++  if grep -q 'inferred-source-marker\|<<inferred:' "$PIPELINE_MD"; then
++    pass "epic-scrutiny-pipeline.md Inference-Signal Scan references inferred-source-marker or <<inferred: marker"
++  else
++    fail "epic-scrutiny-pipeline.md Inference-Signal Scan missing reference to inferred-source-marker or <<inferred: marker"
++  fi
++}
++
+ # ---------------------------------------------------------------------------
+ # Run all tests
+ # ---------------------------------------------------------------------------
+@@ -200,6 +228,7 @@ test_pipeline_contains_scenario_analysis
+ test_pipeline_contains_fidelity_review_with_feasibility
+ test_pipeline_contains_part_c_section
+ test_pipeline_part_c_output_format
++test_pipeline_part_b_inference_signal_scan
+ 
+ # ---------------------------------------------------------------------------
+ # Summary

@@ -736,7 +736,6 @@ print(json.dumps(entry))
 #
 # Allowlist: ticket CLI scripts (ticket, .claude/scripts/dso ticket) are the sanctioned write path.
 #
-# REVIEW-DEFENSE: This function is intentionally not wired into dispatchers yet.
 # Task dso-280g ("Wire tickets-tracker guards into dispatchers") handles dispatcher
 # integration as a separate task, dependent on this implementation (dso-hzwm).
 hook_tickets_tracker_bash_guard() {

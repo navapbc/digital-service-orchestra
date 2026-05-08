@@ -50,7 +50,6 @@ if [ -z "$_TARGET" ]; then
 fi
 
 # ── Plugin-source-repo guard ─────────────────────────────────────────────────
-# REVIEW-DEFENSE: This guard checks for plugin.json at the target root, which is a
 # synthetic test marker used in tests (the actual plugin sentinel is at
 # .claude-plugin/marketplace.json inside the plugin root directory). Three layers
 # protect against accidental execution in the plugin source repo:
@@ -223,7 +222,6 @@ PYEOF
 )
 
 # ── Commit each written EDIT event ────────────────────────────────────────────
-# REVIEW-DEFENSE: Direct git operations (bypassing ticket-edit.sh's _flock_stage_commit)
 # are intentional for the same four reasons as before the refactor:
 #   (a) one-time sequential migration — no parallelism within the loop;
 #   (b) _flock_stage_commit exists to serialize concurrent multi-agent writers;
