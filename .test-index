@@ -405,5 +405,5 @@ tests/scripts/test-ticket-transition-deleted.sh:tests/scripts/test-ticket-transi
 plugins/dso/scripts/commit-override.sh:tests/scripts/test-commit-override.sh [test_requires_reason_flag]
 plugins/dso/hooks/prepare-commit-msg-override-audit.sh:tests/hooks/test-prepare-commit-msg-override-audit.sh [test_no_token_no_trailer] [test_token_appends_trailer]
 plugins/dso/hooks/post-commit-override-cleanup.sh:tests/hooks/test-post-commit-override-cleanup.sh [test_cleanup_removes_token],tests/scripts/test-reinstall-hooks.sh [test_post_commit_registered]
-plugins/dso/scripts/commit-step.sh: tests/scripts/test-commit-step.sh [test_writes_result_artifact]
-plugins/dso/hooks/pre-commit-compliance-verifier.sh: tests/hooks/test-pre-commit-compliance-verifier.sh [test_blocks_missing_artifact],tests/scripts/test-reinstall-hooks.sh [test_compliance_verifier_registered]
+plugins/dso/scripts/commit-step.sh: tests/scripts/test-commit-step.sh [test_writes_result_artifact],tests/scripts/test-commit-step-worktree.sh [test_cwd_mismatch_fails_fast] [test_harvest_mode_bypasses_cwd_check],tests/scripts/test-commit-step-truncation.sh [test_pipe_to_tail_artifact_intact]
+plugins/dso/hooks/pre-commit-compliance-verifier.sh: tests/hooks/test-pre-commit-compliance-verifier.sh [test_blocks_missing_artifact],tests/scripts/test-reinstall-hooks.sh [test_compliance_verifier_registered],tests/hooks/test-verifier-worktree-context.sh [test_verifier_reads_correct_worktree]
