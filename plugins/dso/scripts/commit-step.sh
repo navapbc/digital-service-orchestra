@@ -25,6 +25,14 @@ else
     exit 1
 fi
 
+# ── CWD safety guard — verify git repo root matches expected context ──
+if [[ -z "${DSO_HARVEST_MODE:-}" ]]; then
+    _cwd_root=$(git rev-parse --show-toplevel 2>/dev/null) || {
+        echo "ERROR: commit-step: CWD is not in a git repository" >&2
+        exit 1
+    }
+fi
+
 # ── Resolve artifacts dir ──
 ARTIFACTS_DIR=$(get_artifacts_dir)
 mkdir -p "$ARTIFACTS_DIR"
@@ -59,6 +67,10 @@ print(json.dumps(data, indent=2))
 else
     # Result artifact
     # Write artifact before any stdout to ensure truncation immunity
+    _harvest_flag="${DSO_HARVEST_MODE:-}"
+    _artifact_tmp=$(mktemp "$ARTIFACTS_DIR/${_step_name}.result.XXXXXX")
+    # shellcheck disable=SC2064
+    trap "rm -f '$_stdout_tmp' '$_stderr_tmp' '$_artifact_tmp'" EXIT
     python3 -c "
 import json, sys
 data = {
@@ -68,8 +80,11 @@ data = {
     'stderr': sys.argv[4],
     'timestamp': sys.argv[5]
 }
+if sys.argv[6]:
+    data['harvest_mode'] = True
 print(json.dumps(data, indent=2))
-" "$_step_name" "$_exit" "$_stdout" "$_stderr" "$_ts" > "$ARTIFACTS_DIR/${_step_name}.result"
+" "$_step_name" "$_exit" "$_stdout" "$_stderr" "$_ts" "$_harvest_flag" > "$_artifact_tmp"
+    mv "$_artifact_tmp" "$ARTIFACTS_DIR/${_step_name}.result"
 fi
 
 # ── Append breadcrumb to steps.log (JSON Lines) ──
