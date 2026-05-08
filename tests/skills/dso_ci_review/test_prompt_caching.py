@@ -203,6 +203,7 @@ class TestDispatchPassesCacheControlForAnthropic:
                 primary_model=_PRIMARY_MODEL,
                 repo_root=str(tmp_path),
                 tier=tier,
+                agent_id="code-reviewer-light",
                 environ=_ANTHROPIC_ENV,
             )
 
@@ -253,6 +254,7 @@ class TestDispatchPassesCacheControlForAnthropic:
                 primary_model=_PRIMARY_MODEL,
                 repo_root=str(tmp_path),
                 tier="standard",
+                agent_id="code-reviewer-light",
                 environ=_ANTHROPIC_ENV,
             )
 
@@ -297,6 +299,7 @@ class TestDispatchPassesCacheControlForAnthropic:
                 primary_model="openai/gpt-4o-mini",
                 repo_root=str(tmp_path),
                 tier=tier,
+                agent_id="code-reviewer-light",
                 environ=_OPENAI_ENV,
             )
 
@@ -347,6 +350,7 @@ class TestPrefixBytesHashInvariant:
                 primary_model=_PRIMARY_MODEL,
                 repo_root=str(tmp_path),
                 tier="standard",
+                agent_id="code-reviewer-light",
                 soft_cap=5,
                 environ=_ANTHROPIC_ENV,
             )
@@ -364,15 +368,15 @@ class TestPrefixBytesHashInvariant:
 
     def test_stable_prefix_hash_deterministic(self) -> None:
         """_stable_prefix_hash returns the same value for the same message list."""
-        msgs = _build_messages(_DIFF_TEXT, provider="anthropic")
+        msgs = _build_messages(_DIFF_TEXT, agent_id="code-reviewer-light", provider="anthropic")
         h1 = _stable_prefix_hash(msgs)
         h2 = _stable_prefix_hash(msgs)
         assert h1 == h2, "_stable_prefix_hash must be deterministic"
 
     def test_stable_prefix_hash_changes_on_diff_change(self) -> None:
         """_stable_prefix_hash produces a different hash when diff content changes."""
-        msgs_a = _build_messages("diff text A", provider="anthropic")
-        msgs_b = _build_messages("diff text B", provider="anthropic")
+        msgs_a = _build_messages("diff text A", agent_id="code-reviewer-light", provider="anthropic")
+        msgs_b = _build_messages("diff text B", agent_id="code-reviewer-light", provider="anthropic")
         assert _stable_prefix_hash(msgs_a) != _stable_prefix_hash(msgs_b), (
             "Different diff content must produce different prefix hashes"
         )
@@ -522,6 +526,7 @@ class TestCacheHitIntegration:
                     primary_model=_PRIMARY_MODEL,
                     repo_root=str(tmp_path),
                     tier="standard",
+                    agent_id="code-reviewer-light",
                     soft_cap=5,
                     environ=_ANTHROPIC_ENV,
                 )
