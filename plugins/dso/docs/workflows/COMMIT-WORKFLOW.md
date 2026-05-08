@@ -37,7 +37,9 @@ If the script warns that `pre-commit` is not found, the commit hooks may fail la
 
 ### Breadcrumb Init
 
-Truncate the breadcrumb log to prevent unbounded growth, then initialize it for this run:
+Truncate the breadcrumb log to prevent unbounded growth, then initialize it for this run.
+
+**MANDATORY (7b41-3061)**: Every numbered Step in this workflow ends with an `echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-N-<name>" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"` line. These are NOT advisory — they are required forensic markers. The orchestrator MUST emit each step's breadcrumb before progressing to the next step. Batching multiple steps into a single bash invocation that drops the breadcrumb writes is a workflow violation: an empty breadcrumb log with a successful commit is a P2 bug because it falsely implies "nothing happened" during forensic reconstruction. If a step's bash block does not include the breadcrumb echo, you have skipped a required action — do not proceed.
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
