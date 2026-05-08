@@ -1245,4 +1245,60 @@ test_truncate_clears_populated_jsonl_to_zero_bytes
 test_truncate_exits_0_when_jsonl_absent
 test_truncate_emits_warning_and_exits_0_on_truncation_failure
 
+# ── Idempotency guard tests (RED) ─────────────────────────────────────────────
+
+# ── Test 27: skips injection when trailers already present ────────────────────
+# RED: no idempotency guard exists yet.
+# The script will call git interpret-trailers a second time, appending a
+# duplicate DSO-Agent line. The assertion (count == 1) will FAIL.
+
+test_skips_injection_when_trailers_already_present() {
+    _snapshot_fail
+
+    if [[ ! -f "$SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_skips_injection_when_trailers_already_present\n  script not found: %s\n" "$SCRIPT" >&2
+        assert_pass_if_clean "test_skips_injection_when_trailers_already_present"
+        return
+    fi
+
+    local _artifacts
+    _artifacts="$(_make_tmpdir)"
+
+    # Populate JSONL with one agent entry (dso:sprint)
+    printf '{"type":"agent","subagent_type":"dso:sprint","model":"sonnet"}\n' \
+        > "$_artifacts/attribution-contributors.jsonl"
+
+    # Commit message already contains BOTH the DSO-Agent and DSO-Model trailers.
+    # git interpret-trailers will re-append them if called again — this is the
+    # duplication scenario the idempotency guard must prevent.
+    local _commit_msg_file="$_artifacts/COMMIT_EDITMSG"
+    printf 'feat: implement sprint task\n\nDSO-Agent: dso:sprint\nDSO-Model: sonnet\n' \
+        > "$_commit_msg_file"
+
+    # Mock read-config.sh: attribution.enabled → true
+    local _mock_dir
+    _mock_dir="$(_make_tmpdir)/bin"
+    mkdir -p "$_mock_dir"
+    # shellcheck disable=SC2016
+    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
+        > "$_mock_dir/read-config.sh"
+    chmod +x "$_mock_dir/read-config.sh"
+
+    local exit_code=0
+    ARTIFACTS_DIR="$_artifacts" PATH="$_mock_dir:$PATH" \
+        bash "$SCRIPT" "$_commit_msg_file" 2>/dev/null || exit_code=$?
+
+    assert_eq "idempotency: exits 0" "0" "$exit_code"
+
+    # The DSO-Agent line count must remain exactly 1 — no duplicate injected
+    local agent_line_count
+    agent_line_count="$(grep -c "^DSO-Agent:" "$_commit_msg_file" 2>/dev/null || true)"
+    assert_eq "idempotency: DSO-Agent line count remains 1 (no duplicate)" "1" "$agent_line_count"
+
+    assert_pass_if_clean "test_skips_injection_when_trailers_already_present"
+}
+
+test_skips_injection_when_trailers_already_present
+
 print_summary
