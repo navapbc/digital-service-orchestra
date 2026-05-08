@@ -90,7 +90,7 @@ _inprog_bugs=$((.claude/scripts/dso ticket list --type=bug --status=in_progress 
 OPEN_BUG_COUNT=$((_open_bugs + _inprog_bugs))
 ```
 
-- If `OPEN_BUG_COUNT > 0`: **Enter Bug-Fix Mode.** Skip Phase B diagnostic scan (Steps 3, 4, 5, 6, 7) and Phase C triage entirely. Proceed to the **Bug-Fix Mode** section below.
+- If `OPEN_BUG_COUNT > 0`: **Enter Bug-Fix Mode.** Skip Phase B diagnostic scan (Steps 3, 4, 5, 6, 7) and Phase C triage entirely. Proceed to the **Bug-Fix Mode** section below. **MUST NOT dispatch `AskUserQuestion` in this branch (guard 4369-a264 — instruction-locality co-locator for the fuller HARD-GATE at the Bug-Fix Mode header).** The user invoking `/dso:debug-everything` IS the scope authorization regardless of `OPEN_BUG_COUNT` magnitude (1, 54, or 540). No "should I do P1 only / triage first / split this up?" prompt is valid here.
 - If `OPEN_BUG_COUNT == 0`: Continue to Step 3 (normal diagnostic flow).
 
 ### Step 3: Context Budget Check (/dso:debug-everything)
