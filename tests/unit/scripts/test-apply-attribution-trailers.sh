@@ -588,6 +588,151 @@ MOCK
     assert_pass_if_clean "test_exits_0_and_omits_scalar_trailers_when_ticket_show_fails"
 }
 
+# ── Test 15: SC-2 guard — exits 0 without modifying commit msg when attribution disabled ──
+# RED: main block does not yet check read-config.sh for attribution.enabled.
+# Currently the script exits 1 (unknown positional arg) before reaching any guard.
+
+test_script_exits_0_without_modifying_commit_msg_when_attribution_disabled() {
+    _snapshot_fail
+
+    if [[ ! -f "$SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_script_exits_0_without_modifying_commit_msg_when_attribution_disabled\n  script not found: %s\n" "$SCRIPT" >&2
+        assert_pass_if_clean "test_script_exits_0_without_modifying_commit_msg_when_attribution_disabled"
+        return
+    fi
+
+    # Set up temp artifacts dir with a populated JSONL (to confirm it is NOT read)
+    local _artifacts
+    _artifacts="$(_make_tmpdir)"
+    printf '%s\n' '{"type":"agent","subagent_type":"dso:red-test-writer","model":"sonnet"}' \
+        > "$_artifacts/attribution-contributors.jsonl"
+
+    # Commit message file
+    local _commit_msg_file="$_artifacts/COMMIT_EDITMSG"
+    printf 'My commit message\n' > "$_commit_msg_file"
+    local _original_content
+    _original_content="$(cat "$_commit_msg_file")"
+
+    # Mock read-config.sh: attribution.enabled → false
+    local _mock_dir
+    _mock_dir="$(_make_tmpdir)/bin"
+    mkdir -p "$_mock_dir"
+    cat > "$_mock_dir/read-config.sh" <<'MOCK'
+#!/bin/bash
+# Mock: attribution.enabled → false
+if [[ "$1" == "attribution.enabled" ]]; then echo "false"; else echo ""; fi
+MOCK
+    chmod +x "$_mock_dir/read-config.sh"
+
+    local exit_code=0
+    ARTIFACTS_DIR="$_artifacts" PATH="$_mock_dir:$PATH" \
+        bash "$SCRIPT" "$_commit_msg_file" 2>/dev/null || exit_code=$?
+
+    assert_eq "SC-2 disabled: exits 0" "0" "$exit_code"
+
+    local _current_content
+    _current_content="$(cat "$_commit_msg_file")"
+    assert_eq "SC-2 disabled: commit msg unchanged" "$_original_content" "$_current_content"
+
+    assert_pass_if_clean "test_script_exits_0_without_modifying_commit_msg_when_attribution_disabled"
+}
+
+# ── Test 16: SC-4 guard — exits 0 without modifying commit msg when JSONL absent ─
+# RED: main block exits 3 when JSONL file is not found; must exit 0 after SC-4 impl.
+
+test_script_exits_0_without_modifying_commit_msg_when_jsonl_absent() {
+    _snapshot_fail
+
+    if [[ ! -f "$SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_script_exits_0_without_modifying_commit_msg_when_jsonl_absent\n  script not found: %s\n" "$SCRIPT" >&2
+        assert_pass_if_clean "test_script_exits_0_without_modifying_commit_msg_when_jsonl_absent"
+        return
+    fi
+
+    # JSONL does not exist — artifacts dir exists but no JSONL file
+    local _artifacts
+    _artifacts="$(_make_tmpdir)"
+
+    local _commit_msg_file="$_artifacts/COMMIT_EDITMSG"
+    printf 'My commit message\n' > "$_commit_msg_file"
+    local _original_content
+    _original_content="$(cat "$_commit_msg_file")"
+
+    # Mock read-config.sh: attribution.enabled → true (so config gate passes)
+    local _mock_dir
+    _mock_dir="$(_make_tmpdir)/bin"
+    mkdir -p "$_mock_dir"
+    cat > "$_mock_dir/read-config.sh" <<'MOCK'
+#!/bin/bash
+# Mock: attribution.enabled → true
+if [[ "$1" == "attribution.enabled" ]]; then echo "true"; else echo ""; fi
+MOCK
+    chmod +x "$_mock_dir/read-config.sh"
+
+    local exit_code=0
+    ARTIFACTS_DIR="$_artifacts" PATH="$_mock_dir:$PATH" \
+        bash "$SCRIPT" "$_commit_msg_file" 2>/dev/null || exit_code=$?
+
+    assert_eq "SC-4 absent: exits 0" "0" "$exit_code"
+
+    local _current_content
+    _current_content="$(cat "$_commit_msg_file")"
+    assert_eq "SC-4 absent: commit msg unchanged" "$_original_content" "$_current_content"
+
+    assert_pass_if_clean "test_script_exits_0_without_modifying_commit_msg_when_jsonl_absent"
+}
+
+# ── Test 17: SC-4 guard — exits 0 without modifying commit msg when JSONL empty ──
+# RED: main block calls read_and_deduplicate which errors on missing file;
+# an empty JSONL must result in graceful exit 0, not a trailer-apply attempt.
+
+test_script_exits_0_without_modifying_commit_msg_when_jsonl_empty() {
+    _snapshot_fail
+
+    if [[ ! -f "$SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_script_exits_0_without_modifying_commit_msg_when_jsonl_empty\n  script not found: %s\n" "$SCRIPT" >&2
+        assert_pass_if_clean "test_script_exits_0_without_modifying_commit_msg_when_jsonl_empty"
+        return
+    fi
+
+    local _artifacts
+    _artifacts="$(_make_tmpdir)"
+
+    # JSONL file exists but is empty
+    touch "$_artifacts/attribution-contributors.jsonl"
+
+    local _commit_msg_file="$_artifacts/COMMIT_EDITMSG"
+    printf 'My commit message\n' > "$_commit_msg_file"
+    local _original_content
+    _original_content="$(cat "$_commit_msg_file")"
+
+    # Mock read-config.sh: attribution.enabled → true (so config gate passes)
+    local _mock_dir
+    _mock_dir="$(_make_tmpdir)/bin"
+    mkdir -p "$_mock_dir"
+    cat > "$_mock_dir/read-config.sh" <<'MOCK'
+#!/bin/bash
+# Mock: attribution.enabled → true
+if [[ "$1" == "attribution.enabled" ]]; then echo "true"; else echo ""; fi
+MOCK
+    chmod +x "$_mock_dir/read-config.sh"
+
+    local exit_code=0
+    ARTIFACTS_DIR="$_artifacts" PATH="$_mock_dir:$PATH" \
+        bash "$SCRIPT" "$_commit_msg_file" 2>/dev/null || exit_code=$?
+
+    assert_eq "SC-4 empty: exits 0" "0" "$exit_code"
+
+    local _current_content
+    _current_content="$(cat "$_commit_msg_file")"
+    assert_eq "SC-4 empty: commit msg unchanged" "$_original_content" "$_current_content"
+
+    assert_pass_if_clean "test_script_exits_0_without_modifying_commit_msg_when_jsonl_empty"
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 
 test_read_and_deduplicate_returns_single_value_for_duplicate_agents
@@ -604,5 +749,8 @@ test_resolve_scalar_trailers_produces_task_story_epic_flags
 test_resolve_scalar_trailers_produces_review_score_flag
 test_resolve_scalar_trailers_produces_no_flags_when_no_context
 test_exits_0_and_omits_scalar_trailers_when_ticket_show_fails
+test_script_exits_0_without_modifying_commit_msg_when_attribution_disabled
+test_script_exits_0_without_modifying_commit_msg_when_jsonl_absent
+test_script_exits_0_without_modifying_commit_msg_when_jsonl_empty
 
 print_summary
