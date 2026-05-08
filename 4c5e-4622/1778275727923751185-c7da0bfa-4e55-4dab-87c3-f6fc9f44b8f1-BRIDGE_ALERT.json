@@ -1,0 +1,1 @@
+{"event_type": "BRIDGE_ALERT", "timestamp": 1778275727923751185, "uuid": "c7da0bfa-4e55-4dab-87c3-f6fc9f44b8f1", "env_id": "87bd1065-0264-4126-94b7-ae8c71b8d506", "ticket_id": "4c5e-4622", "data": {"reason": "STATUS event dropped: no SYNC.json marker — ticket is not linked to Jira (likely a Jira-originated ticket whose inbound CREATE predates the SYNC-marker fix)"}}
