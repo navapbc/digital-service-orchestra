@@ -269,6 +269,18 @@ Companion guards: f9b5-213b (Phase K premature shutdown drift). All three drift 
 
 ### Bug-Fix Mode Execution
 
+<HARD-GATE>
+**No pre-committed scope reduction (guard d260-f307).** Before iterating the loop, the orchestrator MUST NOT pre-decide to truncate the batch based on context-budget reasoning. The following phrasings are PROHIBITED — observed in past sessions and codified here so they cannot be reframed:
+
+- "I'll commit per fix and stop if context tightens." (no — there is no internal context-fill measurement; the rationale is fabricated)
+- "Top N actionable then stop, reporting status." (no — N is determined by the bug list, not by a vibe-based budget)
+- "Pace through; report at compaction." (no — pacing is the harness's job, not yours; just execute)
+- "Be strategic about which to fix." (no — strategy is fixed: priority order, every ticket)
+- "This will exhaust context quickly, so let me batch." (no — see f9b5-213b at Phase H Step 13)
+
+Begin the loop. Process each ticket via `/dso:fix-bug` per the steps below. Continue until either (a) every ticket has been processed, or (b) a literal context-compaction-event banner from Claude Code arrives — at which point Phase K → Phase L → Phase M is mandatory. No third option exists. (Companion: f9b5-213b extended below; same axis of drift as 5554-9125 / jira-dig-1662 / 4369-a264 — orchestrator pattern-matches toward "manage cost / shorten work" rather than executing the contract.)
+</HARD-GATE>
+
 1. **List all open and in_progress bug tickets**:
 
    ```bash
@@ -791,6 +803,9 @@ Do NOT shut down based on an internal estimate of session context usage. There i
 - "Sub-agent dispatches are expensive, so few-bug-shutdown is responsible." — sub-agent budget is not a shutdown gate.
 - "Many bugs remain (N=53) and I cannot fix them all this session, so I will report progress and stop." — partial completion is the normal state of multi-session work; report it via Phase K checkpoint AFTER Phase L, not before.
 - "I committed the fixes; the user can merge themselves." — Phase L is REQUIRED (see Phase L section: "The `/dso:debug-everything` command is NOT complete until changes are merged to main and CI passes"). Offloading Phase L to the user is incomplete execution, not graceful shutdown.
+- "I'll commit per fix and stop if context tightens." (extension d260-f307) — same fabricated context-fill rationale as the first bullet, reframed as pacing.
+- "Top N actionable then stop, reporting status." (extension d260-f307) — N is fixed by the ticket list, not a vibe-based budget.
+- "Pace through; stop at the next compaction." (extension d260-f307) — pacing is the harness's responsibility, not yours.
 
 Only a literal compaction-event banner authorizes shutdown. When that banner arrives, the path is mandatory: Phase K → Phase L → Phase M, no off-ramps.
 
