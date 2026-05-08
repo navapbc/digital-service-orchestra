@@ -224,6 +224,14 @@ The dispatch list for this Step 4 parallel batch is therefore:
 - `dso:code-reviewer-performance` if `OVERLAY_DIMS` contains `performance`.
 - `dso:code-reviewer-test-quality` if `OVERLAY_DIMS` contains `test-quality`.
 
+**MANDATORY OVERLAY BREADCRUMB — emit before Step 4 dispatch (bug 94e8-9f91).** The orchestrator MUST echo the overlay-dispatch decision as a single visible line so a silently-skipped overlay is observable in the breadcrumb log. Compute the per-dimension Y/N by checking `OVERLAY_DIMS` against each dimension that the classifier flagged true in Step 3. The decision must reflect what the orchestrator is *actually about to dispatch* — not a paraphrase of `OVERLAY_DIMS` content. Emit verbatim, then proceed to dispatch:
+
+```text
+OVERLAYS_DISPATCHED: security=<Y|N> performance=<Y|N> test_quality=<Y|N>
+```
+
+Any `N` for a dimension that the classifier flagged true is a violation of this Step. If the orchestrator emits `OVERLAYS_DISPATCHED: ... =N` for a flagged dimension, it MUST also dispatch the corresponding overlay agent in this same parallel batch — the breadcrumb is not a license to skip; it is an observability requirement. The post-commit `record-review.sh` gate will fail with `OVERLAY_MISSING` if the breadcrumb does not match the findings produced.
+
 Each overlay agent receives `FINDINGS_OUTPUT=$ARTIFACTS_DIR/reviewer-findings-<dim>.json` (e.g., `reviewer-findings-test-quality.json`) so its output does not collide with the tier reviewer's `reviewer-findings.json`. Step 4b retains its serial-path role for the case where overlay flags are False but the tier reviewer's return signals `<dim>_overlay_warranted: yes` after the fact.
 
 **You MUST launch a named `dso:code-reviewer-*` sub-agent.** There are no exceptions — not for documentation-only changes, not for "trivial" changes, not for config files. The sub-agent performs the review and assigns scores. Skipping this step and writing review JSON yourself is fabrication. Dispatching a generic agent with instructions to write `reviewer-findings.json` is also fabrication — the review MUST come from a named reviewer agent (`dso:code-reviewer-light`, `dso:code-reviewer-standard`, or `dso:code-reviewer-deep-*`), not a general-purpose agent with fabricated review instructions.
