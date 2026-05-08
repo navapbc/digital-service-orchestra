@@ -81,9 +81,14 @@ _DRY_RUN=0
 _JSONL_FILE=""
 _COMMIT_REF="HEAD"
 _COMMIT_MSG_FILE=""
+_TRUNCATE_MODE=0
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --truncate)
+            _TRUNCATE_MODE=1
+            shift
+            ;;
         --dry-run)
             _DRY_RUN=1
             shift
@@ -346,6 +351,19 @@ PYEOF
 # ── Main (only runs when script is executed directly, not sourced) ────────────
 # Guard: skip main block when sourced by tests
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    # ── SC-6: --truncate mode ─────────────────────────────────────────────────
+    # Clear the JSONL file after successful injection so that the next commit
+    # starts with a clean slate.  Never fails /dso:commit (always exits 0).
+    if [[ "$_TRUNCATE_MODE" -eq 1 ]]; then
+        _jsonl="${ARTIFACTS_DIR:-}/attribution-contributors.jsonl"
+        if [[ -f "$_jsonl" ]]; then
+            if ! : > "$_jsonl" 2>/dev/null; then
+                printf 'WARNING: apply-attribution-trailers: failed to truncate %s\n' "$_jsonl" >&2
+            fi
+        fi
+        exit 0
+    fi
+
     # ── SC-2: attribution.enabled config guard ────────────────────────────────
     # Exit 0 (no-op) if attribution is disabled in config.
     _attribution_enabled=$(read-config.sh attribution.enabled 2>/dev/null || echo "false")
@@ -396,5 +414,33 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
         # shellcheck disable=SC2294
         eval "${GIT_BINARY:-git} interpret-trailers --in-place ${_flags_array[*]} \"\$_COMMIT_MSG_FILE\""
     fi
+
+    # ── SC-5: Post-injection placement scan ───────────────────────────────────
+    # Detect DSO-* or Jira-Ticket: lines that appear before the final blank-line
+    # separator (i.e., in the message body rather than the trailer section).
+    # Non-blocking: emits a warning to stderr and continues (exit 0).
+    _last_blank_line=0
+    _line_no=0
+    while IFS= read -r _line; do
+        (( ++_line_no ))
+        [[ -z "$_line" ]] && _last_blank_line=$_line_no
+    done < "$_COMMIT_MSG_FILE"
+
+    _misplaced=0
+    _line_no=0
+    while IFS= read -r _line; do
+        (( ++_line_no ))
+        if [[ $_line_no -lt $_last_blank_line ]]; then
+            if [[ "$_line" =~ ^(Jira-Ticket|DSO-[A-Za-z-]+): ]]; then
+                _misplaced=1
+                break
+            fi
+        fi
+    done < "$_COMMIT_MSG_FILE"
+
+    if [[ $_misplaced -eq 1 ]]; then
+        printf 'WARNING: apply-attribution-trailers: DSO-* trailer found in message body (before blank separator)\n' >&2
+    fi
+
     exit 0
 fi
