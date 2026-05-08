@@ -407,6 +407,138 @@ test_check_git_version_passes_with_vendor_suffix() {
     assert_pass_if_clean "test_check_git_version_passes_with_vendor_suffix"
 }
 
+# ── Test 11: resolve_scalar_trailers produces DSO-Task/Story/Epic flags ──────
+# RED: resolve_scalar_trailers does not exist yet.
+
+test_resolve_scalar_trailers_produces_task_story_epic_flags() {
+    _snapshot_fail
+
+    if [[ ! -f "$SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_resolve_scalar_trailers_produces_task_story_epic_flags\n  script not found: %s\n" "$SCRIPT" >&2
+        assert_pass_if_clean "test_resolve_scalar_trailers_produces_task_story_epic_flags"
+        return
+    fi
+
+    # shellcheck disable=SC1090
+    source "$SCRIPT"
+
+    if ! declare -f resolve_scalar_trailers > /dev/null 2>&1; then
+        (( ++FAIL ))
+        printf "FAIL: test_resolve_scalar_trailers_produces_task_story_epic_flags\n  function resolve_scalar_trailers not found in script\n" >&2
+        assert_pass_if_clean "test_resolve_scalar_trailers_produces_task_story_epic_flags"
+        return
+    fi
+
+    # Set up mock dso CLI in a prepended PATH directory
+    local _mock_dir
+    _mock_dir="$(_make_tmpdir)"
+    mkdir -p "$_mock_dir/bin"
+    cat > "$_mock_dir/bin/dso" <<'MOCK'
+#!/bin/bash
+# Mock dso CLI — returns fixture ticket JSON for any ticket show invocation
+echo '{"ticket_id": "1234-abcd", "title": "Mock Task", "type": "task", "parent_id": "5678-efgh", "parent_title": "Mock Story", "parent_type": "story", "grandparent_id": "9abc-0000", "grandparent_title": "Mock Epic", "grandparent_type": "epic"}'
+MOCK
+    chmod +x "$_mock_dir/bin/dso"
+
+    local _artifacts
+    _artifacts="$(_make_tmpdir)"
+
+    local output
+    output="$(PATH="$_mock_dir/bin:$PATH" ARTIFACTS_DIR="$_artifacts" DSO_TASK_ID="1234-abcd" resolve_scalar_trailers 2>/dev/null || true)"
+
+    local has_task=0 has_story=0 has_epic=0
+    printf '%s\n' "$output" | grep -q "DSO-Task"  && has_task=1
+    printf '%s\n' "$output" | grep -q "DSO-Story" && has_story=1
+    printf '%s\n' "$output" | grep -q "DSO-Epic"  && has_epic=1
+
+    assert_eq "resolve_scalar_trailers: output contains DSO-Task flag"  "1" "$has_task"
+    assert_eq "resolve_scalar_trailers: output contains DSO-Story flag" "1" "$has_story"
+    assert_eq "resolve_scalar_trailers: output contains DSO-Epic flag"  "1" "$has_epic"
+
+    assert_pass_if_clean "test_resolve_scalar_trailers_produces_task_story_epic_flags"
+}
+
+# ── Test 12: resolve_scalar_trailers produces DSO-Review-Score flag ───────────
+# RED: resolve_scalar_trailers does not exist yet.
+
+test_resolve_scalar_trailers_produces_review_score_flag() {
+    _snapshot_fail
+
+    if [[ ! -f "$SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_resolve_scalar_trailers_produces_review_score_flag\n  script not found: %s\n" "$SCRIPT" >&2
+        assert_pass_if_clean "test_resolve_scalar_trailers_produces_review_score_flag"
+        return
+    fi
+
+    # shellcheck disable=SC1090
+    source "$SCRIPT"
+
+    if ! declare -f resolve_scalar_trailers > /dev/null 2>&1; then
+        (( ++FAIL ))
+        printf "FAIL: test_resolve_scalar_trailers_produces_review_score_flag\n  function resolve_scalar_trailers not found in script\n" >&2
+        assert_pass_if_clean "test_resolve_scalar_trailers_produces_review_score_flag"
+        return
+    fi
+
+    local _artifacts
+    _artifacts="$(_make_tmpdir)"
+
+    # Write a fixture reviewer-findings.json with score fields
+    cat > "$_artifacts/reviewer-findings.json" <<'JSON'
+{"diff_hash": "abc123", "scores": {"hygiene": 4, "design": 5, "maintainability": 4, "correctness": 5, "verification": 4}, "summary": "ok"}
+JSON
+
+    local output
+    output="$(ARTIFACTS_DIR="$_artifacts" DSO_TASK_ID="" resolve_scalar_trailers 2>/dev/null || true)"
+
+    local has_review_score=0
+    printf '%s\n' "$output" | grep -q "DSO-Review-Score" && has_review_score=1
+
+    assert_eq "resolve_scalar_trailers: output contains DSO-Review-Score flag" "1" "$has_review_score"
+
+    assert_pass_if_clean "test_resolve_scalar_trailers_produces_review_score_flag"
+}
+
+# ── Test 13: resolve_scalar_trailers produces no flags when no context ─────────
+# RED: resolve_scalar_trailers does not exist yet.
+
+test_resolve_scalar_trailers_produces_no_flags_when_no_context() {
+    _snapshot_fail
+
+    if [[ ! -f "$SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_resolve_scalar_trailers_produces_no_flags_when_no_context\n  script not found: %s\n" "$SCRIPT" >&2
+        assert_pass_if_clean "test_resolve_scalar_trailers_produces_no_flags_when_no_context"
+        return
+    fi
+
+    # shellcheck disable=SC1090
+    source "$SCRIPT"
+
+    if ! declare -f resolve_scalar_trailers > /dev/null 2>&1; then
+        (( ++FAIL ))
+        printf "FAIL: test_resolve_scalar_trailers_produces_no_flags_when_no_context\n  function resolve_scalar_trailers not found in script\n" >&2
+        assert_pass_if_clean "test_resolve_scalar_trailers_produces_no_flags_when_no_context"
+        return
+    fi
+
+    local _artifacts
+    _artifacts="$(_make_tmpdir)"
+    # No reviewer-findings.json, no DSO_TASK_ID set
+
+    local output
+    output="$(ARTIFACTS_DIR="$_artifacts" DSO_TASK_ID="" resolve_scalar_trailers 2>/dev/null || true)"
+
+    local line_count
+    line_count="$(printf '%s' "$output" | grep -c . || true)"
+
+    assert_eq "resolve_scalar_trailers: no context produces 0 output lines" "0" "$line_count"
+
+    assert_pass_if_clean "test_resolve_scalar_trailers_produces_no_flags_when_no_context"
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 
 test_read_and_deduplicate_returns_single_value_for_duplicate_agents
@@ -419,5 +551,8 @@ test_check_git_version_fails_when_version_is_1_9
 test_check_git_version_passes_when_version_is_2_6
 test_check_git_version_passes_when_version_is_2_42
 test_check_git_version_passes_with_vendor_suffix
+test_resolve_scalar_trailers_produces_task_story_epic_flags
+test_resolve_scalar_trailers_produces_review_score_flag
+test_resolve_scalar_trailers_produces_no_flags_when_no_context
 
 print_summary
