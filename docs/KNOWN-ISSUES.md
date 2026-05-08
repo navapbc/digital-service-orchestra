@@ -18,6 +18,7 @@
 | [Recipe Execution](#recipe-execution) | 1 | 2026-04 |
 | [Plugin System](#plugin-system) | 2 | 2026-04 |
 | [Bridge](#bridge) | 1 | 2026-05 |
+| [Compliance Verifier / Commit Steps](#compliance-verifier-and-commit-steps) | 6 | 2026-05 |
 
 ## Quick Reference by Incident ID
 
@@ -38,6 +39,12 @@
 | INC-020 | validate.sh ENOBUFS / OSError 75 in CI | Plugin System | validate.sh, ENOBUFS, OSError 75, file descriptor, ulimit, CI |
 | INC-022 | `git checkout tickets` Fails Silently, Rebase Hits Wrong Branch | Tickets/Version Control | checkout tickets, tickets worktree, rebase wrong branch, .tickets-tracker, push ticket changes |
 | INC-023 | Bridge: silent event drops (HEAD~1..HEAD blindness pattern) | Bridge | bridge, outbound, checkpoint, HEAD~1, silent drop, SHA cursor, BRIDGE_ENV_ID, BRIDGE_USER_MAP |
+| INC-024 | Hook executable bit lost — compliance verifier stops running | Compliance Verifier / Commit Steps | pre-commit-compliance-verifier, executable bit, chmod, reinstall-hooks |
+| INC-025 | First-run absent ARTIFACTS_DIR emits warning, exits 0 | Compliance Verifier / Commit Steps | WORKFLOW_PLUGIN_ARTIFACTS_DIR, absent dir, warn, fail-open, fresh worktree |
+| INC-026 | ARTIFACTS_DIR path shared across CI jobs on same runner | Compliance Verifier / Commit Steps | WORKFLOW_PLUGIN_ARTIFACTS_DIR, CI, ephemeral, cross-job, artifact pollution |
+| INC-027 | Branch-name slashes do not cause ARTIFACTS_DIR path divergence | Compliance Verifier / Commit Steps | ARTIFACTS_DIR, SHA-256, REPO_ROOT hash, branch name, slashes |
+| INC-028 | Combined skip conditions write one .skipped file, not two | Compliance Verifier / Commit Steps | enforcement.strategy=ci, SKIP_REVIEW, .skipped, commit-step, first-wins |
+| INC-029 | record-test-status.sh --attest is harvest-mode, not a pass-recorder | Compliance Verifier / Commit Steps | record-test-status, --attest, worktree harvest, harvest sub-agent, passing test |
 
 ---
 
@@ -295,3 +302,88 @@
   - `BRIDGE_ENV_ID` fail-fast: if the bridge is not starting at all, verify `gh variable list | grep BRIDGE_ENV_ID`. An empty or missing value causes both bridges to exit immediately.
   - `BRIDGE_USER_MAP` assignee issues: if Jira issues are created unassigned, check that the commit author's email is present (case-insensitively) in the `BRIDGE_USER_MAP` JSON env var. Missing entries fall through to BRIDGE_ALERT + `unassign_issue()`.
   - Full bridge reference: `plugins/dso/scripts/bridge/README.md`.
+
+---
+
+## Compliance Verifier and Commit Steps
+
+### INC-024: Hook Executable Bit Lost — Compliance Verifier Stops Running
+
+- **Date**: 2026-05
+- **Keywords**: pre-commit-compliance-verifier, executable bit, chmod, reinstall-hooks, .pre-commit-config.yaml
+- **Symptom**: `.pre-commit-config.yaml` entries for the compliance verifier are present, but the hook never fires. Commits proceed without enforcement checks.
+- **Root cause**: The executable bit on `plugins/dso/hooks/pre-commit-compliance-verifier.sh` was lost (e.g., after a checkout on a filesystem that does not preserve execute permissions, or after a git operation that reset file modes).
+- **Detection**: `ls -la plugins/dso/hooks/pre-commit-compliance-verifier.sh` — the permission string should be `-rwxr-xr-x`. If it shows `-rw-r--r--`, the bit is missing.
+- **Fix**:
+  ```bash
+  chmod +x plugins/dso/hooks/pre-commit-compliance-verifier.sh
+  bash plugins/dso/scripts/reinstall-hooks.sh
+  ```
+- **Rule added**: When creating a new `.sh` file, always set the executable bit immediately (`chmod +x`).
+
+---
+
+### INC-025: First-Run Absent ARTIFACTS_DIR Emits Warning, Exits 0
+
+- **Date**: 2026-05
+- **Keywords**: WORKFLOW_PLUGIN_ARTIFACTS_DIR, absent dir, warn, fail-open, fresh worktree, first-run
+- **Symptom**: On a fresh worktree before any commit-step has run, the compliance verifier emits a warning about a missing directory and then exits 0 (fail-open). No enforcement occurs.
+- **Root cause**: `WORKFLOW_PLUGIN_ARTIFACTS_DIR` is set to a path that has not yet been created. The verifier treats an absent directory as "no artifacts yet" rather than an error, so it warns and exits cleanly.
+- **Detection**: Verifier output contains a warning about the artifacts directory not existing, followed by a clean exit. This happens on the very first commit in a new worktree session before any commit-step wrapper has written artifacts.
+- **Fix**: No action needed — this is expected behavior. After the first commit-step (e.g., `commit-step.sh test ...`) runs and creates the directory, subsequent compliance checks operate normally.
+- **Prevention**: If you want the verifier to enforce on the first commit, pre-create the directory: `mkdir -p "$WORKFLOW_PLUGIN_ARTIFACTS_DIR"`.
+
+---
+
+### INC-026: ARTIFACTS_DIR Path Shared Across CI Jobs on the Same Runner
+
+- **Date**: 2026-05
+- **Keywords**: WORKFLOW_PLUGIN_ARTIFACTS_DIR, CI, ephemeral, cross-job, artifact pollution, shared runner
+- **Symptom**: In CI, artifacts from one job are visible to a subsequent job on the same runner, causing stale or incorrect compliance state. A job that should fail passes because it reads a `.passed` file written by a previous job.
+- **Root cause**: The default `WORKFLOW_PLUGIN_ARTIFACTS_DIR` resolves to `/tmp/workflow-plugin-<hash>/` where `<hash>` is derived from `REPO_ROOT`. On a shared runner where the workspace path is stable, multiple jobs share the same hash and therefore the same directory.
+- **Detection**: CI logs show a commit-step reading artifacts that were not written in the current job. The artifacts directory is not cleaned between jobs.
+- **Fix**: In the CI job YAML, set `WORKFLOW_PLUGIN_ARTIFACTS_DIR` explicitly to an ephemeral per-job path:
+  ```yaml
+  env:
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR: /tmp/workflow-plugin-${{ github.run_id }}-${{ github.job }}
+  ```
+- **Prevention**: Always set `WORKFLOW_PLUGIN_ARTIFACTS_DIR` explicitly in CI environments. Do not rely on the default `/tmp/` path when multiple jobs share a runner.
+
+---
+
+### INC-027: Branch-Name Slashes Do Not Cause ARTIFACTS_DIR Path Divergence
+
+- **Date**: 2026-05
+- **Keywords**: ARTIFACTS_DIR, SHA-256, REPO_ROOT hash, branch name, slashes, feat/foo/bar, path divergence
+- **Symptom**: Developers expect branches with slashes in their names (e.g., `feat/foo/bar`) to produce different `ARTIFACTS_DIR` paths than flat branches (e.g., `feat-foo-bar`), creating confusion when artifacts appear to be shared across branches.
+- **Root cause**: `ARTIFACTS_DIR` is derived from a SHA-256 hash of `REPO_ROOT` (the absolute path to the repository root), not from the branch name. Branch names with slashes or any other characters have no effect on the hash.
+- **Detection**: Run `get_artifacts_dir` (sourced from `plugins/dso/hooks/lib/deps.sh`) on two branches with different names from the same repo root — the path is identical.
+- **Fix**: No fix needed — this is by design. Artifact isolation across branches is not a goal of `ARTIFACTS_DIR`; isolation across repository roots is. If per-branch isolation is required, set `WORKFLOW_PLUGIN_ARTIFACTS_DIR` explicitly to include a branch identifier.
+
+---
+
+### INC-028: Combined Skip Conditions Write One .skipped File, Not Two
+
+- **Date**: 2026-05
+- **Keywords**: enforcement.strategy=ci, SKIP_REVIEW, .skipped, commit-step, first-wins, combined skip
+- **Symptom**: When both `enforcement.strategy=ci` and `SKIP_REVIEW=true` are active simultaneously, only one `.skipped` file is written per step instead of two. Tooling that counts `.skipped` files may show an unexpected count.
+- **Root cause**: `commit-step.sh` evaluates skip conditions in order and exits after the first matching condition writes the `.skipped` file. The second condition is never evaluated. Both `enforcement.strategy=ci` and `SKIP_REVIEW=true` produce identical outcomes (step is skipped), so the single-file behavior is correct.
+- **Detection**: After a commit with both conditions active, `ls "$ARTIFACTS_DIR"/<step>/` shows exactly one `.skipped` file, not two.
+- **Fix**: No fix needed — this is correct behavior. Both conditions produce the same outcome; one `.skipped` file accurately represents the step status.
+- **Note**: If you need to distinguish *why* a step was skipped, inspect the `.skipped` file content — it records the skip reason from the first matching condition.
+
+---
+
+### INC-029: record-test-status.sh --attest Is Harvest-Mode, Not a Pass-Recorder
+
+- **Date**: 2026-05
+- **Keywords**: record-test-status, --attest, worktree harvest, harvest sub-agent, passing test, attestation
+- **Symptom**: A developer or sub-agent calls `record-test-status.sh --attest` intending to record a passing test result, but the test status is not recorded as expected. The commit-step gate later fails because no `.passed` artifact is present.
+- **Root cause**: `--attest` is a worktree-import mode designed for cross-worktree harvest (used by harvest sub-agents via `harvest-worktree.sh`). It imports pre-existing artifacts from a source worktree rather than recording a new test result. Calling it to record a normal passing status has no effect in standard workflows.
+- **Detection**: After `record-test-status.sh --attest ...`, the test artifact directory does not contain the expected `.passed` file. The commit-step gate rejects the commit.
+- **Fix**: To record a normal passing test status, call `record-test-status.sh` without `--attest`:
+  ```bash
+  bash plugins/dso/scripts/record-test-status.sh passed "tests/scripts/test-foo.sh"
+  ```
+  Use `--attest` only when you are a harvest sub-agent importing results from a completed worktree branch.
+- **Rule added**: `--attest` is only for harvest sub-agents. Never use it to record a passing test status in a normal workflow.
