@@ -246,6 +246,88 @@ for model in seen_models:
 PYEOF
 }
 
+# ── resolve_scalar_trailers ───────────────────────────────────────────────────
+# Resolves scalar (single-value) trailers from task context and review scores.
+#
+# Reads env vars:
+#   DSO_TASK_ID    — ticket ID; if set, calls `dso ticket show` to get title/hierarchy
+#   ARTIFACTS_DIR  — path to dir containing reviewer-findings.json (optional)
+#
+# Emits to stdout (only non-empty values):
+#   --trailer 'DSO-Task: <title>'
+#   --trailer 'DSO-Story: <parent_title>'
+#   --trailer 'DSO-Epic: <grandparent_title>'
+#   --trailer 'DSO-Review-Score: N.N'
+#
+# Graceful degradation: dso CLI failure → omit task trailers; missing
+# reviewer-findings.json → omit review score. Never exits non-zero.
+#
+# Usage: resolve_scalar_trailers
+# Output: newline-separated --trailer flag strings, empty if no context
+# Returns: 0 always
+resolve_scalar_trailers() {
+    # ── Task / Story / Epic trailers ──────────────────────────────────────────
+    if [[ -n "${DSO_TASK_ID:-}" ]]; then
+        local _ticket_json
+        # Use PATH-resolved dso; capture failure silently
+        _ticket_json="$(dso ticket show "$DSO_TASK_ID" 2>/dev/null)" || _ticket_json=""
+
+        if [[ -n "$_ticket_json" ]]; then
+            # Extract fields via python3 (reliable JSON parsing; no jq dependency)
+            python3 - "$_ticket_json" <<'PYEOF'
+import sys
+import json
+
+raw = sys.argv[1]
+try:
+    obj = json.loads(raw)
+except json.JSONDecodeError:
+    sys.exit(0)
+
+title        = obj.get("title", "") or ""
+parent_title = obj.get("parent_title", "") or ""
+grand_title  = obj.get("grandparent_title", "") or ""
+
+if title:
+    print("--trailer 'DSO-Task: {}'".format(title))
+if parent_title:
+    print("--trailer 'DSO-Story: {}'".format(parent_title))
+if grand_title:
+    print("--trailer 'DSO-Epic: {}'".format(grand_title))
+PYEOF
+        fi
+    fi
+
+    # ── Review-Score trailer ──────────────────────────────────────────────────
+    local _findings="${ARTIFACTS_DIR:-}/reviewer-findings.json"
+    if [[ -n "${ARTIFACTS_DIR:-}" && -f "$_findings" ]]; then
+        python3 - "$_findings" <<'PYEOF'
+import sys
+import json
+
+path = sys.argv[1]
+try:
+    with open(path, "r") as fh:
+        obj = json.load(fh)
+except (OSError, json.JSONDecodeError):
+    sys.exit(0)
+
+scores = obj.get("scores", {})
+if not scores:
+    sys.exit(0)
+
+values = [v for v in scores.values() if isinstance(v, (int, float))]
+if not values:
+    sys.exit(0)
+
+avg = sum(values) / len(values)
+print("--trailer 'DSO-Review-Score: {:.1f}'".format(avg))
+PYEOF
+    fi
+
+    return 0
+}
+
 # ── Main (only runs when script is executed directly, not sourced) ────────────
 # Guard: skip main block when sourced by tests
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then

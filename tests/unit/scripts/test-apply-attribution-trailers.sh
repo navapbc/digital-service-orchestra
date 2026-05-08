@@ -539,6 +539,55 @@ test_resolve_scalar_trailers_produces_no_flags_when_no_context() {
     assert_pass_if_clean "test_resolve_scalar_trailers_produces_no_flags_when_no_context"
 }
 
+# ── Test 14: exits 0 and omits scalar trailers when ticket show fails ──────────
+# Verifies graceful degradation: non-zero exit from dso CLI must not propagate.
+
+test_exits_0_and_omits_scalar_trailers_when_ticket_show_fails() {
+    _snapshot_fail
+
+    if [[ ! -f "$SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_exits_0_and_omits_scalar_trailers_when_ticket_show_fails\n  script not found: %s\n" "$SCRIPT" >&2
+        assert_pass_if_clean "test_exits_0_and_omits_scalar_trailers_when_ticket_show_fails"
+        return
+    fi
+
+    # shellcheck disable=SC1090
+    source "$SCRIPT"
+
+    if ! declare -f resolve_scalar_trailers > /dev/null 2>&1; then
+        (( ++FAIL ))
+        printf "FAIL: test_exits_0_and_omits_scalar_trailers_when_ticket_show_fails\n  function resolve_scalar_trailers not found in script\n" >&2
+        assert_pass_if_clean "test_exits_0_and_omits_scalar_trailers_when_ticket_show_fails"
+        return
+    fi
+
+    # Mock dso CLI that exits non-zero (simulates CLI failure)
+    local _mock_dir
+    _mock_dir="$(_make_tmpdir)"
+    mkdir -p "$_mock_dir/bin"
+    cat > "$_mock_dir/bin/dso" <<'MOCK'
+#!/bin/bash
+exit 1
+MOCK
+    chmod +x "$_mock_dir/bin/dso"
+
+    local _artifacts
+    _artifacts="$(_make_tmpdir)"
+    # No reviewer-findings.json — isolate ticket-failure path
+
+    local output exit_code=0
+    output="$(PATH="$_mock_dir/bin:$PATH" ARTIFACTS_DIR="$_artifacts" DSO_TASK_ID="fail-1234" resolve_scalar_trailers 2>/dev/null)" || exit_code=$?
+
+    assert_eq "resolve_scalar_trailers: exits 0 when dso ticket show fails" "0" "$exit_code"
+
+    local has_task=0
+    printf '%s\n' "$output" | grep -q "DSO-Task" && has_task=1
+    assert_eq "resolve_scalar_trailers: no DSO-Task trailer when ticket show fails" "0" "$has_task"
+
+    assert_pass_if_clean "test_exits_0_and_omits_scalar_trailers_when_ticket_show_fails"
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 
 test_read_and_deduplicate_returns_single_value_for_duplicate_agents
@@ -554,5 +603,6 @@ test_check_git_version_passes_with_vendor_suffix
 test_resolve_scalar_trailers_produces_task_story_epic_flags
 test_resolve_scalar_trailers_produces_review_score_flag
 test_resolve_scalar_trailers_produces_no_flags_when_no_context
+test_exits_0_and_omits_scalar_trailers_when_ticket_show_fails
 
 print_summary
