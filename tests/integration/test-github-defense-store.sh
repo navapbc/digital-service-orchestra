@@ -99,7 +99,9 @@ _teardown_test() {
 
 # Convenience: count how many times `gh pr comment` was called.
 _gh_pr_comment_call_count() {
-    grep -c $'^CALL\tpr\tcomment' "$GH_CALL_LOG" 2>/dev/null || echo 0
+    local n
+    n=$(grep -c $'^CALL\tpr\tcomment' "$GH_CALL_LOG" 2>/dev/null)
+    echo "${n:-0}"
 }
 
 # ===========================================================================
@@ -185,7 +187,7 @@ test_write_noop_on_fork_pr() {
 
     # gh must NOT have been called at all.
     local call_count
-    call_count=$(grep -c '^CALL' "$GH_CALL_LOG" 2>/dev/null || echo 0)
+    call_count=$(grep -c '^CALL' "$GH_CALL_LOG" 2>/dev/null); call_count="${call_count:-0}"
     assert_eq "test_write_noop_on_fork_pr: gh not called on fork PR" "0" "$call_count"
 
     _teardown_test
@@ -229,7 +231,7 @@ test_write_rejects_unbound_ticket_id() {
 
     # gh must NOT have been called (rejection before API call).
     local call_count
-    call_count=$(grep -c '^CALL' "$GH_CALL_LOG" 2>/dev/null || echo 0)
+    call_count=$(grep -c '^CALL' "$GH_CALL_LOG" 2>/dev/null); call_count="${call_count:-0}"
     assert_eq "test_write_rejects_unbound_ticket_id: gh not called when ticket_id=UNBOUND" "0" "$call_count"
 
     _teardown_test
@@ -273,7 +275,7 @@ test_write_rejects_oversized_defense_text() {
 
     # gh must NOT have been called (rejection before API call).
     local call_count
-    call_count=$(grep -c '^CALL' "$GH_CALL_LOG" 2>/dev/null || echo 0)
+    call_count=$(grep -c '^CALL' "$GH_CALL_LOG" 2>/dev/null); call_count="${call_count:-0}"
     assert_eq "test_write_rejects_oversized_defense_text: gh not called when defense_text > 4096 chars" "0" "$call_count"
 
     _teardown_test

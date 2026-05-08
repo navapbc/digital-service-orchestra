@@ -212,5 +212,146 @@ test_write_requires_severity_history() {
 
 test_write_requires_severity_history
 
+# =============================================================================
+# Test 6 — _defense_compute_fingerprint collapses whitespace before hashing;
+#           two strings that differ only in whitespace produce the same digest
+# =============================================================================
+echo ""
+echo "--- test_fingerprint_whitespace_equivalence ---"
+
+test_fingerprint_whitespace_equivalence() {
+    _snapshot_fail
+
+    if [[ ! -f "$DEFENSE_STORE" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_fingerprint_whitespace_equivalence\n  expected: review-defense-store.sh to exist at %s\n  actual:   file not found\n" \
+            "$DEFENSE_STORE" >&2
+        return
+    fi
+
+    local hash_a hash_b
+    hash_a=$(
+        # shellcheck source=/dev/null
+        source "$DEFENSE_STORE"
+        _defense_compute_fingerprint '  foo  bar  baz  ' 'src/foo.py' '42'
+    ) || true
+    hash_b=$(
+        # shellcheck source=/dev/null
+        source "$DEFENSE_STORE"
+        _defense_compute_fingerprint 'foo bar baz' 'src/foo.py' '42'
+    ) || true
+
+    assert_eq "test_fingerprint_whitespace_equivalence: hashes match after whitespace collapse" \
+        "$hash_a" "$hash_b"
+
+    # Sanity: result must look like a 64-char SHA-256 hex string
+    local is_sha256=0
+    if [[ "$hash_a" =~ ^[0-9a-f]{64}$ ]]; then
+        is_sha256=1
+    fi
+    assert_eq "test_fingerprint_whitespace_equivalence: hash_a is 64-char hex" "1" "$is_sha256"
+
+    assert_pass_if_clean "test_fingerprint_whitespace_equivalence"
+}
+
+test_fingerprint_whitespace_equivalence
+
+# =============================================================================
+# Test 7 — _defense_compute_fingerprint returns different digests for
+#           genuinely different content strings
+# =============================================================================
+echo ""
+echo "--- test_fingerprint_different_content_produces_different_hash ---"
+
+test_fingerprint_different_content_produces_different_hash() {
+    _snapshot_fail
+
+    if [[ ! -f "$DEFENSE_STORE" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_fingerprint_different_content_produces_different_hash\n  expected: review-defense-store.sh to exist at %s\n  actual:   file not found\n" \
+            "$DEFENSE_STORE" >&2
+        return
+    fi
+
+    local hash_a hash_b
+    hash_a=$(
+        # shellcheck source=/dev/null
+        source "$DEFENSE_STORE"
+        _defense_compute_fingerprint 'line one content' 'src/foo.py' '42'
+    ) || true
+    hash_b=$(
+        # shellcheck source=/dev/null
+        source "$DEFENSE_STORE"
+        _defense_compute_fingerprint 'line two content' 'src/foo.py' '42'
+    ) || true
+
+    local hashes_differ=0
+    if [[ "$hash_a" != "$hash_b" ]]; then
+        hashes_differ=1
+    fi
+    assert_eq "test_fingerprint_different_content_produces_different_hash: different content yields different hash" \
+        "1" "$hashes_differ"
+
+    assert_pass_if_clean "test_fingerprint_different_content_produces_different_hash"
+}
+
+test_fingerprint_different_content_produces_different_hash
+
+# =============================================================================
+# Test 8 — defense_store_write embeds a non-empty cited_lines_fingerprint field
+#           in the record forwarded to the ticket comment command
+# =============================================================================
+echo ""
+echo "--- test_defense_store_write_embeds_fingerprint_in_output ---"
+
+test_defense_store_write_embeds_fingerprint_in_output() {
+    _snapshot_fail
+
+    if [[ ! -f "$DEFENSE_STORE" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_defense_store_write_embeds_fingerprint_in_output\n  expected: review-defense-store.sh to exist at %s\n  actual:   file not found\n" \
+            "$DEFENSE_STORE" >&2
+        return
+    fi
+
+    local captured_output
+    captured_output=$(
+        # shellcheck disable=SC2030,SC2031
+        export DSO_SESSION_TICKET_ID=TEST-123
+        export TICKET_CMD="echo"
+        # shellcheck source=/dev/null
+        source "$DEFENSE_STORE"
+        record=$(python3 -c "
+import json
+print(json.dumps({
+    'ticket_id': 'TEST-123',
+    'prior_finding_id': 'f-abc',
+    'defense_text': 'some defense',
+    'severity_history': [{'cycle': 1, 'severity': 'important', 'relation': None}],
+    'cited_lines': ['src/foo.py:42:some content']
+}))
+")
+        defense_store_write "$record" 2>/dev/null
+    ) || true
+
+    # The output (forwarded to TICKET_CMD=echo) must contain a non-empty
+    # cited_lines_fingerprint field
+    local has_fingerprint=0
+    if python3 -c "
+import json, sys
+data = json.loads(sys.stdin.read())
+fp = data.get('cited_lines_fingerprint', '')
+sys.exit(0 if fp else 1)
+" <<< "$captured_output" 2>/dev/null; then
+        has_fingerprint=1
+    fi
+    assert_eq "test_defense_store_write_embeds_fingerprint_in_output: cited_lines_fingerprint is non-empty in forwarded record" \
+        "1" "$has_fingerprint"
+
+    assert_pass_if_clean "test_defense_store_write_embeds_fingerprint_in_output"
+}
+
+test_defense_store_write_embeds_fingerprint_in_output
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary
