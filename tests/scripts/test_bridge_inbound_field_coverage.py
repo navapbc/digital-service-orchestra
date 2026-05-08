@@ -485,6 +485,68 @@ class TestInboundEditEventPath:
         )
 
 
+class TestInboundParentId:
+    """Test that Jira parent (Epic Link / parent issue) emits a local EDIT(parent_id) event."""
+
+    def test_inbound_parent_change_writes_edit_parent_id(
+        self, inbound: ModuleType, tmp_path: Path
+    ) -> None:
+        """When Jira parent.key changes vs local parent_id, an EDIT(parent_id) event is written."""
+        tracker = tmp_path / ".tickets-tracker"
+        ticket_id = "jira-dso-edit-parent"
+        ticket_dir = tracker / ticket_id
+        ticket_dir.mkdir(parents=True)
+
+        make_create_event(ticket_dir, title="Title", priority=2, assignee="Alice")
+        write_sync(ticket_dir, "DSO-EDIT-PARENT")
+
+        jira_issue = {
+            "key": "DSO-EDIT-PARENT",
+            "fields": {
+                "summary": "Title",
+                "description": "A test description",
+                "priority": {"name": "Medium"},
+                "assignee": {"displayName": "Alice"},
+                "issuetype": {"name": "Bug"},
+                "status": {"name": "Open"},
+                "created": "2026-03-20T10:00:00.000+0000",
+                "updated": "2026-03-20T11:00:00.000+0000",
+                "parent": {"key": "DSO-EPIC-42"},
+            },
+        }
+
+        mock_acli = MagicMock()
+        mock_acli.get_myself.return_value = {"timeZone": "UTC"}
+
+        config = {
+            "bridge_env_id": BRIDGE_ENV_ID,
+            "overlap_buffer_minutes": 15,
+            "checkpoint_file": "",
+            "status_mapping": {"Open": "open"},
+            "type_mapping": {"Bug": "bug"},
+            "run_id": "test-run",
+        }
+
+        with patch.object(inbound, "fetch_jira_changes", return_value=[jira_issue]):
+            inbound.process_inbound(
+                tickets_root=tracker,
+                acli_client=mock_acli,
+                last_pull_ts="2026-03-20T09:00:00Z",
+                config=config,
+            )
+
+        edit_files = list(ticket_dir.glob("*-EDIT.json"))
+        assert len(edit_files) >= 1, "Expected an EDIT event for parent change"
+        edit_data = json.loads(edit_files[0].read_text(encoding="utf-8"))
+        edited_fields = edit_data.get("data", {}).get("fields", {})
+        assert "parent_id" in edited_fields, (
+            f"EDIT must include parent_id. Got: {list(edited_fields.keys())}"
+        )
+        assert edited_fields["parent_id"] == "jira-dso-epic-42", (
+            f"parent_id must be canonical jira-<lower(key)>. Got: {edited_fields['parent_id']!r}"
+        )
+
+
 # ===========================================================================
 # EMPTY DESCRIPTION SAFEGUARD TESTS
 # ===========================================================================

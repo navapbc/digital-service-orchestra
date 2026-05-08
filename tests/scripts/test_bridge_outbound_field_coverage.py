@@ -454,6 +454,104 @@ class TestOutboundEditFields:
         )
 
 
+class TestOutboundEditParentId:
+    """Test parent_id (Jira Epic Link / parent issue) sync on outbound EDIT.
+
+    parent_id values stored locally in the canonical ``jira-{key}`` form must
+    be translated back to the bare uppercase Jira key before being sent to
+    Jira's parent field. When the parent ticket has a SYNC marker, the
+    marker's jira_key is authoritative; otherwise we fall back to stripping
+    the ``jira-`` prefix.
+    """
+
+    def test_edit_parent_id_resolves_via_sync_marker(
+        self, outbound: ModuleType, tmp_path: Path
+    ) -> None:
+        """When parent ticket has a SYNC.json, EDIT should send the bare Jira key."""
+        tracker = tmp_path / ".tickets-tracker"
+        # Parent ticket with its own SYNC marker
+        parent_id = "local-parent-1"
+        parent_dir = tracker / parent_id
+        parent_dir.mkdir(parents=True)
+        write_sync(parent_dir, "DSO-PARENT-1")
+
+        # Child ticket with a Jira link of its own
+        child_id = "test-edit-parent-1"
+        child_dir = tracker / child_id
+        child_dir.mkdir(parents=True)
+        make_create_event(child_dir, title="Child")
+        write_sync(child_dir, JIRA_KEY)
+
+        edit_path = write_event(
+            child_dir,
+            "EDIT",
+            {"fields": {"parent_id": parent_id}},
+        )
+
+        mock_acli = MagicMock()
+        events = [
+            {
+                "ticket_id": child_id,
+                "event_type": "EDIT",
+                "file_path": str(edit_path),
+            }
+        ]
+
+        outbound.process_outbound(
+            events,
+            acli_client=mock_acli,
+            tickets_root=tracker,
+            bridge_env_id=BRIDGE_ENV_ID,
+        )
+
+        assert mock_acli.update_issue.called, (
+            "OUTBOUND EDIT(parent_id) must call update_issue"
+        )
+        call_kwargs = mock_acli.update_issue.call_args[1] or {}
+        assert call_kwargs.get("parent") == "DSO-PARENT-1", (
+            f"parent must be resolved via SYNC marker. Got: {call_kwargs!r}"
+        )
+
+    def test_edit_parent_id_jira_prefix_fallback(
+        self, outbound: ModuleType, tmp_path: Path
+    ) -> None:
+        """When parent ticket dir is absent, the jira- prefix is stripped + uppercased."""
+        tracker = tmp_path / ".tickets-tracker"
+        child_id = "test-edit-parent-2"
+        child_dir = tracker / child_id
+        child_dir.mkdir(parents=True)
+        make_create_event(child_dir, title="Child")
+        write_sync(child_dir, JIRA_KEY)
+
+        edit_path = write_event(
+            child_dir,
+            "EDIT",
+            {"fields": {"parent_id": "jira-dso-9999"}},
+        )
+
+        mock_acli = MagicMock()
+        events = [
+            {
+                "ticket_id": child_id,
+                "event_type": "EDIT",
+                "file_path": str(edit_path),
+            }
+        ]
+
+        outbound.process_outbound(
+            events,
+            acli_client=mock_acli,
+            tickets_root=tracker,
+            bridge_env_id=BRIDGE_ENV_ID,
+        )
+
+        assert mock_acli.update_issue.called
+        call_kwargs = mock_acli.update_issue.call_args[1] or {}
+        assert call_kwargs.get("parent") == "DSO-9999", (
+            f"parent fallback should uppercase-strip jira- prefix. Got: {call_kwargs!r}"
+        )
+
+
 # ===========================================================================
 # FIELD COVERAGE SUMMARY TEST
 # ===========================================================================

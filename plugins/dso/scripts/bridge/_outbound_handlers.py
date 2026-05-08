@@ -998,6 +998,33 @@ def handle_edit_event(
             assignee_str = str(field_value).strip()
             if assignee_str:
                 update_kwargs[field_name] = assignee_str
+        elif field_name == "parent_id":
+            # Local parent_id → Jira parent (Epic Link / parent issue).
+            # Translate local jira-{key} ticket id back to the bare Jira key
+            # by looking up the parent ticket's SYNC marker; this avoids
+            # leaking the local "jira-" prefix to Jira's parent field.
+            parent_id = str(field_value).strip() if field_value is not None else ""
+            if parent_id:
+                parent_jira_key = _resolve_jira_key(tickets_root / parent_id)
+                if parent_jira_key:
+                    update_kwargs["parent"] = parent_jira_key
+                else:
+                    # Fall back to raw value for jira-prefixed ids (best effort:
+                    # strip the "jira-" prefix and uppercase).
+                    if parent_id.lower().startswith("jira-"):
+                        update_kwargs["parent"] = parent_id[len("jira-"):].upper()
+                    else:
+                        # Unsynced local parent — surface via BRIDGE_ALERT but
+                        # don't block the rest of the EDIT.
+                        write_bridge_alert(
+                            ticket_dir,
+                            ticket_id=ticket_id,
+                            reason=(
+                                f"EDIT parent_id={parent_id} skipped: parent "
+                                "ticket has no Jira SYNC marker"
+                            ),
+                            bridge_env_id=bridge_env_id,
+                        )
     if update_kwargs:
         acli_client.update_issue(jira_key, **update_kwargs)
 
