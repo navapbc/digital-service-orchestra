@@ -74,6 +74,7 @@ ARTIFACTS_DIR="$(_resolve_artifacts_dir)"
 _DRY_RUN=0
 _JSONL_FILE=""
 _COMMIT_REF="HEAD"
+_COMMIT_MSG_FILE=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -94,8 +95,16 @@ while [[ $# -gt 0 ]]; do
             break
             ;;
         *)
-            printf "ERROR: unknown option: %s\n" "$1" >&2
-            exit 1
+            # Positional argument: commit-msg file path (used when invoked as a
+            # prepare-commit-msg or commit-msg hook, where git passes the file
+            # path as the first positional argument).
+            if [[ -z "${_COMMIT_MSG_FILE:-}" ]]; then
+                _COMMIT_MSG_FILE="$1"
+                shift
+            else
+                printf "ERROR: unknown option: %s\n" "$1" >&2
+                exit 1
+            fi
             ;;
     esac
 done
@@ -331,6 +340,20 @@ PYEOF
 # ── Main (only runs when script is executed directly, not sourced) ────────────
 # Guard: skip main block when sourced by tests
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    # ── SC-2: attribution.enabled config guard ────────────────────────────────
+    # Exit 0 (no-op) if attribution is disabled in config.
+    _attribution_enabled=$(read-config.sh attribution.enabled 2>/dev/null || echo "false")
+    if [[ "$_attribution_enabled" != "true" ]]; then
+        exit 0
+    fi
+
+    # ── SC-4: JSONL file presence guard ───────────────────────────────────────
+    # Exit 0 (no-op) if the attribution JSONL file is absent or empty.
+    _jsonl="$ARTIFACTS_DIR/attribution-contributors.jsonl"
+    if [[ ! -f "$_jsonl" ]] || [[ ! -s "$_jsonl" ]]; then
+        exit 0
+    fi
+
     check_git_version "2.6" || {
         printf "ERROR: git >= 2.6 required for interpret-trailers\n" >&2
         exit 2
