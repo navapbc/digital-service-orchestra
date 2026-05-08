@@ -405,3 +405,4 @@ tests/scripts/test-ticket-transition-deleted.sh:tests/scripts/test-ticket-transi
 plugins/dso/scripts/commit-override.sh:tests/scripts/test-commit-override.sh [test_requires_reason_flag]
 plugins/dso/hooks/prepare-commit-msg-override-audit.sh:tests/hooks/test-prepare-commit-msg-override-audit.sh [test_no_token_no_trailer] [test_token_appends_trailer]
 plugins/dso/hooks/post-commit-override-cleanup.sh:tests/hooks/test-post-commit-override-cleanup.sh [test_cleanup_removes_token],tests/scripts/test-reinstall-hooks.sh [test_post_commit_registered]
+plugins/dso/scripts/commit-step.sh: tests/scripts/test-commit-step.sh [test_writes_result_artifact]
