@@ -4,30 +4,29 @@
 # Applies git commit trailers derived from attribution-contributors.jsonl,
 # recording which sub-agents and models contributed to a commit.
 #
-# ── JSONL Schema ──────────────────────────────────────────────────────────────
-# Each line in attribution-contributors.jsonl is a JSON object:
-#   {"type":"agent","subagent_type":"dso:<skill>","model":"<model-id>"}
+# ---------------------------------------------------------------------------
+# Attribution JSONL Schema
+# File: $ARTIFACTS_DIR/attribution-contributors.jsonl
 #
-# Fields:
-#   type          — always "agent" for sub-agent contributions
-#   subagent_type — named agent identifier (e.g. "dso:code-reviewer-light")
-#   model         — model ID used for this contribution (e.g. "sonnet")
-#   skill_name    — optional; populated when type is a skill invocation
+# Each line is a JSON object describing one contributor:
+#   Agent:  {"type":"agent","subagent_type":"dso:sprint","model":"claude-sonnet-4-6"}
+#   Skill:  {"type":"skill","skill_name":"sprint"}
 #
-# ── Trailer Classification ────────────────────────────────────────────────────
-# Multi-value trailers (one per unique value, comma-joined if collapsing):
-#   DSO-Agent:     derived from subagent_type field
-#   DSO-Model:     derived from model field
-#   DSO-Skill:     derived from skill_name field (when present)
+# Multi-value trailers (one per unique entry):
+#   DSO-Agent:  <subagent_type> — one trailer per unique agent entry
+#   DSO-Skill:  <skill_name>   — one trailer per unique skill entry
+#   DSO-Model:  <model>        — one trailer per unique model value
 #
-# Scalar trailers (single value per commit):
-#   DSO-Session:   session ID, if available
+# Scalar trailers (from DSO_TASK_ID ticket context + reviewer-findings.json):
+#   DSO-Task:           <task title>
+#   DSO-Story:          <parent story title>
+#   DSO-Epic:           <grandparent epic title>
+#   Jira-Ticket:        <jira ticket key if bridged>
+#   DSO-Review-Score:   <average score, 1 decimal>
 #
-# ── Truncation Contract ───────────────────────────────────────────────────────
-# When the total trailer block exceeds git's line-length soft limit (~998 chars):
-#   1. Deduplicate values first (this script handles dedup via read_and_deduplicate)
-#   2. Truncate to first N unique values with a trailing "... (N more)" annotation
-#   3. Never truncate to zero — always emit at least one value per trailer key
+# Truncation contract: attribution-contributors.jsonl is cleared to 0 bytes
+# after each successful git commit via the --truncate flag.
+# ---------------------------------------------------------------------------
 #
 # ── Usage ─────────────────────────────────────────────────────────────────────
 #   apply-attribution-trailers.sh [--dry-run] [--jsonl <file>] [--commit <ref>]
