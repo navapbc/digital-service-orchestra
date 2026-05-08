@@ -306,7 +306,7 @@ def test_runner_pipeline_standard_tier(tmp_path):
             },
         ),
         patch(
-            "dso_ci_review.runner.classify_tier", return_value=tier_result
+            "dso_ci_review.runner._classify_tier_via_bash", return_value=tier_result
         ) as mock_classify,
         patch(
             "dso_ci_review.runner.async_dispatch_specialists", side_effect=mock_dispatch
@@ -409,7 +409,7 @@ def test_runner_pipeline_deep_tier_dispatches_three_agents(tmp_path):
                 "ANTHROPIC_API_KEY": "test-key",
             },
         ),
-        patch("dso_ci_review.runner.classify_tier", return_value=tier_result),
+        patch("dso_ci_review.runner._classify_tier_via_bash", return_value=tier_result),
         patch(
             "dso_ci_review.runner.async_dispatch_specialists", side_effect=mock_dispatch
         ),
@@ -513,7 +513,7 @@ def test_runner_exits_1_when_all_specialists_fail(tmp_path):
                 "ANTHROPIC_API_KEY": "test-key",
             },
         ),
-        patch("dso_ci_review.runner.classify_tier", return_value=tier_result),
+        patch("dso_ci_review.runner._classify_tier_via_bash", return_value=tier_result),
         patch(
             "dso_ci_review.runner.async_dispatch_specialists",
             side_effect=mock_dispatch,
@@ -715,7 +715,7 @@ def test_runner_warns_on_all_synthetic_findings(tmp_path, capsys):
                 "ANTHROPIC_API_KEY": "test-key",
             },
         ),
-        patch("dso_ci_review.runner.classify_tier", return_value=tier_result),
+        patch("dso_ci_review.runner._classify_tier_via_bash", return_value=tier_result),
         patch(
             "dso_ci_review.runner.async_dispatch_specialists", side_effect=mock_dispatch
         ),
@@ -812,7 +812,7 @@ def _run_main_with(diff_path, output_path, dispatch_findings, env_extra=None):
     with (
         patch.dict("os.environ", env, clear=False),
         patch(
-            "dso_ci_review.runner.classify_tier",
+            "dso_ci_review.runner._classify_tier_via_bash",
             return_value=_standard_tier_classification(),
         ),
         patch(
