@@ -406,4 +406,4 @@ plugins/dso/scripts/commit-override.sh:tests/scripts/test-commit-override.sh [te
 plugins/dso/hooks/prepare-commit-msg-override-audit.sh:tests/hooks/test-prepare-commit-msg-override-audit.sh [test_no_token_no_trailer] [test_token_appends_trailer]
 plugins/dso/hooks/post-commit-override-cleanup.sh:tests/hooks/test-post-commit-override-cleanup.sh [test_cleanup_removes_token],tests/scripts/test-reinstall-hooks.sh [test_post_commit_registered]
 plugins/dso/scripts/commit-step.sh: tests/scripts/test-commit-step.sh [test_writes_result_artifact]
-plugins/dso/hooks/pre-commit-compliance-verifier.sh: tests/hooks/test-pre-commit-compliance-verifier.sh [test_blocks_missing_artifact]
+plugins/dso/hooks/pre-commit-compliance-verifier.sh: tests/hooks/test-pre-commit-compliance-verifier.sh [test_blocks_missing_artifact],tests/scripts/test-reinstall-hooks.sh [test_compliance_verifier_registered]
