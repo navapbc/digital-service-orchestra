@@ -198,29 +198,12 @@ rm -rf "$_timing_test_dir"
 
 # ============================================================
 # test_pre_bash_dispatcher_record_test_status_direct_call_blocked
-# The dispatcher must block direct calls to record-test-status.sh that do
-# NOT include the --attest flag. Agents calling record-test-status.sh
-# directly bypass staged-file context and diff_hash binding, which is a
-# security/integrity violation. The hook_record_test_status_guard (entry 8
-# in the dispatch loop, before hook_tickets_tracker_bash_guard) must
-# intercept these calls and return exit 2.
-#
-# (EXIT trap override). It invokes the complete dispatcher script via
-# `bash "$DISPATCHER"` (not sourced), with CLAUDE_PLUGIN_ROOT set so
-# hook-error-handler.sh is sourced and the EXIT trap is registered, and
-# asserts the final process exit code is 2. Before the fix, this test
-# produced exit 0 because the EXIT trap converted the intentional exit 2 to
-# 0. After the `trap - EXIT` fix, exit 2 is preserved end-to-end. The RED
-# marker in .test-index (now removed as GREEN) documented the pre-fix failure.
+# REMOVED (ce62-624e): hook_record_test_status_guard was removed as a
+# non-load-bearing speed-bump. The load-bearing defense against status
+# recorded on a mismatched diff is the diff_hash check inside
+# pre-commit-test-gate.sh. Direct calls to record-test-status.sh are no
+# longer intercepted by the dispatcher.
 # ============================================================
-echo "--- test_pre_bash_dispatcher_record_test_status_direct_call_blocked ---"
-_INPUT='{"tool_name":"Bash","tool_input":{"command":"bash plugins/dso/hooks/record-test-status.sh --source-file=foo.py"}}'
-_exit_code=0
-_output=""
-_output=$(printf '%s' "$_INPUT" | CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" bash "$DISPATCHER" 2>&1) || _exit_code=$?
-assert_eq "test_pre_bash_dispatcher_record_test_status_direct_call_blocked: exit 2" "2" "$_exit_code"
-assert_contains "test_pre_bash_dispatcher_record_test_status_direct_call_blocked: BLOCKED in output" \
-    "BLOCKED" "$_output"
 
 # ============================================================
 # test_pre_bash_dispatcher_record_test_status_attest_allowed

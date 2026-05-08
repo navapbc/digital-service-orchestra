@@ -887,15 +887,15 @@ _phase_resolve_threads() {
     local _last_thread_seen_ts=0
     local _last_thread_count=0
     local _last_head_sha=""
-    # compat-shim: LLM helper was deleted in S3; _LLM_DISPATCH_CMD must be set.
-    # Fail-loud (not return 0) when unset: a silent skip lets the merge proceed
-    # without resolving review threads, defeating the safety property the user
-    # asked for ("we cannot merge without LLM review"). Bug 9e04-0eb6.
+    # compat-shim: LLM helper was deleted in S3; _LLM_DISPATCH_CMD must be set
+    # IF unresolved threads actually require dispatch. The previous entry-time
+    # guard fired before any thread fetch and blocked every PR even when there
+    # were zero unresolved threads (bug 1a83-46c5). The check is now deferred to
+    # just before the dispatch call (line ~1010 of this function), so a PR with
+    # no review threads completes cleanly without requiring the helper, while a
+    # PR with unresolved threads still fails loud rather than silently skipping
+    # (the safety property requested by bug 9e04-0eb6).
     local _llm_cmd="${_LLM_DISPATCH_CMD:-}"
-    if [[ -z "$_llm_cmd" ]]; then
-        echo "ESCALATE: _LLM_DISPATCH_CMD not set; no LLM helper available (deleted in S3). Configure _LLM_DISPATCH_CMD to a compat-shim or override per-environment to enable PR thread resolution. Refusing to silently skip." >&2
-        return 1
-    fi
     # Track threads the LLM escalated so they are skipped on subsequent iterations
     # instead of burning the dispatch budget repeatedly on unresolvable threads.
     declare -A _escalated_threads=()
@@ -985,6 +985,15 @@ _phase_resolve_threads() {
         # config. The arithmetic at this call site is safe under the same constraint.
         if (( _dispatches >= _max_dispatches )); then
             echo "ESCALATE:thread_resolution REASON:dispatch_cap PR:${_pr_url} UNRESOLVED:${_unresolved_ids} DISPATCHES:${_dispatches}" >&2
+            return 1
+        fi
+
+        # --- LLM helper required from this point — fail-loud if unset (1a83-46c5) ---
+        # We only reach this point if there are actual unresolved, non-escalated
+        # threads that need LLM dispatch. PRs with zero review threads exit cleanly
+        # via _pr_settling_check above without ever requiring the helper.
+        if [[ -z "$_llm_cmd" ]]; then
+            echo "ESCALATE: _LLM_DISPATCH_CMD not set; no LLM helper available (deleted in S3). Configure _LLM_DISPATCH_CMD to a compat-shim or override per-environment to enable PR thread resolution. Refusing to silently skip. UNRESOLVED:${_unresolved_ids} PR:${_pr_url}" >&2
             return 1
         fi
 
