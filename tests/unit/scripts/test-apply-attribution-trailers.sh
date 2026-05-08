@@ -889,6 +889,187 @@ test_injection_emits_trailer_skipped_and_exits_0_when_git_below_2_6() {
     assert_pass_if_clean "test_injection_emits_trailer_skipped_and_exits_0_when_git_below_2_6"
 }
 
+# ── Test 21: SC-5 — no WARNING on stderr when DSO-* trailers are at bottom ────
+# RED: post-injection placement scan does not exist yet.
+# The script never emits a WARNING, so the grep count for WARNING will be 0
+# (passing this assertion). But the test itself checks that no spurious warnings
+# fire for a well-formed message — this test is expected to PASS once the scan
+# is implemented correctly. Until the scan exists, this test also passes (no
+# WARNING is emitted by the absent scan code), making this test initially GREEN.
+# Marked as RED in .test-index because the scan behaviour can regress: once the
+# placement scan IS implemented, a regression that emits spurious WARNINGs for
+# valid messages will flip this back to RED.
+#
+# NOTE: Because this test passes with the current (no-scan) implementation AND
+# after correct implementation, it is functionally GREEN now. See .test-index
+# for placement — added only if it is confirmed to fail.
+
+test_placement_scan_emits_no_warning_when_trailers_at_bottom() {
+    _snapshot_fail
+
+    if [[ ! -f "$SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_placement_scan_emits_no_warning_when_trailers_at_bottom\n  script not found: %s\n" "$SCRIPT" >&2
+        assert_pass_if_clean "test_placement_scan_emits_no_warning_when_trailers_at_bottom"
+        return
+    fi
+
+    local _artifacts
+    _artifacts="$(_make_tmpdir)"
+
+    # Populate JSONL with one agent entry
+    printf '{"type":"agent","subagent_type":"dso:red-test-writer","model":"sonnet"}\n' \
+        > "$_artifacts/attribution-contributors.jsonl"
+
+    # Commit message that already has a DSO-Agent trailer in the proper trailer
+    # section (after a blank line at end) — correct placement.
+    local _commit_msg_file="$_artifacts/COMMIT_EDITMSG"
+    printf 'Fix: improve thing\n\nThis change improves the thing.\n\nDSO-Agent: dso:previous-agent\n' \
+        > "$_commit_msg_file"
+
+    # Mock read-config.sh: attribution.enabled → true
+    local _mock_dir
+    _mock_dir="$(_make_tmpdir)/bin"
+    mkdir -p "$_mock_dir"
+    # shellcheck disable=SC2016
+    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
+        > "$_mock_dir/read-config.sh"
+    chmod +x "$_mock_dir/read-config.sh"
+
+    local _stderr_file
+    _stderr_file="$(_make_tmpdir)/stderr.txt"
+
+    local exit_code=0
+    ARTIFACTS_DIR="$_artifacts" PATH="$_mock_dir:$PATH" \
+        bash "$SCRIPT" "$_commit_msg_file" 2>"$_stderr_file" || exit_code=$?
+
+    assert_eq "SC-5 no-warn: exits 0" "0" "$exit_code"
+
+    # No WARNING line on stderr when trailers are placed correctly
+    local warning_count=0
+    warning_count="$(grep -ci "WARNING" "$_stderr_file" 2>/dev/null || true)"
+    assert_eq "SC-5 no-warn: stderr WARNING count is 0 for correct trailer placement" "0" "$warning_count"
+
+    assert_pass_if_clean "test_placement_scan_emits_no_warning_when_trailers_at_bottom"
+}
+
+# ── Test 22: SC-5 — WARNING on stderr when DSO-* trailer appears in body ──────
+# RED: post-injection placement scan does not exist yet.
+# The script never scans placement, so no WARNING is emitted.
+# This test asserts that WARNING is present — it FAILS until the scan is added.
+
+test_placement_scan_emits_warning_when_dso_trailer_in_message_body() {
+    _snapshot_fail
+
+    if [[ ! -f "$SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_placement_scan_emits_warning_when_dso_trailer_in_message_body\n  script not found: %s\n" "$SCRIPT" >&2
+        assert_pass_if_clean "test_placement_scan_emits_warning_when_dso_trailer_in_message_body"
+        return
+    fi
+
+    local _artifacts
+    _artifacts="$(_make_tmpdir)"
+
+    # Populate JSONL with one agent entry so injection proceeds
+    printf '{"type":"agent","subagent_type":"dso:red-test-writer","model":"sonnet"}\n' \
+        > "$_artifacts/attribution-contributors.jsonl"
+
+    # Malformed commit message: DSO-Agent line appears in the body BEFORE a blank
+    # separator line — this simulates trailers that ended up in the body.
+    local _commit_msg_file="$_artifacts/COMMIT_EDITMSG"
+    printf 'Fix: improve thing\nDSO-Agent: something\nMore body text here.\n' \
+        > "$_commit_msg_file"
+
+    # Mock read-config.sh: attribution.enabled → true
+    local _mock_dir
+    _mock_dir="$(_make_tmpdir)/bin"
+    mkdir -p "$_mock_dir"
+    # shellcheck disable=SC2016
+    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
+        > "$_mock_dir/read-config.sh"
+    chmod +x "$_mock_dir/read-config.sh"
+
+    local _stderr_file
+    _stderr_file="$(_make_tmpdir)/stderr.txt"
+
+    local exit_code=0
+    ARTIFACTS_DIR="$_artifacts" PATH="$_mock_dir:$PATH" \
+        bash "$SCRIPT" "$_commit_msg_file" 2>"$_stderr_file" || exit_code=$?
+
+    assert_eq "SC-5 body-warn: exits 0" "0" "$exit_code"
+
+    # A WARNING must appear on stderr when DSO-* lines are in the body
+    local has_warning=0
+    grep -qi "WARNING" "$_stderr_file" 2>/dev/null && has_warning=1
+    assert_eq "SC-5 body-warn: stderr contains WARNING for body-embedded DSO trailer" "1" "$has_warning"
+
+    assert_pass_if_clean "test_placement_scan_emits_warning_when_dso_trailer_in_message_body"
+}
+
+# ── Test 23: SC-5 — blank line separator present before first DSO-* trailer ───
+# This verifies that git interpret-trailers naturally inserts a blank separator.
+# git interpret-trailers handles this natively, so this test is expected to PASS
+# already. Written to guard against regressions if the injection approach changes.
+# Not added to .test-index as a RED marker (it passes with the current impl).
+
+test_blank_line_separator_present_before_first_dso_trailer_in_output() {
+    _snapshot_fail
+
+    if [[ ! -f "$SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_blank_line_separator_present_before_first_dso_trailer_in_output\n  script not found: %s\n" "$SCRIPT" >&2
+        assert_pass_if_clean "test_blank_line_separator_present_before_first_dso_trailer_in_output"
+        return
+    fi
+
+    local _artifacts
+    _artifacts="$(_make_tmpdir)"
+
+    # One agent entry in JSONL
+    printf '{"type":"agent","subagent_type":"dso:red-test-writer","model":"sonnet"}\n' \
+        > "$_artifacts/attribution-contributors.jsonl"
+
+    # Plain commit message with no trailing blank line
+    local _commit_msg_file="$_artifacts/COMMIT_EDITMSG"
+    printf 'Initial commit\n' > "$_commit_msg_file"
+
+    # Mock read-config.sh: attribution.enabled → true
+    local _mock_dir
+    _mock_dir="$(_make_tmpdir)/bin"
+    mkdir -p "$_mock_dir"
+    # shellcheck disable=SC2016
+    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
+        > "$_mock_dir/read-config.sh"
+    chmod +x "$_mock_dir/read-config.sh"
+
+    local exit_code=0
+    ARTIFACTS_DIR="$_artifacts" PATH="$_mock_dir:$PATH" \
+        bash "$SCRIPT" "$_commit_msg_file" 2>/dev/null || exit_code=$?
+
+    assert_eq "SC-5 blank-sep: exits 0" "0" "$exit_code"
+
+    # Find the line number of the first DSO-* trailer and the line immediately before it.
+    # The line immediately before the first DSO-* trailer must be blank.
+    local _first_dso_line _prev_line
+    _first_dso_line="$(grep -n "^DSO-" "$_commit_msg_file" 2>/dev/null | head -1 | cut -d: -f1 || true)"
+
+    if [[ -z "$_first_dso_line" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_blank_line_separator_present_before_first_dso_trailer_in_output\n  no DSO-* trailer found in commit message after injection\n" >&2
+        assert_pass_if_clean "test_blank_line_separator_present_before_first_dso_trailer_in_output"
+        return
+    fi
+
+    local _sep_line_num=$(( _first_dso_line - 1 ))
+    _prev_line="$(sed -n "${_sep_line_num}p" "$_commit_msg_file" 2>/dev/null || true)"
+
+    # The line before the first DSO-* trailer must be empty (blank separator)
+    assert_eq "SC-5 blank-sep: blank line immediately before first DSO-* trailer" "" "$_prev_line"
+
+    assert_pass_if_clean "test_blank_line_separator_present_before_first_dso_trailer_in_output"
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 
 test_read_and_deduplicate_returns_single_value_for_duplicate_agents
@@ -911,5 +1092,156 @@ test_script_exits_0_without_modifying_commit_msg_when_jsonl_empty
 test_injection_appends_dso_agent_trailer_to_commit_message
 test_two_distinct_agents_produce_two_dso_agent_lines
 test_injection_emits_trailer_skipped_and_exits_0_when_git_below_2_6
+test_placement_scan_emits_no_warning_when_trailers_at_bottom
+test_placement_scan_emits_warning_when_dso_trailer_in_message_body
+test_blank_line_separator_present_before_first_dso_trailer_in_output
+
+# ── SC-6 --truncate tests (RED) ───────────────────────────────────────────────
+
+# ── Test 24: --truncate clears a populated JSONL file to zero bytes ───────────
+# RED: --truncate flag is not implemented. The script treats it as an unknown
+# positional argument and exits 1 (unknown option error), so the exit-code
+# assertion (expects 0) will fail.
+
+test_truncate_clears_populated_jsonl_to_zero_bytes() {
+    _snapshot_fail
+
+    if [[ ! -f "$SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_truncate_clears_populated_jsonl_to_zero_bytes\n  script not found: %s\n" "$SCRIPT" >&2
+        assert_pass_if_clean "test_truncate_clears_populated_jsonl_to_zero_bytes"
+        return
+    fi
+
+    local _artifacts
+    _artifacts="$(_make_tmpdir)"
+    local _jsonl="$_artifacts/attribution-contributors.jsonl"
+    printf '{"type":"agent","subagent_type":"dso:red-test-writer","model":"sonnet"}\n' > "$_jsonl"
+
+    local _commit_msg_file="$_artifacts/COMMIT_EDITMSG"
+    printf 'My commit message\n' > "$_commit_msg_file"
+
+    # Mock read-config.sh: attribution.enabled → true
+    local _mock_dir
+    _mock_dir="$(_make_tmpdir)/bin"
+    mkdir -p "$_mock_dir"
+    # shellcheck disable=SC2016
+    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
+        > "$_mock_dir/read-config.sh"
+    chmod +x "$_mock_dir/read-config.sh"
+
+    local exit_code=0
+    ARTIFACTS_DIR="$_artifacts" PATH="$_mock_dir:$PATH" \
+        bash "$SCRIPT" --truncate "$_commit_msg_file" 2>/dev/null || exit_code=$?
+
+    assert_eq "SC-6 truncate populated: exits 0" "0" "$exit_code"
+
+    local byte_count
+    byte_count="$(wc -c < "$_jsonl" 2>/dev/null || echo "-1")"
+    assert_eq "SC-6 truncate populated: JSONL has zero bytes after truncation" "0" "$byte_count"
+
+    assert_pass_if_clean "test_truncate_clears_populated_jsonl_to_zero_bytes"
+}
+
+# ── Test 25: --truncate exits 0 when JSONL file is absent ─────────────────────
+# RED: --truncate flag is not implemented. The script exits 1 on the unknown
+# positional; the exit-code assertion (expects 0) will fail.
+
+test_truncate_exits_0_when_jsonl_absent() {
+    _snapshot_fail
+
+    if [[ ! -f "$SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_truncate_exits_0_when_jsonl_absent\n  script not found: %s\n" "$SCRIPT" >&2
+        assert_pass_if_clean "test_truncate_exits_0_when_jsonl_absent"
+        return
+    fi
+
+    local _artifacts
+    _artifacts="$(_make_tmpdir)"
+    # Intentionally no JSONL file in _artifacts
+
+    local _commit_msg_file="$_artifacts/COMMIT_EDITMSG"
+    printf 'My commit message\n' > "$_commit_msg_file"
+
+    # Mock read-config.sh: attribution.enabled → true
+    local _mock_dir
+    _mock_dir="$(_make_tmpdir)/bin"
+    mkdir -p "$_mock_dir"
+    # shellcheck disable=SC2016
+    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
+        > "$_mock_dir/read-config.sh"
+    chmod +x "$_mock_dir/read-config.sh"
+
+    local exit_code=0
+    ARTIFACTS_DIR="$_artifacts" PATH="$_mock_dir:$PATH" \
+        bash "$SCRIPT" --truncate "$_commit_msg_file" 2>/dev/null || exit_code=$?
+
+    assert_eq "SC-6 truncate absent JSONL: exits 0 (graceful no-op)" "0" "$exit_code"
+
+    assert_pass_if_clean "test_truncate_exits_0_when_jsonl_absent"
+}
+
+# ── Test 26: --truncate emits warning on stderr and exits 0 when JSONL not writable ──
+# RED: --truncate flag is not implemented. The script exits 1 on the unknown
+# positional; the exit-code assertion (expects 0) will fail.
+
+test_truncate_emits_warning_and_exits_0_on_truncation_failure() {
+    _snapshot_fail
+
+    if [[ ! -f "$SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_truncate_emits_warning_and_exits_0_on_truncation_failure\n  script not found: %s\n" "$SCRIPT" >&2
+        assert_pass_if_clean "test_truncate_emits_warning_and_exits_0_on_truncation_failure"
+        return
+    fi
+
+    # Skip this test when running as root (chmod 000 has no effect for root)
+    if [[ "$(id -u)" -eq 0 ]]; then
+        printf "SKIP: test_truncate_emits_warning_and_exits_0_on_truncation_failure (running as root)\n"
+        assert_pass_if_clean "test_truncate_emits_warning_and_exits_0_on_truncation_failure"
+        return
+    fi
+
+    local _artifacts
+    _artifacts="$(_make_tmpdir)"
+    local _jsonl="$_artifacts/attribution-contributors.jsonl"
+    printf '{"type":"agent","subagent_type":"dso:red-test-writer","model":"sonnet"}\n' > "$_jsonl"
+    chmod 000 "$_jsonl"
+
+    local _commit_msg_file="$_artifacts/COMMIT_EDITMSG"
+    printf 'My commit message\n' > "$_commit_msg_file"
+
+    # Mock read-config.sh: attribution.enabled → true
+    local _mock_dir
+    _mock_dir="$(_make_tmpdir)/bin"
+    mkdir -p "$_mock_dir"
+    # shellcheck disable=SC2016
+    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
+        > "$_mock_dir/read-config.sh"
+    chmod +x "$_mock_dir/read-config.sh"
+
+    local _stderr_file
+    _stderr_file="$(_make_tmpdir)/stderr.txt"
+
+    local exit_code=0
+    ARTIFACTS_DIR="$_artifacts" PATH="$_mock_dir:$PATH" \
+        bash "$SCRIPT" --truncate "$_commit_msg_file" 2>"$_stderr_file" || exit_code=$?
+
+    assert_eq "SC-6 truncate unwritable: exits 0 (graceful degradation)" "0" "$exit_code"
+
+    local has_warning=0
+    grep -qi "warning" "$_stderr_file" 2>/dev/null && has_warning=1
+    assert_eq "SC-6 truncate unwritable: stderr contains 'warning'" "1" "$has_warning"
+
+    # Restore permissions so cleanup trap can delete the temp dir
+    chmod 600 "$_jsonl" 2>/dev/null || true
+
+    assert_pass_if_clean "test_truncate_emits_warning_and_exits_0_on_truncation_failure"
+}
+
+test_truncate_clears_populated_jsonl_to_zero_bytes
+test_truncate_exits_0_when_jsonl_absent
+test_truncate_emits_warning_and_exits_0_on_truncation_failure
 
 print_summary
