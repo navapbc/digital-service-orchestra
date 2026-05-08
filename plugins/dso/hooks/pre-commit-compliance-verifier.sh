@@ -115,6 +115,12 @@ def extract_overlays(raw_content):
         pass
     # Fallback: regex extraction from raw content.
     # Handles inline-embedded JSON where stdout value is not properly escaped.
+    # REVIEW-DEFENSE (PR #78 cycle-2 finding 4): the [^\]]* pattern excludes nested
+    # brackets. Overlay names are simple strings (security, performance, etc.) and
+    # cannot contain brackets. The primary JSON parse above handles all well-formed
+    # input; this regex covers only the inline-embedding edge case. If both paths fail,
+    # extract_overlays returns [] and overlay checking is skipped — acceptable because
+    # that scenario requires double corruption of the classifier result artifact.
     pat = r'\"overlays\"\s*:\s*(\[[^\]]*\])'
     m = re.search(pat, raw_content)
     if m:

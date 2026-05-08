@@ -65,7 +65,7 @@ mkdir -p "$ARTIFACTS_DIR"
 _diff_hash=$(git diff --cached 2>/dev/null | sha256sum | cut -c1-12)
 
 # ── Build timestamp (ISO 8601 UTC) ──
-_timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date -u +"%Y-%m-%dT%H:%M:%SZ")
+_timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 # ── Write override.token atomically ──
 _token_file="$ARTIFACTS_DIR/override.token"

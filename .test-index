@@ -2,6 +2,12 @@
 # REVIEW-DEFENSE (PR #78 finding 2): marker syntax is `source.py:[test_name] test_file.py`
 # (no space between the colon and the opening bracket). Lines 179 and 181 use the correct
 # format. The finding claimed a space was present; inspection of the file confirms none exists.
+#
+# REVIEW-DEFENSE (PR #78 cycle-2 finding 3): `test_file.sh [test_name]` with a space before
+# the bracket on the TEST-FILE side is valid syntax — it is a test-function filter.
+# parse_test_index() (pre-commit-test-gate.sh:267) explicitly strips `\s+\[.*\]$` from test
+# paths. check-test-index-duplicates.sh normalizes the same pattern. This is distinct from
+# the source-file-side `source.py:[test_name]` format (no space). Both are intentional.
 .claude-plugin/marketplace.json:tests/scripts/test-marketplace-json.sh
 .github/workflows/ci-python-skills.yml:tests/skills/test_ci_workflow_pip_cache.py
 .github/workflows/ci.yml:tests/scripts/test-ci-hyperfine-installed.sh,tests/scripts/test-ci-consolidated-changes-detection.sh

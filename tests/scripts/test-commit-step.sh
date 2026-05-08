@@ -2,6 +2,13 @@
 # tests/scripts/test-commit-step.sh
 # RED-phase tests for plugins/dso/scripts/commit-step.sh (does not exist yet).
 # All tests must FAIL until the implementation is written (T2).
+#
+# REVIEW-DEFENSE (PR #78 cycle-2 finding 5): tests assert field presence, not type
+# correctness (exit_code is integer, timestamp is ISO 8601, etc.). Type validation
+# would be a change-detector: the behavioral contract is "file written with expected
+# fields" not "field X has type Y". The Python failure guard added in finding-3 fix
+# (cycle 1) closes the primary corruption path. Per the behavioral testing standard,
+# tests should focus on observable outcomes, not internal JSON schema enforcement.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

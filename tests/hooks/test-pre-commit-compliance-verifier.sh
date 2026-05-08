@@ -169,7 +169,7 @@ EXIT_CODE=$(run_hook \
 assert_eq "test_verifier_passes_all_artifacts_present" "0" "$EXIT_CODE"
 
 # ---------------------------------------------------------------------------
-# test_verifier_blocks_missing_test  [RED until T2]
+# test_verifier_blocks_missing_test  [GREEN]
 # lint.result present but test.result absent → exits 1
 # Current verifier only checks lint.result → exits 0 → RED
 # ---------------------------------------------------------------------------
@@ -187,7 +187,7 @@ EXIT_CODE=$(run_hook \
 assert_eq "test_verifier_blocks_missing_test" "1" "$EXIT_CODE"
 
 # ---------------------------------------------------------------------------
-# test_verifier_blocks_missing_format  [RED until T2]
+# test_verifier_blocks_missing_format  [GREEN]
 # lint.result present but format.result absent → exits 1
 # Current verifier only checks lint.result → exits 0 → RED
 # ---------------------------------------------------------------------------
@@ -205,7 +205,7 @@ EXIT_CODE=$(run_hook \
 assert_eq "test_verifier_blocks_missing_format" "1" "$EXIT_CODE"
 
 # ---------------------------------------------------------------------------
-# test_verifier_blocks_missing_reviewer_record  [RED until T2]
+# test_verifier_blocks_missing_reviewer_record  [GREEN]
 # lint.result present but reviewer-record.result absent → exits 1
 # Current verifier only checks lint.result → exits 0 → RED
 # ---------------------------------------------------------------------------
@@ -223,7 +223,7 @@ EXIT_CODE=$(run_hook \
 assert_eq "test_verifier_blocks_missing_reviewer_record" "1" "$EXIT_CODE"
 
 # ---------------------------------------------------------------------------
-# test_verifier_blocks_missing_classifier_dispatch  [RED until T2]
+# test_verifier_blocks_missing_classifier_dispatch  [GREEN]
 # lint.result present but classifier-dispatch.result absent → exits 1
 # Current verifier only checks lint.result → exits 0 → RED
 # ---------------------------------------------------------------------------
@@ -241,7 +241,7 @@ EXIT_CODE=$(run_hook \
 assert_eq "test_verifier_blocks_missing_classifier_dispatch" "1" "$EXIT_CODE"
 
 # ---------------------------------------------------------------------------
-# test_override_token_bypasses_block  [RED until SC3 fix]
+# test_override_token_bypasses_block  [GREEN]
 # override.token present with matching diff_hash → verifier exits 0
 # even when all 5 required step artifacts are missing.
 # Current verifier ignores override.token → exits 1 → RED
@@ -263,7 +263,7 @@ EXIT_CODE=$(run_hook \
 assert_eq "test_override_token_bypasses_block" "0" "$EXIT_CODE"
 
 # ---------------------------------------------------------------------------
-# test_stale_override_token_does_not_bypass  [RED until SC3 fix]
+# test_stale_override_token_does_not_bypass  [GREEN]
 # override.token with WRONG diff_hash → verifier still blocks
 # ---------------------------------------------------------------------------
 ARTIFACTS_DIR_15=$(mktemp -d "${TMPDIR:-/tmp}/test-cv-stale-token-XXXXXX")

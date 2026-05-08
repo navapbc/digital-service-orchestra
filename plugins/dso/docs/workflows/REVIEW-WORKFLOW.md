@@ -146,7 +146,7 @@ HUGE_EXIT=$?
 
 ```bash
 # Run complexity classifier to determine review tier
-CLASSIFIER_OUTPUT=$(.claude/scripts/dso commit-step classifier-dispatch "review-complexity-classifier.sh --diff-hash \"$DIFF_HASH\"" < "$DIFF_FILE" 2>/dev/null) || CLASSIFIER_EXIT=$?
+CLASSIFIER_OUTPUT=$(.claude/scripts/dso commit-step classifier-dispatch 30 "review-complexity-classifier.sh --diff-hash \"$DIFF_HASH\"" < "$DIFF_FILE" 2>/dev/null) || CLASSIFIER_EXIT=$?
 if [[ "${CLASSIFIER_EXIT:-0}" -ne 0 ]] || ! echo "$CLASSIFIER_OUTPUT" | python3 -c 'import json,sys; json.load(sys.stdin)' 2>/dev/null; then
     # Classifier failed — default to standard tier per contract (classifier-tier-output.md)
     REVIEW_TIER="standard"
@@ -832,7 +832,7 @@ Call `record-review.sh` with `--expected-hash` from Step 2 and `--reviewer-hash`
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-.claude/scripts/dso commit-step reviewer-record "record-review.sh --expected-hash \"<DIFF_HASH from Step 2>\" --reviewer-hash \"<REVIEWER_HASH from sub-agent>\""
+.claude/scripts/dso commit-step reviewer-record 30 "record-review.sh --expected-hash \"<DIFF_HASH from Step 2>\" --reviewer-hash \"<REVIEWER_HASH from sub-agent>\""
 ```
 
 `record-review.sh` reads scores, summary, and findings from `reviewer-findings.json`, verifies `--reviewer-hash` integrity, validates findings against scores, checks file overlap with the actual diff, verifies `--expected-hash` against the current diff hash, and writes the review state file that the commit gate checks. If it rejects, fix and retry.
