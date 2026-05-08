@@ -998,7 +998,7 @@ Task tool:
    # sequence (3 parallel sonnet + opus synthesis) instead of a single agent.
    ```
 
-   **Do NOT re-run the classifier** for re-review passes — the diff shrank after fixes, which would produce a lower score and potentially route back to `light`. `REVIEW_TIER` is locked to its Step 3 value for the lifetime of this review session. Tier upgrades during re-review happen ONLY via `ESCALATE_REVIEW` signals (Step 4a), never by cycle count.
+   **Do NOT re-run the classifier** for re-review passes — the diff shrank after fixes, which would produce a lower score and potentially route back to `light`. `REVIEW_TIER` is locked to its Step 3 value for the lifetime of this review session. Tier upgrades during re-review happen ONLY via `ESCALATE_REVIEW` signals (Step 4a), never by cycle count. Note: size rejection (`size_action=reject`) does not apply to re-review passes — size rejection applies only on initial dispatch in Step 3.
 
    **Mid-resolution approach_viability_concern check (DD3)**: After the ratchet state update above and before dispatching the next re-review attempt, re-read `approach_viability_concern` from the most recent `reviewer-findings.json`. This catches cases where the signal was emitted by a re-review (not present in the initial review).
 

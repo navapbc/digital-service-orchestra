@@ -102,7 +102,7 @@ run_test_gate_hook_stderr() {
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$artifacts_dir"
         export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$DSO_PLUGIN_DIR}"
         export COMPUTE_DIFF_HASH_OVERRIDE="$DSO_PLUGIN_DIR/hooks/compute-diff-hash.sh"
-        bash "$TEST_GATE_HOOK" >/dev/null 2>&1
+        { bash "$TEST_GATE_HOOK" >/dev/null; } 2>&1
     ) || true
 }
 
