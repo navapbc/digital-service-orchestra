@@ -1860,3 +1860,67 @@ def test_handle_links_writes_link_event_with_nanosecond_timestamp(
         f"got {ts} — current code uses int(time.time()) which is seconds-scale (~1.7e9). "
         f"Fix: use time.time_ns() in _handle_links.py."
     )
+
+
+# ---------------------------------------------------------------------------
+# LINK test 19: supersedes -> Jira "Relates" (lossy mapping, source-outward)
+# (5492-58d7 part 4/4)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_link_supersedes_relation_writes_relates_link(
+    tmp_path: Path, bridge: ModuleType
+) -> None:
+    """Given a LINK event with relation='supersedes',
+    when process_outbound is called,
+    then set_relationship() is called with link_type='Relates' (Jira lacks a
+    native supersedes link type — lossy mapping).
+    """
+    src_dir = tmp_path / "src-sup"
+    tgt_dir = tmp_path / "tgt-sup"
+    src_dir.mkdir()
+    tgt_dir.mkdir()
+
+    _write_sync_for(src_dir, "DSO-SUP-OUT-1", "src-sup")
+    _write_sync_for(tgt_dir, "DSO-SUP-OUT-2", "tgt-sup")
+
+    link_file = _write_link_event(
+        src_dir,
+        timestamp=1742606800,
+        uuid=_UUID1,
+        event_type="LINK",
+        source_id="src-sup",
+        target_id="tgt-sup",
+        relation="supersedes",
+    )
+
+    events = [
+        {
+            "ticket_id": "src-sup",
+            "event_type": "LINK",
+            "file_path": str(link_file),
+        }
+    ]
+
+    mock_client = MagicMock()
+    mock_client.get_issue_link_types = MagicMock(
+        return_value=[
+            {"name": "Relates", "inward": "relates to", "outward": "relates to"},
+            {"name": "Blocks", "inward": "is blocked by", "outward": "blocks"},
+        ]
+    )
+    mock_client.get_issue_links = MagicMock(return_value=[])
+    mock_client.set_relationship = MagicMock(return_value={"status": "created"})
+
+    bridge.process_outbound(
+        events,
+        acli_client=mock_client,
+        tickets_root=tmp_path,
+        bridge_env_id=_BRIDGE_ENV_ID,
+    )
+
+    mock_client.set_relationship.assert_called_once_with(
+        "DSO-SUP-OUT-1", "DSO-SUP-OUT-2", "Relates"
+    )

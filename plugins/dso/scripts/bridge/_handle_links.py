@@ -23,6 +23,7 @@ def handle_links(
     acli_client: Any,
     persist_relationship_rejection_fn: Any,
     write_bridge_alert_fn: Any,
+    ticket_reducer: Any = None,
 ) -> None:
     """Process Jira issuelinks for a single issue.
 
@@ -69,6 +70,15 @@ def handle_links(
             continue
 
         if link_type == "Relates":
+            # Lossy supersedes precedence (5492-58d7 part 4/4): Jira lacks a
+            # native "supersedes" link type, so outbound writes supersedes as
+            # "Relates". On inbound, if local state already has a `supersedes`
+            # link to the same target, local wins (we do NOT downgrade the
+            # local supersedes by emitting a relates_to). Otherwise emit the
+            # standard bidirectional relates_to pair.
+            target_local_id = f"jira-{target_key.lower()}"
+            if _local_has_supersedes_to(ticket_dir, target_local_id, ticket_reducer):
+                continue
             _write_bidirectional_relates_link(
                 source_local_id=local_id,
                 target_key=target_key,
@@ -112,6 +122,37 @@ def handle_links(
                     tickets_root=tickets_root,
                     bridge_env_id=bridge_env_id,
                 )
+
+
+def _local_has_supersedes_to(
+    ticket_dir: Path, target_local_id: str, ticket_reducer: Any
+) -> bool:
+    """Return True iff local state has a supersedes link to target_local_id.
+
+    Used by the lossy supersedes/Relates precedence rule: when Jira sends a
+    Relates link for which local has already recorded a supersedes link, we
+    do not overwrite the local supersedes by emitting a competing relates_to.
+    """
+    if ticket_reducer is None or not ticket_dir.is_dir():
+        return False
+    try:
+        state = ticket_reducer.reduce_ticket(str(ticket_dir))
+    except Exception:
+        return False
+    if not isinstance(state, dict):
+        return False
+    deps = state.get("deps") or []
+    if not isinstance(deps, list):
+        return False
+    for dep in deps:
+        if not isinstance(dep, dict):
+            continue
+        if (
+            dep.get("relation") == "supersedes"
+            and dep.get("target_id") == target_local_id
+        ):
+            return True
+    return False
 
 
 def _write_bidirectional_relates_link(

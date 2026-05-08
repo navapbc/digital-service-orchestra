@@ -736,6 +736,142 @@ class TestInboundBlocksLinks:
         ), f"src LINK with relation=depends_on not found: {src_links!r}"
 
 
+class TestInboundSupersedesPrecedence:
+    """Lossy precedence: local supersedes wins over inbound Jira "Relates"."""
+
+    def test_inbound_relates_does_not_downgrade_local_supersedes(
+        self, inbound: ModuleType, tmp_path: Path
+    ) -> None:
+        """When local has supersedes(target), inbound Relates(target) is suppressed."""
+        tracker = tmp_path / ".tickets-tracker"
+        ticket_id = "jira-dso-sup-1"
+        ticket_dir = tracker / ticket_id
+        ticket_dir.mkdir(parents=True)
+
+        # Seed local state: CREATE + SYNC + LINK(supersedes → target)
+        make_create_event(ticket_dir, title="Supersedes-source")
+        write_sync(ticket_dir, "DSO-SUP-1")
+        write_event(
+            ticket_dir,
+            "LINK",
+            {
+                "source_id": ticket_id,
+                "target_id": "jira-dso-sup-2",
+                "relation": "supersedes",
+            },
+            env_id=BRIDGE_ENV_ID,
+        )
+
+        jira_issue = {
+            "key": "DSO-SUP-1",
+            "fields": {
+                "summary": "Supersedes-source",
+                "issuetype": {"name": "Bug"},
+                "status": {"name": "Open"},
+                "created": "2026-03-20T10:00:00.000+0000",
+                "updated": "2026-03-20T11:00:00.000+0000",
+                "issuelinks": [
+                    {
+                        "type": {"name": "Relates"},
+                        "outwardIssue": {"key": "DSO-SUP-2"},
+                    }
+                ],
+            },
+        }
+        mock_acli = MagicMock()
+        mock_acli.get_myself.return_value = {"timeZone": "UTC"}
+        config = {
+            "bridge_env_id": BRIDGE_ENV_ID,
+            "overlap_buffer_minutes": 15,
+            "checkpoint_file": "",
+            "status_mapping": {"Open": "open"},
+            "type_mapping": {"Bug": "bug"},
+            "run_id": "test-run",
+        }
+        with patch.object(inbound, "fetch_jira_changes", return_value=[jira_issue]):
+            inbound.process_inbound(
+                tickets_root=tracker,
+                acli_client=mock_acli,
+                last_pull_ts="2026-03-20T09:00:00Z",
+                config=config,
+            )
+
+        # No new relates_to LINK event must have been written
+        link_events = [
+            json.loads(p.read_text(encoding="utf-8"))
+            for p in ticket_dir.glob("*-LINK.json")
+        ]
+        relates_to_events = [
+            ev
+            for ev in link_events
+            if ev.get("data", {}).get("relation") == "relates_to"
+            and ev.get("data", {}).get("target_id") == "jira-dso-sup-2"
+        ]
+        assert not relates_to_events, (
+            f"local supersedes must suppress inbound relates_to: {relates_to_events!r}"
+        )
+
+    def test_inbound_relates_emits_when_no_local_supersedes(
+        self, inbound: ModuleType, tmp_path: Path
+    ) -> None:
+        """When local has NO supersedes, inbound Relates emits the relates_to pair."""
+        tracker = tmp_path / ".tickets-tracker"
+        ticket_id = "jira-dso-sup-3"
+        ticket_dir = tracker / ticket_id
+        ticket_dir.mkdir(parents=True)
+
+        make_create_event(ticket_dir, title="No-supersedes")
+        write_sync(ticket_dir, "DSO-SUP-3")
+
+        jira_issue = {
+            "key": "DSO-SUP-3",
+            "fields": {
+                "summary": "No-supersedes",
+                "issuetype": {"name": "Bug"},
+                "status": {"name": "Open"},
+                "created": "2026-03-20T10:00:00.000+0000",
+                "updated": "2026-03-20T11:00:00.000+0000",
+                "issuelinks": [
+                    {
+                        "type": {"name": "Relates"},
+                        "outwardIssue": {"key": "DSO-SUP-4"},
+                    }
+                ],
+            },
+        }
+        mock_acli = MagicMock()
+        mock_acli.get_myself.return_value = {"timeZone": "UTC"}
+        config = {
+            "bridge_env_id": BRIDGE_ENV_ID,
+            "overlap_buffer_minutes": 15,
+            "checkpoint_file": "",
+            "status_mapping": {"Open": "open"},
+            "type_mapping": {"Bug": "bug"},
+            "run_id": "test-run",
+        }
+        with patch.object(inbound, "fetch_jira_changes", return_value=[jira_issue]):
+            inbound.process_inbound(
+                tickets_root=tracker,
+                acli_client=mock_acli,
+                last_pull_ts="2026-03-20T09:00:00Z",
+                config=config,
+            )
+
+        link_events = [
+            json.loads(p.read_text(encoding="utf-8"))
+            for p in ticket_dir.glob("*-LINK.json")
+        ]
+        assert any(
+            ev.get("data", {}).get("relation") == "relates_to"
+            and ev.get("data", {}).get("target_id") == "jira-dso-sup-4"
+            for ev in link_events
+        ), f"expected relates_to LINK, got: {link_events!r}"
+
+
+class TestOutboundSupersedesAsRelates:
+    """Outbound supersedes is written as Jira 'Relates' (lossy mapping)."""
+
+
 class TestInboundParentId:
     """Test that Jira parent (Epic Link / parent issue) emits a local EDIT(parent_id) event."""
 
