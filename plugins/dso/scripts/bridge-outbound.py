@@ -103,53 +103,116 @@ def process_outbound(
     _status_updated: set[str] = set()
     _link_types_cache: list[dict[str, Any]] | None = None
     _created_link_pairs: set[frozenset] = set()
+    success_count = 0
+    failed_count = 0
 
     for event in filtered:
         event_type = event.get("event_type", "")
+        ticket_id = event.get("ticket_id", "")
 
-        if event_type == "CREATE":
-            syncs.extend(handle_create_event(event, **ctx))
+        # Per-event failure isolation (5ef3-24eb / DIG-1688): a handler
+        # exception (e.g. acli_client.update_issue raising CalledProcessError)
+        # must NOT abort the entire batch. Catch broadly, write a BRIDGE_ALERT
+        # under the failing ticket's directory, leave the cursor unadvanced
+        # for that event so the next run retries it, and continue.
+        try:
+            if event_type == "CREATE":
+                syncs.extend(handle_create_event(event, **ctx))
 
-        elif event_type == "STATUS":
-            handle_status_event(
-                event,
-                **ctx,
-                reducer_path=reducer_path,
-                flap_threshold=flap_threshold,
-                flap_window_seconds=flap_window_seconds,
-                status_updated=_status_updated,
+            elif event_type == "STATUS":
+                handle_status_event(
+                    event,
+                    **ctx,
+                    reducer_path=reducer_path,
+                    flap_threshold=flap_threshold,
+                    flap_window_seconds=flap_window_seconds,
+                    status_updated=_status_updated,
+                )
+
+            elif event_type == "REVERT":
+                syncs.extend(handle_revert_event(event, **ctx))
+
+            elif event_type == "COMMENT":
+                handle_comment_event(event, **ctx)
+
+            elif event_type == "LINK":
+                link_syncs, _link_types_cache = handle_link_event(
+                    event,
+                    **ctx,
+                    link_types_cache=_link_types_cache,
+                    created_link_pairs=_created_link_pairs,
+                )
+                syncs.extend(link_syncs)
+
+            elif event_type == "UNLINK":
+                syncs.extend(handle_unlink_event(event, **ctx))
+
+            elif event_type == "EDIT":
+                handle_edit_event(event, **ctx)
+
+            elif event_type == "FILE_IMPACT":
+                handle_file_impact_event(event, **ctx)
+        except Exception as exc:  # noqa: BLE001
+            exc_class = type(exc).__name__
+            logger.warning(
+                "process_outbound: handler for ticket=%s event_type=%s failed "
+                "with %s: %s — writing BRIDGE_ALERT and continuing",
+                ticket_id,
+                event_type,
+                exc_class,
+                exc,
             )
+            ticket_dir = tickets_root / ticket_id if ticket_id else tickets_root
+            try:
+                if ticket_id:
+                    ticket_dir.mkdir(parents=True, exist_ok=True)
+                write_bridge_alert(
+                    ticket_dir,
+                    ticket_id=ticket_id or "__unknown__",
+                    reason=(f"handler {event_type} failed with {exc_class}: {exc}"),
+                    bridge_env_id=bridge_env_id,
+                )
+            except Exception as alert_exc:  # noqa: BLE001
+                # Last-resort: even alert-writing failed. Log and keep going —
+                # we still must not abort the batch.
+                logger.error(
+                    "process_outbound: failed to write BRIDGE_ALERT for "
+                    "ticket=%s after handler failure: %s",
+                    ticket_id,
+                    alert_exc,
+                )
+            failed_count += 1
+            # Do NOT advance cursor on failure — leave it at the failure
+            # boundary so retry next run picks up that same event.
+            continue
+        else:
+            success_count += 1
 
-        elif event_type == "REVERT":
-            syncs.extend(handle_revert_event(event, **ctx))
-
-        elif event_type == "COMMENT":
-            handle_comment_event(event, **ctx)
-
-        elif event_type == "LINK":
-            link_syncs, _link_types_cache = handle_link_event(
-                event,
-                **ctx,
-                link_types_cache=_link_types_cache,
-                created_link_pairs=_created_link_pairs,
-            )
-            syncs.extend(link_syncs)
-
-        elif event_type == "UNLINK":
-            syncs.extend(handle_unlink_event(event, **ctx))
-
-        elif event_type == "EDIT":
-            handle_edit_event(event, **ctx)
-
-        elif event_type == "FILE_IMPACT":
-            handle_file_impact_event(event, **ctx)
-
-        # Advance cursor after each handler regardless of event_type — last
-        # successful commit_sha wins, partial-success semantics handled at
-        # process_events level (5d93-8b62).
+        # Advance cursor after each successful handler regardless of event_type —
+        # last successful commit_sha wins, partial-success semantics handled at
+        # process_events level (5d93-8b62). Wrapped in try/except so a cursor
+        # write failure (filesystem permission / disk full) does not abort the
+        # batch — preserves per-event failure isolation contract (5ef3-24eb).
         commit_sha = event.get("commit_sha", "")
         if cursor_advance_fn and commit_sha:
-            cursor_advance_fn(commit_sha)
+            try:
+                cursor_advance_fn(commit_sha)
+            except Exception as cursor_exc:  # noqa: BLE001
+                logger.error(
+                    "process_outbound: cursor_advance_fn failed for "
+                    "ticket=%s commit_sha=%s: %s — batch continues, cursor "
+                    "left at previous position (next run will retry)",
+                    ticket_id,
+                    commit_sha,
+                    cursor_exc,
+                )
+
+    if failed_count:
+        logger.info(
+            "process_outbound: %d succeeded, %d failed",
+            success_count,
+            failed_count,
+        )
 
     return syncs
 

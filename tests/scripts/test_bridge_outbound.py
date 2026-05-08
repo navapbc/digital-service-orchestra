@@ -1861,3 +1861,174 @@ def test_process_events_multi_commit_catches_all_events(tmp_path):
         f"Expected {head_sha!r}, got {post_cursor!r}. This indicates "
         f"either the cursor wasn't used or events weren't processed."
     )
+
+
+# ---------------------------------------------------------------------------
+# Per-event handler failure isolation (5ef3-24eb / DIG-1688)
+#
+# A handler exception (e.g. acli_client.update_issue raising CalledProcessError
+# on one ticket) must NOT abort the entire batch. process_outbound must:
+#   - Catch the exception
+#   - Write a BRIDGE_ALERT under the failing ticket's directory
+#   - Continue dispatching subsequent events
+#   - Return normally (no exception propagated)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_process_outbound_isolates_handler_failure_continues_to_next_event(
+    tmp_path: Path, bridge: ModuleType
+) -> None:
+    """A handler failure on one event must not abort processing of subsequent events.
+
+    Scenario: 3 events in order — CREATE for A, STATUS for B (update_issue raises
+    CalledProcessError), COMMENT for C. The fix must:
+      1. Let A's CREATE write its SYNC.
+      2. Catch B's update_issue failure and write a BRIDGE_ALERT in B's dir.
+      3. Reach C's COMMENT (third event) and call add_comment.
+      4. Return normally (no exception propagated).
+
+    Pins behavior added in fix for 5ef3-24eb / DIG-1688: per-event failure
+    isolation around the dispatch loop in process_outbound.
+    """
+    import subprocess
+
+    # --- Ticket A (CREATE, no prior SYNC) ---
+    ticket_a = tmp_path / "w21-aaaa"
+    ticket_a.mkdir()
+    create_uuid_a = "11111111-1111-1111-1111-111111111111"
+    create_path_a = _write_event(
+        ticket_a,
+        timestamp=1742605200,
+        uuid=create_uuid_a,
+        event_type="CREATE",
+        data={"ticket_type": "task", "title": "Ticket A"},
+        env_id=_OTHER_ENV_ID,
+    )
+
+    # --- Ticket B (STATUS update — must raise from update_issue) ---
+    ticket_b = tmp_path / "w21-bbbb"
+    ticket_b.mkdir()
+    # Need a CREATE event so reducer can compile a non-deleted status.
+    _write_event(
+        ticket_b,
+        timestamp=1742605300,
+        uuid="22222222-2222-2222-2222-222222222221",
+        event_type="CREATE",
+        data={"ticket_type": "task", "title": "Ticket B"},
+        env_id=_OTHER_ENV_ID,
+    )
+    status_uuid_b = "22222222-2222-2222-2222-222222222222"
+    status_path_b = _write_event(
+        ticket_b,
+        timestamp=1742605400,
+        uuid=status_uuid_b,
+        event_type="STATUS",
+        data={"status": "in_progress"},
+        env_id=_OTHER_ENV_ID,
+    )
+    # Pre-existing SYNC so handle_status_event takes the update_issue path.
+    sync_b_payload = {
+        "event_type": "SYNC",
+        "jira_key": "DSO-B",
+        "local_id": "w21-bbbb",
+        "env_id": _BRIDGE_ENV_ID,
+        "timestamp": 1742605350,
+        "run_id": "test-run",
+    }
+    (ticket_b / f"1742605350-{_UUID3}-SYNC.json").write_text(json.dumps(sync_b_payload))
+
+    # --- Ticket C (COMMENT, with pre-existing SYNC) ---
+    ticket_c = tmp_path / "w21-cccc"
+    ticket_c.mkdir()
+    comment_uuid_c = "33333333-3333-3333-3333-333333333333"
+    comment_path_c = _write_event(
+        ticket_c,
+        timestamp=1742605500,
+        uuid=comment_uuid_c,
+        event_type="COMMENT",
+        data={"body": "Hello from C"},
+        env_id=_OTHER_ENV_ID,
+    )
+    sync_c_payload = {
+        "event_type": "SYNC",
+        "jira_key": "DSO-C",
+        "local_id": "w21-cccc",
+        "env_id": _BRIDGE_ENV_ID,
+        "timestamp": 1742605450,
+        "run_id": "test-run",
+    }
+    (ticket_c / f"1742605450-{_UUID2}-SYNC.json").write_text(json.dumps(sync_c_payload))
+
+    # Mock acli_client: update_issue raises only for DSO-B; others succeed.
+    update_error = subprocess.CalledProcessError(
+        returncode=1,
+        cmd=["acli", "jira", "workitem", "update", "--key", "DSO-B"],
+        stderr="boom",
+    )
+
+    def _update_issue_side_effect(jira_key: str, **kwargs: object) -> dict:
+        if jira_key == "DSO-B":
+            raise update_error
+        return {"key": jira_key}
+
+    mock_client = MagicMock()
+    mock_client.create_issue = MagicMock(return_value={"key": "DSO-A"})
+    mock_client.update_issue = MagicMock(side_effect=_update_issue_side_effect)
+    mock_client.add_comment = MagicMock(return_value={"id": "comment-id-1"})
+
+    events = [
+        {
+            "ticket_id": "w21-aaaa",
+            "event_type": "CREATE",
+            "file_path": str(create_path_a),
+        },
+        {
+            "ticket_id": "w21-bbbb",
+            "event_type": "STATUS",
+            "file_path": str(status_path_b),
+        },
+        {
+            "ticket_id": "w21-cccc",
+            "event_type": "COMMENT",
+            "file_path": str(comment_path_c),
+        },
+    ]
+
+    # Must return normally — no exception propagated.
+    bridge.process_outbound(
+        events,
+        acli_client=mock_client,
+        tickets_root=tmp_path,
+        bridge_env_id=_BRIDGE_ENV_ID,
+    )
+
+    # 1. Ticket A's CREATE wrote a SYNC.
+    a_sync_files = list(ticket_a.glob("*-SYNC.json"))
+    assert len(a_sync_files) == 1, (
+        f"Ticket A's CREATE must write a SYNC event; found {a_sync_files}"
+    )
+
+    # 2. Ticket B's update_issue failure produced a BRIDGE_ALERT mentioning the
+    #    exception class.
+    b_alert_files = list(ticket_b.glob("*-BRIDGE_ALERT.json"))
+    assert len(b_alert_files) >= 1, (
+        "Ticket B's update_issue failure must produce a BRIDGE_ALERT in B's dir"
+    )
+    alert_payload = json.loads(b_alert_files[0].read_text())
+    reason = alert_payload.get("data", {}).get("reason", "")
+    assert "CalledProcessError" in reason, (
+        f"BRIDGE_ALERT reason must mention the exception class; got: {reason!r}"
+    )
+
+    # 3. Processing continued past B: C's COMMENT handler called add_comment.
+    assert mock_client.add_comment.called, (
+        "process_outbound must continue to C's COMMENT after B's failure; "
+        "add_comment was never called (handler failure aborted the batch)"
+    )
+    add_comment_args = mock_client.add_comment.call_args
+    assert add_comment_args is not None
+    assert add_comment_args[0][0] == "DSO-C", (
+        f"add_comment must be called with DSO-C; got {add_comment_args!r}"
+    )

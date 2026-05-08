@@ -24,7 +24,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from bridge_test_helpers import BRIDGE_ENV_ID, make_create_event, write_sync
+from bridge_test_helpers import (
+    BRIDGE_ENV_ID,
+    make_create_event,
+    write_event,
+    write_sync,
+)
 
 
 class TestInboundTitle:
@@ -482,6 +487,450 @@ class TestInboundEditEventPath:
         edit_files = list(ticket_dir.glob("*-EDIT.json"))
         assert len(edit_files) == 0, (
             f"Expected 0 EDIT events when fields are unchanged. Found: {len(edit_files)}"
+        )
+
+
+class TestInboundTags:
+    """Test that Jira labels emit a local EDIT(tags) event when they differ."""
+
+    def test_inbound_labels_change_writes_edit_tags(
+        self, inbound: ModuleType, tmp_path: Path
+    ) -> None:
+        tracker = tmp_path / ".tickets-tracker"
+        ticket_id = "jira-dso-edit-tags"
+        ticket_dir = tracker / ticket_id
+        ticket_dir.mkdir(parents=True)
+
+        make_create_event(ticket_dir, title="Title", priority=2, assignee="Alice")
+        write_sync(ticket_dir, "DSO-EDIT-TAGS")
+
+        jira_issue = {
+            "key": "DSO-EDIT-TAGS",
+            "fields": {
+                "summary": "Title",
+                "description": "A test description",
+                "priority": {"name": "Medium"},
+                "assignee": {"displayName": "Alice"},
+                "issuetype": {"name": "Bug"},
+                "status": {"name": "Open"},
+                "created": "2026-03-20T10:00:00.000+0000",
+                "updated": "2026-03-20T11:00:00.000+0000",
+                "labels": ["red", "blue"],
+            },
+        }
+
+        mock_acli = MagicMock()
+        mock_acli.get_myself.return_value = {"timeZone": "UTC"}
+        config = {
+            "bridge_env_id": BRIDGE_ENV_ID,
+            "overlap_buffer_minutes": 15,
+            "checkpoint_file": "",
+            "status_mapping": {"Open": "open"},
+            "type_mapping": {"Bug": "bug"},
+            "run_id": "test-run",
+        }
+
+        with patch.object(inbound, "fetch_jira_changes", return_value=[jira_issue]):
+            inbound.process_inbound(
+                tickets_root=tracker,
+                acli_client=mock_acli,
+                last_pull_ts="2026-03-20T09:00:00Z",
+                config=config,
+            )
+
+        edit_files = list(ticket_dir.glob("*-EDIT.json"))
+        assert len(edit_files) >= 1
+        edit_data = json.loads(edit_files[0].read_text(encoding="utf-8"))
+        edited_fields = edit_data.get("data", {}).get("fields", {})
+        assert "tags" in edited_fields, (
+            f"EDIT must include tags. Got: {list(edited_fields.keys())}"
+        )
+        assert set(edited_fields["tags"]) == {"red", "blue"}
+
+    def test_inbound_empty_labels_does_not_overwrite_local_tags(
+        self, inbound: ModuleType, tmp_path: Path
+    ) -> None:
+        """Empty Jira labels MUST NOT clear local tags (destructive safeguard)."""
+        tracker = tmp_path / ".tickets-tracker"
+        ticket_id = "jira-dso-edit-tags-empty"
+        ticket_dir = tracker / ticket_id
+        ticket_dir.mkdir(parents=True)
+
+        # Seed local tags via a CREATE event then a tags EDIT
+        make_create_event(ticket_dir, title="Title", priority=2, assignee="Alice")
+        write_sync(ticket_dir, "DSO-EDIT-TAGS-EMPTY")
+        write_event(
+            ticket_dir,
+            "EDIT",
+            {"fields": {"tags": ["keep-me"]}},
+            env_id=BRIDGE_ENV_ID,  # avoid bridge re-emitting on inbound
+        )
+
+        jira_issue = {
+            "key": "DSO-EDIT-TAGS-EMPTY",
+            "fields": {
+                "summary": "Title",
+                "description": "A test description",
+                "priority": {"name": "Medium"},
+                "assignee": {"displayName": "Alice"},
+                "issuetype": {"name": "Bug"},
+                "status": {"name": "Open"},
+                "created": "2026-03-20T10:00:00.000+0000",
+                "updated": "2026-03-20T11:00:00.000+0000",
+                "labels": [],
+            },
+        }
+        mock_acli = MagicMock()
+        mock_acli.get_myself.return_value = {"timeZone": "UTC"}
+        config = {
+            "bridge_env_id": BRIDGE_ENV_ID,
+            "overlap_buffer_minutes": 15,
+            "checkpoint_file": "",
+            "status_mapping": {"Open": "open"},
+            "type_mapping": {"Bug": "bug"},
+            "run_id": "test-run",
+        }
+        with patch.object(inbound, "fetch_jira_changes", return_value=[jira_issue]):
+            inbound.process_inbound(
+                tickets_root=tracker,
+                acli_client=mock_acli,
+                last_pull_ts="2026-03-20T09:00:00Z",
+                config=config,
+            )
+
+        # No new EDIT event should write tags=[]
+        for ef in ticket_dir.glob("*-EDIT.json"):
+            d = json.loads(ef.read_text(encoding="utf-8"))
+            fields_in = d.get("data", {}).get("fields", {})
+            if "tags" in fields_in and d.get("env_id") == BRIDGE_ENV_ID:
+                assert fields_in["tags"], (
+                    "Empty Jira labels must not produce an EDIT(tags=[]) event"
+                )
+
+
+class TestInboundBlocksLinks:
+    """Test that Jira "Blocks" issuelinks emit local LINK events with correct relations."""
+
+    def test_inbound_blocks_outward_writes_blocks_and_depends_on_pair(
+        self, inbound: ModuleType, tmp_path: Path
+    ) -> None:
+        """outwardIssue means THIS issue blocks the target.
+
+        Source ticket gets relation='blocks'; reciprocal (target) gets 'depends_on'.
+        """
+        tracker = tmp_path / ".tickets-tracker"
+        tracker.mkdir(parents=True)
+
+        jira_issue = {
+            "key": "DSO-BL-1",
+            "fields": {
+                "summary": "Blocks-source",
+                "issuetype": {"name": "Bug"},
+                "status": {"name": "Open"},
+                "created": "2026-03-20T10:00:00.000+0000",
+                "updated": "2026-03-20T11:00:00.000+0000",
+                "issuelinks": [
+                    {
+                        "type": {"name": "Blocks"},
+                        "outwardIssue": {"key": "DSO-BL-2"},
+                    }
+                ],
+            },
+        }
+
+        mock_acli = MagicMock()
+        mock_acli.get_myself.return_value = {"timeZone": "UTC"}
+        config = {
+            "bridge_env_id": BRIDGE_ENV_ID,
+            "overlap_buffer_minutes": 15,
+            "checkpoint_file": "",
+            "status_mapping": {"Open": "open"},
+            "type_mapping": {"Bug": "bug"},
+            "run_id": "test-run",
+        }
+
+        with patch.object(inbound, "fetch_jira_changes", return_value=[jira_issue]):
+            inbound.process_inbound(
+                tickets_root=tracker,
+                acli_client=mock_acli,
+                last_pull_ts="2026-03-20T09:00:00Z",
+                config=config,
+            )
+
+        # Source: relation='blocks' targeting jira-dso-bl-2
+        src_dir = tracker / "jira-dso-bl-1"
+        src_links = [
+            json.loads(p.read_text(encoding="utf-8"))
+            for p in src_dir.glob("*-LINK.json")
+        ]
+        assert any(
+            ev["data"].get("relation") == "blocks"
+            and ev["data"].get("target_id") == "jira-dso-bl-2"
+            for ev in src_links
+        ), f"src LINK with relation=blocks not found: {src_links!r}"
+
+        # Reciprocal: relation='depends_on' on target ticket
+        tgt_dir = tracker / "jira-dso-bl-2"
+        tgt_links = [
+            json.loads(p.read_text(encoding="utf-8"))
+            for p in tgt_dir.glob("*-LINK.json")
+        ]
+        assert any(
+            ev["data"].get("relation") == "depends_on"
+            and ev["data"].get("target_id") == "jira-dso-bl-1"
+            for ev in tgt_links
+        ), f"reciprocal LINK with relation=depends_on not found: {tgt_links!r}"
+
+    def test_inbound_blocks_inward_writes_depends_on_and_blocks_pair(
+        self, inbound: ModuleType, tmp_path: Path
+    ) -> None:
+        """inwardIssue means THIS issue is blocked by the target → relation='depends_on'."""
+        tracker = tmp_path / ".tickets-tracker"
+        tracker.mkdir(parents=True)
+
+        jira_issue = {
+            "key": "DSO-BL-3",
+            "fields": {
+                "summary": "Blocks-inward",
+                "issuetype": {"name": "Bug"},
+                "status": {"name": "Open"},
+                "created": "2026-03-20T10:00:00.000+0000",
+                "updated": "2026-03-20T11:00:00.000+0000",
+                "issuelinks": [
+                    {
+                        "type": {"name": "Blocks"},
+                        "inwardIssue": {"key": "DSO-BL-4"},
+                    }
+                ],
+            },
+        }
+
+        mock_acli = MagicMock()
+        mock_acli.get_myself.return_value = {"timeZone": "UTC"}
+        config = {
+            "bridge_env_id": BRIDGE_ENV_ID,
+            "overlap_buffer_minutes": 15,
+            "checkpoint_file": "",
+            "status_mapping": {"Open": "open"},
+            "type_mapping": {"Bug": "bug"},
+            "run_id": "test-run",
+        }
+
+        with patch.object(inbound, "fetch_jira_changes", return_value=[jira_issue]):
+            inbound.process_inbound(
+                tickets_root=tracker,
+                acli_client=mock_acli,
+                last_pull_ts="2026-03-20T09:00:00Z",
+                config=config,
+            )
+
+        src_dir = tracker / "jira-dso-bl-3"
+        src_links = [
+            json.loads(p.read_text(encoding="utf-8"))
+            for p in src_dir.glob("*-LINK.json")
+        ]
+        assert any(
+            ev["data"].get("relation") == "depends_on"
+            and ev["data"].get("target_id") == "jira-dso-bl-4"
+            for ev in src_links
+        ), f"src LINK with relation=depends_on not found: {src_links!r}"
+
+
+class TestInboundSupersedesPrecedence:
+    """Lossy precedence: local supersedes wins over inbound Jira "Relates"."""
+
+    def test_inbound_relates_does_not_downgrade_local_supersedes(
+        self, inbound: ModuleType, tmp_path: Path
+    ) -> None:
+        """When local has supersedes(target), inbound Relates(target) is suppressed."""
+        tracker = tmp_path / ".tickets-tracker"
+        ticket_id = "jira-dso-sup-1"
+        ticket_dir = tracker / ticket_id
+        ticket_dir.mkdir(parents=True)
+
+        # Seed local state: CREATE + SYNC + LINK(supersedes → target)
+        make_create_event(ticket_dir, title="Supersedes-source")
+        write_sync(ticket_dir, "DSO-SUP-1")
+        write_event(
+            ticket_dir,
+            "LINK",
+            {
+                "source_id": ticket_id,
+                "target_id": "jira-dso-sup-2",
+                "relation": "supersedes",
+            },
+            env_id=BRIDGE_ENV_ID,
+        )
+
+        jira_issue = {
+            "key": "DSO-SUP-1",
+            "fields": {
+                "summary": "Supersedes-source",
+                "issuetype": {"name": "Bug"},
+                "status": {"name": "Open"},
+                "created": "2026-03-20T10:00:00.000+0000",
+                "updated": "2026-03-20T11:00:00.000+0000",
+                "issuelinks": [
+                    {
+                        "type": {"name": "Relates"},
+                        "outwardIssue": {"key": "DSO-SUP-2"},
+                    }
+                ],
+            },
+        }
+        mock_acli = MagicMock()
+        mock_acli.get_myself.return_value = {"timeZone": "UTC"}
+        config = {
+            "bridge_env_id": BRIDGE_ENV_ID,
+            "overlap_buffer_minutes": 15,
+            "checkpoint_file": "",
+            "status_mapping": {"Open": "open"},
+            "type_mapping": {"Bug": "bug"},
+            "run_id": "test-run",
+        }
+        with patch.object(inbound, "fetch_jira_changes", return_value=[jira_issue]):
+            inbound.process_inbound(
+                tickets_root=tracker,
+                acli_client=mock_acli,
+                last_pull_ts="2026-03-20T09:00:00Z",
+                config=config,
+            )
+
+        # No new relates_to LINK event must have been written
+        link_events = [
+            json.loads(p.read_text(encoding="utf-8"))
+            for p in ticket_dir.glob("*-LINK.json")
+        ]
+        relates_to_events = [
+            ev
+            for ev in link_events
+            if ev.get("data", {}).get("relation") == "relates_to"
+            and ev.get("data", {}).get("target_id") == "jira-dso-sup-2"
+        ]
+        assert not relates_to_events, (
+            f"local supersedes must suppress inbound relates_to: {relates_to_events!r}"
+        )
+
+    def test_inbound_relates_emits_when_no_local_supersedes(
+        self, inbound: ModuleType, tmp_path: Path
+    ) -> None:
+        """When local has NO supersedes, inbound Relates emits the relates_to pair."""
+        tracker = tmp_path / ".tickets-tracker"
+        ticket_id = "jira-dso-sup-3"
+        ticket_dir = tracker / ticket_id
+        ticket_dir.mkdir(parents=True)
+
+        make_create_event(ticket_dir, title="No-supersedes")
+        write_sync(ticket_dir, "DSO-SUP-3")
+
+        jira_issue = {
+            "key": "DSO-SUP-3",
+            "fields": {
+                "summary": "No-supersedes",
+                "issuetype": {"name": "Bug"},
+                "status": {"name": "Open"},
+                "created": "2026-03-20T10:00:00.000+0000",
+                "updated": "2026-03-20T11:00:00.000+0000",
+                "issuelinks": [
+                    {
+                        "type": {"name": "Relates"},
+                        "outwardIssue": {"key": "DSO-SUP-4"},
+                    }
+                ],
+            },
+        }
+        mock_acli = MagicMock()
+        mock_acli.get_myself.return_value = {"timeZone": "UTC"}
+        config = {
+            "bridge_env_id": BRIDGE_ENV_ID,
+            "overlap_buffer_minutes": 15,
+            "checkpoint_file": "",
+            "status_mapping": {"Open": "open"},
+            "type_mapping": {"Bug": "bug"},
+            "run_id": "test-run",
+        }
+        with patch.object(inbound, "fetch_jira_changes", return_value=[jira_issue]):
+            inbound.process_inbound(
+                tickets_root=tracker,
+                acli_client=mock_acli,
+                last_pull_ts="2026-03-20T09:00:00Z",
+                config=config,
+            )
+
+        link_events = [
+            json.loads(p.read_text(encoding="utf-8"))
+            for p in ticket_dir.glob("*-LINK.json")
+        ]
+        assert any(
+            ev.get("data", {}).get("relation") == "relates_to"
+            and ev.get("data", {}).get("target_id") == "jira-dso-sup-4"
+            for ev in link_events
+        ), f"expected relates_to LINK, got: {link_events!r}"
+
+
+class TestOutboundSupersedesAsRelates:
+    """Outbound supersedes is written as Jira 'Relates' (lossy mapping)."""
+
+
+class TestInboundParentId:
+    """Test that Jira parent (Epic Link / parent issue) emits a local EDIT(parent_id) event."""
+
+    def test_inbound_parent_change_writes_edit_parent_id(
+        self, inbound: ModuleType, tmp_path: Path
+    ) -> None:
+        """When Jira parent.key changes vs local parent_id, an EDIT(parent_id) event is written."""
+        tracker = tmp_path / ".tickets-tracker"
+        ticket_id = "jira-dso-edit-parent"
+        ticket_dir = tracker / ticket_id
+        ticket_dir.mkdir(parents=True)
+
+        make_create_event(ticket_dir, title="Title", priority=2, assignee="Alice")
+        write_sync(ticket_dir, "DSO-EDIT-PARENT")
+
+        jira_issue = {
+            "key": "DSO-EDIT-PARENT",
+            "fields": {
+                "summary": "Title",
+                "description": "A test description",
+                "priority": {"name": "Medium"},
+                "assignee": {"displayName": "Alice"},
+                "issuetype": {"name": "Bug"},
+                "status": {"name": "Open"},
+                "created": "2026-03-20T10:00:00.000+0000",
+                "updated": "2026-03-20T11:00:00.000+0000",
+                "parent": {"key": "DSO-EPIC-42"},
+            },
+        }
+
+        mock_acli = MagicMock()
+        mock_acli.get_myself.return_value = {"timeZone": "UTC"}
+
+        config = {
+            "bridge_env_id": BRIDGE_ENV_ID,
+            "overlap_buffer_minutes": 15,
+            "checkpoint_file": "",
+            "status_mapping": {"Open": "open"},
+            "type_mapping": {"Bug": "bug"},
+            "run_id": "test-run",
+        }
+
+        with patch.object(inbound, "fetch_jira_changes", return_value=[jira_issue]):
+            inbound.process_inbound(
+                tickets_root=tracker,
+                acli_client=mock_acli,
+                last_pull_ts="2026-03-20T09:00:00Z",
+                config=config,
+            )
+
+        edit_files = list(ticket_dir.glob("*-EDIT.json"))
+        assert len(edit_files) >= 1, "Expected an EDIT event for parent change"
+        edit_data = json.loads(edit_files[0].read_text(encoding="utf-8"))
+        edited_fields = edit_data.get("data", {}).get("fields", {})
+        assert "parent_id" in edited_fields, (
+            f"EDIT must include parent_id. Got: {list(edited_fields.keys())}"
+        )
+        assert edited_fields["parent_id"] == "jira-dso-epic-42", (
+            f"parent_id must be canonical jira-<lower(key)>. Got: {edited_fields['parent_id']!r}"
         )
 
 
