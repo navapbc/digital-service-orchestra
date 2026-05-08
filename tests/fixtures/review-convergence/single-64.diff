@@ -1,0 +1,285 @@
+diff --git a/.test-index b/.test-index
+index e1cd88250e..462acf2574 100644
+--- a/.test-index
++++ b/.test-index
+@@ -384,7 +384,7 @@ plugins/dso/scripts/dso_ci_review/runner.py:tests/skills/dso_ci_review/test_runn
+ plugins/dso/scripts/dso_ci_review/findings.py:tests/skills/dso_ci_review/test_findings.py
+ plugins/dso/scripts/dso_ci_review/providers/config.py:tests/skills/dso_ci_review/test_providers_config.py,tests/skills/dso_ci_review/test_dispatch_config.py
+ plugins/dso/scripts/dso_ci_review/providers/openai.py:tests/skills/dso_ci_review/test_providers_unit.py [test_openai_provider_review_diff]
+-plugins/dso/scripts/dso_ci_review/dispatch.py:tests/skills/dso_ci_review/test_dispatch_fallback.py [test_fallback_rate_limit_falls_back_to_provider]
++plugins/dso/scripts/dso_ci_review/dispatch.py:tests/skills/dso_ci_review/test_dispatch_fallback.py
+ plugins/dso/scripts/dso_ci_review/classifier.py:tests/skills/dso_ci_review/test_classifier.py
+ tests/fixtures/ci-review-corpus/expected-findings.json:tests/skills/dso_ci_review/test_parity.py
+ plugins/dso/docs/contracts/decision-id-format.md:tests/docs/test-inference-signal-contracts.sh
+diff --git a/plugins/dso/scripts/bridge/_outbound_handlers.py b/plugins/dso/scripts/bridge/_outbound_handlers.py
+index b730a98b1d..a016ff3538 100644
+--- a/plugins/dso/scripts/bridge/_outbound_handlers.py
++++ b/plugins/dso/scripts/bridge/_outbound_handlers.py
+@@ -170,6 +170,19 @@ def handle_status_event(
+                             reason=f"403 delete denied for {jira_key}: {exc}",
+                             bridge_env_id=bridge_env_id,
+                         )
++                    except subprocess.CalledProcessError as exc:
++                        err_text = (exc.stderr or "") + (exc.stdout or "")
++                        logger.warning(
++                            "delete_issue(%s) failed — writing BRIDGE_ALERT: %s",
++                            jira_key,
++                            err_text.strip() or exc,
++                        )
++                        write_bridge_alert(
++                            ticket_dir,
++                            ticket_id=ticket_id,
++                            reason=f"delete failed for {jira_key}: {err_text.strip() or exc}",
++                            bridge_env_id=bridge_env_id,
++                        )
+                 else:
+                     logger.debug(
+                         "STATUS 'deleted' for %s: SYNC file has no jira_key — skipping",
+diff --git a/plugins/dso/scripts/dso_ci_review/dispatch.py b/plugins/dso/scripts/dso_ci_review/dispatch.py
+index 54afde7e41..1a03242c97 100644
+--- a/plugins/dso/scripts/dso_ci_review/dispatch.py
++++ b/plugins/dso/scripts/dso_ci_review/dispatch.py
+@@ -13,8 +13,10 @@
+ from __future__ import annotations
+ 
+ import asyncio
++import functools
+ import json
+ import logging
++import pathlib
+ import sys
+ from typing import Any
+ 
+@@ -29,6 +31,34 @@
+     "Return ONLY the JSON object, no markdown fences, no explanatory text."
+ )
+ 
++_PLUGIN_ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
++_AGENTS_DIR = _PLUGIN_ROOT / "agents"
++
++
++@functools.lru_cache(maxsize=32)
++def _load_agent_prompt(agent_id: str) -> str:
++    """Load the canonical agent file body for ``agent_id``.
++
++    Resolves ``<plugin-root>/agents/<agent_id>.md``, strips YAML frontmatter
++    (the leading ``---\\n...\\n---\\n`` block), and returns the body. Falls
++    back to the inline ``_SYSTEM_PROMPT`` constant when the agent file is
++    missing or empty so dispatch remains functional on agent_id typos.
++    """
++    if not agent_id or agent_id == "unknown":
++        return _SYSTEM_PROMPT
++    agent_file = _AGENTS_DIR / f"{agent_id}.md"
++    try:
++        text = agent_file.read_text(encoding="utf-8")
++    except OSError:
++        return _SYSTEM_PROMPT
++    if text.startswith("---\n"):
++        end = text.find("\n---\n", 4)
++        if end != -1:
++            text = text[end + len("\n---\n") :]
++    body = text.strip()
++    return body or _SYSTEM_PROMPT
++
++
+ # Default per-provider model identifiers (primary → context escalation chain)
+ _DEFAULT_CONTEXT_CHAIN: dict[str, list[str]] = {
+     "anthropic": [
+@@ -55,9 +85,10 @@
+ }
+ 
+ 
+-def _build_messages(diff_text: str) -> list[dict[str, str]]:
++def _build_messages(diff_text: str, agent_id: str = "unknown") -> list[dict[str, str]]:
++    system_prompt = _load_agent_prompt(agent_id)
+     return [
+-        {"role": "system", "content": _SYSTEM_PROMPT},
++        {"role": "system", "content": system_prompt},
+         {"role": "user", "content": f"Review this diff:\n\n{diff_text}"},
+     ]
+ 
+@@ -150,7 +181,7 @@ def dispatch_review(
+         if not environ.get(key_var):
+             raise ConfigError(f"Missing {key_var} for provider {provider!r}")
+ 
+-    messages = _build_messages(diff_text)
++    messages = _build_messages(diff_text, agent_id=agent_id)
+ 
+     # Determine the primary provider and model
+     first_provider = provider_chain[0]
+diff --git a/tests/scripts/test_bridge_delete_issue.py b/tests/scripts/test_bridge_delete_issue.py
+index bb9a6d795f..6a7b7c750c 100644
+--- a/tests/scripts/test_bridge_delete_issue.py
++++ b/tests/scripts/test_bridge_delete_issue.py
+@@ -634,6 +634,95 @@ def test_sync_file_retained_after_deletion(
+     )
+ 
+ 
++# ---------------------------------------------------------------------------
++# STATUS handler — unmatched CalledProcessError does NOT propagate (f593-183b)
++# ---------------------------------------------------------------------------
++
++
++@pytest.mark.unit
++@pytest.mark.scripts
++def test_status_handler_delete_unmatched_cpe_writes_alert_no_propagation(
++    tmp_path: Path, outbound_handlers: ModuleType
++) -> None:
++    """When delete_issue raises CalledProcessError with stderr that does NOT match
++    the 404/403/not-found/forbidden allowlist, handle_status_event must:
++
++    (1) NOT propagate the exception (loop-continuation property),
++    (2) call write_bridge_alert with a reason mentioning the jira_key,
++    (3) NOT add ticket_id to status_updated (retry semantics preserved),
++    (4) return [] (standard empty list, not raise).
++
++    This is the gap that caused bug f593-183b: an unmatched 500 Internal Server
++    Error from acli (seen in CI run 25474723444 for DIG-1682) propagated through
++    process_outbound's for-loop and aborted the entire backfill run.
++    """
++    ticket_dir = tmp_path / _TICKET_ID
++    ticket_dir.mkdir()
++    _write_sync(ticket_dir)
++    event_path = _write_status_event(ticket_dir, "deleted")
++
++    event = {
++        "ticket_id": _TICKET_ID,
++        "event_type": "STATUS",
++        "file_path": str(event_path),
++    }
++
++    # Simulate acli returning a 500 whose stderr does NOT match the narrow
++    # 404/403/not found/forbidden allowlist that delete_issue re-raises as
++    # PermissionError — so the raw CalledProcessError escapes delete_issue.
++    unmatched_cpe = subprocess.CalledProcessError(
++        returncode=1,
++        cmd=["acli", "jira", "workitem", "delete", "--key", _JIRA_KEY],
++    )
++    unmatched_cpe.stderr = "Error: 500 Internal Server Error from Jira API"
++    unmatched_cpe.stdout = ""
++
++    acli_client = MagicMock()
++    acli_client.delete_issue = MagicMock(side_effect=unmatched_cpe)
++
++    status_updated: set[str] = set()
++
++    with patch(
++        "bridge._outbound_handlers.get_compiled_status",
++        return_value="deleted",
++    ):
++        # (1) Must NOT raise — CalledProcessError must not propagate
++        result = outbound_handlers.handle_status_event(
++            event,
++            acli_client=acli_client,
++            tickets_root=tmp_path,
++            bridge_env_id=_BRIDGE_ENV_ID,
++            run_id="test-run",
++            reducer_path=REDUCER_PATH,
++            status_updated=status_updated,
++        )
++
++    # (4) Handler must return [] — standard empty list, not raise
++    assert result == [], (
++        f"handle_status_event must return [] on unmatched CalledProcessError, "
++        f"got: {result!r}"
++    )
++
++    # (2) A BRIDGE_ALERT file must be written — observable side effect
++    alerts = list(ticket_dir.glob("*-BRIDGE_ALERT.json"))
++    assert len(alerts) >= 1, (
++        "handle_status_event must write a BRIDGE_ALERT when delete_issue raises "
++        "an unmatched CalledProcessError"
++    )
++    alert_data = json.loads(alerts[0].read_text())
++    alert_reason = alert_data.get("data", {}).get("reason", "")
++    assert _JIRA_KEY in alert_reason, (
++        f"BRIDGE_ALERT reason must include the jira_key ({_JIRA_KEY!r}); "
++        f"got reason: {alert_reason!r}"
++    )
++
++    # (3) ticket_id must NOT be in status_updated — preserves retry semantics
++    assert _TICKET_ID not in status_updated, (
++        f"ticket_id {_TICKET_ID!r} must NOT be added to status_updated when "
++        f"delete_issue fails with unmatched CalledProcessError"
++    )
++
++
+ @pytest.mark.unit
+ def test_load_module_from_path_directory_raises_clear_error(
+     outbound_api: ModuleType,
+diff --git a/tests/skills/dso_ci_review/test_dispatch_fallback.py b/tests/skills/dso_ci_review/test_dispatch_fallback.py
+index 481e9c0f33..4fd517f255 100644
+--- a/tests/skills/dso_ci_review/test_dispatch_fallback.py
++++ b/tests/skills/dso_ci_review/test_dispatch_fallback.py
+@@ -680,3 +680,71 @@ class _FakeResp:
+         "_parse_response() must write an error message to stderr when no JSON "
+         "can be extracted from the response"
+     )
++
++
++# ---------------------------------------------------------------------------
++# Scenario 12 — _build_messages: canonical agent prompt parity (5075-54e2)
++# ---------------------------------------------------------------------------
++
++
++def test_build_messages_loads_canonical_agent_prompt() -> None:
++    """
++    Given: agent_id='code-reviewer-standard' references a canonical agent file
++           at plugins/dso/agents/code-reviewer-standard.md
++    When: _build_messages is called with that agent_id
++    Then: the system message contains the canonical agent body (frontmatter
++          stripped) — not the 5-line fallback _SYSTEM_PROMPT constant.
++
++    RED marker: tests/skills/dso_ci_review/test_dispatch_fallback.py [test_build_messages_loads_canonical_agent_prompt]
++
++    Covers 5075-54e2: 5-line _SYSTEM_PROMPT diverged from ~600-line agent files,
++    causing empty summary, missing scoring, severity over-escalation in CI runs.
++    """
++    if hasattr(_dispatch_mod, "_load_agent_prompt"):
++        _dispatch_mod._load_agent_prompt.cache_clear()
++
++    msgs = _dispatch_mod._build_messages(
++        "dummy diff", agent_id="code-reviewer-standard"
++    )
++    system_content = next(m["content"] for m in msgs if m["role"] == "system")
++
++    assert not system_content.startswith("---"), (
++        "system prompt must not include leading YAML frontmatter delimiter"
++    )
++    assert "name: code-reviewer-standard" not in system_content, (
++        "frontmatter `name:` field leaked into system prompt"
++    )
++    assert "Code Reviewer" in system_content, (
++        "canonical agent file body (heading 'Code Reviewer') missing from system prompt"
++    )
++    assert len(system_content) > len(_dispatch_mod._SYSTEM_PROMPT) * 5, (
++        f"system prompt length {len(system_content)} suggests fallback "
++        f"constant ({len(_dispatch_mod._SYSTEM_PROMPT)}) was used instead "
++        f"of the ~600-line canonical agent file"
++    )
++
++
++def test_build_messages_falls_back_for_unknown_agent_id() -> None:
++    """
++    Given: agent_id='unknown' (the dispatch_review default sentinel)
++    When: _build_messages is called
++    Then: the system message is the inline _SYSTEM_PROMPT fallback constant.
++    """
++    msgs = _dispatch_mod._build_messages("dummy diff", agent_id="unknown")
++    system_content = next(m["content"] for m in msgs if m["role"] == "system")
++    assert system_content == _dispatch_mod._SYSTEM_PROMPT
++
++
++def test_build_messages_falls_back_when_agent_file_missing() -> None:
++    """
++    Given: agent_id refers to an agent file that does not exist on disk
++    When: _build_messages is called
++    Then: the system message falls back to _SYSTEM_PROMPT rather than raising.
++    """
++    if hasattr(_dispatch_mod, "_load_agent_prompt"):
++        _dispatch_mod._load_agent_prompt.cache_clear()
++    msgs = _dispatch_mod._build_messages(
++        "dummy diff", agent_id="code-reviewer-nonexistent-fake"
++    )
++    system_content = next(m["content"] for m in msgs if m["role"] == "system")
++    assert system_content == _dispatch_mod._SYSTEM_PROMPT

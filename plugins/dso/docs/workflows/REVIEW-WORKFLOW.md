@@ -559,11 +559,15 @@ case "$REVIEW_TIER" in
         ESCALATION_AGENT="dso:code-reviewer-standard"
         # Ratchet: record that this session has escalated to standard tier
         RATCHETED_TIER='standard'
+        # Increment arbiter dispatch count — used by oscillation_no_arbiter_engagement check
+        ((ARBITER_DISPATCH_COUNT++))
         ;;
     standard)
         ESCALATION_AGENT="dso:code-reviewer-deep-arch"
         # Ratchet: record that this session has escalated to deep tier
         RATCHETED_TIER='deep'
+        # Increment arbiter dispatch count — used by oscillation_no_arbiter_engagement check
+        ((ARBITER_DISPATCH_COUNT++))
         ;;
     deep)
         # Covered by OPUS GUARD above — skip escalation
@@ -897,6 +901,10 @@ RATCHETED_TIER=''
 # ATTEMPT_NUM tracks resolution loop iterations for the oscillation gate and max-attempts check.
 # It is incremented at the start of each resolution sub-agent dispatch.
 ATTEMPT_NUM=0
+# ARBITER_DISPATCH_COUNT tracks how many arbiter (ESCALATE_REVIEW) dispatches occurred in the
+# current resolution cycle. Used by the oscillation_no_arbiter_engagement signal check at
+# MAX_ATTEMPTS boundary. Increment when an ESCALATE_REVIEW escalation dispatch occurs (Step 4a).
+ARBITER_DISPATCH_COUNT=0
 ```
 
 Read `${CLAUDE_PLUGIN_ROOT}/docs/workflows/prompts/review-fix-dispatch.md` and use its contents as the sub-agent prompt, filling in:
@@ -1076,13 +1084,26 @@ Task tool:
    - If OSCILLATION detected: escalate immediately. Do NOT dispatch another resolution sub-agent.
    - If CLEAR: dispatch the next resolution sub-agent.
 
+   **`oscillation_no_arbiter_engagement` signal**: Fires as a tier-upgrade escalation signal (treated identically to `ESCALATE_REVIEW`) in two conditions:
+   1. **Consecutive NEW_INTRODUCED without escape_rationale**: 2 consecutive Call 2 redispatches (DSO_REVIEW_CYCLE >= 2) produce `NEW_INTRODUCED` for the same file+region without any `escape_rationale` in either cycle. When detected, emit `ESCALATE_REVIEW: oscillation_no_arbiter_engagement` and route to the next tier reviewer (light → standard, standard → deep).
+   2. **MAX_ATTEMPTS exhausted without arbiter dispatch**: When `ATTEMPT_NUM` reaches `MAX_ATTEMPTS` and `ARBITER_DISPATCH_COUNT == 0`, no ESCALATE_REVIEW dispatch occurred during the resolution cycle. Emit `ESCALATE_REVIEW: oscillation_no_arbiter_engagement` and route to the next tier reviewer before escalating to the user.
+
+   Effect: `oscillation_no_arbiter_engagement` is a tier-upgrade signal — it triggers the same escalation path as `ESCALATE_REVIEW` (Step 4a), routing to the next higher reviewer tier. It does NOT immediately escalate to the user; the escalated tier reviewer runs first.
+
    **Call 2 oscillation short-circuit**: When 2 consecutive Call 2 redispatches (DSO_REVIEW_CYCLE >= 2) produce the exact same set of proximity overlaps (same file + line pairs), skip further Call 2 redispatch and treat the overlapping findings as stable — proceed to the OSCILLATION GATE escalation path rather than continuing the loop.
 
-   **Max attempts**: Read `review.max_resolution_attempts` from `dso-config.conf` (default: 5). When attempts exceed this value, **STOP — DO NOT PROCEED to user escalation**. First, check whether a tier upgrade is available via `ESCALATE_REVIEW` signal: if the reviewer emitted `ESCALATE_REVIEW` and a higher tier is available (light → standard, standard → deep), dispatch the escalated reviewer before user escalation. Only after the highest available tier has been dispatched and also failed may you escalate to the user. Do NOT escalate to user while a higher-tier reviewer is still available and untried via ESCALATE_REVIEW.
+   **Max attempts**: Read `review.max_resolution_attempts` from `dso-config.conf` (default: 5). When attempts exceed this value, **STOP — DO NOT PROCEED to user escalation**. First check `ARBITER_DISPATCH_COUNT`: if zero, fire `oscillation_no_arbiter_engagement` (tier upgrade) before user escalation. Then check whether a tier upgrade is available via `ESCALATE_REVIEW` signal: if the reviewer emitted `ESCALATE_REVIEW` and a higher tier is available (light → standard, standard → deep), dispatch the escalated reviewer before user escalation. Only after the highest available tier has been dispatched and also failed may you escalate to the user. Do NOT escalate to user while a higher-tier reviewer is still available and untried via ESCALATE_REVIEW.
 
    ```bash
    MAX_ATTEMPTS=$("$REPO_ROOT/.claude/scripts/dso" read-config.sh review.max_resolution_attempts)
    MAX_ATTEMPTS="${MAX_ATTEMPTS:-5}"
+   # oscillation_no_arbiter_engagement check at MAX_ATTEMPTS boundary:
+   if [[ "$ATTEMPT_NUM" -ge "$MAX_ATTEMPTS" ]] && [[ "$ARBITER_DISPATCH_COUNT" -eq 0 ]]; then
+       echo "ESCALATE_REVIEW: oscillation_no_arbiter_engagement — MAX_ATTEMPTS ($MAX_ATTEMPTS) reached with no arbiter dispatch; routing to next tier"
+       # Treat as ESCALATE_REVIEW: apply tier upgrade (light → standard, standard → deep)
+       # before escalating to user. Do NOT proceed to user escalation until the upgraded tier
+       # reviewer has also failed.
+   fi
    ```
 
 6. **If re-review fails** (attempt count exceeds `MAX_ATTEMPTS`, or oscillation detected): **DO NOT commit with a failing review.** A failing review is never a reason to bypass the review gate — the pre-commit hook will block it regardless, and attempting it wastes context. Instead: before escalating to user, check whether the reviewer emitted an `ESCALATE_REVIEW` signal pointing to a higher tier. If so, dispatch the escalated reviewer (light → standard, standard → deep full pipeline) before user escalation. User escalation is the **last resort**, after all available `ESCALATE_REVIEW`-gated tier upgrades have been exhausted. Only then: escalate to user.
