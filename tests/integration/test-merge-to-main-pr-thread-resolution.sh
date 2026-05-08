@@ -755,12 +755,22 @@ test_pr_dispatch_unresolved_batch_routes_reply_action() {
 
 # ===========================================================================
 # Test: _phase_resolve_threads must fail loud (non-zero + ESCALATE: on stderr)
-# when _LLM_DISPATCH_CMD is unset, NOT silently return 0. (Bug 9e04-0eb6.)
+# when _LLM_DISPATCH_CMD is unset AND unresolved threads exist that require
+# dispatch. (Bug 9e04-0eb6 — fail-loud safety contract.)
+#
+# The 1a83-46c5 fix moved the guard from entry-time to dispatch-time. The
+# fail-loud contract still holds when dispatch is actually needed; this test
+# stubs gh so that one unresolved thread is returned, forcing the loop to
+# reach the dispatch site where the deferred guard fires.
 # ===========================================================================
 test_phase_resolve_threads_fails_loud_when_llm_dispatch_unset() {
     echo ""
     echo "=== test_phase_resolve_threads_fails_loud_when_llm_dispatch_unset ==="
-    _snapshot_fail
+    _setup_test
+    export STUB_GH_SCENARIO=threads_one_unresolved
+    export PR_THREAD_LOOP_MAX_DISPATCHES=1
+    export PR_THREAD_LOOP_MAX_WALL_SECONDS=99999
+    export PR_THREAD_LOOP_INTERVAL=0
 
     local stderr_out rc=0
     stderr_out=$(
@@ -771,19 +781,60 @@ test_phase_resolve_threads_fails_loud_when_llm_dispatch_unset() {
         bash -c "
             source '$MERGE_PR_SCRIPT' >/dev/null 2>&1 || true
             unset _LLM_DISPATCH_CMD
-            PR_THREAD_LOOP_MAX_DISPATCHES=1
-            PR_THREAD_LOOP_MAX_WALL_SECONDS=99999
-            PR_THREAD_LOOP_INTERVAL=0
-            export PR_THREAD_LOOP_MAX_DISPATCHES PR_THREAD_LOOP_MAX_WALL_SECONDS PR_THREAD_LOOP_INTERVAL
             _phase_resolve_threads 42 'https://github.com/o/r/pull/42' 2>&1 >/dev/null
         "
     ) || rc=$?
 
-    assert_ne "test_phase_resolve_threads_fails_loud_when_llm_dispatch_unset: must exit non-zero when _LLM_DISPATCH_CMD unset" \
+    assert_ne "test_phase_resolve_threads_fails_loud_when_llm_dispatch_unset: must exit non-zero when _LLM_DISPATCH_CMD unset AND threads exist" \
         "0" "$rc"
     assert_contains "test_phase_resolve_threads_fails_loud_when_llm_dispatch_unset: stderr must contain ESCALATE: prefix" \
         "ESCALATE:" "$stderr_out"
     assert_pass_if_clean "test_phase_resolve_threads_fails_loud_when_llm_dispatch_unset"
+    _teardown_test
+}
+
+# ===========================================================================
+# Test (1a83-46c5): _phase_resolve_threads must NOT fail-loud when there are
+# zero unresolved threads, even if _LLM_DISPATCH_CMD is unset. The previous
+# entry-time guard blocked every PR from merging (bug 1a83-46c5); the deferred
+# guard only fires when dispatch is actually needed.
+# ===========================================================================
+test_phase_resolve_threads_settles_clean_when_no_threads_and_llm_unset() {
+    echo ""
+    echo "=== test_phase_resolve_threads_settles_clean_when_no_threads_and_llm_unset ==="
+    _setup_test
+    # threads_mixed scenario with NO fixture file → emits empty nodes array
+    export STUB_GH_SCENARIO=threads_mixed
+    unset STUB_GH_THREADS_FIXTURE
+    export PR_THREAD_LOOP_MAX_DISPATCHES=1
+    export PR_THREAD_LOOP_MAX_WALL_SECONDS=99999
+    export PR_THREAD_LOOP_INTERVAL=0
+    # Pre-elapse the quiet window so settling fires on the first iteration.
+    export PR_THREAD_LOOP_START_OVERRIDE_SECONDS=99999
+
+    local stderr_out rc=0
+    stderr_out=$(
+        CI=true \
+        PR_LIB_MODE=1 \
+        CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso" \
+        MERGE_STRATEGY=pr \
+        bash -c "
+            source '$MERGE_PR_SCRIPT' >/dev/null 2>&1 || true
+            unset _LLM_DISPATCH_CMD
+            _phase_resolve_threads 99 'https://github.com/o/r/pull/99' 2>&1 >/dev/null
+        "
+    ) || rc=$?
+
+    assert_eq "test_phase_resolve_threads_settles_clean_when_no_threads_and_llm_unset: must exit 0 when zero threads even if _LLM_DISPATCH_CMD unset" \
+        "0" "$rc"
+    # Stderr must NOT contain the ESCALATE prefix when settling cleanly with no threads.
+    if [[ "$stderr_out" == *"ESCALATE: _LLM_DISPATCH_CMD"* ]]; then
+        echo "FAIL: settles_clean: stderr unexpectedly contains ESCALATE about _LLM_DISPATCH_CMD"
+        echo "  stderr was: $stderr_out"
+        _FAIL=1
+    fi
+    assert_pass_if_clean "test_phase_resolve_threads_settles_clean_when_no_threads_and_llm_unset"
+    _teardown_test
 }
 
 # ===========================================================================
@@ -906,6 +957,7 @@ test_wall_clock_cap_triggers_escalation
 test_push_induced_dismissal_resets_poll_window
 test_file_path_validator_rejects_malicious_input
 test_phase_resolve_threads_fails_loud_when_llm_dispatch_unset
+test_phase_resolve_threads_settles_clean_when_no_threads_and_llm_unset
 test_dispatch_resolve_conflicts_fails_loud_when_llm_dispatch_unset
 test_dispatch_fix_agent_fails_loud_when_llm_dispatch_unset
 test_phase_conflict_resolution_propagates_escalate_when_llm_unset
