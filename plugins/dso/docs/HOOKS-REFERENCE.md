@@ -47,6 +47,31 @@ Both layers handle MERGE_HEAD and REBASE_HEAD via `merge-state.sh`. `--no-verify
 - When `semgrep` is selected, uses rules at `${CLAUDE_PLUGIN_ROOT}/hooks/semgrep-rules/test-anti-patterns.yaml`.
 - Timeout budget: 15 seconds.
 
+## Compliance verifier gate
+
+`pre-commit-compliance-verifier` — pre-commit hook that blocks commits missing required per-step validation artifacts.
+
+**What it reads**: for each of the 5 required steps (`test`, `format`, `lint`, `classifier-dispatch`, `reviewer-record`), it looks for `$ARTIFACTS_DIR/<step>.result` or `$ARTIFACTS_DIR/<step>.skipped`. At least one must be present per step.
+
+**When it blocks**: when any required step artifact is absent (neither `.result` nor `.skipped` present for that step).
+
+**Overlay verification**: also reads `$ARTIFACTS_DIR/classifier-dispatch.result` to check for flagged overlays; looks up findings filenames in `overlay-registry.json`; blocks if any referenced overlay findings file is absent.
+
+**Feature flag**: `hooks.compliance_verifier.enabled` in `dso-config.conf` (default: `true`); or `DSO_COMPLIANCE_VERIFIER_ENABLED=true` env var.
+
+**Legitimate bypass**: use `dso commit-step skip <name> "<reason>"` to generate a `.skipped` marker before committing. Example for `enforcement.strategy=ci`:
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+_cfg="$REPO_ROOT/.claude/dso-config.conf"
+CLAUDE_PLUGIN_ROOT="$(grep '^dso\.plugin_root=' "$_cfg" | cut -d= -f2-)"
+source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
+ARTIFACTS_DIR=$(get_artifacts_dir)
+for step in test format lint classifier-dispatch reviewer-record; do
+    bash "${CLAUDE_PLUGIN_ROOT}/scripts/commit-step.sh" skip "$step" "enforcement.strategy=ci"
+done
+```
+
 ## Hook error handler
 
 `${CLAUDE_PLUGIN_ROOT}/hooks/lib/hook-error-handler.sh` — shared ERR/EXIT trap library for **non-enforcement** hooks. Source with a fail-open guard, then call `_dso_register_hook_err_handler "hook-name.sh"`. Errors logged to `~/.claude/logs/dso-hook-errors.jsonl` (handler always exits 0, never blocks hook execution).
