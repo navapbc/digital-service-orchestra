@@ -402,3 +402,4 @@ tests/scripts/test-sigpipe-canary.sh:tests/scripts/test-sigpipe-canary.sh
 tests/scripts/test-ticket-delete.sh:tests/scripts/test-ticket-delete.sh
 tests/scripts/test-ticket-link-duplicates-supersedes.sh:tests/scripts/test-ticket-link-duplicates-supersedes.sh
 tests/scripts/test-ticket-transition-deleted.sh:tests/scripts/test-ticket-transition-deleted.sh
+plugins/dso/scripts/commit-override.sh: tests/scripts/test-commit-override.sh [test_requires_reason_flag]
