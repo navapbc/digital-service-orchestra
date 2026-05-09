@@ -62,9 +62,11 @@ if [[ -f "$HOME/.claude/hook-timing-enabled" ]]; then
 fi
 
 SYNTAX_ERR_LOG=$(mktemp /tmp/claude-hook-syntax-err.XXXXXX)
+_HOOK_STDERR_TMP=""  # set later; declared here so _cleanup can always reference it
+# shellcheck disable=SC2329  # invoked via trap EXIT below
 _cleanup() {
     local _exit_code=$?
-    rm -f "$SYNTAX_ERR_LOG"
+    rm -f "$SYNTAX_ERR_LOG" "${_HOOK_STDERR_TMP:-}"
     # Log timing on exit (covers both exec and non-exec paths)
     if [[ -n "$_HOOK_TIMING_ENABLED" ]]; then
         local _end_ms
@@ -93,11 +95,26 @@ if ! bash -n "$HOOK" 2>"$SYNTAX_ERR_LOG"; then
     exit 0
 fi
 
-# When timing is enabled, run the hook (not exec) so the EXIT trap fires.
-# When disabled, exec for zero overhead.
-if [[ -n "$_HOOK_TIMING_ENABLED" ]]; then
-    "$HOOK" "$@"
-    exit $?
-else
-    exec "$HOOK" "$@"
+# Run the hook and capture stderr so we can annotate BLOCKED output with the
+# resolved CLAUDE_PLUGIN_ROOT path. Claude Code's error formatter uses the raw
+# command string from plugin.json (which contains the literal
+# '${CLAUDE_PLUGIN_ROOT}'), so agents see an unexpanded variable in the error
+# prefix. By appending the resolved path to blocked-hook stderr, agents get an
+# actionable location even when the harness prefix is unresolved (bug 8c3d-b5ac).
+#
+# Note: this replaces `exec "$HOOK"` (zero-overhead fast path) with a subprocess
+# + stderr-capture. The EXIT trap still fires on the outer process exit, so hook
+# timing instrumentation (when enabled) continues to work correctly.
+_HOOK_STDERR_TMP=$(mktemp /tmp/claude-hook-stderr.XXXXXX)
+"$HOOK" "$@" 2>"$_HOOK_STDERR_TMP"
+_hook_exit=$?
+
+# Flush captured stderr to actual stderr.
+# On BLOCKED (exit 2), append the resolved plugin root so the agent can locate
+# the hook source even when the harness shows '${CLAUDE_PLUGIN_ROOT}'.
+cat "$_HOOK_STDERR_TMP" >&2
+if [[ "$_hook_exit" -eq 2 ]]; then
+    printf '[hook location: %s/hooks/run-hook.sh]\n' "$CLAUDE_PLUGIN_ROOT" >&2
 fi
+rm -f "$_HOOK_STDERR_TMP"
+exit "$_hook_exit"

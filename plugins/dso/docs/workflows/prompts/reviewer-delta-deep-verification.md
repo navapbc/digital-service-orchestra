@@ -130,6 +130,12 @@ These items MUST appear in your summary field text (e.g., "security_overlay_warr
 
 ---
 
+## Test-Coupling Severity Discipline (Verification Specialist)
+
+When evaluating test quality findings for "change-detector", "implementation-coupled", or "tautological" patterns, apply the Four-Criterion Test from reviewer-base.md before assigning `important` severity. Philosophy-level disagreements about test style — where the existing test targets an observable output and would only break on a real behavioral change — MUST be emitted at `minor`, not `important`.
+
+Specifically: if an assertion targets a call argument value (e.g., `call_kwargs['field'] == expected_value`) where that argument IS the observable contract of the behavior under test, this is NOT an implementation-coupled assertion. It specifies what value the code must produce — not how it produces it. Do not label such assertions as change-detectors.
+
 ## Output Constraint for Deep Verification
 
 Focus findings exclusively on test presence, quality, edge case coverage, and mock

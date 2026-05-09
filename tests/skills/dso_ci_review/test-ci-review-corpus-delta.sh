@@ -124,6 +124,23 @@ grep -q 'cd "$_PLUGIN_ROOT/../.."' "$DELTA_SCRIPT" && neg_result=1 || true
 assert_eq "test_portability: no relative traversal" "0" "$neg_result"
 
 # ---------------------------------------------------------------------------
+# Test 7: _count_speculation does NOT hardcode inline MARKERS list
+# (RED before fix: script has inline MARKERS = [...] in heredoc;
+#  GREEN after fix: script imports from speculation_markers.py)
+# ---------------------------------------------------------------------------
+_snapshot_fail
+inline_markers=0
+grep -q 'MARKERS = \[' "$DELTA_SCRIPT" && inline_markers=1 || true
+assert_eq "test_no_inline_markers: _count_speculation imports from module, not hardcoded" \
+    "0" "$inline_markers"
+
+# Also verify the import from speculation_markers is present in the script
+import_present=0
+grep -q 'speculation_markers' "$DELTA_SCRIPT" && import_present=1 || true
+assert_eq "test_import_present: script references speculation_markers module" \
+    "1" "$import_present"
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 print_summary

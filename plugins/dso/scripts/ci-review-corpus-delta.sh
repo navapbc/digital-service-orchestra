@@ -30,6 +30,7 @@ set -euo pipefail
 # Resolve repo root and plugin root
 # ---------------------------------------------------------------------------
 _REPO_ROOT="$(git rev-parse --show-toplevel)"
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 
 # ---------------------------------------------------------------------------
 # Defaults
@@ -91,20 +92,19 @@ PYEOF
 }
 
 # count_speculation FINDINGS_JSON → integer printed to stdout
+# Imports SPECULATION_MARKERS from dso_ci_review.speculation_markers to
+# avoid duplicating the marker list here.  Counts the number of findings
+# that contain at least one speculation marker in their description.
 _count_speculation() {
     local findings_file="$1"
+    PYTHONPATH="${_PLUGIN_ROOT}/scripts${PYTHONPATH:+:$PYTHONPATH}" \
     python3 - "$findings_file" <<'PYEOF'
 import json, sys
-
-MARKERS = [
-    "may ", "might ", "could be", "possibly", "unclear if",
-    "hard to tell", "without more context", "assuming",
-    "it seems", "appears to", "probably", "perhaps",
-]
+from dso_ci_review.speculation_markers import SPECULATION_MARKERS
 
 def has_marker(desc):
     d = (desc or "").lower()
-    return any(m in d for m in MARKERS)
+    return any(m in d for m in SPECULATION_MARKERS)
 
 data = json.loads(open(sys.argv[1]).read())
 findings = data if isinstance(data, list) else data.get("findings", [])

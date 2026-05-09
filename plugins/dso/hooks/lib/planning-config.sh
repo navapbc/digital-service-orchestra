@@ -15,10 +15,14 @@
 # Config key:
 #   planning.external_dependency_block_enabled — boolean (default: false)
 
-set -uo pipefail
+# Note: no `set` directives here — this is a sourced library; imposing shell
+# options would modify the caller's environment.  Callers manage their own
+# errexit / nounset posture.
 
-# Locate read-config.sh relative to this file
-_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# Locate read-config.sh relative to this file.
+# Guard BASH_SOURCE[0]: the variable is unset in non-bash contexts (e.g. zsh)
+# and array-index access triggers "parameter not set" under nounset.
+_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/../.." && pwd)"
 _READ_CONFIG="$_PLUGIN_ROOT/scripts/read-config.sh"
 
 # is_external_dep_block_enabled

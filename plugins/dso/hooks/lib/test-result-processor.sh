@@ -66,7 +66,11 @@ _process_test_result() {
         PYTHONDONTWRITEBYTECODE=1 python3 -m pytest "$full_test_path" --tb=short -q -p no:cacheprovider --override-ini="cache_dir=$_rts_pytest_cache" >"$test_output_file" 2>&1 || exit_code=$?
         rm -rf "$_rts_pytest_cache" 2>/dev/null || true
     elif [[ "$test_file" == *.ts ]] || [[ "$test_file" == *.tsx ]]; then
-        npx --no-install jest "$full_test_path" --no-coverage >"$test_output_file" 2>&1 || exit_code=$?
+        # Use --runTestsByPath so Jest treats the argument as an exact filesystem path,
+        # not a regex. Positional args are regex-matched against test paths: bracket
+        # segments (e.g. [id], [locale]) are treated as regex character classes and
+        # produce "No tests found" exit 1 for any dynamic-route test file. Bug c209-a321.
+        npx --no-install jest --runTestsByPath "$full_test_path" --no-coverage >"$test_output_file" 2>&1 || exit_code=$?
     else
         # Unknown extension — try executing directly
         bash "$full_test_path" >"$test_output_file" 2>&1 || exit_code=$?

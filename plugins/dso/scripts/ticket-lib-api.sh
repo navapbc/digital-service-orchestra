@@ -1197,6 +1197,7 @@ def initial_state($tid):
     parent_id: null,
     priority: null,
     assignee: null,
+    alias: null,
     description: "",
     tags: [],
     comments: [],
@@ -1206,6 +1207,11 @@ def initial_state($tid):
     file_impact: [],
     preconditions_summary: {status: "pre-manifest"}
   };
+
+def _editable_keys:
+  ["ticket_id","ticket_type","title","status","author","created_at","env_id",
+   "parent_id","priority","assignee","alias","description","tags","comments","deps",
+   "bridge_alerts","reverts"];
 
 def apply_event(ev):
   if ev.event_type == "CREATE" then
@@ -1251,7 +1257,7 @@ def apply_event(ev):
                    gsub("^\\s+|\\s+$"; "") | select(length > 0)]
         else .tags = []
         end
-      elif ([["ticket_id","ticket_type","title","status","author","created_at","env_id","parent_id","priority","assignee","description","tags","comments","deps","bridge_alerts","reverts"][] == $field.key] | any) then
+      elif ([_editable_keys[] == $field.key] | any) then
         .[$field.key] = $field.value
       else .
       end

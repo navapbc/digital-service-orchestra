@@ -589,9 +589,13 @@ test_sigurg_records_interrupted_phase() {
     bash "$_helper_script" 2>/dev/null || true
     rm -f "$_helper_script"
 
-    # Read the state file and verify current_phase was written
-    local _written_phase
-    _written_phase=$(python3 -c "
+    # Read the state file and verify current_phase was written.
+    # Retry up to 3 times with a short delay to guard against rare OS page-cache
+    # flush delays on heavily loaded CI runners (bug c1a5-a570-e4e8-4802).
+    local _written_phase _retry
+    _written_phase=""
+    for _retry in 1 2 3; do
+        _written_phase=$(python3 -c "
 import json
 try:
     with open('$_sf') as f:
@@ -600,6 +604,9 @@ try:
 except Exception:
     print('')
 " 2>/dev/null || echo "")
+        [[ -n "$_written_phase" ]] && break
+        sleep 0.1
+    done
 
     # The phase should be non-empty (either "merge" or "interrupted")
     assert_ne "test_sigurg_records_interrupted_phase" "" "$_written_phase"

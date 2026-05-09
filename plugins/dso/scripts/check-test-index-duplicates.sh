@@ -27,7 +27,99 @@ if [[ ! -f "$INDEX_FILE" ]]; then
     exit 0  # file absent — nothing to check
 fi
 
-# Fast path: no duplicates → exit 0 without rewriting the file.
+# ── _check_non_runnable_test_targets <index_file> ─────────────────────────────
+# Scans test targets (RHS of each entry) for known non-runnable extensions.
+# A test target with .yaml, .yml, .json, .md, .conf, or .txt cannot be executed
+# as bash or python and indicates a misconfiguration (e.g. a semgrep rules file
+# accidentally registered as a test). Prints offending entries; exits 0 when clean.
+# (bug f86e-6f23)
+_check_non_runnable_test_targets() {
+    local _idx_file="$1"
+    python3 -c "
+import sys, re
+
+NON_RUNNABLE = {'.yaml', '.yml', '.json', '.md', '.conf', '.txt'}
+
+path = sys.argv[1]
+offenders = []
+
+with open(path) as f:
+    for lineno, raw in enumerate(f.read().splitlines(), 1):
+        if not raw.strip() or raw.startswith('#') or ':' not in raw:
+            continue
+        _, _, rhs = raw.partition(':')
+        for t in rhs.split(','):
+            t = t.strip()
+            if not t:
+                continue
+            # Strip RED marker suffix to get the raw file path.
+            base = re.sub(r'\s+\[.*\]$', '', t).strip()
+            ext = '.' + base.rsplit('.', 1)[-1] if '.' in base else ''
+            if ext in NON_RUNNABLE:
+                offenders.append(f'  line {lineno}: {base!r} (extension {ext!r} is not runnable)')
+
+if offenders:
+    print('\n'.join(offenders))
+" "$_idx_file" 2>/dev/null
+}
+
+_non_runnable=$(_check_non_runnable_test_targets "$INDEX_FILE")
+if [[ -n "$_non_runnable" ]]; then
+    echo "ERROR: .test-index has test targets with non-runnable extensions (bug f86e-6f23)." >&2
+    echo "These files cannot be executed as bash or python tests and indicate a misconfiguration." >&2
+    echo "Remove or replace the following entries:" >&2
+    echo "$_non_runnable" >&2
+    exit 1
+fi
+
+# ── _check_cross_key_conflicts <index_file> ────────────────────────────────────
+# Scans <index_file> for test files that appear under multiple source-key lines
+# each with a different RED marker (bug 804a-84c7). Prints a human-readable
+# conflict report to stdout; prints nothing and exits 0 when clean.
+# Uses python3 -c to avoid heredoc-inside-$() bash parse warnings.
+_check_cross_key_conflicts() {
+    local _idx_file="$1"
+    python3 -c "
+import sys, re
+from collections import defaultdict
+
+path = sys.argv[1]
+seen = defaultdict(list)
+
+with open(path) as f:
+    for raw in f.read().splitlines():
+        if not raw.strip() or raw.startswith('#') or ':' not in raw:
+            continue
+        source_key, _, rhs = raw.partition(':')
+        source_key = source_key.strip()
+        for t in rhs.split(','):
+            t = t.strip()
+            if not t:
+                continue
+            m = re.match(r'^(.*[^\s])\s+\[([^\]]+)\]\$', t)
+            if m:
+                test_file = m.group(1).strip()
+                marker = m.group(2)
+                seen[test_file].append((source_key, marker))
+
+conflicts = []
+for test_file, entries in seen.items():
+    if len(entries) > 1:
+        # Only a conflict when markers DIFFER — same marker under multiple source
+        # keys is intentional (both triggers run the same test, no ambiguity).
+        unique_markers = {mk for _, mk in entries}
+        if len(unique_markers) > 1:
+            conflicts.append(f'  {test_file}:')
+            for sk, mk in entries:
+                conflicts.append(f'    source={sk} marker=[{mk}]')
+
+if conflicts:
+    print('\n'.join(conflicts))
+" "$_idx_file" 2>/dev/null
+}
+
+# Fast path: no duplicates → check for cross-source-key marker conflicts (bug 804a-84c7),
+# then exit 0 without rewriting the file.
 # Check for both source-key duplicates and within-line marker-only duplicates.
 _dups=$(awk -F: '/^[^#]/ && NF>=2 { print $1 }' "$INDEX_FILE" | sort | uniq -d)
 # python3 failure must NOT silently shortcut to exit 0 — capture the exit code
@@ -53,6 +145,17 @@ for line in sys.stdin:
         seen.add(base)
 " 2>/dev/null) || _marker_dups_exit=$?
 if [[ -z "$_dups" && -z "$_marker_dups" && "$_marker_dups_exit" -eq 0 ]]; then
+    # No source-key or within-line dups — but still check for cross-source-key
+    # RED marker conflicts (bug 804a-84c7). These don't get auto-fixed; they
+    # require the agent to consolidate entries manually.
+    _fast_cross_conflicts=$(_check_cross_key_conflicts "$INDEX_FILE" 2>/dev/null) || true
+    if [[ -n "$_fast_cross_conflicts" ]]; then
+        echo "ERROR: .test-index has cross-source-key RED marker conflicts (bug 804a-84c7)." >&2
+        echo "The bash-runner uses last-entry-wins, so only the last marker is active." >&2
+        echo "Consolidate each test file's RED marker to a single source-key line:" >&2
+        echo "$_fast_cross_conflicts" >&2
+        exit 1
+    fi
     exit 0
 fi
 
@@ -108,6 +211,20 @@ if [[ -n "$_dups" ]]; then
 fi
 if [[ -n "$_marker_dups" ]]; then
     echo "NOTE: .test-index had marker-only duplicate test entries — collapsed to first marker." >&2
+fi
+
+# ── Post-union cross-source-key marker conflict check (bug 804a-84c7) ─────────
+# After union, a test file may still appear in multiple source-key lines each
+# with a different RED marker. The bash-runner uses last-entry-wins semantics,
+# so only the last marker survives — silently breaking earlier RED zones.
+# Detect this and exit 1 so the misconfiguration is caught before CI.
+_cross_key_conflicts=$(_check_cross_key_conflicts "$INDEX_FILE" 2>/dev/null) || true
+if [[ -n "$_cross_key_conflicts" ]]; then
+    echo "ERROR: .test-index has cross-source-key RED marker conflicts (bug 804a-84c7)." >&2
+    echo "The bash-runner uses last-entry-wins, so only the last marker is active." >&2
+    echo "Consolidate each test file's RED marker to a single source-key line:" >&2
+    echo "$_cross_key_conflicts" >&2
+    exit 1
 fi
 
 # Always auto-stage so the commit proceeds in one step without requiring a manual

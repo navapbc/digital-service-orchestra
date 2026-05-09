@@ -29,9 +29,7 @@ _SCRIPTS_DIR = str(REPO_ROOT / "plugins" / "dso" / "scripts")
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
 
-# Valid severity values as defined in dispatch.py _SYSTEM_PROMPT plus the
-# fallback_exhausted sentinel written by dispatch_review() when all providers fail.
-_VALID_SEVERITIES = {"critical", "important", "minor", "fragile", "fallback_exhausted"}
+from dso_ci_review.dispatch import _VALID_SEVERITIES  # noqa: E402
 
 
 @pytest.mark.integration
@@ -55,7 +53,7 @@ def test_anthropic_full_loop_produces_structured_findings():
         diff_text=diff_text,
         provider_chain=["anthropic"],
         environ={"ANTHROPIC_API_KEY": anthropic_key},
-        agent_id="unknown",
+        agent_id="code-reviewer-standard",
         primary_model="claude-haiku-4-5-20251001",
         repo_root=str(REPO_ROOT),
         tier="standard",
@@ -97,7 +95,7 @@ def test_openai_full_loop_produces_structured_findings():
         diff_text=diff_text,
         provider_chain=["openai"],
         environ={"OPENAI_API_KEY": openai_key},
-        agent_id="unknown",
+        agent_id="code-reviewer-standard",
         primary_model="openai/gpt-4o-mini",
         repo_root=str(REPO_ROOT),
         tier="standard",

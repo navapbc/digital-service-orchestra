@@ -159,6 +159,17 @@ case "${STUB_GH_SCENARIO:-default}" in
             echo '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[{"id":"PRT_STUCK","isResolved":false,"path":"x.py","body":"comment"}]}}}}}'
         fi
         ;;
+    gh_api_failure)
+        # Simulate network/auth/rate-limit failure on GraphQL thread fetch.
+        # Return non-zero to trigger the fail-loud path in _pr_fetch_unresolved_threads.
+        if [[ "${1:-}" == "api" && "${2:-}" == "graphql" ]]; then
+            echo 'error (HTTP 401): credentials expired' >&2
+            exit 1
+        fi
+        # Non-GraphQL calls (pr view, pr checks) succeed normally so the loop
+        # does not fail for unrelated reasons.
+        echo '{"state":"OPEN","mergeable":"MERGEABLE","headRefOid":"abc123"}'
+        ;;
     *)
         echo '{}'
         ;;
@@ -789,6 +800,10 @@ test_phase_resolve_threads_fails_loud_when_llm_dispatch_unset() {
         "0" "$rc"
     assert_contains "test_phase_resolve_threads_fails_loud_when_llm_dispatch_unset: stderr must contain ESCALATE: prefix" \
         "ESCALATE:" "$stderr_out"
+    assert_contains "test_phase_resolve_threads_fails_loud_when_llm_dispatch_unset: stderr must contain UNRESOLVED: pattern" \
+        "UNRESOLVED:" "$stderr_out"
+    assert_contains "test_phase_resolve_threads_fails_loud_when_llm_dispatch_unset: stderr must contain PR: pattern" \
+        "PR:" "$stderr_out"
     assert_pass_if_clean "test_phase_resolve_threads_fails_loud_when_llm_dispatch_unset"
     _teardown_test
 }
@@ -943,6 +958,45 @@ test_phase_conflict_resolution_propagates_escalate_when_llm_unset() {
     assert_pass_if_clean "test_phase_conflict_resolution_propagates_escalate_when_llm_unset"
 }
 
+# ===========================================================================
+# Test: _phase_resolve_threads must ESCALATE (non-zero + ESCALATE: on stderr)
+# when the gh API call in _pr_fetch_unresolved_threads fails (network/auth/
+# rate-limit). The `|| true` on the inner call site in merge-to-main-pr.sh
+# must NOT silently suppress the failure and settle clean — that would produce
+# a false-positive merge on a PR that may still have unresolved threads.
+# (Bug f786-ea8a.)
+# ===========================================================================
+test_phase_resolve_threads_handles_gh_api_failure() {
+    echo ""
+    echo "=== test_phase_resolve_threads_handles_gh_api_failure ==="
+    _setup_test
+    export STUB_GH_SCENARIO=gh_api_failure
+    export PR_THREAD_LOOP_MAX_DISPATCHES=1
+    export PR_THREAD_LOOP_MAX_WALL_SECONDS=99999
+    export PR_THREAD_LOOP_INTERVAL=0
+
+    local stderr_out rc=0
+    stderr_out=$(
+        CI=true \
+        PR_LIB_MODE=1 \
+        CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso" \
+        MERGE_STRATEGY=pr \
+        bash -c "
+            source '$MERGE_PR_SCRIPT' >/dev/null 2>&1 || true
+            # Ensure _LLM_DISPATCH_CMD is set so the gh-failure is the only fault.
+            export _LLM_DISPATCH_CMD='true'
+            _phase_resolve_threads 42 'https://github.com/o/r/pull/42' 2>&1 >/dev/null
+        "
+    ) || rc=$?
+
+    assert_ne "test_phase_resolve_threads_handles_gh_api_failure: must exit non-zero when gh API fails" \
+        "0" "$rc"
+    assert_contains "test_phase_resolve_threads_handles_gh_api_failure: stderr must contain ESCALATE: to signal gh failure" \
+        "ESCALATE:" "$stderr_out"
+    assert_pass_if_clean "test_phase_resolve_threads_handles_gh_api_failure"
+    _teardown_test
+}
+
 # ---------------------------------------------------------------------------
 # Run all tests
 # ---------------------------------------------------------------------------
@@ -957,6 +1011,7 @@ test_wall_clock_cap_triggers_escalation
 test_push_induced_dismissal_resets_poll_window
 test_file_path_validator_rejects_malicious_input
 test_phase_resolve_threads_fails_loud_when_llm_dispatch_unset
+test_phase_resolve_threads_handles_gh_api_failure
 test_phase_resolve_threads_settles_clean_when_no_threads_and_llm_unset
 test_dispatch_resolve_conflicts_fails_loud_when_llm_dispatch_unset
 test_dispatch_fix_agent_fails_loud_when_llm_dispatch_unset
