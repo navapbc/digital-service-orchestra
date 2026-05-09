@@ -785,10 +785,14 @@ hook_tickets_tracker_bash_guard() {
         # We remove all occurrences of /tmp/.../.tickets-tracker/ and /var/.../
         # .tickets-tracker/ and check if .tickets-tracker/ still appears.
         local _stripped="$COMMAND"
-        # Remove /tmp/<anything>/.tickets-tracker/ occurrences (greedy per segment)
+        # Remove /tmp/<anything>/.tickets-tracker/ occurrences (greedy per segment).
+        # _after must strip the SAME /tmp/*/.tickets-tracker/ segment matched by the
+        # loop condition — using a bare *.tickets-tracker/ pattern would incorrectly
+        # strip a non-temp .tickets-tracker/ reference earlier in the command,
+        # causing the loop to grow the string indefinitely (non-termination).
         while [[ "$_stripped" == */tmp/*/.tickets-tracker/* ]]; do
             local _before="${_stripped%%/tmp/*/.tickets-tracker/*}"
-            local _after="${_stripped#*/.tickets-tracker/}"
+            local _after="${_stripped#*/tmp/*/.tickets-tracker/}"
             _stripped="${_before}${_after}"
         done
         # If no bare .tickets-tracker/ remains, all refs were under /tmp/ → allow.

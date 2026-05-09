@@ -528,8 +528,9 @@ def dispatch_review(
                                 "severity": "critical",
                                 "description": (
                                     "Context-augmentation loop failed-closed: reviewer "
-                                    f"continued emitting context requests past turn "
-                                    f"{_AUG_SOFT_CAP + _NUDGE_SECOND_OFFSET} without providing final findings."
+                                    f"continued emitting context requests after second nudge at turn "
+                                    f"{_AUG_SOFT_CAP + _NUDGE_SECOND_OFFSET}, reaching fail-closed threshold "
+                                    f"at turn {_AUG_SOFT_CAP + _FAIL_CLOSED_OFFSET} without providing final findings."
                                 ),
                                 "cited_lines": [f"{_THIS_FILE_GIT_REL}:418"],
                             }

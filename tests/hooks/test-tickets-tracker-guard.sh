@@ -227,4 +227,13 @@ INPUT='{"tool_name":"Bash","tool_input":{"command":"python3 -c \"import json; da
 EXIT_CODE=$(run_bash_guard "$INPUT")
 assert_eq_verbose "test_bash_tmp_tickets_tracker_python3_readonly_allows" "0" "$EXIT_CODE"
 
+# --- test_bash_mixed_repo_and_tmp_tickets_tracker_blocks ---
+# When a command references BOTH a repo-rooted .tickets-tracker/ path AND a
+# /tmp/.../.tickets-tracker/ path, the temp-path stripping loop must terminate
+# and the command must be blocked because the repo-rooted reference remains.
+# Regression for non-termination bug in pre-bash-functions.sh stripping loop.
+INPUT='{"tool_name":"Bash","tool_input":{"command":"diff ./.tickets-tracker/foo.json /tmp/abc/.tickets-tracker/bar.json"}}'
+EXIT_CODE=$(run_bash_guard "$INPUT")
+assert_eq_verbose "test_bash_mixed_repo_and_tmp_tickets_tracker_blocks" "2" "$EXIT_CODE"
+
 print_summary
