@@ -1378,4 +1378,88 @@ PYEOF
 }
 test_parent_uuid_legacy_tolerated
 
+# ── Test 25 (7f55-c7ee): --force skips open-children guard and closes epic ─────
+echo "Test 25 (7f55-c7ee): --force closes epic with open children; children remain open"
+test_force_close_skips_open_children_guard() {
+    _snapshot_fail
+
+    local repo
+    repo=$(_make_test_repo)
+
+    # Create a parent epic ticket
+    local parent_id
+    parent_id=$(_create_ticket "$repo" epic "Epic with open children - force close test")
+
+    if [ -z "$parent_id" ]; then
+        assert_eq "force-close: parent epic created" "non-empty" "empty"
+        assert_pass_if_clean "test_force_close_skips_open_children_guard"
+        return
+    fi
+
+    # Create a child task under the parent
+    local child_id
+    child_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Open child" --parent "$parent_id" 2>/dev/null) || true
+    child_id=$(echo "$child_id" | tail -1)
+
+    if [ -z "$child_id" ]; then
+        assert_eq "force-close: child ticket created" "non-empty" "empty"
+        assert_pass_if_clean "test_force_close_skips_open_children_guard"
+        return
+    fi
+
+    # Transition parent to in_progress first (so we close from in_progress)
+    (cd "$repo" && bash "$TICKET_SCRIPT" transition "$parent_id" open in_progress 2>/dev/null) || true
+
+    # Without --force this must fail
+    local no_force_exit=0
+    (cd "$repo" && bash "$TICKET_SCRIPT" transition "$parent_id" in_progress closed 2>/dev/null) \
+        || no_force_exit=$?
+    assert_eq "force-close: without --force exits non-zero" "1" "$([ "$no_force_exit" -ne 0 ] && echo 1 || echo 0)"
+
+    # Parent must still be in_progress (not closed) after the failed attempt
+    local status_after_fail
+    status_after_fail=$(_get_ticket_status "$repo" "$parent_id")
+    assert_eq "force-close: parent still in_progress after failed close" "in_progress" "$status_after_fail"
+
+    # With --force the close must succeed
+    local force_exit=0
+    local force_stderr
+    force_stderr=$(cd "$repo" && bash "$TICKET_SCRIPT" transition "$parent_id" in_progress closed --force 2>&1 >/dev/null) \
+        || force_exit=$?
+    assert_eq "force-close: with --force exits 0" "0" "$force_exit"
+
+    # Parent must now be closed
+    local parent_status
+    parent_status=$(_get_ticket_status "$repo" "$parent_id")
+    assert_eq "force-close: parent is closed after --force" "closed" "$parent_status"
+
+    # Child must still be open (not closed or affected)
+    local child_status
+    child_status=$(_get_ticket_status "$repo" "$child_id")
+    assert_eq "force-close: child remains open after --force parent close" "open" "$child_status"
+
+    # Warning message must list the child on stderr
+    if [[ "$force_stderr" == *"$child_id"* ]]; then
+        assert_eq "force-close: warning lists open child ID" "has-child" "has-child"
+    else
+        assert_eq "force-close: warning lists open child ID" "has-child" "missing: $force_stderr"
+    fi
+
+    # Error message without --force must suggest --force
+    local hint_stderr
+    # Re-verify: create a fresh epic and child so we get the error message
+    local parent2_id
+    parent2_id=$(_create_ticket "$repo" epic "Epic with child for hint test")
+    (cd "$repo" && bash "$TICKET_SCRIPT" create task "Child for hint" --parent "$parent2_id" 2>/dev/null) || true
+    hint_stderr=$(cd "$repo" && bash "$TICKET_SCRIPT" transition "$parent2_id" open closed 2>&1) || true
+    if [[ "$hint_stderr" == *"--force"* ]]; then
+        assert_eq "force-close: error message mentions --force hint" "has-hint" "has-hint"
+    else
+        assert_eq "force-close: error message mentions --force hint" "has-hint" "missing: $hint_stderr"
+    fi
+
+    assert_pass_if_clean "test_force_close_skips_open_children_guard"
+}
+test_force_close_skips_open_children_guard
+
 print_summary

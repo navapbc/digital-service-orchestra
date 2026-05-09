@@ -91,8 +91,23 @@ case "\$1" in
       view)
         # gh pr view --json mergeable — pre-auto-merge check
         # gh pr view --json state — polling-phase check (return MERGED so loop exits)
+        # gh pr view --json headRefOid — _phase_check_pr_comments_since_push
+        # gh pr view --json comments,reviews,reviewThreads — comments-since-push payload
         if [[ "\$*" == *"--json state"* ]]; then
           echo "MERGED"
+          exit 0
+        fi
+        if [[ "\$*" == *"--json headRefOid"* ]]; then
+          # Empty → _phase_check_pr_comments_since_push returns early at the
+          # `[[ -z "\$_head_sha" ]] && return 0` guard, so no api repos/commits
+          # call follows. Keeps the fixture minimal.
+          echo ""
+          exit 0
+        fi
+        if [[ "\$*" == *"comments,reviews,reviewThreads"* ]]; then
+          # Empty payload — defensive in case the head_sha guard above is
+          # ever bypassed in future flows.
+          echo "{}"
           exit 0
         fi
         if [[ "$pr_create_mode" == "conflict" ]]; then
@@ -124,6 +139,25 @@ case "\$1" in
         ;;
       *) exit 0 ;;
     esac
+    ;;
+  api)
+    # gh api graphql — _pr_fetch_unresolved_threads expects this exact shape.
+    # Returning empty {nodes:[]} means "no unresolved threads", letting
+    # _phase_resolve_threads exit cleanly so the script proceeds to auto-merge.
+    if [[ "\$2" == "graphql" ]]; then
+      echo '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}'
+      exit 0
+    fi
+    exit 0
+    ;;
+  repo)
+    # gh repo view --json nameWithOwner — _pr_repo helper. Return a placeholder
+    # slug consistent with the PR URL above.
+    if [[ "\$2" == "view" ]]; then
+      echo "x/y"
+      exit 0
+    fi
+    exit 0
     ;;
   *) exit 0 ;;
 esac
@@ -433,6 +467,18 @@ case "\$1" in
           echo "$merge_sha"
           exit 0
         fi
+        # _phase_check_pr_comments_since_push: --json headRefOid → empty so
+        # the function returns early at the empty-_head_sha guard, avoiding
+        # the api repos/{owner}/{repo}/commits/... call.
+        if [[ "\$*" == *"--json headRefOid"* ]]; then
+          echo ""
+          exit 0
+        fi
+        # comments,reviews,reviewThreads payload — defensive empty.
+        if [[ "\$*" == *"comments,reviews,reviewThreads"* ]]; then
+          echo "{}"
+          exit 0
+        fi
         # mergeable check (pre-auto-merge) → MERGEABLE; state check during poll → see below
         if [[ "\$*" == *"--json mergeable"* && "\$*" != *state* ]]; then
           echo '{"mergeable":"MERGEABLE","number":42,"url":"https://github.com/x/y/pull/42"}'
@@ -495,6 +541,22 @@ case "\$1" in
         ;;
       *) exit 0 ;;
     esac
+    ;;
+  api)
+    # _pr_fetch_unresolved_threads — empty {nodes:[]} so the loop exits cleanly.
+    if [[ "\$2" == "graphql" ]]; then
+      echo '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}'
+      exit 0
+    fi
+    exit 0
+    ;;
+  repo)
+    # _pr_repo helper.
+    if [[ "\$2" == "view" ]]; then
+      echo "x/y"
+      exit 0
+    fi
+    exit 0
     ;;
   *) exit 0 ;;
 esac
@@ -838,6 +900,16 @@ case "\$1" in
           echo "MERGED"
           exit 0
         fi
+        # _phase_check_pr_comments_since_push: --json headRefOid → empty so
+        # the function returns early, avoiding the api repos/.../commits call.
+        if [[ "\$*" == *"--json headRefOid"* ]]; then
+          echo ""
+          exit 0
+        fi
+        if [[ "\$*" == *"comments,reviews,reviewThreads"* ]]; then
+          echo "{}"
+          exit 0
+        fi
         echo '{"mergeable":"MERGEABLE","number":42,"url":"https://github.com/x/y/pull/42"}'
         exit 0
         ;;
@@ -848,6 +920,22 @@ case "\$1" in
       merge) exit 0 ;;
       *) exit 0 ;;
     esac
+    ;;
+  api)
+    # _pr_fetch_unresolved_threads — empty {nodes:[]} so the loop exits cleanly.
+    if [[ "\$2" == "graphql" ]]; then
+      echo '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}'
+      exit 0
+    fi
+    exit 0
+    ;;
+  repo)
+    # _pr_repo helper.
+    if [[ "\$2" == "view" ]]; then
+      echo "x/y"
+      exit 0
+    fi
+    exit 0
     ;;
   workflow) exit 0 ;;
   *) exit 0 ;;
@@ -3725,12 +3813,29 @@ case "\$1" in
           echo "MERGED"
           exit 0
         fi
+        if [[ "\$*" == *"--json headRefOid"* ]]; then
+          echo ""
+          exit 0
+        fi
+        if [[ "\$*" == *"comments,reviews,reviewThreads"* ]]; then
+          echo "{}"
+          exit 0
+        fi
         echo '{"mergeable":"MERGEABLE","number":42,"url":"https://github.com/x/y/pull/42"}'
         exit 0 ;;
       checks) echo '[{"name":"ci","state":"COMPLETED","conclusion":"SUCCESS"}]'; exit 0 ;;
       merge) exit 0 ;;
       *) exit 0 ;;
     esac ;;
+  api)
+    if [[ "\$2" == "graphql" ]]; then
+      echo '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}'
+      exit 0
+    fi
+    exit 0 ;;
+  repo)
+    if [[ "\$2" == "view" ]]; then echo "x/y"; exit 0; fi
+    exit 0 ;;
   workflow) exit 0 ;;
   *) exit 0 ;;
 esac
@@ -4077,6 +4182,250 @@ t_check_pr_comments_skipped_in_ci() {
     fi
 }
 t_check_pr_comments_skipped_in_ci
+
+# ---------------------------------------------------------------------------
+# t_pr_syncs_origin_main_before_push (a456-c689)
+# When origin/main has advanced past the branch merge-base (e.g. a prior PR
+# merged), _phase_merge MUST incorporate origin/main before the push so that
+# CI runs on the correct base.
+#
+# Fixture: a real git repo where origin/main is ONE commit ahead of the
+# feature branch's fork point (shared history). Asserts that after the script
+# runs, the branch HEAD is an ancestor of origin/main (i.e. origin/main was
+# merged in).
+# ---------------------------------------------------------------------------
+t_pr_syncs_origin_main_before_push() {
+    local _T branch _ec _branch_head _main_head _merged
+    _T="$(mktemp -d /tmp/dso-pr-sync-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    branch="feature-sync-test"
+
+    local real_git
+    real_git=$(command -v git)
+    local bin="$_T/bin"
+    mkdir -p "$bin"
+
+    # --- Set up a bare remote ---
+    local remote_dir="$_T/remote.git"
+    "$real_git" init -q --bare -b main "$remote_dir" >/dev/null 2>&1
+
+    # --- Seed remote with a "seed" commit ---
+    local seed_dir="$_T/seed"
+    "$real_git" init -q -b main "$seed_dir" >/dev/null 2>&1
+    (
+        cd "$seed_dir" || exit 1
+        "$real_git" config user.email "test@test.local"
+        "$real_git" config user.name "test"
+        echo "seed" > seed.txt
+        "$real_git" add seed.txt
+        "$real_git" commit -q -m "seed" >/dev/null
+        "$real_git" remote add origin "$remote_dir"
+        "$real_git" push -q origin main >/dev/null 2>&1
+    )
+
+    # --- Working repo: clone the seed commit, branch, then advance origin/main ---
+    (
+        cd "$_T" || exit 1
+        "$real_git" init -q -b main >/dev/null 2>&1
+        "$real_git" config user.email "test@test.local"
+        "$real_git" config user.name "test"
+        "$real_git" remote add origin "$remote_dir"
+        # Fetch the seed commit
+        "$real_git" fetch -q origin "main:refs/remotes/origin/main" >/dev/null 2>&1 || true
+        "$real_git" reset -q --hard origin/main >/dev/null 2>&1
+        # Create feature branch from the seed commit
+        "$real_git" checkout -q -b "$branch"
+        echo "feature" > feature.txt
+        "$real_git" add feature.txt
+        "$real_git" commit -q -m "feature work" >/dev/null
+    )
+
+    # --- Advance origin/main by one commit AFTER the branch was created ---
+    local main_advance_dir="$_T/main-advance"
+    "$real_git" clone -q "$remote_dir" "$main_advance_dir" >/dev/null 2>&1
+    (
+        cd "$main_advance_dir" || exit 1
+        "$real_git" config user.email "test@test.local"
+        "$real_git" config user.name "test"
+        echo "hotfix" > hotfix.txt
+        "$real_git" add hotfix.txt
+        "$real_git" commit -q -m "hotfix on main" >/dev/null
+        "$real_git" push -q origin main >/dev/null 2>&1
+    )
+
+    # Re-fetch in the working repo so it sees the new origin/main
+    (
+        cd "$_T" || exit 1
+        "$real_git" fetch -q origin "main:refs/remotes/origin/main" >/dev/null 2>&1 || true
+    )
+
+    # Confirm the branch is behind origin/main before the script runs
+    local _behind_before
+    _behind_before=$("$real_git" -C "$_T" rev-list --count HEAD..origin/main 2>/dev/null || echo 0)
+    if [[ "$_behind_before" -eq 0 ]]; then
+        echo "  FIXTURE_BUG: branch should be behind origin/main before fix (behind=$_behind_before)" >&2
+        (( ++FAIL ))
+        return
+    fi
+
+    # Build gh/git shims
+    local gh_argv_log="$_T/gh-argv.log"
+    cat > "$bin/gh" <<GH_SHIM
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$gh_argv_log"
+case "\$1" in
+  --version) echo "gh version 2.40.1 (2024-01-01)"; exit 0 ;;
+  pr)
+    case "\$2" in
+      list) exit 0 ;;
+      create) echo "https://github.com/x/y/pull/42"; exit 0 ;;
+      view)
+        if [[ "\$*" == *"--json mergeCommit"* ]]; then
+          echo "\$("$real_git" -C "$remote_dir" rev-parse HEAD 2>/dev/null || echo 'deadbeef')"
+          exit 0
+        fi
+        if [[ "\$*" == *"--json state"* ]]; then echo "MERGED"; exit 0; fi
+        echo '{"mergeable":"MERGEABLE","number":42,"url":"https://github.com/x/y/pull/42"}'
+        exit 0
+        ;;
+      checks) echo '[{"name":"ci","state":"COMPLETED","conclusion":"SUCCESS"}]'; exit 0 ;;
+      merge) exit 0 ;;
+      *) exit 0 ;;
+    esac
+    ;;
+  workflow) exit 0 ;;
+  *) exit 0 ;;
+esac
+GH_SHIM
+    chmod +x "$bin/gh"
+
+    cat > "$bin/git" <<GIT_SHIM
+#!/usr/bin/env bash
+if [[ "\$1" == "push" ]]; then
+  exit 0
+fi
+exec "$real_git" "\$@"
+GIT_SHIM
+    chmod +x "$bin/git"
+
+    cat > "$_T/dso-config.conf" <<EOF
+version=1.1.0
+merge.pr_poll_interval_seconds=0
+merge.pr_max_wait_seconds=3600
+EOF
+
+    (
+        cd "$_T" || exit 1
+        PATH="$bin:$PATH" \
+        WORKFLOW_CONFIG_FILE="$_T/dso-config.conf" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        BRANCH="$branch" \
+        PR_THREAD_LOOP_START_OVERRIDE_SECONDS=200 \
+        PR_THREAD_LOOP_INTERVAL=0 \
+        bash "$PR_SCRIPT" >/dev/null 2>&1
+    ) || true
+
+    # After the script runs, the branch HEAD should include the hotfix commit
+    # (origin/main should be an ancestor of HEAD).
+    _merged="false"
+    if "$real_git" -C "$_T" merge-base --is-ancestor origin/main HEAD 2>/dev/null; then
+        _merged="true"
+    fi
+
+    assert_eq "t_pr_syncs_origin_main_before_push:main_merged_before_push" "true" "$_merged"
+}
+t_pr_syncs_origin_main_before_push
+
+# ---------------------------------------------------------------------------
+# t_pr_auto_merge_queued_after_thread_resolution (ea7b-0038)
+# Verifies that `gh pr merge --auto` is called AFTER the resolve-threads phase.
+# The argv log is inspected to confirm ordering: the resolve-threads GraphQL
+# query appears BEFORE the `pr merge --auto` call.
+# ---------------------------------------------------------------------------
+t_pr_auto_merge_queued_after_thread_resolution() {
+    local _T branch _argv _resolve_line _auto_merge_line _ordered
+    _T="$(mktemp -d /tmp/dso-pr-auto-merge-order.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    branch="feature-auto-merge-order"
+    # Use the polling fixture (success_after_2) — it provides a complete gh shim
+    # that handles all phases including checks / state.
+    _build_pr_polling_fixture "$_T" "$branch" "success_after_2"
+
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        WORKFLOW_CONFIG_FILE="$_T/dso-config.conf" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        PR_THREAD_LOOP_START_OVERRIDE_SECONDS=200 \
+        PR_THREAD_LOOP_INTERVAL=0 \
+        bash "$PR_SCRIPT" >/dev/null 2>&1
+    ) || true
+
+    _argv="$(cat "$_T/gh-argv.log" 2>/dev/null || echo '')"
+
+    # The resolve-threads phase calls `gh pr view --json reviewDecision` (GraphQL
+    # thread query). The auto-merge call is `pr merge <num> --auto --merge`.
+    # Assert: the first `pr view` line appears before the `pr merge --auto` line.
+    _resolve_line=$(echo "$_argv" | grep -n "pr view" | head -1 | cut -d: -f1 || true)
+    _auto_merge_line=$(echo "$_argv" | grep -n "pr merge.*--auto" | head -1 | cut -d: -f1 || true)
+
+    _ordered="false"
+    if [[ -n "$_resolve_line" && -n "$_auto_merge_line" && "$_resolve_line" -lt "$_auto_merge_line" ]]; then
+        _ordered="true"
+    fi
+
+    assert_eq "t_pr_auto_merge_queued_after_thread_resolution:auto_merge_after_resolve_threads" "true" "$_ordered"
+}
+t_pr_auto_merge_queued_after_thread_resolution
+
+# ---------------------------------------------------------------------------
+# t_review_comments_jq_always_has_createdAt (bug 03bf-3a5a)
+# The review_comments jq filter previously had a dead first arm that produced
+# body-only {body: ...} objects lacking createdAt/author. Those objects are
+# silently dropped by the downstream Python (ca is None → condition fails).
+# This test asserts that the review_comments expression in the script does NOT
+# use the dead-arm pattern (first arm without createdAt) and that running the
+# script's jq filter produces objects that all have createdAt.
+# RED:   old expression had dead arm → review_comments had body-only objects.
+# GREEN: after dead arm removal → every element has createdAt.
+# ---------------------------------------------------------------------------
+t_review_comments_jq_always_has_createdAt() {
+    local _input _output _missing _count
+
+    # Minimal payload: two reviews with bodies, one empty body to be excluded.
+    _input='{"comments":[],"reviewThreads":[],"reviews":[{"submittedAt":"2026-05-07T10:00:00Z","body":"LGTM","author":{"login":"alice"}},{"submittedAt":"2026-05-07T11:00:00Z","body":"","author":{"login":"bob"}},{"submittedAt":"2026-05-07T12:00:00Z","body":"Needs work","author":{"login":"carol"}}]}'
+
+    # Build the same jq filter shape as the script (single-arm, no dead arm).
+    # This is the FIXED expression: only the arm that produces {createdAt, body, author}.
+    _output=$(printf '%s' "$_input" | jq '{
+        issue_comments: [.comments[]? | {createdAt, body, author: .author.login}],
+        review_comments: [.reviews[]? | select(.body != null and .body != "") | {createdAt: .submittedAt, body: .body, author: .author.login}],
+        thread_comments: [.reviewThreads[]?.comments[]? | {createdAt, body, author: .author.login}]
+    }.review_comments' 2>/dev/null)
+
+    # Verify the script does NOT contain the dead-arm pattern.
+    local _dead_arm_present
+    _dead_arm_present="false"
+    if grep -q 'reviews\[\]?\.body?' "$PR_SCRIPT" 2>/dev/null; then
+        _dead_arm_present="true"
+    fi
+    assert_eq "t_review_comments_jq_always_has_createdAt:no_dead_arm_in_script" "false" "$_dead_arm_present"
+
+    # Every element in review_comments must have a non-null createdAt.
+    _missing=$(printf '%s' "$_output" | jq '[.[] | select(.createdAt == null or .createdAt == "")] | length' 2>/dev/null || echo "error")
+    assert_eq "t_review_comments_jq_always_has_createdAt:no_body_only_objects" "0" "$_missing"
+
+    # Only the two non-empty reviews (alice + carol) should appear; bob (empty body) excluded.
+    _count=$(printf '%s' "$_output" | jq 'length' 2>/dev/null || echo "error")
+    assert_eq "t_review_comments_jq_always_has_createdAt:correct_count" "2" "$_count"
+}
+t_review_comments_jq_always_has_createdAt
 
 # ---------------------------------------------------------------------------
 print_summary

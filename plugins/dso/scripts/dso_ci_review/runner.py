@@ -27,7 +27,7 @@ import subprocess
 import sys
 import tempfile
 
-from dso_ci_review.dispatch import async_dispatch_specialists, _validate_agent_files, dispatch_arch_synthesis
+from dso_ci_review.dispatch import async_dispatch_specialists, _validate_agent_files, dispatch_arch_synthesis, dispatch_two_call_review
 from dso_ci_review.findings import merge_findings
 from dso_ci_review.providers.config import AuthError, ConfigError, get_provider
 
@@ -312,6 +312,104 @@ def _write_output(data: dict) -> None:
         os.replace(tmp_path, output_path)  # atomic on POSIX (rename syscall)
     else:
         print(serialized)
+
+
+def _fetch_pr_defenses(pr_number: str) -> list[dict]:
+    """Fetch DEFENSE_RECORD entries from GitHub PR comments via gh CLI.
+
+    Reads all PR comments, extracts lines starting with "DEFENSE_RECORD: ",
+    and returns parsed JSON records. Returns an empty list when:
+    - GITHUB_TOKEN is absent
+    - gh CLI is unavailable or fails
+    - No DEFENSE_RECORD lines are found
+
+    Best-effort: errors are logged to stderr but never propagate.
+    """
+    if not os.environ.get("GITHUB_TOKEN"):
+        return []
+    try:
+        result = subprocess.run(
+            ["gh", "pr", "view", pr_number, "--json", "comments", "--jq", ".comments[].body"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            print(
+                f"WARNING: gh pr view failed (exit {result.returncode}); "
+                "cannot fetch prior defenses for cycle-2 suppression",
+                file=sys.stderr,
+            )
+            return []
+    except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
+        print(
+            f"WARNING: gh CLI unavailable ({type(exc).__name__}); "
+            "cannot fetch prior defenses for cycle-2 suppression",
+            file=sys.stderr,
+        )
+        return []
+
+    defenses: list[dict] = []
+    for line in result.stdout.splitlines():
+        line = line.strip()
+        if not line.startswith("DEFENSE_RECORD: "):
+            continue
+        json_str = line[len("DEFENSE_RECORD: "):]
+        try:
+            record = json.loads(json_str)
+            if isinstance(record, dict):
+                defenses.append(record)
+        except json.JSONDecodeError:
+            pass  # malformed record; skip silently
+
+    return defenses
+
+
+def _suppress_defended_findings(
+    findings: list[dict],
+    defenses: list[dict],
+) -> list[dict]:
+    """Downgrade findings that match a prior defense to 'suggestion' severity.
+
+    A finding matches a defense when its (severity, description[:80]) key
+    matches any defense record's (severity, description[:80]). Matching
+    findings are downgraded to 'suggestion' rather than removed, so the
+    author can see they were reconsidered.
+
+    This is a defence-of-last-resort filter applied AFTER the two-call
+    architecture — the two-call path already gives the LLM the full defense
+    context. This filter handles cases where the LLM still re-emits a
+    defended finding verbatim despite the context.
+    """
+    if not defenses:
+        return findings
+
+    # Build a set of (severity, description[:80]) pairs from prior defenses.
+    # Use a short prefix of the description to tolerate minor reformatting.
+    defended_keys: set[tuple[str, str]] = set()
+    for d in defenses:
+        sev = str(d.get("severity", "")).lower()
+        desc = str(d.get("description", "") or d.get("defense_text", ""))[:80].lower()
+        if sev and desc:
+            defended_keys.add((sev, desc))
+
+    suppressed: list[dict] = []
+    for f in findings:
+        sev = str(f.get("severity", "")).lower()
+        desc = str(f.get("description", ""))[:80].lower()
+        key = (sev, desc)
+        if key in defended_keys:
+            # Downgrade to suggestion — not blocking, but still visible
+            downgraded = dict(f)
+            downgraded["severity"] = "suggestion"
+            downgraded["_suppressed_reason"] = (
+                "Finding matches a prior defended finding; downgraded "
+                "by cycle-2 dismissal-memory filter."
+            )
+            suppressed.append(downgraded)
+        else:
+            suppressed.append(f)
+    return suppressed
 
 
 _CLASSIFIER_FALLBACK: dict = {
@@ -685,7 +783,23 @@ def main() -> int:
         tier = classification["selected_tier"]
 
         # Read review cycle number — used by two-call architecture on re-review passes.
-        _cycle_number = int(os.environ.get('DSO_REVIEW_CYCLE', '1'))  # noqa: F841
+        # On cycle N≥2, fetch prior defenses from PR comments so the LLM can avoid
+        # re-emitting already-defended findings. (Bug c59e-a197: dismissal-memory gap.)
+        cycle_number = int(os.environ.get("DSO_REVIEW_CYCLE", "1"))
+
+        # Fetch prior defenses for cycle-2+ suppression.
+        # Returns [] when not in a PR context or when gh CLI is unavailable.
+        prior_defenses: list[dict] = []
+        if cycle_number >= 2:
+            pr_num = _resolve_pr_number()
+            if pr_num:
+                prior_defenses = _fetch_pr_defenses(pr_num)
+                if prior_defenses:
+                    print(
+                        f"INFO: cycle {cycle_number} — loaded {len(prior_defenses)} "
+                        "prior defense record(s) for dismissal-memory filter",
+                        file=sys.stderr,
+                    )
 
         # Resolve config_path once for overlay agent construction
         config_path: str | None = None
@@ -701,10 +815,33 @@ def main() -> int:
             agent.setdefault("model", base_model)
             agent.setdefault("provider_chain", provider_chain)
 
-        # Step 3: dispatch tier agents + classifier-flagged overlays together (parallel)
-        first_pass_findings = asyncio.run(
-            async_dispatch_specialists(tier_agents + overlay_agents)
-        )
+        # Step 3: dispatch tier agents + classifier-flagged overlays together (parallel).
+        # On cycle N≥2 with prior defenses, single-agent tiers (light/standard) use the
+        # two-call architecture so the LLM evaluates findings against existing defenses.
+        # Deep tier continues to use the standard path; defenses are injected at the
+        # arch-synthesis step (Step 6) where the final synthesis happens.
+        if cycle_number >= 2 and prior_defenses and tier in ("light", "standard") and not overlay_agents:
+            # Two-call path: single-agent tier with prior defenses.
+            # Build prior_findings_index (no defense_text) and prior_findings (with defense_text).
+            prior_findings_index = [
+                {k: v for k, v in d.items() if k != "defense_text"}
+                for d in prior_defenses
+            ]
+            primary_agent = tier_agents[0]
+            two_call_result = dispatch_two_call_review(
+                diff_text=diff_text,
+                prior_findings_index=prior_findings_index,
+                prior_findings=prior_defenses,
+                defenses=prior_defenses,
+                provider_chain=provider_chain,
+                agent_id=primary_agent["agent_id"],
+                primary_model=primary_agent["model"],
+            )
+            first_pass_findings = [two_call_result]
+        else:
+            first_pass_findings = asyncio.run(
+                async_dispatch_specialists(tier_agents + overlay_agents)
+            )
 
         # Step 4: check first-pass findings for warranted second-pass overlays
         warranted_overlay_agents = _overlay_agents_from_findings(
@@ -729,10 +866,24 @@ def main() -> int:
         # when it succeeds (non-synthetic findings or no findings at all).
         # On infrastructure failure (fallback_exhausted / specialist_error), the
         # merged specialist output is preserved so the severity gate still fires.
+        # On cycle N≥2 with prior defenses, the merged specialist context is augmented
+        # with defenses so the arch synthesizer can avoid re-emitting defended findings.
         if tier == "deep":
             arch_model = _read_tier_model("deep-arch", config_path)
+            merged_json = json.dumps(merged)
+            if cycle_number >= 2 and prior_defenses:
+                # Append defense context to the merged JSON passed to arch synthesis.
+                # dispatch_arch_synthesis appends it as "Prior specialist findings" in
+                # the prompt; we extend that context with the defense ledger.
+                defenses_context = (
+                    "\n\n## Prior round defenses (do NOT re-emit findings that have been defended)\n\n"
+                    + json.dumps(prior_defenses, indent=2)
+                )
+                merged_json_with_defenses = merged_json + defenses_context
+            else:
+                merged_json_with_defenses = merged_json
             arch_result = dispatch_arch_synthesis(
-                json.dumps(merged),
+                merged_json_with_defenses,
                 diff_text=diff_text,
                 model=arch_model,
                 provider_chain=provider_chain,
@@ -744,7 +895,26 @@ def main() -> int:
             if not arch_all_synthetic:
                 merged = arch_result
 
-        # Step 7: write output
+        # Step 7: apply dismissal-memory filter on cycle N≥2.
+        # This is a defence-of-last-resort: if the LLM still re-emits a verbatim
+        # defended finding despite receiving the full defense context, downgrade it
+        # to 'suggestion' so it no longer blocks merge. (Bug c59e-a197.)
+        if cycle_number >= 2 and prior_defenses:
+            raw_findings = merged.get("findings") or []
+            filtered = _suppress_defended_findings(raw_findings, prior_defenses)
+            if filtered != raw_findings:
+                suppressed_count = sum(
+                    1 for f in filtered if f.get("_suppressed_reason")
+                )
+                print(
+                    f"INFO: cycle {cycle_number} — suppressed {suppressed_count} finding(s) "
+                    "that matched prior defended findings (dismissal-memory filter)",
+                    file=sys.stderr,
+                )
+                merged = dict(merged)
+                merged["findings"] = filtered
+
+        # Step 8: write output
         _write_output(merged)
     except Exception as exc:  # noqa: BLE001
         print(f"ERROR: LLM call failed: {exc}", file=sys.stderr)

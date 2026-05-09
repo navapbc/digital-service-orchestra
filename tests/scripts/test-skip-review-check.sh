@@ -56,6 +56,21 @@ grep -q 'skip-review-check\.sh' "$WORKFLOW_FILE" 2>/dev/null && workflow_ref=1
 assert_eq "test_commit_workflow_references_skip_review_check: COMMIT-WORKFLOW.md references skip-review-check.sh" "1" "$workflow_ref"
 assert_pass_if_clean "test_commit_workflow_references_skip_review_check"
 
+# ── test_commit_workflow_uses_cached_diff_for_new_files ──────────────────────
+# COMMIT-WORKFLOW.md Step 2 must use `git diff --cached` (not just `git diff HEAD`)
+# so that newly staged files with no HEAD history are included in the file list
+# passed to skip-review-check. Bug ec29-aa3b: git diff HEAD --name-only silently
+# misses untracked-but-staged new files, causing false SKIP_REVIEW=true.
+_snapshot_fail
+uses_cached_diff=0
+grep -q 'diff --cached' "$WORKFLOW_FILE" 2>/dev/null && uses_cached_diff=1
+assert_eq "test_commit_workflow_uses_cached_diff_for_new_files: COMMIT-WORKFLOW.md uses git diff --cached to catch new staged files" "1" "$uses_cached_diff"
+# Ensure the old bare-only form is gone (HEAD alone, not unioned with cached).
+only_head_diff=0
+grep -qE '^git diff HEAD --name-only \|' "$WORKFLOW_FILE" 2>/dev/null && only_head_diff=1
+assert_eq "test_commit_workflow_uses_cached_diff_for_new_files: bare git diff HEAD --name-only pipe is absent" "0" "$only_head_diff"
+assert_pass_if_clean "test_commit_workflow_uses_cached_diff_for_new_files"
+
 # ── test_skip_review_check_tickets_only_exits_zero ───────────────────────────
 # Script exits 0 when only non-reviewable files are passed (tickets and sync-state).
 _snapshot_fail

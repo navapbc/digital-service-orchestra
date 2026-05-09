@@ -717,5 +717,73 @@ test_ticket_tag_cli_rejects_brainstorm_complete_without_pil() {
 
 test_ticket_tag_cli_rejects_brainstorm_complete_without_pil
 
+# ── Test 17: plan-review substitute output does NOT satisfy PIL check ──────────
+# Regression guard for bug 0122-54c9: the brainstorm:complete validator MUST
+# reject tagging even when a plan-review verdict comment is present. Only the
+# canonical scrutiny pipeline (which writes "### Planning Intelligence Log")
+# constitutes valid evidence. A /dso:plan-review-style comment is NOT a
+# substitute and MUST NOT unblock the tag.
+echo ""
+echo "--- test_tag_add_checked_rejects_plan_review_substitute_comment ---"
+
+test_tag_add_checked_rejects_plan_review_substitute_comment() {
+    _snapshot_fail
+    local repo
+    repo=$(_make_test_repo)
+
+    # Given: an epic with NO Planning Intelligence Log in its description or comments
+    local ticket_id
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "Plan-review substitute epic" \
+        --description "Feature to add CSV export" 2>/dev/null | tail -1)
+
+    [[ -z "$ticket_id" ]] && {
+        (( ++FAIL ))
+        echo "FAIL: test_tag_add_checked_rejects_plan_review_substitute_comment: could not create ticket" >&2
+        return
+    }
+
+    # Simulate what /dso:plan-review (substitute path) writes: a plan-review verdict
+    # comment WITHOUT the "### Planning Intelligence Log" canonical marker.
+    # This is the exact scenario from bug 0122-54c9: scrutiny ran via plan-review
+    # (red-team-reviewer + blue-team-filter), which produces a verdict comment but
+    # does NOT emit the PIL marker that the canonical pipeline writes.
+    (cd "$repo" && bash "$TICKET_SCRIPT" comment "$ticket_id" \
+        "## Plan Review Verdict
+
+Red Team findings: 2 scenarios identified.
+Blue Team filter: 1 scenario survived.
+Final verdict: PASS - spec is sufficiently reviewed.
+
+Reviewed by: dso:plan-review substitute path" 2>/dev/null) || {
+        (( ++FAIL ))
+        echo "FAIL: test_tag_add_checked_rejects_plan_review_substitute_comment: comment setup failed" >&2
+        return
+    }
+
+    # When: _tag_add_checked is called for brainstorm:complete
+    local _exit=0
+    local _stderr
+    _stderr=$(cd "$repo" && source "$TICKET_LIB" && _tag_add_checked "$ticket_id" "brainstorm:complete" 2>&1) || _exit=$?
+
+    # Then: exit 1 (rejected) — the plan-review substitute comment does NOT satisfy the PIL check
+    assert_eq "test_tag_add_checked_rejects_plan_review_substitute_comment: exit 1 (no PIL marker)" "1" "$_exit"
+    assert_contains "test_tag_add_checked_rejects_plan_review_substitute_comment: stderr mentions Planning Intelligence Log" \
+        "Planning Intelligence Log" "$_stderr"
+
+    # Verify the tag was NOT applied
+    local tags
+    tags=$(_get_tags "$repo" "$ticket_id")
+    local has_brainstorm_complete=0
+    if [[ "$tags" == *"brainstorm:complete"* ]]; then
+        has_brainstorm_complete=1
+    fi
+    assert_eq "test_tag_add_checked_rejects_plan_review_substitute_comment: brainstorm:complete NOT applied" \
+        "0" "$has_brainstorm_complete"
+
+    assert_pass_if_clean "test_tag_add_checked_rejects_plan_review_substitute_comment"
+}
+
+test_tag_add_checked_rejects_plan_review_substitute_comment
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary

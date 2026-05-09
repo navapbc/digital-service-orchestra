@@ -889,6 +889,104 @@ def test_transitive_traversal_includes_archived_midchain(
         shutil.rmtree(str(tracker_dir.parent), ignore_errors=True)
 
 
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_check_would_create_cycle_no_false_positive_for_transitive_depends_on(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """check_would_create_cycle must NOT raise for a redundant transitive depends_on edge.
+
+    Regression guard for bug 122a-6b11: when A depends_on C and C depends_on B,
+    the edge A depends_on B is a redundant transitive edge — not a cycle.
+    The previous implementation incorrectly flagged this as a cycle because A is
+    reachable from B by traversing depends_on edges backward (B←C←A), which is
+    the reverse direction and does not constitute a cycle.
+
+    Setup:
+        - ticket-a: open
+        - ticket-b: open
+        - ticket-c: open
+        - ticket-a depends_on ticket-c  (A needs C)
+        - ticket-c depends_on ticket-b  (C needs B)
+
+    Action: check_would_create_cycle('ticket-a', 'ticket-b', 'depends_on', ...)
+            must return False — adding A depends_on B is redundant but not a cycle.
+    """
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    _write_ticket(tracker_dir, "ticket-a", status="open")
+    _write_ticket(tracker_dir, "ticket-b", status="open")
+    _write_ticket(tracker_dir, "ticket-c", status="open")
+
+    # ticket-a depends_on ticket-c: LINK in ticket-a's dir
+    _write_link_event(
+        "ticket-a", "ticket-c", "depends_on", str(tracker_dir), timestamp=1500
+    )
+    # ticket-c depends_on ticket-b: LINK in ticket-c's dir
+    _write_link_event(
+        "ticket-c", "ticket-b", "depends_on", str(tracker_dir), timestamp=1501
+    )
+
+    # Redundant transitive edge: A→B is already implied by A→C→B, but is NOT a cycle.
+    would_cycle = graph.check_would_create_cycle(
+        "ticket-a", "ticket-b", "depends_on", str(tracker_dir)
+    )
+
+    assert would_cycle is False, (
+        "check_would_create_cycle returned True for a redundant transitive depends_on edge "
+        "(ticket-a→ticket-b when ticket-a→ticket-c→ticket-b already exists). "
+        "This is not a cycle — it is a redundant edge that should be allowed. "
+        "Bug 122a-6b11: the check was traversing depends_on edges backward, "
+        "incorrectly treating A as reachable from B."
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_add_dependency_allows_redundant_transitive_depends_on(
+    graph: ModuleType, tmp_path: Path
+) -> None:
+    """add_dependency must NOT raise CyclicDependencyError for a redundant transitive edge.
+
+    Regression guard for bug 122a-6b11: ticket link <A> <B> depends_on was
+    rejected with 'would create a cycle' when A→C→B already existed.
+
+    Setup:
+        - ticket-a, ticket-b, ticket-c: all open
+        - ticket-a depends_on ticket-c
+        - ticket-c depends_on ticket-b
+
+    Action: add_dependency('ticket-a', 'ticket-b', tracker_dir, 'depends_on')
+            must NOT raise — the edge is redundant but valid.
+    """
+    tracker_dir = tmp_path / "tracker"
+    tracker_dir.mkdir()
+
+    _write_ticket(tracker_dir, "ticket-a", status="open")
+    _write_ticket(tracker_dir, "ticket-b", status="open")
+    _write_ticket(tracker_dir, "ticket-c", status="open")
+
+    _write_link_event(
+        "ticket-a", "ticket-c", "depends_on", str(tracker_dir), timestamp=1500
+    )
+    _write_link_event(
+        "ticket-c", "ticket-b", "depends_on", str(tracker_dir), timestamp=1501
+    )
+
+    # Must not raise CyclicDependencyError — redundant transitive edge is allowed
+    try:
+        graph.add_dependency(
+            "ticket-a", "ticket-b", str(tracker_dir), relation="depends_on"
+        )
+    except graph.CyclicDependencyError as exc:
+        pytest.fail(
+            f"add_dependency raised CyclicDependencyError for a redundant transitive "
+            f"depends_on edge (ticket-a→ticket-b, with ticket-a→ticket-c→ticket-b already "
+            f"existing). This is bug 122a-6b11. Error: {exc}"
+        )
+
+
 # ── RED MARKER BOUNDARY ──────────────────────────────────────────────────────
 # Tests below this line are expected to FAIL (RED) until archived exclusion is
 # implemented in ticket-graph.py. The .test-index RED marker points to the first
@@ -2147,3 +2245,78 @@ def test_write_link_event_push_gives_up_on_merge_conflict(tmp_path: Path) -> Non
     ):
         # Must not raise — best-effort means failure is silently swallowed
         _real_write_link_event("tkt-src4", "tkt-tgt4", str(tracker_dir), "depends_on")
+
+
+# ---------------------------------------------------------------------------
+# Bug c7a6-96e8: cycle-detection must skip hidden dirs (.suggestions, etc.)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_cycle_detection_ignores_suggestions_dir(tmp_path: Path) -> None:
+    """Cycle detection via _get_all_blocked_by must not emit 'skipping corrupt event'
+    warnings when the tracker dir contains a .suggestions/ subdirectory.
+
+    Bug c7a6-96e8: during `ticket link <src> <tgt> depends_on`, the graph
+    traversal iterated all directories in the tracker, including hidden dirs like
+    .suggestions/.  Suggestion JSON files lack 'event_type' and are not ticket
+    events, so the reducer emitted a WARNING for each one.
+
+    After the fix, hidden directories starting with '.' are skipped entirely.
+    """
+    import io
+    import sys
+
+    _scripts_dir = str(REPO_ROOT / "plugins" / "dso" / "scripts")
+    if _scripts_dir not in sys.path:
+        sys.path.insert(0, _scripts_dir)
+
+    from ticket_graph._graph import _get_all_blocked_by
+
+    tracker_dir = tmp_path / ".tickets-tracker"
+    tracker_dir.mkdir()
+
+    # Write two regular tickets with no dependency links
+    _write_ticket(tracker_dir, "tkt-aaa", status="open")
+    _write_ticket(tracker_dir, "tkt-bbb", status="open")
+
+    # Write a .suggestions/ directory with a well-formed suggestion file
+    # (schema_version, not event_type — exactly what suggestion-record.sh writes)
+    suggestions_dir = tracker_dir / ".suggestions"
+    suggestions_dir.mkdir()
+    suggestion_payload = {
+        "schema_version": 1,
+        "timestamp": 1778262194332,
+        "session_id": "b25af26e-4e7d-6a27-ad27-4d6a8184522b",
+        "source": "stop-hook",
+        "observation": "test suggestion",
+    }
+    suggestion_file = (
+        suggestions_dir
+        / "1778262194332-b25af26e-4e7d6a27-ad27-4d6a-8184-5f894b522b0e.json"
+    )
+    suggestion_file.write_text(json.dumps(suggestion_payload))
+
+    # Capture stderr to detect any spurious warnings
+    captured_stderr = io.StringIO()
+    old_stderr = sys.stderr
+    sys.stderr = captured_stderr
+    try:
+        # _get_all_blocked_by scans the tracker dir for reverse-dep lookup —
+        # this is exactly the code path that triggers during cycle detection.
+        blocked = _get_all_blocked_by("tkt-aaa", str(tracker_dir))
+    finally:
+        sys.stderr = old_stderr
+
+    stderr_output = captured_stderr.getvalue()
+
+    # The suggestion file must NOT trigger the "skipping corrupt event" warning
+    assert "skipping corrupt event" not in stderr_output, (
+        f"Expected no 'skipping corrupt event' warnings, but got:\n{stderr_output}\n"
+        "Fix: skip hidden directories (starting with '.') in _get_all_blocked_by."
+    )
+    # The result must also be correct — no spurious deps from suggestions
+    assert "tkt-bbb" not in blocked, (
+        f"Expected tkt-bbb not in blocked set (no link exists), got {blocked!r}"
+    )

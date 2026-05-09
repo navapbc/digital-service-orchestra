@@ -8,8 +8,11 @@ set -uo pipefail
 # Exits 1  if SKIP_REVIEW=false (at least one reviewable file found — full review required).
 #
 # Usage:
-#   git diff HEAD --name-only | bash scripts/skip-review-check.sh
+#   { git diff HEAD --name-only; git diff --cached --name-only; } | sort -u | bash scripts/skip-review-check.sh
 #   echo '.tickets-tracker/abc.md' | bash scripts/skip-review-check.sh
+#
+# NOTE: Use the union form above (not just `git diff HEAD`) to catch newly staged
+# files that have no HEAD history — git diff HEAD misses them (ec29-aa3b).
 #
 # Classification logic extracted from COMMIT-WORKFLOW.md Step 2 (Check for Non-Reviewable-Only Changes).
 

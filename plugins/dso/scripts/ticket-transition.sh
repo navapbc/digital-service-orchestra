@@ -21,13 +21,15 @@ REDUCER="$SCRIPT_DIR/ticket-reducer.py"
 
 # ── Usage ─────────────────────────────────────────────────────────────────────
 _usage() {
-    echo "Usage: ticket transition <ticket_id> <current_status> <target_status> [--reason=<text>]" >&2
-    echo "       ticket transition <ticket_id> <target_status> [--reason=<text>]  (auto-detects current status)" >&2
+    echo "Usage: ticket transition <ticket_id> <current_status> <target_status> [--reason=<text>] [--force]" >&2
+    echo "       ticket transition <ticket_id> <target_status> [--reason=<text>] [--force]  (auto-detects current status)" >&2
     echo "  current_status / target_status: open | in_progress | closed | blocked" >&2
     echo "  --reason=<text>  Required when closing bug tickets. Must start with 'Fixed:' or 'Escalated to user:'." >&2
+    echo "  --force          Skip the open-children guard when closing. Open children remain open." >&2
     echo "  Examples:" >&2
     echo "    ticket transition abc1 open closed --reason=\"Fixed: patched null check in foo.sh\"" >&2
     echo "    ticket transition abc1 closed --reason=\"Fixed: patched null check in foo.sh\"" >&2
+    echo "    ticket transition epic1 in_progress closed --force  # close epic with open children" >&2
     exit 1
 }
 
@@ -51,8 +53,9 @@ else
     shift 3
 fi
 
-# Parse optional --reason=<text> or --reason <text> from remaining args
+# Parse optional --reason=<text> or --reason <text> and --force from remaining args
 close_reason=""
+force_close=false
 while [ $# -gt 0 ]; do
     case "$1" in
         --reason=*)
@@ -66,6 +69,10 @@ while [ $# -gt 0 ]; do
             fi
             close_reason="$2"
             shift 2
+            ;;
+        --force)
+            force_close=true
+            shift
             ;;
         *)
             shift
@@ -277,10 +284,16 @@ PYEOF
 
     if [ -n "$open_children" ]; then
         open_children_count=$(echo "$open_children" | wc -l | tr -d ' ')
-        echo "Error: cannot close ticket '$ticket_id' while it has ${open_children_count} open child ticket(s)." >&2
-        echo "Close the following children first:" >&2
-        echo "$open_children" >&2
-        exit 1
+        if [ "$force_close" = "true" ]; then
+            echo "Warning: closing ticket '$ticket_id' with ${open_children_count} open child ticket(s) (--force)." >&2
+            echo "The following children remain open:" >&2
+            echo "$open_children" >&2
+        else
+            echo "Error: cannot close ticket '$ticket_id' while it has ${open_children_count} open child ticket(s)." >&2
+            echo "Close the following children first, or use --force to close the parent with children remaining open:" >&2
+            echo "$open_children" >&2
+            exit 1
+        fi
     fi
 
     # ── Unblock detection: run ticket-unblock.py for newly_unblocked computation ─

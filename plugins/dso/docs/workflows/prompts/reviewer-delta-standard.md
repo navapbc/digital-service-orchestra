@@ -97,6 +97,14 @@ method below. Unverifiable references indicate hallucination risk and must be fl
   confidence it does not exist or is misspelled)
 - If found but the signature differs from usage: flag as `important` under `correctness`
 
+**Bash `source`/`.` directives — MANDATORY pre-check before any "undefined function" finding** (bug 3365-75c4):
+- When reviewing a bash or `.sh` file that calls functions not defined inline, FIRST read every
+  file referenced by `source <file>` or `. <file>` at the top of the script.
+- Functions brought in via `source`/`.` are in scope for the entire calling script.
+- Use Read/Grep to inspect all sourced files before emitting any "function X is undefined" finding.
+  A finding asserting a function is undefined without reading its sourced files is a false positive.
+- This is especially critical for test files, which routinely source shared assert/helper libraries.
+
 **External library APIs** (third-party packages, stdlib modules):
 - Verify the import is present in the diff or in surrounding code via Read/Grep
 - Check that the function/method name matches documented API (e.g., verify `subprocess.run`

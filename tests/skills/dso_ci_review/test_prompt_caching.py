@@ -488,6 +488,31 @@ class TestCheckCacheUsageWarnings:
         assert result is None, "Non-Anthropic provider must return None"
         assert not caplog.records, "No warnings expected for non-Anthropic provider"
 
+    def test_returns_none_when_response_has_no_usage_attribute(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Given: provider='anthropic', response with no .usage attribute
+        When: _check_cache_usage is called
+        Then: returns None with no warnings or side effects (early-return path)
+        """
+
+        class _NoUsageResponse:
+            """Minimal response object with no .usage attribute at all."""
+
+        resp = _NoUsageResponse()
+        assert not hasattr(resp, "usage"), "Test fixture must not have .usage attribute"
+        with caplog.at_level(logging.WARNING, logger="dso_ci_review.dispatch"):
+            result = _check_cache_usage(
+                resp, turn=0, prev_cache_read=None, provider="anthropic"
+            )
+        assert result is None, (
+            "_check_cache_usage must return None when response has no .usage attribute"
+        )
+        assert not caplog.records, (
+            "No warnings expected when response.usage is absent (early-return path); "
+            f"got: {[r.message for r in caplog.records]}"
+        )
+
 
 # ---------------------------------------------------------------------------
 # Test 8: Integration — cache-creation on turn 1, cache-read on turn 2

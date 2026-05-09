@@ -93,7 +93,9 @@ Check if all changed files are non-reviewable. If every file matches a non-revie
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-git diff HEAD --name-only | bash ".claude/scripts/dso skip-review-check.sh" && SKIP_REVIEW=true || SKIP_REVIEW=false
+# Union HEAD diff (modified tracked files) + cached diff (staged files including new ones).
+# git diff HEAD --name-only misses newly staged files with no HEAD history (ec29-aa3b).
+{ git diff HEAD --name-only; git diff --cached --name-only; } | sort -u | bash ".claude/scripts/dso skip-review-check.sh" && SKIP_REVIEW=true || SKIP_REVIEW=false
 ```
 
 **If `SKIP_REVIEW` is true**: Skip all of `commit-workflow-validation.md` entirely. Go directly to Step 5 (Stage).
@@ -121,7 +123,15 @@ echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-3-load-enforcement-profile strategy=${
 if [ "$ENFORCEMENT_STRATEGY" = "ci" ]; then echo "enforcement.strategy=ci — skipping local validation"; else echo "enforcement.strategy=${ENFORCEMENT_STRATEGY:-absent} — loading commit-workflow-validation.md"; fi
 ```
 
-**If `ENFORCEMENT_STRATEGY=ci`**: skip all of `commit-workflow-validation.md`. Proceed to Step 4, then Step 5 (Stage), then Step 6 (Commit).
+**If `ENFORCEMENT_STRATEGY=ci`**: skip all of `commit-workflow-validation.md` — including its Step 5 (Record Test Status) and Step 6 (Review Gate). Proceed to Step 4, then Step 5 (Stage), then Step 6 (Commit). **CRITICAL: Do NOT dispatch `/dso:review` or invoke REVIEW-WORKFLOW.md when `enforcement.strategy=ci`.** CI runs the parity-uplifted `llm-review` job on push; a local review dispatch is redundant, consumes sub-agent budget for results that are not consulted at commit time, and will be re-computed by CI regardless. The pre-commit review gate and Layer 2 hook both emit `HOOK_GATE: skipped reason=enforcement.strategy=ci` — the orchestrator MUST match this behavior and also skip the local review dispatch. To verify the strategy before any review dispatch:
+
+```bash
+ENFORCEMENT_STRATEGY=$(".claude/scripts/dso" read-config.sh enforcement.strategy)
+if [[ "$ENFORCEMENT_STRATEGY" == "ci" ]]; then
+    echo "enforcement.strategy=ci — skipping local /dso:review (CI runs llm-review on push)"
+    # Do NOT invoke /dso:review or REVIEW-WORKFLOW.md — proceed to commit
+fi
+```
 
 **Otherwise** (`local`, `both`, or absent): read [commit-workflow-validation.md](commit-workflow-validation.md) and execute its Steps 1, 2, 3, and 4 before Step 5 of this workflow; then execute its Steps 5 and 6 before Step 6 of this workflow.
 
@@ -201,8 +211,39 @@ After committing, report the SHA and **immediately return control to the caller*
 
 If you need to merge the worktree branch to main and push, use `merge-to-main.sh` instead of manual `git merge` + `git push`. It handles .claude/scripts/dso ticket sync, merge, and push in a single step, avoiding the review-gate and pre-push hook issues that arise from ticket file changes on main.
 
+### Autonomous Session: Pacing Pushes to Avoid CI Cancellation
+
+**Problem (bug 8cbc-2d8f)**: CI uses `cancel-in-progress: true` scoped per `github.ref`. When an autonomous agent makes several fix-commits and pushes each one individually, every push cancels the prior CI run. Only the final push gets a completed `llm-review` pass, so intermediate review findings arrive too late to influence earlier commits.
+
+**Guidance for autonomous agents iterating on a PR branch**: When a CI run is already in flight on the branch, prefer amending the current commit and force-pushing over adding a new commit:
+
+```bash
+# Instead of: git commit -m "fix: ..." && git push
+# When CI is in-flight on this branch, prefer:
+git commit --amend --no-edit   # or --amend -m "updated message"
+git push --force-with-lease
+```
+
+This replaces the in-flight run rather than queuing a new cancellation, so the `llm-review` job completes on the actual final state of the branch.
+
+**When to amend vs. when to add a new commit**:
+- **Amend**: The additional change is a correction to the immediately preceding commit (same logical unit of work, no one has reviewed or based work on it). This is the common case for autonomous fix loops on a PR branch.
+- **New commit**: The change is logically distinct, the prior commit is already in a merged or reviewed state, or you are resolving reviewer feedback that warrants a traceable history entry.
+
+**Force-push safety**: Always use `--force-with-lease`, never `--force`. `--force-with-lease` refuses to overwrite commits that appeared on the remote since your last fetch, protecting against clobbering concurrent pushes.
+
+**Do not amend** commits that have already been pushed to `main` or that other contributors may have based work on.
+
 ```bash
 ".claude/scripts/dso merge-to-main.sh"
 ```
 
 Do NOT manually `cd` to the main repo and run `git merge` / `git commit` / `git push` — the review gate hook runs in the worktree context and will block commits on main that aren't ticket-tracking-only.
+
+### Cached-Plugin-Broken Exception
+
+If `merge-to-main.sh` itself is broken in the **cached plugin version** (i.e., the bug exists in `~/.claude/plugins/` but the fix is already committed in the worktree), you may bypass the script with direct `gh pr create` / `gh push` calls. When invoking this exception:
+
+1. Document the bypass reason in the PR body (e.g., "merge-to-main.sh bypassed: cached plugin broken, fix in worktree at <commit>").
+2. File a tracking ticket for the cached-plugin bug so it is not silently dropped.
+3. Resume normal `merge-to-main.sh` routing as soon as the plugin cache is updated.

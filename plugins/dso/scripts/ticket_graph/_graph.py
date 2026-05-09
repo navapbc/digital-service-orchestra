@@ -151,6 +151,10 @@ def _get_all_blocked_by(ticket_id: str, tracker_dir: str) -> set[str]:
         for entry in entries:
             if entry in visited:
                 continue
+            # Skip hidden directories (.suggestions, .review-events, .index, etc.)
+            # — they are not ticket dirs and their JSON files are not ticket events.
+            if entry.startswith("."):
+                continue
             entry_path = os.path.join(tracker_dir, entry)
             if not os.path.isdir(entry_path):
                 continue
@@ -180,12 +184,34 @@ def check_would_create_cycle(
     Only 'blocks' and 'depends_on' relations can create cycles.
     'relates_to', 'duplicates', and 'supersedes' never create cycles
     and always return False.
+
+    Cycle semantics:
+    - ``source blocks target``  means source must precede target.  A cycle
+      exists if target already (transitively) precedes source, i.e.
+      source ∈ _get_all_blocked_by(target).
+    - ``source depends_on target`` means target must precede source.  A cycle
+      exists if source already (transitively) precedes target, i.e.
+      target ∈ _get_all_blocked_by(source).
+
+    Swapping source/target for depends_on prevents the false-positive where a
+    redundant transitive edge A→C→B plus proposed A→B is mis-reported as a
+    cycle because A happens to be "blocked by" B in the reverse sense.
     """
     if relation in ("relates_to", "duplicates", "supersedes"):
         return False
 
-    blocked_by_target = _get_all_blocked_by(target_id, tracker_dir)
-    return source_id in blocked_by_target
+    if relation == "depends_on":
+        # source depends_on target ≡ target must precede source.
+        # Cycle iff target is already reachable from source in the
+        # "must precede" graph, i.e. target ∈ _get_all_blocked_by(source).
+        blocked_by_source = _get_all_blocked_by(source_id, tracker_dir)
+        return target_id in blocked_by_source
+    else:
+        # source blocks target ≡ source must precede target.
+        # Cycle iff source is already reachable from target in the
+        # "must precede" graph, i.e. source ∈ _get_all_blocked_by(target).
+        blocked_by_target = _get_all_blocked_by(target_id, tracker_dir)
+        return source_id in blocked_by_target
 
 
 def check_cycle_at_level(

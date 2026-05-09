@@ -127,6 +127,10 @@ def detect_newly_unblocked(
         for entry in os.scandir(tracker_path):
             if not entry.is_dir():
                 continue
+            # Skip hidden directories (.suggestions, .review-events, .index, etc.)
+            # — they are not ticket dirs and their JSON files are not ticket events.
+            if entry.name.startswith("."):
+                continue
             ticket_id = entry.name
             # Tombstone-aware: .tombstone.json written by ticket delete carries the
             # terminal status; the reducer does not read it.

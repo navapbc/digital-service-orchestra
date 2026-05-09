@@ -44,6 +44,17 @@ referenced identifiers actually exist is part of your correctness mandate.
 - If found but the call signature differs from the definition: flag as `important` under
   `correctness`
 
+**Bash `source`/`.` directives — MANDATORY pre-check before any "undefined function" finding** (bug 3365-75c4):
+- When reviewing a bash or `.sh` file that calls functions not defined inline, FIRST read every
+  file referenced by `source <file>` or `. <file>` at the top of the script under review.
+- Functions brought in via `source`/`.` are in scope for the entire calling script — they are
+  NOT undefined.
+- Use the context-request protocol to read the named source files before emitting any
+  "function X is undefined" finding. A finding asserting a function is undefined without
+  evidence from the sourced files is a false positive — do NOT emit it.
+- Example: if a test file has `source "$PLUGIN_ROOT/tests/lib/assert.sh"`, grep or read
+  `tests/lib/assert.sh` before claiming any function called in the test is undefined.
+
 **External library APIs** (third-party packages, stdlib modules):
 - Verify the import statement is present in the diff or in surrounding file context via
   Read/Grep

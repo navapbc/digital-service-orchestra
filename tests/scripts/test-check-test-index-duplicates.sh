@@ -174,6 +174,152 @@ EOF
     rm -rf "$repo"
 }
 
+# ── Test 804a-84c7 (RED): cross-source-key same-test-file marker conflict rejected ──
+# When the same test file appears under two different source-key lines each with a
+# different RED marker, the guard must exit 1 (not auto-fix). The bash-runner
+# last-entry-wins means only the last marker survives, silently breaking the first.
+test_rejects_cross_source_key_marker_conflict() {
+    local repo; repo=$(_make_fixture_repo)
+    cat > "$repo/.test-index" <<'EOF'
+src/a.py:tests/shared.sh [markerA]
+src/b.py:tests/shared.sh [markerB],tests/b.sh
+EOF
+    local exit_code=0
+    local stderr_out
+    stderr_out=$( cd "$repo" && bash "$GUARD" 2>&1 ) || exit_code=$?
+    assert_eq "cross-key marker conflict: exit 1" "1" "$exit_code"
+    # Error must mention the conflicting test file
+    if [[ "$stderr_out" == *"tests/shared.sh"* ]]; then
+        assert_eq "cross-key marker conflict: error names conflicting file" "has-file" "has-file"
+    else
+        assert_eq "cross-key marker conflict: error names conflicting file" "has-file" "missing: $stderr_out"
+    fi
+    # Error must mention both markers
+    if [[ "$stderr_out" == *"markerA"* ]] && [[ "$stderr_out" == *"markerB"* ]]; then
+        assert_eq "cross-key marker conflict: error names both markers" "has-both" "has-both"
+    else
+        assert_eq "cross-key marker conflict: error names both markers" "has-both" "missing: $stderr_out"
+    fi
+    rm -rf "$repo"
+}
+
+# ── Test 804a-84c7b (RED): same test file, no markers on either line — not an error ──
+# Only marker conflicts are rejected. A test file appearing under two source keys
+# without any RED marker is a valid (common) pattern and must not be rejected.
+test_allows_cross_source_key_no_marker_duplicate() {
+    local repo; repo=$(_make_fixture_repo)
+    cat > "$repo/.test-index" <<'EOF'
+src/a.py:tests/shared.sh
+src/b.py:tests/shared.sh,tests/b.sh
+EOF
+    local before_sum; before_sum=$(cksum < "$repo/.test-index")
+    local exit_code=0
+    ( cd "$repo" && bash "$GUARD" ) || exit_code=$?
+    assert_eq "cross-key no-marker: exit 0" "0" "$exit_code"
+    local after_sum; after_sum=$(cksum < "$repo/.test-index")
+    assert_eq "cross-key no-marker: file unchanged" "$before_sum" "$after_sum"
+    rm -rf "$repo"
+}
+
+# ── Test 804a-84c7c (RED): cross-key conflict detected even when no source-key dups ──
+# The fast path (no source-key dups, no within-line marker dups) must still run the
+# cross-key check and exit 1 when a marker conflict is found.
+test_fast_path_rejects_cross_key_conflict() {
+    local repo; repo=$(_make_fixture_repo)
+    # Distinct source keys (no source-key dup), each with a different marker for
+    # the same test file — pure cross-key conflict on a clean-looking file.
+    cat > "$repo/.test-index" <<'EOF'
+src/a.py:tests/foo.sh [markerA],tests/a_only.sh
+src/b.py:tests/foo.sh [markerB],tests/b_only.sh
+EOF
+    local exit_code=0
+    ( cd "$repo" && bash "$GUARD" 2>/dev/null ) || exit_code=$?
+    assert_eq "fast-path cross-key conflict: exit 1 (not 0)" "1" "$exit_code"
+    rm -rf "$repo"
+}
+
+# ── Test 804a-84c7d (RED): cross-key conflict detected after auto-union resolves dups ──
+# When source-key dups exist AND a cross-key marker conflict exists, the guard must
+# first union the dups, then detect the cross-key conflict and exit 1.
+test_post_union_cross_key_conflict_exits_1() {
+    local repo; repo=$(_make_fixture_repo)
+    cat > "$repo/.test-index" <<'EOF'
+src/a.py:tests/shared.sh [markerA]
+src/a.py:tests/a_extra.sh
+src/b.py:tests/shared.sh [markerB]
+EOF
+    local exit_code=0
+    local stderr_out
+    stderr_out=$( cd "$repo" && bash "$GUARD" 2>&1 ) || exit_code=$?
+    assert_eq "post-union cross-key conflict: exit 1" "1" "$exit_code"
+    if [[ "$stderr_out" == *"tests/shared.sh"* ]]; then
+        assert_eq "post-union cross-key conflict: error names conflicting file" "has-file" "has-file"
+    else
+        assert_eq "post-union cross-key conflict: error names conflicting file" "has-file" "missing: $stderr_out"
+    fi
+    rm -rf "$repo"
+}
+
+# ── Test f86e-6f23 (RED): non-runnable extension in test target rejected ──────
+# A .test-index entry whose test target has a known non-runnable extension
+# (e.g. .yaml, .yml, .json, .md, .conf, .txt) must be rejected with exit 1.
+# These extensions can never be run as bash/python test files and indicate a
+# misconfiguration (e.g. accidentally listing a semgrep rules config as a test).
+test_rejects_yaml_test_target() {
+    local repo; repo=$(_make_fixture_repo)
+    cat > "$repo/.test-index" <<'EOF'
+src/a.py:tests/a.sh
+plugins/dso/hooks/semgrep-rules/test-anti-patterns.yaml:tests/b.sh
+src/b.py:plugins/dso/hooks/semgrep-rules/test-anti-patterns.yaml
+EOF
+    local exit_code=0
+    local stderr_out
+    stderr_out=$( cd "$repo" && bash "$GUARD" 2>&1 ) || exit_code=$?
+    assert_eq "yaml test target: exit 1" "1" "$exit_code"
+    if [[ "$stderr_out" == *".yaml"* ]] || [[ "$stderr_out" == *"non-runnable"* ]]; then
+        assert_eq "yaml test target: error mentions .yaml or non-runnable" "has-msg" "has-msg"
+    else
+        assert_eq "yaml test target: error mentions .yaml or non-runnable" "has-msg" "missing: $stderr_out"
+    fi
+    rm -rf "$repo"
+}
+
+test_rejects_json_test_target() {
+    local repo; repo=$(_make_fixture_repo)
+    cat > "$repo/.test-index" <<'EOF'
+src/a.py:tests/a.sh,some/config.json
+EOF
+    local exit_code=0
+    local stderr_out
+    stderr_out=$( cd "$repo" && bash "$GUARD" 2>&1 ) || exit_code=$?
+    assert_eq "json test target: exit 1" "1" "$exit_code"
+    rm -rf "$repo"
+}
+
+test_rejects_md_test_target() {
+    local repo; repo=$(_make_fixture_repo)
+    cat > "$repo/.test-index" <<'EOF'
+plugins/dso/skills/retro/docs/reviewers/test-quality.md:plugins/dso/skills/retro/docs/reviewers/test-quality.md,tests/hooks/test-pre-commit-test-quality-gate.sh
+EOF
+    local exit_code=0
+    local stderr_out
+    stderr_out=$( cd "$repo" && bash "$GUARD" 2>&1 ) || exit_code=$?
+    assert_eq "md test target: exit 1" "1" "$exit_code"
+    rm -rf "$repo"
+}
+
+test_allows_valid_sh_and_py_test_targets() {
+    local repo; repo=$(_make_fixture_repo)
+    cat > "$repo/.test-index" <<'EOF'
+src/a.py:tests/a.sh,tests/b_test.py
+src/b.sh:tests/test_c.py
+EOF
+    local exit_code=0
+    ( cd "$repo" && bash "$GUARD" ) || exit_code=$?
+    assert_eq "valid sh/py targets: exit 0" "0" "$exit_code"
+    rm -rf "$repo"
+}
+
 echo "=== test-check-test-index-duplicates ==="
 test_no_op_on_clean_file
 test_auto_unions_duplicate_keys
@@ -184,5 +330,13 @@ test_absent_file_passes
 test_idempotent
 test_collapses_marker_only_duplicates_in_test_list
 test_collapses_marker_only_dups_across_source_key_lines
+test_rejects_cross_source_key_marker_conflict
+test_allows_cross_source_key_no_marker_duplicate
+test_fast_path_rejects_cross_key_conflict
+test_post_union_cross_key_conflict_exits_1
+test_rejects_yaml_test_target
+test_rejects_json_test_target
+test_rejects_md_test_target
+test_allows_valid_sh_and_py_test_targets
 
 print_summary
