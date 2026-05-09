@@ -83,26 +83,34 @@ assert_eq \
     "0" \
     "$_T1_EXIT"
 
-# RED assertion: no JSONL entry written yet because the dispatcher doesn't call
-# hook_record_agent_attribution. After the fix, the file will exist and contain
-# the expected entry.
-_T1_JSONL_CONTENT=""
-[[ -f "$_T1_JSONL" ]] && _T1_JSONL_CONTENT=$(cat "$_T1_JSONL")
-
-assert_contains \
-    "test_post_agent_dispatcher_writes_attribution_jsonl_entry: jsonl contains subagent_type key" \
-    '"subagent_type"' \
-    "$_T1_JSONL_CONTENT"
-
-assert_contains \
-    "test_post_agent_dispatcher_writes_attribution_jsonl_entry: jsonl contains dso:red-test-writer" \
-    "dso:red-test-writer" \
-    "$_T1_JSONL_CONTENT"
-
-assert_contains \
-    "test_post_agent_dispatcher_writes_attribution_jsonl_entry: jsonl contains type=agent" \
-    '"type": "agent"' \
-    "$_T1_JSONL_CONTENT"
+# Verify the dispatcher wrote a single JSONL entry whose parsed fields match
+# the expected agent attribution shape (parses with python3 — substring matches
+# could pass for unrelated payloads with the same key fragments).
+_T1_MATCH="absent"
+if [[ -f "$_T1_JSONL" ]]; then
+    _T1_MATCH=$(python3 - "$_T1_JSONL" <<'PYEOF' 2>/dev/null
+import json, sys
+expected = {"type": "agent", "subagent_type": "dso:red-test-writer", "model": "claude-sonnet-4-6"}
+try:
+    with open(sys.argv[1]) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            obj = json.loads(line)
+            if obj == expected:
+                print("match")
+                sys.exit(0)
+except Exception:
+    pass
+print("absent")
+PYEOF
+)
+fi
+assert_eq \
+    "test_post_agent_dispatcher_writes_attribution_jsonl_entry: jsonl entry matches {type:agent, subagent_type, model}" \
+    "match" \
+    "$_T1_MATCH"
 
 # ============================================================
 # Summary

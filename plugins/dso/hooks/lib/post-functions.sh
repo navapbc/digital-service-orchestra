@@ -356,12 +356,21 @@ except Exception:
 # Guard: early-return if attribution.enabled != "true" (checked via read-config.sh).
 hook_record_agent_attribution() {
     local INPUT="$1"
-    trap 'return 0' ERR
 
-    # Guard: check attribution.enabled via read-config.sh (SCRIPTS_DIR must be set)
-    local _enabled=""
+    # Resolve read-config.sh via SCRIPTS_DIR → PATH → CLAUDE_PLUGIN_ROOT/scripts/.
+    local _rc_script=""
     if [[ -n "${SCRIPTS_DIR:-}" && -f "$SCRIPTS_DIR/read-config.sh" ]]; then
-        _enabled=$(bash "$SCRIPTS_DIR/read-config.sh" attribution.enabled 2>/dev/null) || _enabled=""
+        _rc_script="$SCRIPTS_DIR/read-config.sh"
+    else
+        _rc_script=$(command -v read-config.sh 2>/dev/null || echo "")
+        if [[ -z "$_rc_script" && -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh" ]]; then
+            _rc_script="$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh"
+        fi
+    fi
+
+    local _enabled=""
+    if [[ -n "$_rc_script" ]]; then
+        _enabled=$(bash "$_rc_script" attribution.enabled 2>/dev/null) || _enabled=""
     fi
     [[ "$_enabled" == "true" ]] || return 0
 
@@ -391,9 +400,12 @@ except Exception:
     # Resolve ARTIFACTS_DIR (use existing env var or call get_artifacts_dir)
     local _art_dir="${ARTIFACTS_DIR:-}"
     if [[ -z "$_art_dir" ]]; then
-        _art_dir=$(get_artifacts_dir)
+        _art_dir=$(get_artifacts_dir 2>/dev/null) || _art_dir=""
     fi
-    mkdir -p "$_art_dir"
+    if [[ -z "$_art_dir" ]] || ! mkdir -p "$_art_dir" 2>/dev/null; then
+        echo "WARNING: hook_record_agent_attribution: failed to prepare ARTIFACTS_DIR ('$_art_dir'); attribution entry dropped" >&2
+        return 0
+    fi
 
     # Build and append JSONL entry
     local _entry
@@ -404,10 +416,11 @@ print(json.dumps(entry))
 " "$_subagent_type" "$_model" 2>/dev/null) || _entry=""
 
     if [[ -n "$_entry" ]]; then
-        printf '%s\n' "$_entry" >> "$_art_dir/attribution-contributors.jsonl"
+        if ! printf '%s\n' "$_entry" >> "$_art_dir/attribution-contributors.jsonl" 2>/dev/null; then
+            echo "WARNING: hook_record_agent_attribution: failed to append JSONL entry to '$_art_dir/attribution-contributors.jsonl'" >&2
+        fi
     fi
 
-    trap - ERR
     return 0
 }
 
@@ -423,10 +436,8 @@ print(json.dumps(entry))
 # Guard: early-return if attribution.enabled != "true" (checked via read-config.sh).
 hook_record_skill_attribution() {
     local INPUT="$1"
-    trap 'return 0' ERR
 
-    # Guard: check attribution.enabled via read-config.sh.
-    # Resolution order: SCRIPTS_DIR env var → PATH → CLAUDE_PLUGIN_ROOT/scripts/
+    # Resolve read-config.sh via SCRIPTS_DIR → PATH → CLAUDE_PLUGIN_ROOT/scripts/.
     local _rc_script=""
     if [[ -n "${SCRIPTS_DIR:-}" && -f "$SCRIPTS_DIR/read-config.sh" ]]; then
         _rc_script="$SCRIPTS_DIR/read-config.sh"
@@ -458,9 +469,12 @@ except Exception:
     # Resolve ARTIFACTS_DIR (use existing env var or call get_artifacts_dir)
     local _art_dir="${WORKFLOW_PLUGIN_ARTIFACTS_DIR:-${ARTIFACTS_DIR:-}}"
     if [[ -z "$_art_dir" ]]; then
-        _art_dir=$(get_artifacts_dir)
+        _art_dir=$(get_artifacts_dir 2>/dev/null) || _art_dir=""
     fi
-    mkdir -p "$_art_dir"
+    if [[ -z "$_art_dir" ]] || ! mkdir -p "$_art_dir" 2>/dev/null; then
+        echo "WARNING: hook_record_skill_attribution: failed to prepare ARTIFACTS_DIR ('$_art_dir'); attribution entry dropped" >&2
+        return 0
+    fi
 
     # Build and append JSONL entry
     local _entry
@@ -471,10 +485,11 @@ print(json.dumps(entry, separators=(',', ':')))
 " "$_skill_name" 2>/dev/null) || _entry=""
 
     if [[ -n "$_entry" ]]; then
-        printf '%s\n' "$_entry" >> "$_art_dir/attribution-contributors.jsonl"
+        if ! printf '%s\n' "$_entry" >> "$_art_dir/attribution-contributors.jsonl" 2>/dev/null; then
+            echo "WARNING: hook_record_skill_attribution: failed to append JSONL entry to '$_art_dir/attribution-contributors.jsonl'" >&2
+        fi
     fi
 
-    trap - ERR
     return 0
 }
 

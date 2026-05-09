@@ -186,13 +186,14 @@ Create a single git commit following the repository's commit message conventions
 **SKIP ENTIRELY when `attribution.enabled` is absent or not `true` in `dso-config.conf`.**
 
 If `attribution.enabled=true`:
-- Run `bash apply-attribution-trailers.sh "$COMMIT_MSG_FILE" "${DSO_TASK_ID:-}"` with `ARTIFACTS_DIR` set to the session artifacts dir
+- Run `.claude/scripts/dso apply-attribution-trailers.sh "$COMMIT_MSG_FILE"` with `ARTIFACTS_DIR` set to the session artifacts dir and `DSO_TASK_ID` exported in the environment (the script reads it from the environment, not as a positional argument)
 - If the script exits non-zero: emit a warning to stderr and continue — this step is **non-blocking**
 
 ```bash
 ATTRIBUTION_ENABLED=$(grep -m1 '^attribution\.enabled=' "$REPO_ROOT/.claude/dso-config.conf" 2>/dev/null | cut -d= -f2-)
 if [[ "${ATTRIBUTION_ENABLED:-}" == "true" ]]; then
-    bash apply-attribution-trailers.sh "$COMMIT_MSG_FILE" "${DSO_TASK_ID:-}" || \
+    DSO_TASK_ID="${DSO_TASK_ID:-}" \
+        .claude/scripts/dso apply-attribution-trailers.sh "$COMMIT_MSG_FILE" || \
         echo "WARNING: apply-attribution-trailers.sh failed (non-blocking)" >&2
 fi
 ```
@@ -219,12 +220,12 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 **SKIP ENTIRELY when `attribution.enabled` is absent or not `true` in `dso-config.conf`.**
 
 If `attribution.enabled=true` and the commit exited 0:
-- Run `bash apply-attribution-trailers.sh --truncate "$COMMIT_MSG_FILE"` with `ARTIFACTS_DIR` set to the session artifacts dir
+- Run `.claude/scripts/dso apply-attribution-trailers.sh --truncate` with `ARTIFACTS_DIR` set to the session artifacts dir
 - If truncation exits non-zero: emit a warning to stderr but do **not** fail
 
 ```bash
 if [[ "${ATTRIBUTION_ENABLED:-}" == "true" ]]; then
-    bash apply-attribution-trailers.sh --truncate "$COMMIT_MSG_FILE" || \
+    .claude/scripts/dso apply-attribution-trailers.sh --truncate || \
         echo "WARNING: apply-attribution-trailers.sh --truncate failed (non-blocking)" >&2
 fi
 ```

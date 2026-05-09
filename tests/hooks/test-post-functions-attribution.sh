@@ -203,6 +203,186 @@ assert_eq \
     "$_t2_entry_count"
 
 # ============================================================
+# test_hook_record_agent_attribution_resolves_read_config_via_claude_plugin_root (C1)
+#
+# RED: hook only checks "${SCRIPTS_DIR:-}/read-config.sh". When SCRIPTS_DIR is
+# unset (the post-agent.sh dispatcher does not set it), `_enabled` stays empty
+# regardless of config, and the hook silently no-ops — feature is dead at
+# runtime. After fix: agent hook adopts the same SCRIPTS_DIR → PATH →
+# CLAUDE_PLUGIN_ROOT/scripts/ chain that the skill hook already uses.
+# ============================================================
+echo "--- test_hook_record_agent_attribution_resolves_read_config_via_claude_plugin_root ---"
+
+_T3_TMPDIR=$(mktemp -d)
+_TEST_TMPDIRS+=("$_T3_TMPDIR")
+
+# Build a fake plugin tree with scripts/read-config.sh → "true"
+_T3_PLUGIN_ROOT="$_T3_TMPDIR/plugin"
+mkdir -p "$_T3_PLUGIN_ROOT/scripts"
+cat > "$_T3_PLUGIN_ROOT/scripts/read-config.sh" <<'MOCK_EOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "attribution.enabled" ]]; then
+    echo "true"
+fi
+MOCK_EOF
+chmod +x "$_T3_PLUGIN_ROOT/scripts/read-config.sh"
+
+_T3_ARTIFACTS="$_T3_TMPDIR/artifacts"
+mkdir -p "$_T3_ARTIFACTS"
+
+_T3_AGENT_INPUT='{"tool_name":"Agent","tool_input":{"prompt":"x","subagent_type":"dso:via-plugin-root"},"tool_response":{"output":"ok","model":"sonnet"}}'
+
+# Critical: do NOT set SCRIPTS_DIR; do NOT put read-config.sh on PATH.
+env -i \
+    HOME="$HOME" \
+    PATH="/usr/bin:/bin" \
+    CLAUDE_PLUGIN_ROOT="$_T3_PLUGIN_ROOT" \
+    ARTIFACTS_DIR="$_T3_ARTIFACTS" \
+    bash -c "
+    set -uo pipefail
+    source \"$POST_FUNCTIONS\" 2>/dev/null
+    hook_record_agent_attribution '$_T3_AGENT_INPUT'
+" 2>/dev/null || true
+
+_T3_JSONL="$_T3_ARTIFACTS/attribution-contributors.jsonl"
+
+_t3_has_entry="no"
+if [[ -f "$_T3_JSONL" ]]; then
+    _t3_match=$(python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            d = json.loads(line)
+            if (d.get('type') == 'agent'
+                    and d.get('subagent_type') == 'dso:via-plugin-root'
+                    and d.get('model') == 'sonnet'):
+                print('found')
+                sys.exit(0)
+    print('absent')
+except Exception:
+    print('absent')
+" "$_T3_JSONL" 2>/dev/null)
+    [[ "$_t3_match" == "found" ]] && _t3_has_entry="yes"
+fi
+
+assert_eq \
+    "C1: agent hook resolves read-config.sh via CLAUDE_PLUGIN_ROOT and writes JSONL entry" \
+    "yes" \
+    "$_t3_has_entry"
+
+# ============================================================
+# test_hook_record_agent_attribution_warns_on_artifacts_dir_failure (L3)
+#
+# RED: an `ERR` trap silently swallows mkdir/printf failures. If the artifacts
+# dir cannot be created or written, the hook returns 0 with no observability,
+# masking attribution loss. After fix: failures emit a stderr WARNING, the
+# hook still returns 0 (non-blocking).
+# ============================================================
+echo "--- test_hook_record_agent_attribution_warns_on_artifacts_dir_failure ---"
+
+_T4_TMPDIR=$(mktemp -d)
+_TEST_TMPDIRS+=("$_T4_TMPDIR")
+
+# Skip when running as root (chmod 555 has no effect for root)
+if [[ "$(id -u)" -eq 0 ]]; then
+    echo "SKIP: test_hook_record_agent_attribution_warns_on_artifacts_dir_failure (running as root)"
+else
+    _T4_MOCKBIN="$_T4_TMPDIR/bin"
+    mkdir -p "$_T4_MOCKBIN"
+    cat > "$_T4_MOCKBIN/read-config.sh" <<'MOCK_EOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "attribution.enabled" ]]; then
+    echo "true"
+fi
+MOCK_EOF
+    chmod +x "$_T4_MOCKBIN/read-config.sh"
+
+    # Make a parent dir read-only so mkdir of a child fails.
+    _T4_PARENT="$_T4_TMPDIR/locked"
+    mkdir -p "$_T4_PARENT"
+    chmod 555 "$_T4_PARENT"
+    _T4_ARTIFACTS="$_T4_PARENT/artifacts"
+
+    _T4_AGENT_INPUT='{"tool_name":"Agent","tool_input":{"prompt":"x","subagent_type":"dso:warn-test"},"tool_response":{"output":"ok","model":"sonnet"}}'
+
+    _t4_stderr_file="$_T4_TMPDIR/stderr.txt"
+    _t4_exit=0
+    env PATH="$_T4_MOCKBIN:$PATH" \
+        ARTIFACTS_DIR="$_T4_ARTIFACTS" \
+        SCRIPTS_DIR="$_T4_MOCKBIN" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        bash -c "
+    set -uo pipefail
+    source \"$POST_FUNCTIONS\" 2>/dev/null
+    hook_record_agent_attribution '$_T4_AGENT_INPUT'
+" 2>"$_t4_stderr_file" || _t4_exit=$?
+
+    # Hook is non-blocking — must return 0 even on failure.
+    assert_eq "L3: hook exits 0 (non-blocking) on artifacts-dir failure" "0" "$_t4_exit"
+
+    _t4_has_warning=0
+    grep -qi 'warning\|attribution.*fail\|fail.*attribution' "$_t4_stderr_file" 2>/dev/null && _t4_has_warning=1
+    assert_eq "L3: stderr contains warning when attribution write fails" "1" "$_t4_has_warning"
+
+    # Restore so cleanup can remove the dir
+    chmod 755 "$_T4_PARENT" 2>/dev/null || true
+fi
+
+# ============================================================
+# test_hook_record_agent_attribution_does_not_leak_err_trap_to_caller (C2)
+#
+# RED: hook installs `trap 'return 0' ERR` and returns early on the disabled
+# config path without restoring the prior trap. When the function is sourced
+# (not run in a subshell), the global ERR trap leaks into subsequent commands
+# and masks unrelated errors. After fix: trap is restored on every return path.
+# ============================================================
+echo "--- test_hook_record_agent_attribution_does_not_leak_err_trap_to_caller ---"
+
+_T5_TMPDIR=$(mktemp -d)
+_TEST_TMPDIRS+=("$_T5_TMPDIR")
+
+# read-config.sh that returns empty (disabled) — drives the early-return path
+_T5_MOCKBIN="$_T5_TMPDIR/bin"
+mkdir -p "$_T5_MOCKBIN"
+cat > "$_T5_MOCKBIN/read-config.sh" <<'MOCK_EOF'
+#!/usr/bin/env bash
+exit 0
+MOCK_EOF
+chmod +x "$_T5_MOCKBIN/read-config.sh"
+
+_T5_AGENT_INPUT='{"tool_name":"Agent","tool_input":{"prompt":"x","subagent_type":"dso:trap-test"},"tool_response":{"output":"ok","model":"sonnet"}}'
+
+# After the early-return path, run a sentinel that detects whether the ERR
+# trap is still active. If the trap leaks, `false` would silently `return 0`
+# and the marker file would not be created with the expected exit code.
+_T5_MARKER="$_T5_TMPDIR/marker"
+env PATH="$_T5_MOCKBIN:$PATH" \
+    ARTIFACTS_DIR="$_T5_TMPDIR/artifacts" \
+    SCRIPTS_DIR="$_T5_MOCKBIN" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    bash -c "
+set -uo pipefail
+source \"$POST_FUNCTIONS\" 2>/dev/null
+# Capture pristine ERR trap before hook call
+_pre_trap=\"\$(trap -p ERR)\"
+hook_record_agent_attribution '$_T5_AGENT_INPUT'
+_post_trap=\"\$(trap -p ERR)\"
+if [[ \"\$_pre_trap\" == \"\$_post_trap\" ]]; then
+    echo restored > \"$_T5_MARKER\"
+else
+    echo leaked > \"$_T5_MARKER\"
+fi
+" 2>/dev/null || true
+
+_t5_status="missing"
+[[ -f "$_T5_MARKER" ]] && _t5_status="$(cat "$_T5_MARKER")"
+assert_eq "C2: ERR trap restored after early-return on disabled config" "restored" "$_t5_status"
+
+# ============================================================
 # Summary
 # ============================================================
 print_summary
