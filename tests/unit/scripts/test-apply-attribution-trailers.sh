@@ -1301,4 +1301,279 @@ test_skips_injection_when_trailers_already_present() {
 
 test_skips_injection_when_trailers_already_present
 
+# ── Tests for review-finding fixes ────────────────────────────────────────────
+# These tests cover behavior gaps identified in PR #80 review.
+
+# ── Test: no command injection via single-quote in subagent_type (C5/L1) ──────
+# RED: trailer flags built from JSONL values are joined and re-parsed by `eval`.
+# A subagent_type containing a closing single quote can break out and execute
+# arbitrary shell. After fix: trailer values are passed as argv tokens, never
+# re-parsed; the malicious payload becomes a literal trailer string.
+
+test_no_command_injection_via_subagent_type_with_single_quote() {
+    _snapshot_fail
+
+    if [[ ! -f "$SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_no_command_injection_via_subagent_type_with_single_quote\n  script not found: %s\n" "$SCRIPT" >&2
+        assert_pass_if_clean "test_no_command_injection_via_subagent_type_with_single_quote"
+        return
+    fi
+
+    local _artifacts; _artifacts="$(_make_tmpdir)"
+    local _sentinel; _sentinel="$(_make_tmpdir)/INJECTED"
+
+    # Malicious subagent_type: closes the single-quoted trailer flag and embeds
+    # a command substitution. `$(touch <sentinel>)` runs during eval's
+    # parameter expansion, BEFORE git is invoked — so even if git later fails
+    # under `set -e`, the injection has already executed.
+    python3 - "$_artifacts/attribution-contributors.jsonl" "$_sentinel" <<'PYEOF'
+import json, sys
+out = sys.argv[1]
+sentinel = sys.argv[2]
+payload = "evil' $(touch '" + sentinel + "') '"
+with open(out, 'w') as f:
+    f.write(json.dumps({"type": "agent", "subagent_type": payload, "model": "sonnet"}) + "\n")
+PYEOF
+
+    local _commit_msg_file="$_artifacts/COMMIT_EDITMSG"
+    printf 'feat: test injection\n' > "$_commit_msg_file"
+
+    local _mock_dir; _mock_dir="$(_make_tmpdir)/bin"
+    mkdir -p "$_mock_dir"
+    # shellcheck disable=SC2016
+    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
+        > "$_mock_dir/read-config.sh"
+    chmod +x "$_mock_dir/read-config.sh"
+
+    ARTIFACTS_DIR="$_artifacts" PATH="$_mock_dir:$PATH" \
+        bash "$SCRIPT" "$_commit_msg_file" >/dev/null 2>&1 || true
+
+    # Primary assertion: the injected `touch` MUST NOT have executed.
+    local _sentinel_present="absent"
+    [[ -e "$_sentinel" ]] && _sentinel_present="present"
+    assert_eq "C5: shell-injection sentinel not created" "absent" "$_sentinel_present"
+
+    assert_pass_if_clean "test_no_command_injection_via_subagent_type_with_single_quote"
+}
+
+test_no_command_injection_via_subagent_type_with_single_quote
+
+# ── Test: --jsonl flag is honored by SC-4 guard and trailer formatter (C4) ────
+# RED: SC-4 guard and format_trailer_flags hardcode
+# `$ARTIFACTS_DIR/attribution-contributors.jsonl`. Passing `--jsonl <alt>` while
+# the default file is empty/absent makes the script bail out (SC-4) instead of
+# reading from the alternate path.
+
+test_jsonl_flag_path_used_for_guard_and_injection() {
+    _snapshot_fail
+
+    if [[ ! -f "$SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_jsonl_flag_path_used_for_guard_and_injection\n  script not found: %s\n" "$SCRIPT" >&2
+        assert_pass_if_clean "test_jsonl_flag_path_used_for_guard_and_injection"
+        return
+    fi
+
+    local _artifacts; _artifacts="$(_make_tmpdir)"
+    # Default JSONL is intentionally absent — only the alternate file has data.
+    local _alt_jsonl; _alt_jsonl="$(_make_tmpdir)/alt.jsonl"
+    printf '{"type":"agent","subagent_type":"dso:via-flag","model":"sonnet"}\n' > "$_alt_jsonl"
+
+    local _commit_msg_file="$_artifacts/COMMIT_EDITMSG"
+    printf 'feat: alt jsonl\n' > "$_commit_msg_file"
+
+    local _mock_dir; _mock_dir="$(_make_tmpdir)/bin"
+    mkdir -p "$_mock_dir"
+    # shellcheck disable=SC2016
+    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
+        > "$_mock_dir/read-config.sh"
+    chmod +x "$_mock_dir/read-config.sh"
+
+    local exit_code=0
+    ARTIFACTS_DIR="$_artifacts" PATH="$_mock_dir:$PATH" \
+        bash "$SCRIPT" --jsonl "$_alt_jsonl" "$_commit_msg_file" 2>/dev/null || exit_code=$?
+
+    assert_eq "C4: exits 0 with --jsonl <alt>" "0" "$exit_code"
+
+    local _has_via_flag=0
+    grep -q "^DSO-Agent: dso:via-flag$" "$_commit_msg_file" 2>/dev/null && _has_via_flag=1
+    assert_eq "C4: trailer from --jsonl path injected" "1" "$_has_via_flag"
+
+    assert_pass_if_clean "test_jsonl_flag_path_used_for_guard_and_injection"
+}
+
+test_jsonl_flag_path_used_for_guard_and_injection
+
+# ── Test: missing --jsonl value emits clean usage error (C6) ──────────────────
+# RED: argparser does `_JSONL_FILE="$2"` unconditionally; under `set -u`, a
+# missing value crashes with a cryptic "unbound variable" instead of a
+# user-facing usage error.
+
+test_missing_jsonl_value_exits_with_usage_error() {
+    _snapshot_fail
+
+    if [[ ! -f "$SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_missing_jsonl_value_exits_with_usage_error\n  script not found: %s\n" "$SCRIPT" >&2
+        assert_pass_if_clean "test_missing_jsonl_value_exits_with_usage_error"
+        return
+    fi
+
+    local _stderr_file; _stderr_file="$(_make_tmpdir)/stderr.txt"
+    local exit_code=0
+    bash "$SCRIPT" --jsonl 2>"$_stderr_file" >/dev/null || exit_code=$?
+
+    assert_eq "C6: exits 1 (usage error) on missing --jsonl value" "1" "$exit_code"
+
+    local _has_usage=0
+    grep -qiE 'usage|requires|expected' "$_stderr_file" 2>/dev/null && _has_usage=1
+    assert_eq "C6: stderr describes the missing-value error" "1" "$_has_usage"
+
+    local _has_unbound=0
+    grep -qi 'unbound variable' "$_stderr_file" 2>/dev/null && _has_unbound=1
+    assert_eq "C6: stderr does NOT contain 'unbound variable'" "0" "$_has_unbound"
+
+    assert_pass_if_clean "test_missing_jsonl_value_exits_with_usage_error"
+}
+
+test_missing_jsonl_value_exits_with_usage_error
+
+# ── Test: missing _COMMIT_MSG_FILE emits clean usage error (L5) ───────────────
+# RED: when injection should proceed but no positional arg is given, the script
+# falls through to `git interpret-trailers --in-place ... ""`, producing a
+# cryptic "fatal: : not a regular file" instead of a usage error.
+
+test_missing_commit_msg_file_exits_with_usage_error() {
+    _snapshot_fail
+
+    if [[ ! -f "$SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_missing_commit_msg_file_exits_with_usage_error\n  script not found: %s\n" "$SCRIPT" >&2
+        assert_pass_if_clean "test_missing_commit_msg_file_exits_with_usage_error"
+        return
+    fi
+
+    local _artifacts; _artifacts="$(_make_tmpdir)"
+    printf '{"type":"agent","subagent_type":"dso:x","model":"sonnet"}\n' \
+        > "$_artifacts/attribution-contributors.jsonl"
+
+    local _mock_dir; _mock_dir="$(_make_tmpdir)/bin"
+    mkdir -p "$_mock_dir"
+    # shellcheck disable=SC2016
+    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
+        > "$_mock_dir/read-config.sh"
+    chmod +x "$_mock_dir/read-config.sh"
+
+    local _stderr_file; _stderr_file="$(_make_tmpdir)/stderr.txt"
+    local exit_code=0
+    ARTIFACTS_DIR="$_artifacts" PATH="$_mock_dir:$PATH" \
+        bash "$SCRIPT" 2>"$_stderr_file" >/dev/null || exit_code=$?
+
+    assert_ne "L5: exits non-zero when commit-msg file missing" "0" "$exit_code"
+
+    local _has_usage=0
+    grep -qiE 'commit.*message|usage' "$_stderr_file" 2>/dev/null && _has_usage=1
+    assert_eq "L5: stderr describes missing commit-msg file" "1" "$_has_usage"
+
+    assert_pass_if_clean "test_missing_commit_msg_file_exits_with_usage_error"
+}
+
+test_missing_commit_msg_file_exits_with_usage_error
+
+# ── Test: idempotency guard matches case-insensitively (L4) ───────────────────
+# RED: idempotency check uses `grep -qF` (case-sensitive). An existing
+# lowercase trailer (`dso-agent: foo`) won't match the would-be `DSO-Agent: foo`,
+# so a duplicate trailer is appended.
+
+test_idempotency_matches_lowercase_existing_trailer() {
+    _snapshot_fail
+
+    if [[ ! -f "$SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_idempotency_matches_lowercase_existing_trailer\n  script not found: %s\n" "$SCRIPT" >&2
+        assert_pass_if_clean "test_idempotency_matches_lowercase_existing_trailer"
+        return
+    fi
+
+    local _artifacts; _artifacts="$(_make_tmpdir)"
+    printf '{"type":"agent","subagent_type":"dso:sprint","model":"sonnet"}\n' \
+        > "$_artifacts/attribution-contributors.jsonl"
+
+    local _commit_msg_file="$_artifacts/COMMIT_EDITMSG"
+    # Pre-existing trailers in lowercase (e.g., from a different tooling).
+    printf 'feat: case test\n\ndso-agent: dso:sprint\ndso-model: sonnet\n' > "$_commit_msg_file"
+
+    local _mock_dir; _mock_dir="$(_make_tmpdir)/bin"
+    mkdir -p "$_mock_dir"
+    # shellcheck disable=SC2016
+    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
+        > "$_mock_dir/read-config.sh"
+    chmod +x "$_mock_dir/read-config.sh"
+
+    ARTIFACTS_DIR="$_artifacts" PATH="$_mock_dir:$PATH" \
+        bash "$SCRIPT" "$_commit_msg_file" 2>/dev/null || true
+
+    # Combined case-insensitive count of ^dso-agent: lines must remain 1.
+    local _agent_count
+    _agent_count="$(grep -ic '^dso-agent:' "$_commit_msg_file" 2>/dev/null || true)"
+    assert_eq "L4: case-insensitive duplicate prevented (still 1 dso-agent line)" "1" "$_agent_count"
+
+    assert_pass_if_clean "test_idempotency_matches_lowercase_existing_trailer"
+}
+
+test_idempotency_matches_lowercase_existing_trailer
+
+# ── Test: SC-2 guard resolves read-config.sh via CLAUDE_PLUGIN_ROOT (C3) ──────
+# RED: the SC-2 guard calls `read-config.sh` bare-name, expecting it on PATH.
+# In normal runtime, the plugin scripts dir is not on PATH, so the guard
+# silently treats attribution as disabled and exits 0 — making the entire
+# feature dead code.
+
+test_sc2_guard_resolves_read_config_via_claude_plugin_root() {
+    _snapshot_fail
+
+    if [[ ! -f "$SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_sc2_guard_resolves_read_config_via_claude_plugin_root\n  script not found: %s\n" "$SCRIPT" >&2
+        assert_pass_if_clean "test_sc2_guard_resolves_read_config_via_claude_plugin_root"
+        return
+    fi
+
+    local _artifacts; _artifacts="$(_make_tmpdir)"
+    printf '{"type":"agent","subagent_type":"dso:via-plugin-root","model":"sonnet"}\n' \
+        > "$_artifacts/attribution-contributors.jsonl"
+
+    local _commit_msg_file="$_artifacts/COMMIT_EDITMSG"
+    printf 'feat: plugin-root resolution\n' > "$_commit_msg_file"
+
+    # Build a fake plugin tree containing scripts/read-config.sh that returns
+    # "true". Do NOT add it to PATH.
+    local _plugin_root; _plugin_root="$(_make_tmpdir)/plugin"
+    mkdir -p "$_plugin_root/scripts"
+    # shellcheck disable=SC2016
+    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
+        > "$_plugin_root/scripts/read-config.sh"
+    chmod +x "$_plugin_root/scripts/read-config.sh"
+
+    # Sanitize PATH: only system bins + git, no read-config.sh anywhere.
+    local _clean_path="/usr/bin:/bin"
+
+    local exit_code=0
+    PATH="$_clean_path" \
+        CLAUDE_PLUGIN_ROOT="$_plugin_root" \
+        ARTIFACTS_DIR="$_artifacts" \
+        bash "$SCRIPT" "$_commit_msg_file" 2>/dev/null || exit_code=$?
+
+    assert_eq "C3: exits 0 with config resolved via CLAUDE_PLUGIN_ROOT" "0" "$exit_code"
+
+    local _has_trailer=0
+    grep -q "^DSO-Agent: dso:via-plugin-root$" "$_commit_msg_file" 2>/dev/null && _has_trailer=1
+    assert_eq "C3: trailer injected (SC-2 guard did not bail)" "1" "$_has_trailer"
+
+    assert_pass_if_clean "test_sc2_guard_resolves_read_config_via_claude_plugin_root"
+}
+
+test_sc2_guard_resolves_read_config_via_claude_plugin_root
+
 print_summary

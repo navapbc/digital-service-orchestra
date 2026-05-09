@@ -87,21 +87,33 @@ assert_eq \
     "function_called" \
     "$_T1_RESULT"
 
-# Also assert on the JSONL side-effect (will only reach here after implementation)
-_T1_JSONL_CONTENT=""
-[[ -f "$_T1_JSONL" ]] && _T1_JSONL_CONTENT=$(cat "$_T1_JSONL")
-assert_contains \
-    "test_hook_record_skill_attribution_writes_jsonl_entry_when_enabled: jsonl contains type=skill" \
-    '"type":"skill"' \
-    "$_T1_JSONL_CONTENT"
-assert_contains \
-    "test_hook_record_skill_attribution_writes_jsonl_entry_when_enabled: jsonl contains skill_name" \
-    '"skill_name"' \
-    "$_T1_JSONL_CONTENT"
-assert_contains \
-    "test_hook_record_skill_attribution_writes_jsonl_entry_when_enabled: jsonl contains the skill value" \
-    "dso:sprint" \
-    "$_T1_JSONL_CONTENT"
+# Verify the JSONL side-effect by parsing each line as JSON and matching the
+# full expected object (defends against false positives from substring matches).
+_T1_MATCH="absent"
+if [[ -f "$_T1_JSONL" ]]; then
+    _T1_MATCH=$(python3 - "$_T1_JSONL" <<'PYEOF' 2>/dev/null
+import json, sys
+expected = {"type": "skill", "skill_name": "dso:sprint"}
+try:
+    with open(sys.argv[1]) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            obj = json.loads(line)
+            if obj == expected:
+                print("match")
+                sys.exit(0)
+except Exception:
+    pass
+print("absent")
+PYEOF
+)
+fi
+assert_eq \
+    "test_hook_record_skill_attribution_writes_jsonl_entry_when_enabled: jsonl entry matches {type:skill, skill_name}" \
+    "match" \
+    "$_T1_MATCH"
 
 # ============================================================
 # test_post_skill_dispatcher_appends_skill_entry_to_jsonl
@@ -154,20 +166,31 @@ assert_eq \
     "0" \
     "$_T2_EXIT"
 
-_T2_JSONL_CONTENT=""
-[[ -f "$_T2_JSONL" ]] && _T2_JSONL_CONTENT=$(cat "$_T2_JSONL")
-assert_contains \
-    "test_post_skill_dispatcher_appends_skill_entry_to_jsonl: jsonl contains type=skill" \
-    '"type":"skill"' \
-    "$_T2_JSONL_CONTENT"
-assert_contains \
-    "test_post_skill_dispatcher_appends_skill_entry_to_jsonl: jsonl contains skill_name" \
-    '"skill_name"' \
-    "$_T2_JSONL_CONTENT"
-assert_contains \
-    "test_post_skill_dispatcher_appends_skill_entry_to_jsonl: jsonl contains the skill value dso:fix-bug" \
-    "dso:fix-bug" \
-    "$_T2_JSONL_CONTENT"
+_T2_MATCH="absent"
+if [[ -f "$_T2_JSONL" ]]; then
+    _T2_MATCH=$(python3 - "$_T2_JSONL" <<'PYEOF' 2>/dev/null
+import json, sys
+expected = {"type": "skill", "skill_name": "dso:fix-bug"}
+try:
+    with open(sys.argv[1]) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            obj = json.loads(line)
+            if obj == expected:
+                print("match")
+                sys.exit(0)
+except Exception:
+    pass
+print("absent")
+PYEOF
+)
+fi
+assert_eq \
+    "test_post_skill_dispatcher_appends_skill_entry_to_jsonl: jsonl entry matches {type:skill, skill_name=dso:fix-bug}" \
+    "match" \
+    "$_T2_MATCH"
 
 # ============================================================
 # Summary

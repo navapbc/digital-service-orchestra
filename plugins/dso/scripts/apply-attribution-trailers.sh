@@ -29,12 +29,17 @@
 # ---------------------------------------------------------------------------
 #
 # ── Usage ─────────────────────────────────────────────────────────────────────
-#   apply-attribution-trailers.sh [--dry-run] [--jsonl <file>] [--commit <ref>]
+#   apply-attribution-trailers.sh [--dry-run] [--jsonl <file>] [--truncate] <commit-msg-file>
+#
+# Operates on a commit message file via `git interpret-trailers --in-place`.
+# Typically invoked as the orchestrator's pre-commit step (with the commit
+# message file path) or as a post-commit truncate step (with `--truncate`).
 #
 # Options:
 #   --dry-run         Print trailers without applying them
-#   --jsonl <file>    Path to attribution-contributors.jsonl (default: $ARTIFACTS_DIR/attribution-contributors.jsonl)
-#   --commit <ref>    Commit ref to amend (default: HEAD)
+#   --jsonl <file>    Path to attribution-contributors.jsonl
+#                     (default: $ARTIFACTS_DIR/attribution-contributors.jsonl)
+#   --truncate        Clear the JSONL file to 0 bytes (post-commit cleanup)
 #
 # Exit codes:
 #   0  = success
@@ -79,9 +84,14 @@ ARTIFACTS_DIR="$(_resolve_artifacts_dir)"
 # ── Argument parsing ──────────────────────────────────────────────────────────
 _DRY_RUN=0
 _JSONL_FILE=""
-_COMMIT_REF="HEAD"
 _COMMIT_MSG_FILE=""
 _TRUNCATE_MODE=0
+
+_usage_error() {
+    printf "ERROR: %s\n" "$1" >&2
+    printf "Usage: apply-attribution-trailers.sh [--dry-run] [--jsonl <file>] [--truncate] <commit-msg-file>\n" >&2
+    exit 1
+}
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -94,11 +104,8 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --jsonl)
+            [[ $# -ge 2 ]] || _usage_error "--jsonl requires a <file> argument"
             _JSONL_FILE="$2"
-            shift 2
-            ;;
-        --commit)
-            _COMMIT_REF="$2"
             shift 2
             ;;
         --)
@@ -113,8 +120,7 @@ while [[ $# -gt 0 ]]; do
                 _COMMIT_MSG_FILE="$1"
                 shift
             else
-                printf "ERROR: unknown option: %s\n" "$1" >&2
-                exit 1
+                _usage_error "unknown option or extra positional: $1"
             fi
             ;;
     esac
@@ -348,6 +354,97 @@ PYEOF
     return 0
 }
 
+# ── _resolve_read_config_script ───────────────────────────────────────────────
+# Resolves the absolute path to read-config.sh. Tries, in order:
+#   1. ${SCRIPTS_DIR}/read-config.sh (set by some hook dispatchers)
+#   2. read-config.sh on $PATH (test harnesses often prepend a mock dir)
+#   3. ${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh (real plugin runtime)
+# Echoes the resolved path or empty string. Never fails.
+_resolve_read_config_script() {
+    if [[ -n "${SCRIPTS_DIR:-}" && -f "${SCRIPTS_DIR}/read-config.sh" ]]; then
+        echo "${SCRIPTS_DIR}/read-config.sh"
+        return 0
+    fi
+    local _on_path
+    _on_path="$(command -v read-config.sh 2>/dev/null || true)"
+    if [[ -n "$_on_path" ]]; then
+        echo "$_on_path"
+        return 0
+    fi
+    if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" ]]; then
+        echo "${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh"
+        return 0
+    fi
+    echo ""
+}
+
+# ── _build_trailer_argv ───────────────────────────────────────────────────────
+# Builds an argv array of `--trailer KEY: VALUE` token pairs from the script's
+# JSONL + scalar-context inputs. Caller must declare `_argv` as a local array.
+# Uses python3 to emit NUL-delimited tokens so values with spaces, single
+# quotes, or shell metacharacters are passed safely.
+_build_trailer_argv() {
+    local _jsonl_file="$1"
+    local _scalar_flags="$2"  # newline-separated --trailer 'K: V' lines
+
+    # Multi-value trailers from JSONL (NUL-delimited K: V tokens).
+    if [[ -f "$_jsonl_file" ]]; then
+        while IFS= read -r -d '' _token; do
+            _argv+=("--trailer" "$_token")
+        done < <(python3 - "$_jsonl_file" <<'PYEOF'
+import sys, json
+path = sys.argv[1]
+seen_a, seen_s, seen_m = [], [], []
+sa, ss, sm = set(), set(), set()
+with open(path) as fh:
+    for raw in fh:
+        line = raw.rstrip("\n")
+        if not line.strip():
+            continue
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        t = obj.get("type", "")
+        if t == "agent":
+            v = obj.get("subagent_type", "")
+            if v and v not in sa:
+                sa.add(v); seen_a.append(v)
+            m = obj.get("model", "")
+            if m and m not in sm:
+                sm.add(m); seen_m.append(m)
+        elif t == "skill":
+            v = obj.get("skill_name", "")
+            if v and v not in ss:
+                ss.add(v); seen_s.append(v)
+            m = obj.get("model", "")
+            if m and m not in sm:
+                sm.add(m); seen_m.append(m)
+out = []
+for v in seen_a: out.append("DSO-Agent: " + v)
+for v in seen_s: out.append("DSO-Skill: " + v)
+for v in seen_m: out.append("DSO-Model: " + v)
+sys.stdout.write("\0".join(out))
+if out:
+    sys.stdout.write("\0")
+PYEOF
+)
+    fi
+
+    # Scalar trailers come pre-formatted as "--trailer 'K: V'" lines from
+    # resolve_scalar_trailers — strip the wrapper to recover the K: V token.
+    if [[ -n "$_scalar_flags" ]]; then
+        local _line _tok
+        while IFS= read -r _line; do
+            [[ -z "$_line" ]] && continue
+            _tok="${_line#--trailer }"
+            _tok="${_tok#\'}"
+            _tok="${_tok%\'}"
+            _argv+=("--trailer" "$_tok")
+        done <<< "$_scalar_flags"
+    fi
+}
+
 # ── Main (only runs when script is executed directly, not sourced) ────────────
 # Guard: skip main block when sourced by tests
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
@@ -355,10 +452,9 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     # Clear the JSONL file after successful injection so that the next commit
     # starts with a clean slate.  Never fails /dso:commit (always exits 0).
     if [[ "$_TRUNCATE_MODE" -eq 1 ]]; then
-        _jsonl="${ARTIFACTS_DIR:-}/attribution-contributors.jsonl"
-        if [[ -f "$_jsonl" ]]; then
-            if ! : > "$_jsonl" 2>/dev/null; then
-                printf 'WARNING: apply-attribution-trailers: failed to truncate %s\n' "$_jsonl" >&2
+        if [[ -f "$_JSONL_FILE" ]]; then
+            if ! : > "$_JSONL_FILE" 2>/dev/null; then
+                printf 'WARNING: apply-attribution-trailers: failed to truncate %s\n' "$_JSONL_FILE" >&2
             fi
         fi
         exit 0
@@ -366,15 +462,19 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
 
     # ── SC-2: attribution.enabled config guard ────────────────────────────────
     # Exit 0 (no-op) if attribution is disabled in config.
-    _attribution_enabled=$(read-config.sh attribution.enabled 2>/dev/null || echo "false")
+    _read_config_path="$(_resolve_read_config_script)"
+    if [[ -n "$_read_config_path" ]]; then
+        _attribution_enabled=$(bash "$_read_config_path" attribution.enabled 2>/dev/null || echo "false")
+    else
+        _attribution_enabled="false"
+    fi
     if [[ "$_attribution_enabled" != "true" ]]; then
         exit 0
     fi
 
     # ── SC-4: JSONL file presence guard ───────────────────────────────────────
     # Exit 0 (no-op) if the attribution JSONL file is absent or empty.
-    _jsonl="$ARTIFACTS_DIR/attribution-contributors.jsonl"
-    if [[ ! -f "$_jsonl" ]] || [[ ! -s "$_jsonl" ]]; then
+    if [[ ! -f "$_JSONL_FILE" ]] || [[ ! -s "$_JSONL_FILE" ]]; then
         exit 0
     fi
 
@@ -382,59 +482,54 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     # Exit 0 (graceful skip) if git is too old to support interpret-trailers.
     check_git_version || { printf 'TRAILER_SKIPPED: git < 2.6\n' >&2; exit 0; }
 
-    if [[ ! -f "$_JSONL_FILE" ]]; then
-        printf "ERROR: JSONL file not found: %s\n" "$_JSONL_FILE" >&2
-        exit 3
-    fi
-
     # Read unique contributions
     _unique_lines="$(read_and_deduplicate "$_JSONL_FILE")"
 
     if [[ "$_DRY_RUN" -eq 1 ]]; then
-        printf "DRY-RUN: would apply trailers from %s to %s\n" "$_JSONL_FILE" "$_COMMIT_REF"
+        printf "DRY-RUN: would apply trailers from %s to %s\n" "$_JSONL_FILE" "${_COMMIT_MSG_FILE:-<stdout>}"
         printf "%s\n" "$_unique_lines"
         exit 0
     fi
 
-    # ── Trailer injection via git interpret-trailers --in-place ───────────────
-    # Build combined trailer flags from JSONL (multi-value) + scalar context
-    _trailer_flags=""
-    _trailer_flags+="$(format_trailer_flags "$ARTIFACTS_DIR/attribution-contributors.jsonl")"
-    _resolve_flags="$(resolve_scalar_trailers)"
-    if [[ -n "$_resolve_flags" ]]; then
-        _trailer_flags+=$'\n'"$_resolve_flags"
+    # ── Commit-message-file presence check (L5) ───────────────────────────────
+    if [[ -z "$_COMMIT_MSG_FILE" ]]; then
+        _usage_error "missing <commit-msg-file> argument; required when not in --dry-run or --truncate mode"
+    fi
+    if [[ ! -f "$_COMMIT_MSG_FILE" ]]; then
+        printf "ERROR: commit message file not found: %s\n" "$_COMMIT_MSG_FILE" >&2
+        exit 1
     fi
 
-    # Read trailer flags into an array so each --trailer 'K: V' token is
-    # passed as a separate word (avoids eval and handles spaces in values).
-    # mapfile splits on newlines; empty lines are filtered to prevent blank args.
-    mapfile -t _flags_array < <(printf '%s\n' "$_trailer_flags" | grep -v '^$')
+    # ── Trailer injection via git interpret-trailers --in-place ───────────────
+    # Build argv array safely (no eval) so trailer values with shell
+    # metacharacters cannot trigger command substitution / injection.
+    _argv=()
+    _scalar_flags="$(resolve_scalar_trailers)"
+    _build_trailer_argv "$_JSONL_FILE" "$_scalar_flags"
 
-    if [[ "${#_flags_array[@]}" -gt 0 ]]; then
+    if [[ "${#_argv[@]}" -gt 0 ]]; then
         # ── Idempotency guard ─────────────────────────────────────────────────
-        # If ALL would-be trailer key:value pairs already appear as lines in the
-        # commit message file, skip the interpret-trailers call. This makes the
-        # second invocation (hook + orchestrator) a no-op rather than duplicating.
+        # Skip injection if every would-be trailer (KEY: VALUE) already appears
+        # in the commit message file. Match case-insensitively because git
+        # interpret-trailers itself treats trailer keys case-insensitively, so a
+        # pre-existing "dso-agent: foo" line is semantically the same trailer.
         _all_present=1
-        for _flag_entry in "${_flags_array[@]}"; do
-            # Each entry has the form: --trailer 'KEY: VALUE'
-            # Extract the trailer token (the 'KEY: VALUE' part) by stripping the
-            # leading "--trailer " and surrounding single quotes.
-            _trailer_token="${_flag_entry#--trailer }"
-            _trailer_token="${_trailer_token#\'}"
-            _trailer_token="${_trailer_token%\'}"
-            if ! grep -qF "$_trailer_token" "$_COMMIT_MSG_FILE" 2>/dev/null; then
+        local_i=0
+        while [[ $local_i -lt ${#_argv[@]} ]]; do
+            # _argv pairs are (--trailer, "KEY: VALUE", --trailer, "KEY: VALUE", ...)
+            _trailer_token="${_argv[$((local_i + 1))]}"
+            if ! grep -qiF "$_trailer_token" "$_COMMIT_MSG_FILE" 2>/dev/null; then
                 _all_present=0
                 break
             fi
+            local_i=$((local_i + 2))
         done
 
         if [[ "$_all_present" -eq 1 ]]; then
             exit 0
         fi
 
-        # shellcheck disable=SC2294
-        eval "${GIT_BINARY:-git} interpret-trailers --in-place ${_flags_array[*]} \"\$_COMMIT_MSG_FILE\""
+        "${GIT_BINARY:-git}" interpret-trailers --in-place "${_argv[@]}" -- "$_COMMIT_MSG_FILE"
     fi
 
     # ── SC-5: Post-injection placement scan ───────────────────────────────────
