@@ -61,9 +61,10 @@ _resolve_artifacts_dir() {
         echo "$ARTIFACTS_DIR"
         return 0
     fi
-    local _script_dir
+    local _script_dir _plugin_root
     _script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    local _deps="${_script_dir}/../hooks/lib/deps.sh"
+    _plugin_root="${CLAUDE_PLUGIN_ROOT:-${_script_dir}/..}"
+    local _deps="${_plugin_root}/hooks/lib/deps.sh"
     if [[ -f "$_deps" ]]; then
         # shellcheck disable=SC1090
         source "$_deps"
