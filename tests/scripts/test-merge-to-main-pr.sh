@@ -91,8 +91,23 @@ case "\$1" in
       view)
         # gh pr view --json mergeable — pre-auto-merge check
         # gh pr view --json state — polling-phase check (return MERGED so loop exits)
+        # gh pr view --json headRefOid — _phase_check_pr_comments_since_push
+        # gh pr view --json comments,reviews,reviewThreads — comments-since-push payload
         if [[ "\$*" == *"--json state"* ]]; then
           echo "MERGED"
+          exit 0
+        fi
+        if [[ "\$*" == *"--json headRefOid"* ]]; then
+          # Empty → _phase_check_pr_comments_since_push returns early at the
+          # `[[ -z "\$_head_sha" ]] && return 0` guard, so no api repos/commits
+          # call follows. Keeps the fixture minimal.
+          echo ""
+          exit 0
+        fi
+        if [[ "\$*" == *"comments,reviews,reviewThreads"* ]]; then
+          # Empty payload — defensive in case the head_sha guard above is
+          # ever bypassed in future flows.
+          echo "{}"
           exit 0
         fi
         if [[ "$pr_create_mode" == "conflict" ]]; then
@@ -124,6 +139,25 @@ case "\$1" in
         ;;
       *) exit 0 ;;
     esac
+    ;;
+  api)
+    # gh api graphql — _pr_fetch_unresolved_threads expects this exact shape.
+    # Returning empty {nodes:[]} means "no unresolved threads", letting
+    # _phase_resolve_threads exit cleanly so the script proceeds to auto-merge.
+    if [[ "\$2" == "graphql" ]]; then
+      echo '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}'
+      exit 0
+    fi
+    exit 0
+    ;;
+  repo)
+    # gh repo view --json nameWithOwner — _pr_repo helper. Return a placeholder
+    # slug consistent with the PR URL above.
+    if [[ "\$2" == "view" ]]; then
+      echo "x/y"
+      exit 0
+    fi
+    exit 0
     ;;
   *) exit 0 ;;
 esac
@@ -433,6 +467,18 @@ case "\$1" in
           echo "$merge_sha"
           exit 0
         fi
+        # _phase_check_pr_comments_since_push: --json headRefOid → empty so
+        # the function returns early at the empty-_head_sha guard, avoiding
+        # the api repos/{owner}/{repo}/commits/... call.
+        if [[ "\$*" == *"--json headRefOid"* ]]; then
+          echo ""
+          exit 0
+        fi
+        # comments,reviews,reviewThreads payload — defensive empty.
+        if [[ "\$*" == *"comments,reviews,reviewThreads"* ]]; then
+          echo "{}"
+          exit 0
+        fi
         # mergeable check (pre-auto-merge) → MERGEABLE; state check during poll → see below
         if [[ "\$*" == *"--json mergeable"* && "\$*" != *state* ]]; then
           echo '{"mergeable":"MERGEABLE","number":42,"url":"https://github.com/x/y/pull/42"}'
@@ -495,6 +541,22 @@ case "\$1" in
         ;;
       *) exit 0 ;;
     esac
+    ;;
+  api)
+    # _pr_fetch_unresolved_threads — empty {nodes:[]} so the loop exits cleanly.
+    if [[ "\$2" == "graphql" ]]; then
+      echo '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}'
+      exit 0
+    fi
+    exit 0
+    ;;
+  repo)
+    # _pr_repo helper.
+    if [[ "\$2" == "view" ]]; then
+      echo "x/y"
+      exit 0
+    fi
+    exit 0
     ;;
   *) exit 0 ;;
 esac
@@ -838,6 +900,16 @@ case "\$1" in
           echo "MERGED"
           exit 0
         fi
+        # _phase_check_pr_comments_since_push: --json headRefOid → empty so
+        # the function returns early, avoiding the api repos/.../commits call.
+        if [[ "\$*" == *"--json headRefOid"* ]]; then
+          echo ""
+          exit 0
+        fi
+        if [[ "\$*" == *"comments,reviews,reviewThreads"* ]]; then
+          echo "{}"
+          exit 0
+        fi
         echo '{"mergeable":"MERGEABLE","number":42,"url":"https://github.com/x/y/pull/42"}'
         exit 0
         ;;
@@ -848,6 +920,22 @@ case "\$1" in
       merge) exit 0 ;;
       *) exit 0 ;;
     esac
+    ;;
+  api)
+    # _pr_fetch_unresolved_threads — empty {nodes:[]} so the loop exits cleanly.
+    if [[ "\$2" == "graphql" ]]; then
+      echo '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}'
+      exit 0
+    fi
+    exit 0
+    ;;
+  repo)
+    # _pr_repo helper.
+    if [[ "\$2" == "view" ]]; then
+      echo "x/y"
+      exit 0
+    fi
+    exit 0
     ;;
   workflow) exit 0 ;;
   *) exit 0 ;;
@@ -3725,12 +3813,29 @@ case "\$1" in
           echo "MERGED"
           exit 0
         fi
+        if [[ "\$*" == *"--json headRefOid"* ]]; then
+          echo ""
+          exit 0
+        fi
+        if [[ "\$*" == *"comments,reviews,reviewThreads"* ]]; then
+          echo "{}"
+          exit 0
+        fi
         echo '{"mergeable":"MERGEABLE","number":42,"url":"https://github.com/x/y/pull/42"}'
         exit 0 ;;
       checks) echo '[{"name":"ci","state":"COMPLETED","conclusion":"SUCCESS"}]'; exit 0 ;;
       merge) exit 0 ;;
       *) exit 0 ;;
     esac ;;
+  api)
+    if [[ "\$2" == "graphql" ]]; then
+      echo '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}'
+      exit 0
+    fi
+    exit 0 ;;
+  repo)
+    if [[ "\$2" == "view" ]]; then echo "x/y"; exit 0; fi
+    exit 0 ;;
   workflow) exit 0 ;;
   *) exit 0 ;;
 esac
