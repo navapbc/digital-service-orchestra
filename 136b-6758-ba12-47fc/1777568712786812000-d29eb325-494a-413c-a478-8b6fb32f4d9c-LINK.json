@@ -1,1 +1,0 @@
-{"event_type": "LINK", "uuid": "d29eb325-494a-413c-a478-8b6fb32f4d9c", "timestamp": 1777568712786812000, "author": "ticket-graph", "env_id": "00000000-0000-4000-8000-000000000000", "data": {"target_id": "jira-dig-1567", "relation": "supersedes"}}
