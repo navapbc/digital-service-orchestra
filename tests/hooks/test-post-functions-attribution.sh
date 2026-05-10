@@ -383,6 +383,74 @@ _t5_status="missing"
 assert_eq "C2: ERR trap restored after early-return on disabled config" "restored" "$_t5_status"
 
 # ============================================================
+# test_hook_record_agent_attribution_honors_workflow_plugin_artifacts_dir (N2)
+#
+# RED: agent hook reads ${ARTIFACTS_DIR:-} only; skill hook reads
+# ${WORKFLOW_PLUGIN_ARTIFACTS_DIR:-${ARTIFACTS_DIR:-}}. In a dispatch context
+# that exports WORKFLOW_PLUGIN_ARTIFACTS_DIR (the script
+# apply-attribution-trailers.sh and resolve_artifacts() in deps.sh both treat
+# it as the highest-priority resolution), agent attribution writes to a
+# different directory than the script reads from — silent data loss.
+#
+# After fix: agent hook prefers WORKFLOW_PLUGIN_ARTIFACTS_DIR when set,
+# matching the skill hook.
+# ============================================================
+echo "--- test_hook_record_agent_attribution_honors_workflow_plugin_artifacts_dir ---"
+
+_T6_TMPDIR=$(mktemp -d)
+_TEST_TMPDIRS+=("$_T6_TMPDIR")
+
+# Mock read-config.sh → "true"
+_T6_MOCKBIN="$_T6_TMPDIR/bin"
+mkdir -p "$_T6_MOCKBIN"
+cat > "$_T6_MOCKBIN/read-config.sh" <<'MOCK_EOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "attribution.enabled" ]]; then
+    echo "true"
+fi
+MOCK_EOF
+chmod +x "$_T6_MOCKBIN/read-config.sh"
+
+# Two distinct dirs — the hook must write to WORKFLOW_PLUGIN_ARTIFACTS_DIR
+# (not ARTIFACTS_DIR) because the script also resolves to it first.
+_T6_WORKFLOW_DIR="$_T6_TMPDIR/workflow-artifacts"
+_T6_FALLBACK_DIR="$_T6_TMPDIR/fallback-artifacts"
+mkdir -p "$_T6_WORKFLOW_DIR" "$_T6_FALLBACK_DIR"
+
+_T6_AGENT_INPUT='{"tool_name":"Agent","tool_input":{"prompt":"x","subagent_type":"dso:wpad-test"},"tool_response":{"output":"ok","model":"sonnet"}}'
+
+env PATH="$_T6_MOCKBIN:$PATH" \
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_T6_WORKFLOW_DIR" \
+    ARTIFACTS_DIR="$_T6_FALLBACK_DIR" \
+    SCRIPTS_DIR="$_T6_MOCKBIN" \
+    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+    bash -c "
+    set -uo pipefail
+    source \"$POST_FUNCTIONS\" 2>/dev/null
+    hook_record_agent_attribution '$_T6_AGENT_INPUT'
+" 2>/dev/null || true
+
+_t6_workflow_count="0"
+if [[ -f "$_T6_WORKFLOW_DIR/attribution-contributors.jsonl" ]]; then
+    _t6_workflow_count=$(grep -c '"subagent_type": "dso:wpad-test"' "$_T6_WORKFLOW_DIR/attribution-contributors.jsonl" 2>/dev/null) || _t6_workflow_count="0"
+fi
+
+_t6_fallback_count="0"
+if [[ -f "$_T6_FALLBACK_DIR/attribution-contributors.jsonl" ]]; then
+    _t6_fallback_count=$(grep -c '"subagent_type": "dso:wpad-test"' "$_T6_FALLBACK_DIR/attribution-contributors.jsonl" 2>/dev/null) || _t6_fallback_count="0"
+fi
+
+assert_eq \
+    "N2: agent hook writes to WORKFLOW_PLUGIN_ARTIFACTS_DIR when set" \
+    "1" \
+    "$_t6_workflow_count"
+
+assert_eq \
+    "N2: agent hook does NOT write to ARTIFACTS_DIR when WORKFLOW_PLUGIN_ARTIFACTS_DIR is set" \
+    "0" \
+    "$_t6_fallback_count"
+
+# ============================================================
 # Summary
 # ============================================================
 print_summary

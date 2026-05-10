@@ -344,37 +344,102 @@ except Exception:
 }
 
 # ---------------------------------------------------------------------------
+# Shared attribution helpers
+# ---------------------------------------------------------------------------
+
+# _resolve_attribution_read_config_script
+# ---------------------------------------------------------------------------
+# Resolves read-config.sh via SCRIPTS_DIR → PATH → CLAUDE_PLUGIN_ROOT/scripts/.
+# Echoes the absolute path or empty string. Never fails.
+_resolve_attribution_read_config_script() {
+    if [[ -n "${SCRIPTS_DIR:-}" && -f "$SCRIPTS_DIR/read-config.sh" ]]; then
+        echo "$SCRIPTS_DIR/read-config.sh"
+        return 0
+    fi
+    local _on_path
+    _on_path=$(command -v read-config.sh 2>/dev/null || echo "")
+    if [[ -n "$_on_path" ]]; then
+        echo "$_on_path"
+        return 0
+    fi
+    if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh" ]]; then
+        echo "$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh"
+        return 0
+    fi
+    echo ""
+}
+
+# _resolve_attribution_artifacts_dir
+# ---------------------------------------------------------------------------
+# Resolves the artifacts directory the attribution JSONL should be written to.
+# Resolution order matches apply-attribution-trailers.sh's _resolve_artifacts_dir
+# so the recording side and the consuming side always agree on the path:
+#   1. WORKFLOW_PLUGIN_ARTIFACTS_DIR (commit-workflow override)
+#   2. ARTIFACTS_DIR (caller-supplied)
+#   3. get_artifacts_dir() (deps.sh fallback)
+# Echoes the resolved path or empty string. Never fails.
+_resolve_attribution_artifacts_dir() {
+    if [[ -n "${WORKFLOW_PLUGIN_ARTIFACTS_DIR:-}" ]]; then
+        echo "$WORKFLOW_PLUGIN_ARTIFACTS_DIR"
+        return 0
+    fi
+    if [[ -n "${ARTIFACTS_DIR:-}" ]]; then
+        echo "$ARTIFACTS_DIR"
+        return 0
+    fi
+    local _resolved
+    _resolved=$(get_artifacts_dir 2>/dev/null) || _resolved=""
+    echo "$_resolved"
+}
+
+# _attribution_enabled
+# ---------------------------------------------------------------------------
+# Returns 0 (true) if attribution.enabled=true via read-config.sh, else 1.
+# Never crashes the caller.
+_attribution_enabled() {
+    local _rc_script
+    _rc_script=$(_resolve_attribution_read_config_script)
+    [[ -n "$_rc_script" ]] || return 1
+    local _enabled=""
+    _enabled=$(bash "$_rc_script" attribution.enabled 2>/dev/null) || _enabled=""
+    [[ "$_enabled" == "true" ]]
+}
+
+# _append_attribution_entry <hook-name> <jsonl-entry>
+# ---------------------------------------------------------------------------
+# Resolves the artifacts dir, ensures it exists, and appends the JSONL entry.
+# Emits a stderr WARNING (and returns 1) if the dir cannot be prepared or the
+# append fails. Caller decides what to do with the return code; both hooks
+# treat any failure as non-blocking and return 0.
+_append_attribution_entry() {
+    local _hook_name="$1" _entry="$2"
+    local _art_dir
+    _art_dir=$(_resolve_attribution_artifacts_dir)
+    if [[ -z "$_art_dir" ]] || ! mkdir -p "$_art_dir" 2>/dev/null; then
+        echo "WARNING: $_hook_name: failed to prepare artifacts dir ('$_art_dir'); attribution entry dropped" >&2
+        return 1
+    fi
+    if ! printf '%s\n' "$_entry" >> "$_art_dir/attribution-contributors.jsonl" 2>/dev/null; then
+        echo "WARNING: $_hook_name: failed to append JSONL entry to '$_art_dir/attribution-contributors.jsonl'" >&2
+        return 1
+    fi
+    return 0
+}
+
+# ---------------------------------------------------------------------------
 # hook_record_agent_attribution
 # ---------------------------------------------------------------------------
 # PostToolUse hook: record agent attribution data when an Agent tool completes.
 # Only fires when attribution.enabled=true in dso-config.conf.
 #
 # Reads subagent_type from tool_input.subagent_type and model from
-# tool_response.model, then appends a JSONL entry to
-# $ARTIFACTS_DIR/attribution-contributors.jsonl.
-#
-# Guard: early-return if attribution.enabled != "true" (checked via read-config.sh).
+# tool_response.model, then appends a JSONL entry to the resolved artifacts
+# dir's attribution-contributors.jsonl.
 hook_record_agent_attribution() {
     local INPUT="$1"
 
-    # Resolve read-config.sh via SCRIPTS_DIR → PATH → CLAUDE_PLUGIN_ROOT/scripts/.
-    local _rc_script=""
-    if [[ -n "${SCRIPTS_DIR:-}" && -f "$SCRIPTS_DIR/read-config.sh" ]]; then
-        _rc_script="$SCRIPTS_DIR/read-config.sh"
-    else
-        _rc_script=$(command -v read-config.sh 2>/dev/null || echo "")
-        if [[ -z "$_rc_script" && -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh" ]]; then
-            _rc_script="$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh"
-        fi
-    fi
+    _attribution_enabled || return 0
 
-    local _enabled=""
-    if [[ -n "$_rc_script" ]]; then
-        _enabled=$(bash "$_rc_script" attribution.enabled 2>/dev/null) || _enabled=""
-    fi
-    [[ "$_enabled" == "true" ]] || return 0
-
-    # Extract subagent_type and model using python3 for reliable JSON parsing
     local _subagent_type=""
     local _model=""
     _subagent_type=$(python3 -c "
@@ -397,17 +462,6 @@ except Exception:
     pass
 " "$INPUT" 2>/dev/null) || _model=""
 
-    # Resolve ARTIFACTS_DIR (use existing env var or call get_artifacts_dir)
-    local _art_dir="${ARTIFACTS_DIR:-}"
-    if [[ -z "$_art_dir" ]]; then
-        _art_dir=$(get_artifacts_dir 2>/dev/null) || _art_dir=""
-    fi
-    if [[ -z "$_art_dir" ]] || ! mkdir -p "$_art_dir" 2>/dev/null; then
-        echo "WARNING: hook_record_agent_attribution: failed to prepare ARTIFACTS_DIR ('$_art_dir'); attribution entry dropped" >&2
-        return 0
-    fi
-
-    # Build and append JSONL entry
     local _entry
     _entry=$(python3 -c "
 import json, sys
@@ -416,11 +470,8 @@ print(json.dumps(entry))
 " "$_subagent_type" "$_model" 2>/dev/null) || _entry=""
 
     if [[ -n "$_entry" ]]; then
-        if ! printf '%s\n' "$_entry" >> "$_art_dir/attribution-contributors.jsonl" 2>/dev/null; then
-            echo "WARNING: hook_record_agent_attribution: failed to append JSONL entry to '$_art_dir/attribution-contributors.jsonl'" >&2
-        fi
+        _append_attribution_entry "hook_record_agent_attribution" "$_entry" || true
     fi
-
     return 0
 }
 
@@ -437,24 +488,8 @@ print(json.dumps(entry))
 hook_record_skill_attribution() {
     local INPUT="$1"
 
-    # Resolve read-config.sh via SCRIPTS_DIR → PATH → CLAUDE_PLUGIN_ROOT/scripts/.
-    local _rc_script=""
-    if [[ -n "${SCRIPTS_DIR:-}" && -f "$SCRIPTS_DIR/read-config.sh" ]]; then
-        _rc_script="$SCRIPTS_DIR/read-config.sh"
-    else
-        _rc_script=$(command -v read-config.sh 2>/dev/null || echo "")
-        if [[ -z "$_rc_script" && -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh" ]]; then
-            _rc_script="$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh"
-        fi
-    fi
+    _attribution_enabled || return 0
 
-    local _enabled=""
-    if [[ -n "$_rc_script" ]]; then
-        _enabled=$(bash "$_rc_script" attribution.enabled 2>/dev/null) || _enabled=""
-    fi
-    [[ "$_enabled" == "true" ]] || return 0
-
-    # Extract skill name from tool_input.skill using python3 for reliable JSON parsing
     local _skill_name=""
     _skill_name=$(python3 -c "
 import json, sys
@@ -466,17 +501,6 @@ except Exception:
     pass
 " "$INPUT" 2>/dev/null) || _skill_name=""
 
-    # Resolve ARTIFACTS_DIR (use existing env var or call get_artifacts_dir)
-    local _art_dir="${WORKFLOW_PLUGIN_ARTIFACTS_DIR:-${ARTIFACTS_DIR:-}}"
-    if [[ -z "$_art_dir" ]]; then
-        _art_dir=$(get_artifacts_dir 2>/dev/null) || _art_dir=""
-    fi
-    if [[ -z "$_art_dir" ]] || ! mkdir -p "$_art_dir" 2>/dev/null; then
-        echo "WARNING: hook_record_skill_attribution: failed to prepare ARTIFACTS_DIR ('$_art_dir'); attribution entry dropped" >&2
-        return 0
-    fi
-
-    # Build and append JSONL entry
     local _entry
     _entry=$(python3 -c "
 import json, sys
@@ -485,11 +509,8 @@ print(json.dumps(entry, separators=(',', ':')))
 " "$_skill_name" 2>/dev/null) || _entry=""
 
     if [[ -n "$_entry" ]]; then
-        if ! printf '%s\n' "$_entry" >> "$_art_dir/attribution-contributors.jsonl" 2>/dev/null; then
-            echo "WARNING: hook_record_skill_attribution: failed to append JSONL entry to '$_art_dir/attribution-contributors.jsonl'" >&2
-        fi
+        _append_attribution_entry "hook_record_skill_attribution" "$_entry" || true
     fi
-
     return 0
 }
 
