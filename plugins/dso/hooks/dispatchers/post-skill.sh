@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
-# hooks/dispatchers/post-agent.sh
-# PostToolUse Agent dispatcher: extracts SUGGESTION: sentinels from sub-agent returns.
+# hooks/dispatchers/post-skill.sh
+# PostToolUse Skill dispatcher: records skill attribution data.
 #
 # Hook execution order:
-#   1. hook_extract_agent_suggestion  — extract first SUGGESTION: line and call suggestion-record.sh
-#   2. hook_record_agent_attribution  — append agent/model entry to attribution-contributors.jsonl
+#   1. hook_record_skill_attribution  — append skill entry to attribution-contributors.jsonl
 #
 # PostToolUse hooks always exit 0 (non-blocking).
 # Always emits at least '{}' on stdout per Claude Code bug #10463 workaround.
@@ -23,7 +22,7 @@ HOOKS_LIB_DIR="$CLAUDE_PLUGIN_ROOT/hooks/lib"
 if [[ -f "${HOOKS_LIB_DIR}/hook-error-handler.sh" ]]; then
     # shellcheck source=/dev/null
     source "${HOOKS_LIB_DIR}/hook-error-handler.sh" 2>/dev/null || true
-    _dso_register_hook_err_handler "post-agent.sh"
+    _dso_register_hook_err_handler "post-skill.sh"
 else
     trap 'exit 0' ERR
 fi
@@ -31,13 +30,11 @@ fi
 # Source the dispatcher framework (provides run_hooks)
 source "$HOOKS_LIB_DIR/dispatcher.sh"
 
-# Source all post hook functions (includes hook_extract_agent_suggestion)
+# Source all post hook functions (includes hook_record_skill_attribution)
 source "$HOOKS_LIB_DIR/post-functions.sh"
 
-# Run all Agent post-hook functions sequentially.
+# Run all Skill post-hook functions sequentially.
 # PostToolUse hooks are non-blocking (always return 0).
-# stderr is NOT suppressed so that warning messages (e.g. malformed sentinel)
-# are visible to the agent.
 _run_post_fn() {
     local fn_name="$1"
     local json_input="$2"
@@ -49,17 +46,16 @@ _run_post_fn() {
     fi
 }
 
-_post_agent_dispatch() {
+_post_skill_dispatch() {
     # Read hook input from stdin
     local INPUT
     INPUT=$(cat)
 
-    _run_post_fn hook_extract_agent_suggestion "$INPUT"
-    _run_post_fn hook_record_agent_attribution "$INPUT"
+    _run_post_fn hook_record_skill_attribution "$INPUT"
 }
 
 # Only execute dispatch logic when run as a script (not sourced).
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
-    _post_agent_dispatch
+    _post_skill_dispatch
     exit 0
 fi

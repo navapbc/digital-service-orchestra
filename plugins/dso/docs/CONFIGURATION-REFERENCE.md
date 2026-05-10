@@ -227,10 +227,10 @@ Security, performance, and test-quality overlays are dispatched automatically wh
 
 | | |
 |---|---|
-| **Description** | Overrides the DSO plugin version used in CI LLM review. This is **Tier 2** of the 3-tier version resolution chain implemented by `${CLAUDE_PLUGIN_ROOT}/scripts/resolve-dso-version.sh`: **Tier 1** is `~/.claude/plugins/installed_plugins.json` (the Claude per-project plugin tracking file; key `dso@digital-service-orchestra`) — overridable via the `PLUGIN_TRACKING_FILE` env var; **Tier 2** is this config key in `.claude/dso-config.conf` (project-level override without editing the workflow) — overridable via the `DSO_CONFIG_FILE` env var; **Tier 3** is the `dso` (stable) channel in `.claude-plugin/marketplace.json` — overridable via the `MARKETPLACE_JSON` env var. The resolver does **not** fall back to the `dso-dev` channel; if Tier 3 is reached and the stable `dso` channel is absent or malformed, the resolver exits non-zero. When all three tiers fail, the workflow exits with a diagnostic indicating which tier(s) failed. |
+| **Description** | Overrides the DSO plugin version used in CI LLM review. This is **Tier 2** of the 3-tier version resolution chain implemented by `${CLAUDE_PLUGIN_ROOT}/scripts/resolve-dso-version.sh`: **Tier 1** is `~/.claude/plugins/installed_plugins.json` (the Claude per-project plugin tracking file; key `dso@digital-service-orchestra`) — overridable via the `PLUGIN_TRACKING_FILE` env var; **Tier 2** is this config key in `.claude/dso-config.conf` (project-level override without editing the workflow) — overridable via the `DSO_CONFIG_FILE` env var; **Tier 3** is the `dso` (stable) channel in `.claude-plugin/marketplace.json` — overridable via the `MARKETPLACE_JSON` env var. The resolver does **not** fall back to the `dso-dev` channel; if Tier 3 is reached and the stable `dso` channel is absent or malformed, the resolver exits non-zero. When all three tiers fail, the workflow exits with a diagnostic indicating which tier(s) failed. | # shim-exempt: internal implementation references in config documentation
 | **Accepted values** | A version tag (e.g., `v1.13.0`) or a marketplace channel name resolvable in `marketplace.json` |
 | **Default** | Absent — Tier 1 (`installed_plugins.json`) or Tier 3 (`marketplace.json` `dso` channel) is used |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/resolve-dso-version.sh` (called by `ci-dso-fetch.sh` in the generated host-project CI workflow) |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/resolve-dso-version.sh` (called by `ci-dso-fetch.sh` in the generated host-project CI workflow) | # shim-exempt: internal implementation references in config documentation
 
 ---
 
@@ -1137,7 +1137,7 @@ After each resolution of an AMBIGUITY or CONFLICT cross-epic signal, brainstorm 
 
 ## Ruleset Provisioning Knobs
 
-The following are CLI flags accepted by `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh`. They are NOT `dso-config.conf` keys — they are passed as command-line arguments when provisioning the GitHub Ruleset. Each flag has a default that matches the prior hardcoded behavior so existing invocations remain backward compatible.
+The following are CLI flags accepted by `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh`. They are NOT `dso-config.conf` keys — they are passed as command-line arguments when provisioning the GitHub Ruleset. Each flag has a default that matches the prior hardcoded behavior so existing invocations remain backward compatible. # shim-exempt: internal implementation references in config documentation
 
 ### `--bypass-actor-policy`
 
@@ -1146,7 +1146,7 @@ The following are CLI flags accepted by `${CLAUDE_PLUGIN_ROOT}/scripts/onboardin
 | **Description** | Bypass mode applied to the `bypass_actors` entry on the Ruleset. `always` allows admins to bypass at any time; `pull_request_only` restricts the bypass window to pull-request flows. Setting a non-default value requires an admin token (script exits 1 if `gh auth status` does not report admin scope). |
 | **Accepted values** | `always` \| `pull_request_only` |
 | **Default** | `always` |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh` | # shim-exempt: internal implementation references in config documentation
 
 **Example**: `provision-ruleset.sh --bypass-actor-policy=pull_request_only`
 
@@ -1159,7 +1159,7 @@ The following are CLI flags accepted by `${CLAUDE_PLUGIN_ROOT}/scripts/onboardin
 | **Description** | Maps to the `required_review_thread_resolution` parameter on the Ruleset's `pull_request` rule. When `true`, GitHub requires every PR review thread to be marked resolved before merge. |
 | **Accepted values** | `true` \| `false` (also `1`/`0`, `yes`/`no`) |
 | **Default** | `false` |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh` | # shim-exempt: internal implementation references in config documentation
 
 **Example**: `provision-ruleset.sh --require-conversation-resolution=true`
 
@@ -1172,7 +1172,7 @@ The following are CLI flags accepted by `${CLAUDE_PLUGIN_ROOT}/scripts/onboardin
 | **Description** | When `true`, the script records the preference in dry-run output and the success summary. GitHub does not currently expose Copilot code review configuration via the Rulesets API — the flag is a documented placeholder for future automation when API support lands. |
 | **Accepted values** | `true` \| `false` |
 | **Default** | `false` |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh` | # shim-exempt: internal implementation references in config documentation
 
 **Example**: `provision-ruleset.sh --request-copilot-review=true`
 
@@ -1185,7 +1185,7 @@ The following are CLI flags accepted by `${CLAUDE_PLUGIN_ROOT}/scripts/onboardin
 | **Description** | Maps to the `dismiss_stale_reviews_on_push` parameter on the Ruleset's `pull_request` rule. When `true`, GitHub dismisses prior approvals when new commits are pushed to the PR branch. |
 | **Accepted values** | `true` \| `false` |
 | **Default** | `false` |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh` | # shim-exempt: internal implementation references in config documentation
 
 **Example**: `provision-ruleset.sh --dismiss-stale-approvals-on-push=true`
 
@@ -1198,7 +1198,7 @@ The following are CLI flags accepted by `${CLAUDE_PLUGIN_ROOT}/scripts/onboardin
 | **Description** | Maps to the `required_approving_review_count` parameter on the Ruleset's `pull_request` rule. Sets the minimum number of approving reviews required before a PR can be merged. |
 | **Accepted values** | Non-negative integer |
 | **Default** | `1` |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh` | # shim-exempt: internal implementation references in config documentation
 
 **Example**: `provision-ruleset.sh --required-approvals=2`
 
@@ -1716,6 +1716,18 @@ and [`model.deep`](#modeldeep) above.
 ### CI runner exemption — `check-usage.sh`
 
 `ci-llm-review-runner.sh` (shim in S3+; delegates to `python3 -m dso_ci_review.runner`) does not invoke `check-usage.sh`. The usage throttle requires an active Claude Code OAuth session and is not available in headless CI environments. Rate-limit backoff for CI deep-tier parallel curl calls is handled via `curl --retry` / `--retry-delay` flags on each request instead.
+
+---
+
+## attribution
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `attribution.enabled` | boolean | `false` | When `true`, `/dso:commit` appends DSO-Agent, DSO-Skill, DSO-Model, DSO-Task, DSO-Story, DSO-Epic, Jira-Ticket, and DSO-Review-Score trailers to commit messages via `git interpret-trailers`. Requires git ≥ 2.6. |
+
+**Notes:**
+- Setting `attribution.enabled=false` after enabling stops future writes to `attribution-contributors.jsonl` but does not purge existing entries; the file can be safely deleted manually.
+- Canonical query for attributed commits: `git log --format="%(trailers:key=DSO-Agent,valueonly)" -- <path>` returns agent names per commit.
 
 ---
 
