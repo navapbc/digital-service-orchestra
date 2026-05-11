@@ -27,16 +27,30 @@ Based on the config value:
 
 **When `ISOLATION_ENABLED` equals `true`:**
 
-> **Session-worktree HEAD gap (bug 4724-41a7)**: When the orchestrator is running inside a session worktree (detected by `test -f .git` returning true — the `.git` file is a gitlink, not a directory), the Claude Code Agent tool creates sub-agent worktrees from the **main repo's HEAD**, not from the session branch HEAD. Sub-agents will be missing any commits made on the session branch during this sprint. Before dispatching, check:
-> ```bash
-> IS_SESSION_WORKTREE=$( [ -f "$(git rev-parse --show-toplevel)/.git" ] && echo "true" || echo "false" )
-> ```
-> If `IS_SESSION_WORKTREE=true`, inform each sub-agent in its dispatch prompt of the session branch name and HEAD SHA so it can manually fetch and cherry-pick missing commits if needed:
-> ```bash
-> SESSION_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-> SESSION_HEAD=$(git rev-parse HEAD)
-> ```
-> Include in each sub-agent prompt: `SESSION_BRANCH=<value> SESSION_HEAD=<value>` — the sub-agent can run `git fetch origin <SESSION_BRANCH> && git cherry-pick <SESSION_HEAD>` to obtain in-flight commits.
+#### SESSION_BRANCH / SESSION_HEAD Injection (mandatory)
+
+When the orchestrator is running inside a session worktree, the Claude Code Agent tool creates sub-agent worktrees from the **main repo's HEAD**, not from the session branch HEAD. To ensure sub-agents start from the correct commit, callers **must** inject `SESSION_BRANCH` and `SESSION_HEAD` into every sub-agent dispatch prompt.
+
+Detect whether the orchestrator is in a session worktree:
+
+```bash
+IS_SESSION_WORKTREE=$([ -f "$(git rev-parse --show-toplevel)/.git" ] && echo "true" || echo "false")
+```
+
+**Push prerequisite**: Before injecting, if `IS_SESSION_WORKTREE=true`, the caller must have already pushed the session branch to origin so sub-agents can fetch it:
+
+```bash
+git push -u origin HEAD
+```
+
+Capture the values to inject:
+
+```bash
+SESSION_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+SESSION_HEAD=$(git rev-parse HEAD)
+```
+
+Include `SESSION_BRANCH=<value>` and `SESSION_HEAD=<value>` in every sub-agent dispatch prompt. Sub-agents call `worktree-session-head-sync.sh` on startup to sync to the session HEAD automatically (see `${CLAUDE_PLUGIN_ROOT}/scripts/worktree-session-head-sync.sh`).
 
 Add `isolation: "worktree"` to the Agent/Task dispatch parameters so each sub-agent receives a sandboxed working directory independent of the orchestrator's directory.
 
