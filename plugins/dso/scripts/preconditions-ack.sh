@@ -73,7 +73,7 @@ try:
     with open(sys.argv[1]) as f:
         d = json.load(f)
     data = d.get('data', {})
-    if data.get('degradation_class') == sys.argv[2]:
+    if data.get('degradation_type') == sys.argv[2]:
         for did in data.get('decision_ids', []):
             print(did)
 except Exception:
@@ -147,21 +147,19 @@ PYEOF
     _class_lower=$(echo "$degradation_class" | tr '[:upper:]' '[:lower:]')
     _ack_file="$_TRACKER_DIR/$story_id/${_ts_file}-sample-${_class_lower}-ACK.json"
 
-    python3 - "${_all_ids[@]}" <<PYEOF
+    python3 - "$_ack_file" "$_ts" "$if_skipped" "$_id1" "$_id2" "$_id3" "${_all_ids[@]}" <<'PYEOF'
 import json, sys
-all_ids = sys.argv[1:]
+ack_file, ts, if_skipped = sys.argv[1], sys.argv[2], sys.argv[3]
+sampled = [sys.argv[4], sys.argv[5], sys.argv[6]]
+all_ids = list(sys.argv[7:])
 ack = {
-    "event_type": "PRECONDITIONS_ACK",
+    "decision_ids": all_ids,
+    "if_skipped": if_skipped,
+    "timestamp": ts,
+    "sampled_set": sampled,
     "schema_version": 1,
-    "timestamp": "$_ts",
-    "data": {
-        "decision_ids": all_ids,
-        "if_skipped": "$if_skipped",
-        "sampled_set": ["$_id1", "$_id2", "$_id3"],
-        "degradation_class": "$degradation_class",
-    }
 }
-with open("$_ack_file", "w") as f:
+with open(ack_file, "w") as f:
     json.dump(ack, f, indent=2)
 PYEOF
 
@@ -200,16 +198,17 @@ _ts_file=$(date -u +%Y%m%dT%H%M%SZ)
 _safe_id=$(echo "$decision_id" | tr ':/' '_')
 _ack_file="$_TRACKER_DIR/$story_id/${_ts_file}-${_safe_id}-ACK.json"
 
-python3 - <<PYEOF
-import json
+python3 - "$_ack_file" "$decision_id" "$if_skipped" "$_ts" <<'PYEOF'
+import json, sys
+ack_file, decision_id, if_skipped, ts = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 ack = {
-    "decision_ids": ["$decision_id"],
-    "if_skipped": "$if_skipped",
-    "timestamp": "$_ts",
+    "decision_ids": [decision_id],
+    "if_skipped": if_skipped,
+    "timestamp": ts,
     "sampled_set": None,
     "schema_version": 1,
 }
-with open("$_ack_file", "w") as f:
+with open(ack_file, "w") as f:
     json.dump(ack, f, indent=2)
 PYEOF
 

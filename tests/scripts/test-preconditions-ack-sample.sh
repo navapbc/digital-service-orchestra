@@ -100,7 +100,7 @@ payload = {
     'data': {
         'degradation': True,
         'decision_ids': decision_ids,
-        'degradation_class': 'review_gate',
+        'degradation_type': 'review_gate',
         'condition_text': 'implementation plan must be complete before sprint executes'
     }
 }
@@ -174,7 +174,7 @@ test_sample_ack_selects_exactly_3() {
 import json, sys
 with open(sys.argv[1]) as f:
     data = json.load(f)
-sampled = data.get('data', {}).get('sampled_set', [])
+sampled = data.get('sampled_set', [])
 print(len(sampled) if isinstance(sampled, list) else -1)
 " "$ack_file")
     fi
@@ -211,7 +211,7 @@ import json, sys
 with open(sys.argv[1]) as f:
     data = json.load(f)
 import json as j
-print(j.dumps(sorted(data.get('data', {}).get('sampled_set', []))))
+print(j.dumps(sorted(data.get('sampled_set', []))))
 " "$ack1")
     fi
 
@@ -234,7 +234,7 @@ import json, sys
 with open(sys.argv[1]) as f:
     data = json.load(f)
 import json as j
-print(j.dumps(sorted(data.get('data', {}).get('sampled_set', []))))
+print(j.dumps(sorted(data.get('sampled_set', []))))
 " "$ack2")
     fi
 
@@ -296,7 +296,7 @@ test_sample_ack_ack_file_has_sampled_set_populated() {
 import json, sys
 with open(sys.argv[1]) as f:
     data = json.load(f)
-sampled = data.get('data', {}).get('sampled_set')
+sampled = data.get('sampled_set')
 print('yes' if isinstance(sampled, list) else 'no')
 " "$ack_file")
     fi
