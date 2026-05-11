@@ -1168,4 +1168,78 @@ test_ticket_link_relates_to_two_commits() {
 }
 test_ticket_link_relates_to_two_commits
 
+# ── Test: orphan relates_to unlink succeeds (bug 2184-bae4 Symptom 1) ─────────
+# When a relates_to link has only one side (orphan state — id2 has no reciprocal
+# LINK event back to id1), `ticket unlink id1 id2` must succeed (exit 0) and
+# remove id1's side of the link. The missing reciprocal should emit a warning
+# but NOT fail the operation.
+echo ""
+echo "--- test_ticket_unlink_orphan_relates_to_succeeds ---"
+test_ticket_unlink_orphan_relates_to_succeeds() {
+    _snapshot_fail
+
+    if [ ! -f "$TICKET_LINK_SCRIPT" ]; then
+        assert_eq "ticket-link.sh exists" "exists" "missing"
+        assert_pass_if_clean "test_ticket_unlink_orphan_relates_to_succeeds"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+    local tracker_dir="$repo/.tickets-tracker"
+
+    # Create two tickets
+    local id1 id2
+    id1=$(_create_ticket "$repo" "epic" "Orphan source epic")
+    id2=$(_create_ticket "$repo" "epic" "Orphan target epic")
+
+    if [ -z "$id1" ] || [ -z "$id2" ]; then
+        assert_eq "tickets created for orphan unlink test" "non-empty" "empty"
+        assert_pass_if_clean "test_ticket_unlink_orphan_relates_to_succeeds"
+        return
+    fi
+
+    # Set up an orphan: write a LINK event in id1 dir only, not in id2 dir
+    # We use ticket link then manually delete the reciprocal to simulate orphan state
+    (cd "$repo" && bash "$TICKET_SCRIPT" link "$id1" "$id2" relates_to 2>/dev/null) || {
+        assert_eq "initial relates_to link exits 0" "0" "1"
+        assert_pass_if_clean "test_ticket_unlink_orphan_relates_to_succeeds"
+        return
+    }
+
+    # Delete id2's LINK event file to create orphan state (only id1 has the LINK)
+    local id2_link_file
+    id2_link_file=$(find "$tracker_dir/$id2" -maxdepth 1 -name '*-LINK.json' 2>/dev/null | head -1)
+    # Hard assertion: if find returned empty, the setup failed — the orphan path is not exercised
+    if [ -z "$id2_link_file" ]; then
+        assert_eq "test_ticket_unlink_orphan_relates_to_succeeds: id2 LINK file found for orphan setup" "non-empty" "empty"
+        assert_pass_if_clean "test_ticket_unlink_orphan_relates_to_succeeds"
+        return
+    fi
+    rm -f "$id2_link_file"
+    # Re-commit to tracker to reflect the deletion
+    (git -C "$tracker_dir" add -A && git -C "$tracker_dir" commit -m "test: simulate orphan by removing id2 LINK" --allow-empty 2>/dev/null) || true
+
+    # When: ticket unlink id1 id2 — one-sided orphan link
+    local exit_code=0
+    local stderr_out
+    stderr_out=$(cd "$repo" && bash "$TICKET_SCRIPT" unlink "$id1" "$id2" 2>&1 >/dev/null) || exit_code=$?
+
+    # Then: exits 0 (primary unlink succeeds; orphan reciprocal does not block)
+    assert_eq "test_ticket_unlink_orphan_relates_to_succeeds: exit 0 for orphan unlink" "0" "$exit_code"
+
+    # And: the orphan warning must appear in stderr (verifies orphan code path was reached)
+    local warn_found=0
+    echo "$stderr_out" | grep -q "orphaned link" && warn_found=1
+    assert_eq "test_ticket_unlink_orphan_relates_to_succeeds: orphan warning emitted on stderr" "1" "$warn_found"
+
+    # And: id1's LINK should now be cancelled (UNLINK event exists)
+    local unlink_count
+    unlink_count=$(_count_unlink_events "$tracker_dir" "$id1")
+    assert_eq "test_ticket_unlink_orphan_relates_to_succeeds: UNLINK event written for id1" "1" "$unlink_count"
+
+    assert_pass_if_clean "test_ticket_unlink_orphan_relates_to_succeeds"
+}
+test_ticket_unlink_orphan_relates_to_succeeds
+
 print_summary

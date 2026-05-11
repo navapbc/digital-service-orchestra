@@ -152,6 +152,15 @@
             "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh dispatchers/post-agent.sh"
           }
         ]
+      },
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh dispatchers/post-skill.sh"
+          }
+        ]
       }
     ],
     "Stop": [

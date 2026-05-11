@@ -105,7 +105,9 @@ class TestBuildMessagesAnthropicCacheControl:
         When: _build_messages is called
         Then: system message content is a list with an ephemeral cache_control block
         """
-        msgs = _build_messages(_DIFF_TEXT, agent_id="code-reviewer-light", provider="anthropic")
+        msgs = _build_messages(
+            _DIFF_TEXT, agent_id="code-reviewer-light", provider="anthropic"
+        )
         sys_msg = msgs[0]
         assert sys_msg["role"] == "system"
         assert isinstance(sys_msg["content"], list), (
@@ -125,7 +127,9 @@ class TestBuildMessagesAnthropicCacheControl:
         When: _build_messages is called
         Then: user (diff) message content is a list with an ephemeral cache_control block
         """
-        msgs = _build_messages(_DIFF_TEXT, agent_id="code-reviewer-light", provider="anthropic")
+        msgs = _build_messages(
+            _DIFF_TEXT, agent_id="code-reviewer-light", provider="anthropic"
+        )
         user_msg = msgs[1]
         assert user_msg["role"] == "user"
         assert isinstance(user_msg["content"], list), (
@@ -142,7 +146,9 @@ class TestBuildMessagesAnthropicCacheControl:
 
     def test_diff_text_preserved_in_content_block(self) -> None:
         """Diff text is embedded in the text field, not lost in the content block."""
-        msgs = _build_messages(_DIFF_TEXT, agent_id="code-reviewer-light", provider="anthropic")
+        msgs = _build_messages(
+            _DIFF_TEXT, agent_id="code-reviewer-light", provider="anthropic"
+        )
         user_blocks = msgs[1]["content"]
         combined_text = " ".join(
             blk.get("text", "") for blk in user_blocks if isinstance(blk, dict)
@@ -161,7 +167,9 @@ class TestBuildMessagesNonAnthropicNoCache:
         When: _build_messages is called
         Then: both messages use plain string content (no content-block list)
         """
-        msgs = _build_messages(_DIFF_TEXT, agent_id="code-reviewer-light", provider=provider)
+        msgs = _build_messages(
+            _DIFF_TEXT, agent_id="code-reviewer-light", provider=provider
+        )
         for msg in msgs:
             assert isinstance(msg["content"], str), (
                 f"Non-Anthropic provider '{provider}' message content must be a string; "
@@ -230,7 +238,9 @@ class TestDispatchPassesCacheControlForAnthropic:
         cache_control to them would bust the stable prefix and defeat caching.
         """
         if tier == "deep":
-            pytest.skip("deep tier uses a different multi-agent path; tested separately")
+            pytest.skip(
+                "deep tier uses a different multi-agent path; tested separately"
+            )
 
         (tmp_path / "foo.py").write_text("x = 1\n")
         all_captured: list[list] = []
@@ -244,9 +254,12 @@ class TestDispatchPassesCacheControlForAnthropic:
                 return _request_response()
             return _findings_response()
 
-        with patch("litellm.completion", side_effect=mock_completion), patch(
-            "dso_ci_review.context_request.execute_read_files",
-            return_value="=== foo.py ===\nx = 1\n",
+        with (
+            patch("litellm.completion", side_effect=mock_completion),
+            patch(
+                "dso_ci_review.context_request.execute_read_files",
+                return_value="=== foo.py ===\nx = 1\n",
+            ),
         ):
             dispatch_review(
                 diff_text=_DIFF_TEXT,
@@ -266,7 +279,7 @@ class TestDispatchPassesCacheControlForAnthropic:
         first_msgs = all_captured[0]
         second_msgs = all_captured[1]
         # Identify which messages are new in the second call (not in the first).
-        new_messages = second_msgs[len(first_msgs):]
+        new_messages = second_msgs[len(first_msgs) :]
         assert new_messages, "Expected new messages appended in augmentation turn"
         for msg in new_messages:
             content = msg.get("content", "")
@@ -368,15 +381,21 @@ class TestPrefixBytesHashInvariant:
 
     def test_stable_prefix_hash_deterministic(self) -> None:
         """_stable_prefix_hash returns the same value for the same message list."""
-        msgs = _build_messages(_DIFF_TEXT, agent_id="code-reviewer-light", provider="anthropic")
+        msgs = _build_messages(
+            _DIFF_TEXT, agent_id="code-reviewer-light", provider="anthropic"
+        )
         h1 = _stable_prefix_hash(msgs)
         h2 = _stable_prefix_hash(msgs)
         assert h1 == h2, "_stable_prefix_hash must be deterministic"
 
     def test_stable_prefix_hash_changes_on_diff_change(self) -> None:
         """_stable_prefix_hash produces a different hash when diff content changes."""
-        msgs_a = _build_messages("diff text A", agent_id="code-reviewer-light", provider="anthropic")
-        msgs_b = _build_messages("diff text B", agent_id="code-reviewer-light", provider="anthropic")
+        msgs_a = _build_messages(
+            "diff text A", agent_id="code-reviewer-light", provider="anthropic"
+        )
+        msgs_b = _build_messages(
+            "diff text B", agent_id="code-reviewer-light", provider="anthropic"
+        )
         assert _stable_prefix_hash(msgs_a) != _stable_prefix_hash(msgs_b), (
             "Different diff content must produce different prefix hashes"
         )

@@ -760,10 +760,12 @@ with open(out_path, 'w', encoding='utf-8') as f:
 
 # _ticket_has_pil <ticket_id>
 # Returns exit 0 if the ticket has a "### Planning Intelligence Log" heading in
-# any event (CREATE description, EDIT fields.description, or COMMENT body).
-# Returns exit 1 if the marker is absent.
+# any event (CREATE description, EDIT fields.description, or COMMENT body), OR
+# if a PRECONDITIONS event with gate_name=brainstorm_complete exists in the
+# ticket directory (written by preconditions-record.sh in brainstorm Phase 3 Step 3a).
+# Returns exit 1 if neither signal is present.
 #
-# WHY THE EXACT MARKER IS REQUIRED:
+# WHY THE EXACT MARKER IS PREFERRED:
 # The "### Planning Intelligence Log" heading is written exclusively by the
 # canonical epic-scrutiny-pipeline.md (brainstorm Steps 2.5/2.6/2.75/3). It is
 # a load-bearing integrity signal: its presence proves that the full pipeline ran
@@ -772,6 +774,14 @@ with open(out_path, 'w', encoding='utf-8') as f:
 # write this marker because they bypass the pipeline. Accepting any other comment
 # format as evidence would silently allow incomplete scrutiny to gate-pass.
 # See: ${CLAUDE_PLUGIN_ROOT}/skills/brainstorm/SKILL.md Steps 2.5 HARD-GATE.
+#
+# WHY PRECONDITIONS brainstorm_complete IS ACCEPTED AS FALLBACK (bug 4284-0dc4):
+# The LLM may write the epic description without the PIL heading even when the full
+# pipeline ran. The PRECONDITIONS event with gate_name=brainstorm_complete is always
+# written by Phase 3 Step 3a (HARD-GATE enforced), which can only be reached after
+# Phase 2 approval (post-scrutiny). It is stronger evidence than the PIL heading for
+# the brainstorm:complete tag specifically because it is a script-written artifact,
+# not a template-written one that the LLM can accidentally omit.
 #
 # Honors TICKET_CMD and TICKETS_TRACKER_DIR env vars for testability.
 _ticket_has_pil() {
@@ -787,7 +797,8 @@ _ticket_has_pil() {
     fi
     local _tracker_dir="${TICKETS_TRACKER_DIR:-$_repo_root/.tickets-tracker}"
 
-    TICKETS_TRACKER_DIR="$_tracker_dir" bash "$_ticket_cmd" show "$ticket_id" 2>/dev/null | python3 -c "
+    # Primary check: PIL heading in description or comments
+    if TICKETS_TRACKER_DIR="$_tracker_dir" bash "$_ticket_cmd" show "$ticket_id" 2>/dev/null | python3 -c "
 import json, sys
 try:
     state = json.load(sys.stdin)
@@ -802,7 +813,53 @@ for comment in state.get('comments', []):
     if marker in body:
         sys.exit(0)
 sys.exit(1)
-"
+" 2>/dev/null; then
+        return 0
+    fi
+
+    # Fallback: PRECONDITIONS event with gate_name=brainstorm_complete in the ticket dir.
+    # Handles the case where the LLM wrote the description without the PIL heading but the
+    # canonical pipeline ran (brainstorm Phase 3 Step 3a always writes this event).
+    local _ticket_dir="$_tracker_dir/$ticket_id"
+    if [[ -d "$_ticket_dir" ]]; then
+        python3 -c "
+import json, os, sys
+
+ticket_dir = sys.argv[1]
+try:
+    all_files = os.listdir(ticket_dir)
+except OSError:
+    sys.exit(1)
+
+precon_files = [
+    f for f in all_files
+    if (f.endswith('-PRECONDITIONS.json') or f.endswith('-PRECONDITIONS-SNAPSHOT.json'))
+    and not f.endswith('.retired')
+]
+
+for fname in precon_files:
+    fpath = os.path.join(ticket_dir, fname)
+    try:
+        with open(fpath) as fp:
+            data = json.load(fp)
+    except Exception:
+        continue
+    if data.get('event_type') == 'PRECONDITIONS' and not data.get('compacted'):
+        # Flat event: gate_name is at the top level of the event object
+        if data.get('gate_name') == 'brainstorm_complete':
+            sys.exit(0)
+    if data.get('event_type') == 'PRECONDITIONS' and data.get('compacted'):
+        # Compacted snapshot: brainstorm_complete gate_name is tracked in
+        # data.represented_gate_names (written by _compact_preconditions)
+        inner = data.get('data', {})
+        if 'brainstorm_complete' in inner.get('represented_gate_names', []):
+            sys.exit(0)
+
+sys.exit(1)
+" "$_ticket_dir" 2>/dev/null && return 0
+    fi
+
+    return 1
 }
 
 # _compact_preconditions <ticket_dir> <epic_id>
@@ -877,6 +934,9 @@ epic_id = sys.argv[6]
 
 # LWW merge: composite key = (gate_name, session_id, worktree_id)
 # Last-write-wins by timestamp within each composite key group.
+# DUAL-FORMAT NOTE: _write_preconditions writes gate_name/session_id/worktree_id at
+# the top level of the event. Older callers (integration tests, bench fixtures) write
+# them nested inside the 'data' dict. Handle both by checking top-level first.
 merged = {}
 for fpath in event_files:
     try:
@@ -886,24 +946,29 @@ for fpath in event_files:
         print(f'[compact_preconditions] WARN: skipping corrupt file {fpath}: {e}', file=sys.stderr)
         continue
     data = ev.get('data', {})
-    key = (
-        data.get('gate_name', ''),
-        data.get('session_id', ''),
-        data.get('worktree_id', ''),
-    )
+    gate_name = ev.get('gate_name') or data.get('gate_name', '')
+    session_id = ev.get('session_id') or data.get('session_id', '')
+    worktree_id = ev.get('worktree_id') or data.get('worktree_id', '')
+    key = (gate_name, session_id, worktree_id)
     ev_ts = ev.get('timestamp', 0)
     if key not in merged or ev_ts > merged[key]['_ts']:
         merged[key] = dict(data)
         merged[key]['_ts'] = ev_ts
+        merged[key]['_gate_name'] = gate_name
 
-# Build final merged gate_verdicts and manifest_depth
+# Build final merged gate_verdicts, manifest_depth, and represented_gate_names
 gate_verdicts = {}
 manifest_depth = 0
+represented_gate_names = []
 for key, payload in merged.items():
     gv = payload.get('gate_verdicts', {})
-    gate_verdicts.update(gv)
+    if isinstance(gv, dict):
+        gate_verdicts.update(gv)
+    gn = payload.get('_gate_name', key[0] if key else '')
+    if gn and gn not in represented_gate_names:
+        represented_gate_names.append(gn)
     d = payload.get('manifest_depth', 0)
-    if d > manifest_depth:
+    if isinstance(d, (int, float)) and d > manifest_depth:
         manifest_depth = d
 
 snapshot = {
@@ -921,6 +986,7 @@ snapshot = {
         'verdict': 'pass',
         'manifest_depth': manifest_depth,
         'gate_verdicts': gate_verdicts,
+        'represented_gate_names': represented_gate_names,
         'source_count': len(event_files),
     }
 }

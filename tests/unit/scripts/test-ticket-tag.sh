@@ -785,5 +785,90 @@ Reviewed by: dso:plan-review substitute path" 2>/dev/null) || {
 
 test_tag_add_checked_rejects_plan_review_substitute_comment
 
+# ── Test 18: PRECONDITIONS brainstorm_complete satisfies PIL check (bug 4284-0dc4) ──
+# When the LLM omits the PIL heading from the epic description, the canonical
+# preconditions-record.sh call in Phase 3 Step 3a should satisfy the _ticket_has_pil
+# check. Without this fallback, brainstorm:complete tag always fails when the LLM
+# writes the description template without the ### Planning Intelligence Log section.
+echo ""
+echo "--- test_ticket_has_pil_passes_with_preconditions_brainstorm_complete ---"
+
+test_ticket_has_pil_passes_with_preconditions_brainstorm_complete() {
+    _snapshot_fail
+    local repo
+    repo=$(_make_test_repo)
+
+    # Given: an epic WITHOUT "### Planning Intelligence Log" in description or comments
+    local ticket_id
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "Epic missing PIL heading" \
+        --description "## Context
+No PIL heading here." 2>/dev/null | tail -1)
+
+    [[ -z "$ticket_id" ]] && {
+        (( ++FAIL ))
+        echo "FAIL: test_ticket_has_pil_passes_with_preconditions_brainstorm_complete: could not create ticket" >&2
+        return
+    }
+
+    # And: a PRECONDITIONS event with gate_name=brainstorm_complete exists
+    # (mirrors what brainstorm Phase 3 Step 3a always writes via preconditions-record.sh)
+    local _precon_exit=0
+    (cd "$repo" && TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+        source "$TICKET_LIB" && \
+        _write_preconditions "$ticket_id" "brainstorm_complete" "test-session" "test-branch" "minimal" "{}") 2>/dev/null || _precon_exit=$?
+
+    if [[ "$_precon_exit" -ne 0 ]]; then
+        (( ++FAIL ))
+        echo "FAIL: test_ticket_has_pil_passes_with_preconditions_brainstorm_complete: could not write preconditions (exit $_precon_exit)" >&2
+        return
+    fi
+
+    # When: _ticket_has_pil is called
+    local _exit=0
+    (cd "$repo" && TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+        source "$TICKET_LIB" && _ticket_has_pil "$ticket_id") 2>/dev/null || _exit=$?
+
+    # Then: exit 0 — PRECONDITIONS with gate_name=brainstorm_complete satisfies the check
+    assert_eq "test_ticket_has_pil_passes_with_preconditions_brainstorm_complete: exit 0 when brainstorm_complete preconditions present" "0" "$_exit"
+    assert_pass_if_clean "test_ticket_has_pil_passes_with_preconditions_brainstorm_complete"
+}
+
+test_ticket_has_pil_passes_with_preconditions_brainstorm_complete
+
+# ── Negative path: _ticket_has_pil returns exit 1 when neither PIL heading nor brainstorm_complete preconditions exist ──
+echo ""
+echo "--- test_ticket_has_pil_fails_without_pil_or_preconditions ---"
+
+test_ticket_has_pil_fails_without_pil_or_preconditions() {
+    _snapshot_fail
+    local repo
+    repo=$(_make_test_repo)
+
+    # Given: an epic WITHOUT "### Planning Intelligence Log" in description or comments
+    # and WITHOUT any PRECONDITIONS event with gate_name=brainstorm_complete
+    local ticket_id
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "Epic missing PIL and preconditions" \
+        --description "## Context
+No PIL heading here.
+No brainstorm_complete preconditions recorded." 2>/dev/null | tail -1)
+
+    [[ -z "$ticket_id" ]] && {
+        (( ++FAIL ))
+        echo "FAIL: test_ticket_has_pil_fails_without_pil_or_preconditions: could not create ticket" >&2
+        return
+    }
+
+    # When: _ticket_has_pil is called (no PRECONDITIONS events written)
+    local _exit=0
+    (cd "$repo" && TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+        source "$TICKET_LIB" && _ticket_has_pil "$ticket_id") 2>/dev/null || _exit=$?
+
+    # Then: exit 1 — no PIL heading and no brainstorm_complete preconditions
+    assert_eq "test_ticket_has_pil_fails_without_pil_or_preconditions: exit 1 when neither PIL nor preconditions present" "1" "$_exit"
+    assert_pass_if_clean "test_ticket_has_pil_fails_without_pil_or_preconditions"
+}
+
+test_ticket_has_pil_fails_without_pil_or_preconditions
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary
