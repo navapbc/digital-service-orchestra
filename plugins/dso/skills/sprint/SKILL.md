@@ -130,6 +130,21 @@ _TS=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "unknown")
 .claude/scripts/dso ticket comment <primary_ticket_id> "WORKTREE_TRACKING:start branch=${_BRANCH} session_branch=${_BRANCH} timestamp=${_TS}" 2>/dev/null || true
 ```
 
+**Draft PR Creation (ci-pr mode only)**: When `SPRINT_MODE=ci-pr`, open a long-lived draft PR before Phase E dispatch using `create-sprint-draft-pr.sh`:
+```bash
+# Create long-lived draft PR (ci-pr mode only) — substrate for GitHubPRDefenseStore
+if [[ "${SPRINT_MODE:-}" == "ci-pr" ]]; then
+    DRAFT_PR_URL=$(SESSION_BRANCH="${_BRANCH}" PRIMARY_TICKET_ID="${primary_ticket_id}" EPIC_TITLE="${_EPIC_TITLE:-}" \
+        bash "$(git rev-parse --show-toplevel)/.claude/scripts/dso create-sprint-draft-pr.sh" 2>&1)
+    if [[ -z "$DRAFT_PR_URL" ]]; then
+        echo "ERROR: Phase A draft PR creation failed — halting before Phase E dispatch" >&2
+        exit 1
+    fi
+    echo "Draft PR: $DRAFT_PR_URL"
+fi
+```
+Phase E dispatch must not begin until this block completes.
+
 **Non-epic routing**: After validation, check the ticket type and route accordingly:
 
 | Ticket type | Route |
