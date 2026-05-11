@@ -1791,6 +1791,20 @@ After `git push -u origin HEAD` and blackboard cleanup are done, proceed to **St
 
 After the batch commit and `git push -u origin HEAD` succeed, close each task whose code was successfully committed:
 
+**Unacked-degradation pre-check (Step 18 prerequisite):**
+Before verifying open children, check whether any PRECONDITIONS degradation entries are unacknowledged for this story:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-unacked-degradations.sh" <story-id>
+```
+
+- If exit 0: no unacked degradation entries — continue to the OPEN_CHILDREN check below.
+- If exit 1: the script prints each unacked decision_id on a separate line. Do NOT dispatch dso:completion-verifier. Add a story comment: `.claude/scripts/dso ticket comment <story-id> "Step 18 blocked: unacked degradation entries exist. Unacked decision_ids: <ids-from-script-stdout>. Acknowledge them before closure."` Surface to the user for acknowledgment. Do NOT close or transition the story to closed.
+
+Note (ordering): this check runs BEFORE dso:completion-verifier dispatch — stories with unreviewed graceful-degradation fallthroughs must not consume opus verification calls.
+Note (fail-open): if check-unacked-degradations.sh exits with an unexpected non-1 error code, log the failure to stderr and treat the check as clean (proceed to OPEN_CHILDREN check). Fail-open prevents the check from becoming a deployment blocker on unrelated infrastructure errors.
+Note (dso-94ya boundary): see ticket dso-94ya in the ticket system. If the dso-94ya preflight harness ships first and integrates this check, replace this standalone bash call with the harness invocation. Ship standalone for now; dso-94ya integrates on landing.
+
 **Pre-dispatch child closure check (Step 18 prerequisite):**
 Before dispatching dso:completion-verifier, verify all child tasks of this story are closed:
 

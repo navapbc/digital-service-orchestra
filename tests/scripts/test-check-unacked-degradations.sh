@@ -129,8 +129,11 @@ test_step18_check_before_verifier() {
     _snapshot_fail
     python3 -c "
 c = open('plugins/dso/skills/sprint/SKILL.md').read()
-assert c.index('check-unacked-degradations.sh') < c.index('dso:completion-verifier'), 'check must appear before completion-verifier dispatch'
-assert c.index('check-unacked-degradations.sh') < c.index('OPEN_CHILDREN='), 'check must appear before OPEN_CHILDREN= bash block'
+step18_start = c.index('### Step 18:')
+s = c[step18_start:]
+assert 'check-unacked-degradations.sh' in s, 'check-unacked-degradations.sh must appear in Step 18'
+assert s.index('check-unacked-degradations.sh') < s.index('dso:completion-verifier'), 'check must appear before completion-verifier dispatch in Step 18'
+assert s.index('check-unacked-degradations.sh') < s.index('OPEN_CHILDREN='), 'check must appear before OPEN_CHILDREN= bash block in Step 18'
 " 2>&1 || (( ++FAIL ))
     assert_pass_if_clean "test_step18_check_before_verifier"
 }
