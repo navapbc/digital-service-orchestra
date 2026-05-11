@@ -49,7 +49,7 @@ Act as a Senior Technical Product Manager (Google-style) to audit, reconcile, an
 
 This skill transforms epics into implementable stories:
 
-- **Entry routing** (Phase A Step 1.5): classify epic complexity (TRIVIAL → `/dso:implementation-plan`; MODERATE → lightweight mode; COMPLEX → full preplanning). Skipped when `--lightweight` was explicitly passed.
+- **Entry routing** (Phase A Step 1.5): classify epic complexity (SIMPLE → `/dso:implementation-plan`; MODERATE → lightweight mode; COMPLEX → full preplanning). Skipped when `--lightweight` was explicitly passed.
 - **Phase A**: Reconciliation — audit existing work, clarify scope
 - **Phase B**: External Dependencies Reading (flag-gated) — read epic's External Dependencies block, generate manual:awaiting_user stories
 - **Phase C**: Risk & Scope Scan — flag cross-cutting concerns, identify split candidates
@@ -165,7 +165,7 @@ If the agent fails or returns malformed JSON, log a warning and fall through to 
 
 #### Step 1.5b: Route Based on Classification
 
-Apply the routing table below. **Always consult the table** — do NOT skip preplanning based on prose heuristics. Only TRIVIAL epics bypass preplanning.
+Apply the routing table below. **Always consult the table** — do NOT skip preplanning based on prose heuristics. Only SIMPLE epics bypass preplanning. (`tier_schema=SIMPLE` is the epic-level vocabulary per `agents/complexity-evaluator.md`, where the lowest tier is named SIMPLE rather than TRIVIAL.)
 
 **Session-signal override** (applies before the routing table): If EITHER is true, override to COMPLEX regardless of evaluator output:
 - `success_criteria_count ≥ 7` — count from the spec text (do NOT rely on session memory which may be lost after compaction)
@@ -175,13 +175,13 @@ Log the override: `"Epic classified as COMPLEX (session-signal override: <reason
 
 | Classification | scope_certainty | Routing |
 |---|---|---|
-| TRIVIAL | High (always) | Invoke `/dso:implementation-plan <epic-id>` and exit preplanning |
+| SIMPLE | High (always) | Invoke `/dso:implementation-plan <epic-id>` and exit preplanning |
 | MODERATE | High | Continue preplanning in lightweight mode (jump to Lightweight Mode Appendix) |
 | MODERATE | Medium | Continue preplanning in lightweight mode (jump to Lightweight Mode Appendix) |
 | MODERATE | Low | Promoted to COMPLEX by evaluator |
 | COMPLEX | any | Continue preplanning in full mode (proceed to Step 2) |
 
-**Rationale**: TRIVIAL epics route directly to `/dso:implementation-plan` — the brainstorm dialogue produced task-level detail. MODERATE+High/Medium runs a risk/scope scan and writes structured done definitions before implementation planning. MODERATE+Low is converted to COMPLEX by the evaluator (row listed for completeness). COMPLEX epics require full story decomposition.
+**Rationale**: SIMPLE epics route directly to `/dso:implementation-plan` — the brainstorm dialogue produced task-level detail. MODERATE+High/Medium runs a risk/scope scan and writes structured done definitions before implementation planning. MODERATE+Low is converted to COMPLEX by the evaluator (row listed for completeness). COMPLEX epics require full story decomposition.
 
 #### Step 1.5c: Apply Routing
 
@@ -193,7 +193,7 @@ Epic classified as <TIER> (scope_certainty: <HIGH|MEDIUM|LOW>) — <action>
 
 Then immediately (same response, no pause):
 
-- **TRIVIAL**: Invoke `/dso:implementation-plan` via the Skill tool with `args: "<epic-id>"`. Exit preplanning — do NOT proceed to Step 2. Control returns here only if the invoked skill escalates.
+- **SIMPLE**: Invoke `/dso:implementation-plan` via the Skill tool with `args: "<epic-id>"`. Exit preplanning — do NOT proceed to Step 2. Control returns here only if the invoked skill escalates.
 - **MODERATE** (High or Medium): Treat as if `--lightweight` was passed for the remainder of execution; jump to the **Lightweight Mode Appendix**. Do NOT proceed to Step 2 (lightweight mode skips escalation policy selection anyway).
 - **COMPLEX** (or any session-signal override): Continue to Step 2 in full mode.
 
@@ -733,7 +733,7 @@ This RED acceptance criteria ensures the TDD test story's tests are observed to 
 #### Exemptions
 
 - **Documentation and research stories** are exempt from TDD story requirements — they have no associated test stories and do not depend on any TDD test story.
-- If an epic is **TRIVIAL** (single story, no external dependencies) and the story already contains unit test acceptance criteria, a separate TDD test story may be omitted. Document the rationale.
+- If an epic is **SIMPLE** (single story, no external dependencies) and the story already contains unit test acceptance criteria, a separate TDD test story may be omitted. Document the rationale.
 
 ### Step 3: Present Story Dashboard (/dso:preplanning)
 
@@ -999,7 +999,7 @@ After writing the Scope section for each story, verify every "OUT" assertion tha
 
 | Phase | Key Actions | Tools |
 |-------|-------------|-------|
-| A: Reconciliation | Load epic; classify complexity (Step 1.5, skipped if `--lightweight`) — TRIVIAL → `/dso:implementation-plan`, MODERATE → lightweight, COMPLEX → full; audit children, clarify scope | `.claude/scripts/dso ticket show`, `.claude/scripts/dso ticket deps`, `dso:complexity-evaluator` (haiku, tier_schema=SIMPLE) |
+| A: Reconciliation | Load epic; classify complexity (Step 1.5, skipped if `--lightweight`) — SIMPLE → `/dso:implementation-plan`, MODERATE → lightweight, COMPLEX → full; audit children, clarify scope | `.claude/scripts/dso ticket show`, `.claude/scripts/dso ticket deps`, `dso:complexity-evaluator` (haiku, tier_schema=SIMPLE) |
 | B: External Dependencies Reading (flag-gated) | Read epic's External Dependencies block, generate `manual:awaiting_user` stories for `user_manual` entries. Schema: `${CLAUDE_PLUGIN_ROOT}/docs/contracts/external-dependencies-block.md` | `.claude/scripts/dso ticket tag` |
 | C: Risk & Scope Scan | Flag cross-cutting concerns, identify split candidates | Lightweight analysis (no sub-agents) |
 | D: Integration Research (pre-slicing) | Verify external integrations via WebSearch | `WebSearch` |
