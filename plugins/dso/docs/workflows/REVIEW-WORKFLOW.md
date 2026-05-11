@@ -858,7 +858,7 @@ Even on a passing review, `reviewer-findings.json` may contain actionable `minor
 2. Filter findings where `severity` is `minor` or `suggestion` AND the finding describes a concrete, actionable improvement (not a stylistic preference or subjective opinion)
 3. **Gate ticket creation on `review.minor_findings_create_tickets`** (default: false). Auto-filing minor findings as bug tickets without explicit opt-in produced the deferred-nitpick treadmill — tickets that sit at pri=3/4 indefinitely and burn triage cost without ever being acted on (bugs 57b9, 9726, 5329). Surface as PR comments by default; only file tickets when the project has opted in:
    ```bash
-   if "${CLAUDE_PLUGIN_ROOT}/scripts/should-create-minor-finding-tickets.sh"; then
+   if .claude/scripts/dso should-create-minor-finding-tickets.sh; then
        # For each actionable finding, create a bug ticket so it is tracked for a future session
        .claude/scripts/dso ticket create bug "[Component]: [finding summary]" -d "## Incident Overview
        Source: code review (passed) — minor finding not addressed in this session.
