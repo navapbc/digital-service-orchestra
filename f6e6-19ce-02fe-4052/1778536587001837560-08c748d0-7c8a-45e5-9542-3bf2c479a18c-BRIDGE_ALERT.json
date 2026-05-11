@@ -1,0 +1,1 @@
+{"event_type": "BRIDGE_ALERT", "timestamp": 1778536587001837560, "uuid": "08c748d0-7c8a-45e5-9542-3bf2c479a18c", "env_id": "87bd1065-0264-4126-94b7-ae8c71b8d506", "ticket_id": "f6e6-19ce-02fe-4052", "data": {"reason": "no BRIDGE_USER_MAP entry for Test"}}
