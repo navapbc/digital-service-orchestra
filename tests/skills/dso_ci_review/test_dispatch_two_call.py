@@ -14,9 +14,8 @@ from __future__ import annotations
 import json
 import sys
 import pathlib
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import pytest
 
 # Ensure the plugin scripts directory is on sys.path so that
 # `dso_ci_review.dispatch` resolves to the plugin source, not the test package.
@@ -31,6 +30,7 @@ import dso_ci_review.dispatch as _dispatch_mod  # noqa: E402
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_fake_response(findings_json: dict):
     """Build a minimal fake litellm response whose .choices[0].message.content
@@ -81,10 +81,28 @@ def test_call1_receives_index_not_defense_text():
     defenses = [{"prior_finding_id": "f1", "defense_text": "SECRET"}]
 
     call1_response = _make_fake_response(
-        {"findings": [{"finding_id": "f-call1", "severity": "minor", "description": "call1 finding", "cited_lines": []}]}
+        {
+            "findings": [
+                {
+                    "finding_id": "f-call1",
+                    "severity": "minor",
+                    "description": "call1 finding",
+                    "cited_lines": [],
+                }
+            ]
+        }
     )
     call2_response = _make_fake_response(
-        {"findings": [{"finding_id": "f-call2", "severity": "minor", "description": "call2 finding", "cited_lines": []}]}
+        {
+            "findings": [
+                {
+                    "finding_id": "f-call2",
+                    "severity": "minor",
+                    "description": "call2 finding",
+                    "cited_lines": [],
+                }
+            ]
+        }
     )
 
     captured_calls: list[dict] = []
@@ -101,7 +119,7 @@ def test_call1_receives_index_not_defense_text():
         # Also patch ContextWindowExceededError so the import in dispatch_review works
         mock_litellm.ContextWindowExceededError = Exception
 
-        result = _dispatch_mod.dispatch_two_call_review(
+        _dispatch_mod.dispatch_two_call_review(
             diff_text="--- a/foo.py\n+++ b/foo.py\n@@ -1 +1 @@\n-x=1\n+x=2\n",
             prior_findings_index=prior_findings_index,
             prior_findings=prior_findings,
@@ -149,9 +167,7 @@ def test_call2_receives_call1_output():
       - Call 2 message content includes the Call 1 findings output (f-new finding text)
       - The function returns a dict with a "findings" key
     """
-    prior_findings = [
-        {"id": "f1", "cited_lines": [], "dimension": "correctness"}
-    ]
+    prior_findings = [{"id": "f1", "cited_lines": [], "dimension": "correctness"}]
     defenses: list[dict] = []
 
     call1_findings = {
@@ -202,9 +218,7 @@ def test_call2_receives_call1_output():
         )
 
     # Call 2 must receive Call 1's output
-    assert len(captured_calls) == 2, (
-        f"Expected 2 LLM calls, got {len(captured_calls)}"
-    )
+    assert len(captured_calls) == 2, f"Expected 2 LLM calls, got {len(captured_calls)}"
     call2_content = json.dumps(captured_calls[1]["messages"])
     assert "f-new" in call2_content, (
         "Call 2 messages must include Call 1's findings output ('f-new' finding id)."

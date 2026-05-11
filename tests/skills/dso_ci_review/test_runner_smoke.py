@@ -820,7 +820,8 @@ def test_runner_exits_1_when_all_agents_hit_context_window(tmp_path, capsys):
             "dso_ci_review.runner.async_dispatch_specialists", side_effect=mock_dispatch
         ),
         patch(
-            "dso_ci_review.runner.dispatch_arch_synthesis", side_effect=mock_arch_synthesis
+            "dso_ci_review.runner.dispatch_arch_synthesis",
+            side_effect=mock_arch_synthesis,
         ),
         contextlib.redirect_stderr(stderr_capture),
     ):
@@ -1241,7 +1242,9 @@ def test_build_agents_for_tier_includes_tier_in_agent_dicts(tmp_path):
     config_file.write_text("model.light=claude-haiku-4-5-20251001\n")
 
     for tier in ("light", "standard", "deep"):
-        agents = runner_mod._build_agents_for_tier(tier, "diff text", {}, config_path=str(config_file))
+        agents = runner_mod._build_agents_for_tier(
+            tier, "diff text", {}, config_path=str(config_file)
+        )
         for agent in agents:
             assert "tier" in agent, (
                 f"Agent dict for tier={tier!r} missing 'tier' key; "
@@ -1261,7 +1264,7 @@ def test_call_single_agent_passes_tier_to_dispatch_review():
     and enables the loop even for light-tier agents.
     """
     import asyncio
-    from unittest.mock import patch, MagicMock
+    from unittest.mock import patch
 
     sys.path.insert(0, str(SCRIPTS_DIR))
     from dso_ci_review.dispatch import _call_single_agent
@@ -1272,7 +1275,9 @@ def test_call_single_agent_passes_tier_to_dispatch_review():
         captured_kwargs.append(kwargs)
         return {"findings": []}
 
-    with patch("dso_ci_review.dispatch.dispatch_review", side_effect=mock_dispatch_review):
+    with patch(
+        "dso_ci_review.dispatch.dispatch_review", side_effect=mock_dispatch_review
+    ):
         asyncio.run(
             _call_single_agent(
                 agent_id="code-reviewer-light",
@@ -1422,11 +1427,9 @@ def test_runner_uses_bash_classifier(tmp_path):
     ):
         runner_mod.main()
 
-    mock_bash_classify.assert_called_once_with(diff_text), (
-        f"runner.main() must call _classify_tier_via_bash(diff_text) exactly once; "
-        f"call_args={mock_bash_classify.call_args!r}. "
-        "Task B must replace classify_tier() with _classify_tier_via_bash() in runner.py."
-    )
+    # runner.main() must call _classify_tier_via_bash(diff_text) exactly once;
+    # Task B must replace classify_tier() with _classify_tier_via_bash() in runner.py.
+    mock_bash_classify.assert_called_once_with(diff_text)
 
 
 # ---------------------------------------------------------------------------
@@ -1681,7 +1684,11 @@ def test_deep_tier_runs_arch_synthesis_after_specialists(tmp_path):
     specialist_results = [
         {
             "findings": [
-                {"severity": "important", "description": "correctness issue", "cited_lines": ["auth/login.py:1"]}
+                {
+                    "severity": "important",
+                    "description": "correctness issue",
+                    "cited_lines": ["auth/login.py:1"],
+                }
             ],
             "scores": {"correctness": 2},
             "summary": "correctness",
@@ -1693,7 +1700,11 @@ def test_deep_tier_runs_arch_synthesis_after_specialists(tmp_path):
         },
         {
             "findings": [
-                {"severity": "minor", "description": "style nit", "cited_lines": ["auth/login.py:5"]}
+                {
+                    "severity": "minor",
+                    "description": "style nit",
+                    "cited_lines": ["auth/login.py:5"],
+                }
             ],
             "scores": {"hygiene": 4},
             "summary": "hygiene",
@@ -1806,6 +1817,7 @@ def test_fetch_pr_defenses_parses_defense_records():
         patch.object(runner_mod, "subprocess", create=True) as mock_sub,
     ):
         import subprocess as _real_sub
+
         mock_sub.run.side_effect = _mock_run
         mock_sub.TimeoutExpired = _real_sub.TimeoutExpired
         mock_sub.CalledProcessError = _real_sub.CalledProcessError
@@ -1844,12 +1856,18 @@ def test_suppress_defended_findings_downgrades_matching_findings():
     import dso_ci_review.runner as runner_mod
 
     defended_desc = "write_bridge_alert signature mismatch — wrong positional arg"
-    defenses = [
-        {"severity": "critical", "description": defended_desc}
-    ]
+    defenses = [{"severity": "critical", "description": defended_desc}]
     findings = [
-        {"severity": "critical", "description": defended_desc, "cited_lines": ["foo.py:1"]},
-        {"severity": "important", "description": "unrelated new finding", "cited_lines": ["bar.py:5"]},
+        {
+            "severity": "critical",
+            "description": defended_desc,
+            "cited_lines": ["foo.py:1"],
+        },
+        {
+            "severity": "important",
+            "description": "unrelated new finding",
+            "cited_lines": ["bar.py:5"],
+        },
     ]
 
     result = runner_mod._suppress_defended_findings(findings, defenses)
@@ -1859,7 +1877,9 @@ def test_suppress_defended_findings_downgrades_matching_findings():
     assert result[0]["severity"] == "suggestion", (
         f"Matched finding must be downgraded to 'suggestion'; got {result[0]['severity']!r}"
     )
-    assert "_suppressed_reason" in result[0], "Suppressed finding must have _suppressed_reason"
+    assert "_suppressed_reason" in result[0], (
+        "Suppressed finding must have _suppressed_reason"
+    )
     # Unmatched finding is unchanged
     assert result[1]["severity"] == "important", (
         f"Unmatched finding must be unchanged; got {result[1]['severity']!r}"
@@ -1897,7 +1917,9 @@ def test_runner_cycle2_with_defenses_suppresses_reemitted_findings(tmp_path):
 
     import dso_ci_review.runner as runner_mod
 
-    defended_desc = "write_bridge_alert signature mismatch — outbound vs inbound confusion"
+    defended_desc = (
+        "write_bridge_alert signature mismatch — outbound vs inbound confusion"
+    )
     defense_record = {"severity": "critical", "description": defended_desc}
 
     diff_file = tmp_path / "input.diff"
@@ -1905,9 +1927,15 @@ def test_runner_cycle2_with_defenses_suppresses_reemitted_findings(tmp_path):
     output_file = tmp_path / "out.json"
 
     # LLM re-emits the exact same finding that was defended (worst-case: ignores context)
-    reemitted_findings = {"findings": [
-        {"severity": "critical", "description": defended_desc, "cited_lines": ["bridge.py:1"]}
-    ]}
+    reemitted_findings = {
+        "findings": [
+            {
+                "severity": "critical",
+                "description": defended_desc,
+                "cited_lines": ["bridge.py:1"],
+            }
+        ]
+    }
 
     stderr_capture = io.StringIO()
     with (
@@ -1924,9 +1952,15 @@ def test_runner_cycle2_with_defenses_suppresses_reemitted_findings(tmp_path):
                 "GITHUB_TOKEN": "test-token",
             },
         ),
-        patch("dso_ci_review.runner._classify_tier_via_bash", return_value=_standard_tier_classification()),
+        patch(
+            "dso_ci_review.runner._classify_tier_via_bash",
+            return_value=_standard_tier_classification(),
+        ),
         patch("dso_ci_review.runner._fetch_pr_defenses", return_value=[defense_record]),
-        patch("dso_ci_review.runner.dispatch_two_call_review", return_value=reemitted_findings),
+        patch(
+            "dso_ci_review.runner.dispatch_two_call_review",
+            return_value=reemitted_findings,
+        ),
         redirect_stderr(stderr_capture),
     ):
         exit_code = runner_mod.main()
@@ -1938,7 +1972,9 @@ def test_runner_cycle2_with_defenses_suppresses_reemitted_findings(tmp_path):
         f"Exit code must be 0 after cycle-2 suppression of defended finding; "
         f"got {exit_code}. stderr={stderr_capture.getvalue()!r}"
     )
-    assert len(findings) == 1, f"Expected 1 finding (downgraded); got {len(findings)}: {findings!r}"
+    assert len(findings) == 1, (
+        f"Expected 1 finding (downgraded); got {len(findings)}: {findings!r}"
+    )
     assert findings[0]["severity"] == "suggestion", (
         f"Re-emitted defended finding must be downgraded to 'suggestion'; "
         f"got severity={findings[0]['severity']!r}"
@@ -1973,7 +2009,9 @@ def test_runner_cycle2_deep_tier_partial_failure_with_defenses(tmp_path):
     defense_record = {"severity": "critical", "description": defended_desc}
 
     diff_file = tmp_path / "input.diff"
-    diff_file.write_text("diff --git a/auth/handler.py b/auth/handler.py\n+token = request.token\n")
+    diff_file.write_text(
+        "diff --git a/auth/handler.py b/auth/handler.py\n+token = request.token\n"
+    )
     output_file = tmp_path / "findings.json"
 
     tier_result = {
@@ -2100,7 +2138,11 @@ def test_runner_cycle2_deep_tier_partial_failure_with_defenses(tmp_path):
     # 3. Real important finding must be present and unchanged.
     parsed = _json.loads(output_file.read_text())
     findings = parsed.get("findings", [])
-    real_findings = [f for f in findings if f.get("description") == "real correctness issue in handler"]
+    real_findings = [
+        f
+        for f in findings
+        if f.get("description") == "real correctness issue in handler"
+    ]
     assert len(real_findings) == 1, (
         f"Real important finding must survive suppression filter; "
         f"findings: {findings!r}"
@@ -2148,7 +2190,11 @@ def test_runner_cycle1_no_defenses_unaffected(tmp_path):
     output_file = tmp_path / "out.json"
 
     findings = [
-        {"severity": "important", "description": "genuine new finding", "cited_lines": ["foo:1"]}
+        {
+            "severity": "important",
+            "description": "genuine new finding",
+            "cited_lines": ["foo:1"],
+        }
     ]
 
     async def mock_dispatch(agents):
@@ -2156,7 +2202,6 @@ def test_runner_cycle1_no_defenses_unaffected(tmp_path):
 
     gh_called = []
 
-    import subprocess as _real_sub
 
     stderr_capture = io.StringIO()
     with (
@@ -2174,9 +2219,17 @@ def test_runner_cycle1_no_defenses_unaffected(tmp_path):
                 "PR_NUMBER": "",
             },
         ),
-        patch("dso_ci_review.runner._classify_tier_via_bash", return_value=_standard_tier_classification()),
-        patch("dso_ci_review.runner.async_dispatch_specialists", side_effect=mock_dispatch),
-        patch("dso_ci_review.runner._fetch_pr_defenses", side_effect=lambda pr: gh_called.append(pr) or []) as mock_fetch,
+        patch(
+            "dso_ci_review.runner._classify_tier_via_bash",
+            return_value=_standard_tier_classification(),
+        ),
+        patch(
+            "dso_ci_review.runner.async_dispatch_specialists", side_effect=mock_dispatch
+        ),
+        patch(
+            "dso_ci_review.runner._fetch_pr_defenses",
+            side_effect=lambda pr: gh_called.append(pr) or [],
+        ),
         redirect_stderr(stderr_capture),
     ):
         exit_code = runner_mod.main()
