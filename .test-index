@@ -421,4 +421,4 @@ plugins/dso/scripts/apply-attribution-trailers.sh:tests/unit/scripts/test-apply-
 plugins/dso/hooks/dispatchers/post-skill.sh:tests/hooks/test-post-skill-attribution.sh
 plugins/dso/scripts/worktree-session-head-sync.sh:tests/hooks/test-worktree-session-head-sync.sh [test_sync_brings_subagent_to_session_head]
 plugins/dso/scripts/mode-detect.sh:tests/hooks/test-mode-detect.sh [test_mode_detect_ci_pr]
-plugins/dso/scripts/check-sprint-trailer.sh:tests/hooks/test-check-sprint-trailer.sh [test_sprint_mode_trailer_absent_rejected]
+plugins/dso/scripts/check-sprint-trailer.sh:tests/hooks/test-check-sprint-trailer.sh [test_sprint_mode_trailer_absent_rejected],tests/hooks/test-trailer-format-contract.sh [test_fixture_trailer_format_accepted]
