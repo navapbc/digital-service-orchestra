@@ -1803,11 +1803,31 @@ After the batch commit and `git push -u origin HEAD` succeed, close each task wh
 Before verifying open children, check whether any PRECONDITIONS degradation entries are unacknowledged for this story:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-unacked-degradations.sh" <story-id>
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-unacked-degradations.sh" <story-id>  # shim-exempt: internal orchestration script
 ```
 
 - If exit 0: no unacked degradation entries — continue to the OPEN_CHILDREN check below.
-- If exit 1: the script prints each unacked decision_id on a separate line. Do NOT dispatch dso:completion-verifier. Add a story comment: `.claude/scripts/dso ticket comment <story-id> "Step 18 blocked: unacked degradation entries exist. Unacked decision_ids: <ids-from-script-stdout>. Acknowledge them before closure."` Surface to the user for acknowledgment. Do NOT close or transition the story to closed.
+- If exit 1: the script prints each unacked decision_id on a separate line. Do NOT dispatch dso:completion-verifier.
+
+**When check-unacked-degradations.sh exits 1:**
+
+1. Parse the output lines (each line is one unacked decision_id, e.g., `sess:abc123`)
+2. Present to the user:
+   > "Story <story_id> has N unacked degradation(s):
+   > - <decision_id_1>: <gate_name> — <condition_text_snippet>
+   > - <decision_id_2>: ...
+   > 
+   > To proceed, acknowledge each degradation using:
+   >   `.claude/scripts/dso preconditions-ack <story_id> <decision_id> --if-skipped \"<your rationale>\"`
+   > 
+   > Or acknowledge a full class (>=4 entries) using:
+   >   `.claude/scripts/dso preconditions-ack <story_id> --sample-ack --class=<class> --if-skipped \"<rationale>\"`
+   > 
+   > Options: (a) I have acknowledged — re-check, (b) Skip story closure (leave open), (c) Force close anyway"
+3. Wait for user response:
+   - (a) Re-check: re-run check-unacked-degradations.sh; if clean → proceed to OPEN_CHILDREN check; if still fails → show prompt again (max 3 re-check cycles)
+   - (b) Skip: log STORY_CLOSURE_DEFERRED:<story_id>; do not close story; continue to next story
+   - (c) Force: log STORY_CLOSURE_FORCED:<story_id> REASON:user_override; proceed to OPEN_CHILDREN check
 
 Note (ordering): this check runs BEFORE dso:completion-verifier dispatch — stories with unreviewed graceful-degradation fallthroughs must not consume opus verification calls.
 Note (fail-open): if check-unacked-degradations.sh exits with an unexpected non-1 error code, log the failure to stderr and treat the check as clean (proceed to OPEN_CHILDREN check). Fail-open prevents the check from becoming a deployment blocker on unrelated infrastructure errors.
