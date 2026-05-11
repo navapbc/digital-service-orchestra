@@ -107,4 +107,4 @@ Read each phase file in order. Do NOT skip phases. Do NOT proceed to the next ph
 | Dependency graph | `.claude/scripts/dso ticket deps <id>` |
 | Check tag | inspect `tags` field in `.claude/scripts/dso ticket show <id>` |
 
-Always verify exact syntax via `plugins/dso/docs/ticket-cli-reference.md` before invoking ticket commands.
+Always verify exact syntax via `${CLAUDE_PLUGIN_ROOT}/docs/ticket-cli-reference.md` before invoking ticket commands.
