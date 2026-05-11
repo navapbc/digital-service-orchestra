@@ -500,7 +500,7 @@ Fix any issues before finalizing.
 ### Step 3a: Write Planning Intelligence Log Comment
 
 <HARD-GATE>
-MUST run before Step 3b. Step 3b's `brainstorm:complete` tag is rejected when no `### Planning Intelligence Log` marker is present on the epic.
+MUST run before Step 3b. Step 3b's `brainstorm:complete` tag is rejected when no `### Planning Intelligence Log` marker is present on the epic. Enforcement: `_ticket_has_pil` in the ticket library checks for the literal heading in the description or any comment; the tag command short-circuits with the "Planning Intelligence Log not found in ticket events" error when the check fails.
 </HARD-GATE>
 
 Render the PIL per `phases/epic-description-template.md` (the `### Planning Intelligence Log` section), populating every field from the approval-gate session log. Write it as a comment:

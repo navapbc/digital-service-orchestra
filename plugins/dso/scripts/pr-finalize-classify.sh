@@ -33,6 +33,19 @@
 #   BLOCKED_BY_REVIEW    mergeable=MERGEABLE but state=BLOCKED for a non-CI reason (e.g.,
 #                        required reviewer hasn't approved). Agent must escalate to user.
 #   UNKNOWN              Classifier could not determine state; agent should escalate.
+#
+# Exit codes:
+#   0  Status emitted successfully (any status code including UNKNOWN is emitted as JSON on stdout).
+#   2  Could not classify (bad input, gh failure, unparseable response). A JSON UNKNOWN object is
+#      still emitted on stdout for the caller; exit 2 signals "do not loop, escalate to user".
+#
+# External API assumptions (verified against gh CLI as of 2026-05):
+#   - `gh repo view --json owner,name` returns {"owner":{"login":"..."},"name":"..."}
+#   - `gh pr view --json mergeable,mergeStateStatus,state,url,headRefOid,reviewDecision`
+#   - `gh pr checks --json name,state,bucket,link` (bucket: pass|pending|fail|skipping)
+#   - graphql ReviewThread fields: id, isResolved, isOutdated, comments.nodes[].{body,path,line,author.login}
+# A change in any of these contracts would require updating this script. The Python json.load
+# guards below convert unexpected shapes to UNKNOWN rather than crashing.
 
 set -uo pipefail
 
@@ -87,8 +100,28 @@ if ! [[ "$OWNER" =~ ^[A-Za-z0-9._-]+$ && "$REPO" =~ ^[A-Za-z0-9._-]+$ ]]; then
     _emit_unknown "gh repo view returned implausible owner/repo: $OWNER/$REPO"
 fi
 
-# Top-level PR state
-_pr_json=$(gh pr view "$PR" --json mergeable,mergeStateStatus,state,url,headRefOid,reviewDecision 2>/dev/null) || _emit_unknown "gh pr view $PR failed"
+# Top-level PR state. Include headRefName so we can defensively verify the
+# caller is on the PR's head branch — the workflow doc requires this as a
+# precondition, but the classifier enforces it too so an agent that skipped
+# the manual prerequisite check does not silently push to the wrong branch.
+_pr_json=$(gh pr view "$PR" --json mergeable,mergeStateStatus,state,url,headRefOid,reviewDecision,headRefName 2>/dev/null) || _emit_unknown "gh pr view $PR failed"
+
+# Branch precondition: current branch must match PR's head branch. Skipped only
+# when PR_FINALIZE_SKIP_BRANCH_CHECK=1 (used by tests / forensic inspection).
+if [[ "${PR_FINALIZE_SKIP_BRANCH_CHECK:-0}" != "1" ]]; then
+    _current_branch=$(git branch --show-current 2>/dev/null || echo "")
+    _pr_head_ref=$(PR_JSON="$_pr_json" python3 -c "
+import json, os
+try:
+    d = json.loads(os.environ['PR_JSON'])
+    print(d.get('headRefName',''))
+except Exception:
+    print('')
+" 2>/dev/null || echo "")
+    if [[ -n "$_current_branch" && -n "$_pr_head_ref" && "$_current_branch" != "$_pr_head_ref" ]]; then
+        _emit_unknown "current branch '$_current_branch' does not match PR #$PR head '$_pr_head_ref' — switch branches or escalate before driving the loop"
+    fi
+fi
 
 # Parse PR view in a single Python call (avoids spawning python 4x).
 # Output: 6 tab-separated fields.
