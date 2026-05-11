@@ -181,6 +181,7 @@ plugins/dso/scripts/classify-task.py:tests/scripts/test-classify-task.sh
 plugins/dso/scripts/claude-safe:tests/scripts/test-claude-safe-portability.sh,tests/scripts/test-claude-safe-post-merge-amend.sh,tests/scripts/test-claude-safe-tickets-dir.sh,tests/scripts/test-worktree-pr-merge-detection.sh,tests/scripts/test-claude-safe-stale-local-main.sh
 plugins/dso/scripts/collect-discoveries.sh:tests/scripts/test-collect-discoveries-plugin-root.sh
 plugins/dso/scripts/create-dso-app.sh:tests/scripts/test-create-dso-app.sh
+plugins/dso/scripts/create-sprint-draft-pr.sh:tests/scripts/test-create-sprint-draft-pr.sh
 plugins/dso/scripts/design-approve.sh:tests/scripts/test-design-approve.sh
 plugins/dso/scripts/ci-review-corpus-delta.sh:tests/skills/dso_ci_review/test-ci-review-corpus-delta.sh
 plugins/dso/scripts/dso_ci_review/classifier.py:tests/skills/dso_ci_review/test_classifier.py
