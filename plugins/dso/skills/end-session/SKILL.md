@@ -244,7 +244,9 @@ elif gh pr view "$BRANCH" --json state --jq '.state' 2>/dev/null | grep -q "^MER
     # Squash merges create a new commit on main that does not include original branch commits as ancestors.
     # git merge-base --is-ancestor is strictly correct to return false; gh pr view is the authoritative check.
 else
-    echo "NOT MERGED"
+    # GitHub API unavailable (network/auth failure) — cannot confirm squash merge.
+    # Conservative: report NOT MERGED so the session does not prematurely clean up.
+    echo "NOT MERGED (GitHub API inconclusive — re-run when network is available if branch was squash-merged)"
 fi
 
 # is_clean: empty output means no uncommitted changes

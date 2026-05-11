@@ -896,6 +896,21 @@ class TestProcessInbound:
             f"found {len(create_files)}"
         )
 
+        # Checkpoint must be advanced to now() — NOT left at the backfill epoch.
+        # This guards against checkpoint corruption (writing the backfill timestamp
+        # to the checkpoint file would cause every subsequent incremental run to
+        # re-trigger a backfill).
+        final_checkpoint = json.loads(checkpoint_file.read_text(encoding="utf-8"))
+        final_ts = final_checkpoint.get("last_pull_ts", "")
+        assert final_ts, "checkpoint file must be updated after backfill run"
+        assert "1970" not in final_ts and "1969" not in final_ts, (
+            f"checkpoint must be advanced to now() after backfill, not left at epoch; "
+            f"got last_pull_ts={final_ts!r}"
+        )
+        assert "2026" in final_ts or "2025" in final_ts, (
+            f"checkpoint must be a recent year (now()); got last_pull_ts={final_ts!r}"
+        )
+
     @pytest.mark.unit
     @pytest.mark.scripts
     @pytest.mark.parametrize(
@@ -968,6 +983,65 @@ class TestProcessInbound:
             assert "2025" in jql_called, (
                 f"backfill={backfill_value!r} must use the explicit timestamp year "
                 f"in JQL; got {jql_called!r}"
+            )
+
+    @pytest.mark.unit
+    @pytest.mark.scripts
+    @pytest.mark.parametrize(
+        "invalid_value",
+        [
+            "2026/05/10",  # wrong separator
+            "20260510T120000Z",  # no dashes/colons
+            "invalid-date",
+            "2026-05-10",  # date-only, no time
+        ],
+    )
+    def test_process_inbound_backfill_rejects_invalid_iso8601(
+        self,
+        tmp_path: Path,
+        bridge: ModuleType,
+        invalid_value: str,
+    ) -> None:
+        """Invalid ISO 8601 backfill strings must be silently rejected.
+
+        Only valid YYYY-MM-DDTHH:MM:SSZ strings should activate backfill.
+        Malformed inputs must NOT override last_pull_ts (bug-guard: arbitrary
+        strings passed through would corrupt JQL queries or cause runtime errors).
+        """
+        tickets_root = tmp_path / ".tickets-tracker"
+        tickets_root.mkdir()
+
+        checkpoint_file = tmp_path / "bridge-checkpoint.json"
+        recent_ts = "2026-05-10T00:00:00Z"
+        checkpoint_file.write_text(
+            json.dumps({"last_pull_ts": recent_ts}), encoding="utf-8"
+        )
+
+        mock_client = MagicMock()
+        mock_client.search_issues = MagicMock(return_value=[])
+        mock_client.get_myself = MagicMock(return_value={"timeZone": "UTC"})
+
+        config = {
+            "bridge_env_id": _BRIDGE_ENV_ID,
+            "overlap_buffer_minutes": 0,
+            "checkpoint_file": str(checkpoint_file),
+            "status_mapping": {"To Do": "pending"},
+            "type_mapping": {"Task": "task"},
+            "backfill": invalid_value,
+        }
+
+        bridge.process_inbound(
+            tickets_root=tickets_root,
+            acli_client=mock_client,
+            last_pull_ts=recent_ts,
+            config=config,
+        )
+
+        if mock_client.search_issues.called:
+            jql_called = mock_client.search_issues.call_args[0][0]
+            assert "1969" not in jql_called and "1970" not in jql_called, (
+                f"invalid backfill={invalid_value!r} must not activate epoch backfill; "
+                f"JQL was {jql_called!r}"
             )
 
 

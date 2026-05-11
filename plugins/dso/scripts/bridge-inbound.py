@@ -11,9 +11,12 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Any
+
+_ISO8601_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 
 # ---------------------------------------------------------------------------
 # Ensure scripts directory is on sys.path so bridge package is importable
@@ -385,9 +388,17 @@ def process_inbound(
         if lowered in {"1", "true", "yes", "on"}:
             backfill_active = True
         elif lowered:
-            # Treat as an explicit ISO timestamp override
-            backfill_active = True
-            backfill_from = backfill.strip()
+            # Treat as an explicit ISO timestamp override — validate format first
+            stripped = backfill.strip()
+            if _ISO8601_RE.match(stripped):
+                backfill_active = True
+                backfill_from = stripped
+            else:
+                logging.warning(
+                    "[inbound-bridge] BACKFILL: invalid timestamp %r ignored "
+                    "(expected YYYY-MM-DDTHH:MM:SSZ); backfill not activated",
+                    stripped,
+                )
     if backfill_active:
         logging.info(
             "[inbound-bridge] BACKFILL MODE — overriding last_pull_ts=%r with %r",
