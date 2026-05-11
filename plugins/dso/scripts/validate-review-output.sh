@@ -9,11 +9,14 @@ set -euo pipefail
 #   validate-review-output.sh --list-callers
 #
 # Prompt IDs and their schema hashes:
-#   code-review-dispatch   a977b1de49b5dd3e   (reviewer-findings.json schema)
+#   code-review-dispatch   214949ee476be6d0   (reviewer-findings.json schema)
 #                          Required top-level keys: findings, summary
-#                          Required finding fields: severity, category, description, file, cited_lines
+#                          Required finding fields: severity, category, description, file, cited_lines, cited_excerpt
+#                          Conditional finding fields: reachability (required when severity in {critical, important, fragile})
 #                          Optional: review_tier, selected_tier, escalate_review
 #                          DEPRECATED (tolerated with warning): scores
+#                          Synthetic findings exempt from real-finding field requirements when
+#                          'type' is one of: specialist_error, fallback_exhausted, parse_error.
 #   review-protocol        3053fa9a43e12b79   (REVIEW-SCHEMA.md base structure)
 #   plan-review            9dba6875b85b7bc3   (structured text verdict format)
 #
@@ -62,7 +65,7 @@ fi
 
 
 # --- Prompt-level schema hashes ---
-HASH_CODE_REVIEW_DISPATCH="a977b1de49b5dd3e"
+HASH_CODE_REVIEW_DISPATCH="214949ee476be6d0"
 HASH_REVIEW_PROTOCOL="3053fa9a43e12b79"
 HASH_PLAN_REVIEW="9dba6875b85b7bc3"
 
@@ -93,10 +96,18 @@ Validates review agent output against the expected schema.
 
 Prompt IDs:
   code-review-dispatch   Schema hash: ${HASH_CODE_REVIEW_DISPATCH}
-                         Validates: reviewer-findings.json (2 required top-level
-                         keys: findings, summary; optional: review_tier,
-                         selected_tier, escalate_review; scores tolerated with
-                         deprecation warning during transition — story f19a-c97e)
+                         Validates: reviewer-findings.json
+                         Required top-level: findings, summary
+                         Required per finding: severity, category, description,
+                           file, cited_lines, cited_excerpt
+                         Conditional per finding: reachability (required when
+                           severity ∈ {critical, important, fragile})
+                         Optional top-level: review_tier, selected_tier,
+                           escalate_review
+                         DEPRECATED (tolerated with warning): scores
+                         Synthetic findings (type ∈ {specialist_error,
+                           fallback_exhausted, parse_error}) are exempt from
+                           real-finding field requirements.
 
   review-protocol        Schema hash: ${HASH_REVIEW_PROTOCOL}
                          Validates: REVIEW-SCHEMA.md JSON (subject, reviews[],

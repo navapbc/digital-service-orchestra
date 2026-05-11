@@ -94,4 +94,47 @@ assert_eq \
     "1" \
     "$MISSING_RC"
 
+# test_yaml_true_is_create
+# YAML configs are parsed via Python; Python emits "True" (capital T) for boolean
+# `true` values, which a case-sensitive string compare would treat as disabled.
+# The gate must accept both "true" and "True" so behavior is consistent across
+# .conf and .yaml configs.
+YAML_TRUE_CFG=$(mktemp "${TMPDIR:-/tmp}/dso-config.XXXXXX.yaml")
+cat > "$YAML_TRUE_CFG" <<'YAML'
+review:
+  minor_findings_create_tickets: true
+YAML
+YAML_TRUE_RC=0
+WORKFLOW_CONFIG_FILE="$YAML_TRUE_CFG" bash "$SCRIPT" >/dev/null 2>&1 || YAML_TRUE_RC=$?
+rm -f "$YAML_TRUE_CFG"
+assert_eq \
+    "test_yaml_true_is_create: YAML 'true' (parsed as Python 'True') exits 0 (create tickets)" \
+    "0" \
+    "$YAML_TRUE_RC"
+
+# test_yaml_false_is_no_create
+# Mirror of the YAML true case for the false path.
+YAML_FALSE_CFG=$(mktemp "${TMPDIR:-/tmp}/dso-config.XXXXXX.yaml")
+cat > "$YAML_FALSE_CFG" <<'YAML'
+review:
+  minor_findings_create_tickets: false
+YAML
+YAML_FALSE_RC=0
+WORKFLOW_CONFIG_FILE="$YAML_FALSE_CFG" bash "$SCRIPT" >/dev/null 2>&1 || YAML_FALSE_RC=$?
+rm -f "$YAML_FALSE_CFG"
+assert_eq \
+    "test_yaml_false_is_no_create: YAML 'false' (parsed as Python 'False') exits 1 (don't create)" \
+    "1" \
+    "$YAML_FALSE_RC"
+
+# test_mixed_case_true_is_create
+# Defensive: any mixed-case spelling of "true" should be accepted (e.g., TRUE,
+# True, tRuE). Avoids surprising the user if some config tool upper-cases values.
+MIXED_RC=$(run_gate "version=1.1.0
+review.minor_findings_create_tickets=TRUE")
+assert_eq \
+    "test_mixed_case_true_is_create: TRUE (uppercase) exits 0 (create tickets)" \
+    "0" \
+    "$MIXED_RC"
+
 print_summary

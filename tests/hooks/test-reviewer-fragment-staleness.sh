@@ -18,6 +18,23 @@
 
 set -uo pipefail
 
+# Disable commit signing for temp test repos. Matches the established pattern
+# in tests/test-git-fixtures.sh — the test creates throwaway repos in /tmp and
+# any global commit.gpgsign config in the host environment would block `git
+# commit` from succeeding on the fixture repos.
+export GIT_CONFIG_COUNT=1  # isolation-ok: scoped to this test process
+export GIT_CONFIG_KEY_0=commit.gpgsign  # isolation-ok: scoped to this test process
+export GIT_CONFIG_VALUE_0=false  # isolation-ok: scoped to this test process
+
+# Resolve CLAUDE_PLUGIN_ROOT when the caller did not set it. The helper
+# functions below export this variable into the test subshells; under
+# `set -u` an unset value aborts the helper. CI sets this; bare local
+# invocations may not.
+if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
+    _SCRIPT_DIR_INIT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    export CLAUDE_PLUGIN_ROOT="$(cd "$_SCRIPT_DIR_INIT/../.." && pwd)/plugins/dso"
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"

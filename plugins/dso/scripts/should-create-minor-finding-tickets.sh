@@ -24,7 +24,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 VALUE=$(bash "$SCRIPT_DIR/read-config.sh" review.minor_findings_create_tickets 2>/dev/null || true)
 
-if [[ "$VALUE" == "true" ]]; then
+# Normalize case: read-config.sh emits "True"/"False" (Python str(bool)) for
+# YAML-format configs and "true"/"false" for .conf-format. Compare in lowercase
+# so the gate behaves identically across both formats.
+if [[ "${VALUE,,}" == "true" ]]; then
     exit 0
 fi
 exit 1
