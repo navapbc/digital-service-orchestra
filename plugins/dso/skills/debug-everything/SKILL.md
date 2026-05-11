@@ -931,6 +931,8 @@ This phase is REQUIRED for both success and graceful shutdown. The `/dso:debug-e
 
 ### Step 1: Merge + CI + Validate (sub-agent)
 
+Initialize before first dispatch: `PR_CI_RETRIES=0`.
+
 Dispatch a merge-and-verify sub-agent:
 
 Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/phase-10-merge-verify.md` and follow it. Pass as context:
@@ -943,11 +945,64 @@ Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/phase-10-me
 
 **Interpret the return:**
 - `MERGE_STATUS: conflict|error|push-failed` → relay error to user and stop
-- `CI_STATUS: fail` → return to Phase C (re-triage); max 2 retries
+- `CI_STATUS: fail JOBS:<names>` → see **PR CI Remediation Loop** below
 - `CI_STATUS: fail-max-retries` → stop, report to user
 - `VALIDATE_STATUS: ci-fail|regression` → return to Phase C
 - `VALIDATE_STATUS: staging-fail` → follow the recommendation in DETAILS
-- All `ok/pass` → proceed to Step 4
+- All `ok/pass` → proceed to Step 2
+
+### PR CI Remediation Loop (/dso:debug-everything)
+
+When `CI_STATUS: fail JOBS:<names>` is returned from the merge-verify sub-agent:
+
+**Check merge strategy:**
+```bash
+MERGE_STRATEGY=$(.claude/scripts/dso read-config.sh merge.strategy 2>/dev/null || echo "direct")
+```
+
+**If `MERGE_STRATEGY != pr`**: fall through to standard handling — return to Phase C (re-triage); max 2 retries. Do NOT enter the remediation loop.
+
+**If `MERGE_STRATEGY=pr`** and `PR_CI_RETRIES < 2`:
+
+1. **Increment** `PR_CI_RETRIES`.
+
+2. **Fetch CI failure details** to understand what broke:
+   ```bash
+   PR_BRANCH=$(git branch --show-current)
+   RUN_ID=$(gh run list --branch "$PR_BRANCH" --limit 1 --json databaseId --jq '.[0].databaseId' 2>/dev/null || true)
+   if [[ -n "$RUN_ID" ]]; then
+       gh run view "$RUN_ID" --log-failed 2>&1 | head -300
+   fi
+   ```
+
+3. **Create bug tickets** for each failing CI job (P1 priority; use `ticket create bug` format per `${CLAUDE_PLUGIN_ROOT}/skills/create-bug/SKILL.md`):
+   ```bash
+   PR_NUM=$(gh pr list --head "$PR_BRANCH" --state open --json number --jq '.[0].number // empty')
+   # For each failing job:
+   .claude/scripts/dso ticket create bug "CI: <job-name> failed on PR #${PR_NUM}" \
+       --priority 1 \
+       -d "## Incident Overview
+   CI job '<job-name>' failed on PR #${PR_NUM} (branch: ${PR_BRANCH}).
+
+   ## Error
+   <paste relevant log lines>
+
+   ## Steps to reproduce
+   Push to branch ${PR_BRANCH} and observe CI failure."
+   ```
+
+4. **Apply `/dso:fix-bug`** to each new ticket at orchestrator level — read `$PLUGIN_ROOT/skills/fix-bug/SKILL.md` inline and execute (same pattern as Bug-Fix Mode). Process tickets in priority order. Continue even if a single ticket's fix fails.
+
+5. **Commit fixes** using `COMMIT-WORKFLOW.md` inline (do NOT use the Skill tool).
+
+6. **Push to the branch** to update the PR:
+   ```bash
+   git push origin "$PR_BRANCH"
+   ```
+
+7. **Re-dispatch the merge-verify sub-agent** with `SKIP_MERGE: true` added to the context so it skips the merge step and proceeds directly to CI wait (Step 1b of `phase-10-merge-verify.md`). Interpret the result and loop back to this check.
+
+**If `MERGE_STRATEGY=pr`** and `PR_CI_RETRIES >= 2`: stop the remediation loop. Output `CI_STATUS: fail-max-retries` and stop, report to user with the list of still-failing CI jobs.
 
 ### Step 2: Report Completion (/dso:debug-everything)
 

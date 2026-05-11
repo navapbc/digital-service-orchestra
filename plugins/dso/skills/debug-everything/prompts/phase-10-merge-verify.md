@@ -8,6 +8,13 @@ You are a merge-and-verify sub-agent for `/dso:debug-everything`. Your job is to
 - `STAGING_URL`: staging environment URL
 - `HAS_STAGING_ISSUES`: true/false (from Phase C triage)
 - `PATH_TYPE`: "worktree" or "main" (how to detect: `test -f "$REPO_ROOT/.git" && echo worktree || echo main`)
+- `SKIP_MERGE`: optional — when `true`, the PR already exists (set by the PR CI Remediation Loop after pushing a fix). Skip Steps 1 and 1a entirely; proceed directly to Step 1b.
+
+---
+
+### SKIP_MERGE Mode
+
+**If `SKIP_MERGE: true`** is in your context: skip Steps 1 and 1a entirely. The PR already exists and the branch has been updated by the orchestrator's remediation loop. Proceed directly to **Step 1b: Wait for CI**.
 
 ---
 
