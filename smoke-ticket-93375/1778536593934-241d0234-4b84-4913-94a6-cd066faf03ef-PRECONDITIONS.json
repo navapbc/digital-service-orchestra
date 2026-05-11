@@ -1,0 +1,1 @@
+{"event_type": "PRECONDITIONS", "schema_version": 1, "manifest_depth": "minimal", "gate_name": "sprint_preconditions_entry", "session_id": "smoke-session-93375", "worktree_id": "smoke-worktree", "tier": "minimal", "timestamp": 1778536593934, "gate_verdicts": [], "evidence_ref": {}, "affects_fields": [], "data": {"degradation": true, "degradation_type": "inferred_decision"}}
