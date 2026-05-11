@@ -130,6 +130,12 @@ _TS=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "unknown")
 .claude/scripts/dso ticket comment <primary_ticket_id> "WORKTREE_TRACKING:start branch=${_BRANCH} session_branch=${_BRANCH} timestamp=${_TS}" 2>/dev/null || true
 ```
 
+The `.sprint-active` marker is gitignored and scoped to the session worktree. It enables the session-merge-only-check pre-commit hook. Phase I removes it.
+```bash
+# Create sprint-active marker to enable session-worktree merge-only enforcement
+touch "$(git rev-parse --show-toplevel)/.sprint-active"
+```
+
 **Non-epic routing**: After validation, check the ticket type and route accordingly:
 
 | Ticket type | Route |
@@ -2137,6 +2143,12 @@ _dso_pv_exit_write "sprint" "${_UPSTREAM_EVENT_ID:-}" "${SPEC_HASH:-}" "${primar
 ```
 
 ## Phase I: Primary Ticket Closure (/dso:sprint)
+
+Remove the `.sprint-active` marker so post-session commits (e.g., release pipeline) are not blocked by the merge-only hook.
+```bash
+# Remove sprint-active marker — session complete
+rm -f "$(git rev-parse --show-toplevel)/.sprint-active"
+```
 
 Phase I delegates to `/dso:end-session`, which handles closing issues, committing, running `merge-to-main.sh`, and reporting.
 
