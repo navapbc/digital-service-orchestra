@@ -222,7 +222,9 @@ mkdir -p "$ARTIFACTS_DIR"
 3. **Classifier dispatch** (ambiguous matches only):
    - First check the `BRAINSTORM_UI_CLASSIFIER_STUB` env var. If set to `ui`, `non-ui`, or `fail`, short-circuit to that result immediately (test/mock path — do not dispatch a real classifier).
    - Otherwise dispatch a haiku classifier sub-agent per `${CLAUDE_PLUGIN_ROOT}/skills/brainstorm/prompts/ui-detection-classifier.md`.
+<!-- EMIT-PRECONDITIONS: gate_name=brainstorm_ui_detector degradation_type=inferred_decision -->
    - On any failure (agent unavailable, MAX_AGENTS=0, timeout, malformed output, or any response other than exactly `"ui"` or `"non-ui"`): log a degradation notice to the user, treat result as `non-ui`, and continue. The `ux_probe_fired` flag is NOT set on failure so a later successful run can still fire the probes.
+<!-- EMIT-PRECONDITIONS: gate_name=brainstorm_ux_probes degradation_type=unresolved_question -->
 **Non-interactive path**: When `BRAINSTORM_INTERACTIVE=false` and the UI detection result is `ui`: emit `INTERACTIVITY_DEFERRED: UX probes require user input`, tag the epic `ui_probes:deferred` (`.claude/scripts/dso ticket tag <epic-id> ui_probes:deferred`), and skip all probes. Do NOT set the `ux_probe_fired` sentinel — a subsequent interactive run must still fire them. Phase 1 gap list gaps sourced from UX probes are deferred via the ui_probes:deferred tag; Phase 1 terminates without looping. Proceed to Step 2.
 
 4. **Probe firing** (when result is `ui` AND flag is unset):
@@ -276,6 +278,7 @@ The affects_fields must include workflow_completion_checklist so the S3 tiered s
 
 ### Step 3 — Shape Heuristic Scan (config-gated)
 
+<!-- EMIT-PRECONDITIONS: gate_name=brainstorm_external_dep_block degradation_type=inferred_decision -->
 **Config gate**: Source `${CLAUDE_PLUGIN_ROOT}/hooks/lib/planning-config.sh` and call `is_external_dep_block_enabled`. If the function returns exit 1, skip this sub-step and proceed to Phase 2.
 
 **When enabled:**
