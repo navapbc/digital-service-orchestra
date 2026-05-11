@@ -429,3 +429,4 @@ plugins/dso/scripts/worktree-session-head-sync.sh:tests/hooks/test-worktree-sess
 plugins/dso/scripts/mode-detect.sh:tests/hooks/test-mode-detect.sh [test_mode_detect_ci_pr]
 plugins/dso/scripts/check-sprint-trailer.sh:tests/hooks/test-check-sprint-trailer.sh [test_sprint_mode_trailer_absent_rejected],tests/hooks/test-trailer-format-contract.sh [test_fixture_trailer_format_accepted]
 .pre-commit-config.yaml:tests/hooks/test-sprint-trailer-registration.sh
+plugins/dso/scripts/detect-session-leakage.sh:tests/scripts/test-detect-session-leakage.sh
