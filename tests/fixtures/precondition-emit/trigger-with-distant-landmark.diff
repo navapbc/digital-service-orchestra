@@ -1,0 +1,19 @@
+--- a/plugins/dso/skills/sprint/SKILL.md
++++ b/plugins/dso/skills/sprint/SKILL.md
+@@ -10,16 +10,27 @@
+ context line one
+ context line two
++If the condition fails, fall through to the next handler.
+ context line three
++added line 01
++added line 02
++added line 03
++added line 04
++added line 05
++added line 06
++added line 07
++added line 08
++added line 09
++added line 10
++<!-- EMIT-PRECONDITIONS -->
+ context line four

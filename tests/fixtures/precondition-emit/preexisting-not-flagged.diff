@@ -1,0 +1,8 @@
+--- a/plugins/dso/skills/sprint/SKILL.md
++++ b/plugins/dso/skills/sprint/SKILL.md
+@@ -10,6 +10,7 @@
+ context line one
+ If the condition fails, fall through to the next handler.
++This is a new added line with no trigger keywords.
+ context line three
+ context line four
