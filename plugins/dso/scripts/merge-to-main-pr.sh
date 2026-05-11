@@ -228,15 +228,17 @@ _check_gh_version() {
 }
 
 # --- Duplicate-PR guard (DD4) ---
-# `gh pr list --head $BRANCH --state open --json number,url --jq '.[0].url'`.
-# Non-empty result → an open PR already exists for this branch → exit non-zero.
+# `gh pr list --head $BRANCH --state open --json number,url,isDraft`.
+# Non-empty result of non-draft PRs → a non-draft open PR exists → exit non-zero.
+# Draft PRs are allowed (e.g. active sprint PRs) and are filtered out.
 # Best-effort: if gh fails (no auth, no remote, etc.), proceed — the downstream
 # PR-create call in Task 3 will surface the underlying error with full context.
 _check_duplicate_pr() {
     local _existing
-    _existing=$(gh pr list --head "$BRANCH" --state open --json number,url --jq '.[0].url' 2>/dev/null || true)
+    _existing=$(gh pr list --head "$BRANCH" --state open --json number,url,isDraft \
+        --jq 'map(select(.isDraft == false)) | .[0].url // empty' 2>/dev/null || true)
     if [[ -n "$_existing" ]]; then
-        echo "ERROR: open PR already exists for branch $BRANCH: $_existing" >&2
+        echo "ERROR: non-draft PR already exists for branch $BRANCH: $_existing" >&2
         return 1
     fi
     return 0
