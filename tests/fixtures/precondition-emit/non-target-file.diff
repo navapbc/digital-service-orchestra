@@ -1,0 +1,8 @@
+--- a/README.md
++++ b/README.md
+@@ -10,6 +10,7 @@
+ context line one
+ context line two
++If the condition fails, fall through to the next handler.
+ context line three
+ context line four
