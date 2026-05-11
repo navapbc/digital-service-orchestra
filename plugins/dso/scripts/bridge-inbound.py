@@ -365,6 +365,37 @@ def process_inbound(
     overlap_buffer_minutes = config.get("overlap_buffer_minutes", 15)
     project = config.get("project") or ""
 
+    # Backfill mode (bug 7b07-d55c-59bb-4874): when config["backfill"] is set,
+    # override last_pull_ts to the epoch so pre-cursor history is replayed.
+    # This covers the gap where the inbound cursor was first seeded at a recent
+    # timestamp (e.g. after a workflow re-initialisation) and never walked back
+    # to pull older Jira issues that pre-date the seed.
+    #
+    # Accepted values:
+    #   - True / "1" / "true" (case-insensitive) → seed at 1970-01-01T00:00:00Z
+    #   - ISO 8601 string ("YYYY-MM-DDTHH:MM:SSZ") → seed at that timestamp
+    # Anything else is ignored (last_pull_ts unchanged).
+    backfill = config.get("backfill")
+    backfill_active = False
+    backfill_from = "1970-01-01T00:00:00Z"
+    if backfill is True:
+        backfill_active = True
+    elif isinstance(backfill, str):
+        lowered = backfill.strip().lower()
+        if lowered in {"1", "true", "yes", "on"}:
+            backfill_active = True
+        elif lowered:
+            # Treat as an explicit ISO timestamp override
+            backfill_active = True
+            backfill_from = backfill.strip()
+    if backfill_active:
+        logging.info(
+            "[inbound-bridge] BACKFILL MODE — overriding last_pull_ts=%r with %r",
+            last_pull_ts,
+            backfill_from,
+        )
+        last_pull_ts = backfill_from
+
     # Observability: emit run-start summary so success/failure is distinguishable in logs.
     # Bug 0e38-a5da: silent fetch regressions previously went undetected for 7+ days
     # because the script produced zero output on success.
@@ -499,6 +530,14 @@ if __name__ == "__main__":
     repo_root = Path(__file__).resolve().parents[3]
     tickets_root = repo_root / ".tickets-tracker"
 
+    # INBOUND_BACKFILL env var (bug 7b07-d55c-59bb-4874): force a full or
+    # ranged backfill regardless of stored checkpoint. Accepted values:
+    #   "1" / "true" / "yes" / "on" → seed at 1970-01-01T00:00:00Z
+    #   ISO 8601 timestamp           → seed at that timestamp
+    # Note: a successful backfill run still advances the checkpoint to now()
+    # via _write_success_checkpoint (no special handling needed).
+    backfill_env = os.environ.get("INBOUND_BACKFILL", "").strip()
+
     config = {
         "bridge_env_id": bridge_env_id,
         "overlap_buffer_minutes": overlap_buffer_minutes,
@@ -507,6 +546,7 @@ if __name__ == "__main__":
         "checkpoint_file": str(checkpoint_path) if checkpoint_path is not None else "",
         "run_id": run_id,
         "project": jira_project,
+        "backfill": backfill_env or None,
     }
 
     process_inbound(

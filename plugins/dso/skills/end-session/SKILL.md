@@ -195,7 +195,7 @@ git log main..$BRANCH --oneline
 ```bash
 TRACKER_DIR="$REPO_ROOT/.tickets-tracker"  # tickets-boundary-ok: load-bearing — push tickets branch when merge script is skipped
 if [ -d "$TRACKER_DIR" ] && git -C "$TRACKER_DIR" rev-parse --verify origin/tickets &>/dev/null; then
-    git -C "$TRACKER_DIR" push origin tickets --quiet 2>&1 || echo "WARNING: tickets branch push failed — ticket changes may be lost"
+    PRE_COMMIT_ALLOW_NO_CONFIG=1 git -C "$TRACKER_DIR" push origin tickets --quiet 2>&1 || echo "WARNING: tickets branch push failed — ticket changes may be lost"
 fi
 ```
 
@@ -239,6 +239,10 @@ elif git log main --oneline --grep="(merge $BRANCH)" -1 2>/dev/null | grep -q .;
 elif git fetch origin main:main 2>/dev/null && git merge-base --is-ancestor "$BRANCH" main 2>/dev/null; then
     echo "MERGED (local main ref synced from origin — was out of sync after direct push)"
     # If fetch fails (no network), this elif is skipped — conservative fail-safe; worktree stays until next session with network.
+elif gh pr view "$BRANCH" --json state --jq '.state' 2>/dev/null | grep -q "^MERGED$"; then
+    echo "MERGED (via GitHub PR state — squash merge detected; branch tip is not a Git ancestor)"
+    # Squash merges create a new commit on main that does not include original branch commits as ancestors.
+    # git merge-base --is-ancestor is strictly correct to return false; gh pr view is the authoritative check.
 else
     echo "NOT MERGED"
 fi

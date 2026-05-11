@@ -124,18 +124,10 @@ def fetch_events_since_cursor(
     3. If SHA still unreachable: git fetch --unshallow origin tickets, retry
     4. If commit count > cap: write BRIDGE_ALERT + seed_at_head
     """
-    if cursor_sha is None:
-        logger.info("_outbound_cursor: cold-start — seeding at HEAD")
-        return _seed_at_head(tracker_path, bridge_env_id, run_id)
-
-    # Step 1: widen shallow clone (best-effort; ignore failures e.g. local-only repos)
-    subprocess.run(
-        ["git", "-C", str(tracker_path), "fetch", "--deepen=50", "origin", "tickets"],
-        capture_output=True,
-        check=False,
-    )
-
-    def _run_git_log(cursor: str) -> subprocess.CompletedProcess:  # type: ignore[type-arg]
+    def _run_git_log(cursor: str | None) -> subprocess.CompletedProcess:  # type: ignore[type-arg]
+        # Cold-start (cursor=None): walk full tracker history (no range arg).
+        # Otherwise: walk cursor..HEAD.
+        range_arg = [f"{cursor}..HEAD"] if cursor else []
         return subprocess.run(
             [
                 "git",
@@ -145,14 +137,35 @@ def fetch_events_since_cursor(
                 "--diff-filter=A",
                 "--name-only",
                 "--format=%H",
-                f"{cursor}..HEAD",
+                *range_arg,
             ],
             capture_output=True,
             text=True,
             check=False,
         )
 
-    log_result = _run_git_log(cursor_sha)
+    if cursor_sha is None:
+        # Cold-start (bug f8a9-2cb0): walk full tracker history to surface
+        # every pre-existing CREATE/event so the first bridge run against a
+        # tracker with prior tickets does not silently drop them. Cap
+        # protection still applies (handled below).
+        logger.info("_outbound_cursor: cold-start — walking full tracker history")
+        log_result = _run_git_log(None)
+        if log_result.returncode != 0:
+            logger.warning(
+                "_outbound_cursor: cold-start git log failed (%s) — seeding at HEAD",
+                log_result.stderr.strip(),
+            )
+            return _seed_at_head(tracker_path, bridge_env_id, run_id)
+    else:
+        # Step 1: widen shallow clone (best-effort; ignore failures e.g. local-only repos)
+        subprocess.run(
+            ["git", "-C", str(tracker_path), "fetch", "--deepen=50", "origin", "tickets"],
+            capture_output=True,
+            check=False,
+        )
+
+        log_result = _run_git_log(cursor_sha)
 
     # Step 3: if SHA unreachable, try --unshallow
     if log_result.returncode != 0 and (

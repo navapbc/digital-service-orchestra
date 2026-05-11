@@ -161,30 +161,56 @@ def test_fetch_events_three_commits(tmp_path: Path, cursor_mod: ModuleType) -> N
         assert e["event_type"] == "STATUS"
 
 
-def test_cold_start_seeds_at_head_returns_empty(
+def test_cold_start_returns_full_history(
     tmp_path: Path, cursor_mod: ModuleType
 ) -> None:
-    """Cold-start: no cursor → seed at HEAD, write BRIDGE_ALERT, return [].
+    """Cold-start (bug f8a9-2cb0): no cursor → walk full tracker history and
+    return ALL pre-existing CREATE/event files.
 
-    No events should be processed on cold-start (avoids replaying entire history
-    on first run).
+    Previously, cold-start seeded at HEAD and returned [], causing the first
+    bridge run against a tracker with pre-existing tickets to silently drop
+    every CREATE event (157 tickets in the production case).
     """
     repo = _make_tmp_git_tracker(tmp_path)
-    _commit_event(repo, "ticket-xxxx", "STATUS")
-    head_sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    sha1, _ = _commit_event(repo, "ticket-aaaa", "CREATE")
+    sha2, _ = _commit_event(repo, "ticket-bbbb", "CREATE")
+    sha3, _ = _commit_event(repo, "ticket-cccc", "STATUS")
 
     events = cursor_mod.fetch_events_since_cursor(repo, None)
+    assert len(events) == 3, (
+        "cold-start must return pre-existing events, not silently drop them"
+    )
+    seen_tickets = {e["ticket_id"] for e in events}
+    assert seen_tickets == {"ticket-aaaa", "ticket-bbbb", "ticket-cccc"}
+    seen_shas = {e["commit_sha"] for e in events}
+    assert seen_shas == {sha1, sha2, sha3}
+
+
+def test_cold_start_cap_exceeded_seeds_at_head(
+    tmp_path: Path, cursor_mod: ModuleType
+) -> None:
+    """Cold-start with history > cap → BRIDGE_ALERT + seed at HEAD, return [].
+
+    Cap protection still applies to cold-start to avoid unbounded backfills.
+    """
+    repo = _make_tmp_git_tracker(tmp_path)
+    for i in range(5):
+        _commit_event(repo, f"ticket-{i:04d}", "CREATE")
+    head_sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
+
+    # cap=2 < 5 distinct commits → cap-exceeded path
+    events = cursor_mod.fetch_events_since_cursor(repo, None, cap=2)
     assert events == []
-    # Cursor was written at HEAD
     assert cursor_mod.read_cursor(repo) == head_sha
-    # BRIDGE_ALERT was written under the __bridge__ pseudo-ticket dir
     alert_dir = repo / "__bridge__"
     assert alert_dir.is_dir()
     alerts = list(alert_dir.glob("*-BRIDGE_ALERT.json"))
-    assert len(alerts) == 1
-    payload = json.loads(alerts[0].read_text(encoding="utf-8"))
-    assert payload["event_type"] == "BRIDGE_ALERT"
-    assert "cold-start" in payload["data"]["reason"]
+    # cap-exceeded path writes a cap alert + the cold-start seed alert
+    assert len(alerts) >= 1
+    reasons = [
+        json.loads(a.read_text(encoding="utf-8"))["data"]["reason"] for a in alerts
+    ]
+    assert any("cap exceeded" in r for r in reasons)
 
 
 def test_unreachable_sha_seeds_at_head(tmp_path: Path, cursor_mod: ModuleType) -> None:
