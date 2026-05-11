@@ -949,7 +949,7 @@ Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/phase-10-me
 - `CI_STATUS: fail-max-retries` → stop, report to user
 - `VALIDATE_STATUS: ci-fail|regression` → return to Phase C
 - `VALIDATE_STATUS: staging-fail` → follow the recommendation in DETAILS
-- All `ok/pass` → proceed to Step 2
+- All `ok/pass` → proceed to Step 2 (Report Completion, below)
 
 ### PR CI Remediation Loop (/dso:debug-everything)
 

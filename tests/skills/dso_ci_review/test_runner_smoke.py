@@ -2113,14 +2113,22 @@ def test_runner_cycle2_deep_tier_partial_failure_with_defenses(tmp_path):
     )
 
     # 4. Defended finding must be downgraded to 'suggestion' by _suppress_defended_findings.
+    #
+    # _suppress_defended_findings is NOT mocked — the real function runs against the
+    # real arch synthesis output. The mock returns severity="critical" for the defended
+    # finding; the only way that severity becomes "suggestion" in the output is if
+    # _suppress_defended_findings ran and matched (severity, description[:80]) against
+    # the prior defense record. A skipped, broken, or bypassed suppression would leave
+    # severity="critical" and this assertion would fail.
     defended_findings = [f for f in findings if f.get("description") == defended_desc]
     assert len(defended_findings) == 1, (
         f"Defended finding must appear in output (downgraded, not removed); "
         f"findings: {findings!r}"
     )
     assert defended_findings[0]["severity"] == "suggestion", (
-        f"Defended finding must be downgraded to 'suggestion' by _suppress_defended_findings; "
-        f"got severity={defended_findings[0]['severity']!r}"
+        f"Defended finding must be downgraded from 'critical' (arch synthesis mock value) to "
+        f"'suggestion' by _suppress_defended_findings; got severity={defended_findings[0]['severity']!r}. "
+        "If this fails, _suppress_defended_findings is broken, bypassed, or not matching the defense key."
     )
 
 
