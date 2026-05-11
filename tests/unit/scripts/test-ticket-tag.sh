@@ -785,5 +785,223 @@ Reviewed by: dso:plan-review substitute path" 2>/dev/null) || {
 
 test_tag_add_checked_rejects_plan_review_substitute_comment
 
+# ── Test 18: PRECONDITIONS brainstorm_complete satisfies PIL check (bug 4284-0dc4) ──
+# When the LLM omits the PIL heading from the epic description, the canonical
+# preconditions-record.sh call in Phase 3 Step 3a should satisfy the _ticket_has_pil
+# check. Without this fallback, brainstorm:complete tag always fails when the LLM
+# writes the description template without the ### Planning Intelligence Log section.
+echo ""
+echo "--- test_ticket_has_pil_passes_with_preconditions_brainstorm_complete ---"
+
+test_ticket_has_pil_passes_with_preconditions_brainstorm_complete() {
+    _snapshot_fail
+    local repo
+    repo=$(_make_test_repo)
+
+    # Given: an epic WITHOUT "### Planning Intelligence Log" in description or comments
+    local ticket_id
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "Epic missing PIL heading" \
+        --description "## Context
+No PIL heading here." 2>/dev/null | tail -1)
+
+    [[ -z "$ticket_id" ]] && {
+        (( ++FAIL ))
+        echo "FAIL: test_ticket_has_pil_passes_with_preconditions_brainstorm_complete: could not create ticket" >&2
+        return
+    }
+
+    # And: a PRECONDITIONS event with gate_name=brainstorm_complete exists
+    # (mirrors what brainstorm Phase 3 Step 3a always writes via preconditions-record.sh)
+    local _precon_exit=0
+    (cd "$repo" && TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+        source "$TICKET_LIB" && \
+        _write_preconditions "$ticket_id" "brainstorm_complete" "test-session" "test-branch" "minimal" "{}") 2>/dev/null || _precon_exit=$?
+
+    if [[ "$_precon_exit" -ne 0 ]]; then
+        (( ++FAIL ))
+        echo "FAIL: test_ticket_has_pil_passes_with_preconditions_brainstorm_complete: could not write preconditions (exit $_precon_exit)" >&2
+        return
+    fi
+
+    # When: _ticket_has_pil is called
+    local _exit=0
+    (cd "$repo" && TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+        source "$TICKET_LIB" && _ticket_has_pil "$ticket_id") 2>/dev/null || _exit=$?
+
+    # Then: exit 0 — PRECONDITIONS with gate_name=brainstorm_complete satisfies the check
+    assert_eq "test_ticket_has_pil_passes_with_preconditions_brainstorm_complete: exit 0 when brainstorm_complete preconditions present" "0" "$_exit"
+    assert_pass_if_clean "test_ticket_has_pil_passes_with_preconditions_brainstorm_complete"
+}
+
+test_ticket_has_pil_passes_with_preconditions_brainstorm_complete
+
+# ── Negative path: _ticket_has_pil returns exit 1 when neither PIL heading nor brainstorm_complete preconditions exist ──
+echo ""
+echo "--- test_ticket_has_pil_fails_without_pil_or_preconditions ---"
+
+test_ticket_has_pil_fails_without_pil_or_preconditions() {
+    _snapshot_fail
+    local repo
+    repo=$(_make_test_repo)
+
+    # Given: an epic WITHOUT "### Planning Intelligence Log" in description or comments
+    # and WITHOUT any PRECONDITIONS event with gate_name=brainstorm_complete
+    local ticket_id
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "Epic missing PIL and preconditions" \
+        --description "## Context
+No PIL heading here.
+No brainstorm_complete preconditions recorded." 2>/dev/null | tail -1)
+
+    [[ -z "$ticket_id" ]] && {
+        (( ++FAIL ))
+        echo "FAIL: test_ticket_has_pil_fails_without_pil_or_preconditions: could not create ticket" >&2
+        return
+    }
+
+    # When: _ticket_has_pil is called (no PRECONDITIONS events written)
+    local _exit=0
+    (cd "$repo" && TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+        source "$TICKET_LIB" && _ticket_has_pil "$ticket_id") 2>/dev/null || _exit=$?
+
+    # Then: exit 1 — no PIL heading and no brainstorm_complete preconditions
+    assert_eq "test_ticket_has_pil_fails_without_pil_or_preconditions: exit 1 when neither PIL nor preconditions present" "1" "$_exit"
+    assert_pass_if_clean "test_ticket_has_pil_fails_without_pil_or_preconditions"
+}
+
+test_ticket_has_pil_fails_without_pil_or_preconditions
+
+# ── Test 20: _ticket_has_pil passes with compacted PRECONDITIONS snapshot ─────
+echo ""
+echo "--- test_ticket_has_pil_passes_with_compacted_preconditions_snapshot ---"
+
+test_ticket_has_pil_passes_with_compacted_preconditions_snapshot() {
+    _snapshot_fail
+    local repo
+    repo=$(_make_test_repo)
+
+    # Given: an epic WITHOUT "### Planning Intelligence Log" in description
+    local ticket_id
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "Epic with compacted preconditions" \
+        --description "## Context
+No PIL heading here." 2>/dev/null | tail -1)
+
+    [[ -z "$ticket_id" ]] && {
+        (( ++FAIL ))
+        echo "FAIL: test_ticket_has_pil_passes_with_compacted_preconditions_snapshot: could not create ticket" >&2
+        return
+    }
+
+    # And: a PRECONDITIONS event with gate_name=brainstorm_complete exists
+    local _precon_exit=0
+    (cd "$repo" && TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+        source "$TICKET_LIB" && \
+        _write_preconditions "$ticket_id" "brainstorm_complete" "test-session" "test-branch" "minimal" "{}") 2>/dev/null || _precon_exit=$?
+
+    if [[ "$_precon_exit" -ne 0 ]]; then
+        (( ++FAIL ))
+        echo "FAIL: test_ticket_has_pil_passes_with_compacted_preconditions_snapshot: could not write preconditions (exit $_precon_exit)" >&2
+        return
+    fi
+
+    # And: the flat PRECONDITIONS event is compacted into a snapshot
+    local _compact_exit=0
+    local ticket_dir="$repo/.tickets-tracker/$ticket_id"
+    (cd "$repo" && TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+        source "$TICKET_LIB" && \
+        _compact_preconditions "$ticket_dir" "$ticket_id") 2>/dev/null || _compact_exit=$?
+
+    if [[ "$_compact_exit" -ne 0 ]]; then
+        (( ++FAIL ))
+        echo "FAIL: test_ticket_has_pil_passes_with_compacted_preconditions_snapshot: _compact_preconditions failed (exit $_compact_exit)" >&2
+        return
+    fi
+
+    # When: _ticket_has_pil is called (only the snapshot remains, no flat events)
+    local _exit=0
+    (cd "$repo" && TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+        source "$TICKET_LIB" && _ticket_has_pil "$ticket_id") 2>/dev/null || _exit=$?
+
+    # Then: exit 0 — compacted snapshot path satisfies the check
+    assert_eq "test_ticket_has_pil_passes_with_compacted_preconditions_snapshot: exit 0 when compacted snapshot present" "0" "$_exit"
+    assert_pass_if_clean "test_ticket_has_pil_passes_with_compacted_preconditions_snapshot"
+}
+
+test_ticket_has_pil_passes_with_compacted_preconditions_snapshot
+
+# ── Test 21: _compact_preconditions deduplicates represented_gate_names ───────
+echo ""
+echo "--- test_compact_preconditions_deduplicates_represented_gate_names ---"
+
+test_compact_preconditions_deduplicates_represented_gate_names() {
+    _snapshot_fail
+    local repo
+    repo=$(_make_test_repo)
+
+    local ticket_id
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "Epic for dedup test" \
+        --description "## Context
+No PIL heading." 2>/dev/null | tail -1)
+
+    [[ -z "$ticket_id" ]] && {
+        (( ++FAIL ))
+        echo "FAIL: test_compact_preconditions_deduplicates_represented_gate_names: could not create ticket" >&2
+        return
+    }
+
+    # Write TWO PRECONDITIONS events both with gate_name=brainstorm_complete
+    # but different session_ids so they produce different files
+    local _p1_exit=0 _p2_exit=0
+    (cd "$repo" && TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+        source "$TICKET_LIB" && \
+        _write_preconditions "$ticket_id" "brainstorm_complete" "session-A" "branch-A" "minimal" "{}") 2>/dev/null || _p1_exit=$?
+    (cd "$repo" && TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+        source "$TICKET_LIB" && \
+        _write_preconditions "$ticket_id" "brainstorm_complete" "session-B" "branch-B" "minimal" "{}") 2>/dev/null || _p2_exit=$?
+
+    if [[ "$_p1_exit" -ne 0 || "$_p2_exit" -ne 0 ]]; then
+        (( ++FAIL ))
+        echo "FAIL: test_compact_preconditions_deduplicates_represented_gate_names: could not write preconditions" >&2
+        return
+    fi
+
+    # Compact the two events into a snapshot
+    local ticket_dir="$repo/.tickets-tracker/$ticket_id"
+    local _compact_exit=0
+    (cd "$repo" && TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+        source "$TICKET_LIB" && \
+        _compact_preconditions "$ticket_dir" "$ticket_id") 2>/dev/null || _compact_exit=$?
+
+    if [[ "$_compact_exit" -ne 0 ]]; then
+        (( ++FAIL ))
+        echo "FAIL: test_compact_preconditions_deduplicates_represented_gate_names: _compact_preconditions failed (exit $_compact_exit)" >&2
+        return
+    fi
+
+    # Read the snapshot and count occurrences of brainstorm_complete in represented_gate_names
+    local snapshot_file
+    snapshot_file=$(find "$ticket_dir" -maxdepth 1 -name '*-PRECONDITIONS-SNAPSHOT.json' 2>/dev/null | head -1)
+
+    if [[ -z "$snapshot_file" ]]; then
+        (( ++FAIL ))
+        echo "FAIL: test_compact_preconditions_deduplicates_represented_gate_names: snapshot file not found" >&2
+        return
+    fi
+
+    local count
+    count=$(python3 -c "
+import json, sys
+with open(sys.argv[1], encoding='utf-8') as fh:
+    snap = json.load(fh)
+names = snap.get('data', {}).get('represented_gate_names', [])
+print(names.count('brainstorm_complete'))
+" "$snapshot_file" 2>/dev/null)
+
+    # brainstorm_complete must appear exactly once (deduplication)
+    assert_eq "test_compact_preconditions_deduplicates_represented_gate_names: brainstorm_complete appears once in represented_gate_names" "1" "$count"
+    assert_pass_if_clean "test_compact_preconditions_deduplicates_represented_gate_names"
+}
+
+test_compact_preconditions_deduplicates_represented_gate_names
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary

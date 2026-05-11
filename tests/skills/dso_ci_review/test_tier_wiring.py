@@ -112,9 +112,12 @@ def test_light_tier_dispatch_skips_augmentation_loop(tmp_path: pathlib.Path) -> 
     diff_file = tmp_path / "test.diff"
     diff_file.write_text(_DIFF_TEXT)
 
-    with patch("litellm.completion", side_effect=mock_completion), patch(
-        "dso_ci_review.context_request.execute_read_files"
-    ) as mock_execute_read_files:
+    with (
+        patch("litellm.completion", side_effect=mock_completion),
+        patch(
+            "dso_ci_review.context_request.execute_read_files"
+        ) as mock_execute_read_files,
+    ):
         dispatch_review(
             diff_text=_DIFF_TEXT,
             provider_chain=["anthropic"],

@@ -594,8 +594,9 @@ def test_augmentation_soft_cap_nudge_triggers_final_findings(
     environ = {"ANTHROPIC_API_KEY": "test-key"}
 
     # Patch soft cap to 2 so test runs fast
-    with patch.object(_dispatch_mod, "CONTEXT_AUG_SOFT_CAP", 2), patch(
-        "litellm.completion", side_effect=mock_completion
+    with (
+        patch.object(_dispatch_mod, "CONTEXT_AUG_SOFT_CAP", 2),
+        patch("litellm.completion", side_effect=mock_completion),
     ):
         result = dispatch.dispatch_review(
             diff_text="--- a/f.py\n+++ b/f.py\n@@ -1 +1 @@\n-x\n+y",
@@ -626,8 +627,9 @@ def test_augmentation_fail_closed_past_hard_cap(tmp_path: pathlib.Path) -> None:
 
     environ = {"ANTHROPIC_API_KEY": "test-key"}
 
-    with patch.object(_dispatch_mod, "CONTEXT_AUG_SOFT_CAP", 1), patch(
-        "litellm.completion", side_effect=mock_completion
+    with (
+        patch.object(_dispatch_mod, "CONTEXT_AUG_SOFT_CAP", 1),
+        patch("litellm.completion", side_effect=mock_completion),
     ):
         result = dispatch.dispatch_review(
             diff_text="--- a/f.py\n+++ b/f.py\n@@ -1 +1 @@\n-x\n+y",
@@ -676,8 +678,9 @@ def test_augmentation_post_nudge_request_with_findings_is_ignored(
 
     environ = {"ANTHROPIC_API_KEY": "test-key"}
 
-    with patch.object(_dispatch_mod, "CONTEXT_AUG_SOFT_CAP", 2), patch(
-        "litellm.completion", side_effect=mock_completion
+    with (
+        patch.object(_dispatch_mod, "CONTEXT_AUG_SOFT_CAP", 2),
+        patch("litellm.completion", side_effect=mock_completion),
     ):
         result = dispatch.dispatch_review(
             diff_text="--- a/f.py\n+++ b/f.py\n@@ -1 +1 @@\n-x\n+y",
@@ -846,8 +849,9 @@ def test_second_nudge_message_sent_before_fail_closed(tmp_path: pathlib.Path) ->
 
     # soft_cap=1: first nudge fires at aug_turn=1, second nudge at aug_turn=4 (soft_cap+3),
     # fail-closed at aug_turn=5 (soft_cap+4)
-    with patch.object(_dispatch_mod, "CONTEXT_AUG_SOFT_CAP", 1), patch(
-        "litellm.completion", side_effect=mock_completion
+    with (
+        patch.object(_dispatch_mod, "CONTEXT_AUG_SOFT_CAP", 1),
+        patch("litellm.completion", side_effect=mock_completion),
     ):
         result = dispatch.dispatch_review(
             diff_text="--- a/f.py\n+++ b/f.py\n@@ -1 +1 @@\n-x\n+y",
@@ -905,8 +909,9 @@ def test_reviewer_complies_after_second_nudge(tmp_path: pathlib.Path) -> None:
 
     # soft_cap=1: first nudge at aug_turn=1, second nudge at aug_turn=4 (soft_cap+3=4),
     # fail-closed at aug_turn=5 (soft_cap+4=5). Reviewer complies at aug_turn=4.
-    with patch.object(_dispatch_mod, "CONTEXT_AUG_SOFT_CAP", 1), patch(
-        "litellm.completion", side_effect=mock_completion
+    with (
+        patch.object(_dispatch_mod, "CONTEXT_AUG_SOFT_CAP", 1),
+        patch("litellm.completion", side_effect=mock_completion),
     ):
         result = dispatch.dispatch_review(
             diff_text="--- a/f.py\n+++ b/f.py\n@@ -1 +1 @@\n-x\n+y",
@@ -925,6 +930,8 @@ def test_reviewer_complies_after_second_nudge(tmp_path: pathlib.Path) -> None:
     )
     findings = result.get("findings", [])
     assert findings, "Expected non-empty findings list after second-nudge compliance"
-    assert findings[0].get("severity") != "critical" or findings[0].get("description", "").startswith("ok"), (
+    assert findings[0].get("severity") != "critical" or findings[0].get(
+        "description", ""
+    ).startswith("ok"), (
         f"Expected accepted reviewer findings (not a fail-closed synthetic finding), got: {findings[0]!r}"
     )
