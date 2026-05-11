@@ -13,9 +13,10 @@ Read and execute this workflow whenever `merge-to-main.sh` has opened a PR but e
 - **Current branch matches the PR's head branch.** Before entering the loop, verify:
   ```bash
   CURRENT=$(git branch --show-current)
-  HEAD_REF=$(gh pr view <pr-number> --json headRefName --jq .headRefName)
+  HEAD_REF=$(gh pr view <pr-number> --json headRefName | python3 -c "import json,sys;print(json.load(sys.stdin)['headRefName'])")
   [[ "$CURRENT" == "$HEAD_REF" ]] || { echo "ESCALATE: on branch $CURRENT but PR <pr-number> is on $HEAD_REF — switch or escalate"; exit 1; }
   ```
+  (Uses python3 rather than `jq` for portability; the rest of the project's tooling does not require jq.)
   Agent actions (push, merge main into branch, resolve conflicts) operate on the current branch. Running the loop from a wrong branch will push fixes to the wrong place and corrupt state.
 - Working tree clean before entering the loop (no staged or unstaged changes from unrelated work).
 
@@ -42,9 +43,11 @@ The classifier returns a single JSON object on stdout. Switch on its `status` fi
 
 ### Bounded loop
 
-- **Per-iteration sleep on `CHECKS_PENDING`**: 60s default, 120s max. Do not exceed 30 minutes of total wall-clock waiting on pending checks without escalating.
-- **Per-PR maximum iterations**: 15. If the loop exceeds this, escalate to user with the last classifier output — there is likely a stable failure the agent cannot resolve.
-- **Same-failure detection**: track the last failing-check name and the last unresolved-thread IDs you addressed. If the same item recurs three times after a fix attempt, escalate (cascade-recovery territory).
+Escalation conditions are evaluated **in priority order** — whichever fires first triggers escalation. Do not wait for a later condition if an earlier one has already fired.
+
+1. **Same-failure detection** (highest priority — fires earliest). Track the last failing-check name and the last unresolved-thread IDs you addressed. If the same item recurs three times after a fix attempt, escalate immediately (cascade-recovery territory). This catches stuck-loops before they consume the global cap.
+2. **Per-PR maximum iterations**: 15. If the loop exceeds this, escalate with the last classifier output — likely a stable failure the agent cannot resolve.
+3. **Per-iteration sleep on `CHECKS_PENDING`**: 60s default, 120s max. Do not exceed 30 minutes of total wall-clock waiting on pending checks without escalating.
 
 ## Resolve Conflicts
 
