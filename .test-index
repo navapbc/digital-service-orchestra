@@ -232,7 +232,7 @@ plugins/dso/scripts/preconditions-baseline-collect.sh:tests/scripts/test-precond
 plugins/dso/scripts/preconditions-benchmark.sh:tests/scripts/test-preconditions-benchmark.sh
 plugins/dso/scripts/preconditions-coverage-harness.sh:tests/scripts/test-818-coverage-harness.sh
 plugins/dso/scripts/preconditions-depth-classifier.sh:tests/scripts/test-preconditions-depth-classifier.sh
-plugins/dso/scripts/preconditions-record.sh:tests/scripts/test-preconditions-record.sh [test_degradation_cli_flags]
+plugins/dso/scripts/preconditions-record.sh:tests/scripts/test-preconditions-record.sh
 plugins/dso/scripts/preconditions-validator.sh:tests/scripts/test-preconditions-validator.sh,tests/skills/test-preplanning-preconditions-integration.sh
 plugins/dso/scripts/read-overlay-flags.sh:tests/scripts/test-read-overlay-flags.sh
 plugins/dso/scripts/recipe-adapters/ts-morph-add-parameter.mjs:tests/scripts/test-ts-morph-add-parameter.sh
