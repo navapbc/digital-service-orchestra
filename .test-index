@@ -98,7 +98,7 @@ plugins/dso/hooks/**/*.sh:tests/hooks/test-no-plugin-comment-refs.sh
 plugins/dso/hooks/check-artifact-versions.sh:tests/scripts/test-artifact-update-integration.sh
 plugins/dso/hooks/check-plugin-self-ref.sh:tests/hooks/test-enforcement-gate.sh
 plugins/dso/hooks/check-portability.sh:tests/hooks/test-enforcement-gate.sh
-plugins/dso/hooks/check-precondition-emit.sh:tests/scripts/test-check-precondition-emit.sh [test_trigger_no_landmark] [test_trigger_with_nearby_landmark] [test_trigger_with_distant_landmark] [test_suppression_annotation] [test_preexisting_not_flagged] [test_non_target_file] [test_no_trigger_keyword]
+plugins/dso/hooks/check-precondition-emit.sh:tests/scripts/test-check-precondition-emit.sh
 plugins/dso/hooks/check-tickets-boundary.sh:tests/hooks/test-check-tickets-boundary.sh
 plugins/dso/hooks/compute-diff-hash.sh:tests/hooks/test-compute-diff-hash-staging-invariance.sh,tests/hooks/test-compute-diff-hash-autostash-invariance.sh,tests/hooks/test-behavioral-equivalence-allowlist.sh
 plugins/dso/hooks/dispatchers/post-agent.sh:tests/hooks/test-post-agent-sentinel.sh,tests/hooks/test-post-dispatcher-err-handler.sh,tests/hooks/test-post-agent-attribution.sh [test_post_agent_dispatcher_writes_attribution_jsonl_entry]
@@ -303,7 +303,7 @@ plugins/dso/scripts/ticket-unblock.py:tests/scripts/test-ticket-transition-delet
 plugins/dso/scripts/ticket-untag.sh:tests/unit/scripts/test-ticket-tag.sh
 plugins/dso/scripts/ticket:tests/scripts/test-ticket-compact-all.sh,tests/unit/scripts/test-ticket-tag.sh,tests/scripts/test-tag-cli-refactor.sh,tests/scripts/test-ticket-init-bash-native.sh,tests/scripts/test-ticket-validate.sh,tests/scripts/test-ticket-classify.sh,tests/scripts/test-ticket-clarity-check-dispatcher.sh,tests/scripts/test-ticket-check-ac-dispatcher.sh,tests/scripts/test-ticket-quality-check-dispatcher.sh,tests/scripts/test-ticket-purge-bridge-dispatcher.sh,tests/scripts/test-ticket-summary-dispatcher.sh,tests/scripts/test-ticket-exists-dispatcher.sh,tests/scripts/test-ticket-ready-dispatcher.sh,tests/scripts/test-ticket-list-epics-dispatcher.sh,tests/scripts/test-ticket-list-descendants-dispatcher.sh,tests/scripts/test-ticket-next-batch-dispatcher.sh,tests/scripts/test-ticket-archive-subcommand.sh,tests/scripts/test-ticket-set-get-file-impact.sh,tests/scripts/test-ticket-delete.sh,tests/acceptance/test-ticket-delete-e2e.sh
 plugins/dso/scripts/update-artifacts.sh:tests/scripts/test-artifact-update-integration.sh
-plugins/dso/scripts/validate-ack-rationale.sh:tests/scripts/test-validate-ack-rationale.sh [test_empty_string_rejected] [test_whitespace_only_rejected] [test_under_10_chars_rejected] [test_exactly_9_chars_rejected] [test_valid_3_word_window_match_accepted] [test_no_3_word_window_match_rejected] [test_non_latin_precondition_triggers_manual_review] [test_near_miss_2_word_window_rejected]
+plugins/dso/scripts/validate-ack-rationale.sh:tests/scripts/test-validate-ack-rationale.sh
 plugins/dso/scripts/validate-phase.sh:tests/scripts/test-validate-phase-missing-test-unit.sh,tests/test-validate-phase-portability.sh,tests/scripts/test-residual-callers-polyglot.sh
 plugins/dso/scripts/validate-review-output.sh:tests/hooks/test-validate-review-output.sh,tests/scripts/test-write-reviewer-findings.sh
 plugins/dso/scripts/validate.sh:tests/scripts/test-validate-config-driven.sh
