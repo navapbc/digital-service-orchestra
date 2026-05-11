@@ -80,13 +80,6 @@ def reconcile(tickets_root: Path, bridge_env_id: str = "", dry_run: bool = False
         ticket_type = create_data.get("ticket_type") or "task"
         priority = create_data.get("priority")
 
-        jira_type = _jira_type_for(ticket_type)
-        jira_priority = _jira_priority_for(priority) if isinstance(priority, int) else None
-
-        # Only emit if there's something to fix (non-capitalized type or missing priority).
-        needs_type_fix = ticket_type != ticket_type.capitalize() and ticket_type.capitalize() != "Task"
-        # If the type was already stored capitalized, skip. If it was stored lowercase, fix it.
-        # A simpler check: was the original value already properly capitalized?
         original_type_correct = ticket_type == ticket_type.capitalize()
         original_priority_translatable = isinstance(priority, int) and priority in _LOCAL_PRIORITY_TO_JIRA
 
