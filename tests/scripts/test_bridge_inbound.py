@@ -896,6 +896,80 @@ class TestProcessInbound:
             f"found {len(create_files)}"
         )
 
+    @pytest.mark.unit
+    @pytest.mark.scripts
+    @pytest.mark.parametrize(
+        "backfill_value,expect_epoch",
+        [
+            (True, True),  # boolean True → epoch
+            ("true", True),  # case-insensitive string
+            ("yes", True),
+            ("on", True),
+            ("2025-01-15T06:00:00Z", False),  # ISO 8601 → explicit timestamp
+        ],
+    )
+    def test_process_inbound_backfill_parsing_variants(
+        self,
+        tmp_path: Path,
+        bridge: ModuleType,
+        backfill_value: object,
+        expect_epoch: bool,
+    ) -> None:
+        """Bug 7b07-d55c-59bb-4874: process_inbound must accept all documented
+        backfill variants (True, "true", "yes", "on" → epoch; ISO 8601 → that ts).
+
+        Verifies the JQL passed to search_issues references the expected year,
+        not the recent checkpoint year.
+        """
+        tickets_root = tmp_path / ".tickets-tracker"
+        tickets_root.mkdir()
+
+        checkpoint_file = tmp_path / "bridge-checkpoint.json"
+        recent_ts = "2026-05-10T00:00:00Z"
+        checkpoint_file.write_text(
+            json.dumps({"last_pull_ts": recent_ts}), encoding="utf-8"
+        )
+
+        mock_client = MagicMock()
+        mock_client.search_issues = MagicMock(return_value=[])
+        mock_client.get_myself = MagicMock(return_value={"timeZone": "UTC"})
+
+        config = {
+            "bridge_env_id": _BRIDGE_ENV_ID,
+            "overlap_buffer_minutes": 5,
+            "checkpoint_file": str(checkpoint_file),
+            "status_mapping": {"To Do": "pending"},
+            "type_mapping": {"Task": "task"},
+            "backfill": backfill_value,
+        }
+
+        bridge.process_inbound(
+            tickets_root=tickets_root,
+            acli_client=mock_client,
+            last_pull_ts=recent_ts,
+            config=config,
+        )
+
+        assert mock_client.search_issues.called, (
+            "process_inbound must call search_issues for any truthy backfill"
+        )
+        jql_called = mock_client.search_issues.call_args[0][0]
+        assert "2026" not in jql_called, (
+            f"backfill={backfill_value!r} must override checkpoint; "
+            f"JQL still references recent year: {jql_called!r}"
+        )
+        if expect_epoch:
+            assert "1969" in jql_called or "1970" in jql_called, (
+                f"backfill={backfill_value!r} must seed at epoch; "
+                f"JQL was {jql_called!r}"
+            )
+        else:
+            # ISO 8601 → use that explicit timestamp (2025), not the epoch or 2026
+            assert "2025" in jql_called, (
+                f"backfill={backfill_value!r} must use the explicit timestamp year "
+                f"in JQL; got {jql_called!r}"
+            )
+
 
 # ---------------------------------------------------------------------------
 # TestDestructiveChangeGuards

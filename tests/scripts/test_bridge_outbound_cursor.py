@@ -213,6 +213,46 @@ def test_cold_start_cap_exceeded_seeds_at_head(
     assert any("cap exceeded" in r for r in reasons)
 
 
+def test_cold_start_git_log_failure_seeds_at_head(
+    tmp_path: Path, cursor_mod: ModuleType
+) -> None:
+    """Cold-start: when git log returns non-zero (e.g. corrupt repo, deepen error),
+    fetch_events_since_cursor must fall back to _seed_at_head: write cursor at
+    HEAD, emit BRIDGE_ALERT, and return [].
+
+    This covers the lines 154-159 fallback branch in _outbound_cursor.py.
+    """
+    from unittest.mock import MagicMock, patch
+
+    repo = _make_tmp_git_tracker(tmp_path)
+    _commit_event(repo, "ticket-fail", "CREATE")
+    head_sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
+
+    # Simulate git log failure for the cold-start call only (no range arg).
+    # _run_git_log(None) is the cold-start path; _seed_at_head calls git rev-parse,
+    # so we must let that through while making git log fail.
+    original_run = subprocess.run
+
+    def _selective_fail(*args: object, **kwargs: object) -> subprocess.CompletedProcess:  # type: ignore[type-arg]
+        cmd = args[0] if args else []
+        if isinstance(cmd, list) and "log" in cmd:
+            result: subprocess.CompletedProcess = MagicMock()  # type: ignore[type-arg]
+            result.returncode = 1
+            result.stdout = ""
+            result.stderr = "fatal: simulated git log failure"
+            return result
+        return original_run(*args, **kwargs)  # type: ignore[arg-type]
+
+    with patch("subprocess.run", side_effect=_selective_fail):
+        events = cursor_mod.fetch_events_since_cursor(repo, None)
+
+    assert events == [], "cold-start git-log failure must return [] (seed at HEAD)"
+    stored_cursor = cursor_mod.read_cursor(repo)
+    assert stored_cursor == head_sha, (
+        f"cursor must be written at HEAD ({head_sha!r}); got {stored_cursor!r}"
+    )
+
+
 def test_unreachable_sha_seeds_at_head(tmp_path: Path, cursor_mod: ModuleType) -> None:
     repo = _make_tmp_git_tracker(tmp_path)
     _commit_event(repo, "ticket-zzzz", "STATUS")

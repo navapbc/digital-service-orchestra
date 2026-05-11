@@ -118,48 +118,6 @@ assert_eq "non_numeric_status_unknown" "UNKNOWN" "$_STATUS"
 rm -rf "$_MOCK_DIR"
 
 # ---------------------------------------------------------------------------
-# Helper: build a full mock dir for a given PR scenario
-# ---------------------------------------------------------------------------
-make_mock() {
-    local pr_state="$1" mergeable="$2" merge_state="$3" review_dec="$4"
-    local checks_json="$5" graphql_json="$6"
-    local pr_num="${7:-42}"
-    local mock_dir
-    mock_dir=$(mktemp -d)
-
-    local pr_view
-    pr_view=$(pr_view_json "$pr_state" "$mergeable" "$merge_state" "$review_dec")
-
-    # Escape single-quotes inside JSON for embedding in heredoc
-    cat > "$mock_dir/gh" <<MOCKSCRIPT
-#!/usr/bin/env bash
-case "\$1 \$2" in
-  "repo view")
-    echo '$REPO_JSON'
-    ;;
-  "pr view")
-    echo '${pr_view//\'/\'\"\'\"\'}'
-    ;;
-  "pr checks")
-    cat <<'CHECKS_EOF'
-${checks_json}
-CHECKS_EOF
-    ;;
-  "api graphql")
-    cat <<'GQL_EOF'
-${graphql_json}
-GQL_EOF
-    ;;
-  *)
-    exit 1
-    ;;
-esac
-MOCKSCRIPT
-    chmod +x "$mock_dir/gh"
-    echo "$mock_dir"
-}
-
-# ---------------------------------------------------------------------------
 # Simpler direct-write mock helper
 # ---------------------------------------------------------------------------
 write_scenario_mock() {

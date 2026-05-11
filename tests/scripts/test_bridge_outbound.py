@@ -2148,3 +2148,37 @@ def test_handle_status_event_raises_when_retroactive_create_returns_empty_key(
             reducer_path=REDUCER_PATH,
             status_updated=status_updated,
         )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_sort_events_for_dispatch_link_unlink_are_group0_before_group1() -> None:
+    """LINK/UNLINK events (group 0) must sort before all non-LINK/UNLINK events
+    (group 1) regardless of their position in the input list or their timestamp.
+
+    The two-group sort key encodes LINK/UNLINK as group 0 and everything else
+    as group 1 so relationship-management operations are dispatched first.
+    """
+    handlers = _load_handlers()
+
+    # Input: STATUS and CREATE (group 1) appear BEFORE LINK (group 0)
+    events = [
+        {"ticket_id": "ticket-aaa", "event_type": "STATUS", "file_path": ""},
+        {"ticket_id": "ticket-bbb", "event_type": "CREATE", "file_path": ""},
+        {"ticket_id": "ticket-ccc", "event_type": "LINK", "file_path": ""},
+        {"ticket_id": "ticket-ddd", "event_type": "UNLINK", "file_path": ""},
+    ]
+
+    sorted_events = handlers.sort_events_for_dispatch(events)
+    types = [e["event_type"] for e in sorted_events]
+
+    # All LINK/UNLINK must precede all STATUS/CREATE
+    link_indices = [i for i, t in enumerate(types) if t in ("LINK", "UNLINK")]
+    group1_indices = [i for i, t in enumerate(types) if t not in ("LINK", "UNLINK")]
+
+    assert link_indices, "LINK/UNLINK events must appear in sorted output"
+    assert group1_indices, "Non-LINK/UNLINK events must appear in sorted output"
+    assert max(link_indices) < min(group1_indices), (
+        f"All LINK/UNLINK (group 0) must sort before all STATUS/CREATE (group 1); "
+        f"got order: {types}"
+    )
