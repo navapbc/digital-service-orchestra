@@ -241,3 +241,47 @@ def test_process_events_multi_commit_catches_all_events(
         "cursor must advance past all three commits; staying at base means the "
         "HEAD~1 blindness bug is still present"
     )
+
+
+def test_fetch_events_file_path_resolvable_for_create_event(
+    tmp_path: Path, cursor_mod: ModuleType
+) -> None:
+    """file_path in returned events must be resolvable to read event data.
+
+    When git log emits bare relative paths (no .tickets-tracker/ prefix),
+    the stored file_path must be absolute so _read_event_file can open it
+    regardless of process CWD (jira-dig-2163).
+    """
+    from bridge._outbound_api import read_event_file  # noqa: PLC0415
+
+    repo = _make_tmp_git_tracker(tmp_path)
+    base_sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
+
+    ticket_dir = repo / "ticket-create-1234"
+    ticket_dir.mkdir(exist_ok=True)
+    ts = time.time_ns()
+    eu = str(uuid.uuid4())
+    filename = f"{ts}-{eu}-CREATE.json"
+    expected_title = "My Human Readable Title"
+    payload = {
+        "event_type": "CREATE",
+        "timestamp": ts,
+        "uuid": eu,
+        "env_id": "aaaaaaaa-0000-4000-8000-000000000001",
+        "data": {"ticket_type": "epic", "title": expected_title},
+    }
+    path = ticket_dir / filename
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    _git(repo, "add", str(path.relative_to(repo)))
+    _git(repo, "commit", "-q", "-m", "add CREATE for ticket-create-1234")
+
+    events = cursor_mod.fetch_events_since_cursor(repo, base_sha)
+    assert len(events) == 1
+    assert events[0]["event_type"] == "CREATE"
+
+    event_data = read_event_file(events[0]["file_path"])
+    assert event_data is not None, (
+        f"file_path {events[0]['file_path']!r} could not be opened — "
+        "bare relative path not resolvable from process CWD"
+    )
+    assert event_data.get("data", {}).get("title") == expected_title
