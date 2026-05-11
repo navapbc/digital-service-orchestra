@@ -11,7 +11,9 @@ You are a Principal Software Engineer at Google who specializes in troubleshooti
 
 This skill handles bug fixes with investigation-first TDD discipline.
 
-**Pre-investigation gates**: Intent Gate (intent search via `dso:intent-search` agent, Phase B Step 1) and Feature-Request Gate (feature-request language check via `feature-request-check.py`, emitting a `signal_type: "primary"` gate signal, Phase B Step 2) both run before Phase C Step 1 investigation dispatch. Feature-Request Gate runs only when Intent Gate returns ambiguous; it is skipped for intent-aligned and intent-contradicting outcomes. On script failure, the gate defaults to non-blocking to prevent investigation blockage.
+**Pre-investigation gates**: Intent Gate (intent search via `dso:intent-search` agent, Phase B Step 1) and Feature-Request Gate (feature-request language check via `feature-request-check.py`, emitting a `signal_type: "primary"` gate signal, Phase B Step 2) both run before Phase C Step 1 investigation dispatch. Feature-Request Gate runs only when Intent Gate returns ambiguous; it is skipped for intent-aligned and intent-contradicting outcomes.
+<!-- EMIT-PRECONDITIONS: gate_name=fix_bug_feature_request_gate degradation_type=inferred_decision -->
+On script failure, the gate defaults to non-blocking to prevent investigation blockage.
 
 <HARD-GATE>
 Do NOT modify any code, write any fix, or make any file changes until Steps 1–5 are complete (classify, investigate, hypothesis test, approve, RED test). This applies regardless of how simple or obvious the bug appears. Steps 1–5 must complete before any code modification.
@@ -374,6 +376,7 @@ Intent Gate has four possible outcomes. The **ambiguous** outcome falls through 
   ```
   Then proceed to Phase C Step 1 as if `INTENT_GATE_RESULT="intent-aligned"`.
 
+<!-- EMIT-PRECONDITIONS: gate_name=fix_bug_intent_search degradation_type=inferred_decision -->
 **Graceful degradation:** If the intent-search agent dispatch fails (timeout, nonzero exit, empty output, or unparseable JSON / malformed signal), treat the result as **ambiguous** (`INTENT_GATE_RESULT="ambiguous"`) and fall through to Feature-Request Gate. Agent failure must never block a legitimate bug investigation. Log the failure via `ticket comment <BUG_TICKET_ID> "Intent Gate: agent failure — treating as ambiguous. Error: <error detail>"`.
 
 **Mechanical fix path**: Bugs routed through the Mechanical Fix Path bypass Phase B Step 1 entirely, so `INTENT_GATE_RESULT` will be unset when Reversal Gate runs. Reversal Gate handles this via the default guard shown in its bash snippet (`INTENT_GATE_RESULT=${INTENT_GATE_RESULT:-}`).
@@ -424,6 +427,7 @@ The script exits 0 always and emits a single JSON gate signal to stdout conformi
 
 - **`triggered: false`** — No feature-request language detected. Proceed directly to Phase C Step 1 (Investigation Sub-Agent Dispatch).
 
+<!-- EMIT-PRECONDITIONS: gate_name=fix_bug_feature_request_check degradation_type=inferred_decision -->
 **Graceful degradation:** If `feature-request-check.py` exits nonzero, produces empty stdout, or yields unparseable JSON, treat the result as `triggered: false` and proceed to Phase C Step 1 without blocking. Construct the fallback signal explicitly:
 
 ```bash
@@ -886,6 +890,7 @@ DEPENDENCY_GATE_OUTPUT=$(bash "$PLUGIN_SCRIPTS/fix-bug/dependency-check.sh" "${A
 
 After all gate checks (Gates 1b, 2a, 2b, 2c, and 2d) have run, collect the resulting gate signals and route the fix workflow proportionally based on how many primary gates fired.
 
+<!-- EMIT-PRECONDITIONS: gate_name=fix_bug_post_fix_gates degradation_type=inferred_decision -->
 **Collect signals and run the router**: `route-escalation.sh` reads each gate output from env vars (filters malformed/empty silently — fail-open) and emits the router's routing JSON. Pass `--complex` when the complexity evaluator (in the approval phase) returned `COMPLEX`.
 
 ```bash
