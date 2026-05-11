@@ -2086,16 +2086,14 @@ def test_runner_cycle2_deep_tier_partial_failure_with_defenses(tmp_path):
         "arch_all_synthetic must NOT fire when only some findings are synthetic (bug 5329-552b)."
     )
 
-    # 2. Defense context must have been injected into the merged JSON passed to arch synthesis.
+    # 2. Defense content must have been injected into the merged JSON passed to arch synthesis.
+    # Check the defense record's actual description is present — not the prose section label,
+    # which is an implementation detail that could be renamed without breaking behavior.
     arch_call_arg = captured_synthesis_calls[0]
-    assert "Prior round defenses" in arch_call_arg, (
-        f"Arch synthesis must receive defense context on cycle 2; "
-        f"got merged_findings_json without defense block: {arch_call_arg!r}"
-    )
     # defended_desc may be JSON-encoded (em-dash → —); check for prefix before the dash
     defended_desc_prefix = defended_desc.split("—")[0].strip()
     assert defended_desc_prefix in arch_call_arg, (
-        f"Arch synthesis merged JSON must contain the defended description; "
+        f"Arch synthesis merged JSON must contain the defended description content; "
         f"got: {arch_call_arg!r}"
     )
 
