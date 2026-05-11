@@ -13,6 +13,7 @@
 #  6. test_fail_open                — malformed JSON PRECONDITIONS → exit 0 (fail-open)
 #  7. test_multiple_unacked         — two unacked ids → exit 1, both ids in stdout
 #  8. test_no_preconditions_file    — dir has only STATUS.json, no PRECONDITIONS → exit 0
+#  9. test_step18_check_before_verifier — check-unacked-degradations.sh appears before dso:completion-verifier in sprint SKILL.md Step 18
 #
 # Usage: bash tests/scripts/test-check-unacked-degradations.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
@@ -121,6 +122,19 @@ test_no_preconditions_file() {
     assert_pass_if_clean "test_no_preconditions_file"
 }
 
+# ── test_step18_check_before_verifier ─────────────────────────────────────────
+# Sprint SKILL.md Step 18 must invoke check-unacked-degradations.sh BEFORE
+# dispatching dso:completion-verifier and BEFORE the OPEN_CHILDREN= bash block.
+test_step18_check_before_verifier() {
+    _snapshot_fail
+    python3 -c "
+c = open('plugins/dso/skills/sprint/SKILL.md').read()
+assert c.index('check-unacked-degradations.sh') < c.index('dso:completion-verifier'), 'check must appear before completion-verifier dispatch'
+assert c.index('check-unacked-degradations.sh') < c.index('OPEN_CHILDREN='), 'check must appear before OPEN_CHILDREN= bash block'
+" 2>&1 || (( ++FAIL ))
+    assert_pass_if_clean "test_step18_check_before_verifier"
+}
+
 # ── Run all tests ──────────────────────────────────────────────────────────────
 test_no_events
 test_no_degradation_entries
@@ -130,5 +144,6 @@ test_partial_ack
 test_fail_open
 test_multiple_unacked
 test_no_preconditions_file
+test_step18_check_before_verifier
 
 print_summary
