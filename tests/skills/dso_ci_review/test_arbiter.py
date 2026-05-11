@@ -16,9 +16,8 @@ from __future__ import annotations
 
 import sys
 import pathlib
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import pytest
 
 # Ensure the plugin scripts directory is on sys.path so that
 # `dso_ci_review.arbiter` resolves to the plugin source, not the test package.
@@ -80,14 +79,20 @@ def test_dispatch_arbiter_called_on_resustain_of_with_prior_defense():
     )
 
     # The diff payload forwarded to dispatch_review must contain the defense text
-    diff_arg = kwargs.get("diff") or kwargs.get("diff_text") or (args[1] if len(args) > 1 else None)
+    diff_arg = (
+        kwargs.get("diff")
+        or kwargs.get("diff_text")
+        or (args[1] if len(args) > 1 else None)
+    )
     assert diff_arg is not None, "No diff argument passed to dispatch_review"
     assert prior_defense["defense_text"] in diff_arg, (
         "Prior defense text not embedded in diff sent to arbiter"
     )
 
     # Return value must have a 'ruling' key
-    assert "ruling" in result, f"Expected 'ruling' key in result, got: {list(result.keys())!r}"
+    assert "ruling" in result, (
+        f"Expected 'ruling' key in result, got: {list(result.keys())!r}"
+    )
 
 
 # ---------------------------------------------------------------------------

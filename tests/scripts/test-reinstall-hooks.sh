@@ -546,13 +546,15 @@ fi
 rm -rf "$TMPDIR_T12"
 
 # ---------------------------------------------------------------------------
-# Test 13: pre-commit-compliance-verifier hook is registered after reinstall [RED]
+# Test 13: pre-commit-compliance-verifier is NOT passed as --hook-type
 #
-# reinstall-hooks.sh currently does not install pre-commit-compliance-verifier.
-# This test asserts that it IS registered. It MUST FAIL until T6 adds
-# pre-commit-compliance-verifier registration to reinstall-hooks.sh.
+# The compliance-verifier hook (id: compliance-verifier) is registered under
+# stages: [pre-commit] in .pre-commit-config.yaml. It is NOT a separate git
+# hook stage. Passing it as --hook-type to pre-commit install would be silently
+# rejected (unknown stage). reinstall-hooks.sh must NOT include it in the
+# install loop — the existing pre-commit stage installation already covers it.
 # ---------------------------------------------------------------------------
-echo "Test 13: pre-commit-compliance-verifier hook registered after reinstall [RED]"
+echo "Test 13: pre-commit-compliance-verifier NOT passed as --hook-type"
 
 TMPDIR_T13=$(mktemp -d)
 _CLEANUP_DIRS+=("$TMPDIR_T13")
@@ -562,7 +564,7 @@ git -C "$TMPDIR_T13" init -q "$FAKE_REPO13"
 git -C "$FAKE_REPO13" config user.email "test@test.com"
 git -C "$FAKE_REPO13" config user.name "Test"
 
-# Create a mock pre-commit that records which hook types were installed
+# Create a mock pre-commit that records which hook types were requested
 INSTALLED_HOOKS_LOG13="$TMPDIR_T13/installed-hooks.log"
 cat > "$FAKE_REPO13/app/.venv/bin/pre-commit" << MOCK_T13
 #!/usr/bin/env bash
@@ -588,23 +590,24 @@ chmod +x "$FAKE_REPO13/app/.venv/bin/pre-commit"
 
 WORKTREE_PATH="$FAKE_REPO13" bash "$SCRIPT" 2>/dev/null || true
 
-# Assert that pre-commit-compliance-verifier hook was registered
+# Assert that pre-commit-compliance-verifier was NOT requested as a hook-type
+# (it is a hook ID under the pre-commit stage, not a standalone git stage)
 if [ -f "$INSTALLED_HOOKS_LOG13" ] && grep -q "^pre-commit-compliance-verifier$" "$INSTALLED_HOOKS_LOG13"; then
-    assert_eq "test_compliance_verifier_registered" "installed" "installed"
+    assert_eq "test_compliance_verifier_not_passed_as_hook_type" "not-requested" "was-requested"
 else
-    assert_eq "test_compliance_verifier_registered" "installed" "not-installed"
+    assert_eq "test_compliance_verifier_not_passed_as_hook_type" "not-requested" "not-requested"
 fi
 
 rm -rf "$TMPDIR_T13"
 
 # ---------------------------------------------------------------------------
-# Test 14: compliance-verifier hook shim is executable after reinstall [RED]
+# Test 14: pre-commit stage hook shim is executable after reinstall
 #
-# After reinstall-hooks.sh adds pre-commit-compliance-verifier registration
-# (T6), the generated shim at .git/hooks/pre-commit-compliance-verifier must
-# be executable. This test MUST FAIL until T6 adds the registration.
+# The compliance-verifier hook lives under stages: [pre-commit], so it runs
+# via the standard .git/hooks/pre-commit shim. After reinstall-hooks.sh runs,
+# the pre-commit shim must exist and be executable.
 # ---------------------------------------------------------------------------
-echo "Test 14: compliance-verifier hook shim is executable after reinstall [RED]"
+echo "Test 14: pre-commit shim is executable after reinstall (covers compliance-verifier)"
 
 TMPDIR_T14=$(mktemp -d)
 _CLEANUP_DIRS+=("$TMPDIR_T14")
@@ -639,12 +642,13 @@ chmod +x "$FAKE_REPO14/app/.venv/bin/pre-commit"
 
 WORKTREE_PATH="$FAKE_REPO14" bash "$SCRIPT" 2>/dev/null || true
 
-# Assert that the compliance-verifier shim was created and is executable
-SHIM_T14="$FAKE_REPO14/.git/hooks/pre-commit-compliance-verifier"
+# Assert that the pre-commit shim was created and is executable
+# (compliance-verifier runs through this shim since it is staged under pre-commit)
+SHIM_T14="$FAKE_REPO14/.git/hooks/pre-commit"
 if [ -f "$SHIM_T14" ] && [ -x "$SHIM_T14" ]; then
-    assert_eq "test_exec_bit_preserved_after_sync" "executable" "executable"
+    assert_eq "test_precommit_shim_executable_after_reinstall" "executable" "executable"
 else
-    assert_eq "test_exec_bit_preserved_after_sync" "executable" "not-installed-or-not-executable"
+    assert_eq "test_precommit_shim_executable_after_reinstall" "executable" "not-installed-or-not-executable"
 fi
 
 rm -rf "$TMPDIR_T14"

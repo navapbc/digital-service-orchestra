@@ -61,7 +61,9 @@ class TestEscapeRationaleValid:
         escape_text = "New import statement at line 50 not present in prior findings"
         prior_cited_lines = ["auth/login.py:42"]
         overlap_region = ["auth/login.py:40-47"]
-        result = validate_escape_rationale(escape_text, prior_cited_lines, overlap_region)
+        result = validate_escape_rationale(
+            escape_text, prior_cited_lines, overlap_region
+        )
         assert result is True, (
             f"Expected True when escape text references line 50 (outside overlap 40-47), "
             f"got {result!r}"
@@ -79,7 +81,9 @@ class TestEscapeRationaleInvalid:
         escape_text = "Same token at line 42 is different context"
         prior_cited_lines = ["auth/login.py:42"]
         overlap_region = ["auth/login.py:40-47"]
-        result = validate_escape_rationale(escape_text, prior_cited_lines, overlap_region)
+        result = validate_escape_rationale(
+            escape_text, prior_cited_lines, overlap_region
+        )
         assert result is False, (
             f"Expected False when escape text only references line 42 which is in "
             f"prior_cited_lines and overlap region, got {result!r}"

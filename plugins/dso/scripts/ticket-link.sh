@@ -456,9 +456,18 @@ case "$subcommand" in
 
         _write_unlink_event "$id1" "$id2"
 
-        # For relates_to: also write reciprocal UNLINK in id2 dir
+        # For relates_to: also write reciprocal UNLINK in id2 dir.
+        # Best-effort: if no reciprocal LINK exists (orphan state — one side was
+        # compacted away or was never written), warn and continue. The primary
+        # unlink on id1 already succeeded; failing for a missing reciprocal would
+        # block the user from clearing an already-broken link state.
         if [ "$link_relation" = "relates_to" ]; then
-            _write_unlink_event "$id2" "$id1"
+            reciprocal_info=$(_get_link_info "$id2" "$id1") || reciprocal_info=""
+            if [ -n "$reciprocal_info" ]; then
+                _write_unlink_event "$id2" "$id1"
+            else
+                echo "Warning: no reciprocal LINK found in '$id2' targeting '$id1' — orphaned link, removed from '$id1' only" >&2
+            fi
         fi
         ;;
 

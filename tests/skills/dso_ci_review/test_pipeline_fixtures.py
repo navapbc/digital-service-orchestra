@@ -22,7 +22,7 @@ import json
 import pathlib
 import sys
 from typing import Any
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -115,11 +115,14 @@ def _validate_arbiter_ruling(ruling: dict, finding: dict) -> dict:
     def _extract_paths(text: str) -> set[str]:
         """Extract 'path:lineno' fragments from text."""
         import re
+
         return set(re.findall(r"[\w/.-]+\.[\w]+:\d+", text))
 
     evidence_paths = _extract_paths(evidence_ref)
-    cited_paths = {cl.split(":")[0] + ":" + cl.split(":")[1] if cl.count(":") >= 1 else cl
-                   for cl in finding.get("cited_lines", [])}
+    cited_paths = {
+        cl.split(":")[0] + ":" + cl.split(":")[1] if cl.count(":") >= 1 else cl
+        for cl in finding.get("cited_lines", [])
+    }
     # Combine: evidence is everything the reviewer already cited
     all_prior_paths = evidence_paths | cited_paths
 
@@ -171,17 +174,22 @@ def _run_pipeline_with_mock(
         if cycle > 1 and relation == "RESUSTAIN_OF":
             # Find matching prior defense
             prior_defense = next(
-                (pf for pf in prior_findings
-                 if (pf.get("finding_id") or pf.get("id")) ==
-                    (finding.get("prior_finding_id") or finding.get("id"))
-                 and pf.get("defense_text")),
+                (
+                    pf
+                    for pf in prior_findings
+                    if (pf.get("finding_id") or pf.get("id"))
+                    == (finding.get("prior_finding_id") or finding.get("id"))
+                    and pf.get("defense_text")
+                ),
                 None,
             )
             if prior_defense:
                 mock_arbiter(finding_id=finding.get("id"), prior_defense=prior_defense)
                 arbiter_dispatches.append(finding.get("id", "unknown"))
 
-        elif relation == "NEW_INTRODUCED" and _needs_escape_rationale(finding, diff_lines):
+        elif relation == "NEW_INTRODUCED" and _needs_escape_rationale(
+            finding, diff_lines
+        ):
             re_dispatch_needed.append(finding.get("id", "unknown"))
 
     return {
@@ -224,7 +232,9 @@ def test_resustain_of_with_proximity_triggers_arbiter():
             ]
         }
     )
-    mock_arbiter = MagicMock(return_value={"ruling": "SUSTAIN", "rationale": "defense insufficient"})
+    mock_arbiter = MagicMock(
+        return_value={"ruling": "SUSTAIN", "rationale": "defense insufficient"}
+    )
 
     result = _run_pipeline_with_mock(
         diff_text=diff_text,
