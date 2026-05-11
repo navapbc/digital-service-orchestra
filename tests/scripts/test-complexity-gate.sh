@@ -17,6 +17,7 @@ SHARED_EVALUATOR="$DSO_PLUGIN_DIR/skills/shared/prompts/complexity-evaluator.md"
 SPRINT_EVALUATOR="$DSO_PLUGIN_DIR/skills/sprint/prompts/complexity-evaluator.md"
 EPIC_EVALUATOR="$DSO_PLUGIN_DIR/skills/sprint/prompts/epic-complexity-evaluator.md"
 BRAINSTORM_SKILL="$DSO_PLUGIN_DIR/skills/brainstorm/SKILL.md"
+PREPLANNING_SKILL="$DSO_PLUGIN_DIR/skills/preplanning/SKILL.md"
 
 PASS=0
 FAIL=0
@@ -244,37 +245,44 @@ else
 fi
 echo ""
 
-# ── Test case E: /dso:brainstorm SKILL.md Phase 3 Step 4 complexity gate ─────────
-echo "Test case E: /dso:brainstorm SKILL.md Phase 3 Step 4 complexity gate dispatch"
-# TODO: This test case validates future work (stories fukt/zlop) that adds a
-# complexity gate dispatch to /dso:brainstorm Phase 3 Step 4. Until that work is
-# done, Phase 3 Step 4 invokes /dso:preplanning directly without a complexity gate.
-# When the complexity gate is added, remove this PENDING block and implement:
-#   - grep for "complexity-evaluator" or "complexity gate" in Phase 3 Step 4
-#   - grep for "--lightweight" (TRIVIAL/MODERATE routing branch)
-#   - grep for "full" as indicator of COMPLEX routing branch
-#   - grep for "fallback" or "fall through" or "haiku failure"
+# ── Test case E: /dso:preplanning SKILL.md Phase A Step 1.5 complexity gate ─────
+echo "Test case E: /dso:preplanning SKILL.md Phase A Step 1.5 complexity gate dispatch"
+# The complexity gate that classifies an epic at the start of preplanning (formerly
+# the last step of brainstorm). It must dispatch the complexity evaluator agent,
+# include the --lightweight routing branch (MODERATE), and contain a fallback for
+# evaluator failure.
 
 has_complexity_gate=false
-if grep -q "complexity-evaluator\|complexity gate" "$BRAINSTORM_SKILL" 2>/dev/null; then
-  if grep -q "\-\-lightweight" "$BRAINSTORM_SKILL" 2>/dev/null; then
-    if grep -q "fallback\|fall through\|haiku failure" "$BRAINSTORM_SKILL" 2>/dev/null; then
+if grep -q "complexity-evaluator\|complexity gate" "$PREPLANNING_SKILL" 2>/dev/null; then
+  if grep -q "\-\-lightweight" "$PREPLANNING_SKILL" 2>/dev/null; then
+    if grep -q "fallback\|fall through\|haiku failure" "$PREPLANNING_SKILL" 2>/dev/null; then
       has_complexity_gate=true
     fi
   fi
 fi
 
 if $has_complexity_gate; then
-  echo "  PASS E1: Complexity gate dispatch found in /dso:brainstorm SKILL.md"
+  echo "  PASS E1: Complexity gate dispatch found in /dso:preplanning SKILL.md"
   echo "  PASS E2: --lightweight routing branch present"
   echo "  PASS E3: Fallback prose present"
   echo "  → Test case E: PASS"
   (( PASS++ ))
 else
-  echo "  PENDING: /dso:brainstorm SKILL.md Phase 3 Step 4 does not yet contain complexity gate"
-  echo "           dispatch (stories fukt/zlop implement this). Skipping — not a failure."
-  echo "  → Test case E: PENDING"
-  (( PENDING++ ))
+  echo "  FAIL E: /dso:preplanning SKILL.md Phase A Step 1.5 missing complexity gate dispatch," >&2
+  echo "          --lightweight routing branch, or fallback prose." >&2
+  echo "  → Test case E: FAIL" >&2
+  (( FAIL++ ))
+fi
+echo ""
+
+# ── Test case E2: /dso:brainstorm SKILL.md must NOT dispatch the evaluator ──────
+echo "Test case E2: /dso:brainstorm SKILL.md must not dispatch complexity evaluator (moved to preplanning)"
+if grep -q "complexity-evaluator" "$BRAINSTORM_SKILL" 2>/dev/null; then
+  echo "  FAIL E2: brainstorm SKILL.md still references complexity-evaluator — should be removed (moved to preplanning)" >&2
+  (( FAIL++ ))
+else
+  echo "  PASS E2: brainstorm SKILL.md no longer dispatches complexity-evaluator"
+  (( PASS++ ))
 fi
 echo ""
 

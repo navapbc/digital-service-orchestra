@@ -15,7 +15,7 @@ Agent files live in `${CLAUDE_PLUGIN_ROOT}/agents/`. The `dso:*` labels below ar
 
 | Agent | Model | Dispatched by |
 |-------|-------|---------------|
-| `dso:complexity-evaluator` | haiku | `/dso:sprint`, `/dso:brainstorm`; read inline by `/dso:fix-bug` |
+| `dso:complexity-evaluator` | haiku | `/dso:sprint`, `/dso:preplanning`; read inline by `/dso:fix-bug` |
 | `dso:conflict-analyzer` | sonnet | `/dso:resolve-conflicts` |
 | `dso:cross-epic-interaction-classifier` | haiku | `/dso:brainstorm` (cross-epic scan step — dispatched in batches of 20 open epics via cross-epic-scan.md prompt; emits interaction_signals JSON with 4-tier severity) |
 | `dso:bot-psychologist` | sonnet | `/dso:fix-bug` llm-behavioral path (dispatched or read inline when sub-agent) |

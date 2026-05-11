@@ -523,79 +523,17 @@ ARTIFACTS_DIR=$(get_artifacts_dir)
 echo "brainstorm-complete" > "$ARTIFACTS_DIR/brainstorm-sentinel"
 ```
 
-This must be the last Phase 3 action before downstream skill invocation.
+This must be the last Phase 3 action before brainstorm completes.
 
-### Step 4: Invoke Preplanning
+### Step 4: Brainstorm Complete
 
-After the epic is created and ticket health passes, classify the epic's complexity before invoking `/dso:preplanning`.
-
-#### Step 4a: Dispatch Complexity Evaluator Agent
-
-Dispatch the dedicated complexity evaluator agent. Read `agents/complexity-evaluator.md` inline and dispatch as `subagent_type: "general-purpose"` with `model: "haiku"`. Pass the epic ID as the argument and `tier_schema=SIMPLE`. (`dso:complexity-evaluator` is an agent file identifier, NOT a valid `subagent_type` — the Agent tool only accepts built-in types.)
+Emit a single completion line and end the skill:
 
 ```
-Agent tool:
-  subagent_type: "general-purpose"
-  model: "haiku"
-  argument: <epic-id>
-  context:
-    tier_schema: SIMPLE
-    success_criteria_count: <count of SC bullet items in the approved spec from Phase 2>
-    scenario_survivor_count: <count of scenarios surviving blue team filter from Step 2.75, or 0 if Step 2.75 did not run>
+Brainstorm complete for epic <epic-id>. Run `/dso:preplanning <epic-id>` to continue.
 ```
 
-Compute `success_criteria_count` from the `## Success Criteria` section. Read `scenario_survivor_count` from the Planning-Intelligence Log (or 0 if the pipeline did not run scenario analysis).
-
-If the agent fails or returns malformed JSON, log a warning and fall through to full `/dso:preplanning` (safe fallback).
-
-#### Step 4b: Route Based on Classification
-
-Apply the routing table below. **Always consult the table** — do NOT skip preplanning based on prose heuristics. Only TRIVIAL epics bypass preplanning.
-
-**Session-signal override** (applies before the routing table): If EITHER is true, override to COMPLEX regardless of evaluator output:
-- `success_criteria_count ≥ 7` — count from the spec text (do NOT rely on session memory which may be lost after compaction)
-- `scenario_survivor_count ≥ 10` — read from the Planning-Intelligence Log, or re-count from the `## Scenario Analysis` section
-
-Log the override: `"Epic classified as COMPLEX (session-signal override: <reason>) — invoking /dso:preplanning"`
-
-| Classification | scope_certainty | Routing |
-|---|---|---|
-| TRIVIAL | High (always) | `/dso:implementation-plan <epic-id>` |
-| MODERATE | High | `/dso:preplanning <epic-id> --lightweight` |
-| MODERATE | Medium | `/dso:preplanning <epic-id> --lightweight` |
-| MODERATE | Low | Promoted to COMPLEX by evaluator |
-| COMPLEX | any | `/dso:preplanning <epic-id>` (full mode) |
-
-**Rationale**: TRIVIAL epics route directly to `/dso:implementation-plan` — the brainstorm dialogue produced task-level detail. MODERATE+High routes to `--lightweight` to run a risk/scope scan and write structured done definitions before implementation planning. MODERATE+Low is converted to COMPLEX by the evaluator (row listed for completeness). COMPLEX epics require full story decomposition.
-
-#### Step 4c: Invoke Next Skill
-
-Output the classification line and invoke the Skill tool **in the same response** — do not yield to the user:
-
-```
-Epic classified as <TIER> (scope_certainty: <HIGH|MEDIUM|LOW>) — invoking /<skill> [mode]
-```
-
-Then immediately (same response, no pause):
-
-```
-# TRIVIAL:
-Skill tool:
-  skill: "dso:implementation-plan"
-  args: "<epic-id>"
-
-# MODERATE + scope_certainty High or Medium:
-Skill tool:
-  skill: "dso:preplanning"
-  args: "<epic-id> --lightweight"
-
-# COMPLEX:
-Skill tool:
-  skill: "dso:preplanning"
-  args: "<epic-id>"
-```
-
-Control returns here only if the invoked skill escalates.
+Do NOT invoke `/dso:preplanning`, `/dso:implementation-plan`, or any downstream skill. Complexity classification and routing are now performed by `/dso:preplanning` at its entry gate.
 
 ---
 
@@ -621,4 +559,4 @@ Control returns here only if the invoked skill escalates.
 |-------|------|---------------|
 | 1: Context + Dialogue | Understand the feature | Load PRD/design-notes, one question at a time, Tell-me-more loop; Phase 1 Gate (Understanding Summary → Intent Gap Analysis → Phase 2). Config-gated: External Dependencies shape heuristic + classification dialogue. |
 | 2: Approach + Spec | Define how and what | Propose 2–3 options; draft spec with provenance tracking; apply `verifiable-sc-check.md` per SC; Step 2.25 cross-epic scan → `phases/cross-epic-handlers.md` on non-benign signals; scrutiny pipeline (2.5/2.6/2.75/3) → `phases/post-scrutiny-handlers.md`; Step 4 approval gate (`phases/approval-gate.md`). |
-| 3: Ticket Integration | Create epic; classify; route | Follow-on gate (`phases/follow-on-epic-gate.md`); create/update via `phases/epic-description-template.md`; set deps; validate; `brainstorm:complete` tag + sentinel; complexity-evaluator (haiku, tier_schema=SIMPLE); session-signal override (SC≥7 or scenarios≥10 → COMPLEX); route: TRIVIAL → `/dso:implementation-plan`, MODERATE → `/dso:preplanning --lightweight`, COMPLEX → `/dso:preplanning`. |
+| 3: Ticket Integration | Create epic; mark complete | Follow-on gate (`phases/follow-on-epic-gate.md`); create/update via `phases/epic-description-template.md`; set deps; validate; `brainstorm:complete` tag + sentinel; emit completion line. Complexity classification and downstream routing happen in `/dso:preplanning`. |
