@@ -56,8 +56,7 @@ Each sub-agent returns:
 Before dispatching, check the agent throttle:
 
 ```bash
-PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
-PRE_CHECK_OUTPUT=$(bash "$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh" pre-check 2>/dev/null || echo "MAX_AGENTS: unlimited")
+PRE_CHECK_OUTPUT=$(.claude/scripts/dso agent-batch-lifecycle pre-check 2>/dev/null || echo "MAX_AGENTS: unlimited")
 MAX_AGENTS=$(echo "$PRE_CHECK_OUTPUT" | grep "^MAX_AGENTS:" | awk '{print $2}')
 MAX_AGENTS="${MAX_AGENTS:-unlimited}"
 ```
@@ -131,7 +130,13 @@ Options:
 Which do you want?
 ```
 
-Apply the user's choice, update buckets accordingly, then re-run Rules 1–3 from the top. Do not move on until no Rule-3 conflicts remain.
+Apply the user's choice as follows:
+
+- **(a) Promote**: move the blocker from `BUCKETS.out_of_scope` (or `OUT_OF_SCOPE_IDS`) into `BUCKETS.north_star`. If the blocker was in `OUT_OF_SCOPE_IDS` from Phase 1, also remove it from that set (the user has explicitly overridden their earlier "out of scope" call). No ticket-edit yet — Phase 4 will write the priority.
+- **(b) Drop**: move the North Star epic into `BUCKETS.out_of_scope`. No ticket-edit yet — Phase 4 will write P4.
+- **(c) Manually adjust the dependency graph**: ask the user which specific link is incorrect, then unlink it via `.claude/scripts/dso ticket unlink <source> <target>`. After unlinking, re-run `ticket deps` on the affected epics to rebuild the blocker chain. Do not delete the blocker ticket and do not edit the blocker's status — only remove the incorrect dependency edge. If the user instead says "the blocker can be split / partially in scope", route them to `/dso:brainstorm <blocker-id>` after this skill finishes — do not attempt scope-splitting here.
+
+After applying the choice, re-run Rules 1–3 from the top. Do not move on until no Rule-3 conflicts remain.
 
 ## Phase 3 Output
 

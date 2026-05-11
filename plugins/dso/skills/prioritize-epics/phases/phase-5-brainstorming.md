@@ -10,7 +10,7 @@ After Phase 4, list every epic whose final priority is P0 or P1 and whose tags d
 .claude/scripts/dso ticket list --type=epic --status=open,in_progress --format=llm
 ```
 
-Filter the JSONL output to lines where `"priority":0` or `"priority":1` AND `"tags"` does not include `"brainstorm:complete"`.
+Filter the JSONL output to lines where `"pr":0` or `"pr":1` AND `"tg"` does not include `"brainstorm:complete"`. (The `--format=llm` mode emits shortened keys: `pr` for priority, `tg` for tags. See `${CLAUDE_PLUGIN_ROOT}/docs/ticket-cli-reference.md` "Key mapping" table.)
 
 If the resulting list is empty, emit:
 

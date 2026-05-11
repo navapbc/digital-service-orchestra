@@ -41,13 +41,14 @@ For each epic in `unclear_epics`, run this loop:
    - The goal is **NOT** full readiness to work on it. Resist drift toward acceptance criteria, implementation detail, or estimation.
    - Stop the loop when EITHER: (a) you have high confidence in the prioritization-level understanding, OR (b) the user says the epic is currently out of scope.
 
-3a. **Out of scope branch**: If the user declares the epic out of scope:
+3a. **Out of scope branch**: If the user declares the epic out of scope, set priority to P4 only if it is not already P4 (skip the write otherwise to avoid spurious ticket events). Parse the JSON with `python3` rather than `jq` — this project enforces a jq-free convention:
 
 ```bash
-# Read current priority first
-CURRENT=$(.claude/scripts/dso ticket show <id> | jq -r '.priority // empty')
-# If not already 4, set it to 4
-.claude/scripts/dso ticket edit <id> --priority=4
+CURRENT=$(.claude/scripts/dso ticket show --format=llm <id> \
+  | python3 -c "import sys,json; print(json.loads(sys.stdin.read()).get('pr',''))")
+if [ "$CURRENT" != "4" ]; then
+  .claude/scripts/dso ticket edit <id> --priority=4
+fi
 ```
 
 Add `<id>` to `OUT_OF_SCOPE_IDS`. Move to the next epic. Do NOT write a clarification comment in this branch — `OUT_OF_SCOPE_IDS` is the durable record.
