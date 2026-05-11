@@ -1803,7 +1803,7 @@ After the batch commit and `git push -u origin HEAD` succeed, close each task wh
 Before verifying open children, check whether any PRECONDITIONS degradation entries are unacknowledged for this story:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-unacked-degradations.sh" <story-id>  # shim-exempt: internal orchestration script
+bash "$PLUGIN_SCRIPTS/check-unacked-degradations.sh" <story-id>  # shim-exempt: internal orchestration script
 ```
 
 - If exit 0: no unacked degradation entries — continue to the OPEN_CHILDREN check below.

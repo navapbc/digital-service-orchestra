@@ -48,8 +48,7 @@ fi
 
 # Resolve tickets tracker dir
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-_PLUGIN_ROOT="$(cd "$_SCRIPT_DIR/../.." && pwd)"
-_REPO_ROOT="$(git -C "$_PLUGIN_ROOT" rev-parse --show-toplevel 2>/dev/null || echo "")"
+_REPO_ROOT="$(git -C "$_SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || echo "")"
 _TRACKER_DIR="${DSO_TICKETS_TRACKER_DIR:-${_REPO_ROOT:+$_REPO_ROOT/.tickets-tracker}}"
 
 if [[ -z "$_TRACKER_DIR" || ! -d "$_TRACKER_DIR/$story_id" ]]; then
