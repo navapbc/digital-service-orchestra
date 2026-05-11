@@ -139,12 +139,15 @@ import json, sys
 d = json.loads(sys.argv[1])
 if sys.argv[2] == 'true':
     d['degradation'] = True
+    if not d.get('decision_ids'):
+        sid = sys.argv[5][:12] if sys.argv[5] else 'unknown'
+        d['decision_ids'] = [f'sess:{sid}']
 if sys.argv[3]:
     d['degradation_type'] = sys.argv[3]
 if sys.argv[4]:
     d['condition_text'] = sys.argv[4]
 print(json.dumps(d))
-" "$_data_json" "${_degradation:-false}" "${_degradation_type:-}" "${_condition_text:-}")
+" "$_data_json" "${_degradation:-false}" "${_degradation_type:-}" "${_condition_text:-}" "${session_id_arg:-}")
 fi
 
 # ── Delegate to _write_preconditions ────────────────────────────────────────

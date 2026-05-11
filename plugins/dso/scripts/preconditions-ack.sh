@@ -144,7 +144,7 @@ PYEOF
     # Write one ACK JSON with sampled_set
     _ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
     _ts_file=$(date -u +%Y%m%dT%H%M%SZ)
-    _class_lower=$(echo "$degradation_class" | tr '[:upper:]' '[:lower:]')
+    _class_lower=$(printf '%s' "$degradation_class" | tr '[:upper:]' '[:lower:]' | tr -c '[:alnum:]_-' '_')
     _ack_file="$_TRACKER_DIR/$story_id/${_ts_file}-sample-${_class_lower}-ACK.json"
 
     python3 - "$_ack_file" "$_ts" "$if_skipped" "$_id1" "$_id2" "$_id3" "${_all_ids[@]}" <<'PYEOF'
