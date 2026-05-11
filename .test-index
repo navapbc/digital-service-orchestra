@@ -174,7 +174,7 @@ plugins/dso/scripts/build-composed-agents.sh:tests/unit/scripts/test-build-revie
 plugins/dso/scripts/build-review-agents.sh:tests/unit/scripts/test-build-review-agents.sh,tests/scripts/test-reviewer-agent-review-tier.sh
 plugins/dso/scripts/check-local-env.sh:tests/scripts/test-check-local-env-portability.sh,tests/scripts/test-check-local-env-generic.sh
 plugins/dso/scripts/check-script-writes.py:tests/scripts/test-check-script-writes.sh
-plugins/dso/scripts/check-session-merge-only.sh:tests/hooks/test-check-session-merge-only.sh [RED: f410-513a-b3e7-43ed]
+plugins/dso/scripts/check-session-merge-only.sh:tests/hooks/test-check-session-merge-only.sh
 plugins/dso/scripts/check-skill-refs.sh:tests/scripts/test-check-skill-refs.sh
 plugins/dso/scripts/check-test-index-duplicates.sh:tests/scripts/test-check-test-index-duplicates.sh
 plugins/dso/scripts/ci-llm-review-runner.sh:tests/scripts/test-ci-llm-review-runner.sh
