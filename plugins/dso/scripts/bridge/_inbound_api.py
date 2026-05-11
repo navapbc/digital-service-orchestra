@@ -199,6 +199,30 @@ def write_create_events(
                 if k:
                     synced_in_non_jira_dirs.add(k)
 
+    # Build native-epic title dedup index: normalized_title -> local_id.
+    # Prevents creating jira-{key} dirs when a native DSO epic with an
+    # identical title already exists (b0ee-5e8a).
+    native_epic_titles: dict[str, str] = {}
+    if tickets_tracker.is_dir():
+        for ticket_dir in tickets_tracker.iterdir():
+            if (
+                not ticket_dir.is_dir()
+                or ticket_dir.name.startswith("jira-")
+                or ticket_dir.name.startswith(".")
+            ):
+                continue
+            for create_file in sorted(ticket_dir.glob("*-CREATE.json")):
+                try:
+                    create_data = json.loads(create_file.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    continue
+                d = create_data.get("data") or {}
+                if d.get("ticket_type") == "epic":
+                    t = (d.get("title") or "").strip().lower()
+                    if t:
+                        native_epic_titles[t] = ticket_dir.name
+                break  # only the first CREATE per dir
+
     for issue in issues:
         jira_key = issue.get("key", "")
         if not jira_key:
@@ -211,6 +235,22 @@ def write_create_events(
         candidate_dir = tickets_tracker / f"jira-{jira_key.lower()}"
         if has_existing_sync(candidate_dir):
             continue
+
+        # Skip if a native DSO epic with the same title already exists (b0ee-5e8a).
+        raw_fields = issue.get("fields", {})
+        raw_issuetype = raw_fields.get("issuetype", {})
+        raw_type_name = (
+            raw_issuetype.get("name", "") if isinstance(raw_issuetype, dict) else ""
+        )
+        if raw_type_name.lower() == "epic":
+            raw_summary_normalized = (raw_fields.get("summary") or "").strip().lower()
+            if raw_summary_normalized and raw_summary_normalized in native_epic_titles:
+                logging.info(
+                    "write_create_events: skipping %s — native epic %s has identical title",
+                    jira_key,
+                    native_epic_titles[raw_summary_normalized],
+                )
+                continue
 
         normalized_issue = normalize_timestamps(
             json.loads(json.dumps(issue))  # deep copy via JSON round-trip
