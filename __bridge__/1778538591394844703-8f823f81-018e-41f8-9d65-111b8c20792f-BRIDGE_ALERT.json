@@ -1,0 +1,1 @@
+{"event_type": "BRIDGE_ALERT", "timestamp": 1778538591394844703, "uuid": "8f823f81-018e-41f8-9d65-111b8c20792f", "env_id": "87bd1065-0264-4126-94b7-ae8c71b8d506", "ticket_id": "__bridge__", "data": {"reason": "outbound-checkpoint reset: cold-start/recovery"}}
