@@ -429,6 +429,70 @@ def test_write_create_events_skips_existing_local_ticket(
 
 
 # ---------------------------------------------------------------------------
+# Test 7: write_create_events skips Jira epic when native DSO epic has same title
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_write_create_events_skips_jira_epic_when_native_epic_has_same_title(
+    tmp_path: Path, bridge: ModuleType
+) -> None:
+    """write_create_events must not create a jira-{key} dir when a native DSO
+    epic with an identical title (case-insensitive, stripped) already exists.
+    Prevents content-duplicate ticket creation on inbound sync (b0ee-5e8a).
+    """
+    import time
+    import uuid
+
+    tickets_tracker = tmp_path / ".tickets-tracker"
+    tickets_tracker.mkdir()
+
+    # Create a native DSO epic with the same title as the incoming Jira epic
+    native_dir = tickets_tracker / "abcd-1234-5678-9abc"
+    native_dir.mkdir()
+    ts = time.time_ns()
+    eu = str(uuid.uuid4())
+    create_file = native_dir / f"{ts}-{eu}-CREATE.json"
+    create_file.write_text(
+        json.dumps(
+            {
+                "event_type": "CREATE",
+                "data": {
+                    "ticket_type": "epic",
+                    "title": "My Epic Title",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    issues = [
+        {
+            "key": "DSO-999",
+            "fields": {
+                "summary": "My Epic Title",
+                "issuetype": {"name": "Epic"},
+                "status": {"name": "To Do"},
+                "priority": {"name": "Medium"},
+                "assignee": None,
+                "description": None,
+            },
+        }
+    ]
+
+    written = bridge.write_create_events(
+        issues, tickets_tracker=tickets_tracker, bridge_env_id="test-env-id"
+    )
+
+    assert written == [], (
+        "write_create_events must skip Jira epics whose title matches an existing native epic"
+    )
+    jira_dir = tickets_tracker / "jira-dso-999"
+    assert not jira_dir.exists(), "No jira-dso-999 directory should have been created"
+
+
+# ---------------------------------------------------------------------------
 # TestStatusTypeMapping
 # ---------------------------------------------------------------------------
 

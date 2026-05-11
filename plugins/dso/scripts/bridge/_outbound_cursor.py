@@ -238,18 +238,21 @@ def fetch_events_since_cursor(
     events: list[dict[str, Any]] = []
     for sha, filepath in entries:
         match = _EVENT_FILE_RE.match(filepath)
+        is_rel = False
         if not match and filepath.startswith("/"):
             match = _EVENT_FILE_ABS_RE.match(filepath)
         if not match:
             match = _EVENT_FILE_REL_RE.match(filepath)
+            is_rel = match is not None
         if match:
             ticket_id = match.group(1)
             event_type = match.group(4)
+            resolved_path = str(tracker_path / filepath) if is_rel else filepath
             events.append(
                 {
                     "ticket_id": ticket_id,
                     "event_type": event_type,
-                    "file_path": filepath,
+                    "file_path": resolved_path,
                     "commit_sha": sha,
                 }
             )

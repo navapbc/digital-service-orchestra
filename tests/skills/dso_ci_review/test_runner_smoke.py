@@ -1945,6 +1945,191 @@ def test_runner_cycle2_with_defenses_suppresses_reemitted_findings(tmp_path):
     )
 
 
+def test_runner_cycle2_deep_tier_partial_failure_with_defenses(tmp_path):
+    """Cycle-2 + deep-tier: one specialist fallback_exhausted does NOT skip arch synthesis.
+
+    Given: DSO_REVIEW_CYCLE=2, deep tier, one prior defense, 3 specialist results where
+           one returns fallback_exhausted (partial failure) and one returns a real finding
+    When: runner.main() executes
+    Then: dispatch_arch_synthesis is called exactly once (partial failure doesn't skip synthesis)
+          AND the arch synthesis call received defense context (defenses injected into merged_json)
+          AND the output contains the real important finding unchanged
+          AND the defended finding is downgraded to 'suggestion' by _suppress_defended_findings
+
+    Covers bug 5329-552b-7847-4a24: no test for cycle-2 + deep-tier + partial agent failure
+    + arch synthesis + defense suppression.
+
+    The arch_all_synthetic check fires only when ALL findings are synthetic — one
+    fallback_exhausted among real findings must NOT prevent arch synthesis from replacing
+    the merged output.
+    """
+    import io
+    import json as _json
+    from contextlib import redirect_stderr
+
+    import dso_ci_review.runner as runner_mod
+
+    defended_desc = "missing null check in auth handler — defended in round 1"
+    defense_record = {"severity": "critical", "description": defended_desc}
+
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text("diff --git a/auth/handler.py b/auth/handler.py\n+token = request.token\n")
+    output_file = tmp_path / "findings.json"
+
+    tier_result = {
+        "selected_tier": "deep",
+        "size_action": "none",
+        "security_overlay": False,
+        "performance_overlay": False,
+        "test_quality_overlay": False,
+        "diff_size_lines": 2,
+        "blast_radius": 2,
+        "critical_path": 3,
+        "anti_shortcut": 0,
+        "staleness": 0,
+        "cross_cutting": 0,
+        "diff_lines": 1,
+        "change_volume": 0,
+        "computed_total": 8,
+        "is_merge_commit": False,
+    }
+
+    # 3 specialist results: one fallback_exhausted, one real finding, one empty
+    specialist_results = [
+        {
+            "findings": [
+                {
+                    "type": "fallback_exhausted",
+                    "severity": "critical",
+                    "description": "specialist failed",
+                }
+            ],
+            "summary": "specialist infra failure",
+        },
+        {
+            "findings": [
+                {
+                    "severity": "important",
+                    "description": "real correctness issue in handler",
+                    "cited_lines": ["auth/handler.py:1"],
+                }
+            ],
+            "summary": "correctness",
+        },
+        {
+            "findings": [],
+            "summary": "verification ok",
+        },
+    ]
+
+    # Arch synthesis returns BOTH the defended finding and the real finding.
+    # _suppress_defended_findings should downgrade the defended one.
+    synthesis_output = {
+        "findings": [
+            {
+                "severity": "critical",
+                "description": defended_desc,
+                "cited_lines": ["auth/handler.py:5"],
+            },
+            {
+                "severity": "important",
+                "description": "real correctness issue in handler",
+                "cited_lines": ["auth/handler.py:1"],
+            },
+        ],
+        "scores": {"correctness": 2, "verification": 3},
+        "summary": "Arch synthesis: partial failure, real findings remain.",
+    }
+
+    captured_synthesis_calls: list[str] = []
+
+    async def mock_dispatch(agents):
+        return specialist_results
+
+    def mock_arch_synthesis(merged_findings_json, **kwargs):
+        captured_synthesis_calls.append(merged_findings_json)
+        return synthesis_output
+
+    stderr_capture = io.StringIO()
+    with (
+        patch.dict(
+            "os.environ",
+            {
+                "DSO_CI_REVIEW_DIFF_PATH": str(diff_file),
+                "DSO_CI_REVIEW_OUTPUT_PATH": str(output_file),
+                "CI_REVIEW_PROVIDER": "anthropic",
+                "ANTHROPIC_API_KEY": "test-key",
+                "DSO_REVIEW_CYCLE": "2",
+                "GITHUB_EVENT_NAME": "pull_request",
+                "GITHUB_REF": "refs/pull/99/merge",
+                "GITHUB_TOKEN": "test-token",
+            },
+        ),
+        patch("dso_ci_review.runner._classify_tier_via_bash", return_value=tier_result),
+        patch("dso_ci_review.runner._fetch_pr_defenses", return_value=[defense_record]),
+        patch(
+            "dso_ci_review.runner.async_dispatch_specialists",
+            side_effect=mock_dispatch,
+        ),
+        patch(
+            "dso_ci_review.runner.dispatch_arch_synthesis",
+            side_effect=mock_arch_synthesis,
+        ),
+        redirect_stderr(stderr_capture),
+    ):
+        runner_mod.main()
+
+    # 1. Arch synthesis must be called exactly once — partial failure doesn't skip it.
+    assert len(captured_synthesis_calls) == 1, (
+        f"dispatch_arch_synthesis must be called exactly once even with one fallback_exhausted "
+        f"specialist; got {len(captured_synthesis_calls)} calls. "
+        "arch_all_synthetic must NOT fire when only some findings are synthetic (bug 5329-552b)."
+    )
+
+    # 2. Defense content must have been injected into the merged JSON passed to arch synthesis.
+    # Check the defense record's actual description is present — not the prose section label,
+    # which is an implementation detail that could be renamed without breaking behavior.
+    arch_call_arg = captured_synthesis_calls[0]
+    # defended_desc may be JSON-encoded (em-dash → —); check for prefix before the dash
+    defended_desc_prefix = defended_desc.split("—")[0].strip()
+    assert defended_desc_prefix in arch_call_arg, (
+        f"Arch synthesis merged JSON must contain the defended description content; "
+        f"got: {arch_call_arg!r}"
+    )
+
+    # 3. Real important finding must be present and unchanged.
+    parsed = _json.loads(output_file.read_text())
+    findings = parsed.get("findings", [])
+    real_findings = [f for f in findings if f.get("description") == "real correctness issue in handler"]
+    assert len(real_findings) == 1, (
+        f"Real important finding must survive suppression filter; "
+        f"findings: {findings!r}"
+    )
+    assert real_findings[0]["severity"] == "important", (
+        f"Real finding must remain 'important' (not defensible); "
+        f"got severity={real_findings[0]['severity']!r}"
+    )
+
+    # 4. Defended finding must be downgraded to 'suggestion' by _suppress_defended_findings.
+    #
+    # _suppress_defended_findings is NOT mocked — the real function runs against the
+    # real arch synthesis output. The mock returns severity="critical" for the defended
+    # finding; the only way that severity becomes "suggestion" in the output is if
+    # _suppress_defended_findings ran and matched (severity, description[:80]) against
+    # the prior defense record. A skipped, broken, or bypassed suppression would leave
+    # severity="critical" and this assertion would fail.
+    defended_findings = [f for f in findings if f.get("description") == defended_desc]
+    assert len(defended_findings) == 1, (
+        f"Defended finding must appear in output (downgraded, not removed); "
+        f"findings: {findings!r}"
+    )
+    assert defended_findings[0]["severity"] == "suggestion", (
+        f"Defended finding must be downgraded from 'critical' (arch synthesis mock value) to "
+        f"'suggestion' by _suppress_defended_findings; got severity={defended_findings[0]['severity']!r}. "
+        "If this fails, _suppress_defended_findings is broken, bypassed, or not matching the defense key."
+    )
+
+
 def test_runner_cycle1_no_defenses_unaffected(tmp_path):
     """On cycle 1 (default), the standard path is used — no defense fetching, no suppression.
 
