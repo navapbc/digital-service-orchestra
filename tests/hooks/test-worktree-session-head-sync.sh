@@ -109,7 +109,7 @@ _SUBAGENT_WORKTREE=$(mktemp -d)
 rmdir "$_SUBAGENT_WORKTREE"
 register_temp "$_SUBAGENT_WORKTREE"
 
-git -C "$_SUBAGENT_CLONE" worktree add "$_SUBAGENT_WORKTREE" main -q
+git -C "$_SUBAGENT_CLONE" worktree add --detach "$_SUBAGENT_WORKTREE" "$_MAIN_HEAD" -q
 
 # Verify sub-agent worktree starts at main HEAD (not session HEAD)
 _SUBAGENT_INITIAL_HEAD=$(git -C "$_SUBAGENT_WORKTREE" rev-parse HEAD)

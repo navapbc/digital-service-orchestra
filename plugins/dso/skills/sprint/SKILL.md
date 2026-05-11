@@ -1080,6 +1080,27 @@ After composing the batch, check each task's parent story against the `story_unc
 
 **Key invariant**: Only `STATUS:pass` + `UNCERTAIN` signals (tracked in Phase F Step 4) count toward this threshold. `STATUS:fail` tasks are handled via revert-to-open in Phase F Step 16 and do not affect this counter.
 
+### Pre-Dispatch: Push Session Branch (worktree isolation fix)
+
+Before dispatching any sub-agents, detect whether the orchestrator is running in a session worktree:
+
+```bash
+IS_SESSION_WORKTREE=$([ -f "$(git rev-parse --show-toplevel)/.git" ] && echo "true" || echo "false")
+```
+
+If `IS_SESSION_WORKTREE=true`, push the session branch so sub-agent worktrees can fetch it:
+
+```bash
+# Push session branch so sub-agent worktrees can sync to session HEAD (bug 4724-41a7)
+git push -u origin HEAD
+SESSION_HEAD=$(git rev-parse HEAD)
+SESSION_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+```
+
+Inject `SESSION_BRANCH` and `SESSION_HEAD` into each sub-agent's prompt (see `worktree-dispatch.md` for the injection protocol).
+
+If `IS_SESSION_WORKTREE=false` (orchestrator on main), skip the push.
+
 ### Dry-Run Mode
 
 If `--dry-run` was specified:
