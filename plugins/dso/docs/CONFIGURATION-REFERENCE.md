@@ -2030,3 +2030,7 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 | **Required** | Optional — when absent, behavior defaults to always challenge high-stakes decisions |
 | **Usage context** | `${CLAUDE_PLUGIN_ROOT}/hooks/lib/preconditions-validator-lib.sh`, inference-challenge mode of `dso:red-team-reviewer` |
 
+---
+
+> **Note**: The PRECONDITIONS degradation channel and ack mechanism (`check-unacked-degradations.sh`, `validate-ack-rationale.sh`, `preconditions-ack.sh`, `check-precondition-emit.sh`) introduce no new configuration keys; behavior is configured via `TICKETS_TRACKER_DIR` env var (existing) and `DSO_TICKETS_TRACKER_DIR` env var (existing override pattern).
+
