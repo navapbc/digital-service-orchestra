@@ -865,6 +865,17 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 
 ---
 
+### `review.minor_findings_create_tickets`
+
+| | |
+|---|---|
+| **Description** | Controls whether the post-pass findings inspection block in REVIEW-WORKFLOW.md auto-files `minor` and `suggestion` severity findings as bug tickets. Default is fail-closed — minor findings are surfaced as PR comments only and do not become standalone tickets. Auto-filing without opt-in produced the deferred-nitpick treadmill: tickets that sit at pri=3/4 indefinitely and burn triage cost without ever being acted on (bugs 57b9, 9726, 5329). Set to `true` only when the project has process discipline to triage and close minor-finding tickets promptly. |
+| **Accepted values** | `true` \| `false` (any other value or absence is treated as `false`) |
+| **Default** | `false` |
+| **Used by** | `scripts/should-create-minor-finding-tickets.sh` (the gate consulted by `REVIEW-WORKFLOW.md` post-pass inspection) | # shim-exempt: internal implementation reference in config documentation
+
+---
+
 ### `review.behavioral_patterns`
 
 | | |

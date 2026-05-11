@@ -272,12 +272,24 @@ elif not isinstance(findings, list):
 else:
     valid_severities = {"critical", "important", "minor", "fragile"}
     valid_categories = {"hygiene", "design", "maintainability", "correctness", "verification"}
+    # Severities that block merge — these require a reachability sentence so the
+    # reviewer must demonstrate the defect is on a reachable execution path.
+    # See bug d42d-8126-492c-44c4 (PR-80 N1, N3: high-severity findings whose
+    # asserted defects were unreachable by construction).
+    blocking_severities = {"critical", "important", "fragile"}
+    # Synthetic findings produced by infra failures (parse_error, specialist_error,
+    # fallback_exhausted) are exempt from real-finding field requirements; they
+    # carry a 'type' field instead. Match the runner._SYNTHETIC_TYPES set.
+    synthetic_types = {"specialist_error", "fallback_exhausted", "parse_error"}
     for i, finding in enumerate(findings):
         prefix = f"findings[{i}]"
         if not isinstance(finding, dict):
             errors.append(f"{prefix}: must be an object")
             continue
-        for field in ["severity", "category", "description", "file", "cited_lines"]:
+        # Skip real-finding field checks for synthetic infrastructure-failure entries.
+        if finding.get("type") in synthetic_types:
+            continue
+        for field in ["severity", "category", "description", "file", "cited_lines", "cited_excerpt"]:
             if field not in finding:
                 errors.append(f"{prefix}: missing required field '{field}'")
         sev = finding.get("severity")
@@ -298,6 +310,35 @@ else:
                 for j, entry in enumerate(cited):
                     if not isinstance(entry, str) or not _cited_pattern.match(entry):
                         errors.append(f"{prefix}.cited_lines[{j}]: invalid format {entry!r}; expected <path>:<line> or ~<path>:<line>")
+        # cited_excerpt: required string of at least 5 characters (verbatim code from
+        # the cited file). Anchors the finding to file content so misreads / stale
+        # line refs are visible inside the finding itself. See bug d42d-8126.
+        if "cited_excerpt" in finding:
+            excerpt = finding["cited_excerpt"]
+            if not isinstance(excerpt, str):
+                errors.append(f"{prefix}.cited_excerpt: must be a string, got: {type(excerpt).__name__}")
+            elif len(excerpt.strip()) < 5:
+                errors.append(f"{prefix}.cited_excerpt: must be at least 5 non-whitespace characters (got {len(excerpt.strip())})")
+        # reachability: required string of at least 20 characters when severity is
+        # in {critical, important, fragile}. Forces the reviewer to articulate a
+        # caller-input → bug-site → observable-harm path before claiming high
+        # severity. Optional for minor severity.
+        if sev in blocking_severities:
+            if "reachability" not in finding:
+                errors.append(
+                    f"{prefix}: missing required field 'reachability' "
+                    f"(required for severity '{sev}'; provide a one-sentence "
+                    f"caller-input → bug-site → observable-harm path)"
+                )
+            else:
+                reach = finding["reachability"]
+                if not isinstance(reach, str):
+                    errors.append(f"{prefix}.reachability: must be a string, got: {type(reach).__name__}")
+                elif len(reach.strip()) < 20:
+                    errors.append(
+                        f"{prefix}.reachability: must be at least 20 non-whitespace characters "
+                        f"(got {len(reach.strip())}); explain the reachable execution path"
+                    )
 
 # Validate summary
 summary = data.get("summary")

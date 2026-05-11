@@ -177,7 +177,9 @@ the validator will reject unrecognized keys and force a re-dispatch.
       "category": "<one of the 5 review categories>",
       "description": "...",
       "file": "path/to/file (MUST be from the diff being reviewed)",
-      "cited_lines": ["<path>:<line>"]
+      "cited_lines": ["<path>:<line>"],
+      "cited_excerpt": "<verbatim code from the cited file, ≥ 5 chars>",
+      "reachability": "<one-sentence caller-input → bug-site → observable-harm path; REQUIRED when severity is critical, important, or fragile>"
     }
   ],
   "summary": "2-3 sentence assessment",
@@ -189,6 +191,16 @@ the validator will reject unrecognized keys and force a re-dispatch.
 - Accepted: `<path>:<line>` (exact citation) or `~<path>:<line>` (approximate, when exact line is unknown in CI context)
 - Rejected: `~` alone, empty strings, entries without a colon-delimited positive integer line number (e.g., `src/foo.sh` without `:42`)
 
+**cited_excerpt** — required on every real finding; minimum 5 non-whitespace characters.
+- Paste the **verbatim code** at the cited line (or a tight ±2 line window). The excerpt must be the actual text on disk, not a paraphrase or hypothetical.
+- This anchors your finding to file content so misreads, hallucinations, and stale line refs are visible inside the finding itself. Bug d42d-8126 documented 4 of 11 review findings as misreads where the reviewer cited a line number but the asserted defect was contradicted by code a few lines further into the same function — quoting the excerpt would have made the misread obvious.
+- If you cannot quote the actual code (e.g., the file is outside the diff and you didn't open it), DO NOT emit the finding — issue a context-request first or downgrade the claim to informational in the summary.
+
+**reachability** — required on every finding with severity in `{critical, important, fragile}`; minimum 20 non-whitespace characters. Optional for `minor`.
+- Write one sentence describing a concrete execution path: which caller supplies what input → how that input reaches the bug site → what observable harm results (incorrect output, exception, security boundary crossed, data corruption). Example: `"Public /transfer endpoint accepts user-supplied amount; negative values bypass the balance check at line 88 and produce an INSERT with a negative balance."`
+- The point of this field is to force you to verify the defect is actually reachable before claiming high severity. Bug d42d-8126 documented two `[critical]` findings (off-by-one N1, JSONL race N3) where the asserted failure was unreachable by construction — the builder always produced even-length arrays for N1; POSIX guarantees `O_APPEND` writes ≤ `PIPE_BUF` are atomic for N3. If you cannot articulate a reachable path, downgrade to `minor` or drop the finding.
+- This requirement ALSO satisfies the existing NOT-flag rule "Missing error handling for paths the calling code guarantees are unreachable" — making the rule a hard schema gate rather than guidance.
+
 Example **without** `escalate_review` (omit when confident about all severities):
 
 ```json
@@ -199,7 +211,9 @@ Example **without** `escalate_review` (omit when confident about all severities)
       "category": "correctness",
       "description": "Missing null check on user input before passing to downstream handler.",
       "file": "src/handler.py",
-      "cited_lines": ["src/handler.py:42"]
+      "cited_lines": ["src/handler.py:42"],
+      "cited_excerpt": "result = handler.process(payload['user'])",
+      "reachability": "Public /api/submit endpoint forwards request body as payload; payload['user'] is None on unauthenticated requests and downstream handler.process raises AttributeError, returning a 500 instead of a 401."
     }
   ],
   "summary": "One important correctness finding. Logic is otherwise sound. security_overlay_warranted: no, performance_overlay_warranted: no, approach_viability_concern: false"
