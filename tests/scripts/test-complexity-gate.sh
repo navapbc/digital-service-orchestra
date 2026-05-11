@@ -16,7 +16,6 @@ FIXTURE_DIR="$SCRIPT_DIR/fixtures/complexity-gate"
 SHARED_EVALUATOR="$DSO_PLUGIN_DIR/skills/shared/prompts/complexity-evaluator.md"
 SPRINT_EVALUATOR="$DSO_PLUGIN_DIR/skills/sprint/prompts/complexity-evaluator.md"
 EPIC_EVALUATOR="$DSO_PLUGIN_DIR/skills/sprint/prompts/epic-complexity-evaluator.md"
-BRAINSTORM_SKILL="$DSO_PLUGIN_DIR/skills/brainstorm/SKILL.md"
 
 PASS=0
 FAIL=0
@@ -244,39 +243,15 @@ else
 fi
 echo ""
 
-# ── Test case E: /dso:brainstorm SKILL.md Phase 3 Step 4 complexity gate ─────────
-echo "Test case E: /dso:brainstorm SKILL.md Phase 3 Step 4 complexity gate dispatch"
-# TODO: This test case validates future work (stories fukt/zlop) that adds a
-# complexity gate dispatch to /dso:brainstorm Phase 3 Step 4. Until that work is
-# done, Phase 3 Step 4 invokes /dso:preplanning directly without a complexity gate.
-# When the complexity gate is added, remove this PENDING block and implement:
-#   - grep for "complexity-evaluator" or "complexity gate" in Phase 3 Step 4
-#   - grep for "--lightweight" (TRIVIAL/MODERATE routing branch)
-#   - grep for "full" as indicator of COMPLEX routing branch
-#   - grep for "fallback" or "fall through" or "haiku failure"
-
-has_complexity_gate=false
-if grep -q "complexity-evaluator\|complexity gate" "$BRAINSTORM_SKILL" 2>/dev/null; then
-  if grep -q "\-\-lightweight" "$BRAINSTORM_SKILL" 2>/dev/null; then
-    if grep -q "fallback\|fall through\|haiku failure" "$BRAINSTORM_SKILL" 2>/dev/null; then
-      has_complexity_gate=true
-    fi
-  fi
-fi
-
-if $has_complexity_gate; then
-  echo "  PASS E1: Complexity gate dispatch found in /dso:brainstorm SKILL.md"
-  echo "  PASS E2: --lightweight routing branch present"
-  echo "  PASS E3: Fallback prose present"
-  echo "  → Test case E: PASS"
-  (( PASS++ ))
-else
-  echo "  PENDING: /dso:brainstorm SKILL.md Phase 3 Step 4 does not yet contain complexity gate"
-  echo "           dispatch (stories fukt/zlop implement this). Skipping — not a failure."
-  echo "  → Test case E: PENDING"
-  (( PENDING++ ))
-fi
-echo ""
+# Test cases E and G previously verified prose strings in preplanning/brainstorm
+# SKILL.md (grep for "complexity-evaluator", "--lightweight", "fallback"). Per the
+# llm-review finding on PR #87 and the project standard against change-detector
+# tests (CLAUDE.md "remove change detector tests that do not test behavior or
+# contracts"), they were removed: SKILL.md is non-executable LLM instruction,
+# and string-presence checks break on innocuous rewording without catching real
+# regressions. The behavioral contract — that /dso:preplanning classifies an epic
+# at entry and routes by tier — is exercised by the fixture-based routing tests
+# (Test case B) and by end-to-end skill execution, not by prose grepping.
 
 # ── Test function: routing table contains fix-bug entry ──────────────────────
 test_routing_table_contains_fix_bug() {
