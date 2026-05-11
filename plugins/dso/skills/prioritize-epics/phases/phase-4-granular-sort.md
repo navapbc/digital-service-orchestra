@@ -12,6 +12,8 @@ Priority mapping for this phase:
 | Optional additions | High value | **P2** |
 | Optional additions | Low value | **P3** |
 
+**Anti-anchor rule (applies to every step in this phase)**: an epic's *current* priority MUST NOT influence its new priority. The bucket decision from Phase 3 (computed without reference to current priority — see `prompts/coarse-sort-batch.md` Calibration) is the only input. A previously-P4 epic that landed in `BUCKETS.north_star` becomes P0 or P1 like any other North Star epic; a previously-P0 epic that landed in `BUCKETS.out_of_scope` becomes P4. Re-prioritization is the whole point of the skill.
+
 ## Step 1 — Out of scope → P4
 
 For every epic in `BUCKETS.out_of_scope` (including Phase 1 `OUT_OF_SCOPE_IDS`, which were already set to P4 in Phase 1 Step 2 — re-running is idempotent):
