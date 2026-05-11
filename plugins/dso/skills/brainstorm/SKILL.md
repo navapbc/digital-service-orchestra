@@ -395,8 +395,13 @@ DISPATCH the `dso:cross-epic-interaction-classifier` haiku sub-agent via `skills
 - Keyword filtering ("skill", "onboarding", "init", "claude.md", "architect", etc.) against title text
 - Reasoning "the interactions are obvious" or "I'll log a rationale for skipping"
 - Surfacing a curated subset of epics to the user without classifier signals
+- Limiting the dispatch to a "most-likely overlap" / "most semantically similar" subset selected by the orchestrator
+- Skipping or curtailing dispatch on grounds of token cost, batch count, "too many open epics", or any efficiency rationalization
+- Substituting orchestrator-side reading of a small set of ticket descriptions for the classifier dispatch
 
-Inline triage misses semantic overlaps (descriptions, SCs, approach blocks) that the classifier reads via `ticket show`. If you are tempted to skip the dispatch, treat that temptation as a signal to dispatch immediately. Record as SKIPPED only if the epic list returns 0 epics (no open/in-progress epics exist).
+The batching mechanism in `cross-epic-scan.md` is designed for arbitrary N (40, 80, 200+ open epics). Large open-epic counts are the expected operating condition for mature projects, not an exception. Token cost is NOT a justified-complexity escape — the classifier is haiku-tier specifically to make this batching affordable at scale. If the candidate set has N epics, the dispatch produces ceil(N/20) classifier calls; that batch count is correct by design regardless of how large it feels.
+
+Inline triage misses semantic overlaps (descriptions, SCs, approach blocks) that the classifier reads via `ticket show`. If you are tempted to skip the dispatch, treat that temptation as a signal to dispatch immediately. The only valid SKIPPED conditions are the two documented in `cross-epic-scan.md`: (a) the epic list returns 0 candidates after filtering the current epic, or (b) `agent-batch-lifecycle.sh pre-check` returns `MAX_AGENTS: 0` (usage paused). No other SKIPPED rationale is acceptable.
 </HARD-GATE>
 
 Read and execute `skills/brainstorm/prompts/cross-epic-scan.md` with the current approach and success criteria as input. This dispatches haiku-tier classifiers against all open/in-progress epics to detect shared-resource conflicts.
@@ -492,7 +497,19 @@ If the epic depends on others identified in Phase 1:
 
 Fix any issues before finalizing.
 
-### Step 3a: Write brainstorm:complete Tag
+### Step 3a: Write Planning Intelligence Log Comment
+
+<HARD-GATE>
+MUST run before Step 3b. Step 3b's `brainstorm:complete` tag is rejected when no `### Planning Intelligence Log` marker is present on the epic.
+</HARD-GATE>
+
+Render the PIL per `phases/epic-description-template.md` (the `### Planning Intelligence Log` section), populating every field from the approval-gate session log. Write it as a comment:
+
+```bash
+.claude/scripts/dso ticket comment <epic-id> "$PIL_BODY"   # PIL_BODY MUST start with "### Planning Intelligence Log"
+```
+
+### Step 3b: Write brainstorm:complete Tag
 
 Write a durable ticket-level tag to record that brainstorm has completed. This removes any `scrutiny:pending` tag while preserving all other existing tags (e.g., `design:approved`, `CLI_user`).
 
@@ -513,7 +530,9 @@ Run `preconditions-record.sh` FIRST — BEFORE the tag commands. The tag command
 .claude/scripts/dso ticket tag <epic-id> brainstorm:complete
 ```
 
-### Step 3b: Write Brainstorm Completion Sentinel
+If the tag fails with "Planning Intelligence Log not found in ticket events", return to Step 3a — do not proceed.
+
+### Step 3c: Write Brainstorm Completion Sentinel
 
 Write a sentinel file to record that brainstorm has completed for this session. This file is checked by the `EnterPlanMode` PreToolUse hook to enforce brainstorm-before-plan-mode.
 
@@ -527,13 +546,13 @@ This must be the last Phase 3 action before brainstorm completes.
 
 ### Step 4: Brainstorm Complete
 
-Emit a single completion line and end the skill:
+Emit a single completion line naming the epic and end the skill:
 
 ```
-Brainstorm complete for epic <epic-id>. Run `/dso:preplanning <epic-id>` to continue.
+Brainstorm complete for epic <epic-id>.
 ```
 
-Do NOT invoke `/dso:preplanning`, `/dso:implementation-plan`, or any downstream skill. Complexity classification and routing are now performed by `/dso:preplanning` at its entry gate.
+Do NOT invoke `/dso:preplanning`, `/dso:implementation-plan`, or any downstream skill. Do NOT prescribe a specific next command in the completion line — brainstorm does not own the decision of what runs next. The orchestrator may surface `/dso:preplanning <epic-id>` as a suggested next step in its own user-facing summary if appropriate, but the choice belongs to the user or a higher-level orchestrator. Complexity classification and decomposition routing are performed by `/dso:preplanning` at its entry gate; trivial epics may go directly to `/dso:implementation-plan`; some epics may need further discussion before either.
 
 ---
 
@@ -559,4 +578,4 @@ Do NOT invoke `/dso:preplanning`, `/dso:implementation-plan`, or any downstream 
 |-------|------|---------------|
 | 1: Context + Dialogue | Understand the feature | Load PRD/design-notes, one question at a time, Tell-me-more loop; Phase 1 Gate (Understanding Summary → Intent Gap Analysis → Phase 2). Config-gated: External Dependencies shape heuristic + classification dialogue. |
 | 2: Approach + Spec | Define how and what | Propose 2–3 options; draft spec with provenance tracking; apply `verifiable-sc-check.md` per SC; Step 2.25 cross-epic scan → `phases/cross-epic-handlers.md` on non-benign signals; scrutiny pipeline (2.5/2.6/2.75/3) → `phases/post-scrutiny-handlers.md`; Step 4 approval gate (`phases/approval-gate.md`). |
-| 3: Ticket Integration | Create epic; mark complete | Follow-on gate (`phases/follow-on-epic-gate.md`); create/update via `phases/epic-description-template.md`; set deps; validate; `brainstorm:complete` tag + sentinel; emit completion line. Complexity classification and downstream routing happen in `/dso:preplanning`. |
+| 3: Ticket Integration | Create epic; mark complete | Follow-on gate; create/update epic; set deps; validate; **3a** write PIL comment; **3b** preconditions + tag `brainstorm:complete`; **3c** sentinel; emit plain completion line. No downstream skill invoked; orchestrator may suggest `/dso:preplanning <epic-id>` in its own summary. Complexity classification and routing happen in `/dso:preplanning`. |
