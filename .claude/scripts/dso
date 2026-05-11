@@ -80,7 +80,8 @@ fi
 
 # ── Dispatch ──────────────────────────────────────────────────────────────────
 # Registered commands (auto-dispatched via $DSO_ROOT/scripts/<cmd>[.sh]):
-#   harvest-worktree — merge worktree branch into session with gate validation
+#   harvest-worktree   — merge worktree branch into session with gate validation
+#   preconditions-ack  — write ACK event JSON acknowledging a degradation decision
 
 if [ $# -eq 0 ]; then
     printf 'dso: usage: dso <command> [args...]\n' >&2
