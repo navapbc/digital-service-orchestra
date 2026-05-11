@@ -410,6 +410,7 @@ tests/scripts/test-ci-enforcement-e2e.sh:tests/scripts/test-ci-enforcement-e2e-b
 tests/scripts/test-host-project-e2e-bootstrap.sh:tests/scripts/test-host-project-e2e-bootstrap.sh [test_host_bootstrap_and_config_patch]
 tests/scripts/test-host-project-e2e-verify.sh:tests/scripts/test-host-project-e2e-verify.sh [test_host_e2e_security_overlay_blocks_merge]
 tests/scripts/test-merge-to-main-pr.sh:tests/scripts/test-merge-to-main-pr.sh [RED: 0a63-754f-7984-446b]
+tests/scripts/test-merge-to-main-pr-consumer-compat.sh:tests/scripts/test-merge-to-main-pr-consumer-compat.sh
 tests/scripts/test-sigpipe-canary.sh:tests/scripts/test-sigpipe-canary.sh
 tests/scripts/test-ticket-delete.sh:tests/scripts/test-ticket-delete.sh
 tests/scripts/test-ticket-link-duplicates-supersedes.sh:tests/scripts/test-ticket-link-duplicates-supersedes.sh

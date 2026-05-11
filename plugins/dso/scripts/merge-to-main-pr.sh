@@ -233,6 +233,16 @@ _check_gh_version() {
 # Draft PRs are allowed (e.g. active sprint PRs) and are filtered out.
 # Best-effort: if gh fails (no auth, no remote, etc.), proceed — the downstream
 # PR-create call in Task 3 will surface the underlying error with full context.
+#
+# Callers of this function (updated when new consumers added):
+#   sprint/SKILL.md Phase I → /dso:end-session → merge-to-main.sh → here
+#     (sprint Phase A creates a draft PR; draft filtered out, guard passes)
+#   debug-everything/SKILL.md Phase L → merge-to-main.sh → here
+#     (no draft PR created; guard passes when no non-draft PR exists)
+#   end-session/SKILL.md → merge-to-main.sh → here
+#     (no draft PR; guard passes)
+#   fix-bug/SKILL.md → /dso:end-session → merge-to-main.sh → here
+#     (no draft PR; guard passes)
 _check_duplicate_pr() {
     local _existing
     _existing=$(gh pr list --head "$BRANCH" --state open --json number,url,isDraft \
