@@ -137,6 +137,7 @@ touch "$(git rev-parse --show-toplevel)/.sprint-active"
 ```
 
 **Draft PR Creation (ci-pr mode only)**: When `SPRINT_MODE=ci-pr`, open a long-lived draft PR before Phase E dispatch using `create-sprint-draft-pr.sh`:
+# See also: create-sprint-draft-pr.sh for Phase A draft PR creation (ci-pr mode only)
 ```bash
 # Create long-lived draft PR (ci-pr mode only) — substrate for GitHubPRDefenseStore
 if [[ "${SPRINT_MODE:-}" == "ci-pr" ]]; then
@@ -1227,6 +1228,8 @@ Stories tagged `manual:awaiting_user` are collected into `awaiting_manual_storie
 ---
 
 ## Phase E: Sub-Agent Launch (/dso:sprint)
+
+# Story branches: story/<epic-id>/<story-id> — see Phase F for DSO-Story trailer requirement
 
 <HARD-GATE>
 Do NOT implement any task directly using Edit, Write, or other file-modification tools. ALL implementation tasks must be dispatched to sub-agents via the Task tool — regardless of how small, simple, or obvious the change appears. "Small markdown edit", "single-line change", "user already approved", or "sub-agent dispatch is overhead" are not valid exceptions. Direct implementation by the orchestrator bypasses checkpoint protocol, code review, and acceptance criteria gates.

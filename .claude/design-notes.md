@@ -23,3 +23,7 @@ DSO plugin users need to run deterministic code transforms (add-parameter, scaff
 - Adding a new engine requires: (1) adapter script in `recipe-adapters/`, (2) registry entry, (3) conformance tests in `tests/scripts/test-<engine>-adapter.sh`
 - RECIPE_PARAM_* protocol requires callers to translate flags (--param key=value) to env var form before invoking adapters
 - Integration test fixtures live in `tests/integration/fixtures/` — synthetic Python + TypeScript projects that must remain stable for tests to be deterministic
+
+## Follow-on Observability: Story-Branch Leakage Metrics
+
+After the per-story PR pipeline (epic f61f-7e0a-36d3-4e7d) is fully deployed, instrument story-branch leakage: track how often `check-session-merge-only.sh` fires (session-worktree direct commit attempts), how often `check-sprint-trailer.sh` rejects a merge (missing `DSO-Story:` trailer), and whether story branches are created outside Phase E (branch naming violations). These signals indicate orchestrator discipline gaps and should feed back into sprint SKILL.md guidance.

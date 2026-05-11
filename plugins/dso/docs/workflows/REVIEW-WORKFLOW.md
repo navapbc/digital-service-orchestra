@@ -1230,3 +1230,6 @@ When any signal above crosses its threshold, follow this protocol:
 1. **Create a P1 bug ticket**: `.claude/scripts/dso ticket create bug "Classifier miscalibration: <signal description>" --priority 1` — record the specific signal, threshold crossed, and the affected commit range.
 2. **Adjust the classifier**: modify floor rules or scoring weights in `scripts/review-complexity-classifier.sh` to correct the miscalibration. # shim-exempt: safeguard file, direct path required for developer modification instructions
 3. **Re-validate**: re-run the classifier against the same 30-commit sample that triggered the breach and confirm the signal is no longer breaching its threshold before closing the ticket.
+
+### Strategy E: Region-Split (Large Diffs)
+When a diff exceeds 400 LOC or 15 files, trigger region-split: partition changed files into regions of ≤15 files each, dispatch parallel per-region reviewers (correctness + hygiene), then synthesize via opus arch reviewer. Dedup overlapping findings by file+line range. CI-only scope: fires on `story/*` branches via the llm-review workflow (epic f61f-7e0a-36d3-4e7d, story f5f9-9a3c-c7be-4d11 — pending implementation).
