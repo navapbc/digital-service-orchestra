@@ -9,11 +9,14 @@ set -euo pipefail
 #   validate-review-output.sh --list-callers
 #
 # Prompt IDs and their schema hashes:
-#   code-review-dispatch   a977b1de49b5dd3e   (reviewer-findings.json schema)
+#   code-review-dispatch   214949ee476be6d0   (reviewer-findings.json schema)
 #                          Required top-level keys: findings, summary
-#                          Required finding fields: severity, category, description, file, cited_lines
+#                          Required finding fields: severity, category, description, file, cited_lines, cited_excerpt
+#                          Conditional finding fields: reachability (required when severity in {critical, important, fragile})
 #                          Optional: review_tier, selected_tier, escalate_review
 #                          DEPRECATED (tolerated with warning): scores
+#                          Synthetic findings exempt from real-finding field requirements when
+#                          'type' is one of: specialist_error, fallback_exhausted, parse_error.
 #   review-protocol        3053fa9a43e12b79   (REVIEW-SCHEMA.md base structure)
 #   plan-review            9dba6875b85b7bc3   (structured text verdict format)
 #
@@ -62,7 +65,7 @@ fi
 
 
 # --- Prompt-level schema hashes ---
-HASH_CODE_REVIEW_DISPATCH="a977b1de49b5dd3e"
+HASH_CODE_REVIEW_DISPATCH="214949ee476be6d0"
 HASH_REVIEW_PROTOCOL="3053fa9a43e12b79"
 HASH_PLAN_REVIEW="9dba6875b85b7bc3"
 
@@ -93,10 +96,18 @@ Validates review agent output against the expected schema.
 
 Prompt IDs:
   code-review-dispatch   Schema hash: ${HASH_CODE_REVIEW_DISPATCH}
-                         Validates: reviewer-findings.json (2 required top-level
-                         keys: findings, summary; optional: review_tier,
-                         selected_tier, escalate_review; scores tolerated with
-                         deprecation warning during transition — story f19a-c97e)
+                         Validates: reviewer-findings.json
+                         Required top-level: findings, summary
+                         Required per finding: severity, category, description,
+                           file, cited_lines, cited_excerpt
+                         Conditional per finding: reachability (required when
+                           severity ∈ {critical, important, fragile})
+                         Optional top-level: review_tier, selected_tier,
+                           escalate_review
+                         DEPRECATED (tolerated with warning): scores
+                         Synthetic findings (type ∈ {specialist_error,
+                           fallback_exhausted, parse_error}) are exempt from
+                           real-finding field requirements.
 
   review-protocol        Schema hash: ${HASH_REVIEW_PROTOCOL}
                          Validates: REVIEW-SCHEMA.md JSON (subject, reviews[],
@@ -272,12 +283,24 @@ elif not isinstance(findings, list):
 else:
     valid_severities = {"critical", "important", "minor", "fragile"}
     valid_categories = {"hygiene", "design", "maintainability", "correctness", "verification"}
+    # Severities that block merge — these require a reachability sentence so the
+    # reviewer must demonstrate the defect is on a reachable execution path.
+    # See bug d42d-8126-492c-44c4 (PR-80 N1, N3: high-severity findings whose
+    # asserted defects were unreachable by construction).
+    blocking_severities = {"critical", "important", "fragile"}
+    # Synthetic findings produced by infra failures (parse_error, specialist_error,
+    # fallback_exhausted) are exempt from real-finding field requirements; they
+    # carry a 'type' field instead. Match the runner._SYNTHETIC_TYPES set.
+    synthetic_types = {"specialist_error", "fallback_exhausted", "parse_error"}
     for i, finding in enumerate(findings):
         prefix = f"findings[{i}]"
         if not isinstance(finding, dict):
             errors.append(f"{prefix}: must be an object")
             continue
-        for field in ["severity", "category", "description", "file", "cited_lines"]:
+        # Skip real-finding field checks for synthetic infrastructure-failure entries.
+        if finding.get("type") in synthetic_types:
+            continue
+        for field in ["severity", "category", "description", "file", "cited_lines", "cited_excerpt"]:
             if field not in finding:
                 errors.append(f"{prefix}: missing required field '{field}'")
         sev = finding.get("severity")
@@ -298,6 +321,35 @@ else:
                 for j, entry in enumerate(cited):
                     if not isinstance(entry, str) or not _cited_pattern.match(entry):
                         errors.append(f"{prefix}.cited_lines[{j}]: invalid format {entry!r}; expected <path>:<line> or ~<path>:<line>")
+        # cited_excerpt: required string of at least 5 characters (verbatim code from
+        # the cited file). Anchors the finding to file content so misreads / stale
+        # line refs are visible inside the finding itself. See bug d42d-8126.
+        if "cited_excerpt" in finding:
+            excerpt = finding["cited_excerpt"]
+            if not isinstance(excerpt, str):
+                errors.append(f"{prefix}.cited_excerpt: must be a string, got: {type(excerpt).__name__}")
+            elif len(excerpt.strip()) < 5:
+                errors.append(f"{prefix}.cited_excerpt: must be at least 5 non-whitespace characters (got {len(excerpt.strip())})")
+        # reachability: required string of at least 20 characters when severity is
+        # in {critical, important, fragile}. Forces the reviewer to articulate a
+        # caller-input → bug-site → observable-harm path before claiming high
+        # severity. Optional for minor severity.
+        if sev in blocking_severities:
+            if "reachability" not in finding:
+                errors.append(
+                    f"{prefix}: missing required field 'reachability' "
+                    f"(required for severity '{sev}'; provide a one-sentence "
+                    f"caller-input → bug-site → observable-harm path)"
+                )
+            else:
+                reach = finding["reachability"]
+                if not isinstance(reach, str):
+                    errors.append(f"{prefix}.reachability: must be a string, got: {type(reach).__name__}")
+                elif len(reach.strip()) < 20:
+                    errors.append(
+                        f"{prefix}.reachability: must be at least 20 non-whitespace characters "
+                        f"(got {len(reach.strip())}); explain the reachable execution path"
+                    )
 
 # Validate summary
 summary = data.get("summary")

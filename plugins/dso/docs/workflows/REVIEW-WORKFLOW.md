@@ -856,15 +856,18 @@ Even on a passing review, `reviewer-findings.json` may contain actionable `minor
 
 1. Read `reviewer-findings.json` from `$ARTIFACTS_DIR`
 2. Filter findings where `severity` is `minor` or `suggestion` AND the finding describes a concrete, actionable improvement (not a stylistic preference or subjective opinion)
-3. For each actionable finding, create a bug ticket so it is tracked for a future session:
+3. **Gate ticket creation on `review.minor_findings_create_tickets`** (default: false). Auto-filing minor findings as bug tickets without explicit opt-in produced the deferred-nitpick treadmill — tickets that sit at pri=3/4 indefinitely and burn triage cost without ever being acted on (bugs 57b9, 9726, 5329). Surface as PR comments by default; only file tickets when the project has opted in:
    ```bash
-   .claude/scripts/dso ticket create bug "[Component]: [finding summary]" -d "## Incident Overview
-   Source: code review (passed) — minor finding not addressed in this session.
-   Finding: <finding description from reviewer-findings.json>
-   File: <file path from finding>
-   Category: <finding category>"
+   if .claude/scripts/dso should-create-minor-finding-tickets.sh; then
+       # For each actionable finding, create a bug ticket so it is tracked for a future session
+       .claude/scripts/dso ticket create bug "[Component]: [finding summary]" -d "## Incident Overview
+       Source: code review (passed) — minor finding not addressed in this session.
+       Finding: <finding description from reviewer-findings.json>
+       File: <file path from finding>
+       Category: <finding category>"
+   fi
    ```
-4. If zero actionable findings exist, skip ticket creation — proceed immediately
+4. If the gate is closed OR zero actionable findings exist, skip ticket creation — proceed immediately
 
 This step is non-blocking: ticket creation failures do not prevent the calling workflow from resuming. Log a warning on failure and continue.
 

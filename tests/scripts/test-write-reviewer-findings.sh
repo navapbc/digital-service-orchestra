@@ -48,7 +48,8 @@ VALID_JSON='{
       "category": "maintainability",
       "description": "Test finding",
       "file": "test.py",
-      "cited_lines": ["test.py:1"]
+      "cited_lines": ["test.py:1"],
+      "cited_excerpt": "def test():\n    pass"
     }
   ],
   "summary": "Test summary for validation."
@@ -376,7 +377,8 @@ VALID_JSON_WITH_CITED_LINES='{
       "category": "maintainability",
       "description": "Test finding",
       "file": "test.py",
-      "cited_lines": ["test.py:42"]
+      "cited_lines": ["test.py:42"],
+      "cited_excerpt": "result = compute(x)"
     }
   ],
   "summary": "Test summary for validation."
@@ -396,7 +398,7 @@ echo "$VALID_JSON_WITH_CITED_LINES" | "$SCRIPT" 2>/dev/null && cl_valid_exit=0 |
 assert_eq "test_cited_lines_valid_path_colon_line" "0" "$cl_valid_exit"
 
 # test_cited_lines_valid_tilde_prefix
-TILDE_CL_JSON='{"findings":[{"severity":"minor","category":"hygiene","description":"test","file":"f.sh","cited_lines":["~src/foo.sh:42"]}],"summary":"Test summary here."}'
+TILDE_CL_JSON='{"findings":[{"severity":"minor","category":"hygiene","description":"test","file":"f.sh","cited_lines":["~src/foo.sh:42"],"cited_excerpt":"echo hello"}],"summary":"Test summary here."}'
 rm -f "$ARTIFACTS_DIR/reviewer-findings.json"
 echo "$TILDE_CL_JSON" | "$SCRIPT" 2>/dev/null && cl_tilde_exit=0 || cl_tilde_exit=$?
 assert_eq "test_cited_lines_valid_tilde_prefix" "0" "$cl_tilde_exit"

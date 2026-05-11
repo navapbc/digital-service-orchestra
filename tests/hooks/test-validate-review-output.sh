@@ -251,7 +251,9 @@ VALID_CRD_WITH_FINDINGS=$(write_fixture "valid-crd-findings.json" '{
       "category": "hygiene",
       "description": "Syntax error in module",
       "file": "app/src/broken.py",
-      "cited_lines": ["app/src/broken.py:1"]
+      "cited_lines": ["app/src/broken.py:1"],
+      "cited_excerpt": "def broken(:\n    pass",
+      "reachability": "Module is imported at app startup; the syntax error prevents the process from booting on every run."
     }
   ],
   "summary": "Critical build failure requires immediate attention."
@@ -288,6 +290,261 @@ assert_ne \
     "test_code_review_dispatch_extra_key_fails: unexpected extra key exits non-zero" \
     "0" \
     "$EXTRA_KEY_EXIT"
+
+# ============================================================
+# 5a. code-review-dispatch: cited_excerpt enforcement (Approach 1)
+# ============================================================
+#
+# A verbatim code excerpt from the cited file is required on every finding so
+# that misreads / hallucinations / stale line refs are visible inside the
+# finding itself. See bug d42d-8126-492c-44c4 (PR-80 review round 2: 8 of 11
+# findings invalid or overstated severity, 4 of which were misreads of code
+# the reviewer cited only by line number).
+
+# test_cited_excerpt_missing_rejected
+# Finding without cited_excerpt → rejected.
+MISSING_EXCERPT_FILE=$(write_fixture "missing-excerpt.json" '{
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "hygiene",
+      "description": "Test finding",
+      "file": "src/foo.py",
+      "cited_lines": ["src/foo.py:42"]
+    }
+  ],
+  "summary": "Test summary for cited_excerpt enforcement."
+}')
+MISSING_EXCERPT_EXIT=$(run_script code-review-dispatch "$MISSING_EXCERPT_FILE")
+assert_ne \
+    "test_cited_excerpt_missing_rejected: missing cited_excerpt exits non-zero" \
+    "0" \
+    "$MISSING_EXCERPT_EXIT"
+
+# test_cited_excerpt_present_accepted
+# Finding with a valid cited_excerpt → accepted.
+WITH_EXCERPT_FILE=$(write_fixture "with-excerpt.json" '{
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "hygiene",
+      "description": "Test finding",
+      "file": "src/foo.py",
+      "cited_lines": ["src/foo.py:42"],
+      "cited_excerpt": "def foo():\n    pass"
+    }
+  ],
+  "summary": "Test summary for cited_excerpt enforcement."
+}')
+WITH_EXCERPT_EXIT=$(run_script code-review-dispatch "$WITH_EXCERPT_FILE")
+assert_eq \
+    "test_cited_excerpt_present_accepted: valid cited_excerpt exits 0" \
+    "0" \
+    "$WITH_EXCERPT_EXIT"
+
+# test_cited_excerpt_empty_string_rejected
+# Empty cited_excerpt is meaningless — treated the same as missing.
+EMPTY_EXCERPT_FILE=$(write_fixture "empty-excerpt.json" '{
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "hygiene",
+      "description": "Test finding",
+      "file": "src/foo.py",
+      "cited_lines": ["src/foo.py:42"],
+      "cited_excerpt": ""
+    }
+  ],
+  "summary": "Test summary for cited_excerpt enforcement."
+}')
+EMPTY_EXCERPT_EXIT=$(run_script code-review-dispatch "$EMPTY_EXCERPT_FILE")
+assert_ne \
+    "test_cited_excerpt_empty_string_rejected: empty cited_excerpt exits non-zero" \
+    "0" \
+    "$EMPTY_EXCERPT_EXIT"
+
+# test_cited_excerpt_too_short_rejected
+# Excerpt < 5 chars cannot meaningfully anchor a finding to file content; reject.
+SHORT_EXCERPT_FILE=$(write_fixture "short-excerpt.json" '{
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "hygiene",
+      "description": "Test finding",
+      "file": "src/foo.py",
+      "cited_lines": ["src/foo.py:42"],
+      "cited_excerpt": "abc"
+    }
+  ],
+  "summary": "Test summary for cited_excerpt enforcement."
+}')
+SHORT_EXCERPT_EXIT=$(run_script code-review-dispatch "$SHORT_EXCERPT_FILE")
+assert_ne \
+    "test_cited_excerpt_too_short_rejected: cited_excerpt under 5 chars exits non-zero" \
+    "0" \
+    "$SHORT_EXCERPT_EXIT"
+
+# test_cited_excerpt_non_string_rejected
+# Non-string cited_excerpt (e.g., array, number) must be rejected.
+NONSTRING_EXCERPT_FILE=$(write_fixture "nonstring-excerpt.json" '{
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "hygiene",
+      "description": "Test finding",
+      "file": "src/foo.py",
+      "cited_lines": ["src/foo.py:42"],
+      "cited_excerpt": ["not", "a", "string"]
+    }
+  ],
+  "summary": "Test summary for cited_excerpt enforcement."
+}')
+NONSTRING_EXCERPT_EXIT=$(run_script code-review-dispatch "$NONSTRING_EXCERPT_FILE")
+assert_ne \
+    "test_cited_excerpt_non_string_rejected: non-string cited_excerpt exits non-zero" \
+    "0" \
+    "$NONSTRING_EXCERPT_EXIT"
+
+# ============================================================
+# 5b. code-review-dispatch: reachability enforcement (Approach 2)
+# ============================================================
+#
+# Findings with severity in {critical, important, fragile} must include a
+# reachability sentence: a one-sentence caller-input → bug-site → observable-harm
+# path. This forces the reviewer to demonstrate that the asserted defect is on a
+# reachable path before claiming high severity. See bug d42d-8126-492c-44c4
+# (PR-80 N1: hypothesized off-by-one impossible by builder construction; N3:
+# concurrent-write race ruled out by POSIX PIPE_BUF atomicity). minor and
+# suggestion-class findings do not require reachability.
+
+# test_reachability_required_for_critical
+# A critical finding without reachability → rejected.
+CRITICAL_NO_REACH_FILE=$(write_fixture "critical-no-reach.json" '{
+  "findings": [
+    {
+      "severity": "critical",
+      "category": "correctness",
+      "description": "Off-by-one in loop",
+      "file": "src/foo.py",
+      "cited_lines": ["src/foo.py:42"],
+      "cited_excerpt": "for i in range(len(arr)):"
+    }
+  ],
+  "summary": "Test summary for reachability enforcement."
+}')
+CRITICAL_NO_REACH_EXIT=$(run_script code-review-dispatch "$CRITICAL_NO_REACH_FILE")
+assert_ne \
+    "test_reachability_required_for_critical: critical without reachability exits non-zero" \
+    "0" \
+    "$CRITICAL_NO_REACH_EXIT"
+
+# test_reachability_required_for_important
+# An important finding without reachability → rejected.
+IMPORTANT_NO_REACH_FILE=$(write_fixture "important-no-reach.json" '{
+  "findings": [
+    {
+      "severity": "important",
+      "category": "correctness",
+      "description": "Missing null check",
+      "file": "src/foo.py",
+      "cited_lines": ["src/foo.py:42"],
+      "cited_excerpt": "result = data.get('key')"
+    }
+  ],
+  "summary": "Test summary for reachability enforcement."
+}')
+IMPORTANT_NO_REACH_EXIT=$(run_script code-review-dispatch "$IMPORTANT_NO_REACH_FILE")
+assert_ne \
+    "test_reachability_required_for_important: important without reachability exits non-zero" \
+    "0" \
+    "$IMPORTANT_NO_REACH_EXIT"
+
+# test_reachability_required_for_fragile
+# A fragile finding without reachability → rejected (treated like important per CLAUDE.md rule 11).
+FRAGILE_NO_REACH_FILE=$(write_fixture "fragile-no-reach.json" '{
+  "findings": [
+    {
+      "severity": "fragile",
+      "category": "correctness",
+      "description": "Calls a function that may not exist on the target API",
+      "file": "src/foo.py",
+      "cited_lines": ["src/foo.py:42"],
+      "cited_excerpt": "client.unknown_method()"
+    }
+  ],
+  "summary": "Test summary for reachability enforcement."
+}')
+FRAGILE_NO_REACH_EXIT=$(run_script code-review-dispatch "$FRAGILE_NO_REACH_FILE")
+assert_ne \
+    "test_reachability_required_for_fragile: fragile without reachability exits non-zero" \
+    "0" \
+    "$FRAGILE_NO_REACH_EXIT"
+
+# test_reachability_present_critical_passes
+# Critical finding WITH a substantive reachability sentence → accepted.
+CRITICAL_WITH_REACH_FILE=$(write_fixture "critical-with-reach.json" '{
+  "findings": [
+    {
+      "severity": "critical",
+      "category": "correctness",
+      "description": "Off-by-one in loop bounds will index past end of array",
+      "file": "src/foo.py",
+      "cited_lines": ["src/foo.py:42"],
+      "cited_excerpt": "for i in range(len(arr) + 1):",
+      "reachability": "Public handler accepts user-supplied arr; len+1 indexes past end and raises IndexError on every non-empty input."
+    }
+  ],
+  "summary": "Test summary for reachability enforcement."
+}')
+CRITICAL_WITH_REACH_EXIT=$(run_script code-review-dispatch "$CRITICAL_WITH_REACH_FILE")
+assert_eq \
+    "test_reachability_present_critical_passes: critical with reachability exits 0" \
+    "0" \
+    "$CRITICAL_WITH_REACH_EXIT"
+
+# test_reachability_too_short_rejected
+# A reachability under 20 chars cannot articulate a real path; reject.
+SHORT_REACH_FILE=$(write_fixture "short-reach.json" '{
+  "findings": [
+    {
+      "severity": "critical",
+      "category": "correctness",
+      "description": "Off-by-one in loop bounds",
+      "file": "src/foo.py",
+      "cited_lines": ["src/foo.py:42"],
+      "cited_excerpt": "for i in range(len(arr) + 1):",
+      "reachability": "bug"
+    }
+  ],
+  "summary": "Test summary for reachability enforcement."
+}')
+SHORT_REACH_EXIT=$(run_script code-review-dispatch "$SHORT_REACH_FILE")
+assert_ne \
+    "test_reachability_too_short_rejected: reachability under 20 chars exits non-zero" \
+    "0" \
+    "$SHORT_REACH_EXIT"
+
+# test_reachability_not_required_for_minor
+# A minor finding without reachability → accepted (the field is only required
+# for severities that block merge: critical, important, fragile).
+MINOR_NO_REACH_FILE=$(write_fixture "minor-no-reach.json" '{
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "maintainability",
+      "description": "Variable name could be clearer",
+      "file": "src/foo.py",
+      "cited_lines": ["src/foo.py:42"],
+      "cited_excerpt": "x = compute()"
+    }
+  ],
+  "summary": "Test summary for reachability enforcement."
+}')
+MINOR_NO_REACH_EXIT=$(run_script code-review-dispatch "$MINOR_NO_REACH_FILE")
+assert_eq \
+    "test_reachability_not_required_for_minor: minor without reachability exits 0" \
+    "0" \
+    "$MINOR_NO_REACH_EXIT"
 
 # ============================================================
 # 6. plan-review: valid structured text passes
@@ -932,7 +1189,7 @@ _snapshot_fail
 
 _FRAGILE_VALID_FILE=$(write_fixture "fragile_valid.json" '{
   "findings": [
-    {"severity": "fragile", "category": "correctness", "description": "Edge case in error path not covered by tests.", "file": "app/src/handler.py", "cited_lines": ["app/src/handler.py:42"]}
+    {"severity": "fragile", "category": "correctness", "description": "Edge case in error path not covered by tests.", "file": "app/src/handler.py", "cited_lines": ["app/src/handler.py:42"], "cited_excerpt": "raise UnknownError()", "reachability": "Error path triggered by malformed user input; no test exercises this branch so a regression here ships silently."}
   ],
   "summary": "One fragile finding in correctness dimension."
 }')
@@ -949,7 +1206,7 @@ _snapshot_fail
 
 _FRAGILE_SCORE_3_FILE=$(write_fixture "fragile_score_3.json" '{
   "findings": [
-    {"severity": "fragile", "category": "correctness", "description": "Brittle assumption about input ordering in merge logic.", "file": "app/src/merge.py", "cited_lines": ["app/src/merge.py:17"]}
+    {"severity": "fragile", "category": "correctness", "description": "Brittle assumption about input ordering in merge logic.", "file": "app/src/merge.py", "cited_lines": ["app/src/merge.py:17"], "cited_excerpt": "merged = sorted(a + b)", "reachability": "Merge function is called by the public batch endpoint; out-of-order inputs from real producers will produce wrong results."}
   ],
   "summary": "Fragile finding in correctness dimension."
 }')
@@ -968,7 +1225,7 @@ _snapshot_fail
 WRITE_SCRIPT="$DSO_PLUGIN_DIR/scripts/write-reviewer-findings.sh"
 _FRAGILE_INTEGRATION_FILE=$(write_fixture "fragile_integration.json" '{
   "findings": [
-    {"severity": "fragile", "category": "correctness", "description": "Brittle assumption in retry logic; may fail under concurrent load.", "file": "app/src/retry.py", "cited_lines": ["app/src/retry.py:88"]}
+    {"severity": "fragile", "category": "correctness", "description": "Brittle assumption in retry logic; may fail under concurrent load.", "file": "app/src/retry.py", "cited_lines": ["app/src/retry.py:88"], "cited_excerpt": "retries = global_counter", "reachability": "Retry path runs from any background worker and reads a shared mutable global; concurrent dispatch corrupts the counter."}
   ],
   "summary": "One fragile correctness finding; all other dimensions are clean."
 }')
@@ -991,7 +1248,7 @@ echo "--- test_escalate_review_valid_array_passes_validation ---"
 _snapshot_fail
 
 _ESC_VALID_FILE=$(write_fixture "escalate_review_valid.json" '{
-  "findings": [{"severity": "minor", "category": "correctness", "file": "src/foo.py", "description": "uncertain severity assignment", "cited_lines": ["src/foo.py:5"]}],
+  "findings": [{"severity": "minor", "category": "correctness", "file": "src/foo.py", "description": "uncertain severity assignment", "cited_lines": ["src/foo.py:5"], "cited_excerpt": "value = compute_thing()"}],
   "summary": "One finding with uncertain severity; escalation requested.",
   "escalate_review": [{"finding_index": 0, "reason": "uncertain severity"}]
 }')

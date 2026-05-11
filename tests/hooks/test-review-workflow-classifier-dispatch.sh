@@ -8,6 +8,13 @@
 
 set -euo pipefail
 
+# Disable commit signing for temp test repos. Matches the established pattern
+# in tests/test-git-fixtures.sh — setup_temp_dir creates throwaway repos in
+# /tmp and any global commit.gpgsign config would block `git commit`.
+export GIT_CONFIG_COUNT=1  # isolation-ok: scoped to this test process
+export GIT_CONFIG_KEY_0=commit.gpgsign  # isolation-ok: scoped to this test process
+export GIT_CONFIG_VALUE_0=false  # isolation-ok: scoped to this test process
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 source "$REPO_ROOT/tests/lib/assert.sh"
@@ -713,7 +720,9 @@ FINDINGS_A_JSON='{
       "category": "correctness",
       "description": "Edge case: missing null check on input parameter in dispatch handler.",
       "file": "plugins/dso/hooks/dispatchers/pre-bash.sh",
-      "cited_lines": ["plugins/dso/hooks/dispatchers/pre-bash.sh:42"]
+      "cited_lines": ["plugins/dso/hooks/dispatchers/pre-bash.sh:42"],
+      "cited_excerpt": "handler.process(payload[\"user\"])",
+      "reachability": "Public pre-bash dispatcher hook forwards payload; payload[\"user\"] is None for unauthenticated dispatches and downstream handler.process raises AttributeError."
     }
   ],
   "summary": "Sonnet A (correctness) found one important edge case. Overall the logic is sound."
@@ -733,7 +742,9 @@ FINDINGS_B_JSON='{
       "category": "verification",
       "description": "Test coverage gap: no test for the classifier fallback path when stdin is empty.",
       "file": "tests/hooks/test-review-complexity-classifier.sh",
-      "cited_lines": ["tests/hooks/test-review-complexity-classifier.sh:1"]
+      "cited_lines": ["tests/hooks/test-review-complexity-classifier.sh:1"],
+      "cited_excerpt": "# Tests for review-complexity-classifier.sh",
+      "reachability": "Classifier is invoked on every PR diff; an empty-stdin path is reachable on whitespace-only commits and no test exercises it."
     }
   ],
   "summary": "Sonnet B (verification) found a test coverage gap. Implementation appears correct."
@@ -753,7 +764,9 @@ FINDINGS_C_JSON='{
       "category": "hygiene",
       "description": "Redundant variable assignment in loop body that could be moved outside.",
       "file": "plugins/dso/scripts/review-complexity-classifier.sh",
-      "cited_lines": ["plugins/dso/scripts/review-complexity-classifier.sh:1"]
+      "cited_lines": ["plugins/dso/scripts/review-complexity-classifier.sh:1"],
+      "cited_excerpt": "#!/usr/bin/env bash",
+      "reachability": "Classifier runs on every PR diff; redundant assignment runs once per file in the loop and adds measurable latency on large diffs."
     }
   ],
   "summary": "Sonnet C (hygiene/design) found a minor hygiene issue. Design is appropriate."
@@ -863,21 +876,27 @@ OPUS_FINDINGS_JSON='{
       "category": "correctness",
       "description": "Sonnet A finding (upgraded context): Edge case in dispatch handler. Combined with hygiene debt this creates a compounding risk.",
       "file": "plugins/dso/hooks/dispatchers/pre-bash.sh",
-      "cited_lines": ["plugins/dso/hooks/dispatchers/pre-bash.sh:42"]
+      "cited_lines": ["plugins/dso/hooks/dispatchers/pre-bash.sh:42"],
+      "cited_excerpt": "handler.process(payload[\"user\"])",
+      "reachability": "Public pre-bash dispatcher hook forwards payload; payload[\"user\"] is None for unauthenticated dispatches and downstream handler.process raises AttributeError."
     },
     {
       "severity": "important",
       "category": "verification",
       "description": "Sonnet B finding: Test coverage gap for classifier fallback path.",
       "file": "tests/hooks/test-review-complexity-classifier.sh",
-      "cited_lines": ["tests/hooks/test-review-complexity-classifier.sh:1"]
+      "cited_lines": ["tests/hooks/test-review-complexity-classifier.sh:1"],
+      "cited_excerpt": "# Tests for review-complexity-classifier.sh",
+      "reachability": "Classifier is invoked on every PR diff; an empty-stdin path is reachable on whitespace-only commits and no test exercises it."
     },
     {
       "severity": "important",
       "category": "hygiene",
       "description": "Sonnet C finding: Redundant variable assignment in loop body.",
       "file": "plugins/dso/scripts/review-complexity-classifier.sh",
-      "cited_lines": ["plugins/dso/scripts/review-complexity-classifier.sh:1"]
+      "cited_lines": ["plugins/dso/scripts/review-complexity-classifier.sh:1"],
+      "cited_excerpt": "#!/usr/bin/env bash",
+      "reachability": "Classifier runs on every PR diff; redundant assignment runs once per file in the loop and adds measurable latency on large diffs."
     }
   ],
   "summary": "Opus arch review: three sonnet specialists found important issues across correctness, verification, and hygiene. Combined weight suggests these should be addressed before merge. No critical architectural violations found."

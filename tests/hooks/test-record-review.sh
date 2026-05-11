@@ -6,6 +6,14 @@
 # the code-reviewer sub-agent). It requires --reviewer-hash and validates
 # the findings file's integrity and schema. No stdin JSON is accepted.
 
+# Disable commit signing for temp test repos. test_classifier_telemetry_includes_diff_hash
+# creates a fixture repo and runs `git commit`; any global commit.gpgsign config in the
+# host environment would block the commit and leave the diff empty, causing the telemetry
+# assertion to fail with no diagnostic. Matches the pattern in tests/test-git-fixtures.sh.
+export GIT_CONFIG_COUNT=1  # isolation-ok: scoped to this test process
+export GIT_CONFIG_KEY_0=commit.gpgsign  # isolation-ok: scoped to this test process
+export GIT_CONFIG_VALUE_0=false  # isolation-ok: scoped to this test process
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"

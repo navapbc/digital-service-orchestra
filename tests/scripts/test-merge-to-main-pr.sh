@@ -16,6 +16,14 @@
 
 set -uo pipefail
 
+# Disable commit signing for temp test repos. Each fixture creates a throwaway
+# repo under /tmp and runs `git commit`; a global commit.gpgsign in the host
+# environment would block the commit silently, leaving the test in an
+# unrecoverable state. Matches the pattern in tests/test-git-fixtures.sh.
+export GIT_CONFIG_COUNT=1  # isolation-ok: scoped to this test process
+export GIT_CONFIG_KEY_0=commit.gpgsign  # isolation-ok: scoped to this test process
+export GIT_CONFIG_VALUE_0=false  # isolation-ok: scoped to this test process
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 DSO_PLUGIN_DIR="$REPO_ROOT/plugins/dso"

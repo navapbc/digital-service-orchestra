@@ -33,6 +33,15 @@
 
 set -uo pipefail
 
+# Disable commit signing for temp test repos. The test creates throwaway repos
+# under /tmp and runs `git commit`; a global commit.gpgsign config in the host
+# environment would block the commit and leave the repo with no HEAD, cascading
+# into "fatal: ambiguous argument 'HEAD'" across every downstream assertion.
+# Matches the established pattern in tests/test-git-fixtures.sh.
+export GIT_CONFIG_COUNT=1  # isolation-ok: scoped to this test process
+export GIT_CONFIG_KEY_0=commit.gpgsign  # isolation-ok: scoped to this test process
+export GIT_CONFIG_VALUE_0=false  # isolation-ok: scoped to this test process
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
