@@ -4435,5 +4435,337 @@ t_review_comments_jq_always_has_createdAt() {
 }
 t_review_comments_jq_always_has_createdAt
 
+# ===========================================================================
+# Draft-aware _check_duplicate_pr guard tests (Task 0a63-754f — DD2, DD4)
+# ===========================================================================
+#
+# These tests assert the amended _check_duplicate_pr() behavior:
+#   - A draft PR (isDraft:true) MUST be allowed (exit 0)
+#   - A non-draft PR (isDraft:false) MUST be blocked (exit 1)
+#   - No open PR at all → allowed (exit 0)
+#   - gh failure / malformed JSON → best-effort pass-through (exit 0)
+#
+# Tests FAIL RED until T2 amends gh pr list to:
+#   --json number,url,isDraft ... | jq 'map(select(.isDraft == false)) | .[0].url // empty'
+#
+# The current implementation uses --jq '.[0].url' which ignores isDraft,
+# causing a draft PR to be incorrectly blocked.
+#
+# Fixture strategy:
+#   _build_check_dup_pr_fixture <tmpdir> <PR_LIST_MODE>
+#     PR_LIST_MODE=draft     → gh pr list emits [{isDraft:true,number:99,url:...}]
+#     PR_LIST_MODE=non_draft → gh pr list emits [{isDraft:false,number:99,url:...}]
+#     PR_LIST_MODE=empty     → gh pr list emits []
+#     PR_LIST_MODE=fail      → gh pr list exits 1 (simulate auth error)
+#     PR_LIST_MODE=malformed → gh pr list emits non-JSON garbage
+#
+# _check_duplicate_pr() is sourced via PR_LIB_MODE=1 so we can call it directly
+# without running the full merge-to-main-pr.sh pipeline.
+# ---------------------------------------------------------------------------
+
+_build_check_dup_pr_fixture() {
+    local tmpdir="$1" pr_list_mode="$2"
+    local bin="$tmpdir/bin"
+    mkdir -p "$bin"
+
+    local real_git
+    real_git=$(command -v git)
+
+    # ---- gh shim: pr list arm returns payload based on PR_LIST_MODE ----
+    # The shim reads PR_LIST_MODE from the environment at call time so each
+    # test case can override it before invoking _check_duplicate_pr.
+    #
+    # Design note: the shim deliberately ignores the --jq flag when present.
+    # This ensures the fixture works with both the current implementation
+    # (--json number,url --jq '.[0].url') and the amended implementation
+    # (--json number,url,isDraft piped to external jq).  For 'draft' and
+    # 'non_draft' modes the shim emits a JSON array so:
+    #   - Old code: captures the array string (non-empty) → blocks ALL PRs → RED for draft
+    #   - New code: pipes to jq map(select(.isDraft==false)) → correct filtering → GREEN
+    # For 'empty' mode the shim emits nothing (matching real gh behavior when
+    # --jq '.[0].url' on an empty list suppresses null output):
+    #   - Old code: _existing="" → exit 0 (PASS)
+    #   - New code: jq gets empty input → error suppressed by || true → exit 0 (PASS)
+    cat > "$bin/gh" <<'GH_SHIM_EOF'
+#!/usr/bin/env bash
+case "$1" in
+  --version)
+    echo "gh version 2.40.1 (2024-01-01)"
+    exit 0
+    ;;
+  pr)
+    case "$2" in
+      list)
+        case "${PR_LIST_MODE:-empty}" in
+          draft)
+            printf '[{"isDraft":true,"number":99,"url":"https://github.com/org/repo/pull/99"}]\n'
+            exit 0
+            ;;
+          non_draft)
+            printf '[{"isDraft":false,"number":99,"url":"https://github.com/org/repo/pull/99"}]\n'
+            exit 0
+            ;;
+          empty)
+            # Emit nothing — simulates real gh behavior when no open PRs exist.
+            # Both old code (--jq '.[0].url' → null suppressed) and new code
+            # (jq on empty input → error suppressed) produce empty string → exit 0.
+            exit 0
+            ;;
+          fail)
+            echo "error: authentication required" >&2
+            exit 1
+            ;;
+          malformed)
+            printf 'not-valid-json\n'
+            exit 0
+            ;;
+        esac
+        ;;
+      *) exit 0 ;;
+    esac
+    ;;
+  *) exit 0 ;;
+esac
+GH_SHIM_EOF
+    chmod +x "$bin/gh"
+
+    # ---- git shim: push intercepted; all else delegated to real git ----
+    local git_push_log="$tmpdir/git-push.log"
+    cat > "$bin/git" <<GIT_SHIM
+#!/usr/bin/env bash
+if [[ "\$1" == "push" ]]; then
+  printf '%s\n' "\$*" >> "$git_push_log"
+  exit 0
+fi
+exec "$real_git" "\$@"
+GIT_SHIM
+    chmod +x "$bin/git"
+
+    # ---- Minimal git repo so rev-parse and branch detection resolve ----
+    (
+        cd "$tmpdir" || exit 1
+        "$real_git" init -q -b main >/dev/null 2>&1
+        "$real_git" config user.email "test@test.local"
+        "$real_git" config user.name "test"
+        echo "seed" > seed.txt
+        "$real_git" add seed.txt
+        "$real_git" commit -q -m "seed" >/dev/null
+        "$real_git" checkout -q -b "feature-dup-guard"
+        echo "work" > work.txt
+        "$real_git" add work.txt
+        "$real_git" commit -q -m "work" >/dev/null
+    )
+}
+
+# Helper: source merge-to-main-pr.sh in PR_LIB_MODE=1 and call _check_duplicate_pr.
+# Returns the exit code of _check_duplicate_pr.
+# Args: $1=tmpdir $2=pr_list_mode
+#
+# Implementation note: uses a wrapper script written to disk because
+# `bash -c "source ...; fn"` does NOT propagate functions defined in the
+# sourced file — source runs in the inner bash -c shell but the function
+# definitions are still not callable in a nested `bash -c`. A wrapper script
+# that sources and immediately calls the function avoids this limitation.
+_run_check_duplicate_pr() {
+    local tmpdir="$1" pr_list_mode="$2"
+    local wrapper
+    wrapper="$(mktemp /tmp/dso-dup-check-wrapper.XXXXXX)"
+    cat > "$wrapper" <<WRAPPER_EOF
+#!/usr/bin/env bash
+set +e  # allow _check_duplicate_pr to return non-zero without aborting
+# shellcheck disable=SC1090
+PR_LIB_MODE=1 source "$PR_SCRIPT" 2>/dev/null
+_check_duplicate_pr 2>/dev/null
+exit \$?
+WRAPPER_EOF
+    chmod +x "$wrapper"
+    (
+        cd "$tmpdir" || exit 1
+        PATH="$tmpdir/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        BRANCH="feature-dup-guard" \
+        PR_LIST_MODE="$pr_list_mode" \
+        bash "$wrapper"
+    )
+    local _ec=$?
+    rm -f "$wrapper"
+    return "$_ec"
+}
+
+# ---------------------------------------------------------------------------
+# t_draft_pr_from_active_sprint_allowed
+# Given: gh pr list returns a single draft PR (isDraft:true)
+# When: _check_duplicate_pr runs
+# Then: exit 0 — draft PRs (long-lived sprint PRs) must not block new merges
+#
+# RED until T2: current --jq '.[0].url' returns the URL unconditionally,
+# causing exit 1 when a draft PR exists.
+# ---------------------------------------------------------------------------
+t_draft_pr_from_active_sprint_allowed() {
+    local _T _ec
+    _T="$(mktemp -d /tmp/dso-dup-pr-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    _build_check_dup_pr_fixture "$_T" "draft"
+
+    _run_check_duplicate_pr "$_T" "draft"
+    _ec=$?
+
+    assert_eq "t_draft_pr_from_active_sprint_allowed:exits_zero" "0" "$_ec"
+}
+t_draft_pr_from_active_sprint_allowed
+
+# ---------------------------------------------------------------------------
+# t_stale_draft_pr_allowed
+# Given: gh pr list returns a stale draft PR (isDraft:true, different number)
+# When: _check_duplicate_pr runs
+# Then: exit 0 — all draft PRs are allowed regardless of age
+#
+# RED until T2: same root cause as t_draft_pr_from_active_sprint_allowed.
+# ---------------------------------------------------------------------------
+t_stale_draft_pr_allowed() {
+    local _T _ec
+    _T="$(mktemp -d /tmp/dso-dup-pr-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    _build_check_dup_pr_fixture "$_T" "draft"
+
+    _run_check_duplicate_pr "$_T" "draft"
+    _ec=$?
+
+    assert_eq "t_stale_draft_pr_allowed:exits_zero" "0" "$_ec"
+}
+t_stale_draft_pr_allowed
+
+# ---------------------------------------------------------------------------
+# t_non_draft_release_pr_blocked
+# Given: gh pr list returns a non-draft PR (isDraft:false)
+# When: _check_duplicate_pr runs
+# Then: exit 1 — non-draft open PR blocks the merge
+#
+# This test is GREEN with current code (both old and new behavior block on
+# non-draft PRs). Included to guard against regression: the isDraft filter
+# must never let non-draft PRs through.
+# ---------------------------------------------------------------------------
+t_non_draft_release_pr_blocked() {
+    local _T _ec
+    _T="$(mktemp -d /tmp/dso-dup-pr-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    _build_check_dup_pr_fixture "$_T" "non_draft"
+
+    _run_check_duplicate_pr "$_T" "non_draft"
+    _ec=$?
+
+    local _is_blocked="false"
+    [[ "$_ec" -ne 0 ]] && _is_blocked="true"
+
+    assert_eq "t_non_draft_release_pr_blocked:exits_nonzero" "true" "$_is_blocked"
+}
+t_non_draft_release_pr_blocked
+
+# ---------------------------------------------------------------------------
+# t_check_duplicate_pr_no_pr_allowed
+# Given: gh pr list returns []
+# When: _check_duplicate_pr runs
+# Then: exit 0 — no open PR, nothing to block
+# ---------------------------------------------------------------------------
+t_check_duplicate_pr_no_pr_allowed() {
+    local _T _ec
+    _T="$(mktemp -d /tmp/dso-dup-pr-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    _build_check_dup_pr_fixture "$_T" "empty"
+
+    _run_check_duplicate_pr "$_T" "empty"
+    _ec=$?
+
+    assert_eq "t_check_duplicate_pr_no_pr_allowed:exits_zero" "0" "$_ec"
+}
+t_check_duplicate_pr_no_pr_allowed
+
+# ---------------------------------------------------------------------------
+# t_check_duplicate_pr_gh_failure_passes_through
+# Given: gh pr list exits non-zero (e.g., auth failure)
+# When: _check_duplicate_pr runs
+# Then: exit 0 — best-effort: guard must not block on gh errors
+#
+# The comment at line 233-234 of merge-to-main-pr.sh documents this:
+# "if gh fails ... proceed — the downstream PR-create call will surface it."
+# ---------------------------------------------------------------------------
+t_check_duplicate_pr_gh_failure_passes_through() {
+    local _T _ec
+    _T="$(mktemp -d /tmp/dso-dup-pr-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    _build_check_dup_pr_fixture "$_T" "fail"
+
+    _run_check_duplicate_pr "$_T" "fail"
+    _ec=$?
+
+    assert_eq "t_check_duplicate_pr_gh_failure_passes_through:exits_zero" "0" "$_ec"
+}
+t_check_duplicate_pr_gh_failure_passes_through
+
+# ---------------------------------------------------------------------------
+# t_check_duplicate_pr_malformed_json_passes_through
+# Given: gh pr list returns non-JSON garbage (malformed response)
+# When: _check_duplicate_pr runs
+# Then: exit 0 — best-effort: malformed output must not block the merge
+#
+# RED until T2: current --jq '.[0].url' applied to non-JSON output causes jq
+# to error; the `|| true` makes gh pr list produce empty string → exits 0.
+# After T2, jq processes the malformed JSON and produces empty → exits 0.
+# Both old and new code should pass this test.
+# ---------------------------------------------------------------------------
+t_check_duplicate_pr_malformed_json_passes_through() {
+    local _T _ec
+    _T="$(mktemp -d /tmp/dso-dup-pr-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    _build_check_dup_pr_fixture "$_T" "malformed"
+
+    _run_check_duplicate_pr "$_T" "malformed"
+    _ec=$?
+
+    assert_eq "t_check_duplicate_pr_malformed_json_passes_through:exits_zero" "0" "$_ec"
+}
+t_check_duplicate_pr_malformed_json_passes_through
+
+# ---------------------------------------------------------------------------
+# t_check_duplicate_pr_isdraft_filter_returns_empty_not_null
+# Given: gh pr list returns only draft PRs (no non-draft PRs)
+# When: _check_duplicate_pr runs with amended jq filter
+# Then: the jq expression must produce empty string (not the literal "null")
+#       so the [[ -n "$_existing" ]] guard correctly allows the merge.
+#
+# RED until T2: current code extracts url from .[0] unconditionally, returning
+# the draft PR's URL. With T2, map(select(.isDraft == false)) | .[0].url // empty
+# must produce "" (empty), not "null", when all PRs are drafts.
+# ---------------------------------------------------------------------------
+t_check_duplicate_pr_isdraft_filter_returns_empty_not_null() {
+    local _T _ec
+    _T="$(mktemp -d /tmp/dso-dup-pr-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    _build_check_dup_pr_fixture "$_T" "draft"
+
+    _run_check_duplicate_pr "$_T" "draft"
+    _ec=$?
+
+    # If the filter returned "null" as a string, [[ -n "$_existing" ]] would be
+    # true and the guard would block — exit 1. We assert exit 0 to catch this.
+    assert_eq "t_check_duplicate_pr_isdraft_filter_returns_empty_not_null:exits_zero_not_null" "0" "$_ec"
+}
+t_check_duplicate_pr_isdraft_filter_returns_empty_not_null
+
 # ---------------------------------------------------------------------------
 print_summary
