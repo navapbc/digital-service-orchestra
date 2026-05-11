@@ -468,7 +468,8 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     else
         _attribution_enabled="false"
     fi
-    if [[ "$_attribution_enabled" != "true" ]]; then
+    # DSO_SPRINT_MODE=1 bypasses the attribution.enabled guard so the DSO-Story trailer is always injected in sprint mode
+    if [[ "$_attribution_enabled" != "true" && -z "${DSO_SPRINT_MODE:-}" ]]; then
         exit 0
     fi
 

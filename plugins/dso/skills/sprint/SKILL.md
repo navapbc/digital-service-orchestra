@@ -281,6 +281,25 @@ Wait for user response and route accordingly:
 - **(b) brainstorm**: invoke `/dso:brainstorm <primary_ticket_id>` via Skill tool, then re-enter Preplanning Gate.
 - **(c) proceed**: log `"User elected to proceed with low-clarity ticket."`, continue to Preplanning Gate.
 
+### Mode Detection
+
+Detect whether per-story PR mechanisms are active for this sprint run:
+
+```bash
+SPRINT_MODE=$(bash "$PLUGIN_SCRIPTS/mode-detect.sh")  # shim-exempt: internal orchestration script
+```
+
+Emit exactly one banner based on the result:
+
+| SPRINT_MODE | Banner |
+|-------------|--------|
+| `ci-pr` | `MODE: ci-pr` |
+| `local` | `MODE: local — per-story PR mechanisms inactive` |
+
+When `SPRINT_MODE=local`: all ci-pr-only mechanisms (per-story PR creation, trailer enforcement, story-level review gates, merge orchestration, cross-story diff analysis) are **inactive for this sprint run**. Do not attempt to create PRs or enforce story-level trailers.
+
+When `SPRINT_MODE=ci-pr`: per-story PR mechanisms are active. Proceed with normal sprint flow.
+
 ### Context Efficiency Rules
 
 **Status checks**: Use `.claude/scripts/dso issue-summary.sh <id>` or `.claude/scripts/dso ticket list --parent=<epic-id>` (scope to the epic under sprint) for orchestrator status checks (is it done? what's blocking?). Reserve full `.claude/scripts/dso ticket show <id>` only when sub-agents need to read their complete task context.
@@ -1779,7 +1798,15 @@ For tasks that failed:
 
 **This step applies only when `worktree.isolation_enabled` is `false` (shared-directory mode).** When worktree isolation is enabled, commits are made per-worktree via `per-worktree-review-commit.md` (see Worktree Isolation Mode section at the top of Phase F). Skip this step in worktree isolation mode.
 
+```bash
+export DSO_SPRINT_MODE=1
+```
+
 Read and execute `${CLAUDE_PLUGIN_ROOT}/docs/workflows/COMMIT-WORKFLOW.md`.
+
+```bash
+unset DSO_SPRINT_MODE
+```
 
 **SIZE_WARNING path**: When SIZE_ACTION=warn, log the SIZE_WARNING to the user and continue with review dispatch. Do NOT halt, split, or escalate based on warn alone.
 
