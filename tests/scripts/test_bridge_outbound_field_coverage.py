@@ -1146,20 +1146,26 @@ class TestOutboundStatusMissingSyncFile:
             "(no jira_key resolvable)"
         )
 
-        # A BRIDGE_ALERT must be written so the silent-drop becomes observable
+        # A BRIDGE_ALERT must be written so the silent-drop becomes observable.
+        # Bug 6f78-e9c4: after the retroactive-CREATE-failure raise, two alerts
+        # are written — one from handle_status_event (missing-SYNC reason) and
+        # one from process_outbound's per-event exception handler. Either path
+        # surfaces the dropped event; require >= 1 and check at least one
+        # mentions SYNC so operators can identify the failure mode.
         alert_files = list(ticket_dir.glob("*-BRIDGE_ALERT.json"))
-        assert len(alert_files) == 1, (
-            f"OUTBOUND STATUS with missing SYNC.json must write exactly 1 "
+        assert len(alert_files) >= 1, (
+            f"OUTBOUND STATUS with missing SYNC.json must write at least 1 "
             f"BRIDGE_ALERT to surface the dropped event. Got: {alert_files}"
         )
 
-        alert_payload = json.loads(alert_files[0].read_text(encoding="utf-8"))
-        # Reason wording isn't prescribed verbatim, but it must mention SYNC
-        # so the operator can grep the alert and identify this failure mode.
-        reason = alert_payload.get("data", {}).get("reason", "") or alert_payload.get(
-            "reason", ""
-        )
-        assert "SYNC" in reason or "sync" in reason, (
-            f"BRIDGE_ALERT for missing-SYNC drop must reference SYNC in its "
-            f"reason field; got reason={reason!r}"
+        reasons: list[str] = []
+        for af in alert_files:
+            payload = json.loads(af.read_text(encoding="utf-8"))
+            reason = payload.get("data", {}).get("reason", "") or payload.get(
+                "reason", ""
+            )
+            reasons.append(reason)
+        assert any("SYNC" in r or "sync" in r for r in reasons), (
+            f"At least one BRIDGE_ALERT for missing-SYNC drop must reference "
+            f"SYNC in its reason field; got reasons={reasons!r}"
         )

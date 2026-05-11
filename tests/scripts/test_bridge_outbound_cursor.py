@@ -161,30 +161,96 @@ def test_fetch_events_three_commits(tmp_path: Path, cursor_mod: ModuleType) -> N
         assert e["event_type"] == "STATUS"
 
 
-def test_cold_start_seeds_at_head_returns_empty(
+def test_cold_start_returns_full_history(
     tmp_path: Path, cursor_mod: ModuleType
 ) -> None:
-    """Cold-start: no cursor → seed at HEAD, write BRIDGE_ALERT, return [].
+    """Cold-start (bug f8a9-2cb0): no cursor → walk full tracker history and
+    return ALL pre-existing CREATE/event files.
 
-    No events should be processed on cold-start (avoids replaying entire history
-    on first run).
+    Previously, cold-start seeded at HEAD and returned [], causing the first
+    bridge run against a tracker with pre-existing tickets to silently drop
+    every CREATE event (157 tickets in the production case).
     """
     repo = _make_tmp_git_tracker(tmp_path)
-    _commit_event(repo, "ticket-xxxx", "STATUS")
-    head_sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    sha1, _ = _commit_event(repo, "ticket-aaaa", "CREATE")
+    sha2, _ = _commit_event(repo, "ticket-bbbb", "CREATE")
+    sha3, _ = _commit_event(repo, "ticket-cccc", "STATUS")
 
     events = cursor_mod.fetch_events_since_cursor(repo, None)
+    assert len(events) == 3, (
+        "cold-start must return pre-existing events, not silently drop them"
+    )
+    seen_tickets = {e["ticket_id"] for e in events}
+    assert seen_tickets == {"ticket-aaaa", "ticket-bbbb", "ticket-cccc"}
+    seen_shas = {e["commit_sha"] for e in events}
+    assert seen_shas == {sha1, sha2, sha3}
+
+
+def test_cold_start_cap_exceeded_seeds_at_head(
+    tmp_path: Path, cursor_mod: ModuleType
+) -> None:
+    """Cold-start with history > cap → BRIDGE_ALERT + seed at HEAD, return [].
+
+    Cap protection still applies to cold-start to avoid unbounded backfills.
+    """
+    repo = _make_tmp_git_tracker(tmp_path)
+    for i in range(5):
+        _commit_event(repo, f"ticket-{i:04d}", "CREATE")
+    head_sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
+
+    # cap=2 < 5 distinct commits → cap-exceeded path
+    events = cursor_mod.fetch_events_since_cursor(repo, None, cap=2)
     assert events == []
-    # Cursor was written at HEAD
     assert cursor_mod.read_cursor(repo) == head_sha
-    # BRIDGE_ALERT was written under the __bridge__ pseudo-ticket dir
     alert_dir = repo / "__bridge__"
     assert alert_dir.is_dir()
     alerts = list(alert_dir.glob("*-BRIDGE_ALERT.json"))
-    assert len(alerts) == 1
-    payload = json.loads(alerts[0].read_text(encoding="utf-8"))
-    assert payload["event_type"] == "BRIDGE_ALERT"
-    assert "cold-start" in payload["data"]["reason"]
+    # cap-exceeded path writes a cap alert + the cold-start seed alert
+    assert len(alerts) >= 1
+    reasons = [
+        json.loads(a.read_text(encoding="utf-8"))["data"]["reason"] for a in alerts
+    ]
+    assert any("cap exceeded" in r for r in reasons)
+
+
+def test_cold_start_git_log_failure_seeds_at_head(
+    tmp_path: Path, cursor_mod: ModuleType
+) -> None:
+    """Cold-start: when git log returns non-zero (e.g. corrupt repo, deepen error),
+    fetch_events_since_cursor must fall back to _seed_at_head: write cursor at
+    HEAD, emit BRIDGE_ALERT, and return [].
+
+    This covers the lines 154-159 fallback branch in _outbound_cursor.py.
+    """
+    from unittest.mock import MagicMock, patch
+
+    repo = _make_tmp_git_tracker(tmp_path)
+    _commit_event(repo, "ticket-fail", "CREATE")
+    head_sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
+
+    # Simulate git log failure for the cold-start call only (no range arg).
+    # _run_git_log(None) is the cold-start path; _seed_at_head calls git rev-parse,
+    # so we must let that through while making git log fail.
+    original_run = subprocess.run
+
+    def _selective_fail(*args: object, **kwargs: object) -> subprocess.CompletedProcess:  # type: ignore[type-arg]
+        cmd = args[0] if args else []
+        if isinstance(cmd, list) and "log" in cmd:
+            result: subprocess.CompletedProcess = MagicMock()  # type: ignore[type-arg]
+            result.returncode = 1
+            result.stdout = ""
+            result.stderr = "fatal: simulated git log failure"
+            return result
+        return original_run(*args, **kwargs)  # type: ignore[arg-type]
+
+    with patch("subprocess.run", side_effect=_selective_fail):
+        events = cursor_mod.fetch_events_since_cursor(repo, None)
+
+    assert events == [], "cold-start git-log failure must return [] (seed at HEAD)"
+    stored_cursor = cursor_mod.read_cursor(repo)
+    assert stored_cursor == head_sha, (
+        f"cursor must be written at HEAD ({head_sha!r}); got {stored_cursor!r}"
+    )
 
 
 def test_unreachable_sha_seeds_at_head(tmp_path: Path, cursor_mod: ModuleType) -> None:

@@ -27,23 +27,57 @@ logger = logging.getLogger(__name__)
 
 _SORT_SENTINEL = 2**62
 
+# Per-event-type priority used within a single ticket's events to guarantee
+# CREATE precedes STATUS even when fetch_events_since_cursor returns events
+# in newest-first git-log order (bug 6f78-e9c4). Lower number sorts first.
+_EVENT_TYPE_PRIORITY: dict[str, int] = {
+    "CREATE": 0,
+    "SYNC": 1,
+    "EDIT": 2,
+    "STATUS": 3,
+    "COMMENT": 4,
+    "FILE_IMPACT": 4,
+    "REVERT": 5,
+}
+_DEFAULT_TYPE_PRIORITY = 6
+
 
 def sort_events_for_dispatch(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Sort events so LINK/UNLINK appear before other events (by timestamp).
+    """Sort events so LINK/UNLINK come first (by timestamp) and per-ticket
+    dependencies are respected for the rest.
 
-    LINK and UNLINK events are sorted by their own file timestamp so that
-    relationship operations are applied in chronological order; all other
-    event types are placed after them (using a high sentinel value).
+    - LINK/UNLINK events: group 0, sorted by their own file timestamp so
+      relationship operations are applied in chronological order (across all
+      tickets).
+    - All other events: group 1, sorted by (ticket_id, type_priority,
+      original_index) so that within a single ticket CREATE precedes STATUS.
+      This prevents a STATUS event arriving before its CREATE — which would
+      cause the STATUS handler to run before the Jira issue exists, the
+      retroactive-CREATE recovery to run, and (if that fails) the event to
+      be permanently lost when the cursor advances (bug 6f78-e9c4).
+
+    Python's stable sort preserves original order for ties.
     """
 
-    def _key(ev: dict[str, Any]) -> int:
-        if ev.get("event_type") in ("LINK", "UNLINK"):
+    def _key(item: tuple[int, dict[str, Any]]) -> tuple[int, str, int, int]:
+        idx, ev = item
+        ev_type = ev.get("event_type", "")
+        ticket_id = ev.get("ticket_id", "")
+        if ev_type in ("LINK", "UNLINK"):
+            timestamp = _SORT_SENTINEL
             ev_data = _read_event_file(ev.get("file_path", ""))
             if ev_data:
-                return int(ev_data.get("timestamp", _SORT_SENTINEL))
-        return _SORT_SENTINEL
+                timestamp = int(ev_data.get("timestamp", _SORT_SENTINEL))
+            # group 0: LINK/UNLINK ordered globally by timestamp. Ticket_id /
+            # type_priority slots are inert here.
+            return (0, "", timestamp, idx)
+        type_priority = _EVENT_TYPE_PRIORITY.get(ev_type, _DEFAULT_TYPE_PRIORITY)
+        # group 1: everything else, scoped per-ticket by type priority.
+        return (1, ticket_id, type_priority, idx)
 
-    return sorted(events, key=_key)
+    enumerated = list(enumerate(events))
+    enumerated.sort(key=_key)
+    return [ev for _, ev in enumerated]
 
 
 # Local priority integer (0-4) → Jira priority name
@@ -406,6 +440,18 @@ def handle_status_event(
                 ),
                 bridge_env_id=bridge_env_id,
             )
+
+            # Bug 6f78-e9c4 Fix B: when retroactive CREATE was attempted but
+            # failed (e.g. acli_client.create_issue returned empty/falsy key),
+            # raise so process_outbound's per-event try/except catches it and
+            # the cursor is NOT advanced past this dropped STATUS event.
+            # Without this, the STATUS event is permanently lost.
+            if retroactive_attempted and not retroactive_succeeded:
+                raise RuntimeError(
+                    f"Retroactive CREATE for {ticket_id} failed (acli returned "
+                    "empty key); STATUS event cannot be applied — raising to "
+                    "prevent cursor advance past dropped event"
+                )
     else:
         write_bridge_alert(
             ticket_dir,
