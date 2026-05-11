@@ -1229,7 +1229,14 @@ Stories tagged `manual:awaiting_user` are collected into `awaiting_manual_storie
 
 ## Phase E: Sub-Agent Launch (/dso:sprint)
 
-# Story branches: story/<epic-id>/<story-id> — see Phase F for DSO-Story trailer requirement
+# Story branches: story/<epic-id>/<story-id>; created here, merged in Phase F with DSO-Story-Merge trailer
+
+Before dispatching tasks for a story, create the story branch and capture the branch name:
+
+```bash
+STORY_BRANCH=$(bash "$PLUGIN_SCRIPTS/create-story-branch.sh" "$EPIC_ID" "$STORY_ID")
+# STORY_BRANCH = story/<epic-id>/<story-id>; used by Phase F after all worktrees harvested
+```
 
 <HARD-GATE>
 Do NOT implement any task directly using Edit, Write, or other file-modification tools. ALL implementation tasks must be dispatched to sub-agents via the Task tool — regardless of how small, simple, or obvious the change appears. "Small markdown edit", "single-line change", "user already approved", or "sub-agent dispatch is overhead" are not valid exceptions. Direct implementation by the orchestrator bypasses checkpoint protocol, code review, and acceptance criteria gates.
@@ -1932,6 +1939,17 @@ Do NOT rationalize around a FAIL verdict. The verifier's verdict is final — sc
 # Check for stale RED markers
 grep -n "\[.*\]" .test-index || true
 # Remove any markers for tests that are now passing
+```
+
+**Story branch merge (before closure)**: After RED marker cleanup and before closing the story, merge the story branch with the DSO-Story-Merge trailer:
+
+```bash
+# Conflict queue precondition (in-memory orchestrator check):
+if [[ ${#CONFLICT_QUEUE[@]} -gt 0 ]]; then
+  echo 'ERROR: conflict queue non-empty — resolve conflicts before merging story branch' >&2
+  exit 1
+fi
+bash "$PLUGIN_SCRIPTS/merge-story-branch.sh" "$STORY_BRANCH" "$STORY_ID"
 ```
 
 ```bash
