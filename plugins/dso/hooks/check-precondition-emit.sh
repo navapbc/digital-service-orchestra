@@ -29,19 +29,24 @@ fi
 python3 - "$_tmp_diff" <<'PYEOF'
 import sys
 
-TARGET_FILES = {
-    "plugins/dso/skills/brainstorm/SKILL.md",
-    "plugins/dso/skills/brainstorm/phases/approval-gate.md",
-    "plugins/dso/skills/sprint/SKILL.md",
-    "plugins/dso/skills/sprint/prompts/auto-resume.md",
-    "plugins/dso/skills/sprint/prompts/test-failure-dispatch-protocol.md",
-    "plugins/dso/skills/preplanning/SKILL.md",
-    "plugins/dso/skills/implementation-plan/SKILL.md",
-    "plugins/dso/skills/debug-everything/SKILL.md",
-    "plugins/dso/skills/fix-bug/SKILL.md",
-    "plugins/dso/skills/validate-work/SKILL.md",
-    "plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md",
+# Matched by suffix so the hook works regardless of where the plugin is installed.
+_TARGET_SUFFIXES = {
+    "skills/brainstorm/SKILL.md",
+    "skills/brainstorm/phases/approval-gate.md",
+    "skills/sprint/SKILL.md",
+    "skills/sprint/prompts/auto-resume.md",
+    "skills/sprint/prompts/test-failure-dispatch-protocol.md",
+    "skills/preplanning/SKILL.md",
+    "skills/implementation-plan/SKILL.md",
+    "skills/debug-everything/SKILL.md",
+    "skills/fix-bug/SKILL.md",
+    "skills/validate-work/SKILL.md",
+    "skills/shared/workflows/epic-scrutiny-pipeline.md",
 }
+
+
+def _is_target(path):
+    return any(path.endswith(s) for s in _TARGET_SUFFIXES)
 
 TRIGGER_KEYWORDS = [
     'fall through',
@@ -112,7 +117,7 @@ for line in lines:
         if hunk_lines and in_target and current_file:
             exit_code |= check_hunk(hunk_lines, current_file)
         current_file = line[6:]
-        in_target = current_file in TARGET_FILES
+        in_target = _is_target(current_file)
         hunk_lines = []
         hunk_pos = 0
     elif line.startswith('--- ') or line.startswith('diff --git'):
