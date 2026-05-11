@@ -245,8 +245,8 @@ _check_gh_version() {
 #     (no draft PR; guard passes)
 _check_duplicate_pr() {
     local _existing
-    _existing=$(gh pr list --head "$BRANCH" --state open --json number,url,isDraft \
-        --jq 'map(select(.isDraft == false)) | .[0].url // empty' 2>/dev/null || true)
+    _existing=$(gh pr list --head "$BRANCH" --state open --json number,url,isDraft 2>/dev/null \
+        | jq -r 'map(select(.isDraft == false)) | .[0].url // empty' 2>/dev/null || true)
     if [[ -n "$_existing" ]]; then
         echo "ERROR: non-draft PR already exists for branch $BRANCH: $_existing" >&2
         return 1
