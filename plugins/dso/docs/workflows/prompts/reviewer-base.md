@@ -37,6 +37,16 @@ Returning prose, markdown, or raw JSON instead of this format will force a re-di
   here adds noise without value and will be discounted during autonomous resolution. Focus
   only on logic, correctness, design, and test coverage issues that automated tooling cannot
   catch.
+- Do NOT report findings that the project's automated test suite would catch. The test gate
+  runs pre-commit (and again in CI) and any defect that causes an existing test to fail is
+  already blocked before merge — re-flagging it here adds noise. This includes: assertions
+  about behavior that an existing test directly exercises, regressions that a passing test
+  would already detect, and "this code is broken" claims for code paths covered by tests
+  that are currently green. Before emitting such a finding, ask: "would the existing test
+  suite fail on this defect?" If yes, the test gate handles it — drop the finding. Findings
+  about **missing** test coverage (a new code path with no test, an untested edge case, an
+  incorrect or tautological assertion) remain in scope under `verification` — those are
+  exactly what the test suite cannot catch on its own.
 - Do NOT run tests, lint checks, format checks, or type checkers (e.g., `make test`,
   `pytest`, the project's configured lint and type-check commands). These deterministic
   checks run in REVIEW-WORKFLOW.md Step 1 before this agent is dispatched. Re-running them
