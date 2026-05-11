@@ -870,5 +870,138 @@ No brainstorm_complete preconditions recorded." 2>/dev/null | tail -1)
 
 test_ticket_has_pil_fails_without_pil_or_preconditions
 
+# ── Test 20: _ticket_has_pil passes with compacted PRECONDITIONS snapshot ─────
+echo ""
+echo "--- test_ticket_has_pil_passes_with_compacted_preconditions_snapshot ---"
+
+test_ticket_has_pil_passes_with_compacted_preconditions_snapshot() {
+    _snapshot_fail
+    local repo
+    repo=$(_make_test_repo)
+
+    # Given: an epic WITHOUT "### Planning Intelligence Log" in description
+    local ticket_id
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "Epic with compacted preconditions" \
+        --description "## Context
+No PIL heading here." 2>/dev/null | tail -1)
+
+    [[ -z "$ticket_id" ]] && {
+        (( ++FAIL ))
+        echo "FAIL: test_ticket_has_pil_passes_with_compacted_preconditions_snapshot: could not create ticket" >&2
+        return
+    }
+
+    # And: a PRECONDITIONS event with gate_name=brainstorm_complete exists
+    local _precon_exit=0
+    (cd "$repo" && TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+        source "$TICKET_LIB" && \
+        _write_preconditions "$ticket_id" "brainstorm_complete" "test-session" "test-branch" "minimal" "{}") 2>/dev/null || _precon_exit=$?
+
+    if [[ "$_precon_exit" -ne 0 ]]; then
+        (( ++FAIL ))
+        echo "FAIL: test_ticket_has_pil_passes_with_compacted_preconditions_snapshot: could not write preconditions (exit $_precon_exit)" >&2
+        return
+    fi
+
+    # And: the flat PRECONDITIONS event is compacted into a snapshot
+    local _compact_exit=0
+    local ticket_dir="$repo/.tickets-tracker/$ticket_id"
+    (cd "$repo" && TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+        source "$TICKET_LIB" && \
+        _compact_preconditions "$ticket_dir" "$ticket_id") 2>/dev/null || _compact_exit=$?
+
+    if [[ "$_compact_exit" -ne 0 ]]; then
+        (( ++FAIL ))
+        echo "FAIL: test_ticket_has_pil_passes_with_compacted_preconditions_snapshot: _compact_preconditions failed (exit $_compact_exit)" >&2
+        return
+    fi
+
+    # When: _ticket_has_pil is called (only the snapshot remains, no flat events)
+    local _exit=0
+    (cd "$repo" && TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+        source "$TICKET_LIB" && _ticket_has_pil "$ticket_id") 2>/dev/null || _exit=$?
+
+    # Then: exit 0 — compacted snapshot path satisfies the check
+    assert_eq "test_ticket_has_pil_passes_with_compacted_preconditions_snapshot: exit 0 when compacted snapshot present" "0" "$_exit"
+    assert_pass_if_clean "test_ticket_has_pil_passes_with_compacted_preconditions_snapshot"
+}
+
+test_ticket_has_pil_passes_with_compacted_preconditions_snapshot
+
+# ── Test 21: _compact_preconditions deduplicates represented_gate_names ───────
+echo ""
+echo "--- test_compact_preconditions_deduplicates_represented_gate_names ---"
+
+test_compact_preconditions_deduplicates_represented_gate_names() {
+    _snapshot_fail
+    local repo
+    repo=$(_make_test_repo)
+
+    local ticket_id
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "Epic for dedup test" \
+        --description "## Context
+No PIL heading." 2>/dev/null | tail -1)
+
+    [[ -z "$ticket_id" ]] && {
+        (( ++FAIL ))
+        echo "FAIL: test_compact_preconditions_deduplicates_represented_gate_names: could not create ticket" >&2
+        return
+    }
+
+    # Write TWO PRECONDITIONS events both with gate_name=brainstorm_complete
+    # but different session_ids so they produce different files
+    local _p1_exit=0 _p2_exit=0
+    (cd "$repo" && TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+        source "$TICKET_LIB" && \
+        _write_preconditions "$ticket_id" "brainstorm_complete" "session-A" "branch-A" "minimal" "{}") 2>/dev/null || _p1_exit=$?
+    (cd "$repo" && TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+        source "$TICKET_LIB" && \
+        _write_preconditions "$ticket_id" "brainstorm_complete" "session-B" "branch-B" "minimal" "{}") 2>/dev/null || _p2_exit=$?
+
+    if [[ "$_p1_exit" -ne 0 || "$_p2_exit" -ne 0 ]]; then
+        (( ++FAIL ))
+        echo "FAIL: test_compact_preconditions_deduplicates_represented_gate_names: could not write preconditions" >&2
+        return
+    fi
+
+    # Compact the two events into a snapshot
+    local ticket_dir="$repo/.tickets-tracker/$ticket_id"
+    local _compact_exit=0
+    (cd "$repo" && TICKETS_TRACKER_DIR="$repo/.tickets-tracker" \
+        source "$TICKET_LIB" && \
+        _compact_preconditions "$ticket_dir" "$ticket_id") 2>/dev/null || _compact_exit=$?
+
+    if [[ "$_compact_exit" -ne 0 ]]; then
+        (( ++FAIL ))
+        echo "FAIL: test_compact_preconditions_deduplicates_represented_gate_names: _compact_preconditions failed (exit $_compact_exit)" >&2
+        return
+    fi
+
+    # Read the snapshot and count occurrences of brainstorm_complete in represented_gate_names
+    local snapshot_file
+    snapshot_file=$(find "$ticket_dir" -maxdepth 1 -name '*-PRECONDITIONS-SNAPSHOT.json' 2>/dev/null | head -1)
+
+    if [[ -z "$snapshot_file" ]]; then
+        (( ++FAIL ))
+        echo "FAIL: test_compact_preconditions_deduplicates_represented_gate_names: snapshot file not found" >&2
+        return
+    fi
+
+    local count
+    count=$(python3 -c "
+import json, sys
+with open(sys.argv[1], encoding='utf-8') as fh:
+    snap = json.load(fh)
+names = snap.get('data', {}).get('represented_gate_names', [])
+print(names.count('brainstorm_complete'))
+" "$snapshot_file" 2>/dev/null)
+
+    # brainstorm_complete must appear exactly once (deduplication)
+    assert_eq "test_compact_preconditions_deduplicates_represented_gate_names: brainstorm_complete appears once in represented_gate_names" "1" "$count"
+    assert_pass_if_clean "test_compact_preconditions_deduplicates_represented_gate_names"
+}
+
+test_compact_preconditions_deduplicates_represented_gate_names
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary

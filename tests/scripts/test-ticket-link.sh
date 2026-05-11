@@ -1242,4 +1242,61 @@ test_ticket_unlink_orphan_relates_to_succeeds() {
 }
 test_ticket_unlink_orphan_relates_to_succeeds
 
+# ── Test: non-orphan relates_to unlink removes both sides ─────────────────────
+# When both tickets have reciprocal LINK events, `ticket unlink id1 id2` must
+# write UNLINK events for BOTH sides (happy path — no orphan case).
+echo ""
+echo "--- test_ticket_unlink_relates_to_removes_both_sides ---"
+test_ticket_unlink_relates_to_removes_both_sides() {
+    _snapshot_fail
+
+    if [ ! -f "$TICKET_LINK_SCRIPT" ]; then
+        assert_eq "ticket-link.sh exists" "exists" "missing"
+        assert_pass_if_clean "test_ticket_unlink_relates_to_removes_both_sides"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+    local tracker_dir="$repo/.tickets-tracker"
+
+    # Create two tickets and link them (creates reciprocal LINKs on both sides)
+    local id1 id2
+    id1=$(_create_ticket "$repo" "epic" "Source epic for both-sides unlink")
+    id2=$(_create_ticket "$repo" "epic" "Target epic for both-sides unlink")
+
+    if [ -z "$id1" ] || [ -z "$id2" ]; then
+        assert_eq "tickets created for both-sides unlink test" "non-empty" "empty"
+        assert_pass_if_clean "test_ticket_unlink_relates_to_removes_both_sides"
+        return
+    fi
+
+    # Link id1 → id2 with relates_to (should create LINK on both sides)
+    (cd "$repo" && bash "$TICKET_SCRIPT" link "$id1" "$id2" relates_to 2>/dev/null) || {
+        assert_eq "initial relates_to link exits 0" "0" "1"
+        assert_pass_if_clean "test_ticket_unlink_relates_to_removes_both_sides"
+        return
+    }
+
+    # When: ticket unlink id1 id2 — both sides have LINK events
+    local exit_code=0
+    (cd "$repo" && bash "$TICKET_SCRIPT" unlink "$id1" "$id2" 2>/dev/null) || exit_code=$?
+
+    # Then: exits 0
+    assert_eq "test_ticket_unlink_relates_to_removes_both_sides: exit 0" "0" "$exit_code"
+
+    # And: id1 has an UNLINK event
+    local unlink_count1
+    unlink_count1=$(_count_unlink_events "$tracker_dir" "$id1")
+    assert_eq "test_ticket_unlink_relates_to_removes_both_sides: UNLINK event written for id1" "1" "$unlink_count1"
+
+    # And: id2 ALSO has an UNLINK event (reciprocal removal)
+    local unlink_count2
+    unlink_count2=$(_count_unlink_events "$tracker_dir" "$id2")
+    assert_eq "test_ticket_unlink_relates_to_removes_both_sides: UNLINK event written for id2" "1" "$unlink_count2"
+
+    assert_pass_if_clean "test_ticket_unlink_relates_to_removes_both_sides"
+}
+test_ticket_unlink_relates_to_removes_both_sides
+
 print_summary
