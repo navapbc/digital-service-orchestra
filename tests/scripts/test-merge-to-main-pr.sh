@@ -4768,4 +4768,5 @@ t_check_duplicate_pr_isdraft_filter_returns_empty_not_null() {
 t_check_duplicate_pr_isdraft_filter_returns_empty_not_null
 
 # ---------------------------------------------------------------------------
+# end of file
 print_summary
