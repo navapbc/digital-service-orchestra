@@ -268,7 +268,12 @@ rm -f "$temp_event"
 # ── Output dual-format: human summary first, canonical ID last (both stdout) ──
 # SC3: both lines on stdout — human-readable summary line 1, canonical ID last.
 # Scripts extract the canonical ID via: ticket create ... | tail -1
-echo "Created ticket $ticket_id: $title"
+# Lead with the human-readable alias when available; canonical ID is parenthetical.
+if [ -n "$ticket_alias" ] && [ "$ticket_alias" != "$ticket_id" ]; then
+    echo "Created ticket $ticket_alias ($ticket_id): $title"
+else
+    echo "Created ticket $ticket_id: $title"
+fi
 echo "$ticket_id"
 
 # ── Post-creation validation (warnings only, never blocks, exit 0) ───────────

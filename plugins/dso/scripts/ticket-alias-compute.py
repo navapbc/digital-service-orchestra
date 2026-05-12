@@ -59,8 +59,14 @@ def main():
 
     adj = adjs[int(hex_id[0:4], 16) % len(adjs)]
     noun1 = nouns[int(hex_id[4:8], 16) % len(nouns)]
-    noun2 = nouns[int(hex_id[8:12], 16) % len(nouns)]
-    print(f"{adj}-{noun1}-{noun2}")
+    # Legacy 8-hex IDs (xxxx-xxxx) have no hex[8:12]; emit a 2-word alias
+    # rather than crashing on int("", 16). Matches ticket_reducer._alias
+    # so the same ticket_id yields the same alias on both code paths.
+    if len(hex_id) >= 12:
+        noun2 = nouns[int(hex_id[8:12], 16) % len(nouns)]
+        print(f"{adj}-{noun1}-{noun2}")
+    else:
+        print(f"{adj}-{noun1}")
 
 
 if __name__ == "__main__":

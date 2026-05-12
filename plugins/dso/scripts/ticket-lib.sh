@@ -1245,45 +1245,42 @@ resolve_ticket_id() {
     fi
 
     # ── Steps 3 & 4: Alias and jira_key scan ─────────────────────────────────
+    # Single Python helper iterates all ticket directories in one process.
+    # The helper also computes alias-from-ticket_id when data.alias is missing
+    # (legacy tickets created before the alias feature shipped), so backfilled
+    # aliases are resolvable too. One subprocess vs O(N) per-file Python calls.
     local _alias_matches=()
     local _jira_matches=()
-    local _entry
-    while IFS= read -r -d '' _entry; do
-        local _base
-        _base="$(basename "$_entry")"
-        [[ "$_base" == .* ]] && continue
-        # Scan CREATE event files in this ticket directory
-        local _create_file
-        while IFS= read -r -d '' _create_file; do
-            if ! [ -f "$_create_file" ]; then
-                continue
-            fi
-            local _alias_val _jira_val _combined
-            # Single python3 call extracts both alias and jira_key, halving subprocess count.
-            _combined=$(python3 -c "
-import json, sys
-try:
-    with open(sys.argv[1], encoding='utf-8') as f:
-        data = json.load(f).get('data', {})
-    alias = data.get('alias', '') or ''
-    jira_key = data.get('jira_key', '') or ''
-    print(alias + '\t' + jira_key)
-except Exception:
-    print('\t')
-" "$_create_file" 2>/dev/null) || _combined=$'\t'
-            _alias_val="${_combined%%	*}"
-            _jira_val="${_combined##*	}"
-            if [ -n "$_alias_val" ] && [ "$_alias_val" = "$input" ]; then
-                _alias_matches+=("$_base")
-                break  # Only record each ticket once per alias match
-            fi
-            if [ -n "$_jira_val" ] && [ "$_jira_val" = "$input" ]; then
-                _jira_matches+=("$_base")
-                break  # Only record each ticket once per jira_key match
-            fi
-        done < <(find "$_entry" -maxdepth 1 -name '*-CREATE.json' -print0 2>/dev/null)
-    done < <(find "$_tracker_dir" -mindepth 1 -maxdepth 1 -type d \
-        ! -name '.*' -print0 2>/dev/null)
+    local _resolver_script
+    _resolver_script="$(dirname "${BASH_SOURCE[0]}")/ticket-alias-resolve.py"
+    if [ ! -f "$_resolver_script" ]; then
+        echo "Error: alias resolver missing at $_resolver_script" >&2
+        return 1
+    fi
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "Error: python3 not found in PATH (required for alias resolver)" >&2
+        return 1
+    fi
+    # Capture output + exit code separately. Piping to read via process
+    # substitution discards the exit status; if the resolver crashes
+    # mid-scan we'd silently get zero matches and the caller couldn't tell
+    # 'no match found' from 'resolver exploded' (cycle-3 review).
+    local _resolver_out _resolver_rc=0
+    _resolver_out=$(python3 "$_resolver_script" "$input" "$_tracker_dir") || _resolver_rc=$?
+    if [ "$_resolver_rc" -ne 0 ]; then
+        echo "Error: alias resolver exited $_resolver_rc for input '$input'" >&2
+        return 1
+    fi
+    local _scan_kind _scan_id
+    if [ -n "$_resolver_out" ]; then
+        while IFS=$'\t' read -r _scan_kind _scan_id; do
+            [ -z "$_scan_kind" ] && continue
+            case "$_scan_kind" in
+                alias) _alias_matches+=("$_scan_id") ;;
+                jira)  _jira_matches+=("$_scan_id") ;;
+            esac
+        done <<< "$_resolver_out"
+    fi
 
     if [ "${#_jira_matches[@]}" -eq 1 ]; then
         echo "${_jira_matches[0]}"
