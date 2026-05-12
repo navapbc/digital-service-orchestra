@@ -299,6 +299,27 @@ for comment in comments:
         continue
       fi
 
+      # Verify that effective_query_sha exists in this repo.
+      # If it is an unknown object (exit 128 from git cat-file), the query SHA
+      # is foreign to this repo — exclude the record rather than fail-open.
+      # This is distinct from tip_sha/base_sha being unresolvable (corrupt store).
+      local ec_query_resolve
+      git cat-file -t "$effective_query_sha" >/dev/null 2>&1 && ec_query_resolve=0 || ec_query_resolve=$?
+      if [[ "$ec_query_resolve" -ne 0 ]]; then
+        # query_sha is not a known object in this repo — record is not reachable; exclude
+        continue
+      fi
+
+      # Verify that tip_sha and base_sha are resolvable; if not, fail-open (store may be corrupt).
+      local ec_tip_resolve ec_base_resolve
+      git cat-file -t "$tip_sha" >/dev/null 2>&1 && ec_tip_resolve=0 || ec_tip_resolve=$?
+      git cat-file -t "$base_sha" >/dev/null 2>&1 && ec_base_resolve=0 || ec_base_resolve=$?
+      if [[ "$ec_tip_resolve" -ne 0 || "$ec_base_resolve" -ne 0 ]]; then
+        echo "WARNING: defense_store_load_for_region: stored sha not resolvable (corrupt store?), including record fail-open" >&2
+        printf '%s\n' "$record_line"
+        continue
+      fi
+
       # Check ancestry using two complementary conditions (OR logic):
       #   Condition A: QUERY_SHA is within the story range BASE..TIP
       #                i.e., BASE is an ancestor of QUERY_SHA AND QUERY_SHA is an ancestor of TIP
@@ -313,8 +334,8 @@ for comment in comments:
       git merge-base --is-ancestor "$effective_query_sha" "$tip_sha" 2>/dev/null && ec_query_anc_tip=0 || ec_query_anc_tip=$?
 
       if [[ "$ec_tip_anc_query" -gt 1 || "$ec_base_anc_query" -gt 1 || "$ec_query_anc_tip" -gt 1 ]]; then
-        # git merge-base command failed (e.g., bad SHA, not a git repo): fail-open
-        echo "WARNING: defense_store_load_for_region: git ancestry check failed, including record fail-open" >&2
+        # git merge-base command failed unexpectedly: fail-open
+        echo "WARNING: defense_store_load_for_region: git ancestry check failed unexpectedly, including record fail-open" >&2
         printf '%s\n' "$record_line"
       elif [[ "$ec_tip_anc_query" -eq 0 ]]; then
         # Condition B: TIP is an ancestor of QUERY_SHA — QUERY_SHA comes after TIP (e.g., merge commit)
