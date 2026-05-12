@@ -640,7 +640,7 @@ If at least one router gate fires, include a documentation task. The task MUST:
 - **Set the target per the router**, in order of preference: Gate 1 → `${CLAUDE_PLUGIN_ROOT}/skills/<skill>/SKILL.md`; Gate 2 → existing reference doc (`HOOKS-REFERENCE.md`, `AGENTS.md`, `WORKTREE-GUIDE.md`, `CONFIGURATION-REFERENCE.md`, `CI-INTEGRATION.md`, contract docs, `KNOWN-ISSUES.md`); Gate 3 → `INSTALL.md` / `README.md` / `docs/user/`; Gate 4 → new ADR in `docs/adr/`; Gate 5 → `CLAUDE_MD_SUGGESTED_CHANGE` report only (no direct CLAUDE.md edit).
 - **Never name CLAUDE.md as the direct target.** A task that would edit CLAUDE.md must instead emit a `CLAUDE_MD_SUGGESTED_CHANGE` report and route through the orchestrator.
 - **Include the attestation requirement** in the task acceptance criteria: the executing sub-agent emits `DOC_ROUTER_ATTESTATION` in its completion report.
-- **Follow `.claude/docs/DOCUMENTATION-GUIDE.md`** for formatting and structure.
+- **If `.claude/docs/DOCUMENTATION-GUIDE.md` exists, follow it** for formatting and structure.
 
 If no router gate fires, omit the documentation task and note the rationale (e.g., "doc-router: no gate fired — internal refactor; existing docs remain accurate").
 

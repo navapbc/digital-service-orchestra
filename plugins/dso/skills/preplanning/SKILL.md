@@ -694,11 +694,11 @@ After all implementation stories are drafted, **decide whether a documentation u
 - **CLAUDE.md is not a default target.** Authoring a doc story whose primary target is CLAUDE.md is an anti-pattern; the router prefers SKILL.md / reference docs / ADRs and only escalates to CLAUDE.md when Gate 5 strictly holds. See CLAUDE.md Architectural Invariant #2 (bloat criteria a–d).
 - **Depends on**: all implementation stories (runs last).
 - **Title format**: "Update project docs to reflect [epic summary]".
-- **Style guide**: follow `.claude/docs/DOCUMENTATION-GUIDE.md` for formatting and structure.
+- **Style guide**: if `.claude/docs/DOCUMENTATION-GUIDE.md` exists, follow it for formatting and structure.
 
 When creating the documentation update story via `.claude/scripts/dso ticket create`, attach the router and style references so sub-agents find them in the ticket payload:
 ```bash
-.claude/scripts/dso ticket comment <story-id> "Apply ${CLAUDE_PLUGIN_ROOT}/skills/shared/prompts/doc-router.md gates before writing. CLAUDE.md edits require a CLAUDE_MD_SUGGESTED_CHANGE report — do not edit CLAUDE.md directly. Follow .claude/docs/DOCUMENTATION-GUIDE.md for formatting."
+.claude/scripts/dso ticket comment <story-id> "Apply ${CLAUDE_PLUGIN_ROOT}/skills/shared/prompts/doc-router.md gates before writing. CLAUDE.md edits require a CLAUDE_MD_SUGGESTED_CHANGE report — do not edit CLAUDE.md directly. If .claude/docs/DOCUMENTATION-GUIDE.md exists, follow it for formatting."
 ```
 
 **Acceptance criterion** for the doc story: the completion report MUST include the `DOC_ROUTER_ATTESTATION` block (see `doc-router.md`), and any `CLAUDE_MD_SUGGESTED_CHANGE` reports MUST be surfaced to the user before the story closes.
