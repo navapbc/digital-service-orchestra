@@ -1,0 +1,148 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+#
+# CodeRabbit runs alongside the project's internal /dso:review pipeline so the
+# two LLM reviewers can be compared on the same PRs.
+#
+# Design principle for this file: tune COVERAGE (what is reviewed and across
+# which dimensions) to match the dso standard tier. Do NOT prescribe HOW
+# CodeRabbit reasons, scores, or downgrades — that is the behavior under
+# comparison. We give it the same surface area and the same review
+# dimensions, then let its native logic run.
+#
+language: en-US
+early_access: false
+
+reviews:
+  # `assertive` ≈ dso standard-tier comprehensiveness.
+  profile: assertive
+
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+  sequence_diagrams: false
+
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - main
+
+  # Match the surface that dso:review actually reviews — exclude generated
+  # and archival content so both reviewers see the same diffs.
+  path_filters:
+    - "!**/*.lock"
+    - "!**/package-lock.json"
+    - "!**/poetry.lock"
+    - "!.test-index"
+    - "!CHANGELOG.md"
+    - "!**/*.snap"
+    - "!**/__snapshots__/**"
+    - "!docs/archive/**"
+    - "!tests/fixtures/**"
+
+  path_instructions:
+    # Repo-wide coverage dimensions. Mirrors the five scoring dimensions used
+    # by dso:review so both reviewers cover the same axes.
+    - path: "**"
+      instructions: |
+        Review along these dimensions:
+          - correctness: logic, edge cases, error handling, security,
+            concurrency, efficiency, deletion impact.
+          - verification: test presence, test quality, edge-case coverage.
+          - hygiene: dead code, naming, unnecessary complexity, missing guards.
+          - design: responsibility boundaries, encapsulation, interface
+            clarity, coupling.
+          - maintainability: readability, comments, organization, file size.
+
+        Additionally evaluate two overlays and state in the summary whether
+        each is warranted by the diff:
+          - security overlay: auth, authz, crypto, sessions, trust
+            boundaries, sensitive data.
+          - performance overlay: DB queries, caching, connection pools,
+            async/concurrent patterns, batch processing.
+
+    # File-type coverage areas. These name what to look at for each surface;
+    # severity and disposition are CodeRabbit's call.
+    - path: "**/*.sh"
+      instructions: |
+        Coverage areas for bash:
+          - Quoting of variables in conditionals and command arguments.
+          - Shell options (`set -euo pipefail`) and pipeline exit handling.
+          - Exit codes on error paths, especially in hook scripts that must
+            block an operation.
+          - Concurrency / temp-file handling.
+        Project conventions (facts, not severity guidance):
+          - Hook and plugin scripts prefer `parse_json_field`, `json_build`,
+            or `python3` over `jq`. Flag `jq` in hook/plugin scripts where
+            a jq-free alternative exists.
+          - `/tmp` writes go through `mktemp`.
+
+    - path: "**/*.py"
+      instructions: |
+        Coverage areas for Python:
+          - Subprocess and deserialization safety.
+          - File locking on shared-state writes.
+          - Dependency footprint (stdlib / existing pyproject.toml deps
+            preferred over new packages).
+
+    - path: "tests/**"
+      instructions: |
+        Coverage areas for tests:
+          - Tests exercise observable behavior of new code paths.
+          - Edge-case and error-path coverage.
+          - Test isolation (no cross-test state, no order dependency).
+          - Mock scope (mocks of dependencies, not the system under test).
+
+    - path: "plugins/dso/hooks/**"
+      instructions: |
+        These files are safety gates (pre-commit hooks, review gates, test
+        gates). Coverage area: whether the change weakens a check —
+        lowered threshold, added bypass, broader skip condition, fail-open
+        path. Flag so a human can confirm the change is intentional.
+
+    - path: "plugins/dso/skills/**/SKILL.md"
+      instructions: |
+        Coverage areas for skill files:
+          - Referenced scripts, agent files, and config keys actually exist.
+          - Skill invocations use the fully-qualified `/dso:<skill-name>`
+            form (unqualified refs are CI-blocking).
+        These files are token-budgeted; verbosity expansions are out of scope.
+
+    - path: "**/*.md"
+      instructions: |
+        Coverage area for docs: cross-references resolve to files that exist.
+
+    - path: "CLAUDE.md"
+      instructions: |
+        Coverage area: scope of content. This file is for rules and command
+        references; implementation details, onboarding content, and verbose
+        examples belong in linked docs (SKILL.md, INSTALL.md,
+        WORKTREE-GUIDE.md).
+
+    - path: ".github/workflows/**"
+      instructions: |
+        Coverage areas for CI workflows: secret handling, untrusted-input
+        flow into shell, correct reference to required env vars.
+
+  # Keep bundled tools on. They are part of CodeRabbit's native review logic
+  # and the comparison should reflect default CodeRabbit behavior.
+  tools:
+    shellcheck:
+      enabled: true
+    markdownlint:
+      enabled: true
+    ruff:
+      enabled: true
+    yamllint:
+      enabled: true
+    actionlint:
+      enabled: true
+    gitleaks:
+      enabled: true
+    languagetool:
+      enabled: false
+
+chat:
+  auto_reply: true
