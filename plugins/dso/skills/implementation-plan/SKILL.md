@@ -304,6 +304,12 @@ After cross-cutting detection, generate **at least 3 distinct implementation pro
 
 If the story is genuinely constrained to fewer viable approaches, document the constraint and generate as many distinct ones as exist — but attempt at least 3 first.
 
+**Fitness-Function-as-Scaffolding Proposals**: when a proposal generates an enforcement/linting test (e.g., `test_no_raw_env_reads_outside_config_module()` from `architect-foundation` AP-5), the task description MUST include:
+1. **Baseline-capture step**: Run the fitness function against the existing codebase FIRST to identify all current violations.
+2. **Allowlist capture**: Document all baseline violations as a `BASELINE_VIOLATIONS` allowlist in the spec — the fitness function should assert that all observed violations are in the allowlist, failing only on NEW violations.
+3. **Sanity criterion**: Include an acceptance criterion verifying the baseline allowlist is non-empty (proof that the baseline scan executed and found existing violations).
+4. **Reference**: See `${CLAUDE_PLUGIN_ROOT}/skills/architect-foundation/fitness-function-templates.md` for concrete examples and anti-pattern codes.
+
 **Distinctness validation gate**: every pair of proposals must differ on at least one of four structural axes (defined in `prompts/proposal-schema.md`):
 
 - **Data layer** — how/where state is stored or retrieved
