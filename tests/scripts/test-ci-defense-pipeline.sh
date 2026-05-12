@@ -242,8 +242,11 @@ _snapshot_fail
 # "list" or "dump" inside the script, OR by the script defining a function
 # named *_list / *_dump / defense_store_list.
 list_support_exit=0
-if grep -qE '(^|[^A-Za-z0-9_])(list|dump)\)' "$DEFENSE_STORE_SH" \
-    || grep -qE 'defense_store_(list|dump)' "$DEFENSE_STORE_SH"; then
+# Strip comments before searching so a stray `list)` in a comment can't mask
+# deletion of the real handler.
+DEFENSE_STORE_SH_NOCOMMENTS=$(grep -v '^[[:space:]]*#' "$DEFENSE_STORE_SH")
+if echo "$DEFENSE_STORE_SH_NOCOMMENTS" | grep -qE '(^|[^A-Za-z0-9_])(list|dump)\)' \
+    || echo "$DEFENSE_STORE_SH_NOCOMMENTS" | grep -qE 'defense_store_(list|dump)'; then
     list_support_output="OK"
 else
     list_support_output="MISSING: review-defense-store.sh has no list/dump CLI handler"

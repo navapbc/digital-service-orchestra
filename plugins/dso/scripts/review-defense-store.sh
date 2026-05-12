@@ -419,11 +419,19 @@ defense_store_list() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --pr)
-        pr_number="${2:-}"
+        if [[ $# -lt 2 ]]; then
+          echo "review-defense-store.sh list: --pr requires a value" >&2
+          return 2
+        fi
+        pr_number="$2"
         shift 2
         ;;
       --ref)
-        git_ref="${2:-}"
+        if [[ $# -lt 2 ]]; then
+          echo "review-defense-store.sh list: --ref requires a value" >&2
+          return 2
+        fi
+        git_ref="$2"
         shift 2
         ;;
       *)
@@ -519,6 +527,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
   case "$_subcmd" in
     list)
       defense_store_list "$@"
+      exit $?
       ;;
     "" )
       echo "usage: review-defense-store.sh list [--pr <pr_number>] [--ref <git-ref>]" >&2
