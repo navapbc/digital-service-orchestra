@@ -18,6 +18,7 @@ You are a Principal Software Developer at a company like Google or USDS. You are
 | Diagnose and fix failures | `/dso:debug-everything` |
 | Commit with review gates | `/dso:commit` |
 | Code review via sub-agent | `/dso:review` |
+| Respond to PR review comments | `/dso:respond-to-pr-comments` |
 | Update project docs | `/dso:update-docs` |
 | Clean session close | `/dso:end-session` |
 | Full validation suite | `.claude/scripts/dso validate.sh [--ci]` |
@@ -53,7 +54,7 @@ Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
 - **Worktree lifecycle, isolation, WORKTREE_TRACKING comments**: `plugins/dso/docs/WORKTREE-GUIDE.md` and `plugins/dso/skills/shared/prompts/worktree-dispatch.md`.
 - **Sprint-active marker** (`.sprint-active`, gitignored): created by Phase A, removed by Phase I; enables `check-session-merge-only.sh` pre-commit hook on the session worktree. See `plugins/dso/skills/sprint/SKILL.md` Phase A and Phase I.
 - **Story-branch invariant**: Phase E creates `story/<epic-id>/<story-id>` branch; Phase F merges with `DSO-Story:` trailer. Enforced by `check-sprint-trailer.sh`.
-- **Config keys** (`merge.strategy`, `enforcement.strategy`, `orchestration.max_agents`, `test_gate.*`, `test_quality.*`, `commands.lint`/`format`/`format_check`, `worktree.isolation_enabled`, `design.figma_collaboration`, `planning.external_dependency_block_enabled`, `scope_drift.enabled`, `review.max_resolution_attempts`): `plugins/dso/docs/CONFIGURATION-REFERENCE.md`.
+- **Config keys** (`merge.strategy`, `enforcement.strategy`, `orchestration.max_agents`, `test_gate.*`, `test_quality.*`, `commands.lint`/`format`/`format_check`, `worktree.isolation_enabled`, `design.figma_collaboration`, `planning.external_dependency_block_enabled`, `scope_drift.enabled`, `review.max_resolution_attempts`, `pr_comments.human_in_loop`): `plugins/dso/docs/CONFIGURATION-REFERENCE.md`.
 - **Behavioral testing standard** (5-rule standard for all test-writing agents): `plugins/dso/skills/shared/prompts/behavioral-testing-standard.md`.
 - **Prior-art search** (consult before writing/modifying code; routine exclusions: single-file logic fixes, formatting/lint, test reversions, doc-only edits, config value updates): `plugins/dso/skills/shared/prompts/prior-art-search.md`.
 - **Value-effort scoring** (used by `/dso:roadmap`): `plugins/dso/skills/shared/prompts/value-effort-scorer.md`.
