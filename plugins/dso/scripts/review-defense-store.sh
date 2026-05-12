@@ -579,6 +579,7 @@ for line in sys.stdin:
             timeout=10,
         )
     except subprocess.TimeoutExpired:
+        print("WARN: git show timed out for {}; record skipped".format(path), file=sys.stderr)
         continue
     if blob.returncode != 0 or not blob.stdout:
         continue
@@ -586,7 +587,13 @@ for line in sys.stdin:
         event = json.loads(blob.stdout)
     except (json.JSONDecodeError, ValueError):
         continue
-    body = (event.get("data") or {}).get("body") or ""
+    # Defensive: event["data"] is expected to be a dict, but guard against
+    # malformed comment blobs where it may be a non-dict truthy value
+    # (int / str / list) — `.get()` would raise AttributeError otherwise.
+    data_field = event.get("data")
+    if not isinstance(data_field, dict):
+        continue
+    body = data_field.get("body") or ""
     if not isinstance(body, str):
         continue
     # body may contain newlines from multi-line defenses; only the first line
