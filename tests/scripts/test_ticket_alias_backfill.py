@@ -218,11 +218,18 @@ def test_resolver_nonzero_exit_propagates_to_resolve_ticket_id(tmp_path):
         env={**os.environ, "TICKETS_TRACKER_DIR": str(bad_tracker)},
     )
     assert proc.returncode != 0, "expected non-zero exit on resolver failure"
-    assert (
-        "alias resolver exited" in proc.stderr
-        or "cannot list" in proc.stderr
-        or "ticket 'some-alias' not found" not in proc.stdout
-    ), f"expected diagnostic stderr, got stdout={proc.stdout!r} stderr={proc.stderr!r}"
+    # Tightened (cycle-4 review F5): require an explicit diagnostic — silent
+    # failure is the exact bug we are guarding against, so a missing stderr
+    # message must fail the test, not pass on the absence of a success line.
+    assert "alias resolver exited" in proc.stderr or "cannot list" in proc.stderr, (
+        f"expected explicit resolver diagnostic in stderr; got "
+        f"stdout={proc.stdout!r} stderr={proc.stderr!r}"
+    )
+    # And the success-line must NOT appear (otherwise the failure was masked
+    # as 'not found'):
+    assert "ticket 'some-alias' not found" not in proc.stdout, (
+        "resolver failure should not be reported as 'ticket not found'"
+    )
 
 
 def test_load_warns_once_when_wordlist_missing(tmp_path, capsys, monkeypatch):

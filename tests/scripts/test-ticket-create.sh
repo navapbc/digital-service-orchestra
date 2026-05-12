@@ -92,13 +92,26 @@ test_ticket_create_outputs_ticket_id() {
         assert_eq "stdout last line matches 16-hex canonical ID pattern" "match" "no-match: $ticket_id"
     fi
 
-    # Assert: stdout first line contains the human summary "Created ticket <id>: <title>"
+    # Assert: stdout first line contains the human summary. When an alias is
+    # available (default path), the summary leads with the alias and shows the
+    # canonical ID parenthetically: "Created ticket <alias> (<id>): <title>".
+    # Falls back to "Created ticket <id>: <title>" only when alias is missing
+    # (TICKET_WORDLIST_PATH override pointed at empty/missing file).
     local summary_line
     summary_line=$(echo "$stdout_out" | head -1)
-    if [[ "$summary_line" == "Created ticket $ticket_id: "* ]]; then
+    if [[ "$summary_line" == "Created ticket "*"($ticket_id): "* ]] \
+       || [[ "$summary_line" == "Created ticket $ticket_id: "* ]]; then
         assert_eq "stdout first line contains human summary" "match" "match"
     else
         assert_eq "stdout first line contains human summary" "match" "no-match: $summary_line"
+    fi
+
+    # Also assert the alias variant appears in the typical happy path (the
+    # bundled wordlist is present, so alias must be computed and displayed).
+    if [[ "$summary_line" == "Created ticket "*"-"*"-"*"("*"): "* ]]; then
+        assert_eq "stdout first line leads with alias-(id) when wordlist available" "alias-led" "alias-led"
+    else
+        assert_eq "stdout first line leads with alias-(id) when wordlist available" "alias-led" "no-alias-prefix: $summary_line"
     fi
 }
 test_ticket_create_outputs_ticket_id
