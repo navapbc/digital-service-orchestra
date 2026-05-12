@@ -25,6 +25,27 @@ Verify: { bash tests/path/test_foo.sh 2>&1 | grep -q '^FAIL:'; test $? -ne 0; }
 
 This applies any time a `Verify:` command must confirm an assert.sh-based test passed. Pytest, jest, and other framework outputs that print explicit per-test PASS lines are unaffected.
 
+## Behavioral Coverage Discipline (applied during AC drafting)
+
+When drafting acceptance criteria for a task, the AC list MUST enumerate at least one criterion per **distinct failure mode** the task's behavior can encounter — not only the happy path. A task's behavior has distinct failure modes when any of the following apply:
+
+- Inputs can be invalid, empty, malformed, out-of-range, or unexpectedly typed.
+- External calls (database, network, file I/O, third-party API) can return errors, time out, or be unreachable.
+- State preconditions can be violated (e.g., resource missing, permission denied, concurrent modification).
+- Authentication or authorization can fail.
+- Side-effect operations can partially complete (write to one resource succeeds, second fails).
+
+For each distinct failure mode the task's behavior can encounter, the AC list MUST include at least one criterion verifying the observable outcome under that failure (an error returned, a specific exit code, a logged event, a side-effect NOT performed, etc.).
+
+**Exempt task classes** — these do not require failure-mode enumeration:
+
+- Pure refactor tasks that change implementation without changing observable behavior.
+- Documentation-only tasks (`Test-Exempt Task` category below).
+- Configuration-only tasks where the artifact is validated by an authoritative validator and has no runtime failure modes the task itself introduces.
+- Tasks whose behavior is genuinely failure-mode-free (e.g., constant addition, type-alias declaration). The task description must document why no failure modes apply.
+
+The existing categories below (e.g., `API Endpoint` requires success-case AND error-case tests; `Pipeline Agent` requires happy-path, empty-input, AND malformed-input tests) already follow this discipline. New category templates added to this library MUST follow it.
+
 ## Universal Criteria (applied to ALL tasks)
 
 - [ ] `make test-unit-only` passes (exit 0)

@@ -34,6 +34,7 @@ Write tests in **Given / When / Then** format. Each test covers exactly one beha
 - **One test, one behavior.** Do not combine multiple behaviors in a single test case. If you need to assert two independent facts, write two tests.
 - **No internal method names in assertions.** Assertions must not reference private functions, internal class names, or intermediate variables that are not part of the public interface.
 - **Test observable outcomes.** Assert on what the system produces for its caller or environment: return values, stdout, exit codes, written files, emitted events. Do not assert on how the system produces them.
+- **Do not assert on static-analysis-detectable properties.** Tests must not verify naming conventions, import order, formatting, type annotations, unused variables, or other properties that the project's linter, formatter, or type checker already enforce. Static analysis handles these deterministically; tests duplicating them produce noise and break when lint configuration changes rather than when behavior changes.
 
 **Anti-pattern example** (do not do this):
 ```
