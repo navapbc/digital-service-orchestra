@@ -242,6 +242,7 @@ plugins/dso/scripts/preconditions-coverage-harness.sh:tests/scripts/test-818-cov
 plugins/dso/scripts/preconditions-depth-classifier.sh:tests/scripts/test-preconditions-depth-classifier.sh
 plugins/dso/scripts/preconditions-record.sh:tests/scripts/test-preconditions-record.sh,tests/scripts/test-preconditions-fallthrough-smoke.sh
 plugins/dso/scripts/preconditions-validator.sh:tests/scripts/test-preconditions-validator.sh,tests/skills/test-preplanning-preconditions-integration.sh
+plugins/dso/scripts/lib/pr-comment-lib.sh:tests/scripts/test-pr-comment-lib.sh [test_probe_mcp_exits_0_on_success]
 plugins/dso/scripts/pr-comment-response.sh:tests/integration/test-pr-comment-response-integration.sh [test_fetch_produces_normalized_json_schema]
 plugins/dso/scripts/read-overlay-flags.sh:tests/scripts/test-read-overlay-flags.sh
 plugins/dso/scripts/recipe-adapters/ts-morph-add-parameter.mjs:tests/scripts/test-ts-morph-add-parameter.sh
