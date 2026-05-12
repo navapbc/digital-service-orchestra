@@ -262,4 +262,21 @@ subdir_node_output=$(bash "$SCRIPT" "$SUBDIR_NODE_PARENT" 2>&1) || subdir_node_e
 assert_eq "test_detect_stack_finds_node_in_subdirectory: exit 0" "0" "$subdir_node_exit"
 assert_eq "test_detect_stack_finds_node_in_subdirectory: package.json in subdir → node-npm" "node-npm" "$subdir_node_output"
 
+# ── test_detect_stack_rails_with_package_json ─────────────────────────────────
+# A Rails project (Gemfile + config/routes.rb) that also ships a root-level
+# package.json (common for jsbundling-rails, cssbundling-rails, platform-CLI)
+# must still return 'ruby-rails' — ruby-rails takes priority over node-npm.
+# This test fails before the fix (node-npm short-circuits at check #4).
+RAILS_PKG_DIR="$TMPDIR_FIXTURE/rails_with_package_json"
+mkdir -p "$RAILS_PKG_DIR/config"
+printf 'source "https://rubygems.org"\ngem "rails"\n' > "$RAILS_PKG_DIR/Gemfile"
+printf '# Rails routes\n' > "$RAILS_PKG_DIR/config/routes.rb"
+printf '{"name":"my-rails-app","version":"0.1.0"}\n' > "$RAILS_PKG_DIR/package.json"
+
+rails_pkg_output=""
+rails_pkg_exit=0
+rails_pkg_output=$(bash "$SCRIPT" "$RAILS_PKG_DIR" 2>&1) || rails_pkg_exit=$?
+assert_eq "test_detect_stack_rails_with_package_json: exit 0" "0" "$rails_pkg_exit"
+assert_eq "test_detect_stack_rails_with_package_json: ruby-rails takes priority over node-npm" "ruby-rails" "$rails_pkg_output"
+
 print_summary
