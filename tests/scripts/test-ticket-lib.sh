@@ -1281,6 +1281,44 @@ test_resolver_alias_collision_error() {
 }
 test_resolver_alias_collision_error
 
+# ── Test Resolver 6b: backfilled alias for legacy ticket (no data.alias) ──────
+echo ""
+echo "Test resolver_alias_backfill: resolve_ticket_id matches computed alias for legacy 16-hex ticket without data.alias"
+test_resolver_alias_backfill() {
+    local repo
+    repo=$(_make_test_repo)
+    (cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "ticket-lib.sh exists for alias-backfill test" "exists" "missing"
+        return
+    fi
+
+    # Plant a ticket whose CREATE event has NO data.alias.
+    # ticket-id "0193d61dabcd1234" → first 12 hex (0193 d61d abcd) compute via wordlist.
+    local ticket_id="0193-d61d-abcd-1234"
+    _plant_ticket "$repo/.tickets-tracker" "$ticket_id"  # no alias arg → omitted
+
+    # Compute the expected backfill alias deterministically from ticket_id
+    local wordlist="$REPO_ROOT/plugins/dso/resources/ticket-wordlist.txt"
+    local expected_alias
+    expected_alias=$(python3 "$REPO_ROOT/plugins/dso/scripts/ticket-alias-compute.py" "$ticket_id" "$wordlist")
+
+    [ -z "$expected_alias" ] && {
+        assert_eq "alias-backfill: expected alias non-empty" "non-empty" "empty"
+        return
+    }
+
+    local result exit_code=0
+    result=$(cd "$repo" && source "$TICKET_LIB" && \
+        TICKETS_TRACKER_DIR="$repo/.tickets-tracker" resolve_ticket_id "$expected_alias" 2>/dev/null) \
+        || exit_code=$?
+
+    assert_eq "resolve_ticket_id: backfilled alias exits 0" "0" "$exit_code"
+    assert_eq "resolve_ticket_id: backfilled alias returns canonical ID" "$ticket_id" "$result"
+}
+test_resolver_alias_backfill
+
 echo ""
 echo "Test resolver_jira_key_lookup: resolve_ticket_id looks up jira_key from CREATE event"
 test_resolver_jira_key_lookup() {
