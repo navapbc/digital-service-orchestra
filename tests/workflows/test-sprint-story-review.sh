@@ -105,4 +105,17 @@ else
 fi
 assert_pass_if_clean "test_job_computes_merge_base"
 
+# ── test_job_installs_litellm ─────────────────────────────────────────────────
+# The job must install litellm before running ci-llm-review-runner.sh.
+# Without litellm, the runner fails with ModuleNotFoundError (ada8-4478).
+_snapshot_fail
+if [[ ! -f "$WORKFLOW_FILE" ]]; then
+    assert_eq "test_job_installs_litellm: workflow file present (prereq)" "1" "0"
+else
+    found=0
+    grep -q "litellm" "$WORKFLOW_FILE" 2>/dev/null && found=1 || true
+    assert_eq "test_job_installs_litellm: YAML installs litellm before Run LLM review" "1" "$found"
+fi
+assert_pass_if_clean "test_job_installs_litellm"
+
 print_summary
