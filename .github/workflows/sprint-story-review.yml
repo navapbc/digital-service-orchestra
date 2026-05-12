@@ -80,6 +80,11 @@ jobs:
           CLAUDE_PLUGIN_ROOT: "${{ github.workspace }}/plugins/dso"
           DSO_CI_REVIEW_DIFF_PATH: /tmp/story-diff.patch
           DSO_CI_REVIEW_PRIOR_DEFENSES_PATH: /tmp/prior-review/findings.json
+          # Persist the runner's findings JSON so the NEXT cycle can read
+          # cycle_number from it (see "Compute DSO_REVIEW_CYCLE" above) and
+          # so DSO_CI_REVIEW_PRIOR_DEFENSES_PATH on the next run points at
+          # a file that actually exists.
+          DSO_CI_REVIEW_OUTPUT_PATH: /tmp/findings.json
           DSO_CI_REVIEW_DRY_RUN: ${{ vars.DSO_CI_REVIEW_DRY_RUN || '' }}
           DSO_REVIEW_CYCLE: ${{ env.DSO_REVIEW_CYCLE }}
 
@@ -88,5 +93,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.ARTIFACT_NAME }}
-          path: /tmp/story-diff.patch
+          path: |
+            /tmp/story-diff.patch
+            /tmp/findings.json
           retention-days: 7
+          if-no-files-found: warn
