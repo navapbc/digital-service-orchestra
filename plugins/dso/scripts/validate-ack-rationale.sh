@@ -35,26 +35,30 @@ fi
 
 # Step 4: 3-word-window fuzzy match
 python3 - "$trimmed" "$precondition_text" <<'PYEOF'
-import sys, re
+import sys
 
 def normalize(s):
     return ''.join(c for c in s.lower() if c.isalnum())
 
-rationale = sys.argv[1]
-precondition = sys.argv[2]
+try:
+    rationale = sys.argv[1]
+    precondition = sys.argv[2]
 
-norm_rationale = normalize(rationale)
-words = precondition.split()
+    norm_rationale = normalize(rationale)
+    words = precondition.split()
 
-if len(words) < 3:
-    sys.exit(0)  # Cannot form 3-word window, skip check
+    if len(words) < 3:
+        sys.exit(0)  # Cannot form 3-word window, skip check
 
-for i in range(len(words) - 2):
-    window = normalize(' '.join(words[i:i+3]))
-    if window and window in norm_rationale:
-        sys.exit(0)
+    for i in range(len(words) - 2):
+        window = normalize(' '.join(words[i:i+3]))
+        if window and window in norm_rationale:
+            sys.exit(0)
 
-print("rationale does not reference precondition content (no 3-word window match found)", file=sys.stderr)
-sys.exit(1)
+    print("rationale does not reference precondition content (no 3-word window match found)", file=sys.stderr)
+    sys.exit(1)
+except Exception as e:
+    print(f"ERROR: validate-ack-rationale validation error: {e}", file=sys.stderr)
+    sys.exit(1)
 PYEOF
 exit $?

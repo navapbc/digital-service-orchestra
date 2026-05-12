@@ -145,7 +145,8 @@ PYEOF
     _ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
     _ts_file=$(date -u +%Y%m%dT%H%M%SZ)
     _class_lower=$(printf '%s' "$degradation_class" | tr '[:upper:]' '[:lower:]' | tr -c '[:alnum:]_-' '_')
-    _ack_file="$_TRACKER_DIR/$story_id/${_ts_file}-sample-${_class_lower}-ACK.json"
+    _uuid=$(python3 -c "import uuid; print(str(uuid.uuid4())[:8])" 2>/dev/null || date +%N | cut -c1-8)
+    _ack_file="$_TRACKER_DIR/$story_id/${_ts_file}-sample-${_class_lower}-${_uuid}-ACK.json"
 
     python3 - "$_ack_file" "$_ts" "$if_skipped" "$_id1" "$_id2" "$_id3" "${_all_ids[@]}" <<'PYEOF'
 import json, sys
@@ -196,7 +197,8 @@ fi
 _ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 _ts_file=$(date -u +%Y%m%dT%H%M%SZ)
 _safe_id=$(echo "$decision_id" | tr ':/' '_')
-_ack_file="$_TRACKER_DIR/$story_id/${_ts_file}-${_safe_id}-ACK.json"
+_uuid=$(python3 -c "import uuid; print(str(uuid.uuid4())[:8])" 2>/dev/null || date +%N | cut -c1-8)
+_ack_file="$_TRACKER_DIR/$story_id/${_ts_file}-${_safe_id}-${_uuid}-ACK.json"
 
 python3 - "$_ack_file" "$decision_id" "$if_skipped" "$_ts" <<'PYEOF'
 import json, sys
