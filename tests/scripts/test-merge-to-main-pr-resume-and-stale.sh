@@ -175,6 +175,39 @@ test_phase_merge_reuses_existing_draft_pr() {
 }
 
 # ---------------------------------------------------------------------------
+# 1fcc-5fe2 — _phase_resolve_threads emits structured local escalation when
+#             _LLM_DISPATCH_CMD is unset in a local session
+# ---------------------------------------------------------------------------
+
+test_phase_resolve_threads_local_escalation_on_missing_llm_cmd() {
+    # When _llm_cmd is empty AND not in CI, _phase_resolve_threads must call
+    # _dso_emit_local_escalation (not a raw echo >&2) so the session agent
+    # receives structured JSON with instructions. Verify the block contains:
+    #   1. A check for empty _llm_cmd (or _LLM_DISPATCH_CMD)
+    #   2. A _dso_is_ci_environment guard
+    #   3. A _dso_emit_local_escalation call
+    local _detect_tmp
+    _detect_tmp=$(mktemp /tmp/phase-resolve-llm-escalation.XXXXXX)
+    awk '
+        /^_phase_resolve_threads\(\) \{/ { in_func = 1; next }
+        in_func && /^\}$/ { in_func = 0 }
+        in_func && /^[[:space:]]*#/ { next }
+        in_func && /\[\[.*-z.*_llm_cmd/ { saw_empty_check = 1 }
+        in_func && saw_empty_check && /_dso_is_ci_environment/ { saw_ci_guard = 1 }
+        in_func && saw_empty_check && /_dso_emit_local_escalation/ { saw_emit = 1 }
+        in_func && saw_emit && saw_ci_guard { print "structured_local_escalation"; exit }
+    ' "$PR_SCRIPT" > "$_detect_tmp"
+
+    if grep -q "structured_local_escalation" "$_detect_tmp"; then
+        (( ++PASS ))
+    else
+        (( ++FAIL ))
+        printf "FAIL: test_phase_resolve_threads_local_escalation_on_missing_llm_cmd: _phase_resolve_threads does not call _dso_emit_local_escalation (guarded by _dso_is_ci_environment) when _llm_cmd is empty in %s\n" "$PR_SCRIPT" >&2
+    fi
+    rm -f "$_detect_tmp"
+}
+
+# ---------------------------------------------------------------------------
 
 test_resume_flag_is_parsed
 test_duplicate_pr_check_skipped_on_resume
@@ -182,5 +215,6 @@ test_phase_merge_skipped_on_resume_with_pr_url
 test_phase_merge_fetches_before_push
 test_phase_merge_handles_push_rejection
 test_phase_merge_reuses_existing_draft_pr
+test_phase_resolve_threads_local_escalation_on_missing_llm_cmd
 
 print_summary

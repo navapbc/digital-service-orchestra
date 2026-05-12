@@ -1070,12 +1070,18 @@ _phase_resolve_threads() {
             return 1
         fi
 
-        # --- LLM helper required from this point — fail-loud if unset (1a83-46c5) ---
+        # --- LLM helper required from this point — escalate if unset (1a83-46c5) ---
         # We only reach this point if there are actual unresolved, non-escalated
         # threads that need LLM dispatch. PRs with zero review threads exit cleanly
         # via _pr_settling_check above without ever requiring the helper.
         if [[ -z "$_llm_cmd" ]]; then
-            echo "ESCALATE: _LLM_DISPATCH_CMD not set; no LLM helper available (deleted in S3). For LOCAL sessions: read \${CLAUDE_PLUGIN_ROOT}/docs/workflows/PR-FINALIZE-WORKFLOW.md and drive the loop via the session agent + pr-finalize-classify.sh. For CI: configure _LLM_DISPATCH_CMD to a compat-shim. Refusing to silently skip. UNRESOLVED:${_unresolved_ids} PR:${_pr_url}" >&2
+            if ! _dso_is_ci_environment; then
+                _dso_emit_local_escalation "resolve_threads" \
+                    "_LLM_DISPATCH_CMD not set; cannot dispatch LLM thread resolution locally (PR: ${_pr_url}; unresolved: ${_unresolved_ids})" \
+                    "Session agent must resolve the open PR review threads manually. Read \${CLAUDE_PLUGIN_ROOT}/docs/workflows/PR-FINALIZE-WORKFLOW.md and drive the loop via pr-finalize-classify.sh, then re-run merge-to-main.sh."
+                return 1
+            fi
+            echo "ESCALATE: _LLM_DISPATCH_CMD not set in CI; configure a compat-shim. UNRESOLVED:${_unresolved_ids} PR:${_pr_url}" >&2
             return 1
         fi
 
