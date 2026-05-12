@@ -299,20 +299,31 @@ for comment in comments:
         continue
       fi
 
-      local ancestry_list
-      ancestry_list=$(git log --ancestry-path "${base_sha}..${tip_sha}" --format="%H" 2>/dev/null) || ancestry_list=""
+      # Check ancestry using two complementary conditions (OR logic):
+      #   Condition A: QUERY_SHA is within the story range BASE..TIP
+      #                i.e., BASE is an ancestor of QUERY_SHA AND QUERY_SHA is an ancestor of TIP
+      #   Condition B: TIP is an ancestor of QUERY_SHA
+      #                i.e., QUERY_SHA comes after TIP (e.g., a merge commit on the session branch)
+      #
+      # git merge-base --is-ancestor exits 0=true, 1=false, 128=error (bad object / not a repo).
+      # Capture exit codes safely without triggering set -e on non-zero exits.
+      local ec_tip_anc_query ec_base_anc_query ec_query_anc_tip
+      git merge-base --is-ancestor "$tip_sha" "$effective_query_sha" 2>/dev/null && ec_tip_anc_query=0 || ec_tip_anc_query=$?
+      git merge-base --is-ancestor "$base_sha" "$effective_query_sha" 2>/dev/null && ec_base_anc_query=0 || ec_base_anc_query=$?
+      git merge-base --is-ancestor "$effective_query_sha" "$tip_sha" 2>/dev/null && ec_query_anc_tip=0 || ec_query_anc_tip=$?
 
-      if [[ -z "$ancestry_list" && $? -ne 0 ]]; then
-        # git log failed: fail-open
+      if [[ "$ec_tip_anc_query" -gt 1 || "$ec_base_anc_query" -gt 1 || "$ec_query_anc_tip" -gt 1 ]]; then
+        # git merge-base command failed (e.g., bad SHA, not a git repo): fail-open
         echo "WARNING: defense_store_load_for_region: git ancestry check failed, including record fail-open" >&2
         printf '%s\n' "$record_line"
-        continue
-      fi
-
-      if printf '%s\n' "$ancestry_list" | grep -qxF "$effective_query_sha" 2>/dev/null; then
+      elif [[ "$ec_tip_anc_query" -eq 0 ]]; then
+        # Condition B: TIP is an ancestor of QUERY_SHA — QUERY_SHA comes after TIP (e.g., merge commit)
+        printf '%s\n' "$record_line"
+      elif [[ "$ec_base_anc_query" -eq 0 && "$ec_query_anc_tip" -eq 0 ]]; then
+        # Condition A: QUERY_SHA is within the story range BASE..TIP
         printf '%s\n' "$record_line"
       fi
-      # else: SHA not in ancestry — exclude (silent)
+      # else: QUERY_SHA is not in range and TIP is not its ancestor — exclude (silent)
 
     else
       # Legacy record: fall back to diff_hash equality check

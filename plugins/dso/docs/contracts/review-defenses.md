@@ -31,9 +31,18 @@ Persists a DefenseRecord. Raises an error (exit code 1) if ticket-binding is abs
 
 Returns the defense record for the given `prior_finding_id`, or null if none exists.
 
-### `load_for_region(region_files: list[string]) → list[DefenseRecord]`
+### `load_for_region(region_files: list[string], query_sha: string | null = null) → list[DefenseRecord]`
 
-Returns records filtered to those with any cited line path intersecting `region_files`. No-op default returns all records unfiltered (suitable for backends that do not support path-based filtering).
+Returns records filtered to those with any cited line path intersecting `region_files`.
+
+**SHA-range validation** (when `query_sha` is provided and a candidate record contains both `story_branch_tip_sha` and `story_branch_base_sha`): the record is included only if `query_sha` satisfies at least one of the following conditions:
+
+- **Condition A — in-range** (linear chain): `BASE` is an ancestor of `query_sha` AND `query_sha` is an ancestor of `TIP`. This covers commits that land directly on the story branch between the merge-base and the branch tip.
+- **Condition B — post-merge**: `TIP` is an ancestor of `query_sha`. This covers merge commits and commits that come after the story branch tip (e.g., merge-back commits on the session branch).
+
+Records that pass neither condition are excluded from the result even if their file paths intersect `region_files`. This prevents stale defenses from suppressing findings on commits that did not exist when the defense was recorded.
+
+**Legacy fallback**: When a candidate record lacks `story_branch_tip_sha` or `story_branch_base_sha` (i.e., written before SHA-range attestation was introduced), the loader falls back to `diff_hash` lookup for that record and emits a warning to stderr containing the literal string `legacy attestation`. The legacy record is included if the `diff_hash` matches; otherwise it is excluded. No-op default (no `query_sha` supplied) returns all path-intersecting records unfiltered, preserving backward compatibility for backends that do not support SHA-range filtering.
 
 ---
 
@@ -52,6 +61,8 @@ The following table defines all fields of a DefenseRecord. All required fields m
 | `severity_history` | array | yes | Per-cycle severity records for SC1 telemetry. Each entry: `{cycle: int, severity: string, relation: string \| null}`. Must contain at least one entry. |
 | `arbiter_ruling` | object | no | Present only when an arbiter resolved this defense. Fields: `ruling` (one of `SUSTAIN_AT_SEVERITY`, `ACCEPT_DEFENSE`, or `DOWNGRADE_TO_<severity>`), `summary` (1–2 sentence summary in GitHubPRDefenseStore; full text in TrackerDefenseStore), `arbiter_cycle` (integer). |
 | `ticket_id` | string | yes | Ticket bound at time of defense write. Set to `UNBOUND` when no session ticket — this value is invalid and causes write failure per the ticket-binding integrity rule. |
+| `story_branch_tip_sha` | string | no | Tip commit SHA of the story branch at the time the defense was written. Used by `load_for_region` for SHA-range validation. When present, `story_branch_base_sha` must also be present. |
+| `story_branch_base_sha` | string | no | Merge-base SHA between the story branch and the session branch at the time the defense was written. Used by `load_for_region` for SHA-range validation. When present, `story_branch_tip_sha` must also be present. |
 
 ---
 
@@ -137,6 +148,25 @@ Only one `ticket_id` is recorded per defense record. The tiebreak is resolved by
 
 ## Example Payload
 
+```json
+{
+  "prior_finding_id": "finding-0042",
+  "cited_lines_fingerprint": "a3f9c2d1e4b78f60123456789abcdef0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6",
+  "defense_text": "The null check on line 87 is guarded by the caller contract — callers in this module guarantee non-null per the module-level invariant documented in the module header. No defensive null check is needed here.",
+  "defender": "dso:code-reviewer-standard",
+  "cycle_number": 2,
+  "timestamp": "2026-05-11T14:32:00Z",
+  "severity_history": [
+    {"cycle": 1, "severity": "important", "relation": null},
+    {"cycle": 2, "severity": "important", "relation": "DEFENDED"}
+  ],
+  "ticket_id": "7597-3b9c-8d56-4f54",
+  "story_branch_tip_sha": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0",
+  "story_branch_base_sha": "0f1e2d3c4b5a6978869758647362514039281706"
+}
+```
+
+**Legacy record (pre-2026-05-11, diff_hash only — no SHA-range fields):**
 ```json
 {
   "prior_finding_id": "finding-0042",
@@ -232,6 +262,22 @@ All implementors must read this contract before modifying any defense-store writ
 
 ---
 
+## Schema Migration
+
+### SHA-range attestation fields (introduced 2026-05-11)
+
+Records written **before 2026-05-11** use `diff_hash`-only attestation. They do not contain `story_branch_tip_sha` or `story_branch_base_sha`. When the loader encounters such a record during `load_for_region`:
+
+1. It emits a warning to stderr containing the literal string `legacy attestation`.
+2. It falls back to `diff_hash` matching against the current diff hash for the region.
+3. The record is included if the `diff_hash` matches; otherwise excluded.
+
+Records written **on or after 2026-05-11** include both `story_branch_tip_sha` and `story_branch_base_sha` in addition to any existing fields. These records are validated using the SHA-range conditions described in `load_for_region` above. The `diff_hash` field is still included in new records for cross-version compatibility; loaders that do not support SHA-range validation will fall back to it transparently.
+
+Both record formats coexist in the same store. The loader handles both transparently — no migration of existing records is required.
+
+---
+
 ## Versioning
 
 This contract is versioned. Breaking changes (field removal, type changes, algorithm changes to `cited_lines_fingerprint`) require updating all writers, readers, and this document atomically in the same commit. Additive field additions that do not affect existing required fields are backward-compatible.
@@ -239,3 +285,4 @@ This contract is versioned. Breaking changes (field removal, type changes, algor
 ### Change Log
 
 - **2026-05-07**: Initial version — defines DefenseStore record shape, two-backend split (TrackerDefenseStore / GitHubPRDefenseStore), cited_lines_fingerprint SHA-256 computation algorithm, durable binding contract, ticket-binding integrity rule, multi-bound session tiebreak, `load_for_region` interface, and failure contract.
+- **2026-05-11**: Added SHA-range attestation fields (`story_branch_tip_sha`, `story_branch_base_sha`) to the record shape; extended `load_for_region` with `query_sha` parameter and two-condition OR ancestry-path validation (Condition A: in-range linear chain, Condition B: post-merge); defined legacy fallback contract (`diff_hash` lookup with `legacy attestation` stderr warning) for records lacking SHA fields; added Schema Migration section documenting the two-era record formats and transparent loader handling.
