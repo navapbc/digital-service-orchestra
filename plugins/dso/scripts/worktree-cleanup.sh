@@ -412,13 +412,29 @@ _handle_orphan_branch() {
         return
     fi
 
+    # Merge-evidence guard: _delete_local_branch falls back to `branch -D`, which
+    # discards unmerged work. Only allow the -D fallback when we have positive
+    # merge evidence; otherwise restrict to `branch -d` (refuse-if-unmerged) so
+    # an in-flight orphan branch cannot be silently destroyed.
+    local _is_merged=false
+    if is_branch_merged "$MAIN_WORKTREE" "$branch" "$MAIN_BRANCH"; then
+        _is_merged=true
+    fi
+    _safe_delete_orphan() {
+        if [[ "$_is_merged" == "true" ]]; then
+            _delete_local_branch "$MAIN_WORKTREE" "$branch"
+        else
+            git -C "$MAIN_WORKTREE" branch -d "$branch" 2>/dev/null
+        fi
+    }
+
     if [[ "$FORCE" == "true" ]]; then
-        if _delete_local_branch "$MAIN_WORKTREE" "$branch"; then
+        if _safe_delete_orphan; then
             echo -e "Deleted orphaned local branch '${branch}'${merged_label}"
             orphan_deleted=$((orphan_deleted + 1))
             _delete_remote_if_present "$branch" "orphaned "
         else
-            echo -e "${RED}Failed to delete orphaned local branch '${branch}'${RESET}"
+            echo -e "${YELLOW}Skipped '${branch}' — not fully merged (use git branch -D to force)${RESET}"
         fi
         return
     fi
@@ -426,12 +442,12 @@ _handle_orphan_branch() {
     read -rp "Delete orphaned branch '${branch}' (${local_remote_label})?${merged_label} [y/N] " answer
     case "$answer" in
         [yY]|[yY][eE][sS])
-            if _delete_local_branch "$MAIN_WORKTREE" "$branch"; then
+            if _safe_delete_orphan; then
                 echo -e "Deleted orphaned local branch '${branch}'${merged_label}"
                 orphan_deleted=$((orphan_deleted + 1))
                 _delete_remote_if_present "$branch" "orphaned "
             else
-                echo -e "${RED}Failed to delete orphaned local branch '${branch}'${RESET}"
+                echo -e "${YELLOW}Skipped '${branch}' — not fully merged (use git branch -D to force)${RESET}"
             fi
             ;;
         *) echo "Skipped branch '${branch}'" ;;
@@ -1015,24 +1031,31 @@ if [[ "$INCLUDE_BRANCHES" == "true" ]]; then
         _live_local_branches["$_lb"]=1
     done < <(git -C "$MAIN_WORKTREE" branch --format='%(refname:short)' 2>/dev/null)
 
-    # Eligibility: ancestor of origin/$MAIN_BRANCH, or a MERGED/CLOSED PR.
+    # Eligibility: positive merge evidence into origin/$MAIN_BRANCH. CLOSED PRs
+    # are NOT evidence — a PR can be closed without merging, and treating
+    # CLOSED as merged would destructively delete branches others may still need.
     _remote_orphan_eligible() {
         local b="$1"
         # Ancestor of origin/main → merged
         if git -C "$MAIN_WORKTREE" merge-base --is-ancestor "refs/remotes/origin/$b" "refs/remotes/origin/$MAIN_BRANCH" 2>/dev/null; then
             return 0
         fi
-        # Squash-merge proxy via commit-message text on origin/main
+        # GitHub squash-merge proxy: "Merge pull request" + branch name in the same commit
         if git -C "$MAIN_WORKTREE" log "refs/remotes/origin/$MAIN_BRANCH" --oneline --all-match -F \
                 --grep="Merge pull request" --grep="$b" -1 2>/dev/null | grep -q .; then
             return 0
         fi
-        # PR evidence via gh
+        # Orchestrator merge-commit proxy: "(merge $branch)" pattern produced by merge-to-main.sh.
+        # -F: treat as fixed string so the literal parentheses don't act as regex metacharacters.
+        if git -C "$MAIN_WORKTREE" log "refs/remotes/origin/$MAIN_BRANCH" --oneline -F --grep="(merge $b)" -1 2>/dev/null | grep -q .; then
+            return 0
+        fi
+        # PR evidence via gh — MERGED only; CLOSED is not merge evidence.
         if command -v gh >/dev/null 2>&1; then
             local state
             state=$(gh pr list --head "$b" --state all --json state --jq '.[0].state' 2>/dev/null || echo "")
             case "$state" in
-                MERGED|CLOSED) return 0 ;;
+                MERGED) return 0 ;;
             esac
         fi
         return 1

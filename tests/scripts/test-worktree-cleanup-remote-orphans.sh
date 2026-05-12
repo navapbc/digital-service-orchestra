@@ -99,11 +99,17 @@ test_remote_unmerged_orphan_is_preserved() {
     setup_origin_and_clone "$tmp"
     push_unmerged_branch_to_origin "worktree-unmerged-xyz"
 
-    # Sandbox gh: empty PATH dir without gh so PR check returns no-evidence.
-    local fake_path; fake_path="$tmp/empty-path"
-    mkdir -p "$fake_path"
+    # Shim gh so it reports no PR (empty state). PATH must keep bash 4+ discoverable,
+    # so we prepend a shim dir rather than replacing PATH entirely.
+    local shim_path; shim_path="$tmp/gh-shim"
+    mkdir -p "$shim_path"
+    cat > "$shim_path/gh" <<'MOCK'
+#!/usr/bin/env bash
+exit 0
+MOCK
+    chmod +x "$shim_path/gh"
 
-    (cd "$CLONE" && PATH="$fake_path:/usr/bin:/bin" WORKTREE_CLEANUP_ENABLED=1 \
+    (cd "$CLONE" && PATH="$shim_path:$PATH" WORKTREE_CLEANUP_ENABLED=1 \
         bash "$CLEANUP_SCRIPT" --non-interactive --all --force 2>/dev/null) >/dev/null || true
 
     local post="no"; remote_has_branch "worktree-unmerged-xyz" && post="yes"
@@ -222,6 +228,95 @@ test_local_orphan_squash_merged_uses_dash_D_fallback() {
     assert_eq "squash-merged local orphan deleted via -D fallback" "no" "$post"
 }
 
+# ── Test 8: Unmerged local orphan is NOT hard-deleted by --force ─────────────
+# Regression for coderabbitai PR #100 critical finding: _delete_local_branch's
+# -D fallback must be gated by positive merge evidence; otherwise --force would
+# silently destroy unmerged local work.
+test_local_unmerged_orphan_not_hard_deleted_by_force() {
+    local tmp; tmp=$(make_tmpdir)
+    setup_origin_and_clone "$tmp"
+
+    # Create a LOCAL orphan branch with a commit NOT on main (not merged anywhere).
+    git -C "$CLONE" branch "worktree-unmerged-local" main >/dev/null 2>&1
+    git -C "$CLONE" checkout "worktree-unmerged-local" >/dev/null 2>&1
+    echo "in-flight" > "$CLONE/in-flight.txt"
+    git -C "$CLONE" add in-flight.txt
+    git -C "$CLONE" commit -m "WIP do not lose" >/dev/null 2>&1
+    git -C "$CLONE" checkout main >/dev/null 2>&1
+
+    (cd "$CLONE" && WORKTREE_CLEANUP_ENABLED=1 bash "$CLEANUP_SCRIPT" \
+        --non-interactive --all --force 2>/dev/null) >/dev/null || true
+
+    local still_there="no"
+    git -C "$CLONE" show-ref --verify --quiet "refs/heads/worktree-unmerged-local" && still_there="yes"
+    assert_eq "unmerged local orphan preserved under --force (no -D destruction)" "yes" "$still_there"
+}
+
+# ── Test 9: Orchestrator (merge <branch>) proxy detected for remote orphan ───
+# Regression for coderabbitai PR #100 major finding: _remote_orphan_eligible
+# must recognize the `(merge $branch)` commit message produced by
+# merge-to-main.sh, not just GitHub's "Merge pull request" pattern.
+test_remote_orphan_detected_via_merge_to_main_proxy() {
+    local tmp; tmp=$(make_tmpdir)
+    setup_origin_and_clone "$tmp"
+
+    # Push an unmerged branch (different SHA), then synthesize a "(merge X)" commit on main.
+    git -C "$CLONE" branch "worktree-orch-proxy" main >/dev/null 2>&1
+    git -C "$CLONE" checkout "worktree-orch-proxy" >/dev/null 2>&1
+    echo "branch content" > "$CLONE/orch.txt"
+    git -C "$CLONE" add orch.txt
+    git -C "$CLONE" commit -m "branch work" >/dev/null 2>&1
+    git -C "$CLONE" push origin "worktree-orch-proxy" >/dev/null 2>&1
+    git -C "$CLONE" checkout main >/dev/null 2>&1
+    git -C "$CLONE" branch -D "worktree-orch-proxy" >/dev/null 2>&1
+    git -C "$CLONE" commit --allow-empty -m "story/foo: merge work (merge worktree-orch-proxy)" >/dev/null 2>&1
+    git -C "$CLONE" push origin main >/dev/null 2>&1
+
+    # Shim gh so it cannot fall back to PR-state evidence — proxy must be enough.
+    local shim_path; shim_path="$tmp/gh-shim"
+    mkdir -p "$shim_path"
+    cat > "$shim_path/gh" <<'MOCK'
+#!/usr/bin/env bash
+exit 0
+MOCK
+    chmod +x "$shim_path/gh"
+    (cd "$CLONE" && PATH="$shim_path:$PATH" WORKTREE_CLEANUP_ENABLED=1 \
+        bash "$CLEANUP_SCRIPT" --non-interactive --all --force 2>/dev/null) >/dev/null || true
+
+    local post="yes"; remote_has_branch "worktree-orch-proxy" || post="no"
+    assert_eq "remote orphan with (merge <branch>) proxy on main deleted" "no" "$post"
+}
+
+# ── Test 10: CLOSED-but-not-merged PR does NOT make a remote branch eligible ─
+# Regression for coderabbitai PR #100 critical finding: a PR can be CLOSED
+# without being merged. CLOSED must NOT be treated as merge evidence.
+test_closed_unmerged_pr_does_not_delete_remote() {
+    local tmp; tmp=$(make_tmpdir)
+    setup_origin_and_clone "$tmp"
+    push_unmerged_branch_to_origin "worktree-closed-pr-only"
+
+    # Inject a mock `gh` in PATH that reports the PR as CLOSED (not merged).
+    local fake_path; fake_path="$tmp/mock-bin"
+    mkdir -p "$fake_path"
+    cat > "$fake_path/gh" <<'MOCK'
+#!/usr/bin/env bash
+# Mock: every `gh pr list ... --json state --jq '.[0].state'` returns CLOSED.
+if [[ "$*" == *"pr list"* ]]; then
+    echo "CLOSED"
+    exit 0
+fi
+exit 0
+MOCK
+    chmod +x "$fake_path/gh"
+
+    (cd "$CLONE" && PATH="$fake_path:$PATH" WORKTREE_CLEANUP_ENABLED=1 \
+        bash "$CLEANUP_SCRIPT" --non-interactive --all --force 2>/dev/null) >/dev/null || true
+
+    local still_there="no"
+    remote_has_branch "worktree-closed-pr-only" && still_there="yes"
+    assert_eq "CLOSED (not merged) PR is NOT deletion evidence" "yes" "$still_there"
+}
+
 test_remote_merged_orphan_is_deleted
 test_remote_unmerged_orphan_is_preserved
 test_dangling_remote_tracking_ref_pruned
@@ -229,5 +324,8 @@ test_protected_branches_never_deleted_from_origin
 test_story_pattern_picked_up_by_default
 test_branch_pattern_back_compat_warns
 test_local_orphan_squash_merged_uses_dash_D_fallback
+test_local_unmerged_orphan_not_hard_deleted_by_force
+test_remote_orphan_detected_via_merge_to_main_proxy
+test_closed_unmerged_pr_does_not_delete_remote
 
 print_summary
