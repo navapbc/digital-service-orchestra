@@ -15,7 +15,7 @@ Loads and executes `${CLAUDE_PLUGIN_ROOT}/docs/workflows/REVIEW-WORKFLOW.md` inl
 
 ## Usage
 
-```
+```bash
 /dso:review
 ```
 

@@ -446,28 +446,27 @@ _phase_merge() {
                 # CONFLICT_DATA (best-effort) for upstream orchestrators.
                 return 1
             fi
-        fi
+        else
+            # gh pr create may print extra log lines before the URL; extract the
+            # last line that looks like a PR url.
+            _final_url=$(echo "$_pr_url" | grep -Eo 'https://[^[:space:]]+/pull/[0-9]+' | tail -n1)
+            if [[ -z "$_final_url" ]]; then
+                # Fallback: trust the entire stdout as the URL (some gh versions emit
+                # only the URL with no surrounding text).
+                _final_url=$(echo "$_pr_url" | tail -n1 | tr -d '[:space:]')
+            fi
 
-        # gh pr create may print extra log lines before the URL; extract the
-        # last line that looks like a PR url.
-        _final_url=$(echo "$_pr_url" | grep -Eo 'https://[^[:space:]]+/pull/[0-9]+' | tail -n1)
-        if [[ -z "$_final_url" ]]; then
-            # Fallback: trust the entire stdout as the URL (some gh versions emit
-            # only the URL with no surrounding text).
-            _final_url=$(echo "$_pr_url" | tail -n1 | tr -d '[:space:]')
-        fi
-
-        _pr_number=$(echo "$_final_url" | grep -Eo '/pull/[0-9]+' | grep -Eo '[0-9]+$')
-        if [[ -z "$_pr_number" ]]; then
-            echo "ERROR: could not parse PR number from gh pr create output: $_pr_url" >&2
-            return 1
+            _pr_number=$(echo "$_final_url" | grep -Eo '/pull/[0-9]+' | grep -Eo '[0-9]+$')
+            if [[ -z "$_pr_number" ]]; then
+                echo "ERROR: could not parse PR number from gh pr create output: $_pr_url" >&2
+                return 1
+            fi
+            echo "INFO: Created PR #${_pr_number}: $_final_url"
         fi
     fi
 
     # --- 5. Persist PR url + number to state file (best-effort) ---
     _state_write_pr_meta "$_final_url" "$_pr_number" 2>/dev/null || true
-
-    echo "INFO: Created PR #${_pr_number}: $_final_url"
 
     # --- 6. Detect CONFLICTING up-front via `gh pr view --json mergeable` ---
     # If GitHub reports the PR as CONFLICTING, return 1 so the caller emits
