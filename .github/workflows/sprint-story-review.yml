@@ -36,12 +36,16 @@ jobs:
         continue-on-error: true
         uses: actions/download-artifact@v4
         with:
-          name: sprint-story-review-${{ github.ref_name }}
+          name: sprint-story-review-${{ replace(github.ref_name, '/', '-') }}
           path: /tmp/prior-review/
 
       - name: Run LLM review
         run: bash plugins/dso/scripts/ci-llm-review-runner.sh
         env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CLAUDE_PLUGIN_ROOT: "${{ github.workspace }}/plugins/dso"
           DSO_CI_REVIEW_DIFF_PATH: /tmp/story-diff.patch
           DSO_CI_REVIEW_PRIOR_DEFENSES_PATH: /tmp/prior-review/findings.json
           DSO_CI_REVIEW_DRY_RUN: ${{ vars.DSO_CI_REVIEW_DRY_RUN || '' }}
@@ -50,6 +54,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: sprint-story-review-${{ github.ref_name }}
+          name: sprint-story-review-${{ replace(github.ref_name, '/', '-') }}
           path: /tmp/story-diff.patch
           retention-days: 7
