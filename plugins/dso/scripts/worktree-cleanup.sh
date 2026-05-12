@@ -74,6 +74,25 @@ CONFIG_CONTAINER_PREFIX=$(bash "$PLUGIN_SCRIPTS/read-config.sh" infrastructure.c
 CONFIG_BRANCH_PATTERN=$(bash "$PLUGIN_SCRIPTS/read-config.sh" worktree.branch_pattern 2>/dev/null || true)  # shim-exempt: internal plugin script
 CONFIG_MAX_AGE_HOURS=$(bash "$PLUGIN_SCRIPTS/read-config.sh" worktree.max_age_hours 2>/dev/null || true)  # shim-exempt: internal plugin script
 
+# ── Orphan-branch patterns (list-valued, with back-compat alias) ──────────────
+# Source of truth is worktree.orphan_patterns (list). The legacy scalar
+# worktree.branch_pattern still works but emits a one-time deprecation warning.
+# Default patterns cover both auto-named worktree branches and DSO story
+# branches that the sprint workflow produces.
+CONFIG_ORPHAN_PATTERNS=()
+while IFS= read -r _opat; do
+    [[ -z "$_opat" ]] && continue
+    CONFIG_ORPHAN_PATTERNS+=("$_opat")
+done < <(bash "$PLUGIN_SCRIPTS/read-config.sh" --list worktree.orphan_patterns 2>/dev/null || true)  # shim-exempt: internal plugin script
+
+if [[ ${#CONFIG_ORPHAN_PATTERNS[@]} -eq 0 && -n "$CONFIG_BRANCH_PATTERN" ]]; then
+    echo "Warning: worktree.branch_pattern is deprecated — use worktree.orphan_patterns (list) instead." >&2
+    CONFIG_ORPHAN_PATTERNS=("$CONFIG_BRANCH_PATTERN")
+fi
+if [[ ${#CONFIG_ORPHAN_PATTERNS[@]} -eq 0 ]]; then
+    CONFIG_ORPHAN_PATTERNS=("worktree-*" "story/*")
+fi
+
 # Capture whether AGE_HOURS was explicitly set in the environment before applying defaults.
 _AGE_HOURS_FROM_ENV="${AGE_HOURS:-}"
 AGE_HOURS=${AGE_HOURS:-${CONFIG_MAX_AGE_HOURS:-12}}  # env var > config > default (12 hours)
@@ -393,8 +412,24 @@ _handle_orphan_branch() {
         return
     fi
 
+    # Merge-evidence guard: _delete_local_branch falls back to `branch -D`, which
+    # discards unmerged work. Only allow the -D fallback when we have positive
+    # merge evidence; otherwise restrict to `branch -d` (refuse-if-unmerged) so
+    # an in-flight orphan branch cannot be silently destroyed.
+    local _is_merged=false
+    if is_branch_merged "$MAIN_WORKTREE" "$branch" "$MAIN_BRANCH"; then
+        _is_merged=true
+    fi
+    _safe_delete_orphan() {
+        if [[ "$_is_merged" == "true" ]]; then
+            _delete_local_branch "$MAIN_WORKTREE" "$branch"
+        else
+            git -C "$MAIN_WORKTREE" branch -d "$branch" 2>/dev/null
+        fi
+    }
+
     if [[ "$FORCE" == "true" ]]; then
-        if git -C "$MAIN_WORKTREE" branch -d "$branch" 2>/dev/null; then
+        if _safe_delete_orphan; then
             echo -e "Deleted orphaned local branch '${branch}'${merged_label}"
             orphan_deleted=$((orphan_deleted + 1))
             _delete_remote_if_present "$branch" "orphaned "
@@ -407,7 +442,7 @@ _handle_orphan_branch() {
     read -rp "Delete orphaned branch '${branch}' (${local_remote_label})?${merged_label} [y/N] " answer
     case "$answer" in
         [yY]|[yY][eE][sS])
-            if git -C "$MAIN_WORKTREE" branch -d "$branch" 2>/dev/null; then
+            if _safe_delete_orphan; then
                 echo -e "Deleted orphaned local branch '${branch}'${merged_label}"
                 orphan_deleted=$((orphan_deleted + 1))
                 _delete_remote_if_present "$branch" "orphaned "
@@ -609,10 +644,11 @@ log_action "Cleanup run started (dry_run=${DRY_RUN}, non_interactive=${NON_INTER
 # ── Display table ─────────────────────────────────────────────────────────────
 
 count=${#WT_NAMES[@]}
+_SKIP_REMOVAL=false
 
 if [[ $count -eq 0 ]]; then
     echo "No worktrees found (besides the main repo)."
-    exit 0
+    _SKIP_REMOVAL=true
 fi
 
 echo ""
@@ -677,17 +713,27 @@ done
 
 echo ""
 
-if [[ $safe_count -eq 0 ]]; then
+if [[ $safe_count -eq 0 && "$_SKIP_REMOVAL" != "true" ]]; then
     echo "No worktrees are safe to remove."
-    exit 0
+    _SKIP_REMOVAL=true
 fi
 
-echo -e "${safe_count} worktree(s) safe to remove."
-echo ""
+if [[ "$_SKIP_REMOVAL" != "true" ]]; then
+    echo -e "${safe_count} worktree(s) safe to remove."
+    echo ""
+fi
 
 # ── Selection ─────────────────────────────────────────────────────────────────
 
+# These arrays are referenced by post-removal sections (orphan cleanup, summary)
+# regardless of whether removal ran, so initialize them outside the skip guard.
+removed_branches=()
+removed_count=0
+total_freed_kb=0
 selected_indices=()
+
+if [[ "$_SKIP_REMOVAL" != "true" ]]; then
+
 
 if [[ "$DRY_RUN" == "true" ]]; then
     # In dry-run mode, select all safe candidates to show what would happen
@@ -896,6 +942,8 @@ if [[ "$INCLUDE_BRANCHES" == "true" && ${#removed_branches[@]} -gt 0 ]]; then
     fi
 fi
 
+fi  # end: if [[ "$_SKIP_REMOVAL" != "true" ]] — Selection through Branch cleanup
+
 # ── Clean up orphaned worktree-* branches ────────────────────────────────
 
 # Local branches named worktree-* can linger after worktrees are removed by
@@ -918,16 +966,23 @@ if [[ "$INCLUDE_BRANCHES" == "true" ]]; then
         done
     fi
 
-    # Find orphaned worktree-* branches
+    # Find orphaned local branches matching any configured pattern
     orphan_branches=()
-    while IFS= read -r branch; do
-        [[ -z "$branch" ]] && continue
-        # Skip if still associated with a live worktree
-        [[ -n "${live_wt_branches[$branch]+x}" ]] && continue
-        # Skip if already handled in the section above
-        [[ -n "${already_handled[$branch]+x}" ]] && continue
-        orphan_branches+=("$branch")
-    done < <(git -C "$MAIN_WORKTREE" branch --list "${CONFIG_BRANCH_PATTERN:-worktree-*}" --format='%(refname:short)' 2>/dev/null)
+    declare -A _orphan_seen=()
+    for _pat in "${CONFIG_ORPHAN_PATTERNS[@]}"; do
+        while IFS= read -r branch; do
+            [[ -z "$branch" ]] && continue
+            # Skip protected branches outright
+            case "$branch" in
+                "$MAIN_BRANCH"|main|master|tickets) continue ;;
+            esac
+            [[ -n "${live_wt_branches[$branch]+x}" ]] && continue
+            [[ -n "${already_handled[$branch]+x}" ]] && continue
+            [[ -n "${_orphan_seen[$branch]+x}" ]] && continue
+            _orphan_seen["$branch"]=1
+            orphan_branches+=("$branch")
+        done < <(git -C "$MAIN_WORKTREE" branch --list "$_pat" --format='%(refname:short)' 2>/dev/null)
+    done
 
     if [[ ${#orphan_branches[@]} -gt 0 ]]; then
         echo ""
@@ -954,6 +1009,169 @@ if [[ "$INCLUDE_BRANCHES" == "true" ]]; then
         fi
     fi
 fi
+
+# ── Clean up orphaned remote branches on origin ──────────────────────────
+#
+# Local-only orphan detection (above) misses branches that exist on origin but
+# have no corresponding local branch and no associated worktree. These linger
+# after manual `git push origin --delete` was skipped, after squash-merge PR
+# closes, or after agent dispatches whose local cleanup ran but whose push
+# remained. Deletion requires positive merge evidence — either ancestor of
+# origin/$MAIN_BRANCH, or a MERGED/CLOSED PR via gh — to protect branches that
+# others may still be using.
+
+if [[ "$INCLUDE_BRANCHES" == "true" ]]; then
+    # Refresh remote-tracking refs and prune defunct ones — but only when NOT in
+    # --dry-run. The preview mode must not mutate refs/remotes/* state; users
+    # who want fully accurate dry-run output should `git fetch --prune` first.
+    if [[ "$DRY_RUN" != "true" ]]; then
+        git -C "$MAIN_WORKTREE" fetch origin --prune 2>/dev/null || true
+    fi
+
+    # Build set of branch names still live locally (any local branch, regardless of pattern).
+    declare -A _live_local_branches=()
+    while IFS= read -r _lb; do
+        [[ -z "$_lb" ]] && continue
+        _live_local_branches["$_lb"]=1
+    done < <(git -C "$MAIN_WORKTREE" branch --format='%(refname:short)' 2>/dev/null)
+
+    # Eligibility: positive merge evidence into origin/$MAIN_BRANCH. CLOSED PRs
+    # are NOT evidence — a PR can be closed without merging, and treating
+    # CLOSED as merged would destructively delete branches others may still need.
+    _remote_orphan_eligible() {
+        local b="$1"
+        # Ancestor of origin/main → merged
+        if git -C "$MAIN_WORKTREE" merge-base --is-ancestor "refs/remotes/origin/$b" "refs/remotes/origin/$MAIN_BRANCH" 2>/dev/null; then
+            return 0
+        fi
+        # GitHub squash-merge proxy: "Merge pull request" + branch name in the same commit
+        if git -C "$MAIN_WORKTREE" log "refs/remotes/origin/$MAIN_BRANCH" --oneline --all-match -F \
+                --grep="Merge pull request" --grep="$b" -1 2>/dev/null | grep -q .; then
+            return 0
+        fi
+        # Orchestrator merge-commit proxy: "(merge $branch)" pattern produced by merge-to-main.sh.
+        # -F: treat as fixed string so the literal parentheses don't act as regex metacharacters.
+        if git -C "$MAIN_WORKTREE" log "refs/remotes/origin/$MAIN_BRANCH" --oneline -F --grep="(merge $b)" -1 2>/dev/null | grep -q .; then
+            return 0
+        fi
+        # PR evidence via gh — MERGED only; CLOSED is not merge evidence.
+        if command -v gh >/dev/null 2>&1; then
+            local state
+            state=$(gh pr list --head "$b" --state all --json state --jq '.[0].state' 2>/dev/null || echo "")
+            case "$state" in
+                MERGED) return 0 ;;
+            esac
+        fi
+        return 1
+    }
+
+    # Collect remote orphans matching any configured pattern
+    remote_orphans=()
+    declare -A _ro_seen=()
+    for _pat in "${CONFIG_ORPHAN_PATTERNS[@]}"; do
+        while IFS=$'\t' read -r _sha _ref; do
+            [[ -z "$_ref" ]] && continue
+            local_b="${_ref#refs/heads/}"
+            case "$local_b" in
+                "$MAIN_BRANCH"|main|master|tickets|HEAD) continue ;;
+            esac
+            [[ -n "${_live_local_branches[$local_b]+x}" ]] && continue
+            [[ -n "${live_wt_branches[$local_b]+x}" ]] && continue
+            [[ -n "${_ro_seen[$local_b]+x}" ]] && continue
+            _ro_seen["$local_b"]=1
+            if _remote_orphan_eligible "$local_b"; then
+                remote_orphans+=("$local_b")
+            fi
+        done < <(git -C "$MAIN_WORKTREE" ls-remote --heads origin "$_pat" 2>/dev/null)
+    done
+
+    if [[ ${#remote_orphans[@]} -gt 0 ]]; then
+        echo ""
+        echo -e "${BOLD}Orphaned remote branches on origin (merged, no local copy):${RESET}"
+        if [[ "$DRY_RUN" == "true" ]]; then
+            for _b in "${remote_orphans[@]}"; do
+                echo -e "${CYAN}[DRY RUN]${RESET} Would delete origin/${_b}"
+                log_action "DRY RUN: would delete remote branch origin/${_b}"
+            done
+        else
+            confirm_remote=false
+            if [[ "$FORCE" == "true" ]]; then
+                confirm_remote=true
+            else
+                read -rp "Delete ${#remote_orphans[@]} orphaned remote branch(es) on origin? [y/N] " _ans
+                case "$_ans" in [yY]|[yY][eE][sS]) confirm_remote=true ;; esac
+            fi
+            if [[ "$confirm_remote" == "true" ]]; then
+                # Batch delete via a single push. `git push --delete` accepts multiple refspecs.
+                if git -C "$MAIN_WORKTREE" push origin --delete "${remote_orphans[@]}" 2>/dev/null; then
+                    for _b in "${remote_orphans[@]}"; do
+                        echo -e "Deleted orphaned remote branch 'origin/${_b}'"
+                        log_action "REMOVED remote branch origin/${_b}"
+                    done
+                else
+                    # Fall back to one-by-one so a single bad ref doesn't sink the batch.
+                    for _b in "${remote_orphans[@]}"; do
+                        if git -C "$MAIN_WORKTREE" push origin --delete "$_b" 2>/dev/null; then
+                            echo -e "Deleted orphaned remote branch 'origin/${_b}'"
+                            log_action "REMOVED remote branch origin/${_b}"
+                        else
+                            echo -e "${RED}Failed to delete remote branch 'origin/${_b}'${RESET}"
+                            log_action "FAILED to delete remote branch origin/${_b}"
+                        fi
+                    done
+                fi
+            fi
+        fi
+    fi
+fi
+
+# ── Prune dangling remote-tracking refs ───────────────────────────────────
+#
+# When a remote is removed from .git/config (or was never added), refs under
+# refs/remotes/<that-remote>/* become unreachable by `git fetch --prune` and
+# linger indefinitely. Walk all remote-tracking refs and drop any whose
+# remote-name component is not in `git remote`. Skip symbolic HEAD refs.
+
+{
+    _configured_remotes=$(git -C "$MAIN_WORKTREE" remote 2>/dev/null || true)
+    declare -A _remote_set=()
+    while IFS= read -r _r; do
+        [[ -n "$_r" ]] && _remote_set["$_r"]=1
+    done <<< "$_configured_remotes"
+
+    _dangling_refs=()
+    while IFS= read -r _ref; do
+        [[ -z "$_ref" ]] && continue
+        # Strip refs/remotes/ prefix → "<remote>/<branch...>"
+        _rest="${_ref#refs/remotes/}"
+        _remote_name="${_rest%%/*}"
+        # Skip if this remote IS configured
+        [[ -n "${_remote_set[$_remote_name]+x}" ]] && continue
+        # Skip symbolic HEAD refs (refs/remotes/<remote>/HEAD)
+        if [[ "$(git -C "$MAIN_WORKTREE" symbolic-ref "$_ref" 2>/dev/null)" ]]; then
+            continue
+        fi
+        _dangling_refs+=("$_ref")
+    done < <(git -C "$MAIN_WORKTREE" for-each-ref --format='%(refname)' refs/remotes/ 2>/dev/null)
+
+    if [[ ${#_dangling_refs[@]} -gt 0 ]]; then
+        echo ""
+        echo -e "${BOLD}Dangling remote-tracking refs (no configured remote):${RESET}"
+        for _ref in "${_dangling_refs[@]}"; do
+            if [[ "$DRY_RUN" == "true" ]]; then
+                echo -e "${CYAN}[DRY RUN]${RESET} Would prune $_ref"
+                log_action "DRY RUN: would prune dangling ref $_ref"
+            else
+                if git -C "$MAIN_WORKTREE" update-ref -d "$_ref" 2>/dev/null; then
+                    echo -e "Pruned dangling ref '$_ref'"
+                    log_action "PRUNED dangling ref $_ref"
+                else
+                    echo -e "${RED}Failed to prune dangling ref '$_ref'${RESET}"
+                fi
+            fi
+        done
+    fi
+}
 
 # ── Clean up orphaned Docker networks ────────────────────────────────────
 
