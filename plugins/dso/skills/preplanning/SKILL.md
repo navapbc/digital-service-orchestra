@@ -88,7 +88,9 @@ Before proceeding, check if the epic has an `interaction:deferred` tag:
    Do NOT produce any planning output.
 3. If `interaction:deferred` is NOT present (or tags field is empty/absent): proceed normally.
 
-This is a presence-based check — only block when the tag IS present. Existing epics without the tags field are NOT blocked. If ticket show fails, treat the tag as absent and proceed (fail-open).
+This is a presence-based check — only block when the tag IS present. Existing epics without the tags field are NOT blocked.
+<!-- EMIT-PRECONDITIONS: gate_name=preplanning_interaction_deferred_tag degradation_type=inferred_decision -->
+If ticket show fails, treat the tag as absent and proceed (fail-open).
 
 ---
 
@@ -102,7 +104,9 @@ Before proceeding, check if the epic has a `ui_probes:deferred` tag:
    Do NOT produce any planning output.
 3. If `ui_probes:deferred` is NOT present (or tags field is empty/absent): proceed normally.
 
-This is a presence-based check — only block when the tag IS present. Existing epics without the tags field are NOT blocked. If ticket show fails, treat the tag as absent and proceed (fail-open).
+This is a presence-based check — only block when the tag IS present. Existing epics without the tags field are NOT blocked.
+<!-- EMIT-PRECONDITIONS: gate_name=preplanning_ui_probes_tag degradation_type=inferred_decision -->
+If ticket show fails, treat the tag as absent and proceed (fail-open).
 
 ---
 
@@ -115,6 +119,7 @@ Run: `.claude/scripts/dso preconditions-validator.sh <epic_id> brainstorm_comple
 (or use preconditions-record.sh invocation from brainstorm; fail-open if script not found)
 If exit 0: continue. If exit 1: BLOCK with PRECONDITIONS_GATE_BLOCKED diagnostic.
 If exit 2 (not found): BLOCK with "Run /dso:brainstorm first" message.
+<!-- EMIT-PRECONDITIONS: gate_name=preplanning_preconditions_validator degradation_type=inferred_decision -->
 Fail-open: if preconditions-validator.sh itself is not found (command not found), emit WARN and continue.
 This gate is depth-agnostic — unknown fields in the event are ignored, not rejected.]
 
@@ -161,6 +166,7 @@ Agent tool:
 
 Compute `success_criteria_count` by parsing the `## Success Criteria` section of the epic description (do NOT rely on session memory — the value must be derived from the ticket text). Read `scenario_survivor_count` from the `### Planning Intelligence Log` event in the epic (written by the canonical scrutiny pipeline during brainstorm); use 0 if the pipeline did not run scenario analysis.
 
+<!-- EMIT-PRECONDITIONS: gate_name=preplanning_complexity_evaluator degradation_type=inferred_decision -->
 If the agent fails or returns malformed JSON, log a warning and fall through to full preplanning (safe fallback — proceed to Step 2 in full mode).
 
 #### Step 1.5b: Route Based on Classification
@@ -388,12 +394,14 @@ Follow the shared research procedure in `prompts/research-process.md` (single au
 
 ### Skip Condition
 
+<!-- EMIT-PRECONDITIONS: gate_name=preplanning_integration_research degradation_type=unresolved_question -->
 If no stories in the plan qualify for integration research, log: "No stories with external integration signals — skipping integration research." and proceed to Phase E.
 
 ---
 
 ## Phase E: Adversarial Review (branch — ≥3 stories; skipped under --lightweight)
 
+<!-- EMIT-PRECONDITIONS: gate_name=preplanning_adversarial_review degradation_type=unresolved_question -->
 **Trigger**: Phase C completed and the story map has ≥ 3 stories. If fewer, log `"Adversarial review skipped: fewer than 3 stories (<N> stories)."` and proceed directly to Phase F. Skipped entirely under `--lightweight` (lightweight mode does not create stories).
 
 **Load**: `${CLAUDE_PLUGIN_ROOT}/skills/preplanning/prompts/phase-e-adversarial-review.md` and follow it. The phase dispatches `dso:red-team-reviewer` (opus) with `mode: story_review` for cross-story gap analysis, then `dso:blue-team-filter` (sonnet) to triage findings; applies surviving findings per a 5-row Finding Type table (`new_story`, `modify_done_definition`, `add_dependency`, `add_consideration`, `escalate_to_epic`); persists the full red/blue exchange to `$ARTIFACTS_DIR/adversarial-review-<epic-id>.json`; and emits `REPLAN_ESCALATE: brainstorm` when a finding escalates to the epic and `sprint.max_replan_cycles` has not been exhausted.
@@ -509,6 +517,7 @@ When a story qualifies, follow the Research Process defined in `prompts/research
 
 ### Graceful Degradation
 
+<!-- EMIT-PRECONDITIONS: gate_name=preplanning_story_research degradation_type=inferred_decision -->
 If WebSearch or WebFetch fails or is unavailable, continue without research rather than blocking the workflow. Log: `"Story-level research skipped for <story-id>: WebSearch/WebFetch unavailable."` and proceed to Phase H.
 
 ### Skip Condition
@@ -814,7 +823,9 @@ Write the accumulated context as a structured comment on the epic ticket so that
 
 **Schema version**: The `schema_version` integer field (current value: `2`) is used by consumers for forward/backward compatibility — bump it whenever the payload structure changes in a non-additive way. Consumers reading an unfamiliar `schema_version` should fall back to defensive parsing rather than failing.
 
-**Merging prior research findings (RESEARCH_FINDINGS:)**: Before writing the new `PREPLANNING_CONTEXT:` comment, scan the epic's ticket comments for the most recent `RESEARCH_FINDINGS:` comment (a JSON array of `{capability, status, source, skill_name, timestamp}` entries written by upstream skills like brainstorm or prior preplanning runs). Parse it and merge into the `researchFindings` array of the new context payload. Treat a missing or corrupt `RESEARCH_FINDINGS:` comment as an empty array (fail-open — never block the write). This compounds research across pipeline stages so downstream skills (implementation-plan, sprint) can deduplicate WebSearch calls.
+**Merging prior research findings (RESEARCH_FINDINGS:)**: Before writing the new `PREPLANNING_CONTEXT:` comment, scan the epic's ticket comments for the most recent `RESEARCH_FINDINGS:` comment (a JSON array of `{capability, status, source, skill_name, timestamp}` entries written by upstream skills like brainstorm or prior preplanning runs). Parse it and merge into the `researchFindings` array of the new context payload.
+<!-- EMIT-PRECONDITIONS: gate_name=preplanning_research_findings_merge degradation_type=inferred_decision -->
+Treat a missing or corrupt `RESEARCH_FINDINGS:` comment as an empty array (fail-open — never block the write). This compounds research across pipeline stages so downstream skills (implementation-plan, sprint) can deduplicate WebSearch calls.
 
 **Command** (use Python subprocess to avoid shell ARG_MAX limits for large payloads). This write is an optional cache — if the ticket CLI call fails, log a warning and continue; do not abort the phase:
 ```python

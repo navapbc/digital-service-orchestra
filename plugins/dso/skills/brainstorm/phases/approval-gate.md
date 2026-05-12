@@ -55,8 +55,10 @@ Present the validated spec to the user using **AskUserQuestion** with 4 options.
 Label options (b) and (c) based on whether this is a first run or a re-run (the scrutiny pipeline must complete before this gate; these labels apply only to gate-triggered re-runs):
 
 - **If web research (Step 2.6) ran during the mandatory pipeline pass**: label (c) as "Re-run web research phase"
+<!-- EMIT-PRECONDITIONS: gate_name=brainstorm_web_research_skip degradation_type=unresolved_question -->
 - **If web research was skipped via graceful degradation (no bright-line triggers fired)**: label (c) as "Perform additional web research" (note: this is a first-time run, not a re-run)
 - **If scenario analysis (Step 2.75) ran during the mandatory pipeline pass**: label (b) as "Re-run red/blue team review cycle"
+<!-- EMIT-PRECONDITIONS: gate_name=brainstorm_scenario_analysis_skip degradation_type=unresolved_question -->
 - **If scenario analysis was skipped via graceful degradation (≤2 success criteria)**: label (b) as "Perform red/blue team review cycle" (note: this epic has ≤2 success criteria — consider adding more before running scenario analysis)
 
 ### Provenance Annotation Rendering

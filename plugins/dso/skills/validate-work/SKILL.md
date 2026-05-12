@@ -76,6 +76,7 @@ STAGING_RELEVANCE_SCRIPT=$("$READ_CONFIG" staging.relevance_script "$CONFIG_FILE
 VISUAL_BASELINE_PATH=$("$READ_CONFIG" visual.baseline_directory "$CONFIG_FILE" 2>/dev/null || true)
 ```
 
+<!-- EMIT-PRECONDITIONS: gate_name=validate_work_staging_config degradation_type=inferred_decision -->
 If `STAGING_URL` is empty or absent, set `stagingConfigured = false`. All staging sub-agents (Sub-Agent 4 and Sub-Agent 5) will be SKIPPED with the message: "SKIPPED (staging not configured)".
 
 ### Step 0b: Check for Domain Scope File (/dso:validate-work)
