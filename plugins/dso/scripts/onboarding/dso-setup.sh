@@ -276,6 +276,48 @@ _resolve_stack_ci_example() {
     printf ''
 }
 
+# ── _resolve_stack_precommit_example: pick pre-commit example by detected stack ─
+# Usage: _resolve_stack_precommit_example TARGET_REPO EXAMPLES_ROOT DRYRUN
+#   Emits (stdout) a path to the pre-commit example file to use, OR empty string.
+#
+# Resolution order:
+#   1. Read `stack=` from $DSO_DETECT_OUTPUT then fall back to dso-config.conf
+#   2. If stack matches `pre-commit-config.example.${stack}.yaml`, use it
+#   3. If stack is not python-poetry, use generic (DSO-only, no Python toolchain)
+#   4. Last-resort: legacy pre-commit-config.example.yaml (Python/Poetry, backward compat)
+_resolve_stack_precommit_example() {
+    local target_repo="$1"
+    local examples_root="$2"
+
+    local _stack=""
+    if [[ -n "${DSO_DETECT_OUTPUT:-}" ]] && [[ -f "${DSO_DETECT_OUTPUT}" ]]; then
+        _stack=$(grep '^stack=' "$DSO_DETECT_OUTPUT" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '[:space:]')
+    fi
+    if [[ -z "$_stack" ]] && [[ -f "$target_repo/.claude/dso-config.conf" ]]; then
+        _stack=$(grep '^stack=' "$target_repo/.claude/dso-config.conf" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '[:space:]')
+    fi
+
+    # Stack-matched example
+    if [[ -n "$_stack" ]] && [[ -f "$examples_root/pre-commit-config.example.${_stack}.yaml" ]]; then
+        printf '%s\n' "$examples_root/pre-commit-config.example.${_stack}.yaml"
+        return 0
+    fi
+
+    # Generic (DSO-only, no Python toolchain) for non-Python stacks
+    if [[ -n "$_stack" ]] && [[ "$_stack" != "python-poetry" ]] && [[ -f "$examples_root/pre-commit-config.example.generic.yaml" ]]; then
+        printf '%s\n' "$examples_root/pre-commit-config.example.generic.yaml"
+        return 0
+    fi
+
+    # Last-resort: legacy Python/Poetry example (backward compat)
+    if [[ -f "$examples_root/pre-commit-config.example.yaml" ]]; then
+        printf '%s\n' "$examples_root/pre-commit-config.example.yaml"
+        return 0
+    fi
+
+    printf ''
+}
+
 # ── _generate_ci_skeleton_from_config: synthesize CI from dso-config commands ─
 # Usage: _generate_ci_skeleton_from_config TARGET_REPO STACK OUTPUT_PATH
 #   Writes a minimal CI workflow derived from commands.{test,lint,format_check}
@@ -440,11 +482,15 @@ $stamp_line" "$file_path" && rm -f "${file_path}.bak"
 
 # ── Copy/merge pre-commit config ──────────────────────────────────────────────
 TARGET_PRECOMMIT="$TARGET_REPO/.pre-commit-config.yaml"
+_PRECOMMIT_EXAMPLE_RESOLVED=$(_resolve_stack_precommit_example "$TARGET_REPO" "$EXAMPLES_ROOT")
+if [[ -z "$_PRECOMMIT_EXAMPLE_RESOLVED" ]]; then
+    _PRECOMMIT_EXAMPLE_RESOLVED="$EXAMPLES_ROOT/pre-commit-config.example.yaml"
+fi
 if [[ -z "$DRYRUN" ]]; then
     if [ ! -f "$TARGET_PRECOMMIT" ]; then
-        cp "$EXAMPLES_ROOT/pre-commit-config.example.yaml" "$TARGET_PRECOMMIT"
+        cp "$_PRECOMMIT_EXAMPLE_RESOLVED" "$TARGET_PRECOMMIT"
     else
-        merge_precommit_hooks "$TARGET_PRECOMMIT" "$EXAMPLES_ROOT/pre-commit-config.example.yaml" ""
+        merge_precommit_hooks "$TARGET_PRECOMMIT" "$_PRECOMMIT_EXAMPLE_RESOLVED" ""
     fi
 
     mkdir -p "$TARGET_REPO/.github/workflows"
@@ -473,9 +519,9 @@ if [[ -z "$DRYRUN" ]]; then
     rm -f "$TARGET_REPO/.dso-ci-skeleton.tmp"
 else
     if [ ! -f "$TARGET_PRECOMMIT" ]; then
-        echo "[dryrun] Would copy pre-commit-config.example.yaml -> $TARGET_REPO/.pre-commit-config.yaml (file absent)"
+        echo "[dryrun] Would copy $(basename "$_PRECOMMIT_EXAMPLE_RESOLVED") -> $TARGET_REPO/.pre-commit-config.yaml (file absent)"
     else
-        merge_precommit_hooks "$TARGET_PRECOMMIT" "$EXAMPLES_ROOT/pre-commit-config.example.yaml" "1"
+        merge_precommit_hooks "$TARGET_PRECOMMIT" "$_PRECOMMIT_EXAMPLE_RESOLVED" "1"
     fi
     # Check for ANY existing workflow file (not just ci.yml) under .github/workflows/
     _existing_workflows_dry=()

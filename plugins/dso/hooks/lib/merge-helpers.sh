@@ -165,6 +165,8 @@ if phase not in d.get('completed_phases', []):
 d.setdefault('phases', {})[phase] = {'status': 'complete'}
 with open(sf + '.tmp', 'w') as f:
     json.dump(d, f)
+    f.flush()
+    os.fsync(f.fileno())
 " 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true
     return 0
 }
@@ -185,6 +187,8 @@ with open(sf) as f:
 d.setdefault('phases', {}).setdefault(os.environ['_DSO_PHASE'], {})['status'] = os.environ['_DSO_STATUS']
 with open(sf + '.tmp', 'w') as f:
     json.dump(d, f)
+    f.flush()
+    os.fsync(f.fileno())
 " 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true
     return 0
 }
@@ -222,6 +226,8 @@ with open(sf) as f:
 d['retry_count'] = d.get('retry_count', 0) + 1
 with open(sf + '.tmp', 'w') as f:
     json.dump(d, f)
+    f.flush()
+    os.fsync(f.fileno())
 " 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true
     return 0
 }
@@ -257,6 +263,8 @@ except Exception:
     d['remediation_attempts_global'] = 0
 with open(sf + '.tmp', 'w') as f:
     json.dump(d, f)
+    f.flush()
+    os.fsync(f.fileno())
 " 2>/dev/null && mv "${_sf}.tmp" "$_sf" 2>/dev/null || true
     return 0
 }

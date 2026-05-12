@@ -20,9 +20,9 @@ set -uo pipefail
 #   1. python-poetry  (pyproject.toml) — takes priority over node-npm
 #   2. rust-cargo     (Cargo.toml)     — takes priority over golang
 #   3. golang         (go.mod)
-#   4. node-npm       (package.json)
-#   5. ruby-rails     (Gemfile + config/routes.rb) — takes priority over ruby-jekyll
-#   6. ruby-jekyll    (Gemfile + _config.yml)
+#   4. ruby-rails     (Gemfile + config/routes.rb) — takes priority over node-npm
+#   5. ruby-jekyll    (Gemfile + _config.yml)       — takes priority over node-npm
+#   6. node-npm       (package.json)
 #   7. convention-based (Makefile with ≥2 standard targets)
 #   8. unknown
 #
@@ -30,7 +30,10 @@ set -uo pipefail
 #   Python (pyproject.toml) takes priority over Node (package.json) because many
 #   Python projects include package.json for frontend tooling.
 #   Rust (Cargo.toml) takes priority over Go (go.mod) as Cargo.toml is unambiguous.
-#   Ruby: Rails (config/routes.rb) takes priority over Jekyll (_config.yml) because
+#   Ruby (Gemfile + rails/jekyll marker) takes priority over Node (package.json)
+#   because modern Rails projects (jsbundling-rails, cssbundling-rails, platform-CLI)
+#   ship a root-level package.json alongside the Rails app.
+#   Rails (config/routes.rb) takes priority over Jekyll (_config.yml) because
 #   config/routes.rb is a more specific Rails marker.
 #
 # Exit codes:
@@ -82,26 +85,27 @@ if [[ -f "$PROJECT_DIR/go.mod" ]]; then
     fi
 fi
 
-# 4. node-npm: package.json present AND valid JSON
-#    CoVe: file must be parseable as JSON.
-if [[ -f "$PROJECT_DIR/package.json" ]]; then
-    if python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$PROJECT_DIR/package.json" 2>/dev/null; then
-        echo "node-npm"
-        exit 0
-    fi
-fi
-
-# 5-6. Ruby projects: Gemfile present AND non-empty, then check specific markers.
-#    Rails takes priority over Jekyll — config/routes.rb is a unique Rails marker.
+# 4-6. Ruby projects checked BEFORE node-npm: many modern Rails projects ship a
+#    root-level package.json (jsbundling-rails, cssbundling-rails, platform-CLI).
+#    Gemfile + config/routes.rb is a more specific signal than package.json alone.
 if [[ -f "$PROJECT_DIR/Gemfile" ]] && test -s "$PROJECT_DIR/Gemfile"; then
-    # 5. ruby-rails: config/routes.rb is the definitive Rails marker
+    # 4. ruby-rails: config/routes.rb is the definitive Rails marker
     if [[ -f "$PROJECT_DIR/config/routes.rb" ]]; then
         echo "ruby-rails"
         exit 0
     fi
-    # 6. ruby-jekyll: _config.yml is the Jekyll marker
+    # 5. ruby-jekyll: _config.yml is the Jekyll marker
     if [[ -f "$PROJECT_DIR/_config.yml" ]]; then
         echo "ruby-jekyll"
+        exit 0
+    fi
+fi
+
+# 6. node-npm: package.json present AND valid JSON
+#    CoVe: file must be parseable as JSON.
+if [[ -f "$PROJECT_DIR/package.json" ]]; then
+    if python3 -c "import json,sys; f=open(sys.argv[1]); json.load(f); f.close()" "$PROJECT_DIR/package.json" 2>/dev/null; then
+        echo "node-npm"
         exit 0
     fi
 fi
@@ -152,7 +156,7 @@ fi
 _sub_package=$(find "$PROJECT_DIR" -maxdepth 2 -name "package.json" \
     -not -path "*/.git/*" -not -path "*/node_modules/*" 2>/dev/null | head -1)
 if [[ -n "$_sub_package" ]]; then
-    if python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$_sub_package" 2>/dev/null; then
+    if python3 -c "import json,sys; f=open(sys.argv[1]); json.load(f); f.close()" "$_sub_package" 2>/dev/null; then
         echo "node-npm"
         exit 0
     fi

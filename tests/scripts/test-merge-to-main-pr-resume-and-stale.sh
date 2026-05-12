@@ -136,11 +136,85 @@ test_phase_merge_handles_push_rejection() {
 }
 
 # ---------------------------------------------------------------------------
+# 05d1-faa4 — reuse existing draft PR instead of calling gh pr create
+# ---------------------------------------------------------------------------
+# When a draft PR already exists for the branch (e.g. created by Phase A of
+# /dso:sprint), _phase_merge must detect it and reuse it rather than calling
+# `gh pr create` (which fails with "a pull request already exists").
+# Structural: verify _phase_merge checks for an existing draft PR before
+# issuing `gh pr create`.
+
+test_phase_merge_reuses_existing_draft_pr() {
+    # _phase_merge must call `gh pr list` (to detect existing draft PR) before
+    # `gh pr create`, so that existing draft PRs are detected and reused.
+    # The `gh pr list` call and `isDraft` filter may span multiple lines (shell
+    # line continuations), so detect them independently within the function body.
+    # Accept: `gh pr list` appearing before `gh pr create` within _phase_merge,
+    # AND `isDraft` appearing anywhere in the function before `gh pr create`.
+    _detect_tmp=$(mktemp /tmp/phase-merge-draft-detect.XXXXXX)
+    awk '
+        /^_phase_merge\(\) \{/ { in_func = 1; next }
+        in_func && /^\}$/ { in_func = 0 }
+        in_func && /^[[:space:]]*#/ { next }
+        in_func && /gh pr list/ { saw_list = 1 }
+        in_func && /isDraft/ { saw_isdraft = 1 }
+        in_func && /gh pr create/ {
+            if (saw_list && saw_isdraft) print "list_before_create"
+            else print "create_without_list"
+            exit
+        }
+    ' "$PR_SCRIPT" > "$_detect_tmp"
+
+    if grep -q "list_before_create" "$_detect_tmp"; then
+        (( ++PASS ))
+    else
+        (( ++FAIL ))
+        printf "FAIL: test_phase_merge_reuses_existing_draft_pr: _phase_merge does not check for existing draft PR (gh pr list with isDraft) before gh pr create in %s\n" "$PR_SCRIPT" >&2
+    fi
+    rm -f "$_detect_tmp"
+}
+
+# ---------------------------------------------------------------------------
+# 1fcc-5fe2 — _phase_resolve_threads emits structured local escalation when
+#             _LLM_DISPATCH_CMD is unset in a local session
+# ---------------------------------------------------------------------------
+
+test_phase_resolve_threads_local_escalation_on_missing_llm_cmd() {
+    # When _llm_cmd is empty AND not in CI, _phase_resolve_threads must call
+    # _dso_emit_local_escalation (not a raw echo >&2) so the session agent
+    # receives structured JSON with instructions. Verify the block contains:
+    #   1. A check for empty _llm_cmd (or _LLM_DISPATCH_CMD)
+    #   2. A _dso_is_ci_environment guard
+    #   3. A _dso_emit_local_escalation call
+    local _detect_tmp
+    _detect_tmp=$(mktemp /tmp/phase-resolve-llm-escalation.XXXXXX)
+    awk '
+        /^_phase_resolve_threads\(\) \{/ { in_func = 1; next }
+        in_func && /^\}$/ { in_func = 0 }
+        in_func && /^[[:space:]]*#/ { next }
+        in_func && /\[\[.*-z.*_llm_cmd/ { saw_empty_check = 1 }
+        in_func && saw_empty_check && /_dso_is_ci_environment/ { saw_ci_guard = 1 }
+        in_func && saw_empty_check && /_dso_emit_local_escalation/ { saw_emit = 1 }
+        in_func && saw_emit && saw_ci_guard { print "structured_local_escalation"; exit }
+    ' "$PR_SCRIPT" > "$_detect_tmp"
+
+    if grep -q "structured_local_escalation" "$_detect_tmp"; then
+        (( ++PASS ))
+    else
+        (( ++FAIL ))
+        printf "FAIL: test_phase_resolve_threads_local_escalation_on_missing_llm_cmd: _phase_resolve_threads does not call _dso_emit_local_escalation (guarded by _dso_is_ci_environment) when _llm_cmd is empty in %s\n" "$PR_SCRIPT" >&2
+    fi
+    rm -f "$_detect_tmp"
+}
+
+# ---------------------------------------------------------------------------
 
 test_resume_flag_is_parsed
 test_duplicate_pr_check_skipped_on_resume
 test_phase_merge_skipped_on_resume_with_pr_url
 test_phase_merge_fetches_before_push
 test_phase_merge_handles_push_rejection
+test_phase_merge_reuses_existing_draft_pr
+test_phase_resolve_threads_local_escalation_on_missing_llm_cmd
 
 print_summary

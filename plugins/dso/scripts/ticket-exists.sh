@@ -18,6 +18,24 @@ else
     TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
 fi
 
+# Resolve 8-char short ID prefix (e.g. "f61f-7e0a") to full canonical ID.
+# The tracker may be a symlink (worktrees); use -L so find follows it.
+if [[ "$ticket_id" =~ ^[a-z0-9]{4}-[a-z0-9]{4}$ ]]; then
+    _full_id=""
+    _match_count=0
+    while IFS= read -r -d '' _entry; do
+        _base="$(basename "$_entry")"
+        if [[ "${_base:0:9}" == "$ticket_id" ]] && \
+           [[ "$_base" =~ ^[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}$ ]]; then
+            _full_id="$_base"
+            _match_count=$((_match_count + 1))
+        fi
+    done < <(find -L "$TRACKER_DIR" -mindepth 1 -maxdepth 1 -type d ! -name '.*' -print0 2>/dev/null)
+    if [ "$_match_count" -eq 1 ]; then
+        ticket_id="$_full_id"
+    fi
+fi
+
 ticket_dir="$TRACKER_DIR/$ticket_id"
 
 # Check for CREATE (normal) or SNAPSHOT (post-compaction) events.

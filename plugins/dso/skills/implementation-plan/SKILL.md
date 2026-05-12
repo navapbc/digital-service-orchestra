@@ -304,6 +304,12 @@ After cross-cutting detection, generate **at least 3 distinct implementation pro
 
 If the story is genuinely constrained to fewer viable approaches, document the constraint and generate as many distinct ones as exist — but attempt at least 3 first.
 
+**Fitness-Function-as-Scaffolding Proposals**: when a proposal generates an enforcement/linting test (e.g., `test_no_raw_env_reads_outside_config_module()` from `architect-foundation` AP-5), the task description MUST include:
+1. **Baseline-capture step**: Run the fitness function against the existing codebase FIRST to identify all current violations.
+2. **Allowlist capture**: Document all baseline violations as a `BASELINE_VIOLATIONS` allowlist in the spec — the fitness function should assert that all observed violations are in the allowlist, failing only on NEW violations.
+3. **Sanity criterion**: Include an acceptance criterion verifying the baseline allowlist is non-empty (proof that the baseline scan executed and found existing violations).
+4. **Reference**: See `${CLAUDE_PLUGIN_ROOT}/skills/architect-foundation/fitness-function-templates.md` for concrete examples and anti-pattern codes.
+
 **Distinctness validation gate**: every pair of proposals must differ on at least one of four structural axes (defined in `prompts/proposal-schema.md`):
 
 - **Data layer** — how/where state is stored or retrieved
@@ -443,12 +449,15 @@ Before drafting tasks, enumerate every file the story affects. Produces an audit
 
 3. **Classify each test** by what the story does to the source:
 
+   **Non-executable instruction files are always `still-valid`** — before applying the table, identify any file that is an LLM instruction document: SKILL.md, agent definitions (files in `agents/`), prompt files (files in `prompts/`), workflow docs (`.md` prose files in `docs/` — excludes schemas, specs, configs, or any executable artifact stored under `docs/`), hook guidance, CLAUDE.md, or other `.md` prose files with no executable code. Per behavioral-testing-standard Rule 5, these files cannot be deterministically tested for behavioral correctness. Always classify them as `still-valid` regardless of the change action — `create`, `modify`, or `remove`. Do NOT produce a RED or UPDATE test task for instruction file changes. If the Doc-Only Skip Gate (above) should have caught a purely-instruction story, apply it retroactively here.
+
    | Source change action | Test classification |
    |---------------------|---------------------|
    | `create` (new source file) | `needs-creation` — write a new test file |
    | `modify` (behavior change) | `needs-modification` — update existing test(s) |
    | `remove` (source deleted) | `needs-removal` — remove or prune tests |
    | `modify` (no behavior change, e.g., refactor) | `still-valid` — existing tests remain correct |
+   | any action on non-executable instruction file | `still-valid` — no test task ever needed |
 
 4. **Build the file impact table**:
 
@@ -631,7 +640,7 @@ If at least one router gate fires, include a documentation task. The task MUST:
 - **Set the target per the router**, in order of preference: Gate 1 → `${CLAUDE_PLUGIN_ROOT}/skills/<skill>/SKILL.md`; Gate 2 → existing reference doc (`HOOKS-REFERENCE.md`, `AGENTS.md`, `WORKTREE-GUIDE.md`, `CONFIGURATION-REFERENCE.md`, `CI-INTEGRATION.md`, contract docs, `KNOWN-ISSUES.md`); Gate 3 → `INSTALL.md` / `README.md` / `docs/user/`; Gate 4 → new ADR in `docs/adr/`; Gate 5 → `CLAUDE_MD_SUGGESTED_CHANGE` report only (no direct CLAUDE.md edit).
 - **Never name CLAUDE.md as the direct target.** A task that would edit CLAUDE.md must instead emit a `CLAUDE_MD_SUGGESTED_CHANGE` report and route through the orchestrator.
 - **Include the attestation requirement** in the task acceptance criteria: the executing sub-agent emits `DOC_ROUTER_ATTESTATION` in its completion report.
-- **Follow `.claude/docs/DOCUMENTATION-GUIDE.md`** for formatting and structure.
+- **If `.claude/docs/DOCUMENTATION-GUIDE.md` exists, follow it** for formatting and structure.
 
 If no router gate fires, omit the documentation task and note the rationale (e.g., "doc-router: no gate fired — internal refactor; existing docs remain accurate").
 

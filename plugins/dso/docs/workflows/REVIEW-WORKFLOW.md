@@ -1078,6 +1078,16 @@ If all Fix findings are genuinely non-behavioral (GREEN classification is correc
    RE_AGENT_FILE="${CLAUDE_PLUGIN_ROOT}/agents/${RE_AGENT_NAME}.md"
    RE_AGENT_CONTENT=$(cat "$RE_AGENT_FILE")
    RE_AGENT_MODEL=$(grep '^model:' "$RE_AGENT_FILE" | awk '{print $2}')
+
+   # Load prior defenses for cycle-2+ re-review passes (Gap 5 fix: local path was missing defense context).
+   # The CI runner injects defenses via two-call architecture; local path must do the same.
+   PRIOR_DEFENSES_BLOCK=""
+   if [[ "$ATTEMPT_NUM" -ge 1 ]]; then
+       _prior_defenses=$("$REPO_ROOT/.claude/scripts/dso" review-defense-store.sh load 2>/dev/null || true)
+       if [[ -n "$_prior_defenses" && "$_prior_defenses" != "[]" ]]; then
+           PRIOR_DEFENSES_BLOCK="$(printf '\n=== PRIOR DEFENSES ===\nThe following defenses were recorded in previous review cycles. For each candidate finding, check whether a matching prior defense exists for an unchanged code region. If a finding is covered by an accepted defense and the defended code has not changed in this diff, DROP or downgrade it to minor with a note referencing the prior defense.\n\n%s\n=== END PRIOR DEFENSES ===' "$_prior_defenses")"
+       fi
+   fi
    ```
 
    ```
@@ -1095,6 +1105,8 @@ If all Fix findings are genuinely non-behavioral (GREEN classification is correc
        {content of NEW_STAT_FILE}
 
        {issue_context}
+
+       {PRIOR_DEFENSES_BLOCK — omit this line entirely when PRIOR_DEFENSES_BLOCK is empty}
    ```
 
    **NEVER set `isolation: "worktree"` on this sub-agent.** It must access `reviewer-findings.json` and `write-reviewer-findings.sh` in the shared working directory.

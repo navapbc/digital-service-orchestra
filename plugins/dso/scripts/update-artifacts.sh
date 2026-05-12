@@ -316,7 +316,30 @@ _CI_DEST="$_TARGET/.github/workflows/ci.yml"
 
 _SHIM_TEMPLATE="${_TEMPLATE_ROOT:+$_TEMPLATE_ROOT/templates/host-project/dso}"
 _CONFIG_TEMPLATE="${_TEMPLATE_ROOT:+$_TEMPLATE_ROOT/templates/host-project/dso-config.conf}"
-_PRECOMMIT_EXAMPLE="${_TEMPLATE_ROOT:+$_TEMPLATE_ROOT/docs/examples/pre-commit-config.example.yaml}"
+# Stack-aware pre-commit example resolution: read `stack=` from target dso-config.conf,
+# pick `pre-commit-config.example.${stack}.yaml` if present, then fall back to
+# `pre-commit-config.example.generic.yaml` (DSO-only hooks, no Python toolchain required),
+# then to the legacy `pre-commit-config.example.yaml` (Python/Poetry) for backward compat.
+#
+# _resolve_precommit_example_for_update TEMPLATE_ROOT TARGET
+#   Prints the resolved pre-commit example path (or empty string) on stdout.
+_resolve_precommit_example_for_update() {
+    local template_root="$1"
+    local target="$2"
+    local ua_stack=""
+    [[ -z "$template_root" ]] && { printf ''; return 0; }
+    if [[ -f "$target/.claude/dso-config.conf" ]]; then
+        ua_stack=$(grep '^stack=' "$target/.claude/dso-config.conf" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '[:space:]')
+    fi
+    if [[ -n "$ua_stack" && -f "$template_root/docs/examples/pre-commit-config.example.${ua_stack}.yaml" ]]; then
+        printf '%s\n' "$template_root/docs/examples/pre-commit-config.example.${ua_stack}.yaml"
+    elif [[ -n "$ua_stack" && "$ua_stack" != "python-poetry" && -f "$template_root/docs/examples/pre-commit-config.example.generic.yaml" ]]; then
+        printf '%s\n' "$template_root/docs/examples/pre-commit-config.example.generic.yaml"
+    elif [[ -f "$template_root/docs/examples/pre-commit-config.example.yaml" ]]; then
+        printf '%s\n' "$template_root/docs/examples/pre-commit-config.example.yaml"
+    fi
+}
+_PRECOMMIT_EXAMPLE=$(_resolve_precommit_example_for_update "$_TEMPLATE_ROOT" "$_TARGET")
 # Stack-aware CI example resolution: read `stack=` from target dso-config.conf
 # then pick `ci.example.${stack}.yml`; fall back to python-poetry for legacy installs.
 # Extracted as a function so the behavior can be tested directly against fixtures

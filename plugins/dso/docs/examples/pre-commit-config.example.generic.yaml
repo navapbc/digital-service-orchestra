@@ -1,0 +1,133 @@
+# EXAMPLE: Pre-commit hooks for a non-Python host project using the DSO plugin.
+# Copy to your project root as .pre-commit-config.yaml and customize.
+# This generic variant includes only DSO-specific enforcement hooks — no Python/Poetry toolchain required.
+# For Python/Poetry projects, use pre-commit-config.example.yaml instead.
+
+fail_fast: true
+
+repos:
+  - repo: local
+    hooks:
+      # Executable bit guard (timeout: 5s)
+      # Prevents scripts from silently losing their executable permission.
+      - id: executable-guard
+        name: Executable Bit Guard (5s timeout)
+        entry: ./scripts/pre-commit-wrapper.sh executable-guard 5 "./scripts/pre-commit-executable-guard.sh"
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: \.sh$
+
+      # .test-index duplicate keys check (timeout: 5s)
+      - id: test-index-duplicates-check
+        name: .test-index Duplicate Keys Check (5s timeout)
+        entry: ./scripts/pre-commit-wrapper.sh test-index-duplicates-check 5 "DSO_ROOT=$(./scripts/resolve-dso-plugin.sh) && \"$DSO_ROOT/scripts/check-test-index-duplicates.sh\""
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+      # Portability check (timeout: 5s)
+      # Detects hardcoded home-directory paths that break portability across machines.
+      - id: portability-check
+        name: Portability Check (5s timeout)
+        entry: ./scripts/pre-commit-wrapper.sh portability-check 5 "DSO_ROOT=$(./scripts/resolve-dso-plugin.sh) && \"$DSO_ROOT/scripts/check-portability.sh\""
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+      # Shim refs check (timeout: 5s)
+      - id: shim-refs-check
+        name: Shim Refs Check (5s timeout)
+        entry: ./scripts/pre-commit-wrapper.sh shim-refs-check 5 "DSO_ROOT=$(./scripts/resolve-dso-plugin.sh) && \"$DSO_ROOT/scripts/check-shim-refs.sh\""
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
+      # Enforcement boundary check (timeout: 10s)
+      - id: enforcement-boundary-check
+        name: Enforcement Boundary Check (10s timeout)
+        entry: ./scripts/pre-commit-wrapper.sh enforcement-boundary-check 10 "DSO_ROOT=$(./scripts/resolve-dso-plugin.sh) && \"$DSO_ROOT/hooks/pre-commit-enforcement-boundary-check.sh\""
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: \.sh$
+
+      # Plugin boundary check (timeout: 10s)
+      - id: plugin-boundary-check
+        name: Plugin Boundary Check (10s timeout)
+        entry: ./scripts/pre-commit-wrapper.sh plugin-boundary-check 10 "./.claude/hooks/pre-commit/check-plugin-boundary.sh"
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
+      # Plugin self-ref check (timeout: 10s)
+      - id: plugin-self-ref-check
+        name: Plugin Self-Ref Check (10s timeout)
+        entry: ./scripts/pre-commit-wrapper.sh plugin-self-ref-check 10 "./.claude/hooks/pre-commit/check-plugin-self-ref.sh"
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
+      # Contract schema validation (timeout: 5s)
+      - id: contract-schema-check
+        name: Contract Schema Check (5s timeout)
+        entry: ./scripts/pre-commit-wrapper.sh contract-schema-check 5 "DSO_ROOT=$(./scripts/resolve-dso-plugin.sh) && \"$DSO_ROOT/scripts/check-contract-schemas.sh\""
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
+      # Referential integrity check (timeout: 10s)
+      - id: referential-integrity-check
+        name: Referential Integrity Check (10s timeout)
+        entry: ./scripts/pre-commit-wrapper.sh referential-integrity-check 10 "DSO_ROOT=$(./scripts/resolve-dso-plugin.sh) && \"$DSO_ROOT/scripts/check-referential-integrity.sh\""
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
+      # ShellCheck (timeout: 15s)
+      # Runs shellcheck on staged .sh files. Skips gracefully if shellcheck not installed.
+      - id: shellcheck
+        name: ShellCheck (15s timeout)
+        entry: ./scripts/pre-commit-wrapper.sh shellcheck 15 "./.claude/hooks/pre-commit/shellcheck.sh"
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: \.sh$
+
+      # Test gate (timeout: 10s)
+      - id: pre-commit-test-gate
+        name: Test Gate (10s timeout)
+        entry: ./scripts/pre-commit-wrapper.sh pre-commit-test-gate 10 "DSO_ROOT=$(./scripts/resolve-dso-plugin.sh) && \"$DSO_ROOT/hooks/pre-commit-test-gate.sh\""
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+      # Review gate (timeout: 10s)
+      - id: pre-commit-review-gate
+        name: Review Gate (10s timeout)
+        entry: ./scripts/pre-commit-wrapper.sh pre-commit-review-gate 10 "DSO_ROOT=$(./scripts/resolve-dso-plugin.sh) && \"$DSO_ROOT/hooks/pre-commit-review-gate.sh\""
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+      # Test quality gate (timeout: 15s)
+      - id: pre-commit-test-quality-gate
+        name: Test Quality Gate (15s timeout)
+        entry: ./scripts/pre-commit-wrapper.sh pre-commit-test-quality-gate 15 "DSO_ROOT=$(./scripts/resolve-dso-plugin.sh) && \"$DSO_ROOT/hooks/pre-commit-test-quality-gate.sh\""
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^tests/
+
+      # Ticket gate (commit-msg stage, timeout: 10s)
+      - id: pre-commit-ticket-gate
+        name: Ticket Gate (10s timeout)
+        entry: ./scripts/pre-commit-wrapper.sh pre-commit-ticket-gate 10 "DSO_ROOT=$(./scripts/resolve-dso-plugin.sh) && \"$DSO_ROOT/hooks/pre-commit-ticket-gate.sh\" \"$(git rev-parse --git-dir)/COMMIT_EDITMSG\""
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [commit-msg]

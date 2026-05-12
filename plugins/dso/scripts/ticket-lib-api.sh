@@ -39,7 +39,7 @@ _ticketlib_resolve_short_id() {
                [[ "$_base" =~ ^[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}$ ]]; then
                 _matches+=("$_base")
             fi
-        done < <(find "$_tracker" -mindepth 1 -maxdepth 1 -type d ! -name '.*' -print0 2>/dev/null)
+        done < <(find -L "$_tracker" -mindepth 1 -maxdepth 1 -type d ! -name '.*' -print0 2>/dev/null)
         if [ "${#_matches[@]}" -eq 1 ]; then
             echo "${_matches[0]}"
             return 0

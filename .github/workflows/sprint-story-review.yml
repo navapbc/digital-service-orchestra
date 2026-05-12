@@ -44,6 +44,10 @@ jobs:
           name: ${{ env.ARTIFACT_NAME }}
           path: /tmp/prior-review/
 
+      - name: Install litellm
+        # Pin to tested version; bump after verifying compatibility with ci-llm-review-runner.sh
+        run: pip install litellm==1.83.7
+
       - name: Run LLM review
         run: bash plugins/dso/scripts/ci-llm-review-runner.sh
         env:

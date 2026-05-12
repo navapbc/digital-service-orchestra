@@ -413,38 +413,60 @@ _phase_merge() {
     local _body
     _body="Auto-generated PR for branch \`$BRANCH\` (created by merge-to-main-pr.sh)."
 
-    # --- 4. Create the PR ---
-    local _pr_url _pr_create_rc=0
-    _pr_url=$(gh pr create --base main --head "$BRANCH" \
-                          --title "$_title" --body "$_body" 2>&1) || _pr_create_rc=$?
-    if [[ "$_pr_create_rc" -ne 0 ]]; then
-        echo "ERROR: gh pr create failed: $_pr_url" >&2
-        # _pr_url may contain the error text — still return 1 so caller emits
-        # CONFLICT_DATA (best-effort) for upstream orchestrators.
-        return 1
-    fi
+    # --- 4. Create the PR (or reuse an existing draft PR) ---
+    # Check for an existing draft PR first (bug 05d1-faa4): sprint Phase A may
+    # have created a draft PR earlier in the session. `gh pr create` fails with
+    # "a pull request already exists" for both draft and non-draft PRs, so we
+    # must detect and reuse any existing draft before calling `gh pr create`.
+    local _draft_pr_json _final_url _pr_number
+    _draft_pr_json=$(gh pr list --head "$BRANCH" --state open \
+        --json number,url,isDraft 2>/dev/null || true)
+    _final_url=$(printf '%s' "$_draft_pr_json" \
+        | python3 -c "import json,sys; prs=json.load(sys.stdin); drafts=[p for p in prs if p.get('isDraft')]; print(drafts[0]['url'] if drafts else '')" 2>/dev/null || true)
+    _pr_number=$(printf '%s' "$_draft_pr_json" \
+        | python3 -c "import json,sys; prs=json.load(sys.stdin); drafts=[p for p in prs if p.get('isDraft')]; print(drafts[0]['number'] if drafts else '')" 2>/dev/null || true)
 
-    # gh pr create may print extra log lines before the URL; extract the
-    # last line that looks like a PR url.
-    local _final_url
-    _final_url=$(echo "$_pr_url" | grep -Eo 'https://[^[:space:]]+/pull/[0-9]+' | tail -n1)
-    if [[ -z "$_final_url" ]]; then
-        # Fallback: trust the entire stdout as the URL (some gh versions emit
-        # only the URL with no surrounding text).
-        _final_url=$(echo "$_pr_url" | tail -n1 | tr -d '[:space:]')
-    fi
+    if [[ -n "$_final_url" && -n "$_pr_number" ]]; then
+        echo "INFO: Reusing existing draft PR #${_pr_number}: $_final_url"
+    else
+        # No existing draft PR — create a new one.
+        local _pr_url _pr_create_rc=0
+        _pr_url=$(gh pr create --base main --head "$BRANCH" \
+                              --title "$_title" --body "$_body" 2>&1) || _pr_create_rc=$?
+        if [[ "$_pr_create_rc" -ne 0 ]]; then
+            # Handle race condition: another process may have created the PR between our
+            # gh pr list check and gh pr create. Extract URL from the error message.
+            _final_url=$(echo "$_pr_url" | grep -Eo 'https://[^[:space:]]+/pull/[0-9]+' | tail -n1)
+            if [[ -n "$_final_url" ]]; then
+                _pr_number=$(echo "$_final_url" | grep -Eo '/pull/[0-9]+' | grep -Eo '[0-9]+$')
+                echo "INFO: PR already existed (race condition resolved): #${_pr_number}: $_final_url"
+            else
+                echo "ERROR: gh pr create failed: $_pr_url" >&2
+                # _pr_url may contain the error text — still return 1 so caller emits
+                # CONFLICT_DATA (best-effort) for upstream orchestrators.
+                return 1
+            fi
+        else
+            # gh pr create may print extra log lines before the URL; extract the
+            # last line that looks like a PR url.
+            _final_url=$(echo "$_pr_url" | grep -Eo 'https://[^[:space:]]+/pull/[0-9]+' | tail -n1)
+            if [[ -z "$_final_url" ]]; then
+                # Fallback: trust the entire stdout as the URL (some gh versions emit
+                # only the URL with no surrounding text).
+                _final_url=$(echo "$_pr_url" | tail -n1 | tr -d '[:space:]')
+            fi
 
-    local _pr_number
-    _pr_number=$(echo "$_final_url" | grep -Eo '/pull/[0-9]+' | grep -Eo '[0-9]+$')
-    if [[ -z "$_pr_number" ]]; then
-        echo "ERROR: could not parse PR number from gh pr create output: $_pr_url" >&2
-        return 1
+            _pr_number=$(echo "$_final_url" | grep -Eo '/pull/[0-9]+' | grep -Eo '[0-9]+$')
+            if [[ -z "$_pr_number" ]]; then
+                echo "ERROR: could not parse PR number from gh pr create output: $_pr_url" >&2
+                return 1
+            fi
+            echo "INFO: Created PR #${_pr_number}: $_final_url"
+        fi
     fi
 
     # --- 5. Persist PR url + number to state file (best-effort) ---
     _state_write_pr_meta "$_final_url" "$_pr_number" 2>/dev/null || true
-
-    echo "INFO: Created PR #${_pr_number}: $_final_url"
 
     # --- 6. Detect CONFLICTING up-front via `gh pr view --json mergeable` ---
     # If GitHub reports the PR as CONFLICTING, return 1 so the caller emits
@@ -1055,12 +1077,18 @@ _phase_resolve_threads() {
             return 1
         fi
 
-        # --- LLM helper required from this point — fail-loud if unset (1a83-46c5) ---
+        # --- LLM helper required from this point — escalate if unset (1a83-46c5) ---
         # We only reach this point if there are actual unresolved, non-escalated
         # threads that need LLM dispatch. PRs with zero review threads exit cleanly
         # via _pr_settling_check above without ever requiring the helper.
         if [[ -z "$_llm_cmd" ]]; then
-            echo "ESCALATE: _LLM_DISPATCH_CMD not set; no LLM helper available (deleted in S3). For LOCAL sessions: read \${CLAUDE_PLUGIN_ROOT}/docs/workflows/PR-FINALIZE-WORKFLOW.md and drive the loop via the session agent + pr-finalize-classify.sh. For CI: configure _LLM_DISPATCH_CMD to a compat-shim. Refusing to silently skip. UNRESOLVED:${_unresolved_ids} PR:${_pr_url}" >&2
+            if ! _dso_is_ci_environment; then
+                _dso_emit_local_escalation "resolve_threads" \
+                    "_LLM_DISPATCH_CMD not set; cannot dispatch LLM thread resolution locally (PR: ${_pr_url}; unresolved: ${_unresolved_ids})" \
+                    "Session agent must resolve the open PR review threads manually. Read \${CLAUDE_PLUGIN_ROOT}/docs/workflows/PR-FINALIZE-WORKFLOW.md and drive the loop via pr-finalize-classify.sh, then re-run merge-to-main.sh."
+                return 1
+            fi
+            echo "ESCALATE: _LLM_DISPATCH_CMD not set in CI; configure a compat-shim. UNRESOLVED:${_unresolved_ids} PR:${_pr_url}" >&2
             return 1
         fi
 

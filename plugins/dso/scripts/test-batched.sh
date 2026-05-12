@@ -142,6 +142,8 @@ fd, tmp = tempfile.mkstemp(dir=dir_)
 try:
     with os.fdopen(fd, 'w') as f:
         json.dump(state, f, indent=2)
+        f.flush()
+        os.fsync(f.fileno())
     os.replace(tmp, target)
 except Exception:
     try:
@@ -341,6 +343,8 @@ fd, tmp = tempfile.mkstemp(dir=dir_)
 try:
     with os.fdopen(fd, 'w') as f:
         json.dump(state, f, indent=2)
+        f.flush()
+        os.fsync(f.fileno())
     os.replace(tmp, target)
 except Exception:
     try:
