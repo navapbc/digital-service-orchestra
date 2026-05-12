@@ -130,10 +130,11 @@ for line in lines:
         hunk_pos = 0
     elif in_target and (line.startswith('+') or line.startswith(' ') or line.startswith('-')):
         if not line.startswith('-'):
-            # Track added lines and context lines (both contribute to window distance)
+            # Track added and context lines (checked for triggers and landmarks)
             hunk_lines.append((hunk_pos, line))
-            hunk_pos += 1
-        # Deleted lines do not advance the position counter
+        # Advance counter for all lines including deletions so window distance
+        # is measured over total diff lines, not just added/context lines.
+        hunk_pos += 1
 
 # Flush last hunk
 if hunk_lines and in_target and current_file:

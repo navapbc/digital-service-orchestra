@@ -88,21 +88,25 @@ PYEOF
         exit 1
     fi
 
-    # SHA256 deterministic selection
+    # SHA256 deterministic selection (done in Python to avoid bash 32-bit integer overflow)
     mapfile -t _sorted < <(printf '%s\n' "${_all_ids[@]}" | sort)
-    _digest=$(printf '%s\n' "${_sorted[@]}" | sha256sum | awk '{print $1}')
-    _seed=$(printf '%d' "0x${_digest:0:8}")
-
-    _i1=$(( _seed % _N ))
-    _id1="${_sorted[_i1]}"
-    mapfile -t _remaining < <(printf '%s\n' "${_sorted[@]}" | grep -vxF "$_id1")
-
-    _i2=$(( (_seed >> 8) % (_N - 1) ))
-    _id2="${_remaining[_i2]}"
-    mapfile -t _remaining2 < <(printf '%s\n' "${_remaining[@]}" | grep -vxF "$_id2")
-
-    _i3=$(( (_seed >> 16) % (_N - 2) ))
-    _id3="${_remaining2[_i3]}"
+    mapfile -t _sampled < <(python3 - "${_sorted[@]}" <<'PYEOF'
+import sys, hashlib
+ids = sys.argv[1:]
+joined = '\n'.join(ids) + '\n'
+digest = hashlib.sha256(joined.encode()).hexdigest()
+seed = int(digest[:8], 16)
+n = len(ids)
+pool = list(ids)
+s1 = pool.pop(seed % n)
+s2 = pool.pop((seed >> 8) % (n - 1))
+s3 = pool[(seed >> 16) % (n - 2)]
+print(s1); print(s2); print(s3)
+PYEOF
+)
+    _id1="${_sampled[0]}"
+    _id2="${_sampled[1]}"
+    _id3="${_sampled[2]}"
 
     # Validate rationale against each of the 3 sampled decision_ids
     # Find condition_text for a given decision_id from PRECONDITIONS events
