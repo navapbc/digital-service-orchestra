@@ -17,11 +17,8 @@ Behavioral contracts under test:
 
 from __future__ import annotations
 
-import asyncio
 import sys
 import pathlib
-
-import pytest
 
 # Ensure the plugin scripts directory is on sys.path so imports resolve correctly.
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
@@ -196,7 +193,7 @@ def test_run_region_split_dispatches_per_cluster(monkeypatch) -> None:
       - async_dispatch_specialists is called once per cluster (2 times total)
       - dispatch_arch_synthesis is called exactly once (after all clusters)
     """
-    import dso_ci_review.region_split as _region_mod
+    _region_mod = sys.modules[run_region_split.__module__]
 
     dispatch_calls: list[list] = []
     arch_calls: list[dict] = []
@@ -225,7 +222,7 @@ def test_run_region_split_dispatches_per_cluster(monkeypatch) -> None:
     provider_chain = ["anthropic"]
     config_path = None
 
-    result = run_region_split(
+    run_region_split(
         diff_text=large_diff,
         tier_agents=tier_agents,
         provider_chain=provider_chain,
@@ -254,7 +251,7 @@ def test_arch_synthesis_receives_merged_findings(monkeypatch) -> None:
     The arch synthesis result (containing cross-cluster boundary findings) must
     appear in the final output — it is the whole point of the arch synthesis step.
     """
-    import dso_ci_review.region_split as _region_mod
+    _region_mod = sys.modules[run_region_split.__module__]
 
     _ARCH_FINDING = {
         "severity": "important",
