@@ -39,6 +39,9 @@ _make_scratch_repo() {
     repo=$(mktemp -d)
     _CLEANUP_DIRS+=("$repo")
     git init -b main "$repo" >/dev/null 2>&1
+    git -C "$repo" config user.email "test@test.com"
+    git -C "$repo" config user.name "Test"
+    git -C "$repo" config commit.gpgsign false
     git -C "$repo" commit --allow-empty -m "init" >/dev/null 2>&1
     echo "$repo"
 }

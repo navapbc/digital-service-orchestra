@@ -50,7 +50,7 @@ SESSION_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 SESSION_HEAD=$(git rev-parse HEAD)
 ```
 
-Include `SESSION_BRANCH=<value>` and `SESSION_HEAD=<value>` in every sub-agent dispatch prompt. Sub-agents call `worktree-session-head-sync.sh` on startup to sync to the session HEAD automatically (see `${CLAUDE_PLUGIN_ROOT}/scripts/worktree-session-head-sync.sh`).
+Include `SESSION_BRANCH=<value>` and `SESSION_HEAD=<value>` in every sub-agent dispatch prompt. Sub-agents call `worktree-session-head-sync.sh` on startup to sync to the session HEAD automatically (see `.claude/scripts/dso worktree-session-head-sync`).
 
 Add `isolation: "worktree"` to the Agent/Task dispatch parameters so each sub-agent receives a sandboxed working directory independent of the orchestrator's directory.
 

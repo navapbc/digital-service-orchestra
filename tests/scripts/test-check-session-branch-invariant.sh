@@ -38,7 +38,7 @@ make_git_repo() {
     local tmpdir
     tmpdir=$(mktemp -d)
     _TEST_TMPDIRS+=("$tmpdir")
-    git -C "$tmpdir" init -q
+    git -C "$tmpdir" init -q -b main
     git -C "$tmpdir" config user.email "test@test.com"
     git -C "$tmpdir" config user.name "Test"
     git -C "$tmpdir" config commit.gpgsign false
