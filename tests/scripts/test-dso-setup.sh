@@ -305,6 +305,41 @@ test_setup_precommit_config_contains_review_gate() {
     fi
 }
 
+# test_setup_precommit_stack_aware_generic_for_non_python: non-Python stack uses generic
+# pre-commit example (no Python-only hook ids like poetry-lock-check or isolation-check).
+# Refs: bugs 5f8b-2a22-4e2e-4e1f, b74b-40cb-3d97-4edb
+test_setup_precommit_stack_aware_generic_for_non_python() {
+    local T
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    git -C "$T" init -q
+
+    # Simulate non-Python stack detection output
+    local detect_file
+    detect_file=$(mktemp)
+    TMPDIRS+=("$detect_file")
+    printf 'stack=ruby-rails\nframework=rails\n' > "$detect_file"
+
+    DSO_DETECT_OUTPUT="$detect_file" bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
+
+    # The installed config must NOT contain Python-only hook ids
+    if grep -q 'poetry-lock-check\|isolation-check\|format-and-lint\|security-scan\|check-assertion-density' "$T/.pre-commit-config.yaml" 2>/dev/null; then
+        assert_eq "test_setup_precommit_stack_aware_generic_for_non_python: ruby-rails must not contain Python hooks" \
+            "no-python-hooks" "python-hooks-found"
+    else
+        assert_eq "test_setup_precommit_stack_aware_generic_for_non_python: ruby-rails must not contain Python hooks" \
+            "no-python-hooks" "no-python-hooks"
+    fi
+    # The installed config must still contain DSO review gate
+    if grep -q 'pre-commit-review-gate' "$T/.pre-commit-config.yaml" 2>/dev/null; then
+        assert_eq "test_setup_precommit_stack_aware_generic_for_non_python: must still contain review gate" \
+            "found" "found"
+    else
+        assert_eq "test_setup_precommit_stack_aware_generic_for_non_python: must still contain review gate" \
+            "found" "missing"
+    fi
+}
+
 # test_setup_copies_ci_yml: copies example ci.yml to fresh target
 test_setup_copies_ci_yml() {
     local T
@@ -1723,5 +1758,6 @@ test_validate_handles_stamped_config
 test_install_merges_new_config_keys
 test_install_merges_ci_workflow
 test_setup_references_root_install_doc
+test_setup_precommit_stack_aware_generic_for_non_python
 
 print_summary

@@ -779,6 +779,44 @@ assert_eq "test_update_ci_example_stack_aware_selection: no config falls back to
 assert_pass_if_clean "test_update_ci_example_stack_aware_selection"
 
 # ─────────────────────────────────────────────────────────────────────────────
+# test_update_precommit_example_stack_aware_selection
+# Verifies _resolve_precommit_example_for_update picks the generic pre-commit
+# example for a non-Python stack, falling back to the Python/Poetry example
+# when no stack-matched or generic variant exists (same pattern as CI).
+# Refs: bugs 5f8b-2a22-4e2e-4e1f, b74b-40cb-3d97-4edb
+# ─────────────────────────────────────────────────────────────────────────────
+_snapshot_fail
+tmpdir=$(_mktemp_tracked)
+mkdir -p "$tmpdir/plugin/docs/examples"
+printf 'repos:\n  - repo: local\n    hooks:\n      - id: pre-commit-review-gate\n        name: Review Gate\n        language: system\n        entry: echo ok\n        pass_filenames: false\n' > "$tmpdir/plugin/docs/examples/pre-commit-config.example.generic.yaml"
+printf '# Python only\nrepos:\n  - repo: local\n    hooks:\n      - id: poetry-lock-check\n        language: system\n        entry: echo poetry\n        pass_filenames: false\n' > "$tmpdir/plugin/docs/examples/pre-commit-config.example.yaml"
+
+UA_SCRIPT="$(git rev-parse --show-toplevel)/plugins/dso/scripts/update-artifacts.sh"
+PRECOMMIT_RESOLVER_EXTRACT=$(awk '/^_resolve_precommit_example_for_update\(\)/,/^}$/' "$UA_SCRIPT")
+
+# Non-Python (ruby-rails) → generic fallback
+mkdir -p "$tmpdir/target_rb/.claude"
+printf 'stack=ruby-rails\n' > "$tmpdir/target_rb/.claude/dso-config.conf"
+_PC_EXAMPLE=$(bash -c "$PRECOMMIT_RESOLVER_EXTRACT; _resolve_precommit_example_for_update '$tmpdir/plugin' '$tmpdir/target_rb'")
+assert_eq "test_update_precommit_example_stack_aware_selection: ruby-rails picks generic" \
+    "$tmpdir/plugin/docs/examples/pre-commit-config.example.generic.yaml" "$_PC_EXAMPLE"
+
+# Python-poetry → picks python-poetry-specific if present; falls back to legacy example
+mkdir -p "$tmpdir/plugin/docs/examples"
+printf 'stack=python-poetry\n' > "$tmpdir/target_rb/.claude/dso-config.conf"
+_PC_EXAMPLE=$(bash -c "$PRECOMMIT_RESOLVER_EXTRACT; _resolve_precommit_example_for_update '$tmpdir/plugin' '$tmpdir/target_rb'")
+assert_eq "test_update_precommit_example_stack_aware_selection: python-poetry falls back to legacy example" \
+    "$tmpdir/plugin/docs/examples/pre-commit-config.example.yaml" "$_PC_EXAMPLE"
+
+# No config → python-poetry legacy fallback
+rm "$tmpdir/target_rb/.claude/dso-config.conf"
+_PC_EXAMPLE=$(bash -c "$PRECOMMIT_RESOLVER_EXTRACT; _resolve_precommit_example_for_update '$tmpdir/plugin' '$tmpdir/target_rb'")
+assert_eq "test_update_precommit_example_stack_aware_selection: no config falls back to legacy example" \
+    "$tmpdir/plugin/docs/examples/pre-commit-config.example.yaml" "$_PC_EXAMPLE"
+
+assert_pass_if_clean "test_update_precommit_example_stack_aware_selection"
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Summary
 # ─────────────────────────────────────────────────────────────────────────────
 print_summary
