@@ -104,6 +104,44 @@ Apply this classification to each comment. If the LLM output is not valid JSON o
 
 Collect results into a list: `[{comment_id, classification, defense_argument?}, ...]`
 
+### Step 3a — Human-in-loop confirmation (when pr_comments.human_in_loop=true)
+
+Read the config key:
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+HUMAN_IN_LOOP=$(bash "$REPO_ROOT/.claude/scripts/dso" read-config pr_comments.human_in_loop 2>/dev/null || true)
+HUMAN_IN_LOOP="${HUMAN_IN_LOOP:-false}"
+```
+
+**CI/TTY fallback detection**: Before prompting, check whether the session is non-interactive:
+- If `CI=true` environment variable is set, OR
+- If stdout is not a TTY (`! [ -t 1 ]`)
+
+Then: override HUMAN_IN_LOOP to `false` and print a warning:
+```
+WARNING: pr_comments.human_in_loop=true but non-interactive session detected (CI or no TTY). Proceeding autonomously.
+```
+
+**When HUMAN_IN_LOOP=false (default)**: skip this step entirely.
+
+**When HUMAN_IN_LOOP=true and interactive session**:
+
+For each classified comment (from the classification list produced in Step 3):
+1. Print the comment summary:
+   ```
+   Comment <comment_id>:
+   Body: <first 200 chars of comment body>
+   Classification: <accept|defend|defer>
+   [For defend: Defense argument: <defense_argument>]
+   ```
+2. Prompt: `Proceed with <classification> action? [y/N/reclassify] `
+3. Wait for user input:
+   - `y` or `Y` or Enter: proceed with the current classification
+   - `n` or `N` or empty (no input): reclassify to `defer`
+   - `reclassify`: prompt `Reclassify as [accept/defend/defer]: ` and update the classification
+     - If reclassifying to `defend`: prompt `Enter defense argument: ` and set defense_argument
+4. Update the classification in the list before proceeding to Step 4
+
 ### Step 4 — Dispatch action handlers
 
 For each classified comment, call `pr-comment-response.sh` with the `--classify-as` flag to invoke the appropriate handler:
