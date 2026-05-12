@@ -1726,16 +1726,6 @@ _check_usage_for_remediate() {
 # Calls the pr-comment-response pipeline on a fixed snapshot of comments.
 # If accept-classified comments push new commits, the CI re-poll is handled
 # by the subsequent _phase_poll call which polls until MERGED.
-#
-# REVIEW-DEFENSE (CI PR #96 fragile/important): pr-comment-response.sh exists at
-# $CLAUDE_PLUGIN_ROOT/scripts/pr-comment-response.sh; the dso shim resolves it as
-# $DSO_ROOT/scripts/pr-comment-response.sh (with .sh fallback — see .claude/scripts/dso).
-# Test coverage: test-merge-to-main-comment-response.sh Test 3 verifies _phase_comment_response
-# is callable when this file is sourced in lib mode; Test 4 verifies the function definition
-# is present. Full subprocess tests require mocking the GitHub API and a live PR number —
-# disproportionate for a non-fatal phase. This function is called with || true at line ~1907;
-# all failure paths (empty _pr_number, missing _repo_root, subprocess failure) return 0 by
-# design so a comment-response error never aborts the merge workflow.
 _phase_comment_response() {
     local _pr_number="$1"
     _CURRENT_PHASE="comment_response"
@@ -1752,8 +1742,27 @@ _phase_comment_response() {
         return 0
     fi
 
+    # Validate _pr_number is numeric to prevent malformed path construction.
+    if [[ ! "${_pr_number}" =~ ^[0-9]+$ ]]; then
+        echo "WARNING: _phase_comment_response: invalid PR number '${_pr_number}' — skipping." >&2
+        if type _state_mark_complete >/dev/null 2>&1; then
+            _state_mark_complete "comment_response" 2>/dev/null || true
+        fi
+        return 0
+    fi
+
     local _repo_root
     _repo_root=$(git rev-parse --show-toplevel 2>/dev/null || true)
+
+    # Guard against empty _repo_root (e.g. git unavailable or outside a repo).
+    if [[ -z "${_repo_root:-}" ]]; then
+        echo "WARNING: _phase_comment_response: cannot resolve repo root — skipping." >&2
+        if type _state_mark_complete >/dev/null 2>&1; then
+            _state_mark_complete "comment_response" 2>/dev/null || true
+        fi
+        return 0
+    fi
+
     local _snapshot
     _snapshot=$(mktemp "/tmp/dso-pr-comment-response-snapshot.XXXXXX")
 

@@ -40,12 +40,6 @@ Key modules: `dso_ci_review/region_split.py` (split logic, clustering, deduplica
 
 Phases: `sync → merge → version_bump → validate → push → archive → ci_trigger → comment_response`.
 
-<!-- REVIEW-DEFENSE (CI PR #96 important): comment_response is implemented in both
-${CLAUDE_PLUGIN_ROOT}/scripts/merge-to-main-direct.sh (_phase_comment_response stub before
-lib guard, _ALL_PHASES declaration at line ~865) and ${CLAUDE_PLUGIN_ROOT}/scripts/merge-to-main-pr.sh
-(_phase_comment_response at line ~1729, invoked with || true at line ~1907 after
-_phase_queue_auto_merge). The phase was added in story ac9b-ef7d of epic ac1b-5e35. -->
-
 - PR mode (`merge.strategy=pr`) appends a `remediate` phase (bounded retry loop, per-tier ceiling=5, global ceiling=15; exit 2 = remediation exhaustion with escalation JSON on stdout; exit 1 = pre-remediation failure).
 - State file: `/tmp/merge-to-main-state-<branch>.json` (4h TTL); `--resume` continues from checkpoint.
 - See `CONFIGURATION-REFERENCE.md` for `merge.strategy` and `enforcement.strategy` keys.

@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
 # tests/scripts/test-merge-to-main-comment-response.sh
-# RED behavioral tests for task 1911-d4e4 (story ac9b-ef7d):
-#   comment_response phase in merge-to-main-direct.sh and merge-to-main-pr.sh
+# Behavioral tests for the comment_response PHASE in merge-to-main-direct.sh
+# and merge-to-main-pr.sh (story ac9b-ef7d, task 1911-d4e4).
 #
-# These tests FAIL because the implementation doesn't exist yet.
-# When implementation is complete:
-#   - "comment_response" appears in _ALL_PHASES after "ci_trigger"
-#   - _phase_comment_response is defined as a callable function
-#   - The resume sequence treats comment_response as the next phase after ci_trigger
+# Scope: these tests cover _phase_comment_response (the merge-to-main pipeline
+# phase that invokes the comment-response pipeline after CI). They do NOT test
+# the /dso:respond-to-pr-comments skill behaviour — that skill is LLM-interpreted
+# prose (SKILL.md) and behavioral tests on its content are change-detector
+# anti-patterns per the behavioral testing standard (Rule 5).
 #
-# Behavioral testing standard (Rule 5): tests assert observable behavior, not
-# source code structure. Where structure tests are used, a REVIEW-DEFENSE comment
-# explains why behavioral end-to-end testing is disproportionate.
+# Tests:
+#   1. comment_response present in _ALL_PHASES declaration
+#   2. comment_response ordered after ci_trigger (drives --resume logic)
+#   3. _phase_comment_response callable when direct.sh sourced in lib mode
+#   4. _phase_comment_response defined in merge-to-main-pr.sh
 #
 # Usage: bash tests/scripts/test-merge-to-main-comment-response.sh
 

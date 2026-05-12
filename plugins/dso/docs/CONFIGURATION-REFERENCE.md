@@ -1323,13 +1323,6 @@ The following are CLI flags accepted by `${CLAUDE_PLUGIN_ROOT}/scripts/onboardin
 
 ### `pr_comments.human_in_loop`
 
-<!-- REVIEW-DEFENSE (CI PR #96 important): The human_in_loop behavior (CI/TTY fallback,
-per-comment prompting) is specified in ${CLAUDE_PLUGIN_ROOT}/skills/respond-to-pr-comments/SKILL.md
-Step 3a as LLM-interpreted prose. Writing behavioral tests for SKILL.md content is a
-change-detector anti-pattern per the behavioral testing standard (Rule 5, Unit Test
-Exemption). There is no executable bash/Python code path for this config key to test
-directly — the config is read and interpreted entirely within the LLM agent runtime. -->
-
 | | |
 |---|---|
 | **Description** | When `true`, the `/dso:respond-to-pr-comments` skill prompts the user to confirm each comment classification before dispatching the accept/defend/defer handler. Falls back to autonomous mode in non-interactive sessions (CI=true or no TTY). Superseded by the `7ac3-71a1` generalized pattern if that epic ships first. |
