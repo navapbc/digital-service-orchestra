@@ -4,9 +4,9 @@ How the DSO plugin participates in CI: llm-review orchestration, version resolut
 
 ## CI llm-review orchestrator
 
-`${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/` is a Python package; `ci-llm-review-runner.sh` is a 29-line shim that resolves `_PLUGIN_ROOT` and execs `python3 -m dso_ci_review.runner`. (`llm-api-call.sh` was deleted in S3.) <!-- shim-exempt: documentation reference, not an invocation path -->
+`${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/` is a Python package; `ci-llm-review-runner.sh` is a 29-line shim that resolves `_PLUGIN_ROOT` and execs `python3 -m dso_ci_review.runner`. (`llm-api-call.sh` was deleted in S3.) # shim-exempt: doc reference
 
-- Auto-detects local-checkout vs fetched-assets mode via marker file `${CLAUDE_PLUGIN_ROOT}/.dso-source-of-truth`. <!-- shim-exempt: documentation reference, not an invocation path -->
+- Auto-detects local-checkout vs fetched-assets mode via marker file `${CLAUDE_PLUGIN_ROOT}/.dso-source-of-truth`. # shim-exempt: doc reference
 - Parallel overlay dispatch (`&` fan-out + single `wait`).
 - Does **not** consult `check-usage.sh` — CI is not subject to interactive throttling.
 
