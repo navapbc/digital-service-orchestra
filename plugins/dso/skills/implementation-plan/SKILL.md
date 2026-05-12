@@ -443,12 +443,15 @@ Before drafting tasks, enumerate every file the story affects. Produces an audit
 
 3. **Classify each test** by what the story does to the source:
 
+   **Non-executable instruction files are always `still-valid`** — before applying the table, identify any file that is an LLM instruction document: SKILL.md, agent definitions (files in `agents/`), prompt files (files in `prompts/`), workflow docs (files in `docs/`), hook guidance, CLAUDE.md, or other `.md` prose files with no executable code. Per behavioral-testing-standard Rule 5, these files cannot be deterministically tested for behavioral correctness. Always classify them as `still-valid` regardless of the change action — `create`, `modify`, or `remove`. Do NOT produce a RED or UPDATE test task for instruction file changes. If the Doc-Only Skip Gate (above) should have caught a purely-instruction story, apply it retroactively here.
+
    | Source change action | Test classification |
    |---------------------|---------------------|
    | `create` (new source file) | `needs-creation` — write a new test file |
    | `modify` (behavior change) | `needs-modification` — update existing test(s) |
    | `remove` (source deleted) | `needs-removal` — remove or prune tests |
    | `modify` (no behavior change, e.g., refactor) | `still-valid` — existing tests remain correct |
+   | any action on non-executable instruction file | `still-valid` — no test task ever needed |
 
 4. **Build the file impact table**:
 

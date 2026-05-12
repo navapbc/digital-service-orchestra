@@ -1255,7 +1255,7 @@ Stories tagged `manual:awaiting_user` are collected into `awaiting_manual_storie
 Before dispatching tasks for a story, create the story branch and capture the branch name:
 
 ```bash
-STORY_BRANCH=$(bash "$PLUGIN_SCRIPTS/create-story-branch.sh" "$EPIC_ID" "$STORY_ID")
+STORY_BRANCH=$(bash "$PLUGIN_SCRIPTS/create-story-branch.sh" "$EPIC_ID" "$STORY_ID") # shim-exempt: SKILL.md orchestrator instruction — sprint runs plugin scripts via $PLUGIN_SCRIPTS directly
 # STORY_BRANCH = story/<epic-id>/<story-id>; used by Phase F after all worktrees harvested
 ```
 
@@ -1956,7 +1956,7 @@ Do NOT close this story, do NOT transition it to closed, and do NOT proceed to S
 "All tests pass" is not a substitute for the completion-verifier dispatch. Dispatch the verifier NOW before reading any further.
 </HARD-GATE>
 
-**MANDATORY (3f26-4c70 gate)**: First confirm OPEN_CHILDREN == 0 from the check above. If OPEN_CHILDREN > 0 at this point, STOP — do NOT dispatch the verifier; follow the blocked path above instead. Only when OPEN_CHILDREN is confirmed 0: Read `agents/completion-verifier.md` inline and dispatch as `subagent_type: "general-purpose"` with `model: sonnet` and the story ID (CLAUDE.md rule #24 — inline dispatch is the required path; no skipping).
+**MANDATORY (3f26-4c70 gate)**: First confirm OPEN_CHILDREN == 0 from the check above. If OPEN_CHILDREN > 0 at this point, STOP — do NOT dispatch the verifier; follow the blocked path above instead. Only when OPEN_CHILDREN is confirmed 0: dispatch `dso:completion-verifier` via the Agent tool as `subagent_type: "dso:completion-verifier"` with `model: "sonnet"` and the story ID (CLAUDE.md rule #20 — must use the named agent type; inline verification is NOT a substitute). If the named type is unavailable (technical failure), read `agents/completion-verifier.md` verbatim and dispatch as `subagent_type: "general-purpose"` with the full file content as the first element of the prompt — a prompt that only references the file without loading it is fabrication.
 - `overall_verdict: PASS` → proceed with closure
 - `overall_verdict: FAIL` → see branching logic below
 - **Fallback (technical failure only)**: On timeout/unparseable JSON, log warning and proceed with closure.
@@ -2004,7 +2004,7 @@ if [[ ${#CONFLICT_QUEUE[@]} -gt 0 ]]; then
   echo 'ERROR: conflict queue non-empty — resolve conflicts before merging story branch' >&2
   exit 1
 fi
-bash "$PLUGIN_SCRIPTS/merge-story-branch.sh" "$STORY_BRANCH" "$STORY_ID"
+bash "$PLUGIN_SCRIPTS/merge-story-branch.sh" "$STORY_BRANCH" "$STORY_ID" # shim-exempt: SKILL.md orchestrator instruction — sprint runs plugin scripts via $PLUGIN_SCRIPTS directly
 ```
 
 ### Leakage Detection
@@ -2013,7 +2013,7 @@ After merging the story branch, run the leakage detector to catch any non-merge 
 
 ```bash
 PLUGIN_SCRIPTS="${PLUGIN_SCRIPTS:-$PLUGIN_ROOT/scripts}"
-bash "$PLUGIN_SCRIPTS/detect-session-leakage.sh" || {
+bash "$PLUGIN_SCRIPTS/detect-session-leakage.sh" || { # shim-exempt: SKILL.md orchestrator instruction — sprint runs plugin scripts via $PLUGIN_SCRIPTS directly
     echo "WARN: session leakage detected — see output above for attribution steps" >&2
     # Non-blocking: leakage is reported but does not abort the sprint.
     # The operator must manually re-attribute flagged commits.
@@ -2164,7 +2164,7 @@ Read and execute `prompts/epic-ci-and-e2e-gates.md` for the integration test gat
 
 ### Step 2: Completion Verification (/dso:sprint)
 
-**MANDATORY**: Read `agents/completion-verifier.md` inline and dispatch as `subagent_type: "general-purpose"` with `model: sonnet` and the epic ID (CLAUDE.md rule #24; inline dispatch is the required path — see CLAUDE.md Agent dispatch section).
+**MANDATORY**: Dispatch `dso:completion-verifier` via the Agent tool as `subagent_type: "dso:completion-verifier"` with `model: "sonnet"` and the epic ID (CLAUDE.md rule #20 — must use the named agent type; inline verification is NOT a substitute). If the named type is unavailable (technical failure), read `agents/completion-verifier.md` verbatim and dispatch as `subagent_type: "general-purpose"` with the full file content as the first element of the prompt.
 - `overall_verdict: PASS` → proceed to Step 3
 - `overall_verdict: FAIL` → **STOP. Do NOT proceed to Phase H or epic closure under ANY circumstances.** Create bug tasks from `remediation_tasks_created` and return to Phase C (Batch Preparation).
 - **Fallback (technical failure only)**: On timeout/unparseable JSON, log warning and proceed to Step 3.
