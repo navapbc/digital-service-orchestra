@@ -38,7 +38,7 @@ Key modules: `dso_ci_review/region_split.py` (split logic, clustering, deduplica
 
 ## Merge-to-main pipeline
 
-Phases: `sync → merge → version_bump → validate → push → archive → ci_trigger`.
+Phases: `sync → merge → version_bump → validate → push → archive → ci_trigger → comment_response`.
 
 - PR mode (`merge.strategy=pr`) appends a `remediate` phase (bounded retry loop, per-tier ceiling=5, global ceiling=15; exit 2 = remediation exhaustion with escalation JSON on stdout; exit 1 = pre-remediation failure).
 - State file: `/tmp/merge-to-main-state-<branch>.json` (4h TTL); `--resume` continues from checkpoint.
