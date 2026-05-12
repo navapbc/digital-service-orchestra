@@ -292,10 +292,14 @@ for comment in comments:
       tip_sha=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d.get('story_branch_tip_sha',''))" "$record_line" 2>/dev/null) || tip_sha=""
       base_sha=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d.get('story_branch_base_sha',''))" "$record_line" 2>/dev/null) || base_sha=""
 
-      if [[ -z "$effective_query_sha" || -z "$tip_sha" || -z "$base_sha" ]]; then
-        # Fail-open: cannot check ancestry, include the record
-        echo "WARNING: defense_store_load_for_region: cannot check ancestry (missing sha), including record fail-open" >&2
-        printf '%s\n' "$record_line"
+      if [[ -z "$tip_sha" || -z "$base_sha" ]]; then
+        # tip/base fields present but empty — malformed record; fail-closed
+        echo "WARNING: defense_store_load_for_region: sha fields present but empty (malformed record), excluding fail-closed" >&2
+        continue
+      fi
+      if [[ -z "$effective_query_sha" ]]; then
+        # No query SHA to check against — cannot validate, fail-closed
+        echo "WARNING: defense_store_load_for_region: no effective_query_sha to check ancestry, excluding fail-closed" >&2
         continue
       fi
 
@@ -315,8 +319,7 @@ for comment in comments:
       git cat-file -t "$tip_sha" >/dev/null 2>&1 && ec_tip_resolve=0 || ec_tip_resolve=$?
       git cat-file -t "$base_sha" >/dev/null 2>&1 && ec_base_resolve=0 || ec_base_resolve=$?
       if [[ "$ec_tip_resolve" -ne 0 || "$ec_base_resolve" -ne 0 ]]; then
-        echo "WARNING: defense_store_load_for_region: stored sha not resolvable (corrupt store?), including record fail-open" >&2
-        printf '%s\n' "$record_line"
+        echo "WARNING: defense_store_load_for_region: stored sha not resolvable (corrupt store?), excluding record fail-closed" >&2
         continue
       fi
 
@@ -334,9 +337,8 @@ for comment in comments:
       git merge-base --is-ancestor "$effective_query_sha" "$tip_sha" 2>/dev/null && ec_query_anc_tip=0 || ec_query_anc_tip=$?
 
       if [[ "$ec_tip_anc_query" -gt 1 || "$ec_base_anc_query" -gt 1 || "$ec_query_anc_tip" -gt 1 ]]; then
-        # git merge-base command failed unexpectedly: fail-open
-        echo "WARNING: defense_store_load_for_region: git ancestry check failed unexpectedly, including record fail-open" >&2
-        printf '%s\n' "$record_line"
+        # git merge-base command failed unexpectedly: fail-closed
+        echo "WARNING: defense_store_load_for_region: git ancestry check failed unexpectedly, excluding record fail-closed" >&2
       elif [[ "$ec_tip_anc_query" -eq 0 ]]; then
         # Condition B: TIP is an ancestor of QUERY_SHA — QUERY_SHA comes after TIP (e.g., merge commit)
         printf '%s\n' "$record_line"
