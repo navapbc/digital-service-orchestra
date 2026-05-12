@@ -39,6 +39,7 @@ jobs:
         run: bash plugins/dso/scripts/ci-llm-review-runner.sh
         env:
           DSO_CI_REVIEW_DIFF_PATH: /tmp/story-diff.patch
+          DSO_CI_REVIEW_PRIOR_DEFENSES_PATH: /tmp/prior-review/findings.json
           DSO_CI_REVIEW_DRY_RUN: ${{ vars.DSO_CI_REVIEW_DRY_RUN || '' }}
 
       - name: Upload review artifact
