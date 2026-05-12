@@ -13,6 +13,7 @@
 .github/workflows/ci.yml:tests/scripts/test-ci-hyperfine-installed.sh,tests/scripts/test-ci-consolidated-changes-detection.sh
 .github/workflows/inbound-bridge.yml:tests/scripts/test-inbound-bridge-push-retry.sh
 .github/workflows/outbound-bridge.yml:tests/scripts/test-outbound-bridge-push-retry.sh
+.github/workflows/sprint-story-review.yml:tests/workflows/test-sprint-story-review.sh
 .github/workflows/ticket-platform-matrix.yml:tests/scripts/test-ticket-platform-matrix-trigger.sh
 CLAUDE.md:tests/skills/test-nextjs-starter-docs.sh,tests/scripts/test-tag-policy-docs.sh
 docs/adr/0009-config-system.md:tests/scripts/test-adr-config-system.sh
