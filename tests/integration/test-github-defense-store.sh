@@ -282,6 +282,56 @@ test_write_rejects_oversized_defense_text() {
     assert_pass_if_clean "test_write_rejects_oversized_defense_text"
 }
 
+# ===========================================================================
+# Test 5: write preserves story_branch_tip_sha and story_branch_base_sha fields.
+# Given: record JSON containing story_branch_tip_sha and story_branch_base_sha
+# When: github_defense_store_write is called
+# Then: the body posted to gh contains both field name and tip sha value
+# ===========================================================================
+test_github_defense_store_preserves_sha_fields() {
+    echo ""
+    echo "=== test_github_defense_store_preserves_sha_fields ==="
+    _snapshot_fail
+    _setup_test
+
+    # shellcheck disable=SC1090
+    source "$DEFENSE_STORE_SCRIPT" 2>/dev/null || true
+
+    if ! type github_defense_store_write >/dev/null 2>&1; then
+        (( ++FAIL ))
+        echo "FAIL: test_github_defense_store_preserves_sha_fields — github_defense_store_write not defined" >&2
+        _teardown_test
+        assert_pass_if_clean "test_github_defense_store_preserves_sha_fields"
+        return
+    fi
+
+    local record_json='{"ticket_id":"TASK-789","defense_text":"sha test","story_branch_tip_sha":"abc123","story_branch_base_sha":"def456"}'
+    local pr_number=55
+    local repo="owner/repo"
+
+    local rc=0
+    github_defense_store_write "$record_json" "$pr_number" "$repo" 2>/dev/null || rc=$?
+
+    # Must exit 0 on success.
+    assert_eq "test_github_defense_store_preserves_sha_fields: exit 0 on success" "0" "$rc"
+
+    # gh pr comment must have been called at least once.
+    local call_count
+    call_count=$(_gh_pr_comment_call_count)
+    assert_ne "test_github_defense_store_preserves_sha_fields: gh pr comment was called" "0" "$call_count"
+
+    # The body posted to gh must contain the sha field name and tip sha value.
+    local log_content
+    log_content=$(cat "$GH_CALL_LOG" 2>/dev/null || true)
+    assert_contains "test_github_defense_store_preserves_sha_fields: body contains story_branch_tip_sha key" \
+        "story_branch_tip_sha" "$log_content"
+    assert_contains "test_github_defense_store_preserves_sha_fields: body contains tip sha value abc123" \
+        "abc123" "$log_content"
+
+    _teardown_test
+    assert_pass_if_clean "test_github_defense_store_preserves_sha_fields"
+}
+
 # ---------------------------------------------------------------------------
 # Run all tests
 # ---------------------------------------------------------------------------
@@ -289,6 +339,7 @@ test_write_posts_pr_comment_with_defense_record_prefix
 test_write_noop_on_fork_pr
 test_write_rejects_unbound_ticket_id
 test_write_rejects_oversized_defense_text
+test_github_defense_store_preserves_sha_fields
 
 # Print summary and exit non-zero on any failure (RED state expected pre-implementation).
 print_summary
