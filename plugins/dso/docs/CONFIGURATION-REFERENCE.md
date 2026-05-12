@@ -1321,6 +1321,18 @@ The following are CLI flags accepted by `${CLAUDE_PLUGIN_ROOT}/scripts/onboardin
 
 ---
 
+### `pr_comments.human_in_loop`
+
+| | |
+|---|---|
+| **Description** | When `true`, the `/dso:respond-to-pr-comments` skill prompts the user to confirm each comment classification before dispatching the accept/defend/defer handler. Falls back to autonomous mode in non-interactive sessions (CI=true or no TTY). Superseded by the `7ac3-71a1` generalized pattern if that epic ships first. |
+| **Type** | `bool` |
+| **Accepted values** | `true`, `false` |
+| **Default** | `false` |
+| **Used by** | `/dso:respond-to-pr-comments` skill |
+
+---
+
 ### `staging.url`
 
 | | |
