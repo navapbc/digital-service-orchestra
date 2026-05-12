@@ -1259,7 +1259,7 @@ resolve_ticket_id() {
             alias) _alias_matches+=("$_scan_id") ;;
             jira)  _jira_matches+=("$_scan_id") ;;
         esac
-    done < <(python3 "$_resolver_script" "$input" "$_tracker_dir" 2>/dev/null)
+    done < <(python3 "$_resolver_script" "$input" "$_tracker_dir")
 
     if [ "${#_jira_matches[@]}" -eq 1 ]; then
         echo "${_jira_matches[0]}"

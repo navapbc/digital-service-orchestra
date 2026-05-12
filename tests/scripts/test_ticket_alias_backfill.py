@@ -83,10 +83,23 @@ def _plant_ticket(root: Path, ticket_id: str, alias_in_data: str | None) -> Path
     return td
 
 
-def test_process_create_uses_stored_alias_when_present(tmp_path):
-    td = _plant_ticket(tmp_path, "aaaa-bbbb-cccc-dddd", "stored-alias-here")
+def test_process_create_prefers_stored_over_backfill(tmp_path):
+    """When data.alias is present, process_create uses it verbatim — even when
+    that stored value differs from what compute_alias(ticket_id) would yield.
+    This guards against a regression where backfill clobbers the stored alias
+    (a real risk if the conditional flips). The asserted value is intentionally
+    NOT the deterministic backfill — a tautological "plant X, expect X" test
+    would still pass if process_create returned a hardcoded value."""
+    ticket_id = "aaaa-bbbb-cccc-dddd"
+    backfill_would_yield = compute_alias(ticket_id)
+    stored = "manually-chosen-alias"
+    assert stored != backfill_would_yield, (
+        "test invariant: stored must differ from backfill so the assertion "
+        "actually proves stored-wins precedence"
+    )
+    td = _plant_ticket(tmp_path, ticket_id, stored)
     state = reduce_ticket(str(td))
-    assert state["alias"] == "stored-alias-here"
+    assert state["alias"] == stored
 
 
 def test_process_create_backfills_when_alias_missing(tmp_path):
@@ -96,3 +109,95 @@ def test_process_create_backfills_when_alias_missing(tmp_path):
     expected = compute_alias("0193-d61d-abcd-1234")
     assert state["alias"] == expected
     assert state["alias"] is not None
+
+
+# ── Edge-case coverage for ticket-alias-resolve.py (Finding 4) ────────────────
+
+RESOLVER_SCRIPT = SCRIPTS / "ticket-alias-resolve.py"
+
+
+def _run_resolver(target: str, tracker: str | Path) -> tuple[int, str, str]:
+    """Invoke ticket-alias-resolve.py and return (rc, stdout, stderr)."""
+    proc = subprocess.run(
+        [sys.executable, str(RESOLVER_SCRIPT), target, str(tracker)],
+        capture_output=True,
+        text=True,
+    )
+    return proc.returncode, proc.stdout, proc.stderr
+
+
+def test_resolver_missing_tracker_dir_fails_loud(tmp_path):
+    """Non-existent tracker directory must exit non-zero with a useful stderr —
+    silent emptiness is indistinguishable from 'no matches found'."""
+    rc, _, err = _run_resolver("anything", tmp_path / "does-not-exist")
+    assert rc != 0
+    assert "cannot list" in err
+
+
+def test_resolver_malformed_create_json_is_skipped(tmp_path):
+    """A ticket dir with corrupt CREATE event JSON must not crash the resolver —
+    other tickets in the same tracker must still resolve."""
+    # Valid ticket
+    good = _plant_ticket(tmp_path, "1111-2222-3333-4444", "good-stored-alias")
+    # Corrupt ticket
+    bad = tmp_path / "5555-6666-7777-8888"
+    bad.mkdir()
+    ts = time.time_ns()
+    (bad / f"{ts}-junk-CREATE.json").write_text("{ not valid json")
+    rc, out, _ = _run_resolver("good-stored-alias", tmp_path)
+    assert rc == 0
+    assert out.strip() == f"alias\t{good.name}"
+
+
+def test_resolver_dotfile_dirs_ignored(tmp_path):
+    """Entries starting with '.' (caches, lockfiles, the __bridge__ pseudo-dir
+    by accident) must not be scanned — they aren't tickets."""
+    (tmp_path / ".graph-cache").mkdir()
+    (tmp_path / ".graph-cache" / "fake-CREATE.json").write_text(
+        json.dumps({"data": {"alias": "should-not-match"}})
+    )
+    rc, out, _ = _run_resolver("should-not-match", tmp_path)
+    assert rc == 0
+    assert out.strip() == ""
+
+
+def test_resolver_backfilled_alias_matches_legacy_ticket(tmp_path):
+    """A ticket with no data.alias must still resolve via the computed
+    fallback — this is the whole point of the backfill."""
+    td = _plant_ticket(tmp_path, "0193-d61d-abcd-1234", alias_in_data=None)
+    expected = compute_alias("0193-d61d-abcd-1234")
+    rc, out, _ = _run_resolver(expected, tmp_path)
+    assert rc == 0
+    assert out.strip() == f"alias\t{td.name}"
+
+
+def test_resolver_jira_key_takes_precedence_over_alias_collision(tmp_path):
+    """If a single ticket's CREATE event has both a matching jira_key and a
+    matching alias for the same input string (pathological), jira wins —
+    matches the resolver's documented precedence order."""
+    td = tmp_path / "abcd-efab-1234-5678"
+    td.mkdir()
+    ts = time.time_ns()
+    (td / f"{ts}-x-CREATE.json").write_text(
+        json.dumps(
+            {
+                "data": {"alias": "COLLIDE-99", "jira_key": "COLLIDE-99"},
+            }
+        )
+    )
+    rc, out, _ = _run_resolver("COLLIDE-99", tmp_path)
+    assert rc == 0
+    assert out.strip() == f"jira\t{td.name}"
+
+
+def test_resolver_wordlist_path_resolves_to_existing_file():
+    """Finding 1 defense: assert _wordlist_path() actually resolves to a file
+    that exists. The reviewer flagged a suspected '..'-count bug; this test
+    is the executable answer."""
+    from ticket_reducer._alias import _wordlist_path
+
+    path = _wordlist_path()
+    assert Path(path).is_file(), (
+        f"resolved wordlist path does not exist: {path!r} — if this fails, "
+        "the os.path.join('..', '..') count in _alias.py is wrong"
+    )

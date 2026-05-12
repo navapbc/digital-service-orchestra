@@ -24,44 +24,14 @@ import json
 import os
 import sys
 
-
-def load_wordlist(path: str) -> tuple[list[str], list[str]]:
-    adjs: list[str] = []
-    nouns: list[str] = []
-    section = "adj"
-    try:
-        with open(path, encoding="utf-8") as f:
-            for line in f:
-                line = line.rstrip("\n")
-                if line == "# NOUNS":
-                    section = "noun"
-                    continue
-                if line.startswith("#") or not line.strip():
-                    continue
-                (adjs if section == "adj" else nouns).append(line.strip())
-    except OSError:
-        pass
-    return adjs, nouns
-
-
-def compute_alias(ticket_id: str, adjs: list[str], nouns: list[str]) -> str | None:
-    """Mirror of ticket_reducer._alias.compute_alias — kept inline so this
-    helper has no dependency on the reducer package import path."""
-    hex_id = ticket_id.replace("-", "")
-    if len(hex_id) < 8 or not adjs or not nouns:
-        return None
-    try:
-        adj = adjs[int(hex_id[0:4], 16) % len(adjs)]
-        n1 = nouns[int(hex_id[4:8], 16) % len(nouns)]
-    except ValueError:
-        return None
-    if len(hex_id) >= 12:
-        try:
-            n2 = nouns[int(hex_id[8:12], 16) % len(nouns)]
-            return f"{adj}-{n1}-{n2}"
-        except ValueError:
-            pass
-    return f"{adj}-{n1}"
+# Single source of truth for alias computation lives in
+# ticket_reducer/_alias.py. Importing it here keeps stored-at-create-time
+# aliases and backfilled-at-resolve-time aliases in lock-step — the same
+# wordlist, the same fallback rules, the same env var override.
+_SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
+from ticket_reducer._alias import compute_alias  # noqa: E402
 
 
 def main() -> int:
@@ -71,16 +41,13 @@ def main() -> int:
     target = sys.argv[1]
     tracker = sys.argv[2]
 
-    here = os.path.dirname(os.path.abspath(__file__))
-    wordlist = os.environ.get("TICKET_WORDLIST_PATH") or os.path.normpath(
-        os.path.join(here, "..", "resources", "ticket-wordlist.txt")
-    )
-    adjs, nouns = load_wordlist(wordlist)
-
     try:
         entries = sorted(os.listdir(tracker))
-    except OSError:
-        return 0
+    except OSError as exc:
+        # Fail loud — silent OSError here looks identical to "no matches"
+        # and turns a debuggable I/O failure into a mysterious lookup miss.
+        print(f"ticket-alias-resolve: cannot list {tracker!r}: {exc}", file=sys.stderr)
+        return 1
 
     for name in entries:
         if name.startswith("."):
@@ -88,10 +55,12 @@ def main() -> int:
         ticket_dir = os.path.join(tracker, name)
         if not os.path.isdir(ticket_dir):
             continue
-        # Find the CREATE event (typically one per ticket)
+        # Find the first CREATE event (typically exactly one per ticket;
+        # if multiple ever appear, the lexically earliest wins — same
+        # ordering rule the rest of the reducer applies).
         create_path = None
         try:
-            for fname in os.listdir(ticket_dir):
+            for fname in sorted(os.listdir(ticket_dir)):
                 if fname.endswith("-CREATE.json"):
                     create_path = os.path.join(ticket_dir, fname)
                     break
@@ -111,8 +80,11 @@ def main() -> int:
         if jira_key and jira_key == target:
             print(f"jira\t{name}")
             continue
-        # alias match — stored or backfilled
-        effective_alias = stored_alias or compute_alias(name, adjs, nouns) or ""
+        # alias match — stored or backfilled (compute_alias is the same
+        # function ticket_reducer/_processors.process_create uses, so a
+        # stored alias and a backfilled alias for the same ticket_id are
+        # guaranteed to be identical).
+        effective_alias = stored_alias or compute_alias(name) or ""
         if effective_alias and effective_alias == target:
             print(f"alias\t{name}")
     return 0
