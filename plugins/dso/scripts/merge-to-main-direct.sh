@@ -833,6 +833,22 @@ _phase_ci_trigger() {
     _state_mark_complete "ci_trigger"
 }
 
+_phase_comment_response() {
+    _CURRENT_PHASE="comment_response"
+    if type _state_write_phase >/dev/null 2>&1; then
+        _state_write_phase "comment_response" 2>/dev/null || true
+    fi
+
+    # In direct mode, there is no PR — comment_response is a no-op.
+    # In PR mode, _phase_comment_response is defined in merge-to-main-pr.sh
+    # and overrides this stub with the actual implementation.
+    echo "INFO: comment_response phase: no PR in direct mode — skipping."
+
+    if type _state_mark_complete >/dev/null 2>&1; then
+        _state_mark_complete "comment_response" 2>/dev/null || true
+    fi
+}
+
 # =============================================================================
 # CLI argument dispatch
 # =============================================================================
@@ -846,7 +862,7 @@ if [[ -n "${MERGE_TO_MAIN_DIRECT_LIB:-}" ]]; then
 fi
 
 # Ordered list of all phase names (used by --resume to find next incomplete phase)
-_ALL_PHASES=(sync merge version_bump validate push archive ci_trigger)
+_ALL_PHASES=(sync merge version_bump validate push archive ci_trigger comment_response)
 
 # --- Parse CLI arguments ---
 _CLI_RESUME=false
@@ -1037,6 +1053,7 @@ _phase_validate
 _phase_push
 _phase_archive
 _phase_ci_trigger
+_phase_comment_response
 
 rm -f "$(_state_file_path)" 2>/dev/null
 rm -f "/tmp/merge-state-init-marker-${BRANCH//\//-}" 2>/dev/null

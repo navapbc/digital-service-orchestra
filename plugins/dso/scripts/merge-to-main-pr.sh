@@ -1721,6 +1721,53 @@ _check_usage_for_remediate() {
     return 0
 }
 
+# --- _phase_comment_response: process PR comments after CI, before merge ---
+# Runs after _phase_queue_auto_merge so auto-merge is already queued.
+# Calls the pr-comment-response pipeline on a fixed snapshot of comments.
+# If accept-classified comments push new commits, the CI re-poll is handled
+# by the subsequent _phase_poll call which polls until MERGED.
+_phase_comment_response() {
+    local _pr_number="$1"
+    _CURRENT_PHASE="comment_response"
+
+    if type _state_write_phase >/dev/null 2>&1; then
+        _state_write_phase "comment_response" 2>/dev/null || true
+    fi
+
+    if [[ -z "${_pr_number:-}" ]]; then
+        echo "INFO: _phase_comment_response: no PR number — skipping."
+        if type _state_mark_complete >/dev/null 2>&1; then
+            _state_mark_complete "comment_response" 2>/dev/null || true
+        fi
+        return 0
+    fi
+
+    local _repo_root
+    _repo_root=$(git rev-parse --show-toplevel 2>/dev/null || true)
+    local _snapshot
+    _snapshot=$(mktemp "/tmp/dso-pr-comment-response-snapshot.XXXXXX")
+
+    echo "INFO: _phase_comment_response: processing PR #${_pr_number} comments..."
+
+    local _rc=0
+    "${_repo_root}/.claude/scripts/dso" pr-comment-response \
+        --pr-number "${_pr_number}" \
+        --output "${_snapshot}" 2>&1 || _rc=$?
+
+    rm -f "${_snapshot}" 2>/dev/null || true
+
+    if [[ "${_rc}" -ne 0 ]]; then
+        echo "WARNING: pr-comment-response exited non-zero (rc=${_rc}) — continuing with merge." >&2
+    else
+        echo "INFO: _phase_comment_response: complete for PR #${_pr_number}."
+    fi
+
+    if type _state_mark_complete >/dev/null 2>&1; then
+        _state_mark_complete "comment_response" 2>/dev/null || true
+    fi
+    return 0
+}
+
 # =============================================================================
 # Library-mode guard: when sourced with PR_LIB_MODE=1, skip all top-level
 # execution. Used by tests to load function definitions without running the
@@ -1856,6 +1903,8 @@ fi
 if ! _phase_queue_auto_merge "$_PR_NUMBER"; then
     exit 1
 fi
+
+_phase_comment_response "$_PR_NUMBER" || true
 
 if ! _phase_poll "$_PR_NUMBER" "$_PR_URL"; then
     if ! _phase_conflict_resolution "$_PR_NUMBER" "$_PR_URL"; then
