@@ -30,6 +30,7 @@ import tempfile
 from dso_ci_review.dispatch import async_dispatch_specialists, _validate_agent_files, dispatch_arch_synthesis, dispatch_two_call_review
 from dso_ci_review.findings import merge_findings
 from dso_ci_review.providers.config import AuthError, ConfigError, get_provider
+from dso_ci_review.region_split import _should_region_split, run_region_split
 
 # REVIEW-DEFENSE block — refutations for PR #62 round-3 LLM review false positives.
 # These findings recur because the CI _SYSTEM_PROMPT (dispatch.py:23-30) lacks the
@@ -815,104 +816,123 @@ def main() -> int:
             agent.setdefault("model", base_model)
             agent.setdefault("provider_chain", provider_chain)
 
-        # Step 3: dispatch tier agents + classifier-flagged overlays together (parallel).
-        # On cycle N≥2 with prior defenses, single-agent tiers (light/standard) use the
-        # two-call architecture so the LLM evaluates findings against existing defenses.
-        # Deep tier continues to use the standard path; defenses are injected at the
-        # arch-synthesis step (Step 6) where the final synthesis happens.
-        if cycle_number >= 2 and prior_defenses and tier in ("light", "standard") and not overlay_agents:
-            # Two-call path: single-agent tier with prior defenses.
-            # Build prior_findings_index (no defense_text) and prior_findings (with defense_text).
-            prior_findings_index = [
-                {k: v for k, v in d.items() if k != "defense_text"}
-                for d in prior_defenses
-            ]
-            primary_agent = tier_agents[0]
-            two_call_result = dispatch_two_call_review(
-                diff_text=diff_text,
-                prior_findings_index=prior_findings_index,
-                prior_findings=prior_defenses,
-                defenses=prior_defenses,
-                provider_chain=provider_chain,
-                agent_id=primary_agent["agent_id"],
-                primary_model=primary_agent["model"],
+        # Strategy E: region-split FALLBACK for large diffs (bed6-3871-f13c-4160).
+        # When the diff exceeds the LOC or file-count threshold, bypass the standard
+        # tier dispatch path and cluster the diff into per-directory regions, dispatching
+        # specialists per cluster in parallel before running arch synthesis.
+        # This gate runs BEFORE the two-call and standard dispatch paths so the
+        # huge-diff path is a first-class route, not an afterthought.
+        if _should_region_split(diff_text):
+            print(
+                "INFO: diff exceeds region-split threshold — activating Strategy E "
+                "file-clustered parallel review",
+                file=sys.stderr,
             )
-            first_pass_findings = [two_call_result]
+            merged = run_region_split(
+                diff_text=diff_text,
+                tier_agents=tier_agents,
+                provider_chain=provider_chain,
+                config_path=config_path,
+            )
         else:
-            first_pass_findings = asyncio.run(
-                async_dispatch_specialists(tier_agents + overlay_agents)
-            )
-
-        # Step 4: check first-pass findings for warranted second-pass overlays
-        warranted_overlay_agents = _overlay_agents_from_findings(
-            first_pass_findings, diff_text, config_path
-        )
-        all_findings = list(first_pass_findings)
-        if warranted_overlay_agents:
-            # Enrich warranted overlay descriptors with model + provider_chain
-            for agent in warranted_overlay_agents:
-                agent.setdefault("model", base_model)
-                agent.setdefault("provider_chain", provider_chain)
-            second_pass_findings = asyncio.run(
-                async_dispatch_specialists(warranted_overlay_agents)
-            )
-            all_findings.extend(second_pass_findings)
-
-        # Step 5: merge findings
-        merged = merge_findings(*all_findings)
-
-        # Step 6: for deep tier, run arch synthesis after specialists; the arch
-        # synthesis result replaces the merged specialist output as the final result
-        # when it succeeds (non-synthetic findings or no findings at all).
-        # On infrastructure failure (fallback_exhausted / specialist_error), the
-        # merged specialist output is preserved so the severity gate still fires.
-        # On cycle N≥2 with prior defenses, the merged specialist context is augmented
-        # with defenses so the arch synthesizer can avoid re-emitting defended findings.
-        if tier == "deep":
-            arch_model = _read_tier_model("deep-arch", config_path)
-            merged_json = json.dumps(merged)
-            if cycle_number >= 2 and prior_defenses:
-                # Append defense context to the merged JSON passed to arch synthesis.
-                # dispatch_arch_synthesis appends it as "Prior specialist findings" in
-                # the prompt; we extend that context with the defense ledger.
-                defenses_context = (
-                    "\n\n## Prior round defenses (do NOT re-emit findings that have been defended)\n\n"
-                    + json.dumps(prior_defenses, indent=2)
+            # Step 3: dispatch tier agents + classifier-flagged overlays together (parallel).
+            # On cycle N≥2 with prior defenses, single-agent tiers (light/standard) use the
+            # two-call architecture so the LLM evaluates findings against existing defenses.
+            # Deep tier continues to use the standard path; defenses are injected at the
+            # arch-synthesis step (Step 6) where the final synthesis happens.
+            if cycle_number >= 2 and prior_defenses and tier in ("light", "standard") and not overlay_agents:
+                # Two-call path: single-agent tier with prior defenses.
+                # Build prior_findings_index (no defense_text) and prior_findings (with defense_text).
+                prior_findings_index = [
+                    {k: v for k, v in d.items() if k != "defense_text"}
+                    for d in prior_defenses
+                ]
+                primary_agent = tier_agents[0]
+                two_call_result = dispatch_two_call_review(
+                    diff_text=diff_text,
+                    prior_findings_index=prior_findings_index,
+                    prior_findings=prior_defenses,
+                    defenses=prior_defenses,
+                    provider_chain=provider_chain,
+                    agent_id=primary_agent["agent_id"],
+                    primary_model=primary_agent["model"],
                 )
-                merged_json_with_defenses = merged_json + defenses_context
+                first_pass_findings = [two_call_result]
             else:
-                merged_json_with_defenses = merged_json
-            arch_result = dispatch_arch_synthesis(
-                merged_json_with_defenses,
-                diff_text=diff_text,
-                model=arch_model,
-                provider_chain=provider_chain,
-            )
-            arch_findings = arch_result.get("findings") or []
-            arch_all_synthetic = bool(arch_findings) and all(
-                f.get("type", "") in _SYNTHETIC_TYPES for f in arch_findings
-            )
-            if not arch_all_synthetic:
-                merged = arch_result
+                first_pass_findings = asyncio.run(
+                    async_dispatch_specialists(tier_agents + overlay_agents)
+                )
 
-        # Step 7: apply dismissal-memory filter on cycle N≥2.
-        # This is a defence-of-last-resort: if the LLM still re-emits a verbatim
-        # defended finding despite receiving the full defense context, downgrade it
-        # to 'suggestion' so it no longer blocks merge. (Bug c59e-a197.)
-        if cycle_number >= 2 and prior_defenses:
-            raw_findings = merged.get("findings") or []
-            filtered = _suppress_defended_findings(raw_findings, prior_defenses)
-            if filtered != raw_findings:
-                suppressed_count = sum(
-                    1 for f in filtered if f.get("_suppressed_reason")
+            # Step 4: check first-pass findings for warranted second-pass overlays
+            warranted_overlay_agents = _overlay_agents_from_findings(
+                first_pass_findings, diff_text, config_path
+            )
+            all_findings = list(first_pass_findings)
+            if warranted_overlay_agents:
+                # Enrich warranted overlay descriptors with model + provider_chain
+                for agent in warranted_overlay_agents:
+                    agent.setdefault("model", base_model)
+                    agent.setdefault("provider_chain", provider_chain)
+                second_pass_findings = asyncio.run(
+                    async_dispatch_specialists(warranted_overlay_agents)
                 )
-                print(
-                    f"INFO: cycle {cycle_number} — suppressed {suppressed_count} finding(s) "
-                    "that matched prior defended findings (dismissal-memory filter)",
-                    file=sys.stderr,
+                all_findings.extend(second_pass_findings)
+
+            # Step 5: merge findings
+            merged = merge_findings(*all_findings)
+
+            # Step 6: for deep tier, run arch synthesis after specialists; the arch
+            # synthesis result replaces the merged specialist output as the final result
+            # when it succeeds (non-synthetic findings or no findings at all).
+            # On infrastructure failure (fallback_exhausted / specialist_error), the
+            # merged specialist output is preserved so the severity gate still fires.
+            # On cycle N≥2 with prior defenses, the merged specialist context is augmented
+            # with defenses so the arch synthesizer can avoid re-emitting defended findings.
+            if tier == "deep":
+                arch_model = _read_tier_model("deep-arch", config_path)
+                merged_json = json.dumps(merged)
+                if cycle_number >= 2 and prior_defenses:
+                    # Append defense context to the merged JSON passed to arch synthesis.
+                    # dispatch_arch_synthesis appends it as "Prior specialist findings" in
+                    # the prompt; we extend that context with the defense ledger.
+                    defenses_context = (
+                        "\n\n## Prior round defenses (do NOT re-emit findings that have been defended)\n\n"
+                        + json.dumps(prior_defenses, indent=2)
+                    )
+                    merged_json_with_defenses = merged_json + defenses_context
+                else:
+                    merged_json_with_defenses = merged_json
+                arch_result = dispatch_arch_synthesis(
+                    merged_json_with_defenses,
+                    diff_text=diff_text,
+                    model=arch_model,
+                    provider_chain=provider_chain,
                 )
-                merged = dict(merged)
-                merged["findings"] = filtered
+                arch_findings = arch_result.get("findings") or []
+                arch_all_synthetic = bool(arch_findings) and all(
+                    f.get("type", "") in _SYNTHETIC_TYPES for f in arch_findings
+                )
+                if not arch_all_synthetic:
+                    merged = arch_result
+
+            # Step 7: apply dismissal-memory filter on cycle N≥2.
+            # This is a defence-of-last-resort: if the LLM still re-emits a verbatim
+            # defended finding despite receiving the full defense context, downgrade it
+            # to 'suggestion' so it no longer blocks merge. (Bug c59e-a197.)
+            if cycle_number >= 2 and prior_defenses:
+                raw_findings = merged.get("findings") or []
+                filtered = _suppress_defended_findings(raw_findings, prior_defenses)
+                if filtered != raw_findings:
+                    suppressed_count = sum(
+                        1 for f in filtered if f.get("_suppressed_reason")
+                    )
+                    print(
+                        f"INFO: cycle {cycle_number} — suppressed {suppressed_count} finding(s) "
+                        "that matched prior defended findings (dismissal-memory filter)",
+                        file=sys.stderr,
+                    )
+                    merged = dict(merged)
+                    merged["findings"] = filtered
 
         # Step 8: write output
         _write_output(merged)
