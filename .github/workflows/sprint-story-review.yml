@@ -20,6 +20,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Sanitize artifact name
+        run: |
+          SAFE_NAME="${GITHUB_REF_NAME//\//-}"
+          echo "ARTIFACT_NAME=sprint-story-review-${SAFE_NAME}" >> "$GITHUB_ENV"
+
       - name: Fetch session branch
         env:
           SPRINT_SESSION_ID: ${{ vars.SPRINT_SESSION_ID }}
@@ -36,7 +41,7 @@ jobs:
         continue-on-error: true
         uses: actions/download-artifact@v4
         with:
-          name: sprint-story-review-${{ replace(github.ref_name, '/', '-') }}
+          name: ${{ env.ARTIFACT_NAME }}
           path: /tmp/prior-review/
 
       - name: Run LLM review
@@ -54,6 +59,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: sprint-story-review-${{ replace(github.ref_name, '/', '-') }}
+          name: ${{ env.ARTIFACT_NAME }}
           path: /tmp/story-diff.patch
           retention-days: 7
