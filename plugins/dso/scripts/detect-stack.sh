@@ -104,7 +104,7 @@ fi
 # 6. node-npm: package.json present AND valid JSON
 #    CoVe: file must be parseable as JSON.
 if [[ -f "$PROJECT_DIR/package.json" ]]; then
-    if python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$PROJECT_DIR/package.json" 2>/dev/null; then
+    if python3 -c "import json,sys; f=open(sys.argv[1]); json.load(f); f.close()" "$PROJECT_DIR/package.json" 2>/dev/null; then
         echo "node-npm"
         exit 0
     fi
@@ -156,7 +156,7 @@ fi
 _sub_package=$(find "$PROJECT_DIR" -maxdepth 2 -name "package.json" \
     -not -path "*/.git/*" -not -path "*/node_modules/*" 2>/dev/null | head -1)
 if [[ -n "$_sub_package" ]]; then
-    if python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$_sub_package" 2>/dev/null; then
+    if python3 -c "import json,sys; f=open(sys.argv[1]); json.load(f); f.close()" "$_sub_package" 2>/dev/null; then
         echo "node-npm"
         exit 0
     fi

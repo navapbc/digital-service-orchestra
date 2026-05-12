@@ -419,12 +419,17 @@ _phase_merge() {
     # "a pull request already exists" for both draft and non-draft PRs, so we
     # must detect and reuse any existing draft before calling `gh pr create`.
     local _draft_pr_json _final_url _pr_number
-    _draft_pr_json=$(gh pr list --head "$BRANCH" --state open \
-        --json number,url,isDraft 2>/dev/null || true)
-    _final_url=$(echo "$_draft_pr_json" \
-        | jq -r 'map(select(.isDraft == true))[0].url // empty' 2>/dev/null || true)
-    _pr_number=$(echo "$_draft_pr_json" \
-        | jq -r 'map(select(.isDraft == true))[0].number // empty' 2>/dev/null || true)
+    if command -v jq &>/dev/null; then
+        _draft_pr_json=$(gh pr list --head "$BRANCH" --state open \
+            --json number,url,isDraft 2>/dev/null || true)
+        _final_url=$(echo "$_draft_pr_json" \
+            | jq -r 'map(select(.isDraft == true))[0].url // empty' 2>/dev/null || true)
+        _pr_number=$(echo "$_draft_pr_json" \
+            | jq -r 'map(select(.isDraft == true))[0].number // empty' 2>/dev/null || true)
+    else
+        echo "INFO: jq not found — skipping draft PR reuse check; will attempt gh pr create"
+        _final_url="" _pr_number=""
+    fi
 
     if [[ -n "$_final_url" && -n "$_pr_number" ]]; then
         echo "INFO: Reusing existing draft PR #${_pr_number}: $_final_url"
@@ -434,10 +439,18 @@ _phase_merge() {
         _pr_url=$(gh pr create --base main --head "$BRANCH" \
                               --title "$_title" --body "$_body" 2>&1) || _pr_create_rc=$?
         if [[ "$_pr_create_rc" -ne 0 ]]; then
-            echo "ERROR: gh pr create failed: $_pr_url" >&2
-            # _pr_url may contain the error text — still return 1 so caller emits
-            # CONFLICT_DATA (best-effort) for upstream orchestrators.
-            return 1
+            # Handle race condition: another process may have created the PR between our
+            # gh pr list check and gh pr create. Extract URL from the error message.
+            _final_url=$(echo "$_pr_url" | grep -Eo 'https://[^[:space:]]+/pull/[0-9]+' | tail -n1)
+            if [[ -n "$_final_url" ]]; then
+                _pr_number=$(echo "$_final_url" | grep -Eo '/pull/[0-9]+' | grep -Eo '[0-9]+$')
+                echo "INFO: PR already existed (race condition resolved): #${_pr_number}: $_final_url"
+            else
+                echo "ERROR: gh pr create failed: $_pr_url" >&2
+                # _pr_url may contain the error text — still return 1 so caller emits
+                # CONFLICT_DATA (best-effort) for upstream orchestrators.
+                return 1
+            fi
         fi
 
         # gh pr create may print extra log lines before the URL; extract the
