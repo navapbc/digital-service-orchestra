@@ -303,6 +303,29 @@ for comment in comments:
         continue
       fi
 
+      # TRUST MODEL — SHA resolution failure policy
+      #
+      # This function enforces an asymmetric fail-closed policy for SHA validation:
+      #
+      # • query_sha (caller-supplied input): unresolvable → EXCLUDE (fail-closed).
+      #   The caller controls this value; an unknown SHA means the caller's context
+      #   is not in this repo — we cannot validate ancestry, so we exclude the record.
+      #
+      # • tip_sha / base_sha (STORED data from the defense record): unresolvable →
+      #   ALSO EXCLUDE (fail-closed). Although these come from the store rather than
+      #   the caller, an unresolvable stored SHA indicates a foreign-repo or corrupt
+      #   record. Allowing it to pass through would let foreign records suppress
+      #   findings — a trust-boundary violation.
+      #
+      # • Ancestry check unexpected failure (git merge-base exit > 1): EXCLUDE
+      #   (fail-closed) for the same reason — we cannot make a safe inclusion decision.
+      #
+      # • LEGACY records (without tip/base fields): the only FAIL-OPEN case, and only
+      #   via diff_hash equality. This preserves backward compatibility with records
+      #   written before the SHA-range feature was introduced.
+      #
+      # Reference: SC6 of epic f61f-7e0a-36d3-4e7d and PR #98 cycle-2 finding 8.
+      #
       # Verify that effective_query_sha exists in this repo.
       # If it is an unknown object (exit 128 from git cat-file), the query SHA
       # is foreign to this repo — exclude the record rather than fail-open.

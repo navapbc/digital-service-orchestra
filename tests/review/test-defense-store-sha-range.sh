@@ -390,5 +390,115 @@ sys.exit(1)
 
 test_load_for_region_excludes_record_when_tip_sha_unresolvable
 
+# =============================================================================
+# Test 5 — defense_store_load_for_region INCLUDES a record when tip_sha is a
+#           real commit SHA and query_sha is equal to (or an ancestor of) tip.
+#
+# Given: a defense record with story_branch_tip_sha set to HEAD and
+#        story_branch_base_sha set to HEAD (degenerate but valid — BASE==TIP
+#        means the range is a single commit; query_sha==tip satisfies Condition A
+#        because BASE is an ancestor-or-equal of QUERY_SHA AND QUERY_SHA is
+#        an ancestor-or-equal of TIP via the inclusive merge-base semantics, OR
+#        Condition B fires because TIP is an ancestor of QUERY_SHA when equal).
+# When:  defense_store_load_for_region is called with query_sha == HEAD
+# Then:  the record IS returned — confirming fail-closed logic is selective,
+#        not a blanket exclude-everything gate.
+# =============================================================================
+echo ""
+echo "--- test_load_for_region_includes_record_when_tip_sha_resolvable ---"
+
+test_load_for_region_includes_record_when_tip_sha_resolvable() {
+    _snapshot_fail
+
+    if [[ ! -f "$DEFENSE_STORE" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_load_for_region_includes_record_when_tip_sha_resolvable\n  expected: review-defense-store.sh to exist at %s\n  actual:   file not found\n" \
+            "$DEFENSE_STORE" >&2
+        return
+    fi
+
+    # Use HEAD as both tip and base — query_sha == tip triggers Condition B
+    # (TIP is an ancestor of QUERY_SHA when they are equal under git merge-base semantics)
+    local real_sha
+    real_sha=$(git rev-parse HEAD 2>/dev/null) || real_sha=""
+    if [[ -z "$real_sha" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_load_for_region_includes_record_when_tip_sha_resolvable\n  could not resolve HEAD in repo\n" >&2
+        return
+    fi
+
+    # Build a defense record with resolvable tip_sha and base_sha (both HEAD)
+    local record_json
+    record_json=$(python3 -c "
+import json
+print(json.dumps({
+    'prior_finding_id': 'f-resolvable-tip-sha-1',
+    'file_paths': ['src/any_file.py'],
+    'defense_text': 'defense with resolvable tip sha',
+    'severity_history': [{'cycle': 1, 'severity': 'important', 'relation': None}],
+    'story_branch_tip_sha': '$real_sha',
+    'story_branch_base_sha': '$real_sha'
+}))
+")
+
+    # Wrap in a fake ticket JSON structure
+    local ticket_json
+    ticket_json=$(python3 -c "
+import json, sys
+record = sys.argv[1]
+ticket = {
+    'id': 'TEST-RESOLVABLE-TIP-001',
+    'title': 'resolvable tip sha test ticket',
+    'comments': [{'body': 'DEFENSE_RECORD: ' + record}]
+}
+print(json.dumps(ticket))
+" "$record_json")
+
+    # Create a TICKET_CMD stub returning the fake ticket JSON
+    local stub_ticket_cmd
+    stub_ticket_cmd=$(mktemp /tmp/dso-ticket-stub.XXXXXX)
+    chmod +x "$stub_ticket_cmd"
+    printf '#!/usr/bin/env bash\nprintf '"'"'%%s\n'"'"' '"'"'%s'"'"'\n' "$ticket_json" > "$stub_ticket_cmd"
+
+    local output
+    output=$(
+        # shellcheck disable=SC2030,SC2031
+        export DSO_SESSION_TICKET_ID="TEST-RESOLVABLE-TIP-001"
+        # shellcheck disable=SC2030,SC2031
+        export TICKET_CMD="$stub_ticket_cmd"
+        # shellcheck source=/dev/null
+        source "$DEFENSE_STORE"
+        defense_store_load_for_region --query-sha "$real_sha" "src/any_file.py" 2>/dev/null
+    ) || true
+
+    rm -f "$stub_ticket_cmd"
+
+    # The record MUST appear in output — resolvable tip_sha with matching query → included
+    local record_found=0
+    if printf '%s\n' "$output" | python3 -c "
+import json, sys
+for line in sys.stdin:
+    line = line.strip()
+    if not line:
+        continue
+    try:
+        rec = json.loads(line)
+        if rec.get('prior_finding_id') == 'f-resolvable-tip-sha-1':
+            sys.exit(0)
+    except (json.JSONDecodeError, ValueError):
+        continue
+sys.exit(1)
+" 2>/dev/null; then
+        record_found=1
+    fi
+
+    assert_eq "test_load_for_region_includes_record_when_tip_sha_resolvable: record IS returned when tip_sha is resolvable and query_sha matches" \
+        "1" "$record_found"
+
+    assert_pass_if_clean "test_load_for_region_includes_record_when_tip_sha_resolvable"
+}
+
+test_load_for_region_includes_record_when_tip_sha_resolvable
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary
