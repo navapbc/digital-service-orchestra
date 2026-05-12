@@ -434,6 +434,78 @@ Deferred to tracking ticket ${ticket_id}. This comment has been logged for follo
     post_thread_reply "$pr_number" "$root_comment_id" "$body" "$is_inline"
 }
 
+# ── _handle_accept ─────────────────────────────────────────────────────────────
+# Accepts a suggested change: commits staged files, pushes, posts SHA reply.
+# Args: output_path comment_id pr_number
+_handle_accept() {
+    local output_path="$1"
+    local comment_id="$2"
+    local pr_number="$3"
+
+    # 1. Count staged files — reject multi-file scope
+    local staged_count
+    staged_count=$(git diff --cached --name-only | wc -l | tr -d ' ')
+    if (( staged_count > 1 )); then
+        echo "ERROR: accept handler: multi-file scope (${staged_count} files staged); expected 1" >&2
+        return 1
+    fi
+
+    # 2. Commit
+    git commit -m "fix: apply accepted suggestion [DSO-PR-Accept:${comment_id}]" || {
+        echo "ERROR: accept handler: git commit failed" >&2
+        return 1
+    }
+
+    # 3. Push — revert on failure
+    git push || {
+        echo "ERROR: accept handler: git push failed; reverting commit" >&2
+        git revert HEAD --no-edit 2>/dev/null || true
+        return 1
+    }
+
+    # 4. Capture SHA and post reply
+    local sha
+    sha=$(git rev-parse HEAD)
+
+    # Read root_comment_id from normalized JSON
+    local root_comment_id
+    root_comment_id=$(python3 - "$output_path" "$comment_id" << 'PYEOF'
+import json, sys
+path, cid = sys.argv[1], sys.argv[2]
+with open(path) as fh:
+    data = json.load(fh)
+comments = data.get("comments", data) if isinstance(data, dict) else data
+for c in (comments if isinstance(comments, list) else []):
+    if c.get("comment_id") == cid:
+        print(c.get("root_comment_id") or cid)
+        sys.exit(0)
+print(cid)
+PYEOF
+)
+
+    # Read is_inline from normalized JSON
+    local is_inline
+    is_inline=$(python3 - "$output_path" "$comment_id" << 'PYEOF'
+import json, sys
+path, cid = sys.argv[1], sys.argv[2]
+with open(path) as fh:
+    data = json.load(fh)
+comments = data.get("comments", data) if isinstance(data, dict) else data
+for c in (comments if isinstance(comments, list) else []):
+    if c.get("comment_id") == cid:
+        print("true" if c.get("is_inline") else "false")
+        sys.exit(0)
+print("false")
+PYEOF
+)
+
+    # 5. Post thread reply with sentinel and SHA
+    local body
+    body="<!-- dso-agent-reply -->
+Accepted and applied. Commit: ${sha}"
+    post_thread_reply "$pr_number" "$root_comment_id" "$body" "$is_inline"
+}
+
 # ── Action handlers (stubs for Stories 2, 3, 4) ─────────────────────────────
 # These are called when --classify-as flags are provided. Stubs that allow
 # future stories to implement the actual handlers without changing the CLI.
@@ -480,9 +552,10 @@ PYEOF
                 }
                 ;;
             accept)
-                # Stub: accept handler dispatches fix sub-agent (Story 2)
-                # No-op for now; Stories 2-4 implement the full handlers.
-                true
+                _handle_accept "$output_path" "$comment_id" "$_PR_NUMBER" || {
+                    echo "ERROR: accept handler failed for comment $comment_id" >&2
+                    return 1
+                }
                 ;;
             *)
                 echo "ERROR: Unknown action '$action' for comment $comment_id" >&2

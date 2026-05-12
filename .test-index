@@ -243,7 +243,7 @@ plugins/dso/scripts/preconditions-depth-classifier.sh:tests/scripts/test-precond
 plugins/dso/scripts/preconditions-record.sh:tests/scripts/test-preconditions-record.sh,tests/scripts/test-preconditions-fallthrough-smoke.sh
 plugins/dso/scripts/preconditions-validator.sh:tests/scripts/test-preconditions-validator.sh,tests/skills/test-preplanning-preconditions-integration.sh
 plugins/dso/scripts/lib/pr-comment-lib.sh:tests/scripts/test-pr-comment-lib.sh [test_probe_mcp_exits_0_on_success]
-plugins/dso/scripts/pr-comment-response.sh:tests/integration/test-pr-comment-response-integration.sh [test_fetch_produces_normalized_json_schema],tests/scripts/test-pr-comment-response.sh [test_defer_creates_ticket_and_writes_ticket_id_before_reply]
+plugins/dso/scripts/pr-comment-response.sh:tests/integration/test-pr-comment-response-integration.sh [test_fetch_produces_normalized_json_schema],tests/scripts/test-pr-comment-response.sh [test_defer_creates_ticket_and_writes_ticket_id_before_reply],tests/scripts/test-pr-comment-response-accept.sh [test_accept_commits_and_replies_with_sha]
 plugins/dso/scripts/read-overlay-flags.sh:tests/scripts/test-read-overlay-flags.sh
 plugins/dso/scripts/recipe-adapters/ts-morph-add-parameter.mjs:tests/scripts/test-ts-morph-add-parameter.sh
 plugins/dso/scripts/recipe-adapters/ts-morph-normalize-imports.mjs:tests/scripts/test-ts-morph-normalize-imports.sh
