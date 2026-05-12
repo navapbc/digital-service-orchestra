@@ -190,14 +190,23 @@ def test_resolver_jira_key_takes_precedence_over_alias_collision(tmp_path):
     assert out.strip() == f"jira\t{td.name}"
 
 
-def test_resolver_wordlist_path_resolves_to_existing_file():
-    """Finding 1 defense: assert _wordlist_path() actually resolves to a file
-    that exists. The reviewer flagged a suspected '..'-count bug; this test
-    is the executable answer."""
-    from ticket_reducer._alias import _wordlist_path
+def test_load_warns_once_when_wordlist_missing(tmp_path, capsys, monkeypatch):
+    """When the wordlist is unavailable, _load() must emit a one-shot stderr
+    diagnostic — silent fallback to the 8-hex alias hides a real
+    misconfiguration. The warning must appear exactly once per process even
+    across many _load() calls (cache + warned-flag both prevent re-emission)."""
+    from ticket_reducer import _alias as alias_mod
 
-    path = _wordlist_path()
-    assert Path(path).is_file(), (
-        f"resolved wordlist path does not exist: {path!r} — if this fails, "
-        "the os.path.join('..', '..') count in _alias.py is wrong"
+    # Reset the module-level cache + warned flag so this test starts clean
+    monkeypatch.setattr(alias_mod, "_WORDS_CACHE", None)
+    monkeypatch.setattr(alias_mod, "_WARNED_MISSING", False)
+    monkeypatch.setenv("TICKET_WORDLIST_PATH", str(tmp_path / "does-not-exist.txt"))
+
+    alias_mod._load()
+    alias_mod._load()
+    alias_mod._load()
+    captured = capsys.readouterr()
+    occurrences = captured.err.count("ticket-wordlist.txt unavailable")
+    assert occurrences == 1, (
+        f"expected exactly one WARN, saw {occurrences} in stderr: {captured.err!r}"
     )

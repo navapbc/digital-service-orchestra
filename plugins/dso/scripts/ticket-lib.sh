@@ -1253,7 +1253,15 @@ resolve_ticket_id() {
     local _jira_matches=()
     local _resolver_script
     _resolver_script="$(dirname "${BASH_SOURCE[0]}")/ticket-alias-resolve.py"
-    local _scan_line _scan_kind _scan_id
+    if [ ! -f "$_resolver_script" ]; then
+        echo "Error: alias resolver missing at $_resolver_script" >&2
+        return 1
+    fi
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "Error: python3 not found in PATH (required for alias resolver)" >&2
+        return 1
+    fi
+    local _scan_kind _scan_id
     while IFS=$'\t' read -r _scan_kind _scan_id; do
         case "$_scan_kind" in
             alias) _alias_matches+=("$_scan_id") ;;

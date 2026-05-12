@@ -9,8 +9,10 @@ would have been assigned at creation.
 from __future__ import annotations
 
 import os
+import sys
 
 _WORDS_CACHE: tuple[list[str], list[str]] | None = None
+_WARNED_MISSING: bool = False
 
 
 def _wordlist_path() -> str:
@@ -25,14 +27,24 @@ def _wordlist_path() -> str:
 
 
 def _load() -> tuple[list[str], list[str]]:
-    global _WORDS_CACHE
+    """Load and cache the (adjs, nouns) tuple. Mirrors the file-format and
+    fallback behaviour of ticket-alias-compute.py so backfilled aliases match
+    aliases stored at creation time byte-for-byte.
+
+    When the wordlist file cannot be opened, emits a one-shot WARN to stderr
+    (matching the shell helper's "FALLBACK" stderr signal) and returns empty
+    lists — caller then falls back to the 8-hex alias. Silent fallback hides
+    a real misconfiguration; the diagnostic is printed exactly once per
+    process to avoid log flood under bulk invocation."""
+    global _WORDS_CACHE, _WARNED_MISSING
     if _WORDS_CACHE is not None:
         return _WORDS_CACHE
     adjs: list[str] = []
     nouns: list[str] = []
     section = "adj"
+    path = _wordlist_path()
     try:
-        with open(_wordlist_path(), encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             for line in f:
                 line = line.rstrip("\n")
                 if line == "# NOUNS":
@@ -41,8 +53,15 @@ def _load() -> tuple[list[str], list[str]]:
                 if line.startswith("#") or not line.strip():
                     continue
                 (adjs if section == "adj" else nouns).append(line.strip())
-    except OSError:
-        pass
+    except OSError as exc:
+        if not _WARNED_MISSING:
+            print(
+                f"WARN: ticket-wordlist.txt unavailable at {path!r} ({exc}); "
+                "falling back to 8-hex aliases. Set TICKET_WORDLIST_PATH to "
+                "override.",
+                file=sys.stderr,
+            )
+            _WARNED_MISSING = True
     _WORDS_CACHE = (adjs, nouns)
     return _WORDS_CACHE
 
