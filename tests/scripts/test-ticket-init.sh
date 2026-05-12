@@ -504,4 +504,32 @@ test_ticket_init_emits_error_and_exits_when_worktree_add_fails() {
 }
 test_ticket_init_emits_error_and_exits_when_worktree_add_fails
 
+# ── Test 16: test_ticket_init_succeeds_on_blank_repo_zero_commits ─────────────
+# Given: freshly git-initialized repo with zero commits (no HEAD)
+# When:  ticket init runs
+# Then:  .tickets-tracker/ is created and init exits 0 (git worktree add --orphan
+#        handles the no-HEAD case; git < 2.40 gets a clear error message instead)
+echo "Test 16: ticket init succeeds on blank repo (zero commits, no HEAD)"
+test_ticket_init_succeeds_on_blank_repo_zero_commits() {
+    local tmp repo
+    tmp=$(mktemp -d)
+    _CLEANUP_DIRS+=("$tmp")
+    repo="$tmp/blank"
+    git init "$repo" --quiet
+    git -C "$repo" config user.email "test@test.com"
+    git -C "$repo" config user.name "Test"
+
+    local exit_code=0
+    (cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || exit_code=$?
+
+    assert_eq "blank-repo init: exits 0" "0" "$exit_code"
+
+    if [ -d "$repo/.tickets-tracker" ]; then
+        assert_eq "blank-repo init: .tickets-tracker/ exists" "exists" "exists"
+    else
+        assert_eq "blank-repo init: .tickets-tracker/ exists" "exists" "missing"
+    fi
+}
+test_ticket_init_succeeds_on_blank_repo_zero_commits
+
 print_summary

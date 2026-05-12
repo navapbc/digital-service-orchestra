@@ -232,16 +232,28 @@ elif [ "$_branch_exists_remote" = true ]; then
     }
     rm -f "$_wt_err_tmp"
 else
-    # No branch anywhere — create orphan (portable: works with git < 2.40)
-    # git worktree add --orphan requires git 2.40+; use --detach + checkout --orphan instead
+    # No branch anywhere — create orphan branch.
+    # Use git worktree add --orphan when available (git >= 2.40): works even
+    # on blank repos with no HEAD. Fall back to --detach + checkout --orphan
+    # for older git (requires HEAD; fails on zero-commit repos).
     _wt_err_tmp=$(mktemp /tmp/dso-init-wt.XXXXXX)
-    git -C "$REPO_ROOT" worktree add --detach "$TRACKER_DIR" >/dev/null 2>"$_wt_err_tmp" || {
-        echo "ERROR: git worktree add (detach) failed: $(cat "$_wt_err_tmp")" >&2
-        rm -f "$_wt_err_tmp"; exit 1
-    }
+    _git_minor=$(git --version 2>/dev/null | grep -o '[0-9]\+\.[0-9]\+' | head -1 | cut -d. -f2 || echo "0")
+    _git_major=$(git --version 2>/dev/null | grep -o '[0-9]\+\.[0-9]\+' | head -1 | cut -d. -f1 || echo "2")
+    if (( _git_major > 2 || (_git_major == 2 && _git_minor >= 40) )); then
+        git -C "$REPO_ROOT" worktree add --orphan -b tickets "$TRACKER_DIR" >/dev/null 2>"$_wt_err_tmp" || {
+            echo "ERROR: git worktree add --orphan failed: $(cat "$_wt_err_tmp")" >&2
+            rm -f "$_wt_err_tmp"; exit 1
+        }
+    else
+        git -C "$REPO_ROOT" worktree add --detach "$TRACKER_DIR" >/dev/null 2>"$_wt_err_tmp" || {
+            echo "ERROR: git worktree add (detach) failed: $(cat "$_wt_err_tmp")" >&2
+            echo "NOTE: git < 2.40 detected. On a blank repo (zero commits), create an initial commit first: git commit --allow-empty -m 'init'" >&2
+            rm -f "$_wt_err_tmp"; exit 1
+        }
+        git -C "$TRACKER_DIR" checkout --orphan tickets 2>/dev/null
+        git -C "$TRACKER_DIR" rm -rf . --quiet 2>/dev/null || true
+    fi
     rm -f "$_wt_err_tmp"
-    git -C "$TRACKER_DIR" checkout --orphan tickets 2>/dev/null
-    git -C "$TRACKER_DIR" rm -rf . --quiet 2>/dev/null || true
 
     # Set user config with fallback to defaults
     _user_email="$(git -C "$REPO_ROOT" config user.email 2>/dev/null || echo "ticket-system@localhost")"
