@@ -49,6 +49,7 @@ bash "$PLUGIN_SCRIPTS/ticket-migrate-schema-hardening.sh" 2>/dev/null || true  #
 
 ## Stage-Boundary Entry Check
 
+<!-- EMIT-PRECONDITIONS: gate_name=sprint_preconditions_entry degradation_type=inferred_decision -->
 Source the preconditions validator library and run the entry check for the sprint stage (fail-open: `|| true` prevents blocking when no upstream implementation-plan event exists yet):
 
 ```bash
@@ -123,6 +124,7 @@ Load skills/sprint/prompts/auto-resume.md and follow the instructions it contain
 
 3. Mark ticket in-progress: `.claude/scripts/dso ticket transition <primary_ticket_id> in_progress`
 
+<!-- EMIT-PRECONDITIONS: gate_name=sprint_worktree_tracking degradation_type=inferred_decision -->
 Post WORKTREE_TRACKING:start on the epic ticket (fail silently if .tickets-tracker/ unavailable): # tickets-boundary-ok
 ```bash
 _BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
@@ -278,6 +280,7 @@ Run the ticket clarity check script:
 Parse the result:
 - **Exit 0 (CLEAR)**: ticket passes structural check; proceed to Layer 2.
 - **Exit 1 (UNCLEAR)**: log the reason; proceed to User Escalation (Layer 3).
+<!-- EMIT-PRECONDITIONS: gate_name=sprint_ticket_clarity_check degradation_type=inferred_decision -->
 - **Exit 2 (ERROR/ABSENT)**: script is missing or encountered an error; emit a warning (`"ticket-clarity-check.sh unavailable — falling through to Layer 2"`); proceed to Layer 2 (fail-open).
 
 #### Layer 2: Scope Certainty Assessment
@@ -299,6 +302,7 @@ Parse `scope_certainty` from the evaluator's JSON output:
 - **`High` or `Medium`**: proceed to Preplanning Gate.
 - **`Low`**: proceed to User Escalation (Layer 3).
 - **Unrecognized value**: treat as `Low` — proceed to User Escalation (Layer 3).
+<!-- EMIT-PRECONDITIONS: gate_name=sprint_complexity_evaluator degradation_type=inferred_decision -->
 - **Agent unavailability** (timeout, dispatch failure, API key absent): log `"WARNING: complexity-evaluator unavailable — falling through to Layer 3."` and proceed to User Escalation (Layer 3).
 
 #### Layer 3: User Escalation (AskUserQuestion)
@@ -401,6 +405,7 @@ If no trigger condition is met, proceed to Step 3 (SC Coverage Haiku Gate).
 
 1. Retrieve the epic's success criteria list from the epic ticket description.
 2. Retrieve child descriptions (already fetched by Step 1 and Step 2 above).
+<!-- EMIT-PRECONDITIONS: gate_name=sprint_sc_haiku_gate degradation_type=unresolved_question -->
 3. If the epic has **0 SCs** (empty success criteria list): log `"0-SC epic: skipping SC coverage haiku gate — no SCs to validate"` and proceed directly to Phase B. Do not dispatch the haiku sub-agent.
 
 **Step 2 — Dispatch haiku sub-agent**:
@@ -426,6 +431,7 @@ The haiku sub-agent returns a JSON object with this structure:
 ```
 Parse the `results` array. Check `verdict` on each entry. On any missing key, null `results`, or invalid JSON: trigger the fail-open path below.
 
+<!-- EMIT-PRECONDITIONS: gate_name=sprint_sc_haiku_parse degradation_type=inferred_decision -->
 **On parse failure** (malformed JSON, missing fields, timeout, or empty output): this gate is fail-open — log a warning `"SC coverage haiku gate: parse failure — skipping gate, proceeding to Phase B"` and proceed directly to Phase B. Do not block execution.
 
 **Step 4 — Emit idempotency marker and route on verdicts**:
@@ -482,6 +488,7 @@ The sonnet sub-agent returns a JSON object:
 ```
 Parse the `results` array. Check `verdict` on each entry.
 
+<!-- EMIT-PRECONDITIONS: gate_name=sprint_sc_sonnet_parse degradation_type=inferred_decision -->
 **On parse failure** (malformed JSON, missing fields, timeout, or empty output): this gate is fail-open — log a warning `"SC coverage sonnet gate: parse failure — treating all sonnet SCs as UNSURE, escalating to opus (Step 5)"` and treat ALL sonnet-evaluated SCs as `UNSURE`. Proceed to Step 5.
 
 **Step 4 — Collect verdicts**:
@@ -539,6 +546,7 @@ The opus sub-agent returns a JSON object:
 ```
 Parse the `results` array. Check `verdict` on each entry. Opus returns COVERED or MISSING only — no UNSURE.
 
+<!-- EMIT-PRECONDITIONS: gate_name=sprint_sc_opus_parse degradation_type=inferred_decision -->
 **On parse failure** (malformed JSON, missing fields, timeout, or empty output): fail-open conservative — log a warning `"SC coverage opus gate: parse failure — treating all unparseable SCs as MISSING (conservative fail-open)"` and treat ALL opus-evaluated SCs as `MISSING`. Add them to the `sc_coverage_missing` list.
 
 <!-- DESIGN-NOTE: intentional asymmetry — sonnet parse failure escalates to opus (fail-open toward "more review"),
@@ -1882,6 +1890,40 @@ After `git push -u origin HEAD` and blackboard cleanup are done, proceed to **St
 ### Step 18: Close Completed Tasks (/dso:sprint)
 
 After the batch commit and `git push -u origin HEAD` succeed, close each task whose code was successfully committed:
+
+**Unacked-degradation pre-check (Step 18 prerequisite):**
+Before verifying open children, check whether any PRECONDITIONS degradation entries are unacknowledged for this story:
+
+```bash
+bash "$PLUGIN_SCRIPTS/check-unacked-degradations.sh" <story-id>  # shim-exempt: internal orchestration script
+```
+
+- If exit 0: no unacked degradation entries — continue to the OPEN_CHILDREN check below.
+- If exit 1: the script prints each unacked decision_id on a separate line. Do NOT dispatch dso:completion-verifier.
+
+**When check-unacked-degradations.sh exits 1:**
+
+1. Parse the output lines (each line is one unacked decision_id, e.g., `sess:abc123`)
+2. Present to the user:
+   > "Story <story_id> has N unacked degradation(s):
+   > - <decision_id_1>: <gate_name> — <condition_text_snippet>
+   > - <decision_id_2>: ...
+   > 
+   > To proceed, acknowledge each degradation using:
+   >   `.claude/scripts/dso preconditions-ack <story_id> <decision_id> --if-skipped \"<your rationale>\"`
+   > 
+   > Or acknowledge a full class (>=4 entries) using:
+   >   `.claude/scripts/dso preconditions-ack <story_id> --sample-ack --class=<class> --if-skipped \"<rationale>\"`
+   > 
+   > Options: (a) I have acknowledged — re-check, (b) Skip story closure (leave open), (c) Force close anyway"
+3. Wait for user response:
+   - (a) Re-check: re-run check-unacked-degradations.sh; if clean → proceed to OPEN_CHILDREN check; if still fails → show prompt again (max 3 re-check cycles)
+   - (b) Skip: log STORY_CLOSURE_DEFERRED:<story_id>; do not close story; continue to next story
+   - (c) Force: log STORY_CLOSURE_FORCED:<story_id> REASON:user_override; proceed to OPEN_CHILDREN check
+
+Note (ordering): this check runs BEFORE dso:completion-verifier dispatch — stories with unreviewed graceful-degradation fallthroughs must not consume opus verification calls.
+Note (fail-open): if check-unacked-degradations.sh exits with an unexpected non-1 error code, log the failure to stderr and treat the check as clean (proceed to OPEN_CHILDREN check). Fail-open prevents the check from becoming a deployment blocker on unrelated infrastructure errors.
+Note (dso-94ya boundary): see ticket dso-94ya in the ticket system. If the dso-94ya preflight harness ships first and integrates this check, replace this standalone bash call with the harness invocation. Ship standalone for now; dso-94ya integrates on landing.
 
 **Pre-dispatch child closure check (Step 18 prerequisite):**
 Before dispatching dso:completion-verifier, verify all child tasks of this story are closed:

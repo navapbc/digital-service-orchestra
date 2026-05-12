@@ -6,7 +6,13 @@ name: Inbound Bridge
 on:
   schedule:
     - cron: '*/30 * * * *'
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      backfill:
+        description: 'Backfill historical Jira issues (overrides checkpoint). "1" = full backfill from epoch; ISO 8601 timestamp = backfill from that timestamp. Leave blank for normal incremental sync.'
+        required: false
+        default: ''
+        type: string
 
 concurrency:
   group: jira-bridge
@@ -158,6 +164,8 @@ jobs:
           INBOUND_STATUS_MAPPING: ${{ vars.INBOUND_STATUS_MAPPING || '{}' }}
           INBOUND_TYPE_MAPPING: ${{ vars.INBOUND_TYPE_MAPPING || '{}' }}
           JIRA_PROJECT: ${{ vars.JIRA_PROJECT }}
+          # Bug 7b07-d55c-59bb-4874: optional manual backfill switch (workflow_dispatch only).
+          INBOUND_BACKFILL: ${{ github.event.inputs.backfill }}
 
       - name: Commit CREATE events back to tickets branch
         run: |

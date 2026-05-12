@@ -23,6 +23,16 @@ repos:
         always_run: true
         stages: [pre-commit]
 
+      # Note (3aaa-0238 boundary): check-precondition-emit.sh only scans staged diff;
+      # no interaction with CI gate manifest or pre-commit-wrapper.sh timeout mechanism.
+      - id: precondition-emit-check
+        name: Precondition Emit Check (5s timeout)
+        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh precondition-emit-check 5 "plugins/dso/hooks/check-precondition-emit.sh"
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^plugins/dso/skills/
+
       - id: shim-refs-check
         name: Shim Refs Check (5s timeout)
         entry: ./plugins/dso/scripts/pre-commit-wrapper.sh shim-refs-check 5 "plugins/dso/scripts/check-shim-refs.sh"

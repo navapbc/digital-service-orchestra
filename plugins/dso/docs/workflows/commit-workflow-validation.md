@@ -63,11 +63,12 @@ echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-1-changed-tests" >> "$ARTIFACTS_DIR/co
 
 If integration or E2E tests fail after environment checks (DB/app running), apply this decision gate:
 
-**Fix inline**: Single obvious failure (typo, missing import, one-line fix) — fix it and re-run.
+**Fix inline**: Single obvious failure (typo, missing import, one-line fix) in **production source code only** — fix it and re-run. **NEVER apply inline fixes to test files, SKILL.md files, or agent guidance files** — test assertion changes and guidance changes are behavioral modifications that require sub-agent dispatch with review gate, not direct orchestrator edits. A "test logic error" diagnosis is not a valid exception: route it through the sub-agent path.
 
 **Delegate to sub-agent** (via [TEST-FAILURE-DISPATCH.md](TEST-FAILURE-DISPATCH.md)):
 - More than 1 test fails, OR
-- 1 test fails and an inline fix attempt did not resolve it.
+- 1 test fails and an inline fix attempt did not resolve it, OR
+- The fix requires editing test files or guidance files.
 
 Dispatch procedure:
 

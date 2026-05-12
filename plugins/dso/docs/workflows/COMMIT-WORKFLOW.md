@@ -130,6 +130,17 @@ ENFORCEMENT_STRATEGY=$(".claude/scripts/dso" read-config.sh enforcement.strategy
 if [[ "$ENFORCEMENT_STRATEGY" == "ci" ]]; then
     echo "enforcement.strategy=ci — skipping local /dso:review (CI runs llm-review on push)"
     # Do NOT invoke /dso:review or REVIEW-WORKFLOW.md — proceed to commit
+
+    # Emit .skipped markers so the compliance verifier does not block the commit.
+    # The verifier requires exactly these 5 artifacts (as .result or .skipped).
+    source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
+    ARTIFACTS_DIR=$(get_artifacts_dir)
+    mkdir -p "$ARTIFACTS_DIR"
+    .claude/scripts/dso commit-step skip test "enforcement.strategy=ci"
+    .claude/scripts/dso commit-step skip format "enforcement.strategy=ci"
+    .claude/scripts/dso commit-step skip lint "enforcement.strategy=ci"
+    .claude/scripts/dso commit-step skip classifier-dispatch "enforcement.strategy=ci"
+    .claude/scripts/dso commit-step skip reviewer-record "enforcement.strategy=ci"
 fi
 ```
 

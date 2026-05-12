@@ -32,7 +32,9 @@ You are a **Senior Software Engineer at Google** brought in to restore a project
 /dso:debug-everything --aws            # Include proactive AWS infrastructure scan in Phase B
 ```
 
-**Note on AWS CLI**: The `--aws` flag controls only the *proactive* infrastructure scan in Phase B. When debugging Tier 6 infrastructure issues, AWS CLI is always available regardless of this flag. If AWS auth is not configured, infrastructure checks are skipped gracefully.
+**Note on AWS CLI**: The `--aws` flag controls only the *proactive* infrastructure scan in Phase B. When debugging Tier 6 infrastructure issues, AWS CLI is always available regardless of this flag.
+<!-- EMIT-PRECONDITIONS: gate_name=debug_everything_aws_infra degradation_type=inferred_decision -->
+If AWS auth is not configured, infrastructure checks are skipped gracefully.
 
 ## Orchestration Flow
 
@@ -138,6 +140,7 @@ Run `validate.sh --ci` to populate the validation state file. This serves two pu
 
 **Bash timeout**: Use `timeout: 600000` (10 minutes — the TaskOutput hard cap). The smart CI wait in validate.sh can poll for up to 15 minutes, but the TaskOutput tool caps at 600000ms; use `|| true` and check the state file for CI results if the call times out.
 
+<!-- EMIT-PRECONDITIONS: gate_name=debug_everything_validate_sh degradation_type=inferred_decision -->
 **Note**: The `|| true` ensures we continue regardless of outcome — `/dso:debug-everything` is the skill that *fixes* validation failures, so it must not stop here.
 
 **Parse the state file** to extract passing and failing categories:
@@ -792,6 +795,7 @@ git diff | python3 "$PLUGIN_SCRIPTS/semantic-conflict-check.py"  # shim-exempt: 
 Parse the JSON output:
 - `"clean": true` — proceed with commit (Step 11).
 - `"clean": false` — log conflicts, present to orchestrator for review. If any conflict has `"severity": "high"`, revert the conflicting files and re-dispatch the responsible sub-agent. If all conflicts are medium/low, note them in ticket and proceed.
+<!-- EMIT-PRECONDITIONS: gate_name=debug_everything_semantic_conflict degradation_type=inferred_decision -->
 - `"error"` field present — log warning, proceed with commit (graceful degradation). Semantic conflict check failure is non-fatal.
 
 ### Step 11: Commit & Sync (/dso:debug-everything)
@@ -816,6 +820,7 @@ DISCOVERIES=$(.claude/scripts/dso collect-discoveries.sh --format=prompt)
 
 If discoveries exist (non-empty and not just `"None."`), inject the `## PRIOR_BATCH_DISCOVERIES` section into the next batch's sub-agent prompts by appending it to the fix-task prompt context.
 
+<!-- EMIT-PRECONDITIONS: gate_name=debug_everything_discovery_propagation degradation_type=inferred_decision -->
 If `collect-discoveries.sh` fails, log a warning and proceed without discovery propagation (graceful degradation).
 
 ### Step 13: Continuation Decision (/dso:debug-everything)

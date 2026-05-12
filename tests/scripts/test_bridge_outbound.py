@@ -1760,8 +1760,13 @@ def test_fetch_events_three_commits(tmp_path):
     )
 
 
-def test_cold_start_seeds_at_head_returns_empty(tmp_path):
-    """Cold start (cursor=None): seeds at HEAD, returns empty event list."""
+def test_cold_start_returns_full_history(tmp_path):
+    """Cold start (cursor=None) walks full tracker history and returns ALL
+    pre-existing events (bug f8a9-2cb0).
+
+    Previously, cold-start seeded at HEAD and returned [], silently dropping
+    every pre-existing CREATE event on the first bridge run.
+    """
     _setup_scripts_path()
     from bridge._outbound_cursor import fetch_events_since_cursor
 
@@ -1771,12 +1776,9 @@ def test_cold_start_seeds_at_head_returns_empty(tmp_path):
     events = fetch_events_since_cursor(
         repo, cursor_sha=None, bridge_env_id="", run_id="test-run"
     )
-    assert events == [] or len(events) == 0, (
-        "Cold start must return empty list (no retroactive history push)"
+    assert len(events) >= 2, (
+        f"Cold-start must return pre-existing events; got {len(events)}"
     )
-    # Check a BRIDGE_ALERT was written somewhere in the repo
-    alert_files = list(repo.rglob("*-BRIDGE_ALERT.json"))
-    assert len(alert_files) >= 1, "Cold start must emit a BRIDGE_ALERT"
 
 
 def test_process_events_multi_commit_catches_all_events(tmp_path):
@@ -2031,4 +2033,152 @@ def test_process_outbound_isolates_handler_failure_continues_to_next_event(
     assert add_comment_args is not None
     assert add_comment_args[0][0] == "DSO-C", (
         f"add_comment must be called with DSO-C; got {add_comment_args!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Bug 6f78-e9c4: STATUS before CREATE in batch causes permanent loss
+# Fix A: sort_events_for_dispatch must order CREATE before STATUS for same ticket
+# Fix B: handle_status_event must raise (not just alert) when retroactive CREATE
+#         returns empty/falsy key — so the per-event try/except in
+#         process_outbound prevents the cursor from advancing past the failure.
+# ---------------------------------------------------------------------------
+
+
+def _load_handlers() -> ModuleType:
+    """Load _outbound_handlers module directly for unit testing handlers."""
+    import importlib.util as _ilu
+    import sys
+
+    handlers_path = (
+        REPO_ROOT / "plugins" / "dso" / "scripts" / "bridge" / "_outbound_handlers.py"
+    )
+    if str(REPO_ROOT / "plugins" / "dso" / "scripts") not in sys.path:
+        sys.path.insert(0, str(REPO_ROOT / "plugins" / "dso" / "scripts"))
+    spec = _ilu.spec_from_file_location("_outbound_handlers_test_6f78", handlers_path)
+    assert spec is not None and spec.loader is not None
+    mod = _ilu.module_from_spec(spec)
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    return mod
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_sort_events_for_dispatch_orders_create_before_status_same_ticket() -> None:
+    """When a batch contains both CREATE and STATUS for the same ticket and
+    STATUS appears first in the input list (as happens with newest-first
+    git-log order from fetch_events_since_cursor), sort_events_for_dispatch
+    must reorder them so CREATE precedes STATUS. Otherwise STATUS reaches
+    its handler before the Jira issue exists and the event is permanently
+    dropped when cursor advances past it (bug 6f78-e9c4).
+    """
+    handlers = _load_handlers()
+
+    ticket_id = "bug6f78-ticket"
+    # Newest-first git-log order: STATUS (newer commit) before CREATE.
+    events = [
+        {"ticket_id": ticket_id, "event_type": "STATUS", "file_path": ""},
+        {"ticket_id": ticket_id, "event_type": "CREATE", "file_path": ""},
+    ]
+
+    sorted_events = handlers.sort_events_for_dispatch(events)
+
+    types = [e.get("event_type") for e in sorted_events]
+    create_idx = types.index("CREATE")
+    status_idx = types.index("STATUS")
+    assert create_idx < status_idx, (
+        "sort_events_for_dispatch must place CREATE before STATUS for the "
+        f"same ticket; got order: {types}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_handle_status_event_raises_when_retroactive_create_returns_empty_key(
+    tmp_path: Path,
+) -> None:
+    """When handle_status_event takes the retroactive-CREATE path (CREATE.json
+    on disk, no SYNC.json) and acli_client.create_issue returns an empty key
+    (synthetic CREATE failed), the handler must RAISE an exception. This lets
+    process_outbound's per-event try/except catch the failure and prevents the
+    cursor from advancing past the dropped STATUS event (bug 6f78-e9c4 Fix B).
+    """
+    handlers = _load_handlers()
+
+    ticket_id = "bug6f78-empty-key"
+    ticket_dir = tmp_path / ticket_id
+    ticket_dir.mkdir()
+
+    # CREATE present on disk, no SYNC — retroactive path will be taken.
+    _write_event(
+        ticket_dir,
+        timestamp=1742605100,
+        uuid=_UUID1,
+        event_type="CREATE",
+        data={"ticket_type": "task", "title": "Retroactive empty-key test"},
+        env_id=_OTHER_ENV_ID,
+    )
+    _write_event(
+        ticket_dir,
+        timestamp=1742605200,
+        uuid=_UUID2,
+        event_type="STATUS",
+        data={"status": "in_progress"},
+        env_id=_OTHER_ENV_ID,
+    )
+
+    # Mock acli_client where create_issue returns empty key (the failure mode).
+    acli_client = MagicMock()
+    acli_client.create_issue.return_value = {"key": ""}
+
+    status_updated: set[str] = set()
+    event = {
+        "ticket_id": ticket_id,
+        "event_type": "STATUS",
+        "file_path": "",
+    }
+
+    with pytest.raises(Exception):  # noqa: B017,PT011
+        handlers.handle_status_event(
+            event,
+            acli_client=acli_client,
+            tickets_root=tmp_path,
+            bridge_env_id="bridge-env",
+            run_id="test-run",
+            reducer_path=REDUCER_PATH,
+            status_updated=status_updated,
+        )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_sort_events_for_dispatch_link_unlink_are_group0_before_group1() -> None:
+    """LINK/UNLINK events (group 0) must sort before all non-LINK/UNLINK events
+    (group 1) regardless of their position in the input list or their timestamp.
+
+    The two-group sort key encodes LINK/UNLINK as group 0 and everything else
+    as group 1 so relationship-management operations are dispatched first.
+    """
+    handlers = _load_handlers()
+
+    # Input: STATUS and CREATE (group 1) appear BEFORE LINK (group 0)
+    events = [
+        {"ticket_id": "ticket-aaa", "event_type": "STATUS", "file_path": ""},
+        {"ticket_id": "ticket-bbb", "event_type": "CREATE", "file_path": ""},
+        {"ticket_id": "ticket-ccc", "event_type": "LINK", "file_path": ""},
+        {"ticket_id": "ticket-ddd", "event_type": "UNLINK", "file_path": ""},
+    ]
+
+    sorted_events = handlers.sort_events_for_dispatch(events)
+    types = [e["event_type"] for e in sorted_events]
+
+    # All LINK/UNLINK must precede all STATUS/CREATE
+    link_indices = [i for i, t in enumerate(types) if t in ("LINK", "UNLINK")]
+    group1_indices = [i for i, t in enumerate(types) if t not in ("LINK", "UNLINK")]
+
+    assert link_indices, "LINK/UNLINK events must appear in sorted output"
+    assert group1_indices, "Non-LINK/UNLINK events must appear in sorted output"
+    assert max(link_indices) < min(group1_indices), (
+        f"All LINK/UNLINK (group 0) must sort before all STATUS/CREATE (group 1); "
+        f"got order: {types}"
     )

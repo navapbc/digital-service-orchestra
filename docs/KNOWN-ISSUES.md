@@ -19,6 +19,7 @@
 | [Plugin System](#plugin-system) | 3 | 2026-05 |
 | [Bridge](#bridge) | 1 | 2026-05 |
 | [Compliance Verifier / Commit Steps](#compliance-verifier-and-commit-steps) | 6 | 2026-05 |
+| [PRECONDITIONS / Ack Mechanism](#preconditions-and-ack-mechanism) | 2 | 2026-05 |
 
 ## Quick Reference by Incident ID
 
@@ -46,6 +47,8 @@
 | INC-027 | Branch-name slashes do not cause ARTIFACTS_DIR path divergence | Compliance Verifier / Commit Steps | ARTIFACTS_DIR, SHA-256, REPO_ROOT hash, branch name, slashes |
 | INC-028 | Combined skip conditions write one .skipped file, not two | Compliance Verifier / Commit Steps | enforcement.strategy=ci, SKIP_REVIEW, .skipped, commit-step, first-wins |
 | INC-029 | record-test-status.sh --attest is harvest-mode, not a pass-recorder | Compliance Verifier / Commit Steps | record-test-status, --attest, worktree harvest, harvest sub-agent, passing test |
+| INC-031 | Non-Latin precondition text requires human ack review | PRECONDITIONS / Ack Mechanism | preconditions-ack, non-Latin, MANUAL_REVIEW_REQUIRED, exit 2, rationale, unicode |
+| INC-032 | Cross-worktree ack race window | PRECONDITIONS / Ack Mechanism | check-unacked-degradations, ack, worktree, tickets branch, sync, race window |
 
 ---
 
@@ -402,3 +405,29 @@
   ```
   Use `--attest` only when you are a harvest sub-agent importing results from a completed worktree branch.
 - **Rule added**: `--attest` is only for harvest sub-agents. Never use it to record a passing test status in a normal workflow.
+
+---
+
+## PRECONDITIONS and Ack Mechanism
+
+### INC-031: Non-Latin Precondition Text Requires Human Ack Review
+
+- **Date**: 2026-05
+- **Keywords**: preconditions-ack, non-Latin, MANUAL_REVIEW_REQUIRED, exit 2, rationale, unicode, CJK, Arabic, Cyrillic
+- **Symptom**: `dso preconditions-ack` exits 2 with a `MANUAL_REVIEW_REQUIRED` message when the precondition text or the provided rationale contains non-Latin characters (CJK, Arabic, Cyrillic, etc.).
+- **Root cause**: The automated 3-word-window validation algorithm matches key terms from the precondition text against the rationale. The windowing logic uses Latin-alphabet tokenization and cannot reliably match non-Latin scripts, so it conservatively escalates to manual review rather than risk a false-positive approval.
+- **Detection**: Exit code 2 from `preconditions-ack`; stderr includes `MANUAL_REVIEW_REQUIRED`. Latin-only preconditions with equivalent English rationale pass without this error.
+- **Workaround**: A human reviewer must manually verify the rationale and perform the ack with their own `--if-skipped` text that references an English translation of the precondition. The automated gate cannot approve non-Latin rationales.
+- **Rule candidate**: If 3+ non-Latin preconditions appear in the same project, propose adding a `PRECONDITIONS_LOCALE` config key to route to a locale-aware validator.
+
+---
+
+### INC-032: Cross-Worktree Ack Race Window
+
+- **Date**: 2026-05
+- **Keywords**: check-unacked-degradations, ack, worktree, tickets branch, sync, race window, cross-worktree
+- **Symptom**: `check-unacked-degradations.sh` reports unacknowledged degradations even though another worktree session has already written ACK files for those degradations.
+- **Root cause**: ACK files are written to the `tickets` orphan branch. If the `tickets` branch has not been synced between worktrees (e.g., via `git -C .tickets-tracker fetch origin tickets && git -C .tickets-tracker rebase origin/tickets`), the check reads a stale branch state and cannot see ACKs written by the other session.
+- **Detection**: `check-unacked-degradations.sh` exits non-zero listing degradations that you know were already acked in another worktree. Running `git -C .tickets-tracker log --oneline -5` shows that the local tickets branch is behind the remote.
+- **Workaround**: Run `.claude/scripts/dso ticket sync` (or the equivalent `git -C .tickets-tracker fetch && git -C .tickets-tracker rebase origin/tickets`) between worktrees before running `check-unacked-degradations.sh`. This ensures all ACKs written in other sessions are visible locally.
+- **Prevention**: Always sync the tickets branch when switching between worktree sessions that involve PRECONDITIONS acks.

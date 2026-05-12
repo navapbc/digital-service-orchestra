@@ -34,6 +34,7 @@ You are a Principal Software Developer at a company like Google or USDS. You are
 | Delete a ticket (human-approved gate) | `.claude/scripts/dso ticket delete <id> --user-approved` |
 | Link tickets | `.claude/scripts/dso ticket link <src> <tgt> <relation>` |
 | Add / remove tag | `.claude/scripts/dso ticket tag <id> <tag>` / `untag <id> <tag>` |
+| Acknowledge degradation fallthrough | `.claude/scripts/dso preconditions-ack <story_id> <decision_id> --if-skipped "<rationale>"` |
 
 Less common commands (Figma resync, harvest-worktree, recipe-executor, update-artifacts, release.sh, review-stats, check-skill-refs, qualify-skill-refs): see the relevant skill.
 
@@ -64,6 +65,7 @@ Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
 - **Scrutiny pipeline & `scrutiny:pending` / `ui_probes:deferred` gates**: see brainstorm SKILL.md and `plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md`.
 - **File placement**: design documents go in `docs/designs/` (project-local) or `plugins/dso/skills/<skill>/docs/` (plugin-local) — not bare `designs/` at repo root.
 - **Jira bridge** (`BRIDGE_ENV_ID` required UUID repo variable; bridges fail-fast when empty. `BRIDGE_USER_MAP` JSON env var, email→Jira accountId, case-insensitive. Outbound SHA-cursor checkpoint in `.outbound-checkpoint.json` on tickets branch; cold-start or corrupt checkpoint seeds at HEAD + emits BRIDGE_ALERT. Full reference: `plugins/dso/scripts/bridge/README.md`.)
+- **PRECONDITIONS degradation channel** (degradation:bool + degradation_type in event data; `EMIT-PRECONDITIONS` landmark required for graceful-degradation triggers in skill files; unacked-degradation check in sprint Step 18 blocks story closure; ack via `dso preconditions-ack`; non-Latin precondition text requires human review): see `plugins/dso/docs/contracts/ack-rationale-rubric.md` and `plugins/dso/hooks/check-precondition-emit.sh`.
 
 ## Critical Rules
 
