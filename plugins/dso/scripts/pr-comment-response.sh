@@ -304,6 +304,136 @@ print(json.dumps({"comments": normalized, "skipped_count": skipped}, indent=2))
 PYEOF
 }
 
+# ── _handle_defer ─────────────────────────────────────────────────────────────
+# Implements the defer action handler (Story 4 / story 93cb-ef60).
+#
+# Creates a DSO tracking ticket for the deferred comment, writes the ticket ID
+# to the normalized JSON BEFORE posting a thread reply. On retry (ticket_id
+# already present in JSON), skips ticket creation and goes straight to reply.
+#
+# Usage: _handle_defer <output_path> <comment_id> <pr_number>
+# Returns: 0 on success, 1 on ticket creation failure (reply is suppressed)
+_handle_defer() {
+    local output_path="$1"
+    local comment_id="$2"
+    local pr_number="$3"
+
+    # 1. Read existing ticket_id (retry check)
+    local existing_ticket_id
+    existing_ticket_id=$(python3 - "$output_path" "$comment_id" << 'PYEOF'
+import json, sys
+path, cid = sys.argv[1], sys.argv[2]
+with open(path) as fh:
+    data = json.load(fh)
+comments = data.get("comments", data) if isinstance(data, dict) else data
+for c in (comments if isinstance(comments, list) else []):
+    if c.get("comment_id") == cid:
+        print(c.get("ticket_id") or "")
+        sys.exit(0)
+print("")
+PYEOF
+)
+
+    # 2. Read comment body for ticket context
+    local comment_body
+    comment_body=$(python3 - "$output_path" "$comment_id" << 'PYEOF'
+import json, sys
+path, cid = sys.argv[1], sys.argv[2]
+with open(path) as fh:
+    data = json.load(fh)
+comments = data.get("comments", data) if isinstance(data, dict) else data
+for c in (comments if isinstance(comments, list) else []):
+    if c.get("comment_id") == cid:
+        print(c.get("body") or "")
+        sys.exit(0)
+print("")
+PYEOF
+)
+
+    local ticket_id="$existing_ticket_id"
+
+    # 3. Create ticket only if not already set (idempotent retry)
+    if [[ -z "$ticket_id" ]]; then
+        local short_body="${comment_body:0:100}"
+        local create_output=""
+        local create_rc=0
+        # Resolve dso CLI: prefer PATH-visible 'dso' (interceptable by test stubs)
+        # before falling back to the host project shim.
+        local _dso_cmd
+        if command -v dso >/dev/null 2>&1; then
+            _dso_cmd="dso"
+        else
+            _dso_cmd=".claude/scripts/dso"
+        fi
+        create_output=$("$_dso_cmd" ticket create task \
+            "PR comment deferred: ${short_body}" \
+            --priority 3 \
+            -d "Deferred PR comment body: ${comment_body}" 2>&1) || create_rc=$?
+
+        if (( create_rc != 0 )); then
+            echo "ERROR: defer ticket creation failed for comment $comment_id" >&2
+            return 1
+        fi
+
+        # Parse: "Created ticket <id>: ..."
+        ticket_id=$(echo "$create_output" | grep '^Created ticket' | awk '{print $3}' | tr -d ':')
+        if [[ -z "$ticket_id" ]]; then
+            echo "ERROR: could not parse ticket ID from: $create_output" >&2
+            return 1
+        fi
+    fi
+
+    # 4. Write ticket_id to JSON BEFORE posting reply
+    python3 - "$output_path" "$comment_id" "$ticket_id" << 'PYEOF'
+import json, sys
+path, cid, ticket_id = sys.argv[1], sys.argv[2], sys.argv[3]
+with open(path) as fh:
+    data = json.load(fh)
+comments = data.get("comments", data) if isinstance(data, dict) else data
+for c in (comments if isinstance(comments, list) else []):
+    if c.get("comment_id") == cid:
+        c["ticket_id"] = ticket_id
+        break
+with open(path, "w") as fh:
+    json.dump(data if isinstance(data, dict) else {"comments": comments, "skipped_count": 0}, fh, indent=2)
+PYEOF
+
+    # 5. Read is_inline and root_comment_id for reply routing
+    local is_inline root_comment_id
+    is_inline=$(python3 - "$output_path" "$comment_id" << 'PYEOF'
+import json, sys
+path, cid = sys.argv[1], sys.argv[2]
+with open(path) as fh:
+    data = json.load(fh)
+comments = data.get("comments", data) if isinstance(data, dict) else data
+for c in (comments if isinstance(comments, list) else []):
+    if c.get("comment_id") == cid:
+        print("true" if c.get("is_inline") else "false")
+        sys.exit(0)
+print("false")
+PYEOF
+)
+    root_comment_id=$(python3 - "$output_path" "$comment_id" << 'PYEOF'
+import json, sys
+path, cid = sys.argv[1], sys.argv[2]
+with open(path) as fh:
+    data = json.load(fh)
+comments = data.get("comments", data) if isinstance(data, dict) else data
+for c in (comments if isinstance(comments, list) else []):
+    if c.get("comment_id") == cid:
+        print(c.get("root_comment_id") or cid)
+        sys.exit(0)
+print(cid)
+PYEOF
+)
+
+    # 6. Post thread reply with sentinel and ticket ID
+    local body
+    body="<!-- dso-agent-reply -->
+Deferred to tracking ticket ${ticket_id}. This comment has been logged for follow-up."
+    post_thread_reply "$pr_number" "$root_comment_id" "$body" "$is_inline"
+}
+
 # ── Action handlers (stubs for Stories 2, 3, 4) ─────────────────────────────
 # These are called when --classify-as flags are provided. Stubs that allow
 # future stories to implement the actual handlers without changing the CLI.
@@ -344,23 +474,10 @@ PYEOF
                 fi
                 ;;
             defer)
-                # Stub: create a DSO tracking ticket and record its ID
-                local ticket_id="deferred-$(date +%s%N)"
-                if [[ -f "$output_path" ]]; then
-                    python3 - "$output_path" "$comment_id" "$ticket_id" << 'PYEOF'
-import json, sys
-path, cid, ticket_id = sys.argv[1], sys.argv[2], sys.argv[3]
-with open(path) as fh:
-    data = json.load(fh)
-comments = data.get("comments", data) if isinstance(data, dict) else data
-for c in (comments if isinstance(comments, list) else []):
-    if c.get("comment_id") == cid:
-        c["ticket_id"] = ticket_id
-        break
-with open(path, "w") as fh:
-    json.dump(data if isinstance(data, dict) else {"comments": comments, "skipped_count": 0}, fh, indent=2)
-PYEOF
-                fi
+                _handle_defer "$output_path" "$comment_id" "$_PR_NUMBER" || {
+                    echo "ERROR: defer handler failed for comment $comment_id" >&2
+                    return 1
+                }
                 ;;
             accept)
                 # Stub: accept handler dispatches fix sub-agent (Story 2)
@@ -402,6 +519,44 @@ sys.exit(1)
     # Normalize
     local normalized
     normalized=$(_normalize_comments "$_PR_NUMBER" "$raw_json")
+
+    # Merge preserved fields: if output file already exists with prior run data,
+    # restore ticket_id and defense_comment_id so retry runs are idempotent.
+    if [[ -f "$_OUTPUT_PATH" ]]; then
+        local _tmp_normalized
+        _tmp_normalized=$(mktemp "/tmp/dso-pr-normalized.XXXXXX")
+        echo "$normalized" > "$_tmp_normalized"
+        normalized=$(python3 - "$_tmp_normalized" "$_OUTPUT_PATH" << 'PYEOF'
+import json, sys
+new_path, old_path = sys.argv[1], sys.argv[2]
+with open(new_path) as fh:
+    new_data = fh.read()
+try:
+    new = json.loads(new_data)
+except Exception:
+    print(new_data)
+    sys.exit(0)
+try:
+    with open(old_path) as fh:
+        old = json.load(fh)
+except Exception:
+    print(new_data)
+    sys.exit(0)
+old_comments = old.get("comments", []) if isinstance(old, dict) else []
+old_by_id = {c.get("comment_id"): c for c in old_comments if isinstance(c, dict)}
+for c in new.get("comments", []):
+    cid = c.get("comment_id")
+    if cid and cid in old_by_id:
+        old_c = old_by_id[cid]
+        if old_c.get("ticket_id") is not None:
+            c["ticket_id"] = old_c["ticket_id"]
+        if old_c.get("defense_comment_id") is not None:
+            c["defense_comment_id"] = old_c["defense_comment_id"]
+print(json.dumps(new, indent=2))
+PYEOF
+)
+        rm -f "$_tmp_normalized"
+    fi
 
     # Write output
     echo "$normalized" > "$_OUTPUT_PATH"
