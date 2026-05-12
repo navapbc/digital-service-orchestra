@@ -463,16 +463,20 @@ defense_store_list() {
   # Fail-safe: if the fetch fails, emit zero records and exit 3 so the CI
   # mirror step is a no-op rather than dumping every defense in the repo.
   local pr_files_file=""
+  # Cleanup helper — called on every return path so the mktemp never leaks.
+  _defense_list_cleanup() {
+    [[ -n "${pr_files_file:-}" ]] && rm -f "$pr_files_file"
+  }
   if [[ -n "$pr_number" ]]; then
     pr_files_file=$(mktemp /tmp/defense-pr-files.XXXXXX)
     if ! gh pr view "$pr_number" --json files -q '.files[].path' > "$pr_files_file" 2>/dev/null; then
       echo "review-defense-store.sh list: failed to fetch PR #${pr_number} file list — emitting zero records" >&2
-      rm -f "$pr_files_file"
+      _defense_list_cleanup
       return 3
     fi
     # Empty file list (e.g. PR with no diff) → no defenses can match.
     if ! [[ -s "$pr_files_file" ]]; then
-      rm -f "$pr_files_file"
+      _defense_list_cleanup
       return 0
     fi
   fi
@@ -485,6 +489,7 @@ defense_store_list() {
       git_ref='origin/tickets'
     else
       echo "defense_store_list: no 'tickets' or 'origin/tickets' ref available" >&2
+      _defense_list_cleanup
       return 1
     fi
   fi
@@ -497,6 +502,7 @@ defense_store_list() {
   comment_files=$(git ls-tree -r --name-only "$git_ref" 2>/dev/null | grep -E '/[0-9]+-[a-f0-9-]+-COMMENT\.json$' || true)
 
   if [[ -z "$comment_files" ]]; then
+    _defense_list_cleanup
     return 0
   fi
 
@@ -611,7 +617,7 @@ for line in sys.stdin:
   local _rc=$?
 
   # Cleanup the PR-files temp file (no-op if --all-no-pr-filter).
-  [[ -n "$pr_files_file" ]] && rm -f "$pr_files_file"
+  _defense_list_cleanup
   return $_rc
 }
 

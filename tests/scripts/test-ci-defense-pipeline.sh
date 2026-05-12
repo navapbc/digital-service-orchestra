@@ -18,7 +18,7 @@
 # Usage: bash tests/scripts/test-ci-defense-pipeline.sh
 # Returns: exit 0 if all assertions pass, exit 1 if any fail.
 
-set -uo pipefail
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"

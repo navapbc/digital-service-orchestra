@@ -50,14 +50,22 @@ jobs:
 
       # Compute review cycle: each prior run uploads a story-diff artifact, but
       # the most reliable in-job signal here is the presence of the prior-review
-      # artifact downloaded above. If /tmp/prior-review/findings.json exists,
-      # this is at least cycle 2; otherwise cycle 1. The runner.py cycle_number
-      # gate (runner.py:789) uses this value to enable the suppression branches.
+      # artifact downloaded above. Read the prior cycle number from the
+      # findings.json (runner.py writes `cycle_number` per cycle) and
+      # increment. Falls back to cycle 1 when no artifact is present, and
+      # to prior=1 (current=2) when the field is missing/unparseable.
       - name: Compute DSO_REVIEW_CYCLE
         run: |
           if [[ -s /tmp/prior-review/findings.json ]]; then
-            echo "DSO_REVIEW_CYCLE=2" >> "$GITHUB_ENV"
-            echo "Computed DSO_REVIEW_CYCLE=2 (prior-review artifact present)"
+            # Read prior cycle_number from the artifact (runner.py writes
+            # this field per cycle). Use jq because it parses single-line
+            # safely without triggering YAML/bash quoting hazards. Falls
+            # back to prior=1 on any parse error or missing field.
+            PRIOR_CYCLE=$(jq -r '.cycle_number // 1' /tmp/prior-review/findings.json 2>/dev/null || echo 1)
+            [[ "$PRIOR_CYCLE" =~ ^[0-9]+$ ]] || PRIOR_CYCLE=1
+            CURRENT_CYCLE=$((PRIOR_CYCLE + 1))
+            echo "DSO_REVIEW_CYCLE=$CURRENT_CYCLE" >> "$GITHUB_ENV"
+            echo "Computed DSO_REVIEW_CYCLE=$CURRENT_CYCLE (prior cycle from artifact: $PRIOR_CYCLE)"
           else
             echo "DSO_REVIEW_CYCLE=1" >> "$GITHUB_ENV"
             echo "Computed DSO_REVIEW_CYCLE=1 (no prior-review artifact)"
