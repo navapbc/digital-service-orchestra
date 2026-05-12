@@ -4,9 +4,9 @@ How the DSO plugin participates in CI: llm-review orchestration, version resolut
 
 ## CI llm-review orchestrator
 
-`${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/` is a Python package; `ci-llm-review-runner.sh` is a 29-line shim that resolves `_PLUGIN_ROOT` and execs `python3 -m dso_ci_review.runner`. (`llm-api-call.sh` was deleted in S3.)
+`${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/` is a Python package; `ci-llm-review-runner.sh` is a 29-line shim that resolves `_PLUGIN_ROOT` and execs `python3 -m dso_ci_review.runner`. (`llm-api-call.sh` was deleted in S3.) <!-- shim-exempt: documentation reference, not an invocation path -->
 
-- Auto-detects local-checkout vs fetched-assets mode via marker file `${CLAUDE_PLUGIN_ROOT}/.dso-source-of-truth`.
+- Auto-detects local-checkout vs fetched-assets mode via marker file `${CLAUDE_PLUGIN_ROOT}/.dso-source-of-truth`. <!-- shim-exempt: documentation reference, not an invocation path -->
 - Parallel overlay dispatch (`&` fan-out + single `wait`).
 - Does **not** consult `check-usage.sh` — CI is not subject to interactive throttling.
 
@@ -24,6 +24,17 @@ The plugin marketplace (`marketplace.json`) exposes two channels:
 Advancing the stable channel requires running `scripts/release.sh` at the repo root, which enforces 10 precondition gates (semver validation, gh auth, tag uniqueness, on-main, clean tree, upstream sync, CI green, `validate.sh --ci`, marketplace.json validity, and interactive confirmation) before creating and pushing the release tag.
 
 Consumers who want stability install `dso`; consumers who want every merge install `dso-dev`. See `VERSIONING.md` for the broader release discipline.
+
+## CI llm-review: Strategy E — Region-Split FALLBACK
+
+When a PR diff exceeds **400 LOC or 15 files**, `_should_region_split()` returns True and the review pipeline switches to file-clustered parallel review instead of submitting the full diff to a single reviewer pass.
+
+- `_cluster_files()` groups changed files by directory prefix into up to 5 clusters.
+- Each cluster is reviewed in parallel by tier-appropriate reviewers (same tier selection as the standard path).
+- Findings from all clusters are deduplicated via `deduplicate_region_findings()`: when the same finding appears in multiple clusters, the MAX severity is kept and both rationales are merged.
+- A final Opus arch synthesis pass runs over the combined finding set to surface cross-cluster boundary issues that per-cluster reviewers cannot see.
+
+Key modules: `dso_ci_review/region_split.py` (split logic, clustering, deduplication), `dso_ci_review/findings.py` (finding data model). No additional configuration is required — the 400 LOC / 15-file threshold is hardcoded.
 
 ## Merge-to-main pipeline
 
