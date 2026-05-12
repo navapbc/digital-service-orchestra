@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import sys
 from typing import Any
 
 from dso_ci_review.dispatch import async_dispatch_specialists, dispatch_arch_synthesis
@@ -150,10 +151,18 @@ async def _async_run_region_split(
             filenames.append(m.group(1))
 
     clusters = _cluster_files(filenames)
+    print(
+        f"INFO: region-split clusters: {{{', '.join(f'{d}: {len(files)} files' for d, files in clusters.items())}}}",
+        file=sys.stderr,
+    )
 
     # 2 & 3. For each cluster, extract its diff hunk and dispatch specialists in parallel
     async def _dispatch_cluster(cluster_dir: str, cluster_file_list: list[str]) -> list[dict]:
         cluster_diff = _extract_cluster_diff(diff_text, cluster_dir, cluster_file_list)
+        print(
+            f"INFO: dispatching specialists for cluster {cluster_dir} ({len(cluster_file_list)} files)",
+            file=sys.stderr,
+        )
         # Build agents with the cluster diff substituted in
         cluster_agents = []
         for agent in tier_agents:
