@@ -506,6 +506,142 @@ Accepted and applied. Commit: ${sha}"
     post_thread_reply "$pr_number" "$root_comment_id" "$body" "$is_inline"
 }
 
+# ── _handle_defend ─────────────────────────────────────────────────────────────
+# Defends a design decision: posts a PR review comment with the argument,
+# writes defense_comment_id to JSON, posts thread reply linking to the comment.
+# Idempotent: skips step 2 if defense_comment_id is already non-null.
+# Args: output_path comment_id pr_number
+_handle_defend() {
+    local output_path="$1"
+    local comment_id="$2"
+    local pr_number="$3"
+
+    # 1. Read existing defense_comment_id (retry check)
+    local existing_def_id
+    existing_def_id=$(python3 - "$output_path" "$comment_id" << 'PYEOF'
+import json, sys
+path, cid = sys.argv[1], sys.argv[2]
+with open(path) as fh:
+    data = json.load(fh)
+comments = data.get("comments", data) if isinstance(data, dict) else data
+for c in (comments if isinstance(comments, list) else []):
+    if c.get("comment_id") == cid:
+        print(c.get("defense_comment_id") or "")
+        sys.exit(0)
+print("")
+PYEOF
+)
+
+    # 2. Read is_inline, root_comment_id, and body from JSON
+    local is_inline root_comment_id comment_body
+    is_inline=$(python3 - "$output_path" "$comment_id" << 'PYEOF'
+import json, sys
+path, cid = sys.argv[1], sys.argv[2]
+with open(path) as fh:
+    data = json.load(fh)
+comments = data.get("comments", data) if isinstance(data, dict) else data
+for c in (comments if isinstance(comments, list) else []):
+    if c.get("comment_id") == cid:
+        print("true" if c.get("is_inline") else "false")
+        sys.exit(0)
+print("false")
+PYEOF
+)
+    root_comment_id=$(python3 - "$output_path" "$comment_id" << 'PYEOF'
+import json, sys
+path, cid = sys.argv[1], sys.argv[2]
+with open(path) as fh:
+    data = json.load(fh)
+comments = data.get("comments", data) if isinstance(data, dict) else data
+for c in (comments if isinstance(comments, list) else []):
+    if c.get("comment_id") == cid:
+        print(c.get("root_comment_id") or cid)
+        sys.exit(0)
+print(cid)
+PYEOF
+)
+    comment_body=$(python3 - "$output_path" "$comment_id" << 'PYEOF'
+import json, sys
+path, cid = sys.argv[1], sys.argv[2]
+with open(path) as fh:
+    data = json.load(fh)
+comments = data.get("comments", data) if isinstance(data, dict) else data
+for c in (comments if isinstance(comments, list) else []):
+    if c.get("comment_id") == cid:
+        print(c.get("body") or "")
+        sys.exit(0)
+print("")
+PYEOF
+)
+
+    local def_id="$existing_def_id"
+
+    # 3. Post review comment if defense_comment_id not already set
+    if [[ -z "$def_id" ]]; then
+        local defense_text
+        defense_text="Design decision defended: ${comment_body}"
+
+        local response
+        local post_rc=0
+
+        if [[ "$is_inline" == "true" ]]; then
+            # Try inline endpoint first
+            response=$(gh api \
+                --method POST \
+                "repos/{owner}/{repo}/pulls/${pr_number}/comments/${root_comment_id}/replies" \
+                -f "body=${defense_text}" 2>/dev/null) || post_rc=$?
+            if (( post_rc != 0 )); then
+                # 422 fallback: use issues endpoint
+                post_rc=0
+                response=$(gh api \
+                    --method POST \
+                    "repos/{owner}/{repo}/issues/${pr_number}/comments" \
+                    -f "body=${defense_text}" 2>/dev/null) || post_rc=$?
+            fi
+        else
+            response=$(gh api \
+                --method POST \
+                "repos/{owner}/{repo}/issues/${pr_number}/comments" \
+                -f "body=${defense_text}" 2>/dev/null) || post_rc=$?
+        fi
+
+        if (( post_rc != 0 )); then
+            echo "ERROR: defend handler: failed to post review comment" >&2
+            return 1
+        fi
+
+        # Parse comment ID from response
+        def_id=$(echo "$response" | python3 -c "import json,sys; d=json.load(sys.stdin); print(str(d.get('id','')))" 2>/dev/null || echo "")
+        if [[ -z "$def_id" ]]; then
+            echo "ERROR: defend handler: could not parse comment ID from response" >&2
+            return 1
+        fi
+
+        # 4. Write defense_comment_id to JSON BEFORE posting reply
+        python3 - "$output_path" "$comment_id" "$def_id" << 'PYEOF'
+import json, sys
+path, cid, def_id = sys.argv[1], sys.argv[2], sys.argv[3]
+with open(path) as fh:
+    data = json.load(fh)
+comments = data.get("comments", data) if isinstance(data, dict) else data
+for c in (comments if isinstance(comments, list) else []):
+    if c.get("comment_id") == cid:
+        c["defense_comment_id"] = def_id
+        break
+with open(path, "w") as fh:
+    json.dump(data if isinstance(data, dict) else {"comments": comments, "skipped_count": 0}, fh, indent=2)
+PYEOF
+    fi
+
+    # 5. Post thread reply
+    # shellcheck source=lib/pr-comment-lib.sh
+    source "${BASH_SOURCE[0]%/*}/lib/pr-comment-lib.sh"
+    local body
+    body="<!-- dso-agent-reply -->
+Design decision defended. See review comment: ${def_id}"
+    post_thread_reply "$pr_number" "$root_comment_id" "$body" "$is_inline"
+}
+
 # ── Action handlers (stubs for Stories 2, 3, 4) ─────────────────────────────
 # These are called when --classify-as flags are provided. Stubs that allow
 # future stories to implement the actual handlers without changing the CLI.
@@ -526,24 +662,10 @@ _handle_classify() {
 
         case "$action" in
             defend)
-                # Stub: post a "defense" PR review comment and record its ID
-                local def_id="defense-comment-$(date +%s%N)"
-                # Update the output JSON: set defense_comment_id for this comment
-                if [[ -f "$output_path" ]]; then
-                    python3 - "$output_path" "$comment_id" "$def_id" << 'PYEOF'
-import json, sys
-path, cid, def_id = sys.argv[1], sys.argv[2], sys.argv[3]
-with open(path) as fh:
-    data = json.load(fh)
-comments = data.get("comments", data) if isinstance(data, dict) else data
-for c in (comments if isinstance(comments, list) else []):
-    if c.get("comment_id") == cid:
-        c["defense_comment_id"] = def_id
-        break
-with open(path, "w") as fh:
-    json.dump(data if isinstance(data, dict) else {"comments": comments, "skipped_count": 0}, fh, indent=2)
-PYEOF
-                fi
+                _handle_defend "$output_path" "$comment_id" "$_PR_NUMBER" || {
+                    echo "ERROR: defend handler failed for comment $comment_id" >&2
+                    return 1
+                }
                 ;;
             defer)
                 _handle_defer "$output_path" "$comment_id" "$_PR_NUMBER" || {

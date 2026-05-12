@@ -152,8 +152,15 @@ done
 # Emit canned response keyed by scenario
 case "${STUB_GH_SCENARIO:-default}" in
     fetch_comments)
-        # Return the fixture comments JSON
-        printf '%s\n' "${STUB_COMMENTS_JSON:-[]}"
+        # POST calls (defense review comment or thread reply) return an id
+        # GET calls return the fixture comments JSON
+        _is_post=false
+        for _a in "$@"; do [[ "$_a" == "POST" ]] && _is_post=true; done
+        if [[ "$_is_post" == true ]]; then
+            printf '{"id": "review-comment-%s"}\n' "$$"
+        else
+            printf '%s\n' "${STUB_COMMENTS_JSON:-[]}"
+        fi
         ;;
     fetch_empty)
         printf '{"comments":[],"skipped_count":0}\n'
