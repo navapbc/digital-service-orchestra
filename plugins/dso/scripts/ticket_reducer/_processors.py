@@ -57,8 +57,17 @@ def process_create(
     # into compiled state so resolve_ticket_id and ticket_show can return
     # human-friendly aliases. Without this assignment, alias is silently
     # dropped between persistence and compiled state, defeating the entire
-    # alias system.
-    state["alias"] = data.get("alias")
+    # alias system. For tickets created before the alias feature shipped
+    # (data.alias is missing), backfill at read time using the deterministic
+    # ticket_id-derived alias so legacy tickets surface the same alias they
+    # would have been assigned at creation.
+    stored_alias = data.get("alias")
+    if stored_alias:
+        state["alias"] = stored_alias
+    else:
+        from ticket_reducer._alias import compute_alias
+
+        state["alias"] = compute_alias(ticket_id)
     state["description"] = data.get("description") or ""
     state["tags"] = data.get("tags", [])
     return None

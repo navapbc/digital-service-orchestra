@@ -33,6 +33,7 @@ KEY_MAP = {
     "parent_id": "pid",
     "priority": "pr",
     "assignee": "asn",
+    "alias": "a",
     "description": "desc",
     "tags": "tg",
     "comments": "cm",
