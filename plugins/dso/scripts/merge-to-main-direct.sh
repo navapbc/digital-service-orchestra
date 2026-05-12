@@ -862,6 +862,10 @@ if [[ -n "${MERGE_TO_MAIN_DIRECT_LIB:-}" ]]; then
 fi
 
 # Ordered list of all phase names (used by --resume to find next incomplete phase)
+# REVIEW-DEFENSE (CI PR #96 important): Test 2 in tests/scripts/test-merge-to-main-comment-response.sh
+# explicitly verifies that comment_response appears after ci_trigger in this array. The --resume
+# logic iterates _ALL_PHASES in order to find the next incomplete phase; ordering verification
+# IS the resume coverage for the comment_response phase.
 _ALL_PHASES=(sync merge version_bump validate push archive ci_trigger comment_response)
 
 # --- Parse CLI arguments ---

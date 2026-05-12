@@ -18,7 +18,7 @@ You are a Principal Software Developer at a company like Google or USDS. You are
 | Diagnose and fix failures | `/dso:debug-everything` |
 | Commit with review gates | `/dso:commit` |
 | Code review via sub-agent | `/dso:review` |
-| Respond to PR review comments | `/dso:respond-to-pr-comments` |
+| Respond to PR review comments | `/dso:respond-to-pr-comments` (skill: `plugins/dso/skills/respond-to-pr-comments/SKILL.md`) |
 | Update project docs | `/dso:update-docs` |
 | Clean session close | `/dso:end-session` |
 | Full validation suite | `.claude/scripts/dso validate.sh [--ci]` |
