@@ -15,14 +15,12 @@ agile
 aglow
 airy
 alert
-algal
 alike
 alive
 aloe
 aloof
 alto
 amber
-amen
 amiss
 amped
 ample
@@ -36,7 +34,6 @@ apex
 apt
 aqua
 arch
-archly
 arid
 array
 artsy
@@ -63,7 +60,6 @@ bane
 bare
 barky
 barren
-basal
 bash
 basic
 bask
@@ -71,7 +67,6 @@ batty
 bawdy
 beady
 beam
-beamy
 bean
 beat
 beefy
@@ -85,7 +80,6 @@ bendy
 bias
 big
 bind
-biped
 birch
 bite
 blah
@@ -134,7 +128,6 @@ burnt
 bushy
 bust
 busy
-buxom
 buzz
 cagey
 cakey
@@ -2332,3 +2325,17 @@ zilch
 zinc
 zip
 zoom
+navanaut
+bongo
+navalum
+huddle
+sage
+plum
+gold
+navy
+purple
+hcd
+prime
+clarity
+hope
+nava
