@@ -190,6 +190,41 @@ def test_resolver_jira_key_takes_precedence_over_alias_collision(tmp_path):
     assert out.strip() == f"jira\t{td.name}"
 
 
+def test_resolver_nonzero_exit_propagates_to_resolve_ticket_id(tmp_path):
+    """Cycle-3 review defense: when the resolver subprocess exits non-zero
+    (e.g. tracker dir unreadable), resolve_ticket_id must surface the failure
+    rather than report 'no matches' — silent zero-match looks identical to
+    'ticket not found' and hides operational problems."""
+    import os
+
+    # Fake repo with a tickets-tracker that is a FILE not a dir → resolver
+    # raises OSError on listdir → exits 1. resolve_ticket_id should print
+    # an error to stderr and return non-zero.
+    repo = tmp_path / "fake-repo"
+    repo.mkdir()
+    bad_tracker = repo / ".tickets-tracker"
+    bad_tracker.write_text("not a directory")
+
+    ticket_lib = REPO_ROOT / "plugins" / "dso" / "scripts" / "ticket-lib.sh"
+    cmd = (
+        f"source {ticket_lib} && "
+        f"TICKETS_TRACKER_DIR={bad_tracker} resolve_ticket_id some-alias"
+    )
+    proc = subprocess.run(
+        ["bash", "-c", cmd],
+        capture_output=True,
+        text=True,
+        cwd=str(repo),
+        env={**os.environ, "TICKETS_TRACKER_DIR": str(bad_tracker)},
+    )
+    assert proc.returncode != 0, "expected non-zero exit on resolver failure"
+    assert (
+        "alias resolver exited" in proc.stderr
+        or "cannot list" in proc.stderr
+        or "ticket 'some-alias' not found" not in proc.stdout
+    ), f"expected diagnostic stderr, got stdout={proc.stdout!r} stderr={proc.stderr!r}"
+
+
 def test_load_warns_once_when_wordlist_missing(tmp_path, capsys, monkeypatch):
     """When the wordlist is unavailable, _load() must emit a one-shot stderr
     diagnostic — silent fallback to the 8-hex alias hides a real

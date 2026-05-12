@@ -1261,13 +1261,26 @@ resolve_ticket_id() {
         echo "Error: python3 not found in PATH (required for alias resolver)" >&2
         return 1
     fi
+    # Capture output + exit code separately. Piping to read via process
+    # substitution discards the exit status; if the resolver crashes
+    # mid-scan we'd silently get zero matches and the caller couldn't tell
+    # 'no match found' from 'resolver exploded' (cycle-3 review).
+    local _resolver_out _resolver_rc=0
+    _resolver_out=$(python3 "$_resolver_script" "$input" "$_tracker_dir") || _resolver_rc=$?
+    if [ "$_resolver_rc" -ne 0 ]; then
+        echo "Error: alias resolver exited $_resolver_rc for input '$input'" >&2
+        return 1
+    fi
     local _scan_kind _scan_id
-    while IFS=$'\t' read -r _scan_kind _scan_id; do
-        case "$_scan_kind" in
-            alias) _alias_matches+=("$_scan_id") ;;
-            jira)  _jira_matches+=("$_scan_id") ;;
-        esac
-    done < <(python3 "$_resolver_script" "$input" "$_tracker_dir")
+    if [ -n "$_resolver_out" ]; then
+        while IFS=$'\t' read -r _scan_kind _scan_id; do
+            [ -z "$_scan_kind" ] && continue
+            case "$_scan_kind" in
+                alias) _alias_matches+=("$_scan_id") ;;
+                jira)  _jira_matches+=("$_scan_id") ;;
+            esac
+        done <<< "$_resolver_out"
+    fi
 
     if [ "${#_jira_matches[@]}" -eq 1 ]; then
         echo "${_jira_matches[0]}"
