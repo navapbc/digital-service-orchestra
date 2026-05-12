@@ -12,6 +12,7 @@
    ALL=$(.claude/scripts/dso ticket list --parent=<primary_ticket_id> --include-archived 2>/dev/null | grep -c '"ticket_id"' || echo 0)
    ```
    - **`ALL > 0`**: All children are closed (since clause (b) found zero active). Log `"All children closed — skipping to Phase 6."` Skip to Phase 6 Step 0.75. Do NOT continue to Preplanning Gate.
+<!-- EMIT-PRECONDITIONS: gate_name=sprint_auto_resume degradation_type=inferred_decision -->
    - **`ALL == 0`**: No children ever created. Log `"No children found — falling through to Preplanning Gate."` Continue to Drift Detection → Preplanning Gate normally.
 
 (d) **If `ACTIVE > 0`** (active children exist):

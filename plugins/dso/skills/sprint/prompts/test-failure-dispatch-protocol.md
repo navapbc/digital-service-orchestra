@@ -37,6 +37,7 @@ The sprint ORCHESTRATOR dispatches the debugging sub-agent directly via `Task` t
 |--------|--------|
 | `PASS` | Tests fixed. Re-run validation to confirm, then continue. |
 | `FAIL` (attempt 1) | Increment `attempt` to 2, retry with `opus` model. |
+<!-- EMIT-PRECONDITIONS: gate_name=sprint_test_failure_dispatch degradation_type=inferred_decision -->
 | `FAIL` (attempt 2) | Fall back: revert responsible task to open (`.claude/scripts/dso ticket transition <id> open`), add failure notes via `.claude/scripts/dso ticket comment`. |
 | `PARTIAL` | Log concerns in ticket notes, continue with caveats. |
 | Timeout / malformed | Fall back: revert task to open, add failure notes. |

@@ -217,6 +217,7 @@ Example entry:
 
 ### Graceful Degradation
 
+<!-- EMIT-PRECONDITIONS: gate_name=scrutiny_pipeline_web_research degradation_type=inferred_decision -->
 If WebSearch or WebFetch fails (tool unavailable, network error, or returns no useful results), log: "Web research skipped: [tool] unavailable or returned no results." and continue without research findings. Do not block progress — the research phase is advisory, not a gate.
 
 ---
