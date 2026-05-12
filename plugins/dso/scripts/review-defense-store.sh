@@ -292,10 +292,57 @@ for comment in comments:
       tip_sha=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d.get('story_branch_tip_sha',''))" "$record_line" 2>/dev/null) || tip_sha=""
       base_sha=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d.get('story_branch_base_sha',''))" "$record_line" 2>/dev/null) || base_sha=""
 
-      if [[ -z "$effective_query_sha" || -z "$tip_sha" || -z "$base_sha" ]]; then
-        # Fail-open: cannot check ancestry, include the record
-        echo "WARNING: defense_store_load_for_region: cannot check ancestry (missing sha), including record fail-open" >&2
-        printf '%s\n' "$record_line"
+      if [[ -z "$tip_sha" || -z "$base_sha" ]]; then
+        # tip/base fields present but empty — malformed record; fail-closed
+        echo "WARNING: defense_store_load_for_region: sha fields present but empty (malformed record), excluding fail-closed" >&2
+        continue
+      fi
+      if [[ -z "$effective_query_sha" ]]; then
+        # No query SHA to check against — cannot validate, fail-closed
+        echo "WARNING: defense_store_load_for_region: no effective_query_sha to check ancestry, excluding fail-closed" >&2
+        continue
+      fi
+
+      # TRUST MODEL — SHA resolution failure policy
+      #
+      # This function enforces an asymmetric fail-closed policy for SHA validation:
+      #
+      # • query_sha (caller-supplied input): unresolvable → EXCLUDE (fail-closed).
+      #   The caller controls this value; an unknown SHA means the caller's context
+      #   is not in this repo — we cannot validate ancestry, so we exclude the record.
+      #
+      # • tip_sha / base_sha (STORED data from the defense record): unresolvable →
+      #   ALSO EXCLUDE (fail-closed). Although these come from the store rather than
+      #   the caller, an unresolvable stored SHA indicates a foreign-repo or corrupt
+      #   record. Allowing it to pass through would let foreign records suppress
+      #   findings — a trust-boundary violation.
+      #
+      # • Ancestry check unexpected failure (git merge-base exit > 1): EXCLUDE
+      #   (fail-closed) for the same reason — we cannot make a safe inclusion decision.
+      #
+      # • LEGACY records (without tip/base fields): the only FAIL-OPEN case, and only
+      #   via diff_hash equality. This preserves backward compatibility with records
+      #   written before the SHA-range feature was introduced.
+      #
+      # Reference: SC6 of epic f61f-7e0a-36d3-4e7d and PR #98 cycle-2 finding 8.
+      #
+      # Verify that effective_query_sha exists in this repo.
+      # If it is an unknown object (exit 128 from git cat-file), the query SHA
+      # is foreign to this repo — exclude the record rather than fail-open.
+      # This is distinct from tip_sha/base_sha being unresolvable (corrupt store).
+      local ec_query_resolve
+      git cat-file -t "$effective_query_sha" >/dev/null 2>&1 && ec_query_resolve=0 || ec_query_resolve=$?
+      if [[ "$ec_query_resolve" -ne 0 ]]; then
+        # query_sha is not a known object in this repo — record is not reachable; exclude
+        continue
+      fi
+
+      # Verify that tip_sha and base_sha are resolvable; if not, fail-open (store may be corrupt).
+      local ec_tip_resolve ec_base_resolve
+      git cat-file -t "$tip_sha" >/dev/null 2>&1 && ec_tip_resolve=0 || ec_tip_resolve=$?
+      git cat-file -t "$base_sha" >/dev/null 2>&1 && ec_base_resolve=0 || ec_base_resolve=$?
+      if [[ "$ec_tip_resolve" -ne 0 || "$ec_base_resolve" -ne 0 ]]; then
+        echo "WARNING: defense_store_load_for_region: stored sha not resolvable (corrupt store?), excluding record fail-closed" >&2
         continue
       fi
 
@@ -313,9 +360,8 @@ for comment in comments:
       git merge-base --is-ancestor "$effective_query_sha" "$tip_sha" 2>/dev/null && ec_query_anc_tip=0 || ec_query_anc_tip=$?
 
       if [[ "$ec_tip_anc_query" -gt 1 || "$ec_base_anc_query" -gt 1 || "$ec_query_anc_tip" -gt 1 ]]; then
-        # git merge-base command failed (e.g., bad SHA, not a git repo): fail-open
-        echo "WARNING: defense_store_load_for_region: git ancestry check failed, including record fail-open" >&2
-        printf '%s\n' "$record_line"
+        # git merge-base command failed unexpectedly: fail-closed
+        echo "WARNING: defense_store_load_for_region: git ancestry check failed unexpectedly, excluding record fail-closed" >&2
       elif [[ "$ec_tip_anc_query" -eq 0 ]]; then
         # Condition B: TIP is an ancestor of QUERY_SHA — QUERY_SHA comes after TIP (e.g., merge commit)
         printf '%s\n' "$record_line"

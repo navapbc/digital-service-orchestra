@@ -33,6 +33,7 @@ from dso_ci_review.region_split import (  # noqa: E402
     _should_region_split,
     run_region_split,
 )
+from dso_ci_review.findings import deduplicate_region_findings  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -292,4 +293,177 @@ def test_arch_synthesis_receives_merged_findings(monkeypatch) -> None:
         f"Arch synthesis boundary finding must be present in the result. "
         f"Expected finding with description containing 'boundary'; "
         f"got findings: {findings}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Scenario 7 (SC5) — deduplicate_region_findings: overlapping regions, MAX-severity
+#                     wins, dual-rationale preserved
+# ---------------------------------------------------------------------------
+
+
+def test_overlapping_region_max_severity_and_dual_rationale_dedup() -> None:
+    """Given: two findings in the same file with overlapping line ranges and different severities
+    When: deduplicate_region_findings is called (the dedup contract used by the region-split path)
+    Then:
+      - Exactly one finding emerges (overlap triggers dedup)
+      - The emerged finding has the MAX (Critical) severity
+      - merged_rationale is populated and contains both original rationale substrings
+        (dual-rationale preservation)
+
+    This exercises the dedup contract that parallel cluster specialists produce
+    overlapping findings when their assigned diff regions share a hunk boundary.
+    """
+    finding_critical = {
+        "file_path": "src/auth/login.py",
+        "dimension": "correctness",
+        "severity": "critical",
+        "description": "Missing authentication check allows unauthenticated access",
+        "rationale": "No auth guard on the endpoint allows any caller to bypass login",
+        "cited_lines": ["src/auth/login.py:10-30"],
+    }
+    finding_important = {
+        "file_path": "src/auth/login.py",
+        "dimension": "correctness",
+        "severity": "important",
+        "description": "Session token not invalidated on logout",
+        "rationale": "Token remains valid after logout creating a session fixation risk",
+        "cited_lines": ["src/auth/login.py:20-45"],  # overlaps lines 20-30 with the first finding
+    }
+
+    result = deduplicate_region_findings([finding_critical, finding_important])
+
+    assert len(result) == 1, (
+        f"Overlapping findings in the same (file_path, dimension) bucket must dedup to exactly "
+        f"one finding; got {len(result)}: {result}"
+    )
+
+    merged = result[0]
+
+    assert merged["severity"] == "critical", (
+        f"MAX severity must win: expected 'critical', got {merged['severity']!r}. "
+        f"Merged finding: {merged}"
+    )
+
+    mr = merged.get("merged_rationale")
+    assert mr is not None, (
+        f"merged_rationale must be present when two findings with different severities are merged; "
+        f"merged finding: {merged}"
+    )
+    assert isinstance(mr, dict), (
+        f"merged_rationale must be a dict with 'primary' and 'secondary' keys; got {type(mr).__name__}"
+    )
+
+    primary_text = mr.get("primary", "")
+    secondary_text = mr.get("secondary", "")
+
+    assert finding_critical["rationale"] in primary_text or finding_critical["rationale"] in secondary_text, (
+        f"merged_rationale must preserve the Critical finding's rationale text; "
+        f"expected substring {finding_critical['rationale']!r} in merged_rationale; "
+        f"got primary={primary_text!r}, secondary={secondary_text!r}"
+    )
+    assert finding_important["rationale"] in primary_text or finding_important["rationale"] in secondary_text, (
+        f"merged_rationale must preserve the Important finding's rationale text; "
+        f"expected substring {finding_important['rationale']!r} in merged_rationale; "
+        f"got primary={primary_text!r}, secondary={secondary_text!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Scenario 8 — deduplicate_region_findings: edge cases
+# ---------------------------------------------------------------------------
+
+
+def test_dedup_does_not_merge_non_overlapping_same_file() -> None:
+    """Given: two findings in the same file with NON-overlapping line ranges
+    When: deduplicate_region_findings is called
+    Then: both findings are returned unchanged (no dedup across non-overlapping ranges)
+    """
+    finding_a = {
+        "file_path": "src/auth/login.py",
+        "dimension": "correctness",
+        "severity": "important",
+        "description": "Finding A",
+        "rationale": "Rationale A",
+        "cited_lines": ["src/auth/login.py:1-10"],
+    }
+    finding_b = {
+        "file_path": "src/auth/login.py",
+        "dimension": "correctness",
+        "severity": "important",
+        "description": "Finding B",
+        "rationale": "Rationale B",
+        "cited_lines": ["src/auth/login.py:50-60"],  # no overlap with 1-10
+    }
+
+    result = deduplicate_region_findings([finding_a, finding_b])
+
+    assert len(result) == 2, (
+        f"Non-overlapping findings in the same file must NOT be deduped; got {len(result)}: {result}"
+    )
+
+
+def test_dedup_does_not_merge_different_files() -> None:
+    """Given: two findings with the SAME line range but different file_path values
+    When: deduplicate_region_findings is called
+    Then: both findings are returned unchanged (file_path boundary is respected)
+    """
+    finding_a = {
+        "file_path": "src/auth/login.py",
+        "dimension": "correctness",
+        "severity": "important",
+        "description": "Finding in login.py",
+        "rationale": "Rationale in login",
+        "cited_lines": ["src/auth/login.py:10-30"],
+    }
+    finding_b = {
+        "file_path": "src/auth/logout.py",
+        "dimension": "correctness",
+        "severity": "important",
+        "description": "Finding in logout.py",
+        "rationale": "Rationale in logout",
+        "cited_lines": ["src/auth/logout.py:10-30"],  # same range, different file
+    }
+
+    result = deduplicate_region_findings([finding_a, finding_b])
+
+    assert len(result) == 2, (
+        f"Findings in different files must NOT be deduped even if line ranges match; "
+        f"got {len(result)}: {result}"
+    )
+
+
+def test_dedup_single_element_passes_through() -> None:
+    """Given: a single finding
+    When: deduplicate_region_findings is called
+    Then: exactly one finding is returned unchanged
+    """
+    finding = {
+        "file_path": "src/auth/login.py",
+        "dimension": "correctness",
+        "severity": "critical",
+        "description": "Solo finding",
+        "rationale": "Solo rationale",
+        "cited_lines": ["src/auth/login.py:5-15"],
+    }
+
+    result = deduplicate_region_findings([finding])
+
+    assert len(result) == 1, (
+        f"Single-element input must pass through unchanged; got {len(result)}: {result}"
+    )
+    assert result[0]["description"] == finding["description"], (
+        f"Single finding must be returned unmodified; got {result[0]}"
+    )
+
+
+def test_dedup_empty_list_returns_empty() -> None:
+    """Given: an empty list
+    When: deduplicate_region_findings is called
+    Then: an empty list is returned
+    """
+    result = deduplicate_region_findings([])
+
+    assert result == [], (
+        f"Empty input must return empty list; got {result!r}"
     )

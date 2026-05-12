@@ -20,24 +20,37 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Sanitize artifact name
+        run: |
+          SAFE_NAME="${GITHUB_REF_NAME//\//-}"
+          echo "ARTIFACT_NAME=sprint-story-review-${SAFE_NAME}" >> "$GITHUB_ENV"
+
       - name: Fetch session branch
-        run: git fetch origin "${{ vars.SPRINT_SESSION_ID }}"
+        env:
+          SPRINT_SESSION_ID: ${{ vars.SPRINT_SESSION_ID }}
+        run: git fetch origin "${SPRINT_SESSION_ID:-main}"
 
       - name: Compute story diff (merge-base delta)
+        env:
+          SPRINT_SESSION_ID: ${{ vars.SPRINT_SESSION_ID }}
         run: |
-          BASE=$(git merge-base "origin/${{ vars.SPRINT_SESSION_ID }}" HEAD)
+          BASE=$(git merge-base "origin/${SPRINT_SESSION_ID:-main}" HEAD)
           git diff "$BASE" HEAD > /tmp/story-diff.patch
 
       - name: Download prior review artifact (cycle tracking)
         continue-on-error: true
         uses: actions/download-artifact@v4
         with:
-          name: sprint-story-review-${{ github.ref_name }}
+          name: ${{ env.ARTIFACT_NAME }}
           path: /tmp/prior-review/
 
       - name: Run LLM review
         run: bash plugins/dso/scripts/ci-llm-review-runner.sh
         env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CLAUDE_PLUGIN_ROOT: "${{ github.workspace }}/plugins/dso"
           DSO_CI_REVIEW_DIFF_PATH: /tmp/story-diff.patch
           DSO_CI_REVIEW_PRIOR_DEFENSES_PATH: /tmp/prior-review/findings.json
           DSO_CI_REVIEW_DRY_RUN: ${{ vars.DSO_CI_REVIEW_DRY_RUN || '' }}
@@ -46,6 +59,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: sprint-story-review-${{ github.ref_name }}
+          name: ${{ env.ARTIFACT_NAME }}
           path: /tmp/story-diff.patch
           retention-days: 7
