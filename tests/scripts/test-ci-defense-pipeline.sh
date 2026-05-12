@@ -257,5 +257,37 @@ assert_eq "review-defense-store.sh has list/dump support (exit code)" "0" "$list
 assert_eq "review-defense-store.sh has list/dump support (output)" "OK" "$list_support_output"
 assert_pass_if_clean "test_review_defense_store_supports_list_subcommand"
 
+# ── test_list_requires_pr_filter ──────────────────────────────────────────────
+# Regression guard: `list` without --pr must refuse to emit anything (exit 2).
+# This is the safety check that prevents cross-PR comment pollution — without
+# it, the mirror step would dump every historical DEFENSE_RECORD into every PR.
+echo ""
+echo "--- test_list_requires_pr_filter ---"
+_snapshot_fail
+
+set +e
+LIST_OUTPUT=$(bash "$DEFENSE_STORE_SH" list 2>&1 >/dev/null)
+LIST_EXIT=$?
+set -e
+
+assert_eq "list without --pr exits 2 (refuses to emit)" "2" "$LIST_EXIT"
+if echo "$LIST_OUTPUT" | grep -qF -- '--pr <pr_number> is required'; then
+    pr_required_msg_ok=1
+else
+    pr_required_msg_ok=0
+fi
+assert_eq "list without --pr emits the '--pr required' message" "1" "$pr_required_msg_ok"
+
+# Also assert ci.yml passes --pr to the list invocation (already covered by
+# test_mirror_defenses_step_has_stdin_producer, but make the contract explicit).
+if grep -qE 'review-defense-store\.sh[[:space:]]+list[[:space:]]+--pr' "$CI_YML"; then
+    ci_passes_pr=1
+else
+    ci_passes_pr=0
+fi
+assert_eq "ci.yml mirror step passes --pr to defense_store_list" "1" "$ci_passes_pr"
+
+assert_pass_if_clean "test_list_requires_pr_filter"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary
