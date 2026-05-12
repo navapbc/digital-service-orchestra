@@ -203,6 +203,9 @@ the validator will reject unrecognized keys and force a re-dispatch.
 
 **Caller-input verification gate** (applies before asserting any `critical` or `important` reachability claim): if your reachability sentence claims "caller X supplies input Y to reach the bug site," you MUST first Grep for all call sites of the function under review and verify that at least one real caller can actually supply the claimed input. If no call site in the repo produces the claimed input type or value range, the path is unreachable — downgrade to `minor` or drop. Narrating a hypothetical path without verifying caller behavior is not sufficient for `critical` or `important` severity.
 
+- **Full-review tiers (deep-*, standard, security, performance, test-quality)**: Grep all call sites before asserting `critical` or `important` reachability.
+- **Light (diff-only) tier**: Full repo-wide grep is not required. Perform a best-effort diff-only caller check. When unable to confirm a caller exists, add a note "needs-caller-check: full call-site verification not performed in diff-only mode" and downgrade to `minor` or mark as uncertain rather than claiming `critical` or `important`.
+
 **Arithmetic verification gate** (applies when the claim involves a computed result): if your reachability sentence involves a quantitative result — path segment counts, index arithmetic, offset calculations, directory traversal depth — you MUST compute it step-by-step inline in your reasoning before asserting the result. If your step-by-step contradicts your claim, correct or drop the finding before emitting it. Example: `os.path.join('..', '..', 'etc', 'passwd')` does NOT produce `/etc/passwd` without a rooted base; verify the actual join result.
 
 Example **without** `escalate_review` (omit when confident about all severities):

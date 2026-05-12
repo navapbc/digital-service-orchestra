@@ -419,17 +419,12 @@ _phase_merge() {
     # "a pull request already exists" for both draft and non-draft PRs, so we
     # must detect and reuse any existing draft before calling `gh pr create`.
     local _draft_pr_json _final_url _pr_number
-    if command -v jq &>/dev/null; then
-        _draft_pr_json=$(gh pr list --head "$BRANCH" --state open \
-            --json number,url,isDraft 2>/dev/null || true)
-        _final_url=$(echo "$_draft_pr_json" \
-            | jq -r 'map(select(.isDraft == true))[0].url // empty' 2>/dev/null || true)
-        _pr_number=$(echo "$_draft_pr_json" \
-            | jq -r 'map(select(.isDraft == true))[0].number // empty' 2>/dev/null || true)
-    else
-        echo "INFO: jq not found — skipping draft PR reuse check; will attempt gh pr create"
-        _final_url="" _pr_number=""
-    fi
+    _draft_pr_json=$(gh pr list --head "$BRANCH" --state open \
+        --json number,url,isDraft 2>/dev/null || true)
+    _final_url=$(printf '%s' "$_draft_pr_json" \
+        | python3 -c "import json,sys; prs=json.load(sys.stdin); drafts=[p for p in prs if p.get('isDraft')]; print(drafts[0]['url'] if drafts else '')" 2>/dev/null || true)
+    _pr_number=$(printf '%s' "$_draft_pr_json" \
+        | python3 -c "import json,sys; prs=json.load(sys.stdin); drafts=[p for p in prs if p.get('isDraft')]; print(drafts[0]['number'] if drafts else '')" 2>/dev/null || true)
 
     if [[ -n "$_final_url" && -n "$_pr_number" ]]; then
         echo "INFO: Reusing existing draft PR #${_pr_number}: $_final_url"

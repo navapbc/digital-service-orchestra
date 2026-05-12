@@ -112,9 +112,15 @@ _snapshot_fail
 if [[ ! -f "$WORKFLOW_FILE" ]]; then
     assert_eq "test_job_installs_litellm: workflow file present (prereq)" "1" "0"
 else
-    found=0
-    grep -q "litellm" "$WORKFLOW_FILE" 2>/dev/null && found=1 || true
-    assert_eq "test_job_installs_litellm: YAML installs litellm before Run LLM review" "1" "$found"
+    litellm_line=0
+    review_line=0
+    litellm_line=$(grep -n "litellm" "$WORKFLOW_FILE" 2>/dev/null | head -1 | cut -d: -f1) || true
+    review_line=$(grep -n "Run LLM review" "$WORKFLOW_FILE" 2>/dev/null | head -1 | cut -d: -f1) || true
+    ordering_ok=0
+    if [[ -n "$litellm_line" && -n "$review_line" && "$litellm_line" -lt "$review_line" ]]; then
+        ordering_ok=1
+    fi
+    assert_eq "test_job_installs_litellm: YAML installs litellm before Run LLM review" "1" "$ordering_ok"
 fi
 assert_pass_if_clean "test_job_installs_litellm"
 

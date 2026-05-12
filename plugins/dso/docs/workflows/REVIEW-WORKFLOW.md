@@ -1082,7 +1082,7 @@ If all Fix findings are genuinely non-behavioral (GREEN classification is correc
    # Load prior defenses for cycle-2+ re-review passes (Gap 5 fix: local path was missing defense context).
    # The CI runner injects defenses via two-call architecture; local path must do the same.
    PRIOR_DEFENSES_BLOCK=""
-   if [[ "$ATTEMPT_NUM" -ge 2 ]]; then
+   if [[ "$ATTEMPT_NUM" -ge 1 ]]; then
        _prior_defenses=$("$REPO_ROOT/.claude/scripts/dso" review-defense-store.sh load 2>/dev/null || true)
        if [[ -n "$_prior_defenses" && "$_prior_defenses" != "[]" ]]; then
            PRIOR_DEFENSES_BLOCK="$(printf '\n=== PRIOR DEFENSES ===\nThe following defenses were recorded in previous review cycles. For each candidate finding, check whether a matching prior defense exists for an unchanged code region. If a finding is covered by an accepted defense and the defended code has not changed in this diff, DROP or downgrade it to minor with a note referencing the prior defense.\n\n%s\n=== END PRIOR DEFENSES ===' "$_prior_defenses")"
