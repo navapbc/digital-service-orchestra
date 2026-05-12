@@ -186,3 +186,44 @@ The validation sprint has confirmed significant mechanical proxy evidence:
 ## Follow-on Ticket
 
 A follow-on ticket should be filed to re-run the validation sprint with full CI integration once Proxies A/C/D satisfaction is confirmed. See story ea41-a8d8-ea1d-426f for tracking.
+
+---
+
+## Remediation Path 2 — Artificial Validation Sprint (2026-05-12)
+
+The original sprint validation (the body of this file above) left Proxies A, C, D and DD3 as PENDING because the real candidate epic ac1b-5e35 was executed in inline mode and the per-story CI review pipeline was broken at the time. To satisfy the validation requirements of epic f61f-7e0a-36d3-4e7d Story ea41-a8d8-ea1d-426f without waiting for a full CI pipeline repair, a Remediation Path 2 ("artificial validation sprint") was executed on 2026-05-12. This path exercised the write path of each pending proxy mechanism using a purpose-built artificial story diff and ticket, confirming that each mechanism can produce the required artifacts when invoked directly, independent of the CI pipeline availability.
+
+### Mechanical Proxy Results (post-remediation)
+
+| Proxy | Description | Result (post-remediation) |
+|-------|-------------|--------------------------|
+| A | Draft PR from Phase A | **PASS** — Draft PR #97 (https://github.com/navapbc/digital-service-orchestra/pull/97), created by plugins/dso/scripts/create-sprint-draft-pr.sh against worktree-20260512-080633 branch |
+| B | DSO-Story trailers | **PASS** — already PASS in original report; also: commit 8df08675/0ff3eaed on story/f61f-7e0a/validation-artificial carries `DSO-Story: validation-artificial` |
+| C | reviewer-findings.json per story | **PASS** — produced locally via `DSO_CI_REVIEW_DRY_RUN=1 plugins/dso/scripts/ci-llm-review-runner.sh` against /tmp/artificial-story-diff.patch. Output: /tmp/reviewer-findings-artificial.json (39 bytes, valid JSON: `{"findings":[],"dry_run":true}`). Same code path as CI. CI itself reached this step after fixes 76afc4d (BASE_BRANCH), f14aa8d (secrets exposure), ebbfbf4816 (artifact name sanitize); remaining CI block is `litellm` not installed in runner (bug ada8-4478). |
+| D | DefenseStore attestations | **PASS** — `defense_store_write` (TrackerDefenseStore backend) wrote a DEFENSE_RECORD comment on ticket ea41-a8d8-ea1d-426f with prior_finding_id=artificial-validation-finding-1, story_branch_tip_sha=0ff3eaed1ccb..., story_branch_base_sha=c2c3a48de1d1... |
+| E | Leakage test matrix | **PASS** — already PASS (17/17, unchanged) |
+
+### DD3 Re-review Ratio (post-remediation)
+
+| Metric | Value |
+|--------|-------|
+| Total LOC reviewed | 43 (artificial story diff) |
+| Re-reviewed LOC | 0 |
+| Re-review ratio | 0 (0%) |
+| Threshold | 50% |
+| Status | **PASS** |
+
+Source: `bash plugins/dso/scripts/sprint/compute-rereviewed-loc.sh f61f-7e0a-36d3-4e7d /tmp/artificial-review-logs` → `re-review ratio: 0` (exit 0)
+
+### CI Workflow Bugs Discovered During Remediation
+
+The following bugs were identified while exercising the CI review pipeline during remediation:
+
+- **7890-db5b** (P2, CLOSED) — ANTHROPIC_API_KEY not exposed to Run LLM review step env. Fixed by commit f14aa8d.
+- **a93f-8ddf** (P3, CLOSED) — Artifact name contained forward slash. Fixed by commits f14aa8d + ebbfbf48 (latter replaced the invalid `replace()` expression with a sanitize shell step).
+- **ada8-4478** (P2, OPEN) — `ModuleNotFoundError: No module named 'litellm'` in runner — workflow lacks a Python setup/install step.
+- **67a5-5da5** (P3, OPEN) — Upload review artifact step path is only `/tmp/story-diff.patch`; reviewer-findings.json is never uploaded.
+
+### Note on Artificiality
+
+This remediation is an artificial demonstration of each mechanism's write path, not a substitute for a real end-to-end sprint. The DD1 requirement (no manual intervention) is explicitly not satisfied; the user accepted this in remediation path 2 with the understanding that DD2 evidence overrides DD1 per story ea41-a8d8 verbatim wording in the sprint dispatch.
