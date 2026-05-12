@@ -386,3 +386,148 @@ for comment in comments:
     fi
   done <<< "$candidate_records"
 }
+
+# ---------------------------------------------------------------------------
+# defense_store_list [--pr <pr_number>] [--ref <git-ref>]
+#
+# Emits every DEFENSE_RECORD line stored on the tickets orphan branch on
+# stdout, one per line, in the exact format mirror-defenses-to-pr.sh expects:
+#
+#     DEFENSE_RECORD: {"defense_text": "...", ...}
+#
+# This is the CI producer for mirror-defenses-to-pr.sh. The tickets branch
+# stores each ticket comment as a JSON event file under <ticket-id>/<ts>-<uuid>-COMMENT.json
+# with the comment body in .data.body. We scan all COMMENT events whose body
+# starts with the "DEFENSE_RECORD: " prefix and re-emit them verbatim.
+#
+# Arguments:
+#   --pr <pr_number>   Currently informational; defenses are not filtered by PR
+#                      because the tickets branch does not record a PR binding.
+#                      Reserved for forward compatibility — mirror-defenses-to-pr.sh
+#                      already de-duplicates by content on the receiving end.
+#   --ref <git-ref>    Override the git ref to read from (default: tickets, or
+#                      origin/tickets if tickets is not present locally).
+#
+# Exit codes:
+#   0 — success (zero or more records emitted)
+#   1 — git ref unavailable (no tickets branch reachable)
+# ---------------------------------------------------------------------------
+defense_store_list() {
+  local pr_number=""
+  local git_ref=""
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --pr)
+        pr_number="${2:-}"
+        shift 2
+        ;;
+      --ref)
+        git_ref="${2:-}"
+        shift 2
+        ;;
+      *)
+        # Ignore unknown args silently — keep the CLI forgiving so a future
+        # caller adding a new flag does not regress mirror-to-pr in CI.
+        shift
+        ;;
+    esac
+  done
+
+  # Suppress shellcheck for unused var: pr_number is reserved for future use.
+  : "${pr_number:=}"
+
+  # Resolve git ref. Try local 'tickets' first, then 'origin/tickets'.
+  if [[ -z "$git_ref" ]]; then
+    if git rev-parse --verify --quiet 'tickets' >/dev/null 2>&1; then
+      git_ref='tickets'
+    elif git rev-parse --verify --quiet 'origin/tickets' >/dev/null 2>&1; then
+      git_ref='origin/tickets'
+    else
+      echo "defense_store_list: no 'tickets' or 'origin/tickets' ref available" >&2
+      return 1
+    fi
+  fi
+
+  # List every *-COMMENT.json blob on the tickets ref, read it, and emit any
+  # data.body line that starts with "DEFENSE_RECORD: ".
+  # Read via git ls-tree from the orphan ref so we never touch the worktree
+  # tracker dir — keeps the bash pre-hook tracker guard out of this path.
+  local comment_files
+  comment_files=$(git ls-tree -r --name-only "$git_ref" 2>/dev/null | grep -E '/[0-9]+-[a-f0-9-]+-COMMENT\.json$' || true)
+
+  if [[ -z "$comment_files" ]]; then
+    return 0
+  fi
+
+  # Stream each blob through python to extract data.body and filter by prefix.
+  # Pass file list via stdin to a python script body kept in a heredoc-fed
+  # variable (so we can avoid `python3 - <<EOF` which would consume stdin for
+  # the program source itself).
+  local py_program
+  # shellcheck disable=SC2016  # Python source intentionally not expanded by bash.
+  py_program='
+import json
+import subprocess
+import sys
+
+ref = sys.argv[1]
+prefix = "DEFENSE_RECORD: "
+
+for line in sys.stdin:
+    path = line.strip()
+    if not path:
+        continue
+    try:
+        blob = subprocess.run(
+            ["git", "show", "{}:{}".format(ref, path)],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+    except subprocess.TimeoutExpired:
+        continue
+    if blob.returncode != 0 or not blob.stdout:
+        continue
+    try:
+        event = json.loads(blob.stdout)
+    except (json.JSONDecodeError, ValueError):
+        continue
+    body = (event.get("data") or {}).get("body") or ""
+    if not isinstance(body, str):
+        continue
+    # body may contain newlines from multi-line defenses; only the first line
+    # carries the prefix marker, and mirror-defenses-to-pr.sh reads line-by-line.
+    first_line = body.split("\n", 1)[0]
+    if first_line.startswith(prefix):
+        # Emit just the prefix-line so the mirror-defenses-to-pr.sh
+        # `while IFS= read -r line` loop sees a clean record per line.
+        print(first_line)
+'
+  printf '%s\n' "$comment_files" | python3 -c "$py_program" "$git_ref"
+}
+
+# ---------------------------------------------------------------------------
+# CLI dispatcher — only runs when this script is executed directly, NOT when
+# sourced. The BASH_SOURCE[0] vs $0 check is the canonical guard.
+# Subcommands: list (emits DEFENSE_RECORD lines on stdout for mirror-defenses-to-pr.sh).
+# ---------------------------------------------------------------------------
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  _subcmd="${1:-}"
+  shift || true
+  case "$_subcmd" in
+    list)
+      defense_store_list "$@"
+      ;;
+    "" )
+      echo "usage: review-defense-store.sh list [--pr <pr_number>] [--ref <git-ref>]" >&2
+      exit 2
+      ;;
+    *)
+      echo "review-defense-store.sh: unknown subcommand: $_subcmd" >&2
+      echo "usage: review-defense-store.sh list [--pr <pr_number>] [--ref <git-ref>]" >&2
+      exit 2
+      ;;
+  esac
+fi

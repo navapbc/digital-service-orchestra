@@ -48,6 +48,21 @@ jobs:
         # Pin to tested version; bump after verifying compatibility with ci-llm-review-runner.sh
         run: pip install litellm==1.83.7
 
+      # Compute review cycle: each prior run uploads a story-diff artifact, but
+      # the most reliable in-job signal here is the presence of the prior-review
+      # artifact downloaded above. If /tmp/prior-review/findings.json exists,
+      # this is at least cycle 2; otherwise cycle 1. The runner.py cycle_number
+      # gate (runner.py:789) uses this value to enable the suppression branches.
+      - name: Compute DSO_REVIEW_CYCLE
+        run: |
+          if [[ -s /tmp/prior-review/findings.json ]]; then
+            echo "DSO_REVIEW_CYCLE=2" >> "$GITHUB_ENV"
+            echo "Computed DSO_REVIEW_CYCLE=2 (prior-review artifact present)"
+          else
+            echo "DSO_REVIEW_CYCLE=1" >> "$GITHUB_ENV"
+            echo "Computed DSO_REVIEW_CYCLE=1 (no prior-review artifact)"
+          fi
+
       - name: Run LLM review
         run: bash plugins/dso/scripts/ci-llm-review-runner.sh
         env:
@@ -58,6 +73,7 @@ jobs:
           DSO_CI_REVIEW_DIFF_PATH: /tmp/story-diff.patch
           DSO_CI_REVIEW_PRIOR_DEFENSES_PATH: /tmp/prior-review/findings.json
           DSO_CI_REVIEW_DRY_RUN: ${{ vars.DSO_CI_REVIEW_DRY_RUN || '' }}
+          DSO_REVIEW_CYCLE: ${{ env.DSO_REVIEW_CYCLE }}
 
       - name: Upload review artifact
         if: always()
