@@ -1,0 +1,50 @@
+name: Sprint Story Review
+
+on:
+  push:
+    branches:
+      - 'story/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ vars.SPRINT_SESSION_ID }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: Per-Story LLM Review
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout story branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch session branch
+        run: git fetch origin "${{ vars.SPRINT_SESSION_ID }}"
+
+      - name: Compute story diff (merge-base delta)
+        run: |
+          BASE=$(git merge-base "origin/${{ vars.SPRINT_SESSION_ID }}" HEAD)
+          git diff "$BASE" HEAD > /tmp/story-diff.patch
+
+      - name: Download prior review artifact (cycle tracking)
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: sprint-story-review-${{ github.ref_name }}
+          path: /tmp/prior-review/
+
+      - name: Run LLM review
+        run: bash plugins/dso/scripts/ci-llm-review-runner.sh
+        env:
+          DSO_CI_REVIEW_DIFF_PATH: /tmp/story-diff.patch
+          DSO_CI_REVIEW_DRY_RUN: ${{ vars.DSO_CI_REVIEW_DRY_RUN || '' }}
+
+      - name: Upload review artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sprint-story-review-${{ github.ref_name }}
+          path: /tmp/story-diff.patch
+          retention-days: 7
