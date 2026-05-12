@@ -1,0 +1,1 @@
+{"author":"Test","data":{"body":"Classification: behavioral, Score: 2 (BASIC). Cluster with 5f8b-2a22-4e2e-4e1f (shared root cause: pre-commit example not stack-aware). Intent Gate: CLI_user tag — intent-aligned."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1778615726987823000,"uuid":"df069dbe-262d-4c1d-a7f4-cc84a1139a43"}
