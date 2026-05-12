@@ -1,1 +1,0 @@
-{"author":"Test","data":{"body":"RED_BASELINE: test-pr-comment-response-integration.sh — PASSED: 7 (mock boundary checks) FAILED: 8 (all behavioral tests fail, pr-comment-response.sh absent). Commit a3d78d108e."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1778550011394617000,"uuid":"3a7429e2-aa36-4b51-8f50-3ea86360e629"}
