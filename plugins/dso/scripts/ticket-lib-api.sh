@@ -887,7 +887,13 @@ with open(sys.argv[12], 'w', encoding='utf-8') as f:
 
         # Output dual-format: human summary first, canonical ID last (both stdout).
         # SC3: both lines on stdout; scripts extract ID via | tail -1.
-        echo "Created ticket $ticket_id: $title"
+        # Lead with the human-readable alias when available; canonical ID
+        # is parenthetical. Matches the parity output in ticket-create.sh.
+        if [ -n "$ticket_alias" ] && [ "$ticket_alias" != "$ticket_id" ]; then
+            echo "Created ticket $ticket_alias ($ticket_id): $title"
+        else
+            echo "Created ticket $ticket_id: $title"
+        fi
         echo "$ticket_id"
     )
 }

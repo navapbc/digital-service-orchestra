@@ -71,6 +71,7 @@ _guard=$(bash "$PLUGIN_SCRIPTS/implementation-plan/check-tag-guards.sh" "${STORY
 _guard_rc=$?
 set -e
 # rc=0 → verdict in $_guard (OK or BLOCKED:*); rc=1 → BLOCKED in $_guard;
+<!-- EMIT-PRECONDITIONS: gate_name=implementation_plan_tag_guard degradation_type=inferred_decision -->
 # rc=2 → lookup failure, treat as OK (fail-open).
 if (( _guard_rc == 2 )); then _guard="OK"; fi
 ```
@@ -177,6 +178,7 @@ After loading the story, look for a recent preplanning context comment on the pa
 **schema_version-aware parsing** (load-bearing wire format):
 - Check `schema_version`. If absent or `< 2`: v1 mode — `researchFindings` not expected, treat as empty array.
 - If `>= 2`: `researchFindings` expected; if absent, treat as empty array (fail-open).
+<!-- EMIT-PRECONDITIONS: gate_name=implementation_plan_research_findings degradation_type=inferred_decision -->
 - **Fail-open contract**: any parsing failure on `researchFindings` MUST NOT block context loading — treat as empty, log `"researchFindings parse failed on epic <parent-epic-id> — treating as empty"`, continue.
 
 ### Input Analysis
@@ -854,6 +856,7 @@ Review the complete task list for design gaps that compound during sub-agent exe
 
 Check the story's complexity classification. When invoked from `/dso:sprint`, the parent story may carry a `COMPLEXITY_CLASSIFICATION: COMPLEX` comment (written by sprint's evaluator). Check via `.claude/scripts/dso ticket show <story-id>` and grep for `COMPLEXITY_CLASSIFICATION`:
 
+<!-- EMIT-PRECONDITIONS: gate_name=implementation_plan_gap_analysis degradation_type=unresolved_question -->
 - **`TRIVIAL`** (or clearly simple from context): skip gap analysis entirely. Log: `"Skipping gap analysis — story classified as TRIVIAL"`. Proceed to final summary.
 - **`COMPLEX`** or **no classification found** (standalone): run gap analysis. The cost of an unnecessary analysis is low; the cost of a missed gap is high.
 
@@ -911,6 +914,7 @@ Add a **Gap Analysis Results** section:
 | Cross-cutting but no pattern change | Cross-cutting threshold overrides the new-pattern check — Step 2 is still required |
 | Test filename not fuzzy-matchable | Verify the normalized source basename is a substring of the normalized test basename. If not, require a `.test-index` entry in AC |
 | Tasks requiring co-commit | Every task must be independently committable and green. Inert (does nothing yet) is fine; broken is not |
+<!-- EMIT-PRECONDITIONS: gate_name=implementation_plan_gap_analysis_failure degradation_type=inferred_decision -->
 | Blocking on gap analysis failure | Gap analysis failure is non-blocking — log warning and continue |
 
 ## Stage-Boundary Exit Write
