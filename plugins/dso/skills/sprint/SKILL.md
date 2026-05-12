@@ -130,6 +130,19 @@ _TS=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "unknown")
 .claude/scripts/dso ticket comment <primary_ticket_id> "WORKTREE_TRACKING:start branch=${_BRANCH} session_branch=${_BRANCH} timestamp=${_TS}" 2>/dev/null || true
 ```
 
+**Set vars.SPRINT_SESSION_ID**: Set the `SPRINT_SESSION_ID` repo variable so `sprint-story-review.yml` can fetch the session branch for per-story delta scoping. PATCH first (update existing); POST as fallback (initial creation). `|| true` ensures failure (no gh auth, no `actions:write` permission, fork repo) does not block sprint execution.
+```bash
+# Set vars.SPRINT_SESSION_ID so sprint-story-review.yml can fetch the session branch.
+_SESSION_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+_GH_REPO=$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null || true)
+if [[ -n "$_GH_REPO" ]]; then
+    gh api --method PATCH "repos/$_GH_REPO/actions/variables/SPRINT_SESSION_ID" \
+        -f value="$_SESSION_BRANCH" 2>/dev/null || \
+    gh api --method POST "repos/$_GH_REPO/actions/variables" \
+        -f name="SPRINT_SESSION_ID" -f value="$_SESSION_BRANCH" 2>/dev/null || true
+fi
+```
+
 The `.sprint-active` marker is gitignored and scoped to the session worktree. It enables the session-merge-only-check pre-commit hook. Phase I removes it.
 ```bash
 # Create sprint-active marker to enable session-worktree merge-only enforcement
@@ -1951,6 +1964,21 @@ if [[ ${#CONFLICT_QUEUE[@]} -gt 0 ]]; then
 fi
 bash "$PLUGIN_SCRIPTS/merge-story-branch.sh" "$STORY_BRANCH" "$STORY_ID"
 ```
+
+### Leakage Detection
+
+After merging the story branch, run the leakage detector to catch any non-merge commits that bypassed `check-session-merge-only.sh` during this story's execution:
+
+```bash
+PLUGIN_SCRIPTS="${PLUGIN_SCRIPTS:-$PLUGIN_ROOT/scripts}"
+bash "$PLUGIN_SCRIPTS/detect-session-leakage.sh" || {
+    echo "WARN: session leakage detected — see output above for attribution steps" >&2
+    # Non-blocking: leakage is reported but does not abort the sprint.
+    # The operator must manually re-attribute flagged commits.
+}
+```
+
+Leakage detection is non-blocking: it surfaces commits that need re-attribution but does not abort Phase F. The sprint continues; operators must address flagged commits before merge-to-main.
 
 ```bash
 .claude/scripts/dso ticket comment <id> "Fixed: <summary>"
