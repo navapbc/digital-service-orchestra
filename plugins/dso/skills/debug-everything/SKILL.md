@@ -57,6 +57,29 @@ bash "$PLUGIN_SCRIPTS/ticket-migrate-brainstorm-tags.sh" 2>/dev/null || true  # 
 
 ---
 
+## Pre-Dispatch: Push Session Branch (worktree isolation fix)
+
+Before dispatching any sub-agents, detect whether the orchestrator is running in a session worktree:
+
+```bash
+IS_SESSION_WORKTREE=$([ -f "$(git rev-parse --show-toplevel)/.git" ] && echo "true" || echo "false")
+```
+
+If `IS_SESSION_WORKTREE=true`, push session branch before first sub-agent dispatch:
+
+```bash
+# Push session branch so sub-agent worktrees can sync to session HEAD (bug 4724-41a7)
+git push -u origin HEAD
+SESSION_HEAD=$(git rev-parse HEAD)
+SESSION_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+```
+
+Inject `SESSION_BRANCH` and `SESSION_HEAD` into each sub-agent's prompt (see `worktree-dispatch.md`).
+
+Only push ONCE per invocation (not before every sub-agent). If `IS_SESSION_WORKTREE=false` (orchestrator on main), skip the push.
+
+---
+
 ## Phase A: GitHub Actions Pre-Scan (/dso:debug-everything)
 
 Scan configured GitHub Actions workflows for CI failures and create bug tickets for any untracked failures. This step runs **before** the open-bug-count pre-check so newly discovered failures are visible to mode selection.

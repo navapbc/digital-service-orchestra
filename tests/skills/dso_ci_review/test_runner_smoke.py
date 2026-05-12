@@ -2240,3 +2240,173 @@ def test_runner_cycle1_no_defenses_unaffected(tmp_path):
     assert not gh_called, (
         f"_fetch_pr_defenses must NOT be called on cycle 1; was called with: {gh_called!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Region-split routing tests (Strategy E, bed6-3871-f13c-4160)
+# ---------------------------------------------------------------------------
+
+
+def _make_large_diff(loc: int = 450) -> str:
+    """Return a synthetic diff with at least ``loc`` changed lines, all in one file."""
+    header = "diff --git a/bigfile.py b/bigfile.py\n--- a/bigfile.py\n+++ b/bigfile.py\n@@ -1 +1 @@\n"
+    body = "".join(f"+line {i}\n" for i in range(loc))
+    return header + body
+
+
+def _make_small_diff(loc: int = 5) -> str:
+    """Return a synthetic diff with only ``loc`` changed lines."""
+    header = "diff --git a/small.py b/small.py\n--- a/small.py\n+++ b/small.py\n@@ -1 +1 @@\n"
+    body = "".join(f"+line {i}\n" for i in range(loc))
+    return header + body
+
+
+def test_runner_calls_run_region_split_for_large_diff(tmp_path):
+    """
+    Given: a diff exceeding 400 LOC (region-split threshold)
+    When: runner.main() is called in-process
+    Then: run_region_split is called (not standard tier dispatch)
+          AND async_dispatch_specialists is NOT called directly by the runner
+
+    Strategy E (bed6-3871-f13c-4160): large diffs bypass the standard tier path
+    and route through the region-split pipeline.
+    """
+    import io
+    from contextlib import redirect_stderr
+
+    import dso_ci_review.runner as runner_mod
+
+    diff_text = _make_large_diff(450)
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text(diff_text)
+    output_file = tmp_path / "out.json"
+
+    region_split_called: list[dict] = []
+
+    def mock_run_region_split(**kwargs):
+        region_split_called.append(kwargs)
+        return {"findings": []}
+
+    dispatch_called: list = []
+
+    async def mock_dispatch(agents):
+        dispatch_called.extend(agents)
+        return [{"findings": []}]
+
+    stderr_capture = io.StringIO()
+    with (
+        patch.dict(
+            "os.environ",
+            {
+                "DSO_CI_REVIEW_DIFF_PATH": str(diff_file),
+                "DSO_CI_REVIEW_OUTPUT_PATH": str(output_file),
+                "CI_REVIEW_PROVIDER": "anthropic",
+                "ANTHROPIC_API_KEY": "test-key",
+                "GITHUB_EVENT_NAME": "",
+                "GITHUB_REF": "",
+                "GITHUB_TOKEN": "",
+                "PR_NUMBER": "",
+            },
+        ),
+        patch(
+            "dso_ci_review.runner._classify_tier_via_bash",
+            return_value=_standard_tier_classification(),
+        ),
+        patch(
+            "dso_ci_review.runner.run_region_split",
+            side_effect=mock_run_region_split,
+        ),
+        patch(
+            "dso_ci_review.runner.async_dispatch_specialists",
+            side_effect=mock_dispatch,
+        ),
+        redirect_stderr(stderr_capture),
+    ):
+        exit_code = runner_mod.main()
+
+    assert exit_code == 0, (
+        f"Expected exit code 0 (no blocking findings), got {exit_code}. "
+        f"stderr={stderr_capture.getvalue()!r}"
+    )
+    assert region_split_called, (
+        "run_region_split must be called when diff exceeds 400 LOC threshold"
+    )
+    assert not dispatch_called, (
+        "async_dispatch_specialists must NOT be called by the runner when "
+        f"region-split is active; called with: {dispatch_called!r}"
+    )
+
+
+def test_runner_skips_run_region_split_for_small_diff(tmp_path):
+    """
+    Given: a diff below the 400 LOC region-split threshold
+    When: runner.main() is called in-process
+    Then: run_region_split is NOT called
+          AND async_dispatch_specialists IS called (normal path)
+
+    Strategy E (bed6-3871-f13c-4160): small diffs use the standard tier pipeline.
+    """
+    import io
+    from contextlib import redirect_stderr
+
+    import dso_ci_review.runner as runner_mod
+
+    diff_text = _make_small_diff(5)
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text(diff_text)
+    output_file = tmp_path / "out.json"
+
+    region_split_called: list = []
+
+    def mock_run_region_split(**kwargs):
+        region_split_called.append(kwargs)
+        return {"findings": []}
+
+    dispatch_called: list = []
+
+    async def mock_dispatch(agents):
+        dispatch_called.extend(agents)
+        return [{"findings": []}]
+
+    stderr_capture = io.StringIO()
+    with (
+        patch.dict(
+            "os.environ",
+            {
+                "DSO_CI_REVIEW_DIFF_PATH": str(diff_file),
+                "DSO_CI_REVIEW_OUTPUT_PATH": str(output_file),
+                "CI_REVIEW_PROVIDER": "anthropic",
+                "ANTHROPIC_API_KEY": "test-key",
+                "GITHUB_EVENT_NAME": "",
+                "GITHUB_REF": "",
+                "GITHUB_TOKEN": "",
+                "PR_NUMBER": "",
+            },
+        ),
+        patch(
+            "dso_ci_review.runner._classify_tier_via_bash",
+            return_value=_standard_tier_classification(),
+        ),
+        patch(
+            "dso_ci_review.runner.run_region_split",
+            side_effect=mock_run_region_split,
+        ),
+        patch(
+            "dso_ci_review.runner.async_dispatch_specialists",
+            side_effect=mock_dispatch,
+        ),
+        redirect_stderr(stderr_capture),
+    ):
+        exit_code = runner_mod.main()
+
+    assert exit_code == 0, (
+        f"Expected exit code 0 (no blocking findings), got {exit_code}. "
+        f"stderr={stderr_capture.getvalue()!r}"
+    )
+    assert not region_split_called, (
+        "run_region_split must NOT be called for small diffs; "
+        f"was called with: {region_split_called!r}"
+    )
+    assert dispatch_called, (
+        "async_dispatch_specialists must be called for small diffs (standard tier path)"
+    )

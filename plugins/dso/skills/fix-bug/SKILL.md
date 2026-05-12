@@ -271,6 +271,27 @@ Before applying the scoring rubric, check whether this ticket describes multiple
 
 **If not compound (single coherent issue):** Continue to scoring rubric below.
 
+## Pre-Dispatch: Push Session Branch (worktree isolation fix)
+
+Before dispatching any sub-agents, detect whether the orchestrator is running in a session worktree:
+
+```bash
+IS_SESSION_WORKTREE=$([ -f "$(git rev-parse --show-toplevel)/.git" ] && echo "true" || echo "false")
+```
+
+If `IS_SESSION_WORKTREE=true`, push session branch before first sub-agent dispatch:
+
+```bash
+# Push session branch so sub-agent worktrees can sync to session HEAD (bug 4724-41a7)
+git push -u origin HEAD
+SESSION_HEAD=$(git rev-parse HEAD)
+SESSION_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+```
+
+Inject `SESSION_BRANCH` and `SESSION_HEAD` into each sub-agent's prompt (see `worktree-dispatch.md`).
+
+Only push ONCE per invocation (not before every sub-agent). If `IS_SESSION_WORKTREE=false` (orchestrator on main), skip the push.
+
 ## Phase B: Pre-Investigation Gates
 
 ### Step 1: Intent Gate (/dso:fix-bug)

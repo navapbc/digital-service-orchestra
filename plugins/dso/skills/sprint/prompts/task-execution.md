@@ -16,6 +16,28 @@ echo "Git root verified: $SUB_AGENT_ROOT (differs from orchestrator root: $ORCHE
 
 If `ORCHESTRATOR_ROOT` is not present in this prompt, skip this check and continue.
 
+#### Session HEAD Sync (worktree isolation fix)
+
+If `SESSION_BRANCH` and `SESSION_HEAD` are both set in the environment, sync this worktree to the session HEAD:
+
+```bash
+if [[ -n "${SESSION_BRANCH:-}" && -n "${SESSION_HEAD:-}" ]]; then
+    bash "${PLUGIN_SCRIPTS}/worktree-session-head-sync.sh"  # shim-exempt: internal orchestration script
+    if [[ $? -ne 0 ]]; then
+        echo "ERROR: worktree-session-head-sync.sh failed — aborting sub-agent execution" >&2
+        exit 1
+    fi
+fi
+```
+
+If only one of `SESSION_BRANCH` / `SESSION_HEAD` is set (inconsistent state), emit a warning but continue:
+
+```bash
+if [[ -n "${SESSION_BRANCH:-}" && -z "${SESSION_HEAD:-}" ]] || [[ -z "${SESSION_BRANCH:-}" && -n "${SESSION_HEAD:-}" ]]; then
+    echo "WARNING: SESSION_BRANCH/SESSION_HEAD partially set — skipping worktree sync" >&2
+fi
+```
+
 **CWD lock (isolation:worktree mode)**: When `ORCHESTRATOR_ROOT` is set, your current working directory at startup IS your isolated worktree root. Treat it as authoritative for all operations in this session:
 - Do NOT `cd` to `ORCHESTRATOR_ROOT` or any path derived from it.
 - Do NOT use `ORCHESTRATOR_ROOT` as a base path for any git command, file read, or file write.

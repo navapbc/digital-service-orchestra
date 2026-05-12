@@ -132,6 +132,41 @@ _TS=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "unknown")
 .claude/scripts/dso ticket comment <primary_ticket_id> "WORKTREE_TRACKING:start branch=${_BRANCH} session_branch=${_BRANCH} timestamp=${_TS}" 2>/dev/null || true
 ```
 
+**Set vars.SPRINT_SESSION_ID**: Set the `SPRINT_SESSION_ID` repo variable so `sprint-story-review.yml` can fetch the session branch for per-story delta scoping. PATCH first (update existing); POST as fallback (initial creation). `|| true` ensures failure (no gh auth, no `actions:write` permission, fork repo) does not block sprint execution.
+```bash
+# Set vars.SPRINT_SESSION_ID so sprint-story-review.yml can fetch the session branch.
+_SESSION_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+_GH_REPO=$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null || true)
+if [[ -n "$_GH_REPO" ]]; then
+    gh api --method PATCH "repos/$_GH_REPO/actions/variables/SPRINT_SESSION_ID" \
+        -f value="$_SESSION_BRANCH" 2>/dev/null || \
+    gh api --method POST "repos/$_GH_REPO/actions/variables" \
+        -f name="SPRINT_SESSION_ID" -f value="$_SESSION_BRANCH" 2>/dev/null || true
+fi
+```
+
+The `.sprint-active` marker is gitignored and scoped to the session worktree. It enables the session-merge-only-check pre-commit hook. Phase I removes it.
+```bash
+# Create sprint-active marker to enable session-worktree merge-only enforcement
+touch "$(git rev-parse --show-toplevel)/.sprint-active"
+```
+
+**Draft PR Creation (ci-pr mode only)**: When `SPRINT_MODE=ci-pr`, open a long-lived draft PR before Phase E dispatch using `create-sprint-draft-pr.sh`:
+# See also: create-sprint-draft-pr.sh for Phase A draft PR creation (ci-pr mode only)
+```bash
+# Create long-lived draft PR (ci-pr mode only) — substrate for GitHubPRDefenseStore
+if [[ "${SPRINT_MODE:-}" == "ci-pr" ]]; then
+    DRAFT_PR_URL=$(SESSION_BRANCH="${_BRANCH}" PRIMARY_TICKET_ID="${primary_ticket_id}" EPIC_TITLE="${_EPIC_TITLE:-}" \
+        bash "$(git rev-parse --show-toplevel)/.claude/scripts/dso create-sprint-draft-pr.sh" 2>&1)
+    if [[ -z "$DRAFT_PR_URL" ]]; then
+        echo "ERROR: Phase A draft PR creation failed — halting before Phase E dispatch" >&2
+        exit 1
+    fi
+    echo "Draft PR: $DRAFT_PR_URL"
+fi
+```
+Phase E dispatch must not begin until this block completes.
+
 **Non-epic routing**: After validation, check the ticket type and route accordingly:
 
 | Ticket type | Route |
@@ -284,6 +319,25 @@ Wait for user response and route accordingly:
 - **(a) fix-bug**: dispatch `/dso:fix-bug <primary_ticket_id>`, then exit to Phase I.
 - **(b) brainstorm**: invoke `/dso:brainstorm <primary_ticket_id>` via Skill tool, then re-enter Preplanning Gate.
 - **(c) proceed**: log `"User elected to proceed with low-clarity ticket."`, continue to Preplanning Gate.
+
+### Mode Detection
+
+Detect whether per-story PR mechanisms are active for this sprint run:
+
+```bash
+SPRINT_MODE=$(bash "$PLUGIN_SCRIPTS/mode-detect.sh")  # shim-exempt: internal orchestration script
+```
+
+Emit exactly one banner based on the result:
+
+| SPRINT_MODE | Banner |
+|-------------|--------|
+| `ci-pr` | `MODE: ci-pr` |
+| `local` | `MODE: local — per-story PR mechanisms inactive` |
+
+When `SPRINT_MODE=local`: all ci-pr-only mechanisms (per-story PR creation, trailer enforcement, story-level review gates, merge orchestration, cross-story diff analysis) are **inactive for this sprint run**. Do not attempt to create PRs or enforce story-level trailers.
+
+When `SPRINT_MODE=ci-pr`: per-story PR mechanisms are active. Proceed with normal sprint flow.
 
 ### Context Efficiency Rules
 
@@ -1088,6 +1142,27 @@ After composing the batch, check each task's parent story against the `story_unc
 
 **Key invariant**: Only `STATUS:pass` + `UNCERTAIN` signals (tracked in Phase F Step 4) count toward this threshold. `STATUS:fail` tasks are handled via revert-to-open in Phase F Step 16 and do not affect this counter.
 
+### Pre-Dispatch: Push Session Branch (worktree isolation fix)
+
+Before dispatching any sub-agents, detect whether the orchestrator is running in a session worktree:
+
+```bash
+IS_SESSION_WORKTREE=$([ -f "$(git rev-parse --show-toplevel)/.git" ] && echo "true" || echo "false")
+```
+
+If `IS_SESSION_WORKTREE=true`, push the session branch so sub-agent worktrees can fetch it:
+
+```bash
+# Push session branch so sub-agent worktrees can sync to session HEAD (bug 4724-41a7)
+git push -u origin HEAD
+SESSION_HEAD=$(git rev-parse HEAD)
+SESSION_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+```
+
+Inject `SESSION_BRANCH` and `SESSION_HEAD` into each sub-agent's prompt (see `worktree-dispatch.md` for the injection protocol).
+
+If `IS_SESSION_WORKTREE=false` (orchestrator on main), skip the push.
+
 ### Dry-Run Mode
 
 If `--dry-run` was specified:
@@ -1174,6 +1249,15 @@ Stories tagged `manual:awaiting_user` are collected into `awaiting_manual_storie
 ---
 
 ## Phase E: Sub-Agent Launch (/dso:sprint)
+
+# Story branches: story/<epic-id>/<story-id>; created here, merged in Phase F with DSO-Story-Merge trailer
+
+Before dispatching tasks for a story, create the story branch and capture the branch name:
+
+```bash
+STORY_BRANCH=$(bash "$PLUGIN_SCRIPTS/create-story-branch.sh" "$EPIC_ID" "$STORY_ID")
+# STORY_BRANCH = story/<epic-id>/<story-id>; used by Phase F after all worktrees harvested
+```
 
 <HARD-GATE>
 Do NOT implement any task directly using Edit, Write, or other file-modification tools. ALL implementation tasks must be dispatched to sub-agents via the Task tool — regardless of how small, simple, or obvious the change appears. "Small markdown edit", "single-line change", "user already approved", or "sub-agent dispatch is overhead" are not valid exceptions. Direct implementation by the orchestrator bypasses checkpoint protocol, code review, and acceptance criteria gates.
@@ -1766,7 +1850,15 @@ For tasks that failed:
 
 **This step applies only when `worktree.isolation_enabled` is `false` (shared-directory mode).** When worktree isolation is enabled, commits are made per-worktree via `per-worktree-review-commit.md` (see Worktree Isolation Mode section at the top of Phase F). Skip this step in worktree isolation mode.
 
+```bash
+export DSO_SPRINT_MODE=1
+```
+
 Read and execute `${CLAUDE_PLUGIN_ROOT}/docs/workflows/COMMIT-WORKFLOW.md`.
+
+```bash
+unset DSO_SPRINT_MODE
+```
 
 **SIZE_WARNING path**: When SIZE_ACTION=warn, log the SIZE_WARNING to the user and continue with review dispatch. Do NOT halt, split, or escalate based on warn alone.
 
@@ -1903,6 +1995,32 @@ Do NOT rationalize around a FAIL verdict. The verifier's verdict is final — sc
 grep -n "\[.*\]" .test-index || true
 # Remove any markers for tests that are now passing
 ```
+
+**Story branch merge (before closure)**: After RED marker cleanup and before closing the story, merge the story branch with the DSO-Story-Merge trailer:
+
+```bash
+# Conflict queue precondition (in-memory orchestrator check):
+if [[ ${#CONFLICT_QUEUE[@]} -gt 0 ]]; then
+  echo 'ERROR: conflict queue non-empty — resolve conflicts before merging story branch' >&2
+  exit 1
+fi
+bash "$PLUGIN_SCRIPTS/merge-story-branch.sh" "$STORY_BRANCH" "$STORY_ID"
+```
+
+### Leakage Detection
+
+After merging the story branch, run the leakage detector to catch any non-merge commits that bypassed `check-session-merge-only.sh` during this story's execution:
+
+```bash
+PLUGIN_SCRIPTS="${PLUGIN_SCRIPTS:-$PLUGIN_ROOT/scripts}"
+bash "$PLUGIN_SCRIPTS/detect-session-leakage.sh" || {
+    echo "WARN: session leakage detected — see output above for attribution steps" >&2
+    # Non-blocking: leakage is reported but does not abort the sprint.
+    # The operator must manually re-attribute flagged commits.
+}
+```
+
+Leakage detection is non-blocking: it surfaces commits that need re-attribution but does not abort Phase F. The sprint continues; operators must address flagged commits before merge-to-main.
 
 ```bash
 .claude/scripts/dso ticket comment <id> "Fixed: <summary>"
@@ -2131,6 +2249,12 @@ _dso_pv_exit_write "sprint" "${_UPSTREAM_EVENT_ID:-}" "${SPEC_HASH:-}" "${primar
 ```
 
 ## Phase I: Primary Ticket Closure (/dso:sprint)
+
+Remove the `.sprint-active` marker so post-session commits (e.g., release pipeline) are not blocked by the merge-only hook.
+```bash
+# Remove sprint-active marker — session complete
+rm -f "$(git rev-parse --show-toplevel)/.sprint-active"
+```
 
 Phase I delegates to `/dso:end-session`, which handles closing issues, committing, running `merge-to-main.sh`, and reporting.
 

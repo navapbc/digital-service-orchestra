@@ -217,6 +217,20 @@ repos:
         always_run: true
         stages: [prepare-commit-msg]
 
+      - id: sprint-trailer-check
+        name: Sprint Trailer Check (10s timeout)
+        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh sprint-trailer-check 10 "plugins/dso/scripts/check-sprint-trailer.sh"
+        language: system
+        pass_filenames: false
+
+      - id: session-merge-only-check
+        name: Session Worktree Merge-Only Check (10s timeout)
+        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh session-merge-only-check 10 "plugins/dso/scripts/check-session-merge-only.sh"
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
       - id: compliance-verifier
         name: Compliance Verifier (30s timeout)
         language: script

@@ -194,7 +194,7 @@ Create a single git commit following the repository's commit message conventions
 
 ### Attribution Pre-Commit (skip if attribution.enabled ≠ true)
 
-**SKIP ENTIRELY when `attribution.enabled` is absent or not `true` in `dso-config.conf`.**
+**SKIP when `attribution.enabled` is absent or not `true` in `dso-config.conf` — UNLESS `DSO_SPRINT_MODE=1` is set (sprint mode forces attribution to inject the DSO-Story trailer).**
 
 If `attribution.enabled=true`:
 - Run `.claude/scripts/dso apply-attribution-trailers.sh "$COMMIT_MSG_FILE"` with `ARTIFACTS_DIR` set to the session artifacts dir and `DSO_TASK_ID` exported in the environment (the script reads it from the environment, not as a positional argument)
@@ -202,7 +202,8 @@ If `attribution.enabled=true`:
 
 ```bash
 ATTRIBUTION_ENABLED=$(grep -m1 '^attribution\.enabled=' "$REPO_ROOT/.claude/dso-config.conf" 2>/dev/null | cut -d= -f2-)
-if [[ "${ATTRIBUTION_ENABLED:-}" == "true" ]]; then
+# When DSO_SPRINT_MODE=1, always run attribution to inject DSO-Story trailer
+if [[ "${ATTRIBUTION_ENABLED:-}" == "true" || -n "${DSO_SPRINT_MODE:-}" ]]; then
     DSO_TASK_ID="${DSO_TASK_ID:-}" \
         .claude/scripts/dso apply-attribution-trailers.sh "$COMMIT_MSG_FILE" || \
         echo "WARNING: apply-attribution-trailers.sh failed (non-blocking)" >&2

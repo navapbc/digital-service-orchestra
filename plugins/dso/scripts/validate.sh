@@ -458,6 +458,7 @@ if [ "${VALIDATE_SKIP_PLUGIN_CHECKS:-}" != "1" ]; then
     [ -f "$PLUGIN_SCRIPTS/check-model-id-lint.sh" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS model-id-lint"
     [ -f "$PLUGIN_SCRIPTS/check-contract-schemas.sh" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS contract-schema"
     [ -f "$PLUGIN_SCRIPTS/check-referential-integrity.sh" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS referential-integrity"
+    [ -f "$PLUGIN_SCRIPTS/check-session-branch-invariant.sh" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS session-branch-invariant"
 fi
 [ -n "$CMD_BUILD" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS build"
 # Commands like "make format-check" must split into ["make", "format-check"] for run_check.
@@ -503,6 +504,9 @@ if [ "${VALIDATE_SKIP_PLUGIN_CHECKS:-}" != "1" ]; then
     fi
     if [ -f "$PLUGIN_SCRIPTS/check-referential-integrity.sh" ]; then
         (cd "$REPO_ROOT" && run_check "referential-integrity" "$TIMEOUT_SYNTAX" bash "$PLUGIN_SCRIPTS/check-referential-integrity.sh") &
+    fi
+    if [ -f "$PLUGIN_SCRIPTS/check-session-branch-invariant.sh" ]; then
+        (cd "$REPO_ROOT" && run_check "session-branch-invariant" "$TIMEOUT_SYNTAX" bash "$PLUGIN_SCRIPTS/check-session-branch-invariant.sh") &
     fi
 fi
 if [ "${VALIDATE_SKIP_PLUGIN_CHECKS:-}" != "1" ]; then
@@ -655,6 +659,7 @@ if [ "$VERBOSE" = "0" ]; then
         [ -f "$PLUGIN_SCRIPTS/check-model-id-lint.sh" ] && report_check "model-id-lint" "model-id-lint" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/check-model-id-lint.sh"
         [ -f "$PLUGIN_SCRIPTS/check-contract-schemas.sh" ] && report_check "contract-schema" "contract-schema" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/check-contract-schemas.sh"
         [ -f "$PLUGIN_SCRIPTS/check-referential-integrity.sh" ] && report_check "referential-integrity" "referential-integrity" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/check-referential-integrity.sh"
+        [ -f "$PLUGIN_SCRIPTS/check-session-branch-invariant.sh" ] && report_check "session-branch-invariant" "session-branch-invariant" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/check-session-branch-invariant.sh"
         report_check "hook-drift" "hook-drift" "$TIMEOUT_SYNTAX" "diff <(grep 'id:' .pre-commit-config.yaml) <(grep 'id:' ${CLAUDE_PLUGIN_ROOT}/docs/examples/pre-commit-config.example.yaml)"
     fi
 else
@@ -674,6 +679,7 @@ else
         [ -f "$PLUGIN_SCRIPTS/check-model-id-lint.sh" ] && tally_check "model-id-lint" "model-id-lint"
         [ -f "$PLUGIN_SCRIPTS/check-contract-schemas.sh" ] && tally_check "contract-schema" "contract-schema"
         [ -f "$PLUGIN_SCRIPTS/check-referential-integrity.sh" ] && tally_check "referential-integrity" "referential-integrity"
+        [ -f "$PLUGIN_SCRIPTS/check-session-branch-invariant.sh" ] && tally_check "session-branch-invariant" "session-branch-invariant"
         tally_check "hook-drift" "hook-drift"
     fi
 fi
