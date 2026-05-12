@@ -1021,8 +1021,12 @@ fi
 # others may still be using.
 
 if [[ "$INCLUDE_BRANCHES" == "true" ]]; then
-    # Refresh remote-tracking refs and prune defunct ones in a single call.
-    git -C "$MAIN_WORKTREE" fetch origin --prune 2>/dev/null || true
+    # Refresh remote-tracking refs and prune defunct ones — but only when NOT in
+    # --dry-run. The preview mode must not mutate refs/remotes/* state; users
+    # who want fully accurate dry-run output should `git fetch --prune` first.
+    if [[ "$DRY_RUN" != "true" ]]; then
+        git -C "$MAIN_WORKTREE" fetch origin --prune 2>/dev/null || true
+    fi
 
     # Build set of branch names still live locally (any local branch, regardless of pattern).
     declare -A _live_local_branches=()

@@ -76,6 +76,11 @@ remote_has_branch() {
     git -C "$BARE" show-ref --verify --quiet "refs/heads/$1"
 }
 
+# Earlier versions of these tests used `2>/dev/null ... || true`, which silently
+# passed even when the cleanup script crashed (e.g., bash-4 missing on PATH).
+# Each test now captures the exit code and asserts == 0 so a script-level
+# failure surfaces as a test failure rather than being hidden by the wrapper.
+
 # ── Test 1: Remote-only merged branch is deleted from origin ─────────────────
 test_remote_merged_orphan_is_deleted() {
     local tmp; tmp=$(make_tmpdir)
@@ -86,8 +91,11 @@ test_remote_merged_orphan_is_deleted() {
     local pre="no"; remote_has_branch "worktree-merged-abc" && pre="yes"
     assert_eq "precondition: merged orphan present on origin" "yes" "$pre"
 
+    local rc=0
     (cd "$CLONE" && WORKTREE_CLEANUP_ENABLED=1 bash "$CLEANUP_SCRIPT" \
-        --non-interactive --all --force 2>/dev/null) >/dev/null || true
+        --non-interactive --all --force 2>/dev/null) >/dev/null
+    rc=$?
+    assert_eq "merged-orphan test: cleanup script exited 0" "0" "$rc"
 
     local post="yes"; remote_has_branch "worktree-merged-abc" || post="no"
     assert_eq "remote merged orphan deleted from origin" "no" "$post"
@@ -109,8 +117,11 @@ exit 0
 MOCK
     chmod +x "$shim_path/gh"
 
+    local rc=0
     (cd "$CLONE" && PATH="$shim_path:$PATH" WORKTREE_CLEANUP_ENABLED=1 \
-        bash "$CLEANUP_SCRIPT" --non-interactive --all --force 2>/dev/null) >/dev/null || true
+        bash "$CLEANUP_SCRIPT" --non-interactive --all --force 2>/dev/null) >/dev/null
+    rc=$?
+    assert_eq "unmerged-preserved test: cleanup script exited 0" "0" "$rc"
 
     local post="no"; remote_has_branch "worktree-unmerged-xyz" && post="yes"
     assert_eq "remote unmerged orphan preserved (no merge evidence)" "yes" "$post"
@@ -129,8 +140,11 @@ test_dangling_remote_tracking_ref_pruned() {
     git -C "$CLONE" show-ref --verify --quiet "refs/remotes/agent/foo" && pre="yes"
     assert_eq "precondition: dangling ref present" "yes" "$pre"
 
+    local rc=0
     (cd "$CLONE" && WORKTREE_CLEANUP_ENABLED=1 bash "$CLEANUP_SCRIPT" \
-        --non-interactive --all --force 2>/dev/null) >/dev/null || true
+        --non-interactive --all --force 2>/dev/null) >/dev/null
+    rc=$?
+    assert_eq "dangling-ref test: cleanup script exited 0" "0" "$rc"
 
     local post="yes"
     git -C "$CLONE" show-ref --verify --quiet "refs/remotes/agent/foo" || post="no"
@@ -150,8 +164,11 @@ test_protected_branches_never_deleted_from_origin() {
     # Push a 'tickets' branch to origin (matches none of our patterns, but be explicit).
     git -C "$CLONE" push origin "main:refs/heads/tickets" >/dev/null 2>&1
 
+    local rc=0
     (cd "$CLONE" && WORKTREE_CLEANUP_ENABLED=1 bash "$CLEANUP_SCRIPT" \
-        --non-interactive --all --force 2>/dev/null) >/dev/null || true
+        --non-interactive --all --force 2>/dev/null) >/dev/null
+    rc=$?
+    assert_eq "protected-branches test: cleanup script exited 0" "0" "$rc"
 
     local main_ok="no"; remote_has_branch "main" && main_ok="yes"
     local tickets_ok="no"; remote_has_branch "tickets" && tickets_ok="yes"
@@ -165,8 +182,11 @@ test_story_pattern_picked_up_by_default() {
     setup_origin_and_clone "$tmp"
     push_merged_branch_to_origin "story/foo-1234/bar-5678"
 
+    local rc=0
     (cd "$CLONE" && WORKTREE_CLEANUP_ENABLED=1 bash "$CLEANUP_SCRIPT" \
-        --non-interactive --all --force 2>/dev/null) >/dev/null || true
+        --non-interactive --all --force 2>/dev/null) >/dev/null
+    rc=$?
+    assert_eq "story-pattern test: cleanup script exited 0" "0" "$rc"
 
     local post="yes"; remote_has_branch "story/foo-1234/bar-5678" || post="no"
     assert_eq "story/* merged orphan deleted from origin" "no" "$post"
@@ -184,9 +204,11 @@ test_branch_pattern_back_compat_warns() {
 worktree.branch_pattern=legacy-pattern-*
 EOF
 
-    local stderr_out
+    local stderr_out rc
     stderr_out=$(cd "$CLONE" && WORKTREE_CLEANUP_ENABLED=1 \
-        bash "$CLEANUP_SCRIPT" --non-interactive --all --force 2>&1 >/dev/null) || true
+        bash "$CLEANUP_SCRIPT" --non-interactive --all --force 2>&1 >/dev/null)
+    rc=$?
+    assert_eq "branch_pattern-compat test: cleanup script exited 0" "0" "$rc"
 
     local post="yes"; remote_has_branch "legacy-pattern-merged" || post="no"
     assert_eq "legacy branch_pattern still picks up merged orphan" "no" "$post"
@@ -220,8 +242,11 @@ test_local_orphan_squash_merged_uses_dash_D_fallback() {
     git -C "$CLONE" show-ref --verify --quiet "refs/heads/worktree-squashed" && pre="yes"
     assert_eq "precondition: squash-merged local orphan present" "yes" "$pre"
 
+    local rc=0
     (cd "$CLONE" && WORKTREE_CLEANUP_ENABLED=1 bash "$CLEANUP_SCRIPT" \
-        --non-interactive --all --force 2>/dev/null) >/dev/null || true
+        --non-interactive --all --force 2>/dev/null) >/dev/null
+    rc=$?
+    assert_eq "squash-merged-local test: cleanup script exited 0" "0" "$rc"
 
     local post="yes"
     git -C "$CLONE" show-ref --verify --quiet "refs/heads/worktree-squashed" || post="no"
@@ -244,8 +269,11 @@ test_local_unmerged_orphan_not_hard_deleted_by_force() {
     git -C "$CLONE" commit -m "WIP do not lose" >/dev/null 2>&1
     git -C "$CLONE" checkout main >/dev/null 2>&1
 
+    local rc=0
     (cd "$CLONE" && WORKTREE_CLEANUP_ENABLED=1 bash "$CLEANUP_SCRIPT" \
-        --non-interactive --all --force 2>/dev/null) >/dev/null || true
+        --non-interactive --all --force 2>/dev/null) >/dev/null
+    rc=$?
+    assert_eq "unmerged-local-not-D test: cleanup script exited 0" "0" "$rc"
 
     local still_there="no"
     git -C "$CLONE" show-ref --verify --quiet "refs/heads/worktree-unmerged-local" && still_there="yes"
@@ -280,8 +308,11 @@ test_remote_orphan_detected_via_merge_to_main_proxy() {
 exit 0
 MOCK
     chmod +x "$shim_path/gh"
+    local rc=0
     (cd "$CLONE" && PATH="$shim_path:$PATH" WORKTREE_CLEANUP_ENABLED=1 \
-        bash "$CLEANUP_SCRIPT" --non-interactive --all --force 2>/dev/null) >/dev/null || true
+        bash "$CLEANUP_SCRIPT" --non-interactive --all --force 2>/dev/null) >/dev/null
+    rc=$?
+    assert_eq "merge-proxy test: cleanup script exited 0" "0" "$rc"
 
     local post="yes"; remote_has_branch "worktree-orch-proxy" || post="no"
     assert_eq "remote orphan with (merge <branch>) proxy on main deleted" "no" "$post"
@@ -309,14 +340,48 @@ exit 0
 MOCK
     chmod +x "$fake_path/gh"
 
+    local rc=0
     (cd "$CLONE" && PATH="$fake_path:$PATH" WORKTREE_CLEANUP_ENABLED=1 \
-        bash "$CLEANUP_SCRIPT" --non-interactive --all --force 2>/dev/null) >/dev/null || true
+        bash "$CLEANUP_SCRIPT" --non-interactive --all --force 2>/dev/null) >/dev/null
+    rc=$?
+    assert_eq "closed-PR test: cleanup script exited 0" "0" "$rc"
 
     local still_there="no"
     remote_has_branch "worktree-closed-pr-only" && still_there="yes"
     assert_eq "CLOSED (not merged) PR is NOT deletion evidence" "yes" "$still_there"
 }
 
+# ── Test 11: --dry-run does NOT mutate refs/remotes (no fetch+prune) ─────────
+# Regression for coderabbitai PR #100 major finding: the orphan-scan must not
+# `git fetch --prune` during --dry-run, because that updates refs/remotes/*
+# state before the user has approved anything.
+test_dry_run_does_not_mutate_refs() {
+    local tmp; tmp=$(make_tmpdir)
+    setup_origin_and_clone "$tmp"
+
+    # Inject a synthetic refs/remotes/origin/<branch> that is NOT actually on origin.
+    # A live `git fetch origin --prune` would delete this ref. Under --dry-run,
+    # the script must NOT touch it.
+    local sha; sha=$(git -C "$CLONE" rev-parse HEAD)
+    git -C "$CLONE" update-ref "refs/remotes/origin/synthetic-not-on-origin" "$sha" >/dev/null 2>&1
+
+    local pre="no"
+    git -C "$CLONE" show-ref --verify --quiet "refs/remotes/origin/synthetic-not-on-origin" && pre="yes"
+    assert_eq "precondition: synthetic origin ref present" "yes" "$pre"
+
+    local rc=0
+    (cd "$CLONE" && WORKTREE_CLEANUP_ENABLED=1 bash "$CLEANUP_SCRIPT" \
+        --dry-run --all --force 2>/dev/null) >/dev/null
+    rc=$?
+    assert_eq "dry-run test: cleanup script exited 0" "0" "$rc"
+
+    # Under --dry-run, the synthetic ref must still be present (no fetch --prune ran).
+    local post="no"
+    git -C "$CLONE" show-ref --verify --quiet "refs/remotes/origin/synthetic-not-on-origin" && post="yes"
+    assert_eq "--dry-run leaves refs/remotes/origin/* unmutated" "yes" "$post"
+}
+
+test_dry_run_does_not_mutate_refs
 test_remote_merged_orphan_is_deleted
 test_remote_unmerged_orphan_is_preserved
 test_dangling_remote_tracking_ref_pruned
