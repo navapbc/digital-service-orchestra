@@ -433,3 +433,4 @@ plugins/dso/scripts/check-sprint-trailer.sh:tests/hooks/test-check-sprint-traile
 .pre-commit-config.yaml:tests/hooks/test-sprint-trailer-registration.sh
 plugins/dso/scripts/detect-session-leakage.sh:tests/scripts/test-detect-session-leakage.sh
 plugins/dso/scripts/sprint/compute-rereviewed-loc.sh:tests/scripts/test-compute-rereviewed-loc.sh
+plugins/dso/scripts/review-defense-store.sh:tests/review/test-defense-store-ticket-binding.sh,tests/review/test-defense-store-legacy-migration.sh [test_load_for_region_returns_record_when_sha_in_ancestry] [test_load_for_region_excludes_record_when_sha_not_in_ancestry] [test_legacy_record_falls_back_to_diff_hash_equality],tests/review/test-defense-store-sha-range.sh [test_defense_store_write_records_sha_fields]
