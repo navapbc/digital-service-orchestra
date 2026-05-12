@@ -21,11 +21,15 @@ jobs:
           fetch-depth: 0
 
       - name: Fetch session branch
-        run: git fetch origin "${{ vars.SPRINT_SESSION_ID }}"
+        env:
+          SPRINT_SESSION_ID: ${{ vars.SPRINT_SESSION_ID }}
+        run: git fetch origin "${SPRINT_SESSION_ID:-main}"
 
       - name: Compute story diff (merge-base delta)
+        env:
+          SPRINT_SESSION_ID: ${{ vars.SPRINT_SESSION_ID }}
         run: |
-          BASE=$(git merge-base "origin/${{ vars.SPRINT_SESSION_ID }}" HEAD)
+          BASE=$(git merge-base "origin/${SPRINT_SESSION_ID:-main}" HEAD)
           git diff "$BASE" HEAD > /tmp/story-diff.patch
 
       - name: Download prior review artifact (cycle tracking)
