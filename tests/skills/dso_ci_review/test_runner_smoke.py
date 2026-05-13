@@ -3176,3 +3176,157 @@ def test_validate_review_schema_hash_matches_script():
         f"in {validator_script}. "
         "Update _VALIDATE_REVIEW_SCHEMA_HASH in runner.py to match."
     )
+
+
+# ---------------------------------------------------------------------------
+# _read_config_int and _clamp_schema_correction_attempts tests
+# Task efab-ac00-d1a8-4cee — RED tests (functions do not exist yet in runner.py)
+# ---------------------------------------------------------------------------
+#
+# RED markers:
+#   tests/skills/dso_ci_review/test_runner_smoke.py [test_read_config_int_returns_default_when_key_absent]
+#   tests/skills/dso_ci_review/test_runner_smoke.py [test_read_config_int_returns_value_when_key_present]
+#   tests/skills/dso_ci_review/test_runner_smoke.py [test_read_config_int_returns_default_on_invalid_value]
+#   tests/skills/dso_ci_review/test_runner_smoke.py [test_clamp_schema_correction_attempts_honors_zero]
+#   tests/skills/dso_ci_review/test_runner_smoke.py [test_clamp_schema_correction_attempts_honors_within_ceiling]
+#   tests/skills/dso_ci_review/test_runner_smoke.py [test_clamp_schema_correction_attempts_clamps_above_ceiling_with_warning]
+
+
+def test_read_config_int_returns_default_when_key_absent(tmp_path):
+    """
+    Given: a dso-config.conf with no review.schema_correction_max_attempts entry
+    When: _read_config_int("review.schema_correction_max_attempts", 1, config_path) is called
+    Then: returns 1 (the default)
+
+    RED marker: tests/skills/dso_ci_review/test_runner_smoke.py [test_read_config_int_returns_default_when_key_absent]
+    """
+    import dso_ci_review.runner as runner_mod
+
+    config_file = tmp_path / "dso-config.conf"
+    config_file.write_text("# no review.schema_correction_max_attempts key\n")
+
+    result = runner_mod._read_config_int(
+        "review.schema_correction_max_attempts", 1, str(config_file)
+    )
+    assert result == 1, (
+        f"_read_config_int must return the default (1) when the key is absent; "
+        f"got {result!r}"
+    )
+
+
+def test_read_config_int_returns_value_when_key_present(tmp_path):
+    """
+    Given: dso-config.conf contains "review.schema_correction_max_attempts=2"
+    When: _read_config_int("review.schema_correction_max_attempts", 1, config_path) is called
+    Then: returns 2
+
+    RED marker: tests/skills/dso_ci_review/test_runner_smoke.py [test_read_config_int_returns_value_when_key_present]
+    """
+    import dso_ci_review.runner as runner_mod
+
+    config_file = tmp_path / "dso-config.conf"
+    config_file.write_text("review.schema_correction_max_attempts=2\n")
+
+    result = runner_mod._read_config_int(
+        "review.schema_correction_max_attempts", 1, str(config_file)
+    )
+    assert result == 2, (
+        f"_read_config_int must return 2 when the config contains "
+        f"'review.schema_correction_max_attempts=2'; got {result!r}"
+    )
+
+
+def test_read_config_int_returns_default_on_invalid_value(tmp_path):
+    """
+    Given: dso-config.conf contains 'review.schema_correction_max_attempts=foo'
+    When: _read_config_int("review.schema_correction_max_attempts", 1, config_path) is called
+    Then: returns 1 (the default) without raising an exception
+
+    RED marker: tests/skills/dso_ci_review/test_runner_smoke.py [test_read_config_int_returns_default_on_invalid_value]
+
+    AC amendment: covers missing_error_path — non-integer config values must fall
+    back to the default rather than raising ValueError or propagating a parse error.
+    """
+    import dso_ci_review.runner as runner_mod
+
+    config_file = tmp_path / "dso-config.conf"
+    config_file.write_text("review.schema_correction_max_attempts=foo\n")
+
+    result = runner_mod._read_config_int(
+        "review.schema_correction_max_attempts", 1, str(config_file)
+    )
+    assert result == 1, (
+        f"_read_config_int must return the default (1) when the config value is "
+        f"non-integer ('foo'); got {result!r}. Must not raise."
+    )
+
+
+def test_clamp_schema_correction_attempts_honors_zero():
+    """
+    Given: max_attempts=0
+    When: _clamp_schema_correction_attempts(0) is called
+    Then: returns 0 (disable-correction sentinel honored as-is)
+
+    RED marker: tests/skills/dso_ci_review/test_runner_smoke.py [test_clamp_schema_correction_attempts_honors_zero]
+    """
+    import dso_ci_review.runner as runner_mod
+
+    result = runner_mod._clamp_schema_correction_attempts(0)
+    assert result == 0, (
+        f"_clamp_schema_correction_attempts(0) must return 0 (disable sentinel); "
+        f"got {result!r}"
+    )
+
+
+def test_clamp_schema_correction_attempts_honors_within_ceiling():
+    """
+    Given: values 1 and 3
+    When: _clamp_schema_correction_attempts(v) is called for each
+    Then: returns the value unchanged (no clamping, no warning)
+
+    RED marker: tests/skills/dso_ci_review/test_runner_smoke.py [test_clamp_schema_correction_attempts_honors_within_ceiling]
+    """
+    import io
+    from contextlib import redirect_stderr
+
+    import dso_ci_review.runner as runner_mod
+
+    for v in (1, 3):
+        stderr_capture = io.StringIO()
+        with redirect_stderr(stderr_capture):
+            result = runner_mod._clamp_schema_correction_attempts(v)
+        assert result == v, (
+            f"_clamp_schema_correction_attempts({v}) must return {v} unchanged; "
+            f"got {result!r}"
+        )
+        stderr_text = stderr_capture.getvalue()
+        assert not stderr_text, (
+            f"_clamp_schema_correction_attempts({v}) must not emit a warning "
+            f"(value is within ceiling); got stderr: {stderr_text!r}"
+        )
+
+
+def test_clamp_schema_correction_attempts_clamps_above_ceiling_with_warning(capsys):
+    """
+    Given: max_attempts=10
+    When: _clamp_schema_correction_attempts(10) is called
+    Then: returns 3; a warning line is emitted to stderr containing
+          "schema_correction_max_attempts" and "clamped" (or equivalent)
+
+    RED marker: tests/skills/dso_ci_review/test_runner_smoke.py [test_clamp_schema_correction_attempts_clamps_above_ceiling_with_warning]
+    """
+    import dso_ci_review.runner as runner_mod
+
+    result = runner_mod._clamp_schema_correction_attempts(10)
+    captured = capsys.readouterr()
+
+    assert result == 3, (
+        f"_clamp_schema_correction_attempts(10) must clamp to 3; got {result!r}"
+    )
+    assert "schema_correction_max_attempts" in captured.err, (
+        f"Warning must mention 'schema_correction_max_attempts'; "
+        f"got stderr: {captured.err!r}"
+    )
+    assert "clamp" in captured.err.lower(), (
+        f"Warning must mention 'clamped' (or 'clamp'); got stderr: {captured.err!r}"
+    )
