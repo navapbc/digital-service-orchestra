@@ -157,5 +157,94 @@ else
     (( FAIL++ ))
 fi
 
+# ── Test: --prefix flag creates branch with custom prefix ──────────────────────
+# Given: a fresh git repo and valid epic-id + story-id with --prefix debug
+# When:  create-story-branch.sh epic-001 story-002 --prefix debug is invoked
+# Then:  stdout contains STORY_BRANCH=debug/epic-001/story-002
+echo "--- Test: --prefix creates debug/ branch ---"
+test_create_story_branch_custom_prefix() {
+    local _repo
+    _repo=$(_make_scratch_repo)
+    local output
+    output=$(cd "$_repo" && bash "$SCRIPT" epic-001 story-002 --prefix debug 2>&1)
+    local exit_code=$?
+    if [ "$exit_code" -eq 0 ]; then
+        echo "  PASS: test_create_story_branch_custom_prefix: exit code 0"
+        (( PASS++ ))
+    else
+        echo "  FAIL: test_create_story_branch_custom_prefix: expected exit 0, got $exit_code" >&2
+        (( FAIL++ ))
+    fi
+    if echo "$output" | grep -qF "STORY_BRANCH=debug/epic-001/story-002"; then
+        echo "  PASS: test_create_story_branch_custom_prefix: output contains debug prefix"
+        (( PASS++ ))
+    else
+        echo "  FAIL: test_create_story_branch_custom_prefix: expected STORY_BRANCH=debug/epic-001/story-002 in output" >&2
+        echo "  Actual output: $output" >&2
+        (( FAIL++ ))
+    fi
+}
+test_create_story_branch_custom_prefix
+
+# ── Test: no --prefix flag uses default 'story' prefix ────────────────────────
+# Given: a fresh git repo and valid epic-id + story-id, no --prefix flag
+# When:  create-story-branch.sh epic-001 story-002 is invoked
+# Then:  stdout contains STORY_BRANCH=story/epic-001/story-002
+echo ""
+echo "--- Test: no --prefix uses story/ default ---"
+test_create_story_branch_prefix_default() {
+    local _repo
+    _repo=$(_make_scratch_repo)
+    local output
+    output=$(cd "$_repo" && bash "$SCRIPT" epic-001 story-002 2>&1)
+    local exit_code=$?
+    if [ "$exit_code" -eq 0 ]; then
+        echo "  PASS: test_create_story_branch_prefix_default: exit code 0"
+        (( PASS++ ))
+    else
+        echo "  FAIL: test_create_story_branch_prefix_default: expected exit 0, got $exit_code" >&2
+        (( FAIL++ ))
+    fi
+    if echo "$output" | grep -qF "STORY_BRANCH=story/epic-001/story-002"; then
+        echo "  PASS: test_create_story_branch_prefix_default: output uses story prefix"
+        (( PASS++ ))
+    else
+        echo "  FAIL: test_create_story_branch_prefix_default: expected STORY_BRANCH=story/epic-001/story-002 in output" >&2
+        echo "  Actual output: $output" >&2
+        (( FAIL++ ))
+    fi
+}
+test_create_story_branch_prefix_default
+
+# ── Test: --prefix flag can appear after positional args ──────────────────────
+# Given: a fresh git repo and valid epic-id + story-id with --prefix after positional args
+# When:  create-story-branch.sh epic-001 story-002 --prefix debug is invoked
+# Then:  stdout contains STORY_BRANCH=debug/epic-001/story-002
+echo ""
+echo "--- Test: --prefix anywhere in args ---"
+test_create_story_branch_prefix_anywhere() {
+    local _repo
+    _repo=$(_make_scratch_repo)
+    local output
+    output=$(cd "$_repo" && bash "$SCRIPT" epic-001 story-002 --prefix debug 2>&1)
+    local exit_code=$?
+    if [ "$exit_code" -eq 0 ]; then
+        echo "  PASS: test_create_story_branch_prefix_anywhere: exit code 0"
+        (( PASS++ ))
+    else
+        echo "  FAIL: test_create_story_branch_prefix_anywhere: expected exit 0, got $exit_code" >&2
+        (( FAIL++ ))
+    fi
+    if echo "$output" | grep -qF "STORY_BRANCH=debug/epic-001/story-002"; then
+        echo "  PASS: test_create_story_branch_prefix_anywhere: output contains debug prefix"
+        (( PASS++ ))
+    else
+        echo "  FAIL: test_create_story_branch_prefix_anywhere: expected STORY_BRANCH=debug/epic-001/story-002 in output" >&2
+        echo "  Actual output: $output" >&2
+        (( FAIL++ ))
+    fi
+}
+test_create_story_branch_prefix_anywhere
+
 # ── Print summary ─────────────────────────────────────────────────────────────
 print_results
