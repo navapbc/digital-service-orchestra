@@ -240,23 +240,24 @@ def _validate_findings_schema(
 def _resolve_pr_number() -> str | None:
     """Resolve the current PR number from GitHub Actions env vars.
 
-    Returns the PR number as a string when running in pull_request event context,
-    else None. Sources checked, in order:
-      1. GITHUB_REF (format: refs/pull/<N>/merge on PR events)
-      2. PR_NUMBER env var (host-project override)
+    Returns the PR number as a string when a PR context is detectable, else None.
+    Sources checked, in order:
+      1. PR_NUMBER env var (explicit override — works for push-triggered workflows
+         where the caller resolves the PR number via gh pr list and sets this var)
+      2. GITHUB_REF (format: refs/pull/<N>/merge on pull_request events)
     """
-    if os.environ.get("GITHUB_EVENT_NAME", "") != "pull_request":
-        return None
-    ref = os.environ.get("GITHUB_REF", "")
-    # GITHUB_REF on PR events is "refs/pull/<N>/merge"
-    if ref.startswith("refs/pull/"):
-        rest = ref[len("refs/pull/") :]
-        num = rest.split("/", 1)[0]
-        if num.isdigit():
-            return num
+    # Check PR_NUMBER first — works for both push and pull_request events.
     pr_num = os.environ.get("PR_NUMBER", "")
     if pr_num.isdigit():
         return pr_num
+    # Fallback: GITHUB_REF on pull_request events is "refs/pull/<N>/merge"
+    if os.environ.get("GITHUB_EVENT_NAME", "") == "pull_request":
+        ref = os.environ.get("GITHUB_REF", "")
+        if ref.startswith("refs/pull/"):
+            rest = ref[len("refs/pull/") :]
+            num = rest.split("/", 1)[0]
+            if num.isdigit():
+                return num
     return None
 
 
