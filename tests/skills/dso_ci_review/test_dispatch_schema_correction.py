@@ -593,10 +593,14 @@ def test_file_and_cited_lines_frozen_field_mutation_rejected(monkeypatch) -> Non
     When: correction dispatch returns findings with mutated file or cited_lines.
     Then:
       - A synthetic finding with category='schema_error' is appended (mutation rejected).
+
+    Tests both 'file' and 'cited_lines' frozen fields, since they are enumerated
+    individually in _FROZEN_FIELDS and each is independently enforced.
     """
+    # --- Test 1: file mutation rejected ---
     originals = [copy.deepcopy(_FINDING_A)]
     mutated = [copy.deepcopy(_FINDING_A)]
-    mutated[0]["file"] = "src/other.py"  # mutate a frozen field
+    mutated[0]["file"] = "src/other.py"  # mutate frozen field 'file'
 
     def _mock_dispatch_review(**kwargs):
         return {"findings": mutated}
@@ -618,8 +622,40 @@ def test_file_and_cited_lines_frozen_field_mutation_rejected(monkeypatch) -> Non
     findings = result.get("findings", [])
     schema_errors = [f for f in findings if f.get("category") == "schema_error"]
     assert schema_errors, (
-        f"Expected synthetic schema_error on file/cited_lines mutation, "
-        f"got findings: {findings}"
+        f"Expected synthetic schema_error on 'file' mutation, got findings: {findings}"
     )
     assert schema_errors[0].get("type") == "parse_error"
     assert schema_errors[0].get("severity") == "critical"
+
+    # --- Test 2: cited_lines mutation rejected ---
+    originals2 = [copy.deepcopy(_FINDING_A)]
+    mutated2 = [copy.deepcopy(_FINDING_A)]
+    mutated2[0]["cited_lines"] = [
+        "src/handler.py:99"
+    ]  # mutate frozen field 'cited_lines'
+
+    def _mock_dispatch_review2(**kwargs):
+        return {"findings": mutated2}
+
+    monkeypatch.setattr(_dispatch_mod, "dispatch_review", _mock_dispatch_review2)
+    monkeypatch.setattr(
+        _runner_mod, "_validate_findings_schema", _stub_validate_schema_pass
+    )
+
+    result2 = _dispatch_mod.dispatch_schema_correction(
+        original_findings=originals2,
+        diff_text=_DIFF_TEXT,
+        provider_chain=["anthropic"],
+        environ={"ANTHROPIC_API_KEY": "test-key"},
+        max_attempts=1,
+        agent_id="code-reviewer-standard",
+    )
+
+    findings2 = result2.get("findings", [])
+    schema_errors2 = [f for f in findings2 if f.get("category") == "schema_error"]
+    assert schema_errors2, (
+        f"Expected synthetic schema_error on 'cited_lines' mutation, "
+        f"got findings: {findings2}"
+    )
+    assert schema_errors2[0].get("type") == "parse_error"
+    assert schema_errors2[0].get("severity") == "critical"
