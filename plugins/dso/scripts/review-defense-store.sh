@@ -386,3 +386,262 @@ for comment in comments:
     fi
   done <<< "$candidate_records"
 }
+
+# ---------------------------------------------------------------------------
+# defense_store_list --pr <pr_number> [--ref <git-ref>] [--all-no-pr-filter]
+#
+# Emits the subset of DEFENSE_RECORD lines stored on the tickets orphan branch
+# that are RELEVANT to the given PR — meaning at least one path cited by the
+# record matches a file in the PR's diff. Output format matches what
+# mirror-defenses-to-pr.sh consumes:
+#
+#     DEFENSE_RECORD: {"defense_text": "...", ...}
+#
+# Path normalization: cited paths from prior sessions are stored as absolute
+# paths (e.g. HOME/<repo>-worktrees/worktree-*/... or HOME/<repo>/...). The
+# normalizer strips everything up to and including the repo root so the
+# result is repo-relative (e.g. <plugin-dir>/scripts/foo.sh). Filtering then
+# intersects with the PR changed-files set.
+#
+# Arguments:
+#   --pr <pr_number>     REQUIRED. PR number used to fetch the changed-file
+#                        set. Defenses whose normalized paths don't intersect
+#                        that set are skipped — prevents cross-PR pollution.
+#   --ref <git-ref>      Override the git ref to read from (default: tickets,
+#                        or origin/tickets if tickets is not present locally).
+#   --all-no-pr-filter   Emit ALL defenses without PR filtering. Manual-debug
+#                        escape hatch — never use this in CI.
+#
+# Exit codes:
+#   0 — success (zero or more records emitted)
+#   1 — git ref unavailable (no tickets branch reachable)
+#   2 — argument error (e.g., --pr missing without --all-no-pr-filter)
+#   3 — PR file fetch failed (fail-safe: emits zero records)
+# ---------------------------------------------------------------------------
+defense_store_list() {
+  local pr_number=""
+  local git_ref=""
+  local all_no_pr_filter=0
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --pr)
+        if [[ $# -lt 2 ]]; then
+          echo "review-defense-store.sh list: --pr requires a value" >&2
+          return 2
+        fi
+        pr_number="$2"
+        shift 2
+        ;;
+      --ref)
+        if [[ $# -lt 2 ]]; then
+          echo "review-defense-store.sh list: --ref requires a value" >&2
+          return 2
+        fi
+        git_ref="$2"
+        shift 2
+        ;;
+      --all-no-pr-filter)
+        all_no_pr_filter=1
+        shift
+        ;;
+      *)
+        # Ignore unknown args silently — keep the CLI forgiving so a future
+        # caller adding a new flag does not regress mirror-to-pr in CI.
+        shift
+        ;;
+    esac
+  done
+
+  # PR scoping is mandatory in CI to avoid cross-PR comment pollution.
+  if [[ -z "$pr_number" && "$all_no_pr_filter" -ne 1 ]]; then
+    echo "review-defense-store.sh list: --pr <pr_number> is required (or --all-no-pr-filter for manual debugging)" >&2
+    return 2
+  fi
+
+  # Build the PR changed-files set into a temp file (one path per line).
+  # Fail-safe: if the fetch fails, emit zero records and exit 3 so the CI
+  # mirror step is a no-op rather than dumping every defense in the repo.
+  local pr_files_file=""
+  # Cleanup helper — called on every return path so the mktemp never leaks.
+  _defense_list_cleanup() {
+    [[ -n "${pr_files_file:-}" ]] && rm -f "$pr_files_file"
+  }
+  if [[ -n "$pr_number" ]]; then
+    pr_files_file=$(mktemp /tmp/defense-pr-files.XXXXXX)
+    if ! gh pr view "$pr_number" --json files -q '.files[].path' > "$pr_files_file" 2>/dev/null; then
+      echo "review-defense-store.sh list: failed to fetch PR #${pr_number} file list — emitting zero records" >&2
+      _defense_list_cleanup
+      return 3
+    fi
+    # Empty file list (e.g. PR with no diff) → no defenses can match.
+    if ! [[ -s "$pr_files_file" ]]; then
+      _defense_list_cleanup
+      return 0
+    fi
+  fi
+
+  # Resolve git ref. Try local 'tickets' first, then 'origin/tickets'.
+  if [[ -z "$git_ref" ]]; then
+    if git rev-parse --verify --quiet 'tickets' >/dev/null 2>&1; then
+      git_ref='tickets'
+    elif git rev-parse --verify --quiet 'origin/tickets' >/dev/null 2>&1; then
+      git_ref='origin/tickets'
+    else
+      echo "defense_store_list: no 'tickets' or 'origin/tickets' ref available" >&2
+      _defense_list_cleanup
+      return 1
+    fi
+  fi
+
+  # List every *-COMMENT.json blob on the tickets ref, read it, and emit any
+  # data.body line that starts with "DEFENSE_RECORD: ".
+  # Read via git ls-tree from the orphan ref so we never touch the worktree
+  # tracker dir — keeps the bash pre-hook tracker guard out of this path.
+  local comment_files
+  comment_files=$(git ls-tree -r --name-only "$git_ref" 2>/dev/null | grep -E '/[0-9]+-[a-f0-9-]+-COMMENT\.json$' || true)
+
+  if [[ -z "$comment_files" ]]; then
+    _defense_list_cleanup
+    return 0
+  fi
+
+  # Stream each blob through python to extract data.body and filter by prefix.
+  # Pass file list via stdin to a python script body kept in a heredoc-fed
+  # variable (so we can avoid `python3 - <<EOF` which would consume stdin for
+  # the program source itself).
+  local py_program
+  # shellcheck disable=SC2016  # Python source intentionally not expanded by bash.
+  py_program='
+import json
+import re
+import subprocess
+import sys
+
+ref = sys.argv[1]
+pr_files_path = sys.argv[2] if len(sys.argv) > 2 else ""
+prefix = "DEFENSE_RECORD: "
+
+# Build the PR file set. Empty path string ⇒ no filter (escape hatch).
+pr_files = set()
+if pr_files_path:
+    try:
+        with open(pr_files_path, "r") as fh:
+            for p in fh:
+                p = p.strip()
+                if p:
+                    pr_files.add(p)
+    except OSError:
+        pass
+
+
+def normalize_path(p):
+    """Strip session/worktree absolute prefixes; return repo-relative path.
+
+    Examples (HOME stands in for any absolute prefix; REPO is the project dir
+    name; DIR is any in-repo subpath):
+      HOME/REPO-worktrees/worktree-20260507-150815/DIR/foo.sh -> DIR/foo.sh
+      HOME/REPO/DIR/foo.sh                                    -> DIR/foo.sh
+      DIR/foo.sh                                              -> DIR/foo.sh
+    """
+    # Strip everything up through digital-service-orchestra(-worktrees/worktree-*)?/
+    m = re.search(r"/digital-service-orchestra(?:-worktrees/worktree-[^/]+)?/(.+)$", p)
+    if m:
+        return m.group(1)
+    return p
+
+
+def record_matches_pr(record_json, pr_files):
+    if not pr_files:
+        return True  # No filter requested — emit all.
+    try:
+        rec = json.loads(record_json[len(prefix):])
+    except (json.JSONDecodeError, ValueError):
+        return False
+    # Check cited_lines first (more specific: path:line:content).
+    for cited in rec.get("cited_lines", []) or []:
+        # Format: "path:lineno:content" — take part before the first colon.
+        if isinstance(cited, str):
+            cited_path = cited.split(":", 1)[0]
+            if normalize_path(cited_path) in pr_files:
+                return True
+    # Fall back to file_paths.
+    for fp in rec.get("file_paths", []) or []:
+        if isinstance(fp, str) and normalize_path(fp) in pr_files:
+            return True
+    return False
+
+
+for line in sys.stdin:
+    path = line.strip()
+    if not path:
+        continue
+    try:
+        blob = subprocess.run(
+            ["git", "show", "{}:{}".format(ref, path)],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+    except subprocess.TimeoutExpired:
+        print("WARN: git show timed out for {}; record skipped".format(path), file=sys.stderr)
+        continue
+    if blob.returncode != 0 or not blob.stdout:
+        continue
+    try:
+        event = json.loads(blob.stdout)
+    except (json.JSONDecodeError, ValueError):
+        continue
+    # Defensive: event["data"] is expected to be a dict, but guard against
+    # malformed comment blobs where it may be a non-dict truthy value
+    # (int / str / list) — `.get()` would raise AttributeError otherwise.
+    data_field = event.get("data")
+    if not isinstance(data_field, dict):
+        continue
+    body = data_field.get("body") or ""
+    if not isinstance(body, str):
+        continue
+    # body may contain newlines from multi-line defenses; only the first line
+    # carries the prefix marker, and mirror-defenses-to-pr.sh reads line-by-line.
+    first_line = body.split("\n", 1)[0]
+    if not first_line.startswith(prefix):
+        continue
+    if not record_matches_pr(first_line, pr_files):
+        continue
+    # Emit just the prefix-line so the mirror-defenses-to-pr.sh
+    # `while IFS= read -r line` loop sees a clean record per line.
+    print(first_line)
+'
+  printf '%s\n' "$comment_files" | python3 -c "$py_program" "$git_ref" "${pr_files_file:-}"
+  local _rc=$?
+
+  # Cleanup the PR-files temp file (no-op if --all-no-pr-filter).
+  _defense_list_cleanup
+  return $_rc
+}
+
+# ---------------------------------------------------------------------------
+# CLI dispatcher — only runs when this script is executed directly, NOT when
+# sourced. The BASH_SOURCE[0] vs $0 check is the canonical guard.
+# Subcommands: list (emits DEFENSE_RECORD lines on stdout for mirror-defenses-to-pr.sh).
+# ---------------------------------------------------------------------------
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  _subcmd="${1:-}"
+  shift || true
+  case "$_subcmd" in
+    list)
+      defense_store_list "$@"
+      exit $?
+      ;;
+    "" )
+      echo "usage: review-defense-store.sh list [--pr <pr_number>] [--ref <git-ref>]" >&2
+      exit 2
+      ;;
+    *)
+      echo "review-defense-store.sh: unknown subcommand: $_subcmd" >&2
+      echo "usage: review-defense-store.sh list [--pr <pr_number>] [--ref <git-ref>]" >&2
+      exit 2
+      ;;
+  esac
+fi
