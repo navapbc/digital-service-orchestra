@@ -126,8 +126,14 @@ ticket_show() {
         # Use full resolution pipeline (alias, jira_key, prefix, short-hex) matching
         # the pattern established by ticket_delete and ticket_resolve. Guard
         # prevents repeated sourcing in batch contexts (shell caches defined fns).
+        if [[ -z "${_TICKETLIB_DIR:-}" ]]; then
+            echo "Error: _TICKETLIB_DIR is not set; cannot resolve ticket alias" >&2
+            return 1
+        fi
         declare -f resolve_ticket_id &>/dev/null || source "$_TICKETLIB_DIR/ticket-lib.sh"
-        ticket_id="$(resolve_ticket_id "$ticket_id")"
+        # Pass TRACKER_DIR through TICKETS_TRACKER_DIR so resolve_ticket_id
+        # uses the same tracker path as ticket_show's directory lookup below.
+        ticket_id="$(TICKETS_TRACKER_DIR="$TRACKER_DIR" resolve_ticket_id "$ticket_id")"
 
         if [ ! -d "$TRACKER_DIR/$ticket_id" ]; then
             echo "Error: Ticket '$ticket_id' not found" >&2

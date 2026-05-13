@@ -1224,8 +1224,11 @@ git commit -m "chore: initialize ticket system"
 git checkout -  # return to previous branch
 # Re-stage only the files that were staged before the orphan checkout
 # (do NOT use git add -A which would stage untracked application code)
+# Quote via readarray to handle filenames with spaces safely
 if [ -n "$_STAGED_BEFORE" ]; then
-    git add -- $_STAGED_BEFORE
+    while IFS= read -r _staged_file; do
+        [ -n "$_staged_file" ] && git add -- "$_staged_file"
+    done <<< "$_STAGED_BEFORE"
 fi
 ```
 

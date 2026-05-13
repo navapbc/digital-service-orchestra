@@ -2010,7 +2010,10 @@ if [[ "${SPRINT_MODE:-local}" == "ci-pr" ]]; then
   # ci-pr mode: merge via GitHub PR — do NOT perform a local direct merge
   # Export STORY_BRANCH and STORY_ID so merge-to-main.sh subprocess can access them
   export STORY_BRANCH STORY_ID
-  bash "$PLUGIN_SCRIPTS/merge-to-main.sh" # shim-exempt: SKILL.md orchestrator instruction — sprint runs plugin scripts via $PLUGIN_SCRIPTS directly
+  bash "$PLUGIN_SCRIPTS/merge-to-main.sh" || { # shim-exempt: SKILL.md orchestrator instruction — sprint runs plugin scripts via $PLUGIN_SCRIPTS directly
+    echo "ERROR: merge-to-main.sh failed in ci-pr mode — aborting story merge" >&2
+    exit 1
+  }
 else
   # local mode: direct local merge with DSO-Story-Merge trailer
   bash "$PLUGIN_SCRIPTS/merge-story-branch.sh" "$STORY_BRANCH" "$STORY_ID" # shim-exempt: SKILL.md orchestrator instruction — sprint runs plugin scripts via $PLUGIN_SCRIPTS directly
