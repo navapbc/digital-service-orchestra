@@ -116,6 +116,23 @@ jobs:
         # Pin to tested version; bump after verifying compatibility with ci-llm-review-runner.sh
         run: pip install litellm==1.83.7
 
+      # Resolve PR number so runner.py can fetch DEFENSE_RECORD comments for cycle N≥2
+      # suppression. push events don't expose github.event.pull_request.number, so we
+      # use gh pr list to find the open PR for this branch.
+      - name: Resolve PR number
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUM=$(gh pr list --head "${GITHUB_REF_NAME}" --state open --json number \
+            --jq '.[0].number' 2>/dev/null || echo "")
+          if [[ "${PR_NUM}" =~ ^[0-9]+$ ]]; then
+            echo "PR_NUMBER=${PR_NUM}" >> "$GITHUB_ENV"
+            echo "Resolved PR_NUMBER=${PR_NUM}"
+          else
+            echo "No open PR found for branch ${GITHUB_REF_NAME} — defense suppression will be skipped"
+          fi
+
       # Compute review cycle: each prior run uploads a story-diff artifact, but
       # the most reliable in-job signal here is the presence of the prior-review
       # artifact downloaded above. Read the prior cycle number from the
@@ -155,6 +172,9 @@ jobs:
           DSO_CI_REVIEW_OUTPUT_PATH: /tmp/findings.json
           DSO_CI_REVIEW_DRY_RUN: ${{ vars.DSO_CI_REVIEW_DRY_RUN || '' }}
           DSO_REVIEW_CYCLE: ${{ env.DSO_REVIEW_CYCLE }}
+          # PR_NUMBER enables runner.py defense suppression in push-triggered workflows.
+          # Set by "Resolve PR number" step above; absent on branches without open PRs.
+          PR_NUMBER: ${{ env.PR_NUMBER }}
 
       - name: Upload review artifact
         if: always()
