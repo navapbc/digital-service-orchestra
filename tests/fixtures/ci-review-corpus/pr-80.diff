@@ -1,0 +1,3418 @@
+diff --git a/.claude/settings.json b/.claude/settings.json
+index 3a5f60cee6..290625a95f 100644
+--- a/.claude/settings.json
++++ b/.claude/settings.json
+@@ -1,5 +1,27 @@
+ {
+   "enabledPlugins": {
+     "dso-dev@digital-service-orchestra": true
++  },
++  "hooks": {
++    "PostToolUse": [
++      {
++        "matcher": "Skill",
++        "hooks": [
++          {
++            "type": "command",
++            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh dispatchers/post-skill.sh"
++          }
++        ]
++      },
++      {
++        "matcher": "Agent",
++        "hooks": [
++          {
++            "type": "command",
++            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/run-hook.sh dispatchers/post-agent.sh"
++          }
++        ]
++      }
++    ]
+   }
+ }
+diff --git a/.test-index b/.test-index
+index 6d9e95ff5f..081ebd4689 100644
+--- a/.test-index
++++ b/.test-index
+@@ -100,7 +100,7 @@ plugins/dso/hooks/check-plugin-self-ref.sh:tests/hooks/test-enforcement-gate.sh
+ plugins/dso/hooks/check-portability.sh:tests/hooks/test-enforcement-gate.sh
+ plugins/dso/hooks/check-tickets-boundary.sh:tests/hooks/test-check-tickets-boundary.sh
+ plugins/dso/hooks/compute-diff-hash.sh:tests/hooks/test-compute-diff-hash-staging-invariance.sh,tests/hooks/test-compute-diff-hash-autostash-invariance.sh,tests/hooks/test-behavioral-equivalence-allowlist.sh
+-plugins/dso/hooks/dispatchers/post-agent.sh:tests/hooks/test-post-agent-sentinel.sh,tests/hooks/test-post-dispatcher-err-handler.sh
++plugins/dso/hooks/dispatchers/post-agent.sh:tests/hooks/test-post-agent-sentinel.sh,tests/hooks/test-post-dispatcher-err-handler.sh,tests/hooks/test-post-agent-attribution.sh [test_post_agent_dispatcher_writes_attribution_jsonl_entry]
+ plugins/dso/hooks/dispatchers/post-all.sh:tests/hooks/test-post-dispatchers.sh,tests/hooks/test-post-dispatcher-err-handler.sh
+ plugins/dso/hooks/dispatchers/post-bash.sh:tests/hooks/test-post-dispatchers.sh,tests/hooks/test-post-dispatcher-err-handler.sh
+ plugins/dso/hooks/dispatchers/post-edit.sh:tests/hooks/test-post-dispatchers.sh,tests/hooks/test-post-dispatcher-err-handler.sh
+@@ -118,6 +118,7 @@ plugins/dso/hooks/lib/enforcement-gate.sh:tests/hooks/lib/test-enforcement-gate-
+ plugins/dso/hooks/lib/hook-error-handler.sh:tests/hooks/test-hook-error-handler.sh
+ plugins/dso/hooks/lib/merge-helpers.sh:tests/integration/test-merge-to-main-pr-thread-resolution.sh,tests/integration/test-conflict-data-schema-parity.sh,tests/scripts/test-merge-to-main-dispatcher.sh,tests/hooks/test-merge-helpers-pr-repo-cache.sh,tests/hooks/test-merge-helpers-special-chars.sh,tests/scripts/test-merge-to-main-pr.sh
+ plugins/dso/hooks/lib/planning-config.sh:tests/hooks/test-planning-config.sh
++plugins/dso/hooks/lib/post-functions.sh:tests/hooks/test-post-functions-attribution.sh,tests/hooks/test-post-skill-attribution.sh
+ plugins/dso/hooks/lib/pre-all-functions.sh:tests/hooks/test-hook-inline-trap-consolidation.sh
+ plugins/dso/hooks/lib/pre-bash-functions.sh:tests/hooks/test-hook-inline-trap-consolidation.sh
+ plugins/dso/hooks/lib/preconditions-validator-lib.sh:tests/hooks/test-preconditions-validator-lib.sh,tests/integration/test-preconditions-chain-5stage.sh
+@@ -413,6 +414,11 @@ tests/scripts/test-ticket-link-duplicates-supersedes.sh:tests/scripts/test-ticke
+ tests/scripts/test-ticket-transition-deleted.sh:tests/scripts/test-ticket-transition-deleted.sh
+ plugins/dso/scripts/commit-override.sh:tests/scripts/test-commit-override.sh [test_requires_reason_flag]
+ plugins/dso/hooks/prepare-commit-msg-override-audit.sh:tests/hooks/test-prepare-commit-msg-override-audit.sh [test_no_token_no_trailer] [test_token_appends_trailer]
++plugins/dso/hooks/post-commit-override-cleanup.sh:tests/hooks/test-post-commit-override-cleanup.sh [test_cleanup_removes_token],tests/scripts/test-reinstall-hooks.sh [test_post_commit_registered]
++plugins/dso/scripts/commit-step.sh:tests/scripts/test-commit-step.sh [test_writes_result_artifact],tests/scripts/test-commit-step-worktree.sh [test_cwd_mismatch_fails_fast] [test_harvest_mode_bypasses_cwd_check],tests/scripts/test-commit-step-truncation.sh [test_pipe_to_tail_artifact_intact],tests/hooks/test-verifier-baseline.sh [test_bug_7b41_breadcrumb_not_empty]
++plugins/dso/hooks/pre-commit-compliance-verifier.sh:tests/hooks/test-pre-commit-compliance-verifier.sh [test_blocks_missing_artifact],tests/scripts/test-reinstall-hooks.sh [test_compliance_verifier_registered],tests/hooks/test-verifier-worktree-context.sh [test_verifier_reads_correct_worktree],tests/hooks/test-overlay-verification.sh [test_security_overlay_flagged_missing],tests/hooks/test-verifier-baseline.sh [test_validate_ci_clean],tests/hooks/test-skip-markers.sh [test_skipped_marker_accepted]
++plugins/dso/scripts/apply-attribution-trailers.sh:tests/unit/scripts/test-apply-attribution-trailers.sh [test_resolve_scalar_trailers_produces_task_story_epic_flags,test_resolve_scalar_trailers_produces_review_score_flag,test_resolve_scalar_trailers_produces_no_flags_when_no_context] [test_script_exits_0_without_modifying_commit_msg_when_attribution_disabled] [test_script_exits_0_without_modifying_commit_msg_when_jsonl_absent] [test_script_exits_0_without_modifying_commit_msg_when_jsonl_empty] [test_injection_appends_dso_agent_trailer_to_commit_message] [test_two_distinct_agents_produce_two_dso_agent_lines] [test_injection_emits_trailer_skipped_and_exits_0_when_git_below_2_6] [test_placement_scan_emits_warning_when_dso_trailer_in_message_body] [test_truncate_clears_populated_jsonl_to_zero_bytes] [test_truncate_exits_0_when_jsonl_absent] [test_truncate_emits_warning_and_exits_0_on_truncation_failure] [test_skips_injection_when_trailers_already_present]
++plugins/dso/hooks/dispatchers/post-skill.sh:tests/hooks/test-post-skill-attribution.sh
+ plugins/dso/hooks/post-commit-override-cleanup.sh:tests/hooks/test-post-commit-override-cleanup.sh [test_cleanup_removes_token],tests/scripts/test-reinstall-hooks.sh
+ plugins/dso/scripts/commit-step.sh: tests/scripts/test-commit-step.sh [test_writes_result_artifact],tests/scripts/test-commit-step-worktree.sh [test_cwd_mismatch_fails_fast] [test_harvest_mode_bypasses_cwd_check],tests/scripts/test-commit-step-truncation.sh [test_pipe_to_tail_artifact_intact],tests/hooks/test-verifier-baseline.sh
+ plugins/dso/hooks/pre-commit-compliance-verifier.sh: tests/hooks/test-pre-commit-compliance-verifier.sh [test_blocks_missing_artifact],tests/scripts/test-reinstall-hooks.sh [test_compliance_verifier_registered],tests/hooks/test-verifier-worktree-context.sh [test_verifier_reads_correct_worktree],tests/hooks/test-overlay-verification.sh [test_security_overlay_flagged_missing],tests/hooks/test-verifier-baseline.sh [test_validate_ci_clean],tests/hooks/test-skip-markers.sh [test_skipped_marker_accepted]
+diff --git a/plugins/dso/docs/CONFIGURATION-REFERENCE.md b/plugins/dso/docs/CONFIGURATION-REFERENCE.md
+index d15b273f86..d871c84d3b 100644
+--- a/plugins/dso/docs/CONFIGURATION-REFERENCE.md
++++ b/plugins/dso/docs/CONFIGURATION-REFERENCE.md
+@@ -227,10 +227,10 @@ Security, performance, and test-quality overlays are dispatched automatically wh
+ 
+ | | |
+ |---|---|
+-| **Description** | Overrides the DSO plugin version used in CI LLM review. This is **Tier 2** of the 3-tier version resolution chain implemented by `${CLAUDE_PLUGIN_ROOT}/scripts/resolve-dso-version.sh`: **Tier 1** is `~/.claude/plugins/installed_plugins.json` (the Claude per-project plugin tracking file; key `dso@digital-service-orchestra`) — overridable via the `PLUGIN_TRACKING_FILE` env var; **Tier 2** is this config key in `.claude/dso-config.conf` (project-level override without editing the workflow) — overridable via the `DSO_CONFIG_FILE` env var; **Tier 3** is the `dso` (stable) channel in `.claude-plugin/marketplace.json` — overridable via the `MARKETPLACE_JSON` env var. The resolver does **not** fall back to the `dso-dev` channel; if Tier 3 is reached and the stable `dso` channel is absent or malformed, the resolver exits non-zero. When all three tiers fail, the workflow exits with a diagnostic indicating which tier(s) failed. |
++| **Description** | Overrides the DSO plugin version used in CI LLM review. This is **Tier 2** of the 3-tier version resolution chain implemented by `${CLAUDE_PLUGIN_ROOT}/scripts/resolve-dso-version.sh`: **Tier 1** is `~/.claude/plugins/installed_plugins.json` (the Claude per-project plugin tracking file; key `dso@digital-service-orchestra`) — overridable via the `PLUGIN_TRACKING_FILE` env var; **Tier 2** is this config key in `.claude/dso-config.conf` (project-level override without editing the workflow) — overridable via the `DSO_CONFIG_FILE` env var; **Tier 3** is the `dso` (stable) channel in `.claude-plugin/marketplace.json` — overridable via the `MARKETPLACE_JSON` env var. The resolver does **not** fall back to the `dso-dev` channel; if Tier 3 is reached and the stable `dso` channel is absent or malformed, the resolver exits non-zero. When all three tiers fail, the workflow exits with a diagnostic indicating which tier(s) failed. | # shim-exempt: internal implementation references in config documentation
+ | **Accepted values** | A version tag (e.g., `v1.13.0`) or a marketplace channel name resolvable in `marketplace.json` |
+ | **Default** | Absent — Tier 1 (`installed_plugins.json`) or Tier 3 (`marketplace.json` `dso` channel) is used |
+-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/resolve-dso-version.sh` (called by `ci-dso-fetch.sh` in the generated host-project CI workflow) |
++| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/resolve-dso-version.sh` (called by `ci-dso-fetch.sh` in the generated host-project CI workflow) | # shim-exempt: internal implementation references in config documentation
+ 
+ ---
+ 
+@@ -1137,7 +1137,7 @@ After each resolution of an AMBIGUITY or CONFLICT cross-epic signal, brainstorm
+ 
+ ## Ruleset Provisioning Knobs
+ 
+-The following are CLI flags accepted by `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh`. They are NOT `dso-config.conf` keys — they are passed as command-line arguments when provisioning the GitHub Ruleset. Each flag has a default that matches the prior hardcoded behavior so existing invocations remain backward compatible.
++The following are CLI flags accepted by `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh`. They are NOT `dso-config.conf` keys — they are passed as command-line arguments when provisioning the GitHub Ruleset. Each flag has a default that matches the prior hardcoded behavior so existing invocations remain backward compatible. # shim-exempt: internal implementation references in config documentation
+ 
+ ### `--bypass-actor-policy`
+ 
+@@ -1146,7 +1146,7 @@ The following are CLI flags accepted by `${CLAUDE_PLUGIN_ROOT}/scripts/onboardin
+ | **Description** | Bypass mode applied to the `bypass_actors` entry on the Ruleset. `always` allows admins to bypass at any time; `pull_request_only` restricts the bypass window to pull-request flows. Setting a non-default value requires an admin token (script exits 1 if `gh auth status` does not report admin scope). |
+ | **Accepted values** | `always` \| `pull_request_only` |
+ | **Default** | `always` |
+-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh` |
++| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh` | # shim-exempt: internal implementation references in config documentation
+ 
+ **Example**: `provision-ruleset.sh --bypass-actor-policy=pull_request_only`
+ 
+@@ -1159,7 +1159,7 @@ The following are CLI flags accepted by `${CLAUDE_PLUGIN_ROOT}/scripts/onboardin
+ | **Description** | Maps to the `required_review_thread_resolution` parameter on the Ruleset's `pull_request` rule. When `true`, GitHub requires every PR review thread to be marked resolved before merge. |
+ | **Accepted values** | `true` \| `false` (also `1`/`0`, `yes`/`no`) |
+ | **Default** | `false` |
+-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh` |
++| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh` | # shim-exempt: internal implementation references in config documentation
+ 
+ **Example**: `provision-ruleset.sh --require-conversation-resolution=true`
+ 
+@@ -1172,7 +1172,7 @@ The following are CLI flags accepted by `${CLAUDE_PLUGIN_ROOT}/scripts/onboardin
+ | **Description** | When `true`, the script records the preference in dry-run output and the success summary. GitHub does not currently expose Copilot code review configuration via the Rulesets API — the flag is a documented placeholder for future automation when API support lands. |
+ | **Accepted values** | `true` \| `false` |
+ | **Default** | `false` |
+-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh` |
++| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh` | # shim-exempt: internal implementation references in config documentation
+ 
+ **Example**: `provision-ruleset.sh --request-copilot-review=true`
+ 
+@@ -1185,7 +1185,7 @@ The following are CLI flags accepted by `${CLAUDE_PLUGIN_ROOT}/scripts/onboardin
+ | **Description** | Maps to the `dismiss_stale_reviews_on_push` parameter on the Ruleset's `pull_request` rule. When `true`, GitHub dismisses prior approvals when new commits are pushed to the PR branch. |
+ | **Accepted values** | `true` \| `false` |
+ | **Default** | `false` |
+-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh` |
++| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh` | # shim-exempt: internal implementation references in config documentation
+ 
+ **Example**: `provision-ruleset.sh --dismiss-stale-approvals-on-push=true`
+ 
+@@ -1198,7 +1198,7 @@ The following are CLI flags accepted by `${CLAUDE_PLUGIN_ROOT}/scripts/onboardin
+ | **Description** | Maps to the `required_approving_review_count` parameter on the Ruleset's `pull_request` rule. Sets the minimum number of approving reviews required before a PR can be merged. |
+ | **Accepted values** | Non-negative integer |
+ | **Default** | `1` |
+-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh` |
++| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh` | # shim-exempt: internal implementation references in config documentation
+ 
+ **Example**: `provision-ruleset.sh --required-approvals=2`
+ 
+@@ -1719,6 +1719,18 @@ and [`model.deep`](#modeldeep) above.
+ 
+ ---
+ 
++## attribution
++
++| Key | Type | Default | Description |
++|-----|------|---------|-------------|
++| `attribution.enabled` | boolean | `false` | When `true`, `/dso:commit` appends DSO-Agent, DSO-Skill, DSO-Model, DSO-Task, DSO-Story, DSO-Epic, Jira-Ticket, and DSO-Review-Score trailers to commit messages via `git interpret-trailers`. Requires git ≥ 2.6. |
++
++**Notes:**
++- Setting `attribution.enabled=false` after enabling stops future writes to `attribution-contributors.jsonl` but does not purge existing entries; the file can be safely deleted manually.
++- Canonical query for attributed commits: `git log --format="%(trailers:key=DSO-Agent,valueonly)" -- <path>` returns agent names per commit.
++
++---
++
+ ## Section 2 — Environment Variables
+ 
+ These variables are consumed by DSO hooks, scripts, and skills at runtime. They supplement or override `dso-config.conf` values.
+diff --git a/plugins/dso/docs/workflows/COMMIT-WORKFLOW.md b/plugins/dso/docs/workflows/COMMIT-WORKFLOW.md
+index d6774a1ce3..6c7272f9e7 100644
+--- a/plugins/dso/docs/workflows/COMMIT-WORKFLOW.md
++++ b/plugins/dso/docs/workflows/COMMIT-WORKFLOW.md
+@@ -181,6 +181,23 @@ Files are already staged from Step 5. The diff stat summary is already in contex
+ 
+ Create a single git commit following the repository's commit message conventions visible in the recent commits from Step 1.
+ 
++### Attribution Pre-Commit (skip if attribution.enabled ≠ true)
++
++**SKIP ENTIRELY when `attribution.enabled` is absent or not `true` in `dso-config.conf`.**
++
++If `attribution.enabled=true`:
++- Run `.claude/scripts/dso apply-attribution-trailers.sh "$COMMIT_MSG_FILE"` with `ARTIFACTS_DIR` set to the session artifacts dir and `DSO_TASK_ID` exported in the environment (the script reads it from the environment, not as a positional argument)
++- If the script exits non-zero: emit a warning to stderr and continue — this step is **non-blocking**
++
++```bash
++ATTRIBUTION_ENABLED=$(grep -m1 '^attribution\.enabled=' "$REPO_ROOT/.claude/dso-config.conf" 2>/dev/null | cut -d= -f2-)
++if [[ "${ATTRIBUTION_ENABLED:-}" == "true" ]]; then
++    DSO_TASK_ID="${DSO_TASK_ID:-}" \
++        .claude/scripts/dso apply-attribution-trailers.sh "$COMMIT_MSG_FILE" || \
++        echo "WARNING: apply-attribution-trailers.sh failed (non-blocking)" >&2
++fi
++```
++
+ ```bash
+ echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-6-commit" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
+ ```
+@@ -198,6 +215,21 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
+ ".claude/scripts/dso" emit-commit-workflow-event.sh --phase=end --success=true
+ ```
+ 
++### Attribution Post-Commit Truncate (skip if attribution.enabled ≠ true)
++
++**SKIP ENTIRELY when `attribution.enabled` is absent or not `true` in `dso-config.conf`.**
++
++If `attribution.enabled=true` and the commit exited 0:
++- Run `.claude/scripts/dso apply-attribution-trailers.sh --truncate` with `ARTIFACTS_DIR` set to the session artifacts dir
++- If truncation exits non-zero: emit a warning to stderr but do **not** fail
++
++```bash
++if [[ "${ATTRIBUTION_ENABLED:-}" == "true" ]]; then
++    .claude/scripts/dso apply-attribution-trailers.sh --truncate || \
++        echo "WARNING: apply-attribution-trailers.sh --truncate failed (non-blocking)" >&2
++fi
++```
++
+ After committing, report the SHA and **immediately return control to the caller** — do NOT wait for user input. Resume the calling workflow at the step after this commit invocation. If you were executing `/dso:debug-everything`, continue at the step after this commit invocation (Phase F Step 5 for auto-fix commits, or Phase H Step 11 for post-batch commits). If you were executing `/dso:sprint`, continue at Phase F Step 17 (Commit & Push) or the step that invoked this workflow. Do NOT output any text that implies the session is complete.
+ 
+ <!-- Future work: Jira-Ticket and DSO-Task git trailers (story cab1-600f) are planned
+diff --git a/plugins/dso/hooks/dispatchers/post-agent.sh b/plugins/dso/hooks/dispatchers/post-agent.sh
+index 58e325f2ea..ba75891b5c 100755
+--- a/plugins/dso/hooks/dispatchers/post-agent.sh
++++ b/plugins/dso/hooks/dispatchers/post-agent.sh
+@@ -4,6 +4,7 @@
+ #
+ # Hook execution order:
+ #   1. hook_extract_agent_suggestion  — extract first SUGGESTION: line and call suggestion-record.sh
++#   2. hook_record_agent_attribution  — append agent/model entry to attribution-contributors.jsonl
+ #
+ # PostToolUse hooks always exit 0 (non-blocking).
+ # Always emits at least '{}' on stdout per Claude Code bug #10463 workaround.
+@@ -54,6 +55,7 @@ _post_agent_dispatch() {
+     INPUT=$(cat)
+ 
+     _run_post_fn hook_extract_agent_suggestion "$INPUT"
++    _run_post_fn hook_record_agent_attribution "$INPUT"
+ }
+ 
+ # Only execute dispatch logic when run as a script (not sourced).
+diff --git a/plugins/dso/hooks/dispatchers/post-skill.sh b/plugins/dso/hooks/dispatchers/post-skill.sh
+new file mode 100755
+index 0000000000..424a2c645c
+--- /dev/null
++++ b/plugins/dso/hooks/dispatchers/post-skill.sh
+@@ -0,0 +1,61 @@
++#!/usr/bin/env bash
++# hooks/dispatchers/post-skill.sh
++# PostToolUse Skill dispatcher: records skill attribution data.
++#
++# Hook execution order:
++#   1. hook_record_skill_attribution  — append skill entry to attribution-contributors.jsonl
++#
++# PostToolUse hooks always exit 0 (non-blocking).
++# Always emits at least '{}' on stdout per Claude Code bug #10463 workaround.
++
++# DEFENSE-IN-DEPTH: Guarantee exit 0 and non-empty stdout on any unexpected failure.
++_HOOK_HAS_OUTPUT=""
++trap 'if [[ -z "$_HOOK_HAS_OUTPUT" ]]; then printf "{}"; fi; exit 0' EXIT
++# Resolve dispatcher directory (CLAUDE_PLUGIN_ROOT if set, else relative)
++if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" || ! -d "${CLAUDE_PLUGIN_ROOT:-}/hooks/lib" ]]; then
++    CLAUDE_PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
++fi
++
++HOOKS_LIB_DIR="$CLAUDE_PLUGIN_ROOT/hooks/lib"
++
++# Source shared ERR handler (fail-open: if missing, keep original silent trap behavior)
++if [[ -f "${HOOKS_LIB_DIR}/hook-error-handler.sh" ]]; then
++    # shellcheck source=/dev/null
++    source "${HOOKS_LIB_DIR}/hook-error-handler.sh" 2>/dev/null || true
++    _dso_register_hook_err_handler "post-skill.sh"
++else
++    trap 'exit 0' ERR
++fi
++
++# Source the dispatcher framework (provides run_hooks)
++source "$HOOKS_LIB_DIR/dispatcher.sh"
++
++# Source all post hook functions (includes hook_record_skill_attribution)
++source "$HOOKS_LIB_DIR/post-functions.sh"
++
++# Run all Skill post-hook functions sequentially.
++# PostToolUse hooks are non-blocking (always return 0).
++_run_post_fn() {
++    local fn_name="$1"
++    local json_input="$2"
++    local _fn_out=""
++    _fn_out=$("$fn_name" "$json_input") || true
++    if [[ -n "$_fn_out" ]] && [[ "$_fn_out" != "{}" ]]; then
++        _HOOK_HAS_OUTPUT=1
++        printf '%s\n' "$_fn_out"
++    fi
++}
++
++_post_skill_dispatch() {
++    # Read hook input from stdin
++    local INPUT
++    INPUT=$(cat)
++
++    _run_post_fn hook_record_skill_attribution "$INPUT"
++}
++
++# Only execute dispatch logic when run as a script (not sourced).
++if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
++    _post_skill_dispatch
++    exit 0
++fi
+diff --git a/plugins/dso/hooks/lib/post-functions.sh b/plugins/dso/hooks/lib/post-functions.sh
+index 1c37b305e0..a52b9156ca 100755
+--- a/plugins/dso/hooks/lib/post-functions.sh
++++ b/plugins/dso/hooks/lib/post-functions.sh
+@@ -343,6 +343,177 @@ except Exception:
+     return 0
+ }
+ 
++# ---------------------------------------------------------------------------
++# Shared attribution helpers
++# ---------------------------------------------------------------------------
++
++# _resolve_attribution_read_config_script
++# ---------------------------------------------------------------------------
++# Resolves read-config.sh via SCRIPTS_DIR → PATH → CLAUDE_PLUGIN_ROOT/scripts/.
++# Echoes the absolute path or empty string. Never fails.
++_resolve_attribution_read_config_script() {
++    if [[ -n "${SCRIPTS_DIR:-}" && -f "$SCRIPTS_DIR/read-config.sh" ]]; then
++        echo "$SCRIPTS_DIR/read-config.sh"
++        return 0
++    fi
++    local _on_path
++    _on_path=$(command -v read-config.sh 2>/dev/null || echo "")
++    if [[ -n "$_on_path" ]]; then
++        echo "$_on_path"
++        return 0
++    fi
++    if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh" ]]; then
++        echo "$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh"
++        return 0
++    fi
++    echo ""
++}
++
++# _resolve_attribution_artifacts_dir
++# ---------------------------------------------------------------------------
++# Resolves the artifacts directory the attribution JSONL should be written to.
++# Resolution order matches apply-attribution-trailers.sh's _resolve_artifacts_dir
++# so the recording side and the consuming side always agree on the path:
++#   1. WORKFLOW_PLUGIN_ARTIFACTS_DIR (commit-workflow override)
++#   2. ARTIFACTS_DIR (caller-supplied)
++#   3. get_artifacts_dir() (deps.sh fallback)
++# Echoes the resolved path or empty string. Never fails.
++_resolve_attribution_artifacts_dir() {
++    if [[ -n "${WORKFLOW_PLUGIN_ARTIFACTS_DIR:-}" ]]; then
++        echo "$WORKFLOW_PLUGIN_ARTIFACTS_DIR"
++        return 0
++    fi
++    if [[ -n "${ARTIFACTS_DIR:-}" ]]; then
++        echo "$ARTIFACTS_DIR"
++        return 0
++    fi
++    local _resolved
++    _resolved=$(get_artifacts_dir 2>/dev/null) || _resolved=""
++    echo "$_resolved"
++}
++
++# _attribution_enabled
++# ---------------------------------------------------------------------------
++# Returns 0 (true) if attribution.enabled=true via read-config.sh, else 1.
++# Never crashes the caller.
++_attribution_enabled() {
++    local _rc_script
++    _rc_script=$(_resolve_attribution_read_config_script)
++    [[ -n "$_rc_script" ]] || return 1
++    local _enabled=""
++    _enabled=$(bash "$_rc_script" attribution.enabled 2>/dev/null) || _enabled=""
++    [[ "$_enabled" == "true" ]]
++}
++
++# _append_attribution_entry <hook-name> <jsonl-entry>
++# ---------------------------------------------------------------------------
++# Resolves the artifacts dir, ensures it exists, and appends the JSONL entry.
++# Emits a stderr WARNING (and returns 1) if the dir cannot be prepared or the
++# append fails. Caller decides what to do with the return code; both hooks
++# treat any failure as non-blocking and return 0.
++_append_attribution_entry() {
++    local _hook_name="$1" _entry="$2"
++    local _art_dir
++    _art_dir=$(_resolve_attribution_artifacts_dir)
++    if [[ -z "$_art_dir" ]] || ! mkdir -p "$_art_dir" 2>/dev/null; then
++        echo "WARNING: $_hook_name: failed to prepare artifacts dir ('$_art_dir'); attribution entry dropped" >&2
++        return 1
++    fi
++    if ! printf '%s\n' "$_entry" >> "$_art_dir/attribution-contributors.jsonl" 2>/dev/null; then
++        echo "WARNING: $_hook_name: failed to append JSONL entry to '$_art_dir/attribution-contributors.jsonl'" >&2
++        return 1
++    fi
++    return 0
++}
++
++# ---------------------------------------------------------------------------
++# hook_record_agent_attribution
++# ---------------------------------------------------------------------------
++# PostToolUse hook: record agent attribution data when an Agent tool completes.
++# Only fires when attribution.enabled=true in dso-config.conf.
++#
++# Reads subagent_type from tool_input.subagent_type and model from
++# tool_response.model, then appends a JSONL entry to the resolved artifacts
++# dir's attribution-contributors.jsonl.
++hook_record_agent_attribution() {
++    local INPUT="$1"
++
++    _attribution_enabled || return 0
++
++    local _subagent_type=""
++    local _model=""
++    _subagent_type=$(python3 -c "
++import json, sys
++try:
++    d = json.loads(sys.argv[1])
++    ti = d.get('tool_input', {})
++    print(ti.get('subagent_type', '') if isinstance(ti, dict) else '')
++except Exception:
++    pass
++" "$INPUT" 2>/dev/null) || _subagent_type=""
++
++    _model=$(python3 -c "
++import json, sys
++try:
++    d = json.loads(sys.argv[1])
++    tr = d.get('tool_response', {})
++    print(tr.get('model', '') if isinstance(tr, dict) else '')
++except Exception:
++    pass
++" "$INPUT" 2>/dev/null) || _model=""
++
++    local _entry
++    _entry=$(python3 -c "
++import json, sys
++entry = {'type': 'agent', 'subagent_type': sys.argv[1], 'model': sys.argv[2]}
++print(json.dumps(entry))
++" "$_subagent_type" "$_model" 2>/dev/null) || _entry=""
++
++    if [[ -n "$_entry" ]]; then
++        _append_attribution_entry "hook_record_agent_attribution" "$_entry" || true
++    fi
++    return 0
++}
++
++# ---------------------------------------------------------------------------
++# hook_record_skill_attribution
++# ---------------------------------------------------------------------------
++# PostToolUse hook: record skill attribution data when a Skill tool completes.
++# Only fires when attribution.enabled=true in dso-config.conf.
++#
++# Reads skill name from tool_input.skill and appends a JSONL entry to
++# $ARTIFACTS_DIR/attribution-contributors.jsonl.
++#
++# Guard: early-return if attribution.enabled != "true" (checked via read-config.sh).
++hook_record_skill_attribution() {
++    local INPUT="$1"
++
++    _attribution_enabled || return 0
++
++    local _skill_name=""
++    _skill_name=$(python3 -c "
++import json, sys
++try:
++    d = json.loads(sys.argv[1])
++    ti = d.get('tool_input', {})
++    print(ti.get('skill', '') if isinstance(ti, dict) else '')
++except Exception:
++    pass
++" "$INPUT" 2>/dev/null) || _skill_name=""
++
++    local _entry
++    _entry=$(python3 -c "
++import json, sys
++entry = {'type': 'skill', 'skill_name': sys.argv[1]}
++print(json.dumps(entry, separators=(',', ':')))
++" "$_skill_name" 2>/dev/null) || _entry=""
++
++    if [[ -n "$_entry" ]]; then
++        _append_attribution_entry "hook_record_skill_attribution" "$_entry" || true
++    fi
++    return 0
++}
++
+ # hook_tool_logging_pre
+ # ---------------------------------------------------------------------------
+ # PreToolUse hook: log tool call with MODE hardcoded to "pre".
+diff --git a/plugins/dso/scripts/apply-attribution-trailers.sh b/plugins/dso/scripts/apply-attribution-trailers.sh
+new file mode 100755
+index 0000000000..6e85f3b758
+--- /dev/null
++++ b/plugins/dso/scripts/apply-attribution-trailers.sh
+@@ -0,0 +1,563 @@
++#!/usr/bin/env bash
++# apply-attribution-trailers.sh
++#
++# Applies git commit trailers derived from attribution-contributors.jsonl,
++# recording which sub-agents and models contributed to a commit.
++#
++# ---------------------------------------------------------------------------
++# Attribution JSONL Schema
++# File: $ARTIFACTS_DIR/attribution-contributors.jsonl
++#
++# Each line is a JSON object describing one contributor:
++#   Agent:  {"type":"agent","subagent_type":"dso:sprint","model":"claude-sonnet-4-6"}
++#   Skill:  {"type":"skill","skill_name":"sprint"}
++#
++# Multi-value trailers (one per unique entry):
++#   DSO-Agent:  <subagent_type> — one trailer per unique agent entry
++#   DSO-Skill:  <skill_name>   — one trailer per unique skill entry
++#   DSO-Model:  <model>        — one trailer per unique model value
++#
++# Scalar trailers (from DSO_TASK_ID ticket context + reviewer-findings.json):
++#   DSO-Task:           <task title>
++#   DSO-Story:          <parent story title>
++#   DSO-Epic:           <grandparent epic title>
++#   Jira-Ticket:        <jira ticket key if bridged>
++#   DSO-Review-Score:   <average score, 1 decimal>
++#
++# Truncation contract: attribution-contributors.jsonl is cleared to 0 bytes
++# after each successful git commit via the --truncate flag.
++# ---------------------------------------------------------------------------
++#
++# ── Usage ─────────────────────────────────────────────────────────────────────
++#   apply-attribution-trailers.sh [--dry-run] [--jsonl <file>] [--truncate] <commit-msg-file>
++#
++# Operates on a commit message file via `git interpret-trailers --in-place`.
++# Typically invoked as the orchestrator's pre-commit step (with the commit
++# message file path) or as a post-commit truncate step (with `--truncate`).
++#
++# Options:
++#   --dry-run         Print trailers without applying them
++#   --jsonl <file>    Path to attribution-contributors.jsonl
++#                     (default: $ARTIFACTS_DIR/attribution-contributors.jsonl)
++#   --truncate        Clear the JSONL file to 0 bytes (post-commit cleanup)
++#
++# Exit codes:
++#   0  = success
++#   1  = usage error
++#   2  = git version too old (< 2.6)
++#   3  = JSONL file not found or unreadable
++
++set -euo pipefail
++
++# ── Configuration ─────────────────────────────────────────────────────────────
++GIT_BINARY="${GIT_BINARY:-git}"
++
++# ── ARTIFACTS_DIR resolution ──────────────────────────────────────────────────
++# Prefer WORKFLOW_PLUGIN_ARTIFACTS_DIR when set (commit workflow override).
++# Fall back to deps.sh get_artifacts_dir() when available, else /tmp fallback.
++_resolve_artifacts_dir() {
++    if [[ -n "${WORKFLOW_PLUGIN_ARTIFACTS_DIR:-}" ]]; then
++        echo "$WORKFLOW_PLUGIN_ARTIFACTS_DIR"
++        return 0
++    fi
++    # Respect a caller-supplied ARTIFACTS_DIR (used by tests and commit-workflow
++    # callers that set ARTIFACTS_DIR directly rather than WORKFLOW_PLUGIN_ARTIFACTS_DIR).
++    if [[ -n "${ARTIFACTS_DIR:-}" ]]; then
++        echo "$ARTIFACTS_DIR"
++        return 0
++    fi
++    local _script_dir _plugin_root
++    _script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
++    _plugin_root="${CLAUDE_PLUGIN_ROOT:-${_script_dir}/..}"
++    local _deps="${_plugin_root}/hooks/lib/deps.sh"
++    if [[ -f "$_deps" ]]; then
++        # shellcheck disable=SC1090
++        source "$_deps"
++        get_artifacts_dir
++    else
++        echo "/tmp/apply-attribution-trailers-fallback"
++    fi
++}
++
++ARTIFACTS_DIR="$(_resolve_artifacts_dir)"
++
++# ── Argument parsing ──────────────────────────────────────────────────────────
++_DRY_RUN=0
++_JSONL_FILE=""
++_COMMIT_MSG_FILE=""
++_TRUNCATE_MODE=0
++
++_usage_error() {
++    printf "ERROR: %s\n" "$1" >&2
++    printf "Usage: apply-attribution-trailers.sh [--dry-run] [--jsonl <file>] [--truncate] <commit-msg-file>\n" >&2
++    exit 1
++}
++
++while [[ $# -gt 0 ]]; do
++    case "$1" in
++        --truncate)
++            _TRUNCATE_MODE=1
++            shift
++            ;;
++        --dry-run)
++            _DRY_RUN=1
++            shift
++            ;;
++        --jsonl)
++            [[ $# -ge 2 ]] || _usage_error "--jsonl requires a <file> argument"
++            _JSONL_FILE="$2"
++            shift 2
++            ;;
++        --)
++            shift
++            break
++            ;;
++        *)
++            # Positional argument: commit-msg file path (used when invoked as a
++            # prepare-commit-msg or commit-msg hook, where git passes the file
++            # path as the first positional argument).
++            if [[ -z "${_COMMIT_MSG_FILE:-}" ]]; then
++                _COMMIT_MSG_FILE="$1"
++                shift
++            else
++                _usage_error "unknown option or extra positional: $1"
++            fi
++            ;;
++    esac
++done
++
++# Default JSONL path if not explicitly provided
++if [[ -z "$_JSONL_FILE" ]]; then
++    _JSONL_FILE="${ARTIFACTS_DIR}/attribution-contributors.jsonl"
++fi
++
++# ── check_git_version ─────────────────────────────────────────────────────────
++# Checks that the installed git version meets the minimum requirement (>= 2.6).
++# Uses ${GIT_BINARY:-git} so tests can inject a mock binary via GIT_BINARY.
++# Strips vendor suffixes (e.g. 2.39.3-1.el9 → 2.39.3) before comparison.
++# NOTE: uses 'return' (not 'exit') so set -euo pipefail does not abort callers.
++#
++# Usage: check_git_version "<required-version>"  (argument unused; min is 2.6)
++# Returns: 0 if git >= 2.6; non-zero + TRAILER_SKIPPED on stderr if too old
++check_git_version() {
++    local min_major=2 min_minor=6
++    local ver
++    ver="$("${GIT_BINARY:-git}" --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1)"
++    # Strip vendor suffix (e.g., 2.39.3-1.el9 → 2.39.3)
++    ver="${ver%%-*}"
++    local major minor
++    major="${ver%%.*}"
++    minor="${ver#*.}"
++    minor="${minor%%.*}"
++    if [[ "$major" -gt "$min_major" || ( "$major" -eq "$min_major" && "$minor" -ge "$min_minor" ) ]]; then
++        return 0
++    fi
++    echo "TRAILER_SKIPPED: git version $ver < $min_major.$min_minor" >&2
++    return 1
++}
++
++# ── read_and_deduplicate ──────────────────────────────────────────────────────
++# Reads a JSONL file and outputs unique lines (full-line deduplication).
++#
++# Usage: read_and_deduplicate <jsonl_file>
++# Output: unique JSON lines from the input file, one per stdout line
++# Returns: 0 on success
++read_and_deduplicate() {
++    local jsonl_file="$1"
++
++    if [[ ! -f "$jsonl_file" ]]; then
++        printf "ERROR: read_and_deduplicate: file not found: %s\n" "$jsonl_file" >&2
++        return 3
++    fi
++
++    # Use python3 for reliable JSONL deduplication.
++    # Preserves first-occurrence order; drops exact-duplicate lines.
++    python3 - "$jsonl_file" <<'PYEOF'
++import sys
++import json
++
++path = sys.argv[1]
++seen = set()
++with open(path, "r") as fh:
++    for raw_line in fh:
++        line = raw_line.rstrip("\n")
++        if not line.strip():
++            continue
++        # Normalize by round-tripping through JSON to ignore whitespace differences
++        try:
++            obj = json.loads(line)
++            key = json.dumps(obj, sort_keys=True)
++        except json.JSONDecodeError:
++            # Non-JSON lines: use raw text as key
++            key = line
++        if key not in seen:
++            seen.add(key)
++            print(line)
++PYEOF
++}
++
++# ── format_trailer_flags ──────────────────────────────────────────────────────
++# Reads a JSONL file and emits git --trailer flags for each unique entry.
++#
++# Emits:
++#   --trailer 'DSO-Agent: <subagent_type>'  — one per unique agent entry
++#   --trailer 'DSO-Skill: <skill_name>'     — one per unique skill entry
++#   --trailer 'DSO-Model: <model>'          — one per unique model value
++#
++# Scalar trailers (DSO-Session etc.) are a placeholder filled by T4-impl.
++#
++# Usage: format_trailer_flags <jsonl_file>
++# Output: newline-separated --trailer flag strings, empty if no entries
++# Returns: 0 on success
++format_trailer_flags() {
++    local jsonl_file="$1"
++
++    # Missing or empty file → no trailers (not an error; JSONL may simply be absent)
++    if [[ ! -f "$jsonl_file" ]]; then
++        return 0
++    fi
++
++    python3 - "$jsonl_file" <<'PYEOF'
++import sys
++import json
++
++path = sys.argv[1]
++
++seen_agents = []
++seen_skills = []
++seen_models = []
++
++agent_set = set()
++skill_set = set()
++model_set = set()
++
++with open(path, "r") as fh:
++    for raw_line in fh:
++        line = raw_line.rstrip("\n")
++        if not line.strip():
++            continue
++        try:
++            obj = json.loads(line)
++        except json.JSONDecodeError:
++            continue
++
++        entry_type = obj.get("type", "")
++
++        if entry_type == "agent":
++            subagent_type = obj.get("subagent_type", "")
++            if subagent_type and subagent_type not in agent_set:
++                agent_set.add(subagent_type)
++                seen_agents.append(subagent_type)
++            model = obj.get("model", "")
++            if model and model not in model_set:
++                model_set.add(model)
++                seen_models.append(model)
++
++        elif entry_type == "skill":
++            skill_name = obj.get("skill_name", "")
++            if skill_name and skill_name not in skill_set:
++                skill_set.add(skill_name)
++                seen_skills.append(skill_name)
++            model = obj.get("model", "")
++            if model and model not in model_set:
++                model_set.add(model)
++                seen_models.append(model)
++
++for agent in seen_agents:
++    print("--trailer 'DSO-Agent: {}'".format(agent))
++for skill in seen_skills:
++    print("--trailer 'DSO-Skill: {}'".format(skill))
++for model in seen_models:
++    print("--trailer 'DSO-Model: {}'".format(model))
++PYEOF
++}
++
++# ── resolve_scalar_trailers ───────────────────────────────────────────────────
++# Resolves scalar (single-value) trailers from task context and review scores.
++#
++# Reads env vars:
++#   DSO_TASK_ID    — ticket ID; if set, calls `dso ticket show` to get title/hierarchy
++#   ARTIFACTS_DIR  — path to dir containing reviewer-findings.json (optional)
++#
++# Emits to stdout (only non-empty values):
++#   --trailer 'DSO-Task: <title>'
++#   --trailer 'DSO-Story: <parent_title>'
++#   --trailer 'DSO-Epic: <grandparent_title>'
++#   --trailer 'DSO-Review-Score: N.N'
++#
++# Graceful degradation: dso CLI failure → omit task trailers; missing
++# reviewer-findings.json → omit review score. Never exits non-zero.
++#
++# Usage: resolve_scalar_trailers
++# Output: newline-separated --trailer flag strings, empty if no context
++# Returns: 0 always
++resolve_scalar_trailers() {
++    # ── Task / Story / Epic trailers ──────────────────────────────────────────
++    if [[ -n "${DSO_TASK_ID:-}" ]]; then
++        local _ticket_json
++        # Use PATH-resolved dso; capture failure silently
++        _ticket_json="$(dso ticket show "$DSO_TASK_ID" 2>/dev/null)" || _ticket_json=""
++
++        if [[ -n "$_ticket_json" ]]; then
++            # Extract fields via python3 (reliable JSON parsing; no jq dependency)
++            python3 - "$_ticket_json" <<'PYEOF'
++import sys
++import json
++
++raw = sys.argv[1]
++try:
++    obj = json.loads(raw)
++except json.JSONDecodeError:
++    sys.exit(0)
++
++title        = obj.get("title", "") or ""
++parent_title = obj.get("parent_title", "") or ""
++grand_title  = obj.get("grandparent_title", "") or ""
++
++if title:
++    print("--trailer 'DSO-Task: {}'".format(title))
++if parent_title:
++    print("--trailer 'DSO-Story: {}'".format(parent_title))
++if grand_title:
++    print("--trailer 'DSO-Epic: {}'".format(grand_title))
++PYEOF
++        fi
++    fi
++
++    # ── Review-Score trailer ──────────────────────────────────────────────────
++    local _findings="${ARTIFACTS_DIR:-}/reviewer-findings.json"
++    if [[ -n "${ARTIFACTS_DIR:-}" && -f "$_findings" ]]; then
++        python3 - "$_findings" <<'PYEOF'
++import sys
++import json
++
++path = sys.argv[1]
++try:
++    with open(path, "r") as fh:
++        obj = json.load(fh)
++except (OSError, json.JSONDecodeError):
++    sys.exit(0)
++
++scores = obj.get("scores", {})
++if not scores:
++    sys.exit(0)
++
++values = [v for v in scores.values() if isinstance(v, (int, float))]
++if not values:
++    sys.exit(0)
++
++avg = sum(values) / len(values)
++print("--trailer 'DSO-Review-Score: {:.1f}'".format(avg))
++PYEOF
++    fi
++
++    return 0
++}
++
++# ── _resolve_read_config_script ───────────────────────────────────────────────
++# Resolves the absolute path to read-config.sh. Tries, in order:
++#   1. ${SCRIPTS_DIR}/read-config.sh (set by some hook dispatchers)
++#   2. read-config.sh on $PATH (test harnesses often prepend a mock dir)
++#   3. ${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh (real plugin runtime)
++# Echoes the resolved path or empty string. Never fails.
++_resolve_read_config_script() {
++    if [[ -n "${SCRIPTS_DIR:-}" && -f "${SCRIPTS_DIR}/read-config.sh" ]]; then
++        echo "${SCRIPTS_DIR}/read-config.sh"
++        return 0
++    fi
++    local _on_path
++    _on_path="$(command -v read-config.sh 2>/dev/null || true)"
++    if [[ -n "$_on_path" ]]; then
++        echo "$_on_path"
++        return 0
++    fi
++    if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" ]]; then
++        echo "${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh"
++        return 0
++    fi
++    echo ""
++}
++
++# ── _build_trailer_argv ───────────────────────────────────────────────────────
++# Builds an argv array of `--trailer KEY: VALUE` token pairs from the script's
++# JSONL + scalar-context inputs. Caller must declare `_argv` as a local array.
++# Uses python3 to emit NUL-delimited tokens so values with spaces, single
++# quotes, or shell metacharacters are passed safely.
++_build_trailer_argv() {
++    local _jsonl_file="$1"
++    local _scalar_flags="$2"  # newline-separated --trailer 'K: V' lines
++
++    # Multi-value trailers from JSONL (NUL-delimited K: V tokens).
++    if [[ -f "$_jsonl_file" ]]; then
++        while IFS= read -r -d '' _token; do
++            _argv+=("--trailer" "$_token")
++        done < <(python3 - "$_jsonl_file" <<'PYEOF'
++import sys, json
++path = sys.argv[1]
++seen_a, seen_s, seen_m = [], [], []
++sa, ss, sm = set(), set(), set()
++with open(path) as fh:
++    for raw in fh:
++        line = raw.rstrip("\n")
++        if not line.strip():
++            continue
++        try:
++            obj = json.loads(line)
++        except json.JSONDecodeError:
++            continue
++        t = obj.get("type", "")
++        if t == "agent":
++            v = obj.get("subagent_type", "")
++            if v and v not in sa:
++                sa.add(v); seen_a.append(v)
++            m = obj.get("model", "")
++            if m and m not in sm:
++                sm.add(m); seen_m.append(m)
++        elif t == "skill":
++            v = obj.get("skill_name", "")
++            if v and v not in ss:
++                ss.add(v); seen_s.append(v)
++            m = obj.get("model", "")
++            if m and m not in sm:
++                sm.add(m); seen_m.append(m)
++out = []
++for v in seen_a: out.append("DSO-Agent: " + v)
++for v in seen_s: out.append("DSO-Skill: " + v)
++for v in seen_m: out.append("DSO-Model: " + v)
++sys.stdout.write("\0".join(out))
++if out:
++    sys.stdout.write("\0")
++PYEOF
++)
++    fi
++
++    # Scalar trailers come pre-formatted as "--trailer 'K: V'" lines from
++    # resolve_scalar_trailers — strip the wrapper to recover the K: V token.
++    if [[ -n "$_scalar_flags" ]]; then
++        local _line _tok
++        while IFS= read -r _line; do
++            [[ -z "$_line" ]] && continue
++            _tok="${_line#--trailer }"
++            _tok="${_tok#\'}"
++            _tok="${_tok%\'}"
++            _argv+=("--trailer" "$_tok")
++        done <<< "$_scalar_flags"
++    fi
++}
++
++# ── Main (only runs when script is executed directly, not sourced) ────────────
++# Guard: skip main block when sourced by tests
++if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
++    # ── SC-6: --truncate mode ─────────────────────────────────────────────────
++    # Clear the JSONL file after successful injection so that the next commit
++    # starts with a clean slate.  Never fails /dso:commit (always exits 0).
++    if [[ "$_TRUNCATE_MODE" -eq 1 ]]; then
++        if [[ -f "$_JSONL_FILE" ]]; then
++            if ! : > "$_JSONL_FILE" 2>/dev/null; then
++                printf 'WARNING: apply-attribution-trailers: failed to truncate %s\n' "$_JSONL_FILE" >&2
++            fi
++        fi
++        exit 0
++    fi
++
++    # ── SC-2: attribution.enabled config guard ────────────────────────────────
++    # Exit 0 (no-op) if attribution is disabled in config.
++    _read_config_path="$(_resolve_read_config_script)"
++    if [[ -n "$_read_config_path" ]]; then
++        _attribution_enabled=$(bash "$_read_config_path" attribution.enabled 2>/dev/null || echo "false")
++    else
++        _attribution_enabled="false"
++    fi
++    if [[ "$_attribution_enabled" != "true" ]]; then
++        exit 0
++    fi
++
++    # ── SC-4: JSONL file presence guard ───────────────────────────────────────
++    # Exit 0 (no-op) if the attribution JSONL file is absent or empty.
++    if [[ ! -f "$_JSONL_FILE" ]] || [[ ! -s "$_JSONL_FILE" ]]; then
++        exit 0
++    fi
++
++    # ── SC-7: git version guard ───────────────────────────────────────────────
++    # Exit 0 (graceful skip) if git is too old to support interpret-trailers.
++    check_git_version || { printf 'TRAILER_SKIPPED: git < 2.6\n' >&2; exit 0; }
++
++    # Read unique contributions
++    _unique_lines="$(read_and_deduplicate "$_JSONL_FILE")"
++
++    if [[ "$_DRY_RUN" -eq 1 ]]; then
++        printf "DRY-RUN: would apply trailers from %s to %s\n" "$_JSONL_FILE" "${_COMMIT_MSG_FILE:-<stdout>}"
++        printf "%s\n" "$_unique_lines"
++        exit 0
++    fi
++
++    # ── Commit-message-file presence check (L5) ───────────────────────────────
++    if [[ -z "$_COMMIT_MSG_FILE" ]]; then
++        _usage_error "missing <commit-msg-file> argument; required when not in --dry-run or --truncate mode"
++    fi
++    if [[ ! -f "$_COMMIT_MSG_FILE" ]]; then
++        printf "ERROR: commit message file not found: %s\n" "$_COMMIT_MSG_FILE" >&2
++        exit 1
++    fi
++
++    # ── Trailer injection via git interpret-trailers --in-place ───────────────
++    # Build argv array safely (no eval) so trailer values with shell
++    # metacharacters cannot trigger command substitution / injection.
++    _argv=()
++    _scalar_flags="$(resolve_scalar_trailers)"
++    _build_trailer_argv "$_JSONL_FILE" "$_scalar_flags"
++
++    if [[ "${#_argv[@]}" -gt 0 ]]; then
++        # ── Idempotency guard ─────────────────────────────────────────────────
++        # Skip injection if every would-be trailer (KEY: VALUE) already appears
++        # in the commit message file. Match case-insensitively because git
++        # interpret-trailers itself treats trailer keys case-insensitively, so a
++        # pre-existing "dso-agent: foo" line is semantically the same trailer.
++        _all_present=1
++        local_i=0
++        while [[ $local_i -lt ${#_argv[@]} ]]; do
++            # _argv pairs are (--trailer, "KEY: VALUE", --trailer, "KEY: VALUE", ...)
++            _trailer_token="${_argv[$((local_i + 1))]}"
++            if ! grep -qiF "$_trailer_token" "$_COMMIT_MSG_FILE" 2>/dev/null; then
++                _all_present=0
++                break
++            fi
++            local_i=$((local_i + 2))
++        done
++
++        if [[ "$_all_present" -eq 1 ]]; then
++            exit 0
++        fi
++
++        "${GIT_BINARY:-git}" interpret-trailers --in-place "${_argv[@]}" -- "$_COMMIT_MSG_FILE"
++    fi
++
++    # ── SC-5: Post-injection placement scan ───────────────────────────────────
++    # Detect DSO-* or Jira-Ticket: lines that appear before the final blank-line
++    # separator (i.e., in the message body rather than the trailer section).
++    # Non-blocking: emits a warning to stderr and continues (exit 0).
++    _last_blank_line=0
++    _line_no=0
++    while IFS= read -r _line; do
++        (( ++_line_no ))
++        [[ -z "$_line" ]] && _last_blank_line=$_line_no
++    done < "$_COMMIT_MSG_FILE"
++
++    _misplaced=0
++    _line_no=0
++    while IFS= read -r _line; do
++        (( ++_line_no ))
++        if [[ $_line_no -lt $_last_blank_line ]]; then
++            if [[ "$_line" =~ ^(Jira-Ticket|DSO-[A-Za-z-]+): ]]; then
++                _misplaced=1
++                break
++            fi
++        fi
++    done < "$_COMMIT_MSG_FILE"
++
++    if [[ $_misplaced -eq 1 ]]; then
++        printf 'WARNING: apply-attribution-trailers: DSO-* trailer found in message body (before blank separator)\n' >&2
++    fi
++
++    exit 0
++fi
+diff --git a/tests/hooks/test-post-agent-attribution.sh b/tests/hooks/test-post-agent-attribution.sh
+new file mode 100755
+index 0000000000..57adb5f00a
+--- /dev/null
++++ b/tests/hooks/test-post-agent-attribution.sh
+@@ -0,0 +1,118 @@
++#!/usr/bin/env bash
++# tests/hooks/test-post-agent-attribution.sh
++# RED test: post-agent.sh dispatcher must call hook_record_agent_attribution.
++#
++# Tests:
++#   test_post_agent_dispatcher_writes_attribution_jsonl_entry
++#
++# This test is RED because post-agent.sh does not yet call
++# hook_record_agent_attribution — so no JSONL entry is written.
++#
++# Usage: bash tests/hooks/test-post-agent-attribution.sh
++# Exit code: 0 if all pass, 1 if any fail
++
++set -uo pipefail
++
++SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
++PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
++DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
++
++source "$PLUGIN_ROOT/tests/lib/assert.sh"
++
++export CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR"
++
++# Temp dir cleanup on exit
++_TEST_TMPDIRS=()
++_cleanup() {
++    for d in "${_TEST_TMPDIRS[@]:-}"; do
++        [[ -n "$d" ]] && rm -rf "$d" 2>/dev/null
++    done
++}
++trap _cleanup EXIT
++
++POST_AGENT_DISPATCHER="$DSO_PLUGIN_DIR/hooks/dispatchers/post-agent.sh"
++
++# ============================================================
++# test_post_agent_dispatcher_writes_attribution_jsonl_entry
++#
++# When post-agent.sh is executed with an Agent tool input that has
++# subagent_type set, and attribution.enabled=true, it should append a JSONL
++# entry containing "subagent_type":"dso:red-test-writer" to
++# $ARTIFACTS_DIR/attribution-contributors.jsonl.
++#
++# This test is RED because post-agent.sh does not call
++# hook_record_agent_attribution yet — so no JSONL entry is written.
++# ============================================================
++echo "--- test_post_agent_dispatcher_writes_attribution_jsonl_entry ---"
++
++_T1_DIR=$(mktemp -d)
++_TEST_TMPDIRS+=("$_T1_DIR")
++
++# Build mock scripts directory with a read-config.sh that returns "true"
++# for attribution.enabled. hook_record_agent_attribution resolves read-config.sh
++# via SCRIPTS_DIR (not PATH), so we place the mock there.
++_T1_SCRIPTS_DIR="$_T1_DIR/scripts"
++mkdir -p "$_T1_SCRIPTS_DIR"
++cat > "$_T1_SCRIPTS_DIR/read-config.sh" <<'MOCK_EOF'
++#!/usr/bin/env bash
++# Mock read-config.sh: always returns "true" for attribution.enabled
++echo "true"
++exit 0
++MOCK_EOF
++chmod +x "$_T1_SCRIPTS_DIR/read-config.sh"
++
++_T1_JSONL="$_T1_DIR/attribution-contributors.jsonl"
++_T1_INPUT='{"tool_use_id":"tu1","tool_name":"Agent","tool_input":{"subagent_type":"dso:red-test-writer"},"tool_response":{"model":"claude-sonnet-4-6","content":""}}'
++
++# Run the dispatcher in a fresh subshell.
++# env(1) passes variables explicitly to avoid SC2030 subshell-export warnings.
++# SCRIPTS_DIR — required by hook_record_agent_attribution for read-config.sh lookup
++# ARTIFACTS_DIR — where the JSONL file will be written
++_T1_EXIT=0
++(
++    env CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
++        SCRIPTS_DIR="$_T1_SCRIPTS_DIR" \
++        ARTIFACTS_DIR="$_T1_DIR" \
++        bash -c "printf '%s' '$_T1_INPUT' | bash '$POST_AGENT_DISPATCHER'" \
++        >/dev/null 2>/dev/null
++) || _T1_EXIT=$?
++
++# Dispatcher must exit 0 (PostToolUse hooks are always non-blocking)
++assert_eq \
++    "test_post_agent_dispatcher_writes_attribution_jsonl_entry: dispatcher exits 0" \
++    "0" \
++    "$_T1_EXIT"
++
++# Verify the dispatcher wrote a single JSONL entry whose parsed fields match
++# the expected agent attribution shape (parses with python3 — substring matches
++# could pass for unrelated payloads with the same key fragments).
++_T1_MATCH="absent"
++if [[ -f "$_T1_JSONL" ]]; then
++    _T1_MATCH=$(python3 - "$_T1_JSONL" <<'PYEOF' 2>/dev/null
++import json, sys
++expected = {"type": "agent", "subagent_type": "dso:red-test-writer", "model": "claude-sonnet-4-6"}
++try:
++    with open(sys.argv[1]) as f:
++        for line in f:
++            line = line.strip()
++            if not line:
++                continue
++            obj = json.loads(line)
++            if obj == expected:
++                print("match")
++                sys.exit(0)
++except Exception:
++    pass
++print("absent")
++PYEOF
++)
++fi
++assert_eq \
++    "test_post_agent_dispatcher_writes_attribution_jsonl_entry: jsonl entry matches {type:agent, subagent_type, model}" \
++    "match" \
++    "$_T1_MATCH"
++
++# ============================================================
++# Summary
++# ============================================================
++print_summary
+diff --git a/tests/hooks/test-post-functions-attribution.sh b/tests/hooks/test-post-functions-attribution.sh
+new file mode 100755
+index 0000000000..fc7e4c82c9
+--- /dev/null
++++ b/tests/hooks/test-post-functions-attribution.sh
+@@ -0,0 +1,456 @@
++#!/usr/bin/env bash
++# tests/hooks/test-post-functions-attribution.sh
++# RED tests for hook_record_agent_attribution (does NOT exist yet — tests must fail).
++#
++# Tests:
++#   test_hook_record_agent_attribution_writes_jsonl_entry_when_enabled
++#     When attribution.enabled=true (mocked via read-config.sh PATH prepend),
++#     calling hook_record_agent_attribution with agent input JSON containing
++#     subagent_type and model should append a JSONL entry to
++#     $ARTIFACTS_DIR/attribution-contributors.jsonl.
++#
++#   test_hook_record_agent_attribution_skips_write_when_disabled
++#     When attribution.enabled is not "true" (mock returns empty),
++#     calling hook_record_agent_attribution should NOT append any entry.
++#
++# Design notes:
++#   - Each test runs inside a fresh bash subshell to work around the
++#     _POST_FUNCTIONS_LOADED=1 guard in post-functions.sh (double-sourcing
++#     the file is a no-op — the function would be undefined in a second
++#     source attempt if not yet written).
++#   - read-config.sh is mocked via PATH prepend — the target implementation
++#     will call: bash "$SCRIPTS_DIR/read-config.sh" attribution.enabled
++#     Tests create a mock read-config.sh in a temp dir prepended to PATH.
++#   - ARTIFACTS_DIR is set to an isolated temp dir so JSONL output is sandboxed.
++#   - SCRIPTS_DIR in the sourced post-functions.sh will resolve to the mock
++#     bin dir on PATH (since bash "$SCRIPTS_DIR/read-config.sh" will exec
++#     the first read-config.sh found on PATH when SCRIPTS_DIR is the mock dir).
++#
++# Usage: bash tests/hooks/test-post-functions-attribution.sh
++# Exit code: 0 if all pass, 1 if any fail
++
++set -uo pipefail
++
++SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
++PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
++DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
++POST_FUNCTIONS="$DSO_PLUGIN_DIR/hooks/lib/post-functions.sh"
++
++source "$PLUGIN_ROOT/tests/lib/assert.sh"
++
++# Temp dir cleanup on exit
++_TEST_TMPDIRS=()
++_cleanup() {
++    for d in "${_TEST_TMPDIRS[@]:-}"; do
++        [[ -n "$d" ]] && rm -rf "$d" 2>/dev/null
++    done
++}
++trap _cleanup EXIT
++
++# ============================================================
++# test_hook_record_agent_attribution_writes_jsonl_entry_when_enabled
++#
++# Setup:
++#   - Mock read-config.sh: outputs "true" (attribution.enabled=true)
++#   - ARTIFACTS_DIR: isolated temp dir
++#   - Run hook_record_agent_attribution with agent input JSON
++#
++# Expected (GREEN, after implementation):
++#   - attribution-contributors.jsonl exists in ARTIFACTS_DIR
++#   - Contains a line with {"type":"agent","subagent_type":"code-reviewer","model":"claude-sonnet-4-6"}
++#
++# RED assertion: hook_record_agent_attribution function does not exist yet →
++#   sourcing post-functions.sh and calling the function exits non-zero (command not found).
++# ============================================================
++echo "--- test_hook_record_agent_attribution_writes_jsonl_entry_when_enabled ---"
++
++_T1_TMPDIR=$(mktemp -d)
++_TEST_TMPDIRS+=("$_T1_TMPDIR")
++
++# Create mock read-config.sh that returns "true" for attribution.enabled
++_T1_MOCKBIN="$_T1_TMPDIR/bin"
++mkdir -p "$_T1_MOCKBIN"
++cat > "$_T1_MOCKBIN/read-config.sh" <<'MOCK_EOF'
++#!/usr/bin/env bash
++# Mock read-config.sh: returns "true" for attribution.enabled, empty for all else
++if [[ "${1:-}" == "attribution.enabled" || "${2:-}" == "attribution.enabled" ]]; then
++    echo "true"
++fi
++MOCK_EOF
++chmod +x "$_T1_MOCKBIN/read-config.sh"
++
++_T1_ARTIFACTS="$_T1_TMPDIR/artifacts"
++mkdir -p "$_T1_ARTIFACTS"
++
++_T1_AGENT_INPUT='{"tool_name":"Agent","tool_input":{"prompt":"do review","subagent_type":"code-reviewer"},"tool_response":{"output":"Done.","model":"claude-sonnet-4-6"}}'
++
++_t1_exit=0
++_t1_output=$(
++    env PATH="$_T1_MOCKBIN:$PATH" \
++        ARTIFACTS_DIR="$_T1_ARTIFACTS" \
++        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
++        SCRIPTS_DIR="$_T1_MOCKBIN" \
++        bash -c "
++    set -uo pipefail
++    source \"$POST_FUNCTIONS\" 2>/dev/null
++    hook_record_agent_attribution '$_T1_AGENT_INPUT'
++" 2>&1) || _t1_exit=$?
++
++_T1_JSONL="$_T1_ARTIFACTS/attribution-contributors.jsonl"
++
++# RED assertion: function does not exist — subshell exits non-zero or JSONL is absent/wrong
++_t1_jsonl_exists="no"
++[[ -f "$_T1_JSONL" ]] && _t1_jsonl_exists="yes"
++
++_t1_has_entry="no"
++if [[ "$_t1_jsonl_exists" == "yes" ]]; then
++    _t1_content=$(python3 -c "
++import json, sys
++try:
++    with open(sys.argv[1]) as f:
++        for line in f:
++            line = line.strip()
++            if not line:
++                continue
++            d = json.loads(line)
++            if (d.get('type') == 'agent'
++                    and d.get('subagent_type') == 'code-reviewer'
++                    and d.get('model') == 'claude-sonnet-4-6'):
++                print('found')
++                sys.exit(0)
++    print('absent')
++except Exception as e:
++    print('error:' + str(e))
++" "$_T1_JSONL" 2>/dev/null)
++    [[ "$_t1_content" == "found" ]] && _t1_has_entry="yes"
++fi
++
++assert_eq \
++    "test_hook_record_agent_attribution_writes_jsonl_entry_when_enabled: JSONL entry written" \
++    "yes" \
++    "$_t1_has_entry"
++
++# ============================================================
++# test_hook_record_agent_attribution_skips_write_when_disabled
++#
++# Setup:
++#   - Mock read-config.sh: returns empty string (attribution.enabled is NOT "true")
++#   - ARTIFACTS_DIR: isolated temp dir
++#   - Run hook_record_agent_attribution with agent input JSON
++#
++# Expected (GREEN, after implementation):
++#   - attribution-contributors.jsonl does NOT exist (or is empty)
++#
++# RED assertion: function does not exist yet → no JSONL file is written for the
++#   wrong reason; test verifies the absence of JSONL, which is the correct
++#   observable outcome but fails because the function is also absent for the
++#   enabled test above.
++# ============================================================
++echo "--- test_hook_record_agent_attribution_skips_write_when_disabled ---"
++
++_T2_TMPDIR=$(mktemp -d)
++_TEST_TMPDIRS+=("$_T2_TMPDIR")
++
++# Create mock read-config.sh that returns empty (attribution.enabled not "true")
++_T2_MOCKBIN="$_T2_TMPDIR/bin"
++mkdir -p "$_T2_MOCKBIN"
++cat > "$_T2_MOCKBIN/read-config.sh" <<'MOCK_EOF'
++#!/usr/bin/env bash
++# Mock read-config.sh: returns empty string for all keys (attribution disabled)
++exit 0
++MOCK_EOF
++chmod +x "$_T2_MOCKBIN/read-config.sh"
++
++_T2_ARTIFACTS="$_T2_TMPDIR/artifacts"
++mkdir -p "$_T2_ARTIFACTS"
++
++_T2_AGENT_INPUT='{"tool_name":"Agent","tool_input":{"prompt":"do review","subagent_type":"code-reviewer"},"tool_response":{"output":"Done.","model":"claude-sonnet-4-6"}}'
++
++_t2_exit=0
++env PATH="$_T2_MOCKBIN:$PATH" \
++    ARTIFACTS_DIR="$_T2_ARTIFACTS" \
++    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
++    SCRIPTS_DIR="$_T2_MOCKBIN" \
++    bash -c "
++    set -uo pipefail
++    source \"$POST_FUNCTIONS\" 2>/dev/null
++    hook_record_agent_attribution '$_T2_AGENT_INPUT'
++" 2>/dev/null || _t2_exit=$?
++
++_T2_JSONL="$_T2_ARTIFACTS/attribution-contributors.jsonl"
++
++# Count lines in the JSONL file — if it exists at all, it should have 0 entries
++_t2_entry_count=0
++if [[ -f "$_T2_JSONL" ]]; then
++    _t2_entry_count=$(python3 -c "
++import json, sys
++count = 0
++try:
++    with open(sys.argv[1]) as f:
++        for line in f:
++            line = line.strip()
++            if line:
++                count += 1
++except Exception:
++    pass
++print(count)
++" "$_T2_JSONL" 2>/dev/null || echo "0")
++fi
++
++assert_eq \
++    "test_hook_record_agent_attribution_skips_write_when_disabled: no JSONL entry written when disabled" \
++    "0" \
++    "$_t2_entry_count"
++
++# ============================================================
++# test_hook_record_agent_attribution_resolves_read_config_via_claude_plugin_root (C1)
++#
++# RED: hook only checks "${SCRIPTS_DIR:-}/read-config.sh". When SCRIPTS_DIR is
++# unset (the post-agent.sh dispatcher does not set it), `_enabled` stays empty
++# regardless of config, and the hook silently no-ops — feature is dead at
++# runtime. After fix: agent hook adopts the same SCRIPTS_DIR → PATH →
++# CLAUDE_PLUGIN_ROOT/scripts/ chain that the skill hook already uses.
++# ============================================================
++echo "--- test_hook_record_agent_attribution_resolves_read_config_via_claude_plugin_root ---"
++
++_T3_TMPDIR=$(mktemp -d)
++_TEST_TMPDIRS+=("$_T3_TMPDIR")
++
++# Build a fake plugin tree with scripts/read-config.sh → "true"
++_T3_PLUGIN_ROOT="$_T3_TMPDIR/plugin"
++mkdir -p "$_T3_PLUGIN_ROOT/scripts"
++cat > "$_T3_PLUGIN_ROOT/scripts/read-config.sh" <<'MOCK_EOF'
++#!/usr/bin/env bash
++if [[ "${1:-}" == "attribution.enabled" ]]; then
++    echo "true"
++fi
++MOCK_EOF
++chmod +x "$_T3_PLUGIN_ROOT/scripts/read-config.sh"
++
++_T3_ARTIFACTS="$_T3_TMPDIR/artifacts"
++mkdir -p "$_T3_ARTIFACTS"
++
++_T3_AGENT_INPUT='{"tool_name":"Agent","tool_input":{"prompt":"x","subagent_type":"dso:via-plugin-root"},"tool_response":{"output":"ok","model":"sonnet"}}'
++
++# Critical: do NOT set SCRIPTS_DIR; do NOT put read-config.sh on PATH.
++env -i \
++    HOME="$HOME" \
++    PATH="/usr/bin:/bin" \
++    CLAUDE_PLUGIN_ROOT="$_T3_PLUGIN_ROOT" \
++    ARTIFACTS_DIR="$_T3_ARTIFACTS" \
++    bash -c "
++    set -uo pipefail
++    source \"$POST_FUNCTIONS\" 2>/dev/null
++    hook_record_agent_attribution '$_T3_AGENT_INPUT'
++" 2>/dev/null || true
++
++_T3_JSONL="$_T3_ARTIFACTS/attribution-contributors.jsonl"
++
++_t3_has_entry="no"
++if [[ -f "$_T3_JSONL" ]]; then
++    _t3_match=$(python3 -c "
++import json, sys
++try:
++    with open(sys.argv[1]) as f:
++        for line in f:
++            line = line.strip()
++            if not line:
++                continue
++            d = json.loads(line)
++            if (d.get('type') == 'agent'
++                    and d.get('subagent_type') == 'dso:via-plugin-root'
++                    and d.get('model') == 'sonnet'):
++                print('found')
++                sys.exit(0)
++    print('absent')
++except Exception:
++    print('absent')
++" "$_T3_JSONL" 2>/dev/null)
++    [[ "$_t3_match" == "found" ]] && _t3_has_entry="yes"
++fi
++
++assert_eq \
++    "C1: agent hook resolves read-config.sh via CLAUDE_PLUGIN_ROOT and writes JSONL entry" \
++    "yes" \
++    "$_t3_has_entry"
++
++# ============================================================
++# test_hook_record_agent_attribution_warns_on_artifacts_dir_failure (L3)
++#
++# RED: an `ERR` trap silently swallows mkdir/printf failures. If the artifacts
++# dir cannot be created or written, the hook returns 0 with no observability,
++# masking attribution loss. After fix: failures emit a stderr WARNING, the
++# hook still returns 0 (non-blocking).
++# ============================================================
++echo "--- test_hook_record_agent_attribution_warns_on_artifacts_dir_failure ---"
++
++_T4_TMPDIR=$(mktemp -d)
++_TEST_TMPDIRS+=("$_T4_TMPDIR")
++
++# Skip when running as root (chmod 555 has no effect for root)
++if [[ "$(id -u)" -eq 0 ]]; then
++    echo "SKIP: test_hook_record_agent_attribution_warns_on_artifacts_dir_failure (running as root)"
++else
++    _T4_MOCKBIN="$_T4_TMPDIR/bin"
++    mkdir -p "$_T4_MOCKBIN"
++    cat > "$_T4_MOCKBIN/read-config.sh" <<'MOCK_EOF'
++#!/usr/bin/env bash
++if [[ "${1:-}" == "attribution.enabled" ]]; then
++    echo "true"
++fi
++MOCK_EOF
++    chmod +x "$_T4_MOCKBIN/read-config.sh"
++
++    # Make a parent dir read-only so mkdir of a child fails.
++    _T4_PARENT="$_T4_TMPDIR/locked"
++    mkdir -p "$_T4_PARENT"
++    chmod 555 "$_T4_PARENT"
++    _T4_ARTIFACTS="$_T4_PARENT/artifacts"
++
++    _T4_AGENT_INPUT='{"tool_name":"Agent","tool_input":{"prompt":"x","subagent_type":"dso:warn-test"},"tool_response":{"output":"ok","model":"sonnet"}}'
++
++    _t4_stderr_file="$_T4_TMPDIR/stderr.txt"
++    _t4_exit=0
++    env PATH="$_T4_MOCKBIN:$PATH" \
++        ARTIFACTS_DIR="$_T4_ARTIFACTS" \
++        SCRIPTS_DIR="$_T4_MOCKBIN" \
++        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
++        bash -c "
++    set -uo pipefail
++    source \"$POST_FUNCTIONS\" 2>/dev/null
++    hook_record_agent_attribution '$_T4_AGENT_INPUT'
++" 2>"$_t4_stderr_file" || _t4_exit=$?
++
++    # Hook is non-blocking — must return 0 even on failure.
++    assert_eq "L3: hook exits 0 (non-blocking) on artifacts-dir failure" "0" "$_t4_exit"
++
++    _t4_has_warning=0
++    grep -qi 'warning\|attribution.*fail\|fail.*attribution' "$_t4_stderr_file" 2>/dev/null && _t4_has_warning=1
++    assert_eq "L3: stderr contains warning when attribution write fails" "1" "$_t4_has_warning"
++
++    # Restore so cleanup can remove the dir
++    chmod 755 "$_T4_PARENT" 2>/dev/null || true
++fi
++
++# ============================================================
++# test_hook_record_agent_attribution_does_not_leak_err_trap_to_caller (C2)
++#
++# RED: hook installs `trap 'return 0' ERR` and returns early on the disabled
++# config path without restoring the prior trap. When the function is sourced
++# (not run in a subshell), the global ERR trap leaks into subsequent commands
++# and masks unrelated errors. After fix: trap is restored on every return path.
++# ============================================================
++echo "--- test_hook_record_agent_attribution_does_not_leak_err_trap_to_caller ---"
++
++_T5_TMPDIR=$(mktemp -d)
++_TEST_TMPDIRS+=("$_T5_TMPDIR")
++
++# read-config.sh that returns empty (disabled) — drives the early-return path
++_T5_MOCKBIN="$_T5_TMPDIR/bin"
++mkdir -p "$_T5_MOCKBIN"
++cat > "$_T5_MOCKBIN/read-config.sh" <<'MOCK_EOF'
++#!/usr/bin/env bash
++exit 0
++MOCK_EOF
++chmod +x "$_T5_MOCKBIN/read-config.sh"
++
++_T5_AGENT_INPUT='{"tool_name":"Agent","tool_input":{"prompt":"x","subagent_type":"dso:trap-test"},"tool_response":{"output":"ok","model":"sonnet"}}'
++
++# After the early-return path, run a sentinel that detects whether the ERR
++# trap is still active. If the trap leaks, `false` would silently `return 0`
++# and the marker file would not be created with the expected exit code.
++_T5_MARKER="$_T5_TMPDIR/marker"
++env PATH="$_T5_MOCKBIN:$PATH" \
++    ARTIFACTS_DIR="$_T5_TMPDIR/artifacts" \
++    SCRIPTS_DIR="$_T5_MOCKBIN" \
++    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
++    bash -c "
++set -uo pipefail
++source \"$POST_FUNCTIONS\" 2>/dev/null
++# Capture pristine ERR trap before hook call
++_pre_trap=\"\$(trap -p ERR)\"
++hook_record_agent_attribution '$_T5_AGENT_INPUT'
++_post_trap=\"\$(trap -p ERR)\"
++if [[ \"\$_pre_trap\" == \"\$_post_trap\" ]]; then
++    echo restored > \"$_T5_MARKER\"
++else
++    echo leaked > \"$_T5_MARKER\"
++fi
++" 2>/dev/null || true
++
++_t5_status="missing"
++[[ -f "$_T5_MARKER" ]] && _t5_status="$(cat "$_T5_MARKER")"
++assert_eq "C2: ERR trap restored after early-return on disabled config" "restored" "$_t5_status"
++
++# ============================================================
++# test_hook_record_agent_attribution_honors_workflow_plugin_artifacts_dir (N2)
++#
++# RED: agent hook reads ${ARTIFACTS_DIR:-} only; skill hook reads
++# ${WORKFLOW_PLUGIN_ARTIFACTS_DIR:-${ARTIFACTS_DIR:-}}. In a dispatch context
++# that exports WORKFLOW_PLUGIN_ARTIFACTS_DIR (the script
++# apply-attribution-trailers.sh and resolve_artifacts() in deps.sh both treat
++# it as the highest-priority resolution), agent attribution writes to a
++# different directory than the script reads from — silent data loss.
++#
++# After fix: agent hook prefers WORKFLOW_PLUGIN_ARTIFACTS_DIR when set,
++# matching the skill hook.
++# ============================================================
++echo "--- test_hook_record_agent_attribution_honors_workflow_plugin_artifacts_dir ---"
++
++_T6_TMPDIR=$(mktemp -d)
++_TEST_TMPDIRS+=("$_T6_TMPDIR")
++
++# Mock read-config.sh → "true"
++_T6_MOCKBIN="$_T6_TMPDIR/bin"
++mkdir -p "$_T6_MOCKBIN"
++cat > "$_T6_MOCKBIN/read-config.sh" <<'MOCK_EOF'
++#!/usr/bin/env bash
++if [[ "${1:-}" == "attribution.enabled" ]]; then
++    echo "true"
++fi
++MOCK_EOF
++chmod +x "$_T6_MOCKBIN/read-config.sh"
++
++# Two distinct dirs — the hook must write to WORKFLOW_PLUGIN_ARTIFACTS_DIR
++# (not ARTIFACTS_DIR) because the script also resolves to it first.
++_T6_WORKFLOW_DIR="$_T6_TMPDIR/workflow-artifacts"
++_T6_FALLBACK_DIR="$_T6_TMPDIR/fallback-artifacts"
++mkdir -p "$_T6_WORKFLOW_DIR" "$_T6_FALLBACK_DIR"
++
++_T6_AGENT_INPUT='{"tool_name":"Agent","tool_input":{"prompt":"x","subagent_type":"dso:wpad-test"},"tool_response":{"output":"ok","model":"sonnet"}}'
++
++env PATH="$_T6_MOCKBIN:$PATH" \
++    WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_T6_WORKFLOW_DIR" \
++    ARTIFACTS_DIR="$_T6_FALLBACK_DIR" \
++    SCRIPTS_DIR="$_T6_MOCKBIN" \
++    CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
++    bash -c "
++    set -uo pipefail
++    source \"$POST_FUNCTIONS\" 2>/dev/null
++    hook_record_agent_attribution '$_T6_AGENT_INPUT'
++" 2>/dev/null || true
++
++_t6_workflow_count="0"
++if [[ -f "$_T6_WORKFLOW_DIR/attribution-contributors.jsonl" ]]; then
++    _t6_workflow_count=$(grep -c '"subagent_type": "dso:wpad-test"' "$_T6_WORKFLOW_DIR/attribution-contributors.jsonl" 2>/dev/null) || _t6_workflow_count="0"
++fi
++
++_t6_fallback_count="0"
++if [[ -f "$_T6_FALLBACK_DIR/attribution-contributors.jsonl" ]]; then
++    _t6_fallback_count=$(grep -c '"subagent_type": "dso:wpad-test"' "$_T6_FALLBACK_DIR/attribution-contributors.jsonl" 2>/dev/null) || _t6_fallback_count="0"
++fi
++
++assert_eq \
++    "N2: agent hook writes to WORKFLOW_PLUGIN_ARTIFACTS_DIR when set" \
++    "1" \
++    "$_t6_workflow_count"
++
++assert_eq \
++    "N2: agent hook does NOT write to ARTIFACTS_DIR when WORKFLOW_PLUGIN_ARTIFACTS_DIR is set" \
++    "0" \
++    "$_t6_fallback_count"
++
++# ============================================================
++# Summary
++# ============================================================
++print_summary
+diff --git a/tests/hooks/test-post-skill-attribution.sh b/tests/hooks/test-post-skill-attribution.sh
+new file mode 100755
+index 0000000000..1580f9654e
+--- /dev/null
++++ b/tests/hooks/test-post-skill-attribution.sh
+@@ -0,0 +1,198 @@
++#!/usr/bin/env bash
++# tests/hooks/test-post-skill-attribution.sh
++# RED tests for hook_record_skill_attribution (post-functions.sh) and
++# post-skill.sh dispatcher — both targets do NOT exist yet.
++#
++# Tests:
++#   test_hook_record_skill_attribution_writes_jsonl_entry_when_enabled
++#   test_post_skill_dispatcher_appends_skill_entry_to_jsonl
++#
++# Both tests run in fresh subshells to guarantee clean load-guard state.
++#
++# Usage: bash tests/hooks/test-post-skill-attribution.sh
++# Exit code: 0 if all pass, 1 if any fail
++
++set -uo pipefail
++
++SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
++PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
++DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
++
++source "$PLUGIN_ROOT/tests/lib/assert.sh"
++
++export CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR"
++
++# Temp dir cleanup on exit
++_TEST_TMPDIRS=()
++_cleanup() {
++    for d in "${_TEST_TMPDIRS[@]:-}"; do
++        [[ -n "$d" ]] && rm -rf "$d" 2>/dev/null
++    done
++}
++trap _cleanup EXIT
++
++POST_SKILL_DISPATCHER="$DSO_PLUGIN_DIR/hooks/dispatchers/post-skill.sh"
++POST_FUNCTIONS="$DSO_PLUGIN_DIR/hooks/lib/post-functions.sh"
++
++# ============================================================
++# test_hook_record_skill_attribution_writes_jsonl_entry_when_enabled
++#
++# When attribution.enabled=true, calling hook_record_skill_attribution
++# with a Skill tool input JSON should append a JSONL entry of the form
++# {"type":"skill","skill_name":"<value>"} to attribution-contributors.jsonl.
++#
++# This test is RED because hook_record_skill_attribution does not exist
++# in post-functions.sh yet.
++# ============================================================
++echo "--- test_hook_record_skill_attribution_writes_jsonl_entry_when_enabled ---"
++
++_T1_DIR=$(mktemp -d)
++_TEST_TMPDIRS+=("$_T1_DIR")
++
++# Build a mock read-config.sh that returns "true" for attribution.enabled
++_MOCK_BIN_DIR="$_T1_DIR/mockbin"
++mkdir -p "$_MOCK_BIN_DIR"
++cat > "$_MOCK_BIN_DIR/read-config.sh" <<'MOCK_EOF'
++#!/usr/bin/env bash
++# Mock read-config.sh: always returns "true" for attribution.enabled
++echo "true"
++exit 0
++MOCK_EOF
++chmod +x "$_MOCK_BIN_DIR/read-config.sh"
++
++_T1_JSONL="$_T1_DIR/attribution-contributors.jsonl"
++_SKILL_INPUT='{"tool_name":"Skill","tool_input":{"skill":"dso:sprint"},"tool_response":{"output":"done"}}'
++
++# Run in a fresh subshell to guarantee a clean load-guard environment.
++# env(1) passes variables explicitly to avoid SC2030 subshell-export warnings.
++_T1_RESULT=$(
++    env CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
++        WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_T1_DIR" \
++        PATH="$_MOCK_BIN_DIR:$PATH" \
++        bash -c "
++        source \"$POST_FUNCTIONS\" 2>/dev/null || true
++        if declare -f hook_record_skill_attribution >/dev/null 2>&1; then
++            hook_record_skill_attribution '$_SKILL_INPUT'
++            echo 'function_called'
++        else
++            echo 'function_missing'
++        fi
++    " 2>/dev/null
++)
++
++# RED assertion: the function must not exist yet → subshell reports function_missing.
++# After implementation, it will report function_called and write the JSONL entry.
++assert_eq \
++    "test_hook_record_skill_attribution_writes_jsonl_entry_when_enabled: function exists in post-functions.sh" \
++    "function_called" \
++    "$_T1_RESULT"
++
++# Verify the JSONL side-effect by parsing each line as JSON and matching the
++# full expected object (defends against false positives from substring matches).
++_T1_MATCH="absent"
++if [[ -f "$_T1_JSONL" ]]; then
++    _T1_MATCH=$(python3 - "$_T1_JSONL" <<'PYEOF' 2>/dev/null
++import json, sys
++expected = {"type": "skill", "skill_name": "dso:sprint"}
++try:
++    with open(sys.argv[1]) as f:
++        for line in f:
++            line = line.strip()
++            if not line:
++                continue
++            obj = json.loads(line)
++            if obj == expected:
++                print("match")
++                sys.exit(0)
++except Exception:
++    pass
++print("absent")
++PYEOF
++)
++fi
++assert_eq \
++    "test_hook_record_skill_attribution_writes_jsonl_entry_when_enabled: jsonl entry matches {type:skill, skill_name}" \
++    "match" \
++    "$_T1_MATCH"
++
++# ============================================================
++# test_post_skill_dispatcher_appends_skill_entry_to_jsonl
++#
++# When executing post-skill.sh with a Skill tool input (via stdin),
++# it should append a skill attribution entry to attribution-contributors.jsonl
++# in the artifacts directory.
++#
++# This test is RED because post-skill.sh does not exist yet.
++# ============================================================
++echo "--- test_post_skill_dispatcher_appends_skill_entry_to_jsonl ---"
++
++_T2_DIR=$(mktemp -d)
++_TEST_TMPDIRS+=("$_T2_DIR")
++
++# Reuse same mock read-config.sh
++_T2_MOCK_BIN_DIR="$_T2_DIR/mockbin"
++mkdir -p "$_T2_MOCK_BIN_DIR"
++cat > "$_T2_MOCK_BIN_DIR/read-config.sh" <<'MOCK2_EOF'
++#!/usr/bin/env bash
++echo "true"
++exit 0
++MOCK2_EOF
++chmod +x "$_T2_MOCK_BIN_DIR/read-config.sh"
++
++_T2_JSONL="$_T2_DIR/attribution-contributors.jsonl"
++_T2_SKILL_INPUT='{"tool_name":"Skill","tool_input":{"skill":"dso:fix-bug"},"tool_response":{"output":"done"}}'
++
++# Run in a fresh subshell — dispatcher must be sourced/executed cleanly.
++# env(1) passes variables explicitly to avoid SC2030/SC2031 subshell-export warnings.
++_T2_EXIT=1
++if [[ -f "$POST_SKILL_DISPATCHER" ]]; then
++    (
++        env CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
++            WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_T2_DIR" \
++            PATH="$_T2_MOCK_BIN_DIR:$PATH" \
++            bash -c "printf '%s' '$_T2_SKILL_INPUT' | bash '$POST_SKILL_DISPATCHER'" \
++            >/dev/null 2>/dev/null
++    )
++    _T2_EXIT=$?
++else
++    # Dispatcher missing → explicit failure
++    _T2_EXIT=127
++fi
++
++# RED assertion: post-skill.sh does not exist, so we expect exit 127 or non-zero.
++# After implementation this must exit 0.
++assert_eq \
++    "test_post_skill_dispatcher_appends_skill_entry_to_jsonl: dispatcher exits 0" \
++    "0" \
++    "$_T2_EXIT"
++
++_T2_MATCH="absent"
++if [[ -f "$_T2_JSONL" ]]; then
++    _T2_MATCH=$(python3 - "$_T2_JSONL" <<'PYEOF' 2>/dev/null
++import json, sys
++expected = {"type": "skill", "skill_name": "dso:fix-bug"}
++try:
++    with open(sys.argv[1]) as f:
++        for line in f:
++            line = line.strip()
++            if not line:
++                continue
++            obj = json.loads(line)
++            if obj == expected:
++                print("match")
++                sys.exit(0)
++except Exception:
++    pass
++print("absent")
++PYEOF
++)
++fi
++assert_eq \
++    "test_post_skill_dispatcher_appends_skill_entry_to_jsonl: jsonl entry matches {type:skill, skill_name=dso:fix-bug}" \
++    "match" \
++    "$_T2_MATCH"
++
++# ============================================================
++# Summary
++# ============================================================
++print_summary
+diff --git a/tests/unit/scripts/test-apply-attribution-trailers.sh b/tests/unit/scripts/test-apply-attribution-trailers.sh
+new file mode 100755
+index 0000000000..6b66563d32
+--- /dev/null
++++ b/tests/unit/scripts/test-apply-attribution-trailers.sh
+@@ -0,0 +1,1579 @@
++#!/usr/bin/env bash
++# tests/unit/scripts/test-apply-attribution-trailers.sh
++# Behavioral RED tests for plugins/dso/scripts/apply-attribution-trailers.sh
++#
++# Tests verify observable behavior:
++#   1. read_and_deduplicate returns a single value for duplicate agent entries
++#   2. read_and_deduplicate preserves two distinct agent types
++#   3. check_git_version stub returns 0 for any version
++#
++# These tests are RED — the target script does not exist yet.
++# Once apply-attribution-trailers.sh is implemented, they should turn GREEN.
++#
++# Usage: bash tests/unit/scripts/test-apply-attribution-trailers.sh
++# Returns: exit 0 if all tests pass, exit 1 if any fail
++
++set -uo pipefail
++
++SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
++REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
++SCRIPT="$REPO_ROOT/plugins/dso/scripts/apply-attribution-trailers.sh"
++
++source "$REPO_ROOT/tests/lib/assert.sh"
++
++echo "=== test-apply-attribution-trailers.sh ==="
++
++# ── Git version guard ─────────────────────────────────────────────────────────
++# interpret-trailers requires git >= 2.6. Skip if unavailable.
++_GIT_BIN="${GIT_BINARY:-git}"
++_git_version_ok() {
++    local ver
++    ver="$("$_GIT_BIN" --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+'| head -1)"
++    local major minor
++    major="${ver%%.*}"
++    minor="${ver#*.}"
++    minor="${minor%%.*}"
++    [[ "$major" -gt 2 || ( "$major" -eq 2 && "$minor" -ge 6 ) ]]
++}
++
++if ! _git_version_ok; then
++    echo "SKIP: git interpret-trailers requires git >= 2.6; found $("$_GIT_BIN" --version). Skipping all tests."
++    exit 0
++fi
++
++# ── Temp dir management ───────────────────────────────────────────────────────
++_TEST_TMPDIRS=()
++_cleanup_tmpdirs() {
++    for d in "${_TEST_TMPDIRS[@]+"${_TEST_TMPDIRS[@]}"}"; do
++        rm -rf "$d"
++    done
++}
++trap '_cleanup_tmpdirs' EXIT
++
++_make_tmpdir() {
++    local d
++    d="$(mktemp -d)"
++    _TEST_TMPDIRS+=("$d")
++    echo "$d"
++}
++
++# ── Helper: write JSONL to a temp file ───────────────────────────────────────
++_make_jsonl_file() {
++    # Arguments: one JSON object per argument, each on its own line
++    local tmpdir; tmpdir="$(_make_tmpdir)"
++    local f="$tmpdir/input.jsonl"
++    for line in "$@"; do
++        printf '%s\n' "$line" >> "$f"
++    done
++    echo "$f"
++}
++
++# ── Test 1: read_and_deduplicate returns single value for duplicate agents ────
++
++test_read_and_deduplicate_returns_single_value_for_duplicate_agents() {
++    _snapshot_fail
++
++    if [[ ! -f "$SCRIPT" ]]; then
++        (( ++FAIL ))
++        printf "FAIL: test_read_and_deduplicate_returns_single_value_for_duplicate_agents\n  script not found: %s\n" "$SCRIPT" >&2
++        assert_pass_if_clean "test_read_and_deduplicate_returns_single_value_for_duplicate_agents"
++        return
++    fi
++
++    # Two identical agent entries — read_and_deduplicate should collapse to one
++    local jsonl_file
++    jsonl_file="$(_make_jsonl_file \
++        '{"type":"agent","subagent_type":"dso:red-test-writer","model":"sonnet"}' \
++        '{"type":"agent","subagent_type":"dso:red-test-writer","model":"sonnet"}')"
++
++    # Source the script to bring read_and_deduplicate into scope
++    # shellcheck disable=SC1090
++    source "$SCRIPT"
++
++    local output
++    output="$(read_and_deduplicate "$jsonl_file")"
++
++    # Count how many times the subagent_type appears in output
++    local count=0
++    while IFS= read -r line; do
++        [[ "$line" == *"dso:red-test-writer"* ]] && (( ++count ))
++    done <<< "$output"
++
++    assert_eq "dedup: dso:red-test-writer appears exactly once" "1" "$count"
++
++    assert_pass_if_clean "test_read_and_deduplicate_returns_single_value_for_duplicate_agents"
++}
++
++# ── Test 2: read_and_deduplicate preserves two distinct agent types ───────────
++
++test_read_and_deduplicate_preserves_two_distinct_agent_types() {
++    _snapshot_fail
++
++    if [[ ! -f "$SCRIPT" ]]; then
++        (( ++FAIL ))
++        printf "FAIL: test_read_and_deduplicate_preserves_two_distinct_agent_types\n  script not found: %s\n" "$SCRIPT" >&2
++        assert_pass_if_clean "test_read_and_deduplicate_preserves_two_distinct_agent_types"
++        return
++    fi
++
++    local jsonl_file
++    jsonl_file="$(_make_jsonl_file \
++        '{"type":"agent","subagent_type":"dso:red-test-writer","model":"sonnet"}' \
++        '{"type":"agent","subagent_type":"dso:code-reviewer-correctness","model":"sonnet"}')"
++
++    # shellcheck disable=SC1090
++    source "$SCRIPT"
++
++    local output
++    output="$(read_and_deduplicate "$jsonl_file")"
++
++    # Both distinct subagent_type values must appear in the output
++    local has_writer=0 has_reviewer=0
++    while IFS= read -r line; do
++        [[ "$line" == *"dso:red-test-writer"* ]]            && has_writer=1
++        [[ "$line" == *"dso:code-reviewer-correctness"* ]]  && has_reviewer=1
++    done <<< "$output"
++
++    assert_eq "distinct agents: dso:red-test-writer present"           "1" "$has_writer"
++    assert_eq "distinct agents: dso:code-reviewer-correctness present" "1" "$has_reviewer"
++
++    assert_pass_if_clean "test_read_and_deduplicate_preserves_two_distinct_agent_types"
++}
++
++# ── Test 3: check_git_version stub returns 0 ─────────────────────────────────
++
++test_check_git_version_stub_returns_0() {
++    _snapshot_fail
++
++    if [[ ! -f "$SCRIPT" ]]; then
++        (( ++FAIL ))
++        printf "FAIL: test_check_git_version_stub_returns_0\n  script not found: %s\n" "$SCRIPT" >&2
++        assert_pass_if_clean "test_check_git_version_stub_returns_0"
++        return
++    fi
++
++    # shellcheck disable=SC1090
++    source "$SCRIPT"
++
++    local exit_code=0
++    check_git_version "2.6.0" || exit_code=$?
++
++    assert_eq "check_git_version stub: returns 0 for any version" "0" "$exit_code"
++
++    assert_pass_if_clean "test_check_git_version_stub_returns_0"
++}
++
++# ── Test 4: format_trailer_flags produces two flags for two distinct agents ────
++
++test_format_trailer_flags_produces_two_flags_for_two_distinct_agents() {
++    _snapshot_fail
++
++    if [[ ! -f "$SCRIPT" ]]; then
++        (( ++FAIL ))
++        printf "FAIL: test_format_trailer_flags_produces_two_flags_for_two_distinct_agents\n  script not found: %s\n" "$SCRIPT" >&2
++        assert_pass_if_clean "test_format_trailer_flags_produces_two_flags_for_two_distinct_agents"
++        return
++    fi
++
++    # shellcheck disable=SC1090
++    source "$SCRIPT"
++
++    if ! declare -f format_trailer_flags > /dev/null 2>&1; then
++        (( ++FAIL ))
++        printf "FAIL: test_format_trailer_flags_produces_two_flags_for_two_distinct_agents\n  function format_trailer_flags not found in script\n" >&2
++        assert_pass_if_clean "test_format_trailer_flags_produces_two_flags_for_two_distinct_agents"
++        return
++    fi
++
++    local jsonl_file
++    jsonl_file="$(_make_jsonl_file \
++        '{"type":"agent","subagent_type":"dso:red-test-writer","model":"sonnet"}' \
++        '{"type":"agent","subagent_type":"dso:code-reviewer-correctness","model":"sonnet"}')"
++
++    local output
++    output="$(format_trailer_flags "$jsonl_file")"
++
++    # Count lines matching ^--trailer 'DSO-Agent:
++    local count
++    count="$(printf '%s\n' "$output" | grep -c "^--trailer 'DSO-Agent:" || true)"
++
++    assert_eq "format_trailer_flags: two distinct agents produce 2 DSO-Agent trailer flags" "2" "$count"
++
++    assert_pass_if_clean "test_format_trailer_flags_produces_two_flags_for_two_distinct_agents"
++}
++
++# ── Test 5: format_trailer_flags produces no flags for empty JSONL ────────────
++
++test_format_trailer_flags_produces_no_flags_for_empty_jsonl() {
++    _snapshot_fail
++
++    if [[ ! -f "$SCRIPT" ]]; then
++        (( ++FAIL ))
++        printf "FAIL: test_format_trailer_flags_produces_no_flags_for_empty_jsonl\n  script not found: %s\n" "$SCRIPT" >&2
++        assert_pass_if_clean "test_format_trailer_flags_produces_no_flags_for_empty_jsonl"
++        return
++    fi
++
++    # shellcheck disable=SC1090
++    source "$SCRIPT"
++
++    if ! declare -f format_trailer_flags > /dev/null 2>&1; then
++        (( ++FAIL ))
++        printf "FAIL: test_format_trailer_flags_produces_no_flags_for_empty_jsonl\n  function format_trailer_flags not found in script\n" >&2
++        assert_pass_if_clean "test_format_trailer_flags_produces_no_flags_for_empty_jsonl"
++        return
++    fi
++
++    local jsonl_file
++    jsonl_file="$(_make_jsonl_file)"  # no lines → empty file
++
++    local output
++    output="$(format_trailer_flags "$jsonl_file")"
++
++    # Use grep -c . to count non-empty lines (avoids wc -c newline ambiguity)
++    local line_count
++    line_count="$(printf '%s' "$output" | grep -c . || true)"
++
++    assert_eq "format_trailer_flags: empty JSONL produces 0 output lines" "0" "$line_count"
++
++    assert_pass_if_clean "test_format_trailer_flags_produces_no_flags_for_empty_jsonl"
++}
++
++# ── Test 6: format_trailer_flags produces DSO-Skill flags for skill entries ───
++
++test_format_trailer_flags_produces_dso_skill_flags() {
++    _snapshot_fail
++
++    if [[ ! -f "$SCRIPT" ]]; then
++        (( ++FAIL ))
++        printf "FAIL: test_format_trailer_flags_produces_dso_skill_flags\n  script not found: %s\n" "$SCRIPT" >&2
++        assert_pass_if_clean "test_format_trailer_flags_produces_dso_skill_flags"
++        return
++    fi
++
++    # shellcheck disable=SC1090
++    source "$SCRIPT"
++
++    if ! declare -f format_trailer_flags > /dev/null 2>&1; then
++        (( ++FAIL ))
++        printf "FAIL: test_format_trailer_flags_produces_dso_skill_flags\n  function format_trailer_flags not found in script\n" >&2
++        assert_pass_if_clean "test_format_trailer_flags_produces_dso_skill_flags"
++        return
++    fi
++
++    local jsonl_file
++    jsonl_file="$(_make_jsonl_file \
++        '{"type":"skill","skill_name":"dso:sprint"}')"
++
++    local output
++    output="$(format_trailer_flags "$jsonl_file")"
++
++    # Count lines matching ^--trailer 'DSO-Skill:
++    local count
++    count="$(printf '%s\n' "$output" | grep -c "^--trailer 'DSO-Skill:" || true)"
++
++    assert_eq "format_trailer_flags: skill entry produces 1 DSO-Skill trailer flag" "1" "$count"
++
++    assert_pass_if_clean "test_format_trailer_flags_produces_dso_skill_flags"
++}
++
++# ── Test 7: check_git_version fails when git version is 1.9 ──────────────────
++# RED: current stub always returns 0; real impl must return non-zero for < 2.6
++
++test_check_git_version_fails_when_version_is_1_9() {
++    _snapshot_fail
++
++    if [[ ! -f "$SCRIPT" ]]; then
++        (( ++FAIL ))
++        printf "FAIL: test_check_git_version_fails_when_version_is_1_9\n  script not found: %s\n" "$SCRIPT" >&2
++        assert_pass_if_clean "test_check_git_version_fails_when_version_is_1_9"
++        return
++    fi
++
++    # Create a mock git binary that reports version 1.9.0
++    local _mock_dir
++    _mock_dir="$(_make_tmpdir)"
++    local _fake_git="$_mock_dir/git"
++    printf '#!/bin/bash\necho "git version 1.9.0"\n' > "$_fake_git"
++    chmod +x "$_fake_git"
++
++    # Capture stderr to check for TRAILER_SKIPPED
++    local _stderr_file
++    _stderr_file="$(_make_tmpdir)/stderr.txt"
++
++    # shellcheck disable=SC1090
++    source "$SCRIPT"
++
++    local exit_code=0
++    GIT_BINARY="$_fake_git" check_git_version "2.6.0" 2>"$_stderr_file" || exit_code=$?
++
++    # Real behavior: must return non-zero for git < 2.6
++    local nonzero=0
++    [[ "$exit_code" -ne 0 ]] && nonzero=1
++    assert_eq "check_git_version 1.9: returns non-zero" "1" "$nonzero"
++
++    # Real behavior: stderr must contain TRAILER_SKIPPED
++    local has_trailer_skipped=0
++    grep -q "TRAILER_SKIPPED" "$_stderr_file" 2>/dev/null && has_trailer_skipped=1
++    assert_eq "check_git_version 1.9: stderr contains TRAILER_SKIPPED" "1" "$has_trailer_skipped"
++
++    assert_pass_if_clean "test_check_git_version_fails_when_version_is_1_9"
++}
++
++# ── Test 8: check_git_version passes when git version is 2.6 ─────────────────
++
++test_check_git_version_passes_when_version_is_2_6() {
++    _snapshot_fail
++
++    if [[ ! -f "$SCRIPT" ]]; then
++        (( ++FAIL ))
++        printf "FAIL: test_check_git_version_passes_when_version_is_2_6\n  script not found: %s\n" "$SCRIPT" >&2
++        assert_pass_if_clean "test_check_git_version_passes_when_version_is_2_6"
++        return
++    fi
++
++    local _mock_dir
++    _mock_dir="$(_make_tmpdir)"
++    local _fake_git="$_mock_dir/git"
++    printf '#!/bin/bash\necho "git version 2.6.0"\n' > "$_fake_git"
++    chmod +x "$_fake_git"
++
++    # shellcheck disable=SC1090
++    source "$SCRIPT"
++
++    local exit_code=0
++    GIT_BINARY="$_fake_git" check_git_version "2.6.0" || exit_code=$?
++
++    assert_eq "check_git_version 2.6: returns 0" "0" "$exit_code"
++
++    assert_pass_if_clean "test_check_git_version_passes_when_version_is_2_6"
++}
++
++# ── Test 9: check_git_version passes when git version is 2.42 ────────────────
++
++test_check_git_version_passes_when_version_is_2_42() {
++    _snapshot_fail
++
++    if [[ ! -f "$SCRIPT" ]]; then
++        (( ++FAIL ))
++        printf "FAIL: test_check_git_version_passes_when_version_is_2_42\n  script not found: %s\n" "$SCRIPT" >&2
++        assert_pass_if_clean "test_check_git_version_passes_when_version_is_2_42"
++        return
++    fi
++
++    local _mock_dir
++    _mock_dir="$(_make_tmpdir)"
++    local _fake_git="$_mock_dir/git"
++    printf '#!/bin/bash\necho "git version 2.42.0"\n' > "$_fake_git"
++    chmod +x "$_fake_git"
++
++    # shellcheck disable=SC1090
++    source "$SCRIPT"
++
++    local exit_code=0
++    GIT_BINARY="$_fake_git" check_git_version "2.6.0" || exit_code=$?
++
++    assert_eq "check_git_version 2.42: returns 0" "0" "$exit_code"
++
++    assert_pass_if_clean "test_check_git_version_passes_when_version_is_2_42"
++}
++
++# ── Test 10: check_git_version passes with vendor suffix (e.g. 2.39.3-1.el9) ─
++
++test_check_git_version_passes_with_vendor_suffix() {
++    _snapshot_fail
++
++    if [[ ! -f "$SCRIPT" ]]; then
++        (( ++FAIL ))
++        printf "FAIL: test_check_git_version_passes_with_vendor_suffix\n  script not found: %s\n" "$SCRIPT" >&2
++        assert_pass_if_clean "test_check_git_version_passes_with_vendor_suffix"
++        return
++    fi
++
++    local _mock_dir
++    _mock_dir="$(_make_tmpdir)"
++    local _fake_git="$_mock_dir/git"
++    printf '#!/bin/bash\necho "git version 2.39.3-1.el9"\n' > "$_fake_git"
++    chmod +x "$_fake_git"
++
++    # shellcheck disable=SC1090
++    source "$SCRIPT"
++
++    local exit_code=0
++    GIT_BINARY="$_fake_git" check_git_version "2.6.0" || exit_code=$?
++
++    assert_eq "check_git_version 2.39.3-1.el9: returns 0" "0" "$exit_code"
++
++    assert_pass_if_clean "test_check_git_version_passes_with_vendor_suffix"
++}
++
++# ── Test 11: resolve_scalar_trailers produces DSO-Task/Story/Epic flags ──────
++# RED: resolve_scalar_trailers does not exist yet.
++
++test_resolve_scalar_trailers_produces_task_story_epic_flags() {
++    _snapshot_fail
++
++    if [[ ! -f "$SCRIPT" ]]; then
++        (( ++FAIL ))
++        printf "FAIL: test_resolve_scalar_trailers_produces_task_story_epic_flags\n  script not found: %s\n" "$SCRIPT" >&2
++        assert_pass_if_clean "test_resolve_scalar_trailers_produces_task_story_epic_flags"
++        return
++    fi
++
++    # shellcheck disable=SC1090
++    source "$SCRIPT"
++
++    if ! declare -f resolve_scalar_trailers > /dev/null 2>&1; then
++        (( ++FAIL ))
++        printf "FAIL: test_resolve_scalar_trailers_produces_task_story_epic_flags\n  function resolve_scalar_trailers not found in script\n" >&2
++        assert_pass_if_clean "test_resolve_scalar_trailers_produces_task_story_epic_flags"
++        return
++    fi
++
++    # Set up mock dso CLI in a prepended PATH directory
++    local _mock_dir
++    _mock_dir="$(_make_tmpdir)"
++    mkdir -p "$_mock_dir/bin"
++    cat > "$_mock_dir/bin/dso" <<'MOCK'
++#!/bin/bash
++# Mock dso CLI — returns fixture ticket JSON for any ticket show invocation
++echo '{"ticket_id": "1234-abcd", "title": "Mock Task", "type": "task", "parent_id": "5678-efgh", "parent_title": "Mock Story", "parent_type": "story", "grandparent_id": "9abc-0000", "grandparent_title": "Mock Epic", "grandparent_type": "epic"}'
++MOCK
++    chmod +x "$_mock_dir/bin/dso"
++
++    local _artifacts
++    _artifacts="$(_make_tmpdir)"
++
++    local output
++    output="$(PATH="$_mock_dir/bin:$PATH" ARTIFACTS_DIR="$_artifacts" DSO_TASK_ID="1234-abcd" resolve_scalar_trailers 2>/dev/null || true)"
++
++    local has_task=0 has_story=0 has_epic=0
++    printf '%s\n' "$output" | grep -q "DSO-Task"  && has_task=1
++    printf '%s\n' "$output" | grep -q "DSO-Story" && has_story=1
++    printf '%s\n' "$output" | grep -q "DSO-Epic"  && has_epic=1
++
++    assert_eq "resolve_scalar_trailers: output contains DSO-Task flag"  "1" "$has_task"
++    assert_eq "resolve_scalar_trailers: output contains DSO-Story flag" "1" "$has_story"
++    assert_eq "resolve_scalar_trailers: output contains DSO-Epic flag"  "1" "$has_epic"
++
++    assert_pass_if_clean "test_resolve_scalar_trailers_produces_task_story_epic_flags"
++}
++
++# ── Test 12: resolve_scalar_trailers produces DSO-Review-Score flag ───────────
++# RED: resolve_scalar_trailers does not exist yet.
++
++test_resolve_scalar_trailers_produces_review_score_flag() {
++    _snapshot_fail
++
++    if [[ ! -f "$SCRIPT" ]]; then
++        (( ++FAIL ))
++        printf "FAIL: test_resolve_scalar_trailers_produces_review_score_flag\n  script not found: %s\n" "$SCRIPT" >&2
++        assert_pass_if_clean "test_resolve_scalar_trailers_produces_review_score_flag"
++        return
++    fi
++
++    # shellcheck disable=SC1090
++    source "$SCRIPT"
++
++    if ! declare -f resolve_scalar_trailers > /dev/null 2>&1; then
++        (( ++FAIL ))
++        printf "FAIL: test_resolve_scalar_trailers_produces_review_score_flag\n  function resolve_scalar_trailers not found in script\n" >&2
++        assert_pass_if_clean "test_resolve_scalar_trailers_produces_review_score_flag"
++        return
++    fi
++
++    local _artifacts
++    _artifacts="$(_make_tmpdir)"
++
++    # Write a fixture reviewer-findings.json with score fields
++    cat > "$_artifacts/reviewer-findings.json" <<'JSON'
++{"diff_hash": "abc123", "scores": {"hygiene": 4, "design": 5, "maintainability": 4, "correctness": 5, "verification": 4}, "summary": "ok"}
++JSON
++
++    local output
++    output="$(ARTIFACTS_DIR="$_artifacts" DSO_TASK_ID="" resolve_scalar_trailers 2>/dev/null || true)"
++
++    local has_review_score=0
++    printf '%s\n' "$output" | grep -q "DSO-Review-Score" && has_review_score=1
++
++    assert_eq "resolve_scalar_trailers: output contains DSO-Review-Score flag" "1" "$has_review_score"
++
++    assert_pass_if_clean "test_resolve_scalar_trailers_produces_review_score_flag"
++}
++
++# ── Test 13: resolve_scalar_trailers produces no flags when no context ─────────
++# RED: resolve_scalar_trailers does not exist yet.
++
++test_resolve_scalar_trailers_produces_no_flags_when_no_context() {
++    _snapshot_fail
++
++    if [[ ! -f "$SCRIPT" ]]; then
++        (( ++FAIL ))
++        printf "FAIL: test_resolve_scalar_trailers_produces_no_flags_when_no_context\n  script not found: %s\n" "$SCRIPT" >&2
++        assert_pass_if_clean "test_resolve_scalar_trailers_produces_no_flags_when_no_context"
++        return
++    fi
++
++    # shellcheck disable=SC1090
++    source "$SCRIPT"
++
++    if ! declare -f resolve_scalar_trailers > /dev/null 2>&1; then
++        (( ++FAIL ))
++        printf "FAIL: test_resolve_scalar_trailers_produces_no_flags_when_no_context\n  function resolve_scalar_trailers not found in script\n" >&2
++        assert_pass_if_clean "test_resolve_scalar_trailers_produces_no_flags_when_no_context"
++        return
++    fi
++
++    local _artifacts
++    _artifacts="$(_make_tmpdir)"
++    # No reviewer-findings.json, no DSO_TASK_ID set
++
++    local output
++    output="$(ARTIFACTS_DIR="$_artifacts" DSO_TASK_ID="" resolve_scalar_trailers 2>/dev/null || true)"
++
++    local line_count
++    line_count="$(printf '%s' "$output" | grep -c . || true)"
++
++    assert_eq "resolve_scalar_trailers: no context produces 0 output lines" "0" "$line_count"
++
++    assert_pass_if_clean "test_resolve_scalar_trailers_produces_no_flags_when_no_context"
++}
++
++# ── Test 14: exits 0 and omits scalar trailers when ticket show fails ──────────
++# Verifies graceful degradation: non-zero exit from dso CLI must not propagate.
++
++test_exits_0_and_omits_scalar_trailers_when_ticket_show_fails() {
++    _snapshot_fail
++
++    if [[ ! -f "$SCRIPT" ]]; then
++        (( ++FAIL ))
++        printf "FAIL: test_exits_0_and_omits_scalar_trailers_when_ticket_show_fails\n  script not found: %s\n" "$SCRIPT" >&2
++        assert_pass_if_clean "test_exits_0_and_omits_scalar_trailers_when_ticket_show_fails"
++        return
++    fi
++
++    # shellcheck disable=SC1090
++    source "$SCRIPT"
++
++    if ! declare -f resolve_scalar_trailers > /dev/null 2>&1; then
++        (( ++FAIL ))
++        printf "FAIL: test_exits_0_and_omits_scalar_trailers_when_ticket_show_fails\n  function resolve_scalar_trailers not found in script\n" >&2
++        assert_pass_if_clean "test_exits_0_and_omits_scalar_trailers_when_ticket_show_fails"
++        return
++    fi
++
++    # Mock dso CLI that exits non-zero (simulates CLI failure)
++    local _mock_dir
++    _mock_dir="$(_make_tmpdir)"
++    mkdir -p "$_mock_dir/bin"
++    cat > "$_mock_dir/bin/dso" <<'MOCK'
++#!/bin/bash
++exit 1
++MOCK
++    chmod +x "$_mock_dir/bin/dso"
++
++    local _artifacts
++    _artifacts="$(_make_tmpdir)"
++    # No reviewer-findings.json — isolate ticket-failure path
++
++    local output exit_code=0
++    output="$(PATH="$_mock_dir/bin:$PATH" ARTIFACTS_DIR="$_artifacts" DSO_TASK_ID="fail-1234" resolve_scalar_trailers 2>/dev/null)" || exit_code=$?
++
++    assert_eq "resolve_scalar_trailers: exits 0 when dso ticket show fails" "0" "$exit_code"
++
++    local has_task=0
++    printf '%s\n' "$output" | grep -q "DSO-Task" && has_task=1
++    assert_eq "resolve_scalar_trailers: no DSO-Task trailer when ticket show fails" "0" "$has_task"
++
++    assert_pass_if_clean "test_exits_0_and_omits_scalar_trailers_when_ticket_show_fails"
++}
++
++# ── Test 15: SC-2 guard — exits 0 without modifying commit msg when attribution disabled ──
++# RED: main block does not yet check read-config.sh for attribution.enabled.
++# Currently the script exits 1 (unknown positional arg) before reaching any guard.
++
++test_script_exits_0_without_modifying_commit_msg_when_attribution_disabled() {
++    _snapshot_fail
++
++    if [[ ! -f "$SCRIPT" ]]; then
++        (( ++FAIL ))
++        printf "FAIL: test_script_exits_0_without_modifying_commit_msg_when_attribution_disabled\n  script not found: %s\n" "$SCRIPT" >&2
++        assert_pass_if_clean "test_script_exits_0_without_modifying_commit_msg_when_attribution_disabled"
++        return
++    fi
++
++    # Set up temp artifacts dir with a populated JSONL (to confirm it is NOT read)
++    local _artifacts
++    _artifacts="$(_make_tmpdir)"
++    printf '%s\n' '{"type":"agent","subagent_type":"dso:red-test-writer","model":"sonnet"}' \
++        > "$_artifacts/attribution-contributors.jsonl"
++
++    # Commit message file
++    local _commit_msg_file="$_artifacts/COMMIT_EDITMSG"
++    printf 'My commit message\n' > "$_commit_msg_file"
++    local _original_content
++    _original_content="$(cat "$_commit_msg_file")"
++
++    # Mock read-config.sh: attribution.enabled → false
++    local _mock_dir
++    _mock_dir="$(_make_tmpdir)/bin"
++    mkdir -p "$_mock_dir"
++    cat > "$_mock_dir/read-config.sh" <<'MOCK'
++#!/bin/bash
++# Mock: attribution.enabled → false
++if [[ "$1" == "attribution.enabled" ]]; then echo "false"; else echo ""; fi
++MOCK
++    chmod +x "$_mock_dir/read-config.sh"
++
++    local exit_code=0
++    ARTIFACTS_DIR="$_artifacts" PATH="$_mock_dir:$PATH" \
++        bash "$SCRIPT" "$_commit_msg_file" 2>/dev/null || exit_code=$?
++
++    assert_eq "SC-2 disabled: exits 0" "0" "$exit_code"
++
++    local _current_content
++    _current_content="$(cat "$_commit_msg_file")"
++    assert_eq "SC-2 disabled: commit msg unchanged" "$_original_content" "$_current_content"
++
++    assert_pass_if_clean "test_script_exits_0_without_modifying_commit_msg_when_attribution_disabled"
++}
++
++# ── Test 16: SC-4 guard — exits 0 without modifying commit msg when JSONL absent ─
++# RED: main block exits 3 when JSONL file is not found; must exit 0 after SC-4 impl.
++
++test_script_exits_0_without_modifying_commit_msg_when_jsonl_absent() {
++    _snapshot_fail
++
++    if [[ ! -f "$SCRIPT" ]]; then
++        (( ++FAIL ))
++        printf "FAIL: test_script_exits_0_without_modifying_commit_msg_when_jsonl_absent\n  script not found: %s\n" "$SCRIPT" >&2
++        assert_pass_if_clean "test_script_exits_0_without_modifying_commit_msg_when_jsonl_absent"
++        return
++    fi
++
++    # JSONL does not exist — artifacts dir exists but no JSONL file
++    local _artifacts
++    _artifacts="$(_make_tmpdir)"
++
++    local _commit_msg_file="$_artifacts/COMMIT_EDITMSG"
++    printf 'My commit message\n' > "$_commit_msg_file"
++    local _original_content
++    _original_content="$(cat "$_commit_msg_file")"
++
++    # Mock read-config.sh: attribution.enabled → true (so config gate passes)
++    local _mock_dir
++    _mock_dir="$(_make_tmpdir)/bin"
++    mkdir -p "$_mock_dir"
++    cat > "$_mock_dir/read-config.sh" <<'MOCK'
++#!/bin/bash
++# Mock: attribution.enabled → true
++if [[ "$1" == "attribution.enabled" ]]; then echo "true"; else echo ""; fi
++MOCK
++    chmod +x "$_mock_dir/read-config.sh"
++
++    local exit_code=0
++    ARTIFACTS_DIR="$_artifacts" PATH="$_mock_dir:$PATH" \
++        bash "$SCRIPT" "$_commit_msg_file" 2>/dev/null || exit_code=$?
++
++    assert_eq "SC-4 absent: exits 0" "0" "$exit_code"
++
++    local _current_content
++    _current_content="$(cat "$_commit_msg_file")"
++    assert_eq "SC-4 absent: commit msg unchanged" "$_original_content" "$_current_content"
++
++    assert_pass_if_clean "test_script_exits_0_without_modifying_commit_msg_when_jsonl_absent"
++}
++
++# ── Test 17: SC-4 guard — exits 0 without modifying commit msg when JSONL empty ──
++# RED: main block calls read_and_deduplicate which errors on missing file;
++# an empty JSONL must result in graceful exit 0, not a trailer-apply attempt.
++
++test_script_exits_0_without_modifying_commit_msg_when_jsonl_empty() {
++    _snapshot_fail
++
++    if [[ ! -f "$SCRIPT" ]]; then
++        (( ++FAIL ))
++        printf "FAIL: test_script_exits_0_without_modifying_commit_msg_when_jsonl_empty\n  script not found: %s\n" "$SCRIPT" >&2
++        assert_pass_if_clean "test_script_exits_0_without_modifying_commit_msg_when_jsonl_empty"
++        return
++    fi
++
++    local _artifacts
++    _artifacts="$(_make_tmpdir)"
++
++    # JSONL file exists but is empty
++    touch "$_artifacts/attribution-contributors.jsonl"
++
++    local _commit_msg_file="$_artifacts/COMMIT_EDITMSG"
++    printf 'My commit message\n' > "$_commit_msg_file"
++    local _original_content
++    _original_content="$(cat "$_commit_msg_file")"
++
++    # Mock read-config.sh: attribution.enabled → true (so config gate passes)
++    local _mock_dir
++    _mock_dir="$(_make_tmpdir)/bin"
++    mkdir -p "$_mock_dir"
++    cat > "$_mock_dir/read-config.sh" <<'MOCK'
++#!/bin/bash
++# Mock: attribution.enabled → true
++if [[ "$1" == "attribution.enabled" ]]; then echo "true"; else echo ""; fi
++MOCK
++    chmod +x "$_mock_dir/read-config.sh"
++
++    local exit_code=0
++    ARTIFACTS_DIR="$_artifacts" PATH="$_mock_dir:$PATH" \
++        bash "$SCRIPT" "$_commit_msg_file" 2>/dev/null || exit_code=$?
++
++    assert_eq "SC-4 empty: exits 0" "0" "$exit_code"
++
++    local _current_content
++    _current_content="$(cat "$_commit_msg_file")"
++    assert_eq "SC-4 empty: commit msg unchanged" "$_original_content" "$_current_content"
++
++    assert_pass_if_clean "test_script_exits_0_without_modifying_commit_msg_when_jsonl_empty"
++}
++
++# ── Test 18: inject DSO-Agent trailer into commit message (end-to-end) ────────
++# RED: main block does not call git interpret-trailers yet — commit message file
++# will be unchanged after the script runs, so the DSO-Agent assertion will FAIL.
++
++test_injection_appends_dso_agent_trailer_to_commit_message() {
++    _snapshot_fail
++
++    if [[ ! -f "$SCRIPT" ]]; then
++        (( ++FAIL ))
++        printf "FAIL: test_injection_appends_dso_agent_trailer_to_commit_message\n  script not found: %s\n" "$SCRIPT" >&2
++        assert_pass_if_clean "test_injection_appends_dso_agent_trailer_to_commit_message"
++        return
++    fi
++
++    local _artifacts
++    _artifacts="$(_make_tmpdir)"
++
++    # Populate JSONL with one agent entry
++    printf '{"type":"agent","subagent_type":"dso:red-test-writer","model":"sonnet"}\n' \
++        > "$_artifacts/attribution-contributors.jsonl"
++
++    # Commit message file
++    local _commit_msg_file="$_artifacts/COMMIT_EDITMSG"
++    printf 'Initial commit\n' > "$_commit_msg_file"
++
++    # Mock read-config.sh: attribution.enabled → true
++    local _mock_dir
++    _mock_dir="$(_make_tmpdir)/bin"
++    mkdir -p "$_mock_dir"
++    # shellcheck disable=SC2016
++    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
++        > "$_mock_dir/read-config.sh"
++    chmod +x "$_mock_dir/read-config.sh"
++
++    local exit_code=0
++    ARTIFACTS_DIR="$_artifacts" PATH="$_mock_dir:$PATH" \
++        bash "$SCRIPT" "$_commit_msg_file" 2>/dev/null || exit_code=$?
++
++    assert_eq "injection: exits 0" "0" "$exit_code"
++
++    # Assert commit message file now contains a DSO-Agent: trailer line
++    local has_trailer=0
++    grep -q "^DSO-Agent:" "$_commit_msg_file" 2>/dev/null && has_trailer=1
++    assert_eq "injection: commit message contains DSO-Agent trailer" "1" "$has_trailer"
++
++    assert_pass_if_clean "test_injection_appends_dso_agent_trailer_to_commit_message"
++}
++
++# ── Test 19: two distinct agents produce exactly two DSO-Agent lines ───────────
++# RED: no git interpret-trailers call in main block → commit message unchanged
++# → count of ^DSO-Agent: lines will be 0, not 2.
++
++test_two_distinct_agents_produce_two_dso_agent_lines() {
++    _snapshot_fail
++
++    if [[ ! -f "$SCRIPT" ]]; then
++        (( ++FAIL ))
++        printf "FAIL: test_two_distinct_agents_produce_two_dso_agent_lines\n  script not found: %s\n" "$SCRIPT" >&2
++        assert_pass_if_clean "test_two_distinct_agents_produce_two_dso_agent_lines"
++        return
++    fi
++
++    local _artifacts
++    _artifacts="$(_make_tmpdir)"
++
++    # Two distinct subagent_type values
++    printf '{"type":"agent","subagent_type":"dso:red-test-writer","model":"sonnet"}\n' \
++        > "$_artifacts/attribution-contributors.jsonl"
++    printf '{"type":"agent","subagent_type":"dso:code-reviewer-correctness","model":"sonnet"}\n' \
++        >> "$_artifacts/attribution-contributors.jsonl"
++
++    local _commit_msg_file="$_artifacts/COMMIT_EDITMSG"
++    printf 'Initial commit\n' > "$_commit_msg_file"
++
++    local _mock_dir
++    _mock_dir="$(_make_tmpdir)/bin"
++    mkdir -p "$_mock_dir"
++    # shellcheck disable=SC2016
++    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
++        > "$_mock_dir/read-config.sh"
++    chmod +x "$_mock_dir/read-config.sh"
++
++    local exit_code=0
++    ARTIFACTS_DIR="$_artifacts" PATH="$_mock_dir:$PATH" \
++        bash "$SCRIPT" "$_commit_msg_file" 2>/dev/null || exit_code=$?
++
++    assert_eq "two agents: exits 0" "0" "$exit_code"
++
++    local agent_line_count
++    agent_line_count="$(grep -c "^DSO-Agent:" "$_commit_msg_file" 2>/dev/null || true)"
++    assert_eq "two agents: exactly 2 DSO-Agent lines in commit message" "2" "$agent_line_count"
++
++    assert_pass_if_clean "test_two_distinct_agents_produce_two_dso_agent_lines"
++}
++
++# ── Test 20: old git exits 0, emits TRAILER_SKIPPED, leaves commit msg intact ─
++# RED: main block's check_git_version call exits non-zero and propagates as
++# exit 2 (the current code path after SC-2 and SC-4 guards, before T6 impl).
++# After correct T6 implementation the version check must cause a graceful exit 0
++# with TRAILER_SKIPPED on stderr and the commit message file unchanged.
++
++test_injection_emits_trailer_skipped_and_exits_0_when_git_below_2_6() {
++    _snapshot_fail
++
++    if [[ ! -f "$SCRIPT" ]]; then
++        (( ++FAIL ))
++        printf "FAIL: test_injection_emits_trailer_skipped_and_exits_0_when_git_below_2_6\n  script not found: %s\n" "$SCRIPT" >&2
++        assert_pass_if_clean "test_injection_emits_trailer_skipped_and_exits_0_when_git_below_2_6"
++        return
++    fi
++
++    local _artifacts
++    _artifacts="$(_make_tmpdir)"
++    printf '{"type":"agent","subagent_type":"dso:red-test-writer","model":"sonnet"}\n' \
++        > "$_artifacts/attribution-contributors.jsonl"
++
++    local _commit_msg_file="$_artifacts/COMMIT_EDITMSG"
++    printf 'Initial commit\n' > "$_commit_msg_file"
++    local _original_content
++    _original_content="$(cat "$_commit_msg_file")"
++
++    # Mock read-config.sh: attribution.enabled → true
++    local _mock_dir
++    _mock_dir="$(_make_tmpdir)/bin"
++    mkdir -p "$_mock_dir"
++    # shellcheck disable=SC2016
++    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
++        > "$_mock_dir/read-config.sh"
++    chmod +x "$_mock_dir/read-config.sh"
++
++    # Mock git binary that reports version 1.9.0
++    # shellcheck disable=SC2016
++    printf '#!/bin/bash\n[[ "$1" == "--version" ]] && echo "git version 1.9.0" || git "$@"\n' \
++        > "$_mock_dir/mock-git"
++    chmod +x "$_mock_dir/mock-git"
++
++    local _stderr_file
++    _stderr_file="$(_make_tmpdir)/stderr.txt"
++
++    local exit_code=0
++    GIT_BINARY="$_mock_dir/mock-git" ARTIFACTS_DIR="$_artifacts" PATH="$_mock_dir:$PATH" \
++        bash "$SCRIPT" "$_commit_msg_file" 2>"$_stderr_file" || exit_code=$?
++
++    assert_eq "old git: exits 0" "0" "$exit_code"
++
++    local has_trailer_skipped=0
++    grep -q "TRAILER_SKIPPED" "$_stderr_file" 2>/dev/null && has_trailer_skipped=1
++    assert_eq "old git: stderr contains TRAILER_SKIPPED" "1" "$has_trailer_skipped"
++
++    local _current_content
++    _current_content="$(cat "$_commit_msg_file")"
++    assert_eq "old git: commit message unchanged" "$_original_content" "$_current_content"
++
++    assert_pass_if_clean "test_injection_emits_trailer_skipped_and_exits_0_when_git_below_2_6"
++}
++
++# ── Test 21: SC-5 — no WARNING on stderr when DSO-* trailers are at bottom ────
++# RED: post-injection placement scan does not exist yet.
++# The script never emits a WARNING, so the grep count for WARNING will be 0
++# (passing this assertion). But the test itself checks that no spurious warnings
++# fire for a well-formed message — this test is expected to PASS once the scan
++# is implemented correctly. Until the scan exists, this test also passes (no
++# WARNING is emitted by the absent scan code), making this test initially GREEN.
++# Marked as RED in .test-index because the scan behaviour can regress: once the
++# placement scan IS implemented, a regression that emits spurious WARNINGs for
++# valid messages will flip this back to RED.
++#
++# NOTE: Because this test passes with the current (no-scan) implementation AND
++# after correct implementation, it is functionally GREEN now. See .test-index
++# for placement — added only if it is confirmed to fail.
++
++test_placement_scan_emits_no_warning_when_trailers_at_bottom() {
++    _snapshot_fail
++
++    if [[ ! -f "$SCRIPT" ]]; then
++        (( ++FAIL ))
++        printf "FAIL: test_placement_scan_emits_no_warning_when_trailers_at_bottom\n  script not found: %s\n" "$SCRIPT" >&2
++        assert_pass_if_clean "test_placement_scan_emits_no_warning_when_trailers_at_bottom"
++        return
++    fi
++
++    local _artifacts
++    _artifacts="$(_make_tmpdir)"
++
++    # Populate JSONL with one agent entry
++    printf '{"type":"agent","subagent_type":"dso:red-test-writer","model":"sonnet"}\n' \
++        > "$_artifacts/attribution-contributors.jsonl"
++
++    # Commit message that already has a DSO-Agent trailer in the proper trailer
++    # section (after a blank line at end) — correct placement.
++    local _commit_msg_file="$_artifacts/COMMIT_EDITMSG"
++    printf 'Fix: improve thing\n\nThis change improves the thing.\n\nDSO-Agent: dso:previous-agent\n' \
++        > "$_commit_msg_file"
++
++    # Mock read-config.sh: attribution.enabled → true
++    local _mock_dir
++    _mock_dir="$(_make_tmpdir)/bin"
++    mkdir -p "$_mock_dir"
++    # shellcheck disable=SC2016
++    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
++        > "$_mock_dir/read-config.sh"
++    chmod +x "$_mock_dir/read-config.sh"
++
++    local _stderr_file
++    _stderr_file="$(_make_tmpdir)/stderr.txt"
++
++    local exit_code=0
++    ARTIFACTS_DIR="$_artifacts" PATH="$_mock_dir:$PATH" \
++        bash "$SCRIPT" "$_commit_msg_file" 2>"$_stderr_file" || exit_code=$?
++
++    assert_eq "SC-5 no-warn: exits 0" "0" "$exit_code"
++
++    # No WARNING line on stderr when trailers are placed correctly
++    local warning_count=0
++    warning_count="$(grep -ci "WARNING" "$_stderr_file" 2>/dev/null || true)"
++    assert_eq "SC-5 no-warn: stderr WARNING count is 0 for correct trailer placement" "0" "$warning_count"
++
++    assert_pass_if_clean "test_placement_scan_emits_no_warning_when_trailers_at_bottom"
++}
++
++# ── Test 22: SC-5 — WARNING on stderr when DSO-* trailer appears in body ──────
++# RED: post-injection placement scan does not exist yet.
++# The script never scans placement, so no WARNING is emitted.
++# This test asserts that WARNING is present — it FAILS until the scan is added.
++
++test_placement_scan_emits_warning_when_dso_trailer_in_message_body() {
++    _snapshot_fail
++
++    if [[ ! -f "$SCRIPT" ]]; then
++        (( ++FAIL ))
++        printf "FAIL: test_placement_scan_emits_warning_when_dso_trailer_in_message_body\n  script not found: %s\n" "$SCRIPT" >&2
++        assert_pass_if_clean "test_placement_scan_emits_warning_when_dso_trailer_in_message_body"
++        return
++    fi
++
++    local _artifacts
++    _artifacts="$(_make_tmpdir)"
++
++    # Populate JSONL with one agent entry so injection proceeds
++    printf '{"type":"agent","subagent_type":"dso:red-test-writer","model":"sonnet"}\n' \
++        > "$_artifacts/attribution-contributors.jsonl"
++
++    # Malformed commit message: DSO-Agent line appears in the body BEFORE a blank
++    # separator line — this simulates trailers that ended up in the body.
++    local _commit_msg_file="$_artifacts/COMMIT_EDITMSG"
++    printf 'Fix: improve thing\nDSO-Agent: something\nMore body text here.\n' \
++        > "$_commit_msg_file"
++
++    # Mock read-config.sh: attribution.enabled → true
++    local _mock_dir
++    _mock_dir="$(_make_tmpdir)/bin"
++    mkdir -p "$_mock_dir"
++    # shellcheck disable=SC2016
++    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
++        > "$_mock_dir/read-config.sh"
++    chmod +x "$_mock_dir/read-config.sh"
++
++    local _stderr_file
++    _stderr_file="$(_make_tmpdir)/stderr.txt"
++
++    local exit_code=0
++    ARTIFACTS_DIR="$_artifacts" PATH="$_mock_dir:$PATH" \
++        bash "$SCRIPT" "$_commit_msg_file" 2>"$_stderr_file" || exit_code=$?
++
++    assert_eq "SC-5 body-warn: exits 0" "0" "$exit_code"
++
++    # A WARNING must appear on stderr when DSO-* lines are in the body
++    local has_warning=0
++    grep -qi "WARNING" "$_stderr_file" 2>/dev/null && has_warning=1
++    assert_eq "SC-5 body-warn: stderr contains WARNING for body-embedded DSO trailer" "1" "$has_warning"
++
++    assert_pass_if_clean "test_placement_scan_emits_warning_when_dso_trailer_in_message_body"
++}
++
++# ── Test 23: SC-5 — blank line separator present before first DSO-* trailer ───
++# This verifies that git interpret-trailers naturally inserts a blank separator.
++# git interpret-trailers handles this natively, so this test is expected to PASS
++# already. Written to guard against regressions if the injection approach changes.
++# Not added to .test-index as a RED marker (it passes with the current impl).
++
++test_blank_line_separator_present_before_first_dso_trailer_in_output() {
++    _snapshot_fail
++
++    if [[ ! -f "$SCRIPT" ]]; then
++        (( ++FAIL ))
++        printf "FAIL: test_blank_line_separator_present_before_first_dso_trailer_in_output\n  script not found: %s\n" "$SCRIPT" >&2
++        assert_pass_if_clean "test_blank_line_separator_present_before_first_dso_trailer_in_output"
++        return
++    fi
++
++    local _artifacts
++    _artifacts="$(_make_tmpdir)"
++
++    # One agent entry in JSONL
++    printf '{"type":"agent","subagent_type":"dso:red-test-writer","model":"sonnet"}\n' \
++        > "$_artifacts/attribution-contributors.jsonl"
++
++    # Plain commit message with no trailing blank line
++    local _commit_msg_file="$_artifacts/COMMIT_EDITMSG"
++    printf 'Initial commit\n' > "$_commit_msg_file"
++
++    # Mock read-config.sh: attribution.enabled → true
++    local _mock_dir
++    _mock_dir="$(_make_tmpdir)/bin"
++    mkdir -p "$_mock_dir"
++    # shellcheck disable=SC2016
++    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
++        > "$_mock_dir/read-config.sh"
++    chmod +x "$_mock_dir/read-config.sh"
++
++    local exit_code=0
++    ARTIFACTS_DIR="$_artifacts" PATH="$_mock_dir:$PATH" \
++        bash "$SCRIPT" "$_commit_msg_file" 2>/dev/null || exit_code=$?
++
++    assert_eq "SC-5 blank-sep: exits 0" "0" "$exit_code"
++
++    # Find the line number of the first DSO-* trailer and the line immediately before it.
++    # The line immediately before the first DSO-* trailer must be blank.
++    local _first_dso_line _prev_line
++    _first_dso_line="$(grep -n "^DSO-" "$_commit_msg_file" 2>/dev/null | head -1 | cut -d: -f1 || true)"
++
++    if [[ -z "$_first_dso_line" ]]; then
++        (( ++FAIL ))
++        printf "FAIL: test_blank_line_separator_present_before_first_dso_trailer_in_output\n  no DSO-* trailer found in commit message after injection\n" >&2
++        assert_pass_if_clean "test_blank_line_separator_present_before_first_dso_trailer_in_output"
++        return
++    fi
++
++    local _sep_line_num=$(( _first_dso_line - 1 ))
++    _prev_line="$(sed -n "${_sep_line_num}p" "$_commit_msg_file" 2>/dev/null || true)"
++
++    # The line before the first DSO-* trailer must be empty (blank separator)
++    assert_eq "SC-5 blank-sep: blank line immediately before first DSO-* trailer" "" "$_prev_line"
++
++    assert_pass_if_clean "test_blank_line_separator_present_before_first_dso_trailer_in_output"
++}
++
++# ── Run all tests ─────────────────────────────────────────────────────────────
++
++test_read_and_deduplicate_returns_single_value_for_duplicate_agents
++test_read_and_deduplicate_preserves_two_distinct_agent_types
++test_check_git_version_stub_returns_0
++test_format_trailer_flags_produces_two_flags_for_two_distinct_agents
++test_format_trailer_flags_produces_no_flags_for_empty_jsonl
++test_format_trailer_flags_produces_dso_skill_flags
++test_check_git_version_fails_when_version_is_1_9
++test_check_git_version_passes_when_version_is_2_6
++test_check_git_version_passes_when_version_is_2_42
++test_check_git_version_passes_with_vendor_suffix
++test_resolve_scalar_trailers_produces_task_story_epic_flags
++test_resolve_scalar_trailers_produces_review_score_flag
++test_resolve_scalar_trailers_produces_no_flags_when_no_context
++test_exits_0_and_omits_scalar_trailers_when_ticket_show_fails
++test_script_exits_0_without_modifying_commit_msg_when_attribution_disabled
++test_script_exits_0_without_modifying_commit_msg_when_jsonl_absent
++test_script_exits_0_without_modifying_commit_msg_when_jsonl_empty
++test_injection_appends_dso_agent_trailer_to_commit_message
++test_two_distinct_agents_produce_two_dso_agent_lines
++test_injection_emits_trailer_skipped_and_exits_0_when_git_below_2_6
++test_placement_scan_emits_no_warning_when_trailers_at_bottom
++test_placement_scan_emits_warning_when_dso_trailer_in_message_body
++test_blank_line_separator_present_before_first_dso_trailer_in_output
++
++# ── SC-6 --truncate tests (RED) ───────────────────────────────────────────────
++
++# ── Test 24: --truncate clears a populated JSONL file to zero bytes ───────────
++# RED: --truncate flag is not implemented. The script treats it as an unknown
++# positional argument and exits 1 (unknown option error), so the exit-code
++# assertion (expects 0) will fail.
++
++test_truncate_clears_populated_jsonl_to_zero_bytes() {
++    _snapshot_fail
++
++    if [[ ! -f "$SCRIPT" ]]; then
++        (( ++FAIL ))
++        printf "FAIL: test_truncate_clears_populated_jsonl_to_zero_bytes\n  script not found: %s\n" "$SCRIPT" >&2
++        assert_pass_if_clean "test_truncate_clears_populated_jsonl_to_zero_bytes"
++        return
++    fi
++
++    local _artifacts
++    _artifacts="$(_make_tmpdir)"
++    local _jsonl="$_artifacts/attribution-contributors.jsonl"
++    printf '{"type":"agent","subagent_type":"dso:red-test-writer","model":"sonnet"}\n' > "$_jsonl"
++
++    local _commit_msg_file="$_artifacts/COMMIT_EDITMSG"
++    printf 'My commit message\n' > "$_commit_msg_file"
++
++    # Mock read-config.sh: attribution.enabled → true
++    local _mock_dir
++    _mock_dir="$(_make_tmpdir)/bin"
++    mkdir -p "$_mock_dir"
++    # shellcheck disable=SC2016
++    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
++        > "$_mock_dir/read-config.sh"
++    chmod +x "$_mock_dir/read-config.sh"
++
++    local exit_code=0
++    ARTIFACTS_DIR="$_artifacts" PATH="$_mock_dir:$PATH" \
++        bash "$SCRIPT" --truncate "$_commit_msg_file" 2>/dev/null || exit_code=$?
++
++    assert_eq "SC-6 truncate populated: exits 0" "0" "$exit_code"
++
++    local byte_count
++    # Trim whitespace: macOS `wc -c` pads with leading spaces
++    byte_count="$(wc -c < "$_jsonl" 2>/dev/null | tr -d ' ' || echo "-1")"
++    assert_eq "SC-6 truncate populated: JSONL has zero bytes after truncation" "0" "$byte_count"
++
++    assert_pass_if_clean "test_truncate_clears_populated_jsonl_to_zero_bytes"
++}
++
++# ── Test 25: --truncate exits 0 when JSONL file is absent ─────────────────────
++# RED: --truncate flag is not implemented. The script exits 1 on the unknown
++# positional; the exit-code assertion (expects 0) will fail.
++
++test_truncate_exits_0_when_jsonl_absent() {
++    _snapshot_fail
++
++    if [[ ! -f "$SCRIPT" ]]; then
++        (( ++FAIL ))
++        printf "FAIL: test_truncate_exits_0_when_jsonl_absent\n  script not found: %s\n" "$SCRIPT" >&2
++        assert_pass_if_clean "test_truncate_exits_0_when_jsonl_absent"
++        return
++    fi
++
++    local _artifacts
++    _artifacts="$(_make_tmpdir)"
++    # Intentionally no JSONL file in _artifacts
++
++    local _commit_msg_file="$_artifacts/COMMIT_EDITMSG"
++    printf 'My commit message\n' > "$_commit_msg_file"
++
++    # Mock read-config.sh: attribution.enabled → true
++    local _mock_dir
++    _mock_dir="$(_make_tmpdir)/bin"
++    mkdir -p "$_mock_dir"
++    # shellcheck disable=SC2016
++    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
++        > "$_mock_dir/read-config.sh"
++    chmod +x "$_mock_dir/read-config.sh"
++
++    local exit_code=0
++    ARTIFACTS_DIR="$_artifacts" PATH="$_mock_dir:$PATH" \
++        bash "$SCRIPT" --truncate "$_commit_msg_file" 2>/dev/null || exit_code=$?
++
++    assert_eq "SC-6 truncate absent JSONL: exits 0 (graceful no-op)" "0" "$exit_code"
++
++    assert_pass_if_clean "test_truncate_exits_0_when_jsonl_absent"
++}
++
++# ── Test 26: --truncate emits warning on stderr and exits 0 when JSONL not writable ──
++# RED: --truncate flag is not implemented. The script exits 1 on the unknown
++# positional; the exit-code assertion (expects 0) will fail.
++
++test_truncate_emits_warning_and_exits_0_on_truncation_failure() {
++    _snapshot_fail
++
++    if [[ ! -f "$SCRIPT" ]]; then
++        (( ++FAIL ))
++        printf "FAIL: test_truncate_emits_warning_and_exits_0_on_truncation_failure\n  script not found: %s\n" "$SCRIPT" >&2
++        assert_pass_if_clean "test_truncate_emits_warning_and_exits_0_on_truncation_failure"
++        return
++    fi
++
++    # Skip this test when running as root (chmod 000 has no effect for root)
++    if [[ "$(id -u)" -eq 0 ]]; then
++        printf "SKIP: test_truncate_emits_warning_and_exits_0_on_truncation_failure (running as root)\n"
++        assert_pass_if_clean "test_truncate_emits_warning_and_exits_0_on_truncation_failure"
++        return
++    fi
++
++    local _artifacts
++    _artifacts="$(_make_tmpdir)"
++    local _jsonl="$_artifacts/attribution-contributors.jsonl"
++    printf '{"type":"agent","subagent_type":"dso:red-test-writer","model":"sonnet"}\n' > "$_jsonl"
++    chmod 000 "$_jsonl"
++
++    local _commit_msg_file="$_artifacts/COMMIT_EDITMSG"
++    printf 'My commit message\n' > "$_commit_msg_file"
++
++    # Mock read-config.sh: attribution.enabled → true
++    local _mock_dir
++    _mock_dir="$(_make_tmpdir)/bin"
++    mkdir -p "$_mock_dir"
++    # shellcheck disable=SC2016
++    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
++        > "$_mock_dir/read-config.sh"
++    chmod +x "$_mock_dir/read-config.sh"
++
++    local _stderr_file
++    _stderr_file="$(_make_tmpdir)/stderr.txt"
++
++    local exit_code=0
++    ARTIFACTS_DIR="$_artifacts" PATH="$_mock_dir:$PATH" \
++        bash "$SCRIPT" --truncate "$_commit_msg_file" 2>"$_stderr_file" || exit_code=$?
++
++    assert_eq "SC-6 truncate unwritable: exits 0 (graceful degradation)" "0" "$exit_code"
++
++    local has_warning=0
++    grep -qi "warning" "$_stderr_file" 2>/dev/null && has_warning=1
++    assert_eq "SC-6 truncate unwritable: stderr contains 'warning'" "1" "$has_warning"
++
++    # Restore permissions so cleanup trap can delete the temp dir
++    chmod 600 "$_jsonl" 2>/dev/null || true
++
++    assert_pass_if_clean "test_truncate_emits_warning_and_exits_0_on_truncation_failure"
++}
++
++test_truncate_clears_populated_jsonl_to_zero_bytes
++test_truncate_exits_0_when_jsonl_absent
++test_truncate_emits_warning_and_exits_0_on_truncation_failure
++
++# ── Idempotency guard tests (RED) ─────────────────────────────────────────────
++
++# ── Test 27: skips injection when trailers already present ────────────────────
++# RED: no idempotency guard exists yet.
++# The script will call git interpret-trailers a second time, appending a
++# duplicate DSO-Agent line. The assertion (count == 1) will FAIL.
++
++test_skips_injection_when_trailers_already_present() {
++    _snapshot_fail
++
++    if [[ ! -f "$SCRIPT" ]]; then
++        (( ++FAIL ))
++        printf "FAIL: test_skips_injection_when_trailers_already_present\n  script not found: %s\n" "$SCRIPT" >&2
++        assert_pass_if_clean "test_skips_injection_when_trailers_already_present"
++        return
++    fi
++
++    local _artifacts
++    _artifacts="$(_make_tmpdir)"
++
++    # Populate JSONL with one agent entry (dso:sprint)
++    printf '{"type":"agent","subagent_type":"dso:sprint","model":"sonnet"}\n' \
++        > "$_artifacts/attribution-contributors.jsonl"
++
++    # Commit message already contains BOTH the DSO-Agent and DSO-Model trailers.
++    # git interpret-trailers will re-append them if called again — this is the
++    # duplication scenario the idempotency guard must prevent.
++    local _commit_msg_file="$_artifacts/COMMIT_EDITMSG"
++    printf 'feat: implement sprint task\n\nDSO-Agent: dso:sprint\nDSO-Model: sonnet\n' \
++        > "$_commit_msg_file"
++
++    # Mock read-config.sh: attribution.enabled → true
++    local _mock_dir
++    _mock_dir="$(_make_tmpdir)/bin"
++    mkdir -p "$_mock_dir"
++    # shellcheck disable=SC2016
++    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
++        > "$_mock_dir/read-config.sh"
++    chmod +x "$_mock_dir/read-config.sh"
++
++    local exit_code=0
++    ARTIFACTS_DIR="$_artifacts" PATH="$_mock_dir:$PATH" \
++        bash "$SCRIPT" "$_commit_msg_file" 2>/dev/null || exit_code=$?
++
++    assert_eq "idempotency: exits 0" "0" "$exit_code"
++
++    # The DSO-Agent line count must remain exactly 1 — no duplicate injected
++    local agent_line_count
++    agent_line_count="$(grep -c "^DSO-Agent:" "$_commit_msg_file" 2>/dev/null || true)"
++    assert_eq "idempotency: DSO-Agent line count remains 1 (no duplicate)" "1" "$agent_line_count"
++
++    assert_pass_if_clean "test_skips_injection_when_trailers_already_present"
++}
++
++test_skips_injection_when_trailers_already_present
++
++# ── Tests for review-finding fixes ────────────────────────────────────────────
++# These tests cover behavior gaps identified in PR #80 review.
++
++# ── Test: no command injection via single-quote in subagent_type (C5/L1) ──────
++# RED: trailer flags built from JSONL values are joined and re-parsed by `eval`.
++# A subagent_type containing a closing single quote can break out and execute
++# arbitrary shell. After fix: trailer values are passed as argv tokens, never
++# re-parsed; the malicious payload becomes a literal trailer string.
++
++test_no_command_injection_via_subagent_type_with_single_quote() {
++    _snapshot_fail
++
++    if [[ ! -f "$SCRIPT" ]]; then
++        (( ++FAIL ))
++        printf "FAIL: test_no_command_injection_via_subagent_type_with_single_quote\n  script not found: %s\n" "$SCRIPT" >&2
++        assert_pass_if_clean "test_no_command_injection_via_subagent_type_with_single_quote"
++        return
++    fi
++
++    local _artifacts; _artifacts="$(_make_tmpdir)"
++    local _sentinel; _sentinel="$(_make_tmpdir)/INJECTED"
++
++    # Malicious subagent_type: closes the single-quoted trailer flag and embeds
++    # a command substitution. `$(touch <sentinel>)` runs during eval's
++    # parameter expansion, BEFORE git is invoked — so even if git later fails
++    # under `set -e`, the injection has already executed.
++    python3 - "$_artifacts/attribution-contributors.jsonl" "$_sentinel" <<'PYEOF'
++import json, sys
++out = sys.argv[1]
++sentinel = sys.argv[2]
++payload = "evil' $(touch '" + sentinel + "') '"
++with open(out, 'w') as f:
++    f.write(json.dumps({"type": "agent", "subagent_type": payload, "model": "sonnet"}) + "\n")
++PYEOF
++
++    local _commit_msg_file="$_artifacts/COMMIT_EDITMSG"
++    printf 'feat: test injection\n' > "$_commit_msg_file"
++
++    local _mock_dir; _mock_dir="$(_make_tmpdir)/bin"
++    mkdir -p "$_mock_dir"
++    # shellcheck disable=SC2016
++    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
++        > "$_mock_dir/read-config.sh"
++    chmod +x "$_mock_dir/read-config.sh"
++
++    ARTIFACTS_DIR="$_artifacts" PATH="$_mock_dir:$PATH" \
++        bash "$SCRIPT" "$_commit_msg_file" >/dev/null 2>&1 || true
++
++    # Primary assertion: the injected `touch` MUST NOT have executed.
++    local _sentinel_present="absent"
++    [[ -e "$_sentinel" ]] && _sentinel_present="present"
++    assert_eq "C5: shell-injection sentinel not created" "absent" "$_sentinel_present"
++
++    assert_pass_if_clean "test_no_command_injection_via_subagent_type_with_single_quote"
++}
++
++test_no_command_injection_via_subagent_type_with_single_quote
++
++# ── Test: --jsonl flag is honored by SC-4 guard and trailer formatter (C4) ────
++# RED: SC-4 guard and format_trailer_flags hardcode
++# `$ARTIFACTS_DIR/attribution-contributors.jsonl`. Passing `--jsonl <alt>` while
++# the default file is empty/absent makes the script bail out (SC-4) instead of
++# reading from the alternate path.
++
++test_jsonl_flag_path_used_for_guard_and_injection() {
++    _snapshot_fail
++
++    if [[ ! -f "$SCRIPT" ]]; then
++        (( ++FAIL ))
++        printf "FAIL: test_jsonl_flag_path_used_for_guard_and_injection\n  script not found: %s\n" "$SCRIPT" >&2
++        assert_pass_if_clean "test_jsonl_flag_path_used_for_guard_and_injection"
++        return
++    fi
++
++    local _artifacts; _artifacts="$(_make_tmpdir)"
++    # Default JSONL is intentionally absent — only the alternate file has data.
++    local _alt_jsonl; _alt_jsonl="$(_make_tmpdir)/alt.jsonl"
++    printf '{"type":"agent","subagent_type":"dso:via-flag","model":"sonnet"}\n' > "$_alt_jsonl"
++
++    local _commit_msg_file="$_artifacts/COMMIT_EDITMSG"
++    printf 'feat: alt jsonl\n' > "$_commit_msg_file"
++
++    local _mock_dir; _mock_dir="$(_make_tmpdir)/bin"
++    mkdir -p "$_mock_dir"
++    # shellcheck disable=SC2016
++    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
++        > "$_mock_dir/read-config.sh"
++    chmod +x "$_mock_dir/read-config.sh"
++
++    local exit_code=0
++    ARTIFACTS_DIR="$_artifacts" PATH="$_mock_dir:$PATH" \
++        bash "$SCRIPT" --jsonl "$_alt_jsonl" "$_commit_msg_file" 2>/dev/null || exit_code=$?
++
++    assert_eq "C4: exits 0 with --jsonl <alt>" "0" "$exit_code"
++
++    local _has_via_flag=0
++    grep -q "^DSO-Agent: dso:via-flag$" "$_commit_msg_file" 2>/dev/null && _has_via_flag=1
++    assert_eq "C4: trailer from --jsonl path injected" "1" "$_has_via_flag"
++
++    assert_pass_if_clean "test_jsonl_flag_path_used_for_guard_and_injection"
++}
++
++test_jsonl_flag_path_used_for_guard_and_injection
++
++# ── Test: missing --jsonl value emits clean usage error (C6) ──────────────────
++# RED: argparser does `_JSONL_FILE="$2"` unconditionally; under `set -u`, a
++# missing value crashes with a cryptic "unbound variable" instead of a
++# user-facing usage error.
++
++test_missing_jsonl_value_exits_with_usage_error() {
++    _snapshot_fail
++
++    if [[ ! -f "$SCRIPT" ]]; then
++        (( ++FAIL ))
++        printf "FAIL: test_missing_jsonl_value_exits_with_usage_error\n  script not found: %s\n" "$SCRIPT" >&2
++        assert_pass_if_clean "test_missing_jsonl_value_exits_with_usage_error"
++        return
++    fi
++
++    local _stderr_file; _stderr_file="$(_make_tmpdir)/stderr.txt"
++    local exit_code=0
++    bash "$SCRIPT" --jsonl 2>"$_stderr_file" >/dev/null || exit_code=$?
++
++    assert_eq "C6: exits 1 (usage error) on missing --jsonl value" "1" "$exit_code"
++
++    local _has_usage=0
++    grep -qiE 'usage|requires|expected' "$_stderr_file" 2>/dev/null && _has_usage=1
++    assert_eq "C6: stderr describes the missing-value error" "1" "$_has_usage"
++
++    local _has_unbound=0
++    grep -qi 'unbound variable' "$_stderr_file" 2>/dev/null && _has_unbound=1
++    assert_eq "C6: stderr does NOT contain 'unbound variable'" "0" "$_has_unbound"
++
++    assert_pass_if_clean "test_missing_jsonl_value_exits_with_usage_error"
++}
++
++test_missing_jsonl_value_exits_with_usage_error
++
++# ── Test: missing _COMMIT_MSG_FILE emits clean usage error (L5) ───────────────
++# RED: when injection should proceed but no positional arg is given, the script
++# falls through to `git interpret-trailers --in-place ... ""`, producing a
++# cryptic "fatal: : not a regular file" instead of a usage error.
++
++test_missing_commit_msg_file_exits_with_usage_error() {
++    _snapshot_fail
++
++    if [[ ! -f "$SCRIPT" ]]; then
++        (( ++FAIL ))
++        printf "FAIL: test_missing_commit_msg_file_exits_with_usage_error\n  script not found: %s\n" "$SCRIPT" >&2
++        assert_pass_if_clean "test_missing_commit_msg_file_exits_with_usage_error"
++        return
++    fi
++
++    local _artifacts; _artifacts="$(_make_tmpdir)"
++    printf '{"type":"agent","subagent_type":"dso:x","model":"sonnet"}\n' \
++        > "$_artifacts/attribution-contributors.jsonl"
++
++    local _mock_dir; _mock_dir="$(_make_tmpdir)/bin"
++    mkdir -p "$_mock_dir"
++    # shellcheck disable=SC2016
++    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
++        > "$_mock_dir/read-config.sh"
++    chmod +x "$_mock_dir/read-config.sh"
++
++    local _stderr_file; _stderr_file="$(_make_tmpdir)/stderr.txt"
++    local exit_code=0
++    ARTIFACTS_DIR="$_artifacts" PATH="$_mock_dir:$PATH" \
++        bash "$SCRIPT" 2>"$_stderr_file" >/dev/null || exit_code=$?
++
++    assert_ne "L5: exits non-zero when commit-msg file missing" "0" "$exit_code"
++
++    local _has_usage=0
++    grep -qiE 'commit.*message|usage' "$_stderr_file" 2>/dev/null && _has_usage=1
++    assert_eq "L5: stderr describes missing commit-msg file" "1" "$_has_usage"
++
++    assert_pass_if_clean "test_missing_commit_msg_file_exits_with_usage_error"
++}
++
++test_missing_commit_msg_file_exits_with_usage_error
++
++# ── Test: idempotency guard matches case-insensitively (L4) ───────────────────
++# RED: idempotency check uses `grep -qF` (case-sensitive). An existing
++# lowercase trailer (`dso-agent: foo`) won't match the would-be `DSO-Agent: foo`,
++# so a duplicate trailer is appended.
++
++test_idempotency_matches_lowercase_existing_trailer() {
++    _snapshot_fail
++
++    if [[ ! -f "$SCRIPT" ]]; then
++        (( ++FAIL ))
++        printf "FAIL: test_idempotency_matches_lowercase_existing_trailer\n  script not found: %s\n" "$SCRIPT" >&2
++        assert_pass_if_clean "test_idempotency_matches_lowercase_existing_trailer"
++        return
++    fi
++
++    local _artifacts; _artifacts="$(_make_tmpdir)"
++    printf '{"type":"agent","subagent_type":"dso:sprint","model":"sonnet"}\n' \
++        > "$_artifacts/attribution-contributors.jsonl"
++
++    local _commit_msg_file="$_artifacts/COMMIT_EDITMSG"
++    # Pre-existing trailers in lowercase (e.g., from a different tooling).
++    printf 'feat: case test\n\ndso-agent: dso:sprint\ndso-model: sonnet\n' > "$_commit_msg_file"
++
++    local _mock_dir; _mock_dir="$(_make_tmpdir)/bin"
++    mkdir -p "$_mock_dir"
++    # shellcheck disable=SC2016
++    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
++        > "$_mock_dir/read-config.sh"
++    chmod +x "$_mock_dir/read-config.sh"
++
++    ARTIFACTS_DIR="$_artifacts" PATH="$_mock_dir:$PATH" \
++        bash "$SCRIPT" "$_commit_msg_file" 2>/dev/null || true
++
++    # Combined case-insensitive count of ^dso-agent: lines must remain 1.
++    local _agent_count
++    _agent_count="$(grep -ic '^dso-agent:' "$_commit_msg_file" 2>/dev/null || true)"
++    assert_eq "L4: case-insensitive duplicate prevented (still 1 dso-agent line)" "1" "$_agent_count"
++
++    assert_pass_if_clean "test_idempotency_matches_lowercase_existing_trailer"
++}
++
++test_idempotency_matches_lowercase_existing_trailer
++
++# ── Test: SC-2 guard resolves read-config.sh via CLAUDE_PLUGIN_ROOT (C3) ──────
++# RED: the SC-2 guard calls `read-config.sh` bare-name, expecting it on PATH.
++# In normal runtime, the plugin scripts dir is not on PATH, so the guard
++# silently treats attribution as disabled and exits 0 — making the entire
++# feature dead code.
++
++test_sc2_guard_resolves_read_config_via_claude_plugin_root() {
++    _snapshot_fail
++
++    if [[ ! -f "$SCRIPT" ]]; then
++        (( ++FAIL ))
++        printf "FAIL: test_sc2_guard_resolves_read_config_via_claude_plugin_root\n  script not found: %s\n" "$SCRIPT" >&2
++        assert_pass_if_clean "test_sc2_guard_resolves_read_config_via_claude_plugin_root"
++        return
++    fi
++
++    local _artifacts; _artifacts="$(_make_tmpdir)"
++    printf '{"type":"agent","subagent_type":"dso:via-plugin-root","model":"sonnet"}\n' \
++        > "$_artifacts/attribution-contributors.jsonl"
++
++    local _commit_msg_file="$_artifacts/COMMIT_EDITMSG"
++    printf 'feat: plugin-root resolution\n' > "$_commit_msg_file"
++
++    # Build a fake plugin tree containing scripts/read-config.sh that returns
++    # "true". Do NOT add it to PATH.
++    local _plugin_root; _plugin_root="$(_make_tmpdir)/plugin"
++    mkdir -p "$_plugin_root/scripts"
++    # shellcheck disable=SC2016
++    printf '#!/bin/bash\n[[ "$1" == "attribution.enabled" ]] && echo "true" || echo ""\n' \
++        > "$_plugin_root/scripts/read-config.sh"
++    chmod +x "$_plugin_root/scripts/read-config.sh"
++
++    # Sanitize PATH: only system bins + git, no read-config.sh anywhere.
++    local _clean_path="/usr/bin:/bin"
++
++    local exit_code=0
++    PATH="$_clean_path" \
++        CLAUDE_PLUGIN_ROOT="$_plugin_root" \
++        ARTIFACTS_DIR="$_artifacts" \
++        bash "$SCRIPT" "$_commit_msg_file" 2>/dev/null || exit_code=$?
++
++    assert_eq "C3: exits 0 with config resolved via CLAUDE_PLUGIN_ROOT" "0" "$exit_code"
++
++    local _has_trailer=0
++    grep -q "^DSO-Agent: dso:via-plugin-root$" "$_commit_msg_file" 2>/dev/null && _has_trailer=1
++    assert_eq "C3: trailer injected (SC-2 guard did not bail)" "1" "$_has_trailer"
++
++    assert_pass_if_clean "test_sc2_guard_resolves_read_config_via_claude_plugin_root"
++}
++
++test_sc2_guard_resolves_read_config_via_claude_plugin_root
++
++print_summary

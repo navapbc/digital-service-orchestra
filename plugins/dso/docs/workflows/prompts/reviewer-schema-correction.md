@@ -57,6 +57,12 @@ Valid `cited_lines` entry formats (all accepted):
 A `cited_lines` entry is malformed when it has no line number at all (e.g., `src/foo.py`
 with no colon), has zero as the line number, or uses a format not matching the above.
 
+**IMPORTANT — do NOT "improve" or "correct" cited_lines that already have a line number.**
+A `cited_lines` value like `["src/dispatch.py:1"]` is schema-valid even if line 1 is not
+the most precise location. Leave it unchanged. The exception only covers entries that are
+structurally malformed (no colon, zero line number, or invalid format). A line number that
+seems imprecise is NOT malformed — it is frozen.
+
 **`finding_id` exception**: If `finding_id` is absent, empty, or structurally malformed
 (not matching `f-<hex8>` format), you MAY generate a valid `finding_id` in the format
 `f-<8 lowercase hex characters>` (e.g., `f-a1b2c3d4`). You MUST NOT change a

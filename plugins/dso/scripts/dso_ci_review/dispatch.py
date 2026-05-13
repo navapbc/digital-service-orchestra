@@ -933,8 +933,41 @@ def dispatch_schema_correction(
             primary_model=primary_model,
             environ=environ,
         )
+        _raw_findings = attempt_result.get("findings", [])
+        attempt_findings = _raw_findings if isinstance(_raw_findings, list) else []
+
+        # When dispatch_review itself fails (API overload, network error), it returns
+        # {"findings": [fallback_exhausted_entry]} with no "summary" key. Treating
+        # this as a correction attempt would fail schema validation ("missing summary")
+        # rather than correctly falling through to the reachability fallback.
+        # Preserve original_findings as last_result so the reachability fallback can
+        # still apply programmatic boilerplate to recover from missing-reachability errors.
+        _infra_failed = any(
+            isinstance(f, dict) and f.get("type") == "fallback_exhausted"
+            for f in attempt_findings
+        )
+        if _infra_failed:
+            _exc_msg = next(
+                (
+                    f.get("final_exception_message", "unknown")
+                    for f in attempt_findings
+                    if isinstance(f, dict) and f.get("type") == "fallback_exhausted"
+                ),
+                "unknown",
+            )
+            last_error = f"correction dispatch infrastructure failure: {_exc_msg[:200]}"
+            # Only fall back to original_findings when no prior attempt produced a
+            # non-infra result. With max_attempts > 1, a successful correction on
+            # iteration N must not be overwritten by an infra-failure on iteration N+1.
+            if last_result is None:
+                last_result = {
+                    "findings": list(original_findings),
+                    "summary": "schema correction — api unavailable, reverting to original findings for reachability fallback",
+                }
+            continue
+
         last_result = attempt_result
-        attempt_findings = attempt_result.get("findings", [])
+
 
         # Validate schema via runner._validate_findings_schema
         schema_result = _runner_mod._validate_findings_schema(
