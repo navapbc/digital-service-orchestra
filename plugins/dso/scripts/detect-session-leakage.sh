@@ -3,8 +3,8 @@
 # Called from SKILL.md Phase F after story branch merges.
 # Scans non-merge commits on the session branch (between merge-base with main and HEAD)
 # and routes each commit using a 5-case matrix:
-#   Case 1: DSO-Story trailer + open story → merge commit to story/<epic>/<story-id>
-#   Case 2: DSO-Task/DSO-Bug trailer, no DSO-Story → merge to story/orphan-<session>
+#   Case 1: DSO-Story trailer + open story → merge commit to ${STORY_BRANCH_PREFIX}/<epic>/<story-id>
+#   Case 2: DSO-Task/DSO-Bug trailer, no DSO-Story → merge to ${STORY_BRANCH_PREFIX}/orphan-<session>
 #   Case 3: No DSO-* trailers → exit 1 + "manual attribution" + SHA on stderr
 #   Case 4: DSO-Story trailer + closed story → exit 1 + --force-route-to hint + candidates
 #   Case 5: Merge conflict → abort + exit 1 + SHA + conflicting paths on stderr
@@ -15,6 +15,7 @@ set -euo pipefail
 
 DSO_TICKET_CLI="${DSO_TICKET_CLI:-.claude/scripts/dso}"
 DSO_MAIN_BRANCH="${DSO_MAIN_BRANCH:-main}"
+STORY_BRANCH_PREFIX="${STORY_BRANCH_PREFIX:-story}"
 
 # ── Parse arguments ───────────────────────────────────────────────────────────
 FORCE_ROUTE_TO=""
@@ -154,7 +155,7 @@ while IFS= read -r SHA; do
 
     # ── Case 2: DSO-Task/Bug present but no DSO-Story → orphan branch ─────────
     if [[ -z "$HAS_STORY" && -n "$HAS_TASK_OR_BUG" ]]; then
-        ORPHAN_BRANCH="story/orphan-${SESSION_BRANCH}"
+        ORPHAN_BRANCH="${STORY_BRANCH_PREFIX}/orphan-${SESSION_BRANCH}"
         # Create orphan branch from merge-base if it doesn't exist
         if ! git rev-parse --verify "$ORPHAN_BRANCH" >/dev/null 2>&1; then
             git branch "$ORPHAN_BRANCH" "$MERGE_BASE" >/dev/null 2>&1
@@ -188,7 +189,7 @@ while IFS= read -r SHA; do
                 # Look up the force-route story's epic by ticket_id
                 FORCE_EPIC=$(lookup_epic_by_story_id "$FORCE_ROUTE_TO" 2>/dev/null) || FORCE_EPIC=""
 
-                TARGET_BRANCH="story/${FORCE_EPIC}/${FORCE_ROUTE_TO}"
+                TARGET_BRANCH="${STORY_BRANCH_PREFIX}/${FORCE_EPIC}/${FORCE_ROUTE_TO}"
                 if ! git rev-parse --verify "$TARGET_BRANCH" >/dev/null 2>&1; then
                     printf "LEAKAGE: branch-not-found %s for commit %s — branch %s does not exist\n" "$FORCE_ROUTE_TO" "$SHA" "$TARGET_BRANCH" >&2
                     OVERALL_EXIT=1
@@ -212,7 +213,7 @@ while IFS= read -r SHA; do
         fi
 
         # ── Case 1: Open story → merge to story/<epic>/<story-id> ────────
-        TARGET_BRANCH="story/${STORY_EPIC}/${STORY_ID}"
+        TARGET_BRANCH="${STORY_BRANCH_PREFIX}/${STORY_EPIC}/${STORY_ID}"
 
         CONFLICT_FILES=$(merge_into_branch "$TARGET_BRANCH" "$SHA") || {
             printf "LEAKAGE: conflict merging commit %s to %s — conflicting: %s SHA: %s\n" "$SHA" "$TARGET_BRANCH" "$CONFLICT_FILES" "$SHA" >&2
