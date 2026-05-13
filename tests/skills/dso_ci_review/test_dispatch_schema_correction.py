@@ -871,7 +871,7 @@ def test_reachability_fallback_injects_boilerplate_when_only_error(monkeypatch) 
 
 
 def test_correction_dispatch_infra_failure_triggers_reachability_fallback(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch,
 ) -> None:
     """Scenario 11b: dispatch_review returns fallback_exhausted (API overload) during
     schema correction; reachability fallback must apply to original_findings instead
