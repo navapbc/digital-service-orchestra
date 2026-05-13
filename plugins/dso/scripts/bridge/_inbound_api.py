@@ -32,6 +32,7 @@ _JIRA_PRIORITY_TO_LOCAL: dict[str, int] = {
 
 # Type hierarchy: lower index = higher rank.
 _TYPE_HIERARCHY = ["epic", "story", "task", "chore", "bug"]
+_TEST_SUMMARY_EXACT = {"test", "test task", "test story", "test epic", "test bug"}
 
 
 def fetch_jira_changes(
@@ -146,7 +147,7 @@ def write_create_events(
         if not heal_sentinel.exists():
             healed_any_missing = False
             for ticket_dir in tickets_tracker.iterdir():
-                if not ticket_dir.is_dir():
+                if not ticket_dir.is_dir() or ticket_dir.name.startswith("."):
                     continue
                 if has_existing_sync(ticket_dir):
                     continue
@@ -246,14 +247,6 @@ def write_create_events(
             )
             continue
         _raw_summary_normalized = (raw_fields_pre.get("summary") or "").strip().lower()
-        # Exact test-pollution titles observed in production (fb8e-9022).
-        _TEST_SUMMARY_EXACT = {
-            "test",
-            "test task",
-            "test story",
-            "test epic",
-            "test bug",
-        }
         if _raw_summary_normalized in _TEST_SUMMARY_EXACT:
             logging.warning(
                 "write_create_events: skipping %s — test-pollution summary %r",
