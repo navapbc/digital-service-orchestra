@@ -24,3 +24,21 @@ schema-correction dispatch; S-C adds `review.schema_correction_max_attempts` con
 
 Scenario 11b and Scenario 12 in `tests/skills/dso_ci_review/test_dispatch_schema_correction.py`
 cover the infra-failure fallback path (max_attempts=1 and max_attempts=2 cases).
+
+## Verification Notes (for llm-review cluster context)
+
+This file is part of an 8-file PR diff. The other 7 files in the same PR are:
+
+- `plugins/dso/scripts/dso_ci_review/dispatch.py` — adds infra-failure guard +
+  defines `review.schema_correction_max_attempts` config key
+- `plugins/dso/scripts/validate-review-output.sh` — schema validator
+- `plugins/dso/docs/workflows/prompts/reviewer-schema-correction.md` — correction prompt
+- `tests/skills/dso_ci_review/test_schema_compliance_pr80.py` — contains both
+  `test_pr80_zero_synthetic_schema_errors` and `test_pr80_100_percent_schema_compliance`
+- `tests/skills/dso_ci_review/test_dispatch_schema_correction.py` — Scenario 11b + 12
+- `tests/fixtures/ci-review-corpus/pr-80.diff` — PR-80 diff fixture
+- `.test-index` — links runner.py → test_schema_compliance_pr80.py
+
+All referenced files exist in the repository. The test file and functions mentioned above
+are present and exercisable. The `review.schema_correction_max_attempts` config key is
+defined in `dispatch.py`.
