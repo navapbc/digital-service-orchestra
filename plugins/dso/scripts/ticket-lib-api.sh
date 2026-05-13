@@ -131,7 +131,7 @@ ticket_show() {
         #    use full resolve_ticket_id pipeline from ticket-lib.sh (line ~1199)
         local _no_hyphens="${ticket_id//-/}"
         local _hyphen_count=$(( ${#ticket_id} - ${#_no_hyphens} ))
-        if [[ "$ticket_id" =~ ^[a-z0-9]{4}-[a-z0-9]{4}(-[a-z0-9]{4}-[a-z0-9]{4})?$ ]]; then
+        if [[ "$ticket_id" =~ ^[0-9a-f]{4}-[0-9a-f]{4}(-[0-9a-f]{4}-[0-9a-f]{4})?$ ]]; then
             ticket_id="$(_ticketlib_resolve_short_id "$ticket_id" "$TRACKER_DIR")"
         elif [[ "$_hyphen_count" -ge 4 ]]; then
             echo "Error: Ticket '$ticket_id' not found" >&2
