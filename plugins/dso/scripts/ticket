@@ -80,7 +80,8 @@ _ensure_initialized() {
         local tracker_dir
         tracker_dir=$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$repo_root/.tickets-tracker" 2>/dev/null) || tracker_dir="$repo_root/.tickets-tracker"
         if [[ -d "$tracker_dir" ]] && git -C "$tracker_dir" rev-parse --verify tickets &>/dev/null; then
-            local sync_marker="/tmp/.ticket-sync-$(python3 -c "import hashlib,sys; print(hashlib.md5(sys.argv[1].encode()).hexdigest()[:12])" "$tracker_dir" 2>/dev/null || echo "fallback")"
+            local sync_marker
+            sync_marker="/tmp/.ticket-sync-$(python3 -c "import hashlib,sys; print(hashlib.md5(sys.argv[1].encode()).hexdigest()[:12])" "$tracker_dir" 2>/dev/null || echo "fallback")"
             local now
             now=$(date +%s)
             local marker_age=9999
