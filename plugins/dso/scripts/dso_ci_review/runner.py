@@ -26,11 +26,27 @@ import os
 import subprocess
 import sys
 import tempfile
+from typing import NamedTuple
 
 from dso_ci_review.dispatch import async_dispatch_specialists, _validate_agent_files, dispatch_arch_synthesis, dispatch_two_call_review
 from dso_ci_review.findings import merge_findings
 from dso_ci_review.providers.config import AuthError, ConfigError, get_provider
 from dso_ci_review.region_split import _should_region_split, run_region_split
+
+
+class _SchemaValidationResult(NamedTuple):
+    """Result of schema validation for merged review findings.
+
+    status values:
+      "schema_pass"      — findings conform to the code-review-dispatch schema
+      "schema_fail"      — findings violate the schema (S-B correction handoff point)
+      "validator_error"  — infrastructure failure (ENOENT, timeout, unrecognized exit)
+    errors: empty on schema_pass; schema error lines on schema_fail;
+            diagnostic message on validator_error.
+    """
+
+    status: str  # "schema_pass" | "schema_fail" | "validator_error"
+    errors: list  # list[str]
 
 # REVIEW-DEFENSE block — refutations for PR #62 round-3 LLM review false positives.
 # These findings recur because the CI _SYSTEM_PROMPT (dispatch.py:23-30) lacks the
@@ -97,6 +113,111 @@ def _real_blocking_findings(findings: list[dict]) -> list[dict]:
         if sev in _BLOCKING_SEVERITIES:
             out.append(f)
     return out
+
+
+def _resolve_validator_script(plugin_root: str | None = None) -> str:
+    """Return the absolute path to validate-review-output.sh.
+
+    Resolution order mirrors _classify_tier_via_bash():
+      1. plugin_root argument (explicit override)
+      2. CLAUDE_PLUGIN_ROOT env var
+      3. 5-dirname-levels from __file__:
+         runner.py → dso_ci_review → scripts → dso → plugins → repo_root,
+         then os.path.join(repo_root, "plugins", "dso") for the plugin root
+    """
+    if plugin_root is None:
+        plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+    if plugin_root is None:
+        _five_up = os.path.dirname(
+            os.path.dirname(
+                os.path.dirname(
+                    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                )
+            )
+        )
+        plugin_root = os.path.join(_five_up, "plugins", "dso")
+    return os.path.join(plugin_root, "scripts", "validate-review-output.sh")
+
+
+def _validate_findings_schema(
+    merged: dict,
+    plugin_root: str | None = None,
+    timeout: int = 60,
+) -> _SchemaValidationResult:
+    """Validate merged findings against the code-review-dispatch schema.
+
+    Shells out to validate-review-output.sh code-review-dispatch <tmpfile>.
+    Exit-code contract:
+      0  = schema-pass → return _SchemaValidationResult("schema_pass", [])
+      1  = schema-fail → return _SchemaValidationResult("schema_fail", <stderr_lines>)
+      other, ENOENT, EACCES, TimeoutExpired → return _SchemaValidationResult("validator_error", <diagnostic>)
+
+    Schema hash: 214949ee476be6d0 (drift-detection anchor — update when schema rules change)
+
+    Writes findings to a tmpfile as JSON and passes it as the second positional argument
+    to validate-review-output.sh (consistent with write-reviewer-findings.sh invocation,
+    which uses: "$SCRIPT_DIR/validate-review-output.sh" code-review-dispatch "$PENDING_FILE" >&2).
+    Tmpfile is always cleaned up in a try/finally block.
+    """
+    validator_script = _resolve_validator_script(plugin_root)
+
+    tmp_path: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8"
+        ) as tmp:
+            json.dump(merged, tmp)
+            tmp_path = tmp.name
+
+        try:
+            result = subprocess.run(
+                ["bash", str(validator_script), "code-review-dispatch", tmp_path],
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+        except subprocess.TimeoutExpired:
+            return _SchemaValidationResult(
+                "validator_error",
+                [f"validate-review-output.sh subprocess timed out after {timeout}s"],
+            )
+        except FileNotFoundError as exc:
+            return _SchemaValidationResult(
+                "validator_error",
+                [f"validate-review-output.sh not found: {exc}"],
+            )
+        except PermissionError as exc:
+            return _SchemaValidationResult(
+                "validator_error",
+                [f"validate-review-output.sh not executable: {exc}"],
+            )
+        except OSError as exc:
+            return _SchemaValidationResult(
+                "validator_error",
+                [f"OS error invoking validate-review-output.sh: {exc}"],
+            )
+
+        if result.returncode == 0:
+            return _SchemaValidationResult("schema_pass", [])
+        if result.returncode == 1:
+            errors = [
+                line for line in result.stderr.splitlines() if line.strip()
+            ] or [result.stderr.strip() or "schema validation failed (exit 1)"]
+            return _SchemaValidationResult("schema_fail", errors)
+        # Any other non-zero exit → infrastructure failure
+        return _SchemaValidationResult(
+            "validator_error",
+            [
+                f"validate-review-output.sh returned unexpected exit code "
+                f"{result.returncode}: {result.stderr.strip()!r}"
+            ],
+        )
+    finally:
+        if tmp_path is not None:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass  # already removed or never created
 
 
 def _resolve_pr_number() -> str | None:
@@ -1006,6 +1127,25 @@ def main() -> int:
                     )
                     merged = dict(merged)
                     merged["findings"] = filtered
+
+        # Step 7b: schema validation (schema hash 214949ee476be6d0)
+        # Shell out to validate-review-output.sh before writing to disk.
+        # Exit-code routing:
+        #   schema_pass    → continue to _write_output() unchanged
+        #   schema_fail    → S-B integration point: pass through to _write_output()
+        #                    with original findings so S-B correction dispatch can
+        #                    intercept and rewrite findings before CI gate evaluates them
+        #   validator_error → fail-loud (CRITICAL stderr + non-zero exit), never silently skip
+        _schema_result = _validate_findings_schema(merged)
+        if _schema_result.status == "validator_error":
+            print(
+                "CRITICAL: schema validator failed — cannot validate review findings. "
+                f"Errors: {'; '.join(_schema_result.errors)}",
+                file=sys.stderr,
+            )
+            return 1
+        # schema_fail: leave merged unchanged; S-B story will intercept and dispatch correction.
+        # schema_pass: continue to _write_output() unchanged.
 
         # Step 8: write output
         _write_output(merged)
