@@ -168,6 +168,10 @@ Apply Five Whys, then generate ≥3 hypotheses derived from code evidence and ex
 ## RESULT extensions
 
 ```
+root_cause_candidates:
+  - cause: <one sentence describing a candidate root cause>
+    confidence: high | medium | low
+    evidence: <empirical observation, command output, code reference, or hypothesis_test verdict supporting this candidate>
 alternative_fixes:
   - description: <fix>
     risk: high | medium | low
@@ -179,3 +183,5 @@ lens: code-tracer-escalated
 ```
 
 At least 3 fixes total, none duplicating prior attempts.
+
+You must surface **at least 2 surviving root-cause candidates** in `root_cause_candidates`, ordered by descending confidence, drawn from the ≥3 hypotheses you generated and extending/contradicting (not restating) those in `{escalation_history}`. The top candidate's `cause` must match the top-level `ROOT_CAUSE`. Each `evidence` field must cite empirical observations or specific code references — not reasoning alone.

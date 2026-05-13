@@ -172,6 +172,10 @@ Apply Five Whys, then generate ≥3 hypotheses derived from history. Hypotheses 
 ## RESULT extensions
 
 ```
+root_cause_candidates:
+  - cause: <one sentence describing a candidate root cause>
+    confidence: high | medium | low
+    evidence: <empirical observation, commit reference, dependency change, or hypothesis_test verdict supporting this candidate>
 alternative_fixes:
   - description: <fix>
     risk: high | medium | low
@@ -187,5 +191,7 @@ bisect_proposal:
   range: <good_sha>..<bad_sha>
   test_script: <one-line bash invocation>
 ```
+
+You must surface **at least 2 surviving root-cause candidates** in `root_cause_candidates`, ordered by descending confidence, drawn from the ≥3 history-derived hypotheses and not duplicating those in `{escalation_history}`. The top candidate's `cause` must match the top-level `ROOT_CAUSE`. Each `evidence` field must cite empirical observations, commit references, or dependency-change records — not reasoning alone.
 
 At least 3 fixes total, none duplicating prior attempts.

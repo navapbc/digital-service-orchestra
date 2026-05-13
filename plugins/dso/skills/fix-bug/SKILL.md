@@ -510,7 +510,7 @@ Every investigator agent receives the same base context slots; the orchestrator 
 | `{prior_fix_attempts}` | Ticket notes containing previous fix attempt records (empty string if none) |
 | `{escalation_history}` *(ESCALATED only)* | Previous ADVANCED RESULT, discovery file contents, and — for the Empirical Agent — the RESULT reports from the three theoretical lenses |
 
-All agents return RESULT conforming to the Investigation RESULT Report Schema defined below.
+All agents return RESULT conforming to the Investigation RESULT Report Schema defined below. **INTERMEDIATE-and-above agents additionally return a `root_cause_candidates` array** — at least 2 surviving causes, each with `confidence` (high/medium/low) and `evidence` (empirical observation, code reference, commit, or hypothesis_test verdict), ordered by descending confidence. The top candidate's `cause` matches the top-level `ROOT_CAUSE`, so downstream gates (hypothesis validation, fix approval, convergence scoring) continue to read `ROOT_CAUSE` unchanged. Surfacing surviving alternatives gives the orchestrator visibility into uncertainty when picking a fix and feeds the convergence/fishbone steps at ADVANCED.
 
 #### BASIC Investigation (score < 3)
 
