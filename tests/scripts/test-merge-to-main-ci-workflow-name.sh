@@ -56,7 +56,8 @@ export BRANCH="test-ci-wfname-\$\$"
 source "$MERGE_SCRIPT"
 echo "CI_WORKFLOW_NAME=\${CI_WORKFLOW_NAME:-}"
 WRAPPER_EOF
-    bash "$wrapper"
+    chmod +x "$wrapper"
+    "$wrapper"
 }
 
 # =============================================================================
@@ -121,6 +122,7 @@ export BRANCH="test-deprecation-\$\$"
 # shellcheck source=/dev/null
 source "$MERGE_SCRIPT"
 WRAPPER_EOF
+chmod +x "$_T3_WRAPPER"
 
 _T3_STDERR=$(bash "$_T3_WRAPPER" 2>&1 >/dev/null)
 _T3_HAS_DEPRECATION="false"
@@ -144,10 +146,18 @@ _T4_CONFIG=$(mktemp /tmp/dso-config-t4.XXXXXX.conf)
 _CLEANUP_FILES+=("$_T4_CONFIG")
 printf '' > "$_T4_CONFIG"  # empty config — no workflow name keys
 
+_T4_STDERR=$(_resolve_ci_workflow_name "$_T4_CONFIG" 2>&1 >/dev/null) || true
 _T4_OUTPUT=$(_resolve_ci_workflow_name "$_T4_CONFIG" 2>/dev/null)
 _T4_VALUE=$(echo "$_T4_OUTPUT" | grep "^CI_WORKFLOW_NAME=" | cut -d= -f2-)
 
 assert_eq "test_merge_to_main_both_keys_absent_resolves_to_empty" "" "$_T4_VALUE"
+
+_T4_NO_DEPRECATION="true"
+if echo "$_T4_STDERR" | grep -qi "deprecat"; then
+    _T4_NO_DEPRECATION="false"
+fi
+assert_eq "test_merge_to_main_both_keys_absent_no_deprecation_warning" "true" "$_T4_NO_DEPRECATION"
+
 rm -f "$_T4_CONFIG"
 
 # =============================================================================

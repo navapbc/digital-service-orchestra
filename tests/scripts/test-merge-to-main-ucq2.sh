@@ -127,10 +127,17 @@ git clone "$_ORIGIN_DIR" "$_WORK2" --quiet 2>/dev/null
 
 # Verify that origin/main is now NOT an ancestor of local HEAD (diverged)
 _T3_IS_ANCESTOR=0
-git -C "$_WORK_DIR" merge-base --is-ancestor origin/main HEAD 2>/dev/null && _T3_IS_ANCESTOR=1 || true
+_T3_MB_RC=0
+git -C "$_WORK_DIR" merge-base --is-ancestor origin/main HEAD 2>/dev/null || _T3_MB_RC=$?
+if [[ "$_T3_MB_RC" -eq 0 ]]; then
+    _T3_IS_ANCESTOR=1
+elif [[ "$_T3_MB_RC" -gt 1 ]]; then
+    # git error (not "not ancestor") — fail the setup assertion
+    assert_eq "test_pull_diverged_git_merge_base_succeeded" "0" "$_T3_MB_RC"
+fi
 
 # The ancestor check should return 1 (not ancestor) for this setup
-if [[ "$_T3_IS_ANCESTOR" -eq 0 ]]; then
+if [[ "$_T3_IS_ANCESTOR" -eq 0 ]] && [[ "$_T3_MB_RC" -le 1 ]]; then
     # Set up state and run git merge origin/main as the _phase_sync diverged path would
     _HELPERS_BODY=$(cat "$MERGE_HELPERS_LIB")
     _T3_OUTPUT=$(
