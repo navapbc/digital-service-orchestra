@@ -1203,6 +1203,8 @@ def main() -> int:
                         + "; ".join(_schema_result.errors)
                     ),
                     "finding_id": "schema_error_skipped",
+                    "file": "",
+                    "cited_lines": [],
                     "cited_excerpt": "",
                     "reachability": "",
                 }
@@ -1240,6 +1242,8 @@ def main() -> int:
                             + "; ".join(_schema_result.errors)
                         ),
                         "finding_id": "schema_error_dispatch_failed",
+                        "file": "",
+                        "cited_lines": [],
                         "cited_excerpt": "",
                         "reachability": "",
                     }

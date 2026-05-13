@@ -902,6 +902,8 @@ def dispatch_schema_correction(
             "category": "schema_error",
             "description": f"Schema correction failed after {max_attempts} attempt(s): {error_details}",
             "finding_id": f"schema_error_{hashlib.md5(error_details.encode()).hexdigest()[:8]}",
+            "file": "",
+            "cited_lines": [],
             "cited_excerpt": "",
             "reachability": "",
         }

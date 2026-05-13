@@ -24,7 +24,7 @@ Frozen fields (byte-for-byte must be preserved):
 Synthetic error shape:
   {"type": "parse_error", "severity": "critical", "category": "schema_error",
    "description": "...", "finding_id": "schema_error_...",
-   "cited_excerpt": "", "reachability": ""}
+   "file": "", "cited_lines": [], "cited_excerpt": "", "reachability": ""}
 """
 
 from __future__ import annotations
@@ -234,6 +234,11 @@ def test_correction_count_drift_routes_to_synthetic_error(monkeypatch) -> None:
     )
     assert error.get("severity") == "critical", (
         f"Synthetic error severity must be 'critical', got: {error.get('severity')!r}"
+    )
+    assert "file" in error, f"Synthetic error must include 'file' field: {error}"
+    assert "cited_lines" in error, f"Synthetic error must include 'cited_lines' field: {error}"
+    assert error.get("cited_lines") == [], (
+        f"Synthetic error 'cited_lines' must be empty list, got: {error.get('cited_lines')!r}"
     )
 
 
