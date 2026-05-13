@@ -562,13 +562,18 @@ test_ticket_show_resolves_friendly_alias() {
         return
     fi
 
-    # Retrieve the friendly alias for this ticket
+    # Derive the alias independently via ticket-alias-compute.py (not via ticket show)
+    # to avoid circular dependency on the code under test.
     local alias=""
-    alias=$(cd "$repo" && bash "$TICKET_SCRIPT" show "$ticket_id" 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('alias',''))" 2>/dev/null || true)
+    local _wordlist="$REPO_ROOT/plugins/dso/resources/ticket-wordlist.txt"
+    local _alias_script="$REPO_ROOT/plugins/dso/scripts/ticket-alias-compute.py"
+    if [[ -f "$_alias_script" && -f "$_wordlist" ]]; then
+        alias=$(python3 "$_alias_script" "$ticket_id" "$_wordlist" 2>/dev/null || true)
+    fi
 
     if [ -z "$alias" ]; then
-        # No alias assigned — skip alias resolution assertion but note it
-        assert_eq "ticket has alias assigned" "non-empty-alias" "empty-alias"
+        # Alias computation unavailable — skip alias resolution assertion
+        assert_eq "ticket alias derivable from ticket_id" "non-empty-alias" "empty-alias"
         return
     fi
 
