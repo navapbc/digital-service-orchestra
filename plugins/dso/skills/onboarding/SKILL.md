@@ -1213,6 +1213,8 @@ If the git guard passes, initialize the DSO ticket system by creating an orphan 
 ```bash
 # Create orphan branch for ticket event storage
 cd "$REPO_ROOT"
+# Capture staged files before orphan checkout clears the index
+_STAGED_BEFORE=$(git diff --name-only --cached 2>/dev/null || true)
 git checkout --orphan tickets
 git rm -rf . --quiet 2>/dev/null || true
 mkdir -p .tickets-tracker
@@ -1220,6 +1222,14 @@ echo "# DSO Ticket System" > .tickets-tracker/README.md
 git add .tickets-tracker/README.md
 git commit -m "chore: initialize ticket system"
 git checkout -  # return to previous branch
+# Re-stage only the files that were staged before the orphan checkout
+# (do NOT use git add -A which would stage untracked application code)
+# Use while/read with IFS= to handle filenames with spaces safely
+if [ -n "$_STAGED_BEFORE" ]; then
+    while IFS= read -r _staged_file; do
+        [ -n "$_staged_file" ] && git add -- "$_staged_file"
+    done <<< "$_STAGED_BEFORE"
+fi
 ```
 
 **Push verification:** After creating the orphan branch, push it to the remote and verify push success. If the push fails, warn the user:

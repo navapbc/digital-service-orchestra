@@ -123,7 +123,37 @@ ticket_show() {
             return 1
         fi
 
-        ticket_id="$(_ticketlib_resolve_short_id "$ticket_id" "$TRACKER_DIR")"
+        # Resolution strategy (ordered by cost):
+        # 1. Hex patterns (8-hex or 16-hex): fast O(N-dir) scan via _ticketlib_resolve_short_id
+        # 2. Inputs with 4+ hyphens: cannot match any known format (max is 3 for 16-hex);
+        #    skip expensive O(N*K) alias scan and fail immediately
+        # 3. All other inputs (0-3 hyphens, non-hex): potential alias, jira_key, or prefix;
+        #    use full resolve_ticket_id pipeline from ticket-lib.sh (line ~1199)
+        local _no_hyphens="${ticket_id//-/}"
+        local _hyphen_count=$(( ${#ticket_id} - ${#_no_hyphens} ))
+        if [[ "$ticket_id" =~ ^[0-9a-f]{4}-[0-9a-f]{4}(-[0-9a-f]{4}-[0-9a-f]{4})?$ ]]; then
+            ticket_id="$(_ticketlib_resolve_short_id "$ticket_id" "$TRACKER_DIR")"
+        elif [[ "$_hyphen_count" -ge 4 ]]; then
+            echo "Error: Ticket '$ticket_id' not found" >&2
+            return 1
+        else
+            if [[ -z "${_TICKETLIB_DIR:-}" ]]; then
+                echo "Error: _TICKETLIB_DIR is not set; cannot resolve ticket alias" >&2
+                return 1
+            fi
+            declare -f resolve_ticket_id &>/dev/null || source "$_TICKETLIB_DIR/ticket-lib.sh"
+            # Pass TRACKER_DIR through TICKETS_TRACKER_DIR so resolve_ticket_id
+            # uses the same tracker path as ticket_show's directory lookup below.
+            # Capture exit code separately: command substitution loses the exit status,
+            # so a failing resolve_ticket_id would silently produce an empty ticket_id
+            # and fall through to the generic "not found" error, hiding the real cause.
+            local _resolve_rc=0
+            ticket_id="$(TICKETS_TRACKER_DIR="$TRACKER_DIR" resolve_ticket_id "$ticket_id")" || _resolve_rc=$?
+            if [[ $_resolve_rc -ne 0 ]]; then
+                # resolve_ticket_id already wrote a specific error to stderr; propagate it
+                return 1
+            fi
+        fi
 
         if [ ! -d "$TRACKER_DIR/$ticket_id" ]; then
             echo "Error: Ticket '$ticket_id' not found" >&2

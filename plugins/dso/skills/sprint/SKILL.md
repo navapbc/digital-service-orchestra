@@ -1996,7 +1996,9 @@ grep -n "\[.*\]" .test-index || true
 # Remove any markers for tests that are now passing
 ```
 
-**Story branch merge (before closure)**: After RED marker cleanup and before closing the story, merge the story branch with the DSO-Story-Merge trailer:
+**Story branch merge (before closure)**: After RED marker cleanup and before closing the story, merge the story branch. The merge path depends on `SPRINT_MODE`:
+- `ci-pr` mode: route through `merge-to-main.sh` to create a GitHub PR — do NOT perform a direct local merge
+- `local` mode (default): direct local merge with `DSO-Story-Merge` trailer via `merge-story-branch.sh`
 
 ```bash
 # Conflict queue precondition (in-memory orchestrator check):
@@ -2004,7 +2006,23 @@ if [[ ${#CONFLICT_QUEUE[@]} -gt 0 ]]; then
   echo 'ERROR: conflict queue non-empty — resolve conflicts before merging story branch' >&2
   exit 1
 fi
-bash "$PLUGIN_SCRIPTS/merge-story-branch.sh" "$STORY_BRANCH" "$STORY_ID" # shim-exempt: SKILL.md orchestrator instruction — sprint runs plugin scripts via $PLUGIN_SCRIPTS directly
+if [[ "${SPRINT_MODE:-local}" == "ci-pr" ]]; then
+  # ci-pr mode: merge via GitHub PR — do NOT perform a local direct merge
+  # merge-to-main-pr.sh uses BRANCH (defaults to current git branch if unset).
+  # Export STORY_BRANCH as BRANCH so the script targets the correct story branch
+  # even when the orchestrator is not currently checked out on that branch.
+  export BRANCH="$STORY_BRANCH"
+  bash "$PLUGIN_SCRIPTS/merge-to-main.sh" || { # shim-exempt: SKILL.md orchestrator instruction — sprint runs plugin scripts via $PLUGIN_SCRIPTS directly
+    echo "ERROR: merge-to-main.sh failed in ci-pr mode — aborting story merge" >&2
+    exit 1
+  }
+else
+  # local mode: direct local merge with DSO-Story-Merge trailer
+  bash "$PLUGIN_SCRIPTS/merge-story-branch.sh" "$STORY_BRANCH" "$STORY_ID" || { # shim-exempt: SKILL.md orchestrator instruction — sprint runs plugin scripts via $PLUGIN_SCRIPTS directly
+    echo "ERROR: merge-story-branch.sh failed in local mode — aborting story merge" >&2
+    exit 1
+  }
+fi
 ```
 
 ### Leakage Detection

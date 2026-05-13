@@ -547,4 +547,117 @@ except Exception as e:
 }
 test_ticket_show_preconditions_summary_legacy_placeholder
 
+# [RED: 493a-dfe5-alias-resolve]
+# ── Test: ticket show resolves friendly alias ─────────────────────────────────
+echo "Test: ticket show resolves friendly alias to ticket details"
+test_ticket_show_resolves_friendly_alias() {
+    _snapshot_fail
+    local repo
+    repo=$(_make_test_repo)
+
+    local ticket_id=""
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create story "alias resolution test story" 2>/dev/null | tail -1 || true)
+
+    if [ -z "$ticket_id" ]; then
+        assert_eq "ticket created for alias resolution test" "non-empty" "empty"
+        rm -rf "$repo"
+        return
+    fi
+
+    # Derive the alias independently via ticket-alias-compute.py (not via ticket show)
+    # to avoid circular dependency on the code under test.
+    local alias=""
+    local _wordlist="$REPO_ROOT/plugins/dso/resources/ticket-wordlist.txt"
+    local _alias_script="$REPO_ROOT/plugins/dso/scripts/ticket-alias-compute.py"
+    if [[ -f "$_alias_script" && -f "$_wordlist" ]]; then
+        alias=$(python3 "$_alias_script" "$ticket_id" "$_wordlist" 2>/dev/null || true)
+    fi
+
+    if [ -z "$alias" ]; then
+        # Alias computation unavailable — this is a hard requirement; fail the test
+        assert_eq "ticket alias derivable from ticket_id" "non-empty-alias" "empty-alias"
+        rm -rf "$repo"
+        return
+    fi
+
+    # ticket show using the friendly alias must exit 0 and return the same ticket_id
+    local alias_output=""
+    local alias_exit=0
+    alias_output=$(cd "$repo" && bash "$TICKET_SCRIPT" show "$alias" 2>/dev/null) || alias_exit=$?
+
+    assert_eq "ticket show via alias exits 0" "0" "$alias_exit"
+
+    # Validate output is parseable JSON before extracting field (parse via stdin, not argv)
+    local json_valid=""
+    json_valid=$(echo "$alias_output" | python3 -c "import json,sys; json.load(sys.stdin); print('yes')" 2>/dev/null || echo "no")
+    assert_eq "ticket show via alias returns valid JSON" "yes" "$json_valid"
+
+    local resolved_id=""
+    resolved_id=$(echo "$alias_output" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('ticket_id',''))" 2>/dev/null || true)
+    assert_eq "ticket show via alias returns correct ticket_id" "$ticket_id" "$resolved_id"
+
+    rm -rf "$repo"
+    assert_pass_if_clean "test_ticket_show_resolves_friendly_alias"
+}
+test_ticket_show_resolves_friendly_alias
+
+# ── Test: ticket show rejects inputs with 4+ hyphens without alias scan ───────
+echo "Test: ticket show rejects 4+ hyphen inputs fast (no alias scan)"
+test_ticket_show_rejects_four_hyphen_input() {
+    _snapshot_fail
+    local repo
+    repo=$(_make_test_repo)
+
+    local rc=0
+    cd "$repo" && bash "$TICKET_SCRIPT" show "nonexistent-ticket-id-zzz9-yyyy" 2>/dev/null || rc=$?
+    assert_ne "ticket show with 4+ hyphens exits non-zero" "0" "$rc"
+
+    rm -rf "$repo"
+    assert_pass_if_clean "test_ticket_show_rejects_four_hyphen_input"
+}
+test_ticket_show_rejects_four_hyphen_input
+
+# ── Test: ticket show resolves 8-hex short ID ─────────────────────────────────
+echo "Test: ticket show resolves 8-hex short ID to full ticket"
+test_ticket_show_resolves_8hex_short_id() {
+    _snapshot_fail
+    local repo
+    repo=$(_make_test_repo)
+
+    local ticket_id=""
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create story "short-id test story" 2>/dev/null | tail -1 || true)
+
+    if [ -z "$ticket_id" ]; then
+        assert_eq "ticket created for short-id test" "non-empty" "empty"
+        rm -rf "$repo"
+        return
+    fi
+
+    # Extract the 8-hex prefix (first 9 chars: "xxxx-xxxx"); guard length and format
+    if [[ ${#ticket_id} -lt 9 ]]; then
+        assert_eq "ticket_id long enough for 8-hex prefix (>=9 chars)" ">=9" "${#ticket_id}"
+        rm -rf "$repo"
+        return
+    fi
+    local short_id="${ticket_id:0:9}"
+    if [[ ! "$short_id" =~ ^[0-9a-f]{4}-[0-9a-f]{4}$ ]]; then
+        assert_eq "extracted short_id has expected 8-hex format (xxxx-xxxx)" "hex4-hex4" "$short_id"
+        rm -rf "$repo"
+        return
+    fi
+    local short_output="" short_exit=0
+    short_output=$(cd "$repo" && bash "$TICKET_SCRIPT" show "$short_id" 2>/dev/null) || short_exit=$?
+
+    assert_eq "ticket show via 8-hex exits 0" "0" "$short_exit"
+
+    local resolved_id=""
+    resolved_id=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d.get('ticket_id',''))" "$short_output" 2>/dev/null || true)
+    assert_eq "ticket show via 8-hex returns correct ticket_id" "$ticket_id" "$resolved_id"
+
+    rm -rf "$repo"
+    assert_pass_if_clean "test_ticket_show_resolves_8hex_short_id"
+}
+test_ticket_show_resolves_8hex_short_id
+
+
 print_summary
