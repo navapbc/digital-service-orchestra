@@ -51,7 +51,7 @@ assert_eq "test_bash_syntax_still_passes" "pass" "$SYNTAX_OK"
 # Helper: set up a git pair (bare origin + working clone)
 # Sets globals: _TEST_BASE, _ORIGIN_DIR, _WORK_DIR
 _setup_git_pair_ucq2() {
-    _TEST_BASE=$(mktemp -d)
+    _TEST_BASE=$(mktemp -d /tmp/merge-to-main-ucq2.XXXXXX)
     _ORIGIN_DIR="$_TEST_BASE/origin.git"
     _WORK_DIR="$_TEST_BASE/work"
     git init --bare "$_ORIGIN_DIR" -b main --quiet 2>/dev/null
@@ -176,7 +176,7 @@ _extract_fn() {
 # --- Helper: create a bare "origin" repo and a cloned working repo ---
 # Sets globals: _TEST_BASE, _ORIGIN_DIR, _WORK_DIR
 _setup_git_pair() {
-    _TEST_BASE=$(mktemp -d)
+    _TEST_BASE=$(mktemp -d /tmp/merge-to-main-ucq2.XXXXXX)
     _ORIGIN_DIR="$_TEST_BASE/origin.git"
     _WORK_DIR="$_TEST_BASE/work"
 

@@ -41,6 +41,7 @@ _resolve_ci_workflow_name() {
     local config_file="$1"
     local wrapper
     wrapper=$(mktemp /tmp/ci-wfname.XXXXXX.sh)
+    trap 'rm -f "$wrapper"' RETURN
     cat > "$wrapper" << WRAPPER_EOF
 #!/usr/bin/env bash
 export MERGE_TO_MAIN_DIRECT_LIB=1
@@ -52,9 +53,6 @@ source "$MERGE_SCRIPT"
 echo "CI_WORKFLOW_NAME=\${CI_WORKFLOW_NAME:-}"
 WRAPPER_EOF
     bash "$wrapper"
-    local rc=$?
-    rm -f "$wrapper"
-    return $rc
 }
 
 # =============================================================================
@@ -124,6 +122,24 @@ fi
 assert_eq "test_merge_to_main_deprecation_warning" "true" "$_T3_HAS_DEPRECATION"
 
 rm -f "$_T3_WRAPPER" "$_T3_CONFIG"
+
+# =============================================================================
+# Test 4: test_merge_to_main_both_keys_absent_resolves_to_empty
+# Given: neither ci.workflow_name nor merge.ci_workflow_name is in config
+# When: merge-to-main-direct.sh is sourced in library mode
+# Then: CI_WORKFLOW_NAME resolves to empty string
+# =============================================================================
+echo ""
+echo "--- test_merge_to_main_both_keys_absent_resolves_to_empty ---"
+
+_T4_CONFIG=$(mktemp /tmp/dso-config-t4.XXXXXX.conf)
+printf '' > "$_T4_CONFIG"  # empty config — no workflow name keys
+
+_T4_OUTPUT=$(_resolve_ci_workflow_name "$_T4_CONFIG" 2>/dev/null)
+_T4_VALUE=$(echo "$_T4_OUTPUT" | grep "^CI_WORKFLOW_NAME=" | cut -d= -f2-)
+
+assert_eq "test_merge_to_main_both_keys_absent_resolves_to_empty" "" "$_T4_VALUE"
+rm -f "$_T4_CONFIG"
 
 # =============================================================================
 print_summary

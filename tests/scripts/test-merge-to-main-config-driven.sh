@@ -109,6 +109,7 @@ MOCK_EOF
 _run_phase_validate_wrapper() {
     local wrapper
     wrapper=$(mktemp /tmp/run-validate.XXXXXX.sh)
+    trap 'rm -f "$wrapper"' RETURN
     cat > "$wrapper" << WRAPPER_EOF
 #!/usr/bin/env bash
 export MERGE_TO_MAIN_DIRECT_LIB=1
@@ -124,10 +125,8 @@ _state_init 2>/dev/null || true
 cd "\$MAIN_REPO"
 _phase_validate 2>&1
 WRAPPER_EOF
-    bash "$wrapper"
-    local rc=$?
-    rm -f "$wrapper"
-    return $rc
+    chmod +x "$wrapper"
+    "$wrapper"
 }
 
 # =============================================================================
@@ -140,7 +139,7 @@ echo ""
 echo "--- test_merge_validate_uses_custom_format_check_from_config ---"
 _snapshot_fail
 
-_T1_BASE=$(mktemp -d)
+_T1_BASE=$(mktemp -d /tmp/test-merge-config-t1.XXXXXX)
 _setup_validate_env "$_T1_BASE" "commands.format_check=custom-fmt-check
 commands.lint=custom-lint"
 
@@ -165,7 +164,7 @@ echo ""
 echo "--- test_merge_validate_uses_custom_lint_from_config ---"
 _snapshot_fail
 
-_T2_BASE=$(mktemp -d)
+_T2_BASE=$(mktemp -d /tmp/test-merge-config-t2.XXXXXX)
 _setup_validate_env "$_T2_BASE" "commands.format_check=custom-fmt-check
 commands.lint=custom-lint"
 
@@ -190,14 +189,22 @@ echo ""
 echo "--- test_merge_validate_does_not_invoke_hardcoded_make_format_check ---"
 _snapshot_fail
 
-_T3_BASE=$(mktemp -d)
+_T3_BASE=$(mktemp -d /tmp/test-merge-config-t3.XXXXXX)
 _setup_validate_env "$_T3_BASE" "commands.format_check=custom-fmt-check
 commands.lint=custom-lint"
 
-_run_phase_validate_wrapper > /dev/null 2>&1 || true
+_T3_RC=0
+_run_phase_validate_wrapper > /dev/null 2>&1 || _T3_RC=$?
+assert_eq "test_merge_validate_t3_phase_succeeds" "0" "$_T3_RC"
 
-# The mock 'make' records 'format-check' when called with that target.
-# When custom-fmt-check is used instead, 'make format-check' must NOT appear.
+# Positive: custom-fmt-check must have run
+_T3_CUSTOM_FMT_CALLED="false"
+if [[ -f "$_FMT_CALL_LOG" ]] && grep -q "custom-fmt-check" "$_FMT_CALL_LOG" 2>/dev/null; then
+    _T3_CUSTOM_FMT_CALLED="true"
+fi
+assert_eq "test_merge_validate_t3_custom_fmt_ran" "true" "$_T3_CUSTOM_FMT_CALLED"
+
+# Negative: mock 'make' must NOT have been called with 'format-check' target
 _T3_MAKE_FMT_CALLED="false"
 if [[ -f "$_FMT_CALL_LOG" ]] && grep -q "^format-check$" "$_FMT_CALL_LOG" 2>/dev/null; then
     _T3_MAKE_FMT_CALLED="true"
@@ -217,12 +224,22 @@ echo ""
 echo "--- test_merge_validate_does_not_invoke_hardcoded_make_lint ---"
 _snapshot_fail
 
-_T4_BASE=$(mktemp -d)
+_T4_BASE=$(mktemp -d /tmp/test-merge-config-t4.XXXXXX)
 _setup_validate_env "$_T4_BASE" "commands.format_check=custom-fmt-check
 commands.lint=custom-lint"
 
-_run_phase_validate_wrapper > /dev/null 2>&1 || true
+_T4_RC=0
+_run_phase_validate_wrapper > /dev/null 2>&1 || _T4_RC=$?
+assert_eq "test_merge_validate_t4_phase_succeeds" "0" "$_T4_RC"
 
+# Positive: custom-lint must have run
+_T4_CUSTOM_LINT_CALLED="false"
+if [[ -f "$_LINT_CALL_LOG" ]] && grep -q "custom-lint" "$_LINT_CALL_LOG" 2>/dev/null; then
+    _T4_CUSTOM_LINT_CALLED="true"
+fi
+assert_eq "test_merge_validate_t4_custom_lint_ran" "true" "$_T4_CUSTOM_LINT_CALLED"
+
+# Negative: mock 'make' must NOT have been called with a lint target
 _T4_MAKE_LINT_CALLED="false"
 if [[ -f "$_LINT_CALL_LOG" ]] && grep -qE "^lint" "$_LINT_CALL_LOG" 2>/dev/null; then
     _T4_MAKE_LINT_CALLED="true"
@@ -242,7 +259,7 @@ echo ""
 echo "--- test_merge_validate_default_format_check_is_make_format_check ---"
 _snapshot_fail
 
-_T5_BASE=$(mktemp -d)
+_T5_BASE=$(mktemp -d /tmp/test-merge-config-t5.XXXXXX)
 _setup_validate_env "$_T5_BASE" ""  # empty config — no commands overrides
 
 _run_phase_validate_wrapper > /dev/null 2>&1 || true
@@ -266,7 +283,7 @@ echo ""
 echo "--- test_merge_validate_default_lint_is_make_lint ---"
 _snapshot_fail
 
-_T6_BASE=$(mktemp -d)
+_T6_BASE=$(mktemp -d /tmp/test-merge-config-t6.XXXXXX)
 _setup_validate_env "$_T6_BASE" ""  # empty config — no commands overrides
 
 _run_phase_validate_wrapper > /dev/null 2>&1 || true
@@ -279,6 +296,40 @@ assert_eq "test_merge_validate_default_lint_is_make_lint" "true" "$_T6_MAKE_LINT
 
 assert_pass_if_clean "test_merge_validate_default_lint_is_make_lint"
 rm -rf "$_T6_BASE"
+
+# =============================================================================
+# Test 7: _phase_validate returns non-zero when a configured command fails
+# Given: commands.lint = failing-lint (exits non-zero)
+# When: _phase_validate runs
+# Then: _phase_validate exits non-zero
+# =============================================================================
+echo ""
+echo "--- test_merge_validate_fails_when_lint_command_exits_nonzero ---"
+_snapshot_fail
+
+_T7_BASE=$(mktemp -d /tmp/test-merge-config-t7.XXXXXX)
+_setup_validate_env "$_T7_BASE" "commands.format_check=custom-fmt-check
+commands.lint=failing-lint"
+
+# Replace the mock custom-lint with a failing one
+cat > "$_MOCK_BIN/failing-lint" << MOCK_EOF
+#!/usr/bin/env bash
+echo "failing-lint" >> "$_LINT_CALL_LOG"
+exit 1
+MOCK_EOF
+chmod +x "$_MOCK_BIN/failing-lint"
+
+_T7_RC=0
+_run_phase_validate_wrapper > /dev/null 2>&1 || _T7_RC=$?
+
+_T7_FAILED="false"
+if [[ "$_T7_RC" -ne 0 ]]; then
+    _T7_FAILED="true"
+fi
+assert_eq "test_merge_validate_fails_when_lint_command_exits_nonzero" "true" "$_T7_FAILED"
+
+assert_pass_if_clean "test_merge_validate_fails_when_lint_command_exits_nonzero"
+rm -rf "$_T7_BASE"
 
 # =============================================================================
 print_summary

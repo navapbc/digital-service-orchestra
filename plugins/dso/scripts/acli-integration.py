@@ -500,10 +500,14 @@ def get_comments(
     result = _run_acli(cmd, acli_cmd=acli_cmd)
     parsed = json.loads(result.stdout)
     if isinstance(parsed, list):
-        return parsed
+        return [item for item in parsed if isinstance(item, dict)]
     if isinstance(parsed, dict):
         comments = parsed.get("comments", [])
-        return comments if isinstance(comments, list) else []
+        return (
+            [item for item in comments if isinstance(item, dict)]
+            if isinstance(comments, list)
+            else []
+        )
     return []
 
 
@@ -767,10 +771,14 @@ class AcliClient:
         result = self._run(cmd)
         parsed = json.loads(result.stdout)
         if isinstance(parsed, list):
-            return parsed
+            return [item for item in parsed if isinstance(item, dict)]
         if isinstance(parsed, dict):
             comments = parsed.get("comments", [])
-            return comments if isinstance(comments, list) else []
+            return (
+                [item for item in comments if isinstance(item, dict)]
+                if isinstance(comments, list)
+                else []
+            )
         return []
 
     def set_relationship(
