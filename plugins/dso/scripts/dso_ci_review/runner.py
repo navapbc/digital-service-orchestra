@@ -1068,6 +1068,7 @@ def main() -> int:
                 tier_agents=tier_agents,
                 provider_chain=provider_chain,
                 config_path=config_path,
+                prior_defenses=prior_defenses or None,
             )
         else:
             # Step 3: dispatch tier agents + classifier-flagged overlays together (parallel).
