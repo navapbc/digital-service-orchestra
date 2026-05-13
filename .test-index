@@ -147,7 +147,7 @@ plugins/dso/recipes/recipe-registry.yaml:tests/scripts/test-recipe-registry.sh
 plugins/dso/recipes/templates/flask/route.py.tmpl:tests/scripts/test_gate_escalation_router.py
 plugins/dso/resources/ticket-wordlist.txt:tests/scripts/test-ticket-create.sh
 plugins/dso/scripts/*.sh:tests/hooks/test-no-plugin-comment-refs.sh
-plugins/dso/scripts/acli-integration.py:tests/scripts/test_acli_integration.py,tests/scripts/test_acli_integration_set_issue_property.py,tests/scripts/test_bridge_delete_issue.py
+plugins/dso/scripts/acli-integration.py:tests/scripts/test_acli_integration.py,tests/scripts/test_acli_integration_comments.py,tests/scripts/test_acli_integration_set_issue_property.py,tests/scripts/test_bridge_delete_issue.py
 plugins/dso/scripts/agent-profiles/red-test-writer.yaml:tests/scripts/test-red-test-writer-md-rule5-compliance.sh
 plugins/dso/scripts/analyze_tool/__init__.py:tests/hooks/test-init-skill.sh,tests/scripts/test-ticket-init-bash-native.sh,tests/scripts/test-ticket-init.sh,tests/scripts/test-ticket-autoinit.sh
 plugins/dso/scripts/analyze_tool/_constants.py:tests/skills/test-figma-tag-constants.sh
@@ -294,7 +294,7 @@ plugins/dso/scripts/ticket-lifecycle.sh:tests/scripts/test-ticket-lifecycle.sh
 plugins/dso/scripts/ticket-link.sh:tests/scripts/test-ticket-link.sh,tests/scripts/test-ticket-link-duplicates-supersedes.sh
 plugins/dso/scripts/ticket-list-descendants.py:tests/scripts/test-ticket-list-descendants-dispatcher.sh
 plugins/dso/scripts/ticket-list-descendants.sh:tests/scripts/test-ticket-list-descendants-dispatcher.sh
-plugins/dso/scripts/ticket-list-epics.sh:tests/scripts/test-ticket-list-epics-dispatcher.sh
+plugins/dso/scripts/ticket-list-epics.sh:tests/scripts/test-ticket-list-epics-dispatcher.sh,tests/scripts/test-ticket-list-epics-alias.sh
 plugins/dso/scripts/ticket-list.sh:tests/scripts/test-ticket-list.sh,tests/scripts/test-ticket-subprocess-count.sh,tests/scripts/test-ticket-perf.sh
 plugins/dso/scripts/ticket-migrate-brainstorm-tags.sh:tests/scripts/test-ticket-migrate-brainstorm-tags.sh,tests/scripts/test-brainstorm-tag-flow.sh
 plugins/dso/scripts/ticket-migrate-file-impact-v1.sh:tests/scripts/test-ticket-migrate-file-impact-v1.sh

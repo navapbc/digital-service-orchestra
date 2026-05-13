@@ -268,3 +268,192 @@ def test_get_comments_returns_empty_list_when_no_comments(acli: ModuleType) -> N
         f"get_comments must return an empty list when ACLI returns [], "
         f"got {len(result)} item(s): {result}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Test 7: get_comments returns a list when ACLI returns a wrapped dict response
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_get_comments_returns_list_when_acli_returns_dict_wrapper(
+    acli: ModuleType,
+) -> None:
+    """get_comments must return a list (not dict) when ACLI returns a wrapped JSON object.
+
+    Given: ACLI returns {"comments": [...], "total": N} instead of a bare list
+    When: get_comments is called
+    Then: the return value is a list of comment dicts, not the wrapper dict
+    """
+    # Given: ACLI returns a wrapped JSON object (not a bare list)
+    wrapped_response = json.dumps(
+        {"comments": [{"id": "30001", "body": "hello"}], "total": 1}
+    )
+    mock_proc = MagicMock(returncode=0, stdout=wrapped_response, stderr="")
+
+    # When: get_comments is called
+    with patch("subprocess.run", return_value=mock_proc):
+        result = acli.get_comments(jira_key="PROJ-77")
+
+    # Then: the return value is a list, not a dict
+    assert isinstance(result, list), (
+        f"get_comments must return a list even when ACLI wraps comments in a dict, "
+        f"got {type(result).__name__}: {result!r}"
+    )
+    assert len(result) == 1, (
+        f"Expected 1 comment extracted from wrapped response, got {len(result)}: {result}"
+    )
+    assert result[0].get("id") == "30001", (
+        f"Expected comment id '30001', got: {result[0]}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_acli_client_get_comments_returns_list_when_acli_returns_dict_wrapper(
+    acli: ModuleType,
+) -> None:
+    """AcliClient.get_comments must return a list when ACLI returns a wrapped dict.
+
+    Given: ACLI returns {"comments": [...], "total": N} instead of a bare list
+    When: AcliClient.get_comments is called
+    Then: the return value is a list of comment dicts, not the wrapper dict
+    """
+    wrapped_response = json.dumps(
+        {"comments": [{"id": "40001", "body": "class method test"}], "total": 1}
+    )
+    mock_proc = MagicMock(returncode=0, stdout=wrapped_response, stderr="")
+
+    client = acli.AcliClient(
+        jira_url="https://jira.example.com",
+        user="user@example.com",
+        api_token="token",
+    )
+
+    with patch("subprocess.run", return_value=mock_proc):
+        result = client.get_comments(jira_key="PROJ-88")
+
+    assert isinstance(result, list), (
+        f"AcliClient.get_comments must return a list even when ACLI wraps comments "
+        f"in a dict, got {type(result).__name__}: {result!r}"
+    )
+    assert len(result) == 1, (
+        f"Expected 1 comment extracted from wrapped response, got {len(result)}: {result}"
+    )
+    assert result[0].get("id") == "40001", (
+        f"Expected comment id '40001', got: {result[0]}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Tests 9–11: edge-case / error-path coverage for invalid wrapped shapes
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_get_comments_returns_empty_list_for_empty_dict_response(
+    acli: ModuleType,
+) -> None:
+    """get_comments must return [] when ACLI returns an empty JSON object {}."""
+    mock_proc = MagicMock(returncode=0, stdout="{}", stderr="")
+    with patch("subprocess.run", return_value=mock_proc):
+        result = acli.get_comments(jira_key="PROJ-91")
+    assert result == [], f"Expected [] for empty dict response, got {result!r}"
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_get_comments_returns_empty_list_when_comments_field_is_null(
+    acli: ModuleType,
+) -> None:
+    """get_comments must return [] when the wrapped 'comments' field is null."""
+    mock_proc = MagicMock(
+        returncode=0, stdout=json.dumps({"comments": None}), stderr=""
+    )
+    with patch("subprocess.run", return_value=mock_proc):
+        result = acli.get_comments(jira_key="PROJ-92")
+    assert result == [], f"Expected [] when comments is null, got {result!r}"
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_get_comments_returns_empty_list_when_comments_field_is_dict(
+    acli: ModuleType,
+) -> None:
+    """get_comments must return [] when the wrapped 'comments' field is a dict (non-list)."""
+    mock_proc = MagicMock(
+        returncode=0,
+        stdout=json.dumps({"comments": {"nested": "object"}}),
+        stderr="",
+    )
+    with patch("subprocess.run", return_value=mock_proc):
+        result = acli.get_comments(jira_key="PROJ-93")
+    assert result == [], (
+        f"Expected [] when comments is a dict (not a list), got {result!r}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_acli_client_get_comments_returns_empty_list_for_invalid_wrapped_shapes(
+    acli: ModuleType,
+) -> None:
+    """AcliClient.get_comments must return [] for empty dict, null, and non-list comments."""
+    client = acli.AcliClient(
+        jira_url="https://jira.example.com",
+        user="user@example.com",
+        api_token="token",
+    )
+    for label, payload in [
+        ("empty dict", "{}"),
+        ("comments null", json.dumps({"comments": None})),
+        ("comments dict", json.dumps({"comments": {"k": "v"}})),
+    ]:
+        mock_proc = MagicMock(returncode=0, stdout=payload, stderr="")
+        with patch("subprocess.run", return_value=mock_proc):
+            result = client.get_comments(jira_key="PROJ-94")
+        assert result == [], (
+            f"AcliClient.get_comments: expected [] for {label}, got {result!r}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Direct unit tests for _parse_acli_comments helper
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+@pytest.mark.parametrize(
+    "payload,expected",
+    [
+        # Bare list shapes
+        ([{"id": "1", "body": "hi"}], [{"id": "1", "body": "hi"}]),
+        ([{"id": "1"}, "not-a-dict", 42], [{"id": "1"}]),
+        ([], []),
+        # Wrapped dict shapes
+        ({"comments": [{"id": "1"}, {"id": "2"}]}, [{"id": "1"}, {"id": "2"}]),
+        ({"comments": [{"id": "1"}, "x"]}, [{"id": "1"}]),
+        ({"comments": []}, []),
+        # Absent 'comments' key → [] (via .get default)
+        ({"total": 1}, []),
+        # Unrecognised shapes → []
+        ({}, []),
+        ({"error": "something went wrong"}, []),
+        (None, []),
+        (42, []),
+        ("string", []),
+    ],
+)
+def test_parse_acli_comments_normalises_all_response_shapes(
+    acli: ModuleType,
+    payload: object,
+    expected: list,
+) -> None:
+    """_parse_acli_comments must produce a flat list of dicts for every ACLI response shape."""
+    result = acli._parse_acli_comments(payload)
+    assert result == expected, (
+        f"_parse_acli_comments({payload!r}): expected {expected!r}, got {result!r}"
+    )

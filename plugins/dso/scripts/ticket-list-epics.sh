@@ -11,11 +11,15 @@ set -euo pipefail
 #                                     # (zero-child epics + scrutiny-gap epics + start-fresh)
 #
 # Output: One line per epic, tab-separated:
-#   <id>\tP*\t<title>\t<child_count>                              (in-progress epics, listed first — P* replaces priority)
-#   <id>\tP<priority>\t<title>\t<child_count>                     (unblocked open epics)
+#   <alias-or-id>\tP*\t<title>\t<child_count>                     (in-progress epics, listed first — P* replaces priority)
+#   <alias-or-id>\tP<priority>\t<title>\t<child_count>            (unblocked open epics)
+#
+#   Column 1 is the human-friendly alias when one is set; falls back to canonical
+#   ticket ID when no alias exists. For machine-parseable canonical IDs use
+#   `ticket show <alias>` or the ticket list command.
 #
 # Blocked epics (with --all) are appended after unblocked, prefixed:
-#   BLOCKED\t<id>\tP<priority>\t<title>\t<child_count>\t<blocker_ids>
+#   BLOCKED\t<alias-or-id>\tP<priority>\t<title>\t<child_count>\t<blocker_ids>
 #
 # Exit codes:
 #   0 — At least one unblocked epic found
@@ -48,9 +52,9 @@ unset _arg
 #
 # Output shape:
 #   Zero-child epics (not yet decomposed):
-#     1. [P<N>] <title> (<epic-id>)
+#     1. [P<N>] <title> (<alias-or-id>)
 #   Scrutiny-gap epics (decomposed, not yet brainstormed):
-#     N+1. [P<N>] <title> (<epic-id>)
+#     N+1. [P<N>] <title> (<alias-or-id>)
 #   N+M. Start fresh — describe a new feature
 #
 # Exit code: always 0 (empty sections are labeled as "(none)" — skill body
@@ -58,9 +62,14 @@ unset _arg
 # ---------------------------------------------------------------------------
 if [ "$brainstorm_mode" = true ]; then
     # Filter to tab-delimited epic lines; strip P0-bug banner and "BLOCKED" entries.
-    # Use awk (portable across BSD/GNU) to match lines whose first tab-separated
-    # field looks like a ticket ID.
-    _epic_filter() { awk -F'\t' 'NF>=3 && $1 ~ /^[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}$/ { print }'; }
+    # Use awk (portable across BSD/GNU): keep lines with ≥3 fields whose first field
+    # looks like a canonical ticket ID ([a-z0-9]{4}-…) or a human-readable alias
+    # (lowercase alphanumeric + hyphens).  The pattern /^[a-z0-9]+(-[a-z0-9]+)*$/
+    # matches one or more lowercase-alphanumeric segments joined by single hyphens —
+    # rejects empty strings, "BLOCKED", uppercase, spaces, trailing hyphens, and
+    # consecutive hyphens.  Both canonical IDs (e.g. 0abc-1def-2345-6789) and
+    # well-formed aliases (e.g. swift-falcon) satisfy this pattern.
+    _epic_filter() { awk -F'\t' 'NF>=3 && $1 ~ /^[a-z0-9]+(-[a-z0-9]+)*$/ { print }'; }
     _zero_children=$(bash "${BASH_SOURCE[0]}" --max-children=0 2>/dev/null | _epic_filter || true)
     _scrutiny_gap=$(bash "${BASH_SOURCE[0]}" --min-children=1 --without-tag=brainstorm:complete 2>/dev/null | _epic_filter || true)
 
@@ -214,13 +223,14 @@ for entry_name in os.listdir(tracker_dir):
     priority = state.get('priority')
     parent_id = state.get('parent_id', '')
     tags = state.get('tags', [])
+    alias = state.get('alias') or ''
 
     # Build deps: only 'depends_on' entries represent prerequisites of this ticket.
     # 'blocks' entries mean this ticket blocks the target — not that it is blocked.
     deps = [d.get('target_id', '') for d in state.get('deps', [])
             if d.get('relation') == 'depends_on']
 
-    entry = {'title': title, 'status': status, 'type': ticket_type, 'tags': tags}
+    entry = {'title': title, 'status': status, 'type': ticket_type, 'tags': tags, 'alias': alias}
     if priority is not None:
         entry['priority'] = priority
     if deps:
@@ -347,12 +357,13 @@ for tid, entry in index.items():
 
     children = child_counts.get(tid, 0)
 
+    alias = entry.get('alias', '')
     if status == 'in_progress':
-        in_progress.append({'id': tid, 'priority': priority, 'title': title, 'children': children, 'tags': tags})
+        in_progress.append({'id': tid, 'priority': priority, 'title': title, 'children': children, 'tags': tags, 'alias': alias})
     elif is_blocked:
-        open_blocked.append({'id': tid, 'priority': priority, 'title': title, 'children': children, 'blockers': open_blockers, 'tags': tags})
+        open_blocked.append({'id': tid, 'priority': priority, 'title': title, 'children': children, 'blockers': open_blockers, 'tags': tags, 'alias': alias})
     else:
-        open_unblocked.append({'id': tid, 'priority': priority, 'title': title, 'children': children, 'tags': tags})
+        open_unblocked.append({'id': tid, 'priority': priority, 'title': title, 'children': children, 'tags': tags, 'alias': alias})
 
 # Sort each list by priority
 in_progress.sort(key=lambda x: x['priority'])
@@ -413,12 +424,14 @@ for e in open_blocked:
 # In-progress epics first (P* signals already claimed work)
 for e in in_progress:
     marker = '\tBLOCKING' if e['id'] in blocking_ids else ''
-    print(f'{e[\"id\"]}\tP*\t{e[\"title\"]}\t{e[\"children\"]}{marker}')
+    display_id = e.get('alias') or e['id']
+    print(f'{display_id}\tP*\t{e[\"title\"]}\t{e[\"children\"]}{marker}')
 
 # Then unblocked open epics
 for e in open_unblocked:
     marker = '\tBLOCKING' if e['id'] in blocking_ids else ''
-    print(f'{e[\"id\"]}\tP{e[\"priority\"]}\t{e[\"title\"]}\t{e[\"children\"]}{marker}')
+    display_id = e.get('alias') or e['id']
+    print(f'{display_id}\tP{e[\"priority\"]}\t{e[\"title\"]}\t{e[\"children\"]}{marker}')
 
 # Blocked epics appended last when --all
 if show_all:
@@ -428,7 +441,8 @@ if show_all:
     for e in open_blocked:
         if e['id'] not in selectable_ids:
             blocker_ids = ','.join(e['blockers'])
-            print(f'BLOCKED\t{e[\"id\"]}\tP{e[\"priority\"]}\t{e[\"title\"]}\t{e[\"children\"]}\t{blocker_ids}')
+            display_id = e.get('alias') or e['id']
+            print(f'BLOCKED\t{display_id}\tP{e[\"priority\"]}\t{e[\"title\"]}\t{e[\"children\"]}\t{blocker_ids}')
 
 # Exit code logic:
 #   0 — at least one unblocked epic (in-progress or ready)
