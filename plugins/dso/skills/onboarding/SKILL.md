@@ -925,7 +925,11 @@ The shim resolves the plugin root in this priority order:
 3. Auto-detect the marketplace cache under `$HOME/.claude/` via sentinel (home install)
 4. Self-detect the in-repo plugin directory via sentinel `.claude-plugin/plugin.json` (in-repo install)
 
-**Do NOT write a developer-local absolute path** (e.g., `/Users/<name>/.claude/...`) — it encodes the installing developer's home directory and breaks every other developer who clones the repo. If the plugin lives under `$HOME/.claude/`, omit the key entirely; the shim's auto-detect handles it. If the plugin lives in a non-standard location, write a repo-relative path (e.g., `dso.plugin_root=<relative-path-to-plugin-dir>`).
+**Plugin root key rules by install location:**
+- **Marketplace cache (`$HOME/.claude/plugins/marketplaces/.../dso`)**: omit the key — the shim's step (2.5) sentinel auto-detects it. Writing the path encodes the developer's `$HOME` and breaks other developers.
+- **In-repo vendored install (plugin directory is inside the repo)**: use a repo-relative path (e.g., `dso.plugin_root=<repo-relative-path-to-plugin>`). Repo-relative paths work for all clones.
+- **Out-of-repo install (shared location, sibling checkout, `/opt/...`)**: use an absolute path. These paths are typically machine-specific and should only be committed if all developers share the same path (e.g., a CI image with a known install location).
+- **Developer-local absolute paths** (e.g., `/Users/<name>/...`): never commit — they work only on the installing developer's machine.
 
 **Format settings** (detected from stack):
 ```
