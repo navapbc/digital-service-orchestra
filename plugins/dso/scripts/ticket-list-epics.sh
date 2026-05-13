@@ -214,13 +214,14 @@ for entry_name in os.listdir(tracker_dir):
     priority = state.get('priority')
     parent_id = state.get('parent_id', '')
     tags = state.get('tags', [])
+    alias = state.get('alias') or ''
 
     # Build deps: only 'depends_on' entries represent prerequisites of this ticket.
     # 'blocks' entries mean this ticket blocks the target — not that it is blocked.
     deps = [d.get('target_id', '') for d in state.get('deps', [])
             if d.get('relation') == 'depends_on']
 
-    entry = {'title': title, 'status': status, 'type': ticket_type, 'tags': tags}
+    entry = {'title': title, 'status': status, 'type': ticket_type, 'tags': tags, 'alias': alias}
     if priority is not None:
         entry['priority'] = priority
     if deps:
@@ -347,12 +348,13 @@ for tid, entry in index.items():
 
     children = child_counts.get(tid, 0)
 
+    alias = entry.get('alias', '')
     if status == 'in_progress':
-        in_progress.append({'id': tid, 'priority': priority, 'title': title, 'children': children, 'tags': tags})
+        in_progress.append({'id': tid, 'priority': priority, 'title': title, 'children': children, 'tags': tags, 'alias': alias})
     elif is_blocked:
-        open_blocked.append({'id': tid, 'priority': priority, 'title': title, 'children': children, 'blockers': open_blockers, 'tags': tags})
+        open_blocked.append({'id': tid, 'priority': priority, 'title': title, 'children': children, 'blockers': open_blockers, 'tags': tags, 'alias': alias})
     else:
-        open_unblocked.append({'id': tid, 'priority': priority, 'title': title, 'children': children, 'tags': tags})
+        open_unblocked.append({'id': tid, 'priority': priority, 'title': title, 'children': children, 'tags': tags, 'alias': alias})
 
 # Sort each list by priority
 in_progress.sort(key=lambda x: x['priority'])
@@ -413,12 +415,14 @@ for e in open_blocked:
 # In-progress epics first (P* signals already claimed work)
 for e in in_progress:
     marker = '\tBLOCKING' if e['id'] in blocking_ids else ''
-    print(f'{e[\"id\"]}\tP*\t{e[\"title\"]}\t{e[\"children\"]}{marker}')
+    display_id = e.get('alias') or e['id']
+    print(f'{display_id}\tP*\t{e[\"title\"]}\t{e[\"children\"]}{marker}')
 
 # Then unblocked open epics
 for e in open_unblocked:
     marker = '\tBLOCKING' if e['id'] in blocking_ids else ''
-    print(f'{e[\"id\"]}\tP{e[\"priority\"]}\t{e[\"title\"]}\t{e[\"children\"]}{marker}')
+    display_id = e.get('alias') or e['id']
+    print(f'{display_id}\tP{e[\"priority\"]}\t{e[\"title\"]}\t{e[\"children\"]}{marker}')
 
 # Blocked epics appended last when --all
 if show_all:
@@ -428,7 +432,8 @@ if show_all:
     for e in open_blocked:
         if e['id'] not in selectable_ids:
             blocker_ids = ','.join(e['blockers'])
-            print(f'BLOCKED\t{e[\"id\"]}\tP{e[\"priority\"]}\t{e[\"title\"]}\t{e[\"children\"]}\t{blocker_ids}')
+            display_id = e.get('alias') or e['id']
+            print(f'BLOCKED\t{display_id}\tP{e[\"priority\"]}\t{e[\"title\"]}\t{e[\"children\"]}\t{blocker_ids}')
 
 # Exit code logic:
 #   0 — at least one unblocked epic (in-progress or ready)

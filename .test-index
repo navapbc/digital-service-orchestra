@@ -294,7 +294,7 @@ plugins/dso/scripts/ticket-lifecycle.sh:tests/scripts/test-ticket-lifecycle.sh
 plugins/dso/scripts/ticket-link.sh:tests/scripts/test-ticket-link.sh,tests/scripts/test-ticket-link-duplicates-supersedes.sh
 plugins/dso/scripts/ticket-list-descendants.py:tests/scripts/test-ticket-list-descendants-dispatcher.sh
 plugins/dso/scripts/ticket-list-descendants.sh:tests/scripts/test-ticket-list-descendants-dispatcher.sh
-plugins/dso/scripts/ticket-list-epics.sh:tests/scripts/test-ticket-list-epics-dispatcher.sh
+plugins/dso/scripts/ticket-list-epics.sh:tests/scripts/test-ticket-list-epics-dispatcher.sh,tests/scripts/test-ticket-list-epics-alias.sh
 plugins/dso/scripts/ticket-list.sh:tests/scripts/test-ticket-list.sh,tests/scripts/test-ticket-subprocess-count.sh,tests/scripts/test-ticket-perf.sh
 plugins/dso/scripts/ticket-migrate-brainstorm-tags.sh:tests/scripts/test-ticket-migrate-brainstorm-tags.sh,tests/scripts/test-brainstorm-tag-flow.sh
 plugins/dso/scripts/ticket-migrate-file-impact-v1.sh:tests/scripts/test-ticket-migrate-file-impact-v1.sh
