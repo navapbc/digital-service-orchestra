@@ -171,6 +171,7 @@ plugins/dso/scripts/bridge/_handle_type.py:tests/scripts/test_bridge_inbound.py,
 plugins/dso/scripts/bridge/_inbound_api.py:tests/scripts/test_bridge_inbound.py,tests/scripts/test_bridge_inbound_integration.py
 plugins/dso/scripts/bridge/_inbound_utils.py:tests/scripts/test_bridge_inbound.py
 plugins/dso/scripts/bridge/_outbound_api.py:tests/scripts/test_bridge_outbound.py,tests/scripts/test_bridge_outbound_comment.py
+plugins/dso/scripts/bridge/_outbound_cursor.py:tests/scripts/test_bridge_outbound_cursor.py
 plugins/dso/scripts/bridge/_outbound_handlers.py:tests/scripts/test_bridge_outbound.py,tests/scripts/test_bridge_outbound_comment.py,tests/scripts/test_bridge_outbound_file_impact_integration.py,tests/scripts/test_bridge_delete_issue.py
 plugins/dso/scripts/build-composed-agents.sh:tests/unit/scripts/test-build-review-agents.sh,tests/scripts/test-reviewer-agent-review-tier.sh
 plugins/dso/scripts/build-review-agents.sh:tests/unit/scripts/test-build-review-agents.sh,tests/scripts/test-reviewer-agent-review-tier.sh

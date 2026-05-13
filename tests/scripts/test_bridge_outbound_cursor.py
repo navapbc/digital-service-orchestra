@@ -213,6 +213,45 @@ def test_cold_start_cap_exceeded_seeds_at_head(
     assert any("cap exceeded" in r for r in reasons)
 
 
+def test_normal_run_cap_exceeded_raises_and_does_not_advance_cursor(
+    tmp_path: Path, cursor_mod: ModuleType
+) -> None:
+    """Normal run (cursor set) with new commits > cap → RuntimeError raised, cursor unchanged.
+
+    Unlike cold-start, a normal run that exceeds the cap must NOT advance the cursor
+    to HEAD. Silently seeding at HEAD permanently drops all unprocessed events (bugs
+    5566-685e, 6d94-5cba). Raising makes CI fail loudly so the operator can run
+    backfill to recover.
+    """
+    repo = _make_tmp_git_tracker(tmp_path)
+    # Initial commit establishes the cursor baseline.
+    initial_sha, _ = _commit_event(repo, "ticket-base", "CREATE")
+    cursor_mod.write_cursor(repo, initial_sha)
+
+    # Add more commits than the cap so the cap-exceeded path fires.
+    for i in range(5):
+        _commit_event(repo, f"ticket-{i:04d}", "STATUS")
+
+    cursor_before = cursor_mod.read_cursor(repo)
+    assert cursor_before == initial_sha
+
+    with pytest.raises(RuntimeError, match="cap"):
+        cursor_mod.fetch_events_since_cursor(repo, initial_sha, cap=2)
+
+    # Cursor must NOT have advanced — events are preserved for a future backfill run.
+    assert cursor_mod.read_cursor(repo) == initial_sha
+
+    # A BRIDGE_ALERT should still be written so the operator is aware.
+    alert_dir = repo / "__bridge__"
+    assert alert_dir.is_dir()
+    alerts = list(alert_dir.glob("*-BRIDGE_ALERT.json"))
+    assert len(alerts) >= 1
+    reasons = [
+        json.loads(a.read_text(encoding="utf-8"))["data"]["reason"] for a in alerts
+    ]
+    assert any("cap exceeded" in r for r in reasons)
+
+
 def test_cold_start_git_log_failure_seeds_at_head(
     tmp_path: Path, cursor_mod: ModuleType
 ) -> None:
