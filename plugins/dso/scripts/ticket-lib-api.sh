@@ -123,9 +123,10 @@ ticket_show() {
             return 1
         fi
 
-        # Use full resolution pipeline (alias, jira_key, prefix, short-hex) matching
-        # the pattern established by ticket_delete and ticket_resolve. Guard
-        # prevents repeated sourcing in batch contexts (shell caches defined fns).
+        # Use full resolution pipeline (alias, jira_key, prefix, short-hex) from
+        # ticket-lib.sh::resolve_ticket_id (line ~1199). The function accepts a single
+        # positional argument and reads TICKETS_TRACKER_DIR from the environment.
+        # Guard prevents redundant sourcing when already loaded.
         if [[ -z "${_TICKETLIB_DIR:-}" ]]; then
             echo "Error: _TICKETLIB_DIR is not set; cannot resolve ticket alias" >&2
             return 1

@@ -559,6 +559,7 @@ test_ticket_show_resolves_friendly_alias() {
 
     if [ -z "$ticket_id" ]; then
         assert_eq "ticket created for alias resolution test" "non-empty" "empty"
+        rm -rf "$repo"
         return
     fi
 
@@ -574,6 +575,7 @@ test_ticket_show_resolves_friendly_alias() {
     if [ -z "$alias" ]; then
         # Alias computation unavailable — skip alias resolution assertion
         assert_eq "ticket alias derivable from ticket_id" "non-empty-alias" "empty-alias"
+        rm -rf "$repo"
         return
     fi
 
@@ -584,10 +586,16 @@ test_ticket_show_resolves_friendly_alias() {
 
     assert_eq "ticket show via alias exits 0" "0" "$alias_exit"
 
+    # Validate output is parseable JSON before extracting field
+    local json_valid=""
+    json_valid=$(python3 -c "import json,sys; json.loads(sys.argv[1]); print('yes')" "$alias_output" 2>/dev/null || echo "no")
+    assert_eq "ticket show via alias returns valid JSON" "yes" "$json_valid"
+
     local resolved_id=""
     resolved_id=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d.get('ticket_id',''))" "$alias_output" 2>/dev/null || true)
     assert_eq "ticket show via alias returns correct ticket_id" "$ticket_id" "$resolved_id"
 
+    rm -rf "$repo"
     assert_pass_if_clean "test_ticket_show_resolves_friendly_alias"
 }
 test_ticket_show_resolves_friendly_alias
