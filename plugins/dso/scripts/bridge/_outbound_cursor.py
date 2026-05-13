@@ -124,6 +124,7 @@ def fetch_events_since_cursor(
     3. If SHA still unreachable: git fetch --unshallow origin tickets, retry
     4. If commit count > cap: write BRIDGE_ALERT + seed_at_head
     """
+
     def _run_git_log(cursor: str | None) -> subprocess.CompletedProcess:  # type: ignore[type-arg]
         # Cold-start (cursor=None): walk full tracker history (no range arg).
         # Otherwise: walk cursor..HEAD.
@@ -160,7 +161,15 @@ def fetch_events_since_cursor(
     else:
         # Step 1: widen shallow clone (best-effort; ignore failures e.g. local-only repos)
         subprocess.run(
-            ["git", "-C", str(tracker_path), "fetch", "--deepen=50", "origin", "tickets"],
+            [
+                "git",
+                "-C",
+                str(tracker_path),
+                "fetch",
+                "--deepen=50",
+                "origin",
+                "tickets",
+            ],
             capture_output=True,
             check=False,
         )
@@ -218,17 +227,33 @@ def fetch_events_since_cursor(
     # Step 4: cap check (count distinct commits)
     distinct_shas = {sha for sha, _ in entries}
     if len(distinct_shas) > cap:
-        logger.warning(
-            "_outbound_cursor: %d commits exceed cap %d — seeding at HEAD",
-            len(distinct_shas),
-            cap,
-        )
         write_cursor_bridge_alert(
             tracker_path,
             reason=f"{len(distinct_shas)}-commit cap exceeded: seeding at HEAD",
             bridge_env_id=bridge_env_id,
         )
-        return _seed_at_head(tracker_path, bridge_env_id, run_id)
+        if cursor_sha is None:
+            # Cold-start: seed at HEAD to skip unbounded historical backfill.
+            # Use workflow_dispatch with backfill=true to recover historical events.
+            logger.warning(
+                "_outbound_cursor: cold-start %d commits exceed cap %d — seeding at HEAD",
+                len(distinct_shas),
+                cap,
+            )
+            return _seed_at_head(tracker_path, bridge_env_id, run_id)
+        # Normal run: do NOT advance cursor — events must not be permanently dropped.
+        # Raise so CI fails loudly; operator must run backfill to recover (bugs
+        # 5566-685e, 6d94-5cba).
+        logger.error(
+            "_outbound_cursor: %d commits exceed cap %d — aborting run; cursor NOT advanced",
+            len(distinct_shas),
+            cap,
+        )
+        raise RuntimeError(
+            f"{len(distinct_shas)} commits exceed cap {cap}. "
+            "Run the outbound bridge with backfill=true to sync unprocessed events, "
+            "or increase the cap via the BRIDGE_COMMIT_CAP workflow input."
+        )
 
     # Build event dicts from file paths.
     # git log emits paths relative to the repo root. When the tracker is mounted
