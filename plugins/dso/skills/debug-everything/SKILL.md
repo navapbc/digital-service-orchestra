@@ -662,7 +662,18 @@ Within each tier, group independent fixes into batches sized by the `MAX_AGENTS`
 
 ---
 
-## Phase F: Auto-Fix Sub-Agent (Tiers 0-1) (/dso:debug-everything)
+## Phase F: Auto-Fix Sub-Agent (Tiers 0-1) — one sub-branch per tier (ci-pr mode) (/dso:debug-everything)
+
+### Sub-Branch Creation (ci-pr mode only — when DEBUG_MODE=pr)
+
+Phase F creates exactly one sub-branch per tier that produces changes. Tiers: Tier 0 (format/make format) and Tier 1 (lint/ruff --fix).
+
+- Branch naming: `bug-batch/<debug-session-id>/tier-0` and `bug-batch/<debug-session-id>/tier-1`
+- Use `create-story-branch.sh` with `--prefix bug-batch/<debug-session-id>` (or direct `git checkout -b`)
+- When a tier has 0 bugs/changes: no sub-branch is created AND no annotation is added to the aggregate draft PR for that tier (zero-bug tier skip)
+- Apply all tier changes on the sub-branch and merge into the session branch before moving to the next tier
+
+In local mode (DEBUG_MODE=direct or absent): no sub-branch created; commit directly to session branch.
 
 ### Launch Auto-Fix Sub-Agent
 
