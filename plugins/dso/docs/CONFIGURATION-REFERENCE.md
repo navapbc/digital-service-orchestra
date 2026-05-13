@@ -865,6 +865,17 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 
 ---
 
+### `review.schema_correction_max_attempts`
+
+| | |
+|---|---|
+| **Description** | Maximum number of re-dispatch attempts when CI llm-review findings fail JSON schema validation. Hard ceiling: 3 (enforced by clamping in `dso_ci_review/runner.py`); values above 3 are clamped to 3 with a WARNING logged to stderr. Ceiling prevents runaway LLM cost on persistent schema failures. A value of `0` disables correction dispatch entirely and routes directly to the synthetic schema_error path. Non-integer values are ignored and the default applies. **This key is distinct from `review.max_resolution_attempts`**, which controls the autonomous fix/defend loop in REVIEW-WORKFLOW.md. `review.schema_correction_max_attempts` controls only the schema-correction re-dispatch step in `dso_ci_review/runner.py`, operating on a single review output **before** it reaches the resolution loop; a correction attempt does **not** consume a resolution attempt. |
+| **Accepted values** | Integer. Intended range: 0–3. Values above the ceiling (3) are clamped to 3 with a warning logged to stderr. |
+| **Default** | `1` |
+| **Used by** | `python3 -m dso_ci_review.runner` (schema correction dispatch loop) |
+
+---
+
 ### `review.minor_findings_create_tickets`
 
 | | |
