@@ -914,6 +914,7 @@ def _run_main_with(diff_path, output_path, dispatch_findings, env_extra=None):
         env.update(env_extra)
 
     stderr_capture = io.StringIO()
+    _schema_pass = runner_mod._SchemaValidationResult(status="schema_pass", errors=[])
     with (
         patch.dict("os.environ", env, clear=False),
         patch(
@@ -923,6 +924,10 @@ def _run_main_with(diff_path, output_path, dispatch_findings, env_extra=None):
         patch(
             "dso_ci_review.runner.async_dispatch_specialists",
             side_effect=_make_findings_dispatch(dispatch_findings),
+        ),
+        patch(
+            "dso_ci_review.runner._validate_findings_schema",
+            return_value=_schema_pass,
         ),
         redirect_stderr(stderr_capture),
     ):
@@ -2786,6 +2791,14 @@ def test_main_schema_fail_returns_schema_fail_signal(tmp_path):
     diff_file.write_text("diff --git a/foo.py b/foo.py\n+added line\n")
     output_file = tmp_path / "findings.json"
 
+    schema_fail_result = runner_mod._SchemaValidationResult(
+        status="schema_fail",
+        errors=["finding[0]: missing required field 'cited_excerpt'"],
+    )
+    # S-B is now wired: dispatch_schema_correction is called on schema_fail.
+    # Patch it to return valid (empty) findings so the S-A exit-0 contract still holds.
+    _corrected_findings = {"findings": [], "summary": "Corrected by S-B stub."}
+
     stderr_capture = io.StringIO()
     with (
         patch.dict(
@@ -2811,11 +2824,24 @@ def test_main_schema_fail_returns_schema_fail_signal(tmp_path):
                 [_INVALID_FINDING_MISSING_CITED_EXCERPT]
             ),
         ),
+        patch(
+            "dso_ci_review.runner._validate_findings_schema",
+            return_value=schema_fail_result,
+        ),
+        patch(
+            "dso_ci_review.runner.get_schema_correction_max_attempts",
+            return_value=1,
+        ),
+        patch(
+            "dso_ci_review.runner.dispatch_schema_correction",
+            return_value=_corrected_findings,
+        ),
         redirect_stderr(stderr_capture),
     ):
         exit_code = runner_mod.main()
 
-    # S-A contract: schema_fail path exits 0 (allowing S-B to consume the result).
+    # S-A + S-B contract: schema_fail path dispatches correction (S-B) and exits 0
+    # when correction succeeds, writing the corrected findings to the output file.
     # The _SchemaValidationResult with status="schema_fail" is the S-B integration point.
     # Verify the output file exists and contains a schema_fail sentinel for S-B.
     assert output_file.exists(), (

@@ -28,7 +28,13 @@ import sys
 import tempfile
 from typing import Literal, NamedTuple
 
-from dso_ci_review.dispatch import async_dispatch_specialists, _validate_agent_files, dispatch_arch_synthesis, dispatch_two_call_review
+from dso_ci_review.dispatch import (
+    async_dispatch_specialists,
+    _validate_agent_files,
+    dispatch_arch_synthesis,
+    dispatch_schema_correction,
+    dispatch_two_call_review,
+)
 from dso_ci_review.findings import merge_findings
 from dso_ci_review.providers.config import AuthError, ConfigError, get_provider
 from dso_ci_review.region_split import _should_region_split, run_region_split
@@ -47,6 +53,7 @@ class _SchemaValidationResult(NamedTuple):
 
     status: Literal["schema_pass", "schema_fail", "validator_error"]
     errors: list[str]
+
 
 # REVIEW-DEFENSE block — refutations for PR #62 round-3 LLM review false positives.
 # These findings recur because the CI _SYSTEM_PROMPT (dispatch.py:23-30) lacks the
@@ -461,7 +468,16 @@ def _fetch_pr_defenses(pr_number: str) -> list[dict]:
         return []
     try:
         result = subprocess.run(
-            ["gh", "pr", "view", pr_number, "--json", "comments", "--jq", ".comments[].body"],
+            [
+                "gh",
+                "pr",
+                "view",
+                pr_number,
+                "--json",
+                "comments",
+                "--jq",
+                ".comments[].body",
+            ],
             capture_output=True,
             text=True,
             timeout=30,
@@ -486,7 +502,7 @@ def _fetch_pr_defenses(pr_number: str) -> list[dict]:
         line = line.strip()
         if not line.startswith("DEFENSE_RECORD: "):
             continue
-        json_str = line[len("DEFENSE_RECORD: "):]
+        json_str = line[len("DEFENSE_RECORD: ") :]
         try:
             record = json.loads(json_str)
             if isinstance(record, dict):
@@ -1023,7 +1039,9 @@ def main() -> int:
         config_path: str | None = None
 
         # Step 2: build agent list based on tier, plus any classifier-flagged overlays
-        tier_agents = _build_agents_for_tier(tier, diff_text, classification, config_path)
+        tier_agents = _build_agents_for_tier(
+            tier, diff_text, classification, config_path
+        )
         overlay_agents = _build_overlay_agents(classification, diff_text, config_path)
 
         # Enrich overlay descriptors with model + provider_chain for dispatch
@@ -1057,7 +1075,12 @@ def main() -> int:
             # two-call architecture so the LLM evaluates findings against existing defenses.
             # Deep tier continues to use the standard path; defenses are injected at the
             # arch-synthesis step (Step 6) where the final synthesis happens.
-            if cycle_number >= 2 and prior_defenses and tier in ("light", "standard") and not overlay_agents:
+            if (
+                cycle_number >= 2
+                and prior_defenses
+                and tier in ("light", "standard")
+                and not overlay_agents
+            ):
                 # Two-call path: single-agent tier with prior defenses.
                 # Build prior_findings_index (no defense_text) and prior_findings (with defense_text).
                 prior_findings_index = [
@@ -1167,8 +1190,48 @@ def main() -> int:
                 file=sys.stderr,
             )
             return 1
-        # schema_fail: leave merged unchanged; S-B story will intercept and dispatch correction.
-        # schema_pass: continue to _write_output() unchanged.
+        # Step 7.5: schema-correction dispatch on schema_fail
+        if _schema_result.status == "schema_fail":
+            _max_attempts = get_schema_correction_max_attempts()
+            if _max_attempts == 0:
+                # Short-circuit: append synthetic schema_error without dispatching
+                _synthetic = {
+                    "type": "parse_error",
+                    "severity": "critical",
+                    "category": "schema_error",
+                    "description": (
+                        "Schema correction skipped (max_attempts=0): "
+                        + "; ".join(_schema_result.errors)
+                    ),
+                    "finding_id": "schema_error_skipped",
+                    "cited_excerpt": "",
+                    "reachability": "",
+                }
+                merged = dict(merged)
+                merged["findings"] = list(merged.get("findings", [])) + [_synthetic]
+                _write_output(merged)
+                print(
+                    "ERROR: schema correction skipped (max_attempts=0) — "
+                    "synthetic schema_error appended",
+                    file=sys.stderr,
+                )
+                return 1
+            else:
+                try:
+                    merged = dispatch_schema_correction(
+                        merged.get("findings", []),
+                        _schema_result.errors,
+                        diff_text=diff_text,
+                        provider_chain=provider_chain,
+                        agent_id="schema-correction",
+                        max_attempts=_max_attempts,
+                    )
+                except Exception as _corr_exc:  # noqa: BLE001
+                    print(
+                        f"WARNING: dispatch_schema_correction raised {type(_corr_exc).__name__}: "
+                        f"{_corr_exc} — passing through original findings",
+                        file=sys.stderr,
+                    )
 
         # Step 8: write output
         # Stamp the cycle number so the NEXT cycle's workflow can read it back

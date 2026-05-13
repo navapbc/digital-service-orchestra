@@ -811,9 +811,11 @@ def dispatch_arch_synthesis(
 
 
 def dispatch_schema_correction(
-    diff_text: str,
     original_findings: list[dict[str, Any]],
-    provider_chain: list[str],
+    schema_errors: list[str] | None = None,
+    *,
+    diff_text: str = "",
+    provider_chain: list[str] | None = None,
     agent_id: str = "unknown",
     primary_model: str | None = None,
     environ: dict[str, str] | None = None,
@@ -830,9 +832,10 @@ def dispatch_schema_correction(
     to the last response and returned.
 
     Args:
-        diff_text: Unified diff text to review.
         original_findings: The original findings list (for frozen-field comparison).
-        provider_chain: Ordered list of provider names.
+        schema_errors: List of schema validation error messages to prepend to correction prompt.
+        diff_text: Unified diff text to review.
+        provider_chain: Ordered list of provider names. Defaults to ["anthropic"].
         agent_id: Identifier of the reviewing agent.
         primary_model: Override the primary model for the first provider call.
         environ: Environment variable mapping for credential checks.
@@ -845,6 +848,10 @@ def dispatch_schema_correction(
         On failure, contains a synthetic schema_error finding appended.
     """
     import dso_ci_review.runner as _runner_mod
+
+    # Guard against None provider_chain
+    if provider_chain is None:
+        provider_chain = ["anthropic"]
 
     # Resolve plugin_root using the same approach as _resolve_validator_script()
     if plugin_root is None:
@@ -868,8 +875,15 @@ def dispatch_schema_correction(
 
     # Build correction prompt
     original_findings_json = json.dumps({"findings": original_findings}, indent=2)
+    _schema_errors = schema_errors or []
+    schema_errors_text = (
+        "\n\n## Schema errors to fix\n\n" + "\n".join(f"- {e}" for e in _schema_errors)
+        if _schema_errors
+        else ""
+    )
     correction_prompt = (
         prompt_fragment
+        + schema_errors_text
         + "\n\n## Original findings\n\n"
         + original_findings_json
         + "\n\n## Diff\n\n"
