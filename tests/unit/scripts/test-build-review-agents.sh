@@ -882,12 +882,12 @@ test_performance_reviewer_counted_in_total_agents() {
 #      guidance that could mislead the light-tier LLM into believing context-requests
 #      are available while a later section says they are not.
 #
-# GREEN: after _meta_substitute_base replaces the base protocol section with a
-#        light-tier-appropriate notice for the "light" variant, the generated
-#        code-reviewer-light.md no longer contains the full action: "read_files"
-#        JSON block from the base, and the delta override section is removed as
-#        redundant. The light-tier agent contains only one, unambiguous protocol
-#        statement.
+# GREEN: after _meta_substitute_base strips the base's "Context-Request Protocol
+#        (standard / deep / overlay tiers only)" section for the "light" variant,
+#        the generated code-reviewer-light.md no longer contains the full
+#        action: "read_files" JSON block from the base. The delta's "NOT available
+#        for light tier" notice is retained as the single, unambiguous protocol
+#        statement. The light-tier agent contains no contradictory guidance.
 
 test_light_tier_agent_has_unambiguous_context_request_guidance() {
     _snapshot_fail

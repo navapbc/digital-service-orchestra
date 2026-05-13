@@ -11,11 +11,15 @@ set -euo pipefail
 #                                     # (zero-child epics + scrutiny-gap epics + start-fresh)
 #
 # Output: One line per epic, tab-separated:
-#   <id>\tP*\t<title>\t<child_count>                              (in-progress epics, listed first — P* replaces priority)
-#   <id>\tP<priority>\t<title>\t<child_count>                     (unblocked open epics)
+#   <alias-or-id>\tP*\t<title>\t<child_count>                     (in-progress epics, listed first — P* replaces priority)
+#   <alias-or-id>\tP<priority>\t<title>\t<child_count>            (unblocked open epics)
+#
+#   Column 1 is the human-friendly alias when one is set; falls back to canonical
+#   ticket ID when no alias exists. For machine-parseable canonical IDs use
+#   `ticket show <alias>` or the ticket list command.
 #
 # Blocked epics (with --all) are appended after unblocked, prefixed:
-#   BLOCKED\t<id>\tP<priority>\t<title>\t<child_count>\t<blocker_ids>
+#   BLOCKED\t<alias-or-id>\tP<priority>\t<title>\t<child_count>\t<blocker_ids>
 #
 # Exit codes:
 #   0 — At least one unblocked epic found
@@ -48,9 +52,9 @@ unset _arg
 #
 # Output shape:
 #   Zero-child epics (not yet decomposed):
-#     1. [P<N>] <title> (<epic-id>)
+#     1. [P<N>] <title> (<alias-or-id>)
 #   Scrutiny-gap epics (decomposed, not yet brainstormed):
-#     N+1. [P<N>] <title> (<epic-id>)
+#     N+1. [P<N>] <title> (<alias-or-id>)
 #   N+M. Start fresh — describe a new feature
 #
 # Exit code: always 0 (empty sections are labeled as "(none)" — skill body
@@ -58,8 +62,8 @@ unset _arg
 # ---------------------------------------------------------------------------
 if [ "$brainstorm_mode" = true ]; then
     # Filter to tab-delimited epic lines; strip P0-bug banner and "BLOCKED" entries.
-    # Use awk (portable across BSD/GNU) to match lines whose first tab-separated
-    # field looks like a ticket ID.
+    # Use awk (portable across BSD/GNU): keep lines with ≥3 fields whose first field
+    # is non-empty and not "BLOCKED" (accepts both canonical IDs and user aliases).
     _epic_filter() { awk -F'\t' 'NF>=3 && $1 != "" && $1 != "BLOCKED" { print }'; }
     _zero_children=$(bash "${BASH_SOURCE[0]}" --max-children=0 2>/dev/null | _epic_filter || true)
     _scrutiny_gap=$(bash "${BASH_SOURCE[0]}" --min-children=1 --without-tag=brainstorm:complete 2>/dev/null | _epic_filter || true)
