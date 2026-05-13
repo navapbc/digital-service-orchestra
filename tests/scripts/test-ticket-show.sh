@@ -547,4 +547,44 @@ except Exception as e:
 }
 test_ticket_show_preconditions_summary_legacy_placeholder
 
+# [RED: 493a-dfe5-alias-resolve]
+# ── Test: ticket show resolves friendly alias ─────────────────────────────────
+echo "Test: ticket show resolves friendly alias to ticket details"
+test_ticket_show_resolves_friendly_alias() {
+    local repo
+    repo=$(_make_test_repo)
+
+    local ticket_id=""
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create story "alias resolution test story" 2>/dev/null | tail -1 || true)
+
+    if [ -z "$ticket_id" ]; then
+        assert_eq "ticket created for alias resolution test" "non-empty" "empty"
+        return
+    fi
+
+    # Retrieve the friendly alias for this ticket
+    local alias=""
+    alias=$(cd "$repo" && bash "$TICKET_SCRIPT" show "$ticket_id" 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('alias',''))" 2>/dev/null || true)
+
+    if [ -z "$alias" ]; then
+        # No alias assigned — skip alias resolution assertion but note it
+        assert_eq "ticket has alias assigned" "non-empty-alias" "empty-alias"
+        return
+    fi
+
+    # ticket show using the friendly alias must exit 0 and return the same ticket_id
+    local alias_output=""
+    local alias_exit=0
+    alias_output=$(cd "$repo" && bash "$TICKET_SCRIPT" show "$alias" 2>/dev/null) || alias_exit=$?
+
+    assert_eq "ticket show via alias exits 0" "0" "$alias_exit"
+
+    local resolved_id=""
+    resolved_id=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d.get('ticket_id',''))" "$alias_output" 2>/dev/null || true)
+    assert_eq "ticket show via alias returns correct ticket_id" "$ticket_id" "$resolved_id"
+
+    assert_pass_if_clean "test_ticket_show_resolves_friendly_alias"
+}
+test_ticket_show_resolves_friendly_alias
+
 print_summary

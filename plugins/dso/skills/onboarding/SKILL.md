@@ -1220,6 +1220,7 @@ echo "# DSO Ticket System" > .tickets-tracker/README.md
 git add .tickets-tracker/README.md
 git commit -m "chore: initialize ticket system"
 git checkout -  # return to previous branch
+git add -A       # re-stage all working-tree files (orphan checkout clears the index)
 ```
 
 **Push verification:** After creating the orphan branch, push it to the remote and verify push success. If the push fails, warn the user:

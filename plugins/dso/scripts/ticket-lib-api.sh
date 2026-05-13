@@ -123,7 +123,10 @@ ticket_show() {
             return 1
         fi
 
-        ticket_id="$(_ticketlib_resolve_short_id "$ticket_id" "$TRACKER_DIR")"
+        # Use full resolution pipeline (alias, jira_key, prefix, short-hex) matching
+        # the pattern established by ticket_delete and ticket_resolve.
+        source "$_TICKETLIB_DIR/ticket-lib.sh"
+        ticket_id="$(resolve_ticket_id "$ticket_id")"
 
         if [ ! -d "$TRACKER_DIR/$ticket_id" ]; then
             echo "Error: Ticket '$ticket_id' not found" >&2
