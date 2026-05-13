@@ -53,6 +53,16 @@ _VALID_SEVERITIES: frozenset[str] = frozenset(
     {"critical", "important", "minor", "fragile", "fallback_exhausted"}
 )
 
+# Frozen fields that must be preserved byte-for-byte during schema correction.
+_FROZEN_FIELDS: tuple[str, ...] = (
+    "severity",
+    "category",
+    "description",
+    "file_path",
+    "line_range",
+    "finding_id",
+)
+
 
 @functools.lru_cache(maxsize=32)
 def _load_agent_prompt(agent_id: str) -> str:
@@ -448,7 +458,10 @@ def dispatch_review(
                         continue
 
                     # Second nudge at soft_cap+3
-                    if aug_turn >= _AUG_SOFT_CAP + _NUDGE_SECOND_OFFSET and nudge_count == 1:
+                    if (
+                        aug_turn >= _AUG_SOFT_CAP + _NUDGE_SECOND_OFFSET
+                        and nudge_count == 1
+                    ):
                         nudge_count = 2
                         aug_messages = aug_messages + [
                             {"role": "assistant", "content": assistant_content},
@@ -467,7 +480,10 @@ def dispatch_review(
                         continue
 
                     # Fail-closed: reviewer ignored both nudges
-                    if aug_turn >= _AUG_SOFT_CAP + _FAIL_CLOSED_OFFSET and nudge_count >= 2:
+                    if (
+                        aug_turn >= _AUG_SOFT_CAP + _FAIL_CLOSED_OFFSET
+                        and nudge_count >= 2
+                    ):
                         aug_failed = True
                         break
 
@@ -697,6 +713,7 @@ def dispatch_two_call_review(
     # Resolve litellm via module attribute so tests patching
     # ``dso_ci_review.dispatch.litellm`` intercept these calls.
     import dso_ci_review.dispatch as _self_mod  # noqa: PLC0415
+
     _litellm = getattr(_self_mod, "litellm", litellm)
 
     # --- Call 1: pass only the stripped index (no defense_text) ---
@@ -705,7 +722,9 @@ def dispatch_two_call_review(
         + json.dumps(prior_findings_index, indent=2)
     )
     call1_diff = diff_text + index_context
-    call1_messages = _build_messages(call1_diff, agent_id=agent_id, provider=first_provider)
+    call1_messages = _build_messages(
+        call1_diff, agent_id=agent_id, provider=first_provider
+    )
 
     call1_response = _litellm.completion(
         model=resolved_model,
@@ -725,7 +744,9 @@ def dispatch_two_call_review(
         + json.dumps(defenses, indent=2)
     )
     call2_diff = diff_text + call2_context
-    call2_messages = _build_messages(call2_diff, agent_id=agent_id, provider=first_provider)
+    call2_messages = _build_messages(
+        call2_diff, agent_id=agent_id, provider=first_provider
+    )
 
     call2_response = _litellm.completion(
         model=resolved_model,
@@ -777,7 +798,9 @@ def dispatch_arch_synthesis(
     provider_chain: list[str],
 ) -> dict:
     """Approximate opus arch synthesis: sequential call after 3 parallel specialists."""
-    augmented_input = f"{diff_text}\n\n## Prior specialist findings\n\n{merged_findings_json}"
+    augmented_input = (
+        f"{diff_text}\n\n## Prior specialist findings\n\n{merged_findings_json}"
+    )
     return dispatch_review(
         diff_text=augmented_input,
         agent_id="code-reviewer-deep-arch",
@@ -785,6 +808,154 @@ def dispatch_arch_synthesis(
         provider_chain=provider_chain,
         tier="deep",
     )
+
+
+def dispatch_schema_correction(
+    diff_text: str,
+    original_findings: list[dict[str, Any]],
+    provider_chain: list[str],
+    agent_id: str = "unknown",
+    primary_model: str | None = None,
+    environ: dict[str, str] | None = None,
+    max_attempts: int = 1,
+    validate_cmd: list[str] | None = None,
+    plugin_root: pathlib.Path | None = None,
+) -> dict[str, Any]:
+    """Attempt to correct schema-invalid findings by re-dispatching the review.
+
+    If the corrected response is schema-valid and preserves all frozen fields
+    byte-for-byte with the same finding count, the corrected result is returned.
+    Otherwise, each failed attempt consumes one retry. After all attempts are
+    exhausted (or if max_attempts=0), a synthetic schema_error finding is appended
+    to the last response and returned.
+
+    Args:
+        diff_text: Unified diff text to review.
+        original_findings: The original findings list (for frozen-field comparison).
+        provider_chain: Ordered list of provider names.
+        agent_id: Identifier of the reviewing agent.
+        primary_model: Override the primary model for the first provider call.
+        environ: Environment variable mapping for credential checks.
+        max_attempts: Maximum number of correction attempts. 0 skips dispatch entirely.
+        validate_cmd: Unused; kept for interface compatibility.
+        plugin_root: Override for plugin root path resolution.
+
+    Returns:
+        A dict with "findings" key. On success, contains corrected findings.
+        On failure, contains a synthetic schema_error finding appended.
+    """
+    import dso_ci_review.runner as _runner_mod
+
+    # Resolve plugin_root using the same approach as _resolve_validator_script()
+    if plugin_root is None:
+        _env_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+        if _env_root is not None:
+            plugin_root = pathlib.Path(_env_root)
+        else:
+            _five_up = (
+                pathlib.Path(__file__).resolve().parent.parent.parent.parent.parent
+            )
+            plugin_root = _five_up / "plugins" / "dso"
+
+    # Load correction prompt fragment
+    prompt_fragment_path = (
+        plugin_root / "docs" / "workflows" / "prompts" / "reviewer-schema-correction.md"
+    )
+    try:
+        prompt_fragment = prompt_fragment_path.read_text(encoding="utf-8")
+    except OSError:
+        prompt_fragment = ""
+
+    # Build correction prompt
+    original_findings_json = json.dumps({"findings": original_findings}, indent=2)
+    correction_prompt = (
+        prompt_fragment
+        + "\n\n## Original findings\n\n"
+        + original_findings_json
+        + "\n\n## Diff\n\n"
+        + diff_text
+    )
+
+    def _make_synthetic_error(error_details: str) -> dict[str, Any]:
+        return {
+            "type": "parse_error",
+            "severity": "critical",
+            "category": "schema_error",
+            "description": f"Schema correction failed after {max_attempts} attempt(s): {error_details}",
+            "finding_id": f"schema_error_{hashlib.md5(error_details.encode()).hexdigest()[:8]}",
+            "cited_excerpt": "",
+            "reachability": "",
+        }
+
+    # Short-circuit: max_attempts=0 skips dispatch entirely
+    if max_attempts == 0:
+        error_details = "max_attempts=0, dispatch skipped"
+        return {"findings": [_make_synthetic_error(error_details)]}
+
+    last_error: str = "unknown error"
+    last_result: dict[str, Any] | None = None
+
+    for _attempt in range(max_attempts):
+        # Dispatch the correction review
+        attempt_result = dispatch_review(
+            diff_text=correction_prompt,
+            provider_chain=provider_chain,
+            agent_id=agent_id,
+            primary_model=primary_model,
+            environ=environ,
+        )
+        last_result = attempt_result
+        attempt_findings = attempt_result.get("findings", [])
+
+        # Validate schema via runner._validate_findings_schema
+        schema_result = _runner_mod._validate_findings_schema(
+            attempt_result,
+            plugin_root=str(plugin_root),
+        )
+
+        if schema_result.status != "schema_pass":
+            last_error = (
+                "; ".join(schema_result.errors)
+                if schema_result.errors
+                else "schema_fail"
+            )
+            continue
+
+        # Check finding count matches original
+        if len(attempt_findings) != len(original_findings):
+            last_error = (
+                f"finding count mismatch: got {len(attempt_findings)}, "
+                f"expected {len(original_findings)}"
+            )
+            continue
+
+        # Check frozen fields are byte-for-byte identical
+        frozen_ok = True
+        for i, (orig, corrected) in enumerate(zip(original_findings, attempt_findings)):
+            for field in _FROZEN_FIELDS:
+                if field in orig and corrected.get(field) != orig[field]:
+                    last_error = (
+                        f"frozen field {field!r} mutated at index {i}: "
+                        f"original={orig[field]!r}, corrected={corrected.get(field)!r}"
+                    )
+                    frozen_ok = False
+                    break
+            if not frozen_ok:
+                break
+
+        if not frozen_ok:
+            continue
+
+        # All checks passed — return corrected result
+        return attempt_result
+
+    # All attempts exhausted — append synthetic schema_error to last result
+    synthetic_error = _make_synthetic_error(last_error)
+    if last_result is not None:
+        findings_out = list(last_result.get("findings", []))
+        findings_out.append(synthetic_error)
+        return {**last_result, "findings": findings_out}
+    return {"findings": [synthetic_error]}
 
 
 async def async_dispatch_specialists(
