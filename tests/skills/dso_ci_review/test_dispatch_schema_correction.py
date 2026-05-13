@@ -1,0 +1,528 @@
+"""Tests for dso_ci_review.dispatch.dispatch_schema_correction().
+
+Testing mode: RED — all tests MUST FAIL until dispatch_schema_correction()
+is implemented in dispatch.py.
+
+Behavioral contracts under test:
+1. Correction dispatch returns schema-valid JSON with same finding count
+   AND frozen fields preserved → CI proceeds with corrected findings.
+2. Correction returns valid JSON but different finding count → append
+   synthetic schema_error, treat as failed.
+3. Correction returns valid JSON but one frozen field changed → append
+   synthetic schema_error.
+4. All retries exhausted → appends {"type": "parse_error", "severity":
+   "critical", ...} synthetic finding.
+5. max_attempts=0 → skips dispatch entirely, appends synthetic schema_error
+   immediately.
+6. Correction itself returns schema-invalid JSON → consumes one retry,
+   no recursion.
+7. (AC amendment) Corrected reviewer-findings.json hash still validates
+   (frozen field: --reviewer-hash must still pass).
+
+Frozen fields (byte-for-byte must be preserved):
+  severity, category, description, file_path, line_range, finding_id
+
+Synthetic error shape:
+  {"type": "parse_error", "severity": "critical", "category": "schema_error",
+   "description": "...", "finding_id": "schema_error_...",
+   "cited_excerpt": "", "reachability": ""}
+"""
+
+from __future__ import annotations
+
+import copy
+import hashlib
+import json
+import pathlib
+import sys
+from typing import Any
+
+import pytest
+
+# Ensure the plugin scripts directory is on sys.path so that
+# `dso_ci_review.dispatch` resolves to the plugin, not the test package.
+_REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
+_SCRIPTS_DIR = str(_REPO_ROOT / "plugins" / "dso" / "scripts")
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
+
+import dso_ci_review.dispatch as _dispatch_mod  # noqa: E402
+from dso_ci_review.dispatch import dispatch_schema_correction  # noqa: E402
+
+
+# ---------------------------------------------------------------------------
+# Shared test helpers
+# ---------------------------------------------------------------------------
+
+_DIFF_TEXT = "--- a/foo.py\n+++ b/foo.py\n@@ -1 +1 @@\n-x = 1\n+x = 2\n"
+
+# A well-formed finding with all frozen fields set.
+_FINDING_A: dict[str, Any] = {
+    "severity": "critical",
+    "category": "correctness",
+    "description": "Null pointer dereference in handler",
+    "file_path": "src/handler.py",
+    "line_range": "42-45",
+    "finding_id": "abc123",
+    "cited_excerpt": "return obj.value",
+    "reachability": "always",
+}
+
+_FINDING_B: dict[str, Any] = {
+    "severity": "minor",
+    "category": "style",
+    "description": "Unnecessary trailing whitespace",
+    "file_path": "src/utils.py",
+    "line_range": "10-10",
+    "finding_id": "def456",
+    "cited_excerpt": "    ",
+    "reachability": "always",
+}
+
+_FROZEN_FIELDS = ("severity", "category", "description", "file_path", "line_range", "finding_id")
+
+_SYNTHETIC_ERROR_REQUIRED_FIELDS = {
+    "type": "parse_error",
+    "severity": "critical",
+    "category": "schema_error",
+}
+
+
+def _make_fake_response(findings: list[dict]) -> Any:
+    """Construct a minimal fake litellm-response object containing the given findings."""
+    content = json.dumps({"findings": findings})
+
+    class _FakeMsg:
+        pass
+
+    class _FakeChoice:
+        pass
+
+    class _FakeResp:
+        pass
+
+    msg = _FakeMsg()
+    msg.content = content  # type: ignore[attr-defined]
+    choice = _FakeChoice()
+    choice.message = msg  # type: ignore[attr-defined]
+    resp = _FakeResp()
+    resp.choices = [choice]  # type: ignore[attr-defined]
+    return resp
+
+
+def _schema_valid_corrected_findings(originals: list[dict]) -> list[dict]:
+    """Return corrected findings that are schema-valid and preserve all frozen fields."""
+    corrected = []
+    for f in originals:
+        new_f = copy.deepcopy(f)
+        # Add or fix a non-frozen field to simulate a correction
+        new_f["cited_excerpt"] = "corrected_excerpt"
+        corrected.append(new_f)
+    return corrected
+
+
+def _stub_validate_schema_pass(merged: dict, **kwargs) -> Any:
+    """Stub for _validate_findings_schema that always returns schema_pass."""
+    from dso_ci_review.runner import _SchemaValidationResult
+    return _SchemaValidationResult("schema_pass", [])
+
+
+def _stub_validate_schema_fail(merged: dict, **kwargs) -> Any:
+    """Stub for _validate_findings_schema that always returns schema_fail."""
+    from dso_ci_review.runner import _SchemaValidationResult
+    return _SchemaValidationResult("schema_fail", ["missing required field: cited_lines"])
+
+
+# ---------------------------------------------------------------------------
+# Scenario 1 — Successful correction preserves frozen fields; CI proceeds
+# ---------------------------------------------------------------------------
+
+
+def test_correction_success_returns_corrected_findings(monkeypatch) -> None:
+    """Given: original findings with frozen fields set; correction dispatch returns
+              schema-valid JSON with the same finding count AND all frozen fields
+              byte-for-byte preserved.
+    When: dispatch_schema_correction() is called with max_attempts=1.
+    Then:
+      - Returned findings list has the same length as the original.
+      - Every frozen field in every finding matches the original exactly.
+      - No synthetic schema_error finding is appended.
+    """
+    originals = [copy.deepcopy(_FINDING_A), copy.deepcopy(_FINDING_B)]
+    corrected = _schema_valid_corrected_findings(originals)
+
+    def _mock_dispatch_review(**kwargs):
+        return {"findings": corrected}
+
+    monkeypatch.setattr(_dispatch_mod, "dispatch_review", _mock_dispatch_review)
+
+    # Stub schema validation so the corrected result passes
+    import dso_ci_review.runner as _runner_mod
+    monkeypatch.setattr(_runner_mod, "_validate_findings_schema", _stub_validate_schema_pass)
+
+    result = dispatch_schema_correction(
+        original_findings=originals,
+        diff_text=_DIFF_TEXT,
+        provider_chain=["anthropic"],
+        environ={"ANTHROPIC_API_KEY": "test-key"},
+        max_attempts=1,
+        agent_id="code-reviewer-standard",
+    )
+
+    findings = result.get("findings", [])
+    synthetic_errors = [
+        f for f in findings if f.get("category") == "schema_error"
+    ]
+    assert not synthetic_errors, (
+        f"No synthetic schema_error should appear on successful correction, "
+        f"got: {synthetic_errors}"
+    )
+
+    assert len(findings) == len(originals), (
+        f"Corrected findings must have same count as originals "
+        f"(got {len(findings)}, expected {len(originals)})"
+    )
+
+    for i, (orig, corrected_f) in enumerate(zip(originals, findings)):
+        for field in _FROZEN_FIELDS:
+            if field in orig:
+                assert corrected_f.get(field) == orig[field], (
+                    f"Frozen field {field!r} mutated at index {i}: "
+                    f"original={orig[field]!r}, corrected={corrected_f.get(field)!r}"
+                )
+
+
+# ---------------------------------------------------------------------------
+# Scenario 2 — Count drift routes to synthetic schema_error
+# ---------------------------------------------------------------------------
+
+
+def test_correction_count_drift_routes_to_synthetic_error(monkeypatch) -> None:
+    """Given: original findings with 2 entries; correction dispatch returns valid
+              JSON but with only 1 finding (count drift).
+    When: dispatch_schema_correction() is called with max_attempts=1.
+    Then:
+      - A synthetic finding with category='schema_error' is appended.
+      - The returned findings list contains the synthetic error entry.
+    """
+    originals = [copy.deepcopy(_FINDING_A), copy.deepcopy(_FINDING_B)]
+    # Return only 1 finding — count drift
+    drifted = [copy.deepcopy(_FINDING_A)]
+
+    def _mock_dispatch_review(**kwargs):
+        return {"findings": drifted}
+
+    monkeypatch.setattr(_dispatch_mod, "dispatch_review", _mock_dispatch_review)
+
+    import dso_ci_review.runner as _runner_mod
+    monkeypatch.setattr(_runner_mod, "_validate_findings_schema", _stub_validate_schema_pass)
+
+    result = dispatch_schema_correction(
+        original_findings=originals,
+        diff_text=_DIFF_TEXT,
+        provider_chain=["anthropic"],
+        environ={"ANTHROPIC_API_KEY": "test-key"},
+        max_attempts=1,
+        agent_id="code-reviewer-standard",
+    )
+
+    findings = result.get("findings", [])
+    schema_errors = [f for f in findings if f.get("category") == "schema_error"]
+    assert schema_errors, (
+        f"Expected synthetic schema_error finding on count drift, got findings: {findings}"
+    )
+    error = schema_errors[0]
+    assert error.get("type") == "parse_error", (
+        f"Synthetic error type must be 'parse_error', got: {error.get('type')!r}"
+    )
+    assert error.get("severity") == "critical", (
+        f"Synthetic error severity must be 'critical', got: {error.get('severity')!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Scenario 3 — Frozen field mutation routes to synthetic schema_error
+# ---------------------------------------------------------------------------
+
+
+def test_correction_frozen_field_mutation_routes_to_synthetic_error(monkeypatch) -> None:
+    """Given: original findings with frozen fields; correction dispatch returns valid
+              JSON with the same count but mutates one frozen field (severity).
+    When: dispatch_schema_correction() is called with max_attempts=1.
+    Then:
+      - A synthetic finding with category='schema_error' is appended.
+      - The returned findings list contains the synthetic error entry.
+    """
+    originals = [copy.deepcopy(_FINDING_A)]
+    mutated = [copy.deepcopy(_FINDING_A)]
+    mutated[0]["severity"] = "minor"  # mutate a frozen field
+
+    def _mock_dispatch_review(**kwargs):
+        return {"findings": mutated}
+
+    monkeypatch.setattr(_dispatch_mod, "dispatch_review", _mock_dispatch_review)
+
+    import dso_ci_review.runner as _runner_mod
+    monkeypatch.setattr(_runner_mod, "_validate_findings_schema", _stub_validate_schema_pass)
+
+    result = dispatch_schema_correction(
+        original_findings=originals,
+        diff_text=_DIFF_TEXT,
+        provider_chain=["anthropic"],
+        environ={"ANTHROPIC_API_KEY": "test-key"},
+        max_attempts=1,
+        agent_id="code-reviewer-standard",
+    )
+
+    findings = result.get("findings", [])
+    schema_errors = [f for f in findings if f.get("category") == "schema_error"]
+    assert schema_errors, (
+        f"Expected synthetic schema_error finding on frozen field mutation, "
+        f"got findings: {findings}"
+    )
+    error = schema_errors[0]
+    assert error.get("type") == "parse_error", (
+        f"Synthetic error type must be 'parse_error', got: {error.get('type')!r}"
+    )
+    assert error.get("severity") == "critical", (
+        f"Synthetic error severity must be 'critical', got: {error.get('severity')!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Scenario 4 — Exhausted retries appends synthetic parse_error
+# ---------------------------------------------------------------------------
+
+
+def test_correction_exhausted_retries_appends_synthetic_error(monkeypatch) -> None:
+    """Given: dispatch_schema_correction is called with max_attempts=2; each
+              correction call returns a response that fails frozen-field validation
+              (frozen field mutation), consuming all retries.
+    When: all retries are exhausted.
+    Then:
+      - The returned findings contain a synthetic finding with:
+          type='parse_error', severity='critical', category='schema_error',
+          finding_id starting with 'schema_error_',
+          cited_excerpt='', reachability=''
+    """
+    originals = [copy.deepcopy(_FINDING_A)]
+    always_mutated = [copy.deepcopy(_FINDING_A)]
+    always_mutated[0]["severity"] = "minor"  # always mutate a frozen field
+
+    call_count = [0]
+
+    def _mock_dispatch_review(**kwargs):
+        call_count[0] += 1
+        return {"findings": always_mutated}
+
+    monkeypatch.setattr(_dispatch_mod, "dispatch_review", _mock_dispatch_review)
+
+    import dso_ci_review.runner as _runner_mod
+    monkeypatch.setattr(_runner_mod, "_validate_findings_schema", _stub_validate_schema_pass)
+
+    result = dispatch_schema_correction(
+        original_findings=originals,
+        diff_text=_DIFF_TEXT,
+        provider_chain=["anthropic"],
+        environ={"ANTHROPIC_API_KEY": "test-key"},
+        max_attempts=2,
+        agent_id="code-reviewer-standard",
+    )
+
+    findings = result.get("findings", [])
+    parse_errors = [
+        f for f in findings
+        if f.get("type") == "parse_error" and f.get("category") == "schema_error"
+    ]
+    assert parse_errors, (
+        f"Expected synthetic parse_error/schema_error finding on exhausted retries, "
+        f"got findings: {findings}"
+    )
+
+    error = parse_errors[0]
+    # Validate full synthetic error shape
+    assert error.get("severity") == "critical", (
+        f"Synthetic error severity must be 'critical': {error}"
+    )
+    assert isinstance(error.get("description"), str) and error["description"], (
+        f"Synthetic error must have non-empty description: {error}"
+    )
+    assert isinstance(error.get("finding_id"), str) and error["finding_id"].startswith("schema_error_"), (
+        f"Synthetic error finding_id must start with 'schema_error_', got: {error.get('finding_id')!r}"
+    )
+    assert error.get("cited_excerpt") == "", (
+        f"Synthetic error cited_excerpt must be empty string, got: {error.get('cited_excerpt')!r}"
+    )
+    assert error.get("reachability") == "", (
+        f"Synthetic error reachability must be empty string, got: {error.get('reachability')!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Scenario 5 — max_attempts=0 short-circuits to synthetic error immediately
+# ---------------------------------------------------------------------------
+
+
+def test_max_attempts_zero_short_circuits_to_synthetic_error(monkeypatch) -> None:
+    """Given: dispatch_schema_correction is called with max_attempts=0.
+    When: the function is invoked.
+    Then:
+      - dispatch_review is NOT called (zero retries means skip dispatch entirely).
+      - The returned findings contain a synthetic schema_error immediately.
+    """
+    originals = [copy.deepcopy(_FINDING_A)]
+    dispatch_call_count = [0]
+
+    def _mock_dispatch_review(**kwargs):
+        dispatch_call_count[0] += 1
+        return {"findings": [copy.deepcopy(_FINDING_A)]}
+
+    monkeypatch.setattr(_dispatch_mod, "dispatch_review", _mock_dispatch_review)
+
+    result = dispatch_schema_correction(
+        original_findings=originals,
+        diff_text=_DIFF_TEXT,
+        provider_chain=["anthropic"],
+        environ={"ANTHROPIC_API_KEY": "test-key"},
+        max_attempts=0,
+        agent_id="code-reviewer-standard",
+    )
+
+    assert dispatch_call_count[0] == 0, (
+        f"dispatch_review must NOT be called when max_attempts=0, "
+        f"but was called {dispatch_call_count[0]} time(s)"
+    )
+
+    findings = result.get("findings", [])
+    schema_errors = [f for f in findings if f.get("category") == "schema_error"]
+    assert schema_errors, (
+        f"Expected synthetic schema_error finding when max_attempts=0, "
+        f"got findings: {findings}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Scenario 6 — Schema-invalid correction response consumes a retry, no recursion
+# ---------------------------------------------------------------------------
+
+
+def test_correction_schema_invalid_response_consumes_retry(monkeypatch) -> None:
+    """Given: dispatch_schema_correction is called with max_attempts=2; the first
+              correction call returns schema-invalid JSON (validator returns schema_fail);
+              the second call returns a schema-valid, frozen-field-preserving result.
+    When: dispatch_schema_correction() is called.
+    Then:
+      - The first call's schema-fail consumes one retry (does NOT recurse).
+      - The second call succeeds; no synthetic schema_error is appended.
+      - Total dispatch_review call count is exactly 2.
+    """
+    originals = [copy.deepcopy(_FINDING_A)]
+    corrected_valid = _schema_valid_corrected_findings(originals)
+
+    call_count = [0]
+
+    def _mock_dispatch_review(**kwargs):
+        call_count[0] += 1
+        # Both calls return the same valid JSON; schema validity is controlled by the stub
+        return {"findings": corrected_valid}
+
+    monkeypatch.setattr(_dispatch_mod, "dispatch_review", _mock_dispatch_review)
+
+    validate_call_count = [0]
+
+    def _stub_validate_first_fail_then_pass(merged: dict, **kwargs) -> Any:
+        from dso_ci_review.runner import _SchemaValidationResult
+        validate_call_count[0] += 1
+        if validate_call_count[0] == 1:
+            return _SchemaValidationResult("schema_fail", ["missing cited_lines"])
+        return _SchemaValidationResult("schema_pass", [])
+
+    import dso_ci_review.runner as _runner_mod
+    monkeypatch.setattr(
+        _runner_mod, "_validate_findings_schema", _stub_validate_first_fail_then_pass
+    )
+
+    result = dispatch_schema_correction(
+        original_findings=originals,
+        diff_text=_DIFF_TEXT,
+        provider_chain=["anthropic"],
+        environ={"ANTHROPIC_API_KEY": "test-key"},
+        max_attempts=2,
+        agent_id="code-reviewer-standard",
+    )
+
+    assert call_count[0] == 2, (
+        f"Expected exactly 2 dispatch_review calls (1 schema-fail + 1 success), "
+        f"got {call_count[0]}"
+    )
+
+    findings = result.get("findings", [])
+    schema_errors = [f for f in findings if f.get("category") == "schema_error"]
+    assert not schema_errors, (
+        f"No synthetic schema_error should appear when second retry succeeds, "
+        f"got: {schema_errors}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Scenario 7 — Hash preserved after correction (AC amendment)
+# ---------------------------------------------------------------------------
+
+
+def test_hash_preserved_after_correction(monkeypatch) -> None:
+    """Given: original findings with frozen fields; correction dispatch returns
+              schema-valid JSON with frozen fields preserved.
+    When: dispatch_schema_correction() succeeds and findings are serialised
+          to reviewer-findings.json format.
+    Then:
+      - A SHA-256 hash computed over the frozen-field values of the corrected
+        findings matches a hash computed over the same fields of the originals.
+      - This confirms that --reviewer-hash computed before correction would
+        still match findings after correction (frozen fields are byte-for-byte
+        identical).
+    """
+    originals = [copy.deepcopy(_FINDING_A), copy.deepcopy(_FINDING_B)]
+    corrected = _schema_valid_corrected_findings(originals)
+
+    def _mock_dispatch_review(**kwargs):
+        return {"findings": corrected}
+
+    monkeypatch.setattr(_dispatch_mod, "dispatch_review", _mock_dispatch_review)
+
+    import dso_ci_review.runner as _runner_mod
+    monkeypatch.setattr(_runner_mod, "_validate_findings_schema", _stub_validate_schema_pass)
+
+    result = dispatch_schema_correction(
+        original_findings=originals,
+        diff_text=_DIFF_TEXT,
+        provider_chain=["anthropic"],
+        environ={"ANTHROPIC_API_KEY": "test-key"},
+        max_attempts=1,
+        agent_id="code-reviewer-standard",
+    )
+
+    result_findings = result.get("findings", [])
+    # Filter out any synthetic errors before hashing
+    real_findings = [
+        f for f in result_findings if f.get("category") != "schema_error"
+    ]
+
+    def _frozen_hash(findings: list[dict]) -> str:
+        """Hash only frozen fields of each finding, in order."""
+        frozen_values = [
+            {field: f[field] for field in _FROZEN_FIELDS if field in f}
+            for f in findings
+        ]
+        serialized = json.dumps(frozen_values, sort_keys=True, ensure_ascii=False)
+        return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+    original_hash = _frozen_hash(originals)
+    corrected_hash = _frozen_hash(real_findings)
+
+    assert original_hash == corrected_hash, (
+        f"Frozen-field hash mismatch after correction — frozen fields were mutated.\n"
+        f"Original hash : {original_hash}\n"
+        f"Corrected hash: {corrected_hash}\n"
+        f"Original frozen fields : {[{f: o[f] for f in _FROZEN_FIELDS if f in o} for o in originals]}\n"
+        f"Corrected frozen fields: {[{f: r[f] for f in _FROZEN_FIELDS if f in r} for r in real_findings]}"
+    )
