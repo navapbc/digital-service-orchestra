@@ -1703,17 +1703,23 @@ EOF
 # RED: current dso-setup.sh unconditionally writes dso.plugin_root=<absolute>
 # regardless of whether the path is under $HOME. This test fails before the fix.
 test_setup_does_not_write_absolute_home_cache_path() {
-    local T
+    local T fake_home fake_cache_root
     T=$(mktemp -d)
     TMPDIRS+=("$T")
     git -C "$T" init -q
 
-    local fake_cache_root="$HOME/.claude/plugins/marketplaces/digital-service-orchestra/plugins/dso"
+    # Use a temp dir as the fake HOME so the home-cache condition ($HOME/.claude/...)
+    # is satisfied without touching the real home directory.
+    fake_home=$(mktemp -d)
+    TMPDIRS+=("$fake_home")
+    fake_cache_root="$fake_home/.claude/plugins/marketplaces/digital-service-orchestra/plugins/dso"
+    mkdir -p "$fake_cache_root/.claude-plugin"
+    printf '{}' > "$fake_cache_root/.claude-plugin/plugin.json"
 
-    bash "$SETUP_SCRIPT" "$T" "$fake_cache_root" >/dev/null 2>&1 || true
+    HOME="$fake_home" bash "$SETUP_SCRIPT" "$T" "$fake_cache_root" >/dev/null 2>&1 || true
 
     local has_absolute_home="no"
-    if grep -q "^dso\.plugin_root=$HOME" "$T/.claude/dso-config.conf" 2>/dev/null; then
+    if grep -q "^dso\.plugin_root=$fake_home" "$T/.claude/dso-config.conf" 2>/dev/null; then
         has_absolute_home="yes"
     fi
     assert_eq "test_setup_does_not_write_absolute_home_cache_path" "no" "$has_absolute_home"

@@ -7,6 +7,7 @@
 # DSO_ROOT resolution order:
 #   1. $CLAUDE_PLUGIN_ROOT environment variable
 #   2. dso.plugin_root key in .claude/dso-config.conf at the git repo root
+#   2.5. Self-detect: home-directory marketplace cache install (sentinel check)
 #   3. Self-detect: in-repo plugin directory via sentinel .claude-plugin/plugin.json
 #   4. Exit non-zero with an error naming the config key and file
 #

@@ -155,7 +155,12 @@ if [[ -z "$DRYRUN" ]] && [[ "$_WRITE_PLUGIN_ROOT" == "true" ]]; then
         printf 'dso.plugin_root=%s\n' "$PLUGIN_ROOT" >> "$CONFIG"
     fi
 elif [[ -z "$DRYRUN" ]] && [[ "$_WRITE_PLUGIN_ROOT" == "false" ]]; then
-    : # Home-cache install: shim auto-detects; do not commit a developer-local absolute path
+    # Home-cache install: remove any stale absolute path so the shim can auto-detect.
+    # If a developer-local path was previously written (e.g., before this fix), the
+    # shim would use it and never reach the home-cache sentinel check (step 2.5).
+    if grep -q '^dso\.plugin_root=' "$CONFIG" 2>/dev/null; then
+        sed -i.bak '/^dso\.plugin_root=/d' "$CONFIG" && rm -f "$CONFIG.bak"
+    fi
 else
     echo "[dryrun] Would write dso.plugin_root=$PLUGIN_ROOT to $CONFIG (skipped for home-cache paths)"
 fi

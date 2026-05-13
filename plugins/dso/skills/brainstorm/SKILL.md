@@ -515,11 +515,15 @@ Render the PIL per `phases/epic-description-template.md` (the `### Planning Inte
 After writing the PIL comment, emit the brainstorm-fidelity review result as a durability backstop. The scrutiny pipeline's earlier emit (Phase 2) fires before the epic ticket exists; this call records the result with a valid epic context. It is best-effort — do not block on failure:
 
 ```bash
+# REVISION_CYCLES is the count of re-review passes the scrutiny pipeline ran.
+# It is available as a local variable from the scrutiny pipeline earlier in Phase 2.
+# If it was not captured, default to 0 (the backstop call is still valid).
+REVISION_CYCLES="${REVISION_CYCLES:-0}"
 REPO_ROOT=$(git rev-parse --show-toplevel)
 "$REPO_ROOT/.claude/scripts/dso" emit-protocol-review-result.sh \
   --review-type=brainstorm-fidelity \
   --pass-fail=passed \
-  --revision-cycles=<number-of-revision-cycles-from-scrutiny-pipeline> 2>/dev/null || true
+  --revision-cycles="$REVISION_CYCLES" 2>/dev/null || true
 ```
 
 ### Step 3b: Write brainstorm:complete Tag
