@@ -27,10 +27,16 @@ prior_attempts:
 
 INTERMEDIATE and above add:
 ```
+root_cause_candidates:
+  - cause: <one sentence describing a candidate root cause>
+    confidence: high | medium | low
+    evidence: <empirical observation, command output, code reference, or hypothesis_test verdict supporting this candidate>
 alternative_fixes: [...]  # at least 2 total proposals
 tradeoffs_considered: <analysis of approach tradeoffs>
 recommendation: <which fix and why>
 ```
+
+`root_cause_candidates` MUST contain at least 2 entries, ordered by descending confidence. The top entry's `cause` is the same statement reported in the top-level `ROOT_CAUSE` field (kept for backward compatibility with downstream gates). Each candidate's `evidence` field MUST cite empirical observations or specific code references — reasoning alone is insufficient, matching the evidentiary bar of the hypothesis validation gate. Eliminated candidates (those disproved during investigation) should be omitted; only surviving plausible causes appear here.
 
 ADVANCED adds:
 ```

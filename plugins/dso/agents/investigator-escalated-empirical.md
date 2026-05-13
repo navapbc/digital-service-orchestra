@@ -193,6 +193,10 @@ Before returning RESULT, revert every logging line, debug flag, instrumentation 
 ## RESULT extensions
 
 ```
+root_cause_candidates:
+  - cause: <one sentence describing a candidate root cause>
+    confidence: high | medium | low
+    evidence: <empirical observation from your reproduction, test output, instrumentation, or hypothesis_test verdict supporting this candidate>
 alternative_fixes:
   - description: <fix>
     risk: high | medium | low
@@ -207,3 +211,5 @@ artifact_revert_confirmed: true
 ```
 
 If `veto_issued: true`, your ROOT_CAUSE supersedes the theoretical consensus and the orchestrator will dispatch a resolution agent. If `veto_issued: false`, the theoretical consensus stands and the orchestrator proceeds to fix selection.
+
+You must surface **at least 2 surviving root-cause candidates** in `root_cause_candidates`, ordered by descending confidence. As the empirical lens, every `evidence` field MUST cite an empirical observation (reproduction output, instrumented trace, targeted test verdict) — code reading or external citation alone is insufficient. The top candidate's `cause` must match the top-level `ROOT_CAUSE`; when `veto_issued: true`, the top candidate is the cause that supersedes the theoretical consensus.

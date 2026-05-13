@@ -175,6 +175,10 @@ Apply Five Whys, then generate ≥3 hypotheses **derived from change history** (
 Extend the universal RESULT with at least 2 proposed fixes plus tradeoff analysis:
 
 ```
+root_cause_candidates:
+  - cause: <one sentence describing a candidate root cause>
+    confidence: high | medium | low
+    evidence: <empirical observation, commit reference, dependency change, or hypothesis_test verdict supporting this candidate>
 alternative_fixes:
   - description: <fix>
     risk: high | medium | low
@@ -189,3 +193,5 @@ suspect_commits:
 ```
 
 The `lens` field tells the orchestrator your perspective. `suspect_commits` is unique to the Historical lens.
+
+You must surface **at least 2 surviving root-cause candidates** in `root_cause_candidates`, ordered by descending confidence and derived from the ≥3 history-based hypotheses you generated. The top candidate's `cause` must match the top-level `ROOT_CAUSE`. Each `evidence` field must cite empirical observations, commit references, or dependency-change records — not reasoning alone. Eliminated hypotheses are omitted.
