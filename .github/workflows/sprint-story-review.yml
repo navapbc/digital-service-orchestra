@@ -43,6 +43,7 @@ jobs:
         with:
           name: ${{ env.ARTIFACT_NAME }}
           path: /tmp/prior-review/
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install litellm
         # Pin to tested version; bump after verifying compatibility with ci-llm-review-runner.sh
