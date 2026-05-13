@@ -944,3 +944,91 @@ def test_correction_dispatch_infra_failure_triggers_reachability_fallback(
         assert isinstance(reach, str) and len(reach.strip()) >= 20, (
             f"Boilerplate reachability must be >= 20 non-whitespace chars; got {reach!r}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Scenario 12 — Infra-failure on final attempt must not overwrite a prior
+#               non-infra result (fixes last_result clobber with max_attempts>1)
+# ---------------------------------------------------------------------------
+
+
+def test_infra_failure_on_final_attempt_preserves_prior_non_infra_result(
+    monkeypatch,
+) -> None:
+    """Scenario 12: max_attempts=2; iter 1 returns a non-infra JSON result (schema-invalid
+    because reachability is missing); iter 2 returns infra-failure (fallback_exhausted).
+
+    Given: dispatch_schema_correction is called with max_attempts=2.
+           Iteration 1 returns JSON with cited_excerpt='corrected excerpt' but no reachability
+           (causes schema_fail → continues to iter 2).
+           Iteration 2 returns fallback_exhausted.
+    When: the correction loop exits.
+    Then: last_result retains iter 1's findings (cited_excerpt='corrected excerpt'),
+          NOT original_findings (cited_excerpt='original excerpt').
+          The reachability fallback injects boilerplate reachability.
+          No synthetic schema_error is appended.
+    """
+    original = {
+        "severity": "important",
+        "category": "maintainability",
+        "description": "Method is too long and should be extracted",
+        "file": "src/service.py",
+        "cited_lines": ["src/service.py:42"],
+        "finding_id": "f-cc778899",
+        "cited_excerpt": "original excerpt",
+        # reachability absent — schema_fail on iter 1
+    }
+
+    corrected_iter1 = {
+        **original,
+        "cited_excerpt": "corrected excerpt",  # updated by correction LLM (not frozen)
+        # reachability still absent — will schema_fail
+    }
+
+    _fallback_exhausted_entry = {
+        "type": "fallback_exhausted",
+        "agent_id": "schema-correction",
+        "primary_model": "claude-sonnet-4-6",
+        "attempted_cross_provider": ["anthropic"],
+        "attempted_context_models": ["claude-sonnet-4-6"],
+        "final_exception_class": "InternalServerError",
+        "final_exception_message": "API overloaded; please retry.",
+    }
+
+    call_count = [0]
+
+    def _mock_dispatch_review(**kwargs: object) -> dict:
+        call_count[0] += 1
+        if call_count[0] == 1:
+            return {"findings": [corrected_iter1], "summary": "correction attempt 1"}
+        # iter 2: infra-failure
+        return {"findings": [_fallback_exhausted_entry]}
+
+    monkeypatch.setattr(_dispatch_mod, "dispatch_review", _mock_dispatch_review)
+
+    result = _dispatch_mod.dispatch_schema_correction(
+        original_findings=[original],
+        diff_text=_DIFF_TEXT,
+        provider_chain=["anthropic"],
+        environ={"ANTHROPIC_API_KEY": "test-key"},
+        max_attempts=2,
+        agent_id="schema-correction",
+    )
+
+    findings = result.get("findings", [])
+    schema_errors = [f for f in findings if f.get("category") == "schema_error"]
+    assert not schema_errors, (
+        f"Infra-failure on final attempt must not append schema_error when iter 1 "
+        f"produced a non-infra result; got: {schema_errors}"
+    )
+    assert len(findings) == 1, (
+        f"Expected 1 finding (reachability fallback preserves count), got {len(findings)}"
+    )
+    assert findings[0].get("cited_excerpt") == "corrected excerpt", (
+        f"last_result must retain iter 1's non-infra result (cited_excerpt='corrected excerpt'), "
+        f"not original_findings (cited_excerpt='original excerpt'). Got: {findings[0].get('cited_excerpt')!r}"
+    )
+    reach = findings[0].get("reachability", "")
+    assert isinstance(reach, str) and len(reach.strip()) >= 20, (
+        f"Reachability fallback must inject boilerplate (>=20 chars); got {reach!r}"
+    )

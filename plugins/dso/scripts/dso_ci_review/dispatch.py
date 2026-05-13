@@ -956,10 +956,14 @@ def dispatch_schema_correction(
                 "unknown",
             )
             last_error = f"correction dispatch infrastructure failure: {_exc_msg[:200]}"
-            last_result = {
-                "findings": list(original_findings),
-                "summary": "schema correction — api unavailable, reverting to original findings for reachability fallback",
-            }
+            # Only fall back to original_findings when no prior attempt produced a
+            # non-infra result. With max_attempts > 1, a successful correction on
+            # iteration N must not be overwritten by an infra-failure on iteration N+1.
+            if last_result is None:
+                last_result = {
+                    "findings": list(original_findings),
+                    "summary": "schema correction — api unavailable, reverting to original findings for reachability fallback",
+                }
             continue
 
         last_result = attempt_result
