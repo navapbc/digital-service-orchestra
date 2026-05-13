@@ -795,3 +795,76 @@ def test_cited_line_re_accepts_line_ranges() -> None:
         assert not _dispatch_mod._CITED_LINE_RE.match(entry), (
             f"_CITED_LINE_RE must reject {entry!r} but matched"
         )
+
+
+def test_reachability_fallback_injects_boilerplate_when_only_error(monkeypatch) -> None:
+    """Programmatic reachability fallback injects boilerplate when only missing field is reachability.
+
+    Given: LLM correction exhausts all attempts but the ONLY remaining error
+           is missing 'reachability' on important/maintainability findings.
+    When: dispatch_schema_correction exhausted-path reachability fallback fires.
+    Then:
+      - No synthetic schema_error is appended.
+      - Each finding missing reachability gets a boilerplate string injected.
+      - The returned findings pass schema validation.
+
+    Rationale: Correction LLMs often produce valid findings except for missing
+    reachability on test-file maintainability/hygiene findings (where a
+    caller-input→harm chain is not semantically applicable). Failing closed on
+    this case is overly strict; boilerplate injection is a safe fallback.
+    """
+    # Two findings that are valid EXCEPT for missing reachability
+    finding_missing_reach_1 = {
+        "severity": "important",
+        "category": "maintainability",
+        "description": "test_dispatch_schema_correction.py exceeds 500-line threshold",
+        "file": "tests/skills/dso_ci_review/test_dispatch_schema_correction.py",
+        "cited_lines": ["tests/skills/dso_ci_review/test_dispatch_schema_correction.py:1"],
+        "finding_id": "f-aa000001",
+        "cited_excerpt": "def test_correction_success_returns_corrected_findings(monkeypatch",
+        # 'reachability' intentionally absent
+    }
+    finding_missing_reach_2 = {
+        "severity": "important",
+        "category": "hygiene",
+        "description": "Duplicate mock blocks across test_runner_smoke.py",
+        "file": "tests/skills/dso_ci_review/test_runner_smoke.py",
+        "cited_lines": ["tests/skills/dso_ci_review/test_runner_smoke.py:311"],
+        "finding_id": "f-aa000002",
+        "cited_excerpt": "monkeypatch.setattr(_runner_mod, '_validate_findings_schema'",
+        # 'reachability' intentionally absent
+    }
+
+    def _mock_dispatch_review_returns_same(**kwargs):
+        # Correction LLM returns the findings unchanged (still missing reachability)
+        return {
+            "findings": [finding_missing_reach_1, finding_missing_reach_2],
+            "summary": "Two test-file code quality findings; no production code changes.",
+        }
+
+    monkeypatch.setattr(_dispatch_mod, "dispatch_review", _mock_dispatch_review_returns_same)
+    # Use the real _validate_findings_schema so the fallback logic works end-to-end
+    # (do NOT stub it — the fallback relies on real validation to detect missing reach)
+
+    result = _dispatch_mod.dispatch_schema_correction(
+        original_findings=[finding_missing_reach_1, finding_missing_reach_2],
+        diff_text=_DIFF_TEXT,
+        provider_chain=["anthropic"],
+        environ={"ANTHROPIC_API_KEY": "test-key"},
+        max_attempts=1,
+        agent_id="code-reviewer-standard",
+    )
+
+    findings = result.get("findings", [])
+    schema_errors = [f for f in findings if f.get("category") == "schema_error"]
+    assert not schema_errors, (
+        f"Reachability fallback must prevent synthetic schema_error; got: {schema_errors}"
+    )
+    assert len(findings) == 2, (
+        f"Finding count must be preserved at 2; got {len(findings)}"
+    )
+    for f in findings:
+        reach = f.get("reachability", "")
+        assert isinstance(reach, str) and len(reach.strip()) >= 20, (
+            f"Boilerplate reachability must be >= 20 chars; got {reach!r}"
+        )
