@@ -608,3 +608,51 @@ def test_process_inbound_proceeds_when_service_account_timezone_is_not_utc(
         f"Expected 1 CREATE event for PROJ-1 with PDT service account; "
         f"got {len(create_files)}. Abort guard may have been re-introduced."
     )
+
+
+# ---------------------------------------------------------------------------
+# Test: Empty type_mapping — all issues must pass through (bf75-5653)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+@pytest.mark.scripts
+def test_process_inbound_creates_events_when_type_mapping_is_empty(
+    tmp_path: Path, bridge: ModuleType
+) -> None:
+    """When INBOUND_TYPE_MAPPING is not configured (defaults to {}), all Jira
+    issues with known types must still produce CREATE events (bf75-5653).
+
+    Regression guard: an empty type_mapping means "no filtering configured"
+    (the operator has not declared a type universe), not "block all issues."
+    Before the fix, map_type({}.get(jira_type)) always returned None, causing
+    handle_type_check to add every key to unmapped_type_keys and filter them
+    all out before write_create_events — resulting in zero mirror tickets.
+    """
+    tracker_dir = tmp_path / ".tickets-tracker"
+    tracker_dir.mkdir()
+
+    checkpoint_file = tmp_path / "checkpoint.json"
+    checkpoint_file.write_text(json.dumps({"last_pull_ts": _LAST_PULL_TS}))
+
+    issues = [
+        _make_jira_issue("DIG-2484", summary="New task", issue_type="Task"),
+        _make_jira_issue("DIG-2485", summary="New bug", issue_type="Bug"),
+    ]
+    mock_acli = _make_mock_acli(issues)
+    # Explicitly pass empty type_mapping — the default-workflow scenario
+    config = _make_config(str(checkpoint_file), type_mapping={})
+
+    bridge.process_inbound(
+        tickets_root=tracker_dir,
+        acli_client=mock_acli,
+        last_pull_ts=_LAST_PULL_TS,
+        config=config,
+    )
+
+    create_count = _count_event_files(tracker_dir, "*-CREATE.json")
+    assert create_count == 2, (
+        f"Expected 2 CREATE events when type_mapping={{}} (empty = no filtering); "
+        f"got {create_count}. handle_type_check must treat empty mapping as "
+        f"'no type filter configured' and pass all issues through (bf75-5653)."
+    )

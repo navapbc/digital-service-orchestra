@@ -50,6 +50,10 @@ def handle_type_check(
     if not jira_type:
         return False
 
+    # Empty mapping means "no type filtering configured" — pass all issues through (bf75-5653).
+    if not type_mapping:
+        return False
+
     if map_type_fn(jira_type, mapping=type_mapping) is None:
         local_id = f"jira-{issue.get('key', 'unknown').lower()}"
         write_bridge_alert_fn(
