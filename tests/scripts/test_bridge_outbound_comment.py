@@ -746,10 +746,15 @@ def test_handle_comment_event_null_body_does_not_raise(
     mock_acli = MagicMock()
     mock_acli.add_comment = MagicMock()
 
-    # Must not raise; null body should be treated as empty string (not WORKTREE_TRACKING:)
+    # Null body is coerced to ""; must not raise and must still post to Jira
     bridge.process_outbound(
         events,
         acli_client=mock_acli,
         tickets_root=tmp_path,
         bridge_env_id=_BRIDGE_ENV_ID,
+    )
+
+    assert mock_acli.add_comment.call_count == 1, (
+        f"Null body must be coerced to empty string and posted (not silently dropped); "
+        f"add_comment called {mock_acli.add_comment.call_count} time(s)"
     )
