@@ -38,19 +38,25 @@ jobs:
           git diff "$BASE" HEAD > /tmp/story-diff.patch
 
       - name: Download prior review artifact (cycle tracking)
+        # actions/download-artifact@v4 is intentionally NOT used here: it scopes artifact
+        # lookup to the current run-id (even with github-token set), which makes it
+        # impossible to download artifacts from a prior run. We need cross-run download to
+        # retrieve the cycle N findings.json so cycle N+1 can build on prior defenses.
+        # This gh api + curl approach is the only mechanism that supports cross-run lookup.
+        # continue-on-error: true ensures a missing prior artifact (cycle 1) is non-fatal.
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Download from a PRIOR run (not the current run).
-          # actions/download-artifact@v4 always scopes to the current run-id,
-          # so we use gh api to find and download the most recent prior artifact.
+          # Filter out the current run-id so we get the most recent completed run's artifact.
           mkdir -p /tmp/prior-review
           ARTIFACT_URL=$(gh api \
             "/repos/${{ github.repository }}/actions/artifacts?name=${ARTIFACT_NAME}&per_page=5" \
             --jq ".artifacts[] | select(.workflow_run.id != ${{ github.run_id }}) | .archive_download_url" \
             | head -1)
           if [[ -n "$ARTIFACT_URL" ]]; then
+            # GitHub API download endpoints accept Bearer scheme (same as gh CLI internally).
             curl -sL -H "Authorization: Bearer ${GITHUB_TOKEN}" \
               "$ARTIFACT_URL" -o /tmp/prior-review.zip && \
               unzip -o /tmp/prior-review.zip -d /tmp/prior-review/ && \
