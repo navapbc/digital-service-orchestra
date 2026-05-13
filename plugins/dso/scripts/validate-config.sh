@@ -144,6 +144,20 @@ KNOWN_KEYS=(
     tickets.directory
     tickets.sync.jira_project_key
     tickets.sync.bidirectional_comments
+
+    # Review
+    review.max_resolution_attempts
+    review.huge_diff_file_threshold
+    review.size_upgrade_lines
+    review.size_warn_lines
+    review.minor_findings_create_tickets
+    review.behavioral_patterns
+    review.provider_chain
+    review.schema_correction_max_attempts
+    review.context_aug.soft_cap
+    review.context_aug.max_file_bytes
+    review.context_aug.grep_timeout_seconds
+    review.context_aug.contract_version
 )
 
 # ── KNOWN_LIST_KEYS — keys that allow repetition ────────────────────────────

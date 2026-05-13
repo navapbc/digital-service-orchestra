@@ -665,6 +665,25 @@ _TIER_MODEL_DEFAULTS: dict[str, str] = {
 }
 
 
+def _default_config_path() -> str:
+    """Return the canonical dso-config.conf path for the repo containing runner.py.
+
+    runner.py lives 5 dirname levels below repo_root/.claude/dso-config.conf:
+    runner.py → dso_ci_review/ → scripts/ → dso/ → plugins/ → repo_root/
+    """
+    return os.path.join(
+        os.path.dirname(
+            os.path.dirname(
+                os.path.dirname(
+                    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                )
+            )
+        ),
+        ".claude",
+        "dso-config.conf",
+    )
+
+
 def _read_tier_model(tier: str, config_path: str | None = None) -> str:
     """Return the model for the given tier, reading from dso-config.conf when available.
 
@@ -684,17 +703,7 @@ def _read_tier_model(tier: str, config_path: str | None = None) -> str:
         # (dso_ci_review → scripts → <plugin_root> → plugins → repo_root). The
         # previous 3-level chain stopped at the plugin root, where .claude/ does
         # not exist, so model.<tier> overrides were silently ignored. (0e2a-77b0)
-        config_path = os.path.join(
-            os.path.dirname(
-                os.path.dirname(
-                    os.path.dirname(
-                        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                    )
-                )
-            ),
-            ".claude",
-            "dso-config.conf",
-        )
+        config_path = _default_config_path()
 
     config_key = f"model.{tier}="
     if os.path.isfile(config_path):
@@ -707,6 +716,83 @@ def _read_tier_model(tier: str, config_path: str | None = None) -> str:
                         return value
 
     return _TIER_MODEL_DEFAULTS.get(tier, "claude-sonnet-4-6")
+
+
+def _read_config_int(key: str, default: int, config_path: str | None = None) -> int:
+    """Read an integer config value from dso-config.conf.
+
+    Resolution order:
+      1. key=<value> in config_path (or auto-detected repo config)
+      2. default (returned when key absent or value not a valid integer)
+
+    Config path auto-detection uses _default_config_path() — the same 5-dirname-level
+    chain as _read_tier_model (runner.py → dso_ci_review → scripts → plugins → repo_root).
+    """
+    if config_path is None:
+        config_path = _default_config_path()
+
+    if os.path.isfile(config_path):
+        try:
+            with open(config_path, encoding="utf-8") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    parts = line.split("=", 1)
+                    if len(parts) == 2 and parts[0].strip() == key:
+                        value = parts[1].strip()
+                        try:
+                            return int(value)
+                        except ValueError:
+                            return default
+        except (OSError, UnicodeDecodeError):
+            return default
+    return default
+
+
+_SCHEMA_CORRECTION_MAX_ATTEMPTS_CEILING = 3
+
+
+def _clamp_schema_correction_attempts(raw_value: int) -> int:
+    """Clamp schema_correction_max_attempts to the hard ceiling.
+
+    Values above the ceiling are clamped to the ceiling with a warning.
+    max_attempts=0 is honored as-is (disables correction).
+
+    Ceiling rationale: 3 attempts is sufficient for LLM correction convergence;
+    values above 3 risk runaway LLM cost from misconfiguration.
+    """
+    if raw_value < 0:
+        print(
+            f"WARNING: review.schema_correction_max_attempts={raw_value} is negative; "
+            f"clamped to 0 (correction disabled)",
+            file=sys.stderr,
+        )
+        return 0
+    if raw_value > _SCHEMA_CORRECTION_MAX_ATTEMPTS_CEILING:
+        print(
+            f"WARNING: review.schema_correction_max_attempts={raw_value} exceeds "
+            f"ceiling={_SCHEMA_CORRECTION_MAX_ATTEMPTS_CEILING}; "
+            f"clamped to {_SCHEMA_CORRECTION_MAX_ATTEMPTS_CEILING}",
+            file=sys.stderr,
+        )
+        return _SCHEMA_CORRECTION_MAX_ATTEMPTS_CEILING
+    return raw_value
+
+
+def get_schema_correction_max_attempts(config_path: str | None = None) -> int:
+    """Return the clamped schema_correction_max_attempts config value.
+
+    Reads review.schema_correction_max_attempts from dso-config.conf (default: 1).
+    Clamps to ceiling=3. max_attempts=0 disables correction dispatch.
+
+    This is the single authoritative read point — called by dispatch_schema_correction()
+    in dispatch.py (story 394e-d81b-fba4-4161, which adds dispatch.py and its
+    dispatch_schema_correction function as a subsequent story in the same epic).
+    Do not re-implement config reading for this key in dispatch.py.
+    """
+    raw = _read_config_int("review.schema_correction_max_attempts", 1, config_path)
+    return _clamp_schema_correction_attempts(raw)
 
 
 def _build_agents_for_tier(
