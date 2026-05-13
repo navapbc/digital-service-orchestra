@@ -233,18 +233,38 @@ print(m.group(1) if m else '')
 
 ```bash
 if ! git merge-base --is-ancestor "$CODE_VERSION" HEAD 2>/dev/null; then
-    .claude/scripts/dso ticket comment "$BUG_TICKET_ID" \
-      "Worktree ancestry check: FAILED — code_version ${CODE_VERSION} is not an ancestor of HEAD on $(git rev-parse --abbrev-ref HEAD). Investigation skipped; re-queue when the source branch lands."
-    # Transition ticket back to open so it is visible for re-queuing
-    .claude/scripts/dso ticket transition "$BUG_TICKET_ID" in_progress open 2>/dev/null || true
-    # END the skill
-    exit 0
+    # Secondary check: squash-merge detection.
+    # Squash-merged PRs rewrite branch commits to a new SHA on main, so the
+    # original code_version SHA is not an ancestor of HEAD but remains in the
+    # object store. To distinguish a squash-merged commit from an unmerged-but-fetched
+    # commit, require BOTH: (a) the object exists locally, AND (b) it is not currently
+    # the tip of any remote branch. A remote-branch tip indicates an open or not-yet-
+    # deleted PR branch — the code has not been integrated into main.
+    # Capture ls-remote exit code separately so a network failure fails closed
+    # (does not incorrectly treat an unverified commit as squash-merged).
+    _LS_REMOTE_OUT=$(git ls-remote origin 2>/dev/null); _LS_REMOTE_EXIT=$?
+    if [ "$_LS_REMOTE_EXIT" -eq 0 ]; then
+        _IS_REMOTE_TIP=$(echo "$_LS_REMOTE_OUT" | awk '{print $1}' | grep -cx "^${CODE_VERSION}$" || true)
+    else
+        _IS_REMOTE_TIP="UNKNOWN"
+    fi
+    if [ "$(git cat-file -t "$CODE_VERSION" 2>/dev/null)" = "commit" ] && [ "${_IS_REMOTE_TIP:-0}" = "0" ]; then
+        .claude/scripts/dso ticket comment "$BUG_TICKET_ID" \
+          "Worktree ancestry check: PASSED (squash-merge) — code_version ${CODE_VERSION} is not a direct ancestor of HEAD but exists in the object store and is not the tip of any remote branch, indicating a squash-merged PR. Proceeding with investigation."
+    else
+        .claude/scripts/dso ticket comment "$BUG_TICKET_ID" \
+          "Worktree ancestry check: FAILED — code_version ${CODE_VERSION} is not an ancestor of HEAD on $(git rev-parse --abbrev-ref HEAD) and does not appear to be squash-merged (object absent, remote tip, or remote unavailable). Investigation skipped; re-queue when the source branch lands."
+        # Transition ticket back to open so it is visible for re-queuing
+        .claude/scripts/dso ticket transition "$BUG_TICKET_ID" in_progress open 2>/dev/null || true
+        # END the skill
+        exit 0
+    fi
 fi
 ```
 
-**If the ancestry check passes** (code_version is an ancestor of HEAD): proceed to Step 3.
+**If the ancestry check passes** (code_version is an ancestor of HEAD, or is a squash-merged commit present in the object store but no longer a live remote branch tip): proceed to Step 3.
 
-This gate is a hard stop. Do not proceed with investigation when the ancestry check fails — the bug may already be fixed on the source branch, or the affected code may not exist here, making any fix attempt incorrect.
+This gate is a hard stop when the object does not exist at all. Squash-merged commits are an exception: the original branch SHA remains in the object store even though it is not a direct ancestor of HEAD. The remote-tip check prevents false positives from commits that are merely fetched from open PRs but not yet merged.
 
 ### Step 3: Score and Classify (/dso:fix-bug)
 
