@@ -38,6 +38,12 @@ source "$PLUGIN_ROOT/tests/lib/assert.sh"
 TMPDIR_BASE="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR_BASE"' EXIT
 
+# Fake home with no plugin cache — used to isolate shim tests from the real
+# $HOME/.claude/plugins/ installation so step (2.5) home-cache autodetect
+# does not fire unexpectedly (bug 9841-4169).
+FAKE_HOME_EMPTY="$TMPDIR_BASE/empty-home"
+mkdir -p "$FAKE_HOME_EMPTY"
+
 echo "=== test-dso-shim-plugin-root.sh ==="
 
 # ── test_shim_preserves_claude_plugin_root_when_preset ───────────────────────
@@ -102,7 +108,8 @@ test_shim_preserves_claude_plugin_root_when_preset() {
     # The shim must not overwrite it.
     local actual_value
     actual_value=$(
-        cd "$fake_repo"
+        cd "$fake_repo" || exit 1
+        # shellcheck disable=SC2030
         export CLAUDE_PLUGIN_ROOT="$preset_value"
         # Source the shim; it must preserve CLAUDE_PLUGIN_ROOT
         # shellcheck source=/dev/null
@@ -121,10 +128,11 @@ test_shim_preserves_claude_plugin_root_when_preset() {
     # works at all from this config), then separately running WITH the preset value.
     local config_exported_value
     config_exported_value=$(
-        cd "$fake_repo"
+        cd "$fake_repo" || exit 1
         unset CLAUDE_PLUGIN_ROOT
         # shellcheck source=/dev/null
         . "$SHIM" --lib 2>/dev/null
+        # shellcheck disable=SC2031
         echo "${CLAUDE_PLUGIN_ROOT:-UNSET}"
     )
     # When CLAUDE_PLUGIN_ROOT is NOT set, the shim exports it from config.
@@ -143,7 +151,7 @@ test_shim_preserves_claude_plugin_root_when_preset() {
     # whether a NON-EXPORTED variable gets promoted to exported status.
     local was_exported
     was_exported=$(
-        cd "$fake_repo"
+        cd "$fake_repo" || exit 1
         # Use env -i to start with a clean environment; re-introduce only what we need.
         # This ensures CLAUDE_PLUGIN_ROOT starts as unset in the subprocess.
         # After sourcing the shim WITHOUT CLAUDE_PLUGIN_ROOT set, it gets exported
@@ -175,7 +183,7 @@ test_shim_preserves_claude_plugin_root_when_preset() {
     # The definitive RED failure comes from the config-fallback + overwrite scenario:
     local overwrite_check
     overwrite_check=$(
-        cd "$fake_repo"
+        cd "$fake_repo" || exit 1
         env -i HOME="$HOME" PATH="$PATH" \
             bash -c "
                 cd '$fake_repo'
@@ -406,10 +414,11 @@ test_shim_no_fallback_to_workflow_config_conf() {
 
     # Run the shim in --lib mode; after migration CLAUDE_PLUGIN_ROOT must be empty (UNSET).
     # The shim should NOT resolve DSO_ROOT from dso-config.conf.
+    # Use an empty fake HOME so step (2.5) home-cache autodetect does not fire.
     local actual_exit_code=0
     local actual_dso_root
     actual_dso_root=$(
-        env -i HOME="$HOME" PATH="$PATH" GIT_CONFIG_GLOBAL=/dev/null \
+        env -i HOME="$FAKE_HOME_EMPTY" PATH="$PATH" GIT_CONFIG_GLOBAL=/dev/null \
             bash --noprofile --norc -c "
                 set -uo pipefail
                 cd '$fake_repo'
@@ -464,10 +473,11 @@ test_shim_self_detects_via_sentinel() {
     local expected_dso_root="$fake_repo/plugins/dso"
 
     # Source the shim in --lib mode from a clean environment (no CLAUDE_PLUGIN_ROOT,
-    # no dso-config.conf). The shim must detect the sentinel and set DSO_ROOT.
+    # no dso-config.conf). The shim must detect the in-repo sentinel and set DSO_ROOT.
+    # Use an empty fake HOME so step (2.5) home-cache autodetect does not shadow step (3).
     local actual_dso_root
     actual_dso_root=$(
-        env -i HOME="$HOME" PATH="$PATH" GIT_CONFIG_GLOBAL=/dev/null \
+        env -i HOME="$FAKE_HOME_EMPTY" PATH="$PATH" GIT_CONFIG_GLOBAL=/dev/null \
             bash --noprofile --norc -c "
                 set -uo pipefail
                 cd '$fake_repo'
@@ -506,10 +516,11 @@ test_shim_sentinel_requires_plugin_json() {
     git -c user.email=test@test.com -c user.name=Test -C "$fake_repo" commit -q -m "init"
 
     # Source the shim in --lib mode. Without plugin.json the sentinel must not fire.
+    # Use an empty fake HOME so step (2.5) home-cache autodetect does not fire either.
     local actual_dso_root
     local actual_exit=0
     actual_dso_root=$(
-        env -i HOME="$HOME" PATH="$PATH" GIT_CONFIG_GLOBAL=/dev/null \
+        env -i HOME="$FAKE_HOME_EMPTY" PATH="$PATH" GIT_CONFIG_GLOBAL=/dev/null \
             bash --noprofile --norc -c "
                 set -uo pipefail
                 cd '$fake_repo'
@@ -559,9 +570,10 @@ test_shim_sentinel_exports_claude_plugin_root() {
 
     # Source the shim in --lib mode from a clean environment.
     # Assert CLAUDE_PLUGIN_ROOT is exported and equals the expected sentinel path.
+    # Use an empty fake HOME so step (2.5) home-cache autodetect does not shadow step (3).
     local actual_plugin_root
     actual_plugin_root=$(
-        env -i HOME="$HOME" PATH="$PATH" GIT_CONFIG_GLOBAL=/dev/null \
+        env -i HOME="$FAKE_HOME_EMPTY" PATH="$PATH" GIT_CONFIG_GLOBAL=/dev/null \
             bash --noprofile --norc -c "
                 set -uo pipefail
                 cd '$fake_repo'
@@ -614,8 +626,9 @@ test_discover_agents_resolves_routing_via_sentinel() {
 
     # Source the shim (to get CLAUDE_PLUGIN_ROOT set via sentinel), then run
     # discover-agents.sh with the sentinel-resolved routing conf path.
+    # Use an empty fake HOME so step (2.5) home-cache autodetect does not shadow step (3).
     local actual_exit=1
-    env -i HOME="$HOME" PATH="$PATH" GIT_CONFIG_GLOBAL=/dev/null \
+    env -i HOME="$FAKE_HOME_EMPTY" PATH="$PATH" GIT_CONFIG_GLOBAL=/dev/null \
         bash --noprofile --norc -c "
             set -uo pipefail
             cd '$fake_repo'
@@ -633,6 +646,42 @@ test_discover_agents_resolves_routing_via_sentinel() {
         "0" "$actual_exit"
 }
 
+# test_shim_autodetects_home_cache_plugin_root (9841-4169)
+# When $HOME/.claude/plugins/marketplaces/digital-service-orchestra/plugins/dso
+# exists (sentinel: .claude-plugin/plugin.json) and no config key is set,
+# the shim must resolve DSO_ROOT to that home-cache path.
+#
+# RED: current shim has no step (2.5) for home-cache autodetect between config
+# resolution (step 2) and repo-local sentinel (step 3). This test fails before the fix.
+test_shim_autodetects_home_cache_plugin_root() {
+    if [[ ! -f "$SHIM" ]]; then
+        assert_eq "test_shim_autodetects_home_cache_plugin_root (shim exists)" "exists" "missing"
+        return
+    fi
+
+    local fake_repo="$TMPDIR_BASE/fake-home-cache-test"
+    local fake_home="$TMPDIR_BASE/fake-home"
+    local fake_cache_dir="$fake_home/.claude/plugins/marketplaces/digital-service-orchestra/plugins/dso"
+    mkdir -p "$fake_repo/.claude" "$fake_cache_dir/.claude-plugin"
+    echo '{}' > "$fake_cache_dir/.claude-plugin/plugin.json"
+    git -C "$fake_repo" init -q
+    # No dso.plugin_root in config — rely on home-cache autodetect
+
+    local actual_dso_root
+    actual_dso_root=$(
+        env -i HOME="$fake_home" PATH="$PATH" GIT_CONFIG_GLOBAL=/dev/null \
+            bash --noprofile --norc -c "
+                set -uo pipefail
+                cd '$fake_repo'
+                . '$SHIM' --lib 2>/dev/null
+                printf '%s' \"\${DSO_ROOT:-UNSET}\"
+            "
+    ) || true
+
+    assert_eq "test_shim_autodetects_home_cache_plugin_root" \
+        "$fake_cache_dir" "$actual_dso_root"
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 test_shim_preserves_claude_plugin_root_when_preset
 test_shim_does_not_clobber_preset_with_config_value
@@ -643,5 +692,6 @@ test_shim_self_detects_via_sentinel
 test_shim_sentinel_requires_plugin_json
 test_shim_sentinel_exports_claude_plugin_root
 test_discover_agents_resolves_routing_via_sentinel
+test_shim_autodetects_home_cache_plugin_root
 
 print_summary

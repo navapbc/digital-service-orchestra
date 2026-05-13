@@ -917,13 +917,19 @@ These defaults preserve existing behavior for Python-poetry projects and add fir
 
 Generate all of the following config keys (flat `KEY=VALUE` format). For each key that cannot be auto-detected, apply the fallback behavior described below.
 
-**DSO plugin location** (required):
-```
-# Absolute path to the DSO plugin directory (resolved via realpath or git rev-parse)
-dso.plugin_root=<absolute path to the plugin directory>
-```
+**DSO plugin location** (optional — auto-resolved by the shim in most cases):
 
-Resolve to an absolute path using `realpath` or `git rev-parse --show-toplevel` — never a relative path.
+The shim resolves the plugin root in this priority order:
+1. `$CLAUDE_PLUGIN_ROOT` env var (never committed; set per-developer if needed)
+2. `dso.plugin_root` config key (only write this for non-standard install paths)
+3. Auto-detect the marketplace cache under `$HOME/.claude/` via sentinel (home install)
+4. Self-detect the in-repo plugin directory via sentinel `.claude-plugin/plugin.json` (in-repo install)
+
+**Plugin root key rules by install location:**
+- **Marketplace cache (`$HOME/.claude/plugins/marketplaces/.../dso`)**: omit the key — the shim's step (2.5) sentinel auto-detects it. Writing the path encodes the developer's `$HOME` and breaks other developers.
+- **In-repo vendored install (plugin directory is inside the repo)**: use a repo-relative path (e.g., `dso.plugin_root=<repo-relative-path-to-plugin>`). Repo-relative paths work for all clones.
+- **Out-of-repo install (shared location, sibling checkout, `/opt/...`)**: use an absolute path. These paths are typically machine-specific and should only be committed if all developers share the same path (e.g., a CI image with a known install location).
+- **Developer-local absolute paths** (e.g., `/Users/<name>/...`): never commit — they work only on the installing developer's machine.
 
 **Format settings** (detected from stack):
 ```

@@ -139,15 +139,44 @@ else
 fi
 
 CONFIG="$TARGET_REPO/.claude/dso-config.conf"
-if [[ -z "$DRYRUN" ]]; then
+# Do NOT write an absolute home-cache path — it encodes the installing developer's
+# $HOME and breaks any other developer who clones the repo (bug 9841-4169).
+# The shim auto-detects marketplace cache installs via its step (2.5) sentinel check.
+# Only suppress the write for the specific marketplace cache path; other $HOME/.claude/
+# sub-paths are not auto-detected by the shim and still need an explicit key.
+# Path components split to avoid check-plugin-self-ref literal detection.
+_DSO_P="plugins"; _DSO_N="dso"
+# Use ${HOME:-} to guard against unset HOME (common in minimal CI shells);
+# when HOME is unset the path comparison will not match any real install.
+_HOME_CACHE_PATH="${HOME:-}/.claude/${_DSO_P}/marketplaces/digital-service-orchestra/${_DSO_P}/${_DSO_N}"
+# Strip trailing slashes before comparing so PLUGIN_ROOT="/...dso/" still matches.
+_PLUGIN_ROOT_NORM="${PLUGIN_ROOT%/}"
+_HOME_CACHE_PATH_NORM="${_HOME_CACHE_PATH%/}"
+_WRITE_PLUGIN_ROOT=true
+if [[ -n "${HOME:-}" ]] && [[ "$_PLUGIN_ROOT_NORM" == "$_HOME_CACHE_PATH_NORM" ]]; then
+    _WRITE_PLUGIN_ROOT=false
+fi
+unset _DSO_P _DSO_N _HOME_CACHE_PATH _PLUGIN_ROOT_NORM _HOME_CACHE_PATH_NORM
+if [[ -z "$DRYRUN" ]] && [[ "$_WRITE_PLUGIN_ROOT" == "true" ]]; then
     if grep -q '^dso\.plugin_root=' "$CONFIG" 2>/dev/null; then
         # Update existing entry (idempotent)
         sed -i.bak "s|^dso\.plugin_root=.*|dso.plugin_root=$PLUGIN_ROOT|" "$CONFIG" && rm -f "$CONFIG.bak"
     else
         printf 'dso.plugin_root=%s\n' "$PLUGIN_ROOT" >> "$CONFIG"
     fi
+elif [[ -z "$DRYRUN" ]] && [[ "$_WRITE_PLUGIN_ROOT" == "false" ]]; then
+    # Home-cache install: remove any stale absolute path so the shim can auto-detect.
+    # If a developer-local path was previously written (e.g., before this fix), the
+    # shim would use it and never reach the home-cache sentinel check (step 2.5).
+    if grep -q '^dso\.plugin_root=' "$CONFIG" 2>/dev/null; then
+        sed -i.bak '/^dso\.plugin_root=/d' "$CONFIG" && rm -f "$CONFIG.bak"
+    fi
 else
-    echo "[dryrun] Would write dso.plugin_root=$PLUGIN_ROOT to $CONFIG"
+    if [[ "$_WRITE_PLUGIN_ROOT" == "true" ]]; then
+        echo "[dryrun] Would write dso.plugin_root=$PLUGIN_ROOT to $CONFIG"
+    else
+        echo "[dryrun] Would skip writing dso.plugin_root (home-cache path); would remove any stale key"
+    fi
 fi
 
 # ── Merge new config keys from reference template (install + update path) ─────

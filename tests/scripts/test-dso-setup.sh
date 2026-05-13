@@ -1694,6 +1694,40 @@ EOF
     fi
 }
 
+# test_setup_does_not_write_absolute_home_cache_path (9841-4169)
+# When dso-setup.sh is invoked with a PLUGIN_ROOT that lives under
+# $HOME/.claude/ (marketplace cache install), it must NOT write an absolute
+# developer-local path to dso-config.conf. Multi-developer clones would fail
+# because the path encodes the installing developer's $HOME.
+#
+# RED: current dso-setup.sh unconditionally writes dso.plugin_root=<absolute>
+# regardless of whether the path is under $HOME. This test fails before the fix.
+test_setup_does_not_write_absolute_home_cache_path() {
+    local T fake_home fake_cache_root
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    git -C "$T" init -q
+
+    # Use a temp dir as the fake HOME so the home-cache condition ($HOME/.claude/...)
+    # is satisfied without touching the real home directory.
+    # Symlink the actual plugin dir into the fake marketplace path so dso-setup.sh
+    # finds a complete plugin tree and reaches the dso.plugin_root write logic.
+    fake_home=$(mktemp -d)
+    TMPDIRS+=("$fake_home")
+    local fake_cache_parent="$fake_home/.claude/plugins/marketplaces/digital-service-orchestra/plugins"
+    mkdir -p "$fake_cache_parent"
+    ln -s "$DSO_PLUGIN_DIR" "$fake_cache_parent/dso"
+    fake_cache_root="$fake_cache_parent/dso"
+
+    HOME="$fake_home" bash "$SETUP_SCRIPT" "$T" "$fake_cache_root" >/dev/null 2>&1 || true
+
+    local has_absolute_home="no"
+    if grep -q "^dso\.plugin_root=$fake_home" "$T/.claude/dso-config.conf" 2>/dev/null; then
+        has_absolute_home="yes"
+    fi
+    assert_eq "test_setup_does_not_write_absolute_home_cache_path" "no" "$has_absolute_home"
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 test_setup_creates_shim
 test_setup_shim_executable
@@ -1759,5 +1793,6 @@ test_install_merges_new_config_keys
 test_install_merges_ci_workflow
 test_setup_references_root_install_doc
 test_setup_precommit_stack_aware_generic_for_non_python
+test_setup_does_not_write_absolute_home_cache_path
 
 print_summary
