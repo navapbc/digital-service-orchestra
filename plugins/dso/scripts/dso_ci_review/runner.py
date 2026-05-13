@@ -1228,8 +1228,8 @@ def main() -> int:
                     )
                 except Exception as _corr_exc:  # noqa: BLE001
                     print(
-                        f"WARNING: dispatch_schema_correction raised {type(_corr_exc).__name__}: "
-                        f"{_corr_exc} — passing through original findings",
+                        f"WARNING: dispatch_schema_correction raised {type(_corr_exc).__name__}"
+                        " — passing through original findings",
                         file=sys.stderr,
                     )
 

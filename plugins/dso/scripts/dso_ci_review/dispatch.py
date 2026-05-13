@@ -58,8 +58,8 @@ _FROZEN_FIELDS: tuple[str, ...] = (
     "severity",
     "category",
     "description",
-    "file_path",
-    "line_range",
+    "file",
+    "cited_lines",
     "finding_id",
 )
 

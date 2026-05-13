@@ -20,7 +20,7 @@ Your task is strictly limited to fixing the schema errors. You populate missing 
 
 - Add new findings
 - Remove existing findings
-- Change any finding's severity, category, or description
+- Change any finding's severity, category, description, file, or cited_lines
 - Re-evaluate the diff or reassess code quality
 - Return anything other than valid JSON in the expected schema
 

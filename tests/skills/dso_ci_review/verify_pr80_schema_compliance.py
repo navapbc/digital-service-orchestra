@@ -24,7 +24,6 @@ import os
 import pathlib
 import sys
 import tempfile
-import textwrap
 from unittest.mock import patch
 
 # Ensure the dso_ci_review package is importable
@@ -259,7 +258,7 @@ def run_verification(diff_path: str) -> dict:
       - exit_code: runner.main() exit code
     """
     with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".json", delete=False, prefix="/tmp/pr80_findings_"
+        mode="w", suffix=".json", delete=False, dir="/tmp", prefix="pr80_findings_"
     ) as out_f:
         output_path = out_f.name
 
@@ -279,10 +278,12 @@ def run_verification(diff_path: str) -> dict:
     from unittest.mock import AsyncMock
 
     async def _mock_dispatch(*args, **kwargs):
-        return {
-            "findings": _ALL_ORIGINAL_FINDINGS,
-            "summary": "PR-80 original findings (schema-invalid baseline).",
-        }
+        return [
+            {
+                "findings": _ALL_ORIGINAL_FINDINGS,
+                "summary": "PR-80 original findings (schema-invalid baseline).",
+            }
+        ]
 
     def _mock_correction(findings, schema_errors, **kwargs):
         return _CORRECTED_RESULT

@@ -1,8 +1,5 @@
 """Tests for dso_ci_review.dispatch.dispatch_schema_correction().
 
-Testing mode: RED — all tests MUST FAIL until dispatch_schema_correction()
-is implemented in dispatch.py.
-
 Behavioral contracts under test:
 1. Correction dispatch returns schema-valid JSON with same finding count
    AND frozen fields preserved → CI proceeds with corrected findings.
@@ -20,7 +17,7 @@ Behavioral contracts under test:
    (frozen field: --reviewer-hash must still pass).
 
 Frozen fields (byte-for-byte must be preserved):
-  severity, category, description, file_path, line_range, finding_id
+  severity, category, description, file, cited_lines, finding_id
 
 Synthetic error shape:
   {"type": "parse_error", "severity": "critical", "category": "schema_error",
@@ -37,8 +34,6 @@ import pathlib
 import sys
 from typing import Any
 
-import pytest
-
 # Ensure the plugin scripts directory is on sys.path so that
 # `dso_ci_review.dispatch` resolves to the plugin, not the test package.
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
@@ -47,7 +42,7 @@ if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
 
 import dso_ci_review.dispatch as _dispatch_mod  # noqa: E402
-from dso_ci_review.dispatch import dispatch_schema_correction  # noqa: E402
+import dso_ci_review.runner as _runner_mod  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -61,8 +56,8 @@ _FINDING_A: dict[str, Any] = {
     "severity": "critical",
     "category": "correctness",
     "description": "Null pointer dereference in handler",
-    "file_path": "src/handler.py",
-    "line_range": "42-45",
+    "file": "src/handler.py",
+    "cited_lines": ["src/handler.py:42", "src/handler.py:43"],
     "finding_id": "abc123",
     "cited_excerpt": "return obj.value",
     "reachability": "always",
@@ -72,20 +67,14 @@ _FINDING_B: dict[str, Any] = {
     "severity": "minor",
     "category": "style",
     "description": "Unnecessary trailing whitespace",
-    "file_path": "src/utils.py",
-    "line_range": "10-10",
+    "file": "src/utils.py",
+    "cited_lines": ["src/utils.py:10"],
     "finding_id": "def456",
     "cited_excerpt": "    ",
     "reachability": "always",
 }
 
-_FROZEN_FIELDS = ("severity", "category", "description", "file_path", "line_range", "finding_id")
-
-_SYNTHETIC_ERROR_REQUIRED_FIELDS = {
-    "type": "parse_error",
-    "severity": "critical",
-    "category": "schema_error",
-}
+_FROZEN_FIELDS = ("severity", "category", "description", "file", "cited_lines", "finding_id")
 
 
 def _make_fake_response(findings: list[dict]) -> Any:
@@ -123,14 +112,12 @@ def _schema_valid_corrected_findings(originals: list[dict]) -> list[dict]:
 
 def _stub_validate_schema_pass(merged: dict, **kwargs) -> Any:
     """Stub for _validate_findings_schema that always returns schema_pass."""
-    from dso_ci_review.runner import _SchemaValidationResult
-    return _SchemaValidationResult("schema_pass", [])
+    return _runner_mod._SchemaValidationResult("schema_pass", [])
 
 
 def _stub_validate_schema_fail(merged: dict, **kwargs) -> Any:
     """Stub for _validate_findings_schema that always returns schema_fail."""
-    from dso_ci_review.runner import _SchemaValidationResult
-    return _SchemaValidationResult("schema_fail", ["missing required field: cited_lines"])
+    return _runner_mod._SchemaValidationResult("schema_fail", ["missing required field: cited_lines"])
 
 
 # ---------------------------------------------------------------------------
@@ -156,11 +143,9 @@ def test_correction_success_returns_corrected_findings(monkeypatch) -> None:
 
     monkeypatch.setattr(_dispatch_mod, "dispatch_review", _mock_dispatch_review)
 
-    # Stub schema validation so the corrected result passes
-    import dso_ci_review.runner as _runner_mod
     monkeypatch.setattr(_runner_mod, "_validate_findings_schema", _stub_validate_schema_pass)
 
-    result = dispatch_schema_correction(
+    result = _dispatch_mod.dispatch_schema_correction(
         original_findings=originals,
         diff_text=_DIFF_TEXT,
         provider_chain=["anthropic"],
@@ -214,10 +199,9 @@ def test_correction_count_drift_routes_to_synthetic_error(monkeypatch) -> None:
 
     monkeypatch.setattr(_dispatch_mod, "dispatch_review", _mock_dispatch_review)
 
-    import dso_ci_review.runner as _runner_mod
     monkeypatch.setattr(_runner_mod, "_validate_findings_schema", _stub_validate_schema_pass)
 
-    result = dispatch_schema_correction(
+    result = _dispatch_mod.dispatch_schema_correction(
         original_findings=originals,
         diff_text=_DIFF_TEXT,
         provider_chain=["anthropic"],
@@ -262,10 +246,9 @@ def test_correction_frozen_field_mutation_routes_to_synthetic_error(monkeypatch)
 
     monkeypatch.setattr(_dispatch_mod, "dispatch_review", _mock_dispatch_review)
 
-    import dso_ci_review.runner as _runner_mod
     monkeypatch.setattr(_runner_mod, "_validate_findings_schema", _stub_validate_schema_pass)
 
-    result = dispatch_schema_correction(
+    result = _dispatch_mod.dispatch_schema_correction(
         original_findings=originals,
         diff_text=_DIFF_TEXT,
         provider_chain=["anthropic"],
@@ -317,10 +300,9 @@ def test_correction_exhausted_retries_appends_synthetic_error(monkeypatch) -> No
 
     monkeypatch.setattr(_dispatch_mod, "dispatch_review", _mock_dispatch_review)
 
-    import dso_ci_review.runner as _runner_mod
     monkeypatch.setattr(_runner_mod, "_validate_findings_schema", _stub_validate_schema_pass)
 
-    result = dispatch_schema_correction(
+    result = _dispatch_mod.dispatch_schema_correction(
         original_findings=originals,
         diff_text=_DIFF_TEXT,
         provider_chain=["anthropic"],
@@ -379,7 +361,7 @@ def test_max_attempts_zero_short_circuits_to_synthetic_error(monkeypatch) -> Non
 
     monkeypatch.setattr(_dispatch_mod, "dispatch_review", _mock_dispatch_review)
 
-    result = dispatch_schema_correction(
+    result = _dispatch_mod.dispatch_schema_correction(
         original_findings=originals,
         diff_text=_DIFF_TEXT,
         provider_chain=["anthropic"],
@@ -431,18 +413,16 @@ def test_correction_schema_invalid_response_consumes_retry(monkeypatch) -> None:
     validate_call_count = [0]
 
     def _stub_validate_first_fail_then_pass(merged: dict, **kwargs) -> Any:
-        from dso_ci_review.runner import _SchemaValidationResult
         validate_call_count[0] += 1
         if validate_call_count[0] == 1:
-            return _SchemaValidationResult("schema_fail", ["missing cited_lines"])
-        return _SchemaValidationResult("schema_pass", [])
+            return _runner_mod._SchemaValidationResult("schema_fail", ["missing cited_lines"])
+        return _runner_mod._SchemaValidationResult("schema_pass", [])
 
-    import dso_ci_review.runner as _runner_mod
     monkeypatch.setattr(
         _runner_mod, "_validate_findings_schema", _stub_validate_first_fail_then_pass
     )
 
-    result = dispatch_schema_correction(
+    result = _dispatch_mod.dispatch_schema_correction(
         original_findings=originals,
         diff_text=_DIFF_TEXT,
         provider_chain=["anthropic"],
@@ -489,10 +469,9 @@ def test_hash_preserved_after_correction(monkeypatch) -> None:
 
     monkeypatch.setattr(_dispatch_mod, "dispatch_review", _mock_dispatch_review)
 
-    import dso_ci_review.runner as _runner_mod
     monkeypatch.setattr(_runner_mod, "_validate_findings_schema", _stub_validate_schema_pass)
 
-    result = dispatch_schema_correction(
+    result = _dispatch_mod.dispatch_schema_correction(
         original_findings=originals,
         diff_text=_DIFF_TEXT,
         provider_chain=["anthropic"],

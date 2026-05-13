@@ -39,8 +39,8 @@ not for clarity, not to fix perceived errors in their content.
 | `severity` | YES — byte-for-byte identical to original |
 | `category` | YES — byte-for-byte identical to original |
 | `description` | YES — byte-for-byte identical to original |
-| `file_path` | YES — byte-for-byte identical to original |
-| `line_range` | YES — byte-for-byte identical to original |
+| `file` | YES — byte-for-byte identical to original |
+| `cited_lines` | YES — byte-for-byte identical to original |
 | `finding_id` | YES — byte-for-byte identical to original (see exception below) |
 
 **`finding_id` exception**: If `finding_id` is absent, empty, or structurally malformed
@@ -60,7 +60,7 @@ cited line range. This field is correctable (see Correctable Fields below).
 
 **Procedure for `cited_excerpt`**:
 
-1. Identify the `file_path` and `line_range` for the finding.
+1. Identify the `file` and `cited_lines` for the finding.
 2. Use the Read tool to open the actual source file at the cited line range.
 3. Copy the exact text verbatim from the file into `cited_excerpt`.
 
@@ -68,7 +68,7 @@ cited line range. This field is correctable (see Correctable Fields below).
 range is invalid, the file does not exist, or the content is otherwise unreadable — write
 exactly the sentinel value:
 
-```
+```text
 __UNREADABLE__
 ```
 
@@ -107,8 +107,8 @@ structure must be preserved exactly:
       "severity": "<unchanged>",
       "category": "<unchanged>",
       "description": "<unchanged>",
-      "file_path": "<unchanged>",
-      "line_range": "<unchanged>",
+      "file": "<unchanged>",
+      "cited_lines": ["<unchanged>"],
       "finding_id": "<unchanged or newly generated if malformed>",
       "cited_excerpt": "<verbatim code from file, or __UNREADABLE__>",
       "reachability": "<unchanged, or added if absent and required>"
