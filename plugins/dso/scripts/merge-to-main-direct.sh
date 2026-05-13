@@ -619,7 +619,7 @@ _phase_version_bump() {
             # pushed without --force (bug 3024-d618).
             local _new_ver
             _new_ver=$(python3 -c "import json,sys; d=json.load(open('${_vf}')); v=d.get('version',''); sys.exit(1) if not v else print(v)" 2>/dev/null || echo "unknown")
-            DSO_MECHANICAL_AMEND=1 git commit -m "chore: bump version to v${_new_ver}" --quiet
+            git commit -m "chore: bump version to v${_new_ver}" --quiet
             echo "OK: Version bump committed (v${_new_ver})."
         else
             DSO_MECHANICAL_AMEND=1 git commit --amend --no-edit --quiet
