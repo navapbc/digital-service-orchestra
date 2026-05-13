@@ -90,7 +90,7 @@ For each unresolved thread:
    - **Defense-worthy** (reviewer asked for a fix you have evidence against):
      - **CodeRabbit thread** (`author == "coderabbitai[bot]"`): use the helper, which posts a threaded reply via `gh api` and appends `@coderabbitai resolve` so CodeRabbit acknowledges the defense and dismisses the finding:
        ```bash
-       bash ${CLAUDE_PLUGIN_ROOT}/scripts/post-defense-to-coderabbit.sh \
+       .claude/scripts/dso post-defense-to-coderabbit \
          --pr "<pr>" \
          --comment-id "<inline-comment-id>" \
          --defense-text "<evidence-bearing rationale, ≤ 4096 chars>"
