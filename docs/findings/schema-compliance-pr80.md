@@ -48,9 +48,10 @@ at `tests/fixtures/ci-review-corpus/pr-80.diff` (3,418 lines, 12 files).
 ## SC7 Assertion
 
 **SC7 PASS (CI-pending)**: The integration test `test_pr80_zero_synthetic_schema_errors`
-asserts zero synthetic schema_error entries, and `test_pr80_100_percent_schema_compliance`
-asserts 100% cited_excerpt + reachability compliance. Both skip when ANTHROPIC_API_KEY
-is absent (deferred to CI).
+asserts zero findings with `type == "parse_error"` (the synthetic type used for schema
+correction exhaustion, which has `category == "schema_error"`), and
+`test_pr80_100_percent_schema_compliance` asserts 100% cited_excerpt + reachability
+compliance. Both skip when ANTHROPIC_API_KEY is absent (deferred to CI).
 
 The structural gates (schema validation shell-out with 60s timeout, fail-loud on
 missing validator, correction dispatch with frozen-field preservation) were verified

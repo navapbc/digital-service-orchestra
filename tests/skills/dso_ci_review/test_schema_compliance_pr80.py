@@ -152,8 +152,8 @@ def test_pr80_100_percent_schema_compliance(tmp_path):
 
     non_synthetic = [f for f in findings if f.get("type") not in _SYNTHETIC_TYPES]
 
-    # (a) cited_excerpt must be >= 5 chars for every non-synthetic finding
-    cited_violations = [f for f in non_synthetic if len(f.get("cited_excerpt", "")) < 5]
+    # (a) cited_excerpt must be >= 5 non-whitespace chars (mirrors validator: strip() first)
+    cited_violations = [f for f in non_synthetic if len(f.get("cited_excerpt", "").strip()) < 5]
     assert len(cited_violations) == 0, (
         f"Expected 100% cited_excerpt compliance (len >= 5); "
         f"{len(cited_violations)} violation(s) found:\n"
@@ -170,7 +170,7 @@ def test_pr80_100_percent_schema_compliance(tmp_path):
         f for f in non_synthetic if f.get("severity") in _REACHABILITY_SEVERITIES
     ]
     reachability_violations = [
-        f for f in reachability_required if len(f.get("reachability", "")) < 20
+        f for f in reachability_required if len(f.get("reachability", "").strip()) < 20
     ]
     assert len(reachability_violations) == 0, (
         f"Expected 100% reachability compliance (len >= 20) for "
