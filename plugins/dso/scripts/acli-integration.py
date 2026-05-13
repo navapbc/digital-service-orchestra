@@ -498,7 +498,12 @@ def get_comments(
         "--json",
     ]
     result = _run_acli(cmd, acli_cmd=acli_cmd)
-    return json.loads(result.stdout) or []
+    parsed = json.loads(result.stdout)
+    if isinstance(parsed, list):
+        return parsed
+    if isinstance(parsed, dict):
+        return parsed.get("comments") or []
+    return []
 
 
 # ---------------------------------------------------------------------------
@@ -759,7 +764,12 @@ class AcliClient:
             "--json",
         ]
         result = self._run(cmd)
-        return json.loads(result.stdout) or []
+        parsed = json.loads(result.stdout)
+        if isinstance(parsed, list):
+            return parsed
+        if isinstance(parsed, dict):
+            return parsed.get("comments") or []
+        return []
 
     def set_relationship(
         self,
