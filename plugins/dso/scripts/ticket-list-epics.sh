@@ -66,6 +66,12 @@ if [ "$brainstorm_mode" = true ]; then
     # looks like a canonical ticket ID ([a-z0-9]{4}-…) or a human-readable alias
     # (lowercase alphanumeric + hyphens).  Rejects empty strings, "BLOCKED", and any
     # value containing uppercase letters, spaces, or shell-special characters.
+    # Trailing/consecutive hyphens (e.g. "a-", "a--b") are technically accepted by
+    # this regex but never produced in practice: canonical IDs follow the strict
+    # [a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4} format, and the ticket CLI
+    # enforces well-formed lowercase word-hyphen aliases (e.g. "swift-falcon").
+    # Enforcing those constraints here would duplicate validation already performed
+    # upstream, so the filter stays minimal and relies on the ticket system invariant.
     _epic_filter() { awk -F'\t' 'NF>=3 && $1 ~ /^[a-z0-9][a-z0-9-]*$/ { print }'; }
     _zero_children=$(bash "${BASH_SOURCE[0]}" --max-children=0 2>/dev/null | _epic_filter || true)
     _scrutiny_gap=$(bash "${BASH_SOURCE[0]}" --min-children=1 --without-tag=brainstorm:complete 2>/dev/null | _epic_filter || true)
