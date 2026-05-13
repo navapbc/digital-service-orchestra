@@ -417,3 +417,43 @@ def test_acli_client_get_comments_returns_empty_list_for_invalid_wrapped_shapes(
         assert result == [], (
             f"AcliClient.get_comments: expected [] for {label}, got {result!r}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Direct unit tests for _parse_acli_comments helper
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+@pytest.mark.parametrize(
+    "payload,expected",
+    [
+        # Bare list shapes
+        ([{"id": "1", "body": "hi"}], [{"id": "1", "body": "hi"}]),
+        ([{"id": "1"}, "not-a-dict", 42], [{"id": "1"}]),
+        ([], []),
+        # Wrapped dict shapes
+        ({"comments": [{"id": "1"}, {"id": "2"}]}, [{"id": "1"}, {"id": "2"}]),
+        ({"comments": [{"id": "1"}, "x"]}, [{"id": "1"}]),
+        ({"comments": []}, []),
+        # Absent 'comments' key → [] (via .get default)
+        ({"total": 1}, []),
+        # Unrecognised shapes → []
+        ({}, []),
+        ({"error": "something went wrong"}, []),
+        (None, []),
+        (42, []),
+        ("string", []),
+    ],
+)
+def test_parse_acli_comments_normalises_all_response_shapes(
+    acli: ModuleType,
+    payload: object,
+    expected: list,
+) -> None:
+    """_parse_acli_comments must produce a flat list of dicts for every ACLI response shape."""
+    result = acli._parse_acli_comments(payload)
+    assert result == expected, (
+        f"_parse_acli_comments({payload!r}): expected {expected!r}, got {result!r}"
+    )

@@ -63,8 +63,10 @@ unset _arg
 if [ "$brainstorm_mode" = true ]; then
     # Filter to tab-delimited epic lines; strip P0-bug banner and "BLOCKED" entries.
     # Use awk (portable across BSD/GNU): keep lines with ≥3 fields whose first field
-    # is non-empty and not "BLOCKED" (accepts both canonical IDs and user aliases).
-    _epic_filter() { awk -F'\t' 'NF>=3 && $1 != "" && $1 != "BLOCKED" { print }'; }
+    # looks like a canonical ticket ID ([a-z0-9]{4}-…) or a human-readable alias
+    # (lowercase alphanumeric + hyphens).  Rejects empty strings, "BLOCKED", and any
+    # value containing uppercase letters, spaces, or shell-special characters.
+    _epic_filter() { awk -F'\t' 'NF>=3 && $1 ~ /^[a-z][a-z0-9-]*$/ { print }'; }
     _zero_children=$(bash "${BASH_SOURCE[0]}" --max-children=0 2>/dev/null | _epic_filter || true)
     _scrutiny_gap=$(bash "${BASH_SOURCE[0]}" --min-children=1 --without-tag=brainstorm:complete 2>/dev/null | _epic_filter || true)
 
