@@ -60,7 +60,7 @@ if [ "$brainstorm_mode" = true ]; then
     # Filter to tab-delimited epic lines; strip P0-bug banner and "BLOCKED" entries.
     # Use awk (portable across BSD/GNU) to match lines whose first tab-separated
     # field looks like a ticket ID.
-    _epic_filter() { awk -F'\t' 'NF>=3 && $1 ~ /^[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}$/ { print }'; }
+    _epic_filter() { awk -F'\t' 'NF>=3 && $1 != "" && $1 != "BLOCKED" { print }'; }
     _zero_children=$(bash "${BASH_SOURCE[0]}" --max-children=0 2>/dev/null | _epic_filter || true)
     _scrutiny_gap=$(bash "${BASH_SOURCE[0]}" --min-children=1 --without-tag=brainstorm:complete 2>/dev/null | _epic_filter || true)
 

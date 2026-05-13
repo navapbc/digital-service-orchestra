@@ -901,16 +901,32 @@ test_light_tier_agent_has_unambiguous_context_request_guidance() {
 
     local prompts_dir="$DSO_PLUGIN_DIR/docs/workflows/prompts"
     local out_dir
-    out_dir="$(mktemp -d)"
+    out_dir="$(mktemp -d /tmp/test-build-review-agents-light.XXXXXX)"
 
+    local build_rc=0
     bash "$BUILD_SCRIPT" \
         --base "$prompts_dir/reviewer-base.md" \
         --deltas "$prompts_dir" \
-        --output "$out_dir" 2>/dev/null
+        --output "$out_dir" 2>/dev/null || build_rc=$?
+
+    if [[ "$build_rc" -ne 0 ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_light_tier_agent_has_unambiguous_context_request_guidance\n  build-review-agents.sh exited %d\n" "$build_rc" >&2
+        rm -rf "$out_dir"
+        assert_pass_if_clean "test_light_tier_agent_has_unambiguous_context_request_guidance"
+        return
+    fi
 
     local light_agent="$out_dir/code-reviewer-light.md"
-    local file_content=""
-    [[ -f "$light_agent" ]] && file_content="$(cat "$light_agent")"
+    if [[ ! -f "$light_agent" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_light_tier_agent_has_unambiguous_context_request_guidance\n  code-reviewer-light.md not found in output dir\n" >&2
+        rm -rf "$out_dir"
+        assert_pass_if_clean "test_light_tier_agent_has_unambiguous_context_request_guidance"
+        return
+    fi
+    local file_content
+    file_content="$(cat "$light_agent")"
 
     # The light-tier agent must NOT contain the full context-request JSON block
     # ("action": "read_files") that is only relevant for non-light tiers.

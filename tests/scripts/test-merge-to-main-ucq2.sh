@@ -21,6 +21,9 @@
 #
 # Usage: bash tests/scripts/test-merge-to-main-ucq2.sh
 
+# NOTE: -e intentionally omitted — test assertions return non-zero by design
+set -uo pipefail
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"

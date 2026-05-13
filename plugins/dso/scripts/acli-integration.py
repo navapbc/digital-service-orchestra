@@ -502,7 +502,8 @@ def get_comments(
     if isinstance(parsed, list):
         return parsed
     if isinstance(parsed, dict):
-        return parsed.get("comments") or []
+        comments = parsed.get("comments", [])
+        return comments if isinstance(comments, list) else []
     return []
 
 
@@ -768,7 +769,8 @@ class AcliClient:
         if isinstance(parsed, list):
             return parsed
         if isinstance(parsed, dict):
-            return parsed.get("comments") or []
+            comments = parsed.get("comments", [])
+            return comments if isinstance(comments, list) else []
         return []
 
     def set_relationship(
