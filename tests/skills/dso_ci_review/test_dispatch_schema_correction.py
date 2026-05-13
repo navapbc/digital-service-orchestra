@@ -236,7 +236,9 @@ def test_correction_count_drift_routes_to_synthetic_error(monkeypatch) -> None:
         f"Synthetic error severity must be 'critical', got: {error.get('severity')!r}"
     )
     assert "file" in error, f"Synthetic error must include 'file' field: {error}"
-    assert "cited_lines" in error, f"Synthetic error must include 'cited_lines' field: {error}"
+    assert "cited_lines" in error, (
+        f"Synthetic error must include 'cited_lines' field: {error}"
+    )
     assert error.get("cited_lines") == [], (
         f"Synthetic error 'cited_lines' must be empty list, got: {error.get('cited_lines')!r}"
     )
@@ -774,18 +776,18 @@ def test_cited_line_re_accepts_line_ranges() -> None:
     Both dash-range and tilde-range separators must be accepted.
     """
     valid_entries = [
-        "src/foo.py:42",                                           # single line
-        "~src/foo.py:42",                                          # approx single line
-        ".github/workflows/sprint-story-review.yml:83-112",       # dash range
+        "src/foo.py:42",  # single line
+        "~src/foo.py:42",  # approx single line
+        ".github/workflows/sprint-story-review.yml:83-112",  # dash range
         "plugins/dso/scripts/dso_ci_review/dispatch.py:845~851",  # tilde range
         "plugins/dso/scripts/dso_ci_review/dispatch.py:898~906",  # tilde range
-        "src/foo.py:1-999",                                        # large range
+        "src/foo.py:1-999",  # large range
     ]
     invalid_entries = [
         "src/bad_format_no_line_number",  # no colon+line
-        "src/foo.py:",                    # missing line number
-        "src/foo.py:0",                   # zero not allowed
-        "src/foo.py:0-10",               # zero start not allowed
+        "src/foo.py:",  # missing line number
+        "src/foo.py:0",  # zero not allowed
+        "src/foo.py:0-10",  # zero start not allowed
     ]
     for entry in valid_entries:
         assert _dispatch_mod._CITED_LINE_RE.match(entry), (
@@ -819,7 +821,9 @@ def test_reachability_fallback_injects_boilerplate_when_only_error(monkeypatch) 
         "category": "maintainability",
         "description": "test_dispatch_schema_correction.py exceeds 500-line threshold",
         "file": "tests/skills/dso_ci_review/test_dispatch_schema_correction.py",
-        "cited_lines": ["tests/skills/dso_ci_review/test_dispatch_schema_correction.py:1"],
+        "cited_lines": [
+            "tests/skills/dso_ci_review/test_dispatch_schema_correction.py:1"
+        ],
         "finding_id": "f-aa000001",
         "cited_excerpt": "def test_correction_success_returns_corrected_findings(monkeypatch",
         # 'reachability' intentionally absent
@@ -842,7 +846,9 @@ def test_reachability_fallback_injects_boilerplate_when_only_error(monkeypatch) 
             "summary": "Two test-file code quality findings; no production code changes.",
         }
 
-    monkeypatch.setattr(_dispatch_mod, "dispatch_review", _mock_dispatch_review_returns_same)
+    monkeypatch.setattr(
+        _dispatch_mod, "dispatch_review", _mock_dispatch_review_returns_same
+    )
     # Use the real _validate_findings_schema so the fallback logic works end-to-end
     # (do NOT stub it — the fallback relies on real validation to detect missing reach)
 
@@ -868,7 +874,6 @@ def test_reachability_fallback_injects_boilerplate_when_only_error(monkeypatch) 
         assert isinstance(reach, str) and len(reach.strip()) >= 20, (
             f"Boilerplate reachability must be >= 20 chars; got {reach!r}"
         )
-
 
 
 def test_correction_dispatch_infra_failure_triggers_reachability_fallback(
@@ -918,7 +923,9 @@ def test_correction_dispatch_infra_failure_triggers_reachability_fallback(
     def _mock_dispatch_review_infra_fail(**kwargs: object) -> dict:
         return {"findings": [_fallback_exhausted_entry]}
 
-    monkeypatch.setattr(_dispatch_mod, "dispatch_review", _mock_dispatch_review_infra_fail)
+    monkeypatch.setattr(
+        _dispatch_mod, "dispatch_review", _mock_dispatch_review_infra_fail
+    )
 
     result = _dispatch_mod.dispatch_schema_correction(
         original_findings=[finding_a, finding_b],
