@@ -123,18 +123,29 @@ ticket_show() {
             return 1
         fi
 
-        # Use full resolution pipeline (alias, jira_key, prefix, short-hex) from
-        # ticket-lib.sh::resolve_ticket_id (line ~1199). The function accepts a single
-        # positional argument and reads TICKETS_TRACKER_DIR from the environment.
-        # Guard prevents redundant sourcing when already loaded.
-        if [[ -z "${_TICKETLIB_DIR:-}" ]]; then
-            echo "Error: _TICKETLIB_DIR is not set; cannot resolve ticket alias" >&2
+        # Resolution strategy (ordered by cost):
+        # 1. Hex patterns (8-hex or 16-hex): fast O(N-dir) scan via _ticketlib_resolve_short_id
+        # 2. Inputs with 4+ hyphens: cannot match any known format (max is 3 for 16-hex);
+        #    skip expensive O(N*K) alias scan and fail immediately
+        # 3. All other inputs (0-3 hyphens, non-hex): potential alias, jira_key, or prefix;
+        #    use full resolve_ticket_id pipeline from ticket-lib.sh (line ~1199)
+        local _hyphen_count
+        _hyphen_count=$(tr -cd '-' <<< "$ticket_id" | wc -c)
+        if [[ "$ticket_id" =~ ^[a-z0-9]{4}-[a-z0-9]{4}(-[a-z0-9]{4}-[a-z0-9]{4})?$ ]]; then
+            ticket_id="$(_ticketlib_resolve_short_id "$ticket_id" "$TRACKER_DIR")"
+        elif [[ "$_hyphen_count" -ge 4 ]]; then
+            echo "Error: Ticket '$ticket_id' not found" >&2
             return 1
+        else
+            if [[ -z "${_TICKETLIB_DIR:-}" ]]; then
+                echo "Error: _TICKETLIB_DIR is not set; cannot resolve ticket alias" >&2
+                return 1
+            fi
+            declare -f resolve_ticket_id &>/dev/null || source "$_TICKETLIB_DIR/ticket-lib.sh"
+            # Pass TRACKER_DIR through TICKETS_TRACKER_DIR so resolve_ticket_id
+            # uses the same tracker path as ticket_show's directory lookup below.
+            ticket_id="$(TICKETS_TRACKER_DIR="$TRACKER_DIR" resolve_ticket_id "$ticket_id")"
         fi
-        declare -f resolve_ticket_id &>/dev/null || source "$_TICKETLIB_DIR/ticket-lib.sh"
-        # Pass TRACKER_DIR through TICKETS_TRACKER_DIR so resolve_ticket_id
-        # uses the same tracker path as ticket_show's directory lookup below.
-        ticket_id="$(TICKETS_TRACKER_DIR="$TRACKER_DIR" resolve_ticket_id "$ticket_id")"
 
         if [ ! -d "$TRACKER_DIR/$ticket_id" ]; then
             echo "Error: Ticket '$ticket_id' not found" >&2
