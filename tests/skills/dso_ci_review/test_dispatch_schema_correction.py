@@ -236,7 +236,9 @@ def test_correction_count_drift_routes_to_synthetic_error(monkeypatch) -> None:
         f"Synthetic error severity must be 'critical', got: {error.get('severity')!r}"
     )
     assert "file" in error, f"Synthetic error must include 'file' field: {error}"
-    assert "cited_lines" in error, f"Synthetic error must include 'cited_lines' field: {error}"
+    assert "cited_lines" in error, (
+        f"Synthetic error must include 'cited_lines' field: {error}"
+    )
     assert error.get("cited_lines") == [], (
         f"Synthetic error 'cited_lines' must be empty list, got: {error.get('cited_lines')!r}"
     )
@@ -774,18 +776,18 @@ def test_cited_line_re_accepts_line_ranges() -> None:
     Both dash-range and tilde-range separators must be accepted.
     """
     valid_entries = [
-        "src/foo.py:42",                                           # single line
-        "~src/foo.py:42",                                          # approx single line
-        ".github/workflows/sprint-story-review.yml:83-112",       # dash range
+        "src/foo.py:42",  # single line
+        "~src/foo.py:42",  # approx single line
+        ".github/workflows/sprint-story-review.yml:83-112",  # dash range
         "plugins/dso/scripts/dso_ci_review/dispatch.py:845~851",  # tilde range
         "plugins/dso/scripts/dso_ci_review/dispatch.py:898~906",  # tilde range
-        "src/foo.py:1-999",                                        # large range
+        "src/foo.py:1-999",  # large range
     ]
     invalid_entries = [
         "src/bad_format_no_line_number",  # no colon+line
-        "src/foo.py:",                    # missing line number
-        "src/foo.py:0",                   # zero not allowed
-        "src/foo.py:0-10",               # zero start not allowed
+        "src/foo.py:",  # missing line number
+        "src/foo.py:0",  # zero not allowed
+        "src/foo.py:0-10",  # zero start not allowed
     ]
     for entry in valid_entries:
         assert _dispatch_mod._CITED_LINE_RE.match(entry), (
@@ -819,7 +821,9 @@ def test_reachability_fallback_injects_boilerplate_when_only_error(monkeypatch) 
         "category": "maintainability",
         "description": "test_dispatch_schema_correction.py exceeds 500-line threshold",
         "file": "tests/skills/dso_ci_review/test_dispatch_schema_correction.py",
-        "cited_lines": ["tests/skills/dso_ci_review/test_dispatch_schema_correction.py:1"],
+        "cited_lines": [
+            "tests/skills/dso_ci_review/test_dispatch_schema_correction.py:1"
+        ],
         "finding_id": "f-aa000001",
         "cited_excerpt": "def test_correction_success_returns_corrected_findings(monkeypatch",
         # 'reachability' intentionally absent
@@ -842,7 +846,9 @@ def test_reachability_fallback_injects_boilerplate_when_only_error(monkeypatch) 
             "summary": "Two test-file code quality findings; no production code changes.",
         }
 
-    monkeypatch.setattr(_dispatch_mod, "dispatch_review", _mock_dispatch_review_returns_same)
+    monkeypatch.setattr(
+        _dispatch_mod, "dispatch_review", _mock_dispatch_review_returns_same
+    )
     # Use the real _validate_findings_schema so the fallback logic works end-to-end
     # (do NOT stub it — the fallback relies on real validation to detect missing reach)
 
@@ -868,3 +874,168 @@ def test_reachability_fallback_injects_boilerplate_when_only_error(monkeypatch) 
         assert isinstance(reach, str) and len(reach.strip()) >= 20, (
             f"Boilerplate reachability must be >= 20 chars; got {reach!r}"
         )
+
+
+def test_correction_dispatch_infra_failure_triggers_reachability_fallback(
+    monkeypatch,
+) -> None:
+    """Scenario 11b: dispatch_review returns fallback_exhausted (API overload) during
+    schema correction; reachability fallback must apply to original_findings instead
+    of the infra-failure sentinel, so the correction succeeds without a schema_error.
+
+    When: dispatch_review returns {"findings": [fallback_exhausted_entry]} during
+          schema correction for two important findings that are only missing
+          reachability.
+    Then: reachability fallback injects boilerplate reachability into the original
+          findings and returns them (no synthetic schema_error appended).
+    """
+    finding_a = {
+        "severity": "important",
+        "category": "maintainability",
+        "description": "Long method should be extracted",
+        "file": "src/service.py",
+        "cited_lines": ["src/service.py:10"],
+        "finding_id": "f-aa001122",
+        "cited_excerpt": "def handle(self): ...",
+        # 'reachability' intentionally absent — causes schema_fail
+    }
+    finding_b = {
+        "severity": "important",
+        "category": "hygiene",
+        "description": "Duplicate logic should be deduplicated",
+        "file": "src/utils.py",
+        "cited_lines": ["src/utils.py:5"],
+        "finding_id": "f-bb334455",
+        "cited_excerpt": "def helper(): ...",
+        # 'reachability' intentionally absent
+    }
+
+    _fallback_exhausted_entry = {
+        "type": "fallback_exhausted",
+        "agent_id": "schema-correction",
+        "primary_model": "claude-haiku-4-5-20251001",
+        "attempted_cross_provider": ["anthropic"],
+        "attempted_context_models": ["claude-haiku-4-5-20251001"],
+        "final_exception_class": "InternalServerError",
+        "final_exception_message": "API key validation is temporarily unavailable. Please retry.",
+    }
+
+    def _mock_dispatch_review_infra_fail(**kwargs: object) -> dict:
+        return {"findings": [_fallback_exhausted_entry]}
+
+    monkeypatch.setattr(
+        _dispatch_mod, "dispatch_review", _mock_dispatch_review_infra_fail
+    )
+
+    result = _dispatch_mod.dispatch_schema_correction(
+        original_findings=[finding_a, finding_b],
+        diff_text=_DIFF_TEXT,
+        provider_chain=["anthropic"],
+        environ={"ANTHROPIC_API_KEY": "test-key"},
+        max_attempts=1,
+        agent_id="schema-correction",
+    )
+
+    findings = result.get("findings", [])
+    schema_errors = [f for f in findings if f.get("category") == "schema_error"]
+    assert not schema_errors, (
+        f"Infrastructure failure during correction must not produce schema_error when "
+        f"only reachability is missing; reachability fallback must apply to "
+        f"original_findings. Got schema_errors: {schema_errors}"
+    )
+    assert len(findings) == 2, (
+        f"Finding count must be preserved (got {len(findings)}, expected 2)"
+    )
+    for f in findings:
+        reach = f.get("reachability", "")
+        assert isinstance(reach, str) and len(reach.strip()) >= 20, (
+            f"Boilerplate reachability must be >= 20 non-whitespace chars; got {reach!r}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Scenario 12 — Infra-failure on final attempt must not overwrite a prior
+#               non-infra result (fixes last_result clobber with max_attempts>1)
+# ---------------------------------------------------------------------------
+
+
+def test_infra_failure_on_final_attempt_preserves_prior_non_infra_result(
+    monkeypatch,
+) -> None:
+    """Scenario 12: max_attempts=2; iter 1 returns a non-infra JSON result (schema-invalid
+    because reachability is missing); iter 2 returns infra-failure (fallback_exhausted).
+
+    Given: dispatch_schema_correction is called with max_attempts=2.
+           Iteration 1 returns JSON with cited_excerpt='corrected excerpt' but no reachability
+           (causes schema_fail → continues to iter 2).
+           Iteration 2 returns fallback_exhausted.
+    When: the correction loop exits.
+    Then: last_result retains iter 1's findings (cited_excerpt='corrected excerpt'),
+          NOT original_findings (cited_excerpt='original excerpt').
+          The reachability fallback injects boilerplate reachability.
+          No synthetic schema_error is appended.
+    """
+    original = {
+        "severity": "important",
+        "category": "maintainability",
+        "description": "Method is too long and should be extracted",
+        "file": "src/service.py",
+        "cited_lines": ["src/service.py:42"],
+        "finding_id": "f-cc778899",
+        "cited_excerpt": "original excerpt",
+        # reachability absent — schema_fail on iter 1
+    }
+
+    corrected_iter1 = {
+        **original,
+        "cited_excerpt": "corrected excerpt",  # updated by correction LLM (not frozen)
+        # reachability still absent — will schema_fail
+    }
+
+    _fallback_exhausted_entry = {
+        "type": "fallback_exhausted",
+        "agent_id": "schema-correction",
+        "primary_model": "claude-sonnet-4-6",
+        "attempted_cross_provider": ["anthropic"],
+        "attempted_context_models": ["claude-sonnet-4-6"],
+        "final_exception_class": "InternalServerError",
+        "final_exception_message": "API overloaded; please retry.",
+    }
+
+    call_count = [0]
+
+    def _mock_dispatch_review(**kwargs: object) -> dict:
+        call_count[0] += 1
+        if call_count[0] == 1:
+            return {"findings": [corrected_iter1], "summary": "correction attempt 1"}
+        # iter 2: infra-failure
+        return {"findings": [_fallback_exhausted_entry]}
+
+    monkeypatch.setattr(_dispatch_mod, "dispatch_review", _mock_dispatch_review)
+
+    result = _dispatch_mod.dispatch_schema_correction(
+        original_findings=[original],
+        diff_text=_DIFF_TEXT,
+        provider_chain=["anthropic"],
+        environ={"ANTHROPIC_API_KEY": "test-key"},
+        max_attempts=2,
+        agent_id="schema-correction",
+    )
+
+    findings = result.get("findings", [])
+    schema_errors = [f for f in findings if f.get("category") == "schema_error"]
+    assert not schema_errors, (
+        f"Infra-failure on final attempt must not append schema_error when iter 1 "
+        f"produced a non-infra result; got: {schema_errors}"
+    )
+    assert len(findings) == 1, (
+        f"Expected 1 finding (reachability fallback preserves count), got {len(findings)}"
+    )
+    assert findings[0].get("cited_excerpt") == "corrected excerpt", (
+        f"last_result must retain iter 1's non-infra result (cited_excerpt='corrected excerpt'), "
+        f"not original_findings (cited_excerpt='original excerpt'). Got: {findings[0].get('cited_excerpt')!r}"
+    )
+    reach = findings[0].get("reachability", "")
+    assert isinstance(reach, str) and len(reach.strip()) >= 20, (
+        f"Reachability fallback must inject boilerplate (>=20 chars); got {reach!r}"
+    )
