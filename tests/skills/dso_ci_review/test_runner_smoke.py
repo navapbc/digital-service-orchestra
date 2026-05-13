@@ -3176,3 +3176,333 @@ def test_validate_review_schema_hash_matches_script():
         f"in {validator_script}. "
         "Update _VALIDATE_REVIEW_SCHEMA_HASH in runner.py to match."
     )
+
+
+# ---------------------------------------------------------------------------
+# _read_config_int and _clamp_schema_correction_attempts tests
+# Task efab-ac00-d1a8-4cee — RED tests (functions do not exist yet in runner.py)
+# ---------------------------------------------------------------------------
+#
+# RED markers:
+#   tests/skills/dso_ci_review/test_runner_smoke.py [test_read_config_int_returns_default_when_key_absent]
+#   tests/skills/dso_ci_review/test_runner_smoke.py [test_read_config_int_returns_value_when_key_present]
+#   tests/skills/dso_ci_review/test_runner_smoke.py [test_read_config_int_returns_default_on_invalid_value]
+#   tests/skills/dso_ci_review/test_runner_smoke.py [test_clamp_schema_correction_attempts_honors_zero]
+#   tests/skills/dso_ci_review/test_runner_smoke.py [test_clamp_schema_correction_attempts_honors_within_ceiling]
+#   tests/skills/dso_ci_review/test_runner_smoke.py [test_clamp_schema_correction_attempts_clamps_above_ceiling_with_warning]
+
+
+def test_read_config_int_returns_default_when_key_absent(tmp_path):
+    """
+    Given: a dso-config.conf with no review.schema_correction_max_attempts entry
+    When: _read_config_int("review.schema_correction_max_attempts", 1, config_path) is called
+    Then: returns 1 (the default)
+
+    RED marker: tests/skills/dso_ci_review/test_runner_smoke.py [test_read_config_int_returns_default_when_key_absent]
+    """
+    import dso_ci_review.runner as runner_mod
+
+    config_file = tmp_path / "dso-config.conf"
+    config_file.write_text("# no review.schema_correction_max_attempts key\n")
+
+    result = runner_mod._read_config_int(
+        "review.schema_correction_max_attempts", 1, str(config_file)
+    )
+    assert result == 1, (
+        f"_read_config_int must return the default (1) when the key is absent; "
+        f"got {result!r}"
+    )
+
+
+def test_read_config_int_returns_value_when_key_present(tmp_path):
+    """
+    Given: dso-config.conf contains "review.schema_correction_max_attempts=2"
+    When: _read_config_int("review.schema_correction_max_attempts", 1, config_path) is called
+    Then: returns 2
+
+    RED marker: tests/skills/dso_ci_review/test_runner_smoke.py [test_read_config_int_returns_value_when_key_present]
+    """
+    import dso_ci_review.runner as runner_mod
+
+    config_file = tmp_path / "dso-config.conf"
+    config_file.write_text("review.schema_correction_max_attempts=2\n")
+
+    result = runner_mod._read_config_int(
+        "review.schema_correction_max_attempts", 1, str(config_file)
+    )
+    assert result == 2, (
+        f"_read_config_int must return 2 when the config contains "
+        f"'review.schema_correction_max_attempts=2'; got {result!r}"
+    )
+
+
+def test_read_config_int_returns_default_on_invalid_value(tmp_path):
+    """
+    Given: dso-config.conf contains 'review.schema_correction_max_attempts=foo'
+    When: _read_config_int("review.schema_correction_max_attempts", 1, config_path) is called
+    Then: returns 1 (the default) without raising an exception
+
+    RED marker: tests/skills/dso_ci_review/test_runner_smoke.py [test_read_config_int_returns_default_on_invalid_value]
+
+    AC amendment: covers missing_error_path — non-integer config values must fall
+    back to the default rather than raising ValueError or propagating a parse error.
+    """
+    import dso_ci_review.runner as runner_mod
+
+    config_file = tmp_path / "dso-config.conf"
+    config_file.write_text("review.schema_correction_max_attempts=foo\n")
+
+    result = runner_mod._read_config_int(
+        "review.schema_correction_max_attempts", 1, str(config_file)
+    )
+    assert result == 1, (
+        f"_read_config_int must return the default (1) when the config value is "
+        f"non-integer ('foo'); got {result!r}. Must not raise."
+    )
+
+
+def test_read_config_int_handles_whitespace_around_equals(tmp_path):
+    """
+    Given: dso-config.conf contains 'review.schema_correction_max_attempts = 2'
+           (spaces around '=', as some editors produce)
+    When: _read_config_int("review.schema_correction_max_attempts", 1, config_path) is called
+    Then: returns 2 (whitespace-normalized match, not the default)
+    """
+    import dso_ci_review.runner as runner_mod
+
+    config_file = tmp_path / "dso-config.conf"
+    config_file.write_text("review.schema_correction_max_attempts = 2\n")
+
+    result = runner_mod._read_config_int(
+        "review.schema_correction_max_attempts", 1, str(config_file)
+    )
+    assert result == 2, (
+        f"_read_config_int must handle 'key = value' format (spaces around '='); "
+        f"got {result!r} (expected 2, not the default 1). "
+        "Some editors produce 'key = value' in config files."
+    )
+
+
+def test_read_config_int_returns_default_when_file_absent(tmp_path):
+    """
+    Given: config_path points to a non-existent file
+    When: _read_config_int("review.schema_correction_max_attempts", 1, config_path) is called
+    Then: returns the default (1) without raising
+    """
+    import dso_ci_review.runner as runner_mod
+
+    missing = str(tmp_path / "nonexistent-config.conf")
+    result = runner_mod._read_config_int(
+        "review.schema_correction_max_attempts", 1, missing
+    )
+    assert result == 1, (
+        f"_read_config_int must return the default when config file does not exist; "
+        f"got {result!r}"
+    )
+
+
+def test_read_config_int_returns_default_on_oserror(tmp_path):
+    """
+    Given: config_path exists but raises OSError on open (e.g. permission denied)
+    When: _read_config_int("review.schema_correction_max_attempts", 1, config_path) is called
+    Then: returns the default (1) without propagating the exception
+    """
+    import dso_ci_review.runner as runner_mod
+    import unittest.mock as mock
+
+    config_file = tmp_path / "dso-config.conf"
+    config_file.write_text("review.schema_correction_max_attempts=2\n")
+
+    with mock.patch("builtins.open", side_effect=OSError("permission denied")):
+        result = runner_mod._read_config_int(
+            "review.schema_correction_max_attempts", 1, str(config_file)
+        )
+    assert result == 1, (
+        f"_read_config_int must return the default when OSError is raised on open; "
+        f"got {result!r}"
+    )
+
+
+def test_read_config_int_returns_default_on_unicode_decode_error(tmp_path):
+    """
+    Given: config_path exists but raises UnicodeDecodeError on read (non-UTF-8 bytes)
+    When: _read_config_int("review.schema_correction_max_attempts", 1, config_path) is called
+    Then: returns the default (1) without propagating the exception
+    """
+    import dso_ci_review.runner as runner_mod
+    import unittest.mock as mock
+
+    config_file = tmp_path / "dso-config.conf"
+    config_file.write_text("review.schema_correction_max_attempts=2\n")
+
+    with mock.patch(
+        "builtins.open",
+        side_effect=UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte"),
+    ):
+        result = runner_mod._read_config_int(
+            "review.schema_correction_max_attempts", 1, str(config_file)
+        )
+    assert result == 1, (
+        f"_read_config_int must return the default when UnicodeDecodeError is raised; "
+        f"got {result!r}. Non-UTF-8 config files must not crash the reader."
+    )
+
+
+def test_clamp_schema_correction_attempts_honors_zero():
+    """
+    Given: max_attempts=0
+    When: _clamp_schema_correction_attempts(0) is called
+    Then: returns 0 (disable-correction sentinel honored as-is)
+
+    RED marker: tests/skills/dso_ci_review/test_runner_smoke.py [test_clamp_schema_correction_attempts_honors_zero]
+    """
+    import dso_ci_review.runner as runner_mod
+
+    result = runner_mod._clamp_schema_correction_attempts(0)
+    assert result == 0, (
+        f"_clamp_schema_correction_attempts(0) must return 0 (disable sentinel); "
+        f"got {result!r}"
+    )
+
+
+def test_clamp_schema_correction_attempts_honors_within_ceiling():
+    """
+    Given: values 1 and 3
+    When: _clamp_schema_correction_attempts(v) is called for each
+    Then: returns the value unchanged (no clamping, no warning)
+
+    RED marker: tests/skills/dso_ci_review/test_runner_smoke.py [test_clamp_schema_correction_attempts_honors_within_ceiling]
+    """
+    import io
+    from contextlib import redirect_stderr
+
+    import dso_ci_review.runner as runner_mod
+
+    for v in (1, 3):
+        stderr_capture = io.StringIO()
+        with redirect_stderr(stderr_capture):
+            result = runner_mod._clamp_schema_correction_attempts(v)
+        assert result == v, (
+            f"_clamp_schema_correction_attempts({v}) must return {v} unchanged; "
+            f"got {result!r}"
+        )
+        stderr_text = stderr_capture.getvalue()
+        assert not stderr_text, (
+            f"_clamp_schema_correction_attempts({v}) must not emit a warning "
+            f"(value is within ceiling); got stderr: {stderr_text!r}"
+        )
+
+
+def test_clamp_schema_correction_attempts_clamps_above_ceiling_with_warning(capsys):
+    """
+    Given: max_attempts=10
+    When: _clamp_schema_correction_attempts(10) is called
+    Then: returns 3; a warning line is emitted to stderr containing
+          "schema_correction_max_attempts" and "clamped" (or equivalent)
+
+    RED marker: tests/skills/dso_ci_review/test_runner_smoke.py [test_clamp_schema_correction_attempts_clamps_above_ceiling_with_warning]
+    """
+    import dso_ci_review.runner as runner_mod
+
+    result = runner_mod._clamp_schema_correction_attempts(10)
+    captured = capsys.readouterr()
+
+    assert result == 3, (
+        f"_clamp_schema_correction_attempts(10) must clamp to 3; got {result!r}"
+    )
+    assert "schema_correction_max_attempts" in captured.err, (
+        f"Warning must mention 'schema_correction_max_attempts'; "
+        f"got stderr: {captured.err!r}"
+    )
+    assert "clamp" in captured.err.lower(), (
+        f"Warning must mention 'clamped' (or 'clamp'); got stderr: {captured.err!r}"
+    )
+
+
+def test_clamp_schema_correction_attempts_rejects_negative(capsys):
+    """
+    Given: max_attempts=-5 (negative misconfiguration)
+    When: _clamp_schema_correction_attempts(-5) is called
+    Then: returns 0 (correction disabled) and emits a warning to stderr
+          mentioning 'schema_correction_max_attempts' and 'negative'
+    """
+    import dso_ci_review.runner as runner_mod
+
+    result = runner_mod._clamp_schema_correction_attempts(-5)
+    captured = capsys.readouterr()
+
+    assert result == 0, (
+        f"_clamp_schema_correction_attempts(-5) must clamp to 0 (correction disabled); "
+        f"got {result!r}"
+    )
+    assert "schema_correction_max_attempts" in captured.err, (
+        f"Warning must mention 'schema_correction_max_attempts'; "
+        f"got stderr: {captured.err!r}"
+    )
+    assert "negative" in captured.err.lower(), (
+        f"Warning must mention 'negative'; got stderr: {captured.err!r}"
+    )
+
+
+def test_get_schema_correction_max_attempts_end_to_end(tmp_path):
+    """
+    Given: dso-config.conf contains 'review.schema_correction_max_attempts=2'
+    When: get_schema_correction_max_attempts(config_path=...) is called
+    Then: returns 2 (valid value, no clamping needed)
+
+    Exercises the full composition: _read_config_int → _clamp_schema_correction_attempts.
+    """
+    import dso_ci_review.runner as runner_mod
+
+    config_file = tmp_path / "dso-config.conf"
+    config_file.write_text("review.schema_correction_max_attempts=2\n")
+
+    result = runner_mod.get_schema_correction_max_attempts(config_path=str(config_file))
+
+    assert result == 2, (
+        f"get_schema_correction_max_attempts must return 2 when config sets "
+        f"review.schema_correction_max_attempts=2; got {result!r}"
+    )
+
+
+def test_get_schema_correction_max_attempts_clamps_negative(tmp_path, capsys):
+    """
+    Given: dso-config.conf contains 'review.schema_correction_max_attempts=-1'
+    When: get_schema_correction_max_attempts(config_path=...) is called
+    Then: returns 0 (negative clamped to disable sentinel)
+    """
+    import dso_ci_review.runner as runner_mod
+
+    config_file = tmp_path / "dso-config.conf"
+    config_file.write_text("review.schema_correction_max_attempts=-1\n")
+
+    result = runner_mod.get_schema_correction_max_attempts(config_path=str(config_file))
+
+    assert result == 0, (
+        f"get_schema_correction_max_attempts must clamp -1 to 0; got {result!r}"
+    )
+
+
+def test_get_schema_correction_max_attempts_clamps_above_ceiling(tmp_path, capsys):
+    """
+    Given: dso-config.conf contains 'review.schema_correction_max_attempts=10'
+           (above the hard ceiling of 3)
+    When: get_schema_correction_max_attempts(config_path=...) is called
+    Then: returns 3 (ceiling value) and emits a warning to stderr
+    """
+    import dso_ci_review.runner as runner_mod
+
+    config_file = tmp_path / "dso-config.conf"
+    config_file.write_text("review.schema_correction_max_attempts=10\n")
+
+    result = runner_mod.get_schema_correction_max_attempts(config_path=str(config_file))
+    captured = capsys.readouterr()
+
+    assert result == runner_mod._SCHEMA_CORRECTION_MAX_ATTEMPTS_CEILING, (
+        f"get_schema_correction_max_attempts must clamp 10 to ceiling "
+        f"{runner_mod._SCHEMA_CORRECTION_MAX_ATTEMPTS_CEILING}; got {result!r}"
+    )
+    assert "schema_correction_max_attempts" in captured.err, (
+        f"Warning must mention 'schema_correction_max_attempts'; "
+        f"got stderr: {captured.err!r}"
+    )
