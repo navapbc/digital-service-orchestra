@@ -143,6 +143,8 @@ fi
 ```
 Schema reference: `${CLAUDE_PLUGIN_ROOT}/skills/debug-everything/docs/debug-active-marker-schema.md`
 
+<!-- TODO: register phases B/F/G/K in af26 forbidden-action registry when af26-dd5a-df6d-4f81 closes (see story 1473) -->
+
 ### Step 2: BUG-FIX MODE GATE — Skip Diagnostics If Open Bugs Exist (/dso:debug-everything)
 
 **Check for open and in_progress bug tickets before launching the diagnostic scan.** This is the Bug-Fix Mode entry gate:
