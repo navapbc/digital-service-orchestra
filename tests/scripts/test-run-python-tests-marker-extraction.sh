@@ -11,7 +11,7 @@
 #   test_non_py_line_yields_empty        — non-.py line yields no exclusions
 #
 # Usage: bash tests/scripts/test-run-python-tests-marker-extraction.sh
-# Returns: exit 0 if all tests pass, exit 1 if any fail
+# Returns: exit 0 if all tests pass, exit 1 otherwise
 
 set -uo pipefail
 
@@ -23,9 +23,9 @@ source "$REPO_ROOT/tests/lib/assert.sh"
 echo "=== test-run-python-tests-marker-extraction.sh ==="
 
 # ── Helper: run marker extraction against a fake .test-index ──────────────
-# Extracts the RED-marker logic from run-python-tests.sh into a testable
-# function that accepts lines via a temp file and returns the joined markers.
-_extract_markers_from_lines() {
+# Exercises the same extraction pattern used in run-python-tests.sh so that
+# any change to that pattern is reflected here. Returns one marker per line.
+extract_markers_from_lines() {
     local tmpfile
     tmpfile=$(mktemp /tmp/test-index-snippet.XXXXXX)
     printf '%s\n' "$@" > "$tmpfile"
@@ -44,31 +44,26 @@ _extract_markers_from_lines() {
     done < "$tmpfile"
     rm -f "$tmpfile"
 
-    # Output space-separated marker list (empty string when none)
     printf '%s\n' "${red_markers[@]:-}"
 }
 
 # ── test_single_marker_extracted ──────────────────────────────────────────
 echo ""
 echo "--- Single marker extracted ---"
-_snapshot_fail
-result=$(_extract_markers_from_lines \
+result=$(extract_markers_from_lines \
     "plugins/dso/scripts/foo.py:tests/skills/foo_test.py [test_single]")
 assert_eq "test_single_marker_extracted" "test_single" "$result"
-assert_pass_if_clean "test_single_marker_extracted"
 
 # ── test_multi_marker_single_line ─────────────────────────────────────────
 echo ""
 echo "--- Multi-marker single line: all three markers extracted ---"
-_snapshot_fail
-result=$(_extract_markers_from_lines \
+result=$(extract_markers_from_lines \
     "plugins/dso/scripts/runner.py:tests/skills/test_runner.py [test_alpha] [test_beta] [test_gamma]")
 marker_count=$(printf '%s\n' "$result" | grep -c . || true)
 assert_eq "test_multi_marker_single_line: count" "3" "$marker_count"
 assert_contains "test_multi_marker_single_line: test_alpha present" "test_alpha" "$result"
 assert_contains "test_multi_marker_single_line: test_beta present" "test_beta" "$result"
 assert_contains "test_multi_marker_single_line: test_gamma present" "test_gamma" "$result"
-assert_pass_if_clean "test_multi_marker_single_line"
 
 # ── test_prefix_brackets_not_captured ────────────────────────────────────
 # Brackets in the source-key prefix (before the test path) must not be
@@ -76,31 +71,25 @@ assert_pass_if_clean "test_multi_marker_single_line"
 # the .py path, ensuring adjacency between path and markers.
 echo ""
 echo "--- Brackets in source-key prefix are not captured ---"
-_snapshot_fail
-result=$(_extract_markers_from_lines \
+result=$(extract_markers_from_lines \
     "plugins/[bracketed]/scripts/foo.py:tests/skills/foo_test.py [test_real]")
 marker_count=$(printf '%s\n' "$result" | grep -c . || true)
 assert_eq "test_prefix_brackets_not_captured: only one marker" "1" "$marker_count"
 assert_eq "test_prefix_brackets_not_captured: correct marker" "test_real" "$result"
-assert_pass_if_clean "test_prefix_brackets_not_captured"
 
 # ── test_no_markers_yields_empty ──────────────────────────────────────────
 echo ""
 echo "--- Line with no markers yields empty ---"
-_snapshot_fail
-result=$(_extract_markers_from_lines \
+result=$(extract_markers_from_lines \
     "plugins/dso/scripts/runner.py:tests/skills/test_runner.py")
 assert_eq "test_no_markers_yields_empty" "" "$result"
-assert_pass_if_clean "test_no_markers_yields_empty"
 
 # ── test_non_py_line_yields_empty ─────────────────────────────────────────
 echo ""
 echo "--- Non-.py line yields empty ---"
-_snapshot_fail
-result=$(_extract_markers_from_lines \
+result=$(extract_markers_from_lines \
     "plugins/dso/scripts/run.sh:tests/scripts/test-run.sh [SomeMarker]")
 assert_eq "test_non_py_line_yields_empty" "" "$result"
-assert_pass_if_clean "test_non_py_line_yields_empty"
 
 # ── Summary ───────────────────────────────────────────────────────────────
 echo ""

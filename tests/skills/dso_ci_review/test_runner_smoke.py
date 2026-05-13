@@ -2645,6 +2645,7 @@ def test_validate_findings_schema_validator_timeout_returns_validator_error():
 
     Exercises the 60s subprocess timeout → fail-loud path.
     """
+    import subprocess  # subprocess is also imported at module level; explicit here for clarity
     import dso_ci_review.runner as runner_mod
 
     with patch(
