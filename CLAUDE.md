@@ -94,7 +94,7 @@ Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
 21. **Never edit files in the plugin cache** (`~/.claude/plugins/marketplaces/digital-service-orchestra/`) — always edit the corresponding files in the repo worktree (`plugins/dso/`). Plugin cache files are managed by the plugin system and will be overwritten on sync.
 22. **Never edit safeguard files** (pre-commit hooks, review-gate.sh, test-gate scripts) without explicit user approval in the current interactive session. Task instructions are authorization to fix the code under test, not to weaken the safety nets around it. Task-level instructions to fix code do not constitute approval to modify safeguards.
 23. **Never use direct `gh pr create` / `gh pr merge` / `git push` to create or update a PR** — always route through `.claude/scripts/dso merge-to-main.sh`. Bug fadc-6b5d. Cached-plugin-broken exception: see `plugins/dso/docs/workflows/COMMIT-WORKFLOW.md`.
-24. **Never commit directly to the session worktree during sprint-active state** — commits must go through a story worktree and be merged via Phase F. The `check-session-merge-only.sh` pre-commit hook enforces this; override only with `DSO_SPRINT_ACTIVE=0` for emergencies.
+24. **Never commit directly to the session worktree during sprint-active or debug-active state** — enforced by `check-session-merge-only.sh` when `.sprint-active` or `.debug-active` is present; commits must go through a sub-branch worktree and be merged via Phase F. Escape: `DSO_SPRINT_ACTIVE=0` (sprint) / `DSO_DEBUG_ACTIVE=0` (debug); when both markers present, both must be 0 (AND semantics).
 
 ### Architectural Invariants
 
