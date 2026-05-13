@@ -32,6 +32,10 @@ MERGE_SCRIPT="$DSO_PLUGIN_DIR/scripts/merge-to-main-direct.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
+# Trap-based cleanup for temp files created at script level
+_CLEANUP_FILES=()
+trap 'rm -f "${_CLEANUP_FILES[@]:-}"' EXIT
+
 # Helper: source merge-to-main-direct.sh in library mode with a given config file
 # and print CI_WORKFLOW_NAME. All stderr (including DEPRECATION warnings) is
 # captured separately.
@@ -65,6 +69,7 @@ echo ""
 echo "--- test_merge_to_main_reads_ci_workflow_name ---"
 
 _T1_CONFIG=$(mktemp /tmp/dso-config-t1.XXXXXX.conf)
+_CLEANUP_FILES+=("$_T1_CONFIG")
 printf 'ci.workflow_name=my-ci-workflow\n' > "$_T1_CONFIG"
 
 _T1_OUTPUT=$(_resolve_ci_workflow_name "$_T1_CONFIG" 2>/dev/null)
@@ -83,6 +88,7 @@ echo ""
 echo "--- test_merge_to_main_fallback_to_merge_ci_workflow_name ---"
 
 _T2_CONFIG=$(mktemp /tmp/dso-config-t2.XXXXXX.conf)
+_CLEANUP_FILES+=("$_T2_CONFIG")
 printf 'merge.ci_workflow_name=legacy-workflow\n' > "$_T2_CONFIG"
 
 _T2_OUTPUT=$(_resolve_ci_workflow_name "$_T2_CONFIG" 2>/dev/null)
@@ -101,9 +107,11 @@ echo ""
 echo "--- test_merge_to_main_deprecation_warning ---"
 
 _T3_CONFIG=$(mktemp /tmp/dso-config-t3.XXXXXX.conf)
+_CLEANUP_FILES+=("$_T3_CONFIG")
 printf 'merge.ci_workflow_name=legacy-workflow\n' > "$_T3_CONFIG"
 
 _T3_WRAPPER=$(mktemp /tmp/ci-wfname-t3.XXXXXX.sh)
+_CLEANUP_FILES+=("$_T3_WRAPPER")
 cat > "$_T3_WRAPPER" << WRAPPER_EOF
 #!/usr/bin/env bash
 export MERGE_TO_MAIN_DIRECT_LIB=1
@@ -133,6 +141,7 @@ echo ""
 echo "--- test_merge_to_main_both_keys_absent_resolves_to_empty ---"
 
 _T4_CONFIG=$(mktemp /tmp/dso-config-t4.XXXXXX.conf)
+_CLEANUP_FILES+=("$_T4_CONFIG")
 printf '' > "$_T4_CONFIG"  # empty config — no workflow name keys
 
 _T4_OUTPUT=$(_resolve_ci_workflow_name "$_T4_CONFIG" 2>/dev/null)

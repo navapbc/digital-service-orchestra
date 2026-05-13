@@ -143,7 +143,9 @@ _T1_BASE=$(mktemp -d /tmp/test-merge-config-t1.XXXXXX)
 _setup_validate_env "$_T1_BASE" "commands.format_check=custom-fmt-check
 commands.lint=custom-lint"
 
-_run_phase_validate_wrapper > /dev/null 2>&1 || true
+_T1_RC=0
+_run_phase_validate_wrapper > /dev/null 2>&1 || _T1_RC=$?
+assert_eq "test_merge_validate_t1_phase_succeeds" "0" "$_T1_RC"
 
 _T1_FMT_CALLED="false"
 if [[ -f "$_FMT_CALL_LOG" ]] && grep -q "custom-fmt-check" "$_FMT_CALL_LOG" 2>/dev/null; then
@@ -168,7 +170,9 @@ _T2_BASE=$(mktemp -d /tmp/test-merge-config-t2.XXXXXX)
 _setup_validate_env "$_T2_BASE" "commands.format_check=custom-fmt-check
 commands.lint=custom-lint"
 
-_run_phase_validate_wrapper > /dev/null 2>&1 || true
+_T2_RC=0
+_run_phase_validate_wrapper > /dev/null 2>&1 || _T2_RC=$?
+assert_eq "test_merge_validate_t2_phase_succeeds" "0" "$_T2_RC"
 
 _T2_LINT_CALLED="false"
 if [[ -f "$_LINT_CALL_LOG" ]] && grep -q "custom-lint" "$_LINT_CALL_LOG" 2>/dev/null; then
@@ -262,7 +266,9 @@ _snapshot_fail
 _T5_BASE=$(mktemp -d /tmp/test-merge-config-t5.XXXXXX)
 _setup_validate_env "$_T5_BASE" ""  # empty config — no commands overrides
 
-_run_phase_validate_wrapper > /dev/null 2>&1 || true
+_T5_RC=0
+_run_phase_validate_wrapper > /dev/null 2>&1 || _T5_RC=$?
+assert_eq "test_merge_validate_t5_phase_succeeds" "0" "$_T5_RC"
 
 _T5_MAKE_FMT_CALLED="false"
 if [[ -f "$_FMT_CALL_LOG" ]] && grep -q "^format-check$" "$_FMT_CALL_LOG" 2>/dev/null; then
@@ -286,7 +292,9 @@ _snapshot_fail
 _T6_BASE=$(mktemp -d /tmp/test-merge-config-t6.XXXXXX)
 _setup_validate_env "$_T6_BASE" ""  # empty config — no commands overrides
 
-_run_phase_validate_wrapper > /dev/null 2>&1 || true
+_T6_RC=0
+_run_phase_validate_wrapper > /dev/null 2>&1 || _T6_RC=$?
+assert_eq "test_merge_validate_t6_phase_succeeds" "0" "$_T6_RC"
 
 _T6_MAKE_LINT_CALLED="false"
 if [[ -f "$_LINT_CALL_LOG" ]] && grep -qE "^lint" "$_LINT_CALL_LOG" 2>/dev/null; then
@@ -327,6 +335,13 @@ if [[ "$_T7_RC" -ne 0 ]]; then
     _T7_FAILED="true"
 fi
 assert_eq "test_merge_validate_fails_when_lint_command_exits_nonzero" "true" "$_T7_FAILED"
+
+# Also verify the failure is attributable to the configured lint command running
+_T7_FAILING_LINT_CALLED="false"
+if [[ -f "$_LINT_CALL_LOG" ]] && grep -q "failing-lint" "$_LINT_CALL_LOG" 2>/dev/null; then
+    _T7_FAILING_LINT_CALLED="true"
+fi
+assert_eq "test_merge_validate_t7_failing_lint_was_invoked" "true" "$_T7_FAILING_LINT_CALLED"
 
 assert_pass_if_clean "test_merge_validate_fails_when_lint_command_exits_nonzero"
 rm -rf "$_T7_BASE"
