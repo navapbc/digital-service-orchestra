@@ -711,3 +711,55 @@ def test_file_and_cited_lines_frozen_field_mutation_rejected(monkeypatch) -> Non
     )
     assert schema_errors2[0].get("type") == "parse_error"
     assert schema_errors2[0].get("severity") == "critical"
+
+
+# ---------------------------------------------------------------------------
+# Scenario 10 — malformed cited_lines are correctable (not frozen when invalid)
+# ---------------------------------------------------------------------------
+
+
+def test_malformed_cited_lines_not_frozen_allows_correction(monkeypatch) -> None:
+    """Given: original findings have malformed cited_lines (invalid format).
+    When: correction dispatch returns findings with cited_lines fixed to valid format.
+    Then:
+      - Correction succeeds (no synthetic schema_error appended).
+      - The corrected cited_lines value is accepted.
+
+    Rationale: cited_lines is frozen only when schema-valid. If the original is
+    malformed (not matching <path>:<non-zero-line>), the correction must be allowed
+    to fix the format — otherwise schema correction cannot resolve cited_lines errors.
+    """
+    # Original finding with malformed cited_lines (missing line number)
+    orig_with_bad_cited = copy.deepcopy(_FINDING_A)
+    orig_with_bad_cited["cited_lines"] = ["src/bad_format_no_line_number"]  # malformed
+
+    # Corrected finding with valid cited_lines
+    corrected_with_fixed_cited = copy.deepcopy(orig_with_bad_cited)
+    corrected_with_fixed_cited["cited_lines"] = ["src/bad_format_no_line_number:42"]
+
+    def _mock_dispatch_review(**kwargs):
+        return {"findings": [corrected_with_fixed_cited]}
+
+    monkeypatch.setattr(_dispatch_mod, "dispatch_review", _mock_dispatch_review)
+    monkeypatch.setattr(
+        _runner_mod, "_validate_findings_schema", _stub_validate_schema_pass
+    )
+
+    result = _dispatch_mod.dispatch_schema_correction(
+        original_findings=[orig_with_bad_cited],
+        diff_text=_DIFF_TEXT,
+        provider_chain=["anthropic"],
+        environ={"ANTHROPIC_API_KEY": "test-key"},
+        max_attempts=1,
+        agent_id="code-reviewer-standard",
+    )
+
+    findings = result.get("findings", [])
+    schema_errors = [f for f in findings if f.get("category") == "schema_error"]
+    assert not schema_errors, (
+        f"Correction of malformed cited_lines must succeed (not be treated as frozen "
+        f"violation); got schema_errors: {schema_errors}"
+    )
+    assert findings[0].get("cited_lines") == ["src/bad_format_no_line_number:42"], (
+        f"Corrected cited_lines must be accepted; got {findings[0].get('cited_lines')!r}"
+    )

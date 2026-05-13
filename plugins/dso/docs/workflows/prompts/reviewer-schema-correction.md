@@ -40,8 +40,14 @@ not for clarity, not to fix perceived errors in their content.
 | `category` | YES — byte-for-byte identical to original |
 | `description` | YES — byte-for-byte identical to original |
 | `file` | YES — byte-for-byte identical to original |
-| `cited_lines` | YES — byte-for-byte identical to original |
+| `cited_lines` | CONDITIONAL — see exception below |
 | `finding_id` | YES — byte-for-byte identical to original (see exception below) |
+
+**`cited_lines` exception**: If the original `cited_lines` is absent, empty (`[]`), or
+contains entries that do not match the format `<path>:<non-zero-line>` (e.g.,
+`plugins/foo.py:42`), you MAY correct the malformed entries or populate the field.
+If the original `cited_lines` is already schema-valid (non-empty list with all entries
+in `<path>:<line>` format), treat it as **frozen** — do NOT change it.
 
 **`finding_id` exception**: If `finding_id` is absent, empty, or structurally malformed
 (not matching `f-<hex8>` format), you MAY generate a valid `finding_id` in the format

@@ -1174,6 +1174,24 @@ def main() -> int:
                     merged = dict(merged)
                     merged["findings"] = filtered
 
+        # Step 7a.5: early-exit for all-specialist-errors.
+        # specialist_error findings may be schema-invalid (they lack cited_lines etc.),
+        # which would trigger schema correction. But when ALL findings are specialist
+        # errors there was no real review — schema correction cannot help. Exit early
+        # before schema validation so the accurate diagnostic is surfaced instead of
+        # a misleading "schema correction failed" message.
+        _pre_schema_findings = merged.get("findings") or []
+        if bool(_pre_schema_findings) and all(
+            f.get("type") == "specialist_error" for f in _pre_schema_findings
+        ):
+            _write_output(merged)
+            print(
+                "ERROR: all specialist dispatches failed — no review findings produced "
+                "(check litellm installation and API key configuration)",
+                file=sys.stderr,
+            )
+            return 1
+
         # Step 7b: schema validation (schema hash 214949ee476be6d0)
         # Shell out to validate-review-output.sh before writing to disk.
         # Exit-code routing:

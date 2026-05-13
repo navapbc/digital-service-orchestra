@@ -68,6 +68,9 @@ _FROZEN_FIELDS: tuple[str, ...] = (
 # finding_id format: f-<8 lowercase hex characters>
 _FINDING_ID_RE: re.Pattern[str] = re.compile(r"^f-[0-9a-f]{8}$")
 
+# cited_lines entry format: optional ~ prefix, path, colon, non-zero line number
+_CITED_LINE_RE: re.Pattern[str] = re.compile(r"^~?[^:]+:[1-9][0-9]*$")
+
 
 @functools.lru_cache(maxsize=32)
 def _load_agent_prompt(agent_id: str) -> str:
@@ -957,7 +960,25 @@ def dispatch_schema_correction(
         frozen_ok = True
         for i, (orig, corrected) in enumerate(zip(original_findings, attempt_findings)):
             for field in _FROZEN_FIELDS:
-                if field in orig and corrected.get(field) != orig[field]:
+                if field not in orig:
+                    continue  # absent fields may be added by correction
+                # cited_lines: frozen only when original is schema-valid (non-empty
+                # list with all entries matching <path>:<line> format). When malformed,
+                # the correction must be allowed to fix the format — identical to the
+                # finding_id exception below.
+                if field == "cited_lines":
+                    orig_cited = orig[field]
+                    orig_cited_valid = (
+                        isinstance(orig_cited, list)
+                        and len(orig_cited) > 0
+                        and all(
+                            isinstance(e, str) and _CITED_LINE_RE.match(e)
+                            for e in orig_cited
+                        )
+                    )
+                    if not orig_cited_valid:
+                        continue  # malformed original — allow correction to fix format
+                if corrected.get(field) != orig[field]:
                     last_error = (
                         f"frozen field {field!r} mutated at index {i}: "
                         f"original={orig[field]!r}, corrected={corrected.get(field)!r}"

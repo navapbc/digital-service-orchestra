@@ -36,6 +36,8 @@ jobs:
         uses: ludeeus/action-shellcheck@2.0.0
         with:
           scandir: './plugins/dso/scripts'
+          # warning: suppress info/style-level findings (SC2295, SC2086, SC2016, etc.)
+          # that are pre-existing and non-actionable. Only actual warnings+ block CI.
           severity: warning
 
   lint-python:
@@ -53,6 +55,7 @@ jobs:
     name: Per-Story LLM Review
     needs: [actionlint, shellcheck, lint-python]
     runs-on: ubuntu-latest
+    # 30 min: region-split mode with 5 clusters takes ~12 min; 30 provides headroom.
     timeout-minutes: 30
     steps:
       - name: Checkout story branch
@@ -91,13 +94,17 @@ jobs:
           # Download from a PRIOR run (not the current run).
           # Filter out the current run-id so we get the most recent completed run's artifact.
           mkdir -p /tmp/prior-review
+          # per_page=10: artifact names are branch-specific so accumulation is slow,
+          # but 10 provides headroom without hitting API limits.
           ARTIFACT_URL=$(gh api \
-            "/repos/${{ github.repository }}/actions/artifacts?name=${ARTIFACT_NAME}&per_page=5" \
+            "/repos/${{ github.repository }}/actions/artifacts?name=${ARTIFACT_NAME}&per_page=10" \
             --jq ".artifacts[] | select(.workflow_run.id != ${{ github.run_id }}) | .archive_download_url" \
             | head -1)
           if [[ -n "$ARTIFACT_URL" ]]; then
             # GitHub API download endpoints accept Bearer scheme (same as gh CLI internally).
-            curl -sL -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            # -f: fail on HTTP errors (4xx/5xx) so a non-zip error response is not
+            # silently passed to unzip as if it were a valid archive.
+            curl -fsL -H "Authorization: Bearer ${GITHUB_TOKEN}" \
               "$ARTIFACT_URL" -o /tmp/prior-review.zip && \
               unzip -o /tmp/prior-review.zip -d /tmp/prior-review/ && \
               echo "Downloaded prior artifact from $ARTIFACT_URL"
