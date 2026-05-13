@@ -233,18 +233,28 @@ print(m.group(1) if m else '')
 
 ```bash
 if ! git merge-base --is-ancestor "$CODE_VERSION" HEAD 2>/dev/null; then
-    .claude/scripts/dso ticket comment "$BUG_TICKET_ID" \
-      "Worktree ancestry check: FAILED — code_version ${CODE_VERSION} is not an ancestor of HEAD on $(git rev-parse --abbrev-ref HEAD). Investigation skipped; re-queue when the source branch lands."
-    # Transition ticket back to open so it is visible for re-queuing
-    .claude/scripts/dso ticket transition "$BUG_TICKET_ID" in_progress open 2>/dev/null || true
-    # END the skill
-    exit 0
+    # Secondary check: squash-merge detection.
+    # Squash-merged PRs rewrite branch commits to a new SHA on main, so the
+    # original code_version SHA is not an ancestor of HEAD but remains in the
+    # object store. If `git cat-file -t` returns "commit", the object exists and
+    # the code change is present in this repo — pass the gate with a note.
+    if [ "$(git cat-file -t "$CODE_VERSION" 2>/dev/null)" = "commit" ]; then
+        .claude/scripts/dso ticket comment "$BUG_TICKET_ID" \
+          "Worktree ancestry check: PASSED (squash-merge) — code_version ${CODE_VERSION} is not a direct ancestor of HEAD but exists in the object store, indicating a squash-merged PR. Proceeding with investigation."
+    else
+        .claude/scripts/dso ticket comment "$BUG_TICKET_ID" \
+          "Worktree ancestry check: FAILED — code_version ${CODE_VERSION} is not an ancestor of HEAD on $(git rev-parse --abbrev-ref HEAD) and does not exist in the object store. Investigation skipped; re-queue when the source branch lands."
+        # Transition ticket back to open so it is visible for re-queuing
+        .claude/scripts/dso ticket transition "$BUG_TICKET_ID" in_progress open 2>/dev/null || true
+        # END the skill
+        exit 0
+    fi
 fi
 ```
 
-**If the ancestry check passes** (code_version is an ancestor of HEAD): proceed to Step 3.
+**If the ancestry check passes** (code_version is an ancestor of HEAD, or is a squash-merged commit present in the object store): proceed to Step 3.
 
-This gate is a hard stop. Do not proceed with investigation when the ancestry check fails — the bug may already be fixed on the source branch, or the affected code may not exist here, making any fix attempt incorrect.
+This gate is a hard stop when the object does not exist at all. Squash-merged commits are an exception: the original branch SHA remains in the object store even though it is not a direct ancestor of HEAD, and the code change it represents is fully present in main via the squash commit.
 
 ### Step 3: Score and Classify (/dso:fix-bug)
 
