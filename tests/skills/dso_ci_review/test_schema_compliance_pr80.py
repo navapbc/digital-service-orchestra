@@ -91,20 +91,25 @@ def _run_runner_with_pr80(tmp_path: Path) -> dict:
     return json.loads(output_file.read_text())
 
 
-# Module-level cache so both tests share one runner invocation per session.
-_pr80_result_cache: dict | None = None
+@pytest.fixture(scope="session")
+def pr80_result(tmp_path_factory):
+    """Session-scoped fixture: run the PR-80 integration once and share across tests.
 
-
-def _get_pr80_result(tmp_path: Path) -> dict:
-    """Return memoized runner result for PR-80, invoking runner only once."""
-    global _pr80_result_cache
-    if _pr80_result_cache is None:
-        _pr80_result_cache = _run_runner_with_pr80(tmp_path)
-    return _pr80_result_cache
+    Skips the entire session if ANTHROPIC_API_KEY is absent, so individual tests
+    don't need their own API-key guards. Uses tmp_path_factory (session-scoped)
+    instead of tmp_path (function-scoped) to avoid fixture-scope conflicts.
+    """
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        pytest.skip(
+            "ANTHROPIC_API_KEY not set — skipping PR-80 schema-compliance integration test"
+        )
+    tmp_path = tmp_path_factory.mktemp("pr80")
+    return _run_runner_with_pr80(tmp_path)
 
 
 @pytest.mark.integration
-def test_pr80_zero_synthetic_schema_errors(tmp_path):
+def test_pr80_zero_synthetic_schema_errors(pr80_result):
     """
     Given: PR-80 diff fixture at tests/fixtures/ci-review-corpus/pr-80.diff;
            ANTHROPIC_API_KEY set; S-A/S-B/S-C changes applied to runner.py
@@ -115,13 +120,7 @@ def test_pr80_zero_synthetic_schema_errors(tmp_path):
     synthetic parse_error findings that previously appeared when LLM output had missing
     cited_excerpt or reachability fields (bug d42d-8126).
     """
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        pytest.skip(
-            "ANTHROPIC_API_KEY not set — skipping PR-80 schema-compliance integration test"
-        )
-
-    findings_data = _get_pr80_result(tmp_path)
-    findings = findings_data.get("findings", [])
+    findings = pr80_result.get("findings", [])
 
     parse_errors = [f for f in findings if f.get("type") == "parse_error"]
     assert len(parse_errors) == 0, (
@@ -131,7 +130,7 @@ def test_pr80_zero_synthetic_schema_errors(tmp_path):
 
 
 @pytest.mark.integration
-def test_pr80_100_percent_schema_compliance(tmp_path):
+def test_pr80_100_percent_schema_compliance(pr80_result):
     """
     Given: PR-80 diff fixture at tests/fixtures/ci-review-corpus/pr-80.diff;
            ANTHROPIC_API_KEY set; S-A/S-B/S-C changes applied to runner.py
@@ -143,18 +142,14 @@ def test_pr80_100_percent_schema_compliance(tmp_path):
     Non-synthetic = finding where type not in {specialist_error, fallback_exhausted,
     parse_error}. Verifies 100% schema compliance as required by story 0ba6-2bc9 (S-D).
     """
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        pytest.skip(
-            "ANTHROPIC_API_KEY not set — skipping PR-80 schema-compliance integration test"
-        )
-
-    findings_data = _get_pr80_result(tmp_path)
-    findings = findings_data.get("findings", [])
+    findings = pr80_result.get("findings", [])
 
     non_synthetic = [f for f in findings if f.get("type") not in _SYNTHETIC_TYPES]
 
     # (a) cited_excerpt must be >= 5 non-whitespace chars (mirrors validator: strip() first)
-    cited_violations = [f for f in non_synthetic if len(f.get("cited_excerpt", "").strip()) < 5]
+    cited_violations = [
+        f for f in non_synthetic if len(f.get("cited_excerpt", "").strip()) < 5
+    ]
     assert len(cited_violations) == 0, (
         f"Expected 100% cited_excerpt compliance (len >= 5); "
         f"{len(cited_violations)} violation(s) found:\n"
