@@ -966,7 +966,7 @@ def dispatch_schema_correction(
                 break
             # finding_id: frozen when original is structurally valid; regeneration
             # allowed only when original is absent, empty, or malformed.
-            orig_fid = orig.get("finding_id") or ""
+            orig_fid = str(orig.get("finding_id") or "")
             if (
                 _FINDING_ID_RE.match(orig_fid)
                 and corrected.get("finding_id") != orig_fid

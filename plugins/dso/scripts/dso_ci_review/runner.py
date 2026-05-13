@@ -807,7 +807,7 @@ def get_schema_correction_max_attempts(config_path: str | None = None) -> int:
     dispatch_schema_correction function as a subsequent story in the same epic).
     Do not re-implement config reading for this key in dispatch.py.
     """
-    raw = _read_config_int("review.schema_correction_max_attempts", 1, config_path)
+    raw = _read_config_int("review.schema_correction_max_attempts", 2, config_path)
     return _clamp_schema_correction_attempts(raw)
 
 
