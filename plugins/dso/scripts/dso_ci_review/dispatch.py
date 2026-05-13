@@ -68,9 +68,10 @@ _FROZEN_FIELDS: tuple[str, ...] = (
 # finding_id format: f-<8 lowercase hex characters>
 _FINDING_ID_RE: re.Pattern[str] = re.compile(r"^f-[0-9a-f]{8}$")
 
-# cited_lines entry format: <path>:<non-zero-line>
-# The optional ~ prefix marks approximate line numbers (used by some LLM reviewers).
-_CITED_LINE_RE: re.Pattern[str] = re.compile(r"^~?[^:]+:[1-9][0-9]*$")
+# cited_lines entry format: <path>:<line> or ~<path>:<line> (approximate).
+# <line> may be a single line number or a range (e.g. 83-112 or 83~112).
+# The optional ~ prefix on the whole entry marks approximate line references.
+_CITED_LINE_RE: re.Pattern[str] = re.compile(r"^~?[^:]+:[1-9][0-9]*(?:[-~][1-9][0-9]*)?$")
 
 
 @functools.lru_cache(maxsize=32)

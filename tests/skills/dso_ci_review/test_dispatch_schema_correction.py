@@ -763,3 +763,35 @@ def test_malformed_cited_lines_not_frozen_allows_correction(monkeypatch) -> None
     assert findings[0].get("cited_lines") == ["src/bad_format_no_line_number:42"], (
         f"Corrected cited_lines must be accepted; got {findings[0].get('cited_lines')!r}"
     )
+
+
+def test_cited_line_re_accepts_line_ranges() -> None:
+    """_CITED_LINE_RE must accept line-range formats (file:N-M, file:N~M).
+
+    LLMs commonly cite blocks of code using range notation. Rejecting ranges
+    causes unnecessary schema correction cycles and triggered a fail-closed
+    failure on CI cycle 8 (three findings with :83-112, :845~851, :898~906).
+    Both dash-range and tilde-range separators must be accepted.
+    """
+    valid_entries = [
+        "src/foo.py:42",                                           # single line
+        "~src/foo.py:42",                                          # approx single line
+        ".github/workflows/sprint-story-review.yml:83-112",       # dash range
+        "plugins/dso/scripts/dso_ci_review/dispatch.py:845~851",  # tilde range
+        "plugins/dso/scripts/dso_ci_review/dispatch.py:898~906",  # tilde range
+        "src/foo.py:1-999",                                        # large range
+    ]
+    invalid_entries = [
+        "src/bad_format_no_line_number",  # no colon+line
+        "src/foo.py:",                    # missing line number
+        "src/foo.py:0",                   # zero not allowed
+        "src/foo.py:0-10",               # zero start not allowed
+    ]
+    for entry in valid_entries:
+        assert _dispatch_mod._CITED_LINE_RE.match(entry), (
+            f"_CITED_LINE_RE must accept {entry!r} but did not match"
+        )
+    for entry in invalid_entries:
+        assert not _dispatch_mod._CITED_LINE_RE.match(entry), (
+            f"_CITED_LINE_RE must reject {entry!r} but matched"
+        )

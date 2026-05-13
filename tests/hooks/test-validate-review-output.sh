@@ -406,6 +406,79 @@ assert_ne \
     "$NONSTRING_EXCERPT_EXIT"
 
 # ============================================================
+# 5a-2. code-review-dispatch: cited_lines line-range format
+# ============================================================
+#
+# cited_lines entries may use a range (e.g. "file:83-112" or "file:83~112") in
+# addition to a single line number ("file:42"). LLMs commonly emit ranges when
+# citing a block of code; rejecting them causes unnecessary schema correction
+# cycles. See the _CITED_LINE_RE regex in dispatch.py and the _cited_pattern in
+# validate-review-output.sh.
+
+# test_cited_lines_dash_range_accepted
+# cited_lines entry with a dash-range (file:N-M) should be accepted.
+DASH_RANGE_CITED_FILE=$(write_fixture "dash-range-cited.json" '{
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "hygiene",
+      "description": "Test finding with line range.",
+      "file": "src/foo.py",
+      "cited_lines": [".github/workflows/sprint-story-review.yml:83-112"],
+      "cited_excerpt": "def foo():\n    pass\n    more code here"
+    }
+  ],
+  "summary": "Test summary for cited_lines range format."
+}')
+DASH_RANGE_CITED_EXIT=$(run_script code-review-dispatch "$DASH_RANGE_CITED_FILE")
+assert_eq \
+    "test_cited_lines_dash_range_accepted: cited_lines with dash range exits 0" \
+    "0" \
+    "$DASH_RANGE_CITED_EXIT"
+
+# test_cited_lines_tilde_range_accepted
+# cited_lines entry with a tilde-range (file:N~M) should be accepted.
+TILDE_RANGE_CITED_FILE=$(write_fixture "tilde-range-cited.json" '{
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "hygiene",
+      "description": "Test finding with tilde line range.",
+      "file": "src/dispatch.py",
+      "cited_lines": ["plugins/dso/scripts/dso_ci_review/dispatch.py:845~851"],
+      "cited_excerpt": "def dispatch_schema_correction(\n    original_findings"
+    }
+  ],
+  "summary": "Test summary for cited_lines tilde-range format."
+}')
+TILDE_RANGE_CITED_EXIT=$(run_script code-review-dispatch "$TILDE_RANGE_CITED_FILE")
+assert_eq \
+    "test_cited_lines_tilde_range_accepted: cited_lines with tilde range exits 0" \
+    "0" \
+    "$TILDE_RANGE_CITED_EXIT"
+
+# test_cited_lines_invalid_format_rejected
+# cited_lines entry with no line number at all should still be rejected.
+INVALID_CITED_FILE=$(write_fixture "invalid-cited.json" '{
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "hygiene",
+      "description": "Test finding with bad cited_lines.",
+      "file": "src/foo.py",
+      "cited_lines": ["src/bad_format_no_line_number"],
+      "cited_excerpt": "def foo():\n    pass"
+    }
+  ],
+  "summary": "Test summary for invalid cited_lines format."
+}')
+INVALID_CITED_EXIT=$(run_script code-review-dispatch "$INVALID_CITED_FILE")
+assert_ne \
+    "test_cited_lines_invalid_format_rejected: cited_lines without line number exits non-zero" \
+    "0" \
+    "$INVALID_CITED_EXIT"
+
+# ============================================================
 # 5b. code-review-dispatch: reachability enforcement (Approach 2)
 # ============================================================
 #
@@ -448,7 +521,7 @@ IMPORTANT_NO_REACH_FILE=$(write_fixture "important-no-reach.json" '{
       "description": "Missing null check",
       "file": "src/foo.py",
       "cited_lines": ["src/foo.py:42"],
-      "cited_excerpt": "result = data.get('key')"
+      "cited_excerpt": "result = data.get(key)"
     }
   ],
   "summary": "Test summary for reachability enforcement."

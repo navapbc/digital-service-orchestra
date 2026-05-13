@@ -44,10 +44,18 @@ not for clarity, not to fix perceived errors in their content.
 | `finding_id` | YES — byte-for-byte identical to original (see exception below) |
 
 **`cited_lines` exception**: If the original `cited_lines` is absent, empty (`[]`), or
-contains entries that do not match the format `<path>:<non-zero-line>` (e.g.,
-`plugins/foo.py:42`), you MAY correct the malformed entries or populate the field.
-If the original `cited_lines` is already schema-valid (non-empty list with all entries
-in `<path>:<line>` format), treat it as **frozen** — do NOT change it.
+contains entries that do not match the valid formats, you MAY correct the malformed
+entries or populate the field. If the original `cited_lines` is already schema-valid,
+treat it as **frozen** — do NOT change it.
+
+Valid `cited_lines` entry formats (all accepted):
+- `<path>:<line>` — single line (e.g., `src/foo.py:42`)
+- `~<path>:<line>` — approximate single line (e.g., `~src/foo.py:42`)
+- `<path>:<start>-<end>` — dash-separated range (e.g., `.github/workflows/ci.yml:83-112`)
+- `<path>:<start>~<end>` — tilde-separated range (e.g., `src/dispatch.py:845~851`)
+
+A `cited_lines` entry is malformed when it has no line number at all (e.g., `src/foo.py`
+with no colon), has zero as the line number, or uses a format not matching the above.
 
 **`finding_id` exception**: If `finding_id` is absent, empty, or structurally malformed
 (not matching `f-<hex8>` format), you MAY generate a valid `finding_id` in the format
