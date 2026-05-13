@@ -125,7 +125,7 @@ cd "\$MAIN_REPO"
 _phase_validate 2>&1
 WRAPPER_EOF
     chmod +x "$wrapper"
-    "$wrapper" ; rc=$?
+    "$wrapper" && rc=0 || rc=$?
     rm -f "$wrapper"
     return $rc
 }
