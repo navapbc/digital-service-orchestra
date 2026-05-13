@@ -695,6 +695,22 @@ Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/auto-fix.md
 
 ## Phase G: Sub-Agent Fix Batches (/dso:debug-everything)
 
+### Sub-Branch Chunking (ci-pr mode only — when DEBUG_MODE=pr)
+
+In ci-pr mode, Phase G chunks Tier 2–7 bugs into sub-branches of at most 5 bugs each, preserving tier ordering. Branch naming: `bug-batch/<debug-session-id>/tier-<N>-batch-<K>` (e.g., `tier-3-batch-1`, `tier-3-batch-2`).
+
+**Chunking algorithm**: tier-first ordering, then chunk each tier's bugs into groups of ≤5 bugs per sub-branch.
+
+**File-conflict split**: when two bugs in the same tier-batch modify the same file, split them into separate sub-branches (still ≤5 per branch); splitting is iterative until no file conflicts remain within a batch. This file-conflict split produces additional sub-branches as needed.
+
+**Large-fix exception**: a single bug whose estimated diff exceeds 500 lines (>500 lines) gets its own sub-branch with a `-large` suffix (e.g., `tier-3-large`). PRECEDENCE: large-fix exception wins over file-conflict split — a >500-line bug is routed to `-large` and removed from any file-conflict consideration. The large-fix takes precedence before conflict resolution applies.
+
+**Serialized integration**: the orchestrator MUST serialize sub-agent integration into the shared sub-branch ref — no concurrent push; dispatch one sub-agent at a time for integration, or use a lock mechanism. This prevents race conditions on shared refs.
+
+In local mode: commit directly to session branch (sub-branch chunking does not apply).
+
+---
+
 For remaining failures (Tiers 2–7), launch sub-agent batches by executing `prompts/dispatch-fix-batch.md`. That prompt covers:
 
 - Pre-batch checks (`agent-batch-lifecycle.sh pre-check [--db]`) and the `MAX_AGENTS` protocol (`unlimited` / N / 0).
