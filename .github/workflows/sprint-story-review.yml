@@ -39,11 +39,25 @@ jobs:
 
       - name: Download prior review artifact (cycle tracking)
         continue-on-error: true
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{ env.ARTIFACT_NAME }}
-          path: /tmp/prior-review/
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Download from a PRIOR run (not the current run).
+          # actions/download-artifact@v4 always scopes to the current run-id,
+          # so we use gh api to find and download the most recent prior artifact.
+          mkdir -p /tmp/prior-review
+          ARTIFACT_URL=$(gh api \
+            "/repos/${{ github.repository }}/actions/artifacts?name=${ARTIFACT_NAME}&per_page=5" \
+            --jq ".artifacts[] | select(.workflow_run.id != ${{ github.run_id }}) | .archive_download_url" \
+            | head -1)
+          if [[ -n "$ARTIFACT_URL" ]]; then
+            curl -sL -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+              "$ARTIFACT_URL" -o /tmp/prior-review.zip && \
+              unzip -o /tmp/prior-review.zip -d /tmp/prior-review/ && \
+              echo "Downloaded prior artifact from $ARTIFACT_URL"
+          else
+            echo "No prior artifact found — cycle 1"
+          fi
 
       - name: Install litellm
         # Pin to tested version; bump after verifying compatibility with ci-llm-review-runner.sh
