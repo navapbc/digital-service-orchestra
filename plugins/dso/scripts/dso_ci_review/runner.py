@@ -782,8 +782,10 @@ def get_schema_correction_max_attempts(config_path: str | None = None) -> int:
     Reads review.schema_correction_max_attempts from dso-config.conf (default: 1).
     Clamps to ceiling=3. max_attempts=0 disables correction dispatch.
 
-    This is the single authoritative read point — call this function from dispatch.py
-    rather than re-implementing config reading for this key.
+    This is the single authoritative read point — called by dispatch_schema_correction()
+    in dispatch.py (story 394e-d81b-fba4-4161, which adds dispatch.py and its
+    dispatch_schema_correction function as a subsequent story in the same epic).
+    Do not re-implement config reading for this key in dispatch.py.
     """
     raw = _read_config_int("review.schema_correction_max_attempts", 1, config_path)
     return _clamp_schema_correction_attempts(raw)
