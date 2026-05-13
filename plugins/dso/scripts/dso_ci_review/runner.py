@@ -665,6 +665,25 @@ _TIER_MODEL_DEFAULTS: dict[str, str] = {
 }
 
 
+def _default_config_path() -> str:
+    """Return the canonical dso-config.conf path for the repo containing runner.py.
+
+    runner.py lives 5 dirname levels below repo_root/.claude/dso-config.conf:
+    runner.py → dso_ci_review/ → scripts/ → dso/ → plugins/ → repo_root/
+    """
+    return os.path.join(
+        os.path.dirname(
+            os.path.dirname(
+                os.path.dirname(
+                    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                )
+            )
+        ),
+        ".claude",
+        "dso-config.conf",
+    )
+
+
 def _read_tier_model(tier: str, config_path: str | None = None) -> str:
     """Return the model for the given tier, reading from dso-config.conf when available.
 
@@ -684,17 +703,7 @@ def _read_tier_model(tier: str, config_path: str | None = None) -> str:
         # (dso_ci_review → scripts → <plugin_root> → plugins → repo_root). The
         # previous 3-level chain stopped at the plugin root, where .claude/ does
         # not exist, so model.<tier> overrides were silently ignored. (0e2a-77b0)
-        config_path = os.path.join(
-            os.path.dirname(
-                os.path.dirname(
-                    os.path.dirname(
-                        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                    )
-                )
-            ),
-            ".claude",
-            "dso-config.conf",
-        )
+        config_path = _default_config_path()
 
     config_key = f"model.{tier}="
     if os.path.isfile(config_path):
@@ -716,35 +725,28 @@ def _read_config_int(key: str, default: int, config_path: str | None = None) -> 
       1. key=<value> in config_path (or auto-detected repo config)
       2. default (returned when key absent or value not a valid integer)
 
-    Config path auto-detection uses the same 5-dirname-level chain as _read_tier_model:
-    runner.py → dso_ci_review → scripts → dso → plugins → repo_root → .claude/dso-config.conf
+    Config path auto-detection uses _default_config_path() — the same 5-dirname-level
+    chain as _read_tier_model (runner.py → dso_ci_review → scripts → plugins → repo_root).
     """
     if config_path is None:
-        config_path = os.path.join(
-            os.path.dirname(
-                os.path.dirname(
-                    os.path.dirname(
-                        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                    )
-                )
-            ),
-            ".claude",
-            "dso-config.conf",
-        )
+        config_path = _default_config_path()
 
     if os.path.isfile(config_path):
-        with open(config_path, encoding="utf-8") as fh:
-            for line in fh:
-                line = line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                parts = line.split("=", 1)
-                if len(parts) == 2 and parts[0].strip() == key:
-                    value = parts[1].strip()
-                    try:
-                        return int(value)
-                    except ValueError:
-                        return default
+        try:
+            with open(config_path, encoding="utf-8") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    parts = line.split("=", 1)
+                    if len(parts) == 2 and parts[0].strip() == key:
+                        value = parts[1].strip()
+                        try:
+                            return int(value)
+                        except ValueError:
+                            return default
+        except OSError:
+            return default
     return default
 
 

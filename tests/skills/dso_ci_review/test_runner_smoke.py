@@ -3283,6 +3283,46 @@ def test_read_config_int_handles_whitespace_around_equals(tmp_path):
     )
 
 
+def test_read_config_int_returns_default_when_file_absent(tmp_path):
+    """
+    Given: config_path points to a non-existent file
+    When: _read_config_int("review.schema_correction_max_attempts", 1, config_path) is called
+    Then: returns the default (1) without raising
+    """
+    import dso_ci_review.runner as runner_mod
+
+    missing = str(tmp_path / "nonexistent-config.conf")
+    result = runner_mod._read_config_int(
+        "review.schema_correction_max_attempts", 1, missing
+    )
+    assert result == 1, (
+        f"_read_config_int must return the default when config file does not exist; "
+        f"got {result!r}"
+    )
+
+
+def test_read_config_int_returns_default_on_oserror(tmp_path):
+    """
+    Given: config_path exists but raises OSError on open (e.g. permission denied)
+    When: _read_config_int("review.schema_correction_max_attempts", 1, config_path) is called
+    Then: returns the default (1) without propagating the exception
+    """
+    import dso_ci_review.runner as runner_mod
+    import unittest.mock as mock
+
+    config_file = tmp_path / "dso-config.conf"
+    config_file.write_text("review.schema_correction_max_attempts=2\n")
+
+    with mock.patch("builtins.open", side_effect=OSError("permission denied")):
+        result = runner_mod._read_config_int(
+            "review.schema_correction_max_attempts", 1, str(config_file)
+        )
+    assert result == 1, (
+        f"_read_config_int must return the default when OSError is raised on open; "
+        f"got {result!r}"
+    )
+
+
 def test_clamp_schema_correction_attempts_honors_zero():
     """
     Given: max_attempts=0
