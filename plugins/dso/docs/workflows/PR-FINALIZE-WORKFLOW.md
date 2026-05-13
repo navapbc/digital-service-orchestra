@@ -85,9 +85,18 @@ The classifier's `payload.threads` is `[{id, file, line, author, body}, ...]`.
 
 For each unresolved thread:
 
-1. **Read the thread context**: open `file:line` in the working tree, read the comment body.
+1. **Read the thread context**: open `file:line` in the working tree, read the comment body. Note `author` from the classifier payload — branch on `coderabbitai[bot]` for the dedicated reply path below.
 2. **Categorize**:
-   - **Defense-worthy** (reviewer asked for a fix you have evidence against): post a reply via `gh api graphql` referencing the evidence, then explicitly resolve the thread (step 3).
+   - **Defense-worthy** (reviewer asked for a fix you have evidence against):
+     - **CodeRabbit thread** (`author == "coderabbitai[bot]"`): use the helper, which posts a threaded reply via `gh api` and appends `@coderabbitai resolve` so CodeRabbit acknowledges the defense and dismisses the finding:
+       ```bash
+       .claude/scripts/dso post-defense-to-coderabbit \
+         --pr "<pr>" \
+         --comment-id "<inline-comment-id>" \
+         --defense-text "<evidence-bearing rationale, ≤ 4096 chars>"
+       ```
+       The helper refuses to post unless the comment is authored by `coderabbitai[bot]` (exit 3), so it is safe to call on any defense-worthy thread without pre-filtering. The thread is then explicitly resolved in step 3 as defense-in-depth — CodeRabbit's `resolve` is asynchronous and may lag.
+     - **Other reviewers** (Copilot, humans, etc.): post a reply via `gh api graphql` referencing the evidence. Then explicitly resolve the thread (step 3). There is no equivalent acknowledgement channel today — the defense is recorded for humans only.
    - **Code fix needed**: apply the fix in the working tree. Do NOT push yet — accumulate fixes across all threads in this iteration.
    - **Discussion / question**: reply via `gh api graphql`. If no code change is needed, explicitly resolve the thread after replying.
 3. **Always explicitly resolve the thread after addressing it** — do NOT rely on GitHub auto-resolving from line changes:

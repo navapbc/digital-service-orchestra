@@ -173,6 +173,10 @@ Apply Five Whys, then generate ≥3 hypotheses **derived from code evidence** (n
 Extend the universal RESULT with at least 2 proposed fixes plus tradeoff analysis:
 
 ```
+root_cause_candidates:
+  - cause: <one sentence describing a candidate root cause>
+    confidence: high | medium | low
+    evidence: <empirical observation, command output, code reference, or hypothesis_test verdict supporting this candidate>
 alternative_fixes:
   - description: <fix>
     risk: high | medium | low
@@ -184,3 +188,5 @@ lens: code-tracer
 ```
 
 The `lens` field tells the orchestrator your perspective for convergence scoring against the Historical agent.
+
+You must surface **at least 2 surviving root-cause candidates** in `root_cause_candidates`, ordered by descending confidence and derived from the ≥3 code-evidence hypotheses you generated. The top candidate's `cause` must match the top-level `ROOT_CAUSE`. Each `evidence` field must cite empirical observations or specific code references — not reasoning alone. Eliminated hypotheses are omitted.
