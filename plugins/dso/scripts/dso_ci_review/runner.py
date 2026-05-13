@@ -745,7 +745,7 @@ def _read_config_int(key: str, default: int, config_path: str | None = None) -> 
                             return int(value)
                         except ValueError:
                             return default
-        except OSError:
+        except (OSError, UnicodeDecodeError):
             return default
     return default
 

@@ -3323,6 +3323,31 @@ def test_read_config_int_returns_default_on_oserror(tmp_path):
     )
 
 
+def test_read_config_int_returns_default_on_unicode_decode_error(tmp_path):
+    """
+    Given: config_path exists but raises UnicodeDecodeError on read (non-UTF-8 bytes)
+    When: _read_config_int("review.schema_correction_max_attempts", 1, config_path) is called
+    Then: returns the default (1) without propagating the exception
+    """
+    import dso_ci_review.runner as runner_mod
+    import unittest.mock as mock
+
+    config_file = tmp_path / "dso-config.conf"
+    config_file.write_text("review.schema_correction_max_attempts=2\n")
+
+    with mock.patch(
+        "builtins.open",
+        side_effect=UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte"),
+    ):
+        result = runner_mod._read_config_int(
+            "review.schema_correction_max_attempts", 1, str(config_file)
+        )
+    assert result == 1, (
+        f"_read_config_int must return the default when UnicodeDecodeError is raised; "
+        f"got {result!r}. Non-UTF-8 config files must not crash the reader."
+    )
+
+
 def test_clamp_schema_correction_attempts_honors_zero():
     """
     Given: max_attempts=0
