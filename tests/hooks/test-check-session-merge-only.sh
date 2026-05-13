@@ -148,6 +148,88 @@ test_no_sprint_active_marker_accepted() {
         "0" "$exit_code"
 }
 
+# ── Test 5: .debug-active alone rejects non-merge commit ──────────────────────
+test_debug_active_alone_rejects_non_merge() {
+    local _repo
+    _repo=$(make_git_repo_with_commit)
+    touch "$_repo/.debug-active"
+    # No .sprint-active
+    local exit_code=0
+    ( cd "$_repo" && bash "$_SCRIPT" 2>/dev/null ) || exit_code=$?
+    assert_ne \
+        "test_debug_active_alone_rejects_non_merge: .debug-active alone rejects non-merge commit" \
+        "0" "$exit_code"
+}
+
+# ── Test 6: .debug-active + MERGE_HEAD → accepted ─────────────────────────────
+test_debug_active_with_merge_commit_accepted() {
+    local _repo
+    _repo=$(make_git_repo_with_commit)
+    touch "$_repo/.debug-active"
+    printf 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef\n' > "$_repo/.git/MERGE_HEAD"
+    local exit_code=0
+    ( cd "$_repo" && bash "$_SCRIPT" 2>/dev/null ) || exit_code=$?
+    assert_eq \
+        "test_debug_active_with_merge_commit_accepted: .debug-active + merge commit exits 0" \
+        "0" "$exit_code"
+}
+
+# ── Test 7: DSO_DEBUG_ACTIVE=0 bypass → exit 0 + audit log ────────────────────
+test_dso_debug_active_override_exits_0_and_writes_audit_log() {
+    local _repo _artifacts_dir
+    _repo=$(make_git_repo_with_commit)
+    _artifacts_dir=$(mktemp -d)
+    _TEST_TMPDIRS+=("$_artifacts_dir")
+    touch "$_repo/.debug-active"
+    local exit_code=0
+    (
+        cd "$_repo"
+        DSO_DEBUG_ACTIVE=0 DSO_ARTIFACTS_DIR="$_artifacts_dir" bash "$_SCRIPT" 2>/dev/null
+    ) || exit_code=$?
+    assert_eq \
+        "test_dso_debug_active_override_exits_0_and_writes_audit_log: DSO_DEBUG_ACTIVE=0 exits 0" \
+        "0" "$exit_code"
+    local audit_file_count
+    audit_file_count=$(find "$_artifacts_dir" -maxdepth 2 -type f 2>/dev/null | wc -l | tr -d ' ')
+    assert_ne \
+        "test_dso_debug_active_override_exits_0_and_writes_audit_log: audit log written" \
+        "0" "$audit_file_count"
+}
+
+# ── Test 8: both markers, only DSO_SPRINT_ACTIVE=0 → still rejected ───────────
+test_both_markers_sprint_escape_only_still_rejects() {
+    local _repo
+    _repo=$(make_git_repo_with_commit)
+    touch "$_repo/.sprint-active"
+    touch "$_repo/.debug-active"
+    local exit_code=0
+    (
+        cd "$_repo"
+        DSO_SPRINT_ACTIVE=0 bash "$_SCRIPT" 2>/dev/null
+    ) || exit_code=$?
+    assert_ne \
+        "test_both_markers_sprint_escape_only_still_rejects: both markers, sprint escape only still rejects" \
+        "0" "$exit_code"
+}
+
+# ── Test 9: both markers + both env vars = 0 → accepted ───────────────────────
+test_both_markers_both_escapes_accepted() {
+    local _repo _artifacts_dir
+    _repo=$(make_git_repo_with_commit)
+    _artifacts_dir=$(mktemp -d)
+    _TEST_TMPDIRS+=("$_artifacts_dir")
+    touch "$_repo/.sprint-active"
+    touch "$_repo/.debug-active"
+    local exit_code=0
+    (
+        cd "$_repo"
+        DSO_SPRINT_ACTIVE=0 DSO_DEBUG_ACTIVE=0 DSO_ARTIFACTS_DIR="$_artifacts_dir" bash "$_SCRIPT" 2>/dev/null
+    ) || exit_code=$?
+    assert_eq \
+        "test_both_markers_both_escapes_accepted: both markers both env vars 0 exits 0" \
+        "0" "$exit_code"
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 echo "=== test-check-session-merge-only ==="
 echo ""
@@ -166,6 +248,26 @@ echo ""
 
 echo "--- Test 4: no .sprint-active → accepted ---"
 test_no_sprint_active_marker_accepted
+echo ""
+
+echo "--- Test 5: .debug-active alone → rejected ---"
+test_debug_active_alone_rejects_non_merge
+echo ""
+
+echo "--- Test 6: .debug-active + merge commit → accepted ---"
+test_debug_active_with_merge_commit_accepted
+echo ""
+
+echo "--- Test 7: DSO_DEBUG_ACTIVE=0 + .debug-active → exit 0 + audit log ---"
+test_dso_debug_active_override_exits_0_and_writes_audit_log
+echo ""
+
+echo "--- Test 8: both markers, sprint escape only → still rejects ---"
+test_both_markers_sprint_escape_only_still_rejects
+echo ""
+
+echo "--- Test 9: both markers, both escapes → accepted ---"
+test_both_markers_both_escapes_accepted
 echo ""
 
 print_summary
