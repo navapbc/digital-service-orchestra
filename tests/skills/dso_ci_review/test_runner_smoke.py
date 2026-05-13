@@ -3261,6 +3261,28 @@ def test_read_config_int_returns_default_on_invalid_value(tmp_path):
     )
 
 
+def test_read_config_int_handles_whitespace_around_equals(tmp_path):
+    """
+    Given: dso-config.conf contains 'review.schema_correction_max_attempts = 2'
+           (spaces around '=', as some editors produce)
+    When: _read_config_int("review.schema_correction_max_attempts", 1, config_path) is called
+    Then: returns 2 (whitespace-normalized match, not the default)
+    """
+    import dso_ci_review.runner as runner_mod
+
+    config_file = tmp_path / "dso-config.conf"
+    config_file.write_text("review.schema_correction_max_attempts = 2\n")
+
+    result = runner_mod._read_config_int(
+        "review.schema_correction_max_attempts", 1, str(config_file)
+    )
+    assert result == 2, (
+        f"_read_config_int must handle 'key = value' format (spaces around '='); "
+        f"got {result!r} (expected 2, not the default 1). "
+        "Some editors produce 'key = value' in config files."
+    )
+
+
 def test_clamp_schema_correction_attempts_honors_zero():
     """
     Given: max_attempts=0
@@ -3393,4 +3415,29 @@ def test_get_schema_correction_max_attempts_clamps_negative(tmp_path, capsys):
 
     assert result == 0, (
         f"get_schema_correction_max_attempts must clamp -1 to 0; got {result!r}"
+    )
+
+
+def test_get_schema_correction_max_attempts_clamps_above_ceiling(tmp_path, capsys):
+    """
+    Given: dso-config.conf contains 'review.schema_correction_max_attempts=10'
+           (above the hard ceiling of 3)
+    When: get_schema_correction_max_attempts(config_path=...) is called
+    Then: returns 3 (ceiling value) and emits a warning to stderr
+    """
+    import dso_ci_review.runner as runner_mod
+
+    config_file = tmp_path / "dso-config.conf"
+    config_file.write_text("review.schema_correction_max_attempts=10\n")
+
+    result = runner_mod.get_schema_correction_max_attempts(config_path=str(config_file))
+    captured = capsys.readouterr()
+
+    assert result == runner_mod._SCHEMA_CORRECTION_MAX_ATTEMPTS_CEILING, (
+        f"get_schema_correction_max_attempts must clamp 10 to ceiling "
+        f"{runner_mod._SCHEMA_CORRECTION_MAX_ATTEMPTS_CEILING}; got {result!r}"
+    )
+    assert "schema_correction_max_attempts" in captured.err, (
+        f"Warning must mention 'schema_correction_max_attempts'; "
+        f"got stderr: {captured.err!r}"
     )

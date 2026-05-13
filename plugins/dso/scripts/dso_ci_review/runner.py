@@ -732,13 +732,15 @@ def _read_config_int(key: str, default: int, config_path: str | None = None) -> 
             "dso-config.conf",
         )
 
-    config_key = f"{key}="
     if os.path.isfile(config_path):
         with open(config_path, encoding="utf-8") as fh:
             for line in fh:
                 line = line.strip()
-                if line.startswith(config_key):
-                    value = line[len(config_key) :].strip()
+                if not line or line.startswith("#"):
+                    continue
+                parts = line.split("=", 1)
+                if len(parts) == 2 and parts[0].strip() == key:
+                    value = parts[1].strip()
                     try:
                         return int(value)
                     except ValueError:
