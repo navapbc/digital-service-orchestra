@@ -490,11 +490,6 @@ def _parse_acli_comments(parsed: Any) -> list[dict[str, Any]]:
     intentionally produce [] — callers must not interpret unknown payloads as
     comment data, and surfacing raw error dicts as comment lists would silently
     corrupt downstream processing.
-
-    All response shapes (bare list, wrapped dict, absent key, error dict,
-    scalar, None) are covered by parametrized unit tests in
-    tests/scripts/test_acli_integration_comments.py
-    (test_parse_acli_comments_normalises_all_response_shapes).
     """
     if isinstance(parsed, list):
         return [item for item in parsed if isinstance(item, dict)]
