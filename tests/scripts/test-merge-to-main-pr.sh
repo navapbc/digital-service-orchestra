@@ -4917,7 +4917,7 @@ GIT_SHIM
     local _origin_version
     # Use && to propagate fetch failure so stale refs don't mask a fetch error.
     _origin_version=$(
-        "$real_git" -C "$main_checkout" fetch -q origin main 2>/dev/null && \
+        "$real_git" -C "$main_checkout" fetch -q origin "main:refs/remotes/origin/main" 2>/dev/null && \
         "$real_git" -C "$main_checkout" show "refs/remotes/origin/main:plugin.json" 2>/dev/null | \
         python3 -c "import json,sys; print(json.load(sys.stdin).get('version','MISSING'))" 2>/dev/null \
         || echo "FETCH_ERROR"
