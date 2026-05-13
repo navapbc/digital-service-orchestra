@@ -48,6 +48,29 @@ jobs:
         # Pin to tested version; bump after verifying compatibility with ci-llm-review-runner.sh
         run: pip install litellm==1.83.7
 
+      # Compute review cycle: each prior run uploads a story-diff artifact, but
+      # the most reliable in-job signal here is the presence of the prior-review
+      # artifact downloaded above. Read the prior cycle number from the
+      # findings.json (runner.py writes `cycle_number` per cycle) and
+      # increment. Falls back to cycle 1 when no artifact is present, and
+      # to prior=1 (current=2) when the field is missing/unparseable.
+      - name: Compute DSO_REVIEW_CYCLE
+        run: |
+          if [[ -s /tmp/prior-review/findings.json ]]; then
+            # Read prior cycle_number from the artifact (runner.py writes
+            # this field per cycle). Use jq because it parses single-line
+            # safely without triggering YAML/bash quoting hazards. Falls
+            # back to prior=1 on any parse error or missing field.
+            PRIOR_CYCLE=$(jq -r '.cycle_number // 1' /tmp/prior-review/findings.json 2>/dev/null || echo 1)
+            [[ "$PRIOR_CYCLE" =~ ^[0-9]+$ ]] || PRIOR_CYCLE=1
+            CURRENT_CYCLE=$((PRIOR_CYCLE + 1))
+            echo "DSO_REVIEW_CYCLE=$CURRENT_CYCLE" >> "$GITHUB_ENV"
+            echo "Computed DSO_REVIEW_CYCLE=$CURRENT_CYCLE (prior cycle from artifact: $PRIOR_CYCLE)"
+          else
+            echo "DSO_REVIEW_CYCLE=1" >> "$GITHUB_ENV"
+            echo "Computed DSO_REVIEW_CYCLE=1 (no prior-review artifact)"
+          fi
+
       - name: Run LLM review
         run: bash plugins/dso/scripts/ci-llm-review-runner.sh
         env:
@@ -57,12 +80,21 @@ jobs:
           CLAUDE_PLUGIN_ROOT: "${{ github.workspace }}/plugins/dso"
           DSO_CI_REVIEW_DIFF_PATH: /tmp/story-diff.patch
           DSO_CI_REVIEW_PRIOR_DEFENSES_PATH: /tmp/prior-review/findings.json
+          # Persist the runner's findings JSON so the NEXT cycle can read
+          # cycle_number from it (see "Compute DSO_REVIEW_CYCLE" above) and
+          # so DSO_CI_REVIEW_PRIOR_DEFENSES_PATH on the next run points at
+          # a file that actually exists.
+          DSO_CI_REVIEW_OUTPUT_PATH: /tmp/findings.json
           DSO_CI_REVIEW_DRY_RUN: ${{ vars.DSO_CI_REVIEW_DRY_RUN || '' }}
+          DSO_REVIEW_CYCLE: ${{ env.DSO_REVIEW_CYCLE }}
 
       - name: Upload review artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.ARTIFACT_NAME }}
-          path: /tmp/story-diff.patch
+          path: |
+            /tmp/story-diff.patch
+            /tmp/findings.json
           retention-days: 7
+          if-no-files-found: warn

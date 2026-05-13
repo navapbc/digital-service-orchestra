@@ -282,10 +282,22 @@ jobs:
         if: needs.changes.outputs.code_changed == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # Producer: review-defense-store.sh list scans the tickets orphan branch
+        # for all stored DEFENSE_RECORD entries and emits them on stdout (one per
+        # line in "DEFENSE_RECORD: <json>" form). mirror-defenses-to-pr.sh reads
+        # those lines from stdin and posts each as a PR comment.
+        # Bug cluster RC-A: this step used to invoke mirror-defenses-to-pr.sh
+        # with no stdin producer, so its `while read -r line` loop received
+        # nothing and the CI defense-suppression pipeline was a no-op.
         run: |
           PR_NUMBER="${GITHUB_REF#refs/pull/}"
           PR_NUMBER="${PR_NUMBER%/merge}"
-          bash plugins/dso/scripts/mirror-defenses-to-pr.sh "$PR_NUMBER" || true
+          # Ensure the tickets ref is fetched so review-defense-store.sh list
+          # can read DEFENSE_RECORD comments from it. actions/checkout@v4 does
+          # not fetch the orphan tickets branch by default.
+          git fetch --no-tags origin '+refs/heads/tickets:refs/remotes/origin/tickets' 2>/dev/null || true
+          bash plugins/dso/scripts/review-defense-store.sh list --pr "$PR_NUMBER" \
+            | bash plugins/dso/scripts/mirror-defenses-to-pr.sh "$PR_NUMBER" || true
 
   # ── LLM code review ─────────────────────────────────────────
 
@@ -327,6 +339,33 @@ jobs:
           echo "$OUTPUT" | python3 -c 'import sys,json; d=json.load(sys.stdin); assert d.get("selected_tier") in {"light","standard","deep"}, f"invalid: {d}"'
           echo "Smoke test passed: $OUTPUT"
 
+      # Compute the current llm-review cycle number by counting prior
+      # "## DSO llm-review — finding 1/N" headers posted by github-actions[bot].
+      # Each prior cycle posts exactly one such header per finding-1 comment,
+      # so the count equals the number of prior cycles. The current cycle is
+      # therefore PRIOR + 1. Exported via $GITHUB_ENV so the runner.py
+      # cycle_number gate (runner.py:789) sees the real value — without this,
+      # every cycle>=2 suppression branch was structurally disabled.
+      - name: Compute DSO_REVIEW_CYCLE
+        if: needs.changes.outputs.code_changed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER="${GITHUB_REF#refs/pull/}"
+          PR_NUMBER="${PR_NUMBER%/merge}"
+          # Key off the stable header prefix (author filter omitted — the
+          # GitHub Actions bot identity varies between "github-actions" and
+          # "github-actions[bot]" depending on endpoint, so the header alone
+          # is the reliable signal).
+          PRIOR_CYCLES=$(gh pr view "$PR_NUMBER" --json comments \
+            -q '[.comments[] | .body | select(test("^## DSO llm-review — finding 1/"))] | length' \
+            2>/dev/null || echo 0)
+          # Default to 0 if the query returned an empty string or unexpected output.
+          [[ "$PRIOR_CYCLES" =~ ^[0-9]+$ ]] || PRIOR_CYCLES=0
+          CURRENT_CYCLE=$((PRIOR_CYCLES + 1))
+          echo "DSO_REVIEW_CYCLE=$CURRENT_CYCLE" >> "$GITHUB_ENV"
+          echo "Computed DSO_REVIEW_CYCLE=$CURRENT_CYCLE (prior cycles: $PRIOR_CYCLES)"
+
       - name: Run LLM review
         if: needs.changes.outputs.code_changed == 'true'
         env:
@@ -334,6 +373,9 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CLAUDE_PLUGIN_ROOT: "${{ github.workspace }}/plugins/dso"
+          # DSO_REVIEW_CYCLE is set via $GITHUB_ENV by the preceding step and
+          # automatically propagated to subsequent step env contexts.
+          DSO_REVIEW_CYCLE: ${{ env.DSO_REVIEW_CYCLE }}
         shell: bash -eo pipefail {0}
         run: |
           PR_NUMBER="${GITHUB_REF#refs/pull/}"

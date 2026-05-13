@@ -935,6 +935,12 @@ def main() -> int:
                     merged["findings"] = filtered
 
         # Step 8: write output
+        # Stamp the cycle number so the NEXT cycle's workflow can read it back
+        # from the persisted findings.json (sprint-story-review.yml uses this
+        # to compute DSO_REVIEW_CYCLE for cycle 3+). Use a dict copy so we
+        # don't mutate a caller-shared object.
+        merged = dict(merged)
+        merged["cycle_number"] = cycle_number
         _write_output(merged)
     except Exception as exc:  # noqa: BLE001
         print(f"ERROR: LLM call failed: {exc}", file=sys.stderr)
