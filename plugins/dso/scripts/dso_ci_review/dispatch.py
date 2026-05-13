@@ -909,7 +909,10 @@ def dispatch_schema_correction(
     # Short-circuit: max_attempts=0 skips dispatch entirely
     if max_attempts == 0:
         error_details = "max_attempts=0, dispatch skipped"
-        return {"findings": [_make_synthetic_error(error_details)]}
+        return {
+            "findings": [_make_synthetic_error(error_details)],
+            "summary": "Schema correction applied: skipped (max_attempts=0)",
+        }
 
     last_error: str = "unknown error"
     last_result: dict[str, Any] | None = None
@@ -985,8 +988,15 @@ def dispatch_schema_correction(
     if last_result is not None:
         findings_out = list(last_result.get("findings", []))
         findings_out.append(synthetic_error)
-        return {**last_result, "findings": findings_out}
-    return {"findings": [synthetic_error]}
+        exhausted_result = {**last_result, "findings": findings_out}
+        exhausted_result.setdefault(
+            "summary", "Schema correction applied: all attempts exhausted"
+        )
+        return exhausted_result
+    return {
+        "findings": [synthetic_error],
+        "summary": "Schema correction applied: all attempts exhausted",
+    }
 
 
 async def async_dispatch_specialists(

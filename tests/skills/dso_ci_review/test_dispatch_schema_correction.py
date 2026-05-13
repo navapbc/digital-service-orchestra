@@ -584,6 +584,53 @@ def test_finding_id_regeneration_allowed_when_absent_or_malformed(monkeypatch) -
 
 
 # ---------------------------------------------------------------------------
+# Scenario 10 — valid finding_id is frozen: mutation rejected
+# ---------------------------------------------------------------------------
+
+
+def test_valid_finding_id_mutation_rejected(monkeypatch) -> None:
+    """Given: original findings with a structurally-valid finding_id (f-<hex8>).
+    When: correction dispatch returns findings with the finding_id changed to a
+          different valid f-<hex8> value.
+    Then:
+      - A synthetic schema_error is appended (mutation of a valid finding_id is rejected).
+    """
+    originals = [copy.deepcopy(_FINDING_A)]
+    # _FINDING_A has finding_id="abc123" which is NOT f-<hex8> format
+    # Use a finding with a valid f-<hex8> finding_id
+    originals[0]["finding_id"] = "f-a1b2c3d4"  # structurally valid
+
+    mutated = [copy.deepcopy(originals[0])]
+    mutated[0]["finding_id"] = "f-deadbeef"  # different valid f-<hex8>
+
+    def _mock_dispatch_review(**kwargs):
+        return {"findings": mutated}
+
+    monkeypatch.setattr(_dispatch_mod, "dispatch_review", _mock_dispatch_review)
+    monkeypatch.setattr(
+        _runner_mod, "_validate_findings_schema", _stub_validate_schema_pass
+    )
+
+    result = _dispatch_mod.dispatch_schema_correction(
+        original_findings=originals,
+        diff_text=_DIFF_TEXT,
+        provider_chain=["anthropic"],
+        environ={"ANTHROPIC_API_KEY": "test-key"},
+        max_attempts=1,
+        agent_id="code-reviewer-standard",
+    )
+
+    findings = result.get("findings", [])
+    schema_errors = [f for f in findings if f.get("category") == "schema_error"]
+    assert schema_errors, (
+        f"Expected synthetic schema_error when valid finding_id is mutated, "
+        f"got findings: {findings}"
+    )
+    assert schema_errors[0].get("type") == "parse_error"
+    assert schema_errors[0].get("severity") == "critical"
+
+
+# ---------------------------------------------------------------------------
 # Scenario 9 — file and cited_lines mutations are rejected as frozen violations
 # ---------------------------------------------------------------------------
 

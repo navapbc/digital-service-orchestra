@@ -88,7 +88,7 @@ Only these fields may be modified during schema correction:
 | Field | Correction Rule |
 |---|---|
 | `cited_excerpt` | Read the actual source file at the cited line range and paste verbatim. Write `__UNREADABLE__` if the file cannot be read. |
-| `reachability` | May be added if absent and required by schema (severity `critical`, `important`, or `fragile`). Do NOT alter existing `reachability` content — add only if missing. |
+| `reachability` | May be added if absent and required by schema (severity `critical`, `important`, or `fragile`). Do NOT alter existing `reachability` content — add only if missing. (Note: this constraint is enforced by prompt instruction, not by code; the correction dispatcher does not validate reachability changes.) |
 | `finding_id` | May be generated ONLY if absent, empty, or malformed. See Frozen Field `finding_id` exception above. |
 
 All other fields are frozen. Do not touch them.

@@ -1178,9 +1178,8 @@ def main() -> int:
         # Shell out to validate-review-output.sh before writing to disk.
         # Exit-code routing:
         #   schema_pass    → continue to _write_output() unchanged
-        #   schema_fail    → S-B integration point: pass through to _write_output()
-        #                    with original findings so S-B correction dispatch can
-        #                    intercept and rewrite findings before CI gate evaluates them
+        #   schema_fail    → Step 7.5: dispatch_schema_correction inline; appends
+        #                    synthetic schema_error and exits 1 if correction fails
         #   validator_error → fail-loud (CRITICAL stderr + non-zero exit), never silently skip
         _schema_result = _validate_findings_schema(merged)
         if _schema_result.status == "validator_error":

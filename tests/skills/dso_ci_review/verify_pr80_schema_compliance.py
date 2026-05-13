@@ -288,6 +288,11 @@ def run_verification(diff_path: str) -> dict:
         "GITHUB_REF": "",
         "GITHUB_TOKEN": "",
         "PR_NUMBER": "",
+        # Explicit overrides for known runner-affecting control env vars so
+        # caller env does not silently alter the code path under test.
+        "DSO_CI_REVIEW_DRY_RUN": "",
+        "DSO_REVIEW_CYCLE": "1",
+        "DSO_CI_REVIEW_REGION_SPLIT": "",
     }
 
     with (
