@@ -574,7 +574,7 @@ test_ticket_show_resolves_friendly_alias() {
     fi
 
     if [ -z "$alias" ]; then
-        # Alias computation unavailable — skip alias resolution assertion
+        # Alias computation unavailable — this is a hard requirement; fail the test
         assert_eq "ticket alias derivable from ticket_id" "non-empty-alias" "empty-alias"
         rm -rf "$repo"
         return
@@ -587,13 +587,13 @@ test_ticket_show_resolves_friendly_alias() {
 
     assert_eq "ticket show via alias exits 0" "0" "$alias_exit"
 
-    # Validate output is parseable JSON before extracting field
+    # Validate output is parseable JSON before extracting field (parse via stdin, not argv)
     local json_valid=""
-    json_valid=$(python3 -c "import json,sys; json.loads(sys.argv[1]); print('yes')" "$alias_output" 2>/dev/null || echo "no")
+    json_valid=$(echo "$alias_output" | python3 -c "import json,sys; json.load(sys.stdin); print('yes')" 2>/dev/null || echo "no")
     assert_eq "ticket show via alias returns valid JSON" "yes" "$json_valid"
 
     local resolved_id=""
-    resolved_id=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d.get('ticket_id',''))" "$alias_output" 2>/dev/null || true)
+    resolved_id=$(echo "$alias_output" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('ticket_id',''))" 2>/dev/null || true)
     assert_eq "ticket show via alias returns correct ticket_id" "$ticket_id" "$resolved_id"
 
     rm -rf "$repo"

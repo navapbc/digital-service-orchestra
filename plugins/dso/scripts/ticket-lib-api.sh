@@ -129,8 +129,8 @@ ticket_show() {
         #    skip expensive O(N*K) alias scan and fail immediately
         # 3. All other inputs (0-3 hyphens, non-hex): potential alias, jira_key, or prefix;
         #    use full resolve_ticket_id pipeline from ticket-lib.sh (line ~1199)
-        local _hyphen_count
-        _hyphen_count=$(tr -cd '-' <<< "$ticket_id" | wc -c)
+        local _no_hyphens="${ticket_id//-/}"
+        local _hyphen_count=$(( ${#ticket_id} - ${#_no_hyphens} ))
         if [[ "$ticket_id" =~ ^[a-z0-9]{4}-[a-z0-9]{4}(-[a-z0-9]{4}-[a-z0-9]{4})?$ ]]; then
             ticket_id="$(_ticketlib_resolve_short_id "$ticket_id" "$TRACKER_DIR")"
         elif [[ "$_hyphen_count" -ge 4 ]]; then

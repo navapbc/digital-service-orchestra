@@ -2008,9 +2008,10 @@ if [[ ${#CONFLICT_QUEUE[@]} -gt 0 ]]; then
 fi
 if [[ "${SPRINT_MODE:-local}" == "ci-pr" ]]; then
   # ci-pr mode: merge via GitHub PR — do NOT perform a local direct merge
-  # merge-to-main.sh reads STORY_BRANCH (branch to merge) and STORY_ID (ticket)
-  # from the environment; it creates/updates the PR and returns when the PR is open.
-  export STORY_BRANCH STORY_ID
+  # merge-to-main-pr.sh uses BRANCH (defaults to current git branch if unset).
+  # Export STORY_BRANCH as BRANCH so the script targets the correct story branch
+  # even when the orchestrator is not currently checked out on that branch.
+  export BRANCH="$STORY_BRANCH"
   bash "$PLUGIN_SCRIPTS/merge-to-main.sh" || { # shim-exempt: SKILL.md orchestrator instruction — sprint runs plugin scripts via $PLUGIN_SCRIPTS directly
     echo "ERROR: merge-to-main.sh failed in ci-pr mode — aborting story merge" >&2
     exit 1
