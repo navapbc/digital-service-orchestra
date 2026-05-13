@@ -2061,7 +2061,33 @@ fi
 # Run the remaining lifecycle phases. Each function calls _state_mark_complete
 # on success and `exit 1` on failure (inherited via set -e propagation through
 # the source).
+# In PR mode, _phase_version_bump must make a new commit (not amend) so that
+# _phase_push can fast-forward push it to origin/main (bug 3024-d618).
+# Ensure MAIN_REPO is on 'main' before version bump + push: if it's not,
+# git push would push the wrong ref (coderabbit finding PRRT_kwDORoc4TM6BoDBB).
+if [[ -d "$MAIN_REPO/.git" ]] || [[ -f "$MAIN_REPO/.git" ]]; then
+    _pr_main_branch=$(git -C "$MAIN_REPO" branch --show-current 2>/dev/null || echo "")
+    if [[ "$_pr_main_branch" != "main" ]]; then
+        echo "INFO: MAIN_REPO is on '${_pr_main_branch}' — switching to main before version bump" >&2
+        if ! git -C "$MAIN_REPO" checkout main --quiet 2>/dev/null; then
+            echo "ERROR: MAIN_REPO checkout to main failed — cannot safely run version bump" >&2
+            exit 1
+        fi
+        # Fast-forward local main to origin/main after branch switch so the
+        # version bump commits on top of the current remote state (BoLgH).
+        git -C "$MAIN_REPO" fetch origin "main:refs/remotes/origin/main" --quiet 2>/dev/null || true
+        git -C "$MAIN_REPO" merge --ff-only "refs/remotes/origin/main" --quiet 2>/dev/null || true
+    fi
+fi
+export MERGE_TO_MAIN_PR_MODE=1
 _phase_version_bump
+unset MERGE_TO_MAIN_PR_MODE
+# REVIEW-DEFENSE (PR #111 important): _phase_push is called exactly once here.
+# merge-to-main-direct.sh is sourced with MERGE_TO_MAIN_DIRECT_LIB=1 (line 2040),
+# which causes it to skip its top-level lifecycle flow. Only function definitions
+# are imported. There is no second _phase_push invocation. The function also has
+# idempotency protection via _state_mark_complete("push").
+_phase_push  # push version-bump commit to origin/main
 _phase_archive
 _phase_ci_trigger
 

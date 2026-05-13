@@ -109,7 +109,9 @@ class TestEqualSeverityMergeNoMergedRationaleDuplication:
             f"Expected 1 deduplicated finding for same-severity overlap, got {len(results)}: {results!r}"
         )
         merged = results[0]
-        has_merged_rationale = "merged_rationale" in merged and merged["merged_rationale"]
+        has_merged_rationale = (
+            "merged_rationale" in merged and merged["merged_rationale"]
+        )
         assert not has_merged_rationale, (
             f"Expected no merged_rationale for equal-severity merge, got {merged.get('merged_rationale')!r}"
         )
@@ -124,7 +126,9 @@ class TestClaimFingerprintDedupRegardlessOfLineRange:
         When: deduplicate_region_findings is called
         Then: still deduplicated (fingerprint match wins)
         """
-        shared_description = "SQL query constructed via string concatenation allows injection"
+        shared_description = (
+            "SQL query constructed via string concatenation allows injection"
+        )
         f_a = _make_finding(
             severity="critical",
             cited_lines=["src/auth/login.py:10-20"],

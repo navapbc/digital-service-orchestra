@@ -613,8 +613,25 @@ _phase_version_bump() {
     fi
     git add -u 2>/dev/null || true
     if ! git diff --cached --quiet 2>/dev/null; then
-        DSO_MECHANICAL_AMEND=1 git commit --amend --no-edit --quiet
-        echo 'OK: Folded version bump into merge commit.'; fi
+        if [[ "${MERGE_TO_MAIN_PR_MODE:-}" == "1" ]]; then
+            # PR mode: make a new commit so _phase_push can fast-forward push to
+            # origin/main. Amend would create a divergent SHA that cannot be
+            # pushed without --force (bug 3024-d618).
+            # REVIEW-DEFENSE (PR #111 critical): _vf IS defined — local _vf="${VERSION_FILE_PATH:-}"
+            # at line 598 of this function. Guards above return early when VERSION_FILE_PATH
+            # is unset/empty (BUMP_TYPE not set + no VERSION_FILE_PATH → early return).
+            # The non-empty guard below is additional defense in depth.
+            local _new_ver="unknown"
+            if [[ -n "${_vf}" ]]; then
+                _new_ver=$(_VF="${_vf}" python3 -c "import json,sys,os;_f=open(os.environ['_VF']);d=json.load(_f);_f.close();v=d.get('version','');sys.exit(1) if not v else print(v)" 2>/dev/null || echo "unknown")
+            fi
+            git commit -m "chore: bump version to v${_new_ver}" --quiet
+            echo "OK: Version bump committed (v${_new_ver})."
+        else
+            DSO_MECHANICAL_AMEND=1 git commit --amend --no-edit --quiet
+            echo 'OK: Folded version bump into merge commit.'
+        fi
+    fi
     _state_mark_complete "version_bump"
 }
 
