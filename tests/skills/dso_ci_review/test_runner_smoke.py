@@ -2491,7 +2491,7 @@ def test_validate_findings_schema_pass_returns_pass_status():
     )
 
 
-def test_validate_findings_schema_pass_no_tmpfile_remains(tmp_path, monkeypatch):
+def test_validate_findings_schema_pass_no_tmpfile_remains(tmp_path):
     """
     Given: a valid findings dict and _validate_findings_schema is called
     When: the function completes (schema_pass path)
