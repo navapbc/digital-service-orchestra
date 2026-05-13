@@ -26,7 +26,7 @@ import os
 import subprocess
 import sys
 import tempfile
-from typing import NamedTuple
+from typing import Literal, NamedTuple
 
 from dso_ci_review.dispatch import async_dispatch_specialists, _validate_agent_files, dispatch_arch_synthesis, dispatch_two_call_review
 from dso_ci_review.findings import merge_findings
@@ -45,8 +45,8 @@ class _SchemaValidationResult(NamedTuple):
             diagnostic message on validator_error.
     """
 
-    status: str  # "schema_pass" | "schema_fail" | "validator_error"
-    errors: list  # list[str]
+    status: Literal["schema_pass", "schema_fail", "validator_error"]
+    errors: list[str]
 
 # REVIEW-DEFENSE block — refutations for PR #62 round-3 LLM review false positives.
 # These findings recur because the CI _SYSTEM_PROMPT (dispatch.py:23-30) lacks the

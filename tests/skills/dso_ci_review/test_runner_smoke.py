@@ -2831,3 +2831,316 @@ def test_main_schema_fail_returns_schema_fail_signal(tmp_path):
         "schema_fail is a data problem routed to S-B correction — not an infrastructure failure. "
         "Only validator_error (infrastructure) should produce non-zero exit from this hook."
     )
+
+
+# ---------------------------------------------------------------------------
+# Schema-correction integration tests — story 394e-d81b-fba4-4161 (S-B)
+# ---------------------------------------------------------------------------
+#
+# These tests define the runner.py integration contract for dispatch_schema_correction
+# (S-B task). dispatch_schema_correction and get_schema_correction_max_attempts do NOT
+# exist yet — all tests below must fail RED until Task 5 integrates them in runner.py.
+#
+# RED markers:
+#   tests/skills/dso_ci_review/test_runner_smoke.py [test_runner_calls_schema_correction_on_schema_fail]
+#   tests/skills/dso_ci_review/test_runner_smoke.py [test_runner_schema_correction_max_attempts_zero_skips_dispatch]
+#   tests/skills/dso_ci_review/test_runner_smoke.py [test_runner_schema_correction_result_written]
+
+
+def test_runner_calls_schema_correction_on_schema_fail(tmp_path):
+    """
+    Given: dispatch returns schema-invalid findings AND _validate_findings_schema signals schema_fail
+           AND dispatch_schema_correction is patched to return corrected (valid) findings
+    When: runner.main() executes
+    Then: dispatch_schema_correction is called exactly once (before _write_output)
+          AND exit code is 0 (corrected findings contain no blocking findings)
+          AND _write_output is called with the corrected findings (not the original schema-invalid ones)
+
+    RED marker: tests/skills/dso_ci_review/test_runner_smoke.py [test_runner_calls_schema_correction_on_schema_fail]
+
+    FAILS pre-integration because runner.main() does not call dispatch_schema_correction on schema_fail.
+    Task 5 must add the call in runner.py between _validate_findings_schema and _write_output.
+    """
+    import io
+    from contextlib import redirect_stderr
+
+    import dso_ci_review.runner as runner_mod
+
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text("diff --git a/foo.py b/foo.py\n+added line\n")
+    output_file = tmp_path / "findings.json"
+
+    # Corrected findings returned by dispatch_schema_correction — valid schema, no blockers
+    corrected_findings = {
+        "findings": [
+            {
+                "severity": "minor",
+                "category": "hygiene",
+                "description": "Corrected finding with all required fields.",
+                "file": "foo.py",
+                "cited_lines": ["foo.py:1"],
+                "cited_excerpt": "added line",
+            }
+        ],
+        "summary": "Schema-corrected findings.",
+    }
+
+    schema_fail_result = runner_mod._SchemaValidationResult(
+        status="schema_fail",
+        errors=["finding[0]: missing required field 'cited_excerpt'"],
+    )
+
+    correction_calls: list = []
+
+    def mock_dispatch_schema_correction(findings, schema_errors, **kwargs):
+        correction_calls.append({"findings": findings, "schema_errors": schema_errors})
+        return corrected_findings
+
+    stderr_capture = io.StringIO()
+    with (
+        patch.dict(
+            "os.environ",
+            {
+                "DSO_CI_REVIEW_DIFF_PATH": str(diff_file),
+                "DSO_CI_REVIEW_OUTPUT_PATH": str(output_file),
+                "CI_REVIEW_PROVIDER": "anthropic",
+                "ANTHROPIC_API_KEY": "test-key",
+                "GITHUB_EVENT_NAME": "",
+                "GITHUB_REF": "",
+                "GITHUB_TOKEN": "",
+                "PR_NUMBER": "",
+            },
+        ),
+        patch(
+            "dso_ci_review.runner._classify_tier_via_bash",
+            return_value=_standard_tier_classification(),
+        ),
+        patch(
+            "dso_ci_review.runner.async_dispatch_specialists",
+            side_effect=_make_findings_dispatch(
+                [_INVALID_FINDING_MISSING_CITED_EXCERPT]
+            ),
+        ),
+        patch(
+            "dso_ci_review.runner._validate_findings_schema",
+            return_value=schema_fail_result,
+        ),
+        patch(
+            "dso_ci_review.runner.get_schema_correction_max_attempts",
+            return_value=3,
+        ),
+        patch(
+            "dso_ci_review.runner.dispatch_schema_correction",
+            side_effect=mock_dispatch_schema_correction,
+        ),
+        redirect_stderr(stderr_capture),
+    ):
+        exit_code = runner_mod.main()
+
+    assert len(correction_calls) == 1, (
+        f"dispatch_schema_correction must be called exactly once on schema_fail; "
+        f"got {len(correction_calls)} calls. "
+        "Task 5 must integrate dispatch_schema_correction in runner.py "
+        "(story 394e-d81b-fba4-4161)."
+    )
+    assert exit_code == 0, (
+        f"Expected exit code 0 when correction succeeds (no blocking findings); got {exit_code}. "
+        f"stderr={stderr_capture.getvalue()!r}"
+    )
+    # Output must contain the corrected findings, not the original schema-invalid ones
+    assert output_file.exists(), (
+        "output file must be written after successful correction"
+    )
+    output_data = json.loads(output_file.read_text())
+    assert output_data.get("summary") == "Schema-corrected findings.", (
+        f"_write_output must receive corrected findings from dispatch_schema_correction; "
+        f"got summary={output_data.get('summary')!r}. "
+        "runner.main() must replace merged findings with correction result before write."
+    )
+
+
+def test_runner_schema_correction_max_attempts_zero_skips_dispatch(tmp_path):
+    """
+    Given: _validate_findings_schema signals schema_fail
+           AND get_schema_correction_max_attempts returns 0
+    When: runner.main() executes
+    Then: dispatch_schema_correction is NOT called (max_attempts=0 short-circuits to error path)
+          AND a synthetic schema_error finding is appended to merged findings
+          AND CI exits non-zero (synthetic schema_error causes failure)
+
+    RED marker: tests/skills/dso_ci_review/test_runner_smoke.py [test_runner_schema_correction_max_attempts_zero_skips_dispatch]
+
+    FAILS pre-integration because runner.main() does not check get_schema_correction_max_attempts.
+    Task 5 must short-circuit to the synthetic-error path when max_attempts=0.
+    """
+    import io
+    from contextlib import redirect_stderr
+
+    import dso_ci_review.runner as runner_mod
+
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text("diff --git a/foo.py b/foo.py\n+added line\n")
+    output_file = tmp_path / "findings.json"
+
+    schema_fail_result = runner_mod._SchemaValidationResult(
+        status="schema_fail",
+        errors=["finding[0]: missing required field 'cited_excerpt'"],
+    )
+
+    correction_calls: list = []
+
+    def mock_dispatch_schema_correction(findings, schema_errors, **kwargs):
+        correction_calls.append(True)
+        return {"findings": []}
+
+    stderr_capture = io.StringIO()
+    with (
+        patch.dict(
+            "os.environ",
+            {
+                "DSO_CI_REVIEW_DIFF_PATH": str(diff_file),
+                "DSO_CI_REVIEW_OUTPUT_PATH": str(output_file),
+                "CI_REVIEW_PROVIDER": "anthropic",
+                "ANTHROPIC_API_KEY": "test-key",
+                "GITHUB_EVENT_NAME": "",
+                "GITHUB_REF": "",
+                "GITHUB_TOKEN": "",
+                "PR_NUMBER": "",
+            },
+        ),
+        patch(
+            "dso_ci_review.runner._classify_tier_via_bash",
+            return_value=_standard_tier_classification(),
+        ),
+        patch(
+            "dso_ci_review.runner.async_dispatch_specialists",
+            side_effect=_make_findings_dispatch(
+                [_INVALID_FINDING_MISSING_CITED_EXCERPT]
+            ),
+        ),
+        patch(
+            "dso_ci_review.runner._validate_findings_schema",
+            return_value=schema_fail_result,
+        ),
+        patch(
+            "dso_ci_review.runner.get_schema_correction_max_attempts",
+            return_value=0,
+        ),
+        patch(
+            "dso_ci_review.runner.dispatch_schema_correction",
+            side_effect=mock_dispatch_schema_correction,
+        ),
+        redirect_stderr(stderr_capture),
+    ):
+        exit_code = runner_mod.main()
+
+    assert not correction_calls, (
+        f"dispatch_schema_correction must NOT be called when max_attempts=0; "
+        f"was called {len(correction_calls)} time(s). "
+        "Task 5 must short-circuit dispatch when max_attempts=0 and append synthetic error."
+    )
+    assert exit_code != 0, (
+        f"Expected non-zero exit code when max_attempts=0 (synthetic schema_error path); "
+        f"got {exit_code}. "
+        "Schema correction exhausted (max_attempts=0) must cause CI to fail, not silently pass."
+    )
+
+
+def test_runner_schema_correction_result_written(tmp_path):
+    """
+    Given: _validate_findings_schema signals schema_fail
+           AND dispatch_schema_correction is patched to return corrected findings
+    When: runner.main() executes
+    Then: _write_output receives the corrected findings (not original schema-invalid ones)
+          AND the output file contains the corrected summary field
+
+    This test isolates the data-flow assertion: the value returned by dispatch_schema_correction
+    must replace the schema-invalid merged findings before _write_output is called.
+
+    RED marker: tests/skills/dso_ci_review/test_runner_smoke.py [test_runner_schema_correction_result_written]
+
+    FAILS pre-integration because runner.main() does not replace merged with correction result.
+    """
+    import io
+    from contextlib import redirect_stderr
+
+    import dso_ci_review.runner as runner_mod
+
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text("diff --git a/bar.py b/bar.py\n+fixed field\n")
+    output_file = tmp_path / "findings.json"
+
+    corrected_findings = {
+        "findings": [
+            {
+                "severity": "suggestion",
+                "category": "hygiene",
+                "description": "post-correction suggestion",
+                "file": "bar.py",
+                "cited_lines": ["bar.py:1"],
+                "cited_excerpt": "fixed field",
+            }
+        ],
+        "summary": "correction-applied-sentinel",
+    }
+
+    schema_fail_result = runner_mod._SchemaValidationResult(
+        status="schema_fail",
+        errors=["finding[0]: missing required field 'cited_excerpt'"],
+    )
+
+    stderr_capture = io.StringIO()
+    with (
+        patch.dict(
+            "os.environ",
+            {
+                "DSO_CI_REVIEW_DIFF_PATH": str(diff_file),
+                "DSO_CI_REVIEW_OUTPUT_PATH": str(output_file),
+                "CI_REVIEW_PROVIDER": "anthropic",
+                "ANTHROPIC_API_KEY": "test-key",
+                "GITHUB_EVENT_NAME": "",
+                "GITHUB_REF": "",
+                "GITHUB_TOKEN": "",
+                "PR_NUMBER": "",
+            },
+        ),
+        patch(
+            "dso_ci_review.runner._classify_tier_via_bash",
+            return_value=_standard_tier_classification(),
+        ),
+        patch(
+            "dso_ci_review.runner.async_dispatch_specialists",
+            side_effect=_make_findings_dispatch(
+                [_INVALID_FINDING_MISSING_CITED_EXCERPT]
+            ),
+        ),
+        patch(
+            "dso_ci_review.runner._validate_findings_schema",
+            return_value=schema_fail_result,
+        ),
+        patch(
+            "dso_ci_review.runner.get_schema_correction_max_attempts",
+            return_value=2,
+        ),
+        patch(
+            "dso_ci_review.runner.dispatch_schema_correction",
+            return_value=corrected_findings,
+        ),
+        redirect_stderr(stderr_capture),
+    ):
+        exit_code = runner_mod.main()
+
+    assert output_file.exists(), (
+        "output file must be written after dispatch_schema_correction returns corrected findings"
+    )
+    output_data = json.loads(output_file.read_text())
+    assert output_data.get("summary") == "correction-applied-sentinel", (
+        f"_write_output must receive the corrected findings returned by dispatch_schema_correction; "
+        f"got summary={output_data.get('summary')!r} (expected 'correction-applied-sentinel'). "
+        "runner.main() must replace merged with dispatch_schema_correction's return value before write "
+        "(story 394e-d81b-fba4-4161 Task 5)."
+    )
+    assert exit_code == 0, (
+        f"Expected exit code 0 with corrected suggestion-only findings; got {exit_code}. "
+        f"stderr={stderr_capture.getvalue()!r}"
+    )
