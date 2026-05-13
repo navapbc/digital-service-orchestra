@@ -942,14 +942,15 @@ def dispatch_schema_correction(
         # Preserve original_findings as last_result so the reachability fallback can
         # still apply programmatic boilerplate to recover from missing-reachability errors.
         _infra_failed = any(
-            f.get("type") == "fallback_exhausted" for f in attempt_findings
+            isinstance(f, dict) and f.get("type") == "fallback_exhausted"
+            for f in attempt_findings
         )
         if _infra_failed:
             _exc_msg = next(
                 (
                     f.get("final_exception_message", "unknown")
                     for f in attempt_findings
-                    if f.get("type") == "fallback_exhausted"
+                    if isinstance(f, dict) and f.get("type") == "fallback_exhausted"
                 ),
                 "unknown",
             )
