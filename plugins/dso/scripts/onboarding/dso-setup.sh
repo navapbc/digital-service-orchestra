@@ -149,11 +149,14 @@ _DSO_P="plugins"; _DSO_N="dso"
 # Use ${HOME:-} to guard against unset HOME (common in minimal CI shells);
 # when HOME is unset the path comparison will not match any real install.
 _HOME_CACHE_PATH="${HOME:-}/.claude/${_DSO_P}/marketplaces/digital-service-orchestra/${_DSO_P}/${_DSO_N}"
+# Strip trailing slashes before comparing so PLUGIN_ROOT="/...dso/" still matches.
+_PLUGIN_ROOT_NORM="${PLUGIN_ROOT%/}"
+_HOME_CACHE_PATH_NORM="${_HOME_CACHE_PATH%/}"
 _WRITE_PLUGIN_ROOT=true
-if [[ -n "${HOME:-}" ]] && [[ "$PLUGIN_ROOT" == "$_HOME_CACHE_PATH" ]]; then
+if [[ -n "${HOME:-}" ]] && [[ "$_PLUGIN_ROOT_NORM" == "$_HOME_CACHE_PATH_NORM" ]]; then
     _WRITE_PLUGIN_ROOT=false
 fi
-unset _DSO_P _DSO_N _HOME_CACHE_PATH
+unset _DSO_P _DSO_N _HOME_CACHE_PATH _PLUGIN_ROOT_NORM _HOME_CACHE_PATH_NORM
 if [[ -z "$DRYRUN" ]] && [[ "$_WRITE_PLUGIN_ROOT" == "true" ]]; then
     if grep -q '^dso\.plugin_root=' "$CONFIG" 2>/dev/null; then
         # Update existing entry (idempotent)
