@@ -3330,3 +3330,67 @@ def test_clamp_schema_correction_attempts_clamps_above_ceiling_with_warning(caps
     assert "clamp" in captured.err.lower(), (
         f"Warning must mention 'clamped' (or 'clamp'); got stderr: {captured.err!r}"
     )
+
+
+def test_clamp_schema_correction_attempts_rejects_negative(capsys):
+    """
+    Given: max_attempts=-5 (negative misconfiguration)
+    When: _clamp_schema_correction_attempts(-5) is called
+    Then: returns 0 (correction disabled) and emits a warning to stderr
+          mentioning 'schema_correction_max_attempts' and 'negative'
+    """
+    import dso_ci_review.runner as runner_mod
+
+    result = runner_mod._clamp_schema_correction_attempts(-5)
+    captured = capsys.readouterr()
+
+    assert result == 0, (
+        f"_clamp_schema_correction_attempts(-5) must clamp to 0 (correction disabled); "
+        f"got {result!r}"
+    )
+    assert "schema_correction_max_attempts" in captured.err, (
+        f"Warning must mention 'schema_correction_max_attempts'; "
+        f"got stderr: {captured.err!r}"
+    )
+    assert "negative" in captured.err.lower(), (
+        f"Warning must mention 'negative'; got stderr: {captured.err!r}"
+    )
+
+
+def test_get_schema_correction_max_attempts_end_to_end(tmp_path):
+    """
+    Given: dso-config.conf contains 'review.schema_correction_max_attempts=2'
+    When: get_schema_correction_max_attempts(config_path=...) is called
+    Then: returns 2 (valid value, no clamping needed)
+
+    Exercises the full composition: _read_config_int → _clamp_schema_correction_attempts.
+    """
+    import dso_ci_review.runner as runner_mod
+
+    config_file = tmp_path / "dso-config.conf"
+    config_file.write_text("review.schema_correction_max_attempts=2\n")
+
+    result = runner_mod.get_schema_correction_max_attempts(config_path=str(config_file))
+
+    assert result == 2, (
+        f"get_schema_correction_max_attempts must return 2 when config sets "
+        f"review.schema_correction_max_attempts=2; got {result!r}"
+    )
+
+
+def test_get_schema_correction_max_attempts_clamps_negative(tmp_path, capsys):
+    """
+    Given: dso-config.conf contains 'review.schema_correction_max_attempts=-1'
+    When: get_schema_correction_max_attempts(config_path=...) is called
+    Then: returns 0 (negative clamped to disable sentinel)
+    """
+    import dso_ci_review.runner as runner_mod
+
+    config_file = tmp_path / "dso-config.conf"
+    config_file.write_text("review.schema_correction_max_attempts=-1\n")
+
+    result = runner_mod.get_schema_correction_max_attempts(config_path=str(config_file))
+
+    assert result == 0, (
+        f"get_schema_correction_max_attempts must clamp -1 to 0; got {result!r}"
+    )

@@ -758,6 +758,13 @@ def _clamp_schema_correction_attempts(raw_value: int) -> int:
     Ceiling rationale: 3 attempts is sufficient for LLM correction convergence;
     values above 3 risk runaway LLM cost from misconfiguration.
     """
+    if raw_value < 0:
+        print(
+            f"WARNING: review.schema_correction_max_attempts={raw_value} is negative; "
+            f"clamped to 0 (correction disabled)",
+            file=sys.stderr,
+        )
+        return 0
     if raw_value > _SCHEMA_CORRECTION_MAX_ATTEMPTS_CEILING:
         print(
             f"WARNING: review.schema_correction_max_attempts={raw_value} exceeds "
