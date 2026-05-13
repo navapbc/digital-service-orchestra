@@ -214,7 +214,10 @@ def test_round_trip_preserves_description_and_assignee(
     )
 
     # --- Step B: outbound CREATE handler (S4 no-match) ---
-    monkeypatch.delenv("BRIDGE_USER_MAP", raising=False)
+    # Use a configured-but-missing map (486e-8144: empty map suppresses alert;
+    # configured-but-missing still alerts). The assignee "Unmapped User" is not
+    # in the map, so BRIDGE_ALERT must be written and unassign must be called.
+    monkeypatch.setenv("BRIDGE_USER_MAP", '{"someone-else@example.com": "acc-99"}')
     acli = MagicMock()
     acli.create_issue.return_value = {"key": "PROJ-123"}
     acli.unassign_issue.return_value = None
@@ -244,7 +247,9 @@ def test_round_trip_preserves_description_and_assignee(
     assert any(
         "BRIDGE_USER_MAP" in json.loads(p.read_text())["data"]["reason"]
         for p in alert_files
-    ), "BRIDGE_ALERT for unmapped assignee was not written"
+    ), (
+        "BRIDGE_ALERT for unmapped assignee was not written (configured-but-missing case)"
+    )
 
     # --- Inbound: simulate Jira returning the same ticket back to us with an
     # ADF description and a Jira displayName assignee. write_create_events must
@@ -546,3 +551,73 @@ def test_null_assignee_revert_silently_fails(
         "BRIDGE_USER_MAP" in json.loads(p.read_text())["data"]["reason"] for p in alerts
     ), "BRIDGE_ALERT for no-map assignee was not written"
     assert syncs and syncs[0]["jira_key"] == "PROJ-NA-1"
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_handle_create_event_no_bridge_alert_when_user_map_empty(
+    tmp_path: Path,
+    handlers_mod: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When BRIDGE_USER_MAP is empty ({}), handle_create_event must NOT write a
+    BRIDGE_ALERT for an unmapped assignee (486e-8144).
+
+    An empty map means "not configured", not "user is explicitly unknown".
+    Emitting BRIDGE_ALERTs when the operator has not set up BRIDGE_USER_MAP at
+    all produces noise on every run — which is what triggered this bug report.
+
+    The configured-but-missing case (S4/7759 test above) must still alert.
+    """
+    tracker = tmp_path / ".tickets-tracker"
+    tracker.mkdir()
+    ticket_dir = tracker / "tk-nm-1"
+    ticket_dir.mkdir()
+    ts = time.time_ns()
+    eu = str(uuid.uuid4())
+    create_path = ticket_dir / f"{ts}-{eu}-CREATE.json"
+    create_payload = {
+        "event_type": "CREATE",
+        "timestamp": ts,
+        "uuid": eu,
+        "env_id": "aaaaaaaa-0000-4000-8000-000000000001",
+        "data": {
+            "ticket_type": "task",
+            "title": "Empty user map test",
+            "assignee": "Test",
+            "description": "x",
+        },
+    }
+    create_path.write_text(json.dumps(create_payload), encoding="utf-8")
+
+    # BRIDGE_USER_MAP not configured — empty JSON object (workflow default).
+    monkeypatch.setenv("BRIDGE_USER_MAP", "{}")
+
+    acli = MagicMock()
+    acli.create_issue.return_value = {"key": "PROJ-NM-1"}
+    acli.unassign_issue.return_value = None
+
+    event = {
+        "ticket_id": "tk-nm-1",
+        "event_type": "CREATE",
+        "file_path": str(create_path),
+    }
+    handlers_mod.handle_create_event(
+        event,
+        acli_client=acli,
+        tickets_root=tracker,
+        bridge_env_id="bbbbbbbb-0000-4000-8000-000000000002",
+        run_id="run-nm",
+    )
+
+    alerts = list(ticket_dir.glob("*-BRIDGE_ALERT.json"))
+    user_map_alerts = [
+        p
+        for p in alerts
+        if "BRIDGE_USER_MAP"
+        in json.loads(p.read_text()).get("data", {}).get("reason", "")
+    ]
+    assert len(user_map_alerts) == 0, (
+        f"handle_create_event must NOT emit BRIDGE_USER_MAP alert when "
+        f"BRIDGE_USER_MAP is empty (not configured); got {len(user_map_alerts)} alert(s) (486e-8144)."
+    )

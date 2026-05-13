@@ -10,6 +10,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+# Return-value sentinels: True = exclude this issue (caller should skip);
+# False = include this issue (caller should continue processing).
+_SKIP = True
+_INCLUDE = False
+
 
 def handle_type_check(
     issue: dict[str, Any],
@@ -48,7 +53,11 @@ def handle_type_check(
     )
 
     if not jira_type:
-        return False
+        return _INCLUDE  # no type = no filter decision needed; include the issue
+
+    # Empty mapping means "no type filtering configured" — include all issues (bf75-5653).
+    if not type_mapping:
+        return _INCLUDE  # no type universe declared, every issue is acceptable
 
     if map_type_fn(jira_type, mapping=type_mapping) is None:
         local_id = f"jira-{issue.get('key', 'unknown').lower()}"
@@ -61,6 +70,6 @@ def handle_type_check(
         # Skip creating a local ticket for unclassifiable types (2b6a-0a37).
         if issue.get("key"):
             unmapped_type_keys.add(issue["key"])
-        return True
+        return _SKIP
 
-    return False
+    return _INCLUDE

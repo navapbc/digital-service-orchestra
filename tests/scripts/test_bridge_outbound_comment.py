@@ -476,3 +476,186 @@ def test_outbound_push_comment_does_not_duplicate_if_already_in_dedup_map(
     assert call_args[0][0] == "DSO-99", (
         "add_comment must be called only for the new comment (DSO-99), not the already-pushed one"
     )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_outbound_push_comment_does_not_duplicate_if_marker_in_jira(
+    tmp_path: Path, bridge: ModuleType
+) -> None:
+    """When the local dedup map is stale (e.g., workflow died before committing),
+    handle_comment_event must check Jira's existing comments for the origin-uuid
+    marker and skip the post if found — preventing duplicates (4314-cfb9).
+
+    Scenario: previous workflow run posted the comment to Jira and updated the
+    local .jira-comment-map, but the workflow died before `git commit && push`.
+    The next run starts with an empty dedup map but Jira already has the comment
+    with the origin-uuid marker. Without Jira-side check, add_comment is called
+    again — producing a duplicate.
+    """
+    ticket_dir = tmp_path / "w21-jira-dedup"
+    ticket_dir.mkdir()
+    _write_sync_file(ticket_dir, jira_key=_JIRA_KEY)
+
+    event_uuid = "dddd2222-dddd-4000-8000-dddddddddddd"
+    comment_path = _write_event(
+        ticket_dir,
+        timestamp=1742605500,
+        uuid=event_uuid,
+        event_type="COMMENT",
+        data={"body": "Comment already in Jira."},
+        env_id=_OTHER_ENV_ID,
+    )
+
+    # Local dedup map is EMPTY (workflow died before writing it)
+    # — no .jira-comment-map file exists
+
+    events = [
+        {
+            "ticket_id": "w21-jira-dedup",
+            "event_type": "COMMENT",
+            "file_path": str(comment_path),
+        },
+    ]
+
+    mock_client = MagicMock()
+    mock_client.add_comment = MagicMock(return_value={"id": "jira-comment-55"})
+    # Jira already has the comment — get_comments returns it with the origin-uuid marker
+    mock_client.get_comments = MagicMock(
+        return_value=[
+            {
+                "id": "jira-comment-55",
+                "body": f"Comment already in Jira.\n<!-- origin-uuid: {event_uuid} -->",
+            }
+        ]
+    )
+
+    bridge.process_outbound(
+        events,
+        acli_client=mock_client,
+        tickets_root=tmp_path,
+        bridge_env_id=_BRIDGE_ENV_ID,
+    )
+
+    # add_comment must NOT be called — Jira already has the comment
+    assert mock_client.add_comment.call_count == 0, (
+        f"add_comment must not be called when Jira already has the origin-uuid marker "
+        f"for event {event_uuid!r} — dedup must check Jira before posting (4314-cfb9). "
+        f"Called {mock_client.add_comment.call_count} time(s)."
+    )
+    # get_comments must be called with the correct jira_key before deciding to skip
+    mock_client.get_comments.assert_called_once_with(_JIRA_KEY)
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_outbound_comment_dedup_map_healed_when_jira_has_marker(
+    tmp_path: Path, bridge: ModuleType
+) -> None:
+    """When Jira-side dedup check finds the origin-uuid marker, the local dedup
+    map must be healed (jira_comment_id saved) so future runs skip without
+    re-checking Jira (4314-cfb9).
+    """
+    ticket_dir = tmp_path / "w22-dedup-heal"
+    ticket_dir.mkdir()
+    _write_sync_file(ticket_dir, jira_key=_JIRA_KEY)
+
+    event_uuid = "eeee3333-eeee-4000-8000-eeeeeeeeeeee"
+    comment_path = _write_event(
+        ticket_dir,
+        timestamp=1742605600,
+        uuid=event_uuid,
+        event_type="COMMENT",
+        data={"body": "Healed comment."},
+        env_id=_OTHER_ENV_ID,
+    )
+
+    events = [
+        {
+            "ticket_id": "w22-dedup-heal",
+            "event_type": "COMMENT",
+            "file_path": str(comment_path),
+        },
+    ]
+
+    mock_client = MagicMock()
+    mock_client.add_comment = MagicMock()
+    mock_client.get_comments = MagicMock(
+        return_value=[
+            {
+                "id": "jira-comment-77",
+                "body": f"Healed comment.\n<!-- origin-uuid: {event_uuid} -->",
+            }
+        ]
+    )
+
+    bridge.process_outbound(
+        events,
+        acli_client=mock_client,
+        tickets_root=tmp_path,
+        bridge_env_id=_BRIDGE_ENV_ID,
+    )
+
+    # Dedup map must be written with uuid_to_jira entry
+    dedup_map_path = ticket_dir / ".jira-comment-map"
+    assert dedup_map_path.exists(), "Dedup map must be written when healing (4314-cfb9)"
+    dedup_data = json.loads(dedup_map_path.read_text())
+    assert dedup_data.get("uuid_to_jira_id", {}).get(event_uuid) == "jira-comment-77", (
+        f"uuid_to_jira_id must map {event_uuid!r} -> 'jira-comment-77' after healing; "
+        f"got {dedup_data.get('uuid_to_jira_id')!r}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_outbound_comment_get_comments_exception_fails_closed(
+    tmp_path: Path, bridge: ModuleType
+) -> None:
+    """When get_comments raises, the handler must write a BRIDGE_ALERT and NOT
+    post the comment — fail-closed semantics prevent duplicates (4314-cfb9).
+    """
+    ticket_dir = tmp_path / "w23-get-comments-fail"
+    ticket_dir.mkdir()
+    _write_sync_file(ticket_dir, jira_key=_JIRA_KEY)
+
+    event_uuid = "ffff4444-ffff-4000-8000-ffffffffffff"
+    comment_path = _write_event(
+        ticket_dir,
+        timestamp=1742605700,
+        uuid=event_uuid,
+        event_type="COMMENT",
+        data={"body": "Should not post."},
+        env_id=_OTHER_ENV_ID,
+    )
+
+    events = [
+        {
+            "ticket_id": "w23-get-comments-fail",
+            "event_type": "COMMENT",
+            "file_path": str(comment_path),
+        },
+    ]
+
+    mock_client = MagicMock()
+    mock_client.add_comment = MagicMock()
+    mock_client.get_comments = MagicMock(side_effect=RuntimeError("network timeout"))
+
+    bridge.process_outbound(
+        events,
+        acli_client=mock_client,
+        tickets_root=tmp_path,
+        bridge_env_id=_BRIDGE_ENV_ID,
+    )
+
+    # get_comments must be called to attempt the Jira-side dedup check
+    mock_client.get_comments.assert_called_once_with(_JIRA_KEY)
+    # add_comment must NOT be called — fail-closed means skip on error
+    assert mock_client.add_comment.call_count == 0, (
+        "add_comment must not be called when get_comments raises — "
+        f"fail-closed semantics required. Called {mock_client.add_comment.call_count} time(s)."
+    )
+    # BRIDGE_ALERT must be written
+    alert_files = list(tmp_path.rglob("*-BRIDGE_ALERT.json"))
+    assert len(alert_files) >= 1, (
+        "A BRIDGE_ALERT must be written when get_comments raises (fail-closed path)"
+    )
