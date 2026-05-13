@@ -19,3 +19,8 @@ Integration tests in `tests/skills/dso_ci_review/test_schema_compliance_pr80.py`
 PR #80 review produced 8/11 invalid findings (bug d42d-8126). Root cause: CI llm-review
 bypassed schema validator. Fix: S-A adds post-merge validation + fail-loud; S-B adds
 schema-correction dispatch; S-C adds `review.schema_correction_max_attempts` config key.
+
+## Test Coverage
+
+Scenario 11b and Scenario 12 in `tests/skills/dso_ci_review/test_dispatch_schema_correction.py`
+cover the infra-failure fallback path (max_attempts=1 and max_attempts=2 cases).
