@@ -84,6 +84,27 @@ Only push ONCE per invocation (not before every sub-agent). If `IS_SESSION_WORKT
 
 Scan configured GitHub Actions workflows for CI failures and create bug tickets for any untracked failures. This step runs **before** the open-bug-count pre-check so newly discovered failures are visible to mode selection.
 
+**Stale .debug-active Cleanup**: Before running the GHA pre-scan, clean up any stale `.debug-active` marker:
+```bash
+_debug_marker="$(git rev-parse --show-toplevel)/.debug-active"
+if [[ -f "$_debug_marker" ]]; then
+    _schema_ver=$(grep '^schema_version=' "$_debug_marker" 2>/dev/null | sed 's/schema_version=//' || true)
+    if [[ -z "$_schema_ver" || "$_schema_ver" -lt 1 ]]; then
+        printf 'ERROR: .debug-active marker is from a pre-upgrade session. Remove it manually and re-run.\n' >&2
+        exit 1
+    fi
+    _marker_ts=$(grep '^debug-session-id=' "$_debug_marker" 2>/dev/null | sed 's/^debug-session-id=\([0-9]*-[0-9]*\)-.*/\1/' || true)
+    _ttl_hours=$(bash "$PLUGIN_SCRIPTS/read-config.sh" debug.session_ttl_hours 2>/dev/null || echo 24)
+    _ttl_secs=$(( _ttl_hours * 3600 ))
+    _now=$(date +%s 2>/dev/null || echo 0)
+    _ts_epoch=$(date -d "${_marker_ts//-/ }" +%s 2>/dev/null || date -j -f '%Y%m%d %H%M%S' "${_marker_ts//-/ }" +%s 2>/dev/null || echo 0)
+    if [[ $(( _now - _ts_epoch )) -ge $_ttl_secs ]]; then
+        rm -f "$_debug_marker"
+        printf 'Phase A: removed stale .debug-active marker (age > %d hours)\n' "$_ttl_hours"
+    fi
+fi
+```
+
 Execute `prompts/gha-dispatch.md` with `EPIC_COMMENT_LABEL="GHA scan complete"`. New tickets (tagged `gha:<workflow-file-name>`) are picked up by the open-bug-count check in Phase B Step 2 and processed in Bug-Fix Mode.
 
 ---
@@ -104,6 +125,23 @@ When `OPEN_BUG_COUNT == 0`, execute `prompts/session-init.md` to bind:
 - `INTERACTIVE_SESSION` (governs Non-Interactive Deferral Protocol behavior at each gate)
 
 That prompt also runs the Resume Check (parse `CHECKPOINT N/6` lines on in-progress issues; fast-close, re-dispatch, or revert per checkpoint progress).
+
+**Mode Detection & Draft PR (ci-pr mode only)**: After session-init.md binding, detect `merge.strategy` and initialize the debug session:
+```bash
+DEBUG_MODE=$(.claude/scripts/dso read-config.sh merge.strategy 2>/dev/null || echo 'direct')
+_debug_marker="$(git rev-parse --show-toplevel)/.debug-active"
+if [[ "$DEBUG_MODE" == 'pr' ]]; then
+    _session_id="$(date -u +%Y%m%d-%H%M%S)-$(LC_ALL=C tr -dc 'a-z0-9' </dev/urandom | head -c6)"
+    printf 'schema_version=1\ndebug-session-id=%s\n' "$_session_id" > "$_debug_marker"
+    DRAFT_PR_URL=$(DRAFT_PR_TITLE_PREFIX=Debug: SESSION_BRANCH="$SESSION_BRANCH" \
+        PRIMARY_TICKET_ID="${EPIC_ID:-debug}" EPIC_TITLE='Debug Session' \
+        bash "$(git rev-parse --show-toplevel)/.claude/scripts/dso" create-sprint-draft-pr.sh 2>&1)
+    printf 'merge.strategy=pr — debug session running in ci-pr mode. Draft PR: %s\n' "$DRAFT_PR_URL"
+else
+    printf 'merge.strategy=direct — debug session running in local mode\n'
+fi
+```
+Schema reference: `${CLAUDE_PLUGIN_ROOT}/skills/debug-everything/docs/debug-active-marker-schema.md`
 
 ### Step 2: BUG-FIX MODE GATE — Skip Diagnostics If Open Bugs Exist (/dso:debug-everything)
 
@@ -914,6 +952,9 @@ No other entry to Phase K is valid. In particular: "context usage feels high", "
    .claude/scripts/dso ticket transition <epic-id> open closed
    ```
    Discovery cleanup failure is non-fatal; log a warning and continue with lock release.
+   ```bash
+   rm -f "$(git rev-parse --show-toplevel)/.debug-active" 2>/dev/null || true
+   ```
 2. Proceed to **Phase L** (Merge to Main & Verify).
 
 ### On Graceful Shutdown
@@ -924,6 +965,9 @@ No other entry to Phase K is valid. In particular: "context usage feels high", "
    $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh lock-release <lock-id> "Graceful shutdown — work remains"  # shim-exempt: internal orchestration script
    ```
    Discovery cleanup failure is non-fatal; log a warning and continue with lock release.
+   ```bash
+   rm -f "$(git rev-parse --show-toplevel)/.debug-active" 2>/dev/null || true
+   ```
 2. Do NOT launch new sub-agents.
 3. Stage modifications via `git status --short` (do NOT run a full test/lint pass — `make test-unit-only` exceeds the tool timeout ceiling per CLAUDE.md "Never Do These" rule 19; the post-batch validation sub-agent in Phase H has already validated this batch).
 4. Commit checkpoint:

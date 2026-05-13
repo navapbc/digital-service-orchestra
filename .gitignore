@@ -51,6 +51,7 @@ tests/scripts/fixtures/isolation-rules/tmp-*
 .checkpoint-pending-rollback
 # Sprint-active marker file (created by Phase A, removed by Phase I, never committed)
 .sprint-active
+.debug-active
 
 # Review artifacts (transient — written by code-reviewer sub-agents, never committed)
 reviewer-findings.json
