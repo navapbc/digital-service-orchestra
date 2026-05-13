@@ -124,8 +124,9 @@ ticket_show() {
         fi
 
         # Use full resolution pipeline (alias, jira_key, prefix, short-hex) matching
-        # the pattern established by ticket_delete and ticket_resolve.
-        source "$_TICKETLIB_DIR/ticket-lib.sh"
+        # the pattern established by ticket_delete and ticket_resolve. Guard
+        # prevents repeated sourcing in batch contexts (shell caches defined fns).
+        declare -f resolve_ticket_id &>/dev/null || source "$_TICKETLIB_DIR/ticket-lib.sh"
         ticket_id="$(resolve_ticket_id "$ticket_id")"
 
         if [ ! -d "$TRACKER_DIR/$ticket_id" ]; then

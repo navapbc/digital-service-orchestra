@@ -2008,6 +2008,8 @@ if [[ ${#CONFLICT_QUEUE[@]} -gt 0 ]]; then
 fi
 if [[ "${SPRINT_MODE:-local}" == "ci-pr" ]]; then
   # ci-pr mode: merge via GitHub PR — do NOT perform a local direct merge
+  # Export STORY_BRANCH and STORY_ID so merge-to-main.sh subprocess can access them
+  export STORY_BRANCH STORY_ID
   bash "$PLUGIN_SCRIPTS/merge-to-main.sh" # shim-exempt: SKILL.md orchestrator instruction — sprint runs plugin scripts via $PLUGIN_SCRIPTS directly
 else
   # local mode: direct local merge with DSO-Story-Merge trailer
