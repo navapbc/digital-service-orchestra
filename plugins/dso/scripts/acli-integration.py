@@ -482,6 +482,27 @@ def add_comment(
     return json.loads(result.stdout)
 
 
+def _parse_acli_comments(parsed: Any) -> list[dict[str, Any]]:
+    """Normalise an ACLI comments response to a flat list of comment dicts.
+
+    ACLI may return a bare list, a wrapped dict with a 'comments' key, or an
+    unrecognised shape (error dict, scalar, None).  All unrecognised shapes
+    intentionally produce [] — callers must not interpret unknown payloads as
+    comment data, and surfacing raw error dicts as comment lists would silently
+    corrupt downstream processing.
+    """
+    if isinstance(parsed, list):
+        return [item for item in parsed if isinstance(item, dict)]
+    if isinstance(parsed, dict):
+        comments = parsed.get("comments", [])
+        return (
+            [item for item in comments if isinstance(item, dict)]
+            if isinstance(comments, list)
+            else []
+        )
+    return []
+
+
 def get_comments(
     jira_key: str,
     *,
@@ -498,17 +519,7 @@ def get_comments(
         "--json",
     ]
     result = _run_acli(cmd, acli_cmd=acli_cmd)
-    parsed = json.loads(result.stdout)
-    if isinstance(parsed, list):
-        return [item for item in parsed if isinstance(item, dict)]
-    if isinstance(parsed, dict):
-        comments = parsed.get("comments", [])
-        return (
-            [item for item in comments if isinstance(item, dict)]
-            if isinstance(comments, list)
-            else []
-        )
-    return []
+    return _parse_acli_comments(json.loads(result.stdout))
 
 
 # ---------------------------------------------------------------------------
@@ -769,17 +780,7 @@ class AcliClient:
             "--json",
         ]
         result = self._run(cmd)
-        parsed = json.loads(result.stdout)
-        if isinstance(parsed, list):
-            return [item for item in parsed if isinstance(item, dict)]
-        if isinstance(parsed, dict):
-            comments = parsed.get("comments", [])
-            return (
-                [item for item in comments if isinstance(item, dict)]
-                if isinstance(comments, list)
-                else []
-            )
-        return []
+        return _parse_acli_comments(json.loads(result.stdout))
 
     def set_relationship(
         self,
