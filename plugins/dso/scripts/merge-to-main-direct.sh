@@ -618,7 +618,7 @@ _phase_version_bump() {
             # origin/main. Amend would create a divergent SHA that cannot be
             # pushed without --force (bug 3024-d618).
             local _new_ver
-            _new_ver=$(python3 -c "import json,sys; d=json.load(open('${_vf}')); v=d.get('version',''); sys.exit(1) if not v else print(v)" 2>/dev/null || echo "unknown")
+            _new_ver=$(_VF="${_vf}" python3 -c "import json,sys,os; d=json.load(open(os.environ['_VF'])); v=d.get('version',''); sys.exit(1) if not v else print(v)" 2>/dev/null || echo "unknown")
             git commit -m "chore: bump version to v${_new_ver}" --quiet
             echo "OK: Version bump committed (v${_new_ver})."
         else

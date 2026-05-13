@@ -2070,6 +2070,10 @@ if [[ -d "$MAIN_REPO/.git" ]] || [[ -f "$MAIN_REPO/.git" ]]; then
     if [[ "$_pr_main_branch" != "main" ]]; then
         echo "INFO: MAIN_REPO is on '${_pr_main_branch}' — switching to main before version bump" >&2
         git -C "$MAIN_REPO" checkout main --quiet 2>/dev/null || true
+        # Fast-forward local main to origin/main after branch switch so the
+        # version bump commits on top of the current remote state (BoLgH).
+        git -C "$MAIN_REPO" fetch origin "main:refs/remotes/origin/main" --quiet 2>/dev/null || true
+        git -C "$MAIN_REPO" merge --ff-only "refs/remotes/origin/main" --quiet 2>/dev/null || true
     fi
 fi
 export MERGE_TO_MAIN_PR_MODE=1
