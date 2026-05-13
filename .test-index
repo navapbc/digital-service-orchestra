@@ -186,7 +186,7 @@ plugins/dso/scripts/claude-safe:tests/scripts/test-claude-safe-portability.sh,te
 plugins/dso/scripts/collect-discoveries.sh:tests/scripts/test-collect-discoveries-plugin-root.sh
 plugins/dso/scripts/create-dso-app.sh:tests/scripts/test-create-dso-app.sh
 plugins/dso/scripts/create-story-branch.sh:tests/scripts/test-create-story-branch.sh
-plugins/dso/scripts/create-sprint-draft-pr.sh:tests/scripts/test-create-sprint-draft-pr.sh,[test_create_sprint_draft_pr_custom_title_prefix,test_create_sprint_draft_pr_default_title_prefix,test_create_sprint_draft_pr_custom_body_template,test_create_sprint_draft_pr_default_body_regression,test_create_sprint_draft_pr_body_no_placeholder]
+plugins/dso/scripts/create-sprint-draft-pr.sh:tests/scripts/test-create-sprint-draft-pr.sh
 plugins/dso/scripts/design-approve.sh:tests/scripts/test-design-approve.sh
 plugins/dso/scripts/ci-review-corpus-delta.sh:tests/skills/dso_ci_review/test-ci-review-corpus-delta.sh
 plugins/dso/scripts/dso_ci_review/classifier.py:tests/skills/dso_ci_review/test_classifier.py
