@@ -39,10 +39,10 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Install ruff
-        run: pip install ruff
       - name: Run ruff
-        run: ruff check plugins/dso/scripts/
+        uses: astral-sh/ruff-action@v3
+        with:
+          args: check plugins/dso/scripts/
 
   review:
     name: Per-Story LLM Review

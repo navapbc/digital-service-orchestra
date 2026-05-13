@@ -551,6 +551,7 @@ test_ticket_show_preconditions_summary_legacy_placeholder
 # ── Test: ticket show resolves friendly alias ─────────────────────────────────
 echo "Test: ticket show resolves friendly alias to ticket details"
 test_ticket_show_resolves_friendly_alias() {
+    _snapshot_fail
     local repo
     repo=$(_make_test_repo)
 
@@ -599,5 +600,54 @@ test_ticket_show_resolves_friendly_alias() {
     assert_pass_if_clean "test_ticket_show_resolves_friendly_alias"
 }
 test_ticket_show_resolves_friendly_alias
+
+# ── Test: ticket show rejects inputs with 4+ hyphens without alias scan ───────
+echo "Test: ticket show rejects 4+ hyphen inputs fast (no alias scan)"
+test_ticket_show_rejects_four_hyphen_input() {
+    _snapshot_fail
+    local repo
+    repo=$(_make_test_repo)
+
+    local rc=0
+    cd "$repo" && bash "$TICKET_SCRIPT" show "nonexistent-ticket-id-zzz9-yyyy" 2>/dev/null || rc=$?
+    assert_ne "ticket show with 4+ hyphens exits non-zero" "0" "$rc"
+
+    rm -rf "$repo"
+    assert_pass_if_clean "test_ticket_show_rejects_four_hyphen_input"
+}
+test_ticket_show_rejects_four_hyphen_input
+
+# ── Test: ticket show resolves 8-hex short ID ─────────────────────────────────
+echo "Test: ticket show resolves 8-hex short ID to full ticket"
+test_ticket_show_resolves_8hex_short_id() {
+    _snapshot_fail
+    local repo
+    repo=$(_make_test_repo)
+
+    local ticket_id=""
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create story "short-id test story" 2>/dev/null | tail -1 || true)
+
+    if [ -z "$ticket_id" ]; then
+        assert_eq "ticket created for short-id test" "non-empty" "empty"
+        rm -rf "$repo"
+        return
+    fi
+
+    # Extract the 8-hex prefix (first 9 chars: "xxxx-xxxx")
+    local short_id="${ticket_id:0:9}"
+    local short_output="" short_exit=0
+    short_output=$(cd "$repo" && bash "$TICKET_SCRIPT" show "$short_id" 2>/dev/null) || short_exit=$?
+
+    assert_eq "ticket show via 8-hex exits 0" "0" "$short_exit"
+
+    local resolved_id=""
+    resolved_id=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d.get('ticket_id',''))" "$short_output" 2>/dev/null || true)
+    assert_eq "ticket show via 8-hex returns correct ticket_id" "$ticket_id" "$resolved_id"
+
+    rm -rf "$repo"
+    assert_pass_if_clean "test_ticket_show_resolves_8hex_short_id"
+}
+test_ticket_show_resolves_8hex_short_id
+
 
 print_summary
