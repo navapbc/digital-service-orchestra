@@ -358,6 +358,66 @@ def test_arch_synthesis_receives_merged_findings(monkeypatch) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Scenario 6b — run_region_split: prior_defenses forwarded to arch synthesis
+# ---------------------------------------------------------------------------
+
+
+def test_run_region_split_forwards_prior_defenses_to_arch_synthesis(
+    monkeypatch,
+) -> None:
+    """Given: prior_defenses are provided to run_region_split (cycle N≥2 re-review)
+    When: run_region_split calls dispatch_arch_synthesis
+    Then: the merged_findings_json passed to arch synthesis includes the defense context
+          so the arch synthesizer avoids re-emitting defended findings.
+    """
+    _region_mod = sys.modules[run_region_split.__module__]
+
+    _DEFENSE = {
+        "severity": "important",
+        "description": "Some prior finding",
+        "defense_text": "This is a false positive because X.",
+    }
+    captured_args: list[dict] = []
+
+    async def _mock_async_dispatch(agents: list) -> list:
+        return [{"findings": []}]
+
+    def _mock_arch_synthesis(
+        merged_findings_json: str, diff_text: str, model: str, provider_chain: list
+    ) -> dict:
+        captured_args.append({"merged_findings_json": merged_findings_json})
+        return {"findings": []}
+
+    monkeypatch.setattr(_region_mod, "async_dispatch_specialists", _mock_async_dispatch)
+    monkeypatch.setattr(_region_mod, "dispatch_arch_synthesis", _mock_arch_synthesis)
+    monkeypatch.setattr(
+        _region_mod,
+        "_cluster_files",
+        lambda _filenames: {"src": ["foo.py"]},
+    )
+
+    large_diff = _make_diff_with_loc(added=300, removed=150, filenames=["src/foo.py"])
+
+    run_region_split(
+        diff_text=large_diff,
+        tier_agents=[],
+        provider_chain=["anthropic"],
+        config_path=None,
+        prior_defenses=[_DEFENSE],
+    )
+
+    assert captured_args, "dispatch_arch_synthesis must have been called"
+    passed_json = captured_args[0]["merged_findings_json"]
+    assert "Prior round defenses" in passed_json, (
+        "merged_findings_json passed to arch synthesis must include the defense context "
+        f"when prior_defenses is non-empty; got: {passed_json[:200]}"
+    )
+    assert _DEFENSE["defense_text"] in passed_json, (
+        "Defense text must appear in the merged_findings_json passed to arch synthesis"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Scenario 7 (SC5) — deduplicate_region_findings: overlapping regions, MAX-severity
 #                     wins, dual-rationale preserved
 # ---------------------------------------------------------------------------

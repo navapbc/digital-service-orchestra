@@ -45,6 +45,7 @@
     "./agents/red-team-reviewer.md",
     "./agents/red-test-evaluator.md",
     "./agents/red-test-writer.md",
+    "./agents/schema-correction.md",
     "./agents/scope-drift-reviewer.md",
     "./agents/ui-designer.md"
   ],

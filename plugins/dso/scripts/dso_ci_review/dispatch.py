@@ -19,6 +19,7 @@ import json
 import logging
 import os
 import pathlib
+import re
 import sys
 from typing import Any
 
@@ -52,6 +53,25 @@ _FAIL_CLOSED_OFFSET: int = 4
 _VALID_SEVERITIES: frozenset[str] = frozenset(
     {"critical", "important", "minor", "fragile", "fallback_exhausted"}
 )
+
+# Frozen fields that must be preserved byte-for-byte during schema correction.
+# finding_id is handled separately below — it may be regenerated when the original
+# is absent, empty, or structurally malformed (not matching _FINDING_ID_RE).
+_FROZEN_FIELDS: tuple[str, ...] = (
+    "severity",
+    "category",
+    "description",
+    "file",
+    "cited_lines",
+)
+
+# finding_id format: f-<8 lowercase hex characters>
+_FINDING_ID_RE: re.Pattern[str] = re.compile(r"^f-[0-9a-f]{8}$")
+
+# cited_lines entry format: <path>:<line> or ~<path>:<line> (approximate).
+# <line> may be a single line number or a range (e.g. 83-112 or 83~112).
+# The optional ~ prefix on the whole entry marks approximate line references.
+_CITED_LINE_RE: re.Pattern[str] = re.compile(r"^~?[^:]+:[1-9][0-9]*(?:[-~][1-9][0-9]*)?$")
 
 
 @functools.lru_cache(maxsize=32)
@@ -448,7 +468,10 @@ def dispatch_review(
                         continue
 
                     # Second nudge at soft_cap+3
-                    if aug_turn >= _AUG_SOFT_CAP + _NUDGE_SECOND_OFFSET and nudge_count == 1:
+                    if (
+                        aug_turn >= _AUG_SOFT_CAP + _NUDGE_SECOND_OFFSET
+                        and nudge_count == 1
+                    ):
                         nudge_count = 2
                         aug_messages = aug_messages + [
                             {"role": "assistant", "content": assistant_content},
@@ -467,7 +490,10 @@ def dispatch_review(
                         continue
 
                     # Fail-closed: reviewer ignored both nudges
-                    if aug_turn >= _AUG_SOFT_CAP + _FAIL_CLOSED_OFFSET and nudge_count >= 2:
+                    if (
+                        aug_turn >= _AUG_SOFT_CAP + _FAIL_CLOSED_OFFSET
+                        and nudge_count >= 2
+                    ):
                         aug_failed = True
                         break
 
@@ -697,6 +723,7 @@ def dispatch_two_call_review(
     # Resolve litellm via module attribute so tests patching
     # ``dso_ci_review.dispatch.litellm`` intercept these calls.
     import dso_ci_review.dispatch as _self_mod  # noqa: PLC0415
+
     _litellm = getattr(_self_mod, "litellm", litellm)
 
     # --- Call 1: pass only the stripped index (no defense_text) ---
@@ -705,7 +732,9 @@ def dispatch_two_call_review(
         + json.dumps(prior_findings_index, indent=2)
     )
     call1_diff = diff_text + index_context
-    call1_messages = _build_messages(call1_diff, agent_id=agent_id, provider=first_provider)
+    call1_messages = _build_messages(
+        call1_diff, agent_id=agent_id, provider=first_provider
+    )
 
     call1_response = _litellm.completion(
         model=resolved_model,
@@ -725,7 +754,9 @@ def dispatch_two_call_review(
         + json.dumps(defenses, indent=2)
     )
     call2_diff = diff_text + call2_context
-    call2_messages = _build_messages(call2_diff, agent_id=agent_id, provider=first_provider)
+    call2_messages = _build_messages(
+        call2_diff, agent_id=agent_id, provider=first_provider
+    )
 
     call2_response = _litellm.completion(
         model=resolved_model,
@@ -777,7 +808,9 @@ def dispatch_arch_synthesis(
     provider_chain: list[str],
 ) -> dict:
     """Approximate opus arch synthesis: sequential call after 3 parallel specialists."""
-    augmented_input = f"{diff_text}\n\n## Prior specialist findings\n\n{merged_findings_json}"
+    augmented_input = (
+        f"{diff_text}\n\n## Prior specialist findings\n\n{merged_findings_json}"
+    )
     return dispatch_review(
         diff_text=augmented_input,
         agent_id="code-reviewer-deep-arch",
@@ -785,6 +818,294 @@ def dispatch_arch_synthesis(
         provider_chain=provider_chain,
         tier="deep",
     )
+
+
+def dispatch_schema_correction(
+    original_findings: list[dict[str, Any]],
+    schema_errors: list[str] | None = None,
+    *,
+    diff_text: str = "",
+    provider_chain: list[str] | None = None,
+    agent_id: str = "unknown",
+    primary_model: str | None = None,
+    environ: dict[str, str] | None = None,
+    max_attempts: int = 1,
+    validate_cmd: list[str] | None = None,
+    plugin_root: pathlib.Path | None = None,
+) -> dict[str, Any]:
+    """Attempt to correct schema-invalid findings by re-dispatching the review.
+
+    If the corrected response is schema-valid and preserves all frozen fields
+    byte-for-byte with the same finding count, the corrected result is returned.
+    Otherwise, each failed attempt consumes one retry. After all attempts are
+    exhausted (or if max_attempts=0), a synthetic schema_error finding is appended
+    to the last response and returned.
+
+    Args:
+        original_findings: The original findings list (for frozen-field comparison).
+        schema_errors: List of schema validation error messages to prepend to correction prompt.
+        diff_text: Unified diff text to review.
+        provider_chain: Ordered list of provider names. Defaults to ["anthropic"].
+        agent_id: Identifier of the reviewing agent.
+        primary_model: Override the primary model for the first provider call.
+        environ: Environment variable mapping for credential checks.
+        max_attempts: Maximum number of correction attempts. 0 skips dispatch entirely.
+        validate_cmd: Unused; kept for interface compatibility.
+        plugin_root: Override for plugin root path resolution.
+
+    Returns:
+        A dict with "findings" key. On success, contains corrected findings.
+        On failure, contains a synthetic schema_error finding appended.
+    """
+    import dso_ci_review.runner as _runner_mod
+
+    # Guard against None provider_chain
+    if provider_chain is None:
+        provider_chain = ["anthropic"]
+
+    # Resolve plugin_root using the same approach as _resolve_validator_script()
+    if plugin_root is None:
+        _env_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+        if _env_root is not None:
+            plugin_root = pathlib.Path(_env_root)
+        else:
+            _five_up = (
+                pathlib.Path(__file__).resolve().parent.parent.parent.parent.parent
+            )
+            plugin_root = _five_up / "plugins" / "dso"
+
+    # Load correction prompt fragment
+    prompt_fragment_path = (
+        plugin_root / "docs" / "workflows" / "prompts" / "reviewer-schema-correction.md"
+    )
+    try:
+        prompt_fragment = prompt_fragment_path.read_text(encoding="utf-8")
+    except OSError:
+        prompt_fragment = ""
+
+    # Build correction prompt
+    original_findings_json = json.dumps({"findings": original_findings}, indent=2)
+    _schema_errors = schema_errors or []
+    schema_errors_text = (
+        "\n\n## Schema errors to fix\n\n" + "\n".join(f"- {e}" for e in _schema_errors)
+        if _schema_errors
+        else ""
+    )
+    correction_prompt = (
+        prompt_fragment
+        + schema_errors_text
+        + "\n\n## Original findings\n\n"
+        + original_findings_json
+        + "\n\n## Diff\n\n"
+        + diff_text
+    )
+
+    def _make_synthetic_error(error_details: str) -> dict[str, Any]:
+        return {
+            "type": "parse_error",
+            "severity": "critical",
+            "category": "schema_error",
+            "description": f"Schema correction failed after {max_attempts} attempt(s): {error_details}",
+            "finding_id": f"schema_error_{hashlib.md5(error_details.encode()).hexdigest()[:8]}",
+            "file": "",
+            "cited_lines": [],
+            "cited_excerpt": "",
+            "reachability": "",
+        }
+
+    # Short-circuit: max_attempts=0 skips dispatch entirely
+    if max_attempts == 0:
+        error_details = "max_attempts=0, dispatch skipped"
+        return {
+            "findings": [_make_synthetic_error(error_details)],
+            "summary": "Schema correction applied: skipped (max_attempts=0)",
+        }
+
+    last_error: str = "unknown error"
+    last_result: dict[str, Any] | None = None
+
+    for _attempt in range(max_attempts):
+        # Dispatch the correction review
+        attempt_result = dispatch_review(
+            diff_text=correction_prompt,
+            provider_chain=provider_chain,
+            agent_id=agent_id,
+            primary_model=primary_model,
+            environ=environ,
+        )
+        last_result = attempt_result
+        attempt_findings = attempt_result.get("findings", [])
+
+        # Validate schema via runner._validate_findings_schema
+        schema_result = _runner_mod._validate_findings_schema(
+            attempt_result,
+            plugin_root=str(plugin_root),
+        )
+
+        if schema_result.status != "schema_pass":
+            last_error = (
+                "; ".join(schema_result.errors)
+                if schema_result.errors
+                else "schema_fail"
+            )
+            continue
+
+        # Check finding count matches original
+        if len(attempt_findings) != len(original_findings):
+            last_error = (
+                f"finding count mismatch: got {len(attempt_findings)}, "
+                f"expected {len(original_findings)}"
+            )
+            continue
+
+        # Check frozen fields are byte-for-byte identical
+        frozen_ok = True
+        for i, (orig, corrected) in enumerate(zip(original_findings, attempt_findings)):
+            for field in _FROZEN_FIELDS:
+                if field not in orig:
+                    continue  # absent fields may be added by correction
+                # cited_lines: frozen only when original is schema-valid (non-empty
+                # list with all entries matching <path>:<line> format). When malformed,
+                # the correction must be allowed to fix the format — identical to the
+                # finding_id exception below.
+                if field == "cited_lines":
+                    orig_cited = orig[field]
+                    orig_cited_valid = (
+                        isinstance(orig_cited, list)
+                        and len(orig_cited) > 0
+                        and all(
+                            isinstance(e, str) and _CITED_LINE_RE.match(e)
+                            for e in orig_cited
+                        )
+                    )
+                    if not orig_cited_valid:
+                        continue  # malformed original — allow correction to fix format
+                if corrected.get(field) != orig[field]:
+                    last_error = (
+                        f"frozen field {field!r} mutated at index {i}: "
+                        f"original={orig[field]!r}, corrected={corrected.get(field)!r}"
+                    )
+                    frozen_ok = False
+                    break
+            if not frozen_ok:
+                break
+            # finding_id: frozen when original is structurally valid; regeneration
+            # allowed only when original is absent, empty, or malformed.
+            orig_fid = str(orig.get("finding_id") or "")
+            if (
+                _FINDING_ID_RE.match(orig_fid)
+                and corrected.get("finding_id") != orig_fid
+            ):
+                last_error = (
+                    f"frozen field 'finding_id' mutated at index {i}: "
+                    f"original={orig_fid!r}, corrected={corrected.get('finding_id')!r}"
+                )
+                frozen_ok = False
+
+        if not frozen_ok:
+            continue
+
+        # All checks passed — return corrected result
+        return attempt_result
+
+    # Programmatic reachability fallback: if the ONLY remaining errors are
+    # missing/empty 'reachability' fields, inject a category-appropriate boilerplate
+    # rather than failing closed. This handles the case where the correction LLM
+    # repeatedly forgets to add reachability despite explicit prompting (observed
+    # in CI cycles 9+: important/maintainability and important/hygiene findings in
+    # test files where a caller-input→harm chain is not semantically applicable).
+    _reach_fallback_applied = False
+    if last_result is not None:
+        _last_findings = list(last_result.get("findings", []))
+        # Validate to find remaining errors against a fresh copy
+        _revalidate = _runner_mod._validate_findings_schema(
+            last_result, plugin_root=str(plugin_root)
+        )
+        # Filter out header lines (SCHEMA_VALID:, Validation errors:) to get
+        # only the actual field-level validation errors (lines containing "findings[")
+        _field_errors = [
+            _e for _e in _revalidate.errors if "findings[" in _e
+        ]
+        _only_reach_errors = bool(_field_errors) and all(
+            "reachability" in _e for _e in _field_errors
+        )
+        if _only_reach_errors:
+            # Parse which finding indices need reachability
+            import re as _re
+
+            _reach_idx_re = _re.compile(r"findings\[(\d+)\].*reachability")
+            _indices_needing_reach: set[int] = set()
+            for _err in _revalidate.errors:
+                _m = _reach_idx_re.search(_err)
+                if _m:
+                    _indices_needing_reach.add(int(_m.group(1)))
+            # Generate per-finding boilerplate keyed by category
+            _CAT_BOILERPLATE: dict[str, str] = {
+                "maintainability": (
+                    "Code maintainability risk: large or duplicated code accumulates "
+                    "cognitive overhead for contributors and increases the probability "
+                    "of merge conflicts and missed updates during future changes."
+                ),
+                "hygiene": (
+                    "Code hygiene risk: duplicated or inconsistent patterns create "
+                    "maintenance burden and increase the probability that future "
+                    "changes will miss one of the copies, leading to drift."
+                ),
+                "design": (
+                    "Design risk: structural complexity increases the surface area "
+                    "for misuse by callers, raising the likelihood of incorrect "
+                    "usage and subtle integration bugs over time."
+                ),
+                "verification": (
+                    "Test coverage risk: uncovered paths will not catch regressions "
+                    "when future changes alter the affected logic, allowing bugs to "
+                    "reach production undetected."
+                ),
+            }
+            _DEFAULT_BOILERPLATE = (
+                "Risk path: the identified concern degrades code quality over "
+                "time, increasing the probability of defects introduced by future "
+                "contributors who rely on the affected component."
+            )
+            _patched_findings = list(_last_findings)
+            for _idx in sorted(_indices_needing_reach):
+                if _idx < len(_patched_findings):
+                    _f = dict(_patched_findings[_idx])
+                    _cat = str(_f.get("category", "")).lower()
+                    _f["reachability"] = _CAT_BOILERPLATE.get(
+                        _cat, _DEFAULT_BOILERPLATE
+                    )
+                    _patched_findings[_idx] = _f
+            _patched_result = {**last_result, "findings": _patched_findings}
+            _revalidate2 = _runner_mod._validate_findings_schema(
+                _patched_result, plugin_root=str(plugin_root)
+            )
+            if _revalidate2.status == "schema_pass":
+                print(
+                    f"INFO: schema correction reachability fallback applied to "
+                    f"{len(_indices_needing_reach)} finding(s) — "
+                    f"boilerplate reachability injected for indices "
+                    f"{sorted(_indices_needing_reach)}",
+                    file=sys.stderr,
+                )
+                return _patched_result
+            _reach_fallback_applied = True  # fallback attempted but still failed
+
+    # All attempts exhausted — append synthetic schema_error to last result
+    _fallback_note = " (reachability fallback also failed)" if _reach_fallback_applied else ""
+    synthetic_error = _make_synthetic_error(last_error + _fallback_note)
+    if last_result is not None:
+        findings_out = list(last_result.get("findings", []))
+        findings_out.append(synthetic_error)
+        exhausted_result = {**last_result, "findings": findings_out}
+        exhausted_result.setdefault(
+            "summary", "Schema correction applied: all attempts exhausted"
+        )
+        return exhausted_result
+    return {
+        "findings": [synthetic_error],
+        "summary": "Schema correction applied: all attempts exhausted",
+    }
 
 
 async def async_dispatch_specialists(

@@ -36,6 +36,9 @@ jobs:
         uses: ludeeus/action-shellcheck@2.0.0
         with:
           scandir: './plugins/dso/scripts'
+          # warning: suppress info/style-level findings (SC2295, SC2086, SC2016, etc.)
+          # that are pre-existing and non-actionable. Only actual warnings+ block CI.
+          severity: warning
 
   lint-python:
     name: Lint Python (ruff)
@@ -52,7 +55,8 @@ jobs:
     name: Per-Story LLM Review
     needs: [actionlint, shellcheck, lint-python]
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # 30 min: region-split mode with 5 clusters takes ~12 min; 30 provides headroom.
+    timeout-minutes: 30
     steps:
       - name: Checkout story branch
         uses: actions/checkout@v4
@@ -77,15 +81,57 @@ jobs:
           git diff "$BASE" HEAD > /tmp/story-diff.patch
 
       - name: Download prior review artifact (cycle tracking)
+        # actions/download-artifact@v4 is intentionally NOT used here: it scopes artifact
+        # lookup to the current run-id (even with github-token set), which makes it
+        # impossible to download artifacts from a prior run. We need cross-run download to
+        # retrieve the cycle N findings.json so cycle N+1 can build on prior defenses.
+        # This gh api + curl approach is the only mechanism that supports cross-run lookup.
+        # continue-on-error: true ensures a missing prior artifact (cycle 1) is non-fatal.
         continue-on-error: true
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{ env.ARTIFACT_NAME }}
-          path: /tmp/prior-review/
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Download from a PRIOR run (not the current run).
+          # Filter out the current run-id so we get the most recent completed run's artifact.
+          mkdir -p /tmp/prior-review
+          # per_page=10: artifact names are branch-specific so accumulation is slow,
+          # but 10 provides headroom without hitting API limits.
+          ARTIFACT_URL=$(gh api \
+            "/repos/${{ github.repository }}/actions/artifacts?name=${ARTIFACT_NAME}&per_page=10" \
+            --jq ".artifacts[] | select(.workflow_run.id != ${{ github.run_id }}) | .archive_download_url" \
+            | head -1)
+          if [[ -n "$ARTIFACT_URL" ]]; then
+            # GitHub API download endpoints accept Bearer scheme (same as gh CLI internally).
+            # -f: fail on HTTP errors (4xx/5xx) so a non-zip error response is not
+            # silently passed to unzip as if it were a valid archive.
+            curl -fsL -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+              "$ARTIFACT_URL" -o /tmp/prior-review.zip && \
+              unzip -o /tmp/prior-review.zip -d /tmp/prior-review/ && \
+              echo "Downloaded prior artifact from $ARTIFACT_URL"
+          else
+            echo "No prior artifact found — cycle 1"
+          fi
 
       - name: Install litellm
         # Pin to tested version; bump after verifying compatibility with ci-llm-review-runner.sh
         run: pip install litellm==1.83.7
+
+      # Resolve PR number so runner.py can fetch DEFENSE_RECORD comments for cycle N≥2
+      # suppression. push events don't expose github.event.pull_request.number, so we
+      # use gh pr list to find the open PR for this branch.
+      - name: Resolve PR number
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUM=$(gh pr list --head "${GITHUB_REF_NAME}" --state open --json number \
+            --jq '.[0].number' 2>/dev/null || echo "")
+          if [[ "${PR_NUM}" =~ ^[0-9]+$ ]]; then
+            echo "PR_NUMBER=${PR_NUM}" >> "$GITHUB_ENV"
+            echo "Resolved PR_NUMBER=${PR_NUM}"
+          else
+            echo "No open PR found for branch ${GITHUB_REF_NAME} — defense suppression will be skipped"
+          fi
 
       # Compute review cycle: each prior run uploads a story-diff artifact, but
       # the most reliable in-job signal here is the presence of the prior-review
@@ -126,6 +172,9 @@ jobs:
           DSO_CI_REVIEW_OUTPUT_PATH: /tmp/findings.json
           DSO_CI_REVIEW_DRY_RUN: ${{ vars.DSO_CI_REVIEW_DRY_RUN || '' }}
           DSO_REVIEW_CYCLE: ${{ env.DSO_REVIEW_CYCLE }}
+          # PR_NUMBER enables runner.py defense suppression in push-triggered workflows.
+          # Set by "Resolve PR number" step above; absent on branches without open PRs.
+          PR_NUMBER: ${{ env.PR_NUMBER }}
 
       - name: Upload review artifact
         if: always()

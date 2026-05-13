@@ -28,7 +28,13 @@ import sys
 import tempfile
 from typing import Literal, NamedTuple
 
-from dso_ci_review.dispatch import async_dispatch_specialists, _validate_agent_files, dispatch_arch_synthesis, dispatch_two_call_review
+from dso_ci_review.dispatch import (
+    async_dispatch_specialists,
+    _validate_agent_files,
+    dispatch_arch_synthesis,
+    dispatch_schema_correction,
+    dispatch_two_call_review,
+)
 from dso_ci_review.findings import merge_findings
 from dso_ci_review.providers.config import AuthError, ConfigError, get_provider
 from dso_ci_review.region_split import _should_region_split, run_region_split
@@ -47,6 +53,7 @@ class _SchemaValidationResult(NamedTuple):
 
     status: Literal["schema_pass", "schema_fail", "validator_error"]
     errors: list[str]
+
 
 # REVIEW-DEFENSE block — refutations for PR #62 round-3 LLM review false positives.
 # These findings recur because the CI _SYSTEM_PROMPT (dispatch.py:23-30) lacks the
@@ -210,9 +217,9 @@ def _validate_findings_schema(
             # validate-review-output.sh emits all diagnostic output to stderr
             # (echo "..." >&2 throughout the script; stdout is reserved for
             # the SCHEMA_VALID:yes confirmation line on success).
-            errors = [
-                line for line in result.stderr.splitlines() if line.strip()
-            ] or [result.stderr.strip() or "schema validation failed (exit 1)"]
+            errors = [line for line in result.stderr.splitlines() if line.strip()] or [
+                result.stderr.strip() or "schema validation failed (exit 1)"
+            ]
             return _SchemaValidationResult("schema_fail", errors)
         # Any other non-zero exit → infrastructure failure
         return _SchemaValidationResult(
@@ -233,23 +240,24 @@ def _validate_findings_schema(
 def _resolve_pr_number() -> str | None:
     """Resolve the current PR number from GitHub Actions env vars.
 
-    Returns the PR number as a string when running in pull_request event context,
-    else None. Sources checked, in order:
-      1. GITHUB_REF (format: refs/pull/<N>/merge on PR events)
-      2. PR_NUMBER env var (host-project override)
+    Returns the PR number as a string when a PR context is detectable, else None.
+    Sources checked, in order:
+      1. PR_NUMBER env var (explicit override — works for push-triggered workflows
+         where the caller resolves the PR number via gh pr list and sets this var)
+      2. GITHUB_REF (format: refs/pull/<N>/merge on pull_request events)
     """
-    if os.environ.get("GITHUB_EVENT_NAME", "") != "pull_request":
-        return None
-    ref = os.environ.get("GITHUB_REF", "")
-    # GITHUB_REF on PR events is "refs/pull/<N>/merge"
-    if ref.startswith("refs/pull/"):
-        rest = ref[len("refs/pull/") :]
-        num = rest.split("/", 1)[0]
-        if num.isdigit():
-            return num
+    # Check PR_NUMBER first — works for both push and pull_request events.
     pr_num = os.environ.get("PR_NUMBER", "")
     if pr_num.isdigit():
         return pr_num
+    # Fallback: GITHUB_REF on pull_request events is "refs/pull/<N>/merge"
+    if os.environ.get("GITHUB_EVENT_NAME", "") == "pull_request":
+        ref = os.environ.get("GITHUB_REF", "")
+        if ref.startswith("refs/pull/"):
+            rest = ref[len("refs/pull/") :]
+            num = rest.split("/", 1)[0]
+            if num.isdigit():
+                return num
     return None
 
 
@@ -461,7 +469,16 @@ def _fetch_pr_defenses(pr_number: str) -> list[dict]:
         return []
     try:
         result = subprocess.run(
-            ["gh", "pr", "view", pr_number, "--json", "comments", "--jq", ".comments[].body"],
+            [
+                "gh",
+                "pr",
+                "view",
+                pr_number,
+                "--json",
+                "comments",
+                "--jq",
+                ".comments[].body",
+            ],
             capture_output=True,
             text=True,
             timeout=30,
@@ -486,7 +503,7 @@ def _fetch_pr_defenses(pr_number: str) -> list[dict]:
         line = line.strip()
         if not line.startswith("DEFENSE_RECORD: "):
             continue
-        json_str = line[len("DEFENSE_RECORD: "):]
+        json_str = line[len("DEFENSE_RECORD: ") :]
         try:
             record = json.loads(json_str)
             if isinstance(record, dict):
@@ -791,7 +808,7 @@ def get_schema_correction_max_attempts(config_path: str | None = None) -> int:
     dispatch_schema_correction function as a subsequent story in the same epic).
     Do not re-implement config reading for this key in dispatch.py.
     """
-    raw = _read_config_int("review.schema_correction_max_attempts", 1, config_path)
+    raw = _read_config_int("review.schema_correction_max_attempts", 2, config_path)
     return _clamp_schema_correction_attempts(raw)
 
 
@@ -1023,7 +1040,9 @@ def main() -> int:
         config_path: str | None = None
 
         # Step 2: build agent list based on tier, plus any classifier-flagged overlays
-        tier_agents = _build_agents_for_tier(tier, diff_text, classification, config_path)
+        tier_agents = _build_agents_for_tier(
+            tier, diff_text, classification, config_path
+        )
         overlay_agents = _build_overlay_agents(classification, diff_text, config_path)
 
         # Enrich overlay descriptors with model + provider_chain for dispatch
@@ -1050,6 +1069,7 @@ def main() -> int:
                 tier_agents=tier_agents,
                 provider_chain=provider_chain,
                 config_path=config_path,
+                prior_defenses=prior_defenses or None,
             )
         else:
             # Step 3: dispatch tier agents + classifier-flagged overlays together (parallel).
@@ -1057,7 +1077,12 @@ def main() -> int:
             # two-call architecture so the LLM evaluates findings against existing defenses.
             # Deep tier continues to use the standard path; defenses are injected at the
             # arch-synthesis step (Step 6) where the final synthesis happens.
-            if cycle_number >= 2 and prior_defenses and tier in ("light", "standard") and not overlay_agents:
+            if (
+                cycle_number >= 2
+                and prior_defenses
+                and tier in ("light", "standard")
+                and not overlay_agents
+            ):
                 # Two-call path: single-agent tier with prior defenses.
                 # Build prior_findings_index (no defense_text) and prior_findings (with defense_text).
                 prior_findings_index = [
@@ -1151,13 +1176,30 @@ def main() -> int:
                     merged = dict(merged)
                     merged["findings"] = filtered
 
+        # Step 7a.5: early-exit for all-specialist-errors.
+        # specialist_error findings may be schema-invalid (they lack cited_lines etc.),
+        # which would trigger schema correction. But when ALL findings are specialist
+        # errors there was no real review — schema correction cannot help. Exit early
+        # before schema validation so the accurate diagnostic is surfaced instead of
+        # a misleading "schema correction failed" message.
+        _pre_schema_findings = merged.get("findings") or []
+        if bool(_pre_schema_findings) and all(
+            f.get("type") == "specialist_error" for f in _pre_schema_findings
+        ):
+            _write_output(merged)
+            print(
+                "ERROR: all specialist dispatches failed — no review findings produced "
+                "(check litellm installation and API key configuration)",
+                file=sys.stderr,
+            )
+            return 1
+
         # Step 7b: schema validation (schema hash 214949ee476be6d0)
         # Shell out to validate-review-output.sh before writing to disk.
         # Exit-code routing:
         #   schema_pass    → continue to _write_output() unchanged
-        #   schema_fail    → S-B integration point: pass through to _write_output()
-        #                    with original findings so S-B correction dispatch can
-        #                    intercept and rewrite findings before CI gate evaluates them
+        #   schema_fail    → Step 7.5: dispatch_schema_correction inline; appends
+        #                    synthetic schema_error and exits 1 if correction fails
         #   validator_error → fail-loud (CRITICAL stderr + non-zero exit), never silently skip
         _schema_result = _validate_findings_schema(merged)
         if _schema_result.status == "validator_error":
@@ -1167,8 +1209,89 @@ def main() -> int:
                 file=sys.stderr,
             )
             return 1
-        # schema_fail: leave merged unchanged; S-B story will intercept and dispatch correction.
-        # schema_pass: continue to _write_output() unchanged.
+        # Step 7.5: schema-correction dispatch on schema_fail
+        if _schema_result.status == "schema_fail":
+            _max_attempts = get_schema_correction_max_attempts()
+            if _max_attempts == 0:
+                # Short-circuit: append synthetic schema_error without dispatching
+                _synthetic = {
+                    "type": "parse_error",
+                    "severity": "critical",
+                    "category": "schema_error",
+                    "description": (
+                        "Schema correction skipped (max_attempts=0): "
+                        + "; ".join(_schema_result.errors)
+                    ),
+                    "finding_id": "schema_error_skipped",
+                    "file": "",
+                    "cited_lines": [],
+                    "cited_excerpt": "",
+                    "reachability": "",
+                }
+                merged = dict(merged)
+                merged["findings"] = list(merged.get("findings", [])) + [_synthetic]
+                _write_output(merged)
+                print(
+                    "ERROR: schema correction skipped (max_attempts=0) — "
+                    "synthetic schema_error appended",
+                    file=sys.stderr,
+                )
+                return 1
+            else:
+                try:
+                    merged = dispatch_schema_correction(
+                        merged.get("findings", []),
+                        _schema_result.errors,
+                        diff_text=diff_text,
+                        provider_chain=provider_chain,
+                        agent_id="schema-correction",
+                        max_attempts=_max_attempts,
+                    )
+                except Exception as _corr_exc:  # noqa: BLE001
+                    print(
+                        f"ERROR: dispatch_schema_correction raised {type(_corr_exc).__name__}: {_corr_exc}"
+                        " — appending synthetic schema_error (fail-closed)",
+                        file=sys.stderr,
+                    )
+                    _corr_synthetic = {
+                        "type": "parse_error",
+                        "severity": "critical",
+                        "category": "schema_error",
+                        "description": (
+                            f"Schema correction dispatch raised {type(_corr_exc).__name__}: "
+                            + "; ".join(_schema_result.errors)
+                        ),
+                        "finding_id": "schema_error_dispatch_failed",
+                        "file": "",
+                        "cited_lines": [],
+                        "cited_excerpt": "",
+                        "reachability": "",
+                    }
+                    merged = dict(merged)
+                    merged["findings"] = list(merged.get("findings", [])) + [
+                        _corr_synthetic
+                    ]
+                    _write_output(merged)
+                    return 1
+                # Fail-closed: if correction exhausted all retries, dispatch_schema_correction
+                # appends a synthetic parse_error/schema_error finding. These findings failed
+                # schema validation and must not be allowed to merge (bug: exit-0 slip-through).
+                _corr_exhausted = [
+                    f
+                    for f in merged.get("findings", [])
+                    if f.get("type") == "parse_error"
+                    and f.get("category") == "schema_error"
+                ]
+                if _corr_exhausted:
+                    merged = dict(merged)
+                    merged["cycle_number"] = cycle_number
+                    _write_output(merged)
+                    print(
+                        f"ERROR: schema correction exhausted all {_max_attempts} attempt(s) — "
+                        f"synthetic schema_error present; blocking merge (fail-closed)",
+                        file=sys.stderr,
+                    )
+                    return 1
 
         # Step 8: write output
         # Stamp the cycle number so the NEXT cycle's workflow can read it back

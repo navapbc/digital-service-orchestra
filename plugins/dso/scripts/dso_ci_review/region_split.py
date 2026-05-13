@@ -141,6 +141,7 @@ async def _async_run_region_split(
     tier_agents: list[dict[str, Any]],
     provider_chain: list[str],
     config_path: str | None,
+    prior_defenses: list[dict] | None = None,
 ) -> dict[str, Any]:
     """Async implementation of region-split dispatch."""
     # 1. Extract filenames from diff and cluster them
@@ -186,6 +187,13 @@ async def _async_run_region_split(
 
     # 5. Call dispatch_arch_synthesis with merged findings + full diff
     merged_findings_json = json.dumps(all_findings, indent=2)
+    # On cycle N≥2 with prior defenses, append them so the arch synthesizer can avoid
+    # re-emitting defended findings. Mirrors the non-region-split deep-tier path.
+    if prior_defenses:
+        merged_findings_json += (
+            "\n\n## Prior round defenses (do NOT re-emit findings that have been defended)\n\n"
+            + json.dumps(prior_defenses, indent=2)
+        )
     # Use the model from the first agent if available, else a sensible default
     arch_model = "claude-opus-4-5"
     if tier_agents:
@@ -210,6 +218,7 @@ def run_region_split(
     tier_agents: list[dict[str, Any]],
     provider_chain: list[str],
     config_path: str | None,
+    prior_defenses: list[dict] | None = None,
 ) -> dict[str, Any]:
     """Synchronous entry point for region-split dispatch.
 
@@ -220,5 +229,7 @@ def run_region_split(
     plus the arch synthesis result.
     """
     return asyncio.run(
-        _async_run_region_split(diff_text, tier_agents, provider_chain, config_path)
+        _async_run_region_split(
+            diff_text, tier_agents, provider_chain, config_path, prior_defenses
+        )
     )
