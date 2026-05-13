@@ -958,7 +958,7 @@ def dispatch_schema_correction(
             last_error = f"correction dispatch infrastructure failure: {_exc_msg[:200]}"
             last_result = {
                 "findings": list(original_findings),
-                "summary": "schema correction — api unavailable, using original findings",
+                "summary": "schema correction — api unavailable, reverting to original findings for reachability fallback",
             }
             continue
 

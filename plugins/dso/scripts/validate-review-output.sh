@@ -320,7 +320,7 @@ else:
             else:
                 for j, entry in enumerate(cited):
                     if not isinstance(entry, str) or not _cited_pattern.match(entry):
-                        errors.append(f"{prefix}.cited_lines[{j}]: invalid format {entry!r}; expected <path>:<line>, <path>:<start>-<end>, <path>:<start>~<end>, or ~<path>:<line>")
+                        errors.append(f"{prefix}.cited_lines[{j}]: invalid format {entry!r}; expected <path>:<line>, <path>:<start>-<end>, <path>:<start>~<end>, ~<path>:<line>, ~<path>:<start>-<end>, or ~<path>:<start>~<end>")
         # cited_excerpt: required string of at least 5 characters (verbatim code from
         # the cited file). Anchors the finding to file content so misreads / stale
         # line refs are visible inside the finding itself. See bug d42d-8126.
