@@ -54,10 +54,37 @@ _meta_description_for() {
 }
 
 # Substitute {{CANONICAL_TIER}} in the base content with the variant's canonical tier.
-# Used to inject --review-tier <tier> into write-reviewer-findings.sh calls.
+# For the light tier, also remove the "Context-Request Protocol (standard / deep /
+# overlay tiers only)" section from the base, avoiding contradictory guidance in the
+# generated code-reviewer-light.md (bug 57b9-1f14).
+# The light-tier delta already supplies the correct "NOT available for light tier" notice.
 _meta_substitute_base() {
     local variant="$1"
     local canonical
     canonical="$(_canonical_tier_for_variant "$variant")"
-    sed "s|{{CANONICAL_TIER}}|${canonical}|g"
+
+    if [[ "$variant" == "light" ]]; then
+        # Replace {{CANONICAL_TIER}} and strip the full context-request protocol section.
+        # The section spans from "### Context-Request Protocol (standard / deep / overlay
+        # tiers only)" through the line before the closing "---" separator preceding Step 2.
+        # We pipe base content through sed first (for CANONICAL_TIER substitution), then
+        # through Python to remove the multi-line protocol section.
+        local _py_script
+        _py_script='
+import sys, re
+content = sys.stdin.read()
+content = re.sub(
+    r"### Context-Request Protocol \(standard / deep / overlay tiers only\)\n"
+    r".*?"
+    r"(?=\n---\n)",
+    "",
+    content,
+    flags=re.DOTALL
+)
+sys.stdout.write(content)
+'
+        sed "s|{{CANONICAL_TIER}}|${canonical}|g" | python3 -c "$_py_script"
+    else
+        sed "s|{{CANONICAL_TIER}}|${canonical}|g"
+    fi
 }

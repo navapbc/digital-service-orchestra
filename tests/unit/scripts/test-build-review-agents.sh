@@ -871,6 +871,61 @@ test_performance_reviewer_counted_in_total_agents() {
     assert_pass_if_clean "test_performance_reviewer_counted_in_total_agents"
 }
 
+# ── Test 20: light-tier agent has non-contradictory context-request guidance ──
+#
+# RED: build-review-agents.sh injects the full reviewer-base.md (which includes
+#      the "Context-Request Protocol (standard / deep / overlay tiers only)" section
+#      with the action: "read_files" JSON block) AND then appends the
+#      reviewer-delta-light.md (which adds "Context-Request Protocol — NOT available
+#      for light tier"). The generated code-reviewer-light.md therefore contains
+#      both the full protocol JSON block AND the override section — contradictory
+#      guidance that could mislead the light-tier LLM into believing context-requests
+#      are available while a later section says they are not.
+#
+# GREEN: after _meta_substitute_base replaces the base protocol section with a
+#        light-tier-appropriate notice for the "light" variant, the generated
+#        code-reviewer-light.md no longer contains the full action: "read_files"
+#        JSON block from the base, and the delta override section is removed as
+#        redundant. The light-tier agent contains only one, unambiguous protocol
+#        statement.
+
+test_light_tier_agent_has_unambiguous_context_request_guidance() {
+    _snapshot_fail
+
+    if [[ ! -x "$BUILD_SCRIPT" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: test_light_tier_agent_has_unambiguous_context_request_guidance\n  build script not found or not executable: %s\n" "$BUILD_SCRIPT" >&2
+        assert_pass_if_clean "test_light_tier_agent_has_unambiguous_context_request_guidance"
+        return
+    fi
+
+    local prompts_dir="$DSO_PLUGIN_DIR/docs/workflows/prompts"
+    local out_dir
+    out_dir="$(mktemp -d)"
+
+    bash "$BUILD_SCRIPT" \
+        --base "$prompts_dir/reviewer-base.md" \
+        --deltas "$prompts_dir" \
+        --output "$out_dir" 2>/dev/null
+
+    local light_agent="$out_dir/code-reviewer-light.md"
+    local file_content=""
+    [[ -f "$light_agent" ]] && file_content="$(cat "$light_agent")"
+
+    # The light-tier agent must NOT contain the full context-request JSON block
+    # ("action": "read_files") that is only relevant for non-light tiers.
+    # If it does, the agent has contradictory protocol guidance (both the full
+    # protocol from the base AND the "NOT available" override from the delta).
+    local has_read_files_block="no"
+    if echo "$file_content" | grep -q '"action": "read_files"'; then
+        has_read_files_block="yes"
+    fi
+    assert_eq "light_tier_has_no_read_files_json_block" "no" "$has_read_files_block"
+
+    rm -rf "$out_dir"
+    assert_pass_if_clean "test_light_tier_agent_has_unambiguous_context_request_guidance"
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 
 test_build_produces_6_agent_files
@@ -892,5 +947,6 @@ test_security_blue_team_agent_file_is_generated
 test_security_blue_team_agent_has_opus_model
 test_security_blue_team_agent_contains_triage_keywords
 test_security_blue_team_counted_in_total_agents
+test_light_tier_agent_has_unambiguous_context_request_guidance
 
 print_summary
