@@ -1,1 +1,0 @@
-{"author":"Test","data":{"body":"Classification: llm-behavioral — ancestry gate in SKILL.md Phase A Step 2.5 incorrectly hard-fails for commits squash-merged via GitHub PR, blocking investigation of 22+ valid bugs."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1778664728052011000,"uuid":"496e68ce-1cd4-4862-b534-312f12136747"}
