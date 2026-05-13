@@ -1,1 +1,0 @@
-{"author":"Test","data":{"body":"CHECKPOINT:batch-complete — Done ✓ — Files: tests/skills/dso_ci_review/test_schema_compliance_pr80.py, .test-index. Tests: pass (integration tests skip without API key)."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1778694358189610000,"uuid":"0423727b-8053-4571-b6be-e0192e72f5b9"}
