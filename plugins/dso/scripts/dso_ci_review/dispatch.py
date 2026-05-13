@@ -68,7 +68,8 @@ _FROZEN_FIELDS: tuple[str, ...] = (
 # finding_id format: f-<8 lowercase hex characters>
 _FINDING_ID_RE: re.Pattern[str] = re.compile(r"^f-[0-9a-f]{8}$")
 
-# cited_lines entry format: optional ~ prefix, path, colon, non-zero line number
+# cited_lines entry format: <path>:<non-zero-line>
+# The optional ~ prefix marks approximate line numbers (used by some LLM reviewers).
 _CITED_LINE_RE: re.Pattern[str] = re.compile(r"^~?[^:]+:[1-9][0-9]*$")
 
 
