@@ -3144,3 +3144,34 @@ def test_runner_schema_correction_result_written(tmp_path):
         f"Expected exit code 0 with corrected suggestion-only findings; got {exit_code}. "
         f"stderr={stderr_capture.getvalue()!r}"
     )
+
+
+def test_validate_review_schema_hash_matches_script():
+    """
+    Assert that _VALIDATE_REVIEW_SCHEMA_HASH in runner.py matches the
+    HASH_CODE_REVIEW_DISPATCH value in validate-review-output.sh.
+
+    When validate-review-output.sh's schema changes, its HASH_CODE_REVIEW_DISPATCH
+    must be updated. This test catches drift between the two constants.
+    """
+    import pathlib
+    import re
+    import dso_ci_review.runner as runner_mod
+
+    validator_script = runner_mod._resolve_validator_script()
+    script_text = pathlib.Path(validator_script).read_text(encoding="utf-8")
+
+    # Extract HASH_CODE_REVIEW_DISPATCH="<hex>" from the script
+    match = re.search(r'HASH_CODE_REVIEW_DISPATCH="([0-9a-f]+)"', script_text)
+    assert match is not None, (
+        f"Could not find HASH_CODE_REVIEW_DISPATCH in {validator_script}. "
+        "Was validate-review-output.sh moved or renamed?"
+    )
+    script_hash = match.group(1)
+
+    assert runner_mod._VALIDATE_REVIEW_SCHEMA_HASH == script_hash, (
+        f"runner._VALIDATE_REVIEW_SCHEMA_HASH={runner_mod._VALIDATE_REVIEW_SCHEMA_HASH!r} "
+        f"does not match HASH_CODE_REVIEW_DISPATCH={script_hash!r} "
+        f"in {validator_script}. "
+        "Update _VALIDATE_REVIEW_SCHEMA_HASH in runner.py to match."
+    )

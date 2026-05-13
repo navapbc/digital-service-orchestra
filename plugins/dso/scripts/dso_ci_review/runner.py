@@ -21,7 +21,7 @@ Exit codes:
 from __future__ import annotations
 
 import asyncio
-import json
+import json  # used by _validate_findings_schema (json.dump to tmpfile)
 import os
 import subprocess
 import sys
@@ -139,6 +139,13 @@ def _resolve_validator_script(plugin_root: str | None = None) -> str:
     return os.path.join(plugin_root, "scripts", "validate-review-output.sh")
 
 
+# Schema hash from validate-review-output.sh (HASH_CODE_REVIEW_DISPATCH).
+# Exposed as a module constant so tests can assert drift against the script.
+# When validate-review-output.sh changes its schema, update this constant and
+# the corresponding test in test_runner_smoke.py.
+_VALIDATE_REVIEW_SCHEMA_HASH = "214949ee476be6d0"
+
+
 def _validate_findings_schema(
     merged: dict,
     plugin_root: str | None = None,
@@ -152,7 +159,7 @@ def _validate_findings_schema(
       1  = schema-fail → return _SchemaValidationResult("schema_fail", <stderr_lines>)
       other, ENOENT, EACCES, TimeoutExpired → return _SchemaValidationResult("validator_error", <diagnostic>)
 
-    Schema hash: 214949ee476be6d0 (drift-detection anchor — update when schema rules change)
+    Schema hash: _VALIDATE_REVIEW_SCHEMA_HASH (see module constant above)
 
     Writes findings to a tmpfile as JSON and passes it as the second positional argument
     to validate-review-output.sh (consistent with write-reviewer-findings.sh invocation,
@@ -200,6 +207,9 @@ def _validate_findings_schema(
         if result.returncode == 0:
             return _SchemaValidationResult("schema_pass", [])
         if result.returncode == 1:
+            # validate-review-output.sh emits all diagnostic output to stderr
+            # (echo "..." >&2 throughout the script; stdout is reserved for
+            # the SCHEMA_VALID:yes confirmation line on success).
             errors = [
                 line for line in result.stderr.splitlines() if line.strip()
             ] or [result.stderr.strip() or "schema validation failed (exit 1)"]
