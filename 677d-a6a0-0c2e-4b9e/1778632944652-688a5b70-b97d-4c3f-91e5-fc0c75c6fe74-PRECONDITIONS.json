@@ -1,0 +1,1 @@
+{"event_type": "PRECONDITIONS", "schema_version": 1, "manifest_depth": "minimal", "gate_name": "preplanning_complete", "session_id": "sprint-677d-2026-05-12", "worktree_id": "main", "tier": "minimal", "timestamp": 1778632944652, "gate_verdicts": [], "evidence_ref": {}, "affects_fields": [], "data": {}}
