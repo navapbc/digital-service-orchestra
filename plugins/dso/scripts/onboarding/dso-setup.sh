@@ -146,9 +146,11 @@ CONFIG="$TARGET_REPO/.claude/dso-config.conf"
 # sub-paths are not auto-detected by the shim and still need an explicit key.
 # Path components split to avoid check-plugin-self-ref literal detection.
 _DSO_P="plugins"; _DSO_N="dso"
-_HOME_CACHE_PATH="$HOME/.claude/${_DSO_P}/marketplaces/digital-service-orchestra/${_DSO_P}/${_DSO_N}"
+# Use ${HOME:-} to guard against unset HOME (common in minimal CI shells);
+# when HOME is unset the path comparison will not match any real install.
+_HOME_CACHE_PATH="${HOME:-}/.claude/${_DSO_P}/marketplaces/digital-service-orchestra/${_DSO_P}/${_DSO_N}"
 _WRITE_PLUGIN_ROOT=true
-if [[ "$PLUGIN_ROOT" == "$_HOME_CACHE_PATH" ]]; then
+if [[ -n "${HOME:-}" ]] && [[ "$PLUGIN_ROOT" == "$_HOME_CACHE_PATH" ]]; then
     _WRITE_PLUGIN_ROOT=false
 fi
 unset _DSO_P _DSO_N _HOME_CACHE_PATH

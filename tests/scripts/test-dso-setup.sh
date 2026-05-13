@@ -1710,11 +1710,14 @@ test_setup_does_not_write_absolute_home_cache_path() {
 
     # Use a temp dir as the fake HOME so the home-cache condition ($HOME/.claude/...)
     # is satisfied without touching the real home directory.
+    # Symlink the actual plugin dir into the fake marketplace path so dso-setup.sh
+    # finds a complete plugin tree and reaches the dso.plugin_root write logic.
     fake_home=$(mktemp -d)
     TMPDIRS+=("$fake_home")
-    fake_cache_root="$fake_home/.claude/plugins/marketplaces/digital-service-orchestra/plugins/dso"
-    mkdir -p "$fake_cache_root/.claude-plugin"
-    printf '{}' > "$fake_cache_root/.claude-plugin/plugin.json"
+    local fake_cache_parent="$fake_home/.claude/plugins/marketplaces/digital-service-orchestra/plugins"
+    mkdir -p "$fake_cache_parent"
+    ln -s "$DSO_PLUGIN_DIR" "$fake_cache_parent/dso"
+    fake_cache_root="$fake_cache_parent/dso"
 
     HOME="$fake_home" bash "$SETUP_SCRIPT" "$T" "$fake_cache_root" >/dev/null 2>&1 || true
 

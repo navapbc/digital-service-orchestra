@@ -39,10 +39,11 @@ fi
 # Handles the common case where the plugin was installed from the marketplace
 # into $HOME/.claude/plugins/ and dso-config.conf does not (and should not)
 # contain the installing developer's absolute home path.
+# Guard against unset/empty HOME to avoid probing /.claude/... on minimal shells.
 # Path components split to avoid check-plugin-self-ref literal detection.
-if [ -z "$DSO_ROOT" ]; then
+if [ -z "$DSO_ROOT" ] && [ -n "${HOME:-}" ]; then
     _DSO_P="plugins"; _DSO_N="dso"
-    _HOME_CACHE_CANDIDATE="$HOME/.claude/${_DSO_P}/marketplaces/digital-service-orchestra/${_DSO_P}/${_DSO_N}"
+    _HOME_CACHE_CANDIDATE="${HOME}/.claude/${_DSO_P}/marketplaces/digital-service-orchestra/${_DSO_P}/${_DSO_N}"
     if [ -f "$_HOME_CACHE_CANDIDATE/.claude-plugin/plugin.json" ]; then
         DSO_ROOT="$_HOME_CACHE_CANDIDATE"
     fi
