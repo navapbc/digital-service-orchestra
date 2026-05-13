@@ -714,3 +714,42 @@ def test_handle_comment_event_filters_worktree_tracking_body(
         f"add_comment must NOT be called for WORKTREE_TRACKING: prefixed comment body; "
         f"was called {mock_acli.add_comment.call_count} time(s)"
     )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_handle_comment_event_null_body_does_not_raise(
+    tmp_path: Path, bridge: ModuleType
+) -> None:
+    """COMMENT event with null body must not raise AttributeError (dc75-9b69)."""
+    ticket_dir = tmp_path / "w22-null-body"
+    ticket_dir.mkdir()
+    _write_sync_file(ticket_dir, jira_key=_JIRA_KEY)
+
+    comment_file = _write_event(
+        ticket_dir,
+        timestamp=1742605501,
+        uuid=_COMMENT_UUID,
+        event_type="COMMENT",
+        data={"body": None},
+        env_id=_OTHER_ENV_ID,
+    )
+
+    events = [
+        {
+            "ticket_id": "w22-null-body",
+            "event_type": "COMMENT",
+            "file_path": str(comment_file),
+        }
+    ]
+
+    mock_acli = MagicMock()
+    mock_acli.add_comment = MagicMock()
+
+    # Must not raise; null body should be treated as empty string (not WORKTREE_TRACKING:)
+    bridge.process_outbound(
+        events,
+        acli_client=mock_acli,
+        tickets_root=tmp_path,
+        bridge_env_id=_BRIDGE_ENV_ID,
+    )

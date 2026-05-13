@@ -2720,8 +2720,8 @@ def test_write_create_events_self_heal_non_jira_prefixed_dir(
 
     # Assert a SYNC.json file was created in the non-jira-prefixed dir
     sync_files = list(ticket_dir.glob("*-SYNC.json"))
-    assert len(sync_files) >= 1, (
-        f"Self-heal pass must create a SYNC.json in non-jira-prefixed dir "
+    assert len(sync_files) == 1, (
+        f"Self-heal pass must create exactly one SYNC.json in non-jira-prefixed dir "
         f"abcd-1234-xxxx-yyyy when CREATE.json has jira_key; found: {sync_files}"
     )
 

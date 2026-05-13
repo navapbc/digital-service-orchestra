@@ -237,7 +237,7 @@ def write_create_events(
             continue
 
         # Skip test-pollution and placeholder issues (fb8e-9022).
-        raw_fields_pre = issue.get("fields", {})
+        raw_fields_pre = issue.get("fields") or {}
         raw_labels = raw_fields_pre.get("labels") or []
         if any(str(lbl).lower() == "bridge-test" for lbl in raw_labels):
             logging.warning(
