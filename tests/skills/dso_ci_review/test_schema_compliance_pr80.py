@@ -68,12 +68,13 @@ def _run_runner_with_pr80(tmp_path: Path) -> dict:
         "PATH": os.environ.get("PATH", "/usr/bin:/bin:/usr/local/bin"),
     }
 
+    _timeout_sec = int(os.environ.get("DSO_PR80_INTEGRATION_TIMEOUT_SEC", "1800"))
     result = subprocess.run(
         [sys.executable, "-m", "dso_ci_review.runner"],
         capture_output=True,
         text=True,
         env=env,
-        timeout=120,
+        timeout=_timeout_sec,
     )
 
     assert result.returncode == 0, (

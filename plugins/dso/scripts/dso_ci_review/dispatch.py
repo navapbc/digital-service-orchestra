@@ -933,7 +933,8 @@ def dispatch_schema_correction(
             primary_model=primary_model,
             environ=environ,
         )
-        attempt_findings = attempt_result.get("findings", [])
+        _raw_findings = attempt_result.get("findings", [])
+        attempt_findings = _raw_findings if isinstance(_raw_findings, list) else []
 
         # When dispatch_review itself fails (API overload, network error), it returns
         # {"findings": [fallback_exhausted_entry]} with no "summary" key. Treating
