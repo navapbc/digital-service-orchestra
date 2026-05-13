@@ -171,10 +171,13 @@ test_sprint_list_epics_has_tag_filter() {
     out=$(TICKETS_TRACKER_DIR="$TRACKER" SPRINT_MAX_RETRIES=0 \
         bash "$SPRINT_LIST" --has-tag=brainstorm:complete 2>/dev/null) || exit_code=$?
     [ "$exit_code" -eq 0 ] || return 1
-    [[ "$out" == *"aaa1-0001"* ]] || return 1
-    [[ "$out" == *"bbb2-0002"* ]] || return 1
-    ! [[ "$out" == *"ccc3-0003"* ]] || return 1
-    ! [[ "$out" == *"ddd4-0004"* ]] || return 1
+    # Column 1 may be an alias rather than the canonical ID (ticket-list-epics.sh
+    # prefers the human-friendly alias when one is set).  Match on the unique title
+    # fragments instead, which are stable regardless of display-ID format.
+    [[ "$out" == *"PIL-desc"* ]]    || return 1  # Epic A (aaa1-0001) tagged
+    [[ "$out" == *"PIL comment"* ]] || return 1  # Epic B (bbb2-0002) tagged
+    ! [[ "$out" == *"no PIL"* ]]       || return 1  # Epic C (ccc3-0003) must be absent
+    ! [[ "$out" == *"scrutiny-gap"* ]] || return 1  # Epic D (ddd4-0004) must be absent
 }
 if test_sprint_list_epics_has_tag_filter; then
     echo "  PASS: --has-tag=brainstorm:complete returns only tagged epics"
