@@ -608,9 +608,18 @@ test_ticket_show_rejects_four_hyphen_input() {
     local repo
     repo=$(_make_test_repo)
 
-    local rc=0
-    cd "$repo" && bash "$TICKET_SCRIPT" show "nonexistent-ticket-id-zzz9-yyyy" 2>/dev/null || rc=$?
+    # Behavioral proof that the fast-path is taken:
+    # Run with _TICKETLIB_DIR="" so that if the slow alias-scan path is reached,
+    # it exits with "Error: _TICKETLIB_DIR is not set; cannot resolve ticket alias".
+    # The fast-path (≥4 hyphens) must fire BEFORE that check, producing a plain
+    # "not found" message without any _TICKETLIB_DIR reference.
+    # If the fast-path code is removed, this assertion will catch the regression.
+    local rc=0 err_output=""
+    err_output=$(cd "$repo" && _TICKETLIB_DIR="" bash "$TICKET_SCRIPT" show "nonexistent-ticket-id-zzz9-yyyy" 2>&1 >/dev/null) || rc=$?
     assert_ne "ticket show with 4+ hyphens exits non-zero" "0" "$rc"
+    local alias_path_indicator
+    alias_path_indicator=$(echo "$err_output" | grep -c "_TICKETLIB_DIR" || true)
+    assert_eq "fast-path taken — no _TICKETLIB_DIR mention in error (not alias-scan path)" "0" "$alias_path_indicator"
 
     rm -rf "$repo"
     assert_pass_if_clean "test_ticket_show_rejects_four_hyphen_input"
@@ -633,7 +642,12 @@ test_ticket_show_resolves_8hex_short_id() {
         return
     fi
 
-    # Extract the 8-hex prefix (first 9 chars: "xxxx-xxxx")
+    # Extract the 8-hex prefix (first 9 chars: "xxxx-xxxx"); guard length first
+    if [[ ${#ticket_id} -lt 9 ]]; then
+        assert_eq "ticket_id long enough for 8-hex prefix (>=9 chars)" ">=9" "${#ticket_id}"
+        rm -rf "$repo"
+        return
+    fi
     local short_id="${ticket_id:0:9}"
     local short_output="" short_exit=0
     short_output=$(cd "$repo" && bash "$TICKET_SCRIPT" show "$short_id" 2>/dev/null) || short_exit=$?

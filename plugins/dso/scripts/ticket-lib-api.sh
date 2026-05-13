@@ -144,7 +144,15 @@ ticket_show() {
             declare -f resolve_ticket_id &>/dev/null || source "$_TICKETLIB_DIR/ticket-lib.sh"
             # Pass TRACKER_DIR through TICKETS_TRACKER_DIR so resolve_ticket_id
             # uses the same tracker path as ticket_show's directory lookup below.
-            ticket_id="$(TICKETS_TRACKER_DIR="$TRACKER_DIR" resolve_ticket_id "$ticket_id")"
+            # Capture exit code separately: command substitution loses the exit status,
+            # so a failing resolve_ticket_id would silently produce an empty ticket_id
+            # and fall through to the generic "not found" error, hiding the real cause.
+            local _resolve_rc=0
+            ticket_id="$(TICKETS_TRACKER_DIR="$TRACKER_DIR" resolve_ticket_id "$ticket_id")" || _resolve_rc=$?
+            if [[ $_resolve_rc -ne 0 ]]; then
+                # resolve_ticket_id already wrote a specific error to stderr; propagate it
+                return 1
+            fi
         fi
 
         if [ ! -d "$TRACKER_DIR/$ticket_id" ]; then
