@@ -162,7 +162,11 @@ elif [[ -z "$DRYRUN" ]] && [[ "$_WRITE_PLUGIN_ROOT" == "false" ]]; then
         sed -i.bak '/^dso\.plugin_root=/d' "$CONFIG" && rm -f "$CONFIG.bak"
     fi
 else
-    echo "[dryrun] Would write dso.plugin_root=$PLUGIN_ROOT to $CONFIG (skipped for home-cache paths)"
+    if [[ "$_WRITE_PLUGIN_ROOT" == "true" ]]; then
+        echo "[dryrun] Would write dso.plugin_root=$PLUGIN_ROOT to $CONFIG"
+    else
+        echo "[dryrun] Would skip writing dso.plugin_root (home-cache path); would remove any stale key"
+    fi
 fi
 
 # ── Merge new config keys from reference template (install + update path) ─────
