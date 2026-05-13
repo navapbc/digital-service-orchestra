@@ -37,8 +37,18 @@ if [ -f "$TEST_INDEX" ]; then
     while IFS= read -r line; do
         [[ "$line" =~ ^[[:space:]]*# ]] && continue
         [[ -z "${line//[[:space:]]/}" ]] && continue
-        if [[ "$line" =~ tests/(skills|docs)/[^[:space:]]+\.py[[:space:]]*\[([^]]+)\] ]]; then
-            red_markers+=("${BASH_REMATCH[2]}")
+        # Extract ALL [Marker] tokens that appear AFTER the .py test-file path.
+        # bash =~ captures only the first match, so loop over the suffix to pick
+        # up every [marker] on the same line (bug: multi-marker lines were only
+        # contributing their first marker, leaving subsequent RED tests unexcluded).
+        # BASH_REMATCH[3] captures only the text after "tests/…/foo.py", so markers
+        # in the source-key prefix (before the colon) are never accidentally included.
+        if [[ "$line" =~ (tests/(skills|docs)/[^[:space:]]+\.py)(.*) ]]; then
+            _marker_tail="${BASH_REMATCH[3]}"
+            while [[ "$_marker_tail" =~ \[([^]]+)\] ]]; do
+                red_markers+=("${BASH_REMATCH[1]}")
+                _marker_tail="${_marker_tail#*]}"
+            done
         fi
     done < "$TEST_INDEX"
 fi
