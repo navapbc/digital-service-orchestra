@@ -1229,7 +1229,7 @@ def main() -> int:
                     )
                 except Exception as _corr_exc:  # noqa: BLE001
                     print(
-                        f"ERROR: dispatch_schema_correction raised {type(_corr_exc).__name__}"
+                        f"ERROR: dispatch_schema_correction raised {type(_corr_exc).__name__}: {_corr_exc}"
                         " — appending synthetic schema_error (fail-closed)",
                         file=sys.stderr,
                     )
@@ -1252,6 +1252,25 @@ def main() -> int:
                         _corr_synthetic
                     ]
                     _write_output(merged)
+                    return 1
+                # Fail-closed: if correction exhausted all retries, dispatch_schema_correction
+                # appends a synthetic parse_error/schema_error finding. These findings failed
+                # schema validation and must not be allowed to merge (bug: exit-0 slip-through).
+                _corr_exhausted = [
+                    f
+                    for f in merged.get("findings", [])
+                    if f.get("type") == "parse_error"
+                    and f.get("category") == "schema_error"
+                ]
+                if _corr_exhausted:
+                    merged = dict(merged)
+                    merged["cycle_number"] = cycle_number
+                    _write_output(merged)
+                    print(
+                        f"ERROR: schema correction exhausted all {_max_attempts} attempt(s) — "
+                        f"synthetic schema_error present; blocking merge (fail-closed)",
+                        file=sys.stderr,
+                    )
                     return 1
 
         # Step 8: write output

@@ -3201,6 +3201,114 @@ def test_runner_schema_correction_result_written(tmp_path):
     )
 
 
+def test_runner_schema_correction_exhausted_retries_returns_nonzero(tmp_path):
+    """
+    Given: _validate_findings_schema signals schema_fail
+           AND dispatch_schema_correction returns an exhausted-retry result
+              (contains synthetic parse_error/schema_error finding)
+    When: runner.main() executes
+    Then: exit code is non-zero (fail-closed — exhausted retries must not silently pass)
+          AND the output file is written (artifact upload can proceed)
+
+    Regression for bug: exhausted retries fell through to normal exit code logic
+    which excluded parse_error from blocking, allowing schema-invalid PRs to merge.
+    """
+    import io
+    from contextlib import redirect_stderr
+
+    import dso_ci_review.runner as runner_mod
+
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text("diff --git a/foo.py b/foo.py\n+added line\n")
+    output_file = tmp_path / "findings.json"
+
+    schema_fail_result = runner_mod._SchemaValidationResult(
+        status="schema_fail",
+        errors=["finding[0]: missing required field 'cited_excerpt'"],
+    )
+    # Simulate dispatch_schema_correction exhausting retries:
+    # returns the last attempt's findings PLUS a synthetic schema_error
+    exhausted_result = {
+        "findings": [
+            {
+                "severity": "suggestion",
+                "category": "hygiene",
+                "description": "A real finding that survived correction attempt.",
+                "file": "foo.py",
+                "cited_lines": ["foo.py:1"],
+                "cited_excerpt": "",
+            },
+            {
+                "type": "parse_error",
+                "severity": "critical",
+                "category": "schema_error",
+                "description": "Schema correction failed after 2 attempt(s): frozen field mutated",
+                "finding_id": "schema_error_abcd1234",
+                "file": "",
+                "cited_lines": [],
+                "cited_excerpt": "",
+                "reachability": "",
+            },
+        ],
+        "summary": "Schema correction applied: all attempts exhausted",
+    }
+
+    stderr_capture = io.StringIO()
+    with (
+        patch.dict(
+            "os.environ",
+            {
+                "DSO_CI_REVIEW_DIFF_PATH": str(diff_file),
+                "DSO_CI_REVIEW_OUTPUT_PATH": str(output_file),
+                "CI_REVIEW_PROVIDER": "anthropic",
+                "ANTHROPIC_API_KEY": "test-key",
+                "GITHUB_EVENT_NAME": "",
+                "GITHUB_REF": "",
+                "GITHUB_TOKEN": "",
+                "PR_NUMBER": "",
+            },
+        ),
+        patch(
+            "dso_ci_review.runner._classify_tier_via_bash",
+            return_value=_standard_tier_classification(),
+        ),
+        patch(
+            "dso_ci_review.runner.async_dispatch_specialists",
+            side_effect=_make_findings_dispatch(
+                [_INVALID_FINDING_MISSING_CITED_EXCERPT]
+            ),
+        ),
+        patch(
+            "dso_ci_review.runner._validate_findings_schema",
+            return_value=schema_fail_result,
+        ),
+        patch(
+            "dso_ci_review.runner.get_schema_correction_max_attempts",
+            return_value=2,
+        ),
+        patch(
+            "dso_ci_review.runner.dispatch_schema_correction",
+            return_value=exhausted_result,
+        ),
+        redirect_stderr(stderr_capture),
+    ):
+        exit_code = runner_mod.main()
+
+    assert exit_code != 0, (
+        f"Expected non-zero exit when schema correction exhausted retries; got {exit_code}. "
+        f"Exhausted retry results contain synthetic schema_error — must block merge (fail-closed). "
+        f"stderr={stderr_capture.getvalue()!r}"
+    )
+    assert output_file.exists(), (
+        "Output file must be written even when retries are exhausted (artifact upload needs it)"
+    )
+    output_data = json.loads(output_file.read_text())
+    assert "cycle_number" in output_data, (
+        "cycle_number must be stamped in output even on exhausted-retry path so next cycle "
+        "can correctly compute DSO_REVIEW_CYCLE"
+    )
+
+
 def test_validate_review_schema_hash_matches_script():
     """
     Assert that _VALIDATE_REVIEW_SCHEMA_HASH in runner.py matches the
