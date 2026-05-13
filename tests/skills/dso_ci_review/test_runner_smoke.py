@@ -2202,7 +2202,6 @@ def test_runner_cycle1_no_defenses_unaffected(tmp_path):
 
     gh_called = []
 
-
     stderr_capture = io.StringIO()
     with (
         patch.dict(

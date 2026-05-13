@@ -41,7 +41,9 @@ from dso_ci_review.findings import deduplicate_region_findings  # noqa: E402
 # ---------------------------------------------------------------------------
 
 
-def _make_diff_with_loc(added: int, removed: int, filenames: list[str] | None = None) -> str:
+def _make_diff_with_loc(
+    added: int, removed: int, filenames: list[str] | None = None
+) -> str:
     """Build a synthetic unified diff with the given line counts.
 
     Lines starting with + (excluding +++) count as added.
@@ -159,7 +161,11 @@ def test_cluster_files_groups_by_directory() -> None:
 
     # Find the cluster containing x.py / y.py
     src_a_cluster = next(
-        (files for key, files in clusters.items() if "x.py" in files or "y.py" in files),
+        (
+            files
+            for key, files in clusters.items()
+            if "x.py" in files or "y.py" in files
+        ),
         None,
     )
     assert src_a_cluster is not None, (
@@ -201,25 +207,57 @@ def test_run_region_split_dispatches_per_cluster(monkeypatch) -> None:
 
     async def _mock_async_dispatch(agents: list) -> list:
         dispatch_calls.append(list(agents))
-        return [{"findings": [{"severity": "minor", "description": "cluster finding", "cited_lines": []}]}]
+        return [
+            {
+                "findings": [
+                    {
+                        "severity": "minor",
+                        "description": "cluster finding",
+                        "cited_lines": [],
+                    }
+                ]
+            }
+        ]
 
-    def _mock_arch_synthesis(merged_findings_json: str, diff_text: str, model: str, provider_chain: list) -> dict:
+    def _mock_arch_synthesis(
+        merged_findings_json: str, diff_text: str, model: str, provider_chain: list
+    ) -> dict:
         arch_calls.append({"merged": merged_findings_json, "diff": diff_text})
-        return {"findings": [{"severity": "important", "description": "arch boundary finding", "cited_lines": ["src/a/x.py:10"]}]}
+        return {
+            "findings": [
+                {
+                    "severity": "important",
+                    "description": "arch boundary finding",
+                    "cited_lines": ["src/a/x.py:10"],
+                }
+            ]
+        }
 
     monkeypatch.setattr(_region_mod, "async_dispatch_specialists", _mock_async_dispatch)
     monkeypatch.setattr(_region_mod, "dispatch_arch_synthesis", _mock_arch_synthesis)
 
     # Patch _cluster_files to return exactly 2 clusters deterministically
-    monkeypatch.setattr(_region_mod, "_cluster_files", lambda _filenames: {
-        "src/a": ["x.py", "y.py"],
-        "src/b": ["z.py"],
-    })
+    monkeypatch.setattr(
+        _region_mod,
+        "_cluster_files",
+        lambda _filenames: {
+            "src/a": ["x.py", "y.py"],
+            "src/b": ["z.py"],
+        },
+    )
 
     # Build a large diff (> 400 LOC) so _should_region_split would return True
-    large_diff = _make_diff_with_loc(added=300, removed=150, filenames=["src/a/x.py", "src/a/y.py", "src/b/z.py"])
+    large_diff = _make_diff_with_loc(
+        added=300, removed=150, filenames=["src/a/x.py", "src/a/y.py", "src/b/z.py"]
+    )
 
-    tier_agents = [{"agent_id": "code-reviewer-standard", "model": "claude-sonnet-4-6", "provider_chain": ["anthropic"]}]
+    tier_agents = [
+        {
+            "agent_id": "code-reviewer-standard",
+            "model": "claude-sonnet-4-6",
+            "provider_chain": ["anthropic"],
+        }
+    ]
     provider_chain = ["anthropic"]
     config_path = None
 
@@ -261,21 +299,39 @@ def test_arch_synthesis_receives_merged_findings(monkeypatch) -> None:
     }
 
     async def _mock_async_dispatch(agents: list) -> list:
-        return [{"findings": [{"severity": "minor", "description": "specialist finding", "cited_lines": []}]}]
+        return [
+            {
+                "findings": [
+                    {
+                        "severity": "minor",
+                        "description": "specialist finding",
+                        "cited_lines": [],
+                    }
+                ]
+            }
+        ]
 
-    def _mock_arch_synthesis(merged_findings_json: str, diff_text: str, model: str, provider_chain: list) -> dict:
+    def _mock_arch_synthesis(
+        merged_findings_json: str, diff_text: str, model: str, provider_chain: list
+    ) -> dict:
         return {"findings": [_ARCH_FINDING]}
 
     monkeypatch.setattr(_region_mod, "async_dispatch_specialists", _mock_async_dispatch)
     monkeypatch.setattr(_region_mod, "dispatch_arch_synthesis", _mock_arch_synthesis)
 
     # 2 clusters
-    monkeypatch.setattr(_region_mod, "_cluster_files", lambda _filenames: {
-        "src/a": ["x.py"],
-        "src/b": ["z.py"],
-    })
+    monkeypatch.setattr(
+        _region_mod,
+        "_cluster_files",
+        lambda _filenames: {
+            "src/a": ["x.py"],
+            "src/b": ["z.py"],
+        },
+    )
 
-    large_diff = _make_diff_with_loc(added=300, removed=150, filenames=["src/a/x.py", "src/b/z.py"])
+    large_diff = _make_diff_with_loc(
+        added=300, removed=150, filenames=["src/a/x.py", "src/b/z.py"]
+    )
 
     result = run_region_split(
         diff_text=large_diff,
@@ -288,7 +344,12 @@ def test_arch_synthesis_receives_merged_findings(monkeypatch) -> None:
         f"run_region_split must return a dict with 'findings' key; got keys: {list(result.keys())}"
     )
     findings = result["findings"]
-    arch_findings = [f for f in findings if "boundary" in f.get("description", "").lower() or f.get("description") == _ARCH_FINDING["description"]]
+    arch_findings = [
+        f
+        for f in findings
+        if "boundary" in f.get("description", "").lower()
+        or f.get("description") == _ARCH_FINDING["description"]
+    ]
     assert arch_findings, (
         f"Arch synthesis boundary finding must be present in the result. "
         f"Expected finding with description containing 'boundary'; "
@@ -328,7 +389,9 @@ def test_overlapping_region_max_severity_and_dual_rationale_dedup() -> None:
         "severity": "important",
         "description": "Session token not invalidated on logout",
         "rationale": "Token remains valid after logout creating a session fixation risk",
-        "cited_lines": ["src/auth/login.py:20-45"],  # overlaps lines 20-30 with the first finding
+        "cited_lines": [
+            "src/auth/login.py:20-45"
+        ],  # overlaps lines 20-30 with the first finding
     }
 
     result = deduplicate_region_findings([finding_critical, finding_important])
@@ -357,12 +420,18 @@ def test_overlapping_region_max_severity_and_dual_rationale_dedup() -> None:
     primary_text = mr.get("primary", "")
     secondary_text = mr.get("secondary", "")
 
-    assert finding_critical["rationale"] in primary_text or finding_critical["rationale"] in secondary_text, (
+    assert (
+        finding_critical["rationale"] in primary_text
+        or finding_critical["rationale"] in secondary_text
+    ), (
         f"merged_rationale must preserve the Critical finding's rationale text; "
         f"expected substring {finding_critical['rationale']!r} in merged_rationale; "
         f"got primary={primary_text!r}, secondary={secondary_text!r}"
     )
-    assert finding_important["rationale"] in primary_text or finding_important["rationale"] in secondary_text, (
+    assert (
+        finding_important["rationale"] in primary_text
+        or finding_important["rationale"] in secondary_text
+    ), (
         f"merged_rationale must preserve the Important finding's rationale text; "
         f"expected substring {finding_important['rationale']!r} in merged_rationale; "
         f"got primary={primary_text!r}, secondary={secondary_text!r}"
@@ -464,6 +533,4 @@ def test_dedup_empty_list_returns_empty() -> None:
     """
     result = deduplicate_region_findings([])
 
-    assert result == [], (
-        f"Empty input must return empty list; got {result!r}"
-    )
+    assert result == [], f"Empty input must return empty list; got {result!r}"

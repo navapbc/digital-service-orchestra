@@ -4768,5 +4768,165 @@ t_check_duplicate_pr_isdraft_filter_returns_empty_not_null() {
 t_check_duplicate_pr_isdraft_filter_returns_empty_not_null
 
 # ---------------------------------------------------------------------------
+# t_pr_version_bump_pushed_to_origin
+# Given: merge.strategy=pr AND version.file_path configured, running from
+#        a real git worktree (so git rev-parse --git-common-dir resolves
+#        MAIN_REPO correctly to the main checkout).
+# When: merge-to-main-pr.sh runs successfully
+# Then: origin/main MUST contain the bumped version (not the original)
+#       because _phase_push must be called after _phase_version_bump.
+#
+# RED until fix(3024-d618): _phase_push was missing from PR mode, so
+# the local version bump was never pushed to origin/main.
+# ---------------------------------------------------------------------------
+t_pr_version_bump_pushed_to_origin() {
+    local _T _ec _branch_safe _state_file
+    _T="$(mktemp -d /tmp/dso-pr-vbump-test.XXXXXX)"
+    local branch="feature-vbump-test"
+    _branch_safe="${branch//\//-}"
+    _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    rm -f "$_state_file"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'; rm -f '$_state_file'; rm -f '/tmp/merge-state-init-marker-${_branch_safe}'" RETURN
+
+    local real_git
+    real_git=$(command -v git)
+    local bin="$_T/bin"
+    mkdir -p "$bin"
+    local gh_argv_log="$_T/gh-argv.log"
+
+    # 1. Seed repo: create main with merge commit (adds plugin.json "1.0.0").
+    local seed_dir="$_T/seed"
+    "$real_git" init -q -b main "$seed_dir" >/dev/null 2>&1
+    local merge_sha
+    (
+        cd "$seed_dir" || exit 1
+        "$real_git" config user.email "test@test.local"
+        "$real_git" config user.name "test"
+        echo "seed" > seed.txt
+        "$real_git" add seed.txt
+        "$real_git" commit -q -m "seed" >/dev/null
+        "$real_git" checkout -q -b feat
+        echo '{"version":"1.0.0"}' > plugin.json
+        "$real_git" add plugin.json
+        "$real_git" commit -q -m "feat: add plugin.json" >/dev/null
+        "$real_git" checkout -q main
+        "$real_git" merge --no-ff -q feat -m "Merge feat into main" >/dev/null
+    )
+
+    # 2. Bare remote: push merge commit so origin/main = merge_sha with plugin.json.
+    local remote_dir="$_T/remote.git"
+    "$real_git" init -q --bare -b main "$remote_dir" >/dev/null 2>&1
+    "$real_git" -C "$seed_dir" remote add origin "$remote_dir"
+    "$real_git" -C "$seed_dir" push -q origin main >/dev/null 2>&1
+    merge_sha=$("$real_git" -C "$seed_dir" rev-parse HEAD)
+
+    # 3. main-checkout: clone from remote (shares history with remote).
+    #    Starts at merge commit so plugin.json is present when version_bump runs.
+    local main_checkout="$_T/main-checkout"
+    "$real_git" clone -q "$remote_dir" "$main_checkout" >/dev/null 2>&1
+    (
+        cd "$main_checkout" || exit 1
+        "$real_git" config user.email "test@test.local"
+        "$real_git" config user.name "test"
+    )
+
+    # dso-config.conf lives alongside main-checkout
+    cat > "$_T/dso-config.conf" <<EOF
+version=1.1.0
+merge.pr_poll_interval_seconds=0
+merge.pr_max_wait_seconds=3600
+version.file_path=plugin.json
+EOF
+
+    # 4. Worktree: linked worktree from main-checkout on feature branch.
+    #    git rev-parse --git-common-dir from here returns main-checkout/.git,
+    #    so MAIN_REPO resolves to main-checkout (the correct topology).
+    local worktree_dir="$_T/worktree"
+    "$real_git" -C "$main_checkout" worktree add -q "$worktree_dir" -b "$branch" >/dev/null 2>&1
+
+    # gh shim: PR immediately merged; returns merge_sha for mergeCommit query
+    cat > "$bin/gh" <<GH_SHIM
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$gh_argv_log"
+case "\$1" in
+  --version) echo "gh version 2.40.1 (2024-01-01)"; exit 0 ;;
+  pr)
+    case "\$2" in
+      list) exit 0 ;;
+      create) echo "https://github.com/x/y/pull/42"; exit 0 ;;
+      view)
+        [[ "\$*" == *"--json mergeCommit"* ]] && { echo "$merge_sha"; exit 0; }
+        [[ "\$*" == *"--json state"* ]] && { echo "MERGED"; exit 0; }
+        [[ "\$*" == *"--json headRefOid"* ]] && { echo ""; exit 0; }
+        [[ "\$*" == *"comments,reviews,reviewThreads"* ]] && { echo "{}"; exit 0; }
+        echo '{"mergeable":"MERGEABLE","number":42,"url":"https://github.com/x/y/pull/42"}'
+        exit 0
+        ;;
+      checks) echo '[{"name":"ci","state":"COMPLETED","conclusion":"SUCCESS"}]'; exit 0 ;;
+      merge) exit 0 ;;
+      *) exit 0 ;;
+    esac
+    ;;
+  api)
+    [[ "\$2" == "graphql" ]] && { echo '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}'; exit 0; }
+    exit 0
+    ;;
+  repo) [[ "\$2" == "view" ]] && { echo "x/y"; exit 0; }; exit 0 ;;
+  workflow) exit 0 ;;
+  *) exit 0 ;;
+esac
+GH_SHIM
+    chmod +x "$bin/gh"
+
+    # git shim: pass through all git operations except pushes to github.com.
+    # This allows _phase_push to actually push to the local bare remote so
+    # we can verify the version commit landed on origin/main.
+    cat > "$bin/git" <<GIT_SHIM
+#!/usr/bin/env bash
+if [[ "\$1" == "push" ]]; then
+  for _arg in "\$@"; do
+    [[ "\$_arg" == *"github.com"* ]] && exit 0
+  done
+fi
+exec "$real_git" "\$@"
+GIT_SHIM
+    chmod +x "$bin/git"
+
+    # Run merge-to-main-pr.sh from the linked worktree (feature branch).
+    # BRANCH auto-resolves from git branch --show-current = "$branch".
+    # MAIN_REPO resolves via dirname(git rev-parse --git-common-dir) = main-checkout.
+    (
+        cd "$worktree_dir" || exit 1
+        PATH="$bin:$PATH" \
+        WORKFLOW_CONFIG_FILE="$_T/dso-config.conf" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        PR_THREAD_LOOP_START_OVERRIDE_SECONDS=200 \
+        PR_THREAD_LOOP_INTERVAL=0 \
+        bash "$PR_SCRIPT" >"$_T/out.log" 2>&1
+    )
+    _ec=$?
+
+    # Assert 1: script exits zero (or non-fatal — the key invariant is Assert 2)
+    assert_eq "t_pr_version_bump_pushed_to_origin:exits_zero" "0" "$_ec"
+
+    # Assert 2: origin/main must have exactly "1.0.1" (patch bump from "1.0.0").
+    # Before fix: _phase_push is never called → origin/main stays at "1.0.0" → FAIL.
+    # After fix: _phase_push pushes the bumped commit → origin/main has "1.0.1" → PASS.
+    local _origin_version
+    # Use && to propagate fetch failure so stale refs don't mask a fetch error.
+    _origin_version=$(
+        "$real_git" -C "$main_checkout" fetch -q origin main 2>/dev/null && \
+        "$real_git" -C "$main_checkout" show "refs/remotes/origin/main:plugin.json" 2>/dev/null | \
+        python3 -c "import json,sys; print(json.load(sys.stdin).get('version','MISSING'))" 2>/dev/null \
+        || echo "FETCH_ERROR"
+    )
+
+    assert_eq "t_pr_version_bump_pushed_to_origin:version_on_origin_is_1.0.1" "1.0.1" "$_origin_version"
+}
+t_pr_version_bump_pushed_to_origin
+
+# ---------------------------------------------------------------------------
 # end of file
 print_summary

@@ -2061,7 +2061,12 @@ fi
 # Run the remaining lifecycle phases. Each function calls _state_mark_complete
 # on success and `exit 1` on failure (inherited via set -e propagation through
 # the source).
+# In PR mode, _phase_version_bump must make a new commit (not amend) so that
+# _phase_push can fast-forward push it to origin/main (bug 3024-d618).
+export MERGE_TO_MAIN_PR_MODE=1
 _phase_version_bump
+unset MERGE_TO_MAIN_PR_MODE
+_phase_push  # push version-bump commit to origin/main
 _phase_archive
 _phase_ci_trigger
 
