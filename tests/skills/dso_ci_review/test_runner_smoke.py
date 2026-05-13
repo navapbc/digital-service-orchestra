@@ -308,7 +308,10 @@ def test_runner_pipeline_standard_tier(tmp_path):
         patch(
             "dso_ci_review.runner._classify_tier_via_bash", return_value=tier_result
         ) as mock_classify,
-        patch("dso_ci_review.runner._validate_findings_schema", return_value=runner_mod._SchemaValidationResult("schema_pass", [])),
+        patch(
+            "dso_ci_review.runner._validate_findings_schema",
+            return_value=runner_mod._SchemaValidationResult("schema_pass", []),
+        ),
         patch(
             "dso_ci_review.runner.async_dispatch_specialists", side_effect=mock_dispatch
         ),
@@ -411,7 +414,10 @@ def test_runner_pipeline_deep_tier_dispatches_three_agents(tmp_path):
             },
         ),
         patch("dso_ci_review.runner._classify_tier_via_bash", return_value=tier_result),
-        patch("dso_ci_review.runner._validate_findings_schema", return_value=runner_mod._SchemaValidationResult("schema_pass", [])),
+        patch(
+            "dso_ci_review.runner._validate_findings_schema",
+            return_value=runner_mod._SchemaValidationResult("schema_pass", []),
+        ),
         patch(
             "dso_ci_review.runner.async_dispatch_specialists", side_effect=mock_dispatch
         ),
@@ -1758,7 +1764,10 @@ def test_deep_tier_runs_arch_synthesis_after_specialists(tmp_path):
             "dso_ci_review.runner._classify_tier_via_bash",
             return_value=tier_result,
         ),
-        patch("dso_ci_review.runner._validate_findings_schema", return_value=runner_mod._SchemaValidationResult("schema_pass", [])),
+        patch(
+            "dso_ci_review.runner._validate_findings_schema",
+            return_value=runner_mod._SchemaValidationResult("schema_pass", []),
+        ),
         patch(
             "dso_ci_review.runner.async_dispatch_specialists",
             side_effect=mock_dispatch,
@@ -1964,7 +1973,10 @@ def test_runner_cycle2_with_defenses_suppresses_reemitted_findings(tmp_path):
             "dso_ci_review.runner._classify_tier_via_bash",
             return_value=_standard_tier_classification(),
         ),
-        patch("dso_ci_review.runner._validate_findings_schema", return_value=runner_mod._SchemaValidationResult("schema_pass", [])),
+        patch(
+            "dso_ci_review.runner._validate_findings_schema",
+            return_value=runner_mod._SchemaValidationResult("schema_pass", []),
+        ),
         patch("dso_ci_review.runner._fetch_pr_defenses", return_value=[defense_record]),
         patch(
             "dso_ci_review.runner.dispatch_two_call_review",
@@ -2113,7 +2125,10 @@ def test_runner_cycle2_deep_tier_partial_failure_with_defenses(tmp_path):
             },
         ),
         patch("dso_ci_review.runner._classify_tier_via_bash", return_value=tier_result),
-        patch("dso_ci_review.runner._validate_findings_schema", return_value=runner_mod._SchemaValidationResult("schema_pass", [])),
+        patch(
+            "dso_ci_review.runner._validate_findings_schema",
+            return_value=runner_mod._SchemaValidationResult("schema_pass", []),
+        ),
         patch("dso_ci_review.runner._fetch_pr_defenses", return_value=[defense_record]),
         patch(
             "dso_ci_review.runner.async_dispatch_specialists",
@@ -2321,7 +2336,10 @@ def test_runner_calls_run_region_split_for_large_diff(tmp_path):
             "dso_ci_review.runner._classify_tier_via_bash",
             return_value=_standard_tier_classification(),
         ),
-        patch("dso_ci_review.runner._validate_findings_schema", return_value=runner_mod._SchemaValidationResult("schema_pass", [])),
+        patch(
+            "dso_ci_review.runner._validate_findings_schema",
+            return_value=runner_mod._SchemaValidationResult("schema_pass", []),
+        ),
         patch(
             "dso_ci_review.runner.run_region_split",
             side_effect=mock_run_region_split,
@@ -2397,7 +2415,10 @@ def test_runner_skips_run_region_split_for_small_diff(tmp_path):
             "dso_ci_review.runner._classify_tier_via_bash",
             return_value=_standard_tier_classification(),
         ),
-        patch("dso_ci_review.runner._validate_findings_schema", return_value=runner_mod._SchemaValidationResult("schema_pass", [])),
+        patch(
+            "dso_ci_review.runner._validate_findings_schema",
+            return_value=runner_mod._SchemaValidationResult("schema_pass", []),
+        ),
         patch(
             "dso_ci_review.runner.run_region_split",
             side_effect=mock_run_region_split,

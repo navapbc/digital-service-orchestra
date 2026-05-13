@@ -17,6 +17,7 @@ This is a controlled verification run (not a unit test) that uses the real runne
 pipeline with the real PR-80 diff as input and mocked LLM dispatch that returns the
 original bad findings, then verifies dispatch_schema_correction produces zero parse_errors.
 """
+
 from __future__ import annotations
 
 import json
@@ -74,7 +75,7 @@ _INVALID_FINDINGS = [
         "file": ".claude/hooks/post-agent.sh",
         "cited_lines": [".claude/hooks/post-agent.sh:47"],
         "cited_excerpt": "",  # MISSING — schema violation
-        "reachability": "",   # MISSING — required for severity=important
+        "reachability": "",  # MISSING — required for severity=important
     },
     {
         "severity": "critical",
@@ -83,7 +84,7 @@ _INVALID_FINDINGS = [
         "file": ".claude/hooks/post-agent.sh",
         "cited_lines": [".claude/hooks/post-agent.sh:50"],
         "cited_excerpt": "",  # MISSING — schema violation
-        "reachability": "",   # MISSING — required for severity=critical
+        "reachability": "",  # MISSING — required for severity=critical
     },
     {
         "severity": "important",
@@ -92,7 +93,7 @@ _INVALID_FINDINGS = [
         "file": ".claude/hooks/post-agent.sh",
         "cited_lines": [".claude/hooks/post-agent.sh:12"],
         "cited_excerpt": "",  # MISSING — schema violation
-        "reachability": "",   # MISSING — required for severity=important
+        "reachability": "",  # MISSING — required for severity=important
     },
     {
         "severity": "minor",
@@ -137,7 +138,7 @@ _INVALID_FINDINGS = [
         "file": ".claude/hooks/post-agent.sh",
         "cited_lines": [".claude/hooks/post-agent.sh:20"],
         "cited_excerpt": "",  # MISSING — schema violation
-        "reachability": "",   # MISSING — required for severity=fragile
+        "reachability": "",  # MISSING — required for severity=fragile
     },
 ]
 
@@ -160,7 +161,7 @@ _CORRECTED_FINDINGS = [
         "description": "record-agent-attribution.sh: no locking — concurrent agents will race on the attribution file.",
         "file": ".claude/hooks/post-agent.sh",
         "cited_lines": [".claude/hooks/post-agent.sh:50"],
-        "cited_excerpt": "echo \"$ATTRIBUTION_LINE\" >> \"$ATTRIBUTION_FILE\"",
+        "cited_excerpt": 'echo "$ATTRIBUTION_LINE" >> "$ATTRIBUTION_FILE"',
         "reachability": "Concurrent sprint agents append to the same file without locking — data corruption on parallel runs.",
     },
     {
@@ -234,15 +235,6 @@ def _standard_tier_classification():
     }
 
 
-def _make_async_dispatch_side_effect(findings):
-    """Returns a side-effect for async_dispatch_specialists that yields the given findings."""
-    import asyncio
-
-    async def _impl(*args, **kwargs):
-        return {"findings": findings, "summary": "PR-80 original findings (pre-correction)."}
-    return _impl
-
-
 def run_verification(diff_path: str) -> dict:
     """
     Run the full runner.main() pipeline against the given diff path.
@@ -267,15 +259,14 @@ def run_verification(diff_path: str) -> dict:
         errors=[
             f"finding[{i + len(_VALID_FINDINGS)}]: missing required field 'cited_excerpt'"
             for i in range(5)
-        ] + [
+        ]
+        + [
             f"finding[{j}]: severity='{f['severity']}' requires non-empty 'reachability'"
             for j, f in enumerate(_INVALID_FINDINGS)
-            if f["severity"] in {"critical", "important", "fragile"} and not f["reachability"]
+            if f["severity"] in {"critical", "important", "fragile"}
+            and not f["reachability"]
         ],
     )
-
-    import asyncio
-    from unittest.mock import AsyncMock
 
     async def _mock_dispatch(*args, **kwargs):
         return [
@@ -349,7 +340,9 @@ def run_verification(diff_path: str) -> dict:
         "cited_excerpt_pct": round(100 * cited_ok / len(real)) if real else 100,
         "reachability_required": len(reachability_required),
         "reachability_ok": reachability_ok,
-        "reachability_pct": round(100 * reachability_ok / len(reachability_required)) if reachability_required else 100,
+        "reachability_pct": round(100 * reachability_ok / len(reachability_required))
+        if reachability_required
+        else 100,
         "exit_code": exit_code,
     }
 
@@ -361,7 +354,9 @@ def main():
         print("Fetch with: gh pr diff 80 > /tmp/pr80.patch")
         sys.exit(1)
 
-    print(f"Running verification against PR-80 diff ({pathlib.Path(diff_path).stat().st_size:,} bytes)...")
+    print(
+        f"Running verification against PR-80 diff ({pathlib.Path(diff_path).stat().st_size:,} bytes)..."
+    )
     print()
 
     report = run_verification(diff_path)
@@ -376,30 +371,46 @@ def main():
     print(f"  Real findings:         {report['real_count']}")
     print(f"  Synthetic (parse_error): {report['synthetic_count']}")
     print()
-    print(f"cited_excerpt ≥5 chars:  {report['cited_excerpt_ok']}/{report['real_count']} ({report['cited_excerpt_pct']}%)")
-    print(f"reachability ≥20 chars:  {report['reachability_ok']}/{report['reachability_required']} ({report['reachability_pct']}%) [for critical/important/fragile]")
+    print(
+        f"cited_excerpt ≥5 chars:  {report['cited_excerpt_ok']}/{report['real_count']} ({report['cited_excerpt_pct']}%)"
+    )
+    print(
+        f"reachability ≥20 chars:  {report['reachability_ok']}/{report['reachability_required']} ({report['reachability_pct']}%) [for critical/important/fragile]"
+    )
     print()
 
     # Before/after comparison
     print("Before (PR-80 baseline, bug d42d-8126):")
-    print(f"  Total: 11 findings, 8 schema-invalid (73% invalid)")
-    print(f"  cited_excerpt populated: 3/11 (27%)")
-    print(f"  reachability populated: 0/3 required (0%)")
+    print("  Total: 11 findings, 8 schema-invalid (73% invalid)")
+    print("  cited_excerpt populated: 3/11 (27%)")
+    print("  reachability populated: 0/3 required (0%)")
     print()
     print("After (with S-A + S-B + S-C applied):")
-    print(f"  Total: {report['total_findings']} findings, {report['synthetic_count']} synthetic parse_error (0%)")
-    print(f"  cited_excerpt populated: {report['cited_excerpt_ok']}/{report['real_count']} ({report['cited_excerpt_pct']}%)")
-    print(f"  reachability populated: {report['reachability_ok']}/{report['reachability_required']} ({report['reachability_pct']}%) required")
+    print(
+        f"  Total: {report['total_findings']} findings, {report['synthetic_count']} synthetic parse_error (0%)"
+    )
+    print(
+        f"  cited_excerpt populated: {report['cited_excerpt_ok']}/{report['real_count']} ({report['cited_excerpt_pct']}%)"
+    )
+    print(
+        f"  reachability populated: {report['reachability_ok']}/{report['reachability_required']} ({report['reachability_pct']}%) required"
+    )
     print()
 
     # Assertions
     errors = []
     if report["synthetic_count"] != 0:
-        errors.append(f"FAIL: {report['synthetic_count']} synthetic parse_error finding(s) — expected 0")
+        errors.append(
+            f"FAIL: {report['synthetic_count']} synthetic parse_error finding(s) — expected 0"
+        )
     if report["cited_excerpt_pct"] < 100:
-        errors.append(f"FAIL: cited_excerpt <100% ({report['cited_excerpt_pct']}%) — expected 100%")
+        errors.append(
+            f"FAIL: cited_excerpt <100% ({report['cited_excerpt_pct']}%) — expected 100%"
+        )
     if report["reachability_required"] > 0 and report["reachability_pct"] < 100:
-        errors.append(f"FAIL: reachability <100% ({report['reachability_pct']}%) — expected 100% for critical/important/fragile")
+        errors.append(
+            f"FAIL: reachability <100% ({report['reachability_pct']}%) — expected 100% for critical/important/fragile"
+        )
 
     if errors:
         print("VERIFICATION FAILED:")
@@ -409,15 +420,25 @@ def main():
     else:
         print("VERIFICATION PASSED — all done definitions satisfied:")
         print("  ✓ Zero synthetic parse_error findings")
-        print(f"  ✓ 100% cited_excerpt populated ({report['real_count']}/{report['real_count']})")
-        print(f"  ✓ 100% reachability populated for critical/important/fragile ({report['reachability_ok']}/{report['reachability_required']})")
+        print(
+            f"  ✓ 100% cited_excerpt populated ({report['real_count']}/{report['real_count']})"
+        )
+        print(
+            f"  ✓ 100% reachability populated for critical/important/fragile ({report['reachability_ok']}/{report['reachability_required']})"
+        )
         print()
         print("Schema-compliance evidence (for PR description):")
         print(f"  Findings produced: {report['total_findings']}")
         print(f"  Synthetic schema_error: {report['synthetic_count']} (baseline: 8)")
-        print(f"  cited_excerpt compliance: {report['cited_excerpt_pct']}% (baseline: 27%)")
-        print(f"  reachability compliance: {report['reachability_pct']}% (baseline: 0%)")
-        print(f"  Improvement: from 8/11 invalid → 0/{report['total_findings']} invalid")
+        print(
+            f"  cited_excerpt compliance: {report['cited_excerpt_pct']}% (baseline: 27%)"
+        )
+        print(
+            f"  reachability compliance: {report['reachability_pct']}% (baseline: 0%)"
+        )
+        print(
+            f"  Improvement: from 8/11 invalid → 0/{report['total_findings']} invalid"
+        )
         sys.exit(0)
 
 
