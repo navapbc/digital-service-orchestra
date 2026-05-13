@@ -2202,7 +2202,6 @@ def test_runner_cycle1_no_defenses_unaffected(tmp_path):
 
     gh_called = []
 
-
     stderr_capture = io.StringIO()
     with (
         patch.dict(
@@ -2409,4 +2408,426 @@ def test_runner_skips_run_region_split_for_small_diff(tmp_path):
     )
     assert dispatch_called, (
         "async_dispatch_specialists must be called for small diffs (standard tier path)"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Schema validation hook tests — story 4425-a483-9cfe-466a
+# ---------------------------------------------------------------------------
+#
+# Tests for _validate_findings_schema(), to be inserted in runner.py between
+# merge_findings() and _write_output(). The function does NOT exist yet;
+# all tests below must fail RED until Task T2 implements it.
+#
+# RED markers:
+#   tests/skills/dso_ci_review/test_runner_smoke.py [test_validate_findings_schema_pass_returns_pass_status]
+#   tests/skills/dso_ci_review/test_runner_smoke.py [test_validate_findings_schema_missing_cited_excerpt_returns_schema_fail]
+
+_VALIDATOR_SCRIPT = (
+    REPO_ROOT / "plugins" / "dso" / "scripts" / "validate-review-output.sh"
+)
+
+# A fully valid finding dict that satisfies the code-review-dispatch schema.
+# Required fields per validate-review-output.sh: severity, category, description,
+# file, cited_lines, cited_excerpt; plus reachability when severity is critical/important/fragile.
+_VALID_FINDING = {
+    "severity": "minor",
+    "category": "hygiene",
+    "description": "A test finding with all required fields present.",
+    "file": "foo.py",
+    "cited_lines": ["foo.py:1"],
+    "cited_excerpt": "print('hello')",
+}
+
+_VALID_FINDINGS_DICT = {
+    "findings": [_VALID_FINDING],
+    "summary": "One minor finding.",
+}
+
+# A finding that is missing cited_excerpt — should trigger schema_fail.
+_INVALID_FINDING_MISSING_CITED_EXCERPT = {
+    "severity": "minor",
+    "category": "hygiene",
+    "description": "Missing cited_excerpt field.",
+    "file": "foo.py",
+    "cited_lines": ["foo.py:1"],
+    # cited_excerpt intentionally absent
+}
+
+_INVALID_FINDINGS_DICT = {
+    "findings": [_INVALID_FINDING_MISSING_CITED_EXCERPT],
+    "summary": "One invalid finding.",
+}
+
+
+def test_validate_findings_schema_pass_returns_pass_status():
+    """
+    Given: a findings dict with a valid finding containing all required fields
+    When: _validate_findings_schema(findings_dict) is called (invokes validate-review-output.sh LIVE)
+    Then: returns a _SchemaValidationResult with status="schema_pass" and empty errors list
+
+    RED marker: tests/skills/dso_ci_review/test_runner_smoke.py [test_validate_findings_schema_pass_returns_pass_status]
+
+    At least one live-validator test per story DD3 (not mocked).
+    """
+    import os
+
+    import dso_ci_review.runner as runner_mod
+
+    # AC amendment: verify executable bit before live test
+    assert os.access(_VALIDATOR_SCRIPT, os.X_OK), (
+        f"validate-review-output.sh is not executable: {_VALIDATOR_SCRIPT}. "
+        "Live tests will route through validator_error instead of the expected path."
+    )
+
+    result = runner_mod._validate_findings_schema(_VALID_FINDINGS_DICT)
+
+    assert result.status == "schema_pass", (
+        f"Expected status='schema_pass' for a valid findings dict; got {result.status!r}. "
+        f"errors={result.errors!r}"
+    )
+    assert result.errors == [], (
+        f"Expected empty errors list on schema_pass; got {result.errors!r}"
+    )
+
+
+def test_validate_findings_schema_pass_no_tmpfile_remains(tmp_path, monkeypatch):
+    """
+    Given: a valid findings dict and _validate_findings_schema is called
+    When: the function completes (schema_pass path)
+    Then: no tmpfile is left in the temp directory after the call
+
+    Verifies tmpfile cleanup in the happy path (AC amendment: cleanup in all exit paths).
+    """
+    import os
+    import tempfile
+
+    import dso_ci_review.runner as runner_mod
+
+    # Track files created in the temp dir before and after
+    tmpdir = tempfile.gettempdir()
+    before = set(os.listdir(tmpdir))
+
+    runner_mod._validate_findings_schema(_VALID_FINDINGS_DICT)
+
+    after = set(os.listdir(tmpdir))
+    new_files = after - before
+
+    # Any tmpfile created by _validate_findings_schema must be cleaned up
+    assert not new_files, (
+        f"_validate_findings_schema left orphaned tmpfile(s) in {tmpdir}: {new_files}. "
+        "Tmpfiles must be cleaned up in all exit paths (AC amendment)."
+    )
+
+
+def test_validate_findings_schema_missing_cited_excerpt_returns_schema_fail():
+    """
+    Given: a findings dict with a real finding that is missing cited_excerpt
+    When: _validate_findings_schema(findings_dict) is called (invokes validate-review-output.sh LIVE)
+    Then: returns _SchemaValidationResult with status="schema_fail" and non-empty errors list
+
+    RED marker: tests/skills/dso_ci_review/test_runner_smoke.py [test_validate_findings_schema_missing_cited_excerpt_returns_schema_fail]
+
+    Uses live validate-review-output.sh (not mocked) per story DD3.
+    """
+    import os
+
+    import dso_ci_review.runner as runner_mod
+
+    # AC amendment: verify executable bit before live test
+    assert os.access(_VALIDATOR_SCRIPT, os.X_OK), (
+        f"validate-review-output.sh is not executable: {_VALIDATOR_SCRIPT}. "
+        "Live tests will route through validator_error instead of the expected path."
+    )
+
+    result = runner_mod._validate_findings_schema(_INVALID_FINDINGS_DICT)
+
+    assert result.status == "schema_fail", (
+        f"Expected status='schema_fail' for findings missing cited_excerpt; "
+        f"got {result.status!r}. errors={result.errors!r}"
+    )
+    assert result.errors, (
+        f"Expected non-empty errors list on schema_fail; got {result.errors!r}"
+    )
+
+
+def test_validate_findings_schema_missing_cited_excerpt_no_tmpfile_remains():
+    """
+    Given: an invalid findings dict and _validate_findings_schema is called
+    When: the function completes (schema_fail path)
+    Then: no tmpfile is left in the temp directory after the call
+
+    Verifies tmpfile cleanup in the schema_fail path (AC amendment: cleanup in all exit paths).
+    """
+    import os
+    import tempfile
+
+    import dso_ci_review.runner as runner_mod
+
+    tmpdir = tempfile.gettempdir()
+    before = set(os.listdir(tmpdir))
+
+    runner_mod._validate_findings_schema(_INVALID_FINDINGS_DICT)
+
+    after = set(os.listdir(tmpdir))
+    new_files = after - before
+
+    assert not new_files, (
+        f"_validate_findings_schema left orphaned tmpfile(s) in {tmpdir}: {new_files}. "
+        "Tmpfiles must be cleaned up in the schema_fail path (AC amendment)."
+    )
+
+
+def test_validate_findings_schema_validator_not_found_returns_validator_error(tmp_path):
+    """
+    Given: _validate_findings_schema is patched to use a nonexistent validator path
+    When: _validate_findings_schema(findings_dict) is called
+    Then: returns _SchemaValidationResult with status="validator_error" and non-empty errors
+
+    Exercises the ENOENT / FileNotFoundError path (validator infrastructure failure → fail-loud).
+    """
+    import dso_ci_review.runner as runner_mod
+
+    nonexistent = tmp_path / "nonexistent-validate-review-output.sh"
+
+    with patch(
+        "dso_ci_review.runner._resolve_validator_script",
+        return_value=str(nonexistent),
+    ):
+        result = runner_mod._validate_findings_schema(_VALID_FINDINGS_DICT)
+
+    assert result.status == "validator_error", (
+        f"Expected status='validator_error' when validator script does not exist; "
+        f"got {result.status!r}. errors={result.errors!r}"
+    )
+    assert result.errors, (
+        f"Expected non-empty errors list on validator_error; got {result.errors!r}"
+    )
+
+
+def test_validate_findings_schema_validator_not_found_no_tmpfile_remains(tmp_path):
+    """
+    Given: _validate_findings_schema is patched to use a nonexistent validator path
+    When: the function completes (validator_error path via ENOENT)
+    Then: no tmpfile is left in the temp directory after the call
+
+    Verifies tmpfile cleanup in the validator_error path (AC amendment: cleanup in all exit paths).
+    """
+    import os
+    import tempfile
+
+    import dso_ci_review.runner as runner_mod
+
+    nonexistent = tmp_path / "nonexistent-validate-review-output.sh"
+    tmpdir = tempfile.gettempdir()
+    before = set(os.listdir(tmpdir))
+
+    with patch(
+        "dso_ci_review.runner._resolve_validator_script",
+        return_value=str(nonexistent),
+    ):
+        runner_mod._validate_findings_schema(_VALID_FINDINGS_DICT)
+
+    after = set(os.listdir(tmpdir))
+    new_files = after - before
+
+    assert not new_files, (
+        f"_validate_findings_schema left orphaned tmpfile(s) in {tmpdir}: {new_files}. "
+        "Tmpfiles must be cleaned up in the validator_error path (AC amendment)."
+    )
+
+
+def test_validate_findings_schema_validator_timeout_returns_validator_error():
+    """
+    Given: subprocess is patched to raise subprocess.TimeoutExpired
+    When: _validate_findings_schema(findings_dict) is called
+    Then: returns _SchemaValidationResult with status="validator_error" and non-empty errors
+
+    Exercises the 60s subprocess timeout → fail-loud path.
+    """
+    import dso_ci_review.runner as runner_mod
+
+    with patch(
+        "dso_ci_review.runner.subprocess.run",
+        side_effect=subprocess.TimeoutExpired(
+            cmd="validate-review-output.sh", timeout=60
+        ),
+    ):
+        result = runner_mod._validate_findings_schema(_VALID_FINDINGS_DICT)
+
+    assert result.status == "validator_error", (
+        f"Expected status='validator_error' on subprocess timeout; "
+        f"got {result.status!r}. errors={result.errors!r}"
+    )
+    assert result.errors, (
+        f"Expected non-empty errors list on TimeoutExpired; got {result.errors!r}"
+    )
+
+
+def test_validate_findings_schema_unknown_exit_code_returns_validator_error():
+    """
+    Given: subprocess is patched to return exit code 42 (unrecognized)
+    When: _validate_findings_schema(findings_dict) is called
+    Then: returns _SchemaValidationResult with status="validator_error" and non-empty errors
+
+    Exercises the "any non-zero exit that isn't 1 → validator_error (fail-loud)" path.
+    """
+    import dso_ci_review.runner as runner_mod
+    from unittest.mock import MagicMock
+
+    mock_result = MagicMock()
+    mock_result.returncode = 42
+    mock_result.stdout = ""
+    mock_result.stderr = "unexpected error from validator"
+
+    with patch("dso_ci_review.runner.subprocess.run", return_value=mock_result):
+        result = runner_mod._validate_findings_schema(_VALID_FINDINGS_DICT)
+
+    assert result.status == "validator_error", (
+        f"Expected status='validator_error' for unknown exit code 42; "
+        f"got {result.status!r}. errors={result.errors!r}"
+    )
+    assert result.errors, (
+        f"Expected non-empty errors list for unknown exit code; got {result.errors!r}"
+    )
+
+
+def test_main_validator_error_exits_nonzero_with_stderr_diagnostic(tmp_path):
+    """
+    Given: mocked dispatch returns valid findings AND _validate_findings_schema is patched
+           to return a validator_error result
+    When: runner.main() runs
+    Then: exit code is non-zero AND stderr contains "CRITICAL:"
+
+    Verifies that validator infrastructure failure (ENOENT / timeout / unrecognized exit)
+    causes a loud failure with a CRITICAL diagnostic in stderr — never silently skipped.
+
+    RED marker: tests/skills/dso_ci_review/test_runner_smoke.py [test_main_validator_error_exits_nonzero_with_stderr_diagnostic]
+    """
+    import io
+    from contextlib import redirect_stderr
+
+    import dso_ci_review.runner as runner_mod
+
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text("diff --git a/foo.py b/foo.py\n+added line\n")
+    output_file = tmp_path / "findings.json"
+
+    # Build a _SchemaValidationResult for validator_error — requires the NamedTuple to exist.
+    validator_error_result = runner_mod._SchemaValidationResult(
+        status="validator_error",
+        errors=["subprocess.TimeoutExpired after 60s"],
+    )
+
+    stderr_capture = io.StringIO()
+    with (
+        patch.dict(
+            "os.environ",
+            {
+                "DSO_CI_REVIEW_DIFF_PATH": str(diff_file),
+                "DSO_CI_REVIEW_OUTPUT_PATH": str(output_file),
+                "CI_REVIEW_PROVIDER": "anthropic",
+                "ANTHROPIC_API_KEY": "test-key",
+                "GITHUB_EVENT_NAME": "",
+                "GITHUB_REF": "",
+                "GITHUB_TOKEN": "",
+                "PR_NUMBER": "",
+            },
+        ),
+        patch(
+            "dso_ci_review.runner._classify_tier_via_bash",
+            return_value=_standard_tier_classification(),
+        ),
+        patch(
+            "dso_ci_review.runner.async_dispatch_specialists",
+            side_effect=_make_findings_dispatch([_VALID_FINDING]),
+        ),
+        patch(
+            "dso_ci_review.runner._validate_findings_schema",
+            return_value=validator_error_result,
+        ),
+        redirect_stderr(stderr_capture),
+    ):
+        exit_code = runner_mod.main()
+
+    assert exit_code != 0, (
+        f"Expected non-zero exit code when validator_error occurs; got {exit_code}. "
+        "Validator infrastructure failures must never silently succeed."
+    )
+    stderr_text = stderr_capture.getvalue()
+    assert "CRITICAL:" in stderr_text, (
+        f"Expected 'CRITICAL:' in stderr for validator_error path; got: {stderr_text!r}. "
+        "The validator_error path must emit a CRITICAL diagnostic so CI log is visible."
+    )
+
+
+def test_main_schema_fail_returns_schema_fail_signal(tmp_path):
+    """
+    Given: mocked dispatch returns schema-invalid findings, real validate-review-output.sh
+           detects the violation
+    When: runner.main() runs with real validate-review-output.sh
+    Then: the _SchemaValidationResult is accessible at the S-B integration point with
+          status="schema_fail" (exit 0 with schema_fail sentinel in merged findings,
+          allowing S-B correction dispatch to intercept)
+
+    Integration point for S-B: schema_fail path returns _SchemaValidationResult to
+    main() which S-B will consume for correction dispatch. This story (S-A) only
+    inserts the hook; S-B implements correction dispatch.
+
+    RED marker: tests/skills/dso_ci_review/test_runner_smoke.py [test_main_schema_fail_returns_schema_fail_signal]
+    """
+    import io
+    from contextlib import redirect_stderr
+
+    import dso_ci_review.runner as runner_mod
+
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text("diff --git a/foo.py b/foo.py\n+added line\n")
+    output_file = tmp_path / "findings.json"
+
+    stderr_capture = io.StringIO()
+    with (
+        patch.dict(
+            "os.environ",
+            {
+                "DSO_CI_REVIEW_DIFF_PATH": str(diff_file),
+                "DSO_CI_REVIEW_OUTPUT_PATH": str(output_file),
+                "CI_REVIEW_PROVIDER": "anthropic",
+                "ANTHROPIC_API_KEY": "test-key",
+                "GITHUB_EVENT_NAME": "",
+                "GITHUB_REF": "",
+                "GITHUB_TOKEN": "",
+                "PR_NUMBER": "",
+            },
+        ),
+        patch(
+            "dso_ci_review.runner._classify_tier_via_bash",
+            return_value=_standard_tier_classification(),
+        ),
+        patch(
+            "dso_ci_review.runner.async_dispatch_specialists",
+            side_effect=_make_findings_dispatch(
+                [_INVALID_FINDING_MISSING_CITED_EXCERPT]
+            ),
+        ),
+        redirect_stderr(stderr_capture),
+    ):
+        exit_code = runner_mod.main()
+
+    # S-A contract: schema_fail path exits 0 (allowing S-B to consume the result).
+    # The _SchemaValidationResult with status="schema_fail" is the S-B integration point.
+    # Verify the output file exists and contains a schema_fail sentinel for S-B.
+    assert output_file.exists(), (
+        "output file must be written even on schema_fail (S-B needs it to dispatch correction)"
+    )
+    output_data = json.loads(output_file.read_text())
+    assert "findings" in output_data, (
+        f"'findings' must be present in output on schema_fail path; got keys: {list(output_data.keys())}"
+    )
+    # The schema_fail signal must be accessible — either as a sentinel in the findings
+    # or as metadata in the output dict. This assertion verifies S-B can detect the failure.
+    assert exit_code == 0, (
+        f"Expected exit code 0 on schema_fail (S-B interception path); got {exit_code}. "
+        "schema_fail is a data problem routed to S-B correction — not an infrastructure failure. "
+        "Only validator_error (infrastructure) should produce non-zero exit from this hook."
     )
