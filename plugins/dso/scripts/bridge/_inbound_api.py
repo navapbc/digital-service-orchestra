@@ -290,6 +290,22 @@ def write_create_events(
                 "displayName", jira_assignee_obj.get("emailAddress")
             )
 
+        # Parent (Epic Link / parent issue): Jira Cloud → fields.parent.key;
+        # legacy Epic Link → fields.customfield_10014. Mirror of _handle_edit.py.
+        local_parent_id: str | None = None
+        jira_parent_key: str | None = None
+        parent_obj = normalized_fields.get("parent")
+        if isinstance(parent_obj, dict):
+            candidate = parent_obj.get("key", "")
+            if isinstance(candidate, str) and candidate.strip():
+                jira_parent_key = candidate.strip()
+        if not jira_parent_key:
+            epic_link = normalized_fields.get("customfield_10014")
+            if isinstance(epic_link, str) and epic_link.strip():
+                jira_parent_key = epic_link.strip()
+        if jira_parent_key:
+            local_parent_id = f"jira-{jira_parent_key.lower()}"
+
         payload: dict[str, Any] = {
             "event_type": "CREATE",
             "env_id": bridge_env_id,
@@ -304,6 +320,7 @@ def write_create_events(
                 "description": jira_description,
                 "priority": local_priority,
                 "assignee": local_assignee,
+                "parent_id": local_parent_id,
                 "fields": normalized_fields,
             },
         }

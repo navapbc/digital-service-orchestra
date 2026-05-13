@@ -41,6 +41,10 @@ _EVENT_TYPE_PRIORITY: dict[str, int] = {
 }
 _DEFAULT_TYPE_PRIORITY = 6
 
+# Compiled once at module load; used in handle_comment_event to scan Jira comment
+# bodies for the origin-uuid dedup marker (4314-cfb9).
+_ORIGIN_UUID_RE = re.compile(r"<!-- origin-uuid: ([0-9a-f-]+) -->")
+
 
 def sort_events_for_dispatch(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Sort events so LINK/UNLINK come first (by timestamp) and per-ticket
@@ -191,9 +195,11 @@ def handle_create_event(
         return []
 
     if not account_id and raw_assignee and jira_key:
-        # Write BRIDGE_ALERT for no-map entry (unless caller is retroactive
-        # path which writes its own consolidated alert — b557-3bad)
-        if not _suppress_user_map_alert:
+        # Only alert when user_map is configured (non-empty): empty map means
+        # "BRIDGE_USER_MAP not set" — suppress noise (486e-8144).
+        # Configured-but-missing case still alerts.
+        # Unless caller is retroactive path — b557-3bad.
+        if user_map and not _suppress_user_map_alert:
             write_bridge_alert(
                 ticket_dir,
                 ticket_id=ticket_id,
@@ -664,6 +670,39 @@ def handle_comment_event(
     dedup_map = _read_dedup_map(ticket_dir)
     uuid_to_jira = dedup_map.get("uuid_to_jira_id", {})
     if event_uuid in uuid_to_jira:
+        return []
+
+    # Jira-side dedup: check existing comments for the origin-uuid marker before
+    # posting. When the local .jira-comment-map was not persisted (workflow died
+    # after posting but before git commit), the next run's local map is stale and
+    # the local check above passes. Scanning Jira's existing comments closes this
+    # durability gap (4314-cfb9). Fail closed on error: skip the post and alert.
+    try:
+        existing_comments = acli_client.get_comments(jira_key)
+        for jira_comment in existing_comments or []:
+            body = jira_comment.get("body", "")
+            m = _ORIGIN_UUID_RE.search(body)
+            if m and m.group(1) == event_uuid:
+                # Already posted — heal local dedup map and skip
+                jira_comment_id = jira_comment.get("id", "")
+                if jira_comment_id:
+                    jira_id_to_uuid = dedup_map.get("jira_id_to_uuid", {})
+                    uuid_to_jira[event_uuid] = jira_comment_id
+                    jira_id_to_uuid[jira_comment_id] = event_uuid
+                    dedup_map["uuid_to_jira_id"] = uuid_to_jira
+                    dedup_map["jira_id_to_uuid"] = jira_id_to_uuid
+                    _write_dedup_map(ticket_dir, dedup_map)
+                return []
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "get_comments failed for %s (fail-closed: skipping post): %s", jira_key, exc
+        )
+        write_bridge_alert(
+            ticket_dir,
+            ticket_id=ticket_id,
+            reason=f"get_comments failed for {jira_key}: {exc}",
+            bridge_env_id=bridge_env_id,
+        )
         return []
 
     body_with_marker = embed_uuid_marker(comment_body, event_uuid)

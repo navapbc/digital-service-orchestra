@@ -83,18 +83,25 @@ def _make_jira_issue(
     status: str = "To Do",
     issue_type: str = "Task",
     updated: str = "2026-03-21T10:00:00.000+0000",
+    parent_key: str | None = None,
+    epic_link: str | None = None,
 ) -> dict:
     """Build a Jira issue dict matching the shape returned by ACLI search_issues."""
+    fields: dict = {
+        "summary": summary,
+        "status": {"name": status},
+        "issuetype": {"name": issue_type},
+        "created": "2026-03-20T08:00:00.000+0000",
+        "updated": updated,
+        "resolutiondate": None,
+    }
+    if parent_key:
+        fields["parent"] = {"key": parent_key}
+    if epic_link:
+        fields["customfield_10014"] = epic_link
     return {
         "key": key,
-        "fields": {
-            "summary": summary,
-            "status": {"name": status},
-            "issuetype": {"name": issue_type},
-            "created": "2026-03-20T08:00:00.000+0000",
-            "updated": updated,
-            "resolutiondate": None,
-        },
+        "fields": fields,
     }
 
 
@@ -655,4 +662,167 @@ def test_process_inbound_creates_events_when_type_mapping_is_empty(
         f"Expected 2 CREATE events when type_mapping={{}} (empty = no filtering); "
         f"got {create_count}. handle_type_check must treat empty mapping as "
         f"'no type filter configured' and pass all issues through (bf75-5653)."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test: parent_id preserved in CREATE event (36cf-48d7)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+@pytest.mark.scripts
+def test_process_inbound_preserves_parent_id_in_create_event(
+    tmp_path: Path, bridge: ModuleType
+) -> None:
+    """Jira parent/epic-link relationships must be preserved in the CREATE event
+    data so the local tracker reflects the Jira hierarchy (36cf-48d7).
+
+    Before the fix, write_create_events never extracted fields.parent.key and
+    omitted parent_id from the CREATE event payload, causing every jira-dig-*
+    ticket to be created as an orphan with parent_id=null.
+    """
+    tracker_dir = tmp_path / ".tickets-tracker"
+    tracker_dir.mkdir()
+
+    checkpoint_file = tmp_path / "checkpoint.json"
+    checkpoint_file.write_text(json.dumps({"last_pull_ts": _LAST_PULL_TS}))
+
+    # DIG-2001 is a sub-task/child of DIG-100 via fields.parent.key
+    issues = [
+        _make_jira_issue("DIG-2001", summary="Child task", parent_key="DIG-100"),
+    ]
+    mock_acli = _make_mock_acli(issues)
+    config = _make_config(str(checkpoint_file))
+
+    bridge.process_inbound(
+        tickets_root=tracker_dir,
+        acli_client=mock_acli,
+        last_pull_ts=_LAST_PULL_TS,
+        config=config,
+    )
+
+    # Find the CREATE event and verify parent_id is set
+    create_files = list(tracker_dir.rglob("*-CREATE.json"))
+    assert len(create_files) == 1, f"Expected 1 CREATE event, got {len(create_files)}"
+
+    create_data = json.loads(create_files[0].read_text())
+    parent_id = create_data.get("data", {}).get("parent_id")
+    assert parent_id == "jira-dig-100", (
+        f"CREATE event must include parent_id='jira-dig-100' when Jira issue has "
+        f"fields.parent.key='DIG-100'; got parent_id={parent_id!r} (36cf-48d7)."
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.scripts
+def test_process_inbound_parent_id_null_for_orphan_issue(
+    tmp_path: Path, bridge: ModuleType
+) -> None:
+    """Issues without a parent key must have parent_id=None in the CREATE event
+    (36cf-48d7). Orphan issues must not be given a synthetic parent.
+    """
+    tracker_dir = tmp_path / ".tickets-tracker"
+    tracker_dir.mkdir()
+
+    checkpoint_file = tmp_path / "checkpoint.json"
+    checkpoint_file.write_text(json.dumps({"last_pull_ts": _LAST_PULL_TS}))
+
+    issues = [_make_jira_issue("DIG-3000", summary="Orphan task")]
+    mock_acli = _make_mock_acli(issues)
+    config = _make_config(str(checkpoint_file))
+
+    bridge.process_inbound(
+        tickets_root=tracker_dir,
+        acli_client=mock_acli,
+        last_pull_ts=_LAST_PULL_TS,
+        config=config,
+    )
+
+    create_files = list(tracker_dir.rglob("*-CREATE.json"))
+    assert len(create_files) == 1
+    create_data = json.loads(create_files[0].read_text())
+    parent_id = create_data.get("data", {}).get("parent_id")
+    assert parent_id is None, (
+        f"Orphan issue must have parent_id=None in CREATE event; "
+        f"got parent_id={parent_id!r} (36cf-48d7)."
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.scripts
+def test_process_inbound_parent_id_from_epic_link_fallback(
+    tmp_path: Path, bridge: ModuleType
+) -> None:
+    """customfield_10014 (Jira Server epic-link) is used as parent_id fallback
+    when fields.parent is absent (36cf-48d7).
+    """
+    tracker_dir = tmp_path / ".tickets-tracker"
+    tracker_dir.mkdir()
+
+    checkpoint_file = tmp_path / "checkpoint.json"
+    checkpoint_file.write_text(json.dumps({"last_pull_ts": _LAST_PULL_TS}))
+
+    issues = [
+        _make_jira_issue("DIG-5000", summary="Epic child", epic_link="DIG-200"),
+    ]
+    mock_acli = _make_mock_acli(issues)
+    config = _make_config(str(checkpoint_file))
+
+    bridge.process_inbound(
+        tickets_root=tracker_dir,
+        acli_client=mock_acli,
+        last_pull_ts=_LAST_PULL_TS,
+        config=config,
+    )
+
+    create_files = list(tracker_dir.rglob("*-CREATE.json"))
+    assert len(create_files) == 1
+    create_data = json.loads(create_files[0].read_text())
+    parent_id = create_data.get("data", {}).get("parent_id")
+    assert parent_id == "jira-dig-200", (
+        f"CREATE event must use customfield_10014 as parent_id fallback when "
+        f"fields.parent is absent; got parent_id={parent_id!r} (36cf-48d7)."
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.scripts
+def test_process_inbound_parent_key_takes_priority_over_epic_link(
+    tmp_path: Path, bridge: ModuleType
+) -> None:
+    """When both fields.parent.key and customfield_10014 are present, parent.key
+    takes priority over the epic-link fallback (36cf-48d7).
+    """
+    tracker_dir = tmp_path / ".tickets-tracker"
+    tracker_dir.mkdir()
+
+    checkpoint_file = tmp_path / "checkpoint.json"
+    checkpoint_file.write_text(json.dumps({"last_pull_ts": _LAST_PULL_TS}))
+
+    issues = [
+        _make_jira_issue(
+            "DIG-6000",
+            summary="Dual-parent task",
+            parent_key="DIG-300",
+            epic_link="DIG-400",
+        ),
+    ]
+    mock_acli = _make_mock_acli(issues)
+    config = _make_config(str(checkpoint_file))
+
+    bridge.process_inbound(
+        tickets_root=tracker_dir,
+        acli_client=mock_acli,
+        last_pull_ts=_LAST_PULL_TS,
+        config=config,
+    )
+
+    create_files = list(tracker_dir.rglob("*-CREATE.json"))
+    assert len(create_files) == 1
+    create_data = json.loads(create_files[0].read_text())
+    parent_id = create_data.get("data", {}).get("parent_id")
+    assert parent_id == "jira-dig-300", (
+        f"fields.parent.key must take priority over customfield_10014 when both "
+        f"are present; expected 'jira-dig-300', got parent_id={parent_id!r} (36cf-48d7)."
     )
