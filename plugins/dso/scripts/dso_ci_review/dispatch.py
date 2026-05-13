@@ -19,6 +19,7 @@ import json
 import logging
 import os
 import pathlib
+import re
 import sys
 from typing import Any
 
@@ -54,14 +55,18 @@ _VALID_SEVERITIES: frozenset[str] = frozenset(
 )
 
 # Frozen fields that must be preserved byte-for-byte during schema correction.
+# finding_id is handled separately below — it may be regenerated when the original
+# is absent, empty, or structurally malformed (not matching _FINDING_ID_RE).
 _FROZEN_FIELDS: tuple[str, ...] = (
     "severity",
     "category",
     "description",
     "file",
     "cited_lines",
-    "finding_id",
 )
+
+# finding_id format: f-<8 lowercase hex characters>
+_FINDING_ID_RE: re.Pattern[str] = re.compile(r"^f-[0-9a-f]{8}$")
 
 
 @functools.lru_cache(maxsize=32)
@@ -956,6 +961,18 @@ def dispatch_schema_correction(
                     break
             if not frozen_ok:
                 break
+            # finding_id: frozen when original is structurally valid; regeneration
+            # allowed only when original is absent, empty, or malformed.
+            orig_fid = orig.get("finding_id") or ""
+            if (
+                _FINDING_ID_RE.match(orig_fid)
+                and corrected.get("finding_id") != orig_fid
+            ):
+                last_error = (
+                    f"frozen field 'finding_id' mutated at index {i}: "
+                    f"original={orig_fid!r}, corrected={corrected.get('finding_id')!r}"
+                )
+                frozen_ok = False
 
         if not frozen_ok:
             continue

@@ -217,9 +217,9 @@ def _validate_findings_schema(
             # validate-review-output.sh emits all diagnostic output to stderr
             # (echo "..." >&2 throughout the script; stdout is reserved for
             # the SCHEMA_VALID:yes confirmation line on success).
-            errors = [
-                line for line in result.stderr.splitlines() if line.strip()
-            ] or [result.stderr.strip() or "schema validation failed (exit 1)"]
+            errors = [line for line in result.stderr.splitlines() if line.strip()] or [
+                result.stderr.strip() or "schema validation failed (exit 1)"
+            ]
             return _SchemaValidationResult("schema_fail", errors)
         # Any other non-zero exit → infrastructure failure
         return _SchemaValidationResult(
@@ -1228,10 +1228,28 @@ def main() -> int:
                     )
                 except Exception as _corr_exc:  # noqa: BLE001
                     print(
-                        f"WARNING: dispatch_schema_correction raised {type(_corr_exc).__name__}"
-                        " — passing through original findings",
+                        f"ERROR: dispatch_schema_correction raised {type(_corr_exc).__name__}"
+                        " — appending synthetic schema_error (fail-closed)",
                         file=sys.stderr,
                     )
+                    _corr_synthetic = {
+                        "type": "parse_error",
+                        "severity": "critical",
+                        "category": "schema_error",
+                        "description": (
+                            f"Schema correction dispatch raised {type(_corr_exc).__name__}: "
+                            + "; ".join(_schema_result.errors)
+                        ),
+                        "finding_id": "schema_error_dispatch_failed",
+                        "cited_excerpt": "",
+                        "reachability": "",
+                    }
+                    merged = dict(merged)
+                    merged["findings"] = list(merged.get("findings", [])) + [
+                        _corr_synthetic
+                    ]
+                    _write_output(merged)
+                    return 1
 
         # Step 8: write output
         # Stamp the cycle number so the NEXT cycle's workflow can read it back

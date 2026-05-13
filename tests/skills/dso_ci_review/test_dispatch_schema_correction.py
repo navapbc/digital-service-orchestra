@@ -17,7 +17,9 @@ Behavioral contracts under test:
    (frozen field: --reviewer-hash must still pass).
 
 Frozen fields (byte-for-byte must be preserved):
-  severity, category, description, file, cited_lines, finding_id
+  severity, category, description, file, cited_lines
+  finding_id: frozen when original is valid (f-<hex8>); regeneration allowed when
+  original is absent, empty, or malformed.
 
 Synthetic error shape:
   {"type": "parse_error", "severity": "critical", "category": "schema_error",
@@ -74,7 +76,14 @@ _FINDING_B: dict[str, Any] = {
     "reachability": "always",
 }
 
-_FROZEN_FIELDS = ("severity", "category", "description", "file", "cited_lines", "finding_id")
+_FROZEN_FIELDS = (
+    "severity",
+    "category",
+    "description",
+    "file",
+    "cited_lines",
+    "finding_id",
+)
 
 
 def _make_fake_response(findings: list[dict]) -> Any:
@@ -117,7 +126,9 @@ def _stub_validate_schema_pass(merged: dict, **kwargs) -> Any:
 
 def _stub_validate_schema_fail(merged: dict, **kwargs) -> Any:
     """Stub for _validate_findings_schema that always returns schema_fail."""
-    return _runner_mod._SchemaValidationResult("schema_fail", ["missing required field: cited_lines"])
+    return _runner_mod._SchemaValidationResult(
+        "schema_fail", ["missing required field: cited_lines"]
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -143,7 +154,9 @@ def test_correction_success_returns_corrected_findings(monkeypatch) -> None:
 
     monkeypatch.setattr(_dispatch_mod, "dispatch_review", _mock_dispatch_review)
 
-    monkeypatch.setattr(_runner_mod, "_validate_findings_schema", _stub_validate_schema_pass)
+    monkeypatch.setattr(
+        _runner_mod, "_validate_findings_schema", _stub_validate_schema_pass
+    )
 
     result = _dispatch_mod.dispatch_schema_correction(
         original_findings=originals,
@@ -155,9 +168,7 @@ def test_correction_success_returns_corrected_findings(monkeypatch) -> None:
     )
 
     findings = result.get("findings", [])
-    synthetic_errors = [
-        f for f in findings if f.get("category") == "schema_error"
-    ]
+    synthetic_errors = [f for f in findings if f.get("category") == "schema_error"]
     assert not synthetic_errors, (
         f"No synthetic schema_error should appear on successful correction, "
         f"got: {synthetic_errors}"
@@ -199,7 +210,9 @@ def test_correction_count_drift_routes_to_synthetic_error(monkeypatch) -> None:
 
     monkeypatch.setattr(_dispatch_mod, "dispatch_review", _mock_dispatch_review)
 
-    monkeypatch.setattr(_runner_mod, "_validate_findings_schema", _stub_validate_schema_pass)
+    monkeypatch.setattr(
+        _runner_mod, "_validate_findings_schema", _stub_validate_schema_pass
+    )
 
     result = _dispatch_mod.dispatch_schema_correction(
         original_findings=originals,
@@ -229,7 +242,9 @@ def test_correction_count_drift_routes_to_synthetic_error(monkeypatch) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_correction_frozen_field_mutation_routes_to_synthetic_error(monkeypatch) -> None:
+def test_correction_frozen_field_mutation_routes_to_synthetic_error(
+    monkeypatch,
+) -> None:
     """Given: original findings with frozen fields; correction dispatch returns valid
               JSON with the same count but mutates one frozen field (severity).
     When: dispatch_schema_correction() is called with max_attempts=1.
@@ -246,7 +261,9 @@ def test_correction_frozen_field_mutation_routes_to_synthetic_error(monkeypatch)
 
     monkeypatch.setattr(_dispatch_mod, "dispatch_review", _mock_dispatch_review)
 
-    monkeypatch.setattr(_runner_mod, "_validate_findings_schema", _stub_validate_schema_pass)
+    monkeypatch.setattr(
+        _runner_mod, "_validate_findings_schema", _stub_validate_schema_pass
+    )
 
     result = _dispatch_mod.dispatch_schema_correction(
         original_findings=originals,
@@ -300,7 +317,9 @@ def test_correction_exhausted_retries_appends_synthetic_error(monkeypatch) -> No
 
     monkeypatch.setattr(_dispatch_mod, "dispatch_review", _mock_dispatch_review)
 
-    monkeypatch.setattr(_runner_mod, "_validate_findings_schema", _stub_validate_schema_pass)
+    monkeypatch.setattr(
+        _runner_mod, "_validate_findings_schema", _stub_validate_schema_pass
+    )
 
     result = _dispatch_mod.dispatch_schema_correction(
         original_findings=originals,
@@ -313,7 +332,8 @@ def test_correction_exhausted_retries_appends_synthetic_error(monkeypatch) -> No
 
     findings = result.get("findings", [])
     parse_errors = [
-        f for f in findings
+        f
+        for f in findings
         if f.get("type") == "parse_error" and f.get("category") == "schema_error"
     ]
     assert parse_errors, (
@@ -329,7 +349,9 @@ def test_correction_exhausted_retries_appends_synthetic_error(monkeypatch) -> No
     assert isinstance(error.get("description"), str) and error["description"], (
         f"Synthetic error must have non-empty description: {error}"
     )
-    assert isinstance(error.get("finding_id"), str) and error["finding_id"].startswith("schema_error_"), (
+    assert isinstance(error.get("finding_id"), str) and error["finding_id"].startswith(
+        "schema_error_"
+    ), (
         f"Synthetic error finding_id must start with 'schema_error_', got: {error.get('finding_id')!r}"
     )
     assert error.get("cited_excerpt") == "", (
@@ -415,7 +437,9 @@ def test_correction_schema_invalid_response_consumes_retry(monkeypatch) -> None:
     def _stub_validate_first_fail_then_pass(merged: dict, **kwargs) -> Any:
         validate_call_count[0] += 1
         if validate_call_count[0] == 1:
-            return _runner_mod._SchemaValidationResult("schema_fail", ["missing cited_lines"])
+            return _runner_mod._SchemaValidationResult(
+                "schema_fail", ["missing cited_lines"]
+            )
         return _runner_mod._SchemaValidationResult("schema_pass", [])
 
     monkeypatch.setattr(
@@ -469,7 +493,9 @@ def test_hash_preserved_after_correction(monkeypatch) -> None:
 
     monkeypatch.setattr(_dispatch_mod, "dispatch_review", _mock_dispatch_review)
 
-    monkeypatch.setattr(_runner_mod, "_validate_findings_schema", _stub_validate_schema_pass)
+    monkeypatch.setattr(
+        _runner_mod, "_validate_findings_schema", _stub_validate_schema_pass
+    )
 
     result = _dispatch_mod.dispatch_schema_correction(
         original_findings=originals,
@@ -482,9 +508,7 @@ def test_hash_preserved_after_correction(monkeypatch) -> None:
 
     result_findings = result.get("findings", [])
     # Filter out any synthetic errors before hashing
-    real_findings = [
-        f for f in result_findings if f.get("category") != "schema_error"
-    ]
+    real_findings = [f for f in result_findings if f.get("category") != "schema_error"]
 
     def _frozen_hash(findings: list[dict]) -> str:
         """Hash only frozen fields of each finding, in order."""
@@ -505,3 +529,97 @@ def test_hash_preserved_after_correction(monkeypatch) -> None:
         f"Original frozen fields : {[{f: o[f] for f in _FROZEN_FIELDS if f in o} for o in originals]}\n"
         f"Corrected frozen fields: {[{f: r[f] for f in _FROZEN_FIELDS if f in r} for r in real_findings]}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Scenario 8 — finding_id regeneration allowed when original is absent/empty
+# ---------------------------------------------------------------------------
+
+
+def test_finding_id_regeneration_allowed_when_absent_or_malformed(monkeypatch) -> None:
+    """Given: original findings where finding_id is absent or empty.
+    When: correction dispatch returns findings with a newly generated finding_id
+          in f-<hex8> format.
+    Then:
+      - No synthetic schema_error is appended (regeneration is accepted).
+      - The returned finding_id matches the corrected value.
+    """
+    original_no_id = copy.deepcopy(_FINDING_A)
+    del original_no_id["finding_id"]  # absent
+
+    original_empty_id = copy.deepcopy(_FINDING_B)
+    original_empty_id["finding_id"] = ""  # empty
+
+    originals = [original_no_id, original_empty_id]
+
+    corrected = [copy.deepcopy(original_no_id), copy.deepcopy(original_empty_id)]
+    corrected[0]["finding_id"] = "f-a1b2c3d4"
+    corrected[1]["finding_id"] = "f-deadbeef"
+
+    def _mock_dispatch_review(**kwargs):
+        return {"findings": corrected}
+
+    monkeypatch.setattr(_dispatch_mod, "dispatch_review", _mock_dispatch_review)
+    monkeypatch.setattr(
+        _runner_mod, "_validate_findings_schema", _stub_validate_schema_pass
+    )
+
+    result = _dispatch_mod.dispatch_schema_correction(
+        original_findings=originals,
+        diff_text=_DIFF_TEXT,
+        provider_chain=["anthropic"],
+        environ={"ANTHROPIC_API_KEY": "test-key"},
+        max_attempts=1,
+        agent_id="code-reviewer-standard",
+    )
+
+    findings = result.get("findings", [])
+    schema_errors = [f for f in findings if f.get("category") == "schema_error"]
+    assert not schema_errors, (
+        f"finding_id regeneration must be accepted when original is absent/empty, "
+        f"but got schema_error: {schema_errors}"
+    )
+    assert findings[0].get("finding_id") == "f-a1b2c3d4"
+    assert findings[1].get("finding_id") == "f-deadbeef"
+
+
+# ---------------------------------------------------------------------------
+# Scenario 9 — file and cited_lines mutations are rejected as frozen violations
+# ---------------------------------------------------------------------------
+
+
+def test_file_and_cited_lines_frozen_field_mutation_rejected(monkeypatch) -> None:
+    """Given: original findings with file and cited_lines set.
+    When: correction dispatch returns findings with mutated file or cited_lines.
+    Then:
+      - A synthetic finding with category='schema_error' is appended (mutation rejected).
+    """
+    originals = [copy.deepcopy(_FINDING_A)]
+    mutated = [copy.deepcopy(_FINDING_A)]
+    mutated[0]["file"] = "src/other.py"  # mutate a frozen field
+
+    def _mock_dispatch_review(**kwargs):
+        return {"findings": mutated}
+
+    monkeypatch.setattr(_dispatch_mod, "dispatch_review", _mock_dispatch_review)
+    monkeypatch.setattr(
+        _runner_mod, "_validate_findings_schema", _stub_validate_schema_pass
+    )
+
+    result = _dispatch_mod.dispatch_schema_correction(
+        original_findings=originals,
+        diff_text=_DIFF_TEXT,
+        provider_chain=["anthropic"],
+        environ={"ANTHROPIC_API_KEY": "test-key"},
+        max_attempts=1,
+        agent_id="code-reviewer-standard",
+    )
+
+    findings = result.get("findings", [])
+    schema_errors = [f for f in findings if f.get("category") == "schema_error"]
+    assert schema_errors, (
+        f"Expected synthetic schema_error on file/cited_lines mutation, "
+        f"got findings: {findings}"
+    )
+    assert schema_errors[0].get("type") == "parse_error"
+    assert schema_errors[0].get("severity") == "critical"

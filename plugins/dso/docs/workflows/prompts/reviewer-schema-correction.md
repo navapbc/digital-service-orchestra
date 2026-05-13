@@ -114,7 +114,7 @@ structure must be preserved exactly:
       "reachability": "<unchanged, or added if absent and required>"
     }
   ],
-  "summary": "<unchanged>"
+  "summary": "Schema correction applied: <brief description of what was fixed>"
 }
 ```
 
