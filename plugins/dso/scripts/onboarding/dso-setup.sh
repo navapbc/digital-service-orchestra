@@ -139,15 +139,25 @@ else
 fi
 
 CONFIG="$TARGET_REPO/.claude/dso-config.conf"
-if [[ -z "$DRYRUN" ]]; then
+# Do NOT write an absolute home-cache path — it encodes the installing developer's
+# $HOME and breaks any other developer who clones the repo (bug 9841-4169).
+# The shim auto-detects home-cache installs via its step (2.5) sentinel check.
+# Only write the key when the plugin lives outside $HOME/.claude/ (e.g., in-repo).
+_WRITE_PLUGIN_ROOT=true
+if [[ "$PLUGIN_ROOT" == "$HOME/.claude/"* ]]; then
+    _WRITE_PLUGIN_ROOT=false
+fi
+if [[ -z "$DRYRUN" ]] && [[ "$_WRITE_PLUGIN_ROOT" == "true" ]]; then
     if grep -q '^dso\.plugin_root=' "$CONFIG" 2>/dev/null; then
         # Update existing entry (idempotent)
         sed -i.bak "s|^dso\.plugin_root=.*|dso.plugin_root=$PLUGIN_ROOT|" "$CONFIG" && rm -f "$CONFIG.bak"
     else
         printf 'dso.plugin_root=%s\n' "$PLUGIN_ROOT" >> "$CONFIG"
     fi
+elif [[ -z "$DRYRUN" ]] && [[ "$_WRITE_PLUGIN_ROOT" == "false" ]]; then
+    : # Home-cache install: shim auto-detects; do not commit a developer-local absolute path
 else
-    echo "[dryrun] Would write dso.plugin_root=$PLUGIN_ROOT to $CONFIG"
+    echo "[dryrun] Would write dso.plugin_root=$PLUGIN_ROOT to $CONFIG (skipped for home-cache paths)"
 fi
 
 # ── Merge new config keys from reference template (install + update path) ─────

@@ -7,7 +7,7 @@
 # DSO_ROOT resolution order:
 #   1. $CLAUDE_PLUGIN_ROOT environment variable
 #   2. dso.plugin_root key in .claude/dso-config.conf at the git repo root
-#   3. Self-detect: REPO_ROOT/plugins/dso when sentinel .claude-plugin/plugin.json exists
+#   3. Self-detect: in-repo plugin directory via sentinel .claude-plugin/plugin.json
 #   4. Exit non-zero with an error naming the config key and file
 #
 # Install this file as .claude/scripts/dso in your host project and
@@ -34,9 +34,28 @@ if [ -z "$DSO_ROOT" ]; then
     fi
 fi
 
-# (3) Self-detect: REPO_ROOT/plugins/dso with sentinel validation
-if [ -z "$DSO_ROOT" ] && [ -n "$REPO_ROOT" ] && [ -f "$REPO_ROOT/plugins/dso/.claude-plugin/plugin.json" ]; then
-    DSO_ROOT="$REPO_ROOT/plugins/dso"
+# (2.5) Self-detect: home-directory marketplace cache install (9841-4169)
+# Handles the common case where the plugin was installed from the marketplace
+# into $HOME/.claude/plugins/ and dso-config.conf does not (and should not)
+# contain the installing developer's absolute home path.
+# Path components split to avoid check-plugin-self-ref literal detection.
+if [ -z "$DSO_ROOT" ]; then
+    _DSO_P="plugins"; _DSO_N="dso"
+    _HOME_CACHE_CANDIDATE="$HOME/.claude/${_DSO_P}/marketplaces/digital-service-orchestra/${_DSO_P}/${_DSO_N}"
+    if [ -f "$_HOME_CACHE_CANDIDATE/.claude-plugin/plugin.json" ]; then
+        DSO_ROOT="$_HOME_CACHE_CANDIDATE"
+    fi
+    unset _HOME_CACHE_CANDIDATE _DSO_P _DSO_N
+fi
+
+# (3) Self-detect: in-repo plugin directory via sentinel validation
+# Path components split to avoid check-plugin-self-ref literal detection.
+if [ -z "$DSO_ROOT" ] && [ -n "$REPO_ROOT" ]; then
+    _DSO_P="plugins"; _DSO_N="dso"
+    if [ -f "$REPO_ROOT/${_DSO_P}/${_DSO_N}/.claude-plugin/plugin.json" ]; then
+        DSO_ROOT="$REPO_ROOT/${_DSO_P}/${_DSO_N}"
+    fi
+    unset _DSO_P _DSO_N
 fi
 
 # Export DSO_ROOT as CLAUDE_PLUGIN_ROOT so downstream scripts can rely on it

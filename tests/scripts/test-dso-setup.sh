@@ -1694,6 +1694,31 @@ EOF
     fi
 }
 
+# test_setup_does_not_write_absolute_home_cache_path (9841-4169)
+# When dso-setup.sh is invoked with a PLUGIN_ROOT that lives under
+# $HOME/.claude/ (marketplace cache install), it must NOT write an absolute
+# developer-local path to dso-config.conf. Multi-developer clones would fail
+# because the path encodes the installing developer's $HOME.
+#
+# RED: current dso-setup.sh unconditionally writes dso.plugin_root=<absolute>
+# regardless of whether the path is under $HOME. This test fails before the fix.
+test_setup_does_not_write_absolute_home_cache_path() {
+    local T
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+    git -C "$T" init -q
+
+    local fake_cache_root="$HOME/.claude/plugins/marketplaces/digital-service-orchestra/plugins/dso"
+
+    bash "$SETUP_SCRIPT" "$T" "$fake_cache_root" >/dev/null 2>&1 || true
+
+    local has_absolute_home="no"
+    if grep -q "^dso\.plugin_root=$HOME" "$T/.claude/dso-config.conf" 2>/dev/null; then
+        has_absolute_home="yes"
+    fi
+    assert_eq "test_setup_does_not_write_absolute_home_cache_path" "no" "$has_absolute_home"
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 test_setup_creates_shim
 test_setup_shim_executable
@@ -1759,5 +1784,6 @@ test_install_merges_new_config_keys
 test_install_merges_ci_workflow
 test_setup_references_root_install_doc
 test_setup_precommit_stack_aware_generic_for_non_python
+test_setup_does_not_write_absolute_home_cache_path
 
 print_summary

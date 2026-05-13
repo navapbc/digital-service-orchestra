@@ -512,6 +512,16 @@ Render the PIL per `phases/epic-description-template.md` (the `### Planning Inte
 .claude/scripts/dso ticket comment <epic-id> "$PIL_BODY"   # PIL_BODY MUST start with "### Planning Intelligence Log"
 ```
 
+After writing the PIL comment, emit the brainstorm-fidelity review result as a durability backstop. The scrutiny pipeline's earlier emit (Phase 2) fires before the epic ticket exists; this call records the result with a valid epic context. It is best-effort — do not block on failure:
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+"$REPO_ROOT/.claude/scripts/dso" emit-protocol-review-result.sh \
+  --review-type=brainstorm-fidelity \
+  --pass-fail=passed \
+  --revision-cycles=<number-of-revision-cycles-from-scrutiny-pipeline> 2>/dev/null || true
+```
+
 ### Step 3b: Write brainstorm:complete Tag
 
 Write a durable ticket-level tag to record that brainstorm has completed. This removes any `scrutiny:pending` tag while preserving all other existing tags (e.g., `design:approved`, `CLI_user`).
