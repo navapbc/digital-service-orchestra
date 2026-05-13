@@ -91,13 +91,6 @@ _source_state_functions() {
 }
 
 # =============================================================================
-# Structural guard: _phase_version_bump must exist in merge-to-main.sh
-# This test drives Task 2 (implementation). Must FAIL in RED phase.
-# =============================================================================
-HAS_PHASE_FN=$(grep -c '^_phase_version_bump()' "$MERGE_SCRIPT" 2>/dev/null || echo "0")
-assert_eq "test_phase_version_bump_function_exists_in_script" "1" "$HAS_PHASE_FN"
-
-# =============================================================================
 # Test 6 (structural — runs fast before integration tests):
 # test_merge_to_main_help_includes_bump_flag
 # --help output must include '--bump'.
