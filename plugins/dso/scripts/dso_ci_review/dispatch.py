@@ -933,8 +933,34 @@ def dispatch_schema_correction(
             primary_model=primary_model,
             environ=environ,
         )
-        last_result = attempt_result
         attempt_findings = attempt_result.get("findings", [])
+
+        # When dispatch_review itself fails (API overload, network error), it returns
+        # {"findings": [fallback_exhausted_entry]} with no "summary" key. Treating
+        # this as a correction attempt would fail schema validation ("missing summary")
+        # rather than correctly falling through to the reachability fallback.
+        # Preserve original_findings as last_result so the reachability fallback can
+        # still apply programmatic boilerplate to recover from missing-reachability errors.
+        _infra_failed = any(
+            f.get("type") == "fallback_exhausted" for f in attempt_findings
+        )
+        if _infra_failed:
+            _exc_msg = next(
+                (
+                    f.get("final_exception_message", "unknown")
+                    for f in attempt_findings
+                    if f.get("type") == "fallback_exhausted"
+                ),
+                "unknown",
+            )
+            last_error = f"correction dispatch infrastructure failure: {_exc_msg[:200]}"
+            last_result = {
+                "findings": list(original_findings),
+                "summary": "schema correction — api unavailable, using original findings",
+            }
+            continue
+
+        last_result = attempt_result
 
         # Validate schema via runner._validate_findings_schema
         schema_result = _runner_mod._validate_findings_schema(

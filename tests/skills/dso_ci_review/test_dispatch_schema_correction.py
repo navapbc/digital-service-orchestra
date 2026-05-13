@@ -868,3 +868,78 @@ def test_reachability_fallback_injects_boilerplate_when_only_error(monkeypatch) 
         assert isinstance(reach, str) and len(reach.strip()) >= 20, (
             f"Boilerplate reachability must be >= 20 chars; got {reach!r}"
         )
+
+
+def test_correction_dispatch_infra_failure_triggers_reachability_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Scenario 11b: dispatch_review returns fallback_exhausted (API overload) during
+    schema correction; reachability fallback must apply to original_findings instead
+    of the infra-failure sentinel, so the correction succeeds without a schema_error.
+
+    When: dispatch_review returns {"findings": [fallback_exhausted_entry]} during
+          schema correction for two important findings that are only missing
+          reachability.
+    Then: reachability fallback injects boilerplate reachability into the original
+          findings and returns them (no synthetic schema_error appended).
+    """
+    finding_a = {
+        "severity": "important",
+        "category": "maintainability",
+        "description": "Long method should be extracted",
+        "file": "src/service.py",
+        "cited_lines": ["src/service.py:10"],
+        "finding_id": "f-aa001122",
+        "cited_excerpt": "def handle(self): ...",
+        # 'reachability' intentionally absent — causes schema_fail
+    }
+    finding_b = {
+        "severity": "important",
+        "category": "hygiene",
+        "description": "Duplicate logic should be deduplicated",
+        "file": "src/utils.py",
+        "cited_lines": ["src/utils.py:5"],
+        "finding_id": "f-bb334455",
+        "cited_excerpt": "def helper(): ...",
+        # 'reachability' intentionally absent
+    }
+
+    _fallback_exhausted_entry = {
+        "type": "fallback_exhausted",
+        "agent_id": "schema-correction",
+        "primary_model": "claude-haiku-4-5-20251001",
+        "attempted_cross_provider": ["anthropic"],
+        "attempted_context_models": ["claude-haiku-4-5-20251001"],
+        "final_exception_class": "InternalServerError",
+        "final_exception_message": "API key validation is temporarily unavailable. Please retry.",
+    }
+
+    def _mock_dispatch_review_infra_fail(**kwargs: object) -> dict:
+        return {"findings": [_fallback_exhausted_entry]}
+
+    monkeypatch.setattr(_dispatch_mod, "dispatch_review", _mock_dispatch_review_infra_fail)
+
+    result = _dispatch_mod.dispatch_schema_correction(
+        original_findings=[finding_a, finding_b],
+        diff_text=_DIFF_TEXT,
+        provider_chain=["anthropic"],
+        environ={"ANTHROPIC_API_KEY": "test-key"},
+        max_attempts=1,
+        agent_id="schema-correction",
+    )
+
+    findings = result.get("findings", [])
+    schema_errors = [f for f in findings if f.get("category") == "schema_error"]
+    assert not schema_errors, (
+        f"Infrastructure failure during correction must not produce schema_error when "
+        f"only reachability is missing; reachability fallback must apply to "
+        f"original_findings. Got schema_errors: {schema_errors}"
+    )
+    assert len(findings) == 2, (
+        f"Finding count must be preserved (got {len(findings)}, expected 2)"
+    )
+    for f in findings:
+        reach = f.get("reachability", "")
+        assert isinstance(reach, str) and len(reach.strip()) >= 20, (
+            f"Boilerplate reachability must be >= 20 non-whitespace chars; got {reach!r}"
+        )
