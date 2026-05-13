@@ -441,4 +441,3 @@ plugins/dso/scripts/review-defense-store.sh:tests/review/test-defense-store-tick
 plugins/dso/scripts/check-unacked-degradations.sh:tests/scripts/test-check-unacked-degradations.sh
 tests/scripts/test-preconditions-fallthrough-landmarks.sh:tests/scripts/test-preconditions-fallthrough-landmarks.sh
 plugins/dso/scripts/preconditions-ack.sh:tests/scripts/test-preconditions-ack.sh,tests/scripts/test-preconditions-ack-sample.sh
-tests/skills/dso_ci_review/verify_pr80_schema_compliance.py:tests/skills/dso_ci_review/verify_pr80_schema_compliance.py
