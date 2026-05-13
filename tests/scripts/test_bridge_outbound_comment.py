@@ -659,3 +659,58 @@ def test_outbound_comment_get_comments_exception_fails_closed(
     assert len(alert_files) >= 1, (
         "A BRIDGE_ALERT must be written when get_comments raises (fail-closed path)"
     )
+
+
+# ---------------------------------------------------------------------------
+# Test: WORKTREE_TRACKING: prefixed comment bodies must not be posted to Jira
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_handle_comment_event_filters_worktree_tracking_body(
+    tmp_path: Path, bridge: ModuleType
+) -> None:
+    """WORKTREE_TRACKING: prefixed comment bodies must not be posted to Jira (dc75-9b69)."""
+    ticket_dir = tmp_path / "w21-worktree-tracking"
+    ticket_dir.mkdir()
+
+    # Write SYNC file so ticket has a Jira mapping
+    _write_sync_file(ticket_dir, jira_key=_JIRA_KEY)
+
+    # Write a COMMENT event with WORKTREE_TRACKING: prefix
+    worktree_body = (
+        "WORKTREE_TRACKING:start branch=test session_branch=test "
+        "timestamp=2026-01-01T00:00:00Z"
+    )
+    comment_file = _write_event(
+        ticket_dir,
+        timestamp=1742605500,
+        uuid=_COMMENT_UUID,
+        event_type="COMMENT",
+        data={"body": worktree_body},
+        env_id=_OTHER_ENV_ID,
+    )
+
+    events = [
+        {
+            "ticket_id": "w21-worktree-tracking",
+            "event_type": "COMMENT",
+            "file_path": str(comment_file),
+        }
+    ]
+
+    mock_acli = MagicMock()
+    mock_acli.add_comment = MagicMock()
+
+    bridge.process_outbound(
+        events,
+        acli_client=mock_acli,
+        tickets_root=tmp_path,
+        bridge_env_id=_BRIDGE_ENV_ID,
+    )
+
+    assert mock_acli.add_comment.call_count == 0, (
+        f"add_comment must NOT be called for WORKTREE_TRACKING: prefixed comment body; "
+        f"was called {mock_acli.add_comment.call_count} time(s)"
+    )

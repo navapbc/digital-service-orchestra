@@ -2677,3 +2677,140 @@ def test_adf_to_text_empty_string():
     from bridge._inbound_utils import _adf_to_text
 
     assert _adf_to_text("") == ""
+
+
+# ---------------------------------------------------------------------------
+# Test: Self-heal pass must backfill SYNC.json for non-jira-prefixed dirs
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_write_create_events_self_heal_non_jira_prefixed_dir(
+    tmp_path: Path, bridge: ModuleType
+) -> None:
+    """Self-heal pass must backfill SYNC.json for non-jira-prefixed dirs with jira_key (487d-ce11)."""
+    tickets_tracker = tmp_path / ".tickets-tracker"
+    tickets_tracker.mkdir()
+
+    # Create a non-jira-prefixed ticket dir with CREATE.json containing jira_key
+    ticket_dir = tickets_tracker / "abcd-1234-xxxx-yyyy"
+    ticket_dir.mkdir()
+
+    create_payload = {
+        "event_type": "CREATE",
+        "env_id": _BRIDGE_ENV_ID,
+        "timestamp": 1742524200,
+        "uuid": _UUID1,
+        "local_id": "abcd-1234-xxxx-yyyy",
+        "data": {
+            "jira_key": "DIG-100",
+            "title": "Some native ticket",
+        },
+    }
+    create_file = ticket_dir / f"1742524200-{_UUID1}-CREATE.json"
+    create_file.write_text(json.dumps(create_payload), encoding="utf-8")
+
+    # Call write_create_events with empty issues list — only self-heal runs
+    bridge.write_create_events(
+        [],
+        tickets_tracker=tickets_tracker,
+        bridge_env_id=_BRIDGE_ENV_ID,
+    )
+
+    # Assert a SYNC.json file was created in the non-jira-prefixed dir
+    sync_files = list(ticket_dir.glob("*-SYNC.json"))
+    assert len(sync_files) >= 1, (
+        f"Self-heal pass must create a SYNC.json in non-jira-prefixed dir "
+        f"abcd-1234-xxxx-yyyy when CREATE.json has jira_key; found: {sync_files}"
+    )
+
+    sync_data = json.loads(sync_files[0].read_text(encoding="utf-8"))
+    assert sync_data.get("jira_key") == "DIG-100", (
+        f"SYNC.json must contain jira_key='DIG-100'; got {sync_data.get('jira_key')!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Tests: write_create_events filters test/placeholder issues (fb8e-9022)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_write_create_events_skips_bridge_test_label(
+    tmp_path: Path, bridge: ModuleType
+) -> None:
+    """write_create_events skips Jira issues with bridge-test label (fb8e-9022)."""
+    tickets_tracker = tmp_path / ".tickets-tracker"
+    tickets_tracker.mkdir()
+
+    issue = {
+        "key": "DIG-200",
+        "fields": {
+            "summary": "Legitimate ticket title",
+            "issuetype": {"name": "Task"},
+            "status": {"name": "To Do"},
+            "created": "2026-03-21T10:00:00.000+0000",
+            "updated": "2026-03-21T10:00:00.000+0000",
+            "resolutiondate": None,
+            "priority": {"name": "Medium"},
+            "labels": ["bridge-test"],
+        },
+    }
+
+    written = bridge.write_create_events(
+        [issue],
+        tickets_tracker=tickets_tracker,
+        bridge_env_id=_BRIDGE_ENV_ID,
+    )
+
+    assert written == [], (
+        f"write_create_events must return [] for bridge-test labeled issue; "
+        f"got {written!r}"
+    )
+    all_dirs = [d for d in tickets_tracker.iterdir() if d.is_dir()]
+    assert len(all_dirs) == 0, (
+        f"No ticket directory must be created for bridge-test labeled issue; "
+        f"found: {all_dirs}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_write_create_events_skips_test_summary_pattern(
+    tmp_path: Path, bridge: ModuleType
+) -> None:
+    """write_create_events skips Jira issues whose summary matches test-pollution patterns (fb8e-9022)."""
+    tickets_tracker = tmp_path / ".tickets-tracker"
+    tickets_tracker.mkdir()
+
+    issue = {
+        "key": "DIG-201",
+        "fields": {
+            "summary": "test story",
+            "issuetype": {"name": "Story"},
+            "status": {"name": "To Do"},
+            "created": "2026-03-21T10:00:00.000+0000",
+            "updated": "2026-03-21T10:00:00.000+0000",
+            "resolutiondate": None,
+            "priority": {"name": "Medium"},
+            "labels": [],
+        },
+    }
+
+    written = bridge.write_create_events(
+        [issue],
+        tickets_tracker=tickets_tracker,
+        bridge_env_id=_BRIDGE_ENV_ID,
+    )
+
+    assert written == [], (
+        f"write_create_events must return [] for test-pollution summary; "
+        f"got {written!r}"
+    )
+    all_dirs = [d for d in tickets_tracker.iterdir() if d.is_dir()]
+    assert len(all_dirs) == 0, (
+        f"No ticket directory must be created for test-pollution summary; "
+        f"found: {all_dirs}"
+    )
