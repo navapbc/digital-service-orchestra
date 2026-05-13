@@ -1,0 +1,1 @@
+{"event_type": "BRIDGE_ALERT", "timestamp": 1778691376552666316, "uuid": "631c3f5d-650f-4bbc-8d51-2f5d3c821af0", "env_id": "87bd1065-0264-4126-94b7-ae8c71b8d506", "ticket_id": "487d-ce11-03e5-4337", "data": {"reason": "get_comments failed for DIG-2500: 'str' object has no attribute 'get'"}}
