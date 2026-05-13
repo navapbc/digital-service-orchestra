@@ -107,9 +107,8 @@ MOCK_EOF
 # (BASH_SOURCE[0] must be set for merge-to-main-direct.sh; wrapper ensures this)
 # Returns exit code of _phase_validate
 _run_phase_validate_wrapper() {
-    local wrapper
+    local wrapper rc
     wrapper=$(mktemp /tmp/run-validate.XXXXXX.sh)
-    trap 'rm -f "$wrapper"' RETURN
     cat > "$wrapper" << WRAPPER_EOF
 #!/usr/bin/env bash
 export MERGE_TO_MAIN_DIRECT_LIB=1
@@ -126,7 +125,9 @@ cd "\$MAIN_REPO"
 _phase_validate 2>&1
 WRAPPER_EOF
     chmod +x "$wrapper"
-    "$wrapper"
+    "$wrapper" ; rc=$?
+    rm -f "$wrapper"
+    return $rc
 }
 
 # =============================================================================

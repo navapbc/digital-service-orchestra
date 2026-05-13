@@ -43,9 +43,8 @@ trap 'rm -f "${_CLEANUP_FILES[@]:-}"' EXIT
 # Prints: "CI_WORKFLOW_NAME=<value>" on stdout; DEPRECATION warnings to stderr
 _resolve_ci_workflow_name() {
     local config_file="$1"
-    local wrapper
+    local wrapper rc
     wrapper=$(mktemp /tmp/ci-wfname.XXXXXX.sh)
-    trap 'rm -f "$wrapper"' RETURN
     cat > "$wrapper" << WRAPPER_EOF
 #!/usr/bin/env bash
 export MERGE_TO_MAIN_DIRECT_LIB=1
@@ -57,7 +56,9 @@ source "$MERGE_SCRIPT"
 echo "CI_WORKFLOW_NAME=\${CI_WORKFLOW_NAME:-}"
 WRAPPER_EOF
     chmod +x "$wrapper"
-    "$wrapper"
+    "$wrapper" ; rc=$?
+    rm -f "$wrapper"
+    return $rc
 }
 
 # =============================================================================
