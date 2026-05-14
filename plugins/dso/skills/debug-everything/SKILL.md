@@ -337,6 +337,17 @@ Companion guards: f9b5-213b (Phase K premature shutdown drift). All three drift 
 
 <COMPACTION_RESUME>
 **If resuming after an auto-compact event in Bug-Fix Mode**: re-establish `OPEN_BUG_COUNT` (canonical bash, see step 1 below — never filter `ticket list --type=bug` output via Python `t.get('type') == 'bug'` because `--type=bug` strips the `type` field), re-read `$PLUGIN_ROOT/skills/fix-bug/SKILL.md` inline, and let fix-bug resume itself from its own most recent CHECKPOINT comment. Fix-bug owns its per-ticket compaction-resume protocol — do not duplicate that logic here. After the in-progress ticket completes, do NOT stop — re-query remaining open and in_progress bugs and continue processing them in priority order. Compaction that triggered this resume is historical state, not a Phase K shutdown trigger.
+
+**Sub-branch recovery (ci-pr mode)**: After compaction detection, before any commit or fix-bug dispatch, read the most-recent `DEBUG_BRANCH_TRACKING:` comment to recover the active sub-branch:
+
+```bash
+_tracking=$(.claude/scripts/dso ticket comment-list <epic-id> 2>/dev/null | grep '^DEBUG_BRANCH_TRACKING: ' | tail -1)
+```
+
+Parser uses exact-prefix match: `'DEBUG_BRANCH_TRACKING: '` (note the trailing space) — NOT substring match; does NOT match `WORKTREE_TRACKING:` or any other sprint anchor. This exact-prefix isolation is a regression test requirement: the parser must not accidentally match sprint WORKTREE_TRACKING: comments.
+
+- If found: parse `sub_branch=<name>` from `_tracking` and checkout that branch before any work.
+- If not found: proceed on session branch (no active sub-branch to recover).
 </COMPACTION_RESUME>
 
 ### Bug-Fix Mode Execution
@@ -713,7 +724,7 @@ Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/auto-fix.md
 
 ---
 
-## Phase G: Sub-Agent Fix Batches (/dso:debug-everything)
+## Phase G: Sub-Agent Fix Batches — DEBUG_BRANCH_TRACKING written per sub-branch (/dso:debug-everything)
 
 ### Sub-Branch Chunking (ci-pr mode only — when DEBUG_MODE=pr)
 
@@ -726,6 +737,11 @@ In ci-pr mode, Phase G chunks Tier 2–7 bugs into sub-branches of at most 5 bug
 **Large-fix exception**: a single bug whose estimated diff exceeds 500 lines (>500 lines) gets its own sub-branch with a `-large` suffix (e.g., `tier-3-large`). PRECEDENCE: large-fix exception wins over file-conflict split — a >500-line bug is routed to `-large` and removed from any file-conflict consideration. The large-fix takes precedence before conflict resolution applies.
 
 **Serialized integration**: the orchestrator MUST serialize sub-agent integration into the shared sub-branch ref — no concurrent push; dispatch one sub-agent at a time for integration, or use a lock mechanism. This prevents race conditions on shared refs.
+
+After creating each sub-branch, record a tracking comment using the actual batch index K:
+```
+.claude/scripts/dso ticket comment <epic-id> "DEBUG_BRANCH_TRACKING: sub_branch=<name> tier=<N> batch=<K> timestamp=<UTC>"
+```
 
 In local mode: commit directly to session branch (sub-branch chunking does not apply).
 
