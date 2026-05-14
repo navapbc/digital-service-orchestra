@@ -32,6 +32,8 @@ You are a **Senior Software Engineer at Google** brought in to restore a project
 /dso:debug-everything --aws            # Include proactive AWS infrastructure scan in Phase B
 ```
 
+**ci-pr mode** (when `merge.strategy=pr`): `/dso:debug-everything` runs in ci-pr mode. Each fix batch is committed to a per-tier sub-branch (`bug-batch/<session-id>/tier-<N>-batch-<K>`), reviewed via `/dso:review` before merging to the session branch, and the session's aggregate progress is tracked in a `Debug:` draft PR. Phase B Step 1 creates a `.debug-active` marker (schema v1) on the repo root; Phase K removes it. The draft PR is also created in Phase B Step 1.
+
 **Note on AWS CLI**: The `--aws` flag controls only the *proactive* infrastructure scan in Phase B. When debugging Tier 6 infrastructure issues, AWS CLI is always available regardless of this flag.
 <!-- EMIT-PRECONDITIONS: gate_name=debug_everything_aws_infra degradation_type=inferred_decision -->
 If AWS auth is not configured, infrastructure checks are skipped gracefully.
@@ -84,6 +86,35 @@ Only push ONCE per invocation (not before every sub-agent). If `IS_SESSION_WORKT
 
 Scan configured GitHub Actions workflows for CI failures and create bug tickets for any untracked failures. This step runs **before** the open-bug-count pre-check so newly discovered failures are visible to mode selection.
 
+**Stale .debug-active Cleanup**: Before running the GHA pre-scan, clean up any stale `.debug-active` marker. **The orchestrator executes the following bash block directly via the Bash tool** — it is not pseudocode and is not extracted to a shell script; the LLM orchestrator runs it inline at Phase A entry:
+```bash
+_debug_marker="$(git rev-parse --show-toplevel)/.debug-active"
+if [[ -f "$_debug_marker" ]]; then
+    _schema_ver=$(grep '^schema_version=' "$_debug_marker" 2>/dev/null | sed 's/schema_version=//' || true)
+    if [[ -z "$_schema_ver" || ! "$_schema_ver" =~ ^[0-9]+$ || "$_schema_ver" -lt 1 ]]; then
+        printf 'ERROR: .debug-active marker is from a pre-upgrade session. Remove it manually and re-run.\n' >&2
+        exit 1
+    fi
+    # Use cut (portable) to extract YYYYMMDD-HHMMSS from YYYYMMDD-HHMMSS-<6char>
+    _marker_ts=$(grep '^debug-session-id=' "$_debug_marker" 2>/dev/null | cut -d= -f2 | cut -d- -f1,2 || true)
+    _ttl_hours=$(bash "$PLUGIN_SCRIPTS/read-config.sh" debug.session_ttl_hours 2>/dev/null || echo 24)
+    _ttl_hours=${_ttl_hours:-24}  # guard: read-config.sh exits 0 with empty output when key absent
+    _ttl_secs=$(( _ttl_hours * 3600 ))
+    _now=$(date +%s 2>/dev/null || echo 0)
+    # Split _marker_ts (YYYYMMDD-HHMMSS) on '-' to get pure digit strings with no offset confusion
+    _date_part=$(echo "$_marker_ts" | cut -d- -f1)  # YYYYMMDD
+    _time_part=$(echo "$_marker_ts" | cut -d- -f2)  # HHMMSS
+    _ts_iso="${_date_part:0:4}-${_date_part:4:2}-${_date_part:6:2} ${_time_part:0:2}:${_time_part:2:2}:${_time_part:4:2}"
+    _ts_epoch=$(date -d "$_ts_iso" +%s 2>/dev/null || date -j -f '%Y%m%d-%H%M%S' "$_marker_ts" +%s 2>/dev/null || echo 0)
+    if [[ "$_ts_epoch" -eq 0 ]]; then
+        printf 'Phase A: .debug-active marker timestamp unreadable — skipping stale check\n'
+    elif [[ $(( _now - _ts_epoch )) -ge $_ttl_secs ]]; then
+        rm -f "$_debug_marker"
+        printf 'Phase A: removed stale .debug-active marker (age > %d hours)\n' "$_ttl_hours"
+    fi
+fi
+```
+
 Execute `prompts/gha-dispatch.md` with `EPIC_COMMENT_LABEL="GHA scan complete"`. New tickets (tagged `gha:<workflow-file-name>`) are picked up by the open-bug-count check in Phase B Step 2 and processed in Bug-Fix Mode.
 
 ---
@@ -104,6 +135,30 @@ When `OPEN_BUG_COUNT == 0`, execute `prompts/session-init.md` to bind:
 - `INTERACTIVE_SESSION` (governs Non-Interactive Deferral Protocol behavior at each gate)
 
 That prompt also runs the Resume Check (parse `CHECKPOINT N/6` lines on in-progress issues; fast-close, re-dispatch, or revert per checkpoint progress).
+
+**Mode Detection & Draft PR (ci-pr mode only)**: After session-init.md binding, detect `merge.strategy` and initialize the debug session. **The orchestrator executes this bash block directly via the Bash tool** at Phase B Step 1:
+```bash
+DEBUG_MODE=$(.claude/scripts/dso read-config.sh merge.strategy 2>/dev/null || echo 'direct')
+DEBUG_MODE="${DEBUG_MODE:-direct}"  # guard: read-config.sh exits 0 with empty output when key absent
+_debug_marker="$(git rev-parse --show-toplevel)/.debug-active"
+if [[ "$DEBUG_MODE" == 'pr' ]]; then
+    _session_id="$(date -u +%Y%m%d-%H%M%S)-$(set +o pipefail; LC_ALL=C tr -dc 'a-z0-9' </dev/urandom | head -c6)"
+    DRAFT_PR_URL=$(DRAFT_PR_TITLE_PREFIX=Debug: SESSION_BRANCH="$SESSION_BRANCH" \
+        PRIMARY_TICKET_ID="${EPIC_ID:-debug}" EPIC_TITLE='Debug Session' \
+        bash "$(git rev-parse --show-toplevel)/.claude/scripts/dso" create-sprint-draft-pr.sh 2>&1)
+    if [[ -z "$DRAFT_PR_URL" ]]; then
+        printf 'ERROR: Phase B Step 1 draft PR creation failed — cannot initialize ci-pr mode session\n' >&2
+        exit 1
+    fi
+    printf 'schema_version=1\ndebug-session-id=%s\n' "$_session_id" > "$_debug_marker"
+    printf 'merge.strategy=pr — debug session running in ci-pr mode. Draft PR: %s\n' "$DRAFT_PR_URL"
+else
+    printf 'merge.strategy=direct — debug session running in local mode\n'
+fi
+```
+Schema reference: `${CLAUDE_PLUGIN_ROOT}/skills/debug-everything/docs/debug-active-marker-schema.md`
+
+<!-- TODO: register phases B/F/G/K in af26 forbidden-action registry when af26-dd5a-df6d-4f81 closes (see story 1473) -->
 
 ### Step 2: BUG-FIX MODE GATE — Skip Diagnostics If Open Bugs Exist (/dso:debug-everything)
 
@@ -268,7 +323,7 @@ The sub-agent returns: the path to the diagnostic file + a ≤15-line summary (c
 
 ---
 
-## Bug-Fix Mode (/dso:debug-everything)
+## Bug-Fix Mode (/dso:debug-everything) — sub-branch routing: ci-pr mode commits fix-bug output to current sub-branch; local mode commits to session branch
 
 **Entry condition**: Open bug tickets detected in Step 2 (`OPEN_BUG_COUNT > 0`).
 
@@ -297,6 +352,17 @@ Companion guards: f9b5-213b (Phase K premature shutdown drift). All three drift 
 
 <COMPACTION_RESUME>
 **If resuming after an auto-compact event in Bug-Fix Mode**: re-establish `OPEN_BUG_COUNT` (canonical bash, see step 1 below — never filter `ticket list --type=bug` output via Python `t.get('type') == 'bug'` because `--type=bug` strips the `type` field), re-read `$PLUGIN_ROOT/skills/fix-bug/SKILL.md` inline, and let fix-bug resume itself from its own most recent CHECKPOINT comment. Fix-bug owns its per-ticket compaction-resume protocol — do not duplicate that logic here. After the in-progress ticket completes, do NOT stop — re-query remaining open and in_progress bugs and continue processing them in priority order. Compaction that triggered this resume is historical state, not a Phase K shutdown trigger.
+
+**Sub-branch recovery (ci-pr mode)**: After compaction detection, before any commit or fix-bug dispatch, read the most-recent `DEBUG_BRANCH_TRACKING:` comment to recover the active sub-branch:
+
+```bash
+_tracking=$(.claude/scripts/dso ticket comment-list <epic-id> 2>/dev/null | grep '^DEBUG_BRANCH_TRACKING: ' | tail -1)
+```
+
+Parser uses exact-prefix match: `'DEBUG_BRANCH_TRACKING: '` (note the trailing space) — NOT substring match; does NOT match `WORKTREE_TRACKING:` or any other sprint anchor. This exact-prefix isolation is a regression test requirement: the parser must not accidentally match sprint WORKTREE_TRACKING: comments.
+
+- If found: parse `sub_branch=<name>` from `_tracking` and checkout that branch before any work.
+- If not found: proceed on session branch (no active sub-branch to recover).
 </COMPACTION_RESUME>
 
 ### Bug-Fix Mode Execution
@@ -339,6 +405,14 @@ Begin the loop. Process each ticket via `/dso:fix-bug` per the steps below. Cont
 
    **After the fix sub-agent returns** — when `DISPATCH_ISOLATION=true`, follow `skills/shared/prompts/single-agent-integrate.md` to integrate the sub-agent's worktree changes onto the session branch. When `DISPATCH_ISOLATION=false`, no integration step is needed.
 
+   **Sub-branch commit routing (Bug-Fix Mode)**:
+   - **ci-pr mode**: changes are committed to the current sub-branch (not the session branch). Resolve current sub-branch from the most-recent DEBUG_BRANCH_TRACKING: anchor (per S7 COMPACTION_RESUME pattern):
+     ```bash
+     _branch=$(.claude/scripts/dso ticket comment-list <epic-id> | grep "^DEBUG_BRANCH_TRACKING: " | tail -1 | sed "s/DEBUG_BRANCH_TRACKING: sub_branch=\([^ ]*\).*/\1/")
+     ```
+     If `_branch` is non-empty, commit fix-bug output to that sub-branch. If empty, create a new sub-branch and record a `DEBUG_BRANCH_TRACKING: sub_branch=<name>` tracking comment before committing.
+   - **local mode** (DEBUG_MODE=direct or absent): commit fix-bug output to the session branch directly (no sub-branch).
+
 3. **Error handling**: If `/dso:fix-bug` fails for a ticket (unrecoverable error, repeated failure, or explicit escalation), write a CHECKPOINT note and continue to the next ticket:
 
    ```bash
@@ -346,6 +420,13 @@ Begin the loop. Process each ticket via `/dso:fix-bug` per the steps below. Cont
    ```
 
    Do NOT abort Bug-Fix Mode when a single ticket fails — process all remaining tickets.
+
+   After each fix-bug invocation (whether it succeeded or failed), run session-leakage detection (non-fatal):
+   ```bash
+   STORY_BRANCH_PREFIX=bug-batch/ bash "$PLUGIN_SCRIPTS/detect-session-leakage.sh" 2>&1 || true
+   ```
+
+   **Closed-bug-trailer race protection**: When a sub-agent commit references a ticket closed during parallel batch execution, the commit's DSO-Bug: trailer references a closed ticket. Route to --force-route-to-pending state: log SHA + closed-ticket-id and flag for post-session manual attribution rather than stalling integration. This is the closed-bug-trailer race condition; handle it gracefully without aborting the loop.
 
 4. **After all bug tickets have been attempted**, run the **Between-Batch GHA Refresh** before proceeding to Validation Mode.
 
@@ -624,7 +705,42 @@ Within each tier, group independent fixes into batches sized by the `MAX_AGENTS`
 
 ---
 
-## Phase F: Auto-Fix Sub-Agent (Tiers 0-1) (/dso:debug-everything)
+## Phase F: Auto-Fix Sub-Agent (Tiers 0-1) — one sub-branch per tier (ci-pr mode) (/dso:debug-everything)
+
+### Sub-Branch Creation (ci-pr mode only — when DEBUG_MODE=pr)
+
+Phase F creates exactly one sub-branch per tier that produces changes. Tiers: Tier 0 (format/make format) and Tier 1 (lint/ruff --fix).
+
+- Branch naming: `bug-batch/<debug-session-id>/tier-0` and `bug-batch/<debug-session-id>/tier-1`
+- Use direct `git checkout -b bug-batch/<debug-session-id>/tier-<N>` (create-story-branch.sh appends /<epic>/<story> and cannot produce tier branch names)
+- When a tier has 0 bugs/changes: no sub-branch is created AND no annotation is added to the aggregate draft PR for that tier (zero-bug tier skip)
+- Apply all tier changes on the sub-branch and merge into the session branch before moving to the next tier
+- After creating the sub-branch, record a tracking comment (batch=0 for Phase F's single batches):
+  ```
+  .claude/scripts/dso ticket comment <epic-id> "DEBUG_BRANCH_TRACKING: sub_branch=<name> tier=<N> batch=0 timestamp=<UTC>"
+  ```
+
+In local mode (DEBUG_MODE=direct or absent): no sub-branch created; commit directly to session branch.
+
+### Per-Sub-Branch Review Orchestration (ci-pr mode only — Phase F)
+
+After each sub-branch is created and changes committed in ci-pr mode, run the per-sub-branch review block before merging:
+
+1. **Invoke `/dso:review`** (sub-agent dispatch) scoped to the sub-branch diff against the session branch.
+<!-- TODO: hermetic-repro (99f1-153c) fires before per-sub-branch review dispatch when 99f1 closes (see story 50a7) -->
+2. **Run `validate-review-output.sh`** schema validation against `reviewer-findings.json`; on schema failure, treat it as a review failure and trigger re-dispatch (schema failures are treated like review failures).
+3. **Autonomous resolution loop**: `max = max(1, review.max_resolution_attempts)` — when `max_resolution_attempts=0`, apply floor-guard: `floor` of 1 attempt applies; log warning `'floor-guard: using min 1 attempt'` (floor near `max_resolution_attempts` floor).
+4. **Return discriminated review outcome** for this sub-branch:
+   - `MERGED`: all findings resolved; merge sub-branch into session branch.
+   - `ESCALATED`: resolution loop exhausted; do NOT merge; write `SUBBRANCH_ESCALATED: <sub-branch> reason=<...>` ticket comment FIRST (ticket comment is the authoritative source of truth — COMPACTION_RESUME reconciles PR annotation from ticket comments on resume), then update aggregate draft PR `BLOCKED_SUBBRANCHES:` annotation SECOND; continue to next sub-branch (ESCALATED does not halt the tier loop — loop continues to next sub-branch after ESCALATED).
+   - `ERROR`: schema validation failed after re-dispatch exhaustion; same as ESCALATED handling but `reason=schema-validation-error`; write `SUBBRANCH_ESCALATED: <sub-branch> reason=schema-validation-error` ticket comment, then update `BLOCKED_SUBBRANCHES:` annotation; continue to next sub-branch.
+
+`ESCALATED` does NOT halt the tier loop — Phase F continues to the next sub-branch. Per-sub-branch review outcomes (`MERGED`, `ESCALATED`, `ERROR`) determine merge eligibility independently for each sub-branch.
+
+After each batch merge in Phase F, run session-leakage detection (non-fatal):
+```bash
+STORY_BRANCH_PREFIX=bug-batch/ bash "$PLUGIN_SCRIPTS/detect-session-leakage.sh" 2>&1 || true
+```
 
 ### Launch Auto-Fix Sub-Agent
 
@@ -644,7 +760,47 @@ Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/auto-fix.md
 
 ---
 
-## Phase G: Sub-Agent Fix Batches (/dso:debug-everything)
+## Phase G: Sub-Agent Fix Batches — DEBUG_BRANCH_TRACKING written per sub-branch (/dso:debug-everything)
+
+### Sub-Branch Chunking (ci-pr mode only — when DEBUG_MODE=pr)
+
+In ci-pr mode, Phase G chunks Tier 2–7 bugs into sub-branches of at most 5 bugs each, preserving tier ordering. Branch naming: `bug-batch/<debug-session-id>/tier-<N>-batch-<K>` (e.g., `tier-3-batch-1`, `tier-3-batch-2`).
+
+**Chunking algorithm**: tier-first ordering, then chunk each tier's bugs into groups of ≤5 bugs per sub-branch.
+
+**File-conflict split**: when two bugs in the same tier-batch modify the same file, split them into separate sub-branches (still ≤5 per branch); splitting is iterative until no file conflicts remain within a batch. This file-conflict split produces additional sub-branches as needed.
+
+**Large-fix exception**: a single bug whose estimated diff exceeds 500 lines (>500 lines) gets its own sub-branch with a `-large` suffix (e.g., `tier-3-large`). PRECEDENCE: large-fix exception wins over file-conflict split — a >500-line bug is routed to `-large` and removed from any file-conflict consideration. The large-fix takes precedence before conflict resolution applies.
+
+**Serialized integration**: the orchestrator MUST serialize sub-agent integration into the shared sub-branch ref — no concurrent push; dispatch one sub-agent at a time for integration, or use a lock mechanism. This prevents race conditions on shared refs.
+
+After creating each sub-branch, record a tracking comment using the actual batch index K:
+```
+.claude/scripts/dso ticket comment <epic-id> "DEBUG_BRANCH_TRACKING: sub_branch=<name> tier=<N> batch=<K> timestamp=<UTC>"
+```
+
+In local mode: commit directly to session branch (sub-branch chunking does not apply).
+
+### Per-Sub-Branch Review Orchestration (ci-pr mode only — Phase G)
+
+After each sub-branch is created and changes committed in ci-pr mode, run the per-sub-branch review block before merging:
+
+1. **Invoke `/dso:review`** (sub-agent dispatch) scoped to the sub-branch diff against the session branch.
+2. **Run `validate-review-output.sh`** schema validation against `reviewer-findings.json`; on schema failure, treat it as a review failure and trigger re-dispatch (schema failures are treated like review failures).
+3. **Autonomous resolution loop**: `max = max(1, review.max_resolution_attempts)` — when `max_resolution_attempts=0`, apply floor-guard: `floor` of 1 attempt applies; log warning `'floor-guard: using min 1 attempt'` (floor near `max_resolution_attempts` floor).
+4. **Return discriminated review outcome** for this sub-branch:
+   - `MERGED`: all findings resolved; merge sub-branch into session branch.
+   - `ESCALATED`: resolution loop exhausted; do NOT merge; write `SUBBRANCH_ESCALATED: <sub-branch> reason=<...>` ticket comment FIRST (ticket comment is the authoritative source of truth — COMPACTION_RESUME reconciles PR annotation from ticket comments on resume), then update aggregate draft PR `BLOCKED_SUBBRANCHES:` annotation SECOND; continue to next sub-branch (ESCALATED does not halt the tier loop — loop continues to next sub-branch after ESCALATED).
+   - `ERROR`: schema validation failed after re-dispatch exhaustion; same as ESCALATED handling but `reason=schema-validation-error`; write `SUBBRANCH_ESCALATED: <sub-branch> reason=schema-validation-error` ticket comment, then update `BLOCKED_SUBBRANCHES:` annotation; continue to next sub-branch.
+
+`ESCALATED` does NOT halt the tier loop — Phase G continues to the next sub-branch. Per-sub-branch review outcomes (`MERGED`, `ESCALATED`, `ERROR`) determine merge eligibility independently for each sub-branch.
+
+After each batch merge in Phase G, run session-leakage detection (non-fatal):
+```bash
+STORY_BRANCH_PREFIX=bug-batch/ bash "$PLUGIN_SCRIPTS/detect-session-leakage.sh" 2>&1 || true
+```
+
+---
 
 For remaining failures (Tiers 2–7), launch sub-agent batches by executing `prompts/dispatch-fix-batch.md`. That prompt covers:
 
@@ -914,6 +1070,14 @@ No other entry to Phase K is valid. In particular: "context usage feels high", "
    .claude/scripts/dso ticket transition <epic-id> open closed
    ```
    Discovery cleanup failure is non-fatal; log a warning and continue with lock release.
+
+   Run the final session-leakage sweep before removing the .debug-active marker:
+   ```bash
+   STORY_BRANCH_PREFIX=bug-batch/ bash "$PLUGIN_SCRIPTS/detect-session-leakage.sh" 2>&1 || true
+   ```
+   ```bash
+   rm -f "$(git rev-parse --show-toplevel)/.debug-active" 2>/dev/null || true
+   ```
 2. Proceed to **Phase L** (Merge to Main & Verify).
 
 ### On Graceful Shutdown
@@ -924,6 +1088,9 @@ No other entry to Phase K is valid. In particular: "context usage feels high", "
    $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh lock-release <lock-id> "Graceful shutdown — work remains"  # shim-exempt: internal orchestration script
    ```
    Discovery cleanup failure is non-fatal; log a warning and continue with lock release.
+   ```bash
+   rm -f "$(git rev-parse --show-toplevel)/.debug-active" 2>/dev/null || true
+   ```
 2. Do NOT launch new sub-agents.
 3. Stage modifications via `git status --short` (do NOT run a full test/lint pass — `make test-unit-only` exceeds the tool timeout ceiling per CLAUDE.md "Never Do These" rule 19; the post-batch validation sub-agent in Phase H has already validated this batch).
 4. Commit checkpoint:
