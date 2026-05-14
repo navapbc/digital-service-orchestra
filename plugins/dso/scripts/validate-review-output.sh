@@ -229,10 +229,56 @@ fi
 # warning during transition to severity-only schema (story 6c75-cc5d → f19a-c97e).
 validate_code_review_dispatch() {
     local file="$1"
-    python3 - "$file" <<'PYEOF'
-import sys, json
+    python3 - "$file" "$_PLUGIN_ROOT" <<'PYEOF'
+import sys, json, os, re
 
 output_file = sys.argv[1]
+plugin_root = sys.argv[2] if len(sys.argv) > 2 else ""
+
+# Absence-claim anchor loading is deferred until we know whether any finding
+# contains absence language. This avoids fail-closed behavior when the anchors
+# file has not yet been deployed (pre-merge worktree dev). If a finding's
+# description matches an absence anchor and the anchors file is missing/malformed,
+# we fail-closed at that point.
+# See ${CLAUDE_PLUGIN_ROOT}/docs/contracts/absence-claim-anchors.json.
+_anchors_path = os.path.join(plugin_root, "docs", "contracts", "absence-claim-anchors.json")
+_absence_anchors = None   # None = not yet loaded; [] = loaded and empty
+_absence_prefix_patterns = []
+
+def _load_anchors():
+    """Load absence-claim anchors fail-closed. Call only when absence-language is detected."""
+    global _absence_anchors, _absence_prefix_patterns
+    if _absence_anchors is not None:
+        return  # already loaded
+    try:
+        with open(_anchors_path) as _af:
+            _anchors_data = json.load(_af)
+        _absence_anchors = _anchors_data.get("anchors", [])
+        _absence_prefix_patterns = _anchors_data.get("anchors_prefix_patterns", [])
+    except FileNotFoundError:
+        print(f"ERROR: absence-claim-anchors.json not found at {_anchors_path} (fail-closed)", file=sys.stderr)
+        sys.exit(1)
+    except json.JSONDecodeError as _je:
+        print(f"ERROR: absence-claim-anchors.json is malformed: {_je} (fail-closed)", file=sys.stderr)
+        sys.exit(1)
+
+def _is_absence_claim(description):
+    """Check if description contains absence language; loads anchors fail-closed on first call."""
+    # Quick pre-screen before loading anchors file
+    _QUICK_ANCHORS = ["not exist", "not found", "not defined", "not present", "missing",
+                      "is absent", "has no", "lacks", "undefined", "not implemented"]
+    desc_lower = description.lower()
+    if not any(a in desc_lower for a in _QUICK_ANCHORS) and not description.startswith(("Missing ", "No ")):
+        return False
+    _load_anchors()
+    for anchor in _absence_anchors:
+        if anchor in description:
+            return True
+    for pattern in _absence_prefix_patterns:
+        if re.match(pattern, description):
+            return True
+    return False
+
 with open(output_file) as f:
     try:
         data = json.load(f)
@@ -350,6 +396,22 @@ else:
                         f"{prefix}.reachability: must be at least 20 non-whitespace characters "
                         f"(got {len(reach.strip())}); explain the reachable execution path"
                     )
+        # Absence-claim detection: if description contains absence language, check that
+        # verification_evidence is present. Load anchors fail-closed on first match.
+        # See ${CLAUDE_PLUGIN_ROOT}/docs/contracts/absence-claim-anchors.json.
+        desc = finding.get("description", "")
+        if isinstance(desc, str) and _is_absence_claim(desc):
+            ve = finding.get("verification_evidence")
+            if ve is None:
+                errors.append(
+                    f"{prefix}: finding description contains absence language but 'verification_evidence' "
+                    f"is missing (add command + output fields showing the absence was verified)"
+                )
+            elif isinstance(ve, dict):
+                if "command" not in ve:
+                    errors.append(f"{prefix}.verification_evidence: missing required field 'command'")
+                if "output" not in ve:
+                    errors.append(f"{prefix}.verification_evidence: missing required field 'output'")
 
 # Validate summary
 summary = data.get("summary")
