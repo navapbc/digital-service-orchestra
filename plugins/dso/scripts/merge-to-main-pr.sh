@@ -1044,6 +1044,20 @@ _phase_resolve_threads() {
             fi
         fi
 
+        # Fast-path: zero threads, none ever observed, and no LLM dispatch needed.
+        # _pr_settling_check requires quiet_elapsed=true even for threads=0, but that
+        # is only meaningful after threads have been seen and resolved. A fresh PR with
+        # no threads has nothing to wait for. We gate on _llm_cmd being empty because
+        # when an LLM dispatcher is available the loop continues (e.g., to detect SHA
+        # changes via _pr_handle_head_sha_reset). Bug 1d42-ffcb.
+        if (( _threads_count == 0 && _last_thread_seen_ts == 0 )) && [[ -z "$_llm_cmd" ]]; then
+            echo "INFO: PR #${_pr_number} has no review threads; resolve complete."
+            if type _state_mark_complete >/dev/null 2>&1; then
+                _state_mark_complete "resolve_threads" 2>/dev/null || true
+            fi
+            return 0
+        fi
+
         # Build comma-separated unresolved (non-escalated) thread IDs for ESCALATE messages.
         local _unresolved_ids="" _entry
         for _entry in "${_threads_arr[@]:-}"; do

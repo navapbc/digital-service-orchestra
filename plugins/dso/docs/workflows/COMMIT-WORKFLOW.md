@@ -101,15 +101,7 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 **If `SKIP_REVIEW` is true**: Skip all of `commit-workflow-validation.md` entirely. Emit `.skipped` markers so the compliance verifier does not block the commit (bug 9780-b0d7 — without these markers the verifier cannot distinguish "skipped intentionally" from "never ran"):
 
 ```bash
-source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
-ARTIFACTS_DIR=$(get_artifacts_dir)
-mkdir -p "$ARTIFACTS_DIR"
-.claude/scripts/dso commit-step skip test "SKIP_REVIEW=true (non-reviewable files only)"
-.claude/scripts/dso commit-step skip format "SKIP_REVIEW=true (non-reviewable files only)"
-.claude/scripts/dso commit-step skip lint "SKIP_REVIEW=true (non-reviewable files only)"
-.claude/scripts/dso commit-step skip classifier-dispatch "SKIP_REVIEW=true (non-reviewable files only)"
-.claude/scripts/dso commit-step skip reviewer-record "SKIP_REVIEW=true (non-reviewable files only)"
-echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-2-skip-review-skipped-markers" >> "$ARTIFACTS_DIR/commit-breadcrumbs.log"
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/commit-emit-skip-markers.sh" "SKIP_REVIEW=true (non-reviewable files only)"  # shim-exempt: internal orchestration script
 ```
 
 Go directly to Step 5 (Stage).
@@ -147,14 +139,7 @@ if [[ "$ENFORCEMENT_STRATEGY" == "ci" ]]; then
 
     # Emit .skipped markers so the compliance verifier does not block the commit.
     # The verifier requires exactly these 5 artifacts (as .result or .skipped).
-    source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
-    ARTIFACTS_DIR=$(get_artifacts_dir)
-    mkdir -p "$ARTIFACTS_DIR"
-    .claude/scripts/dso commit-step skip test "enforcement.strategy=ci"
-    .claude/scripts/dso commit-step skip format "enforcement.strategy=ci"
-    .claude/scripts/dso commit-step skip lint "enforcement.strategy=ci"
-    .claude/scripts/dso commit-step skip classifier-dispatch "enforcement.strategy=ci"
-    .claude/scripts/dso commit-step skip reviewer-record "enforcement.strategy=ci"
+    bash "${CLAUDE_PLUGIN_ROOT}/scripts/commit-emit-skip-markers.sh" "enforcement.strategy=ci"  # shim-exempt: internal orchestration script
 fi
 ```
 

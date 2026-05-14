@@ -1120,7 +1120,9 @@ def test_runner_posts_pr_review_when_findings(tmp_path):
         _run_main_with(diff_file, out, findings, env_extra=env_extra)
 
     gh_calls = [c for c in captured_calls if isinstance(c, list) and c and c[0] == "gh"]
-    reviews_api_calls = [c for c in gh_calls if "api" in c and "/reviews" in " ".join(str(x) for x in c)]
+    reviews_api_calls = [
+        c for c in gh_calls if "api" in c and "/reviews" in " ".join(str(x) for x in c)
+    ]
     issue_comment_calls = [c for c in gh_calls if "pr" in c and "comment" in c]
 
     assert len(reviews_api_calls) == 1, (
@@ -1130,7 +1132,9 @@ def test_runner_posts_pr_review_when_findings(tmp_path):
         f"Anchored findings must NOT use gh pr comment; got: {issue_comment_calls!r}"
     )
 
-    reviews_call_idx = next(i for i, c in enumerate(captured_calls) if c in reviews_api_calls)
+    reviews_call_idx = next(
+        i for i, c in enumerate(captured_calls) if c in reviews_api_calls
+    )
     body = _json.loads(captured_inputs[reviews_call_idx])
     assert len(body.get("comments", [])) == len(findings), (
         f"Reviews API body must contain {len(findings)} comments; got {body.get('comments')!r}"
@@ -1181,8 +1185,14 @@ def test_runner_partial_post_failure_continues_remaining_findings(tmp_path):
         from subprocess import CalledProcessError, CompletedProcess
 
         # Make the Reviews API call fail (simulate 422 / path not in diff)
-        if isinstance(cmd, list) and "api" in cmd and "/reviews" in " ".join(str(x) for x in cmd):
-            raise CalledProcessError(returncode=1, cmd=cmd, output="", stderr="422 Unprocessable Entity")
+        if (
+            isinstance(cmd, list)
+            and "api" in cmd
+            and "/reviews" in " ".join(str(x) for x in cmd)
+        ):
+            raise CalledProcessError(
+                returncode=1, cmd=cmd, output="", stderr="422 Unprocessable Entity"
+            )
         return CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
 
     env_extra = {
@@ -1202,7 +1212,9 @@ def test_runner_partial_post_failure_continues_remaining_findings(tmp_path):
         _run_main_with(diff_file, out, findings, env_extra=env_extra)
 
     gh_calls = [c for c in captured_calls if isinstance(c, list) and c and c[0] == "gh"]
-    reviews_api_calls = [c for c in gh_calls if "api" in c and "/reviews" in " ".join(str(x) for x in c)]
+    reviews_api_calls = [
+        c for c in gh_calls if "api" in c and "/reviews" in " ".join(str(x) for x in c)
+    ]
     issue_comment_calls = [c for c in gh_calls if "pr" in c and "comment" in c]
 
     assert len(reviews_api_calls) == 1, (
@@ -1225,9 +1237,24 @@ def test_post_pr_review_uses_reviews_api_for_anchored_findings(tmp_path):
     import dso_ci_review.runner as runner_mod
 
     findings = [
-        {"severity": "important", "category": "correctness", "description": "fix A", "cited_lines": ["foo.py:1"]},
-        {"severity": "fragile", "category": "correctness", "description": "fix B", "cited_lines": ["foo.py:7"]},
-        {"severity": "critical", "category": "correctness", "description": "fix C", "cited_lines": ["foo.py:12"]},
+        {
+            "severity": "important",
+            "category": "correctness",
+            "description": "fix A",
+            "cited_lines": ["foo.py:1"],
+        },
+        {
+            "severity": "fragile",
+            "category": "correctness",
+            "description": "fix B",
+            "cited_lines": ["foo.py:7"],
+        },
+        {
+            "severity": "critical",
+            "category": "correctness",
+            "description": "fix C",
+            "cited_lines": ["foo.py:12"],
+        },
     ]
     captured_calls = []
     captured_inputs = []
@@ -1236,6 +1263,7 @@ def test_post_pr_review_uses_reviews_api_for_anchored_findings(tmp_path):
         captured_calls.append(cmd)
         captured_inputs.append(kwargs.get("input", ""))
         from subprocess import CompletedProcess
+
         return CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
 
     env_extra = {
@@ -1253,12 +1281,15 @@ def test_post_pr_review_uses_reviews_api_for_anchored_findings(tmp_path):
     with patch.object(runner_mod, "subprocess", create=True) as mock_subprocess:
         mock_subprocess.run.side_effect = _capture_run
         import subprocess as _real_subprocess
+
         mock_subprocess.CalledProcessError = _real_subprocess.CalledProcessError
         mock_subprocess.TimeoutExpired = _real_subprocess.TimeoutExpired
         _run_main_with(diff_file, out, findings, env_extra=env_extra)
 
     gh_calls = [c for c in captured_calls if isinstance(c, list) and c and c[0] == "gh"]
-    reviews_api_calls = [c for c in gh_calls if "api" in c and "/reviews" in " ".join(str(x) for x in c)]
+    reviews_api_calls = [
+        c for c in gh_calls if "api" in c and "/reviews" in " ".join(str(x) for x in c)
+    ]
     issue_comment_calls = [c for c in gh_calls if "pr" in c and "comment" in c]
 
     assert len(reviews_api_calls) == 1, (
@@ -1272,9 +1303,12 @@ def test_post_pr_review_uses_reviews_api_for_anchored_findings(tmp_path):
     )
 
     # Verify the reviews API body has all 3 comments
-    reviews_call_idx = next(i for i, c in enumerate(captured_calls) if c in reviews_api_calls)
+    reviews_call_idx = next(
+        i for i, c in enumerate(captured_calls) if c in reviews_api_calls
+    )
     body_json = captured_inputs[reviews_call_idx]
     import json as _json
+
     body = _json.loads(body_json)
     assert body.get("commit_id") == "abc123headsha", f"commit_id mismatch: {body!r}"
     assert body.get("event") == "COMMENT", f"event mismatch: {body!r}"
@@ -1285,7 +1319,9 @@ def test_post_pr_review_uses_reviews_api_for_anchored_findings(tmp_path):
     for i, comment in enumerate(body["comments"]):
         assert "path" in comment, f"comment[{i}] missing path: {comment!r}"
         assert "line" in comment, f"comment[{i}] missing line: {comment!r}"
-        assert comment.get("side") == "RIGHT", f"comment[{i}] side must be RIGHT: {comment!r}"
+        assert comment.get("side") == "RIGHT", (
+            f"comment[{i}] side must be RIGHT: {comment!r}"
+        )
         assert f"finding {i + 1}/3" in comment.get("body", ""), (
             f"comment[{i}] body missing finding index marker: {comment.get('body')!r:.200}"
         )
@@ -1300,8 +1336,18 @@ def test_post_pr_review_falls_back_to_issue_comment_for_unanchorable(tmp_path):
     import dso_ci_review.runner as runner_mod
 
     findings = [
-        {"severity": "important", "category": "correctness", "description": "anchored", "cited_lines": ["bar.py:5"]},
-        {"severity": "important", "category": "correctness", "description": "no anchor", "cited_lines": []},
+        {
+            "severity": "important",
+            "category": "correctness",
+            "description": "anchored",
+            "cited_lines": ["bar.py:5"],
+        },
+        {
+            "severity": "important",
+            "category": "correctness",
+            "description": "no anchor",
+            "cited_lines": [],
+        },
     ]
     captured_calls = []
     captured_inputs = []
@@ -1310,6 +1356,7 @@ def test_post_pr_review_falls_back_to_issue_comment_for_unanchorable(tmp_path):
         captured_calls.append(cmd)
         captured_inputs.append(kwargs.get("input", ""))
         from subprocess import CompletedProcess
+
         return CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
 
     env_extra = {
@@ -1327,12 +1374,15 @@ def test_post_pr_review_falls_back_to_issue_comment_for_unanchorable(tmp_path):
     with patch.object(runner_mod, "subprocess", create=True) as mock_subprocess:
         mock_subprocess.run.side_effect = _capture_run
         import subprocess as _real_subprocess
+
         mock_subprocess.CalledProcessError = _real_subprocess.CalledProcessError
         mock_subprocess.TimeoutExpired = _real_subprocess.TimeoutExpired
         _run_main_with(diff_file, out, findings, env_extra=env_extra)
 
     gh_calls = [c for c in captured_calls if isinstance(c, list) and c and c[0] == "gh"]
-    reviews_api_calls = [c for c in gh_calls if "api" in c and "/reviews" in " ".join(str(x) for x in c)]
+    reviews_api_calls = [
+        c for c in gh_calls if "api" in c and "/reviews" in " ".join(str(x) for x in c)
+    ]
     issue_comment_calls = [c for c in gh_calls if "pr" in c and "comment" in c]
 
     assert len(reviews_api_calls) == 1, (
@@ -1352,14 +1402,25 @@ def test_post_pr_review_falls_back_when_head_sha_unresolvable(tmp_path):
     import dso_ci_review.runner as runner_mod
 
     findings = [
-        {"severity": "important", "category": "correctness", "description": "finding 1", "cited_lines": ["a.py:10"]},
-        {"severity": "important", "category": "correctness", "description": "finding 2", "cited_lines": ["b.py:20"]},
+        {
+            "severity": "important",
+            "category": "correctness",
+            "description": "finding 1",
+            "cited_lines": ["a.py:10"],
+        },
+        {
+            "severity": "important",
+            "category": "correctness",
+            "description": "finding 2",
+            "cited_lines": ["b.py:20"],
+        },
     ]
     captured_calls = []
 
     def _capture_run(cmd, *args, **kwargs):
         captured_calls.append(cmd)
         from subprocess import CompletedProcess
+
         # Return empty stdout for headRefOid lookup
         return CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
 
@@ -1378,12 +1439,15 @@ def test_post_pr_review_falls_back_when_head_sha_unresolvable(tmp_path):
     with patch.object(runner_mod, "subprocess", create=True) as mock_subprocess:
         mock_subprocess.run.side_effect = _capture_run
         import subprocess as _real_subprocess
+
         mock_subprocess.CalledProcessError = _real_subprocess.CalledProcessError
         mock_subprocess.TimeoutExpired = _real_subprocess.TimeoutExpired
         _run_main_with(diff_file, out, findings, env_extra=env_extra)
 
     gh_calls = [c for c in captured_calls if isinstance(c, list) and c and c[0] == "gh"]
-    reviews_api_calls = [c for c in gh_calls if "api" in c and "/reviews" in " ".join(str(x) for x in c)]
+    reviews_api_calls = [
+        c for c in gh_calls if "api" in c and "/reviews" in " ".join(str(x) for x in c)
+    ]
     issue_comment_calls = [c for c in gh_calls if "pr" in c and "comment" in c]
 
     assert not reviews_api_calls, (
@@ -1418,6 +1482,7 @@ def test_post_pr_review_handles_range_cited_lines(tmp_path):
         captured_calls.append(cmd)
         captured_inputs.append(kwargs.get("input", ""))
         from subprocess import CompletedProcess
+
         return CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
 
     env_extra = {
@@ -1435,19 +1500,28 @@ def test_post_pr_review_handles_range_cited_lines(tmp_path):
     with patch.object(runner_mod, "subprocess", create=True) as mock_subprocess:
         mock_subprocess.run.side_effect = _capture_run
         import subprocess as _real_subprocess
+
         mock_subprocess.CalledProcessError = _real_subprocess.CalledProcessError
         mock_subprocess.TimeoutExpired = _real_subprocess.TimeoutExpired
         _run_main_with(diff_file, out, findings, env_extra=env_extra)
 
     gh_calls = [c for c in captured_calls if isinstance(c, list) and c and c[0] == "gh"]
-    reviews_api_calls = [c for c in gh_calls if "api" in c and "/reviews" in " ".join(str(x) for x in c)]
+    reviews_api_calls = [
+        c for c in gh_calls if "api" in c and "/reviews" in " ".join(str(x) for x in c)
+    ]
 
-    assert len(reviews_api_calls) == 1, f"Expected 1 Reviews API call; got {reviews_api_calls!r}"
-    reviews_call_idx = next(i for i, c in enumerate(captured_calls) if c in reviews_api_calls)
+    assert len(reviews_api_calls) == 1, (
+        f"Expected 1 Reviews API call; got {reviews_api_calls!r}"
+    )
+    reviews_call_idx = next(
+        i for i, c in enumerate(captured_calls) if c in reviews_api_calls
+    )
     body = _json.loads(captured_inputs[reviews_call_idx])
     comment = body["comments"][0]
     assert comment["path"] == "src/util.py", f"path mismatch: {comment!r}"
-    assert comment["line"] == 10, f"Expected start line 10 for range 10-25; got {comment['line']}"
+    assert comment["line"] == 10, (
+        f"Expected start line 10 for range 10-25; got {comment['line']}"
+    )
 
 
 def test_runner_skips_pr_post_on_push_event(tmp_path):
