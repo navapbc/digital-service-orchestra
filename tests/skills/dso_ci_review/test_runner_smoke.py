@@ -1568,8 +1568,6 @@ def test_runner_skips_pr_post_on_push_event(tmp_path):
 
 def test_runner_calls_dispatch_verifier(tmp_path) -> None:
     """dispatch_verifier must be called once per review run with the merged findings."""
-    import subprocess as _subprocess
-
     findings_path = tmp_path / "findings.json"
     diff = "--- a/foo.py\n+++ b/foo.py\n@@ -1 +1 @@\n-x = 1\n+x = 2\n"
     diff_file = tmp_path / "diff.txt"
@@ -1590,7 +1588,7 @@ def test_runner_calls_dispatch_verifier(tmp_path) -> None:
     ]
 
     with (
-        patch("dso_ci_review.dispatch.async_dispatch_specialists") as mock_dispatch,
+        patch("dso_ci_review.runner.async_dispatch_specialists") as mock_dispatch,
         patch("dso_ci_review.runner._classify_tier_via_bash") as mock_tier,
         patch("dso_ci_review.runner._validate_findings_schema") as mock_schema,
         patch("dso_ci_review.verifier.dispatch_verifier") as mock_verifier,
@@ -3706,7 +3704,10 @@ def test_validate_review_schema_hash_matches_script():
     import re
     import dso_ci_review.runner as runner_mod
 
-    validator_script = runner_mod._resolve_validator_script()
+    # Pass plugin_root explicitly so CLAUDE_PLUGIN_ROOT (which points to the main
+    # repo in worktree sessions) does not cause the test to read the wrong script.
+    _worktree_plugin_root = str(pathlib.Path(__file__).parents[3] / "plugins" / "dso")
+    validator_script = runner_mod._resolve_validator_script(plugin_root=_worktree_plugin_root)
     script_text = pathlib.Path(validator_script).read_text(encoding="utf-8")
 
     # Extract HASH_CODE_REVIEW_DISPATCH="<hex>" from the script
