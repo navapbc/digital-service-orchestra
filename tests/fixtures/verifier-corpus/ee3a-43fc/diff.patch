@@ -1,0 +1,11 @@
+--- a/src/handlers.py
++++ b/src/handlers.py
+@@ -1,5 +1,8 @@
+ import logging
++from src.utils import process_event
+
+ def handle_request(payload):
+     logging.info("handling request")
+-    return {}
++    result = process_event(payload)
++    return result

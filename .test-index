@@ -457,3 +457,4 @@ plugins/dso/agents/code-reviewer-security-blue-team.md:tests/agents/test-verific
 plugins/dso/docs/contracts/reviewer-findings.md:tests/scripts/test-record-review-verifier-fields.sh [test_reviewer_findings_contract_lists_verifier_status]
 plugins/dso/scripts/record-review.sh:tests/scripts/test-record-review-verifier-fields.sh [test_reviewer_findings_contract_lists_verifier_status]
 plugins/dso/scripts/dso_ci_review/verifier.py:tests/skills/dso_ci_review/test_verifier_feature_flag.py [test_verifier_disabled_by_default_skips_dispatch]
+tests/fixtures/verifier-corpus/ee3a-43fc/expected_ruling.json:tests/verifier-corpus-replay-test.sh [test_corpus_fixture_ee3a_exists] [test_corpus_fixture_b2ef_exists] [test_corpus_fixture_9e84_exists]

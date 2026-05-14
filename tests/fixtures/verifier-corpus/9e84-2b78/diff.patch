@@ -1,0 +1,12 @@
+--- /dev/null
++++ b/.coderabbit.yaml
+@@ -0,0 +1,8 @@
++version: "2"
++reviews:
++  profile: chill
++  request_changes_workflow: false
++  high_level_summary: true
++  poem: false
++  collapse_walkthrough: true
++  path_filters:
++    - "!**/node_modules/**"
