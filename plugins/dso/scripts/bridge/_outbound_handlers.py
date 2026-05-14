@@ -650,8 +650,12 @@ def handle_comment_event(
         return []
 
     event_uuid = event_data.get("uuid", "")
-    comment_body = event_data.get("data", {}).get("body", "")
+    comment_body = event_data.get("data", {}).get("body") or ""
     event_env_id = event_data.get("env_id", "")
+
+    # Never post WORKTREE_TRACKING: internal housekeeping comments to Jira (dc75-9b69).
+    if comment_body.startswith("WORKTREE_TRACKING:"):
+        return []
 
     if event_env_id == bridge_env_id:
         return []

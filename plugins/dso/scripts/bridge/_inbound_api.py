@@ -32,6 +32,7 @@ _JIRA_PRIORITY_TO_LOCAL: dict[str, int] = {
 
 # Type hierarchy: lower index = higher rank.
 _TYPE_HIERARCHY = ["epic", "story", "task", "chore", "bug"]
+_TEST_SUMMARY_EXACT = {"test", "test task", "test story", "test epic", "test bug"}
 
 
 def fetch_jira_changes(
@@ -146,7 +147,7 @@ def write_create_events(
         if not heal_sentinel.exists():
             healed_any_missing = False
             for ticket_dir in tickets_tracker.iterdir():
-                if not ticket_dir.is_dir() or not ticket_dir.name.startswith("jira-"):
+                if not ticket_dir.is_dir() or ticket_dir.name.startswith("."):
                     continue
                 if has_existing_sync(ticket_dir):
                     continue
@@ -234,6 +235,24 @@ def write_create_events(
         # local_id encoding mirrors the CREATE branch below.
         candidate_dir = tickets_tracker / f"jira-{jira_key.lower()}"
         if has_existing_sync(candidate_dir):
+            continue
+
+        # Skip test-pollution and placeholder issues (fb8e-9022).
+        raw_fields_pre = issue.get("fields") or {}
+        raw_labels = raw_fields_pre.get("labels") or []
+        if any(str(lbl).lower() == "bridge-test" for lbl in raw_labels):
+            logging.warning(
+                "write_create_events: skipping %s — bridge-test label present",
+                jira_key,
+            )
+            continue
+        _raw_summary_normalized = (raw_fields_pre.get("summary") or "").strip().lower()
+        if _raw_summary_normalized in _TEST_SUMMARY_EXACT:
+            logging.warning(
+                "write_create_events: skipping %s — test-pollution summary %r",
+                jira_key,
+                _raw_summary_normalized,
+            )
             continue
 
         # Skip if a native DSO epic with the same title already exists (b0ee-5e8a).
