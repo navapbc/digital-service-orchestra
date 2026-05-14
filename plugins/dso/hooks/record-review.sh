@@ -274,6 +274,8 @@ fi
 # Read summary, findings, and files from the sub-agent's findings file.
 # Derives STATUS from findings[].severity: critical/important/fragile = failed,
 # minor or empty findings = passed.
+# Forward-compat: verifier-injected fields (verifier_status, evidence_invalidated, fingerprint)
+# pass through without validation — unknown finding fields are tolerated.
 # Note: do NOT use || true here — we want to fail closed on Python errors.
 # Instead, temporarily disable set -e for this block to capture exit code.
 set +e

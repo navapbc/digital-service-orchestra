@@ -14,6 +14,15 @@ Public API
 - dispatch_verifier(findings, reviewed_sha) → list[dict]
     Entry point. Minor findings bypass the verifier. Critical/important/fragile
     findings are sent to _call_verifier_agent one at a time.
+    When _is_verifier_enabled() returns False, returns findings unchanged.
+- dispatch_verifier_with_telemetry(findings, reviewed_sha) → tuple[list, dict]
+    Like dispatch_verifier but also returns a telemetry counters dict.
+- _is_verifier_enabled() → bool
+    Reads review.verifier_enabled from dso-config.conf. Default: False.
+- _validate_failure_threshold(threshold) → None
+    Validates that threshold is in range (0.0, 1.0]. Raises ValueError if not.
+- _check_cascade_brake(failure_rate, in_scope_count) → bool
+    Returns True if cascade brake should activate.
 - _call_verifier_agent(finding, reviewed_sha) → VerifierResult
     Internal stub. Always mocked in tests. Raises NotImplementedError if called
     without a mock.
@@ -21,6 +30,7 @@ Public API
 
 from __future__ import annotations
 
+import subprocess
 from dataclasses import dataclass
 from typing import Optional
 
@@ -59,6 +69,45 @@ class VerifierResult:
     verifier_status: str
     evidence_invalidated: bool
     rationale: str
+
+
+# ---------------------------------------------------------------------------
+# Feature flag and configuration helpers
+# ---------------------------------------------------------------------------
+
+
+def _is_verifier_enabled() -> bool:
+    """Read review.verifier_enabled from dso-config.conf. Default: False."""
+    try:
+        result = subprocess.run(
+            [
+                "bash",
+                "-c",
+                "grep -m1 '^review.verifier_enabled=' ~/.claude/dso-config.conf 2>/dev/null || "
+                "find . -name 'dso-config.conf' -maxdepth 4 2>/dev/null | head -1 | "
+                "xargs grep -m1 '^review.verifier_enabled=' 2>/dev/null || echo ''",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        val = result.stdout.strip()
+        return val.endswith("=true") or val == "true"
+    except Exception:
+        return False
+
+
+def _validate_failure_threshold(threshold: float) -> None:
+    """Validate that threshold is in range (0.0, 1.0]. Raises ValueError if not."""
+    if threshold <= 0.0 or threshold > 1.0:
+        raise ValueError(
+            f"review.verifier_failure_threshold={threshold} out of range (0.0, 1.0]"
+        )
+
+
+def _check_cascade_brake(failure_rate: float, in_scope_count: int) -> bool:
+    """Return True if cascade brake should activate (failure_rate > 0.30 AND >= 5 findings)."""
+    return failure_rate > 0.30 and in_scope_count >= 5
 
 
 # ---------------------------------------------------------------------------
@@ -106,6 +155,9 @@ def dispatch_verifier(
 ) -> list[dict]:
     """Dispatch verifier checks for all non-minor findings.
 
+    When ``_is_verifier_enabled()`` returns False, findings are returned
+    unchanged without calling the verifier agent.
+
     Minor findings bypass the verifier entirely — they are returned as-is
     without a ``verifier_status`` field.
 
@@ -135,6 +187,9 @@ def dispatch_verifier(
         Processed findings. May be shorter than the input if any findings
         received a ``"drop"`` ruling.
     """
+    if not _is_verifier_enabled():
+        return list(findings)
+
     results: list[dict] = []
 
     for finding in findings:
@@ -174,3 +229,87 @@ def dispatch_verifier(
         results.append(annotated)
 
     return results
+
+
+def dispatch_verifier_with_telemetry(
+    findings: list[dict],
+    reviewed_sha: str,
+) -> tuple[list[dict], dict]:
+    """Like dispatch_verifier but also returns a telemetry counters dict.
+
+    When ``_is_verifier_enabled()`` returns False, findings are returned
+    unchanged with zeroed telemetry counters.
+
+    Returns
+    -------
+    tuple[list[dict], dict]
+        ``(processed_findings, telemetry)`` where telemetry keys are:
+        ``verifier_confirm_count``, ``verifier_downgrade_count``,
+        ``verifier_drop_count``, ``verifier_failure_rate``,
+        ``verifier_minor_finding_rate``, ``verifier_fingerprints``.
+    """
+    if not _is_verifier_enabled():
+        minor_count = sum(1 for f in findings if f.get("severity") == "minor")
+        minor_rate = minor_count / len(findings) if findings else 0.0
+        telemetry: dict = {
+            "verifier_confirm_count": 0,
+            "verifier_downgrade_count": 0,
+            "verifier_drop_count": 0,
+            "verifier_failure_rate": 0.0,
+            "verifier_minor_finding_rate": minor_rate,
+            "verifier_fingerprints": [],
+        }
+        return list(findings), telemetry
+
+    confirm_count = 0
+    downgrade_count = 0
+    drop_count = 0
+    failure_count = 0
+    fingerprints: list[str] = []
+
+    in_scope = [f for f in findings if f.get("severity") not in _BYPASS_SEVERITIES]
+    minor_count = len(findings) - len(in_scope)
+
+    result_findings: list[dict] = []
+
+    # Minor findings bypass verifier — returned as-is.
+    result_findings.extend(f for f in findings if f.get("severity") in _BYPASS_SEVERITIES)
+
+    for finding in in_scope:
+        try:
+            ruling = _call_verifier_agent(finding, reviewed_sha=reviewed_sha)
+            fingerprints.append(ruling.fingerprint)
+            if ruling.ruling == "drop":
+                drop_count += 1
+                continue
+            elif ruling.ruling == "downgrade-to-minor":
+                downgrade_count += 1
+                f = dict(finding)
+                f["severity"] = "minor"
+                f["verifier_status"] = ruling.verifier_status
+                result_findings.append(f)
+            else:  # confirm
+                confirm_count += 1
+                f = dict(finding)
+                f["verifier_status"] = ruling.verifier_status
+                result_findings.append(f)
+        except Exception:
+            failure_count += 1
+            f = dict(finding)
+            f["verifier_status"] = "failed"
+            result_findings.append(f)
+
+    total_in_scope = len(in_scope)
+    failure_rate = failure_count / total_in_scope if total_in_scope > 0 else 0.0
+    minor_rate = minor_count / len(findings) if findings else 0.0
+
+    telemetry = {
+        "verifier_confirm_count": confirm_count,
+        "verifier_downgrade_count": downgrade_count,
+        "verifier_drop_count": drop_count,
+        "verifier_failure_rate": failure_rate,
+        "verifier_minor_finding_rate": minor_rate,
+        "verifier_fingerprints": fingerprints,
+    }
+
+    return result_findings, telemetry
