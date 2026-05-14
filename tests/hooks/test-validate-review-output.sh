@@ -1721,8 +1721,10 @@ echo ""
 echo "--- test_anchors_json_missing_or_malformed_fails_closed ---"
 _snapshot_fail
 
-_ABSENT_PLUGIN_ROOT=$(mktemp -d)
-# Empty temp dir — anchors JSON does not exist inside it
+_ABSENT_ANCHORS_PLUGIN_ROOT=$(mktemp -d)
+# Empty temp dir — anchors JSON does not exist inside it.
+# Use DSO_ANCHORS_PLUGIN_ROOT (not CLAUDE_PLUGIN_ROOT) so that sentinel and
+# anchors roots can be controlled independently (T4 separation).
 _ABSENT_ANCHORS_FILE=$(write_fixture "absence_trigger_for_failclosed.json" '{
   "findings": [
     {
@@ -1737,8 +1739,8 @@ _ABSENT_ANCHORS_FILE=$(write_fixture "absence_trigger_for_failclosed.json" '{
   "summary": "Absence claim, anchors file absent from plugin root."
 }')
 _ABSENT_EXIT=0
-CLAUDE_PLUGIN_ROOT="$_ABSENT_PLUGIN_ROOT" bash "$SCRIPT" code-review-dispatch "$_ABSENT_ANCHORS_FILE" >/dev/null 2>&1 || _ABSENT_EXIT=$?
-rm -rf "$_ABSENT_PLUGIN_ROOT"
+DSO_ANCHORS_PLUGIN_ROOT="$_ABSENT_ANCHORS_PLUGIN_ROOT" bash "$SCRIPT" code-review-dispatch "$_ABSENT_ANCHORS_FILE" >/dev/null 2>&1 || _ABSENT_EXIT=$?
+rm -rf "$_ABSENT_ANCHORS_PLUGIN_ROOT"
 assert_ne \
     "test_anchors_json_missing_or_malformed_fails_closed: exits non-zero when anchors JSON absent" \
     "0" \
