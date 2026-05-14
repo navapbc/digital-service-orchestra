@@ -12,6 +12,10 @@ _POSITIONAL=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --prefix)
+      if [[ $# -lt 2 ]]; then
+        echo "Usage: create-story-branch.sh [--prefix <name>] <epic-id> <story-id>" >&2
+        exit 1
+      fi
       _PREFIX="$2"
       shift 2
       ;;

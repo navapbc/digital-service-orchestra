@@ -20,8 +20,10 @@
 #
 # Usage: bash tests/scripts/test-debug-everything-ci-pr-mode.sh
 
+set -uo pipefail
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 SKILL_FILE="$DSO_PLUGIN_DIR/skills/debug-everything/SKILL.md"
 SCHEMA_DOC="$DSO_PLUGIN_DIR/skills/debug-everything/docs/debug-active-marker-schema.md"

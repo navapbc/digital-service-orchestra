@@ -37,7 +37,8 @@ fi
 
 EPIC_TITLE="${EPIC_TITLE:-sprint}"
 DRAFT_PR_TITLE_PREFIX="${DRAFT_PR_TITLE_PREFIX:-Sprint:}"
-DRAFT_PR_BODY_TEMPLATE="${DRAFT_PR_BODY_TEMPLATE:-Long-lived sprint draft PR. Epic: {{PRIMARY_TICKET_ID\}\}.}"
+_DEFAULT_BODY='Long-lived sprint draft PR. Epic: {{PRIMARY_TICKET_ID}}.'
+DRAFT_PR_BODY_TEMPLATE="${DRAFT_PR_BODY_TEMPLATE:-$_DEFAULT_BODY}"
 
 # ── Check for existing open PR on this branch ────────────────────────────────
 existing_draft_url="$(

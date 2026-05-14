@@ -10,7 +10,7 @@ The `.debug-active` marker is a session-scoped file created by `/debug-everythin
 
 ## File Location
 
-```
+```text
 $REPO_ROOT/.debug-active
 ```
 
@@ -20,7 +20,7 @@ This path is gitignored (scope: session worktree only).
 
 Text file, one `key=value` per line:
 
-```
+```text
 debug-session-id=<value>
 schema_version=<value>
 ```
@@ -34,7 +34,7 @@ schema_version=<value>
 
 ### `debug-session-id` Format
 
-```
+```text
 YYYYMMDD-HHMMSS-<6-char-random>
 ```
 

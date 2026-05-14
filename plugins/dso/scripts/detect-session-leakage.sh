@@ -16,6 +16,7 @@ set -euo pipefail
 DSO_TICKET_CLI="${DSO_TICKET_CLI:-.claude/scripts/dso}"
 DSO_MAIN_BRANCH="${DSO_MAIN_BRANCH:-main}"
 STORY_BRANCH_PREFIX="${STORY_BRANCH_PREFIX:-story}"
+STORY_BRANCH_PREFIX="${STORY_BRANCH_PREFIX%/}"
 
 # ── Parse arguments ───────────────────────────────────────────────────────────
 FORCE_ROUTE_TO=""

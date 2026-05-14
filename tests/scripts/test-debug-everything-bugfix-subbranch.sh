@@ -15,8 +15,10 @@
 #
 # Usage: bash tests/scripts/test-debug-everything-bugfix-subbranch.sh
 
+set -uo pipefail
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 SKILL_FILE="$DSO_PLUGIN_DIR/skills/debug-everything/SKILL.md"
 

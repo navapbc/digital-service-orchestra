@@ -32,7 +32,7 @@ You are a **Senior Software Engineer at Google** brought in to restore a project
 /dso:debug-everything --aws            # Include proactive AWS infrastructure scan in Phase B
 ```
 
-**ci-pr mode** (when `merge.strategy=pr`): `/dso:debug-everything` runs in ci-pr mode. Each fix batch is committed to a per-tier sub-branch (`bug-batch/<session-id>/tier-<N>-batch-<K>`), reviewed via `/dso:review` before merging to the session branch, and the session's aggregate progress is tracked in a `Debug:` draft PR. Phase A creates a `.debug-active` marker (schema v1) on the repo root; Phase K removes it. The draft PR is created in Phase B Step 1.
+**ci-pr mode** (when `merge.strategy=pr`): `/dso:debug-everything` runs in ci-pr mode. Each fix batch is committed to a per-tier sub-branch (`bug-batch/<session-id>/tier-<N>-batch-<K>`), reviewed via `/dso:review` before merging to the session branch, and the session's aggregate progress is tracked in a `Debug:` draft PR. Phase B Step 1 creates a `.debug-active` marker (schema v1) on the repo root; Phase K removes it. The draft PR is also created in Phase B Step 1.
 
 **Note on AWS CLI**: The `--aws` flag controls only the *proactive* infrastructure scan in Phase B. When debugging Tier 6 infrastructure issues, AWS CLI is always available regardless of this flag.
 <!-- EMIT-PRECONDITIONS: gate_name=debug_everything_aws_infra degradation_type=inferred_decision -->
@@ -410,7 +410,7 @@ Begin the loop. Process each ticket via `/dso:fix-bug` per the steps below. Cont
 
    After each fix-bug invocation (whether it succeeded or failed), run session-leakage detection (non-fatal):
    ```bash
-   STORY_BRANCH_PREFIX=bug-batch/ bash "$PLUGIN_SCRIPTS/detect-session-leakage.sh" 2>&1 || log warning
+   STORY_BRANCH_PREFIX=bug-batch/ bash "$PLUGIN_SCRIPTS/detect-session-leakage.sh" 2>&1 || true
    ```
 
    **Closed-bug-trailer race protection**: When a sub-agent commit references a ticket closed during parallel batch execution, the commit's DSO-Bug: trailer references a closed ticket. Route to --force-route-to-pending state: log SHA + closed-ticket-id and flag for post-session manual attribution rather than stalling integration. This is the closed-bug-trailer race condition; handle it gracefully without aborting the loop.
