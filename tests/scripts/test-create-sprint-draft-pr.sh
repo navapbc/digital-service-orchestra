@@ -228,4 +228,92 @@ assert_contains "test_create_sprint_draft_pr_missing_ticket: error mentions PRIM
     "PRIMARY_TICKET_ID" "$t6_output"
 
 echo ""
+echo "--- Test 7: DRAFT_PR_TITLE_PREFIX=Debug: → title uses custom prefix ---"
+set_mode "no_pr"
+t7_output="$(
+    SESSION_BRANCH="sprint-abc123" PRIMARY_TICKET_ID="epic-001" EPIC_TITLE="My Epic" \
+    DRAFT_PR_TITLE_PREFIX="Debug:" \
+    PATH="$_TMP_BIN:$PATH" \
+    bash "$SCRIPT_UNDER_TEST" 2>&1
+)"
+t7_exit=$?
+assert_eq "test_create_sprint_draft_pr_custom_title_prefix: exit code" "0" "$t7_exit"
+if gh_was_called_with "Debug: My Epic"; then
+    (( PASS++ ))
+else
+    (( FAIL++ ))
+    echo "FAIL: test_create_sprint_draft_pr_custom_title_prefix: gh pr create title did not contain 'Debug: My Epic'" >&2
+fi
+
+echo ""
+echo "--- Test 8: no DRAFT_PR_TITLE_PREFIX → default title contains Sprint: ---"
+set_mode "no_pr"
+t8_output="$(
+    SESSION_BRANCH="sprint-abc123" PRIMARY_TICKET_ID="epic-001" EPIC_TITLE="My Epic" \
+    PATH="$_TMP_BIN:$PATH" \
+    bash "$SCRIPT_UNDER_TEST" 2>&1
+)"
+t8_exit=$?
+assert_eq "test_create_sprint_draft_pr_default_title_prefix: exit code" "0" "$t8_exit"
+if gh_was_called_with "Sprint:"; then
+    (( PASS++ ))
+else
+    (( FAIL++ ))
+    echo "FAIL: test_create_sprint_draft_pr_default_title_prefix: gh pr create title did not contain 'Sprint:'" >&2
+fi
+
+echo ""
+echo "--- Test 9: DRAFT_PR_BODY_TEMPLATE with placeholder → interpolated body ---"
+set_mode "no_pr"
+t9_output="$(
+    SESSION_BRANCH="sprint-abc123" PRIMARY_TICKET_ID="epic-001" EPIC_TITLE="My Epic" \
+    DRAFT_PR_BODY_TEMPLATE="Debug session for {{PRIMARY_TICKET_ID}}" \
+    PATH="$_TMP_BIN:$PATH" \
+    bash "$SCRIPT_UNDER_TEST" 2>&1
+)"
+t9_exit=$?
+assert_eq "test_create_sprint_draft_pr_custom_body_template: exit code" "0" "$t9_exit"
+if gh_was_called_with "Debug session for epic-001"; then
+    (( PASS++ ))
+else
+    (( FAIL++ ))
+    echo "FAIL: test_create_sprint_draft_pr_custom_body_template: gh pr create body did not contain 'Debug session for epic-001'" >&2
+fi
+
+echo ""
+echo "--- Test 10: no DRAFT_PR_BODY_TEMPLATE → default body preserved ---"
+set_mode "no_pr"
+t10_output="$(
+    SESSION_BRANCH="sprint-abc123" PRIMARY_TICKET_ID="epic-001" EPIC_TITLE="My Epic" \
+    PATH="$_TMP_BIN:$PATH" \
+    bash "$SCRIPT_UNDER_TEST" 2>&1
+)"
+t10_exit=$?
+assert_eq "test_create_sprint_draft_pr_default_body_regression: exit code" "0" "$t10_exit"
+if gh_was_called_with "Long-lived sprint draft PR. Epic: epic-001."; then
+    (( PASS++ ))
+else
+    (( FAIL++ ))
+    echo "FAIL: test_create_sprint_draft_pr_default_body_regression: default body not preserved" >&2
+fi
+
+echo ""
+echo "--- Test 11: DRAFT_PR_BODY_TEMPLATE without placeholder → used as-is ---"
+set_mode "no_pr"
+t11_output="$(
+    SESSION_BRANCH="sprint-abc123" PRIMARY_TICKET_ID="epic-001" EPIC_TITLE="My Epic" \
+    DRAFT_PR_BODY_TEMPLATE="Custom body no placeholder" \
+    PATH="$_TMP_BIN:$PATH" \
+    bash "$SCRIPT_UNDER_TEST" 2>&1
+)"
+t11_exit=$?
+assert_eq "test_create_sprint_draft_pr_body_no_placeholder: exit code" "0" "$t11_exit"
+if gh_was_called_with "Custom body no placeholder"; then
+    (( PASS++ ))
+else
+    (( FAIL++ ))
+    echo "FAIL: test_create_sprint_draft_pr_body_no_placeholder: custom body not used as-is" >&2
+fi
+
+echo ""
 print_summary

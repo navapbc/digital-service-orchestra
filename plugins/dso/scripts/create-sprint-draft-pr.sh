@@ -6,9 +6,12 @@
 #     create-sprint-draft-pr.sh
 #
 # Environment variables:
-#   SESSION_BRANCH      — the sprint worktree branch name (required)
-#   PRIMARY_TICKET_ID   — the epic/sprint ticket ID (required)
-#   EPIC_TITLE          — optional human-readable epic title for PR title
+#   SESSION_BRANCH           — the sprint worktree branch name (required)
+#   PRIMARY_TICKET_ID        — the epic/sprint ticket ID (required)
+#   EPIC_TITLE               — optional human-readable epic title for PR title
+#   DRAFT_PR_TITLE_PREFIX    — PR title prefix (default: Sprint:)
+#   DRAFT_PR_BODY_TEMPLATE   — PR body template; {{PRIMARY_TICKET_ID}} is interpolated
+#                              (default: "Long-lived sprint draft PR. Epic: {{PRIMARY_TICKET_ID}}.")
 #
 # Exit codes:
 #   0 — PR exists (or was just created)
@@ -33,6 +36,9 @@ if [[ -z "${PRIMARY_TICKET_ID:-}" ]]; then
 fi
 
 EPIC_TITLE="${EPIC_TITLE:-sprint}"
+DRAFT_PR_TITLE_PREFIX="${DRAFT_PR_TITLE_PREFIX:-Sprint:}"
+_DEFAULT_BODY='Long-lived sprint draft PR. Epic: {{PRIMARY_TICKET_ID}}.'
+DRAFT_PR_BODY_TEMPLATE="${DRAFT_PR_BODY_TEMPLATE:-$_DEFAULT_BODY}"
 
 # ── Check for existing open PR on this branch ────────────────────────────────
 existing_draft_url="$(
@@ -67,8 +73,8 @@ if [[ -n "$existing_any_url" ]]; then
 fi
 
 # ── Create draft PR ──────────────────────────────────────────────────────────
-pr_title="Sprint: ${EPIC_TITLE} (${PRIMARY_TICKET_ID})"
-pr_body="Long-lived sprint draft PR. Epic: ${PRIMARY_TICKET_ID}."
+pr_title="${DRAFT_PR_TITLE_PREFIX} ${EPIC_TITLE} (${PRIMARY_TICKET_ID})"
+pr_body="${DRAFT_PR_BODY_TEMPLATE//\{\{PRIMARY_TICKET_ID\}\}/$PRIMARY_TICKET_ID}"
 
 pr_url="$(
     gh pr create \

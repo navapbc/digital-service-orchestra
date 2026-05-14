@@ -54,11 +54,11 @@ make_git_repo() {
     printf "%s" "$tmpdir"
 }
 
-# ── Exit gate: count all 6 test functions as FAIL if script is missing ─────────
+# ── Exit gate: count all 9 test functions as FAIL if script is missing ─────────
 if [[ ! -f "$_SCRIPT" ]]; then
     printf "FAIL: detect-session-leakage.sh not found — expected at %s\n" "$_SCRIPT" >&2
-    printf "  All 6 behavioral cases counted as FAIL (RED phase — script not yet written)\n" >&2
-    (( FAIL += 6 ))
+    printf "  All 9 behavioral cases counted as FAIL (RED phase — script not yet written)\n" >&2
+    (( FAIL += 9 ))
     print_summary
 fi
 
@@ -366,5 +366,171 @@ assert_contains \
 assert_contains \
     "test_cherry_pick_conflict_aborts_and_reports_paths: stderr contains conflicting file path" \
     "shared.txt" "$_stderr5"
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Case P1 — STORY_BRANCH_PREFIX routes to debug/ branch instead of story/
+# ══════════════════════════════════════════════════════════════════════════════
+# Given: session branch with non-merge commit bearing DSO-Story trailer;
+#        target branch is debug/e1/s1 (not story/e1/s1); STORY_BRANCH_PREFIX=debug
+# When:  STORY_BRANCH_PREFIX=debug detect-session-leakage.sh invoked
+# Then:  exits 0; commit SHA appears in git log of debug/e1/s1
+test_detect_session_leakage_prefix_case1() {
+    local repo
+    repo=$(make_git_repo)
+
+    # Create target branch using debug/ prefix
+    git -C "$repo" checkout -q -b debug/e1/s1
+    git -C "$repo" checkout -q main
+
+    # Create session branch with non-merge commit bearing DSO-Story trailer
+    git -C "$repo" checkout -q -b test-session-main
+    printf "feature work\n" > "$repo/feature_p1.txt"
+    git -C "$repo" add feature_p1.txt
+    git -C "$repo" commit -q -m "$(printf 'add feature p1\n\nDSO-Story: Open Story Title')"
+    local session_sha
+    session_sha=$(git -C "$repo" log --format="%H" -1)
+
+    # Stub DSO CLI returning open story s1 under epic e1
+    local tmpdir
+    tmpdir=$(mktemp -d); _TEST_TMPDIRS+=("$tmpdir")
+    cat > "$tmpdir/dso" <<'STUB'
+#!/usr/bin/env bash
+case "$*" in
+  "ticket list --type=story")
+    printf '[{"ticket_id":"s1","title":"Open Story Title","status":"open","parent_id":"e1"}]\n'
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+STUB
+    chmod +x "$tmpdir/dso"
+
+    local exit_code=0
+    (
+        cd "$repo"
+        STORY_BRANCH_PREFIX=debug DSO_TICKET_CLI="$tmpdir/dso" bash "$_SCRIPT" >/dev/null 2>&1
+    ) || exit_code=$?
+
+    assert_eq \
+        "test_detect_session_leakage_prefix_case1: exits 0" \
+        "0" "$exit_code"
+
+    local debug_log
+    debug_log=$(git -C "$repo" log debug/e1/s1 --format="%H" 2>/dev/null || true)
+    assert_contains \
+        "test_detect_session_leakage_prefix_case1: session SHA in debug/e1/s1 log" \
+        "$session_sha" "$debug_log"
+}
+
+echo ""
+echo "--- test_detect_session_leakage_prefix_case1: STORY_BRANCH_PREFIX routes to debug/ branch ---"
+test_detect_session_leakage_prefix_case1
+echo ""
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Case P2 — STORY_BRANCH_PREFIX routes orphan to debug/ branch
+# ══════════════════════════════════════════════════════════════════════════════
+# Given: session branch with non-merge commit bearing only DSO-Task trailer (no DSO-Story);
+#        STORY_BRANCH_PREFIX=debug; orphan branch is debug/orphan-test-session-main
+# When:  STORY_BRANCH_PREFIX=debug detect-session-leakage.sh invoked
+# Then:  exits 0; commit SHA appears in git log of debug/orphan-test-session-main
+test_detect_session_leakage_prefix_case2_orphan() {
+    local repo
+    repo=$(make_git_repo)
+
+    # Create session branch with orphan-only commit (DSO-Task, no DSO-Story)
+    git -C "$repo" checkout -q -b test-session-main
+    printf "task work\n" > "$repo/task_p2.txt"
+    git -C "$repo" add task_p2.txt
+    git -C "$repo" commit -q -m "$(printf 'implement task p2\n\nDSO-Task: Some Task Title')"
+    local session_sha
+    session_sha=$(git -C "$repo" log --format="%H" -1)
+
+    # Create the expected orphan branch using debug/ prefix
+    git -C "$repo" checkout -q main
+    git -C "$repo" checkout -q -b debug/orphan-test-session-main
+    git -C "$repo" checkout -q test-session-main
+
+    local exit_code=0
+    (
+        cd "$repo"
+        STORY_BRANCH_PREFIX=debug bash "$_SCRIPT" >/dev/null 2>&1
+    ) || exit_code=$?
+
+    assert_eq \
+        "test_detect_session_leakage_prefix_case2_orphan: exits 0" \
+        "0" "$exit_code"
+
+    local orphan_log
+    orphan_log=$(git -C "$repo" log debug/orphan-test-session-main --format="%H" 2>/dev/null || true)
+    assert_contains \
+        "test_detect_session_leakage_prefix_case2_orphan: session SHA in debug/orphan-test-session-main log" \
+        "$session_sha" "$orphan_log"
+}
+
+echo "--- test_detect_session_leakage_prefix_case2_orphan: STORY_BRANCH_PREFIX routes orphan to debug/ branch ---"
+test_detect_session_leakage_prefix_case2_orphan
+echo ""
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Case P3 — No STORY_BRANCH_PREFIX uses default story/ prefix
+# ══════════════════════════════════════════════════════════════════════════════
+# Given: session branch with non-merge commit bearing DSO-Story trailer;
+#        target branch is story/e1/s1 (standard prefix); no STORY_BRANCH_PREFIX set
+# When:  detect-session-leakage.sh invoked without STORY_BRANCH_PREFIX
+# Then:  exits 0; commit SHA appears in git log of story/e1/s1
+test_detect_session_leakage_prefix_default() {
+    local repo
+    repo=$(make_git_repo)
+
+    # Create target branch using standard story/ prefix
+    git -C "$repo" checkout -q -b story/e1/s1
+    git -C "$repo" checkout -q main
+
+    # Create session branch with non-merge commit bearing DSO-Story trailer
+    git -C "$repo" checkout -q -b test-session-main
+    printf "feature work\n" > "$repo/feature_p3.txt"
+    git -C "$repo" add feature_p3.txt
+    git -C "$repo" commit -q -m "$(printf 'add feature p3\n\nDSO-Story: Open Story Title')"
+    local session_sha
+    session_sha=$(git -C "$repo" log --format="%H" -1)
+
+    # Stub DSO CLI returning open story s1 under epic e1
+    local tmpdir
+    tmpdir=$(mktemp -d); _TEST_TMPDIRS+=("$tmpdir")
+    cat > "$tmpdir/dso" <<'STUB'
+#!/usr/bin/env bash
+case "$*" in
+  "ticket list --type=story")
+    printf '[{"ticket_id":"s1","title":"Open Story Title","status":"open","parent_id":"e1"}]\n'
+    ;;
+  *)
+    exit 0
+    ;;
+esac
+STUB
+    chmod +x "$tmpdir/dso"
+
+    local exit_code=0
+    (
+        cd "$repo"
+        DSO_TICKET_CLI="$tmpdir/dso" env -u STORY_BRANCH_PREFIX bash "$_SCRIPT" >/dev/null 2>&1
+    ) || exit_code=$?
+
+    assert_eq \
+        "test_detect_session_leakage_prefix_default: exits 0" \
+        "0" "$exit_code"
+
+    local story_log
+    story_log=$(git -C "$repo" log story/e1/s1 --format="%H" 2>/dev/null || true)
+    assert_contains \
+        "test_detect_session_leakage_prefix_default: session SHA in story/e1/s1 log" \
+        "$session_sha" "$story_log"
+}
+
+echo "--- test_detect_session_leakage_prefix_default: no STORY_BRANCH_PREFIX uses default story/ prefix ---"
+test_detect_session_leakage_prefix_default
+echo ""
 
 print_summary
