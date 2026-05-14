@@ -37,6 +37,12 @@ from dso_ci_review.verifier import (  # noqa: E402
     dispatch_verifier,
 )
 
+
+@pytest.fixture(autouse=True)
+def _enable_verifier(monkeypatch):
+    """Force verifier enabled for all dispatch behavior tests."""
+    monkeypatch.setattr(_verifier_mod, "_is_verifier_enabled", lambda: True)
+
 # ---------------------------------------------------------------------------
 # Shared constants
 # ---------------------------------------------------------------------------
