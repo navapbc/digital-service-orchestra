@@ -35,7 +35,7 @@ from dso_ci_review.dispatch import (
     dispatch_schema_correction,
     dispatch_two_call_review,
 )
-from dso_ci_review.findings import merge_findings
+from dso_ci_review.findings import merge_findings, _parse_line_range
 from dso_ci_review.providers.config import AuthError, ConfigError, get_provider
 from dso_ci_review.region_split import _should_region_split, run_region_split
 
@@ -329,45 +329,106 @@ def _format_finding_comment(idx: int, total: int, finding: dict) -> str:
     )
 
 
+def _resolve_pr_head_sha(pr_number: str) -> str | None:
+    """Resolve the HEAD SHA of the PR branch.
+
+    Checks GITHUB_SHA env var first (set by Actions on both push and
+    pull_request events). Falls back to `gh pr view headRefOid`.
+    Returns None on any failure.
+    """
+    sha = os.environ.get("GITHUB_SHA", "").strip()
+    if sha:
+        return sha
+    try:
+        result = subprocess.run(
+            ["gh", "pr", "view", pr_number, "--json", "headRefOid", "--jq", ".headRefOid"],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        if result.returncode == 0:
+            sha = result.stdout.strip()
+            if sha:
+                return sha
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        pass
+    return None
+
+
+def _extract_anchor(finding: dict) -> tuple[str, int] | None:
+    """Extract (path, line) anchor from a finding's first cited_lines entry.
+
+    Returns (path, line) using the start of the range, or None if the finding
+    cannot be anchored (empty or unparseable cited_lines).
+    """
+    cited = finding.get("cited_lines") or []
+    if not cited:
+        return None
+    first = cited[0]
+    parsed = _parse_line_range(first)
+    if parsed is None:
+        return None
+    path, _, _ = first.rpartition(":")
+    if not path:
+        return None
+    return (path, parsed[0])
+
+
+def _post_issue_comments(
+    blocking: list[dict], pr_number: str, total: int
+) -> int:
+    """Post findings as issue-level PR comments (gh pr comment), best-effort.
+
+    Returns the count of successfully posted comments.
+    """
+    posted = 0
+    for idx, finding in enumerate(blocking, 1):
+        body = _format_finding_comment(idx, total, finding)
+        try:
+            subprocess.run(
+                ["gh", "pr", "comment", pr_number, "--body", body],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            posted += 1
+        except (
+            subprocess.CalledProcessError,
+            subprocess.TimeoutExpired,
+            FileNotFoundError,
+        ) as exc:
+            print(
+                f"WARNING: failed to post PR comment for finding {idx}/{total} "
+                f"({type(exc).__name__})",
+                file=sys.stderr,
+            )
+    return posted
+
+
 def _post_pr_review(findings: list[dict]) -> tuple[int, int]:
-    """Post blocking findings as PR comments (one per finding) via the gh CLI.
+    """Post blocking findings as PR review thread comments via the GitHub Pulls Reviews API.
 
-    Returns `(posted_count, attempted_count)` so the caller can phrase its
-    stderr summary accurately — under the per-finding loop a partial failure
-    is a real outcome (e.g., 2 of 5 comments posted), and the gate hint must
-    reflect that rather than claim "see the PR comment" when several never
-    landed.
+    Primary path (bug 59e3-8b8b fix): posts findings with file:line anchors via
+    `gh api -X POST .../pulls/{n}/reviews` with a batched `comments[]` payload.
+    This creates resolvable review threads that PR-FINALIZE-WORKFLOW.md can
+    operate on (resolveReviewThread graphql mutation).
 
-    Both counters are 0 in no-op cases (preconditions not met). When findings
-    were attempted, `attempted_count == len(blocking)`.
+    Fallback paths:
+    - Finding has no cited_lines anchor → posted as issue comment (gh pr comment)
+    - HEAD SHA cannot be resolved → ALL findings posted as issue comments
+    - GITHUB_REPOSITORY not set → ALL findings posted as issue comments
+    - Reviews API call fails → ALL findings re-routed to issue comments
+
+    Returns `(posted_count, attempted_count)`. Both 0 in no-op cases.
 
     No-op (returns (0, 0)) when:
-    - GITHUB_EVENT_NAME != "pull_request" (push, workflow_dispatch, etc.)
     - PR number cannot be resolved
-    - GITHUB_TOKEN is absent (gh auth would fail anyway)
-    - blocking finding list is empty (nothing to surface)
+    - GITHUB_TOKEN is absent
+    - blocking finding list is empty
 
-    Errors are logged to stderr but never propagate — the severity gate below
-    is authoritative for blocking; comment posting is a best-effort UX layer.
-
-    REVIEW-DEFENSE (PR #62 findings 2 and 5):
-
-    - Timeout=30s: gh pr comment typically completes in <2s; 30s is a generous
-      ceiling. Slow runners are not a real failure mode here — comment posting
-      is best-effort and a slow comment delays only the WARNING line, not the
-      gate decision.
-
-    - Silent error suppression: BY DESIGN. The severity gate (caller below) is
-      the authoritative blocking mechanism. The comment is informational. A
-      single-line WARNING with the exception class name is sufficient operator
-      visibility; reraising would invert the design (UX layer blocking the
-      gate). Operators who need details can read the CI job stderr.
-
-    - stderr leakage: the `subprocess.run(..., capture_output=True)` capture
-      stores gh's stderr inside the CalledProcessError object, but we only
-      print `type(exc).__name__` — neither the captured stderr nor stdout is
-      ever serialized to the runner's stderr. The data exists in memory but
-      no code path emits it; sensitive content cannot leak via this path.
+    Errors are logged to stderr but never propagate — comment posting is a
+    best-effort UX layer; the severity gate is the authoritative block.
     """
     blocking = _real_blocking_findings(findings)
     if not blocking:
@@ -382,23 +443,81 @@ def _post_pr_review(findings: list[dict]) -> tuple[int, int]:
         )
         return (0, 0)
 
-    # One comment per finding so each can be resolved / replied to / closed
-    # independently in the GitHub PR UI. Bundling all findings into a single
-    # comment would force the team to triage them as one unit.
-    posted = 0
     total = len(blocking)
+    head_sha = _resolve_pr_head_sha(pr_number)
+    repository = os.environ.get("GITHUB_REPOSITORY", "")
+
+    if not head_sha or not repository or "/" not in repository:
+        if not head_sha:
+            print(
+                "WARNING: cannot resolve PR HEAD SHA; falling back to issue comments",
+                file=sys.stderr,
+            )
+        return (_post_issue_comments(blocking, pr_number, total), total)
+
+    # Partition findings into anchored (Reviews API) and unanchored (issue comments)
+    anchored: list[tuple[int, dict, str, int]] = []  # (idx, finding, path, line)
+    unanchored: list[tuple[int, dict]] = []
     for idx, finding in enumerate(blocking, 1):
-        body = _format_finding_comment(idx, total, finding)
+        anchor = _extract_anchor(finding)
+        if anchor:
+            path, line = anchor
+            anchored.append((idx, finding, path, line))
+        else:
+            unanchored.append((idx, finding))
+
+    posted = 0
+
+    if anchored:
+        comments_payload = [
+            {
+                "path": path,
+                "line": line,
+                "side": "RIGHT",
+                "body": _format_finding_comment(idx, total, finding),
+            }
+            for idx, finding, path, line in anchored
+        ]
+        review_body = json.dumps(
+            {"commit_id": head_sha, "event": "COMMENT", "comments": comments_payload}
+        )
         try:
             subprocess.run(
                 [
                     "gh",
-                    "pr",
-                    "comment",
-                    pr_number,
-                    "--body",
-                    body,
+                    "api",
+                    "-X",
+                    "POST",
+                    f"/repos/{repository}/pulls/{pr_number}/reviews",
+                    "--input",
+                    "-",
                 ],
+                input=review_body,
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            posted += len(anchored)
+        except (
+            subprocess.CalledProcessError,
+            subprocess.TimeoutExpired,
+            FileNotFoundError,
+        ) as exc:
+            print(
+                f"WARNING: Reviews API failed ({type(exc).__name__}); "
+                "re-routing anchored findings to issue comments",
+                file=sys.stderr,
+            )
+            # Fall back: add anchored findings to the issue comment queue
+            unanchored.extend((idx, finding) for idx, finding, _, _ in anchored)
+
+    # Post unanchored (and Reviews-API-failed) findings as issue comments
+    for idx, finding in unanchored:
+        body = _format_finding_comment(idx, total, finding)
+        try:
+            subprocess.run(
+                ["gh", "pr", "comment", pr_number, "--body", body],
                 check=True,
                 capture_output=True,
                 text=True,
@@ -410,11 +529,6 @@ def _post_pr_review(findings: list[dict]) -> tuple[int, int]:
             subprocess.TimeoutExpired,
             FileNotFoundError,
         ) as exc:
-            # Best-effort — never block the gate on a failed comment post.
-            # Print only the exception class name (not str(exc)), since gh stderr
-            # captured by CalledProcessError can include URLs / token-bearing
-            # diagnostic text on auth failures. Continue to the next finding so
-            # one transient failure doesn't suppress the rest.
             print(
                 f"WARNING: failed to post PR comment for finding {idx}/{total} "
                 f"({type(exc).__name__})",
