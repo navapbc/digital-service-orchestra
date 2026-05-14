@@ -17,7 +17,7 @@
 # Usage: bash tests/scripts/test-debug-everything-branch-tracking.sh
 
 # pipefail intentionally omitted: awk|grep-q pipelines below trigger SIGPIPE on Linux under pipefail (bug 8142-c280)
-set -euo
+set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
