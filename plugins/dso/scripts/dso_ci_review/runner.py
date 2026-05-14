@@ -351,7 +351,7 @@ def _resolve_pr_head_sha(pr_number: str) -> str | None:
             if sha:
                 return sha
     except (subprocess.TimeoutExpired, FileNotFoundError):
-        pass
+        return None  # gh not installed or timed out — caller handles None
     return None
 
 

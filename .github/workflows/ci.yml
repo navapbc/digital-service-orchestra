@@ -362,9 +362,11 @@ jobs:
           [[ "$PRIOR_ISSUE" =~ ^[0-9]+$ ]] || PRIOR_ISSUE=0
           # Count finding-1 headers in PR review-thread comments (primary posting path
           # via Pulls Reviews API). These are NOT returned by --json comments above.
+          # --paginate without -q to avoid per-page jq output; jq -s flattens all pages
           PRIOR_REVIEW=$(gh api "/repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/comments" --paginate \
-            -q '[.[] | .body | select(test("^## DSO llm-review — finding 1/"))] | length' \
-            2>/dev/null || echo 0)
+            2>/dev/null \
+            | jq -s '[.[].[] | .body | select(test("^## DSO llm-review — finding 1/"))] | length' \
+            || echo 0)
           [[ "$PRIOR_REVIEW" =~ ^[0-9]+$ ]] || PRIOR_REVIEW=0
           PRIOR_CYCLES=$((PRIOR_ISSUE + PRIOR_REVIEW))
           CURRENT_CYCLE=$((PRIOR_CYCLES + 1))

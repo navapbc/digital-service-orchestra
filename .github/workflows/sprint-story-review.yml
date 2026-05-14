@@ -74,8 +74,11 @@ jobs:
           fi
           # Fetch tickets orphan branch so review-defense-store.sh can read DEFENSE_RECORD entries.
           git fetch --no-tags origin '+refs/heads/tickets:refs/remotes/origin/tickets' 2>/dev/null || true
-          bash plugins/dso/scripts/review-defense-store.sh list --pr "$PR_NUMBER" \
-            | bash plugins/dso/scripts/mirror-defenses-to-pr.sh "$PR_NUMBER" || true
+          if ! bash plugins/dso/scripts/review-defense-store.sh list --pr "$PR_NUMBER" \
+            | bash plugins/dso/scripts/mirror-defenses-to-pr.sh "$PR_NUMBER"; then
+            echo "Defense mirroring failed for PR ${PR_NUMBER}" >&2
+            exit 1
+          fi
 
   review:
     name: Per-Story LLM Review

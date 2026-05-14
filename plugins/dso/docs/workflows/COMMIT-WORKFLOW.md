@@ -101,7 +101,7 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 **If `SKIP_REVIEW` is true**: Skip all of `commit-workflow-validation.md` entirely. Emit `.skipped` markers so the compliance verifier does not block the commit (bug 9780-b0d7 — without these markers the verifier cannot distinguish "skipped intentionally" from "never ran"):
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/commit-emit-skip-markers.sh" "SKIP_REVIEW=true (non-reviewable files only)"  # shim-exempt: internal orchestration script
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/commit-emit-skip-markers.sh" "SKIP_REVIEW=true (non-reviewable files only)" "step-2-skip-review-skipped-markers"  # shim-exempt: internal orchestration script
 ```
 
 Go directly to Step 5 (Stage).
@@ -139,7 +139,7 @@ if [[ "$ENFORCEMENT_STRATEGY" == "ci" ]]; then
 
     # Emit .skipped markers so the compliance verifier does not block the commit.
     # The verifier requires exactly these 5 artifacts (as .result or .skipped).
-    bash "${CLAUDE_PLUGIN_ROOT}/scripts/commit-emit-skip-markers.sh" "enforcement.strategy=ci"  # shim-exempt: internal orchestration script
+    bash "${CLAUDE_PLUGIN_ROOT}/scripts/commit-emit-skip-markers.sh" "enforcement.strategy=ci" "step-3-enforcement-ci-skipped-markers"  # shim-exempt: internal orchestration script
 fi
 ```
 

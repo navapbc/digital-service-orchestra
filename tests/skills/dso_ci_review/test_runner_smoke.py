@@ -916,6 +916,7 @@ def _run_main_with(diff_path, output_path, dispatch_findings, env_extra=None):
         "GITHUB_EVENT_NAME": "",
         "GITHUB_REF": "",
         "GITHUB_TOKEN": "",
+        "GITHUB_SHA": "",
         "PR_NUMBER": "",
     }
     if env_extra:
