@@ -25,6 +25,12 @@ SKILL_FILE="$DSO_PLUGIN_DIR/skills/debug-everything/SKILL.md"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
+if [[ ! -f "$SKILL_FILE" ]]; then
+    printf "FAIL: SKILL.md not found at expected path: %s\n" "$SKILL_FILE" >&2
+    printf "Check BASH_SOURCE[0]-based path derivation — test cannot proceed.\n" >&2
+    exit 1
+fi
+
 echo "=== test-debug-everything-bugfix-subbranch.sh ==="
 
 test_bugfix_mode_uses_tracking_anchor() {
