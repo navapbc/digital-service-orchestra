@@ -146,6 +146,10 @@ if [[ "$DEBUG_MODE" == 'pr' ]]; then
     DRAFT_PR_URL=$(DRAFT_PR_TITLE_PREFIX=Debug: SESSION_BRANCH="$SESSION_BRANCH" \
         PRIMARY_TICKET_ID="${EPIC_ID:-debug}" EPIC_TITLE='Debug Session' \
         bash "$(git rev-parse --show-toplevel)/.claude/scripts/dso" create-sprint-draft-pr.sh 2>&1)
+    if [[ -z "$DRAFT_PR_URL" ]]; then
+        printf 'ERROR: Phase B Step 1 draft PR creation failed — cannot initialize ci-pr mode session\n' >&2
+        exit 1
+    fi
     printf 'schema_version=1\ndebug-session-id=%s\n' "$_session_id" > "$_debug_marker"
     printf 'merge.strategy=pr — debug session running in ci-pr mode. Draft PR: %s\n' "$DRAFT_PR_URL"
 else
