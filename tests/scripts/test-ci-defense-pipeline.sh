@@ -289,5 +289,70 @@ assert_eq "ci.yml mirror step passes --pr to defense_store_list" "1" "$ci_passes
 
 assert_pass_if_clean "test_list_requires_pr_filter"
 
+# ── test_ci_cycle_counter_queries_review_thread_comments ─────────────────────
+# Bug 59e3-8b8b fix regression: _post_pr_review now posts findings via the Pulls
+# Reviews API (gh api -X POST .../pulls/N/reviews), which creates PR review-thread
+# comments. These are NOT returned by `gh pr view --json comments` (issue-level
+# comments only). The ci.yml Compute DSO_REVIEW_CYCLE step must also query PR
+# review-thread comments (/repos/.../pulls/N/comments) so cycle detection works
+# when the primary posting path is used.
+echo ""
+echo "--- test_ci_cycle_counter_queries_review_thread_comments ---"
+_snapshot_fail
+
+cycle_check_exit=0
+cycle_check_output=""
+cycle_check_output=$(python3 - "$CI_YML" <<'PYEOF' 2>&1
+import sys, yaml, re
+
+with open(sys.argv[1]) as f:
+    doc = yaml.safe_load(f)
+
+job = doc.get('jobs', {}).get('llm-review', {})
+if not job:
+    print("MISSING: llm-review job not found in ci.yml")
+    sys.exit(1)
+
+cycle_run = None
+for s in job.get('steps', []) or []:
+    run = s.get('run') or ''
+    if 'DSO_REVIEW_CYCLE' in run and 'GITHUB_ENV' in run:
+        cycle_run = run
+        break
+
+if cycle_run is None:
+    print("MISSING: no step in llm-review computes and exports DSO_REVIEW_CYCLE")
+    sys.exit(1)
+
+# The step must query PR review-thread comments (/pulls/N/comments endpoint)
+# in addition to (or instead of) issue comments, since findings are now posted
+# via the Pulls Reviews API which creates review-thread comments.
+# Accept any of these patterns that prove the step reads review-thread comments:
+#   gh api .../pulls/*/comments
+#   gh pr view ... --json reviews
+#   gh pr view ... --json reviewThreads
+review_comment_patterns = [
+    re.compile(r'pulls/[^/\s]+/comments', re.IGNORECASE),
+    re.compile(r'--json\s+reviews\b', re.IGNORECASE),
+    re.compile(r'--json\s+reviewThreads\b', re.IGNORECASE),
+]
+
+if any(p.search(cycle_run) for p in review_comment_patterns):
+    print("OK")
+    sys.exit(0)
+
+preview = cycle_run[:400].replace('\n', ' \\n ')
+print(f"MISSING: Compute DSO_REVIEW_CYCLE step does not query PR review-thread "
+      f"comments. Findings are now posted via the Pulls Reviews API, so "
+      f"--json comments misses them. Add a /pulls/N/comments query to count "
+      f"review-thread-based findings. Step preview: {preview}")
+sys.exit(1)
+PYEOF
+) || cycle_check_exit=$?
+
+assert_eq "ci.yml cycle counter queries PR review-thread comments (exit code)" "0" "$cycle_check_exit"
+assert_eq "ci.yml cycle counter queries PR review-thread comments (output)" "OK" "$cycle_check_output"
+assert_pass_if_clean "test_ci_cycle_counter_queries_review_thread_comments"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary

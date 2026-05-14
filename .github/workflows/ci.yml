@@ -340,12 +340,14 @@ jobs:
           echo "Smoke test passed: $OUTPUT"
 
       # Compute the current llm-review cycle number by counting prior
-      # "## DSO llm-review — finding 1/N" headers posted by github-actions[bot].
-      # Each prior cycle posts exactly one such header per finding-1 comment,
-      # so the count equals the number of prior cycles. The current cycle is
-      # therefore PRIOR + 1. Exported via $GITHUB_ENV so the runner.py
-      # cycle_number gate (runner.py:789) sees the real value — without this,
-      # every cycle>=2 suppression branch was structurally disabled.
+      # "## DSO llm-review — finding 1/N" headers across both posting paths:
+      #   - Issue comments (gh pr comment fallback path — no cited_lines anchor)
+      #   - PR review-thread comments (primary path — Pulls Reviews API, bug 59e3-8b8b fix)
+      # Each prior cycle posts exactly one finding-1 header regardless of path,
+      # so the union count equals the number of prior cycles. PRIOR + 1 gives the
+      # current cycle. Exported via $GITHUB_ENV so runner.py cycle_number gate
+      # (runner.py:789) sees the real value — without this, every cycle>=2
+      # suppression branch was structurally disabled.
       - name: Compute DSO_REVIEW_CYCLE
         if: needs.changes.outputs.code_changed == 'true'
         env:
@@ -353,18 +355,21 @@ jobs:
         run: |
           PR_NUMBER="${GITHUB_REF#refs/pull/}"
           PR_NUMBER="${PR_NUMBER%/merge}"
-          # Key off the stable header prefix (author filter omitted — the
-          # GitHub Actions bot identity varies between "github-actions" and
-          # "github-actions[bot]" depending on endpoint, so the header alone
-          # is the reliable signal).
-          PRIOR_CYCLES=$(gh pr view "$PR_NUMBER" --json comments \
+          # Count finding-1 headers in issue-level comments (fallback posting path).
+          PRIOR_ISSUE=$(gh pr view "$PR_NUMBER" --json comments \
             -q '[.comments[] | .body | select(test("^## DSO llm-review — finding 1/"))] | length' \
             2>/dev/null || echo 0)
-          # Default to 0 if the query returned an empty string or unexpected output.
-          [[ "$PRIOR_CYCLES" =~ ^[0-9]+$ ]] || PRIOR_CYCLES=0
+          [[ "$PRIOR_ISSUE" =~ ^[0-9]+$ ]] || PRIOR_ISSUE=0
+          # Count finding-1 headers in PR review-thread comments (primary posting path
+          # via Pulls Reviews API). These are NOT returned by --json comments above.
+          PRIOR_REVIEW=$(gh api "/repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/comments" --paginate \
+            -q '[.[] | .body | select(test("^## DSO llm-review — finding 1/"))] | length' \
+            2>/dev/null || echo 0)
+          [[ "$PRIOR_REVIEW" =~ ^[0-9]+$ ]] || PRIOR_REVIEW=0
+          PRIOR_CYCLES=$((PRIOR_ISSUE + PRIOR_REVIEW))
           CURRENT_CYCLE=$((PRIOR_CYCLES + 1))
           echo "DSO_REVIEW_CYCLE=$CURRENT_CYCLE" >> "$GITHUB_ENV"
-          echo "Computed DSO_REVIEW_CYCLE=$CURRENT_CYCLE (prior cycles: $PRIOR_CYCLES)"
+          echo "Computed DSO_REVIEW_CYCLE=$CURRENT_CYCLE (issue=$PRIOR_ISSUE review=$PRIOR_REVIEW)"
 
       - name: Run LLM review
         if: needs.changes.outputs.code_changed == 'true'
