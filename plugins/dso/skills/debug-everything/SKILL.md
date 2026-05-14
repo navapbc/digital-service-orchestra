@@ -95,14 +95,17 @@ if [[ -f "$_debug_marker" ]]; then
         printf 'ERROR: .debug-active marker is from a pre-upgrade session. Remove it manually and re-run.\n' >&2
         exit 1
     fi
-    _marker_ts=$(grep '^debug-session-id=' "$_debug_marker" 2>/dev/null | sed 's/^debug-session-id=\([0-9]*-[0-9]*\)-.*/\1/' || true)
+    # Use cut (portable) to extract YYYYMMDD-HHMMSS from YYYYMMDD-HHMMSS-<6char>
+    _marker_ts=$(grep '^debug-session-id=' "$_debug_marker" 2>/dev/null | cut -d= -f2 | cut -d- -f1,2 || true)
     _ttl_hours=$(bash "$PLUGIN_SCRIPTS/read-config.sh" debug.session_ttl_hours 2>/dev/null || echo 24)
     _ttl_hours=${_ttl_hours:-24}  # guard: read-config.sh exits 0 with empty output when key absent
     _ttl_secs=$(( _ttl_hours * 3600 ))
     _now=$(date +%s 2>/dev/null || echo 0)
     _ts_iso="${_marker_ts:0:4}-${_marker_ts:4:2}-${_marker_ts:6:2} ${_marker_ts:9:2}:${_marker_ts:11:2}:${_marker_ts:13:2}"
     _ts_epoch=$(date -d "$_ts_iso" +%s 2>/dev/null || date -j -f '%Y%m%d-%H%M%S' "$_marker_ts" +%s 2>/dev/null || echo 0)
-    if [[ $(( _now - _ts_epoch )) -ge $_ttl_secs ]]; then
+    if [[ "$_ts_epoch" -eq 0 ]]; then
+        printf 'Phase A: .debug-active marker timestamp unreadable — skipping stale check\n'
+    elif [[ $(( _now - _ts_epoch )) -ge $_ttl_secs ]]; then
         rm -f "$_debug_marker"
         printf 'Phase A: removed stale .debug-active marker (age > %d hours)\n' "$_ttl_hours"
     fi
