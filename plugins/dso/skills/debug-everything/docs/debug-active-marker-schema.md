@@ -53,11 +53,15 @@ A marker is **STALE** when:
 
 Markers without a `schema_version` field (or `schema_version < 1`) are pre-upgrade in-flight sessions. Phase A must refuse ci-pr operations for these and instruct the user to restart the debug session explicitly.
 
+## Concurrency Model
+
+`.debug-active` is a **singleton file** — one per repo root. This is by design: `/dso:debug-everything` enforces a single-active-session invariant via the session lock (`agent-batch-lifecycle.sh lock-acquire` in Phase B Step 1). A second invocation that fails to acquire the lock exits rather than writing a competing marker. The 6-char random suffix in `debug-session-id` is for log correlation, not concurrent-session disambiguation. No `flock` or per-session marker files are needed because the lock-acquire gate prevents concurrent sessions.
+
 ## Lifecycle
 
 | Event | Actor |
 |-------|-------|
-| **Created** | Phase B Step 1 when `merge.strategy=pr` |
+| **Created** | Phase B Step 1 when `merge.strategy=pr` (only after lock is acquired) |
 | **Removed** | Phase K before shutdown |
 | **Stale cleanup** | Phase A entry before GHA pre-scan |
 

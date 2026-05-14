@@ -86,7 +86,7 @@ Only push ONCE per invocation (not before every sub-agent). If `IS_SESSION_WORKT
 
 Scan configured GitHub Actions workflows for CI failures and create bug tickets for any untracked failures. This step runs **before** the open-bug-count pre-check so newly discovered failures are visible to mode selection.
 
-**Stale .debug-active Cleanup**: Before running the GHA pre-scan, clean up any stale `.debug-active` marker:
+**Stale .debug-active Cleanup**: Before running the GHA pre-scan, clean up any stale `.debug-active` marker. **The orchestrator executes the following bash block directly via the Bash tool** — it is not pseudocode and is not extracted to a shell script; the LLM orchestrator runs it inline at Phase A entry:
 ```bash
 _debug_marker="$(git rev-parse --show-toplevel)/.debug-active"
 if [[ -f "$_debug_marker" ]]; then
@@ -130,7 +130,7 @@ When `OPEN_BUG_COUNT == 0`, execute `prompts/session-init.md` to bind:
 
 That prompt also runs the Resume Check (parse `CHECKPOINT N/6` lines on in-progress issues; fast-close, re-dispatch, or revert per checkpoint progress).
 
-**Mode Detection & Draft PR (ci-pr mode only)**: After session-init.md binding, detect `merge.strategy` and initialize the debug session:
+**Mode Detection & Draft PR (ci-pr mode only)**: After session-init.md binding, detect `merge.strategy` and initialize the debug session. **The orchestrator executes this bash block directly via the Bash tool** at Phase B Step 1:
 ```bash
 DEBUG_MODE=$(.claude/scripts/dso read-config.sh merge.strategy 2>/dev/null || echo 'direct')
 _debug_marker="$(git rev-parse --show-toplevel)/.debug-active"
