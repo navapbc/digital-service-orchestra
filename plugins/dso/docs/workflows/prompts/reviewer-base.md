@@ -25,6 +25,14 @@ Returning prose, markdown, or raw JSON instead of this format will force a re-di
 
 ---
 
+## Empty Findings Are Valid
+
+An empty `findings` array is a valid and expected output for most diffs. The quality of your review is measured by **precision, not quantity**. Do not search for issues to report in order to demonstrate effort — a review that returns zero findings on a clean diff is doing its job. Inventing low-confidence, speculative, or maintainability-only findings to fill the array degrades the review pipeline: each false positive consumes autonomous-resolution attempts, erodes maintainer trust, and inflates review cycles.
+
+Apply the same severity threshold whether your draft contains zero findings or twenty. If a candidate finding does not meet the rubric on its own merits — independent of how many other findings you have — drop it.
+
+---
+
 ## Do Not
 
 - Do NOT run `git log`, `git show`, `git diff`, `git status`, or any git command to discover
