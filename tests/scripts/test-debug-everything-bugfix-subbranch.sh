@@ -8,7 +8,7 @@
 #   3. ABSENCE: "uniformly" is not present (cross-mode uniformity language is disallowed)
 #   4. Sub-branch instructions co-located in the Bug-Fix Mode section (not only preamble)
 #
-# Test status: Tests 1, 2, 4 are RED — SKILL.md Bug-Fix Mode not yet updated with sub-branch routing.
+# Test status: Tests 1, 2, 4 PASS — SKILL.md Bug-Fix Mode contains required sub-branch routing documentation.
 #              Test 3 (absence check) passes immediately — "uniformly" is absent.
 #
 # Exemption: structural metadata validation of prompt file — not executable code.

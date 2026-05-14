@@ -11,7 +11,7 @@
 #   6. Serialized integration prevents concurrent push race
 #   7. Sub-branch instructions are in the Phase G section header (not only preamble)
 #
-# Test status: All 7 tests are RED — SKILL.md Phase G not yet updated.
+# Test status: All 7 tests PASS — SKILL.md Phase G contains required sub-branch documentation patterns.
 #
 # Exemption: structural metadata validation of prompt file — not executable code.
 #

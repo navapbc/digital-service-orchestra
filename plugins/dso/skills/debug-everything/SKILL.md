@@ -133,6 +133,7 @@ That prompt also runs the Resume Check (parse `CHECKPOINT N/6` lines on in-progr
 **Mode Detection & Draft PR (ci-pr mode only)**: After session-init.md binding, detect `merge.strategy` and initialize the debug session. **The orchestrator executes this bash block directly via the Bash tool** at Phase B Step 1:
 ```bash
 DEBUG_MODE=$(.claude/scripts/dso read-config.sh merge.strategy 2>/dev/null || echo 'direct')
+DEBUG_MODE="${DEBUG_MODE:-direct}"  # guard: read-config.sh exits 0 with empty output when key absent
 _debug_marker="$(git rev-parse --show-toplevel)/.debug-active"
 if [[ "$DEBUG_MODE" == 'pr' ]]; then
     _session_id="$(date -u +%Y%m%d-%H%M%S)-$(set +o pipefail; LC_ALL=C tr -dc 'a-z0-9' </dev/urandom | head -c6)"

@@ -10,7 +10,7 @@
 #   5. BLOCKED_SUBBRANCHES: PR annotation field
 #   6. ESCALATED outcome does NOT halt the tier loop (loop continues)
 #
-# Test status: All 6 tests are RED — SKILL.md per-sub-branch review section not yet written.
+# Test status: All 6 tests PASS — SKILL.md per-sub-branch review section contains required documentation patterns.
 #
 # Exemption: structural metadata validation of prompt file — not executable code.
 #

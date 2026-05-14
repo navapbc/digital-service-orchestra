@@ -9,7 +9,7 @@
 #   4. Using STORY_BRANCH_PREFIX=bug-batch env var override
 #   5. Protection against closed-bug trailer race condition
 #
-# Test status: All 5 tests are RED — SKILL.md does not yet reference detect-session-leakage.sh
+# Test status: All 5 tests PASS — SKILL.md references detect-session-leakage.sh leak detection pattern.
 # in these contexts.
 #
 # Exemption: structural metadata validation of prompt file — not executable code.

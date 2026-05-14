@@ -14,7 +14,7 @@
 #   9. Schema doc contains schema_version field
 #
 # Test status:
-#   All 9 tests are RED — SKILL.md and schema doc not yet updated.
+#   All 9 tests PASS — SKILL.md and schema doc contain required ci-pr mode documentation patterns.
 #
 # Exemption: structural metadata validation of prompt file — not executable code.
 #

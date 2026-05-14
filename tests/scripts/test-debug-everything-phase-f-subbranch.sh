@@ -9,7 +9,7 @@
 #   4. Sub-branch instructions are in Phase F section (not only preamble)
 #   5. Exactly one sub-branch per tier (no per-bug chunking)
 #
-# Test status: All 5 tests are RED — SKILL.md Phase F not yet updated.
+# Test status: All 5 tests PASS — SKILL.md Phase F contains required sub-branch documentation patterns.
 #
 # Exemption: structural metadata validation of prompt file — not executable code.
 #
