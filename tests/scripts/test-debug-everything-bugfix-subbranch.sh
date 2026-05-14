@@ -15,7 +15,8 @@
 #
 # Usage: bash tests/scripts/test-debug-everything-bugfix-subbranch.sh
 
-set -uo pipefail
+# pipefail intentionally omitted: grep-q pipelines below trigger SIGPIPE on Linux under pipefail (bug 8142-c280)
+set -uo
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
