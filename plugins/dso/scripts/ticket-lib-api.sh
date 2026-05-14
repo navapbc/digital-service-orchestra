@@ -48,6 +48,74 @@ _ticketlib_resolve_short_id() {
     echo "$_input"
 }
 
+# ── Full ID resolver ─────────────────────────────────────────────────────────
+# _ticketlib_resolve_id <input> <tracker_dir>
+# Resolves any supported ticket-ID form (16-hex full, 8-hex short, jira_key,
+# alias, or unique prefix >= 4 chars) to the canonical ticket directory name.
+# Prints the canonical ID to stdout; returns 0 on success, 1 on miss/ambiguous.
+#
+# Resolution order (cheapest first):
+#   1. 16-hex full ID: passthrough if directory exists.
+#   2. 8-hex short ID: delegate to _ticketlib_resolve_short_id (scans tracker).
+#   3. All other forms (alias, jira_key, prefix): delegate to resolve_ticket_id
+#      from ticket-lib.sh, which handles the full pipeline.
+#
+# Callers must reassign and check rc:
+#     if ! ticket_id="$(_ticketlib_resolve_id "$ticket_id" "$TRACKER_DIR")"; then
+#         return 1
+#     fi
+_ticketlib_resolve_id() {
+    local _input="$1" _tracker="$2"
+
+    if [ -z "$_input" ]; then
+        echo "Error: ticket id must be non-empty" >&2
+        return 1
+    fi
+
+    # Step 1: 16-hex full ID passthrough
+    if [[ "$_input" =~ ^[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}$ ]]; then
+        if [ -d "$_tracker/$_input" ]; then
+            echo "$_input"
+            return 0
+        fi
+        echo "Error: ticket '$_input' not found" >&2
+        return 1
+    fi
+
+    # Step 2: 8-hex short ID — fast scan via existing helper
+    if [[ "$_input" =~ ^[a-z0-9]{4}-[a-z0-9]{4}$ ]]; then
+        local _resolved
+        _resolved="$(_ticketlib_resolve_short_id "$_input" "$_tracker")"
+        if [ "$_resolved" != "$_input" ] && [ -d "$_tracker/$_resolved" ]; then
+            echo "$_resolved"
+            return 0
+        fi
+        # Direct dir match (legacy / planted short IDs)
+        if [ -d "$_tracker/$_input" ]; then
+            echo "$_input"
+            return 0
+        fi
+        echo "Error: ticket '$_input' not found" >&2
+        return 1
+    fi
+
+    # Step 3: alias, jira_key, or prefix — delegate to ticket-lib.sh
+    if [ -z "${_TICKETLIB_DIR:-}" ]; then
+        echo "Error: _TICKETLIB_DIR is not set; cannot resolve ticket alias" >&2
+        return 1
+    fi
+    declare -f resolve_ticket_id >/dev/null 2>&1 || source "$_TICKETLIB_DIR/ticket-lib.sh"
+
+    local _resolved _rc=0
+    _resolved="$(TICKETS_TRACKER_DIR="$_tracker" resolve_ticket_id "$_input")" || _rc=$?
+    if [ "$_rc" -ne 0 ] || [ -z "$_resolved" ]; then
+        # resolve_ticket_id already emitted a specific error to stderr.
+        return 1
+    fi
+    echo "$_resolved"
+    return 0
+}
+
 # ── Dispatch helper ──────────────────────────────────────────────────────────
 # Wraps each call in a subshell so per-call set -e / traps / var mutations
 # cannot leak back into the caller's shell state.
@@ -123,40 +191,36 @@ ticket_show() {
             return 1
         fi
 
-        # Resolution strategy (ordered by cost):
-        # 1. Hex patterns (8-hex or 16-hex): fast O(N-dir) scan via _ticketlib_resolve_short_id
-        # 2. Inputs with 4+ hyphens: cannot match any known format (max is 3 for 16-hex);
-        #    skip expensive O(N*K) alias scan and fail immediately
-        # 3. All other inputs (0-3 hyphens, non-hex): potential alias, jira_key, or prefix;
-        #    use full resolve_ticket_id pipeline from ticket-lib.sh (line ~1199)
-        local _no_hyphens="${ticket_id//-/}"
-        local _hyphen_count=$(( ${#ticket_id} - ${#_no_hyphens} ))
-        if [[ "$ticket_id" =~ ^[0-9a-f]{4}-[0-9a-f]{4}(-[0-9a-f]{4}-[0-9a-f]{4})?$ ]]; then
-            ticket_id="$(_ticketlib_resolve_short_id "$ticket_id" "$TRACKER_DIR")"
-        elif [[ "$_hyphen_count" -ge 4 ]]; then
-            echo "Error: Ticket '$ticket_id' not found" >&2
+        # Resolve any supported ID form (16-hex, 8-hex, jira_key, alias, prefix)
+        # to a canonical directory name. On miss, emit JSON to stdout for the
+        # orchestrator's `json.load` pattern + a free-form line to stderr.
+        local _raw_input="$ticket_id"
+        local _resolved
+        if ! _resolved="$(_ticketlib_resolve_id "$ticket_id" "$TRACKER_DIR" 2>/dev/null)"; then
+            # JSON to stdout (parseable by callers).
+            local _esc_input
+            _esc_input="$(printf '%s' "$_raw_input" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))' 2>/dev/null)"
+            if [ -z "$_esc_input" ]; then
+                _esc_input="\"$_raw_input\""
+            fi
+            printf '{"error": "ticket_not_found", "input": %s, "message": "Ticket %s not found"}\n' \
+                "$_esc_input" "'$_raw_input'"
+            # Free-form line to stderr (preserves existing test compatibility).
+            echo "Error: Ticket '$_raw_input' not found" >&2
             return 1
-        else
-            if [[ -z "${_TICKETLIB_DIR:-}" ]]; then
-                echo "Error: _TICKETLIB_DIR is not set; cannot resolve ticket alias" >&2
-                return 1
-            fi
-            declare -f resolve_ticket_id &>/dev/null || source "$_TICKETLIB_DIR/ticket-lib.sh"
-            # Pass TRACKER_DIR through TICKETS_TRACKER_DIR so resolve_ticket_id
-            # uses the same tracker path as ticket_show's directory lookup below.
-            # Capture exit code separately: command substitution loses the exit status,
-            # so a failing resolve_ticket_id would silently produce an empty ticket_id
-            # and fall through to the generic "not found" error, hiding the real cause.
-            local _resolve_rc=0
-            ticket_id="$(TICKETS_TRACKER_DIR="$TRACKER_DIR" resolve_ticket_id "$ticket_id")" || _resolve_rc=$?
-            if [[ $_resolve_rc -ne 0 ]]; then
-                # resolve_ticket_id already wrote a specific error to stderr; propagate it
-                return 1
-            fi
         fi
+        ticket_id="$_resolved"
 
         if [ ! -d "$TRACKER_DIR/$ticket_id" ]; then
-            echo "Error: Ticket '$ticket_id' not found" >&2
+            # Defensive: should not happen since _ticketlib_resolve_id verifies dir.
+            local _esc_input
+            _esc_input="$(printf '%s' "$_raw_input" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))' 2>/dev/null)"
+            if [ -z "$_esc_input" ]; then
+                _esc_input="\"$_raw_input\""
+            fi
+            printf '{"error": "ticket_not_found", "input": %s, "message": "Ticket %s not found"}\n' \
+                "$_esc_input" "'$_raw_input'"
+            echo "Error: Ticket '$_raw_input' not found" >&2
             return 1
         fi
 
@@ -291,6 +355,7 @@ def apply_event(ev):
     )
   elif ev.event_type == "ARCHIVED" then
     .archived = true
+    | (if .status == "deleted" then . else .status = "archived" end)
   elif ev.event_type == "BRIDGE_ALERT" then
     ((ev.data.alert_type? // ev.data.reason? // ev.data.detail?) // "") as $reason |
     if ev.data.resolved? // false then
@@ -980,14 +1045,11 @@ ticket_comment() {
             return 1
         fi
 
-        ticket_id="$(_ticketlib_resolve_short_id "$ticket_id" "$TRACKER_DIR")"
-
-        # Ghost check: ticket directory must exist with CREATE or SNAPSHOT event.
-        if [ ! -d "$TRACKER_DIR/$ticket_id" ]; then
-            echo "Error: ticket '$ticket_id' does not exist" >&2
+        if ! ticket_id="$(_ticketlib_resolve_id "$ticket_id" "$TRACKER_DIR")"; then
             return 1
         fi
 
+        # Ghost check: ticket must have a CREATE or SNAPSHOT event.
         if ! find "$TRACKER_DIR/$ticket_id" -maxdepth 1 \( -name '*-CREATE.json' -o -name '*-SNAPSHOT.json' \) ! -name '.*' 2>/dev/null | grep -q .; then
             echo "Error: ticket $ticket_id has no CREATE or SNAPSHOT event" >&2
             return 1
@@ -1101,14 +1163,11 @@ ticket_set_file_impact() {
             return 1
         fi
 
-        ticket_id="$(_ticketlib_resolve_short_id "$ticket_id" "$TRACKER_DIR")"
-
-        # Ghost check: ticket directory must exist with CREATE or SNAPSHOT event.
-        if [ ! -d "$TRACKER_DIR/$ticket_id" ]; then
-            echo "Error: ticket '$ticket_id' does not exist" >&2
+        if ! ticket_id="$(_ticketlib_resolve_id "$ticket_id" "$TRACKER_DIR")"; then
             return 1
         fi
 
+        # Ghost check: ticket must have a CREATE or SNAPSHOT event.
         if ! find "$TRACKER_DIR/$ticket_id" -maxdepth 1 \( -name '*-CREATE.json' -o -name '*-SNAPSHOT.json' \) ! -name '.*' 2>/dev/null | grep -q .; then
             echo "Error: ticket $ticket_id has no CREATE or SNAPSHOT event" >&2
             return 1
@@ -1200,7 +1259,11 @@ ticket_get_file_impact() {
             return 1
         fi
 
-        ticket_id="$(_ticketlib_resolve_short_id "$ticket_id" "$TRACKER_DIR")"
+        if ! ticket_id="$(_ticketlib_resolve_id "$ticket_id" "$TRACKER_DIR" 2>/dev/null)"; then
+            # Preserve legacy behavior: silently return [] on lookup miss.
+            echo "[]"
+            return 0
+        fi
 
         if [ ! -d "$TRACKER_DIR/$ticket_id" ]; then
             echo "[]"
@@ -1300,6 +1363,7 @@ def apply_event(ev):
     )
   elif ev.event_type == "ARCHIVED" then
     .archived = true
+    | (if .status == "deleted" then . else .status = "archived" end)
   elif ev.event_type == "BRIDGE_ALERT" then
     ((ev.data.alert_type? // ev.data.reason? // ev.data.detail?) // "") as $reason |
     if ev.data.resolved? // false then
@@ -1408,7 +1472,9 @@ ticket_tag() {
             REPO_ROOT="${PROJECT_ROOT:-$(GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git rev-parse --show-toplevel 2>/dev/null)}"
             TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
         fi
-        ticket_id="$(_ticketlib_resolve_short_id "$ticket_id" "$TRACKER_DIR")"
+        if ! ticket_id="$(_ticketlib_resolve_id "$ticket_id" "$TRACKER_DIR")"; then
+            return 1
+        fi
 
         _tag_add_checked "$ticket_id" "$tag"
     )
@@ -1455,7 +1521,9 @@ ticket_untag() {
             REPO_ROOT="${PROJECT_ROOT:-$(GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git rev-parse --show-toplevel 2>/dev/null)}"
             TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
         fi
-        ticket_id="$(_ticketlib_resolve_short_id "$ticket_id" "$TRACKER_DIR")"
+        if ! ticket_id="$(_ticketlib_resolve_id "$ticket_id" "$TRACKER_DIR")"; then
+            return 1
+        fi
 
         _tag_remove "$ticket_id" "$tag"
     )
@@ -1559,10 +1627,7 @@ ticket_edit() {
             return 1
         fi
 
-        ticket_id="$(_ticketlib_resolve_short_id "$ticket_id" "$TRACKER_DIR")"
-
-        if [ ! -d "$TRACKER_DIR/$ticket_id" ]; then
-            echo "Error: ticket '$ticket_id' does not exist" >&2
+        if ! ticket_id="$(_ticketlib_resolve_id "$ticket_id" "$TRACKER_DIR")"; then
             return 1
         fi
 
@@ -1785,11 +1850,7 @@ ticket_archive() {
             return 1
         fi
 
-        ticket_id="$(_ticketlib_resolve_short_id "$ticket_id" "$TRACKER_DIR")"
-
-        # Ticket directory must exist.
-        if [ ! -d "$TRACKER_DIR/$ticket_id" ]; then
-            echo "Error: ticket '$ticket_id' does not exist" >&2
+        if ! ticket_id="$(_ticketlib_resolve_id "$ticket_id" "$TRACKER_DIR")"; then
             return 1
         fi
 
@@ -1974,10 +2035,7 @@ ticket_delete() {
             return 1
         fi
 
-        ticket_id="$(_ticketlib_resolve_short_id "$ticket_id" "$TRACKER_DIR")"
-
-        if [ ! -d "$TRACKER_DIR/$ticket_id" ]; then
-            echo "Error: ticket '$ticket_id' does not exist" >&2
+        if ! ticket_id="$(_ticketlib_resolve_id "$ticket_id" "$TRACKER_DIR")"; then
             return 1
         fi
 

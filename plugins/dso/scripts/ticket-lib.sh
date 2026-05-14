@@ -541,6 +541,19 @@ ticket_read_status() {
     lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     local reducer="$lib_dir/ticket-reducer.py"
 
+    # Canonicalize ticket_id: accepts 16-hex, 8-hex short ID, jira_key,
+    # alias, or unique prefix (>=4 chars). Failure falls through to the
+    # raw dir-existence check below, preserving the historical error
+    # message that callers (ticket-transition.sh, ticket-create.sh,
+    # ticket-link.sh, ticket-lib-api.sh:ticket_create) parse from stderr.
+    if declare -f resolve_ticket_id >/dev/null 2>&1; then
+        local _resolved
+        if _resolved="$(TICKETS_TRACKER_DIR="$tracker_dir" resolve_ticket_id "$ticket_id" 2>/dev/null)" \
+            && [ -n "$_resolved" ]; then
+            ticket_id="$_resolved"
+        fi
+    fi
+
     local ticket_dir="$tracker_dir/$ticket_id"
 
     if [ ! -d "$ticket_dir" ]; then
