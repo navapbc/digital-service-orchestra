@@ -674,8 +674,26 @@ Phase F creates exactly one sub-branch per tier that produces changes. Tiers: Ti
 - Use `create-story-branch.sh` with `--prefix bug-batch/<debug-session-id>` (or direct `git checkout -b`)
 - When a tier has 0 bugs/changes: no sub-branch is created AND no annotation is added to the aggregate draft PR for that tier (zero-bug tier skip)
 - Apply all tier changes on the sub-branch and merge into the session branch before moving to the next tier
+- After creating the sub-branch, record a tracking comment (batch=0 for Phase F's single batches):
+  ```
+  .claude/scripts/dso ticket comment <epic-id> "DEBUG_BRANCH_TRACKING: sub_branch=<name> tier=<N> batch=0 timestamp=<UTC>"
+  ```
 
 In local mode (DEBUG_MODE=direct or absent): no sub-branch created; commit directly to session branch.
+
+### Per-Sub-Branch Review Orchestration (ci-pr mode only — Phase F)
+
+After each sub-branch is created and changes committed in ci-pr mode, run the per-sub-branch review block before merging:
+
+1. **Invoke `/dso:review`** (sub-agent dispatch) scoped to the sub-branch diff against the session branch.
+2. **Run `validate-review-output.sh`** schema validation against `reviewer-findings.json`; on schema failure, treat it as a review failure and trigger re-dispatch (schema failures are treated like review failures).
+3. **Autonomous resolution loop**: `max = max(1, review.max_resolution_attempts)` — when `max_resolution_attempts=0`, apply floor-guard: `floor` of 1 attempt applies; log warning `'floor-guard: using min 1 attempt'` (floor near `max_resolution_attempts` floor).
+4. **Return discriminated review outcome** for this sub-branch:
+   - `MERGED`: all findings resolved; merge sub-branch into session branch.
+   - `ESCALATED`: resolution loop exhausted; do NOT merge; write `SUBBRANCH_ESCALATED: <sub-branch> reason=<...>` ticket comment FIRST (ticket comment is the authoritative source of truth — COMPACTION_RESUME reconciles PR annotation from ticket comments on resume), then update aggregate draft PR `BLOCKED_SUBBRANCHES:` annotation SECOND; continue to next sub-branch (ESCALATED does not halt the tier loop — loop continues to next sub-branch after ESCALATED).
+   - `ERROR`: schema validation failed after re-dispatch exhaustion; same as ESCALATED handling but `reason=schema-validation-error`; write `SUBBRANCH_ESCALATED: <sub-branch> reason=schema-validation-error` ticket comment, then update `BLOCKED_SUBBRANCHES:` annotation; continue to next sub-branch.
+
+`ESCALATED` does NOT halt the tier loop — Phase F continues to the next sub-branch. Per-sub-branch review outcomes (`MERGED`, `ESCALATED`, `ERROR`) determine merge eligibility independently for each sub-branch.
 
 ### Launch Auto-Fix Sub-Agent
 
@@ -710,6 +728,20 @@ In ci-pr mode, Phase G chunks Tier 2–7 bugs into sub-branches of at most 5 bug
 **Serialized integration**: the orchestrator MUST serialize sub-agent integration into the shared sub-branch ref — no concurrent push; dispatch one sub-agent at a time for integration, or use a lock mechanism. This prevents race conditions on shared refs.
 
 In local mode: commit directly to session branch (sub-branch chunking does not apply).
+
+### Per-Sub-Branch Review Orchestration (ci-pr mode only — Phase G)
+
+After each sub-branch is created and changes committed in ci-pr mode, run the per-sub-branch review block before merging:
+
+1. **Invoke `/dso:review`** (sub-agent dispatch) scoped to the sub-branch diff against the session branch.
+2. **Run `validate-review-output.sh`** schema validation against `reviewer-findings.json`; on schema failure, treat it as a review failure and trigger re-dispatch (schema failures are treated like review failures).
+3. **Autonomous resolution loop**: `max = max(1, review.max_resolution_attempts)` — when `max_resolution_attempts=0`, apply floor-guard: `floor` of 1 attempt applies; log warning `'floor-guard: using min 1 attempt'` (floor near `max_resolution_attempts` floor).
+4. **Return discriminated review outcome** for this sub-branch:
+   - `MERGED`: all findings resolved; merge sub-branch into session branch.
+   - `ESCALATED`: resolution loop exhausted; do NOT merge; write `SUBBRANCH_ESCALATED: <sub-branch> reason=<...>` ticket comment FIRST (ticket comment is the authoritative source of truth — COMPACTION_RESUME reconciles PR annotation from ticket comments on resume), then update aggregate draft PR `BLOCKED_SUBBRANCHES:` annotation SECOND; continue to next sub-branch (ESCALATED does not halt the tier loop — loop continues to next sub-branch after ESCALATED).
+   - `ERROR`: schema validation failed after re-dispatch exhaustion; same as ESCALATED handling but `reason=schema-validation-error`; write `SUBBRANCH_ESCALATED: <sub-branch> reason=schema-validation-error` ticket comment, then update `BLOCKED_SUBBRANCHES:` annotation; continue to next sub-branch.
+
+`ESCALATED` does NOT halt the tier loop — Phase G continues to the next sub-branch. Per-sub-branch review outcomes (`MERGED`, `ESCALATED`, `ERROR`) determine merge eligibility independently for each sub-branch.
 
 ---
 
