@@ -515,7 +515,7 @@ STUB
     local exit_code=0
     (
         cd "$repo"
-        DSO_TICKET_CLI="$tmpdir/dso" bash "$_SCRIPT" >/dev/null 2>&1
+        DSO_TICKET_CLI="$tmpdir/dso" env -u STORY_BRANCH_PREFIX bash "$_SCRIPT" >/dev/null 2>&1
     ) || exit_code=$?
 
     assert_eq \

@@ -97,6 +97,7 @@ if [[ -f "$_debug_marker" ]]; then
     fi
     _marker_ts=$(grep '^debug-session-id=' "$_debug_marker" 2>/dev/null | sed 's/^debug-session-id=\([0-9]*-[0-9]*\)-.*/\1/' || true)
     _ttl_hours=$(bash "$PLUGIN_SCRIPTS/read-config.sh" debug.session_ttl_hours 2>/dev/null || echo 24)
+    _ttl_hours=${_ttl_hours:-24}  # guard: read-config.sh exits 0 with empty output when key absent
     _ttl_secs=$(( _ttl_hours * 3600 ))
     _now=$(date +%s 2>/dev/null || echo 0)
     _ts_iso="${_marker_ts:0:4}-${_marker_ts:4:2}-${_marker_ts:6:2} ${_marker_ts:9:2}:${_marker_ts:11:2}:${_marker_ts:13:2}"

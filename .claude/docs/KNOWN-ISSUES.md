@@ -12,7 +12,7 @@ Operational patterns discovered during development. Add entries when 3+ similar 
 
 **Workaround**: Route to `--force-route-to-pending` rather than aborting integration. Log the SHA and closed-ticket-id for post-session manual attribution. Do not stall the integration loop over a stale trailer reference.
 
-**Context**: Bug-Fix Mode in `/dso:debug-everything` and sprint batch execution; see SKILL.md Bug-Fix Mode Execution step 3.
+**Context**: Bug-Fix Mode in `/dso:debug-everything` and sprint batch execution; see `plugins/dso/skills/debug-everything/SKILL.md` Bug-Fix Mode Execution step 3.
 
 ---
 

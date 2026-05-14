@@ -221,12 +221,12 @@ test_create_story_branch_prefix_default
 # When:  create-story-branch.sh epic-001 story-002 --prefix debug is invoked
 # Then:  stdout contains STORY_BRANCH=debug/epic-001/story-002
 echo ""
-echo "--- Test: --prefix anywhere in args ---"
+echo "--- Test: --prefix leading position in args ---"
 test_create_story_branch_prefix_anywhere() {
     local _repo
     _repo=$(_make_scratch_repo)
     local output
-    output=$(cd "$_repo" && bash "$SCRIPT" epic-001 story-002 --prefix debug 2>&1)
+    output=$(cd "$_repo" && bash "$SCRIPT" --prefix debug epic-001 story-002 2>&1)
     local exit_code=$?
     if [ "$exit_code" -eq 0 ]; then
         echo "  PASS: test_create_story_branch_prefix_anywhere: exit code 0"
