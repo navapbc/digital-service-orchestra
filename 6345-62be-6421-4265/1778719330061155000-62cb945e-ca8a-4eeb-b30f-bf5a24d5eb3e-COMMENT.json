@@ -1,1 +1,0 @@
-{"author":"Test","data":{"body":"Classification: behavioral, Score: 1 (BASIC). Single YAML file change needed: add needs:[mirror-tracker-defenses] dependency to Per-Story LLM Review job in sprint-story-review.yml."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1778719330061155000,"uuid":"62cb945e-ca8a-4eeb-b30f-bf5a24d5eb3e"}
