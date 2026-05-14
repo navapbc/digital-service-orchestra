@@ -15,7 +15,7 @@
 #
 # Usage: bash tests/scripts/test-debug-everything-phase-f-subbranch.sh
 
-set -uo
+set -euo
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"

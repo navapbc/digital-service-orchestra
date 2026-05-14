@@ -99,7 +99,8 @@ if [[ -f "$_debug_marker" ]]; then
     _ttl_hours=$(bash "$PLUGIN_SCRIPTS/read-config.sh" debug.session_ttl_hours 2>/dev/null || echo 24)
     _ttl_secs=$(( _ttl_hours * 3600 ))
     _now=$(date +%s 2>/dev/null || echo 0)
-    _ts_epoch=$(date -d "${_marker_ts//-/ }" +%s 2>/dev/null || date -j -f '%Y%m%d %H%M%S' "${_marker_ts//-/ }" +%s 2>/dev/null || echo 0)
+    _ts_iso="${_marker_ts:0:4}-${_marker_ts:4:2}-${_marker_ts:6:2} ${_marker_ts:9:2}:${_marker_ts:11:2}:${_marker_ts:13:2}"
+    _ts_epoch=$(date -d "$_ts_iso" +%s 2>/dev/null || date -j -f '%Y%m%d-%H%M%S' "$_marker_ts" +%s 2>/dev/null || echo 0)
     if [[ $(( _now - _ts_epoch )) -ge $_ttl_secs ]]; then
         rm -f "$_debug_marker"
         printf 'Phase A: removed stale .debug-active marker (age > %d hours)\n' "$_ttl_hours"

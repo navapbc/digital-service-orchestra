@@ -17,7 +17,7 @@
 # Usage: bash tests/scripts/test-debug-everything-branch-tracking.sh
 
 # pipefail intentionally omitted: awk|grep-q pipelines below trigger SIGPIPE on Linux under pipefail (bug 8142-c280)
-set -uo
+set -euo
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
@@ -93,7 +93,7 @@ test_debug_tracking_written_phase_f_and_g() {
         fi
     fi
     if grep -qE "## Phase G" "$SKILL_FILE" 2>/dev/null; then
-        if awk '/## Phase G/,/## Phase H|## Phase I|$/' "$SKILL_FILE" 2>/dev/null | grep -q "DEBUG_BRANCH_TRACKING"; then
+        if awk '/^## Phase G/,/^## Phase [HI]/' "$SKILL_FILE" 2>/dev/null | grep -q "DEBUG_BRANCH_TRACKING"; then
             phase_g_has="yes"
         fi
     fi
