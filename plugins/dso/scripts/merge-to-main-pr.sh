@@ -487,6 +487,31 @@ except Exception:
         return 1
     fi
 
+    # --- 7. Promote draft PR to ready-for-review (075f-ec40) ---
+    # Sprint Phase A creates the long-lived PR with --draft. It must be promoted
+    # before auto-merge can be queued (some GitHub plans require non-draft status).
+    local _draft_check_json _pr_is_draft
+    _draft_check_json=$(gh pr view "$_pr_number" --json isDraft 2>/dev/null || true)
+    _pr_is_draft=$(printf '%s' "$_draft_check_json" | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    print('true' if d.get('isDraft') else 'false')
+except Exception:
+    print('false')
+" 2>/dev/null || echo 'false')
+
+    if [[ "$_pr_is_draft" == "true" ]]; then
+        echo "INFO: PR #${_pr_number} is draft — promoting to ready-for-review."
+        local _ready_out _ready_rc=0
+        _ready_out=$(gh pr ready "$_pr_number" 2>&1) || _ready_rc=$?
+        if [[ "$_ready_rc" -ne 0 ]]; then
+            echo "WARNING: gh pr ready #${_pr_number} failed (non-fatal): $_ready_out" >&2
+        else
+            echo "INFO: PR #${_pr_number} promoted to ready-for-review."
+        fi
+    fi
+
     # Auto-merge is NOT enqueued here. It is deferred to _phase_queue_auto_merge,
     # called in the top-level flow AFTER _phase_resolve_threads completes (ea7b-0038).
     # This ensures that if thread resolution fails or produces a new push, auto-merge
