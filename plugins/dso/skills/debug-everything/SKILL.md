@@ -308,7 +308,7 @@ The sub-agent returns: the path to the diagnostic file + a ≤15-line summary (c
 
 ---
 
-## Bug-Fix Mode (/dso:debug-everything)
+## Bug-Fix Mode (/dso:debug-everything) — sub-branch routing: ci-pr mode commits fix-bug output to current sub-branch; local mode commits to session branch
 
 **Entry condition**: Open bug tickets detected in Step 2 (`OPEN_BUG_COUNT > 0`).
 
@@ -390,6 +390,14 @@ Begin the loop. Process each ticket via `/dso:fix-bug` per the steps below. Cont
 
    **After the fix sub-agent returns** — when `DISPATCH_ISOLATION=true`, follow `skills/shared/prompts/single-agent-integrate.md` to integrate the sub-agent's worktree changes onto the session branch. When `DISPATCH_ISOLATION=false`, no integration step is needed.
 
+   **Sub-branch commit routing (Bug-Fix Mode)**:
+   - **ci-pr mode**: changes are committed to the current sub-branch (not the session branch). Resolve current sub-branch from the most-recent DEBUG_BRANCH_TRACKING: anchor (per S7 COMPACTION_RESUME pattern):
+     ```bash
+     _branch=$(.claude/scripts/dso ticket comment-list <epic-id> | grep "^DEBUG_BRANCH_TRACKING: " | tail -1 | sed "s/DEBUG_BRANCH_TRACKING: sub_branch=\([^ ]*\).*/\1/")
+     ```
+     If `_branch` is non-empty, commit fix-bug output to that sub-branch. If empty, create a new sub-branch and record a `DEBUG_BRANCH_TRACKING: sub_branch=<name>` tracking comment before committing.
+   - **local mode** (DEBUG_MODE=direct or absent): commit fix-bug output to the session branch directly (no sub-branch).
+
 3. **Error handling**: If `/dso:fix-bug` fails for a ticket (unrecoverable error, repeated failure, or explicit escalation), write a CHECKPOINT note and continue to the next ticket:
 
    ```bash
@@ -397,6 +405,13 @@ Begin the loop. Process each ticket via `/dso:fix-bug` per the steps below. Cont
    ```
 
    Do NOT abort Bug-Fix Mode when a single ticket fails — process all remaining tickets.
+
+   After each fix-bug invocation (whether it succeeded or failed), run session-leakage detection (non-fatal):
+   ```bash
+   STORY_BRANCH_PREFIX=bug-batch/ bash "$PLUGIN_SCRIPTS/detect-session-leakage.sh" 2>&1 || log warning
+   ```
+
+   **Closed-bug-trailer race protection**: When a sub-agent commit references a ticket closed during parallel batch execution, the commit's DSO-Bug: trailer references a closed ticket. Route to --force-route-to-pending state: log SHA + closed-ticket-id and flag for post-session manual attribution rather than stalling integration. This is the closed-bug-trailer race condition; handle it gracefully without aborting the loop.
 
 4. **After all bug tickets have been attempted**, run the **Between-Batch GHA Refresh** before proceeding to Validation Mode.
 
@@ -707,6 +722,11 @@ After each sub-branch is created and changes committed in ci-pr mode, run the pe
 
 `ESCALATED` does NOT halt the tier loop — Phase F continues to the next sub-branch. Per-sub-branch review outcomes (`MERGED`, `ESCALATED`, `ERROR`) determine merge eligibility independently for each sub-branch.
 
+After each batch merge in Phase F, run session-leakage detection (non-fatal):
+```bash
+STORY_BRANCH_PREFIX=bug-batch/ bash "$PLUGIN_SCRIPTS/detect-session-leakage.sh" 2>&1 || log warning
+```
+
 ### Launch Auto-Fix Sub-Agent
 
 Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/auto-fix.md` and use its contents as the sub-agent prompt.
@@ -759,6 +779,11 @@ After each sub-branch is created and changes committed in ci-pr mode, run the pe
    - `ERROR`: schema validation failed after re-dispatch exhaustion; same as ESCALATED handling but `reason=schema-validation-error`; write `SUBBRANCH_ESCALATED: <sub-branch> reason=schema-validation-error` ticket comment, then update `BLOCKED_SUBBRANCHES:` annotation; continue to next sub-branch.
 
 `ESCALATED` does NOT halt the tier loop — Phase G continues to the next sub-branch. Per-sub-branch review outcomes (`MERGED`, `ESCALATED`, `ERROR`) determine merge eligibility independently for each sub-branch.
+
+After each batch merge in Phase G, run session-leakage detection (non-fatal):
+```bash
+STORY_BRANCH_PREFIX=bug-batch/ bash "$PLUGIN_SCRIPTS/detect-session-leakage.sh" 2>&1 || log warning
+```
 
 ---
 
@@ -1030,6 +1055,11 @@ No other entry to Phase K is valid. In particular: "context usage feels high", "
    .claude/scripts/dso ticket transition <epic-id> open closed
    ```
    Discovery cleanup failure is non-fatal; log a warning and continue with lock release.
+
+   Run the final session-leakage sweep before removing the .debug-active marker:
+   ```bash
+   STORY_BRANCH_PREFIX=bug-batch/ bash "$PLUGIN_SCRIPTS/detect-session-leakage.sh" 2>&1 || true
+   ```
    ```bash
    rm -f "$(git rev-parse --show-toplevel)/.debug-active" 2>/dev/null || true
    ```
