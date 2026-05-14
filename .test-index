@@ -315,7 +315,8 @@ plugins/dso/scripts/ticket:tests/scripts/test-ticket-compact-all.sh,tests/unit/s
 plugins/dso/scripts/update-artifacts.sh:tests/scripts/test-artifact-update-integration.sh
 plugins/dso/scripts/validate-ack-rationale.sh:tests/scripts/test-validate-ack-rationale.sh
 plugins/dso/scripts/validate-phase.sh:tests/scripts/test-validate-phase-missing-test-unit.sh,tests/test-validate-phase-portability.sh,tests/scripts/test-residual-callers-polyglot.sh
-plugins/dso/scripts/validate-review-output.sh:tests/hooks/test-validate-review-output.sh,tests/scripts/test-write-reviewer-findings.sh
+plugins/dso/scripts/validate-review-output.sh:tests/hooks/test-validate-review-output.sh,tests/scripts/test-write-reviewer-findings.sh,[test_absence_claim_soft_mode_warns_on_missing_verification_evidence] tests/hooks/test-validate-review-output.sh
+plugins/dso/docs/contracts/absence-claim-anchors.json:[test_anchors_json_valid_structure] tests/hooks/test-validate-review-output.sh,[test_anchors_json_missing_or_malformed_fails_closed] tests/hooks/test-validate-review-output.sh
 plugins/dso/scripts/validate.sh:tests/scripts/test-validate-config-driven.sh
 plugins/dso/scripts/worktree-cleanup.sh:tests/scripts/test_worktree_cleanup_startup_config.py,tests/scripts/test_worktree_cleanup_gather_progress.py,tests/scripts/test-worktree-cleanup.sh,tests/scripts/test-worktree-pr-merge-detection.sh,tests/scripts/test-claude-safe-stale-local-main.sh
 plugins/dso/skills/**/*.md:tests/hooks/test-no-plugin-markdown-refs.sh
