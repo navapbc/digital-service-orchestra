@@ -1996,6 +1996,25 @@ if [[ -z "$_PR_NUMBER" ]]; then
     exit 1
 fi
 
+# --- Promote draft PR to ready-for-review (2e68-046a) ---
+# On --resume, _phase_merge is skipped so its 075f-ec40 promotion block never
+# runs. Promote here unconditionally so both the fresh and resume paths work.
+# The guard inside _phase_merge prevents double-promotion on non-resume runs.
+_top_draft_check=$(gh pr view "$_PR_NUMBER" --json isDraft 2>/dev/null || true)
+_top_is_draft=$(printf '%s' "$_top_draft_check" | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    print('true' if d.get('isDraft') else 'false')
+except Exception:
+    print('false')
+" 2>/dev/null || echo 'false')
+if [[ "$_top_is_draft" == "true" ]]; then
+    echo "INFO: PR #${_PR_NUMBER} is draft — promoting to ready-for-review."
+    _top_ready_out=$(gh pr ready "$_PR_NUMBER" 2>&1) || \
+        echo "WARNING: gh pr ready #${_PR_NUMBER} failed (non-fatal): $_top_ready_out" >&2
+fi
+
 # --- Local-only: surface any new PR comments since the last push ---
 # In local sessions, reviewer feedback must be addressed by the session agent
 # before merge can proceed. The check is a no-op in CI (returns 0).
