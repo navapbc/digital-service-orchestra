@@ -27,6 +27,8 @@ plugins/dso/agents/approach-decision-maker.md:tests/scripts/test-approach-decisi
 plugins/dso/agents/blue-team-filter.md:tests/hooks/test-escalate-to-epic-taxonomy.sh,tests/hooks/test-residual-state-e2e.sh
 plugins/dso/agents/bot-psychologist.md:tests/scripts/test-bot-psychologist-agent.sh
 plugins/dso/agents/code-reviewer-test-quality.md:tests/hooks/test-agent-standard-reference.sh,tests/agents/test-verification-evidence-emission.sh [test_code_reviewer_light_emits_verification_evidence]
+plugins/dso/agents/code-reviewer-test-quality.md:tests/hooks/test-agent-standard-reference.sh
+plugins/dso/agents/code-reviewer-verifier.md:tests/agents/test-code-reviewer-verifier-agent.sh [test_verifier_agent_file_exists],tests/agents/test-validate-verifier-output.sh [test_verifier_script_exists]
 plugins/dso/agents/completion-verifier.md:tests/scripts/test-completion-verifier-story-trust.sh,tests/scripts/test-completion-verifier-preconditions.sh,tests/skills/test-preconditions-epic-closure-validator.sh,tests/scripts/test-epic-closure-sc-report.sh
 plugins/dso/agents/cross-epic-interaction-classifier.md:tests/skills/test-brainstorm-cross-epic-scan.sh
 plugins/dso/agents/doc-writer.md:tests/scripts/test-doc-writer-agent.sh,tests/scripts/test-sprint-skill-doc-writer-dispatch.sh
@@ -317,6 +319,8 @@ plugins/dso/scripts/validate-ack-rationale.sh:tests/scripts/test-validate-ack-ra
 plugins/dso/scripts/validate-phase.sh:tests/scripts/test-validate-phase-missing-test-unit.sh,tests/test-validate-phase-portability.sh,tests/scripts/test-residual-callers-polyglot.sh
 plugins/dso/scripts/validate-review-output.sh:tests/hooks/test-validate-review-output.sh [test_absence_claim_soft_mode_warns_on_missing_verification_evidence],tests/scripts/test-write-reviewer-findings.sh
 plugins/dso/docs/contracts/absence-claim-anchors.json:tests/hooks/test-validate-review-output.sh [test_absence_claim_soft_mode_warns_on_missing_verification_evidence]
+plugins/dso/scripts/validate-review-output.sh:tests/hooks/test-validate-review-output.sh,tests/scripts/test-write-reviewer-findings.sh
+plugins/dso/scripts/validate-verifier-output.sh:tests/agents/test-validate-verifier-output.sh [test_verifier_script_exists]
 plugins/dso/scripts/validate.sh:tests/scripts/test-validate-config-driven.sh
 plugins/dso/scripts/worktree-cleanup.sh:tests/scripts/test_worktree_cleanup_startup_config.py,tests/scripts/test_worktree_cleanup_gather_progress.py,tests/scripts/test-worktree-cleanup.sh,tests/scripts/test-worktree-pr-merge-detection.sh,tests/scripts/test-claude-safe-stale-local-main.sh
 plugins/dso/skills/**/*.md:tests/hooks/test-no-plugin-markdown-refs.sh
