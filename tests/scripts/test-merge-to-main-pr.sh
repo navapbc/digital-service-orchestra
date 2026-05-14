@@ -5471,6 +5471,7 @@ GIT_SHIM
 version=1.1.0
 merge.pr_poll_interval_seconds=0
 merge.pr_max_wait_seconds=3600
+merge.pr_thread_quiet_window_seconds=0
 EOF
 
     (

@@ -10,7 +10,7 @@
 set -uo pipefail
 
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-_REPO_ROOT="$(cd "$_SCRIPT_DIR/../../.." && pwd)"
+_REPO_ROOT="$(git -C "$_SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || dirname "$(dirname "${CLAUDE_PLUGIN_ROOT}")")"
 _CORPUS_DIR="$_REPO_ROOT/tests/fixtures/verifier-corpus"
 _VERIFIER_MODULE_DIR="$_SCRIPT_DIR/dso_ci_review"
 
