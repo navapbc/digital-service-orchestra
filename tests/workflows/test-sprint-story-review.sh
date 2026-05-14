@@ -124,4 +124,37 @@ else
 fi
 assert_pass_if_clean "test_job_installs_litellm"
 
+# ── test_mirror_tracker_defenses_job_exists ──────────────────────────────────
+# A mirror-tracker-defenses job must exist in sprint-story-review.yml so that
+# defense records are fetched and posted to the PR before the review job runs.
+# Bug 6345-62be: review executed before defenses were mirrored, so the reviewer
+# could not account for existing defenses from prior cycles.
+_snapshot_fail
+if [[ ! -f "$WORKFLOW_FILE" ]]; then
+    assert_eq "test_mirror_tracker_defenses_job_exists: workflow file present (prereq)" "1" "0"
+else
+    found=0
+    grep -qE "^\s+mirror-tracker-defenses:" "$WORKFLOW_FILE" 2>/dev/null && found=1 || true
+    assert_eq "test_mirror_tracker_defenses_job_exists: sprint-story-review.yml has mirror-tracker-defenses job" "1" "$found"
+fi
+assert_pass_if_clean "test_mirror_tracker_defenses_job_exists"
+
+# ── test_review_needs_mirror_tracker_defenses ─────────────────────────────────
+# The review job's needs list must include mirror-tracker-defenses, ensuring
+# defense mirroring completes before LLM review begins.
+# Bug 6345-62be: without this dependency the review job runs concurrently with
+# (or before) defense mirroring.
+_snapshot_fail
+if [[ ! -f "$WORKFLOW_FILE" ]]; then
+    assert_eq "test_review_needs_mirror_tracker_defenses: workflow file present (prereq)" "1" "0"
+else
+    # Extract the needs list from the review job and check for mirror-tracker-defenses
+    found=0
+    # Use awk to extract the needs block under the review job
+    awk '/^  review:/{found_review=1} found_review && /needs:/{found_needs=1} found_review && found_needs && /mirror-tracker-defenses/{print; exit}' \
+        "$WORKFLOW_FILE" 2>/dev/null | grep -q "mirror-tracker-defenses" && found=1 || true
+    assert_eq "test_review_needs_mirror_tracker_defenses: review job needs includes mirror-tracker-defenses" "1" "$found"
+fi
+assert_pass_if_clean "test_review_needs_mirror_tracker_defenses"
+
 print_summary

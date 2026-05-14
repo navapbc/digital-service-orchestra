@@ -51,9 +51,35 @@ jobs:
         with:
           args: check plugins/dso/scripts/
 
+  mirror-tracker-defenses:
+    name: Mirror Tracker Defenses to PR
+    needs: [actionlint, shellcheck, lint-python]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    continue-on-error: true
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Mirror defenses to PR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER=$(gh pr list --head "${GITHUB_REF_NAME}" --state open --json number \
+            --jq '.[0].number' 2>/dev/null || echo "")
+          if [[ ! "${PR_NUMBER}" =~ ^[0-9]+$ ]]; then
+            echo "No open PR found for branch ${GITHUB_REF_NAME} — skipping defense mirror"
+            exit 0
+          fi
+          # Fetch tickets orphan branch so review-defense-store.sh can read DEFENSE_RECORD entries.
+          git fetch --no-tags origin '+refs/heads/tickets:refs/remotes/origin/tickets' 2>/dev/null || true
+          bash plugins/dso/scripts/review-defense-store.sh list --pr "$PR_NUMBER" \
+            | bash plugins/dso/scripts/mirror-defenses-to-pr.sh "$PR_NUMBER" || true
+
   review:
     name: Per-Story LLM Review
-    needs: [actionlint, shellcheck, lint-python]
+    needs: [actionlint, shellcheck, lint-python, mirror-tracker-defenses]
     runs-on: ubuntu-latest
     # 30 min: region-split mode with 5 clusters takes ~12 min; 30 provides headroom.
     timeout-minutes: 30
