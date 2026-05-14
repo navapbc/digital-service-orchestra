@@ -78,7 +78,7 @@ test_phase_g_serialized_integration() {
 
 test_phase_g_instructions_colocated() {
     local result="missing"
-    if grep -qE 'Phase G.*sub.branch|sub.branch.*Phase G|## Phase G' "$SKILL_FILE" 2>/dev/null; then
+    if awk '/^## Phase G/,/^## Phase [HI]/' "$SKILL_FILE" 2>/dev/null | grep -qE 'sub.branch|sub-branch'; then
         result="found"
     fi
     assert_eq "test_phase_g_instructions_colocated: SKILL.md Phase G section references sub-branch dispatch" "found" "$result"

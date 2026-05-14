@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The `.debug-active` marker is a session-scoped file created by `/debug-everything` Phase B Step 1 when `merge.strategy=pr` (ci-pr mode). It:
+The `.debug-active` marker is a session-scoped file created by `/dso:debug-everything` Phase B Step 1 when `merge.strategy=pr` (ci-pr mode). It:
 
 - Enables merge-only enforcement on the session worktree (`check-session-merge-only.sh`)
 - Identifies the active debug session for correlation (PreToolUse hook — S10, future consumer)

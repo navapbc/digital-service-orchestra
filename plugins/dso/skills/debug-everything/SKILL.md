@@ -91,7 +91,7 @@ Scan configured GitHub Actions workflows for CI failures and create bug tickets 
 _debug_marker="$(git rev-parse --show-toplevel)/.debug-active"
 if [[ -f "$_debug_marker" ]]; then
     _schema_ver=$(grep '^schema_version=' "$_debug_marker" 2>/dev/null | sed 's/schema_version=//' || true)
-    if [[ -z "$_schema_ver" || "$_schema_ver" -lt 1 ]]; then
+    if [[ -z "$_schema_ver" || ! "$_schema_ver" =~ ^[0-9]+$ || "$_schema_ver" -lt 1 ]]; then
         printf 'ERROR: .debug-active marker is from a pre-upgrade session. Remove it manually and re-run.\n' >&2
         exit 1
     fi
@@ -134,11 +134,11 @@ That prompt also runs the Resume Check (parse `CHECKPOINT N/6` lines on in-progr
 DEBUG_MODE=$(.claude/scripts/dso read-config.sh merge.strategy 2>/dev/null || echo 'direct')
 _debug_marker="$(git rev-parse --show-toplevel)/.debug-active"
 if [[ "$DEBUG_MODE" == 'pr' ]]; then
-    _session_id="$(date -u +%Y%m%d-%H%M%S)-$(LC_ALL=C tr -dc 'a-z0-9' </dev/urandom | head -c6)"
-    printf 'schema_version=1\ndebug-session-id=%s\n' "$_session_id" > "$_debug_marker"
+    _session_id="$(date -u +%Y%m%d-%H%M%S)-$(set +o pipefail; LC_ALL=C tr -dc 'a-z0-9' </dev/urandom | head -c6)"
     DRAFT_PR_URL=$(DRAFT_PR_TITLE_PREFIX=Debug: SESSION_BRANCH="$SESSION_BRANCH" \
         PRIMARY_TICKET_ID="${EPIC_ID:-debug}" EPIC_TITLE='Debug Session' \
         bash "$(git rev-parse --show-toplevel)/.claude/scripts/dso" create-sprint-draft-pr.sh 2>&1)
+    printf 'schema_version=1\ndebug-session-id=%s\n' "$_session_id" > "$_debug_marker"
     printf 'merge.strategy=pr — debug session running in ci-pr mode. Draft PR: %s\n' "$DRAFT_PR_URL"
 else
     printf 'merge.strategy=direct — debug session running in local mode\n'
@@ -700,7 +700,7 @@ Within each tier, group independent fixes into batches sized by the `MAX_AGENTS`
 Phase F creates exactly one sub-branch per tier that produces changes. Tiers: Tier 0 (format/make format) and Tier 1 (lint/ruff --fix).
 
 - Branch naming: `bug-batch/<debug-session-id>/tier-0` and `bug-batch/<debug-session-id>/tier-1`
-- Use `create-story-branch.sh` with `--prefix bug-batch/<debug-session-id>` (or direct `git checkout -b`)
+- Use direct `git checkout -b bug-batch/<debug-session-id>/tier-<N>` (create-story-branch.sh appends /<epic>/<story> and cannot produce tier branch names)
 - When a tier has 0 bugs/changes: no sub-branch is created AND no annotation is added to the aggregate draft PR for that tier (zero-bug tier skip)
 - Apply all tier changes on the sub-branch and merge into the session branch before moving to the next tier
 - After creating the sub-branch, record a tracking comment (batch=0 for Phase F's single batches):
@@ -727,7 +727,7 @@ After each sub-branch is created and changes committed in ci-pr mode, run the pe
 
 After each batch merge in Phase F, run session-leakage detection (non-fatal):
 ```bash
-STORY_BRANCH_PREFIX=bug-batch/ bash "$PLUGIN_SCRIPTS/detect-session-leakage.sh" 2>&1 || log warning
+STORY_BRANCH_PREFIX=bug-batch/ bash "$PLUGIN_SCRIPTS/detect-session-leakage.sh" 2>&1 || true
 ```
 
 ### Launch Auto-Fix Sub-Agent
@@ -785,7 +785,7 @@ After each sub-branch is created and changes committed in ci-pr mode, run the pe
 
 After each batch merge in Phase G, run session-leakage detection (non-fatal):
 ```bash
-STORY_BRANCH_PREFIX=bug-batch/ bash "$PLUGIN_SCRIPTS/detect-session-leakage.sh" 2>&1 || log warning
+STORY_BRANCH_PREFIX=bug-batch/ bash "$PLUGIN_SCRIPTS/detect-session-leakage.sh" 2>&1 || true
 ```
 
 ---
