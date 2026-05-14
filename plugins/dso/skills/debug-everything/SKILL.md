@@ -697,6 +697,7 @@ In local mode (DEBUG_MODE=direct or absent): no sub-branch created; commit direc
 After each sub-branch is created and changes committed in ci-pr mode, run the per-sub-branch review block before merging:
 
 1. **Invoke `/dso:review`** (sub-agent dispatch) scoped to the sub-branch diff against the session branch.
+<!-- TODO: hermetic-repro (99f1-153c) fires before per-sub-branch review dispatch when 99f1 closes (see story 50a7) -->
 2. **Run `validate-review-output.sh`** schema validation against `reviewer-findings.json`; on schema failure, treat it as a review failure and trigger re-dispatch (schema failures are treated like review failures).
 3. **Autonomous resolution loop**: `max = max(1, review.max_resolution_attempts)` — when `max_resolution_attempts=0`, apply floor-guard: `floor` of 1 attempt applies; log warning `'floor-guard: using min 1 attempt'` (floor near `max_resolution_attempts` floor).
 4. **Return discriminated review outcome** for this sub-branch:
