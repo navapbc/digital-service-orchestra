@@ -26,7 +26,7 @@ plugins/dso/agents/*.md:tests/hooks/test-no-plugin-markdown-refs.sh
 plugins/dso/agents/approach-decision-maker.md:tests/scripts/test-approach-decision-maker-agent.sh
 plugins/dso/agents/blue-team-filter.md:tests/hooks/test-escalate-to-epic-taxonomy.sh,tests/hooks/test-residual-state-e2e.sh
 plugins/dso/agents/bot-psychologist.md:tests/scripts/test-bot-psychologist-agent.sh
-plugins/dso/agents/code-reviewer-test-quality.md:tests/hooks/test-agent-standard-reference.sh
+plugins/dso/agents/code-reviewer-test-quality.md:tests/hooks/test-agent-standard-reference.sh,tests/agents/test-verification-evidence-emission.sh [test_code_reviewer_light_emits_verification_evidence]
 plugins/dso/agents/completion-verifier.md:tests/scripts/test-completion-verifier-story-trust.sh,tests/scripts/test-completion-verifier-preconditions.sh,tests/skills/test-preconditions-epic-closure-validator.sh,tests/scripts/test-epic-closure-sc-report.sh
 plugins/dso/agents/cross-epic-interaction-classifier.md:tests/skills/test-brainstorm-cross-epic-scan.sh
 plugins/dso/agents/doc-writer.md:tests/scripts/test-doc-writer-agent.sh,tests/scripts/test-sprint-skill-doc-writer-dispatch.sh
@@ -443,3 +443,12 @@ plugins/dso/scripts/review-defense-store.sh:tests/review/test-defense-store-tick
 plugins/dso/scripts/check-unacked-degradations.sh:tests/scripts/test-check-unacked-degradations.sh
 tests/scripts/test-preconditions-fallthrough-landmarks.sh:tests/scripts/test-preconditions-fallthrough-landmarks.sh
 plugins/dso/scripts/preconditions-ack.sh:tests/scripts/test-preconditions-ack.sh,tests/scripts/test-preconditions-ack-sample.sh
+plugins/dso/agents/code-reviewer-light.md:tests/agents/test-verification-evidence-emission.sh [test_code_reviewer_light_emits_verification_evidence]
+plugins/dso/agents/code-reviewer-standard.md:tests/agents/test-verification-evidence-emission.sh [test_code_reviewer_light_emits_verification_evidence]
+plugins/dso/agents/code-reviewer-performance.md:tests/agents/test-verification-evidence-emission.sh [test_code_reviewer_light_emits_verification_evidence]
+plugins/dso/agents/code-reviewer-deep-arch.md:tests/agents/test-verification-evidence-emission.sh [test_code_reviewer_light_emits_verification_evidence]
+plugins/dso/agents/code-reviewer-deep-correctness.md:tests/agents/test-verification-evidence-emission.sh [test_code_reviewer_light_emits_verification_evidence]
+plugins/dso/agents/code-reviewer-deep-hygiene.md:tests/agents/test-verification-evidence-emission.sh [test_code_reviewer_light_emits_verification_evidence]
+plugins/dso/agents/code-reviewer-deep-verification.md:tests/agents/test-verification-evidence-emission.sh [test_code_reviewer_light_emits_verification_evidence]
+plugins/dso/agents/code-reviewer-security-red-team.md:tests/agents/test-verification-evidence-emission.sh [test_code_reviewer_light_emits_verification_evidence]
+plugins/dso/agents/code-reviewer-security-blue-team.md:tests/agents/test-verification-evidence-emission.sh [test_code_reviewer_light_emits_verification_evidence]
