@@ -101,7 +101,10 @@ if [[ -f "$_debug_marker" ]]; then
     _ttl_hours=${_ttl_hours:-24}  # guard: read-config.sh exits 0 with empty output when key absent
     _ttl_secs=$(( _ttl_hours * 3600 ))
     _now=$(date +%s 2>/dev/null || echo 0)
-    _ts_iso="${_marker_ts:0:4}-${_marker_ts:4:2}-${_marker_ts:6:2} ${_marker_ts:9:2}:${_marker_ts:11:2}:${_marker_ts:13:2}"
+    # Split _marker_ts (YYYYMMDD-HHMMSS) on '-' to get pure digit strings with no offset confusion
+    _date_part=$(echo "$_marker_ts" | cut -d- -f1)  # YYYYMMDD
+    _time_part=$(echo "$_marker_ts" | cut -d- -f2)  # HHMMSS
+    _ts_iso="${_date_part:0:4}-${_date_part:4:2}-${_date_part:6:2} ${_time_part:0:2}:${_time_part:2:2}:${_time_part:4:2}"
     _ts_epoch=$(date -d "$_ts_iso" +%s 2>/dev/null || date -j -f '%Y%m%d-%H%M%S' "$_marker_ts" +%s 2>/dev/null || echo 0)
     if [[ "$_ts_epoch" -eq 0 ]]; then
         printf 'Phase A: .debug-active marker timestamp unreadable — skipping stale check\n'
