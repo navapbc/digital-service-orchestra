@@ -997,6 +997,51 @@ test_phase_resolve_threads_handles_gh_api_failure() {
     _teardown_test
 }
 
+# ===========================================================================
+# Test: fresh PR with zero threads and quiet window NOT yet elapsed must exit 0.
+# (Bug 1d42-ffcb: _pr_settling_check requires quiet_elapsed=true before settling
+# even when threads=0, but for a PR with no threads from the first iteration
+# there is nothing to wait for. The fast-path in _phase_resolve_threads must
+# detect _last_thread_seen_ts==0 && threads_count==0 and return 0 immediately,
+# bypassing both _pr_settling_check and the _LLM_DISPATCH_CMD guard.)
+# ===========================================================================
+test_fresh_pr_zero_threads_settles_without_quiet_window() {
+    echo ""
+    echo "=== test_fresh_pr_zero_threads_settles_without_quiet_window ==="
+    _setup_test
+    # threads_mixed with no fixture → empty nodes → zero threads
+    export STUB_GH_SCENARIO=threads_mixed
+    unset STUB_GH_THREADS_FIXTURE
+    export PR_THREAD_LOOP_MAX_DISPATCHES=1
+    export PR_THREAD_LOOP_MAX_WALL_SECONDS=99999
+    export PR_THREAD_LOOP_INTERVAL=0
+    # Intentionally NO PR_THREAD_LOOP_START_OVERRIDE_SECONDS → quiet window not elapsed
+
+    local stderr_out rc=0
+    stderr_out=$(
+        CI=true \
+        PR_LIB_MODE=1 \
+        CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso" \
+        MERGE_STRATEGY=pr \
+        bash -c "
+            source '$MERGE_PR_SCRIPT' >/dev/null 2>&1 || true
+            unset _LLM_DISPATCH_CMD
+            _phase_resolve_threads 55 'https://github.com/o/r/pull/55' 2>&1 >/dev/null
+        "
+    ) || rc=$?
+
+    assert_eq "fresh zero-threads PR settles immediately (exit 0, no quiet-window wait)" \
+        "0" "$rc"
+    # Must not emit any ESCALATE when settling cleanly.
+    if [[ "$stderr_out" == *"ESCALATE"* ]]; then
+        echo "FAIL: test_fresh_pr_zero_threads_settles_without_quiet_window: stderr unexpectedly contains ESCALATE"
+        echo "  stderr: $stderr_out"
+        (( ++FAIL ))
+    fi
+    assert_pass_if_clean "test_fresh_pr_zero_threads_settles_without_quiet_window"
+    _teardown_test
+}
+
 # ---------------------------------------------------------------------------
 # Run all tests
 # ---------------------------------------------------------------------------
@@ -1013,6 +1058,7 @@ test_file_path_validator_rejects_malicious_input
 test_phase_resolve_threads_fails_loud_when_llm_dispatch_unset
 test_phase_resolve_threads_handles_gh_api_failure
 test_phase_resolve_threads_settles_clean_when_no_threads_and_llm_unset
+test_fresh_pr_zero_threads_settles_without_quiet_window
 test_dispatch_resolve_conflicts_fails_loud_when_llm_dispatch_unset
 test_dispatch_fix_agent_fails_loud_when_llm_dispatch_unset
 test_phase_conflict_resolution_propagates_escalate_when_llm_unset

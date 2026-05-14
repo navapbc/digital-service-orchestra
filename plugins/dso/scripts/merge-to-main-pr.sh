@@ -1044,6 +1044,20 @@ _phase_resolve_threads() {
             fi
         fi
 
+        # Fast-path: zero threads, none ever observed, and no LLM dispatch needed.
+        # _pr_settling_check requires quiet_elapsed=true even for threads=0, but that
+        # is only meaningful after threads have been seen and resolved. A fresh PR with
+        # no threads has nothing to wait for. We gate on _llm_cmd being empty because
+        # when an LLM dispatcher is available the loop continues (e.g., to detect SHA
+        # changes via _pr_handle_head_sha_reset). Bug 1d42-ffcb.
+        if (( _threads_count == 0 && _last_thread_seen_ts == 0 )) && [[ -z "$_llm_cmd" ]]; then
+            echo "INFO: PR #${_pr_number} has no review threads; resolve complete."
+            if type _state_mark_complete >/dev/null 2>&1; then
+                _state_mark_complete "resolve_threads" 2>/dev/null || true
+            fi
+            return 0
+        fi
+
         # Build comma-separated unresolved (non-escalated) thread IDs for ESCALATE messages.
         local _unresolved_ids="" _entry
         for _entry in "${_threads_arr[@]:-}"; do
@@ -1150,6 +1164,11 @@ _phase_poll() {
     _max_wait=$(bash "$_read_config" merge.pr_max_wait_seconds 2>/dev/null || true)
     [[ -z "$_interval" ]] && _interval=30
     [[ -z "$_max_wait" ]] && _max_wait=3600
+
+    # Attempt counter for BEHIND-state branch updates (jira-dig-2529).
+    # Capped at 3 to avoid an infinite update→CI-rerun cycle when main keeps moving.
+    local _branch_update_attempts=0
+    local _BRANCH_UPDATE_MAX_ATTEMPTS=3
 
     if type _state_write_phase >/dev/null 2>&1; then
         _state_write_phase "poll" 2>/dev/null || true
@@ -1276,6 +1295,27 @@ except Exception:
                 _state_mark_complete "poll" 2>/dev/null || true
             fi
             return 0
+        fi
+
+        # --- Step 2.5: detect BEHIND base-branch state and update (jira-dig-2529) ---
+        # When all CI checks pass but mergeStateStatus=BEHIND, branch protection
+        # blocks auto-merge until the PR branch incorporates the latest base. Detect
+        # this state and call `gh pr update-branch` rather than looping until timeout.
+        # Only runs when CI checks were queried successfully (_checks_rc=0) and all
+        # passed (_has_failure != "true") — skip during IN_PROGRESS or failure states.
+        if [[ "${_checks_rc:-0}" -eq 0 && "${_has_failure:-false}" != "true" ]]; then
+            local _merge_state_status
+            _merge_state_status=$(gh pr view "$_pr_number" --json mergeStateStatus \
+                --jq '.mergeStateStatus' 2>/dev/null || true)
+            if [[ "$_merge_state_status" == "BEHIND" ]]; then
+                if (( _branch_update_attempts >= _BRANCH_UPDATE_MAX_ATTEMPTS )); then
+                    echo "ERROR: PR #${_pr_number} branch update attempt limit (${_BRANCH_UPDATE_MAX_ATTEMPTS}) reached — branch cannot be updated from base; escalating (PR: ${_pr_url})" >&2
+                    return 1
+                fi
+                echo "INFO: PR #${_pr_number} branch is behind base — calling gh pr update-branch (attempt $(( _branch_update_attempts + 1 ))/${_BRANCH_UPDATE_MAX_ATTEMPTS})" >&2
+                gh pr update-branch "$_pr_number" 2>/dev/null || true
+                _branch_update_attempts=$(( _branch_update_attempts + 1 ))
+            fi
         fi
 
         # --- Step 3: timeout check (computed on elapsed wall time) ---

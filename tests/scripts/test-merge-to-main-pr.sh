@@ -5083,6 +5083,293 @@ GIT_SHIM
 }
 t_pr_version_bump_main_repo_not_on_main
 
+# ===========================================================================
+# _phase_poll BEHIND-state detection tests (jira-dig-2529)
+# ===========================================================================
+# When a PR's branch falls behind the base branch after CI starts, GitHub sets
+# mergeStateStatus=BEHIND and will not auto-merge even with green checks. These
+# tests verify that _phase_poll detects the BEHIND state and calls
+# `gh pr update-branch` to reconcile, rather than looping until timeout.
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# t_phase_poll_behind_calls_update_branch
+# When gh pr checks returns SUCCESS and mergeStateStatus returns BEHIND, the
+# poll loop must call `gh pr update-branch <pr_number>` at least once.
+# RED reason: _phase_poll does not read mergeStateStatus; update-branch is never called.
+# ---------------------------------------------------------------------------
+t_phase_poll_behind_calls_update_branch() {
+    local _T _update_branch_called _ec
+    _T="$(mktemp -d /tmp/dso-poll-behind-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    local _gh_call_count_file="$_T/gh-call-count"
+    local _update_branch_file="$_T/update-branch-called"
+    : > "$_gh_call_count_file"
+    mkdir -p "$_T/bin"
+
+    # gh shim: checks → SUCCESS; mergeStateStatus → BEHIND first call, CLEAN after update;
+    # state → OPEN until update-branch called, then MERGED
+    cat > "$_T/bin/gh" <<'GH_SHIM'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "LOGFILE"
+case "$1 $2" in
+  "pr checks")
+    printf 'x' >> "COUNTFILE"
+    echo '[{"name":"ci","state":"COMPLETED","conclusion":"SUCCESS"}]'
+    exit 0
+    ;;
+  "pr view")
+    if [[ "$*" == *"mergeStateStatus"* ]]; then
+      if [[ -f "UPDATEFILE" ]]; then
+        echo "CLEAN"
+      else
+        echo "BEHIND"
+      fi
+      exit 0
+    fi
+    if [[ "$*" == *"headRefOid"* ]]; then echo ""; exit 0; fi
+    if [[ "$*" == *"comments,reviews,reviewThreads"* ]]; then echo "{}"; exit 0; fi
+    if [[ "$*" == *"--json mergeable"* && "$*" != *state* ]]; then
+      echo '{"mergeable":"MERGEABLE","number":42,"url":"https://x/pull/42"}'
+      exit 0
+    fi
+    # state query
+    if [[ -f "UPDATEFILE" ]]; then
+      echo '{"state":"MERGED"}'
+    else
+      echo '{"state":"OPEN"}'
+    fi
+    exit 0
+    ;;
+  "pr update-branch")
+    touch "UPDATEFILE"
+    exit 0
+    ;;
+  "pr merge") exit 0 ;;
+  "pr list") exit 0 ;;
+  "pr create") echo "https://x/pull/42"; exit 0 ;;
+  "api graphql") echo '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}'; exit 0 ;;
+  "repo view") echo "x/y"; exit 0 ;;
+  "--version") echo "gh version 2.40.1"; exit 0 ;;
+  *) exit 0 ;;
+esac
+GH_SHIM
+    # Substitute actual paths for sentinel placeholders in shim
+    sed -i '' \
+        "s|LOGFILE|$_T/gh-argv.log|g; \
+         s|COUNTFILE|$_gh_call_count_file|g; \
+         s|UPDATEFILE|$_update_branch_file|g" \
+        "$_T/bin/gh" 2>/dev/null || \
+    sed -i \
+        "s|LOGFILE|$_T/gh-argv.log|g; \
+         s|COUNTFILE|$_gh_call_count_file|g; \
+         s|UPDATEFILE|$_update_branch_file|g" \
+        "$_T/bin/gh"
+    chmod +x "$_T/bin/gh"
+
+    # Zero-cadence config so the poll loop runs without sleeping
+    local _cfg="$_T/dso-config.conf"
+    cat > "$_cfg" <<EOF
+version=1.1.0
+merge.pr_poll_interval_seconds=0
+merge.pr_max_wait_seconds=3600
+EOF
+
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        WORKFLOW_CONFIG_FILE="$_cfg" \
+        MERGE_STRATEGY="pr" \
+        BRANCH="test-behind-$$" \
+        PR_LIB_MODE="1" \
+        bash -c '
+            source "$0" 2>/dev/null
+            # Stub state helpers to no-ops
+            _state_write_phase() { return 0; }
+            _state_mark_complete() { return 0; }
+            _state_read_auto_merge_disabled() { echo "false"; return 0; }
+            _phase_poll "42" "https://x/pull/42"
+        ' "$PR_SCRIPT"
+    ) 2>/dev/null
+    _ec=$?
+
+    _update_branch_called="$(test -f "$_update_branch_file" && echo yes || echo no)"
+
+    assert_eq "t_phase_poll_behind_calls_update_branch: update-branch was called" "yes" "$_update_branch_called"
+    assert_eq "t_phase_poll_behind_calls_update_branch: poll returns 0 after update" "0" "$_ec"
+}
+t_phase_poll_behind_calls_update_branch
+
+# ---------------------------------------------------------------------------
+# t_phase_poll_behind_clean_returns_zero
+# When mergeStateStatus transitions BEHIND→CLEAN after update-branch, and the
+# PR state transitions to MERGED on the following poll iteration, _phase_poll
+# must return 0.
+# RED reason: _phase_poll never updates the branch, so state stays OPEN → timeout.
+# ---------------------------------------------------------------------------
+t_phase_poll_behind_clean_returns_zero() {
+    local _T _ec
+    _T="$(mktemp -d /tmp/dso-poll-behind-clean.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    local _update_branch_file="$_T/update-branch-called"
+    mkdir -p "$_T/bin"
+
+    # gh shim: checks always SUCCESS; mergeStateStatus BEHIND until update-branch
+    # called then CLEAN; state OPEN until CLEAN, then MERGED
+    cat > "$_T/bin/gh" <<'GH_SHIM'
+#!/usr/bin/env bash
+case "$1 $2" in
+  "pr checks")
+    echo '[{"name":"ci","state":"COMPLETED","conclusion":"SUCCESS"}]'
+    exit 0
+    ;;
+  "pr view")
+    if [[ "$*" == *"mergeStateStatus"* ]]; then
+      [[ -f "UPDATEFILE" ]] && echo "CLEAN" || echo "BEHIND"
+      exit 0
+    fi
+    if [[ "$*" == *"headRefOid"* ]]; then echo ""; exit 0; fi
+    if [[ "$*" == *"comments,reviews,reviewThreads"* ]]; then echo "{}"; exit 0; fi
+    if [[ "$*" == *"--json mergeable"* && "$*" != *state* ]]; then
+      echo '{"mergeable":"MERGEABLE","number":42,"url":"https://x/pull/42"}'
+      exit 0
+    fi
+    [[ -f "UPDATEFILE" ]] && echo '{"state":"MERGED"}' || echo '{"state":"OPEN"}'
+    exit 0
+    ;;
+  "pr update-branch") touch "UPDATEFILE"; exit 0 ;;
+  "pr merge") exit 0 ;;
+  "pr list") exit 0 ;;
+  "pr create") echo "https://x/pull/42"; exit 0 ;;
+  "api graphql") echo '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}'; exit 0 ;;
+  "repo view") echo "x/y"; exit 0 ;;
+  "--version") echo "gh version 2.40.1"; exit 0 ;;
+  *) exit 0 ;;
+esac
+GH_SHIM
+    sed -i '' "s|UPDATEFILE|$_update_branch_file|g" "$_T/bin/gh" 2>/dev/null || \
+    sed -i    "s|UPDATEFILE|$_update_branch_file|g" "$_T/bin/gh"
+    chmod +x "$_T/bin/gh"
+
+    local _cfg2="$_T/dso-config.conf"
+    cat > "$_cfg2" <<EOF
+version=1.1.0
+merge.pr_poll_interval_seconds=0
+merge.pr_max_wait_seconds=3600
+EOF
+
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        WORKFLOW_CONFIG_FILE="$_cfg2" \
+        MERGE_STRATEGY="pr" \
+        BRANCH="test-behind-clean-$$" \
+        PR_LIB_MODE="1" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _state_write_phase() { return 0; }
+            _state_mark_complete() { return 0; }
+            _state_read_auto_merge_disabled() { echo "false"; return 0; }
+            _phase_poll "42" "https://x/pull/42"
+        ' "$PR_SCRIPT"
+    ) 2>/dev/null
+    _ec=$?
+
+    assert_eq "t_phase_poll_behind_clean_returns_zero: exits 0" "0" "$_ec"
+}
+t_phase_poll_behind_clean_returns_zero
+
+# ---------------------------------------------------------------------------
+# t_phase_poll_behind_exhausts_update_cap_exits_nonzero
+# When mergeStateStatus stays BEHIND for more than _BRANCH_UPDATE_MAX_ATTEMPTS
+# iterations, _phase_poll must return non-zero rather than looping until timeout.
+# RED reason: _phase_poll has no update-branch logic or attempt cap; it loops to timeout.
+# ---------------------------------------------------------------------------
+t_phase_poll_behind_exhausts_update_cap_exits_nonzero() {
+    local _T _ec _update_branch_count _exits_nonzero
+    _T="$(mktemp -d /tmp/dso-poll-behind-cap.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    local _update_count_file="$_T/update-count"
+    : > "$_update_count_file"
+    mkdir -p "$_T/bin"
+
+    # gh shim: checks always SUCCESS; mergeStateStatus always BEHIND (never clears)
+    cat > "$_T/bin/gh" <<'GH_SHIM'
+#!/usr/bin/env bash
+case "$1 $2" in
+  "pr checks")
+    echo '[{"name":"ci","state":"COMPLETED","conclusion":"SUCCESS"}]'
+    exit 0
+    ;;
+  "pr view")
+    if [[ "$*" == *"mergeStateStatus"* ]]; then echo "BEHIND"; exit 0; fi
+    if [[ "$*" == *"headRefOid"* ]]; then echo ""; exit 0; fi
+    if [[ "$*" == *"comments,reviews,reviewThreads"* ]]; then echo "{}"; exit 0; fi
+    if [[ "$*" == *"--json mergeable"* && "$*" != *state* ]]; then
+      echo '{"mergeable":"MERGEABLE","number":42,"url":"https://x/pull/42"}'
+      exit 0
+    fi
+    echo '{"state":"OPEN"}'
+    exit 0
+    ;;
+  "pr update-branch") printf 'x' >> "COUNTFILE"; exit 0 ;;
+  "pr merge") exit 0 ;;
+  "pr list") exit 0 ;;
+  "pr create") echo "https://x/pull/42"; exit 0 ;;
+  "api graphql") echo '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}'; exit 0 ;;
+  "repo view") echo "x/y"; exit 0 ;;
+  "--version") echo "gh version 2.40.1"; exit 0 ;;
+  *) exit 0 ;;
+esac
+GH_SHIM
+    sed -i '' "s|COUNTFILE|$_update_count_file|g" "$_T/bin/gh" 2>/dev/null || \
+    sed -i    "s|COUNTFILE|$_update_count_file|g" "$_T/bin/gh"
+    chmod +x "$_T/bin/gh"
+
+    local _cfg3="$_T/dso-config.conf"
+    cat > "$_cfg3" <<EOF
+version=1.1.0
+merge.pr_poll_interval_seconds=0
+merge.pr_max_wait_seconds=3600
+EOF
+
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        WORKFLOW_CONFIG_FILE="$_cfg3" \
+        MERGE_STRATEGY="pr" \
+        BRANCH="test-behind-cap-$$" \
+        PR_LIB_MODE="1" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _state_write_phase() { return 0; }
+            _state_mark_complete() { return 0; }
+            _state_read_auto_merge_disabled() { echo "false"; return 0; }
+            _phase_poll "42" "https://x/pull/42"
+        ' "$PR_SCRIPT"
+    ) 2>/dev/null
+    _ec=$?
+
+    _exits_nonzero="false"
+    [[ "$_ec" -ne 0 ]] && _exits_nonzero="true"
+
+    _update_branch_count="$(wc -c < "$_update_count_file" 2>/dev/null | tr -d ' ' || echo 0)"
+
+    assert_eq "t_phase_poll_behind_exhausts_update_cap_exits_nonzero: exits nonzero" "true" "$_exits_nonzero"
+    # update-branch called exactly _BRANCH_UPDATE_MAX_ATTEMPTS (3) times then stopped
+    assert_eq "t_phase_poll_behind_exhausts_update_cap_exits_nonzero: update-branch called 3 times" "3" "$_update_branch_count"
+}
+t_phase_poll_behind_exhausts_update_cap_exits_nonzero
+
 # ---------------------------------------------------------------------------
 # end of file
 print_summary

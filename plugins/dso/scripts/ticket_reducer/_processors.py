@@ -263,8 +263,14 @@ def process_file_impact(state: dict, event: dict, data: dict) -> None:
 
 
 def process_archived(state: dict) -> None:
-    """Apply an ARCHIVED event: set state.archived = True."""
+    """Apply an ARCHIVED event: mark ticket archived and reflect in status field.
+
+    Preserves a prior 'deleted' status (delete writes STATUS(deleted) + ARCHIVED;
+    the deleted terminal state must win over the archived projection).
+    """
     state["archived"] = True
+    if state.get("status") != "deleted":
+        state["status"] = "archived"
 
 
 def process_snapshot(state: dict, data: dict) -> None:

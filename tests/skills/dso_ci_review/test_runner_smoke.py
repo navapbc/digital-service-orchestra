@@ -916,6 +916,7 @@ def _run_main_with(diff_path, output_path, dispatch_findings, env_extra=None):
         "GITHUB_EVENT_NAME": "",
         "GITHUB_REF": "",
         "GITHUB_TOKEN": "",
+        "GITHUB_SHA": "",
         "PR_NUMBER": "",
     }
     if env_extra:
@@ -1057,13 +1058,15 @@ def test_runner_skips_blocking_for_specialist_errors(tmp_path):
 
 
 def test_runner_posts_pr_review_when_findings(tmp_path):
-    """Each blocking finding must be posted as its own PR comment, so the team
-    can resolve/respond to them independently in the GitHub PR UI.
+    """Blocking findings must be posted via the GitHub Pulls Reviews API as resolvable threads.
 
-    Uses GITHUB_EVENT_NAME=pull_request + GITHUB_REF=refs/pull/123/merge to simulate
-    PR context; mocks subprocess.run to capture each gh CLI invocation.
+    Bug 59e3-8b8b fix: findings with cited_lines are now posted as a batched PR review
+    (gh api -X POST .../pulls/{n}/reviews) instead of individual issue comments.
+    Uses GITHUB_SHA + GITHUB_REPOSITORY + GITHUB_EVENT_NAME=pull_request to simulate
+    PR context with head SHA available.
     """
     import dso_ci_review.runner as runner_mod
+    import json as _json
 
     diff_file = tmp_path / "input.diff"
     diff_file.write_text("diff --git a/foo b/foo\n+x\n")
@@ -1090,9 +1093,11 @@ def test_runner_posts_pr_review_when_findings(tmp_path):
     ]
 
     captured_calls = []
+    captured_inputs = []
 
     def _capture_run(cmd, *args, **kwargs):
         captured_calls.append(cmd)
+        captured_inputs.append(kwargs.get("input", ""))
         from subprocess import CompletedProcess
 
         return CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
@@ -1102,6 +1107,7 @@ def test_runner_posts_pr_review_when_findings(tmp_path):
         "GITHUB_REF": "refs/pull/123/merge",
         "GITHUB_TOKEN": "token-stub",
         "GITHUB_REPOSITORY": "owner/repo",
+        "GITHUB_SHA": "deadbeef1234",
     }
 
     with patch.object(runner_mod, "subprocess", create=True) as mock_subprocess:
@@ -1114,27 +1120,38 @@ def test_runner_posts_pr_review_when_findings(tmp_path):
         mock_subprocess.TimeoutExpired = _real_subprocess.TimeoutExpired
         _run_main_with(diff_file, out, findings, env_extra=env_extra)
 
-    gh_calls = [
-        c for c in captured_calls if "gh" in (c[0] if isinstance(c, list) else c)
+    gh_calls = [c for c in captured_calls if isinstance(c, list) and c and c[0] == "gh"]
+    reviews_api_calls = [
+        c for c in gh_calls if "api" in c and "/reviews" in " ".join(str(x) for x in c)
     ]
-    assert len(gh_calls) == len(findings), (
-        f"Expected one gh pr comment call per blocking finding "
-        f"({len(findings)} total); got {len(gh_calls)}: {gh_calls!r}"
+    issue_comment_calls = [c for c in gh_calls if "pr" in c and "comment" in c]
+
+    assert len(reviews_api_calls) == 1, (
+        f"Expected 1 Reviews API call (batched); got {len(reviews_api_calls)}: {reviews_api_calls!r}"
+    )
+    assert not issue_comment_calls, (
+        f"Anchored findings must NOT use gh pr comment; got: {issue_comment_calls!r}"
     )
 
-    # Each call body should reference exactly one finding (the i/N counter).
-    bodies = [c[c.index("--body") + 1] if "--body" in c else "" for c in gh_calls]
-    for i, body in enumerate(bodies, 1):
-        assert f"finding {i}/{len(findings)}" in body, (
-            f"Comment {i} body missing the finding-index marker; got: {body!r:.200}"
+    reviews_call_idx = next(
+        i for i, c in enumerate(captured_calls) if c in reviews_api_calls
+    )
+    body = _json.loads(captured_inputs[reviews_call_idx])
+    assert len(body.get("comments", [])) == len(findings), (
+        f"Reviews API body must contain {len(findings)} comments; got {body.get('comments')!r}"
+    )
+    for i, comment in enumerate(body["comments"], 1):
+        assert f"finding {i}/{len(findings)}" in comment.get("body", ""), (
+            f"Comment {i} body missing the finding-index marker; got: {comment.get('body')!r:.200}"
         )
 
 
 def test_runner_partial_post_failure_continues_remaining_findings(tmp_path):
-    """When one gh comment call fails, the remaining findings still post.
+    """When the Reviews API call fails, the runner falls back and posts all findings as issue comments.
 
-    Covers the per-finding loop's continue-on-error semantics: a transient
-    network blip on comment 2 of 3 must not suppress comments 1 and 3.
+    Bug 59e3-8b8b fix: if `gh api .../reviews` returns a non-zero exit code (e.g., 422
+    from GitHub rejecting a path not in the diff), the runner catches the error and
+    re-routes ALL findings to individual issue comments — none are dropped.
     """
     import dso_ci_review.runner as runner_mod
 
@@ -1151,7 +1168,7 @@ def test_runner_partial_post_failure_continues_remaining_findings(tmp_path):
         {
             "severity": "important",
             "category": "correctness",
-            "description": "second finding (post fails)",
+            "description": "second finding",
             "cited_lines": ["foo:7"],
         },
         {
@@ -1163,16 +1180,19 @@ def test_runner_partial_post_failure_continues_remaining_findings(tmp_path):
     ]
 
     captured_calls = []
-    call_count = {"n": 0}
 
-    def _flaky_run(cmd, *args, **kwargs):
+    def _reviews_api_fails(cmd, *args, **kwargs):
         captured_calls.append(cmd)
-        call_count["n"] += 1
         from subprocess import CalledProcessError, CompletedProcess
 
-        if call_count["n"] == 2:
+        # Make the Reviews API call fail (simulate 422 / path not in diff)
+        if (
+            isinstance(cmd, list)
+            and "api" in cmd
+            and "/reviews" in " ".join(str(x) for x in cmd)
+        ):
             raise CalledProcessError(
-                returncode=1, cmd=cmd, output="", stderr="simulated network error"
+                returncode=1, cmd=cmd, output="", stderr="422 Unprocessable Entity"
             )
         return CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
 
@@ -1181,22 +1201,327 @@ def test_runner_partial_post_failure_continues_remaining_findings(tmp_path):
         "GITHUB_REF": "refs/pull/123/merge",
         "GITHUB_TOKEN": "token-stub",
         "GITHUB_REPOSITORY": "owner/repo",
+        "GITHUB_SHA": "abcdef1234",
     }
 
     with patch.object(runner_mod, "subprocess", create=True) as mock_subprocess:
         import subprocess as _real_subprocess
 
-        mock_subprocess.run.side_effect = _flaky_run
+        mock_subprocess.run.side_effect = _reviews_api_fails
         mock_subprocess.CalledProcessError = _real_subprocess.CalledProcessError
         mock_subprocess.TimeoutExpired = _real_subprocess.TimeoutExpired
         _run_main_with(diff_file, out, findings, env_extra=env_extra)
 
-    gh_calls = [
-        c for c in captured_calls if "gh" in (c[0] if isinstance(c, list) else c)
+    gh_calls = [c for c in captured_calls if isinstance(c, list) and c and c[0] == "gh"]
+    reviews_api_calls = [
+        c for c in gh_calls if "api" in c and "/reviews" in " ".join(str(x) for x in c)
     ]
-    assert len(gh_calls) == 3, (
-        f"Expected runner to attempt all 3 comment posts even when #2 fails; "
-        f"got {len(gh_calls)} attempts: {gh_calls!r}"
+    issue_comment_calls = [c for c in gh_calls if "pr" in c and "comment" in c]
+
+    assert len(reviews_api_calls) == 1, (
+        f"Expected 1 Reviews API attempt (which fails); got {reviews_api_calls!r}"
+    )
+    assert len(issue_comment_calls) == 3, (
+        f"Expected 3 fallback issue comment posts after Reviews API failure; "
+        f"got {len(issue_comment_calls)}: {issue_comment_calls!r}"
+    )
+
+
+def test_post_pr_review_uses_reviews_api_for_anchored_findings(tmp_path):
+    """Findings with cited_lines must be posted via the GitHub Pulls Reviews API, not issue comments.
+
+    Bug 59e3-8b8b: _post_pr_review used gh pr comment (Issues API), so findings
+    never became resolvable review threads. With the fix, a single gh api -X POST
+    .../pulls/{n}/reviews call with a comments[] payload replaces the per-finding
+    gh pr comment calls for anchored findings.
+    """
+    import dso_ci_review.runner as runner_mod
+
+    findings = [
+        {
+            "severity": "important",
+            "category": "correctness",
+            "description": "fix A",
+            "cited_lines": ["foo.py:1"],
+        },
+        {
+            "severity": "fragile",
+            "category": "correctness",
+            "description": "fix B",
+            "cited_lines": ["foo.py:7"],
+        },
+        {
+            "severity": "critical",
+            "category": "correctness",
+            "description": "fix C",
+            "cited_lines": ["foo.py:12"],
+        },
+    ]
+    captured_calls = []
+    captured_inputs = []
+
+    def _capture_run(cmd, *args, **kwargs):
+        captured_calls.append(cmd)
+        captured_inputs.append(kwargs.get("input", ""))
+        from subprocess import CompletedProcess
+
+        return CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
+
+    env_extra = {
+        "GITHUB_EVENT_NAME": "pull_request",
+        "GITHUB_REF": "refs/pull/123/merge",
+        "GITHUB_TOKEN": "token-stub",
+        "GITHUB_REPOSITORY": "owner/repo",
+        "GITHUB_SHA": "abc123headsha",
+    }
+
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text("diff --git a/foo.py b/foo.py\n+x\n")
+    out = tmp_path / "out.json"
+
+    with patch.object(runner_mod, "subprocess", create=True) as mock_subprocess:
+        mock_subprocess.run.side_effect = _capture_run
+        import subprocess as _real_subprocess
+
+        mock_subprocess.CalledProcessError = _real_subprocess.CalledProcessError
+        mock_subprocess.TimeoutExpired = _real_subprocess.TimeoutExpired
+        _run_main_with(diff_file, out, findings, env_extra=env_extra)
+
+    gh_calls = [c for c in captured_calls if isinstance(c, list) and c and c[0] == "gh"]
+    reviews_api_calls = [
+        c for c in gh_calls if "api" in c and "/reviews" in " ".join(str(x) for x in c)
+    ]
+    issue_comment_calls = [c for c in gh_calls if "pr" in c and "comment" in c]
+
+    assert len(reviews_api_calls) == 1, (
+        f"Expected exactly 1 Reviews API call for 3 anchored findings; "
+        f"got {len(reviews_api_calls)} reviews_api and {len(issue_comment_calls)} issue_comment calls. "
+        f"All gh calls: {gh_calls!r}"
+    )
+    assert not issue_comment_calls, (
+        f"Anchored findings must use Reviews API, not issue comments; "
+        f"got {len(issue_comment_calls)} gh pr comment calls: {issue_comment_calls!r}"
+    )
+
+    # Verify the reviews API body has all 3 comments
+    reviews_call_idx = next(
+        i for i, c in enumerate(captured_calls) if c in reviews_api_calls
+    )
+    body_json = captured_inputs[reviews_call_idx]
+    import json as _json
+
+    body = _json.loads(body_json)
+    assert body.get("commit_id") == "abc123headsha", f"commit_id mismatch: {body!r}"
+    assert body.get("event") == "COMMENT", f"event mismatch: {body!r}"
+    assert len(body.get("comments", [])) == 3, (
+        f"Expected 3 review comments; got {body.get('comments')!r}"
+    )
+    # Each comment must have path, line, side, body
+    for i, comment in enumerate(body["comments"]):
+        assert "path" in comment, f"comment[{i}] missing path: {comment!r}"
+        assert "line" in comment, f"comment[{i}] missing line: {comment!r}"
+        assert comment.get("side") == "RIGHT", (
+            f"comment[{i}] side must be RIGHT: {comment!r}"
+        )
+        assert f"finding {i + 1}/3" in comment.get("body", ""), (
+            f"comment[{i}] body missing finding index marker: {comment.get('body')!r:.200}"
+        )
+
+
+def test_post_pr_review_falls_back_to_issue_comment_for_unanchorable(tmp_path):
+    """Findings with no cited_lines anchor fall back to issue comments; anchored ones use Reviews API.
+
+    Bug 59e3-8b8b: verify mixed findings (one anchored, one unanchored) produce
+    exactly 1 Reviews API call (anchored) + 1 issue comment (unanchored).
+    """
+    import dso_ci_review.runner as runner_mod
+
+    findings = [
+        {
+            "severity": "important",
+            "category": "correctness",
+            "description": "anchored",
+            "cited_lines": ["bar.py:5"],
+        },
+        {
+            "severity": "important",
+            "category": "correctness",
+            "description": "no anchor",
+            "cited_lines": [],
+        },
+    ]
+    captured_calls = []
+    captured_inputs = []
+
+    def _capture_run(cmd, *args, **kwargs):
+        captured_calls.append(cmd)
+        captured_inputs.append(kwargs.get("input", ""))
+        from subprocess import CompletedProcess
+
+        return CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
+
+    env_extra = {
+        "GITHUB_EVENT_NAME": "pull_request",
+        "GITHUB_REF": "refs/pull/99/merge",
+        "GITHUB_TOKEN": "token-stub",
+        "GITHUB_REPOSITORY": "owner/repo",
+        "GITHUB_SHA": "deadbeef",
+    }
+
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text("diff --git a/bar.py b/bar.py\n+x\n")
+    out = tmp_path / "out.json"
+
+    with patch.object(runner_mod, "subprocess", create=True) as mock_subprocess:
+        mock_subprocess.run.side_effect = _capture_run
+        import subprocess as _real_subprocess
+
+        mock_subprocess.CalledProcessError = _real_subprocess.CalledProcessError
+        mock_subprocess.TimeoutExpired = _real_subprocess.TimeoutExpired
+        _run_main_with(diff_file, out, findings, env_extra=env_extra)
+
+    gh_calls = [c for c in captured_calls if isinstance(c, list) and c and c[0] == "gh"]
+    reviews_api_calls = [
+        c for c in gh_calls if "api" in c and "/reviews" in " ".join(str(x) for x in c)
+    ]
+    issue_comment_calls = [c for c in gh_calls if "pr" in c and "comment" in c]
+
+    assert len(reviews_api_calls) == 1, (
+        f"Expected 1 Reviews API call for anchored finding; got {reviews_api_calls!r}"
+    )
+    assert len(issue_comment_calls) == 1, (
+        f"Expected 1 issue comment call for unanchored finding; got {issue_comment_calls!r}"
+    )
+
+
+def test_post_pr_review_falls_back_when_head_sha_unresolvable(tmp_path):
+    """When GITHUB_SHA is absent and gh pr view headRefOid returns empty, all findings fall back to issue comments.
+
+    Bug 59e3-8b8b: graceful degradation — if the HEAD SHA cannot be resolved,
+    the runner must still post all findings (as issue comments) rather than dropping them.
+    """
+    import dso_ci_review.runner as runner_mod
+
+    findings = [
+        {
+            "severity": "important",
+            "category": "correctness",
+            "description": "finding 1",
+            "cited_lines": ["a.py:10"],
+        },
+        {
+            "severity": "important",
+            "category": "correctness",
+            "description": "finding 2",
+            "cited_lines": ["b.py:20"],
+        },
+    ]
+    captured_calls = []
+
+    def _capture_run(cmd, *args, **kwargs):
+        captured_calls.append(cmd)
+        from subprocess import CompletedProcess
+
+        # Return empty stdout for headRefOid lookup
+        return CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
+
+    env_extra = {
+        "GITHUB_EVENT_NAME": "pull_request",
+        "GITHUB_REF": "refs/pull/77/merge",
+        "GITHUB_TOKEN": "token-stub",
+        "GITHUB_REPOSITORY": "owner/repo",
+        # GITHUB_SHA intentionally absent
+    }
+
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text("diff --git a/a.py b/a.py\n+x\n")
+    out = tmp_path / "out.json"
+
+    with patch.object(runner_mod, "subprocess", create=True) as mock_subprocess:
+        mock_subprocess.run.side_effect = _capture_run
+        import subprocess as _real_subprocess
+
+        mock_subprocess.CalledProcessError = _real_subprocess.CalledProcessError
+        mock_subprocess.TimeoutExpired = _real_subprocess.TimeoutExpired
+        _run_main_with(diff_file, out, findings, env_extra=env_extra)
+
+    gh_calls = [c for c in captured_calls if isinstance(c, list) and c and c[0] == "gh"]
+    reviews_api_calls = [
+        c for c in gh_calls if "api" in c and "/reviews" in " ".join(str(x) for x in c)
+    ]
+    issue_comment_calls = [c for c in gh_calls if "pr" in c and "comment" in c]
+
+    assert not reviews_api_calls, (
+        f"Must NOT call Reviews API when HEAD SHA is unresolvable; got: {reviews_api_calls!r}"
+    )
+    assert len(issue_comment_calls) == 2, (
+        f"Expected 2 issue comment fallback calls; got {len(issue_comment_calls)}: {issue_comment_calls!r}"
+    )
+
+
+def test_post_pr_review_handles_range_cited_lines(tmp_path):
+    """A cited_lines range like 'path:10-25' must anchor to the start line (10).
+
+    Bug 59e3-8b8b: verify the anchor extractor parses ranges correctly so the
+    Reviews API comment lands at the right line.
+    """
+    import dso_ci_review.runner as runner_mod
+    import json as _json
+
+    findings = [
+        {
+            "severity": "critical",
+            "category": "correctness",
+            "description": "range anchor",
+            "cited_lines": ["src/util.py:10-25"],
+        }
+    ]
+    captured_calls = []
+    captured_inputs = []
+
+    def _capture_run(cmd, *args, **kwargs):
+        captured_calls.append(cmd)
+        captured_inputs.append(kwargs.get("input", ""))
+        from subprocess import CompletedProcess
+
+        return CompletedProcess(args=cmd, returncode=0, stdout="", stderr="")
+
+    env_extra = {
+        "GITHUB_EVENT_NAME": "pull_request",
+        "GITHUB_REF": "refs/pull/5/merge",
+        "GITHUB_TOKEN": "token-stub",
+        "GITHUB_REPOSITORY": "owner/repo",
+        "GITHUB_SHA": "cafebabe",
+    }
+
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text("diff --git a/src/util.py b/src/util.py\n+x\n")
+    out = tmp_path / "out.json"
+
+    with patch.object(runner_mod, "subprocess", create=True) as mock_subprocess:
+        mock_subprocess.run.side_effect = _capture_run
+        import subprocess as _real_subprocess
+
+        mock_subprocess.CalledProcessError = _real_subprocess.CalledProcessError
+        mock_subprocess.TimeoutExpired = _real_subprocess.TimeoutExpired
+        _run_main_with(diff_file, out, findings, env_extra=env_extra)
+
+    gh_calls = [c for c in captured_calls if isinstance(c, list) and c and c[0] == "gh"]
+    reviews_api_calls = [
+        c for c in gh_calls if "api" in c and "/reviews" in " ".join(str(x) for x in c)
+    ]
+
+    assert len(reviews_api_calls) == 1, (
+        f"Expected 1 Reviews API call; got {reviews_api_calls!r}"
+    )
+    reviews_call_idx = next(
+        i for i, c in enumerate(captured_calls) if c in reviews_api_calls
+    )
+    body = _json.loads(captured_inputs[reviews_call_idx])
+    comment = body["comments"][0]
+    assert comment["path"] == "src/util.py", f"path mismatch: {comment!r}"
+    assert comment["line"] == 10, (
+        f"Expected start line 10 for range 10-25; got {comment['line']}"
     )
 
 
