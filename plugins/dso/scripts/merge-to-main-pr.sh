@@ -1151,6 +1151,11 @@ _phase_poll() {
     [[ -z "$_interval" ]] && _interval=30
     [[ -z "$_max_wait" ]] && _max_wait=3600
 
+    # Attempt counter for BEHIND-state branch updates (jira-dig-2529).
+    # Capped at 3 to avoid an infinite update→CI-rerun cycle when main keeps moving.
+    local _branch_update_attempts=0
+    local _BRANCH_UPDATE_MAX_ATTEMPTS=3
+
     if type _state_write_phase >/dev/null 2>&1; then
         _state_write_phase "poll" 2>/dev/null || true
     fi
@@ -1276,6 +1281,27 @@ except Exception:
                 _state_mark_complete "poll" 2>/dev/null || true
             fi
             return 0
+        fi
+
+        # --- Step 2.5: detect BEHIND base-branch state and update (jira-dig-2529) ---
+        # When all CI checks pass but mergeStateStatus=BEHIND, branch protection
+        # blocks auto-merge until the PR branch incorporates the latest base. Detect
+        # this state and call `gh pr update-branch` rather than looping until timeout.
+        # Only runs when CI checks were queried successfully (_checks_rc=0) and all
+        # passed (_has_failure != "true") — skip during IN_PROGRESS or failure states.
+        if [[ "${_checks_rc:-0}" -eq 0 && "${_has_failure:-false}" != "true" ]]; then
+            local _merge_state_status
+            _merge_state_status=$(gh pr view "$_pr_number" --json mergeStateStatus \
+                --jq '.mergeStateStatus' 2>/dev/null || true)
+            if [[ "$_merge_state_status" == "BEHIND" ]]; then
+                if (( _branch_update_attempts >= _BRANCH_UPDATE_MAX_ATTEMPTS )); then
+                    echo "ERROR: PR #${_pr_number} branch update attempt limit (${_BRANCH_UPDATE_MAX_ATTEMPTS}) reached — branch cannot be updated from base; escalating (PR: ${_pr_url})" >&2
+                    return 1
+                fi
+                echo "INFO: PR #${_pr_number} branch is behind base — calling gh pr update-branch (attempt $(( _branch_update_attempts + 1 ))/${_BRANCH_UPDATE_MAX_ATTEMPTS})" >&2
+                gh pr update-branch "$_pr_number" 2>/dev/null || true
+                _branch_update_attempts=$(( _branch_update_attempts + 1 ))
+            fi
         fi
 
         # --- Step 3: timeout check (computed on elapsed wall time) ---
