@@ -56,6 +56,10 @@ Each element of the `findings` array in `reviewer-findings.json` MAY include the
       "dimension": "correctness",
       "description": "...",
       "cited_lines": ["src/foo.py:42"],
+      "verification_evidence": {
+        "command": "ls -la path/to/file.py",
+        "output": "ls: path/to/file.py: No such file or directory"
+      },
       "relation": "NEW_INTRODUCED",
       "prior_finding_id": null,
       "escape_rationale": null
@@ -125,6 +129,7 @@ There is no line-based prefix for this signal. The JSON file itself is the recor
 | `dimension` | string | Yes | Review dimension: `correctness`, `security`, `maintainability`, `performance`, `hygiene`. |
 | `description` | string | Yes | Finding description. |
 | `cited_lines` | array of string | Yes | List of `<file>:<line>` references supporting the finding. |
+| `verification_evidence` | object | Conditional | Required on findings whose `description` matches any pattern in `absence-claim-anchors.json`. Object with two required string fields: `command` (the shell command run to verify absence) and `output` (the verbatim command output confirming absence). Absent findings are warned (soft mode) or rejected (hard mode) per enforcement sentinel. |
 | `relation` | string | Yes (cycle N+1) | One of four enum values — see Relation Enum table. Absent on first-cycle reviews (treated as `NEW_INTRODUCED`). |
 | `prior_finding_id` | string or null | Conditional | Required for `RESUSTAIN_OF` and `REFRAME_OF`. Must match a `finding_id` in `prior_findings.json`. Absent (null) for `NEW_INTRODUCED`. Absent for `NEW_PRE_EXISTING` unless `escape_rationale` is provided. |
 | `escape_rationale` | string or null | Conditional | See escape_rationale format section. |
@@ -340,6 +345,46 @@ On cycle N+1 reviews, the reviewer performs two calls: Call 1 (initial findings)
 
 ---
 
+## Absence-Claim Enforcement
+
+### Absence-claim detection
+
+A finding is classified as an **absence claim** when its `description` field matches any entry in `${CLAUDE_PLUGIN_ROOT}/docs/contracts/absence-claim-anchors.json`. The anchors file defines two match arrays:
+
+- **`anchors`** — exact substring match: any phrase in this array that appears verbatim in the finding description triggers the absence-claim classification.
+- **`anchors_prefix_patterns`** — regex prefix match: any pattern in this array matched against the start of the description triggers the classification.
+
+When a finding is classified as an absence claim, `verification_evidence` becomes a required field. See `${CLAUDE_PLUGIN_ROOT}/docs/contracts/absence-claim-anchors.md` for full documentation of the anchor list.
+
+### Soft-deprecation mode (default)
+
+When the sentinel file `${CLAUDE_PLUGIN_ROOT}/contracts/absence-claim-enforcement-v1` is **absent**, validators operate in soft-deprecation mode:
+
+- Absence-claim findings missing `verification_evidence` emit a **warning** but are not rejected.
+- Warning format: `"WARNING: finding[N].verification_evidence absent on absence-claim finding (soft mode — upgrade to strict with sentinel file)"`
+- The review workflow continues normally; no finding is dropped.
+
+### Hard enforcement mode
+
+Hard enforcement is activated when the file `${CLAUDE_PLUGIN_ROOT}/contracts/absence-claim-enforcement-v1` **exists**. Validators operating in hard mode:
+
+- **Reject** any absence-claim finding that is missing `verification_evidence`.
+- Exit with code 1 on rejection.
+- Error format: `"finding[N]: missing required field 'verification_evidence' (absence claim detected: '<matched_phrase>')"`
+
+### Sentinel file
+
+| Property | Value |
+|---|---|
+| Name | `absence-claim-enforcement-v1` |
+| Path | `${CLAUDE_PLUGIN_ROOT}/contracts/absence-claim-enforcement-v1` |
+| Detection | File-existence check via `os.path.exists` in the validator |
+| Manual opt-in | `touch "${CLAUDE_PLUGIN_ROOT}/contracts/absence-claim-enforcement-v1"` |
+
+Creating the sentinel file immediately opts the project into hard enforcement with no other configuration required.
+
+---
+
 ## Failure Contract
 
 The orchestrator MUST handle the following failure cases without halting the review workflow:
@@ -369,6 +414,7 @@ All failures must be logged so silent degradation is detectable in debug output.
 | `dso:code-reviewer-deep-hygiene` | Emitter | Same as above. |
 | `dso:code-reviewer-deep-arch` | Synthesizer | Opus agent; synthesizes parallel deep-tier findings; translates pre-synthesis relation fields to synthesized `finding_id` references. |
 | REVIEW-WORKFLOW.md orchestrator | Parser | Applies auto-downgrade, validates prior_finding_id, runs completeness check, triggers arbiter dispatch on RESUSTAIN_OF of defended findings. |
+| `validate-review-output.sh` | Parser | Enforces `verification_evidence` conditional requirement on absence-claim findings; soft-warns or hard-rejects per the absence-claim-enforcement-v1 sentinel file. |
 | `prior_findings.json` | Reference store | Provides prior-cycle finding IDs and severity ratings for `prior_finding_id` validation and auto-downgrade exception logic. |
 
 All implementors must read this contract before modifying any code-reviewer agent prompt or REVIEW-WORKFLOW.md orchestrator review-cycle logic. Changes to the signal format require updating all conforming emitters, parsers, and this document atomically in the same commit.
@@ -382,3 +428,4 @@ This contract is versioned. Breaking changes (field removal, enum value removal,
 ### Change Log
 
 - **2026-05-07**: Initial version — defines review-findings-schema relation taxonomy (NEW_INTRODUCED, NEW_PRE_EXISTING, RESUSTAIN_OF, REFRAME_OF), prior_finding_id rules, escape_rationale structural validation, auto-downgrade rule with severity_history, and Call 2 completeness check protocol. Emitted by cycle-N+1 reviewer agents; parsed by REVIEW-WORKFLOW.md orchestrator.
+- **2026-05-14**: Added `verification_evidence: {command, output}` field. Absence-claim detection via `absence-claim-anchors.json` pattern set. Soft-deprecation mode by default; hard enforcement via `absence-claim-enforcement-v1` sentinel file.
