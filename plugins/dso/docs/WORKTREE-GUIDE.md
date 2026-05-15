@@ -653,9 +653,11 @@ At the end of a worktree session, use `merge-to-main.sh` (not raw `git merge`) t
 .claude/scripts/dso merge-to-main.sh
 ```
 
-**Merge strategy dispatch**: `merge-to-main.sh` reads `merge.strategy` from `.claude/dso-config.conf` and dispatches to:
-- `merge-to-main-direct.sh` (when `merge.strategy=direct`, the default) — runs the 7-phase pipeline below
-- `merge-to-main-pr.sh` (when `merge.strategy=pr`) — creates a PR, queues auto-merge, polls CI + review threads
+**Merge strategy dispatch**: `merge-to-main.sh` reads `dso.workflow` from `.claude/dso-config.conf` and dispatches to:
+- `merge-to-main-direct.sh` (when `dso.workflow=local`, the default) — runs the 7-phase pipeline below
+- `merge-to-main-pr.sh` (when `dso.workflow=ci-pr`) — creates a PR, queues auto-merge, polls CI + review threads
+
+> **Legacy**: The deprecated `merge.strategy` key (`direct`/`pr`) is still accepted. Prefer `dso.workflow=local` or `dso.workflow=ci-pr` for new and updated configs.
 
 ### Phased Workflow
 

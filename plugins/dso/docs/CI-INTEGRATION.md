@@ -40,6 +40,6 @@ Key modules: `dso_ci_review/region_split.py` (split logic, clustering, deduplica
 
 Phases: `sync → merge → version_bump → validate → push → archive → ci_trigger → comment_response`.
 
-- PR mode (`merge.strategy=pr`) appends a `remediate` phase (bounded retry loop, per-tier ceiling=5, global ceiling=15; exit 2 = remediation exhaustion with escalation JSON on stdout; exit 1 = pre-remediation failure).
+- PR mode (`dso.workflow=ci-pr`) appends a `remediate` phase (bounded retry loop, per-tier ceiling=5, global ceiling=15; exit 2 = remediation exhaustion with escalation JSON on stdout; exit 1 = pre-remediation failure).
 - State file: `/tmp/merge-to-main-state-<branch>.json` (4h TTL); `--resume` continues from checkpoint.
-- See `CONFIGURATION-REFERENCE.md` for `merge.strategy` and `enforcement.strategy` keys.
+- See `CONFIGURATION-REFERENCE.md` for the `dso.workflow` key (`ci-pr` or `local`). Legacy keys `merge.strategy` and `enforcement.strategy` are deprecated — use `dso.workflow` instead.
