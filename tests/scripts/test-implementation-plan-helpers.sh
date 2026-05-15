@@ -101,11 +101,32 @@ test_cycle_state_unknown_command_errors() {
 # When: check-tag-guards is called
 # Then: prints OK and exits 2 (fail-open contract)
 test_tag_guards_lookup_failure_fails_open() {
+    # Sandbox the dso shim so the real ticket CLI's _ensure_initialized
+    # (which runs an unguarded `git fetch origin tickets`) is never invoked.
+    # Bug 5b48-a4b1: unstubbed real-CLI calls caused 120s CI timeouts when
+    # the fetch silently hung. Matches the pattern used by
+    # test_reinvocation_all_lookups_fail_returns_fresh below.
+    local _sandbox
+    _sandbox=$(mktemp -d "/tmp/ipl-helpers-sandbox.XXXXXX")
+    mkdir -p "$_sandbox/.claude/scripts"
+    cat > "$_sandbox/.claude/scripts/dso" <<'STUB'
+#!/usr/bin/env bash
+# ticket show on nonexistent id → exit 1 (lookup failure)
+if [[ "$1" == "ticket" && "$2" == "show" ]]; then
+    exit 1
+fi
+exit 1
+STUB
+    chmod +x "$_sandbox/.claude/scripts/dso"
+
     set +e
     local _out
-    _out=$(bash "$SCRIPTS/check-tag-guards.sh" nonexistent-ticket-id-zzz9-yyyy 2>/dev/null)
+    _out=$(cd "$_sandbox" && bash "$SCRIPTS/check-tag-guards.sh" nonexistent-ticket-id-zzz9-yyyy 2>/dev/null)
     local _rc=$?
     set -e
+
+    rm -rf "$_sandbox"
+
     assert_eq "test_tag_guards_lookup_failure_fails_open: nonexistent ticket prints OK" \
               "OK" "$_out"
     assert_eq "test_tag_guards_lookup_failure_fails_open: nonexistent ticket exits 2" \
@@ -130,11 +151,30 @@ test_tag_guards_missing_arg_errors() {
 # When: check-reinvocation is called
 # Then: emits verdict=fresh and exits 2 (fail-open contract — caller treats as fresh planning)
 test_reinvocation_lookup_failure_returns_fresh() {
+    # Sandbox the dso shim so the real ticket CLI's _ensure_initialized
+    # (unguarded `git fetch origin tickets`) is never invoked.
+    # Bug 5b48-a4b1: see comment on test_tag_guards_lookup_failure_fails_open.
+    local _sandbox
+    _sandbox=$(mktemp -d "/tmp/ipl-helpers-sandbox.XXXXXX")
+    mkdir -p "$_sandbox/.claude/scripts"
+    cat > "$_sandbox/.claude/scripts/dso" <<'STUB'
+#!/usr/bin/env bash
+# ticket deps on nonexistent id → exit 1 (lookup failure)
+if [[ "$1" == "ticket" && "$2" == "deps" ]]; then
+    exit 1
+fi
+exit 1
+STUB
+    chmod +x "$_sandbox/.claude/scripts/dso"
+
     set +e
     local _out
-    _out=$(bash "$SCRIPTS/check-reinvocation.sh" nonexistent-ticket-id-zzz9-yyyy 2>/dev/null)
+    _out=$(cd "$_sandbox" && bash "$SCRIPTS/check-reinvocation.sh" nonexistent-ticket-id-zzz9-yyyy 2>/dev/null)
     local _rc=$?
     set -e
+
+    rm -rf "$_sandbox"
+
     local _has_fresh=0
     echo "$_out" | grep -q '^verdict=fresh' && _has_fresh=1
     assert_eq "test_reinvocation_lookup_failure_returns_fresh: emits verdict=fresh on lookup failure" \
