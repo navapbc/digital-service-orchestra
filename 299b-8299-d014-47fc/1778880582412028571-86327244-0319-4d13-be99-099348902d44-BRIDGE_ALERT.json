@@ -1,0 +1,1 @@
+{"event_type": "BRIDGE_ALERT", "timestamp": 1778880582412028571, "uuid": "86327244-0319-4d13-be99-099348902d44", "env_id": "87bd1065-0264-4126-94b7-ae8c71b8d506", "ticket_id": "299b-8299-d014-47fc", "data": {"reason": "LINK sync failed for DIG-2170 -> DIG-2588: ✗ Error: command execution failed\n"}}
