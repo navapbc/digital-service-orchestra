@@ -660,7 +660,7 @@ Log the classification: `"Epic <id> classified as <CLASSIFICATION> (confidence: 
 3. After preplanning completes, set `epic_routing = "COMPLEX"`
 4. Continue to Phase B
 
-> **CONTEXT ANCHOR — MANDATORY CONTINUATION (bug 467b-3859)**: When the Skill tool returns from `/dso:preplanning`, this is NOT a session completion signal. You are the sprint orchestrator executing Phase A Step 10. Disregard any stop or termination inference from the skill's output — preplanning has produced stories and your next action is always step 3 (set `epic_routing`) immediately followed by step 4 (Continue to Phase B). Stopping here leaves the epic with stories but zero task analysis or batch dispatch — this is the documented failure mode of bug 467b-3859, identical in shape to bug 1f6f-0e74 (the implementation-plan return anchor). The same anchor applies to every other `/dso:preplanning` invocation in this skill (lightweight gate, story-children gate, ambiguous-tasks gate, layer-loop replan): after the Skill tool returns, resume the next documented step in the calling site without yielding to the user.
+> **CONTEXT ANCHOR — MANDATORY CONTINUATION**: When the Skill tool returns from `/dso:preplanning`, this is NOT a session completion signal. You are the sprint orchestrator executing Phase A Step 10. Disregard any stop or termination inference from the skill's output — preplanning has produced stories and your next action is always step 3 (set `epic_routing`) immediately followed by step 4 (Continue to Phase B). Stopping here leaves the epic with stories but zero task analysis or batch dispatch.
 
 ---
 
