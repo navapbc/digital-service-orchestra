@@ -48,18 +48,25 @@ FIXTURE_COMMIT_MSG="feat: implement feature
 
 DSO-Story: ${FIXTURE_TITLE}"
 
+_conf_dir=$(mktemp -d)
+_TEMP_DIRS+=("$_conf_dir")
+printf "dso.workflow=ci-pr\n" > "$_conf_dir/dso-config.conf"
+_conf_file="$_conf_dir/dso-config.conf"
+
 # Case 1: fixture trailer format is accepted by validator (exit 0)
 echo "--- test_fixture_trailer_format_accepted ---"
 _repo1=$(make_git_repo_with_commit "$FIXTURE_COMMIT_MSG")
+touch "$_repo1/.sprint-active"
 _exit1=0
-(cd "$_repo1" && DSO_SPRINT_MODE=1 bash "$CHECK_SCRIPT") 2>/dev/null || _exit1=$?
+(cd "$_repo1" && WORKFLOW_CONFIG_FILE="$_conf_file" bash "$CHECK_SCRIPT") 2>/dev/null || _exit1=$?
 assert_eq "fixture trailer format: accepted by validator" "0" "$_exit1"
 
 # Case 2: commit without trailer is rejected in sprint mode
 echo "--- test_no_trailer_rejected ---"
 _repo2=$(make_git_repo_with_commit "feat: implement feature without trailer")
+touch "$_repo2/.sprint-active"
 _exit2=0
-_out2=$(cd "$_repo2" && DSO_SPRINT_MODE=1 bash "$CHECK_SCRIPT" 2>&1) || _exit2=$?
+_out2=$(cd "$_repo2" && WORKFLOW_CONFIG_FILE="$_conf_file" bash "$CHECK_SCRIPT" 2>&1) || _exit2=$?
 assert_ne "no trailer: exit non-zero" "0" "$_exit2"
 assert_contains "no trailer: error mentions DSO-Story" "DSO-Story" "$_out2"
 
