@@ -102,6 +102,18 @@ fi
 # -- Export MERGE_STRATEGY so strategy scripts and _state_init can read it --
 export MERGE_STRATEGY
 
+# -- Push session branch if running from a session worktree --
+# CI's per-story review job fetches origin/${SPRINT_SESSION_ID}; if the
+# session branch was never pushed (e.g., sprint resumed after compaction and
+# the Pre-Dispatch push was skipped), CI fails with "couldn't find remote ref".
+# This push is idempotent and non-fatal — it is a safety-net, not the sole push.
+if [[ -f "$REPO_ROOT/.git" ]]; then
+    _session_branch=$(git -C "$REPO_ROOT" branch --show-current 2>/dev/null || true)
+    if [[ -n "$_session_branch" ]]; then
+        git -C "$REPO_ROOT" push -u origin "$_session_branch" --quiet 2>/dev/null || true
+    fi
+fi
+
 # -- Exec strategy script --
 # Strategy script resolution order:
 #   1. Any directory already on PATH (allows test stubs to shadow the real script)

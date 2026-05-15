@@ -5,6 +5,10 @@
 
 set -uo pipefail
 
+# Suppress dso ticket-show git fetch in CI (prevents _ensure_initialized hang).
+# Same fix applied to test-implementation-plan-helpers.sh (commit d9ca99f3da).
+export _TICKET_TEST_NO_SYNC=1
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 BENCHMARK="$REPO_ROOT/plugins/dso/scripts/preconditions-benchmark.sh"
