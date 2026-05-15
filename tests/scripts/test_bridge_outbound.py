@@ -2281,3 +2281,74 @@ def test_snapshot_event_with_status_change_drives_jira_update(
         f"update_issue must be called with ('DSO-77', status='closed'); "
         f"got calls: {mock_client.update_issue.call_args_list}"
     )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_snapshot_event_with_status_match_is_noop(
+    tmp_path: Path, bridge: ModuleType
+) -> None:
+    """f-e5f6g7h8: SNAPSHOT whose compiled_state.status already matches the
+    current Jira status must NOT trigger update_issue.
+
+    This is the symmetric no-op case to
+    ``test_snapshot_event_with_status_change_drives_jira_update``. Without
+    this test, the production code could unconditionally call update_issue
+    on every SNAPSHOT and the divergence-only test would still pass — a
+    regression that would re-introduce Jira-status thrash.
+    """
+    ticket_id = "jade-cabin-tithe-snap-noop"
+    ticket_dir = tmp_path / ticket_id
+    ticket_dir.mkdir()
+
+    sync_payload = {
+        "event_type": "SYNC",
+        "jira_key": "DSO-78",
+        "local_id": ticket_id,
+        "env_id": _BRIDGE_ENV_ID,
+        "timestamp": 1742600000,
+        "run_id": "prev-run",
+    }
+    sync_file = ticket_dir / f"1742600000-{_UUID1}-SYNC.json"
+    sync_file.write_text(json.dumps(sync_payload))
+
+    snapshot_path = _write_event(
+        ticket_dir,
+        timestamp=1742700000,
+        uuid=_UUID2,
+        event_type="SNAPSHOT",
+        data={
+            "compiled_state": {
+                "ticket_id": ticket_id,
+                "status": "closed",
+                "title": "Compacted ticket",
+                "ticket_type": "task",
+            },
+            "source_event_uuids": [_UUID3],
+            "compacted_at": 1742700000,
+        },
+        env_id=_OTHER_ENV_ID,
+    )
+
+    events = [
+        {
+            "ticket_id": ticket_id,
+            "event_type": "SNAPSHOT",
+            "file_path": str(snapshot_path),
+        }
+    ]
+
+    mock_client = MagicMock()
+    mock_client.update_issue = MagicMock(return_value={"status": "ok"})
+    # Jira already in "closed" — same as compiled_state.status — so the
+    # handler must short-circuit before calling update_issue.
+    mock_client.get_issue = MagicMock(return_value={"status": "closed"})
+
+    bridge.process_outbound(
+        events,
+        acli_client=mock_client,
+        tickets_root=tmp_path,
+        bridge_env_id=_BRIDGE_ENV_ID,
+    )
+
+    mock_client.update_issue.assert_not_called()

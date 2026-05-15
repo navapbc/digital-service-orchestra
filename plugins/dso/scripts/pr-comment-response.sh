@@ -363,6 +363,14 @@ PYEOF
             | tr '\n\r' '  ' \
             | sed -E 's/^[^[:alnum:]]+//; s/[[:space:]]+/ /g')
         slug="${slug:0:80}"
+        # f-v2w3x4y5: when body is entirely whitespace/punctuation the slug
+        # pipeline collapses to "", which would produce the bare-tail title
+        # "[PR #N] Deferred review comment: " — the exact taut-onset-gauge
+        # regression. Fall back to the comment id so the title is still
+        # uniquely identifiable.
+        if [[ -z "$slug" ]]; then
+            slug="comment-${comment_id}"
+        fi
         local pr_tag="pr-${pr_number}-deferred"
         local title="[PR #${pr_number}] Deferred review comment: ${slug}"
 

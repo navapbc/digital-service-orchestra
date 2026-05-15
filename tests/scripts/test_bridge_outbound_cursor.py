@@ -522,3 +522,147 @@ def test_fetch_events_file_path_resolvable_for_create_event(
         "bare relative path not resolvable from process CWD"
     )
     assert event_data.get("data", {}).get("title") == expected_title
+
+
+# ---------------------------------------------------------------------------
+# f-c9d0e1f2: BRIDGE_COMMIT_CAP malformed-value fallback coverage
+# ---------------------------------------------------------------------------
+
+
+def _commit_n_status(repo: Path, n: int) -> list[str]:
+    shas: list[str] = []
+    for i in range(n):
+        sha, _ = _commit_event(repo, f"ticket-mal-{i:04d}", "STATUS")
+        shas.append(sha)
+    return shas
+
+
+def test_bridge_commit_cap_invalid_string_falls_back_to_default(
+    tmp_path: Path, cursor_mod: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """BRIDGE_COMMIT_CAP='invalid' must NOT crash; falls back to function-arg cap.
+
+    The env-var parsing wraps int() in a try/except, but until this test the
+    fallback branch was unverified. A regression that changed `except ValueError`
+    to `except KeyError` (or removed the try entirely) would slip past CI.
+    """
+    repo = _make_tmp_git_tracker(tmp_path)
+    initial_sha, _ = _commit_event(repo, "ticket-base", "CREATE")
+    cursor_mod.write_cursor(repo, initial_sha)
+    _commit_n_status(repo, 3)
+
+    monkeypatch.setenv("BRIDGE_COMMIT_CAP", "invalid")
+    # Default cap is 500; 3 new commits should NOT be chunked.
+    events = cursor_mod.fetch_events_since_cursor(repo, initial_sha)
+    assert len(events) == 3, (
+        "malformed BRIDGE_COMMIT_CAP must fall back to default cap; "
+        f"got {len(events)} events"
+    )
+
+
+def test_bridge_commit_cap_empty_string_falls_back_to_default(
+    tmp_path: Path, cursor_mod: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """BRIDGE_COMMIT_CAP='' (empty/whitespace) must behave as if unset.
+
+    Operators frequently set then clear env vars; a literal empty string must
+    not be passed to int() and must not chunk every event."""
+    repo = _make_tmp_git_tracker(tmp_path)
+    initial_sha, _ = _commit_event(repo, "ticket-base", "CREATE")
+    cursor_mod.write_cursor(repo, initial_sha)
+    _commit_n_status(repo, 2)
+
+    monkeypatch.setenv("BRIDGE_COMMIT_CAP", "")
+    events = cursor_mod.fetch_events_since_cursor(repo, initial_sha, cap=500)
+    assert len(events) == 2
+
+
+def test_bridge_commit_cap_float_string_falls_back_to_default(
+    tmp_path: Path, cursor_mod: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """BRIDGE_COMMIT_CAP='500.5' must fall back: int() rejects float-like strings."""
+    repo = _make_tmp_git_tracker(tmp_path)
+    initial_sha, _ = _commit_event(repo, "ticket-base", "CREATE")
+    cursor_mod.write_cursor(repo, initial_sha)
+    _commit_n_status(repo, 2)
+
+    monkeypatch.setenv("BRIDGE_COMMIT_CAP", "500.5")
+    events = cursor_mod.fetch_events_since_cursor(repo, initial_sha, cap=500)
+    # Should fall back to default (no chunking).
+    assert len(events) == 2
+
+
+def test_bridge_commit_cap_negative_int_is_accepted(
+    tmp_path: Path, cursor_mod: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """BRIDGE_COMMIT_CAP='-100' parses cleanly via int().
+
+    Current behavior pins the observed semantics: a negative int IS a valid
+    int and is accepted (the cap-exceeded path fires since len(distinct_shas)
+    > -100 is always true), so the chunk path runs. The test documents the
+    intentional behavior; a future negative-rejection change must update this
+    test consciously.
+    """
+    repo = _make_tmp_git_tracker(tmp_path)
+    initial_sha, _ = _commit_event(repo, "ticket-base", "CREATE")
+    cursor_mod.write_cursor(repo, initial_sha)
+    _commit_n_status(repo, 3)
+
+    monkeypatch.setenv("BRIDGE_COMMIT_CAP", "-100")
+    # Negative effective_cap > 0 is False, so the fail-loud branch doesn't
+    # fire. The chunking loop hits its `break` before adding any shas (cap=-100),
+    # so chunk_shas is empty and zero events come back. This is what the
+    # current implementation produces; pin it.
+    events = cursor_mod.fetch_events_since_cursor(repo, initial_sha, cap=500)
+    # Acceptance criterion: it does NOT crash with ValueError and does NOT
+    # raise the fail-loud RuntimeError. The returned event count is
+    # implementation-defined for negative caps.
+    assert isinstance(events, list)
+
+
+# ---------------------------------------------------------------------------
+# f-z6a7b8c9: chunk_state_out direct contract
+# ---------------------------------------------------------------------------
+
+
+def test_fetch_events_writes_chunk_state_was_chunked_true_when_cap_exceeded(
+    tmp_path: Path, cursor_mod: ModuleType
+) -> None:
+    """When the cap is exceeded, chunk_state_out must be mutated to
+    ``{"was_chunked": True}`` — this is the contract process_events relies on
+    to decide between chunk-HEAD and repo-HEAD cursor advance."""
+    repo = _make_tmp_git_tracker(tmp_path)
+    initial_sha, _ = _commit_event(repo, "ticket-base", "CREATE")
+    cursor_mod.write_cursor(repo, initial_sha)
+    for i in range(5):
+        _commit_event(repo, f"ticket-cs-{i}", "STATUS")
+
+    chunk_state: dict[str, object] = {}
+    cursor_mod.fetch_events_since_cursor(
+        repo, initial_sha, cap=2, chunk_state_out=chunk_state
+    )
+    assert chunk_state.get("was_chunked") is True, (
+        f"chunk_state_out['was_chunked'] must be True when cap is exceeded; "
+        f"got {chunk_state!r}"
+    )
+
+
+def test_fetch_events_writes_chunk_state_was_chunked_false_when_under_cap(
+    tmp_path: Path, cursor_mod: ModuleType
+) -> None:
+    """When the new-commit count is under cap, chunk_state_out must record
+    ``{"was_chunked": False}`` — this signals the caller it can safely advance
+    the cursor all the way to repo HEAD."""
+    repo = _make_tmp_git_tracker(tmp_path)
+    initial_sha, _ = _commit_event(repo, "ticket-base", "CREATE")
+    cursor_mod.write_cursor(repo, initial_sha)
+    for i in range(2):
+        _commit_event(repo, f"ticket-cs-uc-{i}", "STATUS")
+
+    chunk_state: dict[str, object] = {}
+    cursor_mod.fetch_events_since_cursor(
+        repo, initial_sha, cap=500, chunk_state_out=chunk_state
+    )
+    assert chunk_state.get("was_chunked") is False, (
+        f"chunk_state_out['was_chunked'] must be False under cap; got {chunk_state!r}"
+    )

@@ -448,6 +448,69 @@ for c in d.get('comments', []):
 }
 
 # ---------------------------------------------------------------------------
+# TEST 7: Empty-slug fallback — body that is entirely whitespace/punctuation
+# (f-v2w3x4y5). Given:  defer comment whose body collapses to "" after the
+# leading-non-alnum strip, When: _handle_defer mints a ticket, Then: title
+# falls back to "comment-<id>" rather than ending with empty tail
+# "[PR #42] Deferred review comment: ".
+# ---------------------------------------------------------------------------
+test_defer_title_falls_back_on_empty_slug() {
+    _snapshot_fail
+    echo ""
+    echo "=== test_defer_title_falls_back_on_empty_slug ==="
+
+    local stub_dir; stub_dir=$(_make_stub_dir)
+    local out_json; out_json=$(mktemp "/tmp/dso-defer-out.XXXXXX")
+    _cleanup_dirs+=("$out_json")
+    local gh_log; gh_log=$(mktemp "/tmp/dso-defer-gh.XXXXXX")
+    _cleanup_dirs+=("$gh_log")
+    local dso_log; dso_log=$(mktemp "/tmp/dso-defer-dso.XXXXXX")
+    _cleanup_dirs+=("$dso_log")
+
+    # Body that is all whitespace + punctuation -> slug pipeline produces "".
+    local fixture
+    fixture=$(cat <<'JSON'
+[
+  {
+    "comment_id": "comment-301",
+    "in_reply_to_id": "comment-300",
+    "body": "   !!!   ",
+    "author": "reviewer-bob",
+    "is_inline": false,
+    "path": null,
+    "position": null,
+    "url": "https://github.com/test/repo/pull/42#issuecomment-301"
+  }
+]
+JSON
+)
+    _make_defer_json null > "$out_json"
+
+    GH_CALL_LOG="$gh_log" DSO_CALL_LOG="$dso_log" \
+        STUB_COMMENTS_JSON="$fixture" \
+        PATH="$stub_dir:$PATH" GITHUB_TOKEN="FAKE" \
+        bash "$SCRIPT" --pr-number 42 --output "$out_json" --classify-as "comment-301:defer" 2>/dev/null || true
+
+    local dso_calls; dso_calls=$(cat "$dso_log" 2>/dev/null || echo "")
+    # Title must include the comment-id fallback rather than ending with an
+    # empty slug. The slug pipeline yields "" for "   !!!   "; the fallback
+    # "comment-301" must take its place.
+    assert_contains "title should fall back to 'comment-<id>' when slug is empty" \
+        "comment-301" "$dso_calls"
+    assert_contains "title should still carry PR number prefix" "[PR #42]" "$dso_calls"
+
+    # Negative: must NOT emit a title that ends with "Deferred review comment: "
+    # followed immediately by a tab (the dso stub tab-delimits args) — that is
+    # the exact taut-onset-gauge regression symptom.
+    if grep -F $'Deferred review comment: \t' "$dso_log" >/dev/null 2>&1; then
+        assert_eq "must not emit empty-slug title (trailing colon-space-tab)" \
+            "no-empty-slug" "empty-slug-emitted"
+    fi
+
+    assert_pass_if_clean "test_defer_title_falls_back_on_empty_slug"
+}
+
+# ---------------------------------------------------------------------------
 # Run all tests
 # ---------------------------------------------------------------------------
 test_defer_creates_ticket_and_writes_ticket_id_before_reply
@@ -456,5 +519,6 @@ test_defer_retry_skips_ticket_creation_when_ticket_id_present
 test_defer_ticket_failure_prevents_reply
 test_defer_title_includes_pr_number_and_slug
 test_defer_consolidates_when_existing_ticket_exists
+test_defer_title_falls_back_on_empty_slug
 
 print_summary
