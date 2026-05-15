@@ -769,6 +769,26 @@ At the start of this phase, read the `## PHASE_PLAN` section from `$SCRATCHPAD`.
 
 **Goal:** Summarize the findings and hand off to the next step.
 
+### Step 0: Snapshot Pre-Onboarding Init State (/dso:onboarding) (bug 7d25-c78e)
+
+Before any subsequent step writes onboarding artifacts (Step 2b writes `.claude/dso-config.conf`; Batch Group 3 writes `.claude/CLAUDE.md`), capture whether the host project was previously onboarded. This snapshot is the load-bearing sentinel for the Batch Group 2 shim-installation branch — using live file presence at that point would be wrong because Step 2b mutates state in between.
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+# Both artifacts must be present pre-onboarding for the host to count as
+# previously initialized. CLAUDE.md is written in Batch Group 3 (later than
+# Batch Group 2), so its pre-onboarding presence reliably distinguishes a
+# repaired host from a fresh init even after Step 2b has run.
+if [[ -f "$REPO_ROOT/.claude/CLAUDE.md" && -f "$REPO_ROOT/.claude/dso-config.conf" ]]; then
+    _INITIAL_DSO_INSTALLED=true
+else
+    _INITIAL_DSO_INSTALLED=false
+fi
+export _INITIAL_DSO_INSTALLED
+```
+
+`_INITIAL_DSO_INSTALLED` is consumed by Batch Group 2 (DSO Shim Installation) to choose between `update-shim.sh` (true) and `dso-setup.sh` (false). Do NOT recompute it later in the phase — by the time Batch Group 2 runs, Step 2b will have already written `.claude/dso-config.conf` even on fresh-init runs.
+
 ### Step 1: Present Understanding Summary
 
 Compile the scratchpad into a readable summary:
@@ -1119,26 +1139,30 @@ Display to user: "Installing the DSO shim — a short command-line shortcut (.cl
 
 Before any other infrastructure steps, install the `.claude/scripts/dso` shim that all subsequent commands depend on.
 
-**Shim template location:** The shim template file is at `templates/host-project/dso` relative to the git repo root (i.e., `$REPO_ROOT/templates/host-project/dso`). This is NOT inside the plugin directory. Both `update-shim.sh` (shim-only) and `dso-setup.sh` (full init) consume this template to install the shim at `.claude/scripts/dso` in the host project.
+**Shim template location:** The canonical shim template lives inside the plugin distribution at `${CLAUDE_PLUGIN_ROOT}/templates/host-project/dso`. Both `update-shim.sh` (shim-only) and `dso-setup.sh` (full init) consume this template to install the shim at `.claude/scripts/dso` in the host project.
 
 **Two scenarios — dispatch executably, do NOT collapse to a single command:**
 
-- **Fresh init** (no `.claude/dso-config.conf` in host project): run `dso-setup.sh` to perform full project initialization (config write, CLAUDE.md install, KNOWN-ISSUES.md, CI skeleton, pre-commit config, hook registration, artifact stamping, gitignore updates).
-- **Shim-only repair** (host already has `.claude/dso-config.conf`): run `update-shim.sh` to refresh ONLY the `.claude/scripts/dso` shim. Do NOT re-run `dso-setup.sh` on an already-initialized host project — it is NOT idempotent across the broader artifact installs and will re-template files the operator may have customized.
+- **Fresh init** (no prior DSO onboarding artifacts in host project): run `dso-setup.sh` to perform full project initialization (config write, CLAUDE.md install, KNOWN-ISSUES.md, CI skeleton, pre-commit config, hook registration, artifact stamping, gitignore updates).
+- **Shim-only repair** (host project was previously onboarded — DSO artifacts present, shim missing or stale): run `update-shim.sh` to refresh ONLY the `.claude/scripts/dso` shim. Do NOT re-run `dso-setup.sh` on an already-initialized host project — it is NOT idempotent across the broader artifact installs and will re-template files the operator may have customized.
+
+**Sentinel rule (must use a snapshot taken BEFORE Phase 3 / Step 2b runs).** Earlier phases of this skill (Step 2b at the "Generate dso-config.conf" section) write `.claude/dso-config.conf` even on fresh-init runs, so live presence of that file is NOT a valid sentinel here — it would always route to the shim-only branch and skip full init. Use the snapshot variable `_INITIAL_DSO_INSTALLED` captured at Phase 3 entry (see Phase 3 Step 0 below) which records whether `.claude/CLAUDE.md` AND `.claude/dso-config.conf` BOTH existed at the start of onboarding. CLAUDE.md is written in Batch Group 3 (later than this step), so its pre-onboarding presence is a reliable indicator that the host was previously onboarded.
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
 PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
-# Verify shim template exists before invoking either path
-if [[ ! -f "$REPO_ROOT/templates/host-project/dso" ]]; then
-    echo "ERROR: shim template not found at $REPO_ROOT/templates/host-project/dso"
+# Verify shim template exists in the plugin distribution before invoking either path
+if [[ ! -f "${CLAUDE_PLUGIN_ROOT}/templates/host-project/dso" ]]; then
+    echo "ERROR: shim template not found at ${CLAUDE_PLUGIN_ROOT}/templates/host-project/dso"
     echo "Cannot install DSO shim — check that the DSO plugin is correctly installed."
     exit 1
 fi
-# Executable skip guard: branch on host-project init state (bug 7d25-c78e)
-if [[ -f "$REPO_ROOT/.claude/dso-config.conf" ]]; then
+# Executable skip guard: branch on the pre-onboarding snapshot, NOT on live config
+# presence (bug 7d25-c78e). _INITIAL_DSO_INSTALLED is captured in Phase 3 Step 0
+# before any onboarding artifact is written.
+if [[ "${_INITIAL_DSO_INSTALLED:-false}" == "true" ]]; then
     # Already-initialized host project — shim-only repair path
-    echo "Host project already initialized (.claude/dso-config.conf present) — repairing shim only."
+    echo "Host project was previously onboarded (.claude/CLAUDE.md and .claude/dso-config.conf both present at Phase 3 entry) — repairing shim only."
     bash "$PLUGIN_SCRIPTS/update-shim.sh" "$REPO_ROOT"  # shim-exempt: bootstrap repair — shim may be missing/stale
 else
     # Fresh init path — full project setup
@@ -1147,7 +1171,7 @@ else
 fi
 ```
 
-The `update-shim.sh` branch is idempotent (file copy only). The `dso-setup.sh` branch is NOT safely re-runnable on an already-initialized project — the conditional above is what prevents re-initialization, not idempotence of the wrapped script.
+The `update-shim.sh` branch is idempotent (file copy only — verified by direct inspection of `${CLAUDE_PLUGIN_ROOT}/scripts/update-shim.sh`, which performs `cp` of the canonical template to the host's `.claude/scripts/dso`). The `dso-setup.sh` branch is NOT safely re-runnable on an already-initialized project — the conditional above is what prevents re-initialization, not idempotence of the wrapped script.
 
 ## Batch Group 4: initial-commit
 <!-- Skip guard: if all artifacts already committed, skip -->
