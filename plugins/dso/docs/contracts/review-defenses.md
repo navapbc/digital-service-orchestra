@@ -113,6 +113,8 @@ The `cited_lines_fingerprint` field binds a defense to the specific lines of cod
 
 **Relationship to the `cited_lines` field:** the `cited_lines_fingerprint` is computed over 3-part entries (`path:lineno:content`) and is used for fingerprint-based binding. The separate optional `cited_lines` field (see Record Shape) carries 2-part entries (`path:lineno`) and is used by `_suppress_defended_findings` for ±5-line proximity matching. The runner normalizes 3-part entries to 2-part form (dropping the content segment) before proximity matching, so callers may populate `cited_lines` directly with 2-part references.
 
+> **cited_lines emission (active since Story A — 1ef8-79c4)**: `mirror-defenses-to-pr.sh` now includes the `cited_lines` array in every `DEFENSE_RECORD` it emits to GitHub PR comments. The array carries the 3-part `path:lineno:content` format used in `cited_lines_fingerprint` computation. This enables `runner.py _suppress_defended_findings` to perform proximity-overlap matching in subsequent review cycles without re-reading source files from the repository.
+
 ---
 
 ## Durable Binding Contract
