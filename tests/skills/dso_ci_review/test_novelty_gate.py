@@ -252,8 +252,8 @@ def test_pr102_new_file_findings_all_downgraded():
     """Replay test: PR-102 cycle 2 new-file findings should all be downgraded."""
     import json
     fixtures_dir = pathlib.Path(__file__).parent.parent.parent / "fixtures"
-    findings = [json.loads(l) for l in (fixtures_dir / "pr-102-cycle-2-new-file-findings.jsonl").read_text().splitlines() if l.strip()]
-    defenses = [json.loads(l) for l in (fixtures_dir / "pr-102-cycle-1-defenses.jsonl").read_text().splitlines() if l.strip()]
+    findings = [json.loads(line) for line in (fixtures_dir / "pr-102-cycle-2-new-file-findings.jsonl").read_text().splitlines() if line.strip()]
+    defenses = [json.loads(line) for line in (fixtures_dir / "pr-102-cycle-1-defenses.jsonl").read_text().splitlines() if line.strip()]
 
     result, stats = _apply_novelty_gate(findings, defenses, diff_text="", cycle_number=2)
     downgraded = [f for f in result if f.get("severity") == "suggestion"]
