@@ -864,6 +864,15 @@ Scores come exclusively from `reviewer-findings.json` (written by the code-revie
 - **R3 - Critical/important resolution**: Any critical or important finding triggers the Autonomous Resolution Loop (see "After Review").
 - **R4 - Verbatim severity**: The summary must reference the reviewer's severity levels exactly as stated. Do not downgrade or rephrase severity.
 - **R5 - Defense mechanism**: To dispute a finding without user involvement, the resolver sub-agent returns a defense explanation in its `RESOLUTION_RESULT` output. The orchestrator persists it to the DefenseStore via `defense_store_write` (see `.claude/scripts/dso review-defense-store.sh` and contract `review-defenses.md`). The orchestrator MUST NOT silently dismiss findings or override scores. Defenses must reference verifiable artifacts (existing code, tests, ADRs, or documented patterns) — not unverifiable claims like "for performance reasons." The defense must be substantive enough that a human would understand the tradeoff. **Structural findings** (type annotations, test coverage gaps, missing error handling) should prefer Fix over Defend — the reviewer scores these based on code patterns, and a defense record is unlikely to change the score.
+
+  When building the defense JSON record, copy the `cited_lines` field from the original finding being defended. Set `prior_finding_id` from the finding's `id` field, then copy `cited_lines`:
+
+  ```python
+  defense_json["prior_finding_id"] = finding["id"]
+  defense_json["cited_lines"] = finding.get("cited_lines", [])  # anchors proximity-matching suppression in cycle N+1
+  ```
+
+  This field enables `_suppress_defended_findings` in `runner.py` to perform ±5-line proximity matching in subsequent review cycles without re-reading source files. When `cited_lines` is absent from the finding (legacy), the field is omitted from the defense record and the matcher falls back to description-prefix keying.
 - **R6 - No raw `gh pr comment` for CI finding responses**: When responding to CI reviewer findings (e.g., findings from `dso_ci_review` in a PR), **NEVER** use `gh pr comment` directly to summarize finding responses. Raw PR comments are not machine-readable and are not consulted by the next CI review pass. **NEVER write inline `# REVIEW-DEFENSE` comments into source files** — inline source comments are also not consulted by the CI llm-review job and pollute source files with non-code workflow artifacts. The only two valid response paths are: (1) **Fix**: implement a code change and commit — the diff is the defense; (2) **Defend**: record the defense via `review-defense-store.sh` (locally: `.claude/scripts/dso review-defense-store.sh save`; in CI: `review-github-defense-store.sh`) so `mirror-defenses-to-pr.sh` posts a machine-readable `DEFENSE_RECORD: {...}` PR comment before the next CI run. The CI llm-review job reads only these machine-readable `DEFENSE_RECORD:` PR comments — not inline source comments, not raw PR comments.
 
 ### Record the review
