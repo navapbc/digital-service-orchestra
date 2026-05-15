@@ -107,7 +107,10 @@ exit "$exit_code"
 GHEOF
     chmod +x "$stub_dir/gh"
 
-    # dso stub — records calls, returns a fake ticket ID line
+    # dso stub — records calls, returns subcommand-aware output:
+    #   - `ticket list ...` -> emits ${DSO_LIST_OUTPUT:-[]} as JSON
+    #   - `ticket comment ...` -> emits ${DSO_COMMENT_OUTPUT:-Comment added}
+    #   - anything else (e.g. `ticket create`) -> ${DSO_TICKET_OUTPUT:-Created ticket ...}
     cat > "$stub_dir/dso" << 'DSOEOF'
 #!/usr/bin/env bash
 LOG="${DSO_CALL_LOG:-/dev/null}"
@@ -116,7 +119,18 @@ LOG="${DSO_CALL_LOG:-/dev/null}"
     for a in "$@"; do printf '\t%s' "$a"; done
     printf '\n'
 } >> "$LOG" 2>/dev/null || true
-echo "${DSO_TICKET_OUTPUT:-Created ticket fake-ticket-abc: PR comment deferred}"
+sub2="${1:-}/${2:-}"
+case "$sub2" in
+    ticket/list)
+        echo "${DSO_LIST_OUTPUT:-[]}"
+        ;;
+    ticket/comment)
+        echo "${DSO_COMMENT_OUTPUT:-Comment added}"
+        ;;
+    *)
+        echo "${DSO_TICKET_OUTPUT:-Created ticket fake-ticket-abc: PR comment deferred}"
+        ;;
+esac
 exit "${DSO_EXIT_CODE:-0}"
 DSOEOF
     chmod +x "$stub_dir/dso"
@@ -315,11 +329,198 @@ test_defer_ticket_failure_prevents_reply() {
 }
 
 # ---------------------------------------------------------------------------
+# TEST 5: Ticket title carries PR number and a useful slug (taut-onset-gauge)
+# Given:  defer comment whose body begins with whitespace/punctuation then text
+# When:   _handle_defer creates a tracking ticket
+# Then:   the dso ticket-create call uses title
+#         "[PR #42] Deferred review comment: <slug>"  — never bare
+#         "PR comment deferred:" with an empty/whitespace tail
+# ---------------------------------------------------------------------------
+test_defer_title_includes_pr_number_and_slug() {
+    _snapshot_fail
+    echo ""
+    echo "=== test_defer_title_includes_pr_number_and_slug ==="
+
+    local stub_dir; stub_dir=$(_make_stub_dir)
+    local out_json; out_json=$(mktemp "/tmp/dso-defer-out.XXXXXX")
+    _cleanup_dirs+=("$out_json")
+    local gh_log; gh_log=$(mktemp "/tmp/dso-defer-gh.XXXXXX")
+    _cleanup_dirs+=("$gh_log")
+    local dso_log; dso_log=$(mktemp "/tmp/dso-defer-dso.XXXXXX")
+    _cleanup_dirs+=("$dso_log")
+
+    # Defer JSON with a body that begins with whitespace + punctuation —
+    # the slug should skip leading non-alphanumeric characters.
+    local fixture
+    fixture=$(cat <<'JSON'
+[
+  {
+    "comment_id": "comment-301",
+    "in_reply_to_id": "comment-300",
+    "body": "   >> Agreed, we should track this separately.",
+    "author": "reviewer-bob",
+    "is_inline": false,
+    "path": null,
+    "position": null,
+    "url": "https://github.com/test/repo/pull/42#issuecomment-301"
+  }
+]
+JSON
+)
+    _make_defer_json null > "$out_json"
+
+    GH_CALL_LOG="$gh_log" DSO_CALL_LOG="$dso_log" \
+        STUB_COMMENTS_JSON="$fixture" \
+        PATH="$stub_dir:$PATH" GITHUB_TOKEN="FAKE" \
+        bash "$SCRIPT" --pr-number 42 --output "$out_json" --classify-as "comment-301:defer" 2>/dev/null || true
+
+    local dso_calls; dso_calls=$(cat "$dso_log" 2>/dev/null || echo "")
+    assert_contains "title should include PR number prefix" "[PR #42]" "$dso_calls"
+    assert_contains "title should include 'Deferred review comment'" "Deferred review comment" "$dso_calls"
+    assert_contains "title slug should start at first alphanumeric (Agreed)" "Agreed" "$dso_calls"
+
+    # Negative: must NOT emit the old bare-tail form. The dso stub tab-delimits
+    # args, so the bare-title symptom is "PR comment deferred:" followed by an
+    # actual TAB. Use $'…\t' so the literal tab reaches grep -E.
+    if grep -E $'PR comment deferred:[[:space:]]*\t' "$dso_log" >/dev/null 2>&1; then
+        assert_eq "must not emit bare 'PR comment deferred:' title" "no-bare-title" "bare-title-emitted"
+    fi
+
+    assert_pass_if_clean "test_defer_title_includes_pr_number_and_slug"
+}
+
+# ---------------------------------------------------------------------------
+# TEST 6: Consolidation — second defer on same PR appends a comment to the
+# existing tracking ticket instead of creating a new one (fern-joker-hyena).
+# Given:  an open ticket already exists tagged pr-42-deferred (stub list output)
+# When:   _handle_defer processes a new deferred comment for PR 42
+# Then:   ticket create is NOT called; ticket comment IS called on the
+#         existing ticket id
+# ---------------------------------------------------------------------------
+test_defer_consolidates_when_existing_ticket_exists() {
+    _snapshot_fail
+    echo ""
+    echo "=== test_defer_consolidates_when_existing_ticket_exists ==="
+
+    local stub_dir; stub_dir=$(_make_stub_dir)
+    local out_json; out_json=$(mktemp "/tmp/dso-defer-out.XXXXXX")
+    _cleanup_dirs+=("$out_json")
+    local gh_log; gh_log=$(mktemp "/tmp/dso-defer-gh.XXXXXX")
+    _cleanup_dirs+=("$gh_log")
+    local dso_log; dso_log=$(mktemp "/tmp/dso-defer-dso.XXXXXX")
+    _cleanup_dirs+=("$dso_log")
+
+    _make_defer_json null > "$out_json"
+
+    # Stub returns an existing open ticket tagged pr-42-deferred
+    local list_output='[{"ticket_id":"existing-pr42-001","ticket_type":"task","title":"[PR #42] Deferred review comments","status":"open","tags":["pr-42-deferred"]}]'
+
+    GH_CALL_LOG="$gh_log" DSO_CALL_LOG="$dso_log" \
+        DSO_LIST_OUTPUT="$list_output" \
+        STUB_COMMENTS_JSON="$_DEFER_FIXTURE_COMMENTS" \
+        PATH="$stub_dir:$PATH" GITHUB_TOKEN="FAKE" \
+        bash "$SCRIPT" --pr-number 42 --output "$out_json" --classify-as "comment-301:defer" 2>/dev/null || true
+
+    local dso_calls; dso_calls=$(cat "$dso_log" 2>/dev/null || echo "")
+
+    # ticket create should NOT have run
+    if grep -E $'CALL\tticket\tcreate\t' "$dso_log" >/dev/null 2>&1; then
+        assert_eq "ticket create must not be called when a consolidation ticket exists" \
+            "no-create" "create-was-called"
+    fi
+    # ticket comment SHOULD have run on existing id
+    assert_contains "ticket comment should be called on the existing consolidation ticket" \
+        "existing-pr42-001" "$dso_calls"
+    assert_contains "ticket comment subcommand invoked" "comment" "$dso_calls"
+
+    # JSON must still receive the existing ticket id
+    local ticket_id
+    ticket_id=$(python3 -c "
+import json
+d = json.load(open('$out_json'))
+for c in d.get('comments', []):
+    if c.get('comment_id') == 'comment-301':
+        print(c.get('ticket_id') or '')
+        break
+" 2>/dev/null || echo "")
+    assert_eq "ticket_id in JSON should be the existing consolidation ticket id" \
+        "existing-pr42-001" "$ticket_id"
+
+    assert_pass_if_clean "test_defer_consolidates_when_existing_ticket_exists"
+}
+
+# ---------------------------------------------------------------------------
+# TEST 7: Empty-slug fallback — body that is entirely whitespace/punctuation
+# (f-v2w3x4y5). Given:  defer comment whose body collapses to "" after the
+# leading-non-alnum strip, When: _handle_defer mints a ticket, Then: title
+# falls back to "comment-<id>" rather than ending with empty tail
+# "[PR #42] Deferred review comment: ".
+# ---------------------------------------------------------------------------
+test_defer_title_falls_back_on_empty_slug() {
+    _snapshot_fail
+    echo ""
+    echo "=== test_defer_title_falls_back_on_empty_slug ==="
+
+    local stub_dir; stub_dir=$(_make_stub_dir)
+    local out_json; out_json=$(mktemp "/tmp/dso-defer-out.XXXXXX")
+    _cleanup_dirs+=("$out_json")
+    local gh_log; gh_log=$(mktemp "/tmp/dso-defer-gh.XXXXXX")
+    _cleanup_dirs+=("$gh_log")
+    local dso_log; dso_log=$(mktemp "/tmp/dso-defer-dso.XXXXXX")
+    _cleanup_dirs+=("$dso_log")
+
+    # Body that is all whitespace + punctuation -> slug pipeline produces "".
+    local fixture
+    fixture=$(cat <<'JSON'
+[
+  {
+    "comment_id": "comment-301",
+    "in_reply_to_id": "comment-300",
+    "body": "   !!!   ",
+    "author": "reviewer-bob",
+    "is_inline": false,
+    "path": null,
+    "position": null,
+    "url": "https://github.com/test/repo/pull/42#issuecomment-301"
+  }
+]
+JSON
+)
+    _make_defer_json null > "$out_json"
+
+    GH_CALL_LOG="$gh_log" DSO_CALL_LOG="$dso_log" \
+        STUB_COMMENTS_JSON="$fixture" \
+        PATH="$stub_dir:$PATH" GITHUB_TOKEN="FAKE" \
+        bash "$SCRIPT" --pr-number 42 --output "$out_json" --classify-as "comment-301:defer" 2>/dev/null || true
+
+    local dso_calls; dso_calls=$(cat "$dso_log" 2>/dev/null || echo "")
+    # Title must include the comment-id fallback rather than ending with an
+    # empty slug. The slug pipeline yields "" for "   !!!   "; the fallback
+    # "comment-301" must take its place.
+    assert_contains "title should fall back to 'comment-<id>' when slug is empty" \
+        "comment-301" "$dso_calls"
+    assert_contains "title should still carry PR number prefix" "[PR #42]" "$dso_calls"
+
+    # Negative: must NOT emit a title that ends with "Deferred review comment: "
+    # followed immediately by a tab (the dso stub tab-delimits args) — that is
+    # the exact taut-onset-gauge regression symptom.
+    if grep -F $'Deferred review comment: \t' "$dso_log" >/dev/null 2>&1; then
+        assert_eq "must not emit empty-slug title (trailing colon-space-tab)" \
+            "no-empty-slug" "empty-slug-emitted"
+    fi
+
+    assert_pass_if_clean "test_defer_title_falls_back_on_empty_slug"
+}
+
+# ---------------------------------------------------------------------------
 # Run all tests
 # ---------------------------------------------------------------------------
 test_defer_creates_ticket_and_writes_ticket_id_before_reply
 test_defer_reply_includes_ticket_id_and_sentinel
 test_defer_retry_skips_ticket_creation_when_ticket_id_present
 test_defer_ticket_failure_prevents_reply
+test_defer_title_includes_pr_number_and_slug
+test_defer_consolidates_when_existing_ticket_exists
+test_defer_title_falls_back_on_empty_slug
 
 print_summary
