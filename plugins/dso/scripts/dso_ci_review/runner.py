@@ -37,6 +37,7 @@ from dso_ci_review.dispatch import (
 )
 from dso_ci_review.findings import merge_findings, _parse_line_range
 from dso_ci_review.providers.config import AuthError, ConfigError, get_provider
+from dso_ci_review.proximity import compute_proximity_overlap
 from dso_ci_review.region_split import _should_region_split, run_region_split
 
 
@@ -635,41 +636,98 @@ def _fetch_pr_defenses(pr_number: str) -> list[dict]:
     return defenses
 
 
+def _normalize_cited_ref(entry: str) -> str:
+    parts = entry.split(":", 2)
+    return f"{parts[0]}:{parts[1]}" if len(parts) >= 2 else entry
+
+
+def _inter_cycle_diff_modified_region(defense: dict, repo_root: str | None = None) -> bool:
+    base_sha = defense.get("story_branch_base_sha", "")
+    tip_sha = defense.get("story_branch_tip_sha", "")
+    if not base_sha or not tip_sha:
+        return False
+    cited = defense.get("cited_lines", [])
+    if not cited:
+        return False
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["git", "diff", f"{base_sha}..{tip_sha}", "--unified=0"],
+            capture_output=True, text=True,
+            cwd=repo_root or ".",
+        )
+        if result.returncode != 0:
+            return False
+        modified: list[str] = []
+        current_file = ""
+        for line in result.stdout.splitlines():
+            if line.startswith("+++ b/"):
+                current_file = line[6:]
+            elif line.startswith("@@ "):
+                parts = line.split(" ")
+                if len(parts) >= 3:
+                    new_range = parts[2].lstrip("+")
+                    if "," in new_range:
+                        start, count = new_range.split(",", 1)
+                    else:
+                        start, count = new_range, "1"
+                    try:
+                        start_i = int(start)
+                        count_i = int(count) if count else 1
+                        for ln in range(start_i, start_i + max(1, count_i)):
+                            modified.append(f"{current_file}:{ln}")
+                    except ValueError:
+                        pass
+        if not modified:
+            return False
+        normalized_cited = [_normalize_cited_ref(c) for c in cited]
+        return compute_proximity_overlap(normalized_cited, modified)
+    except Exception:
+        return False
+
+
 def _suppress_defended_findings(
     findings: list[dict],
     defenses: list[dict],
 ) -> list[dict]:
     """Downgrade findings that match a prior defense to 'suggestion' severity.
 
-    A finding matches a defense when its (severity, description[:80]) key
-    matches any defense record's (severity, description[:80]). Matching
-    findings are downgraded to 'suggestion' rather than removed, so the
-    author can see they were reconsidered.
+    When a defense has cited_lines, uses proximity matching (±5-line window,
+    same file) instead of description-prefix comparison. Falls back to the
+    description[:80] prefix approach when cited_lines is absent.
 
-    This is a defence-of-last-resort filter applied AFTER the two-call
-    architecture — the two-call path already gives the LLM the full defense
-    context. This filter handles cases where the LLM still re-emits a
-    defended finding verbatim despite the context.
+    Findings are downgraded to 'suggestion' rather than removed so authors
+    can see they were reconsidered.
     """
     if not defenses:
         return findings
 
-    # Build a set of (severity, description[:80]) pairs from prior defenses.
-    # Use a short prefix of the description to tolerate minor reformatting.
-    defended_keys: set[tuple[str, str]] = set()
-    for d in defenses:
-        sev = str(d.get("severity", "")).lower()
-        desc = str(d.get("description", "") or d.get("defense_text", ""))[:80].lower()
-        if sev and desc:
-            defended_keys.add((sev, desc))
-
     suppressed: list[dict] = []
     for f in findings:
-        sev = str(f.get("severity", "")).lower()
-        desc = str(f.get("description", ""))[:80].lower()
-        key = (sev, desc)
-        if key in defended_keys:
-            # Downgrade to suggestion — not blocking, but still visible
+        matched = False
+        f_cited = [_normalize_cited_ref(c) for c in f.get("cited_lines", [])]
+        f_sev = str(f.get("severity", "")).lower()
+        f_desc = str(f.get("description", ""))[:80].lower()
+
+        for d in defenses:
+            d_cited = d.get("cited_lines", [])
+            if d_cited:
+                # Proximity path: skip if lines were modified between cycles
+                if _inter_cycle_diff_modified_region(d):
+                    continue
+                d_cited_norm = [_normalize_cited_ref(c) for c in d_cited]
+                if f_cited and compute_proximity_overlap(f_cited, d_cited_norm):
+                    matched = True
+                    break
+            else:
+                # Legacy fallback: description-prefix matching
+                d_sev = str(d.get("severity", "")).lower()
+                d_desc = str(d.get("description", "") or d.get("defense_text", ""))[:80].lower()
+                if d_sev and d_desc and (f_sev, f_desc) == (d_sev, d_desc):
+                    matched = True
+                    break
+
+        if matched:
             downgraded = dict(f)
             downgraded["severity"] = "suggestion"
             downgraded["_suppressed_reason"] = (
