@@ -1112,7 +1112,6 @@ Write `merge.strategy=$MERGE_STRATEGY` to `.claude/dso-config.conf` (overwrite a
 After writing `.claude/dso-config.conf`, set up the supporting infrastructure for the host project. These steps ensure the enforcement gates, ticket system, and documentation templates are in place before the first commit.
 
 ## Batch Group 2: scaffold-claude-structure
-<!-- Skip guard: if .claude/ structure already present and shim already installed, skip -->
 
 #### DSO Shim Installation
 
@@ -1120,21 +1119,35 @@ Display to user: "Installing the DSO shim — a short command-line shortcut (.cl
 
 Before any other infrastructure steps, install the `.claude/scripts/dso` shim that all subsequent commands depend on.
 
-**Shim template location:** The shim template file is at `templates/host-project/dso` relative to the git repo root (i.e., `$REPO_ROOT/templates/host-project/dso`). This is NOT inside the plugin directory. `dso-setup.sh` uses this template to install the shim at `.claude/scripts/dso` in the host project.
+**Shim template location:** The shim template file is at `templates/host-project/dso` relative to the git repo root (i.e., `$REPO_ROOT/templates/host-project/dso`). This is NOT inside the plugin directory. Both `update-shim.sh` (shim-only) and `dso-setup.sh` (full init) consume this template to install the shim at `.claude/scripts/dso` in the host project.
+
+**Two scenarios — dispatch executably, do NOT collapse to a single command:**
+
+- **Fresh init** (no `.claude/dso-config.conf` in host project): run `dso-setup.sh` to perform full project initialization (config write, CLAUDE.md install, KNOWN-ISSUES.md, CI skeleton, pre-commit config, hook registration, artifact stamping, gitignore updates).
+- **Shim-only repair** (host already has `.claude/dso-config.conf`): run `update-shim.sh` to refresh ONLY the `.claude/scripts/dso` shim. Do NOT re-run `dso-setup.sh` on an already-initialized host project — it is NOT idempotent across the broader artifact installs and will re-template files the operator may have customized.
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
 PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
-# Verify shim template exists before invoking setup
+# Verify shim template exists before invoking either path
 if [[ ! -f "$REPO_ROOT/templates/host-project/dso" ]]; then
     echo "ERROR: shim template not found at $REPO_ROOT/templates/host-project/dso"
     echo "Cannot install DSO shim — check that the DSO plugin is correctly installed."
     exit 1
 fi
-bash "$PLUGIN_SCRIPTS/onboarding/dso-setup.sh" "$REPO_ROOT" "${CLAUDE_PLUGIN_ROOT}"  # shim-exempt: bootstrap install — shim does not yet exist
+# Executable skip guard: branch on host-project init state (bug 7d25-c78e)
+if [[ -f "$REPO_ROOT/.claude/dso-config.conf" ]]; then
+    # Already-initialized host project — shim-only repair path
+    echo "Host project already initialized (.claude/dso-config.conf present) — repairing shim only."
+    bash "$PLUGIN_SCRIPTS/update-shim.sh" "$REPO_ROOT"  # shim-exempt: bootstrap repair — shim may be missing/stale
+else
+    # Fresh init path — full project setup
+    echo "Fresh host project — running full DSO initialization."
+    bash "$PLUGIN_SCRIPTS/onboarding/dso-setup.sh" "$REPO_ROOT" "${CLAUDE_PLUGIN_ROOT}"  # shim-exempt: bootstrap install — shim does not yet exist
+fi
 ```
 
-This is idempotent — safe to re-run on projects that already have the shim installed.
+The `update-shim.sh` branch is idempotent (file copy only). The `dso-setup.sh` branch is NOT safely re-runnable on an already-initialized project — the conditional above is what prevents re-initialization, not idempotence of the wrapped script.
 
 ## Batch Group 4: initial-commit
 <!-- Skip guard: if all artifacts already committed, skip -->
