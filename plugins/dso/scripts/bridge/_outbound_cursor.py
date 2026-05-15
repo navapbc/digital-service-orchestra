@@ -270,7 +270,7 @@ def fetch_events_since_cursor(
     raw_cap = os.environ.get("BRIDGE_COMMIT_CAP")
     if raw_cap is not None and raw_cap.strip() != "":
         try:
-            effective_cap = int(raw_cap)
+            parsed_cap = int(raw_cap)
         except ValueError:
             logger.warning(
                 "_outbound_cursor: BRIDGE_COMMIT_CAP=%r is not an int — "
@@ -279,23 +279,42 @@ def fetch_events_since_cursor(
                 cap,
             )
             effective_cap = cap
+        else:
+            if parsed_cap < 0:
+                # Negative caps silently stall the chunked-advance loop
+                # (0 >= negative is always true → loop breaks immediately,
+                # zero events returned, cursor never advances). Treat as a
+                # parse error and fall back to default to avoid the silent
+                # operator-typo failure mode.
+                logger.warning(
+                    "_outbound_cursor: BRIDGE_COMMIT_CAP=%r is negative — "
+                    "falling back to default cap=%d",
+                    raw_cap,
+                    cap,
+                )
+                effective_cap = cap
+            else:
+                effective_cap = parsed_cap
     else:
         effective_cap = cap
 
     distinct_shas = {sha for sha, _ in entries}
     if len(distinct_shas) > effective_cap:
-        write_cursor_bridge_alert(
-            tracker_path,
-            reason=(
-                f"{len(distinct_shas)}-commit cap exceeded (cap={effective_cap}): "
-                "chunking" if effective_cap > 0 else
-                f"{len(distinct_shas)}-commit cap exceeded: seeding at HEAD"
-            ),
-            bridge_env_id=bridge_env_id,
-        )
+        # Compose the alert reason inside each branch so the recorded reason
+        # matches the action actually taken. Operators triage from the alert
+        # history, so a mismatched reason ("chunking" when we seeded at HEAD,
+        # or "seeding" when we raised) is misleading.
         if cursor_sha is None:
             # Cold-start: seed at HEAD to skip unbounded historical backfill.
             # Use workflow_dispatch with backfill=true to recover historical events.
+            write_cursor_bridge_alert(
+                tracker_path,
+                reason=(
+                    f"{len(distinct_shas)}-commit cap exceeded "
+                    f"(cap={effective_cap}): cold-start seeding at HEAD"
+                ),
+                bridge_env_id=bridge_env_id,
+            )
             logger.warning(
                 "_outbound_cursor: cold-start %d commits exceed cap %d — seeding at HEAD",
                 len(distinct_shas),
@@ -304,6 +323,14 @@ def fetch_events_since_cursor(
             return _seed_at_head(tracker_path, bridge_env_id, run_id)
         if effective_cap == 0:
             # Explicit operator opt-in to fail-loud (5566-685e / 6d94-5cba).
+            write_cursor_bridge_alert(
+                tracker_path,
+                reason=(
+                    f"{len(distinct_shas)}-commit cap exceeded (cap=0): "
+                    "fail-loud, aborting run"
+                ),
+                bridge_env_id=bridge_env_id,
+            )
             logger.error(
                 "_outbound_cursor: %d commits exceed cap 0 (fail-loud mode) — "
                 "aborting run; cursor NOT advanced",
@@ -315,6 +342,14 @@ def fetch_events_since_cursor(
                 "BRIDGE_COMMIT_CAP to switch to chunked-advance, or run the "
                 "outbound bridge with backfill=true to sync unprocessed events."
             )
+        write_cursor_bridge_alert(
+            tracker_path,
+            reason=(
+                f"{len(distinct_shas)}-commit cap exceeded "
+                f"(cap={effective_cap}): chunking"
+            ),
+            bridge_env_id=bridge_env_id,
+        )
         # Normal run, chunked-advance: keep only entries belonging to the
         # chronologically-earliest `effective_cap` commits.
         #

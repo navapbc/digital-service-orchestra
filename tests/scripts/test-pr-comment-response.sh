@@ -379,8 +379,10 @@ JSON
     assert_contains "title should include 'Deferred review comment'" "Deferred review comment" "$dso_calls"
     assert_contains "title slug should start at first alphanumeric (Agreed)" "Agreed" "$dso_calls"
 
-    # Negative: must NOT emit the old bare-tail form
-    if grep -E "PR comment deferred: *\\\\t" "$dso_log" >/dev/null 2>&1; then
+    # Negative: must NOT emit the old bare-tail form. The dso stub tab-delimits
+    # args, so the bare-title symptom is "PR comment deferred:" followed by an
+    # actual TAB. Use $'…\t' so the literal tab reaches grep -E.
+    if grep -E $'PR comment deferred:[[:space:]]*\t' "$dso_log" >/dev/null 2>&1; then
         assert_eq "must not emit bare 'PR comment deferred:' title" "no-bare-title" "bare-title-emitted"
     fi
 
