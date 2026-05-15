@@ -767,6 +767,104 @@ def test_malformed_cited_lines_not_frozen_allows_correction(monkeypatch) -> None
     )
 
 
+def test_enum_invalid_severity_correction_allowed(monkeypatch) -> None:
+    """Given: original finding has an enum-invalid severity (e.g. "suggestion").
+    When: correction dispatch returns the same finding with severity mapped to a
+          valid enum value (e.g. "minor").
+    Then:
+      - Correction succeeds (no synthetic schema_error appended).
+      - The corrected severity value is accepted.
+
+    Rationale: severity is frozen only when the original is enum-valid. If the
+    LLM emits a severity not in _VALID_SEVERITIES (e.g. "suggestion" — a label
+    referenced in plugin docs but not in the dispatch enum), correction must be
+    allowed to repair the enum — otherwise schema correction cannot resolve
+    severity-enum errors and the llm-review job fails closed for any review whose
+    LLM emits a non-enum severity. Bug 0d1e-e9d5-2fcb-4bc5.
+    """
+    # Original finding with enum-invalid severity
+    orig_with_bad_sev = copy.deepcopy(_FINDING_A)
+    orig_with_bad_sev["severity"] = "suggestion"  # not in _VALID_SEVERITIES
+
+    # Corrected finding with severity mapped to a valid enum value
+    corrected_with_fixed_sev = copy.deepcopy(orig_with_bad_sev)
+    corrected_with_fixed_sev["severity"] = "minor"
+
+    def _mock_dispatch_review(**kwargs):
+        return {"findings": [corrected_with_fixed_sev]}
+
+    monkeypatch.setattr(_dispatch_mod, "dispatch_review", _mock_dispatch_review)
+    monkeypatch.setattr(
+        _runner_mod, "_validate_findings_schema", _stub_validate_schema_pass
+    )
+
+    result = _dispatch_mod.dispatch_schema_correction(
+        original_findings=[orig_with_bad_sev],
+        diff_text=_DIFF_TEXT,
+        provider_chain=["anthropic"],
+        environ={"ANTHROPIC_API_KEY": "test-key"},
+        max_attempts=1,
+        agent_id="code-reviewer-standard",
+    )
+
+    findings = result.get("findings", [])
+    schema_errors = [f for f in findings if f.get("category") == "schema_error"]
+    assert not schema_errors, (
+        f"Correction of enum-invalid severity must succeed (not be treated as "
+        f"frozen violation); got schema_errors: {schema_errors}"
+    )
+    assert findings[0].get("severity") == "minor", (
+        f"Corrected severity must be accepted; got {findings[0].get('severity')!r}"
+    )
+
+
+def test_valid_severity_mutation_rejected(monkeypatch) -> None:
+    """Anti-regression: severity mutation rejected when original is enum-valid.
+
+    Given: original finding has an enum-valid severity (e.g. "critical").
+    When: correction dispatch returns the same finding with severity changed to
+          a different enum-valid value (e.g. "minor").
+    Then:
+      - A synthetic schema_error finding is appended (frozen-field violation).
+
+    Rationale: when the original severity is already in _VALID_SEVERITIES, any
+    change is a semantic mutation — not an enum repair — and must remain rejected
+    to preserve the byte-for-byte freeze. The carve-out added for bug
+    0d1e-e9d5-2fcb-4bc5 must NOT loosen this guarantee.
+    """
+    # Original finding with enum-valid severity
+    orig_with_valid_sev = copy.deepcopy(_FINDING_A)
+    assert orig_with_valid_sev["severity"] == "critical"  # sanity: in _VALID_SEVERITIES
+
+    # Corrected finding mutates the (already-valid) severity to a different value
+    mutated = copy.deepcopy(orig_with_valid_sev)
+    mutated["severity"] = "minor"
+
+    def _mock_dispatch_review(**kwargs):
+        return {"findings": [mutated]}
+
+    monkeypatch.setattr(_dispatch_mod, "dispatch_review", _mock_dispatch_review)
+    monkeypatch.setattr(
+        _runner_mod, "_validate_findings_schema", _stub_validate_schema_pass
+    )
+
+    result = _dispatch_mod.dispatch_schema_correction(
+        original_findings=[orig_with_valid_sev],
+        diff_text=_DIFF_TEXT,
+        provider_chain=["anthropic"],
+        environ={"ANTHROPIC_API_KEY": "test-key"},
+        max_attempts=1,
+        agent_id="code-reviewer-standard",
+    )
+
+    findings = result.get("findings", [])
+    schema_errors = [f for f in findings if f.get("category") == "schema_error"]
+    assert schema_errors, (
+        f"Mutation of enum-valid severity must be rejected (synthetic schema_error "
+        f"appended); got findings: {findings}"
+    )
+
+
 def test_cited_line_re_accepts_line_ranges() -> None:
     """_CITED_LINE_RE must accept line-range formats (file:N-M, file:N~M).
 
