@@ -35,6 +35,11 @@ _EVENT_TYPE_PRIORITY: dict[str, int] = {
     "SYNC": 1,
     "EDIT": 2,
     "STATUS": 3,
+    # SNAPSHOT carries the compiled state of a compacted ticket (status, fields,
+    # etc.). It sorts at STATUS priority so any synthesized STATUS dispatch
+    # derived from compiled_state.status is applied before later COMMENT events
+    # (bug jade-cabin-tithe Part 3).
+    "SNAPSHOT": 3,
     "COMMENT": 4,
     "FILE_IMPACT": 4,
     "REVERT": 5,
@@ -466,6 +471,92 @@ def handle_status_event(
             bridge_env_id=bridge_env_id,
         )
 
+    return []
+
+
+def handle_snapshot_event(
+    event: dict[str, Any],
+    *,
+    acli_client: Any,
+    tickets_root: Path,
+    bridge_env_id: str,
+    run_id: str = "",
+    status_updated: set[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Handle a SNAPSHOT event (bug jade-cabin-tithe Part 3).
+
+    After ticket-compact runs, a ticket's granular events (CREATE/STATUS/EDIT)
+    are replaced with a single SNAPSHOT carrying ``data.compiled_state``. If
+    no handler exists for SNAPSHOT, ``process_outbound`` silently increments
+    its success counter without taking any action — and any status change
+    that landed alongside the compaction is permanently dropped.
+
+    Behavior:
+        * If the ticket has no SYNC marker, the ticket has never been linked
+          to Jira; SNAPSHOT alone cannot drive a Jira update — no-op.
+        * If ``compiled_state.status`` is missing/empty, no-op.
+        * If ``compiled_state.status`` matches the current Jira status, no-op.
+        * Otherwise, synthesize an inline STATUS dispatch by calling
+          ``acli_client.update_issue(jira_key, status=<compiled_status>)`` and
+          recording the ticket in ``status_updated`` so any same-batch STATUS
+          event for the same ticket is deduplicated.
+
+    Failures bubble up to ``process_outbound``'s per-event try/except so the
+    cursor is not advanced past a SNAPSHOT whose Jira update raised.
+    """
+    ticket_id = event.get("ticket_id", "")
+    ticket_dir = tickets_root / ticket_id
+
+    if status_updated is not None and ticket_id in status_updated:
+        return []
+
+    event_data = _read_event_file(event.get("file_path", ""))
+    if not event_data:
+        return []
+
+    compiled_state = event_data.get("data", {}).get("compiled_state", {}) or {}
+    compiled_status = compiled_state.get("status", "") if isinstance(compiled_state, dict) else ""
+    if not compiled_status:
+        return []
+
+    # Resolve the Jira key from the latest SYNC marker. Without a SYNC marker
+    # the ticket has never been pushed to Jira; SNAPSHOT alone cannot create
+    # a Jira issue (CREATE-only data is not preserved in compiled_state). The
+    # next granular event flow (or a backfill run) will repair this.
+    jira_key = _resolve_jira_key(ticket_dir)
+    if not jira_key:
+        return []
+
+    # Compare to current Jira status; skip the update when already in sync.
+    # get_issue failures are non-fatal — fall back to issuing the update so
+    # we never silently drop a status change on a flaky get_issue call.
+    try:
+        jira_state = acli_client.get_issue(jira_key)
+        current_jira_status = (
+            jira_state.get("status", "") if isinstance(jira_state, dict) else ""
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "handle_snapshot_event: get_issue(%s) failed (%s) — proceeding with update",
+            jira_key,
+            exc,
+        )
+        current_jira_status = ""
+
+    if current_jira_status and current_jira_status == compiled_status:
+        if status_updated is not None:
+            status_updated.add(ticket_id)
+        return []
+
+    acli_client.update_issue(jira_key, status=compiled_status)
+    if status_updated is not None:
+        status_updated.add(ticket_id)
+    logger.info(
+        "handle_snapshot_event: %s SNAPSHOT drove Jira status update %s -> %s",
+        ticket_id,
+        current_jira_status or "<unknown>",
+        compiled_status,
+    )
     return []
 
 

@@ -25,6 +25,11 @@ on:
         default: 'false'
         type: choice
         options: ['false', 'true']
+      commit_cap:
+        description: 'Max commits processed per run (default 500). Set 0 to opt into fail-loud-on-cap (preserves the 5566-685e contract). Increase past 500 to drain large backlogs without chunking (bug jade-cabin-tithe).'
+        required: false
+        default: '500'
+        type: string
 
 concurrency:
   group: bridge-outbound
@@ -165,6 +170,10 @@ jobs:
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
           JIRA_PROJECT: ${{ vars.JIRA_PROJECT }}
           BRIDGE_ENV_ID: ${{ vars.BRIDGE_ENV_ID }}
+          # Wired to the workflow_dispatch input `commit_cap` (default '500');
+          # bug jade-cabin-tithe Part 1. Cron-triggered runs leave this unset
+          # so the script's default-500 fallback applies.
+          BRIDGE_COMMIT_CAP: ${{ inputs.commit_cap }}
           GH_RUN_ID: ${{ github.run_id }}
 
       - name: Commit SYNC events back to tickets branch

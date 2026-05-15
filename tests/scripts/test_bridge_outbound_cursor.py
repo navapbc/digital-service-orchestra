@@ -213,15 +213,24 @@ def test_cold_start_cap_exceeded_seeds_at_head(
     assert any("cap exceeded" in r for r in reasons)
 
 
-def test_normal_run_cap_exceeded_raises_and_does_not_advance_cursor(
+def test_normal_run_cap_exceeded_chunks_events_and_does_not_drop(
     tmp_path: Path, cursor_mod: ModuleType
 ) -> None:
-    """Normal run (cursor set) with new commits > cap → RuntimeError raised, cursor unchanged.
+    """Normal run (cursor set) with new commits > cap → first `cap` events
+    returned to caller (chunked), no RuntimeError, no silent drop.
 
-    Unlike cold-start, a normal run that exceeds the cap must NOT advance the cursor
-    to HEAD. Silently seeding at HEAD permanently drops all unprocessed events (bugs
-    5566-685e, 6d94-5cba). Raising makes CI fail loudly so the operator can run
-    backfill to recover.
+    Bug jade-cabin-tithe Part 2 changes the cap-exceeded behavior on a normal
+    run from fail-loud (RuntimeError) to chunked-advance. The contract:
+
+    * The first `cap` chronological events are returned to the caller.
+    * The cursor is NOT advanced here — the caller (process_events) advances
+      it only after every event has been processed successfully, preserving
+      the no-silent-drop guarantee from bugs 5566-685e / 6d94-5cba.
+    * Subsequent ticks pick up where this chunk left off (eventual
+      consistency).
+
+    The default-cap escape hatch (BRIDGE_COMMIT_CAP=0) is exercised in the
+    sibling test below.
     """
     repo = _make_tmp_git_tracker(tmp_path)
     # Initial commit establishes the cursor baseline.
@@ -229,16 +238,59 @@ def test_normal_run_cap_exceeded_raises_and_does_not_advance_cursor(
     cursor_mod.write_cursor(repo, initial_sha)
 
     # Add more commits than the cap so the cap-exceeded path fires.
+    expected_shas: list[str] = []
     for i in range(5):
-        _commit_event(repo, f"ticket-{i:04d}", "STATUS")
+        sha, _ = _commit_event(repo, f"ticket-{i:04d}", "STATUS")
+        expected_shas.append(sha)
 
     cursor_before = cursor_mod.read_cursor(repo)
     assert cursor_before == initial_sha
 
-    with pytest.raises(RuntimeError, match="cap"):
-        cursor_mod.fetch_events_since_cursor(repo, initial_sha, cap=2)
+    # cap=2, 5 new commits — must NOT raise; must return chunked events.
+    events = cursor_mod.fetch_events_since_cursor(repo, initial_sha, cap=2)
 
-    # Cursor must NOT have advanced — events are preserved for a future backfill run.
+    # Exactly `cap` chronologically-earliest events are returned.
+    assert len(events) == 2, (
+        f"chunked path must return exactly cap=2 events; got {len(events)}"
+    )
+    # Returned events must be a chronologically-contiguous prefix of the new
+    # commits (the first two we added). This proves no silent drop: every
+    # event in cursor..chunk_HEAD is surfaced to the caller before any
+    # cursor advance.
+    returned_shas = [e["commit_sha"] for e in events]
+    assert returned_shas == expected_shas[:2], (
+        "chunked path must return the chronologically-earliest `cap` events; "
+        f"expected first-two SHAs {expected_shas[:2]} got {returned_shas}"
+    )
+
+    # fetch_events_since_cursor does NOT advance the cursor itself — the
+    # caller (process_events) is responsible for that after every event has
+    # been processed. This preserves deferred-cursor-write semantics.
+    assert cursor_mod.read_cursor(repo) == initial_sha
+
+
+def test_normal_run_cap_zero_preserves_fail_loud_behavior(
+    tmp_path: Path, cursor_mod: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When BRIDGE_COMMIT_CAP=0 is explicitly set, fail-loud-on-cap is preserved.
+
+    The escape hatch lets operators opt back into the 5566-685e/6d94-5cba
+    contract (raise rather than chunk) if they prefer.
+    """
+    repo = _make_tmp_git_tracker(tmp_path)
+    initial_sha, _ = _commit_event(repo, "ticket-base", "CREATE")
+    cursor_mod.write_cursor(repo, initial_sha)
+
+    for i in range(5):
+        _commit_event(repo, f"ticket-{i:04d}", "STATUS")
+
+    monkeypatch.setenv("BRIDGE_COMMIT_CAP", "0")
+
+    # cap argument is overridden by env var → 0 means "any commits > 0 raise".
+    with pytest.raises(RuntimeError, match="cap"):
+        cursor_mod.fetch_events_since_cursor(repo, initial_sha, cap=500)
+
+    # Cursor must NOT have advanced.
     assert cursor_mod.read_cursor(repo) == initial_sha
 
     # A BRIDGE_ALERT should still be written so the operator is aware.
@@ -250,6 +302,35 @@ def test_normal_run_cap_exceeded_raises_and_does_not_advance_cursor(
         json.loads(a.read_text(encoding="utf-8"))["data"]["reason"] for a in alerts
     ]
     assert any("cap exceeded" in r for r in reasons)
+
+
+def test_bridge_commit_cap_env_var_raises_default_cap(
+    tmp_path: Path, cursor_mod: ModuleType, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """BRIDGE_COMMIT_CAP env var overrides the function-arg default cap.
+
+    Setting BRIDGE_COMMIT_CAP=3 should cause 5 new commits to chunk (return 3),
+    even when the function is called with the default cap=500.
+    """
+    repo = _make_tmp_git_tracker(tmp_path)
+    initial_sha, _ = _commit_event(repo, "ticket-base", "CREATE")
+    cursor_mod.write_cursor(repo, initial_sha)
+
+    expected_shas: list[str] = []
+    for i in range(5):
+        sha, _ = _commit_event(repo, f"ticket-{i:04d}", "STATUS")
+        expected_shas.append(sha)
+
+    monkeypatch.setenv("BRIDGE_COMMIT_CAP", "3")
+
+    # Call with the default cap=500 — env var should drive it down to 3.
+    events = cursor_mod.fetch_events_since_cursor(repo, initial_sha)
+
+    assert len(events) == 3, (
+        f"BRIDGE_COMMIT_CAP=3 must cap chunk at 3 events; got {len(events)}"
+    )
+    returned_shas = [e["commit_sha"] for e in events]
+    assert returned_shas == expected_shas[:3]
 
 
 def test_cold_start_git_log_failure_seeds_at_head(
@@ -345,6 +426,57 @@ def test_process_events_multi_commit_catches_all_events(
     assert cursor_mod.read_cursor(repo) == new_head, (
         "cursor must advance past all three commits; staying at base means the "
         "HEAD~1 blindness bug is still present"
+    )
+
+
+def test_process_events_chunk_advances_cursor_to_chunk_head_not_repo_head(
+    tmp_path: Path,
+    bridge: ModuleType,
+    cursor_mod: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Critical invariant for bug jade-cabin-tithe Part 2 chunked-advance.
+
+    When the new-commit count exceeds the cap, fetch_events_since_cursor
+    chunks the result to the first N commits. The caller must advance the
+    cursor only as far as the chunk's HEAD — NOT the repo HEAD — otherwise
+    the un-chunked tail of commits is silently dropped (the same failure
+    mode bugs 5566-685e / 6d94-5cba were filed to prevent).
+    """
+    repo = _make_tmp_git_tracker(tmp_path)
+    base_sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    cursor_mod.write_cursor(repo, base_sha, run_id="prev-run")
+
+    # Commit five STATUS events; cap to 2 via env var.
+    expected_shas: list[str] = []
+    for i in range(5):
+        sha, _ = _commit_event(repo, f"ticket-chunk-{i}", "STATUS")
+        expected_shas.append(sha)
+    repo_head = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    assert repo_head == expected_shas[-1]
+
+    monkeypatch.setenv("BRIDGE_COMMIT_CAP", "2")
+
+    acli = MagicMock()
+    bridge.process_events(
+        tickets_dir=repo,
+        acli_client=acli,
+        bridge_env_id="bbbbbbbb-0000-4000-8000-000000000002",
+        run_id="run-current",
+    )
+
+    # After the run, the cursor must sit at the chunk-HEAD (commit #1, the
+    # second-oldest of the 5 new commits) — NOT at repo HEAD (commit #4).
+    stored = cursor_mod.read_cursor(repo)
+    assert stored == expected_shas[1], (
+        f"cursor must advance to chunk-HEAD ({expected_shas[1]!r}, the 2nd "
+        f"oldest new commit) under cap=2; got {stored!r}. Advancing to repo "
+        "HEAD would silently drop the unchunked tail of commits."
+    )
+    # And critically: NOT at repo HEAD.
+    assert stored != repo_head, (
+        "cursor must NEVER jump to repo HEAD when chunking — that's the "
+        "silent-drop failure mode bugs 5566-685e / 6d94-5cba forbid."
     )
 
 

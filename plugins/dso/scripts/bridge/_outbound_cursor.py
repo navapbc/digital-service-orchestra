@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import subprocess
 import time
 import uuid
@@ -224,12 +225,59 @@ def fetch_events_since_cursor(
         elif current_sha:
             entries.append((current_sha, line))
 
-    # Step 4: cap check (count distinct commits)
+    # Step 4: cap check (count distinct commits).
+    #
+    # Bug jade-cabin-tithe (Parts 1+2): the cap value is read from the
+    # BRIDGE_COMMIT_CAP environment variable when set, falling back to the
+    # caller's `cap` argument (default 500) otherwise. Malformed values fall
+    # back to the default — operators should never see the bridge silently
+    # crash on a typo'd env var.
+    #
+    # Cap-exceeded behavior is split into three lanes:
+    #   * effective_cap == 0  → fail-loud (preserve the 5566-685e/6d94-5cba
+    #                            contract; explicit operator opt-in).
+    #   * cold-start          → BRIDGE_ALERT + seed_at_head (unchanged; an
+    #                            unbounded historical backfill is never wanted).
+    #   * normal run          → CHUNKED-ADVANCE: process the first
+    #                            `effective_cap` chronological commits in this
+    #                            run, return their events to the caller, and
+    #                            let the caller's deferred-cursor-write logic
+    #                            advance the cursor to the chunk's HEAD once
+    #                            every event has been successfully processed.
+    #                            Subsequent cron ticks pick up where the chunk
+    #                            left off (eventual consistency).
+    #
+    # NO-SILENT-DROP INVARIANT (5566-685e): the chunked path NEVER drops an
+    # event. Every event in cursor..chunk_HEAD is returned to the caller before
+    # the cursor is advanced. The caller (process_events) only writes the
+    # cursor when len(events) processed equals the chunk size — preserving the
+    # deferred-write semantics. Future maintainers: do NOT "harden" this by
+    # restoring the old `raise` — that change reintroduces the production stall
+    # bug jade-cabin-tithe was filed to fix.
+    raw_cap = os.environ.get("BRIDGE_COMMIT_CAP")
+    if raw_cap is not None and raw_cap.strip() != "":
+        try:
+            effective_cap = int(raw_cap)
+        except ValueError:
+            logger.warning(
+                "_outbound_cursor: BRIDGE_COMMIT_CAP=%r is not an int — "
+                "falling back to default cap=%d",
+                raw_cap,
+                cap,
+            )
+            effective_cap = cap
+    else:
+        effective_cap = cap
+
     distinct_shas = {sha for sha, _ in entries}
-    if len(distinct_shas) > cap:
+    if len(distinct_shas) > effective_cap:
         write_cursor_bridge_alert(
             tracker_path,
-            reason=f"{len(distinct_shas)}-commit cap exceeded: seeding at HEAD",
+            reason=(
+                f"{len(distinct_shas)}-commit cap exceeded (cap={effective_cap}): "
+                "chunking" if effective_cap > 0 else
+                f"{len(distinct_shas)}-commit cap exceeded: seeding at HEAD"
+            ),
             bridge_env_id=bridge_env_id,
         )
         if cursor_sha is None:
@@ -238,21 +286,53 @@ def fetch_events_since_cursor(
             logger.warning(
                 "_outbound_cursor: cold-start %d commits exceed cap %d — seeding at HEAD",
                 len(distinct_shas),
-                cap,
+                effective_cap,
             )
             return _seed_at_head(tracker_path, bridge_env_id, run_id)
-        # Normal run: do NOT advance cursor — events must not be permanently dropped.
-        # Raise so CI fails loudly; operator must run backfill to recover (bugs
-        # 5566-685e, 6d94-5cba).
-        logger.error(
-            "_outbound_cursor: %d commits exceed cap %d — aborting run; cursor NOT advanced",
+        if effective_cap == 0:
+            # Explicit operator opt-in to fail-loud (5566-685e / 6d94-5cba).
+            logger.error(
+                "_outbound_cursor: %d commits exceed cap 0 (fail-loud mode) — "
+                "aborting run; cursor NOT advanced",
+                len(distinct_shas),
+            )
+            raise RuntimeError(
+                f"{len(distinct_shas)} commits exceed cap 0. "
+                "BRIDGE_COMMIT_CAP=0 selects fail-loud mode; unset or raise "
+                "BRIDGE_COMMIT_CAP to switch to chunked-advance, or run the "
+                "outbound bridge with backfill=true to sync unprocessed events."
+            )
+        # Normal run, chunked-advance: keep only entries belonging to the
+        # chronologically-earliest `effective_cap` commits.
+        #
+        # git log emits commits in reverse-chronological order, so reverse the
+        # entry list to walk oldest-first and pick the first effective_cap
+        # distinct SHAs we encounter. This preserves per-event ordering within
+        # each commit while bounding the chunk size at the commit level.
+        chunk_shas: list[str] = []
+        seen: set[str] = set()
+        for sha, _ in reversed(entries):
+            if sha not in seen:
+                seen.add(sha)
+                chunk_shas.append(sha)
+                if len(chunk_shas) >= effective_cap:
+                    break
+        chunk_sha_set = set(chunk_shas)
+        # Re-emit entries in chronological (oldest-first) order so callers
+        # observe events in the same order they were committed. This matters
+        # for chunked-advance: the caller's cursor advances after every
+        # successfully processed event, so processing oldest-first bounds
+        # the worst-case "events not yet processed" set to the failing event
+        # onward. Downstream sort_events_for_dispatch still re-orders by
+        # ticket_id + type_priority within a sort group.
+        entries = [(s, p) for (s, p) in reversed(entries) if s in chunk_sha_set]
+        logger.info(
+            "_outbound_cursor: %d commits exceed cap %d — chunking to "
+            "%d earliest commits (cursor will advance only after caller "
+            "processes every event)",
             len(distinct_shas),
-            cap,
-        )
-        raise RuntimeError(
-            f"{len(distinct_shas)} commits exceed cap {cap}. "
-            "Run the outbound bridge with backfill=true to sync unprocessed events, "
-            "or increase the cap via the BRIDGE_COMMIT_CAP workflow input."
+            effective_cap,
+            len(chunk_shas),
         )
 
     # Build event dicts from file paths.
