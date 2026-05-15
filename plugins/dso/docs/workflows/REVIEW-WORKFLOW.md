@@ -865,10 +865,10 @@ Scores come exclusively from `reviewer-findings.json` (written by the code-revie
 - **R4 - Verbatim severity**: The summary must reference the reviewer's severity levels exactly as stated. Do not downgrade or rephrase severity.
 - **R5 - Defense mechanism**: To dispute a finding without user involvement, the resolver sub-agent returns a defense explanation in its `RESOLUTION_RESULT` output. The orchestrator persists it to the DefenseStore via `defense_store_write` (see `.claude/scripts/dso review-defense-store.sh` and contract `review-defenses.md`). The orchestrator MUST NOT silently dismiss findings or override scores. Defenses must reference verifiable artifacts (existing code, tests, ADRs, or documented patterns) — not unverifiable claims like "for performance reasons." The defense must be substantive enough that a human would understand the tradeoff. **Structural findings** (type annotations, test coverage gaps, missing error handling) should prefer Fix over Defend — the reviewer scores these based on code patterns, and a defense record is unlikely to change the score.
 
-  When building the defense JSON record, copy the `cited_lines` field from the original finding being defended. Set `prior_finding_id` from the finding's `id` field, then copy `cited_lines`:
+  When building the defense JSON record, copy the `cited_lines` field from the original finding being defended. Set `prior_finding_id` from the finding's `finding_id` field (the canonical stable identifier in the review-findings schema), then copy `cited_lines`:
 
   ```python
-  defense_json["prior_finding_id"] = finding["id"]
+  defense_json["prior_finding_id"] = finding["finding_id"]
   defense_json["cited_lines"] = finding.get("cited_lines", [])  # anchors proximity-matching suppression in cycle N+1
   ```
 

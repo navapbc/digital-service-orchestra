@@ -65,7 +65,7 @@ def test_novelty_gate_passes_with_valid_escape_rationale():
     diff_text = "token_word some diff content line 10"
 
     with patch(
-        "dso_ci_review.proximity.validate_escape_rationale", return_value=True
+        "dso_ci_review.runner.validate_escape_rationale", return_value=True
     ):
         result_findings, _stats = _apply_novelty_gate(
             findings=[finding],

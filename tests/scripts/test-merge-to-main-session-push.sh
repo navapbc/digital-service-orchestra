@@ -75,10 +75,12 @@ SSTUB
 
     _write_config "$_T/.claude/dso-config.conf" "direct"
 
+    local merge_exit=0
     PATH="$bin_dir:$PATH" \
     PROJECT_ROOT="$_T" \
     CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
-        bash "$MERGE_SCRIPT" 2>/dev/null || true
+        bash "$MERGE_SCRIPT" 2>/dev/null || merge_exit=$?
+    assert_eq "session worktree: merge-to-main exits 0" "0" "$merge_exit"
 
     local push_count
     push_count="$(wc -l < "$_push_log" | tr -d ' ')"
@@ -138,10 +140,12 @@ SSTUB
 
     _write_config "$_T/.claude/dso-config.conf" "direct"
 
+    local merge_exit=0
     PATH="$bin_dir:$PATH" \
     PROJECT_ROOT="$_T" \
     CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
-        bash "$MERGE_SCRIPT" 2>/dev/null || true
+        bash "$MERGE_SCRIPT" 2>/dev/null || merge_exit=$?
+    assert_eq "non-session worktree: merge-to-main exits 0" "0" "$merge_exit"
 
     local push_count
     push_count="$(wc -l < "$_push_log" | tr -d ' ')"

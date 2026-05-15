@@ -23,6 +23,7 @@ from __future__ import annotations
 import asyncio
 import json  # used by _validate_findings_schema (json.dump to tmpfile)
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -637,8 +638,14 @@ def _fetch_pr_defenses(pr_number: str) -> list[dict]:
 
 
 def _normalize_cited_ref(entry: str) -> str:
-    parts = entry.split(":", 2)
-    return f"{parts[0]}:{parts[1]}" if len(parts) >= 2 else entry
+    # Strip leading approximate marker and surrounding whitespace so proximity
+    # matching uses exact path equality (~path.py:42 → path.py:42).
+    cleaned = entry.strip().lstrip("~")
+    parts = cleaned.split(":", 2)
+    return f"{parts[0]}:{parts[1]}" if len(parts) >= 2 else cleaned
+
+
+_GIT_SHA_RE = re.compile(r"^[0-9a-fA-F]{7,64}$")
 
 
 def _inter_cycle_diff_modified_region(defense: dict, repo_root: str | None = None) -> bool:
@@ -646,15 +653,21 @@ def _inter_cycle_diff_modified_region(defense: dict, repo_root: str | None = Non
     tip_sha = defense.get("story_branch_tip_sha", "")
     if not base_sha or not tip_sha:
         return False
+    # SHAs come from PR comments (DEFENSE_RECORD); treat as untrusted input.
+    # Reject anything that doesn't look like a hex SHA before passing to git
+    # to prevent option-injection via crafted "sha" strings.
+    if not (_GIT_SHA_RE.match(base_sha) and _GIT_SHA_RE.match(tip_sha)):
+        return False
     cited = defense.get("cited_lines", [])
     if not cited:
         return False
     try:
         import subprocess
         result = subprocess.run(
-            ["git", "diff", f"{base_sha}..{tip_sha}", "--unified=0"],
+            ["git", "diff", f"{base_sha}..{tip_sha}", "--unified=0", "--"],
             capture_output=True, text=True,
             cwd=repo_root or ".",
+            timeout=30,  # bound subprocess to prevent hang/DoS from crafted SHAs
         )
         if result.returncode != 0:
             return False
@@ -663,7 +676,11 @@ def _inter_cycle_diff_modified_region(defense: dict, repo_root: str | None = Non
         for line in result.stdout.splitlines():
             if line.startswith("+++ b/"):
                 current_file = line[6:]
-            elif line.startswith("@@ "):
+            elif line.startswith("+++ "):
+                # +++ /dev/null (deletion) or other non-b/ header — reset so the
+                # following hunk doesn't get mis-attributed to the previous file.
+                current_file = ""
+            elif line.startswith("@@ ") and current_file:
                 parts = line.split(" ")
                 if len(parts) >= 3:
                     new_range = parts[2].lstrip("+")
@@ -674,9 +691,12 @@ def _inter_cycle_diff_modified_region(defense: dict, repo_root: str | None = Non
                     try:
                         start_i = int(start)
                         count_i = int(count) if count else 1
-                        for ln in range(start_i, start_i + max(1, count_i)):
-                            modified.append(f"{current_file}:{ln}")
+                        # count_i == 0 means pure deletion, no new lines — skip.
+                        if count_i > 0:
+                            for ln in range(start_i, start_i + count_i):
+                                modified.append(f"{current_file}:{ln}")
                     except ValueError:
+                        # Malformed hunk range — skip silently and continue.
                         pass
         if not modified:
             return False
@@ -732,11 +752,23 @@ def _apply_novelty_gate(
             stats["reframe_of_count"] += 1
             result.append(finding)
             continue
+        if relation_upper != "NEW_INTRODUCED":
+            # NEW_PRE_EXISTING and any unrecognized relation are out of scope for
+            # the novelty gate — the schema's NEW_PRE_EXISTING auto-downgrade to
+            # `minor` is enforced elsewhere; don't double-downgrade here.
+            result.append(finding)
+            continue
 
-        # NEW_INTRODUCED (or unrecognized — treated as NEW_INTRODUCED)
-        f_cited = finding.get("cited_lines") or []
+        # NEW_INTRODUCED only
+        f_cited = [_normalize_cited_ref(c) for c in finding.get("cited_lines") or []]
+        # Union of prior defense cited_lines, normalized to 2-part path:lineno
+        # so validate_escape_rationale's criteria 2/3 can actually fire.
+        prior_cited: list[str] = []
+        for d in defenses:
+            for c in d.get("cited_lines") or []:
+                prior_cited.append(_normalize_cited_ref(c))
         proximity_anchored = any(
-            compute_proximity_overlap(f_cited, d.get("cited_lines") or [])
+            compute_proximity_overlap(f_cited, [_normalize_cited_ref(c) for c in d.get("cited_lines") or []])
             for d in defenses
             if d.get("cited_lines")
         )
@@ -747,7 +779,7 @@ def _apply_novelty_gate(
 
         escape_rationale = str(finding.get("escape_rationale") or "")
         valid_escape = (
-            validate_escape_rationale(escape_rationale, [], [], diff_text)
+            validate_escape_rationale(escape_rationale, prior_cited, [], diff_text)
             if escape_rationale
             else False
         )
@@ -780,6 +812,14 @@ def _suppress_defended_findings(
     if not defenses:
         return findings
 
+    # Precompute per-defense modified-region check once (O(M)) instead of
+    # invoking git diff inside the findings × defenses loop (O(N×M)). The result
+    # depends only on the defense's SHA pair and cited_lines, not the finding.
+    modified_region_cache: dict[int, bool] = {}
+    for d in defenses:
+        if d.get("cited_lines"):
+            modified_region_cache[id(d)] = _inter_cycle_diff_modified_region(d)
+
     suppressed: list[dict] = []
     for f in findings:
         matched = False
@@ -790,15 +830,22 @@ def _suppress_defended_findings(
         for d in defenses:
             d_cited = d.get("cited_lines", [])
             if d_cited:
-                # Proximity path: skip if lines were modified between cycles
-                if _inter_cycle_diff_modified_region(d):
+                # Proximity path: skip if lines were modified between cycles.
+                # When both sides have cited_lines, proximity is the canonical
+                # match — non-overlap means a different finding, even if the
+                # description happens to prefix-match. We intentionally do NOT
+                # fall back to description-prefix here; that would re-introduce
+                # over-suppression that proximity matching was added to prevent.
+                if modified_region_cache.get(id(d), False):
                     continue
                 d_cited_norm = [_normalize_cited_ref(c) for c in d_cited]
                 if f_cited and compute_proximity_overlap(f_cited, d_cited_norm):
                     matched = True
                     break
             else:
-                # Legacy fallback: description-prefix matching
+                # Legacy fallback: description-prefix matching applies when
+                # the defense lacks cited_lines (older records or text-only
+                # defenses).
                 d_sev = str(d.get("severity", "")).lower()
                 d_desc = str(d.get("description", "") or d.get("defense_text", ""))[:80].lower()
                 if d_sev and d_desc and (f_sev, f_desc) == (d_sev, d_desc):

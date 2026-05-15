@@ -71,13 +71,16 @@ def validate_escape_rationale(
         overlap_region: Overlap regions, format 'file/path.py:40-47'.
         diff_text: Optional diff content; when non-empty, enables criterion 1 token-in-diff check.
     """
-    # Criterion 1: token-in-diff check (only when diff_text is non-empty)
+    # Criterion 1: token-in-diff check (only when diff_text is non-empty).
+    # Case-insensitive: rationale and diff often differ in casing (e.g. "TypeError"
+    # vs "typeerror") — normalize both sides before substring containment.
     if diff_text:
         # Extract meaningful tokens: words >= 4 chars OR line number references like "line 42"
         tokens: list[str] = re.findall(r"\b\w{4,}\b", escape_text)
         line_refs: list[str] = re.findall(r"line\s+\d+", escape_text, re.IGNORECASE)
         all_tokens = tokens + line_refs
-        if not any(token in diff_text for token in all_tokens):
+        diff_lower = diff_text.lower()
+        if not any(token.lower() in diff_lower for token in all_tokens):
             return False
 
     # Extract all referenced line numbers from escape_text
