@@ -23,6 +23,7 @@ from __future__ import annotations
 import asyncio
 import json  # used by _validate_findings_schema (json.dump to tmpfile)
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -37,6 +38,7 @@ from dso_ci_review.dispatch import (
 )
 from dso_ci_review.findings import merge_findings, _parse_line_range
 from dso_ci_review.providers.config import AuthError, ConfigError, get_provider
+from dso_ci_review.proximity import compute_proximity_overlap, validate_escape_rationale
 from dso_ci_review.region_split import _should_region_split, run_region_split
 
 
@@ -635,41 +637,222 @@ def _fetch_pr_defenses(pr_number: str) -> list[dict]:
     return defenses
 
 
+def _normalize_cited_ref(entry: str) -> str:
+    # Strip leading approximate marker and surrounding whitespace so proximity
+    # matching uses exact path equality (~path.py:42 → path.py:42).
+    cleaned = entry.strip().lstrip("~")
+    parts = cleaned.split(":", 2)
+    return f"{parts[0]}:{parts[1]}" if len(parts) >= 2 else cleaned
+
+
+_GIT_SHA_RE = re.compile(r"^[0-9a-fA-F]{7,64}$")
+
+
+def _inter_cycle_diff_modified_region(defense: dict, repo_root: str | None = None) -> bool:
+    base_sha = defense.get("story_branch_base_sha", "")
+    tip_sha = defense.get("story_branch_tip_sha", "")
+    if not base_sha or not tip_sha:
+        return False
+    # SHAs come from PR comments (DEFENSE_RECORD); treat as untrusted input.
+    # Reject anything that doesn't look like a hex SHA before passing to git
+    # to prevent option-injection via crafted "sha" strings.
+    if not (_GIT_SHA_RE.match(base_sha) and _GIT_SHA_RE.match(tip_sha)):
+        return False
+    cited = defense.get("cited_lines", [])
+    if not cited:
+        return False
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["git", "diff", f"{base_sha}..{tip_sha}", "--unified=0", "--"],
+            capture_output=True, text=True,
+            cwd=repo_root or ".",
+            timeout=30,  # bound subprocess to prevent hang/DoS from crafted SHAs
+        )
+        if result.returncode != 0:
+            return False
+        modified: list[str] = []
+        current_file = ""
+        for line in result.stdout.splitlines():
+            if line.startswith("+++ b/"):
+                current_file = line[6:]
+            elif line.startswith("+++ "):
+                # +++ /dev/null (deletion) or other non-b/ header — reset so the
+                # following hunk doesn't get mis-attributed to the previous file.
+                current_file = ""
+            elif line.startswith("@@ ") and current_file:
+                parts = line.split(" ")
+                if len(parts) >= 3:
+                    new_range = parts[2].lstrip("+")
+                    if "," in new_range:
+                        start, count = new_range.split(",", 1)
+                    else:
+                        start, count = new_range, "1"
+                    try:
+                        start_i = int(start)
+                        count_i = int(count) if count else 1
+                        # count_i == 0 means pure deletion, no new lines — skip.
+                        if count_i > 0:
+                            for ln in range(start_i, start_i + count_i):
+                                modified.append(f"{current_file}:{ln}")
+                    except ValueError:
+                        # Malformed hunk range — skip silently and continue.
+                        pass
+        if not modified:
+            return False
+        normalized_cited = [_normalize_cited_ref(c) for c in cited]
+        return compute_proximity_overlap(normalized_cited, modified)
+    except Exception:
+        return False
+
+
+def _apply_novelty_gate(
+    findings: list[dict],
+    defenses: list[dict],
+    diff_text: str = '',
+    cycle_number: int = 1,
+) -> tuple[list[dict], dict]:
+    """Downgrade unjustified NEW_INTRODUCED findings on cycle >= 2.
+
+    A finding is 'unjustified' when its relation is NEW_INTRODUCED (or absent),
+    its cited_lines do not overlap any prior defense's cited_lines within +/-5 lines,
+    and its escape_rationale is missing or fails the three-criterion check.
+
+    Returns (processed_findings, stats_dict) where stats_dict has keys:
+        new_introduced_justified, new_introduced_unjustified,
+        resustain_of_count, reframe_of_count
+    """
+    stats: dict[str, int] = {
+        "new_introduced_justified": 0,
+        "new_introduced_unjustified": 0,
+        "resustain_of_count": 0,
+        "reframe_of_count": 0,
+    }
+    if cycle_number < 2:
+        return findings, stats
+
+    result: list[dict] = []
+    for finding in findings:
+        relation = finding.get("relation")
+        if relation is None:
+            import sys as _sys  # noqa: PLC0415
+            print(
+                "WARNING: finding missing relation field — treating as NEW_INTRODUCED "
+                f"(desc: {str(finding.get('description', ''))[:60]})",
+                file=_sys.stderr,
+            )
+            relation = "NEW_INTRODUCED"
+
+        relation_upper = str(relation).upper()
+        if relation_upper == "RESUSTAIN_OF":
+            stats["resustain_of_count"] += 1
+            result.append(finding)
+            continue
+        if relation_upper == "REFRAME_OF":
+            stats["reframe_of_count"] += 1
+            result.append(finding)
+            continue
+        if relation_upper != "NEW_INTRODUCED":
+            # NEW_PRE_EXISTING and any unrecognized relation are out of scope for
+            # the novelty gate — the schema's NEW_PRE_EXISTING auto-downgrade to
+            # `minor` is enforced elsewhere; don't double-downgrade here.
+            result.append(finding)
+            continue
+
+        # NEW_INTRODUCED only
+        f_cited = [_normalize_cited_ref(c) for c in finding.get("cited_lines") or []]
+        # Union of prior defense cited_lines, normalized to 2-part path:lineno
+        # so validate_escape_rationale's criteria 2/3 can actually fire.
+        prior_cited: list[str] = []
+        for d in defenses:
+            for c in d.get("cited_lines") or []:
+                prior_cited.append(_normalize_cited_ref(c))
+        proximity_anchored = any(
+            compute_proximity_overlap(f_cited, [_normalize_cited_ref(c) for c in d.get("cited_lines") or []])
+            for d in defenses
+            if d.get("cited_lines")
+        )
+        if proximity_anchored:
+            stats["new_introduced_justified"] += 1
+            result.append(finding)
+            continue
+
+        escape_rationale = str(finding.get("escape_rationale") or "")
+        valid_escape = (
+            validate_escape_rationale(escape_rationale, prior_cited, [], diff_text)
+            if escape_rationale
+            else False
+        )
+        if valid_escape:
+            stats["new_introduced_justified"] += 1
+            result.append(finding)
+        else:
+            stats["new_introduced_unjustified"] += 1
+            downgraded = dict(finding)
+            downgraded["severity"] = "suggestion"
+            downgraded["_novelty_gate_reason"] = "unjustified-novelty-claim"
+            result.append(downgraded)
+
+    return result, stats
+
+
 def _suppress_defended_findings(
     findings: list[dict],
     defenses: list[dict],
 ) -> list[dict]:
     """Downgrade findings that match a prior defense to 'suggestion' severity.
 
-    A finding matches a defense when its (severity, description[:80]) key
-    matches any defense record's (severity, description[:80]). Matching
-    findings are downgraded to 'suggestion' rather than removed, so the
-    author can see they were reconsidered.
+    When a defense has cited_lines, uses proximity matching (±5-line window,
+    same file) instead of description-prefix comparison. Falls back to the
+    description[:80] prefix approach when cited_lines is absent.
 
-    This is a defence-of-last-resort filter applied AFTER the two-call
-    architecture — the two-call path already gives the LLM the full defense
-    context. This filter handles cases where the LLM still re-emits a
-    defended finding verbatim despite the context.
+    Findings are downgraded to 'suggestion' rather than removed so authors
+    can see they were reconsidered.
     """
     if not defenses:
         return findings
 
-    # Build a set of (severity, description[:80]) pairs from prior defenses.
-    # Use a short prefix of the description to tolerate minor reformatting.
-    defended_keys: set[tuple[str, str]] = set()
+    # Precompute per-defense modified-region check once (O(M)) instead of
+    # invoking git diff inside the findings × defenses loop (O(N×M)). The result
+    # depends only on the defense's SHA pair and cited_lines, not the finding.
+    modified_region_cache: dict[int, bool] = {}
     for d in defenses:
-        sev = str(d.get("severity", "")).lower()
-        desc = str(d.get("description", "") or d.get("defense_text", ""))[:80].lower()
-        if sev and desc:
-            defended_keys.add((sev, desc))
+        if d.get("cited_lines"):
+            modified_region_cache[id(d)] = _inter_cycle_diff_modified_region(d)
 
     suppressed: list[dict] = []
     for f in findings:
-        sev = str(f.get("severity", "")).lower()
-        desc = str(f.get("description", ""))[:80].lower()
-        key = (sev, desc)
-        if key in defended_keys:
-            # Downgrade to suggestion — not blocking, but still visible
+        matched = False
+        f_cited = [_normalize_cited_ref(c) for c in f.get("cited_lines", [])]
+        f_sev = str(f.get("severity", "")).lower()
+        f_desc = str(f.get("description", ""))[:80].lower()
+
+        for d in defenses:
+            d_cited = d.get("cited_lines", [])
+            if d_cited:
+                # Proximity path: skip if lines were modified between cycles.
+                # When both sides have cited_lines, proximity is the canonical
+                # match — non-overlap means a different finding, even if the
+                # description happens to prefix-match. We intentionally do NOT
+                # fall back to description-prefix here; that would re-introduce
+                # over-suppression that proximity matching was added to prevent.
+                if modified_region_cache.get(id(d), False):
+                    continue
+                d_cited_norm = [_normalize_cited_ref(c) for c in d_cited]
+                if f_cited and compute_proximity_overlap(f_cited, d_cited_norm):
+                    matched = True
+                    break
+            else:
+                # Legacy fallback: description-prefix matching applies when
+                # the defense lacks cited_lines (older records or text-only
+                # defenses).
+                d_sev = str(d.get("severity", "")).lower()
+                d_desc = str(d.get("description", "") or d.get("defense_text", ""))[:80].lower()
+                if d_sev and d_desc and (f_sev, f_desc) == (d_sev, d_desc):
+                    matched = True
+                    break
+
+        if matched:
             downgraded = dict(f)
             downgraded["severity"] = "suggestion"
             downgraded["_suppressed_reason"] = (
@@ -1303,6 +1486,28 @@ def main() -> int:
                     )
                     merged = dict(merged)
                     merged["findings"] = filtered
+
+            # Novelty gate: downgrade unjustified NEW_INTRODUCED findings on cycle >= 2
+            if cycle_number >= 2:
+                _gated_findings, _novelty_stats = _apply_novelty_gate(
+                    merged.get("findings") or [],
+                    prior_defenses,
+                    diff_text,
+                    cycle_number,
+                )
+                if _novelty_stats.get("new_introduced_unjustified", 0) > 0:
+                    print(
+                        f"INFO: cycle {cycle_number} — novelty gate downgraded "
+                        f"{_novelty_stats['new_introduced_unjustified']} finding(s) "
+                        "(unjustified NEW_INTRODUCED outside prior defense window)",
+                        file=sys.stderr,
+                    )
+                print(
+                    f"INFO: cycle {cycle_number} — relation distribution: {_novelty_stats}",
+                    file=sys.stderr,
+                )
+                merged = dict(merged)
+                merged["findings"] = _gated_findings
 
         # Step 7a.5: early-exit for all-specialist-errors.
         # specialist_error findings may be schema-invalid (they lack cited_lines etc.),

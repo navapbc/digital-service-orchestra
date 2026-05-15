@@ -63,6 +63,7 @@ The following table defines all fields of a DefenseRecord. All required fields m
 | `ticket_id` | string | yes | Ticket bound at time of defense write. Set to `UNBOUND` when no session ticket — this value is invalid and causes write failure per the ticket-binding integrity rule. |
 | `story_branch_tip_sha` | string | no | Tip commit SHA of the story branch at the time the defense was written. Used by `load_for_region` for SHA-range validation. When present, `story_branch_base_sha` must also be present. |
 | `story_branch_base_sha` | string | no | Merge-base SHA between the story branch and the session branch at the time the defense was written. Used by `load_for_region` for SHA-range validation. When present, `story_branch_tip_sha` must also be present. |
+| `cited_lines` | array of strings | no | List of file:line references copied from the defended finding's `cited_lines` field. Persisted format: either `file/path.py:42` (2-part `path:lineno`) or `file/path.py:42:<content>` (3-part `path:lineno:content` as emitted by `mirror-defenses-to-pr.sh`). Readers MUST normalize 3-part entries to 2-part form (drop the content segment) before proximity matching — `runner.py _normalize_cited_ref` performs this normalization at load time. When present, enables ±5-line proximity-matching suppression in `_suppress_defended_findings` (runner.py). When absent, the matcher falls back to `description[:80]` comparison. Populated by the REVIEW-WORKFLOW.md orchestrator at defense record assembly time. |
 
 ---
 
@@ -109,6 +110,10 @@ The `cited_lines_fingerprint` field binds a defense to the specific lines of cod
 - Whitespace-only changes to cited lines (e.g., indentation normalization) preserve the binding — the normalized content is identical.
 - Semantic edits to cited lines (e.g., logic changes, identifier renames) change the normalized content, void the fingerprint, and release the binding.
 - A released binding means the finding is treated as `NEW_INTRODUCED` in the next review cycle; a prior defense does not apply.
+
+**Relationship to the `cited_lines` field:** the `cited_lines_fingerprint` is computed over 3-part entries (`path:lineno:content`) and is used for fingerprint-based binding. The separate optional `cited_lines` field (see Record Shape) carries 2-part entries (`path:lineno`) and is used by `_suppress_defended_findings` for ±5-line proximity matching. The runner normalizes 3-part entries to 2-part form (dropping the content segment) before proximity matching, so callers may populate `cited_lines` directly with 2-part references.
+
+> **cited_lines emission (active since Story A — 1ef8-79c4)**: `mirror-defenses-to-pr.sh` now includes the `cited_lines` array in every `DEFENSE_RECORD` it emits to GitHub PR comments. The array carries the 3-part `path:lineno:content` format used in `cited_lines_fingerprint` computation. This enables `runner.py _suppress_defended_findings` to perform proximity-overlap matching in subsequent review cycles without re-reading source files from the repository.
 
 ---
 
@@ -286,3 +291,4 @@ This contract is versioned. Breaking changes (field removal, type changes, algor
 
 - **2026-05-07**: Initial version — defines DefenseStore record shape, two-backend split (TrackerDefenseStore / GitHubPRDefenseStore), cited_lines_fingerprint SHA-256 computation algorithm, durable binding contract, ticket-binding integrity rule, multi-bound session tiebreak, `load_for_region` interface, and failure contract.
 - **2026-05-11**: Added SHA-range attestation fields (`story_branch_tip_sha`, `story_branch_base_sha`) to the record shape; extended `load_for_region` with `query_sha` parameter and two-condition OR ancestry-path validation (Condition A: in-range linear chain, Condition B: post-merge); defined legacy fallback contract (`diff_hash` lookup with `legacy attestation` stderr warning) for records lacking SHA fields; added Schema Migration section documenting the two-era record formats and transparent loader handling.
+- **2026-05-15**: Added optional `cited_lines` field (array of `path:lineno` strings) to DefenseRecord shape. Copied from the finding being defended at defense assembly time. Enables ±5-line proximity-matching suppression in `_suppress_defended_findings`. Absent on legacy records; falls back to description-prefix matching.

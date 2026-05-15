@@ -1160,7 +1160,6 @@ def test_absence_claim_fallback_injects_verification_evidence_boilerplate(
     )
 
     findings = result.get("findings", [])
-    schema_errors = [f for f in findings if f.get("category") == "schema_error"]
     # In soft mode the absence-claim WARNING does not block schema_pass, so the
     # fallback returns the patched result without a synthetic error.
     absence_idx_5 = next(

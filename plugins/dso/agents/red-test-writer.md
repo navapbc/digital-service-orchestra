@@ -279,6 +279,20 @@ When adding a test to an existing test file:
      ```
      source/path.ext: test/path.ext [test_widget_returns_error]
      ```
+
+  > **CRITICAL FORMAT RULE — test file path MUST precede the `[marker]` bracket.**
+  > The `[marker]` must appear immediately after the test file path that contains the new test — NOT at the end of a comma-separated test list without a preceding path.
+  >
+  > **CORRECT** (marker follows the test file path):
+  > ```
+  > source/path.ext: tests/existing_test.sh,tests/new_test.sh [test_widget_returns_error]
+  > ```
+  > **INCORRECT** (marker appended without test file path — record-test-status.sh CANNOT find the RED test):
+  > ```
+  > source/path.ext: tests/existing_test.sh,tests/new_test.sh,[test_widget_returns_error]
+  > ```
+  > The `[marker]` is attached to the test file path that immediately precedes it. A bare `,[marker]` with no path is malformed and silently disables the RED guard.
+
   4. Verify the marker was written — substitute the actual function name in the grep:
      ```bash
      grep '\[test_widget_returns_error\]' .test-index

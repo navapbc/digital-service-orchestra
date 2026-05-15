@@ -156,6 +156,14 @@ There is no line-based prefix for this signal. The JSON file itself is the recor
 | `prior_finding_id` absent for `RESUSTAIN_OF` or `REFRAME_OF` | **Invalid** — orchestrator rejects the finding; reviewer must be re-dispatched |
 | `prior_finding_id` does not match any ID in `prior_findings.json` | **Invalid** — orchestrator rejects the finding |
 
+### Runtime Enforcement of NEW_INTRODUCED Validation
+
+As of Story B (0b1b-8177), cycle ≥ 2 runtime applies two distinct checks to `NEW_INTRODUCED` findings, each in a different function:
+
+- **`runner.py _suppress_defended_findings`** (overlap suppression — runs every cycle): when a finding's `cited_lines` fall within the ±5-line proximity window of a prior defended finding's `cited_lines`, the finding is downgraded to `suggestion`. This path matches any finding regardless of relation; it is the canonical overlap-suppression mechanism. `escape_rationale` is NOT consulted here today — exempting a finding from overlap suppression is achieved by emitting `RESUSTAIN_OF`/`REFRAME_OF` with a valid `prior_finding_id`, or by passing the novelty gate in the inverse direction (no overlap + valid `escape_rationale`).
+- **`runner.py _apply_novelty_gate`** (novelty justification — runs only on cycle ≥ 2): a `NEW_INTRODUCED` finding whose `cited_lines` do NOT overlap any prior defense's `cited_lines` must justify its novelty claim via an `escape_rationale` satisfying all three criteria (token present in diff context, not in prior cited lines, not in proximity overlap region). Unjustified novelty claims are downgraded to `suggestion`. Proximity overlap with a prior defense is treated as "anchored" and exempts the finding from this gate. `NEW_PRE_EXISTING` and other relations are out of scope.
+- These checks run in `runner.py` independently of `prior_defenses` availability — both execute even when the prior defense list is empty (the novelty gate then trivially passes all findings).
+
 ---
 
 ## Auto-Downgrade Rule
@@ -209,6 +217,8 @@ There is no line-based prefix for this signal. The JSON file itself is the recor
 3. NOT within the ±5-line proximity overlap region between the new finding's `cited_lines` and the prior finding's `cited_lines`.
 
 The orchestrator evaluates this by token-level set comparison on the cited-line content, not by LLM judgment.
+
+> **Runtime enforcement (active since Story A — 1ef8-79c4)**: `runner.py _suppress_defended_findings` evaluates proximity overlap at review-cycle time. When a finding's `cited_lines` fall within the ±5-line proximity window of a prior defended finding's `cited_lines`, the finding is downgraded to `suggestion`. This runs unconditionally on every cycle-N+1 run, regardless of `relation` or `escape_rationale`. To exempt a finding from this downgrade, reviewers must emit `RESUSTAIN_OF`/`REFRAME_OF` (which the suppression matcher accepts as an explicit relation to a prior finding) or pass the novelty gate from the opposite side (no overlap + valid `escape_rationale`).
 
 **Rejection behavior**: Rationales failing the structural validity check are rejected and the finding is treated as if no `escape_rationale` was provided. The orchestrator logs the rejection reason so silent degradation is detectable.
 
@@ -429,3 +439,4 @@ This contract is versioned. Breaking changes (field removal, enum value removal,
 
 - **2026-05-07**: Initial version — defines review-findings-schema relation taxonomy (NEW_INTRODUCED, NEW_PRE_EXISTING, RESUSTAIN_OF, REFRAME_OF), prior_finding_id rules, escape_rationale structural validation, auto-downgrade rule with severity_history, and Call 2 completeness check protocol. Emitted by cycle-N+1 reviewer agents; parsed by REVIEW-WORKFLOW.md orchestrator.
 - **2026-05-14**: Added `verification_evidence: {command, output}` field. Absence-claim detection via `absence-claim-anchors.json` pattern set. Soft-deprecation mode by default; hard enforcement via `absence-claim-enforcement-v1` sentinel file.
+- **2026-05-15**: Added runtime enforcement notes for ±5-line proximity matching (now enforced by `runner.py _suppress_defended_findings`, Story A 1ef8-79c4) and for `NEW_INTRODUCED` relation + escape_rationale validation (now enforced by `runner.py _apply_novelty_gate`, Story B 0b1b-8177).
