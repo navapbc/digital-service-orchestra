@@ -1013,6 +1013,15 @@ def dispatch_schema_correction(
                     )
                     if not orig_cited_valid:
                         continue  # malformed original — allow correction to fix format
+                # severity: frozen only when original is enum-valid (in
+                # _VALID_SEVERITIES). When the original is enum-invalid (e.g. LLM
+                # emits "suggestion" — referenced in plugin docs but not in the
+                # dispatch enum), correction must be allowed to repair the enum —
+                # otherwise schema correction cannot resolve severity-enum errors
+                # and the llm-review job fails closed. Bug 0d1e-e9d5-2fcb-4bc5.
+                if field == "severity":
+                    if orig.get("severity") not in _VALID_SEVERITIES:
+                        continue  # enum-invalid original — allow correction to repair enum
                 if corrected.get(field) != orig[field]:
                     last_error = (
                         f"frozen field {field!r} mutated at index {i}: "
