@@ -843,4 +843,145 @@ if [[ "$FAIL" -eq "$_fail_before_dwclk" ]]; then
 fi
 rm -f "$_tmp_dwclk"
 
+# ── Sentinel lockout tests (RED — implementation in read-config.sh not yet added) ──
+# These tests specify the sentinel lockout behavior: when .claude/.dso-config-v2-migrated
+# exists in the git root, reading legacy keys (merge.strategy, enforcement.strategy)
+# must exit non-zero and emit a recovery hint. dso.workflow and pre-migration reads
+# (no sentinel) are unaffected.
+
+# ── test_read_config_sentinel_rejects_merge_strategy ─────────────────────────
+# Given: temp git repo with .claude/dso-config.conf containing merge.strategy=pr
+#        AND .claude/.dso-config-v2-migrated sentinel exists
+# When:  read-config.sh merge.strategy (from within that repo)
+# Then:  exits non-zero (exit 1)
+# WHY IT FAILS NOW: current read-config.sh exits 0 for any found key; no sentinel logic exists.
+_fail_before_srms=$FAIL
+_tmp_repo_srms="$(mktemp -d)"
+git -C "$_tmp_repo_srms" init -q
+mkdir -p "$_tmp_repo_srms/.claude"
+printf 'merge.strategy=pr\n' > "$_tmp_repo_srms/.claude/dso-config.conf"
+touch "$_tmp_repo_srms/.claude/.dso-config-v2-migrated"
+srms_exit=0
+(
+    cd "$_tmp_repo_srms" && \
+    unset WORKFLOW_CONFIG_FILE 2>/dev/null; \
+    bash "$SCRIPT" "merge.strategy"
+) > /dev/null 2>&1 || srms_exit=$?
+if [[ "$srms_exit" -ne 0 ]]; then
+    srms_actual_exit="nonzero"
+else
+    srms_actual_exit="zero"
+fi
+assert_eq "test_read_config_sentinel_rejects_merge_strategy: exits nonzero" "nonzero" "$srms_actual_exit"
+if [[ "$FAIL" -eq "$_fail_before_srms" ]]; then
+    echo "test_read_config_sentinel_rejects_merge_strategy ... PASS"
+fi
+rm -rf "$_tmp_repo_srms"
+
+# ── test_read_config_sentinel_rejects_enforcement_strategy ───────────────────
+# Given: sentinel exists, config has enforcement.strategy=ci
+# When:  read-config.sh enforcement.strategy (from within that repo)
+# Then:  exits non-zero
+# WHY IT FAILS NOW: current read-config.sh exits 0 for any found key; no sentinel logic exists.
+_fail_before_sres=$FAIL
+_tmp_repo_sres="$(mktemp -d)"
+git -C "$_tmp_repo_sres" init -q
+mkdir -p "$_tmp_repo_sres/.claude"
+printf 'enforcement.strategy=ci\n' > "$_tmp_repo_sres/.claude/dso-config.conf"
+touch "$_tmp_repo_sres/.claude/.dso-config-v2-migrated"
+sres_exit=0
+(
+    cd "$_tmp_repo_sres" && \
+    unset WORKFLOW_CONFIG_FILE 2>/dev/null; \
+    bash "$SCRIPT" "enforcement.strategy"
+) > /dev/null 2>&1 || sres_exit=$?
+if [[ "$sres_exit" -ne 0 ]]; then
+    sres_actual_exit="nonzero"
+else
+    sres_actual_exit="zero"
+fi
+assert_eq "test_read_config_sentinel_rejects_enforcement_strategy: exits nonzero" "nonzero" "$sres_actual_exit"
+if [[ "$FAIL" -eq "$_fail_before_sres" ]]; then
+    echo "test_read_config_sentinel_rejects_enforcement_strategy ... PASS"
+fi
+rm -rf "$_tmp_repo_sres"
+
+# ── test_read_config_sentinel_rejection_emits_recovery_message ───────────────
+# Given: sentinel exists, config has merge.strategy=pr
+# When:  read-config.sh merge.strategy with stderr captured
+# Then:  stderr contains 'git checkout HEAD' (recovery command hint)
+# WHY IT FAILS NOW: current read-config.sh emits no sentinel rejection message.
+_fail_before_srerm=$FAIL
+_tmp_repo_srerm="$(mktemp -d)"
+git -C "$_tmp_repo_srerm" init -q
+mkdir -p "$_tmp_repo_srerm/.claude"
+printf 'merge.strategy=pr\n' > "$_tmp_repo_srerm/.claude/dso-config.conf"
+touch "$_tmp_repo_srerm/.claude/.dso-config-v2-migrated"
+srerm_stderr=""
+srerm_stderr=$(
+    cd "$_tmp_repo_srerm" && \
+    unset WORKFLOW_CONFIG_FILE 2>/dev/null; \
+    bash "$SCRIPT" "merge.strategy" 2>&1 >/dev/null
+) || true
+if echo "$srerm_stderr" | grep -q 'git checkout HEAD'; then
+    srerm_has_hint="found"
+else
+    srerm_has_hint="missing"
+fi
+assert_eq "test_read_config_sentinel_rejection_emits_recovery_message: stderr contains recovery hint" "found" "$srerm_has_hint"
+if [[ "$FAIL" -eq "$_fail_before_srerm" ]]; then
+    echo "test_read_config_sentinel_rejection_emits_recovery_message ... PASS"
+fi
+rm -rf "$_tmp_repo_srerm"
+
+# ── test_read_config_sentinel_dso_workflow_unaffected ────────────────────────
+# Given: config has dso.workflow=ci-pr AND sentinel exists
+# When:  read-config.sh dso.workflow
+# Then:  exits 0 and stdout contains ci-pr (dso.workflow reads are NEVER blocked by sentinel)
+# NOTE:  This test may already PASS — the dso.workflow shim exits before sentinel check.
+_fail_before_sdwa=$FAIL
+_tmp_repo_sdwa="$(mktemp -d)"
+git -C "$_tmp_repo_sdwa" init -q
+mkdir -p "$_tmp_repo_sdwa/.claude"
+printf 'dso.workflow=ci-pr\n' > "$_tmp_repo_sdwa/.claude/dso-config.conf"
+touch "$_tmp_repo_sdwa/.claude/.dso-config-v2-migrated"
+sdwa_exit=0
+sdwa_stdout=""
+sdwa_stdout=$(
+    cd "$_tmp_repo_sdwa" && \
+    unset WORKFLOW_CONFIG_FILE 2>/dev/null; \
+    bash "$SCRIPT" "dso.workflow" 2>/dev/null
+) || sdwa_exit=$?
+assert_eq "test_read_config_sentinel_dso_workflow_unaffected: exit 0" "0" "$sdwa_exit"
+assert_eq "test_read_config_sentinel_dso_workflow_unaffected: stdout is ci-pr" "ci-pr" "$sdwa_stdout"
+if [[ "$FAIL" -eq "$_fail_before_sdwa" ]]; then
+    echo "test_read_config_sentinel_dso_workflow_unaffected ... PASS"
+fi
+rm -rf "$_tmp_repo_sdwa"
+
+# ── test_read_config_no_sentinel_legacy_key_allowed ──────────────────────────
+# Given: config has merge.strategy=pr AND NO sentinel file
+# When:  read-config.sh merge.strategy
+# Then:  exits 0 and stdout contains pr (pre-migration: legacy keys still work without sentinel)
+# NOTE:  This test may already PASS — it exercises existing (unguarded) behavior.
+_fail_before_snla=$FAIL
+_tmp_repo_snla="$(mktemp -d)"
+git -C "$_tmp_repo_snla" init -q
+mkdir -p "$_tmp_repo_snla/.claude"
+printf 'merge.strategy=pr\n' > "$_tmp_repo_snla/.claude/dso-config.conf"
+# Deliberately do NOT create the sentinel file
+snla_exit=0
+snla_stdout=""
+snla_stdout=$(
+    cd "$_tmp_repo_snla" && \
+    unset WORKFLOW_CONFIG_FILE 2>/dev/null; \
+    bash "$SCRIPT" "merge.strategy" 2>/dev/null
+) || snla_exit=$?
+assert_eq "test_read_config_no_sentinel_legacy_key_allowed: exit 0" "0" "$snla_exit"
+assert_eq "test_read_config_no_sentinel_legacy_key_allowed: stdout is pr" "pr" "$snla_stdout"
+if [[ "$FAIL" -eq "$_fail_before_snla" ]]; then
+    echo "test_read_config_no_sentinel_legacy_key_allowed ... PASS"
+fi
+rm -rf "$_tmp_repo_snla"
+
 print_summary
