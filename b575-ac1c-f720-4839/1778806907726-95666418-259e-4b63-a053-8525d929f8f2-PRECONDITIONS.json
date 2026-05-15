@@ -1,1 +1,0 @@
-{"event_type": "PRECONDITIONS", "schema_version": 1, "manifest_depth": "minimal", "gate_name": "brainstorm_complete", "session_id": "brainstorm-20260514-epic1", "worktree_id": "worktree-20260513-210901", "tier": "minimal", "timestamp": 1778806907726, "gate_verdicts": [], "evidence_ref": {}, "affects_fields": [], "data": {}}
