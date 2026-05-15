@@ -1,0 +1,4 @@
+{
+  "ruling": "drop",
+  "rationale": "The import at line 2 imports process_event from src.utils; the reviewer failed to check the import chain. Function exists in the imported module."
+}

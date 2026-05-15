@@ -56,6 +56,11 @@ SCRIPT_NAME="$(basename "$0")"
 
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_SCRIPT_DIR/.." && pwd)}"
+# _ANCHORS_PLUGIN_ROOT is script-relative by default; tests may override via
+# DSO_ANCHORS_PLUGIN_ROOT to control anchors loading independently of CLAUDE_PLUGIN_ROOT.
+# This separation lets tests set CLAUDE_PLUGIN_ROOT to control sentinel presence
+# without breaking anchors loading from the real plugin location.
+_ANCHORS_PLUGIN_ROOT="${DSO_ANCHORS_PLUGIN_ROOT:-$(cd "$_SCRIPT_DIR/.." && pwd)}"
 
 # --- Load extracted schema validators (validate_review_protocol_base, validate_plan_review) ---
 # shellcheck source=${_PLUGIN_ROOT}/hooks/lib/validate-review-schemas.sh
@@ -65,7 +70,7 @@ fi
 
 
 # --- Prompt-level schema hashes ---
-HASH_CODE_REVIEW_DISPATCH="214949ee476be6d0"
+HASH_CODE_REVIEW_DISPATCH="cb48a66fc3292083"
 HASH_REVIEW_PROTOCOL="3053fa9a43e12b79"
 HASH_PLAN_REVIEW="9dba6875b85b7bc3"
 
@@ -229,10 +234,62 @@ fi
 # warning during transition to severity-only schema (story 6c75-cc5d → f19a-c97e).
 validate_code_review_dispatch() {
     local file="$1"
-    python3 - "$file" <<'PYEOF'
-import sys, json
+    python3 - "$file" "$_PLUGIN_ROOT" "$_ANCHORS_PLUGIN_ROOT" <<'PYEOF'
+import sys, json, os, re
 
 output_file = sys.argv[1]
+plugin_root = sys.argv[2] if len(sys.argv) > 2 else ""
+anchors_plugin_root = sys.argv[3] if len(sys.argv) > 3 else plugin_root  # fallback to plugin_root
+
+# Absence-claim anchor loading is deferred until we know whether any finding
+# contains absence language. This avoids fail-closed behavior when the anchors
+# file has not yet been deployed (pre-merge worktree dev). If a finding's
+# description matches an absence anchor and the anchors file is missing/malformed,
+# we fail-closed at that point.
+# See ${CLAUDE_PLUGIN_ROOT}/docs/contracts/absence-claim-anchors.json.
+# Use anchors_plugin_root (script-relative, never overridden by CLAUDE_PLUGIN_ROOT in tests).
+_anchors_path = os.path.join(anchors_plugin_root, "docs", "contracts", "absence-claim-anchors.json")
+_absence_anchors = None   # None = not yet loaded; [] = loaded and empty
+_absence_prefix_patterns = []
+
+def _load_anchors():
+    """Load absence-claim anchors fail-closed. Call only when absence-language is detected."""
+    global _absence_anchors, _absence_prefix_patterns
+    if _absence_anchors is not None:
+        return  # already loaded
+    try:
+        with open(_anchors_path) as _af:
+            _anchors_data = json.load(_af)
+        _absence_anchors = _anchors_data.get("anchors", [])
+        _absence_prefix_patterns = _anchors_data.get("anchors_prefix_patterns", [])
+    except FileNotFoundError:
+        print(f"ERROR: absence-claim-anchors.json not found at {_anchors_path} (fail-closed)", file=sys.stderr)
+        sys.exit(1)
+    except json.JSONDecodeError as _je:
+        print(f"ERROR: absence-claim-anchors.json is malformed: {_je} (fail-closed)", file=sys.stderr)
+        sys.exit(1)
+
+def _is_hard_enforcement():
+    """Check if hard enforcement sentinel file is present."""
+    sentinel = os.path.join(plugin_root, "contracts", "absence-claim-enforcement-v1")
+    return os.path.isfile(sentinel)
+
+def _is_absence_claim(description):
+    """Return the matched absence phrase, or None if no absence language found."""
+    _QUICK_ANCHORS = ["not exist", "not found", "not defined", "not present", "missing",
+                      "is absent", "has no", "lacks", "undefined", "not implemented"]
+    desc_lower = description.lower()
+    if not any(a in desc_lower for a in _QUICK_ANCHORS) and not description.startswith(("Missing ", "No ")):
+        return None
+    _load_anchors()
+    for anchor in _absence_anchors:
+        if anchor in description:
+            return anchor
+    for pattern in _absence_prefix_patterns:
+        if re.match(pattern, description):
+            return pattern
+    return None
+
 with open(output_file) as f:
     try:
         data = json.load(f)
@@ -350,6 +407,33 @@ else:
                         f"{prefix}.reachability: must be at least 20 non-whitespace characters "
                         f"(got {len(reach.strip())}); explain the reachable execution path"
                     )
+        # Absence-claim detection: if description contains absence language, check that
+        # verification_evidence is present. Load anchors fail-closed on first match.
+        # Soft mode (no sentinel): warn on stderr and continue (exit 0).
+        # Hard mode (sentinel present): error on missing verification_evidence.
+        # Malformed verification_evidence (wrong/missing fields) always errors in both modes.
+        # See ${CLAUDE_PLUGIN_ROOT}/docs/contracts/absence-claim-anchors.json.
+        desc = finding.get("description", "")
+        _matched_phrase = _is_absence_claim(desc)
+        if isinstance(desc, str) and _matched_phrase:
+            ve = finding.get("verification_evidence")
+            if ve is None:
+                if _is_hard_enforcement():
+                    errors.append(
+                        f"{prefix}: missing required field 'verification_evidence' "
+                        f"(absence claim detected: '{_matched_phrase}')"
+                    )
+                else:
+                    print(
+                        f"WARNING: {prefix}.verification_evidence absent on absence-claim finding "
+                        f"(matched: '{_matched_phrase}'; soft mode — activate hard enforcement with sentinel file)",
+                        file=sys.stderr,
+                    )
+            elif isinstance(ve, dict):
+                if "command" not in ve:
+                    errors.append(f"{prefix}.verification_evidence: missing required field 'command'")
+                if "output" not in ve:
+                    errors.append(f"{prefix}.verification_evidence: missing required field 'output'")
 
 # Validate summary
 summary = data.get("summary")

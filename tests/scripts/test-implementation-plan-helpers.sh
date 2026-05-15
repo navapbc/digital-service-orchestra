@@ -18,6 +18,12 @@ SCRIPTS="$REPO_ROOT/plugins/dso/scripts/implementation-plan"
 
 source "$REPO_ROOT/tests/lib/assert.sh"
 
+# Skip the ticket-sync git fetch so tests that call check-tag-guards.sh /
+# check-reinvocation.sh (which invoke `.claude/scripts/dso ticket show`) do
+# not trigger a network fetch in CI where the sync marker is absent.
+# See _ensure_initialized in plugins/dso/scripts/ticket.
+export _TICKET_TEST_NO_SYNC=1
+
 echo "=== test-implementation-plan-helpers.sh ==="
 echo ""
 

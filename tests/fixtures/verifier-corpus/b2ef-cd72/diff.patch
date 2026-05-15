@@ -1,0 +1,10 @@
+--- a/src/config.py
++++ b/src/config.py
+@@ -10,6 +10,10 @@ class Config:
+     def load(cls, path: str) -> "Config":
+         with open(path) as f:
+             data = json.load(f)
++        if not data.get("api_key"):
++            import logging
++            logging.warning("api_key not set in config")
+         return cls(**data)

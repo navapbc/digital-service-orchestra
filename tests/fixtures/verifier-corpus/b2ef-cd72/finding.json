@@ -1,0 +1,13 @@
+{
+  "finding_id": "b2ef-cd72",
+  "severity": "important",
+  "category": "security",
+  "description": "No validation of the api_key field — missing value passes through silently without error",
+  "file": "src/config.py",
+  "cited_lines": ["src/config.py:13"],
+  "cited_excerpt": "if not data.get(\"api_key\"):",
+  "verification_evidence": {
+    "command": "grep -n 'api_key' src/config.py",
+    "output": "13:        if not data.get(\"api_key\"):\n14:            logging.warning(\"api_key not set in config\")"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "finding_id": "ee3a-43fc",
+  "severity": "important",
+  "category": "correctness",
+  "description": "The function `process_event` is not defined anywhere in the codebase",
+  "file": "src/handlers.py",
+  "cited_lines": ["src/handlers.py:7"],
+  "cited_excerpt": "result = process_event(payload)",
+  "verification_evidence": {
+    "command": "grep -rn 'def process_event' src/",
+    "output": "(no output — function not found in src/)"
+  }
+}

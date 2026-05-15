@@ -1,0 +1,4 @@
+{
+  "ruling": "drop",
+  "rationale": "The .coderabbit.yaml file is a CI review tool configuration, not a security boundary. Trust boundary enforcement is not a applicable concept for this file type. The absence claim is a category error."
+}

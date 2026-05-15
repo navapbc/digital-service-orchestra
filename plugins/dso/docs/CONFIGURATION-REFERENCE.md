@@ -876,6 +876,39 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 
 ---
 
+### `review.verifier_enabled`
+
+| | |
+|---|---|
+| **Description** | Whether to run the absence-claim verifier agent after each review pass. When `false` (default), `dispatch_verifier` returns findings unchanged and no verifier agent is dispatched. |
+| **Accepted values** | `true` \| `false` (any other value or absence is treated as `false`) |
+| **Default** | `false` |
+| **Used by** | `dso_ci_review.verifier.dispatch_verifier`, `dso_ci_review.verifier.dispatch_verifier_with_telemetry` |
+
+---
+
+### `review.verifier_failure_threshold`
+
+| | |
+|---|---|
+| **Description** | Cascade-brake threshold: fraction of in-scope findings that fail verifier dispatch before the verifier loop is paused. Must be in range `(0.0, 1.0]`. |
+| **Accepted values** | Float in `(0.0, 1.0]` |
+| **Default** | `0.30` |
+| **Used by** | `dso_ci_review.verifier._validate_failure_threshold`, `dso_ci_review.verifier._check_cascade_brake` |
+
+---
+
+### `review.verifier_strict_after`
+
+| | |
+|---|---|
+| **Description** | Number of confirmed findings before the verifier switches to strict mode. In strict mode the verifier applies tighter evidence-matching criteria. `0` disables strict mode entirely. |
+| **Accepted values** | Non-negative integer (`0` = disabled) |
+| **Default** | `0` |
+| **Used by** | `dso_ci_review.verifier` (strict-mode switching, planned) |
+
+---
+
 ### `review.minor_findings_create_tickets`
 
 | | |

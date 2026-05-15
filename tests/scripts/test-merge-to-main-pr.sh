@@ -5370,6 +5370,273 @@ EOF
 }
 t_phase_poll_behind_exhausts_update_cap_exits_nonzero
 
+# ===========================================================================
+# t_draft_pr_promoted_on_resume (bug 2e68-046a)
+# When merge-to-main-pr.sh runs with --resume and the state file already
+# records a draft PR, gh pr ready must still be called.
+# RED: fails before fix (promotion only in _phase_merge, which is skipped on resume).
+# GREEN: passes after top-level promotion block is added outside _phase_merge.
+# ===========================================================================
+t_draft_pr_promoted_on_resume() {
+    local _T branch _sf
+    _T="$(mktemp -d /tmp/dso-pr-resume-promote.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    branch="feature-resume-promote-$$"
+
+    local real_git
+    real_git=$(command -v git)
+    local gh_argv_log="$_T/gh-argv.log"
+
+    mkdir -p "$_T/bin"
+
+    # gh shim: covers all phases for a quick-exit successful resume run.
+    # Key: gh pr view --json isDraft → {"isDraft": true} so promotion fires.
+    # gh pr ready → exit 0 (success). All other calls return quick success.
+    cat > "$_T/bin/gh" <<GH_SHIM
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$gh_argv_log"
+case "\$1" in
+  --version) echo "gh version 2.40.1 (2024-01-01)"; exit 0 ;;
+  pr)
+    case "\$2" in
+      list)   exit 0 ;;
+      create) echo "https://github.com/x/y/pull/42"; exit 0 ;;
+      ready)  exit 0 ;;
+      merge)  exit 0 ;;
+      checks) echo '[{"name":"ci","state":"COMPLETED","conclusion":"SUCCESS"}]'; exit 0 ;;
+      view)
+        if [[ "\$*" == *"isDraft"* ]];               then echo '{"isDraft":true}'; exit 0; fi
+        if [[ "\$*" == *"headRefOid"* ]];             then echo ""; exit 0; fi
+        if [[ "\$*" == *"comments,reviews"* ]];       then echo "{}"; exit 0; fi
+        if [[ "\$*" == *"mergeable"* ]];              then echo '{"mergeable":"MERGEABLE"}'; exit 0; fi
+        if [[ "\$*" == *"mergeCommit"* ]];            then echo '{"mergeCommit":{"oid":"deadbeef0000"}}'; exit 0; fi
+        if [[ "\$*" == *"state"* ]];                  then echo '{"state":"MERGED"}'; exit 0; fi
+        echo '{}'; exit 0
+        ;;
+      *) exit 0 ;;
+    esac
+    ;;
+  api)
+    if [[ "\$2" == "graphql" ]]; then
+      echo '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}'
+      exit 0
+    fi
+    exit 0
+    ;;
+  repo)
+    if [[ "\$2" == "view" ]]; then echo "x/y"; exit 0; fi
+    exit 0
+    ;;
+  *) exit 0 ;;
+esac
+GH_SHIM
+    chmod +x "$_T/bin/gh"
+
+    # git shim: pass through except push (log + exit 0) and fetch (exit 1 = skip sync)
+    local git_push_log="$_T/git-push.log"
+    cat > "$_T/bin/git" <<GIT_SHIM
+#!/usr/bin/env bash
+if [[ "\$1" == "push" ]];  then printf '%s\n' "\$*" >> "$git_push_log"; exit 0; fi
+if [[ "\$1" == "fetch" ]]; then exit 1; fi
+exec "$real_git" "\$@"
+GIT_SHIM
+    chmod +x "$_T/bin/git"
+
+    # Minimal git repo on the feature branch
+    (
+        cd "$_T" || exit 1
+        "$real_git" init -q -b main >/dev/null 2>&1
+        "$real_git" config user.email "test@test.local"
+        "$real_git" config user.name "test"
+        echo "seed" > seed.txt
+        "$real_git" add seed.txt
+        "$real_git" commit -q -m "seed" >/dev/null
+        "$real_git" checkout -q -b "$branch"
+        echo "feature" > feature.txt
+        "$real_git" add feature.txt
+        "$real_git" commit -q -m "feature work" >/dev/null
+    )
+
+    # Pre-seed state file — simulates sprint Phase A having already created
+    # the draft PR before this resume run.
+    _sf="/tmp/merge-to-main-state-${branch//\//-}.json"
+    printf '{"pr_url":"https://github.com/x/y/pull/42","pr_number":"42"}' > "$_sf"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'; rm -f '$_sf'" RETURN
+
+    local _cfg="$_T/dso-config.conf"
+    cat > "$_cfg" <<EOF
+version=1.1.0
+merge.pr_poll_interval_seconds=0
+merge.pr_max_wait_seconds=3600
+merge.pr_thread_quiet_window_seconds=0
+EOF
+
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        WORKFLOW_CONFIG_FILE="$_cfg" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        BRANCH="$branch" \
+        bash "$PR_SCRIPT" --resume >/dev/null 2>&1
+    ) || true
+
+    local _argv _ready_called
+    _argv="$(cat "$gh_argv_log" 2>/dev/null || echo '')"
+
+    _ready_called="false"
+    if echo "$_argv" | grep -qE "^pr ready 42$"; then
+        _ready_called="true"
+    fi
+
+    assert_eq "t_draft_pr_promoted_on_resume: gh pr ready called on --resume path" "true" "$_ready_called"
+}
+t_draft_pr_promoted_on_resume
+
+# ===========================================================================
+# t_draft_pr_promoted_to_ready (bug 075f-ec40)
+# _phase_merge must call `gh pr ready <num>` when the existing PR is draft.
+# RED: passes before fix (gh pr ready not called → assertion fails).
+# GREEN: passes after _phase_merge adds the gh pr ready promotion block.
+# ===========================================================================
+t_draft_pr_promoted_to_ready() {
+    local _T branch
+    _T="$(mktemp -d /tmp/dso-pr-draft-promote.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    branch="feature-draft-promote-$$"
+
+    local real_git
+    real_git=$(command -v git)
+    local gh_argv_log="$_T/gh-argv.log"
+
+    # Build a minimal gh shim. Handles all the calls _phase_merge makes:
+    #   gh pr list      — return a draft PR so _final_url/_pr_number are set from the list
+    #   gh pr view --json mergeable — return MERGEABLE (no conflict)
+    #   gh pr view --json isDraft   — return isDraft:true (the PR is draft)
+    #   gh pr ready <num>           — log the call, exit 0
+    #   gh --version                — version gate check
+    mkdir -p "$_T/bin"
+    cat > "$_T/bin/gh" <<GH_SHIM
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$gh_argv_log"
+case "\$1" in
+  --version) echo "gh version 2.40.1 (2024-01-01)"; exit 0 ;;
+  pr)
+    case "\$2" in
+      list)
+        # Return one draft PR so _phase_merge reuses it
+        echo '[{"number":42,"url":"https://github.com/x/y/pull/42","isDraft":true}]'
+        exit 0
+        ;;
+      view)
+        if [[ "\$*" == *"isDraft"* ]]; then
+          echo '{"isDraft":true}'
+          exit 0
+        fi
+        if [[ "\$*" == *"mergeable"* ]]; then
+          echo '{"mergeable":"MERGEABLE","number":42,"url":"https://github.com/x/y/pull/42"}'
+          exit 0
+        fi
+        if [[ "\$*" == *"headRefOid"* ]]; then echo ""; exit 0; fi
+        if [[ "\$*" == *"comments,reviews,reviewThreads"* ]]; then echo "{}"; exit 0; fi
+        if [[ "\$*" == *"state"* ]]; then echo "MERGED"; exit 0; fi
+        echo '{}'; exit 0
+        ;;
+      ready)
+        # This is the call under test — log it and succeed
+        exit 0
+        ;;
+      *) exit 0 ;;
+    esac
+    ;;
+  api)
+    if [[ "\$2" == "graphql" ]]; then
+      echo '{"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[]}}}}}'
+      exit 0
+    fi
+    exit 0
+    ;;
+  repo)
+    if [[ "\$2" == "view" ]]; then echo "x/y"; exit 0; fi
+    exit 0
+    ;;
+  *) exit 0 ;;
+esac
+GH_SHIM
+    chmod +x "$_T/bin/gh"
+
+    # git shim: pass through except for fetch (return 1 to skip sync) and push
+    local git_push_log="$_T/git-push.log"
+    cat > "$_T/bin/git" <<GIT_SHIM
+#!/usr/bin/env bash
+if [[ "\$1" == "push" ]]; then
+  printf '%s\n' "\$*" >> "$git_push_log"
+  exit 0
+fi
+if [[ "\$1" == "fetch" ]]; then
+  exit 1
+fi
+exec "$real_git" "\$@"
+GIT_SHIM
+    chmod +x "$_T/bin/git"
+
+    # Minimal git repo
+    (
+        cd "$_T" || exit 1
+        "$real_git" init -q -b main >/dev/null 2>&1
+        "$real_git" config user.email "test@test.local"
+        "$real_git" config user.name "test"
+        echo "seed" > seed.txt
+        "$real_git" add seed.txt
+        "$real_git" commit -q -m "seed" >/dev/null
+        "$real_git" checkout -q -b "$branch"
+        echo "feature" > feature.txt
+        "$real_git" add feature.txt
+        "$real_git" commit -q -m "feature work" >/dev/null
+    )
+
+    local _cfg="$_T/dso-config.conf"
+    cat > "$_cfg" <<EOF
+version=1.1.0
+merge.pr_poll_interval_seconds=0
+merge.pr_max_wait_seconds=3600
+EOF
+
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        WORKFLOW_CONFIG_FILE="$_cfg" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        BRANCH="$branch" \
+        PR_LIB_MODE="1" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _state_write_phase()    { return 0; }
+            _state_mark_complete()  { return 0; }
+            _state_write_pr_meta()  { return 0; }
+            _fetch_and_rebase_branch() { return 0; }
+            _phase_merge
+        ' "$PR_SCRIPT"
+    ) >/dev/null 2>&1 || true
+
+    local _argv
+    _argv="$(cat "$gh_argv_log" 2>/dev/null || echo '')"
+
+    local _ready_called="false"
+    if echo "$_argv" | grep -qE "^pr ready 42$"; then
+        _ready_called="true"
+    fi
+
+    assert_eq "t_draft_pr_promoted_to_ready: gh pr ready called for draft PR" "true" "$_ready_called"
+}
+t_draft_pr_promoted_to_ready
+
 # ---------------------------------------------------------------------------
 # end of file
 print_summary

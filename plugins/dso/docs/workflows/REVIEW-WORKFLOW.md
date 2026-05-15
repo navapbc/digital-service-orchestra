@@ -799,6 +799,43 @@ Use `overlay_dispatch_with_fallback` (from `scripts/overlay-dispatch.sh`) to ens
 
 ---
 
+## Step 4.5: Verifier Dispatch (Absence-Claim Findings)
+
+After all reviewer and overlay dispatches complete (Steps 4, 4a, 4b), dispatch the `code-reviewer-verifier` agent to verify absence-claim findings before `record-review.sh` runs.
+
+### Minor Findings Bypass
+
+Minor findings bypass the verifier entirely and pass through unchanged. Only critical, important, and fragile findings are sent to the verifier agent. This minor bypass keeps verifier load bounded and avoids blocking commits on low-severity issues.
+
+### Sub-Agent Dispatch
+
+Dispatch `dso:code-reviewer-verifier` with a bounded Bash allowlist:
+- Allowed tools: `Read`, `Glob`, and Bash restricted to allowlist: `["grep", "stat", "ls", "file"]`
+- File reads use `git show <reviewed_sha>:<path>` pattern — NOT the live working tree. The `reviewed_sha` is captured at Step 4 dispatch time and must not change mid-review.
+
+```bash
+# reviewed_sha captured at Step 4; passed to verifier for git show reads
+# git show <reviewed_sha>:<path> retrieves file content at the reviewed commit
+```
+
+### Ruling Routing
+
+The verifier returns rulings for each finding:
+
+- **confirm ruling** — verifier could not disprove the finding; finding proceeds unchanged to record-review.sh. A `confirm` ruling means the claim is uncertain, not proven.
+- **downgrade-to-minor ruling** — verifier determined severity was overstated; set finding severity to `"minor"` before record-review.sh.
+- **drop ruling** — verifier determined the absence claim is verifiably false (evidence invalidated); remove the finding before record-review.sh.
+
+### Failure Handling
+
+If the verifier agent times out or returns a malformed ruling, fail-open: log a warning and proceed with findings unchanged. A verifier failure must never block a commit.
+
+### Cross-Path Contract (for S7 CI equivalence)
+
+When `git show <reviewed_sha>:<path>` cannot find a deleted file, emit `verifier_status: failed` and pass through (same behavior as CI path, ensuring ≥95% local/CI equivalence).
+
+---
+
 ## Step 5: Record Review
 
 **Prerequisite**: You MUST have a sub-agent result from Step 4. If you do not have a Task tool result to reference, STOP — you skipped Step 4.

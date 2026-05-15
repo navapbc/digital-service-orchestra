@@ -150,7 +150,7 @@ def _resolve_validator_script(plugin_root: str | None = None) -> str:
 # Exposed as a module constant so tests can assert drift against the script.
 # When validate-review-output.sh changes its schema, update this constant and
 # the corresponding test in test_runner_smoke.py.
-_VALIDATE_REVIEW_SCHEMA_HASH = "214949ee476be6d0"
+_VALIDATE_REVIEW_SCHEMA_HASH = "cb48a66fc3292083"
 
 
 def _validate_findings_schema(
@@ -341,7 +341,16 @@ def _resolve_pr_head_sha(pr_number: str) -> str | None:
         return sha
     try:
         result = subprocess.run(
-            ["gh", "pr", "view", pr_number, "--json", "headRefOid", "--jq", ".headRefOid"],
+            [
+                "gh",
+                "pr",
+                "view",
+                pr_number,
+                "--json",
+                "headRefOid",
+                "--jq",
+                ".headRefOid",
+            ],
             capture_output=True,
             text=True,
             timeout=15,
@@ -374,9 +383,7 @@ def _extract_anchor(finding: dict) -> tuple[str, int] | None:
     return (path, parsed[0])
 
 
-def _post_issue_comments(
-    blocking: list[dict], pr_number: str, total: int
-) -> int:
+def _post_issue_comments(blocking: list[dict], pr_number: str, total: int) -> int:
     """Post findings as issue-level PR comments (gh pr comment), best-effort.
 
     Returns the count of successfully posted comments.
@@ -1153,6 +1160,13 @@ def main() -> int:
         # Resolve config_path once for overlay agent construction
         config_path: str | None = None
 
+        # Capture reviewed_sha before dispatch so verifier uses the same commit
+        reviewed_sha = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+
         # Step 2: build agent list based on tier, plus any classifier-flagged overlays
         tier_agents = _build_agents_for_tier(
             tier, diff_text, classification, config_path
@@ -1406,6 +1420,20 @@ def main() -> int:
                         file=sys.stderr,
                     )
                     return 1
+
+        # Step 7c: absence-claim verifier dispatch
+        # Filters minor findings (bypass); applies verifier rulings to critical/important/fragile.
+        # Fail-open per-finding: verifier errors annotate finding with verifier_status="failed"
+        # but do not block the review. Config gate: if review.verifier_enabled
+        # is absent, verifier runs in default mode (soft).
+        from dso_ci_review.verifier import dispatch_verifier  # noqa: PLC0415
+
+        _verifier_findings = dispatch_verifier(
+            merged.get("findings", []),
+            reviewed_sha=reviewed_sha,
+        )
+        merged = dict(merged)
+        merged["findings"] = _verifier_findings
 
         # Step 8: write output
         # Stamp the cycle number so the NEXT cycle's workflow can read it back

@@ -21,6 +21,7 @@
     "./agents/code-reviewer-security-red-team.md",
     "./agents/code-reviewer-standard.md",
     "./agents/code-reviewer-test-quality.md",
+    "./agents/code-reviewer-verifier.md",
     "./agents/completion-verifier.md",
     "./agents/complexity-evaluator.md",
     "./agents/conflict-analyzer.md",
