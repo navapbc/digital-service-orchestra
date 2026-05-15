@@ -1,0 +1,1 @@
+{"author":"Test","data":{"body":"CHECKPOINT:batch-complete — Done ✓ — Files: 4 fixture JSONL files, tests/skills/dso_ci_review/test_suppress_proximity_regression.py. Tests: 2 failing RED as expected."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1778830784950607000,"uuid":"720b1ee7-fab1-4f85-bfe1-a5e601dbd194"}
