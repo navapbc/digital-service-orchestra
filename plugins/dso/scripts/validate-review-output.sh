@@ -275,21 +275,20 @@ def _is_hard_enforcement():
     return os.path.isfile(sentinel)
 
 def _is_absence_claim(description):
-    """Check if description contains absence language; loads anchors fail-closed on first call."""
-    # Quick pre-screen before loading anchors file
+    """Return the matched absence phrase, or None if no absence language found."""
     _QUICK_ANCHORS = ["not exist", "not found", "not defined", "not present", "missing",
                       "is absent", "has no", "lacks", "undefined", "not implemented"]
     desc_lower = description.lower()
     if not any(a in desc_lower for a in _QUICK_ANCHORS) and not description.startswith(("Missing ", "No ")):
-        return False
+        return None
     _load_anchors()
     for anchor in _absence_anchors:
         if anchor in description:
-            return True
+            return anchor
     for pattern in _absence_prefix_patterns:
         if re.match(pattern, description):
-            return True
-    return False
+            return pattern
+    return None
 
 with open(output_file) as f:
     try:
@@ -415,18 +414,19 @@ else:
         # Malformed verification_evidence (wrong/missing fields) always errors in both modes.
         # See ${CLAUDE_PLUGIN_ROOT}/docs/contracts/absence-claim-anchors.json.
         desc = finding.get("description", "")
-        if isinstance(desc, str) and _is_absence_claim(desc):
+        _matched_phrase = _is_absence_claim(desc)
+        if isinstance(desc, str) and _matched_phrase:
             ve = finding.get("verification_evidence")
             if ve is None:
                 if _is_hard_enforcement():
                     errors.append(
                         f"{prefix}: missing required field 'verification_evidence' "
-                        f"(absence claim detected; add command + output fields showing the absence was verified)"
+                        f"(absence claim detected: '{_matched_phrase}')"
                     )
                 else:
                     print(
                         f"WARNING: {prefix}.verification_evidence absent on absence-claim finding "
-                        f"(soft mode — activate hard enforcement with sentinel file)",
+                        f"(matched: '{_matched_phrase}'; soft mode — activate hard enforcement with sentinel file)",
                         file=sys.stderr,
                     )
             elif isinstance(ve, dict):

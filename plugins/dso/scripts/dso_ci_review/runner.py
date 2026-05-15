@@ -341,7 +341,16 @@ def _resolve_pr_head_sha(pr_number: str) -> str | None:
         return sha
     try:
         result = subprocess.run(
-            ["gh", "pr", "view", pr_number, "--json", "headRefOid", "--jq", ".headRefOid"],
+            [
+                "gh",
+                "pr",
+                "view",
+                pr_number,
+                "--json",
+                "headRefOid",
+                "--jq",
+                ".headRefOid",
+            ],
             capture_output=True,
             text=True,
             timeout=15,
@@ -374,9 +383,7 @@ def _extract_anchor(finding: dict) -> tuple[str, int] | None:
     return (path, parsed[0])
 
 
-def _post_issue_comments(
-    blocking: list[dict], pr_number: str, total: int
-) -> int:
+def _post_issue_comments(blocking: list[dict], pr_number: str, total: int) -> int:
     """Post findings as issue-level PR comments (gh pr comment), best-effort.
 
     Returns the count of successfully posted comments.
@@ -1417,9 +1424,10 @@ def main() -> int:
         # Step 7c: absence-claim verifier dispatch
         # Filters minor findings (bypass); applies verifier rulings to critical/important/fragile.
         # Fail-open per-finding: verifier errors annotate finding with verifier_status="failed"
-        # but do not block the review. Config gate: if review.verification_evidence_enforcement
+        # but do not block the review. Config gate: if review.verifier_enabled
         # is absent, verifier runs in default mode (soft).
         from dso_ci_review.verifier import dispatch_verifier  # noqa: PLC0415
+
         _verifier_findings = dispatch_verifier(
             merged.get("findings", []),
             reviewed_sha=reviewed_sha,

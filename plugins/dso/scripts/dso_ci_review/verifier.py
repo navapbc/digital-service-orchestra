@@ -32,7 +32,6 @@ from __future__ import annotations
 
 import subprocess
 from dataclasses import dataclass
-from typing import Optional
 
 
 # ---------------------------------------------------------------------------
@@ -105,9 +104,37 @@ def _validate_failure_threshold(threshold: float) -> None:
         )
 
 
-def _check_cascade_brake(failure_rate: float, in_scope_count: int) -> bool:
-    """Return True if cascade brake should activate (failure_rate > 0.30 AND >= 5 findings)."""
-    return failure_rate > 0.30 and in_scope_count >= 5
+def _read_failure_threshold() -> float:
+    """Read review.verifier_failure_threshold from dso-config.conf. Default: 0.30."""
+    try:
+        result = subprocess.run(
+            [
+                "bash",
+                "-c",
+                "grep -m1 '^review.verifier_failure_threshold=' ~/.claude/dso-config.conf 2>/dev/null || "
+                "find . -name 'dso-config.conf' -maxdepth 4 2>/dev/null | head -1 | "
+                "xargs grep -m1 '^review.verifier_failure_threshold=' 2>/dev/null || echo ''",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        val = result.stdout.strip()
+        if not val:
+            return 0.30
+        raw = val.split("=", 1)[-1].strip()
+        threshold = float(raw)
+        _validate_failure_threshold(threshold)
+        return threshold
+    except Exception:
+        return 0.30
+
+
+def _check_cascade_brake(
+    failure_rate: float, in_scope_count: int, threshold: float = 0.30
+) -> bool:
+    """Return True if cascade brake should activate (failure_rate > threshold AND >= 5 findings)."""
+    return failure_rate > threshold and in_scope_count >= 5
 
 
 # ---------------------------------------------------------------------------
@@ -267,13 +294,15 @@ def dispatch_verifier_with_telemetry(
     failure_count = 0
     fingerprints: list[str] = []
 
-    in_scope = [f for f in findings if f.get("severity") not in _BYPASS_SEVERITIES]
-    minor_count = len(findings) - len(in_scope)
+    in_scope = [f for f in findings if f.get("severity") in _VERIFIER_SEVERITIES]
+    minor_count = sum(1 for f in findings if f.get("severity") in _BYPASS_SEVERITIES)
 
     result_findings: list[dict] = []
 
-    # Minor findings bypass verifier — returned as-is.
-    result_findings.extend(f for f in findings if f.get("severity") in _BYPASS_SEVERITIES)
+    # Findings outside the verifier scope (minor + unknown severities) bypass verifier — returned as-is.
+    result_findings.extend(
+        f for f in findings if f.get("severity") not in _VERIFIER_SEVERITIES
+    )
 
     for finding in in_scope:
         try:
@@ -303,6 +332,9 @@ def dispatch_verifier_with_telemetry(
     failure_rate = failure_count / total_in_scope if total_in_scope > 0 else 0.0
     minor_rate = minor_count / len(findings) if findings else 0.0
 
+    _threshold = _read_failure_threshold()
+    brake_activated = _check_cascade_brake(failure_rate, total_in_scope, _threshold)
+
     telemetry = {
         "verifier_confirm_count": confirm_count,
         "verifier_downgrade_count": downgrade_count,
@@ -310,6 +342,7 @@ def dispatch_verifier_with_telemetry(
         "verifier_failure_rate": failure_rate,
         "verifier_minor_finding_rate": minor_rate,
         "verifier_fingerprints": fingerprints,
+        "verifier_brake_activated": brake_activated,
     }
 
     return result_findings, telemetry

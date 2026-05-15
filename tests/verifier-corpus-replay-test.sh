@@ -63,12 +63,11 @@ assert d['ruling'] == 'downgrade-to-minor', f'Expected downgrade-to-minor, got {
 assert_eq "test_expected_ruling_downgrade_for_b2ef" "0" "$?"
 assert_pass_if_clean "test_expected_ruling_downgrade_for_b2ef"
 
-# test_replay_harness_not_yet_created (RED — T2 creates replay harness)
-echo "--- test_replay_harness_not_yet_created ---"
+# test_replay_harness_exists (GREEN — T2 created plugins/dso/scripts/verifier-corpus-replay.sh)
+echo "--- test_replay_harness_exists ---"
 _snapshot_fail
-# This test confirms T2 is needed: the replay script doesn't exist yet
-! test -f "$SCRIPT_DIR/run-verifier-corpus-replay.sh" 2>/dev/null
-assert_eq "test_replay_harness_not_yet_created" "0" "$?"
-assert_pass_if_clean "test_replay_harness_not_yet_created"
+test -f "$PLUGIN_ROOT/plugins/dso/scripts/verifier-corpus-replay.sh"
+assert_eq "test_replay_harness_exists" "0" "$?"
+assert_pass_if_clean "test_replay_harness_exists"
 
 print_summary

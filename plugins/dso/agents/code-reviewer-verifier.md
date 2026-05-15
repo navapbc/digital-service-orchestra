@@ -38,7 +38,7 @@ The `fingerprint` field identifies where in the diff the finding applies:
 - Normal case: `<path>:<line-start>-<line-end>` (e.g., `src/app.py:42-42` for single-line)
 - Multi-line: `src/app.py:10-25` (line-start through line-end inclusive)
 - Missing-line-anchor (claim about a missing file, deleted function, absent import): `<path>:0-0` sentinel
-- Multi-file finding: one fingerprint per file (emit multiple ruling objects)
+- Multi-file finding: emit ONE ruling per finding using the primary (first-cited) file's fingerprint — the dispatcher processes exactly one ruling per finding input
 - Same-file non-contiguous citations (e.g., `cited_lines` has `src/app.py:10` and `src/app.py:25`): span from the lowest to the highest cited line — emit `src/app.py:10-25`
 - Approximate citation with `~` prefix (e.g., `~src/app.py:42`): strip the `~` and treat as an exact citation — emit `src/app.py:42-42`
 
