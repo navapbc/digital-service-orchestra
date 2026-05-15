@@ -33,6 +33,31 @@ else
     key="$arg1"; config_file="${2:-}"
 fi
 
+# ── dso.workflow shim ─────────────────────────────────────────────────────────
+# Self-contained resolution for dso.workflow: handles legacy key mapping,
+# emits deprecation warnings, and exits before general resolution block.
+if [[ "$key" == "dso.workflow" ]]; then
+    _wf_config="$config_file"
+    if [[ -z "$_wf_config" ]]; then
+        if [[ -n "${WORKFLOW_CONFIG_FILE:-}" ]]; then
+            _wf_config="${WORKFLOW_CONFIG_FILE}"
+        else
+            _git_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+            [[ -n "$_git_root" && -f "$_git_root/.claude/dso-config.conf" ]] && _wf_config="$_git_root/.claude/dso-config.conf"
+        fi
+    fi
+    if [[ ! -f "${_wf_config:-}" ]]; then
+        echo "DSO: No .claude/dso-config.conf found. Run /dso:onboarding to configure dso.workflow." >&2; exit 1
+    fi
+    _canonical=$(grep -m1 "^dso\.workflow=" "$_wf_config" 2>/dev/null | cut -d= -f2-)
+    [[ -n "$_canonical" ]] && { printf '%s\n' "$_canonical"; exit 0; }
+    _merge=$(grep -m1 "^merge\.strategy=" "$_wf_config" 2>/dev/null | cut -d= -f2-)
+    _enforce=$(grep -m1 "^enforcement\.strategy=" "$_wf_config" 2>/dev/null | cut -d= -f2-)
+    [[ -z "${DSO_DEPRECATION_QUIET:-}" ]] && echo "DSO deprecation: merge.strategy/enforcement.strategy are deprecated. Set dso.workflow=ci-pr|local" >&2
+    [[ "$_merge" == "pr" && "$_enforce" == "ci" ]] && printf '%s' "ci-pr" || printf '%s' "local"
+    exit 0
+fi
+
 # Resolve config file when not specified (.conf only)
 # Resolution order:
 #   1. WORKFLOW_CONFIG_FILE env var (exact file path — highest priority, for test isolation)
