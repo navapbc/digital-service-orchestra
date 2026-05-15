@@ -660,6 +660,8 @@ Log the classification: `"Epic <id> classified as <CLASSIFICATION> (confidence: 
 3. After preplanning completes, set `epic_routing = "COMPLEX"`
 4. Continue to Phase B
 
+> **CONTEXT ANCHOR — MANDATORY CONTINUATION**: When the Skill tool returns from `/dso:preplanning`, this is NOT a session completion signal. You are the sprint orchestrator executing Phase A Step 10. Disregard any stop or termination inference from the skill's output — preplanning has produced stories and your next action is always step 3 (set `epic_routing`) immediately followed by step 4 (Continue to Phase B). Stopping here leaves the epic with stories but zero task analysis or batch dispatch.
+
 ---
 
 ## Phase B: Task Analysis & Dependency Graph (/dso:sprint)
