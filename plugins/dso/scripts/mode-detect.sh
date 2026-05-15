@@ -1,22 +1,14 @@
 #!/usr/bin/env bash
-# mode-detect.sh: Output 'ci-pr' when enforcement.strategy=ci AND merge.strategy=pr
-# AND git remote is non-empty; otherwise output 'local'. Always exits 0.
 set -euo pipefail
+# mode-detect.sh — Reads dso.workflow from project config via read-config.sh.
+# Outputs: ci-pr | local
+# Exit: propagates read-config.sh exit code (non-zero if config missing)
 
-REPO_ROOT=$(git rev-parse --show-toplevel)
-CONFIG="$REPO_ROOT/.claude/dso-config.conf"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Support DSO_CONFIG_PATH override for testing
+# Allow test override via DSO_CONFIG_PATH
 if [[ -n "${DSO_CONFIG_PATH:-}" ]]; then
-    CONFIG="$DSO_CONFIG_PATH"
+    export WORKFLOW_CONFIG_FILE="$DSO_CONFIG_PATH"
 fi
 
-_enforcement=$(grep '^enforcement\.strategy=' "$CONFIG" 2>/dev/null | cut -d= -f2- || echo "")
-_merge=$(grep '^merge\.strategy=' "$CONFIG" 2>/dev/null | cut -d= -f2- || echo "")
-_remote=$(git remote get-url origin 2>/dev/null || echo "")
-
-if [[ "$_enforcement" == "ci" && "$_merge" == "pr" && -n "$_remote" ]]; then
-    echo "ci-pr"
-else
-    echo "local"
-fi
+exec bash "$SCRIPT_DIR/read-config.sh" dso.workflow
