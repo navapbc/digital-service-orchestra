@@ -4840,6 +4840,7 @@ version=1.1.0
 merge.pr_poll_interval_seconds=0
 merge.pr_max_wait_seconds=3600
 version.file_path=plugin.json
+dso.workflow=ci-pr
 EOF
 
     # 4. Worktree: linked worktree from main-checkout on feature branch.
@@ -5000,6 +5001,7 @@ version=1.1.0
 merge.pr_poll_interval_seconds=0
 merge.pr_max_wait_seconds=3600
 version.file_path=plugin.json
+dso.workflow=ci-pr
 EOF
 
     # 4. Worktree on feature branch
