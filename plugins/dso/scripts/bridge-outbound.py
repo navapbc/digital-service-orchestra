@@ -46,6 +46,7 @@ from bridge._outbound_handlers import (  # noqa: E402
     handle_file_impact_event,
     handle_link_event,
     handle_revert_event,
+    handle_snapshot_event,
     handle_status_event,
     handle_unlink_event,
     sort_events_for_dispatch,
@@ -126,6 +127,18 @@ def process_outbound(
                     reducer_path=reducer_path,
                     flap_threshold=flap_threshold,
                     flap_window_seconds=flap_window_seconds,
+                    status_updated=_status_updated,
+                )
+
+            elif event_type == "SNAPSHOT":
+                # bug jade-cabin-tithe Part 3: after ticket-compact, a ticket's
+                # granular events are replaced with a single SNAPSHOT carrying
+                # compiled_state. The handler drives a Jira status update when
+                # compiled_state.status differs from the last-known Jira status
+                # so post-compaction status changes are not silently dropped.
+                handle_snapshot_event(
+                    event,
+                    **ctx,
                     status_updated=_status_updated,
                 )
 
@@ -352,8 +365,13 @@ def process_events(
     # rather than only HEAD~1..HEAD, which loses events when multiple commits
     # land between bridge runs.
     cursor_sha = read_cursor(tickets_path)
+    chunk_state: dict[str, Any] = {"was_chunked": False}
     events_with_sha = fetch_events_since_cursor(
-        tickets_path, cursor_sha, bridge_env_id or "", run_id
+        tickets_path,
+        cursor_sha,
+        bridge_env_id or "",
+        run_id,
+        chunk_state_out=chunk_state,
     )
 
     # Track per-event handler invocations so we know how far we got. The
@@ -373,10 +391,25 @@ def process_events(
         cursor_advance_fn=_cursor_advance,
     )
 
-    # Advance the cursor only if we have events to process. Use the HEAD SHA
-    # from the fetched range so per-event reordering inside
-    # sort_events_for_dispatch can't leave the cursor mid-range. If processing
-    # was incomplete, leave the cursor where it is so the next run retries.
+    # Advance the cursor only if we have events to process.
+    #
+    # Two-mode cursor advance (jade-cabin-tithe Part 2):
+    #   * was_chunked=False — fetch returned all events between cursor and
+    #     repo HEAD. Advance to repo HEAD so trailing event-less commits
+    #     (e.g., README bumps, doc-only changes) are correctly marked
+    #     processed. This preserves the original 5d93-8b62 cursor-to-HEAD
+    #     contract and the test_shell_entry_point_multi_commit_catches_all_events
+    #     invariant.
+    #   * was_chunked=True — fetch intentionally returned only the first N
+    #     commits in cursor..HEAD because the cap was exceeded. Jumping to
+    #     repo HEAD would silently skip the unprocessed remainder — the
+    #     exact silent drop the 5566-685e contract was added to prevent.
+    #     Advance only to the chunk's HEAD (latest commit_sha present in
+    #     the returned events).
+    #
+    # Per-event reordering inside sort_events_for_dispatch is bounded by
+    # max(commit_sha) over the fetched chunk, so the chosen advance SHA
+    # never overshoots a commit that wasn't included.
     #
     # Empty-fetch guard (f776-d7ef llm-review finding 1): when fetch returns
     # zero events (legitimately no new commits, or all events filtered as
@@ -387,16 +420,56 @@ def process_events(
     # at HEAD with no events processed) lives in fetch_events_since_cursor's
     # _seed_at_head, which writes the cursor and BRIDGE_ALERT directly.
     if events_with_sha and _processed_count[0] >= len(events_with_sha):
-        head_sha_result = subprocess.run(
-            ["git", "-C", str(tickets_path), "rev-parse", "HEAD"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if head_sha_result.returncode == 0 and head_sha_result.stdout.strip():
-            write_cursor(tickets_path, head_sha_result.stdout.strip(), run_id)
+        if chunk_state.get("was_chunked"):
+            chunk_shas = {
+                e.get("commit_sha", "") for e in events_with_sha if e.get("commit_sha")
+            }
+            chunk_head_sha = _resolve_chunk_head_sha(tickets_path, chunk_shas)
+            if chunk_head_sha:
+                write_cursor(tickets_path, chunk_head_sha, run_id)
+        else:
+            # No chunking — all events between cursor and repo HEAD processed.
+            # Advance to repo HEAD so event-less trailing commits are covered.
+            rev_parse = subprocess.run(
+                ["git", "-C", str(tickets_path), "rev-parse", "HEAD"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            head_sha = rev_parse.stdout.strip() if rev_parse.returncode == 0 else ""
+            if head_sha:
+                write_cursor(tickets_path, head_sha, run_id)
 
     return syncs
+
+
+def _resolve_chunk_head_sha(tickets_path: Path, chunk_shas: set[str]) -> str:
+    """Return the chronologically-latest commit SHA from the chunk.
+
+    Uses git rev-list ordering (topological / committer-date descending) to
+    resolve which SHA in the chunk is closest to HEAD. Falls back to "" when
+    the chunk is empty or git resolution fails — the caller then skips the
+    cursor advance, which is the safe behavior (next run retries the chunk).
+    """
+    if not chunk_shas:
+        return ""
+    # Walk HEAD..root in topo order (newest first) and return the first
+    # chunk member we encounter — that's the chunk's "HEAD" (the newest
+    # commit included in the chunk). This avoids guessing ordering from
+    # event timestamps (which are filename timestamps, not commit times).
+    result = subprocess.run(
+        ["git", "-C", str(tickets_path), "rev-list", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return ""
+    for line in result.stdout.splitlines():
+        sha = line.strip()
+        if sha in chunk_shas:
+            return sha
+    return ""
 
 
 if __name__ == "__main__":

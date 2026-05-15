@@ -2182,3 +2182,173 @@ def test_sort_events_for_dispatch_link_unlink_are_group0_before_group1() -> None
         f"All LINK/UNLINK (group 0) must sort before all STATUS/CREATE (group 1); "
         f"got order: {types}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Bug 76d2-e46f-7817-40e2 (jade-cabin-tithe) Part 3: SNAPSHOT handler
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_snapshot_event_with_status_change_drives_jira_update(
+    tmp_path: Path, bridge: ModuleType
+) -> None:
+    """A ticket whose only on-disk events are SYNC + SNAPSHOT (post-compaction)
+    must NOT silently fall through process_outbound's dispatch chain.
+
+    Repro of bug jade-cabin-tithe Part 3: ticket-compact replaces granular
+    events (CREATE/STATUS/EDIT...) with a single SNAPSHOT carrying the
+    compiled_state. If the bridge processes the SNAPSHOT but has no handler
+    branch for event_type == "SNAPSHOT", the bridge increments its success
+    counter without taking any action — silently dropping the status update
+    that would otherwise have been applied to Jira.
+
+    Assertion: process_outbound, given a SNAPSHOT event whose
+    compiled_state.status differs from the empty/unknown last-known Jira
+    status, must call acli_client.update_issue(jira_key, status="closed").
+    """
+    ticket_id = "jade-cabin-tithe-snap"
+    ticket_dir = tmp_path / ticket_id
+    ticket_dir.mkdir()
+
+    # Pre-existing SYNC event (ticket was previously linked to Jira).
+    sync_payload = {
+        "event_type": "SYNC",
+        "jira_key": "DSO-77",
+        "local_id": ticket_id,
+        "env_id": _BRIDGE_ENV_ID,
+        "timestamp": 1742600000,
+        "run_id": "prev-run",
+    }
+    sync_file = ticket_dir / f"1742600000-{_UUID1}-SYNC.json"
+    sync_file.write_text(json.dumps(sync_payload))
+
+    # SNAPSHOT event with compiled_state.status = closed (post-compaction).
+    snapshot_path = _write_event(
+        ticket_dir,
+        timestamp=1742700000,
+        uuid=_UUID2,
+        event_type="SNAPSHOT",
+        data={
+            "compiled_state": {
+                "ticket_id": ticket_id,
+                "status": "closed",
+                "title": "Compacted ticket",
+                "ticket_type": "task",
+            },
+            "source_event_uuids": [_UUID3],
+            "compacted_at": 1742700000,
+        },
+        env_id=_OTHER_ENV_ID,
+    )
+
+    events = [
+        {
+            "ticket_id": ticket_id,
+            "event_type": "SNAPSHOT",
+            "file_path": str(snapshot_path),
+        }
+    ]
+
+    mock_client = MagicMock()
+    mock_client.update_issue = MagicMock(return_value={"status": "ok"})
+    # Pretend Jira still has the ticket in "open" so a transition is needed.
+    mock_client.get_issue = MagicMock(return_value={"status": "open"})
+
+    bridge.process_outbound(
+        events,
+        acli_client=mock_client,
+        tickets_root=tmp_path,
+        bridge_env_id=_BRIDGE_ENV_ID,
+    )
+
+    # The SNAPSHOT handler must synthesize a STATUS dispatch — observable as
+    # an update_issue call with status="closed".
+    assert mock_client.update_issue.called, (
+        "process_outbound must dispatch a Jira status update for a SNAPSHOT "
+        "event whose compiled_state.status differs from the last-known Jira "
+        "status — otherwise the status change is silently dropped after "
+        "ticket-compact removes the original STATUS event."
+    )
+    # Find the call that targets DSO-77 with status="closed".
+    matching = [
+        call
+        for call in mock_client.update_issue.call_args_list
+        if call.args[:1] == ("DSO-77",) and call.kwargs.get("status") == "closed"
+    ]
+    assert matching, (
+        f"update_issue must be called with ('DSO-77', status='closed'); "
+        f"got calls: {mock_client.update_issue.call_args_list}"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_snapshot_event_with_status_match_is_noop(
+    tmp_path: Path, bridge: ModuleType
+) -> None:
+    """f-e5f6g7h8: SNAPSHOT whose compiled_state.status already matches the
+    current Jira status must NOT trigger update_issue.
+
+    This is the symmetric no-op case to
+    ``test_snapshot_event_with_status_change_drives_jira_update``. Without
+    this test, the production code could unconditionally call update_issue
+    on every SNAPSHOT and the divergence-only test would still pass — a
+    regression that would re-introduce Jira-status thrash.
+    """
+    ticket_id = "jade-cabin-tithe-snap-noop"
+    ticket_dir = tmp_path / ticket_id
+    ticket_dir.mkdir()
+
+    sync_payload = {
+        "event_type": "SYNC",
+        "jira_key": "DSO-78",
+        "local_id": ticket_id,
+        "env_id": _BRIDGE_ENV_ID,
+        "timestamp": 1742600000,
+        "run_id": "prev-run",
+    }
+    sync_file = ticket_dir / f"1742600000-{_UUID1}-SYNC.json"
+    sync_file.write_text(json.dumps(sync_payload))
+
+    snapshot_path = _write_event(
+        ticket_dir,
+        timestamp=1742700000,
+        uuid=_UUID2,
+        event_type="SNAPSHOT",
+        data={
+            "compiled_state": {
+                "ticket_id": ticket_id,
+                "status": "closed",
+                "title": "Compacted ticket",
+                "ticket_type": "task",
+            },
+            "source_event_uuids": [_UUID3],
+            "compacted_at": 1742700000,
+        },
+        env_id=_OTHER_ENV_ID,
+    )
+
+    events = [
+        {
+            "ticket_id": ticket_id,
+            "event_type": "SNAPSHOT",
+            "file_path": str(snapshot_path),
+        }
+    ]
+
+    mock_client = MagicMock()
+    mock_client.update_issue = MagicMock(return_value={"status": "ok"})
+    # Jira already in "closed" — same as compiled_state.status — so the
+    # handler must short-circuit before calling update_issue.
+    mock_client.get_issue = MagicMock(return_value={"status": "closed"})
+
+    bridge.process_outbound(
+        events,
+        acli_client=mock_client,
+        tickets_root=tmp_path,
+        bridge_env_id=_BRIDGE_ENV_ID,
+    )
+
+    mock_client.update_issue.assert_not_called()
