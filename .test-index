@@ -26,7 +26,7 @@ plugins/dso/agents/*.md:tests/hooks/test-no-plugin-markdown-refs.sh
 plugins/dso/agents/approach-decision-maker.md:tests/scripts/test-approach-decision-maker-agent.sh
 plugins/dso/agents/blue-team-filter.md:tests/hooks/test-escalate-to-epic-taxonomy.sh,tests/hooks/test-residual-state-e2e.sh
 plugins/dso/agents/bot-psychologist.md:tests/scripts/test-bot-psychologist-agent.sh
-plugins/dso/agents/code-reviewer-test-quality.md:tests/hooks/test-agent-standard-reference.sh,tests/agents/test-verification-evidence-emission.sh [test_code_reviewer_light_emits_verification_evidence]
+plugins/dso/agents/code-reviewer-test-quality.md:tests/hooks/test-agent-standard-reference.sh,tests/agents/test-verification-evidence-emission.sh
 plugins/dso/agents/code-reviewer-verifier.md:tests/agents/test-code-reviewer-verifier-agent.sh [test_verifier_agent_file_exists],tests/agents/test-validate-verifier-output.sh [test_verifier_script_exists]
 plugins/dso/agents/completion-verifier.md:tests/scripts/test-completion-verifier-story-trust.sh,tests/scripts/test-completion-verifier-preconditions.sh,tests/skills/test-preconditions-epic-closure-validator.sh,tests/scripts/test-epic-closure-sc-report.sh
 plugins/dso/agents/cross-epic-interaction-classifier.md:tests/skills/test-brainstorm-cross-epic-scan.sh
@@ -196,12 +196,12 @@ plugins/dso/scripts/dso_ci_review/context_request.py:tests/skills/dso_ci_review/
 plugins/dso/scripts/dso_ci_review/dispatch.py:tests/skills/dso_ci_review/test_dispatch_fallback.py,tests/skills/dso_ci_review/test_tier_wiring.py,tests/skills/dso_ci_review/test_context_augmentation.py,tests/skills/dso_ci_review/test_prompt_caching.py,tests/skills/dso_ci_review/test_integration_full_loop.py,tests/skills/dso_ci_review/test_dispatch_schema_correction.py
 plugins/dso/scripts/dso_ci_review/arbiter.py:[test_dispatch_arbiter_called_on_resustain_of_with_prior_defense] tests/skills/dso_ci_review/test_arbiter.py
 plugins/dso/scripts/dso_ci_review/findings.py:tests/skills/dso_ci_review/test_findings.py,tests/skills/dso_ci_review/test_region_dedup.py
-plugins/dso/scripts/dso_ci_review/proximity.py:[test_proximity_overlap_same_file_within_5_lines] tests/skills/dso_ci_review/test_proximity.py
+plugins/dso/scripts/dso_ci_review/proximity.py:tests/skills/dso_ci_review/test_proximity.py
 plugins/dso/scripts/dso_ci_review/speculation_markers.py:tests/skills/dso_ci_review/test_speculation_markers.py
 plugins/dso/scripts/dso_ci_review/providers/config.py:tests/skills/dso_ci_review/test_providers_config.py,tests/skills/dso_ci_review/test_dispatch_config.py
 plugins/dso/scripts/dso_ci_review/providers/openai.py:tests/skills/dso_ci_review/test_providers_unit.py [test_openai_provider_review_diff]
 plugins/dso/scripts/dso_ci_review/region_split.py:tests/skills/dso_ci_review/test_region_split.py
-plugins/dso/scripts/dso_ci_review/runner.py:tests/skills/dso_ci_review/test_runner_smoke.py,tests/skills/dso_ci_review/verify_pr80_schema_compliance.py,tests/skills/dso_ci_review/test_schema_compliance_pr80.py,tests/skills/dso_ci_review/test_verifier_dispatch.py [test_runner_calls_schema_correction_on_schema_fail] [test_runner_schema_correction_max_attempts_zero_skips_dispatch] [test_runner_schema_correction_result_written] [test_read_config_int_returns_default_when_key_absent] [test_read_config_int_returns_value_when_key_present] [test_read_config_int_returns_default_on_invalid_value] [test_read_config_int_returns_default_when_file_absent] [test_read_config_int_returns_default_on_oserror] [test_read_config_int_returns_default_on_unicode_decode_error] [test_clamp_schema_correction_attempts_honors_zero] [test_clamp_schema_correction_attempts_honors_within_ceiling] [test_clamp_schema_correction_attempts_clamps_above_ceiling_with_warning] [test_read_config_int_handles_whitespace_around_equals] [test_clamp_schema_correction_attempts_rejects_negative] [test_get_schema_correction_max_attempts_end_to_end] [test_get_schema_correction_max_attempts_clamps_negative] [test_get_schema_correction_max_attempts_clamps_above_ceiling] [test_minor_findings_bypass_verifier],tests/skills/dso_ci_review/test_suppress_proximity.py
+plugins/dso/scripts/dso_ci_review/runner.py:tests/skills/dso_ci_review/test_runner_smoke.py,tests/skills/dso_ci_review/verify_pr80_schema_compliance.py,tests/skills/dso_ci_review/test_schema_compliance_pr80.py,tests/skills/dso_ci_review/test_verifier_dispatch.py [test_runner_calls_schema_correction_on_schema_fail] [test_runner_schema_correction_max_attempts_zero_skips_dispatch] [test_runner_schema_correction_result_written] [test_read_config_int_returns_default_when_key_absent] [test_read_config_int_returns_value_when_key_present] [test_read_config_int_returns_default_on_invalid_value] [test_read_config_int_returns_default_when_file_absent] [test_read_config_int_returns_default_on_oserror] [test_read_config_int_returns_default_on_unicode_decode_error] [test_clamp_schema_correction_attempts_honors_zero] [test_clamp_schema_correction_attempts_honors_within_ceiling] [test_clamp_schema_correction_attempts_clamps_above_ceiling_with_warning] [test_read_config_int_handles_whitespace_around_equals] [test_clamp_schema_correction_attempts_rejects_negative] [test_get_schema_correction_max_attempts_end_to_end] [test_get_schema_correction_max_attempts_clamps_negative] [test_get_schema_correction_max_attempts_clamps_above_ceiling] [test_minor_findings_bypass_verifier],tests/skills/dso_ci_review/test_suppress_proximity.py,tests/skills/dso_ci_review/test_novelty_gate.py [test_novelty_gate_downgrades_unjustified_new_introduced]
 plugins/dso/scripts/end-session/check-orphan-epics.sh:tests/scripts/test-check-orphan-epics.sh
 plugins/dso/scripts/end-session/end-session-cleanup.sh:tests/scripts/test-end-session-cleanup.sh
 plugins/dso/scripts/end-session/error-sweep.sh:tests/skills/test-end-session-error-sweep.sh,tests/scripts/test-error-sweep-config-gate.sh
@@ -445,15 +445,15 @@ plugins/dso/scripts/review-defense-store.sh:tests/review/test-defense-store-tick
 plugins/dso/scripts/check-unacked-degradations.sh:tests/scripts/test-check-unacked-degradations.sh
 tests/scripts/test-preconditions-fallthrough-landmarks.sh:tests/scripts/test-preconditions-fallthrough-landmarks.sh
 plugins/dso/scripts/preconditions-ack.sh:tests/scripts/test-preconditions-ack.sh,tests/scripts/test-preconditions-ack-sample.sh
-plugins/dso/agents/code-reviewer-light.md:tests/agents/test-verification-evidence-emission.sh [test_code_reviewer_light_emits_verification_evidence]
-plugins/dso/agents/code-reviewer-standard.md:tests/agents/test-verification-evidence-emission.sh [test_code_reviewer_light_emits_verification_evidence]
-plugins/dso/agents/code-reviewer-performance.md:tests/agents/test-verification-evidence-emission.sh [test_code_reviewer_light_emits_verification_evidence]
-plugins/dso/agents/code-reviewer-deep-arch.md:tests/agents/test-verification-evidence-emission.sh [test_code_reviewer_light_emits_verification_evidence]
-plugins/dso/agents/code-reviewer-deep-correctness.md:tests/agents/test-verification-evidence-emission.sh [test_code_reviewer_light_emits_verification_evidence]
-plugins/dso/agents/code-reviewer-deep-hygiene.md:tests/agents/test-verification-evidence-emission.sh [test_code_reviewer_light_emits_verification_evidence]
-plugins/dso/agents/code-reviewer-deep-verification.md:tests/agents/test-verification-evidence-emission.sh [test_code_reviewer_light_emits_verification_evidence]
-plugins/dso/agents/code-reviewer-security-red-team.md:tests/agents/test-verification-evidence-emission.sh [test_code_reviewer_light_emits_verification_evidence]
-plugins/dso/agents/code-reviewer-security-blue-team.md:tests/agents/test-verification-evidence-emission.sh [test_code_reviewer_light_emits_verification_evidence]
+plugins/dso/agents/code-reviewer-light.md:tests/agents/test-verification-evidence-emission.sh
+plugins/dso/agents/code-reviewer-standard.md:tests/agents/test-verification-evidence-emission.sh
+plugins/dso/agents/code-reviewer-performance.md:tests/agents/test-verification-evidence-emission.sh
+plugins/dso/agents/code-reviewer-deep-arch.md:tests/agents/test-verification-evidence-emission.sh
+plugins/dso/agents/code-reviewer-deep-correctness.md:tests/agents/test-verification-evidence-emission.sh
+plugins/dso/agents/code-reviewer-deep-hygiene.md:tests/agents/test-verification-evidence-emission.sh
+plugins/dso/agents/code-reviewer-deep-verification.md:tests/agents/test-verification-evidence-emission.sh
+plugins/dso/agents/code-reviewer-security-red-team.md:tests/agents/test-verification-evidence-emission.sh
+plugins/dso/agents/code-reviewer-security-blue-team.md:tests/agents/test-verification-evidence-emission.sh
 plugins/dso/docs/contracts/reviewer-findings.md:tests/scripts/test-record-review-verifier-fields.sh [test_reviewer_findings_contract_lists_verifier_status]
 plugins/dso/scripts/record-review.sh:tests/scripts/test-record-review-verifier-fields.sh [test_reviewer_findings_contract_lists_verifier_status]
 plugins/dso/scripts/dso_ci_review/verifier.py:tests/skills/dso_ci_review/test_verifier_feature_flag.py [test_verifier_disabled_by_default_skips_dispatch]

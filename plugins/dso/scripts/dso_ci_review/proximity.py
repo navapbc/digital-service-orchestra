@@ -51,6 +51,7 @@ def validate_escape_rationale(
     escape_text: str,
     prior_cited_lines: list[str],
     overlap_region: list[str],
+    diff_text: str = "",
 ) -> bool:
     """Return True if escape_text references at least one line outside prior/overlap region.
 
@@ -59,11 +60,26 @@ def validate_escape_rationale(
     Returns True only when at least one referenced line is NOT in prior or overlap region.
     Returns False if all referenced lines are in prior/overlap, or if no lines are referenced.
 
+    Criterion 1 (token-in-diff): When diff_text is non-empty, at least one meaningful token
+    from escape_text (words >= 4 chars, or line number references like "line 42") must appear
+    in diff_text. If no token is found, returns False. When diff_text is empty, this check is
+    skipped (fail-open for callers without diff context).
+
     Args:
         escape_text: Free-text rationale for why this finding differs from a prior finding.
         prior_cited_lines: Cited lines from the prior finding, format 'file/path.py:42'.
         overlap_region: Overlap regions, format 'file/path.py:40-47'.
+        diff_text: Optional diff content; when non-empty, enables criterion 1 token-in-diff check.
     """
+    # Criterion 1: token-in-diff check (only when diff_text is non-empty)
+    if diff_text:
+        # Extract meaningful tokens: words >= 4 chars OR line number references like "line 42"
+        tokens: list[str] = re.findall(r"\b\w{4,}\b", escape_text)
+        line_refs: list[str] = re.findall(r"line\s+\d+", escape_text, re.IGNORECASE)
+        all_tokens = tokens + line_refs
+        if not any(token in diff_text for token in all_tokens):
+            return False
+
     # Extract all referenced line numbers from escape_text
     # Match "line N" or ":N" patterns
     referenced_linenos: set[int] = set()

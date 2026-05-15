@@ -88,3 +88,61 @@ class TestEscapeRationaleInvalid:
             f"Expected False when escape text only references line 42 which is in "
             f"prior_cited_lines and overlap region, got {result!r}"
         )
+
+
+class TestEscapeRationaleDiffTextCriterion1:
+    """validate_escape_rationale criterion 1: token-in-diff check via diff_text parameter."""
+
+    def test_escape_rationale_fails_when_token_absent_from_diff(self) -> None:
+        """Given: escape_text mentions 'validate_csrf_token' (not in diff_text), diff_text is non-empty
+        When: validate_escape_rationale called with diff_text that lacks the token
+        Then: returns False (criterion 1 fails — no token from escape_text found in diff_text)
+        """
+        escape_text = "The validate_csrf_token function at line 50 introduces a new security check"
+        prior_cited_lines = ["auth/login.py:42"]
+        overlap_region = ["auth/login.py:40-47"]
+        diff_text = "+def handle_request(req):\n+    return req.process()\n"
+        result = validate_escape_rationale(
+            escape_text, prior_cited_lines, overlap_region, diff_text
+        )
+        assert result is False, (
+            f"Expected False when no escape_text token appears in diff_text, got {result!r}"
+        )
+
+    def test_escape_rationale_passes_when_diff_text_empty(self) -> None:
+        """Given: diff_text='' (default), escape_text has a token not in any diff
+        When: validate_escape_rationale called with default diff_text
+        Then: returns True (criterion 1 skipped when diff_text is empty; line 50 is outside overlap)
+        """
+        escape_text = "The validate_csrf_token function at line 50 is a new security check"
+        prior_cited_lines = ["auth/login.py:42"]
+        overlap_region = ["auth/login.py:40-47"]
+        # diff_text defaults to '' — criterion 1 is skipped
+        result = validate_escape_rationale(escape_text, prior_cited_lines, overlap_region)
+        assert result is True, (
+            f"Expected True when diff_text is empty (criterion 1 skipped) and line 50 is "
+            f"outside overlap region, got {result!r}"
+        )
+
+    def test_escape_rationale_512_char_boundary(self) -> None:
+        """Given: escape_text exactly 512 chars (schema max), diff_text contains a token from it
+        When: validate_escape_rationale called with this boundary escape_text
+        Then: returns True (not truncated; token found in diff; line 50 outside overlap)
+        """
+        # Build a 512-char escape_text that references line 50 and includes 'authentication'
+        base = "authentication check at line 50 introduces new validation logic for the request"
+        # Pad to exactly 512 chars with meaningful filler (short words excluded by >=4 filter)
+        padding = " additional context note" * 20
+        escape_text = (base + padding)[:512]
+        assert len(escape_text) == 512
+
+        prior_cited_lines = ["auth/login.py:42"]
+        overlap_region = ["auth/login.py:40-47"]
+        diff_text = "+def authentication(req):\n+    return req.validate()\n"
+        result = validate_escape_rationale(
+            escape_text, prior_cited_lines, overlap_region, diff_text
+        )
+        assert result is True, (
+            f"Expected True for 512-char escape_text with token in diff and line 50 outside "
+            f"overlap, got {result!r}"
+        )
