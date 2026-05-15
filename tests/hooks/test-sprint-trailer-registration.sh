@@ -13,9 +13,9 @@ assert_contains "pre-commit config: sprint-trailer-check hook registered" \
     "sprint-trailer-check" "$_cfg_content"
 assert_contains "pre-commit config: check-sprint-trailer.sh referenced" \
     "check-sprint-trailer.sh" "$_cfg_content"
-assert_contains "sprint SKILL.md: DSO_SPRINT_MODE set before commit" \
-    "DSO_SPRINT_MODE=1" "$_skill_content"
-assert_contains "sprint SKILL.md: DSO_SPRINT_MODE unset after commit" \
-    "unset DSO_SPRINT_MODE" "$_skill_content"
+assert_contains "sprint SKILL.md: .sprint-active marker referenced" \
+    ".sprint-active" "$_skill_content"
+assert_contains "sprint SKILL.md: check-sprint-trailer referenced" \
+    "check-sprint-trailer" "$_skill_content"
 
 print_summary

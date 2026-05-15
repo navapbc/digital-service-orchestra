@@ -39,7 +39,7 @@ jobs:
   #                                CI MUST run downstream tests.
   #
   # DSO_FORCE_LOCAL_REVIEW=1 disables skip-review-check.sh's
-  # enforcement.strategy=ci short-circuit (which is intended for the local
+  # dso.workflow=ci-pr short-circuit (which is intended for the local
   # pipeline, NOT for CI itself).
   #
   # Bug f776-d7ef: PR #66 merged with green CI because the prior `.md`-only
@@ -91,7 +91,7 @@ jobs:
           # Run the same classifier the local review gate uses.
           # exit 0 → all files allowlisted (tests can skip)
           # exit 1 → at least one reviewable file (tests MUST run)
-          # DSO_FORCE_LOCAL_REVIEW=1 disables the enforcement.strategy=ci
+          # DSO_FORCE_LOCAL_REVIEW=1 disables the dso.workflow=ci-pr
           # short-circuit (we ARE the CI; that short-circuit would no-op us).
           set +e
           echo "$CHANGED" | DSO_FORCE_LOCAL_REVIEW=1 bash "$SKIP_SCRIPT"

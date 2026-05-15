@@ -42,4 +42,4 @@ When `ci-generator.sh --mode=pr-protected` is used, the generated CI workflow in
 - A job that resolves and fetches DSO plugin assets (required for PR-mode projects)
 - A step that runs `validate-required-checks.sh` to catch check-name alignment drift
 
-This template is suitable for projects using `merge.strategy=pr` with GitHub Ruleset enforcement.
+This template is suitable for projects using `dso.workflow=ci-pr` with GitHub Ruleset enforcement.

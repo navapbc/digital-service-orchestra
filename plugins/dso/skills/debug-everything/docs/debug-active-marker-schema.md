@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The `.debug-active` marker is a session-scoped file created by `/dso:debug-everything` Phase B Step 1 when `merge.strategy=pr` (ci-pr mode). It:
+The `.debug-active` marker is a session-scoped file created by `/dso:debug-everything` Phase B Step 1 when `dso.workflow=ci-pr`. It:
 
 - Enables merge-only enforcement on the session worktree (`check-session-merge-only.sh`)
 - Identifies the active debug session for correlation (PreToolUse hook — S10, future consumer)
@@ -61,7 +61,7 @@ Markers without a `schema_version` field (or `schema_version < 1`) are pre-upgra
 
 | Event | Actor |
 |-------|-------|
-| **Created** | Phase B Step 1 when `merge.strategy=pr` (only after lock is acquired) |
+| **Created** | Phase B Step 1 when `dso.workflow=ci-pr` (only after lock is acquired) |
 | **Removed** | Phase K before shutdown |
 | **Stale cleanup** | Phase A entry before GHA pre-scan |
 

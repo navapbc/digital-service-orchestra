@@ -460,22 +460,19 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
         exit 0
     fi
 
-    # ── SC-2: attribution.enabled config guard ────────────────────────────────
-    # Exit 0 (no-op) if attribution is disabled in config.
+    # ── SC-2: dso.workflow config guard ───────────────────────────────────────
+    # Exit 0 (no-op) if attribution is not enabled in config.
+    # Attribution is enabled when dso.workflow=ci-pr (attribution is on in ci-pr mode).
     _read_config_path="$(_resolve_read_config_script)"
-    if [[ -n "$_read_config_path" ]]; then
-        _attribution_enabled=$(bash "$_read_config_path" attribution.enabled 2>/dev/null || echo "false")
-    else
-        _attribution_enabled="false"
-    fi
     # Resolve workflow + sprint-active state for the 4-cell injection matrix:
     #   (ci-pr + .sprint-active=1) → always inject trailers (DSO-Story trailer required in CI sprint mode)
-    #   any other combination     → skip injection when attribution.enabled != true
+    #   (ci-pr + .sprint-active=0) → inject trailers (attribution enabled in ci-pr mode)
+    #   any other combination      → skip injection
     _wf=$(bash "$_read_config_path" dso.workflow 2>/dev/null || echo "local")
     _sprint_active=0
     _repo_root="${_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo '')}"
     [[ -n "$_repo_root" && -f "${_repo_root}/.sprint-active" ]] && _sprint_active=1
-    if [[ "$_attribution_enabled" != "true" && ! ("$_wf" == "ci-pr" && "$_sprint_active" -eq 1) ]]; then
+    if [[ "$_wf" != "ci-pr" ]]; then
         exit 0
     fi
 

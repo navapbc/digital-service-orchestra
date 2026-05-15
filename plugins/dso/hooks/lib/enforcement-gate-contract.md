@@ -8,10 +8,10 @@ gate logic inline in individual hook scripts.
 
 ## Log Line Schema
 
-When enforcement.strategy is `ci`, the gate function emits exactly:
+When `dso.workflow=ci-pr`, the gate function emits exactly:
 
 ```
-HOOK_GATE: skipped reason=enforcement.strategy=<value>
+HOOK_GATE: skipped reason=dso.workflow=<value>
 ```
 
 - Written to **stderr** (not stdout)
@@ -24,23 +24,23 @@ HOOK_GATE: skipped reason=enforcement.strategy=<value>
 
 | Exit code | Meaning | Caller action |
 |-----------|---------|---------------|
-| `0` | Strategy is `ci`; hook should skip | `_dso_enforcement_gate_check && exit 0` |
-| `1` | Strategy is `local` or `both` (or absent — defaults to `local`); hook should proceed | Continue hook body |
+| `0` | Workflow is `ci-pr`; hook should skip | `_dso_enforcement_gate_check && exit 0` |
+| `1` | Workflow is `local` (or absent — defaults to `local`); hook should proceed | Continue hook body |
 
 ---
 
 ## Default Behavior
 
-When `enforcement.strategy` is **absent** from `.claude/dso-config.conf`, the function
+When `dso.workflow` is **absent** from `.claude/dso-config.conf`, the function
 defaults to `local` (the strictest setting). This means all local gates are active by
-default on new projects that have not explicitly configured an enforcement strategy.
+default on new projects that have not explicitly configured a workflow.
 
 ---
 
 ## Gating Hooks
 
 These hooks source `enforcement-gate.sh` and call `_dso_enforcement_gate_check` at their
-entry point. When enforcement.strategy is `ci`, they short-circuit and exit 0 (no-op).
+entry point. When `dso.workflow=ci-pr`, they short-circuit and exit 0 (no-op).
 
 | Hook | Pre-commit config entry |
 |------|------------------------|
@@ -53,7 +53,7 @@ entry point. When enforcement.strategy is `ci`, they short-circuit and exit 0 (n
 ## Always-On Structural Hooks
 
 These hooks enforce repository structural integrity and are **never gated** by
-enforcement.strategy. They must NOT source `enforcement-gate.sh`.
+the workflow setting. They must NOT source `enforcement-gate.sh`.
 
 | Hook / Script | Purpose |
 |---------------|---------|
@@ -74,5 +74,5 @@ _GATE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${_GATE_DIR}/lib/enforcement-gate.sh"
 _dso_enforcement_gate_check && exit 0
 
-# ... remainder of hook logic runs only when enforcement.strategy != ci
+# ... remainder of hook logic runs only when dso.workflow != ci-pr
 ```

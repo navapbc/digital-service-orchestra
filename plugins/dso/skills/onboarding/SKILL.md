@@ -684,7 +684,7 @@ On no or skip: write `confluence.enabled=false` to `.claude/dso-config.conf` as 
 
 **MANDATORY PROMPT — always ask. Apply the Confidence Routing rules above (default to ask normally).**
 
-Before asking, read `merge.strategy` from `.claude/dso-config.conf` (if present). If the key already exists, present the existing value as the prompt default. The chosen answer is always written to config in Phase 3 (Step 2b.1) — never silently kept.
+Before asking, read `dso.workflow` from `.claude/dso-config.conf` (if present). If the key already exists, present the existing value as the prompt default. The chosen answer is always written to config in Phase 3 (Step 2b.1) — never silently kept.
 
 ```
 Which merge strategy for this project?
@@ -1103,9 +1103,9 @@ Accept these values? [Y/n]
 
 Write `commands.acli_version` and `commands.acli_sha256` to `.claude/dso-config.conf` on acceptance.
 
-### Step 2b.1: dso.workflow (replaces legacy merge.strategy / enforcement.strategy)
+### Step 2b.1: dso.workflow
 
-For new projects, write `dso.workflow=<value>` to `.claude/dso-config.conf` using the output of `detect-dso-workflow.sh`. Do NOT write the legacy keys `merge.strategy`, `enforcement.strategy`, `worktree.isolation_enabled`, or `attribution.enabled` for new projects.
+For new projects, write `dso.workflow=<value>` to `.claude/dso-config.conf` using the output of `detect-dso-workflow.sh`. Do NOT write legacy config keys for new projects — only write `dso.workflow`. See `${CLAUDE_PLUGIN_ROOT}/scripts/migrate-dso-workflow-config.sh` for the list of deprecated keys that must not be used.
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)

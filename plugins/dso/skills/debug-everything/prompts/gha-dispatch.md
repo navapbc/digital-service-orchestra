@@ -24,7 +24,7 @@ GHA_WORKFLOWS=${GHA_WORKFLOWS:-}
 
 ```bash
 _GHA_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
-_GHA_ISOLATION_ENABLED=$(bash "$(git rev-parse --show-toplevel)/.claude/scripts/dso" read-config worktree.isolation_enabled 2>/dev/null)
+_GHA_ISOLATION_ENABLED=true  # worktree isolation is always enabled
 _GHA_ISOLATION_ENABLED=${_GHA_ISOLATION_ENABLED:-false}
 ```
 

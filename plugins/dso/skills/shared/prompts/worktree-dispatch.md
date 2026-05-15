@@ -4,28 +4,19 @@ Standalone sub-workflow for configuring Agent/Task dispatch isolation when runni
 
 ## Purpose
 
-When an orchestrator is running inside a worktree, sub-agents dispatched via the Agent/Task tool may share the orchestrator's working directory (legacy default) or receive an isolated sandboxed working directory (`isolation: "worktree"`). This protocol determines which mode applies based on the `worktree.isolation_enabled` config key.
+When an orchestrator is running inside a worktree, sub-agents dispatched via the Agent/Task tool receive an isolated sandboxed working directory (`isolation: "worktree"`). Worktree isolation is always enabled.
 
-## Step 1 — Read the Config Key
+## Step 1 — Set Isolation Mode
 
-Read the config key using `read-config.sh` before dispatching any sub-agents:
-
-```bash
-ISOLATION_ENABLED=$(bash "$(git rev-parse --show-toplevel)/.claude/scripts/dso" read-config worktree.isolation_enabled 2>/dev/null || true)
-```
-
-Alternatively, invoke `read-config.sh` directly if the shim is unavailable:
+Isolation is always enabled:
 
 ```bash
-REPO_ROOT=$(git rev-parse --show-toplevel)
-ISOLATION_ENABLED=$(.claude/scripts/dso read-config.sh worktree.isolation_enabled 2>/dev/null || true)
+ISOLATION_ENABLED=true
 ```
 
 ## Step 2 — Set Dispatch Parameters
 
-Based on the config value:
-
-**When `ISOLATION_ENABLED` equals `true`:**
+**Isolation is always active:**
 
 #### SESSION_BRANCH / SESSION_HEAD Injection (mandatory)
 
@@ -63,18 +54,6 @@ prompt: |
   <task instructions>
 ```
 
-**When `ISOLATION_ENABLED` is `false`, empty, or absent:**
-
-Skip the `isolation` parameter entirely. Sub-agents will share the orchestrator's working directory (shared-directory fallback — pre-isolation default behavior).
-
-Example dispatch without isolation:
-
-```yaml
-agent: dso:my-agent
-prompt: |
-  <task instructions>
-```
-
 ## Sub-Agent Constraints
 
 All sub-agents dispatched under this protocol MUST observe the following constraints without exception:
@@ -104,15 +83,13 @@ fi
 echo "Git root verified: $SUB_AGENT_ROOT (differs from orchestrator root: $ORCHESTRATOR_ROOT)"
 ```
 
-If `ORCHESTRATOR_ROOT` is not set AND `worktree.isolation_enabled=true`, exit 1: `"ERROR: isolation_enabled=true but ORCHESTRATOR_ROOT not injected — refusing to proceed."` Do NOT log-and-continue (proceeding risks corrupting the orchestrator's session branch).
-
-If `worktree.isolation_enabled` is false or absent, skip the verification — both roots may match in shared mode.
+If `ORCHESTRATOR_ROOT` is not set, exit 1: `"ERROR: ORCHESTRATOR_ROOT not injected — refusing to proceed."` Do NOT log-and-continue (proceeding risks corrupting the orchestrator's session branch).
 
 ## Orchestrator Responsibilities
 
 When using this protocol, orchestrators must:
 
-1. Read `worktree.isolation_enabled` before the first Agent dispatch (Step 1 above).
+1. Set `ISOLATION_ENABLED=true` before the first Agent dispatch (Step 1 above).
 2. Pass `ORCHESTRATOR_ROOT=$(git rev-parse --show-toplevel)` in each sub-agent's dispatch prompt so the sub-agent can verify isolation.
 3. Apply the isolation parameter consistently — do not mix isolated and non-isolated dispatches within the same sprint or debug session.
 4. On sub-agent isolation error (exit 1), HALT the batch, record the failure as a ticket comment, and surface to the user. Do not silently re-dispatch.
@@ -120,7 +97,7 @@ When using this protocol, orchestrators must:
 ## Non-Interactive Fallback
 
 In non-interactive mode, on sub-agent isolation error:
-1. Add ticket comment: `.claude/scripts/dso ticket comment <task-id> "ISOLATION_ERROR: sub-agent exited 1 — ORCHESTRATOR_ROOT not injected under isolation_enabled=true"`
+1. Add ticket comment: `.claude/scripts/dso ticket comment <task-id> "ISOLATION_ERROR: sub-agent exited 1 — ORCHESTRATOR_ROOT not injected"`
 2. Transition task back to open: `.claude/scripts/dso ticket transition <task-id> in_progress open`
 3. Do NOT silently continue — re-dispatch only after confirming the dispatch prompt includes `ORCHESTRATOR_ROOT`.
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # commit-emit-skip-markers.sh
 # Emits .skipped compliance-verifier markers for all five required commit steps.
-# Called when the commit workflow skips review (e.g. SKIP_REVIEW=true, enforcement.strategy=ci).
+# Called when the commit workflow skips review (e.g. SKIP_REVIEW=true, dso.workflow=ci-pr).
 #
 # Usage: bash commit-emit-skip-markers.sh <reason> [<breadcrumb-label>]
 #
