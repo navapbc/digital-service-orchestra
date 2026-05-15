@@ -321,3 +321,20 @@ else
 fi
 
 print_summary
+
+# test_check2_absence_evidence_gate_heading
+# Given: plugins/dso/docs/workflows/prompts/reviewer-base.md
+# When: inspect document structure for the Check 2 section heading
+# Then: the heading "Check 2 — Absence-evidence gate" must be present
+#
+# Structural contract check (Rule 5): heading is the deterministic boundary;
+# its presence guarantees the absence-evidence gate is reachable by reviewers.
+echo ""
+echo "=== test_check2_absence_evidence_gate_heading ==="
+if grep -q '\*\*Check 2 — Absence-evidence gate\*\*' "$REVIEWER_BASE"; then
+    assert_eq "Check 2 — Absence-evidence gate heading present" "present" "present"
+else
+    assert_eq "Check 2 — Absence-evidence gate heading present" \
+        "heading '**Check 2 — Absence-evidence gate**'" \
+        "heading not found — Check 2 section is missing or renamed"
+fi

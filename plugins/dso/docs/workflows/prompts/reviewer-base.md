@@ -415,9 +415,15 @@ For EACH draft finding, run the yes/no check below IN ORDER. If a check fails, f
   THEN the finding MUST contain a `reachability` field with ≥ 20 non-whitespace characters describing caller-input → bug-site → observable-harm.
   ELSE `reachability` is optional.
 
+**Check 2 — Absence-evidence gate**
+
+  IF the `description` contains any of: `'is not present'`, `'does not exist'`, `'is missing'`, `'is not found'`, `'was not found'`, `'are not found'`, `'not defined'`, `'never defined'`, `'is absent'`, `'has no'`, `'lacks'`, `'does not contain'`, `'is undefined'`, `'no handler'`, `'not implemented'`, or starts with `'Missing '` or `'No '`
+  THEN the finding MUST contain `verification_evidence: {command: "...", output: "..."}` showing the exact shell command run and its actual output.
+  ELSE omit `verification_evidence` entirely.
+
 **Mechanical procedure** — before calling `write-reviewer-findings.sh`, walk your `findings` array and verify each row:
 
-  `finding[i]: sev=<sev>, has_reachability=<y/n>` — and verify each row is consistent with Check 1.
+  `finding[i]: sev=<sev>, has_reachability=<y/n>, abs_lang=<y/n>, has_evidence=<y/n>` — and verify each row is consistent with Checks 1 and 2.
 
 If you find yourself "skipping" the check because you "already know" reachability is filled in, do NOT skip. The walk is the check — running it costs <100 tokens and saves a re-dispatch round.
 
