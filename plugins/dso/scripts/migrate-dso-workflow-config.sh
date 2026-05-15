@@ -211,6 +211,11 @@ cp "$CONFIG" "$BACKUP"
 mv "$TMPFILE" "$CONFIG"
 # Create sentinel (only after successful rename)
 touch "$SENTINEL"
+# Remind operator to git-add the sentinel if .gitignore may exclude .claude/
+_gitignore="$TARGET_ROOT/.gitignore"
+if [[ -f "$_gitignore" ]] && grep -qE '(^|/)\.claude(/|$|\*|\.conf)' "$_gitignore" 2>/dev/null; then
+    echo "DSO migration: WARNING: .gitignore may exclude .claude/ — run 'git add .claude/.dso-config-v2-migrated' to commit the sentinel. Do NOT commit the sentinel until S6 legacy-reference cleanup is merged." >&2
+fi
 # Clean up backup (migration succeeded)
 rm -f "$BACKUP"
 

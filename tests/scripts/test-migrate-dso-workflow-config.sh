@@ -359,5 +359,37 @@ fi
 assert_eq "test_migrator_backup_detection_blocks_rerun: backup not overwritten" "yes" "$_bd_backup_unchanged"
 assert_pass_if_clean "test_migrator_backup_detection_blocks_rerun"
 
+# ── test_migrator_emits_sentinel_gitignore_reminder ──────────────────────────
+# When .gitignore contains .claude/ AND migration runs, stderr must warn about
+# git add for the sentinel.
+_snapshot_fail
+_make_fixture "merge.strategy=pr
+enforcement.strategy=ci"
+printf '.claude/\n' > "$FIXTURE_DIR/.gitignore"
+_gir_stderr="$(bash "$MIGRATE_SCRIPT" "$FIXTURE_DIR" 2>&1 >/dev/null)"
+if echo "$_gir_stderr" | grep -q "git add .claude/.dso-config-v2-migrated"; then
+    _gir_warned="yes"
+else
+    _gir_warned="no"
+fi
+assert_eq "test_migrator_emits_sentinel_gitignore_reminder: stderr contains git add reminder" "yes" "$_gir_warned"
+assert_pass_if_clean "test_migrator_emits_sentinel_gitignore_reminder"
+
+# ── test_migrator_no_gitignore_reminder_when_claude_not_ignored ──────────────
+# When .gitignore does NOT mention .claude/, no sentinel git-add reminder should
+# appear in stderr.
+_snapshot_fail
+_make_fixture "merge.strategy=pr
+enforcement.strategy=ci"
+printf 'node_modules/\n*.log\n' > "$FIXTURE_DIR/.gitignore"
+_ngir_stderr="$(bash "$MIGRATE_SCRIPT" "$FIXTURE_DIR" 2>&1 >/dev/null)"
+if echo "$_ngir_stderr" | grep -q "git add .claude/.dso-config-v2-migrated"; then
+    _ngir_warned="yes"
+else
+    _ngir_warned="no"
+fi
+assert_eq "test_migrator_no_gitignore_reminder_when_claude_not_ignored: no git add reminder in stderr" "no" "$_ngir_warned"
+assert_pass_if_clean "test_migrator_no_gitignore_reminder_when_claude_not_ignored"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary

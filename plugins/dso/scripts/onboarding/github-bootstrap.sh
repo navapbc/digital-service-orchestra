@@ -90,17 +90,17 @@ if [[ ! -f "$CHECKS_FILE" ]]; then
     exit 0
 fi
 
-# ── Read merge.strategy from dso-config.conf (default: direct) ───────────────
-_MERGE_STRATEGY="direct"
-_CONF="$REPO_ROOT/.claude/dso-config.conf"
-if [ -f "$_CONF" ]; then
-    _read_strategy="$(grep '^merge\.strategy=' "$_CONF" 2>/dev/null | head -1 | cut -d= -f2- || true)"
-    _MERGE_STRATEGY="${_read_strategy:-direct}"
+# ── Read dso.workflow from dso-config.conf (default: local) ──────────────────
+_CONF_SCRIPT="$SCRIPT_DIR/../read-config.sh"
+_WF="local"
+if [ -x "$_CONF_SCRIPT" ]; then
+    _WF="$(bash "$_CONF_SCRIPT" dso.workflow 2>/dev/null || echo "local")"
+    _WF="${_WF:-local}"
 fi
 
 # ── Idempotency / PR-mode Ruleset guard ───────────────────────────────────────
 if gh api --paginate "repos/$REPO/rulesets" 2>/dev/null | grep -q '"DSO CI Enforcement"'; then
-    if [ "$_MERGE_STRATEGY" = "pr" ]; then
+    if [ "$_WF" = "ci-pr" ]; then
         echo "ERROR: PR-mode detected and Ruleset 'DSO CI Enforcement' already exists on $REPO." >&2
         echo "To complete bootstrap, disable the Ruleset for the bootstrap window, run github-bootstrap.sh again, then re-enable." >&2
         exit 1
