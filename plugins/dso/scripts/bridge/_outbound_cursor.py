@@ -111,6 +111,7 @@ def fetch_events_since_cursor(
     bridge_env_id: str = "",
     run_id: str = "",
     cap: int = 500,
+    chunk_state_out: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Fetch event files added since cursor_sha, returning event dicts with commit_sha field.
 
@@ -123,8 +124,20 @@ def fetch_events_since_cursor(
     1. git fetch --deepen=50 origin tickets (widen shallow clone; best-effort)
     2. Try git log cursor..HEAD --diff-filter=A --name-only --format=%H
     3. If SHA still unreachable: git fetch --unshallow origin tickets, retry
-    4. If commit count > cap: write BRIDGE_ALERT + seed_at_head
+    4. If commit count > cap: chunk to first `cap` commits and record was_chunked
+       (so callers can distinguish chunk-HEAD vs repo-HEAD for cursor advance).
+
+    Args:
+        chunk_state_out: When supplied, this dict is mutated with
+            `{"was_chunked": bool}` so callers can tell whether the returned
+            entries cover the full cursor..HEAD range (False) or a chunk of it
+            (True). Used by process_events to decide whether to advance the
+            cursor to repo HEAD or to chunk HEAD (jade-cabin-tithe regression
+            on no-chunk multi-commit case where trailing event-less commits
+            were silently excluded from cursor advance).
     """
+    if chunk_state_out is not None:
+        chunk_state_out["was_chunked"] = False
 
     def _run_git_log(cursor: str | None) -> subprocess.CompletedProcess:  # type: ignore[type-arg]
         # Cold-start (cursor=None): walk full tracker history (no range arg).
@@ -334,6 +347,8 @@ def fetch_events_since_cursor(
             effective_cap,
             len(chunk_shas),
         )
+        if chunk_state_out is not None:
+            chunk_state_out["was_chunked"] = True
 
     # Build event dicts from file paths.
     # git log emits paths relative to the repo root. When the tracker is mounted

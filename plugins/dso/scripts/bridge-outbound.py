@@ -365,8 +365,13 @@ def process_events(
     # rather than only HEAD~1..HEAD, which loses events when multiple commits
     # land between bridge runs.
     cursor_sha = read_cursor(tickets_path)
+    chunk_state: dict[str, Any] = {"was_chunked": False}
     events_with_sha = fetch_events_since_cursor(
-        tickets_path, cursor_sha, bridge_env_id or "", run_id
+        tickets_path,
+        cursor_sha,
+        bridge_env_id or "",
+        run_id,
+        chunk_state_out=chunk_state,
     )
 
     # Track per-event handler invocations so we know how far we got. The
@@ -386,17 +391,25 @@ def process_events(
         cursor_advance_fn=_cursor_advance,
     )
 
-    # Advance the cursor only if we have events to process. We pin the
-    # advance to the *chunk's HEAD* — the latest commit_sha present in the
-    # fetched events — rather than the repo HEAD. Under chunked-advance
-    # (bug jade-cabin-tithe Part 2) the fetcher may have intentionally
-    # returned only the first N commits in cursor..HEAD; jumping to repo
-    # HEAD would silently skip the unprocessed remainder, the exact silent
-    # drop the 5566-685e contract was added to prevent. In the non-chunked
-    # case, the chunk-HEAD equals the repo HEAD so the behavior is
-    # unchanged. Per-event reordering inside sort_events_for_dispatch is
-    # bounded by max(commit_sha) over the fetched chunk, so the chosen
-    # advance SHA never overshoots a commit that wasn't included.
+    # Advance the cursor only if we have events to process.
+    #
+    # Two-mode cursor advance (jade-cabin-tithe Part 2):
+    #   * was_chunked=False — fetch returned all events between cursor and
+    #     repo HEAD. Advance to repo HEAD so trailing event-less commits
+    #     (e.g., README bumps, doc-only changes) are correctly marked
+    #     processed. This preserves the original 5d93-8b62 cursor-to-HEAD
+    #     contract and the test_shell_entry_point_multi_commit_catches_all_events
+    #     invariant.
+    #   * was_chunked=True — fetch intentionally returned only the first N
+    #     commits in cursor..HEAD because the cap was exceeded. Jumping to
+    #     repo HEAD would silently skip the unprocessed remainder — the
+    #     exact silent drop the 5566-685e contract was added to prevent.
+    #     Advance only to the chunk's HEAD (latest commit_sha present in
+    #     the returned events).
+    #
+    # Per-event reordering inside sort_events_for_dispatch is bounded by
+    # max(commit_sha) over the fetched chunk, so the chosen advance SHA
+    # never overshoots a commit that wasn't included.
     #
     # Empty-fetch guard (f776-d7ef llm-review finding 1): when fetch returns
     # zero events (legitimately no new commits, or all events filtered as
@@ -407,12 +420,25 @@ def process_events(
     # at HEAD with no events processed) lives in fetch_events_since_cursor's
     # _seed_at_head, which writes the cursor and BRIDGE_ALERT directly.
     if events_with_sha and _processed_count[0] >= len(events_with_sha):
-        chunk_shas = {
-            e.get("commit_sha", "") for e in events_with_sha if e.get("commit_sha")
-        }
-        chunk_head_sha = _resolve_chunk_head_sha(tickets_path, chunk_shas)
-        if chunk_head_sha:
-            write_cursor(tickets_path, chunk_head_sha, run_id)
+        if chunk_state.get("was_chunked"):
+            chunk_shas = {
+                e.get("commit_sha", "") for e in events_with_sha if e.get("commit_sha")
+            }
+            chunk_head_sha = _resolve_chunk_head_sha(tickets_path, chunk_shas)
+            if chunk_head_sha:
+                write_cursor(tickets_path, chunk_head_sha, run_id)
+        else:
+            # No chunking — all events between cursor and repo HEAD processed.
+            # Advance to repo HEAD so event-less trailing commits are covered.
+            rev_parse = subprocess.run(
+                ["git", "-C", str(tickets_path), "rev-parse", "HEAD"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            head_sha = rev_parse.stdout.strip() if rev_parse.returncode == 0 else ""
+            if head_sha:
+                write_cursor(tickets_path, head_sha, run_id)
 
     return syncs
 
