@@ -468,8 +468,14 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     else
         _attribution_enabled="false"
     fi
-    # DSO_SPRINT_MODE=1 bypasses the attribution.enabled guard so the DSO-Story trailer is always injected in sprint mode
-    if [[ "$_attribution_enabled" != "true" && -z "${DSO_SPRINT_MODE:-}" ]]; then
+    # Resolve workflow + sprint-active state for the 4-cell injection matrix:
+    #   (ci-pr + .sprint-active=1) → always inject trailers (DSO-Story trailer required in CI sprint mode)
+    #   any other combination     → skip injection when attribution.enabled != true
+    _wf=$(bash "$_read_config_path" dso.workflow 2>/dev/null || echo "local")
+    _sprint_active=0
+    _repo_root="${_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || echo '')}"
+    [[ -n "$_repo_root" && -f "${_repo_root}/.sprint-active" ]] && _sprint_active=1
+    if [[ "$_attribution_enabled" != "true" && ! ("$_wf" == "ci-pr" && "$_sprint_active" -eq 1) ]]; then
         exit 0
     fi
 
