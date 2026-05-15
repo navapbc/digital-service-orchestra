@@ -8,6 +8,7 @@ on:
 permissions:
   contents: read
   checks: write
+  pull-requests: write  # required so runner.py _post_pr_review can post findings via Pulls Reviews API + issue-comment fallback
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ vars.SPRINT_SESSION_ID }}
