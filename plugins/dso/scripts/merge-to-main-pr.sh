@@ -254,6 +254,21 @@ _check_duplicate_pr() {
     return 0
 }
 
+# --- _query_pr_is_draft: emit "true" or "false" for a PR's draft status ---
+_query_pr_is_draft() {
+    local _pr_number="$1"
+    local _json
+    _json=$(gh pr view "$_pr_number" --json isDraft 2>/dev/null || true)
+    printf '%s' "$_json" | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    print('true' if d.get('isDraft') else 'false')
+except Exception:
+    print('false')
+" 2>/dev/null || echo 'false'
+}
+
 # --- State writer: persist PR url + number into the state file ---
 # Best-effort; mirrors merge-helpers.sh's other _state_* writers.
 _state_write_pr_meta() {
@@ -485,6 +500,23 @@ except Exception:
     if [[ "$_mergeable" == "CONFLICTING" ]]; then
         echo "ERROR: PR #${_pr_number} is CONFLICTING — cannot enqueue auto-merge" >&2
         return 1
+    fi
+
+    # --- 7. Promote draft PR to ready-for-review (075f-ec40) ---
+    # Sprint Phase A creates the long-lived PR with --draft. It must be promoted
+    # before auto-merge can be queued (some GitHub plans require non-draft status).
+    local _pr_is_draft
+    _pr_is_draft=$(_query_pr_is_draft "$_pr_number")
+
+    if [[ "$_pr_is_draft" == "true" ]]; then
+        echo "INFO: PR #${_pr_number} is draft — promoting to ready-for-review."
+        local _ready_out _ready_rc=0
+        _ready_out=$(gh pr ready "$_pr_number" 2>&1) || _ready_rc=$?
+        if [[ "$_ready_rc" -ne 0 ]]; then
+            echo "WARNING: gh pr ready #${_pr_number} failed (non-fatal): $_ready_out" >&2
+        else
+            echo "INFO: PR #${_pr_number} promoted to ready-for-review."
+        fi
     fi
 
     # Auto-merge is NOT enqueued here. It is deferred to _phase_queue_auto_merge,
@@ -1969,6 +2001,17 @@ fi
 if [[ -z "$_PR_NUMBER" ]]; then
     echo "ERROR: could not resolve PR number for polling phase" >&2
     exit 1
+fi
+
+# --- Promote draft PR to ready-for-review (2e68-046a) ---
+# On --resume, _phase_merge is skipped so its 075f-ec40 promotion block never
+# runs. Promote here unconditionally so both the fresh and resume paths work.
+# The guard inside _phase_merge prevents double-promotion on non-resume runs.
+_top_is_draft=$(_query_pr_is_draft "$_PR_NUMBER")
+if [[ "$_top_is_draft" == "true" ]]; then
+    echo "INFO: PR #${_PR_NUMBER} is draft — promoting to ready-for-review."
+    _top_ready_out=$(gh pr ready "$_PR_NUMBER" 2>&1) || \
+        echo "WARNING: gh pr ready #${_PR_NUMBER} failed (non-fatal): $_top_ready_out" >&2
 fi
 
 # --- Local-only: surface any new PR comments since the last push ---

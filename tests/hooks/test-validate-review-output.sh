@@ -1435,4 +1435,317 @@ assert_contains \
     "must be 'reviewed' or 'not_applicable'" \
     "$INVALID_STATUS_PASS_OUT"
 
+# === Absence-Claim Detection & verification_evidence validation ===
+#
+# These tests are RED before S1 T4 implements absence-claim detection in
+# validate-review-output.sh and before S1 T2 creates absence-claim-anchors.json.
+#
+# Hard-mode sentinel: CLAUDE_PLUGIN_ROOT/contracts/absence-claim-enforcement-v1
+# Soft mode (default): validator warns but exits 0.
+# Hard mode: validator exits 1 and error message mentions verification_evidence.
+#
+# The CLAUDE_PLUGIN_ROOT env var is already honoured by validate-review-output.sh
+# (line 58: _PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-...}"). Hard-mode tests export a
+# temp dir and create the sentinel inside it; they restore the env after.
+
+# test_absence_claim_soft_mode_warns_on_missing_verification_evidence
+# Given: finding whose description contains absence language ("does not exist"),
+#        no verification_evidence field, and no hard-mode sentinel.
+# When:  validate-review-output.sh code-review-dispatch runs.
+# Then:  exits 0 (soft mode does not reject) AND combined output contains
+#        "WARNING" or "warning".
+echo ""
+echo "--- test_absence_claim_soft_mode_warns_on_missing_verification_evidence ---"
+_snapshot_fail
+
+_ABSENCE_SOFT_FILE=$(write_fixture "absence_soft.json" '{
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "correctness",
+      "description": "The helper function does not exist in the module",
+      "file": "src/utils.py",
+      "cited_lines": ["src/utils.py:10"],
+      "cited_excerpt": "from utils import helper_fn"
+    }
+  ],
+  "summary": "Absence claim finding without verification evidence."
+}')
+_ABSENCE_SOFT_TMP=$(mktemp "${TMPDIR:-/tmp}/absence-soft-combined.XXXXXX")
+_ABSENCE_SOFT_EXIT=0
+_ABSENCE_SOFT_PLUGIN_ROOT=$(mktemp -d)
+# Soft mode: sentinel NOT created inside the temp root
+CLAUDE_PLUGIN_ROOT="$_ABSENCE_SOFT_PLUGIN_ROOT" bash "$SCRIPT" code-review-dispatch "$_ABSENCE_SOFT_FILE" >"$_ABSENCE_SOFT_TMP" 2>&1 || _ABSENCE_SOFT_EXIT=$?
+_ABSENCE_SOFT_OUT=$(cat "$_ABSENCE_SOFT_TMP")
+rm -f "$_ABSENCE_SOFT_TMP"
+rm -rf "$_ABSENCE_SOFT_PLUGIN_ROOT"
+assert_eq \
+    "test_absence_claim_soft_mode_warns_on_missing_verification_evidence: exits 0 (soft mode)" \
+    "0" \
+    "$_ABSENCE_SOFT_EXIT"
+assert_contains \
+    "test_absence_claim_soft_mode_warns_on_missing_verification_evidence: output contains warning" \
+    "ARNING" \
+    "$_ABSENCE_SOFT_OUT"
+
+assert_pass_if_clean "test_absence_claim_soft_mode_warns_on_missing_verification_evidence"
+
+# test_absence_claim_hard_mode_errors_on_missing_verification_evidence
+# Given: finding whose description contains "function is not defined" (absence trigger),
+#        no verification_evidence, and hard-mode sentinel file present.
+# When:  validate-review-output.sh code-review-dispatch runs.
+# Then:  exits 1 AND combined output mentions "verification_evidence".
+echo ""
+echo "--- test_absence_claim_hard_mode_errors_on_missing_verification_evidence ---"
+_snapshot_fail
+
+_ABSENCE_HARD_FILE=$(write_fixture "absence_hard.json" '{
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "correctness",
+      "description": "The callback function is not defined anywhere in the codebase",
+      "file": "src/app.py",
+      "cited_lines": ["src/app.py:55"],
+      "cited_excerpt": "register_callback(on_event)"
+    }
+  ],
+  "summary": "Absence claim finding in hard mode without verification evidence."
+}')
+_ABSENCE_HARD_TMP=$(mktemp "${TMPDIR:-/tmp}/absence-hard-combined.XXXXXX")
+_ABSENCE_HARD_EXIT=0
+_ABSENCE_HARD_PLUGIN_ROOT=$(mktemp -d)
+mkdir -p "$_ABSENCE_HARD_PLUGIN_ROOT/contracts"
+touch "$_ABSENCE_HARD_PLUGIN_ROOT/contracts/absence-claim-enforcement-v1"
+CLAUDE_PLUGIN_ROOT="$_ABSENCE_HARD_PLUGIN_ROOT" bash "$SCRIPT" code-review-dispatch "$_ABSENCE_HARD_FILE" >"$_ABSENCE_HARD_TMP" 2>&1 || _ABSENCE_HARD_EXIT=$?
+_ABSENCE_HARD_OUT=$(cat "$_ABSENCE_HARD_TMP")
+rm -f "$_ABSENCE_HARD_TMP"
+rm -rf "$_ABSENCE_HARD_PLUGIN_ROOT"
+assert_ne \
+    "test_absence_claim_hard_mode_errors_on_missing_verification_evidence: exits non-zero (hard mode)" \
+    "0" \
+    "$_ABSENCE_HARD_EXIT"
+assert_contains \
+    "test_absence_claim_hard_mode_errors_on_missing_verification_evidence: output mentions verification_evidence" \
+    "verification_evidence" \
+    "$_ABSENCE_HARD_OUT"
+
+assert_pass_if_clean "test_absence_claim_hard_mode_errors_on_missing_verification_evidence"
+
+# test_absence_claim_no_warning_when_evidence_present
+# Given: finding with absence language AND verification_evidence (command + output fields),
+#        in hard mode.
+# When:  validate-review-output.sh code-review-dispatch runs.
+# Then:  exits 0.
+echo ""
+echo "--- test_absence_claim_no_warning_when_evidence_present ---"
+_snapshot_fail
+
+_ABSENCE_EVIDENCE_FILE=$(write_fixture "absence_with_evidence.json" '{
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "correctness",
+      "description": "The helper module does not exist at the import path",
+      "file": "src/app.py",
+      "cited_lines": ["src/app.py:3"],
+      "cited_excerpt": "from helpers import process_data",
+      "verification_evidence": {
+        "command": "ls src/helpers.py",
+        "output": "ls: src/helpers.py: No such file or directory"
+      }
+    }
+  ],
+  "summary": "Absence claim with verification evidence provided."
+}')
+_ABSENCE_EVIDENCE_TMP=$(mktemp "${TMPDIR:-/tmp}/absence-evidence-combined.XXXXXX")
+_ABSENCE_EVIDENCE_EXIT=0
+_ABSENCE_EVIDENCE_PLUGIN_ROOT=$(mktemp -d)
+mkdir -p "$_ABSENCE_EVIDENCE_PLUGIN_ROOT/contracts"
+touch "$_ABSENCE_EVIDENCE_PLUGIN_ROOT/contracts/absence-claim-enforcement-v1"
+CLAUDE_PLUGIN_ROOT="$_ABSENCE_EVIDENCE_PLUGIN_ROOT" bash "$SCRIPT" code-review-dispatch "$_ABSENCE_EVIDENCE_FILE" >"$_ABSENCE_EVIDENCE_TMP" 2>&1 || _ABSENCE_EVIDENCE_EXIT=$?
+rm -f "$_ABSENCE_EVIDENCE_TMP"
+rm -rf "$_ABSENCE_EVIDENCE_PLUGIN_ROOT"
+assert_eq \
+    "test_absence_claim_no_warning_when_evidence_present: exits 0 when evidence provided" \
+    "0" \
+    "$_ABSENCE_EVIDENCE_EXIT"
+
+assert_pass_if_clean "test_absence_claim_no_warning_when_evidence_present"
+
+# test_non_absence_claim_no_verification_evidence_required
+# Given: finding whose description does NOT contain absence language,
+#        no verification_evidence, in hard mode.
+# When:  validate-review-output.sh code-review-dispatch runs.
+# Then:  exits 0 (absence detection does not fire).
+echo ""
+echo "--- test_non_absence_claim_no_verification_evidence_required ---"
+_snapshot_fail
+
+_NON_ABSENCE_FILE=$(write_fixture "non_absence.json" '{
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "hygiene",
+      "description": "Variable name could be more descriptive for clarity",
+      "file": "src/utils.py",
+      "cited_lines": ["src/utils.py:22"],
+      "cited_excerpt": "x = compute()"
+    }
+  ],
+  "summary": "Non-absence finding does not require verification evidence."
+}')
+_NON_ABSENCE_EXIT=0
+_NON_ABSENCE_PLUGIN_ROOT=$(mktemp -d)
+mkdir -p "$_NON_ABSENCE_PLUGIN_ROOT/contracts"
+touch "$_NON_ABSENCE_PLUGIN_ROOT/contracts/absence-claim-enforcement-v1"
+CLAUDE_PLUGIN_ROOT="$_NON_ABSENCE_PLUGIN_ROOT" bash "$SCRIPT" code-review-dispatch "$_NON_ABSENCE_FILE" >/dev/null 2>&1 || _NON_ABSENCE_EXIT=$?
+rm -rf "$_NON_ABSENCE_PLUGIN_ROOT"
+assert_eq \
+    "test_non_absence_claim_no_verification_evidence_required: exits 0 for non-absence finding" \
+    "0" \
+    "$_NON_ABSENCE_EXIT"
+
+assert_pass_if_clean "test_non_absence_claim_no_verification_evidence_required"
+
+# test_verification_evidence_missing_command_field_rejected
+# Given: finding with verification_evidence present but missing the 'command' sub-field.
+# When:  validate-review-output.sh code-review-dispatch runs (any mode).
+# Then:  exits non-zero (malformed verification_evidence is invalid).
+echo ""
+echo "--- test_verification_evidence_missing_command_field_rejected ---"
+_snapshot_fail
+
+_VE_NO_CMD_FILE=$(write_fixture "ve_missing_command.json" '{
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "correctness",
+      "description": "The referenced function does not exist in scope",
+      "file": "src/app.py",
+      "cited_lines": ["src/app.py:10"],
+      "cited_excerpt": "call_missing()",
+      "verification_evidence": {
+        "output": "NameError: name call_missing is not defined"
+      }
+    }
+  ],
+  "summary": "Verification evidence missing command field."
+}')
+_VE_NO_CMD_EXIT=0
+_VE_NO_CMD_PLUGIN_ROOT=$(mktemp -d)
+mkdir -p "$_VE_NO_CMD_PLUGIN_ROOT/contracts"
+touch "$_VE_NO_CMD_PLUGIN_ROOT/contracts/absence-claim-enforcement-v1"
+CLAUDE_PLUGIN_ROOT="$_VE_NO_CMD_PLUGIN_ROOT" bash "$SCRIPT" code-review-dispatch "$_VE_NO_CMD_FILE" >/dev/null 2>&1 || _VE_NO_CMD_EXIT=$?
+rm -rf "$_VE_NO_CMD_PLUGIN_ROOT"
+assert_ne \
+    "test_verification_evidence_missing_command_field_rejected: exits non-zero when command missing" \
+    "0" \
+    "$_VE_NO_CMD_EXIT"
+
+assert_pass_if_clean "test_verification_evidence_missing_command_field_rejected"
+
+# test_verification_evidence_missing_output_field_rejected
+# Given: finding with verification_evidence present but missing the 'output' sub-field.
+# When:  validate-review-output.sh code-review-dispatch runs (any mode).
+# Then:  exits non-zero (malformed verification_evidence is invalid).
+echo ""
+echo "--- test_verification_evidence_missing_output_field_rejected ---"
+_snapshot_fail
+
+_VE_NO_OUT_FILE=$(write_fixture "ve_missing_output.json" '{
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "correctness",
+      "description": "The config key does not exist in the registry",
+      "file": "src/config.py",
+      "cited_lines": ["src/config.py:5"],
+      "cited_excerpt": "value = registry[\"missing_key\"]",
+      "verification_evidence": {
+        "command": "python3 -c \"from src.config import registry; print(registry)\""
+      }
+    }
+  ],
+  "summary": "Verification evidence missing output field."
+}')
+_VE_NO_OUT_EXIT=0
+_VE_NO_OUT_PLUGIN_ROOT=$(mktemp -d)
+mkdir -p "$_VE_NO_OUT_PLUGIN_ROOT/contracts"
+touch "$_VE_NO_OUT_PLUGIN_ROOT/contracts/absence-claim-enforcement-v1"
+CLAUDE_PLUGIN_ROOT="$_VE_NO_OUT_PLUGIN_ROOT" bash "$SCRIPT" code-review-dispatch "$_VE_NO_OUT_FILE" >/dev/null 2>&1 || _VE_NO_OUT_EXIT=$?
+rm -rf "$_VE_NO_OUT_PLUGIN_ROOT"
+assert_ne \
+    "test_verification_evidence_missing_output_field_rejected: exits non-zero when output missing" \
+    "0" \
+    "$_VE_NO_OUT_EXIT"
+
+assert_pass_if_clean "test_verification_evidence_missing_output_field_rejected"
+
+# test_anchors_json_valid_structure
+# Given: plugins/dso/docs/contracts/absence-claim-anchors.json exists.
+# When:  loaded via python3 and structure validated.
+# Then:  exits 0 — valid JSON with 'anchors' key containing >= 14 patterns.
+# RED: fails before S1 T2 creates the JSON file.
+echo ""
+echo "--- test_anchors_json_valid_structure ---"
+_snapshot_fail
+
+_ANCHORS_JSON="$PLUGIN_ROOT/plugins/dso/docs/contracts/absence-claim-anchors.json"
+_ANCHORS_EXIT=0
+python3 -c "
+import json, sys
+try:
+    with open('$_ANCHORS_JSON') as f:
+        d = json.load(f)
+    assert 'anchors' in d, 'missing anchors key'
+    assert isinstance(d['anchors'], list), 'anchors must be a list'
+    assert len(d['anchors']) >= 14, f'expected >= 14 anchors, got {len(d[\"anchors\"])}'
+    sys.exit(0)
+except (FileNotFoundError, json.JSONDecodeError, AssertionError) as e:
+    print(f'FAIL: {e}', file=sys.stderr)
+    sys.exit(1)
+" 2>/dev/null || _ANCHORS_EXIT=$?
+assert_eq \
+    "test_anchors_json_valid_structure: absence-claim-anchors.json is valid JSON with >= 14 anchors" \
+    "0" \
+    "$_ANCHORS_EXIT"
+
+assert_pass_if_clean "test_anchors_json_valid_structure"
+
+# test_anchors_json_missing_or_malformed_fails_closed
+# AC amendment: when absence-claim-anchors.json is absent or malformed,
+# validate-review-output.sh exits non-zero with a clear stderr message.
+# RED: fails before S1 T4 implements the fail-closed anchor-load behavior.
+echo ""
+echo "--- test_anchors_json_missing_or_malformed_fails_closed ---"
+_snapshot_fail
+
+_ABSENT_ANCHORS_PLUGIN_ROOT=$(mktemp -d)
+# Empty temp dir — anchors JSON does not exist inside it.
+# Use DSO_ANCHORS_PLUGIN_ROOT (not CLAUDE_PLUGIN_ROOT) so that sentinel and
+# anchors roots can be controlled independently (T4 separation).
+_ABSENT_ANCHORS_FILE=$(write_fixture "absence_trigger_for_failclosed.json" '{
+  "findings": [
+    {
+      "severity": "minor",
+      "category": "correctness",
+      "description": "The referenced symbol does not exist",
+      "file": "src/app.py",
+      "cited_lines": ["src/app.py:1"],
+      "cited_excerpt": "from missing import symbol"
+    }
+  ],
+  "summary": "Absence claim, anchors file absent from plugin root."
+}')
+_ABSENT_EXIT=0
+DSO_ANCHORS_PLUGIN_ROOT="$_ABSENT_ANCHORS_PLUGIN_ROOT" bash "$SCRIPT" code-review-dispatch "$_ABSENT_ANCHORS_FILE" >/dev/null 2>&1 || _ABSENT_EXIT=$?
+rm -rf "$_ABSENT_ANCHORS_PLUGIN_ROOT"
+assert_ne \
+    "test_anchors_json_missing_or_malformed_fails_closed: exits non-zero when anchors JSON absent" \
+    "0" \
+    "$_ABSENT_EXIT"
+
+assert_pass_if_clean "test_anchors_json_missing_or_malformed_fails_closed"
+
 print_summary

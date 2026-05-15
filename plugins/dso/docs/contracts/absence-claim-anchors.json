@@ -1,0 +1,25 @@
+{
+  "version": "1.0",
+  "description": "Canonical absence-language anchor list for code-reviewer-verifier trigger detection. Exact-substring anchors are matched anywhere in a finding description. Prefix anchors (in anchors_prefix_patterns) are matched at the start of a finding description. When any anchor matches, the finding must include a verification_evidence field with command and output sub-fields. Loaded at runtime by validate-review-output.sh; fail-closed if this file is absent or malformed.",
+  "anchors": [
+    "is not present",
+    "does not exist",
+    "is missing",
+    "is not found",
+    "was not found",
+    "are not found",
+    "not defined",
+    "never defined",
+    "is absent",
+    "has no",
+    "lacks",
+    "does not contain",
+    "is undefined",
+    "no handler",
+    "not implemented"
+  ],
+  "anchors_prefix_patterns": [
+    "^Missing ",
+    "^No "
+  ]
+}

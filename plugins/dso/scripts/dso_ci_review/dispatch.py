@@ -1059,9 +1059,45 @@ def dispatch_schema_correction(
         _field_errors = [
             _e for _e in _revalidate.errors if "findings[" in _e
         ]
-        _only_reach_errors = bool(_field_errors) and all(
-            "reachability" in _e for _e in _field_errors
+        # Filter out soft-mode WARNING: lines (absence-claim findings missing
+        # verification_evidence in soft mode go to stderr but may appear in
+        # _revalidate.errors); exclude them when checking "only reachability errors"
+        # so the reachability fallback still fires when WARNINGs are interleaved.
+        _hard_field_errors = [
+            _e for _e in _field_errors if not _e.startswith("WARNING:")
+        ]
+        _only_reach_errors = bool(_hard_field_errors) and all(
+            "reachability" in _e for _e in _hard_field_errors
         )
+        # Absence-claim evidence fallback: inject boilerplate verification_evidence
+        # into findings flagged by soft-mode absence-claim WARNINGs before the
+        # reachability fallback runs, so both can be applied in a single pass.
+        _absence_warn_re = None
+        _absence_indices: set[int] = set()
+        import re as _re_ac
+        _absence_warn_re = _re_ac.compile(
+            r"WARNING:.*findings\[(\d+)\]\.verification_evidence absent on absence-claim"
+        )
+        for _err in _revalidate.errors:
+            _wm = _absence_warn_re.search(_err)
+            if _wm:
+                _absence_indices.add(int(_wm.group(1)))
+        _ABSENCE_EVIDENCE_BOILERPLATE = {
+            "command": "fallback",
+            "output": (
+                "fallback-injected; reviewer did not run an explicit verification "
+                "command for this absence claim"
+            ),
+        }
+        if _absence_indices:
+            _patched_ac = list(_last_findings)
+            for _idx in sorted(_absence_indices):
+                if _idx < len(_patched_ac):
+                    _f = dict(_patched_ac[_idx])
+                    if "verification_evidence" not in _f:
+                        _f["verification_evidence"] = _ABSENCE_EVIDENCE_BOILERPLATE
+                    _patched_ac[_idx] = _f
+            _last_findings = _patched_ac
         if _only_reach_errors:
             # Parse which finding indices need reachability
             import re as _re
@@ -1123,6 +1159,22 @@ def dispatch_schema_correction(
                 )
                 return _patched_result
             _reach_fallback_applied = True  # fallback attempted but still failed
+        elif _absence_indices and not _only_reach_errors:
+            # Absence-claim boilerplate was injected but there were no pure-reachability
+            # errors: validate the absence-patched result on its own.
+            _patched_ac_result = {**last_result, "findings": _last_findings}
+            _revalidate_ac = _runner_mod._validate_findings_schema(
+                _patched_ac_result, plugin_root=str(plugin_root)
+            )
+            if _revalidate_ac.status == "schema_pass":
+                print(
+                    f"INFO: schema correction absence-claim fallback applied to "
+                    f"{len(_absence_indices)} finding(s) — "
+                    f"boilerplate verification_evidence injected for indices "
+                    f"{sorted(_absence_indices)}",
+                    file=sys.stderr,
+                )
+                return _patched_ac_result
 
     # All attempts exhausted — append synthetic schema_error to last result
     _fallback_note = " (reachability fallback also failed)" if _reach_fallback_applied else ""

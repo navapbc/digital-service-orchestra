@@ -1566,6 +1566,64 @@ def test_runner_skips_pr_post_on_push_event(tmp_path):
     )
 
 
+def test_runner_calls_dispatch_verifier(tmp_path) -> None:
+    """dispatch_verifier must be called once per review run with the merged findings."""
+    findings_path = tmp_path / "findings.json"
+    diff = "--- a/foo.py\n+++ b/foo.py\n@@ -1 +1 @@\n-x = 1\n+x = 2\n"
+    diff_file = tmp_path / "diff.txt"
+    diff_file.write_text(diff)
+
+    mock_findings = [
+        {
+            "finding_id": "f-001",
+            "severity": "important",
+            "description": "does not exist",
+            "file": "foo.py",
+            "cited_lines": ["foo.py:1"],
+            "cited_excerpt": "x = 1",
+            "category": "correctness",
+            "reachability": "reachable",
+            "verification_evidence": {"command": "grep x foo.py", "output": ""},
+        }
+    ]
+
+    with (
+        patch("dso_ci_review.runner.async_dispatch_specialists") as mock_dispatch,
+        patch("dso_ci_review.runner._classify_tier_via_bash") as mock_tier,
+        patch("dso_ci_review.runner._validate_findings_schema") as mock_schema,
+        patch("dso_ci_review.verifier.dispatch_verifier") as mock_verifier,
+    ):
+        mock_tier.return_value = {
+            "selected_tier": "standard",
+            "file_count": 1,
+            "loc_count": 1,
+            "is_merge_commit": False,
+            "overlay_flags": {},
+        }
+        mock_dispatch.return_value = [{"findings": mock_findings}]
+        mock_schema.return_value = type(
+            "_SR", (), {"status": "schema_pass", "errors": []}
+        )()
+        mock_verifier.return_value = mock_findings  # pass through unchanged
+
+        from dso_ci_review.runner import main
+
+        with (
+            patch.dict(
+                "os.environ",
+                {
+                    "DSO_CI_REVIEW_DIFF_PATH": str(diff_file),
+                    "DSO_CI_REVIEW_OUTPUT_PATH": str(findings_path),
+                    "CI_REVIEW_PROVIDER": "anthropic",
+                },
+            ),
+            patch("dso_ci_review.runner.get_provider"),
+        ):
+            main()
+
+    mock_verifier.assert_called_once()
+
+
 def test_build_agents_for_tier_includes_tier_in_agent_dicts(tmp_path):
     """_build_agents_for_tier must set 'tier' on every agent dict it returns.
 
@@ -3646,7 +3704,10 @@ def test_validate_review_schema_hash_matches_script():
     import re
     import dso_ci_review.runner as runner_mod
 
-    validator_script = runner_mod._resolve_validator_script()
+    # Pass plugin_root explicitly so CLAUDE_PLUGIN_ROOT (which points to the main
+    # repo in worktree sessions) does not cause the test to read the wrong script.
+    _worktree_plugin_root = str(pathlib.Path(__file__).parents[3] / "plugins" / "dso")
+    validator_script = runner_mod._resolve_validator_script(plugin_root=_worktree_plugin_root)
     script_text = pathlib.Path(validator_script).read_text(encoding="utf-8")
 
     # Extract HASH_CODE_REVIEW_DISPATCH="<hex>" from the script

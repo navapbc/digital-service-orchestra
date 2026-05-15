@@ -1,0 +1,4 @@
+{
+  "ruling": "downgrade-to-minor",
+  "rationale": "The code does check for api_key presence (line 13) and logs a warning. The severity is overstated — there IS validation, it just logs rather than raises. This is a style concern, not a critical security gap."
+}

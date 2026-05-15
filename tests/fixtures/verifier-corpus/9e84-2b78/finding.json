@@ -1,0 +1,13 @@
+{
+  "finding_id": "9e84-2b78",
+  "severity": "important",
+  "category": "security",
+  "description": "No trust boundary enforcement is present in this configuration — the coderabbit configuration does not restrict review access to trusted contexts",
+  "file": ".coderabbit.yaml",
+  "cited_lines": [".coderabbit.yaml:1"],
+  "cited_excerpt": "version: \"2\"",
+  "verification_evidence": {
+    "command": "grep -n 'trust\\|boundary\\|restrict\\|allow' .coderabbit.yaml",
+    "output": "(no output — no trust boundary configuration found)"
+  }
+}
