@@ -53,7 +53,7 @@ for _fixture_dir in "$_CORPUS_DIR"/*/; do
     # CI path: invoke dispatch_verifier with mocked _call_verifier_agent
     # In dry-run/unit mode, we use fail-open behavior (verifier_status=failed → confirm).
     # Real integration runs would use DSO_VERIFIER_INTEGRATION=1 with real LLM.
-    _ci_ruling=$(python3 - <<PYEOF 2>/dev/null
+    _ci_ruling=$(python3 - <<PYEOF
 import sys, json, os
 sys.path.insert(0, '$_VERIFIER_MODULE_DIR/..')
 from unittest.mock import patch

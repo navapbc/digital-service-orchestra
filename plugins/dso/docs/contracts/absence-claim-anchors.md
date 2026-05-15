@@ -11,12 +11,6 @@
 
 This markdown file (`absence-claim-anchors.md`) documents the contract for humans and LLM reviewer agents.
 
-## What This File Is
-
-`absence-claim-anchors.json` (in this same directory) is the **canonical machine-readable source** for absence-language trigger phrases used by the DSO review pipeline. It defines the set of substring patterns and prefix patterns that, when found in a reviewer finding's `description`, require the finding to include a `verification_evidence` field.
-
-This markdown file (`absence-claim-anchors.md`) documents the contract for humans and LLM reviewer agents.
-
 ## Why This Exists
 
 Code reviewers (and LLM-based reviewer agents) sometimes flag symbols, functions, or behaviors as absent — "does not exist", "is not found", "is undefined" — without actually verifying the absence. These findings frequently turn out to be wrong: the symbol exists under a different import path, the function is defined in a base class, or the reviewer is pattern-matching against a superficially similar but distinct name.

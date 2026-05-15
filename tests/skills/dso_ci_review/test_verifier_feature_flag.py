@@ -8,7 +8,7 @@ RED marker: tests/skills/dso_ci_review/test_verifier_feature_flag.py [test_verif
 from __future__ import annotations
 
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 
 class TestVerifierFeatureFlag:

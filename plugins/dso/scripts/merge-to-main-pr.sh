@@ -254,6 +254,21 @@ _check_duplicate_pr() {
     return 0
 }
 
+# --- _query_pr_is_draft: emit "true" or "false" for a PR's draft status ---
+_query_pr_is_draft() {
+    local _pr_number="$1"
+    local _json
+    _json=$(gh pr view "$_pr_number" --json isDraft 2>/dev/null || true)
+    printf '%s' "$_json" | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    print('true' if d.get('isDraft') else 'false')
+except Exception:
+    print('false')
+" 2>/dev/null || echo 'false'
+}
+
 # --- State writer: persist PR url + number into the state file ---
 # Best-effort; mirrors merge-helpers.sh's other _state_* writers.
 _state_write_pr_meta() {
@@ -490,16 +505,8 @@ except Exception:
     # --- 7. Promote draft PR to ready-for-review (075f-ec40) ---
     # Sprint Phase A creates the long-lived PR with --draft. It must be promoted
     # before auto-merge can be queued (some GitHub plans require non-draft status).
-    local _draft_check_json _pr_is_draft
-    _draft_check_json=$(gh pr view "$_pr_number" --json isDraft 2>/dev/null || true)
-    _pr_is_draft=$(printf '%s' "$_draft_check_json" | python3 -c "
-import json, sys
-try:
-    d = json.load(sys.stdin)
-    print('true' if d.get('isDraft') else 'false')
-except Exception:
-    print('false')
-" 2>/dev/null || echo 'false')
+    local _pr_is_draft
+    _pr_is_draft=$(_query_pr_is_draft "$_pr_number")
 
     if [[ "$_pr_is_draft" == "true" ]]; then
         echo "INFO: PR #${_pr_number} is draft — promoting to ready-for-review."
@@ -2000,15 +2007,7 @@ fi
 # On --resume, _phase_merge is skipped so its 075f-ec40 promotion block never
 # runs. Promote here unconditionally so both the fresh and resume paths work.
 # The guard inside _phase_merge prevents double-promotion on non-resume runs.
-_top_draft_check=$(gh pr view "$_PR_NUMBER" --json isDraft 2>/dev/null || true)
-_top_is_draft=$(printf '%s' "$_top_draft_check" | python3 -c "
-import json, sys
-try:
-    d = json.load(sys.stdin)
-    print('true' if d.get('isDraft') else 'false')
-except Exception:
-    print('false')
-" 2>/dev/null || echo 'false')
+_top_is_draft=$(_query_pr_is_draft "$_PR_NUMBER")
 if [[ "$_top_is_draft" == "true" ]]; then
     echo "INFO: PR #${_PR_NUMBER} is draft — promoting to ready-for-review."
     _top_ready_out=$(gh pr ready "$_PR_NUMBER" 2>&1) || \
