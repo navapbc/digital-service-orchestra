@@ -771,12 +771,14 @@ At the start of this phase, read the `## PHASE_PLAN` section from `$SCRATCHPAD`.
 
 ### Step 0: Snapshot Pre-Onboarding Init State (/dso:onboarding) (bug 7d25-c78e)
 
-Capture pre-onboarding state into `_INITIAL_DSO_INSTALLED` before Step 2b writes `dso-config.conf` and Batch Group 3 writes `CLAUDE.md`. Batch Group 2 reads this — live file checks there are unreliable because earlier steps will have mutated state.
+Persist a pre-onboarding init signal to `$SCRATCHPAD` before Step 2b writes `dso-config.conf` (and before any code path including `dso-setup.sh` writes `.claude/CLAUDE.md`). Batch Group 2 reads this from `$SCRATCHPAD` — shell exports do not persist across the skill's separately-evaluated bash blocks; live file checks at Batch Group 2 time are unreliable because intervening steps mutate the same files.
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
-[[ -f "$REPO_ROOT/.claude/CLAUDE.md" && -f "$REPO_ROOT/.claude/dso-config.conf" ]] && _INITIAL_DSO_INSTALLED=true || _INITIAL_DSO_INSTALLED=false
-export _INITIAL_DSO_INSTALLED
+[[ -f "$REPO_ROOT/.claude/CLAUDE.md" && -f "$REPO_ROOT/.claude/dso-config.conf" ]] \
+    && _INIT="true" || _INIT="false"
+grep -q "^## INITIAL_DSO_STATE" "$SCRATCHPAD" \
+    || printf '\n## INITIAL_DSO_STATE\n_INITIAL_DSO_INSTALLED=%s\n' "$_INIT" >> "$SCRATCHPAD"
 ```
 
 ### Step 1: Present Understanding Summary
@@ -1122,6 +1124,7 @@ Write `merge.strategy=$MERGE_STRATEGY` to `.claude/dso-config.conf` (overwrite a
 After writing `.claude/dso-config.conf`, set up the supporting infrastructure for the host project. These steps ensure the enforcement gates, ticket system, and documentation templates are in place before the first commit.
 
 ## Batch Group 2: scaffold-claude-structure
+<!-- Skip guard: if .claude/ structure already present and shim already installed, skip -->
 
 #### DSO Shim Installation
 
@@ -1129,9 +1132,9 @@ Display to user: "Installing the DSO shim — a short command-line shortcut (.cl
 
 Before any other infrastructure steps, install the `.claude/scripts/dso` shim that all subsequent commands depend on.
 
-Branch on `_INITIAL_DSO_INSTALLED` (captured in Phase 3 Step 0):
+Branch on the `_INITIAL_DSO_INSTALLED` signal persisted in `$SCRATCHPAD` by Phase 3 Step 0:
 - **true** — host was previously onboarded → `update-shim.sh` (file-copy only, idempotent).
-- **false** — fresh init → `dso-setup.sh` (full init: config, CLAUDE.md, KNOWN-ISSUES.md, CI skeleton, pre-commit, hooks, artifact stamps, gitignore). Do NOT run `dso-setup.sh` on an already-onboarded host — it is NOT idempotent across these artifact installs.
+- **false** — fresh init → `dso-setup.sh` (full init: config supplements, CLAUDE.md, KNOWN-ISSUES.md, CI skeleton, pre-commit, hook registration, artifact stamps, gitignore). Do NOT run `dso-setup.sh` on an already-onboarded host — it is NOT idempotent across these artifact installs.
 
 The shim template lives at `${CLAUDE_PLUGIN_ROOT}/templates/host-project/dso`; both scripts consume it.
 
@@ -1142,7 +1145,11 @@ if [[ ! -f "${CLAUDE_PLUGIN_ROOT}/templates/host-project/dso" ]]; then
     echo "ERROR: shim template missing at ${CLAUDE_PLUGIN_ROOT}/templates/host-project/dso" >&2
     exit 1
 fi
-if [[ "${_INITIAL_DSO_INSTALLED:-false}" == "true" ]]; then
+# Read the snapshot persisted by Phase 3 Step 0 (scratchpad — shell exports do not
+# persist across separately-evaluated bash blocks in this skill).
+INITIAL_INSTALLED=$(grep -E "^_INITIAL_DSO_INSTALLED=" "$SCRATCHPAD" 2>/dev/null \
+    | tail -1 | cut -d= -f2)
+if [[ "${INITIAL_INSTALLED:-false}" == "true" ]]; then
     bash "$PLUGIN_SCRIPTS/update-shim.sh" "$REPO_ROOT"  # shim-exempt: bootstrap repair
 else
     bash "$PLUGIN_SCRIPTS/onboarding/dso-setup.sh" "$REPO_ROOT" "${CLAUDE_PLUGIN_ROOT}"  # shim-exempt: bootstrap install
