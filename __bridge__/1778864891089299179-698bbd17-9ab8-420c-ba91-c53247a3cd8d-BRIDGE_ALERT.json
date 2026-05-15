@@ -1,0 +1,1 @@
+{"event_type": "BRIDGE_ALERT", "timestamp": 1778864891089299179, "uuid": "698bbd17-9ab8-420c-ba91-c53247a3cd8d", "env_id": "87bd1065-0264-4126-94b7-ae8c71b8d506", "ticket_id": "__bridge__", "data": {"reason": "1395-commit cap exceeded (cap=500): chunking"}}
