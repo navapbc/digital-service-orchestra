@@ -354,9 +354,18 @@ PYEOF
 
     # 3. Create ticket only if not already set (idempotent retry)
     if [[ -z "$ticket_id" ]]; then
-        local short_body="${comment_body:0:100}"
-        local create_output=""
-        local create_rc=0
+        # Build a slug: strip leading non-alphanumerics, collapse newlines,
+        # cap at 80 chars. Fixes uninformative titles like
+        # "PR comment deferred:" when the body begins with whitespace or
+        # punctuation (taut-onset-gauge).
+        local slug
+        slug=$(printf '%s' "$comment_body" \
+            | tr '\n\r' '  ' \
+            | sed -E 's/^[^[:alnum:]]+//; s/[[:space:]]+/ /g')
+        slug="${slug:0:80}"
+        local pr_tag="pr-${pr_number}-deferred"
+        local title="[PR #${pr_number}] Deferred review comment: ${slug}"
+
         # Resolve dso CLI: prefer PATH-visible 'dso' (interceptable by test stubs)
         # before falling back to the host project shim.
         local _dso_cmd
@@ -365,21 +374,67 @@ PYEOF
         else
             _dso_cmd=".claude/scripts/dso"
         fi
-        create_output=$("$_dso_cmd" ticket create task \
-            "PR comment deferred: ${short_body}" \
-            --priority 3 \
-            -d "Deferred PR comment body: ${comment_body}" 2>&1) || create_rc=$?
 
-        if (( create_rc != 0 )); then
-            echo "ERROR: defer ticket creation failed for comment $comment_id" >&2
-            return 1
+        # Consolidation lookup: if an open ticket already exists for this PR
+        # tagged pr-<N>-deferred, append a comment instead of minting a new
+        # ticket (fern-joker-hyena). Failures in the lookup fall through to
+        # create — the lookup is an optimisation, not a correctness gate.
+        local existing_consolidation_id=""
+        local list_output=""
+        if list_output=$("$_dso_cmd" ticket list 2>/dev/null); then
+            existing_consolidation_id=$(DSO_LIST_JSON="$list_output" python3 -c '
+import json, os, sys
+tag = sys.argv[1]
+try:
+    data = json.loads(os.environ.get("DSO_LIST_JSON", ""))
+except Exception:
+    sys.exit(0)
+if not isinstance(data, list):
+    sys.exit(0)
+for t in data:
+    if not isinstance(t, dict):
+        continue
+    if t.get("status") in ("closed", "deleted"):
+        continue
+    tags = t.get("tags") or []
+    if tag in tags:
+        tid = t.get("ticket_id") or ""
+        if tid:
+            print(tid)
+            break
+' "$pr_tag" 2>/dev/null || true)
         fi
 
-        # Parse: "Created ticket <id>: ..."
-        ticket_id=$(echo "$create_output" | grep '^Created ticket' | awk '{print $3}' | tr -d ':')
-        if [[ -z "$ticket_id" ]]; then
-            echo "ERROR: could not parse ticket ID from: $create_output" >&2
-            return 1
+        if [[ -n "$existing_consolidation_id" ]]; then
+            local comment_rc=0
+            "$_dso_cmd" ticket comment "$existing_consolidation_id" \
+                "Additional deferred comment from PR #${pr_number} (gh comment ${comment_id}): ${comment_body}" \
+                >/dev/null 2>&1 || comment_rc=$?
+            if (( comment_rc != 0 )); then
+                echo "ERROR: failed to append comment to consolidation ticket $existing_consolidation_id" >&2
+                return 1
+            fi
+            ticket_id="$existing_consolidation_id"
+        else
+            local create_output=""
+            local create_rc=0
+            create_output=$("$_dso_cmd" ticket create task \
+                "$title" \
+                --priority 3 \
+                --tags "$pr_tag" \
+                -d "Deferred PR comment body: ${comment_body}" 2>&1) || create_rc=$?
+
+            if (( create_rc != 0 )); then
+                echo "ERROR: defer ticket creation failed for comment $comment_id" >&2
+                return 1
+            fi
+
+            # Parse: "Created ticket <id>: ..."
+            ticket_id=$(echo "$create_output" | grep '^Created ticket' | awk '{print $3}' | tr -d ':')
+            if [[ -z "$ticket_id" ]]; then
+                echo "ERROR: could not parse ticket ID from: $create_output" >&2
+                return 1
+            fi
         fi
     fi
 
