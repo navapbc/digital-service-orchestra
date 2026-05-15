@@ -58,6 +58,19 @@ if [[ "$key" == "dso.workflow" ]]; then
     exit 0
 fi
 
+# Sentinel lockout for legacy keys — after migration, any read of a legacy key fails fast.
+# IMPORTANT: Do NOT commit .claude/.dso-config-v2-migrated until after S6 legacy-reference
+# cleanup is merged. The sentinel file should be gitignored locally during the S3→S6 window.
+_legacy_keys="merge.strategy enforcement.strategy worktree.isolation_enabled attribution.enabled"
+# shellcheck disable=SC2086  # intentional word-split to print one key per line
+if printf '%s\n' $_legacy_keys | grep -qx "$key" 2>/dev/null; then
+    _sentinel_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+    if [[ -n "$_sentinel_root" && -f "$_sentinel_root/.claude/.dso-config-v2-migrated" ]]; then
+        echo "DSO: '$key' is a legacy config key that has been disabled after migration. To restore, run: git checkout HEAD -- .claude/dso-config.conf" >&2
+        exit 1
+    fi
+fi
+
 # Resolve config file when not specified (.conf only)
 # Resolution order:
 #   1. WORKFLOW_CONFIG_FILE env var (exact file path — highest priority, for test isolation)
