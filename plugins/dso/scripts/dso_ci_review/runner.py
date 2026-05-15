@@ -37,7 +37,7 @@ from dso_ci_review.dispatch import (
 )
 from dso_ci_review.findings import merge_findings, _parse_line_range
 from dso_ci_review.providers.config import AuthError, ConfigError, get_provider
-from dso_ci_review.proximity import compute_proximity_overlap
+from dso_ci_review.proximity import compute_proximity_overlap, validate_escape_rationale
 from dso_ci_review.region_split import _should_region_split, run_region_split
 
 
@@ -684,6 +684,84 @@ def _inter_cycle_diff_modified_region(defense: dict, repo_root: str | None = Non
         return compute_proximity_overlap(normalized_cited, modified)
     except Exception:
         return False
+
+
+def _apply_novelty_gate(
+    findings: list[dict],
+    defenses: list[dict],
+    diff_text: str = '',
+    cycle_number: int = 1,
+) -> tuple[list[dict], dict]:
+    """Downgrade unjustified NEW_INTRODUCED findings on cycle >= 2.
+
+    A finding is 'unjustified' when its relation is NEW_INTRODUCED (or absent),
+    its cited_lines do not overlap any prior defense's cited_lines within +/-5 lines,
+    and its escape_rationale is missing or fails the three-criterion check.
+
+    Returns (processed_findings, stats_dict) where stats_dict has keys:
+        new_introduced_justified, new_introduced_unjustified,
+        resustain_of_count, reframe_of_count
+    """
+    stats: dict[str, int] = {
+        "new_introduced_justified": 0,
+        "new_introduced_unjustified": 0,
+        "resustain_of_count": 0,
+        "reframe_of_count": 0,
+    }
+    if cycle_number < 2:
+        return findings, stats
+
+    result: list[dict] = []
+    for finding in findings:
+        relation = finding.get("relation")
+        if relation is None:
+            import sys as _sys  # noqa: PLC0415
+            print(
+                "WARNING: finding missing relation field — treating as NEW_INTRODUCED "
+                f"(desc: {str(finding.get('description', ''))[:60]})",
+                file=_sys.stderr,
+            )
+            relation = "NEW_INTRODUCED"
+
+        relation_upper = str(relation).upper()
+        if relation_upper == "RESUSTAIN_OF":
+            stats["resustain_of_count"] += 1
+            result.append(finding)
+            continue
+        if relation_upper == "REFRAME_OF":
+            stats["reframe_of_count"] += 1
+            result.append(finding)
+            continue
+
+        # NEW_INTRODUCED (or unrecognized — treated as NEW_INTRODUCED)
+        f_cited = finding.get("cited_lines") or []
+        proximity_anchored = any(
+            compute_proximity_overlap(f_cited, d.get("cited_lines") or [])
+            for d in defenses
+            if d.get("cited_lines")
+        )
+        if proximity_anchored:
+            stats["new_introduced_justified"] += 1
+            result.append(finding)
+            continue
+
+        escape_rationale = str(finding.get("escape_rationale") or "")
+        valid_escape = (
+            validate_escape_rationale(escape_rationale, [], [], diff_text)
+            if escape_rationale
+            else False
+        )
+        if valid_escape:
+            stats["new_introduced_justified"] += 1
+            result.append(finding)
+        else:
+            stats["new_introduced_unjustified"] += 1
+            downgraded = dict(finding)
+            downgraded["severity"] = "suggestion"
+            downgraded["_novelty_gate_reason"] = "unjustified-novelty-claim"
+            result.append(downgraded)
+
+    return result, stats
 
 
 def _suppress_defended_findings(
@@ -1361,6 +1439,28 @@ def main() -> int:
                     )
                     merged = dict(merged)
                     merged["findings"] = filtered
+
+            # Novelty gate: downgrade unjustified NEW_INTRODUCED findings on cycle >= 2
+            if cycle_number >= 2:
+                _gated_findings, _novelty_stats = _apply_novelty_gate(
+                    merged.get("findings") or [],
+                    prior_defenses,
+                    diff_text,
+                    cycle_number,
+                )
+                if _novelty_stats.get("new_introduced_unjustified", 0) > 0:
+                    print(
+                        f"INFO: cycle {cycle_number} — novelty gate downgraded "
+                        f"{_novelty_stats['new_introduced_unjustified']} finding(s) "
+                        "(unjustified NEW_INTRODUCED outside prior defense window)",
+                        file=sys.stderr,
+                    )
+                print(
+                    f"INFO: cycle {cycle_number} — relation distribution: {_novelty_stats}",
+                    file=sys.stderr,
+                )
+                merged = dict(merged)
+                merged["findings"] = _gated_findings
 
         # Step 7a.5: early-exit for all-specialist-errors.
         # specialist_error findings may be schema-invalid (they lack cited_lines etc.),

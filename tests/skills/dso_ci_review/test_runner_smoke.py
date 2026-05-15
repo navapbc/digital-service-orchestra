@@ -2472,11 +2472,13 @@ def test_runner_cycle2_deep_tier_partial_failure_with_defenses(tmp_path):
                 "severity": "critical",
                 "description": defended_desc,
                 "cited_lines": ["auth/handler.py:5"],
+                "relation": "RESUSTAIN_OF",
             },
             {
                 "severity": "important",
                 "description": "real correctness issue in handler",
                 "cited_lines": ["auth/handler.py:1"],
+                "relation": "RESUSTAIN_OF",
             },
         ],
         "scores": {"correctness": 2, "verification": 3},
