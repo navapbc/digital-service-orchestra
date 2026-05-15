@@ -592,16 +592,18 @@ def test_bridge_commit_cap_float_string_falls_back_to_default(
     assert len(events) == 2
 
 
-def test_bridge_commit_cap_negative_int_is_accepted(
+def test_bridge_commit_cap_negative_int_falls_back_to_default(
     tmp_path: Path, cursor_mod: ModuleType, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """BRIDGE_COMMIT_CAP='-100' parses cleanly via int().
+    """BRIDGE_COMMIT_CAP='-100' is rejected and falls back to default cap.
 
-    Current behavior pins the observed semantics: a negative int IS a valid
-    int and is accepted (the cap-exceeded path fires since len(distinct_shas)
-    > -100 is always true), so the chunk path runs. The test documents the
-    intentional behavior; a future negative-rejection change must update this
-    test consciously.
+    Negative caps would silently stall the chunked-advance loop (the break
+    condition `len(chunk_shas) >= effective_cap` is `0 >= -100` which is true
+    on the first iteration, so chunk_shas stays empty and zero events come
+    back — and process_events only advances the cursor when events_with_sha
+    is non-empty, so the cursor never moves). To avoid this silent stall on
+    an operator typo, parse-time validation rejects negative caps the same
+    way it rejects unparseable strings, falling back to the default cap.
     """
     repo = _make_tmp_git_tracker(tmp_path)
     initial_sha, _ = _commit_event(repo, "ticket-base", "CREATE")
@@ -609,15 +611,9 @@ def test_bridge_commit_cap_negative_int_is_accepted(
     _commit_n_status(repo, 3)
 
     monkeypatch.setenv("BRIDGE_COMMIT_CAP", "-100")
-    # Negative effective_cap > 0 is False, so the fail-loud branch doesn't
-    # fire. The chunking loop hits its `break` before adding any shas (cap=-100),
-    # so chunk_shas is empty and zero events come back. This is what the
-    # current implementation produces; pin it.
     events = cursor_mod.fetch_events_since_cursor(repo, initial_sha, cap=500)
-    # Acceptance criterion: it does NOT crash with ValueError and does NOT
-    # raise the fail-loud RuntimeError. The returned event count is
-    # implementation-defined for negative caps.
-    assert isinstance(events, list)
+    # With fallback to cap=500, all 3 commits fit under the cap and are returned.
+    assert len(events) == 3
 
 
 # ---------------------------------------------------------------------------
