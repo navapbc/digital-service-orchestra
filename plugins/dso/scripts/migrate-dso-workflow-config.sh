@@ -202,6 +202,9 @@ TMPFILE=$(mktemp "$TARGET_ROOT/.claude/dso-config.conf.XXXXXX")
     done < "$CONFIG"
 } > "$TMPFILE"
 
+# Flush temp file to disk before atomic rename
+python3 -c "import os; f=open('$TMPFILE','rb'); os.fsync(f.fileno()); f.close()" 2>/dev/null || sync
+
 # Backup original
 cp "$CONFIG" "$BACKUP"
 # Atomic rename

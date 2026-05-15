@@ -310,5 +310,54 @@ fi
 assert_eq "test_migrator_already_migrated_noop: sentinel present" "present" "$_am_sentinel"
 assert_pass_if_clean "test_migrator_already_migrated_noop"
 
+# ── test_migrator_rejects_crlf_line_endings ──────────────────────────────────
+# Config with CRLF line endings must cause the migrator to exit non-zero and
+# leave the file unmodified.
+_snapshot_fail
+_make_fixture ""
+# Write config with CRLF line endings (printf to avoid shell newline translation)
+printf 'merge.strategy=pr\r\nenforcement.strategy=ci\r\n' > "$FIXTURE_CONF"
+_conf_before_crlf="$(cat "$FIXTURE_CONF")"
+_crlf_exit=0
+bash "$MIGRATE_SCRIPT" "$FIXTURE_DIR" >/dev/null 2>&1 || _crlf_exit=$?
+assert_ne "test_migrator_rejects_crlf_line_endings: exits non-zero" "0" "$_crlf_exit"
+_conf_after_crlf="$(cat "$FIXTURE_CONF" 2>/dev/null)"
+if [ "$_conf_before_crlf" = "$_conf_after_crlf" ]; then
+    _crlf_unchanged="yes"
+else
+    _crlf_unchanged="no"
+fi
+assert_eq "test_migrator_rejects_crlf_line_endings: config not modified" "yes" "$_crlf_unchanged"
+assert_pass_if_clean "test_migrator_rejects_crlf_line_endings"
+
+# ── test_migrator_backup_detection_blocks_rerun ───────────────────────────────
+# When a prior backup file already exists, the migrator must exit non-zero and
+# leave both the config and the backup unmodified.
+_snapshot_fail
+_make_fixture "merge.strategy=pr
+enforcement.strategy=ci"
+# Pre-create backup from a prior failed run
+printf 'merge.strategy=pr\nenforcement.strategy=ci\n' > "$FIXTURE_DIR/.claude/dso-config.conf.pre-migrate-backup"
+_conf_before_bd="$(cat "$FIXTURE_CONF")"
+_backup_before_bd="$(cat "$FIXTURE_DIR/.claude/dso-config.conf.pre-migrate-backup")"
+_bd_exit=0
+bash "$MIGRATE_SCRIPT" "$FIXTURE_DIR" >/dev/null 2>&1 || _bd_exit=$?
+assert_ne "test_migrator_backup_detection_blocks_rerun: exits non-zero" "0" "$_bd_exit"
+_conf_after_bd="$(cat "$FIXTURE_CONF" 2>/dev/null)"
+if [ "$_conf_before_bd" = "$_conf_after_bd" ]; then
+    _bd_conf_unchanged="yes"
+else
+    _bd_conf_unchanged="no"
+fi
+assert_eq "test_migrator_backup_detection_blocks_rerun: config not modified" "yes" "$_bd_conf_unchanged"
+_backup_after_bd="$(cat "$FIXTURE_DIR/.claude/dso-config.conf.pre-migrate-backup" 2>/dev/null)"
+if [ "$_backup_before_bd" = "$_backup_after_bd" ]; then
+    _bd_backup_unchanged="yes"
+else
+    _bd_backup_unchanged="no"
+fi
+assert_eq "test_migrator_backup_detection_blocks_rerun: backup not overwritten" "yes" "$_bd_backup_unchanged"
+assert_pass_if_clean "test_migrator_backup_detection_blocks_rerun"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary
