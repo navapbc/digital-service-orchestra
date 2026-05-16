@@ -132,9 +132,9 @@ _TS=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "unknown")
 .claude/scripts/dso ticket comment <primary_ticket_id> "WORKTREE_TRACKING:start branch=${_BRANCH} session_branch=${_BRANCH} timestamp=${_TS}" 2>/dev/null || true
 ```
 
-**Set vars.SPRINT_SESSION_ID**: Set the `SPRINT_SESSION_ID` repo variable so `sprint-story-review.yml` can fetch the session branch for per-story delta scoping. PATCH first (update existing); POST as fallback (initial creation). `|| true` ensures failure (no gh auth, no `actions:write` permission, fork repo) does not block sprint execution.
+**Set vars.SPRINT_SESSION_ID**: Set the `SPRINT_SESSION_ID` repo variable so `per-branch-review.yml` can fetch the session branch for per-story delta scoping. PATCH first (update existing); POST as fallback (initial creation). `|| true` ensures failure (no gh auth, no `actions:write` permission, fork repo) does not block sprint execution.
 ```bash
-# Set vars.SPRINT_SESSION_ID so sprint-story-review.yml can fetch the session branch.
+# Set vars.SPRINT_SESSION_ID so per-branch-review.yml can fetch the session branch.
 _SESSION_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
 _GH_REPO=$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null || true)
 if [[ -n "$_GH_REPO" ]]; then

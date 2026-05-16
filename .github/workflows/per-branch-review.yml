@@ -96,7 +96,7 @@ jobs:
       - name: Sanitize artifact name
         run: |
           SAFE_NAME="${GITHUB_REF_NAME//\//-}"
-          echo "ARTIFACT_NAME=sprint-story-review-${SAFE_NAME}" >> "$GITHUB_ENV"
+          echo "ARTIFACT_NAME=per-branch-review-${SAFE_NAME}" >> "$GITHUB_ENV"
 
       - name: Fetch session branch
         env:
