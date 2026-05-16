@@ -157,4 +157,47 @@ else
 fi
 assert_pass_if_clean "test_review_needs_mirror_tracker_defenses"
 
+# ── test_resolve_base_script_present_and_executable ──────────────────────────
+# Bug 3914-0848-faad-4f6a: the diff-base resolution chain (PR base →
+# SPRINT_SESSION_ID → main, with existence validation) lives in a
+# unit-tested script. The workflow delegates to it. Resolver behavior is
+# covered exhaustively in tests/scripts/test-resolve-per-branch-review-base.sh
+# (5 behavioral tests). This test merely verifies the script's presence and
+# that the workflow invokes it (structural integration check).
+_snapshot_fail
+RESOLVE_SCRIPT="$REPO_ROOT/plugins/dso/scripts/resolve-per-branch-review-base.sh"
+script_present=0
+[[ -f "$RESOLVE_SCRIPT" && -x "$RESOLVE_SCRIPT" ]] && script_present=1
+assert_eq "test_resolve_base_script_present_and_executable: resolver script exists and is executable" "1" "$script_present"
+assert_pass_if_clean "test_resolve_base_script_present_and_executable"
+
+# ── test_workflow_invokes_resolve_base_script ────────────────────────────────
+# The workflow must delegate diff-base resolution to the resolver script
+# (not inline bash). This is a thin structural integration check — full
+# resolver behavior is in the script's own behavioral test file.
+_snapshot_fail
+if [[ ! -f "$WORKFLOW_FILE" ]]; then
+    assert_eq "test_workflow_invokes_resolve_base_script: workflow file present (prereq)" "1" "0"
+else
+    invokes=0
+    grep -qF "resolve-per-branch-review-base.sh" "$WORKFLOW_FILE" 2>/dev/null && invokes=1 || true
+    assert_eq "test_workflow_invokes_resolve_base_script: workflow delegates to resolver script" "1" "$invokes"
+fi
+assert_pass_if_clean "test_workflow_invokes_resolve_base_script"
+
+# ── test_workflow_emits_suspicious_diff_warning ──────────────────────────────
+# The compute step must emit a ::warning:: directive when the resolved diff
+# exceeds the suspicious-diff threshold (default 1500 lines). This alerts
+# operators to potential BASE_REF mis-resolution rather than silently
+# producing a wrong-scoped review.
+_snapshot_fail
+if [[ ! -f "$WORKFLOW_FILE" ]]; then
+    assert_eq "test_workflow_emits_suspicious_diff_warning: workflow file present (prereq)" "1" "0"
+else
+    emits=0
+    grep -qF "::warning::" "$WORKFLOW_FILE" 2>/dev/null && emits=1 || true
+    assert_eq "test_workflow_emits_suspicious_diff_warning: workflow uses ::warning:: directive" "1" "$emits"
+fi
+assert_pass_if_clean "test_workflow_emits_suspicious_diff_warning"
+
 print_summary
