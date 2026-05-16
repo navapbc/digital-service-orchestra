@@ -181,7 +181,21 @@ def main() -> int:
     args = parser.parse_args()
 
     tracker_dir = _get_tracker_dir()
-    ready = find_ready_tickets(tracker_dir, epic_filter=args.epic)
+
+    epic_filter = args.epic
+    if epic_filter:
+        _scripts_dir = os.path.dirname(os.path.abspath(__file__))
+        if _scripts_dir not in sys.path:
+            sys.path.insert(0, _scripts_dir)
+        from ticket_resolver import resolve_ticket_id
+
+        resolved = resolve_ticket_id(epic_filter, tracker_dir)
+        if resolved is None:
+            print(f"Error: epic '{epic_filter}' does not exist", file=sys.stderr)
+            return 1
+        epic_filter = resolved
+
+    ready = find_ready_tickets(tracker_dir, epic_filter=epic_filter)
 
     if args.format == "llm":
         from ticket_reducer.llm_format import to_llm  # noqa: PLC0415

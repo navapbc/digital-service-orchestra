@@ -78,6 +78,9 @@ __all__ = [
 # ---------------------------------------------------------------------------
 
 
+from ticket_resolver import resolve_ticket_id as _resolve_ticket_id  # noqa: E402
+
+
 def main() -> int:
     """CLI entry point."""
     args = sys.argv[1:]
@@ -124,8 +127,10 @@ def main() -> int:
                 file=sys.stderr,
             )
             return 1
-        source_id = pos_args[0]
-        target_id = pos_args[1]
+        raw_source = pos_args[0]
+        raw_target = pos_args[1]
+        source_id = _resolve_ticket_id(raw_source, tracker_dir) or raw_source
+        target_id = _resolve_ticket_id(raw_target, tracker_dir) or raw_target
         result = resolve_hierarchy_link(source_id, target_id, tracker_dir)
         print(json.dumps(result, ensure_ascii=False))
         if "error" in result:
@@ -145,18 +150,18 @@ def main() -> int:
                 file=sys.stderr,
             )
             return 1
-        source_id = args[1]
-        target_id = args[2]
+        raw_source = args[1]
+        raw_target = args[2]
         relation = args[3]
         tracker_dir, _ = _find_tracker_dir([])
 
-        source_dir = os.path.join(tracker_dir, source_id)
-        target_dir = os.path.join(tracker_dir, target_id)
-        if not os.path.isdir(source_dir):
-            print(f"Error: ticket '{source_id}' does not exist", file=sys.stderr)
+        source_id = _resolve_ticket_id(raw_source, tracker_dir)
+        if source_id is None:
+            print(f"Error: ticket '{raw_source}' does not exist", file=sys.stderr)
             return 1
-        if not os.path.isdir(target_dir):
-            print(f"Error: ticket '{target_id}' does not exist", file=sys.stderr)
+        target_id = _resolve_ticket_id(raw_target, tracker_dir)
+        if target_id is None:
+            print(f"Error: ticket '{raw_target}' does not exist", file=sys.stderr)
             return 1
 
         try:
@@ -183,12 +188,13 @@ def main() -> int:
         )
         return 1
 
-    ticket_id = remaining_args[0]
+    raw_ticket_id = remaining_args[0]
+    ticket_id = _resolve_ticket_id(raw_ticket_id, tracker_dir)
+    if ticket_id is None:
+        print(f"Error: ticket '{raw_ticket_id}' does not exist", file=sys.stderr)
+        return 1
 
     ticket_dir = os.path.join(tracker_dir, ticket_id)
-    if not os.path.isdir(ticket_dir):
-        print(f"Error: ticket '{ticket_id}' does not exist", file=sys.stderr)
-        return 1
 
     if not include_archived:
         try:

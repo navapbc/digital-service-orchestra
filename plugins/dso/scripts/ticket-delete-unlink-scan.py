@@ -59,8 +59,19 @@ def main() -> None:
         )
         sys.exit(1)
 
-    tracker_dir, deleted_id, env_id, author = sys.argv[1:]
+    tracker_dir, raw_deleted_id, env_id, author = sys.argv[1:]
     tracker_path = Path(tracker_dir)
+
+    import os as _os
+    _scripts_dir = _os.path.dirname(_os.path.abspath(__file__))
+    if _scripts_dir not in sys.path:
+        sys.path.insert(0, _scripts_dir)
+    from ticket_resolver import resolve_ticket_id
+
+    deleted_id = resolve_ticket_id(raw_deleted_id, tracker_dir)
+    if deleted_id is None:
+        print(f"Error: ticket '{raw_deleted_id}' does not exist", file=sys.stderr)
+        sys.exit(1)
 
     all_states = reduce_all_tickets(tracker_dir)
 
