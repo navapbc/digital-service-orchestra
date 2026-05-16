@@ -936,7 +936,89 @@ test_merge_commits_preserved_not_redistributed
 test_dirty_worktree_refused_without_force
 test_publish_skips_session_branch_collision
 test_publish_refuses_preexisting_local_branch
+# ── Test 13: SPLIT phase filters cross-pollinated files per story (bug cf84) ─
+# A SPLIT commit's diff must be partitioned by file scope — each story
+# branch receives ONLY the files in that commit that match the story's
+# declared scope. Observed on epic d076 commits 6def60b4c2 and 964e7a627963
+# where bulk-cherry-pick duplicated cross-pollinated files into every matched
+# story's branch. (Test function defined here for invocation below.)
+test_publish_split_filters_files_per_story() {
+    local tmpdir repo
+    tmpdir="$(make_tmpdir)"
+    repo="$tmpdir/repo"
+    mkdir -p "$repo"
+    init_git_repo "$repo"
+
+    # Cross-pollinated commit: trailer says story-a but creates both a.sh + b.sh.
+    git -C "$repo" checkout -q -b "worktree-cf84-session"
+    echo "a-content" > "$repo/a.sh"
+    echo "b-content" > "$repo/b.sh"
+    git -C "$repo" add a.sh b.sh
+    git -C "$repo" commit -q -m "feat: cross-pollinated
+
+DSO-Story: story-a-001"
+
+    local mock_scripts="$tmpdir/scripts"
+    mkdir -p "$mock_scripts"
+    cat > "$mock_scripts/resolve-session-branch.sh" << 'MOCKEOF'
+#!/usr/bin/env bash
+echo "worktree-cf84-session"
+exit 0
+MOCKEOF
+    chmod +x "$mock_scripts/resolve-session-branch.sh"
+
+    local ticket_json="$tmpdir/tickets.json"
+    cat > "$ticket_json" << 'MOCKEOF'
+[
+    {"id":"story-a-001","type":"story","title":"A","description":"a.sh"},
+    {"id":"story-b-001","type":"story","title":"B","description":"b.sh"}
+]
+MOCKEOF
+
+    local mock_bin="$tmpdir/bin"
+    mkdir -p "$mock_bin"
+    cat > "$mock_bin/gh" << 'MOCKEOF'
+#!/usr/bin/env bash
+exit 0
+MOCKEOF
+    chmod +x "$mock_bin/gh"
+
+    cat > "$mock_scripts/merge-to-main-pr.sh" << 'MOCKEOF'
+#!/usr/bin/env bash
+exit 0
+MOCKEOF
+    chmod +x "$mock_scripts/merge-to-main-pr.sh"
+
+    PATH="$mock_bin:$PATH" \
+        DSO_RESOLVE_SESSION_BRANCH="$mock_scripts/resolve-session-branch.sh" \
+        DSO_TICKET_LIST_OVERRIDE="$ticket_json" \
+        DSO_MERGE_TO_MAIN_PR_OVERRIDE="$mock_scripts/merge-to-main-pr.sh" \
+        GIT_DIR="$repo/.git" \
+        GIT_WORK_TREE="$repo" \
+        bash "$SCRIPT" --epic "epic-cf" >/dev/null 2>&1 || true
+
+    # Wait for background PR-open processes to flush before inspecting branches
+    wait 2>/dev/null || true
+
+    # Assertion 1: story-a branch has a.sh, NOT b.sh
+    local _files_on_a _a_has_a _a_has_b
+    _files_on_a="$(git -C "$repo" ls-tree --name-only "story/epic-cf/story-a-001" 2>/dev/null | sort | tr '\n' ' ')"
+    if echo "$_files_on_a" | grep -qw "a.sh"; then _a_has_a="yes"; else _a_has_a="no"; fi
+    if echo "$_files_on_a" | grep -qw "b.sh"; then _a_has_b="yes"; else _a_has_b="no"; fi
+    assert_eq "test_publish_split_filters_files_per_story: story-a branch HAS a.sh" "yes" "$_a_has_a"
+    assert_eq "test_publish_split_filters_files_per_story: story-a branch does NOT have b.sh (cross-pollution filtered out)" "no" "$_a_has_b"
+
+    # Assertion 2: story-b branch has b.sh, NOT a.sh
+    local _files_on_b _b_has_a _b_has_b
+    _files_on_b="$(git -C "$repo" ls-tree --name-only "story/epic-cf/story-b-001" 2>/dev/null | sort | tr '\n' ' ')"
+    if echo "$_files_on_b" | grep -qw "a.sh"; then _b_has_a="yes"; else _b_has_a="no"; fi
+    if echo "$_files_on_b" | grep -qw "b.sh"; then _b_has_b="yes"; else _b_has_b="no"; fi
+    assert_eq "test_publish_split_filters_files_per_story: story-b branch HAS b.sh" "yes" "$_b_has_b"
+    assert_eq "test_publish_split_filters_files_per_story: story-b branch does NOT have a.sh (cross-pollution filtered out)" "no" "$_b_has_a"
+}
+
 test_publish_continues_past_cherry_pick_failure
 test_publish_runs_merge_script_in_background
+test_publish_split_filters_files_per_story
 
 print_summary
