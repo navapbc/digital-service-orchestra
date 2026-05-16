@@ -175,6 +175,13 @@ trap _cleanup_t5 EXIT
 cat > "$_T5_TMP_BIN/gh" << GHSTUB
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >> "$_T5_GH_CALL_LOG"
+case "\$1" in
+  "--version")
+    # merge-to-main-pr.sh version gate requires "gh version X.Y.Z" on line 1
+    echo "gh version 2.40.1 (2024-01-01)"
+    exit 0
+    ;;
+esac
 case "\$1 \$2" in
   "pr create")
     echo "https://github.com/example/repo/pull/42"
@@ -204,6 +211,11 @@ chmod +x "$_T5_TMP_BIN/gh"
 # Build a git stub that returns predictable values without needing a real repo
 cat > "$_T5_TMP_BIN/git" << 'GITSTUB'
 #!/usr/bin/env bash
+# Strip leading -C <path> argument if present so downstream case matching works
+_args=("$@")
+if [[ "${_args[0]:-}" == "-C" ]]; then
+    shift 2
+fi
 case "$1 $2" in
   "remote get-url")
     echo "https://github.com/example/test-repo.git"
@@ -218,9 +230,47 @@ case "$1 $2" in
     echo "REPO_ROOT_PLACEHOLDER"
     exit 0
     ;;
+  "branch --show-current")
+    echo "story/test-epic/test-story-001"
+    exit 0
+    ;;
+  "push -u")
+    # Stub out push — no real remote needed in test
+    exit 0
+    ;;
+  "fetch origin")
+    # Stub fetch — no-op in test
+    exit 0
+    ;;
+  "log -1")
+    echo "Test commit message"
+    exit 0
+    ;;
+  "merge-base --is-ancestor")
+    # Pretend local is already up-to-date (ancestor check passes) so no rebase needed
+    exit 0
+    ;;
+esac
+case "$1" in
+  "push")
+    # Catch all push variants — no real remote needed in test
+    exit 0
+    ;;
+  "fetch")
+    # Catch all fetch variants — no-op in test
+    exit 0
+    ;;
+  "pull")
+    # Catch all pull variants — no-op in test
+    exit 0
+    ;;
+  "rebase")
+    # Stub rebase — no-op in test
+    exit 0
+    ;;
 esac
 # Fall through to real git for anything else
-exec /usr/bin/git "$@"
+exec /usr/bin/git "${_args[@]}"
 GITSTUB
 sed -i '' "s|REPO_ROOT_PLACEHOLDER|$REPO_ROOT|g" "$_T5_TMP_BIN/git"
 chmod +x "$_T5_TMP_BIN/git"
