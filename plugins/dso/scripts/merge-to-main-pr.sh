@@ -433,6 +433,10 @@ _phase_merge() {
     # have created a draft PR earlier in the session. `gh pr create` fails with
     # "a pull request already exists" for both draft and non-draft PRs, so we
     # must detect and reuse any existing draft before calling `gh pr create`.
+    local _pr_base
+    _pr_base="${STORY_PR_BASE:-main}"
+    [[ -z "$_pr_base" ]] && _pr_base="main"
+
     local _draft_pr_json _final_url _pr_number
     _draft_pr_json=$(gh pr list --head "$BRANCH" --state open \
         --json number,url,isDraft 2>/dev/null || true)
@@ -446,7 +450,7 @@ _phase_merge() {
     else
         # No existing draft PR — create a new one.
         local _pr_url _pr_create_rc=0
-        _pr_url=$(gh pr create --base main --head "$BRANCH" \
+        _pr_url=$(gh pr create --base "$_pr_base" --head "$BRANCH" \
                               --title "$_title" --body "$_body" 2>&1) || _pr_create_rc=$?
         if [[ "$_pr_create_rc" -ne 0 ]]; then
             # Handle race condition: another process may have created the PR between our
