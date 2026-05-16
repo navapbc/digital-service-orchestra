@@ -5640,5 +5640,47 @@ EOF
 t_draft_pr_promoted_to_ready
 
 # ---------------------------------------------------------------------------
+# Bug 17b7-80ff-2317-4587: MERGE_STRATEGY should be derived from config when
+# unset, not require external env injection from the dispatcher only.
+# ---------------------------------------------------------------------------
+t_merge_strategy_derived_from_config_when_unset() {
+    # Build a minimal config with dso.workflow=ci-pr
+    local _tmp _cfg
+    _tmp="$(mktemp -d)"
+    _cfg="$_tmp/dso-config.conf"
+    cat > "$_cfg" << EOF
+dso.workflow=ci-pr
+merge.strategy=pr
+EOF
+
+    # Run with MERGE_STRATEGY UNSET, PR_LIB_MODE=0 (not lib mode), config in place.
+    # No arguments — script proceeds past argument parsing into the required-env
+    # block at line 57 where the assertion currently bails.
+    local _stderr_log _exit
+    _stderr_log="$_tmp/stderr.log"
+    _exit=0
+    (
+        unset MERGE_STRATEGY
+        WORKFLOW_CONFIG_FILE="$_cfg" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        bash "$PR_SCRIPT" 2>"$_stderr_log" >/dev/null
+    ) || _exit=$?
+
+    # Behavioral guarantee of the fix: stderr must NOT contain
+    # "MERGE_STRATEGY must be set". Script may fail downstream for other reasons
+    # (no git context, no PR state, etc.) but must derive MERGE_STRATEGY from
+    # the config BEFORE the un-derived assertion fires.
+    local _bad_msg_present="no"
+    if grep -q "MERGE_STRATEGY must be set" "$_stderr_log" 2>/dev/null; then
+        _bad_msg_present="yes"
+    fi
+    assert_eq "t_merge_strategy_derived_from_config: stderr does NOT bail on MERGE_STRATEGY assertion when config sets dso.workflow=ci-pr" \
+        "no" "$_bad_msg_present"
+
+    rm -rf "$_tmp"
+}
+t_merge_strategy_derived_from_config_when_unset
+
+# ---------------------------------------------------------------------------
 # end of file
 print_summary
