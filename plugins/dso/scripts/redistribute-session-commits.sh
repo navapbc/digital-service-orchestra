@@ -131,7 +131,19 @@ echo "▶ Phase 2: ATTRIBUTE"
 # Story scope = set of file path tokens (anything looking like a path or
 # basename) extracted from the story's description.
 declare -A STORY_SCOPE  # story_id -> newline-separated tokens
+STORY_SCOPE=()          # explicit init so ${#STORY_SCOPE[@]} is safe under set -u
 
+# _extract_path_tokens <description-text>  → newline-separated unique tokens
+_extract_path_tokens() {
+    echo "$1" \
+        | tr -c 'A-Za-z0-9_./-' '\n' \
+        | awk 'length>0 && ($0 ~ /\// || $0 ~ /\.(sh|txt|yml|yaml|py|md|json|js|ts|sql|html|css)$/)' \
+        | sort -u
+}
+
+# Override path: callers provide a JSON file in either of two formats
+#   (a) flat array of {id, description, type} objects (legacy)
+#   (b) {"stories": [{...}], "tasks": [...]} with description fields
 _load_stories_from_json() {
     local json_file="$1"
     [[ -f "$json_file" ]] || return 0
@@ -139,37 +151,52 @@ _load_stories_from_json() {
         echo "  WARN: jq not available; cannot parse ticket data" >&2
         return 0
     fi
-    # Emit: <id>\t<description> per story
     local lines
     lines="$(jq -r '
-        (if type=="array" then . else .issues // [] end)
-        | map(select(.type=="story" or .type=="task"))
-        | .[] | [.id, (.description // "")] | @tsv
+        (
+          if type=="array" then .
+          elif (.stories?|type=="array") and (.stories[0]?|type=="object") then (.stories + (.tasks // []))
+          elif (.issues?|type=="array") then .issues
+          else []
+          end
+        )
+        | map(select(.type=="story" or .type=="task" or .ticket_type=="story" or .ticket_type=="task"))
+        | .[] | [(.id // .ticket_id // ""), (.description // "")] | @tsv
     ' "$json_file" 2>/dev/null || true)"
     while IFS=$'\t' read -r _id _desc; do
         [[ -z "$_id" ]] && continue
-        # Extract path-like tokens: words containing "/" or matching common
-        # filename patterns (e.g. *.sh, *.txt, *.yml, *.py, *.md).
-        local tokens
-        tokens="$(echo "$_desc" \
-            | tr -c 'A-Za-z0-9_./-' '\n' \
-            | awk 'length>0 && ($0 ~ /\// || $0 ~ /\.(sh|txt|yml|yaml|py|md|json|js|ts|sql|html|css)$/)' \
-            | sort -u)"
-        STORY_SCOPE["$_id"]="$tokens"
+        STORY_SCOPE["$_id"]="$(_extract_path_tokens "$_desc")"
     done <<< "$lines"
+}
+
+# Real-CLI path: list-descendants emits {"stories":["id1","id2",...]} (flat IDs);
+# for each story, run `ticket show <id>` to fetch the description, then extract tokens.
+_load_stories_from_shim() {
+    local shim="$1" epic="$2"
+    local list_json
+    list_json="$("$shim" ticket list-descendants "$epic" 2>/dev/null || true)"
+    [[ -z "$list_json" ]] && return 0
+    if ! command -v jq >/dev/null 2>&1; then
+        echo "  WARN: jq not available; cannot parse ticket data" >&2
+        return 0
+    fi
+    local story_ids
+    story_ids="$(echo "$list_json" | jq -r '((.stories // []) + (.tasks // []))[]' 2>/dev/null || true)"
+    [[ -z "$story_ids" ]] && return 0
+    while IFS= read -r _id; do
+        [[ -z "$_id" ]] && continue
+        local _desc
+        _desc="$("$shim" ticket show "$_id" 2>/dev/null | jq -r '.description // ""' 2>/dev/null || true)"
+        STORY_SCOPE["$_id"]="$(_extract_path_tokens "$_desc")"
+    done <<< "$story_ids"
 }
 
 if [[ -n "${DSO_TICKET_LIST_OVERRIDE:-}" ]]; then
     _load_stories_from_json "$DSO_TICKET_LIST_OVERRIDE"
 else
-    # Try real ticket CLI via dso shim
     _shim=".claude/scripts/dso"
     if [[ -x "$_shim" ]]; then
-        _tmp_json="$(mktemp)"
-        if "$_shim" ticket list-descendants "$EPIC_ID" 2>/dev/null > "$_tmp_json"; then
-            _load_stories_from_json "$_tmp_json"
-        fi
-        rm -f "$_tmp_json"
+        _load_stories_from_shim "$_shim" "$EPIC_ID"
     fi
 fi
 
