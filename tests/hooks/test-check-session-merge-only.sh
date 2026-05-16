@@ -27,7 +27,18 @@ source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # ── Cleanup on exit ──────────────────────────────────────────────────────────
 _TEST_TMPDIRS=()
+# Track linked worktrees so they can be unregistered before their parent repo
+# is removed. Each entry is "MAIN_REPO|WT_DIR".
+_TEST_LINKED_WORKTREES=()
 _cleanup_test_tmpdirs() {
+    # Unregister linked worktrees first so the parent repo's worktree config
+    # is cleaned up rather than left with stale entries (per CI review).
+    for entry in "${_TEST_LINKED_WORKTREES[@]:-}"; do
+        [[ -z "$entry" ]] && continue
+        local _main="${entry%%|*}"
+        local _wt="${entry##*|}"
+        [[ -d "$_main/.git" ]] && git -C "$_main" worktree remove --force "$_wt" 2>/dev/null || true
+    done
     for d in "${_TEST_TMPDIRS[@]}"; do
         rm -rf "$d" 2>/dev/null || true
     done
@@ -64,7 +75,12 @@ make_linked_worktree() {
     _TEST_TMPDIRS+=("$wt_dir")
 
     # Create a linked worktree on a new branch off the existing HEAD.
-    git -C "$main_repo" worktree add -q -b test-wt "$wt_dir" >/dev/null 2>&1
+    # Branch name is randomized so callers can invoke this helper multiple
+    # times against the same main_repo (and so multiple concurrent test files
+    # never collide on the branch name).
+    local branch_name="test-wt-$$-${RANDOM}"
+    git -C "$main_repo" worktree add -q -b "$branch_name" "$wt_dir" >/dev/null 2>&1
+    _TEST_LINKED_WORKTREES+=("$main_repo|$wt_dir")
     echo "$wt_dir"
 }
 
@@ -230,6 +246,24 @@ test_both_markers_sprint_escape_only_still_rejects() {
         "0" "$exit_code"
 }
 
+# ── Test 9: both markers + both env vars = 0 → accepted ───────────────────────
+test_both_markers_both_escapes_accepted() {
+    local _repo _artifacts_dir
+    _repo=$(make_git_repo_with_commit)
+    _artifacts_dir=$(mktemp -d)
+    _TEST_TMPDIRS+=("$_artifacts_dir")
+    touch "$_repo/.sprint-active"
+    touch "$_repo/.debug-active"
+    local exit_code=0
+    (
+        cd "$_repo"
+        DSO_SPRINT_ACTIVE=0 DSO_DEBUG_ACTIVE=0 DSO_ARTIFACTS_DIR="$_artifacts_dir" bash "$_SCRIPT" 2>/dev/null
+    ) || exit_code=$?
+    assert_eq \
+        "test_both_markers_both_escapes_accepted: both markers both env vars 0 exits 0" \
+        "0" "$exit_code"
+}
+
 # ── Test 10: main repo (primary checkout) with .sprint-active → accepted ─────
 # Bug 6e96-61bf: when merge-to-main.sh runs the post-merge version-bump commit
 # in MAIN_REPO, the hook fires from MAIN_REPO context (shared .git/hooks).
@@ -247,24 +281,6 @@ test_main_repo_with_sprint_active_accepted() {
 
     assert_eq \
         "test_main_repo_with_sprint_active_accepted: primary checkout with .sprint-active exits 0 (hook only enforces in linked worktrees)" \
-        "0" "$exit_code"
-}
-
-# ── Test 9: both markers + both env vars = 0 → accepted ───────────────────────
-test_both_markers_both_escapes_accepted() {
-    local _repo _artifacts_dir
-    _repo=$(make_git_repo_with_commit)
-    _artifacts_dir=$(mktemp -d)
-    _TEST_TMPDIRS+=("$_artifacts_dir")
-    touch "$_repo/.sprint-active"
-    touch "$_repo/.debug-active"
-    local exit_code=0
-    (
-        cd "$_repo"
-        DSO_SPRINT_ACTIVE=0 DSO_DEBUG_ACTIVE=0 DSO_ARTIFACTS_DIR="$_artifacts_dir" bash "$_SCRIPT" 2>/dev/null
-    ) || exit_code=$?
-    assert_eq \
-        "test_both_markers_both_escapes_accepted: both markers both env vars 0 exits 0" \
         "0" "$exit_code"
 }
 
