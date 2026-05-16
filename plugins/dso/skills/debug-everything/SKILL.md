@@ -142,6 +142,12 @@ DEBUG_MODE=$(.claude/scripts/dso read-config.sh dso.workflow 2>/dev/null || echo
 DEBUG_MODE="${DEBUG_MODE:-local}"  # guard: read-config.sh exits 0 with empty output when key absent
 _debug_marker="$(git rev-parse --show-toplevel)/.debug-active"
 if [[ "$DEBUG_MODE" == 'ci-pr' ]]; then
+    SESSION_BRANCH=$(bash "$(git rev-parse --show-toplevel)/.claude/scripts/dso" resolve-session-branch.sh)
+    _rsb_exit=$?
+    if [[ $_rsb_exit -ne 0 ]]; then
+        printf 'ERROR: Phase B Step 1 SESSION_BRANCH resolution failed (exit %d) — cannot initialize ci-pr mode session\n' "$_rsb_exit" >&2
+        exit 1
+    fi
     _session_id="$(date -u +%Y%m%d-%H%M%S)-$(set +o pipefail; LC_ALL=C tr -dc 'a-z0-9' </dev/urandom | head -c6)"
     DRAFT_PR_URL=$(DRAFT_PR_TITLE_PREFIX=Debug: SESSION_BRANCH="$SESSION_BRANCH" \
         PRIMARY_TICKET_ID="${EPIC_ID:-debug}" EPIC_TITLE='Debug Session' \
