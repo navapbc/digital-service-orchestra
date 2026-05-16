@@ -15,6 +15,24 @@
 set -uo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+# Only enforce in linked worktrees — not in the primary checkout.
+# Pre-commit hooks are shared via the common git dir; when merge-to-main's
+# post-merge version-bump runs `git commit` in MAIN_REPO, this hook fires there
+# too. A stale marker in MAIN_REPO would then spuriously reject the commit
+# (bug 6e96-61bf). git-common-dir == git-dir is true only in the primary
+# checkout; linked worktrees have a separate git-dir under .git/worktrees/.
+_GIT_COMMON_DIR="$(git rev-parse --git-common-dir 2>/dev/null || true)"
+_GIT_DIR_ABS="$(git rev-parse --git-dir 2>/dev/null || true)"
+if [[ -n "$_GIT_COMMON_DIR" && -n "$_GIT_DIR_ABS" ]]; then
+    # Normalize to absolute paths for comparison (git may return relative ".git").
+    _GIT_COMMON_DIR_ABS="$(cd "$_GIT_COMMON_DIR" 2>/dev/null && pwd || echo "$_GIT_COMMON_DIR")"
+    _GIT_DIR_ABS_NORM="$(cd "$_GIT_DIR_ABS" 2>/dev/null && pwd || echo "$_GIT_DIR_ABS")"
+    if [[ "$_GIT_COMMON_DIR_ABS" == "$_GIT_DIR_ABS_NORM" ]]; then
+        exit 0
+    fi
+fi
+
 SPRINT_ACTIVE_MARKER="$REPO_ROOT/.sprint-active"
 DEBUG_ACTIVE_MARKER="$REPO_ROOT/.debug-active"
 
