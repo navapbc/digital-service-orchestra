@@ -694,7 +694,7 @@ Optional environment variables (defaults shown):
 
 dso-config.conf keys for Jira sync:
   - jira.project=<KEY>       Jira project key (written from this prompt)
-  - merge.strategy=<direct|pr>  PR mode integrates with the CI llm-review
+  - dso.workflow=<direct|pr>    PR mode integrates with the CI llm-review
                                 workflow that the bridge job depends on
 
 Operational artifacts (written by the bridge, audit only):
@@ -708,8 +708,8 @@ Verification: after setting the env vars, run `bridge-inbound.py --dry-run`
 and `bridge-outbound.py --dry-run` (or the CI workflows in dry-run mode)
 to confirm ACLI authentication succeeds before enabling on the main branch.
 
-Reference: ${CLAUDE_PLUGIN_ROOT}/scripts/bridge/README.md is the authoritative bridge
-operator's guide.
+Reference: the bridge operator's guide ships with the DSO plugin under
+scripts/bridge/README.md — read it before enabling the bridge in production.
 ```
 
 Credentials (`JIRA_URL`, `JIRA_USER`, `JIRA_API_TOKEN`, and `BRIDGE_USER_MAP` for any internal email addresses) stay as environment variables — NEVER commit them. Only the project key goes in config.
