@@ -1169,3 +1169,66 @@ class TestOutboundStatusMissingSyncFile:
             f"At least one BRIDGE_ALERT for missing-SYNC drop must reference "
             f"SYNC in its reason field; got reasons={reasons!r}"
         )
+
+
+class TestOutboundStatusMissingSyncDedup:
+    """RED test for bug 487d-ce11-03e5-4337: STATUS event without SYNC.json
+    must not write a duplicate unresolved BRIDGE_ALERT on every outbound run.
+
+    The pre-fix behavior emits a fresh BRIDGE_ALERT with the same
+    'no SYNC.json marker' reason on every outbound run for legacy
+    Jira-originated tickets that have no SYNC marker. Operators see the
+    same alert replayed indefinitely with no convergence.
+
+    Post-fix: write_bridge_alert (or its call site) MUST dedup against
+    existing unresolved alerts with the same reason — at most one
+    'no SYNC.json marker' alert per ticket per condition.
+    """
+
+    def test_status_no_sync_dedups_repeated_alert(
+        self, outbound: ModuleType, tmp_path: Path
+    ) -> None:
+        tracker = tmp_path / ".tickets-tracker"
+        ticket_id = "test-no-sync-dedup"
+        ticket_dir = tracker / ticket_id
+        ticket_dir.mkdir(parents=True)
+
+        make_create_event(ticket_dir, title="Imported-from-Jira ticket")
+
+        mock_acli = MagicMock()
+
+        for run in range(3):
+            write_event(ticket_dir, "STATUS", {"status": f"in_progress_{run}"})
+            status_files = sorted(ticket_dir.glob("*-STATUS.json"))
+            events = [
+                {
+                    "ticket_id": ticket_id,
+                    "event_type": "STATUS",
+                    "file_path": str(status_files[-1]),
+                }
+            ]
+            outbound.process_outbound(
+                events,
+                acli_client=mock_acli,
+                tickets_root=tracker,
+                bridge_env_id=BRIDGE_ENV_ID,
+            )
+
+        alert_files = list(ticket_dir.glob("*-BRIDGE_ALERT.json"))
+        no_sync_reasons: list[str] = []
+        for af in alert_files:
+            payload = json.loads(af.read_text(encoding="utf-8"))
+            reason = payload.get("data", {}).get("reason", "") or payload.get(
+                "reason", ""
+            )
+            if "SYNC.json marker" in reason or "no SYNC.json" in reason:
+                no_sync_reasons.append(reason)
+
+        # Pre-fix: one alert per outbound run (3 runs → 3+ alerts).
+        # Post-fix: dedup'd to at most 1 unresolved alert with this reason.
+        assert len(no_sync_reasons) <= 1, (
+            "BRIDGE_ALERT replay regression: 'no SYNC.json marker' alert "
+            "was written multiple times across outbound runs. Expected ≤1 "
+            f"unresolved alert per ticket per condition; got {len(no_sync_reasons)}. "
+            f"Reasons: {no_sync_reasons!r}"
+        )
