@@ -1,1 +1,0 @@
-{"author":"Test","data":{"body":"Classification: behavioral, Score: 7 (severity=2 safety-invariant, complexity=2 cross-system, environment=1 intermittent across sessions, flaky=2 observed inconsistently) → ADVANCED tier"},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1778949789083901000,"uuid":"6a889416-6b44-4f8b-b62f-a8aed2f2efb9"}
