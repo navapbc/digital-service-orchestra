@@ -11,6 +11,7 @@
 .claude-plugin/marketplace.json:tests/scripts/test-marketplace-json.sh
 .github/workflows/ci-python-skills.yml:tests/skills/test_ci_workflow_pip_cache.py
 .github/workflows/ci.yml:tests/scripts/test-ci-hyperfine-installed.sh,tests/scripts/test-ci-consolidated-changes-detection.sh
+.github/workflows/ci.yml:tests/scripts/test-ci-hyperfine-installed.sh,tests/scripts/test-ci-consolidated-changes-detection.sh,tests/workflows/test-ci-integration-review-scope.sh,tests/scripts/test-bug-reproducer-8ee4.sh
 .github/workflows/inbound-bridge.yml:tests/scripts/test-inbound-bridge-push-retry.sh
 .github/workflows/outbound-bridge.yml:tests/scripts/test-outbound-bridge-push-retry.sh
 .github/workflows/sprint-story-review.yml:tests/workflows/test-sprint-story-review.sh
@@ -456,3 +457,5 @@ plugins/dso/scripts/record-review.sh:tests/scripts/test-record-review-verifier-f
 plugins/dso/scripts/dso_ci_review/verifier.py:tests/skills/dso_ci_review/test_verifier_feature_flag.py [test_verifier_disabled_by_default_skips_dispatch]
 tests/skills/dso_ci_review/test_suppress_proximity_regression.py:tests/skills/dso_ci_review/test_suppress_proximity_regression.py
 plugins/dso/scripts/migrate-dso-workflow-config.sh:tests/scripts/test-legacy-cleanup-grep.sh
+plugins/dso/scripts/migrate-story-pr-bases.sh:tests/scripts/test-migrate-story-pr-bases.sh
+plugins/dso/scripts/verify-session-provenance.sh:tests/scripts/test-verify-session-provenance.sh,tests/scripts/test-bug-reproducer-cafb.sh
