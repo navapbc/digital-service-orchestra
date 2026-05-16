@@ -361,37 +361,35 @@ call_sentinel_with_config_stderr() {
 }
 
 # test_sentinel_allows_noverify_under_ci_strategy
-# When enforcement.strategy=ci, hook_review_bypass_sentinel should return 0 (allow)
+# When dso.workflow=ci-pr, hook_review_bypass_sentinel should return 0 (allow)
 # even for --no-verify commands — the CI enforcement strategy short-circuits before
 # pattern matching.
-# RED: requires review-gate-bypass-sentinel.sh to call _dso_enforcement_gate_check.
 _CI_TMPDIR=$(mktemp -d /tmp/sentinel-ci-test.XXXXXX)
 mkdir -p "$_CI_TMPDIR/.claude"
-printf 'enforcement.strategy=ci\n' > "$_CI_TMPDIR/.claude/dso-config.conf"
+printf 'dso.workflow=ci-pr\n' > "$_CI_TMPDIR/.claude/dso-config.conf"
 INPUT='{"tool_name":"Bash","tool_input":{"command":"git commit --no-verify -m msg"}}'
 EXIT_CODE=$(call_sentinel_with_config "$INPUT" "$_CI_TMPDIR/.claude/dso-config.conf")
 assert_eq "test_sentinel_allows_noverify_under_ci_strategy" "0" "$EXIT_CODE"
 rm -rf "$_CI_TMPDIR"
 
 # test_sentinel_emits_hook_gate_skipped_under_ci_strategy
-# When enforcement.strategy=ci, stderr must contain the canonical HOOK_GATE message.
-# RED: requires review-gate-bypass-sentinel.sh to call _dso_enforcement_gate_check.
+# When dso.workflow=ci-pr, stderr must contain the canonical HOOK_GATE message.
 _CI_TMPDIR=$(mktemp -d /tmp/sentinel-ci-test.XXXXXX)
 mkdir -p "$_CI_TMPDIR/.claude"
-printf 'enforcement.strategy=ci\n' > "$_CI_TMPDIR/.claude/dso-config.conf"
+printf 'dso.workflow=ci-pr\n' > "$_CI_TMPDIR/.claude/dso-config.conf"
 INPUT='{"tool_name":"Bash","tool_input":{"command":"git commit --no-verify -m msg"}}'
 RESULT=$(call_sentinel_with_config_stderr "$INPUT" "$_CI_TMPDIR/.claude/dso-config.conf")
 EXIT_CODE_CI="${RESULT%%|*}"
 STDERR_CI="${RESULT#*|}"
-assert_contains "test_sentinel_emits_hook_gate_skipped_under_ci_strategy" "HOOK_GATE: skipped reason=enforcement.strategy=ci" "$STDERR_CI"
+assert_contains "test_sentinel_emits_hook_gate_skipped_under_ci_strategy" "HOOK_GATE: skipped reason=dso.workflow=ci-pr" "$STDERR_CI"
 rm -rf "$_CI_TMPDIR"
 
 # test_sentinel_blocks_noverify_under_local_strategy
-# Regression test: enforcement.strategy=local must still block --no-verify (return 2).
-# GREEN: existing behavior — verifies the ci path doesn't accidentally affect local.
+# Regression test: dso.workflow=local must still block --no-verify (return 2).
+# GREEN: existing behavior — verifies the ci-pr path doesn't accidentally affect local.
 _LOCAL_TMPDIR=$(mktemp -d /tmp/sentinel-ci-test.XXXXXX)
 mkdir -p "$_LOCAL_TMPDIR/.claude"
-printf 'enforcement.strategy=local\n' > "$_LOCAL_TMPDIR/.claude/dso-config.conf"
+printf 'dso.workflow=local\n' > "$_LOCAL_TMPDIR/.claude/dso-config.conf"
 INPUT='{"tool_name":"Bash","tool_input":{"command":"git commit --no-verify -m msg"}}'
 EXIT_CODE=$(call_sentinel_with_config "$INPUT" "$_LOCAL_TMPDIR/.claude/dso-config.conf")
 assert_eq "test_sentinel_blocks_noverify_under_local_strategy" "2" "$EXIT_CODE"

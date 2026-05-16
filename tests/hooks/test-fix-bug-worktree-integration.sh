@@ -60,23 +60,20 @@ else
 fi
 
 # ===========================================================================
-# test_isolation_false_existing_conditional_present
-# fix-bug/SKILL.md must contain an explicit 'isolation_enabled=false'
-# conditional clause paired with "existing" language, describing the
-# single-agent path that integrates directly into the existing worktree.
-# Structural: the conditional clause is the behavioral contract that routes
-# agents to the correct integration path when isolation is disabled.
-# RED: current SKILL.md has isolation/false mentions but NOT the combined
-#      'isolation_enabled=false.*existing' pattern.
+# test_isolation_always_enabled_documented
+# fix-bug/SKILL.md must document that worktree isolation is always enabled
+# (the new always-on contract) and include the 'isolation: "worktree"' dispatch
+# token used by agents to route correctly.
+# GREEN once SKILL.md contains the always-enabled contract language.
 # ===========================================================================
 echo "--- test_isolation_false_branch_present ---"
-# Asserts both isolation branches are documented in SKILL.md.
-_iso_true=$(grep -cE 'isolation_enabled[^a-z]*true' "$SKILL_FILE" 2>/dev/null); _iso_true=${_iso_true:-0}
-_iso_false=$(grep -cE 'isolation_enabled[^a-z]*false|isolation_enabled.*false' "$SKILL_FILE" 2>/dev/null); _iso_false=${_iso_false:-0}
-if [[ "$_iso_true" -gt 0 && "$_iso_false" -gt 0 ]]; then
-    assert_eq "test_isolation_false_branch_present: both isolation branches documented" "present" "present"
+# Asserts SKILL.md documents the always-enabled isolation contract.
+_always_enabled=$(grep -c 'Worktree isolation is always enabled' "$SKILL_FILE" 2>/dev/null); _always_enabled=${_always_enabled:-0}
+_dispatch_token=$(grep -c 'isolation: "worktree"' "$SKILL_FILE" 2>/dev/null); _dispatch_token=${_dispatch_token:-0}
+if [[ "$_always_enabled" -gt 0 && "$_dispatch_token" -gt 0 ]]; then
+    assert_eq "test_isolation_always_enabled_documented: always-enabled contract and dispatch token in SKILL.md" "present" "present"
 else
-    assert_eq "test_isolation_false_branch_present: both isolation branches documented (true=$_iso_true false=$_iso_false)" "present" "missing"
+    assert_eq "test_isolation_always_enabled_documented: always-enabled contract and dispatch token in SKILL.md (always_enabled=$_always_enabled dispatch_token=$_dispatch_token)" "present" "missing"
 fi
 
 print_summary
