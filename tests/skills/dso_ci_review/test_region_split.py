@@ -6,13 +6,17 @@ Story f5f9-9a3c-c7be-4d11: Strategy E region-split FALLBACK in CI llm-review pip
 Ticket: 95f8-3c63-17ed-4aa7
 
 Behavioral contracts under test:
-1. _should_region_split returns True when diff has > 400 added/removed lines (LOC gate)
-2. _should_region_split returns True when diff touches > 15 distinct files (file count gate)
-3. _should_region_split returns False for small diffs (< 400 LOC AND < 15 files)
-4. _cluster_files groups filenames by common directory prefix
-5. run_region_split dispatches async_dispatch_specialists once per cluster
-6. run_region_split calls dispatch_arch_synthesis exactly once (after all clusters)
-7. arch synthesis result (boundary-only findings) is included in final output
+1. _should_region_split returns True when a multi-file diff has > 3000 added/removed lines
+   (LOC gate; bug 532e-6ab7 raised the default from 400 → 3000 — see region_split.py docstring)
+2. _should_region_split returns True when diff touches > 40 distinct files (file count gate)
+3. _should_region_split returns False for small diffs (< 3000 LOC AND < 40 files)
+4. _should_region_split returns False for ANY single-file diff regardless of LOC
+   (file-atomicity invariant — bug 532e-6ab7)
+5. _cluster_files groups filenames by common directory prefix and preserves file count
+6. run_region_split dispatches async_dispatch_specialists once per cluster
+7. run_region_split calls dispatch_arch_synthesis exactly once (after all clusters)
+8. arch synthesis result (boundary-only findings) is included in final output
+9. Thresholds are config-driven via review.region_split.{loc_threshold,file_count_threshold,max_clusters}
 """
 
 from __future__ import annotations
@@ -83,37 +87,246 @@ def _make_diff_touching_files(count: int) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Scenario 1 — _should_region_split: LOC threshold (> 400 added/removed lines)
+# Scenario 1 — _should_region_split: LOC threshold (> 3000 added/removed lines)
 # ---------------------------------------------------------------------------
 
 
 def test_size_gate_loc_threshold() -> None:
-    """Given: a diff with > 400 added/removed lines (lines starting with +/- excluding +++/---)
+    """Given: a diff with > 3000 added/removed lines across 2+ files
     When: _should_region_split is called
     Then: returns True (LOC gate triggered)
+
+    Note (bug 532e-6ab7): the diff must span 2+ files for the LOC gate to fire.
+    A diff in a single file is always atomic and never region-split, regardless
+    of LOC count — see test_single_file_never_region_split.
     """
-    diff = _make_diff_with_loc(added=300, removed=150)  # 450 total > 400
+    # Helper divides per-file then generates one block; ask for 4002/2000 so
+    # actual produced LOC = (4002/2) + (2000/2) = 3001 > 3000 threshold.
+    diff = _make_diff_with_loc(
+        added=4002, removed=2000, filenames=["src/a.py", "src/b.py"]
+    )
     result = _should_region_split(diff)
     assert result is True, (
-        f"_should_region_split must return True when diff has > 400 added/removed lines; "
-        f"got {result!r}"
+        f"_should_region_split must return True when a multi-file diff has "
+        f"> 3000 added/removed lines (default loc_threshold); got {result!r}"
     )
 
 
 # ---------------------------------------------------------------------------
-# Scenario 2 — _should_region_split: file count threshold (> 15 distinct files)
+# Scenario 1b — File-atomicity invariant: single-file diff never region-splits
+# (bug 532e-6ab7)
+# ---------------------------------------------------------------------------
+
+
+def test_single_file_never_region_split() -> None:
+    """Given: a diff touching exactly one file (even with tens of thousands of LOC)
+    When: _should_region_split is called
+    Then: returns False — a single source file is the atomic unit of code
+    review and must never be region-split, regardless of LOC count.
+    """
+    diff = _make_diff_with_loc(added=20000, removed=20000, filenames=["src/huge.py"])
+    result = _should_region_split(diff)
+    assert result is False, (
+        f"_should_region_split must return False for any single-file diff "
+        f"(bug 532e-6ab7 file-atomicity invariant); got {result!r}"
+    )
+
+
+def test_cluster_files_atomicity_count_preserved() -> None:
+    """Given: an input filename list
+    When: _cluster_files is called
+    Then: the total number of entries across all returned cluster lists equals
+    the input filename count — every file appears in exactly one cluster
+    (bug 532e-6ab7 file-atomicity invariant, count-preservation form).
+    """
+    filenames = ["a/x.py", "a/y.py", "b/z.py", "c/w.py", "top.py"]
+    clusters = _cluster_files(filenames)
+    total = sum(len(v) for v in clusters.values())
+    assert total == len(filenames), (
+        f"File-atomicity: total cluster entries ({total}) must equal input "
+        f"count ({len(filenames)}); clusters={clusters}"
+    )
+
+
+def test_loc_threshold_config_override(tmp_path, monkeypatch) -> None:
+    """Given: a config file lowering review.region_split.loc_threshold to 100
+    When: a 200-LOC two-file diff is checked
+    Then: _should_region_split returns True (config-overridden threshold fires).
+
+    Verifies bug 532e-6ab7 config indirection: thresholds are not hardcoded
+    constants — projects can tune via review.region_split.* keys.
+    """
+    # Build a config file with a low threshold
+    config_dir = tmp_path / ".claude"
+    config_dir.mkdir()
+    config_file = config_dir / "dso-config.conf"
+    config_file.write_text("review.region_split.loc_threshold=100\n")
+
+    # Make _default_config_path resolve to our temp config
+    from dso_ci_review import region_split as rs
+
+    monkeypatch.setattr(rs, "_default_config_path", lambda: str(config_file))
+
+    # 200-LOC two-file diff — under the 3000 default, but over the 100 override
+    diff = _make_diff_with_loc(
+        added=200, removed=200, filenames=["src/a.py", "src/b.py"]
+    )
+    # Helper: (200/2)+(200/2) = 200 LOC produced
+    result = rs._should_region_split(diff)
+    assert result is True, (
+        f"Config override should make the LOC gate fire at 100 (vs 3000 default); "
+        f"got {result!r}"
+    )
+
+    # And the inverse: without the override (point at an empty config), 200 LOC < 3000 default → False
+    empty_config = tmp_path / "empty.conf"
+    empty_config.write_text("")
+    monkeypatch.setattr(rs, "_default_config_path", lambda: str(empty_config))
+    result_default = rs._should_region_split(diff)
+    assert result_default is False, (
+        f"With default threshold (3000), 200-LOC diff should not region-split; "
+        f"got {result_default!r}"
+    )
+
+
+def test_threshold_readers_clamp_invalid_config_to_default(tmp_path, monkeypatch) -> None:
+    """Zero/negative threshold values from config must fall back to defaults.
+
+    PR #169 review (coderabbit f-positive-integer): _read_config_int returns
+    whatever integer the config holds, so a misconfigured 0 / -1 would
+    disable gating or invert comparisons. Threshold readers must clamp.
+    """
+    from dso_ci_review import region_split as rs
+
+    # Config with all three thresholds set to invalid values
+    config_file = tmp_path / "bad-config.conf"
+    config_file.write_text(
+        "review.region_split.loc_threshold=0\n"
+        "review.region_split.file_count_threshold=-5\n"
+        "review.region_split.max_clusters=0\n"
+    )
+    monkeypatch.setattr(rs, "_default_config_path", lambda: str(config_file))
+
+    assert rs._loc_threshold() == rs._LOC_THRESHOLD_DEFAULT, (
+        "loc_threshold must fall back to default when config value is 0"
+    )
+    assert rs._file_count_threshold() == rs._FILE_COUNT_THRESHOLD_DEFAULT, (
+        "file_count_threshold must fall back to default when config value is negative"
+    )
+    assert rs._max_clusters() == rs._MAX_CLUSTERS_DEFAULT, (
+        "max_clusters must fall back to default when config value is < 1"
+    )
+
+
+def test_cluster_files_overflow_preserves_full_paths() -> None:
+    """When the overflow cluster is created, its entries must be FULL PATHS.
+
+    PR #169 review (coderabbit f-overflow-identity): overflow previously
+    stored only basenames, so the downstream _extract_cluster_diff would
+    build nonexistent ``overflow/<basename>`` paths and silently dispatch
+    the whole diff. Each overflow entry must include its original parent
+    directory so _extract_cluster_diff resolves to the real hunks.
+    """
+    # 6 single-file directories — exceeds _MAX_CLUSTERS_DEFAULT (5), forcing
+    # overflow. The smallest clusters (all size-1) are merged.
+    filenames = [
+        "alpha/a.py",
+        "beta/b.py",
+        "gamma/c.py",
+        "delta/d.py",
+        "epsilon/e.py",
+        "zeta/f.py",
+    ]
+    clusters = _cluster_files(filenames)
+    assert "overflow" in clusters, (
+        f"Expected an overflow cluster with 6 input dirs > 5 cap; got {list(clusters.keys())}"
+    )
+    overflow = clusters["overflow"]
+    # Every overflow entry must contain '/' (be a full path), not a bare basename
+    bare = [f for f in overflow if "/" not in f]
+    assert not bare, (
+        f"Overflow entries must be full paths preserving parent directory; "
+        f"found bare basenames: {bare}"
+    )
+    # Verify the parent directories are among the inputs
+    overflow_dirs = {f.rsplit("/", 1)[0] for f in overflow}
+    input_dirs = {f.rsplit("/", 1)[0] for f in filenames}
+    assert overflow_dirs.issubset(input_dirs), (
+        f"Overflow parent dirs {overflow_dirs} must be from the input set "
+        f"{input_dirs}"
+    )
+
+
+def test_extract_cluster_diff_resolves_overflow_paths() -> None:
+    """_extract_cluster_diff must find hunks for files in the overflow cluster.
+
+    PR #169 review (coderabbit f-overflow-identity): with overflow now
+    storing full paths, _extract_cluster_diff must treat overflow like the
+    "." pseudo-cluster — use the entries as full paths verbatim rather
+    than prepending "overflow/" to them.
+    """
+    # Reach into the private extractor; this is structural plumbing not
+    # exposed as a public API.
+    from dso_ci_review.region_split import _extract_cluster_diff  # noqa: PLC0415
+
+    diff_text = (
+        "diff --git a/zeta/f.py b/zeta/f.py\n"
+        "--- a/zeta/f.py\n"
+        "+++ b/zeta/f.py\n"
+        "@@ -1 +1 @@\n"
+        "-old\n"
+        "+new\n"
+        "diff --git a/other/x.py b/other/x.py\n"
+        "--- a/other/x.py\n"
+        "+++ b/other/x.py\n"
+        "@@ -1 +1 @@\n"
+        "-old2\n"
+        "+new2\n"
+    )
+    # Overflow cluster (full paths) should select only the zeta hunk
+    result = _extract_cluster_diff(diff_text, "overflow", ["zeta/f.py"])
+    assert "zeta/f.py" in result, (
+        f"Overflow extraction must include the zeta/f.py hunk; got: {result!r}"
+    )
+    assert "other/x.py" not in result, (
+        f"Overflow extraction must NOT include hunks for non-overflow files; "
+        f"leaked: other/x.py present in result"
+    )
+
+
+def test_cluster_files_atomicity_holds_under_overflow() -> None:
+    """Given: more directories than _MAX_CLUSTERS (forces overflow)
+    When: _cluster_files is called
+    Then: total file count is still preserved across all clusters (including
+    'overflow'). Overflow must neither drop nor duplicate files.
+    """
+    filenames = [f"dir{i}/file.py" for i in range(10)]  # 10 dirs > _MAX_CLUSTERS=5
+    clusters = _cluster_files(filenames)
+    total = sum(len(v) for v in clusters.values())
+    assert total == len(filenames), (
+        f"File-atomicity under overflow: input count {len(filenames)} vs "
+        f"cluster total {total}; clusters={clusters}"
+    )
+    assert "overflow" in clusters, (
+        f"Expected 'overflow' cluster when input exceeds _MAX_CLUSTERS; "
+        f"got {list(clusters.keys())}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Scenario 2 — _should_region_split: file count threshold (> 40 distinct files)
 # ---------------------------------------------------------------------------
 
 
 def test_size_gate_file_count_threshold() -> None:
-    """Given: a diff touching > 15 distinct files
+    """Given: a diff touching > 40 distinct files
     When: _should_region_split is called
     Then: returns True (file count gate triggered)
     """
-    diff = _make_diff_touching_files(16)  # 16 > 15
+    diff = _make_diff_touching_files(41)  # 41 > 40
     result = _should_region_split(diff)
     assert result is True, (
-        f"_should_region_split must return True when diff touches > 15 distinct files; "
+        f"_should_region_split must return True when diff touches > 40 distinct files; "
         f"got {result!r}"
     )
 
@@ -124,14 +337,14 @@ def test_size_gate_file_count_threshold() -> None:
 
 
 def test_size_gate_returns_false_for_small_diff() -> None:
-    """Given: a diff with < 400 lines AND < 15 files
+    """Given: a diff with < 3000 lines AND < 40 files
     When: _should_region_split is called
     Then: returns False (neither gate triggered)
     """
     diff = _make_diff_with_loc(added=50, removed=50, filenames=["src/a.py", "src/b.py"])
     result = _should_region_split(diff)
     assert result is False, (
-        f"_should_region_split must return False when diff has < 400 LOC AND < 15 files; "
+        f"_should_region_split must return False when diff has < 3000 LOC AND < 40 files; "
         f"got {result!r}"
     )
 
@@ -246,7 +459,8 @@ def test_run_region_split_dispatches_per_cluster(monkeypatch) -> None:
         },
     )
 
-    # Build a large diff (> 400 LOC) so _should_region_split would return True
+    # Diff size doesn't matter here — _cluster_files is mocked above and
+    # run_region_split is invoked directly, bypassing the _should_region_split gate.
     large_diff = _make_diff_with_loc(
         added=300, removed=150, filenames=["src/a/x.py", "src/a/y.py", "src/b/z.py"]
     )

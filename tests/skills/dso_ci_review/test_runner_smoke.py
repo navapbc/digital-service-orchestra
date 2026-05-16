@@ -2656,11 +2656,23 @@ def test_runner_cycle1_no_defenses_unaffected(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def _make_large_diff(loc: int = 450) -> str:
-    """Return a synthetic diff with at least ``loc`` changed lines, all in one file."""
-    header = "diff --git a/bigfile.py b/bigfile.py\n--- a/bigfile.py\n+++ b/bigfile.py\n@@ -1 +1 @@\n"
-    body = "".join(f"+line {i}\n" for i in range(loc))
-    return header + body
+def _make_large_diff(loc: int = 3500, files: int = 2) -> str:
+    """Return a synthetic diff exceeding the region-split LOC threshold.
+
+    Defaults (bug 532e-6ab7):
+    - ``loc=3500`` clears the new 3000-LOC default (was 400).
+    - ``files=2`` ensures a multi-file diff; the file-atomicity invariant
+      makes single-file diffs ineligible for region-split regardless of LOC.
+    """
+    per_file = max(1, loc // files)
+    parts: list[str] = []
+    for f in range(files):
+        path = f"bigfile_{f}.py"
+        parts.append(
+            f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n@@ -1 +1 @@\n"
+        )
+        parts.extend(f"+line {i}\n" for i in range(per_file))
+    return "".join(parts)
 
 
 def _make_small_diff(loc: int = 5) -> str:
@@ -2672,20 +2684,25 @@ def _make_small_diff(loc: int = 5) -> str:
 
 def test_runner_calls_run_region_split_for_large_diff(tmp_path):
     """
-    Given: a diff exceeding 400 LOC (region-split threshold)
+    Given: a multi-file diff exceeding the region-split LOC threshold (default 3000)
     When: runner.main() is called in-process
     Then: run_region_split is called (not standard tier dispatch)
           AND async_dispatch_specialists is NOT called directly by the runner
 
     Strategy E (bed6-3871-f13c-4160): large diffs bypass the standard tier path
     and route through the region-split pipeline.
+
+    Threshold history (bug 532e-6ab7): default raised 400 → 3000 to match
+    Sonnet's actual context budget. The diff used here clears the new default
+    AND spans 2+ files so the file-atomicity invariant doesn't short-circuit
+    region-split to False.
     """
     import io
     from contextlib import redirect_stderr
 
     import dso_ci_review.runner as runner_mod
 
-    diff_text = _make_large_diff(450)
+    diff_text = _make_large_diff(loc=3500, files=2)
     diff_file = tmp_path / "input.diff"
     diff_file.write_text(diff_text)
     output_file = tmp_path / "out.json"
@@ -2742,7 +2759,8 @@ def test_runner_calls_run_region_split_for_large_diff(tmp_path):
         f"stderr={stderr_capture.getvalue()!r}"
     )
     assert region_split_called, (
-        "run_region_split must be called when diff exceeds 400 LOC threshold"
+        "run_region_split must be called when a multi-file diff exceeds the "
+        "region-split LOC threshold (default 3000; see bug 532e-6ab7)"
     )
     assert not dispatch_called, (
         "async_dispatch_specialists must NOT be called by the runner when "
@@ -2752,7 +2770,7 @@ def test_runner_calls_run_region_split_for_large_diff(tmp_path):
 
 def test_runner_skips_run_region_split_for_small_diff(tmp_path):
     """
-    Given: a diff below the 400 LOC region-split threshold
+    Given: a diff below the region-split LOC threshold (default 3000 per bug 532e-6ab7)
     When: runner.main() is called in-process
     Then: run_region_split is NOT called
           AND async_dispatch_specialists IS called (normal path)
