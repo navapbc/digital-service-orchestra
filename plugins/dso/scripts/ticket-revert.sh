@@ -19,6 +19,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=${_PLUGIN_ROOT}/scripts/ticket-lib.sh
+source "$SCRIPT_DIR/ticket-lib.sh"
 
 # Allow tests to inject a custom tracker directory via TICKETS_TRACKER_DIR env var.
 # When GIT_DIR is set (e.g., in tests), derive REPO_ROOT from its parent to avoid
@@ -67,6 +69,11 @@ done
 # ── Validate ticket system is initialized ─────────────────────────────────────
 if [ ! -f "$TRACKER_DIR/.env-id" ]; then
     echo "Error: ticket system not initialized. Run 'ticket init' first." >&2
+    exit 1
+fi
+
+# ── Resolve any ID form (full, short, alias, jira_key, prefix) to canonical ──
+if ! ticket_id=$(TICKETS_TRACKER_DIR="$TRACKER_DIR" resolve_ticket_id "$ticket_id"); then
     exit 1
 fi
 

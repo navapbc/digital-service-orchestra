@@ -23,6 +23,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=${_PLUGIN_ROOT}/scripts/ticket-lib.sh
+source "$SCRIPT_DIR/ticket-lib.sh"
 
 # Unset git hook env vars so git commands target the correct repo.
 unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR 2>/dev/null || true
@@ -68,6 +70,11 @@ done
 
 if [ -z "$ticket_id" ]; then
     _usage
+fi
+
+# ── Resolve any ID form (full, short, alias, jira_key, prefix) to canonical ──
+if ! ticket_id=$(TICKETS_TRACKER_DIR="$TRACKER_DIR" resolve_ticket_id "$ticket_id"); then
+    exit 1
 fi
 
 # ── Verify ticket directory exists ────────────────────────────────────────────

@@ -20,6 +20,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=${_PLUGIN_ROOT}/scripts/ticket-lib.sh
+source "$SCRIPT_DIR/ticket-lib.sh"
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 TRACKER_DIR="${TICKET_TRACKER_DIR:-$REPO_ROOT/.tickets-tracker}"
@@ -36,7 +38,7 @@ if [ $# -lt 1 ]; then
     _usage
 fi
 
-ticket_id="$1"
+ticket_id=$(TICKETS_TRACKER_DIR="$TRACKER_DIR" resolve_ticket_id "$1") || exit 1
 shift
 
 threshold="${COMPACT_THRESHOLD:-10}"
