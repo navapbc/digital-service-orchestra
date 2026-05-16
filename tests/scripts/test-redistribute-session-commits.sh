@@ -582,6 +582,176 @@ MOCKEOF
         "no" "$force_blocked_by_dirty"
 }
 
+# ── Test 9: PUBLISH skips group when branch name matches session branch ──────
+# When a story's redistribute target branch name equals SESSION_BRANCH, the
+# commits already live on the source — the tool must SKIP that group with an
+# INFO message and proceed with remaining groups. Without this safety, `git
+# checkout -B` would reset the local session branch, destroying its state.
+test_publish_skips_session_branch_collision() {
+    local tmpdir
+    tmpdir="$(make_tmpdir)"
+    local repo="$tmpdir/repo"
+    mkdir -p "$repo"
+    init_git_repo "$repo"
+
+    # Session branch is named to match a story ID (the collision case)
+    local collision_story="2abb-11b6-37ca-49dc"
+    local session_branch="story/epic-x/$collision_story"
+    git -C "$repo" checkout -q -b "$session_branch"
+    echo "story-content" > "$repo/file-x.sh"
+    git -C "$repo" add file-x.sh
+    git -C "$repo" commit -q -m "feat: x
+
+DSO-Story: $collision_story"
+
+    local session_head_before
+    session_head_before="$(git -C "$repo" rev-parse HEAD)"
+
+    local mock_scripts="$tmpdir/scripts"
+    mkdir -p "$mock_scripts"
+    cat > "$mock_scripts/resolve-session-branch.sh" << MOCKEOF
+#!/usr/bin/env bash
+echo "$session_branch"
+exit 0
+MOCKEOF
+    chmod +x "$mock_scripts/resolve-session-branch.sh"
+
+    local ticket_json="$tmpdir/tickets.json"
+    cat > "$ticket_json" << MOCKEOF
+[{"id":"$collision_story","type":"story","title":"S","description":"file-x.sh"}]
+MOCKEOF
+
+    local mock_bin="$tmpdir/bin"
+    mkdir -p "$mock_bin"
+    cat > "$mock_bin/gh" << 'MOCKEOF'
+#!/usr/bin/env bash
+exit 0
+MOCKEOF
+    chmod +x "$mock_bin/gh"
+
+    # Stub merge-to-main-pr.sh: no-op (avoid real PR creation)
+    cat > "$mock_scripts/merge-to-main-pr.sh" << 'MOCKEOF'
+#!/usr/bin/env bash
+exit 0
+MOCKEOF
+    chmod +x "$mock_scripts/merge-to-main-pr.sh"
+
+    local output exit_code=0
+    output=$(PATH="$mock_bin:$PATH" \
+        DSO_RESOLVE_SESSION_BRANCH="$mock_scripts/resolve-session-branch.sh" \
+        DSO_TICKET_LIST_OVERRIDE="$ticket_json" \
+        DSO_MERGE_TO_MAIN_PR_OVERRIDE="$mock_scripts/merge-to-main-pr.sh" \
+        GIT_DIR="$repo/.git" \
+        GIT_WORK_TREE="$repo" \
+        bash "$SCRIPT" --epic "epic-x" 2>&1) || exit_code=$?
+
+    # Session branch HEAD must be unchanged (no destructive reset)
+    local session_head_after
+    session_head_after="$(git -C "$repo" rev-parse "$session_branch")"
+    assert_eq "test_publish_skips_session_branch_collision: session branch HEAD unchanged" \
+        "$session_head_before" "$session_head_after"
+
+    # Output must indicate the skip
+    local skip_announced
+    if echo "$output" | grep -qE "skipping.*session branch|branch name matches session branch"; then
+        skip_announced="yes"
+    else
+        skip_announced="no"
+    fi
+    assert_eq "test_publish_skips_session_branch_collision: output announces skip for session-branch collision" \
+        "yes" "$skip_announced"
+}
+
+# ── Test 10: PUBLISH refuses to overwrite pre-existing local branch ──────────
+# When a redistribute target branch already exists locally, the tool must
+# REFUSE (exit non-zero, error message) rather than silently resetting it.
+# This guards against destroying unrelated work that happens to share a name.
+test_publish_refuses_preexisting_local_branch() {
+    local tmpdir
+    tmpdir="$(make_tmpdir)"
+    local repo="$tmpdir/repo"
+    mkdir -p "$repo"
+    init_git_repo "$repo"
+
+    # Session branch with one commit (story-a-001 trailer)
+    git -C "$repo" checkout -q -b "worktree-session-collide"
+    echo "story-file" > "$repo/file-y.sh"
+    git -C "$repo" add file-y.sh
+    git -C "$repo" commit -q -m "feat: y
+
+DSO-Story: story-a-001"
+
+    # Pre-create the target redistribute branch with a SENTINEL commit
+    git -C "$repo" checkout -q main
+    git -C "$repo" checkout -q -b "story/epic-y/story-a-001"
+    echo "sentinel" > "$repo/sentinel.txt"
+    git -C "$repo" add sentinel.txt
+    git -C "$repo" commit -q -m "sentinel commit — MUST NOT be destroyed by redistribute"
+    local sentinel_sha
+    sentinel_sha="$(git -C "$repo" rev-parse HEAD)"
+    # Return to session branch
+    git -C "$repo" checkout -q "worktree-session-collide"
+
+    local mock_scripts="$tmpdir/scripts"
+    mkdir -p "$mock_scripts"
+    cat > "$mock_scripts/resolve-session-branch.sh" << 'MOCKEOF'
+#!/usr/bin/env bash
+echo "worktree-session-collide"
+exit 0
+MOCKEOF
+    chmod +x "$mock_scripts/resolve-session-branch.sh"
+
+    local ticket_json="$tmpdir/tickets.json"
+    cat > "$ticket_json" << 'MOCKEOF'
+[{"id":"story-a-001","type":"story","title":"S","description":"file-y.sh"}]
+MOCKEOF
+
+    local mock_bin="$tmpdir/bin"
+    mkdir -p "$mock_bin"
+    cat > "$mock_bin/gh" << 'MOCKEOF'
+#!/usr/bin/env bash
+exit 0
+MOCKEOF
+    chmod +x "$mock_bin/gh"
+
+    cat > "$mock_scripts/merge-to-main-pr.sh" << 'MOCKEOF'
+#!/usr/bin/env bash
+exit 0
+MOCKEOF
+    chmod +x "$mock_scripts/merge-to-main-pr.sh"
+
+    local output exit_code=0
+    output=$(PATH="$mock_bin:$PATH" \
+        DSO_RESOLVE_SESSION_BRANCH="$mock_scripts/resolve-session-branch.sh" \
+        DSO_TICKET_LIST_OVERRIDE="$ticket_json" \
+        DSO_MERGE_TO_MAIN_PR_OVERRIDE="$mock_scripts/merge-to-main-pr.sh" \
+        GIT_DIR="$repo/.git" \
+        GIT_WORK_TREE="$repo" \
+        bash "$SCRIPT" --epic "epic-y" 2>&1) || exit_code=$?
+
+    # Pre-existing branch HEAD must be unchanged (sentinel commit preserved)
+    local target_sha_after
+    target_sha_after="$(git -C "$repo" rev-parse "story/epic-y/story-a-001")"
+    assert_eq "test_publish_refuses_preexisting_local_branch: target branch HEAD unchanged (sentinel preserved)" \
+        "$sentinel_sha" "$target_sha_after"
+
+    # Exit code must be non-zero (refusal)
+    local exit_nonzero
+    if [[ "$exit_code" -ne 0 ]]; then exit_nonzero="yes"; else exit_nonzero="no"; fi
+    assert_eq "test_publish_refuses_preexisting_local_branch: exit code is non-zero" \
+        "yes" "$exit_nonzero"
+
+    # Output must explicitly mention the collision
+    local error_msg_present
+    if echo "$output" | grep -qE "already exists|refusing to overwrite"; then
+        error_msg_present="yes"
+    else
+        error_msg_present="no"
+    fi
+    assert_eq "test_publish_refuses_preexisting_local_branch: error message mentions collision" \
+        "yes" "$error_msg_present"
+}
+
 # ── Run all tests ────────────────────────────────────────────────────────────
 test_script_exists
 test_dry_run_produces_plan_without_git_mutations
@@ -591,5 +761,7 @@ test_trailer_mismatch_triggers_split
 test_unattributed_falls_back_to_temporal_epochs
 test_merge_commits_preserved_not_redistributed
 test_dirty_worktree_refused_without_force
+test_publish_skips_session_branch_collision
+test_publish_refuses_preexisting_local_branch
 
 print_summary

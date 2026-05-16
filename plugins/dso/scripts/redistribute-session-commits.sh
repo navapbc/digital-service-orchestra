@@ -453,9 +453,38 @@ _start_ref="$(git rev-parse HEAD)"
 
 for key in "${GROUP_ORDER[@]}"; do
     _branch="story/${EPIC_ID}/${key}"
+
+    # Safety check 1: collision with the source/session branch itself.
+    # If the group's branch name matches SESSION_BRANCH, the commits already
+    # live on the source — there is nothing to redistribute. Skip with INFO.
+    if [[ "$_branch" == "$SESSION_BRANCH" ]]; then
+        echo "  ↷ skipping $key — branch name matches session branch (commits already on source)"
+        continue
+    fi
+
+    # Safety check 2: pre-existing local branch with the same name.
+    # `-B` would silently RESET the branch to MAIN_REF, destroying any commits
+    # that branch already has. Refuse to overwrite — fail fast with a clear error.
+    if git show-ref --verify --quiet "refs/heads/$_branch"; then
+        echo "  ERROR: local branch $_branch already exists — refusing to overwrite" >&2
+        echo "         If this branch is unrelated, delete it first: git branch -D $_branch" >&2
+        echo "branch_collision=$_branch" >> "$_checkpoint"
+        git checkout -q "$_start_ref" 2>/dev/null || true
+        echo "  checkpoint: $_checkpoint  (resume support: out of scope this story)"
+        exit 2
+    fi
+
+    # Safety check 3: pre-existing remote branch. WARN but do not fail — the
+    # user may legitimately want to add commits to an existing redistribute
+    # target (e.g., re-running after a partial failure). Push will refuse if
+    # not fast-forwardable, surfacing the conflict at push time.
+    if git ls-remote --exit-code --heads origin "$_branch" >/dev/null 2>&1; then
+        echo "  WARN: remote branch origin/$_branch already exists; push may fail if histories diverge" >&2
+    fi
+
     echo "  → publishing $key as $_branch"
 
-    if ! git checkout -q -B "$_branch" "$MAIN_REF" 2>/dev/null; then
+    if ! git checkout -q -b "$_branch" "$MAIN_REF" 2>/dev/null; then
         echo "  ERROR: failed to create branch $_branch from $MAIN_REF" >&2
         echo "branch_failed=$_branch" >> "$_checkpoint"
         git checkout -q "$_start_ref" 2>/dev/null || true
