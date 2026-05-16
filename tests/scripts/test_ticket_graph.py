@@ -2159,7 +2159,9 @@ def test_dep_graph_correctness_after_cross_story_link(
 
 @pytest.mark.unit
 @pytest.mark.scripts
-def test_write_link_event_retries_on_non_fast_forward(tmp_path: Path) -> None:
+def test_write_link_event_retries_on_non_fast_forward(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """_write_link_event retries push on non-fast-forward and succeeds on second attempt.
 
     Mock ordering note: subprocess.run is called for git add, git commit, git remote
@@ -2176,6 +2178,10 @@ def test_write_link_event_retries_on_non_fast_forward(tmp_path: Path) -> None:
         sys.path.insert(0, _scripts_dir)
 
     from ticket_graph._links import _write_link_event as _real_write_link_event
+
+    # Sandbox cwd to tmp_path so any relative file write under test stays inside
+    # the auto-cleaned fixture rather than landing in REPO_ROOT.
+    monkeypatch.chdir(tmp_path)
 
     tracker_dir = tmp_path / ".tickets-tracker"
     tracker_dir.mkdir()
@@ -2196,7 +2202,7 @@ def test_write_link_event_retries_on_non_fast_forward(tmp_path: Path) -> None:
         patch("subprocess.run", side_effect=side_effects) as mock_run,
         patch.dict("os.environ", {"_TICKET_TEST_NO_SYNC": ""}, clear=False),
     ):
-        _real_write_link_event("tkt-src3", "tkt-tgt3", str(tracker_dir), "depends_on")
+        _real_write_link_event("tkt-src3", "tkt-tgt3", "depends_on", str(tracker_dir))
 
     all_cmds = [c.args[0] for c in mock_run.call_args_list if c.args]
     push_calls = [cmd for cmd in all_cmds if "push" in cmd]
@@ -2208,7 +2214,9 @@ def test_write_link_event_retries_on_non_fast_forward(tmp_path: Path) -> None:
 
 @pytest.mark.unit
 @pytest.mark.scripts
-def test_write_link_event_push_gives_up_on_merge_conflict(tmp_path: Path) -> None:
+def test_write_link_event_push_gives_up_on_merge_conflict(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """_write_link_event is best-effort: if rebase AND merge both fail, it gives up silently."""
     import sys
     from unittest.mock import MagicMock, patch
@@ -2218,6 +2226,10 @@ def test_write_link_event_push_gives_up_on_merge_conflict(tmp_path: Path) -> Non
         sys.path.insert(0, _scripts_dir)
 
     from ticket_graph._links import _write_link_event as _real_write_link_event
+
+    # Sandbox cwd to tmp_path so any relative file write under test stays inside
+    # the auto-cleaned fixture rather than landing in REPO_ROOT.
+    monkeypatch.chdir(tmp_path)
 
     tracker_dir = tmp_path / ".tickets-tracker"
     tracker_dir.mkdir()
@@ -2244,7 +2256,7 @@ def test_write_link_event_push_gives_up_on_merge_conflict(tmp_path: Path) -> Non
         patch.dict("os.environ", {"_TICKET_TEST_NO_SYNC": ""}, clear=False),
     ):
         # Must not raise — best-effort means failure is silently swallowed
-        _real_write_link_event("tkt-src4", "tkt-tgt4", str(tracker_dir), "depends_on")
+        _real_write_link_event("tkt-src4", "tkt-tgt4", "depends_on", str(tracker_dir))
 
 
 # ---------------------------------------------------------------------------
