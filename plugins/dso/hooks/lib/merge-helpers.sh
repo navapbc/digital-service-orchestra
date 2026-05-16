@@ -123,14 +123,19 @@ _state_init() {
     local _sf
     _sf=$(_state_file_path) 2>/dev/null || return 0
     if ! _state_is_fresh; then
+        # Capture origin/main SHA at start-of-run (best-effort; tolerate fetch failure).
+        # Used by --resume freshness check to detect that origin has advanced and
+        # post-sync phases need to re-run against the fresh tip.
+        local _origin_main_sha=""
+        _origin_main_sha=$(git rev-parse origin/main 2>/dev/null || echo "")
         # Not fresh (missing or stale) — write fresh skeleton
         # || true: state I/O is best-effort; set -e must not propagate from partial writes
         # Pass variables via env to avoid shell-string interpolation injection
         # (branch names with quotes/backslashes/newlines would break python source).
-        _DSO_BRANCH="$BRANCH" _DSO_SF="$_sf" python3 -c "
+        _DSO_BRANCH="$BRANCH" _DSO_SF="$_sf" _DSO_ORIGIN_MAIN_SHA="$_origin_main_sha" python3 -c "
 import json, os
 sf = os.environ['_DSO_SF']
-d = {'branch': os.environ['_DSO_BRANCH'], 'merge_sha': '', 'completed_phases': [], 'current_phase': '', 'phases': {}, 'merge_strategy': os.environ.get('MERGE_STRATEGY', 'direct')}
+d = {'branch': os.environ['_DSO_BRANCH'], 'merge_sha': '', 'completed_phases': [], 'current_phase': '', 'phases': {}, 'merge_strategy': os.environ.get('MERGE_STRATEGY', 'direct'), 'origin_main_sha': os.environ.get('_DSO_ORIGIN_MAIN_SHA', '')}
 with open(sf + '.tmp', 'w') as f:
     json.dump(d, f)
     f.flush()

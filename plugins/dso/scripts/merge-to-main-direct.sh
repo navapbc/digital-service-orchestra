@@ -11,6 +11,30 @@ set -euo pipefail
 # Usage: scripts/merge-to-main.sh
 # Exit codes: 0=success, 1=error
 # Output: concise status for LLM consumption
+#
+# Concurrency model (multi-session / multi-environment):
+#   Local lock scope:
+#     A flock-style lock at /tmp/merge-to-main-lock-<shasum-c1-8 of MAIN_REPO>
+#     serializes invocations against the SAME main repo. Two worktrees of the
+#     SAME clone hash to the same key and serialize correctly. Two DIFFERENT
+#     clones (whether same machine or different machines) hash to different
+#     keys — there is no local coordination across clones.
+#   Cross-clone / cross-machine safety:
+#     The script does not attempt cross-clone locking (this is impossible in
+#     general). Safety against concurrent pushes from different clones comes
+#     from the self-healing push: on a non-fast-forward push rejection the
+#     script fetches origin/main, rebases local main onto it, and retries.
+#     Rebase conflicts (e.g., overlapping version bumps that touch the same
+#     line) abort cleanly and surface an actionable manual-recovery message.
+#   State-file scope:
+#     The state file at /tmp/merge-to-main-state-<branch-sanitized>.json is
+#     keyed on BRANCH only. Different branches → different state files.
+#     The state file records origin_main_sha at init; --resume detects when
+#     origin/main has advanced past the recorded SHA and resets post-sync
+#     phases (sync, merge, version_bump, push) so they re-run against the
+#     fresh tip rather than trusting potentially-stale completed_phases.
+#   Stale state files older than 240 minutes are pruned automatically by
+#   _state_init's find-delete pass.
 
 set -euo pipefail
 
@@ -34,7 +58,8 @@ Usage: merge-to-main.sh [--bump [patch|minor]] [--resume|--help]
                   recovery runs automatically before retrying (up to 5 retries).
   --help          Print this usage message and exit.
 
-  (no args)       Run all phases sequentially (no version bump).
+  (no args)       Run all phases sequentially (defaults to --bump=patch when
+                  version.file_path is configured; no bump otherwise).
 
 Merge recovery: on git merge failure the script squash-rebases the branch onto
 main and retries. If recovery fails, run --resume (retry budget: 5 attempts).
@@ -250,6 +275,42 @@ _try_reset_stale_version_bump() {
         return 0
     fi
     return 1
+}
+
+# Self-healing push: retry `git push` with fetch+rebase between attempts.
+# Recovers automatically when origin/main has advanced between local merge and
+# the push attempt (e.g., the squash-merged PR landed at a different SHA).
+# Returns 0 on success, 1 on exhausted retries or unrecoverable rebase conflict.
+# Does NOT use --force / --force-with-lease — rebase keeps history linear and
+# never overwrites concurrent commits.
+_phase_push_self_healing() {
+    local _attempt=0
+    local _max_attempts=4
+    local _delay=2
+    while true; do
+        if git push 2>&1; then
+            return 0
+        fi
+        if [[ $_attempt -ge $_max_attempts ]]; then
+            echo "ERROR: Push failed after $_max_attempts self-healing attempts." >&2
+            echo "       Manual recovery: git fetch origin && git rebase origin/main && git push" >&2
+            return 1
+        fi
+        _attempt=$((_attempt + 1))
+        echo "INFO: Push rejected (attempt $_attempt/$_max_attempts) — fetching and rebasing onto origin/main..." >&2
+        if ! git fetch origin main --quiet 2>&1; then
+            echo "WARNING: git fetch origin main failed — retrying push without rebase." >&2
+        else
+            if ! git rebase origin/main 2>&1; then
+                echo "ERROR: Rebase onto origin/main hit a conflict (likely concurrent version bump)." >&2
+                git rebase --abort 2>/dev/null || true
+                echo "       Manual recovery: git fetch origin && git rebase origin/main, resolve conflicts, then re-run merge-to-main.sh --resume" >&2
+                return 1
+            fi
+        fi
+        sleep "$_delay"
+        _delay=$((_delay * 2))
+    done
 }
 
 # =============================================================================
@@ -566,16 +627,28 @@ _phase_version_bump() {
     # All git operations (git diff, git add -u, git commit --amend) must target
     # MAIN_REPO HEAD, not the worktree. (Fixes resume-from-version_bump gap.)
     cd "$MAIN_REPO"
-    # Idempotency: skip if completed in state AND _state_init not called in this process.
-    # The marker file records the PID of the process that ran _state_init; if the current
-    # process did not call _state_init (i.e. PIDs differ), a prior run may have already
-    # completed this phase — check the state file before running again.
-    local _marker_file="/tmp/merge-state-init-marker-${BRANCH//\//-}" _init_pid=""
-    [[ -f "$_marker_file" ]] && _init_pid=$(cat "$_marker_file" 2>/dev/null || echo "")
-    if [[ "$_init_pid" != "${BASHPID:-$$}" ]]; then
+    # Idempotency on resume (bug cb31-3552): when resuming a prior run, skip
+    # the bump if the state file already records version_bump as complete. The
+    # prior PID-equality guard was structurally bypassed in pr.sh library mode
+    # because _state_init runs in the same process as _phase_version_bump.
+    #
+    # Resume context propagation: _CLI_RESUME is a local in direct.sh's CLI
+    # parsing block. In library mode (sourced by merge-to-main-pr.sh), the env
+    # var DSO_MERGE_RESUMING=1 carries the same signal — pr.sh exports it from
+    # its --resume handling. Either signal triggers the resume-skip check.
+    if [[ "${_CLI_RESUME:-false}" == "true" ]] || [[ "${DSO_MERGE_RESUMING:-0}" == "1" ]]; then
         local _state_file; _state_file=$(_state_file_path) 2>/dev/null || true
-        if [[ -n "$_state_file" && -f "$_state_file" ]] && [[ "$(python3 -c "import json;d=json.load(open('$_state_file'));print('y' if 'version_bump' in d.get('completed_phases',[]) else 'n')" 2>/dev/null)" == "y" ]]; then
-            echo "INFO: version_bump already completed (resume skip)."; return 0; fi; fi
+        if [[ -n "$_state_file" && -f "$_state_file" ]] && \
+           [[ "$(python3 -c "import json,sys;
+try:
+    d=json.load(open('$_state_file'))
+    print('y' if 'version_bump' in d.get('completed_phases',[]) else 'n')
+except Exception:
+    print('n')" 2>/dev/null)" == "y" ]]; then
+            echo "INFO: version_bump already completed (resume skip)."
+            return 0
+        fi
+    fi
     if [[ -z "${BUMP_TYPE:-}" ]]; then
         # Default to patch when version.file_path is configured (fb93-69da).
         # This eliminates the fragile multi-hop --bump relay chain:
@@ -725,8 +798,15 @@ _phase_push() {
     if ! _check_push_needed; then
         echo "INFO: Push skipped - already on origin/main."
     else
-        if ! retry_with_backoff 4 2 git push 2>&1; then
-            echo "ERROR: Push failed after retries. Try: git pull --rebase && git push"
+        # Self-healing push (bug cb31-3552): when origin/main has advanced
+        # between local merge and push (e.g., squash-merge of the just-merged
+        # PR landed at a different SHA), a bare retry fails identically every
+        # attempt. Fetch + rebase + retry recovers automatically. The bump
+        # commit is mechanical (single-file diff on the version file) so the
+        # rebase is conflict-free in the common case; on the rare conflict
+        # (concurrent foreign version bump) we abort cleanly and surface a
+        # recovery instruction.
+        if ! _phase_push_self_healing; then
             exit 1
         fi
         echo "OK: Pushed main to remote."
@@ -939,6 +1019,67 @@ if [[ "$_CLI_RESUME" == "true" ]]; then
     if [[ "$_resume_retry_count" -ge "$MAX_MERGE_RETRIES" ]]; then
         echo "ESCALATE: Merge has failed 5 times. Stop and ask the user for help. Do NOT retry."
         exit 1
+    fi
+
+    # --- State-file freshness check (multi-session hardening) ---
+    # If origin/main has advanced since this state file was created, the
+    # post-sync phases (sync, merge, version_bump, push) must re-run against
+    # the fresh tip — even if completed_phases marks them done. The
+    # self-healing push handles the immediate push consequence, but the
+    # freshness check makes the staleness explicit and prevents skipping
+    # phases that depend on a current origin view.
+    #
+    # Behavior:
+    #   - Missing/empty origin_main_sha (legacy state file) → proceed normally
+    #   - Recorded SHA is an ancestor of (or equal to) current origin/main with
+    #     no advancement → proceed normally
+    #   - origin/main has advanced past the recorded SHA → reset post-sync
+    #     phases to incomplete (they will re-run)
+    #   - Fetch failure → tolerate; proceed normally
+    if [[ -f "$_sf" ]]; then
+        _RECORDED_ORIGIN_SHA=$(_DSO_SF="$_sf" python3 -c "
+import json, os
+try:
+    with open(os.environ['_DSO_SF']) as f:
+        d = json.load(f)
+    print(d.get('origin_main_sha', ''))
+except Exception:
+    print('')
+" 2>/dev/null || echo "")
+        if [[ -n "$_RECORDED_ORIGIN_SHA" ]]; then
+            # Best-effort fetch; tolerate failure (offline / transient network)
+            git fetch origin main --quiet 2>/dev/null || true
+            _CURRENT_ORIGIN_SHA=$(git rev-parse origin/main 2>/dev/null || echo "")
+            if [[ -n "$_CURRENT_ORIGIN_SHA" && "$_CURRENT_ORIGIN_SHA" != "$_RECORDED_ORIGIN_SHA" ]]; then
+                # Check whether origin advanced past the recorded SHA (recorded is
+                # an ancestor of current). If so, reset post-sync phases.
+                if git merge-base --is-ancestor "$_RECORDED_ORIGIN_SHA" "$_CURRENT_ORIGIN_SHA" 2>/dev/null; then
+                    echo "INFO: --resume: origin/main has advanced since this state file was created"
+                    echo "      (recorded=${_RECORDED_ORIGIN_SHA:0:8}, current=${_CURRENT_ORIGIN_SHA:0:8})."
+                    echo "      Resetting post-sync phases (sync, merge, version_bump, push) to re-run against fresh tip."
+                    _DSO_SF="$_sf" _DSO_CURRENT_SHA="$_CURRENT_ORIGIN_SHA" python3 -c "
+import json, os
+sf = os.environ['_DSO_SF']
+with open(sf) as f:
+    d = json.load(f)
+_post = {'sync', 'merge', 'version_bump', 'push'}
+d['completed_phases'] = [p for p in d.get('completed_phases', []) if p not in _post]
+_phases = d.get('phases', {})
+for _p in list(_phases.keys()):
+    if _p in _post:
+        _phases.pop(_p, None)
+d['phases'] = _phases
+# Update recorded SHA to current so we don't repeat the reset on a subsequent --resume
+d['origin_main_sha'] = os.environ.get('_DSO_CURRENT_SHA', '')
+with open(sf + '.tmp', 'w') as f:
+    json.dump(d, f)
+    f.flush()
+    os.fsync(f.fileno())
+os.replace(sf + '.tmp', sf)
+" 2>/dev/null || true
+                fi
+            fi
+        fi
     fi
 
     # --- Mid-rebase state detection ---
