@@ -36,6 +36,7 @@ from dso_ci_review.dispatch import (
     dispatch_schema_correction,
     dispatch_two_call_review,
 )
+from dso_ci_review._config import default_config_path, read_config_int
 from dso_ci_review.findings import merge_findings, _parse_line_range
 from dso_ci_review.providers.config import AuthError, ConfigError, get_provider
 from dso_ci_review.proximity import compute_proximity_overlap, validate_escape_rationale
@@ -1051,25 +1052,6 @@ _TIER_MODEL_DEFAULTS: dict[str, str] = {
 }
 
 
-def _default_config_path() -> str:
-    """Return the canonical dso-config.conf path for the repo containing runner.py.
-
-    runner.py lives 5 dirname levels below repo_root/.claude/dso-config.conf:
-    runner.py → dso_ci_review/ → scripts/ → dso/ → plugins/ → repo_root/
-    """
-    return os.path.join(
-        os.path.dirname(
-            os.path.dirname(
-                os.path.dirname(
-                    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                )
-            )
-        ),
-        ".claude",
-        "dso-config.conf",
-    )
-
-
 def _read_tier_model(tier: str, config_path: str | None = None) -> str:
     """Return the model for the given tier, reading from dso-config.conf when available.
 
@@ -1082,14 +1064,14 @@ def _read_tier_model(tier: str, config_path: str | None = None) -> str:
     if env_override:
         return env_override
 
-    # Locate config file
+    # Locate config file. runner.py lives at
+    # <repo_root>/<plugin_root>/scripts/dso_ci_review/runner.py so dso-config.conf
+    # at <repo_root>/.claude/ is 5 dirname levels up (dso_ci_review → scripts →
+    # <plugin_root> → plugins → repo_root). The previous 3-level chain stopped at
+    # the plugin root, where .claude/ does not exist, so model.<tier> overrides
+    # were silently ignored. (0e2a-77b0)
     if config_path is None:
-        # runner.py lives at <repo_root>/<plugin_root>/scripts/dso_ci_review/runner.py
-        # so dso-config.conf at <repo_root>/.claude/ is 5 dirname levels up
-        # (dso_ci_review → scripts → <plugin_root> → plugins → repo_root). The
-        # previous 3-level chain stopped at the plugin root, where .claude/ does
-        # not exist, so model.<tier> overrides were silently ignored. (0e2a-77b0)
-        config_path = _default_config_path()
+        config_path = default_config_path()
 
     config_key = f"model.{tier}="
     if os.path.isfile(config_path):
@@ -1104,36 +1086,17 @@ def _read_tier_model(tier: str, config_path: str | None = None) -> str:
     return _TIER_MODEL_DEFAULTS.get(tier, "claude-sonnet-4-6")
 
 
-def _read_config_int(key: str, default: int, config_path: str | None = None) -> int:
-    """Read an integer config value from dso-config.conf.
+# _default_config_path and _read_config_int moved to dso_ci_review._config
+# (PR #169 review f-duplicated-helpers). Backward-compat thin wrappers kept for
+# any external callers that may import the prior-name symbols.
+def _default_config_path() -> str:  # pragma: no cover — thin compat shim
+    return default_config_path()
 
-    Resolution order:
-      1. key=<value> in config_path (or auto-detected repo config)
-      2. default (returned when key absent or value not a valid integer)
 
-    Config path auto-detection uses _default_config_path() — the same 5-dirname-level
-    chain as _read_tier_model (runner.py → dso_ci_review → scripts → plugins → repo_root).
-    """
-    if config_path is None:
-        config_path = _default_config_path()
-
-    if os.path.isfile(config_path):
-        try:
-            with open(config_path, encoding="utf-8") as fh:
-                for line in fh:
-                    line = line.strip()
-                    if not line or line.startswith("#"):
-                        continue
-                    parts = line.split("=", 1)
-                    if len(parts) == 2 and parts[0].strip() == key:
-                        value = parts[1].strip()
-                        try:
-                            return int(value)
-                        except ValueError:
-                            return default
-        except (OSError, UnicodeDecodeError):
-            return default
-    return default
+def _read_config_int(  # pragma: no cover — thin compat shim
+    key: str, default: int, config_path: str | None = None
+) -> int:
+    return read_config_int(key, default, config_path)
 
 
 _SCHEMA_CORRECTION_MAX_ATTEMPTS_CEILING = 3
@@ -1177,7 +1140,7 @@ def get_schema_correction_max_attempts(config_path: str | None = None) -> int:
     dispatch_schema_correction function as a subsequent story in the same epic).
     Do not re-implement config reading for this key in dispatch.py.
     """
-    raw = _read_config_int("review.schema_correction_max_attempts", 2, config_path)
+    raw = read_config_int("review.schema_correction_max_attempts", 2, config_path)
     return _clamp_schema_correction_attempts(raw)
 
 

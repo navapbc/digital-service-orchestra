@@ -27,18 +27,38 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import re
 import sys
+from collections import Counter
 from typing import Any
 
+from dso_ci_review._config import read_config_int
 from dso_ci_review.dispatch import async_dispatch_specialists, dispatch_arch_synthesis
+
+# Synthesized cluster label for files merged when the directory count exceeds
+# _max_clusters(). Double-underscore-wrapped to avoid collision with a real
+# directory literally named "overflow/" (PR #169 review f-overflow-sentinel-
+# collision: previously a real ``overflow/`` directory could be overwritten by
+# the synthesized cluster of the same name).
+_OVERFLOW_LABEL = "__overflow__"
+
+
+class RegionSplitInvariantError(Exception):
+    """Raised when region-split's structural invariants are violated.
+
+    Replaces AssertionError for the file-atomicity check (PR #169 review
+    f-assertion-error-style): raising AssertionError from production code is
+    conventionally reserved for ``assert`` statements and can be rewritten or
+    swallowed by some tooling. A domain-specific exception is easier to catch,
+    log, and report in CI.
+    """
+
 
 # Threshold defaults — overridable via dso-config.conf keys:
 #   review.region_split.loc_threshold        (default 3000)
 #   review.region_split.file_count_threshold (default 40)
 #   review.region_split.max_clusters         (default 5)
-# Resolution is per-call via _read_config_int(); these defaults apply when
+# Resolution is per-call via read_config_int(); these defaults apply when
 # the key is absent or the value is not a valid integer.
 #
 # Sizing rationale (bug 532e-6ab7 re-assessment):
@@ -62,67 +82,13 @@ _FILE_COUNT_THRESHOLD_DEFAULT = 40
 _MAX_CLUSTERS_DEFAULT = 5
 
 
-def _default_config_path() -> str:
-    """Return the canonical dso-config.conf path for the repo containing this module.
-
-    region_split.py lives 5 dirname levels below repo_root/.claude/dso-config.conf:
-    region_split.py → dso_ci_review/ → scripts/ → dso/ → plugins/ → repo_root/
-
-    Duplicated from runner.py's _default_config_path to avoid a circular import
-    (runner imports region_split, so region_split cannot import from runner).
-    Keep these two implementations in sync.
-    """
-    return os.path.join(
-        os.path.dirname(
-            os.path.dirname(
-                os.path.dirname(
-                    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                )
-            )
-        ),
-        ".claude",
-        "dso-config.conf",
-    )
-
-
-def _read_config_int(key: str, default: int, config_path: str | None = None) -> int:
-    """Read an integer config value from dso-config.conf.
-
-    Duplicated from runner.py to avoid a circular import. Keep in sync.
-
-    Resolution order:
-      1. key=<value> in config_path (or auto-detected repo config)
-      2. default (returned when key absent or value not a valid integer)
-    """
-    if config_path is None:
-        config_path = _default_config_path()
-
-    if os.path.isfile(config_path):
-        try:
-            with open(config_path, encoding="utf-8") as fh:
-                for line in fh:
-                    line = line.strip()
-                    if not line or line.startswith("#"):
-                        continue
-                    parts = line.split("=", 1)
-                    if len(parts) == 2 and parts[0].strip() == key:
-                        value = parts[1].strip()
-                        try:
-                            return int(value)
-                        except ValueError:
-                            return default
-        except (OSError, UnicodeDecodeError):
-            return default
-    return default
-
-
 def _loc_threshold() -> int:
     """Resolved LOC threshold for region-split (default 3000).
 
     Values ≤ 0 from config (invalid — would disable LOC gating entirely or
     invert the comparison) fall back to the default.
     """
-    value = _read_config_int(
+    value = read_config_int(
         "review.region_split.loc_threshold", _LOC_THRESHOLD_DEFAULT
     )
     return value if value > 0 else _LOC_THRESHOLD_DEFAULT
@@ -134,7 +100,7 @@ def _file_count_threshold() -> int:
     Values ≤ 0 from config fall back to the default — same rationale as
     _loc_threshold.
     """
-    value = _read_config_int(
+    value = read_config_int(
         "review.region_split.file_count_threshold", _FILE_COUNT_THRESHOLD_DEFAULT
     )
     return value if value > 0 else _FILE_COUNT_THRESHOLD_DEFAULT
@@ -146,17 +112,57 @@ def _max_clusters() -> int:
     Values < 1 from config (which would prevent any cluster being kept) fall
     back to the default.
     """
-    value = _read_config_int(
+    value = read_config_int(
         "review.region_split.max_clusters", _MAX_CLUSTERS_DEFAULT
     )
     return value if value >= 1 else _MAX_CLUSTERS_DEFAULT
+
+
+def _extract_filenames(diff_text: str) -> list[str]:
+    """Extract the set of filenames touched by ``diff_text``, deduplicated and
+    ordered by first appearance.
+
+    Reads both ``diff --git a/X b/X`` and ``+++ b/X`` headers — the union
+    catches pure-deletion diffs (whose ``+++`` is ``/dev/null``) and
+    binary-only diffs (which may carry ``diff --git`` but no ``+++ b/...``
+    text marker).
+
+    PR #169 review f-gate-vs-clustering-divergence: previously the gate
+    (``_should_region_split``) used the union but the clustering path
+    (``_async_run_region_split``) used only ``+++ b/...``. A multi-file diff
+    that included a deletion was counted by the gate but the deleted file
+    was dropped before clustering — silently bypassing review. Unifying file
+    extraction here ensures the gate and the clustering operate on the same
+    file set, so the post-cluster atomicity check has a faithful baseline.
+    """
+    seen: set[str] = set()
+    ordered: list[str] = []
+
+    for line in diff_text.splitlines():
+        m = re.match(r"^diff --git a/(\S+) b/\S+", line)
+        if m:
+            path = m.group(1)
+            if path not in seen:
+                seen.add(path)
+                ordered.append(path)
+            continue
+        m = re.match(r"^\+\+\+ b/(\S+)", line)
+        if m:
+            path = m.group(1)
+            if path not in seen:
+                seen.add(path)
+                ordered.append(path)
+
+    return ordered
 
 
 def _should_region_split(diff_text: str) -> bool:
     """Return True when diff exceeds LOC or file-count thresholds.
 
     LOC gate: count lines starting with + or - but NOT +++ or --- (diff headers).
-    File gate: count distinct filenames from diff --git headers.
+    File gate: count distinct filenames using ``_extract_filenames`` — the
+    same helper used by the clustering path (PR #169 fix for gate-vs-
+    clustering divergence).
 
     Single-file atomicity short-circuit (bug 532e-6ab7): if the diff touches
     exactly one file, return False regardless of LOC count. A single source
@@ -165,8 +171,6 @@ def _should_region_split(diff_text: str) -> bool:
     specialist with full context, never be partitioned by hunk.
     """
     loc_count = 0
-    file_set: set[str] = set()
-
     for line in diff_text.splitlines():
         # Count added/removed lines (exclude +++ and --- header lines)
         if line.startswith("+") and not line.startswith("+++"):
@@ -174,19 +178,7 @@ def _should_region_split(diff_text: str) -> bool:
         elif line.startswith("-") and not line.startswith("---"):
             loc_count += 1
 
-        # Count distinct files from diff --git headers
-        m = re.match(r"^diff --git a/(\S+) b/\S+", line)
-        if m:
-            file_set.add(m.group(1))
-
-        # Also detect from --- a/... headers when no diff --git line exists
-        # (already handled by the +++ / --- exclusion above)
-
-    # Also parse file names from +++ b/... lines as fallback
-    for line in diff_text.splitlines():
-        m = re.match(r"^\+\+\+ b/(\S+)", line)
-        if m:
-            file_set.add(m.group(1))
+    file_set = set(_extract_filenames(diff_text))
 
     # File-atomicity floor: never region-split a single-file diff (bug 532e-6ab7).
     # This MUST be checked before the LOC threshold so that a large change in
@@ -195,8 +187,12 @@ def _should_region_split(diff_text: str) -> bool:
     if len(file_set) <= 1:
         return False
 
-    # Resolve config-driven thresholds ONCE per call (PR #169 perf: avoid
-    # re-reading dso-config.conf for each comparison).
+    # Resolve config thresholds into locals so the LOC and file-count
+    # comparisons don't each re-invoke the reader (PR #169 perf — the gain
+    # is eliminating per-comparison re-reads, not eliminating all reads:
+    # ``_loc_threshold`` and ``_file_count_threshold`` are still called once
+    # each per invocation, and ``_max_clusters`` is read separately during
+    # clustering if region-split fires).
     loc_t = _loc_threshold()
     file_t = _file_count_threshold()
 
@@ -213,22 +209,23 @@ def _cluster_files(filenames: list[str]) -> dict[str, list[str]]:
     - Files with a directory component land in ``"<dir>"`` cluster.
     - Top-level files (no directory) land in ``"."`` cluster.
     - If more than ``_max_clusters()`` distinct directories exist, the smallest
-      clusters beyond the top (_max_clusters() - 1) are merged into "overflow".
+      clusters beyond the top (_max_clusters() - 1) are merged into the
+      ``_OVERFLOW_LABEL`` (``"__overflow__"``) cluster.
 
     Returns a dict mapping cluster label → list of filenames. Non-overflow
-    clusters store BASENAMES (per the original API contract); the "overflow"
-    cluster, when present, stores FULL PATHS so the downstream extractor can
-    re-locate hunks (PR #169 fix: previously overflow lost the parent
-    directory, producing nonexistent ``overflow/<basename>`` lookups and a
-    silent fall-through to whole-diff dispatch).
+    clusters store BASENAMES (per the original API contract); the
+    ``_OVERFLOW_LABEL`` cluster, when present, stores FULL PATHS so the
+    downstream extractor can re-locate hunks (PR #169 fix: previously
+    overflow lost the parent directory, producing nonexistent
+    ``overflow/<basename>`` lookups and a silent fall-through to whole-diff
+    dispatch).
 
     File-atomicity invariant (bug 532e-6ab7): every input file appears in
     exactly one cluster. A single source file is the atomic unit of code
     review and must never be partitioned across reviewer specialists.
-    Enforced by a post-cluster count-preservation assertion: the sum of
-    files across all clusters must equal the input filename count. Any
-    future refactor that drops, duplicates, or hunk-splits a file will trip
-    this assertion at runtime.
+    Enforced by ``_assert_file_atomicity`` — an identity-based Counter
+    comparison (not just count preservation) so a drop+duplicate cannot
+    pass silently.
     """
     dir_map: dict[str, list[str]] = {}
 
@@ -251,8 +248,9 @@ def _cluster_files(filenames: list[str]) -> dict[str, list[str]]:
     if len(dir_map) <= max_c:
         result = dir_map
     else:
-        # Merge smallest clusters beyond top (max_c - 1) into "overflow"
-        # Sort by cluster size descending, keep the largest (max_c - 1)
+        # Merge smallest clusters beyond top (max_c - 1) into the overflow
+        # sentinel. Sort by cluster size descending, keep the largest
+        # (max_c - 1).
         sorted_dirs = sorted(dir_map.items(), key=lambda kv: len(kv[1]), reverse=True)
         kept = sorted_dirs[: max_c - 1]
         overflow_dirs = sorted_dirs[max_c - 1 :]
@@ -268,7 +266,7 @@ def _cluster_files(filenames: list[str]) -> dict[str, list[str]]:
             else:
                 overflow_files.extend(f"{overflow_dir}/{f}" for f in files)
         if overflow_files:
-            result["overflow"] = overflow_files
+            result[_OVERFLOW_LABEL] = overflow_files
 
     _assert_file_atomicity(filenames, result)
     return result
@@ -277,30 +275,44 @@ def _cluster_files(filenames: list[str]) -> dict[str, list[str]]:
 def _assert_file_atomicity(
     input_filenames: list[str], clusters: dict[str, list[str]]
 ) -> None:
-    """Enforce: every input file is represented by exactly one entry across
-    all clusters (bug 532e-6ab7).
+    """Enforce: every input file appears across all clusters with the same
+    multiplicity (bug 532e-6ab7).
 
-    Count-preservation check: the sum of list lengths across all cluster
-    values must equal the input filename count. Any future refactor that
-    drops a file (silently omitted from review), duplicates a file (the
-    same file reviewed twice — fine for redundancy, broken for atomicity
-    semantics), or splits one file into multiple cluster entries (e.g., by
-    hunk) trips this assertion immediately.
+    Identity-based check (PR #169 review f-counter-not-count): reconstruct
+    the full set of file identities by combining each cluster's label with
+    its entries (for non-overflow / non-top-level clusters), or treating the
+    entries as full paths verbatim (for ``.`` and ``_OVERFLOW_LABEL``).
+    Compare the reconstructed multiset against the input via
+    ``collections.Counter`` so a drop + duplicate (which preserves count
+    but corrupts identity) is caught.
 
     A single source file is the atomic unit of code review and must NEVER be
     partitioned across reviewer specialists. Region-split clusters by
     directory; within one cluster, a file's hunks are forwarded together by
     ``_extract_cluster_diff``'s in_target toggling. The atomicity invariant
     documented here protects both properties.
+
+    Raises ``RegionSplitInvariantError`` (not AssertionError — PR #169
+    review f-assertion-error-style) so callers can catch a domain-specific
+    failure and so the message survives ``python -O``.
     """
-    total_in_clusters = sum(len(v) for v in clusters.values())
-    if total_in_clusters != len(input_filenames):
-        raise AssertionError(
-            "File-atomicity invariant violated (bug 532e-6ab7): "
-            f"input had {len(input_filenames)} files but clusters total "
-            f"{total_in_clusters}. A single source file must land in "
-            "exactly one cluster entry; this divergence indicates a file "
-            "was dropped, duplicated, or hunk-split across clusters."
+    reconstructed: list[str] = []
+    for cluster_dir, cluster_entries in clusters.items():
+        if cluster_dir in {".", _OVERFLOW_LABEL}:
+            reconstructed.extend(cluster_entries)
+        else:
+            reconstructed.extend(f"{cluster_dir}/{name}" for name in cluster_entries)
+
+    in_counter = Counter(input_filenames)
+    out_counter = Counter(reconstructed)
+    if out_counter != in_counter:
+        missing = dict(in_counter - out_counter)
+        extra = dict(out_counter - in_counter)
+        raise RegionSplitInvariantError(
+            "File-atomicity invariant violated (bug 532e-6ab7): clustered "
+            "file identities do not match input identities. "
+            f"missing={missing}, extra={extra}. A single source file must "
+            "land in exactly one cluster entry."
         )
 
 
@@ -308,14 +320,14 @@ def _extract_cluster_diff(diff_text: str, cluster_dir: str, cluster_files: list[
     """Extract diff hunks relevant to the given cluster.
 
     Builds the set of full paths by combining cluster_dir with each basename
-    for ordinary clusters. For the "." (top-level) and "overflow" pseudo-
-    clusters, ``cluster_files`` is already a list of full paths and is used
-    verbatim (PR #169: overflow now stores full paths so the lookup actually
-    matches the diff hunks).
+    for ordinary clusters. For the ``.`` (top-level) and ``_OVERFLOW_LABEL``
+    pseudo-clusters, ``cluster_files`` is already a list of full paths and
+    is used verbatim (PR #169: overflow now stores full paths so the lookup
+    actually matches the diff hunks).
 
     Returns a substring of diff_text containing only those file sections.
     """
-    if cluster_dir in {".", "overflow"}:
+    if cluster_dir in {".", _OVERFLOW_LABEL}:
         full_paths = set(cluster_files)
     else:
         full_paths = {f"{cluster_dir}/{f}" for f in cluster_files}
@@ -361,12 +373,12 @@ async def _async_run_region_split(
     prior_defenses: list[dict] | None = None,
 ) -> dict[str, Any]:
     """Async implementation of region-split dispatch."""
-    # 1. Extract filenames from diff and cluster them
-    filenames: list[str] = []
-    for line in diff_text.splitlines():
-        m = re.match(r"^\+\+\+ b/(\S+)", line)
-        if m:
-            filenames.append(m.group(1))
+    # 1. Extract filenames from diff and cluster them. Use the shared helper
+    # so this path sees the SAME file set as the gate (_should_region_split)
+    # — including pure-deletion / binary-only entries that the prior +++-only
+    # extraction silently dropped (PR #169 review f-gate-vs-clustering-
+    # divergence).
+    filenames = _extract_filenames(diff_text)
 
     clusters = _cluster_files(filenames)
     print(
