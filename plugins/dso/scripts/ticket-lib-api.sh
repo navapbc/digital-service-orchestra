@@ -1715,9 +1715,28 @@ ticket_link() {
             return 1
         fi
 
+        # Resolve short IDs / aliases / prefixes for both endpoints before
+        # delegating to ticket-graph.py (bug ec61-0e1f).
+        local TRACKER_DIR
+        if [ -n "${TICKETS_TRACKER_DIR:-}" ]; then
+            TRACKER_DIR="$TICKETS_TRACKER_DIR"
+        else
+            local REPO_ROOT
+            REPO_ROOT="${PROJECT_ROOT:-$(GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git rev-parse --show-toplevel 2>/dev/null)}"
+            TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
+        fi
+
+        local src_id="$1" tgt_id="$2" relation="$3"
+        if ! src_id="$(_ticketlib_resolve_id "$src_id" "$TRACKER_DIR")"; then
+            return 1
+        fi
+        if ! tgt_id="$(_ticketlib_resolve_id "$tgt_id" "$TRACKER_DIR")"; then
+            return 1
+        fi
+
         # Relation validation is delegated to ticket-graph.py (single source of truth)
         # to avoid drift if new relation types are added.
-        python3 "$_TICKETLIB_DIR/ticket-graph.py" --link "$@"
+        python3 "$_TICKETLIB_DIR/ticket-graph.py" --link "$src_id" "$tgt_id" "$relation"
     )
 }
 
@@ -1726,10 +1745,65 @@ ticket_link() {
 # Thin wrapper: reads current status, validates, writes STATUS event via python3.
 # Does NOT replicate epic-close logic, unblock detection, or compact-on-close.
 ticket_transition() {
-    # Thin wrapper: delegate to ticket-transition.sh to preserve unblock logic,
-    # open-children guard, epic-close reminder, and flock-based concurrency.
+    # Thin wrapper: resolve short ID / alias / prefix at the library boundary
+    # (bug ec61-0e1f), then delegate to ticket-transition.sh to preserve unblock
+    # logic, open-children guard, epic-close reminder, and flock-based concurrency.
     # Tracked for future in-process optimization in 161e-b2b4.
-    bash "$_TICKETLIB_DIR/ticket-transition.sh" "$@"
+    if [ $# -lt 1 ]; then
+        bash "$_TICKETLIB_DIR/ticket-transition.sh" "$@"
+        return $?
+    fi
+    (
+        set -uo pipefail
+        unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR 2>/dev/null || true
+
+        local TRACKER_DIR
+        if [ -n "${TICKETS_TRACKER_DIR:-}" ]; then
+            TRACKER_DIR="$TICKETS_TRACKER_DIR"
+        else
+            local REPO_ROOT
+            REPO_ROOT="${PROJECT_ROOT:-$(GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git rev-parse --show-toplevel 2>/dev/null)}"
+            TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
+        fi
+
+        local ticket_id="$1"
+        shift
+        if ! ticket_id="$(_ticketlib_resolve_id "$ticket_id" "$TRACKER_DIR")"; then
+            return 1
+        fi
+        bash "$_TICKETLIB_DIR/ticket-transition.sh" "$ticket_id" "$@"
+    )
+    return $?
+}
+
+# ── ticket_compact ────────────────────────────────────────────────────────────
+# Thin wrapper: resolve short ID / alias / prefix at the library boundary
+# (bug ec61-0e1f), then delegate to ticket-compact.sh.
+ticket_compact() {
+    if [ $# -lt 1 ]; then
+        bash "$_TICKETLIB_DIR/ticket-compact.sh" "$@"
+        return $?
+    fi
+    (
+        set -uo pipefail
+        unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR 2>/dev/null || true
+
+        local TRACKER_DIR
+        if [ -n "${TICKETS_TRACKER_DIR:-}" ]; then
+            TRACKER_DIR="$TICKETS_TRACKER_DIR"
+        else
+            local REPO_ROOT
+            REPO_ROOT="${PROJECT_ROOT:-$(GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git rev-parse --show-toplevel 2>/dev/null)}"
+            TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
+        fi
+
+        local ticket_id="$1"
+        shift
+        if ! ticket_id="$(_ticketlib_resolve_id "$ticket_id" "$TRACKER_DIR")"; then
+            return 1
+        fi
+        bash "$_TICKETLIB_DIR/ticket-compact.sh" "$ticket_id" "$@"
+    )
     return $?
 }
 

@@ -634,4 +634,132 @@ test_ticket_untag_short_id_resolves_to_full_ticket() {
 }
 test_ticket_untag_short_id_resolves_to_full_ticket
 
+# ── Test 16: ticket_transition accepts 8-hex short ID ────────────────────────
+# RED marker — test_ticket_transition_short_id_resolves_to_full_ticket
+# Must FAIL before _ticketlib_resolve_short_id is added to ticket_transition.
+# Covers ec61-0e1f: ticket transition errored on short IDs while show resolved them.
+echo "Test 16: ticket_transition accepts 8-hex short ID and transitions the canonical ticket"
+test_ticket_transition_short_id_resolves_to_full_ticket() {
+    local repo
+    repo=$(_make_test_repo)
+
+    local full_id
+    full_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "transition short-id test" 2>/dev/null | tail -1) || true
+
+    if [ -z "$full_id" ]; then
+        assert_eq "created ticket" "non-empty" "empty"
+        return
+    fi
+
+    local short_id="${full_id:0:9}"
+
+    (
+        cd "$repo" || exit 1
+        # shellcheck disable=SC2030,SC2031
+        export _TICKET_TEST_NO_SYNC=1
+        # shellcheck disable=SC2030,SC2031
+        export TICKETS_TRACKER_DIR="$repo/.tickets-tracker"
+        _invoke_lib_op ticket_transition "$short_id" open in_progress >/dev/null 2>&1
+    ) || true
+
+    local show_output got_status
+    show_output=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" show "$full_id" 2>/dev/null) || true
+    got_status=$(echo "$show_output" | python3 -c "import json,sys; print(json.load(sys.stdin).get('status',''))" 2>/dev/null) || got_status=""
+    assert_eq "transition via short ID updates canonical ticket status" "in_progress" "$got_status"
+
+    if [ -d "$repo/.tickets-tracker/$short_id" ]; then
+        assert_eq "no orphan dir under short ID (transition)" "absent" "present"
+    else
+        assert_eq "no orphan dir under short ID (transition)" "absent" "absent"
+    fi
+}
+test_ticket_transition_short_id_resolves_to_full_ticket
+
+# ── Test 17: ticket_link accepts 8-hex short IDs on both sides ───────────────
+echo "Test 17: ticket_link accepts 8-hex short IDs and links the canonical tickets"
+test_ticket_link_short_id_resolves_to_full_ticket() {
+    local repo
+    repo=$(_make_test_repo)
+
+    local full_a full_b
+    full_a=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "link short-id src" 2>/dev/null | tail -1) || true
+    full_b=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "link short-id tgt" 2>/dev/null | tail -1) || true
+
+    if [ -z "$full_a" ] || [ -z "$full_b" ]; then
+        assert_eq "created two tickets" "non-empty" "empty"
+        return
+    fi
+
+    local short_a="${full_a:0:9}" short_b="${full_b:0:9}"
+
+    (
+        cd "$repo" || exit 1
+        # shellcheck disable=SC2030,SC2031
+        export _TICKET_TEST_NO_SYNC=1
+        # shellcheck disable=SC2030,SC2031
+        export TICKETS_TRACKER_DIR="$repo/.tickets-tracker"
+        _invoke_lib_op ticket_link "$short_a" "$short_b" depends_on >/dev/null 2>&1
+    ) || true
+
+    # The link must be established on the canonical ticket — assert presence,
+    # not just absence of orphan dirs (otherwise a silently-failing resolver
+    # would still satisfy the absence check).
+    local show_output got_deps_count
+    show_output=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" show "$full_a" 2>/dev/null) || true
+    got_deps_count=$(echo "$show_output" | python3 -c "import json,sys; d=json.load(sys.stdin); print(len(d.get('deps',[])))" 2>/dev/null) || got_deps_count="0"
+    if [ "$got_deps_count" -gt 0 ]; then
+        assert_eq "link established on canonical src ticket via short IDs" "yes" "yes"
+    else
+        assert_eq "link established on canonical src ticket via short IDs" "yes" "no"
+    fi
+
+    if [ -d "$repo/.tickets-tracker/$short_a" ]; then
+        assert_eq "no orphan dir under short src ID (link)" "absent" "present"
+    else
+        assert_eq "no orphan dir under short src ID (link)" "absent" "absent"
+    fi
+    if [ -d "$repo/.tickets-tracker/$short_b" ]; then
+        assert_eq "no orphan dir under short tgt ID (link)" "absent" "present"
+    else
+        assert_eq "no orphan dir under short tgt ID (link)" "absent" "absent"
+    fi
+}
+test_ticket_link_short_id_resolves_to_full_ticket
+
+# ── Test 18: ticket compact accepts 8-hex short ID ───────────────────────────
+echo "Test 18: ticket compact accepts 8-hex short ID without creating orphan dirs"
+test_ticket_compact_short_id_resolves_to_full_ticket() {
+    local repo
+    repo=$(_make_test_repo)
+
+    local full_id
+    full_id=$(cd "$repo" && _TICKET_TEST_NO_SYNC=1 bash "$TICKET_SCRIPT" create task "compact short-id test" 2>/dev/null | tail -1) || true
+
+    if [ -z "$full_id" ]; then
+        assert_eq "created ticket" "non-empty" "empty"
+        return
+    fi
+
+    local short_id="${full_id:0:9}"
+    local exit_code=0
+
+    (
+        cd "$repo" || exit 1
+        # shellcheck disable=SC2030,SC2031
+        export _TICKET_TEST_NO_SYNC=1
+        # shellcheck disable=SC2030,SC2031
+        export TICKETS_TRACKER_DIR="$repo/.tickets-tracker"
+        bash "$TICKET_SCRIPT" compact "$short_id" >/dev/null 2>&1
+    ) || exit_code=$?
+
+    assert_eq "ticket compact with short ID exits 0" "0" "$exit_code"
+
+    if [ -d "$repo/.tickets-tracker/$short_id" ]; then
+        assert_eq "no orphan dir under short ID (compact)" "absent" "present"
+    else
+        assert_eq "no orphan dir under short ID (compact)" "absent" "absent"
+    fi
+}
+test_ticket_compact_short_id_resolves_to_full_ticket
+
 print_summary
