@@ -17,7 +17,7 @@ Agent files live in `${CLAUDE_PLUGIN_ROOT}/agents/`. The `dso:*` labels below ar
 |-------|-------|---------------|
 | `dso:complexity-evaluator` | haiku | `/dso:sprint`, `/dso:preplanning`; read inline by `/dso:fix-bug` |
 | `dso:conflict-analyzer` | sonnet | `/dso:resolve-conflicts` |
-| `dso:cross-epic-interaction-classifier` | haiku | `/dso:brainstorm` (cross-epic scan step — dispatched in batches of 20 open epics via cross-epic-scan.md prompt; emits interaction_signals JSON with 4-tier severity) |
+| `dso:cross-epic-interaction-classifier` | haiku | `/dso:brainstorm` (cross-epic scan step — dispatched in batches of 5 open epics via cross-epic-scan.md prompt; emits interaction_signals JSON with 4-tier severity) |
 | `dso:bot-psychologist` | sonnet | `/dso:fix-bug` llm-behavioral path (dispatched or read inline when sub-agent) |
 | `dso:doc-writer` | sonnet | `/dso:sprint` (doc stories), `/dso:update-docs` |
 | `dso:intent-search` | sonnet | `/dso:fix-bug` Phase B Step 1 (Intent Gate — pre-investigation intent search; skipped for CLI_user-tagged bugs); emits INTENT_CONFLICT signal when callers depend on current behavior |
