@@ -424,7 +424,7 @@ DASH_RANGE_CITED_FILE=$(write_fixture "dash-range-cited.json" '{
       "category": "hygiene",
       "description": "Test finding with line range.",
       "file": "src/foo.py",
-      "cited_lines": [".github/workflows/sprint-story-review.yml:83-112"],
+      "cited_lines": [".github/workflows/per-branch-review.yml:83-112"],
       "cited_excerpt": "def foo():\n    pass\n    more code here"
     }
   ],
