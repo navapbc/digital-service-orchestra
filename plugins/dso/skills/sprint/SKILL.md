@@ -2021,15 +2021,28 @@ if [[ ${#CONFLICT_QUEUE[@]} -gt 0 ]]; then
   exit 1
 fi
 if [[ "${SPRINT_MODE:-local}" == "ci-pr" ]]; then
-  # ci-pr mode: merge via GitHub PR — do NOT perform a local direct merge
-  # merge-to-main-pr.sh uses BRANCH (defaults to current git branch if unset).
-  # Export STORY_BRANCH as BRANCH so the script targets the correct story branch
-  # even when the orchestrator is not currently checked out on that branch.
+  # ci-pr mode: merge via GitHub PR — do NOT perform a local direct merge.
+  # Resolve session branch via 3-step fallback — fail-fast, never silently
+  # default to main. CI per-branch-review.yml handles code review for each
+  # story PR; no local /dso:review dispatch is needed here.
+  SESSION_BRANCH=$(bash "$PLUGIN_SCRIPTS/resolve-session-branch.sh") || { # shim-exempt: SKILL.md orchestrator instruction — sprint runs plugin scripts via $PLUGIN_SCRIPTS directly
+    echo "ERROR: SESSION_BRANCH resolution failed — cannot open story PR against session branch" >&2
+    exit 1
+  }
+  # Open story/* PR against session branch (not main) via STORY_PR_BASE env var.
+  # merge-to-main-pr.sh reads STORY_PR_BASE and passes it as --base to gh pr create.
+  # Note: in ci-pr mode, the DSO-Story-Merge trailer is NOT added locally — GitHub
+  # creates the merge commit when it auto-merges the story→session PR. The S5
+  # provenance verifier uses GitHub API signals as the primary provenance source
+  # in ci-pr mode (not the trailer). The trailer is emitted by merge-story-branch.sh
+  # only in local mode.
   export BRANCH="$STORY_BRANCH"
+  export STORY_PR_BASE="$SESSION_BRANCH"
   bash "$PLUGIN_SCRIPTS/merge-to-main.sh" || { # shim-exempt: SKILL.md orchestrator instruction — sprint runs plugin scripts via $PLUGIN_SCRIPTS directly
     echo "ERROR: merge-to-main.sh failed in ci-pr mode — aborting story merge" >&2
     exit 1
   }
+  unset STORY_PR_BASE BRANCH
 else
   # local mode: direct local merge with DSO-Story-Merge trailer
   bash "$PLUGIN_SCRIPTS/merge-story-branch.sh" "$STORY_BRANCH" "$STORY_ID" || { # shim-exempt: SKILL.md orchestrator instruction — sprint runs plugin scripts via $PLUGIN_SCRIPTS directly
