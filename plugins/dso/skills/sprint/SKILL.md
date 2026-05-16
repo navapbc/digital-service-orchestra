@@ -151,6 +151,23 @@ The `.sprint-active` marker is gitignored and scoped to the session worktree. It
 touch "$(git rev-parse --show-toplevel)/.sprint-active"
 ```
 
+### Ruleset Preflight (ci-pr mode only)
+
+When `SPRINT_MODE=ci-pr`, run the Ruleset preflight check before continuing:
+```bash
+if [[ "${SPRINT_MODE:-}" == "ci-pr" ]]; then
+    _PREFLIGHT_SCRIPT="$(git rev-parse --show-toplevel)/.claude/scripts/dso check-ruleset-preflight.sh"
+    if bash "$_PREFLIGHT_SCRIPT" 2>/dev/null; then
+        echo "Ruleset preflight: OK"
+    else
+        echo "WARNING: Ruleset preflight failed — session-* branch protection may not be configured. See INSTALL.md#github-rulesets-for-session-branches" >&2
+        echo "Continuing sprint — preflight is advisory, not blocking."
+    fi
+fi
+```
+
+This check is NON-BLOCKING (advisory only). If Rulesets aren't configured, warn but continue. Integration boundary: this preflight is the dso-94ya integration point between sprint orchestration and the GitHub Ruleset enforcement layer.
+
 **Draft PR Creation (ci-pr mode only)**: When `SPRINT_MODE=ci-pr`, open a long-lived draft PR before Phase E dispatch using `create-sprint-draft-pr.sh`:
 # See also: create-sprint-draft-pr.sh for Phase A draft PR creation (ci-pr mode only)
 ```bash
