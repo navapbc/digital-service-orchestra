@@ -87,8 +87,23 @@ def process_outbound(
     flap_threshold: int = 3,
     flap_window_seconds: int = 3600,
     cursor_advance_fn: Any = None,
+    outcome_out: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
-    """Process parsed events: filter, compile state, call acli, write SYNC events."""
+    """Process parsed events: filter, compile state, call acli, write SYNC events.
+
+    When *outcome_out* is supplied, the caller receives per-commit-sha outcome
+    sets so a safe high-water mark can be computed for cursor advance even
+    under partial-failure (bug 072b-9104-1b54-4309):
+
+    * ``outcome_out["commits_seen"]``: every commit_sha that contributed at
+      least one event to this batch.
+    * ``outcome_out["commits_failed"]``: every commit_sha for which at least
+      one event handler raised.
+
+    Callers compute the safe target as the chronologically-latest commit_sha
+    in ``commits_seen`` that has no chronologically-earlier-or-equal commit in
+    ``commits_failed``. See ``process_events`` for the reference advance logic.
+    """
     filtered = sort_events_for_dispatch(
         filter_bridge_events(events, bridge_env_id=bridge_env_id)
     )
@@ -106,10 +121,18 @@ def process_outbound(
     _created_link_pairs: set[frozenset] = set()
     success_count = 0
     failed_count = 0
+    # Per-commit outcome tracking (bug 072b-9104-1b54-4309). Populated for
+    # every iteration; surfaced via outcome_out for safe-high-water-mark
+    # cursor advance.
+    commits_seen: set[str] = set()
+    commits_failed: set[str] = set()
 
     for event in filtered:
         event_type = event.get("event_type", "")
         ticket_id = event.get("ticket_id", "")
+        event_commit_sha = event.get("commit_sha", "")
+        if event_commit_sha:
+            commits_seen.add(event_commit_sha)
 
         # Per-event failure isolation (5ef3-24eb / DIG-1688): a handler
         # exception (e.g. acli_client.update_issue raising CalledProcessError)
@@ -195,6 +218,8 @@ def process_outbound(
                     alert_exc,
                 )
             failed_count += 1
+            if event_commit_sha:
+                commits_failed.add(event_commit_sha)
             # Do NOT advance cursor on failure — leave it at the failure
             # boundary so retry next run picks up that same event.
             continue
@@ -226,6 +251,10 @@ def process_outbound(
             success_count,
             failed_count,
         )
+
+    if outcome_out is not None:
+        outcome_out["commits_seen"] = commits_seen
+        outcome_out["commits_failed"] = commits_failed
 
     return syncs
 
@@ -374,22 +403,22 @@ def process_events(
         chunk_state_out=chunk_state,
     )
 
-    # Track per-event handler invocations so we know how far we got. The
-    # processed_count counter increments after every dispatched handler;
-    # if it equals len(events_with_sha) we processed everything.
-    _processed_count = [0]
-
-    def _cursor_advance(_sha: str) -> None:
-        _processed_count[0] += 1
-
+    # Per-commit outcome tracking (bug 072b-9104-1b54-4309): process_outbound
+    # populates commits_seen and commits_failed so we can compute the safe
+    # high-water mark instead of the all-or-nothing gate the previous
+    # processed_count counter implemented (which stalled the cursor forever
+    # whenever any single event handler failed).
+    outcome: dict[str, Any] = {}
     syncs = process_outbound(
         events_with_sha,
         acli_client=acli_client,
         tickets_root=tickets_path,
         bridge_env_id=bridge_env_id,
         run_id=run_id,
-        cursor_advance_fn=_cursor_advance,
+        outcome_out=outcome,
     )
+    commits_seen: set[str] = outcome.get("commits_seen", set())
+    commits_failed: set[str] = outcome.get("commits_failed", set())
 
     # Advance the cursor only if we have events to process.
     #
@@ -419,26 +448,47 @@ def process_events(
     # processing anything. Cold-start handling (where the cursor SHOULD seed
     # at HEAD with no events processed) lives in fetch_events_since_cursor's
     # _seed_at_head, which writes the cursor and BRIDGE_ALERT directly.
-    if events_with_sha and _processed_count[0] >= len(events_with_sha):
-        if chunk_state.get("was_chunked"):
-            chunk_shas = {
-                e.get("commit_sha", "") for e in events_with_sha if e.get("commit_sha")
-            }
-            chunk_head_sha = _resolve_chunk_head_sha(tickets_path, chunk_shas)
-            if chunk_head_sha:
-                write_cursor(tickets_path, chunk_head_sha, run_id)
+    if events_with_sha:
+        if not commits_failed:
+            # All-success path — preserve existing advance behavior:
+            #   * chunked → advance to chunk HEAD (cap-aware)
+            #   * unchunked → advance to repo HEAD (covers trailing event-less
+            #     commits, jade-cabin-tithe Part 2 invariant)
+            if chunk_state.get("was_chunked"):
+                chunk_shas = {
+                    e.get("commit_sha", "")
+                    for e in events_with_sha
+                    if e.get("commit_sha")
+                }
+                chunk_head_sha = _resolve_chunk_head_sha(tickets_path, chunk_shas)
+                if chunk_head_sha:
+                    write_cursor(tickets_path, chunk_head_sha, run_id)
+            else:
+                rev_parse = subprocess.run(
+                    ["git", "-C", str(tickets_path), "rev-parse", "HEAD"],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                head_sha = rev_parse.stdout.strip() if rev_parse.returncode == 0 else ""
+                if head_sha:
+                    write_cursor(tickets_path, head_sha, run_id)
         else:
-            # No chunking — all events between cursor and repo HEAD processed.
-            # Advance to repo HEAD so event-less trailing commits are covered.
-            rev_parse = subprocess.run(
-                ["git", "-C", str(tickets_path), "rev-parse", "HEAD"],
-                capture_output=True,
-                text=True,
-                check=False,
+            # Partial-failure path (bug 072b-9104-1b54-4309): advance to the
+            # safe high-water mark — the chronologically-latest commit_sha in
+            # commits_seen with NO chronologically-earlier-or-equal commit in
+            # commits_failed. If the earliest failure is at/before every seen
+            # commit, no advance occurs (next run retries the same chunk).
+            #
+            # We resolve chronological order via git rev-list rather than
+            # iteration order because sort_events_for_dispatch reorders events
+            # by (ticket_id, type_priority, original_index), which is NOT
+            # commit-graph order.
+            safe_target = _resolve_safe_highwater_sha(
+                tickets_path, commits_seen, commits_failed
             )
-            head_sha = rev_parse.stdout.strip() if rev_parse.returncode == 0 else ""
-            if head_sha:
-                write_cursor(tickets_path, head_sha, run_id)
+            if safe_target:
+                write_cursor(tickets_path, safe_target, run_id)
 
     return syncs
 
@@ -470,6 +520,50 @@ def _resolve_chunk_head_sha(tickets_path: Path, chunk_shas: set[str]) -> str:
         if sha in chunk_shas:
             return sha
     return ""
+
+
+def _resolve_safe_highwater_sha(
+    tickets_path: Path,
+    commits_seen: set[str],
+    commits_failed: set[str],
+) -> str:
+    """Compute the safe high-water mark for partial-failure cursor advance.
+
+    Walks commits in chronological order (oldest → newest) via git rev-list
+    and returns the chronologically-latest commit in *commits_seen* that
+    appears strictly BEFORE the first commit in *commits_failed*. Returns
+    "" when no safe target exists (the earliest failure precedes every seen
+    commit, or git resolution fails) — the caller then skips the cursor
+    advance, which is the safe behavior (next run retries the chunk).
+
+    Bug 072b-9104-1b54-4309: the previous all-or-nothing gate stalled the
+    cursor permanently whenever any single event handler failed; this helper
+    lets the cursor advance up to the failure boundary so a single persistent
+    Jira-side failure no longer blocks the rest of the queue.
+    """
+    if not commits_seen:
+        return ""
+    relevant = commits_seen | commits_failed
+    # rev-list is newest-first; reverse for oldest-first walk.
+    result = subprocess.run(
+        ["git", "-C", str(tickets_path), "rev-list", "--reverse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return ""
+    safe_target = ""
+    for line in result.stdout.splitlines():
+        sha = line.strip()
+        if sha not in relevant:
+            continue
+        if sha in commits_failed:
+            # First failure encountered in chronological order — stop.
+            break
+        # sha is in commits_seen and not in commits_failed → safe.
+        safe_target = sha
+    return safe_target
 
 
 if __name__ == "__main__":

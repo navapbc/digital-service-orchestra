@@ -15,6 +15,7 @@ import time
 import uuid
 from pathlib import Path
 from types import ModuleType
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -661,4 +662,108 @@ def test_fetch_events_writes_chunk_state_was_chunked_false_when_under_cap(
     )
     assert chunk_state.get("was_chunked") is False, (
         f"chunk_state_out['was_chunked'] must be False under cap; got {chunk_state!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 072b-9104-1b54-4309: safe high-water mark cursor advance on partial failure
+# ---------------------------------------------------------------------------
+
+
+def test_process_events_cursor_advances_to_safe_highwater_mark_on_partial_failure(
+    tmp_path: Path,
+    bridge: ModuleType,
+    cursor_mod: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When a handler fails on commit-N of an N+M sequence, the cursor must
+    advance to the LAST commit before the first failure — not stall at the
+    prior cursor (bug 072b-9104-1b54-4309).
+
+    Setup: three commits, three STATUS events. The middle commit's handler
+    raises (simulating an undeletable Jira issue). The safe high-water mark
+    is the SHA of the first commit (the chronologically-latest commit with no
+    earlier-or-equal failure in commits_failed). The cursor must advance to
+    sha1, NOT remain at the baseline (stall) and NOT jump to sha3 (silent
+    drop of the failure).
+
+    Critically, the test uses ticket IDs that sort DIFFERENTLY from
+    commit-graph order (zzz, aaa, mmm) so that ``sort_events_for_dispatch``
+    reorders the dispatch sequence away from commit order. The fix's safe
+    high-water mark is computed from git rev-list (commit-graph order), not
+    from dispatch order — this test pins that invariant in place.
+    """
+    repo = _make_tmp_git_tracker(tmp_path)
+    base_sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    cursor_mod.write_cursor(repo, base_sha, run_id="prev-run")
+
+    # Seed SYNC files for each ticket so the STATUS handler reaches
+    # acli_client.update_issue (the failure injection point).
+    def _seed_sync(ticket: str, jira_key: str) -> None:
+        ticket_dir = repo / ticket
+        ticket_dir.mkdir(parents=True, exist_ok=True)
+        ts = time.time_ns()
+        eu = str(uuid.uuid4())
+        sync_path = ticket_dir / f"{ts}-{eu}-SYNC.json"
+        sync_path.write_text(
+            json.dumps(
+                {
+                    "event_type": "SYNC",
+                    "timestamp": ts,
+                    "uuid": eu,
+                    "env_id": "bbbbbbbb-0000-4000-8000-000000000002",  # bridge_env_id
+                    "ticket_id": ticket,
+                    "jira_key": jira_key,
+                }
+            ),
+            encoding="utf-8",
+        )
+        _git(repo, "add", str(sync_path.relative_to(repo)))
+        _git(repo, "commit", "-q", "-m", f"sync {ticket}")
+
+    # Ticket IDs: deliberately NOT in commit order alphabetically.
+    # Commit order: zzz (sha1), aaa (sha2), mmm (sha3)
+    # Dispatch sort order (alphabetical ticket_id): aaa, mmm, zzz
+    _seed_sync("ticket-zzz", "DSO-1")
+    _seed_sync("ticket-aaa", "DSO-2")
+    _seed_sync("ticket-mmm", "DSO-3")
+
+    # Update cursor past the SYNC seeding commits so they don't appear as
+    # new events in the bridge run.
+    seed_sha = _git(repo, "rev-parse", "HEAD").stdout.strip()
+    cursor_mod.write_cursor(repo, seed_sha, run_id="seed")
+
+    # Now commit three STATUS events in a known commit-graph order.
+    sha1, _ = _commit_event(repo, "ticket-zzz", "STATUS")
+    sha2, _ = _commit_event(repo, "ticket-aaa", "STATUS")
+    sha3, _ = _commit_event(repo, "ticket-mmm", "STATUS")
+
+    # Monkeypatch handle_status_event on the bridge module to raise for the
+    # middle ticket (ticket-aaa @ sha2). The handler is imported by name into
+    # bridge-outbound, so we patch the module attribute the orchestrator
+    # actually calls.
+    def _selective_status(event: dict[str, Any], **_: Any) -> list[dict[str, Any]]:
+        ticket_id = event.get("ticket_id", "")
+        if ticket_id == "ticket-aaa":
+            raise RuntimeError(
+                "simulated Jira-side failure (undeletable issue) for ticket-aaa"
+            )
+        return []
+
+    monkeypatch.setattr(bridge, "handle_status_event", _selective_status)
+
+    acli = MagicMock()
+    bridge.process_events(
+        tickets_dir=repo,
+        acli_client=acli,
+        bridge_env_id="bbbbbbbb-0000-4000-8000-000000000002",
+        run_id="run-current",
+    )
+
+    stored = cursor_mod.read_cursor(repo)
+    assert stored == sha1, (
+        f"cursor must advance to safe high-water mark sha1={sha1!r} "
+        f"(last commit before first failure); got {stored!r}. "
+        f"Staying at seed_sha={seed_sha!r} is the stall bug 072b-9104-1b54-4309. "
+        f"Jumping to sha3={sha3!r} would silently drop the ticket-aaa failure."
     )

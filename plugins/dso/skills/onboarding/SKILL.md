@@ -769,6 +769,18 @@ At the start of this phase, read the `## PHASE_PLAN` section from `$SCRATCHPAD`.
 
 **Goal:** Summarize the findings and hand off to the next step.
 
+### Step 0: Snapshot Pre-Onboarding Init State (/dso:onboarding) (bug 7d25-c78e)
+
+Persist a pre-onboarding init signal to `$SCRATCHPAD` before Step 2b writes `dso-config.conf` (and before any code path including `dso-setup.sh` writes `.claude/CLAUDE.md`). Batch Group 2 reads this from `$SCRATCHPAD` — shell exports do not persist across the skill's separately-evaluated bash blocks; live file checks at Batch Group 2 time are unreliable because intervening steps mutate the same files.
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+[[ -f "$REPO_ROOT/.claude/CLAUDE.md" && -f "$REPO_ROOT/.claude/dso-config.conf" ]] \
+    && _INIT="true" || _INIT="false"
+grep -q "^## INITIAL_DSO_STATE" "$SCRATCHPAD" \
+    || printf '\n## INITIAL_DSO_STATE\n_INITIAL_DSO_INSTALLED=%s\n' "$_INIT" >> "$SCRATCHPAD"
+```
+
 ### Step 1: Present Understanding Summary
 
 Compile the scratchpad into a readable summary:
@@ -1129,21 +1141,29 @@ Display to user: "Installing the DSO shim — a short command-line shortcut (.cl
 
 Before any other infrastructure steps, install the `.claude/scripts/dso` shim that all subsequent commands depend on.
 
-**Shim template location:** The shim template file is at `templates/host-project/dso` relative to the git repo root (i.e., `$REPO_ROOT/templates/host-project/dso`). This is NOT inside the plugin directory. `dso-setup.sh` uses this template to install the shim at `.claude/scripts/dso` in the host project.
+Branch on the `_INITIAL_DSO_INSTALLED` signal persisted in `$SCRATCHPAD` by Phase 3 Step 0:
+- **true** — host was previously onboarded → `update-shim.sh` (file-copy only, idempotent).
+- **false** — fresh init → `dso-setup.sh` (full init: config supplements, CLAUDE.md, KNOWN-ISSUES.md, CI skeleton, pre-commit, hook registration, artifact stamps, gitignore). Do NOT run `dso-setup.sh` on an already-onboarded host — it is NOT idempotent across these artifact installs.
+
+The shim template lives at `${CLAUDE_PLUGIN_ROOT}/templates/host-project/dso`; both scripts consume it.
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
 PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
-# Verify shim template exists before invoking setup
-if [[ ! -f "$REPO_ROOT/templates/host-project/dso" ]]; then
-    echo "ERROR: shim template not found at $REPO_ROOT/templates/host-project/dso"
-    echo "Cannot install DSO shim — check that the DSO plugin is correctly installed."
+if [[ ! -f "${CLAUDE_PLUGIN_ROOT}/templates/host-project/dso" ]]; then
+    echo "ERROR: shim template missing at ${CLAUDE_PLUGIN_ROOT}/templates/host-project/dso" >&2
     exit 1
 fi
-bash "$PLUGIN_SCRIPTS/onboarding/dso-setup.sh" "$REPO_ROOT" "${CLAUDE_PLUGIN_ROOT}"  # shim-exempt: bootstrap install — shim does not yet exist
+# Read the snapshot persisted by Phase 3 Step 0 (scratchpad — shell exports do not
+# persist across separately-evaluated bash blocks in this skill).
+INITIAL_INSTALLED=$(grep -E "^_INITIAL_DSO_INSTALLED=" "$SCRATCHPAD" 2>/dev/null \
+    | tail -1 | cut -d= -f2)
+if [[ "${INITIAL_INSTALLED:-false}" == "true" ]]; then
+    bash "$PLUGIN_SCRIPTS/update-shim.sh" "$REPO_ROOT"  # shim-exempt: bootstrap repair
+else
+    bash "$PLUGIN_SCRIPTS/onboarding/dso-setup.sh" "$REPO_ROOT" "${CLAUDE_PLUGIN_ROOT}"  # shim-exempt: bootstrap install
+fi
 ```
-
-This is idempotent — safe to re-run on projects that already have the shim installed.
 
 ## Batch Group 4: initial-commit
 <!-- Skip guard: if all artifacts already committed, skip -->
