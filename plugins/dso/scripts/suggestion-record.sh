@@ -15,7 +15,7 @@
 # Optional:
 #   --observation <text>   Objective observation (what happened, what was measured)
 #   --recommendation <text> Subjective recommendation (what to change, how to improve)
-#   --session-id <id>      Session identifier (defaults to CLAUDE_SESSION_ID env var or random UUID)
+#   --session-id <id>      Session identifier (defaults to CLAUDE_CODE_SESSION_ID env var or random UUID)
 #   --skill-name <name>    The skill that was running when the suggestion was captured
 #   --affected-file <path> File most relevant to this suggestion
 #   --metrics <json>       JSON object with numeric metrics (e.g. {"wall_clock_s": 45, "tokens": 3000})
@@ -26,7 +26,7 @@
 #
 # Environment:
 #   SUGGESTION_LOCK_TIMEOUT  — override flock timeout per attempt (default: 30s)
-#   CLAUDE_SESSION_ID        — session identifier (used if --session-id not given)
+#   CLAUDE_CODE_SESSION_ID   — session identifier (used if --session-id not given)
 
 set -euo pipefail
 
@@ -124,8 +124,8 @@ git -C "$TRACKER_DIR" config gc.auto 0
 # ── Resolve session_id ───────────────────────────────────────────────────────
 if [ -n "$session_id_arg" ]; then
     SESSION_ID="$session_id_arg"
-elif [ -n "${CLAUDE_SESSION_ID:-}" ]; then
-    SESSION_ID="$CLAUDE_SESSION_ID"
+elif [ -n "${CLAUDE_CODE_SESSION_ID:-}" ]; then
+    SESSION_ID="$CLAUDE_CODE_SESSION_ID"
 else
     # Generate a random session-id with sufficient entropy
     SESSION_ID=$(python3 -c "import uuid; print(str(uuid.uuid4()))")
