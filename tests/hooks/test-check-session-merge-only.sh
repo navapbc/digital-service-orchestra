@@ -328,4 +328,166 @@ echo "--- Test 10: main repo (primary checkout) + .sprint-active → accepted --
 test_main_repo_with_sprint_active_accepted
 echo ""
 
+# ── Test 11 (RED): sprint bypass without reason → refused ────────────────────
+# Bug 660e-4317: DSO_SPRINT_ACTIVE=0 without DSO_SPRINT_ACTIVE_BYPASS_REASON
+# must be refused (exit non-zero) with an error message naming the missing var.
+test_sprint_bypass_without_reason_refused() {
+    local _repo
+    _repo=$(make_linked_worktree)
+    touch "$_repo/.sprint-active"
+
+    local exit_code=0
+    local stderr_output
+    stderr_output=$(
+        cd "$_repo"
+        DSO_SPRINT_ACTIVE=0 bash "$_SCRIPT" 2>&1 1>/dev/null
+    ) || true
+    (
+        cd "$_repo"
+        DSO_SPRINT_ACTIVE=0 bash "$_SCRIPT" 2>/dev/null
+    ) && exit_code=0 || exit_code=$?
+
+    assert_ne \
+        "test_sprint_bypass_without_reason_refused: sprint bypass without reason exits nonzero" \
+        "0" "$exit_code"
+
+    assert_contains \
+        "test_sprint_bypass_without_reason_refused: error message mentions missing reason variable" \
+        "DSO_SPRINT_ACTIVE_BYPASS_REASON" "$stderr_output"
+}
+
+# ── Test 12 (RED): sprint bypass WITH reason → accepted, reason logged ────────
+# Bug 660e-4317: DSO_SPRINT_ACTIVE=0 + DSO_SPRINT_ACTIVE_BYPASS_REASON set
+# must exit 0, write REASON= into the log file, and emit a stderr line with the
+# reason text.
+test_sprint_bypass_with_reason_accepted_and_logged() {
+    local _repo _artifacts_dir
+    _repo=$(make_linked_worktree)
+    _artifacts_dir=$(mktemp -d)
+    _TEST_TMPDIRS+=("$_artifacts_dir")
+    touch "$_repo/.sprint-active"
+
+    local exit_code=0
+    local stderr_output
+    stderr_output=$(
+        cd "$_repo"
+        DSO_SPRINT_ACTIVE=0 \
+        DSO_SPRINT_ACTIVE_BYPASS_REASON="test reason text" \
+        DSO_ARTIFACTS_DIR="$_artifacts_dir" \
+        bash "$_SCRIPT" 2>&1 1>/dev/null
+    ) || true
+    (
+        cd "$_repo"
+        DSO_SPRINT_ACTIVE=0 \
+        DSO_SPRINT_ACTIVE_BYPASS_REASON="test reason text" \
+        DSO_ARTIFACTS_DIR="$_artifacts_dir" \
+        bash "$_SCRIPT" 2>/dev/null
+    ) && exit_code=0 || exit_code=$?
+
+    assert_eq \
+        "test_sprint_bypass_with_reason_accepted_and_logged: sprint bypass with reason exits 0" \
+        "0" "$exit_code"
+
+    # Log file must contain REASON=<value>
+    local log_content
+    log_content=$(find "$_artifacts_dir" -maxdepth 2 -type f -name "sprint-merge-only-bypass-*.log" \
+        -exec cat {} \; 2>/dev/null)
+    assert_contains \
+        "test_sprint_bypass_with_reason_accepted_and_logged: log file contains REASON=test reason text" \
+        "REASON=test reason text" "$log_content"
+
+    assert_contains \
+        "test_sprint_bypass_with_reason_accepted_and_logged: stderr contains the reason text" \
+        "test reason text" "$stderr_output"
+}
+
+# ── Test 13 (RED): debug bypass without reason → refused ─────────────────────
+# Bug 660e-4317: DSO_DEBUG_ACTIVE=0 without DSO_DEBUG_ACTIVE_BYPASS_REASON
+# must be refused (exit non-zero) with an error message naming the missing var.
+test_debug_bypass_without_reason_refused() {
+    local _repo
+    _repo=$(make_linked_worktree)
+    touch "$_repo/.debug-active"
+
+    local exit_code=0
+    local stderr_output
+    stderr_output=$(
+        cd "$_repo"
+        DSO_DEBUG_ACTIVE=0 bash "$_SCRIPT" 2>&1 1>/dev/null
+    ) || true
+    (
+        cd "$_repo"
+        DSO_DEBUG_ACTIVE=0 bash "$_SCRIPT" 2>/dev/null
+    ) && exit_code=0 || exit_code=$?
+
+    assert_ne \
+        "test_debug_bypass_without_reason_refused: debug bypass without reason exits nonzero" \
+        "0" "$exit_code"
+
+    assert_contains \
+        "test_debug_bypass_without_reason_refused: error message mentions missing reason variable" \
+        "DSO_DEBUG_ACTIVE_BYPASS_REASON" "$stderr_output"
+}
+
+# ── Test 14 (RED): debug bypass WITH reason → accepted, reason logged ─────────
+# Bug 660e-4317: DSO_DEBUG_ACTIVE=0 + DSO_DEBUG_ACTIVE_BYPASS_REASON set
+# must exit 0, write REASON= into the log file, and emit a stderr line with the
+# reason text.
+test_debug_bypass_with_reason_accepted_and_logged() {
+    local _repo _artifacts_dir
+    _repo=$(make_linked_worktree)
+    _artifacts_dir=$(mktemp -d)
+    _TEST_TMPDIRS+=("$_artifacts_dir")
+    touch "$_repo/.debug-active"
+
+    local exit_code=0
+    local stderr_output
+    stderr_output=$(
+        cd "$_repo"
+        DSO_DEBUG_ACTIVE=0 \
+        DSO_DEBUG_ACTIVE_BYPASS_REASON="test reason text" \
+        DSO_ARTIFACTS_DIR="$_artifacts_dir" \
+        bash "$_SCRIPT" 2>&1 1>/dev/null
+    ) || true
+    (
+        cd "$_repo"
+        DSO_DEBUG_ACTIVE=0 \
+        DSO_DEBUG_ACTIVE_BYPASS_REASON="test reason text" \
+        DSO_ARTIFACTS_DIR="$_artifacts_dir" \
+        bash "$_SCRIPT" 2>/dev/null
+    ) && exit_code=0 || exit_code=$?
+
+    assert_eq \
+        "test_debug_bypass_with_reason_accepted_and_logged: debug bypass with reason exits 0" \
+        "0" "$exit_code"
+
+    # Log file must contain REASON=<value>
+    local log_content
+    log_content=$(find "$_artifacts_dir" -maxdepth 2 -type f -name "debug-merge-only-bypass-*.log" \
+        -exec cat {} \; 2>/dev/null)
+    assert_contains \
+        "test_debug_bypass_with_reason_accepted_and_logged: log file contains REASON=test reason text" \
+        "REASON=test reason text" "$log_content"
+
+    assert_contains \
+        "test_debug_bypass_with_reason_accepted_and_logged: stderr contains the reason text" \
+        "test reason text" "$stderr_output"
+}
+
+echo "--- Test 11 (RED): sprint bypass without reason → refused ---"
+test_sprint_bypass_without_reason_refused
+echo ""
+
+echo "--- Test 12 (RED): sprint bypass with reason → accepted + logged ---"
+test_sprint_bypass_with_reason_accepted_and_logged
+echo ""
+
+echo "--- Test 13 (RED): debug bypass without reason → refused ---"
+test_debug_bypass_without_reason_refused
+echo ""
+
+echo "--- Test 14 (RED): debug bypass with reason → accepted + logged ---"
+test_debug_bypass_with_reason_accepted_and_logged
+echo ""
+
 print_summary
