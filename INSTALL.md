@@ -92,6 +92,100 @@ dso.workflow=ci-pr
 
 Full configuration reference: [`plugins/dso/docs/CONFIGURATION-REFERENCE.md`](plugins/dso/docs/CONFIGURATION-REFERENCE.md)
 
+## GitHub Rulesets for session-* branches {#github-rulesets-for-session-branches}
+
+> **One-time admin setup** — required for `ci-pr` mode. Runtime CI does **not** require admin access after this step.
+
+When `dso.workflow=ci-pr`, Sprint Phase A calls `check-ruleset-preflight.sh` to verify that a GitHub Ruleset exists for `session-*` branches with the correct required status check. Without this Ruleset, direct pushes to session branches are not blocked, and the sub-branch-to-session PR flow is not enforced.
+
+### Purpose
+
+Rulesets on `session-*` branches:
+- Reject direct pushes (non-fast-forward rule), enforcing the sub-branch → session PR merge flow
+- Require the `Sprint_Workflow_Review` (or your configured `dso.review.check_name`) status check to pass before merge
+
+### Prerequisites
+
+- **GitHub admin access** on the repository (one-time setup only)
+- GitHub Actions enabled on the repository
+- `dso.workflow=ci-pr` set in `.claude/dso-config.conf`
+
+### Creating the Ruleset (GitHub UI)
+
+1. In your repository, go to **Settings → Rules → Rulesets**
+2. Click **New ruleset → New branch ruleset**
+3. Fill in:
+   - **Name**: `Sprint session branch protection`
+   - **Enforcement status**: Active
+4. Under **Target branches**, add a pattern: `session-*`
+5. Under **Branch rules**:
+   - Enable **Restrict who can push matching branches** → this blocks direct pushes (non-fast-forward)
+   - Enable **Require status checks to pass before merging**
+     - Click **Add checks** and enter `Sprint_Workflow_Review` (this must match the `name:` field in `.github/workflows/per-branch-review.yml` and `dso.review.check_name` in `dso-config.conf`)
+   - **Do NOT** enable **Require linear history** — this breaks the sprint merge strategy
+6. Click **Create**
+
+### Creating the Ruleset (gh CLI)
+
+```bash
+gh api \
+  --method POST \
+  -H "Accept: application/vnd.github+json" \
+  /repos/{owner}/{repo}/rulesets \
+  --input - <<'EOF'
+{
+  "name": "Sprint session branch protection",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "include": ["refs/heads/session/*"],
+      "exclude": []
+    }
+  },
+  "rules": [
+    { "type": "non_fast_forward" },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "required_status_checks": [
+          { "context": "Sprint_Workflow_Review", "integration_id": null }
+        ],
+        "strict_required_status_checks_policy": false
+      }
+    }
+  ]
+}
+EOF
+```
+
+Replace `{owner}/{repo}` with your repository path. Replace `Sprint_Workflow_Review` if `dso.review.check_name` is set to a different value in `dso-config.conf`.
+
+### Verifying the Ruleset
+
+Run the preflight check that Sprint Phase A uses:
+
+```bash
+bash .claude/scripts/dso check-ruleset-preflight.sh
+```
+
+To inspect the Ruleset directly via the API:
+
+```bash
+gh api \
+  -H "Accept: application/vnd.github+json" \
+  /repos/{owner}/{repo}/rulesets \
+  | jq '.[] | select(.name | test("session"; "i")) | {id, name, enforcement}'
+```
+
+### Matching check_name
+
+The required status check name must match exactly:
+- The `name:` field in `.github/workflows/per-branch-review.yml`
+- `dso.review.check_name` in `.claude/dso-config.conf` (defaults to `Sprint_Workflow_Review` if unset)
+
+If you rename the workflow or override `dso.review.check_name`, update the Ruleset's required check to match.
+
 ## Integration Setup
 
 Some DSO skills integrate with external tools. Each integration is optional and configured via environment variables or the DSO config file. Skip any integration you don't use.
