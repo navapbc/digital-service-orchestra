@@ -66,6 +66,10 @@ def _ensure_plugin_package() -> None:
             sys.modules[full_name] = mod
             spec.loader.exec_module(mod)  # type: ignore[union-attr]
 
+    # _config is a leaf module (no intra-package imports) that both region_split
+    # and runner now depend on for read_config_int / default_config_path. Load
+    # it first so importers downstream can resolve it.
+    _load_from_plugin("_config")
     _load_from_plugin("providers")
     _load_from_plugin("providers.config")
     _load_from_plugin("context_request")

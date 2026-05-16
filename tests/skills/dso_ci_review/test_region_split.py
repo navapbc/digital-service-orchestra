@@ -33,7 +33,10 @@ if _SCRIPTS_DIR not in sys.path:
 # This import MUST raise ImportError until region_split.py is implemented.
 # That is the RED state.
 from dso_ci_review.region_split import (  # noqa: E402
+    _OVERFLOW_LABEL,
+    RegionSplitInvariantError,
     _cluster_files,
+    _extract_filenames,
     _should_region_split,
     run_region_split,
 )
@@ -165,7 +168,12 @@ def test_loc_threshold_config_override(tmp_path, monkeypatch) -> None:
     # Make _default_config_path resolve to our temp config
     from dso_ci_review import region_split as rs
 
-    monkeypatch.setattr(rs, "_default_config_path", lambda: str(config_file))
+    # Patch the shared config resolver where it lives — region_split's
+    # threshold readers ultimately delegate to dso_ci_review._config.read_config_int
+    # which calls default_config_path() when no path is passed.
+    from dso_ci_review import _config as cfg_mod
+
+    monkeypatch.setattr(cfg_mod, "default_config_path", lambda: str(config_file))
 
     # 200-LOC two-file diff — under the 3000 default, but over the 100 override
     diff = _make_diff_with_loc(
@@ -181,7 +189,7 @@ def test_loc_threshold_config_override(tmp_path, monkeypatch) -> None:
     # And the inverse: without the override (point at an empty config), 200 LOC < 3000 default → False
     empty_config = tmp_path / "empty.conf"
     empty_config.write_text("")
-    monkeypatch.setattr(rs, "_default_config_path", lambda: str(empty_config))
+    monkeypatch.setattr(cfg_mod, "default_config_path", lambda: str(empty_config))
     result_default = rs._should_region_split(diff)
     assert result_default is False, (
         f"With default threshold (3000), 200-LOC diff should not region-split; "
@@ -205,7 +213,12 @@ def test_threshold_readers_clamp_invalid_config_to_default(tmp_path, monkeypatch
         "review.region_split.file_count_threshold=-5\n"
         "review.region_split.max_clusters=0\n"
     )
-    monkeypatch.setattr(rs, "_default_config_path", lambda: str(config_file))
+    # Patch the shared config resolver where it lives — region_split's
+    # threshold readers ultimately delegate to dso_ci_review._config.read_config_int
+    # which calls default_config_path() when no path is passed.
+    from dso_ci_review import _config as cfg_mod
+
+    monkeypatch.setattr(cfg_mod, "default_config_path", lambda: str(config_file))
 
     assert rs._loc_threshold() == rs._LOC_THRESHOLD_DEFAULT, (
         "loc_threshold must fall back to default when config value is 0"
@@ -238,10 +251,10 @@ def test_cluster_files_overflow_preserves_full_paths() -> None:
         "zeta/f.py",
     ]
     clusters = _cluster_files(filenames)
-    assert "overflow" in clusters, (
+    assert _OVERFLOW_LABEL in clusters, (
         f"Expected an overflow cluster with 6 input dirs > 5 cap; got {list(clusters.keys())}"
     )
-    overflow = clusters["overflow"]
+    overflow = clusters[_OVERFLOW_LABEL]
     # Every overflow entry must contain '/' (be a full path), not a bare basename
     bare = [f for f in overflow if "/" not in f]
     assert not bare, (
@@ -284,7 +297,7 @@ def test_extract_cluster_diff_resolves_overflow_paths() -> None:
         "+new2\n"
     )
     # Overflow cluster (full paths) should select only the zeta hunk
-    result = _extract_cluster_diff(diff_text, "overflow", ["zeta/f.py"])
+    result = _extract_cluster_diff(diff_text, _OVERFLOW_LABEL, ["zeta/f.py"])
     assert "zeta/f.py" in result, (
         f"Overflow extraction must include the zeta/f.py hunk; got: {result!r}"
     )
@@ -298,7 +311,7 @@ def test_cluster_files_atomicity_holds_under_overflow() -> None:
     """Given: more directories than _MAX_CLUSTERS (forces overflow)
     When: _cluster_files is called
     Then: total file count is still preserved across all clusters (including
-    'overflow'). Overflow must neither drop nor duplicate files.
+    overflow). Overflow must neither drop nor duplicate files.
     """
     filenames = [f"dir{i}/file.py" for i in range(10)]  # 10 dirs > _MAX_CLUSTERS=5
     clusters = _cluster_files(filenames)
@@ -307,8 +320,8 @@ def test_cluster_files_atomicity_holds_under_overflow() -> None:
         f"File-atomicity under overflow: input count {len(filenames)} vs "
         f"cluster total {total}; clusters={clusters}"
     )
-    assert "overflow" in clusters, (
-        f"Expected 'overflow' cluster when input exceeds _MAX_CLUSTERS; "
+    assert _OVERFLOW_LABEL in clusters, (
+        f"Expected {_OVERFLOW_LABEL!r} cluster when input exceeds _MAX_CLUSTERS; "
         f"got {list(clusters.keys())}"
     )
 
@@ -808,3 +821,183 @@ def test_dedup_empty_list_returns_empty() -> None:
     result = deduplicate_region_findings([])
 
     assert result == [], f"Empty input must return empty list; got {result!r}"
+
+
+# ---------------------------------------------------------------------------
+# PR #169 cycle-2 review findings — additional coverage
+# ---------------------------------------------------------------------------
+
+
+def test_atomicity_check_catches_drop_plus_duplicate() -> None:
+    """Identity-based atomicity (coderabbit f-counter-not-count): a cluster
+    state that DROPS one file and DUPLICATES another preserves total count
+    but corrupts identity. The strengthened _assert_file_atomicity must
+    catch this and raise RegionSplitInvariantError, not pass silently.
+    """
+    from dso_ci_review.region_split import _assert_file_atomicity  # noqa: PLC0415
+
+    inputs = ["a/x.py", "b/y.py", "c/z.py"]
+    # Corrupt cluster output: "b/y.py" missing, "a/x.py" duplicated.
+    # Total count == 3 (matches input count) but identities diverge.
+    corrupt_clusters = {"a": ["x.py", "x.py"], "c": ["z.py"]}
+
+    raised = None
+    try:
+        _assert_file_atomicity(inputs, corrupt_clusters)
+    except RegionSplitInvariantError as exc:
+        raised = exc
+
+    assert raised is not None, (
+        "Count-only atomicity check would miss a drop+duplicate; the new "
+        "identity-based check (Counter comparison) must raise"
+    )
+    msg = str(raised)
+    assert "b/y.py" in msg, (
+        f"Error message must name the dropped file (b/y.py); got: {msg!r}"
+    )
+    assert "missing" in msg or "extra" in msg, (
+        f"Error message must distinguish missing vs extra identities; got: {msg!r}"
+    )
+
+
+def test_atomicity_check_uses_domain_exception_not_assertion_error() -> None:
+    """The atomicity check must raise RegionSplitInvariantError (not
+    AssertionError) so callers can catch a domain-specific failure and so
+    the message survives ``python -O`` (PR #169 f-assertion-error-style).
+    """
+    from dso_ci_review.region_split import _assert_file_atomicity  # noqa: PLC0415
+
+    raised: BaseException | None = None
+    try:
+        _assert_file_atomicity(["a.py"], {})  # input has 1 file, clusters has 0
+    except BaseException as exc:  # noqa: BLE001 — we want to see exact type
+        raised = exc
+
+    assert raised is not None, "atomicity check must raise on identity mismatch"
+    assert isinstance(raised, RegionSplitInvariantError), (
+        f"Expected RegionSplitInvariantError, got {type(raised).__name__}: {raised!r}"
+    )
+    # And AssertionError is reserved for `assert` statements — must NOT be used here
+    assert not isinstance(raised, AssertionError), (
+        "Production code should raise a domain-specific exception rather than "
+        "AssertionError (which some tooling rewrites or swallows)"
+    )
+
+
+def test_extract_filenames_includes_deletions() -> None:
+    """Pure-deletion diffs have ``+++ /dev/null`` (not a real path) but
+    DO have a ``diff --git a/X b/X`` header. The unified extractor must
+    capture them via the diff-git header so the gate and the clustering
+    path agree on the file set (PR #169 f-gate-vs-clustering-divergence).
+    """
+    diff_text = (
+        "diff --git a/deleted.py b/deleted.py\n"
+        "deleted file mode 100644\n"
+        "--- a/deleted.py\n"
+        "+++ /dev/null\n"
+        "@@ -1,2 +0,0 @@\n"
+        "-old1\n"
+        "-old2\n"
+        "diff --git a/kept.py b/kept.py\n"
+        "--- a/kept.py\n"
+        "+++ b/kept.py\n"
+        "@@ -1 +1 @@\n"
+        "-old\n"
+        "+new\n"
+    )
+    files = _extract_filenames(diff_text)
+    assert "deleted.py" in files, (
+        f"Deletion (+++ /dev/null) must still be extracted via diff --git header; "
+        f"got: {files}"
+    )
+    assert "kept.py" in files, (
+        f"Modified file must be extracted; got: {files}"
+    )
+
+
+def test_gate_and_clustering_see_same_file_set_under_deletion() -> None:
+    """End-to-end version of f-gate-vs-clustering-divergence: with a
+    multi-file diff that includes a deletion, both _should_region_split's
+    gate and _async_run_region_split's clustering path (via _cluster_files)
+    must see the same file count.
+    """
+    # 41 files (clears the 40-file threshold), one of which is a deletion.
+    diff_lines: list[str] = []
+    diff_lines.extend(
+        [
+            "diff --git a/d/deleted.py b/d/deleted.py",
+            "deleted file mode 100644",
+            "--- a/d/deleted.py",
+            "+++ /dev/null",
+            "@@ -1 +0,0 @@",
+            "-old",
+        ]
+    )
+    for i in range(40):
+        diff_lines.extend(
+            [
+                f"diff --git a/m/file_{i}.py b/m/file_{i}.py",
+                f"--- a/m/file_{i}.py",
+                f"+++ b/m/file_{i}.py",
+                "@@ -1 +1 @@",
+                "-old",
+                "+new",
+            ]
+        )
+    diff_text = "\n".join(diff_lines)
+
+    # Gate sees the deletion: file_count = 41 > 40 → should region-split
+    assert _should_region_split(diff_text) is True, (
+        "Gate must trigger region-split when total files including deletions > 40"
+    )
+
+    # Clustering must see the SAME file set — including the deletion — so the
+    # atomicity invariant has a faithful baseline. _cluster_files will raise
+    # RegionSplitInvariantError if a file is dropped.
+    files = _extract_filenames(diff_text)
+    assert len(files) == 41, (
+        f"Unified extractor must see all 41 files (including the deletion); "
+        f"got {len(files)}: {files}"
+    )
+    # Atomicity assertion fires inside _cluster_files; if it raised, the test
+    # would error out here, which is exactly the regression contract.
+    clusters = _cluster_files(files)
+    assert sum(len(v) for v in clusters.values()) == 41, (
+        f"Clustering must preserve all 41 files; got clusters={clusters}"
+    )
+
+
+def test_overflow_sentinel_does_not_collide_with_real_directory() -> None:
+    """If a diff legitimately touches files under a directory literally
+    named ``overflow/`` and the cluster cap forces overflow merging, the
+    synthesized cluster label (``__overflow__``) must NOT overwrite the
+    real cluster (PR #169 f-overflow-sentinel-collision).
+    """
+    # 6 directories including a real "overflow/" — exceeds _MAX_CLUSTERS=5
+    filenames = [
+        "overflow/real.py",  # real directory called "overflow"
+        "alpha/a.py",
+        "beta/b.py",
+        "gamma/c.py",
+        "delta/d.py",
+        "epsilon/e.py",
+    ]
+    clusters = _cluster_files(filenames)
+    # Both labels can coexist when both are populated
+    assert "overflow" in clusters or _OVERFLOW_LABEL in clusters, (
+        f"At least one of the real 'overflow' dir or the sentinel "
+        f"{_OVERFLOW_LABEL!r} must be present; got {list(clusters.keys())}"
+    )
+    # File-atomicity check (now identity-based) verifies no file was lost
+    # to a label collision — if the sentinel had overwritten the real
+    # 'overflow' cluster, _assert_file_atomicity would have raised before
+    # _cluster_files returned.
+    all_paths: list[str] = []
+    for label, entries in clusters.items():
+        if label in {".", _OVERFLOW_LABEL}:
+            all_paths.extend(entries)
+        else:
+            all_paths.extend(f"{label}/{e}" for e in entries)
+    assert "overflow/real.py" in all_paths, (
+        f"Real 'overflow/real.py' must be reachable across clusters; got: {all_paths}"
+    )
