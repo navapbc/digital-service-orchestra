@@ -272,7 +272,12 @@ esac
 # Fall through to real git for anything else
 exec /usr/bin/git "${_args[@]}"
 GITSTUB
-sed -i '' "s|REPO_ROOT_PLACEHOLDER|$REPO_ROOT|g" "$_T5_TMP_BIN/git"
+# Portable in-place replacement: BSD sed needs '' suffix; GNU sed does not accept it
+if sed --version 2>/dev/null | grep -q GNU; then
+    sed -i "s|REPO_ROOT_PLACEHOLDER|$REPO_ROOT|g" "$_T5_TMP_BIN/git"
+else
+    sed -i '' "s|REPO_ROOT_PLACEHOLDER|$REPO_ROOT|g" "$_T5_TMP_BIN/git"
+fi
 chmod +x "$_T5_TMP_BIN/git"
 
 # Step 1: Resolve session branch via resolve-session-branch.sh
