@@ -632,6 +632,25 @@ Present detected hooks for confirmation:
 I see [.husky/pre-commit present / .pre-commit-config.yaml present / no hooks detected]. What enforcement tools are active — any linters, commit message conventions, or code review requirements a new contributor would need to know?
 ```
 
+#### 7.5. DSO Ticket System Overview (preamble for sections 8 and 14)
+
+**Display once at the start of section 8** (or immediately before it fires) so the user has the context needed to answer the Jira and ticket-prefix prompts that follow. Skip this preamble only if the user has already worked with DSO in this repo (registry-derived) or has explicitly said "I know DSO already."
+
+```
+Before the next two questions: DSO ships with its own per-repo ticket tracker
+stored in an orphan `tickets` git branch under `.tickets-tracker/`. It runs
+on every project that uses DSO and does not require Jira.
+
+The next two prompts configure:
+  - Jira project key (optional) — how DSO's tickets sync OUTBOUND to Jira
+    if you use Jira. Decline and DSO still works fully on local tickets.
+  - Ticket prefix — short uppercase code that prefixes DSO's local ticket
+    aliases (e.g. "MA-1234"). It is NOT the Jira project key.
+
+DSO tickets are the source of truth in-repo; the Jira Bridge optionally
+mirrors them bidirectionally to a Jira project (one-way if Jira is read-only).
+```
+
 #### 8. Jira Bridge
 
 **MANDATORY PROMPT — always ask this question. Do NOT skip based on project type or assumptions.**
@@ -640,12 +659,60 @@ Ask whether the project uses Jira and, if so, confirm the project key:
 
 ```
 Does this project use Jira for issue tracking? If so, what's the Jira project key (e.g., "MYAPP" or "DSO")?
-Note: credentials (JIRA_URL, JIRA_USER, JIRA_API_TOKEN) stay as environment variables — only the project key goes in config.
 ```
 
 Display to user: "jira.project — records your Jira project key so DSO can sync tickets automatically."
 
-If the user provides a Jira project key, write `jira.project=<KEY>` to `.claude/dso-config.conf`. The Jira Bridge connects DSO to Jira via the `JIRA_URL` environment variable.
+If the user provides a Jira project key, write `jira.project=<KEY>` to `.claude/dso-config.conf` and then **mention the full Jira bridge surface** so the operator knows what to set up before the bridge runs in CI. Do NOT bury this in a tooltip — print the block below verbatim:
+
+```
+Jira bridge configuration surface
+---------------------------------
+Required environment variables (set in the GitHub repo and locally if you'll
+run the bridge from your workstation):
+  - JIRA_URL                 Base URL of your Jira instance (https://...)
+  - JIRA_USER                Service-account email for ACLI authentication
+  - JIRA_API_TOKEN           Service-account ACLI API token (NEVER commit)
+  - JIRA_PROJECT             Project key — same as jira.project in config
+  - BRIDGE_ENV_ID            UUID identifying this bridge environment;
+                             MUST be set (empty value fails fast). One UUID
+                             per logical project — generate via `uuidgen`.
+  - BRIDGE_USER_MAP          JSON map: {"email@example.com": "<jiraAccountId>"}
+                             Required for outbound assignee sync; lowercased
+                             key lookup is case-insensitive. Empty {} disables.
+
+Optional environment variables (defaults shown):
+  - BRIDGE_COMMIT_CAP        Max commits per bridge run (safety cap)
+  - GH_RUN_ID                CI run ID for traceability (auto-set in Actions)
+  - INBOUND_CHECKPOINT_PATH  Override path for .inbound-checkpoint.json
+  - INBOUND_OVERLAP_BUFFER_MINUTES  Window-overlap for missed-issue retry
+                                    (default: 15)
+  - INBOUND_BACKFILL         "true"|"1" or ISO-8601 timestamp — re-fetch
+                             pre-cursor history (recovery tool, not steady-state)
+  - INBOUND_STATUS_MAPPING   JSON: Jira status name → local status
+  - INBOUND_TYPE_MAPPING     JSON: Jira issuetype name → local type
+
+dso-config.conf keys for Jira sync:
+  - jira.project=<KEY>       Jira project key (written from this prompt)
+  - merge.strategy=<direct|pr>  PR mode integrates with the CI llm-review
+                                workflow that the bridge job depends on
+
+Operational artifacts (written by the bridge, audit only):
+  - .tickets-tracker/.inbound-checkpoint.json   last_pull_ts cursor
+  - .tickets-tracker/.outbound-checkpoint.json  last_processed_sha cursor
+  - .tickets-tracker/.inbound-deadletter.json   intentional permanent drops
+  - .tickets-tracker/<id>/*-BRIDGE_ALERT.json   per-ticket alerts (unbounded
+                                                replay prevented via dedup_key)
+
+Verification: after setting the env vars, run `bridge-inbound.py --dry-run`
+and `bridge-outbound.py --dry-run` (or the CI workflows in dry-run mode)
+to confirm ACLI authentication succeeds before enabling on the main branch.
+
+Reference: ${CLAUDE_PLUGIN_ROOT}/scripts/bridge/README.md is the authoritative bridge
+operator's guide.
+```
+
+Credentials (`JIRA_URL`, `JIRA_USER`, `JIRA_API_TOKEN`, and `BRIDGE_USER_MAP` for any internal email addresses) stay as environment variables — NEVER commit them. Only the project key goes in config.
 
 #### 9. Figma Design Collaboration
 
@@ -740,10 +807,12 @@ Record the answer in the scratchpad as `PREPLANNING_INTERACTIVE=true|false`. Pha
 - `digital-service-orchestra` → `DSO`
 - `myapp` (single word) → first 2–3 characters uppercased → `MYA`
 
-Confirm the derived prefix:
+Confirm the derived prefix. The prefix scopes DSO's per-repo ticket aliases (e.g. `MA-1234`) in the local `.tickets-tracker/` system covered in section 7.5. It is NOT the Jira project key (`jira.project`) — those are independent and can differ.
 
 ```
 I'll use ticket prefix "MA" for this project (derived from "my-app").
+This prefix scopes DSO's local ticket aliases — it is independent of any
+Jira project key set in section 8.
 Does that work, or would you prefer a different prefix?
 ```
 
