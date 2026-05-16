@@ -99,45 +99,21 @@ jobs:
           echo "ARTIFACT_NAME=per-branch-review-${SAFE_NAME}" >> "$GITHUB_ENV"
 
       - name: Resolve diff base (PR base → SPRINT_SESSION_ID → main)
-        # Bug 3914-0848-faad-4f6a: SPRINT_SESSION_ID alone is too brittle as a
-        # diff base. It can drift (Phase F renames the session branch but the
-        # variable isn't updated), or stale across sessions (last sprint's
-        # variable persists into the next). The PR's actual base is the
-        # authoritative source — look it up first, fall back to the variable
-        # only when no open PR exists, then main as a final safety net.
-        #
-        # Resolution order:
-        #   1. Open PR for $GITHUB_REF_NAME → use its baseRefName
-        #   2. Repo variable SPRINT_SESSION_ID (legacy, sprint-driven)
-        #   3. "main" (always safe; produces broad diff that the reviewer can handle)
+        # Bug 3914-0848-faad-4f6a: delegate to a unit-tested resolver script
+        # rather than inline bash, so the resolution chain (PR base → variable
+        # → main, with existence validation) can be tested behaviorally.
+        # See plugins/dso/scripts/resolve-per-branch-review-base.sh and
+        # tests/scripts/test-resolve-per-branch-review-base.sh.
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SPRINT_SESSION_ID: ${{ vars.SPRINT_SESSION_ID }}
         run: |
-          BRANCH_NAME="${GITHUB_REF_NAME}"
-          BASE_REF=""
-          # Stage 1: open PR for this branch is the authoritative source.
-          PR_BASE="$(gh pr list --head "$BRANCH_NAME" --state open --json baseRefName --jq '.[0].baseRefName // empty' 2>/dev/null || true)"
-          if [[ -n "$PR_BASE" ]]; then
-              BASE_REF="$PR_BASE"
-              echo "BASE_REF resolved from open PR base: $BASE_REF"
-          fi
-          # Stage 2: fall back to repo variable.
-          if [[ -z "$BASE_REF" && -n "$SPRINT_SESSION_ID" ]]; then
-              BASE_REF="$SPRINT_SESSION_ID"
-              echo "BASE_REF resolved from SPRINT_SESSION_ID variable: $BASE_REF (no open PR)"
-          fi
-          # Stage 3: final fallback.
-          if [[ -z "$BASE_REF" ]]; then
-              BASE_REF="main"
-              echo "BASE_REF defaulted to: main (no open PR, no SPRINT_SESSION_ID)"
-          fi
-          # Validate the base exists on origin; downgrade to main if not.
-          if ! git ls-remote --exit-code --heads origin "$BASE_REF" >/dev/null 2>&1; then
-              echo "WARN: BASE_REF '$BASE_REF' not found on origin — downgrading to main"
-              BASE_REF="main"
-          fi
+          BRANCH_NAME="${GITHUB_REF_NAME}" \
+            bash plugins/dso/scripts/resolve-per-branch-review-base.sh \
+            | tee /tmp/_base_ref.txt
+          BASE_REF="$(cat /tmp/_base_ref.txt)"
           echo "BASE_REF=$BASE_REF" >> "$GITHUB_ENV"
+          rm -f /tmp/_base_ref.txt
 
       - name: Fetch resolved diff base
         env:
