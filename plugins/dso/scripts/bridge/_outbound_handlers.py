@@ -450,6 +450,7 @@ def handle_status_event(
                     "inbound CREATE predates the SYNC-marker fix)"
                 ),
                 bridge_env_id=bridge_env_id,
+                dedup_key="outbound-status-no-sync-marker",
             )
 
             # Bug 6f78-e9c4 Fix B: when retroactive CREATE was attempted but
@@ -515,7 +516,9 @@ def handle_snapshot_event(
         return []
 
     compiled_state = event_data.get("data", {}).get("compiled_state", {}) or {}
-    compiled_status = compiled_state.get("status", "") if isinstance(compiled_state, dict) else ""
+    compiled_status = (
+        compiled_state.get("status", "") if isinstance(compiled_state, dict) else ""
+    )
     if not compiled_status:
         return []
 

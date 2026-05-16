@@ -157,6 +157,7 @@ def _fetch_issues_with_checkpoint(
 def _write_success_checkpoint(
     checkpoint_file: str,
     run_id: str,
+    watermark_ts: str = "",
 ) -> None:
     """Advance last_pull_ts in the checkpoint file on full-run success.
 
@@ -166,17 +167,83 @@ def _write_success_checkpoint(
     Args:
         checkpoint_file: Path string for the checkpoint JSON file.
         run_id: Run ID for traceability (written as last_run_id).
+        watermark_ts: UTC ISO 8601 Z timestamp derived from the max `updated`
+            of acknowledged issues in this run. When supplied, advances the
+            cursor exactly to this value — never past it. Empty falls back to
+            wall-clock now() for the legacy empty-window case. (Cluster A fix:
+            bugs 77c3-8906 + jira-dig-2564 — prevents silent permanent loss of
+            issues whose `updated` falls behind a now()-based cursor.)
     """
     if not checkpoint_file:
         return
     from datetime import timezone
 
-    new_ts = datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    if watermark_ts:
+        new_ts = watermark_ts
+    else:
+        new_ts = datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     checkpoint_data: dict[str, Any] = {"last_pull_ts": new_ts}
     if run_id:
         checkpoint_data["last_run_id"] = run_id
     # batch_resume_cursor intentionally omitted — cleared on success
     _atomic_write_json(Path(checkpoint_file), checkpoint_data)
+
+
+def _record_deadletter(
+    tickets_root: Path,
+    jira_key: str,
+    reason_code: str,
+    updated_z: str,
+    run_id: str,
+) -> None:
+    """Append a dead-letter record for an intentionally-dropped Jira issue.
+
+    Dead-lettered issues are auditable permanent drops (unmapped type,
+    destructive guard, locally-deleted/archived). Cursor watermark advances
+    past them, but the operator can inspect .inbound-deadletter.json and run
+    INBOUND_BACKFILL if a type mapping later changes. (Cluster A fix.)
+    """
+    if not jira_key:
+        return
+    deadletter_path = tickets_root / ".inbound-deadletter.json"
+    records: dict[str, Any] = {}
+    if deadletter_path.exists():
+        try:
+            records = json.loads(deadletter_path.read_text(encoding="utf-8"))
+            if not isinstance(records, dict):
+                records = {}
+        except (OSError, json.JSONDecodeError):
+            records = {}
+    records[jira_key] = {
+        "reason": reason_code,
+        "updated": updated_z,
+        "run_id": run_id,
+    }
+    _atomic_write_json(deadletter_path, records)
+
+
+def _updated_to_iso_z(value: Any) -> str:
+    """Best-effort conversion of an `updated` field to UTC ISO 8601 Z.
+
+    Handles both pre-normalization ISO 8601 strings (any offset) and
+    post-normalization epoch ints. Returns "" on unrecognized input.
+    """
+    from datetime import timezone
+
+    if isinstance(value, int):
+        try:
+            return datetime.fromtimestamp(value, tz=timezone.utc).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"
+            )
+        except (OSError, ValueError, OverflowError):
+            return ""
+    if isinstance(value, str) and value:
+        try:
+            dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        except ValueError:
+            return ""
+    return ""
 
 
 def _is_locally_deleted_or_archived(
@@ -250,23 +317,17 @@ def _process_single_issue(
     ticket_reducer: Any,
     acli_client: Any,
     unmapped_type_keys: set[str],
-) -> None:
+) -> str:
     """Dispatch a single normalized Jira issue through all event handlers.
 
     Handlers are called in order: destructive guard → status → edit →
     type check → links. Each handler that signals a skip causes an early
     return; the type check also mutates unmapped_type_keys.
 
-    Args:
-        issue: Normalized Jira issue dict.
-        tickets_root: Path to the .tickets-tracker directory.
-        bridge_env_id: UUID of this bridge environment.
-        run_id: Run ID for traceability.
-        status_mapping: Jira status → local status mapping.
-        type_mapping: Jira type → local type mapping.
-        ticket_reducer: Pre-loaded ticket-reducer module (or None).
-        acli_client: ACLI client object.
-        unmapped_type_keys: Mutable set accumulating unmapped Jira keys.
+    Returns:
+        One of: "ok" (issue fully processed or already-synced),
+        "deadletter:<reason>" (intentional permanent drop — caller must
+        record it via _record_deadletter). Exceptions propagate to caller.
     """
     import logging as _logging
 
@@ -279,7 +340,7 @@ def _process_single_issue(
                 "inbound guard: skipping events for %s — local state is deleted/archived",
                 local_id,
             )
-            return
+            return "deadletter:locally-deleted-or-archived"
 
     if check_destructive_guard(
         issue,
@@ -290,7 +351,7 @@ def _process_single_issue(
         map_type_fn=map_type,
         write_bridge_alert_fn=write_bridge_alert,
     ):
-        return
+        return "deadletter:destructive-guard"
 
     handle_status(
         issue,
@@ -320,7 +381,7 @@ def _process_single_issue(
         map_type_fn=map_type,
         write_bridge_alert_fn=write_bridge_alert,
     ):
-        return
+        return "deadletter:unmapped-type"
 
     handle_links(
         issue,
@@ -331,6 +392,7 @@ def _process_single_issue(
         write_bridge_alert_fn=write_bridge_alert,
         ticket_reducer=ticket_reducer,
     )
+    return "ok"
 
 
 def process_inbound(
@@ -429,20 +491,63 @@ def process_inbound(
     except Exception:
         ticket_reducer = None  # type: ignore[assignment]
 
+    # Cursor watermark accumulators (Cluster A fix: 77c3-8906 + jira-dig-2564).
+    # acknowledged_updateds holds the UTC ISO-Z `updated` of every issue the
+    # bridge has explicitly handled (ok or dead-lettered) — these are safe to
+    # advance past. failed_min_updated is the earliest `updated` among issues
+    # whose processing raised; the cursor must NOT cross it so they retry.
     unmapped_type_keys: set[str] = set()
+    acknowledged_updateds: list[str] = []
+    failed_min_updated: str | None = None
     for issue in issues:
         issue = normalize_timestamps(issue)
-        _process_single_issue(
-            issue,
-            tickets_root=tickets_root,
-            bridge_env_id=bridge_env_id,
-            run_id=run_id,
-            status_mapping=status_mapping,
-            type_mapping=type_mapping,
-            ticket_reducer=ticket_reducer,
-            acli_client=acli_client,
-            unmapped_type_keys=unmapped_type_keys,
-        )
+        updated_z = _updated_to_iso_z(issue.get("fields", {}).get("updated"))
+        issue_key = issue.get("key", "")
+        try:
+            outcome = _process_single_issue(
+                issue,
+                tickets_root=tickets_root,
+                bridge_env_id=bridge_env_id,
+                run_id=run_id,
+                status_mapping=status_mapping,
+                type_mapping=type_mapping,
+                ticket_reducer=ticket_reducer,
+                acli_client=acli_client,
+                unmapped_type_keys=unmapped_type_keys,
+            )
+        except Exception as exc:
+            logging.exception(
+                "[inbound-bridge] processing failed for %s: %s", issue_key, exc
+            )
+            try:
+                write_bridge_alert(
+                    tickets_root=tickets_root,
+                    jira_key=issue_key,
+                    bridge_env_id=bridge_env_id,
+                    reason=f"inbound processing failed: {type(exc).__name__}: {exc}",
+                )
+            except Exception:
+                # Alert-write itself may fail; never block the run on logging
+                logging.exception(
+                    "[inbound-bridge] failed to write BRIDGE_ALERT for %s", issue_key
+                )
+            if updated_z and (
+                failed_min_updated is None or updated_z < failed_min_updated
+            ):
+                failed_min_updated = updated_z
+            continue
+        if updated_z:
+            acknowledged_updateds.append(updated_z)
+        if outcome.startswith("deadletter:") and issue_key:
+            reason_code = outcome.split(":", 1)[1] if ":" in outcome else "unknown"
+            try:
+                _record_deadletter(
+                    tickets_root, issue_key, reason_code, updated_z, run_id
+                )
+            except Exception:
+                logging.exception(
+                    "[inbound-bridge] failed to write dead-letter for %s", issue_key
+                )
 
     creatable_issues = (
         [i for i in issues if i.get("key") not in unmapped_type_keys]
@@ -496,7 +601,54 @@ def process_inbound(
             last_pull_ts,
             overlap_buffer_minutes,
         )
-    _write_success_checkpoint(checkpoint_file, run_id)
+    # Cluster A fix: derive cursor from acknowledged-issue watermark, not now().
+    # Clamp strictly below any failed issue's `updated` so retries land them.
+    watermark_ts = ""
+    if acknowledged_updateds:
+        eligible = acknowledged_updateds
+        if failed_min_updated is not None:
+            eligible = [u for u in acknowledged_updateds if u < failed_min_updated]
+        if eligible:
+            candidate = max(eligible)
+            # Advance at least 1s past the prior cursor when the candidate is
+            # equal — preserves the cursor-must-move contract from existing
+            # tests while still preferring a real watermark over wall-clock now().
+            if candidate <= last_pull_ts:
+                try:
+                    from datetime import timezone as _tz
+
+                    base = datetime.fromisoformat(
+                        last_pull_ts.replace("Z", "+00:00")
+                    ).astimezone(_tz.utc)
+                    watermark_ts = (
+                        base.replace(microsecond=0)
+                        + (
+                            datetime.fromtimestamp(1, tz=_tz.utc)
+                            - datetime.fromtimestamp(0, tz=_tz.utc)
+                        )
+                    ).strftime("%Y-%m-%dT%H:%M:%SZ")
+                except ValueError:
+                    watermark_ts = candidate
+            else:
+                watermark_ts = candidate
+    elif failed_min_updated is not None:
+        # All issues failed in this run — preserve cursor for retry by skipping
+        # the checkpoint write entirely.
+        logging.warning(
+            "[inbound-bridge] all %d fetched issue(s) failed processing; "
+            "preserving cursor at %s for retry",
+            len(issues),
+            last_pull_ts,
+        )
+        return
+    print(
+        f"[inbound-bridge] cursor-advance run={run_id} "
+        f"acknowledged={len(acknowledged_updateds)} "
+        f"failed_min={failed_min_updated or '(none)'} "
+        f"watermark={watermark_ts or '(now)'}",
+        flush=True,
+    )
+    _write_success_checkpoint(checkpoint_file, run_id, watermark_ts)
 
 
 # ---------------------------------------------------------------------------
