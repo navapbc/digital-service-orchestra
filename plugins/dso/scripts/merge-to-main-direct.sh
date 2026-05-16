@@ -11,6 +11,30 @@ set -euo pipefail
 # Usage: scripts/merge-to-main.sh
 # Exit codes: 0=success, 1=error
 # Output: concise status for LLM consumption
+#
+# Concurrency model (multi-session / multi-environment):
+#   Local lock scope:
+#     A flock-style lock at /tmp/merge-to-main-lock-<shasum-c1-8 of MAIN_REPO>
+#     serializes invocations against the SAME main repo. Two worktrees of the
+#     SAME clone hash to the same key and serialize correctly. Two DIFFERENT
+#     clones (whether same machine or different machines) hash to different
+#     keys — there is no local coordination across clones.
+#   Cross-clone / cross-machine safety:
+#     The script does not attempt cross-clone locking (this is impossible in
+#     general). Safety against concurrent pushes from different clones comes
+#     from the self-healing push: on a non-fast-forward push rejection the
+#     script fetches origin/main, rebases local main onto it, and retries.
+#     Rebase conflicts (e.g., overlapping version bumps that touch the same
+#     line) abort cleanly and surface an actionable manual-recovery message.
+#   State-file scope:
+#     The state file at /tmp/merge-to-main-state-<branch-sanitized>.json is
+#     keyed on BRANCH only. Different branches → different state files.
+#     The state file records origin_main_sha at init; --resume detects when
+#     origin/main has advanced past the recorded SHA and resets post-sync
+#     phases (sync, merge, version_bump, push) so they re-run against the
+#     fresh tip rather than trusting potentially-stale completed_phases.
+#   Stale state files older than 240 minutes are pruned automatically by
+#   _state_init's find-delete pass.
 
 set -euo pipefail
 
@@ -995,6 +1019,67 @@ if [[ "$_CLI_RESUME" == "true" ]]; then
     if [[ "$_resume_retry_count" -ge "$MAX_MERGE_RETRIES" ]]; then
         echo "ESCALATE: Merge has failed 5 times. Stop and ask the user for help. Do NOT retry."
         exit 1
+    fi
+
+    # --- State-file freshness check (multi-session hardening) ---
+    # If origin/main has advanced since this state file was created, the
+    # post-sync phases (sync, merge, version_bump, push) must re-run against
+    # the fresh tip — even if completed_phases marks them done. The
+    # self-healing push handles the immediate push consequence, but the
+    # freshness check makes the staleness explicit and prevents skipping
+    # phases that depend on a current origin view.
+    #
+    # Behavior:
+    #   - Missing/empty origin_main_sha (legacy state file) → proceed normally
+    #   - Recorded SHA is an ancestor of (or equal to) current origin/main with
+    #     no advancement → proceed normally
+    #   - origin/main has advanced past the recorded SHA → reset post-sync
+    #     phases to incomplete (they will re-run)
+    #   - Fetch failure → tolerate; proceed normally
+    if [[ -f "$_sf" ]]; then
+        _RECORDED_ORIGIN_SHA=$(_DSO_SF="$_sf" python3 -c "
+import json, os
+try:
+    with open(os.environ['_DSO_SF']) as f:
+        d = json.load(f)
+    print(d.get('origin_main_sha', ''))
+except Exception:
+    print('')
+" 2>/dev/null || echo "")
+        if [[ -n "$_RECORDED_ORIGIN_SHA" ]]; then
+            # Best-effort fetch; tolerate failure (offline / transient network)
+            git fetch origin main --quiet 2>/dev/null || true
+            _CURRENT_ORIGIN_SHA=$(git rev-parse origin/main 2>/dev/null || echo "")
+            if [[ -n "$_CURRENT_ORIGIN_SHA" && "$_CURRENT_ORIGIN_SHA" != "$_RECORDED_ORIGIN_SHA" ]]; then
+                # Check whether origin advanced past the recorded SHA (recorded is
+                # an ancestor of current). If so, reset post-sync phases.
+                if git merge-base --is-ancestor "$_RECORDED_ORIGIN_SHA" "$_CURRENT_ORIGIN_SHA" 2>/dev/null; then
+                    echo "INFO: --resume: origin/main has advanced since this state file was created"
+                    echo "      (recorded=${_RECORDED_ORIGIN_SHA:0:8}, current=${_CURRENT_ORIGIN_SHA:0:8})."
+                    echo "      Resetting post-sync phases (sync, merge, version_bump, push) to re-run against fresh tip."
+                    _DSO_SF="$_sf" _DSO_CURRENT_SHA="$_CURRENT_ORIGIN_SHA" python3 -c "
+import json, os
+sf = os.environ['_DSO_SF']
+with open(sf) as f:
+    d = json.load(f)
+_post = {'sync', 'merge', 'version_bump', 'push'}
+d['completed_phases'] = [p for p in d.get('completed_phases', []) if p not in _post]
+_phases = d.get('phases', {})
+for _p in list(_phases.keys()):
+    if _p in _post:
+        _phases.pop(_p, None)
+d['phases'] = _phases
+# Update recorded SHA to current so we don't repeat the reset on a subsequent --resume
+d['origin_main_sha'] = os.environ.get('_DSO_CURRENT_SHA', '')
+with open(sf + '.tmp', 'w') as f:
+    json.dump(d, f)
+    f.flush()
+    os.fsync(f.fileno())
+os.replace(sf + '.tmp', sf)
+" 2>/dev/null || true
+                fi
+            fi
+        fi
     fi
 
     # --- Mid-rebase state detection ---
