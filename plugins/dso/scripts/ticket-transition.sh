@@ -38,7 +38,7 @@ if [ $# -lt 2 ]; then
     _usage
 fi
 
-ticket_id="$1"
+ticket_id=$(TICKETS_TRACKER_DIR="$TRACKER_DIR" resolve_ticket_id "$1") || exit 1
 if [ $# -eq 2 ]; then
     # 2-arg convenience form: auto-detect current status from the ticket
     current_status=$(ticket_read_status "$TRACKER_DIR" "$ticket_id" 2>/dev/null) || {

@@ -18,7 +18,7 @@ _usage() {
 
 [[ $# -lt 2 ]] && _usage
 
-ticket_id="$1"
+ticket_id=$(resolve_ticket_id "$1") || exit 1
 tag="$2"
 
 _tag_remove "$ticket_id" "$tag"

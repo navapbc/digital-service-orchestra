@@ -4,7 +4,19 @@ Standalone sub-workflow for configuring Agent/Task dispatch isolation when runni
 
 ## Purpose
 
-When an orchestrator is running inside a worktree, sub-agents dispatched via the Agent/Task tool receive an isolated sandboxed working directory (`isolation: "worktree"`). Worktree isolation is always enabled.
+When an orchestrator is running inside a worktree, sub-agents dispatched via the Agent/Task tool receive a separate working tree and CWD (`isolation: "worktree"`). Worktree isolation is always enabled.
+
+### What `isolation: "worktree"` IS and IS NOT
+
+`isolation: "worktree"` is **CWD redirection plus a separate git working tree**. It is **NOT a filesystem sandbox**. The sub-agent process still has full read/write access to the orchestrator's working tree via:
+
+- Absolute paths derived from `ORCHESTRATOR_ROOT`
+- `cd "$ORCHESTRATOR_ROOT"` followed by ordinary writes / git operations on the session branch
+- Any script or helper that derives its `REPO_ROOT` from sources other than `$(git rev-parse --show-toplevel)` of its own CWD
+
+Empirically verified (bug c9df-0538): from inside an isolated sub-agent worktree, a write to `$ORCHESTRATOR_ROOT/some-file.txt` succeeds, and `cd "$ORCHESTRATOR_ROOT"` lands on the session branch with unrestricted git access.
+
+**Implication**: write-path safety is the *agent's* responsibility, not the platform's. Every implementer-class sub-agent must (a) run the Git Root Verification snippet as its first action, (b) treat `ORCHESTRATOR_ROOT` as a *read-only* reference for invoking the orchestrator's shim (`$ORCHESTRATOR_ROOT/.claude/scripts/dso`), and (c) never use `ORCHESTRATOR_ROOT` as a write base. Reviewer-family agents that intentionally write to the orchestrator's shared artifacts directory are the documented exception.
 
 ## Step 1 — Set Isolation Mode
 

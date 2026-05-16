@@ -411,8 +411,8 @@ case "$subcommand" in
         if [ $# -lt 2 ]; then
             _usage
         fi
-        id1="$1"
-        id2="$2"
+        id1=$(TICKETS_TRACKER_DIR="$TRACKER_DIR" resolve_ticket_id "$1") || exit 1
+        id2=$(TICKETS_TRACKER_DIR="$TRACKER_DIR" resolve_ticket_id "$2") || exit 1
         relation="${3:-relates_to}"
 
         # Validate relation
@@ -447,8 +447,8 @@ case "$subcommand" in
         if [ $# -lt 2 ]; then
             _usage
         fi
-        id1="$1"
-        id2="$2"
+        id1=$(TICKETS_TRACKER_DIR="$TRACKER_DIR" resolve_ticket_id "$1") || exit 1
+        id2=$(TICKETS_TRACKER_DIR="$TRACKER_DIR" resolve_ticket_id "$2") || exit 1
 
         # Look up the relation before unlinking to detect relates_to (bidirectional)
         link_info=$(_get_link_info "$id1" "$id2") || link_info=""
