@@ -53,7 +53,7 @@ from dso_ci_review.dispatch import async_dispatch_specialists, dispatch_arch_syn
 # triggered region-split on routine refactors-with-companion-tests (e.g.,
 # PR #165: 688 LOC, 7 files), fragmenting cross-file context with no
 # context-pressure justification. The new defaults sit at ~7-10% of the
-# Sonnet diff budget, captureing the common-case PR atomically while still
+# Sonnet diff budget, capturing the common-case PR atomically while still
 # bounding worst-case prompt growth.
 #
 # Projects on smaller-context models should lower these via config keys.
@@ -117,24 +117,39 @@ def _read_config_int(key: str, default: int, config_path: str | None = None) -> 
 
 
 def _loc_threshold() -> int:
-    """Resolved LOC threshold for region-split (default 400)."""
-    return _read_config_int(
+    """Resolved LOC threshold for region-split (default 3000).
+
+    Values ≤ 0 from config (invalid — would disable LOC gating entirely or
+    invert the comparison) fall back to the default.
+    """
+    value = _read_config_int(
         "review.region_split.loc_threshold", _LOC_THRESHOLD_DEFAULT
     )
+    return value if value > 0 else _LOC_THRESHOLD_DEFAULT
 
 
 def _file_count_threshold() -> int:
-    """Resolved file-count threshold for region-split (default 15)."""
-    return _read_config_int(
+    """Resolved file-count threshold for region-split (default 40).
+
+    Values ≤ 0 from config fall back to the default — same rationale as
+    _loc_threshold.
+    """
+    value = _read_config_int(
         "review.region_split.file_count_threshold", _FILE_COUNT_THRESHOLD_DEFAULT
     )
+    return value if value > 0 else _FILE_COUNT_THRESHOLD_DEFAULT
 
 
 def _max_clusters() -> int:
-    """Resolved cluster fan-out cap (default 5)."""
-    return _read_config_int(
+    """Resolved cluster fan-out cap (default 5).
+
+    Values < 1 from config (which would prevent any cluster being kept) fall
+    back to the default.
+    """
+    value = _read_config_int(
         "review.region_split.max_clusters", _MAX_CLUSTERS_DEFAULT
     )
+    return value if value >= 1 else _MAX_CLUSTERS_DEFAULT
 
 
 def _should_region_split(diff_text: str) -> bool:
@@ -180,9 +195,14 @@ def _should_region_split(diff_text: str) -> bool:
     if len(file_set) <= 1:
         return False
 
-    if loc_count > _loc_threshold():
+    # Resolve config-driven thresholds ONCE per call (PR #169 perf: avoid
+    # re-reading dso-config.conf for each comparison).
+    loc_t = _loc_threshold()
+    file_t = _file_count_threshold()
+
+    if loc_count > loc_t:
         return True
-    if len(file_set) > _file_count_threshold():
+    if len(file_set) > file_t:
         return True
     return False
 
@@ -195,7 +215,12 @@ def _cluster_files(filenames: list[str]) -> dict[str, list[str]]:
     - If more than ``_max_clusters()`` distinct directories exist, the smallest
       clusters beyond the top (_max_clusters() - 1) are merged into "overflow".
 
-    Returns a dict mapping cluster label → list of bare filenames (basename only).
+    Returns a dict mapping cluster label → list of filenames. Non-overflow
+    clusters store BASENAMES (per the original API contract); the "overflow"
+    cluster, when present, stores FULL PATHS so the downstream extractor can
+    re-locate hunks (PR #169 fix: previously overflow lost the parent
+    directory, producing nonexistent ``overflow/<basename>`` lookups and a
+    silent fall-through to whole-diff dispatch).
 
     File-atomicity invariant (bug 532e-6ab7): every input file appears in
     exactly one cluster. A single source file is the atomic unit of code
@@ -219,19 +244,29 @@ def _cluster_files(filenames: list[str]) -> dict[str, list[str]]:
 
         dir_map.setdefault(directory, []).append(basename)
 
-    if len(dir_map) <= _max_clusters():
+    # Resolve cluster cap ONCE (PR #169 perf: avoid re-reading config on each
+    # comparison / slice; the function previously invoked _max_clusters() 4×).
+    max_c = _max_clusters()
+
+    if len(dir_map) <= max_c:
         result = dir_map
     else:
-        # Merge smallest clusters beyond top (_max_clusters() - 1) into "overflow"
-        # Sort by cluster size descending, keep the largest (_max_clusters() - 1)
+        # Merge smallest clusters beyond top (max_c - 1) into "overflow"
+        # Sort by cluster size descending, keep the largest (max_c - 1)
         sorted_dirs = sorted(dir_map.items(), key=lambda kv: len(kv[1]), reverse=True)
-        kept = sorted_dirs[: _max_clusters() - 1]
-        overflow_dirs = sorted_dirs[_max_clusters() - 1 :]
+        kept = sorted_dirs[: max_c - 1]
+        overflow_dirs = sorted_dirs[max_c - 1 :]
 
         result = {d: files for d, files in kept}
+        # Overflow stores FULL PATHS (parent dir + basename) so _extract_cluster_diff
+        # can match the diff hunks. Top-level files (directory == ".") stay as
+        # basenames since their "full path" is identical to their basename.
         overflow_files: list[str] = []
-        for _, files in overflow_dirs:
-            overflow_files.extend(files)
+        for overflow_dir, files in overflow_dirs:
+            if overflow_dir == ".":
+                overflow_files.extend(files)
+            else:
+                overflow_files.extend(f"{overflow_dir}/{f}" for f in files)
         if overflow_files:
             result["overflow"] = overflow_files
 
@@ -272,10 +307,15 @@ def _assert_file_atomicity(
 def _extract_cluster_diff(diff_text: str, cluster_dir: str, cluster_files: list[str]) -> str:
     """Extract diff hunks relevant to the given cluster.
 
-    Builds the set of full paths by combining cluster_dir with each basename.
+    Builds the set of full paths by combining cluster_dir with each basename
+    for ordinary clusters. For the "." (top-level) and "overflow" pseudo-
+    clusters, ``cluster_files`` is already a list of full paths and is used
+    verbatim (PR #169: overflow now stores full paths so the lookup actually
+    matches the diff hunks).
+
     Returns a substring of diff_text containing only those file sections.
     """
-    if cluster_dir == ".":
+    if cluster_dir in {".", "overflow"}:
         full_paths = set(cluster_files)
     else:
         full_paths = {f"{cluster_dir}/{f}" for f in cluster_files}
@@ -285,13 +325,23 @@ def _extract_cluster_diff(diff_text: str, cluster_dir: str, cluster_files: list[
     in_target = False
 
     for line in lines:
-        # Check for a new file section
+        # `diff --git a/PATH b/PATH` is the canonical file-section delimiter.
+        # PR #169: previously only +++/--- toggled in_target, so a `diff --git`
+        # line for a NON-target file could leak through when it immediately
+        # followed a target file's last hunk (in_target was still True until
+        # the next +++/--- arrived). Check this first.
+        m0 = re.match(r"^diff --git a/(\S+) b/\S+", line)
+        if m0:
+            path = m0.group(1)
+            in_target = path in full_paths
+
+        # +++ b/... — start of new-file marker
         m = re.match(r"^\+\+\+ b/(\S+)", line)
         if m:
             path = m.group(1)
             in_target = path in full_paths
 
-        # Also handle --- a/... as start of file section
+        # --- a/... — start of old-file marker
         m2 = re.match(r"^--- a/(\S+)", line)
         if m2:
             path = m2.group(1)
