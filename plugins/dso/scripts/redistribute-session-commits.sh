@@ -504,10 +504,12 @@ for key in "${GROUP_ORDER[@]}"; do
     done <<< "${GROUP_COMMITS[$key]}"
 
     if [[ "$_pick_failed" -eq 1 ]]; then
-        echo "branch_conflicts=$_branch" >> "$_checkpoint"
+        echo "branch_conflicts=$_branch (continuing past failure)" >> "$_checkpoint"
+        # Delete the partial branch and restore HEAD; continue to next group
         git checkout -q "$_start_ref" 2>/dev/null || true
-        echo "  checkpoint: $_checkpoint  (resume support: out of scope this story)"
-        exit 2
+        git branch -D "$_branch" 2>/dev/null || true
+        echo "  ↷ skipping $key — cherry-pick conflicts (see bug cf84-9c07 for SPLIT-phase fix)" >&2
+        continue
     fi
 
     if ! git push -u origin "$_branch" >/dev/null 2>&1; then
@@ -515,8 +517,9 @@ for key in "${GROUP_ORDER[@]}"; do
     fi
 
     if [[ -n "$_merge_script" ]]; then
-        STORY_PR_BASE="$SESSION_BRANCH" bash "$_merge_script" || \
-            echo "  WARN: PR open via merge-to-main-pr.sh returned non-zero for $_branch" >&2
+        # Background-parallel: open PR + queue auto-merge without blocking the next group
+        ( STORY_PR_BASE="$SESSION_BRANCH" bash "$_merge_script" 2>&1 | sed "s|^|  [$_branch] |" ) &
+        echo "  → PR open dispatched in background for $_branch (PID $!)"
     fi
 done
 
