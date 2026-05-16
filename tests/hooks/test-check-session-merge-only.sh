@@ -149,7 +149,9 @@ test_dso_sprint_active_override_exits_0_and_writes_audit_log() {
     local exit_code=0
     (
         cd "$_repo"
-        DSO_SPRINT_ACTIVE=0 DSO_ARTIFACTS_DIR="$_artifacts_dir" bash "$_SCRIPT" 2>/dev/null
+        DSO_SPRINT_ACTIVE=0 \
+        DSO_SPRINT_ACTIVE_BYPASS_REASON="audit-log test" \
+        DSO_ARTIFACTS_DIR="$_artifacts_dir" bash "$_SCRIPT" 2>/dev/null
     ) || exit_code=$?
 
     assert_eq \
@@ -218,7 +220,9 @@ test_dso_debug_active_override_exits_0_and_writes_audit_log() {
     local exit_code=0
     (
         cd "$_repo"
-        DSO_DEBUG_ACTIVE=0 DSO_ARTIFACTS_DIR="$_artifacts_dir" bash "$_SCRIPT" 2>/dev/null
+        DSO_DEBUG_ACTIVE=0 \
+        DSO_DEBUG_ACTIVE_BYPASS_REASON="audit-log test" \
+        DSO_ARTIFACTS_DIR="$_artifacts_dir" bash "$_SCRIPT" 2>/dev/null
     ) || exit_code=$?
     assert_eq \
         "test_dso_debug_active_override_exits_0_and_writes_audit_log: DSO_DEBUG_ACTIVE=0 exits 0" \
