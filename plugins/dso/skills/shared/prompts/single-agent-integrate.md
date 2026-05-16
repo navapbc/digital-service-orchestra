@@ -15,19 +15,36 @@ For multi-agent sprint batch flows, use `per-worktree-review-commit.md` instead.
 `ORCHESTRATOR_ROOT` is the session root — it must have been passed explicitly in the
 sub-agent dispatch prompt. `WORKTREE_PATH` is the path returned by the sub-agent.
 
+This is a HARD guard. A `WORKTREE_PATH == ORCHESTRATOR_ROOT` reading means the sub-agent
+silently ran in the session root and wrote to the orchestrator's working tree — exactly
+the isolation-breach failure mode covered by `worktree-dispatch.md` Orchestrator
+Responsibility #4 ("HALT the batch, record the failure as a ticket comment, surface to
+the user"). Do NOT downgrade to "fall back to non-isolation path" — any writes the
+sub-agent made have already landed on the session branch unreviewed, and continuing
+would harvest a partial/un-isolated commit silently.
+
 ```bash
 if [ "$WORKTREE_PATH" = "$ORCHESTRATOR_ROOT" ]; then
-    echo "ERROR: WORKTREE_PATH == ORCHESTRATOR_ROOT — sub-agent ran in session root, not an isolated worktree."
-    echo "  WORKTREE_PATH=$WORKTREE_PATH"
-    echo "  ORCHESTRATOR_ROOT=$ORCHESTRATOR_ROOT"
-    echo "  This means worktree isolation did not apply. Treat this as a non-isolated flow:"
-    echo "  follow the existing post-dispatch gates in the calling skill (fix-bug Phase E Step 4 or"
-    echo "  debug-everything Bug-Fix Mode) without harvesting."
-    exit 0  # Not an error — fall back to existing non-isolation path
+    echo "ERROR: WORKTREE_PATH == ORCHESTRATOR_ROOT — sub-agent ran in session root, not an isolated worktree." >&2
+    echo "  WORKTREE_PATH=$WORKTREE_PATH" >&2
+    echo "  ORCHESTRATOR_ROOT=$ORCHESTRATOR_ROOT" >&2
+    echo "  Worktree isolation did not apply. HALTing per worktree-dispatch.md Responsibility #4." >&2
+    # Surface to the active ticket so the failure is observable
+    if [ -n "${BUG_TICKET_ID:-}" ]; then
+        .claude/scripts/dso ticket comment "$BUG_TICKET_ID" \
+            "ISOLATION_ERROR: WORKTREE_PATH == ORCHESTRATOR_ROOT in single-agent-integrate Step 1 — sub-agent wrote to session worktree. HALTed before harvest. Investigate dispatch site." \
+            2>/dev/null || true
+    fi
+    exit 1
 fi
 ```
 
 If the guard passes (WORKTREE_PATH differs from ORCHESTRATOR_ROOT), continue to Step 2.
+
+**Orchestrator handling**: On `exit 1`, do NOT silently re-dispatch. Halt the calling skill,
+inspect the dispatch site that produced the un-isolated sub-agent, and resolve the gap
+(missing `isolation: "worktree"`, missing `ORCHESTRATOR_ROOT` injection, or an agent that
+disregarded its Git Root Verification snippet) before retrying.
 
 ---
 
