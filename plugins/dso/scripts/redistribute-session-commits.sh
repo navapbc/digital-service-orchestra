@@ -171,6 +171,8 @@ _load_stories_from_json() {
 
 # Real-CLI path: list-descendants emits {"stories":["id1","id2",...]} (flat IDs);
 # for each story, run `ticket show <id>` to fetch the description, then extract tokens.
+# Note: Only stories are scope-bearing for redistribution. Tasks are excluded — they
+# inherit their parent story's scope and would otherwise create spurious destinations.
 _load_stories_from_shim() {
     local shim="$1" epic="$2"
     local list_json
@@ -181,7 +183,7 @@ _load_stories_from_shim() {
         return 0
     fi
     local story_ids
-    story_ids="$(echo "$list_json" | jq -r '((.stories // []) + (.tasks // []))[]' 2>/dev/null || true)"
+    story_ids="$(echo "$list_json" | jq -r '(.stories // [])[]' 2>/dev/null || true)"
     [[ -z "$story_ids" ]] && return 0
     while IFS= read -r _id; do
         [[ -z "$_id" ]] && continue
@@ -203,7 +205,10 @@ fi
 echo "  ${#STORY_SCOPE[@]} story scope(s) loaded"
 
 # Helper: determine if a single file path "matches" a story scope.
-# Matches if the path or its basename appears as an exact token in scope.
+# Strict matching to avoid spurious cross-story attribution: exact full path OR
+# exact basename. Substring matching is intentionally removed — short tokens
+# like "test" would otherwise match every test file across the codebase and
+# cause SPLIT to fan out to dozens of unrelated stories.
 _file_matches_story() {
     local file="$1" story="$2"
     local scope="${STORY_SCOPE[$story]:-}"
@@ -211,7 +216,12 @@ _file_matches_story() {
     local base="${file##*/}"
     while IFS= read -r token; do
         [[ -z "$token" ]] && continue
-        if [[ "$token" == "$file" || "$token" == "$base" || "$file" == *"$token"* ]]; then
+        # Token must be path-like (contain "/" or be a multi-char basename-with-extension)
+        # to count as a meaningful scope anchor. Discard noise like "tests" or "feat".
+        if [[ "$token" != */* && "$token" != *.* ]]; then
+            continue
+        fi
+        if [[ "$token" == "$file" || "$token" == "$base" ]]; then
             return 0
         fi
     done <<< "$scope"
