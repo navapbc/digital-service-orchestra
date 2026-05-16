@@ -165,18 +165,48 @@ def write_bridge_alert(
     ticket_id: str,
     reason: str,
     bridge_env_id: str = "",
-) -> Path:
-    """Write a BRIDGE_ALERT event file to the ticket directory."""
+    dedup_key: str = "",
+) -> Path | None:
+    """Write a BRIDGE_ALERT event file to the ticket directory.
+
+    When `dedup_key` is supplied, scan existing BRIDGE_ALERT files for an
+    unresolved alert with the same dedup_key; skip the write and return None
+    if found. This prevents unbounded replay of the same alert on every
+    bridge run when the underlying condition is persistent (bug 487d-ce11:
+    Jira-originated tickets with no SYNC.json marker that emit a fresh
+    BRIDGE_ALERT every outbound run).
+
+    Backward-compat: callers that don't pass `dedup_key` get the original
+    write-every-time behavior — no behavior change for callers that surface
+    distinct transient failures.
+    """
+    if dedup_key:
+        try:
+            for existing in ticket_dir.glob("*-BRIDGE_ALERT.json"):
+                try:
+                    existing_data = json.loads(existing.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    continue
+                data = existing_data.get("data") or {}
+                if not isinstance(data, dict):
+                    continue
+                if data.get("dedup_key") == dedup_key and not data.get("resolved"):
+                    return None
+        except OSError:
+            pass
     ts = time.time_ns()
     event_uuid = str(uuid.uuid4())
     filename = f"{ts}-{event_uuid}-BRIDGE_ALERT.json"
+    data_payload: dict[str, Any] = {"reason": reason}
+    if dedup_key:
+        data_payload["dedup_key"] = dedup_key
     payload = {
         "event_type": "BRIDGE_ALERT",
         "timestamp": ts,
         "uuid": event_uuid,
         "env_id": bridge_env_id,
         "ticket_id": ticket_id,
-        "data": {"reason": reason},
+        "data": data_payload,
     }
     path = ticket_dir / filename
     path.write_text(json.dumps(payload, ensure_ascii=False))
