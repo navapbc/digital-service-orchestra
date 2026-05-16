@@ -2122,6 +2122,14 @@ export _CFG_TKDIR
 # shellcheck source=./merge-to-main-direct.sh disable=SC1091
 MERGE_TO_MAIN_DIRECT_LIB=1 source "$_DIRECT_SH"
 
+# Propagate resume context into direct.sh phase functions (bug cb31-3552).
+# _phase_version_bump's resume-skip guard reads DSO_MERGE_RESUMING (the
+# library-mode equivalent of direct.sh's _CLI_RESUME local). Without this,
+# every --resume in PR mode re-bumps the version on a stale base.
+if [[ "${_RESUME:-0}" == "1" ]]; then
+    export DSO_MERGE_RESUMING=1
+fi
+
 # In PR mode, version_bump runs against the merged commit on origin/main. The
 # local main may not be checked out; cd into MAIN_REPO before invoking the
 # phase functions so their bare git operations target the main checkout.
@@ -2162,6 +2170,18 @@ if [[ -d "$MAIN_REPO/.git" ]] || [[ -f "$MAIN_REPO/.git" ]]; then
         git -C "$MAIN_REPO" merge --ff-only "refs/remotes/origin/main" --quiet 2>/dev/null || true
     fi
 fi
+
+# Stale-orphan auto-reset (bug cb31-3552 Defect A): a prior failed run may have
+# left an orphan version-bump commit on local main that never reached
+# origin/main. Without this reset the new version_bump cascades on top of the
+# orphan (1.17.6 → 1.17.7 → 1.17.8 …). _try_reset_stale_version_bump is
+# conservative: it only resets when the SOLE divergent file is the configured
+# version file. Any other divergent file is a no-op so real work is preserved.
+(
+    cd "$MAIN_REPO" 2>/dev/null || exit 0
+    _try_reset_stale_version_bump || true
+) 2>&1 || true
+
 _phase_version_bump
 # REVIEW-DEFENSE (PR #111 important): _phase_push is called exactly once here.
 # merge-to-main-direct.sh is sourced with MERGE_TO_MAIN_DIRECT_LIB=1 (line 2040),

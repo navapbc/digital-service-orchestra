@@ -397,6 +397,11 @@ _T7_OUTPUT=$(
     export BUMP_TYPE="patch"
     export CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR"
     export MAIN_REPO="$_WORK_DIR"
+    # Bug cb31-3552: signal resume context so the version_bump phase's
+    # resume-skip guard fires (the prior PID-equality guard was broken).
+    # In production, this env var is exported by merge-to-main-pr.sh when
+    # --resume is passed; merge-to-main-direct.sh sets _CLI_RESUME=true.
+    export DSO_MERGE_RESUMING=1
     if [[ -n "$_PHASE_FN_BODY" ]]; then
         eval "$_PHASE_FN_BODY"
         _phase_version_bump 2>&1
@@ -642,6 +647,77 @@ assert_eq "test_version_bump_lock_version_updated" "1.0.1" "$_T10_LOCK_VERSION"
 assert_eq "test_version_bump_package_lock_sync_exits_0" "0" "$_T10_RC"
 
 assert_pass_if_clean "test_version_bump_syncs_package_lock_json_when_version_file_is_package_json"
+rm -rf "$_TEST_BASE"
+
+# =============================================================================
+# Test 11: test_version_bump_resume_guard_requires_resume_context (cb31-3552)
+# Defect B: prior PID-equality guard was structurally bypassed when
+# _state_init runs in the same process as _phase_version_bump (the production
+# scenario in merge-to-main-pr.sh library mode). Replacement guard fires ONLY
+# when resume context is signaled — _CLI_RESUME=true or DSO_MERGE_RESUMING=1.
+#
+# This test asserts the resume-skip guard's POSITIVE case via _CLI_RESUME
+# (the direct.sh local), complementing test 7 which exercises DSO_MERGE_RESUMING.
+# =============================================================================
+echo ""
+echo "--- test_version_bump_resume_guard_requires_resume_context ---"
+_snapshot_fail
+
+_setup_test_repo
+_T11_MOCK_DIR="$_TEST_BASE/mock-bin"
+_T11_CALL_LOG="$_TEST_BASE/bump-calls-cli-resume.txt"
+_setup_mock_bump_version "$_T11_MOCK_DIR" "$_T11_CALL_LOG"
+
+_PHASE_FN_BODY=$(_extract_fn "_phase_version_bump" 2>/dev/null || echo "")
+
+_T11_RC=0
+_T11_OUTPUT=$(
+    cd "$_WORK_DIR"
+    export PATH="$_T11_MOCK_DIR:$PATH"
+    export BUMP_TYPE="patch"
+    export CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR"
+    export MAIN_REPO="$_WORK_DIR"
+    # KEY (cb31-3552 Defect B reproduction): call _state_init IN THE SAME
+    # process that runs _phase_version_bump. This is the production scenario
+    # in merge-to-main-pr.sh library mode where the prior PID-equality guard
+    # was structurally bypassed (_init_pid == BASHPID == $$, so the guard's
+    # "PID differs" branch never fired and resume re-bumped every time).
+    _state_init 2>/dev/null || true
+    _T11_INNER_STATE=$(_state_file_path 2>/dev/null || echo "")
+    if [[ -n "$_T11_INNER_STATE" && -f "$_T11_INNER_STATE" ]]; then
+        python3 -c "
+import json
+with open('$_T11_INNER_STATE') as f:
+    d = json.load(f)
+d.setdefault('completed_phases', []).append('version_bump')
+d.setdefault('phases', {})['version_bump'] = {'status': 'complete'}
+with open('$_T11_INNER_STATE', 'w') as f:
+    json.dump(d, f)
+" 2>/dev/null || true
+    fi
+    # Signal resume context — required by the replacement guard.
+    _CLI_RESUME=true
+    if [[ -n "$_PHASE_FN_BODY" ]]; then
+        eval "$_PHASE_FN_BODY"
+        _phase_version_bump 2>&1
+    else
+        echo "FUNCTION_NOT_FOUND"
+        exit 1
+    fi
+) || _T11_RC=$?
+_T11_STATE_FILE=""
+
+# Mock must NOT have been called when _CLI_RESUME=true and state shows complete
+if [[ -f "$_T11_CALL_LOG" ]]; then
+    _T11_CALLS=$(wc -l < "$_T11_CALL_LOG" | tr -d ' ')
+else
+    _T11_CALLS="0"
+fi
+assert_eq "test_version_bump_cli_resume_exits_0" "0" "$_T11_RC"
+assert_eq "test_version_bump_cli_resume_no_mock_call" "0" "$_T11_CALLS"
+
+assert_pass_if_clean "test_version_bump_resume_guard_requires_resume_context"
+rm -f "$_T11_STATE_FILE" 2>/dev/null || true
 rm -rf "$_TEST_BASE"
 
 # =============================================================================
