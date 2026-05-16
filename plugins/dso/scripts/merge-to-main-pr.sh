@@ -51,9 +51,24 @@ USAGE
     esac
 done
 
-# --- Required env vars (set by the dispatcher) ---
+# --- Required env vars (or derived from config) ---
 : "${CLAUDE_PLUGIN_ROOT:?CLAUDE_PLUGIN_ROOT must be set}"
 if [[ "${PR_LIB_MODE:-0}" != "1" ]]; then
+    # MERGE_STRATEGY may be set explicitly by the dispatcher (merge-to-main.sh)
+    # OR derived here from dso-config.conf so the script is callable directly
+    # (bug 17b7-80ff-2317-4587). Mirrors merge-to-main.sh's derivation logic:
+    # dso.workflow=ci-pr -> MERGE_STRATEGY=pr; otherwise -> MERGE_STRATEGY=direct.
+    if [[ -z "${MERGE_STRATEGY:-}" ]]; then
+        _SCRIPT_DIR_FOR_CONFIG="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        _DERIVED_WORKFLOW="$(WORKFLOW_CONFIG_FILE="${WORKFLOW_CONFIG_FILE:-}" \
+            bash "$_SCRIPT_DIR_FOR_CONFIG/read-config.sh" dso.workflow 2>/dev/null || echo "local")"
+        if [[ "$_DERIVED_WORKFLOW" == "ci-pr" ]]; then
+            MERGE_STRATEGY="pr"
+        else
+            MERGE_STRATEGY="direct"
+        fi
+        unset _SCRIPT_DIR_FOR_CONFIG _DERIVED_WORKFLOW
+    fi
     : "${MERGE_STRATEGY:?MERGE_STRATEGY must be set (expected: pr)}"
 fi
 

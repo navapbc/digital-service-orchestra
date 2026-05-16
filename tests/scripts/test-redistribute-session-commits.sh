@@ -752,6 +752,179 @@ MOCKEOF
         "yes" "$error_msg_present"
 }
 
+# ── Test 11: cherry-pick failure on one group does not abort remaining groups ─
+# When a group's cherry-pick fails (e.g., cross-pollinated dependency), the
+# tool must skip that group and CONTINUE to subsequent groups rather than
+# exit 2 on the first failure. The partial branch must be cleaned up.
+test_publish_continues_past_cherry_pick_failure() {
+    local tmpdir
+    tmpdir="$(make_tmpdir)"
+    local repo="$tmpdir/repo"
+    mkdir -p "$repo"
+    init_git_repo "$repo"
+
+    # Session branch with two stories: story-fail (will conflict) and story-ok (will succeed)
+    git -C "$repo" checkout -q -b "worktree-resilient-session"
+
+    # story-ok: single clean commit creating file-ok.sh
+    echo "ok-content" > "$repo/file-ok.sh"
+    git -C "$repo" add file-ok.sh
+    git -C "$repo" commit -q -m "feat: ok
+
+DSO-Story: story-ok-001"
+
+    # story-fail: depends on a file that won't exist on main
+    # First create the dependency on a "different story" commit (not in fail's group)
+    echo "dep-content" > "$repo/dep-file.sh"
+    git -C "$repo" add dep-file.sh
+    git -C "$repo" commit -q -m "feat: dep
+
+DSO-Story: story-dep-001"
+
+    # Now story-fail modifies dep-file.sh (will fail when cherry-picked alone onto main)
+    echo "fail-content" >> "$repo/dep-file.sh"
+    git -C "$repo" add dep-file.sh
+    git -C "$repo" commit -q -m "feat: modify dep
+
+DSO-Story: story-fail-001"
+
+    local mock_scripts="$tmpdir/scripts"
+    mkdir -p "$mock_scripts"
+    cat > "$mock_scripts/resolve-session-branch.sh" << 'MOCKEOF'
+#!/usr/bin/env bash
+echo "worktree-resilient-session"
+exit 0
+MOCKEOF
+    chmod +x "$mock_scripts/resolve-session-branch.sh"
+
+    # Scope only mentions file-ok.sh (story-ok) and dep-file.sh (story-fail)
+    # story-dep is intentionally NOT in the ticket list — its commit will be UNATTRIBUTED→epoch
+    local ticket_json="$tmpdir/tickets.json"
+    cat > "$ticket_json" << 'MOCKEOF'
+[
+    {"id":"story-ok-001","type":"story","title":"OK","description":"file-ok.sh"},
+    {"id":"story-fail-001","type":"story","title":"FAIL","description":"dep-file.sh"}
+]
+MOCKEOF
+
+    local mock_bin="$tmpdir/bin"
+    mkdir -p "$mock_bin"
+    cat > "$mock_bin/gh" << 'MOCKEOF'
+#!/usr/bin/env bash
+exit 0
+MOCKEOF
+    chmod +x "$mock_bin/gh"
+
+    # Stub merge-to-main-pr.sh: just record the BRANCH it was called for
+    local call_log="$tmpdir/merge-calls.log"
+    cat > "$mock_scripts/merge-to-main-pr.sh" << MOCKEOF
+#!/usr/bin/env bash
+echo "called for: \${BRANCH:-\$(git branch --show-current)}" >> "$call_log"
+exit 0
+MOCKEOF
+    chmod +x "$mock_scripts/merge-to-main-pr.sh"
+
+    local exit_code=0
+    PATH="$mock_bin:$PATH" \
+        DSO_RESOLVE_SESSION_BRANCH="$mock_scripts/resolve-session-branch.sh" \
+        DSO_TICKET_LIST_OVERRIDE="$ticket_json" \
+        DSO_MERGE_TO_MAIN_PR_OVERRIDE="$mock_scripts/merge-to-main-pr.sh" \
+        GIT_DIR="$repo/.git" \
+        GIT_WORK_TREE="$repo" \
+        bash "$SCRIPT" --epic "epic-r" >/dev/null 2>&1 || exit_code=$?
+
+    # Background PRs may still be in flight; wait briefly
+    sleep 1
+
+    # story-ok branch must have been published (cherry-pick succeeded → PR opened)
+    local ok_called
+    if grep -q "story-ok-001" "$call_log" 2>/dev/null; then
+        ok_called="yes"
+    else
+        ok_called="no"
+    fi
+    assert_eq "test_publish_continues_past_failure: succeeding group's PR was opened" \
+        "yes" "$ok_called"
+}
+
+# ── Test 12: merge-script invocation is parallel/background ──────────────────
+# A slow merge script should not block the next group's publish step.
+# Verified by measuring wall time: 3 groups × 2-second slow script should
+# complete in ~2 seconds total (parallel), not ~6 seconds (serial).
+test_publish_runs_merge_script_in_background() {
+    local tmpdir
+    tmpdir="$(make_tmpdir)"
+    local repo="$tmpdir/repo"
+    mkdir -p "$repo"
+    init_git_repo "$repo"
+
+    git -C "$repo" checkout -q -b "worktree-parallel-session"
+    # Three independent stories, each one clean commit
+    for i in 1 2 3; do
+        echo "content-$i" > "$repo/file-$i.sh"
+        git -C "$repo" add "file-$i.sh"
+        git -C "$repo" commit -q -m "feat: $i
+
+DSO-Story: story-par-00$i"
+    done
+
+    local mock_scripts="$tmpdir/scripts"
+    mkdir -p "$mock_scripts"
+    cat > "$mock_scripts/resolve-session-branch.sh" << 'MOCKEOF'
+#!/usr/bin/env bash
+echo "worktree-parallel-session"
+exit 0
+MOCKEOF
+    chmod +x "$mock_scripts/resolve-session-branch.sh"
+
+    local ticket_json="$tmpdir/tickets.json"
+    cat > "$ticket_json" << 'MOCKEOF'
+[
+    {"id":"story-par-001","type":"story","title":"P1","description":"file-1.sh"},
+    {"id":"story-par-002","type":"story","title":"P2","description":"file-2.sh"},
+    {"id":"story-par-003","type":"story","title":"P3","description":"file-3.sh"}
+]
+MOCKEOF
+
+    local mock_bin="$tmpdir/bin"
+    mkdir -p "$mock_bin"
+    cat > "$mock_bin/gh" << 'MOCKEOF'
+#!/usr/bin/env bash
+exit 0
+MOCKEOF
+    chmod +x "$mock_bin/gh"
+
+    # Slow stub: sleeps 2 seconds before returning
+    cat > "$mock_scripts/merge-to-main-pr.sh" << 'MOCKEOF'
+#!/usr/bin/env bash
+sleep 2
+exit 0
+MOCKEOF
+    chmod +x "$mock_scripts/merge-to-main-pr.sh"
+
+    local start_ts end_ts elapsed
+    start_ts="$(date +%s)"
+    PATH="$mock_bin:$PATH" \
+        DSO_RESOLVE_SESSION_BRANCH="$mock_scripts/resolve-session-branch.sh" \
+        DSO_TICKET_LIST_OVERRIDE="$ticket_json" \
+        DSO_MERGE_TO_MAIN_PR_OVERRIDE="$mock_scripts/merge-to-main-pr.sh" \
+        GIT_DIR="$repo/.git" \
+        GIT_WORK_TREE="$repo" \
+        bash "$SCRIPT" --epic "epic-par" >/dev/null 2>&1 || true
+    end_ts="$(date +%s)"
+    elapsed=$(( end_ts - start_ts ))
+
+    # Serial execution would be ≥6s (3 × 2s); parallel completes in ~2-3s.
+    # Allow generous headroom: <5s is conclusive parallel behavior.
+    local is_parallel
+    if [[ "$elapsed" -lt 5 ]]; then is_parallel="yes"; else is_parallel="no"; fi
+    assert_eq "test_publish_runs_merge_script_in_background: 3×2s stubs complete in <5s (elapsed=${elapsed}s)" \
+        "yes" "$is_parallel"
+
+    # Wait for background processes to flush before test teardown
+    wait 2>/dev/null || true
+}
+
 # ── Run all tests ────────────────────────────────────────────────────────────
 test_script_exists
 test_dry_run_produces_plan_without_git_mutations
@@ -763,5 +936,7 @@ test_merge_commits_preserved_not_redistributed
 test_dirty_worktree_refused_without_force
 test_publish_skips_session_branch_collision
 test_publish_refuses_preexisting_local_branch
+test_publish_continues_past_cherry_pick_failure
+test_publish_runs_merge_script_in_background
 
 print_summary

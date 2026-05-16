@@ -142,8 +142,18 @@ def main() -> int:
         print("Usage: ticket-list-descendants.py <ticket_id>", file=sys.stderr)
         return 1
 
-    root_id = args[0]
+    raw_root_id = args[0]
     tracker_dir = _find_tracker_dir()
+
+    _scripts_dir = os.path.dirname(os.path.abspath(__file__))
+    if _scripts_dir not in sys.path:
+        sys.path.insert(0, _scripts_dir)
+    from ticket_resolver import resolve_ticket_id
+
+    # list_descendants returns empty arrays gracefully when root_id is not in
+    # the store (documented contract). Pass the raw input through when
+    # resolution finds no match so that behaviour is preserved.
+    root_id = resolve_ticket_id(raw_root_id, tracker_dir) or raw_root_id
 
     result = list_descendants(root_id, tracker_dir)
     print(json.dumps(result, ensure_ascii=False))

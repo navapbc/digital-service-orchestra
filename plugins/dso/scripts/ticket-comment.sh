@@ -45,6 +45,11 @@ if [ ! -f "$TRACKER_DIR/.env-id" ]; then
     exit 1
 fi
 
+# ── Resolve any ID form (full, short, alias, jira_key, prefix) to canonical ──
+if ! ticket_id=$(TICKETS_TRACKER_DIR="$TRACKER_DIR" resolve_ticket_id "$ticket_id"); then
+    exit 1
+fi
+
 # ── Step 2: Ghost check ─────────────────────────────────────────────────────
 if [ ! -d "$TRACKER_DIR/$ticket_id" ]; then
     echo "Error: ticket '$ticket_id' does not exist" >&2
