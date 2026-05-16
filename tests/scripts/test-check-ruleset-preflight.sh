@@ -4,7 +4,7 @@
 #
 # Tests cover 3 GitHub Ruleset validation conditions:
 #   1. A Ruleset exists with session-* branch pattern
-#   2. Sprint_Workflow_Review (or check_name from dso-config.conf) is in required_status_checks
+#   2. Sprint Story Review (or check_name from dso-config.conf) is in required_status_checks
 #   3. No required_linear_history rule (would block sprint merge strategy)
 #
 # All tests are intentionally RED until plugins/dso/scripts/sprint/check-ruleset-preflight.sh
@@ -110,7 +110,7 @@ echo ""
 echo "--- test_check_name_missing_exits_with_message ---"
 _snapshot_fail
 
-# Ruleset has session-* pattern but NO Sprint_Workflow_Review in required_status_checks
+# Ruleset has session-* pattern but NO Sprint Story Review in required_status_checks
 MISSING_CHECK_JSON='{"rulesets":[{"name":"session-branch-rules","conditions":{"ref_name":{"include":["refs/heads/session-*"]}},"rules":[{"type":"required_status_checks","parameters":{"required_status_checks":[]}}]}]}'
 stub_bin_missing_check="$(_make_stub_bin "missing_check" "$MISSING_CHECK_JSON")"
 
@@ -120,8 +120,8 @@ missing_check_output="$(env PATH="$stub_bin_missing_check:$PATH" bash "$SCRIPT_U
 
 assert_ne "test_check_name_missing_exits_with_message: exits non-zero when check missing" \
     "0" "$missing_check_exit"
-assert_contains "test_check_name_missing_exits_with_message: output mentions Sprint_Workflow_Review" \
-    "Sprint_Workflow_Review" "$missing_check_output"
+assert_contains "test_check_name_missing_exits_with_message: output mentions Sprint Story Review" \
+    "Sprint Story Review" "$missing_check_output"
 assert_pass_if_clean "test_check_name_missing_exits_with_message"
 
 # ── test_fully_configured_exits_zero ─────────────────────────────────────────

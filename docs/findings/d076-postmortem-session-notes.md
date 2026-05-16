@@ -79,6 +79,23 @@ These are the moments where I would have shipped the wrong thing without user re
 
 What should `d076`'s status actually be? It's currently closed but the architecture wasn't fully usable until PR #140 lands. If main has not yet received PR #140 by the time the post-mortem runs, this is an open delivery, not a closed one.
 
+## Addendum: auto-merge timing miss (post-merge, 2026-05-16 22:23-22:26 UTC)
+
+After the original notes were written, PR #140 auto-merged at 22:23 UTC. The orchestrator pushed 7 Copilot-finding fixes + a duplicate-CI-trigger fix at 22:26 UTC — three minutes too late. Commits stranded on the merged branch; required follow-up PR #168 from `followup/copilot-findings-d076` to land them.
+
+Bug filed: **`680f-53fb-9dce-4e93`** — pre-push hook should refuse pushes to merged-PR branches (or warn loudly). The post-mortem should include this class of failure in its analysis of "where the orchestrator's situational awareness fails."
+
+Findings from PR #168's content (now valid d076 follow-up):
+- `ci.yml` `--base-ref` flag was silently discarded by `verify-session-provenance.sh` (the verify step had been near-no-op since ship)
+- Triple-inconsistency on check_name (`Sprint_Workflow_Review` vs `Sprint Story Review`) — was a real ruleset/preflight mismatch
+- Duplicate CI runs on story branches — introduced by PR #166's `story/**` push trigger and shipped to main
+- Author identity dropped on SPLIT synthetic commits (cf84 fix incomplete)
+- Background subshells in PUBLISH never `wait`ed (errors silently lost)
+- `set -e` + command substitution race in `_call_gh_with_backoff`
+- CI-INTEGRATION.md documented wrong resolution order
+
+All of these were preventable at f61f preplanning or d076 scrutiny if scenario analysis had asked: "what happens when a sub-agent's commit arrives after the PR has merged?" and "what if the CI workflow's args don't match the script's interface?"
+
 ---
 
 End of working notes. The next session is responsible for the actual diagnosis.

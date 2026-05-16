@@ -32,8 +32,14 @@ _backoff_delay=2
 _call_gh_with_backoff() {
     local result exit_code
     while true; do
+        # set -e + cmd substitution can abort the function before exit_code
+        # is read in some bash versions (Copilot finding 2026-05-16).
+        # Bracket with `set +e ... set -e` so a non-zero gh exit reliably
+        # flows into the exit_code check instead of unwinding the call stack.
+        set +e
         result=$(gh "$@" 2>&1)
         exit_code=$?
+        set -e
         if [[ $exit_code -eq 0 ]]; then
             echo "$result"
             return 0

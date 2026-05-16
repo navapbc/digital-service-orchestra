@@ -11,7 +11,11 @@ on:
       - 'bugfix/**'
       - 'epic/**'
       - 'exp/**'
-      - 'story/**'
+      # NOTE: 'story/**' intentionally NOT included here. Story branches
+      # always have an open PR; the pull_request trigger below covers them.
+      # Adding push:story/** would duplicate every CI job per push (push +
+      # pull_request fire at the same time on different github.ref values,
+      # so concurrency.group does not dedupe them). Discovered post-3914.
   pull_request:
     # PRs targeting any branch run the full CI suite. Previously this was
     # restricted to PRs targeting main, which meant per-story PRs (head=story/X,
@@ -366,11 +370,19 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$DSO_ARTIFACT_DIR"
+          # Ensure the base ref is fetched before computing the provenance range.
+          # The pull_request checkout is shallow and does not guarantee
+          # origin/${base_ref} is locally available; without an explicit fetch,
+          # the script's range-collapse error gets suppressed and unprovenanced
+          # commits are silently missed (Copilot/CodeRabbit finding 2026-05-16).
+          git fetch --no-tags --depth=1 origin "${{ github.base_ref }}" 2>/dev/null || true
           # verify-session-provenance.sh writes unprovenanced-shas.txt and exits
           # 0 (all provenanced), 1 (some unprovenanced), or 2 (budget exhausted).
           # We continue regardless — failures feed into the integration scope.
-          bash plugins/dso/scripts/verify-session-provenance.sh \
-            --base-ref "origin/${{ github.base_ref }}" \
+          # NOTE: the script reads DSO_BASE_SHA / DSO_SESSION_HEAD from env;
+          # it does NOT parse CLI flags. Passing --base-ref silently no-ops.
+          DSO_BASE_SHA="origin/${{ github.base_ref }}" \
+            bash plugins/dso/scripts/verify-session-provenance.sh \
             2>/dev/null || true
           echo "DSO_ARTIFACT_DIR=$DSO_ARTIFACT_DIR" >> "$GITHUB_ENV"
 
