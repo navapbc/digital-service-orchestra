@@ -36,6 +36,47 @@ When a PR diff exceeds **400 LOC or 15 files**, `_should_region_split()` returns
 
 Key modules: `dso_ci_review/region_split.py` (split logic, clustering, deduplication), `dso_ci_review/findings.py` (finding data model). No additional configuration is required — the 400 LOC / 15-file threshold is hardcoded.
 
+## Unified Per-Branch CI Review Architecture (ci-pr mode)
+
+In `ci-pr` mode (`dso.workflow=ci-pr`), the sprint uses a unified per-branch review model where all code review happens in CI via GitHub Actions, not locally.
+
+### Merge paths
+
+- **session→main is the sole merge path** for sprint and debug-everything in ci-pr mode. Sub-branch story PRs merge into the session branch; the session branch PR merges into main. No direct sub-branch → main merges are allowed.
+- Sub-branches (`story/<epic-id>/<story-id>`) are gated by `per-branch-review.yml` before merging into the session branch.
+
+### `per-branch-review.yml` — sub-branch CI gate
+
+`per-branch-review.yml` is the CI workflow that runs on each `story/*` branch PR (targeting the session branch). It replaces the former `sprint-story-review.yml`. Responsibilities:
+
+- Fetches the session branch name via the `SPRINT_SESSION_ID` repo variable (set by Phase A).
+- Computes a per-story diff (story branch vs. session branch HEAD) for scoped review.
+- Dispatches the LLM review orchestrator (`ci-llm-review-runner.sh`) against that scoped diff.
+- Blocks the story PR merge until the review passes.
+
+### `verify-session-provenance.sh` — integration review pre-step
+
+Before the session→main PR triggers the full integration LLM review, `verify-session-provenance.sh` runs as a pre-step to identify which commits require integration-level scrutiny. Its outputs narrow the review scope:
+
+- **Cross-branch files**: files modified by commits from ≥ 2 distinct sub-branches (potential interaction surface).
+- **Un-provenanced commits**: commits on the session branch that lack a `DSO-Story-Merge` trailer or equivalent GitHub PR merge provenance (potential leakage).
+
+If the resulting scope is empty (all commits are provenanced and no files span multiple sub-branches), the integration review job exits 0 immediately without dispatching any LLM reviewer.
+
+### `resolve-session-branch.sh` — session branch discovery
+
+`resolve-session-branch.sh` provides a 3-step fallback to determine the current session branch name:
+
+1. `SPRINT_SESSION_ID` repo variable (set by Phase A).
+2. Current git branch (if not detached HEAD).
+3. Error — fail-fast with a clear message.
+
+This script is called by Phase F during story PR creation to set `STORY_PR_BASE`, ensuring story PRs always target the correct session branch.
+
+### Integration review scope definition
+
+"Integration scope" is intentionally narrow: only files that appear in commits from two or more distinct story branches, plus any commits that bypassed per-branch review. Per-branch-reviewed commits that touch only one story's files are excluded from integration-level LLM review (their review is already recorded by `per-branch-review.yml`).
+
 ## Merge-to-main pipeline
 
 Phases: `sync → merge → version_bump → validate → push → archive → ci_trigger → comment_response`.
