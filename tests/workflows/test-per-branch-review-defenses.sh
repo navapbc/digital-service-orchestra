@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# tests/workflows/test-sprint-story-review-defenses.sh
-# RED-phase behavioral tests for GitHubPRDefenseStore wiring in sprint-story-review workflow.
+# tests/workflows/test-per-branch-review-defenses.sh
+# RED-phase behavioral tests for GitHubPRDefenseStore wiring in per-branch-review workflow.
 #
 # Story 957a-a331-b9ed-435c DD3 gap: second push reads prior attestations from
 # GitHubPRDefenseStore and passes them to the runner via DSO_CI_REVIEW_PRIOR_DEFENSES_PATH.
@@ -10,18 +10,18 @@
 # Test 1 (PASS): runner exits 0 when DSO_CI_REVIEW_PRIOR_DEFENSES_PATH is set with DRY_RUN=1
 # Test 2 (FAIL RED): workflow YAML must reference DSO_CI_REVIEW_PRIOR_DEFENSES_PATH
 #
-# Usage: bash tests/workflows/test-sprint-story-review-defenses.sh
+# Usage: bash tests/workflows/test-per-branch-review-defenses.sh
 
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-WORKFLOW_FILE="$REPO_ROOT/.github/workflows/sprint-story-review.yml"
+WORKFLOW_FILE="$REPO_ROOT/.github/workflows/per-branch-review.yml"
 RUNNER="$REPO_ROOT/plugins/dso/scripts/ci-llm-review-runner.sh"
 
 source "$REPO_ROOT/tests/lib/assert.sh"
 
-echo "=== test-sprint-story-review-defenses.sh ==="
+echo "=== test-per-branch-review-defenses.sh ==="
 
 # ── test_runner_accepts_prior_defenses_path_env ──────────────────────────────
 # When DSO_CI_REVIEW_DRY_RUN=1 and DSO_CI_REVIEW_PRIOR_DEFENSES_PATH points to
@@ -59,7 +59,7 @@ rm -rf "$_tmpdir"
 assert_pass_if_clean "test_runner_accepts_prior_defenses_path_env"
 
 # ── test_workflow_references_prior_defenses_path ─────────────────────────────
-# The sprint-story-review.yml workflow must pass DSO_CI_REVIEW_PRIOR_DEFENSES_PATH
+# The per-branch-review.yml workflow must pass DSO_CI_REVIEW_PRIOR_DEFENSES_PATH
 # as an environment variable to the ci-llm-review-runner.sh step.
 # This test is RED because the workflow currently does NOT reference the var.
 _snapshot_fail
@@ -69,7 +69,7 @@ else
     found=0
     grep -q 'DSO_CI_REVIEW_PRIOR_DEFENSES_PATH' "$WORKFLOW_FILE" 2>/dev/null && found=1 || true
     assert_eq \
-        "test_workflow_references_prior_defenses_path: sprint-story-review.yml references DSO_CI_REVIEW_PRIOR_DEFENSES_PATH" \
+        "test_workflow_references_prior_defenses_path: per-branch-review.yml references DSO_CI_REVIEW_PRIOR_DEFENSES_PATH" \
         "1" "$found"
 fi
 assert_pass_if_clean "test_workflow_references_prior_defenses_path"
