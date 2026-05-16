@@ -102,7 +102,7 @@ When `dso.workflow=ci-pr`, Sprint Phase A calls `check-ruleset-preflight.sh` to 
 
 Rulesets on `session-*` branches:
 - Reject direct pushes (non-fast-forward rule), enforcing the sub-branch → session PR merge flow
-- Require the `Sprint_Workflow_Review` (or your configured `dso.review.check_name`) status check to pass before merge
+- Require the `Sprint Story Review` (or your configured `dso.review.check_name`) status check to pass before merge
 
 ### Prerequisites
 
@@ -121,7 +121,7 @@ Rulesets on `session-*` branches:
 5. Under **Branch rules**:
    - Enable **Restrict who can push matching branches** → this blocks direct pushes (non-fast-forward)
    - Enable **Require status checks to pass before merging**
-     - Click **Add checks** and enter `Sprint_Workflow_Review` (this must match the `name:` field in `.github/workflows/per-branch-review.yml` and `dso.review.check_name` in `dso-config.conf`)
+     - Click **Add checks** and enter `Sprint Story Review` (this must match the `name:` field in `.github/workflows/per-branch-review.yml` and `dso.review.check_name` in `dso-config.conf`)
    - **Do NOT** enable **Require linear history** — this breaks the sprint merge strategy
 6. Click **Create**
 
@@ -149,7 +149,7 @@ gh api \
       "type": "required_status_checks",
       "parameters": {
         "required_status_checks": [
-          { "context": "Sprint_Workflow_Review", "integration_id": null }
+          { "context": "Sprint Story Review", "integration_id": null }
         ],
         "strict_required_status_checks_policy": false
       }
@@ -159,7 +159,7 @@ gh api \
 EOF
 ```
 
-Replace `{owner}/{repo}` with your repository path. Replace `Sprint_Workflow_Review` if `dso.review.check_name` is set to a different value in `dso-config.conf`.
+Replace `{owner}/{repo}` with your repository path. Replace `Sprint Story Review` if `dso.review.check_name` is set to a different value in `dso-config.conf`.
 
 ### Verifying the Ruleset
 
@@ -182,7 +182,7 @@ gh api \
 
 The required status check name must match exactly:
 - The `name:` field in `.github/workflows/per-branch-review.yml`
-- `dso.review.check_name` in `.claude/dso-config.conf` (defaults to `Sprint_Workflow_Review` if unset)
+- `dso.review.check_name` in `.claude/dso-config.conf` (defaults to `Sprint Story Review` if unset)
 
 If you rename the workflow or override `dso.review.check_name`, update the Ruleset's required check to match.
 
