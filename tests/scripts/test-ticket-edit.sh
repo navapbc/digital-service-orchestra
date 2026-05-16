@@ -443,4 +443,80 @@ test_ticket_edit_usage_mentions_tags() {
 }
 test_ticket_edit_usage_mentions_tags
 
+# ── Test 12: ticket edit --parent updates parent_id ──────────────────────────
+# RED before fix (3f93-1b3d): parser rejects --parent with "unknown field".
+# GREEN after fix: ticket's parent_id field updates to the new parent.
+echo ""
+echo "Test 12: ticket edit --parent updates parent_id field"
+test_ticket_edit_parent_updates_parent_id() {
+    local repo
+    repo=$(_make_test_repo)
+
+    local parent_id child_id
+    parent_id=$(_create_ticket "$repo" "parent ticket")
+    child_id=$(_create_ticket "$repo" "child ticket")
+
+    if [ -z "$parent_id" ] || [ -z "$child_id" ]; then
+        assert_eq "created two tickets" "non-empty" "empty"
+        return
+    fi
+
+    (cd "$repo" && bash "$TICKET_SCRIPT" edit "$child_id" --parent="$parent_id" >/dev/null 2>&1) || true
+
+    local got_parent
+    got_parent=$(_get_ticket_field "$repo" "$child_id" "parent_id")
+    assert_eq "ticket edit --parent updates parent_id" "$parent_id" "$got_parent"
+}
+test_ticket_edit_parent_updates_parent_id
+
+# ── Test 13: ticket edit --parent rejects nonexistent parent ─────────────────
+echo ""
+echo "Test 13: ticket edit --parent rejects nonexistent parent ID"
+test_ticket_edit_parent_rejects_nonexistent() {
+    local repo
+    repo=$(_make_test_repo)
+
+    local child_id
+    child_id=$(_create_ticket "$repo" "child for nonexistent-parent test")
+    if [ -z "$child_id" ]; then
+        assert_eq "created child ticket" "non-empty" "empty"
+        return
+    fi
+
+    local exit_code=0
+    (cd "$repo" && bash "$TICKET_SCRIPT" edit "$child_id" --parent="9999-9999-9999-9999" >/dev/null 2>&1) || exit_code=$?
+
+    assert_ne "ticket edit --parent <nonexistent> exits nonzero" "0" "$exit_code"
+
+    local got_parent
+    got_parent=$(_get_ticket_field "$repo" "$child_id" "parent_id")
+    if [ "$got_parent" = "9999-9999-9999-9999" ]; then
+        assert_eq "parent_id NOT updated to bogus value" "unchanged" "updated to bogus"
+    else
+        assert_eq "parent_id NOT updated to bogus value" "unchanged" "unchanged"
+    fi
+}
+test_ticket_edit_parent_rejects_nonexistent
+
+# ── Test 14: ticket edit --parent rejects self-parent (cycle guard) ──────────
+echo ""
+echo "Test 14: ticket edit --parent rejects self-parent (cycle guard)"
+test_ticket_edit_parent_rejects_self() {
+    local repo
+    repo=$(_make_test_repo)
+
+    local tkt
+    tkt=$(_create_ticket "$repo" "self-parent test")
+    if [ -z "$tkt" ]; then
+        assert_eq "created ticket" "non-empty" "empty"
+        return
+    fi
+
+    local exit_code=0
+    (cd "$repo" && bash "$TICKET_SCRIPT" edit "$tkt" --parent="$tkt" >/dev/null 2>&1) || exit_code=$?
+
+    assert_ne "ticket edit <id> --parent <same id> exits nonzero" "0" "$exit_code"
+}
+test_ticket_edit_parent_rejects_self
+
 print_summary

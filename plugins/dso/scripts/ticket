@@ -250,7 +250,13 @@ case "$subcommand" in
         ;;
     compact)
         _ensure_initialized
-        exec bash "$SCRIPT_DIR/ticket-compact.sh" "$@"
+        # Route through ticket_compact in the library so short IDs / aliases /
+        # prefixes are resolved before delegating to ticket-compact.sh
+        # (bug ec61-0e1f).
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_compact "$@"
+        exit $?
         ;;
     compact-all)
         _ensure_initialized

@@ -19,14 +19,15 @@ TRACKER_DIR="${TICKETS_TRACKER_DIR:-$REPO_ROOT/.tickets-tracker}"
 
 # ── Usage ─────────────────────────────────────────────────────────────────────
 _usage() {
-    echo "Usage: ticket edit <ticket_id> [--title=VALUE] [--priority=VALUE] [--assignee=VALUE] [--ticket_type=VALUE] [--description=VALUE] [--tags=VALUE]" >&2
+    echo "Usage: ticket edit <ticket_id> [--title=VALUE] [--priority=VALUE] [--assignee=VALUE] [--ticket_type=VALUE] [--description=VALUE] [--tags=VALUE] [--parent=VALUE]" >&2
     echo "  ticket_id: ticket directory name" >&2
     echo "  At least one --field=value pair is required." >&2
     exit 1
 }
 
 # ── Allowed fields ────────────────────────────────────────────────────────────
-ALLOWED_FIELDS="title priority assignee ticket_type description tags"
+# --parent (bug 3f93-1b3d): user-facing flag; mapped to parent_id event field below.
+ALLOWED_FIELDS="title priority assignee ticket_type description tags parent"
 
 _is_allowed_field() {
     local field="$1"
@@ -106,6 +107,46 @@ if ! find "$TRACKER_DIR/$ticket_id" -maxdepth 1 \( -name '*-CREATE.json' -o -nam
     echo "Error: ticket $ticket_id has no CREATE or SNAPSHOT event" >&2
     exit 1
 fi
+
+# ── --parent validation (bug 3f93-1b3d) ──────────────────────────────────────
+# Mirror of the lib-api ticket_edit logic for the DSO_TICKET_LEGACY=1 path.
+for _i in "${!_parsed_pairs[@]}"; do
+    _pair="${_parsed_pairs[$_i]}"
+    case "$_pair" in
+        parent=*)
+            _new_parent_id="${_pair#parent=}"
+            if [ -z "$_new_parent_id" ]; then
+                echo "Error: --parent requires a non-empty value" >&2
+                exit 1
+            fi
+            if [ ! -d "$TRACKER_DIR/$_new_parent_id" ]; then
+                echo "Error: parent ticket '$_new_parent_id' does not exist" >&2
+                exit 1
+            fi
+            if [ "$_new_parent_id" = "$ticket_id" ]; then
+                echo "Error: ticket cannot be its own parent" >&2
+                exit 1
+            fi
+            # Simple ancestor-walk cycle guard.
+            _walk_id="$_new_parent_id"
+            _walk_count=0
+            while [ -n "$_walk_id" ] && [ "$_walk_count" -lt 64 ]; do
+                _walk_parent=$(bash "$SCRIPT_DIR/ticket-show.sh" "$_walk_id" 2>/dev/null \
+                    | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('parent_id','') or '')" 2>/dev/null) || _walk_parent=""
+                if [ -z "$_walk_parent" ] || [ "$_walk_parent" = "None" ]; then
+                    break
+                fi
+                if [ "$_walk_parent" = "$ticket_id" ]; then
+                    echo "Error: cannot set parent — would create a cycle" >&2
+                    exit 1
+                fi
+                _walk_id="$_walk_parent"
+                _walk_count=$((_walk_count + 1))
+            done
+            _parsed_pairs[$_i]="parent_id=$_new_parent_id"
+            ;;
+    esac
+done
 
 # ── Step 4: Build EDIT event JSON via python3 ────────────────────────────────
 env_id=$(cat "$TRACKER_DIR/.env-id")
