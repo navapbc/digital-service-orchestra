@@ -32,9 +32,11 @@ Extract from each epic:
 
 If an epic has no approach or success criteria, use the epic title as a fallback approach summary and set success_criteria to an empty array.
 
-## Step 2.25c: Batch into Groups of 20
+## Step 2.25c: Batch into Groups of 5
 
-Partition the candidate epics into batches of up to 20 epics each. If there are 20 or fewer epics, there is one batch. If there are more than 20, create additional batches until all epics are covered.
+Partition the candidate epics into batches of up to 5 epics each. If there are 5 or fewer epics, there is one batch. If there are more than 5, create additional batches until all epics are covered.
+
+The 5-epic cap keeps each haiku-tier dispatch payload (5 × 2–10KB serialized epic content + agent instructions) well below the auto-compaction threshold. Prior cap (20) was observed in production to trigger mid-run compaction, producing silent JSON loss and cross-ticket content conflation (bug 4bf1-3198).
 
 ## Step 2.25d: Usage-Aware Throttle Check
 

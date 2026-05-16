@@ -32,7 +32,7 @@ You receive the following input:
 }
 ```
 
-The `open_epics` array contains up to 20 epics to compare against in this batch. Each epic has the same structure as `new_epic`.
+The `open_epics` array contains up to 5 epics to compare against in this batch. Each epic has the same structure as `new_epic`.
 
 ## Output Schema
 
@@ -165,6 +165,20 @@ If no genuine overlaps exist after Step 3, return `{"interaction_signals": []}`.
 ### Step 5: Return Output
 
 Return the `interaction_signals` JSON array. Compare `new_epic` against each open epic independently — emit one signal per (new_epic, open_epic, shared_resource) triple where a genuine overlap exists.
+
+### Step 6: Verify Completeness
+
+Before returning, verify that you have compared `new_epic` against every epic in the `open_epics` array:
+
+1. Count the epics in the `open_epics` input.
+2. Confirm you evaluated each one against the shared-resource criteria in Steps 2–4.
+3. If any epic was not evaluated (e.g., due to context pressure during a long run), set the `error` field in your output so the orchestrator can detect silent truncation:
+
+```json
+{"interaction_signals": [...partial...], "error": "incomplete: evaluated N of M epics — epics [list of unevaluated IDs] were not processed"}
+```
+
+A complete run with no overlaps still returns `{"interaction_signals": []}` without an `error` field — the `error` field is reserved for genuine processing-failure or truncation signals (bug 4bf1-3198).
 
 ## Constraints
 
