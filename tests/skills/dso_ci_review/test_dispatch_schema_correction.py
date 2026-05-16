@@ -8,7 +8,7 @@ Behavioral contracts under test:
 3. Correction returns valid JSON but one frozen field changed → append
    synthetic schema_error.
 4. All retries exhausted → appends {"type": "parse_error", "severity":
-   "critical", ...} synthetic finding.
+   "important", ...} synthetic finding.
 5. max_attempts=0 → skips dispatch entirely, appends synthetic schema_error
    immediately.
 6. Correction itself returns schema-invalid JSON → consumes one retry,
@@ -22,7 +22,7 @@ Frozen fields (byte-for-byte must be preserved):
   original is absent, empty, or malformed.
 
 Synthetic error shape:
-  {"type": "parse_error", "severity": "critical", "category": "schema_error",
+  {"type": "parse_error", "severity": "important", "category": "schema_error",
    "description": "...", "finding_id": "schema_error_...",
    "file": "", "cited_lines": [], "cited_excerpt": "", "reachability": ""}
 """
@@ -232,8 +232,8 @@ def test_correction_count_drift_routes_to_synthetic_error(monkeypatch) -> None:
     assert error.get("type") == "parse_error", (
         f"Synthetic error type must be 'parse_error', got: {error.get('type')!r}"
     )
-    assert error.get("severity") == "critical", (
-        f"Synthetic error severity must be 'critical', got: {error.get('severity')!r}"
+    assert error.get("severity") == "important", (
+        f"Synthetic error severity must be 'important', got: {error.get('severity')!r}"
     )
     assert "file" in error, f"Synthetic error must include 'file' field: {error}"
     assert "cited_lines" in error, (
@@ -291,8 +291,8 @@ def test_correction_frozen_field_mutation_routes_to_synthetic_error(
     assert error.get("type") == "parse_error", (
         f"Synthetic error type must be 'parse_error', got: {error.get('type')!r}"
     )
-    assert error.get("severity") == "critical", (
-        f"Synthetic error severity must be 'critical', got: {error.get('severity')!r}"
+    assert error.get("severity") == "important", (
+        f"Synthetic error severity must be 'important', got: {error.get('severity')!r}"
     )
 
 
@@ -350,8 +350,8 @@ def test_correction_exhausted_retries_appends_synthetic_error(monkeypatch) -> No
 
     error = parse_errors[0]
     # Validate full synthetic error shape
-    assert error.get("severity") == "critical", (
-        f"Synthetic error severity must be 'critical': {error}"
+    assert error.get("severity") == "important", (
+        f"Synthetic error severity must be 'important': {error}"
     )
     assert isinstance(error.get("description"), str) and error["description"], (
         f"Synthetic error must have non-empty description: {error}"
@@ -634,7 +634,7 @@ def test_valid_finding_id_mutation_rejected(monkeypatch) -> None:
         f"got findings: {findings}"
     )
     assert schema_errors[0].get("type") == "parse_error"
-    assert schema_errors[0].get("severity") == "critical"
+    assert schema_errors[0].get("severity") == "important"
 
 
 # ---------------------------------------------------------------------------
@@ -679,7 +679,7 @@ def test_file_and_cited_lines_frozen_field_mutation_rejected(monkeypatch) -> Non
         f"Expected synthetic schema_error on 'file' mutation, got findings: {findings}"
     )
     assert schema_errors[0].get("type") == "parse_error"
-    assert schema_errors[0].get("severity") == "critical"
+    assert schema_errors[0].get("severity") == "important"
 
     # --- Test 2: cited_lines mutation rejected ---
     originals2 = [copy.deepcopy(_FINDING_A)]
@@ -712,7 +712,7 @@ def test_file_and_cited_lines_frozen_field_mutation_rejected(monkeypatch) -> Non
         f"got findings: {findings2}"
     )
     assert schema_errors2[0].get("type") == "parse_error"
-    assert schema_errors2[0].get("severity") == "critical"
+    assert schema_errors2[0].get("severity") == "important"
 
 
 # ---------------------------------------------------------------------------
