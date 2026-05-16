@@ -27,7 +27,18 @@ source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # ── Cleanup on exit ──────────────────────────────────────────────────────────
 _TEST_TMPDIRS=()
+# Track linked worktrees so they can be unregistered before their parent repo
+# is removed. Each entry is "MAIN_REPO|WT_DIR".
+_TEST_LINKED_WORKTREES=()
 _cleanup_test_tmpdirs() {
+    # Unregister linked worktrees first so the parent repo's worktree config
+    # is cleaned up rather than left with stale entries (per CI review).
+    for entry in "${_TEST_LINKED_WORKTREES[@]:-}"; do
+        [[ -z "$entry" ]] && continue
+        local _main="${entry%%|*}"
+        local _wt="${entry##*|}"
+        [[ -d "$_main/.git" ]] && git -C "$_main" worktree remove --force "$_wt" 2>/dev/null || true
+    done
     for d in "${_TEST_TMPDIRS[@]}"; do
         rm -rf "$d" 2>/dev/null || true
     done
@@ -50,6 +61,29 @@ make_git_repo_with_commit() {
     echo "$tmpdir"
 }
 
+# ── Helper: create a temp main repo + a linked worktree off of it ─────────────
+# Prints the linked worktree directory path on stdout. The linked worktree
+# satisfies the new git-common-dir != git-dir check in the hook, so the
+# hook's marker-check / escape-hatch logic exercises end-to-end.
+make_linked_worktree() {
+    local main_repo
+    main_repo=$(make_git_repo_with_commit)
+
+    local wt_dir
+    wt_dir=$(mktemp -d)
+    rm -rf "$wt_dir"  # `git worktree add` requires a non-existent path
+    _TEST_TMPDIRS+=("$wt_dir")
+
+    # Create a linked worktree on a new branch off the existing HEAD.
+    # Branch name is randomized so callers can invoke this helper multiple
+    # times against the same main_repo (and so multiple concurrent test files
+    # never collide on the branch name).
+    local branch_name="test-wt-$$-${RANDOM}"
+    git -C "$main_repo" worktree add -q -b "$branch_name" "$wt_dir" >/dev/null 2>&1
+    _TEST_LINKED_WORKTREES+=("$main_repo|$wt_dir")
+    echo "$wt_dir"
+}
+
 # ── Exit gate: mark all 4 tests as FAILed if script is missing ───────────────
 if [[ ! -f "$_SCRIPT" ]]; then
     printf "FAIL: check-session-merge-only.sh not found — expected at %s\n" "$_SCRIPT" >&2
@@ -63,7 +97,7 @@ fi
 # Expected: script exits nonzero (commit rejected)
 test_non_merge_with_sprint_active_rejected() {
     local _repo
-    _repo=$(make_git_repo_with_commit)
+    _repo=$(make_linked_worktree)
 
     # Place .sprint-active marker at repo root
     touch "$_repo/.sprint-active"
@@ -106,7 +140,7 @@ test_merge_commit_with_sprint_active_accepted() {
 # Expected: script exits 0 AND at least one file exists in DSO_ARTIFACTS_DIR
 test_dso_sprint_active_override_exits_0_and_writes_audit_log() {
     local _repo _artifacts_dir
-    _repo=$(make_git_repo_with_commit)
+    _repo=$(make_linked_worktree)
     _artifacts_dir=$(mktemp -d)
     _TEST_TMPDIRS+=("$_artifacts_dir")
 
@@ -151,7 +185,7 @@ test_no_sprint_active_marker_accepted() {
 # ── Test 5: .debug-active alone rejects non-merge commit ──────────────────────
 test_debug_active_alone_rejects_non_merge() {
     local _repo
-    _repo=$(make_git_repo_with_commit)
+    _repo=$(make_linked_worktree)
     touch "$_repo/.debug-active"
     # No .sprint-active
     local exit_code=0
@@ -177,7 +211,7 @@ test_debug_active_with_merge_commit_accepted() {
 # ── Test 7: DSO_DEBUG_ACTIVE=0 bypass → exit 0 + audit log ────────────────────
 test_dso_debug_active_override_exits_0_and_writes_audit_log() {
     local _repo _artifacts_dir
-    _repo=$(make_git_repo_with_commit)
+    _repo=$(make_linked_worktree)
     _artifacts_dir=$(mktemp -d)
     _TEST_TMPDIRS+=("$_artifacts_dir")
     touch "$_repo/.debug-active"
@@ -199,7 +233,7 @@ test_dso_debug_active_override_exits_0_and_writes_audit_log() {
 # ── Test 8: both markers, only DSO_SPRINT_ACTIVE=0 → still rejected ───────────
 test_both_markers_sprint_escape_only_still_rejects() {
     local _repo
-    _repo=$(make_git_repo_with_commit)
+    _repo=$(make_linked_worktree)
     touch "$_repo/.sprint-active"
     touch "$_repo/.debug-active"
     local exit_code=0
@@ -227,6 +261,26 @@ test_both_markers_both_escapes_accepted() {
     ) || exit_code=$?
     assert_eq \
         "test_both_markers_both_escapes_accepted: both markers both env vars 0 exits 0" \
+        "0" "$exit_code"
+}
+
+# ── Test 10: main repo (primary checkout) with .sprint-active → accepted ─────
+# Bug 6e96-61bf: when merge-to-main.sh runs the post-merge version-bump commit
+# in MAIN_REPO, the hook fires from MAIN_REPO context (shared .git/hooks).
+# A stale .sprint-active marker at MAIN_REPO must NOT trigger rejection —
+# the hook's enforcement target is linked worktrees, not the primary checkout.
+test_main_repo_with_sprint_active_accepted() {
+    local _repo
+    _repo=$(make_git_repo_with_commit)
+
+    # Primary checkout (no `git worktree add`): git-common-dir == git-dir.
+    touch "$_repo/.sprint-active"
+
+    local exit_code=0
+    ( cd "$_repo" && bash "$_SCRIPT" 2>/dev/null ) || exit_code=$?
+
+    assert_eq \
+        "test_main_repo_with_sprint_active_accepted: primary checkout with .sprint-active exits 0 (hook only enforces in linked worktrees)" \
         "0" "$exit_code"
 }
 
@@ -268,6 +322,10 @@ echo ""
 
 echo "--- Test 9: both markers, both escapes → accepted ---"
 test_both_markers_both_escapes_accepted
+echo ""
+
+echo "--- Test 10: main repo (primary checkout) + .sprint-active → accepted ---"
+test_main_repo_with_sprint_active_accepted
 echo ""
 
 print_summary
