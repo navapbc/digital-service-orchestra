@@ -63,6 +63,7 @@ def main() -> None:
     tracker_path = Path(tracker_dir)
 
     import os as _os
+
     _scripts_dir = _os.path.dirname(_os.path.abspath(__file__))
     if _scripts_dir not in sys.path:
         sys.path.insert(0, _scripts_dir)

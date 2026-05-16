@@ -27,14 +27,17 @@ _SHORT_ID_RE = re.compile(r"^[a-z0-9]{4}-[a-z0-9]{4}$")
 def resolve_ticket_id(ticket_id: str, tracker_dir: str) -> str | None:
     """Return the canonical ticket directory name for ``ticket_id``, or None."""
     if _FULL_ID_RE.match(ticket_id):
-        return ticket_id if os.path.isdir(os.path.join(tracker_dir, ticket_id)) else None
+        return (
+            ticket_id if os.path.isdir(os.path.join(tracker_dir, ticket_id)) else None
+        )
 
     if _SHORT_ID_RE.match(ticket_id):
         if os.path.isdir(os.path.join(tracker_dir, ticket_id)):
             return ticket_id
         try:
             matches = [
-                n for n in os.listdir(tracker_dir)
+                n
+                for n in os.listdir(tracker_dir)
                 if not n.startswith(".")
                 and n[:9] == ticket_id
                 and os.path.isdir(os.path.join(tracker_dir, n))
@@ -48,7 +51,10 @@ def resolve_ticket_id(ticket_id: str, tracker_dir: str) -> str | None:
         try:
             result = subprocess.run(
                 [sys.executable, str(resolver), ticket_id, tracker_dir],
-                capture_output=True, text=True, timeout=30, check=False,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
             )
         except (subprocess.SubprocessError, OSError):
             result = None
@@ -74,7 +80,8 @@ def resolve_ticket_id(ticket_id: str, tracker_dir: str) -> str | None:
     if len(ticket_id) >= 4:
         try:
             matches = [
-                n for n in os.listdir(tracker_dir)
+                n
+                for n in os.listdir(tracker_dir)
                 if not n.startswith(".")
                 and n.startswith(ticket_id)
                 and os.path.isdir(os.path.join(tracker_dir, n))

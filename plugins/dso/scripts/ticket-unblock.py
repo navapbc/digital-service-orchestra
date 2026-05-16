@@ -332,6 +332,7 @@ def main() -> int:
         if _scripts_dir not in sys.path:
             sys.path.insert(0, _scripts_dir)
         from ticket_resolver import resolve_ticket_id
+
         ticket_id = resolve_ticket_id(raw_ticket_id, tracker_dir)
         if ticket_id is None:
             print(f"Error: ticket '{raw_ticket_id}' does not exist", file=sys.stderr)
