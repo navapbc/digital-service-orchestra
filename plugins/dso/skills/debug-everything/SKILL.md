@@ -32,7 +32,7 @@ You are a **Senior Software Engineer at Google** brought in to restore a project
 /dso:debug-everything --aws            # Include proactive AWS infrastructure scan in Phase B
 ```
 
-**ci-pr mode** (when `dso.workflow=ci-pr`): `/dso:debug-everything` runs in ci-pr mode. Each fix batch is committed to a per-tier sub-branch (`bug-batch/<session-id>/tier-<N>-batch-<K>`), reviewed via `/dso:review` before merging to the session branch, and the session's aggregate progress is tracked in a `Debug:` draft PR. Phase B Step 1 creates a `.debug-active` marker (schema v1) on the repo root; Phase K removes it. The draft PR is also created in Phase B Step 1.
+**ci-pr mode** (when `dso.workflow=ci-pr`): `/dso:debug-everything` runs in ci-pr mode. Each fix batch is committed to a per-tier sub-branch (`bug-batch/<session-id>/tier-<N>-batch-<K>`), opened as a PR against `SESSION_BRANCH` (not main), and reviewed automatically by the `per-branch-review.yml` CI workflow before merging to the session branch. The session's aggregate progress is tracked in a `Debug:` draft PR. Phase B Step 1 creates a `.debug-active` marker (schema v1) on the repo root; Phase K removes it. The draft PR is also created in Phase B Step 1.
 
 **Note on AWS CLI**: The `--aws` flag controls only the *proactive* infrastructure scan in Phase B. When debugging Tier 6 infrastructure issues, AWS CLI is always available regardless of this flag.
 <!-- EMIT-PRECONDITIONS: gate_name=debug_everything_aws_infra degradation_type=inferred_decision -->
@@ -142,6 +142,12 @@ DEBUG_MODE=$(.claude/scripts/dso read-config.sh dso.workflow 2>/dev/null || echo
 DEBUG_MODE="${DEBUG_MODE:-local}"  # guard: read-config.sh exits 0 with empty output when key absent
 _debug_marker="$(git rev-parse --show-toplevel)/.debug-active"
 if [[ "$DEBUG_MODE" == 'ci-pr' ]]; then
+    SESSION_BRANCH=$(bash "$(git rev-parse --show-toplevel)/.claude/scripts/dso" resolve-session-branch.sh)
+    _rsb_exit=$?
+    if [[ $_rsb_exit -ne 0 ]]; then
+        printf 'ERROR: Phase B Step 1 SESSION_BRANCH resolution failed (exit %d) — cannot initialize ci-pr mode session\n' "$_rsb_exit" >&2
+        exit 1
+    fi
     _session_id="$(date -u +%Y%m%d-%H%M%S)-$(set +o pipefail; LC_ALL=C tr -dc 'a-z0-9' </dev/urandom | head -c6)"
     DRAFT_PR_URL=$(DRAFT_PR_TITLE_PREFIX=Debug: SESSION_BRANCH="$SESSION_BRANCH" \
         PRIMARY_TICKET_ID="${EPIC_ID:-debug}" EPIC_TITLE='Debug Session' \
@@ -711,10 +717,21 @@ Within each tier, group independent fixes into batches sized by the `MAX_AGENTS`
 
 Phase F creates exactly one sub-branch per tier that produces changes. Tiers: Tier 0 (format/make format) and Tier 1 (lint/ruff --fix).
 
+**Resolve SESSION_BRANCH** (ci-pr mode, fail-fast on failure):
+```bash
+SESSION_BRANCH=$(bash "$(git rev-parse --show-toplevel)/.claude/scripts/dso" resolve-session-branch.sh 2>&1)
+if [[ $? -ne 0 ]]; then
+    printf '%s\n' "$SESSION_BRANCH" >&2
+    printf 'ERROR: Phase F SESSION_BRANCH resolution failed — cannot create sub-branch PR\n' >&2
+    exit 1
+fi
+```
+
 - Branch naming: `bug-batch/<debug-session-id>/tier-0` and `bug-batch/<debug-session-id>/tier-1`
 - Use direct `git checkout -b bug-batch/<debug-session-id>/tier-<N>` (create-story-branch.sh appends /<epic>/<story> and cannot produce tier branch names)
 - When a tier has 0 bugs/changes: no sub-branch is created AND no annotation is added to the aggregate draft PR for that tier (zero-bug tier skip)
-- Apply all tier changes on the sub-branch and merge into the session branch before moving to the next tier
+- Apply all tier changes on the sub-branch, then open a PR against `SESSION_BRANCH` (not main): `gh pr create --base "$SESSION_BRANCH" --head <sub-branch> --title "auto-fix: tier-<N>" --body "Auto-fix tier <N> changes"`. The PR triggers the `per-branch-review.yml` CI workflow automatically — no local `/dso:review` dispatch is needed.
+- Merge sub-branch into the session branch before moving to the next tier
 - After creating the sub-branch, record a tracking comment (batch=0 for Phase F's single batches):
   ```
   .claude/scripts/dso ticket comment <epic-id> "DEBUG_BRANCH_TRACKING: sub_branch=<name> tier=<N> batch=0 timestamp=<UTC>"
@@ -722,20 +739,17 @@ Phase F creates exactly one sub-branch per tier that produces changes. Tiers: Ti
 
 In local mode (DEBUG_MODE=direct or absent): no sub-branch created; commit directly to session branch.
 
-### Per-Sub-Branch Review Orchestration (ci-pr mode only — Phase F)
+### Per-Sub-Branch CI Review (ci-pr mode only — Phase F)
 
-After each sub-branch is created and changes committed in ci-pr mode, run the per-sub-branch review block before merging:
+After each sub-branch PR is opened in ci-pr mode, review is handled automatically by CI:
 
-1. **Invoke `/dso:review`** (sub-agent dispatch) scoped to the sub-branch diff against the session branch.
-<!-- TODO: hermetic-repro (99f1-153c) fires before per-sub-branch review dispatch when 99f1 closes (see story 50a7) -->
-2. **Run `validate-review-output.sh`** schema validation against `reviewer-findings.json`; on schema failure, treat it as a review failure and trigger re-dispatch (schema failures are treated like review failures).
-3. **Autonomous resolution loop**: `max = max(1, review.max_resolution_attempts)` — when `max_resolution_attempts=0`, apply floor-guard: `floor` of 1 attempt applies; log warning `'floor-guard: using min 1 attempt'` (floor near `max_resolution_attempts` floor).
-4. **Return discriminated review outcome** for this sub-branch:
-   - `MERGED`: all findings resolved; merge sub-branch into session branch.
-   - `ESCALATED`: resolution loop exhausted; do NOT merge; write `SUBBRANCH_ESCALATED: <sub-branch> reason=<...>` ticket comment FIRST (ticket comment is the authoritative source of truth — COMPACTION_RESUME reconciles PR annotation from ticket comments on resume), then update aggregate draft PR `BLOCKED_SUBBRANCHES:` annotation SECOND; continue to next sub-branch (ESCALATED does not halt the tier loop — loop continues to next sub-branch after ESCALATED).
-   - `ERROR`: schema validation failed after re-dispatch exhaustion; same as ESCALATED handling but `reason=schema-validation-error`; write `SUBBRANCH_ESCALATED: <sub-branch> reason=schema-validation-error` ticket comment, then update `BLOCKED_SUBBRANCHES:` annotation; continue to next sub-branch.
+- The PR opened with `base=$SESSION_BRANCH` triggers the `per-branch-review.yml` CI workflow on push. No local `/dso:review` dispatch is required or performed in Phase F.
+- Wait for the CI workflow to complete before merging the sub-branch into the session branch.
+- **Return discriminated merge outcome** for this sub-branch:
+  - `MERGED`: CI review passed; merge sub-branch into session branch.
+  - `ESCALATED`: CI review failed or PR blocked; do NOT merge; write `SUBBRANCH_ESCALATED: <sub-branch> reason=<...>` ticket comment FIRST (ticket comment is the authoritative source of truth — COMPACTION_RESUME reconciles PR annotation from ticket comments on resume), then update aggregate draft PR `BLOCKED_SUBBRANCHES:` annotation SECOND; continue to next sub-branch (ESCALATED does not halt the tier loop — loop continues to next sub-branch after ESCALATED).
 
-`ESCALATED` does NOT halt the tier loop — Phase F continues to the next sub-branch. Per-sub-branch review outcomes (`MERGED`, `ESCALATED`, `ERROR`) determine merge eligibility independently for each sub-branch.
+`ESCALATED` does NOT halt the tier loop — Phase F continues to the next sub-branch. Per-sub-branch outcomes (`MERGED`, `ESCALATED`) determine merge eligibility independently for each sub-branch.
 
 After each batch merge in Phase F, run session-leakage detection (non-fatal):
 ```bash
@@ -764,6 +778,16 @@ Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/auto-fix.md
 
 ### Sub-Branch Chunking (ci-pr mode only — when DEBUG_MODE=pr)
 
+**Resolve SESSION_BRANCH** (ci-pr mode, fail-fast on failure):
+```bash
+SESSION_BRANCH=$(bash "$(git rev-parse --show-toplevel)/.claude/scripts/dso" resolve-session-branch.sh 2>&1)
+if [[ $? -ne 0 ]]; then
+    printf '%s\n' "$SESSION_BRANCH" >&2
+    printf 'ERROR: Phase G SESSION_BRANCH resolution failed — cannot create sub-branch PRs\n' >&2
+    exit 1
+fi
+```
+
 In ci-pr mode, Phase G chunks Tier 2–7 bugs into sub-branches of at most 5 bugs each, preserving tier ordering. Branch naming: `bug-batch/<debug-session-id>/tier-<N>-batch-<K>` (e.g., `tier-3-batch-1`, `tier-3-batch-2`).
 
 **Chunking algorithm**: tier-first ordering, then chunk each tier's bugs into groups of ≤5 bugs per sub-branch.
@@ -781,17 +805,16 @@ After creating each sub-branch, record a tracking comment using the actual batch
 
 In local mode: commit directly to session branch (sub-branch chunking does not apply).
 
-### Per-Sub-Branch Review Orchestration (ci-pr mode only — Phase G)
+### Per-Sub-Branch CI Review (ci-pr mode only — Phase G)
 
-After each sub-branch is created and changes committed in ci-pr mode, run the per-sub-branch review block before merging:
+After each sub-branch is created and changes committed in ci-pr mode, open a PR against `SESSION_BRANCH` and wait for CI review before merging:
 
-1. **Invoke `/dso:review`** (sub-agent dispatch) scoped to the sub-branch diff against the session branch.
-2. **Run `validate-review-output.sh`** schema validation against `reviewer-findings.json`; on schema failure, treat it as a review failure and trigger re-dispatch (schema failures are treated like review failures).
-3. **Autonomous resolution loop**: `max = max(1, review.max_resolution_attempts)` — when `max_resolution_attempts=0`, apply floor-guard: `floor` of 1 attempt applies; log warning `'floor-guard: using min 1 attempt'` (floor near `max_resolution_attempts` floor).
-4. **Return discriminated review outcome** for this sub-branch:
-   - `MERGED`: all findings resolved; merge sub-branch into session branch.
-   - `ESCALATED`: resolution loop exhausted; do NOT merge; write `SUBBRANCH_ESCALATED: <sub-branch> reason=<...>` ticket comment FIRST (ticket comment is the authoritative source of truth — COMPACTION_RESUME reconciles PR annotation from ticket comments on resume), then update aggregate draft PR `BLOCKED_SUBBRANCHES:` annotation SECOND; continue to next sub-branch (ESCALATED does not halt the tier loop — loop continues to next sub-branch after ESCALATED).
-   - `ERROR`: schema validation failed after re-dispatch exhaustion; same as ESCALATED handling but `reason=schema-validation-error`; write `SUBBRANCH_ESCALATED: <sub-branch> reason=schema-validation-error` ticket comment, then update `BLOCKED_SUBBRANCHES:` annotation; continue to next sub-branch.
+- Open the sub-branch PR against `SESSION_BRANCH` (not main): `gh pr create --base "$SESSION_BRANCH" --head <sub-branch> --title "auto-fix: tier-<N>-batch-<K>" --body "Auto-fix tier <N> batch <K> changes"`. The PR triggers the `per-branch-review.yml` CI workflow automatically — no local `/dso:review` dispatch is required or performed in Phase G.
+- Wait for the CI workflow to complete before merging the sub-branch into the session branch.
+- **Return discriminated merge outcome** for this sub-branch:
+  - `MERGED`: CI review passed; merge sub-branch into session branch.
+  - `ESCALATED`: CI review failed or PR blocked; do NOT merge; write `SUBBRANCH_ESCALATED: <sub-branch> reason=<...>` ticket comment FIRST (ticket comment is the authoritative source of truth — COMPACTION_RESUME reconciles PR annotation from ticket comments on resume), then update aggregate draft PR `BLOCKED_SUBBRANCHES:` annotation SECOND; continue to next sub-branch (ESCALATED does not halt the tier loop — loop continues to next sub-branch after ESCALATED).
+  - `ERROR`: CI workflow failed to produce a result; same as ESCALATED handling but `reason=ci-workflow-error`; write `SUBBRANCH_ESCALATED: <sub-branch> reason=ci-workflow-error` ticket comment, then update `BLOCKED_SUBBRANCHES:` annotation; continue to next sub-branch.
 
 `ESCALATED` does NOT halt the tier loop — Phase G continues to the next sub-branch. Per-sub-branch review outcomes (`MERGED`, `ESCALATED`, `ERROR`) determine merge eligibility independently for each sub-branch.
 

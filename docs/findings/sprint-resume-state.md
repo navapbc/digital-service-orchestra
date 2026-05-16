@@ -8,7 +8,7 @@
 
 #### Closed Stories (f61f-7e0a)
 - 6080 — detect-session-leakage.sh: CLOSED
-- 957a — sprint-story-review.yml workflow: CLOSED
+- 957a — per-branch-review.yml workflow: CLOSED
 - f5f9 — region-split FALLBACK: CLOSED
 - 8c9c — SHA-range attestation defense-store: CLOSED
 
@@ -62,7 +62,7 @@
    - Simplest: start with **93cb-ef60** (defer handler — create ticket, write JSON, reply)
 
 3. **Phase 3-5**: Execute tasks with worktree isolation (worktree.isolation_enabled=true)
-   - This produces: story/* branch push → sprint-story-review.yml triggers → reviewer-findings.json
+   - This produces: story/* branch push → per-branch-review.yml triggers → reviewer-findings.json
    - Phase F merge produces DSO-Story trailer → Proxy B (real) satisfied
    - Phase A (if not yet done) creates draft PR → Proxy A satisfied
    - DefenseStore writes during review → Proxy D satisfied

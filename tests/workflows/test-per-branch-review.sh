@@ -1,31 +1,31 @@
 #!/usr/bin/env bash
-# tests/workflows/test-sprint-story-review.sh
-# RED-phase behavioral tests for .github/workflows/sprint-story-review.yml
+# tests/workflows/test-per-branch-review.sh
+# RED-phase behavioral tests for .github/workflows/per-branch-review.yml
 #
 # Story 957a-a331-b9ed-435c: CI runner fires llm-review on every push to
 # story/* branches scoped to the per-story delta, with concurrency-group
 # preventing rate-limit storms.
 #
-# All 7 tests FAIL RED because sprint-story-review.yml does not exist yet.
+# All 7 tests FAIL RED because per-branch-review.yml does not exist yet.
 #
-# Usage: bash tests/workflows/test-sprint-story-review.sh
+# Usage: bash tests/workflows/test-per-branch-review.sh
 
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-WORKFLOW_FILE="$REPO_ROOT/.github/workflows/sprint-story-review.yml"
+WORKFLOW_FILE="$REPO_ROOT/.github/workflows/per-branch-review.yml"
 
 source "$REPO_ROOT/tests/lib/assert.sh"
 
-echo "=== test-sprint-story-review.sh ==="
+echo "=== test-per-branch-review.sh ==="
 
 # ── test_workflow_file_exists ─────────────────────────────────────────────────
 # The workflow YAML file must exist under .github/workflows/.
 _snapshot_fail
 file_exists=0
 [[ -f "$WORKFLOW_FILE" ]] && file_exists=1
-assert_eq "test_workflow_file_exists: .github/workflows/sprint-story-review.yml exists" "1" "$file_exists"
+assert_eq "test_workflow_file_exists: .github/workflows/per-branch-review.yml exists" "1" "$file_exists"
 assert_pass_if_clean "test_workflow_file_exists"
 
 # ── test_trigger_has_story_pattern ───────────────────────────────────────────
@@ -125,7 +125,7 @@ fi
 assert_pass_if_clean "test_job_installs_litellm"
 
 # ── test_mirror_tracker_defenses_job_exists ──────────────────────────────────
-# A mirror-tracker-defenses job must exist in sprint-story-review.yml so that
+# A mirror-tracker-defenses job must exist in per-branch-review.yml so that
 # defense records are fetched and posted to the PR before the review job runs.
 # Bug 6345-62be: review executed before defenses were mirrored, so the reviewer
 # could not account for existing defenses from prior cycles.
@@ -135,7 +135,7 @@ if [[ ! -f "$WORKFLOW_FILE" ]]; then
 else
     found=0
     grep -qE "^\s+mirror-tracker-defenses:" "$WORKFLOW_FILE" 2>/dev/null && found=1 || true
-    assert_eq "test_mirror_tracker_defenses_job_exists: sprint-story-review.yml has mirror-tracker-defenses job" "1" "$found"
+    assert_eq "test_mirror_tracker_defenses_job_exists: per-branch-review.yml has mirror-tracker-defenses job" "1" "$found"
 fi
 assert_pass_if_clean "test_mirror_tracker_defenses_job_exists"
 
@@ -156,5 +156,48 @@ else
     assert_eq "test_review_needs_mirror_tracker_defenses: review job needs includes mirror-tracker-defenses" "1" "$found"
 fi
 assert_pass_if_clean "test_review_needs_mirror_tracker_defenses"
+
+# ── test_resolve_base_script_present_and_executable ──────────────────────────
+# Bug 3914-0848-faad-4f6a: the diff-base resolution chain (PR base →
+# SPRINT_SESSION_ID → main, with existence validation) lives in a
+# unit-tested script. The workflow delegates to it. Resolver behavior is
+# covered exhaustively in tests/scripts/test-resolve-per-branch-review-base.sh
+# (5 behavioral tests). This test merely verifies the script's presence and
+# that the workflow invokes it (structural integration check).
+_snapshot_fail
+RESOLVE_SCRIPT="$REPO_ROOT/plugins/dso/scripts/resolve-per-branch-review-base.sh"
+script_present=0
+[[ -f "$RESOLVE_SCRIPT" && -x "$RESOLVE_SCRIPT" ]] && script_present=1
+assert_eq "test_resolve_base_script_present_and_executable: resolver script exists and is executable" "1" "$script_present"
+assert_pass_if_clean "test_resolve_base_script_present_and_executable"
+
+# ── test_workflow_invokes_resolve_base_script ────────────────────────────────
+# The workflow must delegate diff-base resolution to the resolver script
+# (not inline bash). This is a thin structural integration check — full
+# resolver behavior is in the script's own behavioral test file.
+_snapshot_fail
+if [[ ! -f "$WORKFLOW_FILE" ]]; then
+    assert_eq "test_workflow_invokes_resolve_base_script: workflow file present (prereq)" "1" "0"
+else
+    invokes=0
+    grep -qF "resolve-per-branch-review-base.sh" "$WORKFLOW_FILE" 2>/dev/null && invokes=1 || true
+    assert_eq "test_workflow_invokes_resolve_base_script: workflow delegates to resolver script" "1" "$invokes"
+fi
+assert_pass_if_clean "test_workflow_invokes_resolve_base_script"
+
+# ── test_workflow_emits_suspicious_diff_warning ──────────────────────────────
+# The compute step must emit a ::warning:: directive when the resolved diff
+# exceeds the suspicious-diff threshold (default 1500 lines). This alerts
+# operators to potential BASE_REF mis-resolution rather than silently
+# producing a wrong-scoped review.
+_snapshot_fail
+if [[ ! -f "$WORKFLOW_FILE" ]]; then
+    assert_eq "test_workflow_emits_suspicious_diff_warning: workflow file present (prereq)" "1" "0"
+else
+    emits=0
+    grep -qF "::warning::" "$WORKFLOW_FILE" 2>/dev/null && emits=1 || true
+    assert_eq "test_workflow_emits_suspicious_diff_warning: workflow uses ::warning:: directive" "1" "$emits"
+fi
+assert_pass_if_clean "test_workflow_emits_suspicious_diff_warning"
 
 print_summary

@@ -3,9 +3,9 @@
 # Structural metadata validation of debug-everything SKILL.md per-sub-branch review contract.
 #
 # Verifies that the debug-everything skill documents the per-sub-branch review protocol:
-#   1. Schema validation via validate-review-output.sh
+#   1. CI review via per-branch-review.yml (ci-pr mode) — replaces local validate-review-output.sh dispatch
 #   2. Discriminated review outcomes: MERGED / ESCALATED / ERROR
-#   3. Floor-guard of 1 for max_resolution_attempts
+#   3. CI workflow wait before merging sub-branch
 #   4. SUBBRANCH_ESCALATED: ticket comment written before PR annotation
 #   5. BLOCKED_SUBBRANCHES: PR annotation field
 #   6. ESCALATED outcome does NOT halt the tier loop (loop continues)
@@ -35,10 +35,12 @@ echo "=== test-debug-everything-subbranch-review.sh ==="
 
 test_subbranch_review_invokes_schema_validation() {
     local result="missing"
-    if grep -qF 'validate-review-output.sh' "$SKILL_FILE" 2>/dev/null; then
+    # In ci-pr mode, per-sub-branch review is handled by per-branch-review.yml CI workflow
+    # (replaces the former local validate-review-output.sh dispatch introduced before the unified architecture)
+    if grep -qF 'per-branch-review.yml' "$SKILL_FILE" 2>/dev/null; then
         result="found"
     fi
-    assert_eq "test_subbranch_review_invokes_schema_validation: SKILL.md references validate-review-output.sh in per-sub-branch review context" "found" "$result"
+    assert_eq "test_subbranch_review_invokes_schema_validation: SKILL.md references per-branch-review.yml for per-sub-branch CI review" "found" "$result"
 }
 
 test_subbranch_review_discriminated_outcomes() {
@@ -57,10 +59,12 @@ test_subbranch_review_discriminated_outcomes() {
 
 test_subbranch_review_floor_guard() {
     local result="missing"
-    if grep -qE 'floor.*max_resolution_attempts|max_resolution_attempts.*floor' "$SKILL_FILE" 2>/dev/null; then
+    # In the unified ci-pr architecture, the sub-branch PR base is SESSION_BRANCH and
+    # review is CI-authoritative. SKILL.md must document waiting for CI before merge.
+    if grep -qE 'Wait for the CI workflow|wait for.*CI.*complet|CI.*workflow.*complet' "$SKILL_FILE" 2>/dev/null; then
         result="found"
     fi
-    assert_eq "test_subbranch_review_floor_guard: SKILL.md documents floor guard on max_resolution_attempts (minimum 1 attempt)" "found" "$result"
+    assert_eq "test_subbranch_review_floor_guard: SKILL.md documents waiting for CI workflow completion before merging sub-branch" "found" "$result"
 }
 
 test_subbranch_escalation_ordering() {

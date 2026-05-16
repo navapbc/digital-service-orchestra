@@ -23,7 +23,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CI_YML="$REPO_ROOT/.github/workflows/ci.yml"
-SPRINT_YML="$REPO_ROOT/.github/workflows/sprint-story-review.yml"
+SPRINT_YML="$REPO_ROOT/.github/workflows/per-branch-review.yml"
 DEFENSE_STORE_SH="$REPO_ROOT/plugins/dso/scripts/review-defense-store.sh"
 
 # shellcheck source=../lib/assert.sh
@@ -84,10 +84,10 @@ assert_eq "ci.yml llm-review exports DSO_REVIEW_CYCLE (exit code)" "0" "$ci_chec
 assert_eq "ci.yml llm-review exports DSO_REVIEW_CYCLE (output)" "OK" "$ci_check_output"
 assert_pass_if_clean "test_ci_yml_exports_dso_review_cycle"
 
-# ── test_sprint_story_review_exports_dso_review_cycle ─────────────────────────
-# F2: sprint-story-review.yml's review job must also export DSO_REVIEW_CYCLE.
+# ── test_per_branch_review_exports_dso_review_cycle ──────────────────────────
+# F2: per-branch-review.yml's review job must also export DSO_REVIEW_CYCLE.
 echo ""
-echo "--- test_sprint_story_review_exports_dso_review_cycle ---"
+echo "--- test_per_branch_review_exports_dso_review_cycle ---"
 _snapshot_fail
 
 sprint_check_exit=0
@@ -98,10 +98,10 @@ import sys, yaml
 with open(sys.argv[1]) as f:
     doc = yaml.safe_load(f)
 
-# sprint-story-review.yml has a single 'review' job (per current shape).
+# per-branch-review.yml has a single 'review' job (per current shape).
 jobs = doc.get('jobs', {})
 if not jobs:
-    print("MISSING: no jobs in sprint-story-review.yml")
+    print("MISSING: no jobs in per-branch-review.yml")
     sys.exit(1)
 
 # Check every job for the export — there's only one in practice, but we don't
@@ -121,15 +121,15 @@ for job_name, job in jobs.items():
         break
 
 if not found:
-    print("MISSING: no step in sprint-story-review.yml exports DSO_REVIEW_CYCLE")
+    print("MISSING: no step in per-branch-review.yml exports DSO_REVIEW_CYCLE")
     sys.exit(1)
 print("OK")
 PYEOF
 ) || sprint_check_exit=$?
 
-assert_eq "sprint-story-review.yml exports DSO_REVIEW_CYCLE (exit code)" "0" "$sprint_check_exit"
-assert_eq "sprint-story-review.yml exports DSO_REVIEW_CYCLE (output)" "OK" "$sprint_check_output"
-assert_pass_if_clean "test_sprint_story_review_exports_dso_review_cycle"
+assert_eq "per-branch-review.yml exports DSO_REVIEW_CYCLE (exit code)" "0" "$sprint_check_exit"
+assert_eq "per-branch-review.yml exports DSO_REVIEW_CYCLE (output)" "OK" "$sprint_check_output"
+assert_pass_if_clean "test_per_branch_review_exports_dso_review_cycle"
 
 # ── test_mirror_defenses_step_has_stdin_producer ──────────────────────────────
 # F1: The mirror-defenses-to-pr step in ci.yml must pipe data INTO the script,
