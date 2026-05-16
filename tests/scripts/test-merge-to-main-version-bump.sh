@@ -721,4 +721,69 @@ rm -f "$_T11_STATE_FILE" 2>/dev/null || true
 rm -rf "$_TEST_BASE"
 
 # =============================================================================
+# Test 12: test_version_bump_runs_when_no_resume_context (cb31-3552 negative case)
+# Symmetry to Test 11 — the replacement guard must NOT skip the bump when no
+# resume context is signaled (neither _CLI_RESUME nor DSO_MERGE_RESUMING set),
+# even if 'version_bump' happens to appear in completed_phases (which would
+# only occur on a fresh run with a leftover state file from a prior session,
+# but the contract still requires the bump to run in a non-resume context).
+# Without this negative-case test, the guard could be overly broad (always
+# skip) and tests 7/11 would still pass — llm-review f-h8i9j0k1.
+# =============================================================================
+echo ""
+echo "--- test_version_bump_runs_when_no_resume_context ---"
+_snapshot_fail
+
+_setup_test_repo
+_T12_MOCK_DIR="$_TEST_BASE/mock-bin"
+_T12_CALL_LOG="$_TEST_BASE/bump-calls-no-resume.txt"
+_setup_mock_bump_version "$_T12_MOCK_DIR" "$_T12_CALL_LOG"
+
+_PHASE_FN_BODY=$(_extract_fn "_phase_version_bump" 2>/dev/null || echo "")
+
+_T12_RC=0
+_T12_OUTPUT=$(
+    cd "$_WORK_DIR"
+    export PATH="$_T12_MOCK_DIR:$PATH"
+    export BUMP_TYPE="patch"
+    export CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR"
+    export MAIN_REPO="$_WORK_DIR"
+    _state_init 2>/dev/null || true
+    _T12_INNER_STATE=$(_state_file_path 2>/dev/null || echo "")
+    # Pre-seed completed_phases WITH version_bump to confirm the guard does
+    # not over-skip purely on state membership; non-resume context must still
+    # run the bump (the resume-skip guard requires resume context AND state).
+    if [[ -n "$_T12_INNER_STATE" && -f "$_T12_INNER_STATE" ]]; then
+        python3 -c "
+import json
+with open('$_T12_INNER_STATE') as f:
+    d = json.load(f)
+d.setdefault('completed_phases', []).append('version_bump')
+with open('$_T12_INNER_STATE', 'w') as f:
+    json.dump(d, f)
+" 2>/dev/null || true
+    fi
+    # Explicitly DO NOT set _CLI_RESUME / DSO_MERGE_RESUMING — non-resume context.
+    unset _CLI_RESUME DSO_MERGE_RESUMING
+    if [[ -n "$_PHASE_FN_BODY" ]]; then
+        eval "$_PHASE_FN_BODY"
+        _phase_version_bump 2>&1
+    else
+        echo "FUNCTION_NOT_FOUND"
+        exit 1
+    fi
+) || _T12_RC=$?
+
+# Without resume context, the bump MUST run regardless of state membership.
+if [[ -f "$_T12_CALL_LOG" ]]; then
+    _T12_CALLS=$(wc -l < "$_T12_CALL_LOG" | tr -d ' ')
+else
+    _T12_CALLS="0"
+fi
+assert_ne "test_version_bump_no_resume_mock_was_called" "0" "$_T12_CALLS"
+
+assert_pass_if_clean "test_version_bump_runs_when_no_resume_context"
+rm -rf "$_TEST_BASE"
+
+# =============================================================================
 print_summary

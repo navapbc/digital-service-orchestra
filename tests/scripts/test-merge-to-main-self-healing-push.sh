@@ -108,6 +108,7 @@ _TEST_BASE=$(mktemp -d /tmp/dso-self-healing-clean.XXXXXX)
 trap 'rm -rf "$_TEST_BASE"' EXIT
 
 (
+    set -e
     cd "$_TEST_BASE"
     git init --bare -q --initial-branch=main bare.git 2>/dev/null || git init --bare -q bare.git
     git clone -q bare.git work
@@ -124,7 +125,7 @@ trap 'rm -rf "$_TEST_BASE"' EXIT
     echo "1.0.1" > version.txt
     git add version.txt
     git commit -q -m "bump"
-) 2>/dev/null
+)
 
 # Extract and source the helper
 _HELPER_FN=$(awk '
@@ -167,7 +168,13 @@ _snapshot_fail
 _TEST_BASE=$(mktemp -d /tmp/dso-self-healing-conflict.XXXXXX)
 trap 'rm -rf "$_TEST_BASE"' EXIT
 
+# set -e inside the subshell so a failed cd/git command aborts the fixture
+# rather than silently running subsequent commands in the wrong directory
+# (llm-review f-g7h8i9j0: prior fixture suppressed stderr and had no -e, so
+# a cd failure would silently corrupt the fixture and produce a misleading
+# test result).
 (
+    set -e
     cd "$_TEST_BASE"
     git init --bare -q --initial-branch=main bare.git 2>/dev/null || git init --bare -q bare.git
     git clone -q bare.git work
@@ -182,8 +189,7 @@ trap 'rm -rf "$_TEST_BASE"' EXIT
 
     # Simulate a concurrent foreign version bump on origin/main:
     # clone the bare repo separately, push a divergent commit touching version.txt.
-    # shellcheck disable=SC2103  # intentional cd-back; subshell would lose later cd-into-foreign
-    cd ..
+    cd "$_TEST_BASE"
     git clone -q bare.git foreign
     cd foreign
     git config user.email "f@f.com"
@@ -195,11 +201,11 @@ trap 'rm -rf "$_TEST_BASE"' EXIT
     git push -q origin main
 
     # Now local creates its own bump
-    cd ../work
+    cd "$_TEST_BASE/work"
     echo "1.0.1" > version.txt
     git add version.txt
     git commit -q -m "local bump"
-) 2>/dev/null
+)
 
 _HELPER_FN=$(awk '
     /^_phase_push_self_healing\(\) \{/ { in_func = 1 }
