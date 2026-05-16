@@ -475,6 +475,62 @@ def _post_pr_review(findings: list[dict]) -> tuple[int, int]:
         else:
             unanchored.append((idx, finding))
 
+    # Synthesize an anchor for unanchored findings using the first added line of
+    # the first changed file in the PR diff. This promotes findings that lack a
+    # natural file:line (e.g. fragile findings about diff-level patterns or
+    # external behavior) into resolvable PR review threads instead of standalone
+    # issue comments — which are invisible to merge-to-main.sh resolve_phase,
+    # /dso:respond-to-pr-comments, and the GitHub review-thread UX (bug 6f6f-df2f).
+    # If synthesis fails for any reason, the unanchored findings fall through to
+    # the existing issue-comment path below.
+    if unanchored:
+        try:
+            _diff_proc = subprocess.run(
+                ["gh", "pr", "diff", pr_number, "--patch"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=True,
+            )
+            _syn_path: str | None = None
+            _syn_line: int | None = None
+            _cur_path: str | None = None
+            _cur_new_line = 0
+            for _ln in _diff_proc.stdout.splitlines():
+                if _ln.startswith("+++ b/"):
+                    _cur_path = _ln[6:]
+                    _cur_new_line = 0
+                elif _ln.startswith("@@"):
+                    # @@ -a,b +c,d @@ — extract c
+                    try:
+                        _hunk = _ln.split("+", 1)[1].split(" ", 1)[0]
+                        _cur_new_line = int(_hunk.split(",", 1)[0]) - 1
+                    except (IndexError, ValueError):
+                        _cur_new_line = 0
+                elif _ln.startswith("+") and not _ln.startswith("+++"):
+                    _cur_new_line += 1
+                    if _cur_path and _syn_path is None:
+                        _syn_path = _cur_path
+                        _syn_line = _cur_new_line
+                        break
+                elif not _ln.startswith("-"):
+                    _cur_new_line += 1
+            if _syn_path and _syn_line:
+                _promoted: list[tuple[int, dict]] = []
+                for idx, finding in unanchored:
+                    finding = dict(finding)
+                    finding["_synthetic_anchor"] = True
+                    anchored.append((idx, finding, _syn_path, _syn_line))
+                    _promoted.append((idx, finding))
+                for entry in _promoted:
+                    unanchored.remove(entry)
+        except (
+            subprocess.CalledProcessError,
+            subprocess.TimeoutExpired,
+            FileNotFoundError,
+        ):
+            pass  # fall through to issue-comment path
+
     posted = 0
 
     if anchored:
@@ -648,7 +704,9 @@ def _normalize_cited_ref(entry: str) -> str:
 _GIT_SHA_RE = re.compile(r"^[0-9a-fA-F]{7,64}$")
 
 
-def _inter_cycle_diff_modified_region(defense: dict, repo_root: str | None = None) -> bool:
+def _inter_cycle_diff_modified_region(
+    defense: dict, repo_root: str | None = None
+) -> bool:
     base_sha = defense.get("story_branch_base_sha", "")
     tip_sha = defense.get("story_branch_tip_sha", "")
     if not base_sha or not tip_sha:
@@ -663,9 +721,11 @@ def _inter_cycle_diff_modified_region(defense: dict, repo_root: str | None = Non
         return False
     try:
         import subprocess
+
         result = subprocess.run(
             ["git", "diff", f"{base_sha}..{tip_sha}", "--unified=0", "--"],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
             cwd=repo_root or ".",
             timeout=30,  # bound subprocess to prevent hang/DoS from crafted SHAs
         )
@@ -709,7 +769,7 @@ def _inter_cycle_diff_modified_region(defense: dict, repo_root: str | None = Non
 def _apply_novelty_gate(
     findings: list[dict],
     defenses: list[dict],
-    diff_text: str = '',
+    diff_text: str = "",
     cycle_number: int = 1,
 ) -> tuple[list[dict], dict]:
     """Downgrade unjustified NEW_INTRODUCED findings on cycle >= 2.
@@ -736,6 +796,7 @@ def _apply_novelty_gate(
         relation = finding.get("relation")
         if relation is None:
             import sys as _sys  # noqa: PLC0415
+
             print(
                 "WARNING: finding missing relation field — treating as NEW_INTRODUCED "
                 f"(desc: {str(finding.get('description', ''))[:60]})",
@@ -768,7 +829,9 @@ def _apply_novelty_gate(
             for c in d.get("cited_lines") or []:
                 prior_cited.append(_normalize_cited_ref(c))
         proximity_anchored = any(
-            compute_proximity_overlap(f_cited, [_normalize_cited_ref(c) for c in d.get("cited_lines") or []])
+            compute_proximity_overlap(
+                f_cited, [_normalize_cited_ref(c) for c in d.get("cited_lines") or []]
+            )
             for d in defenses
             if d.get("cited_lines")
         )
@@ -847,7 +910,9 @@ def _suppress_defended_findings(
                 # the defense lacks cited_lines (older records or text-only
                 # defenses).
                 d_sev = str(d.get("severity", "")).lower()
-                d_desc = str(d.get("description", "") or d.get("defense_text", ""))[:80].lower()
+                d_desc = str(d.get("description", "") or d.get("defense_text", ""))[
+                    :80
+                ].lower()
                 if d_sev and d_desc and (f_sev, f_desc) == (d_sev, d_desc):
                     matched = True
                     break
