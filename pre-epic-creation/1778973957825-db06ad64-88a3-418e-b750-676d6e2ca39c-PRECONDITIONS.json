@@ -1,0 +1,1 @@
+{"event_type": "PRECONDITIONS", "schema_version": 1, "manifest_depth": "minimal", "gate_name": "phase1_gate", "session_id": "d076-postmortem-remediation-brainstorm", "worktree_id": "worktree-20260516-154017", "tier": "minimal", "timestamp": 1778973957825, "gate_verdicts": [], "evidence_ref": {}, "affects_fields": [], "data": {}}
