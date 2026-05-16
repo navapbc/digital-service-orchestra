@@ -2,11 +2,15 @@
 # shellcheck disable=SC2030,SC2031
 # tests/scripts/test-ticket-id-resolution-direct-exec.sh
 #
-# Behavioral tests for ticket ID resolution on the three dispatcher subcommands
-# that bypass _ticketlib_dispatch and exec their target script directly:
-#   - ticket deps   -> plugins/dso/scripts/ticket-graph.py
-#   - ticket unlink -> plugins/dso/scripts/ticket-link.sh unlink
-#   - ticket revert -> plugins/dso/scripts/ticket-revert.sh
+# Behavioral tests for ticket ID resolution across dispatcher subcommands
+# that previously bypassed _ticketlib_dispatch (and a few additional callers
+# that share the same resolver layer):
+#   - ticket deps             -> plugins/dso/scripts/ticket-graph.py
+#   - ticket unlink           -> plugins/dso/scripts/ticket-link.sh unlink
+#   - ticket revert           -> plugins/dso/scripts/ticket-revert.sh
+#   - ticket list-descendants -> plugins/dso/scripts/ticket-list-descendants.py
+#   - ticket ready --epic=    -> plugins/dso/scripts/ticket-ready.py
+#   - ticket edit --parent=   -> plugins/dso/scripts/ticket-lib-api.sh ticket_edit
 #
 # Each subcommand must accept the four documented ID forms:
 #   - full canonical 16-hex ID
@@ -14,13 +18,15 @@
 #   - friendly alias (kebab-case, computed from CREATE event)
 #   - jira_key (stored in data.jira_key in CREATE event)
 #
-# RED before fix:
-#   - ticket deps <short|alias|jira>   -> exits 1, "ticket does not exist"
-#   - ticket unlink <src> <tgt>         -> same, for any non-canonical endpoint
-#   - ticket revert <id> <uuid>         -> same, for any non-canonical id
+# RED before fix (deps/unlink/revert + list-descendants/ready/edit-parent):
+#   <subcommand> <short|alias|jira>  -> exits 1, "ticket does not exist", OR
+#   silently returns empty result for query subcommands.
 
 # -e omitted: failed assertions return non-zero; -e would abort the whole run.
-set -uo pipefail
+# pipefail omitted: assertions use `echo $output | grep -q PATTERN` and
+# pipefail + grep-early-exit can return 141 (SIGPIPE) on a successful match,
+# making `if ! ... | grep -q ...` evaluate as true on a match (false negative).
+set -uo
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null)"

@@ -25,7 +25,12 @@ _SHORT_ID_RE = re.compile(r"^[a-z0-9]{4}-[a-z0-9]{4}$")
 
 
 def resolve_ticket_id(ticket_id: str, tracker_dir: str) -> str | None:
-    """Return the canonical ticket directory name for ``ticket_id``, or None."""
+    """Return the canonical ticket directory name for ``ticket_id``, or None.
+
+    Ambiguous matches and ticket-alias-resolve.py subprocess failures are
+    surfaced via stderr to match the bash side's diagnostics; the function
+    still returns None so callers can pick their own error vs graceful path.
+    """
     if _FULL_ID_RE.match(ticket_id):
         return (
             ticket_id if os.path.isdir(os.path.join(tracker_dir, ticket_id)) else None
@@ -44,7 +49,14 @@ def resolve_ticket_id(ticket_id: str, tracker_dir: str) -> str | None:
             ]
         except OSError:
             return None
-        return matches[0] if len(matches) == 1 else None
+        if len(matches) == 1:
+            return matches[0]
+        if len(matches) > 1:
+            print(
+                f"Error: Ambiguous 8-hex ID '{ticket_id}' matches: {' '.join(sorted(matches))}",
+                file=sys.stderr,
+            )
+        return None
 
     resolver = _SCRIPT_DIR / "ticket-alias-resolve.py"
     if resolver.is_file():
@@ -56,8 +68,23 @@ def resolve_ticket_id(ticket_id: str, tracker_dir: str) -> str | None:
                 timeout=30,
                 check=False,
             )
-        except (subprocess.SubprocessError, OSError):
+        except (subprocess.SubprocessError, OSError) as exc:
+            print(
+                f"Error: alias resolver invocation failed for '{ticket_id}': {exc}",
+                file=sys.stderr,
+            )
             result = None
+        if result is not None and result.returncode != 0:
+            # Mirror ticket-lib.sh resolve_ticket_id: a non-zero exit from the
+            # helper is a hard failure rather than a silent "no match", so
+            # I/O failures don't masquerade as lookup misses.
+            stderr_tail = (result.stderr or "").strip()
+            print(
+                f"Error: alias resolver exited {result.returncode} for input '{ticket_id}'"
+                + (f": {stderr_tail}" if stderr_tail else ""),
+                file=sys.stderr,
+            )
+            return None
         if result is not None and result.returncode == 0:
             alias_matches: list[str] = []
             jira_matches: list[str] = []
@@ -70,11 +97,21 @@ def resolve_ticket_id(ticket_id: str, tracker_dir: str) -> str | None:
                         alias_matches.append(tid)
             if len(jira_matches) == 1:
                 return jira_matches[0]
-            if jira_matches:
+            if len(jira_matches) > 1:
+                print(
+                    f"Error: Ambiguous jira_key '{ticket_id}' matches multiple tickets: "
+                    f"{' '.join(sorted(jira_matches))}",
+                    file=sys.stderr,
+                )
                 return None
             if len(alias_matches) == 1:
                 return alias_matches[0]
-            if alias_matches:
+            if len(alias_matches) > 1:
+                print(
+                    f"Error: Ambiguous alias '{ticket_id}' matches multiple tickets: "
+                    f"{' '.join(sorted(alias_matches))}",
+                    file=sys.stderr,
+                )
                 return None
 
     if len(ticket_id) >= 4:
@@ -90,5 +127,11 @@ def resolve_ticket_id(ticket_id: str, tracker_dir: str) -> str | None:
             return None
         if len(matches) == 1:
             return matches[0]
+        if len(matches) > 1:
+            print(
+                f"Error: Ambiguous prefix '{ticket_id}' matches multiple tickets: "
+                f"{' '.join(sorted(matches))}",
+                file=sys.stderr,
+            )
 
     return None

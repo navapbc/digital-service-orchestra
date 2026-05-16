@@ -129,8 +129,14 @@ def main() -> int:
             return 1
         raw_source = pos_args[0]
         raw_target = pos_args[1]
-        source_id = _resolve_ticket_id(raw_source, tracker_dir) or raw_source
-        target_id = _resolve_ticket_id(raw_target, tracker_dir) or raw_target
+        source_id = _resolve_ticket_id(raw_source, tracker_dir)
+        if source_id is None:
+            print(f"Error: ticket '{raw_source}' does not exist", file=sys.stderr)
+            return 1
+        target_id = _resolve_ticket_id(raw_target, tracker_dir)
+        if target_id is None:
+            print(f"Error: ticket '{raw_target}' does not exist", file=sys.stderr)
+            return 1
         result = resolve_hierarchy_link(source_id, target_id, tracker_dir)
         print(json.dumps(result, ensure_ascii=False))
         if "error" in result:

@@ -42,6 +42,9 @@ def _no_repo_root_leaks() -> Iterator[None]:
                 try:
                     target.unlink()
                 except OSError:
+                    # Cleanup is best-effort — pytest.fail() below already
+                    # surfaces the leak. Suppressing keeps a permissions or
+                    # races race from masking the real failure.
                     pass
         pytest.fail(
             "Test leaked new entries into REPO_ROOT (use tmp_path or a "
