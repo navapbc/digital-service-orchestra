@@ -1237,15 +1237,15 @@ git add src_file.py
 git commit -m "feat: add source file" >/dev/null 2>&1
 git checkout session-branch26 >/dev/null 2>&1
 
-# Set enforcement.strategy=ci in dso-config.conf
+# Set dso.workflow=ci-pr in dso-config.conf
 mkdir -p "$SESSION_REPO26/.claude"
 cat > "$SESSION_REPO26/.claude/dso-config.conf" <<EOF
-enforcement.strategy=ci
+dso.workflow=ci-pr
 dso.plugin_root=plugins/dso
 EOF
 
 # Artifacts: write test-gate-status=passed but deliberately OMIT review-status
-# (mirrors enforcement.strategy=ci path where review pipeline is skipped)
+# (mirrors dso.workflow=ci-pr path where review pipeline is skipped)
 ARTIFACTS26="$tmpdir/artifacts26"
 mkdir -p "$ARTIFACTS26"
 _diff_hash26=$(cd "$SESSION_REPO26" && git diff "$WORKTREE_BRANCH26"~1 "$WORKTREE_BRANCH26" 2>/dev/null | shasum -a 256 | cut -d' ' -f1)
@@ -1255,7 +1255,7 @@ diff_hash=${_diff_hash26}
 timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 tested_files=
 EOF
-# Intentionally do NOT write review-status — this is the enforcement.strategy=ci path
+# Intentionally do NOT write review-status — this is the dso.workflow=ci-pr path
 
 exit_code26=0
 output26=$(cd "$SESSION_REPO26" && \

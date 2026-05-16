@@ -19,6 +19,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 REPO=""
 DRY_RUN=0
 
@@ -91,7 +92,7 @@ if [[ ! -f "$CHECKS_FILE" ]]; then
 fi
 
 # ── Read dso.workflow from dso-config.conf (default: local) ──────────────────
-_CONF_SCRIPT="$SCRIPT_DIR/../read-config.sh"
+_CONF_SCRIPT="$_PLUGIN_ROOT/scripts/read-config.sh"
 _WF="local"
 if [ -x "$_CONF_SCRIPT" ]; then
     _WF="$(bash "$_CONF_SCRIPT" dso.workflow 2>/dev/null || echo "local")"

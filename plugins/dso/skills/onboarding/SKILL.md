@@ -1117,7 +1117,7 @@ Write `commands.acli_version` and `commands.acli_sha256` to `.claude/dso-config.
 
 ### Step 2b.1: dso.workflow
 
-For new projects, write `dso.workflow=<value>` to `.claude/dso-config.conf` using the output of `detect-dso-workflow.sh`. Do NOT write legacy config keys for new projects — only write `dso.workflow`. See `${CLAUDE_PLUGIN_ROOT}/scripts/migrate-dso-workflow-config.sh` for the list of deprecated keys that must not be used.
+For new projects, write `dso.workflow=<value>` to `.claude/dso-config.conf` using the output of `detect-dso-workflow.sh`. Do NOT write legacy config keys for new projects — only write `dso.workflow`. See `${CLAUDE_PLUGIN_ROOT}/scripts/migrate-dso-workflow-config.sh` for the list of deprecated keys that must not be used. # shim-exempt: internal script documentation reference, not an invocation
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
