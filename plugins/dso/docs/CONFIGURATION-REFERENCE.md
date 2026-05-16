@@ -54,6 +54,17 @@ Schema: `docs/workflow-config-schema.json`
 
 ---
 
+### `dso.workflow`
+
+| | |
+|---|---|
+| **Description** | Single key controlling the overall workflow mode. `ci-pr` = GitHub CI + PR-based merge + attribution enabled. `local` = direct merge, local enforcement, attribution disabled. This is the primary configuration knob; the legacy keys `merge.strategy`, `enforcement.strategy`, `worktree.isolation_enabled`, and `attribution.enabled` are all deprecated in its favour. |
+| **Accepted values** | `ci-pr` \| `local` |
+| **Default** | Auto-detected by `.claude/scripts/dso detect-dso-workflow.sh` (github.com remote → `ci-pr`, else → `local`) |
+| **Used by** | `.claude/scripts/dso detect-dso-workflow.sh`, `/dso:onboarding`, `/dso:sprint`, `merge-to-main.sh`, `hooks/lib/enforcement-gate.sh` |
+
+---
+
 ### `paths.app_dir`
 
 | | |
@@ -671,7 +682,7 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 
 | | |
 |---|---|
-| **Description** | When `true`, orchestrators running inside a worktree session pass `isolation: "worktree"` to each Agent/Task dispatch, giving each sub-agent its own sandboxed working directory. When `false` or absent, sub-agents share the orchestrator's working directory (legacy shared-directory mode). Affects `/dso:sprint`, `/dso:fix-bug`, and `/dso:debug-everything` sub-agent dispatch. |
+| **Description** | **Deprecated — consolidated into `dso.workflow`.** When `true`, orchestrators running inside a worktree session pass `isolation: "worktree"` to each Agent/Task dispatch, giving each sub-agent its own sandboxed working directory. When `false` or absent, sub-agents share the orchestrator's working directory (legacy shared-directory mode). Affects `/dso:sprint`, `/dso:fix-bug`, and `/dso:debug-everything` sub-agent dispatch. |
 | **Accepted values** | `true`, `false` |
 | **Default** | `true` |
 | **Used by** | `/dso:sprint`, `/dso:fix-bug`, `/dso:debug-everything`, `skills/shared/prompts/worktree-dispatch.md` |
@@ -1149,7 +1160,7 @@ After each resolution of an AMBIGUITY or CONFLICT cross-epic signal, brainstorm 
 
 | | |
 |---|---|
-| **Description** | Controls which merge flow `merge-to-main.sh` executes. `direct` runs the direct git merge/push flow. `pr` creates a GitHub PR and waits for CI before merging. |
+| **Description** | **Deprecated — consolidated into `dso.workflow`.** Use `dso.workflow=ci-pr` (replaces `merge.strategy=pr`) or `dso.workflow=local` (replaces `merge.strategy=direct`). Controls which merge flow `merge-to-main.sh` executes. `direct` runs the direct git merge/push flow. `pr` creates a GitHub PR and waits for CI before merging. |
 | **Accepted values** | `direct` \| `pr` |
 | **Default** | `direct` |
 <!-- REVIEW-DEFENSE: merge-to-main-direct.sh and merge-to-main-pr.sh are created in task d5cb-c871 which has a direct dependency on this task (bed3-e2af). This is a GREEN documentation-first task per TDD sequencing. -->
@@ -1165,7 +1176,7 @@ After each resolution of an AMBIGUITY or CONFLICT cross-epic signal, brainstorm 
 
 | | |
 |---|---|
-| **Description** | Controls where enforcement hooks run. `local` — enforcement hooks run on local commits (git pre-commit); `ci` — local enforcement hooks are skipped (enforcement deferred to CI); `both` — enforcement runs on both local commits and in CI. |
+| **Description** | **Deprecated — consolidated into `dso.workflow`.** Use `dso.workflow=ci-pr` (replaces `enforcement.strategy=ci`) or `dso.workflow=local` (replaces `enforcement.strategy=local`). Controls where enforcement hooks run. `local` — enforcement hooks run on local commits (git pre-commit); `ci` — local enforcement hooks are skipped (enforcement deferred to CI); `both` — enforcement runs on both local commits and in CI. |
 | **Accepted values** | `local` \| `ci` \| `both` |
 | **Default** | `local` |
 <!-- REVIEW-DEFENSE: enforcement-gate.sh was implemented and committed in story 5177-ec04 in the session branch. This worktree was dispatched before that commit landed; the file exists and will be present after harvest. -->
@@ -1790,7 +1801,7 @@ and [`model.deep`](#modeldeep) above.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `attribution.enabled` | boolean | `false` | When `true`, `/dso:commit` appends DSO-Agent, DSO-Skill, DSO-Model, DSO-Task, DSO-Story, DSO-Epic, Jira-Ticket, and DSO-Review-Score trailers to commit messages via `git interpret-trailers`. Requires git ≥ 2.6. |
+| `attribution.enabled` | boolean | `false` | **Deprecated — consolidated into `dso.workflow`. Attribution is enabled when `dso.workflow=ci-pr`.** When `true`, `/dso:commit` appends DSO-Agent, DSO-Skill, DSO-Model, DSO-Task, DSO-Story, DSO-Epic, Jira-Ticket, and DSO-Review-Score trailers to commit messages via `git interpret-trailers`. Requires git ≥ 2.6. |
 
 **Notes:**
 - Setting `attribution.enabled=false` after enabling stops future writes to `attribution-contributors.jsonl` but does not purge existing entries; the file can be safely deleted manually.

@@ -32,7 +32,7 @@ You are a **Senior Software Engineer at Google** brought in to restore a project
 /dso:debug-everything --aws            # Include proactive AWS infrastructure scan in Phase B
 ```
 
-**ci-pr mode** (when `merge.strategy=pr`): `/dso:debug-everything` runs in ci-pr mode. Each fix batch is committed to a per-tier sub-branch (`bug-batch/<session-id>/tier-<N>-batch-<K>`), reviewed via `/dso:review` before merging to the session branch, and the session's aggregate progress is tracked in a `Debug:` draft PR. Phase B Step 1 creates a `.debug-active` marker (schema v1) on the repo root; Phase K removes it. The draft PR is also created in Phase B Step 1.
+**ci-pr mode** (when `dso.workflow=ci-pr`): `/dso:debug-everything` runs in ci-pr mode. Each fix batch is committed to a per-tier sub-branch (`bug-batch/<session-id>/tier-<N>-batch-<K>`), reviewed via `/dso:review` before merging to the session branch, and the session's aggregate progress is tracked in a `Debug:` draft PR. Phase B Step 1 creates a `.debug-active` marker (schema v1) on the repo root; Phase K removes it. The draft PR is also created in Phase B Step 1.
 
 **Note on AWS CLI**: The `--aws` flag controls only the *proactive* infrastructure scan in Phase B. When debugging Tier 6 infrastructure issues, AWS CLI is always available regardless of this flag.
 <!-- EMIT-PRECONDITIONS: gate_name=debug_everything_aws_infra degradation_type=inferred_decision -->
@@ -136,12 +136,12 @@ When `OPEN_BUG_COUNT == 0`, execute `prompts/session-init.md` to bind:
 
 That prompt also runs the Resume Check (parse `CHECKPOINT N/6` lines on in-progress issues; fast-close, re-dispatch, or revert per checkpoint progress).
 
-**Mode Detection & Draft PR (ci-pr mode only)**: After session-init.md binding, detect `merge.strategy` and initialize the debug session. **The orchestrator executes this bash block directly via the Bash tool** at Phase B Step 1:
+**Mode Detection & Draft PR (ci-pr mode only)**: After session-init.md binding, detect `dso.workflow` and initialize the debug session. **The orchestrator executes this bash block directly via the Bash tool** at Phase B Step 1:
 ```bash
-DEBUG_MODE=$(.claude/scripts/dso read-config.sh merge.strategy 2>/dev/null || echo 'direct')
-DEBUG_MODE="${DEBUG_MODE:-direct}"  # guard: read-config.sh exits 0 with empty output when key absent
+DEBUG_MODE=$(.claude/scripts/dso read-config.sh dso.workflow 2>/dev/null || echo 'local')
+DEBUG_MODE="${DEBUG_MODE:-local}"  # guard: read-config.sh exits 0 with empty output when key absent
 _debug_marker="$(git rev-parse --show-toplevel)/.debug-active"
-if [[ "$DEBUG_MODE" == 'pr' ]]; then
+if [[ "$DEBUG_MODE" == 'ci-pr' ]]; then
     _session_id="$(date -u +%Y%m%d-%H%M%S)-$(set +o pipefail; LC_ALL=C tr -dc 'a-z0-9' </dev/urandom | head -c6)"
     DRAFT_PR_URL=$(DRAFT_PR_TITLE_PREFIX=Debug: SESSION_BRANCH="$SESSION_BRANCH" \
         PRIMARY_TICKET_ID="${EPIC_ID:-debug}" EPIC_TITLE='Debug Session' \
@@ -151,9 +151,9 @@ if [[ "$DEBUG_MODE" == 'pr' ]]; then
         exit 1
     fi
     printf 'schema_version=1\ndebug-session-id=%s\n' "$_session_id" > "$_debug_marker"
-    printf 'merge.strategy=pr — debug session running in ci-pr mode. Draft PR: %s\n' "$DRAFT_PR_URL"
+    printf 'dso.workflow=ci-pr — debug session running in ci-pr mode. Draft PR: %s\n' "$DRAFT_PR_URL"
 else
-    printf 'merge.strategy=direct — debug session running in local mode\n'
+    printf 'dso.workflow=local — debug session running in local mode\n'
 fi
 ```
 Schema reference: `${CLAUDE_PLUGIN_ROOT}/skills/debug-everything/docs/debug-active-marker-schema.md`
@@ -1150,14 +1150,14 @@ Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/phase-10-me
 
 When `CI_STATUS: fail JOBS:<names>` is returned from the merge-verify sub-agent:
 
-**Check merge strategy:**
+**Check workflow mode:**
 ```bash
-MERGE_STRATEGY=$(.claude/scripts/dso read-config.sh merge.strategy 2>/dev/null || echo "direct")
+MERGE_STRATEGY=$(.claude/scripts/dso read-config.sh dso.workflow 2>/dev/null || echo "local")
 ```
 
-**If `MERGE_STRATEGY != pr`**: fall through to standard handling — return to Phase C (re-triage); max 2 retries. Do NOT enter the remediation loop.
+**If `MERGE_STRATEGY != ci-pr`**: use standard handling — return to Phase C (re-triage); max 2 retries. Do NOT enter the remediation loop.
 
-**If `MERGE_STRATEGY=pr`** and `PR_CI_RETRIES < 2`:
+**If `MERGE_STRATEGY=ci-pr`** and `PR_CI_RETRIES < 2`:
 
 1. **Increment** `PR_CI_RETRIES`.
 

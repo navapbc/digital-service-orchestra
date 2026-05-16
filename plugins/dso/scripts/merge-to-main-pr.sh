@@ -2162,9 +2162,7 @@ if [[ -d "$MAIN_REPO/.git" ]] || [[ -f "$MAIN_REPO/.git" ]]; then
         git -C "$MAIN_REPO" merge --ff-only "refs/remotes/origin/main" --quiet 2>/dev/null || true
     fi
 fi
-export MERGE_TO_MAIN_PR_MODE=1
 _phase_version_bump
-unset MERGE_TO_MAIN_PR_MODE
 # REVIEW-DEFENSE (PR #111 important): _phase_push is called exactly once here.
 # merge-to-main-direct.sh is sourced with MERGE_TO_MAIN_DIRECT_LIB=1 (line 2040),
 # which causes it to skip its top-level lifecycle flow. Only function definitions

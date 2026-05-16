@@ -1344,7 +1344,7 @@ Before dispatching sub-agents, read and apply `skills/shared/prompts/worktree-di
 
 Read the config key:
 ```bash
-ISOLATION_ENABLED=$(bash "$(git rev-parse --show-toplevel)/.claude/scripts/dso" read-config worktree.isolation_enabled 2>/dev/null || true)
+ISOLATION_ENABLED=true  # worktree isolation is always enabled
 ```
 
 When `ISOLATION_ENABLED` equals `true`, add `isolation: "worktree"` to each Agent/Task dispatch call and pass `ORCHESTRATOR_ROOT=$(git rev-parse --show-toplevel)` in each sub-agent's prompt so sub-agents can verify isolation. When `ISOLATION_ENABLED` is `false`, empty, or absent, omit the `isolation` parameter entirely.
@@ -1547,7 +1547,7 @@ After ALL sub-agents in the batch return, follow the Orchestrator Checkpoint Pro
 
 ### Worktree Isolation Mode: Per-Worktree Serial Review and Commit
 
-**When `worktree.isolation_enabled` is `true` and sub-agents returned with `isolation:worktree`**, do NOT proceed to the shared-directory batch review flow (Step 13). Instead, process each worktree **serially** using the per-worktree protocol:
+**When sub-agents returned with `isolation:worktree`** (isolation is always enabled), do NOT proceed to the shared-directory batch review flow (Step 13). Instead, process each worktree **serially** using the per-worktree protocol:
 
 Read and execute `skills/sprint/prompts/per-worktree-review-commit.md` for each worktree, in completion order (first-pass-first-merge). This means: for each worktree — run review in the worktree context, commit to the worktree branch, merge the worktree branch into the session branch, then remove the worktree and its branch (Step 13) — before moving to the next worktree.
 
@@ -1557,7 +1557,7 @@ Read and execute `skills/sprint/prompts/per-worktree-review-commit.md` for each 
 
 After all worktrees have been processed via `per-worktree-review-commit.md`, skip Steps 7 and 10 (which apply only in shared-directory mode) and proceed directly to Steps 8, 9, 10a, 11, and 13.
 
-**When `worktree.isolation_enabled` is `false`, empty, or absent** (shared-directory mode), proceed through Steps 0–13 as written below, including Step 13 (formal code review) and Step 17 (commit and push).
+In shared-directory mode (isolation disabled), proceed through Steps 0–13 as written below, including Step 13 (formal code review) and Step 17 (commit and push).
 
 ### Step 1: Dispatch Failure Recovery (/dso:sprint)
 
@@ -1780,7 +1780,7 @@ cd $REPO_ROOT/app && make test-visual 2>&1
 
 ### Step 13: Formal Code Review (/dso:sprint) — Shared-Directory Mode Only
 
-**This step applies only when `worktree.isolation_enabled` is `false` (shared-directory mode).** When worktree isolation is enabled, review is handled per-worktree via `per-worktree-review-commit.md` (see Worktree Isolation Mode section at the top of Phase F). Skip this step in worktree isolation mode.
+**This step applies only in shared-directory mode (isolation disabled).** When worktree isolation is enabled (default), review is handled per-worktree via `per-worktree-review-commit.md` (see Worktree Isolation Mode section at the top of Phase F). Skip this step in worktree isolation mode.
 
 Execute the review workflow (REVIEW-WORKFLOW.md). If already read earlier in this conversation, use the version in context. Produces a review state file at `$(get_artifacts_dir)/review-status`.
 
@@ -1851,17 +1851,11 @@ For tasks that failed:
 
 ### Step 17: Commit & Push (/dso:sprint) — Shared-Directory Mode Only
 
-**This step applies only when `worktree.isolation_enabled` is `false` (shared-directory mode).** When worktree isolation is enabled, commits are made per-worktree via `per-worktree-review-commit.md` (see Worktree Isolation Mode section at the top of Phase F). Skip this step in worktree isolation mode.
+**This step applies only in shared-directory mode (isolation disabled).** When worktree isolation is enabled (default), commits are made per-worktree via `per-worktree-review-commit.md` (see Worktree Isolation Mode section at the top of Phase F). Skip this step in worktree isolation mode.
 
-```bash
-export DSO_SPRINT_MODE=1
-```
+The `.sprint-active` marker file at the repo root signals sprint context to pre-commit hooks (e.g., `check-sprint-trailer.sh`) — no environment variable export is needed.
 
 Read and execute `${CLAUDE_PLUGIN_ROOT}/docs/workflows/COMMIT-WORKFLOW.md`.
-
-```bash
-unset DSO_SPRINT_MODE
-```
 
 **SIZE_WARNING path**: When SIZE_ACTION=warn, log the SIZE_WARNING to the user and continue with review dispatch. Do NOT halt, split, or escalate based on warn alone.
 

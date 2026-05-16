@@ -115,10 +115,10 @@ assert_eq "test_admin_failure_exits_zero exit" "0" "$rc7"
 assert_pass_if_clean "test_admin_failure_exits_zero"
 
 # -- test_idempotency_exits_zero ----------------------------------------------
-# When the Ruleset already exists in direct mode (merge.strategy=direct),
+# When the Ruleset already exists in local mode (dso.workflow=local),
 # script must exit 0 without re-provisioning.
 # Mock: gh returns admin=true and rulesets JSON containing "DSO CI Enforcement".
-# Uses a fake REPO_ROOT with merge.strategy=direct so the new PR-mode guard
+# Uses a fake REPO_ROOT with dso.workflow=local so the new PR-mode guard
 # does not trigger.
 _snapshot_fail
 TMP_DIR8="$(mktemp -d)"
@@ -128,7 +128,7 @@ _TMP_DIRS+=("$FAKE_ROOT8")
 mkdir -p "$FAKE_ROOT8/.github"
 echo "ci / test" > "$FAKE_ROOT8/.github/required-checks.txt"
 mkdir -p "$FAKE_ROOT8/.claude"
-echo "merge.strategy=direct" > "$FAKE_ROOT8/.claude/dso-config.conf"
+echo "dso.workflow=local" > "$FAKE_ROOT8/.claude/dso-config.conf"
 
 cat > "$TMP_DIR8/gh" <<GH_EOF
 #!/usr/bin/env bash
@@ -225,7 +225,7 @@ assert_pass_if_clean "test_happy_path_exits_zero"
 
 
 # -- test_pr_mode_with_existing_ruleset_emits_error ---------------------------
-# When merge.strategy=pr and "DSO CI Enforcement" Ruleset already exists,
+# When dso.workflow=ci-pr and "DSO CI Enforcement" Ruleset already exists,
 # script must exit non-zero with guidance to disable the Ruleset.
 _snapshot_fail
 TMP_DIR_PR1="$(mktemp -d)"
@@ -235,7 +235,7 @@ _TMP_DIRS+=("$FAKE_ROOT_PR1")
 mkdir -p "$FAKE_ROOT_PR1/.github"
 echo "ci / test" > "$FAKE_ROOT_PR1/.github/required-checks.txt"
 mkdir -p "$FAKE_ROOT_PR1/.claude"
-echo "merge.strategy=pr" > "$FAKE_ROOT_PR1/.claude/dso-config.conf"
+echo "dso.workflow=ci-pr" > "$FAKE_ROOT_PR1/.claude/dso-config.conf"
 cat > "$TMP_DIR_PR1/gh" <<GH_EOF
 #!/usr/bin/env bash
 if [[ "\$*" == *"nameWithOwner"* ]]; then echo "mock-owner/mock-repo"
@@ -258,7 +258,7 @@ assert_contains "test_pr_mode_with_existing_ruleset_emits_error stderr has 'Rule
 assert_pass_if_clean "test_pr_mode_with_existing_ruleset_emits_error"
 
 # -- test_pr_mode_without_existing_ruleset_calls_provision_ruleset ------------
-# When merge.strategy=pr and no Ruleset exists, script must invoke provision-
+# When dso.workflow=ci-pr and no Ruleset exists, script must invoke provision-
 # ruleset.sh and exit 0.
 _snapshot_fail
 TMP_SCRIPT_DIR_PR2="$(mktemp -d)"
@@ -280,7 +280,7 @@ _TMP_DIRS+=("$FAKE_ROOT_PR2")
 mkdir -p "$FAKE_ROOT_PR2/.github"
 echo "ci / test" > "$FAKE_ROOT_PR2/.github/required-checks.txt"
 mkdir -p "$FAKE_ROOT_PR2/.claude"
-echo "merge.strategy=pr" > "$FAKE_ROOT_PR2/.claude/dso-config.conf"
+echo "dso.workflow=ci-pr" > "$FAKE_ROOT_PR2/.claude/dso-config.conf"
 cat > "$TMP_BIN_PR2/gh" <<GH_EOF
 #!/usr/bin/env bash
 if [[ "\$*" == *"nameWithOwner"* ]]; then echo "mock-owner/mock-repo"

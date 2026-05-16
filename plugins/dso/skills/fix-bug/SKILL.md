@@ -484,7 +484,7 @@ Feature-Request Gate failure must never block a legitimate bug investigation.
 
 **You MUST dispatch the investigation sub-agent described below.** Do NOT investigate inline — reading source code, grepping for patterns, running hypothesis commands, or analyzing the bug yourself does not satisfy this step. The sub-agent follows a rigorous investigation template (five whys, hypothesis generation, empirical validation) that prevents confirmation bias. Dispatch the sub-agent, await its RESULT report, then proceed to Phase C Step 2. Do not skip this step even if you have already conducted your own investigation.
 
-**Worktree isolation** (applies to all sub-agent dispatches in this skill): Read and apply `skills/shared/prompts/worktree-dispatch.md`. When `worktree.isolation_enabled=true`, add `isolation: "worktree"` to each Agent dispatch and pass `ORCHESTRATOR_ROOT=$(git rev-parse --show-toplevel)` in the prompt so the sub-agent can verify its isolation. When the config is `false`/absent/empty, omit the isolation parameter (shared-directory fallback). After the sub-agent returns, verify `WORKTREE_PATH != ORCHESTRATOR_ROOT` and follow `skills/shared/prompts/single-agent-integrate.md` to harvest, run post-dispatch gates (review, test-gate, commit), and merge back to the session branch.
+**Worktree isolation** (applies to all sub-agent dispatches in this skill): Read and apply `skills/shared/prompts/worktree-dispatch.md`. Worktree isolation is always enabled — add `isolation: "worktree"` to each Agent dispatch and pass `ORCHESTRATOR_ROOT=$(git rev-parse --show-toplevel)` in the prompt so the sub-agent can verify its isolation. After the sub-agent returns, verify `WORKTREE_PATH != ORCHESTRATOR_ROOT` and follow `skills/shared/prompts/single-agent-integrate.md` to harvest, run post-dispatch gates (review, test-gate, commit), and merge back to the session branch.
 
 Dispatch investigation sub-agents based on the tier determined in Phase A Step 3. All sub-agents receive pre-loaded context before dispatch:
 - Existing failing tests and their output
@@ -851,7 +851,7 @@ Include per-axis RED captures in the `FIX_RESULT` report using the `red_captures
 
 ### Step 4: Verify Fix (/dso:fix-bug)
 
-When `worktree.isolation_enabled=true`, post-dispatch gates (review, test-gate, commit, harvest) are handled by `single-agent-integrate.md` per the worktree-isolation block — proceed directly to commit. When `isolation_enabled=false`, verify that RED tests are now GREEN:
+Post-dispatch gates (review, test-gate, commit, harvest) are handled by `single-agent-integrate.md` per the worktree-isolation block — proceed directly to commit. Verify that RED tests are now GREEN:
 
 ```bash
 $TEST_CMD           # RED tests should now PASS

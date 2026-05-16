@@ -4,13 +4,13 @@
 #
 # Tests:
 #   test_hook_record_agent_attribution_writes_jsonl_entry_when_enabled
-#     When attribution.enabled=true (mocked via read-config.sh PATH prepend),
+#     When dso.workflow=ci-pr (mocked via read-config.sh PATH prepend),
 #     calling hook_record_agent_attribution with agent input JSON containing
 #     subagent_type and model should append a JSONL entry to
 #     $ARTIFACTS_DIR/attribution-contributors.jsonl.
 #
 #   test_hook_record_agent_attribution_skips_write_when_disabled
-#     When attribution.enabled is not "true" (mock returns empty),
+#     When dso.workflow is not "ci-pr" (mock returns "local"),
 #     calling hook_record_agent_attribution should NOT append any entry.
 #
 # Design notes:
@@ -19,7 +19,7 @@
 #     the file is a no-op — the function would be undefined in a second
 #     source attempt if not yet written).
 #   - read-config.sh is mocked via PATH prepend — the target implementation
-#     will call: bash "$SCRIPTS_DIR/read-config.sh" attribution.enabled
+#     will call: bash "$SCRIPTS_DIR/read-config.sh" dso.workflow
 #     Tests create a mock read-config.sh in a temp dir prepended to PATH.
 #   - ARTIFACTS_DIR is set to an isolated temp dir so JSONL output is sandboxed.
 #   - SCRIPTS_DIR in the sourced post-functions.sh will resolve to the mock
@@ -51,7 +51,7 @@ trap _cleanup EXIT
 # test_hook_record_agent_attribution_writes_jsonl_entry_when_enabled
 #
 # Setup:
-#   - Mock read-config.sh: outputs "true" (attribution.enabled=true)
+#   - Mock read-config.sh: outputs "ci-pr" (dso.workflow=ci-pr)
 #   - ARTIFACTS_DIR: isolated temp dir
 #   - Run hook_record_agent_attribution with agent input JSON
 #
@@ -67,14 +67,14 @@ echo "--- test_hook_record_agent_attribution_writes_jsonl_entry_when_enabled ---
 _T1_TMPDIR=$(mktemp -d)
 _TEST_TMPDIRS+=("$_T1_TMPDIR")
 
-# Create mock read-config.sh that returns "true" for attribution.enabled
+# Create mock read-config.sh that returns "ci-pr" for dso.workflow
 _T1_MOCKBIN="$_T1_TMPDIR/bin"
 mkdir -p "$_T1_MOCKBIN"
 cat > "$_T1_MOCKBIN/read-config.sh" <<'MOCK_EOF'
 #!/usr/bin/env bash
-# Mock read-config.sh: returns "true" for attribution.enabled, empty for all else
-if [[ "${1:-}" == "attribution.enabled" || "${2:-}" == "attribution.enabled" ]]; then
-    echo "true"
+# Mock read-config.sh: returns "ci-pr" for dso.workflow, empty for all else
+if [[ "${1:-}" == "dso.workflow" || "${2:-}" == "dso.workflow" ]]; then
+    echo "ci-pr"
 fi
 MOCK_EOF
 chmod +x "$_T1_MOCKBIN/read-config.sh"
@@ -134,7 +134,7 @@ assert_eq \
 # test_hook_record_agent_attribution_skips_write_when_disabled
 #
 # Setup:
-#   - Mock read-config.sh: returns empty string (attribution.enabled is NOT "true")
+#   - Mock read-config.sh: returns "local" (dso.workflow is NOT "ci-pr")
 #   - ARTIFACTS_DIR: isolated temp dir
 #   - Run hook_record_agent_attribution with agent input JSON
 #
@@ -151,13 +151,15 @@ echo "--- test_hook_record_agent_attribution_skips_write_when_disabled ---"
 _T2_TMPDIR=$(mktemp -d)
 _TEST_TMPDIRS+=("$_T2_TMPDIR")
 
-# Create mock read-config.sh that returns empty (attribution.enabled not "true")
+# Create mock read-config.sh that returns "local" (dso.workflow not "ci-pr")
 _T2_MOCKBIN="$_T2_TMPDIR/bin"
 mkdir -p "$_T2_MOCKBIN"
 cat > "$_T2_MOCKBIN/read-config.sh" <<'MOCK_EOF'
 #!/usr/bin/env bash
-# Mock read-config.sh: returns empty string for all keys (attribution disabled)
-exit 0
+# Mock read-config.sh: returns "local" for dso.workflow (attribution disabled)
+if [[ "${1:-}" == "dso.workflow" || "${2:-}" == "dso.workflow" ]]; then
+    echo "local"
+fi
 MOCK_EOF
 chmod +x "$_T2_MOCKBIN/read-config.sh"
 
@@ -216,13 +218,13 @@ echo "--- test_hook_record_agent_attribution_resolves_read_config_via_claude_plu
 _T3_TMPDIR=$(mktemp -d)
 _TEST_TMPDIRS+=("$_T3_TMPDIR")
 
-# Build a fake plugin tree with scripts/read-config.sh → "true"
+# Build a fake plugin tree with scripts/read-config.sh → "ci-pr"
 _T3_PLUGIN_ROOT="$_T3_TMPDIR/plugin"
 mkdir -p "$_T3_PLUGIN_ROOT/scripts"
 cat > "$_T3_PLUGIN_ROOT/scripts/read-config.sh" <<'MOCK_EOF'
 #!/usr/bin/env bash
-if [[ "${1:-}" == "attribution.enabled" ]]; then
-    echo "true"
+if [[ "${1:-}" == "dso.workflow" ]]; then
+    echo "ci-pr"
 fi
 MOCK_EOF
 chmod +x "$_T3_PLUGIN_ROOT/scripts/read-config.sh"
@@ -295,8 +297,8 @@ else
     mkdir -p "$_T4_MOCKBIN"
     cat > "$_T4_MOCKBIN/read-config.sh" <<'MOCK_EOF'
 #!/usr/bin/env bash
-if [[ "${1:-}" == "attribution.enabled" ]]; then
-    echo "true"
+if [[ "${1:-}" == "dso.workflow" ]]; then
+    echo "ci-pr"
 fi
 MOCK_EOF
     chmod +x "$_T4_MOCKBIN/read-config.sh"
@@ -405,8 +407,8 @@ _T6_MOCKBIN="$_T6_TMPDIR/bin"
 mkdir -p "$_T6_MOCKBIN"
 cat > "$_T6_MOCKBIN/read-config.sh" <<'MOCK_EOF'
 #!/usr/bin/env bash
-if [[ "${1:-}" == "attribution.enabled" ]]; then
-    echo "true"
+if [[ "${1:-}" == "dso.workflow" ]]; then
+    echo "ci-pr"
 fi
 MOCK_EOF
 chmod +x "$_T6_MOCKBIN/read-config.sh"

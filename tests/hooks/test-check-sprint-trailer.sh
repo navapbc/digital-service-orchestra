@@ -3,7 +3,11 @@
 # Behavioral tests for plugins/dso/scripts/check-sprint-trailer.sh
 #
 # check-sprint-trailer.sh is a git pre-commit hook that enforces DSO-Story
-# trailers on commits made during sprint mode (DSO_SPRINT_MODE=1).
+# trailers on commits made during sprint mode.
+#
+# New interface (4-cell matrix): enforcement is gated on BOTH:
+#   - dso.workflow=ci-pr  (read from WORKFLOW_CONFIG_FILE)
+#   - .sprint-active file present at repo root
 #
 # Observable surfaces tested:
 #   - exit code (0 = pass, non-zero = reject)
@@ -50,48 +54,120 @@ make_git_repo_with_commit() {
     printf "%s" "$dir"
 }
 
-# ---------------------------------------------------------------------------
-# test_sprint_mode_trailer_absent_rejected
-# When DSO_SPRINT_MODE=1 and the latest commit lacks a DSO-Story trailer,
-# the hook must exit non-zero and emit "DSO-Story" to stderr.
-# ---------------------------------------------------------------------------
-echo "--- test_sprint_mode_trailer_absent_rejected ---"
-_repo1=$(make_git_repo_with_commit "Add some change
+# make_workflow_config <dir> <dso_workflow_value>
+# Creates a dso-config.conf in <dir> with the given dso.workflow value.
+# Prints the path to the config file.
+make_workflow_config() {
+    local dir="$1"
+    local workflow="$2"
+    local conf="$dir/dso-config.conf"
+    printf "dso.workflow=%s\n" "$workflow" > "$conf"
+    printf "%s" "$conf"
+}
 
-No trailer here.")
+# ---------------------------------------------------------------------------
+# 4-cell dso.workflow matrix tests (RED — new interface not yet implemented)
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# test_trailer_enforced_when_ci_pr_and_sprint_active
+# dso.workflow=ci-pr + .sprint-active present + no DSO-Story trailer → exit 1
+# RED: current hook ignores dso.workflow/.sprint-active; exits 0 (no DSO_SPRINT_MODE)
+# ---------------------------------------------------------------------------
+echo "--- test_trailer_enforced_when_ci_pr_and_sprint_active ---"
+_conf_dir1=$(mktemp -d)
+_TEMP_DIRS+=("$_conf_dir1")
+_conf1=$(make_workflow_config "$_conf_dir1" "ci-pr")
+_repo1=$(make_git_repo_with_commit "Add change without trailer")
+touch "$_repo1/.sprint-active"
 _exit1=0
 _out1=$(
-    cd "$_repo1" && DSO_SPRINT_MODE=1 bash "$TARGET_SCRIPT" 2>&1
+    cd "$_repo1" && \
+    unset DSO_SPRINT_MODE && \
+    WORKFLOW_CONFIG_FILE="$_conf1" bash "$TARGET_SCRIPT" 2>&1
 ) || _exit1=$?
-assert_ne "sprint mode, no trailer: exit non-zero" "0" "$_exit1"
-assert_contains "sprint mode, no trailer: stderr mentions DSO-Story" "DSO-Story" "$_out1"
+assert_ne "ci-pr+sprint-active, no trailer: exit non-zero" "0" "$_exit1"
+assert_contains "ci-pr+sprint-active, no trailer: stderr mentions DSO-Story" "DSO-Story" "$_out1"
 
 # ---------------------------------------------------------------------------
-# test_sprint_mode_trailer_present_passes
-# When DSO_SPRINT_MODE=1 and the commit contains a DSO-Story: trailer,
-# the hook must exit 0.
+# test_trailer_nonenforced_when_ci_pr_no_sprint_active
+# dso.workflow=ci-pr + no .sprint-active + no DSO-Story trailer → exit 0
+# RED: current hook uses DSO_SPRINT_MODE=1 which would enforce; new interface
+#      must ignore DSO_SPRINT_MODE and use .sprint-active instead.
 # ---------------------------------------------------------------------------
-echo "--- test_sprint_mode_trailer_present_passes ---"
-_repo2=$(make_git_repo_with_commit "Add some change
-
-DSO-Story: My story title")
+echo "--- test_trailer_nonenforced_when_ci_pr_no_sprint_active ---"
+_conf_dir2=$(mktemp -d)
+_TEMP_DIRS+=("$_conf_dir2")
+_conf2=$(make_workflow_config "$_conf_dir2" "ci-pr")
+_repo2=$(make_git_repo_with_commit "Add change without trailer")
+# no .sprint-active file
 _exit2=0
 (
-    cd "$_repo2" && DSO_SPRINT_MODE=1 bash "$TARGET_SCRIPT"
+    cd "$_repo2" && \
+    DSO_SPRINT_MODE=1 \
+    WORKFLOW_CONFIG_FILE="$_conf2" bash "$TARGET_SCRIPT"
 ) 2>/dev/null || _exit2=$?
-assert_eq "sprint mode, trailer present: exit 0" "0" "$_exit2"
+assert_eq "ci-pr, no sprint-active: exit 0 (DSO_SPRINT_MODE ignored)" "0" "$_exit2"
 
 # ---------------------------------------------------------------------------
-# test_non_sprint_mode_passthrough
-# When DSO_SPRINT_MODE is unset, the hook must exit 0 regardless of
-# whether a DSO-Story trailer is present.
+# test_trailer_nonenforced_when_local_with_sprint_active
+# dso.workflow=local + .sprint-active present + no DSO-Story trailer → exit 0
+# RED: current hook uses DSO_SPRINT_MODE=1 which would enforce; new interface
+#      must not enforce when dso.workflow=local regardless of .sprint-active.
 # ---------------------------------------------------------------------------
-echo "--- test_non_sprint_mode_passthrough ---"
-_repo3=$(make_git_repo_with_commit "Add some change without trailer")
+echo "--- test_trailer_nonenforced_when_local_with_sprint_active ---"
+_conf_dir3=$(mktemp -d)
+_TEMP_DIRS+=("$_conf_dir3")
+_conf3=$(make_workflow_config "$_conf_dir3" "local")
+_repo3=$(make_git_repo_with_commit "Add change without trailer")
+touch "$_repo3/.sprint-active"
 _exit3=0
 (
-    cd "$_repo3" && unset DSO_SPRINT_MODE && bash "$TARGET_SCRIPT"
+    cd "$_repo3" && \
+    DSO_SPRINT_MODE=1 \
+    WORKFLOW_CONFIG_FILE="$_conf3" bash "$TARGET_SCRIPT"
 ) 2>/dev/null || _exit3=$?
-assert_eq "non-sprint mode: exit 0" "0" "$_exit3"
+assert_eq "local+sprint-active: exit 0 (workflow=local never enforces)" "0" "$_exit3"
+
+# ---------------------------------------------------------------------------
+# test_trailer_nonenforced_when_local_no_sprint_active
+# dso.workflow=local + no .sprint-active + no DSO-Story trailer → exit 0
+# RED: current hook uses DSO_SPRINT_MODE=1 which would enforce; new interface
+#      must not enforce when dso.workflow=local.
+# ---------------------------------------------------------------------------
+echo "--- test_trailer_nonenforced_when_local_no_sprint_active ---"
+_conf_dir4=$(mktemp -d)
+_TEMP_DIRS+=("$_conf_dir4")
+_conf4=$(make_workflow_config "$_conf_dir4" "local")
+_repo4=$(make_git_repo_with_commit "Add change without trailer")
+# no .sprint-active file
+_exit4=0
+(
+    cd "$_repo4" && \
+    DSO_SPRINT_MODE=1 \
+    WORKFLOW_CONFIG_FILE="$_conf4" bash "$TARGET_SCRIPT"
+) 2>/dev/null || _exit4=$?
+assert_eq "local, no sprint-active: exit 0 (workflow=local never enforces)" "0" "$_exit4"
+
+# ---------------------------------------------------------------------------
+# test_trailer_passes_when_ci_pr_sprint_active_with_dso_story
+# dso.workflow=ci-pr + .sprint-active + valid DSO-Story trailer → exit 0
+# Verifies the enforcement gate passes when the trailer is present.
+# ---------------------------------------------------------------------------
+echo "--- test_trailer_passes_when_ci_pr_sprint_active_with_dso_story ---"
+_conf_dir5=$(mktemp -d)
+_TEMP_DIRS+=("$_conf_dir5")
+_conf5=$(make_workflow_config "$_conf_dir5" "ci-pr")
+_repo5=$(make_git_repo_with_commit "Add change
+
+DSO-Story: My story title")
+touch "$_repo5/.sprint-active"
+_exit5=0
+(
+    cd "$_repo5" && \
+    unset DSO_SPRINT_MODE && \
+    WORKFLOW_CONFIG_FILE="$_conf5" bash "$TARGET_SCRIPT"
+) 2>/dev/null || _exit5=$?
+assert_eq "ci-pr+sprint-active+trailer: exit 0 (trailer satisfies gate)" "0" "$_exit5"
 
 print_summary

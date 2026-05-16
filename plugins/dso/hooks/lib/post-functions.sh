@@ -394,15 +394,15 @@ _resolve_attribution_artifacts_dir() {
 
 # _attribution_enabled
 # ---------------------------------------------------------------------------
-# Returns 0 (true) if attribution.enabled=true via read-config.sh, else 1.
+# Returns 0 (true) if dso.workflow=ci-pr via read-config.sh, else 1.
 # Never crashes the caller.
 _attribution_enabled() {
     local _rc_script
     _rc_script=$(_resolve_attribution_read_config_script)
     [[ -n "$_rc_script" ]] || return 1
-    local _enabled=""
-    _enabled=$(bash "$_rc_script" attribution.enabled 2>/dev/null) || _enabled=""
-    [[ "$_enabled" == "true" ]]
+    local _wf=""
+    _wf=$(bash "$_rc_script" dso.workflow 2>/dev/null) || _wf="local"
+    [[ "$_wf" == "ci-pr" ]]
 }
 
 # _append_attribution_entry <hook-name> <jsonl-entry>
@@ -430,7 +430,7 @@ _append_attribution_entry() {
 # hook_record_agent_attribution
 # ---------------------------------------------------------------------------
 # PostToolUse hook: record agent attribution data when an Agent tool completes.
-# Only fires when attribution.enabled=true in dso-config.conf.
+# Only fires when dso.workflow=ci-pr in dso-config.conf.
 #
 # Reads subagent_type from tool_input.subagent_type and model from
 # tool_response.model, then appends a JSONL entry to the resolved artifacts
@@ -479,12 +479,12 @@ print(json.dumps(entry))
 # hook_record_skill_attribution
 # ---------------------------------------------------------------------------
 # PostToolUse hook: record skill attribution data when a Skill tool completes.
-# Only fires when attribution.enabled=true in dso-config.conf.
+# Only fires when dso.workflow=ci-pr in dso-config.conf.
 #
 # Reads skill name from tool_input.skill and appends a JSONL entry to
 # $ARTIFACTS_DIR/attribution-contributors.jsonl.
 #
-# Guard: early-return if attribution.enabled != "true" (checked via read-config.sh).
+# Guard: early-return if dso.workflow != "ci-pr" (checked via read-config.sh).
 hook_record_skill_attribution() {
     local INPUT="$1"
 

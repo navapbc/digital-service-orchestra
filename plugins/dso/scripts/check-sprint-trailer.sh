@@ -1,11 +1,20 @@
 #!/usr/bin/env bash
 # check-sprint-trailer.sh: Pre-commit hook enforcing DSO-Story trailers in sprint mode.
-# When DSO_SPRINT_MODE=1, the latest commit must contain a DSO-Story: trailer.
-# Set DSO_SPRINT_MODE=1 in the shell before committing (done by sprint SKILL.md Phase F).
+# Enforcement uses a 4-cell matrix gated on BOTH conditions:
+#   - dso.workflow=ci-pr  (read via read-config.sh / WORKFLOW_CONFIG_FILE)
+#   - .sprint-active file present at repo root
+# Enforcement occurs ONLY when both conditions are true.
 set -euo pipefail
 
-# No-op outside sprint mode
-if [[ -z "${DSO_SPRINT_MODE:-}" ]]; then
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo '')"
+
+_wf=$(bash "$SCRIPT_DIR/read-config.sh" dso.workflow 2>/dev/null || echo "local")
+_sprint_active=0
+[[ -f "$REPO_ROOT/.sprint-active" ]] && _sprint_active=1
+
+# 4-cell matrix: enforce ONLY when dso.workflow=ci-pr AND .sprint-active exists
+if [[ "$_wf" != "ci-pr" || "$_sprint_active" -eq 0 ]]; then
     exit 0
 fi
 

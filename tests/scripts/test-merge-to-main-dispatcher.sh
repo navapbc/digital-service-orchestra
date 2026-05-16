@@ -28,12 +28,20 @@ source "$REPO_ROOT/tests/lib/assert.sh"
 # ---------------------------------------------------------------------------
 
 # _write_config <config_file> <strategy>
+# strategy: "direct" maps to dso.workflow=local; "pr" maps to dso.workflow=ci-pr
 _write_config() {
     local cfg_file="$1"
     local strategy="$2"
     mkdir -p "$(dirname "$cfg_file")"
+    # Map legacy strategy values to dso.workflow
+    local workflow
+    case "$strategy" in
+        pr)           workflow="ci-pr" ;;
+        direct)       workflow="local" ;;
+        *)            workflow="$strategy" ;;  # pass-through for unknown values
+    esac
     {
-        echo "merge.strategy=$strategy"
+        echo "dso.workflow=$workflow"
         echo "ci.workflow_name=test-ci"
     } > "$cfg_file"
 }
@@ -435,32 +443,48 @@ test_direct_mode_regression_no_network() {
 test_direct_mode_regression_no_network
 
 # ---------------------------------------------------------------------------
-# Test 7: test_dispatcher_rejects_unknown_strategy
-# GREEN: dispatcher should exit 1 and mention the unknown value.
+# Test 7: test_dispatcher_unknown_workflow_defaults_to_direct
+# GREEN: when dso.workflow is set to an unrecognized value, dispatcher
+# defaults to direct mode (routes to merge-to-main-direct.sh stub).
 # ---------------------------------------------------------------------------
-test_dispatcher_rejects_unknown_strategy() {
-    local _T _ec _out
+test_dispatcher_unknown_workflow_defaults_to_direct() {
+    local _T _ec _out _sentinel_direct
     _T="$(mktemp -d /tmp/dso-dispatcher-test.XXXXXX)"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
-    _write_config "$_T/.claude/dso-config.conf" "unknown_value"
+    local bin_dir="$_T/bin"
+    mkdir -p "$bin_dir"
+
+    _sentinel_direct="$_T/sentinel-direct"
+    cat > "$bin_dir/merge-to-main-direct.sh" <<STUB
+#!/usr/bin/env bash
+touch "$_sentinel_direct"
+exit 0
+STUB
+    chmod +x "$bin_dir/merge-to-main-direct.sh"
+
+    # Write config with an unrecognized dso.workflow value
+    mkdir -p "$_T/.claude"
+    {
+        echo "dso.workflow=unknown_value"
+        echo "ci.workflow_name=test-ci"
+    } > "$_T/.claude/dso-config.conf"
 
     _out="$(
+        PATH="$bin_dir:$PATH" \
         PROJECT_ROOT="$_T" \
         CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
         bash "$MERGE_SCRIPT" 2>&1
     )"; _ec=$?
+    : "$_ec" "$_out"
 
-    local _exits_nonzero="false"
-    local _mentions_value="false"
-    [[ "$_ec" -ne 0 ]] && _exits_nonzero="true"
-    echo "$_out" | grep -q "unknown_value" && _mentions_value="true"
+    local _direct_invoked="false"
+    [[ -f "$_sentinel_direct" ]] && _direct_invoked="true"
 
-    assert_eq "test_dispatcher_rejects_unknown_strategy_exits_nonzero" "true" "$_exits_nonzero"
-    assert_eq "test_dispatcher_rejects_unknown_strategy_mentions_value" "true" "$_mentions_value"
+    assert_eq "test_dispatcher_unknown_workflow_defaults_to_direct" "true" "$_direct_invoked"
 }
-test_dispatcher_rejects_unknown_strategy
+test_dispatcher_unknown_workflow_defaults_to_direct
 
 # ---------------------------------------------------------------------------
 # Test 8: test_state_init_writes_merge_strategy_from_env

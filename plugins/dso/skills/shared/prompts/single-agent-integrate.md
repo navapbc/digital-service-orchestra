@@ -5,9 +5,8 @@ returns a `WORKTREE_PATH` after completing implementation in an isolated worktre
 orchestrator (you) follows this protocol to review, commit, and harvest the worktree back into
 the session branch.
 
-**Scope**: Single-agent fix-bug and debug-everything Bug-Fix Mode flows where
-`worktree.isolation_enabled=true`. For multi-agent sprint batch flows, use
-`per-worktree-review-commit.md` instead.
+**Scope**: Single-agent fix-bug and debug-everything Bug-Fix Mode flows using worktree isolation.
+For multi-agent sprint batch flows, use `per-worktree-review-commit.md` instead.
 
 ---
 

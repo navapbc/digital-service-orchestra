@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # merge-to-main.sh — dispatcher: routes to merge-to-main-{strategy}.sh
-# Reads merge.strategy from .claude/dso-config.conf (default: direct).
-# Valid values: direct | pr
+# Reads dso.workflow from .claude/dso-config.conf to determine merge strategy.
+# dso.workflow=ci-pr → MERGE_STRATEGY=pr; otherwise → MERGE_STRATEGY=direct
 set -euo pipefail
 
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -34,27 +34,14 @@ fi
 # inherits the value when we derived it from config rather than the environment.
 export CLAUDE_PLUGIN_ROOT
 
-# -- Read merge.strategy from config --
-_config_file="$REPO_ROOT/.claude/dso-config.conf"
-MERGE_STRATEGY="direct"  # default
-if [[ -f "$_config_file" ]]; then
-    _read="$(grep '^merge\.strategy=' "$_config_file" 2>/dev/null | cut -d= -f2- | tr -d '[:space:]' || true)"
-    if [[ -n "$_read" ]]; then
-        MERGE_STRATEGY="$_read"
-    else
-        echo "NOTE: merge.strategy not set in dso-config.conf, defaulting to direct. Add merge.strategy=direct to suppress this message." >&2
-    fi
+# -- Read dso.workflow to determine merge strategy --
+_WORKFLOW=$(WORKFLOW_CONFIG_FILE="$REPO_ROOT/.claude/dso-config.conf" \
+    bash "$_SCRIPT_DIR/read-config.sh" dso.workflow 2>/dev/null || echo "local")
+if [[ "$_WORKFLOW" == "ci-pr" ]]; then
+    MERGE_STRATEGY="pr"
+else
+    MERGE_STRATEGY="direct"
 fi
-
-# -- Validate strategy value --
-case "$MERGE_STRATEGY" in
-    direct|pr)
-        ;;
-    *)
-        echo "ERROR: Unknown merge.strategy '$MERGE_STRATEGY'. Valid values: direct, pr" >&2
-        exit 1
-        ;;
-esac
 
 # -- --resume cross-strategy check --
 _resume=false
@@ -90,10 +77,10 @@ except Exception:
         # - If stored strategy is absent (legacy file) and current is pr → reject (legacy = was direct)
         # - If stored strategy is absent and current is direct → proceed (same strategy)
         if [[ -n "$_stored_strategy" ]] && [[ "$_stored_strategy" != "$MERGE_STRATEGY" ]]; then
-            echo "ERROR: --resume cross-strategy mismatch: state file was written with merge.strategy='$_stored_strategy', but current config has merge.strategy='$MERGE_STRATEGY'. Delete the state file or switch to the matching strategy." >&2
+            echo "ERROR: --resume cross-strategy mismatch: state file was written with strategy='$_stored_strategy', but current config resolves to strategy='$MERGE_STRATEGY'. Delete the state file or update dso.workflow to match." >&2
             exit 1
         elif [[ -z "$_stored_strategy" ]] && [[ "$MERGE_STRATEGY" != "direct" ]]; then
-            echo "ERROR: --resume cross-strategy mismatch: state file has no merge_strategy (was direct mode), but current config has merge.strategy='$MERGE_STRATEGY'. Delete the state file or set merge.strategy=direct." >&2
+            echo "ERROR: --resume cross-strategy mismatch: state file has no merge_strategy (was direct mode), but current config resolves to strategy='$MERGE_STRATEGY'. Delete the state file or set dso.workflow=local." >&2
             exit 1
         fi
     fi

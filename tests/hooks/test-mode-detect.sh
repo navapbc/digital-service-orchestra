@@ -2,11 +2,8 @@
 # tests/hooks/test-mode-detect.sh
 # Behavioral tests for plugins/dso/scripts/mode-detect.sh
 #
-# mode-detect.sh outputs 'ci-pr' when ALL three conditions are met:
-#   - enforcement.strategy=ci  (from dso-config.conf)
-#   - merge.strategy=pr        (from dso-config.conf)
-#   - git remote URL is non-empty
-# Otherwise outputs 'local'.
+# mode-detect.sh reads dso.workflow directly from dso-config.conf via read-config.sh.
+# Outputs: ci-pr | local (propagates read-config.sh exit code if config missing)
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -38,113 +35,78 @@ make_tmpdir() {
     printf '%s' "$d"
 }
 
-# Helper: create a mock 'git' binary that intercepts 'remote get-url origin'
-# and returns the given URL (empty string means no remote configured).
-make_git_stub() {
-    local bin_dir="$1"
-    local remote_url="$2"
-    mkdir -p "$bin_dir"
-    cat > "$bin_dir/git" <<STUB
-#!/usr/bin/env bash
-# Minimal git stub for mode-detect tests
-if [[ "\$*" == "remote get-url origin" ]]; then
-    if [[ -n "${remote_url}" ]]; then
-        printf '%s\n' "${remote_url}"
-        exit 0
-    else
-        printf 'error: No such remote '\''origin'\''\n' >&2
-        exit 2
-    fi
-fi
-# Fall through to real git for all other subcommands
-exec "$(command -v git)" "\$@"
-STUB
-    chmod +x "$bin_dir/git"
-}
-
-# Helper: write a minimal dso-config.conf
-make_config() {
+# Helper: write a minimal dso-config.conf with dso.workflow set
+make_workflow_config() {
     local config_file="$1"
-    local enforcement="$2"
-    local merge="$3"
-    cat > "$config_file" <<CFG
-enforcement.strategy=${enforcement}
-merge.strategy=${merge}
-CFG
+    local workflow="$2"
+    printf 'dso.workflow=%s\n' "$workflow" > "$config_file"
 }
 
-# ── Case 1: local when remote is empty ──
-# Given: enforcement.strategy=ci, merge.strategy=pr
-# When:  git remote get-url origin returns empty (no remote)
+# ── Case 1: local when dso.workflow=local ──
+# Given: dso.workflow=local in dso-config.conf
+# When:  mode-detect.sh is called
 # Then:  mode-detect.sh outputs 'local'
-test_mode_detect_local_empty_remote() {
-    local tmp_dir bin_dir config_file output
+test_mode_detect_local() {
+    local tmp_dir config_file output
     tmp_dir=$(make_tmpdir)
-    bin_dir="${tmp_dir}/bin"
     config_file="${tmp_dir}/dso-config.conf"
 
-    make_git_stub "$bin_dir" ""
-    make_config "$config_file" "ci" "pr"
+    make_workflow_config "$config_file" "local"
 
-    output=$(PATH="${bin_dir}:${PATH}" DSO_CONFIG_PATH="$config_file" bash "$TARGET_SCRIPT" 2>/dev/null)
-    assert_eq "local_when_no_remote" "local" "$output"
+    output=$(DSO_CONFIG_PATH="$config_file" bash "$TARGET_SCRIPT" 2>/dev/null)
+    assert_eq "local_when_dso_workflow_local" "local" "$output"
 }
 
-# ── Case 2: ci-pr when all three conditions are met ──
-# Given: enforcement.strategy=ci, merge.strategy=pr
-# When:  git remote get-url origin returns a non-empty URL
+# ── Case 2: ci-pr when dso.workflow=ci-pr ──
+# Given: dso.workflow=ci-pr in dso-config.conf
+# When:  mode-detect.sh is called
 # Then:  mode-detect.sh outputs 'ci-pr'
 test_mode_detect_ci_pr() {
-    local tmp_dir bin_dir config_file output
+    local tmp_dir config_file output
     tmp_dir=$(make_tmpdir)
-    bin_dir="${tmp_dir}/bin"
     config_file="${tmp_dir}/dso-config.conf"
 
-    make_git_stub "$bin_dir" "https://github.com/org/repo"
-    make_config "$config_file" "ci" "pr"
+    make_workflow_config "$config_file" "ci-pr"
 
-    output=$(PATH="${bin_dir}:${PATH}" DSO_CONFIG_PATH="$config_file" bash "$TARGET_SCRIPT" 2>/dev/null)
-    assert_eq "ci_pr_all_conditions_met" "ci-pr" "$output"
+    output=$(DSO_CONFIG_PATH="$config_file" bash "$TARGET_SCRIPT" 2>/dev/null)
+    assert_eq "ci_pr_when_dso_workflow_ci_pr" "ci-pr" "$output"
 }
 
-# ── Case 3: local when enforcement.strategy is not 'ci' ──
-# Given: enforcement.strategy=local, merge.strategy=pr, remote present
+# ── Case 3: non-zero exit when config is missing ──
+# Given: DSO_CONFIG_PATH points to a non-existent file
 # When:  mode-detect.sh is called
-# Then:  output is 'local'
-test_mode_detect_non_ci_enforcement() {
-    local tmp_dir bin_dir config_file output
+# Then:  mode-detect.sh exits non-zero
+test_mode_detect_missing_config() {
+    local tmp_dir exit_code
     tmp_dir=$(make_tmpdir)
-    bin_dir="${tmp_dir}/bin"
-    config_file="${tmp_dir}/dso-config.conf"
 
-    make_git_stub "$bin_dir" "https://github.com/org/repo"
-    make_config "$config_file" "local" "pr"
-
-    output=$(PATH="${bin_dir}:${PATH}" DSO_CONFIG_PATH="$config_file" bash "$TARGET_SCRIPT" 2>/dev/null)
-    assert_eq "local_when_non_ci_enforcement" "local" "$output"
+    DSO_CONFIG_PATH="${tmp_dir}/nonexistent-dso-config.conf" bash "$TARGET_SCRIPT" 2>/dev/null
+    exit_code=$?
+    if [[ "$exit_code" -ne 0 ]]; then
+        assert_eq "missing_config_exits_nonzero" "nonzero" "nonzero"
+    else
+        assert_eq "missing_config_exits_nonzero" "nonzero" "zero"
+    fi
 }
 
-# ── Case 4: local when merge.strategy is not 'pr' ──
-# Given: enforcement.strategy=ci, merge.strategy=direct, remote present
-# When:  mode-detect.sh is called
-# Then:  output is 'local'
-test_mode_detect_non_pr_merge() {
-    local tmp_dir bin_dir config_file output
+# ── Case 4 (legacy shim): enforcement.strategy=ci + merge.strategy=pr → ci-pr ──
+# The legacy shim in read-config.sh maps these two keys to dso.workflow=ci-pr.
+# This test verifies the shim still works end-to-end through mode-detect.sh.
+test_mode_detect_legacy_shim_ci_pr() {
+    local tmp_dir config_file output
     tmp_dir=$(make_tmpdir)
-    bin_dir="${tmp_dir}/bin"
     config_file="${tmp_dir}/dso-config.conf"
 
-    make_git_stub "$bin_dir" "https://github.com/org/repo"
-    make_config "$config_file" "ci" "direct"
+    printf 'enforcement.strategy=ci\nmerge.strategy=pr\n' > "$config_file"
 
-    output=$(PATH="${bin_dir}:${PATH}" DSO_CONFIG_PATH="$config_file" bash "$TARGET_SCRIPT" 2>/dev/null)
-    assert_eq "local_when_non_pr_merge" "local" "$output"
+    output=$(DSO_CONFIG_PATH="$config_file" bash "$TARGET_SCRIPT" 2>/dev/null)
+    assert_eq "legacy_shim_enforcement_ci_merge_pr_outputs_ci_pr" "ci-pr" "$output"
 }
 
 # ── Run all cases ──
-test_mode_detect_local_empty_remote
+test_mode_detect_local
 test_mode_detect_ci_pr
-test_mode_detect_non_ci_enforcement
-test_mode_detect_non_pr_merge
+test_mode_detect_missing_config
+test_mode_detect_legacy_shim_ci_pr
 
 print_summary

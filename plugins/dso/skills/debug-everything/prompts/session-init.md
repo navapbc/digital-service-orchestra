@@ -13,7 +13,7 @@ PLUGIN_SCRIPTS="$PLUGIN_ROOT/scripts"
 ## 2. Worktree isolation config
 
 ```bash
-ISOLATION_ENABLED=$(bash "$REPO_ROOT/.claude/scripts/dso" read-config worktree.isolation_enabled 2>/dev/null || true)
+ISOLATION_ENABLED=true  # worktree isolation is always enabled
 ```
 
 Set `DISPATCH_ISOLATION=true` when `ISOLATION_ENABLED` equals `true`; otherwise `DISPATCH_ISOLATION=false`. All sub-agent dispatches in Phases C, F, G, H, I, J, L, and Validation Mode must pass `isolation: "worktree"` when `DISPATCH_ISOLATION=true`. Apply consistently — do not mix isolated and non-isolated dispatches in the same session. See `skills/shared/prompts/worktree-dispatch.md`.

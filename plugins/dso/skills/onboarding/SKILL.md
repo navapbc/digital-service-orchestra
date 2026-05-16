@@ -684,7 +684,7 @@ On no or skip: write `confluence.enabled=false` to `.claude/dso-config.conf` as 
 
 **MANDATORY PROMPT — always ask. Apply the Confidence Routing rules above (default to ask normally).**
 
-Before asking, read `merge.strategy` from `.claude/dso-config.conf` (if present). If the key already exists, present the existing value as the prompt default. The chosen answer is always written to config in Phase 3 (Step 2b.1) — never silently kept.
+Before asking, read `dso.workflow` from `.claude/dso-config.conf` (if present). If the key already exists, present the existing value as the prompt default. The chosen answer is always written to config in Phase 3 (Step 2b.1) — never silently kept.
 
 ```
 Which merge strategy for this project?
@@ -1115,9 +1115,18 @@ Accept these values? [Y/n]
 
 Write `commands.acli_version` and `commands.acli_sha256` to `.claude/dso-config.conf` on acceptance.
 
-### Step 2b.1: Merge strategy
+### Step 2b.1: dso.workflow
 
-Write `merge.strategy=$MERGE_STRATEGY` to `.claude/dso-config.conf` (overwrite any existing value), using the value captured in Phase 2 question 11. No mid-stream prompt. On `MERGE_STRATEGY=pr`, the GitHub Ruleset is provisioned during Batch Group 4 (`github-bootstrap.sh` → `provision-ruleset.sh`); if a 'DSO CI Enforcement' Ruleset already exists on the repo, the bootstrap will exit with an error directing the operator to disable the existing Ruleset before retrying.
+For new projects, write `dso.workflow=<value>` to `.claude/dso-config.conf` using the output of `detect-dso-workflow.sh`. Do NOT write legacy config keys for new projects — only write `dso.workflow`. See `${CLAUDE_PLUGIN_ROOT}/scripts/migrate-dso-workflow-config.sh` for the list of deprecated keys that must not be used. # shim-exempt: internal script documentation reference, not an invocation
+
+```bash
+REPO_ROOT=$(git rev-parse --show-toplevel)
+_PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
+DSO_WORKFLOW=$(bash "$_PLUGIN_SCRIPTS/onboarding/detect-dso-workflow.sh" "$REPO_ROOT" 2>/dev/null || echo "local")
+echo "dso.workflow=$DSO_WORKFLOW" >> "$EXISTING_CONFIG"
+```
+
+The written line must use bare `KEY=VALUE` format with LF line endings, no inline comments on the value line, and no quotes around the value. On `DSO_WORKFLOW=ci-pr`, the GitHub Ruleset is provisioned during Batch Group 4 (`github-bootstrap.sh` → `provision-ruleset.sh`); if a 'DSO CI Enforcement' Ruleset already exists on the repo, the bootstrap will exit with an error directing the operator to disable the existing Ruleset before retrying.
 
 ### Step 2c: Infrastructure Initialization
 

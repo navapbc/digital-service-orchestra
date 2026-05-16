@@ -37,16 +37,16 @@ git push
 
 ---
 
-### Step 1a: Verify PR Mergeability (worktree + merge.strategy=pr only)
+### Step 1a: Verify PR Mergeability (worktree + dso.workflow=ci-pr only)
 
 GitHub computes the `mergeable` field asynchronously — a PR may show `UNKNOWN` immediately after creation and transition to `CONFLICTING` seconds later. Always poll after `merge-to-main.sh` succeeds. (Bug bb83-1a98: sessions ended without detecting CONFLICTING state set after the merge command exited.)
 
 ```bash
-MERGE_STRATEGY=$(.claude/scripts/dso read-config.sh merge.strategy 2>/dev/null || echo "direct")
+MERGE_STRATEGY=$(.claude/scripts/dso read-config.sh dso.workflow 2>/dev/null || echo "local")
 CURRENT_SHA=$(git rev-parse HEAD)
 ```
 
-If `MERGE_STRATEGY=pr`:
+If `MERGE_STRATEGY=ci-pr`:
 ```bash
 PR_NUM=$(gh pr list --head "$(git branch --show-current)" --state open --json number --jq '.[0].number // empty')
 ```

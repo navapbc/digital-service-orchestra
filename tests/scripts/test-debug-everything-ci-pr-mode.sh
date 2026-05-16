@@ -4,10 +4,10 @@
 #
 # Verifies that the debug-everything skill includes ci-pr mode initialization:
 #   1. Phase A stale .debug-active cleanup
-#   2. Phase B Step 1 reads merge.strategy config
+#   2. Phase B Step 1 reads dso.workflow config
 #   3. Phase B Step 1 opens draft PR with DRAFT_PR_TITLE_PREFIX=Debug:
 #   4. Phase B Step 1 creates .debug-active marker
-#   5. Phase B Step 1 emits local mode log when merge.strategy is not pr
+#   5. Phase B Step 1 emits local mode log when dso.workflow is not ci-pr
 #   6. Phase K removes .debug-active marker
 #   7. Schema doc exists at plugins/dso/skills/debug-everything/docs/debug-active-marker-schema.md
 #   8. Schema doc contains debug-session-id field
@@ -52,16 +52,16 @@ test_phase_a_stale_debug_active_cleanup() {
 }
 
 # ============================================================
-# test_phase_b_step1_reads_merge_strategy
-# SKILL.md Phase B Step 1 must reference reading merge.strategy config.
-# Contract identifier: 'merge.strategy'
+# test_phase_b_step1_reads_dso_workflow
+# SKILL.md Phase B Step 1 must reference reading dso.workflow config.
+# Contract identifier: 'dso.workflow'
 # ============================================================
 test_phase_b_step1_reads_merge_strategy() {
     local result="missing"
-    if grep -qE 'merge\.strategy' "$SKILL_FILE" 2>/dev/null; then
+    if grep -qE 'dso\.workflow' "$SKILL_FILE" 2>/dev/null; then
         result="found"
     fi
-    assert_eq "test_phase_b_step1_reads_merge_strategy: SKILL.md references merge.strategy config key" "found" "$result"
+    assert_eq "test_phase_b_step1_reads_merge_strategy: SKILL.md references dso.workflow config key" "found" "$result"
 }
 
 # ============================================================

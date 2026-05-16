@@ -3,7 +3,7 @@ Ticket ID: {id}
 
 ### Pre-Step: Git Root Verification (isolation:worktree only)
 
-If `ORCHESTRATOR_ROOT` is set in this prompt (injected by the orchestrator when `worktree.isolation_enabled=true`), verify your working directory root differs from the orchestrator's root before doing anything else:
+If `ORCHESTRATOR_ROOT` is set in this prompt (injected by the orchestrator under worktree isolation), verify your working directory root differs from the orchestrator's root before doing anything else:
 
 ```bash
 SUB_AGENT_ROOT=$(git rev-parse --show-toplevel)

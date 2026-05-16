@@ -27,6 +27,6 @@ Run from the orchestrator context (sprint, commit, or standalone) before committ
 
 1. Read `${CLAUDE_PLUGIN_ROOT}/docs/workflows/REVIEW-WORKFLOW.md` now.
 2. Execute its steps verbatim — starting from Step 1 (Capture Diff Hash).
-3. Follow all HARD-GATE sections and enforcement.strategy gates.
+3. Follow all HARD-GATE sections and workflow enforcement gates.
 
-The workflow file is the complete specification. If enforcement.strategy=ci is set, the workflow will instruct you to skip local review and emit .skipped markers instead.
+The workflow file is the complete specification. If `dso.workflow=ci-pr` is set, the workflow will instruct you to skip local review and emit .skipped markers instead.

@@ -54,8 +54,8 @@ _MOCK_BIN_DIR="$_T1_DIR/mockbin"
 mkdir -p "$_MOCK_BIN_DIR"
 cat > "$_MOCK_BIN_DIR/read-config.sh" <<'MOCK_EOF'
 #!/usr/bin/env bash
-# Mock read-config.sh: always returns "true" for attribution.enabled
-echo "true"
+# Mock read-config.sh: returns "ci-pr" for dso.workflow
+echo "ci-pr"
 exit 0
 MOCK_EOF
 chmod +x "$_MOCK_BIN_DIR/read-config.sh"
@@ -134,7 +134,8 @@ _T2_MOCK_BIN_DIR="$_T2_DIR/mockbin"
 mkdir -p "$_T2_MOCK_BIN_DIR"
 cat > "$_T2_MOCK_BIN_DIR/read-config.sh" <<'MOCK2_EOF'
 #!/usr/bin/env bash
-echo "true"
+# Mock read-config.sh: returns "ci-pr" for dso.workflow
+echo "ci-pr"
 exit 0
 MOCK2_EOF
 chmod +x "$_T2_MOCK_BIN_DIR/read-config.sh"

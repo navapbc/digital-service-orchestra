@@ -672,4 +672,316 @@ fi
 rm -rf "$_tmp_repo_wcfe"
 rm -f "$_wcfe_override_file"
 
+# ── dso.workflow shim tests (RED — implementation in read-config.sh not yet added) ─
+# These tests specify the dso.workflow virtual key behavior. They must FAIL against
+# the current unmodified read-config.sh because the shim logic does not yet exist.
+
+# ── test_dso_workflow_canonical_key_returns_value ─────────────────────────────
+# Given: temp config with dso.workflow=ci-pr
+# When:  read-config.sh dso.workflow <config>
+# Then:  stdout=ci-pr (with trailing newline), exit 0
+# NOTE: The dso.workflow shim must emit a trailing newline (printf '%s\n') to
+# signal explicit virtual-key handling — generic conf lookup uses printf '%s'
+# (no newline). This assertion captures that difference and is RED until the
+# shim codepath is implemented.
+_fail_before_dwck=$FAIL
+_tmp_dwck="$(mktemp)"
+printf 'dso.workflow=ci-pr\n' > "$_tmp_dwck"
+_tmp_dwck_out="$(mktemp)"
+dwck_exit=0
+bash "$SCRIPT" dso.workflow "$_tmp_dwck" > "$_tmp_dwck_out" 2>/dev/null || dwck_exit=$?
+# Check that output ends with a newline (shim codepath uses printf '%s\n')
+_dwck_last_byte=""
+_dwck_last_byte=$(tail -c 1 "$_tmp_dwck_out" | xxd -p 2>/dev/null || true)
+dwck_output=$(cat "$_tmp_dwck_out")
+assert_eq "test_dso_workflow_canonical_key_returns_value: exit 0" "0" "$dwck_exit"
+assert_eq "test_dso_workflow_canonical_key_returns_value: stdout is ci-pr" "ci-pr" "$dwck_output"
+# The shim codepath must emit a trailing newline (0a)
+assert_eq "test_dso_workflow_canonical_key_returns_value: output ends with newline" "0a" "$_dwck_last_byte"
+if [[ "$FAIL" -eq "$_fail_before_dwck" ]]; then
+    echo "test_dso_workflow_canonical_key_returns_value ... PASS"
+fi
+rm -f "$_tmp_dwck" "$_tmp_dwck_out"
+
+# ── test_dso_workflow_legacy_keys_map_ci_pr ───────────────────────────────────
+# Given: temp config with merge.strategy=pr + enforcement.strategy=ci (no dso.workflow)
+# When:  read-config.sh dso.workflow <config>
+# Then:  stdout=ci-pr, exit 0, stderr contains 'deprecated'
+_fail_before_dwlcp=$FAIL
+_tmp_dwlcp="$(mktemp)"
+printf 'merge.strategy=pr\nenforcement.strategy=ci\n' > "$_tmp_dwlcp"
+dwlcp_exit=0
+dwlcp_stdout=""
+dwlcp_stderr=""
+dwlcp_stdout=$(bash "$SCRIPT" dso.workflow "$_tmp_dwlcp" 2>"$TMPDIR_FIXTURE/dwlcp_stderr.txt") || dwlcp_exit=$?
+dwlcp_stderr=$(cat "$TMPDIR_FIXTURE/dwlcp_stderr.txt")
+assert_eq "test_dso_workflow_legacy_keys_map_ci_pr: exit 0" "0" "$dwlcp_exit"
+assert_eq "test_dso_workflow_legacy_keys_map_ci_pr: stdout is ci-pr" "ci-pr" "$dwlcp_stdout"
+if echo "$dwlcp_stderr" | grep -qi 'deprecated'; then
+    dwlcp_depr="found"
+else
+    dwlcp_depr="missing"
+fi
+assert_eq "test_dso_workflow_legacy_keys_map_ci_pr: stderr contains deprecated" "found" "$dwlcp_depr"
+if [[ "$FAIL" -eq "$_fail_before_dwlcp" ]]; then
+    echo "test_dso_workflow_legacy_keys_map_ci_pr ... PASS"
+fi
+rm -f "$_tmp_dwlcp"
+
+# ── test_dso_workflow_legacy_keys_map_local ───────────────────────────────────
+# Given: temp config with merge.strategy=direct only (no dso.workflow)
+# When:  read-config.sh dso.workflow <config>
+# Then:  stdout=local, exit 0, stderr contains 'deprecated'
+_fail_before_dwlml=$FAIL
+_tmp_dwlml="$(mktemp)"
+printf 'merge.strategy=direct\n' > "$_tmp_dwlml"
+dwlml_exit=0
+dwlml_stdout=""
+dwlml_stderr=""
+dwlml_stdout=$(bash "$SCRIPT" dso.workflow "$_tmp_dwlml" 2>"$TMPDIR_FIXTURE/dwlml_stderr.txt") || dwlml_exit=$?
+dwlml_stderr=$(cat "$TMPDIR_FIXTURE/dwlml_stderr.txt")
+assert_eq "test_dso_workflow_legacy_keys_map_local: exit 0" "0" "$dwlml_exit"
+assert_eq "test_dso_workflow_legacy_keys_map_local: stdout is local" "local" "$dwlml_stdout"
+if echo "$dwlml_stderr" | grep -qi 'deprecated'; then
+    dwlml_depr="found"
+else
+    dwlml_depr="missing"
+fi
+assert_eq "test_dso_workflow_legacy_keys_map_local: stderr contains deprecated" "found" "$dwlml_depr"
+if [[ "$FAIL" -eq "$_fail_before_dwlml" ]]; then
+    echo "test_dso_workflow_legacy_keys_map_local ... PASS"
+fi
+rm -f "$_tmp_dwlml"
+
+# ── test_dso_workflow_missing_config_exits_nonzero ────────────────────────────
+# Given: WORKFLOW_CONFIG_FILE points to nonexistent path
+# When:  read-config.sh dso.workflow <nonexistent>
+# Then:  exit != 0, stderr contains 'onboarding'
+_fail_before_dwmce=$FAIL
+_nonexistent_path="$TMPDIR_FIXTURE/does-not-exist-$(date +%s).conf"
+dwmce_exit=0
+dwmce_stderr=""
+dwmce_stderr=$(bash "$SCRIPT" dso.workflow "$_nonexistent_path" 2>&1) || dwmce_exit=$?
+if [[ "$dwmce_exit" -ne 0 ]]; then
+    dwmce_actual_exit="nonzero"
+else
+    dwmce_actual_exit="zero"
+fi
+assert_eq "test_dso_workflow_missing_config_exits_nonzero: exits nonzero" "nonzero" "$dwmce_actual_exit"
+if echo "$dwmce_stderr" | grep -qi 'onboarding'; then
+    dwmce_onboard="found"
+else
+    dwmce_onboard="missing"
+fi
+assert_eq "test_dso_workflow_missing_config_exits_nonzero: stderr contains onboarding" "found" "$dwmce_onboard"
+if [[ "$FAIL" -eq "$_fail_before_dwmce" ]]; then
+    echo "test_dso_workflow_missing_config_exits_nonzero ... PASS"
+fi
+
+# ── test_dso_workflow_deprecation_warning_emitted_for_legacy_keys ─────────────
+# Given: temp config with legacy keys only, DSO_DEPRECATION_QUIET unset
+# When:  read-config.sh dso.workflow <config>
+# Then:  stderr is non-empty
+_fail_before_dwdw=$FAIL
+_tmp_dwdw="$(mktemp)"
+printf 'merge.strategy=pr\nenforcement.strategy=ci\n' > "$_tmp_dwdw"
+dwdw_stderr=""
+dwdw_stderr=$(bash "$SCRIPT" dso.workflow "$_tmp_dwdw" 2>&1 >/dev/null) || true
+if [[ -n "$dwdw_stderr" ]]; then
+    dwdw_nonempty="nonempty"
+else
+    dwdw_nonempty="empty"
+fi
+assert_eq "test_dso_workflow_deprecation_warning_emitted_for_legacy_keys: stderr non-empty" "nonempty" "$dwdw_nonempty"
+if [[ "$FAIL" -eq "$_fail_before_dwdw" ]]; then
+    echo "test_dso_workflow_deprecation_warning_emitted_for_legacy_keys ... PASS"
+fi
+rm -f "$_tmp_dwdw"
+
+# ── test_dso_workflow_quiet_flag_suppresses_deprecation ───────────────────────
+# Given: temp config with legacy keys only, DSO_DEPRECATION_QUIET=1
+# When:  DSO_DEPRECATION_QUIET=1 read-config.sh dso.workflow <config>
+# Then:  stderr is empty, stdout=local, exit 0
+_fail_before_dwqf=$FAIL
+_tmp_dwqf="$(mktemp)"
+printf 'merge.strategy=direct\n' > "$_tmp_dwqf"
+dwqf_exit=0
+dwqf_stdout=""
+dwqf_stderr=""
+dwqf_stdout=$(DSO_DEPRECATION_QUIET=1 bash "$SCRIPT" dso.workflow "$_tmp_dwqf" 2>"$TMPDIR_FIXTURE/dwqf_stderr.txt") || dwqf_exit=$?
+dwqf_stderr=$(cat "$TMPDIR_FIXTURE/dwqf_stderr.txt")
+assert_eq "test_dso_workflow_quiet_flag_suppresses_deprecation: exit 0" "0" "$dwqf_exit"
+assert_eq "test_dso_workflow_quiet_flag_suppresses_deprecation: stdout is local" "local" "$dwqf_stdout"
+assert_eq "test_dso_workflow_quiet_flag_suppresses_deprecation: stderr is empty" "" "$dwqf_stderr"
+if [[ "$FAIL" -eq "$_fail_before_dwqf" ]]; then
+    echo "test_dso_workflow_quiet_flag_suppresses_deprecation ... PASS"
+fi
+rm -f "$_tmp_dwqf"
+
+# ── test_dso_workflow_contradictory_legacy_keys_returns_local ─────────────────
+# Given: temp config with merge.strategy=pr + enforcement.strategy=local (contradictory)
+# When:  read-config.sh dso.workflow <config>
+# Then:  stdout=local, exit 0, stderr non-empty
+_fail_before_dwclk=$FAIL
+_tmp_dwclk="$(mktemp)"
+printf 'merge.strategy=pr\nenforcement.strategy=local\n' > "$_tmp_dwclk"
+dwclk_exit=0
+dwclk_stdout=""
+dwclk_stderr=""
+dwclk_stdout=$(bash "$SCRIPT" dso.workflow "$_tmp_dwclk" 2>"$TMPDIR_FIXTURE/dwclk_stderr.txt") || dwclk_exit=$?
+dwclk_stderr=$(cat "$TMPDIR_FIXTURE/dwclk_stderr.txt")
+assert_eq "test_dso_workflow_contradictory_legacy_keys_returns_local: exit 0" "0" "$dwclk_exit"
+assert_eq "test_dso_workflow_contradictory_legacy_keys_returns_local: stdout is local" "local" "$dwclk_stdout"
+if [[ -n "$dwclk_stderr" ]]; then
+    dwclk_stderr_nonempty="nonempty"
+else
+    dwclk_stderr_nonempty="empty"
+fi
+assert_eq "test_dso_workflow_contradictory_legacy_keys_returns_local: stderr non-empty" "nonempty" "$dwclk_stderr_nonempty"
+if [[ "$FAIL" -eq "$_fail_before_dwclk" ]]; then
+    echo "test_dso_workflow_contradictory_legacy_keys_returns_local ... PASS"
+fi
+rm -f "$_tmp_dwclk"
+
+# ── Sentinel lockout tests (RED — implementation in read-config.sh not yet added) ──
+# These tests specify the sentinel lockout behavior: when .claude/.dso-config-v2-migrated
+# exists in the git root, reading legacy keys (merge.strategy, enforcement.strategy)
+# must exit non-zero and emit a recovery hint. dso.workflow and pre-migration reads
+# (no sentinel) are unaffected.
+
+# ── test_read_config_sentinel_rejects_merge_strategy ─────────────────────────
+# Given: temp git repo with .claude/dso-config.conf containing merge.strategy=pr
+#        AND .claude/.dso-config-v2-migrated sentinel exists
+# When:  read-config.sh merge.strategy (from within that repo)
+# Then:  exits non-zero (exit 1)
+# WHY IT FAILS NOW: current read-config.sh exits 0 for any found key; no sentinel logic exists.
+_fail_before_srms=$FAIL
+_tmp_repo_srms="$(mktemp -d)"
+git -C "$_tmp_repo_srms" init -q
+mkdir -p "$_tmp_repo_srms/.claude"
+printf 'merge.strategy=pr\n' > "$_tmp_repo_srms/.claude/dso-config.conf"
+touch "$_tmp_repo_srms/.claude/.dso-config-v2-migrated"
+srms_exit=0
+(
+    cd "$_tmp_repo_srms" && \
+    unset WORKFLOW_CONFIG_FILE 2>/dev/null; \
+    bash "$SCRIPT" "merge.strategy"
+) > /dev/null 2>&1 || srms_exit=$?
+if [[ "$srms_exit" -ne 0 ]]; then
+    srms_actual_exit="nonzero"
+else
+    srms_actual_exit="zero"
+fi
+assert_eq "test_read_config_sentinel_rejects_merge_strategy: exits nonzero" "nonzero" "$srms_actual_exit"
+if [[ "$FAIL" -eq "$_fail_before_srms" ]]; then
+    echo "test_read_config_sentinel_rejects_merge_strategy ... PASS"
+fi
+rm -rf "$_tmp_repo_srms"
+
+# ── test_read_config_sentinel_rejects_enforcement_strategy ───────────────────
+# Given: sentinel exists, config has enforcement.strategy=ci
+# When:  read-config.sh enforcement.strategy (from within that repo)
+# Then:  exits non-zero
+# WHY IT FAILS NOW: current read-config.sh exits 0 for any found key; no sentinel logic exists.
+_fail_before_sres=$FAIL
+_tmp_repo_sres="$(mktemp -d)"
+git -C "$_tmp_repo_sres" init -q
+mkdir -p "$_tmp_repo_sres/.claude"
+printf 'enforcement.strategy=ci\n' > "$_tmp_repo_sres/.claude/dso-config.conf"
+touch "$_tmp_repo_sres/.claude/.dso-config-v2-migrated"
+sres_exit=0
+(
+    cd "$_tmp_repo_sres" && \
+    unset WORKFLOW_CONFIG_FILE 2>/dev/null; \
+    bash "$SCRIPT" "enforcement.strategy"
+) > /dev/null 2>&1 || sres_exit=$?
+if [[ "$sres_exit" -ne 0 ]]; then
+    sres_actual_exit="nonzero"
+else
+    sres_actual_exit="zero"
+fi
+assert_eq "test_read_config_sentinel_rejects_enforcement_strategy: exits nonzero" "nonzero" "$sres_actual_exit"
+if [[ "$FAIL" -eq "$_fail_before_sres" ]]; then
+    echo "test_read_config_sentinel_rejects_enforcement_strategy ... PASS"
+fi
+rm -rf "$_tmp_repo_sres"
+
+# ── test_read_config_sentinel_rejection_emits_recovery_message ───────────────
+# Given: sentinel exists, config has merge.strategy=pr
+# When:  read-config.sh merge.strategy with stderr captured
+# Then:  stderr contains 'git checkout HEAD' (recovery command hint)
+# WHY IT FAILS NOW: current read-config.sh emits no sentinel rejection message.
+_fail_before_srerm=$FAIL
+_tmp_repo_srerm="$(mktemp -d)"
+git -C "$_tmp_repo_srerm" init -q
+mkdir -p "$_tmp_repo_srerm/.claude"
+printf 'merge.strategy=pr\n' > "$_tmp_repo_srerm/.claude/dso-config.conf"
+touch "$_tmp_repo_srerm/.claude/.dso-config-v2-migrated"
+srerm_stderr=""
+srerm_stderr=$(
+    cd "$_tmp_repo_srerm" && \
+    unset WORKFLOW_CONFIG_FILE 2>/dev/null; \
+    bash "$SCRIPT" "merge.strategy" 2>&1 >/dev/null
+) || true
+if echo "$srerm_stderr" | grep -q 'git checkout HEAD'; then
+    srerm_has_hint="found"
+else
+    srerm_has_hint="missing"
+fi
+assert_eq "test_read_config_sentinel_rejection_emits_recovery_message: stderr contains recovery hint" "found" "$srerm_has_hint"
+if [[ "$FAIL" -eq "$_fail_before_srerm" ]]; then
+    echo "test_read_config_sentinel_rejection_emits_recovery_message ... PASS"
+fi
+rm -rf "$_tmp_repo_srerm"
+
+# ── test_read_config_sentinel_dso_workflow_unaffected ────────────────────────
+# Given: config has dso.workflow=ci-pr AND sentinel exists
+# When:  read-config.sh dso.workflow
+# Then:  exits 0 and stdout contains ci-pr (dso.workflow reads are NEVER blocked by sentinel)
+# NOTE:  This test may already PASS — the dso.workflow shim exits before sentinel check.
+_fail_before_sdwa=$FAIL
+_tmp_repo_sdwa="$(mktemp -d)"
+git -C "$_tmp_repo_sdwa" init -q
+mkdir -p "$_tmp_repo_sdwa/.claude"
+printf 'dso.workflow=ci-pr\n' > "$_tmp_repo_sdwa/.claude/dso-config.conf"
+touch "$_tmp_repo_sdwa/.claude/.dso-config-v2-migrated"
+sdwa_exit=0
+sdwa_stdout=""
+sdwa_stdout=$(
+    cd "$_tmp_repo_sdwa" && \
+    unset WORKFLOW_CONFIG_FILE 2>/dev/null; \
+    bash "$SCRIPT" "dso.workflow" 2>/dev/null
+) || sdwa_exit=$?
+assert_eq "test_read_config_sentinel_dso_workflow_unaffected: exit 0" "0" "$sdwa_exit"
+assert_eq "test_read_config_sentinel_dso_workflow_unaffected: stdout is ci-pr" "ci-pr" "$sdwa_stdout"
+if [[ "$FAIL" -eq "$_fail_before_sdwa" ]]; then
+    echo "test_read_config_sentinel_dso_workflow_unaffected ... PASS"
+fi
+rm -rf "$_tmp_repo_sdwa"
+
+# ── test_read_config_no_sentinel_legacy_key_allowed ──────────────────────────
+# Given: config has merge.strategy=pr AND NO sentinel file
+# When:  read-config.sh merge.strategy
+# Then:  exits 0 and stdout contains pr (pre-migration: legacy keys still work without sentinel)
+# NOTE:  This test may already PASS — it exercises existing (unguarded) behavior.
+_fail_before_snla=$FAIL
+_tmp_repo_snla="$(mktemp -d)"
+git -C "$_tmp_repo_snla" init -q
+mkdir -p "$_tmp_repo_snla/.claude"
+printf 'merge.strategy=pr\n' > "$_tmp_repo_snla/.claude/dso-config.conf"
+# Deliberately do NOT create the sentinel file
+snla_exit=0
+snla_stdout=""
+snla_stdout=$(
+    cd "$_tmp_repo_snla" && \
+    unset WORKFLOW_CONFIG_FILE 2>/dev/null; \
+    bash "$SCRIPT" "merge.strategy" 2>/dev/null
+) || snla_exit=$?
+assert_eq "test_read_config_no_sentinel_legacy_key_allowed: exit 0" "0" "$snla_exit"
+assert_eq "test_read_config_no_sentinel_legacy_key_allowed: stdout is pr" "pr" "$snla_stdout"
+if [[ "$FAIL" -eq "$_fail_before_snla" ]]; then
+    echo "test_read_config_no_sentinel_legacy_key_allowed ... PASS"
+fi
+rm -rf "$_tmp_repo_snla"
+
 print_summary

@@ -55,8 +55,8 @@ _T1_SCRIPTS_DIR="$_T1_DIR/scripts"
 mkdir -p "$_T1_SCRIPTS_DIR"
 cat > "$_T1_SCRIPTS_DIR/read-config.sh" <<'MOCK_EOF'
 #!/usr/bin/env bash
-# Mock read-config.sh: always returns "true" for attribution.enabled
-echo "true"
+# Mock read-config.sh: returns "ci-pr" for dso.workflow
+echo "ci-pr"
 exit 0
 MOCK_EOF
 chmod +x "$_T1_SCRIPTS_DIR/read-config.sh"

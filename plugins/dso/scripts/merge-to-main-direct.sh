@@ -613,7 +613,7 @@ _phase_version_bump() {
     fi
     git add -u 2>/dev/null || true
     if ! git diff --cached --quiet 2>/dev/null; then
-        if [[ "${MERGE_TO_MAIN_PR_MODE:-}" == "1" ]]; then
+        if [[ "${DSO_WORKFLOW:-local}" == "ci-pr" ]]; then
             # PR mode: make a new commit so _phase_push can fast-forward push to
             # origin/main. Amend would create a divergent SHA that cannot be
             # pushed without --force (bug 3024-d618).

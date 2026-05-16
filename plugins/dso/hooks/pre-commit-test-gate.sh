@@ -63,7 +63,7 @@ trap _fail_open_on_timeout TERM URG
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ── Enforcement strategy gate ────────────────────────────────────────────────
-# Read enforcement.strategy from dso-config.conf and short-circuit when ci.
+# Read dso.workflow from dso-config.conf and short-circuit when ci-pr mode.
 # Library is double-source-guarded; safe to source unconditionally.
 # shellcheck disable=SC1091
 source "$HOOK_DIR/lib/enforcement-gate.sh"

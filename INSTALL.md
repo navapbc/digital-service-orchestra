@@ -72,12 +72,23 @@ Plan for **20–40 minutes** for a typical first run. Re-running `/dso:onboardin
 
 ### PR-Mode Projects
 
-If your project uses GitHub Ruleset enforcement, select **pr** when `/dso:onboarding` asks for your merge strategy. This:
-1. Writes `merge.strategy=pr` to `.claude/dso-config.conf`
+If your project uses GitHub Ruleset enforcement, select **ci-pr** when `/dso:onboarding` asks for your workflow mode. This:
+1. Writes `dso.workflow=ci-pr` to `.claude/dso-config.conf`
 2. Provisions a GitHub Ruleset via `provision-ruleset.sh`
 3. Routes all subsequent merges through `merge-to-main-pr.sh` (PR + CI gate)
 
-To enable PR mode on an existing project: set `merge.strategy=pr` in `.claude/dso-config.conf`, then re-run `/dso:onboarding` (which will detect the existing project and offer to provision the Ruleset) or run the provision script directly via your plugin install path.
+To enable PR mode on an existing project: set `dso.workflow=ci-pr` in `.claude/dso-config.conf`, then re-run `/dso:onboarding` (which will detect the existing project and offer to provision the Ruleset) or run the provision script directly via your plugin install path.
+
+**Preferred setup** (add to `.claude/dso-config.conf`):
+```conf
+# CI-gated PR workflow (recommended for teams with GitHub branch protection)
+dso.workflow=ci-pr
+
+# Local direct-merge workflow (simpler, single-developer or no branch protection)
+# dso.workflow=local
+```
+
+> **Legacy keys**: `merge.strategy`, `enforcement.strategy`, `worktree.isolation_enabled`, and `attribution.enabled` are deprecated. Set `dso.workflow` instead. The legacy keys are still accepted but will be removed in a future release.
 
 Full configuration reference: [`plugins/dso/docs/CONFIGURATION-REFERENCE.md`](plugins/dso/docs/CONFIGURATION-REFERENCE.md)
 
