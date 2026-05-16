@@ -5,22 +5,136 @@ per-directory clusters, dispatch specialists per cluster in parallel, then run
 arch synthesis over the merged findings.
 
 Story f5f9-9a3c-c7be-4d11: Strategy E region-split FALLBACK in CI llm-review pipeline.
+
+## File atomicity invariant (bug 532e-6ab7)
+
+A single source file is the atomic unit of code review and MUST NEVER be split
+across reviewer clusters. Two consequences are enforced:
+
+1. Diffs that touch exactly one file are NEVER region-split, regardless of how
+   large their LOC count is. The single-cluster output of `_cluster_files` would
+   be a no-op anyway, and the explicit short-circuit signals intent and avoids
+   the synthesis overhead.
+
+2. `_cluster_files` groups by immediate parent directory and is constructed so
+   each path lands in exactly one cluster. A runtime assertion enforces this
+   invariant so that any future refactor introducing hunk-level splitting (or a
+   path appearing in two clusters via overflow) will fail immediately rather
+   than silently fragment cross-hunk context within one file.
 """
 
 from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 import sys
 from typing import Any
 
 from dso_ci_review.dispatch import async_dispatch_specialists, dispatch_arch_synthesis
 
-# Thresholds for triggering region split
-_LOC_THRESHOLD = 400
-_FILE_COUNT_THRESHOLD = 15
-_MAX_CLUSTERS = 5
+# Threshold defaults — overridable via dso-config.conf keys:
+#   review.region_split.loc_threshold        (default 3000)
+#   review.region_split.file_count_threshold (default 40)
+#   review.region_split.max_clusters         (default 5)
+# Resolution is per-call via _read_config_int(); these defaults apply when
+# the key is absent or the value is not a valid integer.
+#
+# Sizing rationale (bug 532e-6ab7 re-assessment):
+# Region-split exists to keep the reviewer's input under the model's context
+# window. For Sonnet 4.6 (200K input tokens, ~180K usable after the output
+# reserve) and overhead of ~15-25K tokens for system prompt + finding schema
+# + PR metadata + prior defenses, the diff content budget is ~155K tokens.
+# At ~4-5 tokens per diff line, that's room for 30,000-38,000 LOC before
+# context becomes the bottleneck.
+#
+# The previous defaults (LOC=400, files=15) used <2% of that budget and
+# triggered region-split on routine refactors-with-companion-tests (e.g.,
+# PR #165: 688 LOC, 7 files), fragmenting cross-file context with no
+# context-pressure justification. The new defaults sit at ~7-10% of the
+# Sonnet diff budget, captureing the common-case PR atomically while still
+# bounding worst-case prompt growth.
+#
+# Projects on smaller-context models should lower these via config keys.
+_LOC_THRESHOLD_DEFAULT = 3000
+_FILE_COUNT_THRESHOLD_DEFAULT = 40
+_MAX_CLUSTERS_DEFAULT = 5
+
+
+def _default_config_path() -> str:
+    """Return the canonical dso-config.conf path for the repo containing this module.
+
+    region_split.py lives 5 dirname levels below repo_root/.claude/dso-config.conf:
+    region_split.py → dso_ci_review/ → scripts/ → dso/ → plugins/ → repo_root/
+
+    Duplicated from runner.py's _default_config_path to avoid a circular import
+    (runner imports region_split, so region_split cannot import from runner).
+    Keep these two implementations in sync.
+    """
+    return os.path.join(
+        os.path.dirname(
+            os.path.dirname(
+                os.path.dirname(
+                    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                )
+            )
+        ),
+        ".claude",
+        "dso-config.conf",
+    )
+
+
+def _read_config_int(key: str, default: int, config_path: str | None = None) -> int:
+    """Read an integer config value from dso-config.conf.
+
+    Duplicated from runner.py to avoid a circular import. Keep in sync.
+
+    Resolution order:
+      1. key=<value> in config_path (or auto-detected repo config)
+      2. default (returned when key absent or value not a valid integer)
+    """
+    if config_path is None:
+        config_path = _default_config_path()
+
+    if os.path.isfile(config_path):
+        try:
+            with open(config_path, encoding="utf-8") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    parts = line.split("=", 1)
+                    if len(parts) == 2 and parts[0].strip() == key:
+                        value = parts[1].strip()
+                        try:
+                            return int(value)
+                        except ValueError:
+                            return default
+        except (OSError, UnicodeDecodeError):
+            return default
+    return default
+
+
+def _loc_threshold() -> int:
+    """Resolved LOC threshold for region-split (default 400)."""
+    return _read_config_int(
+        "review.region_split.loc_threshold", _LOC_THRESHOLD_DEFAULT
+    )
+
+
+def _file_count_threshold() -> int:
+    """Resolved file-count threshold for region-split (default 15)."""
+    return _read_config_int(
+        "review.region_split.file_count_threshold", _FILE_COUNT_THRESHOLD_DEFAULT
+    )
+
+
+def _max_clusters() -> int:
+    """Resolved cluster fan-out cap (default 5)."""
+    return _read_config_int(
+        "review.region_split.max_clusters", _MAX_CLUSTERS_DEFAULT
+    )
 
 
 def _should_region_split(diff_text: str) -> bool:
@@ -28,6 +142,12 @@ def _should_region_split(diff_text: str) -> bool:
 
     LOC gate: count lines starting with + or - but NOT +++ or --- (diff headers).
     File gate: count distinct filenames from diff --git headers.
+
+    Single-file atomicity short-circuit (bug 532e-6ab7): if the diff touches
+    exactly one file, return False regardless of LOC count. A single source
+    file is the atomic unit of code review and MUST NEVER be region-split — the
+    review of a 2000-line change in one file must always reach a single
+    specialist with full context, never be partitioned by hunk.
     """
     loc_count = 0
     file_set: set[str] = set()
@@ -53,9 +173,16 @@ def _should_region_split(diff_text: str) -> bool:
         if m:
             file_set.add(m.group(1))
 
-    if loc_count > _LOC_THRESHOLD:
+    # File-atomicity floor: never region-split a single-file diff (bug 532e-6ab7).
+    # This MUST be checked before the LOC threshold so that a large change in
+    # one file is reviewed atomically rather than triggering a no-op single-
+    # cluster region-split.
+    if len(file_set) <= 1:
+        return False
+
+    if loc_count > _loc_threshold():
         return True
-    if len(file_set) > _FILE_COUNT_THRESHOLD:
+    if len(file_set) > _file_count_threshold():
         return True
     return False
 
@@ -65,10 +192,18 @@ def _cluster_files(filenames: list[str]) -> dict[str, list[str]]:
 
     - Files with a directory component land in ``"<dir>"`` cluster.
     - Top-level files (no directory) land in ``"."`` cluster.
-    - If more than ``_MAX_CLUSTERS`` distinct directories exist, the smallest
-      clusters beyond the top (_MAX_CLUSTERS - 1) are merged into "overflow".
+    - If more than ``_max_clusters()`` distinct directories exist, the smallest
+      clusters beyond the top (_max_clusters() - 1) are merged into "overflow".
 
     Returns a dict mapping cluster label → list of bare filenames (basename only).
+
+    File-atomicity invariant (bug 532e-6ab7): every input file appears in
+    exactly one cluster. A single source file is the atomic unit of code
+    review and must never be partitioned across reviewer specialists.
+    Enforced by a post-cluster count-preservation assertion: the sum of
+    files across all clusters must equal the input filename count. Any
+    future refactor that drops, duplicates, or hunk-splits a file will trip
+    this assertion at runtime.
     """
     dir_map: dict[str, list[str]] = {}
 
@@ -84,22 +219,54 @@ def _cluster_files(filenames: list[str]) -> dict[str, list[str]]:
 
         dir_map.setdefault(directory, []).append(basename)
 
-    if len(dir_map) <= _MAX_CLUSTERS:
-        return dir_map
+    if len(dir_map) <= _max_clusters():
+        result = dir_map
+    else:
+        # Merge smallest clusters beyond top (_max_clusters() - 1) into "overflow"
+        # Sort by cluster size descending, keep the largest (_max_clusters() - 1)
+        sorted_dirs = sorted(dir_map.items(), key=lambda kv: len(kv[1]), reverse=True)
+        kept = sorted_dirs[: _max_clusters() - 1]
+        overflow_dirs = sorted_dirs[_max_clusters() - 1 :]
 
-    # Merge smallest clusters beyond top (_MAX_CLUSTERS - 1) into "overflow"
-    # Sort by cluster size descending, keep the largest (_MAX_CLUSTERS - 1)
-    sorted_dirs = sorted(dir_map.items(), key=lambda kv: len(kv[1]), reverse=True)
-    kept = sorted_dirs[: _MAX_CLUSTERS - 1]
-    overflow_dirs = sorted_dirs[_MAX_CLUSTERS - 1 :]
+        result = {d: files for d, files in kept}
+        overflow_files: list[str] = []
+        for _, files in overflow_dirs:
+            overflow_files.extend(files)
+        if overflow_files:
+            result["overflow"] = overflow_files
 
-    result: dict[str, list[str]] = {d: files for d, files in kept}
-    overflow_files: list[str] = []
-    for _, files in overflow_dirs:
-        overflow_files.extend(files)
-    if overflow_files:
-        result["overflow"] = overflow_files
+    _assert_file_atomicity(filenames, result)
     return result
+
+
+def _assert_file_atomicity(
+    input_filenames: list[str], clusters: dict[str, list[str]]
+) -> None:
+    """Enforce: every input file is represented by exactly one entry across
+    all clusters (bug 532e-6ab7).
+
+    Count-preservation check: the sum of list lengths across all cluster
+    values must equal the input filename count. Any future refactor that
+    drops a file (silently omitted from review), duplicates a file (the
+    same file reviewed twice — fine for redundancy, broken for atomicity
+    semantics), or splits one file into multiple cluster entries (e.g., by
+    hunk) trips this assertion immediately.
+
+    A single source file is the atomic unit of code review and must NEVER be
+    partitioned across reviewer specialists. Region-split clusters by
+    directory; within one cluster, a file's hunks are forwarded together by
+    ``_extract_cluster_diff``'s in_target toggling. The atomicity invariant
+    documented here protects both properties.
+    """
+    total_in_clusters = sum(len(v) for v in clusters.values())
+    if total_in_clusters != len(input_filenames):
+        raise AssertionError(
+            "File-atomicity invariant violated (bug 532e-6ab7): "
+            f"input had {len(input_filenames)} files but clusters total "
+            f"{total_in_clusters}. A single source file must land in "
+            "exactly one cluster entry; this divergence indicates a file "
+            "was dropped, duplicated, or hunk-split across clusters."
+        )
 
 
 def _extract_cluster_diff(diff_text: str, cluster_dir: str, cluster_files: list[str]) -> str:

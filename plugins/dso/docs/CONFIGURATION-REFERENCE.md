@@ -964,6 +964,39 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 
 ---
 
+### `review.region_split.loc_threshold`
+
+| | |
+|---|---|
+| **Description** | LOC threshold above which a multi-file diff is partitioned into per-directory clusters by the region-split fallback (Strategy E) in `dso_ci_review.region_split`. Below this threshold the diff is reviewed monolithically. The default targets ~7-10% of Sonnet 4.6's diff-content budget after system prompt + finding schema + PR metadata overhead, leaving ample headroom for prompt growth. Single-file diffs are NEVER region-split regardless of this value (file-atomicity invariant — bug 532e-6ab7). Projects on smaller-context models should lower this; projects on 1M-context Sonnet can safely raise it. |
+| **Accepted values** | Positive integer. Non-numeric values fall back to default. |
+| **Default** | `3000` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/region_split.py` |
+
+---
+
+### `review.region_split.file_count_threshold`
+
+| | |
+|---|---|
+| **Description** | File-count threshold above which a diff is region-split. Triggers when the diff touches more than this many files. Distinct from `loc_threshold` — captures the case of many small files (e.g., a repo-wide rename) where per-cluster parallelism beats one monolithic review. Single-file diffs are NEVER region-split regardless of this value. |
+| **Accepted values** | Positive integer. Non-numeric values fall back to default. |
+| **Default** | `40` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/region_split.py` |
+
+---
+
+### `review.region_split.max_clusters`
+
+| | |
+|---|---|
+| **Description** | Maximum number of clusters dispatched in parallel by region-split. When the directory count exceeds this value, smallest clusters beyond the top `max_clusters - 1` are merged into an "overflow" cluster. Bounds wall-clock cost of N specialist API calls — not a context-window concern. |
+| **Accepted values** | Positive integer ≥ 1. Non-numeric values fall back to default. |
+| **Default** | `5` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/region_split.py` |
+
+---
+
 ### `review.size_warn_lines`
 
 | | |
