@@ -109,7 +109,7 @@ trap 'rm -rf "$_TEST_BASE"' EXIT
 
 (
     cd "$_TEST_BASE"
-    git init --bare -q bare.git
+    git init --bare -q --initial-branch=main bare.git 2>/dev/null || git init --bare -q bare.git
     git clone -q bare.git work
     cd work
     git config user.email "t@t.com"
@@ -117,6 +117,8 @@ trap 'rm -rf "$_TEST_BASE"' EXIT
     echo "1.0.0" > version.txt
     git add version.txt
     git commit -q -m "initial"
+    # Force branch name to "main" regardless of init.defaultBranch on the runner
+    git branch -M main 2>/dev/null || git checkout -B main 2>/dev/null
     git push -q origin main
     # Now bump locally
     echo "1.0.1" > version.txt
@@ -157,7 +159,7 @@ trap 'rm -rf "$_TEST_BASE"' EXIT
 
 (
     cd "$_TEST_BASE"
-    git init --bare -q bare.git
+    git init --bare -q --initial-branch=main bare.git 2>/dev/null || git init --bare -q bare.git
     git clone -q bare.git work
     cd work
     git config user.email "t@t.com"
@@ -165,6 +167,7 @@ trap 'rm -rf "$_TEST_BASE"' EXIT
     echo "1.0.0" > version.txt
     git add version.txt
     git commit -q -m "initial"
+    git branch -M main 2>/dev/null || git checkout -B main 2>/dev/null
     git push -q origin main
 
     # Simulate a concurrent foreign version bump on origin/main:
@@ -178,6 +181,7 @@ trap 'rm -rf "$_TEST_BASE"' EXIT
     echo "2.0.0" > version.txt  # different value → conflict with local 1.0.1
     git add version.txt
     git commit -q -m "foreign bump"
+    git branch -M main 2>/dev/null || git checkout -B main 2>/dev/null
     git push -q origin main
 
     # Now local creates its own bump
