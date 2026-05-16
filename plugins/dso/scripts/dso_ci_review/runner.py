@@ -1642,7 +1642,7 @@ def main() -> int:
 
         # Step 8: write output
         # Stamp the cycle number so the NEXT cycle's workflow can read it back
-        # from the persisted findings.json (sprint-story-review.yml uses this
+        # from the persisted findings.json (per-branch-review.yml uses this
         # to compute DSO_REVIEW_CYCLE for cycle 3+). Use a dict copy so we
         # don't mutate a caller-shared object.
         merged = dict(merged)

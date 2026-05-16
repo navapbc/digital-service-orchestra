@@ -876,7 +876,7 @@ def test_cited_line_re_accepts_line_ranges() -> None:
     valid_entries = [
         "src/foo.py:42",  # single line
         "~src/foo.py:42",  # approx single line
-        ".github/workflows/sprint-story-review.yml:83-112",  # dash range
+        ".github/workflows/per-branch-review.yml:83-112",  # dash range
         "plugins/dso/scripts/dso_ci_review/dispatch.py:845~851",  # tilde range
         "plugins/dso/scripts/dso_ci_review/dispatch.py:898~906",  # tilde range
         "src/foo.py:1-999",  # large range
