@@ -74,7 +74,7 @@ _setup_merged_worktree() {
 
     # Work on worktree
     (
-        cd "$wt_path"
+        cd "$wt_path" || exit 1
         git config user.email "test@test.com"
         git config user.name "Test"
         echo "feature" > feature.txt
@@ -83,7 +83,7 @@ _setup_merged_worktree() {
 
     # Simulate other work landing on origin/main (triggers sync merge)
     (
-        cd "$main_repo"
+        cd "$main_repo" || exit 1
         git checkout -q main
         echo "other" > other.txt
         git add other.txt && git commit -q -m "feat: other work"

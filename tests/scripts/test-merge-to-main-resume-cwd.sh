@@ -105,7 +105,7 @@ git clone "$_MERGE_ORIGIN" "$_MERGE_MAIN" --quiet 2>/dev/null
 git -C "$_MERGE_MAIN" branch feature-cwd-test 2>/dev/null || true
 git -C "$_MERGE_MAIN" worktree add -q "$_MERGE_WT" feature-cwd-test 2>/dev/null
 (
-    cd "$_MERGE_WT"
+    cd "$_MERGE_WT" || exit 1
     git config user.email "test@test.com"
     git config user.name "Test"
     echo "feature content" > feature.txt
