@@ -91,7 +91,7 @@ _read_check_name() {
     fi
 
     local value
-    value="$(grep -E '^review\.check_name=' "$config_file" 2>/dev/null | tail -1 | cut -d= -f2-)" || true
+    value="$(grep -E '^dso\.review\.check_name=' "$config_file" 2>/dev/null | tail -1 | cut -d= -f2-)" || true
     if [[ -n "$value" ]]; then
         echo "$value"
     else

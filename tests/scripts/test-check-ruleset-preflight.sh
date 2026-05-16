@@ -130,8 +130,8 @@ echo ""
 echo "--- test_fully_configured_exits_zero ---"
 _snapshot_fail
 
-# Ruleset has session-* pattern, Sprint_Workflow_Review in status checks, and no linear_history rule
-GOOD_RULESET_JSON='{"rulesets":[{"name":"session-branch-rules","conditions":{"ref_name":{"include":["refs/heads/session-*"]}},"rules":[{"type":"required_status_checks","parameters":{"required_status_checks":[{"context":"Sprint_Workflow_Review"}]}}]}]}'
+# Ruleset has session-* pattern, Sprint Story Review in status checks, and no linear_history rule
+GOOD_RULESET_JSON='{"rulesets":[{"name":"session-branch-rules","conditions":{"ref_name":{"include":["refs/heads/session-*"]}},"rules":[{"type":"required_status_checks","parameters":{"required_status_checks":[{"context":"Sprint Story Review"}]}}]}]}'
 stub_bin_good="$(_make_stub_bin "good" "$GOOD_RULESET_JSON")"
 
 good_output=""
@@ -152,7 +152,7 @@ _snapshot_fail
 
 # Write a dso-config.conf with a custom check_name
 custom_config="$TMPDIR_BASE/dso-config.conf"
-printf 'review.check_name=My_Custom_Check\n' > "$custom_config"
+printf 'dso.review.check_name=My_Custom_Check\n' > "$custom_config"
 
 # Ruleset has session-* pattern; status check uses the custom name from config
 CUSTOM_CHECK_JSON='{"rulesets":[{"name":"session-branch-rules","conditions":{"ref_name":{"include":["refs/heads/session-*"]}},"rules":[{"type":"required_status_checks","parameters":{"required_status_checks":[{"context":"My_Custom_Check"}]}}]}]}'
