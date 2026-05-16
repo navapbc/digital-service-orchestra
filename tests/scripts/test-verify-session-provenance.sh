@@ -43,7 +43,12 @@ setup_git_repo() {
 make_commit() {
     local repo="$1" msg="$2"
     local fname
-    fname="file_$(date +%s%N).txt"
+    # Portable filename uniqueness: nanoseconds where available (GNU date),
+    # else fall back to seconds + PID + RANDOM (works on BSD/macOS coreutils-free).
+    local _ns
+    _ns="$(date +%s%N 2>/dev/null)"
+    [[ -z "$_ns" || "$_ns" == *N ]] && _ns="$(date +%s)_${$}_${RANDOM}"
+    fname="file_${_ns}.txt"
     printf "content\n" > "$repo/$fname"
     git -C "$repo" add "$fname" >/dev/null 2>&1
     git -C "$repo" commit -m "$msg" >/dev/null 2>&1
