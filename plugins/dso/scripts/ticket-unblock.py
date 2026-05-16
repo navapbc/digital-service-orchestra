@@ -327,7 +327,16 @@ def main() -> int:
             )
             return 1
         tracker_dir = sys.argv[2]
-        ticket_id = sys.argv[3]
+        raw_ticket_id = sys.argv[3]
+        _scripts_dir = os.path.dirname(os.path.abspath(__file__))
+        if _scripts_dir not in sys.path:
+            sys.path.insert(0, _scripts_dir)
+        from ticket_resolver import resolve_ticket_id
+
+        ticket_id = resolve_ticket_id(raw_ticket_id, tracker_dir)
+        if ticket_id is None:
+            print(f"Error: ticket '{raw_ticket_id}' does not exist", file=sys.stderr)
+            return 1
         result = batch_close_operations(
             ticket_ids=[ticket_id],
             tracker_dir=tracker_dir,
@@ -349,9 +358,19 @@ def main() -> int:
 
     args = parser.parse_args()
 
+    _scripts_dir = os.path.dirname(os.path.abspath(__file__))
+    if _scripts_dir not in sys.path:
+        sys.path.insert(0, _scripts_dir)
+    from ticket_resolver import resolve_ticket_id
+
+    resolved = resolve_ticket_id(args.ticket_id, args.tracker_dir)
+    if resolved is None:
+        print(f"Error: ticket '{args.ticket_id}' does not exist", file=sys.stderr)
+        return 1
+
     try:
         unblocked = detect_newly_unblocked(
-            closed_ticket_ids=[args.ticket_id],
+            closed_ticket_ids=[resolved],
             tracker_dir=args.tracker_dir,
             event_source=args.event_source,
         )
