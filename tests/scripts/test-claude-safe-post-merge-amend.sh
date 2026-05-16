@@ -60,13 +60,13 @@ _setup_merged_worktree() {
     git init --bare -b main -q "$origin"
     git clone -q "$origin" "$main_repo" 2>/dev/null
     (
-        cd "$main_repo"
+        cd "$main_repo" || exit 1
         git config user.email "test@test.com"
         git config user.name "Test"
         echo "init" > file.txt
         git add file.txt && git commit -q -m "initial commit"
         git push -q origin main 2>/dev/null
-    )
+    ) || return 1
 
     # Create worktree
     mkdir -p "$wt_dir"
@@ -79,7 +79,7 @@ _setup_merged_worktree() {
         git config user.name "Test"
         echo "feature" > feature.txt
         git add feature.txt && git commit -q -m "feat: add feature"
-    )
+    ) || return 1
 
     # Simulate other work landing on origin/main (triggers sync merge)
     (
@@ -88,22 +88,22 @@ _setup_merged_worktree() {
         echo "other" > other.txt
         git add other.txt && git commit -q -m "feat: other work"
         git push -q origin main 2>/dev/null
-    )
+    ) || return 1
 
     # === Reproduce merge-to-main.sh sequence ===
     # _phase_sync: worktree merges origin/main (creates sync merge commit)
     (
-        cd "$wt_path"
+        cd "$wt_path" || exit 1
         git fetch origin main -q 2>/dev/null
         git merge origin/main --no-edit -q
-    )
+    ) || return 1
 
     # _phase_sync: main pulls
     (
-        cd "$main_repo"
+        cd "$main_repo" || exit 1
         git checkout -q main
         git pull --rebase -q 2>/dev/null
-    )
+    ) || return 1
 
     # _phase_merge: merge worktree branch into main (--no-ff)
     git -C "$main_repo" merge --no-ff "$wt_name" -m "feat: work (merge $wt_name)" -q

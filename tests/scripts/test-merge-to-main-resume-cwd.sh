@@ -111,7 +111,7 @@ git -C "$_MERGE_MAIN" worktree add -q "$_MERGE_WT" feature-cwd-test 2>/dev/null
     echo "feature content" > feature.txt
     git add feature.txt
     git commit -m "feat: add feature" --quiet
-) 2>/dev/null
+) 2>/dev/null || exit 1
 
 # Capture MAIN_REPO HEAD before merge
 _PRE_MERGE_SHA=$(git -C "$_MERGE_MAIN" rev-parse HEAD)
