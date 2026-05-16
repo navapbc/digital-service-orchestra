@@ -206,20 +206,28 @@ fi
 assert_pass_if_clean "delay doubling"
 
 # =============================================================================
-# Test 6: merge-to-main.sh wraps git push with retry_with_backoff
+# Test 6: merge-to-main.sh has a retry mechanism on git push
 # =============================================================================
+# Pre-cb31-3552, _phase_push wrapped `git push` in `retry_with_backoff …`. As
+# part of cb31-3552's Fix 3, that bare retry was replaced with the more capable
+# `_phase_push_self_healing` helper, which performs its own fetch+rebase+retry
+# loop without delegating to retry_with_backoff. retry_with_backoff still ships
+# as an inline fallback in merge-to-main-direct.sh for any future caller; this
+# test verifies the script has SOME push-retry mechanism — either the legacy
+# `retry_with_backoff … git push` line OR the new self-healing helper.
 echo ""
-echo "--- merge-to-main.sh uses retry_with_backoff for git push ---"
+echo "--- merge-to-main.sh has a push-retry mechanism ---"
 _snapshot_fail
 
 HAS_RETRY_IN_MERGE=$(grep -c "retry_with_backoff" "$MERGE_SCRIPT" || true)
 assert_ne "test_merge_to_main_uses_retry" "0" "$HAS_RETRY_IN_MERGE"
 
-# Verify the retry wraps git push specifically
-HAS_RETRY_GIT_PUSH=$(grep -cE "retry_with_backoff.*git push|retry_with_backoff.*push" "$MERGE_SCRIPT" || true)
-assert_ne "test_merge_to_main_retry_wraps_git_push" "0" "$HAS_RETRY_GIT_PUSH"
+# Verify SOME push-retry mechanism exists: legacy retry_with_backoff…git push,
+# or the new self-healing helper that internally retries with fetch+rebase.
+HAS_PUSH_RETRY=$(grep -cE "retry_with_backoff.*git push|retry_with_backoff.*push|_phase_push_self_healing" "$MERGE_SCRIPT" || true)
+assert_ne "test_merge_to_main_has_push_retry_mechanism" "0" "$HAS_PUSH_RETRY"
 
-assert_pass_if_clean "merge-to-main.sh uses retry_with_backoff for git push"
+assert_pass_if_clean "merge-to-main.sh has a push-retry mechanism"
 
 # =============================================================================
 # Test 7: worktree-create.sh wraps git worktree add with retry_with_backoff
