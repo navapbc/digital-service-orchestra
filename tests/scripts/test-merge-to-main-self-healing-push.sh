@@ -133,6 +133,16 @@ _HELPER_FN=$(awk '
     in_func && /^\}/ { exit }
 ' "$DIRECT_SCRIPT")
 
+# Fail-fast: if extraction produced an empty body, the function-call assertions
+# below would be meaningless (eval of "" succeeds, _phase_push_self_healing
+# would later fail as "command not found" rather than as a real behavioral
+# failure). llm-review f-i9j0k1l2 / f-h8i9j0k1.
+if [[ -z "$_HELPER_FN" ]] || ! grep -q "^_phase_push_self_healing" <<< "$_HELPER_FN"; then
+    echo "FATAL: failed to extract _phase_push_self_healing from $DIRECT_SCRIPT" >&2
+    echo "       Function signature may have changed; AWK pattern expects: '^_phase_push_self_healing() {'" >&2
+    exit 1
+fi
+
 _SH_RC=0
 _SH_OUT=$(
     cd "$_TEST_BASE/work"
@@ -196,6 +206,12 @@ _HELPER_FN=$(awk '
     in_func { print }
     in_func && /^\}/ { exit }
 ' "$DIRECT_SCRIPT")
+
+# Fail-fast on empty extraction (llm-review f-i9j0k1l2 / f-h8i9j0k1)
+if [[ -z "$_HELPER_FN" ]] || ! grep -q "^_phase_push_self_healing" <<< "$_HELPER_FN"; then
+    echo "FATAL: failed to extract _phase_push_self_healing from $DIRECT_SCRIPT" >&2
+    exit 1
+fi
 
 _SH_RC=0
 _SH_OUT=$(

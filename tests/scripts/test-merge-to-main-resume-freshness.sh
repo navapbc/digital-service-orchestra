@@ -48,6 +48,15 @@ _RESUME_BLOCK=$(awk '
     }
 ' "$MERGE_SCRIPT" 2>/dev/null)
 
+# Fail-fast if extraction silently produced nothing — otherwise every grep-based
+# test below would assert against an empty string and falsely pass when the
+# --resume block has been removed or its signature changed (llm-review f-j-2/4).
+if [[ -z "$_RESUME_BLOCK" ]]; then
+    echo "FATAL: failed to extract --resume block from $MERGE_SCRIPT — script structure may have changed" >&2
+    echo "       Expected pattern: 'if [[ \"\$_CLI_RESUME\" == \"true\" ]]; then'" >&2
+    exit 1
+fi
+
 # ============================================================
 # test_state_init_records_origin_main_sha (cb31-3552)
 #
