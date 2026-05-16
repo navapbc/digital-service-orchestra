@@ -1,0 +1,407 @@
+#!/usr/bin/env bash
+# tests/scripts/test-verify-session-provenance.sh
+# RED-phase behavioral tests for plugins/dso/scripts/verify-session-provenance.sh
+#
+# All tests FAIL until the script is implemented (RED gate confirmed).
+#
+# The verifier walks commits from main..SESSION_HEAD, checks each for a
+# DSO-Story-Merge trailer, caches results to avoid re-querying, retries on
+# 429, and writes un-provenanced SHAs to an artifact scope file.
+#
+# Usage: bash tests/scripts/test-verify-session-provenance.sh
+# Returns: exit 0 if all tests pass, exit 1 if any fail
+
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+SCRIPT="$REPO_ROOT/plugins/dso/scripts/verify-session-provenance.sh"
+
+source "$REPO_ROOT/tests/lib/assert.sh"
+
+echo "=== test-verify-session-provenance.sh ==="
+
+# ── Setup ────────────────────────────────────────────────────────────────────
+TMPDIR_TEST="$(mktemp -d)"
+trap 'rm -rf "$TMPDIR_TEST"' EXIT
+
+MOCK_BIN="$TMPDIR_TEST/bin"
+mkdir -p "$MOCK_BIN"
+
+# Helper: create a minimal git repo in a temp dir and return its path.
+# Usage: setup_git_repo
+setup_git_repo() {
+    local git_dir
+    git_dir="$(mktemp -d)"
+    git init "$git_dir" >/dev/null 2>&1
+    git -C "$git_dir" config user.email "test@example.com"
+    git -C "$git_dir" config user.name "Test"
+    echo "$git_dir"
+}
+
+# Helper: create a commit in $1 with message $2; echo its SHA.
+make_commit() {
+    local repo="$1" msg="$2"
+    local fname
+    fname="file_$(date +%s%N).txt"
+    printf "content\n" > "$repo/$fname"
+    git -C "$repo" add "$fname" >/dev/null 2>&1
+    git -C "$repo" commit -m "$msg" >/dev/null 2>&1
+    git -C "$repo" rev-parse HEAD
+}
+
+# ── Test 1: script exists and is executable ──────────────────────────────────
+# RED: script does not exist yet — assert_eq will FAIL
+test_script_exists() {
+    local exists
+    if [[ -f "$SCRIPT" && -x "$SCRIPT" ]]; then exists="yes"; else exists="no"; fi
+    assert_eq "test_script_exists: verify-session-provenance.sh exists and is executable" \
+        "yes" "$exists"
+}
+
+# ── Test 2: all provenanced commits → exits 0 ───────────────────────────────
+# Every commit in main..HEAD carries a DSO-Story-Merge trailer → script exits 0.
+test_all_provenanced_exits_zero() {
+    local repo
+    repo="$(setup_git_repo)"
+
+    # base commit on "main"
+    make_commit "$repo" "Initial commit" > /dev/null
+    local base_sha
+    base_sha="$(git -C "$repo" rev-parse HEAD)"
+
+    # story merge commit with DSO-Story-Merge trailer
+    make_commit "$repo" "$(printf 'Merge story/epic-1/story-1\n\nDSO-Story-Merge: story-1-id')" > /dev/null
+    local session_head
+    session_head="$(git -C "$repo" rev-parse HEAD)"
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+
+    local exit_code=0
+    DSO_REPO_PATH="$repo" \
+    DSO_BASE_SHA="$base_sha" \
+    DSO_SESSION_HEAD="$session_head" \
+    DSO_ARTIFACT_DIR="$artifact_dir" \
+        bash "$SCRIPT" 2>/dev/null || exit_code=$?
+
+    assert_eq "test_all_provenanced_exits_zero: exits 0 when all commits have DSO-Story-Merge" \
+        "0" "$exit_code"
+
+    rm -rf "$repo" "$artifact_dir"
+}
+
+# ── Test 3: direct commit without trailer → exits non-zero; SHA in output ────
+# A commit lacking DSO-Story-Merge causes exit non-zero and the SHA appears in
+# both stdout/stderr AND in the integration review scope file.
+test_direct_commit_exits_nonzero() {
+    local repo
+    repo="$(setup_git_repo)"
+
+    make_commit "$repo" "Initial commit" > /dev/null
+    local base_sha
+    base_sha="$(git -C "$repo" rev-parse HEAD)"
+
+    # Direct commit — no trailer
+    local bad_sha
+    bad_sha="$(make_commit "$repo" "Direct commit without provenance")"
+    local session_head="$bad_sha"
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+
+    local exit_code=0
+    local combined_output
+    combined_output=$(
+        DSO_REPO_PATH="$repo" \
+        DSO_BASE_SHA="$base_sha" \
+        DSO_SESSION_HEAD="$session_head" \
+        DSO_ARTIFACT_DIR="$artifact_dir" \
+            bash "$SCRIPT" 2>&1
+    ) || exit_code=$?
+
+    # Must exit non-zero
+    assert_ne "test_direct_commit_exits_nonzero: exits non-zero for un-provenanced commit" \
+        "0" "$exit_code"
+
+    # SHA must appear in output
+    assert_contains "test_direct_commit_exits_nonzero: un-provenanced SHA appears in output" \
+        "$bad_sha" "$combined_output"
+
+    rm -rf "$repo" "$artifact_dir"
+}
+
+# ── Test 4: BUDGET_EXHAUSTED condition → exits non-zero with keyword ─────────
+# When gh api call count exceeds the budget limit, script exits non-zero and
+# emits "BUDGET_EXHAUSTED" in its output.
+test_budget_exhaustion_exits_nonzero() {
+    local repo
+    repo="$(setup_git_repo)"
+
+    make_commit "$repo" "Initial commit" > /dev/null
+    local base_sha
+    base_sha="$(git -C "$repo" rev-parse HEAD)"
+
+    # Create multiple un-trailered commits to drive up gh api calls
+    local i
+    for i in 1 2 3 4 5; do
+        make_commit "$repo" "Direct commit $i" > /dev/null
+    done
+    local session_head
+    session_head="$(git -C "$repo" rev-parse HEAD)"
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+
+    # gh stub: always succeeds but counts calls; budget exceeded from the start
+    local call_log="$TMPDIR_TEST/gh-calls-budget.log"
+    cat > "$MOCK_BIN/gh" << MOCKEOF
+#!/usr/bin/env bash
+echo "\$*" >> "$call_log"
+# Simulate budget exhausted by returning a special signal
+echo "BUDGET_EXHAUSTED"
+exit 2
+MOCKEOF
+    chmod +x "$MOCK_BIN/gh"
+
+    local exit_code=0
+    local output
+    output=$(
+        PATH="$MOCK_BIN:$PATH" \
+        DSO_REPO_PATH="$repo" \
+        DSO_BASE_SHA="$base_sha" \
+        DSO_SESSION_HEAD="$session_head" \
+        DSO_ARTIFACT_DIR="$artifact_dir" \
+        DSO_GH_BUDGET="1" \
+            bash "$SCRIPT" 2>&1
+    ) || exit_code=$?
+
+    assert_ne "test_budget_exhaustion_exits_nonzero: exits non-zero on budget exhaustion" \
+        "0" "$exit_code"
+
+    assert_contains "test_budget_exhaustion_exits_nonzero: output contains BUDGET_EXHAUSTED" \
+        "BUDGET_EXHAUSTED" "$output"
+
+    rm -rf "$repo" "$artifact_dir"
+}
+
+# ── Test 5: cache prevents re-query for already-seen SHAs ────────────────────
+# On second invocation with the same SHAs and same cache dir, gh api is NOT
+# called again for those SHAs (call counter stays the same between runs).
+test_cache_prevents_requery() {
+    # RED gate: script must exist for this test to exercise cache behavior
+    if [[ ! -f "$SCRIPT" ]]; then
+        assert_eq "test_cache_prevents_requery: script must exist to test cache behavior" \
+            "script_exists" "script_missing"
+        return
+    fi
+
+    local repo
+    repo="$(setup_git_repo)"
+
+    make_commit "$repo" "Initial commit" > /dev/null
+    local base_sha
+    base_sha="$(git -C "$repo" rev-parse HEAD)"
+
+    # Commit with trailer — will be cached; no gh api call needed on second run
+    make_commit "$repo" "$(printf 'Merge story/epic-x/story-x\n\nDSO-Story-Merge: story-x-id')" > /dev/null
+    local session_head
+    session_head="$(git -C "$repo" rev-parse HEAD)"
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+
+    local call_count_file="$TMPDIR_TEST/gh-call-count.txt"
+    echo "0" > "$call_count_file"
+
+    cat > "$MOCK_BIN/gh" << MOCKEOF
+#!/usr/bin/env bash
+count=\$(cat "$call_count_file")
+echo \$(( count + 1 )) > "$call_count_file"
+echo '{"items":[]}'
+exit 0
+MOCKEOF
+    chmod +x "$MOCK_BIN/gh"
+
+    # First run
+    PATH="$MOCK_BIN:$PATH" \
+    DSO_REPO_PATH="$repo" \
+    DSO_BASE_SHA="$base_sha" \
+    DSO_SESSION_HEAD="$session_head" \
+    DSO_ARTIFACT_DIR="$artifact_dir" \
+        bash "$SCRIPT" 2>/dev/null || true
+
+    local count_after_first
+    count_after_first="$(cat "$call_count_file")"
+
+    # Second run — same SHAs, same artifact dir (cache location)
+    PATH="$MOCK_BIN:$PATH" \
+    DSO_REPO_PATH="$repo" \
+    DSO_BASE_SHA="$base_sha" \
+    DSO_SESSION_HEAD="$session_head" \
+    DSO_ARTIFACT_DIR="$artifact_dir" \
+        bash "$SCRIPT" 2>/dev/null || true
+
+    local count_after_second
+    count_after_second="$(cat "$call_count_file")"
+
+    # gh api should NOT have been called again on second run
+    assert_eq "test_cache_prevents_requery: gh api not re-called for cached SHAs" \
+        "$count_after_first" "$count_after_second"
+
+    rm -rf "$repo" "$artifact_dir"
+}
+
+# ── Test 6: squash merge with DSO-Story-Merge trailer is accepted ─────────────
+# A squash-merged commit bearing the DSO-Story-Merge trailer is treated as
+# provenanced → script exits 0.
+test_squash_merge_dso_story_merge_trailer_accepted() {
+    local repo
+    repo="$(setup_git_repo)"
+
+    make_commit "$repo" "Initial commit" > /dev/null
+    local base_sha
+    base_sha="$(git -C "$repo" rev-parse HEAD)"
+
+    # Squash merge: single commit, carries DSO-Story-Merge trailer
+    make_commit "$repo" "$(printf 'feat: squash merge of story-abc\n\nDSO-Story-Merge: story-abc-id')" > /dev/null
+    local session_head
+    session_head="$(git -C "$repo" rev-parse HEAD)"
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+
+    local exit_code=0
+    DSO_REPO_PATH="$repo" \
+    DSO_BASE_SHA="$base_sha" \
+    DSO_SESSION_HEAD="$session_head" \
+    DSO_ARTIFACT_DIR="$artifact_dir" \
+        bash "$SCRIPT" 2>/dev/null || exit_code=$?
+
+    assert_eq "test_squash_merge_dso_story_merge_trailer_accepted: squash merge with trailer exits 0" \
+        "0" "$exit_code"
+
+    rm -rf "$repo" "$artifact_dir"
+}
+
+# ── Test 7: 429 response → script retries (sleep/retry visible) ──────────────
+# When gh api returns HTTP 429, script should retry; the retry is observable
+# via the call counter in the gh stub increasing beyond the first call.
+test_backoff_on_429() {
+    # RED gate: script must exist for this test to exercise retry behavior
+    if [[ ! -f "$SCRIPT" ]]; then
+        assert_eq "test_backoff_on_429: script must exist to test retry behavior" \
+            "script_exists" "script_missing"
+        return
+    fi
+
+    local repo
+    repo="$(setup_git_repo)"
+
+    make_commit "$repo" "Initial commit" > /dev/null
+    local base_sha
+    base_sha="$(git -C "$repo" rev-parse HEAD)"
+
+    # Commit without trailer — will trigger gh api lookup
+    make_commit "$repo" "Direct commit no trailer" > /dev/null
+    local session_head
+    session_head="$(git -C "$repo" rev-parse HEAD)"
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+
+    local call_count_file="$TMPDIR_TEST/gh-call-count-429.txt"
+    echo "0" > "$call_count_file"
+
+    # gh stub: first call returns 429, subsequent calls succeed
+    cat > "$MOCK_BIN/gh" << MOCKEOF
+#!/usr/bin/env bash
+count=\$(cat "$call_count_file")
+echo \$(( count + 1 )) > "$call_count_file"
+if [[ \$count -eq 0 ]]; then
+    echo "HTTP 429 Too Many Requests" >&2
+    exit 1
+fi
+# Subsequent calls succeed with empty result
+echo '{"items":[]}'
+exit 0
+MOCKEOF
+    chmod +x "$MOCK_BIN/gh"
+
+    # Mock sleep so tests don't actually wait
+    cat > "$MOCK_BIN/sleep" << 'MOCKEOF'
+#!/usr/bin/env bash
+exit 0
+MOCKEOF
+    chmod +x "$MOCK_BIN/sleep"
+
+    PATH="$MOCK_BIN:$PATH" \
+    DSO_REPO_PATH="$repo" \
+    DSO_BASE_SHA="$base_sha" \
+    DSO_SESSION_HEAD="$session_head" \
+    DSO_ARTIFACT_DIR="$artifact_dir" \
+        bash "$SCRIPT" 2>/dev/null || true
+
+    local call_count
+    call_count="$(cat "$call_count_file")"
+
+    # More than 1 call means retry happened after 429
+    assert_ne "test_backoff_on_429: gh api called more than once (retry after 429)" \
+        "1" "$call_count"
+
+    rm -rf "$repo" "$artifact_dir"
+}
+
+# ── Test 8: un-provenanced SHA is written to the scope file ──────────────────
+# After running with a direct commit, the SHA of that commit must appear in
+# the integration review scope input file in the artifact directory.
+test_unprovenanced_sha_written_to_scope_file() {
+    local repo
+    repo="$(setup_git_repo)"
+
+    make_commit "$repo" "Initial commit" > /dev/null
+    local base_sha
+    base_sha="$(git -C "$repo" rev-parse HEAD)"
+
+    # Direct commit — no trailer
+    local bad_sha
+    bad_sha="$(make_commit "$repo" "Another direct commit without provenance")"
+    local session_head="$bad_sha"
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+
+    DSO_REPO_PATH="$repo" \
+    DSO_BASE_SHA="$base_sha" \
+    DSO_SESSION_HEAD="$session_head" \
+    DSO_ARTIFACT_DIR="$artifact_dir" \
+        bash "$SCRIPT" 2>/dev/null || true
+
+    # The scope file should exist somewhere in artifact_dir
+    local scope_file_contents=""
+    local scope_file
+    for scope_file in "$artifact_dir"/*.txt "$artifact_dir"/unprovenanced-shas.txt \
+                      /tmp/unprovenanced-shas.txt; do
+        if [[ -f "$scope_file" ]]; then
+            scope_file_contents="$(cat "$scope_file")"
+            break
+        fi
+    done
+
+    assert_contains "test_unprovenanced_sha_written_to_scope_file: bad SHA in scope file" \
+        "$bad_sha" "$scope_file_contents"
+
+    rm -rf "$repo" "$artifact_dir"
+}
+
+# ── Run all tests ─────────────────────────────────────────────────────────────
+test_script_exists
+test_all_provenanced_exits_zero
+test_direct_commit_exits_nonzero
+test_budget_exhaustion_exits_nonzero
+test_cache_prevents_requery
+test_squash_merge_dso_story_merge_trailer_accepted
+test_backoff_on_429
+test_unprovenanced_sha_written_to_scope_file
+
+print_summary
