@@ -150,10 +150,10 @@ def main() -> int:
         sys.path.insert(0, _scripts_dir)
     from ticket_resolver import resolve_ticket_id
 
-    root_id = resolve_ticket_id(raw_root_id, tracker_dir)
-    if root_id is None:
-        print(f"Error: ticket '{raw_root_id}' does not exist", file=sys.stderr)
-        return 1
+    # list_descendants returns empty arrays gracefully when root_id is not in
+    # the store (documented contract). Pass the raw input through when
+    # resolution finds no match so that behaviour is preserved.
+    root_id = resolve_ticket_id(raw_root_id, tracker_dir) or raw_root_id
 
     result = list_descendants(root_id, tracker_dir)
     print(json.dumps(result, ensure_ascii=False))

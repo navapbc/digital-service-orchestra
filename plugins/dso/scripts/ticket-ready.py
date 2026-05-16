@@ -189,11 +189,10 @@ def main() -> int:
             sys.path.insert(0, _scripts_dir)
         from ticket_resolver import resolve_ticket_id
 
-        resolved = resolve_ticket_id(epic_filter, tracker_dir)
-        if resolved is None:
-            print(f"Error: epic '{epic_filter}' does not exist", file=sys.stderr)
-            return 1
-        epic_filter = resolved
+        # find_ready_tickets returns an empty result when no children match
+        # the filter (graceful); preserve that for unknown epics by falling
+        # through to the raw input rather than failing loud here.
+        epic_filter = resolve_ticket_id(epic_filter, tracker_dir) or epic_filter
 
     ready = find_ready_tickets(tracker_dir, epic_filter=epic_filter)
 
