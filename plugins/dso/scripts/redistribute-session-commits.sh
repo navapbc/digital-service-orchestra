@@ -240,6 +240,70 @@ declare -A COMMIT_SPLIT_STORIES  # sha -> space-separated story ids (for SPLIT)
 declare -A GROUP_COMMITS      # story_id -> newline-separated SHAs
 GROUP_ORDER=()                # ordered list of group keys (story ids + epoch keys)
 
+# _apply_filtered_split_commit <sha> <story-id>
+#
+# For a SPLIT commit (one whose diff spans multiple stories), apply ONLY the
+# files in the commit's diff that match this story's scope. Generates a
+# filtered patch via `git diff <sha>~1..<sha> -- <files>` and applies it
+# with `git apply --3way --index`. Commits the result with the original
+# subject + a DSO-Origin-SHA trailer recording the source SHA.
+#
+# Returns:
+#   0 on success (filtered patch applied + committed, OR no files matched this
+#     story so nothing to apply — silent skip)
+#   non-zero on hard failure (filter computed but apply failed)
+#
+# Bug cf84-9c07-00f8-4ad6 — replaces bulk cherry-pick of SPLIT commits which
+# bloated story branches with cross-pollinated files from other stories.
+_apply_filtered_split_commit() {
+    local sha="$1" story_id="$2"
+    local files_in_commit story_files _f
+    files_in_commit="${COMMIT_FILES[$sha]:-}"
+    [[ -z "$files_in_commit" ]] && return 0
+
+    # Intersect commit's files with story's scope
+    story_files=""
+    while IFS= read -r _f; do
+        [[ -z "$_f" ]] && continue
+        if _file_matches_story "$_f" "$story_id"; then
+            story_files+="$_f"$'\n'
+        fi
+    done <<< "$files_in_commit"
+
+    # No files in this commit belong to this story — nothing to apply, silent skip
+    [[ -z "$story_files" ]] && return 0
+
+    # Build path arg array (handle paths with spaces by reading line-by-line)
+    local -a _pathspec=()
+    while IFS= read -r _f; do
+        [[ -n "$_f" ]] && _pathspec+=("$_f")
+    done <<< "$story_files"
+
+    # Generate filtered patch limited to story_files
+    local _patch
+    _patch="$(git diff "${sha}~1..${sha}" -- "${_pathspec[@]}" 2>/dev/null)" || return 1
+
+    # No diff produced (e.g., commit only created files that don't match scope)
+    [[ -z "$_patch" ]] && return 0
+
+    # Apply patch with 3-way merge so context drift is reconciled when possible
+    if ! printf '%s\n' "$_patch" | git apply --3way --index 2>/dev/null; then
+        return 1
+    fi
+
+    # Synthesize commit: preserve original subject + add DSO-Origin-SHA trailer
+    local _subj _author
+    _subj="$(git log -1 --format=%s "$sha" 2>/dev/null)"
+    _author="$(git log -1 --format='%an <%ae>' "$sha" 2>/dev/null)"
+    git -c "user.name=${_author%% <*}" \
+        -c "user.email=$(echo "$_author" | sed -n 's/.*<\(.*\)>/\1/p')" \
+        commit -q -m "$_subj
+
+DSO-Story: $story_id
+DSO-Origin-SHA: $sha" 2>/dev/null || return 1
+    return 0
+}
+
 _register_group_commit() {
     local key="$1" sha="$2"
     if [[ -z "${GROUP_COMMITS[$key]+x}" ]]; then
@@ -495,6 +559,23 @@ for key in "${GROUP_ORDER[@]}"; do
     _pick_failed=0
     while IFS= read -r _s; do
         [[ -z "$_s" ]] && continue
+        # Bug cf84-9c07-00f8-4ad6 fix: for SPLIT commits, apply only the files
+        # whose path matches THIS story's scope. Without filtering, the entire
+        # commit (including files belonging to OTHER stories) would be cherry-
+        # picked into every matched story's branch, bloating diffs and creating
+        # cross-pollination.
+        if [[ "${COMMIT_DECISION[$_s]:-}" == "SPLIT" ]]; then
+            _split_apply_result=0
+            _apply_filtered_split_commit "$_s" "$key" || _split_apply_result=$?
+            if [[ "$_split_apply_result" -eq 0 ]]; then
+                continue  # filtered apply succeeded (or had no files to apply)
+            fi
+            _pick_failed=1
+            echo "  ERROR: filtered SPLIT apply failed for $_s on $_branch" >&2
+            git reset --hard HEAD >/dev/null 2>&1 || true
+            break
+        fi
+        # ACCEPT / INFER / UNATTRIBUTED — bulk cherry-pick is correct
         if ! git cherry-pick "$_s" >/dev/null 2>&1; then
             _pick_failed=1
             echo "  ERROR: cherry-pick failed for $_s on $_branch" >&2
