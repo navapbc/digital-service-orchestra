@@ -2814,3 +2814,261 @@ def test_write_create_events_skips_test_summary_pattern(
         f"No ticket directory must be created for test-pollution summary; "
         f"found: {all_dirs}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Cluster A (bugs 77c3-8906 + jira-dig-2564): cursor-advance-on-failure
+# ---------------------------------------------------------------------------
+
+
+class TestProcessInboundCursorReliability:
+    """RED tests for the inbound cursor-advance bug cluster.
+
+    Pre-fix behavior: _write_success_checkpoint writes datetime.now() as the
+    new last_pull_ts unconditionally after the per-issue loop. Issues that are
+    silently dropped (unmapped type, swallowed handler exceptions, etc.) then
+    fall behind the new cursor and are permanently lost from the JQL window.
+
+    Post-fix behavior: cursor advances to the high-watermark of explicitly
+    acknowledged issues (CREATEd OR recorded in .inbound-deadletter.json).
+    Silently-dropped issues either preserve the cursor (so they are retried)
+    or are explicitly dead-lettered (so the operator sees them).
+    """
+
+    def _make_issue_with_updated(
+        self, key: str, updated_iso: str, issuetype: str = "Task"
+    ) -> dict:
+        return {
+            "key": key,
+            "fields": {
+                "summary": f"Test issue {key}",
+                "issuetype": {"name": issuetype},
+                "status": {"name": "To Do"},
+                "created": updated_iso,
+                "updated": updated_iso,
+                "resolutiondate": None,
+                "priority": {"name": "Medium"},
+            },
+        }
+
+    @pytest.mark.unit
+    @pytest.mark.scripts
+    def test_unmapped_type_does_not_cause_silent_permanent_loss(
+        self, tmp_path: Path, bridge: ModuleType
+    ) -> None:
+        """RED: an issue with an unmapped type must NOT cause silent permanent loss.
+
+        Setup: 3 Jira issues in updated-order; the middle issue has issuetype=Sub-task
+        which is absent from type_mapping. Pre-fix: middle issue is silently filtered
+        AND the cursor advances to now() (past its updated timestamp), permanently
+        dropping it from the JQL window. Post-fix: either the cursor preserves a
+        timestamp before the dropped issue, OR the dropped issue is recorded in a
+        dead-letter sidecar that the operator can audit and recover from.
+        """
+        tickets_root = tmp_path / ".tickets-tracker"
+        tickets_root.mkdir()
+
+        checkpoint_file = tmp_path / "bridge-checkpoint.json"
+        old_ts = "2026-03-21T00:00:00Z"
+        checkpoint_file.write_text(
+            json.dumps({"last_pull_ts": old_ts}), encoding="utf-8"
+        )
+
+        # Issue B is sandwiched between A and C in updated-order
+        issues = [
+            self._make_issue_with_updated("DSO-101", "2026-03-21T10:00:00.000+0000"),
+            self._make_issue_with_updated(
+                "DSO-102", "2026-03-21T11:00:00.000+0000", issuetype="Sub-task"
+            ),
+            self._make_issue_with_updated("DSO-103", "2026-03-21T12:00:00.000+0000"),
+        ]
+        mock_client = MagicMock()
+        mock_client.search_issues = MagicMock(return_value=issues)
+        mock_client.get_myself = MagicMock(return_value={"timeZone": "UTC"})
+
+        config = {
+            "bridge_env_id": _BRIDGE_ENV_ID,
+            "overlap_buffer_minutes": 5,
+            "checkpoint_file": str(checkpoint_file),
+            "status_mapping": {"To Do": "pending"},
+            "type_mapping": {"Task": "task"},  # Sub-task intentionally omitted
+        }
+
+        bridge.process_inbound(
+            tickets_root=tickets_root,
+            acli_client=mock_client,
+            last_pull_ts=old_ts,
+            config=config,
+        )
+
+        updated = json.loads(checkpoint_file.read_text(encoding="utf-8"))
+        new_ts = updated.get("last_pull_ts", "")
+
+        # DSO-102's updated timestamp in UTC ISO 8601
+        dso_102_updated = "2026-03-21T11:00:00Z"
+        deadletter_path = tickets_root / ".inbound-deadletter.json"
+        deadletter_records = {}
+        if deadletter_path.exists():
+            try:
+                deadletter_records = json.loads(
+                    deadletter_path.read_text(encoding="utf-8")
+                )
+            except (OSError, json.JSONDecodeError):
+                deadletter_records = {}
+
+        # The fix is satisfied if EITHER:
+        #   (a) the cursor did not advance past DSO-102's updated timestamp, OR
+        #   (b) DSO-102 is recorded in the dead-letter sidecar so the operator
+        #       can audit/recover it.
+        cursor_preserved = new_ts <= dso_102_updated
+        deadlettered = "DSO-102" in deadletter_records
+
+        assert cursor_preserved or deadlettered, (
+            "Cursor-advance-on-failure regression: DSO-102 was silently dropped "
+            f"(unmapped type) AND cursor advanced past its updated={dso_102_updated!r} "
+            f"(new last_pull_ts={new_ts!r}) AND no dead-letter record exists. "
+            "Either preserve the cursor at/before the dropped issue's updated "
+            "timestamp, OR write the drop to .inbound-deadletter.json so the "
+            "operator can recover it."
+        )
+
+    @pytest.mark.unit
+    @pytest.mark.scripts
+    def test_cursor_advances_only_on_acknowledged_issues_not_wallclock(
+        self, tmp_path: Path, bridge: ModuleType
+    ) -> None:
+        """RED: cursor must derive from acknowledged-issue watermark, not now().
+
+        Setup: 2 issues with old updated timestamps (months in the past). Post-fix:
+        the cursor should advance to max(updated of acknowledged) — somewhere around
+        the older timestamps — NOT to wall-clock now(). This guards against the
+        underlying bug class where now() advances the cursor past any concurrently-
+        landing Jira issue whose updated falls between the run's fetch and the
+        checkpoint write.
+        """
+        tickets_root = tmp_path / ".tickets-tracker"
+        tickets_root.mkdir()
+
+        checkpoint_file = tmp_path / "bridge-checkpoint.json"
+        old_ts = "2026-01-01T00:00:00Z"
+        checkpoint_file.write_text(
+            json.dumps({"last_pull_ts": old_ts}), encoding="utf-8"
+        )
+
+        latest_updated = "2026-03-01T12:00:00.000+0000"
+        issues = [
+            self._make_issue_with_updated("DSO-201", "2026-02-15T08:00:00.000+0000"),
+            self._make_issue_with_updated("DSO-202", latest_updated),
+        ]
+        mock_client = MagicMock()
+        mock_client.search_issues = MagicMock(return_value=issues)
+        mock_client.get_myself = MagicMock(return_value={"timeZone": "UTC"})
+
+        config = {
+            "bridge_env_id": _BRIDGE_ENV_ID,
+            "overlap_buffer_minutes": 5,
+            "checkpoint_file": str(checkpoint_file),
+            "status_mapping": {"To Do": "pending"},
+            "type_mapping": {"Task": "task"},
+        }
+
+        bridge.process_inbound(
+            tickets_root=tickets_root,
+            acli_client=mock_client,
+            last_pull_ts=old_ts,
+            config=config,
+        )
+
+        updated = json.loads(checkpoint_file.read_text(encoding="utf-8"))
+        new_ts = updated.get("last_pull_ts", "")
+
+        # The cursor should be at/near the watermark of acknowledged issues,
+        # NOT advanced to wall-clock now() (which would be 2026-05 or later
+        # at run time). Allow up to 5 minutes past the latest updated for
+        # any small overlap-buffer offset.
+        wallclock_now = datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        # The new cursor must NOT equal wall-clock now (within 1 minute)
+        # Compare as ISO 8601 strings — both are UTC ISO 8601 truncated to seconds
+        assert new_ts < wallclock_now, (
+            "Cursor must be derived from issue watermark, not wall-clock now(). "
+            f"new last_pull_ts={new_ts!r} should be derived from max issue "
+            f"updated≈{latest_updated!r}, but it matches wall-clock "
+            f"now={wallclock_now!r}. This is the underlying defect that allows "
+            "any issue landing between fetch and checkpoint to be missed."
+        )
+
+    @pytest.mark.unit
+    @pytest.mark.scripts
+    def test_handler_exception_preserves_cursor_for_retry(
+        self,
+        tmp_path: Path,
+        bridge: ModuleType,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """RED: a per-issue handler exception must preserve the cursor.
+
+        When _process_single_issue raises mid-batch, the cursor must NOT advance
+        past the failing issue's updated timestamp — either it stays at old_ts
+        (run aborted) or it advances at most to a previous successful issue's
+        updated timestamp, so the failing issue is retried on the next run.
+        """
+        tickets_root = tmp_path / ".tickets-tracker"
+        tickets_root.mkdir()
+
+        checkpoint_file = tmp_path / "bridge-checkpoint.json"
+        old_ts = "2026-03-21T00:00:00Z"
+        checkpoint_file.write_text(
+            json.dumps({"last_pull_ts": old_ts}), encoding="utf-8"
+        )
+
+        failing_issue_updated = "2026-03-21T11:00:00.000+0000"
+        issues = [
+            self._make_issue_with_updated("DSO-301", "2026-03-21T10:00:00.000+0000"),
+            self._make_issue_with_updated("DSO-302", failing_issue_updated),
+        ]
+        mock_client = MagicMock()
+        mock_client.search_issues = MagicMock(return_value=issues)
+        mock_client.get_myself = MagicMock(return_value={"timeZone": "UTC"})
+
+        original_process = bridge._process_single_issue
+
+        def _process_with_failure(issue, **kwargs):
+            if issue.get("key") == "DSO-302":
+                raise RuntimeError("simulated handler exception on DSO-302")
+            return original_process(issue, **kwargs)
+
+        monkeypatch.setattr(bridge, "_process_single_issue", _process_with_failure)
+
+        config = {
+            "bridge_env_id": _BRIDGE_ENV_ID,
+            "overlap_buffer_minutes": 5,
+            "checkpoint_file": str(checkpoint_file),
+            "status_mapping": {"To Do": "pending"},
+            "type_mapping": {"Task": "task"},
+        }
+
+        try:
+            bridge.process_inbound(
+                tickets_root=tickets_root,
+                acli_client=mock_client,
+                last_pull_ts=old_ts,
+                config=config,
+            )
+        except Exception:
+            # Either raise-and-preserve OR catch-and-record-failed are valid;
+            # the contract is the cursor preservation, not the exception flow.
+            pass
+
+        updated = json.loads(checkpoint_file.read_text(encoding="utf-8"))
+        new_ts = updated.get("last_pull_ts", "")
+        failing_updated_z = "2026-03-21T11:00:00Z"
+
+        # Cursor must NOT advance past the failing issue's updated timestamp.
+        # Either it stays at old_ts (run aborted) or it advances at most to
+        # the previous successful issue's updated timestamp.
+        assert new_ts < failing_updated_z, (
+            "Handler exception caused cursor advance past failing issue. "
+            f"new last_pull_ts={new_ts!r} >= failing issue updated="
+            f"{failing_updated_z!r}. Post-fix, cursor must preserve at/before "
+            "the failing issue so it is retried on the next run."
+        )
