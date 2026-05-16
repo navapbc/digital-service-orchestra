@@ -157,4 +157,61 @@ else
 fi
 assert_pass_if_clean "test_review_needs_mirror_tracker_defenses"
 
+# ── test_resolve_diff_base_step_present ──────────────────────────────────────
+# Bug 3914-0848-faad-4f6a: diff base must come from the PR's actual base,
+# not solely from SPRINT_SESSION_ID. The workflow must have a "Resolve diff
+# base" step that looks up the open PR via gh.
+_snapshot_fail
+if [[ ! -f "$WORKFLOW_FILE" ]]; then
+    assert_eq "test_resolve_diff_base_step_present: workflow file present (prereq)" "1" "0"
+else
+    found=0
+    grep -qE "name:\s+Resolve diff base" "$WORKFLOW_FILE" 2>/dev/null && found=1 || true
+    assert_eq "test_resolve_diff_base_step_present: workflow has 'Resolve diff base' step" "1" "$found"
+fi
+assert_pass_if_clean "test_resolve_diff_base_step_present"
+
+# ── test_resolve_diff_base_uses_pr_lookup ────────────────────────────────────
+# The resolve step must call gh to look up an open PR's baseRefName.
+_snapshot_fail
+if [[ ! -f "$WORKFLOW_FILE" ]]; then
+    assert_eq "test_resolve_diff_base_uses_pr_lookup: workflow file present (prereq)" "1" "0"
+else
+    found=0
+    grep -qE "gh pr list.*baseRefName|gh pr view.*baseRefName" "$WORKFLOW_FILE" 2>/dev/null && found=1 || true
+    assert_eq "test_resolve_diff_base_uses_pr_lookup: workflow looks up PR baseRefName via gh" "1" "$found"
+fi
+assert_pass_if_clean "test_resolve_diff_base_uses_pr_lookup"
+
+# ── test_resolve_diff_base_has_fallback_chain ────────────────────────────────
+# The resolve step must reference both SPRINT_SESSION_ID (legacy fallback)
+# and "main" (final safety net), so the chain is PR base → variable → main.
+_snapshot_fail
+if [[ ! -f "$WORKFLOW_FILE" ]]; then
+    assert_eq "test_resolve_diff_base_has_fallback_chain: workflow file present (prereq)" "1" "0"
+else
+    found_session=0; found_main=0
+    awk '/Resolve diff base/{flag=1; next} flag && /^\s*-\s+name:/{exit} flag' "$WORKFLOW_FILE" 2>/dev/null > /tmp/_resolve_step.txt
+    grep -q "SPRINT_SESSION_ID" /tmp/_resolve_step.txt 2>/dev/null && found_session=1
+    grep -qw "main" /tmp/_resolve_step.txt 2>/dev/null && found_main=1
+    rm -f /tmp/_resolve_step.txt
+    assert_eq "test_resolve_diff_base_has_fallback_chain: resolve step references SPRINT_SESSION_ID fallback" "1" "$found_session"
+    assert_eq "test_resolve_diff_base_has_fallback_chain: resolve step references main as final fallback" "1" "$found_main"
+fi
+assert_pass_if_clean "test_resolve_diff_base_has_fallback_chain"
+
+# ── test_suspicious_diff_warning_present ─────────────────────────────────────
+# A scoped per-story review producing a multi-thousand-line diff is a smell.
+# The compute step must emit a GitHub Actions warning when the diff exceeds
+# a threshold so operators are alerted to BASE_REF mis-resolution.
+_snapshot_fail
+if [[ ! -f "$WORKFLOW_FILE" ]]; then
+    assert_eq "test_suspicious_diff_warning_present: workflow file present (prereq)" "1" "0"
+else
+    found=0
+    grep -qE "::warning::|DIFF_LINES" "$WORKFLOW_FILE" 2>/dev/null && found=1 || true
+    assert_eq "test_suspicious_diff_warning_present: workflow emits a warning on suspiciously large diff" "1" "$found"
+fi
+assert_pass_if_clean "test_suspicious_diff_warning_present"
+
 print_summary
