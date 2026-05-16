@@ -1,1 +1,0 @@
-{"author":"Test","data":{"body":"Classification: behavioral, Score: 1 (BASIC). Intent Gate: skipped — CLI_user tag present; intent-aligned assumed. Feature-Request Gate skipped (intent-aligned)."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1778906930069083000,"uuid":"8d7f0441-10d8-4deb-8762-a516e9a88cd4"}
