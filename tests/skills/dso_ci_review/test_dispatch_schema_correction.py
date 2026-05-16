@@ -8,7 +8,11 @@ Behavioral contracts under test:
 3. Correction returns valid JSON but one frozen field changed → append
    synthetic schema_error.
 4. All retries exhausted → appends {"type": "parse_error", "severity":
-   "critical", ...} synthetic finding.
+   "important", ...} synthetic finding. (Severity is "important", not
+   "critical": commit af07466226 / bug 5126-dc68 deliberately demoted the
+   synthetic schema_error from critical→important so a pipeline-internal
+   schema-correction failure is eligible for autonomous R5 resolution rather
+   than hard-blocking the PR. See dispatch.py:_make_synthetic_error.)
 5. max_attempts=0 → skips dispatch entirely, appends synthetic schema_error
    immediately.
 6. Correction itself returns schema-invalid JSON → consumes one retry,
@@ -22,7 +26,7 @@ Frozen fields (byte-for-byte must be preserved):
   original is absent, empty, or malformed.
 
 Synthetic error shape:
-  {"type": "parse_error", "severity": "critical", "category": "schema_error",
+  {"type": "parse_error", "severity": "important", "category": "schema_error",
    "description": "...", "finding_id": "schema_error_...",
    "file": "", "cited_lines": [], "cited_excerpt": "", "reachability": ""}
 """

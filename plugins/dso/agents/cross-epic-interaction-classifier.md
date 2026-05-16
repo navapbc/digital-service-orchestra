@@ -32,7 +32,7 @@ You receive the following input:
 }
 ```
 
-The `open_epics` array contains up to 20 epics to compare against in this batch. Each epic has the same structure as `new_epic`.
+The `open_epics` array contains up to 5 epics to compare against in this batch. Each epic has the same structure as `new_epic`.
 
 ## Output Schema
 
