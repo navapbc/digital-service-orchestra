@@ -71,7 +71,9 @@ _FINDING_ID_RE: re.Pattern[str] = re.compile(r"^f-[0-9a-f]{8}$")
 # cited_lines entry format: <path>:<line> or ~<path>:<line> (approximate).
 # <line> may be a single line number or a range (e.g. 83-112 or 83~112).
 # The optional ~ prefix on the whole entry marks approximate line references.
-_CITED_LINE_RE: re.Pattern[str] = re.compile(r"^~?[^:]+:[1-9][0-9]*(?:[-~][1-9][0-9]*)?$")
+_CITED_LINE_RE: re.Pattern[str] = re.compile(
+    r"^~?[^:]+:[1-9][0-9]*(?:[-~][1-9][0-9]*)?$"
+)
 
 
 @functools.lru_cache(maxsize=32)
@@ -901,9 +903,14 @@ def dispatch_schema_correction(
     )
 
     def _make_synthetic_error(error_details: str) -> dict[str, Any]:
+        # severity=important (not critical): a pipeline-internal schema-correction
+        # failure is not a code-review finding about the PR's code. Demoting to
+        # important keeps the signal visible while making the finding eligible
+        # for R5 autonomous resolution / defense rather than hard-blocking PRs
+        # on pipeline-internal issues (bug 5126-dc68).
         return {
             "type": "parse_error",
-            "severity": "critical",
+            "severity": "important",
             "category": "schema_error",
             "description": f"Schema correction failed after {max_attempts} attempt(s): {error_details}",
             "finding_id": f"schema_error_{hashlib.md5(error_details.encode()).hexdigest()[:8]}",
@@ -968,7 +975,6 @@ def dispatch_schema_correction(
 
         last_result = attempt_result
 
-
         # Validate schema via runner._validate_findings_schema
         schema_result = _runner_mod._validate_findings_schema(
             attempt_result,
@@ -1013,6 +1019,46 @@ def dispatch_schema_correction(
                     )
                     if not orig_cited_valid:
                         continue  # malformed original — allow correction to fix format
+                    # Range-equivalence exemption: when the corrector collapses
+                    # discrete line entries into a contiguous range covering the
+                    # same line numbers (e.g. ['x:134', 'x:138'] -> ['x:134-138']),
+                    # the citation is semantically preserved — no hallucination.
+                    # Skip the strict byte-equality check and let downstream
+                    # schema validation decide whether the corrected format is
+                    # acceptable (bug 5126-dc68).
+                    corr_cited = corrected.get(field)
+                    if (
+                        isinstance(corr_cited, list)
+                        and len(corr_cited) > 0
+                        and all(
+                            isinstance(e, str) and _CITED_LINE_RE.match(e)
+                            for e in corr_cited
+                        )
+                    ):
+
+                        def _expand(entries: list[str]) -> set[tuple[str, int]]:
+                            out: set[tuple[str, int]] = set()
+                            for e in entries:
+                                path, _, line_part = e.rpartition(":")
+                                if "-" in line_part:
+                                    lo_s, hi_s = line_part.split("-", 1)
+                                    try:
+                                        lo, hi = int(lo_s), int(hi_s)
+                                    except ValueError:
+                                        return set()
+                                    for ln in range(lo, hi + 1):
+                                        out.add((path, ln))
+                                else:
+                                    try:
+                                        out.add((path, int(line_part)))
+                                    except ValueError:
+                                        return set()
+                            return out
+
+                        orig_lines = _expand(orig_cited)
+                        corr_lines = _expand(corr_cited)
+                        if orig_lines and orig_lines.issubset(corr_lines):
+                            continue  # corrected covers all original lines
                 # severity: frozen only when original is enum-valid (in
                 # _VALID_SEVERITIES). When the original is enum-invalid (e.g. LLM
                 # emits "suggestion" — referenced in plugin docs but not in the
@@ -1065,9 +1111,7 @@ def dispatch_schema_correction(
         )
         # Filter out header lines (SCHEMA_VALID:, Validation errors:) to get
         # only the actual field-level validation errors (lines containing "findings[")
-        _field_errors = [
-            _e for _e in _revalidate.errors if "findings[" in _e
-        ]
+        _field_errors = [_e for _e in _revalidate.errors if "findings[" in _e]
         # Filter out soft-mode WARNING: lines (absence-claim findings missing
         # verification_evidence in soft mode go to stderr but may appear in
         # _revalidate.errors); exclude them when checking "only reachability errors"
@@ -1084,6 +1128,7 @@ def dispatch_schema_correction(
         _absence_warn_re = None
         _absence_indices: set[int] = set()
         import re as _re_ac
+
         _absence_warn_re = _re_ac.compile(
             r"WARNING:.*findings\[(\d+)\]\.verification_evidence absent on absence-claim"
         )
@@ -1186,7 +1231,9 @@ def dispatch_schema_correction(
                 return _patched_ac_result
 
     # All attempts exhausted — append synthetic schema_error to last result
-    _fallback_note = " (reachability fallback also failed)" if _reach_fallback_applied else ""
+    _fallback_note = (
+        " (reachability fallback also failed)" if _reach_fallback_applied else ""
+    )
     synthetic_error = _make_synthetic_error(last_error + _fallback_note)
     if last_result is not None:
         findings_out = list(last_result.get("findings", []))
