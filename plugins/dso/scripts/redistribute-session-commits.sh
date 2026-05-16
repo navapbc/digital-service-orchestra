@@ -621,11 +621,18 @@ for _entry in "${_MERGE_PIDS[@]+"${_MERGE_PIDS[@]}"}"; do
     fi
 done
 if [[ "${#_FAILED_BRANCHES[@]}" -gt 0 ]]; then
-    echo "  WARN: merge-to-main-pr.sh returned non-zero for ${#_FAILED_BRANCHES[@]} branch(es):" >&2
+    echo "  ERROR: merge-to-main-pr.sh returned non-zero for ${#_FAILED_BRANCHES[@]} branch(es):" >&2
     for _b in "${_FAILED_BRANCHES[@]}"; do echo "    - $_b" >&2; done
 fi
 
 git checkout -q "$_start_ref" 2>/dev/null || true
 rm -f "$_checkpoint"
+# Exit non-zero if any background PR-open call failed so automation can react.
+# Reporting failures via WARN-only and then exiting 0 (the prior behavior)
+# defeated the purpose of the wait loop. Copilot finding 2026-05-16.
+if [[ "${#_FAILED_BRANCHES[@]}" -gt 0 ]]; then
+    echo "✗ redistribution completed with ${#_FAILED_BRANCHES[@]} PR-open failure(s)" >&2
+    exit 3
+fi
 echo "✓ redistribution complete"
 exit 0

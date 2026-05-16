@@ -164,7 +164,7 @@ HAS_CHECK="$(echo "$MATCHING_RULESET" | jq --arg check_name "$CHECK_NAME" '
 ' 2>/dev/null)" || HAS_CHECK="false"
 
 if [[ "$HAS_CHECK" != "true" ]]; then
-    echo "ERROR: Required status check '$CHECK_NAME' (Sprint Story Review) not found in the session-* Ruleset." >&2
+    echo "ERROR: Required status check '$CHECK_NAME' not found in the session-* Ruleset." >&2
     echo "  The Ruleset must have a 'required_status_checks' rule with context '$CHECK_NAME'." >&2
     echo "  See: INSTALL.md#github-rulesets-for-session-branches" >&2
     exit 1
