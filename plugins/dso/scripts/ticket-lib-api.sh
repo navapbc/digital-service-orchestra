@@ -1558,14 +1558,15 @@ ticket_edit() {
         fi
 
         if [ $# -lt 2 ]; then
-            echo "Usage: ticket edit <ticket_id> [--title=VALUE] [--priority=VALUE] [--assignee=VALUE] [--ticket_type=VALUE] [--description=VALUE] [--tags=VALUE]" >&2
+            echo "Usage: ticket edit <ticket_id> [--title=VALUE] [--priority=VALUE] [--assignee=VALUE] [--ticket_type=VALUE] [--description=VALUE] [--tags=VALUE] [--parent=VALUE]" >&2
             return 1
         fi
 
         local ticket_id="$1"
         shift
 
-        local ALLOWED_FIELDS="title priority assignee ticket_type description tags"
+        # --parent (bug 3f93-1b3d): user-facing flag; mapped to parent_id event field below.
+        local ALLOWED_FIELDS="title priority assignee ticket_type description tags parent"
 
         _is_allowed_field_edit() {
             local field="$1"
@@ -1635,6 +1636,51 @@ ticket_edit() {
             echo "Error: ticket $ticket_id has no CREATE or SNAPSHOT event" >&2
             return 1
         fi
+
+        # --parent validation (bug 3f93-1b3d):
+        #   1. resolve new parent ID (accept short IDs / aliases)
+        #   2. verify new parent ticket exists
+        #   3. refuse self-parent
+        #   4. refuse ancestor cycles (would-be parent has ticket_id as ancestor)
+        # Replace the "parent=…" pair with "parent_id=<resolved>" before delegation.
+        local _i _pair _new_parent_id_input _new_parent_id
+        for _i in "${!_parsed_pairs[@]}"; do
+            _pair="${_parsed_pairs[$_i]}"
+            case "$_pair" in
+                parent=*)
+                    _new_parent_id_input="${_pair#parent=}"
+                    if [ -z "$_new_parent_id_input" ]; then
+                        echo "Error: --parent requires a non-empty value" >&2
+                        return 1
+                    fi
+                    if ! _new_parent_id="$(_ticketlib_resolve_id "$_new_parent_id_input" "$TRACKER_DIR" 2>/dev/null)"; then
+                        echo "Error: parent ticket '$_new_parent_id_input' does not exist" >&2
+                        return 1
+                    fi
+                    if [ "$_new_parent_id" = "$ticket_id" ]; then
+                        echo "Error: ticket cannot be its own parent" >&2
+                        return 1
+                    fi
+                    # Ancestor walk: walking the proposed new parent's parent_id
+                    # chain upward, refuse if ticket_id is reached.
+                    local _walk_id="$_new_parent_id" _walk_count=0 _walk_parent
+                    while [ -n "$_walk_id" ] && [ "$_walk_count" -lt 64 ]; do
+                        _walk_parent=$(bash "$_TICKETLIB_DIR/ticket-show.sh" "$_walk_id" 2>/dev/null \
+                            | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('parent_id','') or '')" 2>/dev/null) || _walk_parent=""
+                        if [ -z "$_walk_parent" ] || [ "$_walk_parent" = "None" ]; then
+                            break
+                        fi
+                        if [ "$_walk_parent" = "$ticket_id" ]; then
+                            echo "Error: cannot set parent — would create a cycle (ticket $ticket_id is an ancestor of $_new_parent_id)" >&2
+                            return 1
+                        fi
+                        _walk_id="$_walk_parent"
+                        _walk_count=$((_walk_count + 1))
+                    done
+                    _parsed_pairs[$_i]="parent_id=$_new_parent_id"
+                    ;;
+            esac
+        done
 
         local env_id
         env_id=$(cat "$TRACKER_DIR/.env-id")
