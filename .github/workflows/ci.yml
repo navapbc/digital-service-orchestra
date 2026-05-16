@@ -348,6 +348,98 @@ jobs:
       # current cycle. Exported via $GITHUB_ENV so runner.py cycle_number gate
       # (runner.py:789) sees the real value — without this, every cycle>=2
       # suppression branch was structurally disabled.
+      # ── Integration review scope: narrow scope for session→main PRs ──────────
+      # Steps below identify only the files that need integration-level review:
+      #   1. Un-provenanced commits (not traced to any story PR)
+      #   2. Cross-branch files (changed in ≥2 story PRs — potential conflicts)
+      # If both sets are empty, the integration review is skipped (scope empty).
+
+      - name: Verify session provenance
+        if: needs.changes.outputs.code_changed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DSO_ARTIFACT_DIR: ${{ runner.temp }}/dso-review
+        run: |
+          set -euo pipefail
+          mkdir -p "$DSO_ARTIFACT_DIR"
+          # verify-session-provenance.sh writes unprovenanced-shas.txt and exits
+          # 0 (all provenanced), 1 (some unprovenanced), or 2 (budget exhausted).
+          # We continue regardless — failures feed into the integration scope.
+          bash plugins/dso/scripts/verify-session-provenance.sh \
+            --base-ref "origin/${{ github.base_ref }}" \
+            2>/dev/null || true
+          echo "DSO_ARTIFACT_DIR=$DSO_ARTIFACT_DIR" >> "$GITHUB_ENV"
+
+      - name: Compute cross-branch file set from DSO-Story-Merge trailers
+        if: needs.changes.outputs.code_changed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Parse DSO-Story-Merge trailers in the session PR to discover which
+          # files were touched by ≥2 sub-branches (cross-branch file set).
+          # Files appearing in ≥2 story PRs may have integration conflicts that
+          # the per-branch review could not catch.
+          CROSS_BRANCH_FILE="${DSO_ARTIFACT_DIR:-$RUNNER_TEMP/dso-review}/cross-branch-files.txt"
+          declare -A story_file_sets
+          # Enumerate session commits and extract DSO-Story-Merge trailers
+          while IFS= read -r sha; do
+            [[ -z "$sha" ]] && continue
+            commit_body="$(git log -1 --format=%B "$sha" 2>/dev/null)" || continue
+            story_id="$(echo "$commit_body" | grep "^DSO-Story-Merge:" | head -1 | sed 's/^DSO-Story-Merge:[[:space:]]*//')" || true
+            [[ -z "$story_id" ]] && continue
+            # Collect files changed in this story branch merge commit
+            changed_files="$(git diff-tree --no-commit-id -r --name-only "$sha" 2>/dev/null)" || true
+            while IFS= read -r f; do
+              [[ -z "$f" ]] && continue
+              story_file_sets["$f"]="${story_file_sets[$f]:-} $story_id"
+            done <<< "$changed_files"
+          done < <(git log "origin/${{ github.base_ref }}..HEAD" --format="%H" 2>/dev/null)
+          # Emit files appearing in ≥2 story PRs
+          : > "$CROSS_BRANCH_FILE"
+          for f in "${!story_file_sets[@]}"; do
+            story_list="${story_file_sets[$f]}"
+            unique_count="$(echo "$story_list" | tr ' ' '\n' | grep -v '^$' | sort -u | wc -l | tr -d ' ')"
+            if (( unique_count >= 2 )); then
+              echo "$f" >> "$CROSS_BRANCH_FILE"
+            fi
+          done
+          echo "Cross-branch files written to $CROSS_BRANCH_FILE"
+
+      - name: Union integration review scope
+        if: needs.changes.outputs.code_changed == 'true'
+        run: |
+          set -euo pipefail
+          ARTIFACT_DIR="${DSO_ARTIFACT_DIR:-$RUNNER_TEMP/dso-review}"
+          UNPROVENANCED="${ARTIFACT_DIR}/unprovenanced-shas.txt"
+          CROSS_BRANCH="${ARTIFACT_DIR}/cross-branch-files.txt"
+          INTEGRATION_SCOPE="${ARTIFACT_DIR}/integration-scope-files.txt"
+          : > "$INTEGRATION_SCOPE"
+          # Collect files from unprovenanced commits
+          if [[ -s "$UNPROVENANCED" ]]; then
+            while IFS= read -r sha; do
+              [[ -z "$sha" ]] && continue
+              git diff-tree --no-commit-id -r --name-only "$sha" 2>/dev/null \
+                >> "$INTEGRATION_SCOPE" || true
+            done < "$UNPROVENANCED"
+          fi
+          # Union with cross-branch files
+          if [[ -s "$CROSS_BRANCH" ]]; then
+            cat "$CROSS_BRANCH" >> "$INTEGRATION_SCOPE"
+          fi
+          # Deduplicate
+          sort -u "$INTEGRATION_SCOPE" -o "$INTEGRATION_SCOPE"
+          SCOPE_COUNT="$(wc -l < "$INTEGRATION_SCOPE" | tr -d ' ')"
+          echo "INTEGRATION_SCOPE_FILE=$INTEGRATION_SCOPE" >> "$GITHUB_ENV"
+          echo "INTEGRATION_SCOPE_COUNT=$SCOPE_COUNT" >> "$GITHUB_ENV"
+          echo "Integration scope: $SCOPE_COUNT file(s)"
+          if [[ "$SCOPE_COUNT" -eq 0 ]]; then
+            echo "INTEGRATION_SCOPE_EMPTY=true" >> "$GITHUB_ENV"
+            echo "Integration scope empty: no files to review — skipping LLM review dispatch"
+          else
+            echo "INTEGRATION_SCOPE_EMPTY=false" >> "$GITHUB_ENV"
+          fi
+
       - name: Compute DSO_REVIEW_CYCLE
         if: needs.changes.outputs.code_changed == 'true'
         env:
@@ -372,9 +464,30 @@ jobs:
           CURRENT_CYCLE=$((PRIOR_CYCLES + 1))
           echo "DSO_REVIEW_CYCLE=$CURRENT_CYCLE" >> "$GITHUB_ENV"
           echo "Computed DSO_REVIEW_CYCLE=$CURRENT_CYCLE (issue=$PRIOR_ISSUE review=$PRIOR_REVIEW)"
+          # Compute integration-review DSO_REVIEW_CYCLE separately so the integration
+          # review uses its own cycle counter, not the per-branch review cycle counter.
+          # integration-review DSO_REVIEW_CYCLE: use PR review history specific to the
+          # session→main integration review (distinguished by "integration review" label).
+          PRIOR_INTEGRATION=$(gh api "/repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/comments" --paginate \
+            2>/dev/null \
+            | jq -s '[.[].[] | .body | select(test("integration.*review.*cycle|DSO_INTEGRATION_REVIEW_CYCLE"))] | length' \
+            || echo 0)
+          [[ "$PRIOR_INTEGRATION" =~ ^[0-9]+$ ]] || PRIOR_INTEGRATION=0
+          DSO_INTEGRATION_REVIEW_CYCLE=$((PRIOR_INTEGRATION + 1))
+          echo "DSO_INTEGRATION_REVIEW_CYCLE=$DSO_INTEGRATION_REVIEW_CYCLE" >> "$GITHUB_ENV"
+          echo "Computed DSO_INTEGRATION_REVIEW_CYCLE=$DSO_INTEGRATION_REVIEW_CYCLE"
+
+      - name: Suppress prior defenses for integration review
+        if: needs.changes.outputs.code_changed == 'true'
+        run: |
+          # Integration review must suppress TrackerDefenseStore defenses from prior
+          # review cycles. The suppress-prior-defenses flag prevents already-defended
+          # findings from being re-flagged in the integration review pass.
+          echo "DSO_SUPPRESS_PRIOR_DEFENSES=true" >> "$GITHUB_ENV"
+          echo "suppress-prior-defenses: enabled for integration review"
 
       - name: Run LLM review
-        if: needs.changes.outputs.code_changed == 'true'
+        if: needs.changes.outputs.code_changed == 'true' && env.INTEGRATION_SCOPE_EMPTY != 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -383,9 +496,16 @@ jobs:
           # DSO_REVIEW_CYCLE is set via $GITHUB_ENV by the preceding step and
           # automatically propagated to subsequent step env contexts.
           DSO_REVIEW_CYCLE: ${{ env.DSO_REVIEW_CYCLE }}
+          DSO_INTEGRATION_REVIEW_CYCLE: ${{ env.DSO_INTEGRATION_REVIEW_CYCLE }}
+          DSO_SUPPRESS_PRIOR_DEFENSES: ${{ env.DSO_SUPPRESS_PRIOR_DEFENSES }}
         shell: bash -eo pipefail {0}
         run: |
           PR_NUMBER="${GITHUB_REF#refs/pull/}"
           PR_NUMBER="${PR_NUMBER%/merge}"
+          # If integration scope is empty, skip LLM review dispatch entirely.
+          if [[ "${INTEGRATION_SCOPE_EMPTY:-false}" == "true" ]]; then
+            echo "Integration scope empty: no files to review — skipping LLM review"
+            exit 0
+          fi
           gh pr diff "$PR_NUMBER" | bash plugins/dso/scripts/ci-llm-review-runner.sh
 
