@@ -187,6 +187,15 @@ Ensure a bug ticket exists and is set to in-progress before investigation begins
 
 Store the ticket ID as `BUG_TICKET_ID` for use throughout the workflow.
 
+**Explicit-invocation tag (CLI_user):** If the current `/dso:fix-bug` invocation was an explicit user directive in the orchestrator's most recent user turn (e.g., the user typed `/dso:fix-bug`, `/fix-bug`, "use /fix-bug to ...", "run fix-bug on ...", or otherwise directed the agent to run this skill by name on a specific ticket), the user IS the intent signal. Apply the `CLI_user` tag so the Phase B Step 1 pre-check skips intent-search dispatch:
+
+```bash
+.claude/scripts/dso ticket tag "$BUG_TICKET_ID" CLI_user 2>/dev/null || true
+.claude/scripts/dso ticket comment "$BUG_TICKET_ID" "CLI_user tag applied: skill invoked explicitly by user in current session" 2>/dev/null || true
+```
+
+Apply this ONLY when the current invocation was an explicit user directive. When `/dso:fix-bug` is dispatched autonomously by another skill (sprint Phase F failure recovery, debug-everything bug-fix mode, end-session, etc.) — i.e., not from a user message in this turn — leave the tag off so the full intent gate runs.
+
 Post WORKTREE_TRACKING:start on the bug ticket (fail silently if .tickets-tracker/ unavailable): # tickets-boundary-ok
 ```bash
 _BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
@@ -252,12 +261,23 @@ if ! git merge-base --is-ancestor "$CODE_VERSION" HEAD 2>/dev/null; then
         .claude/scripts/dso ticket comment "$BUG_TICKET_ID" \
           "Worktree ancestry check: PASSED (squash-merge) — code_version ${CODE_VERSION} is not a direct ancestor of HEAD but exists in the object store and is not the tip of any remote branch, indicating a squash-merged PR. Proceeding with investigation."
     else
-        .claude/scripts/dso ticket comment "$BUG_TICKET_ID" \
-          "Worktree ancestry check: FAILED — code_version ${CODE_VERSION} is not an ancestor of HEAD on $(git rev-parse --abbrev-ref HEAD) and does not appear to be squash-merged (object absent, remote tip, or remote unavailable). Investigation skipped; re-queue when the source branch lands."
-        # Transition ticket back to open so it is visible for re-queuing
-        .claude/scripts/dso ticket transition "$BUG_TICKET_ID" in_progress open 2>/dev/null || true
-        # END the skill
-        exit 0
+        # Tertiary check: user-acknowledged scope (CLI_user tag).
+        # A bug filed explicitly by a user (CLI_user tag present) carries human
+        # acknowledgement that the investigation is in scope here — even if the
+        # filing SHA lives on an unmerged story branch. Demote the hard-stop to
+        # a warning so the user is not forced to re-queue mid-session.
+        _HAS_CLI_USER=$(.claude/scripts/dso ticket show "$BUG_TICKET_ID" 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); print('1' if 'CLI_user' in (d.get('tags') or []) else '0')" 2>/dev/null || echo "0")
+        if [ "$_HAS_CLI_USER" = "1" ]; then
+            .claude/scripts/dso ticket comment "$BUG_TICKET_ID" \
+              "Worktree ancestry check: WARNING (demoted) — code_version ${CODE_VERSION} is not an ancestor of HEAD and not squash-merged, but CLI_user tag indicates user-acknowledged scope. Proceeding with investigation; verify the affected code is present on HEAD before applying any fix."
+        else
+            .claude/scripts/dso ticket comment "$BUG_TICKET_ID" \
+              "Worktree ancestry check: FAILED — code_version ${CODE_VERSION} is not an ancestor of HEAD on $(git rev-parse --abbrev-ref HEAD) and does not appear to be squash-merged (object absent, remote tip, or remote unavailable). Investigation skipped; re-queue when the source branch lands."
+            # Transition ticket back to open so it is visible for re-queuing
+            .claude/scripts/dso ticket transition "$BUG_TICKET_ID" in_progress open 2>/dev/null || true
+            # END the skill
+            exit 0
+        fi
     fi
 fi
 ```
