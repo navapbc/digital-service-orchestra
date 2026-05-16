@@ -11,9 +11,13 @@ on:
       - 'bugfix/**'
       - 'epic/**'
       - 'exp/**'
+      - 'story/**'
   pull_request:
-    branches:
-      - main
+    # PRs targeting any branch run the full CI suite. Previously this was
+    # restricted to PRs targeting main, which meant per-story PRs (head=story/X,
+    # base=session_branch=story/Y) skipped ALL CI tests — only per-branch-
+    # review.yml's LLM check ran. Removing the branches filter makes ci.yml run
+    # on every PR regardless of base. Bug 3914-0848-faad-4f6a.
   workflow_dispatch:
 
 concurrency:
