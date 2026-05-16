@@ -112,11 +112,16 @@ DSO_GH_BUDGET="0" \
 DSO_GH_REPO="no-such-owner/no-such-repo" \
     bash "$PROVENANCE_SCRIPT" > /dev/null 2>&1 || actual_exit2=$?
 
-# Exit code 1 (unprovenanced) or 2 (budget exhausted) — both indicate not-provenanced
-assert_ne \
-    "verify-session-provenance exits non-zero for squash commit without DSO-Story-Merge trailer" \
-    "0" \
-    "$actual_exit2"
+# Exit code MUST be 1 (unprovenanced) or 2 (budget exhausted) per the script's
+# documented contract — both indicate not-provenanced. A != 0 check alone would
+# accept any non-zero (e.g., 127 command-not-found or 5 permission-denied),
+# masking infrastructure failures as successful negative-path validation.
+if [[ "$actual_exit2" -eq 1 || "$actual_exit2" -eq 2 ]]; then
+    echo "PASS: verify-session-provenance exits with documented code ($actual_exit2) for unprovenanced squash commit"
+else
+    echo "FAIL: verify-session-provenance exit code $actual_exit2 is neither 1 (unprovenanced) nor 2 (budget exhausted) — likely an infrastructure failure, not a contract validation"
+    exit 1
+fi
 
 # Cleanup temp repos
 rm -rf "$_tmp_dir2" "$_artifact_dir2"

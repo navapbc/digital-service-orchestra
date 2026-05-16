@@ -68,9 +68,15 @@ assert_contains \
 
 # ── Test 5: The two variables use independent cycle counters ───────────────────
 echo "Test 5: Separation of concerns — integration cycle does not reuse per-branch formula"
-# Verify that the integration cycle is computed AFTER the per-branch cycle in the
-# same step (same "Compute DSO_REVIEW_CYCLE" step), not overriding it
-compute_step_block="$(awk '/- name: Compute DSO_REVIEW_CYCLE/{found=1} found{print; if(/^      - name:/ && !/Compute DSO_REVIEW_CYCLE/) exit}' "$CI_YML")"
+# Verify that the integration cycle is computed in the per-branch cycle step
+# (same step), not overriding it. Extraction tolerates step-name whitespace
+# variation by accepting either "Compute DSO_REVIEW_CYCLE" with any surrounding
+# whitespace; emits an explicit assertion failure if extraction yields empty.
+compute_step_block="$(awk '/-[[:space:]]*name:[[:space:]]*Compute DSO_REVIEW_CYCLE/{found=1} found{print; if(/^[[:space:]]+-[[:space:]]+name:/ && !/Compute DSO_REVIEW_CYCLE/) exit}' "$CI_YML")"
+if [[ -z "$compute_step_block" ]]; then
+    echo "FAIL: Test 5 setup — awk extraction returned empty; the 'Compute DSO_REVIEW_CYCLE' step could not be located in $CI_YML"
+    exit 1
+fi
 assert_contains \
     "Integration cycle computed inside 'Compute DSO_REVIEW_CYCLE' step" \
     "DSO_INTEGRATION_REVIEW_CYCLE" \

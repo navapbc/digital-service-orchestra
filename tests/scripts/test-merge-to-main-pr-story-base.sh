@@ -179,17 +179,17 @@ test_story_pr_uses_session_branch_as_base() {
 
     # Assert: --base session-20260515 appears in the pr create invocation
     _has_session_base="false"
-    if echo "$_argv" | grep -qE "^pr create .*--base session-20260515"; then
+    if echo "$_argv" | grep -qE "^[[:space:]]*pr create .*--base session-20260515"; then
         _has_session_base="true"
-    elif echo "$_argv" | grep -qE "^pr create .*--base=session-20260515"; then
+    elif echo "$_argv" | grep -qE "^[[:space:]]*pr create .*--base=session-20260515"; then
         _has_session_base="true"
     fi
 
     # Assert: --base main does NOT appear in the pr create invocation
     _has_main_base="false"
-    if echo "$_argv" | grep -qE "^pr create .*--base main"; then
+    if echo "$_argv" | grep -qE "^[[:space:]]*pr create .*--base main"; then
         _has_main_base="true"
-    elif echo "$_argv" | grep -qE "^pr create .*--base=main"; then
+    elif echo "$_argv" | grep -qE "^[[:space:]]*pr create .*--base=main"; then
         _has_main_base="true"
     fi
 
@@ -231,9 +231,9 @@ test_story_pr_base_unset_defaults_to_main() {
     _argv="$(cat "$_T/gh-argv.log" 2>/dev/null || echo '')"
 
     _has_main_base="false"
-    if echo "$_argv" | grep -qE "^pr create .*--base main"; then
+    if echo "$_argv" | grep -qE "^[[:space:]]*pr create .*--base main"; then
         _has_main_base="true"
-    elif echo "$_argv" | grep -qE "^pr create .*--base=main"; then
+    elif echo "$_argv" | grep -qE "^[[:space:]]*pr create .*--base=main"; then
         _has_main_base="true"
     fi
 
@@ -273,17 +273,17 @@ test_story_pr_base_empty_defaults_to_main() {
 
     # Empty STORY_PR_BASE must resolve to main (not --base "")
     _has_main_base="false"
-    if echo "$_argv" | grep -qE "^pr create .*--base main"; then
+    if echo "$_argv" | grep -qE "^[[:space:]]*pr create .*--base main"; then
         _has_main_base="true"
-    elif echo "$_argv" | grep -qE "^pr create .*--base=main"; then
+    elif echo "$_argv" | grep -qE "^[[:space:]]*pr create .*--base=main"; then
         _has_main_base="true"
     fi
 
     # Verify --base with empty value does NOT appear
     _has_empty_base="false"
-    if echo "$_argv" | grep -qE "^pr create .*--base $"; then
+    if echo "$_argv" | grep -qE "^[[:space:]]*pr create .*--base $"; then
         _has_empty_base="true"
-    elif echo "$_argv" | grep -qE "^pr create .*--base=\s*$"; then
+    elif echo "$_argv" | grep -qE "^[[:space:]]*pr create .*--base=\s*$"; then
         _has_empty_base="true"
     fi
 
