@@ -888,23 +888,36 @@ def finding_hash(f):
     return hash((f.get("file", ""), f.get("line_range", ""), f.get("category", "")))
 
 def jaccard(set_k, set_k_minus_1):
+    # Both empty → no findings either side → stable agreement → 1.0
     if not set_k and not set_k_minus_1:
-        return 1.0  # zero-set edge case: both empty → full agreement → halt
+        return 1.0
+    # One empty, one not → mathematical Jaccard of (empty, non-empty) is 0.0
+    # (no overlap). Returning 1.0 here would falsely halt on cycle 1 (when
+    # set_k_minus_1 is empty) even with unresolved critical findings — see
+    # the CYCLE_NUM > 1 guard on the caller below.
     if not set_k or not set_k_minus_1:
-        return 1.0  # zero-set edge case: one empty → full agreement → halt
+        return 0.0
     hashes_k = {finding_hash(f) for f in set_k}
     hashes_prev = {finding_hash(f) for f in set_k_minus_1}
     intersection = len(hashes_k & hashes_prev)
     union = len(hashes_k | hashes_prev)
     return intersection / union if union > 0 else 1.0
 
-if jaccard(findings_cycle_k, findings_cycle_k_minus_1) >= 0.85:
+# Cycle 1 has no prior cycle to compare against — skip the stability check
+# entirely. Premature STABLE_HALT on cycle 1 would block all subsequent
+# cycles even if critical findings remain unresolved.
+if CYCLE_NUM > 1 and jaccard(findings_cycle_k, findings_cycle_k_minus_1) >= 0.85:
     emit("STABLE_HALT")
     # halt — no further cycles dispatched; proceed to Step 5
 ```
 
-**Zero-set edge case**: When either cycle K or cycle K-1 finding set is empty, Jaccard is
-defined as 1.0 (full agreement). Emit `STABLE_HALT` immediately.
+**Zero-set edge cases**:
+- Both cycle K and cycle K-1 are empty (no findings either side): Jaccard is 1.0 (full
+  agreement); emit `STABLE_HALT`.
+- One empty, one not: Jaccard is 0.0 (mathematical definition of empty-vs-non-empty); do
+  NOT halt.
+- No prior cycle (`CYCLE_NUM == 1`): skip the Jaccard check entirely; defer to the next
+  cycle for stability assessment.
 
 **STABLE_HALT signal**: When Jaccard ≥ 0.85, emit `STABLE_HALT` and do NOT dispatch cycle K+1,
 even if `CYCLE_NUM < MAX_CYCLES`. Record the halt reason in `cycle-ledger.json` as
