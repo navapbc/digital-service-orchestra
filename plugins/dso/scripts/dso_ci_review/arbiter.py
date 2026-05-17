@@ -194,6 +194,31 @@ def _enforce_cove_fallback(
     return ruling
 
 
+def _enforce_impact_class_floor(ruling: dict[str, Any]) -> dict[str, Any]:
+    """Reclassify BLOCK to DEFER when impact_class='none' (outside 8-category floor).
+
+    Per the BLOCK-gate AND-logic in code-reviewer-arbiter.md, BLOCK requires
+    impact_class to be in the 8-category floor (NOT 'none'). A finding without
+    real impact (style, hygiene, refactor) must not block a merge — it gets
+    DEFER ruling so it's tracked but not blocking.
+
+    Only applies to rulings with schema_version >= "1.1.0" (legacy rulings
+    without impact_class field are passed through unchanged).
+    """
+    if ruling.get("schema_version", "1.0.0") < "1.1.0":
+        return ruling
+    if ruling.get("ruling") == "BLOCK" and ruling.get("impact_class") == "none":
+        result = dict(ruling)
+        result["ruling"] = "DEFER"
+        original_rationale = result.get("rationale", "")
+        result["rationale"] = (
+            f"impact_class floor: impact_class='none' is outside 8-category BLOCK floor — "
+            f"BLOCK reclassified to DEFER. Original: {original_rationale}"
+        )
+        return result
+    return ruling
+
+
 def compute_ruling_from_fixture(fixture: dict) -> dict:
     """Apply CoVe fallback and validate on a pre-stored arbiter_ruling from a fixture.
 
@@ -213,6 +238,7 @@ def compute_ruling_from_fixture(fixture: dict) -> dict:
     cycle_num = int(fixture.get("cycle", 1))
     max_cycles = int(fixture.get("max_cycles", 4))
     ruling = _enforce_cove_fallback(ruling, cycle_num, max_cycles)
+    ruling = _enforce_impact_class_floor(ruling)
     return validate_cycle_end_ruling(ruling)
 
 
@@ -346,6 +372,7 @@ def dispatch_arbiter(
         if "schema_version" not in ruling:
             ruling["schema_version"] = "1.0.0"
         ruling = _enforce_cove_fallback(ruling, cycle_num, max_cycles)
+        ruling = _enforce_impact_class_floor(ruling)
         validate_cycle_end_ruling(ruling)
         validated_rulings.append(ruling)
 
