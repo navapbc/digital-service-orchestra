@@ -1970,7 +1970,43 @@ Do NOT close this story, do NOT transition it to closed, and do NOT proceed to S
 "All tests pass" is not a substitute for the completion-verifier dispatch. Dispatch the verifier NOW before reading any further.
 </HARD-GATE>
 
-**MANDATORY (3f26-4c70 gate)**: First confirm OPEN_CHILDREN == 0 from the check above. If OPEN_CHILDREN > 0 at this point, STOP — do NOT dispatch the verifier; follow the blocked path above instead. Only when OPEN_CHILDREN is confirmed 0: dispatch `dso:completion-verifier` via the Agent tool as `subagent_type: "dso:completion-verifier"` with `model: "sonnet"` and the story ID (CLAUDE.md rule #20 — must use the named agent type; inline verification is NOT a substitute). If the named type is unavailable (technical failure), read `agents/completion-verifier.md` verbatim and dispatch as `subagent_type: "general-purpose"` with the full file content as the first element of the prompt — a prompt that only references the file without loading it is fabrication.
+**MANDATORY (3f26-4c70 gate)**: First confirm OPEN_CHILDREN == 0 from the check above. If OPEN_CHILDREN > 0 at this point, STOP — do NOT dispatch the verifier; follow the blocked path above instead. Only when OPEN_CHILDREN is confirmed 0, dispatch the verifier exactly as specified below.
+
+<HARD-GATE>
+**Verifier dispatch shape — DO NOT DEVIATE (bug c716-952a)**
+
+The Agent tool call MUST use the named agent type. Hand-written prompts that paraphrase the agent file — even prompts starting "You are the dso:completion-verifier agent..." — are fabrication and violate CLAUDE.md rule #20. The named-agent dispatch loads the canonical rubric, schema, and verification questions; an inline prompt cannot reproduce them faithfully and skips the structural output contract.
+
+The ONLY two valid dispatch forms are:
+
+1. **Primary form** — named subagent_type (use this unless it errors):
+   ```
+   Agent({
+     description: "Verify story <story-id> completion",
+     subagent_type: "dso:completion-verifier",
+     model: "sonnet",
+     prompt: "<story-id> + any additional context the verifier needs"
+   })
+   ```
+
+2. **Fallback form** — only when subagent_type "dso:completion-verifier" returns an "Unknown agent" / dispatch error in this exact session. Read `agents/completion-verifier.md` verbatim with the Read tool and pass the ENTIRE file contents as the first element of the prompt under subagent_type "general-purpose":
+   ```
+   Agent({
+     description: "Verify story <story-id> completion (fallback)",
+     subagent_type: "general-purpose",
+     model: "sonnet",
+     prompt: "<verbatim contents of agents/completion-verifier.md>\n\n---\n\nStory ID: <story-id>"
+   })
+   ```
+
+What is NOT acceptable (all of these are CLAUDE.md rule #20 violations):
+- Hand-written check lists or ad-hoc rubrics in the prompt
+- Prompts that reference the agent file by name without loading its contents
+- Prompts that summarize the agent file's instructions in your own words
+- Dispatching `subagent_type: "general-purpose"` with anything other than the verbatim agent file as a fallback for a named-type failure
+
+If neither form is achievable (e.g., Agent tool unavailable), STOP and surface to the user — do not synthesize a verifier prompt yourself.
+</HARD-GATE>
 - `overall_verdict: PASS` → proceed with closure
 - `overall_verdict: FAIL` → see branching logic below
 - **Fallback (technical failure only)**: On timeout/unparseable JSON, log warning and proceed with closure.
@@ -2209,7 +2245,7 @@ Read and execute `prompts/epic-ci-and-e2e-gates.md` for the integration test gat
 
 ### Step 2: Completion Verification (/dso:sprint)
 
-**MANDATORY**: Dispatch `dso:completion-verifier` via the Agent tool as `subagent_type: "dso:completion-verifier"` with `model: "sonnet"` and the epic ID (CLAUDE.md rule #20 — must use the named agent type; inline verification is NOT a substitute). If the named type is unavailable (technical failure), read `agents/completion-verifier.md` verbatim and dispatch as `subagent_type: "general-purpose"` with the full file content as the first element of the prompt.
+**MANDATORY**: Dispatch the completion-verifier using the same shape defined in Phase F Step 18's "Verifier dispatch shape" HARD-GATE — primary form uses `subagent_type: "dso:completion-verifier"` with `model: "sonnet"`; fallback form reads `agents/completion-verifier.md` verbatim and passes its full contents under `subagent_type: "general-purpose"`. Hand-written paraphrases of the agent file are CLAUDE.md rule #20 violations (bug c716-952a). Pass the epic ID instead of a story ID.
 - `overall_verdict: PASS` → proceed to Step 3
 - `overall_verdict: FAIL` → **STOP. Do NOT proceed to Phase H or epic closure under ANY circumstances.** Create bug tasks from `remediation_tasks_created` and return to Phase C (Batch Preparation).
 - **Fallback (technical failure only)**: On timeout/unparseable JSON, log warning and proceed to Step 3.
