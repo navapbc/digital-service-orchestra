@@ -59,7 +59,7 @@ The following table defines all fields of a DefenseRecord. All required fields m
 | `cycle_number` | integer | yes | Review cycle number when the defense was recorded (1-indexed). |
 | `timestamp` | string | yes | ISO 8601 timestamp (UTC) when the defense was written. |
 | `severity_history` | array | yes | Per-cycle severity records for SC1 telemetry. Each entry: `{cycle: int, severity: string, relation: string \| null}`. Must contain at least one entry. |
-| `arbiter_ruling` | object | no | Present only when an arbiter resolved this defense. Fields: `ruling` (one of `SUSTAIN_AT_SEVERITY`, `ACCEPT_DEFENSE`, or `DOWNGRADE_TO_<severity>`), `summary` (1–2 sentence summary in GitHubPRDefenseStore; full text in TrackerDefenseStore), `arbiter_cycle` (integer). |
+| `arbiter_ruling` | object | no | Present only when an arbiter resolved this defense. Fields: `ruling` (exactly one of `BLOCK`, `DEFER`, or `DROP`), `summary` (1–2 sentence summary in GitHubPRDefenseStore; full text in TrackerDefenseStore), `arbiter_cycle` (integer), `schema_version` (string, `"1.1.0"`), `cross_reviewer_agreement` (array of strings; enum from 4-value vocabulary — `UNANIMOUS`, `MAJORITY`, `SPLIT`, `SINGLE_REVIEWER`), `cross_cycle_pattern` (array of strings; enum from 7-value vocabulary — `NEW_INTRODUCED`, `RECURRING`, `RESUSTAIN_OF`, `RESOLVED_THEN_REINTRODUCED`, `ESCALATED`, `DEFENDED_PRIOR_CYCLE`, `UNKNOWN`), `impact_class` (single string; enum from 9-value vocabulary — 8-category floor `bug`/`unintended_behavior`/`security_vulnerability`/`data_loss_or_corruption`/`secret_exposure`/`compliance_violation`/`api_contract_break`/`infrastructure_break` plus `none`). The three classification fields are required when `schema_version` is `"1.1.0"` or later; legacy `"1.0.0"` records omit them. BLOCK rulings require `impact_class` to be in the 8-category floor (not `none`). |
 | `ticket_id` | string | yes | Ticket bound at time of defense write. Set to `UNBOUND` when no session ticket — this value is invalid and causes write failure per the ticket-binding integrity rule. |
 | `story_branch_tip_sha` | string | no | Tip commit SHA of the story branch at the time the defense was written. Used by `load_for_region` for SHA-range validation. When present, `story_branch_base_sha` must also be present. |
 | `story_branch_base_sha` | string | no | Merge-base SHA between the story branch and the session branch at the time the defense was written. Used by `load_for_region` for SHA-range validation. When present, `story_branch_tip_sha` must also be present. |
@@ -123,7 +123,7 @@ Once a defense is recorded against a `cited_lines_fingerprint`, the following in
 
 - **Subsequent cycles must not re-raise the same `finding_id` against the same fingerprint state.** If the fingerprint matches on a later cycle, the finding is considered defended and must not appear as a new finding.
 - **If cited lines change semantically**, the fingerprint changes, the binding is released, and the finding may be re-raised under `NEW_INTRODUCED` authority. The prior defense record is retained in history but does not apply to the new fingerprint.
-- **Arbiter rulings follow the fingerprint**: a `SUSTAIN_AT_SEVERITY` ruling persists only while the fingerprint is stable. A semantic edit releases both the defense and the arbiter ruling.
+- **Arbiter rulings follow the fingerprint**: a `DEFER` ruling persists only while the fingerprint is stable. A semantic edit releases both the defense and the arbiter ruling.
 
 ---
 
@@ -202,9 +202,10 @@ Only one `ticket_id` is recorded per defense record. The tiebreak is resolved by
     {"cycle": 2, "severity": "important", "relation": "DEFENDED"}
   ],
   "arbiter_ruling": {
-    "ruling": "ACCEPT_DEFENSE",
-    "summary": "The module-level caller contract is clearly documented and consistently enforced across all call sites. The defensive null check would duplicate existing invariant enforcement and is not required.",
-    "arbiter_cycle": 3
+    "ruling": "DEFER",
+    "summary": "The module-level caller contract is clearly documented and consistently enforced across all call sites. Finding is deferred to next review cycle.",
+    "arbiter_cycle": 3,
+    "schema_version": "1.0.0"
   },
   "ticket_id": "7597-3b9c-8d56-4f54"
 }
@@ -214,12 +215,27 @@ Only one `ticket_id` is recorded per defense record. The tiebreak is resolved by
 ```json
 {
   "arbiter_ruling": {
-    "ruling": "ACCEPT_DEFENSE",
-    "summary": "Defense accepted: caller contract is well-documented and enforced. [Full ruling in CI log](https://ci.example.com/runs/12345#arbiter-ruling-0042)",
-    "arbiter_cycle": 3
+    "ruling": "DEFER",
+    "summary": "Finding deferred: caller contract is well-documented and enforced. [Full ruling in CI log](https://ci.example.com/runs/12345#arbiter-ruling-0042)",
+    "arbiter_cycle": 3,
+    "schema_version": "1.0.0"
   }
 }
 ```
+
+### Retired Arbiter Ruling Values
+
+The following ruling values from the pre-cycle-end arbiter (per-finding severity-dispute arbiter) are retired as of the cycle-end arbiter schema:
+
+| Old Value | Mapped To | Notes |
+|-----------|-----------|-------|
+| `SUSTAIN_AT_SEVERITY` | `DEFER` | Finding persists; reviewer severity claim stands; maps to DEFER at cycle-end |
+| `ACCEPT_DEFENSE` | `DROP` | Defense accepted; finding resolved; maps to DROP at cycle-end |
+| `DOWNGRADE_TO_<severity>` | `DEFER` | Severity adjusted but finding not resolved; maps to DEFER with severity adjustment |
+
+**Schema version**: The cycle-end arbiter output schema is `schema_version: "1.0.0"` (matches cycle-ledger convention from story aead-ae88). Records written by the old severity-dispute arbiter do not include `schema_version`; records written by the new cycle-end arbiter include `schema_version: "1.0.0"` in the `arbiter_ruling` sub-object.
+
+**Transition policy**: Old ruling values (`SUSTAIN_AT_SEVERITY`, `ACCEPT_DEFENSE`, `DOWNGRADE_TO_*`) are rejected by the new arbiter validation (`validate_cycle_end_ruling` in `dso_ci_review/arbiter.py`). Defense store readers that encounter old ruling values in records written before the cycle-end arbiter shipped must handle them gracefully (log + skip, as documented in the Failure Contract section).
 
 ---
 
@@ -231,7 +247,7 @@ Only one `ticket_id` is recorded per defense record. The tiebreak is resolved by
 | `defense_text` exceeds 4096 Unicode codepoints | `write()` rejected with error; record not persisted; caller must truncate or shorten before retrying |
 | `severity_history` is empty or absent | `write()` rejected with error; at least one entry is required |
 | `cited_lines_fingerprint` is absent or malformed | `write()` rejected with error; orchestrator must compute a valid SHA-256 hex string before calling `write()` |
-| `arbiter_ruling.ruling` contains an unrecognized value | Record stored as-is; arbiter ruling field treated as opaque by parsers that do not recognize the ruling value; a warning is logged |
+| `arbiter_ruling.ruling` is not in `{BLOCK, DEFER, DROP}` | Record stored as-is with a warning to stderr; defense store readers that do not recognize the ruling value log and skip it. Legacy values (`SUSTAIN_AT_SEVERITY`, `ACCEPT_DEFENSE`, `DOWNGRADE_TO_*`) from pre-cycle-end arbiter records are treated as unrecognized values. |
 | Backend storage failure (ticket comment write fails, PR API error) | `write()` raises an error; caller is responsible for retry or escalation; no partial writes |
 | Fork PR (no write access to base repo PR comments) | GitHubPRDefenseStore `write()` is a no-op for fork PRs; returns success silently; defense records are not persisted for fork-origin PRs |
 
@@ -292,3 +308,5 @@ This contract is versioned. Breaking changes (field removal, type changes, algor
 - **2026-05-07**: Initial version — defines DefenseStore record shape, two-backend split (TrackerDefenseStore / GitHubPRDefenseStore), cited_lines_fingerprint SHA-256 computation algorithm, durable binding contract, ticket-binding integrity rule, multi-bound session tiebreak, `load_for_region` interface, and failure contract.
 - **2026-05-11**: Added SHA-range attestation fields (`story_branch_tip_sha`, `story_branch_base_sha`) to the record shape; extended `load_for_region` with `query_sha` parameter and two-condition OR ancestry-path validation (Condition A: in-range linear chain, Condition B: post-merge); defined legacy fallback contract (`diff_hash` lookup with `legacy attestation` stderr warning) for records lacking SHA fields; added Schema Migration section documenting the two-era record formats and transparent loader handling.
 - **2026-05-15**: Added optional `cited_lines` field (array of `path:lineno` strings) to DefenseRecord shape. Copied from the finding being defended at defense assembly time. Enables ±5-line proximity-matching suppression in `_suppress_defended_findings`. Absent on legacy records; falls back to description-prefix matching.
+- **2026-05-16**: Updated arbiter_ruling sub-schema to cycle-end BLOCK/DEFER/DROP ruling enum. Retired old severity-dispute ruling values (SUSTAIN_AT_SEVERITY, ACCEPT_DEFENSE, DOWNGRADE_TO_*) with migration mapping. Added schema_version field to arbiter_ruling. Update Change Log with 2026-05-16 entry and Failure Contract row for unrecognized rulings. See story 0652-809a-d1fc-4d36 (S3) and epic b575-ac1c-f720-4839.
+- **2026-05-17**: Bumped arbiter_ruling.schema_version to 1.1.0. Added required enum-array fields cross_reviewer_agreement (4-val), cross_cycle_pattern (7-val), and impact_class (9-val, 8-cat floor + 'none'). BLOCK-gate AND-logic extended with impact_class floor enforcement. See story 62c9-46f5-f287-4c24 (epic b575-ac1c-f720-4839).
