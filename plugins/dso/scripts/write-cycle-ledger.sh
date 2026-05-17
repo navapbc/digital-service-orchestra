@@ -16,6 +16,13 @@
 #   write-cycle-ledger.sh --epic-id <id> --cycle-num <n> --findings-hash <hash>
 #                         [--artifacts-dir <path>] [--reconstruct-from-pr]
 #
+# Usage (pure-reconstruction interface — no new cycle appended):
+#   write-cycle-ledger.sh --reconstruct-from-pr <PR_NUM> <REPO>
+#                         [--artifacts-dir <path>]
+#   Writes the ledger reconstructed from PR comments only. Delegates parsing
+#   to `python3 -m dso_ci_review.cycle_ledger reconstruct-from-pr` so the
+#   shell does not maintain a second marker grammar (task b1df-18c6).
+#
 # Required (legacy):
 #   --payload <json>   JSON object to merge into cycle-ledger.json
 #
@@ -31,6 +38,9 @@
 #   --reconstruct-from-pr    Trigger CI reconstruction mode: parse PR comments
 #                            for prior DSO-Review-Cycle entries before appending
 #                            the current cycle. Requires DSO_CI_REVIEW_PR env var.
+#                            Parsing is delegated to the Python CLI (no shell-side
+#                            regex) so local and CI reconstruction paths produce
+#                            identical ledgers (Step 4.75 parity).
 #
 # Output schema (cycle-ledger.json):
 #   {
@@ -60,6 +70,11 @@ epic_id=""
 cycle_num=""
 findings_hash=""
 reconstruct_from_pr=0
+# Pure-reconstruction (positional) mode: set when `--reconstruct-from-pr <PR> <REPO>`
+# is invoked with two trailing positional arguments. Delegates fully to the
+# Python CLI; no new cycle is appended.
+pure_recon_pr=""
+pure_recon_repo=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -101,7 +116,15 @@ while [[ $# -gt 0 ]]; do
             ;;
         --reconstruct-from-pr)
             reconstruct_from_pr=1
-            shift
+            # Detect positional form: --reconstruct-from-pr <PR_NUM> <REPO>
+            # Heuristic: next two args exist and don't start with `-`.
+            if [[ $# -ge 3 && "${2:0:1}" != "-" && "${3:0:1}" != "-" ]]; then
+                pure_recon_pr="$2"
+                pure_recon_repo="$3"
+                shift 3
+            else
+                shift
+            fi
             ;;
         *)
             echo "error: unknown argument: $1" >&2
@@ -115,12 +138,19 @@ done
 # ---------------------------------------------------------------------------
 
 use_new_interface=0
+pure_recon_mode=0
 
-if [[ -n "$epic_id" || -n "$cycle_num" || -n "$findings_hash" ]]; then
+if [[ -n "$pure_recon_pr" && -n "$pure_recon_repo" ]]; then
+    pure_recon_mode=1
+elif [[ -n "$epic_id" || -n "$cycle_num" || -n "$findings_hash" ]]; then
     use_new_interface=1
 fi
 
-if [[ "$use_new_interface" -eq 1 ]]; then
+if [[ "$pure_recon_mode" -eq 1 ]]; then
+    # Pure-reconstruction mode delegates to the Python CLI; no additional
+    # argument validation needed here. The Python CLI validates <pr-number>.
+    :
+elif [[ "$use_new_interface" -eq 1 ]]; then
     # New interface: all three required
     if [[ -z "$epic_id" || -z "$cycle_num" || -z "$findings_hash" ]]; then
         echo "error: --epic-id, --cycle-num, and --findings-hash are all required when using the new interface" >&2
@@ -138,7 +168,7 @@ fi
 # Validate payload is valid JSON (fail fast before acquiring lock) — legacy only
 # ---------------------------------------------------------------------------
 
-if [[ "$use_new_interface" -eq 0 ]]; then
+if [[ "$use_new_interface" -eq 0 && "$pure_recon_mode" -eq 0 ]]; then
     if ! python3 -c "import json,sys; json.loads(sys.argv[1])" "$payload" 2>/dev/null; then
         echo "error: --payload is not valid JSON" >&2
         exit 1
@@ -168,6 +198,38 @@ fi
 LEDGER_PATH="$ARTIFACTS_DIR/cycle-ledger.json"
 LOCK_FILE="$ARTIFACTS_DIR/cycle-ledger.lock"
 
+# ---------------------------------------------------------------------------
+# Pure-reconstruction mode (positional `--reconstruct-from-pr <PR> <REPO>`):
+# delegate to the Python CLI so a single grammar source parses PR comments
+# in both local and CI paths. No new cycle is appended.
+# ---------------------------------------------------------------------------
+
+if [[ "$pure_recon_mode" -eq 1 ]]; then
+    # Resolve PYTHONPATH so `python3 -m dso_ci_review.cycle_ledger` resolves
+    # without requiring the package to be installed.
+    SCRIPTS_PY_DIR="$SCRIPT_DIR"
+    if [[ -n "${PYTHONPATH:-}" ]]; then
+        export PYTHONPATH="$SCRIPTS_PY_DIR:$PYTHONPATH"
+    else
+        export PYTHONPATH="$SCRIPTS_PY_DIR"
+    fi
+
+    # Write Python stdout to a temp file, then rename to LEDGER_PATH atomically.
+    STAGING_TEMP=$(mktemp "$ARTIFACTS_DIR/cycle-ledger-XXXXXX")
+    trap 'rm -f "${STAGING_TEMP:-}"' EXIT
+    if ! python3 -m dso_ci_review.cycle_ledger \
+            reconstruct-from-pr "$pure_recon_pr" "$pure_recon_repo" \
+            > "$STAGING_TEMP"; then
+        rm -f "$STAGING_TEMP"
+        echo "error: python reconstruction failed" >&2
+        exit 1
+    fi
+    mv -f "$STAGING_TEMP" "$LEDGER_PATH"
+    trap - EXIT
+    echo "cycle-ledger.json written: $LEDGER_PATH"
+    exit 0
+fi
+
 # Stage to a temp file on the same filesystem (atomic rename requires same device).
 # Note: no suffix after XXXXXX — macOS mktemp only replaces trailing X-blocks; a
 # suffix like ".tmp" after XXXXXX makes macOS treat the whole thing as a literal
@@ -183,6 +245,14 @@ if [[ "$use_new_interface" -eq 1 ]]; then
     TIMESTAMP="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
     PR_NUMBER="${DSO_CI_REVIEW_PR:-}"
 
+    # Ensure the Python module is importable for the reconstruction path.
+    # SCRIPT_DIR points to this script's directory where dso_ci_review/ lives.
+    if [[ -n "${PYTHONPATH:-}" ]]; then
+        export PYTHONPATH="$SCRIPT_DIR:$PYTHONPATH"
+    else
+        export PYTHONPATH="$SCRIPT_DIR"
+    fi
+
     python3 - \
         "$LEDGER_PATH" \
         "$LOCK_FILE" \
@@ -193,7 +263,7 @@ if [[ "$use_new_interface" -eq 1 ]]; then
         "$reconstruct_from_pr" \
         "$PR_NUMBER" \
         "$STAGING_TEMP" <<'PYEOF'
-import fcntl, json, os, re, subprocess, sys, time
+import fcntl, json, os, sys, time
 
 ledger_path      = sys.argv[1]
 lock_path        = sys.argv[2]
@@ -227,34 +297,44 @@ if not acquired:
 
 try:
     # ── CI reconstruction path ────────────────────────────────────────────────
+    #
+    # Reconstruction parsing is delegated to dso_ci_review.cycle_ledger so the
+    # shell does not maintain a second marker grammar. Step 4.75 parity
+    # requires byte-identical reconstruction across local and CI paths.
     if do_reconstruct and not os.path.isfile(ledger_path):
         reconstruction_gaps = True  # always flag in reconstruction mode
         cycles = []
 
         if pr_number:
             try:
-                result = subprocess.run(
-                    ["gh", "pr", "view", pr_number, "--json", "comments",
-                     "--jq", ".comments[].body"],
-                    capture_output=True, text=True, timeout=30
+                from dso_ci_review.cycle_ledger import (
+                    reconstruct_from_pr_comments,
                 )
-                lines = result.stdout.splitlines()
-                pattern = re.compile(
-                    r"^DSO-Review-Cycle: ([0-9]+)( findings-hash=([^ ]+))?"
+                # Repo is taken from GITHUB_REPOSITORY (CI standard) or
+                # DSO_CI_REVIEW_REPO when set explicitly. Empty string is
+                # passed through; gh CLI will fail and we mark gaps.
+                repo = os.environ.get("DSO_CI_REVIEW_REPO") \
+                    or os.environ.get("GITHUB_REPOSITORY", "")
+                rec_ledger = reconstruct_from_pr_comments(
+                    int(pr_number), repo
                 )
+                # Map the unified ledger's cycle entries to this script's
+                # surface shape (cycle_num/findings_hash/timestamp_utc).
+                # The unified parser handles BOTH legacy and v1.1.0 markers
+                # and sets reconstruction_gaps on its own when entries are
+                # malformed; we OR that into our gap flag.
+                if rec_ledger.get("reconstruction_gaps"):
+                    reconstruction_gaps = True
                 parsed_entries = []
-                for line in lines:
-                    m = pattern.match(line)
-                    if m:
-                        cn = int(m.group(1))
-                        fh = m.group(3) if m.group(3) else ""
-                        if not fh:
-                            reconstruction_gaps = True
-                        parsed_entries.append({
-                            "cycle_num": cn,
-                            "findings_hash": fh,
-                            "timestamp_utc": ""
-                        })
+                for entry in rec_ledger.get("cycles", []):
+                    fh = entry.get("findings_hash", "") or ""
+                    if not fh:
+                        reconstruction_gaps = True
+                    parsed_entries.append({
+                        "cycle_num": entry["cycle_num"],
+                        "findings_hash": fh,
+                        "timestamp_utc": "",
+                    })
                 if not parsed_entries:
                     reconstruction_gaps = True
                 else:
