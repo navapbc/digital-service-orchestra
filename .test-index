@@ -203,7 +203,7 @@ plugins/dso/scripts/dso_ci_review/region_split.py:tests/skills/dso_ci_review/tes
 plugins/dso/scripts/dso_ci_review/runner.py:tests/skills/dso_ci_review/test_runner_smoke.py,tests/skills/dso_ci_review/verify_pr80_schema_compliance.py,tests/skills/dso_ci_review/test_schema_compliance_pr80.py,tests/skills/dso_ci_review/test_suppress_proximity.py,tests/skills/dso_ci_review/test_novelty_gate.py [test_novelty_gate_downgrades_unjustified_new_introduced]
 plugins/dso/scripts/end-session/check-orphan-epics.sh:tests/scripts/test-check-orphan-epics.sh
 plugins/dso/scripts/end-session/end-session-cleanup.sh:tests/scripts/test-end-session-cleanup.sh
-plugins/dso/scripts/end-session/error-sweep.sh:tests/skills/test-end-session-error-sweep.sh,tests/scripts/test-error-sweep-config-gate.sh
+plugins/dso/scripts/end-session/error-sweep.sh:tests/skills/test-end-session-error-sweep.sh,tests/scripts/test-error-sweep-config-gate.sh,tests/skills/test-end-session-error-sweep-subprocess.sh
 plugins/dso/scripts/enrich-file-impact.sh:tests/scripts/test-enrich-file-impact-v2-removal.sh,tests/scripts/test-enrich-file-impact-storage-api.sh
 plugins/dso/scripts/ensure-pre-commit.sh:tests/scripts/test-ensure-precommit-config-paths.sh
 plugins/dso/scripts/figma_merge/__init__.py:tests/hooks/test-init-skill.sh,tests/scripts/test-ticket-init-bash-native.sh,tests/scripts/test-ticket-init.sh,tests/scripts/test-ticket-autoinit.sh

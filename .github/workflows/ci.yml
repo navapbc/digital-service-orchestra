@@ -376,12 +376,25 @@ jobs:
           # the script's range-collapse error gets suppressed and unprovenanced
           # commits are silently missed (Copilot/CodeRabbit finding 2026-05-16).
           git fetch --no-tags --depth=1 origin "${{ github.base_ref }}" 2>/dev/null || true
+          # Retro-review of PR #168 found that passing DSO_BASE_SHA as the
+          # symbolic ref string "origin/<base>" silently false-passes when the
+          # fetch above fails: the ref is unresolvable, `git log
+          # origin/main..HEAD` produces an empty range, the script exits 0,
+          # and the integration-scope step sees zero unprovenanced commits.
+          # Resolve the ref to a concrete SHA after fetch and fail the step
+          # loudly if resolution doesn't succeed — that surfaces the missing
+          # fetch instead of masking it.
+          BASE_SHA=$(git rev-parse --verify "origin/${{ github.base_ref }}^{commit}" 2>/dev/null || true)
+          if [[ -z "$BASE_SHA" ]]; then
+              echo "ERROR: cannot resolve origin/${{ github.base_ref }} after fetch — provenance check would silently false-pass; aborting step." >&2
+              exit 1
+          fi
           # verify-session-provenance.sh writes unprovenanced-shas.txt and exits
           # 0 (all provenanced), 1 (some unprovenanced), or 2 (budget exhausted).
           # We continue regardless — failures feed into the integration scope.
           # NOTE: the script reads DSO_BASE_SHA / DSO_SESSION_HEAD from env;
           # it does NOT parse CLI flags. Passing --base-ref silently no-ops.
-          DSO_BASE_SHA="origin/${{ github.base_ref }}" \
+          DSO_BASE_SHA="$BASE_SHA" \
             bash plugins/dso/scripts/verify-session-provenance.sh \
             2>/dev/null || true
           echo "DSO_ARTIFACT_DIR=$DSO_ARTIFACT_DIR" >> "$GITHUB_ENV"
