@@ -107,14 +107,41 @@ EOF
 fi
 
 # Verify the branch is pushed to origin (this is what makes per-branch-review.yml fire).
-if ! git ls-remote --exit-code origin "refs/heads/$BATCH_BRANCH" >/dev/null 2>&1; then
+# Distinguish "no origin remote" from "branch not pushed" so the remediation
+# message points at the actual problem. Without this split, a missing/misconfigured
+# `origin` remote would mislead the operator into running `git push -u origin ...`
+# which would itself fail with a different error.
+if ! git remote get-url origin >/dev/null 2>&1; then
     cat >&2 <<EOF
-ERROR: BATCH_BRANCH='$BATCH_BRANCH' exists locally but has NOT been pushed to origin.
+ERROR: no 'origin' remote configured in this repository.
+per-branch-review.yml fires on pushes to the GitHub remote — without an
+'origin' remote, no sub-branch PR flow is possible.
+
+Remediation:
+  git remote add origin <github-url>
+  git push -u origin "$BATCH_BRANCH"
+EOF
+    exit 1
+fi
+
+# Capture stderr from ls-remote so the operator sees the network/auth error
+# rather than a misleading "not pushed" remediation.
+_ls_remote_stderr=$(git ls-remote --exit-code origin "refs/heads/$BATCH_BRANCH" 2>&1 >/dev/null) && _ls_remote_ok=1 || _ls_remote_ok=0
+
+if [[ "$_ls_remote_ok" == "0" ]]; then
+    cat >&2 <<EOF
+ERROR: BATCH_BRANCH='$BATCH_BRANCH' exists locally but is not found on origin.
 per-branch-review.yml triggers on push to bug-batch/** — without the push,
 LLM Sub-Branch Review will not run for this tier/batch.
 
-Remediation:
+git ls-remote diagnostic: $_ls_remote_stderr
+
+Remediation (if the branch is simply not pushed):
   git push -u origin "$BATCH_BRANCH"
+
+If the diagnostic above indicates a network or authentication failure, fix
+that first (e.g., GH token, SSH key, network); a 'not pushed' remediation
+will not help in that case.
 EOF
     exit 1
 fi

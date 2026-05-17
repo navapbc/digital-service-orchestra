@@ -1989,13 +1989,13 @@ The ONLY two valid dispatch forms are:
    })
    ```
 
-2. **Fallback form** — only when subagent_type "dso:completion-verifier" returns an "Unknown agent" / dispatch error in this exact session. Read `agents/completion-verifier.md` verbatim with the Read tool and pass the ENTIRE file contents as the first element of the prompt under subagent_type "general-purpose":
+2. **Fallback form** — only when subagent_type "dso:completion-verifier" returns an "Unknown agent" / dispatch error in this exact session. Read `${CLAUDE_PLUGIN_ROOT}/agents/completion-verifier.md` verbatim with the Read tool and pass the ENTIRE file contents as the first element of the prompt under subagent_type "general-purpose". The agent file is plugin-shipped at `${CLAUDE_PLUGIN_ROOT}/agents/completion-verifier.md` — use that absolute resolution; a bare `agents/completion-verifier.md` relative path will not resolve correctly from a host-project worktree (false-positive review finding observed on PR #182 due to this ambiguity).
    ```
    Agent({
      description: "Verify story <story-id> completion (fallback)",
      subagent_type: "general-purpose",
      model: "sonnet",
-     prompt: "<verbatim contents of agents/completion-verifier.md>\n\n---\n\nStory ID: <story-id>"
+     prompt: "<verbatim contents of ${CLAUDE_PLUGIN_ROOT}/agents/completion-verifier.md>\n\n---\n\nStory ID: <story-id>"
    })
    ```
 

@@ -454,13 +454,45 @@ ${comment_body}"
             local _pr_head_sha
             _pr_head_sha=$(gh pr view "$pr_number" --json headRefOid -q .headRefOid 2>/dev/null || true)
             if [[ -n "$_pr_head_sha" ]]; then
-                _parent_story=$(git log -50 --format=%B "$_pr_head_sha" 2>/dev/null \
-                    | grep -m1 -oE '^DSO-Story:[[:space:]]*[a-zA-Z0-9-]+' \
-                    | sed -E 's/^DSO-Story:[[:space:]]*//' || true)
+                # Verify the SHA is locally fetched before scanning its log —
+                # in a shallow clone or fresh worktree the head SHA may not
+                # be reachable. Fall through to tag-only attribution if not.
+                # (Important finding from retro-review of PR #176.)
+                if git cat-file -e "${_pr_head_sha}^{commit}" 2>/dev/null; then
+                    _parent_story=$(git log -50 --format=%B "$_pr_head_sha" 2>/dev/null \
+                        | grep -m1 -oE '^DSO-Story:[[:space:]]*[a-zA-Z0-9-]+' \
+                        | sed -E 's/^DSO-Story:[[:space:]]*//' || true)
+                fi
             fi
             local _parent_flag=()
             if [[ -n "$_parent_story" ]] && "$_dso_cmd" ticket exists "$_parent_story" >/dev/null 2>&1; then
-                _parent_flag=(--parent "$_parent_story")
+                # Status check: ticket exists returns 0 for any non-deleted-
+                # tombstone-only ticket, INCLUDING tickets in terminal closed
+                # and deleted states. Linking a new task to a deleted parent
+                # corrupts the hierarchy; refuse to set --parent when the
+                # parent's status is deleted or closed.
+                #
+                # Fail-closed semantics: when the status query fails (empty
+                # string from the python3 fallback), refuse to set --parent
+                # rather than fail open. An unknown status is treated as
+                # potentially-terminal — the gate must default to safe
+                # behavior (tag-only attribution), not silently re-introduce
+                # the bug this check exists to prevent. The status must be
+                # explicitly one of the active states (open, in_progress) to
+                # cross the gate. (Important finding from PR #194 retro-review.)
+                local _parent_status
+                _parent_status=$("$_dso_cmd" ticket show "$_parent_story" 2>/dev/null \
+                    | python3 -c "import json,sys; print(json.load(sys.stdin).get('status',''))" 2>/dev/null || true)
+                case "$_parent_status" in
+                    open|in_progress)
+                        _parent_flag=(--parent "$_parent_story")
+                        ;;
+                    *)
+                        # Empty (status query failed), closed, deleted, or any
+                        # unrecognized state → tag-only attribution.
+                        echo "INFO: defer parent linking skipped — parent $_parent_story status=${_parent_status:-unknown}; tag-only attribution" >&2
+                        ;;
+                esac
             fi
 
             local create_output=""

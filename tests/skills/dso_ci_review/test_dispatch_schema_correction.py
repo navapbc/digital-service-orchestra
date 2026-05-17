@@ -1340,3 +1340,141 @@ def test_synthetic_only_original_allows_zero_real_findings(monkeypatch) -> None:
     # contain neither the synthetic schema_error nor the original sentinel.
     real = [f for f in findings if f.get("type") not in {"fallback_exhausted", "specialist_error", "parse_error"}]
     assert real == [], f"Expected zero real findings; got {real}"
+
+
+# ---------------------------------------------------------------------------
+# bug 881d-e5cc follow-up — coverage gaps from retro-review of PR #183
+# Tests three previously-untested variants:
+#   (1) synthetic-only original with type=specialist_error
+#   (2) synthetic-only original with type=parse_error (dispatch-layer marker,
+#       distinct from a synthetic schema_error injected on correction failure)
+#   (3) interleaved real + synthetic in original; corrected drops the
+#       synthetic — frozen-field zip alignment must remain correct
+# ---------------------------------------------------------------------------
+
+
+def test_specialist_error_only_original_allows_zero_real_findings(monkeypatch) -> None:
+    """type=specialist_error is a synthetic dispatch-layer marker (same family
+    as fallback_exhausted). Empty corrected output must be accepted."""
+    specialist_error = {
+        "type": "specialist_error",
+        "severity": "important",
+        "category": "synthetic",
+        "description": "specialist agent crashed",
+        "file": "",
+        "cited_lines": [],
+        "cited_excerpt": "",
+        "reachability": "",
+    }
+    originals = [specialist_error]
+
+    def _mock_dispatch_review(**kwargs):
+        return {"findings": [], "summary": "no real findings"}
+
+    monkeypatch.setattr(_dispatch_mod, "dispatch_review", _mock_dispatch_review)
+    monkeypatch.setattr(
+        _runner_mod, "_validate_findings_schema", _stub_validate_schema_pass
+    )
+
+    result = _dispatch_mod.dispatch_schema_correction(
+        original_findings=originals,
+        diff_text=_DIFF_TEXT,
+        provider_chain=["anthropic"],
+        environ={"ANTHROPIC_API_KEY": "test-key"},
+        max_attempts=1,
+        agent_id="code-reviewer-standard",
+    )
+    findings = result.get("findings", [])
+    schema_errors = [f for f in findings if f.get("category") == "schema_error"]
+    assert not schema_errors, (
+        f"Synthetic schema_error must NOT be injected when correction "
+        f"drops a specialist_error-only original to empty; got: {findings}"
+    )
+
+
+def test_parse_error_only_original_allows_zero_real_findings(monkeypatch) -> None:
+    """type=parse_error is a synthetic dispatch-layer marker (NOT a real
+    review finding). Empty corrected output must be accepted."""
+    parse_error = {
+        "type": "parse_error",
+        "severity": "important",
+        "category": "schema_error",
+        "description": "LLM returned non-JSON",
+        "file": "",
+        "cited_lines": [],
+        "cited_excerpt": "",
+        "reachability": "",
+    }
+    originals = [parse_error]
+
+    def _mock_dispatch_review(**kwargs):
+        return {"findings": [], "summary": "no real findings"}
+
+    monkeypatch.setattr(_dispatch_mod, "dispatch_review", _mock_dispatch_review)
+    monkeypatch.setattr(
+        _runner_mod, "_validate_findings_schema", _stub_validate_schema_pass
+    )
+
+    result = _dispatch_mod.dispatch_schema_correction(
+        original_findings=originals,
+        diff_text=_DIFF_TEXT,
+        provider_chain=["anthropic"],
+        environ={"ANTHROPIC_API_KEY": "test-key"},
+        max_attempts=1,
+        agent_id="code-reviewer-standard",
+    )
+    findings = result.get("findings", [])
+    schema_errors = [f for f in findings if f.get("category") == "schema_error"]
+    assert not schema_errors, (
+        f"Synthetic schema_error must NOT be injected when correction "
+        f"drops a parse_error-only original to empty; got: {findings}"
+    )
+
+
+def test_interleaved_real_and_synthetic_zip_alignment(monkeypatch) -> None:
+    """Original = [synthetic, real_A]. Corrected drops the synthetic and
+    keeps real_A. Frozen-field zip MUST align _real_original[0]=real_A
+    against _real_attempt[0]=real_A_corrected — NOT against the dropped
+    synthetic. Validates the index-shift handling in the filter logic."""
+    synthetic = {
+        "type": "fallback_exhausted",
+        "severity": "fallback_exhausted",
+        "category": "synthetic",
+        "description": "primary failed",
+        "file": "",
+        "cited_lines": [],
+        "cited_excerpt": "",
+        "reachability": "",
+    }
+    real_a = copy.deepcopy(_FINDING_A)
+    originals = [synthetic, real_a]
+    # Corrected: drops the synthetic, preserves real_a with frozen fields
+    real_a_corrected = copy.deepcopy(_FINDING_A)
+    real_a_corrected["reachability"] = "corrected reachability text"  # non-frozen field
+    correcteds = [real_a_corrected]
+
+    def _mock_dispatch_review(**kwargs):
+        return {"findings": correcteds, "summary": "ok"}
+
+    monkeypatch.setattr(_dispatch_mod, "dispatch_review", _mock_dispatch_review)
+    monkeypatch.setattr(
+        _runner_mod, "_validate_findings_schema", _stub_validate_schema_pass
+    )
+
+    result = _dispatch_mod.dispatch_schema_correction(
+        original_findings=originals,
+        diff_text=_DIFF_TEXT,
+        provider_chain=["anthropic"],
+        environ={"ANTHROPIC_API_KEY": "test-key"},
+        max_attempts=1,
+        agent_id="code-reviewer-standard",
+    )
+    findings = result.get("findings", [])
+    schema_errors = [f for f in findings if f.get("category") == "schema_error"]
+    assert not schema_errors, (
+        f"Frozen-field zip should align real_a against real_a_corrected "
+        f"(synthetic correctly dropped). No schema_error expected. got: {findings}"
+    )
+    # Sanity: the corrected real finding made it through
+    real_findings = [f for f in findings if f.get("type") not in {"fallback_exhausted", "specialist_error", "parse_error"}]
+    assert len(real_findings) == 1, f"Expected 1 real finding; got {len(real_findings)}"
