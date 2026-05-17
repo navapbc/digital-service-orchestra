@@ -94,7 +94,7 @@ test_ci_pr_missing_arg_fails() {
     repo=$(_make_repo_with_remote)
     stderr_output=$(
         cd "$repo"
-        WORKFLOW_CONFIG_FILE="$cfg" bash "$SCRIPT" 2>&1 >/dev/null
+        WORKFLOW_CONFIG_FILE="$cfg" bash "$SCRIPT" 2>&1
     ) || exit_code=$?
     if [ "$exit_code" -ne 0 ] && echo "$stderr_output" | grep -qE "git checkout -b .*bug-batch"; then
         echo "  PASS: exit $exit_code, stderr mentions bug-batch remediation"
@@ -116,7 +116,7 @@ test_ci_pr_wrong_prefix_fails() {
     git -C "$repo" checkout -b "story/some-epic/some-story" >/dev/null 2>&1
     stderr_output=$(
         cd "$repo"
-        WORKFLOW_CONFIG_FILE="$cfg" bash "$SCRIPT" "story/some-epic/some-story" 2>&1 >/dev/null
+        WORKFLOW_CONFIG_FILE="$cfg" bash "$SCRIPT" "story/some-epic/some-story" 2>&1
     ) || exit_code=$?
     if [ "$exit_code" -ne 0 ] && echo "$stderr_output" | grep -qiE "bug-batch.*prefix|prefix"; then
         echo "  PASS: exit $exit_code, stderr mentions prefix requirement"
@@ -160,7 +160,7 @@ test_ci_pr_branch_not_pushed_fails() {
     stderr_output=$(
         cd "$repo"
         WORKFLOW_CONFIG_FILE="$cfg" \
-            bash "$SCRIPT" "bug-batch/sess-abc/tier-3-batch-1" 2>&1 >/dev/null
+            bash "$SCRIPT" "bug-batch/sess-abc/tier-3-batch-1" 2>&1
     ) || exit_code=$?
     if [ "$exit_code" -ne 0 ] && echo "$stderr_output" | grep -qiE "push|origin"; then
         echo "  PASS: exit $exit_code, stderr mentions push/origin"
