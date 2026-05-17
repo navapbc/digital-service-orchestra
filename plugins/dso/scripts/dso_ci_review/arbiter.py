@@ -5,8 +5,12 @@ Provides public functions:
   dispatch_arbiter          — Dispatches the cycle-end arbiter for a list of findings.
                               Returns a list of per-finding ruling dicts.
 
-  validate_cycle_end_ruling — Validates a ruling dict against VALID_RULINGS.
-                              Raises ValueError for unrecognized ruling values.
+  validate_cycle_end_ruling — Validates a ruling dict against VALID_RULINGS and,
+                              for schema_version >= 1.1.0, enforces enum
+                              membership for cross_reviewer_agreement (4-val),
+                              cross_cycle_pattern (7-val), and impact_class
+                              (9-val: 8-cat floor + 'none'). Raises ValueError
+                              for unrecognized values or missing v1.1.0 fields.
 
   dispatch_cycle_end_arbiter — Alias for dispatch_arbiter; cycle-end consolidation.
 
@@ -37,9 +41,66 @@ _DISPATCH_FAILURE_EXCEPTIONS: tuple[type[BaseException], ...] = (
 
 VALID_RULINGS: frozenset[str] = frozenset({"BLOCK", "DEFER", "DROP"})
 
+# v1.1.0 enriched-ruling enum vocabularies (see code-reviewer-arbiter.md Enum
+# Vocabularies and contracts/review-defenses.md arbiter_ruling sub-schema).
+VALID_CROSS_REVIEWER_AGREEMENT: frozenset[str] = frozenset(
+    {
+        "UNANIMOUS",
+        "MAJORITY",
+        "SPLIT",
+        "SINGLE_REVIEWER",
+    }
+)
+VALID_CROSS_CYCLE_PATTERN: frozenset[str] = frozenset(
+    {
+        "NEW_INTRODUCED",
+        "RECURRING",
+        "RESUSTAIN_OF",
+        "RESOLVED_THEN_REINTRODUCED",
+        "ESCALATED",
+        "DEFENDED_PRIOR_CYCLE",
+        "UNKNOWN",
+    }
+)
+VALID_IMPACT_CLASS: frozenset[str] = frozenset(
+    {
+        "bug",
+        "unintended_behavior",
+        "security_vulnerability",
+        "data_loss_or_corruption",
+        "secret_exposure",
+        "compliance_violation",
+        "api_contract_break",
+        "infrastructure_break",
+        "none",
+    }
+)
+
+# Fields required by schema_version >= 1.1.0 (missing fields raise ValueError).
+_V1_1_0_REQUIRED_FIELDS: tuple[str, ...] = (
+    "cross_reviewer_agreement",
+    "cross_cycle_pattern",
+    "impact_class",
+)
+
 
 def validate_cycle_end_ruling(ruling: dict[str, Any]) -> dict[str, Any]:
-    """Validate a cycle-end ruling dict against VALID_RULINGS.
+    """Validate a cycle-end ruling dict against VALID_RULINGS + v1.1.0 enums.
+
+    For all rulings, enforces ``ruling['ruling']`` ∈ VALID_RULINGS.
+
+    For rulings whose ``schema_version`` is ``>= 1.1.0``, additionally enforces:
+      - ``cross_reviewer_agreement`` is a list whose elements ∈
+        ``VALID_CROSS_REVIEWER_AGREEMENT``;
+      - ``cross_cycle_pattern`` is a list whose elements ∈
+        ``VALID_CROSS_CYCLE_PATTERN``;
+      - ``impact_class`` is a single string ∈ ``VALID_IMPACT_CLASS``.
+
+    The three v1.1.0 fields are REQUIRED — a missing field raises ``ValueError``.
+
+    Legacy v1.0.0 rulings (or rulings with no ``schema_version`` at all) are
+    treated as backward-compat and skip the v1.1.0 enrichment checks; only the
+    base ``ruling`` enum is enforced.
 
     Args:
         ruling: A ruling dict with a 'ruling' key.
@@ -48,13 +109,64 @@ def validate_cycle_end_ruling(ruling: dict[str, Any]) -> dict[str, Any]:
         The ruling dict unchanged if valid.
 
     Raises:
-        ValueError: If ruling['ruling'] is not in VALID_RULINGS.
+        ValueError: If ruling['ruling'] is not in VALID_RULINGS, or — for
+            schema_version >= 1.1.0 — if any v1.1.0 enrichment field is missing
+            or contains an unknown enum value.
     """
     ruling_value = ruling.get("ruling", "")
     if ruling_value not in VALID_RULINGS:
         raise ValueError(
             f"Unknown ruling {ruling_value!r}. Must be one of {sorted(VALID_RULINGS)}"
         )
+
+    # v1.1.0 enrichment-field enforcement (gated on schema_version).
+    # String compare is sufficient for "1.x.y" dotted versions where each
+    # component is a single digit — the schema lives in a small, controlled
+    # vocabulary (1.0.0, 1.1.0) and an explicit lexical >= covers both.
+    schema_version = ruling.get("schema_version", "1.0.0")
+    if schema_version >= "1.1.0":
+        # All three enriched fields must be present.
+        for field in _V1_1_0_REQUIRED_FIELDS:
+            if field not in ruling:
+                raise ValueError(
+                    f"Required v1.1.0 field {field!r} missing from ruling "
+                    f"(schema_version={schema_version!r})"
+                )
+
+        # cross_reviewer_agreement: list of strings, each ∈ VALID_CROSS_REVIEWER_AGREEMENT.
+        cra = ruling["cross_reviewer_agreement"]
+        if not isinstance(cra, list):
+            raise ValueError(
+                f"cross_reviewer_agreement must be a list, got {type(cra).__name__}"
+            )
+        for value in cra:
+            if value not in VALID_CROSS_REVIEWER_AGREEMENT:
+                raise ValueError(
+                    f"Unknown cross_reviewer_agreement value {value!r}. "
+                    f"Must be one of {sorted(VALID_CROSS_REVIEWER_AGREEMENT)}"
+                )
+
+        # cross_cycle_pattern: list of strings, each ∈ VALID_CROSS_CYCLE_PATTERN.
+        ccp = ruling["cross_cycle_pattern"]
+        if not isinstance(ccp, list):
+            raise ValueError(
+                f"cross_cycle_pattern must be a list, got {type(ccp).__name__}"
+            )
+        for value in ccp:
+            if value not in VALID_CROSS_CYCLE_PATTERN:
+                raise ValueError(
+                    f"Unknown cross_cycle_pattern value {value!r}. "
+                    f"Must be one of {sorted(VALID_CROSS_CYCLE_PATTERN)}"
+                )
+
+        # impact_class: single string ∈ VALID_IMPACT_CLASS.
+        impact = ruling["impact_class"]
+        if impact not in VALID_IMPACT_CLASS:
+            raise ValueError(
+                f"Unknown impact_class {impact!r}. "
+                f"Must be one of {sorted(VALID_IMPACT_CLASS)}"
+            )
+
     return ruling
 
 

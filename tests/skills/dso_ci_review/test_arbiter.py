@@ -259,8 +259,12 @@ def test_dispatch_arbiter_fail_closed_on_dispatch_failure(capsys):
 
     # Severity preserved in synthetic rulings (AC amendment)
     severities = [r.get("severity") for r in result]
-    assert "critical" in severities, f"Expected 'critical' in severities, got {severities}"
-    assert "important" in severities, f"Expected 'important' in severities, got {severities}"
+    assert "critical" in severities, (
+        f"Expected 'critical' in severities, got {severities}"
+    )
+    assert "important" in severities, (
+        f"Expected 'important' in severities, got {severities}"
+    )
     assert "minor" not in severities, (
         f"Minor finding should have been skipped, got severities={severities}"
     )
@@ -317,3 +321,139 @@ def test_dispatch_arbiter_empty_findings_no_synthetic_block_on_dispatch_failure(
     assert mock_dispatch.call_count == 0, (
         "Expected dispatch_review to be skipped entirely for empty findings"
     )
+
+
+# ---------------------------------------------------------------------------
+# Test 8: v1.1.0 cross_reviewer_agreement enum enforcement
+# ---------------------------------------------------------------------------
+
+
+def test_validate_cycle_end_ruling_enforces_cross_reviewer_agreement_enum():
+    """Given: v1.1.0 ruling with a hallucinated cross_reviewer_agreement value
+    When: validate_cycle_end_ruling(ruling) called
+    Then: raises ValueError citing cross_reviewer_agreement
+    """
+    import pytest
+
+    ruling = {
+        "ruling": "BLOCK",
+        "rationale": "x",
+        "schema_version": "1.1.0",
+        "cross_reviewer_agreement": ["UNANIMOUS", "NOT_A_VALID_VALUE"],
+        "cross_cycle_pattern": ["NEW_INTRODUCED"],
+        "impact_class": "bug",
+    }
+    with pytest.raises(ValueError, match="cross_reviewer_agreement"):
+        validate_cycle_end_ruling(ruling)
+
+
+# ---------------------------------------------------------------------------
+# Test 9: v1.1.0 cross_cycle_pattern enum enforcement
+# ---------------------------------------------------------------------------
+
+
+def test_validate_cycle_end_ruling_enforces_cross_cycle_pattern_enum():
+    """Given: v1.1.0 ruling with a hallucinated cross_cycle_pattern value
+    When: validate_cycle_end_ruling(ruling) called
+    Then: raises ValueError citing cross_cycle_pattern
+    """
+    import pytest
+
+    ruling = {
+        "ruling": "DEFER",
+        "rationale": "x",
+        "schema_version": "1.1.0",
+        "cross_reviewer_agreement": ["UNANIMOUS"],
+        "cross_cycle_pattern": ["HALLUCINATED_PATTERN"],
+        "impact_class": "bug",
+    }
+    with pytest.raises(ValueError, match="cross_cycle_pattern"):
+        validate_cycle_end_ruling(ruling)
+
+
+# ---------------------------------------------------------------------------
+# Test 10: v1.1.0 impact_class enum enforcement
+# ---------------------------------------------------------------------------
+
+
+def test_validate_cycle_end_ruling_enforces_impact_class_enum():
+    """Given: v1.1.0 ruling with a hallucinated impact_class value
+    When: validate_cycle_end_ruling(ruling) called
+    Then: raises ValueError citing impact_class
+    """
+    import pytest
+
+    ruling = {
+        "ruling": "DROP",
+        "rationale": "x",
+        "schema_version": "1.1.0",
+        "cross_reviewer_agreement": ["UNANIMOUS"],
+        "cross_cycle_pattern": ["NEW_INTRODUCED"],
+        "impact_class": "made_up_category",
+    }
+    with pytest.raises(ValueError, match="impact_class"):
+        validate_cycle_end_ruling(ruling)
+
+
+# ---------------------------------------------------------------------------
+# Test 11: v1.1.0 missing required fields → ValueError
+# ---------------------------------------------------------------------------
+
+
+def test_validate_cycle_end_ruling_rejects_missing_required_fields():
+    """Given: v1.1.0 ruling missing the three required enriched fields
+    When: validate_cycle_end_ruling(ruling) called
+    Then: raises ValueError citing the missing field
+    """
+    import pytest
+
+    ruling = {
+        "ruling": "BLOCK",
+        "rationale": "x",
+        "schema_version": "1.1.0",
+        # Missing cross_reviewer_agreement, cross_cycle_pattern, impact_class
+    }
+    with pytest.raises(ValueError, match="missing"):
+        validate_cycle_end_ruling(ruling)
+
+
+# ---------------------------------------------------------------------------
+# Test 12: backward compatibility — v1.0.0 (or absent schema_version) skips v1.1.0 checks
+# ---------------------------------------------------------------------------
+
+
+def test_validate_cycle_end_ruling_v1_0_0_legacy_does_not_require_v110_fields():
+    """Given: v1.0.0 ruling (legacy) with no v1.1.0 enrichment fields
+    When: validate_cycle_end_ruling(ruling) called
+    Then: validates and returns unchanged (backward-compat)
+    """
+    ruling = {
+        "ruling": "BLOCK",
+        "rationale": "x",
+        "schema_version": "1.0.0",
+        # No v1.1.0 fields — should still validate (backward compat)
+    }
+    result = validate_cycle_end_ruling(ruling)
+    assert result == ruling, "v1.0.0 ruling should be returned unchanged"
+
+
+# ---------------------------------------------------------------------------
+# Test 13: v1.1.0 with all valid enum values passes
+# ---------------------------------------------------------------------------
+
+
+def test_validate_cycle_end_ruling_v1_1_0_with_valid_enum_values_passes():
+    """Given: v1.1.0 ruling with all enum values drawn from the legal vocabularies
+    When: validate_cycle_end_ruling(ruling) called
+    Then: no exception is raised; returns the ruling unchanged
+    """
+    ruling = {
+        "ruling": "BLOCK",
+        "rationale": "x",
+        "schema_version": "1.1.0",
+        "cross_reviewer_agreement": ["UNANIMOUS", "MAJORITY"],
+        "cross_cycle_pattern": ["NEW_INTRODUCED", "RECURRING"],
+        "impact_class": "security_vulnerability",
+    }
+    result = validate_cycle_end_ruling(ruling)
+    assert result == ruling, "Valid v1.1.0 ruling should be returned unchanged"
