@@ -503,7 +503,15 @@ jobs:
           echo "suppress-prior-defenses: enabled for integration review"
 
       - name: Run LLM review
-        if: needs.changes.outputs.code_changed == 'true' && env.INTEGRATION_SCOPE_EMPTY != 'true'
+        # bug 1624-5fb9: gate removed (was `&& env.INTEGRATION_SCOPE_EMPTY != 'true'`).
+        # The pre-9a4847206b contract was that every code-changing PR receives an
+        # LLM review against its full diff. The integration-scope narrowing —
+        # designed to focus the review on cross-branch concerns for sprint-flow
+        # PRs — became a kill-switch for every direct PR (29 merged without
+        # review). Falling back to the full PR diff when the integration scope
+        # is empty restores the original contract while keeping the scope vars
+        # available as enrichment hints for the runner.
+        if: needs.changes.outputs.code_changed == 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -518,10 +526,15 @@ jobs:
         run: |
           PR_NUMBER="${GITHUB_REF#refs/pull/}"
           PR_NUMBER="${PR_NUMBER%/merge}"
-          # If integration scope is empty, skip LLM review dispatch entirely.
+          # bug 1624-5fb9: full-PR-diff fallback. When the integration scope is
+          # empty (direct PR with no cross-branch concerns), review the entire
+          # PR diff rather than skipping. The narrowed scope file is left in
+          # place so the runner can prioritize integration files when populated,
+          # but it is no longer load-bearing — the review always runs.
           if [[ "${INTEGRATION_SCOPE_EMPTY:-false}" == "true" ]]; then
-            echo "Integration scope empty: no files to review — skipping LLM review"
-            exit 0
+            echo "Integration scope empty — reviewing full PR diff (direct-PR path)"
+          else
+            echo "Integration scope populated — runner may narrow to ${INTEGRATION_SCOPE_FILE:-(unset)}"
           fi
           gh pr diff "$PR_NUMBER" | bash plugins/dso/scripts/ci-llm-review-runner.sh
 

@@ -313,5 +313,51 @@ assert_eq "test_llm_review_installs_litellm: exit 0" "0" "$installs_litellm_exit
 assert_eq "test_llm_review_installs_litellm: a step installs litellm" "OK" "$installs_litellm_output"
 assert_pass_if_clean "test_llm_review_installs_litellm"
 
+# ── test_llm_review_no_integration_scope_kill_switch ─────────────────────────
+# Regression guard for bug 1624-5fb9: the "Run LLM review" step MUST always
+# dispatch the reviewer when code_changed=true. The pre-9a4847206b contract was
+# "every code-changing PR gets reviewed against its full diff"; that contract
+# was broken when a `&& env.INTEGRATION_SCOPE_EMPTY != 'true'` gate was added
+# to the step's `if:` along with an internal `exit 0` short-circuit. 29 PRs
+# merged silently without LLM review.
+#
+# Two structural checks:
+#   1. The step's `if:` MUST NOT reference INTEGRATION_SCOPE_EMPTY (gate removed)
+#   2. The step's `run:` MUST NOT contain `exit 0` inside an INTEGRATION_SCOPE_EMPTY branch
+_snapshot_fail
+kill_switch_exit=0
+kill_switch_output=""
+kill_switch_output=$(python3 - <<'PYEOF' 2>&1
+import yaml, sys, os, re
+
+template = os.environ.get('TEMPLATE', '')
+with open(template) as f:
+    doc = yaml.safe_load(f)
+steps = doc.get('jobs', {}).get('llm-review', {}).get('steps', [])
+run_step = next((s for s in steps if s.get('name') == 'Run LLM review'), None)
+if not run_step:
+    print("MISSING_STEP: no step named 'Run LLM review' in llm-review job")
+    sys.exit(1)
+step_if = run_step.get('if', '')
+if 'INTEGRATION_SCOPE_EMPTY' in step_if:
+    print(f"GATED_IF: step if-condition still references INTEGRATION_SCOPE_EMPTY: {step_if!r}")
+    sys.exit(1)
+run_body = run_step.get('run', '')
+# Look for "exit 0" inside an if-block that checks INTEGRATION_SCOPE_EMPTY.
+# Match the pattern even with surrounding whitespace and varied syntax.
+kill_switch_pat = re.compile(
+    r'if\s*\[\[\s*"\$\{?INTEGRATION_SCOPE_EMPTY[^"]*"\s*==\s*"true"\s*\]\];\s*then[^f]*?exit\s+0',
+    re.DOTALL,
+)
+if kill_switch_pat.search(run_body):
+    print("KILL_SWITCH_PRESENT: 'Run LLM review' contains an INTEGRATION_SCOPE_EMPTY=true → exit 0 short-circuit")
+    sys.exit(1)
+print('OK')
+PYEOF
+) || kill_switch_exit=$?
+assert_eq "test_llm_review_no_integration_scope_kill_switch: exit 0" "0" "$kill_switch_exit"
+assert_eq "test_llm_review_no_integration_scope_kill_switch: gate removed and no exit-0 short-circuit" "OK" "$kill_switch_output"
+assert_pass_if_clean "test_llm_review_no_integration_scope_kill_switch"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary
