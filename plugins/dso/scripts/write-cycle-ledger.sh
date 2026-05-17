@@ -48,7 +48,12 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/ticket-lib.sh"          # provides _flock_write_json
-source "$SCRIPT_DIR/../hooks/lib/deps.sh"   # provides get_artifacts_dir
+# Plugin-root-resolved source path (bug d150-4b26-fdec-45cf):
+# check-plugin-scripts-no-relative-paths.sh forbids '$SCRIPT_DIR/..' source paths.
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}"
+[[ ! -f "${_PLUGIN_ROOT}/plugin.json" ]] && _PLUGIN_ROOT="$SCRIPT_DIR/.."
+# shellcheck source=hooks/lib/deps.sh
+source "${_PLUGIN_ROOT}/hooks/lib/deps.sh"   # provides get_artifacts_dir
 
 # ---------------------------------------------------------------------------
 # Argument parsing
