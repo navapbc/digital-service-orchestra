@@ -1,0 +1,1 @@
+{"author":"Test","data":{"body":"Classification: behavioral, Score: 4 (severity:2 complexity:2 env:0 intermittent:0) — INTERMEDIATE tier. CLI_user tag → Intent Gate skipped (intent-aligned). Feature-Request Gate skipped."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1779049944078348000,"uuid":"25333390-23b4-4c1a-9209-9d2c1289887a"}
