@@ -1860,4 +1860,199 @@ json.dump(data, sys.stdout)
 }
 test_format_ticket_id_auto_with_jira_key
 
+# ── _flock_write_json tests (RED — function does not exist yet) ───────────────
+#
+# _flock_write_json <lock_file> <staging_temp> <final_path>
+#   Atomically renames staging_temp to final_path while holding an exclusive
+#   cross-platform flock (Python fcntl.flock wrapper).
+#   Exit 0 on success; exit 1 on lock timeout; exit non-zero on missing staging.
+
+# ── Test _flock_write_json 1: atomic write succeeds, file has expected JSON ───
+echo "Test _flock_write_json_atomic_write: atomic rename succeeds and final_path contains valid JSON"
+test_flock_write_json_atomic_write() {
+    local repo
+    repo=$(_make_test_repo)
+
+    # Initialize ticket system so tracker dir exists
+    (cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    # ticket-lib.sh must exist
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "_flock_write_json: ticket-lib.sh exists" "exists" "missing"
+        return
+    fi
+
+    # RED: _flock_write_json must NOT be defined yet — test fails because function is absent
+    local fn_exists=0
+    (cd "$repo" && source "$TICKET_LIB" && type _flock_write_json &>/dev/null) || fn_exists=$?
+    if [ "$fn_exists" -ne 0 ]; then
+        assert_eq "_flock_write_json function defined" "defined" "undefined"
+        return
+    fi
+
+    local tracker_dir="$repo/.tickets-tracker"
+    local lock_file="$tracker_dir/.flock-write-json-test.lock"
+    local staging_temp
+    staging_temp=$(mktemp "$tracker_dir/.tmp-fwj-XXXXXX")
+    echo '{"event_type":"CREATE","timestamp":1700000042,"uuid":"feed-beef"}' > "$staging_temp"
+
+    local final_path="$tracker_dir/test-fwj-atomic/1700000042-feed-beef-CREATE.json"
+    mkdir -p "$(dirname "$final_path")"
+
+    # Call _flock_write_json
+    local exit_code=0
+    (cd "$repo" && source "$TICKET_LIB" && \
+        _flock_write_json "$lock_file" "$staging_temp" "$final_path") || exit_code=$?
+
+    # Assert: exit code is 0
+    assert_eq "_flock_write_json atomic: exits 0" "0" "$exit_code"
+
+    # Assert: final_path exists
+    if [ -f "$final_path" ]; then
+        assert_eq "_flock_write_json atomic: final_path exists after write" "exists" "exists"
+    else
+        assert_eq "_flock_write_json atomic: final_path exists after write" "exists" "missing"
+    fi
+
+    # Assert: final_path contains valid JSON with expected event_type
+    if [ -f "$final_path" ]; then
+        local parsed_event_type
+        parsed_event_type=$(python3 -c \
+            "import json,sys; d=json.load(open(sys.argv[1])); print(d.get('event_type','missing'))" \
+            "$final_path" 2>/dev/null)
+        assert_eq "_flock_write_json atomic: final_path contains valid JSON with event_type=CREATE" \
+            "CREATE" "$parsed_event_type"
+    fi
+
+    # Assert: staging temp was consumed (renamed, no longer exists at original path)
+    if [ -f "$staging_temp" ]; then
+        assert_eq "_flock_write_json atomic: staging_temp consumed (renamed)" "consumed" "still-exists"
+    else
+        assert_eq "_flock_write_json atomic: staging_temp consumed (renamed)" "consumed" "consumed"
+    fi
+}
+test_flock_write_json_atomic_write
+
+# ── Test _flock_write_json 2: lock timeout exits 1 ────────────────────────────
+echo "Test _flock_write_json_lock_timeout: exits 1 when lock is held by another process"
+test_flock_write_json_lock_timeout() {
+    local repo
+    repo=$(_make_test_repo)
+
+    (cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "_flock_write_json: ticket-lib.sh exists (timeout test)" "exists" "missing"
+        return
+    fi
+
+    # RED: _flock_write_json must NOT be defined yet
+    local fn_exists=0
+    (cd "$repo" && source "$TICKET_LIB" && type _flock_write_json &>/dev/null) || fn_exists=$?
+    if [ "$fn_exists" -ne 0 ]; then
+        assert_eq "_flock_write_json function defined (timeout test)" "defined" "undefined"
+        return
+    fi
+
+    local tracker_dir="$repo/.tickets-tracker"
+    local lock_file="$tracker_dir/.flock-write-json-timeout.lock"
+
+    # Hold the lock exclusively in a background subshell for the duration of the test
+    # Using Python fcntl to match the cross-platform lock used by _flock_write_json
+    local lock_holder_pid
+    python3 -c "
+import fcntl, os, time, sys
+lock_path = sys.argv[1]
+fd = os.open(lock_path, os.O_CREAT | os.O_RDWR)
+fcntl.flock(fd, fcntl.LOCK_EX)
+# Hold for 10 seconds to outlast the short test timeout
+time.sleep(10)
+os.close(fd)
+" "$lock_file" &
+    lock_holder_pid=$!
+
+    # Give the background process time to acquire the lock
+    local _wait=0
+    while [ ! -f "$lock_file" ] && [ "$_wait" -lt 20 ]; do
+        _wait=$((_wait + 1))
+        python3 -c "import time; time.sleep(0.05)"
+    done
+
+    # Create a staging temp file (content does not matter — lock will time out first)
+    local staging_temp
+    staging_temp=$(mktemp "$tracker_dir/.tmp-fwj-timeout-XXXXXX")
+    echo '{"event_type":"CREATE","timestamp":1700000099,"uuid":"dead-beef"}' > "$staging_temp"
+    local final_path="$tracker_dir/test-fwj-timeout/1700000099-dead-beef-CREATE.json"
+    mkdir -p "$(dirname "$final_path")"
+
+    # Call _flock_write_json with a short timeout so the test does not hang
+    local exit_code=0
+    (cd "$repo" && source "$TICKET_LIB" && \
+        FLOCK_STAGE_COMMIT_TIMEOUT=1 \
+        _flock_write_json "$lock_file" "$staging_temp" "$final_path") || exit_code=$?
+
+    # Clean up lock holder
+    kill "$lock_holder_pid" 2>/dev/null || true
+    wait "$lock_holder_pid" 2>/dev/null || true
+    rm -f "$staging_temp" "$final_path" 2>/dev/null || true
+
+    # Assert: exit code is non-zero (lock timeout)
+    assert_eq "_flock_write_json timeout: exits non-zero when lock held" "1" \
+        "$([ "$exit_code" -ne 0 ] && echo 1 || echo 0)"
+}
+test_flock_write_json_lock_timeout
+
+# ── Test _flock_write_json 3: missing staging file exits non-zero with stderr ──
+echo "Test _flock_write_json_missing_staging_file: exits non-zero and emits error to stderr"
+test_flock_write_json_missing_staging_file() {
+    local repo
+    repo=$(_make_test_repo)
+
+    (cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "_flock_write_json: ticket-lib.sh exists (missing-staging test)" "exists" "missing"
+        return
+    fi
+
+    # RED: _flock_write_json must NOT be defined yet
+    local fn_exists=0
+    (cd "$repo" && source "$TICKET_LIB" && type _flock_write_json &>/dev/null) || fn_exists=$?
+    if [ "$fn_exists" -ne 0 ]; then
+        assert_eq "_flock_write_json function defined (missing-staging test)" "defined" "undefined"
+        return
+    fi
+
+    local tracker_dir="$repo/.tickets-tracker"
+    local lock_file="$tracker_dir/.flock-write-json-nosrc.lock"
+    # Point to a staging temp that does not exist
+    local nonexistent_staging="$tracker_dir/.tmp-fwj-does-not-exist-XXXXXX"
+    local final_path="$tracker_dir/test-fwj-nosrc/1700000003-cafe-babe-CREATE.json"
+    mkdir -p "$(dirname "$final_path")"
+
+    local exit_code=0
+    local stderr_out
+    stderr_out=$(cd "$repo" && source "$TICKET_LIB" && \
+        _flock_write_json "$lock_file" "$nonexistent_staging" "$final_path" 2>&1) || exit_code=$?
+
+    # Assert: exits non-zero
+    assert_eq "_flock_write_json missing-staging: exits non-zero" "1" \
+        "$([ "$exit_code" -ne 0 ] && echo 1 || echo 0)"
+
+    # Assert: error message present on stderr (not silent failure)
+    if [ -n "$stderr_out" ]; then
+        assert_eq "_flock_write_json missing-staging: error message on stderr" "has-message" "has-message"
+    else
+        assert_eq "_flock_write_json missing-staging: error message on stderr" "has-message" "silent"
+    fi
+
+    # Assert: final_path was NOT created
+    if [ -f "$final_path" ]; then
+        assert_eq "_flock_write_json missing-staging: no file created on failure" "no-file" "file-exists"
+    else
+        assert_eq "_flock_write_json missing-staging: no file created on failure" "no-file" "no-file"
+    fi
+}
+test_flock_write_json_missing_staging_file
+
 print_summary

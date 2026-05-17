@@ -152,7 +152,7 @@ KNOWN_KEYS=(
     review.context_aug.max_file_bytes
     review.context_aug.soft_cap
     review.huge_diff_file_threshold
-    review.max_resolution_attempts
+    review.max_cycles
     review.minor_findings_create_tickets
     review.provider_chain
     review.schema_correction_max_attempts
