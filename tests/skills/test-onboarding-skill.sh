@@ -1290,16 +1290,21 @@ test_precommit_required_dep_present() {
     assert_pass_if_clean "test_precommit_required_dep_present"
 }
 
-# test_hook_install_bypass_gates_present: Batch Group 5 (hook-install) section must contain
+# test_hook_install_bypass_gates_present: the hook-install batch section must contain
 # explicit bypass instructions for the initial commit that installs hooks —
 # referencing --no-verify or bypass-review-gate or skip-gate language.
-# Scoped to Batch Group 5 using awk range pattern.
-# RED until task e453-e46f adds bypass language to Batch Group 5 in SKILL.md.
+# Scoped to the hook-install batch using awk range pattern.
+# RED until task e453-e46f adds bypass language to the hook-install batch in SKILL.md.
+# (PR #185 / bug 0bdc-8f0e renamed `## Batch Group N: <name>` headers to
+# `## Batch: <name>`. The awk range was updated to match the new header
+# syntax; the prior range `## Batch Group 5: hook-install` ..
+# `## Batch Group 6:` no longer matched and the test silently scanned an
+# empty range — false-negative GREEN for any missing content.)
 test_hook_install_bypass_gates_present() {
     _snapshot_fail
     local bypass_found
     bypass_found="missing"
-    if awk '/^## Batch Group 5: hook-install/,/^## Batch Group 6:/' "$SKILL_MD" 2>/dev/null | \
+    if awk '/^## Batch: hook-install/,/^## Batch: final-commit/' "$SKILL_MD" 2>/dev/null | \
        grep -qiE 'bypass|no-verify|skip.*gate'; then
         bypass_found="found"
     fi
