@@ -17,14 +17,14 @@ The artifacts directory is computed by `get_artifacts_dir()` in `hooks/lib/deps.
 ---
 
 <HARD-GATE>
-**Step 0a (BEFORE Step 0): Enforcement-strategy gate.** Check `enforcement.strategy` as the very first action — before clearing artifacts, before reading any further. If `enforcement.strategy=ci`, emit the skip markers and return immediately. Do NOT proceed to Step 0, Step 1, classifier dispatch, or sub-agent dispatch (bug 818d-61dc).
+**Step 0a (BEFORE Step 0): Workflow gate.** Check `dso.workflow` as the very first action — before clearing artifacts, before reading any further. If `dso.workflow=ci-pr`, emit the skip markers and return immediately. Do NOT proceed to Step 0, Step 1, classifier dispatch, or sub-agent dispatch (bug 818d-61dc).
 
 ```bash
-ENFORCEMENT_STRATEGY=$(".claude/scripts/dso" read-config.sh enforcement.strategy 2>/dev/null || true)
-if [ "$ENFORCEMENT_STRATEGY" = "ci" ]; then
-    .claude/scripts/dso commit-step skip reviewer-record "enforcement.strategy=ci"
-    .claude/scripts/dso commit-step skip classifier-dispatch "enforcement.strategy=ci"
-    echo "enforcement.strategy=ci — review workflow short-circuit. CI runs llm-review on push."
+DSO_WORKFLOW=$(DSO_DEPRECATION_QUIET=1 ".claude/scripts/dso" read-config.sh dso.workflow 2>/dev/null || true)
+if [ "$DSO_WORKFLOW" = "ci-pr" ]; then
+    .claude/scripts/dso commit-step skip reviewer-record "dso.workflow=ci-pr"
+    .claude/scripts/dso commit-step skip classifier-dispatch "dso.workflow=ci-pr"
+    echo "dso.workflow=ci-pr — review workflow short-circuit. CI runs llm-review on push."
     # END — do not execute any further step in this document.
     exit 0
 fi
