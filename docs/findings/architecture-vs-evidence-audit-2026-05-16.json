@@ -1,0 +1,691 @@
+[
+  {
+    "epic_id": "01f5-28c1",
+    "title": "Polyglot Kudos Triggers: language-agnostic T7/T9/T12/T13/T4 replacements",
+    "flagged_probes": [
+      3
+    ],
+    "severity": "medium",
+    "evidence_per_probe": {
+      "1": null,
+      "2": null,
+      "3": "Introduces commands.lint config key (consumed by T9) and TRIGGER_SKIPPED signal format shared with Kudos Epic 2; spec names CONSUME (T9 reads commands.lint) but does not name CREATE owner (says 'onboarding/architect-foundation must populate' in scenario, never assigned), UPDATE phases, or RETIRE.",
+      "4": null,
+      "5": null,
+      "6": null
+    },
+    "suggested_remediation": "Add explicit CREATE/UPDATE/CONSUME/RETIRE owner table for commands.lint config key and TRIGGER_SKIPPED signal-schema lifecycle."
+  },
+  {
+    "epic_id": "0b7c-d811",
+    "title": "Add searchable UI/UX design knowledge base as a reference library",
+    "flagged_probes": [],
+    "severity": "none",
+    "evidence_per_probe": {
+      "1": null,
+      "2": null,
+      "3": null,
+      "4": null,
+      "5": null,
+      "6": null
+    },
+    "suggested_remediation": "No remediation needed; spec is comprehensive on ownership, no new ref pattern, no bypass, no external-outcome SC."
+  },
+  {
+    "epic_id": "0cbc-4bbb-e2f6-4da0",
+    "title": "External-integration verification gate for /dso:fix-bug (in_review status + closu",
+    "flagged_probes": [
+      3,
+      5,
+      6
+    ],
+    "severity": "high",
+    "evidence_per_probe": {
+      "1": null,
+      "2": null,
+      "3": "Introduces multiple shared state variables (in_review status, verification_command/verification_target_env fields, VERIFY_TIMEOUT_SECONDS config, INBOUND_STATUS_MAPPING repo var, verification:legacy tag, VERIFICATION_STATUS handoff field) \u2014 SC names CONSUME for several but no consolidated CREATE/UPDATE/RETIRE owner table; e.g., verification:legacy tag has no defined RETIRE event.",
+      "4": null,
+      "5": "Approach explicitly names three ordered phases (Slice 1 Infrastructure, Slice 2 Gate, Slice 3 Loop) with declared dependencies, and SCs map to slices (SC4/SC5 tagged slice:3) \u2014 phases are addressed but contingency 'Slice 3 deferred to follow-on milestone' is permitted without a named follow-on epic for absorbing slice:3 SCs.",
+      "6": "SC7 requires Jira workflow probe (`acli jira workitem search`) \u2014 external service dependency on Jira project workflow having 'In Review' status; spec mentions BRIDGE_ALERT but no structured External Dependencies block with ownership/handling/access/verification_command fields per contract."
+    },
+    "suggested_remediation": "Add a structured External Dependencies block for Jira workflow/'In Review' status, a state-variable lifecycle table for all new fields/configs/tags, and an explicit owning epic for slice:3 contingency."
+  },
+  {
+    "epic_id": "136b-6758-ba12-47fc",
+    "title": "Consolidate project-setup skills into resume-aware /dso:onboarding with phase-sco",
+    "flagged_probes": [
+      1,
+      3
+    ],
+    "severity": "high",
+    "evidence_per_probe": {
+      "1": "Epic ships orchestration changes to .claude/ surface (consolidated /dso:onboarding plugin skill, deletes three plugin skills, modifies skills/onboarding/SKILL.md, alters plugin skill registry) \u2014 load-bearing orchestration architecture; spec does not require its OWN sprint to USE the new resume-aware orchestration during sprint execution (no self-use mandate).",
+      "2": null,
+      "3": "Introduces phase-invocation log artifact (${WORKFLOW_PLUGIN_ARTIFACTS_DIR}/onboarding-phases.log) and freshness-predicate state \u2014 spec names CONSUME (phases read predicates) and CREATE (orchestrator writes log) but RETIRE/cleanup of the phase-invocation log is undefined; freshness-predicate update ownership across phase edits is not enumerated.",
+      "4": null,
+      "5": null,
+      "6": null
+    },
+    "suggested_remediation": "Add an explicit self-use clause requiring the consolidated onboarding to be exercised on the consuming project during the implementing sprint, plus a lifecycle table for the phase-invocation log artifact."
+  },
+  {
+    "epic_id": "188c-47e4-5abe-4b9c",
+    "title": "Migrate stack detection from singular value to namespaced array schema",
+    "flagged_probes": [
+      3
+    ],
+    "severity": "medium",
+    "evidence_per_probe": {
+      "1": null,
+      "2": null,
+      "3": "Introduces multiple shared state variables (v2 dso-config.conf `stack` array, semicolon-delimited commands.* keys, `verification:legacy`-style v2 sentinel, # stack-case-exempt annotations, pre-commit hook self-exclusion list) \u2014 spec names CREATE (auto-migration rewrites v1 to v2) and CONSUME (consumer audit), but RETIRE of the v1->v2 migration path and ownership of UPDATE for the audit-inventory file (`tests/audits/A0-stack-consumer-inventory.md`) once consumers drift is not enumerated.",
+      "4": null,
+      "5": null,
+      "6": null
+    },
+    "suggested_remediation": "Add a lifecycle table covering the v2-detection sentinel, semicolon-separator state, audit-inventory artifact, and pre-commit hook self-exclusion list \u2014 including RETIRE conditions and UPDATE owners across future consumer additions."
+  },
+  {
+    "epic_id": "3e9b-afee",
+    "title": "Kudos system: infrastructure and primary triggers",
+    "flagged_probes": [
+      1,
+      3
+    ],
+    "severity": "high",
+    "evidence_per_probe": {
+      "1": "Epic delivers .claude/** orchestration changes (kudos-write-guard.sh PreToolUse hook, commit-validate.sh integrated into COMMIT-WORKFLOW.md, CLAUDE.md Kudos section) but the spec is silent on whether the kudos sprint itself must USE the kudos system on its own commits to validate the dogfooding loop.",
+      "2": null,
+      "3": "Shared state introduced (.kudos/session-id, .kudos/ledger.jsonl, kudos.session_ceiling config key) but lifecycle is incomplete: SC-E1-7 names CREATE owner (worktree creation) and SC-E1-6 names CONSUME (commit-validate.sh), but no RETIRE owner is specified for .kudos/session-id (when is it cleared? on session close? worktree merge?) and no UPDATE owner for ledger.jsonl beyond append.",
+      "4": null,
+      "5": null,
+      "6": null
+    },
+    "suggested_remediation": "Add a self-use SC requiring the kudos sprint's own commits to flow through commit-validate.sh and produce ledger entries, and add a lifecycle clause naming the RETIRE owner for .kudos/session-id and UPDATE owners for ledger.jsonl across phases."
+  },
+  {
+    "epic_id": "411b-a047-18de-4516",
+    "title": "Test creation calibration (d): mutation-testing infrastructure for empirical test",
+    "flagged_probes": [
+      1,
+      2,
+      3,
+      5,
+      6
+    ],
+    "severity": "high",
+    "evidence_per_probe": {
+      "1": "Epic ships plugins/dso/workflows/mutation-testing.yml (a CI workflow template that becomes .github/workflows/mutation-testing.yml in consuming projects) plus modifications to /dso:onboarding and create-dso-app.sh \u2014 load-bearing orchestration surfaces. Spec does not require the 411b sprint itself to run the new mutation-testing workflow on its own PRs to validate the dogfooding loop.",
+      "2": "Workflow is triggered on pull_request (synchronize, opened) but the spec does not enumerate which branch patterns the pull_request trigger filters cover (e.g., does it fire on story/** PRs, fix/** PRs, all PRs to main?). No enumeration of pull_request.branches / push.branches filters.",
+      "3": "Multiple shared state variables introduced (mutation.calibration.completed, mutation.threshold.<stack>.min_kill_rate, mutation.<stack>.enabled, mutation.<stack>.tool_version, mutation.calibration.retro_window_days analog, accumulated PR telemetry). CREATE owner for telemetry accumulation is unclear (where does it live? tickets branch? artifacts?), and RETIRE owner for mutation.calibration.completed=true is undefined (no documented path for re-entering calibration mode other than 'operator flips manually').",
+      "4": "skip-mutation-testing PR label is introduced as a cost-control escape hatch and --mutation-off CLI flag for /dso:onboarding. No paired governance story specifies audit logging of every skip-label use, no required justification companion field, and no abuse-detection at sprint Phase I / end-session.",
+      "5": "Description explicitly names 5 sequential phases (Phase 1 Python pilot, Phase 2 polyglot expansion, Phase 3 calibration auto-surfacing, Phase 4 threshold-mode, Phase 5 onboarding integration) and an interim release gate after Phase 2. SCs partially map (SC2 Phase 1, SC3 Phase 2, SC4 Phase 3, SC5 Phase 4, SC6+SC7 Phase 5) but no preplanning context is attached and the breakdown into stories is not present in the epic record.",
+      "6": "Multiple SC verifications depend on external outcomes: SC2 requires the workflow to RUN in GitHub Actions on real PRs, SC4 requires 4 weeks elapsed real-time, SC6 requires consuming projects to install Python/Ruby/JS/Go toolchains in CI, SC7 requires create-dso-app.sh scaffolding to land in a new project. No structured External Dependencies block specifies ownership/handling/access/verification_command for these \u2014 they are scattered in prose."
+    },
+    "suggested_remediation": "Split this epic: add (a) self-use SC for running mutation-testing on 411b's own PRs, (b) workflow-trigger enumeration of pull_request branch filters, (c) full lifecycle owners for mutation.calibration.* and telemetry state, (d) governance pairing for skip-mutation-testing label with audit/justification/abuse-detection, (e) per-phase story breakdown in preplanning, (f) structured External Dependencies block for the 4-week wall-clock and CI toolchain availability."
+  },
+  {
+    "epic_id": "4911-c7ba",
+    "title": "Bug-classification coverage registry + audit + fix-bug tagging + retro analysis (broaden",
+    "flagged_probes": [
+      1
+    ],
+    "severity": "high",
+    "evidence_per_probe": {
+      "1": "Epic modifies plugin-shipped orchestration surfaces (/dso:fix-bug Phase G dispatch logic, /dso:retro aggregation step, bug-classifier-haiku sub-agent, backfill-bug-types.sh) \u2014 load-bearing dso plugin content. Spec does not require the 4911 sprint itself to USE the new classifier on its own bug fixes / closures or to USE the retro aggregation on its own session retro to validate the dogfooding loop.",
+      "2": null,
+      "3": null,
+      "4": null,
+      "5": null,
+      "6": null
+    },
+    "suggested_remediation": "Add a self-use SC requiring the 4911 sprint's own bug closures (if any) to flow through Phase G classification and the sprint's end-of-session retro to exercise bug-classification-stats.sh against real data, validating the loop end-to-end."
+  },
+  {
+    "epic_id": "4f8e-a7a6",
+    "title": "Figma design collaboration: Pull validation via perceptual diff",
+    "flagged_probes": [
+      3,
+      6
+    ],
+    "severity": "medium",
+    "evidence_per_probe": {
+      "1": null,
+      "2": null,
+      "3": "Multiple config keys introduced (design.figma_viewport, design.figma_fidelity_threshold) and a design artifacts directory referenced. No lifecycle owners specified: CREATE owner for the design artifacts directory is implicit, UPDATE owner for diff images across multiple sprint runs is undefined, RETIRE owner for stale fidelity_gap tags / advisory tickets is missing.",
+      "4": null,
+      "5": null,
+      "6": "SC1 verification depends on Figma REST API availability (external service); SC2 depends on Playwright runtime presence in CI; SC5 explicitly handles 'Playwright not installed' and 'REST API returns 429' degradation paths. These are external dependencies but the spec contains them only as prose in SCs rather than a structured External Dependencies block specifying ownership/handling/access/verification_command. The Dependencies section lists 'Figma PAT with file_content:read scope' and 'pixelmatch npm package' / 'Playwright (optional)' but without structured ownership/handling/verification fields."
+    },
+    "suggested_remediation": "Add lifecycle clauses naming CREATE/UPDATE/RETIRE owners for the design artifacts directory and fidelity tags, and convert the Dependencies prose into a structured External Dependencies block with ownership/handling/access/verification_command for Figma REST API, Playwright runtime, and pixelmatch."
+  },
+  {
+    "epic_id": "5018-64ce",
+    "title": "Evaluate and resolve current TODO/FIXME/HACK and REVIEW-DEFENSE comments",
+    "flagged_probes": [],
+    "severity": "none",
+    "evidence_per_probe": {
+      "1": null,
+      "2": null,
+      "3": null,
+      "4": null,
+      "5": null,
+      "6": null
+    },
+    "suggested_remediation": "No probes flagged \u2014 bounded triage epic touching code comments only; no new orchestration surface, no new ref pattern, no shared state, no bypass, no multi-phase sequencing, no external-outcome SC."
+  },
+  {
+    "epic_id": "53ef-d6fd-5ca5-4d62",
+    "title": "DSO cross-session PR ownership: PreToolUse-enforced wrapper + Session-Id trailer + retro c",
+    "flagged_probes": [
+      6
+    ],
+    "severity": "medium",
+    "evidence_per_probe": {
+      "1": null,
+      "2": null,
+      "3": null,
+      "4": null,
+      "5": null,
+      "6": "Preplanning empirical verification task probes CLAUDE_CODE_SESSION_ID runtime stability across compaction (external runtime behavior) and operator-driven backfill script requires manual operator action on pre-existing PRs; no structured External Dependencies block enumerates ownership/handling/access/verification_command."
+    },
+    "suggested_remediation": "Add a structured External Dependencies block enumerating the CLAUDE_CODE_SESSION_ID runtime contract (owner: Claude Code runtime; verification: empirical probe task) and the operator-driven backfill prerequisite (owner: human operator; access: gh CLI auth) so external verification is captured beyond prose."
+  },
+  {
+    "epic_id": "69e8-af39-7886-4ee9",
+    "title": "Test creation calibration (c): feedback loop from production bugs and review findings to t",
+    "flagged_probes": [
+      6
+    ],
+    "severity": "medium",
+    "evidence_per_probe": {
+      "1": null,
+      "2": null,
+      "3": null,
+      "4": null,
+      "5": null,
+      "6": "SC7 requires human approval to merge the PR amending behavioral-testing-standard.md (operator-manual step), SC5 sycophancy gate requires user response, and SC6 atomic graduation depends on PR creation succeeding via gh \u2014 no structured External Dependencies block specifies ownership/handling/access for these external touchpoints."
+    },
+    "suggested_remediation": "Add a structured External Dependencies block specifying owner (user) and verification_command for the sycophancy challenge response, the human-approval merge step on the safeguard-file PR, and gh PR creation availability \u2014 fold these out of prose into the contract surface."
+  },
+  {
+    "epic_id": "6add-c1fc",
+    "title": "Integrate Semgrep with mandatory security rulesets into CI pipeline template",
+    "flagged_probes": [
+      1,
+      3,
+      6
+    ],
+    "severity": "high",
+    "evidence_per_probe": {
+      "1": "Epic modifies examples/ci.example.yml (load-bearing CI orchestration surface) and shifts security scanning to Semgrep, but spec contains no requirement that the DSO repo's own CI adopt the new Semgrep gate during the sprint that ships it; self-use of the new orchestration is not enumerated.",
+      "2": null,
+      "3": "Introduces semgrep.enabled, semgrep.metrics, semgrep.fail_on, semgrep.custom_rulesets dso-config.conf keys. CREATE owner (onboarding) and CONSUME owner (CI step) are named, but UPDATE behavior on re-onboarding is explicitly undefined (scenario 'Stale config keys' acknowledges 'does not specify overwrite vs merge behavior') and RETIRE owner is unspecified.",
+      "4": null,
+      "5": null,
+      "6": "SC depends on PR blocked via required status check (repo-level branch protection \u2014 operator-manual configuration), SARIF upload to GitHub Security tab (third-party service availability), and Docker container fetch from registry \u2014 no structured External Dependencies block exists; only prose under Scenario Analysis."
+    },
+    "suggested_remediation": "Add (a) a self-use SC requiring DSO's own CI to run the new Semgrep template during the sprint, (b) explicit UPDATE/RETIRE owners for the semgrep.* config keys including re-onboarding merge-vs-overwrite semantics, and (c) a structured External Dependencies block covering branch protection setup, SARIF upload service, and Docker registry availability."
+  },
+  {
+    "epic_id": "70d5-37ee",
+    "title": "Java First-Class Language Support: full stack detection, routing, and scaffolding",
+    "flagged_probes": [],
+    "severity": "none",
+    "evidence_per_probe": {
+      "1": null,
+      "2": null,
+      "3": null,
+      "4": null,
+      "5": null,
+      "6": null
+    },
+    "suggested_remediation": "No probes flagged; Java is intrinsically non-self-applicable to a Python-based DSO repo and lifecycle keys inherit from Epic A/B parent contracts. No structural change required."
+  },
+  {
+    "epic_id": "71df-5bd8",
+    "title": "Kudos system: detection triggers and agent behavioral improvements",
+    "flagged_probes": [
+      1
+    ],
+    "severity": "high",
+    "evidence_per_probe": {
+      "1": "Epic modifies plugins/dso/agents/completion-verifier.md, approach-decision-maker.md, doc-writer.md, plugins/dso/skills/using-lockpick/SKILL.md, plugins/dso/hooks/ (load-bearing orchestration surface), and adds T1/T2/T4 triggers that fire during sprint execution; spec does not require the sprint shipping this epic to demonstrate self-detection of its own pre-existing-bug fixes or test-fixing commits, so the new triggers ship without an explicit self-use validation surface.",
+      "2": null,
+      "3": null,
+      "4": null,
+      "5": null,
+      "6": null
+    },
+    "suggested_remediation": "Add an SC that requires the sprint shipping this epic to invoke and demonstrate at least one kudos trigger (T1, T2, or T4) firing on its own commits, with the awarded ledger entry checked into the kudos directory as evidence of self-use."
+  },
+  {
+    "epic_id": "7510-0198-3e2b-4ca5",
+    "title": "DSO orphan story/task prevention: literal --parent injection + CI structural enforce",
+    "flagged_probes": [
+      1,
+      3
+    ],
+    "severity": "high",
+    "evidence_per_probe": {
+      "1": "Epic ships a new CI grep test under plugins/dso/tests/ scanning every SKILL.md and agent dispatch prompt \u2014 load-bearing orchestration surface (plugins skill/agent files); spec does not require its own sprint to use the enforcement during this epic (no self-use sprint clause).",
+      "2": null,
+      "3": "Introduces multiple shared state knobs (ticket_link.retry_base_ms, ticket_link.retry_max_ms, .dso/link-failures.log, dso-cleanup-pending tag, standalone tag, orphan-cleanup.lock); lifecycle owners (CREATE/UPDATE/CONSUME/RETIRE) not enumerated per knob \u2014 e.g., who retires dso-cleanup-pending after 7271-e463 processes residuals is unspecified.",
+      "4": null,
+      "5": null,
+      "6": null
+    },
+    "suggested_remediation": "Add an SC requiring the epic's own sprint to be gated by the new CI grep test (self-use) and add a lifecycle-owner table for each shared state knob (retry config keys, link-failures log, dso-cleanup-pending tag, orphan-cleanup.lock)."
+  },
+  {
+    "epic_id": "7f42-e41f-a501-4007",
+    "title": "Test creation calibration (b): suite growth tracks behavioral coverage, not line c",
+    "flagged_probes": [
+      3,
+      6
+    ],
+    "severity": "high",
+    "evidence_per_probe": {
+      "1": null,
+      "2": null,
+      "3": "Introduces shared state: 94ed manifest schema extensions (source_files, deferred_test fields), stable PR-comment marker COVERAGE_FINDINGS_<epic-id>, contract_version=1; lifecycle of the PR-comment marker (who retires/garbage-collects stale per-epic markers across closed PRs) and deferred_test field retirement are not specified.",
+      "4": null,
+      "5": null,
+      "6": "SC4(c) verification depends on PR-comment posting and GHA-summary fallback (external GitHub service surface); spec discusses fallback in prose under SC4(c) but contains no structured External Dependencies block (ownership/access/verification_command/handling)."
+    },
+    "suggested_remediation": "Add a lifecycle-owner table for the new manifest fields and the per-epic PR-comment marker, and convert the GHA/comment fallback verification into a structured External Dependencies block with ownership and verification command."
+  },
+  {
+    "epic_id": "8623-8d6a-0bc1-4c6e",
+    "title": "/dso:onboarding Strata awareness (detection + Socratic-confirmed posture + silent c",
+    "flagged_probes": [
+      1,
+      3
+    ],
+    "severity": "high",
+    "evidence_per_probe": {
+      "1": "Epic modifies load-bearing .claude/** and plugin skill surfaces (plugins/dso/skills/onboarding/prompts/strata/, plugins/dso/scripts/detect-strata.sh, .claude/ARCH_ENFORCEMENT.md writes, dso:completion-verifier extension); the spec does not require its own sprint to invoke /dso:onboarding self-onboarding to exercise the new Strata posture phase before close.",
+      "2": null,
+      "3": "Introduces several shared state knobs: strata.skip dso-config.conf key, STRATA_TEMPLATE_KIND / STRATA_COMMIT_PIN / STRATA_SRC_PATH / STRATA_DETECTION_SOURCE in strata-detection.env, HTML-comment footgun markers in ARCH_ENFORCEMENT.md, '## Strata Posture' section in project-understanding.md; spec names CREATE/CONSUME but does not enumerate RETIRE owners (e.g., who clears strata.skip if user re-adopts Strata; who retires footgun markers when a footgun is sunset).",
+      "4": null,
+      "5": null,
+      "6": null
+    },
+    "suggested_remediation": "Add a self-use SC requiring /dso:onboarding to be run against the DSO repo itself during the sprint, and add a lifecycle-owner table covering CREATE/UPDATE/CONSUME/RETIRE for strata.skip, strata-detection.env keys, footgun HTML-comment markers, and the Strata Posture section."
+  },
+  {
+    "epic_id": "87e9-0bc8",
+    "title": "Polyglot Test Gate: stack-agnostic test runner config and gate scripts",
+    "flagged_probes": [
+      1,
+      3
+    ],
+    "severity": "high",
+    "evidence_per_probe": {
+      "1": "Epic modifies load-bearing test-gate scripts (record-test-status.sh, record-test-exemption.sh, reinstall-hooks.sh) \u2014 orchestration surface controlling commit-time gating; spec does not require its own sprint to exercise the new commands.test_runner key on the DSO repo (DSO is Python so its own sprint would still use pytest, but the spec omits a self-use clause for the routing logic).",
+      "2": null,
+      "3": "Introduces shared state keys commands.test_runner and commands.test_file_runner (with {file} placeholder semantics); spec specifies CREATE (onboarding write) and CONSUME (gate scripts) but does not name RETIRE owner or UPDATE flow for stack changes (e.g., when a project migrates Python\u2192Ruby, who rewrites commands.test_runner).",
+      "4": null,
+      "5": null,
+      "6": null
+    },
+    "suggested_remediation": "Add a self-use SC requiring the DSO repo's own test-gate path to be exercised through the new commands.test_runner indirection in this sprint, and document RETIRE/UPDATE owners for commands.test_runner and commands.test_file_runner on stack migration."
+  },
+  {
+    "epic_id": "88d2-6756",
+    "title": "Required CodeQL + code-quality scanning gates: CI emission and ruleset knobs",
+    "flagged_probes": [
+      1,
+      3,
+      6
+    ],
+    "severity": "high",
+    "evidence_per_probe": {
+      "1": "Epic explicitly modifies .github/workflows/ci.yml (load-bearing CI workflow surface) by adding a CodeQL job and a code-quality SARIF-upload step; spec does not require its own sprint to operate under the new Require CodeQL + Require code quality rules (no self-use clause: enable the knobs on this repo before the epic closes is named as an SC, but exercising the gate on the epic's own PR is not).",
+      "2": null,
+      "3": "Introduces shared state via provision-ruleset.sh knobs require_codeql and require_code_quality (boolean config knobs that toggle GitHub Ruleset rules); spec names default value (false) but does not enumerate lifecycle owners \u2014 who enables on which projects (CREATE), who updates after rule renames (UPDATE), who consumes besides provision-ruleset.sh (CONSUME), and retirement flow (RETIRE) are unspecified.",
+      "4": null,
+      "5": null,
+      "6": "SC verification depends on (a) this repo's GitHub Ruleset being updated (external repo-level setting verified via gh api repos/.../rulesets) and (b) a deliberate test PR that GitHub's code-scanning API gates against \u2014 both external to the codebase; spec mentions these in prose under Success Criteria but contains no structured External Dependencies block (ownership/access/verification_command/handling)."
+    },
+    "suggested_remediation": "Add a self-use SC requiring the epic's own PR to be gated by the new CodeQL + code-quality rules before merge, populate a structured External Dependencies block for the GitHub Ruleset and code-scanning API verifications, and document lifecycle owners for require_codeql/require_code_quality knobs."
+  },
+  {
+    "epic_id": "8d21-3aa8",
+    "title": "Wire recipe library into implementation planning and sprint execution",
+    "flagged_probes": [
+      1,
+      3,
+      4
+    ],
+    "severity": "high",
+    "evidence_per_probe": {
+      "1": "Epic ships orchestration changes to load-bearing surfaces (.claude/** skill files: implementation-plan SKILL.md and sprint SKILL.md task dispatch table); spec does not require its OWN sprint to USE the recipe library it builds.",
+      "2": "No new git ref pattern introduced.",
+      "3": "Introduces shared state \u2014 `recipes.enabled` config flag and per-task `recipe:<id>` task-type and pre-flight engine cache. Spec names CONSUME (implementation-plan/sprint/cleanup phase) but no explicit owner for CREATE (who first writes `recipes.enabled` into dso-config.conf), UPDATE (who toggles it post-rollout), RETIRE (when/by whom the off-by-default gate is removed).",
+      "4": "Introduces a degradation/fallback mechanism (recipe task gracefully degrades to LLM sub-agent when engine missing); SC5 records a ticket comment but no governance pairing \u2014 no audit logging of fallback frequency, no abuse-detection (e.g., agents intentionally engineering missing-engine state to bypass deterministic enforcement), no Phase I / end-session check.",
+      "5": "No multiple ORDERED phases named; SCs are parallel integration points.",
+      "6": "No SC verification depends on external/operator-manual outcomes; engine `--version` checks are local to the codebase environment."
+    },
+    "suggested_remediation": "Add (a) a self-use SC requiring the recipe wiring sprint itself to consume recipe-tagged tasks for mechanical migration work; (b) explicit lifecycle ownership for `recipes.enabled` (create at install, update by user, retire when default flips); (c) audit-log + abuse-detection SC for engine-missing LLM fallbacks."
+  },
+  {
+    "epic_id": "94ed-f55c-51f5-45f6",
+    "title": "Plan-time intent allocation: assign owner_ticket + test_artifact to every end-state inten",
+    "flagged_probes": [
+      3,
+      5
+    ],
+    "severity": "high",
+    "evidence_per_probe": {
+      "1": "Epic modifies .claude/** skill files (brainstorm/preplanning/implementation-plan emit comments; new agent file) but the deliverable is a planning artifact (manifest), not orchestration surface that the epic must self-USE during its own sprint; the planning artifacts it emits are naturally produced by the planning workflow that creates this epic's stories. Not flagging.",
+      "2": "No new git ref pattern introduced.",
+      "3": "Introduces shared state \u2014 INTENT_ALLOCATION_<STAGE>: ticket comments as the persistent manifest. CREATE owners named (brainstorm SC2, preplanning SC3, implplan SC4). CONSUME owners named (read.sh SC5, validate.sh SC6, a03c hook SC7, downstream consumers d566/411b/7f42/69e8). UPDATE is via stage-precedence merge but the comment stream itself never RETIRES \u2014 SC10's blue-team scenario explicitly says 'Epic closure leaves manifest entries as permanent orphans (medium/correctness): unmitigated; deferred'. RETIRE owner missing.",
+      "4": "No bypass mechanism (no env var, no --force/--skip/--bypass flag); the warn-severity validator output is informational only and not a governance bypass.",
+      "5": "Approach section names FIVE SEQUENTIAL ORDERED PHASES (Phase 1 contract+emitters; Phase 2 read+validate; Phase 3 a03c hook+cross-epic; Phase 4 assistant+validation; Phase 5 synthetic E2E). Phases map cleanly to SC ranges (SC1-4, SC5-6, SC7+SC9, SC8+SC11, SC10) but they are NOT broken out as distinct story-level allocations in the epic spec \u2014 preplanning is explicitly deferred ('preplanning explicitly deferred this session'). Phases named but absent from any child/story breakdown.",
+      "6": "No SC verification depends on external/operator/third-party outcomes; all validation is via scripts and synthetic tests."
+    },
+    "suggested_remediation": "Add an explicit retire/archival owner for manifest comment streams at epic closure, and either materialize the 5 named phases as story tickets during preplanning or call them out as required story-decomposition checkpoints in the epic spec."
+  },
+  {
+    "epic_id": "a03c-d55e-1393-4f27",
+    "title": "Closure Checks schema migration: separate end-state intent from transitional work across a",
+    "flagged_probes": [
+      3,
+      5
+    ],
+    "severity": "high",
+    "evidence_per_probe": {
+      "1": "Epic modifies .claude/** skill/agent files (verifiable-sc-check.md, completion-verifier.md, brainstorm/preplanning/sprint workflows, templates) \u2014 load-bearing orchestration surfaces. However, this is a schema/template migration consumed naturally by any planning workflow including its own sprint; spec does not require explicit self-use beyond standard consumption. Borderline; not flagging.",
+      "2": "No new git ref pattern introduced.",
+      "3": "Introduces shared state \u2014 pluggable end-state-item-validator hook contract_version=1 and the new '## Closure Checks' template section. CREATE/CONSUME owners named (templates by SC1, hook by SC3e, default validator returns valid:true). UPDATE owner partially named (94ed registers a custom validator per SC9). RETIRE owner missing \u2014 no spec text on when contract_version=2 supersedes v1, who deprecates the default validator, or how legacy Closure Checks sections are sunset.",
+      "4": "No bypass mechanism \u2014 no env var, no --force/--skip/--override flag; the permissive default validator is by-design legacy compat, not a user-invokable bypass.",
+      "5": "Approach section explicitly enumerates FOUR SEQUENTIAL PHASES plus a Phase 3.5 coherence gate ('Phase 1 templates+rule; Phase 2 verifier refactor; Phase 3 audit+pointers; Phase 3.5 gate (SC10); Phase 4 migration'). SC10 captures the gate as a distinct SC, but Phases 1-4 are mapped to SC bundles (SC1+SC2, SC3, SC4+SC5+SC8, SC6) without distinct story-level allocations \u2014 preplanning is explicitly deferred. Phases named in Approach without per-phase breakdown items.",
+      "6": "No SC verification depends on external/operator-manual outcomes; SC10 Chunk F is a dry-run on already-closed epics, internal."
+    },
+    "suggested_remediation": "Add a retire/deprecation owner for contract_version v1 hook semantics, and break the 4 sequential phases (+3.5 gate) into distinct story tickets during preplanning so phase ordering is enforceable."
+  },
+  {
+    "epic_id": "a34c-b345-1e63-4ae3",
+    "title": "Calibration program observability: rollup metrics, trend tracking, bug-detection-channel a",
+    "flagged_probes": [
+      1,
+      3,
+      6
+    ],
+    "severity": "high",
+    "evidence_per_probe": {
+      "1": "Epic ships a new .github/workflows/calibration-rollup.yml (load-bearing CI orchestration surface) and modifies .claude/** skill files (create-bug SKILL.md, bug-report-template.md; new /dso:test-quality-report skill). Spec does not require its own sprint to USE the calibration channel \u2014 i.e., bugs filed DURING this epic's sprint are not required to carry the new detected_by tag as a self-validation gate. SC1+SC2 deliver the mechanism; no SC requires the sprint executing this epic to dogfood it.",
+      "2": "Workflow trigger is PR-merge events + cron \u2014 not a new git ref pattern (uses existing ref semantics).",
+      "3": "Introduces shared state \u2014 detected_by:<channel> tag on bug tickets; three tracking tickets (calibration-program-health, mutation-history, suite-churn-history); .current-session-style precedence file? No, that is a524's. Here: CREATE owner named (create-bug dialogue + infer-detected-by.sh + bootstrap guard per SC6). CONSUME owners named (calibration-report.sh + downstream 69e8/411b/4911). UPDATE owner partially named (per-PR append safeguard). RETIRE owner missing \u2014 'No compaction or archival strategy (medium): comments are permanent; mutation-history grows indefinitely' is acknowledged in scenario analysis as an UNMITIGATED issue, confirming a lifecycle gap.",
+      "4": "No bypass mechanism \u2014 infer-detected-by.sh default-to-other is a fallback, not a user bypass; no env var or --force flag.",
+      "5": "Two milestones (M1, M2) are named ordering, but the epic spec maps M1 to SC1+SC2 and M2 to SC3-SC6 as distinct SC groupings \u2014 phases ARE captured in the SC breakdown. Not flagging.",
+      "6": "SC6 verification depends on EXTERNAL repository-level state \u2014 .github/workflows/calibration-rollup.yml runs on PR-merge events and cron triggers, requiring (a) the workflow file to be enabled at repo level, (b) the three tracking tickets to pre-exist, (c) the cron scheduler to fire in UTC. Scenario analysis explicitly lists 'GHA cron skipped run leaves permanent gap with no alerting (high)' and 'Three tracking tickets must pre-exist before first CI run (high)' \u2014 these are external-outcome dependencies. No structured External Dependencies block in the spec; only narrative scenario discussion and Out-of-Scope text."
+    },
+    "suggested_remediation": "Add a self-use SC requiring the epic's own sprint to file at least one bug with detected_by populated; add a structured External Dependencies block for GHA cron reliability + tracking-ticket bootstrap + branch-protection assumptions; add a retire/archival owner for the unbounded comment thread on tracking tickets."
+  },
+  {
+    "epic_id": "a524-fded",
+    "title": "Migrate test execution to background primitive; remove test-batched and nohup harnesses",
+    "flagged_probes": [
+      1,
+      3,
+      4,
+      6
+    ],
+    "severity": "high",
+    "evidence_per_probe": {
+      "1": "Epic ships changes to load-bearing orchestration surfaces (pre-commit hooks, test-gate, validate.sh, COMMIT-WORKFLOW.md, .claude/scripts/dso shim, session-start hook) \u2014 exactly the surface category that demands self-use. The spec DOES require self-use indirectly via the Value validation SC (canary worktree runs the new background primitive on the test-gate cycle), but it does not require the epic's OWN implementation sprint to use the new primitive during its own test runs as a self-validation gate; the canary is a separate validation pass, not the sprint's working harness. Flagging \u2014 the orchestration self-use is partial (canary only) rather than full (sprint-driven).",
+      "2": "No new git ref pattern introduced.",
+      "3": "Introduces multiple shared state variables \u2014 commands.test_runner, commands.test_file_runner, commands.test_kill_grace_seconds config keys; ${TMPDIR}/dso-test-run/.current-session file; per-session state dirs with pid/cmdline/done/exit-code/.launch-lock files; plugin version bump. CREATE owners named (session-start hook writes .current-session; launcher writes state-dir files; 87e9-0bc8 defines test_runner key). CONSUME owners named (test-run.sh, per-file test gate, orchestrator). UPDATE owner partially named (session-start hook updates .current-session each session). RETIRE owner partially missing \u2014 Stop hook 'logs the orphan rather than killing it' deliberately does NOT retire state; macOS /tmp cleanup is invoked but 'is acceptable' is the only retirement mechanism; the .current-session file has no documented end-of-life. State dir cleanup beyond a single session is silent on owner.",
+      "4": "Introduces a bypass mechanism \u2014 `.claude/scripts/dso test-run start --force` flag that unconditionally terminates an in-flight run + clears state. SC names the flag and its cmdline-verified safety check, but pairs no governance: no audit log of --force invocations, no required justification env var/flag (compare CLAUDE.md rule 24 DSO_SPRINT_ACTIVE_BYPASS_REASON pattern), no Phase I / end-session abuse-detection on --force counts.",
+      "5": "No multiple ORDERED phases named in the Approach narrative; story decomposition in the PREPLANNING_CONTEXT comment lists 9 stories with depends_on links but the epic description itself does not name ordered phases.",
+      "6": "SC verifications depend on EXTERNAL/operator-manual outcomes \u2014 (a) host project must run `dso update-artifacts` to refresh the .claude/scripts/dso shim after plugin upgrade (operator step); (b) plugin version bump triggers update-artifacts detection (external to this codebase); (c) macOS $TMPDIR per-user behavior (third-party OS state); (d) Claude Code background primitive (Bash run_in_background) being available as documented (upstream tool). Scenario analysis names these as deployment risks. No structured External Dependencies block \u2014 risks are in narrative scenario discussion only."
+    },
+    "suggested_remediation": "Add (a) a self-use SC requiring the epic's own implementation sprint to run its test-gate cycles via the new background primitive once the launcher exists; (b) audit-logging + abuse-detection governance for `--force`; (c) explicit retire owner for .current-session and orphan state-dir cleanup beyond single-session lifetime; (d) a structured External Dependencies block for shim-refresh, plugin-upgrade, $TMPDIR semantics, and upstream Claude Code primitive availability."
+  },
+  {
+    "epic_id": "af26-dd5a-df6d-4f81",
+    "title": "Make forbidden-action HARD-GATEs in brainstorm/sprint/fix-bug/implementation-plan",
+    "flagged_probes": [
+      1,
+      3,
+      4
+    ],
+    "severity": "high",
+    "evidence_per_probe": {
+      "1": "Epic installs a PreToolUse hook that touches `.claude/**` orchestration surface (load-bearing) and modifies phase enforcement across brainstorm/sprint/fix-bug/implementation-plan; spec is silent on whether its own sprint must use the new hook during implementation.",
+      "2": null,
+      "3": "Introduces shared state \u2014 durable session phase metadata consumed by the new PreToolUse hook \u2014 but spec says only 'sourcing phase state from durable session metadata that the relevant skills already track'; no enumeration of CREATE/UPDATE/CONSUME/RETIRE owners per (skill, phase) tuple.",
+      "4": "Introduces `dso forbidden-action-override --reason=\"...\"` (an explicit bypass mechanism). Spec says 'one-shot, audited; agent cannot self-authorize' but does not pair with a governance story specifying (a) audit-log retention/format, (b) required justification companion, (c) abuse-detection at Phase I / end-session.",
+      "5": null,
+      "6": null
+    },
+    "suggested_remediation": "During the planned follow-on /dso:brainstorm session for this stub epic, add: (a) explicit self-use SC requiring the epic's own sprint to exercise the new PreToolUse hook end-to-end; (b) state-lifecycle table naming CREATE/UPDATE/CONSUME/RETIRE owners for the (skill, phase) state record; (c) governance story for the forbidden-action-override bypass covering audit log format, justification rubric, and abuse-detection at end-session."
+  },
+  {
+    "epic_id": "b575-ac1c-f720-4839",
+    "title": "Cycle-end arbiter + workflow unification (BLOCK/DEFER/DROP rulings, max_cycles, parity",
+    "flagged_probes": [
+      1,
+      3
+    ],
+    "severity": "high",
+    "evidence_per_probe": {
+      "1": "Epic rewrites code-reviewer-arbiter.md (installed plugin agent \u2014 load-bearing orchestration surface) and modifies REVIEW-WORKFLOW.md/CI llm-review job. Spec covers parity (SC3) but does not require the epic's OWN sprint commits to dogfood the new cycle-end arbiter; story list (S0\u2013S8) ships infrastructure but no self-use SC.",
+      "2": null,
+      "3": "Introduces multiple shared state artifacts: `${ARTIFACTS_DIR}/cycle-ledger.json`, `review.max_cycles` config key (renamed from max_resolution_attempts), `ARBITER_DISPATCH_COUNT` env/state, defense-store `dropped_by_arbiter` enum. Spec specifies CREATE (end-of-cycle write) and CONSUME (arbiter read) for cycle-ledger.json but does not name RETIRE owner (when/by whom the ledger is cleared at session-boundary). ARBITER_DISPATCH_COUNT lifecycle (CREATE in resolve-loop / UPDATE / RETIRE) similarly underspecified.",
+      "4": null,
+      "5": null,
+      "6": null
+    },
+    "suggested_remediation": "Add an explicit self-use SC ('this epic's sprint commits must exercise the cycle-K arbiter end-to-end against a real unresolved-findings scenario') and a state-lifecycle table for cycle-ledger.json, ARBITER_DISPATCH_COUNT, and review.max_cycles naming CREATE/UPDATE/CONSUME/RETIRE owners \u2014 especially RETIRE at session boundary."
+  },
+  {
+    "epic_id": "bc7f-1a0d",
+    "title": "Cross-file static bloat detectors (P-D1, P-T2, P-C2)",
+    "flagged_probes": [],
+    "severity": "none",
+    "evidence_per_probe": {
+      "1": "Epic extends /dso:remediate detectors and the bloat-resolver agent on a non-load-bearing detector path \u2014 not CI workflows, git hooks, or core orchestration surface; w21-bsnz provides routing. No self-use trigger.",
+      "2": null,
+      "3": null,
+      "4": null,
+      "5": null,
+      "6": null
+    },
+    "suggested_remediation": "No remediation needed; the original brainstorm scrutiny pipeline covered scope and feasibility adequately."
+  },
+  {
+    "epic_id": "c13f-6196",
+    "title": "Test gate observability: detect irrelevant test\u2192source mappings",
+    "flagged_probes": [
+      1,
+      5
+    ],
+    "severity": "high",
+    "evidence_per_probe": {
+      "1": "Epic modifies `pre-commit-test-gate.sh` (git pre-commit hook \u2014 load-bearing safeguard surface) by adding structured log emission and post-commit analysis. Spec is silent on whether this epic's own sprint must produce/inspect TEST_GATE_MATCH logs during implementation to validate they appear.",
+      "2": null,
+      "3": null,
+      "4": null,
+      "5": "Approach explicitly names THREE ORDERED levels \u2014 'Level 1 \u2014 Per-commit logging', 'Level 2 \u2014 False-positive detection', 'Level 3 \u2014 Mapping quality score' described as 'implementable incrementally'. SCs (1, 2, 3) loosely map to the three levels but no story/task allocation, sequencing, or distinct preplanning context exists in the description to confirm phase coverage.",
+      "6": null
+    },
+    "suggested_remediation": "Decompose the three levels into discrete stories (or explicit SCs with sequencing), and add a self-use SC requiring this epic's own commits to emit and inspect TEST_GATE_MATCH log lines during the sprint."
+  },
+  {
+    "epic_id": "c206-5acb-9c69-4612",
+    "title": "Strata SDK planning context for /dso:brainstorm, /dso:preplanning, /dso:implementati",
+    "flagged_probes": [
+      1,
+      3,
+      6
+    ],
+    "severity": "high",
+    "evidence_per_probe": {
+      "1": "Epic modifies installed plugin skill files (brainstorm/preplanning/implementation-plan SKILL.md) and ships new prompt assets \u2014 load-bearing orchestration surface. SCs include behavioral tests for the modified skills (SC2/SC3/SC6) but do not require this epic's OWN sprint to use the new Strata-aware planning skills end-to-end during implementation (dogfooding).",
+      "2": null,
+      "3": "Introduces multiple shared state vars: `strata:scoped` epic tag, `STRATA_SKIP` env var, `STRATA_DETECTED`/`STRATA_TEMPLATE_KIND`/`STRATA_COMMIT_PIN` from strata-detection.env, `dso-config.conf strata.skip` key, `manual-residual-index.json`, pinned-sdk-ref in strata-template-vars.sh. Spec names CREATE for strata:scoped (brainstorm Phase 2 Step 2), CONSUME (preplanning/impl-plan), but RETIRE for the tag (when is strata:scoped unset across re-scopings or epic closure?) and UPDATE owner for pinned-sdk-ref are underspecified; STRATA_SKIP fail-open semantics defined but no explicit RETIRE event.",
+      "4": null,
+      "5": null,
+      "6": "SC1 includes 'weekly CI cron correctly distinguishes substantive structural change\u2026 opens PR for substantive only' \u2014 verification depends on an external dependency (upstream `navapbc/strata-sdk-rails`) and a repo-level setting (cron schedule + advisory PR mechanism). Two non-blocking upstream tickets filed against an external repo are noted prose-style under In Scope but no structured External Dependencies block (ownership/handling/access/verification_command) per the contract format exists."
+    },
+    "suggested_remediation": "Add: (a) a self-use SC committing the epic's sprint to run brainstorm/preplanning/impl-plan with the new Strata-aware loading on at least one real strata:scoped fixture epic; (b) lifecycle table for strata:scoped tag and pinned-sdk-ref naming RETIRE owners; (c) a structured External Dependencies block for the two upstream strata-sdk-rails tickets and the weekly drift cron's reliance on `gh api` against the upstream repo."
+  },
+  {
+    "epic_id": "c2cc-e3c4",
+    "title": "Directory size monitor: advisory session-start hook with auto-ticketing",
+    "flagged_probes": [
+      1
+    ],
+    "severity": "high",
+    "evidence_per_probe": {
+      "1": "Epic ships a new session-start hook (load-bearing orchestration surface under .claude/hooks lifecycle) and dso-config.conf knobs; spec is silent on whether this epic's own sprint exercises/dogfoods the new hook against its own repo state to validate dedup, exclusion, and stderr advisory behavior.",
+      "2": null,
+      "3": null,
+      "4": null,
+      "5": null,
+      "6": null
+    },
+    "suggested_remediation": "Add a self-use SC requiring that the hook be enabled in dso-self during this epic's sprint and that at least one dir:<path> auto-ticket is produced and verified (or explicitly suppressed via exclude_dirs) end-to-end before close."
+  },
+  {
+    "epic_id": "d2f9-ee1a-48ab-4bf6",
+    "title": "Code review telemetry infrastructure: ingest endpoint, canonical schema, stats r",
+    "flagged_probes": [
+      1,
+      6
+    ],
+    "severity": "high",
+    "evidence_per_probe": {
+      "1": "Epic edits load-bearing surfaces (reviewer-base.md schema, reviewer-dispatcher token-usage capture, /dso:review-stats skill flag, dso-config.conf keys) but defers self-use of emitters to sibling Epic 4 (da4e); spec does not require this epic's own sprint to emit a real event end-to-end against the deployed endpoint as a closure gate.",
+      "2": null,
+      "3": null,
+      "4": null,
+      "5": null,
+      "6": "SC1/SC2/SC4/SC7 verification depends on a deployed AWS Lambda Function URL + S3 bucket + IAM role (third-party service availability + operator-manual aws-setup script runs + deployment landing); Dependencies section says 'None. This epic is foundational' rather than carrying a structured External Dependencies block (ownership/handling/access/verification_command) for the AWS account + maintainer credentials."
+    },
+    "suggested_remediation": "Add a structured External Dependencies block enumerating AWS account ownership, IAM permission scope, region, endpoint URL provisioning, and the operator who runs aws-setup-*.sh; add a self-emit SC requiring this epic's sprint to land at least one dso-self event in S3 before close."
+  },
+  {
+    "epic_id": "d566-afa6-1aa3-4293",
+    "title": "Test creation calibration (a): generation-time prevention of change-detector test",
+    "flagged_probes": [],
+    "severity": "none",
+    "evidence_per_probe": {
+      "1": "Edits load-bearing surfaces (red-test-writer agent, task-execution.md, reviewer-delta-test-quality.md, behavioral-testing-standard.md), AND SC7 explicitly dogfoods: 'tests written for d566's own implementation carry valid Rule 6 headers' and a /dso:review run on the d566 PR emits zero Tier 1/Tier 2 findings on those tests \u2014 self-use is captured.",
+      "2": null,
+      "3": null,
+      "4": null,
+      "5": null,
+      "6": null
+    },
+    "suggested_remediation": "No remediation required; spec already pairs the prompt/agent changes with an explicit dogfood SC and a structural-sweep SC (SC9) covering unenumerated consumers."
+  },
+  {
+    "epic_id": "d765-a3b6-84bd-4816",
+    "title": "Strata-aware create-dso-app.sh rewrite (Rails+SDK+USWDS one-command default)",
+    "flagged_probes": [
+      4,
+      6
+    ],
+    "severity": "high",
+    "evidence_per_probe": {
+      "1": null,
+      "2": null,
+      "3": null,
+      "4": "Introduces --no-sdk / --no-overlay / --overlay-mode=overwrite (skip/overwrite/merge) flags that bypass safety defaults (SDK gem add, DSO overlay, collision protection). Audit posture is partial (a single audit comment in dso-config.conf for the overlay step), but the spec does not pair these flags with (a) structured audit logging of every invocation, (b) a required justification companion var/flag, or (c) abuse-detection at sprint Phase I / end-session.",
+      "5": null,
+      "6": "SC1 verification depends on Docker availability, a configured remote for tickets push, and on a non-technical-operator host machine state ('Ruby NOT installed; uv NOT installed; Docker installed'); SC5 verification depends on a repo-level operation ('gh repo archive', GitHub maintainer credentials, fork README redirect note landing). Dependencies section is prose ('No upstream blockers. Soft external dependency on nava-platform...') and there is no structured External Dependencies block with ownership/handling/access/verification_command per outcome."
+    },
+    "suggested_remediation": "(a) Pair --no-sdk/--no-overlay/--overlay-mode=overwrite with a required justification companion (e.g., --reason or DSO_INSTALLER_BYPASS_REASON), structured audit logging, and an abuse-detection sweep in end-session; (b) add a structured External Dependencies block listing Docker, GitHub maintainer credentials (for archive), nava-platform upstream availability, and the operator who runs each, with explicit verification_command per item."
+  },
+  {
+    "epic_id": "da4e-4e9a-250b-4a8b",
+    "title": "Telemetry adapter framework + first-party emitters + language stack starter pack",
+    "flagged_probes": [
+      6
+    ],
+    "severity": "medium",
+    "evidence_per_probe": {
+      "1": "Epic edits load-bearing surfaces (REVIEW-WORKFLOW.md, review-fix-dispatch.md, CI workflow files, plugin adapter directory) AND SC9 captures self-use ('dso-self emits non-zero events across all 4 emitter types within 24h of merge') \u2014 adequate self-use coverage.",
+      "2": null,
+      "3": null,
+      "4": null,
+      "5": null,
+      "6": "SC2/SC4/SC5/SC7/SC9 verification depends on Epic 2's deployed AWS Lambda + S3 bucket + populated event store (third-party service availability + deployment landing of a different epic); CI heartbeat alarm (SC5) depends on a scheduled CI job actually running. Dependencies section lists depends_on Epic 2 as an internal hop but does not carry a structured External Dependencies block exposing the underlying AWS infra, maintainer credentials, or query-stats.sh prerequisite (DuckDB) ownership/handling/access/verification_command at this layer."
+    },
+    "suggested_remediation": "Add a structured External Dependencies block at this epic's layer pinning the AWS endpoint/region, DuckDB CLI prerequisite, the heartbeat-alarm receiver/owner, and the maintainer credentials needed to verify SC9; specify each item's ownership, handling, access, and verification_command rather than relying on Epic 2's internal dependency link."
+  },
+  {
+    "epic_id": "e471-dda3",
+    "title": "Reference libraries for agents: Confluence integration and URL fetch infrastruct",
+    "flagged_probes": [
+      1,
+      6
+    ],
+    "severity": "high",
+    "evidence_per_probe": {
+      "1": "Epic ships dso:confluence-researcher sub-agent, brainstorm/roadmap SKILL.md modifications, and dso-config.conf schema additions (load-bearing plugin orchestration surface); spec does not require its own sprint to USE the new confluence-research dispatch on its planning sessions.",
+      "2": null,
+      "3": null,
+      "4": null,
+      "5": null,
+      "6": "SC1/SC2/SC4 verification implies a reachable Confluence instance + CONFLUENCE_EMAIL/CONFLUENCE_API_TOKEN configured by operator (Dependencies section: 'ENV: Confluence Cloud or Data Center instance reachable... required for SCs 1, 2, 4, 5'), but spec has no structured External Dependencies block with ownership/handling/access/verification_command."
+    },
+    "suggested_remediation": "Add a self-use SC requiring the epic's own brainstorm/roadmap sprint phase to dispatch dso:confluence-researcher, and convert the prose 'ENV' dependency into a structured External Dependencies block with owner/handling/access/verification_command fields."
+  },
+  {
+    "epic_id": "f27a-3c6a-1a4e-48ae",
+    "title": "External reviewer integration (CodeRabbit/Gitar/Copilot) + auto-resolve PR thread",
+    "flagged_probes": [
+      1,
+      6
+    ],
+    "severity": "high",
+    "evidence_per_probe": {
+      "1": "Epic modifies .github/workflows/ci.yml (new telemetry-collect job), respond-to-pr-comments skill, and ships new adapter scripts under plugins/dso/scripts/telemetry-adapters/ (load-bearing CI workflow + plugin skill surface); spec does not require its own sprint PRs to exercise the new bot-classification + auto-resolve path as a self-use verification.",
+      "2": null,
+      "3": null,
+      "4": null,
+      "5": null,
+      "6": "SC3 (60s thread-resolution), SC8 (engineer-visible behavior change via real PR), and the resolveReviewThread mutation require external GitHub workflow permissions (contents: write + pull-requests: write per community evidence) plus a live PR with bot comments; spec describes these in prose ('Permission requirement', 'dogfooding') but lacks a structured External Dependencies block with ownership/handling/access/verification_command."
+    },
+    "suggested_remediation": "Add a self-use SC requiring the sprint's own PRs to be the dogfooding target for end-to-end thread auto-resolve, and lift the GitHub workflow-permission + cross-epic github_comment_id coordination requirements into a structured External Dependencies block."
+  },
+  {
+    "epic_id": "f7d5-59e4",
+    "title": "Implementation-plan citation annotation with local-first reference library mergin",
+    "flagged_probes": [
+      1
+    ],
+    "severity": "high",
+    "evidence_per_probe": {
+      "1": "Epic ships ref-library-loader.sh wired into /dso:implementation-plan SKILL.md as a post-rendering hook (load-bearing plugin skill modification); spec does not require its own sprint's implementation-plan tasks to be the validation surface for annotated citations beyond the 3-task before/after sample.",
+      "2": null,
+      "3": null,
+      "4": null,
+      "5": null,
+      "6": null
+    },
+    "suggested_remediation": "Add a self-use SC requiring the epic's own /dso:implementation-plan invocation (during the sprint that builds it) to produce annotated tasks, demonstrating end-to-end self-consumption of the merged-citation pipeline."
+  },
+  {
+    "epic_id": "w21-bsnz",
+    "title": "Create a process to remediate legacy code",
+    "flagged_probes": [
+      1
+    ],
+    "severity": "high",
+    "evidence_per_probe": {
+      "1": "Epic ships /dso:remediate skill, plugins/dso/agents/bloat-blue-team.md, plugins/dso/agents/bloat-resolver.md, plugins/dso/config/remediate-confidence-map.yaml, and two dso-config.conf keys (load-bearing plugin agent + skill + config surface); spec does not require its own sprint to USE /dso:remediate against the codebase as a self-application verification.",
+      "2": null,
+      "3": null,
+      "4": null,
+      "5": null,
+      "6": null
+    },
+    "suggested_remediation": "Add a self-use SC requiring the sprint that builds /dso:remediate to run it (--all or per-flag) against the codebase and produce a remediate-summary-*.json that the sprint references at closure."
+  }
+]
