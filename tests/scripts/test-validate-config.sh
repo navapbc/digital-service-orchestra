@@ -145,8 +145,7 @@ assert_pass_if_clean "test_blank_key_exits_1"
 # -- test_validate_config_does_not_know_test_plugin ---------------------------
 # commands.test_plugin must not appear in KNOWN_KEYS in validate-config.sh.
 _snapshot_fail
-{ grep -q 'commands\.test_plugin' "$SCRIPT"; test $? -ne 0; }
-rc=$?
+grep -q 'commands\.test_plugin' "$SCRIPT" && rc=1 || rc=0
 assert_eq "test_validate_config_does_not_know_test_plugin" "0" "$rc"
 assert_pass_if_clean "test_validate_config_does_not_know_test_plugin"
 
@@ -201,6 +200,34 @@ rc=$?
 assert_eq "test_unknown_key_still_rejected_after_preplanning_addition exit" "1" "$rc"
 assert_contains "test_unknown_key_still_rejected_after_preplanning_addition stderr" "preplanning.unknown_key" "$stderr_out"
 assert_pass_if_clean "test_unknown_key_still_rejected_after_preplanning_addition"
+
+# -- test_review_max_cycles_valid_key -----------------------------------------
+# A config containing review.max_cycles=4 must exit 0.
+# RED: This test FAILS before review.max_cycles is added to KNOWN_SCALAR_KEYS.
+_snapshot_fail
+REVIEW_MAX_CYCLES_CONF="$TMPDIR_FIXTURE/review-max-cycles.conf"
+cat > "$REVIEW_MAX_CYCLES_CONF" <<'CONF'
+review.max_cycles=4
+CONF
+stderr_out=$(bash "$SCRIPT" "$REVIEW_MAX_CYCLES_CONF" 2>&1 >/dev/null)
+rc=$?
+assert_eq "test_review_max_cycles_valid_key exit" "0" "$rc"
+assert_pass_if_clean "test_review_max_cycles_valid_key"
+
+# -- test_review_max_resolution_attempts_rejected ------------------------------
+# A config containing review.max_resolution_attempts=5 must exit 1 (deprecated key).
+# RED: This test FAILS before T4 removes the old key from KNOWN_SCALAR_KEYS
+#      (old key currently in KNOWN_KEYS → validate-config.sh exits 0, assertion fails).
+_snapshot_fail
+REVIEW_OLD_KEY_CONF="$TMPDIR_FIXTURE/review-old-key.conf"
+cat > "$REVIEW_OLD_KEY_CONF" <<'CONF'
+review.max_resolution_attempts=5
+CONF
+stderr_out=$(bash "$SCRIPT" "$REVIEW_OLD_KEY_CONF" 2>&1 >/dev/null)
+rc=$?
+assert_eq "test_review_max_resolution_attempts_rejected exit" "1" "$rc"
+assert_contains "test_review_max_resolution_attempts_rejected stderr" "review.max_resolution_attempts" "$stderr_out"
+assert_pass_if_clean "test_review_max_resolution_attempts_rejected"
 
 # -- Summary -------------------------------------------------------------------
 print_summary
