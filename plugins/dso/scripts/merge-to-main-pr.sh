@@ -375,6 +375,95 @@ _fetch_and_rebase_branch() {
 # 1 on conflict / push-failure / pr-create-failure / unrecoverable error.
 # CONFLICT_DATA emission is performed by the caller (top-level error handler
 # below) so the contract surface is identical to direct mode.
+# --- _derive_pr_title: build a PR title that survives merge-back commits ---
+#
+# Args: $1=branch
+# Output (stdout): a single-line PR title.
+#
+# Priority order:
+#   1. Latest non-merge commit subject reachable from HEAD but not from main
+#      (the work the branch actually contributes). If absent, fall back to the
+#      latest non-merge commit on HEAD overall.
+#   2. If that subject already starts with `[<id>]`, return it as-is.
+#   3. Otherwise, try to extract a ticket id from any DSO-Story / DSO-Task
+#      trailer or any branch-local `[<id>]`-prefixed commit subject; if found,
+#      prefix the chosen subject with `[<id>] `.
+#   4. Fallback (no non-merge commit exists, e.g. branch only carries a
+#      merge-back commit): emit `[<branch>] <truncated-merge-subject>`.
+#
+# Bug 85b8-2576: prior code used `git log -1 --pretty=%s`, which after a
+# merge-back from origin/main returned the uninformative merge subject.
+_derive_pr_title() {
+    local _branch="${1:-unknown}"
+    local _subject="" _id="" _scan="" _trailer_id="" _bracket_id=""
+
+    # 1. Prefer a non-merge commit unique to the branch (main..HEAD), then
+    #    fall back to the latest non-merge commit on HEAD if branch == main
+    #    or origin/main is not yet present.
+    _subject=$(git log --no-merges -1 --pretty=%s main..HEAD 2>/dev/null || true)
+    if [[ -z "$_subject" ]]; then
+        _subject=$(git log --no-merges -1 --pretty=%s origin/main..HEAD 2>/dev/null || true)
+    fi
+    if [[ -z "$_subject" ]]; then
+        _subject=$(git log --no-merges -1 --pretty=%s 2>/dev/null || true)
+    fi
+
+    # 2. Already prefixed → return as-is.
+    if [[ "$_subject" =~ ^\[[A-Za-z0-9._/-]+\] ]]; then
+        printf '%s\n' "$_subject"
+        return 0
+    fi
+
+    # 3a. Look for a DSO-Story / DSO-Task trailer on any branch-local commit
+    #     (main..HEAD if possible, else full HEAD log capped at a reasonable depth).
+    _scan=$(git log --pretty=format:%B main..HEAD 2>/dev/null || true)
+    if [[ -z "$_scan" ]]; then
+        _scan=$(git log -n 50 --pretty=format:%B 2>/dev/null || true)
+    fi
+    _trailer_id=$(printf '%s\n' "$_scan" \
+        | grep -Eiom1 '^[[:space:]]*DSO-(Story|Task):[[:space:]]*[A-Za-z0-9._/-]+' \
+        | sed -E 's/^[[:space:]]*DSO-(Story|Task):[[:space:]]*//I' \
+        || true)
+
+    # 3b. If no trailer, look for an earlier commit subject with leading [id].
+    if [[ -z "$_trailer_id" ]]; then
+        _bracket_id=$(git log --pretty=format:%s main..HEAD 2>/dev/null \
+            | grep -Eom1 '^\[[A-Za-z0-9._/-]+\]' \
+            | sed -E 's/^\[(.+)\]$/\1/' \
+            || true)
+        if [[ -z "$_bracket_id" ]]; then
+            _bracket_id=$(git log -n 50 --pretty=format:%s 2>/dev/null \
+                | grep -Eom1 '^\[[A-Za-z0-9._/-]+\]' \
+                | sed -E 's/^\[(.+)\]$/\1/' \
+                || true)
+        fi
+        _id="$_bracket_id"
+    else
+        _id="$_trailer_id"
+    fi
+
+    # 4. Fallback when no non-merge subject was found at all.
+    if [[ -z "$_subject" ]]; then
+        local _fallback_subject
+        _fallback_subject=$(git log -1 --pretty=%s 2>/dev/null || true)
+        # Truncate excessively long merge subjects for readability.
+        if [[ "${#_fallback_subject}" -gt 120 ]]; then
+            _fallback_subject="${_fallback_subject:0:117}..."
+        fi
+        if [[ -z "$_fallback_subject" ]]; then
+            _fallback_subject="Merge $_branch"
+        fi
+        printf '[%s] %s\n' "$_branch" "$_fallback_subject"
+        return 0
+    fi
+
+    if [[ -n "$_id" ]]; then
+        printf '[%s] %s\n' "$_id" "$_subject"
+    else
+        printf '%s\n' "$_subject"
+    fi
+}
+
 _phase_merge() {
     if type _state_write_phase >/dev/null 2>&1; then
         _state_write_phase "merge" 2>/dev/null || true
@@ -434,8 +523,11 @@ _phase_merge() {
     fi
 
     # --- 3. Derive PR title from last meaningful commit subject ---
+    # Use _derive_pr_title so an upstream merge-back commit subject
+    # (e.g. "Merge remote-tracking branch 'origin/main' into <branch>")
+    # never becomes the PR title. Bug 85b8-2576.
     local _title
-    _title=$(git log -1 --pretty=%s 2>/dev/null || echo "Merge $BRANCH")
+    _title=$(_derive_pr_title "$BRANCH")
     if [[ -z "$_title" ]]; then
         _title="Merge $BRANCH"
     fi
