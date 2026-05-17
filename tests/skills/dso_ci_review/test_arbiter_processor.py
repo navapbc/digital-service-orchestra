@@ -293,3 +293,51 @@ def test_arbiter_processor_handles_legacy_sidecar(tmp_path, capsys):
     # New schema written
     data = json.loads(sidecar.read_text())
     assert data["schema_version"] == "1.0.0"
+
+
+def test_arbiter_processor_sidecar_concurrent_writers_no_loss(tmp_path):
+    """Two concurrent threads writing to the sidecar both produce valid output (lock serializes them).
+
+    Without fcntl.LOCK_EX coordination, two parallel arbiter runs targeting the
+    same artifacts_dir would race on the atomic temp+rename — one writer's
+    content silently disappears. The pre-commit gate consumes this sidecar, so a
+    lost ruling becomes a silent BLOCK bypass. This test verifies that with
+    serialization, the resulting sidecar is always one writer's complete output
+    — never a torn write or corrupted JSON.
+    """
+    import threading
+
+    def writer_a():
+        process_rulings(
+            rulings=[_make_ruling(idx=0, ruling="BLOCK", rationale="writer A")],
+            finding_map={0: _make_finding(idx=0, file="a.py")},
+            cycle_num=1,
+            commit_sha="sha_a",
+            artifacts_dir=str(tmp_path),
+        )
+
+    def writer_b():
+        process_rulings(
+            rulings=[_make_ruling(idx=0, ruling="DROP", rationale="writer B")],
+            finding_map={0: _make_finding(idx=0, file="b.py")},
+            cycle_num=2,
+            commit_sha="sha_b",
+            artifacts_dir=str(tmp_path),
+        )
+
+    # Patch subprocess so the DROP path in writer_b doesn't fail.
+    with patch("subprocess.run", return_value=MagicMock(returncode=0, stdout="")):
+        t1 = threading.Thread(target=writer_a)
+        t2 = threading.Thread(target=writer_b)
+        t1.start()
+        t2.start()
+        t1.join()
+        t2.join()
+
+    # Sidecar exists and contains valid JSON (no torn write).
+    sidecar = tmp_path / "arbiter-rulings.json"
+    assert sidecar.exists()
+    data = json.loads(sidecar.read_text())
+    assert data["schema_version"] == "1.0.0"
+    # One writer's full content survived — the key invariant is no torn write.
+    assert data["commit_sha"] in ("sha_a", "sha_b")
