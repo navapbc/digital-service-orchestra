@@ -52,9 +52,67 @@ jobs:
         with:
           args: check plugins/dso/scripts/
 
+  # Hook Tests / Script Tests gate the LLM review so the reviewer never burns
+  # tokens on a story branch whose deterministic checks are red. Bug
+  # da45-7d92-6c86-42bc: PR #193 failed Script Tests on a real
+  # plugin-script-relative-path violation while the LLM review ran in parallel
+  # and chewed through tokens on a 7947-line diff. These jobs mirror ci.yml's
+  # test-hooks / test-scripts (intentional duplication — per-branch-review.yml
+  # fires on push:story/** which ci.yml does NOT cover, see ci.yml comment in
+  # `on: push`).
+  test-hooks:
+    name: Hook Tests
+    needs: [shellcheck, lint-python]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SUITE_TEST_INDEX: ${{ github.workspace }}/.test-index
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run hook tests
+        run: bash tests/hooks/run-hook-tests.sh
+
+  test-scripts:
+    name: Script Tests
+    needs: [shellcheck, lint-python]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUITE_TEST_INDEX: ${{ github.workspace }}/.test-index
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install Python dependencies
+        run: pip install ruff pyyaml jsonschema
+
+      - name: Install hyperfine
+        run: sudo apt-get update && sudo apt-get install -y hyperfine
+
+      - name: Verify hyperfine installed
+        run: hyperfine --version
+
+      - name: Run script tests
+        run: bash tests/scripts/run-script-tests.sh
+
+  validate-required-checks:
+    name: Validate required-checks.txt
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Python dependencies
+        run: pip install pyyaml
+      - name: Validate check-context names
+        run: bash plugins/dso/scripts/onboarding/validate-required-checks.sh
+
   mirror-tracker-defenses:
     name: Mirror Tracker Defenses to PR
-    needs: [actionlint, shellcheck, lint-python]
+    needs: [actionlint, shellcheck, lint-python, test-hooks, test-scripts]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     continue-on-error: true
@@ -83,7 +141,7 @@ jobs:
 
   review:
     name: Per-Story LLM Review
-    needs: [actionlint, shellcheck, lint-python, mirror-tracker-defenses]
+    needs: [actionlint, shellcheck, lint-python, test-hooks, test-scripts, validate-required-checks, mirror-tracker-defenses]
     runs-on: ubuntu-latest
     # 30 min: region-split mode with 5 clusters takes ~12 min; 30 provides headroom.
     timeout-minutes: 30

@@ -197,7 +197,9 @@ def test_loc_threshold_config_override(tmp_path, monkeypatch) -> None:
     )
 
 
-def test_threshold_readers_clamp_invalid_config_to_default(tmp_path, monkeypatch) -> None:
+def test_threshold_readers_clamp_invalid_config_to_default(
+    tmp_path, monkeypatch
+) -> None:
     """Zero/negative threshold values from config must fall back to defaults.
 
     PR #169 review (coderabbit f-positive-integer): _read_config_int returns
@@ -265,8 +267,7 @@ def test_cluster_files_overflow_preserves_full_paths() -> None:
     overflow_dirs = {f.rsplit("/", 1)[0] for f in overflow}
     input_dirs = {f.rsplit("/", 1)[0] for f in filenames}
     assert overflow_dirs.issubset(input_dirs), (
-        f"Overflow parent dirs {overflow_dirs} must be from the input set "
-        f"{input_dirs}"
+        f"Overflow parent dirs {overflow_dirs} must be from the input set {input_dirs}"
     )
 
 
@@ -302,8 +303,8 @@ def test_extract_cluster_diff_resolves_overflow_paths() -> None:
         f"Overflow extraction must include the zeta/f.py hunk; got: {result!r}"
     )
     assert "other/x.py" not in result, (
-        f"Overflow extraction must NOT include hunks for non-overflow files; "
-        f"leaked: other/x.py present in result"
+        "Overflow extraction must NOT include hunks for non-overflow files; "
+        "leaked: other/x.py present in result"
     )
 
 
@@ -910,9 +911,7 @@ def test_extract_filenames_includes_deletions() -> None:
         f"Deletion (+++ /dev/null) must still be extracted via diff --git header; "
         f"got: {files}"
     )
-    assert "kept.py" in files, (
-        f"Modified file must be extracted; got: {files}"
-    )
+    assert "kept.py" in files, f"Modified file must be extracted; got: {files}"
 
 
 def test_gate_and_clustering_see_same_file_set_under_deletion() -> None:
