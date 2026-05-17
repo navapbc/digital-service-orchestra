@@ -18,10 +18,22 @@ Provides public functions:
 
 from __future__ import annotations
 
+import json as _json
+import subprocess
 import sys
 from typing import Any
 
 from dso_ci_review.dispatch import dispatch_review
+
+# Specific transport / parse exception classes treated as dispatch failures.
+# NOTE: deliberately NOT bare `Exception` — catching `Exception` would mask
+# downstream programming bugs (e.g. AttributeError in CoVe fallback) as fake
+# BLOCK rulings. Only true transport/parse errors are dispatch failures.
+_DISPATCH_FAILURE_EXCEPTIONS: tuple[type[BaseException], ...] = (
+    subprocess.CalledProcessError,
+    _json.JSONDecodeError,
+    OSError,  # base class for ConnectionError, TimeoutError, FileNotFoundError, etc.
+)
 
 VALID_RULINGS: frozenset[str] = frozenset({"BLOCK", "DEFER", "DROP"})
 
@@ -131,13 +143,54 @@ def dispatch_arbiter(
     failure and the function emits fail-closed synthetic BLOCK rulings for
     every critical/important finding (matches T2 fail-closed behavior). The
     mismatch is logged to stderr as ``arbiter_length_mismatch``.
+
+    Dispatch-failure handling (AC amendment, T2): if dispatch_review raises a
+    transport/parse failure (subprocess.CalledProcessError, json.JSONDecodeError,
+    or any OSError including ConnectionError/TimeoutError), the function emits
+    fail-closed synthetic BLOCK rulings for every critical/important finding.
+    Each synthetic ruling preserves the original ``severity`` and the input
+    ``finding_index``. Empty findings + dispatch failure returns an empty list
+    (no synthetic BLOCK for a nonexistent finding). The failure is logged to
+    stderr as ``arbiter_dispatch_failed reason=<exc> finding_count=<n>``.
+
+    NOTE: bare ``Exception`` is intentionally NOT caught — that would mask
+    downstream programming bugs as fake BLOCK rulings, defeating the purpose
+    of the fail-closed signal.
     """
-    result = dispatch_review(
-        diff=diff_text,
-        agent_id="code-reviewer-arbiter",
-        primary_model=model,
-        provider_chain=provider_chain,
-    )
+    # Empty findings: no dispatch needed, return empty (no synthetic BLOCK for
+    # nonexistent findings — would be meaningless and would pollute the gate).
+    if not findings:
+        return []
+
+    try:
+        result = dispatch_review(
+            diff=diff_text,
+            agent_id="code-reviewer-arbiter",
+            primary_model=model,
+            provider_chain=provider_chain,
+        )
+    except _DISPATCH_FAILURE_EXCEPTIONS as exc:
+        print(
+            f"arbiter_dispatch_failed reason={type(exc).__name__} "
+            f"finding_count={len(findings)}",
+            file=sys.stderr,
+        )
+        exc_msg = str(exc)[:200]
+        return [
+            {
+                "ruling": "BLOCK",
+                "rationale": (
+                    f"Arbiter dispatch failed: {type(exc).__name__}: {exc_msg}; "
+                    "defaulting to BLOCK; manual review required."
+                ),
+                "schema_version": "1.0.0",
+                "finding_index": i,
+                "severity": finding.get("severity", ""),
+                "finding_hash": finding.get("finding_hash", ""),
+            }
+            for i, finding in enumerate(findings)
+            if finding.get("severity") in ("critical", "important")
+        ]
 
     # Agent contract: returns a JSON array of per-finding rulings.
     # Backward-compat: a single-ruling dict response is wrapped in a list.
@@ -168,6 +221,8 @@ def dispatch_arbiter(
                 ),
                 "schema_version": "1.0.0",
                 "finding_index": i,
+                "severity": finding.get("severity", ""),
+                "finding_hash": finding.get("finding_hash", ""),
             }
             for i, finding in enumerate(findings)
             if finding.get("severity") in ("critical", "important")
