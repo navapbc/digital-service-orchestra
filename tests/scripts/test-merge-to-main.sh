@@ -21,6 +21,15 @@ MERGE_HELPERS_LIB="$DSO_PLUGIN_DIR/hooks/lib/merge-helpers.sh"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
+# Process-unique suffix for BRANCH names in state-file tests (402e-5bc3).
+# State files live at /tmp/merge-to-main-state-<branch>.json, a shared namespace
+# across parallel CI jobs / suite-engine workers / re-runs within the 4h freshness
+# window. Static BRANCH names like "test-complete" collide between concurrent
+# processes, producing intermittent "FAIL: python parse error" when one process
+# reads a state file mid-write or with stale data from another process. Suffixing
+# with $$ guarantees uniqueness without changing test semantics.
+_TEST_BRANCH_TAG="$$-${RANDOM}"
+
 # =============================================================================
 # Test: bash -n syntax check passes on merge-to-main.sh
 # =============================================================================
@@ -157,7 +166,7 @@ if [[ -z "$_SFP_BODY" ]]; then
     assert_eq "test_state_file_path_is_worktree_scoped" "FUNCTION_EXISTS" "FUNCTION_NOT_FOUND"
 else
     eval "$_SFP_BODY"
-    BRANCH="worktrees/test-branch"
+    BRANCH="worktrees/test-branch-${_TEST_BRANCH_TAG}"
     _SFP_RESULT=$(_state_file_path)
     assert_contains "test_state_file_path_starts_with_tmp" "/tmp/merge-to-main-state-" "$_SFP_RESULT"
     assert_contains "test_state_file_path_contains_branch" "test-branch" "$_SFP_RESULT"
@@ -173,7 +182,7 @@ if [[ -z "$_SI_BODY" || -z "$_SFP_BODY" ]]; then
 else
     eval "$_SI_BODY"
     eval "$_SSM_BODY" 2>/dev/null || true
-    BRANCH="test-task1"
+    BRANCH="test-task1-${_TEST_BRANCH_TAG}"
     _state_init
     _STATE_FILE=$(_state_file_path)
     # Assert file exists
@@ -204,7 +213,7 @@ fi
 if [[ -z "$_SSM_BODY" || -z "$_SFP_BODY" ]]; then
     assert_eq "test_state_stale_file_is_deleted" "FUNCTION_EXISTS" "FUNCTION_NOT_FOUND"
 else
-    BRANCH="test-stale"
+    BRANCH="test-stale-${_TEST_BRANCH_TAG}"
     _STATE_FILE=$(_state_file_path)
     # Create a state file with content, then backdate it by 241 minutes
     printf '{"branch":"test-stale","merge_sha":"","completed_phases":[],"current_phase":"","phases":{}}' > "$_STATE_FILE"
@@ -227,7 +236,7 @@ fi
 if [[ -z "$_SSM_BODY" || -z "$_SFP_BODY" || -z "$_SI_BODY" ]]; then
     assert_eq "test_state_fresh_file_is_kept" "FUNCTION_EXISTS" "FUNCTION_NOT_FOUND"
 else
-    BRANCH="test-fresh"
+    BRANCH="test-fresh-${_TEST_BRANCH_TAG}"
     _state_init
     _STATE_FILE=$(_state_file_path)
     _state_is_fresh
@@ -250,7 +259,7 @@ if [[ -z "$_SMC_BODY" || -z "$_SFP_BODY" || -z "$_SI_BODY" ]]; then
     assert_eq "test_state_mark_complete_appends_phase" "FUNCTION_EXISTS" "FUNCTION_NOT_FOUND"
 else
     eval "$_SMC_BODY"
-    BRANCH="test-complete"
+    BRANCH="test-complete-${_TEST_BRANCH_TAG}"
     _state_init
     _state_mark_complete "sync"
     _STATE_FILE=$(_state_file_path)
@@ -286,7 +295,7 @@ if [[ -z "$_SWP_BODY" || -z "$_SFP_BODY" || -z "$_SI_BODY" ]]; then
     assert_eq "test_state_write_phase_updates_current_phase" "FUNCTION_EXISTS" "FUNCTION_NOT_FOUND"
 else
     eval "$_SWP_BODY"
-    BRANCH="test-write-phase"
+    BRANCH="test-write-phase-${_TEST_BRANCH_TAG}"
     _state_init
     _state_write_phase "merge"
     _STATE_FILE=$(_state_file_path)
@@ -317,7 +326,7 @@ if [[ -z "$_SRMS_BODY" || -z "$_SFP_BODY" || -z "$_SI_BODY" ]]; then
     assert_eq "test_state_record_merge_sha_writes_sha" "FUNCTION_EXISTS" "FUNCTION_NOT_FOUND"
 else
     eval "$_SRMS_BODY"
-    BRANCH="test-merge-sha"
+    BRANCH="test-merge-sha-${_TEST_BRANCH_TAG}"
     _state_init
     _state_record_merge_sha "abc123def456"
     _STATE_FILE=$(_state_file_path)
@@ -335,7 +344,7 @@ with open('$_STATE_FILE') as f:
     d = json.load(f)
 print(d.get('branch', ''))
 " 2>/dev/null || echo "PARSE_ERROR")
-    assert_eq "test_state_record_merge_sha_preserves_branch" "test-merge-sha" "$_BRANCH_VAL"
+    assert_eq "test_state_record_merge_sha_preserves_branch" "test-merge-sha-${_TEST_BRANCH_TAG}" "$_BRANCH_VAL"
     rm -f "$_STATE_FILE"
 fi
 
@@ -466,7 +475,7 @@ eval "$(_extract_fn "_state_record_merge_sha")"
 # Integration: State file contains correct schema after init
 # =============================================================================
 test_state_file_schema_complete() {
-    BRANCH="m0d7-integ-test"
+    BRANCH="m0d7-integ-test-${_TEST_BRANCH_TAG}"
     # Remove any pre-existing state file
     rm -f "$(_state_file_path)" 2>/dev/null
     _state_init
@@ -478,7 +487,7 @@ import json
 with open('$_sf') as f:
     d = json.load(f)
 errors = []
-if d.get('branch') != 'm0d7-integ-test':
+if d.get('branch') != 'm0d7-integ-test-${_TEST_BRANCH_TAG}':
     errors.append('branch mismatch: ' + repr(d.get('branch')))
 if d.get('merge_sha') != '':
     errors.append('merge_sha not empty: ' + repr(d.get('merge_sha')))
@@ -502,7 +511,7 @@ test_state_file_schema_complete
 # Integration: completed_phases array populated after marking complete
 # =============================================================================
 test_state_completed_phases_populated() {
-    BRANCH="m0d7-integ-phases"
+    BRANCH="m0d7-integ-phases-${_TEST_BRANCH_TAG}"
     rm -f "$(_state_file_path)" 2>/dev/null
     _state_init
     _state_mark_complete "sync"
@@ -529,7 +538,7 @@ test_state_completed_phases_populated
 # Integration: merge_sha recorded correctly
 # =============================================================================
 test_state_merge_sha_recorded() {
-    BRANCH="m0d7-integ-sha"
+    BRANCH="m0d7-integ-sha-${_TEST_BRANCH_TAG}"
     rm -f "$(_state_file_path)" 2>/dev/null
     _state_init
     _state_record_merge_sha "abc123def456"
@@ -555,7 +564,7 @@ test_state_merge_sha_recorded
 # Integration: SIGURG sends URG signal and state file records interrupted phase
 # =============================================================================
 test_sigurg_records_interrupted_phase() {
-    BRANCH="sigurg-integ-test"
+    BRANCH="sigurg-integ-test-${_TEST_BRANCH_TAG}"
     local _sf
     _sf=$(_state_file_path)
     rm -f "$_sf" 2>/dev/null
@@ -574,7 +583,7 @@ test_sigurg_records_interrupted_phase() {
         _extract_fn "_state_init"
         _extract_fn "_state_write_phase"
         _extract_fn "_sigurg_handler"
-        echo 'BRANCH="sigurg-integ-test"'
+        echo "BRANCH=\"sigurg-integ-test-${_TEST_BRANCH_TAG}\""
         echo '_CURRENT_PHASE=""'
         echo '_state_init'
         echo '_state_write_phase "merge"'
