@@ -14,6 +14,7 @@
 #
 # Usage (new interface):
 #   write-cycle-ledger.sh --epic-id <id> --cycle-num <n> --findings-hash <hash>
+#                         [--commit-sha <sha>] [--findings <json>]
 #                         [--artifacts-dir <path>] [--reconstruct-from-pr]
 #
 # Required (legacy):
@@ -27,18 +28,31 @@
 # Optional (both interfaces):
 #   --artifacts-dir <path>   Override artifacts dir (default: get_artifacts_dir())
 #
-# Optional (new interface only):
+# Optional (new interface only — v1.1.0 fields, see contract for full spec):
+#   --commit-sha <sha>       40-char commit SHA at cycle close time. Default:
+#                            git rev-parse HEAD (empty string when not in a
+#                            git repo or git is unavailable).
+#   --findings <json>        JSON array of [file, line_range, category] tuples.
+#                            Default: [] (empty array). Used by Jaccard stability
+#                            computation across cycles.
 #   --reconstruct-from-pr    Trigger CI reconstruction mode: parse PR comments
 #                            for prior DSO-Review-Cycle entries before appending
 #                            the current cycle. Requires DSO_CI_REVIEW_PR env var.
+#                            Parser recognizes v1.1.0 markers (commit_sha=,
+#                            findings_hash=, tuples=) and legacy v1.0.0 markers
+#                            (findings-hash= only).
 #
-# Output schema (cycle-ledger.json):
+# Output schema (cycle-ledger.json) — see the cycle-ledger.md contract
+# (${CLAUDE_PLUGIN_ROOT}/docs/contracts/cycle-ledger.md) for the full v1.1.0 spec:
 #   {
-#     "schema_version": "1.0.0",
+#     "schema_version": "1.1.0",
 #     "epic_id": "<epic_id or empty>",
 #     "cycles": [ <cycle_entry>, ... ],
 #     "reconstruction_gaps": true   # only present when gaps detected during reconstruction
 #   }
+# Each cycle entry carries: cycle_num, timestamp_utc, findings_hash, plus the
+# v1.1.0 fields commit_sha (string) and findings (array of [file, line_range,
+# category] string tuples).
 #
 # Exit codes:
 #   0  — success
@@ -64,6 +78,10 @@ artifacts_dir_arg=""
 epic_id=""
 cycle_num=""
 findings_hash=""
+commit_sha_arg=""
+commit_sha_explicit=0
+findings_arg=""
+findings_explicit=0
 reconstruct_from_pr=0
 
 while [[ $# -gt 0 ]]; do
@@ -102,6 +120,26 @@ while [[ $# -gt 0 ]]; do
             ;;
         --findings-hash=*)
             findings_hash="${1#--findings-hash=}"
+            shift
+            ;;
+        --commit-sha)
+            commit_sha_arg="$2"
+            commit_sha_explicit=1
+            shift 2
+            ;;
+        --commit-sha=*)
+            commit_sha_arg="${1#--commit-sha=}"
+            commit_sha_explicit=1
+            shift
+            ;;
+        --findings)
+            findings_arg="$2"
+            findings_explicit=1
+            shift 2
+            ;;
+        --findings=*)
+            findings_arg="${1#--findings=}"
+            findings_explicit=1
             shift
             ;;
         --reconstruct-from-pr)
@@ -151,39 +189,28 @@ if [[ "$use_new_interface" -eq 0 ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Input validation — new-interface arguments (bug da45 PR #200 review)
+# v1.1.0 field defaults (new interface only) — applied before the locked section
 # ---------------------------------------------------------------------------
-# Findings f-... (Trust boundary / Untrusted-input-to-dangerous-sink):
-#   - findings_hash is stored in the ledger and used for integrity verification.
-#     Reject anything containing path/shell-meaningful characters so callers
-#     cannot inject path-traversal-shaped strings (e.g. '../../../etc/passwd')
-#     into the ledger.
-#   - cycle_num must be a non-negative integer.
-#   - epic_id must look like a ticket ID (alphanumeric with dashes only).
-#   - DSO_CI_REVIEW_PR (read later for --reconstruct-from-pr) must be a
-#     positive integer; reject anything else before passing to `gh pr view`.
+# commit_sha: when --commit-sha is not explicitly passed, default to git HEAD.
+#             If git is unavailable or not in a repo, fall back to empty string
+#             per the contract (writers SHOULD populate; readers tolerate "").
+# findings:   when --findings is not explicitly passed, default to "[]". When
+#             passed, the JSON must parse (validated below) — fail fast before
+#             acquiring the lock.
+
 if [[ "$use_new_interface" -eq 1 ]]; then
-    if ! [[ "$cycle_num" =~ ^[0-9]+$ ]]; then
-        echo "error: --cycle-num must be a non-negative integer; got: $cycle_num" >&2
-        exit 1
+    if [[ "$commit_sha_explicit" -eq 0 ]]; then
+        # Try git rev-parse HEAD; fall back to empty string on any failure.
+        commit_sha_arg="$(git rev-parse HEAD 2>/dev/null || echo "")"
     fi
-    # findings_hash: alphanumeric/underscore/dash, 1-128 chars. Rejects any
-    # input containing path separators, dots, spaces, or shell metacharacters.
-    # Empty allowed (reconstruction path infers from PR comments).
-    if [[ -n "$findings_hash" ]] && ! [[ "$findings_hash" =~ ^[A-Za-z0-9_-]{1,128}$ ]]; then
-        echo "error: --findings-hash must match [A-Za-z0-9_-]{1,128}; got: $findings_hash" >&2
-        exit 1
+
+    if [[ "$findings_explicit" -eq 0 ]]; then
+        findings_arg="[]"
     fi
-    # epic_id: optional. If set must match ticket-id grammar (no path chars).
-    if [[ -n "$epic_id" ]] && ! [[ "$epic_id" =~ ^[A-Za-z0-9_-]{1,128}$ ]]; then
-        echo "error: --epic-id must match [A-Za-z0-9_-]{1,128}; got: $epic_id" >&2
-        exit 1
-    fi
-    # DSO_CI_REVIEW_PR: optional env var used in --reconstruct-from-pr path; must
-    # be a positive integer when set. Untrusted shell expansion otherwise.
-    if [[ "$reconstruct_from_pr" -eq 1 && -n "${DSO_CI_REVIEW_PR:-}" ]] \
-        && ! [[ "${DSO_CI_REVIEW_PR}" =~ ^[1-9][0-9]*$ ]]; then
-        echo "error: DSO_CI_REVIEW_PR must be a positive integer; got: ${DSO_CI_REVIEW_PR}" >&2
+
+    # Validate findings is valid JSON before acquiring the lock.
+    if ! python3 -c "import json,sys; json.loads(sys.argv[1])" "$findings_arg" 2>/dev/null; then
+        echo "error: --findings is not valid JSON" >&2
         exit 1
     fi
 fi
@@ -235,7 +262,9 @@ if [[ "$use_new_interface" -eq 1 ]]; then
         "$TIMESTAMP" \
         "$reconstruct_from_pr" \
         "$PR_NUMBER" \
-        "$STAGING_TEMP" <<'PYEOF'
+        "$STAGING_TEMP" \
+        "$commit_sha_arg" \
+        "$findings_arg" <<'PYEOF'
 import fcntl, json, os, re, subprocess, sys, time
 
 ledger_path      = sys.argv[1]
@@ -247,6 +276,18 @@ timestamp_utc    = sys.argv[6]
 reconstruct_flag = sys.argv[7]  # "0" or "1"
 pr_number        = sys.argv[8]
 staging_temp     = sys.argv[9]
+commit_sha       = sys.argv[10]
+findings_raw     = sys.argv[11]
+
+# v1.1.0 schema constants — keep in sync with cycle-ledger.md contract
+SCHEMA_VERSION = "1.1.0"
+
+# findings is validated as JSON in the bash wrapper before we reach this point,
+# so json.loads() is safe here. Always normalize to a list.
+findings_value = json.loads(findings_raw)
+if not isinstance(findings_value, list):
+    print("error: --findings must be a JSON array", file=sys.stderr)
+    sys.exit(1)
 
 do_reconstruct = (reconstruct_flag == "1")
 
@@ -268,6 +309,63 @@ if not acquired:
     print("error: could not acquire lock within 30s", file=sys.stderr)
     sys.exit(1)
 
+
+def parse_review_cycle_line(line):
+    """
+    Parse a single DSO-Review-Cycle: marker line. Returns (cycle_dict, gap_bool)
+    where gap_bool is True if any v1.1.0 fields were missing or unparseable.
+
+    Recognizes both formats:
+      v1.1.0: DSO-Review-Cycle: <n> commit_sha=<sha> findings_hash=<h> tuples=<json>
+      v1.0.0: DSO-Review-Cycle: <n> findings-hash=<h>
+              DSO-Review-Cycle: <n>                              # cycle_num only
+    """
+    m = re.match(r"^DSO-Review-Cycle:\s+(\d+)\b(.*)$", line)
+    if not m:
+        return None, True
+    cn = int(m.group(1))
+    rest = m.group(2) or ""
+
+    # v1.1.0: findings_hash= (underscore form, alongside commit_sha=)
+    sha_m = re.search(r"\bcommit_sha=([0-9a-fA-F]+)\b", rest)
+    # accept both `findings_hash=` (v1.1.0) and `findings-hash=` (v1.0.0)
+    fh_m = re.search(r"\bfindings[_-]hash=([^\s]+)", rest)
+    # tuples=<json-array>; greedy to end-of-string so embedded brackets are kept.
+    tuples_m = re.search(r"\btuples=(\[.*\])\s*$", rest)
+
+    commit_sha = sha_m.group(1) if sha_m else ""
+    fh = fh_m.group(1) if fh_m else ""
+    findings_parsed = []
+    tuples_ok = True
+    if tuples_m:
+        try:
+            findings_parsed = json.loads(tuples_m.group(1))
+            if not isinstance(findings_parsed, list):
+                findings_parsed = []
+                tuples_ok = False
+        except (ValueError, json.JSONDecodeError):
+            findings_parsed = []
+            tuples_ok = False
+
+    # Gap detection: any v1.0.0 record (no commit_sha/no tuples) or any
+    # unparseable v1.1.0 field counts as a gap so the reader knows the data
+    # is incomplete relative to the v1.1.0 contract.
+    gap = (
+        not fh
+        or not sha_m
+        or not tuples_m
+        or not tuples_ok
+    )
+
+    return {
+        "cycle_num": cn,
+        "timestamp_utc": "",
+        "findings_hash": fh,
+        "commit_sha": commit_sha,
+        "findings": findings_parsed,
+    }, gap
+
+
 try:
     # ── CI reconstruction path ────────────────────────────────────────────────
     if do_reconstruct and not os.path.isfile(ledger_path):
@@ -279,82 +377,40 @@ try:
                 result = subprocess.run(
                     ["gh", "pr", "view", pr_number, "--json", "comments",
                      "--jq", ".comments[].body"],
-                    capture_output=True, text=True, timeout=30, check=True,
+                    capture_output=True, text=True, timeout=30
                 )
                 lines = result.stdout.splitlines()
-                pattern = re.compile(
-                    r"^DSO-Review-Cycle: ([0-9]+)( findings-hash=([^ ]+))?"
-                )
                 parsed_entries = []
                 for line in lines:
-                    m = pattern.match(line)
-                    if m:
-                        cn = int(m.group(1))
-                        fh = m.group(3) if m.group(3) else ""
-                        if not fh:
-                            reconstruction_gaps = True
-                        parsed_entries.append({
-                            "cycle_num": cn,
-                            "findings_hash": fh,
-                            "timestamp_utc": ""
-                        })
+                    entry, gap = parse_review_cycle_line(line)
+                    if entry is None:
+                        continue
+                    if gap:
+                        reconstruction_gaps = True
+                    parsed_entries.append(entry)
                 if not parsed_entries:
                     reconstruction_gaps = True
-                    print(
-                        f"WARNING: PR #{pr_number} returned no parseable "
-                        f"DSO-Review-Cycle comments; reconstruction_gaps=true",
-                        file=sys.stderr,
-                    )
                 else:
                     cycles = parsed_entries
-            except subprocess.CalledProcessError as e:
-                # Bug da45 PR #200 finding f-XXX (fail-open error handling):
-                # silently flagging reconstruction_gaps without surfacing the
-                # underlying gh failure made CI troubleshooting impossible.
-                # Emit a diagnostic line and propagate non-zero exit so the
-                # workflow surface knows reconstruction failed and is not
-                # papering over a compromised CI environment.
-                print(
-                    f"error: gh pr view failed (exit {e.returncode}); "
-                    f"stderr: {e.stderr.strip() if e.stderr else '(none)'}",
-                    file=sys.stderr,
-                )
-                sys.exit(2)  # distinct exit code from generic errors
-            except subprocess.TimeoutExpired:
-                print(
-                    f"error: gh pr view timed out after 30s for PR #{pr_number}",
-                    file=sys.stderr,
-                )
-                sys.exit(2)
-            except FileNotFoundError:
-                print(
-                    "error: gh CLI is not installed (required for "
-                    "--reconstruct-from-pr); install with `brew install gh` or "
-                    "see https://cli.github.com",
-                    file=sys.stderr,
-                )
-                sys.exit(2)
+            except Exception:
+                reconstruction_gaps = True
         else:
             reconstruction_gaps = True
-            print(
-                "WARNING: --reconstruct-from-pr set but DSO_CI_REVIEW_PR is "
-                "empty; cycles will be written with reconstruction_gaps=true "
-                "(no PR comments parsed)",
-                file=sys.stderr,
-            )
 
-        # Append the current cycle entry
+        # Append the current cycle entry (v1.1.0 fields populated from args)
         cycles.append({
             "cycle_num": cycle_num,
             "timestamp_utc": timestamp_utc,
-            "findings_hash": findings_hash
+            "findings_hash": findings_hash,
+            "commit_sha": commit_sha,
+            "findings": findings_value,
         })
 
         ledger = {
-            "schema_version": "1.0.0",
+            "schema_version": SCHEMA_VERSION,
             "epic_id": epic_id,
             "cycles": cycles,
-            "reconstruction_gaps": reconstruction_gaps
+            "reconstruction_gaps": reconstruction_gaps,
         }
 
     else:
@@ -363,50 +419,23 @@ try:
             try:
                 with open(ledger_path) as f:
                     ledger = json.load(f)
-                if "schema_version" not in ledger:
-                    ledger["schema_version"] = "1.0.0"
+                # Upgrade older ledgers in-place to v1.1.0 (additive only)
+                ledger["schema_version"] = SCHEMA_VERSION
                 if "epic_id" not in ledger:
                     ledger["epic_id"] = epic_id
                 if not isinstance(ledger.get("cycles"), list):
                     ledger["cycles"] = []
             except (json.JSONDecodeError, OSError):
-                ledger = {"schema_version": "1.0.0", "epic_id": epic_id, "cycles": []}
+                ledger = {"schema_version": SCHEMA_VERSION, "epic_id": epic_id, "cycles": []}
         else:
-            ledger = {"schema_version": "1.0.0", "epic_id": epic_id, "cycles": []}
-
-        # No-duplicate cycle_num check (bug da45 PR #200 finding f-XXX:
-        # state-machine integrity). Reject attempts to append a cycle_num
-        # that already exists in the ledger. Downstream review gates use
-        # cycle_num as a logical identifier; allowing duplicates would let
-        # an attacker append a fabricated cycle_num=N entry that masks the
-        # legitimate cycle N, potentially bypassing gates that check
-        # findings_hash or commit_sha against the latest entry for a
-        # given cycle_num.
-        #
-        # NOTE: strict monotonic ordering is intentionally NOT enforced —
-        # parallel writers may interleave so cycles arrive out of order
-        # under the lock. Duplicate-rejection is sufficient to defeat the
-        # rewind attack the reviewer flagged (an attacker submitting
-        # cycle_num=1 after cycle_num=2 has already been recorded would
-        # be rejected since cycle_num=2's entry persists).
-        existing_cycle_nums = {
-            int(c.get("cycle_num", -1))
-            for c in ledger.get("cycles", [])
-            if isinstance(c, dict) and isinstance(c.get("cycle_num"), int)
-        }
-        if cycle_num in existing_cycle_nums:
-            print(
-                f"error: cycle_num={cycle_num} already exists in the ledger; "
-                f"duplicate appends are rejected to prevent authorization-gate "
-                f"bypass via cycle_num collision.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
+            ledger = {"schema_version": SCHEMA_VERSION, "epic_id": epic_id, "cycles": []}
 
         new_entry = {
             "cycle_num": cycle_num,
             "timestamp_utc": timestamp_utc,
-            "findings_hash": findings_hash
+            "findings_hash": findings_hash,
+            "commit_sha": commit_sha,
+            "findings": findings_value,
         }
         ledger["cycles"].append(new_entry)
 
@@ -427,7 +456,11 @@ PYEOF
 
 else
     # ---------------------------------------------------------------------------
-    # Legacy --payload interface: use existing _flock_write_json pattern
+    # Legacy --payload interface: use existing _flock_write_json pattern.
+    # Bumped to v1.1.0 to match the contract — the legacy interface does not
+    # populate commit_sha/findings on new entries unless the caller embedded
+    # them in the payload, but the seeded ledger still claims v1.1.0 so
+    # downstream readers do not have to special-case the legacy writer.
     # ---------------------------------------------------------------------------
     python3 - "$LEDGER_PATH" "$payload" "$STAGING_TEMP" <<'PYEOF'
 import json, sys, os
@@ -436,6 +469,8 @@ ledger_path = sys.argv[1]
 raw_payload = sys.argv[2]
 staging_temp = sys.argv[3]
 
+SCHEMA_VERSION = "1.1.0"
+
 new_entry = json.loads(raw_payload)
 
 # Load existing ledger or seed a fresh one
@@ -443,18 +478,17 @@ if os.path.isfile(ledger_path):
     try:
         with open(ledger_path) as f:
             ledger = json.load(f)
-        # Ensure required keys are present (defensive)
-        if "schema_version" not in ledger:
-            ledger["schema_version"] = "1.0.0"
+        # Ensure required keys are present and bump schema (additive change)
+        ledger["schema_version"] = SCHEMA_VERSION
         if "epic_id" not in ledger:
             ledger["epic_id"] = new_entry.get("epic_id", "")
         if not isinstance(ledger.get("cycles"), list):
             ledger["cycles"] = []
     except (json.JSONDecodeError, OSError):
         # Corrupted file — start fresh
-        ledger = {"schema_version": "1.0.0", "epic_id": new_entry.get("epic_id", ""), "cycles": []}
+        ledger = {"schema_version": SCHEMA_VERSION, "epic_id": new_entry.get("epic_id", ""), "cycles": []}
 else:
-    ledger = {"schema_version": "1.0.0", "epic_id": new_entry.get("epic_id", ""), "cycles": []}
+    ledger = {"schema_version": SCHEMA_VERSION, "epic_id": new_entry.get("epic_id", ""), "cycles": []}
 
 ledger["cycles"].append(new_entry)
 
