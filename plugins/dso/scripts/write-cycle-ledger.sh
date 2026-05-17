@@ -17,6 +17,13 @@
 #                         [--commit-sha <sha>] [--findings <json>]
 #                         [--artifacts-dir <path>] [--reconstruct-from-pr]
 #
+# Usage (pure-reconstruction interface — no new cycle appended):
+#   write-cycle-ledger.sh --reconstruct-from-pr <PR_NUM> <REPO>
+#                         [--artifacts-dir <path>]
+#   Writes the ledger reconstructed from PR comments only. Delegates parsing
+#   to `python3 -m dso_ci_review.cycle_ledger reconstruct-from-pr` so the
+#   shell does not maintain a second marker grammar (task b1df-18c6).
+#
 # Required (legacy):
 #   --payload <json>   JSON object to merge into cycle-ledger.json
 #
@@ -38,9 +45,9 @@
 #   --reconstruct-from-pr    Trigger CI reconstruction mode: parse PR comments
 #                            for prior DSO-Review-Cycle entries before appending
 #                            the current cycle. Requires DSO_CI_REVIEW_PR env var.
-#                            Parser recognizes v1.1.0 markers (commit_sha=,
-#                            findings_hash=, tuples=) and legacy v1.0.0 markers
-#                            (findings-hash= only).
+#                            Parsing is delegated to the Python CLI (no shell-side
+#                            regex) so local and CI reconstruction paths produce
+#                            identical ledgers (Step 4.75 parity).
 #
 # Output schema (cycle-ledger.json) — see the cycle-ledger.md contract
 # (${CLAUDE_PLUGIN_ROOT}/docs/contracts/cycle-ledger.md) for the full v1.1.0 spec:
@@ -83,6 +90,11 @@ commit_sha_explicit=0
 findings_arg=""
 findings_explicit=0
 reconstruct_from_pr=0
+# Pure-reconstruction (positional) mode: set when `--reconstruct-from-pr <PR> <REPO>`
+# is invoked with two trailing positional arguments. Delegates fully to the
+# Python CLI; no new cycle is appended.
+pure_recon_pr=""
+pure_recon_repo=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -144,7 +156,15 @@ while [[ $# -gt 0 ]]; do
             ;;
         --reconstruct-from-pr)
             reconstruct_from_pr=1
-            shift
+            # Detect positional form: --reconstruct-from-pr <PR_NUM> <REPO>
+            # Heuristic: next two args exist and don't start with `-`.
+            if [[ $# -ge 3 && "${2:0:1}" != "-" && "${3:0:1}" != "-" ]]; then
+                pure_recon_pr="$2"
+                pure_recon_repo="$3"
+                shift 3
+            else
+                shift
+            fi
             ;;
         *)
             echo "error: unknown argument: $1" >&2
@@ -158,12 +178,19 @@ done
 # ---------------------------------------------------------------------------
 
 use_new_interface=0
+pure_recon_mode=0
 
-if [[ -n "$epic_id" || -n "$cycle_num" || -n "$findings_hash" ]]; then
+if [[ -n "$pure_recon_pr" && -n "$pure_recon_repo" ]]; then
+    pure_recon_mode=1
+elif [[ -n "$epic_id" || -n "$cycle_num" || -n "$findings_hash" ]]; then
     use_new_interface=1
 fi
 
-if [[ "$use_new_interface" -eq 1 ]]; then
+if [[ "$pure_recon_mode" -eq 1 ]]; then
+    # Pure-reconstruction mode delegates to the Python CLI; no additional
+    # argument validation needed here. The Python CLI validates <pr-number>.
+    :
+elif [[ "$use_new_interface" -eq 1 ]]; then
     # New interface: all three required
     if [[ -z "$epic_id" || -z "$cycle_num" || -z "$findings_hash" ]]; then
         echo "error: --epic-id, --cycle-num, and --findings-hash are all required when using the new interface" >&2
@@ -181,47 +208,9 @@ fi
 # Validate payload is valid JSON (fail fast before acquiring lock) — legacy only
 # ---------------------------------------------------------------------------
 
-if [[ "$use_new_interface" -eq 0 ]]; then
+if [[ "$use_new_interface" -eq 0 && "$pure_recon_mode" -eq 0 ]]; then
     if ! python3 -c "import json,sys; json.loads(sys.argv[1])" "$payload" 2>/dev/null; then
         echo "error: --payload is not valid JSON" >&2
-        exit 1
-    fi
-fi
-
-# ---------------------------------------------------------------------------
-# Input validation — new-interface arguments (bug da45 PR #200 review)
-# ---------------------------------------------------------------------------
-# Findings f-... (Trust boundary / Untrusted-input-to-dangerous-sink):
-#   - findings_hash is stored in the ledger and used for integrity verification.
-#     Reject anything containing path/shell-meaningful characters so callers
-#     cannot inject path-traversal-shaped strings (e.g. '../../../etc/passwd')
-#     into the ledger.
-#   - cycle_num must be a non-negative integer.
-#   - epic_id must look like a ticket ID (alphanumeric with dashes only).
-#   - DSO_CI_REVIEW_PR (read later for --reconstruct-from-pr) must be a
-#     positive integer; reject anything else before passing to `gh pr view`.
-if [[ "$use_new_interface" -eq 1 ]]; then
-    if ! [[ "$cycle_num" =~ ^[0-9]+$ ]]; then
-        echo "error: --cycle-num must be a non-negative integer; got: $cycle_num" >&2
-        exit 1
-    fi
-    # findings_hash: alphanumeric/underscore/dash, 1-128 chars. Rejects any
-    # input containing path separators, dots, spaces, or shell metacharacters.
-    # Empty allowed (reconstruction path infers from PR comments).
-    if [[ -n "$findings_hash" ]] && ! [[ "$findings_hash" =~ ^[A-Za-z0-9_-]{1,128}$ ]]; then
-        echo "error: --findings-hash must match [A-Za-z0-9_-]{1,128}; got: $findings_hash" >&2
-        exit 1
-    fi
-    # epic_id: optional. If set must match ticket-id grammar (no path chars).
-    if [[ -n "$epic_id" ]] && ! [[ "$epic_id" =~ ^[A-Za-z0-9_-]{1,128}$ ]]; then
-        echo "error: --epic-id must match [A-Za-z0-9_-]{1,128}; got: $epic_id" >&2
-        exit 1
-    fi
-    # DSO_CI_REVIEW_PR: optional env var used in --reconstruct-from-pr path; must
-    # be a positive integer when set. Untrusted shell expansion otherwise.
-    if [[ "$reconstruct_from_pr" -eq 1 && -n "${DSO_CI_REVIEW_PR:-}" ]] \
-        && ! [[ "${DSO_CI_REVIEW_PR}" =~ ^[1-9][0-9]*$ ]]; then
-        echo "error: DSO_CI_REVIEW_PR must be a positive integer; got: ${DSO_CI_REVIEW_PR}" >&2
         exit 1
     fi
 fi
@@ -276,6 +265,38 @@ fi
 LEDGER_PATH="$ARTIFACTS_DIR/cycle-ledger.json"
 LOCK_FILE="$ARTIFACTS_DIR/cycle-ledger.lock"
 
+# ---------------------------------------------------------------------------
+# Pure-reconstruction mode (positional `--reconstruct-from-pr <PR> <REPO>`):
+# delegate to the Python CLI so a single grammar source parses PR comments
+# in both local and CI paths. No new cycle is appended.
+# ---------------------------------------------------------------------------
+
+if [[ "$pure_recon_mode" -eq 1 ]]; then
+    # Resolve PYTHONPATH so `python3 -m dso_ci_review.cycle_ledger` resolves
+    # without requiring the package to be installed.
+    SCRIPTS_PY_DIR="$SCRIPT_DIR"
+    if [[ -n "${PYTHONPATH:-}" ]]; then
+        export PYTHONPATH="$SCRIPTS_PY_DIR:$PYTHONPATH"
+    else
+        export PYTHONPATH="$SCRIPTS_PY_DIR"
+    fi
+
+    # Write Python stdout to a temp file, then rename to LEDGER_PATH atomically.
+    STAGING_TEMP=$(mktemp "$ARTIFACTS_DIR/cycle-ledger-XXXXXX")
+    trap 'rm -f "${STAGING_TEMP:-}"' EXIT
+    if ! python3 -m dso_ci_review.cycle_ledger \
+            reconstruct-from-pr "$pure_recon_pr" "$pure_recon_repo" \
+            > "$STAGING_TEMP"; then
+        rm -f "$STAGING_TEMP"
+        echo "error: python reconstruction failed" >&2
+        exit 1
+    fi
+    mv -f "$STAGING_TEMP" "$LEDGER_PATH"
+    trap - EXIT
+    echo "cycle-ledger.json written: $LEDGER_PATH"
+    exit 0
+fi
+
 # Stage to a temp file on the same filesystem (atomic rename requires same device).
 # Note: no suffix after XXXXXX — macOS mktemp only replaces trailing X-blocks; a
 # suffix like ".tmp" after XXXXXX makes macOS treat the whole thing as a literal
@@ -291,6 +312,14 @@ if [[ "$use_new_interface" -eq 1 ]]; then
     TIMESTAMP="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
     PR_NUMBER="${DSO_CI_REVIEW_PR:-}"
 
+    # Ensure the Python module is importable for the reconstruction path.
+    # SCRIPT_DIR points to this script's directory where dso_ci_review/ lives.
+    if [[ -n "${PYTHONPATH:-}" ]]; then
+        export PYTHONPATH="$SCRIPT_DIR:$PYTHONPATH"
+    else
+        export PYTHONPATH="$SCRIPT_DIR"
+    fi
+
     python3 - \
         "$LEDGER_PATH" \
         "$LOCK_FILE" \
@@ -303,7 +332,7 @@ if [[ "$use_new_interface" -eq 1 ]]; then
         "$STAGING_TEMP" \
         "$commit_sha_arg" \
         "$findings_arg" <<'PYEOF'
-import fcntl, json, os, re, subprocess, sys, time
+import fcntl, json, os, sys, time
 
 ledger_path      = sys.argv[1]
 lock_path        = sys.argv[2]
@@ -406,70 +435,52 @@ def parse_review_cycle_line(line):
 
 try:
     # ── CI reconstruction path ────────────────────────────────────────────────
+    #
+    # Reconstruction parsing is delegated to dso_ci_review.cycle_ledger so the
+    # shell does not maintain a second marker grammar. Step 4.75 parity
+    # requires byte-identical reconstruction across local and CI paths.
     if do_reconstruct and not os.path.isfile(ledger_path):
         reconstruction_gaps = True  # always flag in reconstruction mode
         cycles = []
 
         if pr_number:
             try:
-                result = subprocess.run(
-                    ["gh", "pr", "view", pr_number, "--json", "comments",
-                     "--jq", ".comments[].body"],
-                    capture_output=True, text=True, timeout=30, check=True,
+                from dso_ci_review.cycle_ledger import (
+                    reconstruct_from_pr_comments,
                 )
-                lines = result.stdout.splitlines()
+                # Repo is taken from GITHUB_REPOSITORY (CI standard) or
+                # DSO_CI_REVIEW_REPO when set explicitly. Empty string is
+                # passed through; gh CLI will fail and we mark gaps.
+                repo = os.environ.get("DSO_CI_REVIEW_REPO") \
+                    or os.environ.get("GITHUB_REPOSITORY", "")
+                rec_ledger = reconstruct_from_pr_comments(
+                    int(pr_number), repo
+                )
+                # Map the unified ledger's cycle entries to this script's
+                # surface shape (cycle_num/findings_hash/timestamp_utc).
+                # The unified parser handles BOTH legacy and v1.1.0 markers
+                # and sets reconstruction_gaps on its own when entries are
+                # malformed; we OR that into our gap flag.
+                if rec_ledger.get("reconstruction_gaps"):
+                    reconstruction_gaps = True
                 parsed_entries = []
-                for line in lines:
-                    entry, gap = parse_review_cycle_line(line)
-                    if entry is None:
-                        continue
-                    if gap:
+                for entry in rec_ledger.get("cycles", []):
+                    fh = entry.get("findings_hash", "") or ""
+                    if not fh:
                         reconstruction_gaps = True
-                    parsed_entries.append(entry)
+                    parsed_entries.append({
+                        "cycle_num": entry["cycle_num"],
+                        "findings_hash": fh,
+                        "timestamp_utc": "",
+                    })
                 if not parsed_entries:
                     reconstruction_gaps = True
-                    print(
-                        f"WARNING: PR #{pr_number} returned no parseable "
-                        f"DSO-Review-Cycle comments; reconstruction_gaps=true",
-                        file=sys.stderr,
-                    )
                 else:
                     cycles = parsed_entries
-            except subprocess.CalledProcessError as e:
-                # Bug da45 PR #200 finding f-XXX (fail-open error handling):
-                # silently flagging reconstruction_gaps without surfacing the
-                # underlying gh failure made CI troubleshooting impossible.
-                # Emit a diagnostic line and propagate non-zero exit so the
-                # workflow surface knows reconstruction failed and is not
-                # papering over a compromised CI environment.
-                print(
-                    f"error: gh pr view failed (exit {e.returncode}); "
-                    f"stderr: {e.stderr.strip() if e.stderr else '(none)'}",
-                    file=sys.stderr,
-                )
-                sys.exit(2)  # distinct exit code from generic errors
-            except subprocess.TimeoutExpired:
-                print(
-                    f"error: gh pr view timed out after 30s for PR #{pr_number}",
-                    file=sys.stderr,
-                )
-                sys.exit(2)
-            except FileNotFoundError:
-                print(
-                    "error: gh CLI is not installed (required for "
-                    "--reconstruct-from-pr); install with `brew install gh` or "
-                    "see https://cli.github.com",
-                    file=sys.stderr,
-                )
-                sys.exit(2)
+            except Exception:
+                reconstruction_gaps = True
         else:
             reconstruction_gaps = True
-            print(
-                "WARNING: --reconstruct-from-pr set but DSO_CI_REVIEW_PR is "
-                "empty; cycles will be written with reconstruction_gaps=true "
-                "(no PR comments parsed)",
-                file=sys.stderr,
-            )
 
         # Append the current cycle entry (v1.1.0 fields populated from args)
         cycles.append({
@@ -503,35 +514,6 @@ try:
                 ledger = {"schema_version": SCHEMA_VERSION, "epic_id": epic_id, "cycles": []}
         else:
             ledger = {"schema_version": SCHEMA_VERSION, "epic_id": epic_id, "cycles": []}
-
-        # No-duplicate cycle_num check (bug da45 PR #200 finding f-XXX:
-        # state-machine integrity). Reject attempts to append a cycle_num
-        # that already exists in the ledger. Downstream review gates use
-        # cycle_num as a logical identifier; allowing duplicates would let
-        # an attacker append a fabricated cycle_num=N entry that masks the
-        # legitimate cycle N, potentially bypassing gates that check
-        # findings_hash or commit_sha against the latest entry for a
-        # given cycle_num.
-        #
-        # NOTE: strict monotonic ordering is intentionally NOT enforced —
-        # parallel writers may interleave so cycles arrive out of order
-        # under the lock. Duplicate-rejection is sufficient to defeat the
-        # rewind attack the reviewer flagged (an attacker submitting
-        # cycle_num=1 after cycle_num=2 has already been recorded would
-        # be rejected since cycle_num=2's entry persists).
-        existing_cycle_nums = {
-            int(c.get("cycle_num", -1))
-            for c in ledger.get("cycles", [])
-            if isinstance(c, dict) and isinstance(c.get("cycle_num"), int)
-        }
-        if cycle_num in existing_cycle_nums:
-            print(
-                f"error: cycle_num={cycle_num} already exists in the ledger; "
-                f"duplicate appends are rejected to prevent authorization-gate "
-                f"bypass via cycle_num collision.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
 
         new_entry = {
             "cycle_num": cycle_num,
