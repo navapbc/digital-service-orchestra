@@ -521,6 +521,84 @@ else
     (( PASS++ ))
 fi
 
+# ── Test: orphan:deferred_review + origin:arbiter tags exempt from orphan WARNING
+# RED marker — test_orphan_deferred_review_tag_exempt
+# Given: an open task with no parent_id and tags ["orphan:deferred_review", "origin:arbiter"]
+# When: validate-issues.sh check_orphaned_tasks runs
+# Then: NO WARNING is emitted for that ticket (both tags together grant exemption)
+# NOTE: This test is intentionally RED — the normalization layer in get_shared_issues_json()
+# does not currently pass tags through to check_orphaned_tasks. Task 7054 adds that support.
+echo "Test: check_orphaned_tasks — orphan:deferred_review + origin:arbiter tags exempt from WARNING (RED)"
+DEFERRED_EXEMPT_TASK=$(python3 -c "
+import json
+t = {
+    'ticket_id': 'test-deferred-exempt',
+    'status': 'open',
+    'ticket_type': 'task',
+    'title': 'Deferred Review Task (Both Tags)',
+    'parent_id': None,
+    'description': 'yes',
+    'notes': '',
+    'deps': [],
+    'created_at': '2026-01-01T00:00:00Z',
+    'tags': ['orphan:deferred_review', 'origin:arbiter'],
+}
+print(json.dumps(t))
+")
+MOCK_TICKET_CMD=$(make_ticket_cmd "[$DEFERRED_EXEMPT_TASK]")
+
+output=""
+output=$(TICKET_CMD="$MOCK_TICKET_CMD" bash "$SCRIPT" --terse 2>&1) || true
+
+if [[ "${output,,}" =~ \[warning\].*test-deferred-exempt ]]; then
+    echo "  FAIL: ticket with orphan:deferred_review + origin:arbiter still emitted WARNING (expected: exempt, no WARNING)" >&2
+    echo "  Output: $output" >&2
+    (( FAIL++ ))
+else
+    echo "  PASS: ticket with both exemption tags did not produce WARNING"
+    (( PASS++ ))
+fi
+
+# ── Test: orphan:deferred_review alone (without origin:arbiter) is still flagged
+# RED marker — test_orphan_deferred_review_without_origin_arbiter_is_still_flagged
+# Given: an open task with no parent_id and tags ["orphan:deferred_review"] (no origin:arbiter)
+# When: validate-issues.sh check_orphaned_tasks runs
+# Then: WARNING IS emitted — both tags are required for exemption
+# NOTE: This test verifies partial-tag tickets are not accidentally exempted. It is RED
+# because the current code does not implement any tag-based exemption at all; once task 7054
+# adds exemption logic for the dual-tag combo, this test must remain GREEN (single tag alone
+# must not bypass the orphan check).
+echo "Test: check_orphaned_tasks — orphan:deferred_review without origin:arbiter still flagged (RED)"
+DEFERRED_ONLY_TASK=$(python3 -c "
+import json
+t = {
+    'ticket_id': 'test-deferred-only',
+    'status': 'open',
+    'ticket_type': 'task',
+    'title': 'Deferred Review Task (Only One Tag)',
+    'parent_id': None,
+    'description': 'yes',
+    'notes': '',
+    'deps': [],
+    'created_at': '2026-01-01T00:00:00Z',
+    'tags': ['orphan:deferred_review'],
+}
+print(json.dumps(t))
+")
+MOCK_TICKET_CMD=$(make_ticket_cmd "[$DEFERRED_ONLY_TASK]")
+
+output=""
+output=$(TICKET_CMD="$MOCK_TICKET_CMD" bash "$SCRIPT" --terse 2>&1) || true
+
+if [[ "${output,,}" =~ \[warning\].*test-deferred-only ]]; then
+    echo "  PASS: ticket with only orphan:deferred_review (no origin:arbiter) produced WARNING"
+    (( PASS++ ))
+else
+    echo "  FAIL: ticket with only orphan:deferred_review did not produce WARNING (should still be flagged)" >&2
+    echo "  Output: $output" >&2
+    (( FAIL++ ))
+fi
+
 # ── Results ───────────────────────────────────────────────────────────────────
 echo ""
 echo "Results: $PASS passed, $FAIL failed"

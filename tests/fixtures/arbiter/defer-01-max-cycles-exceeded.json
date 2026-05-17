@@ -1,0 +1,19 @@
+{
+  "_comment": "DEFER ruling: cycle > max_cycles. CoVe soft-cap fallback.",
+  "scenario": "DEFER",
+  "expected_ruling": "DEFER",
+  "finding": {
+    "id": "f-defer-01",
+    "severity": "important",
+    "dimension": "correctness",
+    "cited_lines": ["src/services/processor.py:87"]
+  },
+  "arbiter_ruling": {
+    "ruling": "DEFER",
+    "rationale": "Cycle count (5) exceeds max_cycles (4); CoVe soft-cap forces DEFER.",
+    "schema_version": "1.0.0"
+  },
+  "cycle": 5,
+  "max_cycles": 4,
+  "defense_present": false
+}

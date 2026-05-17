@@ -123,7 +123,7 @@ For every finding routed to **Fix** in Step 2, classify the testing mode using t
 
 Record your classification per finding in your internal triage list. Step 3 below branches on the classification.
 
-**Step 3 — Apply fixes and defenses (budget controlled by `review.max_resolution_attempts`, default: 5)**
+**Step 3 — Apply fixes and defenses (budget controlled by `review.max_cycles`, default: 4)**
 
 Before applying fixes that introduce new abstractions, helpers, or patterns, consult the prior-art search framework at `${CLAUDE_PLUGIN_ROOT}/skills/shared/prompts/prior-art-search.md` to avoid duplicating existing patterns. Single-file logic corrections that fix a clear bug without introducing new abstractions are exempt (see Routine Exclusions in that framework).
 
