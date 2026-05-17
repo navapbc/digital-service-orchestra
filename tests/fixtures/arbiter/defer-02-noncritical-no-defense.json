@@ -1,0 +1,19 @@
+{
+  "_comment": "DEFER ruling: severity=minor. BLOCK-gate requires critical/important.",
+  "scenario": "DEFER",
+  "expected_ruling": "DEFER",
+  "finding": {
+    "id": "f-defer-02",
+    "severity": "minor",
+    "dimension": "style",
+    "cited_lines": ["src/utils/helpers.py:12"]
+  },
+  "arbiter_ruling": {
+    "ruling": "DEFER",
+    "rationale": "Severity is minor; BLOCK-gate requires critical or important severity.",
+    "schema_version": "1.0.0"
+  },
+  "cycle": 3,
+  "max_cycles": 4,
+  "defense_present": false
+}

@@ -1,0 +1,20 @@
+{
+  "_comment": "DROP ruling: defense accepted with new evidence lines. Finding resolved.",
+  "scenario": "DROP",
+  "expected_ruling": "DROP",
+  "finding": {
+    "id": "f-drop-01",
+    "severity": "critical",
+    "dimension": "correctness",
+    "cited_lines": ["src/auth/login.py:42"]
+  },
+  "arbiter_ruling": {
+    "ruling": "DROP",
+    "rationale": "Defense accepted: line 99 confirms null-check was added in the refactoring.",
+    "schema_version": "1.0.0"
+  },
+  "cycle": 2,
+  "max_cycles": 4,
+  "defense_present": true,
+  "defense_text": "The null-check was added at line 99 during the refactoring."
+}

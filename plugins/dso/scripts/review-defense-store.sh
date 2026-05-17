@@ -148,45 +148,54 @@ defense_store_load() {
   fi
 
   local result
-  result=$(python3 - "$finding_id" <<'PYEOF'
+  # Pass ticket_json as argv[2] so the Python -c program can access it via
+  # sys.argv without consuming stdin (which python3 -c does not use for source).
+  # The heredoc approach (python3 - <<PYEOF) cannot be used here because the
+  # heredoc provides the program source via stdin, leaving sys.stdin empty at
+  # runtime — meaning sys.stdin.read() would return an empty string and
+  # json.loads would fail on every ticket.  Using python3 -c with sys.argv[2]
+  # mirrors the pattern already established in defense_store_load_for_region.
+  result=$(python3 -c "
 import json, sys
 
 finding_id = sys.argv[1]
-raw = sys.stdin.read()
+ticket_raw = sys.argv[2]
 
 try:
-    ticket = json.loads(raw)
+    ticket = json.loads(ticket_raw)
 except json.JSONDecodeError:
-    print("null")
+    print('null')
     sys.exit(0)
 
 # Comments may be under 'comments' key as a list of strings or dicts
-comments = ticket.get("comments", [])
+comments = ticket.get('comments', [])
 for comment in comments:
     # Comment may be a string or a dict with a 'body'/'text' field
     if isinstance(comment, str):
         text = comment
     elif isinstance(comment, dict):
-        text = comment.get("body") or comment.get("text") or comment.get("content") or ""
+        text = comment.get('body') or comment.get('text') or comment.get('content') or ''
     else:
         continue
 
-    if not text.startswith("DEFENSE_RECORD: "):
+    if not text.startswith('DEFENSE_RECORD: '):
         continue
 
-    record_json = text[len("DEFENSE_RECORD: "):]
+    record_json = text[len('DEFENSE_RECORD: '):]
     try:
         record = json.loads(record_json)
     except json.JSONDecodeError:
         continue
 
-    if not finding_id or record.get("prior_finding_id") == finding_id:
+    # Forward-compat: defense_type is treated as an opaque string.
+    # Unknown/future values are passed through without validation so that
+    # records written by a newer agent version remain readable by this one.
+    if not finding_id or record.get('prior_finding_id') == finding_id:
         print(json.dumps(record))
         sys.exit(0)
 
-print("null")
-PYEOF
-) || true
+print('null')
+" "$finding_id" "$ticket_json") || true
 
   echo "${result:-null}"
 }

@@ -1,0 +1,20 @@
+{
+  "_comment": "BLOCK ruling: severity=critical, defense submitted but rejected.",
+  "scenario": "BLOCK",
+  "expected_ruling": "BLOCK",
+  "finding": {
+    "id": "f-block-02",
+    "severity": "critical",
+    "dimension": "security",
+    "cited_lines": ["src/api/endpoint.py:123"]
+  },
+  "arbiter_ruling": {
+    "ruling": "BLOCK",
+    "rationale": "Defense cites general assertions; no specific line evidence negates the security finding.",
+    "schema_version": "1.0.0"
+  },
+  "cycle": 1,
+  "max_cycles": 4,
+  "defense_present": true,
+  "defense_text": "The endpoint is not exposed to external traffic."
+}
