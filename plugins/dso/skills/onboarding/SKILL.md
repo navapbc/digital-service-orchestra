@@ -207,13 +207,13 @@ This makes `## CONFIDENCE_CONTEXT` visible to all downstream parsers (Phase 2 qu
 
 ---
 
-## Batch Group Protocol
+## Onboarding Batch Protocol
 
 This skill organizes its commands into **at most 6 batch groups** (fewer when groups are skipped). Before executing any commands in a batch group, the agent presents a single grouped approval prompt to the user and waits for a response.
 
 ### Rules
 
-1. **One approval per group boundary.** At each `## Batch Group N: <name>` boundary, present the user with a single grouped approval:
+1. **One approval per group boundary.** At each `## Batch: <name>` boundary, present the user with a single grouped approval:
 
    ```
    Approve: <group-name> — <brief description of what this batch does>
@@ -221,7 +221,7 @@ This skill organizes its commands into **at most 6 batch groups** (fewer when gr
 
    Wait for the user to approve before executing any commands in that group. Do NOT ask again mid-group or between individual commands within the same group boundary.
 
-2. **Execute all commands under one approval.** Once the user approves a batch group, execute ALL commands in that group without requesting further approval until the next `## Batch Group N:` boundary is reached.
+2. **Execute all commands under one approval.** Once the user approves a batch group, execute ALL commands in that group without requesting further approval until the next `## Batch:` boundary is reached.
 
 3. **Skip silently when the skip-guard is met.** Each batch group has a `<!-- Skip guard: ... -->` comment that specifies the condition under which the entire group is skipped. When the skip-guard condition is met, skip the entire group without presenting an approval prompt. The total approval count decreases accordingly (at most 6, fewer when groups are skipped).
 
@@ -231,22 +231,22 @@ This skill organizes its commands into **at most 6 batch groups** (fewer when gr
    Approve: dependency-install — installs required tools (bash 4+, coreutils, git) and optional analysis tools (ast-grep, semgrep)
    ```
 
-### Batch Group Inventory
+### Batch Inventory
 
-The 6 batch groups and their skip conditions are:
+The 6 batches and their skip conditions are:
 
-| Group | Name | Skip condition |
-|-------|------|---------------|
-| 1 | dependency-install | No deps missing AND optional deps already installed |
-| 2 | scaffold-claude-structure | `.claude/` structure already present and shim already installed |
-| 3 | config-write | All config files already exist with current content |
-| 4 | initial-commit | All artifacts already committed |
-| 5 | hook-install | Hooks already installed AND no new hook artifacts to commit; OR project is not a git repository (skip entirely — ticket system init and hook install both require git) |
-| 6 | final-commit | No hook artifacts to commit |
+| Batch | Skip condition |
+|-------|---------------|
+| `dependency-install` | No deps missing AND optional deps already installed |
+| `scaffold-claude-structure` | `.claude/` structure already present and shim already installed |
+| `config-write` | All config files already exist with current content |
+| `initial-commit` | All artifacts already committed |
+| `hook-install` | Hooks already installed AND no new hook artifacts to commit; OR project is not a git repository (skip entirely — ticket system init and hook install both require git) |
+| `final-commit` | No hook artifacts to commit |
 
 ---
 
-## Batch Group 1: dependency-install
+## Batch: dependency-install
 <!-- Skip guard: if no deps missing AND optional deps already installed, skip this prompt -->
 
 ## Phase 1: Auto-Detection (/dso:onboarding)
@@ -761,7 +761,7 @@ Which merge strategy for this project?
 Press Enter or type 'a' for direct (recommended for most projects).
 ```
 
-Record the choice in the scratchpad as `MERGE_STRATEGY=direct` or `MERGE_STRATEGY=pr`. On `pr`, also note: the GitHub Ruleset will be provisioned during Batch Group 4 (GitHub bootstrap). If a 'DSO CI Enforcement' Ruleset already exists on the repo, `github-bootstrap.sh` will exit with an error directing you to disable the Ruleset for the bootstrap window before retrying.
+Record the choice in the scratchpad as `MERGE_STRATEGY=direct` or `MERGE_STRATEGY=pr`. On `pr`, also note: the GitHub Ruleset will be provisioned during the `initial-commit` batch (GitHub bootstrap step). If a 'DSO CI Enforcement' Ruleset already exists on the repo, `github-bootstrap.sh` will exit with an error directing you to disable the Ruleset for the bootstrap window before retrying.
 
 #### 12. CI trigger events
 
@@ -840,7 +840,7 @@ At the start of this phase, read the `## PHASE_PLAN` section from `$SCRATCHPAD`.
 
 ### Step 0: Snapshot Pre-Onboarding Init State (/dso:onboarding) (bug 7d25-c78e)
 
-Persist a pre-onboarding init signal to `$SCRATCHPAD` before Step 2b writes `dso-config.conf` (and before any code path including `dso-setup.sh` writes `.claude/CLAUDE.md`). Batch Group 2 reads this from `$SCRATCHPAD` — shell exports do not persist across the skill's separately-evaluated bash blocks; live file checks at Batch Group 2 time are unreliable because intervening steps mutate the same files.
+Persist a pre-onboarding init signal to `$SCRATCHPAD` before Step 2b writes `dso-config.conf` (and before any code path including `dso-setup.sh` writes `.claude/CLAUDE.md`). the `scaffold-claude-structure` batch reads this from `$SCRATCHPAD` — shell exports do not persist across the skill's separately-evaluated bash blocks; live file checks at scaffold-claude-structure time are unreliable because intervening steps mutate the same files.
 
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
@@ -872,12 +872,12 @@ Wait for the user to confirm or correct. Update the scratchpad with any correcti
 
 ### Step 1.5: Artifact Review Before Writing
 
-Artifact review and approval happens **once at the Batch Group 3: config-write boundary**, not per file. Do NOT ask for per-artifact approval inside a batch group. When the Group 3 approval prompt fires, present a consolidated summary of all artifacts to be written in that group, then wait for a single approval before writing any of them.
+Artifact review and approval happens **once at the `config-write` batch boundary**, not per file. Do NOT ask for per-artifact approval inside a batch group. When the `config-write` approval prompt fires, present a consolidated summary of all artifacts to be written in that group, then wait for a single approval before writing any of them.
 
 - **For existing files** (such as `.claude/dso-config.conf` or `CLAUDE.md`), include a diff of existing content vs. proposed changes (lines being added, changed, or removed) in the consolidated Group 3 summary so the user can verify nothing is silently overwritten.
 - One approval covers the entire group. Proceed to write all artifacts in the group without pausing between them.
 
-## Batch Group 3: config-write
+## Batch: config-write
 <!-- Skip guard: if all config files already exist with current content, skip -->
 
 ### Step 2: Write .claude/project-understanding.md
@@ -1195,13 +1195,13 @@ DSO_WORKFLOW=$(bash "$_PLUGIN_SCRIPTS/onboarding/detect-dso-workflow.sh" "$REPO_
 echo "dso.workflow=$DSO_WORKFLOW" >> "$EXISTING_CONFIG"
 ```
 
-The written line must use bare `KEY=VALUE` format with LF line endings, no inline comments on the value line, and no quotes around the value. On `DSO_WORKFLOW=ci-pr`, the GitHub Ruleset is provisioned during Batch Group 4 (`github-bootstrap.sh` → `provision-ruleset.sh`); if a 'DSO CI Enforcement' Ruleset already exists on the repo, the bootstrap will exit with an error directing the operator to disable the existing Ruleset before retrying.
+The written line must use bare `KEY=VALUE` format with LF line endings, no inline comments on the value line, and no quotes around the value. On `DSO_WORKFLOW=ci-pr`, the GitHub Ruleset is provisioned during the `initial-commit` batch (`github-bootstrap.sh` → `provision-ruleset.sh`); if a 'DSO CI Enforcement' Ruleset already exists on the repo, the bootstrap will exit with an error directing the operator to disable the existing Ruleset before retrying.
 
 ### Step 2c: Infrastructure Initialization
 
 After writing `.claude/dso-config.conf`, set up the supporting infrastructure for the host project. These steps ensure the enforcement gates, ticket system, and documentation templates are in place before the first commit.
 
-## Batch Group 2: scaffold-claude-structure
+## Batch: scaffold-claude-structure
 <!-- Skip guard: if .claude/ structure already present and shim already installed, skip -->
 
 #### DSO Shim Installation
@@ -1234,7 +1234,7 @@ else
 fi
 ```
 
-## Batch Group 4: initial-commit
+## Batch: initial-commit
 <!-- Skip guard: if all artifacts already committed, skip -->
 
 #### Hook Installation
@@ -1247,7 +1247,7 @@ fi
 
 Do NOT install hooks earlier in Step 2c, even if the install step appears earlier in the instructions above. Hook installation is always the final infrastructure action.
 
-## Batch Group 5: hook-install
+## Batch: hook-install
 <!-- Skip guard: if hooks already installed, skip -->
 <!-- hook-install: bypass-gates -->
 
@@ -1516,7 +1516,7 @@ test_quality.tool=semgrep
 
 If Semgrep installation failed, write `test_quality.tool=bash-grep` instead. The test quality gate will still function using grep-based pattern matching as a fallback.
 
-## Batch Group 6: final-commit
+## Batch: final-commit
 <!-- Skip guard: if no hook artifacts to commit, skip -->
 
 #### CI trigger and preplanning interactivity
