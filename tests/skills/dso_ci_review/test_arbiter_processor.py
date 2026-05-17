@@ -9,7 +9,6 @@ import pathlib
 import sys
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 _SCRIPTS_DIR = str(_REPO_ROOT / "plugins" / "dso" / "scripts")
@@ -92,8 +91,6 @@ def test_process_rulings_defer_idempotent_skips_existing_ticket(tmp_path):
     """Second DEFER call with same finding_hash + PR finds existing ticket and skips create."""
     rulings = [_make_ruling(idx=0, ruling="DEFER")]
     finding_map = {0: _make_finding(idx=0)}
-    # Mock subprocess: ticket list returns an existing match
-    finding_hash_for_x = None  # populated dynamically by reading the marker pattern
 
     def mock_subprocess_run(cmd, **kwargs):
         if cmd[1:3] == ["ticket", "list"]:
@@ -109,8 +106,9 @@ def test_process_rulings_defer_idempotent_skips_existing_ticket(tmp_path):
         return MagicMock(returncode=0, stdout="")
 
     with patch("subprocess.run", side_effect=mock_subprocess_run):
-        # First call generates finding_hash; second call should match
-        result1 = process_rulings(
+        # First call exercises the dedup path; result unused (test only verifies
+        # the second-call path below catches the dedup).
+        process_rulings(
             rulings=rulings, finding_map=finding_map, cycle_num=1,
             commit_sha="abc", pr_number=42, artifacts_dir=str(tmp_path),
         )
@@ -155,7 +153,7 @@ def test_process_rulings_drop_writes_dual_store_when_pr_number_set(tmp_path):
         captured.append(cmd)
         return MagicMock(returncode=0, stdout="")
     with patch("subprocess.run", side_effect=mock_subprocess_run):
-        result = process_rulings(
+        process_rulings(
             rulings=rulings, finding_map=finding_map, cycle_num=1,
             commit_sha="abc", pr_number=42, artifacts_dir=str(tmp_path),
         )

@@ -4,11 +4,9 @@ All tests fail until cycle_dispatcher.py is created (Story 45da-5043 T7).
 """
 from __future__ import annotations
 
-import json
 import pathlib
 import sys
 
-import pytest
 
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 _SCRIPTS_DIR = str(_REPO_ROOT / "plugins" / "dso" / "scripts")

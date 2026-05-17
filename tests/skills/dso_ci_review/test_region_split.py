@@ -302,8 +302,8 @@ def test_extract_cluster_diff_resolves_overflow_paths() -> None:
         f"Overflow extraction must include the zeta/f.py hunk; got: {result!r}"
     )
     assert "other/x.py" not in result, (
-        f"Overflow extraction must NOT include hunks for non-overflow files; "
-        f"leaked: other/x.py present in result"
+        "Overflow extraction must NOT include hunks for non-overflow files; "
+        "leaked: other/x.py present in result"
     )
 
 
