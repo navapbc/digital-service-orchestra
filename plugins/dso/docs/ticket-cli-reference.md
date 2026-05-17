@@ -14,6 +14,33 @@ Source of truth for each subcommand is in `scripts/ticket-*.sh` and `scripts/tic
 
 The ticket tracker is stored as an orphan git branch (`tickets`) mounted as a worktree at `.tickets-tracker/`. Each ticket is a directory containing append-only JSON event files. The compiled state is produced on-demand by the reducer (`ticket-reducer.py`). # tickets-boundary-ok
 
+### Ticket ID forms — all first-class (bug 11bd-4e2f)
+
+A ticket can be referenced by any of these forms; every subcommand accepts them interchangeably:
+
+| Form | Example | Notes |
+|---|---|---|
+| 16-hex canonical | `0584-b545-ef9d-4477` | Generated locally on `ticket create` |
+| 8-hex legacy short | `0584-b545` | Pre-v3 IDs; auto-resolved to 16-hex canonical |
+| Adjective-noun-noun alias | `coup-beast-filth` | Generated locally; reader-friendly |
+| **`jira-*` prefixed ID** | **`jira-dig-2564`** | **Mirrored from Jira inbound — fully local; identical semantics to native IDs.** |
+| Bare Jira key | `DIG-2564` | Resolved via `jira_key` field |
+| Unambiguous prefix | `0584` | Resolves to a unique canonical |
+
+**`jira-*` IDs are NOT out-of-system.** The prefix indicates the ticket was sourced from a Jira inbound sync (the canonical record lives in the local tracker once mirrored). Agents must treat `jira-*` IDs as first-class for every action:
+
+- ✅ `/dso:fix-bug jira-dig-2564` — investigate and fix exactly as for any native ID
+- ✅ `.claude/scripts/dso ticket transition jira-dig-2564 open in_progress` — normal lifecycle
+- ✅ `--parent jira-dig-2564` — link as parent/child like any other ticket
+- ✅ Queue `jira-*` IDs in batch-fix runs alongside native IDs
+
+What is NOT a reason to skip or escalate a `jira-*` ticket:
+- The `jira-` prefix alone (this is a sourcing label, not a scope signal)
+- `ticket show <jira-id>` returning a sparse description (the Jira mirror may be sync-lagged — re-pull or check `bridge_alerts`, do not treat absence as non-existence)
+- The presence of a `jira_key` field (this is the upstream linkage, not an isolation marker)
+
+A `jira-*` ticket is only out-of-scope when the bug's normal triage criteria (e.g., requires brainstorm, requires cross-team coordination) would put any ticket out-of-scope — never on prefix alone.
+
 ---
 
 ## Output Formats
