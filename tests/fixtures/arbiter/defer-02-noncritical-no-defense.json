@@ -11,10 +11,7 @@
   "arbiter_ruling": {
     "ruling": "DEFER",
     "rationale": "Severity is minor; BLOCK-gate requires critical or important severity.",
-    "schema_version": "1.1.0",
-    "cross_reviewer_agreement": ["SINGLE_REVIEWER"],
-    "cross_cycle_pattern": ["NEW_INTRODUCED"],
-    "impact_class": "none"
+    "schema_version": "1.0.0"
   },
   "cycle": 3,
   "max_cycles": 4,

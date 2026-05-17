@@ -11,10 +11,7 @@
   "arbiter_ruling": {
     "ruling": "DROP",
     "rationale": "Cited line does not exist in the diff; finding is factually incorrect and has no evidence.",
-    "schema_version": "1.1.0",
-    "cross_reviewer_agreement": ["MAJORITY"],
-    "cross_cycle_pattern": ["NEW_INTRODUCED"],
-    "impact_class": "none"
+    "schema_version": "1.0.0"
   },
   "cycle": 3,
   "max_cycles": 4,

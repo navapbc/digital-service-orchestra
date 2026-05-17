@@ -11,10 +11,7 @@
   "arbiter_ruling": {
     "ruling": "BLOCK",
     "rationale": "Defense cites general assertions; no specific line evidence negates the security finding.",
-    "schema_version": "1.1.0",
-    "cross_reviewer_agreement": ["MAJORITY"],
-    "cross_cycle_pattern": ["RECURRING"],
-    "impact_class": "security_vulnerability"
+    "schema_version": "1.0.0"
   },
   "cycle": 1,
   "max_cycles": 4,
