@@ -454,13 +454,30 @@ ${comment_body}"
             local _pr_head_sha
             _pr_head_sha=$(gh pr view "$pr_number" --json headRefOid -q .headRefOid 2>/dev/null || true)
             if [[ -n "$_pr_head_sha" ]]; then
-                _parent_story=$(git log -50 --format=%B "$_pr_head_sha" 2>/dev/null \
-                    | grep -m1 -oE '^DSO-Story:[[:space:]]*[a-zA-Z0-9-]+' \
-                    | sed -E 's/^DSO-Story:[[:space:]]*//' || true)
+                # Verify the SHA is locally fetched before scanning its log —
+                # in a shallow clone or fresh worktree the head SHA may not
+                # be reachable. Fall through to tag-only attribution if not.
+                # (Important finding from retro-review of PR #176.)
+                if git cat-file -e "${_pr_head_sha}^{commit}" 2>/dev/null; then
+                    _parent_story=$(git log -50 --format=%B "$_pr_head_sha" 2>/dev/null \
+                        | grep -m1 -oE '^DSO-Story:[[:space:]]*[a-zA-Z0-9-]+' \
+                        | sed -E 's/^DSO-Story:[[:space:]]*//' || true)
+                fi
             fi
             local _parent_flag=()
             if [[ -n "$_parent_story" ]] && "$_dso_cmd" ticket exists "$_parent_story" >/dev/null 2>&1; then
-                _parent_flag=(--parent "$_parent_story")
+                # Status check: ticket exists returns 0 for any non-deleted-
+                # tombstone-only ticket, INCLUDING tickets in terminal closed
+                # and deleted states. Linking a new task to a deleted parent
+                # corrupts the hierarchy; refuse to set --parent when the
+                # parent's status is deleted or closed. Fall back to tag-only
+                # attribution. (Important finding from retro-review of PR #176.)
+                local _parent_status
+                _parent_status=$("$_dso_cmd" ticket show "$_parent_story" 2>/dev/null \
+                    | python3 -c "import json,sys; print(json.load(sys.stdin).get('status',''))" 2>/dev/null || true)
+                if [[ "$_parent_status" != "deleted" && "$_parent_status" != "closed" ]]; then
+                    _parent_flag=(--parent "$_parent_story")
+                fi
             fi
 
             local create_output=""
