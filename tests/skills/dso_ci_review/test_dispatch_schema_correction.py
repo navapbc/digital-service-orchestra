@@ -1278,3 +1278,65 @@ def test_absence_claim_fallback_injects_verification_evidence_boilerplate(
             assert "fallback-injected" in ve.get("output", ""), (
                 f"Injected output must contain 'fallback-injected'; got {ve.get('output')!r}"
             )
+
+
+# ---------------------------------------------------------------------------
+# bug 881d-e5cc — synthetic-only original is allowed to correct to empty array
+# ---------------------------------------------------------------------------
+
+
+def test_synthetic_only_original_allows_zero_real_findings(monkeypatch) -> None:
+    """Given: original findings contain ONLY synthetic markers (fallback_exhausted,
+              specialist_error, or parse_error) — i.e., the dispatch layer's
+              sentinel telling the loop the LLM call failed and there are no
+              real findings to validate.
+    When: schema correction returns a well-formed empty findings array.
+    Then: the count-equality check must NOT fire — both sides have 0 REAL
+          findings. Correction is accepted, no synthetic schema_error is
+          injected, and CI does not fail-closed on a trivially clean diff.
+    Bug 881d-e5cc (observed on PR #167, run 25970902666).
+    """
+    # Original: one fallback_exhausted sentinel (no real review feedback)
+    fallback_exhausted = {
+        "type": "fallback_exhausted",
+        "severity": "fallback_exhausted",
+        "category": "synthetic",
+        "description": "primary + 2 fallback providers all failed",
+        "file": "",
+        "cited_lines": [],
+        "cited_excerpt": "",
+        "reachability": "",
+        "final_exception_message": "litellm.APIError: 529",
+    }
+    originals = [fallback_exhausted]
+    # Correction returns an empty findings array — valid response for a clean diff
+    corrected: list[dict] = []
+
+    def _mock_dispatch_review(**kwargs):
+        return {"findings": corrected, "summary": "no real findings on clean diff"}
+
+    monkeypatch.setattr(_dispatch_mod, "dispatch_review", _mock_dispatch_review)
+    monkeypatch.setattr(
+        _runner_mod, "_validate_findings_schema", _stub_validate_schema_pass
+    )
+
+    result = _dispatch_mod.dispatch_schema_correction(
+        original_findings=originals,
+        diff_text=_DIFF_TEXT,
+        provider_chain=["anthropic"],
+        environ={"ANTHROPIC_API_KEY": "test-key"},
+        max_attempts=1,
+        agent_id="code-reviewer-standard",
+    )
+
+    findings = result.get("findings", [])
+    schema_errors = [f for f in findings if f.get("category") == "schema_error"]
+    assert not schema_errors, (
+        f"Synthetic schema_error must NOT be injected when correction "
+        f"validly drops synthetic-only originals to an empty array; "
+        f"got: {findings}"
+    )
+    # The accepted correction result is the empty list, so the final findings
+    # contain neither the synthetic schema_error nor the original sentinel.
+    real = [f for f in findings if f.get("type") not in {"fallback_exhausted", "specialist_error", "parse_error"}]
+    assert real == [], f"Expected zero real findings; got {real}"
