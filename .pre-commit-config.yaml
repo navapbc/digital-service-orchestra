@@ -194,6 +194,14 @@ repos:
         always_run: true
         stages: [pre-push]
 
+      - id: pre-push-merged-pr-check
+        name: Pre-push merged-PR guard (10s timeout)
+        language: system
+        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh pre-push-merged-pr-check 10 "./plugins/dso/hooks/pre-push-merged-pr-check.sh"
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+
       # --- post-commit hooks ---
       # REVIEW-DEFENSE (PR #78 finding 1): pre-commit-wrapper.sh exists at
       # plugins/dso/scripts/pre-commit-wrapper.sh. It predates this PR and is not

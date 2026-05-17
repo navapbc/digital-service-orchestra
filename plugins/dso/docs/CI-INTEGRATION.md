@@ -65,11 +65,11 @@ If the resulting scope is empty (all commits are provenanced and no files span m
 
 ### `resolve-session-branch.sh` — session branch discovery
 
-`resolve-session-branch.sh` provides a 3-step fallback to determine the current session branch name:
+`resolve-session-branch.sh` provides a 3-step fallback to determine the current session branch name (matches the script's actual implementation):
 
-1. `SPRINT_SESSION_ID` repo variable (set by Phase A).
-2. Current git branch (if not detached HEAD).
-3. Error — fail-fast with a clear message.
+1. `gh pr view --json headRefName` of the currently-checked-out PR (when a PR exists for the branch).
+2. `SPRINT_SESSION_ID` repo variable (set by Phase A; consulted when no open PR is found).
+3. Fail-fast with an actionable error message — does NOT silently fall back to the current git branch.
 
 This script is called by Phase F during story PR creation to set `STORY_PR_BASE`, ensuring story PRs always target the correct session branch.
 

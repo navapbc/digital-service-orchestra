@@ -291,13 +291,14 @@ _apply_filtered_split_commit() {
         return 1
     fi
 
-    # Synthesize commit: preserve original subject + add DSO-Origin-SHA trailer
+    # Synthesize commit: preserve original subject + author + add DSO-Origin-SHA trailer.
+    # Use --author="$_author" (git's canonical "Name <email>" form) rather than
+    # setting committer identity via -c, which only overrides the committer and
+    # silently drops the original author (Copilot finding 2026-05-16).
     local _subj _author
     _subj="$(git log -1 --format=%s "$sha" 2>/dev/null)"
     _author="$(git log -1 --format='%an <%ae>' "$sha" 2>/dev/null)"
-    git -c "user.name=${_author%% <*}" \
-        -c "user.email=$(echo "$_author" | sed -n 's/.*<\(.*\)>/\1/p')" \
-        commit -q -m "$_subj
+    git commit -q --author="$_author" -m "$_subj
 
 DSO-Story: $story_id
 DSO-Origin-SHA: $sha" 2>/dev/null || return 1
@@ -514,6 +515,8 @@ echo "epic=$EPIC_ID" > "$_checkpoint"
 echo "session_branch=$SESSION_BRANCH" >> "$_checkpoint"
 
 _start_ref="$(git rev-parse HEAD)"
+# Track background merge-script PIDs so we can wait() on them before exiting.
+_MERGE_PIDS=()
 
 for key in "${GROUP_ORDER[@]}"; do
     _branch="story/${EPIC_ID}/${key}"
@@ -600,11 +603,36 @@ for key in "${GROUP_ORDER[@]}"; do
     if [[ -n "$_merge_script" ]]; then
         # Background-parallel: open PR + queue auto-merge without blocking the next group
         ( STORY_PR_BASE="$SESSION_BRANCH" bash "$_merge_script" 2>&1 | sed "s|^|  [$_branch] |" ) &
+        _MERGE_PIDS+=("$!:$_branch")
         echo "  → PR open dispatched in background for $_branch (PID $!)"
     fi
 done
 
+# Wait for background merge-script dispatches and surface any failures.
+# Without this, the parent process could exit 0 while children were still
+# running, hiding non-zero exits from merge-to-main-pr.sh (Copilot finding
+# 2026-05-16). Collect each PID's status and report aggregated failures.
+_FAILED_BRANCHES=()
+for _entry in "${_MERGE_PIDS[@]+"${_MERGE_PIDS[@]}"}"; do
+    _pid="${_entry%%:*}"
+    _b="${_entry#*:}"
+    if ! wait "$_pid" 2>/dev/null; then
+        _FAILED_BRANCHES+=("$_b")
+    fi
+done
+if [[ "${#_FAILED_BRANCHES[@]}" -gt 0 ]]; then
+    echo "  ERROR: merge-to-main-pr.sh returned non-zero for ${#_FAILED_BRANCHES[@]} branch(es):" >&2
+    for _b in "${_FAILED_BRANCHES[@]}"; do echo "    - $_b" >&2; done
+fi
+
 git checkout -q "$_start_ref" 2>/dev/null || true
 rm -f "$_checkpoint"
+# Exit non-zero if any background PR-open call failed so automation can react.
+# Reporting failures via WARN-only and then exiting 0 (the prior behavior)
+# defeated the purpose of the wait loop. Copilot finding 2026-05-16.
+if [[ "${#_FAILED_BRANCHES[@]}" -gt 0 ]]; then
+    echo "✗ redistribution completed with ${#_FAILED_BRANCHES[@]} PR-open failure(s)" >&2
+    exit 3
+fi
 echo "✓ redistribution complete"
 exit 0

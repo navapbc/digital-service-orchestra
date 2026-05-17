@@ -869,7 +869,7 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 
 | | |
 |---|---|
-| **Description** | GitHub check name for the per-branch review CI job. Triple-consistency requirement: this value MUST match all three of (1) the `name:` field in `.github/workflows/per-branch-review.yml`, (2) the `required_status_checks` value in the GitHub Ruleset for `session-*` branches, and (3) the expected check name asserted by Phase A preflight (`check-ruleset-preflight.sh`). When unset, `check-ruleset-preflight.sh` falls back to `Sprint_Workflow_Review`. |
+| **Description** | GitHub check name for the per-branch review CI job. Triple-consistency requirement: this value MUST match all three of (1) the `name:` field in `.github/workflows/per-branch-review.yml`, (2) the `required_status_checks` value in the GitHub Ruleset for `session-*` branches, and (3) the expected check name asserted by Phase A preflight (`check-ruleset-preflight.sh`). When unset, `check-ruleset-preflight.sh` falls back to `Sprint Story Review`. |
 | **Accepted values** | Non-empty string. Must match the literal check name produced by GitHub Actions (no shell-quoting, no leading/trailing whitespace). |
 | **Default** | `Sprint Story Review` |
 | **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/sprint/check-ruleset-preflight.sh` |
@@ -961,6 +961,39 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 | **Accepted values** | Positive integer. Values of `0` are valid (every diff triggers upgrade). Non-numeric values are ignored and the default applies. |
 | **Default** | `300` |
 | **Used by** | `scripts/review-complexity-classifier.sh`, `scripts/ci-llm-review-runner.sh` (shim in S3+; delegates to `python3 -m dso_ci_review.runner`) | # shim-exempt: internal implementation reference in config documentation
+
+---
+
+### `review.region_split.loc_threshold`
+
+| | |
+|---|---|
+| **Description** | LOC threshold above which a multi-file diff is partitioned into per-directory clusters by the region-split fallback (Strategy E) in `dso_ci_review.region_split`. Below this threshold the diff is reviewed monolithically. The default targets ~7-10% of Sonnet 4.6's diff-content budget after system prompt + finding schema + PR metadata overhead, leaving ample headroom for prompt growth. Single-file diffs are NEVER region-split regardless of this value (file-atomicity invariant — bug 532e-6ab7). Projects on smaller-context models should lower this; projects on 1M-context Sonnet can safely raise it. |
+| **Accepted values** | Positive integer. Non-numeric values fall back to default. |
+| **Default** | `3000` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/region_split.py` |
+
+---
+
+### `review.region_split.file_count_threshold`
+
+| | |
+|---|---|
+| **Description** | File-count threshold above which a diff is region-split. Triggers when the diff touches more than this many files. Distinct from `loc_threshold` — captures the case of many small files (e.g., a repo-wide rename) where per-cluster parallelism beats one monolithic review. Single-file diffs are NEVER region-split regardless of this value. |
+| **Accepted values** | Positive integer. Non-numeric values fall back to default. |
+| **Default** | `40` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/region_split.py` |
+
+---
+
+### `review.region_split.max_clusters`
+
+| | |
+|---|---|
+| **Description** | Maximum number of clusters dispatched in parallel by region-split. When the directory count exceeds this value, smallest clusters beyond the top `max_clusters - 1` are merged into an "overflow" cluster. Bounds wall-clock cost of N specialist API calls — not a context-window concern. |
+| **Accepted values** | Positive integer ≥ 1. Non-numeric values fall back to default. |
+| **Default** | `5` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/region_split.py` |
 
 ---
 

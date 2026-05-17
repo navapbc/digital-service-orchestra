@@ -77,15 +77,21 @@ def _run_runner_with_pr80(tmp_path: Path) -> dict:
         timeout=_timeout_sec,
     )
 
-    assert result.returncode == 0, (
-        f"runner.py exited {result.returncode} for PR-80 diff.\n"
-        f"stdout: {result.stdout}\n"
-        f"stderr: {result.stderr}"
-    )
+    # Do NOT assert returncode == 0 here. runner.py exits non-zero when blocking
+    # findings are present, which is a legitimate output state — real LLM calls
+    # produce variable findings across runs, so the returncode is intrinsically
+    # non-deterministic for an integration test that hits the live API
+    # (bug f2bf-2b6c). The schema-compliance assertions below operate on the
+    # written findings JSON, independent of runner exit code. We still require
+    # the output file to exist so we can validate its schema; if the runner
+    # crashed before writing, that is a real failure and the assertion below
+    # surfaces it with the captured stdout/stderr for debugging.
 
     assert output_file.exists(), (
-        f"runner.py did not write output file to {output_file}.\n"
-        f"stdout: {result.stdout!r}"
+        f"runner.py did not write output file to {output_file} "
+        f"(returncode={result.returncode}).\n"
+        f"stdout: {result.stdout!r}\n"
+        f"stderr: {result.stderr!r}"
     )
 
     return json.loads(output_file.read_text())

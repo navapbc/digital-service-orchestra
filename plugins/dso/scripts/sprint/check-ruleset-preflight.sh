@@ -18,7 +18,7 @@ set -euo pipefail
 #   2. required_status_checks rule exists with check_name in required_status_checks array
 #   3. linear_history rule does NOT appear in the matching ruleset
 #
-# Reads dso.review.check_name from dso-config.conf; falls back to 'Sprint_Workflow_Review'.
+# Reads dso.review.check_name from dso-config.conf; falls back to 'Sprint Story Review'.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -83,7 +83,7 @@ _resolve_config_file() {
 # ── Read check_name from config ───────────────────────────────────────────────
 _read_check_name() {
     local config_file="$1"
-    local default_name="Sprint_Workflow_Review"
+    local default_name="Sprint Story Review"
 
     if [[ -z "$config_file" ]] || [[ ! -f "$config_file" ]]; then
         echo "$default_name"
@@ -150,7 +150,7 @@ fi
 # Extract the matching ruleset for further validation
 MATCHING_RULESET="$(echo "$RULESETS_JSON" | jq "(.rulesets // .)[$SESSION_RULESET_IDX]")"
 
-# Condition 2: Sprint_Workflow_Review (or configured check_name) is in required_status_checks
+# Condition 2: Sprint Story Review (or configured check_name) is in required_status_checks
 HAS_CHECK="$(echo "$MATCHING_RULESET" | jq --arg check_name "$CHECK_NAME" '
     .rules // [] |
     map(select(.type == "required_status_checks")) |
@@ -164,7 +164,7 @@ HAS_CHECK="$(echo "$MATCHING_RULESET" | jq --arg check_name "$CHECK_NAME" '
 ' 2>/dev/null)" || HAS_CHECK="false"
 
 if [[ "$HAS_CHECK" != "true" ]]; then
-    echo "ERROR: Required status check '$CHECK_NAME' (Sprint_Workflow_Review) not found in the session-* Ruleset." >&2
+    echo "ERROR: Required status check '$CHECK_NAME' not found in the session-* Ruleset." >&2
     echo "  The Ruleset must have a 'required_status_checks' rule with context '$CHECK_NAME'." >&2
     echo "  See: INSTALL.md#github-rulesets-for-session-branches" >&2
     exit 1

@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
 # tests/scripts/test-preconditions-benchmark.sh
-# RED tests for plugins/dso/scripts/preconditions-benchmark.sh
-# These tests fail RED until preconditions-benchmark.sh is implemented.
+# Structural tests for plugins/dso/scripts/preconditions-benchmark.sh
+#
+# These are STRUCTURAL tests — they validate that the benchmark script exits 0
+# and produces JSON with the expected p95_ms/stage fields. They are NOT performance
+# assertions. Iteration count is intentionally kept at 1 so the test completes
+# well under the 120s CI per-test timeout enforced by suite-engine.sh —
+# observed CI timeouts at iterations=2/3 caused unrelated PRs to fail
+# (bug b129-ea9b, runs 25897171578 and 25898441281). Each iteration drives ~10
+# python3 invocations across 5 stages; on a slow shared CI runner that compounds
+# with python startup overhead well past the timeout.
 
 set -uo pipefail
 
@@ -25,7 +33,7 @@ test_benchmark_measures_p95_per_stage() {
     fi
 
     local output
-    output=$(bash "$BENCHMARK" --iterations=3 --output=json 2>/dev/null)
+    output=$(bash "$BENCHMARK" --iterations=1 --output=json 2>/dev/null)
     local exit_code=$?
     assert_eq "benchmark exits 0" "0" "$exit_code"
 
@@ -51,7 +59,7 @@ test_benchmark_outputs_p95_json() {
     fi
 
     local output
-    output=$(bash "$BENCHMARK" --iterations=2 --output=json 2>/dev/null)
+    output=$(bash "$BENCHMARK" --iterations=1 --output=json 2>/dev/null)
 
     # Must be valid JSON
     local is_valid

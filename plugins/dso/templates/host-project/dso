@@ -116,6 +116,34 @@ if [ ! -f "$SCRIPT_PATH" ] && [ -f "${SCRIPT_PATH}.sh" ]; then
     SCRIPT_PATH="${SCRIPT_PATH}.sh"
 fi
 
+# Fallback: hook scripts live in hooks/ not scripts/ (7f36-1317, d122-20d3)
+if [ ! -f "$SCRIPT_PATH" ]; then
+    HOOK_PATH="$DSO_ROOT/hooks/$CMD"
+    if [ ! -f "$HOOK_PATH" ] && [ -f "${HOOK_PATH}.sh" ]; then
+        HOOK_PATH="${HOOK_PATH}.sh"
+    fi
+    if [ -f "$HOOK_PATH" ]; then
+        SCRIPT_PATH="$HOOK_PATH"
+    fi
+fi
+
+# Fallback: search subdirectories of scripts/ by basename (0736-a97e).
+# Scripts like sprint/sprint-drift-check.sh and end-session/error-sweep.sh
+# are unreachable by bare name without this. Ambiguity guard errors on
+# >1 match so a future basename collision does not silently dispatch wrong.
+if [ ! -f "$SCRIPT_PATH" ]; then
+    _FOUND=$(find "$DSO_ROOT/scripts" -type f \( -name "$CMD" -o -name "${CMD}.sh" \) 2>/dev/null)
+    _COUNT=$(printf '%s\n' "$_FOUND" | grep -c .)
+    if [ "$_COUNT" -gt 1 ]; then
+        printf 'dso: ambiguous command: %s matches multiple scripts:\n' "$CMD" >&2
+        printf '%s\n' "$_FOUND" >&2
+        exit 1
+    elif [ "$_COUNT" -eq 1 ]; then
+        SCRIPT_PATH="$_FOUND"
+    fi
+    unset _FOUND _COUNT
+fi
+
 if [ ! -f "$SCRIPT_PATH" ]; then
     printf 'dso: command not found: %s\n' "$CMD" >&2
     printf 'dso: (looked for %s)\n' "$SCRIPT_PATH" >&2
