@@ -891,8 +891,8 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 
 | | |
 |---|---|
-| **Description** | Maximum number of autonomous fix/defend attempts the review resolution loop makes before escalating to the user. Controls the Autonomous Resolution Loop in REVIEW-WORKFLOW.md, test-failure delegation in COMMIT-WORKFLOW.md and TEST-FAILURE-DISPATCH.md, and the oscillation-check safety bounds. Renamed from `review.max_resolution_attempts` (still accepted via backward-compat shim with deprecation warning; see `${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh`). |
-| **Accepted values** | Positive integer >= 2 |
+| **Description** | Maximum number of autonomous fix/defend attempts the review resolution loop makes before escalating to the user. Controls the Autonomous Resolution Loop in REVIEW-WORKFLOW.md, test-failure delegation in COMMIT-WORKFLOW.md and TEST-FAILURE-DISPATCH.md, and the oscillation-check safety bounds. |
+| **Accepted values** | Positive integer |
 | **Default** | `4` |
 | **Used by** | `REVIEW-WORKFLOW.md` (Autonomous Resolution Loop), `COMMIT-WORKFLOW.md` (Steps 1, 1.5), `TEST-FAILURE-DISPATCH.md`, `/dso:oscillation-check` |
 
