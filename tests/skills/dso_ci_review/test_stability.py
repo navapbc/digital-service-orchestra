@@ -8,8 +8,6 @@ import pathlib
 import subprocess
 import sys
 
-import pytest
-
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 _SCRIPTS_DIR = str(_REPO_ROOT / "plugins" / "dso" / "scripts")
 if _SCRIPTS_DIR not in sys.path:
