@@ -3,7 +3,7 @@
 - Status: accepted
 - Scope: review-cycle tracking (arbiter agent + write-cycle-ledger.sh)
 - Date: 2026-05-16
-- schema_version: 1.0.0
+- schema_version: 1.1.0
 
 ## Purpose
 
@@ -53,6 +53,15 @@ Each element of the `cycles` array is an object with the following fields:
 | `cycle_num` | integer | required | 1-based, monotonically increasing cycle number. The first cycle is `1`. |
 | `timestamp_utc` | string | required | ISO 8601 UTC timestamp of when the cycle was closed (e.g., `"2026-05-16T14:30:00Z"`). |
 | `findings_hash` | string | required | Hash of the findings file (`reviewer-findings.json`) at the time the cycle was closed. Used for integrity verification by the review gate. |
+| `commit_sha` | string | optional (v1.1.0) | 40-char HEAD commit SHA at the time the cycle was closed. Used to anchor the cycle to a specific code state for retrospective audits and Jaccard stability across cycles. Writers SHOULD populate; readers MUST tolerate absence (legacy v1.0.0 ledgers). |
+| `findings` | array | optional (v1.1.0) | Array of `[file, line_range, category]` 3-element tuples (each element is a string). Used by the Jaccard stability computation across cycles to detect convergence. Writers SHOULD populate; readers MUST tolerate absence. |
+| `halt_reason` | string or null | optional | Reason the review loop halted at or after this cycle. Allowed values include `"STABLE_HALT"` (Jaccard stability threshold met), `"MAX_CYCLES"` (cycle cap reached), or `null` (cycle did not halt the loop). |
+
+### Backward-Compatibility
+
+- **Reader contract**: Readers MUST tolerate v1.0.0 records in which `commit_sha`, `findings`, and `halt_reason` are absent. When absent, treat `commit_sha` as the empty string, `findings` as the empty array, and `halt_reason` as `null`.
+- **Writer contract**: Writers MUST emit v1.1.0 schema with the new fields populated. When the underlying data is unavailable (e.g., reconstruction from a legacy marker), emit the empty string for `commit_sha` and the empty array for `findings`; emit `null` for `halt_reason` when the cycle did not halt the loop.
+- **Forward-compat**: Readers MUST tolerate v1.2.0+ records — unknown fields are silently ignored, not rejected. The Evolution Rules (additive-only for minor versions) continue to apply.
 
 ---
 
@@ -60,17 +69,33 @@ Each element of the `cycles` array is an object with the following fields:
 
 When the cycle ledger is unavailable in a CI environment (e.g., ephemeral runner), `write-cycle-ledger.sh --reconstruct-from-pr` rebuilds it by parsing `DSO-Review-Cycle:` trailers from PR or ticket comments.
 
-### Trailer Format
+### Trailer Format (v1.1.0)
+
+```
+DSO-Review-Cycle: <cycle_num> commit_sha=<sha> findings_hash=<hash> tuples=<json>
+```
+
+Where `<json>` is a JSON array of `[file, line_range, category]` 3-element string arrays.
+
+**Example**:
+
+```
+DSO-Review-Cycle: 2 commit_sha=abc123def4 findings_hash=h2 tuples=[["src/auth/login.py","42-45","correctness"],["src/api/handler.py","100","security"]]
+```
+
+**Legacy v1.0.0 format** (still parsed for backward-compat):
 
 ```
 DSO-Review-Cycle: <cycle_num> findings-hash=<hash>
 ```
 
-**Example:**
+When a marker lacks `commit_sha` and `tuples`, the reconstruction parser builds a cycle entry with `findings: []`, `commit_sha: ""`.
 
-```
-DSO-Review-Cycle: 2 findings-hash=a1b2c3d4e5f6
-```
+### Grammar Constraints
+
+- **Maximum findings per marker line**: 50. Beyond 50, the producer MUST emit a **continuation marker** with the same `cycle_num` and append additional tuples. Continuation markers carry `commit_sha` and `findings_hash` identical to the first marker for that cycle, allowing the reader to merge tuple arrays across continuation lines without ambiguity.
+- **Escaping**: String values within tuples are JSON-encoded. Paths or categories containing spaces, colons, equals signs, or quotes are escaped per JSON string rules (e.g., `"path with spaces/file.py"`, `"some:category"`, `"key=value"`, `"quoted\"name"`).
+- **Producer responsibility**: Story 13 (`runner.py` for CI mode) and Story 14 (`review-workflow.sh` for local mode) are responsible for emitting extended v1.1.0 markers. The shell `write-cycle-ledger.sh --reconstruct-from-pr` path parses markers but does **not** emit new ones.
 
 ### Where It Appears
 
@@ -203,3 +228,4 @@ This contract is versioned via the `schema_version` field in the JSON document. 
 ### Change Log
 
 - **2026-05-16**: Initial version (`schema_version: "1.0.0"`) — defines top-level fields (`schema_version`, `epic_id`, `cycles`, `reconstruction_gaps`), cycle object fields (`cycle_num`, `timestamp_utc`, `findings_hash`), CI reconstruction trailer format, evolution rules (additive-only for minor versions), locking primitive (`_flock_write_json`), and example documents.
+- **2026-05-17**: Schema bumped 1.0.0 → 1.1.0. Added cycle entry fields `commit_sha`, `findings` (tuple array), `halt_reason`. Extended PR comment Trailer Format with `commit_sha` and `tuples` fields; legacy v1.0.0 markers still parsed for backward-compat. Added Grammar Constraints subsection documenting 50-findings-per-line cap and producer responsibility. See story 45da-5043-aa3e-4f3c (epic b575-ac1c-f720-4839).
