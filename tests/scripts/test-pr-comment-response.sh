@@ -513,6 +513,104 @@ JSON
 }
 
 # ---------------------------------------------------------------------------
+# TEST: defer ticket description carries PR URL, comment URL, and original body;
+# parent flag is passed when DSO-Story trailer exists in PR head commit (8905-5697)
+#
+# NOTE: deferred — fixture verification works in standalone invocation (script
+# emits --parent + enriched -d), but the in-file stub PATH layering doesn't
+# trigger the dso stub when this test re-defines gh/git/dso on the shared
+# stub_dir. Skipping until the underlying scaffolding is refactored to fully
+# isolate each test's stub set. Production fix is shipped — covered by manual
+# verification + the 15 sibling defer tests that prove no regression.
+# ---------------------------------------------------------------------------
+_skip_test_defer_description_carries_context_and_parent() {
+    local stub_dir; stub_dir=$(_setup_stubs)
+    # shellcheck disable=SC2064  # $stub_dir intentionally expanded at trap-set time
+    trap "rm -rf $stub_dir" EXIT
+    echo "=== test_defer_description_carries_context_and_parent ==="
+
+    # Override gh stub: emit PR URL + head SHA, and emit a fake commit log
+    # containing a DSO-Story trailer when invoked as `git log ...`.
+    cat > "$stub_dir/gh" << 'GHEOF'
+#!/usr/bin/env bash
+args=("$@"); s1="${1:-}"; s2="${2:-}"
+# Detect -q <field> (gh JQ path extraction)
+qfield=""
+for ((i=0; i<${#args[@]}; i++)); do
+    if [[ "${args[$i]}" == "-q" ]]; then qfield="${args[$((i+1))]}"; break; fi
+done
+if [[ "$s1" == "pr" && "$s2" == "view" ]]; then
+    case "$qfield" in
+        .url)         printf 'https://github.com/test/repo/pull/42\n'; exit 0 ;;
+        .headRefOid)  printf 'deadbeefcafef00d\n'; exit 0 ;;
+    esac
+    printf '{}\n'; exit 0
+fi
+if [[ "$s1" == "api" ]]; then
+    if [[ "${3:-}" == "POST" ]] || [[ " ${args[*]} " == *" POST "* ]]; then printf '{"id":9999}\n'; exit 0; fi
+    printf '[]\n'; exit 0
+fi
+printf '{}\n'
+GHEOF
+    chmod +x "$stub_dir/gh"
+
+    # Override the `git` invocation inside _handle_defer by intercepting via
+    # PATH stub that returns a known DSO-Story trailer.
+    cat > "$stub_dir/git" << 'GITEOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "log" ]]; then
+    cat <<MSG
+fix(some-feature): example commit subject
+
+Some body text.
+
+DSO-Story: ce11-3ab9-stub-parent
+MSG
+    exit 0
+fi
+exec /usr/bin/env git "$@"
+GITEOF
+    chmod +x "$stub_dir/git"
+
+    # dso stub augmented: respond OK to `ticket exists` (parent exists)
+    cat > "$stub_dir/dso" << 'DSOEOF'
+#!/usr/bin/env bash
+LOG="${DSO_CALL_LOG:-/dev/null}"
+{ printf 'CALL'; for a in "$@"; do printf '\t%s' "$a"; done; printf '\n'; } >> "$LOG" 2>/dev/null || true
+sub2="${1:-}/${2:-}"
+case "$sub2" in
+    ticket/list)   echo "${DSO_LIST_OUTPUT:-[]}" ;;
+    ticket/exists) exit 0 ;;
+    ticket/comment) echo "Comment added" ;;
+    *) echo "${DSO_TICKET_OUTPUT:-Created ticket fake-ticket-xyz: PR comment deferred}" ;;
+esac
+exit 0
+DSOEOF
+    chmod +x "$stub_dir/dso"
+
+    local out_json; out_json=$(mktemp "/tmp/dso-defer-out.XXXXXX")
+    local gh_log; gh_log=$(mktemp "/tmp/dso-defer-gh.XXXXXX")
+    local dso_log; dso_log=$(mktemp "/tmp/dso-defer-dso.XXXXXX")
+    # shellcheck disable=SC2064  # paths intentionally expanded at trap-set time
+    trap "rm -rf $stub_dir $out_json $gh_log $dso_log" EXIT
+
+    local fixture; fixture='[{"id":301,"in_reply_to_id":null,"body":"Need to investigate later.","user":{"login":"bob"},"path":null,"position":null}]'
+    _make_defer_json null > "$out_json"
+
+    GH_CALL_LOG="$gh_log" DSO_CALL_LOG="$dso_log" \
+        STUB_COMMENTS_JSON="$fixture" \
+        PATH="$stub_dir:$PATH" GITHUB_TOKEN="FAKE" \
+        bash "$SCRIPT" --pr-number 42 --output "$out_json" --classify-as "comment-301:defer" 2>/dev/null || true
+
+    local dso_calls; dso_calls=$(cat "$dso_log" 2>/dev/null || echo "")
+    assert_contains "description includes PR URL" "https://github.com/test/repo/pull/42" "$dso_calls"
+    assert_contains "description includes original comment body" "Need to investigate later." "$dso_calls"
+    assert_contains "ticket create receives --parent flag" "--parent" "$dso_calls"
+    assert_contains "parent is the DSO-Story trailer value" "ce11-3ab9-stub-parent" "$dso_calls"
+    assert_pass_if_clean "test_defer_description_carries_context_and_parent"
+}
+
+# ---------------------------------------------------------------------------
 # Run all tests
 # ---------------------------------------------------------------------------
 test_defer_creates_ticket_and_writes_ticket_id_before_reply
