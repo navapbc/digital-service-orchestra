@@ -160,10 +160,11 @@ Run both error sweeps before committing so that any tickets created are included
 ```bash
 REPO_ROOT=$(git rev-parse --show-toplevel)
 PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
-source "$PLUGIN_SCRIPTS/end-session/error-sweep.sh"  # shim-exempt: source-as-library; shim dispatches subprocesses, not in-shell sources
-sweep_tool_errors
-sweep_validation_failures
+bash "$PLUGIN_SCRIPTS/end-session/error-sweep.sh" sweep-tool-errors  # shim-exempt: internal orchestration script
+bash "$PLUGIN_SCRIPTS/end-session/error-sweep.sh" sweep-validation-failures  # shim-exempt: internal orchestration script
 ```
+
+Invoking via `bash` subprocess (rather than `source`) avoids parse errors when the orchestrator's calling shell is `zsh --emulate sh` — error-sweep.sh contains bash-only regex syntax that zsh's sh-emulation rejects at parse time, leaving sweep functions undefined under source-and-call.
 
 `sweep_tool_errors` checks `~/.claude/tool-error-counter.json` for tool-error categories that have accumulated 50 or more occurrences and creates deduplicated bug tickets for them. If the counter file is absent or malformed the step exits 0 silently.
 
