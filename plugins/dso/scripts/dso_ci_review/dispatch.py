@@ -989,17 +989,38 @@ def dispatch_schema_correction(
             )
             continue
 
-        # Check finding count matches original
-        if len(attempt_findings) != len(original_findings):
+        # Check finding count matches original — but compare REAL findings only.
+        # Synthetic types (fallback_exhausted, specialist_error, parse_error) are
+        # sentinel markers the dispatch layer injects when the LLM call failed or
+        # the response couldn't be parsed; they are not real review findings.
+        # Schema correction validly drops these when the corrected payload is
+        # well-formed (e.g., the original was a sole fallback_exhausted entry and
+        # the corrected response is the empty array — no real review feedback).
+        # Counting them as "expected" would force the corrector to fabricate
+        # findings to satisfy a count it never should match (bug 881d-e5cc).
+        _SYNTHETIC_TYPE_NAMES = {"fallback_exhausted", "specialist_error", "parse_error"}
+        _real_original = [
+            f for f in original_findings
+            if not (isinstance(f, dict) and f.get("type") in _SYNTHETIC_TYPE_NAMES)
+        ]
+        _real_attempt = [
+            f for f in attempt_findings
+            if not (isinstance(f, dict) and f.get("type") in _SYNTHETIC_TYPE_NAMES)
+        ]
+        if len(_real_attempt) != len(_real_original):
             last_error = (
-                f"finding count mismatch: got {len(attempt_findings)}, "
-                f"expected {len(original_findings)}"
+                f"finding count mismatch (real findings): got {len(_real_attempt)}, "
+                f"expected {len(_real_original)} "
+                f"(total: got {len(attempt_findings)}, original {len(original_findings)})"
             )
             continue
 
-        # Check frozen fields are byte-for-byte identical
+        # Check frozen fields are byte-for-byte identical. Compare real findings
+        # only — synthetic markers (filtered above) are not subject to frozen-field
+        # preservation; they are sentinels the dispatch layer injects when no real
+        # findings exist (bug 881d-e5cc).
         frozen_ok = True
-        for i, (orig, corrected) in enumerate(zip(original_findings, attempt_findings)):
+        for i, (orig, corrected) in enumerate(zip(_real_original, _real_attempt)):
             for field in _FROZEN_FIELDS:
                 if field not in orig:
                     continue  # absent fields may be added by correction
