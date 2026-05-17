@@ -4,6 +4,12 @@ on:
   push:
     branches:
       - 'story/**'
+      # bug-batch/** — debug-everything Phase F/G sub-branches.
+      # Without this trigger every bug-batch/<session>/tier-<N>[-batch-<K>] PR
+      # merges to its session branch without CI review (Flow C gap).
+      - 'bug-batch/**'
+      # fix/** — d076 spec coverage; reserved for ad-hoc fix branches.
+      - 'fix/**'
 
 permissions:
   contents: read
