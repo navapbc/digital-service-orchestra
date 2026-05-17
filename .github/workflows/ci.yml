@@ -451,9 +451,16 @@ jobs:
           echo "Integration scope: $SCOPE_COUNT file(s)"
           if [[ "$SCOPE_COUNT" -eq 0 ]]; then
             echo "INTEGRATION_SCOPE_EMPTY=true" >> "$GITHUB_ENV"
-            echo "Integration scope empty: no files to review — skipping LLM review dispatch"
+            # bug 1624-5fb9: prior log line said "skipping LLM review dispatch".
+            # That was true under the kill-switch behavior introduced in
+            # 9a4847206b. Since the fix in PR #188 the Run LLM review step
+            # falls through to the full PR diff when the scope is empty —
+            # the log line was misleading operators into believing review
+            # was skipped when it now runs.
+            echo "Integration scope empty — Run LLM review will dispatch against the full PR diff (direct-PR path)"
           else
             echo "INTEGRATION_SCOPE_EMPTY=false" >> "$GITHUB_ENV"
+            echo "Integration scope populated — Run LLM review may narrow to integration-scope files via runner hints"
           fi
 
       - name: Compute DSO_REVIEW_CYCLE
