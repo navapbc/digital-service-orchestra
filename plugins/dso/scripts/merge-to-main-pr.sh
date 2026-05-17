@@ -511,6 +511,13 @@ _phase_merge() {
     # (b56b-14e9)
     _fetch_and_rebase_branch || return 1
 
+    # Bypass pre-push-merged-pr-check.sh: this push is intentionally publishing
+    # new commits to a session branch whose previous PR is already MERGED, in
+    # order to open a NEW PR for the next set of commits. The merged-PR hook
+    # protects against the "commits pushed after auto-merge, no follow-up PR
+    # opened" failure mode (680f-53fb) — which does not apply here because
+    # the very next step (gh pr create below) opens that follow-up PR.
+    export DSO_ALLOW_PUSH_TO_MERGED_PR=1
     if ! git push -u origin "$BRANCH" 2>&1; then
         # Retry once on rejection: another push may have landed between fetch and push.
         if _fetch_and_rebase_branch && git push -u origin "$BRANCH" 2>&1; then
@@ -521,6 +528,7 @@ _phase_merge() {
             return 1
         fi
     fi
+    unset DSO_ALLOW_PUSH_TO_MERGED_PR
 
     # --- 3. Derive PR title from last meaningful commit subject ---
     # Use _derive_pr_title so an upstream merge-back commit subject
