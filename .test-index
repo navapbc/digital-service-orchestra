@@ -463,3 +463,5 @@ plugins/dso/scripts/migrate-dso-workflow-config.sh:tests/scripts/test-legacy-cle
 plugins/dso/scripts/migrate-story-pr-bases.sh:tests/scripts/test-migrate-story-pr-bases.sh
 plugins/dso/scripts/verify-session-provenance.sh:tests/scripts/test-verify-session-provenance.sh,tests/scripts/test-bug-reproducer-cafb.sh
 plugins/dso/scripts/redistribute-session-commits.sh:tests/scripts/test-redistribute-session-commits.sh [test_script_exists]
+
+plugins/dso/scripts/write-cycle-ledger.sh: tests/scripts/test-write-cycle-ledger.sh [test_write_cycle_ledger_creates_file]
