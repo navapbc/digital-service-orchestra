@@ -140,10 +140,24 @@ for _i in "${!_parsed_pairs[@]}"; do
             # must replicate the same invariant when re-parenting — a
             # live ticket attached to a closed or deleted parent corrupts
             # the hierarchy (PR #139 review).
+            #
+            # Fail-closed semantics: only an explicit active-state status
+            # crosses the gate. Empty (status lookup failed), closed,
+            # deleted, or any unrecognized state → reject. The fail-open
+            # variant of this guard was caught by retro-review of PR #194
+            # and explicitly disallowed; this implementation follows the
+            # same allowlist pattern.
             _new_parent_status=$(bash "$SCRIPT_DIR/ticket-show.sh" "$_new_parent_id" 2>/dev/null \
                 | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('status','') or '')" 2>/dev/null) || _new_parent_status=""
             case "$_new_parent_status" in
-                closed|deleted)
+                open|in_progress)
+                    : # explicit allow
+                    ;;
+                "")
+                    echo "Error: cannot verify status of parent ticket '$_new_parent_id' — refusing to re-parent (fail-closed). Verify the ticket exists and is in an active state, then retry." >&2
+                    exit 1
+                    ;;
+                *)
                     echo "Error: cannot re-parent to $_new_parent_status ticket '$_new_parent_id'. Reopen the parent first with: ticket transition $_new_parent_id $_new_parent_status open" >&2
                     exit 1
                     ;;
