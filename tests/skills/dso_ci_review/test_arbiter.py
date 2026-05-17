@@ -210,3 +210,110 @@ def test_dispatch_arbiter_length_mismatch_triggers_fail_closed():
     assert all("length mismatch" in r["rationale"].lower() for r in result), (
         "Expected all rationales to cite length mismatch"
     )
+
+
+# ---------------------------------------------------------------------------
+# Test 6: dispatch_arbiter dispatch-failure triggers fail-closed BLOCK synthesis
+# ---------------------------------------------------------------------------
+
+
+def test_dispatch_arbiter_fail_closed_on_dispatch_failure(capsys):
+    """Given: 3 findings (critical, important, minor) and dispatch_review raises ConnectionError
+    When: dispatch_arbiter called
+    Then: 2 synthetic BLOCK rulings (critical + important; minor skipped);
+          severity preserved; structured stderr log emitted.
+    """
+    findings = [
+        {"id": "f1", "severity": "critical", "finding_hash": "h1"},
+        {"id": "f2", "severity": "important", "finding_hash": "h2"},
+        {"id": "f3", "severity": "minor", "finding_hash": "h3"},
+    ]
+
+    def raise_dispatch(*args, **kwargs):
+        raise ConnectionError("simulated network failure")
+
+    with patch("dso_ci_review.arbiter.dispatch_review", side_effect=raise_dispatch):
+        result = dispatch_arbiter(
+            findings=findings,
+            defenses=[],
+            diff_text="diff",
+            model="m",
+            provider_chain=["anthropic"],
+            cycle_num=1,
+            max_cycles=4,
+        )
+
+    # 2 synthetic BLOCKs (critical + important); minor skipped
+    assert len(result) == 2, (
+        f"Expected 2 synthetic rulings (critical + important), got {len(result)}"
+    )
+    assert all(r["ruling"] == "BLOCK" for r in result), (
+        f"Expected all rulings to be BLOCK, got {[r['ruling'] for r in result]!r}"
+    )
+    assert all("Arbiter dispatch failed" in r["rationale"] for r in result), (
+        "Expected all rationales to cite 'Arbiter dispatch failed'"
+    )
+    assert all("ConnectionError" in r["rationale"] for r in result), (
+        "Expected all rationales to cite the exception class name"
+    )
+
+    # Severity preserved in synthetic rulings (AC amendment)
+    severities = [r.get("severity") for r in result]
+    assert "critical" in severities, f"Expected 'critical' in severities, got {severities}"
+    assert "important" in severities, f"Expected 'important' in severities, got {severities}"
+    assert "minor" not in severities, (
+        f"Minor finding should have been skipped, got severities={severities}"
+    )
+
+    # finding_hash preserved in synthetic rulings (AC amendment)
+    hashes = [r.get("finding_hash") for r in result]
+    assert "h1" in hashes and "h2" in hashes, (
+        f"Expected original finding_hash values preserved, got {hashes}"
+    )
+
+    # Structured stderr log
+    captured = capsys.readouterr()
+    assert "arbiter_dispatch_failed" in captured.err, (
+        f"Expected 'arbiter_dispatch_failed' in stderr, got: {captured.err!r}"
+    )
+    assert "reason=ConnectionError" in captured.err, (
+        f"Expected 'reason=ConnectionError' in stderr, got: {captured.err!r}"
+    )
+    assert "finding_count=3" in captured.err, (
+        f"Expected 'finding_count=3' in stderr, got: {captured.err!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 7: dispatch_arbiter empty findings + dispatch failure → empty array
+# ---------------------------------------------------------------------------
+
+
+def test_dispatch_arbiter_empty_findings_no_synthetic_block_on_dispatch_failure(capsys):
+    """Given: empty findings list and dispatch_review would raise ConnectionError
+    When: dispatch_arbiter called
+    Then: returns empty array (no synthetic BLOCK for nonexistent findings).
+          Short-circuit happens BEFORE dispatch, so dispatch_review is never called.
+    """
+
+    def raise_dispatch(*args, **kwargs):
+        raise ConnectionError("network down")
+
+    with patch(
+        "dso_ci_review.arbiter.dispatch_review", side_effect=raise_dispatch
+    ) as mock_dispatch:
+        result = dispatch_arbiter(
+            findings=[],
+            defenses=[],
+            diff_text="diff",
+            model="m",
+            provider_chain=["anthropic"],
+            cycle_num=1,
+            max_cycles=4,
+        )
+
+    assert result == [], f"Expected empty rulings array, got {result!r}"
+    # Dispatch should not have been called at all — empty findings short-circuit
+    assert mock_dispatch.call_count == 0, (
+        "Expected dispatch_review to be skipped entirely for empty findings"
+    )
