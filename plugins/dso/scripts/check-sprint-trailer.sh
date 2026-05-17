@@ -20,14 +20,21 @@ fi
 
 # Read the message of the commit BEING MADE, not the previous HEAD commit
 # (bug aba6-56fa). Resolution order:
-#   1. $1 if it points to a readable file — pre-commit framework passes the
-#      commit message file as the first positional arg under stages: [commit-msg]
-#   2. $GIT_DIR/COMMIT_EDITMSG — git writes the in-progress message here before
-#      firing commit-msg / pre-commit hooks; safe to read in either stage
-#   3. git log -1 — last-resort fallback for ad-hoc direct invocation outside
-#      a commit flow (e.g. test harness, manual debugging). Acknowledged to
-#      reflect previous-commit semantics; the upstream stages: [commit-msg]
-#      registration prevents this path in normal use.
+#   1. $1 if it points to a readable file — explicit caller override. Used
+#      by the test harness for direct invocation. NOTE: in the current
+#      pre-commit-wrapper.sh dispatch shape, $1 is consumed by the wrapper
+#      and not forwarded to the inner script, so this branch is dead under
+#      pre-commit framework invocation in production — but production
+#      reaches branch 2 below. Retained as the explicit-caller override
+#      and forward-compatible with a future wrapper that does forward $1
+#      (PR #180 review finding).
+#   2. $GIT_DIR/COMMIT_EDITMSG — git writes the in-progress message here
+#      before firing commit-msg hooks; this is the actual production path
+#      under pre-commit-wrapper.sh + stages: [commit-msg] registration.
+#   3. git log -1 — last-resort for ad-hoc direct invocation outside a
+#      commit flow (manual debugging). Reflects previous-commit semantics;
+#      the stages: [commit-msg] registration ensures it is not reached in
+#      production.
 _msg_file=""
 if [[ -n "${1:-}" && -f "$1" ]]; then
     _msg_file="$1"
