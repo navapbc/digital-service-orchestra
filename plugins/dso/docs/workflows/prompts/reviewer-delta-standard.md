@@ -109,6 +109,34 @@ This applies equally to:
 - Agent prompts referencing tools, scripts, or helper files
 - Documentation referencing config keys or contract identifiers
 
+**Narrow exception: removal of "change-detector" source-grep tests is NOT a
+regression-detection loss** (bug da45-7d92-6c86-42bc cycle 3 finding):
+
+When a diff REMOVES a test that uses `grep`/`awk`/`sed`/`cat` against a source
+file (e.g., `grep -q "pattern" "$FILE"`, `awk '/foo/{print}'  "$FILE"`) and
+asserts on the presence/absence/ordering of literal strings, that removal is
+INTENDED CLEANUP, not lost coverage. Such tests violate behavioral-testing-
+standard Rule 3 (Execute, don't inspect) — they assert on source-file text
+rather than runtime behavior, break on any harmless refactoring (renames,
+reformatting, anchor introduction), and provide false confidence.
+
+Do NOT file a `verification` finding claiming the removal "eliminates
+regression detection", "loses design-intent coverage", or "creates trust gap"
+when the removed assertions match this pattern. The runtime layer (CI
+execution, actionlint, dispatcher schema validation, hook test gates) is the
+real regression gate for these artifacts; the deleted tests added noise
+without runtime coverage.
+
+This exception is narrow: it applies ONLY to source-grep / change-detector
+tests being deleted. It does NOT exempt:
+- Removal of behavioral tests that execute code and assert on outputs
+- Removal of integration tests with real subprocess/IO assertions
+- Removal of tests that mock external boundaries and exercise call paths
+
+If you cannot tell whether a removed test is a Rule-3 violation vs. a real
+behavioral test, request the file via the Context-Request Protocol and read
+the assertions before flagging.
+
 ---
 
 ## External Reference Verification
