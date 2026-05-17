@@ -195,11 +195,11 @@ plugins/dso/scripts/dso_ci_review/context_request.py:tests/skills/dso_ci_review/
 plugins/dso/scripts/dso_ci_review/cycle_ledger.py:tests/skills/dso_ci_review/test_cycle_ledger.py [test_read_ledger_returns_empty_when_file_absent]
 plugins/dso/scripts/dso_ci_review/dispatch.py:tests/skills/dso_ci_review/test_dispatch_fallback.py,tests/skills/dso_ci_review/test_tier_wiring.py,tests/skills/dso_ci_review/test_context_augmentation.py,tests/skills/dso_ci_review/test_prompt_caching.py,tests/skills/dso_ci_review/test_integration_full_loop.py,tests/skills/dso_ci_review/test_dispatch_schema_correction.py
 plugins/dso/scripts/dso_ci_review/arbiter.py:tests/skills/dso_ci_review/test_arbiter.py [test_dispatch_arbiter_returns_block_when_critical_finding_undefended,test_dispatch_arbiter_returns_defer_when_cycle_exceeds_max,test_validate_cycle_end_ruling_raises_on_unknown_ruling]
-plugins/dso/scripts/dso_ci_review/cycle_dispatcher.py: tests/skills/dso_ci_review/test_cycle_dispatcher.py [test_dispatch_arbiter_when_cycle_num_reaches_max]
+plugins/dso/scripts/dso_ci_review/cycle_dispatcher.py:tests/skills/dso_ci_review/test_cycle_dispatcher.py [test_dispatch_arbiter_when_cycle_num_reaches_max]
 plugins/dso/scripts/dso_ci_review/findings.py:tests/skills/dso_ci_review/test_findings.py,tests/skills/dso_ci_review/test_region_dedup.py
 plugins/dso/scripts/dso_ci_review/proximity.py:tests/skills/dso_ci_review/test_proximity.py
 plugins/dso/scripts/dso_ci_review/speculation_markers.py:tests/skills/dso_ci_review/test_speculation_markers.py
-plugins/dso/scripts/dso_ci_review/stability.py: tests/skills/dso_ci_review/test_stability.py [test_jaccard_zero_set_both_empty]
+plugins/dso/scripts/dso_ci_review/stability.py:tests/skills/dso_ci_review/test_stability.py [test_jaccard_zero_set_both_empty]
 plugins/dso/scripts/dso_ci_review/providers/config.py:tests/skills/dso_ci_review/test_providers_config.py,tests/skills/dso_ci_review/test_dispatch_config.py
 plugins/dso/scripts/dso_ci_review/providers/openai.py:tests/skills/dso_ci_review/test_providers_unit.py [test_openai_provider_review_diff]
 plugins/dso/scripts/dso_ci_review/region_split.py:tests/skills/dso_ci_review/test_region_split.py
@@ -447,8 +447,8 @@ plugins/dso/scripts/check-sprint-trailer.sh:tests/hooks/test-check-sprint-traile
 plugins/dso/scripts/detect-session-leakage.sh:tests/scripts/test-detect-session-leakage.sh
 plugins/dso/scripts/sprint/compute-rereviewed-loc.sh:tests/scripts/test-compute-rereviewed-loc.sh
 plugins/dso/scripts/review-defense-store.sh:tests/review/test-defense-store-ticket-binding.sh,tests/review/test-defense-store-sha-range.sh,tests/review/test-defense-store-dropped-by-arbiter.sh [test_defense_store_drops_unknown_defense_type_gracefully],tests/review/test-arbiter-ruling-dispatch.sh [test_defer_ruling_creates_orphan_ticket]
-tests/review/test-defense-store-dropped-by-arbiter.sh: tests/review/test-defense-store-dropped-by-arbiter.sh [test_defense_store_drops_unknown_defense_type_gracefully]
-tests/review/test-arbiter-ruling-dispatch.sh: tests/review/test-arbiter-ruling-dispatch.sh [test_defer_ruling_creates_orphan_ticket]
+tests/review/test-defense-store-dropped-by-arbiter.sh:tests/review/test-defense-store-dropped-by-arbiter.sh [test_defense_store_drops_unknown_defense_type_gracefully]
+tests/review/test-arbiter-ruling-dispatch.sh:tests/review/test-arbiter-ruling-dispatch.sh [test_defer_ruling_creates_orphan_ticket]
 plugins/dso/scripts/check-unacked-degradations.sh:tests/scripts/test-check-unacked-degradations.sh
 plugins/dso/scripts/preconditions-ack.sh:tests/scripts/test-preconditions-ack.sh,tests/scripts/test-preconditions-ack-sample.sh
 plugins/dso/agents/code-reviewer-light.md:tests/agents/test-verification-evidence-emission.sh
@@ -468,6 +468,5 @@ plugins/dso/scripts/migrate-dso-workflow-config.sh:tests/scripts/test-legacy-cle
 plugins/dso/scripts/migrate-story-pr-bases.sh:tests/scripts/test-migrate-story-pr-bases.sh
 plugins/dso/scripts/verify-session-provenance.sh:tests/scripts/test-verify-session-provenance.sh,tests/scripts/test-bug-reproducer-cafb.sh
 plugins/dso/scripts/redistribute-session-commits.sh:tests/scripts/test-redistribute-session-commits.sh [test_script_exists]
-
-plugins/dso/scripts/write-cycle-ledger.sh: tests/scripts/test-write-cycle-ledger.sh, tests/scripts/test-write-cycle-ledger-integration.sh
-tests/scripts/test-cycle-arbiter.sh: tests/scripts/test-cycle-arbiter.sh [test_block_critical_defense_absent_ruling]
+plugins/dso/scripts/write-cycle-ledger.sh:tests/scripts/test-write-cycle-ledger.sh,tests/scripts/test-write-cycle-ledger-integration.sh
+tests/scripts/test-cycle-arbiter.sh:tests/scripts/test-cycle-arbiter.sh [test_block_critical_defense_absent_ruling]
