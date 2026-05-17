@@ -36,7 +36,7 @@ The classifier returns a single JSON object on stdout. Switch on its `status` fi
 | `CONFLICTING` | See **Resolve Conflicts** below. After resolving + pushing, re-classify. |
 | `CHECKS_FAILED` | See **Fix Failing Checks** below. After fixing + pushing, re-classify. |
 | `THREADS_UNRESOLVED` | See **Address Review Threads** below. After addressing + pushing, re-classify. |
-| `CHECKS_PENDING` | Wait 60–120s, then re-classify. Do not push speculative changes. |
+| `CHECKS_PENDING` | Wait 270s before the next re-classify (cache-window aligned; see Bounded-loop notes). Do not push speculative changes. |
 | `READY_TO_MERGE` | Run `gh pr merge <pr-number> --squash` (or the project's configured strategy). **Verify by re-classifying** — if status is not `MERGED` after the call, inspect the merge command's stderr: `behind main` → fetch+merge+push then re-classify; `checks not passing` → re-classify (likely a check transitioned to failing); `review required` → escalate. Do not assume merge succeeded without confirmation. |
 | `BLOCKED_BY_REVIEW` | Stop and escalate to user — typically a required reviewer needs to approve; the agent cannot resolve this autonomously. Report what's blocking. |
 | `UNKNOWN` | Stop and escalate to user with the classifier's raw output. |
@@ -47,7 +47,7 @@ Escalation conditions are evaluated **in priority order** — whichever fires fi
 
 1. **Same-failure detection** (highest priority — fires earliest). Track the last failing-check name and the last unresolved-thread IDs you addressed. If the same item recurs three times after a fix attempt, escalate immediately (cascade-recovery territory). This catches stuck-loops before they consume the global cap.
 2. **Per-PR maximum iterations**: 15. If the loop exceeds this, escalate with the last classifier output — likely a stable failure the agent cannot resolve.
-3. **Per-iteration sleep on `CHECKS_PENDING`**: 60s default, 120s max. Do not exceed 30 minutes of total wall-clock waiting on pending checks without escalating.
+3. **Per-iteration sleep on `CHECKS_PENDING`**: 270s default (cache-window aligned — see CLAUDE.md "Picking delaySeconds"; staying under 300s preserves the Anthropic prompt cache hit on the next iteration). Do not poll faster than 270s — GitHub CI jobs typically take 2–5 minutes, and 60–120s polling generates 3–5 redundant re-classifications per job with no progress signal (bug 6b69-34f7). Do not exceed 30 minutes of total wall-clock waiting on pending checks without escalating.
 
 ## Resolve Conflicts
 
