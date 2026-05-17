@@ -899,6 +899,55 @@ contract does not yet exist, use the hash fields inline: `(file, line_range, cat
 string concatenation of the finding's `file` field, `line_range` (or `cited_lines` serialized),
 and `category` field.
 
+### Post-Arbiter Ruling Processing
+
+When the cycle-end arbiter (code-reviewer-arbiter) is dispatched at cycle-K boundary,
+process each ruling in the arbiter's output array:
+
+#### BLOCK rulings
+Mark finding as unresolved; include in the final blocking list passed to the commit gate.
+
+#### DEFER rulings
+For each DEFER ruling, create one orphan-task ticket (no parent_id — intentionally unparented
+per the orphan-task convention):
+
+```bash
+DEFER_TICKET_ID=$(.claude/scripts/dso ticket create task \
+  "Deferred review finding: <finding.rationale[:80]>" \
+  --tags=orphan:deferred_review \
+  --tags=origin:arbiter \
+  --priority=3 \
+  -d "Arbiter DEFER ruling from cycle ${CYCLE_K}. Finding: <finding.finding_index> Impact class: <finding.impact_class> Rationale: <finding.rationale> PR ref: ${PR_NUMBER:-local} commit: ${CURRENT_SHA:-HEAD} Cycle: ${CYCLE_K}")
+```
+
+Log ticket ID to cycle ledger: `defer_tickets[finding_index]=$DEFER_TICKET_ID`
+
+#### DROP rulings
+For each DROP ruling, write a defense record with `defense_type=dropped_by_arbiter`:
+
+```bash
+source "${_PLUGIN_ROOT}/scripts/review-defense-store.sh"
+DROP_RECORD=$(python3 -c "
+import json; print(json.dumps({
+  'prior_finding_id': '<finding.finding_index>',
+  'defense_type': 'dropped_by_arbiter',
+  'defense_text': 'Arbiter DROP ruling: <finding.rationale[:200]>',
+  'defender': 'code-reviewer-arbiter',
+  'cycle_number': ${CYCLE_K},
+  'severity_history': [{'cycle': ${CYCLE_K}, 'severity': '<finding.impact_class>', 'relation': 'DROPPED'}],
+  'ticket_id': '${DSO_SESSION_TICKET_ID:-UNBOUND}'
+}))")
+defense_store_write "$DROP_RECORD"
+
+# CI mode: also write to GitHub PR comment
+if [[ -n "${PR_NUMBER:-}" ]]; then
+  source "${_PLUGIN_ROOT}/scripts/review-github-defense-store.sh"
+  github_defense_store_write "$DROP_RECORD" "$PR_NUMBER" "${GITHUB_REPOSITORY:-}"
+fi
+```
+
+The `defense_store_write()` function is idempotent — repeated calls with the same `prior_finding_id` produce only one record.
+
 ---
 
 ## Step 5: Record Review
