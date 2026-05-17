@@ -135,6 +135,19 @@ for _i in "${!_parsed_pairs[@]}"; do
                 echo "Error: ticket cannot be its own parent" >&2
                 exit 1
             fi
+            # Parent-status check: ticket_create enforces "cannot create
+            # child of closed ticket" at ticket-create.sh:158. ticket_edit
+            # must replicate the same invariant when re-parenting — a
+            # live ticket attached to a closed or deleted parent corrupts
+            # the hierarchy (PR #139 review).
+            _new_parent_status=$(bash "$SCRIPT_DIR/ticket-show.sh" "$_new_parent_id" 2>/dev/null \
+                | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('status','') or '')" 2>/dev/null) || _new_parent_status=""
+            case "$_new_parent_status" in
+                closed|deleted)
+                    echo "Error: cannot re-parent to $_new_parent_status ticket '$_new_parent_id'. Reopen the parent first with: ticket transition $_new_parent_id $_new_parent_status open" >&2
+                    exit 1
+                    ;;
+            esac
             # Simple ancestor-walk cycle guard.
             _walk_id="$_new_parent_id"
             _walk_count=0
