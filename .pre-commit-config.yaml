@@ -230,6 +230,10 @@ repos:
         entry: ./plugins/dso/scripts/pre-commit-wrapper.sh sprint-trailer-check 10 "plugins/dso/scripts/check-sprint-trailer.sh"
         language: system
         pass_filenames: false
+        # commit-msg stage so the script can read the in-progress message
+        # (aba6-56fa). The previous pre-commit stage was unable to see the
+        # commit being made — git log -1 returned the previous HEAD.
+        stages: [commit-msg]
 
       - id: session-merge-only-check
         name: Session Worktree Merge-Only Check (10s timeout)
