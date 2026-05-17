@@ -1,104 +1,380 @@
-"""dso_ci_review.arbiter — Arbiter dispatch and ruling validation.
+"""dso_ci_review.arbiter — Cycle-end arbiter dispatch and ruling validation.
 
-Provides two public functions:
+Provides public functions:
 
-  dispatch_arbiter  — Sends a finding + prior defense to the code-reviewer-arbiter
-                      agent and returns a dict with a 'ruling' key.
+  dispatch_arbiter          — Dispatches the cycle-end arbiter for a list of findings.
+                              Returns a list of per-finding ruling dicts.
 
-  validate_arbiter_ruling — Validates DOWNGRADE_TO rulings to ensure named_rebuttal
-                            cites lines NOT already present in reviewer_severity_evidence.
-                            Reclassifies invalid DOWNGRADE_TO to ACCEPT_DEFENSE.
+  validate_cycle_end_ruling — Validates a ruling dict against VALID_RULINGS and,
+                              for schema_version >= 1.1.0, enforces enum
+                              membership for cross_reviewer_agreement (4-val),
+                              cross_cycle_pattern (7-val), and impact_class
+                              (9-val: 8-cat floor + 'none'). Raises ValueError
+                              for unrecognized values or missing v1.1.0 fields.
+
+  dispatch_cycle_end_arbiter — Alias for dispatch_arbiter; cycle-end consolidation.
+
+  compute_ruling_from_fixture — Apply CoVe fallback and validate on a pre-stored
+                                arbiter_ruling from a fixture. Used by shell replay
+                                tests to exercise the deterministic arbiter pipeline
+                                without requiring LLM dispatch.
 """
 
 from __future__ import annotations
 
-import re
+import json as _json
+import subprocess
+import sys
 from typing import Any
 
 from dso_ci_review.dispatch import dispatch_review
 
-# Pattern matching file:line references (e.g. "auth/login.py:42")
-_FILE_LINE_RE = re.compile(r"[\w./\-]+\.\w+:\d+")
+# Specific transport / parse exception classes treated as dispatch failures.
+# NOTE: deliberately NOT bare `Exception` — catching `Exception` would mask
+# downstream programming bugs (e.g. AttributeError in CoVe fallback) as fake
+# BLOCK rulings. Only true transport/parse errors are dispatch failures.
+_DISPATCH_FAILURE_EXCEPTIONS: tuple[type[BaseException], ...] = (
+    subprocess.CalledProcessError,
+    _json.JSONDecodeError,
+    OSError,  # base class for ConnectionError, TimeoutError, FileNotFoundError, etc.
+)
+
+VALID_RULINGS: frozenset[str] = frozenset({"BLOCK", "DEFER", "DROP"})
+
+# v1.1.0 enriched-ruling enum vocabularies (see code-reviewer-arbiter.md Enum
+# Vocabularies and contracts/review-defenses.md arbiter_ruling sub-schema).
+VALID_CROSS_REVIEWER_AGREEMENT: frozenset[str] = frozenset(
+    {
+        "UNANIMOUS",
+        "MAJORITY",
+        "SPLIT",
+        "SINGLE_REVIEWER",
+    }
+)
+VALID_CROSS_CYCLE_PATTERN: frozenset[str] = frozenset(
+    {
+        "NEW_INTRODUCED",
+        "RECURRING",
+        "RESUSTAIN_OF",
+        "RESOLVED_THEN_REINTRODUCED",
+        "ESCALATED",
+        "DEFENDED_PRIOR_CYCLE",
+        "UNKNOWN",
+    }
+)
+VALID_IMPACT_CLASS: frozenset[str] = frozenset(
+    {
+        "bug",
+        "unintended_behavior",
+        "security_vulnerability",
+        "data_loss_or_corruption",
+        "secret_exposure",
+        "compliance_violation",
+        "api_contract_break",
+        "infrastructure_break",
+        "none",
+    }
+)
+
+# Fields required by schema_version >= 1.1.0 (missing fields raise ValueError).
+_V1_1_0_REQUIRED_FIELDS: tuple[str, ...] = (
+    "cross_reviewer_agreement",
+    "cross_cycle_pattern",
+    "impact_class",
+)
+
+
+def validate_cycle_end_ruling(ruling: dict[str, Any]) -> dict[str, Any]:
+    """Validate a cycle-end ruling dict against VALID_RULINGS + v1.1.0 enums.
+
+    For all rulings, enforces ``ruling['ruling']`` ∈ VALID_RULINGS.
+
+    For rulings whose ``schema_version`` is ``>= 1.1.0``, additionally enforces:
+      - ``cross_reviewer_agreement`` is a list whose elements ∈
+        ``VALID_CROSS_REVIEWER_AGREEMENT``;
+      - ``cross_cycle_pattern`` is a list whose elements ∈
+        ``VALID_CROSS_CYCLE_PATTERN``;
+      - ``impact_class`` is a single string ∈ ``VALID_IMPACT_CLASS``.
+
+    The three v1.1.0 fields are REQUIRED — a missing field raises ``ValueError``.
+
+    Legacy v1.0.0 rulings (or rulings with no ``schema_version`` at all) are
+    treated as backward-compat and skip the v1.1.0 enrichment checks; only the
+    base ``ruling`` enum is enforced.
+
+    Args:
+        ruling: A ruling dict with a 'ruling' key.
+
+    Returns:
+        The ruling dict unchanged if valid.
+
+    Raises:
+        ValueError: If ruling['ruling'] is not in VALID_RULINGS, or — for
+            schema_version >= 1.1.0 — if any v1.1.0 enrichment field is missing
+            or contains an unknown enum value.
+    """
+    ruling_value = ruling.get("ruling", "")
+    if ruling_value not in VALID_RULINGS:
+        raise ValueError(
+            f"Unknown ruling {ruling_value!r}. Must be one of {sorted(VALID_RULINGS)}"
+        )
+
+    # v1.1.0 enrichment-field enforcement (gated on schema_version).
+    # String compare is sufficient for "1.x.y" dotted versions where each
+    # component is a single digit — the schema lives in a small, controlled
+    # vocabulary (1.0.0, 1.1.0) and an explicit lexical >= covers both.
+    schema_version = ruling.get("schema_version", "1.0.0")
+    if schema_version >= "1.1.0":
+        # All three enriched fields must be present.
+        for field in _V1_1_0_REQUIRED_FIELDS:
+            if field not in ruling:
+                raise ValueError(
+                    f"Required v1.1.0 field {field!r} missing from ruling "
+                    f"(schema_version={schema_version!r})"
+                )
+
+        # cross_reviewer_agreement: list of strings, each ∈ VALID_CROSS_REVIEWER_AGREEMENT.
+        cra = ruling["cross_reviewer_agreement"]
+        if not isinstance(cra, list):
+            raise ValueError(
+                f"cross_reviewer_agreement must be a list, got {type(cra).__name__}"
+            )
+        for value in cra:
+            if value not in VALID_CROSS_REVIEWER_AGREEMENT:
+                raise ValueError(
+                    f"Unknown cross_reviewer_agreement value {value!r}. "
+                    f"Must be one of {sorted(VALID_CROSS_REVIEWER_AGREEMENT)}"
+                )
+
+        # cross_cycle_pattern: list of strings, each ∈ VALID_CROSS_CYCLE_PATTERN.
+        ccp = ruling["cross_cycle_pattern"]
+        if not isinstance(ccp, list):
+            raise ValueError(
+                f"cross_cycle_pattern must be a list, got {type(ccp).__name__}"
+            )
+        for value in ccp:
+            if value not in VALID_CROSS_CYCLE_PATTERN:
+                raise ValueError(
+                    f"Unknown cross_cycle_pattern value {value!r}. "
+                    f"Must be one of {sorted(VALID_CROSS_CYCLE_PATTERN)}"
+                )
+
+        # impact_class: single string ∈ VALID_IMPACT_CLASS.
+        impact = ruling["impact_class"]
+        if impact not in VALID_IMPACT_CLASS:
+            raise ValueError(
+                f"Unknown impact_class {impact!r}. "
+                f"Must be one of {sorted(VALID_IMPACT_CLASS)}"
+            )
+
+    return ruling
+
+
+def _enforce_cove_fallback(
+    ruling: dict[str, Any], cycle_num: int, max_cycles: int
+) -> dict[str, Any]:
+    """Reclassify BLOCK to DEFER when cycle_num exceeds max_cycles (CoVe soft-cap).
+
+    Args:
+        ruling: A ruling dict with a 'ruling' key.
+        cycle_num: Current review cycle number.
+        max_cycles: Configured maximum review cycles.
+
+    Returns:
+        The ruling dict, with ruling='DEFER' if BLOCK was issued past the cycle cap.
+    """
+    if ruling.get("ruling") == "BLOCK" and cycle_num > max_cycles:
+        result = dict(ruling)
+        result["ruling"] = "DEFER"
+        result["rationale"] = (
+            f"CoVe soft-cap: cycle_num={cycle_num} > max_cycles={max_cycles} — "
+            "BLOCK reclassified to DEFER to force convergence"
+        )
+        return result
+    return ruling
+
+
+def compute_ruling_from_fixture(fixture: dict) -> dict:
+    """Apply CoVe fallback and validate on a pre-stored arbiter_ruling from a fixture.
+
+    Used by shell replay tests to exercise the deterministic arbiter pipeline
+    (CoVe soft-cap + ruling validation) without requiring LLM dispatch.
+
+    Args:
+        fixture: dict with keys 'arbiter_ruling', 'cycle', 'max_cycles'
+
+    Returns:
+        The effective ruling dict after CoVe fallback and validation.
+
+    Raises:
+        ValueError: if ruling is not in VALID_RULINGS after CoVe fallback.
+    """
+    ruling = dict(fixture["arbiter_ruling"])
+    cycle_num = int(fixture.get("cycle", 1))
+    max_cycles = int(fixture.get("max_cycles", 4))
+    ruling = _enforce_cove_fallback(ruling, cycle_num, max_cycles)
+    return validate_cycle_end_ruling(ruling)
 
 
 def dispatch_arbiter(
-    finding: dict[str, Any],
-    prior_defense: dict[str, Any],
+    findings: list[dict[str, Any]],
+    defenses: list[dict[str, Any]],
     diff_text: str,
     model: str,
     provider_chain: list[str],
-) -> dict[str, Any]:
-    """Dispatch the arbiter agent to adjudicate a severity dispute.
+    cycle_num: int,
+    max_cycles: int,
+) -> list[dict[str, Any]]:
+    """Dispatch the cycle-end consolidation arbiter for a list of findings.
 
-    Builds a combined diff context that prepends the prior defense text before
-    the actual diff, then calls dispatch_review with agent_id='code-reviewer-arbiter'.
+    Calls the code-reviewer-arbiter agent via dispatch_review and processes
+    each finding's ruling through CoVe fallback and validation.
 
     Args:
-        finding: The reviewer finding dict (contains id, relation, cited_lines, etc.).
-        prior_defense: The author's prior defense dict (contains defense_text).
-        diff_text: The unified diff text under review.
+        findings: List of unresolved finding dicts from the current review cycle.
+        defenses: List of defense dicts submitted across all cycles.
+        diff_text: Unified diff text under review.
         model: Primary model identifier to use.
         provider_chain: Ordered list of provider names.
+        cycle_num: Current review cycle number.
+        max_cycles: Configured maximum review cycles.
 
     Returns:
-        A dict containing a 'ruling' key from the arbiter's response.
+        A list of per-finding ruling dicts, each containing:
+        - ruling: one of BLOCK, DEFER, DROP
+        - rationale: one-sentence explanation
+        - schema_version: "1.0.0"
+
+    The agent contract (see the ``code-reviewer-arbiter`` agent file under
+    ``${CLAUDE_PLUGIN_ROOT}/agents/``) specifies the output as a JSON array
+    with one element per input finding. A single dict response is accepted
+    for backward compatibility and wrapped in a list.
+
+    Length-mismatch handling (AC amendment): if the agent returns a number of
+    rulings that does not match the input findings, dispatch is treated as a
+    failure and the function emits fail-closed synthetic BLOCK rulings for
+    every critical/important finding (matches T2 fail-closed behavior). The
+    mismatch is logged to stderr as ``arbiter_length_mismatch``.
+
+    Dispatch-failure handling (AC amendment, T2): if dispatch_review raises a
+    transport/parse failure (subprocess.CalledProcessError, json.JSONDecodeError,
+    or any OSError including ConnectionError/TimeoutError), the function emits
+    fail-closed synthetic BLOCK rulings for every critical/important finding.
+    Each synthetic ruling preserves the original ``severity`` and the input
+    ``finding_index``. Empty findings + dispatch failure returns an empty list
+    (no synthetic BLOCK for a nonexistent finding). The failure is logged to
+    stderr as ``arbiter_dispatch_failed reason=<exc> finding_count=<n>``.
+
+    NOTE: bare ``Exception`` is intentionally NOT caught — that would mask
+    downstream programming bugs as fake BLOCK rulings, defeating the purpose
+    of the fail-closed signal.
     """
-    defense_text = prior_defense.get("defense_text", "")
-    combined_diff = f"## Prior Defense\n\n{defense_text}\n\n## Diff Under Review\n\n{diff_text}"
+    # Empty findings: no dispatch needed, return empty (no synthetic BLOCK for
+    # nonexistent findings — would be meaningless and would pollute the gate).
+    if not findings:
+        return []
 
-    result = dispatch_review(
-        diff=combined_diff,
-        agent_id="code-reviewer-arbiter",
-        primary_model=model,
-        provider_chain=provider_chain,
-    )
-    return result
+    try:
+        result = dispatch_review(
+            diff=diff_text,
+            agent_id="code-reviewer-arbiter",
+            primary_model=model,
+            provider_chain=provider_chain,
+        )
+    except _DISPATCH_FAILURE_EXCEPTIONS as exc:
+        print(
+            f"arbiter_dispatch_failed reason={type(exc).__name__} "
+            f"finding_count={len(findings)}",
+            file=sys.stderr,
+        )
+        exc_msg = str(exc)[:200]
+        return [
+            {
+                "ruling": "BLOCK",
+                "rationale": (
+                    f"Arbiter dispatch failed: {type(exc).__name__}: {exc_msg}; "
+                    "defaulting to BLOCK; manual review required."
+                ),
+                "schema_version": "1.0.0",
+                "finding_index": i,
+                "severity": finding.get("severity", ""),
+                "finding_hash": finding.get("finding_hash", ""),
+            }
+            for i, finding in enumerate(findings)
+            if finding.get("severity") in ("critical", "important")
+        ]
+
+    # Agent contract: returns a JSON array of per-finding rulings.
+    # Backward-compat: a single-ruling dict response is wrapped in a list.
+    if isinstance(result, dict):
+        rulings_list = [result]
+    elif isinstance(result, list):
+        rulings_list = result
+    else:
+        raise ValueError(
+            f"Arbiter returned unexpected type: {type(result).__name__}; "
+            "expected list of per-finding ruling dicts or a single ruling dict."
+        )
+
+    # Length-mismatch detection (AC amendment): treat as dispatch failure.
+    if len(rulings_list) != len(findings):
+        print(
+            f"arbiter_length_mismatch findings={len(findings)} "
+            f"rulings={len(rulings_list)}",
+            file=sys.stderr,
+        )
+        return [
+            {
+                "ruling": "BLOCK",
+                "rationale": (
+                    f"Arbiter response length mismatch (got {len(rulings_list)} "
+                    f"rulings for {len(findings)} findings); defaulting to BLOCK; "
+                    "manual review required."
+                ),
+                "schema_version": "1.0.0",
+                "finding_index": i,
+                "severity": finding.get("severity", ""),
+                "finding_hash": finding.get("finding_hash", ""),
+            }
+            for i, finding in enumerate(findings)
+            if finding.get("severity") in ("critical", "important")
+        ]
+
+    # Per-finding processing: schema_version, CoVe fallback, validation.
+    validated_rulings: list[dict[str, Any]] = []
+    for ruling in rulings_list:
+        if "schema_version" not in ruling:
+            ruling["schema_version"] = "1.0.0"
+        ruling = _enforce_cove_fallback(ruling, cycle_num, max_cycles)
+        validate_cycle_end_ruling(ruling)
+        validated_rulings.append(ruling)
+
+    return validated_rulings
 
 
-def validate_arbiter_ruling(ruling: dict[str, Any], finding: dict[str, Any]) -> dict[str, Any]:
-    """Validate a DOWNGRADE_TO arbiter ruling.
-
-    A DOWNGRADE_TO ruling is only valid when named_rebuttal references at least
-    one file:line reference that does NOT appear in reviewer_severity_evidence.
-    If named_rebuttal only cites lines already in reviewer_severity_evidence,
-    the ruling is reclassified to ACCEPT_DEFENSE.
-
-    Non-DOWNGRADE_TO rulings are returned unchanged.
+def dispatch_cycle_end_arbiter(
+    findings: list[dict[str, Any]],
+    defenses: list[dict[str, Any]],
+    diff_text: str,
+    model: str,
+    provider_chain: list[str],
+    cycle_num: int,
+    max_cycles: int,
+) -> list[dict[str, Any]]:
+    """Cycle-end consolidation arbiter entry point. Delegates to dispatch_arbiter.
 
     Args:
-        ruling: The arbiter ruling dict (contains 'ruling' key and optionally
-                'severity_rebuttal' sub-dict).
-        finding: The original reviewer finding dict (contains 'cited_lines').
+        findings: List of unresolved finding dicts.
+        defenses: List of defense dicts.
+        diff_text: Unified diff text under review.
+        model: Primary model identifier.
+        provider_chain: Ordered list of provider names.
+        cycle_num: Current review cycle number.
+        max_cycles: Configured maximum review cycles.
 
     Returns:
-        The ruling dict, possibly with ruling='ACCEPT_DEFENSE' if the
-        DOWNGRADE_TO was invalid.
+        List of per-finding ruling dicts from dispatch_arbiter.
     """
-    ruling_value: str = ruling.get("ruling", "")
-    if not ruling_value.startswith("DOWNGRADE_TO"):
-        return ruling
-
-    severity_rebuttal = ruling.get("severity_rebuttal", {})
-    named_rebuttal: str = severity_rebuttal.get("named_rebuttal", "")
-    reviewer_severity_evidence: str = severity_rebuttal.get("reviewer_severity_evidence", "")
-
-    # Extract file:line references from named_rebuttal
-    rebuttal_refs = _FILE_LINE_RE.findall(named_rebuttal)
-
-    if not rebuttal_refs:
-        # No file:line references in named_rebuttal → no new evidence → invalid downgrade
-        result = dict(ruling)
-        result["ruling"] = "ACCEPT_DEFENSE"
-        return result
-
-    # Check whether all rebuttal refs appear in reviewer_severity_evidence
-    all_in_evidence = all(ref in reviewer_severity_evidence for ref in rebuttal_refs)
-
-    if all_in_evidence:
-        # named_rebuttal only cites lines already in the evidence set → invalid downgrade
-        result = dict(ruling)
-        result["ruling"] = "ACCEPT_DEFENSE"
-        return result
-
-    # At least one rebuttal ref is NOT in evidence → valid DOWNGRADE_TO
-    return ruling
+    return dispatch_arbiter(
+        findings, defenses, diff_text, model, provider_chain, cycle_num, max_cycles
+    )

@@ -1,0 +1,21 @@
+{
+  "_comment": "Schema-collision: fixture contains both old schema indicator AND new BLOCK/DEFER/DROP fields. New schema takes precedence; old field is informational only.",
+  "scenario": "SCHEMA_COLLISION",
+  "expected_handling": "graceful",
+  "expected_ruling_field_present": true,
+  "finding": {
+    "id": "f-collision-01",
+    "severity": "critical",
+    "dimension": "correctness",
+    "cited_lines": ["src/auth/login.py:42"]
+  },
+  "arbiter_ruling": {
+    "ruling": "BLOCK",
+    "old_schema_ruling_for_test": "SUSTAIN_AT_SEVERITY",
+    "rationale": "Defense rejected. Old schema field present for backward compat test.",
+    "schema_version": "1.0.0"
+  },
+  "old_schema_present": true,
+  "cycle": 1,
+  "max_cycles": 4
+}

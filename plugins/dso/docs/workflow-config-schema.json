@@ -531,12 +531,12 @@
       "description": "Review system configuration. Controls review resolution loop budget and complexity classifier behavior.",
       "additionalProperties": false,
       "properties": {
-        "max_resolution_attempts": {
+        "max_cycles": {
           "type": "integer",
-          "description": "Maximum autonomous fix/defend attempts before escalating to the user. Controls the Autonomous Resolution Loop in REVIEW-WORKFLOW.md, test-failure delegation in COMMIT-WORKFLOW.md and TEST-FAILURE-DISPATCH.md.",
-          "minimum": 1,
-          "default": 5,
-          "examples": [3, 5, 10]
+          "description": "Maximum autonomous fix/defend attempts (review cycles) before escalating to the user. Controls the Autonomous Resolution Loop in REVIEW-WORKFLOW.md, test-failure delegation in COMMIT-WORKFLOW.md and TEST-FAILURE-DISPATCH.md. Replaces deprecated key max_resolution_attempts.",
+          "minimum": 2,
+          "default": 4,
+          "examples": [3, 4, 5]
         },
         "behavioral_patterns": {
           "type": "string",
