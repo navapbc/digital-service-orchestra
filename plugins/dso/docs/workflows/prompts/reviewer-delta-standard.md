@@ -82,6 +82,33 @@ diff — apply all relevant sections.
   verify the referenced artifact exists via Glob/Read — documentation that references
   non-existent artifacts is as broken as code that imports a missing module
 
+**MANDATORY pre-check before any "file does not exist" / "missing reference" finding**
+(bug ece7-52a1-ae63-4de9):
+
+Before filing any finding that asserts a referenced script, file, agent, config key, or
+similar artifact does not exist, you MUST first verify via the Context-Request Protocol
+(see "Context-Request Protocol" section earlier in this prompt):
+
+1. Emit a `read_files` request for the exact path referenced (e.g.,
+   `tests/hooks/run-hook-tests.sh`). If the file exists, the dispatcher returns its
+   contents — your finding is invalid; do not emit it.
+2. If `read_files` returns an error indicating the path is missing, only then may you
+   emit the missing-reference finding.
+3. The same pre-check applies to `grep` requests for symbols, function names, and
+   config keys — request a grep before asserting absence.
+
+A finding asserting "file X does not exist" or "reference Y is unresolved" without an
+accompanying context-request that confirmed the absence is a hallucination — these are
+the most common false-positives in CI review and they erode reviewer trust. The
+verification cost (one extra dispatcher turn) is always lower than the cost of an
+unjustified blocking finding.
+
+This applies equally to:
+- Workflow files referencing `bash <script>.sh` invocations
+- Skill files referencing other skills via `/dso:<name>` shorthand
+- Agent prompts referencing tools, scripts, or helper files
+- Documentation referencing config keys or contract identifiers
+
 ---
 
 ## External Reference Verification
