@@ -424,13 +424,53 @@ for t in data:
             fi
             ticket_id="$existing_consolidation_id"
         else
+            # Build enriched description: PR URL, comment URL, and original body
+            # so a future agent acting on the ticket has full context without
+            # needing to consult GitHub (bug 8905-5697).
+            local pr_url comment_url
+            pr_url=$(gh pr view "$pr_number" --json url -q .url 2>/dev/null || true)
+            if [[ -n "$pr_url" ]]; then
+                comment_url="${pr_url}#discussion_r${comment_id}"
+            else
+                comment_url=""
+            fi
+
+            local description="## Deferred PR Comment
+
+### PR
+${pr_url:-PR #${pr_number}}
+
+### Comment
+${comment_url:-(comment id ${comment_id})}
+
+### Original Body
+${comment_body}"
+
+            # Best-effort: derive parent story from the most recent DSO-Story
+            # commit trailer on the PR head, so the deferred ticket links back
+            # to the story that the PR was implementing. Empty string falls
+            # through to no parent (tag-only attribution).
+            local _parent_story=""
+            local _pr_head_sha
+            _pr_head_sha=$(gh pr view "$pr_number" --json headRefOid -q .headRefOid 2>/dev/null || true)
+            if [[ -n "$_pr_head_sha" ]]; then
+                _parent_story=$(git log -50 --format=%B "$_pr_head_sha" 2>/dev/null \
+                    | grep -m1 -oE '^DSO-Story:[[:space:]]*[a-zA-Z0-9-]+' \
+                    | sed -E 's/^DSO-Story:[[:space:]]*//' || true)
+            fi
+            local _parent_flag=()
+            if [[ -n "$_parent_story" ]] && "$_dso_cmd" ticket exists "$_parent_story" >/dev/null 2>&1; then
+                _parent_flag=(--parent "$_parent_story")
+            fi
+
             local create_output=""
             local create_rc=0
             create_output=$("$_dso_cmd" ticket create task \
                 "$title" \
                 --priority 3 \
                 --tags "$pr_tag" \
-                -d "Deferred PR comment body: ${comment_body}" 2>&1) || create_rc=$?
+                "${_parent_flag[@]}" \
+                -d "$description" 2>&1) || create_rc=$?
 
             if (( create_rc != 0 )); then
                 echo "ERROR: defer ticket creation failed for comment $comment_id" >&2

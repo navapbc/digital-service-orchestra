@@ -283,3 +283,16 @@ sweep_validation_failures() {
 
     return 0
 }
+
+# CLI dispatch — allows subprocess invocation `bash error-sweep.sh sweep-tool-errors`.
+# Source-and-call from non-bash shells (zsh --emulate sh) hits a parse error at the
+# [[ =~ ([^|]+) ]] capture group above, leaving sweep_validation_failures undefined.
+# Invoking via `bash` subprocess guarantees the script runs under bash regardless of
+# the calling shell. Block runs only on direct execution; sourced use is unaffected.
+if [ "${BASH_SOURCE[0]:-}" = "$0" ]; then
+    case "${1:-}" in
+        sweep-tool-errors) sweep_tool_errors ;;
+        sweep-validation-failures) sweep_validation_failures ;;
+        *) echo "usage: $0 {sweep-tool-errors|sweep-validation-failures}" >&2; exit 2 ;;
+    esac
+fi
