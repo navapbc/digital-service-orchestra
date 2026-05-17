@@ -142,4 +142,9 @@ Both commands run from the session branch directory (not inside the worktree). `
 
 **Worktree Retention Protocol**: Do NOT remove a worktree until its harvest is complete. Worktrees with conflicts are retained for re-implementation (Step 6). Race condition guard: the worktree must be held open until harvest — Claude Code auto-cleanup is suppressed by the presence of uncommitted changes (or a sentinel file).
 
-**Important**: merge-to-main.sh runs ONCE at session end (Phase I), not per worktree merge. Each per-worktree harvest is worktree-branch → session-branch only.
+**Important — merge-to-main.sh invocation count depends on SPRINT_MODE** (bug `da45-7d92-6c86-42bc` doc reconciliation):
+
+- **`local` mode** (default): `merge-to-main.sh` runs ONCE at session end (Phase I). Each per-worktree harvest is `worktree-branch → session-branch` only (no story-branch wrap, no per-story PR — local mode does not use the GitHub PR review flow).
+- **`ci-pr` mode**: `merge-to-main.sh` runs **TWICE per story plus once at session end**: (1) per-worktree harvest still does `worktree-branch → session-branch`, then (2) Phase F (SKILL.md line 2049 — "Story branch merge before closure") wraps each story's accumulated session-branch commits into the pushed `STORY_BRANCH` and invokes `merge-to-main.sh` with `STORY_PR_BASE=$SESSION_BRANCH` to open a story→session PR (this is what triggers `per-branch-review.yml` for LLM Story Review), then (3) at session end (Phase I), `merge-to-main.sh` runs once more for the session→main PR.
+
+Per-worktree harvest is necessary but **not sufficient** in ci-pr mode — the Phase F story-branch merge is what binds harvested commits to a `story/<epic-id>/<story-id>` branch and triggers per-story LLM review. Skipping the Phase F invocation is exactly the failure mode that allowed 74 commits to accumulate without review in bug `da45-7d92-6c86-42bc`. The HARD-GATE in Step 5 prologue (`assert-story-branch.sh`) prevents harvest from proceeding without a story branch context to make the Phase F binding mechanical.
