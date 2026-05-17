@@ -18,8 +18,27 @@ if [[ "$_wf" != "ci-pr" || "$_sprint_active" -eq 0 ]]; then
     exit 0
 fi
 
-# Get latest commit message and parse trailers
-_commit_msg=$(git log -1 --format=%B 2>/dev/null || echo "")
+# Read the message of the commit BEING MADE, not the previous HEAD commit
+# (bug aba6-56fa). Resolution order:
+#   1. $1 if it points to a readable file — pre-commit framework passes the
+#      commit message file as the first positional arg under stages: [commit-msg]
+#   2. $GIT_DIR/COMMIT_EDITMSG — git writes the in-progress message here before
+#      firing commit-msg / pre-commit hooks; safe to read in either stage
+#   3. git log -1 — last-resort fallback for ad-hoc direct invocation outside
+#      a commit flow (e.g. test harness, manual debugging). Acknowledged to
+#      reflect previous-commit semantics; the upstream stages: [commit-msg]
+#      registration prevents this path in normal use.
+_msg_file=""
+if [[ -n "${1:-}" && -f "$1" ]]; then
+    _msg_file="$1"
+elif _git_dir=$(git rev-parse --git-dir 2>/dev/null) && [[ -f "$_git_dir/COMMIT_EDITMSG" ]]; then
+    _msg_file="$_git_dir/COMMIT_EDITMSG"
+fi
+if [[ -n "$_msg_file" ]]; then
+    _commit_msg=$(cat "$_msg_file" 2>/dev/null || echo "")
+else
+    _commit_msg=$(git log -1 --format=%B 2>/dev/null || echo "")
+fi
 _has_trailer=0
 if echo "$_commit_msg" | git interpret-trailers --parse 2>/dev/null | grep -q '^DSO-Story:'; then
     _has_trailer=1

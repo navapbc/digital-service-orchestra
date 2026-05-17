@@ -170,4 +170,46 @@ _exit5=0
 ) 2>/dev/null || _exit5=$?
 assert_eq "ci-pr+sprint-active+trailer: exit 0 (trailer satisfies gate)" "0" "$_exit5"
 
+# ---------------------------------------------------------------------------
+# test_trailer_read_from_msg_file_arg_not_head (aba6-56fa)
+# When invoked at commit-msg stage, pre-commit passes the message file as $1.
+# HEAD has NO trailer; the message file passed as $1 HAS a trailer.
+# The script must inspect $1 (the in-progress commit being made), not HEAD.
+# ---------------------------------------------------------------------------
+echo "--- test_trailer_read_from_msg_file_arg_not_head ---"
+_conf_dir6=$(mktemp -d)
+_TEMP_DIRS+=("$_conf_dir6")
+_conf6=$(make_workflow_config "$_conf_dir6" "ci-pr")
+# HEAD commit has NO trailer
+_repo6=$(make_git_repo_with_commit "Previous commit without trailer")
+touch "$_repo6/.sprint-active"
+# Build a message file with a valid trailer
+_msg_file6=$(mktemp)
+_TEMP_DIRS+=("$_msg_file6")
+printf 'fix: new commit\n\nDSO-Story: aba6-56fa-0000-0000\n' > "$_msg_file6"
+_exit6=0
+(
+    cd "$_repo6" && \
+    unset DSO_SPRINT_MODE && \
+    WORKFLOW_CONFIG_FILE="$_conf6" bash "$TARGET_SCRIPT" "$_msg_file6"
+) 2>/dev/null || _exit6=$?
+assert_eq "ci-pr+sprint-active: trailer in \$1 file satisfies gate even when HEAD lacks one" "0" "$_exit6"
+
+# Negative: HEAD has trailer, but the IN-PROGRESS commit (via $1) lacks one
+# → must reject. This proves the script consults $1, not HEAD.
+echo "--- test_trailer_rejects_when_msg_file_has_no_trailer_even_if_head_does ---"
+_repo7=$(make_git_repo_with_commit "Previous commit
+with DSO-Story: previous-story-0000")
+touch "$_repo7/.sprint-active"
+_msg_file7=$(mktemp)
+_TEMP_DIRS+=("$_msg_file7")
+printf 'fix: missing-trailer commit\n' > "$_msg_file7"
+_exit7=0
+(
+    cd "$_repo7" && \
+    unset DSO_SPRINT_MODE && \
+    WORKFLOW_CONFIG_FILE="$_conf6" bash "$TARGET_SCRIPT" "$_msg_file7"
+) 2>/dev/null || _exit7=$?
+assert_ne "ci-pr+sprint-active: \$1 lacks trailer must reject (HEAD trailer ignored)" "0" "$_exit7"
+
 print_summary
