@@ -26,7 +26,11 @@ _SCRIPTS_DIR = str(_REPO_ROOT / "plugins" / "dso" / "scripts")
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
 
-from dso_ci_review.arbiter import dispatch_arbiter, validate_cycle_end_ruling  # noqa: E402
+from dso_ci_review.arbiter import (  # noqa: E402
+    compute_ruling_from_fixture,
+    dispatch_arbiter,
+    validate_cycle_end_ruling,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -457,3 +461,64 @@ def test_validate_cycle_end_ruling_v1_1_0_with_valid_enum_values_passes():
     }
     result = validate_cycle_end_ruling(ruling)
     assert result == ruling, "Valid v1.1.0 ruling should be returned unchanged"
+
+
+# ---------------------------------------------------------------------------
+# Test 14-17: impact_class 8-category floor enforcement (29e7-826e)
+# ---------------------------------------------------------------------------
+
+
+def test_block_ruling_with_impact_class_none_reclassified_to_defer():
+    """BLOCK + impact_class='none' → DEFER reclassification."""
+    from dso_ci_review.arbiter import _enforce_impact_class_floor
+    ruling = {
+        "ruling": "BLOCK", "rationale": "original reason", "schema_version": "1.1.0",
+        "impact_class": "none",
+        "cross_reviewer_agreement": ["UNANIMOUS"],
+        "cross_cycle_pattern": ["NEW_INTRODUCED"],
+    }
+    result = _enforce_impact_class_floor(ruling)
+    assert result["ruling"] == "DEFER"
+    assert "impact_class floor" in result["rationale"]
+    assert "original reason" in result["rationale"]  # preserves original
+
+
+def test_block_ruling_with_impact_class_in_floor_preserved():
+    """BLOCK + impact_class='security_vulnerability' (in floor) → BLOCK preserved."""
+    from dso_ci_review.arbiter import _enforce_impact_class_floor
+    ruling = {
+        "ruling": "BLOCK", "rationale": "test", "schema_version": "1.1.0",
+        "impact_class": "security_vulnerability",
+        "cross_reviewer_agreement": ["UNANIMOUS"],
+        "cross_cycle_pattern": ["NEW_INTRODUCED"],
+    }
+    result = _enforce_impact_class_floor(ruling)
+    assert result["ruling"] == "BLOCK"
+    assert result["rationale"] == "test"  # unchanged
+
+
+def test_compute_ruling_from_fixture_applies_impact_class_floor():
+    """Fixture with BLOCK + impact_class='none' → computed ruling reclassifies to DEFER."""
+    fixture = {
+        "arbiter_ruling": {
+            "ruling": "BLOCK", "rationale": "BLOCK on minor", "schema_version": "1.1.0",
+            "impact_class": "none",
+            "cross_reviewer_agreement": ["UNANIMOUS"],
+            "cross_cycle_pattern": ["NEW_INTRODUCED"],
+        },
+        "cycle": 1, "max_cycles": 4,
+    }
+    result = compute_ruling_from_fixture(fixture)
+    assert result["ruling"] == "DEFER"
+    assert "impact_class floor" in result["rationale"]
+
+
+def test_block_ruling_v1_0_0_legacy_no_floor_check():
+    """v1.0.0 ruling without impact_class field → no floor check applied (backward compat)."""
+    from dso_ci_review.arbiter import _enforce_impact_class_floor
+    ruling = {
+        "ruling": "BLOCK", "rationale": "legacy", "schema_version": "1.0.0",
+        # No impact_class field
+    }
+    result = _enforce_impact_class_floor(ruling)
+    assert result["ruling"] == "BLOCK"  # unchanged for legacy
