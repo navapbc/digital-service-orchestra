@@ -13,7 +13,7 @@
 #   B1. test_write_cycle_ledger_normal_write              — creates ledger with epic_id, cycles[], timestamp_utc
 #   B2. test_write_cycle_ledger_appends                   — second write appends (does not overwrite)
 #   B3. test_write_cycle_ledger_concurrent                — concurrent writes produce non-corrupt JSON
-#   B4. test_write_cycle_ledger_schema_version            — output JSON contains schema_version="1.0.0"
+#   B4. test_write_cycle_ledger_schema_version            — output JSON contains schema_version="1.1.0"
 #   B5. test_write_cycle_ledger_ci_reconstruction         — --reconstruct-from-pr sets reconstruction_gaps:true
 #   B6. test_write_cycle_ledger_missing_file_reconstruction_gaps — partial PR data sets reconstruction_gaps:true
 #
@@ -360,7 +360,7 @@ print(len(nums) - len(set(nums)))
 test_write_cycle_ledger_concurrent
 
 # ---------------------------------------------------------------------------
-# B4: schema_version field equals "1.0.0"
+# B4: schema_version field equals "1.1.0" (bumped in story 45da-5043; see contract)
 # ---------------------------------------------------------------------------
 
 test_write_cycle_ledger_schema_version() {
@@ -389,7 +389,7 @@ test_write_cycle_ledger_schema_version() {
 
     local schema_version
     schema_version=$(python3 -c "import json; d=json.load(open('$ledger_file')); print(d.get('schema_version','missing'))" 2>/dev/null || echo "parse-error")
-    assert_eq "schema_version is 1.0.0" "1.0.0" "$schema_version"
+    assert_eq "schema_version is 1.1.0" "1.1.0" "$schema_version"
 }
 test_write_cycle_ledger_schema_version
 
