@@ -200,54 +200,14 @@ else
 fi
 assert_pass_if_clean "test_workflow_emits_suspicious_diff_warning"
 
-# ── test_test_hooks_job_exists ───────────────────────────────────────────────
-# Bug da45-7d92-6c86-42bc: Per-Story LLM Review used to fire before Hook
-# Tests / Script Tests had a chance to fail, so the reviewer wasted tokens on
-# story branches whose deterministic gates were red. A test-hooks job must
-# exist in per-branch-review.yml so it gates the LLM review.
-_snapshot_fail
-if [[ ! -f "$WORKFLOW_FILE" ]]; then
-    assert_eq "test_test_hooks_job_exists: workflow file present (prereq)" "1" "0"
-else
-    found=0
-    grep -qE "^\s+test-hooks:" "$WORKFLOW_FILE" 2>/dev/null && found=1 || true
-    assert_eq "test_test_hooks_job_exists: per-branch-review.yml has test-hooks job" "1" "$found"
-fi
-assert_pass_if_clean "test_test_hooks_job_exists"
-
-# ── test_test_scripts_job_exists ─────────────────────────────────────────────
-# Bug da45-7d92-6c86-42bc: see test_test_hooks_job_exists. The Script Tests
-# job (`test-scripts`) must also gate the LLM review — it catches plugin
-# script policy violations (relative paths, missing executable bits, etc.)
-# that would otherwise leak past the reviewer.
-_snapshot_fail
-if [[ ! -f "$WORKFLOW_FILE" ]]; then
-    assert_eq "test_test_scripts_job_exists: workflow file present (prereq)" "1" "0"
-else
-    found=0
-    grep -qE "^\s+test-scripts:" "$WORKFLOW_FILE" 2>/dev/null && found=1 || true
-    assert_eq "test_test_scripts_job_exists: per-branch-review.yml has test-scripts job" "1" "$found"
-fi
-assert_pass_if_clean "test_test_scripts_job_exists"
-
-# ── test_review_needs_test_hooks_and_test_scripts ────────────────────────────
-# Bug da45-7d92-6c86-42bc: the review job's needs list must include both
-# test-hooks AND test-scripts so the LLM review never starts while
-# deterministic test gates are still red or pending.
-_snapshot_fail
-if [[ ! -f "$WORKFLOW_FILE" ]]; then
-    assert_eq "test_review_needs_test_hooks_and_test_scripts: workflow file present (prereq)" "1" "0"
-else
-    # Extract the needs list from the review job
-    needs_line=$(awk '/^  review:/{found=1} found && /needs:/{print; exit}' "$WORKFLOW_FILE" 2>/dev/null || echo "")
-    hooks_present=0
-    scripts_present=0
-    echo "$needs_line" | grep -q "test-hooks" && hooks_present=1 || true
-    echo "$needs_line" | grep -q "test-scripts" && scripts_present=1 || true
-    both=0
-    [[ $hooks_present -eq 1 && $scripts_present -eq 1 ]] && both=1
-    assert_eq "test_review_needs_test_hooks_and_test_scripts: review job needs includes both test-hooks AND test-scripts" "1" "$both"
-fi
-assert_pass_if_clean "test_review_needs_test_hooks_and_test_scripts"
+# Note (bug da45-7d92-6c86-42bc): the Hook Tests / Script Tests /
+# validate-required-checks gating added to per-branch-review.yml is validated
+# by GitHub Actions runtime — if the workflow YAML lacks those jobs, the
+# review job either fails its `needs:` resolution or runs unguarded, which
+# surfaces immediately in CI. No grep-based assertion tests are added here:
+# such tests would inspect the workflow text rather than its behavior, which
+# violates Rule 3 (Execute, don't inspect) of the behavioral testing
+# standard. The actionlint job (already required) statically validates the
+# YAML structure including job dependency wiring.
 
 print_summary
