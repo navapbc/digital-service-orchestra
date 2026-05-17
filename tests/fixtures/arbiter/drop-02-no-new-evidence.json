@@ -1,0 +1,19 @@
+{
+  "_comment": "DROP ruling: finding is not actionable (cited code does not exist in diff).",
+  "scenario": "DROP",
+  "expected_ruling": "DROP",
+  "finding": {
+    "id": "f-drop-02",
+    "severity": "important",
+    "dimension": "correctness",
+    "cited_lines": ["src/services/validator.py:33"]
+  },
+  "arbiter_ruling": {
+    "ruling": "DROP",
+    "rationale": "Cited line does not exist in the diff; finding is factually incorrect and has no evidence.",
+    "schema_version": "1.0.0"
+  },
+  "cycle": 3,
+  "max_cycles": 4,
+  "defense_present": false
+}

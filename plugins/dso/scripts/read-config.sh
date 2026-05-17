@@ -58,6 +58,37 @@ if [[ "$key" == "dso.workflow" ]]; then
     exit 0
 fi
 
+# ── review.max_cycles shim ───────────────────────────────────────────────────
+# Backward-compat: when only the old key review.max_resolution_attempts is set,
+# reading review.max_cycles returns that value with a deprecation warning.
+# When both keys are set, the new key (review.max_cycles) takes priority.
+if [[ "$key" == "review.max_cycles" ]]; then
+    _rc_config="$config_file"
+    if [[ -z "$_rc_config" ]]; then
+        if [[ -n "${WORKFLOW_CONFIG_FILE:-}" ]]; then
+            _rc_config="${WORKFLOW_CONFIG_FILE}"
+        else
+            _git_root=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+            [[ -n "$_git_root" && -f "$_git_root/.claude/dso-config.conf" ]] && _rc_config="$_git_root/.claude/dso-config.conf"
+        fi
+    fi
+    if [[ -f "${_rc_config:-}" ]]; then
+        _new_val=$(grep -m1 "^review\.max_cycles=" "$_rc_config" 2>/dev/null | cut -d= -f2-)
+        if [[ -n "$_new_val" ]]; then
+            printf '%s' "$_new_val"
+            exit 0
+        fi
+        _old_val=$(grep -m1 "^review\.max_resolution_attempts=" "$_rc_config" 2>/dev/null | cut -d= -f2-)
+        if [[ -n "$_old_val" ]]; then
+            [[ -z "${DSO_DEPRECATION_QUIET:-}" ]] && echo "DSO deprecation: review.max_resolution_attempts is deprecated; rename to review.max_cycles in dso-config.conf" >&2
+            printf '%s' "$_old_val"
+            exit 0
+        fi
+    fi
+    printf ''
+    exit 0
+fi
+
 # Sentinel lockout for legacy keys — after migration, any read of a legacy key fails fast.
 # IMPORTANT: Do NOT commit .claude/.dso-config-v2-migrated until after S6 legacy-reference
 # cleanup is merged. The sentinel file should be gitignored locally during the S3→S6 window.

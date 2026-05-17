@@ -394,7 +394,7 @@ If a pattern change is proposed, read and execute `${CLAUDE_PLUGIN_ROOT}/docs/wo
   - [docs/reviewers/architectural/project-alignment.md](docs/reviewers/architectural/project-alignment.md) — `"Project Alignment"`
   - [docs/reviewers/architectural/justification.md](docs/reviewers/architectural/justification.md) — `"Justification"`
 
-**Fallback**: if the review fails after autonomous resolution (`review.max_resolution_attempts`, default: 5) and user escalation, revert to existing patterns and note the unresolved concern. If no existing pattern solves the story, halt and consult the user.
+**Fallback**: if the review fails after autonomous resolution (`review.max_cycles`, default: 4) and user escalation, revert to existing patterns and note the unresolved concern. If no existing pattern solves the story, halt and consult the user.
 
 ---
 

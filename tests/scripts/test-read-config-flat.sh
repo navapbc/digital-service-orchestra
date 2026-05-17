@@ -41,7 +41,7 @@ staging.url=http://example.com/stage?mode=full&env=prod
 merge.message_exclusion_pattern=^chore: post-merge cleanup
 database.base_port=5432
 inline.equals.value=a=b=c
-review.max_resolution_attempts=3
+review.max_cycles=3
 CONF
 
 
@@ -129,25 +129,64 @@ actual=$(bash "$SCRIPT" inline.equals.value "$FIXTURE_CONF")
 assert_eq "test_inline_values_with_equals" "a=b=c" "$actual"
 assert_pass_if_clean "test_inline_values_with_equals"
 
-# ── test_review_max_resolution_attempts ────────────────────────────────────────
-# Reads the review.max_resolution_attempts numeric config key.
+# ── test_review_max_cycles ─────────────────────────────────────────────────────
+# Reads the review.max_cycles numeric config key.
 _snapshot_fail
-actual=$(bash "$SCRIPT" review.max_resolution_attempts "$FIXTURE_CONF")
-assert_eq "test_review_max_resolution_attempts" "3" "$actual"
-assert_pass_if_clean "test_review_max_resolution_attempts"
+actual=$(bash "$SCRIPT" review.max_cycles "$FIXTURE_CONF")
+assert_eq "test_review_max_cycles" "3" "$actual"
+assert_pass_if_clean "test_review_max_cycles"
 
-# ── test_review_max_resolution_attempts_default ───────────────────────────────
-# When review.max_resolution_attempts is absent, scalar mode returns empty (caller applies default).
+# ── test_review_max_cycles_default ────────────────────────────────────────────
+# When review.max_cycles is absent, scalar mode returns empty (caller applies default).
 _snapshot_fail
 NO_REVIEW_CONF="$TMPDIR_FIXTURE/no-review.conf"
 cat > "$NO_REVIEW_CONF" <<'CONF2'
 commands.test=make test
 CONF2
-actual=$(bash "$SCRIPT" review.max_resolution_attempts "$NO_REVIEW_CONF")
+actual=$(bash "$SCRIPT" review.max_cycles "$NO_REVIEW_CONF")
 rc=$?
-assert_eq "test_review_max_resolution_attempts_default value" "" "$actual"
-assert_eq "test_review_max_resolution_attempts_default exit" "0" "$rc"
-assert_pass_if_clean "test_review_max_resolution_attempts_default"
+assert_eq "test_review_max_cycles_default value" "" "$actual"
+assert_eq "test_review_max_cycles_default exit" "0" "$rc"
+assert_pass_if_clean "test_review_max_cycles_default"
+
+# ── test_review_max_resolution_attempts_alias ─────────────────────────────────
+# Backward-compat: when ONLY review.max_resolution_attempts is set (old key),
+# reading review.max_cycles should return the old value via alias shim.
+# RED: this test fails until read-config.sh shim is added (T2).
+_snapshot_fail
+OLD_KEY_CONF="$TMPDIR_FIXTURE/old-key.conf"
+cat > "$OLD_KEY_CONF" <<'CONF3'
+commands.test=make test
+review.max_resolution_attempts=7
+CONF3
+actual=$(DSO_DEPRECATION_QUIET=1 bash "$SCRIPT" review.max_cycles "$OLD_KEY_CONF")
+rc=$?
+assert_eq "test_review_max_resolution_attempts_alias value" "7" "$actual"
+assert_eq "test_review_max_resolution_attempts_alias exit" "0" "$rc"
+assert_pass_if_clean "test_review_max_resolution_attempts_alias"
+
+# ── test_review_max_resolution_attempts_alias_deprecation_warning ─────────────
+# Backward-compat alias emits a deprecation warning to stderr (without quiet flag).
+# RED: this test fails until read-config.sh shim is added (T2).
+_snapshot_fail
+stderr_out=$(bash "$SCRIPT" review.max_cycles "$OLD_KEY_CONF" 2>&1 >/dev/null)
+assert_contains "test_review_max_resolution_attempts_alias_deprecation_warning" "deprecated" "$stderr_out"
+assert_pass_if_clean "test_review_max_resolution_attempts_alias_deprecation_warning"
+
+# ── test_review_max_cycles_takes_precedence ───────────────────────────────────
+# When BOTH review.max_cycles and review.max_resolution_attempts are set,
+# the new key (review.max_cycles) wins.
+# RED: this test fails until read-config.sh shim is added (T2).
+_snapshot_fail
+BOTH_KEYS_CONF="$TMPDIR_FIXTURE/both-keys.conf"
+cat > "$BOTH_KEYS_CONF" <<'CONF4'
+commands.test=make test
+review.max_cycles=4
+review.max_resolution_attempts=7
+CONF4
+actual=$(DSO_DEPRECATION_QUIET=1 bash "$SCRIPT" review.max_cycles "$BOTH_KEYS_CONF")
+assert_eq "test_review_max_cycles_takes_precedence" "4" "$actual"
+assert_pass_if_clean "test_review_max_cycles_takes_precedence"
 
 # ── test_no_yaml_fallback ─────────────────────────────────────────────────────
 # When the specified config file does not exist, script exits 0 with empty output.

@@ -95,7 +95,7 @@ plugins/dso/docs/workflows/prompts/reviewer-delta-standard.md:tests/docs/test-re
 plugins/dso/docs/workflows/prompts/reviewer-meta.sh:tests/unit/scripts/test-build-review-agents.sh,tests/scripts/test-reviewer-agent-review-tier.sh
 plugins/dso/docs/workflows/REVIEW-PROTOCOL-WORKFLOW.md:tests/hooks/test-review-protocol-workflow.sh
 plugins/dso/docs/workflows/REVIEW-WORKFLOW-HUGE.md:tests/workflows/test-review-workflow-huge-divert.sh,tests/workflows/test-review-workflow-huge.sh
-plugins/dso/docs/workflows/REVIEW-WORKFLOW.md:tests/workflows/test-review-workflow-huge-divert.sh,tests/workflows/test-review-workflow-compute-hash-path.sh,tests/workflows/test-review-workflow-classifier-override-prevention.sh,tests/workflows/test-review-workflow-size-thresholds.sh,tests/workflows/test-review-workflow-plugin-root-fallback.sh,tests/workflows/test-review-workflow-no-snapshot.sh,tests/workflows/test-review-workflow-huge.sh,tests/workflows/test-review-workflow-classifier-failure-guards.sh,tests/hooks/test-review-workflow-classifier-dispatch.sh,tests/hooks/test-review-workflow-deep-tier-dispatch-guidance.sh,tests/hooks/test-review-protocol-workflow.sh,tests/scripts/test-review-workflow-dispatch-pattern.sh,tests/skills/test_review_workflow_model_escalation.py,tests/scripts/test-compute-diff-hash-shim-refs.sh,tests/workflows/test-review-workflow-severity-schema.sh,tests/workflows/test-review-workflow-verifier-dispatch.sh [test_review_workflow_verifier_step_documented]
+plugins/dso/docs/workflows/REVIEW-WORKFLOW.md:tests/workflows/test-review-workflow-huge-divert.sh,tests/workflows/test-review-workflow-compute-hash-path.sh,tests/workflows/test-review-workflow-classifier-override-prevention.sh,tests/workflows/test-review-workflow-size-thresholds.sh,tests/workflows/test-review-workflow-plugin-root-fallback.sh,tests/workflows/test-review-workflow-no-snapshot.sh,tests/workflows/test-review-workflow-huge.sh,tests/workflows/test-review-workflow-classifier-failure-guards.sh,tests/hooks/test-review-workflow-classifier-dispatch.sh,tests/hooks/test-review-workflow-deep-tier-dispatch-guidance.sh,tests/hooks/test-review-protocol-workflow.sh,tests/scripts/test-review-workflow-dispatch-pattern.sh,tests/skills/test_review_workflow_model_escalation.py,tests/scripts/test-compute-diff-hash-shim-refs.sh,tests/workflows/test-review-workflow-severity-schema.sh,tests/workflows/test-review-workflow-verifier-dispatch.sh [test_review_workflow_verifier_step_documented],tests/skills/test_review_workflow_jaccard_halt.py [test_jaccard_stable_halt]
 plugins/dso/hooks/**/*.sh:tests/hooks/test-no-plugin-comment-refs.sh
 plugins/dso/hooks/check-artifact-versions.sh:tests/scripts/test-artifact-update-integration.sh
 plugins/dso/hooks/check-plugin-self-ref.sh:tests/hooks/test-enforcement-gate.sh
@@ -192,11 +192,14 @@ plugins/dso/scripts/create-sprint-draft-pr.sh:tests/scripts/test-create-sprint-d
 plugins/dso/scripts/design-approve.sh:tests/scripts/test-design-approve.sh
 plugins/dso/scripts/ci-review-corpus-delta.sh:tests/skills/dso_ci_review/test-ci-review-corpus-delta.sh
 plugins/dso/scripts/dso_ci_review/context_request.py:tests/skills/dso_ci_review/test_context_augmentation.py
+plugins/dso/scripts/dso_ci_review/cycle_ledger.py:tests/skills/dso_ci_review/test_cycle_ledger.py [test_read_ledger_returns_empty_when_file_absent]
 plugins/dso/scripts/dso_ci_review/dispatch.py:tests/skills/dso_ci_review/test_dispatch_fallback.py,tests/skills/dso_ci_review/test_tier_wiring.py,tests/skills/dso_ci_review/test_context_augmentation.py,tests/skills/dso_ci_review/test_prompt_caching.py,tests/skills/dso_ci_review/test_integration_full_loop.py,tests/skills/dso_ci_review/test_dispatch_schema_correction.py
-plugins/dso/scripts/dso_ci_review/arbiter.py:tests/skills/dso_ci_review/test_arbiter.py [test_dispatch_arbiter_called_on_resustain_of_with_prior_defense]
+plugins/dso/scripts/dso_ci_review/arbiter.py:tests/skills/dso_ci_review/test_arbiter.py [test_dispatch_arbiter_returns_block_when_critical_finding_undefended,test_dispatch_arbiter_returns_defer_when_cycle_exceeds_max,test_validate_cycle_end_ruling_raises_on_unknown_ruling]
+plugins/dso/scripts/dso_ci_review/cycle_dispatcher.py:tests/skills/dso_ci_review/test_cycle_dispatcher.py [test_dispatch_arbiter_when_cycle_num_reaches_max]
 plugins/dso/scripts/dso_ci_review/findings.py:tests/skills/dso_ci_review/test_findings.py,tests/skills/dso_ci_review/test_region_dedup.py
 plugins/dso/scripts/dso_ci_review/proximity.py:tests/skills/dso_ci_review/test_proximity.py
 plugins/dso/scripts/dso_ci_review/speculation_markers.py:tests/skills/dso_ci_review/test_speculation_markers.py
+plugins/dso/scripts/dso_ci_review/stability.py:tests/skills/dso_ci_review/test_stability.py [test_jaccard_zero_set_both_empty]
 plugins/dso/scripts/dso_ci_review/providers/config.py:tests/skills/dso_ci_review/test_providers_config.py,tests/skills/dso_ci_review/test_dispatch_config.py
 plugins/dso/scripts/dso_ci_review/providers/openai.py:tests/skills/dso_ci_review/test_providers_unit.py [test_openai_provider_review_diff]
 plugins/dso/scripts/dso_ci_review/region_split.py:tests/skills/dso_ci_review/test_region_split.py
@@ -245,6 +248,7 @@ plugins/dso/scripts/preconditions-record.sh:tests/scripts/test-preconditions-rec
 plugins/dso/scripts/preconditions-validator.sh:tests/scripts/test-preconditions-validator.sh,tests/skills/test-preplanning-preconditions-integration.sh
 plugins/dso/scripts/lib/pr-comment-lib.sh:tests/scripts/test-pr-comment-lib.sh [test_probe_mcp_exits_0_on_success]
 plugins/dso/scripts/pr-comment-response.sh:tests/integration/test-pr-comment-response-integration.sh,tests/scripts/test-pr-comment-response.sh,tests/scripts/test-pr-comment-response-accept.sh,tests/scripts/test-pr-comment-response-defend.sh
+plugins/dso/scripts/read-config.sh:tests/scripts/test-read-config-flat.sh [test_review_max_resolution_attempts_alias]
 plugins/dso/scripts/read-overlay-flags.sh:tests/scripts/test-read-overlay-flags.sh
 plugins/dso/scripts/recipe-adapters/ts-morph-add-parameter.mjs:tests/scripts/test-ts-morph-add-parameter.sh
 plugins/dso/scripts/recipe-adapters/ts-morph-normalize-imports.mjs:tests/scripts/test-ts-morph-normalize-imports.sh
@@ -320,6 +324,7 @@ plugins/dso/scripts/validate-phase.sh:tests/scripts/test-validate-phase-missing-
 plugins/dso/scripts/validate-review-output.sh:tests/hooks/test-validate-review-output.sh [test_absence_claim_soft_mode_warns_on_missing_verification_evidence],tests/scripts/test-write-reviewer-findings.sh
 plugins/dso/docs/contracts/absence-claim-anchors.json:tests/hooks/test-validate-review-output.sh [test_absence_claim_soft_mode_warns_on_missing_verification_evidence]
 plugins/dso/scripts/validate-verifier-output.sh:tests/agents/test-validate-verifier-output.sh [test_verifier_script_exists]
+plugins/dso/scripts/validate-config.sh:tests/scripts/test-validate-config.sh [test_review_max_cycles_valid_key]
 plugins/dso/scripts/validate.sh:tests/scripts/test-validate-config-driven.sh
 plugins/dso/scripts/worktree-cleanup.sh:tests/scripts/test_worktree_cleanup_startup_config.py,tests/scripts/test_worktree_cleanup_gather_progress.py,tests/scripts/test-worktree-cleanup.sh,tests/scripts/test-worktree-pr-merge-detection.sh,tests/scripts/test-claude-safe-stale-local-main.sh
 plugins/dso/skills/**/*.md:tests/hooks/test-no-plugin-markdown-refs.sh
@@ -441,7 +446,9 @@ plugins/dso/scripts/check-sprint-trailer.sh:tests/hooks/test-check-sprint-traile
 .pre-commit-config.yaml:tests/hooks/test-sprint-trailer-registration.sh
 plugins/dso/scripts/detect-session-leakage.sh:tests/scripts/test-detect-session-leakage.sh
 plugins/dso/scripts/sprint/compute-rereviewed-loc.sh:tests/scripts/test-compute-rereviewed-loc.sh
-plugins/dso/scripts/review-defense-store.sh:tests/review/test-defense-store-ticket-binding.sh,tests/review/test-defense-store-sha-range.sh
+plugins/dso/scripts/review-defense-store.sh:tests/review/test-defense-store-ticket-binding.sh,tests/review/test-defense-store-sha-range.sh,tests/review/test-defense-store-dropped-by-arbiter.sh [test_defense_store_drops_unknown_defense_type_gracefully],tests/review/test-arbiter-ruling-dispatch.sh [test_defer_ruling_creates_orphan_ticket]
+tests/review/test-defense-store-dropped-by-arbiter.sh:tests/review/test-defense-store-dropped-by-arbiter.sh [test_defense_store_drops_unknown_defense_type_gracefully]
+tests/review/test-arbiter-ruling-dispatch.sh:tests/review/test-arbiter-ruling-dispatch.sh [test_defer_ruling_creates_orphan_ticket]
 plugins/dso/scripts/check-unacked-degradations.sh:tests/scripts/test-check-unacked-degradations.sh
 plugins/dso/scripts/preconditions-ack.sh:tests/scripts/test-preconditions-ack.sh,tests/scripts/test-preconditions-ack-sample.sh
 plugins/dso/agents/code-reviewer-light.md:tests/agents/test-verification-evidence-emission.sh
@@ -461,3 +468,5 @@ plugins/dso/scripts/migrate-dso-workflow-config.sh:tests/scripts/test-legacy-cle
 plugins/dso/scripts/migrate-story-pr-bases.sh:tests/scripts/test-migrate-story-pr-bases.sh
 plugins/dso/scripts/verify-session-provenance.sh:tests/scripts/test-verify-session-provenance.sh,tests/scripts/test-bug-reproducer-cafb.sh
 plugins/dso/scripts/redistribute-session-commits.sh:tests/scripts/test-redistribute-session-commits.sh [test_script_exists]
+plugins/dso/scripts/write-cycle-ledger.sh:tests/scripts/test-write-cycle-ledger.sh,tests/scripts/test-write-cycle-ledger-integration.sh
+tests/scripts/test-cycle-arbiter.sh:tests/scripts/test-cycle-arbiter.sh [test_block_critical_defense_absent_ruling]

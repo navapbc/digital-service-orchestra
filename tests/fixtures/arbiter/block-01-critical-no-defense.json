@@ -1,0 +1,19 @@
+{
+  "_comment": "BLOCK ruling: severity=critical, defense absent, cycle within max_cycles.",
+  "scenario": "BLOCK",
+  "expected_ruling": "BLOCK",
+  "finding": {
+    "id": "f-block-01",
+    "severity": "critical",
+    "dimension": "correctness",
+    "cited_lines": ["src/auth/login.py:42"]
+  },
+  "arbiter_ruling": {
+    "ruling": "BLOCK",
+    "rationale": "Defense absent; critical severity finding with no rebuttal evidence.",
+    "schema_version": "1.0.0"
+  },
+  "cycle": 2,
+  "max_cycles": 4,
+  "defense_present": false
+}
