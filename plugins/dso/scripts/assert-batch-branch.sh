@@ -4,12 +4,11 @@
 # on per-branch-review.yml firing on push) without a properly created and
 # pushed bug-batch sub-branch.
 #
-# This is the debug-everything analog of assert-story-branch.sh (which guards
-# sprint's Phase E story-branch contract). Without this gate, an orchestrator
-# error that skipped `git checkout -b bug-batch/...` or `git push origin <sub>`
-# silently lands the changes on the session branch with no CI review — the
-# exact failure mode that PR #188 + Phase 2 closed for sprint but left open
-# for debug-everything.
+# Without this gate, an orchestrator error that skipped
+# `git checkout -b bug-batch/...` or `git push origin <sub>` silently lands the
+# changes on the session branch with no CI review — the exact failure mode that
+# PR #188 (Flow A) closed for direct PRs but left open for debug-everything's
+# bug-batch/** flow (Flow C).
 #
 # Contract:
 #   - When dso.workflow != ci-pr → exit 0 silently (no-op).
@@ -31,7 +30,7 @@
 #   0 — local mode no-op, or ci-pr mode with batch branch present + pushed
 #   1 — ci-pr mode missing/invalid BATCH_BRANCH / branch / origin tracking
 
-set -uo pipefail
+set -euo pipefail
 
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_SCRIPT_DIR/.." && pwd)}"
@@ -58,10 +57,10 @@ ERROR: assert-batch-branch.sh requires a branch name as the first argument.
 The debug-everything orchestrator must create a bug-batch sub-branch before
 opening a per-tier or per-batch PR.
 
-Remediation:
-  git checkout -b "bug-batch/\$DEBUG_SESSION_ID/tier-\$N[-batch-\$K]"
-  git push -u origin "bug-batch/\$DEBUG_SESSION_ID/tier-\$N[-batch-\$K]"
-  bash "\$PLUGIN_SCRIPTS/assert-batch-branch.sh" "\$BATCH_BRANCH"
+Remediation (example for debug-session 2026-05-17, tier 3 batch 1):
+  git checkout -b "bug-batch/2026-05-17-debug/tier-3-batch-1"
+  git push -u origin "bug-batch/2026-05-17-debug/tier-3-batch-1"
+  .claude/scripts/dso assert-batch-branch.sh "bug-batch/2026-05-17-debug/tier-3-batch-1"
 
 Without a pushed bug-batch sub-branch, per-branch-review.yml will not trigger
 and LLM Sub-Branch Review will be silently bypassed.
@@ -84,8 +83,16 @@ EOF
     exit 1
 fi
 
-# Verify the branch exists locally.
-if ! git branch --list "$BATCH_BRANCH" 2>/dev/null | grep -qE "[[:space:]]?${BATCH_BRANCH}\$"; then
+# Verify the branch exists locally. Uses `git show-ref --verify` (exact ref
+# match) rather than `git branch --list | grep` because:
+#   - `git branch` prefixes the current branch with `* ` (e.g. `* bug-batch/...`),
+#     which a naive regex check fails to match.
+#   - Branch names can contain regex metacharacters (`.`, `*`, `+`) that would
+#     misbehave in a `grep -E` pattern.
+# `git show-ref --verify --quiet refs/heads/<name>` does an exact ref lookup
+# with no regex semantics and is the canonical way to test for local branch
+# existence.
+if ! git show-ref --verify --quiet "refs/heads/$BATCH_BRANCH"; then
     cat >&2 <<EOF
 ERROR: BATCH_BRANCH='$BATCH_BRANCH' does not exist locally.
 

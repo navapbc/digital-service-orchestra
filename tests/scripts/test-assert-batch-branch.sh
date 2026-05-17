@@ -4,13 +4,12 @@
 #
 # Refuses to allow debug-everything Phase F/G to open a sub-branch PR (and
 # rely on per-branch-review.yml firing) when in ci-pr mode without a properly
-# created and pushed bug-batch sub-branch. Companion script to
-# assert-story-branch.sh (Phase E sprint analog).
+# created and pushed bug-batch sub-branch.
 #
 # Usage: bash tests/scripts/test-assert-batch-branch.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
-set -uo pipefail
+set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -61,10 +60,10 @@ _make_repo_with_remote() {
 echo "Test 1: script is executable at plugin location"
 if [ -x "$SCRIPT" ]; then
     echo "  PASS"
-    (( PASS++ ))
+    PASS=$((PASS+1))
 else
     echo "  FAIL: script missing or not executable at $SCRIPT" >&2
-    (( FAIL++ ))
+    FAIL=$((FAIL+1))
 fi
 
 # ── Test 2: local mode is a no-op (exit 0) regardless of args ────────────────
@@ -79,10 +78,10 @@ test_local_mode_is_noop() {
     ) || exit_code=$?
     if [ "$exit_code" -eq 0 ]; then
         echo "  PASS"
-        (( PASS++ ))
+        PASS=$((PASS+1))
     else
         echo "  FAIL: expected exit 0 in local mode, got $exit_code" >&2
-        (( FAIL++ ))
+        FAIL=$((FAIL+1))
     fi
 }
 test_local_mode_is_noop
@@ -99,11 +98,11 @@ test_ci_pr_missing_arg_fails() {
     ) || exit_code=$?
     if [ "$exit_code" -ne 0 ] && echo "$stderr_output" | grep -qE "git checkout -b .*bug-batch"; then
         echo "  PASS: exit $exit_code, stderr mentions bug-batch remediation"
-        (( PASS++ ))
+        PASS=$((PASS+1))
     else
         echo "  FAIL: expected exit non-zero + remediation, got exit $exit_code" >&2
         echo "  stderr: $stderr_output" >&2
-        (( FAIL++ ))
+        FAIL=$((FAIL+1))
     fi
 }
 test_ci_pr_missing_arg_fails
@@ -121,11 +120,11 @@ test_ci_pr_wrong_prefix_fails() {
     ) || exit_code=$?
     if [ "$exit_code" -ne 0 ] && echo "$stderr_output" | grep -qiE "bug-batch.*prefix|prefix"; then
         echo "  PASS: exit $exit_code, stderr mentions prefix requirement"
-        (( PASS++ ))
+        PASS=$((PASS+1))
     else
         echo "  FAIL: expected non-zero exit with prefix remediation, got exit $exit_code" >&2
         echo "  stderr: $stderr_output" >&2
-        (( FAIL++ ))
+        FAIL=$((FAIL+1))
     fi
 }
 test_ci_pr_wrong_prefix_fails
@@ -143,10 +142,10 @@ test_ci_pr_branch_not_exists_fails() {
     ) || exit_code=$?
     if [ "$exit_code" -ne 0 ]; then
         echo "  PASS: exit $exit_code"
-        (( PASS++ ))
+        PASS=$((PASS+1))
     else
         echo "  FAIL: expected non-zero, got 0" >&2
-        (( FAIL++ ))
+        FAIL=$((FAIL+1))
     fi
 }
 test_ci_pr_branch_not_exists_fails
@@ -165,11 +164,11 @@ test_ci_pr_branch_not_pushed_fails() {
     ) || exit_code=$?
     if [ "$exit_code" -ne 0 ] && echo "$stderr_output" | grep -qiE "push|origin"; then
         echo "  PASS: exit $exit_code, stderr mentions push/origin"
-        (( PASS++ ))
+        PASS=$((PASS+1))
     else
         echo "  FAIL: expected non-zero exit with push remediation, got exit $exit_code" >&2
         echo "  stderr: $stderr_output" >&2
-        (( FAIL++ ))
+        FAIL=$((FAIL+1))
     fi
 }
 test_ci_pr_branch_not_pushed_fails
@@ -189,10 +188,10 @@ test_ci_pr_branch_pushed_passes() {
     ) || exit_code=$?
     if [ "$exit_code" -eq 0 ]; then
         echo "  PASS"
-        (( PASS++ ))
+        PASS=$((PASS+1))
     else
         echo "  FAIL: expected exit 0 with pushed batch branch, got $exit_code" >&2
-        (( FAIL++ ))
+        FAIL=$((FAIL+1))
     fi
 }
 test_ci_pr_branch_pushed_passes

@@ -736,7 +736,7 @@ fi
 **Sub-branch invariant pre-flight (Flow C analog of bug da45-7d92-6c86-42bc)**: BEFORE invoking `gh pr create` for the tier sub-branch, run `assert-batch-branch.sh` from the session branch directory to confirm the bug-batch sub-branch has been created locally AND pushed to origin. Without the push, `per-branch-review.yml` will not fire and LLM Sub-Branch Review will be silently bypassed — the exact failure pattern that left every prior debug-everything bug-batch PR unreviewed.
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/assert-batch-branch.sh" "bug-batch/${DEBUG_SESSION_ID}/tier-${N}" || {
+.claude/scripts/dso assert-batch-branch.sh "bug-batch/${DEBUG_SESSION_ID}/tier-${N}" || {
     echo "ABORT: bug-batch sub-branch invariant violated. Push the sub-branch to origin before opening the PR." >&2
     exit 1
 }
@@ -826,7 +826,7 @@ After each sub-branch is created and changes committed in ci-pr mode, push the s
 **Sub-branch invariant pre-flight (Flow C analog of bug da45-7d92-6c86-42bc)**: BEFORE invoking `gh pr create`, run `assert-batch-branch.sh` from the session branch directory with the per-batch sub-branch name. The gate confirms the bug-batch sub-branch was created locally AND pushed to origin — the two preconditions for `per-branch-review.yml` to fire. Without this pre-flight, an orchestrator that skipped `git push` would open a PR whose CI workflow never runs.
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/assert-batch-branch.sh" "bug-batch/${DEBUG_SESSION_ID}/tier-${N}-batch-${K}" || {
+.claude/scripts/dso assert-batch-branch.sh "bug-batch/${DEBUG_SESSION_ID}/tier-${N}-batch-${K}" || {
     echo "ABORT: bug-batch sub-branch invariant violated. Push the sub-branch to origin before opening the PR." >&2
     exit 1
 }
