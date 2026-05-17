@@ -18,6 +18,7 @@ Provides public functions:
 
 from __future__ import annotations
 
+import sys
 from typing import Any
 
 from dso_ci_review.dispatch import dispatch_review
@@ -119,6 +120,17 @@ def dispatch_arbiter(
         - ruling: one of BLOCK, DEFER, DROP
         - rationale: one-sentence explanation
         - schema_version: "1.0.0"
+
+    The agent contract (see the ``code-reviewer-arbiter`` agent file under
+    ``${CLAUDE_PLUGIN_ROOT}/agents/``) specifies the output as a JSON array
+    with one element per input finding. A single dict response is accepted
+    for backward compatibility and wrapped in a list.
+
+    Length-mismatch handling (AC amendment): if the agent returns a number of
+    rulings that does not match the input findings, dispatch is treated as a
+    failure and the function emits fail-closed synthetic BLOCK rulings for
+    every critical/important finding (matches T2 fail-closed behavior). The
+    mismatch is logged to stderr as ``arbiter_length_mismatch``.
     """
     result = dispatch_review(
         diff=diff_text,
@@ -127,17 +139,50 @@ def dispatch_arbiter(
         provider_chain=provider_chain,
     )
 
-    # Ensure schema_version is present
-    if "schema_version" not in result:
-        result["schema_version"] = "1.0.0"
+    # Agent contract: returns a JSON array of per-finding rulings.
+    # Backward-compat: a single-ruling dict response is wrapped in a list.
+    if isinstance(result, dict):
+        rulings_list = [result]
+    elif isinstance(result, list):
+        rulings_list = result
+    else:
+        raise ValueError(
+            f"Arbiter returned unexpected type: {type(result).__name__}; "
+            "expected list of per-finding ruling dicts or a single ruling dict."
+        )
 
-    # Apply CoVe soft-cap: BLOCK → DEFER when cycle exceeds max
-    result = _enforce_cove_fallback(result, cycle_num, max_cycles)
+    # Length-mismatch detection (AC amendment): treat as dispatch failure.
+    if len(rulings_list) != len(findings):
+        print(
+            f"arbiter_length_mismatch findings={len(findings)} "
+            f"rulings={len(rulings_list)}",
+            file=sys.stderr,
+        )
+        return [
+            {
+                "ruling": "BLOCK",
+                "rationale": (
+                    f"Arbiter response length mismatch (got {len(rulings_list)} "
+                    f"rulings for {len(findings)} findings); defaulting to BLOCK; "
+                    "manual review required."
+                ),
+                "schema_version": "1.0.0",
+                "finding_index": i,
+            }
+            for i, finding in enumerate(findings)
+            if finding.get("severity") in ("critical", "important")
+        ]
 
-    # Validate ruling is in VALID_RULINGS
-    validate_cycle_end_ruling(result)
+    # Per-finding processing: schema_version, CoVe fallback, validation.
+    validated_rulings: list[dict[str, Any]] = []
+    for ruling in rulings_list:
+        if "schema_version" not in ruling:
+            ruling["schema_version"] = "1.0.0"
+        ruling = _enforce_cove_fallback(ruling, cycle_num, max_cycles)
+        validate_cycle_end_ruling(ruling)
+        validated_rulings.append(ruling)
 
-    return [result]
+    return validated_rulings
 
 
 def dispatch_cycle_end_arbiter(
