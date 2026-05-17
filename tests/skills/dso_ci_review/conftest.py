@@ -82,6 +82,8 @@ def _ensure_plugin_package() -> None:
     _load_from_plugin("runner")
     _load_from_plugin("arbiter")
     _load_from_plugin("verifier")
+    _load_from_plugin("stability")
+    _load_from_plugin("cycle_dispatcher")
 
 
 _ensure_plugin_package()
