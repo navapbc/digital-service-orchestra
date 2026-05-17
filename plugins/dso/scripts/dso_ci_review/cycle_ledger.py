@@ -339,3 +339,39 @@ def reconstruct_from_pr_comments(pr_number: int, repo: str) -> dict:
     # Stable ordering
     ledger["cycles"].sort(key=lambda c: c["cycle_num"])
     return ledger
+
+
+def _cli_main(argv: list[str] | None = None) -> int:
+    """CLI entry point for the cycle_ledger module.
+
+    Usage:
+        python3 -m dso_ci_review.cycle_ledger reconstruct-from-pr <pr-number> <repo>
+
+    Emits the reconstructed ledger as JSON on stdout. This is the single
+    grammar/parser source that write-cycle-ledger.sh --reconstruct-from-pr
+    delegates to, enforcing local-vs-CI parity per Step 4.75.
+    """
+    argv = list(sys.argv if argv is None else argv)
+    if len(argv) >= 4 and argv[1] == "reconstruct-from-pr":
+        try:
+            pr_num = int(argv[2])
+        except ValueError:
+            print(
+                f"error: <pr-number> must be an integer, got {argv[2]!r}",
+                file=sys.stderr,
+            )
+            return 2
+        repo = argv[3]
+        ledger = reconstruct_from_pr_comments(pr_num, repo)
+        print(json.dumps(ledger, indent=2))
+        return 0
+    print(
+        "Usage: python3 -m dso_ci_review.cycle_ledger "
+        "reconstruct-from-pr <pr-number> <repo>",
+        file=sys.stderr,
+    )
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(_cli_main(sys.argv))
