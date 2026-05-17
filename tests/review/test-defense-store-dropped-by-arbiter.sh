@@ -143,7 +143,7 @@ print(json.dumps({
     'severity_history': [{'cycle': 2, 'severity': 'important', 'relation': None}]
 }))
 ")
-        defense_store_write "\$record" 2>/dev/null
+        defense_store_write "$record" 2>/dev/null
     ) || true
 
     # The output forwarded to TICKET_CMD must contain "dropped_by_arbiter"
