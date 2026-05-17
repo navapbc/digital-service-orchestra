@@ -16,11 +16,27 @@ The artifacts directory is computed by `get_artifacts_dir()` in `hooks/lib/deps.
 
 ---
 
-**SKIP PATHS — produce `.skipped` markers instead of running this workflow:**
-- **`enforcement.strategy=ci`**: emit `dso commit-step skip reviewer-record "enforcement.strategy=ci"` and `dso commit-step skip classifier-dispatch "enforcement.strategy=ci"`. CI enforces the review gate; local steps are deferred. See `commit-workflow-validation.md` Step 6.
+<HARD-GATE>
+**Step 0a (BEFORE Step 0): Enforcement-strategy gate.** Check `enforcement.strategy` as the very first action — before clearing artifacts, before reading any further. If `enforcement.strategy=ci`, emit the skip markers and return immediately. Do NOT proceed to Step 0, Step 1, classifier dispatch, or sub-agent dispatch (bug 818d-61dc).
+
+```bash
+ENFORCEMENT_STRATEGY=$(".claude/scripts/dso" read-config.sh enforcement.strategy 2>/dev/null || true)
+if [ "$ENFORCEMENT_STRATEGY" = "ci" ]; then
+    .claude/scripts/dso commit-step skip reviewer-record "enforcement.strategy=ci"
+    .claude/scripts/dso commit-step skip classifier-dispatch "enforcement.strategy=ci"
+    echo "enforcement.strategy=ci — review workflow short-circuit. CI runs llm-review on push."
+    # END — do not execute any further step in this document.
+    exit 0
+fi
+```
+
+CI runs the parity-uplifted `llm-review` job; the pre-commit review gate and the Layer 2 hook both skip enforcement under this mode. Running this workflow locally produces results no consumer reads and wastes sub-agent budget. The rationalization "but I should review anyway to be safe" is exactly the failure mode this gate prevents.
+
+**Other SKIP PATHS — produce `.skipped` markers instead of running this workflow:**
 - **`SKIP_REVIEW=true`**: emit `dso commit-step skip reviewer-record "SKIP_REVIEW=true"`. The `.skipped` marker satisfies the compliance verifier in place of a `.result` file.
 
 The pre-commit compliance verifier accepts `.skipped` markers as valid substitutes for `.result` files. `.skipped` markers are written by `commit-step skip <name> "<reason>"` and contain `{"step", "reason", "timestamp"}`.
+</HARD-GATE>
 
 **CRITICAL**: Steps 0-5 are mandatory and sequential. Step 0 clears stale artifacts — always start here, even when restarting. Step 1 runs auto-fixers (format/lint/type-check) BEFORE Step 2 captures the diff hash — this ordering prevents pre-commit hooks from invalidating the hash. You MUST dispatch the code-reviewer sub-agent in Step 4. Skipping the sub-agent and recording review JSON directly is fabrication — it violates CLAUDE.md rule #15 regardless of how "simple" the changes appear.
 
