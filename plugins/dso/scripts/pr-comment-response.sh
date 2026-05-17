@@ -470,14 +470,29 @@ ${comment_body}"
                 # tombstone-only ticket, INCLUDING tickets in terminal closed
                 # and deleted states. Linking a new task to a deleted parent
                 # corrupts the hierarchy; refuse to set --parent when the
-                # parent's status is deleted or closed. Fall back to tag-only
-                # attribution. (Important finding from retro-review of PR #176.)
+                # parent's status is deleted or closed.
+                #
+                # Fail-closed semantics: when the status query fails (empty
+                # string from the python3 fallback), refuse to set --parent
+                # rather than fail open. An unknown status is treated as
+                # potentially-terminal — the gate must default to safe
+                # behavior (tag-only attribution), not silently re-introduce
+                # the bug this check exists to prevent. The status must be
+                # explicitly one of the active states (open, in_progress) to
+                # cross the gate. (Important finding from PR #194 retro-review.)
                 local _parent_status
                 _parent_status=$("$_dso_cmd" ticket show "$_parent_story" 2>/dev/null \
                     | python3 -c "import json,sys; print(json.load(sys.stdin).get('status',''))" 2>/dev/null || true)
-                if [[ "$_parent_status" != "deleted" && "$_parent_status" != "closed" ]]; then
-                    _parent_flag=(--parent "$_parent_story")
-                fi
+                case "$_parent_status" in
+                    open|in_progress)
+                        _parent_flag=(--parent "$_parent_story")
+                        ;;
+                    *)
+                        # Empty (status query failed), closed, deleted, or any
+                        # unrecognized state → tag-only attribution.
+                        echo "INFO: defer parent linking skipped — parent $_parent_story status=${_parent_status:-unknown}; tag-only attribution" >&2
+                        ;;
+                esac
             fi
 
             local create_output=""
