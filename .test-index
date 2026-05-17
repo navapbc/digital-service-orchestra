@@ -192,6 +192,7 @@ plugins/dso/scripts/create-sprint-draft-pr.sh:tests/scripts/test-create-sprint-d
 plugins/dso/scripts/design-approve.sh:tests/scripts/test-design-approve.sh
 plugins/dso/scripts/ci-review-corpus-delta.sh:tests/skills/dso_ci_review/test-ci-review-corpus-delta.sh
 plugins/dso/scripts/dso_ci_review/context_request.py:tests/skills/dso_ci_review/test_context_augmentation.py
+plugins/dso/scripts/dso_ci_review/cycle_ledger.py:tests/skills/dso_ci_review/test_cycle_ledger.py [test_read_ledger_returns_empty_when_file_absent]
 plugins/dso/scripts/dso_ci_review/dispatch.py:tests/skills/dso_ci_review/test_dispatch_fallback.py,tests/skills/dso_ci_review/test_tier_wiring.py,tests/skills/dso_ci_review/test_context_augmentation.py,tests/skills/dso_ci_review/test_prompt_caching.py,tests/skills/dso_ci_review/test_integration_full_loop.py,tests/skills/dso_ci_review/test_dispatch_schema_correction.py
 plugins/dso/scripts/dso_ci_review/arbiter.py:tests/skills/dso_ci_review/test_arbiter.py [test_dispatch_arbiter_called_on_resustain_of_with_prior_defense]
 plugins/dso/scripts/dso_ci_review/arbiter.py:tests/skills/dso_ci_review/test_arbiter.py [test_dispatch_arbiter_returns_block_when_critical_finding_undefended,test_dispatch_arbiter_returns_defer_when_cycle_exceeds_max,test_validate_cycle_end_ruling_raises_on_unknown_ruling]
