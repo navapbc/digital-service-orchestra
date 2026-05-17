@@ -398,14 +398,19 @@ _derive_pr_title() {
     local _subject="" _id="" _scan="" _trailer_id="" _bracket_id=""
 
     # 1. Prefer a non-merge commit unique to the branch (main..HEAD), then
-    #    fall back to the latest non-merge commit on HEAD if branch == main
-    #    or origin/main is not yet present.
+    #    origin/main..HEAD as a fallback when local main is stale or absent.
+    #
+    # Retro-review of PR #171 found the prior third fallback
+    # `git log --no-merges -1 --pretty=%s` (no range) read from main's history
+    # when the branch had no non-merge commits of its own (pure-cleanup
+    # branches, merge-only branches). That produced a title derived from a
+    # main commit and bypassed the documented priority-4 [branch] fallback.
+    # Drop the rangeless fallback — leaving _subject empty falls through to
+    # the priority-4 `[<branch>] <merge-subject>` path below, which is the
+    # documented behavior for pure-cleanup branches.
     _subject=$(git log --no-merges -1 --pretty=%s main..HEAD 2>/dev/null || true)
     if [[ -z "$_subject" ]]; then
         _subject=$(git log --no-merges -1 --pretty=%s origin/main..HEAD 2>/dev/null || true)
-    fi
-    if [[ -z "$_subject" ]]; then
-        _subject=$(git log --no-merges -1 --pretty=%s 2>/dev/null || true)
     fi
 
     # 2. Already prefixed → return as-is.
@@ -414,11 +419,15 @@ _derive_pr_title() {
         return 0
     fi
 
-    # 3a. Look for a DSO-Story / DSO-Task trailer on any branch-local commit
-    #     (main..HEAD if possible, else full HEAD log capped at a reasonable depth).
+    # 3a. Look for a DSO-Story / DSO-Task trailer on any branch-local commit.
+    # Scope to main..HEAD / origin/main..HEAD; do NOT fall back to the
+    # rangeless `git log -n 50` form — that scans main's history on a
+    # pure-cleanup branch and can extract an unrelated DSO-Story id from a
+    # main commit, producing a misleading PR-title prefix (PR #171 retro-
+    # review finding).
     _scan=$(git log --pretty=format:%B main..HEAD 2>/dev/null || true)
     if [[ -z "$_scan" ]]; then
-        _scan=$(git log -n 50 --pretty=format:%B 2>/dev/null || true)
+        _scan=$(git log --pretty=format:%B origin/main..HEAD 2>/dev/null || true)
     fi
     _trailer_id=$(printf '%s\n' "$_scan" \
         | grep -Eiom1 '^[[:space:]]*DSO-(Story|Task):[[:space:]]*[A-Za-z0-9._/-]+' \
@@ -432,7 +441,10 @@ _derive_pr_title() {
             | sed -E 's/^\[(.+)\]$/\1/' \
             || true)
         if [[ -z "$_bracket_id" ]]; then
-            _bracket_id=$(git log -n 50 --pretty=format:%s 2>/dev/null \
+            # Scope to origin/main..HEAD as the second-priority range, not the
+            # rangeless `git log -n 50` form which would scan main's history
+            # on a pure-cleanup branch (same root cause as the _scan fix above).
+            _bracket_id=$(git log --pretty=format:%s origin/main..HEAD 2>/dev/null \
                 | grep -Eom1 '^\[[A-Za-z0-9._/-]+\]' \
                 | sed -E 's/^\[(.+)\]$/\1/' \
                 || true)
@@ -517,18 +529,27 @@ _phase_merge() {
     # protects against the "commits pushed after auto-merge, no follow-up PR
     # opened" failure mode (680f-53fb) — which does not apply here because
     # the very next step (gh pr create below) opens that follow-up PR.
-    export DSO_ALLOW_PUSH_TO_MERGED_PR=1
-    if ! git push -u origin "$BRANCH" 2>&1; then
-        # Retry once on rejection: another push may have landed between fetch and push.
-        if _fetch_and_rebase_branch && git push -u origin "$BRANCH" 2>&1; then
-            : # retry succeeded
-        else
-            git rebase --abort 2>/dev/null || true
-            echo "ERROR: git push -u origin $BRANCH failed (after fetch+rebase retry)" >&2
-            return 1
+    #
+    # Retro-review of PR #179 found that the prior set-then-unset pattern leaked
+    # DSO_ALLOW_PUSH_TO_MERGED_PR=1 to the caller's environment whenever the
+    # push retry exited via `return 1`. Wrap both push attempts in a subshell so
+    # the export is scoped to that subshell and cannot escape regardless of
+    # which exit path is taken.
+    if ! (
+        export DSO_ALLOW_PUSH_TO_MERGED_PR=1
+        if ! git push -u origin "$BRANCH" 2>&1; then
+            # Retry once on rejection: another push may have landed between fetch and push.
+            if _fetch_and_rebase_branch && git push -u origin "$BRANCH" 2>&1; then
+                : # retry succeeded
+            else
+                git rebase --abort 2>/dev/null || true
+                echo "ERROR: git push -u origin $BRANCH failed (after fetch+rebase retry)" >&2
+                exit 1
+            fi
         fi
+    ); then
+        return 1
     fi
-    unset DSO_ALLOW_PUSH_TO_MERGED_PR
 
     # --- 3. Derive PR title from last meaningful commit subject ---
     # Use _derive_pr_title so an upstream merge-back commit subject
