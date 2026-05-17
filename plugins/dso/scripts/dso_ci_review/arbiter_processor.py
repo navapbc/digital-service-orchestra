@@ -18,6 +18,7 @@ Public function:
 
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
 import os
@@ -286,18 +287,32 @@ def _write_drop_defense(
 
 
 def _atomic_write_sidecar(path: str, data: str) -> None:
-    """Write to temp file in same dir, then rename atomically."""
+    """Write to temp file in same dir, then rename atomically.
+
+    Acquires fcntl.LOCK_EX on <path>.lock to coordinate with concurrent writers.
+    Multiple parallel arbiter runs serialize on this lock; without it, the
+    pre-commit gate sidecar consumer could miss rulings under concurrent CI runs
+    (atomic rename guarantees no-partial-file, but NOT no-loss when two writers
+    race with different content).
+    """
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp_path = tempfile.mkstemp(prefix=p.name + ".", dir=str(p.parent))
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(data)
-        os.replace(tmp_path, str(p))
-    except Exception:
-        if Path(tmp_path).exists():
-            os.unlink(tmp_path)
-        raise
+    lock_path = str(p) + ".lock"
+    Path(lock_path).touch(exist_ok=True)
+    with open(lock_path, "r") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            fd, tmp_path = tempfile.mkstemp(prefix=p.name + ".", dir=str(p.parent))
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    f.write(data)
+                os.replace(tmp_path, str(p))
+            except Exception:
+                if Path(tmp_path).exists():
+                    os.unlink(tmp_path)
+                raise
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
 
 def _read_existing_sidecar(path: str) -> dict | None:
