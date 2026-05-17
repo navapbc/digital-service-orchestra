@@ -38,7 +38,7 @@ for the commit-time and sprint-time sub-agent protocols.
 |---------|-------|-----------|
 | 1st attempt | `sonnet` | Fast turnaround. Most commit-time failures are 1-2 tests broken by the current changeset. Sonnet handles single-file and simple multi-file fixes reliably. |
 | 2nd+ attempt (after sonnet FAIL) | `opus` | If sonnet could not fix it, the failure likely involves cross-module reasoning, subtle state bugs, or architectural misunderstanding. Opus has stronger multi-file correlation. |
-| attempt > `review.max_resolution_attempts` (default: 5) | N/A — escalate to user | Failed attempts indicate a problem that requires human judgment (design question, external dependency, ambiguous requirement). |
+| attempt > `review.max_cycles` (default: 4) | N/A — escalate to user | Failed attempts indicate a problem that requires human judgment (design question, external dependency, ambiguous requirement). |
 
 ### Sprint-Time (Sprint Phase F Step 10 / Phase G failure path)
 
@@ -115,7 +115,7 @@ Select prompt template:
 Select model:
   - attempt == 1 --> sonnet
   - attempt >= 2 --> opus
-  - attempt > review.max_resolution_attempts (default: 5) --> escalate to user
+  - attempt > review.max_cycles (default: 4) --> escalate to user
   |
   v
 Select subagent_type:
@@ -182,7 +182,7 @@ hook behavior. The new dispatch protocol can be tested similarly:
 - **RESULT parsing test**: Unit test that parses the structured RESULT format and
   extracts `RESULT`, `FILES_MODIFIED`, `ROOT_CAUSE` fields correctly.
 - **Model escalation test**: Verify that attempt=1 selects sonnet, attempt=2 selects
-  opus, attempt > `review.max_resolution_attempts` (default: 5) produces an escalation signal.
+  opus, attempt > `review.max_cycles` (default: 4) produces an escalation signal.
 
 #### 2. Mock Sub-Agent Tests
 

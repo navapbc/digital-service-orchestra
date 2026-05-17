@@ -10,7 +10,7 @@ Replace commands below with values from your `.claude/dso-config.conf`:
 - `commands.lint` (default: the project's configured lint command)
 - `commands.type_check` (default: the project's configured type-check command)
 - `commands.test_unit` (default: `make test-unit-only`)
-- `review.max_resolution_attempts` (default: `5`) — max autonomous fix/defend attempts before escalating to user
+- `review.max_cycles` (default: `4`) — max autonomous fix/defend attempts before escalating to user
 
 The artifacts directory is computed by `get_artifacts_dir()` in `hooks/lib/deps.sh` and resolves to `/tmp/workflow-plugin-<hash-of-REPO_ROOT>/`.
 
@@ -1196,10 +1196,10 @@ If all Fix findings are genuinely non-behavioral (GREEN classification is correc
 
    **Call 2 oscillation short-circuit**: When 2 consecutive Call 2 redispatches (DSO_REVIEW_CYCLE >= 2) produce the exact same set of proximity overlaps (same file + line pairs), skip further Call 2 redispatch and treat the overlapping findings as stable — proceed to the OSCILLATION GATE escalation path rather than continuing the loop.
 
-   **Max attempts**: Read `review.max_resolution_attempts` from `dso-config.conf` (default: 5). When attempts exceed this value, **STOP — DO NOT PROCEED to user escalation**. First check `ARBITER_DISPATCH_COUNT`: if zero, fire `oscillation_no_arbiter_engagement` (tier upgrade) before user escalation. Then check whether a tier upgrade is available via `ESCALATE_REVIEW` signal: if the reviewer emitted `ESCALATE_REVIEW` and a higher tier is available (light → standard, standard → deep), dispatch the escalated reviewer before user escalation. Only after the highest available tier has been dispatched and also failed may you escalate to the user. Do NOT escalate to user while a higher-tier reviewer is still available and untried via ESCALATE_REVIEW.
+   **Max attempts**: Read `review.max_cycles` from `dso-config.conf` (default: 4). When attempts exceed this value, **STOP — DO NOT PROCEED to user escalation**. First check `ARBITER_DISPATCH_COUNT`: if zero, fire `oscillation_no_arbiter_engagement` (tier upgrade) before user escalation. Then check whether a tier upgrade is available via `ESCALATE_REVIEW` signal: if the reviewer emitted `ESCALATE_REVIEW` and a higher tier is available (light → standard, standard → deep), dispatch the escalated reviewer before user escalation. Only after the highest available tier has been dispatched and also failed may you escalate to the user. Do NOT escalate to user while a higher-tier reviewer is still available and untried via ESCALATE_REVIEW.
 
    ```bash
-   MAX_ATTEMPTS=$("$REPO_ROOT/.claude/scripts/dso" read-config.sh review.max_resolution_attempts)
+   MAX_ATTEMPTS=$("$REPO_ROOT/.claude/scripts/dso" read-config.sh review.max_cycles)
    MAX_ATTEMPTS="${MAX_ATTEMPTS:-5}"
    # oscillation_no_arbiter_engagement check at MAX_ATTEMPTS boundary:
    if [[ "$ATTEMPT_NUM" -ge "$MAX_ATTEMPTS" ]] && [[ "$ARBITER_DISPATCH_COUNT" -eq 0 ]]; then

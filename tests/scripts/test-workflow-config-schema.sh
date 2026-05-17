@@ -112,7 +112,7 @@ assert_eq "test_schema_ci_workflow_name_description_references_skip: output is O
 assert_pass_if_clean "test_schema_ci_workflow_name_description_references_skip"
 
 # ── test_schema_review_section_exists ─────────────────────────────────────────
-# review section must exist with max_resolution_attempts property
+# review section must exist with max_cycles property
 _snapshot_fail
 rev_exit=0
 rev_output=""
@@ -120,14 +120,17 @@ rev_output=$(python3 -c "
 import json, sys
 d = json.load(open('$SCHEMA'))
 props = d.get('properties', {}).get('review', {}).get('properties', {})
-if 'max_resolution_attempts' not in props:
-    print('MISSING: max_resolution_attempts not found in review.properties')
+if 'max_cycles' not in props:
+    print('MISSING: max_cycles not found in review.properties')
     sys.exit(1)
-if props['max_resolution_attempts'].get('type') != 'integer':
-    print('WRONG_TYPE: expected integer, got ' + str(props['max_resolution_attempts'].get('type')))
+if props['max_cycles'].get('type') != 'integer':
+    print('WRONG_TYPE: expected integer, got ' + str(props['max_cycles'].get('type')))
     sys.exit(1)
-if props['max_resolution_attempts'].get('default') != 5:
-    print('WRONG_DEFAULT: expected 5, got ' + str(props['max_resolution_attempts'].get('default')))
+if props['max_cycles'].get('default') != 4:
+    print('WRONG_DEFAULT: expected 4, got ' + str(props['max_cycles'].get('default')))
+    sys.exit(1)
+if props['max_cycles'].get('minimum') != 2:
+    print('WRONG_MINIMUM: expected 2, got ' + str(props['max_cycles'].get('minimum')))
     sys.exit(1)
 print('OK')
 " 2>&1) || rev_exit=$?
