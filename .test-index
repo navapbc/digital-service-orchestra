@@ -245,7 +245,7 @@ plugins/dso/scripts/preconditions-record.sh:tests/scripts/test-preconditions-rec
 plugins/dso/scripts/preconditions-validator.sh:tests/scripts/test-preconditions-validator.sh,tests/skills/test-preplanning-preconditions-integration.sh
 plugins/dso/scripts/lib/pr-comment-lib.sh:tests/scripts/test-pr-comment-lib.sh [test_probe_mcp_exits_0_on_success]
 plugins/dso/scripts/pr-comment-response.sh:tests/integration/test-pr-comment-response-integration.sh,tests/scripts/test-pr-comment-response.sh,tests/scripts/test-pr-comment-response-accept.sh,tests/scripts/test-pr-comment-response-defend.sh
-plugins/dso/scripts/read-config.sh:tests/scripts/test-read-config-flat.sh
+plugins/dso/scripts/read-config.sh:tests/scripts/test-read-config-flat.sh [test_review_max_resolution_attempts_alias]
 plugins/dso/scripts/read-overlay-flags.sh:tests/scripts/test-read-overlay-flags.sh
 plugins/dso/scripts/recipe-adapters/ts-morph-add-parameter.mjs:tests/scripts/test-ts-morph-add-parameter.sh
 plugins/dso/scripts/recipe-adapters/ts-morph-normalize-imports.mjs:tests/scripts/test-ts-morph-normalize-imports.sh
