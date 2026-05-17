@@ -199,6 +199,7 @@ plugins/dso/scripts/dso_ci_review/cycle_dispatcher.py: tests/skills/dso_ci_revie
 plugins/dso/scripts/dso_ci_review/findings.py:tests/skills/dso_ci_review/test_findings.py,tests/skills/dso_ci_review/test_region_dedup.py
 plugins/dso/scripts/dso_ci_review/proximity.py:tests/skills/dso_ci_review/test_proximity.py
 plugins/dso/scripts/dso_ci_review/speculation_markers.py:tests/skills/dso_ci_review/test_speculation_markers.py
+plugins/dso/scripts/dso_ci_review/stability.py: tests/skills/dso_ci_review/test_stability.py [test_jaccard_zero_set_both_empty]
 plugins/dso/scripts/dso_ci_review/providers/config.py:tests/skills/dso_ci_review/test_providers_config.py,tests/skills/dso_ci_review/test_dispatch_config.py
 plugins/dso/scripts/dso_ci_review/providers/openai.py:tests/skills/dso_ci_review/test_providers_unit.py [test_openai_provider_review_diff]
 plugins/dso/scripts/dso_ci_review/region_split.py:tests/skills/dso_ci_review/test_region_split.py
