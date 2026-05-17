@@ -9,6 +9,11 @@ Provides public functions:
                               Raises ValueError for unrecognized ruling values.
 
   dispatch_cycle_end_arbiter — Alias for dispatch_arbiter; cycle-end consolidation.
+
+  compute_ruling_from_fixture — Apply CoVe fallback and validate on a pre-stored
+                                arbiter_ruling from a fixture. Used by shell replay
+                                tests to exercise the deterministic arbiter pipeline
+                                without requiring LLM dispatch.
 """
 
 from __future__ import annotations
@@ -62,6 +67,28 @@ def _enforce_cove_fallback(
         )
         return result
     return ruling
+
+
+def compute_ruling_from_fixture(fixture: dict) -> dict:
+    """Apply CoVe fallback and validate on a pre-stored arbiter_ruling from a fixture.
+
+    Used by shell replay tests to exercise the deterministic arbiter pipeline
+    (CoVe soft-cap + ruling validation) without requiring LLM dispatch.
+
+    Args:
+        fixture: dict with keys 'arbiter_ruling', 'cycle', 'max_cycles'
+
+    Returns:
+        The effective ruling dict after CoVe fallback and validation.
+
+    Raises:
+        ValueError: if ruling is not in VALID_RULINGS after CoVe fallback.
+    """
+    ruling = dict(fixture["arbiter_ruling"])
+    cycle_num = int(fixture.get("cycle", 1))
+    max_cycles = int(fixture.get("max_cycles", 4))
+    ruling = _enforce_cove_fallback(ruling, cycle_num, max_cycles)
+    return validate_cycle_end_ruling(ruling)
 
 
 def dispatch_arbiter(
