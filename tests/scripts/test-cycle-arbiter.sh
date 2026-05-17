@@ -142,6 +142,25 @@ test_drop_accepted_defense_no_evidence_lines_ruling() {
 }
 test_drop_accepted_defense_no_evidence_lines_ruling
 
+echo "--- test_block_impact_class_none_reclassified_to_defer"
+test_block_impact_class_none_reclassified_to_defer() {
+    local fixture="$FIXTURE_DIR/block-03-impact-class-none-reclassified.json"
+    if [[ ! -f "$fixture" ]]; then
+        run_test "test_block_impact_class_none_reclassified_to_defer" "FIXTURE_MISSING: $fixture"
+        return
+    fi
+    # arbiter_ruling.ruling=BLOCK but impact_class='none' (outside 8-cat floor).
+    # _enforce_impact_class_floor reclassifies BLOCK → DEFER.
+    local computed_ruling
+    computed_ruling=$(compute_ruling "$fixture")
+    if [[ "$computed_ruling" == "DEFER" ]]; then
+        run_test "test_block_impact_class_none_reclassified_to_defer" "PASS"
+    else
+        run_test "test_block_impact_class_none_reclassified_to_defer" "Expected DEFER (impact_class floor reclassification), got computed=$computed_ruling"
+    fi
+}
+test_block_impact_class_none_reclassified_to_defer
+
 echo "--- test_schema_collision_graceful_handling"
 test_schema_collision_graceful_handling() {
     local fixture="$FIXTURE_DIR/schema-collision-01-old-and-new-fields.json"

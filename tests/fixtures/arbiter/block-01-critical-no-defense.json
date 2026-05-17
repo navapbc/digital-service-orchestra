@@ -11,7 +11,10 @@
   "arbiter_ruling": {
     "ruling": "BLOCK",
     "rationale": "Defense absent; critical severity finding with no rebuttal evidence.",
-    "schema_version": "1.0.0"
+    "schema_version": "1.1.0",
+    "cross_reviewer_agreement": ["UNANIMOUS"],
+    "cross_cycle_pattern": ["NEW_INTRODUCED"],
+    "impact_class": "bug"
   },
   "cycle": 2,
   "max_cycles": 4,
