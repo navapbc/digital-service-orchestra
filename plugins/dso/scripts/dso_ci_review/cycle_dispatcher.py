@@ -51,11 +51,14 @@ def _is_unknown_future_schema(observed: str, known_max: str) -> bool:
     m_obs = semver_re.match(observed or "")
     m_max = semver_re.match(known_max or "")
     if not (m_obs and m_max):
-        # Conservative: if either version is non-parseable, fall back to
-        # string compare so we still emit the warning when it's clearly
-        # different (e.g., literally a "2.0.0" input that string-compares
-        # correctly anyway).
-        return bool(observed) and bool(known_max) and observed > known_max
+        # If either side is non-parseable we cannot make a reliable
+        # semantic comparison. Return False to suppress the warning rather
+        # than fall back to string compare — string compare silently flips
+        # the verdict for cases like ('2.0.0' > 'malformed') == False
+        # (ASCII '2' < 'm'), masking forward-compat scenarios on garbage
+        # input. Caller treats False as 'proceed without warning'.
+        # PR #202 cycle-N finding f-XXX.
+        return False
     obs_tuple = tuple(int(g) for g in m_obs.groups())
     max_tuple = tuple(int(g) for g in m_max.groups())
     return obs_tuple > max_tuple
