@@ -32,12 +32,23 @@ if [ ! -x "$SHIM" ]; then
     exit 1
 fi
 
+# Bound each SHIM dispatch so a downstream script hang fails this test fast
+# rather than tripping the 120s suite ceiling and reporting an unactionable
+# TIMEOUT. d163-6756 (cluster Track D). `timeout` exits 124 on kill — distinct
+# from 127 (command not found), so the existing assertions remain correct.
+# Falls back to a no-op when `timeout` is unavailable (preserves prior behavior).
+if command -v timeout >/dev/null 2>&1; then
+    _TIMEOUT_WRAP=(timeout 10s)
+else
+    _TIMEOUT_WRAP=()
+fi
+
 # ── Test 1: bare-name dispatch of a nested script runs (not 127 / not "command not found") ───
 test_bare_name_nested_script_does_not_produce_command_not_found() {
     local stderr_out
     local exit_code
 
-    stderr_out="$("$SHIM" sprint-drift-check.sh BOGUS_EPIC_ID_xyz 2>&1 >/dev/null)" || exit_code=$?
+    stderr_out="$("${_TIMEOUT_WRAP[@]}" "$SHIM" sprint-drift-check.sh BOGUS_EPIC_ID_xyz 2>&1 >/dev/null)" || exit_code=$?
     exit_code="${exit_code:-0}"
 
     # The critical assertion: exit code must NOT be 127
@@ -60,7 +71,7 @@ test_bare_name_error_sweep_does_not_produce_command_not_found() {
     local stderr_out
     local exit_code
 
-    stderr_out="$("$SHIM" error-sweep.sh 2>&1 >/dev/null)" || exit_code=$?
+    stderr_out="$("${_TIMEOUT_WRAP[@]}" "$SHIM" error-sweep.sh 2>&1 >/dev/null)" || exit_code=$?
     exit_code="${exit_code:-0}"
 
     # Must NOT be 127
