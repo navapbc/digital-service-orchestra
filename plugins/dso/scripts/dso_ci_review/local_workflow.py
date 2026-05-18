@@ -8,13 +8,13 @@ Public API:
     _init_local_ledger(artifacts_dir, branch_name, commit_sha) -> dict
         Returns {"cycle_num": int, "ledger": dict}
 
-    main() -> int
+    main(artifacts_dir=None, commit_sha=None, diff_text="", max_cycles=None) -> int
         CLI entry point; propagates exit code from review dispatch.
+        When called without arguments, reads from environment + git.
 """
 
 from __future__ import annotations
 
-import copy
 import fcntl
 import json
 import os
@@ -23,7 +23,10 @@ import sys
 import tempfile
 from pathlib import Path
 
+from dso_ci_review import cycle_dispatcher
 from dso_ci_review import cycle_ledger
+from dso_ci_review import stability
+from dso_ci_review._config import read_config_int
 
 
 def _ledger_path(artifacts_dir: str) -> str:
@@ -144,27 +147,102 @@ def _init_local_ledger(
         lock_file.close()
 
 
-def main() -> int:
+def _dispatch_local_reviewer(
+    diff_text: str,
+    cycle_num: int,
+    prior_defenses: list,
+) -> list[dict]:
+    """Dispatch a local reviewer for the given diff and cycle.
+
+    In the local workflow, dispatches via dispatch_review() without posting
+    PR comments (pr_number=None). Returns the findings list from the result.
+
+    Args:
+        diff_text: Unified diff text to review.
+        cycle_num: Current review cycle number (informational).
+        prior_defenses: Prior defenses from previous cycles (for re-review).
+
+    Returns:
+        List of finding dicts.
+    """
+    from dso_ci_review.dispatch import dispatch_review  # noqa: PLC0415
+
+    result = dispatch_review(
+        diff_text=diff_text,
+        provider_chain=["anthropic"],
+    )
+    return result.get("findings", [])
+
+
+def _invoke_arbiter_hook(
+    artifacts_dir: str,
+    commit_sha: str,
+) -> int:
+    """Invoke the arbiter hook when max review cycles are exhausted.
+
+    Returns exit code: non-zero indicates a blocking ruling.
+    Full arbiter implementation is in a later task; this stub returns 1
+    to indicate review cycle exhaustion requires human attention.
+
+    Args:
+        artifacts_dir: Directory containing review artifacts.
+        commit_sha: Current HEAD commit SHA.
+
+    Returns:
+        Exit code (0 = pass, non-zero = block).
+    """
+    print(
+        f"ARBITER: max review cycles exhausted for commit {commit_sha[:12]}",
+        file=sys.stderr,
+    )
+    return 1
+
+
+def main(
+    artifacts_dir: str | None = None,
+    commit_sha: str | None = None,
+    diff_text: str = "",
+    max_cycles: int | None = None,
+) -> int:
     """CLI entry point for the local review workflow.
 
-    Reads WORKFLOW_PLUGIN_ARTIFACTS_DIR from environment (defaults to /tmp).
-    Resolves current HEAD commit SHA via git.
+    When called without arguments, reads configuration from the environment
+    and resolves git state. When called with explicit arguments (e.g., from
+    tests), uses those values directly.
 
-    Returns exit code (0 = success).
+    Args:
+        artifacts_dir: Directory for review artifacts. Defaults to
+            WORKFLOW_PLUGIN_ARTIFACTS_DIR env var or /tmp.
+        commit_sha: Current HEAD commit SHA. Defaults to git rev-parse HEAD.
+        diff_text: Unified diff text to review. Defaults to empty string
+            (real implementation reads git diff in later task).
+        max_cycles: Maximum review cycles. Defaults to review.max_cycles
+            config value (default 4).
+
+    Returns exit code (0 = pass, non-zero = block/error).
     """
-    artifacts_dir = os.environ.get("WORKFLOW_PLUGIN_ARTIFACTS_DIR", "/tmp")
+    # Resolve artifacts_dir
+    if artifacts_dir is None:
+        artifacts_dir = os.environ.get("WORKFLOW_PLUGIN_ARTIFACTS_DIR", "/tmp")
 
-    try:
-        current_commit_sha = (
-            subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
-        )
-    except subprocess.CalledProcessError as e:
-        print(
-            f"ERROR: git rev-parse HEAD failed (exit {e.returncode})",
-            file=sys.stderr,
-        )
-        return 1
+    # Resolve max_cycles from config when not explicitly provided
+    if max_cycles is None:
+        max_cycles = read_config_int("review.max_cycles", default=4)
 
+    # Resolve commit_sha from git when not explicitly provided
+    if commit_sha is None:
+        try:
+            commit_sha = (
+                subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
+            )
+        except subprocess.CalledProcessError as e:
+            print(
+                f"ERROR: git rev-parse HEAD failed (exit {e.returncode})",
+                file=sys.stderr,
+            )
+            return 1
+
+    # Resolve branch name (informational; not used in dispatch logic)
     try:
         branch_name = (
             subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"])
@@ -174,19 +252,99 @@ def main() -> int:
     except subprocess.CalledProcessError:
         branch_name = "unknown"
 
+    # Initialize ledger and determine starting cycle_num
     result = _init_local_ledger(
         artifacts_dir=artifacts_dir,
         branch_name=branch_name,
-        commit_sha=current_commit_sha,
+        commit_sha=commit_sha,
     )
+    ledger = result["ledger"]
+    cycle_num = result["cycle_num"]
+    ledger_path = os.path.join(artifacts_dir, "cycle-ledger.json")
 
     print(
-        f"Local review workflow: cycle_num={result['cycle_num']} "
-        f"branch={branch_name} sha={current_commit_sha[:12]}",
+        f"Local review workflow: cycle_num={cycle_num} "
+        f"branch={branch_name} sha={commit_sha[:12]}",
         file=sys.stderr,
     )
 
-    return 0
+    # Pre-loop SHORT_CIRCUIT check: if a prior arbiter ruling exists for this
+    # commit, skip re-running the review loop entirely.
+    action_result = cycle_dispatcher.next_action(
+        ledger, max_cycles, [], commit_sha, artifacts_dir
+    )
+    if action_result.get("action") == "SHORT_CIRCUIT":
+        rulings_path = os.path.join(artifacts_dir, "arbiter-rulings.json")
+        try:
+            with open(rulings_path) as f:
+                rulings = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            rulings = []
+        has_block = any(
+            r.get("ruling") == "BLOCK"
+            for r in (rulings if isinstance(rulings, list) else [])
+        )
+        return 1 if has_block else 0
+
+    # Multi-cycle review loop (reviewer-first ordering).
+    # Each iteration: dispatch reviewer → compute hash → append to ledger
+    # → ask dispatcher for next action.
+    prior_defenses: list = []
+    while True:
+        findings = _dispatch_local_reviewer(diff_text, cycle_num, prior_defenses)
+
+        # Compute stable finding identity hash from (file, line_range, category).
+        tuples = [
+            (
+                f.get("file", ""),
+                str(f.get("line_range", "")),
+                f.get("category", ""),
+            )
+            for f in findings
+        ]
+        findings_hash = stability.finding_hash(
+            {
+                "file": "|".join(t[0] for t in sorted(tuples)),
+                "line_range": "|".join(t[1] for t in sorted(tuples)),
+                "category": "|".join(t[2] for t in sorted(tuples)),
+            }
+        )
+
+        # Atomically append this cycle's data to the on-disk ledger.
+        cycle_ledger.append_cycle(
+            ledger_path, cycle_num, tuples, commit_sha, findings_hash
+        )
+
+        # Also update in-memory ledger so next_action sees current state.
+        ledger.setdefault("cycles", []).append(
+            {
+                "cycle_num": cycle_num,
+                "commit_sha": commit_sha,
+                "findings": tuples,
+                "findings_hash": findings_hash,
+            }
+        )
+
+        # Ask the dispatcher what to do next.
+        action_result = cycle_dispatcher.next_action(
+            ledger, max_cycles, findings, commit_sha, artifacts_dir
+        )
+        action = action_result.get("action")
+
+        if action == "PASS":
+            return 0
+
+        if action == "DISPATCH_ARBITER":
+            return _invoke_arbiter_hook(artifacts_dir, commit_sha)
+
+        if action == "SHORT_CIRCUIT":
+            # SHORT_CIRCUIT mid-loop: treat as pass (arbiter already ruled PASS).
+            return 0
+
+        # DISPATCH_NEXT: advance cycle counter and continue loop.
+        # The cycle_num in the action result reflects the current cycle;
+        # increment by 1 to get the next cycle number.
+        cycle_num = cycle_num + 1
 
 
 if __name__ == "__main__":
