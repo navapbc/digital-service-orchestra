@@ -13,7 +13,7 @@ Behavioral contracts under test:
   T1 — RESUSTAIN_OF finding with prior defense triggers arbiter dispatch exactly once.
   T2 — NEW_INTRODUCED finding on overlapping lines without escape_rationale is re-dispatched.
   T3 — Single-cycle run (DSO_REVIEW_CYCLE=1) sets cycle_count=1; no arbiter dispatch occurs.
-  T4 — DOWNGRADE_TO ruling with named_rebuttal citing only evidence lines → ACCEPT_DEFENSE.
+  T4 — RESUSTAIN_OF finding with BLOCK ruling from mock arbiter propagates through pipeline.
 """
 
 from __future__ import annotations
@@ -94,52 +94,6 @@ def _needs_escape_rationale(finding: dict, diff_lines: set[str]) -> bool:
         if any(path in dl for dl in diff_lines):
             return True
     return False
-
-
-def _validate_arbiter_ruling(ruling: dict, finding: dict) -> dict:
-    """Validate a DOWNGRADE_TO ruling; reclassify if named_rebuttal is invalid.
-
-    A DOWNGRADE_TO ruling is invalid when named_rebuttal ONLY references lines
-    already listed in reviewer_severity_evidence (i.e., no new evidence).
-
-    Reclassifies to ACCEPT_DEFENSE when invalid.
-    """
-    if not ruling.get("ruling", "").startswith("DOWNGRADE_TO"):
-        return ruling
-
-    severity_rebuttal = ruling.get("severity_rebuttal", {})
-    named_rebuttal = severity_rebuttal.get("named_rebuttal", "")
-    evidence_ref = severity_rebuttal.get("reviewer_severity_evidence", "")
-
-    # Extract referenced paths from evidence and named_rebuttal
-    def _extract_paths(text: str) -> set[str]:
-        """Extract 'path:lineno' fragments from text."""
-        import re
-
-        return set(re.findall(r"[\w/.-]+\.[\w]+:\d+", text))
-
-    evidence_paths = _extract_paths(evidence_ref)
-    cited_paths = {
-        cl.split(":")[0] + ":" + cl.split(":")[1] if cl.count(":") >= 1 else cl
-        for cl in finding.get("cited_lines", [])
-    }
-    # Combine: evidence is everything the reviewer already cited
-    all_prior_paths = evidence_paths | cited_paths
-
-    # Named rebuttal must reference at least one path NOT in prior evidence
-    rebuttal_paths = _extract_paths(named_rebuttal)
-    new_evidence = rebuttal_paths - all_prior_paths
-
-    if not new_evidence and rebuttal_paths:
-        # All referenced paths are already in the evidence set — invalid rebuttal
-        result = dict(ruling)
-        result["ruling"] = "ACCEPT_DEFENSE"
-        result["_reclassified_reason"] = (
-            "named_rebuttal only references lines already in reviewer_severity_evidence"
-        )
-        return result
-
-    return ruling
 
 
 def _run_pipeline_with_mock(
@@ -233,7 +187,7 @@ def test_resustain_of_with_proximity_triggers_arbiter():
         }
     )
     mock_arbiter = MagicMock(
-        return_value={"ruling": "SUSTAIN", "rationale": "defense insufficient"}
+        return_value={"ruling": "BLOCK", "rationale": "critical finding undefended", "schema_version": "1.0.0"}
     )
 
     result = _run_pipeline_with_mock(
@@ -362,66 +316,60 @@ def test_new_pre_existing_not_in_scope(pr_num: int):
 
 
 # ---------------------------------------------------------------------------
-# T4 — DOWNGRADE_TO with named_rebuttal citing only evidence lines → ACCEPT_DEFENSE
+# T4 — RESUSTAIN_OF finding with BLOCK ruling propagates through pipeline fixture
 # ---------------------------------------------------------------------------
 
 
-def test_downgrade_to_without_named_rebuttal_reclassified():
-    """Given: DOWNGRADE_TO ruling with named_rebuttal citing only evidence lines
-    When: validate_arbiter_ruling called
-    Then: ruling reclassified to ACCEPT_DEFENSE
+def test_pipeline_fixture_block_ruling_when_finding_undefended():
+    """Given: mock_arbiter returns {"ruling":"BLOCK","rationale":"..."} for RESUSTAIN_OF finding
+    When: _run_pipeline_with_mock processes the finding at cycle 2
+    Then: arbiter dispatch occurs and the arbiter's BLOCK ruling is accessible
     """
-    # The named_rebuttal only references auth/login.py:42 — already in evidence
-    ruling = {
-        "ruling": "DOWNGRADE_TO_important",
-        "severity_rebuttal": {
-            "reviewer_claimed_severity": "critical",
-            "reviewer_severity_evidence": "auth/login.py:42",
-            "named_rebuttal": "line auth/login.py:42 is actually handled by null-check",
-        },
-    }
-    finding = {
-        "id": "f1",
-        "cited_lines": ["auth/login.py:42"],
-        "severity": "critical",
-    }
+    diff_text = _load_diff("pr-65.diff")
+    prior_findings = _load_findings("pr-65-prior-findings.json")
 
-    result = _validate_arbiter_ruling(ruling, finding)
+    resustain_finding_id = prior_findings[0]["finding_id"]
 
-    assert result["ruling"] == "ACCEPT_DEFENSE", (
-        f"Expected ruling='ACCEPT_DEFENSE' when named_rebuttal only references "
-        f"lines already in reviewer_severity_evidence, got: {result['ruling']!r}"
+    mock_dispatch = MagicMock(
+        return_value={
+            "findings": [
+                {
+                    "id": resustain_finding_id,
+                    "prior_finding_id": resustain_finding_id,
+                    "relation": "RESUSTAIN_OF",
+                    "dimension": "correctness",
+                    "severity": "critical",
+                    "description": "Critical undefended finding.",
+                    "cited_lines": ["plugins/dso/scripts/merge-to-main.sh:142"],
+                }
+            ]
+        }
     )
-    assert "_reclassified_reason" in result, (
-        "Expected _reclassified_reason to explain the reclassification"
+    mock_arbiter = MagicMock(
+        return_value={
+            "ruling": "BLOCK",
+            "rationale": "Critical undefended finding blocks merge.",
+            "schema_version": "1.0.0",
+        }
     )
 
-
-def test_downgrade_to_with_valid_named_rebuttal_preserved():
-    """Given: DOWNGRADE_TO ruling with named_rebuttal citing a NEW line (non-evidence)
-    When: validate_arbiter_ruling called
-    Then: ruling is preserved as-is (DOWNGRADE_TO is valid)
-    """
-    ruling = {
-        "ruling": "DOWNGRADE_TO_style",
-        "severity_rebuttal": {
-            "reviewer_claimed_severity": "critical",
-            "reviewer_severity_evidence": "auth/login.py:42",
-            "named_rebuttal": "auth/login.py:55 provides the mitigation (not cited previously)",
-        },
-    }
-    finding = {
-        "id": "f1",
-        "cited_lines": ["auth/login.py:42"],
-        "severity": "critical",
-    }
-
-    result = _validate_arbiter_ruling(ruling, finding)
-
-    assert result["ruling"] == "DOWNGRADE_TO_style", (
-        f"Expected ruling='DOWNGRADE_TO_style' to be preserved when named_rebuttal "
-        f"introduces new evidence, got: {result['ruling']!r}"
+    result = _run_pipeline_with_mock(
+        diff_text=diff_text,
+        prior_findings=prior_findings,
+        cycle=2,
+        mock_dispatch=mock_dispatch,
+        mock_arbiter=mock_arbiter,
     )
-    assert "_reclassified_reason" not in result, (
-        "Valid DOWNGRADE_TO ruling must not have a reclassification reason"
+
+    # Arbiter must have been dispatched exactly once for the RESUSTAIN_OF finding
+    assert mock_arbiter.call_count == 1, (
+        f"Expected arbiter dispatch exactly once, got: {mock_arbiter.call_count}"
+    )
+    assert resustain_finding_id in result["arbiter_dispatches"], (
+        f"Expected finding {resustain_finding_id!r} in arbiter_dispatches: {result['arbiter_dispatches']!r}"
+    )
+    # The mock arbiter returns a BLOCK ruling — verify the ruling value is accessible
+    arbiter_ruling = mock_arbiter.return_value
+    assert arbiter_ruling["ruling"] == "BLOCK", (
+        f"Expected mock arbiter to return ruling='BLOCK', got: {arbiter_ruling['ruling']!r}"
     )

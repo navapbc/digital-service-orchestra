@@ -1,0 +1,22 @@
+{
+  "_comment": "BLOCK reclassification: critical severity but impact_class='none' (outside 8-cat floor) → reclassified to DEFER per BLOCK-gate floor.",
+  "scenario": "BLOCK_FLOOR_RECLASSIFICATION",
+  "expected_ruling": "DEFER",
+  "finding": {
+    "id": "f-block-floor-01",
+    "severity": "critical",
+    "dimension": "style",
+    "cited_lines": ["src/utils/helpers.py:42"]
+  },
+  "arbiter_ruling": {
+    "ruling": "BLOCK",
+    "rationale": "Critical-severity style finding; would BLOCK if not for impact_class floor",
+    "schema_version": "1.1.0",
+    "cross_reviewer_agreement": ["UNANIMOUS"],
+    "cross_cycle_pattern": ["NEW_INTRODUCED"],
+    "impact_class": "none"
+  },
+  "cycle": 2,
+  "max_cycles": 4,
+  "defense_present": false
+}

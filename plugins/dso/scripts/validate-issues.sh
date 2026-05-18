@@ -206,6 +206,8 @@ for t in tickets:
         comments = t.get('comments', [])
         notes = 'yes' if comments else ''
 
+    tags = t.get('tags', [])
+
     issues.append({
         'id': tid,
         'title': title,
@@ -216,6 +218,7 @@ for t in tickets:
         'created': created,
         'description': description,
         'notes': notes,
+        'tags': tags,
     })
 
 print(json.dumps(issues))
@@ -268,6 +271,9 @@ for issue in issues:
         for dep in deps
     )
     if not is_child:
+        tags = issue.get('tags', [])
+        if 'orphan:deferred_review' in tags and 'origin:arbiter' in tags:
+            continue  # exempt — intentional arbiter-generated orphan awaiting review
         orphans.append(issue)
 
 # Detect clusters: group orphans by creation hour
