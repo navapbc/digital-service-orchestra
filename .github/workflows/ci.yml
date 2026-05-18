@@ -585,8 +585,12 @@ jobs:
             echo "ERROR [liveness]: /tmp/findings.json missing or empty — runner did not produce review output" >&2
             exit 1
           fi
-          if ! jq -e 'has("findings")' /tmp/findings.json >/dev/null 2>&1; then
-            echo "ERROR [liveness]: /tmp/findings.json malformed — missing 'findings' key or invalid JSON" >&2
+          # Require both: the JSON has a `findings` key AND its value is an
+          # array. Without the type check, a malformed `{"findings": {}}`
+          # would pass and `jq '.findings | length'` would produce a
+          # misleading count (c131-0f34 review cycle 3).
+          if ! jq -e 'has("findings") and (.findings | type == "array")' /tmp/findings.json >/dev/null 2>&1; then
+            echo "ERROR [liveness]: /tmp/findings.json malformed — 'findings' missing, not an array, or invalid JSON" >&2
             # Print raw content under set -e safely: `|| true` so a jq parse
             # failure on malformed JSON does not preempt the exit-1 below.
             head -c 500 /tmp/findings.json 2>/dev/null | sed 's/^/  | /' >&2 || true

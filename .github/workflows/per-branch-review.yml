@@ -308,8 +308,8 @@ jobs:
             echo "ERROR [liveness]: /tmp/findings.json missing or empty" >&2
             exit 1
           fi
-          if ! jq -e 'has("findings")' /tmp/findings.json >/dev/null 2>&1; then
-            echo "ERROR [liveness]: /tmp/findings.json malformed — missing 'findings' key or invalid JSON" >&2
+          if ! jq -e 'has("findings") and (.findings | type == "array")' /tmp/findings.json >/dev/null 2>&1; then
+            echo "ERROR [liveness]: /tmp/findings.json malformed — 'findings' missing, not an array, or invalid JSON" >&2
             head -c 500 /tmp/findings.json 2>/dev/null | sed 's/^/  | /' >&2 || true
             exit 1
           fi

@@ -1345,10 +1345,19 @@ def main() -> int:
         return 1
 
     # Read cycle number BEFORE the try block so the broad-except handler at
-    # the bottom can reference it safely. If we read it inside try and an
-    # earlier line (e.g. _classify_tier_via_bash) raises, the except would
-    # hit NameError and mask the original failure (c131-0f34 review #1).
-    cycle_number = int(os.environ.get("DSO_REVIEW_CYCLE", "1"))
+    # the bottom can reference it safely. Parse defensively — a non-numeric
+    # or empty DSO_REVIEW_CYCLE would otherwise raise ValueError here and
+    # bypass the broad except, leaving no synthetic findings.json behind
+    # (c131-0f34 review cycle 3).
+    _raw_cycle = os.environ.get("DSO_REVIEW_CYCLE", "1") or "1"
+    try:
+        cycle_number = int(_raw_cycle)
+    except ValueError:
+        print(
+            f"WARNING: DSO_REVIEW_CYCLE={_raw_cycle!r} is not an integer; defaulting to 1",
+            file=sys.stderr,
+        )
+        cycle_number = 1
 
     try:
         # Step 1: classify tier
@@ -1686,13 +1695,25 @@ def main() -> int:
         # regression that swallowed the exception would silently exit 0 with
         # no signal at all. The synthetic specialist_error stamps the
         # cycle_number so downstream consumers can still attribute the run.
+        # Sanitize the exception text before serializing — `repr(exc)` can
+        # include sensitive values (API keys embedded in URL paths or
+        # request headers when an HTTP client surfaces them in the message)
+        # and this artifact is uploaded for inspection (c131-0f34 review
+        # cycle 3). Emit the class name plus a 200-char message tail with
+        # common secret-looking patterns redacted.
+        _exc_class = type(exc).__name__
+        _exc_msg = str(exc)[:200]
+        # Redact bearer-token / Authorization-header / sk-… style patterns.
+        _exc_msg = re.sub(r"(?i)(bearer|authorization|api[-_]?key|token)[=:\s]+\S+",
+                          r"\1=[REDACTED]", _exc_msg)
+        _exc_msg = re.sub(r"\bsk-[A-Za-z0-9_-]{8,}", "sk-[REDACTED]", _exc_msg)
         try:
             _write_output({
                 "findings": [{
                     "type": "specialist_error",
                     "severity": "critical",
                     "category": "infrastructure",
-                    "description": f"runner exception before Step 8: {exc!r}",
+                    "description": f"runner exception before Step 8: {_exc_class}: {_exc_msg}",
                 }],
                 "cycle_number": cycle_number,
             })

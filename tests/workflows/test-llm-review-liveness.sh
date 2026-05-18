@@ -106,12 +106,12 @@ trap 'rm -f "$_ASSERT_SCRIPT" "$_FIND_FIXTURE"' EXIT
 
 cat > "$_ASSERT_SCRIPT" <<EOF
 #!/bin/bash
-set -eo pipefail
+set -euo pipefail
 F="$_FIND_FIXTURE"
 if [ ! -s "\$F" ]; then
   echo "ERROR [liveness]: missing or empty" >&2; exit 1
 fi
-if ! jq -e 'has("findings")' "\$F" >/dev/null 2>&1; then
+if ! jq -e 'has("findings") and (.findings | type == "array")' "\$F" >/dev/null 2>&1; then
   echo "ERROR [liveness]: malformed" >&2
   head -c 500 "\$F" 2>/dev/null | sed 's/^/  | /' >&2 || true
   exit 1
@@ -163,6 +163,28 @@ if [[ "${result##*|}" == "1" && "$result" == *"malformed"* ]]; then
 else
     (( ++FAIL ))
     echo "FAIL: assertion did not fire on missing 'findings' key: $result" >&2
+fi
+
+# Case D2: 'findings' key present but value is NOT an array (regression
+# guard for c131-0f34 review cycle 3 — without the `.findings | type ==
+# "array"` predicate, this case used to pass falsely).
+echo '{"findings":{"oops":"object"},"cycle_number":1}' > "$_FIND_FIXTURE"
+result=$(_run_assert)
+if [[ "${result##*|}" == "1" && "$result" == *"malformed"* ]]; then
+    (( ++PASS ))
+else
+    (( ++FAIL ))
+    echo "FAIL: assertion did not fire on findings-is-object (non-array): $result" >&2
+fi
+
+# Case D3: 'findings' key present but value is null
+echo '{"findings":null,"cycle_number":1}' > "$_FIND_FIXTURE"
+result=$(_run_assert)
+if [[ "${result##*|}" == "1" && "$result" == *"malformed"* ]]; then
+    (( ++PASS ))
+else
+    (( ++FAIL ))
+    echo "FAIL: assertion did not fire on findings-is-null: $result" >&2
 fi
 
 # Case E: valid empty findings → must PASS
