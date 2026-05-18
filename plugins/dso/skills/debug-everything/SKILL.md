@@ -32,7 +32,7 @@ You are a **Senior Software Engineer at Google** brought in to restore a project
 /dso:debug-everything --aws            # Include proactive AWS infrastructure scan in Phase B
 ```
 
-**ci-pr mode** (when `dso.workflow=ci-pr`): `/dso:debug-everything` runs in ci-pr mode. Each fix batch is committed to a per-tier sub-branch (`bug-batch/<session-id>/tier-<N>-batch-<K>`), opened as a PR against `SESSION_BRANCH` (not main), and reviewed automatically by the `per-branch-review.yml` CI workflow before merging to the session branch. The session's aggregate progress is tracked in a `Debug:` draft PR. Phase B Step 1 creates a `.debug-active` marker (schema v1) on the repo root; Phase K removes it. The draft PR is also created in Phase B Step 1.
+**ci-pr mode** (when `dso.workflow=ci-pr`): `/dso:debug-everything` runs in ci-pr mode. Each fix batch is committed to a per-tier sub-branch (`bug-batch/<session-id>/tier-<N>-batch-<K>`), opened as a PR against `SESSION_BRANCH` (not main), and reviewed via local `/dso:review` dispatch before merging to the session branch. The session's aggregate progress is tracked in a `Debug:` draft PR. Phase B Step 1 creates a `.debug-active` marker (schema v1) on the repo root; Phase K removes it. The draft PR is also created in Phase B Step 1.
 
 **Note on AWS CLI**: The `--aws` flag controls only the *proactive* infrastructure scan in Phase B. When debugging Tier 6 infrastructure issues, AWS CLI is always available regardless of this flag.
 <!-- EMIT-PRECONDITIONS: gate_name=debug_everything_aws_infra degradation_type=inferred_decision -->
@@ -730,10 +730,10 @@ fi
 - Branch naming: `bug-batch/<debug-session-id>/tier-0` and `bug-batch/<debug-session-id>/tier-1`
 - Use direct `git checkout -b bug-batch/<debug-session-id>/tier-<N>` (create-story-branch.sh appends /<epic>/<story> and cannot produce tier branch names)
 - When a tier has 0 bugs/changes: no sub-branch is created AND no annotation is added to the aggregate draft PR for that tier (zero-bug tier skip)
-- Apply all tier changes on the sub-branch, push to origin, then open a PR against `SESSION_BRANCH` (not main): `gh pr create --base "$SESSION_BRANCH" --head <sub-branch> --title "auto-fix: tier-<N>" --body "Auto-fix tier <N> changes"`. The PR triggers the `per-branch-review.yml` CI workflow automatically — no local `/dso:review` dispatch is needed.
+- Apply all tier changes on the sub-branch, push to origin, then open a PR against `SESSION_BRANCH` (not main): `gh pr create --base "$SESSION_BRANCH" --head <sub-branch> --title "auto-fix: tier-<N>" --body "Auto-fix tier <N> changes"`. Then dispatch `/dso:review` locally against the sub-branch diff before merging.
 
 <HARD-GATE>
-**Sub-branch invariant pre-flight (Flow C analog of bug da45-7d92-6c86-42bc)**: BEFORE invoking `gh pr create` for the tier sub-branch, run `assert-batch-branch.sh` from the session branch directory to confirm the bug-batch sub-branch has been created locally AND pushed to origin. Without the push, `per-branch-review.yml` will not fire and LLM Sub-Branch Review will be silently bypassed — the exact failure pattern that left every prior debug-everything bug-batch PR unreviewed.
+**Sub-branch invariant pre-flight (Flow C analog of bug da45-7d92-6c86-42bc)**: BEFORE invoking `gh pr create` for the tier sub-branch, run `assert-batch-branch.sh` from the session branch directory to confirm the bug-batch sub-branch has been created locally AND pushed to origin. Without the push, no PR can be opened and LLM Sub-Branch Review will be silently bypassed — the exact failure pattern that left every prior debug-everything bug-batch PR unreviewed.
 
 ```bash
 .claude/scripts/dso assert-batch-branch.sh "bug-batch/${DEBUG_SESSION_ID}/tier-${N}" || {
@@ -756,8 +756,7 @@ In local mode (DEBUG_MODE=direct or absent): no sub-branch created; commit direc
 
 After each sub-branch PR is opened in ci-pr mode, review is handled automatically by CI:
 
-- The PR opened with `base=$SESSION_BRANCH` triggers the `per-branch-review.yml` CI workflow on push. No local `/dso:review` dispatch is required or performed in Phase F.
-- Wait for the CI workflow to complete before merging the sub-branch into the session branch.
+- After opening the PR with `base=$SESSION_BRANCH`, dispatch `/dso:review` locally against the sub-branch diff. Wait for the review to complete before merging the sub-branch into the session branch.
 - **Return discriminated merge outcome** for this sub-branch:
   - `MERGED`: CI review passed; merge sub-branch into session branch.
   - `ESCALATED`: CI review failed or PR blocked; do NOT merge; write `SUBBRANCH_ESCALATED: <sub-branch> reason=<...>` ticket comment FIRST (ticket comment is the authoritative source of truth — COMPACTION_RESUME reconciles PR annotation from ticket comments on resume), then update aggregate draft PR `BLOCKED_SUBBRANCHES:` annotation SECOND; continue to next sub-branch (ESCALATED does not halt the tier loop — loop continues to next sub-branch after ESCALATED).
@@ -823,7 +822,7 @@ In local mode: commit directly to session branch (sub-branch chunking does not a
 After each sub-branch is created and changes committed in ci-pr mode, push the sub-branch to origin, open a PR against `SESSION_BRANCH`, and wait for CI review before merging:
 
 <HARD-GATE>
-**Sub-branch invariant pre-flight (Flow C analog of bug da45-7d92-6c86-42bc)**: BEFORE invoking `gh pr create`, run `assert-batch-branch.sh` from the session branch directory with the per-batch sub-branch name. The gate confirms the bug-batch sub-branch was created locally AND pushed to origin — the two preconditions for `per-branch-review.yml` to fire. Without this pre-flight, an orchestrator that skipped `git push` would open a PR whose CI workflow never runs.
+**Sub-branch invariant pre-flight (Flow C analog of bug da45-7d92-6c86-42bc)**: BEFORE invoking `gh pr create`, run `assert-batch-branch.sh` from the session branch directory with the per-batch sub-branch name. The gate confirms the bug-batch sub-branch was created locally AND pushed to origin — the two preconditions for opening a PR. Without this pre-flight, an orchestrator that skipped `git push` would attempt to open a PR for a branch that does not exist on GitHub.
 
 ```bash
 .claude/scripts/dso assert-batch-branch.sh "bug-batch/${DEBUG_SESSION_ID}/tier-${N}-batch-${K}" || {
@@ -835,8 +834,8 @@ After each sub-branch is created and changes committed in ci-pr mode, push the s
 In `local` mode (DEBUG_MODE=direct) this is a silent no-op (exit 0). In `ci-pr` mode the orchestrator MUST NOT open a sub-branch PR if the branch was not created+pushed. Do NOT skip, soften, or work around this gate — bypassing reproduces the Flow C silent-skip pattern.
 </HARD-GATE>
 
-- Open the sub-branch PR against `SESSION_BRANCH` (not main): `gh pr create --base "$SESSION_BRANCH" --head <sub-branch> --title "auto-fix: tier-<N>-batch-<K>" --body "Auto-fix tier <N> batch <K> changes"`. The PR triggers the `per-branch-review.yml` CI workflow automatically — no local `/dso:review` dispatch is required or performed in Phase G.
-- Wait for the CI workflow to complete before merging the sub-branch into the session branch.
+- Open the sub-branch PR against `SESSION_BRANCH` (not main): `gh pr create --base "$SESSION_BRANCH" --head <sub-branch> --title "auto-fix: tier-<N>-batch-<K>" --body "Auto-fix tier <N> batch <K> changes"`. Then dispatch `/dso:review` locally against the sub-branch diff before merging.
+- Wait for the local review to complete before merging the sub-branch into the session branch.
 - **Return discriminated merge outcome** for this sub-branch:
   - `MERGED`: CI review passed; merge sub-branch into session branch.
   - `ESCALATED`: CI review failed or PR blocked; do NOT merge; write `SUBBRANCH_ESCALATED: <sub-branch> reason=<...>` ticket comment FIRST (ticket comment is the authoritative source of truth — COMPACTION_RESUME reconciles PR annotation from ticket comments on resume), then update aggregate draft PR `BLOCKED_SUBBRANCHES:` annotation SECOND; continue to next sub-branch (ESCALATED does not halt the tier loop — loop continues to next sub-branch after ESCALATED).

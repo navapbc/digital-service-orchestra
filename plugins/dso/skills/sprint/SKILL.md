@@ -132,9 +132,9 @@ _TS=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "unknown")
 .claude/scripts/dso ticket comment <primary_ticket_id> "WORKTREE_TRACKING:start branch=${_BRANCH} session_branch=${_BRANCH} timestamp=${_TS}" 2>/dev/null || true
 ```
 
-**Set vars.SPRINT_SESSION_ID**: Set the `SPRINT_SESSION_ID` repo variable so `per-branch-review.yml` can fetch the session branch for per-story delta scoping. PATCH first (update existing); POST as fallback (initial creation). `|| true` ensures failure (no gh auth, no `actions:write` permission, fork repo) does not block sprint execution.
+**Set vars.SPRINT_SESSION_ID**: Set the `SPRINT_SESSION_ID` repo variable so `resolve-session-branch.sh` can discover the session branch as a fallback (step 2 of its 3-step fallback chain). PATCH first (update existing); POST as fallback (initial creation). `|| true` ensures failure (no gh auth, no `actions:write` permission, fork repo) does not block sprint execution.
 ```bash
-# Set vars.SPRINT_SESSION_ID so per-branch-review.yml can fetch the session branch.
+# Set vars.SPRINT_SESSION_ID for resolve-session-branch.sh session discovery fallback.
 _SESSION_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
 _GH_REPO=$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null || true)
 if [[ -n "$_GH_REPO" ]]; then
@@ -2059,8 +2059,8 @@ fi
 if [[ "${SPRINT_MODE:-local}" == "ci-pr" ]]; then
   # ci-pr mode: merge via GitHub PR — do NOT perform a local direct merge.
   # Resolve session branch via 3-step fallback — fail-fast, never silently
-  # default to main. CI per-branch-review.yml handles code review for each
-  # story PR; no local /dso:review dispatch is needed here.
+  # default to main. ci.yml's llm-review job handles code review for each
+  # story PR when it targets main; no local /dso:review dispatch is needed.
   SESSION_BRANCH=$(bash "$PLUGIN_SCRIPTS/resolve-session-branch.sh") || { # shim-exempt: SKILL.md orchestrator instruction — sprint runs plugin scripts via $PLUGIN_SCRIPTS directly
     echo "ERROR: SESSION_BRANCH resolution failed — cannot open story PR against session branch" >&2
     exit 1
