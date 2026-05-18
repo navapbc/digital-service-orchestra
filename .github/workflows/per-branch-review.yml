@@ -1,4 +1,4 @@
-name: Sprint Story Review
+name: Per-Branch Review
 
 on:
   push:
