@@ -1126,15 +1126,21 @@ def test_runner_posts_pr_review_when_findings(tmp_path):
     ]
 
     def _is_cycle_marker_comment(cmd: list) -> bool:
-        """Return True when cmd is a 'gh pr comment' carrying a DSO-Review-Cycle marker body."""
+        """Return True when cmd is a 'gh pr comment' carrying a DSO-Review-Cycle marker body
+        or a DISPATCH_NEXT cycle-complete notification (cycle infrastructure, not finding comments).
+        """
         # The body is passed as a positional arg after '--body': ["gh", "pr", "comment", <pr>, "--body", <body>]
         try:
             body_idx = cmd.index("--body") + 1
-            return str(cmd[body_idx]).startswith("DSO-Review-Cycle:")
+            body = str(cmd[body_idx])
+            return body.startswith("DSO-Review-Cycle:") or (
+                body.startswith("Cycle ") and "awaiting next push for cycle" in body
+            )
         except (ValueError, IndexError):
             return False
 
-    # Exclude DSO-Review-Cycle marker comments (cycle ledger infrastructure, not finding comments).
+    # Exclude DSO-Review-Cycle marker comments and DISPATCH_NEXT cycle-complete notifications
+    # (cycle ledger infrastructure, not finding comments).
     issue_comment_calls = [
         c for c in gh_calls
         if "pr" in c and "comment" in c
@@ -1235,7 +1241,10 @@ def test_runner_partial_post_failure_continues_remaining_findings(tmp_path):
     def _is_cycle_marker(cmd: list) -> bool:
         try:
             body_idx = cmd.index("--body") + 1
-            return str(cmd[body_idx]).startswith("DSO-Review-Cycle:")
+            body = str(cmd[body_idx])
+            return body.startswith("DSO-Review-Cycle:") or (
+                body.startswith("Cycle ") and "awaiting next push for cycle" in body
+            )
         except (ValueError, IndexError):
             return False
 
@@ -1321,7 +1330,10 @@ def test_post_pr_review_uses_reviews_api_for_anchored_findings(tmp_path):
 
     def _is_cycle_marker(cmd):
         try:
-            return str(cmd[cmd.index("--body") + 1]).startswith("DSO-Review-Cycle:")
+            body = str(cmd[cmd.index("--body") + 1])
+            return body.startswith("DSO-Review-Cycle:") or (
+                body.startswith("Cycle ") and "awaiting next push for cycle" in body
+            )
         except (ValueError, IndexError):
             return False
 
@@ -1423,7 +1435,10 @@ def test_post_pr_review_falls_back_to_issue_comment_for_unanchorable(tmp_path):
 
     def _is_cycle_marker(cmd):
         try:
-            return str(cmd[cmd.index("--body") + 1]).startswith("DSO-Review-Cycle:")
+            body = str(cmd[cmd.index("--body") + 1])
+            return body.startswith("DSO-Review-Cycle:") or (
+                body.startswith("Cycle ") and "awaiting next push for cycle" in body
+            )
         except (ValueError, IndexError):
             return False
 
@@ -1497,7 +1512,10 @@ def test_post_pr_review_falls_back_when_head_sha_unresolvable(tmp_path):
 
     def _is_cycle_marker(cmd):
         try:
-            return str(cmd[cmd.index("--body") + 1]).startswith("DSO-Review-Cycle:")
+            body = str(cmd[cmd.index("--body") + 1])
+            return body.startswith("DSO-Review-Cycle:") or (
+                body.startswith("Cycle ") and "awaiting next push for cycle" in body
+            )
         except (ValueError, IndexError):
             return False
 
