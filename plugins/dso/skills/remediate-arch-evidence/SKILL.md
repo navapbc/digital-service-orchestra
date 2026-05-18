@@ -59,7 +59,7 @@ The tag namespace is `arch-evidence:remediation-needed` (input gate) → `arch-e
 
 ## Usage
 
-```
+```text
 /dso:remediate-arch-evidence <epic-id>
 ```
 
@@ -88,13 +88,28 @@ fi
 
 ```bash
 EPIC_JSON=$(.claude/scripts/dso ticket show "$EPIC_ID" --format=llm 2>/dev/null)
-HAS_TAG=$(echo "$EPIC_JSON" | python3 -c "import json,sys; t=json.load(sys.stdin).get('tg') or []; print('yes' if 'arch-evidence:remediation-needed' in t else 'no')")
+if [ -z "$EPIC_JSON" ]; then
+    echo "ERROR: ticket show returned empty payload for $EPIC_ID." >&2
+    exit 2
+fi
+HAS_TAG=$(echo "$EPIC_JSON" | python3 -c "
+import json, sys
+try:
+    payload = json.load(sys.stdin)
+except json.JSONDecodeError as exc:
+    print(f'ERROR: ticket payload not valid JSON: {exc}', file=sys.stderr)
+    sys.exit(2)
+tags = payload.get('tg') or payload.get('tags') or []
+print('yes' if 'arch-evidence:remediation-needed' in tags else 'no')
+") || exit 2
 if [ "$HAS_TAG" != "yes" ]; then
     echo "ERROR: epic $EPIC_ID does not carry the arch-evidence:remediation-needed tag." >&2
     echo "       This skill is for audit-flagged epics only." >&2
     exit 2
 fi
 ```
+
+Note: `--format=llm` returns abbreviated keys (`tg` for `tags`, `desc` for `description`, etc.) for token efficiency. The fallback to `tags` above protects against future format changes; both keys are checked.
 
 ### Step 0.3 — Load audit findings for this epic
 
@@ -141,12 +156,21 @@ Reference case: af26-dd5a-df6d-4f81 (2026-05-16 pass).
 
 ```bash
 CHILD_COUNT=$(.claude/scripts/dso ticket list-descendants "$EPIC_ID" 2>/dev/null | python3 -c "
-import json,sys
-d = json.load(sys.stdin)
-print(sum(len(d.get(k,[])) for k in ['stories','tasks','bugs']))
+import json, sys
+try:
+    d = json.load(sys.stdin)
+except (json.JSONDecodeError, ValueError):
+    # Schema drift or empty payload — fail soft to zero rather than crash.
+    print(0)
+    sys.exit(0)
+# Sum across documented descendant keys; tolerate added/removed keys.
+keys = [k for k in ('stories', 'tasks', 'bugs') if isinstance(d.get(k), list)]
+print(sum(len(d.get(k, [])) for k in keys))
 ")
-echo "CHILD_COUNT=$CHILD_COUNT"
+echo "CHILD_COUNT=${CHILD_COUNT:-0}"
 ```
+
+If `CHILD_COUNT` is empty (CLI/JSON failure), treat as 0 with a structured warning rather than aborting — child-count is used only for the probe-5 routing decision and a zero-fallback is the safer of the two error directions.
 
 Hold this value for Phase 2's probe-5 routing decision.
 
@@ -156,7 +180,7 @@ Hold this value for Phase 2's probe-5 routing decision.
 
 Render one informational message (no questions yet):
 
-```
+```text
 Remediating epic <id> against architecture-vs-evidence audit (<audit date>).
 
 Severity: <high|medium>
@@ -323,6 +347,8 @@ References: d2f9 (AWS Lambda + S3 verified via AWS CLI), 0cbc (Jira workflow via
 
 ## Phase 3: Apply Remediations
 
+**TOCTOU re-verification (entry to Phase 3):** before writing the edit, re-run Phase 0 Step 0.2's tag check. If the `arch-evidence:remediation-needed` tag has been removed since Phase 0 (concurrent operator action, batch-mode race), abort the edit for this epic and emit a structured warning; do not silently apply.
+
 For each selected probe, compose the additive content and apply via `.claude/scripts/dso ticket edit "$EPIC_ID" --description="$REVISED"`.
 
 **Section-header detection:** epic descriptions may use either `## Section Name` (markdown) or `SECTION NAME:` (uppercase prose) styles. Insertion logic must check both:
@@ -354,7 +380,7 @@ Never edit the epic description to remove existing content. Remediation is addit
 
 For each probe that was CONFIRMED in Phase 2, dispatch a sub-agent to re-verify the probe against the revised epic description. Batch verifications across probes (parallel sub-agents) to minimize wall-clock time.
 
-```
+```text
 Agent invocation per CONFIRMED probe (parallel batch when possible):
   description: "Verify probe <N> on epic <id> post-remediation"
   subagent_type: general-purpose
