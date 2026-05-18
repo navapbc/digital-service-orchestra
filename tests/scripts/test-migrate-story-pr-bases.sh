@@ -7,10 +7,9 @@
 # The script migrates story/* PRs targeting main to target the session branch instead:
 #   1. Lists story/* PRs currently targeting main
 #   2. For each such PR, PATCHes its base to the session branch
-#   3. Triggers per-branch-review.yml workflow run for each migrated PR
-#   4. Skips PRs already targeting the session branch (idempotent)
-#   5. Notes cache invalidation for migrated PRs
-#   6. Exits non-zero when session branch resolution fails
+#   3. Skips PRs already targeting the session branch (idempotent)
+#   4. Notes cache invalidation for migrated PRs
+#   5. Exits non-zero when session branch resolution fails
 #
 # Usage: bash tests/scripts/test-migrate-story-pr-bases.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
@@ -181,57 +180,10 @@ MOCKEOF
         "yes" "$has_session_branch_base"
 }
 
-# ── Test 5: triggers workflow run ────────────────────────────────────────────
-# Script calls gh workflow run per-branch-review.yml --ref <head-branch> for each migrated PR.
-test_triggers_workflow_run() {
-    local call_log="$TMPDIR_TEST/calls_test5.log"
-    : > "$call_log"
-
-    cat > "$MOCK_BIN/gh" << MOCKEOF
-#!/usr/bin/env bash
-echo "\$*" >> "$call_log"
-case "\$*" in
-  *"pr list"*)
-    echo '[{"number":55,"headRefName":"story/ep/st-55","baseRefName":"main"}]'
-    exit 0
-    ;;
-  *)
-    exit 0
-    ;;
-esac
-MOCKEOF
-    chmod +x "$MOCK_BIN/gh"
-
-    cat > "$MOCK_SCRIPTS/resolve-session-branch.sh" << 'MOCKEOF'
-#!/usr/bin/env bash
-echo "worktree-20260515-200444"
-exit 0
-MOCKEOF
-    chmod +x "$MOCK_SCRIPTS/resolve-session-branch.sh"
-
-    PATH="$MOCK_BIN:$PATH" \
-        DSO_RESOLVE_SESSION_BRANCH="$MOCK_SCRIPTS/resolve-session-branch.sh" \
-        bash "$SCRIPT" 2>&1 || true
-
-    # Verify workflow run was triggered with per-branch-review.yml and the head branch ref
-    local workflow_triggered
-    if grep -q "workflow run" "$call_log" && grep -q "per-branch-review" "$call_log"; then
-        workflow_triggered="yes"
-    else
-        workflow_triggered="no"
-    fi
-    assert_eq "test_triggers_workflow_run: workflow run triggered for migrated PR" \
-        "yes" "$workflow_triggered"
-
-    local uses_head_ref
-    if grep -q "story/ep/st-55" "$call_log"; then
-        uses_head_ref="yes"
-    else
-        uses_head_ref="no"
-    fi
-    assert_eq "test_triggers_workflow_run: workflow run uses PR head branch as ref" \
-        "yes" "$uses_head_ref"
-}
+# test_triggers_workflow_run: test removed; restoration covered by remediation
+# epic (per-branch-review.yml was deleted in story 20d7-09d6-b831-4c3a; the
+# migrate script no longer triggers a workflow run since ci.yml llm-review
+# fires automatically when the PR targets main).
 
 # ── Test 6: idempotent — already migrated PR is skipped ─────────────────────
 # PR that already has base=session_branch is skipped (no PATCH, no workflow run).
@@ -372,7 +324,6 @@ test_script_exists
 test_no_prs_exits_zero
 test_detects_story_pr_targeting_main
 test_patches_base_to_session_branch
-test_triggers_workflow_run
 test_idempotent_already_migrated
 test_clears_review_status_cache
 test_session_branch_resolution_failure_exits_nonzero
