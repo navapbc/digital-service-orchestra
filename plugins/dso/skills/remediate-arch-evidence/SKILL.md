@@ -193,7 +193,7 @@ Apply patterns in priority order (1 → 5 → 3 → 4 → 6 → 2). Draft the ad
 
 ### Probe 1 — Architectural-class self-use
 
-**When the epic ships orchestration changes** (CI workflow files, `.claude/**` content, plugin skills/agents/hooks, git hooks, scripts under `${CLAUDE_PLUGIN_ROOT}/scripts/`): add a self-use SC requiring the epic's own sprint to USE the deliverable on real (or fixture) artifacts before sprint close.
+**When the epic ships orchestration changes** (CI workflow files, `.claude/**` content, plugin skills/agents/hooks, git hooks, plugin-shipped scripts): add a self-use SC requiring the epic's own sprint to USE the deliverable on real (or fixture) artifacts before sprint close.
 
 **Reference template:**
 
