@@ -1,0 +1,1 @@
+{"author":"Test","data":{"body":"Reverted to open: investigation Track B (independent of Track A's state-file race). Fix pending — requires bumping --timeout from 1s to 3s OR adding retry-loop pattern. Not landed in PR #221."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1779120721592518000,"uuid":"95628f67-d66c-4207-ad1d-ece005f369ab"}
