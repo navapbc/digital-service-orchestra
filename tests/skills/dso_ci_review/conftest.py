@@ -79,16 +79,15 @@ def _ensure_plugin_package() -> None:
     _load_from_plugin("proximity")
     _load_from_plugin("speculation_markers")
     _load_from_plugin("region_split")
-    _load_from_plugin("stability")
+    # cycle_ledger, stability, and cycle_dispatcher must load before runner
+    # because runner now imports them at module level (task ba75-1ba2).
     _load_from_plugin("cycle_ledger")
+    _load_from_plugin("stability")
     _load_from_plugin("cycle_dispatcher")
     _load_from_plugin("runner")
     _load_from_plugin("arbiter")
     _load_from_plugin("arbiter_processor")
     _load_from_plugin("verifier")
-    _load_from_plugin("cycle_ledger")
-    _load_from_plugin("stability")
-    _load_from_plugin("cycle_dispatcher")
 
 
 _ensure_plugin_package()

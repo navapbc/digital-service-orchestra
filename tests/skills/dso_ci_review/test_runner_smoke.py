@@ -1124,7 +1124,22 @@ def test_runner_posts_pr_review_when_findings(tmp_path):
     reviews_api_calls = [
         c for c in gh_calls if "api" in c and "/reviews" in " ".join(str(x) for x in c)
     ]
-    issue_comment_calls = [c for c in gh_calls if "pr" in c and "comment" in c]
+
+    def _is_cycle_marker_comment(cmd: list) -> bool:
+        """Return True when cmd is a 'gh pr comment' carrying a DSO-Review-Cycle marker body."""
+        # The body is passed as a positional arg after '--body': ["gh", "pr", "comment", <pr>, "--body", <body>]
+        try:
+            body_idx = cmd.index("--body") + 1
+            return str(cmd[body_idx]).startswith("DSO-Review-Cycle:")
+        except (ValueError, IndexError):
+            return False
+
+    # Exclude DSO-Review-Cycle marker comments (cycle ledger infrastructure, not finding comments).
+    issue_comment_calls = [
+        c for c in gh_calls
+        if "pr" in c and "comment" in c
+        and not _is_cycle_marker_comment(c)
+    ]
 
     assert len(reviews_api_calls) == 1, (
         f"Expected 1 Reviews API call (batched); got {len(reviews_api_calls)}: {reviews_api_calls!r}"
@@ -1216,7 +1231,19 @@ def test_runner_partial_post_failure_continues_remaining_findings(tmp_path):
     reviews_api_calls = [
         c for c in gh_calls if "api" in c and "/reviews" in " ".join(str(x) for x in c)
     ]
-    issue_comment_calls = [c for c in gh_calls if "pr" in c and "comment" in c]
+
+    def _is_cycle_marker(cmd: list) -> bool:
+        try:
+            body_idx = cmd.index("--body") + 1
+            return str(cmd[body_idx]).startswith("DSO-Review-Cycle:")
+        except (ValueError, IndexError):
+            return False
+
+    # Exclude DSO-Review-Cycle marker comments (cycle ledger infrastructure).
+    issue_comment_calls = [
+        c for c in gh_calls
+        if "pr" in c and "comment" in c and not _is_cycle_marker(c)
+    ]
 
     assert len(reviews_api_calls) == 1, (
         f"Expected 1 Reviews API attempt (which fails); got {reviews_api_calls!r}"
@@ -1291,7 +1318,16 @@ def test_post_pr_review_uses_reviews_api_for_anchored_findings(tmp_path):
     reviews_api_calls = [
         c for c in gh_calls if "api" in c and "/reviews" in " ".join(str(x) for x in c)
     ]
-    issue_comment_calls = [c for c in gh_calls if "pr" in c and "comment" in c]
+
+    def _is_cycle_marker(cmd):
+        try:
+            return str(cmd[cmd.index("--body") + 1]).startswith("DSO-Review-Cycle:")
+        except (ValueError, IndexError):
+            return False
+
+    issue_comment_calls = [
+        c for c in gh_calls if "pr" in c and "comment" in c and not _is_cycle_marker(c)
+    ]
 
     assert len(reviews_api_calls) == 1, (
         f"Expected exactly 1 Reviews API call for 3 anchored findings; "
@@ -1384,7 +1420,16 @@ def test_post_pr_review_falls_back_to_issue_comment_for_unanchorable(tmp_path):
     reviews_api_calls = [
         c for c in gh_calls if "api" in c and "/reviews" in " ".join(str(x) for x in c)
     ]
-    issue_comment_calls = [c for c in gh_calls if "pr" in c and "comment" in c]
+
+    def _is_cycle_marker(cmd):
+        try:
+            return str(cmd[cmd.index("--body") + 1]).startswith("DSO-Review-Cycle:")
+        except (ValueError, IndexError):
+            return False
+
+    issue_comment_calls = [
+        c for c in gh_calls if "pr" in c and "comment" in c and not _is_cycle_marker(c)
+    ]
 
     assert len(reviews_api_calls) == 1, (
         f"Expected 1 Reviews API call for anchored finding; got {reviews_api_calls!r}"
@@ -1449,7 +1494,16 @@ def test_post_pr_review_falls_back_when_head_sha_unresolvable(tmp_path):
     reviews_api_calls = [
         c for c in gh_calls if "api" in c and "/reviews" in " ".join(str(x) for x in c)
     ]
-    issue_comment_calls = [c for c in gh_calls if "pr" in c and "comment" in c]
+
+    def _is_cycle_marker(cmd):
+        try:
+            return str(cmd[cmd.index("--body") + 1]).startswith("DSO-Review-Cycle:")
+        except (ValueError, IndexError):
+            return False
+
+    issue_comment_calls = [
+        c for c in gh_calls if "pr" in c and "comment" in c and not _is_cycle_marker(c)
+    ]
 
     assert not reviews_api_calls, (
         f"Must NOT call Reviews API when HEAD SHA is unresolvable; got: {reviews_api_calls!r}"
@@ -2361,7 +2415,7 @@ def test_runner_cycle2_with_defenses_suppresses_reemitted_findings(tmp_path):
         ),
         # Ledger-based fixture: mock _init_cycle_ledger to return cycle 2.
         # Task 36cf replaces the env-var body; the mock point is now stable.
-        patch("dso_ci_review.runner._init_cycle_ledger", return_value=2),
+        patch("dso_ci_review.runner._init_cycle_ledger", return_value=({"cycles": []}, 2)),
         patch(
             "dso_ci_review.runner._classify_tier_via_bash",
             return_value=_standard_tier_classification(),
@@ -2524,7 +2578,7 @@ def test_runner_cycle2_deep_tier_partial_failure_with_defenses(tmp_path):
         ),
         # Ledger-based fixture: mock _init_cycle_ledger to return cycle 2.
         # Task 36cf replaces the env-var body; the mock point is now stable.
-        patch("dso_ci_review.runner._init_cycle_ledger", return_value=2),
+        patch("dso_ci_review.runner._init_cycle_ledger", return_value=({"cycles": []}, 2)),
         patch("dso_ci_review.runner._classify_tier_via_bash", return_value=tier_result),
         patch(
             "dso_ci_review.runner._validate_findings_schema",

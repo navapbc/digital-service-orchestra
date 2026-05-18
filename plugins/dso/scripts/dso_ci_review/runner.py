@@ -38,6 +38,12 @@ from dso_ci_review.dispatch import (
     dispatch_two_call_review,
 )
 from dso_ci_review._config import default_config_path, read_config_int
+from dso_ci_review.cycle_dispatcher import next_action as cycle_next_action
+from dso_ci_review.cycle_ledger import (
+    read_ledger as _read_cycle_ledger,
+    append_cycle as _append_cycle,
+    _resolve_artifacts_dir as _ledger_artifacts_dir,
+)
 from dso_ci_review.findings import merge_findings, _parse_line_range
 from dso_ci_review.providers.config import AuthError, ConfigError, get_provider
 from dso_ci_review.proximity import compute_proximity_overlap, validate_escape_rationale
@@ -126,6 +132,114 @@ def _real_blocking_findings(findings: list[dict]) -> list[dict]:
         if sev in _BLOCKING_SEVERITIES:
             out.append(f)
     return out
+
+
+# ---------------------------------------------------------------------------
+# Cycle-ledger helpers (Step 8a / Step 8b)
+# ---------------------------------------------------------------------------
+
+
+def _compute_findings_tuples(findings: list[dict]) -> list:
+    """Convert findings to (file, line_range, category) tuples for ledger storage."""
+    tuples = []
+    for f in findings or []:
+        if not isinstance(f, dict):
+            continue
+        file_ = str(f.get("file", "") or "")
+        line_ = str(f.get("line_range", "") or "")
+        cat_ = str(f.get("category", "") or "")
+        tuples.append([file_, line_, cat_])
+    return tuples
+
+
+def _compute_findings_hash(tuples: list) -> str:
+    """Stable SHA-256 hex hash of the sorted findings tuples."""
+    import hashlib  # noqa: PLC0415
+
+    serialized = json.dumps(sorted(str(t) for t in tuples), sort_keys=True)
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()[:16]
+
+
+def _post_cycle_marker_comment(
+    *,
+    pr_number: str | None,
+    cycle_num: int,
+    commit_sha: str,
+    findings_hash: str,
+    tuples: list,
+) -> None:
+    """Post a DSO-Review-Cycle marker comment to the PR (best-effort).
+
+    Marker format (v1.1.0):
+        DSO-Review-Cycle: <N> commit_sha=<sha> findings_hash=<hash> tuples=<json>
+
+    No-ops when pr_number is None (non-PR context).
+    Errors are logged to stderr and swallowed — this is a best-effort operation.
+    """
+    if not pr_number:
+        return
+    tuples_json = json.dumps(tuples)
+    body = (
+        f"DSO-Review-Cycle: {cycle_num} commit_sha={commit_sha} "
+        f"findings_hash={findings_hash} tuples={tuples_json}"
+    )
+    try:
+        subprocess.run(
+            ["gh", "pr", "comment", pr_number, "--body", body],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(
+            f"WARNING: failed to post cycle marker comment for PR #{pr_number}: {exc}",
+            file=sys.stderr,
+        )
+
+
+def _init_cycle_ledger(
+    artifacts_dir: str,
+    pr_number: str | None,
+    repo: str | None,
+) -> tuple[dict, int]:
+    """Load (or reconstruct) the cycle ledger and return (ledger, cycle_number).
+
+    Resolution order:
+      1. Read cycle-ledger.json from artifacts_dir.
+      2. If empty and pr_number+repo are available, reconstruct from PR comments.
+    """
+    ledger_path = os.path.join(artifacts_dir, "cycle-ledger.json")
+    ledger = _read_cycle_ledger(ledger_path)
+
+    # Reconstruct from PR comments if ledger is empty and context is available.
+    if not ledger.get("cycles") and pr_number and repo:
+        from dso_ci_review.cycle_ledger import reconstruct_from_pr_comments  # noqa: PLC0415
+
+        ledger = reconstruct_from_pr_comments(int(pr_number), repo)
+
+    # Derive cycle_number from ledger (ledger is authoritative per cycle_dispatcher).
+    cycles = ledger.get("cycles", [])
+    if cycles and isinstance(cycles, list) and "cycle_num" in cycles[-1]:
+        cycle_number = cycles[-1]["cycle_num"] + 1
+    else:
+        cycle_number = int(os.environ.get("DSO_REVIEW_CYCLE", "1"))
+
+    return ledger, cycle_number
+
+
+def _resolve_max_cycles(config_path: str | None = None) -> int:
+    """Read review.max_cycles from dso-config.conf (default: 3)."""
+    return read_config_int("review.max_cycles", 3, config_path)
+
+
+def _resolve_artifacts_dir() -> str:
+    """Resolve the artifacts directory for this session."""
+    return _ledger_artifacts_dir()
+
+
+def _resolve_repo() -> str | None:
+    """Resolve <owner>/<repo> from GITHUB_REPOSITORY env var."""
+    return os.environ.get("GITHUB_REPOSITORY") or None
 
 
 def _resolve_validator_script(plugin_root: str | None = None) -> str:
@@ -689,22 +803,6 @@ def init_cycle_ledger(
             pass
 
     return cycle_num
-
-
-def _init_cycle_ledger(
-    artifacts_dir: str | None = None,
-    pr_number: str | None = None,
-    repo: str | None = None,
-) -> int:
-    """Thin internal shim — delegates to init_cycle_ledger.
-
-    artifacts_dir defaults to WORKFLOW_PLUGIN_ARTIFACTS_DIR env var or /tmp.
-    """
-    if artifacts_dir is None:
-        artifacts_dir = os.environ.get("WORKFLOW_PLUGIN_ARTIFACTS_DIR", "/tmp")
-    return init_cycle_ledger(
-        artifacts_dir=artifacts_dir, pr_number=pr_number, repo=repo
-    )
 
 
 def _fetch_pr_defenses(pr_number: str) -> list[dict]:
@@ -1532,6 +1630,16 @@ def main() -> int:
         print(f"ERROR: {kind}: {exc}", file=sys.stderr)
         return 1
 
+    # Initialize cycle ledger and max_cycles before the main try block so
+    # cycle_next_action routing has access to these values inside the try.
+    _artifacts_dir = _resolve_artifacts_dir()
+    _pr_number_for_ledger = _resolve_pr_number()
+    _repo_for_ledger = _resolve_repo()
+    max_cycles = _resolve_max_cycles()
+    ledger, _ledger_cycle_number = _init_cycle_ledger(
+        _artifacts_dir, _pr_number_for_ledger, _repo_for_ledger
+    )
+
     try:
         # Step 1: classify tier
         classification = _classify_tier_via_bash(diff_text)
@@ -1540,24 +1648,27 @@ def main() -> int:
         # Ledger-authoritative cycle derivation (replaces DSO_REVIEW_CYCLE as source).
         # On cycle N≥2, fetch prior defenses from PR comments so the LLM can avoid
         # re-emitting already-defended findings. (Bug c59e-a197: dismissal-memory gap.)
-        artifacts_dir = os.environ.get("WORKFLOW_PLUGIN_ARTIFACTS_DIR", "/tmp")
-        pr_number = _resolve_pr_number()
-        repo = os.environ.get("GITHUB_REPOSITORY", "") or None
-        max_cycles = read_config_int("review.max_cycles", default=4)
+        # Use _artifacts_dir from the outer scope (resolved via _resolve_artifacts_dir)
+        # so tests and callers that patch _resolve_artifacts_dir get consistent behavior.
+        artifacts_dir = _artifacts_dir
+        pr_number = _pr_number_for_ledger
+        repo = _repo_for_ledger
 
-        cycle_number = _init_cycle_ledger(
-            artifacts_dir=artifacts_dir, pr_number=pr_number, repo=repo
-        )
+        # cycle_number: use DSO_REVIEW_CYCLE env var (two-call architecture source of
+        # truth for the current cycle). Fall back to 1 when absent (first cycle).
+        cycle_number = int(os.environ.get("DSO_REVIEW_CYCLE", "1"))
 
         # Load the raw ledger for SHORT_CIRCUIT pre-check (cycle_next_action needs it).
         _ledger_path = os.path.join(artifacts_dir, "cycle-ledger.json")
         _ledger = cycle_ledger.read_ledger(_ledger_path)
 
         # Move reviewed_sha resolution ABOVE SHORT_CIRCUIT check.
-        reviewed_sha = subprocess.check_output(
-            ["git", "rev-parse", "HEAD"],
-            text=True,
-            stderr=subprocess.DEVNULL,
+        reviewed_sha = str(
+            subprocess.check_output(
+                ["git", "rev-parse", "HEAD"],
+                text=True,
+                stderr=subprocess.DEVNULL,
+            )
         ).strip()
 
         # Pre-review SHORT_CIRCUIT check: when HEAD SHA matches last cycle AND
@@ -1918,24 +2029,55 @@ def main() -> int:
         _write_output(merged)
 
         # Step 8a: append cycle ledger entry and post cycle marker comment.
-        tuples = _compute_findings_tuples(merged.get("findings", []))
-        findings_hash_val = _compute_findings_hash(tuples)
-        ledger_path = os.path.join(artifacts_dir, "cycle-ledger.json")
-        cycle_ledger.append_cycle(
-            ledger_path,
+        _current_findings = merged.get("findings", [])
+        _tuples = _compute_findings_tuples(_current_findings)
+        _findings_hash_val = _compute_findings_hash(_tuples)
+        _ledger_path = os.path.join(_artifacts_dir, "cycle-ledger.json")
+        _append_cycle(
+            _ledger_path,
             cycle_number,
-            tuples,
+            _tuples,
             reviewed_sha,
-            findings_hash_val,
+            _findings_hash_val,
             halt_reason=None,
         )
         _post_cycle_marker_comment(
-            pr_number=pr_number,
+            pr_number=_pr_number_for_ledger,
             cycle_num=cycle_number,
             commit_sha=reviewed_sha,
-            findings_hash=findings_hash_val,
-            tuples=tuples,
+            findings_hash=_findings_hash_val,
+            tuples=_tuples,
         )
+
+        # Step 8b: route on cycle_dispatcher action.
+        _action_result = cycle_next_action(
+            ledger, max_cycles, _current_findings, reviewed_sha, _artifacts_dir
+        )
+        _action = _action_result.get("action", "DISPATCH_NEXT")
+
+        if _action == "PASS":
+            _post_cycle_marker_comment(
+                pr_number=_pr_number_for_ledger,
+                cycle_num=cycle_number,
+                commit_sha=reviewed_sha,
+                findings_hash="pass",
+                tuples=[],
+            )
+            return 0
+
+        if _action == "SHORT_CIRCUIT":
+            print(
+                "WARNING: unexpected SHORT_CIRCUIT post-review — "
+                "pre-check should have caught this",
+                file=sys.stderr,
+            )
+            return 0
+
+        if _action == "DISPATCH_ARBITER":
+            # Full arbiter wiring is scoped to task 7626 — placeholder return
+            return 1
+
+        # DISPATCH_NEXT: fall through to existing severity gate below the try/except.
     except Exception as exc:  # noqa: BLE001
         print(f"ERROR: LLM call failed: {exc}", file=sys.stderr)
         return 1

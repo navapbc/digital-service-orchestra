@@ -357,7 +357,7 @@ def test_append_cycle_called_after_review(tmp_path):
         ),
         patch(
             "dso_ci_review.runner._init_cycle_ledger",
-            return_value=1,
+            return_value=({"cycles": []}, 1),
         ),
         patch(
             "dso_ci_review.runner.cycle_ledger.read_ledger",
@@ -376,7 +376,7 @@ def test_append_cycle_called_after_review(tmp_path):
             return_value=(0, 0),
         ),
         patch(
-            "dso_ci_review.runner.cycle_ledger.append_cycle",
+            "dso_ci_review.runner._append_cycle",
             side_effect=mock_append_cycle,
         ),
     ):
