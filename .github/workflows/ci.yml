@@ -516,11 +516,20 @@ jobs:
       - name: Suppress prior defenses for integration review
         if: needs.changes.outputs.code_changed == 'true'
         run: |
-          # Integration review must suppress TrackerDefenseStore defenses from prior
-          # review cycles. The suppress-prior-defenses flag prevents already-defended
-          # findings from being re-flagged in the integration review pass.
+          # Integration review SHOULD suppress TrackerDefenseStore defenses from
+          # prior review cycles, preventing already-defended findings from being
+          # re-flagged in the integration review pass.
+          #
+          # NOTE (PR #140 retro-review): the DSO_SUPPRESS_PRIOR_DEFENSES env var
+          # is currently set here and passed to Run LLM review below, but no
+          # consumer in plugins/dso/scripts/dso_ci_review/ or
+          # ci-llm-review-runner.sh reads or acts on the flag — the suppression
+          # contract is documented intent, not implemented behavior. Retaining
+          # the env wiring so the future consumer has a stable interface to
+          # bind against; remove this step + the corresponding env passing if
+          # the suppression feature is dropped.
           echo "DSO_SUPPRESS_PRIOR_DEFENSES=true" >> "$GITHUB_ENV"
-          echo "suppress-prior-defenses: enabled for integration review"
+          echo "suppress-prior-defenses: env var set (consumer not yet implemented — see PR #140 review)"
 
       - name: Run LLM review
         # bug 1624-5fb9: gate removed (was `&& env.INTEGRATION_SCOPE_EMPTY != 'true'`).

@@ -29,9 +29,8 @@ if ! command -v gh >/dev/null 2>&1; then
     exit 1
 fi
 
-if ! command -v jq >/dev/null 2>&1; then
-    echo "ERROR: jq is required but not found in PATH." >&2
-    echo "  Install: https://stedolan.github.io/jq/" >&2
+if ! command -v python3 >/dev/null 2>&1; then
+    echo "ERROR: python3 is required but not found in PATH." >&2
     exit 1
 fi
 
@@ -128,66 +127,97 @@ fi
 RULESETS_JSON="$(cat "$TMPFILE")"
 
 # ── Validation ────────────────────────────────────────────────────────────────
-# Condition 1: Find a ruleset with a session-* branch pattern
-# Accept patterns like: refs/heads/session-*, session-*, refs/heads/session/*
-SESSION_RULESET_IDX="$(echo "$RULESETS_JSON" | jq '
-    .rulesets // . |
-    to_entries[] |
-    select(
-        .value.conditions?.ref_name?.include? // [] |
-        any(. == "refs/heads/session-*" or . == "session-*" or . == "refs/heads/session/*" or . == "session/*" or startswith("refs/heads/session") or startswith("session"))
-    ) |
-    .key
-' 2>/dev/null | head -1)" || SESSION_RULESET_IDX=""
+# All three conditions are evaluated by a single python3 invocation
+# (jq-free; PR #140 retro-review). The script emits one of:
+#   OK                — all conditions pass
+#   NO_SESSION_PATTERN — condition 1 failed
+#   MISSING_CHECK      — condition 2 failed
+#   HAS_LINEAR         — condition 3 failed
+_PRELIGHT_RESULT="$(DSO_CHECK_NAME="$CHECK_NAME" python3 - "$TMPFILE" <<'PYEOF'
+import json, os, sys
 
-if [[ -z "$SESSION_RULESET_IDX" ]]; then
-    echo "ERROR: No GitHub Ruleset found with a session-* branch pattern." >&2
-    echo "  Expected: a Ruleset with conditions.ref_name.include containing 'refs/heads/session-*' or 'session-*'." >&2
-    echo "  See: INSTALL.md#github-rulesets-for-session-branches" >&2
-    exit 1
-fi
+with open(sys.argv[1]) as f:
+    try:
+        data = json.load(f)
+    except Exception:
+        print("NO_SESSION_PATTERN"); sys.exit(0)
 
-# Extract the matching ruleset for further validation
-MATCHING_RULESET="$(echo "$RULESETS_JSON" | jq "(.rulesets // .)[$SESSION_RULESET_IDX]")"
+# data may be {"rulesets": [...]} or a bare array
+rulesets = data.get("rulesets") if isinstance(data, dict) and "rulesets" in data else data
+if not isinstance(rulesets, list):
+    print("NO_SESSION_PATTERN"); sys.exit(0)
 
-# Condition 2: Sprint Story Review (or configured check_name) is in required_status_checks
-HAS_CHECK="$(echo "$MATCHING_RULESET" | jq --arg check_name "$CHECK_NAME" '
-    .rules // [] |
-    map(select(.type == "required_status_checks")) |
-    length > 0 and
-    (
-        map(.parameters.required_status_checks // []) |
-        flatten |
-        map(.context) |
-        any(. == $check_name)
-    )
-' 2>/dev/null)" || HAS_CHECK="false"
+def _matches_session(pattern: str) -> bool:
+    if not isinstance(pattern, str):
+        return False
+    fixed = {"refs/heads/session-*", "session-*", "refs/heads/session/*", "session/*"}
+    if pattern in fixed:
+        return True
+    return pattern.startswith("refs/heads/session") or pattern.startswith("session")
 
-if [[ "$HAS_CHECK" != "true" ]]; then
-    echo "ERROR: Required status check '$CHECK_NAME' not found in the session-* Ruleset." >&2
-    echo "  The Ruleset must have a 'required_status_checks' rule with context '$CHECK_NAME'." >&2
-    echo "  See: INSTALL.md#github-rulesets-for-session-branches" >&2
-    exit 1
-fi
+# Condition 1: find the first ruleset whose ref_name.include contains a session pattern
+matching = None
+for rs in rulesets:
+    if not isinstance(rs, dict):
+        continue
+    includes = (rs.get("conditions") or {}).get("ref_name", {}).get("include") or []
+    if any(_matches_session(p) for p in includes):
+        matching = rs
+        break
 
-# Condition 3: No linear_history rule (would block sprint merge)
-HAS_LINEAR="$(echo "$MATCHING_RULESET" | jq '
-    .rules // [] |
-    map(select(.type == "linear_history")) |
-    length > 0
-' 2>/dev/null)" || HAS_LINEAR="false"
+if matching is None:
+    print("NO_SESSION_PATTERN"); sys.exit(0)
 
-if [[ "$HAS_LINEAR" == "true" ]]; then
-    echo "ERROR: The session-* Ruleset contains a 'required_linear_history' rule." >&2
-    echo "  This would block the sprint merge strategy (which uses merge commits)." >&2
-    echo "  Remove the 'required_linear_history' rule from the session-* Ruleset." >&2
-    echo "  See: INSTALL.md#github-rulesets-for-session-branches" >&2
-    exit 1
-fi
+rules = matching.get("rules") or []
+check_name = os.environ.get("DSO_CHECK_NAME", "")
 
-# ── All conditions pass ───────────────────────────────────────────────────────
-echo "GitHub Ruleset preflight check: success"
-echo "  - session-* branch pattern: found"
-echo "  - Required status check '$CHECK_NAME': found"
-echo "  - No linear_history constraint: confirmed"
-exit 0
+# Condition 2: required_status_checks rule with the configured check_name context
+required_checks = []
+for r in rules:
+    if isinstance(r, dict) and r.get("type") == "required_status_checks":
+        params = r.get("parameters") or {}
+        required_checks.extend(params.get("required_status_checks") or [])
+contexts = [c.get("context") for c in required_checks if isinstance(c, dict)]
+if check_name not in contexts:
+    print("MISSING_CHECK"); sys.exit(0)
+
+# Condition 3: no linear_history rule
+if any(isinstance(r, dict) and r.get("type") == "linear_history" for r in rules):
+    print("HAS_LINEAR"); sys.exit(0)
+
+print("OK")
+PYEOF
+)"
+
+case "$_PRELIGHT_RESULT" in
+    OK)
+        echo "GitHub Ruleset preflight check: success"
+        echo "  - session-* branch pattern: found"
+        echo "  - Required status check '$CHECK_NAME': found"
+        echo "  - No linear_history constraint: confirmed"
+        exit 0
+        ;;
+    NO_SESSION_PATTERN)
+        echo "ERROR: No GitHub Ruleset found with a session-* branch pattern." >&2
+        echo "  Expected: a Ruleset with conditions.ref_name.include containing 'refs/heads/session-*' or 'session-*'." >&2
+        echo "  See: INSTALL.md#github-rulesets-for-session-branches" >&2
+        exit 1
+        ;;
+    MISSING_CHECK)
+        echo "ERROR: Required status check '$CHECK_NAME' not found in the session-* Ruleset." >&2
+        echo "  The Ruleset must have a 'required_status_checks' rule with context '$CHECK_NAME'." >&2
+        echo "  See: INSTALL.md#github-rulesets-for-session-branches" >&2
+        exit 1
+        ;;
+    HAS_LINEAR)
+        echo "ERROR: The session-* Ruleset contains a 'required_linear_history' rule." >&2
+        echo "  This would block the sprint merge strategy (which uses merge commits)." >&2
+        echo "  Remove the 'required_linear_history' rule from the session-* Ruleset." >&2
+        echo "  See: INSTALL.md#github-rulesets-for-session-branches" >&2
+        exit 1
+        ;;
+    *)
+        echo "ERROR: preflight check returned unexpected result: ${_PRELIGHT_RESULT}" >&2
+        exit 1
+        ;;
+esac
