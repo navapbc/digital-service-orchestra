@@ -377,3 +377,102 @@ def test_process_rulings_skips_unknown_finding_index_without_collision(tmp_path,
     assert result["block"] == []
     assert result["defer_ticket_ids"] == []
     assert result["drop_defense_records"] == []
+
+
+# ── Bug da45 PR #203 finding f-XXX — _finding_hash_for_dedup fallback path ────
+
+def test_finding_hash_for_dedup_falls_back_to_cited_lines_when_file_absent():
+    """When a finding lacks file/line_range but has cited_lines='path:range',
+    _finding_hash_for_dedup must parse cited_lines into file+line_range so
+    the dedup hash is stable across input shapes.
+
+    PR #203 finding f-XXX: this fallback path was never exercised by tests
+    (all test findings used the _make_finding helper which always populates
+    file + line_range). A future change that mis-parses cited_lines would
+    cause silent dedup collisions on real findings that lack file fields.
+    """
+    from dso_ci_review.arbiter_processor import _finding_hash_for_dedup
+
+    # No file/line_range — must fall back to cited_lines parsing
+    finding_via_cited = {
+        "cited_lines": ["src/x.py:10-20"],
+        "category": "correctness",
+    }
+    # Equivalent finding with file/line_range populated
+    finding_explicit = {
+        "file": "src/x.py", "line_range": "10-20",
+        "category": "correctness",
+    }
+    h_cited = _finding_hash_for_dedup(finding_via_cited)
+    h_explicit = _finding_hash_for_dedup(finding_explicit)
+    assert h_cited == h_explicit, (
+        f"cited_lines fallback produced different hash than explicit fields. "
+        f"cited={h_cited}, explicit={h_explicit}"
+    )
+
+
+def test_finding_hash_for_dedup_uses_filename_only_when_no_colon_in_cited_lines():
+    """cited_lines without a colon (no line range) — file becomes the whole
+    cited_lines[0], line_range stays empty.
+    """
+    from dso_ci_review.arbiter_processor import _finding_hash_for_dedup
+    finding = {"cited_lines": ["README.md"], "category": "maintainability"}
+    h_cited = _finding_hash_for_dedup(finding)
+    equiv = {"file": "README.md", "line_range": "", "category": "maintainability"}
+    h_equiv = _finding_hash_for_dedup(equiv)
+    assert h_cited == h_equiv
+
+
+# ── Bug da45 PR #203 finding f-XXX — _create_defer_ticket race-loser ──────────
+
+def test_create_defer_ticket_self_deletes_on_race_loss(tmp_path):
+    """_create_defer_ticket creates a ticket, then re-queries; if a DIFFERENT
+    ticket with the same Finding-Hash + Scope marker already exists, it
+    must self-delete the just-created ticket and return the race-winner's ID.
+
+    PR #203 finding f-XXX: this AC-amendment race-loser logic was untested.
+    """
+    from dso_ci_review.arbiter_processor import _create_defer_ticket
+
+    ruling = {"ruling": "DEFER", "rationale": "test deferral"}
+    finding = {"file": "x.py", "line_range": "1", "category": "correctness"}
+    finding_hash = "h_test123"
+    scope = "#42"
+    winner_id = "task-EXISTING-WINNER"
+    our_id = "task-OUR-LOSER"
+
+    call_log = []
+
+    def mock_run(cmd, **kwargs):
+        call_log.append(list(cmd))
+        m = MagicMock()
+        m.returncode = 0
+        if "create" in cmd:
+            m.stdout = our_id
+        elif "list" in cmd:
+            # Race-winner already exists for this marker
+            m.stdout = json.dumps([{
+                "ticket_id": winner_id,
+                "description": f"Finding-Hash: {finding_hash} Scope: {scope}",
+                "status": "open",
+            }])
+        elif "delete" in cmd:
+            m.stdout = "deleted"
+        return m
+
+    with patch("subprocess.run", side_effect=mock_run):
+        result = _create_defer_ticket(
+            ruling, finding, finding_hash, scope,
+            cycle_num=1, ticket_cmd_path=".claude/scripts/dso",
+        )
+
+    # Should return the race-winner ID, not our_id
+    assert result == winner_id, (
+        f"Expected race-loser to return winner_id={winner_id!r}; got {result!r}"
+    )
+    # Must have called: create, list (re-query), delete (self-delete)
+    cmds = [c[1:3] for c in call_log if len(c) >= 3]
+    assert ["ticket", "create"] in cmds, "Should have created the loser ticket"
+    assert ["ticket", "delete"] in cmds, (
+        "Should have self-deleted on race loss"
+    )

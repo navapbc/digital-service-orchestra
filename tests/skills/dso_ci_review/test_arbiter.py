@@ -317,3 +317,104 @@ def test_dispatch_arbiter_empty_findings_no_synthetic_block_on_dispatch_failure(
     assert mock_dispatch.call_count == 0, (
         "Expected dispatch_review to be skipped entirely for empty findings"
     )
+
+
+# ── Bug da45 PR #203 finding f-XXX — CoVe direct test ─────────────────────────
+
+def test_enforce_cove_fallback_reclassifies_block_above_max_cycles():
+    """_enforce_cove_fallback (arbiter.py:67-81) directly: a BLOCK ruling
+    issued at cycle_num > max_cycles must be reclassified to DEFER with
+    the cycle-cap rationale. PR #203 finding f-XXX: existing tests only
+    exercise this path indirectly through a mocked agent that already
+    returns DEFER — the reclassification logic itself is untested.
+    """
+    from dso_ci_review.arbiter import _enforce_cove_fallback
+    ruling = {
+        "ruling": "BLOCK",
+        "rationale": "original block reason",
+        "schema_version": "1.0.0",
+        "finding_index": 0,
+    }
+    result = _enforce_cove_fallback(ruling, cycle_num=5, max_cycles=4)
+    assert result["ruling"] == "DEFER", (
+        f"BLOCK at cycle 5 > max 4 must reclassify to DEFER; got {result['ruling']!r}"
+    )
+    assert "CoVe soft-cap" in result["rationale"], (
+        f"Reclassification rationale must mention CoVe soft-cap; got {result['rationale']!r}"
+    )
+    # Original input preserved
+    assert ruling["ruling"] == "BLOCK", (
+        "Source ruling must not be mutated"
+    )
+
+
+def test_enforce_cove_fallback_preserves_block_within_max_cycles():
+    """BLOCK at cycle_num <= max_cycles must stay BLOCK."""
+    from dso_ci_review.arbiter import _enforce_cove_fallback
+    ruling = {"ruling": "BLOCK", "finding_index": 0}
+    result = _enforce_cove_fallback(ruling, cycle_num=3, max_cycles=4)
+    assert result["ruling"] == "BLOCK"
+
+
+def test_enforce_cove_fallback_preserves_non_block_rulings():
+    """DEFER/DROP/ACCEPT must not be touched even if cycle > max."""
+    from dso_ci_review.arbiter import _enforce_cove_fallback
+    for r in ("DEFER", "DROP", "ACCEPT"):
+        ruling = {"ruling": r, "finding_index": 0}
+        result = _enforce_cove_fallback(ruling, cycle_num=10, max_cycles=4)
+        assert result["ruling"] == r, (
+            f"{r} should not be reclassified by CoVe fallback; got {result['ruling']!r}"
+        )
+
+
+# ── Bug da45 PR #203 finding f-XXX — exception-type boundary ──────────────────
+
+def test_dispatch_arbiter_does_not_catch_bare_exception_or_keyboard_interrupt():
+    """arbiter.py docstring (lines 149-152) commits to NOT catching bare
+    Exception — only specific transport/parse classes
+    (CalledProcessError, JSONDecodeError, OSError) trigger fail-closed
+    synthetic BLOCK rulings. Programming bugs (ValueError, TypeError,
+    KeyError, KeyboardInterrupt) MUST propagate so they are not masked
+    as fake BLOCK signals.
+    """
+    from dso_ci_review.arbiter import dispatch_arbiter
+
+    finding = {
+        "severity": "critical", "category": "correctness",
+        "file": "x.py", "line_range": "1", "finding_index": 0,
+    }
+
+    # ValueError (programming bug) — must propagate
+    def raise_value_error(*a, **kw):
+        raise ValueError("intentional programming bug")
+    with patch("dso_ci_review.arbiter.dispatch_review", side_effect=raise_value_error):
+        try:
+            dispatch_arbiter(
+                findings=[finding], defenses=[], diff_text="d",
+                model="m", provider_chain=["anthropic"],
+                cycle_num=1, max_cycles=4,
+            )
+        except ValueError as e:
+            assert "intentional" in str(e)
+        else:
+            raise AssertionError(
+                "dispatch_arbiter must not catch ValueError; "
+                "it would mask programming bugs as fake BLOCK rulings"
+            )
+
+    # KeyboardInterrupt — must propagate (Ctrl-C should never hang or fake-BLOCK)
+    def raise_keyboard_interrupt(*a, **kw):
+        raise KeyboardInterrupt()
+    with patch("dso_ci_review.arbiter.dispatch_review", side_effect=raise_keyboard_interrupt):
+        try:
+            dispatch_arbiter(
+                findings=[finding], defenses=[], diff_text="d",
+                model="m", provider_chain=["anthropic"],
+                cycle_num=1, max_cycles=4,
+            )
+        except KeyboardInterrupt:
+            pass
+        else:
+            raise AssertionError(
+                "dispatch_arbiter must not catch KeyboardInterrupt"
+            )
