@@ -255,7 +255,7 @@ Estimated FP-rate trajectory:
 ### §B — Subdirectory cascade pre-check in standard delta
 
 - **Targets**: hallucinated function/file reference (11% of total, 19% of FPs).
-- **Mechanism**: standard reviewer's mandatory pre-check already requires a `read_files` request before "missing reference" findings. Strengthen to extend the `read_files` request to a multi-path candidate cascade — same basename under common plugin script/hook subdirectory prefixes — so a referenced file's true location is discovered even when the literal path is incomplete. Mirrors bug 0736-a97e (dso shim subdirectory cascade). (Path-based file lookup like `find -name` / `glob` is NOT a supported context-request action today — see `docs/contracts/ci-review-context-request.md`; a future enhancement could add a `glob` action. The multi-path `read_files` cascade is the within-contract approximation.)
+- **Mechanism**: standard reviewer's mandatory pre-check already requires a `read_files` request before "missing reference" findings. Strengthen to extend the `read_files` request to a multi-path candidate cascade — same basename under common plugin script/hook subdirectory prefixes — so a referenced file's true location is discovered even when the literal path is incomplete. Mirrors bug 0736-a97e (dso shim subdirectory cascade). (Path-based file lookup like `find -name` / `glob` is NOT a supported context-request action today — see the context-request contract (`${CLAUDE_PLUGIN_ROOT}/docs/contracts/ci-review-context-request.md`); a future enhancement could add a `glob` action. The multi-path `read_files` cascade is the within-contract approximation.)
 - **Effect**: kills 50–70% of hallucinated-reference FPs. **–6–8% on FP rate.**
 - **Cost**: prompt-level delta edit.
 

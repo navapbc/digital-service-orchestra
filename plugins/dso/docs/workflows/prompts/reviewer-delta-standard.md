@@ -179,17 +179,24 @@ mirror that cascade.
 Before emitting any "file does not exist" / "missing reference" finding, you
 MUST in addition to the literal-path `read_files` check:
 
-1. Issue a **second `read_files` request** that includes a **candidate-path
-   array** — the basename appended under common subdirectory prefixes the
-   consuming script class is likely to live in. For a plugin script
-   `<basename>.sh`, candidate paths typically include the basename under
-   `plugin scripts/`, `plugin scripts/sprint/`, `plugin scripts/onboarding/`,
-   `plugin scripts/bridge/`, `plugin hooks/`, `tests/scripts/`,
-   `.claude/scripts/`, etc. The dispatcher accepts multiple paths in one
-   `read_files` request; you do NOT need separate calls per candidate.
+1. Issue a **second `read_files` request** that includes an **exhaustive
+   candidate-path array** — the basename appended under every direct
+   subdirectory of the plugin scripts tree AND the plugin hooks tree that
+   could plausibly host the script class, plus the test/script and
+   `.claude/scripts/` roots. The dso shim itself searches the plugin scripts
+   tree recursively (`.claude/scripts/dso` resolves command basenames via
+   a full recursive search of `<plugin-root>/scripts/`), so your cascade
+   MUST cover every subdirectory you can identify under that tree — examples
+   include `sprint/`, `onboarding/`, `bridge/`, `fix-bug/`, `end-session/`,
+   `implementation-plan/`, `debug/`, `review/`, `hooks/`, etc.; the actual
+   subdirectory set is determined by repo layout, not by this list. When
+   uncertain whether the cascade is exhaustive for the consuming dispatcher,
+   prefer NOT to emit the finding rather than emit a possibly-false missing-
+   file claim. The dispatcher accepts multiple paths in one `read_files`
+   request; you do NOT need separate calls per candidate.
    (Substitute your knowledge of the actual repo-relative plugin root path
    when constructing these paths — paths in the request must be
-   repository-relative per `docs/contracts/ci-review-context-request.md`.)
+   repository-relative per `${CLAUDE_PLUGIN_ROOT}/docs/contracts/ci-review-context-request.md`.)
 2. If ANY candidate path returns content (the dispatcher returns the file
    body, not an error), do NOT emit the finding. The consumer is referencing
    a real script that exists under a different subdirectory — the dso shim
@@ -207,6 +214,11 @@ prove the file exists. The contract supports `read_files` and `grep` only;
 filename-based path search (`find`, `glob`, `fd`) is not currently a
 supported context-request action. Multi-path `read_files` is the
 within-contract way to test existence under multiple candidate locations.
+The shim's recursive `find` behavior is approximated by enumerating every
+subdirectory you can identify under the plugin scripts and hooks roots —
+the cascade is only as exhaustive as your enumeration, so prefer caution
+(omit the finding) over an over-narrow cascade that produces a false
+missing-file claim.
 
 A finding asserting "file X does not exist" without an accompanying
 candidate-path `read_files` cascade that returned missing for every candidate
