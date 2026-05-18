@@ -457,16 +457,24 @@ try:
 
         # Duplicate-cycle guard (bug 7fe1-c997): reject if cycle_num already
         # present in the ledger. Required by test-write-cycle-ledger.sh.
+        # cycle_num is parsed as int at line 273 above; we also int-coerce the
+        # ledger's stored value defensively so type drift between writers (int
+        # vs. JSON-stringified int) cannot bypass the check.
+        target_cycle_num = int(cycle_num)
         for existing in ledger.get("cycles", []):
+            raw_cn = existing.get("cycle_num")
+            if raw_cn is None:
+                continue
             try:
-                if int(existing.get("cycle_num")) == cycle_num:
-                    print(
-                        f"error: cycle_num {cycle_num} already exists in ledger",
-                        file=sys.stderr,
-                    )
-                    sys.exit(1)
+                existing_cn = int(raw_cn)
             except (TypeError, ValueError):
                 continue
+            if existing_cn == target_cycle_num:
+                print(
+                    f"error: cycle_num {target_cycle_num} already exists in ledger",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
 
         new_entry = {
             "cycle_num": cycle_num,
