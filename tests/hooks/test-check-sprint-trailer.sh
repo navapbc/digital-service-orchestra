@@ -195,11 +195,22 @@ _exit6=0
 ) 2>/dev/null || _exit6=$?
 assert_eq "ci-pr+sprint-active: trailer in \$1 file satisfies gate even when HEAD lacks one" "0" "$_exit6"
 
-# Negative: HEAD has trailer, but the IN-PROGRESS commit (via $1) lacks one
-# → must reject. This proves the script consults $1, not HEAD.
+# Negative: HEAD has a properly-formatted trailer (subject + blank line +
+# trailer line, so `git interpret-trailers --parse` returns non-empty), but
+# the IN-PROGRESS commit (via $1) lacks one → must reject. This proves the
+# script consults $1, not HEAD.
+#
+# PR #180 review finding: the prior fixture used "Previous commit\nwith
+# DSO-Story: previous-story-0000" — no blank-line separator. `git
+# interpret-trailers` returns empty for that input, so the prior test
+# couldn't distinguish "script correctly read $1" from "script regressed
+# to reading HEAD and HEAD happened to lack a trailer." The new fixture
+# uses the canonical "<subject>\n\n<trailer>" form so the script's
+# behavior under regression would observably differ.
 echo "--- test_trailer_rejects_when_msg_file_has_no_trailer_even_if_head_does ---"
-_repo7=$(make_git_repo_with_commit "Previous commit
-with DSO-Story: previous-story-0000")
+_repo7=$(make_git_repo_with_commit "Previous commit subject
+
+DSO-Story: previous-story-0000")
 touch "$_repo7/.sprint-active"
 _msg_file7=$(mktemp)
 _TEMP_DIRS+=("$_msg_file7")
