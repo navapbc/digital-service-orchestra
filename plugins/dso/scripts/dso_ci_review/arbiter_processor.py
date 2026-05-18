@@ -28,6 +28,12 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
+# arbiter-rulings sidecar schema version. Bumped if the on-disk shape changes
+# (record entries, top-level fields, etc.). Kept as a module constant per
+# PR #203 finding f-XXX (magic-string DRY) so future bumps require updating
+# a single location.
+ARBITER_SCHEMA_VERSION = "1.0.0"
+
 
 def _finding_hash_for_dedup(finding: dict) -> str:
     """Stable finding hash for dedup - uses file + line_range + category.
@@ -331,7 +337,7 @@ def _read_existing_sidecar(path: str) -> dict | None:
     if not isinstance(data, dict):
         return None
     schema_version = data.get("schema_version", "")
-    if not schema_version or schema_version < "1.0.0":
+    if not schema_version or schema_version < ARBITER_SCHEMA_VERSION:
         # Legacy sidecar - log and treat as overwrite candidate.
         print(
             f"arbiter_processor_legacy_sidecar_detected path={path} "
@@ -443,7 +449,7 @@ def process_rulings(
     sidecar_path = os.path.join(artifacts_dir, "arbiter-rulings.json")
     _read_existing_sidecar(sidecar_path)  # logs warning if legacy
     sidecar_data = {
-        "schema_version": "1.0.0",
+        "schema_version": ARBITER_SCHEMA_VERSION,
         "commit_sha": commit_sha,
         "cycle_num": cycle_num,
         "rulings": rulings,
