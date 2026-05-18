@@ -9,6 +9,7 @@ the front of sys.path so that ``from dso_ci_review.providers.config import
 """
 
 import json
+import os
 import pathlib
 import sys
 
@@ -16,6 +17,15 @@ import pytest
 
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 _SCRIPTS_DIR = str(_REPO_ROOT / "plugins" / "dso" / "scripts")
+
+# Ensure PYTHONPATH includes _SCRIPTS_DIR at the front so that spawned
+# sub-processes (multiprocessing 'spawn' start method on macOS) also resolve
+# dso_ci_review from the plugin scripts, not the test package.
+_existing_pythonpath = os.environ.get("PYTHONPATH", "")
+if _SCRIPTS_DIR not in _existing_pythonpath.split(os.pathsep):
+    os.environ["PYTHONPATH"] = (
+        _SCRIPTS_DIR + (os.pathsep + _existing_pythonpath if _existing_pythonpath else "")
+    )
 
 
 def _ensure_plugin_package() -> None:
@@ -86,6 +96,7 @@ def _ensure_plugin_package() -> None:
     _load_from_plugin("cycle_ledger")
     _load_from_plugin("stability")
     _load_from_plugin("cycle_dispatcher")
+    _load_from_plugin("local_workflow")
 
 
 _ensure_plugin_package()
@@ -107,6 +118,8 @@ def pytest_configure(config):
             "markers",
             "integration: mark test as a live-provider integration test (skipped without API keys)",
         )
+
+
 
 
 @pytest.fixture()
