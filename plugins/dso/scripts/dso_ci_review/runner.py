@@ -634,6 +634,22 @@ def _write_output(data: dict) -> None:
         print(serialized)
 
 
+def _init_cycle_ledger() -> int:
+    """Return the current review cycle number.
+
+    CURRENT (env-var) IMPLEMENTATION (task 36cf will replace this):
+        Reads DSO_REVIEW_CYCLE env var, defaulting to 1 when absent.
+        This is a thin extraction stub so tests can mock the cycle source
+        independently of the env var. Task 36cf replaces the body with
+        ledger-authoritative logic (cycle-ledger.json); the return type
+        (int >= 1) and semantics remain identical.
+
+    Returns:
+        int: cycle number >= 1. Callers treat >= 2 as a re-review pass.
+    """
+    return int(os.environ.get("DSO_REVIEW_CYCLE", "1"))
+
+
 def _fetch_pr_defenses(pr_number: str) -> list[dict]:
     """Fetch DEFENSE_RECORD entries from GitHub PR comments via gh CLI.
 
@@ -1352,10 +1368,17 @@ def main() -> int:
         # Read review cycle number — used by two-call architecture on re-review passes.
         # On cycle N≥2, fetch prior defenses from PR comments so the LLM can avoid
         # re-emitting already-defended findings. (Bug c59e-a197: dismissal-memory gap.)
-        cycle_number = int(os.environ.get("DSO_REVIEW_CYCLE", "1"))
+        # Task 36cf replaces _init_cycle_ledger() body with ledger-authoritative logic;
+        # this call site does not need to change.
+        cycle_number = _init_cycle_ledger()
 
         # Fetch prior defenses for cycle-2+ suppression.
         # Returns [] when not in a PR context or when gh CLI is unavailable.
+        # LEDGER-SAFE (task 36cf): When cycle_number is replaced by ledger-derived
+        # cycle_num, this guard remains correct. The ledger resets cycle_num to 1 on
+        # SHA change — so this block is skipped on a new commit (desired: no stale
+        # defenses from a previous SHA). On a true re-review of the same SHA,
+        # cycle_num >= 2 holds, and prior defenses are loaded. No behavioral change needed.
         prior_defenses: list[dict] = []
         if cycle_number >= 2:
             pr_num = _resolve_pr_number()
@@ -1416,6 +1439,12 @@ def main() -> int:
             # two-call architecture so the LLM evaluates findings against existing defenses.
             # Deep tier continues to use the standard path; defenses are injected at the
             # arch-synthesis step (Step 6) where the final synthesis happens.
+            #
+            # LEDGER-SAFE (task 36cf): Under ledger semantics, cycle_num resets to 1 on SHA
+            # change, so this two-call path is skipped for new commits. That is correct: the
+            # two-call path requires prior_defenses fetched above, which are also skipped when
+            # cycle_num < 2. The compound condition (cycle_number >= 2 AND prior_defenses) means
+            # SHA-reset → prior_defenses=[] → two-call path never fires. No change needed.
             if (
                 cycle_number >= 2
                 and prior_defenses
@@ -1472,6 +1501,9 @@ def main() -> int:
             if tier == "deep":
                 arch_model = _read_tier_model("deep-arch", config_path)
                 merged_json = json.dumps(merged)
+                # LEDGER-SAFE (task 36cf): SHA-reset sets cycle_num=1, so prior_defenses=[]
+                # (the fetch is gated on cycle_num >= 2 above). The compound condition below
+                # short-circuits to False in that case — no defense context injected. Correct.
                 if cycle_number >= 2 and prior_defenses:
                     # Append defense context to the merged JSON passed to arch synthesis.
                     # dispatch_arch_synthesis appends it as "Prior specialist findings" in
@@ -1500,6 +1532,8 @@ def main() -> int:
             # This is a defence-of-last-resort: if the LLM still re-emits a verbatim
             # defended finding despite receiving the full defense context, downgrade it
             # to 'suggestion' so it no longer blocks merge. (Bug c59e-a197.)
+            # LEDGER-SAFE (task 36cf): SHA-reset → cycle_num=1 → prior_defenses=[] above.
+            # Compound condition short-circuits to False — suppression skipped for new SHAs. Correct.
             if cycle_number >= 2 and prior_defenses:
                 raw_findings = merged.get("findings") or []
                 filtered = _suppress_defended_findings(raw_findings, prior_defenses)
@@ -1515,7 +1549,11 @@ def main() -> int:
                     merged = dict(merged)
                     merged["findings"] = filtered
 
-            # Novelty gate: downgrade unjustified NEW_INTRODUCED findings on cycle >= 2
+            # Novelty gate: downgrade unjustified NEW_INTRODUCED findings on cycle >= 2.
+            # LEDGER-SAFE (task 36cf): SHA-reset → cycle_num=1 → this gate is skipped for
+            # new commits. That is correct: novelty-gate requires a prior-cycle context; on a
+            # fresh SHA there is no prior cycle, so all findings are genuinely NEW_INTRODUCED
+            # and should not be downgraded. No behavioral change needed here.
             if cycle_number >= 2:
                 _gated_findings, _novelty_stats = _apply_novelty_gate(
                     merged.get("findings") or [],

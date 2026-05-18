@@ -2300,13 +2300,18 @@ def test_suppress_defended_findings_noop_when_no_defenses():
 def test_runner_cycle2_with_defenses_suppresses_reemitted_findings(tmp_path):
     """On cycle 2, a finding that matches a prior defense must be downgraded to 'suggestion'.
 
-    Given: DSO_REVIEW_CYCLE=2, GITHUB_EVENT_NAME=pull_request, PR has a DEFENSE_RECORD
-           for a critical finding, and the LLM re-emits the same critical finding verbatim
+    Given: cycle 2 (ledger-based fixture via _init_cycle_ledger mock),
+           GITHUB_EVENT_NAME=pull_request, PR has a DEFENSE_RECORD for a critical finding,
+           and the LLM re-emits the same critical finding verbatim
     When: runner.main() executes
     Then: the re-emitted finding is downgraded to 'suggestion' (not blocking)
           AND exit code is 0 (no blocking findings remain)
 
-    Mocking strategy:
+    Mocking strategy (classification-a ledger migration — task 36cf audit):
+    - _init_cycle_ledger patched to return 2 (ledger-based fixture; task 36cf will replace
+      the env-var body with ledger logic, but the mock point is identical).
+    - DSO_REVIEW_CYCLE=2 is kept in env as a belt-and-suspenders guard for the
+      current env-var implementation path; remove it once task 36cf lands.
     - _fetch_pr_defenses patched to return a defense record without needing gh CLI.
     - dispatch_two_call_review patched to return the re-emitted finding (simulating LLM
       ignoring the defense context and re-firing the finding anyway).
@@ -2346,12 +2351,17 @@ def test_runner_cycle2_with_defenses_suppresses_reemitted_findings(tmp_path):
                 "DSO_CI_REVIEW_OUTPUT_PATH": str(output_file),
                 "CI_REVIEW_PROVIDER": "anthropic",
                 "ANTHROPIC_API_KEY": "test-key",
+                # DSO_REVIEW_CYCLE kept for current env-var implementation;
+                # remove after task 36cf replaces _init_cycle_ledger body.
                 "DSO_REVIEW_CYCLE": "2",
                 "GITHUB_EVENT_NAME": "pull_request",
                 "GITHUB_REF": "refs/pull/77/merge",
                 "GITHUB_TOKEN": "test-token",
             },
         ),
+        # Ledger-based fixture: mock _init_cycle_ledger to return cycle 2.
+        # Task 36cf replaces the env-var body; the mock point is now stable.
+        patch("dso_ci_review.runner._init_cycle_ledger", return_value=2),
         patch(
             "dso_ci_review.runner._classify_tier_via_bash",
             return_value=_standard_tier_classification(),
@@ -2388,7 +2398,8 @@ def test_runner_cycle2_with_defenses_suppresses_reemitted_findings(tmp_path):
 def test_runner_cycle2_deep_tier_partial_failure_with_defenses(tmp_path):
     """Cycle-2 + deep-tier: one specialist fallback_exhausted does NOT skip arch synthesis.
 
-    Given: DSO_REVIEW_CYCLE=2, deep tier, one prior defense, 3 specialist results where
+    Given: cycle 2 (ledger-based fixture via _init_cycle_ledger mock), deep tier,
+           one prior defense, 3 specialist results where
            one returns fallback_exhausted (partial failure) and one returns a real finding
     When: runner.main() executes
     Then: dispatch_arch_synthesis is called exactly once (partial failure doesn't skip synthesis)
@@ -2503,12 +2514,17 @@ def test_runner_cycle2_deep_tier_partial_failure_with_defenses(tmp_path):
                 "DSO_CI_REVIEW_OUTPUT_PATH": str(output_file),
                 "CI_REVIEW_PROVIDER": "anthropic",
                 "ANTHROPIC_API_KEY": "test-key",
+                # DSO_REVIEW_CYCLE kept for current env-var implementation;
+                # remove after task 36cf replaces _init_cycle_ledger body.
                 "DSO_REVIEW_CYCLE": "2",
                 "GITHUB_EVENT_NAME": "pull_request",
                 "GITHUB_REF": "refs/pull/99/merge",
                 "GITHUB_TOKEN": "test-token",
             },
         ),
+        # Ledger-based fixture: mock _init_cycle_ledger to return cycle 2.
+        # Task 36cf replaces the env-var body; the mock point is now stable.
+        patch("dso_ci_review.runner._init_cycle_ledger", return_value=2),
         patch("dso_ci_review.runner._classify_tier_via_bash", return_value=tier_result),
         patch(
             "dso_ci_review.runner._validate_findings_schema",
@@ -2585,10 +2601,15 @@ def test_runner_cycle2_deep_tier_partial_failure_with_defenses(tmp_path):
 def test_runner_cycle1_no_defenses_unaffected(tmp_path):
     """On cycle 1 (default), the standard path is used — no defense fetching, no suppression.
 
-    Given: DSO_REVIEW_CYCLE=1 (or absent), an important finding from the LLM
+    Given: cycle 1 (_init_cycle_ledger returns 1 by default; DSO_REVIEW_CYCLE absent),
+           an important finding from the LLM
     When: runner.main() executes
     Then: exit code is 1 (important finding blocks)
           AND no defense fetch is attempted
+
+    Classification-b (task 36cf audit): DSO_REVIEW_CYCLE absent was used as a fixture
+    convenience to get cycle_num=1. Under ledger semantics, a fresh ledger also returns 1,
+    so this test requires no mock change — the default _init_cycle_ledger() behavior is correct.
     """
     import io
     from contextlib import redirect_stderr
@@ -2621,7 +2642,8 @@ def test_runner_cycle1_no_defenses_unaffected(tmp_path):
                 "DSO_CI_REVIEW_OUTPUT_PATH": str(output_file),
                 "CI_REVIEW_PROVIDER": "anthropic",
                 "ANTHROPIC_API_KEY": "test-key",
-                # DSO_REVIEW_CYCLE absent → defaults to 1
+                # DSO_REVIEW_CYCLE absent → _init_cycle_ledger() defaults to 1.
+                # Under ledger semantics (task 36cf) a fresh ledger also yields cycle 1.
                 "GITHUB_EVENT_NAME": "",
                 "GITHUB_REF": "",
                 "GITHUB_TOKEN": "",
@@ -3727,7 +3749,9 @@ def test_validate_review_schema_hash_matches_script():
     # Pass plugin_root explicitly so CLAUDE_PLUGIN_ROOT (which points to the main
     # repo in worktree sessions) does not cause the test to read the wrong script.
     _worktree_plugin_root = str(pathlib.Path(__file__).parents[3] / "plugins" / "dso")
-    validator_script = runner_mod._resolve_validator_script(plugin_root=_worktree_plugin_root)
+    validator_script = runner_mod._resolve_validator_script(
+        plugin_root=_worktree_plugin_root
+    )
     script_text = pathlib.Path(validator_script).read_text(encoding="utf-8")
 
     # Extract HASH_CODE_REVIEW_DISPATCH="<hex>" from the script
