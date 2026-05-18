@@ -173,30 +173,48 @@ The `read_files` pre-check above verifies a file's existence at the literal
 path referenced. That alone is insufficient — the project's own shim
 (`.claude/scripts/dso`) had to learn subdirectory cascade in bug
 `0736-a97e-1b03-4f3a` because referenced scripts often live in nested
-subdirectories (e.g., `scripts/sprint/`, `scripts/onboarding/`, `scripts/bridge/`
-under the plugin root) rather than at the top level. The reviewer's
-pre-check must mirror that cascade.
+subdirectories rather than at the top level. The reviewer's pre-check must
+mirror that cascade.
 
 Before emitting any "file does not exist" / "missing reference" finding, you
 MUST in addition to the literal-path `read_files` check:
 
-1. Issue a `grep` request with the file's **basename** (the last path
-   component, e.g., `validate-required-checks.sh`) across the relevant
-   project roots (plugin root, tests, `.claude/`, `.github/`).
-2. If the grep returns ANY match at a different path, do NOT emit the finding.
-   The consumer is referencing a real script that exists under a different
-   subdirectory — the dso shim (or other dispatcher) will resolve it via
-   subdirectory cascade. The reference is correct; the reviewer's confusion
-   is that it inspected only the literal path.
-3. Only when both the literal-path `read_files` AND the basename `grep`
-   return empty may you emit a "file does not exist" finding.
+1. Issue a **second `read_files` request** that includes a **candidate-path
+   array** — the basename appended under common subdirectory prefixes the
+   consuming script class is likely to live in. For a plugin script
+   `<basename>.sh`, candidate paths typically include the basename under
+   `plugin scripts/`, `plugin scripts/sprint/`, `plugin scripts/onboarding/`,
+   `plugin scripts/bridge/`, `plugin hooks/`, `tests/scripts/`,
+   `.claude/scripts/`, etc. The dispatcher accepts multiple paths in one
+   `read_files` request; you do NOT need separate calls per candidate.
+   (Substitute your knowledge of the actual repo-relative plugin root path
+   when constructing these paths — paths in the request must be
+   repository-relative per `docs/contracts/ci-review-context-request.md`.)
+2. If ANY candidate path returns content (the dispatcher returns the file
+   body, not an error), do NOT emit the finding. The consumer is referencing
+   a real script that exists under a different subdirectory — the dso shim
+   (or other dispatcher) will resolve it via subdirectory cascade. The
+   reference is correct; the reviewer's confusion is that it inspected only
+   the literal path.
+3. Only when both the literal-path `read_files` AND every candidate-path in
+   the cascade `read_files` return missing-file errors may you emit a "file
+   does not exist" finding.
+
+**Why `read_files` and not a content `grep`**: `grep` searches file *contents*,
+not filenames, so a basename grep would match every workflow file, script,
+and doc that *references* the basename — yielding noisy matches that do not
+prove the file exists. The contract supports `read_files` and `grep` only;
+filename-based path search (`find`, `glob`, `fd`) is not currently a
+supported context-request action. Multi-path `read_files` is the
+within-contract way to test existence under multiple candidate locations.
 
 A finding asserting "file X does not exist" without an accompanying
-basename-grep request that returned empty is a hallucination — bug
-`27b7-82ac` documents PR #197 flagging `validate-required-checks.sh` as
-missing when the file existed under an onboarding subdirectory of the plugin
-scripts tree. The verification cost (one extra dispatcher turn) is always
-lower than the cost of an unjustified blocking finding.
+candidate-path `read_files` cascade that returned missing for every candidate
+is a hallucination — bug `27b7-82ac` documents PR #197 flagging
+`validate-required-checks.sh` as missing when the file existed under an
+onboarding subdirectory of the plugin scripts tree. The verification cost
+(one extra dispatcher turn with multiple paths) is always lower than the
+cost of an unjustified blocking finding.
 
 ---
 
