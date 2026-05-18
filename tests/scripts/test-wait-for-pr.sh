@@ -137,4 +137,68 @@ else
     printf "FAIL: auto_merge_never_set_waited: elapsed=%ds (expected >= 2)\n" "$ELAPSED" >&2
 fi
 
+# --- transient empty output → retry path ---
+# First N polls return empty; the (N+1)th returns MERGED. Verifies the retry
+# loop does not bail on transient empty output.
+cat > "$TMPDIR_T/seq-counter" <<'EOF'
+0
+EOF
+cat > "$TMPDIR_T/gh-stub.sh" <<'EOF'
+#!/usr/bin/env bash
+N=$(cat "$TMPDIR_T/seq-counter")
+echo "$((N+1))" > "$TMPDIR_T/seq-counter"
+if [[ "$N" -lt "1" ]]; then
+    # first poll: empty output, zero exit (transient)
+    exit 0
+else
+    echo '{"state":"MERGED","mergedAt":"2026-05-18T08:00:00Z","statusCheckRollup":[],"autoMergeRequest":null}'
+fi
+EOF
+chmod +x "$TMPDIR_T/gh-stub.sh"
+EXIT=0
+bash "$WAIT" 123 --interval=1 --timeout=5 >/dev/null 2>&1 || EXIT=$?
+assert_eq "transient_empty_then_merged_exits_0" "0" "$EXIT"
+
+# --- fatal gh error (auth) → exit 1 immediately (no timeout) ---
+cat > "$TMPDIR_T/gh-stub.sh" <<'EOF'
+#!/usr/bin/env bash
+echo "HTTP 401: Bad credentials" >&2
+exit 1
+EOF
+chmod +x "$TMPDIR_T/gh-stub.sh"
+START=$(date +%s)
+EXIT=0
+bash "$WAIT" 123 --interval=5 --timeout=60 >/dev/null 2>&1 || EXIT=$?
+END=$(date +%s)
+ELAPSED=$(( END - START ))
+assert_eq "fatal_gh_error_exits_1" "1" "$EXIT"
+# Must NOT wait for timeout — should fail fast (< 5s).
+if [[ $ELAPSED -lt 5 ]]; then
+    (( ++PASS ))
+else
+    (( ++FAIL ))
+    printf "FAIL: fatal_gh_error_fast_exit: elapsed=%ds (expected < 5)\n" "$ELAPSED" >&2
+fi
+
+# --- non-fatal gh error → retry (transient) ---
+cat > "$TMPDIR_T/gh-stub.sh" <<'EOF'
+#!/usr/bin/env bash
+# Simulate a transient error: print a non-fatal stderr message and exit 1
+echo "network timeout, will retry" >&2
+exit 1
+EOF
+chmod +x "$TMPDIR_T/gh-stub.sh"
+START=$(date +%s)
+EXIT=0
+bash "$WAIT" 123 --interval=1 --timeout=2 >/dev/null 2>&1 || EXIT=$?
+END=$(date +%s)
+ELAPSED=$(( END - START ))
+assert_eq "transient_gh_error_retries_until_timeout" "1" "$EXIT"
+if [[ $ELAPSED -ge 2 ]]; then
+    (( ++PASS ))
+else
+    (( ++FAIL ))
+    printf "FAIL: transient_gh_error_waited: elapsed=%ds (expected >= 2)\n" "$ELAPSED" >&2
+fi
+
 print_summary

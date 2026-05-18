@@ -56,9 +56,33 @@ fi
 # Allow tests to inject a stub gh command via GH_CMD.
 GH_CMD="${GH_CMD:-gh}"
 
+# _view sets _VIEW_OUT and _VIEW_RC. Stderr is captured separately into
+# _VIEW_ERR so the caller can distinguish auth/permission failures (where gh
+# returns a clear error message and a non-zero exit) from transient empty
+# output (network blip, rate limit retry-able).
 _view() {
-    "$GH_CMD" pr view "$PR" "${REPO_ARGS[@]}" \
-        --json state,mergedAt,statusCheckRollup,autoMergeRequest 2>/dev/null
+    local _err_file
+    _err_file=$(mktemp /tmp/wait-for-pr-err.XXXXXX)
+    _VIEW_RC=0
+    _VIEW_OUT=$("$GH_CMD" pr view "$PR" "${REPO_ARGS[@]}" \
+        --json state,mergedAt,statusCheckRollup,autoMergeRequest 2>"$_err_file") || _VIEW_RC=$?
+    _VIEW_ERR=$(cat "$_err_file" 2>/dev/null || echo "")
+    rm -f "$_err_file"
+}
+
+# _is_fatal_gh_error inspects _VIEW_ERR for unrecoverable signals — auth /
+# permission / not-found — and returns 0 (match) when one is found. Network
+# blips and rate limits remain retryable.
+_is_fatal_gh_error() {
+    local err="$_VIEW_ERR"
+    if [[ -z "$err" ]]; then
+        return 1
+    fi
+    # gh prints these messages for unrecoverable conditions
+    if echo "$err" | grep -qiE "could not resolve to a (pullrequest|node)|not found|authentication|HTTP 401|HTTP 403|permission denied|bad credentials"; then
+        return 0
+    fi
+    return 1
 }
 
 _classify() {
@@ -99,9 +123,22 @@ deadline=$(( $(date +%s) + TIMEOUT ))
 _ever_had_auto=0
 
 while true; do
-    out=$(_view)
+    _view
+    out="$_VIEW_OUT"
+    # Distinguish unrecoverable gh errors (auth/permission/not-found) from
+    # transient ones. Fatal errors fail fast so the operator gets an actionable
+    # message instead of waiting out the full timeout.
+    if [[ "$_VIEW_RC" -ne 0 ]] && _is_fatal_gh_error; then
+        echo "ERROR: gh pr view failed unrecoverably for PR #$PR:" >&2
+        echo "$_VIEW_ERR" >&2
+        exit 1
+    fi
     if [[ -z "$out" ]]; then
-        echo "WARNING: gh pr view returned empty output; retrying after $INTERVAL s" >&2
+        if [[ -n "$_VIEW_ERR" ]]; then
+            echo "WARNING: gh pr view rc=$_VIEW_RC stderr: $_VIEW_ERR" >&2
+        else
+            echo "WARNING: gh pr view returned empty output; retrying after $INTERVAL s" >&2
+        fi
         if (( $(date +%s) >= deadline )); then
             echo "ERROR: timeout waiting for PR #$PR (no response from gh)" >&2
             exit 1
