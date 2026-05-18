@@ -349,6 +349,149 @@ _flock_stage_commit() {
     return 0
 }
 
+# _flock_write_json <lock_file> <staging_temp> <final_path>
+# Cross-platform atomic JSON file write with exclusive lock.
+# For use with non-git-tracked files (e.g., cycle-ledger.json in /tmp/).
+# Unlike _flock_stage_commit, this function does NOT perform git operations.
+#
+# Works on macOS without Homebrew util-linux: falls through to Python
+# fcntl.flock when util-linux flock binary is unavailable (mkdir-based locking
+# does not contend with fcntl.flock, so Python is the macOS-safe fallback).
+#
+# Args:
+#   lock_file:     path to the lock file (created if absent; must be in a writable dir)
+#   staging_temp:  absolute path to the staged temp file (same filesystem as final_path)
+#   final_path:    absolute destination path (atomic rename target)
+#
+# Env:
+#   FLOCK_STAGE_COMMIT_TIMEOUT  — lock timeout per attempt in seconds (default: 30)
+#
+# Exit codes:
+#   0  — success: staging_temp atomically renamed to final_path
+#   1  — lock timeout after max retries, or missing staging_temp
+#   3  — atomic rename failed (filesystem error)
+_flock_write_json() {
+    # Works on macOS without Homebrew util-linux via Python fcntl.flock fallback
+    # (mkdir-based locking does not contend with fcntl.flock; Python is required).
+    local lock_file="$1"
+    local staging_temp="$2"
+    local final_path="$3"
+
+    # ── Validate: staging_temp must exist before we attempt anything ─────────
+    if [ ! -f "$staging_temp" ]; then
+        echo "Error: staging temp file does not exist: $staging_temp" >&2
+        return 1
+    fi
+
+    local flock_timeout="${FLOCK_STAGE_COMMIT_TIMEOUT:-30}"
+    local max_retries=2
+
+    # ── Locate util-linux flock binary (not in PATH on macOS; BusyBox flock on
+    # Alpine does not reliably support the FD-based form used below) ──
+    # Only accept flock when it is util-linux flock; BusyBox flock (Alpine/embedded)
+    # exits non-zero for `flock -x -w N FD` in the subshell-redirect context used
+    # here.  If the binary in PATH is not util-linux, fall through to the
+    # Python fcntl.flock fallback unconditionally.
+    local _flock_bin=""
+    if command -v flock >/dev/null 2>&1; then
+        if flock --version 2>&1 | grep -qi 'util-linux'; then
+            _flock_bin="$(command -v flock)"
+        fi
+        # Non-util-linux flock (e.g. BusyBox): leave _flock_bin empty → Python fallback
+    fi
+    if [ -z "$_flock_bin" ]; then
+        # Homebrew util-linux installs flock outside PATH on macOS
+        local _ul_flock
+        _ul_flock=$(find /opt/homebrew/Cellar/util-linux -name flock -path "*/bin/flock" 2>/dev/null | sort -V | tail -1)
+        if [ -n "$_ul_flock" ] && [ -x "$_ul_flock" ]; then
+            _flock_bin="$_ul_flock"
+        fi
+    fi
+
+    # Ensure the lock file exists before acquisition
+    : >> "$lock_file"
+
+    local attempt=0
+    local lock_acquired=false
+
+    while [ "$attempt" -lt "$max_retries" ]; do
+        attempt=$((attempt + 1))
+
+        local flock_exit=0
+
+        if [ -n "$_flock_bin" ]; then
+            # bash-native path: use flock(1) fd-based form.
+            # FD 200 is opened on the lock file; flock -x -w acquires LOCK_EX,
+            # waiting up to $flock_timeout seconds before returning exit 1.
+            # shellcheck disable=SC2093
+            (
+                "$_flock_bin" -x -w "$flock_timeout" 200 || exit 1
+                mv "$staging_temp" "$final_path" || exit 3
+            ) 200>"$lock_file" || flock_exit=$?
+        else
+            # Python fcntl.flock fallback — works on macOS without Homebrew util-linux.
+            # fcntl.flock is advisory and cross-process; it contends correctly with
+            # other fcntl.flock callers (including the flock(1) binary on Linux).
+            # mkdir-based locking does NOT contend with fcntl.flock, so Python is
+            # the macOS-safe cross-platform fallback here.
+            local _py_result
+            _py_result=$(python3 - "$lock_file" "$staging_temp" "$final_path" "$flock_timeout" <<'PYEOF'
+import fcntl, os, sys, time, signal
+
+lock_path, staging, final, timeout_str = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+timeout = int(timeout_str)
+
+fd = os.open(lock_path, os.O_CREAT | os.O_RDWR)
+deadline = time.monotonic() + timeout
+acquired = False
+
+while time.monotonic() < deadline:
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        acquired = True
+        break
+    except (OSError, IOError):
+        time.sleep(0.05)
+
+if not acquired:
+    os.close(fd)
+    sys.exit(1)
+
+try:
+    os.rename(staging, final)
+except OSError as e:
+    os.close(fd)
+    print(f"Error: atomic rename failed: {e}", file=sys.stderr)
+    sys.exit(3)
+
+fcntl.flock(fd, fcntl.LOCK_UN)
+os.close(fd)
+sys.exit(0)
+PYEOF
+            ) || flock_exit=$?
+        fi
+
+        if [ "$flock_exit" -eq 0 ]; then
+            lock_acquired=true
+            break
+        elif [ "$flock_exit" -eq 3 ]; then
+            rm -f "$staging_temp"
+            echo "Error: atomic rename failed" >&2
+            return 3
+        fi
+        # flock_exit=1 means lock timeout — retry
+    done
+
+    if [ "$lock_acquired" = false ]; then
+        local total_wait=$((flock_timeout * max_retries))
+        echo "flock: could not acquire lock after ${total_wait}s" >&2
+        rm -f "$staging_temp"
+        return 1
+    fi
+
+    return 0
+}
+
 # write_commit_event <ticket_id> <temp_event_json_path>
 # Args:
 #   ticket_id: the ticket directory name (e.g., w21-ablv)
