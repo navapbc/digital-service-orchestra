@@ -41,10 +41,25 @@ _extract_fn() {
 }
 
 # =============================================================================
+# Per-process / per-test isolation tag (Track A fix for cluster aa4f-13b3 /
+# 42bd-5b9b — same race pattern that cb4a9a7335 fixed in test-merge-to-main.sh
+# but was never applied to this sibling file). PID alone collides under:
+#   - parallel CI workers reusing PID
+#   - re-runs within _state_is_fresh's 4h TTL window
+#   - sequential tests inside one script invocation
+# A $RANDOM suffix + monotonic per-test counter eliminates all three.
+# =============================================================================
+_TEST_BRANCH_TAG="$$-${RANDOM}"
+_TEST_REPO_COUNTER=0
+
+# =============================================================================
 # Helper: create a minimal git repo with state infrastructure sourced
 # Sets globals: _TEST_BASE, _WORK_DIR, _STATE_FILE, BRANCH
+# Each invocation yields a unique BRANCH so tests cannot pollute each other's
+# /tmp/merge-to-main-state-<BRANCH>.json file.
 # =============================================================================
 _setup_test_repo() {
+    _TEST_REPO_COUNTER=$(( _TEST_REPO_COUNTER + 1 ))
     _TEST_BASE=$(mktemp -d)
     _WORK_DIR="$_TEST_BASE/work"
     mkdir -p "$_WORK_DIR"
@@ -57,8 +72,21 @@ _setup_test_repo() {
         git add README.md
         git commit -m "initial" --quiet
     ) 2>/dev/null
-    BRANCH="test-version-bump-$$"
+    BRANCH="test-version-bump-${_TEST_BRANCH_TAG}-${_TEST_REPO_COUNTER}"
     export BRANCH
+}
+
+# Belt-and-suspenders: remove the state file the current BRANCH would key.
+# Called at the end of every test as a defensive cleanup, in addition to the
+# per-test unique BRANCH which already prevents inter-test collision.
+_cleanup_state_file() {
+    if declare -F _state_file_path >/dev/null 2>&1; then
+        local _sf
+        _sf=$(_state_file_path 2>/dev/null || echo "")
+        if [[ -n "$_sf" && -f "$_sf" ]]; then
+            rm -f "$_sf" 2>/dev/null || true
+        fi
+    fi
 }
 
 # =============================================================================
@@ -161,6 +189,7 @@ assert_contains "test_version_bump_phase_calls_bump_version_patch_default" "--pa
 assert_eq "test_version_bump_patch_exits_0" "0" "$_T1_RC"
 
 assert_pass_if_clean "test_version_bump_phase_calls_bump_version_patch_default"
+_cleanup_state_file
 rm -rf "$_TEST_BASE"
 
 # =============================================================================
@@ -205,6 +234,7 @@ assert_contains "test_version_bump_phase_calls_bump_version_minor" "--minor" "$_
 assert_eq "test_version_bump_minor_exits_0" "0" "$_T2_RC"
 
 assert_pass_if_clean "test_version_bump_phase_calls_bump_version_minor"
+_cleanup_state_file
 rm -rf "$_TEST_BASE"
 
 # =============================================================================
@@ -253,6 +283,7 @@ assert_eq "test_version_bump_skip_exits_0" "0" "$_T3_RC"
 assert_eq "test_version_bump_skip_no_mock_call" "0" "$_T3_CALLS"
 
 assert_pass_if_clean "test_version_bump_phase_skips_silently_when_no_version_file_path"
+_cleanup_state_file
 rm -rf "$_TEST_BASE"
 
 # =============================================================================
@@ -302,6 +333,7 @@ assert_eq "test_version_bump_marks_state_complete" "version_bump" "$_T4_COMPLETE
 
 assert_pass_if_clean "test_version_bump_phase_marks_state_complete"
 rm -f "$_T4_STATE_FILE" 2>/dev/null || true
+_cleanup_state_file
 rm -rf "$_TEST_BASE"
 
 # =============================================================================
@@ -356,6 +388,7 @@ _T5_RC=0
 assert_ne "test_version_bump_exits_nonzero_on_failure" "0" "$_T5_RC"
 
 assert_pass_if_clean "test_version_bump_phase_exits_nonzero_on_bump_failure"
+_cleanup_state_file
 rm -rf "$_TEST_BASE"
 
 # =============================================================================
@@ -375,18 +408,27 @@ _setup_mock_bump_version "$_T7_MOCK_DIR" "$_T7_CALL_LOG"
 
 _PHASE_FN_BODY=$(_extract_fn "_phase_version_bump" 2>/dev/null || echo "")
 
-# Pre-populate state file with version_bump already completed
+# Pre-populate state file with version_bump already completed.
+# IMPORTANT: write atomically via .tmp + os.replace so a concurrent reader
+# (e.g. the resume guard inside _phase_version_bump) cannot observe a
+# truncated/partial JSON mid-write. The previous in-place `with open(f, 'w')`
+# pattern was the root cause of PARSE_ERROR flakes (Track A, cluster 42bd-5b9b).
 _state_init 2>/dev/null || true
 _T7_STATE_FILE=$(_state_file_path 2>/dev/null || echo "")
 if [[ -n "$_T7_STATE_FILE" && -f "$_T7_STATE_FILE" ]]; then
     python3 -c "
-import json
-with open('$_T7_STATE_FILE') as f:
+import json, os
+sf = '$_T7_STATE_FILE'
+with open(sf) as f:
     d = json.load(f)
 d.setdefault('completed_phases', []).append('version_bump')
 d.setdefault('phases', {})['version_bump'] = {'status': 'complete'}
-with open('$_T7_STATE_FILE', 'w') as f:
+tmp = sf + '.tmp'
+with open(tmp, 'w') as f:
     json.dump(d, f)
+    f.flush()
+    os.fsync(f.fileno())
+os.replace(tmp, sf)
 " 2>/dev/null || true
 fi
 
@@ -422,6 +464,7 @@ assert_eq "test_version_bump_idempotent_no_mock_call" "0" "$_T7_CALLS"
 
 assert_pass_if_clean "test_version_bump_phase_idempotent_on_resume"
 rm -f "$_T7_STATE_FILE" 2>/dev/null || true
+_cleanup_state_file
 rm -rf "$_TEST_BASE"
 
 # =============================================================================
@@ -471,6 +514,7 @@ assert_contains "test_version_bump_defaults_to_patch" "--patch" "$_T8_CALL_ARGS"
 assert_eq "test_version_bump_default_exits_0" "0" "$_T8_RC"
 
 assert_pass_if_clean "test_version_bump_defaults_to_patch_when_version_file_configured"
+_cleanup_state_file
 rm -rf "$_TEST_BASE"
 
 # =============================================================================
@@ -518,6 +562,7 @@ assert_eq "test_version_bump_no_config_exits_0" "0" "$_T9_RC"
 assert_eq "test_version_bump_no_config_no_mock_call" "0" "$_T9_CALLS"
 
 assert_pass_if_clean "test_version_bump_skips_when_no_bump_type_and_no_version_file"
+_cleanup_state_file
 rm -rf "$_TEST_BASE"
 
 # =============================================================================
@@ -647,6 +692,7 @@ assert_eq "test_version_bump_lock_version_updated" "1.0.1" "$_T10_LOCK_VERSION"
 assert_eq "test_version_bump_package_lock_sync_exits_0" "0" "$_T10_RC"
 
 assert_pass_if_clean "test_version_bump_syncs_package_lock_json_when_version_file_is_package_json"
+_cleanup_state_file
 rm -rf "$_TEST_BASE"
 
 # =============================================================================
@@ -718,6 +764,7 @@ assert_eq "test_version_bump_cli_resume_no_mock_call" "0" "$_T11_CALLS"
 
 assert_pass_if_clean "test_version_bump_resume_guard_requires_resume_context"
 rm -f "$_T11_STATE_FILE" 2>/dev/null || true
+_cleanup_state_file
 rm -rf "$_TEST_BASE"
 
 # =============================================================================
@@ -783,6 +830,7 @@ fi
 assert_ne "test_version_bump_no_resume_mock_was_called" "0" "$_T12_CALLS"
 
 assert_pass_if_clean "test_version_bump_runs_when_no_resume_context"
+_cleanup_state_file
 rm -rf "$_TEST_BASE"
 
 # =============================================================================

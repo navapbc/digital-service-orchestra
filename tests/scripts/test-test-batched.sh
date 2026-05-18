@@ -507,14 +507,25 @@ if command -v node >/dev/null 2>&1; then
 const timer = setInterval(() => {}, 1000);
 JSEOF
 
-    # First run: timeout=1 with a slow node test → test gets killed → "interrupted" saved
+    # First run: timeout=3 with a slow node test → test gets killed → "interrupted" saved.
+    # 1s was insufficient under CI load — node's startup + SIGTERM handler install can
+    # exceed 1s, so the harness's kill fires before the handler that writes "interrupted"
+    # to state.json. 3s gives node ample setup time while still ensuring the test is
+    # killed (the setInterval keeps it alive indefinitely). 6aeb-5593.
     int_node_first_out=""
     int_node_first_out=$(TEST_BATCHED_STATE_FILE="$INT_NODE_STATE" \
-        bash "$SCRIPT" --runner=node --test-dir="$TMPDIR_INT_NODE" --timeout=1 2>&1) || true
+        bash "$SCRIPT" --runner=node --test-dir="$TMPDIR_INT_NODE" --timeout=3 2>&1) || true
 
     # Verify the first run emitted the Structured Action-Required Block
     assert_contains "test_interrupted_node_test_reruns_on_resume: first run emits NEXT:" \
         "ACTION REQUIRED" "$int_node_first_out"
+
+    # Belt-and-suspenders: absorb up to 1s of signal-handler scheduling slack
+    # before reading the state file (6aeb-5593).
+    for _ in 1 2 3 4 5; do
+        [ -f "$INT_NODE_STATE" ] && grep -q '"interrupted"' "$INT_NODE_STATE" 2>/dev/null && break
+        sleep 0.2
+    done
 
     # Verify state file contains "interrupted" result
     int_has_interrupted=0
