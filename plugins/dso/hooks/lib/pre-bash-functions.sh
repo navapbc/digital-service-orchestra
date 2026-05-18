@@ -476,6 +476,131 @@ hook_worktree_edit_guard() {
 }
 
 # ---------------------------------------------------------------------------
+# hook_no_edit_on_main
+# ---------------------------------------------------------------------------
+# PreToolUse hook: block Edit/Write/MultiEdit calls when the orchestrator's
+# primary checkout has HEAD pointing at the project's default branch
+# (main/master). Closes the third corner of the layered-defense gap left by
+# worktree-edit-guard (worktree -> primary) and check-session-merge-only.sh
+# (commit-time, sprint/debug-gated).
+#
+# Fires only in the PRIMARY checkout (git-dir == git-common-dir). Linked
+# worktrees fall through — hook_worktree_edit_guard owns that direction.
+#
+# Passthrough (never blocked):
+#   - file_path under /tmp/
+#   - file_path under $HOME/.claude/
+#   - tool calls with no file_path (defensive)
+#
+# Escapes (block lifted):
+#   - DSO_ALLOW_EDIT_ON_MAIN=1 + DSO_ALLOW_EDIT_ON_MAIN_REASON non-empty
+#     (mirrors check-session-merge-only.sh's bypass semantics: env flag PLUS
+#     companion justification — refused without a reason)
+#   - DSO_MECHANICAL_AMEND=1 (legitimate merge-to-main post-merge version
+#     bump pipeline; same env var already trusted by pre-commit-review-gate.sh)
+hook_no_edit_on_main() {
+    local INPUT="$1"
+    local HOOK_ERROR_LOG="$HOME/.claude/logs/dso-hook-errors.jsonl"
+    trap 'printf "{\"ts\":\"%s\",\"hook\":\"no-edit-on-main\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; return 0' ERR
+
+    # Resolve git state — fail-open on any error
+    local GIT_DIR GIT_COMMON_DIR
+    GIT_DIR=$(git rev-parse --git-dir 2>/dev/null || echo "")
+    GIT_COMMON_DIR=$(git rev-parse --git-common-dir 2>/dev/null || echo "")
+    if [[ -z "$GIT_DIR" || -z "$GIT_COMMON_DIR" ]]; then
+        return 0
+    fi
+
+    # Normalize: both relative or both absolute. If they differ, we're in a
+    # linked worktree — let hook_worktree_edit_guard handle it.
+    local GIT_DIR_ABS GIT_COMMON_ABS
+    GIT_DIR_ABS=$(cd "$GIT_DIR" 2>/dev/null && pwd) || return 0
+    GIT_COMMON_ABS=$(cd "$GIT_COMMON_DIR" 2>/dev/null && pwd) || return 0
+    if [[ "$GIT_DIR_ABS" != "$GIT_COMMON_ABS" ]]; then
+        return 0
+    fi
+
+    # Current branch — bail if detached HEAD or unresolvable
+    local BRANCH
+    BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+    if [[ -z "$BRANCH" || "$BRANCH" == "HEAD" ]]; then
+        return 0
+    fi
+
+    # Only fire on default branch (main / master)
+    if [[ "$BRANCH" != "main" && "$BRANCH" != "master" ]]; then
+        return 0
+    fi
+
+    # Escape hatches
+    if [[ "${DSO_MECHANICAL_AMEND:-}" == "1" ]]; then
+        return 0
+    fi
+    if [[ "${DSO_ALLOW_EDIT_ON_MAIN:-}" == "1" ]]; then
+        if [[ -n "${DSO_ALLOW_EDIT_ON_MAIN_REASON:-}" ]]; then
+            return 0
+        fi
+        echo "BLOCKED: DSO_ALLOW_EDIT_ON_MAIN=1 set without DSO_ALLOW_EDIT_ON_MAIN_REASON." >&2
+        echo "  Set DSO_ALLOW_EDIT_ON_MAIN_REASON='<one-line justification>' to bypass." >&2
+        trap - ERR; return 2
+    fi
+
+    local TOOL_NAME FILE_PATH
+    TOOL_NAME=$(parse_json_field "$INPUT" '.tool_name')
+    FILE_PATH=$(parse_json_field "$INPUT" '.tool_input.file_path')
+
+    # Only Edit / Write / MultiEdit carry file_path. Anything else: pass.
+    case "$TOOL_NAME" in
+        Edit|Write|MultiEdit) ;;
+        *) return 0 ;;
+    esac
+
+    if [[ -z "$FILE_PATH" ]]; then
+        return 0
+    fi
+
+    # Only act on files inside this checkout. Files outside the repo
+    # (/tmp/, $HOME/.claude/, etc.) are implicitly passed through by the
+    # in-repo containment check below.
+    local REPO_ROOT
+    REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+    if [[ -z "$REPO_ROOT" ]]; then
+        return 0
+    fi
+    REPO_ROOT="${REPO_ROOT%/}"
+
+    # Canonicalize FILE_PATH so symlinked roots match (e.g. macOS /tmp -> /private/tmp).
+    # If the file's parent dir exists, resolve it via `cd && pwd -P`; otherwise
+    # fall back to the lexical path.
+    local FILE_DIR FILE_REAL
+    FILE_DIR=$(dirname "$FILE_PATH")
+    if [[ -d "$FILE_DIR" ]]; then
+        FILE_REAL="$(cd "$FILE_DIR" 2>/dev/null && pwd -P)/$(basename "$FILE_PATH")"
+    else
+        FILE_REAL="$FILE_PATH"
+    fi
+
+    if [[ "$FILE_PATH" != "$REPO_ROOT"/* && "$FILE_PATH" != "$REPO_ROOT" \
+       && "$FILE_REAL" != "$REPO_ROOT"/* && "$FILE_REAL" != "$REPO_ROOT" ]]; then
+        return 0
+    fi
+
+    echo "BLOCKED: $TOOL_NAME on local '$BRANCH' branch (primary checkout)." >&2
+    echo "" >&2
+    echo "Editing tracked files while HEAD is on local '$BRANCH' dirties the index" >&2
+    echo "and can block 'git pull origin $BRANCH'. Switch to a feature branch first:" >&2
+    echo "  git checkout -b <feature-branch>" >&2
+    echo "" >&2
+    echo "  Target file: $FILE_PATH" >&2
+    echo "  Branch:      $BRANCH" >&2
+    echo "  Repo root:   $REPO_ROOT" >&2
+    echo "" >&2
+    echo "Bypass (only when justified):" >&2
+    echo "  DSO_ALLOW_EDIT_ON_MAIN=1 DSO_ALLOW_EDIT_ON_MAIN_REASON='<reason>'" >&2
+    trap - ERR; return 2
+}
+
+# ---------------------------------------------------------------------------
 # hook_tool_use_guard
 # ---------------------------------------------------------------------------
 # PreToolUse hook: warn when cat/head/tail/grep/rg are used via Bash instead
