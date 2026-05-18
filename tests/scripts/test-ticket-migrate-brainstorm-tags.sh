@@ -89,7 +89,9 @@ _setup_epic_fixture() {
     local dir1="$tracker_dir/$EPIC_PIL_DESC_ID"
     mkdir -p "$dir1"
     local desc1
-    desc1='{"ticket_type": "epic", "title": "Epic with PIL in description", "parent_id": null, "description": "## Background\n\nThis epic has implementation notes.\n\n### Planning Intelligence Log\n\nSome brainstorm notes here."}'
+    # a307-0f58: PIL must contain the three mandatory canonical fields, not
+    # just a heading. Stub bodies are now rejected.
+    desc1='{"ticket_type": "epic", "title": "Epic with PIL in description", "parent_id": null, "description": "## Background\n\nNotes.\n\n### Planning Intelligence Log\n- **Web research (Step 2.6)**: not triggered\n- **Scenario analysis (Step 2.75)**: not triggered\n- **LLM-instruction signal (Step 5)**: not triggered"}'
     _write_event "$dir1" "1742605100" "00000000-0000-4000-8000-pil001desc001" "CREATE" "$desc1"
 
     # Epic 2: PIL heading appears in a COMMENT event body (not in description)
@@ -101,7 +103,7 @@ _setup_epic_fixture() {
     _write_event "$dir2" "1742605200" "00000000-0000-4000-8000-pil002cre001" "CREATE" "$create2"
     # COMMENT event whose body contains the PIL heading
     local comment2
-    comment2='{"body": "### Planning Intelligence Log\n\nBrainstorm findings captured during sprint planning."}'
+    comment2='{"body": "### Planning Intelligence Log\n- **Web research (Step 2.6)**: not triggered\n- **Scenario analysis (Step 2.75)**: not triggered\n- **LLM-instruction signal (Step 5)**: not triggered"}'
     _write_event "$dir2" "1742605300" "00000000-0000-4000-8000-pil002cmt001" "COMMENT" "$comment2"
 
     # Epic 3: No PIL heading anywhere
@@ -478,7 +480,7 @@ payload = {
     'author': 'Test User',
     'data': {
         'compiled_state': {
-            'description': '## Background\n\n### Planning Intelligence Log\n\nBrainstorm findings from SNAPSHOT.',
+            'description': '## Background\n\n### Planning Intelligence Log\n- **Web research (Step 2.6)**: not triggered\n- **Scenario analysis (Step 2.75)**: not triggered\n- **LLM-instruction signal (Step 5)**: not triggered',
             'comments': []
         }
     }
@@ -536,7 +538,7 @@ payload = {
         'compiled_state': {
             'description': 'No PIL in the description.',
             'comments': [
-                {'body': '### Planning Intelligence Log\n\nCapture from a planning session.'},
+                {'body': '### Planning Intelligence Log\n- **Web research (Step 2.6)**: not triggered\n- **Scenario analysis (Step 2.75)**: not triggered\n- **LLM-instruction signal (Step 5)**: not triggered'},
                 {'body': 'Unrelated follow-up comment.'}
             ]
         }
@@ -593,7 +595,7 @@ payload = {
     'author': 'Test User',
     'data': {
         'fields': {
-            'description': '## Background\n\n### Planning Intelligence Log\n\nAdded via description edit.'
+            'description': '## Background\n\n### Planning Intelligence Log\n- **Web research (Step 2.6)**: not triggered\n- **Scenario analysis (Step 2.75)**: not triggered\n- **LLM-instruction signal (Step 5)**: not triggered'
         }
     }
 }
@@ -691,7 +693,7 @@ payload = {
             'title': 'Compacted epic with PIL in compiled_state',
             'status': 'open',
             'tags': [],
-            'description': '## Problem\n\n### Planning Intelligence Log\n\nBrainstorm findings preserved through compaction.',
+            'description': '## Problem\n\n### Planning Intelligence Log\n- **Web research (Step 2.6)**: not triggered\n- **Scenario analysis (Step 2.75)**: not triggered\n- **LLM-instruction signal (Step 5)**: not triggered',
             'comments': []
         }
     }
@@ -745,7 +747,7 @@ payload = {
             'ticket_type': 'epic',
             'status': 'open',
             'tags': ['brainstorm:complete'],
-            'description': '### Planning Intelligence Log\n\nAlready tagged.',
+            'description': '### Planning Intelligence Log\n- **Web research (Step 2.6)**: not triggered\n- **Scenario analysis (Step 2.75)**: not triggered\n- **LLM-instruction signal (Step 5)**: not triggered',
             'comments': []
         }
     }
@@ -797,7 +799,7 @@ test_write_failure_containment() {
     local good_dir="$tracker_dir/$good_id"
     mkdir -p "$good_dir"
     local good_desc
-    good_desc='{"ticket_type": "epic", "title": "Good epic", "parent_id": null, "description": "### Planning Intelligence Log\n\nHealthy."}'
+    good_desc='{"ticket_type": "epic", "title": "Good epic", "parent_id": null, "description": "### Planning Intelligence Log\n- **Web research (Step 2.6)**: not triggered\n- **Scenario analysis (Step 2.75)**: not triggered\n- **LLM-instruction signal (Step 5)**: not triggered"}'
     _write_event "$good_dir" "1742700100" "00000000-0000-4000-8000-good001cr001" "CREATE" "$good_desc"
 
     # One epic that cannot be written to — forces OSError inside single-pass python
@@ -806,7 +808,7 @@ test_write_failure_containment() {
     local bad_dir="$tracker_dir/$bad_id"
     mkdir -p "$bad_dir"
     local bad_desc
-    bad_desc='{"ticket_type": "epic", "title": "Bad epic", "parent_id": null, "description": "### Planning Intelligence Log\n\nWrite will fail."}'
+    bad_desc='{"ticket_type": "epic", "title": "Bad epic", "parent_id": null, "description": "### Planning Intelligence Log\n- **Web research (Step 2.6)**: not triggered\n- **Scenario analysis (Step 2.75)**: not triggered\n- **LLM-instruction signal (Step 5)**: not triggered"}'
     _write_event "$bad_dir" "1742700200" "00000000-0000-4000-8000-bad0001cr001" "CREATE" "$bad_desc"
     # Make the ticket dir read-only so the python write_edit_event raises OSError
     chmod 555 "$bad_dir"
@@ -866,7 +868,7 @@ test_scrutiny_pending_removed() {
     # Epic with scrutiny:pending and another tag; PIL heading in description.
     # The migration must preserve the other tag, add brainstorm:complete, and drop scrutiny:pending.
     local create_data
-    create_data='{"ticket_type": "epic", "title": "Epic with scrutiny:pending", "parent_id": null, "description": "## Background\n\n### Planning Intelligence Log\n\nPreviously brainstormed content.", "tags": ["scrutiny:pending", "some-other-tag"]}'
+    create_data='{"ticket_type": "epic", "title": "Epic with scrutiny:pending", "parent_id": null, "description": "## Background\n\n### Planning Intelligence Log\n- **Web research (Step 2.6)**: not triggered\n- **Scenario analysis (Step 2.75)**: not triggered\n- **LLM-instruction signal (Step 5)**: not triggered", "tags": ["scrutiny:pending", "some-other-tag"]}'
     _write_event "$ticket_dir" "1742800100" "00000000-0000-4000-8000-scrut001cr01" "CREATE" "$create_data"
 
     (cd "$repo" && bash "$MIGRATE_SCRIPT") >/dev/null 2>&1 || true
@@ -941,7 +943,7 @@ test_dryrun_gate_no_changes() {
 
     # Epic with PIL heading and scrutiny:pending (both behaviors exercised)
     local create_data
-    create_data='{"ticket_type": "epic", "title": "Epic for dry-run test", "parent_id": null, "description": "## Background\n\n### Planning Intelligence Log\n\nSome brainstorm content.", "tags": ["scrutiny:pending"]}'
+    create_data='{"ticket_type": "epic", "title": "Epic for dry-run test", "parent_id": null, "description": "## Background\n\n### Planning Intelligence Log\n- **Web research (Step 2.6)**: not triggered\n- **Scenario analysis (Step 2.75)**: not triggered\n- **LLM-instruction signal (Step 5)**: not triggered", "tags": ["scrutiny:pending"]}'
     _write_event "$ticket_dir" "1742900100" "00000000-0000-4000-8000-dryrun01cr01" "CREATE" "$create_data"
 
     # Record state before dry-run: count EDIT event files and commits
