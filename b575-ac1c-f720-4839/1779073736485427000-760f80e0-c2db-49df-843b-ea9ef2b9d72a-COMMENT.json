@@ -1,0 +1,1 @@
+{"author":"Test","data":{"body":"REPLAN_TRIGGER: validation — Story 62c9-46f5-f287-4c24 validation failed with all 4 tasks closed (PR #204 merged DD9 only; DDs 1-8 unimplemented). Creating TDD remediation tasks."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1779073736485427000,"uuid":"760f80e0-c2db-49df-843b-ea9ef2b9d72a"}
