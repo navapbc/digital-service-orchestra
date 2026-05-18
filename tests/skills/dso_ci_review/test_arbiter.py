@@ -1,15 +1,15 @@
-"""RED tests for dso_ci_review.arbiter module (not yet created).
+"""RED tests for dso_ci_review.arbiter BLOCK/DEFER/DROP cycle-end schema.
 
-Testing mode: RED — arbiter module does not exist yet.
-All tests MUST fail with ImportError before implementation.
+Testing mode: RED — arbiter module has old interface; new symbols not yet exported.
+All tests MUST fail until arbiter.py is updated with the new interface.
 
 Behavioral contracts under test:
-1. dispatch_arbiter calls dispatch_review with agent_id='code-reviewer-arbiter'
-   and includes prior defense text in the diff payload.
-2. validate_arbiter_ruling rejects DOWNGRADE_TO when named_rebuttal only
-   references lines already cited as evidence (reclassifies to ACCEPT_DEFENSE).
-3. validate_arbiter_ruling accepts DOWNGRADE_TO when named_rebuttal references
-   a line NOT in the reviewer's evidence set.
+1. dispatch_arbiter(findings, defenses, ..., cycle_num, max_cycles) returns a list of
+   rulings with ruling in {BLOCK, DEFER, DROP}.
+2. A critical undefended finding with cycle <= max_cycles yields ruling=BLOCK.
+3. A finding with cycle > max_cycles yields ruling=DEFER (soft-cap exceeded).
+4. validate_cycle_end_ruling raises ValueError when ruling is not in VALID_RULINGS
+   (e.g., legacy ruling values not in the new schema are rejected).
 """
 
 from __future__ import annotations
@@ -26,138 +26,395 @@ _SCRIPTS_DIR = str(_REPO_ROOT / "plugins" / "dso" / "scripts")
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
 
-from dso_ci_review.arbiter import dispatch_arbiter, validate_arbiter_ruling  # noqa: E402
+from dso_ci_review.arbiter import dispatch_arbiter, validate_cycle_end_ruling  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
-# Test 1: dispatch_arbiter calls dispatch_review with arbiter agent + defense context
+# Test 1: BLOCK ruling returned for critical undefended finding within cycle cap
 # ---------------------------------------------------------------------------
 
 
-def test_dispatch_arbiter_called_on_resustain_of_with_prior_defense():
-    """Given: a finding with relation=RESUSTAIN_OF AND prior_defense exists
-    When: dispatch_arbiter(finding, prior_defense, diff_text, model, provider_chain) called
-    Then:
-    - dispatch_review was called with agent_id='code-reviewer-arbiter'
-    - The diff passed to dispatch_review contains the defense text
-    - Returns a dict with a 'ruling' key
+def test_dispatch_arbiter_returns_block_when_critical_finding_undefended():
+    """Given: finding severity=critical, no prior defense, cycle=1 <= max_cycles=4
+    When: dispatch_arbiter called with mock returning BLOCK ruling
+    Then: result is a list and result[0]["ruling"] == "BLOCK"
     """
-    finding = {
-        "id": "f1",
-        "relation": "RESUSTAIN_OF",
-        "prior_finding_id": "f0",
-        "cited_lines": ["auth/login.py:42"],
-        "dimension": "correctness",
-        "severity": "critical",
-    }
-    prior_defense = {
-        "finding_id": "f0",
-        "defense_text": "We added null-check at line 42 in commit abc123.",
-    }
+    findings = [{"id": "f1", "severity": "critical"}]
+    defenses = []
     diff_text = "--- a/auth/login.py\n+++ b/auth/login.py\n@@ -40,3 +40,4 @@ def login():\n+    if user is None:\n+        raise ValueError\n"
     model = "claude-sonnet-4-6"
     provider_chain = ["anthropic"]
 
-    fake_ruling = {"ruling": "SUSTAIN", "rationale": "defense insufficient"}
+    # Per agent contract: returns a JSON array of per-finding rulings.
+    fake_rulings = [
+        {
+            "ruling": "BLOCK",
+            "rationale": "Critical undefended finding blocks merge.",
+            "schema_version": "1.0.0",
+        }
+    ]
 
-    with patch(
-        "dso_ci_review.arbiter.dispatch_review", return_value=fake_ruling
-    ) as mock_dispatch:
+    with patch("dso_ci_review.arbiter.dispatch_review", return_value=fake_rulings):
         result = dispatch_arbiter(
-            finding, prior_defense, diff_text, model, provider_chain
+            findings=findings,
+            defenses=defenses,
+            diff_text=diff_text,
+            model=model,
+            provider_chain=provider_chain,
+            cycle_num=1,
+            max_cycles=4,
         )
 
-    # agent_id must be the arbiter agent
-    call_kwargs = mock_dispatch.call_args
-    assert call_kwargs is not None, "dispatch_review was never called"
-
-    # Extract agent_id from positional or keyword args
-    args, kwargs = call_kwargs
-    agent_id_used = kwargs.get("agent_id") or (args[0] if args else None)
-    assert agent_id_used == "code-reviewer-arbiter", (
-        f"Expected agent_id='code-reviewer-arbiter', got {agent_id_used!r}"
+    assert isinstance(result, list), (
+        f"Expected dispatch_arbiter to return a list, got {type(result)!r}"
     )
-
-    # The diff payload forwarded to dispatch_review must contain the defense text
-    diff_arg = (
-        kwargs.get("diff")
-        or kwargs.get("diff_text")
-        or (args[1] if len(args) > 1 else None)
-    )
-    assert diff_arg is not None, "No diff argument passed to dispatch_review"
-    assert prior_defense["defense_text"] in diff_arg, (
-        "Prior defense text not embedded in diff sent to arbiter"
-    )
-
-    # Return value must have a 'ruling' key
-    assert "ruling" in result, (
-        f"Expected 'ruling' key in result, got: {list(result.keys())!r}"
+    assert result[0]["ruling"] == "BLOCK", (
+        f"Expected ruling='BLOCK' for critical undefended finding, got {result[0]['ruling']!r}"
     )
 
 
 # ---------------------------------------------------------------------------
-# Test 2: DOWNGRADE_TO rejected when named_rebuttal only cites evidence lines
+# Test 2: DEFER ruling returned when cycle exceeds max_cycles
 # ---------------------------------------------------------------------------
 
 
-def test_downgrade_to_rejected_when_named_rebuttal_only_references_prior_lines():
-    """Given: arbiter ruling = DOWNGRADE_TO_important, but named_rebuttal only
-              references a line already in reviewer_severity_evidence
-       finding cited_lines = ['auth/login.py:42']
-    When: validate_arbiter_ruling(ruling, finding) called
-    Then: returns a ruling with ruling='ACCEPT_DEFENSE' (DOWNGRADE_TO rejected)
+def test_dispatch_arbiter_returns_defer_when_cycle_exceeds_max():
+    """Given: cycle=5 > max_cycles=4 (mock returns DEFER)
+    When: dispatch_arbiter called
+    Then: result[0]["ruling"] == "DEFER"
     """
-    ruling = {
-        "ruling": "DOWNGRADE_TO_important",
-        "severity_rebuttal": {
-            "reviewer_claimed_severity": "critical",
-            "reviewer_severity_evidence": "auth/login.py:42",
-            "named_rebuttal": "line 42 is actually handled",
-        },
-    }
-    finding = {
-        "id": "f1",
-        "cited_lines": ["auth/login.py:42"],
-        "severity": "critical",
-    }
+    findings = [{"id": "f1", "severity": "critical"}]
+    defenses = []
+    diff_text = "--- a/auth/login.py\n+++ b/auth/login.py\n@@ -40,3 +40,4 @@ def login():\n+    if user is None:\n+        raise ValueError\n"
+    model = "claude-sonnet-4-6"
+    provider_chain = ["anthropic"]
 
-    result = validate_arbiter_ruling(ruling, finding)
+    # Per agent contract: returns a JSON array of per-finding rulings.
+    fake_rulings = [
+        {
+            "ruling": "DEFER",
+            "rationale": "CoVe soft-cap: cycle exceeded max.",
+            "schema_version": "1.0.0",
+        }
+    ]
 
-    assert result["ruling"] == "ACCEPT_DEFENSE", (
-        f"Expected ruling='ACCEPT_DEFENSE' when named_rebuttal only references "
-        f"evidence lines, got: {result['ruling']!r}"
+    with patch("dso_ci_review.arbiter.dispatch_review", return_value=fake_rulings):
+        result = dispatch_arbiter(
+            findings=findings,
+            defenses=defenses,
+            diff_text=diff_text,
+            model=model,
+            provider_chain=provider_chain,
+            cycle_num=5,
+            max_cycles=4,
+        )
+
+    assert isinstance(result, list), (
+        f"Expected dispatch_arbiter to return a list, got {type(result)!r}"
+    )
+    assert result[0]["ruling"] == "DEFER", (
+        f"Expected ruling='DEFER' when cycle exceeds max_cycles, got {result[0]['ruling']!r}"
     )
 
 
 # ---------------------------------------------------------------------------
-# Test 3: DOWNGRADE_TO accepted when named_rebuttal references a non-evidence line
+# Test 3: validate_cycle_end_ruling raises ValueError for unknown ruling
 # ---------------------------------------------------------------------------
 
 
-def test_downgrade_to_accepted_when_named_rebuttal_references_non_evidence_line():
-    """Given: arbiter ruling = DOWNGRADE_TO_style, named_rebuttal references
-              auth/login.py:55 which is NOT in reviewer_severity_evidence
-       finding cited_lines = ['auth/login.py:42']
-    When: validate_arbiter_ruling called
-    Then: returns ruling unchanged (DOWNGRADE_TO_style is valid)
+def test_validate_cycle_end_ruling_raises_on_unknown_ruling():
+    """Given: ruling dict with a legacy ruling value not in VALID_RULINGS
+    When: validate_cycle_end_ruling(ruling) called
+    Then: raises ValueError
     """
-    ruling = {
-        "ruling": "DOWNGRADE_TO_style",
-        "severity_rebuttal": {
-            "reviewer_claimed_severity": "critical",
-            "reviewer_severity_evidence": "auth/login.py:42",
-            "named_rebuttal": "auth/login.py:55 shows the mitigation exists",
-        },
-    }
-    finding = {
-        "id": "f1",
-        "cited_lines": ["auth/login.py:42"],
-        "severity": "critical",
-    }
+    import pytest
 
-    result = validate_arbiter_ruling(ruling, finding)
+    # "SUSTAIN" is a legacy value from the old schema — must be rejected
+    old_schema_ruling = {"ruling": "SUSTAIN", "rationale": "old schema"}
 
-    assert result["ruling"] == "DOWNGRADE_TO_style", (
-        f"Expected ruling='DOWNGRADE_TO_style' to be preserved when named_rebuttal "
-        f"references a non-evidence line, got: {result['ruling']!r}"
+    with pytest.raises(ValueError):
+        validate_cycle_end_ruling(old_schema_ruling)
+
+
+# ---------------------------------------------------------------------------
+# Test 4: dispatch_arbiter handles multi-finding rulings array per agent contract
+# ---------------------------------------------------------------------------
+
+
+def test_dispatch_arbiter_handles_multi_finding_array():
+    """Given: 3 input findings and mock returns a 3-element rulings array
+    When: dispatch_arbiter called
+    Then: returns a list of 3 validated rulings, each preserving its ruling,
+          and CoVe fallback / validation are applied per ruling independently.
+    """
+    findings = [
+        {"id": "f1", "severity": "critical"},
+        {"id": "f2", "severity": "important"},
+        {"id": "f3", "severity": "critical"},
+    ]
+    fake_rulings = [
+        {"ruling": "BLOCK", "rationale": "first", "schema_version": "1.0.0"},
+        {"ruling": "DEFER", "rationale": "second", "schema_version": "1.0.0"},
+        {"ruling": "DROP", "rationale": "third", "schema_version": "1.0.0"},
+    ]
+    with patch("dso_ci_review.arbiter.dispatch_review", return_value=fake_rulings):
+        result = dispatch_arbiter(
+            findings=findings,
+            defenses=[],
+            diff_text="diff",
+            model="m",
+            provider_chain=["anthropic"],
+            cycle_num=2,
+            max_cycles=4,
+        )
+
+    assert len(result) == 3, f"Expected 3 rulings in result, got {len(result)}"
+    assert result[0]["ruling"] == "BLOCK"
+    assert result[1]["ruling"] == "DEFER"
+    assert result[2]["ruling"] == "DROP"
+
+
+# ---------------------------------------------------------------------------
+# Test 5: dispatch_arbiter length-mismatch triggers fail-closed BLOCK synthesis
+# ---------------------------------------------------------------------------
+
+
+def test_dispatch_arbiter_length_mismatch_triggers_fail_closed():
+    """Given: 2 input findings (1 critical, 1 important) but mock returns only 1 ruling
+    When: dispatch_arbiter called
+    Then: returns fail-closed BLOCK rulings for all critical/important findings
+          with rationale citing the length-mismatch.
+    """
+    findings = [
+        {"id": "f1", "severity": "critical"},
+        {"id": "f2", "severity": "important"},
+    ]
+    fake_rulings = [
+        {"ruling": "DROP", "rationale": "only one returned", "schema_version": "1.0.0"},
+    ]
+    with patch("dso_ci_review.arbiter.dispatch_review", return_value=fake_rulings):
+        result = dispatch_arbiter(
+            findings=findings,
+            defenses=[],
+            diff_text="diff",
+            model="m",
+            provider_chain=["anthropic"],
+            cycle_num=1,
+            max_cycles=4,
+        )
+
+    # All critical/important findings get fail-closed BLOCK
+    assert all(r["ruling"] == "BLOCK" for r in result), (
+        f"Expected all rulings to be BLOCK, got {[r['ruling'] for r in result]!r}"
     )
+    assert all("length mismatch" in r["rationale"].lower() for r in result), (
+        "Expected all rationales to cite length mismatch"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 6: dispatch_arbiter dispatch-failure triggers fail-closed BLOCK synthesis
+# ---------------------------------------------------------------------------
+
+
+def test_dispatch_arbiter_fail_closed_on_dispatch_failure(capsys):
+    """Given: 3 findings (critical, important, minor) and dispatch_review raises ConnectionError
+    When: dispatch_arbiter called
+    Then: 2 synthetic BLOCK rulings (critical + important; minor skipped);
+          severity preserved; structured stderr log emitted.
+    """
+    findings = [
+        {"id": "f1", "severity": "critical", "finding_hash": "h1"},
+        {"id": "f2", "severity": "important", "finding_hash": "h2"},
+        {"id": "f3", "severity": "minor", "finding_hash": "h3"},
+    ]
+
+    def raise_dispatch(*args, **kwargs):
+        raise ConnectionError("simulated network failure")
+
+    with patch("dso_ci_review.arbiter.dispatch_review", side_effect=raise_dispatch):
+        result = dispatch_arbiter(
+            findings=findings,
+            defenses=[],
+            diff_text="diff",
+            model="m",
+            provider_chain=["anthropic"],
+            cycle_num=1,
+            max_cycles=4,
+        )
+
+    # 2 synthetic BLOCKs (critical + important); minor skipped
+    assert len(result) == 2, (
+        f"Expected 2 synthetic rulings (critical + important), got {len(result)}"
+    )
+    assert all(r["ruling"] == "BLOCK" for r in result), (
+        f"Expected all rulings to be BLOCK, got {[r['ruling'] for r in result]!r}"
+    )
+    assert all("Arbiter dispatch failed" in r["rationale"] for r in result), (
+        "Expected all rationales to cite 'Arbiter dispatch failed'"
+    )
+    assert all("ConnectionError" in r["rationale"] for r in result), (
+        "Expected all rationales to cite the exception class name"
+    )
+
+    # Severity preserved in synthetic rulings (AC amendment)
+    severities = [r.get("severity") for r in result]
+    assert "critical" in severities, f"Expected 'critical' in severities, got {severities}"
+    assert "important" in severities, f"Expected 'important' in severities, got {severities}"
+    assert "minor" not in severities, (
+        f"Minor finding should have been skipped, got severities={severities}"
+    )
+
+    # finding_hash preserved in synthetic rulings (AC amendment)
+    hashes = [r.get("finding_hash") for r in result]
+    assert "h1" in hashes and "h2" in hashes, (
+        f"Expected original finding_hash values preserved, got {hashes}"
+    )
+
+    # Structured stderr log
+    captured = capsys.readouterr()
+    assert "arbiter_dispatch_failed" in captured.err, (
+        f"Expected 'arbiter_dispatch_failed' in stderr, got: {captured.err!r}"
+    )
+    assert "reason=ConnectionError" in captured.err, (
+        f"Expected 'reason=ConnectionError' in stderr, got: {captured.err!r}"
+    )
+    assert "finding_count=3" in captured.err, (
+        f"Expected 'finding_count=3' in stderr, got: {captured.err!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 7: dispatch_arbiter empty findings + dispatch failure → empty array
+# ---------------------------------------------------------------------------
+
+
+def test_dispatch_arbiter_empty_findings_no_synthetic_block_on_dispatch_failure(capsys):
+    """Given: empty findings list and dispatch_review would raise ConnectionError
+    When: dispatch_arbiter called
+    Then: returns empty array (no synthetic BLOCK for nonexistent findings).
+          Short-circuit happens BEFORE dispatch, so dispatch_review is never called.
+    """
+
+    def raise_dispatch(*args, **kwargs):
+        raise ConnectionError("network down")
+
+    with patch(
+        "dso_ci_review.arbiter.dispatch_review", side_effect=raise_dispatch
+    ) as mock_dispatch:
+        result = dispatch_arbiter(
+            findings=[],
+            defenses=[],
+            diff_text="diff",
+            model="m",
+            provider_chain=["anthropic"],
+            cycle_num=1,
+            max_cycles=4,
+        )
+
+    assert result == [], f"Expected empty rulings array, got {result!r}"
+    # Dispatch should not have been called at all — empty findings short-circuit
+    assert mock_dispatch.call_count == 0, (
+        "Expected dispatch_review to be skipped entirely for empty findings"
+    )
+
+
+# ── Bug da45 PR #203 finding f-XXX — CoVe direct test ─────────────────────────
+
+def test_enforce_cove_fallback_reclassifies_block_above_max_cycles():
+    """_enforce_cove_fallback (arbiter.py:67-81) directly: a BLOCK ruling
+    issued at cycle_num > max_cycles must be reclassified to DEFER with
+    the cycle-cap rationale. PR #203 finding f-XXX: existing tests only
+    exercise this path indirectly through a mocked agent that already
+    returns DEFER — the reclassification logic itself is untested.
+    """
+    from dso_ci_review.arbiter import _enforce_cove_fallback
+    ruling = {
+        "ruling": "BLOCK",
+        "rationale": "original block reason",
+        "schema_version": "1.0.0",
+        "finding_index": 0,
+    }
+    result = _enforce_cove_fallback(ruling, cycle_num=5, max_cycles=4)
+    assert result["ruling"] == "DEFER", (
+        f"BLOCK at cycle 5 > max 4 must reclassify to DEFER; got {result['ruling']!r}"
+    )
+    assert "CoVe soft-cap" in result["rationale"], (
+        f"Reclassification rationale must mention CoVe soft-cap; got {result['rationale']!r}"
+    )
+    # Original input preserved
+    assert ruling["ruling"] == "BLOCK", (
+        "Source ruling must not be mutated"
+    )
+
+
+def test_enforce_cove_fallback_preserves_block_within_max_cycles():
+    """BLOCK at cycle_num <= max_cycles must stay BLOCK."""
+    from dso_ci_review.arbiter import _enforce_cove_fallback
+    ruling = {"ruling": "BLOCK", "finding_index": 0}
+    result = _enforce_cove_fallback(ruling, cycle_num=3, max_cycles=4)
+    assert result["ruling"] == "BLOCK"
+
+
+def test_enforce_cove_fallback_preserves_non_block_rulings():
+    """DEFER/DROP/ACCEPT must not be touched even if cycle > max."""
+    from dso_ci_review.arbiter import _enforce_cove_fallback
+    for r in ("DEFER", "DROP", "ACCEPT"):
+        ruling = {"ruling": r, "finding_index": 0}
+        result = _enforce_cove_fallback(ruling, cycle_num=10, max_cycles=4)
+        assert result["ruling"] == r, (
+            f"{r} should not be reclassified by CoVe fallback; got {result['ruling']!r}"
+        )
+
+
+# ── Bug da45 PR #203 finding f-XXX — exception-type boundary ──────────────────
+
+def test_dispatch_arbiter_does_not_catch_bare_exception_or_keyboard_interrupt():
+    """arbiter.py docstring (lines 149-152) commits to NOT catching bare
+    Exception — only specific transport/parse classes
+    (CalledProcessError, JSONDecodeError, OSError) trigger fail-closed
+    synthetic BLOCK rulings. Programming bugs (ValueError, TypeError,
+    KeyError, KeyboardInterrupt) MUST propagate so they are not masked
+    as fake BLOCK signals.
+    """
+    from dso_ci_review.arbiter import dispatch_arbiter
+
+    finding = {
+        "severity": "critical", "category": "correctness",
+        "file": "x.py", "line_range": "1", "finding_index": 0,
+    }
+
+    # ValueError (programming bug) — must propagate
+    def raise_value_error(*a, **kw):
+        raise ValueError("intentional programming bug")
+    with patch("dso_ci_review.arbiter.dispatch_review", side_effect=raise_value_error):
+        try:
+            dispatch_arbiter(
+                findings=[finding], defenses=[], diff_text="d",
+                model="m", provider_chain=["anthropic"],
+                cycle_num=1, max_cycles=4,
+            )
+        except ValueError as e:
+            assert "intentional" in str(e)
+        else:
+            raise AssertionError(
+                "dispatch_arbiter must not catch ValueError; "
+                "it would mask programming bugs as fake BLOCK rulings"
+            )
+
+    # KeyboardInterrupt — must propagate (Ctrl-C should never hang or fake-BLOCK)
+    def raise_keyboard_interrupt(*a, **kw):
+        raise KeyboardInterrupt()
+    with patch("dso_ci_review.arbiter.dispatch_review", side_effect=raise_keyboard_interrupt):
+        try:
+            dispatch_arbiter(
+                findings=[finding], defenses=[], diff_text="d",
+                model="m", provider_chain=["anthropic"],
+                cycle_num=1, max_cycles=4,
+            )
+        except KeyboardInterrupt:
+            pass
+        else:
+            raise AssertionError(
+                "dispatch_arbiter must not catch KeyboardInterrupt"
+            )
