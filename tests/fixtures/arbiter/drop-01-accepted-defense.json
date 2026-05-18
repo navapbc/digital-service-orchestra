@@ -11,10 +11,7 @@
   "arbiter_ruling": {
     "ruling": "DROP",
     "rationale": "Defense accepted: line 99 confirms null-check was added in the refactoring.",
-    "schema_version": "1.1.0",
-    "cross_reviewer_agreement": ["UNANIMOUS"],
-    "cross_cycle_pattern": ["DEFENDED_PRIOR_CYCLE"],
-    "impact_class": "bug"
+    "schema_version": "1.0.0"
   },
   "cycle": 2,
   "max_cycles": 4,

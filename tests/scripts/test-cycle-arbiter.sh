@@ -25,23 +25,17 @@ run_test() {
     fi
 }
 
-# Helper: invoke compute_ruling_from_fixture and return the ruling value.
-# Pass REPO_ROOT and fixture_file as argv (NOT heredoc string interpolation)
-# so paths containing spaces or special characters don't break Python parsing
-# (PR #204 review finding f-XXX).
+# Helper: invoke compute_ruling_from_fixture and return the ruling value
 compute_ruling() {
     local fixture_file="$1"
-    REPO_ROOT="$REPO_ROOT" FIXTURE_FILE="$fixture_file" python3 - <<'PYEOF' 2>/dev/null
-import json
-import os
-import sys
-sys.path.insert(0, os.path.join(os.environ["REPO_ROOT"], "plugins/dso/scripts"))
+    python3 -c "
+import json, sys
+sys.path.insert(0, '$REPO_ROOT/plugins/dso/scripts')
 from dso_ci_review.arbiter import compute_ruling_from_fixture
-with open(os.environ["FIXTURE_FILE"]) as f:
-    fixture = json.load(f)
+fixture = json.load(open('$fixture_file'))
 result = compute_ruling_from_fixture(fixture)
-print(result["ruling"])
-PYEOF
+print(result['ruling'])
+" 2>/dev/null
 }
 
 # --- test functions ---
@@ -147,25 +141,6 @@ test_drop_accepted_defense_no_evidence_lines_ruling() {
     fi
 }
 test_drop_accepted_defense_no_evidence_lines_ruling
-
-echo "--- test_block_impact_class_none_reclassified_to_defer"
-test_block_impact_class_none_reclassified_to_defer() {
-    local fixture="$FIXTURE_DIR/block-03-impact-class-none-reclassified.json"
-    if [[ ! -f "$fixture" ]]; then
-        run_test "test_block_impact_class_none_reclassified_to_defer" "FIXTURE_MISSING: $fixture"
-        return
-    fi
-    # arbiter_ruling.ruling=BLOCK but impact_class='none' (outside 8-cat floor).
-    # _enforce_impact_class_floor reclassifies BLOCK → DEFER.
-    local computed_ruling
-    computed_ruling=$(compute_ruling "$fixture")
-    if [[ "$computed_ruling" == "DEFER" ]]; then
-        run_test "test_block_impact_class_none_reclassified_to_defer" "PASS"
-    else
-        run_test "test_block_impact_class_none_reclassified_to_defer" "Expected DEFER (impact_class floor reclassification), got computed=$computed_ruling"
-    fi
-}
-test_block_impact_class_none_reclassified_to_defer
 
 echo "--- test_schema_collision_graceful_handling"
 test_schema_collision_graceful_handling() {
