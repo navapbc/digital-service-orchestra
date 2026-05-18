@@ -134,7 +134,7 @@ plugins/dso/hooks/lib/test-result-processor.sh:tests/hooks/test-record-test-stat
 plugins/dso/hooks/lib/validate-check-runners.sh:tests/scripts/test-validate-test-batched-integration.sh
 plugins/dso/hooks/lib/validate-helpers.sh:tests/scripts/test-validate-test-batched-integration.sh
 plugins/dso/hooks/pre-commit-enforcement-boundary-check.sh:tests/hooks/test-enforcement-boundary-check.sh
-plugins/dso/hooks/pre-commit-review-gate.sh:tests/hooks/test-enforcement-gate.sh
+plugins/dso/hooks/pre-commit-review-gate.sh:tests/hooks/test-enforcement-gate.sh,tests/hooks/test-pre-commit-review-gate-arbiter.sh [test_arbiter_block_for_current_sha_blocks_commit,test_corrupt_arbiter_sidecar_fails_closed_with_warning,test_self_heal_path_still_checks_arbiter_block],tests/scripts/test-pre-commit-review-gate-arbiter.sh [test_arbiter_block_for_current_sha_blocks_commit
 plugins/dso/hooks/pre-commit-test-gate.sh:tests/hooks/test-enforcement-gate.sh
 plugins/dso/hooks/pre-commit-test-quality-gate.sh:tests/hooks/test-enforcement-gate.sh
 plugins/dso/hooks/pre-commit-ticket-gate.sh:tests/hooks/test-pre-commit-ticket-gate.sh
