@@ -120,11 +120,8 @@ def validate_cycle_end_ruling(ruling: dict[str, Any]) -> dict[str, Any]:
         )
 
     # v1.1.0 enrichment-field enforcement (gated on schema_version).
-    # String compare is sufficient for "1.x.y" dotted versions where each
-    # component is a single digit — the schema lives in a small, controlled
-    # vocabulary (1.0.0, 1.1.0) and an explicit lexical >= covers both.
     schema_version = ruling.get("schema_version", "1.0.0")
-    if schema_version >= "1.1.0":
+    if _schema_version_at_least(schema_version, "1.1.0"):
         # All three enriched fields must be present.
         for field in _V1_1_0_REQUIRED_FIELDS:
             if field not in ruling:
@@ -133,11 +130,20 @@ def validate_cycle_end_ruling(ruling: dict[str, Any]) -> dict[str, Any]:
                     f"(schema_version={schema_version!r})"
                 )
 
-        # cross_reviewer_agreement: list of strings, each ∈ VALID_CROSS_REVIEWER_AGREEMENT.
+        # cross_reviewer_agreement: non-empty list of strings, each ∈
+        # VALID_CROSS_REVIEWER_AGREEMENT. Schema contract specifies
+        # cardinality 'one or more' (review-defenses.md table) — an empty
+        # list silently passing the iteration loop would let invalid
+        # rulings through. PR #204 review finding f-XXX.
         cra = ruling["cross_reviewer_agreement"]
         if not isinstance(cra, list):
             raise ValueError(
                 f"cross_reviewer_agreement must be a list, got {type(cra).__name__}"
+            )
+        if len(cra) == 0:
+            raise ValueError(
+                "cross_reviewer_agreement must be non-empty (schema "
+                "contract: 'one or more')"
             )
         for value in cra:
             if value not in VALID_CROSS_REVIEWER_AGREEMENT:
@@ -146,11 +152,16 @@ def validate_cycle_end_ruling(ruling: dict[str, Any]) -> dict[str, Any]:
                     f"Must be one of {sorted(VALID_CROSS_REVIEWER_AGREEMENT)}"
                 )
 
-        # cross_cycle_pattern: list of strings, each ∈ VALID_CROSS_CYCLE_PATTERN.
+        # cross_cycle_pattern: non-empty list (same cardinality contract).
         ccp = ruling["cross_cycle_pattern"]
         if not isinstance(ccp, list):
             raise ValueError(
                 f"cross_cycle_pattern must be a list, got {type(ccp).__name__}"
+            )
+        if len(ccp) == 0:
+            raise ValueError(
+                "cross_cycle_pattern must be non-empty (schema "
+                "contract: 'one or more')"
             )
         for value in ccp:
             if value not in VALID_CROSS_CYCLE_PATTERN:
@@ -159,8 +170,16 @@ def validate_cycle_end_ruling(ruling: dict[str, Any]) -> dict[str, Any]:
                     f"Must be one of {sorted(VALID_CROSS_CYCLE_PATTERN)}"
                 )
 
-        # impact_class: single string ∈ VALID_IMPACT_CLASS.
+        # impact_class: single string ∈ VALID_IMPACT_CLASS. Type-check
+        # before enum membership so non-string inputs (list, dict) get a
+        # clear error rather than a confusing 'Unknown impact_class'
+        # message (PR #204 review finding f-XXX).
         impact = ruling["impact_class"]
+        if not isinstance(impact, str):
+            raise ValueError(
+                f"impact_class must be a string, got {type(impact).__name__}: "
+                f"{impact!r}"
+            )
         if impact not in VALID_IMPACT_CLASS:
             raise ValueError(
                 f"Unknown impact_class {impact!r}. "
@@ -168,6 +187,22 @@ def validate_cycle_end_ruling(ruling: dict[str, Any]) -> dict[str, Any]:
             )
 
     return ruling
+
+
+def _schema_version_at_least(observed: str, minimum: str) -> bool:
+    """Compare semver-style schema versions semantically (not lexicographically).
+
+    PR #204 review finding f-XXX: 'schema_version >= "1.1.0"' string compare
+    fails for multi-digit versions ('1.10.0' < '1.1.0' lexically), causing
+    future schemas to silently skip v1.1.0 enrichment checks.
+    """
+    import re as _re
+    semver_re = _re.compile(r"^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$")
+    m_obs = semver_re.match(observed or "")
+    m_min = semver_re.match(minimum or "")
+    if not (m_obs and m_min):
+        return bool(observed) and bool(minimum) and observed >= minimum
+    return tuple(int(g) for g in m_obs.groups()) >= tuple(int(g) for g in m_min.groups())
 
 
 def _enforce_cove_fallback(
@@ -205,7 +240,7 @@ def _enforce_impact_class_floor(ruling: dict[str, Any]) -> dict[str, Any]:
     Only applies to rulings with schema_version >= "1.1.0" (legacy rulings
     without impact_class field are passed through unchanged).
     """
-    if ruling.get("schema_version", "1.0.0") < "1.1.0":
+    if not _schema_version_at_least(ruling.get("schema_version", "1.0.0"), "1.1.0"):
         return ruling
     if ruling.get("ruling") == "BLOCK" and ruling.get("impact_class") == "none":
         result = dict(ruling)

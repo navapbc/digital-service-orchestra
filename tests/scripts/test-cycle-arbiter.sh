@@ -25,17 +25,23 @@ run_test() {
     fi
 }
 
-# Helper: invoke compute_ruling_from_fixture and return the ruling value
+# Helper: invoke compute_ruling_from_fixture and return the ruling value.
+# Pass REPO_ROOT and fixture_file as argv (NOT heredoc string interpolation)
+# so paths containing spaces or special characters don't break Python parsing
+# (PR #204 review finding f-XXX).
 compute_ruling() {
     local fixture_file="$1"
-    python3 -c "
-import json, sys
-sys.path.insert(0, '$REPO_ROOT/plugins/dso/scripts')
+    REPO_ROOT="$REPO_ROOT" FIXTURE_FILE="$fixture_file" python3 - <<'PYEOF' 2>/dev/null
+import json
+import os
+import sys
+sys.path.insert(0, os.path.join(os.environ["REPO_ROOT"], "plugins/dso/scripts"))
 from dso_ci_review.arbiter import compute_ruling_from_fixture
-fixture = json.load(open('$fixture_file'))
+with open(os.environ["FIXTURE_FILE"]) as f:
+    fixture = json.load(f)
 result = compute_ruling_from_fixture(fixture)
-print(result['ruling'])
-" 2>/dev/null
+print(result["ruling"])
+PYEOF
 }
 
 # --- test functions ---
