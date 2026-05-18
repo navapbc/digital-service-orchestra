@@ -133,3 +133,56 @@ def test_should_halt_prior_empty_skips_check():
     halt, signal = should_halt(current_critical, [], 0.85)
     assert halt is False
     assert signal is None
+
+
+# ── Bug da45 PR #202 finding f-d4e5f6g7 — dict/tuple equivalence ──────────────
+
+def test_finding_hash_dict_and_tuple_forms_produce_identical_hashes():
+    """Bug da45 PR #202 review finding f-d4e5f6g7: callers may pass current
+    findings as dicts (from dispatch.py) and prior findings as tuples
+    (deserialized from cycle-ledger). Both paths must produce identical
+    hashes for equivalent data so Jaccard similarity is computed correctly.
+
+    This is a regression guard — the existing implementation already
+    handles both forms symmetrically (.get("k","") for dict / index-check
+    for tuple), but a future refactor that adds an extra dict key or
+    changes the field order could silently break equivalence.
+    """
+    pairs = [
+        ({"file": "x.py", "line_range": "1", "category": "correctness"},
+         ("x.py", "1", "correctness")),
+        ({"file": "src/a.py", "line_range": "10-20", "category": "verification"},
+         ("src/a.py", "10-20", "verification")),
+        # Empty / partial dict equivalent to short tuple
+        ({"file": "y.py"}, ("y.py",)),
+        ({"file": "y.py", "category": "c"}, ("y.py", "", "c")),
+    ]
+    for d, t in pairs:
+        h_dict = finding_hash(d)
+        h_tuple = finding_hash(t)
+        assert h_dict == h_tuple, (
+            f"finding_hash divergence for equivalent dict/tuple: "
+            f"dict={d!r} → {h_dict}; tuple={t!r} → {h_tuple}"
+        )
+
+
+def test_jaccard_dict_vs_tuple_input_returns_same_result_as_normalized():
+    """The bug f-d4e5f6g7 scenario: current findings as dicts, prior as
+    tuples. If finding_hash treats them differently, jaccard returns
+    0.0 (no overlap) even when the data is logically identical.
+    """
+    findings_data = [
+        ("x.py", "1", "correctness"),
+        ("y.py", "10-20", "verification"),
+    ]
+    dict_form = [
+        {"file": f, "line_range": lr, "category": c}
+        for f, lr, c in findings_data
+    ]
+    tuple_form = findings_data
+    score = jaccard(dict_form, tuple_form)
+    assert score == 1.0, (
+        f"Equivalent findings in dict vs tuple form should produce "
+        f"Jaccard=1.0; got {score}. This indicates finding_hash() "
+        f"is NOT symmetric across the two input types."
+    )
