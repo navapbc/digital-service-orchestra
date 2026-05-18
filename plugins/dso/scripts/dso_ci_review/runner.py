@@ -41,6 +41,8 @@ from dso_ci_review.findings import merge_findings, _parse_line_range
 from dso_ci_review.providers.config import AuthError, ConfigError, get_provider
 from dso_ci_review.proximity import compute_proximity_overlap, validate_escape_rationale
 from dso_ci_review.region_split import _should_region_split, run_region_split
+from dso_ci_review import cycle_ledger
+from dso_ci_review.cycle_dispatcher import next_action as cycle_next_action
 
 
 class _SchemaValidationResult(NamedTuple):
@@ -634,20 +636,66 @@ def _write_output(data: dict) -> None:
         print(serialized)
 
 
-def _init_cycle_ledger() -> int:
-    """Return the current review cycle number.
+def init_cycle_ledger(artifacts_dir: str, pr_number: str | None = None, repo: str | None = None) -> int:
+    """Read cycle-ledger.json and return the next cycle number.
 
-    CURRENT (env-var) IMPLEMENTATION (task 36cf will replace this):
-        Reads DSO_REVIEW_CYCLE env var, defaulting to 1 when absent.
-        This is a thin extraction stub so tests can mock the cycle source
-        independently of the env var. Task 36cf replaces the body with
-        ledger-authoritative logic (cycle-ledger.json); the return type
-        (int >= 1) and semantics remain identical.
+    Reads pr_number and repo from environment (PR_NUMBER, GITHUB_REPOSITORY)
+    when not provided as arguments.
+
+    Falls back to PR comment reconstruction when file is absent and
+    pr_number/repo are available. Logs a WARNING when DSO_REVIEW_CYCLE env var
+    disagrees with the ledger-derived cycle_num. Ledger wins.
 
     Returns:
         int: cycle number >= 1. Callers treat >= 2 as a re-review pass.
     """
-    return int(os.environ.get("DSO_REVIEW_CYCLE", "1"))
+    ledger_path = os.path.join(artifacts_dir, "cycle-ledger.json")
+    ledger = cycle_ledger.read_ledger(ledger_path)
+
+    # Resolve pr_number and repo from env when not passed explicitly
+    if pr_number is None:
+        pr_number = _resolve_pr_number()
+    if repo is None:
+        repo = os.environ.get("GITHUB_REPOSITORY", "") or None
+
+    if not ledger.get("cycles") and pr_number is not None and repo is not None:
+        try:
+            pr_int = int(pr_number)
+        except ValueError:
+            print(
+                f"WARNING: pr_number={pr_number!r} is not a valid integer — skipping PR reconstruction",
+                file=sys.stderr,
+            )
+        else:
+            ledger = cycle_ledger.reconstruct_from_pr_comments(pr_int, repo)
+
+    cycles = ledger.get("cycles", [])
+    cycle_num = len(cycles) + 1  # next cycle number
+
+    env_cycle = os.environ.get("DSO_REVIEW_CYCLE")
+    if env_cycle is not None:
+        try:
+            env_cycle_int = int(env_cycle)
+            if env_cycle_int != cycle_num:
+                print(
+                    f"WARNING: DSO_REVIEW_CYCLE={env_cycle_int} disagrees with "
+                    f"ledger-derived cycle_num={cycle_num}; ledger wins",
+                    file=sys.stderr,
+                )
+        except ValueError:
+            pass
+
+    return cycle_num
+
+
+def _init_cycle_ledger(artifacts_dir: str | None = None, pr_number: str | None = None, repo: str | None = None) -> int:
+    """Thin internal shim — delegates to init_cycle_ledger.
+
+    artifacts_dir defaults to WORKFLOW_PLUGIN_ARTIFACTS_DIR env var or /tmp.
+    """
+    if artifacts_dir is None:
+        artifacts_dir = os.environ.get("WORKFLOW_PLUGIN_ARTIFACTS_DIR", "/tmp")
+    return init_cycle_ledger(artifacts_dir=artifacts_dir, pr_number=pr_number, repo=repo)
 
 
 def _fetch_pr_defenses(pr_number: str) -> list[dict]:
@@ -1365,12 +1413,46 @@ def main() -> int:
         classification = _classify_tier_via_bash(diff_text)
         tier = classification["selected_tier"]
 
-        # Read review cycle number — used by two-call architecture on re-review passes.
+        # Ledger-authoritative cycle derivation (replaces DSO_REVIEW_CYCLE as source).
         # On cycle N≥2, fetch prior defenses from PR comments so the LLM can avoid
         # re-emitting already-defended findings. (Bug c59e-a197: dismissal-memory gap.)
-        # Task 36cf replaces _init_cycle_ledger() body with ledger-authoritative logic;
-        # this call site does not need to change.
-        cycle_number = _init_cycle_ledger()
+        artifacts_dir = os.environ.get("WORKFLOW_PLUGIN_ARTIFACTS_DIR", "/tmp")
+        pr_number = _resolve_pr_number()
+        repo = os.environ.get("GITHUB_REPOSITORY", "") or None
+        max_cycles = read_config_int("review.max_cycles", default=4)
+
+        cycle_number = _init_cycle_ledger(artifacts_dir=artifacts_dir, pr_number=pr_number, repo=repo)
+
+        # Load the raw ledger for SHORT_CIRCUIT pre-check (cycle_next_action needs it).
+        _ledger_path = os.path.join(artifacts_dir, "cycle-ledger.json")
+        _ledger = cycle_ledger.read_ledger(_ledger_path)
+
+        # Move reviewed_sha resolution ABOVE SHORT_CIRCUIT check.
+        reviewed_sha = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+
+        # Pre-review SHORT_CIRCUIT check: when HEAD SHA matches last cycle AND
+        # arbiter-rulings.json exists, skip dispatch and return early.
+        _pre_check = cycle_next_action(_ledger, max_cycles, [], reviewed_sha, artifacts_dir)
+        if _pre_check.get("action") == "SHORT_CIRCUIT":
+            rulings_path = os.path.join(artifacts_dir, "arbiter-rulings.json")
+            try:
+                with open(rulings_path) as f:
+                    rulings_data = json.load(f)
+            except (OSError, json.JSONDecodeError):
+                rulings_data = {}
+            # Support both {"rulings": [...]} and flat list formats.
+            if isinstance(rulings_data, list):
+                rulings_list = rulings_data
+            else:
+                rulings_list = rulings_data.get("rulings", [])
+            has_block = any(
+                r.get("ruling") == "BLOCK" for r in rulings_list if isinstance(r, dict)
+            )
+            return 1 if has_block else 0
 
         # Fetch prior defenses for cycle-2+ suppression.
         # Returns [] when not in a PR context or when gh CLI is unavailable.
@@ -1381,9 +1463,8 @@ def main() -> int:
         # cycle_num >= 2 holds, and prior defenses are loaded. No behavioral change needed.
         prior_defenses: list[dict] = []
         if cycle_number >= 2:
-            pr_num = _resolve_pr_number()
-            if pr_num:
-                prior_defenses = _fetch_pr_defenses(pr_num)
+            if pr_number:
+                prior_defenses = _fetch_pr_defenses(pr_number)
                 if prior_defenses:
                     print(
                         f"INFO: cycle {cycle_number} — loaded {len(prior_defenses)} "
@@ -1393,13 +1474,6 @@ def main() -> int:
 
         # Resolve config_path once for overlay agent construction
         config_path: str | None = None
-
-        # Capture reviewed_sha before dispatch so verifier uses the same commit
-        reviewed_sha = subprocess.check_output(
-            ["git", "rev-parse", "HEAD"],
-            text=True,
-            stderr=subprocess.DEVNULL,
-        ).strip()
 
         # Step 2: build agent list based on tier, plus any classifier-flagged overlays
         tier_agents = _build_agents_for_tier(
