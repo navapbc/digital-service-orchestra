@@ -8,7 +8,7 @@ The setup pipeline — fetching the candidate epic list, loading each
 epic's description, extracting `approach_summary` and
 `success_criteria`, partitioning into batches of 5, and the usage-aware
 throttle check — is encapsulated in
-`${CLAUDE_PLUGIN_ROOT}/scripts/cross-epic-scan-prep.sh` so the
+`cross-epic-scan-prep.sh` under the plugin's `scripts/` directory so the
 orchestrator does not absorb every candidate epic's content into its
 working context (bug e253-f62a).
 
@@ -33,8 +33,9 @@ The orchestrator's setup responsibility collapses to:
    shot:
 
    ```bash
+   PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"  # shim-exempt: prompt template — orchestrator resolves CLAUDE_PLUGIN_ROOT at runtime
    _OUT=$(mktemp -d /tmp/cross-epic-scan.XXXXXX)
-   PREP_OUTPUT=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/cross-epic-scan-prep.sh" \
+   PREP_OUTPUT=$(bash "$PLUGIN_SCRIPTS/cross-epic-scan-prep.sh" \
        --epic-id <current_epic_id> \
        --new-epic-payload "$_NEW_EPIC" \
        --out-dir "$_OUT")
