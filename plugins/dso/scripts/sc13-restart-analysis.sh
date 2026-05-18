@@ -9,7 +9,7 @@
 #     [--sample-size=N] \
 #     [--confidence=95]
 #
-# When rates are not provided explicitly, attempts to read from .tickets-tracker/
+# When rates are not provided explicitly, attempts to read from .tickets-tracker/  # tickets-boundary-ok
 # REPLAN_TRIGGER comment counts (if available).
 #
 # Output JSON:
@@ -62,7 +62,7 @@ done
 # ── Auto-discover rates from ticket tracker if not provided ──────────────────
 if [[ -z "$_BASELINE_RATE" || -z "$_POST_RATE" ]]; then
     _REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo ".")"
-    _TRACKER_DIR="${TICKETS_TRACKER_DIR:-$_REPO_ROOT/.tickets-tracker}"
+    _TRACKER_DIR="${TICKETS_TRACKER_DIR:-$_REPO_ROOT/.tickets-tracker}"  # tickets-boundary-ok
 
     if [[ -d "$_TRACKER_DIR" ]]; then
         # Count REPLAN_TRIGGER comments across all tickets as proxy for restart rate
@@ -80,7 +80,7 @@ fi
 
 # Validate we have required inputs
 if [[ -z "$_BASELINE_RATE" || -z "$_POST_RATE" ]]; then
-    echo "ERROR: --baseline-restart-rate and --post-restart-rate are required when not discoverable from .tickets-tracker" >&2
+    echo "ERROR: --baseline-restart-rate and --post-restart-rate are required when not discoverable from .tickets-tracker" >&2  # tickets-boundary-ok
     exit 1
 fi
 
@@ -94,6 +94,22 @@ baseline_rate = float("$_BASELINE_RATE")
 post_rate = float("$_POST_RATE")
 sample_size = int("$_SAMPLE_SIZE")
 confidence = int("$_CONFIDENCE")
+
+# Sample-size=0: no data to analyze. Emit a no-op signal and exit 0.
+# Per dso:completion-verifier Step 3.5 SC13: "Use the baseline rate captured
+# in Story 1 (or pass 0 for both rates when no measurement is available)."
+if sample_size <= 0:
+    print(json.dumps({
+        "signal": "SC13_NO_DATA",
+        "baseline_rate": round(baseline_rate, 4),
+        "post_rate": round(post_rate, 4),
+        "drop_pct": 0,
+        "ci_lower": 0,
+        "ci_upper": 0,
+        "sample_size": 0,
+        "methodology": "no-op (sample_size=0)",
+    }, indent=2))
+    sys.exit(0)
 
 # Compute drop percentage
 if baseline_rate == 0.0:

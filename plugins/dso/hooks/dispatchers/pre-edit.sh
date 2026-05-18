@@ -8,10 +8,11 @@
 #
 # Hook execution order:
 #   1. hook_worktree_edit_guard     — block Edit targeting main repo from worktree
-#   2. hook_cascade_circuit_breaker — block Edit when cascade failure threshold reached
-#   3. hook_title_length_validator  — block Edit setting ticket titles > 255 chars
-#   4. hook_tickets_tracker_guard   — block Edit targeting .tickets-tracker/ files
-#   5. hook_block_generated_reviewer_agents — block Edit to generated code-reviewer-*.md files
+#   2. hook_no_edit_on_main         — block Edit on primary checkout while on main/master
+#   3. hook_cascade_circuit_breaker — block Edit when cascade failure threshold reached
+#   4. hook_title_length_validator  — block Edit setting ticket titles > 255 chars
+#   5. hook_tickets_tracker_guard   — block Edit targeting .tickets-tracker/ files  # tickets-boundary-ok
+#   6. hook_block_generated_reviewer_agents — block Edit to generated code-reviewer-*.md files
 #
 # Returns: 0 if all hooks allow, 2 if any hook blocks.
 
@@ -56,6 +57,7 @@ _pre_edit_dispatch() {
 
     for _HOOK_FN in \
         hook_worktree_edit_guard \
+        hook_no_edit_on_main \
         hook_cascade_circuit_breaker \
         hook_title_length_validator \
         hook_tickets_tracker_guard \

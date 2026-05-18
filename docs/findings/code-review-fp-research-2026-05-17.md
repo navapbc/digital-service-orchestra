@@ -1,7 +1,7 @@
 # Code Review False-Positive Reduction — Research and Gap Analysis
 
 **Date**: 2026-05-17
-**Author**: session research — joe.oakhart@gmail.com
+**Author**: session research (project maintainer)
 **Status**: reference document
 
 This is the captured output of a research session that explored: (1) whether requiring LLM reviewers to attach a failing RED test per behavioral finding has prior art, (2) research-supported alternatives to that policy, (3) how the current DSO review system maps onto published anti-hallucination patterns, (4) what the in-flight epic landscape addresses, (5) what observed PR-level FPs look like in practice, and (6) what specific calibration changes would be most cost-effective. Sections are organized to be readable independently.
@@ -255,7 +255,7 @@ Estimated FP-rate trajectory:
 ### §B — Subdirectory cascade pre-check in standard delta
 
 - **Targets**: hallucinated function/file reference (11% of total, 19% of FPs).
-- **Mechanism**: standard reviewer's mandatory pre-check already requires a `read_files` request before "missing reference" findings. Strengthen to require `find . -name <basename>` (or `grep -r`) for any script/file reference. Mirrors bug 0736-a97e (dso shim subdirectory cascade).
+- **Mechanism**: standard reviewer's mandatory pre-check already requires a `read_files` request before "missing reference" findings. Strengthen to extend the `read_files` request to a multi-path candidate cascade — same basename under common plugin script/hook subdirectory prefixes — so a referenced file's true location is discovered even when the literal path is incomplete. Mirrors bug 0736-a97e (dso shim subdirectory cascade). (Path-based file lookup like `find -name` / `glob` is NOT a supported context-request action today — see the context-request contract (`${CLAUDE_PLUGIN_ROOT}/docs/contracts/ci-review-context-request.md`); a future enhancement could add a `glob` action. The multi-path `read_files` cascade is the within-contract approximation.)
 - **Effect**: kills 50–70% of hallucinated-reference FPs. **–6–8% on FP rate.**
 - **Cost**: prompt-level delta edit.
 

@@ -92,7 +92,11 @@ fi
 # a 'branch' entry. Tests the documented contract, not the variable name used.
 echo "--- test_gha_scanner_step4_api_includes_branch_param ---"
 step4_section=$(awk '/^### Step 4/,/^### Step 5/' "$SCANNER_MD")
-if echo "$step4_section" | grep -q 'branch'; then
+# Use a bash substring glob instead of `echo | grep -q`. The pipeline form
+# raced SIGPIPE: grep -q exits on first match, closing the pipe FD; echo of a
+# multi-line section then took SIGPIPE under `set -o pipefail`, evaluating the
+# if-condition as false even when 'branch' was present. 0f1e-5052.
+if [[ "$step4_section" == *branch* ]]; then
     assert_eq "gha-scanner.md Step 4 API call includes branch parameter" "found" "found"
 else
     assert_eq "gha-scanner.md Step 4 API call includes branch parameter" "found" "missing"

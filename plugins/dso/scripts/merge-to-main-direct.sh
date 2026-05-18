@@ -673,7 +673,7 @@ except Exception:
         echo "INFO: version file already bumped (prior attempt) — skipping bump-version.sh."
     else
         echo "Bumping version ($_bf)..."
-        if ! bash "$_bs" "$_bf" 2>&1; then echo 'ERROR: bump-version.sh failed. Fix version file before pushing.'; exit 1; fi
+        if ! DSO_MERGE_TO_MAIN_PHASE=version_bump bash "$_bs" "$_bf" 2>&1; then echo 'ERROR: bump-version.sh failed. Fix version file before pushing.'; exit 1; fi
     fi
     echo "OK: Version bumped."
     # If version file is package.json, sync package-lock.json (f1d9-5071)

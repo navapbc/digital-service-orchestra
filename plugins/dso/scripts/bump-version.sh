@@ -67,6 +67,31 @@ if [[ -z "$BUMP_TYPE" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
+# Branch guard: refuse to run on the default branch in the primary checkout
+# unless invoked by the merge-to-main version-bump pipeline (which sets
+# DSO_MERGE_TO_MAIN_PHASE=version_bump) or explicitly authorized via
+# DSO_ALLOW_BUMP_ON_MAIN=1.
+# ---------------------------------------------------------------------------
+_bump_git_dir=$(git rev-parse --git-dir 2>/dev/null || echo "")
+_bump_common_dir=$(git rev-parse --git-common-dir 2>/dev/null || echo "")
+if [[ -n "$_bump_git_dir" && -n "$_bump_common_dir" ]]; then
+    _bump_git_dir_abs=$(cd "$_bump_git_dir" 2>/dev/null && pwd || echo "")
+    _bump_common_abs=$(cd "$_bump_common_dir" 2>/dev/null && pwd || echo "")
+    if [[ -n "$_bump_git_dir_abs" && "$_bump_git_dir_abs" == "$_bump_common_abs" ]]; then
+        _bump_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+        if [[ "$_bump_branch" == "main" || "$_bump_branch" == "master" ]]; then
+            if [[ "${DSO_MERGE_TO_MAIN_PHASE:-}" != "version_bump" \
+                && "${DSO_ALLOW_BUMP_ON_MAIN:-}" != "1" ]]; then
+                err "Refusing to run bump-version.sh on '$_bump_branch' (primary checkout)."
+                err "  Switch to a release/feature branch first, or set DSO_MERGE_TO_MAIN_PHASE=version_bump"
+                err "  (used by merge-to-main-direct.sh) to allowlist this invocation."
+                exit 1
+            fi
+        fi
+    fi
+fi
+
+# ---------------------------------------------------------------------------
 # Locate read-config.sh
 # ---------------------------------------------------------------------------
 

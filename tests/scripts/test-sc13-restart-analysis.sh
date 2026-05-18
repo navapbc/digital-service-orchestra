@@ -83,7 +83,30 @@ print('yes' if 'methodology' in data else 'no')
     assert_eq "sc13 output has methodology field" "yes" "$has_methodology"
 }
 
+test_sc13_sample_size_zero_no_data() {
+    if [[ ! -f "$SC13" ]]; then
+        (( ++FAIL ))
+        printf "FAIL: %s\n  expected: sc13-restart-analysis.sh to exist\n" \
+            "sc13_sample_size_zero_no_data" >&2
+        return
+    fi
+
+    local output exit_code
+    output=$(bash "$SC13" --baseline-restart-rate=0 --post-restart-rate=0 --sample-size=0 2>/dev/null)
+    exit_code=$?
+
+    assert_eq "sc13_sample_size_zero exits 0" "0" "$exit_code"
+
+    local signal drop
+    signal=$(echo "$output" | python3 -c "import json,sys; print(json.load(sys.stdin).get('signal','missing'))" 2>/dev/null || echo "parse-error")
+    drop=$(echo "$output" | python3 -c "import json,sys; print(json.load(sys.stdin).get('drop_pct','missing'))" 2>/dev/null || echo "parse-error")
+
+    assert_eq "sc13_sample_size_zero emits SC13_NO_DATA" "SC13_NO_DATA" "$signal"
+    assert_eq "sc13_sample_size_zero drop_pct=0" "0" "$drop"
+}
+
 test_sc13_analysis_computes_drop
 test_sc13_outputs_methodology_json
+test_sc13_sample_size_zero_no_data
 
 print_summary

@@ -312,6 +312,14 @@ hook_block_generated_reviewer_agents() {
     local BASENAME
     BASENAME=$(basename "$FILE_PATH")
 
+    # Handwritten reviewer agents — not produced by build-review-agents.sh —
+    # are exempt from this guard. Keep this list in sync with the agents/ dir.
+    case "$BASENAME" in
+        code-reviewer-arbiter.md|code-reviewer-verifier.md)
+            return 0
+            ;;
+    esac
+
     # Match code-reviewer-*.md pattern
     if [[ "$BASENAME" == code-reviewer-*.md ]]; then
         # Check for conflict markers in content
