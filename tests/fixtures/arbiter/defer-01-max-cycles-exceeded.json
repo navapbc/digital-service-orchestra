@@ -11,7 +11,10 @@
   "arbiter_ruling": {
     "ruling": "DEFER",
     "rationale": "Cycle count (5) exceeds max_cycles (4); CoVe soft-cap forces DEFER.",
-    "schema_version": "1.0.0"
+    "schema_version": "1.1.0",
+    "cross_reviewer_agreement": ["SPLIT"],
+    "cross_cycle_pattern": ["RECURRING"],
+    "impact_class": "unintended_behavior"
   },
   "cycle": 5,
   "max_cycles": 4,

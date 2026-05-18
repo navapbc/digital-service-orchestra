@@ -26,7 +26,11 @@ _SCRIPTS_DIR = str(_REPO_ROOT / "plugins" / "dso" / "scripts")
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
 
-from dso_ci_review.arbiter import dispatch_arbiter, validate_cycle_end_ruling  # noqa: E402
+from dso_ci_review.arbiter import (  # noqa: E402
+    compute_ruling_from_fixture,
+    dispatch_arbiter,
+    validate_cycle_end_ruling,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -45,13 +49,16 @@ def test_dispatch_arbiter_returns_block_when_critical_finding_undefended():
     model = "claude-sonnet-4-6"
     provider_chain = ["anthropic"]
 
-    fake_ruling = {
-        "ruling": "BLOCK",
-        "rationale": "Critical undefended finding blocks merge.",
-        "schema_version": "1.0.0",
-    }
+    # Per agent contract: returns a JSON array of per-finding rulings.
+    fake_rulings = [
+        {
+            "ruling": "BLOCK",
+            "rationale": "Critical undefended finding blocks merge.",
+            "schema_version": "1.0.0",
+        }
+    ]
 
-    with patch("dso_ci_review.arbiter.dispatch_review", return_value=fake_ruling):
+    with patch("dso_ci_review.arbiter.dispatch_review", return_value=fake_rulings):
         result = dispatch_arbiter(
             findings=findings,
             defenses=defenses,
@@ -86,13 +93,16 @@ def test_dispatch_arbiter_returns_defer_when_cycle_exceeds_max():
     model = "claude-sonnet-4-6"
     provider_chain = ["anthropic"]
 
-    fake_ruling = {
-        "ruling": "DEFER",
-        "rationale": "CoVe soft-cap: cycle exceeded max.",
-        "schema_version": "1.0.0",
-    }
+    # Per agent contract: returns a JSON array of per-finding rulings.
+    fake_rulings = [
+        {
+            "ruling": "DEFER",
+            "rationale": "CoVe soft-cap: cycle exceeded max.",
+            "schema_version": "1.0.0",
+        }
+    ]
 
-    with patch("dso_ci_review.arbiter.dispatch_review", return_value=fake_ruling):
+    with patch("dso_ci_review.arbiter.dispatch_review", return_value=fake_rulings):
         result = dispatch_arbiter(
             findings=findings,
             defenses=defenses,
@@ -128,3 +138,496 @@ def test_validate_cycle_end_ruling_raises_on_unknown_ruling():
 
     with pytest.raises(ValueError):
         validate_cycle_end_ruling(old_schema_ruling)
+
+
+# ---------------------------------------------------------------------------
+# Test 4: dispatch_arbiter handles multi-finding rulings array per agent contract
+# ---------------------------------------------------------------------------
+
+
+def test_dispatch_arbiter_handles_multi_finding_array():
+    """Given: 3 input findings and mock returns a 3-element rulings array
+    When: dispatch_arbiter called
+    Then: returns a list of 3 validated rulings, each preserving its ruling,
+          and CoVe fallback / validation are applied per ruling independently.
+    """
+    findings = [
+        {"id": "f1", "severity": "critical"},
+        {"id": "f2", "severity": "important"},
+        {"id": "f3", "severity": "critical"},
+    ]
+    fake_rulings = [
+        {"ruling": "BLOCK", "rationale": "first", "schema_version": "1.0.0"},
+        {"ruling": "DEFER", "rationale": "second", "schema_version": "1.0.0"},
+        {"ruling": "DROP", "rationale": "third", "schema_version": "1.0.0"},
+    ]
+    with patch("dso_ci_review.arbiter.dispatch_review", return_value=fake_rulings):
+        result = dispatch_arbiter(
+            findings=findings,
+            defenses=[],
+            diff_text="diff",
+            model="m",
+            provider_chain=["anthropic"],
+            cycle_num=2,
+            max_cycles=4,
+        )
+
+    assert len(result) == 3, f"Expected 3 rulings in result, got {len(result)}"
+    assert result[0]["ruling"] == "BLOCK"
+    assert result[1]["ruling"] == "DEFER"
+    assert result[2]["ruling"] == "DROP"
+
+
+# ---------------------------------------------------------------------------
+# Test 5: dispatch_arbiter length-mismatch triggers fail-closed BLOCK synthesis
+# ---------------------------------------------------------------------------
+
+
+def test_dispatch_arbiter_length_mismatch_triggers_fail_closed():
+    """Given: 2 input findings (1 critical, 1 important) but mock returns only 1 ruling
+    When: dispatch_arbiter called
+    Then: returns fail-closed BLOCK rulings for all critical/important findings
+          with rationale citing the length-mismatch.
+    """
+    findings = [
+        {"id": "f1", "severity": "critical"},
+        {"id": "f2", "severity": "important"},
+    ]
+    fake_rulings = [
+        {"ruling": "DROP", "rationale": "only one returned", "schema_version": "1.0.0"},
+    ]
+    with patch("dso_ci_review.arbiter.dispatch_review", return_value=fake_rulings):
+        result = dispatch_arbiter(
+            findings=findings,
+            defenses=[],
+            diff_text="diff",
+            model="m",
+            provider_chain=["anthropic"],
+            cycle_num=1,
+            max_cycles=4,
+        )
+
+    # All critical/important findings get fail-closed BLOCK
+    assert all(r["ruling"] == "BLOCK" for r in result), (
+        f"Expected all rulings to be BLOCK, got {[r['ruling'] for r in result]!r}"
+    )
+    assert all("length mismatch" in r["rationale"].lower() for r in result), (
+        "Expected all rationales to cite length mismatch"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 6: dispatch_arbiter dispatch-failure triggers fail-closed BLOCK synthesis
+# ---------------------------------------------------------------------------
+
+
+def test_dispatch_arbiter_fail_closed_on_dispatch_failure(capsys):
+    """Given: 3 findings (critical, important, minor) and dispatch_review raises ConnectionError
+    When: dispatch_arbiter called
+    Then: 2 synthetic BLOCK rulings (critical + important; minor skipped);
+          severity preserved; structured stderr log emitted.
+    """
+    findings = [
+        {"id": "f1", "severity": "critical", "finding_hash": "h1"},
+        {"id": "f2", "severity": "important", "finding_hash": "h2"},
+        {"id": "f3", "severity": "minor", "finding_hash": "h3"},
+    ]
+
+    def raise_dispatch(*args, **kwargs):
+        raise ConnectionError("simulated network failure")
+
+    with patch("dso_ci_review.arbiter.dispatch_review", side_effect=raise_dispatch):
+        result = dispatch_arbiter(
+            findings=findings,
+            defenses=[],
+            diff_text="diff",
+            model="m",
+            provider_chain=["anthropic"],
+            cycle_num=1,
+            max_cycles=4,
+        )
+
+    # 2 synthetic BLOCKs (critical + important); minor skipped
+    assert len(result) == 2, (
+        f"Expected 2 synthetic rulings (critical + important), got {len(result)}"
+    )
+    assert all(r["ruling"] == "BLOCK" for r in result), (
+        f"Expected all rulings to be BLOCK, got {[r['ruling'] for r in result]!r}"
+    )
+    assert all("Arbiter dispatch failed" in r["rationale"] for r in result), (
+        "Expected all rationales to cite 'Arbiter dispatch failed'"
+    )
+    assert all("ConnectionError" in r["rationale"] for r in result), (
+        "Expected all rationales to cite the exception class name"
+    )
+
+    # Severity preserved in synthetic rulings (AC amendment)
+    severities = [r.get("severity") for r in result]
+    assert "critical" in severities, (
+        f"Expected 'critical' in severities, got {severities}"
+    )
+    assert "important" in severities, (
+        f"Expected 'important' in severities, got {severities}"
+    )
+    assert "minor" not in severities, (
+        f"Minor finding should have been skipped, got severities={severities}"
+    )
+
+    # finding_hash preserved in synthetic rulings (AC amendment)
+    hashes = [r.get("finding_hash") for r in result]
+    assert "h1" in hashes and "h2" in hashes, (
+        f"Expected original finding_hash values preserved, got {hashes}"
+    )
+
+    # Structured stderr log
+    captured = capsys.readouterr()
+    assert "arbiter_dispatch_failed" in captured.err, (
+        f"Expected 'arbiter_dispatch_failed' in stderr, got: {captured.err!r}"
+    )
+    assert "reason=ConnectionError" in captured.err, (
+        f"Expected 'reason=ConnectionError' in stderr, got: {captured.err!r}"
+    )
+    assert "finding_count=3" in captured.err, (
+        f"Expected 'finding_count=3' in stderr, got: {captured.err!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 7: dispatch_arbiter empty findings + dispatch failure → empty array
+# ---------------------------------------------------------------------------
+
+
+def test_dispatch_arbiter_empty_findings_no_synthetic_block_on_dispatch_failure(capsys):
+    """Given: empty findings list and dispatch_review would raise ConnectionError
+    When: dispatch_arbiter called
+    Then: returns empty array (no synthetic BLOCK for nonexistent findings).
+          Short-circuit happens BEFORE dispatch, so dispatch_review is never called.
+    """
+
+    def raise_dispatch(*args, **kwargs):
+        raise ConnectionError("network down")
+
+    with patch(
+        "dso_ci_review.arbiter.dispatch_review", side_effect=raise_dispatch
+    ) as mock_dispatch:
+        result = dispatch_arbiter(
+            findings=[],
+            defenses=[],
+            diff_text="diff",
+            model="m",
+            provider_chain=["anthropic"],
+            cycle_num=1,
+            max_cycles=4,
+        )
+
+    assert result == [], f"Expected empty rulings array, got {result!r}"
+    # Dispatch should not have been called at all — empty findings short-circuit
+    assert mock_dispatch.call_count == 0, (
+        "Expected dispatch_review to be skipped entirely for empty findings"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 8: v1.1.0 cross_reviewer_agreement enum enforcement
+# ---------------------------------------------------------------------------
+
+
+def test_validate_cycle_end_ruling_enforces_cross_reviewer_agreement_enum():
+    """Given: v1.1.0 ruling with a hallucinated cross_reviewer_agreement value
+    When: validate_cycle_end_ruling(ruling) called
+    Then: raises ValueError citing cross_reviewer_agreement
+    """
+    import pytest
+
+    ruling = {
+        "ruling": "BLOCK",
+        "rationale": "x",
+        "schema_version": "1.1.0",
+        "cross_reviewer_agreement": ["UNANIMOUS", "NOT_A_VALID_VALUE"],
+        "cross_cycle_pattern": ["NEW_INTRODUCED"],
+        "impact_class": "bug",
+    }
+    with pytest.raises(ValueError, match="cross_reviewer_agreement"):
+        validate_cycle_end_ruling(ruling)
+
+
+# ---------------------------------------------------------------------------
+# Test 9: v1.1.0 cross_cycle_pattern enum enforcement
+# ---------------------------------------------------------------------------
+
+
+def test_validate_cycle_end_ruling_enforces_cross_cycle_pattern_enum():
+    """Given: v1.1.0 ruling with a hallucinated cross_cycle_pattern value
+    When: validate_cycle_end_ruling(ruling) called
+    Then: raises ValueError citing cross_cycle_pattern
+    """
+    import pytest
+
+    ruling = {
+        "ruling": "DEFER",
+        "rationale": "x",
+        "schema_version": "1.1.0",
+        "cross_reviewer_agreement": ["UNANIMOUS"],
+        "cross_cycle_pattern": ["HALLUCINATED_PATTERN"],
+        "impact_class": "bug",
+    }
+    with pytest.raises(ValueError, match="cross_cycle_pattern"):
+        validate_cycle_end_ruling(ruling)
+
+
+# ---------------------------------------------------------------------------
+# Test 10: v1.1.0 impact_class enum enforcement
+# ---------------------------------------------------------------------------
+
+
+def test_validate_cycle_end_ruling_enforces_impact_class_enum():
+    """Given: v1.1.0 ruling with a hallucinated impact_class value
+    When: validate_cycle_end_ruling(ruling) called
+    Then: raises ValueError citing impact_class
+    """
+    import pytest
+
+    ruling = {
+        "ruling": "DROP",
+        "rationale": "x",
+        "schema_version": "1.1.0",
+        "cross_reviewer_agreement": ["UNANIMOUS"],
+        "cross_cycle_pattern": ["NEW_INTRODUCED"],
+        "impact_class": "made_up_category",
+    }
+    with pytest.raises(ValueError, match="impact_class"):
+        validate_cycle_end_ruling(ruling)
+
+
+# ---------------------------------------------------------------------------
+# Test 11: v1.1.0 missing required fields → ValueError
+# ---------------------------------------------------------------------------
+
+
+def test_validate_cycle_end_ruling_rejects_missing_required_fields():
+    """Given: v1.1.0 ruling missing the three required enriched fields
+    When: validate_cycle_end_ruling(ruling) called
+    Then: raises ValueError citing the missing field
+    """
+    import pytest
+
+    ruling = {
+        "ruling": "BLOCK",
+        "rationale": "x",
+        "schema_version": "1.1.0",
+        # Missing cross_reviewer_agreement, cross_cycle_pattern, impact_class
+    }
+    with pytest.raises(ValueError, match="missing"):
+        validate_cycle_end_ruling(ruling)
+
+
+# ---------------------------------------------------------------------------
+# Test 12: backward compatibility — v1.0.0 (or absent schema_version) skips v1.1.0 checks
+# ---------------------------------------------------------------------------
+
+
+def test_validate_cycle_end_ruling_v1_0_0_legacy_does_not_require_v110_fields():
+    """Given: v1.0.0 ruling (legacy) with no v1.1.0 enrichment fields
+    When: validate_cycle_end_ruling(ruling) called
+    Then: validates and returns unchanged (backward-compat)
+    """
+    ruling = {
+        "ruling": "BLOCK",
+        "rationale": "x",
+        "schema_version": "1.0.0",
+        # No v1.1.0 fields — should still validate (backward compat)
+    }
+    result = validate_cycle_end_ruling(ruling)
+    assert result == ruling, "v1.0.0 ruling should be returned unchanged"
+
+
+# ---------------------------------------------------------------------------
+# Test 13: v1.1.0 with all valid enum values passes
+# ---------------------------------------------------------------------------
+
+
+def test_validate_cycle_end_ruling_v1_1_0_with_valid_enum_values_passes():
+    """Given: v1.1.0 ruling with all enum values drawn from the legal vocabularies
+    When: validate_cycle_end_ruling(ruling) called
+    Then: no exception is raised; returns the ruling unchanged
+    """
+    ruling = {
+        "ruling": "BLOCK",
+        "rationale": "x",
+        "schema_version": "1.1.0",
+        "cross_reviewer_agreement": ["UNANIMOUS", "MAJORITY"],
+        "cross_cycle_pattern": ["NEW_INTRODUCED", "RECURRING"],
+        "impact_class": "security_vulnerability",
+    }
+    result = validate_cycle_end_ruling(ruling)
+    assert result == ruling, "Valid v1.1.0 ruling should be returned unchanged"
+
+
+# ---------------------------------------------------------------------------
+# Test 14-17: impact_class 8-category floor enforcement (29e7-826e)
+# ---------------------------------------------------------------------------
+
+
+def test_block_ruling_with_impact_class_none_reclassified_to_defer():
+    """BLOCK + impact_class='none' → DEFER reclassification."""
+    from dso_ci_review.arbiter import _enforce_impact_class_floor
+
+    ruling = {
+        "ruling": "BLOCK",
+        "rationale": "original reason",
+        "schema_version": "1.1.0",
+        "impact_class": "none",
+        "cross_reviewer_agreement": ["UNANIMOUS"],
+        "cross_cycle_pattern": ["NEW_INTRODUCED"],
+    }
+    result = _enforce_impact_class_floor(ruling)
+    assert result["ruling"] == "DEFER"
+    assert "impact_class floor" in result["rationale"]
+    assert "original reason" in result["rationale"]  # preserves original
+
+
+def test_block_ruling_with_impact_class_in_floor_preserved():
+    """BLOCK + impact_class='security_vulnerability' (in floor) → BLOCK preserved."""
+    from dso_ci_review.arbiter import _enforce_impact_class_floor
+
+    ruling = {
+        "ruling": "BLOCK",
+        "rationale": "test",
+        "schema_version": "1.1.0",
+        "impact_class": "security_vulnerability",
+        "cross_reviewer_agreement": ["UNANIMOUS"],
+        "cross_cycle_pattern": ["NEW_INTRODUCED"],
+    }
+    result = _enforce_impact_class_floor(ruling)
+    assert result["ruling"] == "BLOCK"
+    assert result["rationale"] == "test"  # unchanged
+
+
+def test_compute_ruling_from_fixture_applies_impact_class_floor():
+    """Fixture with BLOCK + impact_class='none' → computed ruling reclassifies to DEFER."""
+    fixture = {
+        "arbiter_ruling": {
+            "ruling": "BLOCK",
+            "rationale": "BLOCK on minor",
+            "schema_version": "1.1.0",
+            "impact_class": "none",
+            "cross_reviewer_agreement": ["UNANIMOUS"],
+            "cross_cycle_pattern": ["NEW_INTRODUCED"],
+        },
+        "cycle": 1,
+        "max_cycles": 4,
+    }
+    result = compute_ruling_from_fixture(fixture)
+    assert result["ruling"] == "DEFER"
+    assert "impact_class floor" in result["rationale"]
+
+
+def test_block_ruling_v1_0_0_legacy_no_floor_check():
+    """v1.0.0 ruling without impact_class field → no floor check applied (backward compat)."""
+    from dso_ci_review.arbiter import _enforce_impact_class_floor
+
+    ruling = {
+        "ruling": "BLOCK",
+        "rationale": "legacy",
+        "schema_version": "1.0.0",
+        # No impact_class field
+    }
+    result = _enforce_impact_class_floor(ruling)
+    assert result["ruling"] == "BLOCK"  # unchanged for legacy
+
+
+# ---------------------------------------------------------------------------
+# DD7: dispatch_arbiter accepts reviewer_breakdown and ledger_history inputs
+# ---------------------------------------------------------------------------
+
+
+def test_dispatch_arbiter_accepts_reviewer_breakdown_and_ledger_history():
+    """Given: dispatch_arbiter called with the new DD7 optional inputs
+    When: reviewer_breakdown + ledger_history are supplied
+    Then: the call succeeds and returns rulings (params are accepted by signature)
+    """
+    findings = [{"id": "f1", "severity": "critical"}]
+    reviewer_breakdown = {
+        "f1": ["dso:code-reviewer-correctness", "dso:code-reviewer-hygiene"]
+    }
+    ledger_history = [
+        {
+            "cycle_num": 1,
+            "schema_version": "1.1.0",
+            "findings": [{"finding_hash": "abc"}],
+        },
+    ]
+    fake_ruling = {
+        "ruling": "BLOCK",
+        "rationale": "x",
+        "schema_version": "1.1.0",
+        "cross_reviewer_agreement": ["MAJORITY"],
+        "cross_cycle_pattern": ["NEW_INTRODUCED"],
+        "impact_class": "bug",
+    }
+    with patch("dso_ci_review.arbiter.dispatch_review", return_value=fake_ruling):
+        result = dispatch_arbiter(
+            findings=findings,
+            defenses=[],
+            diff_text="diff",
+            model="m",
+            provider_chain=["anthropic"],
+            cycle_num=1,
+            max_cycles=4,
+            reviewer_breakdown=reviewer_breakdown,
+            ledger_history=ledger_history,
+        )
+    assert isinstance(result, list)
+    assert result[0]["ruling"] == "BLOCK"
+
+
+def test_dispatch_arbiter_defaults_when_dd7_inputs_omitted():
+    """Given: dispatch_arbiter called without the new DD7 inputs (backward compat)
+    When: reviewer_breakdown + ledger_history default to None
+    Then: the call still succeeds (existing callers do not break)
+    """
+    findings = [{"id": "f1", "severity": "critical"}]
+    fake_ruling = {
+        "ruling": "BLOCK",
+        "rationale": "x",
+        "schema_version": "1.0.0",
+    }
+    with patch("dso_ci_review.arbiter.dispatch_review", return_value=fake_ruling):
+        result = dispatch_arbiter(
+            findings=findings,
+            defenses=[],
+            diff_text="diff",
+            model="m",
+            provider_chain=["anthropic"],
+            cycle_num=1,
+            max_cycles=4,
+        )
+    assert result[0]["ruling"] == "BLOCK"
+
+
+def test_dispatch_cycle_end_arbiter_alias_threads_dd7_params():
+    """Given: dispatch_cycle_end_arbiter (alias) called with DD7 inputs
+    When: reviewer_breakdown + ledger_history are passed
+    Then: the alias accepts them and delegates to dispatch_arbiter successfully
+    """
+    from dso_ci_review.arbiter import dispatch_cycle_end_arbiter
+
+    findings = [{"id": "f1", "severity": "important"}]
+    fake_ruling = {
+        "ruling": "DEFER",
+        "rationale": "x",
+        "schema_version": "1.0.0",
+    }
+    with patch("dso_ci_review.arbiter.dispatch_review", return_value=fake_ruling):
+        result = dispatch_cycle_end_arbiter(
+            findings=findings,
+            defenses=[],
+            diff_text="diff",
+            model="m",
+            provider_chain=["anthropic"],
+            cycle_num=5,
+            max_cycles=4,
+            reviewer_breakdown={"f1": ["dso:code-reviewer-correctness"]},
+            ledger_history=[],
+        )
+    assert result[0]["ruling"] == "DEFER"
