@@ -27,8 +27,9 @@
 #                            --out-dir <dir>
 #
 # The new_epic payload is read by the orchestrator from session state and
-# written to a path of its choice; this script copies it into <out_dir> for
-# use by the classifier sub-agent dispatches.
+# written to a path of its choice; this script READS that file when
+# assembling each batch JSON (the new_epic header is embedded once per
+# batch). The orchestrator owns the lifecycle of the payload file.
 
 set -euo pipefail
 
@@ -60,14 +61,21 @@ done
 
 mkdir -p "$OUT_DIR"
 
-# Allow tests to inject a stub ticket CLI via DSO_TICKET_CMD.
-TICKET_CMD="${DSO_TICKET_CMD:-.claude/scripts/dso ticket}"
+# Allow tests to inject a stub ticket CLI via DSO_TICKET_CMD. We parse it
+# into an argv array via shlex so embedded quoting is respected and metachars
+# in DSO_TICKET_CMD cannot inject shell commands (review-cycle finding).
+mapfile -t TICKET_ARGV < <(python3 -c "
+import os, shlex
+default = '.claude/scripts/dso ticket'
+print('\n'.join(shlex.split(os.environ.get('DSO_TICKET_CMD', default))))
+")
 
 # 1+2. Fetch candidates (excluding current epic).
-CANDIDATES_JSON=$(eval "$TICKET_CMD" list --type=epic --status=open,in_progress --format=llm 2>/dev/null \
-    | python3 -c "
-import json, re, sys
+CANDIDATES_JSON=$("${TICKET_ARGV[@]}" list --type=epic --status=open,in_progress --format=llm 2>/dev/null \
+    | EPIC_ID="$EPIC_ID" python3 -c "
+import json, os, sys
 ids = []
+current = os.environ.get('EPIC_ID', '')
 for line in sys.stdin:
     line = line.strip()
     if not line:
@@ -77,17 +85,20 @@ for line in sys.stdin:
     except json.JSONDecodeError:
         continue
     tid = t.get('id', '')
-    if tid and tid != '$EPIC_ID':
+    if tid and tid != current:
         ids.append(tid)
 print(json.dumps(ids))
 ")
 CANDIDATE_COUNT=$(echo "$CANDIDATES_JSON" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))")
 
 # Throttle check (cheap; do it before the expensive ticket-show loop).
+# Tests can inject a stub via DSO_AGENT_BATCH_LIFECYCLE to exercise the
+# MAX_AGENTS=0 (usage_paused) path.
 PLUGIN_SCRIPTS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LIFECYCLE_SCRIPT="${DSO_AGENT_BATCH_LIFECYCLE:-$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh}"
 MAX_AGENTS="unlimited"
-if [[ -x "$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh" ]]; then
-    PRE=$(bash "$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh" pre-check 2>/dev/null || echo "MAX_AGENTS: unlimited")
+if [[ -x "$LIFECYCLE_SCRIPT" ]]; then
+    PRE=$(bash "$LIFECYCLE_SCRIPT" pre-check 2>/dev/null || echo "MAX_AGENTS: unlimited")
     MAX_AGENTS=$(echo "$PRE" | grep "^MAX_AGENTS:" | awk '{print $2}')
     MAX_AGENTS="${MAX_AGENTS:-unlimited}"
 fi
@@ -107,15 +118,21 @@ fi
 # loop so we don't fork per epic.
 WORK_FILE=$(mktemp "$OUT_DIR/candidates.XXXXXX.json")
 
-python3 - "$WORK_FILE" "$EPIC_ID" "$CANDIDATES_JSON" "$TICKET_CMD" <<'PYEOF'
+# Pass TICKET_ARGV as JSON to the python loader so it receives the exact
+# argv list rather than re-parsing a string (review-cycle finding: `.split()`
+# is lossy on quoted commands and breaks on executable paths with spaces).
+TICKET_ARGV_JSON=$(python3 -c "import json,sys; print(json.dumps(sys.argv[1:]))" "${TICKET_ARGV[@]}")
+
+python3 - "$WORK_FILE" "$EPIC_ID" "$CANDIDATES_JSON" "$TICKET_ARGV_JSON" <<'PYEOF'
 import json, re, subprocess, sys
 
-work_path, epic_id, candidates_json, ticket_cmd = sys.argv[1:5]
+work_path, epic_id, candidates_json, ticket_argv_json = sys.argv[1:5]
 candidate_ids = json.loads(candidates_json)
+ticket_argv = json.loads(ticket_argv_json)
 
 def _load_one(tid):
     proc = subprocess.run(
-        ticket_cmd.split() + ["show", tid],
+        ticket_argv + ["show", tid],
         check=False, capture_output=True, text=True, timeout=30,
     )
     if proc.returncode != 0 or not proc.stdout.strip():

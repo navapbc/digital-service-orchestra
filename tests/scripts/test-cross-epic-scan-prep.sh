@@ -92,6 +92,15 @@ assert_contains "batches_12_into_3" "BATCH_COUNT=3" "$RESULT"
 BATCH_FILES=$(grep "^BATCH_FILES=" <<<"$RESULT" | sed 's/^BATCH_FILES=//')
 IFS=',' read -r -a _arr <<<"$BATCH_FILES"
 if [[ ${#_arr[@]} -eq 3 ]]; then (( ++PASS )); else (( ++FAIL )); echo "FAIL: expected 3 batch files, got ${#_arr[@]}" >&2; fi
+
+# Guard array access — `set -u` would crash on indexed access into an empty
+# array. Skip downstream shape checks if the prior assertion failed.
+if [[ ${#_arr[@]} -lt 3 ]]; then
+    (( ++FAIL ))
+    echo "FAIL: insufficient batch files for shape checks (got ${#_arr[@]})" >&2
+    print_summary
+fi
+
 if [[ -f "${_arr[0]}" ]]; then (( ++PASS )); else (( ++FAIL )); echo "FAIL: first batch file does not exist: ${_arr[0]}" >&2; fi
 
 # Verify a batch file has the expected shape
@@ -110,6 +119,30 @@ assert_eq "batch1_carries_new_epic" "new-001-aaaa-bbbb" "$NEW_EPIC_IN_BATCH"
 EPIC_IN_BATCH=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); e=d['open_epics'][0]; print(e['approach_summary']+'|'+'/'.join(e['success_criteria']))" "$FIRST_BATCH")
 if [[ "$EPIC_IN_BATCH" == *"approach"* ]]; then (( ++PASS )); else (( ++FAIL )); echo "FAIL: approach_summary not parsed: '$EPIC_IN_BATCH'" >&2; fi
 if [[ "$EPIC_IN_BATCH" == *"sc one"* && "$EPIC_IN_BATCH" == *"sc two"* ]]; then (( ++PASS )); else (( ++FAIL )); echo "FAIL: success_criteria not parsed: '$EPIC_IN_BATCH'" >&2; fi
+
+# --- Test 4b: usage-paused path (MAX_AGENTS=0 from injected lifecycle stub) ---
+# Reuses the 12-epic list fixture from Test 3. Stubs agent-batch-lifecycle.sh
+# via DSO_AGENT_BATCH_LIFECYCLE to emit MAX_AGENTS: 0 — the prep script must
+# return STATUS=skipped:usage_paused and BATCH_COUNT=0 without writing
+# batch files.
+cat > "$TMPDIR_T/stub-bin/usage-paused.sh" <<'EOF'
+#!/usr/bin/env bash
+echo "MAX_AGENTS: 0"
+EOF
+chmod +x "$TMPDIR_T/stub-bin/usage-paused.sh"
+OUT_PAUSED="$TMPDIR_T/out-paused"
+RESULT=$(DSO_AGENT_BATCH_LIFECYCLE="$TMPDIR_T/stub-bin/usage-paused.sh" \
+    bash "$PREP" --epic-id new-001-aaaa-bbbb --new-epic-payload "$NEW_EPIC" --out-dir "$OUT_PAUSED" 2>&1)
+assert_contains "usage_paused_status" "STATUS=skipped:usage_paused" "$RESULT"
+assert_contains "usage_paused_max_agents" "MAX_AGENTS=0" "$RESULT"
+assert_contains "usage_paused_batches_0" "BATCH_COUNT=0" "$RESULT"
+# No batch files should have been written
+if [[ -z "$(find "$OUT_PAUSED" -name 'batch_*.json' 2>/dev/null)" ]]; then
+    (( ++PASS ))
+else
+    (( ++FAIL ))
+    echo "FAIL: batch files written despite usage-paused: $(find "$OUT_PAUSED" -name 'batch_*.json')" >&2
+fi
 
 # --- Test 5: usage error paths ---
 EXIT=0
