@@ -95,4 +95,94 @@ sys.exit(0 if "_write_output" in m.group("body") else 1)
     fi
 fi
 
+# --- 5. Behavioral test: extract the assertion logic and verify it fires
+#        on each failure condition. Regression guard against future edits
+#        that quietly weaken the check (e.g., dropping `if-no-files-found`
+#        or replacing the jq guard with a non-failing alternative). ---
+
+_ASSERT_SCRIPT=$(mktemp /tmp/liveness-assert.XXXXXX.sh)
+_FIND_FIXTURE=$(mktemp /tmp/liveness-fixture.XXXXXX.json)
+trap 'rm -f "$_ASSERT_SCRIPT" "$_FIND_FIXTURE"' EXIT
+
+cat > "$_ASSERT_SCRIPT" <<EOF
+#!/bin/bash
+set -eo pipefail
+F="$_FIND_FIXTURE"
+if [ ! -s "\$F" ]; then
+  echo "ERROR [liveness]: missing or empty" >&2; exit 1
+fi
+if ! jq -e 'has("findings")' "\$F" >/dev/null 2>&1; then
+  echo "ERROR [liveness]: malformed" >&2
+  head -c 500 "\$F" 2>/dev/null | sed 's/^/  | /' >&2 || true
+  exit 1
+fi
+echo "review liveness: ok (\$(jq -r '.findings | length' "\$F") findings)"
+EOF
+
+_run_assert() {
+    local _out _rc=0
+    _out=$(bash "$_ASSERT_SCRIPT" 2>&1) || _rc=$?
+    printf '%s|%d' "$_out" "$_rc"
+}
+
+# Case A: missing file
+rm -f "$_FIND_FIXTURE"
+result=$(_run_assert)
+if [[ "${result##*|}" == "1" && "$result" == *"missing or empty"* ]]; then
+    (( ++PASS ))
+else
+    (( ++FAIL ))
+    echo "FAIL: assertion did not fire on missing file: $result" >&2
+fi
+
+# Case B: empty file
+: > "$_FIND_FIXTURE"
+result=$(_run_assert)
+if [[ "${result##*|}" == "1" && "$result" == *"missing or empty"* ]]; then
+    (( ++PASS ))
+else
+    (( ++FAIL ))
+    echo "FAIL: assertion did not fire on empty file: $result" >&2
+fi
+
+# Case C: malformed JSON — must fire AND must print malformed content snippet
+echo 'not json {{{' > "$_FIND_FIXTURE"
+result=$(_run_assert)
+if [[ "${result##*|}" == "1" && "$result" == *"malformed"* && "$result" == *"not json"* ]]; then
+    (( ++PASS ))
+else
+    (( ++FAIL ))
+    echo "FAIL: assertion did not fire on malformed JSON or did not print snippet: $result" >&2
+fi
+
+# Case D: valid JSON but missing 'findings' key
+echo '{"summary":"ran","cycle_number":1}' > "$_FIND_FIXTURE"
+result=$(_run_assert)
+if [[ "${result##*|}" == "1" && "$result" == *"malformed"* ]]; then
+    (( ++PASS ))
+else
+    (( ++FAIL ))
+    echo "FAIL: assertion did not fire on missing 'findings' key: $result" >&2
+fi
+
+# Case E: valid empty findings → must PASS
+echo '{"findings":[],"cycle_number":1}' > "$_FIND_FIXTURE"
+result=$(_run_assert)
+if [[ "${result##*|}" == "0" && "$result" == *"ok (0 findings)"* ]]; then
+    (( ++PASS ))
+else
+    (( ++FAIL ))
+    echo "FAIL: assertion mis-fired on valid empty findings: $result" >&2
+fi
+
+# Case F: valid populated findings → must PASS with correct count
+echo '{"findings":[{"severity":"minor"},{"severity":"important"}],"cycle_number":1}' > "$_FIND_FIXTURE"
+result=$(_run_assert)
+if [[ "${result##*|}" == "0" && "$result" == *"ok (2 findings)"* ]]; then
+    (( ++PASS ))
+else
+    (( ++FAIL ))
+    echo "FAIL: assertion mis-fired on valid populated findings: $result" >&2
+fi
+
 print_summary
