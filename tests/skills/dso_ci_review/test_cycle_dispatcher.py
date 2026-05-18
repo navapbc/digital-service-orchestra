@@ -193,3 +193,27 @@ def test_sha_change_reset_wins_over_max_cycles():
     # SHA-reset wins → cycle 1, dispatch next (not arbiter)
     assert result["cycle_num"] == 1
     assert result["action"] == "DISPATCH_NEXT"
+
+
+# ── Bug da45 PR #202 finding f-b2c3d4e5 regression test ───────────────────────
+
+def test_semver_schema_compare_treats_dotted_versions_numerically(tmp_path):
+    """schema_version > '1.1.0' must use semver-style numeric comparison, not
+    lexicographic string comparison. '1.10.0' is greater than '1.1.0' (10 > 1
+    in the minor component), but Python string compare evaluates
+    '1.10.0' > '1.1.0' as False because '.' sorts before '0'.
+
+    Without this fix, the dispatcher silently proceeds on unknown future
+    schemas (1.10.0, 1.1.10, etc.) without emitting the intended warning.
+    """
+    from dso_ci_review.cycle_dispatcher import _is_unknown_future_schema as f
+
+    # Forward-compat versions that string-compare BACKWARD must be detected
+    assert f("1.10.0", "1.1.0") is True
+    assert f("1.1.10", "1.1.0") is True
+    assert f("2.0.0", "1.1.0") is True
+
+    # Versions equal to or older than the known max are not flagged
+    assert f("1.1.0", "1.1.0") is False
+    assert f("1.0.5", "1.1.0") is False
+    assert f("0.9.0", "1.1.0") is False

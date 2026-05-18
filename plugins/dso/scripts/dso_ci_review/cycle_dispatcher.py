@@ -26,8 +26,37 @@ Cycle counter semantics (per AC amendment from gap analysis):
 from __future__ import annotations
 
 import os
+import re
 import sys
 from pathlib import Path
+
+
+def _is_unknown_future_schema(observed: str, known_max: str) -> bool:
+    """Compare semver-style schema versions semantically (not lexicographically).
+
+    String comparison '1.10.0' > '1.1.0' evaluates False because '.' sorts
+    before '0'. Returning False here causes the dispatcher to silently
+    proceed on an unknown future schema without emitting the intended
+    warning — see bug da45 PR #202 review finding f-b2c3d4e5.
+
+    Parses major.minor.patch (and optional pre-release suffix, which is
+    treated as 'lower than the same MMP without suffix' per semver §11).
+    Returns True when `observed` is strictly newer than `known_max`,
+    False otherwise (including when either side is malformed — be lenient
+    on inputs that don't match semver-ish shape).
+    """
+    semver_re = re.compile(r"^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$")
+    m_obs = semver_re.match(observed or "")
+    m_max = semver_re.match(known_max or "")
+    if not (m_obs and m_max):
+        # Conservative: if either version is non-parseable, fall back to
+        # string compare so we still emit the warning when it's clearly
+        # different (e.g., literally a "2.0.0" input that string-compares
+        # correctly anyway).
+        return bool(observed) and bool(known_max) and observed > known_max
+    obs_tuple = tuple(int(g) for g in m_obs.groups())
+    max_tuple = tuple(int(g) for g in m_max.groups())
+    return obs_tuple > max_tuple
 
 from dso_ci_review.stability import should_halt
 
@@ -100,7 +129,7 @@ def next_action(
     schema_version = (
         ledger.get("schema_version", "1.1.0") if isinstance(ledger, dict) else "1.1.0"
     )
-    if schema_version and schema_version > "1.1.0":
+    if schema_version and _is_unknown_future_schema(schema_version, "1.1.0"):
         print(
             f"WARNING: cycle-ledger schema_version={schema_version!r} > 1.1.0; "
             "proceeding with best-effort interpretation",
