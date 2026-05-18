@@ -551,6 +551,11 @@ jobs:
           DSO_REVIEW_CYCLE: ${{ env.DSO_REVIEW_CYCLE }}
           DSO_INTEGRATION_REVIEW_CYCLE: ${{ env.DSO_INTEGRATION_REVIEW_CYCLE }}
           DSO_SUPPRESS_PRIOR_DEFENSES: ${{ env.DSO_SUPPRESS_PRIOR_DEFENSES }}
+          # c131-0f34: persist the runner's findings JSON so the liveness step
+          # below can assert it exists and is well-formed. Without this, the
+          # runner writes to stdout only and the gating job has no artifact to
+          # inspect — a regression in the runner could silently exit 0.
+          DSO_CI_REVIEW_OUTPUT_PATH: /tmp/findings.json
         shell: bash -eo pipefail {0}
         run: |
           PR_NUMBER="${GITHUB_REF#refs/pull/}"
@@ -566,4 +571,24 @@ jobs:
             echo "Integration scope populated — runner may narrow to ${INTEGRATION_SCOPE_FILE:-(unset)}"
           fi
           gh pr diff "$PR_NUMBER" | bash plugins/dso/scripts/ci-llm-review-runner.sh
+
+      - name: Assert review liveness
+        # c131-0f34: end-to-end liveness invariant. Fails the job if the
+        # runner did not write /tmp/findings.json, or if the file is empty or
+        # does not contain the expected `findings` key. Catches the silent-
+        # exit-0 regression class that would otherwise let PRs merge with no
+        # review having actually run.
+        if: needs.changes.outputs.code_changed == 'true'
+        shell: bash -eo pipefail {0}
+        run: |
+          if [ ! -s /tmp/findings.json ]; then
+            echo "ERROR [liveness]: /tmp/findings.json missing or empty — runner did not produce review output" >&2
+            exit 1
+          fi
+          if ! jq -e 'has("findings")' /tmp/findings.json >/dev/null; then
+            echo "ERROR [liveness]: /tmp/findings.json malformed — missing 'findings' key" >&2
+            jq -c '.' /tmp/findings.json | head -c 500 >&2
+            exit 1
+          fi
+          echo "review liveness: ok ($(jq -r '.findings | length' /tmp/findings.json) findings)"
 

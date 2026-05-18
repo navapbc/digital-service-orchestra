@@ -298,6 +298,23 @@ jobs:
           # Set by "Resolve PR number" step above; absent on branches without open PRs.
           PR_NUMBER: ${{ env.PR_NUMBER }}
 
+      - name: Assert review liveness
+        # c131-0f34: fails the job if the runner did not produce
+        # /tmp/findings.json or if the file is malformed. Defends against the
+        # silent-exit-0 regression class.
+        shell: bash -eo pipefail {0}
+        run: |
+          if [ ! -s /tmp/findings.json ]; then
+            echo "ERROR [liveness]: /tmp/findings.json missing or empty" >&2
+            exit 1
+          fi
+          if ! jq -e 'has("findings")' /tmp/findings.json >/dev/null; then
+            echo "ERROR [liveness]: /tmp/findings.json malformed — missing 'findings' key" >&2
+            jq -c '.' /tmp/findings.json | head -c 500 >&2
+            exit 1
+          fi
+          echo "review liveness: ok ($(jq -r '.findings | length' /tmp/findings.json) findings)"
+
       - name: Upload review artifact
         if: always()
         uses: actions/upload-artifact@v4

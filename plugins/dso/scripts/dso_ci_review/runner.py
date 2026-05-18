@@ -1678,6 +1678,25 @@ def main() -> int:
         _write_output(merged)
     except Exception as exc:  # noqa: BLE001
         print(f"ERROR: LLM call failed: {exc}", file=sys.stderr)
+        # c131-0f34 defense-in-depth: always write a findings record before
+        # returning so the workflow-side liveness assertion has something to
+        # observe. Without this, an unhandled exception between Step 1 and
+        # Step 8 left the gating job with exit 1 but no artifact — a future
+        # regression that swallowed the exception would silently exit 0 with
+        # no signal at all. The synthetic specialist_error stamps the
+        # cycle_number so downstream consumers can still attribute the run.
+        try:
+            _write_output({
+                "findings": [{
+                    "type": "specialist_error",
+                    "severity": "critical",
+                    "category": "infrastructure",
+                    "description": f"runner exception before Step 8: {exc!r}",
+                }],
+                "cycle_number": cycle_number,
+            })
+        except Exception:  # noqa: BLE001
+            pass  # ensure the original failure is not masked by a write error
         return 1
 
     # Detect all-specialist-error: every finding is a specialist_error with no real review.
