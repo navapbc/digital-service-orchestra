@@ -536,6 +536,13 @@ hook_no_edit_on_main() {
     if [[ "${DSO_MECHANICAL_AMEND:-}" == "1" ]]; then
         return 0
     fi
+    # Parallel to bump-version.sh: merge-to-main-direct.sh sets this during the
+    # version-bump phase. Without this, an Edit/Write tool call from within the
+    # merge pipeline (e.g. orchestrator-initiated edit of the version file)
+    # would be blocked even though bump-version.sh itself is allowlisted.
+    if [[ "${DSO_MERGE_TO_MAIN_PHASE:-}" == "version_bump" ]]; then
+        return 0
+    fi
     if [[ "${DSO_ALLOW_EDIT_ON_MAIN:-}" == "1" ]]; then
         if [[ -n "${DSO_ALLOW_EDIT_ON_MAIN_REASON:-}" ]]; then
             return 0

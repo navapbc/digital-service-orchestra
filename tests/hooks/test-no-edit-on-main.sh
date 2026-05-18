@@ -99,6 +99,16 @@ INPUT='{"tool_name":"Edit","tool_input":{"file_path":"'"$VERSION_PATH"'"}}'
 EXIT=$(run_hook "$TMP_REPO" "$INPUT" DSO_MECHANICAL_AMEND=1)
 assert_eq "allows_with_mechanical_amend" "0" "$EXIT"
 
+# DSO_MERGE_TO_MAIN_PHASE=version_bump → allow (parallels bump-version.sh allowlist)
+INPUT='{"tool_name":"Edit","tool_input":{"file_path":"'"$VERSION_PATH"'"}}'
+EXIT=$(run_hook "$TMP_REPO" "$INPUT" DSO_MERGE_TO_MAIN_PHASE=version_bump)
+assert_eq "allows_with_merge_to_main_phase_version_bump" "0" "$EXIT"
+
+# DSO_MERGE_TO_MAIN_PHASE=other → block (only version_bump is allowlisted)
+INPUT='{"tool_name":"Edit","tool_input":{"file_path":"'"$VERSION_PATH"'"}}'
+EXIT=$(run_hook "$TMP_REPO" "$INPUT" DSO_MERGE_TO_MAIN_PHASE=other)
+assert_eq "blocks_with_merge_to_main_phase_other" "2" "$EXIT"
+
 # /tmp/ file → allow
 INPUT='{"tool_name":"Edit","tool_input":{"file_path":"/tmp/foo.txt"}}'
 EXIT=$(run_hook "$TMP_REPO" "$INPUT")
