@@ -205,7 +205,36 @@ def reconstruct_from_pr_comments(pr_number: int, repo: str) -> dict:
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         comments = json.loads(result.stdout)
-    except (subprocess.CalledProcessError, FileNotFoundError, json.JSONDecodeError):
+    except subprocess.CalledProcessError as e:
+        # Bug da45 PR #202 finding f-e5f6g7h8 (fail-open error handling):
+        # silently flagging reconstruction_gaps without surfacing why made
+        # CI troubleshooting impossible. Emit a diagnostic stderr line per
+        # failure class so operators can distinguish 'no prior cycles'
+        # (legitimate empty result) from 'gh API failed' / 'gh missing'.
+        print(
+            f"WARNING: gh api failed for PR #{pr_number} (exit {e.returncode}); "
+            f"reconstruction_gaps=true. stderr: "
+            f"{(e.stderr or '').strip() or '(none)'}",
+            file=sys.stderr,
+        )
+        ledger = _empty_ledger()
+        ledger["reconstruction_gaps"] = True
+        return ledger
+    except FileNotFoundError:
+        print(
+            "WARNING: gh CLI is not installed; reconstruction_gaps=true. "
+            "Install with `brew install gh` or see https://cli.github.com",
+            file=sys.stderr,
+        )
+        ledger = _empty_ledger()
+        ledger["reconstruction_gaps"] = True
+        return ledger
+    except json.JSONDecodeError as e:
+        print(
+            f"WARNING: gh api output is not valid JSON for PR #{pr_number}; "
+            f"reconstruction_gaps=true. parse error: {e}",
+            file=sys.stderr,
+        )
         ledger = _empty_ledger()
         ledger["reconstruction_gaps"] = True
         return ledger
