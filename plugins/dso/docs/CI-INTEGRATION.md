@@ -43,13 +43,13 @@ In `ci-pr` mode (`dso.workflow=ci-pr`), the sprint uses a unified per-branch rev
 ### Merge paths
 
 - **session→main is the sole merge path** for sprint and debug-everything in ci-pr mode. Sub-branch story PRs merge into the session branch; the session branch PR merges into main. No direct sub-branch → main merges are allowed.
-- Sub-branches (`story/<epic-id>/<story-id>`) are gated by `per-branch-review.yml` before merging into the session branch.
+- Sub-branches (`story/<epic-id>/<story-id>`) are gated by `ci.yml`'s `llm-review` job before merging into the session branch.
 
-### `per-branch-review.yml` — sub-branch CI gate
+### `ci.yml` — sole PR-side LLM-review entry point (story 20d7-09d6)
 
-`per-branch-review.yml` is the CI workflow that runs on each `story/*` branch PR (targeting the session branch). It replaces the former `sprint-story-review.yml`. Responsibilities:
+`ci.yml`'s `llm-review` job is the sole CI workflow that runs on each `story/*` branch PR (targeting the session branch). Responsibilities:
 
-- Resolves the per-branch review base via `resolve-per-branch-review-base.sh`. The resolver consults the `SPRINT_SESSION_ID` repo variable (set by Phase A) as one input, but the actual base resolution may also consider the branch's PR target, the most recent `story/<epic-id>/...` parent on the session branch, and other signals. The resolver is the source of truth — the repo variable is not consulted directly by the workflow.
+- Resolves the story-branch review base via a resolver script. The resolver consults the `SPRINT_SESSION_ID` repo variable (set by Phase A) as one input, but the actual base resolution may also consider the branch's PR target, the most recent `story/<epic-id>/...` parent on the session branch, and other signals. The resolver is the source of truth — the repo variable is not consulted directly by the workflow.
 - Computes a per-story diff (story branch vs. session branch HEAD) for scoped review.
 - Dispatches the LLM review orchestrator (`ci-llm-review-runner.sh`) against that scoped diff.
 - Blocks the story PR merge until the review passes.
@@ -75,7 +75,7 @@ This script is called by Phase F during story PR creation to set `STORY_PR_BASE`
 
 ### Integration review scope definition
 
-"Integration scope" is intentionally narrow: only files that appear in commits from two or more distinct story branches, plus any commits that bypassed per-branch review. Per-branch-reviewed commits that touch only one story's files are excluded from integration-level LLM review (their review is already recorded by `per-branch-review.yml`).
+"Integration scope" is intentionally narrow: only files that appear in commits from two or more distinct story branches, plus any commits that bypassed per-branch review. Commits that touch only one story's files are excluded from integration-level LLM review (their review is already recorded by `ci.yml`'s `llm-review` job).
 
 ## Merge-to-main pipeline
 
