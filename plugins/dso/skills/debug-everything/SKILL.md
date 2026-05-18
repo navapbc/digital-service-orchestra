@@ -730,7 +730,20 @@ fi
 - Branch naming: `bug-batch/<debug-session-id>/tier-0` and `bug-batch/<debug-session-id>/tier-1`
 - Use direct `git checkout -b bug-batch/<debug-session-id>/tier-<N>` (create-story-branch.sh appends /<epic>/<story> and cannot produce tier branch names)
 - When a tier has 0 bugs/changes: no sub-branch is created AND no annotation is added to the aggregate draft PR for that tier (zero-bug tier skip)
-- Apply all tier changes on the sub-branch, then open a PR against `SESSION_BRANCH` (not main): `gh pr create --base "$SESSION_BRANCH" --head <sub-branch> --title "auto-fix: tier-<N>" --body "Auto-fix tier <N> changes"`. The PR triggers the `per-branch-review.yml` CI workflow automatically — no local `/dso:review` dispatch is needed.
+- Apply all tier changes on the sub-branch, push to origin, then open a PR against `SESSION_BRANCH` (not main): `gh pr create --base "$SESSION_BRANCH" --head <sub-branch> --title "auto-fix: tier-<N>" --body "Auto-fix tier <N> changes"`. The PR triggers the `per-branch-review.yml` CI workflow automatically — no local `/dso:review` dispatch is needed.
+
+<HARD-GATE>
+**Sub-branch invariant pre-flight (Flow C analog of bug da45-7d92-6c86-42bc)**: BEFORE invoking `gh pr create` for the tier sub-branch, run `assert-batch-branch.sh` from the session branch directory to confirm the bug-batch sub-branch has been created locally AND pushed to origin. Without the push, `per-branch-review.yml` will not fire and LLM Sub-Branch Review will be silently bypassed — the exact failure pattern that left every prior debug-everything bug-batch PR unreviewed.
+
+```bash
+.claude/scripts/dso assert-batch-branch.sh "bug-batch/${DEBUG_SESSION_ID}/tier-${N}" || {
+    echo "ABORT: bug-batch sub-branch invariant violated. Push the sub-branch to origin before opening the PR." >&2
+    exit 1
+}
+```
+
+In `local` mode (DEBUG_MODE=direct) this is a silent no-op (exit 0). In `ci-pr` mode the orchestrator MUST NOT open a sub-branch PR if the branch was not created+pushed. Do NOT skip, soften, or work around this gate.
+</HARD-GATE>
 - Merge sub-branch into the session branch before moving to the next tier
 - After creating the sub-branch, record a tracking comment (batch=0 for Phase F's single batches):
   ```
@@ -807,7 +820,20 @@ In local mode: commit directly to session branch (sub-branch chunking does not a
 
 ### Per-Sub-Branch CI Review (ci-pr mode only — Phase G)
 
-After each sub-branch is created and changes committed in ci-pr mode, open a PR against `SESSION_BRANCH` and wait for CI review before merging:
+After each sub-branch is created and changes committed in ci-pr mode, push the sub-branch to origin, open a PR against `SESSION_BRANCH`, and wait for CI review before merging:
+
+<HARD-GATE>
+**Sub-branch invariant pre-flight (Flow C analog of bug da45-7d92-6c86-42bc)**: BEFORE invoking `gh pr create`, run `assert-batch-branch.sh` from the session branch directory with the per-batch sub-branch name. The gate confirms the bug-batch sub-branch was created locally AND pushed to origin — the two preconditions for `per-branch-review.yml` to fire. Without this pre-flight, an orchestrator that skipped `git push` would open a PR whose CI workflow never runs.
+
+```bash
+.claude/scripts/dso assert-batch-branch.sh "bug-batch/${DEBUG_SESSION_ID}/tier-${N}-batch-${K}" || {
+    echo "ABORT: bug-batch sub-branch invariant violated. Push the sub-branch to origin before opening the PR." >&2
+    exit 1
+}
+```
+
+In `local` mode (DEBUG_MODE=direct) this is a silent no-op (exit 0). In `ci-pr` mode the orchestrator MUST NOT open a sub-branch PR if the branch was not created+pushed. Do NOT skip, soften, or work around this gate — bypassing reproduces the Flow C silent-skip pattern.
+</HARD-GATE>
 
 - Open the sub-branch PR against `SESSION_BRANCH` (not main): `gh pr create --base "$SESSION_BRANCH" --head <sub-branch> --title "auto-fix: tier-<N>-batch-<K>" --body "Auto-fix tier <N> batch <K> changes"`. The PR triggers the `per-branch-review.yml` CI workflow automatically — no local `/dso:review` dispatch is required or performed in Phase G.
 - Wait for the CI workflow to complete before merging the sub-branch into the session branch.
