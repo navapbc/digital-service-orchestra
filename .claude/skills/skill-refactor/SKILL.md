@@ -395,7 +395,7 @@ Expect the review workflow to trigger in Step 5. This refactor diff will likely:
 - **Surface correctness findings** for edge cases the refactor missed: orphaned callers in non-obvious locations (installer scripts, ADRs, test fixtures), stale `.test-index` entries, missing `mkdir -p <sub-dir>` in test setup that now writes to the sub-dir path.
 - **Surface hygiene findings** for incomplete template sets (e.g., missing AP-code template), stranded tests pointing at moved content.
 
-Apply autonomous resolution (up to `review.max_resolution_attempts`, default 5). Defend findings with evidence when they're out of scope (missing test coverage for new helper scripts → file a follow-up ticket rather than block the commit).
+Apply autonomous resolution (up to `review.max_cycles`, default 4). Defend findings with evidence when they're out of scope (missing test coverage for new helper scripts → file a follow-up ticket rather than block the commit).
 
 ## Artifacts produced
 

@@ -145,8 +145,7 @@ assert_pass_if_clean "test_blank_key_exits_1"
 # -- test_validate_config_does_not_know_test_plugin ---------------------------
 # commands.test_plugin must not appear in KNOWN_KEYS in validate-config.sh.
 _snapshot_fail
-{ grep -q 'commands\.test_plugin' "$SCRIPT"; test $? -ne 0; }
-rc=$?
+grep -q 'commands\.test_plugin' "$SCRIPT" && rc=1 || rc=0
 assert_eq "test_validate_config_does_not_know_test_plugin" "0" "$rc"
 assert_pass_if_clean "test_validate_config_does_not_know_test_plugin"
 
@@ -201,6 +200,78 @@ rc=$?
 assert_eq "test_unknown_key_still_rejected_after_preplanning_addition exit" "1" "$rc"
 assert_contains "test_unknown_key_still_rejected_after_preplanning_addition stderr" "preplanning.unknown_key" "$stderr_out"
 assert_pass_if_clean "test_unknown_key_still_rejected_after_preplanning_addition"
+
+# -- test_review_max_cycles_valid_key -----------------------------------------
+# A config containing review.max_cycles=4 must exit 0.
+# RED: This test FAILS before review.max_cycles is added to KNOWN_SCALAR_KEYS.
+_snapshot_fail
+REVIEW_MAX_CYCLES_CONF="$TMPDIR_FIXTURE/review-max-cycles.conf"
+cat > "$REVIEW_MAX_CYCLES_CONF" <<'CONF'
+review.max_cycles=4
+CONF
+stderr_out=$(bash "$SCRIPT" "$REVIEW_MAX_CYCLES_CONF" 2>&1 >/dev/null)
+rc=$?
+assert_eq "test_review_max_cycles_valid_key exit" "0" "$rc"
+assert_pass_if_clean "test_review_max_cycles_valid_key"
+
+# -- test_review_max_resolution_attempts_accepted_with_deprecation_warning ----
+# A config containing review.max_resolution_attempts=5 (deprecated alias for
+# review.max_cycles) must NOT be rejected — read-config.sh's backward-compat
+# shim returns the value at runtime, so the validator must accept it too
+# (parity with runtime). The validator emits a deprecation warning to stderr.
+# Bug da45, PR #208 review finding: prior behavior (rejecting in validator
+# while accepting at runtime) was a validation asymmetry surface that masked
+# the migration requirement.
+_snapshot_fail
+REVIEW_OLD_KEY_CONF="$TMPDIR_FIXTURE/review-old-key.conf"
+cat > "$REVIEW_OLD_KEY_CONF" <<'CONF'
+review.max_resolution_attempts=5
+CONF
+stderr_out=$(bash "$SCRIPT" "$REVIEW_OLD_KEY_CONF" 2>&1 >/dev/null)
+rc=$?
+assert_eq "test_review_max_resolution_attempts_accepted exit" "0" "$rc"
+assert_contains "test_review_max_resolution_attempts_accepted deprecation warning" "deprecation" "$stderr_out"
+assert_contains "test_review_max_resolution_attempts_accepted deprecation key text" "review.max_resolution_attempts" "$stderr_out"
+assert_pass_if_clean "test_review_max_resolution_attempts_accepted_with_deprecation_warning"
+
+# -- test_review_max_cycles_below_minimum_rejected ----------------------------
+# Bug da45, PR #208 review finding: workflow-config-schema.json specifies
+# 'minimum: 2' for review.max_cycles. validate-config must enforce the
+# lower bound. A value of 1 (or 0) must be rejected with a clear error.
+_snapshot_fail
+REVIEW_LOW_CONF="$TMPDIR_FIXTURE/review-low.conf"
+cat > "$REVIEW_LOW_CONF" <<'CONF'
+review.max_cycles=1
+CONF
+stderr_out=$(bash "$SCRIPT" "$REVIEW_LOW_CONF" 2>&1 >/dev/null)
+rc=$?
+assert_eq "test_review_max_cycles_below_minimum exit" "1" "$rc"
+assert_contains "test_review_max_cycles_below_minimum stderr" "review.max_cycles" "$stderr_out"
+assert_pass_if_clean "test_review_max_cycles_below_minimum_rejected"
+
+# -- test_review_max_cycles_minimum_accepted ----------------------------------
+# review.max_cycles=2 is the documented floor; must be accepted.
+_snapshot_fail
+REVIEW_MIN_CONF="$TMPDIR_FIXTURE/review-min.conf"
+cat > "$REVIEW_MIN_CONF" <<'CONF'
+review.max_cycles=2
+CONF
+rc=$(bash "$SCRIPT" "$REVIEW_MIN_CONF" >/dev/null 2>&1; echo $?)
+assert_eq "test_review_max_cycles_minimum_accepted exit" "0" "$rc"
+assert_pass_if_clean "test_review_max_cycles_minimum_accepted"
+
+# -- test_review_max_cycles_non_integer_rejected ------------------------------
+# Non-integer value must be rejected with a clear error message.
+_snapshot_fail
+REVIEW_NONINT_CONF="$TMPDIR_FIXTURE/review-nonint.conf"
+cat > "$REVIEW_NONINT_CONF" <<'CONF'
+review.max_cycles=foo
+CONF
+stderr_out=$(bash "$SCRIPT" "$REVIEW_NONINT_CONF" 2>&1 >/dev/null)
+rc=$?
+assert_eq "test_review_max_cycles_non_integer exit" "1" "$rc"
+assert_contains "test_review_max_cycles_non_integer stderr" "non-negative integer" "$stderr_out"
+assert_pass_if_clean "test_review_max_cycles_non_integer_rejected"
 
 # -- Summary -------------------------------------------------------------------
 print_summary

@@ -249,6 +249,7 @@ plugins/dso/scripts/preconditions-record.sh:tests/scripts/test-preconditions-rec
 plugins/dso/scripts/preconditions-validator.sh:tests/scripts/test-preconditions-validator.sh,tests/skills/test-preplanning-preconditions-integration.sh
 plugins/dso/scripts/lib/pr-comment-lib.sh:tests/scripts/test-pr-comment-lib.sh [test_probe_mcp_exits_0_on_success]
 plugins/dso/scripts/pr-comment-response.sh:tests/integration/test-pr-comment-response-integration.sh,tests/scripts/test-pr-comment-response.sh,tests/scripts/test-pr-comment-response-accept.sh,tests/scripts/test-pr-comment-response-defend.sh
+plugins/dso/scripts/read-config.sh:tests/scripts/test-read-config-flat.sh
 plugins/dso/scripts/read-overlay-flags.sh:tests/scripts/test-read-overlay-flags.sh
 plugins/dso/scripts/recipe-adapters/ts-morph-add-parameter.mjs:tests/scripts/test-ts-morph-add-parameter.sh
 plugins/dso/scripts/recipe-adapters/ts-morph-normalize-imports.mjs:tests/scripts/test-ts-morph-normalize-imports.sh
@@ -324,6 +325,7 @@ plugins/dso/scripts/validate-phase.sh:tests/scripts/test-validate-phase-missing-
 plugins/dso/scripts/validate-review-output.sh:tests/hooks/test-validate-review-output.sh [test_absence_claim_soft_mode_warns_on_missing_verification_evidence],tests/scripts/test-write-reviewer-findings.sh
 plugins/dso/docs/contracts/absence-claim-anchors.json:tests/hooks/test-validate-review-output.sh [test_absence_claim_soft_mode_warns_on_missing_verification_evidence]
 plugins/dso/scripts/validate-verifier-output.sh:tests/agents/test-validate-verifier-output.sh [test_verifier_script_exists]
+plugins/dso/scripts/validate-config.sh:tests/scripts/test-validate-config.sh [test_review_max_cycles_valid_key]
 plugins/dso/scripts/validate.sh:tests/scripts/test-validate-config-driven.sh
 plugins/dso/scripts/worktree-cleanup.sh:tests/scripts/test_worktree_cleanup_startup_config.py,tests/scripts/test_worktree_cleanup_gather_progress.py,tests/scripts/test-worktree-cleanup.sh,tests/scripts/test-worktree-pr-merge-detection.sh,tests/scripts/test-claude-safe-stale-local-main.sh
 plugins/dso/skills/**/*.md:tests/hooks/test-no-plugin-markdown-refs.sh
@@ -469,3 +471,5 @@ plugins/dso/scripts/verify-session-provenance.sh:tests/scripts/test-verify-sessi
 plugins/dso/scripts/redistribute-session-commits.sh:tests/scripts/test-redistribute-session-commits.sh [test_script_exists]
 plugins/dso/scripts/write-cycle-ledger.sh:tests/scripts/test-write-cycle-ledger.sh,tests/scripts/test-write-cycle-ledger-integration.sh
 tests/scripts/test-cycle-arbiter.sh:tests/scripts/test-cycle-arbiter.sh [test_block_critical_defense_absent_ruling]
+
+plugins/dso/scripts/write-cycle-ledger.sh:tests/scripts/test-write-cycle-ledger.sh
