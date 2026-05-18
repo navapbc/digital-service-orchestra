@@ -454,29 +454,6 @@ def _post_arbiter_comment(
         pass
 
 
-def _post_dispatch_next_comment(
-    cycle_num: int,
-    commit_sha: str,
-    findings: list[dict],
-    pr_number: str | None,
-) -> None:
-    """Post a PR comment announcing DISPATCH_NEXT outcome.
-
-    No-op when pr_number is None/empty.
-    Posts: "Cycle K complete; N finding(s) remain; awaiting next push for cycle K+1"
-    """
-    if not pr_number:
-        return
-    body = (
-        f"Cycle {cycle_num} complete; {len(findings)} finding(s) remain; "
-        f"awaiting next push for cycle {cycle_num + 1}"
-    )
-    subprocess.run(
-        ["gh", "pr", "comment", str(pr_number), "--body", body],
-        check=False,
-    )
-
-
 def _resolve_pr_number() -> str | None:
     """Resolve the current PR number from GitHub Actions env vars.
 
@@ -2253,8 +2230,7 @@ def main() -> int:
             )
             return 1 if _process_result.get("block") else 0
 
-        # DISPATCH_NEXT: post cycle-complete comment then fall through to severity gate.
-        _post_dispatch_next_comment(cycle_number, reviewed_sha, _current_findings, _pr_number_for_ledger)
+        # DISPATCH_NEXT: fall through to existing severity gate below the try/except.
     except Exception as exc:  # noqa: BLE001
         print(f"ERROR: LLM call failed: {exc}", file=sys.stderr)
         # c131-0f34 defense-in-depth: always write a findings record before
