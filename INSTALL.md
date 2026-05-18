@@ -121,7 +121,7 @@ Rulesets on `session-*` branches:
 5. Under **Branch rules**:
    - Enable **Restrict who can push matching branches** → this blocks direct pushes (non-fast-forward)
    - Enable **Require status checks to pass before merging**
-     - Click **Add checks** and enter `Sprint Story Review` (this must match the `name:` field in `.github/workflows/per-branch-review.yml` and `dso.review.check_name` in `dso-config.conf`)
+     - Click **Add checks** and enter `Sprint Story Review` (this must match `dso.review.check_name` in `dso-config.conf`; the check is produced by `ci.yml`'s `llm-review` job)
    - **Do NOT** enable **Require linear history** — this breaks the sprint merge strategy
 6. Click **Create**
 
@@ -181,10 +181,10 @@ gh api \
 ### Matching check_name
 
 The required status check name must match exactly:
-- The `name:` field in `.github/workflows/per-branch-review.yml`
 - `dso.review.check_name` in `.claude/dso-config.conf` (defaults to `Sprint Story Review` if unset)
+- The Ruleset's required status check configured above
 
-If you rename the workflow or override `dso.review.check_name`, update the Ruleset's required check to match.
+The check is produced by `ci.yml`'s `llm-review` job. If you override `dso.review.check_name`, update the Ruleset's required check to match.
 
 ## Integration Setup
 
