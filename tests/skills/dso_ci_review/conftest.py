@@ -84,9 +84,11 @@ def _ensure_plugin_package() -> None:
     _load_from_plugin("cycle_ledger")
     _load_from_plugin("stability")
     _load_from_plugin("cycle_dispatcher")
-    _load_from_plugin("runner")
+    # arbiter and arbiter_processor must load before runner because runner
+    # now imports them at module level (task 7626-2e24-faa9-4688).
     _load_from_plugin("arbiter")
     _load_from_plugin("arbiter_processor")
+    _load_from_plugin("runner")
     _load_from_plugin("verifier")
 
 

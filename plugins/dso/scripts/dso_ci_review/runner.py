@@ -50,6 +50,8 @@ from dso_ci_review.proximity import compute_proximity_overlap, validate_escape_r
 from dso_ci_review.region_split import _should_region_split, run_region_split
 from dso_ci_review import cycle_ledger
 from dso_ci_review.cycle_dispatcher import next_action as cycle_next_action
+from dso_ci_review.arbiter import dispatch_cycle_end_arbiter
+from dso_ci_review.arbiter_processor import process_rulings
 
 
 class _SchemaValidationResult(NamedTuple):
@@ -355,6 +357,101 @@ def _validate_findings_schema(
                 os.unlink(tmp_path)
             except OSError:
                 pass  # already removed or never created
+
+
+def _build_reviewer_breakdown(merged: dict) -> dict:
+    """Extract finding_id -> [reviewer_agent_id] from merged findings' provenance fields."""
+    breakdown: dict[str, list[str]] = {}
+    for finding in merged.get("findings", []):
+        finding_id = finding.get("finding_id") or finding.get("id", "")
+        if not finding_id:
+            continue
+        provenance = finding.get("provenance") or {}
+        agent_ids = []
+        if isinstance(provenance, dict):
+            reviewer = provenance.get("reviewer_agent_id") or provenance.get("agent_id")
+            if reviewer:
+                agent_ids.append(reviewer)
+        elif isinstance(provenance, list):
+            for p in provenance:
+                if isinstance(p, dict):
+                    reviewer = p.get("reviewer_agent_id") or p.get("agent_id")
+                    if reviewer:
+                        agent_ids.append(reviewer)
+        breakdown[finding_id] = agent_ids
+    return breakdown
+
+
+def _post_arbiter_comment(
+    cycle_num: int,
+    commit_sha: str,
+    rulings: list[dict],
+    finding_map: dict,
+    pr_number: str | None,
+    body: str | None = None,
+) -> None:
+    """Post (or update) the DSO-Arbiter-Ruling marker comment on the PR.
+
+    No-op when pr_number is None.
+    Idempotent: checks existing comments for the marker; UPDATEs if found for
+    the same cycle+sha, CREATEs otherwise.
+
+    The ``body`` parameter is the full comment text to post. When not provided
+    it is constructed from the marker string and rulings summary.
+    """
+    if not pr_number:
+        return
+
+    marker = f"DSO-Arbiter-Ruling: cycle={cycle_num} commit_sha={commit_sha}"
+    if body is None:
+        rulings_summary = json.dumps(rulings, indent=2)
+        body = f"{marker}\n\n### Arbiter Rulings\n\n```json\n{rulings_summary}\n```"
+
+    # Check existing PR comments for the marker (idempotency).
+    try:
+        result = subprocess.run(
+            ["gh", "pr", "view", str(pr_number), "--json", "comments"],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            comments_data = json.loads(result.stdout or "{}")
+            for comment in comments_data.get("comments", []):
+                comment_body = comment.get("body", "")
+                if marker in comment_body:
+                    # UPDATE existing comment
+                    comment_id = comment.get("databaseId") or comment.get("id")
+                    if comment_id:
+                        try:
+                            repo = os.environ.get("GITHUB_REPOSITORY", "")
+                            subprocess.run(
+                                [
+                                    "gh",
+                                    "api",
+                                    "-X",
+                                    "PATCH",
+                                    f"/repos/{repo}/issues/comments/{comment_id}",
+                                    "-f",
+                                    f"body={body}",
+                                ],
+                                capture_output=True,
+                                text=True,
+                            )
+                        except Exception:  # noqa: BLE001
+                            pass
+                    return
+    except Exception:  # noqa: BLE001
+        pass
+
+    # CREATE new comment
+    try:
+        subprocess.run(
+            ["gh", "pr", "comment", str(pr_number), "--body", body],
+            capture_output=True,
+            text=True,
+        )
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def _resolve_pr_number() -> str | None:
@@ -2074,8 +2171,52 @@ def main() -> int:
             return 0
 
         if _action == "DISPATCH_ARBITER":
-            # Full arbiter wiring is scoped to task 7626 — placeholder return
-            return 1
+            _reviewer_breakdown = _build_reviewer_breakdown(merged)
+            _finding_map = {i: f for i, f in enumerate(_current_findings)}
+            _arbiter_result = dispatch_cycle_end_arbiter(
+                findings=_current_findings,
+                defenses=prior_defenses,
+                diff_text=diff_text,
+                model=base_model,
+                provider_chain=provider_chain,
+                cycle_num=cycle_number,
+                max_cycles=max_cycles,
+                reviewer_breakdown=_reviewer_breakdown,
+                ledger_history=ledger.get("cycles", []),
+            )
+            # dispatch_cycle_end_arbiter returns a list of ruling dicts directly.
+            _rulings = (
+                _arbiter_result
+                if isinstance(_arbiter_result, list)
+                else _arbiter_result.get("rulings", [])
+            )
+            _process_result = process_rulings(
+                _rulings,
+                _finding_map,
+                cycle_number,
+                commit_sha=reviewed_sha,
+                pr_number=int(pr_number) if pr_number else None,
+                branch_name=None,
+                ticket_cmd_path=".claude/scripts/dso",
+                artifacts_dir=artifacts_dir,
+                repo_root=repo,
+            )
+            _arbiter_marker = (
+                f"DSO-Arbiter-Ruling: cycle={cycle_number} commit_sha={reviewed_sha}"
+            )
+            _arbiter_body = (
+                f"{_arbiter_marker}\n\n### Arbiter Rulings\n\n"
+                f"```json\n{json.dumps(_rulings, indent=2)}\n```"
+            )
+            _post_arbiter_comment(
+                cycle_number,
+                reviewed_sha,
+                _rulings,
+                _finding_map,
+                pr_number,
+                body=_arbiter_body,
+            )
+            return 1 if _process_result.get("block") else 0
 
         # DISPATCH_NEXT: fall through to existing severity gate below the try/except.
     except Exception as exc:  # noqa: BLE001
