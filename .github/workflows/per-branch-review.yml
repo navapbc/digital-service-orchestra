@@ -151,6 +151,11 @@ jobs:
     runs-on: ubuntu-latest
     # 30 min: region-split mode with 5 clusters takes ~12 min; 30 provides headroom.
     timeout-minutes: 30
+    env:
+      # Single source of truth for the findings-artifact path; referenced by
+      # both the `Run LLM review` step (writer) and the `Assert review
+      # liveness` step (validator). c131-0f34 review cycle 4.
+      DSO_CI_REVIEW_FINDINGS_PATH: /tmp/findings.json
     steps:
       - name: Checkout story branch
         uses: actions/checkout@v4
@@ -291,12 +296,30 @@ jobs:
           # cycle_number from it (see "Compute DSO_REVIEW_CYCLE" above) and
           # so DSO_CI_REVIEW_PRIOR_DEFENSES_PATH on the next run points at
           # a file that actually exists.
-          DSO_CI_REVIEW_OUTPUT_PATH: /tmp/findings.json
+          DSO_CI_REVIEW_OUTPUT_PATH: ${{ env.DSO_CI_REVIEW_FINDINGS_PATH }}
           DSO_CI_REVIEW_DRY_RUN: ${{ vars.DSO_CI_REVIEW_DRY_RUN || '' }}
           DSO_REVIEW_CYCLE: ${{ env.DSO_REVIEW_CYCLE }}
           # PR_NUMBER enables runner.py defense suppression in push-triggered workflows.
           # Set by "Resolve PR number" step above; absent on branches without open PRs.
           PR_NUMBER: ${{ env.PR_NUMBER }}
+
+      - name: Assert review liveness
+        # c131-0f34: fails the job if the runner did not produce
+        # /tmp/findings.json or if the file is malformed. Defends against the
+        # silent-exit-0 regression class.
+        shell: bash -eo pipefail {0}
+        run: |
+          F="${DSO_CI_REVIEW_FINDINGS_PATH:?DSO_CI_REVIEW_FINDINGS_PATH not set}"
+          if [ ! -s "$F" ]; then
+            echo "ERROR [liveness]: $F missing or empty" >&2
+            exit 1
+          fi
+          if ! jq -e 'has("findings") and (.findings | type == "array")' "$F" >/dev/null 2>&1; then
+            echo "ERROR [liveness]: $F malformed — 'findings' missing, not an array, or invalid JSON" >&2
+            head -c 500 "$F" 2>/dev/null | sed 's/^/  | /' >&2 || true
+            exit 1
+          fi
+          echo "review liveness: ok ($(jq -r '.findings | length' "$F") findings)"
 
       - name: Upload review artifact
         if: always()
@@ -305,6 +328,6 @@ jobs:
           name: ${{ env.ARTIFACT_NAME }}
           path: |
             /tmp/story-diff.patch
-            /tmp/findings.json
+            ${{ env.DSO_CI_REVIEW_FINDINGS_PATH }}
           retention-days: 7
           if-no-files-found: warn
