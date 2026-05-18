@@ -2,82 +2,97 @@
 
 This step detects shared-resource conflicts between the new epic being planned and all currently open or in-progress epics. It dispatches haiku-tier classifier agents and collects `CROSS_EPIC_SIGNALS` for the caller.
 
-## Step 2.25a: Fetch Open Epics
+## Steps 2.25a–2.25d: Setup (single bash invocation)
 
-Fetch all open and in-progress epics using the ticket CLI:
+The setup pipeline — fetching the candidate epic list, loading each
+epic's description, extracting `approach_summary` and
+`success_criteria`, partitioning into batches of 5, and the usage-aware
+throttle check — is encapsulated in
+`cross-epic-scan-prep.sh` under the plugin's `scripts/` directory so the
+orchestrator does not absorb every candidate epic's content into its
+working context (bug e253-f62a).
 
-```bash
-.claude/scripts/dso ticket list --type=epic --status=open,in_progress
-```
+The orchestrator's setup responsibility collapses to:
 
-Filter the results to exclude the current epic by ID. The remaining list is the **candidate set**.
+1. **Write the `new_epic` payload** distilled from session state to a
+   tmp path:
 
-If the candidate set is empty (N=0), log the following and skip the rest of this step:
+   ```bash
+   _NEW_EPIC=$(mktemp /tmp/new-epic.XXXXXX.json)
+   cat > "$_NEW_EPIC" <<JSON
+   {
+     "id": "<current epic ID>",
+     "title": "<current epic title>",
+     "approach_summary": "<distilled from Phase 1/2>",
+     "success_criteria": ["<sc1>", "<sc2>"]
+   }
+   JSON
+   ```
 
-> No open epics — scan skipped.
+2. **Run the prep script**, which performs all of 2.25a–2.25d in one
+   shot:
 
-Set `interaction_signals=[]` and proceed directly to Step 2.5.
+   ```bash
+   PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"  # shim-exempt: prompt template — orchestrator resolves CLAUDE_PLUGIN_ROOT at runtime
+   _OUT=$(mktemp -d /tmp/cross-epic-scan.XXXXXX)
+   PREP_OUTPUT=$(bash "$PLUGIN_SCRIPTS/cross-epic-scan-prep.sh" \
+       --epic-id <current_epic_id> \
+       --new-epic-payload "$_NEW_EPIC" \
+       --out-dir "$_OUT")
+   ```
 
-## Step 2.25b: Load Epic Details
+3. **Parse the result** (key=value lines on stdout):
 
-For each epic in the candidate set, load its full content:
+   - `CANDIDATE_COUNT=<int>` — number of open epics after self-filter
+   - `BATCH_COUNT=<int>` — number of `batch_<N>.json` files written
+   - `BATCH_FILES=<csv>` — comma-separated paths to dispatch
+   - `MAX_AGENTS=<int|unlimited>` — pre-check result for dispatch fan-out
+   - `STATUS=ok|skipped:no_candidates|skipped:usage_paused`
 
-```bash
-.claude/scripts/dso ticket show <id>
-```
+4. **Honor STATUS**:
 
-Extract from each epic:
-- `approach_summary`: the proposed technical approach (from the Description or Approach section)
-- `success_criteria`: the list of success criteria / done definitions
+   - `STATUS=skipped:no_candidates` — set `interaction_signals=[]` and
+     proceed directly to Step 2.5. Log: `No open epics — scan skipped.`
+   - `STATUS=skipped:usage_paused` — set `interaction_signals=[]` and
+     proceed to Step 2.5. Log: `Cross-epic scan deferred — usage at
+     capacity. Proceeding without interaction signals.`
+   - `STATUS=ok` — continue to Step 2.25e.
 
-If an epic has no approach or success criteria, use the epic title as a fallback approach summary and set success_criteria to an empty array.
+5. **Honor MAX_AGENTS** when dispatching in Step 2.25e:
 
-## Step 2.25c: Batch into Groups of 5
+   - `MAX_AGENTS=1` → dispatch batches serially (one at a time).
+   - `MAX_AGENTS=<int>` or `unlimited` → dispatch up to the cap in
+     parallel.
 
-Partition the candidate epics into batches of up to 5 epics each. If there are 5 or fewer epics, there is one batch. If there are more than 5, create additional batches until all epics are covered.
-
-The 5-epic cap keeps each haiku-tier dispatch payload (5 × 2–10KB serialized epic content + agent instructions) well below the auto-compaction threshold. Prior cap (20) was observed in production to trigger mid-run compaction, producing silent JSON loss and cross-ticket content conflation (bug 4bf1-3198).
-
-## Step 2.25d: Usage-Aware Throttle Check
-
-Before dispatching classifier agents, perform a usage-aware pre-check:
-
-```bash
-PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"  # shim-exempt: prompt template — PLUGIN_SCRIPTS derived from CLAUDE_PLUGIN_ROOT by the executing sub-agent, not a hardcoded path
-PRE_CHECK_OUTPUT=$(bash "$PLUGIN_SCRIPTS/agent-batch-lifecycle.sh" pre-check 2>/dev/null || echo "MAX_AGENTS: unlimited")  # shim-exempt: prompt template — uses CLAUDE_PLUGIN_ROOT-derived PLUGIN_SCRIPTS
-MAX_AGENTS=$(echo "$PRE_CHECK_OUTPUT" | grep "^MAX_AGENTS:" | awk '{print $2}')
-MAX_AGENTS="${MAX_AGENTS:-unlimited}"
-```
-
-- If `MAX_AGENTS=0` (usage paused), defer the scan entirely. Log:
-  > Cross-epic scan deferred — usage at capacity. Proceeding without interaction signals.
-  Set `interaction_signals=[]` and proceed to Step 2.5.
-
-- If `MAX_AGENTS=1`, process batches serially (one agent at a time).
-- If `MAX_AGENTS` is unlimited or greater than 1, dispatch all batches in parallel up to the cap.
+Rationale for the 5-epic batch cap: each haiku-tier dispatch payload (5
+× 2–10KB serialized epic content + agent instructions) stays well below
+the auto-compaction threshold. The prior cap (20) was observed in
+production to trigger mid-run compaction, producing silent JSON loss
+and cross-ticket content conflation (bug 4bf1-3198). The cap is the
+script's default; override with `--batch-size <N>` only when you have
+measured evidence that a different size avoids both compaction and
+underutilization.
 
 ## Step 2.25e: Dispatch Classifier per Batch
 
-For each batch, dispatch `dso:cross-epic-interaction-classifier` (haiku tier) with:
+For each path in `BATCH_FILES` (comma-separated, from the prep-script
+output), dispatch `dso:cross-epic-interaction-classifier` (haiku tier).
+The classifier's input is the path itself — the prep script has already
+written the canonical payload shape:
 
 ```json
 {
-  "new_epic": {
-    "id": "<current epic ID>",
-    "title": "<current epic title>",
-    "approach_summary": "<current epic approach>",
-    "success_criteria": ["<criterion 1>", "..."]
-  },
+  "new_epic":  { "id": "...", "title": "...", "approach_summary": "...", "success_criteria": ["..."] },
   "open_epics": [
-    {
-      "id": "<open epic ID>",
-      "title": "<open epic title>",
-      "approach_summary": "<open epic approach>",
-      "success_criteria": ["<criterion 1>", "..."]
-    }
+    { "id": "...", "title": "...", "approach_summary": "...", "success_criteria": ["..."] }
   ]
 }
 ```
+
+The classifier reads its assigned batch file and returns a
+`CROSS_EPIC_SIGNALS` array. The orchestrator does NOT need to inline
+this content into its own context — pass the batch path to the agent
+and let the agent read it.
 
 **Failure handling**: If a batch dispatch fails or returns unparseable output, log a warning and continue:
 
