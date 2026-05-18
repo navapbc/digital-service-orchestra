@@ -1344,15 +1344,16 @@ def main() -> int:
         print(f"ERROR: {kind}: {exc}", file=sys.stderr)
         return 1
 
+    # Read cycle number BEFORE the try block so the broad-except handler at
+    # the bottom can reference it safely. If we read it inside try and an
+    # earlier line (e.g. _classify_tier_via_bash) raises, the except would
+    # hit NameError and mask the original failure (c131-0f34 review #1).
+    cycle_number = int(os.environ.get("DSO_REVIEW_CYCLE", "1"))
+
     try:
         # Step 1: classify tier
         classification = _classify_tier_via_bash(diff_text)
         tier = classification["selected_tier"]
-
-        # Read review cycle number — used by two-call architecture on re-review passes.
-        # On cycle N≥2, fetch prior defenses from PR comments so the LLM can avoid
-        # re-emitting already-defended findings. (Bug c59e-a197: dismissal-memory gap.)
-        cycle_number = int(os.environ.get("DSO_REVIEW_CYCLE", "1"))
 
         # Fetch prior defenses for cycle-2+ suppression.
         # Returns [] when not in a PR context or when gh CLI is unavailable.

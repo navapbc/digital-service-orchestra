@@ -69,7 +69,10 @@ fi
 # _write_output (string match — implementation detail visible enough at the
 # source level).
 RUNNER_PY="$REPO_ROOT/plugins/dso/scripts/dso_ci_review/runner.py"
-if [ -f "$RUNNER_PY" ]; then
+if [ ! -f "$RUNNER_PY" ]; then
+    (( ++FAIL ))
+    echo "FAIL: runner.py not found at $RUNNER_PY — liveness guarantee depends on it" >&2
+else
     # Find the broad-except block and assert _write_output is called inside.
     # shellcheck disable=SC2016  # python source must use single-quoted heredoc
     if python3 -c '

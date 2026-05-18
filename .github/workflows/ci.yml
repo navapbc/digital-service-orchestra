@@ -585,9 +585,11 @@ jobs:
             echo "ERROR [liveness]: /tmp/findings.json missing or empty — runner did not produce review output" >&2
             exit 1
           fi
-          if ! jq -e 'has("findings")' /tmp/findings.json >/dev/null; then
-            echo "ERROR [liveness]: /tmp/findings.json malformed — missing 'findings' key" >&2
-            jq -c '.' /tmp/findings.json | head -c 500 >&2
+          if ! jq -e 'has("findings")' /tmp/findings.json >/dev/null 2>&1; then
+            echo "ERROR [liveness]: /tmp/findings.json malformed — missing 'findings' key or invalid JSON" >&2
+            # Print raw content under set -e safely: `|| true` so a jq parse
+            # failure on malformed JSON does not preempt the exit-1 below.
+            head -c 500 /tmp/findings.json 2>/dev/null | sed 's/^/  | /' >&2 || true
             exit 1
           fi
           echo "review liveness: ok ($(jq -r '.findings | length' /tmp/findings.json) findings)"
