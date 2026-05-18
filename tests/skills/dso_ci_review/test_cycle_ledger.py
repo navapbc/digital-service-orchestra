@@ -8,6 +8,7 @@ RED marker: tests/skills/dso_ci_review/test_cycle_ledger.py [test_read_ledger_re
 from __future__ import annotations
 
 import json
+import os
 import pathlib
 import subprocess
 import sys
@@ -314,4 +315,77 @@ def test_append_atomic_write_no_corruption_on_concurrent_appends(tmp_path):
     cycle_nums = sorted(c["cycle_num"] for c in result["cycles"])
     assert cycle_nums == [1, 2], (
         f"Expected cycle_nums [1, 2] after concurrent appends, got {cycle_nums!r}"
+    )
+
+
+# ── Bug da45 PR #202 finding f-f6g7h8i9 — _cli_main test coverage ─────────────
+
+def test_cli_main_missing_args_returns_usage_exit_code():
+    """_cli_main with no args prints usage and returns exit code 2."""
+    from dso_ci_review.cycle_ledger import _cli_main
+    rc = _cli_main(["cycle_ledger"])
+    assert rc == 2
+
+
+def test_cli_main_non_integer_pr_returns_error(capsys):
+    """_cli_main rejects non-integer PR number with exit code 2 + stderr."""
+    from dso_ci_review.cycle_ledger import _cli_main
+    rc = _cli_main(["cycle_ledger", "reconstruct-from-pr", "not-a-number", "owner/repo"])
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert "integer" in captured.err.lower()
+
+
+def test_cli_main_invokes_reconstruct(monkeypatch, capsys):
+    """_cli_main with valid args delegates to reconstruct_from_pr_comments
+    and emits the ledger JSON on stdout."""
+    from dso_ci_review import cycle_ledger as cl
+
+    called_with = {}
+    def fake_reconstruct(pr_num, repo):
+        called_with["pr_num"] = pr_num
+        called_with["repo"] = repo
+        return {"schema_version": "1.1.0", "epic_id": "", "cycles": []}
+
+    monkeypatch.setattr(cl, "reconstruct_from_pr_comments", fake_reconstruct)
+    rc = cl._cli_main(["cycle_ledger", "reconstruct-from-pr", "42", "owner/repo"])
+    captured = capsys.readouterr()
+    assert rc == 0
+    assert called_with == {"pr_num": 42, "repo": "owner/repo"}
+    # Stdout should be valid JSON describing the ledger
+    import json as _json
+    parsed = _json.loads(captured.out)
+    assert parsed["cycles"] == []
+
+
+# ── Bug da45 PR #202 finding f-XXX — _atomic_write cleanup path ───────────────
+
+def test_atomic_write_cleans_up_temp_on_replace_failure(monkeypatch, tmp_path):
+    """_atomic_write must unlink its temp file when os.replace fails.
+
+    Simulate: write succeeds, replace raises OSError (e.g., cross-device link).
+    Assert: (1) raised, (2) no temp file leftover in the destination dir.
+    """
+    from dso_ci_review.cycle_ledger import _atomic_write
+    target = tmp_path / "ledger.json"
+
+    real_replace = os.replace
+    def failing_replace(src, dst):
+        # Mimic an EXDEV (cross-device) or permission error mid-replace.
+        raise OSError("simulated replace failure")
+
+    monkeypatch.setattr(os, "replace", failing_replace)
+    try:
+        _atomic_write(str(target), "{}")
+    except OSError as e:
+        assert "simulated" in str(e)
+    else:
+        raise AssertionError("_atomic_write should have re-raised the failure")
+    monkeypatch.setattr(os, "replace", real_replace)
+
+    # No temp file should remain in tmp_path
+    leftovers = [p for p in tmp_path.iterdir() if p.name != "ledger.json"]
+    assert not leftovers, (
+        f"_atomic_write left temp file(s) behind after replace failure: "
+        f"{[p.name for p in leftovers]}"
     )
