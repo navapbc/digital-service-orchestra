@@ -880,20 +880,20 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 
 | | |
 |---|---|
-| **Description** | Maximum number of LLM dispatch attempts the schema-correction retry loop makes when `_validate_findings_schema()` returns `schema_fail`. A value of `0` disables correction dispatch entirely — a synthetic `schema_error` finding is appended instead. Negative values are clamped to `0`. Values above the ceiling (`3`) are clamped to `3` with a warning emitted to stderr. Disambiguate from `review.max_resolution_attempts`, which controls the autonomous fix/defend loop in REVIEW-WORKFLOW.md — this key controls only the schema-correction sub-loop within runner.py. These loops are independent: schema-correction runs within a single review pass; resolution runs across review cycles. |
+| **Description** | Maximum number of LLM dispatch attempts the schema-correction retry loop makes when `_validate_findings_schema()` returns `schema_fail`. A value of `0` disables correction dispatch entirely — a synthetic `schema_error` finding is appended instead. Negative values are clamped to `0`. Values above the ceiling (`3`) are clamped to `3` with a warning emitted to stderr. Disambiguate from `review.max_cycles`, which controls the autonomous fix/defend loop in REVIEW-WORKFLOW.md — this key controls only the schema-correction sub-loop within runner.py. These loops are independent: schema-correction runs within a single review pass; resolution runs across review cycles. |
 | **Accepted values** | Non-negative integer (0 = disable, 1–3 = enabled; values > 3 are clamped to 3 at read time with a stderr warning — not rejected at parse time) |
 | **Default** | `1` |
 | **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/runner.py` (`get_schema_correction_max_attempts()`, `_clamp_schema_correction_attempts()`) |
 
 ---
 
-### `review.max_resolution_attempts`
+### `review.max_cycles`
 
 | | |
 |---|---|
-| **Description** | Maximum number of autonomous fix/defend attempts the review resolution loop makes before escalating to the user. Controls the Autonomous Resolution Loop in REVIEW-WORKFLOW.md, test-failure delegation in COMMIT-WORKFLOW.md and TEST-FAILURE-DISPATCH.md, and the oscillation-check safety bounds. |
-| **Accepted values** | Positive integer |
-| **Default** | `5` |
+| **Description** | Maximum number of autonomous fix/defend attempts the review resolution loop makes before escalating to the user. Controls the Autonomous Resolution Loop in REVIEW-WORKFLOW.md, test-failure delegation in COMMIT-WORKFLOW.md and TEST-FAILURE-DISPATCH.md, and the oscillation-check safety bounds. Renamed from `review.max_resolution_attempts` (still accepted via backward-compat shim with deprecation warning; see `${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh`). |
+| **Accepted values** | Positive integer >= 2 |
+| **Default** | `4` |
 | **Used by** | `REVIEW-WORKFLOW.md` (Autonomous Resolution Loop), `COMMIT-WORKFLOW.md` (Steps 1, 1.5), `TEST-FAILURE-DISPATCH.md`, `/dso:oscillation-check` |
 
 ---

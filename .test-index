@@ -445,10 +445,9 @@ plugins/dso/scripts/check-sprint-trailer.sh:tests/hooks/test-check-sprint-traile
 .pre-commit-config.yaml:tests/hooks/test-sprint-trailer-registration.sh
 plugins/dso/scripts/detect-session-leakage.sh:tests/scripts/test-detect-session-leakage.sh
 plugins/dso/scripts/sprint/compute-rereviewed-loc.sh:tests/scripts/test-compute-rereviewed-loc.sh
-plugins/dso/scripts/review-defense-store.sh:tests/review/test-defense-store-ticket-binding.sh,tests/review/test-defense-store-sha-range.sh
 plugins/dso/scripts/review-defense-store.sh:tests/review/test-defense-store-ticket-binding.sh,tests/review/test-defense-store-sha-range.sh,tests/review/test-defense-store-dropped-by-arbiter.sh [test_defense_store_drops_unknown_defense_type_gracefully],tests/review/test-arbiter-ruling-dispatch.sh [test_defer_ruling_creates_orphan_ticket]
-tests/review/test-defense-store-dropped-by-arbiter.sh: tests/review/test-defense-store-dropped-by-arbiter.sh [test_defense_store_drops_unknown_defense_type_gracefully]
-tests/review/test-arbiter-ruling-dispatch.sh: tests/review/test-arbiter-ruling-dispatch.sh [test_defer_ruling_creates_orphan_ticket]
+tests/review/test-defense-store-dropped-by-arbiter.sh:tests/review/test-defense-store-dropped-by-arbiter.sh [test_defense_store_drops_unknown_defense_type_gracefully]
+tests/review/test-arbiter-ruling-dispatch.sh:tests/review/test-arbiter-ruling-dispatch.sh [test_defer_ruling_creates_orphan_ticket]
 plugins/dso/scripts/check-unacked-degradations.sh:tests/scripts/test-check-unacked-degradations.sh
 plugins/dso/scripts/preconditions-ack.sh:tests/scripts/test-preconditions-ack.sh,tests/scripts/test-preconditions-ack-sample.sh
 plugins/dso/agents/code-reviewer-light.md:tests/agents/test-verification-evidence-emission.sh
