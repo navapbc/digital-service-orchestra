@@ -39,3 +39,24 @@ Operational patterns discovered during development. Add entries when 3+ similar 
 **Fix**: Use exact-prefix match: `grep '^DEBUG_BRANCH_TRACKING: '` (note the trailing space). This isolates debug-session branch anchors from all other tracking comment types.
 
 **Context**: COMPACTION_RESUME block in `plugins/dso/skills/debug-everything/SKILL.md`. This exact-prefix isolation is a regression test requirement.
+
+---
+
+## INC-004: CI `llm-review` Blocks on False-Positive Findings
+
+**Symptom**: CI's required `llm-review` check (ci.yml) reports `failure` on a PR with a finding the engineer believes is wrong — e.g., a hallucinated type mismatch, a missing-file claim against a script that exists under a different subdirectory, or a misread of the diff against stale line numbers. All other required checks pass. The engineer is blocked from merging despite the underlying code being correct.
+
+**Cause**: The CI reviewer is a single LLM dispatch and is nondeterministic. Common FP signatures observed in session 2026-05-17:
+- Type-tracing FPs: the reviewer claims `int(x) == y` is comparing int-to-string when `y` was already int-coerced earlier in the same script (the reviewer didn't trace the parse site).
+- Missing-file FPs: pre-PR-#213, the reviewer issued a literal-path `read_files` and reported missing when the file lived under a subdirectory the consuming script's shim resolves automatically (mitigated by the multi-path cascade in PR #213 but not eliminated).
+- Reviewer duplication: both `Per-Story LLM Review` (per-branch-review.yml) and `llm-review` (ci.yml) run on the same commit for `story/**`, `bug-batch/**`, `fix/**` branches. Two independent rolls compound the per-commit FP probability (bug f127-03ef-fd14-4da1 — open).
+
+**Workaround — `/dso:fp-recovery`**: when CI llm-review blocks on a finding the engineer believes is an FP, invoke `/dso:fp-recovery <pr-number>`. The skill dispatches `dso:code-reviewer-standard` at opus tier on the PR diff. If the manual review returns 0 critical / 0 important / 0 fragile findings AND the dispatch did real work (≥10 tool calls, ≥60s runtime), the engineer is cleared to force-merge with an auditable annotation in the merge commit message. The annotation is mandatory — it makes the override discoverable via `git log --grep "Force-merged: manual dso:code-reviewer-standard"`. Coverage is preserved: every force-merge through this path has a real reviewer review behind it, just at opus tier with full reasoning.
+
+**When NOT to use this workflow**:
+- Test failures (fix the failing tests, don't force-merge).
+- Intermittent CI failures (re-push or wait — see bug 53f9-a218-8799-49be).
+- Findings the engineer is genuinely uncertain about — use the defense-store path instead (write a defense, let the resolution loop or arbiter adjudicate).
+- Routine PRs — this is an escape valve, not a default path.
+
+**Context**: `/dso:fp-recovery` skill at `${CLAUDE_PLUGIN_ROOT}/skills/fp-recovery/SKILL.md`; workflow at `${CLAUDE_PLUGIN_ROOT}/docs/workflows/FP-RECOVERY-WORKFLOW.md`. CLAUDE.md Rule 18 has a cross-reference. The skill is a temporary escape valve intended to bridge to the longer-term fixes (swap-maple-flyby arbiter wiring, side-pane-tithe metrics, future reviewer-prompt §C–§E improvements). When the rolling-30-day FP rate drops below ~10%, the skill can be retired or restricted to security-overlay-only escalation.

@@ -1,0 +1,47 @@
+---
+name: fp-recovery
+description: Manual review escalation when CI llm-review blocks a PR on a finding that looks like a false positive. Dispatches dso:code-reviewer-standard at opus tier on the PR's diff, parses the result, and emits a force-merge clearance when zero critical/important/fragile findings remain. Use ONLY when CI llm-review has failed on a suspect FP; not for routine PR shipping. Trigger phrases include 'force merge this PR', 'the CI review is wrong', 'false positive from llm-review', 'manual review override', 'FP recovery'.
+user-invocable: true
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash, Agent
+---
+
+# FP Recovery — Manual Review Escalation
+
+Shallow entry point for the FP-recovery workflow. Loads and executes `${CLAUDE_PLUGIN_ROOT}/docs/workflows/FP-RECOVERY-WORKFLOW.md` inline.
+
+## When to invoke
+
+CI `llm-review` (ci.yml) has reported `failure` AND the engineer believes the blocking finding is a false positive. All other required checks must pass (or be filed as known intermittent bugs). See FP-RECOVERY-WORKFLOW.md "When to invoke" for the full precondition list.
+
+**This is an escape valve, not a routine path.** Routine PRs ship through `/dso:commit` + `merge-to-main.sh`. Invoke this skill only when the CI reviewer has produced a clearly-wrong blocking finding.
+
+## What this skill does NOT do
+
+- Does NOT skip review — it dispatches a real `dso:code-reviewer-standard` at opus tier on the PR diff.
+- Does NOT auto-merge — it emits a clearance verdict; the engineer runs the force-merge command.
+- Does NOT lower the merge bar — every force-merge through this path has a real reviewer review behind it.
+- Does NOT apply to test failures (fix those normally) or intermittent CI failures (re-push / wait).
+
+## Usage
+
+```bash
+/dso:fp-recovery <pr-number>
+```
+
+Or with the PR number derived from the current branch:
+
+```bash
+/dso:fp-recovery
+```
+
+## Instructions
+
+**IMPORTANT**: Do NOT call the Skill tool again or re-invoke `/dso:fp-recovery` recursively. Instead:
+
+1. Read `${CLAUDE_PLUGIN_ROOT}/docs/workflows/FP-RECOVERY-WORKFLOW.md` now.
+2. Execute its steps in order — starting from Step 1 (Capture the PR diff).
+3. Follow the verdict criteria in Step 4 strictly: only clear the force-merge when ALL four criteria hold (zero critical, zero important, zero fragile, ≥10 tool calls and ≥60s runtime on the manual review dispatch).
+4. If the manual review produces critical or important findings, **abort** and surface those findings to the user. Do NOT force-merge.
+5. If clearance is reached, emit the force-merge command with the required annotation template per Step 5 of the workflow. The user runs the merge command — this skill does NOT execute the merge.
+
+The workflow file is the complete specification. Every step is mandatory — including the auditable annotation in the merge commit message and the PR label per Step 6.
