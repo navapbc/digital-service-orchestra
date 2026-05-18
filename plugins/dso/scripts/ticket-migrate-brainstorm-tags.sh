@@ -94,11 +94,40 @@ fi
 #   WOULD_WRITE:<ticket_id>              — dry-run: would write EDIT event (no file created)
 #   UNMATCHED:<ticket_id>                — epic with no brainstorm:complete tag and no PIL
 _migrate_output=$(python3 - "$_TRACKER_DIR" "$_DRYRUN" <<'PYEOF'
-import json, os, sys, time, uuid
+import json, os, re, sys, time, uuid
 
 TRACKER = sys.argv[1]
-DRYRUN = len(sys.argv) > 2 and sys.argv[2] == "1" 
+DRYRUN = len(sys.argv) > 2 and sys.argv[2] == "1"
 PIL = "### Planning Intelligence Log"
+
+# Mandatory field markers — every canonical PIL written by
+# epic-scrutiny-pipeline.md populates these three. Absence of any one
+# of them indicates a stub PIL that bypassed the pipeline (a307-0f58).
+REQUIRED_PIL_FIELDS = (
+    "**Web research (Step 2.6)**:",
+    "**Scenario analysis (Step 2.75)**:",
+    "**LLM-instruction signal (Step 5)**:",
+)
+
+def _pil_body_passes(text):
+    """True iff text contains a PIL heading whose body has all required fields."""
+    if not text or PIL not in text:
+        return False
+    idx = text.find(PIL)
+    rest = text[idx + len(PIL):]
+    end = re.search(r'(?m)^#{1,3} ', rest)
+    section = rest if end is None else rest[:end.start()]
+    for field in REQUIRED_PIL_FIELDS:
+        if field not in section:
+            return False
+    scenario = re.search(
+        r'\*\*Scenario analysis \(Step 2\.75\)\*\*:\s*([^\n]+)', section)
+    if scenario and 'triggered' in scenario.group(1) \
+       and 'not triggered' not in scenario.group(1) \
+       and 'skipped' not in scenario.group(1):
+        if 'Red Team' not in section or 'Blue Team' not in section:
+            return False
+    return True
 
 def scan_ticket(tdir):
     """Return (is_epic, latest_tags, pil_found) by reading every event file once."""
@@ -151,21 +180,22 @@ def scan_ticket(tdir):
                 tags = raw.split(',')
             else:
                 tags = []
-        # PIL detection across every covered field shape
-        if PIL in (data.get('description') or ''):
+        # PIL detection: heading present AND mandatory pipeline fields populated
+        # in the same body. A stub PIL (heading only) is rejected (a307-0f58).
+        if _pil_body_passes(data.get('description') or ''):
             pil = True
-        if PIL in (data.get('body') or ''):
+        if _pil_body_passes(data.get('body') or ''):
             pil = True
         if etype == 'EDIT':
             fields = data.get('fields') or {}
-            if PIL in (fields.get('description') or ''):
+            if _pil_body_passes(fields.get('description') or ''):
                 pil = True
         if etype == 'SNAPSHOT':
             cs = data.get('compiled_state') or {}
-            if PIL in (cs.get('description') or ''):
+            if _pil_body_passes(cs.get('description') or ''):
                 pil = True
             for c in (cs.get('comments') or []):
-                if isinstance(c, dict) and PIL in (c.get('body') or ''):
+                if isinstance(c, dict) and _pil_body_passes(c.get('body') or ''):
                     pil = True
     return (is_epic, tags, pil)
 
