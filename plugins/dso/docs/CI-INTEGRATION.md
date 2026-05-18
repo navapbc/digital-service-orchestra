@@ -49,7 +49,7 @@ In `ci-pr` mode (`dso.workflow=ci-pr`), the sprint uses a unified per-branch rev
 
 `per-branch-review.yml` is the CI workflow that runs on each `story/*` branch PR (targeting the session branch). It replaces the former `sprint-story-review.yml`. Responsibilities:
 
-- Fetches the session branch name via the `SPRINT_SESSION_ID` repo variable (set by Phase A).
+- Resolves the per-branch review base via `resolve-per-branch-review-base.sh`. The resolver consults the `SPRINT_SESSION_ID` repo variable (set by Phase A) as one input, but the actual base resolution may also consider the branch's PR target, the most recent `story/<epic-id>/...` parent on the session branch, and other signals. The resolver is the source of truth — the repo variable is not consulted directly by the workflow.
 - Computes a per-story diff (story branch vs. session branch HEAD) for scoped review.
 - Dispatches the LLM review orchestrator (`ci-llm-review-runner.sh`) against that scoped diff.
 - Blocks the story PR merge until the review passes.

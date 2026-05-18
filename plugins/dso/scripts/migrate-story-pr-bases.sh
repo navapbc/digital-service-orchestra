@@ -41,31 +41,54 @@ fi
 if [[ -n "${DSO_GH_REPO:-}" ]]; then
     _repo="$DSO_GH_REPO"
 else
-    _repo="$(gh repo view --json nameWithOwner --jq '.nameWithOwner' 2>/dev/null)"
+    # jq-free (PR #140 retro-review): parse the nameWithOwner via python3
+    # instead of `gh --jq`, matching the project's jq-free invariant
+    # documented in the project's reviewer-delta-standard prompt.
+    # Single-quoted heredoc on the python so bash does not expand $-tokens
+    # inside the python source.
+    _repo="$(gh repo view --json nameWithOwner 2>/dev/null | python3 -c '
+import json, sys
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+print(d.get("nameWithOwner", "") if isinstance(d, dict) else "")
+' 2>/dev/null)"
 fi
 
 # ── Step 3: List story/* PRs targeting main ───────────────────────────────────
 _pr_json_raw="$(gh pr list --search 'base:main head:story/' \
     --json number,headRefName,baseRefName 2>/dev/null || true)"
 
-# Parse JSON array — supports both real gh output (array) and mock output
-# Count entries
-_pr_count=0
+# Parse JSON array via python3 (jq-free, PR #140 retro-review).
+# Emit "<number>\t<headRefName>\t<baseRefName>" per PR; iterate via read.
+_pr_lines=""
 if [[ -n "$_pr_json_raw" ]]; then
-    _pr_count="$(echo "$_pr_json_raw" | jq '. | length' 2>/dev/null || echo 0)"
+    _pr_lines="$(printf '%s' "$_pr_json_raw" | python3 -c '
+import json, sys
+try:
+    arr = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+for entry in (arr if isinstance(arr, list) else []):
+    if not isinstance(entry, dict):
+        continue
+    print("\t".join([
+        str(entry.get("number", "")),
+        str(entry.get("headRefName", "")),
+        str(entry.get("baseRefName", "")),
+    ]))
+' 2>/dev/null)"
 fi
 
-if [[ "$_pr_count" -eq 0 ]]; then
+if [[ -z "$_pr_lines" ]]; then
     echo "No story/* PRs targeting main found."
     exit 0
 fi
 
 # ── Step 4: Process each PR ───────────────────────────────────────────────────
-# Iterate by index over the JSON array
-for _idx in $(seq 0 $((_pr_count - 1))); do
-    pr_number="$(echo "$_pr_json_raw" | jq -r ".[$_idx].number")"
-    head_ref="$(echo "$_pr_json_raw" | jq -r ".[$_idx].headRefName")"
-    base_ref="$(echo "$_pr_json_raw" | jq -r ".[$_idx].baseRefName")"
+while IFS=$'\t' read -r pr_number head_ref base_ref; do
+    [[ -z "$pr_number" ]] && continue
 
     if [[ "$base_ref" == "$session_branch" ]]; then
         echo "Already targeting session branch: #${pr_number}"
@@ -83,4 +106,4 @@ for _idx in $(seq 0 $((_pr_count - 1))); do
 
     # Note cache invalidation
     echo "NOTE: TrackerDefenseStore entries for PR #${pr_number} were written against base=main and are no longer valid. A fresh per-branch-review run has been triggered."
-done
+done <<< "$_pr_lines"
