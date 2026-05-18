@@ -21,6 +21,7 @@ Exit codes:
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json  # used by _validate_findings_schema (json.dump to tmpfile)
 import os
 import re
@@ -636,7 +637,9 @@ def _write_output(data: dict) -> None:
         print(serialized)
 
 
-def init_cycle_ledger(artifacts_dir: str, pr_number: str | None = None, repo: str | None = None) -> int:
+def init_cycle_ledger(
+    artifacts_dir: str, pr_number: str | None = None, repo: str | None = None
+) -> int:
     """Read cycle-ledger.json and return the next cycle number.
 
     Reads pr_number and repo from environment (PR_NUMBER, GITHUB_REPOSITORY)
@@ -688,14 +691,20 @@ def init_cycle_ledger(artifacts_dir: str, pr_number: str | None = None, repo: st
     return cycle_num
 
 
-def _init_cycle_ledger(artifacts_dir: str | None = None, pr_number: str | None = None, repo: str | None = None) -> int:
+def _init_cycle_ledger(
+    artifacts_dir: str | None = None,
+    pr_number: str | None = None,
+    repo: str | None = None,
+) -> int:
     """Thin internal shim — delegates to init_cycle_ledger.
 
     artifacts_dir defaults to WORKFLOW_PLUGIN_ARTIFACTS_DIR env var or /tmp.
     """
     if artifacts_dir is None:
         artifacts_dir = os.environ.get("WORKFLOW_PLUGIN_ARTIFACTS_DIR", "/tmp")
-    return init_cycle_ledger(artifacts_dir=artifacts_dir, pr_number=pr_number, repo=repo)
+    return init_cycle_ledger(
+        artifacts_dir=artifacts_dir, pr_number=pr_number, repo=repo
+    )
 
 
 def _fetch_pr_defenses(pr_number: str) -> list[dict]:
@@ -1349,6 +1358,121 @@ def _overlay_agents_from_findings(
     ]
 
 
+def _compute_findings_tuples(findings: list[dict]) -> list[tuple]:
+    """Extract (file, line_range, category) tuples from findings, sorted for determinism."""
+    return sorted(
+        (f.get("file", ""), str(f.get("line_range", "")), f.get("category", ""))
+        for f in findings
+    )
+
+
+def _compute_findings_hash(tuples: list[tuple]) -> str:
+    """Return a 16-char lowercase hex hash of the findings tuples (order-independent)."""
+    raw = "|".join(f"{t[0]}:{t[1]}:{t[2]}" for t in sorted(tuples))
+    return hashlib.sha256(raw.encode()).hexdigest()[:16]
+
+
+def _post_cycle_marker_comment(
+    pr_number: str | None,
+    cycle_num: int,
+    commit_sha: str,
+    findings_hash: str,
+    tuples: list[tuple],
+) -> None:
+    """Post or update a DSO-Review-Cycle marker comment on the PR.
+
+    No-op when pr_number is None.
+    Deduplicates by checking for an existing comment that matches BOTH cycle_num AND
+    commit_sha. If found, PATCHes it; otherwise creates a new comment.
+    All gh CLI failures are logged as WARNINGs and are non-fatal.
+    """
+    if pr_number is None:
+        return
+
+    body = (
+        f"DSO-Review-Cycle: cycle={cycle_num} commit_sha={commit_sha} "
+        f"findings_hash={findings_hash} tuples={json.dumps(tuples)}"
+    )
+
+    # Fetch existing comments to check for dedup
+    try:
+        list_result = subprocess.run(
+            ["gh", "pr", "view", str(pr_number), "--json", "comments"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if list_result.returncode != 0:
+            print(
+                f"WARNING: gh pr view failed (exit {list_result.returncode}); "
+                "cannot dedup cycle marker comment",
+                file=sys.stderr,
+            )
+            existing_comments: list[dict] = []
+        else:
+            try:
+                pr_data = json.loads(list_result.stdout)
+                if isinstance(pr_data, dict):
+                    existing_comments = pr_data.get("comments", [])
+                elif isinstance(pr_data, list):
+                    existing_comments = pr_data
+                else:
+                    existing_comments = []
+            except json.JSONDecodeError:
+                existing_comments = []
+    except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
+        print(
+            f"WARNING: gh CLI unavailable ({type(exc).__name__}); "
+            "cannot post cycle marker comment",
+            file=sys.stderr,
+        )
+        return
+
+    # Find existing comment matching BOTH cycle_num AND commit_sha
+    dedup_key_cycle = f"cycle={cycle_num}"
+    dedup_key_sha = f"commit_sha={commit_sha}"
+    existing_id: int | None = None
+    for comment in existing_comments:
+        comment_body = comment.get("body", "")
+        if dedup_key_cycle in comment_body and dedup_key_sha in comment_body:
+            existing_id = comment.get("id")
+            break
+
+    # Resolve owner/repo from GITHUB_REPOSITORY for PATCH path
+    repository = os.environ.get("GITHUB_REPOSITORY", "")
+
+    try:
+        if existing_id is not None:
+            # PATCH existing comment (update in-place to avoid duplicate markers)
+            subprocess.run(
+                [
+                    "gh",
+                    "api",
+                    "-X",
+                    "PATCH",
+                    f"/repos/{repository}/issues/comments/{existing_id}",
+                    "-f",
+                    f"body={body}",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+        else:
+            # POST new comment
+            subprocess.run(
+                ["gh", "pr", "comment", str(pr_number), "--body", body],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+    except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
+        print(
+            f"WARNING: failed to post/update cycle marker comment ({type(exc).__name__})",
+            file=sys.stderr,
+        )
+
+
 def main() -> int:
     """Run the CI review and return an exit code."""
     dry_run = os.environ.get("DSO_CI_REVIEW_DRY_RUN") == "1"
@@ -1421,7 +1545,9 @@ def main() -> int:
         repo = os.environ.get("GITHUB_REPOSITORY", "") or None
         max_cycles = read_config_int("review.max_cycles", default=4)
 
-        cycle_number = _init_cycle_ledger(artifacts_dir=artifacts_dir, pr_number=pr_number, repo=repo)
+        cycle_number = _init_cycle_ledger(
+            artifacts_dir=artifacts_dir, pr_number=pr_number, repo=repo
+        )
 
         # Load the raw ledger for SHORT_CIRCUIT pre-check (cycle_next_action needs it).
         _ledger_path = os.path.join(artifacts_dir, "cycle-ledger.json")
@@ -1436,7 +1562,9 @@ def main() -> int:
 
         # Pre-review SHORT_CIRCUIT check: when HEAD SHA matches last cycle AND
         # arbiter-rulings.json exists, skip dispatch and return early.
-        _pre_check = cycle_next_action(_ledger, max_cycles, [], reviewed_sha, artifacts_dir)
+        _pre_check = cycle_next_action(
+            _ledger, max_cycles, [], reviewed_sha, artifacts_dir
+        )
         if _pre_check.get("action") == "SHORT_CIRCUIT":
             rulings_path = os.path.join(artifacts_dir, "arbiter-rulings.json")
             try:
@@ -1788,6 +1916,26 @@ def main() -> int:
         merged = dict(merged)
         merged["cycle_number"] = cycle_number
         _write_output(merged)
+
+        # Step 8a: append cycle ledger entry and post cycle marker comment.
+        tuples = _compute_findings_tuples(merged.get("findings", []))
+        findings_hash_val = _compute_findings_hash(tuples)
+        ledger_path = os.path.join(artifacts_dir, "cycle-ledger.json")
+        cycle_ledger.append_cycle(
+            ledger_path,
+            cycle_number,
+            tuples,
+            reviewed_sha,
+            findings_hash_val,
+            halt_reason=None,
+        )
+        _post_cycle_marker_comment(
+            pr_number=pr_number,
+            cycle_num=cycle_number,
+            commit_sha=reviewed_sha,
+            findings_hash=findings_hash_val,
+            tuples=tuples,
+        )
     except Exception as exc:  # noqa: BLE001
         print(f"ERROR: LLM call failed: {exc}", file=sys.stderr)
         return 1
