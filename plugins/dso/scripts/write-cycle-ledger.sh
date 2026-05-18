@@ -169,6 +169,31 @@ if [[ "$use_new_interface" -eq 1 ]]; then
         echo "error: --epic-id, --cycle-num, and --findings-hash are all required when using the new interface" >&2
         exit 1
     fi
+
+    # Input validation (bug 7fe1-c997): reject path-traversal and non-integer
+    # inputs early — these guards were lost in the schema-v1.1.0 refactor and
+    # are required by test-write-cycle-ledger.sh.
+    if [[ "$findings_hash" == *..* || "$findings_hash" == */* ]]; then
+        echo "error: --findings-hash must not contain path-traversal characters ('..' or '/')" >&2
+        exit 1
+    fi
+
+    if [[ "$epic_id" == *..* || "$epic_id" == */* ]]; then
+        echo "error: --epic-id must not contain path-traversal characters ('..' or '/')" >&2
+        exit 1
+    fi
+
+    if ! [[ "$cycle_num" =~ ^[0-9]+$ ]]; then
+        echo "error: --cycle-num must be a non-negative integer" >&2
+        exit 1
+    fi
+
+    if [[ "$reconstruct_from_pr" -eq 1 ]]; then
+        if [[ -z "${DSO_CI_REVIEW_PR:-}" ]] || ! [[ "${DSO_CI_REVIEW_PR}" =~ ^[0-9]+$ ]]; then
+            echo "error: DSO_CI_REVIEW_PR must be a positive integer when --reconstruct-from-pr is set" >&2
+            exit 1
+        fi
+    fi
 else
     # Legacy --payload interface
     if [[ -z "$payload" ]]; then
@@ -429,6 +454,19 @@ try:
                 ledger = {"schema_version": SCHEMA_VERSION, "epic_id": epic_id, "cycles": []}
         else:
             ledger = {"schema_version": SCHEMA_VERSION, "epic_id": epic_id, "cycles": []}
+
+        # Duplicate-cycle guard (bug 7fe1-c997): reject if cycle_num already
+        # present in the ledger. Required by test-write-cycle-ledger.sh.
+        for existing in ledger.get("cycles", []):
+            try:
+                if int(existing.get("cycle_num")) == cycle_num:
+                    print(
+                        f"error: cycle_num {cycle_num} already exists in ledger",
+                        file=sys.stderr,
+                    )
+                    sys.exit(1)
+            except (TypeError, ValueError):
+                continue
 
         new_entry = {
             "cycle_num": cycle_num,
