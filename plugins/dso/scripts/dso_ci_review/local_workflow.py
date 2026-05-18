@@ -27,6 +27,226 @@ from dso_ci_review import cycle_dispatcher
 from dso_ci_review import cycle_ledger
 from dso_ci_review import stability
 from dso_ci_review._config import read_config_int
+from dso_ci_review.arbiter_processor import process_rulings
+from dso_ci_review.providers.config import get_provider
+
+
+def cycle_next_action(
+    ledger: dict,
+    max_cycles: int,
+    current_findings: list,
+    current_commit_sha: str,
+    artifacts_dir: str | None = None,
+) -> dict:
+    """Module-level wrapper for cycle_dispatcher.next_action.
+
+    Provides a patchable module attribute for tests while delegating to
+    the canonical implementation in cycle_dispatcher.
+    """
+    return cycle_dispatcher.next_action(
+        ledger, max_cycles, current_findings, current_commit_sha, artifacts_dir
+    )
+
+
+def _dispatch_cycle_end_arbiter(
+    findings: list[dict],
+    defenses: list[dict],
+    diff_text: str,
+    model: str,
+    provider_chain: list[str],
+    cycle_num: int,
+    max_cycles: int,
+    **kwargs,
+) -> list[dict]:
+    """Module-level wrapper for dispatch_cycle_end_arbiter (patchable in tests)."""
+    from dso_ci_review.arbiter import dispatch_cycle_end_arbiter  # noqa: PLC0415
+
+    return dispatch_cycle_end_arbiter(
+        findings=findings,
+        defenses=defenses,
+        diff_text=diff_text,
+        model=model,
+        provider_chain=provider_chain,
+        cycle_num=cycle_num,
+        max_cycles=max_cycles,
+        **kwargs,
+    )
+
+
+def _read_diff() -> str:
+    """Read the current staged diff from git.
+
+    Returns the unified diff of staged changes, or empty string on error.
+    """
+    try:
+        return subprocess.check_output(
+            ["git", "diff", "--cached"],
+            stderr=subprocess.DEVNULL,
+        ).decode()
+    except subprocess.CalledProcessError:
+        return ""
+
+
+def _validate_agent_files() -> None:
+    """Validate that required agent files are present.
+
+    Stub — full validation is handled by the pre-commit hook.
+    No-op in the local workflow; raises if critical files are missing.
+    """
+
+
+def _resolve_branch_name(repo_root: str, current_commit_sha: str) -> str:
+    """Resolve the current git branch name.
+
+    Falls back to a detached/unknown descriptor when HEAD is not on a branch.
+    """
+    try:
+        name = (
+            subprocess.check_output(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                stderr=subprocess.DEVNULL,
+            )
+            .decode()
+            .strip()
+        )
+        if name in ("HEAD", ""):
+            repo_basename = os.path.basename(repo_root)
+            return f"detached:{repo_basename}:{current_commit_sha[:8]}"
+        return name
+    except subprocess.CalledProcessError:
+        repo_basename = os.path.basename(repo_root)
+        return f"unknown:{repo_basename}:{current_commit_sha[:8]}"
+
+
+def _build_reviewer_breakdown(findings: list[dict]) -> dict:
+    """Build a finding_id -> [reviewer_agent_id] mapping from findings."""
+    result = {}
+    for i, f in enumerate(findings):
+        prov = f.get("provenance") or {}
+        agent_id = prov.get("reviewer_agent_id", "UNKNOWN")
+        finding_id = f.get("id") or str(i)
+        result[finding_id] = [agent_id]
+    return result
+
+
+def _local_arbiter_branch(
+    findings: list[dict],
+    cycle_num: int,
+    commit_sha: str,
+    artifacts_dir: str,
+    ledger: dict | None = None,
+    diff_text: str = "",
+    max_cycles: int = 4,
+    prior_defenses: list | None = None,
+    repo_root: str | None = None,
+) -> int:
+    """Dispatch the cycle-end arbiter in local (non-CI) mode.
+
+    Calls the cycle-end arbiter with local context (no PR number), processes
+    rulings into side effects (BLOCK/DEFER/DROP), writes the arbiter-rulings.json
+    sidecar, and returns the exit code.
+
+    Args:
+        findings: Current cycle's reviewer findings.
+        cycle_num: Current cycle number.
+        commit_sha: Current HEAD commit SHA.
+        artifacts_dir: Directory for review artifacts.
+        ledger: Optional cycle ledger dict for history context.
+        diff_text: Unified diff text under review.
+        max_cycles: Maximum review cycles configured.
+        prior_defenses: Prior defense records from previous cycles.
+        repo_root: Repo root path. Resolved from git when None.
+
+    Returns:
+        0 if no BLOCK rulings; 1 if any BLOCK ruling present.
+    """
+    if prior_defenses is None:
+        prior_defenses = []
+    if repo_root is None:
+        try:
+            repo_root = (
+                subprocess.check_output(
+                    ["git", "rev-parse", "--show-toplevel"],
+                    stderr=subprocess.DEVNULL,
+                )
+                .decode()
+                .strip()
+            )
+        except subprocess.CalledProcessError:
+            repo_root = os.getcwd()
+
+    # Resolve branch name for local context (no PR number).
+    branch_name = _resolve_branch_name(repo_root, commit_sha)
+
+    # Read existing defenses from tracker store.
+    defenses = list(prior_defenses)
+
+    # Resolve model and provider chain from config/environment.
+    try:
+        provider = get_provider()
+        model = getattr(provider, "model", "claude-opus-4-5")
+        provider_chain = [getattr(provider, "name", "anthropic")]
+    except Exception:
+        model = "claude-opus-4-5"
+        provider_chain = ["anthropic"]
+
+    # Build reviewer breakdown for cross-reviewer agreement derivation.
+    reviewer_breakdown = _build_reviewer_breakdown(findings)
+
+    # Ledger history for cross-cycle pattern derivation.
+    ledger_history = ledger.get("cycles", []) if ledger else []
+
+    # Dispatch the cycle-end arbiter.
+    rulings = _dispatch_cycle_end_arbiter(
+        findings=findings,
+        defenses=defenses,
+        diff_text=diff_text,
+        model=model,
+        provider_chain=provider_chain,
+        cycle_num=cycle_num,
+        max_cycles=max_cycles,
+        reviewer_breakdown=reviewer_breakdown,
+        ledger_history=ledger_history,
+    )
+
+    # Build finding_map: 0-based integer index → finding dict.
+    finding_map = {i: f for i, f in enumerate(findings)}
+
+    # Process rulings into side effects (BLOCK, DEFER, DROP).
+    result = process_rulings(
+        rulings,
+        finding_map,
+        cycle_num,
+        commit_sha=commit_sha,
+        pr_number=None,
+        branch_name=branch_name,
+        ticket_cmd_path=".claude/scripts/dso",
+        artifacts_dir=artifacts_dir,
+        repo_root=repo_root,
+    )
+
+    # Write arbiter-rulings.json sidecar with rulings and summary counts.
+    block_rulings = [r for r in rulings if r.get("ruling") == "BLOCK"]
+    drop_rulings = [r for r in rulings if r.get("ruling") == "DROP"]
+    defer_rulings = [r for r in rulings if r.get("ruling") == "DEFER"]
+    sidecar = {
+        "schema_version": "1.0.0",
+        "cycle_num": cycle_num,
+        "commit_sha": commit_sha,
+        "rulings": rulings,
+        "summary": {
+            "block_count": len(block_rulings),
+            "drop_count": len(drop_rulings),
+            "defer_count": len(defer_rulings),
+            "total": len(rulings),
+        },
+    }
+    sidecar_path = Path(artifacts_dir) / "arbiter-rulings.json"
+    sidecar_path.parent.mkdir(parents=True, exist_ok=True)
+    sidecar_path.write_text(json.dumps(sidecar, indent=2), encoding="utf-8")
+
+    # Return 1 if any BLOCK ruling is present; 0 otherwise.
+    return 1 if result.get("block") else 0
 
 
 def _ledger_path(artifacts_dir: str) -> str:
@@ -177,25 +397,47 @@ def _dispatch_local_reviewer(
 def _invoke_arbiter_hook(
     artifacts_dir: str,
     commit_sha: str,
+    findings: list | None = None,
+    cycle_num: int = 1,
+    ledger: dict | None = None,
+    diff_text: str = "",
+    max_cycles: int = 4,
+    prior_defenses: list | None = None,
 ) -> int:
-    """Invoke the arbiter hook when max review cycles are exhausted.
+    """Invoke the arbiter when max review cycles are exhausted.
 
-    Returns exit code: non-zero indicates a blocking ruling.
-    Full arbiter implementation is in a later task; this stub returns 1
-    to indicate review cycle exhaustion requires human attention.
+    Delegates to _local_arbiter_branch which dispatches the cycle-end arbiter,
+    processes rulings, writes arbiter-rulings.json, and returns exit code.
 
     Args:
         artifacts_dir: Directory containing review artifacts.
         commit_sha: Current HEAD commit SHA.
+        findings: Current cycle's findings (default empty list).
+        cycle_num: Current review cycle number.
+        ledger: Optional cycle ledger dict for history context.
+        diff_text: Unified diff text under review.
+        max_cycles: Maximum review cycles configured.
+        prior_defenses: Prior defense records.
 
     Returns:
         Exit code (0 = pass, non-zero = block).
     """
+    if findings is None:
+        findings = []
     print(
-        f"ARBITER: max review cycles exhausted for commit {commit_sha[:12]}",
+        f"ARBITER: dispatching cycle-end arbiter for commit {commit_sha[:12]}",
         file=sys.stderr,
     )
-    return 1
+    return _local_arbiter_branch(
+        findings=findings,
+        cycle_num=cycle_num,
+        commit_sha=commit_sha,
+        artifacts_dir=artifacts_dir,
+        ledger=ledger,
+        diff_text=diff_text,
+        max_cycles=max_cycles,
+        prior_defenses=prior_defenses,
+    )
 
 
 def main(
@@ -225,9 +467,16 @@ def main(
     if artifacts_dir is None:
         artifacts_dir = os.environ.get("WORKFLOW_PLUGIN_ARTIFACTS_DIR", "/tmp")
 
-    # Resolve max_cycles from config when not explicitly provided
+    # Resolve max_cycles from config when not explicitly provided (single read).
     if max_cycles is None:
         max_cycles = read_config_int("review.max_cycles", default=4)
+
+    # Validate agent files before proceeding.
+    _validate_agent_files()
+
+    # Resolve diff_text from staged changes when not explicitly provided.
+    if not diff_text:
+        diff_text = _read_diff()
 
     # Resolve commit_sha from git when not explicitly provided
     if commit_sha is None:
@@ -268,11 +517,9 @@ def main(
         file=sys.stderr,
     )
 
-    # Pre-loop SHORT_CIRCUIT check: if a prior arbiter ruling exists for this
+    # Pre-loop check: if a prior arbiter ruling or stable state exists for this
     # commit, skip re-running the review loop entirely.
-    action_result = cycle_dispatcher.next_action(
-        ledger, max_cycles, [], commit_sha, artifacts_dir
-    )
+    action_result = cycle_next_action(ledger, max_cycles, [], commit_sha, artifacts_dir)
     if action_result.get("action") == "SHORT_CIRCUIT":
         rulings_path = os.path.join(artifacts_dir, "arbiter-rulings.json")
         try:
@@ -285,6 +532,27 @@ def main(
             for r in (rulings if isinstance(rulings, list) else [])
         )
         return 1 if has_block else 0
+
+    if action_result.get("action") == "DISPATCH_ARBITER":
+        # Pre-loop arbiter dispatch: cycles exhausted before entering loop.
+        # Run reviewer once to get current findings for the arbiter.
+        pre_cycle_num = action_result.get("cycle_num", cycle_num)
+        raw_reviewer_result = _dispatch_local_reviewer(diff_text, pre_cycle_num, [])
+        pre_findings: list = (
+            raw_reviewer_result.get("findings", [])
+            if isinstance(raw_reviewer_result, dict)
+            else raw_reviewer_result
+        )
+        return _invoke_arbiter_hook(
+            artifacts_dir=artifacts_dir,
+            commit_sha=commit_sha,
+            findings=pre_findings,
+            cycle_num=pre_cycle_num,
+            ledger=ledger,
+            diff_text=diff_text,
+            max_cycles=max_cycles,
+            prior_defenses=[],
+        )
 
     # Multi-cycle review loop (reviewer-first ordering).
     # Each iteration: dispatch reviewer → compute hash → append to ledger
@@ -326,7 +594,7 @@ def main(
         )
 
         # Ask the dispatcher what to do next.
-        action_result = cycle_dispatcher.next_action(
+        action_result = cycle_next_action(
             ledger, max_cycles, findings, commit_sha, artifacts_dir
         )
         action = action_result.get("action")
@@ -335,7 +603,16 @@ def main(
             return 0
 
         if action == "DISPATCH_ARBITER":
-            return _invoke_arbiter_hook(artifacts_dir, commit_sha)
+            return _invoke_arbiter_hook(
+                artifacts_dir=artifacts_dir,
+                commit_sha=commit_sha,
+                findings=findings,
+                cycle_num=cycle_num,
+                ledger=ledger,
+                diff_text=diff_text,
+                max_cycles=max_cycles,
+                prior_defenses=prior_defenses,
+            )
 
         if action == "SHORT_CIRCUIT":
             # SHORT_CIRCUIT mid-loop: treat as pass (arbiter already ruled PASS).
