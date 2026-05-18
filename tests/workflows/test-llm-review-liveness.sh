@@ -77,9 +77,15 @@ else
     # shellcheck disable=SC2016  # python source must use single-quoted heredoc
     if python3 -c '
 import re, sys
-src = open(sys.argv[1]).read()
+# Explicit utf-8 encoding — runner.py contains non-ASCII (e.g., Unicode em-
+# dashes in comments). Locale-default encoding could raise UnicodeDecodeError
+# on a non-UTF-8 system (c131-0f34 review cycle 4).
+with open(sys.argv[1], encoding="utf-8") as _f:
+    src = _f.read()
 # Locate the broad-except block in main(): from `except Exception as exc:`
-# (8-space indented) to the next `return` at the same indent level.
+# (4-space indented) to the next return-1 at the same indent level. Anchors
+# on the broad-except block in main() and asserts _write_output is called
+# within it.
 m = re.search(
     r"^    except Exception as exc:.*?\n(?P<body>(?:    .+\n|\n)*?)^    [^\s]",
     src, re.MULTILINE,
