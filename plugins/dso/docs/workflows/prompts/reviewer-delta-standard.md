@@ -172,18 +172,17 @@ pattern.
 The `read_files` pre-check above verifies a file's existence at the literal
 path referenced. That alone is insufficient — the project's own shim
 (`.claude/scripts/dso`) had to learn subdirectory cascade in bug
-`0736-a97e-1b03-4f3a` because referenced scripts often live in subdirectories
-(`${CLAUDE_PLUGIN_ROOT}/scripts/sprint/`, `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/`,
-`${CLAUDE_PLUGIN_ROOT}/scripts/bridge/`) rather than at the top level. The reviewer's
+`0736-a97e-1b03-4f3a` because referenced scripts often live in nested
+subdirectories (e.g., `scripts/sprint/`, `scripts/onboarding/`, `scripts/bridge/`
+under the plugin root) rather than at the top level. The reviewer's
 pre-check must mirror that cascade.
 
 Before emitting any "file does not exist" / "missing reference" finding, you
 MUST in addition to the literal-path `read_files` check:
 
 1. Issue a `grep` request with the file's **basename** (the last path
-   component, e.g., `validate-required-checks.sh` from
-   `${CLAUDE_PLUGIN_ROOT}/scripts/validate-required-checks.sh`) across the relevant
-   roots (`${CLAUDE_PLUGIN_ROOT}/`, `tests/`, `.claude/`, `.github/`).
+   component, e.g., `validate-required-checks.sh`) across the relevant
+   project roots (plugin root, tests, `.claude/`, `.github/`).
 2. If the grep returns ANY match at a different path, do NOT emit the finding.
    The consumer is referencing a real script that exists under a different
    subdirectory — the dso shim (or other dispatcher) will resolve it via
@@ -195,9 +194,9 @@ MUST in addition to the literal-path `read_files` check:
 A finding asserting "file X does not exist" without an accompanying
 basename-grep request that returned empty is a hallucination — bug
 `27b7-82ac` documents PR #197 flagging `validate-required-checks.sh` as
-missing when the file existed at `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/validate-required-checks.sh`.
-The verification cost (one extra dispatcher turn) is always lower than the
-cost of an unjustified blocking finding.
+missing when the file existed under an onboarding subdirectory of the plugin
+scripts tree. The verification cost (one extra dispatcher turn) is always
+lower than the cost of an unjustified blocking finding.
 
 ---
 
