@@ -36,16 +36,27 @@ EOF
 
 _add_pil_description() {
     local tracker_dir="$1" id="$2"
-    # Overwrite the CREATE event with description containing PIL heading
+    # Overwrite the CREATE event with a PIL containing the three mandatory fields
+    # (Web research / Scenario analysis / LLM-instruction signal). Stub-only
+    # PILs are no longer accepted (a307-0f58).
     cat > "$tracker_dir/$id/1000-${id}-CREATE.json" <<EOF
-{"timestamp": 1000000001, "uuid": "uuid-${id}", "event_type": "CREATE", "env_id": "test-env", "data": {"ticket_type": "epic", "title": "Epic-${id} (PIL-desc)", "status": "open", "priority": 2, "tags": [], "description": "## Summary\n### Planning Intelligence Log\n- Entry 1"}}
+{"timestamp": 1000000001, "uuid": "uuid-${id}", "event_type": "CREATE", "env_id": "test-env", "data": {"ticket_type": "epic", "title": "Epic-${id} (PIL-desc)", "status": "open", "priority": 2, "tags": [], "description": "## Summary\n### Planning Intelligence Log\n- **Web research (Step 2.6)**: not triggered\n- **Scenario analysis (Step 2.75)**: not triggered\n- **LLM-instruction signal (Step 5)**: not triggered"}}
 EOF
 }
 
 _add_pil_comment() {
     local tracker_dir="$1" id="$2"
     cat > "$tracker_dir/$id/2000-${id}-COMMENT.json" <<EOF
-{"timestamp": 2000000001, "uuid": "cmt-${id}", "event_type": "COMMENT", "env_id": "test-env", "data": {"body": "### Planning Intelligence Log\n- Entry 1"}}
+{"timestamp": 2000000001, "uuid": "cmt-${id}", "event_type": "COMMENT", "env_id": "test-env", "data": {"body": "### Planning Intelligence Log\n- **Web research (Step 2.6)**: not triggered\n- **Scenario analysis (Step 2.75)**: not triggered\n- **LLM-instruction signal (Step 5)**: not triggered"}}
+EOF
+}
+
+_add_pil_stub_description() {
+    # Stub PIL — heading present but mandatory fields missing. Must be REJECTED
+    # by _ticket_has_pil after the a307-0f58 hardening.
+    local tracker_dir="$1" id="$2"
+    cat > "$tracker_dir/$id/1000-${id}-CREATE.json" <<EOF
+{"timestamp": 1000000001, "uuid": "uuid-${id}", "event_type": "CREATE", "env_id": "test-env", "data": {"ticket_type": "epic", "title": "Epic-${id} (stub-PIL)", "status": "open", "priority": 2, "tags": [], "description": "## Summary\n### Planning Intelligence Log\n- stub — scrutiny skipped"}}
 EOF
 }
 
@@ -120,6 +131,11 @@ _make_epic "$TRACKER" "ccc3-0003" "Epic C (no PIL)"
 _make_epic "$TRACKER" "ddd4-0004" "Epic D (scrutiny-gap)"
 _add_child_story "$TRACKER" "ddd4-0004" "eee5-0005"
 
+# Epic E: PIL heading present but body lacks the three mandatory fields
+# (regression guard for a307-0f58 — must NOT receive brainstorm:complete).
+_make_epic "$TRACKER" "eee6-0006" "Epic E (stub PIL)"
+_add_pil_stub_description "$TRACKER" "eee6-0006"
+
 # Commit fixture to tracker's git
 git -C "$TDIR" add "$TRACKER" 2>/dev/null
 git -C "$TDIR" commit -q -m "fixture"
@@ -133,6 +149,8 @@ test_migration_tags_pil_epics() {
     _ticket_has_tag "$TRACKER" "bbb2-0002" "brainstorm:complete" || return 1
     ! _ticket_has_tag "$TRACKER" "ccc3-0003" "brainstorm:complete" || return 1
     ! _ticket_has_tag "$TRACKER" "ddd4-0004" "brainstorm:complete" || return 1
+    # a307-0f58: stub PIL (heading without mandatory fields) must NOT be tagged
+    ! _ticket_has_tag "$TRACKER" "eee6-0006" "brainstorm:complete" || return 1
 }
 if test_migration_tags_pil_epics; then
     echo "  PASS: migration tagged exactly the 2 PIL-bearing epics"

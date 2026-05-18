@@ -478,6 +478,9 @@ test_ticket_has_pil_finds_pil_in_create_description() {
     local ticket_id
     ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "PIL epic" \
         --description "### Planning Intelligence Log
+- **Web research (Step 2.6)**: not triggered
+- **Scenario analysis (Step 2.75)**: not triggered
+- **LLM-instruction signal (Step 5)**: not triggered
 
 scrutiny complete" 2>/dev/null | tail -1)
 
@@ -509,6 +512,9 @@ test_ticket_has_pil_finds_pil_in_edit_fields_description() {
     # Edit the ticket to add PIL marker in description
     (cd "$repo" && bash "$TICKET_SCRIPT" edit "$ticket_id" \
         --description "### Planning Intelligence Log
+- **Web research (Step 2.6)**: not triggered
+- **Scenario analysis (Step 2.75)**: not triggered
+- **LLM-instruction signal (Step 5)**: not triggered
 
 added via edit" 2>/dev/null) || {
         (( ++FAIL ))
@@ -541,6 +547,9 @@ test_ticket_has_pil_finds_pil_in_comment_body() {
 
     (cd "$repo" && bash "$TICKET_SCRIPT" comment "$ticket_id" \
         "### Planning Intelligence Log
+- **Web research (Step 2.6)**: not triggered
+- **Scenario analysis (Step 2.75)**: not triggered
+- **LLM-instruction signal (Step 5)**: not triggered
 
 brainstorm complete, see attached notes" 2>/dev/null) || {
         (( ++FAIL ))
@@ -643,6 +652,9 @@ test_tag_add_checked_allows_brainstorm_complete_with_pil() {
     local ticket_id
     ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "PIL present epic" \
         --description "### Planning Intelligence Log
+- **Web research (Step 2.6)**: not triggered
+- **Scenario analysis (Step 2.75)**: not triggered
+- **LLM-instruction signal (Step 5)**: not triggered
 
 brainstorm done" 2>/dev/null | tail -1)
 
@@ -669,6 +681,9 @@ test_ticket_tag_pil_round_trip() {
     local ticket_id
     ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "Round-trip PIL epic" \
         --description "### Planning Intelligence Log
+- **Web research (Step 2.6)**: not triggered
+- **Scenario analysis (Step 2.75)**: not triggered
+- **LLM-instruction signal (Step 5)**: not triggered
 
 all checks done" 2>/dev/null | tail -1)
 
