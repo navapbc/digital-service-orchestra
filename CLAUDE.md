@@ -126,6 +126,7 @@ These rules protect core structural boundaries. Violating them causes subtle bug
 14. **When creating a bug ticket, read `plugins/dso/skills/create-bug/SKILL.md` first.** It is the required entry point for the title format, integer priority rubric (0–4), Zero Inference Rule, and description template.
 15. **When writing to `/tmp` or any shared temp directory, always use `mktemp` to generate the path — never hardcoded names.** Use `mktemp /tmp/<prefix>.XXXXXX` (do NOT use the `-t` flag — divergent semantics on macOS vs. GNU). Hardcoded paths cause cross-session conflicts under parallel worktree / multi-session load — silent in single-session development.
 16. **Before any destructive git op on a working tree with uncommitted changes, capture a patch first.** Run `git diff > /tmp/session-wip-$(date +%s).patch && git diff --cached >> /tmp/session-wip-$(date +%s).patch` before `git checkout HEAD -- <file>`, `git reset --hard`, `git stash drop`, or any op that discards uncommitted state. Reflog cannot recover uncommitted work — the patch is the only safety net (bug 8988-91be).
+17. **When waiting for a PR to reach a terminal state, use `plugins/dso/scripts/wait-for-pr.sh <pr_number>` rather than a hand-rolled `until $(gh pr view ... state) == MERGED` loop.** The helper exits non-zero on FAILURE/TIMED_OUT/CANCELLED required-check conclusions, on CLOSED-without-merge, and on timeout — so the session does not poll a doomed PR indefinitely. Bug 83db-5923.
 
 ## Task Completion Workflow (Orchestrator/main session only — does NOT apply inside sub-agents)
 
