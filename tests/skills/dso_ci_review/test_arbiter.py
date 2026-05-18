@@ -214,6 +214,20 @@ def test_dispatch_arbiter_length_mismatch_triggers_fail_closed():
     assert all("length mismatch" in r["rationale"].lower() for r in result), (
         "Expected all rationales to cite length mismatch"
     )
+    # AC amendment (review finding 4): synthetic rulings must preserve schema_version,
+    # finding_index, and severity so downstream validation does not reject them.
+    assert all(r.get("schema_version") == "1.0.0" for r in result), (
+        f"Expected schema_version='1.0.0' on all synthetic rulings, got "
+        f"{[r.get('schema_version') for r in result]!r}"
+    )
+    finding_indices = sorted(r.get("finding_index") for r in result)
+    assert finding_indices == [0, 1], (
+        f"Expected finding_index in {{0, 1}} matching input positions, got {finding_indices}"
+    )
+    severities = sorted(r.get("severity") for r in result)
+    assert severities == ["critical", "important"], (
+        f"Expected severities preserved from input findings, got {severities}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -279,6 +293,18 @@ def test_dispatch_arbiter_fail_closed_on_dispatch_failure(capsys):
         f"Expected original finding_hash values preserved, got {hashes}"
     )
 
+    # AC amendment (review finding 4): synthetic rulings must also preserve
+    # schema_version and finding_index so downstream validation does not reject them.
+    assert all(r.get("schema_version") == "1.0.0" for r in result), (
+        f"Expected schema_version='1.0.0' on synthetic rulings, got "
+        f"{[r.get('schema_version') for r in result]!r}"
+    )
+    indices = sorted(r.get("finding_index") for r in result)
+    assert indices == [0, 1], (
+        f"Expected finding_index in {{0, 1}} matching input positions of "
+        f"critical/important findings (minor at index 2 skipped), got {indices}"
+    )
+
     # Structured stderr log
     captured = capsys.readouterr()
     assert "arbiter_dispatch_failed" in captured.err, (
@@ -289,6 +315,82 @@ def test_dispatch_arbiter_fail_closed_on_dispatch_failure(capsys):
     )
     assert "finding_count=3" in captured.err, (
         f"Expected 'finding_count=3' in stderr, got: {captured.err!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 6b/6c: dispatch_arbiter fail-closed on CalledProcessError and JSONDecodeError
+# (Review finding 3: _DISPATCH_FAILURE_EXCEPTIONS includes 3 types, test 6 only
+# covered ConnectionError)
+# ---------------------------------------------------------------------------
+
+
+def test_dispatch_arbiter_fail_closed_on_subprocess_error():
+    """Given: dispatch_review raises subprocess.CalledProcessError
+    When: dispatch_arbiter called
+    Then: synthetic BLOCK rulings emitted for critical/important findings.
+    """
+    import subprocess
+
+    findings = [
+        {"id": "f1", "severity": "critical", "finding_hash": "h1"},
+        {"id": "f2", "severity": "minor", "finding_hash": "h2"},
+    ]
+
+    def raise_called_process(*args, **kwargs):
+        raise subprocess.CalledProcessError(returncode=1, cmd=["agent"], stderr="boom")
+
+    with patch(
+        "dso_ci_review.arbiter.dispatch_review", side_effect=raise_called_process
+    ):
+        result = dispatch_arbiter(
+            findings=findings,
+            defenses=[],
+            diff_text="diff",
+            model="m",
+            provider_chain=["anthropic"],
+            cycle_num=1,
+            max_cycles=4,
+        )
+
+    assert len(result) == 1, (
+        f"Expected 1 synthetic ruling (critical only), got {len(result)}"
+    )
+    assert result[0]["ruling"] == "BLOCK"
+    assert "CalledProcessError" in result[0]["rationale"], (
+        f"Expected rationale to cite CalledProcessError, got {result[0]['rationale']!r}"
+    )
+
+
+def test_dispatch_arbiter_fail_closed_on_json_decode_error():
+    """Given: dispatch_review raises json.JSONDecodeError
+    When: dispatch_arbiter called
+    Then: synthetic BLOCK rulings emitted for critical/important findings.
+    """
+    import json as _json
+
+    findings = [
+        {"id": "f1", "severity": "important", "finding_hash": "hi"},
+    ]
+
+    def raise_json_decode(*args, **kwargs):
+        raise _json.JSONDecodeError("bad json", "doc", 0)
+
+    with patch("dso_ci_review.arbiter.dispatch_review", side_effect=raise_json_decode):
+        result = dispatch_arbiter(
+            findings=findings,
+            defenses=[],
+            diff_text="diff",
+            model="m",
+            provider_chain=["anthropic"],
+            cycle_num=1,
+            max_cycles=4,
+        )
+
+    assert len(result) == 1
+    assert result[0]["ruling"] == "BLOCK"
+    assert "JSONDecodeError" in result[0]["rationale"], (
+        f"Expected rationale to cite JSONDecodeError, got {result[0]['rationale']!r}"
     )
 
 
@@ -631,3 +733,48 @@ def test_dispatch_cycle_end_arbiter_alias_threads_dd7_params():
             ledger_history=[],
         )
     assert result[0]["ruling"] == "DEFER"
+
+
+# ---------------------------------------------------------------------------
+# Review finding 5: CoVe fallback + impact_class floor interaction.
+# When cycle > max_cycles AND impact_class='none', both reclassifiers fire.
+# Both reach DEFER, but the rationale should reflect which path was taken.
+# ---------------------------------------------------------------------------
+
+
+def test_block_ruling_cove_and_impact_class_floor_both_apply():
+    """Given: BLOCK ruling with cycle_num=5 > max_cycles=4 AND impact_class='none'
+    When: compute_ruling_from_fixture applies CoVe fallback then impact_class floor
+    Then: final ruling is DEFER; both reclassifiers are idempotent (DEFER stays DEFER
+          when fed back through floor enforcement); rationale records the first
+          reclassification path that fired (CoVe, since it runs before floor).
+    """
+    from dso_ci_review.arbiter import compute_ruling_from_fixture
+
+    fixture = {
+        "arbiter_ruling": {
+            "ruling": "BLOCK",
+            "rationale": "original BLOCK rationale",
+            "schema_version": "1.1.0",
+            "impact_class": "none",
+            "cross_reviewer_agreement": ["UNANIMOUS"],
+            "cross_cycle_pattern": ["NEW_INTRODUCED"],
+        },
+        "cycle": 5,
+        "max_cycles": 4,
+    }
+    result = compute_ruling_from_fixture(fixture)
+    # Both CoVe (cycle 5 > max 4) and impact_class floor (impact_class='none')
+    # independently reclassify BLOCK→DEFER. The combined outcome is DEFER.
+    assert result["ruling"] == "DEFER", (
+        f"Expected DEFER from combined CoVe + impact_class floor, got {result['ruling']!r}"
+    )
+    # The rationale should cite at least one of the two reclassification reasons.
+    rationale_lower = result["rationale"].lower()
+    assert (
+        "cove" in rationale_lower
+        or "max_cycles" in rationale_lower
+        or "impact_class" in rationale_lower
+    ), (
+        f"Expected rationale to cite CoVe or impact_class floor, got {result['rationale']!r}"
+    )

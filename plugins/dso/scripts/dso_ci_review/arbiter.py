@@ -134,10 +134,16 @@ def validate_cycle_end_ruling(ruling: dict[str, Any]) -> dict[str, Any]:
                 )
 
         # cross_reviewer_agreement: list of strings, each ∈ VALID_CROSS_REVIEWER_AGREEMENT.
+        # Cardinality: 1 or more (per code-reviewer-arbiter.md schema contract).
         cra = ruling["cross_reviewer_agreement"]
         if not isinstance(cra, list):
             raise ValueError(
                 f"cross_reviewer_agreement must be a list, got {type(cra).__name__}"
+            )
+        if not cra:
+            raise ValueError(
+                "cross_reviewer_agreement must contain at least one value "
+                "(schema cardinality: 1+)"
             )
         for value in cra:
             if value not in VALID_CROSS_REVIEWER_AGREEMENT:
@@ -147,10 +153,16 @@ def validate_cycle_end_ruling(ruling: dict[str, Any]) -> dict[str, Any]:
                 )
 
         # cross_cycle_pattern: list of strings, each ∈ VALID_CROSS_CYCLE_PATTERN.
+        # Cardinality: 1 or more (per code-reviewer-arbiter.md schema contract).
         ccp = ruling["cross_cycle_pattern"]
         if not isinstance(ccp, list):
             raise ValueError(
                 f"cross_cycle_pattern must be a list, got {type(ccp).__name__}"
+            )
+        if not ccp:
+            raise ValueError(
+                "cross_cycle_pattern must contain at least one value "
+                "(schema cardinality: 1+)"
             )
         for value in ccp:
             if value not in VALID_CROSS_CYCLE_PATTERN:
@@ -268,15 +280,19 @@ def dispatch_arbiter(
         max_cycles: Configured maximum review cycles.
         reviewer_breakdown: Optional mapping ``finding_id -> [reviewer_agent_id, ...]``
             recording which reviewer agents flagged each finding in the current
-            cycle. Threaded into the agent's input context so it can derive
-            ``cross_reviewer_agreement`` (UNANIMOUS/MAJORITY/SPLIT/SINGLE_REVIEWER)
-            for each ruling. When None or empty, the agent emits
-            ``cross_reviewer_agreement: ["UNKNOWN"]`` for each ruling.
+            cycle. Accepted by this signature as forward-compat for **story
+            5621** (CI runner wiring), which will extend ``dispatch_review`` to
+            forward these inputs into the agent's input context for
+            ``cross_reviewer_agreement`` derivation. Until story 5621 lands, this
+            parameter is ACCEPTED but NOT THREADED — the arbiter agent will see
+            only the diff and will emit ``cross_reviewer_agreement: ["UNKNOWN"]``
+            for each ruling. Callers may safely pass real data now in
+            anticipation of the wiring change.
         ledger_history: Optional list of prior cycle ledger entries (most recent
-            last) sourced from cycle-ledger.json. Threaded into the agent's
-            input context so it can derive ``cross_cycle_pattern`` values
-            (NEW_INTRODUCED, RECURRING, RESUSTAIN_OF, etc.). When None or empty,
-            the agent emits ``cross_cycle_pattern: ["UNKNOWN"]`` for each ruling.
+            last) sourced from cycle-ledger.json. Same forward-compat contract
+            as ``reviewer_breakdown``: ACCEPTED but NOT THREADED until story
+            5621 wires ``dispatch_review`` to forward it. Agent emits
+            ``cross_cycle_pattern: ["UNKNOWN"]`` per ruling until then.
 
     Returns:
         A list of per-finding ruling dicts, each containing:
