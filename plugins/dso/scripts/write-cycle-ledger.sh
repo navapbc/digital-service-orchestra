@@ -151,6 +151,44 @@ if [[ "$use_new_interface" -eq 0 ]]; then
 fi
 
 # ---------------------------------------------------------------------------
+# Input validation — new-interface arguments (bug da45 PR #200 review)
+# ---------------------------------------------------------------------------
+# Findings f-... (Trust boundary / Untrusted-input-to-dangerous-sink):
+#   - findings_hash is stored in the ledger and used for integrity verification.
+#     Reject anything containing path/shell-meaningful characters so callers
+#     cannot inject path-traversal-shaped strings (e.g. '../../../etc/passwd')
+#     into the ledger.
+#   - cycle_num must be a non-negative integer.
+#   - epic_id must look like a ticket ID (alphanumeric with dashes only).
+#   - DSO_CI_REVIEW_PR (read later for --reconstruct-from-pr) must be a
+#     positive integer; reject anything else before passing to `gh pr view`.
+if [[ "$use_new_interface" -eq 1 ]]; then
+    if ! [[ "$cycle_num" =~ ^[0-9]+$ ]]; then
+        echo "error: --cycle-num must be a non-negative integer; got: $cycle_num" >&2
+        exit 1
+    fi
+    # findings_hash: alphanumeric/underscore/dash, 1-128 chars. Rejects any
+    # input containing path separators, dots, spaces, or shell metacharacters.
+    # Empty allowed (reconstruction path infers from PR comments).
+    if [[ -n "$findings_hash" ]] && ! [[ "$findings_hash" =~ ^[A-Za-z0-9_-]{1,128}$ ]]; then
+        echo "error: --findings-hash must match [A-Za-z0-9_-]{1,128}; got: $findings_hash" >&2
+        exit 1
+    fi
+    # epic_id: optional. If set must match ticket-id grammar (no path chars).
+    if [[ -n "$epic_id" ]] && ! [[ "$epic_id" =~ ^[A-Za-z0-9_-]{1,128}$ ]]; then
+        echo "error: --epic-id must match [A-Za-z0-9_-]{1,128}; got: $epic_id" >&2
+        exit 1
+    fi
+    # DSO_CI_REVIEW_PR: optional env var used in --reconstruct-from-pr path; must
+    # be a positive integer when set. Untrusted shell expansion otherwise.
+    if [[ "$reconstruct_from_pr" -eq 1 && -n "${DSO_CI_REVIEW_PR:-}" ]] \
+        && ! [[ "${DSO_CI_REVIEW_PR}" =~ ^[1-9][0-9]*$ ]]; then
+        echo "error: DSO_CI_REVIEW_PR must be a positive integer; got: ${DSO_CI_REVIEW_PR}" >&2
+        exit 1
+    fi
+fi
+
+# ---------------------------------------------------------------------------
 # Resolve artifacts dir
 # ---------------------------------------------------------------------------
 
@@ -241,7 +279,7 @@ try:
                 result = subprocess.run(
                     ["gh", "pr", "view", pr_number, "--json", "comments",
                      "--jq", ".comments[].body"],
-                    capture_output=True, text=True, timeout=30
+                    capture_output=True, text=True, timeout=30, check=True,
                 )
                 lines = result.stdout.splitlines()
                 pattern = re.compile(
@@ -262,12 +300,48 @@ try:
                         })
                 if not parsed_entries:
                     reconstruction_gaps = True
+                    print(
+                        f"WARNING: PR #{pr_number} returned no parseable "
+                        f"DSO-Review-Cycle comments; reconstruction_gaps=true",
+                        file=sys.stderr,
+                    )
                 else:
                     cycles = parsed_entries
-            except Exception:
-                reconstruction_gaps = True
+            except subprocess.CalledProcessError as e:
+                # Bug da45 PR #200 finding f-XXX (fail-open error handling):
+                # silently flagging reconstruction_gaps without surfacing the
+                # underlying gh failure made CI troubleshooting impossible.
+                # Emit a diagnostic line and propagate non-zero exit so the
+                # workflow surface knows reconstruction failed and is not
+                # papering over a compromised CI environment.
+                print(
+                    f"error: gh pr view failed (exit {e.returncode}); "
+                    f"stderr: {e.stderr.strip() if e.stderr else '(none)'}",
+                    file=sys.stderr,
+                )
+                sys.exit(2)  # distinct exit code from generic errors
+            except subprocess.TimeoutExpired:
+                print(
+                    f"error: gh pr view timed out after 30s for PR #{pr_number}",
+                    file=sys.stderr,
+                )
+                sys.exit(2)
+            except FileNotFoundError:
+                print(
+                    "error: gh CLI is not installed (required for "
+                    "--reconstruct-from-pr); install with `brew install gh` or "
+                    "see https://cli.github.com",
+                    file=sys.stderr,
+                )
+                sys.exit(2)
         else:
             reconstruction_gaps = True
+            print(
+                "WARNING: --reconstruct-from-pr set but DSO_CI_REVIEW_PR is "
+                "empty; cycles will be written with reconstruction_gaps=true "
+                "(no PR comments parsed)",
+                file=sys.stderr,
+            )
 
         # Append the current cycle entry
         cycles.append({
@@ -299,6 +373,35 @@ try:
                 ledger = {"schema_version": "1.0.0", "epic_id": epic_id, "cycles": []}
         else:
             ledger = {"schema_version": "1.0.0", "epic_id": epic_id, "cycles": []}
+
+        # No-duplicate cycle_num check (bug da45 PR #200 finding f-XXX:
+        # state-machine integrity). Reject attempts to append a cycle_num
+        # that already exists in the ledger. Downstream review gates use
+        # cycle_num as a logical identifier; allowing duplicates would let
+        # an attacker append a fabricated cycle_num=N entry that masks the
+        # legitimate cycle N, potentially bypassing gates that check
+        # findings_hash or commit_sha against the latest entry for a
+        # given cycle_num.
+        #
+        # NOTE: strict monotonic ordering is intentionally NOT enforced —
+        # parallel writers may interleave so cycles arrive out of order
+        # under the lock. Duplicate-rejection is sufficient to defeat the
+        # rewind attack the reviewer flagged (an attacker submitting
+        # cycle_num=1 after cycle_num=2 has already been recorded would
+        # be rejected since cycle_num=2's entry persists).
+        existing_cycle_nums = {
+            int(c.get("cycle_num", -1))
+            for c in ledger.get("cycles", [])
+            if isinstance(c, dict) and isinstance(c.get("cycle_num"), int)
+        }
+        if cycle_num in existing_cycle_nums:
+            print(
+                f"error: cycle_num={cycle_num} already exists in the ledger; "
+                f"duplicate appends are rejected to prevent authorization-gate "
+                f"bypass via cycle_num collision.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
         new_entry = {
             "cycle_num": cycle_num,

@@ -495,4 +495,66 @@ print('true' if val is True else str(val))
 }
 test_write_cycle_ledger_missing_file_reconstruction_gaps
 
+# ── Bug da45 PR #200 review regression tests ──────────────────────────────────
+
+test_write_cycle_ledger_rejects_path_traversal_findings_hash() {
+    local artifacts_dir
+    artifacts_dir=$(mktemp -d "${TMPDIR:-/tmp}/test-wcl-XXXXXX")
+    local exit_code=0
+    local stderr_out
+    stderr_out=$(bash "$SCRIPT" --epic-id=epic-x --cycle-num=1 \
+        --findings-hash='../../../etc/passwd' \
+        --artifacts-dir="$artifacts_dir" 2>&1 >/dev/null) || exit_code=$?
+    rm -rf "$artifacts_dir"
+    assert_eq "path-traversal findings_hash rejected exit" "1" "$exit_code"
+    assert_contains "path-traversal findings_hash stderr" "findings-hash" "$stderr_out"
+}
+test_write_cycle_ledger_rejects_path_traversal_findings_hash
+
+test_write_cycle_ledger_rejects_path_traversal_epic_id() {
+    local artifacts_dir
+    artifacts_dir=$(mktemp -d "${TMPDIR:-/tmp}/test-wcl-XXXXXX")
+    local exit_code=0
+    local stderr_out
+    stderr_out=$(bash "$SCRIPT" --epic-id='/etc/passwd' --cycle-num=1 \
+        --findings-hash=abc123 \
+        --artifacts-dir="$artifacts_dir" 2>&1 >/dev/null) || exit_code=$?
+    rm -rf "$artifacts_dir"
+    assert_eq "path-traversal epic_id rejected exit" "1" "$exit_code"
+    assert_contains "path-traversal epic_id stderr" "epic-id" "$stderr_out"
+}
+test_write_cycle_ledger_rejects_path_traversal_epic_id
+
+test_write_cycle_ledger_rejects_non_integer_pr_number() {
+    local artifacts_dir
+    artifacts_dir=$(mktemp -d "${TMPDIR:-/tmp}/test-wcl-XXXXXX")
+    local exit_code=0
+    local stderr_out
+    stderr_out=$(DSO_CI_REVIEW_PR="; rm -rf /" bash "$SCRIPT" \
+        --epic-id=epic-x --cycle-num=1 --findings-hash=abc123 \
+        --reconstruct-from-pr \
+        --artifacts-dir="$artifacts_dir" 2>&1 >/dev/null) || exit_code=$?
+    rm -rf "$artifacts_dir"
+    assert_eq "non-integer DSO_CI_REVIEW_PR rejected exit" "1" "$exit_code"
+    assert_contains "non-integer PR stderr" "DSO_CI_REVIEW_PR" "$stderr_out"
+}
+test_write_cycle_ledger_rejects_non_integer_pr_number
+
+test_write_cycle_ledger_rejects_duplicate_cycle_num() {
+    local artifacts_dir
+    artifacts_dir=$(mktemp -d "${TMPDIR:-/tmp}/test-wcl-XXXXXX")
+    # First write succeeds
+    bash "$SCRIPT" --epic-id=epic-x --cycle-num=1 --findings-hash=hashA \
+        --artifacts-dir="$artifacts_dir" >/dev/null 2>&1
+    # Duplicate cycle_num=1 must be rejected
+    local exit_code=0
+    local stderr_out
+    stderr_out=$(bash "$SCRIPT" --epic-id=epic-x --cycle-num=1 --findings-hash=hashB \
+        --artifacts-dir="$artifacts_dir" 2>&1 >/dev/null) || exit_code=$?
+    rm -rf "$artifacts_dir"
+    assert_eq "duplicate cycle_num rejected exit" "1" "$exit_code"
+    assert_contains "duplicate cycle_num stderr" "already exists" "$stderr_out"
+}
+test_write_cycle_ledger_rejects_duplicate_cycle_num
+
 print_summary
