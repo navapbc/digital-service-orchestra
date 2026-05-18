@@ -30,6 +30,8 @@ import re
 import sys
 from pathlib import Path
 
+from dso_ci_review.stability import should_halt
+
 
 def _is_unknown_future_schema(observed: str, known_max: str) -> bool:
     """Compare semver-style schema versions semantically (not lexicographically).
@@ -57,8 +59,6 @@ def _is_unknown_future_schema(observed: str, known_max: str) -> bool:
     obs_tuple = tuple(int(g) for g in m_obs.groups())
     max_tuple = tuple(int(g) for g in m_max.groups())
     return obs_tuple > max_tuple
-
-from dso_ci_review.stability import should_halt
 
 
 def _resolve_artifacts_dir(override: str | None) -> str:
