@@ -361,6 +361,9 @@ def process_rulings(
           "defer_ticket_ids": [str, ...],
           "drop_defense_records": [{"written_to": [...], "record": {...}}, ...],
           "skipped_idempotent": [finding_hash, ...],
+          "skipped_invalid_index": [
+            {"finding_index": int, "ruling_type": str}, ...
+          ],  # rulings whose finding_index was missing from finding_map
         }
     """
     if repo_root is None:
@@ -379,13 +382,36 @@ def process_rulings(
         "defer_ticket_ids": [],
         "drop_defense_records": [],
         "skipped_idempotent": [],
+        "skipped_invalid_index": [],
     }
     scope = _dedup_scope(pr_number, branch_name)
 
     for ruling in rulings:
         ruling_type = ruling.get("ruling", "")
         finding_idx = ruling.get("finding_index", 0)
-        finding = finding_map.get(finding_idx, {})
+        # Bug da45 critical (PR #203 finding): defaulting finding_idx via
+        # finding_map.get(finding_idx, {}) silently swallowed
+        # out-of-bounds / reordered indices and produced collision-prone
+        # dedup hashes off the empty-dict fallback. Validate membership
+        # explicitly; skip the ruling with a warning rather than write a
+        # poisoned DEFER ticket or DROP defense.
+        if finding_idx not in finding_map:
+            print(
+                f"WARNING: arbiter ruling references unknown finding_index="
+                f"{finding_idx!r} (finding_map size={len(finding_map)}); "
+                f"skipping ruling_type={ruling_type!r}. This may indicate "
+                f"dispatcher returned stale or reordered indices.",
+                file=sys.stderr,
+            )
+            result["skipped_invalid_index"] = result.get(
+                "skipped_invalid_index", []
+            )
+            result["skipped_invalid_index"].append({
+                "finding_index": finding_idx,
+                "ruling_type": ruling_type,
+            })
+            continue
+        finding = finding_map[finding_idx]
         finding_hash = _finding_hash_for_dedup(finding)
 
         if ruling_type == "BLOCK":

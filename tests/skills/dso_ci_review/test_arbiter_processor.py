@@ -339,3 +339,41 @@ def test_arbiter_processor_sidecar_concurrent_writers_no_loss(tmp_path):
     assert data["schema_version"] == "1.0.0"
     # One writer's full content survived — the key invariant is no torn write.
     assert data["commit_sha"] in ("sha_a", "sha_b")
+
+
+def test_process_rulings_skips_unknown_finding_index_without_collision(tmp_path, capsys):
+    """Bug da45 critical (PR #203 finding): rulings whose finding_index is
+    not in finding_map MUST be skipped with a warning, not silently
+    coerced into a dedup hash off the empty-dict fallback. The prior
+    behavior used finding_map.get(finding_idx, {}) which would produce
+    collision-prone hashes — multiple invalid rulings would dedup to the
+    same empty-finding bucket and either be dropped (DEFER) or poison
+    the defense store (DROP).
+    """
+    finding_map = {0: _make_finding(idx=0)}
+    rulings = [
+        _make_ruling(idx=99, ruling="BLOCK"),
+        _make_ruling(idx=42, ruling="DEFER"),
+        _make_ruling(idx=7, ruling="DROP"),
+    ]
+    with patch("subprocess.run", return_value=MagicMock(returncode=0, stdout="")):
+        result = process_rulings(
+            rulings=rulings,
+            finding_map=finding_map,
+            cycle_num=1,
+            commit_sha="abc",
+            pr_number=42,
+            artifacts_dir=str(tmp_path),
+        )
+
+    captured = capsys.readouterr()
+    assert "unknown finding_index" in captured.err
+    # All three rulings should be recorded as skipped, not processed.
+    skipped = result.get("skipped_invalid_index", [])
+    assert len(skipped) == 3
+    assert sorted(s["finding_index"] for s in skipped) == [7, 42, 99]
+    assert {s["ruling_type"] for s in skipped} == {"BLOCK", "DEFER", "DROP"}
+    # No side effects were emitted for the invalid rulings.
+    assert result["block"] == []
+    assert result["defer_ticket_ids"] == []
+    assert result["drop_defense_records"] == []
