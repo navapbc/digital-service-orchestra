@@ -8,8 +8,7 @@
 
 set -uo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 WAIT="$REPO_ROOT/plugins/dso/scripts/wait-for-pr.sh"
 
 source "$REPO_ROOT/tests/lib/assert.sh"
@@ -92,5 +91,50 @@ assert_eq "non_numeric_pr_exits_2" "2" "$EXIT"
 EXIT=0
 bash "$WAIT" 1 --interval=abc >/dev/null 2>&1 || EXIT=$?
 assert_eq "non_numeric_interval_exits_2" "2" "$EXIT"
+
+# --- auto-merge transition: queued then disabled → exit 1 ---
+# Use a sequence stub: first call returns autoMerge queued; second call returns
+# autoMerge=null (disabled). _ever_had_auto must flip and trigger the exit.
+cat > "$TMPDIR_T/seq-counter" <<'EOF'
+0
+EOF
+cat > "$TMPDIR_T/gh-stub.sh" <<'EOF'
+#!/usr/bin/env bash
+N=$(cat "$TMPDIR_T/seq-counter")
+echo "$((N+1))" > "$TMPDIR_T/seq-counter"
+if [[ "$N" == "0" ]]; then
+    # first poll: auto-merge queued
+    echo '{"state":"OPEN","mergedAt":null,"statusCheckRollup":[{"name":"CI","conclusion":null,"status":"IN_PROGRESS"}],"autoMergeRequest":{"enabledAt":"2026-05-18T09:00:00Z"}}'
+else
+    # subsequent poll: auto-merge disabled (null)
+    echo '{"state":"OPEN","mergedAt":null,"statusCheckRollup":[{"name":"CI","conclusion":null,"status":"IN_PROGRESS"}],"autoMergeRequest":null}'
+fi
+EOF
+chmod +x "$TMPDIR_T/gh-stub.sh"
+EXIT=0
+bash "$WAIT" 123 --interval=1 --timeout=5 >/dev/null 2>&1 || EXIT=$?
+assert_eq "auto_merge_disabled_exits_1" "1" "$EXIT"
+
+# --- auto-merge was never queued (always null) → not flagged as disabled, just times out ---
+cat > "$TMPDIR_T/gh-stub.sh" <<'EOF'
+#!/usr/bin/env bash
+if [[ -f "$TMPDIR_T/payload.json" ]]; then cat "$TMPDIR_T/payload.json"; fi
+EOF
+chmod +x "$TMPDIR_T/gh-stub.sh"
+cat > "$TMPDIR_T/payload.json" <<'EOF'
+{"state":"OPEN","mergedAt":null,"statusCheckRollup":[{"name":"CI","conclusion":null,"status":"IN_PROGRESS"}],"autoMergeRequest":null}
+EOF
+START=$(date +%s)
+EXIT=0
+bash "$WAIT" 123 --interval=1 --timeout=2 >/dev/null 2>&1 || EXIT=$?
+END=$(date +%s)
+ELAPSED=$(( END - START ))
+assert_eq "auto_merge_never_set_does_not_trigger" "1" "$EXIT"
+if [[ $ELAPSED -ge 2 ]]; then
+    (( ++PASS ))
+else
+    (( ++FAIL ))
+    printf "FAIL: auto_merge_never_set_waited: elapsed=%ds (expected >= 2)\n" "$ELAPSED" >&2
+fi
 
 print_summary

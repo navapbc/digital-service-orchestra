@@ -93,6 +93,11 @@ print("PENDING")
 
 deadline=$(( $(date +%s) + TIMEOUT ))
 
+# Track auto-merge across polls so we can detect a non-null -> null transition
+# (auto-merge queued and then disabled by a reviewer). _ever_had_auto=1 means
+# at least one prior poll saw autoMergeRequest != null.
+_ever_had_auto=0
+
 while true; do
     out=$(_view)
     if [[ -z "$out" ]]; then
@@ -103,6 +108,25 @@ while true; do
         fi
         sleep "$INTERVAL"
         continue
+    fi
+
+    # Auto-merge transition check (non-null -> null while OPEN) — must run
+    # BEFORE _classify since _classify only knows the current poll's payload.
+    _auto_present=$(printf '%s\n' "$out" | python3 -c '
+import json, sys
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    print("?"); sys.exit(0)
+amr = d.get("autoMergeRequest")
+state = d.get("state") or ""
+print("1" if amr else ("0" if state == "OPEN" else "?"))
+')
+    if [[ "$_auto_present" == "1" ]]; then
+        _ever_had_auto=1
+    elif [[ "$_auto_present" == "0" && "$_ever_had_auto" == "1" ]]; then
+        echo "ERROR: PR #$PR auto-merge was queued then disabled" >&2
+        exit 1
     fi
 
     read -r status reason <<< "$(printf '%s\n' "$out" | _classify)"
