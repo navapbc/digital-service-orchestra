@@ -69,6 +69,7 @@ Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
 - **File placement**: design documents go in `docs/designs/` (project-local) or `plugins/dso/skills/<skill>/docs/` (plugin-local) — not bare `designs/` at repo root.
 - **Jira bridge** (`BRIDGE_ENV_ID` required UUID repo variable; bridges fail-fast when empty. `BRIDGE_USER_MAP` JSON env var, email→Jira accountId, case-insensitive. Outbound SHA-cursor checkpoint in `.outbound-checkpoint.json` on tickets branch; cold-start or corrupt checkpoint seeds at HEAD + emits BRIDGE_ALERT. Full reference: `plugins/dso/scripts/bridge/README.md`.)
 - **PRECONDITIONS degradation channel** (degradation:bool + degradation_type in event data; `EMIT-PRECONDITIONS` landmark required for graceful-degradation triggers in skill files; unacked-degradation check in sprint Step 18 blocks story closure; ack via `dso preconditions-ack`; non-Latin precondition text requires human review): see `plugins/dso/docs/contracts/ack-rationale-rubric.md` and `plugins/dso/hooks/check-precondition-emit.sh`.
+- **Orphan-task convention** (DEFER rulings, lifecycle, validate-issues.sh exemption): `docs/orphan-task-convention.md`
 
 ## Critical Rules
 
