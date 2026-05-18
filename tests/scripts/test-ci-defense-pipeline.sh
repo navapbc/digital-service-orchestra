@@ -23,7 +23,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CI_YML="$REPO_ROOT/.github/workflows/ci.yml"
-SPRINT_YML="$REPO_ROOT/.github/workflows/per-branch-review.yml"
 DEFENSE_STORE_SH="$REPO_ROOT/plugins/dso/scripts/review-defense-store.sh"
 
 # shellcheck source=../lib/assert.sh
@@ -34,7 +33,6 @@ echo "=== test-ci-defense-pipeline.sh ==="
 # ── Preconditions ─────────────────────────────────────────────────────────────
 _snapshot_fail
 [[ -f "$CI_YML" ]] || { echo "FAIL: missing $CI_YML" >&2; (( ++FAIL )); }
-[[ -f "$SPRINT_YML" ]] || { echo "FAIL: missing $SPRINT_YML" >&2; (( ++FAIL )); }
 [[ -f "$DEFENSE_STORE_SH" ]] || { echo "FAIL: missing $DEFENSE_STORE_SH" >&2; (( ++FAIL )); }
 assert_pass_if_clean "preconditions: required files exist"
 
@@ -84,52 +82,8 @@ assert_eq "ci.yml llm-review exports DSO_REVIEW_CYCLE (exit code)" "0" "$ci_chec
 assert_eq "ci.yml llm-review exports DSO_REVIEW_CYCLE (output)" "OK" "$ci_check_output"
 assert_pass_if_clean "test_ci_yml_exports_dso_review_cycle"
 
-# ── test_per_branch_review_exports_dso_review_cycle ──────────────────────────
-# F2: per-branch-review.yml's review job must also export DSO_REVIEW_CYCLE.
-echo ""
-echo "--- test_per_branch_review_exports_dso_review_cycle ---"
-_snapshot_fail
-
-sprint_check_exit=0
-sprint_check_output=""
-sprint_check_output=$(python3 - "$SPRINT_YML" <<'PYEOF' 2>&1
-import sys, yaml
-
-with open(sys.argv[1]) as f:
-    doc = yaml.safe_load(f)
-
-# per-branch-review.yml has a single 'review' job (per current shape).
-jobs = doc.get('jobs', {})
-if not jobs:
-    print("MISSING: no jobs in per-branch-review.yml")
-    sys.exit(1)
-
-# Check every job for the export — there's only one in practice, but we don't
-# want to hard-code the job name in case it gets renamed.
-found = False
-for job_name, job in jobs.items():
-    for s in job.get('steps', []) or []:
-        env = s.get('env') or {}
-        if 'DSO_REVIEW_CYCLE' in env:
-            found = True
-            break
-        run = s.get('run') or ''
-        if 'DSO_REVIEW_CYCLE' in run and 'GITHUB_ENV' in run:
-            found = True
-            break
-    if found:
-        break
-
-if not found:
-    print("MISSING: no step in per-branch-review.yml exports DSO_REVIEW_CYCLE")
-    sys.exit(1)
-print("OK")
-PYEOF
-) || sprint_check_exit=$?
-
-assert_eq "per-branch-review.yml exports DSO_REVIEW_CYCLE (exit code)" "0" "$sprint_check_exit"
-assert_eq "per-branch-review.yml exports DSO_REVIEW_CYCLE (output)" "OK" "$sprint_check_output"
-assert_pass_if_clean "test_per_branch_review_exports_dso_review_cycle"
+# test_per_branch_review_exports_dso_review_cycle: test removed; restoration
+# covered by remediation epic (per-branch-review.yml was deleted in story 20d7-09d6-b831-4c3a).
 
 # ── test_mirror_defenses_step_has_stdin_producer ──────────────────────────────
 # F1: The mirror-defenses-to-pr step in ci.yml must pipe data INTO the script,
