@@ -34,15 +34,19 @@ PR_NUMBER="<the PR number>"
 PR_HEAD_SHA=$(gh pr view "$PR_NUMBER" --json headRefOid --jq '.headRefOid')
 PR_BASE_REF=$(gh pr view "$PR_NUMBER" --json baseRefName --jq '.baseRefName')
 
-mkdir -p /tmp/fp-recovery
-DIFF_FILE=/tmp/fp-recovery/pr-${PR_NUMBER}-diff.patch
+# Per CLAUDE.md "Always Do These" #15 — use mktemp for /tmp writes to avoid
+# collisions under parallel invocation. The reviewer dispatch in Step 2 writes
+# reviewer-findings.json into this directory; a fixed shared path would collide
+# across concurrent FP-recovery runs on different PRs.
+ARTIFACTS_DIR=$(mktemp -d /tmp/fp-recovery.XXXXXX)
+DIFF_FILE="$ARTIFACTS_DIR/pr-${PR_NUMBER}-diff.patch"
 git fetch origin "$PR_BASE_REF" >/dev/null 2>&1
 git diff "origin/${PR_BASE_REF}...${PR_HEAD_SHA}" > "$DIFF_FILE"
 wc -l "$DIFF_FILE"
 git diff "origin/${PR_BASE_REF}...${PR_HEAD_SHA}" --stat | tail -10
 ```
 
-The diff file is the input to the manual reviewer dispatch.
+The diff file is the input to the manual reviewer dispatch. Carry `ARTIFACTS_DIR` through to Step 2 as the `WORKFLOW_PLUGIN_ARTIFACTS_DIR` value.
 
 ### Step 2: Dispatch `dso:code-reviewer-standard` at opus tier
 
@@ -56,9 +60,9 @@ Agent tool:
   model: "opus"
   description: "FP-recovery manual review of PR #<N>"
   prompt: |
-    DIFF_FILE: /tmp/fp-recovery/pr-<N>-diff.patch
+    DIFF_FILE: <DIFF_FILE from Step 1>
     REPO_ROOT: <repo root>
-    WORKFLOW_PLUGIN_ARTIFACTS_DIR: /tmp/fp-recovery
+    WORKFLOW_PLUGIN_ARTIFACTS_DIR: <ARTIFACTS_DIR from Step 1 — the mktemp-generated path>
     SELECTED_TIER: standard
     REVIEW_CONTEXT: ci
 
@@ -89,7 +93,7 @@ A real review should take **several minutes** and use **15+ tool calls**. If the
 ### Step 3: Read the findings
 
 ```bash
-cat /tmp/fp-recovery/reviewer-findings.json
+cat "$ARTIFACTS_DIR/reviewer-findings.json"
 ```
 
 The schema is documented in `${CLAUDE_PLUGIN_ROOT}/docs/contracts/review-findings-schema.md`. For this workflow, classify each finding:
@@ -125,7 +129,7 @@ Force-merged: manual dso:code-reviewer-standard at opus tier confirmed
 
 CI llm-review finding classified as FP because: <one-sentence reason>.
 
-Manual review artifact: /tmp/fp-recovery/pr-<N>-diff.patch
+Manual review artifact: <DIFF_FILE from Step 1>
 Manual review hash: <REVIEWER_HASH from Step 2>
 ```
 
