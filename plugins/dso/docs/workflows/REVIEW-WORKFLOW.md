@@ -852,6 +852,84 @@ When `git show <reviewed_sha>:<path>` cannot find a deleted file, emit `verifier
 
 ---
 
+## Step 4.75: Cycle-K Auto-Dispatch and Adaptive Stability Halt
+
+After verifier dispatch (Step 4.5) produces the final finding set for cycle K, determine
+whether to dispatch cycle K+1 or halt.
+
+**Prerequisites**:
+- `CYCLE_NUM`: current cycle number (1-indexed; read from `DSO_REVIEW_CYCLE` env var or cycle-ledger.json)
+- `MAX_CYCLES`: read from `review.max_cycles` in `dso-config.conf` (default: 4)
+- `UNRESOLVED_FINDINGS`: count of critical/important findings after all resolution attempts
+
+**Auto-dispatch rule** (after each cycle, without requiring user input):
+- If `UNRESOLVED_FINDINGS == 0`: review passed; proceed to Step 5.
+- If `CYCLE_NUM >= MAX_CYCLES`: max cycles reached; proceed to Step 5.
+- Else if `STABLE_HALT` signal fired (Jaccard ≥ 0.85): halt; proceed to Step 5.
+- Else (`UNRESOLVED_FINDINGS > 0` AND `CYCLE_NUM < MAX_CYCLES` AND NOT `STABLE_HALT`):
+  auto-dispatch cycle K+1 — increment `DSO_REVIEW_CYCLE` and re-enter from Step 4,
+  WITHOUT requiring user input.
+
+### Jaccard Stability Check
+
+**Finding Identity**: A stable finding hash is computed from `(file, line_range, category)` —
+NOT from free-form message text, which varies between cycles. Message text is excluded because
+LLM phrasing varies per cycle; only the structural fields (file, location, category) identify
+the same finding.
+
+**Local path**: Read cycle K and cycle K-1 finding sets from `cycle-ledger.json` (in `ARTIFACTS_DIR`).
+**CI path**: Reconstruct finding sets from PR comments with `DSO-Review-Cycle:` markers.
+**Parity requirement**: The Jaccard computation is identical for both paths; the hash function
+uses the same `(file, line_range, category)` fields.
+
+**Computation**:
+```python
+def finding_hash(f):
+    return hash((f.get("file", ""), f.get("line_range", ""), f.get("category", "")))
+
+def jaccard(set_k, set_k_minus_1):
+    # Both empty → no findings either side → stable agreement → 1.0
+    if not set_k and not set_k_minus_1:
+        return 1.0
+    # One empty, one not → mathematical Jaccard of (empty, non-empty) is 0.0
+    # (no overlap). Returning 1.0 here would falsely halt on cycle 1 (when
+    # set_k_minus_1 is empty) even with unresolved critical findings — see
+    # the CYCLE_NUM > 1 guard on the caller below.
+    if not set_k or not set_k_minus_1:
+        return 0.0
+    hashes_k = {finding_hash(f) for f in set_k}
+    hashes_prev = {finding_hash(f) for f in set_k_minus_1}
+    intersection = len(hashes_k & hashes_prev)
+    union = len(hashes_k | hashes_prev)
+    return intersection / union if union > 0 else 1.0
+
+# Cycle 1 has no prior cycle to compare against — skip the stability check
+# entirely. Premature STABLE_HALT on cycle 1 would block all subsequent
+# cycles even if critical findings remain unresolved.
+if CYCLE_NUM > 1 and jaccard(findings_cycle_k, findings_cycle_k_minus_1) >= 0.85:
+    emit("STABLE_HALT")
+    # halt — no further cycles dispatched; proceed to Step 5
+```
+
+**Zero-set edge cases**:
+- Both cycle K and cycle K-1 are empty (no findings either side): Jaccard is 1.0 (full
+  agreement); emit `STABLE_HALT`.
+- One empty, one not: Jaccard is 0.0 (mathematical definition of empty-vs-non-empty); do
+  NOT halt.
+- No prior cycle (`CYCLE_NUM == 1`): skip the Jaccard check entirely; defer to the next
+  cycle for stability assessment.
+
+**STABLE_HALT signal**: When Jaccard ≥ 0.85, emit `STABLE_HALT` and do NOT dispatch cycle K+1,
+even if `CYCLE_NUM < MAX_CYCLES`. Record the halt reason in `cycle-ledger.json` as
+`"halt_reason": "STABLE_HALT"`.
+
+Finding normalization is documented in `${CLAUDE_PLUGIN_ROOT}/docs/contracts/cycle-ledger.md`. If that
+contract does not yet exist, use the hash fields inline: `(file, line_range, category)` —
+string concatenation of the finding's `file` field, `line_range` (or `cited_lines` serialized),
+and `category` field.
+
+---
+
 ## Step 5: Record Review
 
 **Prerequisite**: You MUST have a sub-agent result from Step 4. If you do not have a Task tool result to reference, STOP — you skipped Step 4.
@@ -1209,6 +1287,16 @@ If all Fix findings are genuinely non-behavioral (GREEN classification is correc
    2. **MAX_ATTEMPTS exhausted without arbiter dispatch**: When `ATTEMPT_NUM` reaches `MAX_ATTEMPTS` and `ARBITER_DISPATCH_COUNT == 0`, no ESCALATE_REVIEW dispatch occurred during the resolution cycle. Emit `ESCALATE_REVIEW: oscillation_no_arbiter_engagement` and route to the next tier reviewer before escalating to the user.
 
    Effect: `oscillation_no_arbiter_engagement` is a tier-upgrade signal — it triggers the same escalation path as `ESCALATE_REVIEW` (Step 4a), routing to the next higher reviewer tier. It does NOT immediately escalate to the user; the escalated tier reviewer runs first.
+
+   **Scope clarification**: `MAX_ATTEMPTS` (= `review.max_resolution_attempts`) governs
+   per-cycle autonomous fix/defend attempts within a single review cycle's inner resolution
+   loop. `review.max_cycles` governs the total number of review cycles (outer loop — whole
+   dispatcher→reviewer→resolution iterations). These two limits are independent:
+   - `max_resolution_attempts`: inner loop (how many fix/defend passes within one cycle)
+   - `max_cycles`: outer loop (how many full review cycles before halting entirely)
+   The `oscillation_no_arbiter_engagement` gate fires on exhaustion of `max_resolution_attempts`
+   within a cycle — it does NOT fire based on `max_cycles`. Cycle-K auto-dispatch increments
+   the outer cycle counter only after the inner resolution loop completes for that cycle.
 
    **Call 2 oscillation short-circuit**: When 2 consecutive Call 2 redispatches (DSO_REVIEW_CYCLE >= 2) produce the exact same set of proximity overlaps (same file + line pairs), skip further Call 2 redispatch and treat the overlapping findings as stable — proceed to the OSCILLATION GATE escalation path rather than continuing the loop.
 
