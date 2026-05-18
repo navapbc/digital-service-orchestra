@@ -31,6 +31,14 @@ _backoff_delay=2
 
 _call_gh_with_backoff() {
     local result exit_code
+    # Bound the retry loop: PR #140 retro-review found that persistent 429
+    # or 403 responses would retry indefinitely (max delay 60s/retry); the
+    # only escape was via the outer GH_BUDGET counter on _api_call_count,
+    # which is not always checked. Cap at GH_RETRY_MAX (default 8) so the
+    # call surfaces a failure to the caller within a bounded wall-clock
+    # window even when the API persistently rate-limits.
+    local _gh_retry_max="${GH_RETRY_MAX:-8}"
+    local _gh_retry_count=0
     while true; do
         # set -e + cmd substitution can abort the function before exit_code
         # is read in some bash versions (Copilot finding 2026-05-16).
@@ -45,6 +53,11 @@ _call_gh_with_backoff() {
             return 0
         fi
         if [[ "$result" == *"429"* ]] || [[ "$result" == *"403"* ]]; then
+            _gh_retry_count=$(( _gh_retry_count + 1 ))
+            if (( _gh_retry_count >= _gh_retry_max )); then
+                echo "ERROR: _call_gh_with_backoff exhausted ${_gh_retry_max} retries on persistent ${result:0:200}" >&2
+                return "${exit_code:-1}"
+            fi
             sleep "$_backoff_delay"
             _backoff_delay=$(( _backoff_delay * 2 ))
             (( _backoff_delay > 60 )) && _backoff_delay=60

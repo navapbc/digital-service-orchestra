@@ -147,22 +147,38 @@ _extract_path_tokens() {
 _load_stories_from_json() {
     local json_file="$1"
     [[ -f "$json_file" ]] || return 0
-    if ! command -v jq >/dev/null 2>&1; then
-        echo "  WARN: jq not available; cannot parse ticket data" >&2
-        return 0
-    fi
+    # jq-free (PR #140 retro-review): use python3 instead. The python source
+    # is passed via -c with single quotes so bash does not expand $-tokens
+    # inside; the JSON path is the only argument.
     local lines
-    lines="$(jq -r '
-        (
-          if type=="array" then .
-          elif (.stories?|type=="array") and (.stories[0]?|type=="object") then (.stories + (.tasks // []))
-          elif (.issues?|type=="array") then .issues
-          else []
-          end
-        )
-        | map(select(.type=="story" or .type=="task" or .ticket_type=="story" or .ticket_type=="task"))
-        | .[] | [(.id // .ticket_id // ""), (.description // "")] | @tsv
-    ' "$json_file" 2>/dev/null || true)"
+    lines="$(python3 -c '
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        data = json.load(f)
+except Exception:
+    sys.exit(0)
+if isinstance(data, list):
+    items = data
+elif isinstance(data, dict):
+    stories = data.get("stories")
+    if isinstance(stories, list) and stories and isinstance(stories[0], dict):
+        items = stories + list(data.get("tasks") or [])
+    elif isinstance(data.get("issues"), list):
+        items = data["issues"]
+    else:
+        items = []
+else:
+    items = []
+for it in items:
+    if not isinstance(it, dict): continue
+    t = it.get("type") or it.get("ticket_type")
+    if t not in ("story", "task"): continue
+    _id = it.get("id") or it.get("ticket_id") or ""
+    _desc = it.get("description") or ""
+    _desc = _desc.replace("\t", " ").replace("\n", " ")
+    print("{}\t{}".format(_id, _desc))
+' "$json_file" 2>/dev/null || true)"
     while IFS=$'\t' read -r _id _desc; do
         [[ -z "$_id" ]] && continue
         STORY_SCOPE["$_id"]="$(_extract_path_tokens "$_desc")"
@@ -178,17 +194,23 @@ _load_stories_from_shim() {
     local list_json
     list_json="$("$shim" ticket list-descendants "$epic" 2>/dev/null || true)"
     [[ -z "$list_json" ]] && return 0
-    if ! command -v jq >/dev/null 2>&1; then
-        echo "  WARN: jq not available; cannot parse ticket data" >&2
-        return 0
-    fi
+    # jq-free (PR #140 retro-review): use python3 instead.
     local story_ids
-    story_ids="$(echo "$list_json" | jq -r '(.stories // [])[]' 2>/dev/null || true)"
+    story_ids="$(printf '%s' "$list_json" | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+for s in (d.get('stories') or []):
+    print(s)
+" 2>/dev/null || true)"
     [[ -z "$story_ids" ]] && return 0
     while IFS= read -r _id; do
         [[ -z "$_id" ]] && continue
         local _desc
-        _desc="$("$shim" ticket show "$_id" 2>/dev/null | jq -r '.description // ""' 2>/dev/null || true)"
+        _desc="$("$shim" ticket show "$_id" 2>/dev/null \
+            | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('description','') or '')" 2>/dev/null || true)"
         STORY_SCOPE["$_id"]="$(_extract_path_tokens "$_desc")"
     done <<< "$story_ids"
 }
