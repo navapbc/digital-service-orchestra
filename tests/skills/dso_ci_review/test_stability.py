@@ -82,10 +82,13 @@ def test_jaccard_zero_set_both_empty():
 
 
 def test_jaccard_zero_set_one_empty():
-    """One empty + one non-empty → 1.0 (zero-set edge case per Step 4.75)."""
+    """One empty + one non-empty → 0.0 (mathematical Jaccard of empty
+    vs non-empty is no overlap). Bug da45 finding f-a1b2c3d4: returning
+    1.0 here caused premature STABLE_HALT on cycle-1 transitions even
+    with unresolved critical findings."""
     a = [{"file": "x.py", "line_range": "1", "category": "c"}]
-    assert jaccard(a, []) == 1.0
-    assert jaccard([], a) == 1.0
+    assert jaccard(a, []) == 0.0
+    assert jaccard([], a) == 0.0
 
 
 # --- should_halt tests ---
@@ -114,3 +117,19 @@ def test_should_halt_zero_set_returns_halt():
     halt, signal = should_halt([], [], 0.85)
     assert halt is True
     assert signal == "STABLE_HALT"
+
+
+def test_should_halt_prior_empty_skips_check():
+    """Prior empty (cycle-1 transition) → no halt, regardless of current
+    findings. Bug da45 finding f-a1b2c3d4: premature STABLE_HALT on
+    cycle-1 with unresolved critical findings used to fire because the
+    zero-set 'one empty' branch returned 1.0 and exceeded the 0.85
+    threshold. The prior-empty guard in should_halt now skips the check
+    entirely so the dispatcher proceeds to cycle K+1."""
+    current_critical = [
+        {"file": "x.py", "line_range": "1", "category": "critical"},
+        {"file": "y.py", "line_range": "2", "category": "critical"},
+    ]
+    halt, signal = should_halt(current_critical, [], 0.85)
+    assert halt is False
+    assert signal is None
