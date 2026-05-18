@@ -1,0 +1,1 @@
+{"timestamp": 1779133439648284000, "uuid": "45287a97-b057-4b4f-95cb-04be475d9b05", "event_type": "STATUS", "env_id": "c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1", "author": "Test", "parent_status_uuid": "22da925a-df6e-406e-8bc0-6241117ffed1", "data": {"status": "closed", "current_status": "in_progress", "parent_status_uuid": "22da925a-df6e-406e-8bc0-6241117ffed1"}}
