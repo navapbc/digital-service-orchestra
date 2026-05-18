@@ -130,12 +130,28 @@ def _atomic_write(path: str, data: str) -> None:
         raise
 
 
+def _open_lock(lock_path: str):
+    """Race-free open of the lock file (bug da45 PR #202 finding f-c3d4e5f6).
+
+    Path.touch() + open() in two steps has a TOCTOU window: a concurrent
+    process could delete the lock file between the touch and the open,
+    causing FileNotFoundError on the open call and crashing the writer
+    with a partial-state ledger.
+
+    os.open(O_CREAT | O_RDWR) creates-and-opens atomically; even if the
+    file is unlinked by another process AFTER our open(), our file
+    descriptor remains valid (POSIX semantics: open file descriptors
+    keep the inode alive until close()).
+    """
+    fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o644)
+    return os.fdopen(fd, "r")
+
+
 def write_ledger(path: str, ledger: dict) -> None:
     """Atomic write coordinated via cycle-ledger.lock (fcntl.LOCK_EX)."""
     lock_path = _lock_path(path)
     Path(lock_path).parent.mkdir(parents=True, exist_ok=True)
-    Path(lock_path).touch(exist_ok=True)
-    with open(lock_path, "r") as lock_file:
+    with _open_lock(lock_path) as lock_file:
         fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
         try:
             _atomic_write(path, json.dumps(ledger, indent=2))
@@ -158,8 +174,7 @@ def append_cycle(
     """
     lock_path = _lock_path(path)
     Path(lock_path).parent.mkdir(parents=True, exist_ok=True)
-    Path(lock_path).touch(exist_ok=True)
-    with open(lock_path, "r") as lock_file:
+    with _open_lock(lock_path) as lock_file:
         fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
         try:
             ledger = read_ledger(path)
