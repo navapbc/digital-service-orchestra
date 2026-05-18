@@ -206,9 +206,20 @@ _is_list_key() {
     return 1
 }
 
+# ── DEPRECATED_KEYS — accepted with warning, mapped to canonical key ─────────
+# Validator must NOT reject deprecated keys outright (read-config.sh accepts
+# them via backward-compat shim). Rejecting in validator while accepting at
+# runtime is a validation-asymmetry surface that masks the migration
+# requirement (bug da45, PR #208 review finding).
+declare -A DEPRECATED_KEYS=(
+    [review.max_resolution_attempts]=review.max_cycles
+)
+
 # ── Parse and validate ──────────────────────────────────────────────────────
 errors=0
 declare -A seen_keys
+declare -A scalar_values
+config_basename="$(basename "$config_file")"
 
 while IFS= read -r line; do
     # Skip blank lines and comments
@@ -216,6 +227,7 @@ while IFS= read -r line; do
 
     # Extract key (everything before first =)
     key="${line%%=*}"
+    raw_value="${line#*=}"
 
     # Check for blank key
     if [[ -z "$key" || "$key" == "$line" ]]; then
@@ -238,6 +250,16 @@ while IFS= read -r line; do
         continue
     fi
 
+    # Deprecated key path — warn instead of reject (parity with read-config.sh shim)
+    if [[ -n "${DEPRECATED_KEYS[$key]:-}" ]]; then
+        canonical="${DEPRECATED_KEYS[$key]}"
+        [[ -z "${DSO_DEPRECATION_QUIET:-}" ]] && \
+            echo "DSO deprecation: $key is deprecated; rename to $canonical in $config_basename" >&2
+        scalar_values["$canonical"]="$raw_value"
+        seen_keys["$canonical"]=1
+        continue
+    fi
+
     # Check if key is known
     if ! _is_known_key "$key"; then
         echo "ERROR: unknown key: $key" >&2
@@ -254,8 +276,27 @@ while IFS= read -r line; do
         fi
     fi
     seen_keys[$key]=1
+    scalar_values["$key"]="$raw_value"
 
 done < "$config_file"
+
+# ── Value-range validation ──────────────────────────────────────────────────
+# Bug da45, PR #208 review finding: workflow-config-schema.json specifies
+# 'minimum: 2' for review.max_cycles, but validate-config historically
+# only checked key presence. Now enforce the lower bound here so a config
+# with review.max_cycles=1 (or review.max_resolution_attempts=1 after
+# deprecation rewrite) fails validation rather than silently producing a
+# runtime value below the documented floor.
+if [[ -n "${scalar_values[review.max_cycles]:-}" ]]; then
+    _rmc="${scalar_values[review.max_cycles]}"
+    if ! [[ "$_rmc" =~ ^[0-9]+$ ]]; then
+        echo "ERROR: review.max_cycles must be a non-negative integer; got: $_rmc" >&2
+        (( errors++ ))
+    elif [[ "$_rmc" -lt 2 ]]; then
+        echo "ERROR: review.max_cycles must be >= 2 (workflow-config-schema.json minimum); got: $_rmc" >&2
+        (( errors++ ))
+    fi
+fi
 
 if [[ "$errors" -gt 0 ]]; then
     exit 1
