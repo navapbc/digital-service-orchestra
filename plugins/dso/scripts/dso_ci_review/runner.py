@@ -1752,6 +1752,8 @@ def main() -> int:
 
     # Initialize cycle ledger and max_cycles before the main try block so
     # cycle_next_action routing has access to these values inside the try.
+    # Note: defensive DSO_REVIEW_CYCLE parsing kept inside _init_cycle_ledger;
+    # ledger is the source of truth, env var is logged-only (story 5621).
     _artifacts_dir = _resolve_artifacts_dir()
     _pr_number_for_ledger = _resolve_pr_number()
     _repo_for_ledger = _resolve_repo()
@@ -1774,9 +1776,19 @@ def main() -> int:
         pr_number = _pr_number_for_ledger
         repo = _repo_for_ledger
 
-        # cycle_number: use DSO_REVIEW_CYCLE env var (two-call architecture source of
-        # truth for the current cycle). Fall back to 1 when absent (first cycle).
-        cycle_number = int(os.environ.get("DSO_REVIEW_CYCLE", "1"))
+        # cycle_number: ledger is source of truth (story 5621). Use the value
+        # derived by _init_cycle_ledger above; fall back to env-var only if
+        # ledger derivation failed (defensive parse mirrors c131-0f34 behavior).
+        _raw_cycle = os.environ.get("DSO_REVIEW_CYCLE", "1") or "1"
+        try:
+            _env_cycle = int(_raw_cycle)
+        except ValueError:
+            print(
+                f"WARNING: DSO_REVIEW_CYCLE={_raw_cycle!r} is not an integer; defaulting to 1",
+                file=sys.stderr,
+            )
+            _env_cycle = 1
+        cycle_number = _ledger_cycle_number or _env_cycle
 
         # Load the raw ledger for SHORT_CIRCUIT pre-check (cycle_next_action needs it).
         _ledger_path = os.path.join(artifacts_dir, "cycle-ledger.json")
@@ -2245,6 +2257,37 @@ def main() -> int:
         _post_dispatch_next_comment(cycle_number, reviewed_sha, _current_findings, _pr_number_for_ledger)
     except Exception as exc:  # noqa: BLE001
         print(f"ERROR: LLM call failed: {exc}", file=sys.stderr)
+        # c131-0f34 defense-in-depth: always write a findings record before
+        # returning so the workflow-side liveness assertion has something to
+        # observe. Without this, an unhandled exception between Step 1 and
+        # Step 8 left the gating job with exit 1 but no artifact — a future
+        # regression that swallowed the exception would silently exit 0 with
+        # no signal at all. The synthetic specialist_error stamps the
+        # cycle_number so downstream consumers can still attribute the run.
+        # Sanitize the exception text before serializing — `repr(exc)` can
+        # include sensitive values (API keys embedded in URL paths or
+        # request headers when an HTTP client surfaces them in the message)
+        # and this artifact is uploaded for inspection (c131-0f34 review
+        # cycle 3). Emit the class name plus a 200-char message tail with
+        # common secret-looking patterns redacted.
+        _exc_class = type(exc).__name__
+        _exc_msg = str(exc)[:200]
+        # Redact bearer-token / Authorization-header / sk-… style patterns.
+        _exc_msg = re.sub(r"(?i)(bearer|authorization|api[-_]?key|token)[=:\s]+\S+",
+                          r"\1=[REDACTED]", _exc_msg)
+        _exc_msg = re.sub(r"\bsk-[A-Za-z0-9_-]{8,}", "sk-[REDACTED]", _exc_msg)
+        try:
+            _write_output({
+                "findings": [{
+                    "type": "specialist_error",
+                    "severity": "critical",
+                    "category": "infrastructure",
+                    "description": f"runner exception before Step 8: {_exc_class}: {_exc_msg}",
+                }],
+                "cycle_number": cycle_number,
+            })
+        except Exception:  # noqa: BLE001
+            pass  # ensure the original failure is not masked by a write error
         return 1
 
     # Detect all-specialist-error: every finding is a specialist_error with no real review.
