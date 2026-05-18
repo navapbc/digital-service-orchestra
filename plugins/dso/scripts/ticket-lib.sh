@@ -953,20 +953,68 @@ _ticket_has_pil() {
     fi
     local _tracker_dir="${TICKETS_TRACKER_DIR:-$_repo_root/.tickets-tracker}"
 
-    # Primary check: PIL heading in description or comments
+    # Primary check: PIL heading in description or comments AND the body
+    # underneath that heading must contain the three mandatory fields written
+    # by the canonical scrutiny pipeline (epic-description-template.md lines
+    # 28, 30, 35). A bare heading with no body content is not sufficient —
+    # the prior validator accepted "### Planning Intelligence Log\n- Entry 1"
+    # stubs, which is exactly the failure mode this validator is meant to
+    # prevent (bug a307-0f58).
     if TICKETS_TRACKER_DIR="$_tracker_dir" bash "$_ticket_cmd" show "$ticket_id" 2>/dev/null | python3 -c "
-import json, sys
+import json, re, sys
 try:
     state = json.load(sys.stdin)
 except (json.JSONDecodeError, ValueError):
     sys.exit(1)
+
 marker = '### Planning Intelligence Log'
+
+# Mandatory field markers — every canonical PIL written by
+# epic-scrutiny-pipeline.md populates these three fields. Absence of any one
+# of them indicates a stub PIL that bypassed the pipeline.
+REQUIRED_FIELDS = (
+    '**Web research (Step 2.6)**:',
+    '**Scenario analysis (Step 2.75)**:',
+    '**LLM-instruction signal (Step 5)**:',
+)
+
+def _pil_section(text):
+    # Return everything from the PIL heading to the next markdown heading at
+    # the same or shallower level, or to end of text.
+    idx = text.find(marker)
+    if idx < 0:
+        return None
+    rest = text[idx + len(marker):]
+    # Stop at the next '## ' or '### ' heading at column 0
+    end = re.search(r'(?m)^#{1,3} ', rest)
+    return rest if end is None else rest[:end.start()]
+
+def _passes(text):
+    section = _pil_section(text)
+    if section is None:
+        return False
+    for field in REQUIRED_FIELDS:
+        if field not in section:
+            return False
+    # If Scenario analysis is 'triggered', require Red Team + Blue Team
+    # dispatch evidence in the PIL body. SIMPLE epics (≤2 SCs / internal
+    # refactor with no integration signals) legitimately use 'not triggered'
+    # or 'skipped — ...' values and are exempt.
+    scenario_match = re.search(
+        r'\*\*Scenario analysis \(Step 2\.75\)\*\*:\s*([^\n]+)', section)
+    if scenario_match and 'triggered' in scenario_match.group(1) \
+       and 'not triggered' not in scenario_match.group(1) \
+       and 'skipped' not in scenario_match.group(1):
+        if 'Red Team' not in section or 'Blue Team' not in section:
+            return False
+    return True
+
 desc = state.get('description', '') or ''
-if marker in desc:
+if marker in desc and _passes(desc):
     sys.exit(0)
 for comment in state.get('comments', []):
     body = comment.get('body', '') or ''
-    if marker in body:
+    if marker in body and _passes(body):
         sys.exit(0)
 sys.exit(1)
 " 2>/dev/null; then

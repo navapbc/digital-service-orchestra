@@ -683,6 +683,15 @@ run the bridge from your workstation):
 
 Optional environment variables (defaults shown):
   - BRIDGE_COMMIT_CAP        Max commits per bridge run (safety cap)
+  - BRIDGE_BOT_LOGIN         GitHub login of the bridge bot (used by workflow
+                             `if:` guard to suppress echo loops). Default:
+                             `dso-bridge[bot]`.
+  - BRIDGE_BOT_NAME          Author name used when committing SYNC events
+                             back to the tickets branch. Default matches
+                             BRIDGE_BOT_LOGIN.
+  - BRIDGE_BOT_EMAIL         Author email used when committing SYNC events
+                             back to the tickets branch. Default:
+                             `<bot-login>@users.noreply.github.com`.
   - GH_RUN_ID                CI run ID for traceability (auto-set in Actions)
   - INBOUND_CHECKPOINT_PATH  Override path for .inbound-checkpoint.json
   - INBOUND_OVERLAP_BUFFER_MINUTES  Window-overlap for missed-issue retry
