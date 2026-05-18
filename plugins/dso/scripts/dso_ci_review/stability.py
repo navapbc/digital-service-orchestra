@@ -63,14 +63,22 @@ def finding_hash(finding) -> str:
 def jaccard(set_a, set_b) -> float:
     """Jaccard similarity between two finding collections.
 
-    Zero-set edge case (either side empty, including both) returns 1.0,
-    representing full agreement per Step 4.75 cycle-end semantics:
-    nothing-to-disagree-on counts as convergence.
+    Zero-set semantics:
+    - Both empty: returns 1.0 (no findings on either side → stable convergence).
+    - One empty, one not: returns 0.0 (mathematical Jaccard of empty vs.
+      non-empty is no overlap). This prevents premature STABLE_HALT on
+      cycle-1 transitions where prior_findings is empty but current
+      review surfaced unresolved critical findings (bug da45 review
+      finding f-a1b2c3d4).
+
+    Callers that want to skip the stability check entirely when no prior
+    cycle exists should do so before calling jaccard — see should_halt's
+    prior-empty guard.
     """
     if not set_a and not set_b:
         return 1.0
     if not set_a or not set_b:
-        return 1.0
+        return 0.0
     hashes_a = {finding_hash(f) for f in set_a}
     hashes_b = {finding_hash(f) for f in set_b}
     intersection = len(hashes_a & hashes_b)
@@ -86,6 +94,13 @@ def should_halt(
     Returns (True, "STABLE_HALT") when jaccard(current, prior) >= threshold,
     else (False, None). Caller (cycle_dispatcher) consumes the signal to
     short-circuit further review cycles.
+
+    Zero-set behavior is delegated to jaccard():
+    - Both empty → jaccard=1.0 → halt (no findings either side, stable).
+    - Prior empty + current non-empty → jaccard=0.0 → no halt (the
+      cycle-1 transition with newly-surfaced findings is by definition
+      not stable). Bug da45 finding f-a1b2c3d4: returning 1.0 from
+      jaccard in this case used to cause premature STABLE_HALT.
     """
     score = jaccard(current, prior)
     if score >= threshold:
