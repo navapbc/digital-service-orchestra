@@ -1,1 +1,0 @@
-{"author":"Test","data":{"body":"Classification: behavioral (workflow yaml, not LLM/skill). Score: severity=2 complexity=1 env=2 flake=0 = 5 (INTERMEDIATE tier). CLI_user tag present → Intent Gate intent-aligned."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1779049891934784000,"uuid":"a56d07bb-6347-4b27-9793-34c86ef76231"}
