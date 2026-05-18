@@ -471,5 +471,5 @@ plugins/dso/scripts/verify-session-provenance.sh:tests/scripts/test-verify-sessi
 plugins/dso/scripts/redistribute-session-commits.sh:tests/scripts/test-redistribute-session-commits.sh [test_script_exists]
 plugins/dso/scripts/write-cycle-ledger.sh:tests/scripts/test-write-cycle-ledger.sh,tests/scripts/test-write-cycle-ledger-integration.sh
 tests/scripts/test-cycle-arbiter.sh:tests/scripts/test-cycle-arbiter.sh [test_block_critical_defense_absent_ruling]
-plugins/dso/scripts/dso_ci_review/local_workflow.py:tests/skills/dso_ci_review/test_local_workflow_ledger.py [test_local_workflow_reads_existing_ledger]
+plugins/dso/scripts/dso_ci_review/local_workflow.py:tests/skills/dso_ci_review/test_local_workflow_ledger.py [test_local_workflow_reads_existing_ledger],tests/skills/dso_ci_review/test_local_workflow_loop.py [test_loop_dispatches_three_cycles_then_pass,test_loop_returns_pass_after_one_cycle_with_no_findings,test_loop_breaks_on_dispatch_arbiter_at_max_cycles,test_loop_short_circuits_pre_loop_with_prior_arbiter,test_loop_atomic_ledger_append_per_cycle]
 plugins/dso/scripts/review-workflow.sh:tests/skills/dso_ci_review/test_local_workflow_ledger.py
