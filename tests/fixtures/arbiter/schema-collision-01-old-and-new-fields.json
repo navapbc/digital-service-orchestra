@@ -13,7 +13,10 @@
     "ruling": "BLOCK",
     "old_schema_ruling_for_test": "SUSTAIN_AT_SEVERITY",
     "rationale": "Defense rejected. Old schema field present for backward compat test.",
-    "schema_version": "1.0.0"
+    "schema_version": "1.1.0",
+    "cross_reviewer_agreement": ["UNANIMOUS"],
+    "cross_cycle_pattern": ["UNKNOWN"],
+    "impact_class": "bug"
   },
   "old_schema_present": true,
   "cycle": 1,
