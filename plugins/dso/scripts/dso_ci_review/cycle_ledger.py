@@ -144,7 +144,17 @@ def _open_lock(lock_path: str):
     keep the inode alive until close()).
     """
     fd = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o644)
-    return os.fdopen(fd, "r")
+    try:
+        # If os.fdopen raises (resource exhaustion), close the raw fd we
+        # just allocated so it doesn't leak (bug da45 PR #202 cycle-N
+        # finding f-XXX). The raised exception still propagates.
+        return os.fdopen(fd, "r")
+    except Exception:
+        try:
+            os.close(fd)
+        except OSError:
+            pass  # best-effort cleanup
+        raise
 
 
 def write_ledger(path: str, ledger: dict) -> None:
