@@ -648,6 +648,25 @@ Code-change stories (stories that produce or modify source code) must include **
 
 Documentation, research, and other non-code stories are exempt from this requirement — their Done Definitions focus on observable outcomes rather than test coverage.
 
+#### DD Lexicon Check
+
+Before finalizing each story, check each done definition for precision vocabulary and compound requirements:
+
+```bash
+for _DD in "${_DONE_DEFINITIONS[@]}"; do
+    _LEXICON_RESULT=$(echo "$_DD" | bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-dd-lexicon.sh")
+    _LEXICON_EXIT=$?
+    if [[ $_LEXICON_EXIT -ne 0 ]]; then
+        echo "DD LEXICON VIOLATION: $_LEXICON_RESULT"
+        echo "Split or revise: '$_DD'"
+        # halt — do not finalize this story
+        exit 1
+    fi
+done
+```
+
+A **compound** violation (type `compound`) means the DD contains ` AND ` joining two requirements — split into two separate done definitions. A **vague** violation (type `vague`) means the DD uses imprecise language (e.g., `properly`, `correctly`, `should`) — replace with observable, measurable language.
+
 #### Considerations
 Notes from the Risk & Scope Scan (Phase C). These provide context for `/dso:implementation-plan` to incorporate into task-level acceptance criteria:
 
