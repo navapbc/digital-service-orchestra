@@ -22,6 +22,17 @@
 : "${PASS:=0}"
 : "${FAIL:=0}"
 
+# All assertion helpers below print FAIL messages with the caller's source
+# file and line on a SEPARATE `at:` line (audit P5-1). The `at:` line is
+# placed *after* the `FAIL: <label>` line so the existing
+# `parse_failing_tests_from_output` regex (red-zone.sh) — which requires the
+# FAIL line to end immediately after the label — still matches. Putting the
+# location on the same line as `FAIL:` would break red-zone tolerance
+# project-wide.
+#
+# Use `${BASH_SOURCE[1]}` and `${BASH_LINENO[0]}` — NOT `${LINENO}`, which
+# would expand to this library's own line.
+
 # assert_eq label expected actual
 # Increments PASS if expected == actual, FAIL otherwise.
 assert_eq() {
@@ -30,7 +41,7 @@ assert_eq() {
         (( ++PASS ))
     else
         (( ++FAIL ))
-        printf "FAIL: %s\n  expected: %s\n  actual:   %s\n" "$label" "$expected" "$actual" >&2
+        printf "FAIL: %s\n  at:       %s:%s\n  expected: %s\n  actual:   %s\n" "$label" "${BASH_SOURCE[1]:-?}" "${BASH_LINENO[0]:-?}" "$expected" "$actual" >&2
     fi
 }
 
@@ -42,7 +53,7 @@ assert_ne() {
         (( ++PASS ))
     else
         (( ++FAIL ))
-        printf "FAIL: %s\n  should NOT be: %s\n  actual:        %s\n" "$label" "$not_expected" "$actual" >&2
+        printf "FAIL: %s\n  at:            %s:%s\n  should NOT be: %s\n  actual:        %s\n" "$label" "${BASH_SOURCE[1]:-?}" "${BASH_LINENO[0]:-?}" "$not_expected" "$actual" >&2
     fi
 }
 
@@ -54,7 +65,7 @@ assert_contains() {
         (( ++PASS ))
     else
         (( ++FAIL ))
-        printf "FAIL: %s\n  expected to contain: %s\n  actual:              %s\n" "$label" "$substring" "$string" >&2
+        printf "FAIL: %s\n  at:                  %s:%s\n  expected to contain: %s\n  actual:              %s\n" "$label" "${BASH_SOURCE[1]:-?}" "${BASH_LINENO[0]:-?}" "$substring" "$string" >&2
     fi
 }
 
@@ -66,7 +77,7 @@ assert_not_contains() {
         (( ++PASS ))
     else
         (( ++FAIL ))
-        printf "FAIL: %s\n  expected NOT to contain: %s\n  actual:                  %s\n" "$label" "$substring" "$string" >&2
+        printf "FAIL: %s\n  at:                      %s:%s\n  expected NOT to contain: %s\n  actual:                  %s\n" "$label" "${BASH_SOURCE[1]:-?}" "${BASH_LINENO[0]:-?}" "$substring" "$string" >&2
     fi
 }
 
@@ -86,7 +97,8 @@ assert_pass_if_clean() {
     if [[ "$FAIL" -eq "$_fail_snapshot" ]]; then
         echo "$label ... PASS"
     else
-        echo "FAIL: $label" >&2
+        # Keep "FAIL: <label>" first-line shape parseable by red-zone.sh.
+        printf "FAIL: %s\n  at: %s:%s\n" "$label" "${BASH_SOURCE[1]:-?}" "${BASH_LINENO[0]:-?}" >&2
     fi
 }
 
