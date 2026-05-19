@@ -2,8 +2,7 @@
 # tests/scripts/test-check-recipe-engines.sh
 # Behavioral tests for plugins/dso/scripts/sprint/check-recipe-engines.sh.
 #
-# Testing mode: RED — check-recipe-engines.sh does not yet exist.
-# All tests MUST FAIL before the script is implemented.
+# Testing mode: GREEN — check-recipe-engines.sh is implemented.
 #
 # The script under test reads:
 #   RECIPE_REGISTRY_PATH  — path to the recipe-registry.yaml (injectable for test isolation)
@@ -365,5 +364,146 @@ assert_ne "test_tsmorph_outdated_version_detected: must exit non-zero for outdat
 assert_contains "test_tsmorph_outdated_version_detected: output must contain OUTDATED_ENGINE" \
     "OUTDATED_ENGINE: ts-morph found:15.0.0 minimum:17.0.0" "$_tsm_old_output"
 assert_pass_if_clean "test_tsmorph_outdated_version_detected"
+
+# ── test_cli_engine_outdated_version_detected ─────────────────────────────────
+# Given: a task list with a recipe that uses the isort CLI engine (min 5.0.0)
+# AND:   isort IS installed but reports version 4.3.0 (below minimum 5.0.0)
+# When:  check-recipe-engines.sh is invoked
+# Then:  output contains "OUTDATED_ENGINE: isort found:4.3.0 minimum:5.0.0" and exits non-zero
+# (RED: current wildcard case only checks binary presence, never version)
+_snapshot_fail
+_cli_outdated_reg="$(mktemp /tmp/test-check-recipe-engines-cli-reg.XXXXXX.yaml)"
+_TMPFILES+=("$_cli_outdated_reg")
+cat > "$_cli_outdated_reg" <<'YAML'
+recipes:
+  - name: sort-imports
+    language: python
+    engine: isort
+    adapter: isort-adapter.sh
+    capability_description: "Sort Python imports"
+    scope: single-file
+    min_engine_version: "5.0.0"
+    installation_instructions: "pip install isort>=5"
+YAML
+
+_cli_outdated_tasks="$(mktemp /tmp/test-check-recipe-engines-cli-tasks.XXXXXX.json)"
+_TMPFILES+=("$_cli_outdated_tasks")
+cat > "$_cli_outdated_tasks" <<'JSON'
+[{"id": "task-isort-001", "title": "Sort imports", "tags": ["recipe:sort-imports"], "status": "open"}]
+JSON
+
+# Stub isort binary reporting outdated version 4.3.0
+_cli_outdated_stub="$(mktemp -d /tmp/test-check-recipe-engines-cli-old.XXXXXX)"
+_TMPDIRS+=("$_cli_outdated_stub")
+cat > "$_cli_outdated_stub/isort" <<'STUB'
+#!/usr/bin/env bash
+# Stub isort: reports version 4.3.0 (outdated)
+if [[ "$*" == *"--version"* ]]; then
+    echo "isort, version 4.3.0"
+    exit 0
+fi
+exit 0
+STUB
+chmod +x "$_cli_outdated_stub/isort"
+
+_cli_outdated_output=""
+_cli_outdated_exit=0
+_cli_outdated_output=$(
+    RECIPE_REGISTRY_PATH="$_cli_outdated_reg" \
+    TASK_LIST_FILE="$_cli_outdated_tasks" \
+    PATH="$_cli_outdated_stub:$PATH" \
+    bash "$SCRIPT" 2>&1
+) || _cli_outdated_exit=$?
+
+assert_ne "test_cli_engine_outdated_version_detected: must exit non-zero for outdated isort" "0" "$_cli_outdated_exit"
+assert_contains "test_cli_engine_outdated_version_detected: output must contain OUTDATED_ENGINE: isort found:4.3.0 minimum:5.0.0" \
+    "OUTDATED_ENGINE: isort found:4.3.0 minimum:5.0.0" "$_cli_outdated_output"
+assert_pass_if_clean "test_cli_engine_outdated_version_detected"
+
+# ── test_cli_engine_current_version_passes ────────────────────────────────────
+# Given: a task list with a recipe that uses the isort CLI engine (min 5.0.0)
+# AND:   isort IS installed and reports version 5.10.1 (above minimum 5.0.0)
+# When:  check-recipe-engines.sh is invoked
+# Then:  output contains "ENGINES_OK" and exits 0
+_snapshot_fail
+_cli_ok_stub="$(mktemp -d /tmp/test-check-recipe-engines-cli-ok.XXXXXX)"
+_TMPDIRS+=("$_cli_ok_stub")
+cat > "$_cli_ok_stub/isort" <<'STUB'
+#!/usr/bin/env bash
+# Stub isort: reports version 5.10.1 (current)
+if [[ "$*" == *"--version"* ]]; then
+    echo "isort, version 5.10.1"
+    exit 0
+fi
+exit 0
+STUB
+chmod +x "$_cli_ok_stub/isort"
+
+_cli_ok_output=""
+_cli_ok_exit=0
+_cli_ok_output=$(
+    RECIPE_REGISTRY_PATH="$_cli_outdated_reg" \
+    TASK_LIST_FILE="$_cli_outdated_tasks" \
+    PATH="$_cli_ok_stub:$PATH" \
+    bash "$SCRIPT" 2>&1
+) || _cli_ok_exit=$?
+
+assert_eq "test_cli_engine_current_version_passes: must exit 0 when isort is current" "0" "$_cli_ok_exit"
+assert_contains "test_cli_engine_current_version_passes: output must contain ENGINES_OK" \
+    "ENGINES_OK" "$_cli_ok_output"
+assert_pass_if_clean "test_cli_engine_current_version_passes"
+
+# ── test_zero_min_version_skips_version_check ─────────────────────────────────
+# Given: a task list with a recipe whose min_engine_version is "0.0.0" (scaffold)
+# AND:   the engine binary exists (any version is acceptable)
+# When:  check-recipe-engines.sh is invoked
+# Then:  output contains "ENGINES_OK" and exits 0 (no version check needed)
+_snapshot_fail
+_zero_reg="$(mktemp /tmp/test-check-recipe-engines-zero-reg.XXXXXX.yaml)"
+_TMPFILES+=("$_zero_reg")
+cat > "$_zero_reg" <<'YAML'
+recipes:
+  - name: scaffold-route
+    language: any
+    engine: scaffold
+    adapter: scaffold-adapter.sh
+    capability_description: "Generate route boilerplate"
+    scope: generative
+    min_engine_version: "0.0.0"
+    installation_instructions: "No external engine required"
+YAML
+
+_zero_tasks="$(mktemp /tmp/test-check-recipe-engines-zero-tasks.XXXXXX.json)"
+_TMPFILES+=("$_zero_tasks")
+cat > "$_zero_tasks" <<'JSON'
+[{"id": "task-scaffold-001", "title": "Scaffold route", "tags": ["recipe:scaffold-route"], "status": "open"}]
+JSON
+
+_zero_stub="$(mktemp -d /tmp/test-check-recipe-engines-zero.XXXXXX)"
+_TMPDIRS+=("$_zero_stub")
+cat > "$_zero_stub/scaffold" <<'STUB'
+#!/usr/bin/env bash
+# Stub scaffold binary (min_engine_version=0.0.0, any version OK)
+if [[ "$*" == *"--version"* ]]; then
+    echo "scaffold 0.1.0"
+    exit 0
+fi
+exit 0
+STUB
+chmod +x "$_zero_stub/scaffold"
+
+_zero_output=""
+_zero_exit=0
+_zero_output=$(
+    RECIPE_REGISTRY_PATH="$_zero_reg" \
+    TASK_LIST_FILE="$_zero_tasks" \
+    PATH="$_zero_stub:$PATH" \
+    bash "$SCRIPT" 2>&1
+) || _zero_exit=$?
+
+assert_eq "test_zero_min_version_skips_version_check: must exit 0 for 0.0.0 min version" "0" "$_zero_exit"
+assert_contains "test_zero_min_version_skips_version_check: output must contain ENGINES_OK" \
+    "ENGINES_OK" "$_zero_output"
+assert_pass_if_clean "test_zero_min_version_skips_version_check"
 
 print_summary

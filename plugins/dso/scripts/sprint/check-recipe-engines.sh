@@ -144,6 +144,22 @@ for recipe in "${recipe_names[@]}"; do
                 echo "MISSING_ENGINE: $engine minimum:$min_ver"
                 missing_engines+=("$engine")
                 any_problem=1
+                continue
+            fi
+            # Skip version check when any version satisfies the requirement (min=0.0.0)
+            if [[ "$min_ver" != "0.0.0" ]]; then
+                found_ver="$("$engine" --version 2>&1 | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1)"
+                if [[ -z "$found_ver" ]]; then
+                    echo "MISSING_ENGINE: $engine minimum:$min_ver"
+                    missing_engines+=("$engine")
+                    any_problem=1
+                    continue
+                fi
+                if ! _version_gte "$found_ver" "$min_ver"; then
+                    echo "OUTDATED_ENGINE: $engine found:$found_ver minimum:$min_ver"
+                    missing_engines+=("$engine")
+                    any_problem=1
+                fi
             fi
             ;;
     esac
