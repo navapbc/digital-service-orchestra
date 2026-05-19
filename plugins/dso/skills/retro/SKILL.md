@@ -139,12 +139,22 @@ Use AskUserQuestion to present findings by tier with estimated effort, then ask 
 
 ## Bug Classification (MANDATORY)
 
+Read config values before running (defaults: retro_window_days=60, recurrence_threshold=3):
+
+```bash
+PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
+RETRO_WINDOW=$(bash "$PLUGIN_SCRIPTS/read-config.sh" bug_classification.retro_window_days 2>/dev/null || echo 60)
+RECURRENCE_THRESHOLD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" bug_classification.recurrence_threshold 2>/dev/null || echo 3)
+RETRO_WINDOW="${RETRO_WINDOW:-60}"
+RECURRENCE_THRESHOLD="${RECURRENCE_THRESHOLD:-3}"
+```
+
 Run:
-  .claude/scripts/dso bug-classification-stats.sh --window-days 60
+  .claude/scripts/dso bug-classification-stats.sh --window-days "${RETRO_WINDOW}"
 
 For each finding, fire a DISTINCT labeled finding when any threshold is reached:
-- When `bug-type-uncategorized` count >= recurrence_threshold (default 3): add labeled finding `bug-type-uncategorized`
-- When any registry slug count >= recurrence_threshold: add labeled finding for that slug
+- When `bug-type-uncategorized` count >= ${RECURRENCE_THRESHOLD}: add labeled finding `bug-type-uncategorized`
+- When any registry slug count >= ${RECURRENCE_THRESHOLD}: add labeled finding for that slug
 - When ANY `bug-type-classifier-failed-*` tag is present (threshold=1): add labeled finding `bug-type-classifier-failed`
 
 When NO threshold fires, emit exactly:
