@@ -109,6 +109,38 @@ REPO_ROOT = pathlib.Path(__file__).parents[3]
 FIXTURE_DIR = REPO_ROOT / "tests" / "fixtures" / "ci-review-corpus"
 
 
+@pytest.fixture(autouse=True)
+def _isolate_cycle_ledger_artifacts(tmp_path_factory, monkeypatch):
+    """Isolate WORKFLOW_PLUGIN_ARTIFACTS_DIR per test so cycle-ledger state
+    does not leak across tests.
+
+    Without this, runner.main() resolves artifacts_dir to the global
+    /tmp/workflow-plugin-<hash>/ directory, and cycle-ledger.json accumulates
+    cycles across test invocations. Tests that expect cycle_num=1 (default)
+    see cycle_num=N where N is the number of prior test invocations, which
+    triggers the cycle>=2 novelty gate / DISPATCH_ARBITER paths and breaks
+    severity-gate assertions.
+
+    The autouse fixture creates a unique tmp subdirectory per test and
+    points WORKFLOW_PLUGIN_ARTIFACTS_DIR at it for the test's duration.
+    Tests that explicitly set their own WORKFLOW_PLUGIN_ARTIFACTS_DIR (e.g.
+    via _run_main_with) still win because their patch.dict applies inside
+    the test body, overriding this autouse fixture's setting.
+
+    Additionally stubs runner.cycle_next_action to return DISPATCH_NEXT by
+    default. Tests exercising arbiter / SHORT_CIRCUIT / PASS branches must
+    override this stub explicitly with their own patch. Without the stub,
+    the runner's post-Step-8a cycle_next_action call (which sees the
+    just-appended cycle in the ledger) may return DISPATCH_ARBITER and
+    trigger a real LLM call via dispatch_cycle_end_arbiter, which fails
+    auth with the test-stub API key and propagates a ValueError when the
+    empty rulings list is validated.
+    """
+    isolated = tmp_path_factory.mktemp("artifacts")
+    monkeypatch.setenv("WORKFLOW_PLUGIN_ARTIFACTS_DIR", str(isolated))
+
+
+
 @pytest.fixture()
 def fixture_diff_path():
     """Return path to the fixture diff file."""

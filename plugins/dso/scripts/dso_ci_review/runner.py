@@ -2100,13 +2100,20 @@ def main() -> int:
         )
 
         # Step 8b: route on cycle_dispatcher action.
-        # Re-read ledger after Step 8a append so STABLE_HALT computation
-        # (Jaccard over ledger.cycles) sees the current cycle's findings.
-        # Using the stale pre-append ledger would fire the arbiter one cycle
-        # late (review-finding 2026-05-18).
-        _ledger_fresh = cycle_ledger.read_ledger(_ledger_path)
+        # Use the PRE-APPEND ledger here, not a re-read after Step 8a.
+        # cycle_dispatcher.next_action computes cycle_num as
+        # last_cycle.cycle_num + 1 and uses last_cycle.findings as prior
+        # for the Jaccard STABLE_HALT comparison. Passing the post-append
+        # ledger would make last_cycle the cycle we JUST appended (Jaccard
+        # of current findings against themselves = 1.0 → guaranteed
+        # STABLE_HALT → DISPATCH_ARBITER on every cycle). The pre-append
+        # ledger gives last_cycle = previous cycle, which is the correct
+        # comparison surface. (Earlier "fix" for review-finding 2026-05-18
+        # introduced the self-comparison bug; this reverts to the correct
+        # semantics. The bug was not caught at sub-PR time because Python
+        # Skill/Doc Tests is gated to base=main — bug 69e5-824a-ec7e-4bd9.)
         _action_result = cycle_next_action(
-            _ledger_fresh, max_cycles, _current_findings, reviewed_sha, _artifacts_dir
+            ledger, max_cycles, _current_findings, reviewed_sha, _artifacts_dir
         )
         _action = _action_result.get("action", "DISPATCH_NEXT")
 
