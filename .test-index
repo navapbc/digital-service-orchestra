@@ -222,6 +222,7 @@ plugins/dso/scripts/fix-bug/blast-radius.sh:tests/scripts/test-gate-format-check
 plugins/dso/scripts/fix-bug/dependency-check.sh:tests/scripts/test-gate-format-check.sh
 plugins/dso/scripts/fix-bug/route-escalation.sh:tests/scripts/test_gate_escalation_router.py
 plugins/dso/scripts/fix-cascade-recovery/reset-cascade-counter.sh:tests/scripts/test-reset-cascade-counter.sh
+plugins/dso/scripts/flag-deprecation-check.sh:tests/scripts/test-flag-deprecation-check.sh
 plugins/dso/scripts/format-and-lint.sh:tests/scripts/test-residual-callers-polyglot.sh
 plugins/dso/scripts/fp-rate-tracker.sh:tests/scripts/test-fp-rate-tracker.sh,tests/scripts/test-fp-fallback-integration.sh
 plugins/dso/scripts/harvest-worktree.sh:tests/scripts/test-harvest-worktree.sh
