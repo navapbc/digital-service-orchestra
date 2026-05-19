@@ -497,3 +497,4 @@ plugins/dso/scripts/scan-red-markers.sh:tests/scripts/test-scan-red-markers.sh [
 plugins/dso/scripts/scan-red-markers.sh:tests/scripts/test-scan-red-markers.sh [test_scan_red_markers_unit_marker_present]
 plugins/dso/scripts/lib/worktree-removal-guards.sh:tests/scripts/test-worktree-removal-guards.sh [test_worktree_removal_guards]
 plugins/dso/scripts/exempt-in-flight-prs.sh:tests/scripts/test-exempt-in-flight-prs.sh [test_labels_all_in_flight_prs]
+plugins/dso/scripts/rollback-sub-pr-cutover.sh:tests/scripts/test-rollback-sub-pr-cutover.sh [test_rollback_sub_pr_cutover]
