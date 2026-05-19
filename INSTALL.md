@@ -121,7 +121,8 @@ Rulesets on `session-*` branches:
 5. Under **Branch rules**:
    - Enable **Restrict who can push matching branches** → this blocks direct pushes (non-fast-forward)
    - Enable **Require status checks to pass before merging**
-     - Click **Add checks** and enter `Sprint Story Review` (this must match `dso.review.check_name` in `dso-config.conf`; the check is produced by `ci.yml`'s `llm-review` job)
+     - Click **Add checks** and enter `Sprint Story Review` (this must match `dso.review.check_name` in `dso-config.conf`)
+     - **KNOWN GAP (tracked under remediation epic; post-mortem bug 576b-a6c7-3de3-4eef)**: the `Sprint Story Review` check is currently NOT produced on sub-branch PRs. `ci.yml`'s `llm-review` job is gated to `base_ref == 'main'` and does not fire on `session-*` PRs. Required-check enforcement on `session-*` will succeed-vacuously until the remediation epic restores per-sub-branch LLM review with a workflow that emits this check on sub-branch PRs.
    - **Do NOT** enable **Require linear history** — this breaks the sprint merge strategy
 6. Click **Create**
 
