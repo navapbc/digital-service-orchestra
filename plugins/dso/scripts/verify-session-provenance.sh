@@ -134,7 +134,7 @@ while IFS=' ' read -r sha subject; do
 
     # Step 1: Check for DSO-Story-Merge trailer in commit message
     commit_body="$(git -C "$GIT_REPO_PATH" log -1 --format="%B" "$sha" 2>/dev/null)" || true
-    if echo "$commit_body" | grep -q "^DSO-Story-Merge:"; then
+    if echo "$commit_body" | grep -qE "^DSO-Story(-Merge)?:"; then
         # Commit is provenanced via story merge trailer — cache and skip
         _cache_set "$sha" "provenanced"
         continue
