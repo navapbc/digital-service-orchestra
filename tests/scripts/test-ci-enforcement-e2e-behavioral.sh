@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # tests/scripts/test-ci-enforcement-e2e-behavioral.sh
-# Behavioral tests for tests/scripts/test-ci-enforcement-e2e.sh
+# Behavioral tests for tests/integration/test-ci-enforcement-e2e.sh
 #
-# RED phase: tests/scripts/test-ci-enforcement-e2e.sh does NOT exist yet.
+# RED phase: tests/integration/test-ci-enforcement-e2e.sh does NOT exist yet.
 # All tests are expected to FAIL until the GREEN task (1611-6951) creates it.
 #
 # Usage: bash tests/scripts/test-ci-enforcement-e2e-behavioral.sh
@@ -15,13 +15,13 @@ REPO_ROOT="$(cd "$SCRIPT_DIR" && git rev-parse --show-toplevel)"
 
 source "$REPO_ROOT/tests/lib/assert.sh"
 
-SCRIPT="$REPO_ROOT/tests/scripts/test-ci-enforcement-e2e.sh"
+SCRIPT="$REPO_ROOT/tests/integration/test-ci-enforcement-e2e.sh"
 
 echo "=== test-ci-enforcement-e2e-behavioral.sh ==="
 
 # -- test_opt_in_gate_exits_zero_skip -----------------------------------------
 # Given: RUN_CI_E2E is absent
-# When:  bash tests/scripts/test-ci-enforcement-e2e.sh 2>/dev/null
+# When:  bash tests/integration/test-ci-enforcement-e2e.sh 2>/dev/null
 # Then:  exits 0 AND output contains "SKIP"
 #
 # RED: script does not exist yet — will exit non-zero (bash: file not found)
@@ -36,7 +36,7 @@ assert_pass_if_clean "test_opt_in_gate_exits_zero_skip"
 
 # -- test_missing_repo_exits_nonzero ------------------------------------------
 # Given: RUN_CI_E2E=1, CI_E2E_REPO absent
-# When:  RUN_CI_E2E=1 bash tests/scripts/test-ci-enforcement-e2e.sh 2>/dev/null
+# When:  RUN_CI_E2E=1 bash tests/integration/test-ci-enforcement-e2e.sh 2>/dev/null
 # Then:  exits non-zero (1 or 2)
 #
 # RED: script does not exist yet — bash will exit non-zero, but rc==127 (not 1
