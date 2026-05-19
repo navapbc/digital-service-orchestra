@@ -130,6 +130,15 @@ parse_failing_tests_from_output() {
     # (e.g., "FAIL: ticket ID returned for --tags test") are NOT extracted as
     # partial words. Only lines where the content after "FAIL: " is a single
     # identifier are matched (bug 091a-368f).
+    #
+    # CONTRACT WITH tests/lib/assert.sh (do NOT change without updating the
+    # other side): the FAIL line emitted by assert.sh MUST end immediately
+    # after the test identifier — no trailing `(file:line)`, no annotations,
+    # nothing past the identifier on that line. Caller-location info, if any,
+    # must be emitted on a SUBSEQUENT indented line (e.g., `  at: file:42`).
+    # When PR #237's assert.sh enhancement appended ` (file:line)` to the
+    # FAIL line, this regex silently stopped matching system-wide and four
+    # test files flipped from TOLERATED to FAIL on the very next CI run.
     grep -E '^[[:space:]]*FAIL: [a-zA-Z_][a-zA-Z0-9_-]*$' "$output_file" \
         | sed 's/^[[:space:]]*FAIL: //' \
         || true

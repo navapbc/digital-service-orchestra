@@ -46,26 +46,11 @@ def _load_provider_module(relative_path: str) -> object:
     return mod
 
 
-def test_provider_protocol_exists() -> None:
-    """
-    Given: the dso_ci_review.providers.base module
-    When: we load the Provider Protocol and inspect its interface
-    Then: Provider is a class with review_diff in its protocol members,
-          and runtime isinstance checks work (runtime_checkable)
-    """
-    base_mod = _load_provider_module("dso_ci_review/providers/base.py")
-    Provider = base_mod.Provider  # type: ignore[attr-defined]
-
-    assert inspect.isclass(Provider), "Provider must be a class"
-    # Behavioral assertion: review_diff must be declared in the Protocol members
-    assert "review_diff" in Provider.__protocol_attrs__, (  # type: ignore[attr-defined]
-        "Provider Protocol must define review_diff as a structural requirement; "
-        f"found members: {getattr(Provider, '__protocol_attrs__', set())}"
-    )
-    # Behavioral assertion: Provider is runtime_checkable (isinstance checks work)
-    assert getattr(Provider, "_is_runtime_protocol", False), (
-        "Provider must be decorated with @runtime_checkable to support isinstance checks"
-    )
+# Deleted: test_provider_protocol_exists — pure reflection on the Provider
+# Protocol's membership / runtime-checkable decoration. The downstream
+# test_anthropic_satisfies_protocol and test_mock_provider_stub_exists
+# tests verify the Protocol contract via real isinstance checks against
+# concrete implementations, which is the actual signal worth guarding.
 
 
 def test_anthropic_satisfies_protocol() -> None:
