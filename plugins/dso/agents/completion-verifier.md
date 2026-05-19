@@ -260,6 +260,15 @@ _NARRATIVE=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/render-closure-narrative.sh" "$
 
 The rendered format is: `P1={P1} criteria_met={N}/{total} blocked_by={B}`
 
+Before finalizing output, check bypass log completeness if any gate overrides occurred:
+
+```bash
+# If artifact bundle has gate_overrides, validate bypass logs
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/bypass-log-check.sh" --artifact-file="$_VERIFIER_TMP"
+```
+
+If `bypass-log-check.sh` exits non-zero, set `P1: FAIL` and add a criterion result entry documenting the missing bypass log. Do NOT emit a PASS verdict when gate overrides lack required bypass log entries.
+
 Return a structured JSON block matching the output schema below. After the JSON block, include a plain-text **Verification Summary** section.
 
 ---
