@@ -49,7 +49,6 @@ from dso_ci_review.providers.config import AuthError, ConfigError, get_provider
 from dso_ci_review.proximity import compute_proximity_overlap, validate_escape_rationale
 from dso_ci_review.region_split import _should_region_split, run_region_split
 from dso_ci_review import cycle_ledger
-from dso_ci_review.cycle_dispatcher import next_action as cycle_next_action
 from dso_ci_review.arbiter import dispatch_cycle_end_arbiter
 from dso_ci_review.arbiter_processor import process_rulings
 
@@ -139,64 +138,6 @@ def _real_blocking_findings(findings: list[dict]) -> list[dict]:
 # ---------------------------------------------------------------------------
 # Cycle-ledger helpers (Step 8a / Step 8b)
 # ---------------------------------------------------------------------------
-
-
-def _compute_findings_tuples(findings: list[dict]) -> list:
-    """Convert findings to (file, line_range, category) tuples for ledger storage."""
-    tuples = []
-    for f in findings or []:
-        if not isinstance(f, dict):
-            continue
-        file_ = str(f.get("file", "") or "")
-        line_ = str(f.get("line_range", "") or "")
-        cat_ = str(f.get("category", "") or "")
-        tuples.append([file_, line_, cat_])
-    return tuples
-
-
-def _compute_findings_hash(tuples: list) -> str:
-    """Stable SHA-256 hex hash of the sorted findings tuples."""
-    import hashlib  # noqa: PLC0415
-
-    serialized = json.dumps(sorted(str(t) for t in tuples), sort_keys=True)
-    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()[:16]
-
-
-def _post_cycle_marker_comment(
-    *,
-    pr_number: str | None,
-    cycle_num: int,
-    commit_sha: str,
-    findings_hash: str,
-    tuples: list,
-) -> None:
-    """Post a DSO-Review-Cycle marker comment to the PR (best-effort).
-
-    Marker format (v1.1.0):
-        DSO-Review-Cycle: <N> commit_sha=<sha> findings_hash=<hash> tuples=<json>
-
-    No-ops when pr_number is None (non-PR context).
-    Errors are logged to stderr and swallowed — this is a best-effort operation.
-    """
-    if not pr_number:
-        return
-    tuples_json = json.dumps(tuples)
-    body = (
-        f"DSO-Review-Cycle: {cycle_num} commit_sha={commit_sha} "
-        f"findings_hash={findings_hash} tuples={tuples_json}"
-    )
-    try:
-        subprocess.run(
-            ["gh", "pr", "comment", pr_number, "--body", body],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-    except Exception as exc:  # noqa: BLE001
-        print(
-            f"WARNING: failed to post cycle marker comment for PR #{pr_number}: {exc}",
-            file=sys.stderr,
-        )
 
 
 def _init_cycle_ledger(
@@ -2159,8 +2100,13 @@ def main() -> int:
         )
 
         # Step 8b: route on cycle_dispatcher action.
+        # Re-read ledger after Step 8a append so STABLE_HALT computation
+        # (Jaccard over ledger.cycles) sees the current cycle's findings.
+        # Using the stale pre-append ledger would fire the arbiter one cycle
+        # late (review-finding 2026-05-18).
+        _ledger_fresh = cycle_ledger.read_ledger(_ledger_path)
         _action_result = cycle_next_action(
-            ledger, max_cycles, _current_findings, reviewed_sha, _artifacts_dir
+            _ledger_fresh, max_cycles, _current_findings, reviewed_sha, _artifacts_dir
         )
         _action = _action_result.get("action", "DISPATCH_NEXT")
 
