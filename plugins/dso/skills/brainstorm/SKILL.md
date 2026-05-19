@@ -146,6 +146,37 @@ git rev-parse --show-toplevel 2>/dev/null
 
 If a PRD or `.claude/design-notes.md` exists, open with a brief summary of what you already know, then probe deeper rather than starting from scratch.
 
+### Epic Architectural Classification
+
+Run the epic classifier to determine architectural class before scrutiny. When enriching an existing epic, pipe the epic JSON to the classifier; for new epics, run after the epic ticket is created in Phase 3:
+
+```bash
+_EPIC_JSON=$(.claude/scripts/dso ticket show "${_EPIC_ID}" 2>/dev/null || echo '{}')
+_EPIC_CLASS=$(echo "$_EPIC_JSON" | bash "${CLAUDE_PLUGIN_ROOT}/scripts/classify-epic-class.sh")  # shim-exempt: internal plugin script invoked directly from within the plugin skill
+```
+
+Write the classification to the epic spec as a machine-readable field. Update the epic description to include an `EPIC_CLASS:` line (e.g., `EPIC_CLASS: class:architectural`), or post it as a structured comment if the description is already finalized. Log the classification decision so downstream orchestrators (sprint, preplanning) can skip or require architectural probes accordingly.
+
+Valid class values: `class:architectural` | `class:integration` | `class:infra` | `class:behavioral`
+
+### Architectural Probe Dispatch
+
+When `$_EPIC_CLASS == "class:architectural"`, dispatch the architectural probe before scrutiny:
+
+```bash
+if [[ "$_EPIC_CLASS" == "class:architectural" ]]; then
+    _PROBE_OUTPUT=$(mktemp /tmp/arch-probe-output.XXXXXX)
+    bash "${CLAUDE_PLUGIN_ROOT}/scripts/run-architectural-probe.sh" \
+        --epic-class="$_EPIC_CLASS" \
+        --output-file="$_PROBE_OUTPUT" \
+        --epic-id="$_EPIC_ID"
+    if [[ $? -ne 0 ]] || [[ ! -s "$_PROBE_OUTPUT" ]]; then
+        echo "PROBE_GATE_BLOCKED: architectural epic requires probe output before scrutiny"
+        exit 1
+    fi
+fi
+```
+
 ### Codebase Investigation Gate (Mandatory Before Any User Question)
 
 Before presenting ANY question to the user, you MUST first check whether the answer is discoverable by reading the codebase. Read existing skill files (sprint SKILL.md, fix-bug SKILL.md), ARCH_ENFORCEMENT.md, pyproject.toml, project-understanding.md, and relevant scripts/module structure. Only ask the user questions whose answers cannot be found in the repo. Questions about design approach, user experience preferences, or business priorities are appropriate for the user; questions about existing implementations, available tools, or project structure are NOT — find those answers yourself first.

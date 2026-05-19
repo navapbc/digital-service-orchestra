@@ -1097,6 +1097,7 @@ After running `project-detect.sh`, inspect `ci_workflow_confidence` and `ci_work
 | `format` | `format.line_length`, `format.indent` | Enforcement answers |
 | `ci` | `ci.workflow_name`, `ci.fast_gate_job`, `ci.fast_fail_job`, `ci.test_ceil_job`, `ci.integration_workflow` | Confirmed from workflow filenames + `ci_workflow_names` detection (`ci.workflow_name` replaces deprecated `merge.ci_workflow_name`; see auto-migration above) |
 | `commands` | `commands.test`, `commands.lint`, `commands.format`, `commands.format_check` | Commands area answers |
+| `merge` | `merge.strategy` (write `direct` or `pr` per Phase 2 section 13 answer; idempotent — skip if key already present; on `pr`, the GitHub Ruleset is provision-ruleset during the `initial-commit` batch via `github-bootstrap.sh`) | Phase 2 merge strategy dialogue answer |
 | `jira` | `jira.project` (if Jira integration desired) | User-stated |
 | `design` | `design.system_name`, `design.component_library` | Design area answers |
 | `tickets` | `tickets.prefix` | Derived from project name (see below) |
