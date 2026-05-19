@@ -1,31 +1,29 @@
 #!/usr/bin/env bash
 # tests/workflows/test-ci-suppress-prior-defenses-round-trip.sh
-# RED-phase behavioral tests for DSO_SUPPRESS_PRIOR_DEFENSES consumer wiring.
+# Behavioral tests for DSO_SUPPRESS_PRIOR_DEFENSES consumer wiring.
 #
 # Story 0aed-4d7a-991d-4f7f / Task ccbe-db35-6b66-411b
+# GREEN: T10 wired runner.py consumer; T13 audit confirmed no other sites.
 #
-# DD4 gap: ci.yml:523 "Suppress prior defenses for integration review" step sets
-# DSO_SUPPRESS_PRIOR_DEFENSES=true, but NO consumer in
-# plugins/dso/scripts/dso_ci_review/ or ci-llm-review-runner.sh reads or acts
-# on the flag (see PR #140 retro-review note inline in ci.yml).
+# DD4 gap (resolved): ci.yml "Suppress prior defenses for integration review"
+# step sets DSO_SUPPRESS_PRIOR_DEFENSES=true; runner.py consumer was wired in
+# T10 (story 0aed-4d7a-991d-4f7f). T13 audit (2ffc-932e-1964-4694) confirmed
+# ci.yml is the sole producer and runner.py is the sole consumer — no other
+# invocation sites exist. See docs/audits/2026-05-19-defense-suppression-sites.md.
 #
-# These tests FAIL RED because:
-#   Test 1: runner.py does not read DSO_SUPPRESS_PRIOR_DEFENSES — prior defenses
-#           are loaded unconditionally on cycle >= 2 (runner.py:1771-1773).
-#   Test 2: ci.yml "Run LLM review" step does not pass the suppress signal in a
-#           way that the runner acts on (env var is wired but has no consumer).
-#   Test 3: cycle_number derived from a ledger scoped to pr_number=42 must NOT
-#           bleed over to pr_number=99 — the per-PR isolation invariant.
-#   Test 4 (control, should PASS): without the suppress flag the runner accepts
-#           a prior-defense fixture without error (dry-run smoke test).
+# All tests PASS GREEN:
+#   Test 1: runner.py reads DSO_SUPPRESS_PRIOR_DEFENSES to gate prior-defense loading.
+#   Test 2: ci.yml suppress step no longer contains "consumer not yet implemented".
+#   Test 3: cycle_number derived from a ledger scoped to pr_number=42 does NOT
+#           bleed over to pr_number=99 — the per-PR isolation invariant holds.
+#   Test 4 (control): without the suppress flag the runner accepts a prior-defense
+#           fixture without error (dry-run smoke test).
 #
 # AC amendment: round-trip must include a fixture where two PRs share the same
 # SHA, and the derived cycle_number reflects the CURRENT PR's prior cycle count
 # (not the other PR's).
 #
 # Usage: bash tests/workflows/test-ci-suppress-prior-defenses-round-trip.sh
-
-# RED marker: [test_ci_suppress_prior_defenses_round_trip]
 
 set -uo pipefail
 
@@ -106,21 +104,15 @@ cat > "$_TMPDIR/cycle-ledger-pr99.json" <<'EOF'
 }
 EOF
 
-# ── test_ci_suppress_prior_defenses_round_trip (RED: runner has no consumer) ──
-# When DSO_SUPPRESS_PRIOR_DEFENSES=true is set (simulating ci.yml:523 having
-# fired), the runner.py source MUST contain a conditional that reads the env var
-# and skips prior-defense loading when the suppress flag is active.
-#
-# Current behavior: runner.py:1771-1773 loads prior defenses unconditionally
-# whenever cycle_number >= 2, without any check of DSO_SUPPRESS_PRIOR_DEFENSES.
-# The env var is set in ci.yml:584 and passed to the runner at ci.yml:606 but
-# no code path in runner.py reads or acts on it (see PR #140 note).
+# ── test_ci_suppress_prior_defenses_round_trip ───────────────────────────────
+# GREEN (T10 wired): When DSO_SUPPRESS_PRIOR_DEFENSES=true is set (simulating
+# the ci.yml "Suppress prior defenses for integration review" step having fired),
+# runner.py skips prior-defense loading. The guard was added at runner.py:1777-1793
+# in T10 (story 0aed-4d7a-991d-4f7f).
 #
 # This test asserts that runner.py contains a guard that skips prior-defense
 # loading when DSO_SUPPRESS_PRIOR_DEFENSES is truthy. The guard must appear
-# near the cycle_number >= 2 check (runner.py:1771).
-#
-# Failure mode: grep for the combined pattern finds nothing → FAIL RED.
+# near the cycle_number >= 2 check.
 _snapshot_fail
 _runner_has_suppress_guard=0
 
@@ -138,13 +130,12 @@ assert_eq \
 assert_pass_if_clean "test_ci_suppress_prior_defenses_round_trip"
 
 # ── test_ci_yml_suppress_step_consumer_wired ─────────────────────────────────
-# The ci.yml "Suppress prior defenses for integration review" step currently
-# only sets the env var but the inline comment explicitly states the consumer
-# is NOT yet implemented (PR #140 note).
+# GREEN (T10 wired): The ci.yml "Suppress prior defenses for integration review"
+# step previously contained a "consumer not yet implemented" comment (PR #140 note).
+# T10 wired the consumer in runner.py and removed that comment.
 #
-# After T10 implements the consumer, the comment must no longer say
-# "consumer not yet implemented". This test asserts the ABSENCE of the
-# "not yet implemented" note — currently it IS present, so the test FAILS RED.
+# This test asserts the ABSENCE of the "not yet implemented" note — confirming the
+# consumer is active and the stale comment is gone.
 _snapshot_fail
 _not_yet_impl=0
 if grep -q "consumer not yet implemented" "$WORKFLOW_FILE" 2>/dev/null; then
@@ -156,10 +147,9 @@ assert_eq \
 assert_pass_if_clean "test_ci_yml_suppress_step_consumer_wired"
 
 # ── test_runner_reads_dso_suppress_prior_defenses_env ────────────────────────
-# The runner.py source must contain a reference to DSO_SUPPRESS_PRIOR_DEFENSES
-# — it must read or check the flag before deciding to load prior defenses.
-#
-# Currently runner.py does NOT reference this env var anywhere; the test FAILS RED.
+# GREEN (T10 wired): The runner.py source must contain a reference to
+# DSO_SUPPRESS_PRIOR_DEFENSES — it must read or check the flag before deciding
+# to load prior defenses. Wired at runner.py:1777-1793 in T10.
 _snapshot_fail
 _runner_has_suppress=0
 if grep -q "DSO_SUPPRESS_PRIOR_DEFENSES" "$RUNNER_PY" 2>/dev/null; then
@@ -187,18 +177,12 @@ assert_pass_if_clean "test_runner_reads_dso_suppress_prior_defenses_env"
 # If cycle isolation is broken, the runner would incorrectly derive cycle_num=2
 # (taking the pr_number=42 entry as a match for pr_number=99).
 #
-# Current state: the runner.py filter at line 177 checks for both:
+# GREEN (T10 wired): The runner.py filter checks for both:
 #   c.get("pr_number") == pr_num_int  (exact match)
 #   c.get("pr_number") == _SENTINEL_PR_NUMBER  (=0, backward-compat)
-# The v1.2.0 ledger entry has pr_number=42, NOT 0, so it should NOT match
-# pr_number=99. But this test is RED because the suppress-wiring task
-# (T10) must also ensure the cycle-number derivation respects isolation
-# before prior-defense loading is gated on the suppress flag. Until T10
-# is implemented, the round-trip cannot be validated end-to-end.
-#
-# To make this test fail RED even if the ledger filter is currently correct:
-# we check that runner.py contains the suppress-gated loading path, which
-# does not yet exist.
+# The v1.2.0 ledger entry has pr_number=42, NOT 0, so it does NOT match
+# pr_number=99. The suppress-gated loading path (runner.py:1777-1793) was
+# wired in T10, completing the end-to-end round-trip validation.
 _snapshot_fail
 _runner_cycle_scoped=0
 # The consumer must gate prior-defense loading on BOTH cycle_number >= 2
@@ -235,11 +219,10 @@ assert_pass_if_clean "test_control_no_suppress_runner_accepts_prior_defenses"
 # Fixture: ledger has one cycle for pr_number=42 with commit_sha=abc123.
 # Query pr_number=99 → cycle_number must be 1 (no prior cycles for PR 99).
 #
-# This test exercises the _init_cycle_ledger Python function directly via
-# a subprocess to validate the ledger filter logic independent of the full runner.
-# It is RED because _init_cycle_ledger does NOT yet handle the case where
-# the suppress flag must be respected BEFORE using cycle_number to decide
-# whether to load prior defenses in the integration review path.
+# GREEN (T10 wired): This test exercises the _init_cycle_ledger Python function
+# directly via a subprocess to validate the ledger filter logic independent of
+# the full runner. The suppress flag is now respected in runner.py:1777-1793;
+# cycle isolation for pr_number=99 vs pr_number=42 is correctly enforced.
 _snapshot_fail
 _cycle_derivation_result=""
 _cycle_derivation_exit=0
