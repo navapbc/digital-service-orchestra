@@ -1,1 +1,0 @@
-{"author":"Test","data":{"body":"SC6_EVIDENCE_STATS: retro_finding_line='1 scope-drift' full_output='1 scope-drift\\nuncategorized: 0\\nclassifier-failed: 0' window_days=60 tool=bug-classification-stats.sh"},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1779160644995072000,"uuid":"43f679d7-21b5-4c94-ace1-2420553c152a"}
