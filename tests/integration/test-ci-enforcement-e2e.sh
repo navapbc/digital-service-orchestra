@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tests/scripts/test-ci-enforcement-e2e.sh
+# tests/integration/test-ci-enforcement-e2e.sh
 #
 # End-to-end test for CI enforcement via GitHub Ruleset. Verifies the full PR
 # lifecycle: conforming PR merges successfully after all required checks pass,
@@ -10,7 +10,7 @@
 # "DSO CI Enforcement" Ruleset provisioned.
 #
 # Usage:
-#   RUN_CI_E2E=1 CI_E2E_REPO=owner/repo bash tests/scripts/test-ci-enforcement-e2e.sh
+#   RUN_CI_E2E=1 CI_E2E_REPO=owner/repo bash tests/integration/test-ci-enforcement-e2e.sh
 # Optional:
 #   CI_E2E_TIMEOUT_MINUTES=20  (default: 20)
 #   CI_E2E_REQUIRED_CHECKS="check1 check2 ..."  (default: read from .github/required-checks.txt)
@@ -30,7 +30,7 @@ echo "=== test-ci-enforcement-e2e.sh ==="
 # ── Opt-in gate ───────────────────────────────────────────────────────────────
 if [ "${RUN_CI_E2E:-}" != "1" ]; then
     echo "SKIP: RUN_CI_E2E not set to 1. To run this test:"
-    echo "  RUN_CI_E2E=1 CI_E2E_REPO=owner/repo bash tests/scripts/test-ci-enforcement-e2e.sh"
+    echo "  RUN_CI_E2E=1 CI_E2E_REPO=owner/repo bash tests/integration/test-ci-enforcement-e2e.sh"
     echo ""
     echo "PASSED: 0  FAILED: 0  (skipped)"
     exit 0
