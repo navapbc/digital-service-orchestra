@@ -163,7 +163,7 @@ The defense "the LLM consumes this prompt, so the prose IS the contract" does no
 | `grep -q "design:approved"` in a script | Contract test | Exact tag token consumed by ticket CLI / hook. |
 | `grep -q "<<inferred:"` in `SKILL.md` | Contract test | Token literally parsed by orchestrator regex elsewhere. |
 | YAML frontmatter `name:` / `model:` / `description:` validation | Contract test | Plugin loader reads these field names. |
-| `grep -q "enforcement.strategy=ci"` in `dso-config.conf` | Contract test | Exact enum value branched on by `read-config.sh`. |
+| `grep -q "dso.workflow=ci-pr"` in `dso-config.conf` | Contract test | Exact enum value branched on by `read-config.sh`. |
 
 **What this rule prohibits and why:**
 
