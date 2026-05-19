@@ -27,6 +27,7 @@ WORKTREE_ARTIFACTS_DIR=""
 SESSION_ARTIFACTS_DIR=""
 TICKET_ID=""
 EXPECTED_BASE=""
+FORCE=0
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -41,6 +42,10 @@ while [[ $# -gt 0 ]]; do
         --expected-base)
             EXPECTED_BASE="$2"
             shift 2
+            ;;
+        --force)
+            FORCE=1
+            shift
             ;;
         *)
             if [[ -z "$WORKTREE_BRANCH" ]]; then
@@ -70,6 +75,16 @@ _REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
 # attest step. Defined once here so both uses share the same resolved path.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _PLUGIN_ROOT_HW="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# ── Worktree-removal guards library ──────────────────────────────────────────
+# Source the guards library from the plugin scripts lib/ directory.
+# SCRIPT_DIR is already resolved above — never hardcode the plugin path.
+# shellcheck disable=SC1091
+_GUARDS_AVAILABLE=0
+if [[ -f "${SCRIPT_DIR}/lib/worktree-removal-guards.sh" ]]; then
+    _GUARDS_SOURCE_ONLY=1 source "${SCRIPT_DIR}/lib/worktree-removal-guards.sh"
+    _GUARDS_AVAILABLE=1
+fi
 
 # Prefer the absolute shim path so `dso` works without it being on PATH.
 # Fall back to bare `dso` (PATH lookup) when the shim is absent — this keeps
@@ -225,6 +240,43 @@ if [[ "$_skip_review" != "true" ]]; then
     fi
 fi
 
+# ── Pre-merge safety guard checks ────────────────────────────────────────────
+# Run targeted guard checks before merge + attest so that a fail-CLOSED result
+# (e.g., protected branch, gh unavailable) blocks harvest early without running
+# the expensive attest step. We call guards individually here rather than via
+# assert_worktree_removable so we can skip guards that are not meaningful in
+# harvest context (guard_uncommitted and guard_unpushed address data-loss
+# scenarios that do not apply when content is being merged, not discarded).
+# assert_worktree_removable is still called in the cleanup block (per AC).
+if [[ "$_GUARDS_AVAILABLE" -eq 1 ]]; then
+    _harvest_session_root_pre=$(git rev-parse --show-toplevel 2>/dev/null)
+    _harvest_worktree_path_pre=$(git worktree list --porcelain 2>/dev/null | awk -v b="$WORKTREE_BRANCH" '
+        /^worktree / { p = substr($0, 10) }
+        $0 == "branch refs/heads/" b { print p; exit }
+    ')
+    if [[ -n "$_harvest_worktree_path_pre" && "$_harvest_worktree_path_pre" != "$_harvest_session_root_pre" ]]; then
+        # Guard 1: protected branch — never bypassable (structural invariant).
+        _protected_exit=0
+        guard_protected_branch "$WORKTREE_BRANCH" || _protected_exit=$?
+        if [[ "$_protected_exit" -ne 0 ]]; then
+            echo "ERROR: protected-branch guard fired for '$WORKTREE_BRANCH' — harvest refused. Rename the branch before harvesting." >&2
+            _harvest_exit_code=1
+            exit 1
+        fi
+        # Guard 2: open PR — fail-CLOSED (gh unavailable → block); bypassable with --force.
+        # Let guard messages flow to stderr (no 2>&1 capture) so callers see
+        # GUARD: open_pr_with_ci / GUARD_PR_CHECK_UNAVAILABLE lines from the library.
+        _sha=$(git rev-parse "$WORKTREE_BRANCH" 2>/dev/null || echo "")
+        _pr_guard_exit=0
+        guard_open_pr "$WORKTREE_BRANCH" "${_sha:-HEAD}" || _pr_guard_exit=$?
+        if [[ "$_pr_guard_exit" -ne 0 && "$FORCE" -eq 0 ]]; then
+            echo "ERROR: open-PR guard fired for '$WORKTREE_BRANCH' — harvest refused. Use --force to bypass (guard messages above show PR URLs)." >&2
+            _harvest_exit_code=1
+            exit 1
+        fi
+    fi
+fi
+
 # ── Merge ────────────────────────────────────────────────────────────────────
 
 # Use `|| merge_exit=$?` so the ERR trap cannot fire if git exits non-zero on
@@ -341,7 +393,24 @@ if [[ -n "$_harvest_worktree_path" ]]; then
     # Also skip branch deletion when the guard fires: git rejects deleting the
     # currently-checked-out branch anyway, and attempting it is misleading (a44a-0f63).
     if [[ "$_harvest_worktree_path" != "$_harvest_session_root" ]]; then
+        # ── Worktree-removal guard check ─────────────────────────────────────
+        # TOCTOU single-check rationale: harvest-worktree.sh is a non-interactive
+        # batched fast path — the window between guard check and git worktree remove
+        # is sub-second. A second check would have negligible benefit. See
+        # the claude-safe script for the interactive-session-double-check rationale.
+        # Primary safety guards (protected-branch, open-pr) are checked pre-merge above.
+        # Here we call assert_worktree_removable with --force so that uncommitted/unpushed
+        # guards are bypassed (content is already merged — data loss is not a concern).
+        # guard_protected_branch is still enforced by assert_worktree_removable regardless
+        # of --force (structural invariant — cannot be bypassed).
         git worktree unlock "$_harvest_worktree_path" 2>/dev/null || true
+        if [[ "$_GUARDS_AVAILABLE" -eq 1 ]]; then
+            # Always pass --force: uncommitted/unpushed guards do not apply post-merge.
+            # Guard messages (GUARD: lines) flow to stderr (no 2>&1 capture).
+            _guard_exit=0
+            assert_worktree_removable --worktree-path "$_harvest_worktree_path" --branch "$WORKTREE_BRANCH" --force || _guard_exit=$?
+            if [[ "$_guard_exit" -ne 0 ]]; then echo "ERROR: worktree-removal guard refused removal of $_harvest_worktree_path." >&2; _harvest_exit_code=1; exit 1; fi
+        fi
         git worktree remove "$_harvest_worktree_path" --force 2>/dev/null || true
         git worktree prune 2>/dev/null || true
         git branch -D "$WORKTREE_BRANCH" 2>/dev/null || true
