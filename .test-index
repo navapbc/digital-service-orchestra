@@ -182,6 +182,7 @@ plugins/dso/scripts/check-session-branch-invariant.sh:tests/scripts/test-check-s
 plugins/dso/scripts/check-session-merge-only.sh:tests/hooks/test-check-session-merge-only.sh [test_sprint_bypass_without_reason_refused]
 plugins/dso/scripts/check-skill-refs.sh:tests/scripts/test-check-skill-refs.sh
 plugins/dso/scripts/check-test-index-duplicates.sh:tests/scripts/test-check-test-index-duplicates.sh
+plugins/dso/scripts/check-verifier-verdict.sh:tests/scripts/test-check-verifier-verdict.sh [test_p1_pass_exits_0]
 plugins/dso/scripts/ci-llm-review-runner.sh:tests/scripts/test-ci-llm-review-runner.sh
 plugins/dso/scripts/classify-task.py:tests/scripts/test-classify-task.sh
 plugins/dso/scripts/claude-safe:tests/scripts/test-claude-safe-portability.sh,tests/scripts/test-claude-safe-post-merge-amend.sh,tests/scripts/test-claude-safe-tickets-dir.sh,tests/scripts/test-worktree-pr-merge-detection.sh,tests/scripts/test-claude-safe-stale-local-main.sh
