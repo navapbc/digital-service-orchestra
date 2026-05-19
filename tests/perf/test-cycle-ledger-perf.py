@@ -132,6 +132,7 @@ def _measure_append_cycle(
                     ],
                     commit_sha="abc" + "0" * 37,
                     findings_hash="h1abc123",
+                    pr_number=42,
                 ),
                 number=batch_size,
             )
