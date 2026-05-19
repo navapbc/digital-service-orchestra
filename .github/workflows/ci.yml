@@ -217,7 +217,12 @@ jobs:
 
       - name: Run hook tests
         if: needs.changes.outputs.code_changed == 'true'
-        run: bash tests/hooks/run-hook-tests.sh 2>&1 | tee /tmp/test-hooks.log
+        # `set -o pipefail` so the left-hand exit status of `tee` propagates.
+        # Without it, the test failure would be masked by tee's exit 0.
+        shell: bash
+        run: |
+          set -o pipefail
+          bash tests/hooks/run-hook-tests.sh 2>&1 | tee /tmp/test-hooks.log
 
       - name: Upload hook test logs (audit P5-4)
         if: always()
@@ -262,7 +267,10 @@ jobs:
 
       - name: Run script tests
         if: needs.changes.outputs.code_changed == 'true'
-        run: bash tests/scripts/run-script-tests.sh 2>&1 | tee /tmp/test-scripts.log
+        shell: bash
+        run: |
+          set -o pipefail
+          bash tests/scripts/run-script-tests.sh 2>&1 | tee /tmp/test-scripts.log
 
       - name: Upload script test logs (audit P5-4)
         if: always()

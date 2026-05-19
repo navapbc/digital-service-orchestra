@@ -382,20 +382,60 @@ except Exception:
 # still alive — distinguishes "another run in progress" from "state corrupt".
 _STATE_LOCK_DIR="${STATE_FILE}.lock"
 _acquire_state_lock() {
+    # Stamp the holder.pid via an atomic mv-into-the-locked-dir so there is
+    # no window between mkdir-succeeded and holder.pid-written. Without this
+    # an unlucky concurrent reclaim could see "no holder.pid" and steal the
+    # lock. Stage the file to a sibling temp path first, then mv into place.
+    local _stamp_tmp
     if mkdir "$_STATE_LOCK_DIR" 2>/dev/null; then
-        echo "$$" > "$_STATE_LOCK_DIR/holder.pid"
+        _stamp_tmp=$(mktemp "${STATE_FILE}.stamp.XXXXXX") || return 1
+        echo "$$" > "$_stamp_tmp"
+        mv -f "$_stamp_tmp" "$_STATE_LOCK_DIR/holder.pid" 2>/dev/null || {
+            rm -f "$_stamp_tmp"
+            return 1
+        }
         return 0
     fi
     # Lock dir exists — check if holder is alive.
-    local _holder_pid=""
-    [ -r "$_STATE_LOCK_DIR/holder.pid" ] && _holder_pid=$(cat "$_STATE_LOCK_DIR/holder.pid" 2>/dev/null || true)
-    if [ -n "$_holder_pid" ] && kill -0 "$_holder_pid" 2>/dev/null; then
+    # Read with a brief retry to tolerate the (now-tiny but still-possible)
+    # window where another process is mid-acquire and has not finished the
+    # mv yet — refuse-on-no-pid rather than reclaim-on-no-pid to avoid lock
+    # theft.
+    local _holder_pid="" _try=0
+    while [ "$_try" -lt 5 ] && [ -z "$_holder_pid" ]; do
+        [ -r "$_STATE_LOCK_DIR/holder.pid" ] && \
+            _holder_pid=$(cat "$_STATE_LOCK_DIR/holder.pid" 2>/dev/null || true)
+        [ -n "$_holder_pid" ] && break
+        _try=$((_try + 1))
+        sleep 0.05
+    done
+    if [ -z "$_holder_pid" ]; then
+        # holder.pid still missing after retries → treat as a truly broken
+        # lock dir (e.g. host crashed between mkdir and mv). Reclaim.
+        rm -rf "$_STATE_LOCK_DIR" 2>/dev/null || true
+        if mkdir "$_STATE_LOCK_DIR" 2>/dev/null; then
+            _stamp_tmp=$(mktemp "${STATE_FILE}.stamp.XXXXXX") || return 1
+            echo "$$" > "$_stamp_tmp"
+            mv -f "$_stamp_tmp" "$_STATE_LOCK_DIR/holder.pid" 2>/dev/null || {
+                rm -f "$_stamp_tmp"
+                return 1
+            }
+            return 0
+        fi
+        return 1
+    fi
+    if kill -0 "$_holder_pid" 2>/dev/null; then
         return 1  # Live holder — refuse.
     fi
-    # Stale lock — reclaim atomically by removing and retrying once.
+    # Stale lock (holder PID dead) — reclaim.
     rm -rf "$_STATE_LOCK_DIR" 2>/dev/null || true
     if mkdir "$_STATE_LOCK_DIR" 2>/dev/null; then
-        echo "$$" > "$_STATE_LOCK_DIR/holder.pid"
+        _stamp_tmp=$(mktemp "${STATE_FILE}.stamp.XXXXXX") || return 1
+        echo "$$" > "$_stamp_tmp"
+        mv -f "$_stamp_tmp" "$_STATE_LOCK_DIR/holder.pid" 2>/dev/null || {
+            rm -f "$_stamp_tmp"
+            return 1
+        }
         return 0
     fi
     return 1

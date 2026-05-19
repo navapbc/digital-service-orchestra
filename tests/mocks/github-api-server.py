@@ -151,6 +151,9 @@ def main(argv: list[str] | None = None) -> int:
     try:
         server.serve_forever()
     except KeyboardInterrupt:
+        # Quiet termination on Ctrl+C — tests start/stop this server via
+        # SIGTERM/SIGKILL in subprocess teardown; surfacing the traceback
+        # would noisy-up test output without changing behavior.
         pass
     return 0
 
