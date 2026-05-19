@@ -10,7 +10,7 @@
 # the source-file-side `source.py:[test_name]` format (no space). Both are intentional.
 .claude-plugin/marketplace.json:tests/scripts/test-marketplace-json.sh
 .github/workflows/ci-python-skills.yml:tests/skills/test_ci_workflow_pip_cache.py
-.github/workflows/ci.yml:tests/scripts/test-ci-hyperfine-installed.sh,tests/scripts/test-ci-consolidated-changes-detection.sh,tests/workflows/test-ci-integration-review-scope.sh,tests/scripts/test-bug-reproducer-8ee4.sh,tests/scripts/test-single-llm-review-per-sha.sh
+.github/workflows/ci.yml:tests/scripts/test-ci-hyperfine-installed.sh,tests/scripts/test-ci-consolidated-changes-detection.sh,tests/workflows/test-ci-integration-review-scope.sh,tests/scripts/test-bug-reproducer-8ee4.sh,tests/scripts/test-single-llm-review-per-sha.sh,tests/workflows/test-red-test-blocker-merged-tree-scan.sh
 .github/workflows/inbound-bridge.yml:tests/scripts/test-inbound-bridge-push-retry.sh
 .github/workflows/outbound-bridge.yml:tests/scripts/test-outbound-bridge-push-retry.sh
 .github/workflows/ticket-platform-matrix.yml:tests/scripts/test-ticket-platform-matrix-trigger.sh
@@ -488,3 +488,5 @@ plugins/dso/scripts/dso_ci_review/local_workflow.py:tests/skills/dso_ci_review/t
 plugins/dso/scripts/review-workflow.sh:tests/skills/dso_ci_review/test_local_workflow_ledger.py,tests/scripts/test-local-review-workflow-e2e.sh [test_e2e_three_cycles_then_arbiter_block,test_e2e_pass_branch_cycle_1,test_e2e_short_circuit_on_rerun_same_sha,test_e2e_max_cycles_arbiter,test_e2e_drop_writes_tracker_only]
 .github/workflows/review-sub-pr.yml:tests/workflows/test-review-sub-pr-trigger.sh
 plugins/dso/scripts/scan-red-markers.sh:tests/scripts/test-scan-red-markers.sh [test_scan_red_markers_unit_marker_present],tests/workflows/test-red-test-blocker-merged-tree-scan.sh [test_red_test_blocker_two_subpr],tests/scripts/test-scan-red-markers-vs-parse-test-index-parity.sh [test_scan_red_markers_grammar_parity]
+plugins/dso/scripts/scan-red-markers.sh:tests/scripts/test-scan-red-markers.sh
+plugins/dso/scripts/lib/worktree-removal-guards.sh:tests/scripts/test-worktree-removal-guards.sh [test_worktree_removal_guards]
