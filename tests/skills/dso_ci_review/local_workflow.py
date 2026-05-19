@@ -8,7 +8,6 @@ package. This shim makes local_workflow accessible from either location.
 
 from __future__ import annotations
 
-import importlib
 import importlib.util as _ilu
 import pathlib
 import sys
@@ -37,7 +36,8 @@ if _plugin_pkg_init.exists() and (
     or sys.modules["dso_ci_review"].__file__ != str(_plugin_pkg_init)
 ):
     _pkg_spec = _ilu.spec_from_file_location(
-        "dso_ci_review", str(_plugin_pkg_init),
+        "dso_ci_review",
+        str(_plugin_pkg_init),
         submodule_search_locations=[_PLUGIN_DSO_PKG_DIR],
     )
     if _pkg_spec is not None and _pkg_spec.loader is not None:
