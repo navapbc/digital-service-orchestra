@@ -81,6 +81,19 @@ test_build_produces_6_agent_files() {
     count=$(find "$out_dir" -maxdepth 1 -name '*.md' -type f | wc -l | tr -d ' ')
     assert_eq "agent_file_count" "6" "$count"
 
+    # Audit P2 row 6 (MODIFIED): assert every generated file actually has a
+    # valid frontmatter contract — adds schema-shape coverage alongside the
+    # count check so a wrong-shape file emitted in the right slot is caught
+    # at pre-commit, not at sub-agent dispatch time.
+    local f valid_count=0
+    for f in "$out_dir"/*.md; do
+        [[ -f "$f" ]] || continue
+        if awk 'NR==1 && /^---$/{ok1=1} /^name:/{has_name=1} /^model:/{has_model=1} /^description:/{has_desc=1} END{exit !(ok1 && has_name && has_model && has_desc)}' "$f"; then
+            valid_count=$(( valid_count + 1 ))
+        fi
+    done
+    assert_eq "generated_files_have_valid_frontmatter" "$count" "$valid_count"
+
     rm -rf "$out_dir"
     assert_pass_if_clean "test_build_produces_6_agent_files"
 }

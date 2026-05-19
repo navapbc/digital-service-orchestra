@@ -36,10 +36,21 @@ _cleanup() {
     for d in "${_CLEANUP_DIRS[@]:-}"; do
         [[ -n "$d" ]] && rm -rf "$d"
     done
-    # Remove any figma lock files created during test execution
-    rm -f /tmp/figma-auth.lock /tmp/figma-pullback.lock 2>/dev/null || true
+    # Audit P4-6: clean up session-scoped figma lock files (was previously
+    # rm -f /tmp/figma-auth.lock /tmp/figma-pullback.lock — globally shared
+    # paths that race across concurrent worktrees).
+    if [[ -n "${FIGMA_LOCK_DIR:-}" ]]; then
+        rm -f "$FIGMA_LOCK_DIR/figma-auth.lock" "$FIGMA_LOCK_DIR/figma-pullback.lock" 2>/dev/null || true
+        rmdir "$FIGMA_LOCK_DIR" 2>/dev/null || true
+    fi
 }
 trap _cleanup EXIT
+
+# Session-scoped lock directory so two concurrent test runs do not race over
+# shared /tmp/figma-*.lock paths (audit P4-6). Exported for the scripts under
+# test to consume via the same env var.
+FIGMA_LOCK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/figma-test-locks.XXXXXX")
+export FIGMA_LOCK_DIR
 
 # Script paths under test (do NOT create these — they must not exist for RED state)
 FIGMA_URL_PARSE="$REPO_ROOT/plugins/dso/scripts/figma-url-parse.sh"
