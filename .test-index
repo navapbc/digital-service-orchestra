@@ -478,7 +478,7 @@ plugins/dso/scripts/dso_ci_review/verifier.py:tests/skills/dso_ci_review/test_ve
 tests/skills/dso_ci_review/test_suppress_proximity_regression.py:tests/skills/dso_ci_review/test_suppress_proximity_regression.py
 plugins/dso/scripts/migrate-dso-workflow-config.sh:tests/scripts/test-legacy-cleanup-grep.sh
 plugins/dso/scripts/migrate-story-pr-bases.sh:tests/scripts/test-migrate-story-pr-bases.sh
-plugins/dso/scripts/verify-session-provenance.sh:tests/scripts/test-verify-session-provenance.sh,tests/scripts/test-bug-reproducer-cafb.sh
+plugins/dso/scripts/verify-session-provenance.sh:tests/scripts/test-verify-session-provenance.sh,tests/scripts/test-bug-reproducer-cafb.sh,tests/scripts/test-verify-session-provenance-contract.sh [test_verify_session_provenance_contract]
 plugins/dso/scripts/redistribute-session-commits.sh:tests/scripts/test-redistribute-session-commits.sh [test_script_exists]
 plugins/dso/scripts/write-cycle-ledger.sh:tests/scripts/test-write-cycle-ledger.sh,tests/scripts/test-write-cycle-ledger-integration.sh
 tests/scripts/test-cycle-arbiter.sh:tests/scripts/test-cycle-arbiter.sh [test_block_critical_defense_absent_ruling]
@@ -493,3 +493,4 @@ plugins/dso/scripts/bypass-log-check.sh:tests/scripts/test-bypass-log-enforcemen
 .github/workflows/review-sub-pr.yml:tests/workflows/test-review-sub-pr-trigger.sh
 plugins/dso/scripts/scan-red-markers.sh:tests/scripts/test-scan-red-markers.sh [test_scan_red_markers_unit_marker_present]
 plugins/dso/scripts/lib/worktree-removal-guards.sh:tests/scripts/test-worktree-removal-guards.sh [test_worktree_removal_guards]
+plugins/dso/scripts/llm-review-dispatch-or-skip.sh:tests/scripts/test-llm-review-dispatch-or-skip.sh [test_llm_review_dispatch_or_skip]
