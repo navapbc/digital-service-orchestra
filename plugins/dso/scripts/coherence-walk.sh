@@ -34,9 +34,6 @@
 
 set -euo pipefail
 
-# ── Self-location ────────────────────────────────────────────────────────────
-_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
 # ── Parse arguments ──────────────────────────────────────────────────────────
 _TARGET=""
 _EPIC_FILTER=""
@@ -87,20 +84,15 @@ fi
 #
 # Outputs per-artifact lines + NEXT_STEP lines + COHERENCE_SUMMARY.
 
-_EPIC_FILTER_ARG=""
-if [ -n "$_EPIC_FILTER" ]; then
-    _EPIC_FILTER_ARG="$_EPIC_FILTER"
-fi
-
 _analysis_exit=0
-_analysis_output=$(python3 - "$_TRACKER_DIR" "$_EPIC_FILTER_ARG" <<'PYEOF'
+_analysis_output=$(python3 - "$_TRACKER_DIR" "$_EPIC_FILTER" <<'PYEOF'
 import json
 import os
 import re
 import sys
 
 TRACKER = sys.argv[1]
-EPIC_FILTER = sys.argv[2] if len(sys.argv) > 2 else ""
+EPIC_FILTER = sys.argv[2] if len(sys.argv) > 2 and sys.argv[2] else ""
 
 EPIC_STORY_TYPES = {"epic", "story"}
 

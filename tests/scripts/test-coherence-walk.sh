@@ -2,8 +2,6 @@
 # tests/scripts/test-coherence-walk.sh
 # Behavioral fixture test for plugins/dso/scripts/coherence-walk.sh
 #
-# Testing Mode: RED — confirms the coherence-walk script does not yet exist.
-# These tests MUST FAIL until coherence-walk.sh is implemented.
 #
 # Test structure:
 #   - Fixtures with epics/stories that have clean SC sections (PASS)
@@ -470,6 +468,47 @@ test_handles_missing_tracker() {
     assert_pass_if_clean "test_handles_missing_tracker"
 }
 test_handles_missing_tracker
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Test 13: --epic filter restricts scan to specified epic only
+# ═══════════════════════════════════════════════════════════════════════════════
+echo "Test 13: --epic filter restricts scan to specified epic only"
+test_epic_filter_restricts_scan() {
+    _snapshot_fail
+
+    if [ ! -f "$COHERENCE_SCRIPT" ]; then
+        assert_eq "coherence-walk.sh exists (prereq)" "exists" "missing"
+        assert_pass_if_clean "test_epic_filter_restricts_scan"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+
+    # Create two epics: epic-A (clean), epic-B (transitional language → AMBIGUOUS)
+    # Use \\n so printf produces literal \n (valid JSON escape) not actual newlines.
+    local tracker="$repo/.tickets-tracker"
+    mkdir -p "$tracker/epic-A" "$tracker/epic-B"
+    printf '{"event_type":"CREATE","data":{"ticket_type":"epic","title":"Clean Epic","description":"## Success Criteria\\n- System is ready\\n"}}\n' \
+        > "$tracker/epic-A/001-CREATE.json"
+    printf '{"event_type":"CREATE","data":{"ticket_type":"epic","title":"Transitional Epic","description":"## Success Criteria\\n- Currently blocked by dependency X\\n"}}\n' \
+        > "$tracker/epic-B/001-CREATE.json"
+
+    # Filter to only epic-A — output should contain epic-A but NOT epic-B
+    local output
+    output=$(bash "$COHERENCE_SCRIPT" --target "$repo" --epic epic-A 2>/dev/null) || true
+
+    local epic_a_present=0
+    echo "$output" | grep -q "epic-A" && epic_a_present=1
+    assert_eq "--epic filter includes target epic" "1" "$epic_a_present"
+
+    local epic_b_present=0
+    echo "$output" | grep -q "epic-B" && epic_b_present=1
+    assert_eq "--epic filter excludes other epics" "0" "$epic_b_present"
+
+    assert_pass_if_clean "test_epic_filter_restricts_scan"
+}
+test_epic_filter_restricts_scan
 
 # ═══════════════════════════════════════════════════════════════════════════════
 print_summary

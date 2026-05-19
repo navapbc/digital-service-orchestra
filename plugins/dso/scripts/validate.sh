@@ -663,7 +663,7 @@ if [ "$VERBOSE" = "0" ]; then
         [ -f "$PLUGIN_SCRIPTS/check-contract-schemas.sh" ] && report_check "contract-schema" "contract-schema" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/check-contract-schemas.sh"
         [ -f "$PLUGIN_SCRIPTS/check-referential-integrity.sh" ] && report_check "referential-integrity" "referential-integrity" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/check-referential-integrity.sh"
         [ -f "$PLUGIN_SCRIPTS/check-session-branch-invariant.sh" ] && report_check "session-branch-invariant" "session-branch-invariant" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/check-session-branch-invariant.sh"
-        [ -f "$PLUGIN_SCRIPTS/coherence-walk.sh" ] && report_check "coherence-walk" "coherence-walk" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/coherence-walk.sh --target $REPO_ROOT"
+        [ -f "$PLUGIN_SCRIPTS/coherence-walk.sh" ] && report_check "coherence-walk" "coherence-walk" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/coherence-walk.sh --target \"$REPO_ROOT\""
         report_check "hook-drift" "hook-drift" "$TIMEOUT_SYNTAX" "diff <(grep 'id:' .pre-commit-config.yaml) <(grep 'id:' ${CLAUDE_PLUGIN_ROOT}/docs/examples/pre-commit-config.example.yaml)"
     fi
 else
