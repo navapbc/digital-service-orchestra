@@ -16,13 +16,21 @@ else
     _DSO_HASH_CMD='shasum -a 256'
 fi
 
-# _defense_compute_fingerprint content path lineno
-# Returns 64-char hex SHA-256 of "path:lineno:<whitespace-collapsed content>"
+# _defense_compute_fingerprint content path lineno [pr_number]
+# Returns 64-char hex SHA-256.
+# When pr_number is non-empty and non-zero, incorporates it into the hash:
+#   "pr_number:path:lineno:<whitespace-collapsed content>"
+# When pr_number is 0 or absent (sentinel / legacy path), uses legacy format:
+#   "path:lineno:<whitespace-collapsed content>"
 _defense_compute_fingerprint() {
-    local content="$1" path="$2" lineno="$3"
+    local content="$1" path="$2" lineno="$3" pr_number="${4:-0}"
     local collapsed
     collapsed=$(printf '%s' "$content" | tr -s ' \t' ' ' | sed 's/^ //;s/ $//')
-    printf '%s:%s:%s' "$path" "$lineno" "$collapsed" | $_DSO_HASH_CMD | cut -c1-64
+    if [[ -n "$pr_number" && "$pr_number" != "0" ]]; then
+        printf '%s:%s:%s:%s' "$pr_number" "$path" "$lineno" "$collapsed" | $_DSO_HASH_CMD | cut -c1-64
+    else
+        printf '%s:%s:%s' "$path" "$lineno" "$collapsed" | $_DSO_HASH_CMD | cut -c1-64
+    fi
 }
 
 # ---------------------------------------------------------------------------
@@ -38,10 +46,37 @@ _defense_store_require_ticket_binding() {
 }
 
 # ---------------------------------------------------------------------------
-# defense_store_write defense_json
+# defense_store_write [--pr-number <int>] defense_json
 # Validate and persist a defense record as a ticket comment.
+#
+# Flag disambiguation:
+#   --pr-number  (key-shape flag) — the PR number for (pr_number, commit_sha)
+#                tuple keying. Used by defense_store_list_by_pr for filtering.
+#                Sentinel value 0 means "match any pr_number" (legacy records
+#                and records written without --pr-number use sentinel=0).
+#   --pr         (file-list filter flag on defense_store_list) — unrelated flag
+#                used by defense_store_list to scope to a PR's changed-file set.
+#                Both --pr and --pr-number coexist without collision.
 # ---------------------------------------------------------------------------
 defense_store_write() {
+  # Parse --pr-number flag (key-shape); default to sentinel 0 for backward compat
+  local _write_pr_number=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --pr-number)
+        _write_pr_number="${2:-0}"
+        shift 2
+        ;;
+      --pr-number=*)
+        _write_pr_number="${1#--pr-number=}"
+        shift
+        ;;
+      *)
+        break
+        ;;
+    esac
+  done
+
   local defense_json="$1"
 
   _defense_store_require_ticket_binding || return 1
@@ -100,7 +135,8 @@ PYEOF
   if [[ -n "$fp_path" ]]; then
     fp_lineno=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d.get('_fp_lineno',''))" "$enriched_json" 2>/dev/null) || fp_lineno=""
     fp_content=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(d.get('_fp_content',''))" "$enriched_json" 2>/dev/null) || fp_content=""
-    fingerprint=$(_defense_compute_fingerprint "$fp_content" "$fp_path" "$fp_lineno")
+    # Incorporate pr_number into fingerprint when non-sentinel (preserves legacy hash for pr_number=0)
+    fingerprint=$(_defense_compute_fingerprint "$fp_content" "$fp_path" "$fp_lineno" "$_write_pr_number")
     enriched_json=$(python3 -c "
 import json, sys
 d = json.loads(sys.argv[1])
@@ -109,18 +145,20 @@ d.pop('_fp_path', None)
 d.pop('_fp_lineno', None)
 d.pop('_fp_content', None)
 d['cited_lines_fingerprint'] = sys.argv[2]
+d['pr_number'] = int(sys.argv[3])
 print(json.dumps(d))
-" "$enriched_json" "$fingerprint" 2>/dev/null) || enriched_json="$defense_json"
+" "$enriched_json" "$fingerprint" "$_write_pr_number" 2>/dev/null) || enriched_json="$defense_json"
   else
-    # Strip temp fields if present but no path found
+    # Strip temp fields if present but no path found; embed pr_number
     enriched_json=$(python3 -c "
 import json, sys
 d = json.loads(sys.argv[1])
 d.pop('_fp_path', None)
 d.pop('_fp_lineno', None)
 d.pop('_fp_content', None)
+d['pr_number'] = int(sys.argv[2])
 print(json.dumps(d))
-" "$enriched_json" 2>/dev/null) || enriched_json="$defense_json"
+" "$enriched_json" "$_write_pr_number" 2>/dev/null) || enriched_json="$defense_json"
   fi
 
   # Post the record as a ticket comment; redirect ticket cmd stdout to suppress noise
@@ -394,6 +432,80 @@ for comment in comments:
       fi
     fi
   done <<< "$candidate_records"
+}
+
+# ---------------------------------------------------------------------------
+# defense_store_list_by_pr <pr_number>
+#
+# Read all DEFENSE_RECORD ticket comments from the current DSO_SESSION_TICKET_ID
+# and return those that match the given pr_number using sentinel semantics:
+#
+#   record.pr_number == <pr_number>   → include (exact keyed match)
+#   record.pr_number == 0             → include (sentinel: matches ANY pr_number)
+#   record has no pr_number field     → include (legacy: treated as sentinel=0)
+#   record.pr_number is another value → exclude (belongs to a different PR)
+#
+# Output: newline-delimited JSON records (one per line), filtered per above.
+#
+# Flag disambiguation:
+#   This function uses the pr_number argument for key-shape filtering.
+#   The separate --pr flag on defense_store_list is for file-list filtering
+#   against PR changed-files. Both flags coexist without collision.
+#
+# Usage: defense_store_list_by_pr <pr_number>
+# Requires: DSO_SESSION_TICKET_ID to be set.
+# ---------------------------------------------------------------------------
+defense_store_list_by_pr() {
+  local query_pr_number="${1:-}"
+
+  if [[ -z "$query_pr_number" ]]; then
+    echo "defense_store_list_by_pr: pr_number argument is required" >&2
+    return 2
+  fi
+
+  _defense_store_require_ticket_binding || return 1
+
+  local ticket_json
+  ticket_json=$($_TICKET_CMD show "$DSO_SESSION_TICKET_ID" 2>/dev/null) || true
+
+  if [[ -z "$ticket_json" ]]; then
+    return 0
+  fi
+
+  python3 -c "
+import json, sys
+
+query_pr = int(sys.argv[1])
+ticket_raw = sys.argv[2]
+
+try:
+    ticket = json.loads(ticket_raw)
+except (json.JSONDecodeError, ValueError):
+    sys.exit(0)
+
+comments = ticket.get('comments', [])
+for comment in comments:
+    if isinstance(comment, str):
+        text = comment
+    elif isinstance(comment, dict):
+        text = comment.get('body') or comment.get('text') or comment.get('content') or ''
+    else:
+        continue
+
+    if not text.startswith('DEFENSE_RECORD: '):
+        continue
+
+    record_json_str = text[len('DEFENSE_RECORD: '):]
+    try:
+        record = json.loads(record_json_str)
+    except (json.JSONDecodeError, ValueError):
+        continue
+
+    # Sentinel semantics: pr_number=0 or absent matches any query_pr.
+    record_pr = record.get('pr_number', 0)
+    if record_pr == query_pr or record_pr == 0:
+        print(json.dumps(record))
+" "$query_pr_number" "$ticket_json" || true
 }
 
 # ---------------------------------------------------------------------------
