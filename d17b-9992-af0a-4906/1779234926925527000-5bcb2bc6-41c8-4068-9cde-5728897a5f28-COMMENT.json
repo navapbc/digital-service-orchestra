@@ -1,1 +1,0 @@
-{"author":"Test","data":{"body":"Classification: mechanical — relative path $SCRIPT_DIR/../ in consult-recipe-registry.sh; fix: use _PLUGIN_ROOT via CLAUDE_PLUGIN_ROOT pattern"},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1779234926925527000,"uuid":"5bcb2bc6-41c8-4068-9cde-5728897a5f28"}
