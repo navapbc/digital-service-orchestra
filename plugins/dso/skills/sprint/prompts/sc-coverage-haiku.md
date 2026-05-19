@@ -18,6 +18,10 @@ You will receive a JSON object with this structure:
 }
 ```
 
+## Scoping Rule
+
+Only items under `## Success Criteria` in the epic description are included in the coverage check. Stop parsing when a `## Closure Checks` section is encountered — items in `## Closure Checks` are **not** success criteria and must not be counted or evaluated.
+
 ## Task
 
 For each SC in `epic_sc_list`:
