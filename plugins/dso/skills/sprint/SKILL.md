@@ -998,6 +998,27 @@ $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh cleanup-discoveries  # shim-exempt: int
 
 Output: `DISCOVERIES_CLEANED: <N>`. Exit 0 always (best-effort).
 
+**Recipe Engine Pre-flight**
+
+After cleaning discoveries, validate engine availability for recipe-tagged tasks in the upcoming batch:
+
+```bash
+_TASK_FILE=$(mktemp /tmp/task-list.XXXXXX.json)
+.claude/scripts/dso ticket next-batch <epic-id> --json > "$_TASK_FILE" 2>/dev/null || echo "[]" > "$_TASK_FILE"
+
+RECIPE_REGISTRY_PATH="${CLAUDE_PLUGIN_ROOT}/recipes/recipe-registry.yaml" \
+TASK_LIST_FILE="$_TASK_FILE" \
+  bash "$PLUGIN_SCRIPTS/sprint/check-recipe-engines.sh"  # shim-exempt: internal orchestration script
+rm -f "$_TASK_FILE"
+```
+
+Parse output and act:
+- `NO_RECIPE_TASKS`: Log `"No recipe tasks in batch — skipping engine pre-flight"` and continue.
+- `ENGINES_OK`: Log `"Engine pre-flight passed"` and continue.
+- `MISSING_ENGINE: <e>` or `OUTDATED_ENGINE: <e>`: Surface a warning listing missing/outdated engines. Store the `MISSING_ENGINES_LIST=<csv>` value from output in session context for S5 fallback consumption.
+
+Pre-flight does NOT block sprint execution — warn and continue regardless of engine availability.
+
 **MAX_AGENTS protocol** (3-tier):
 
 | `max_agents` value | Behavior |
@@ -1520,7 +1541,7 @@ Route based on `TESTING_MODE`:
 
 2. **Execute the recipe**:
    ```bash
-   bash "$PLUGIN_SCRIPTS/recipe-executor.sh" <recipe_name> [--param key=value ...]
+   bash "$PLUGIN_SCRIPTS/recipe-executor.sh" <recipe_name> [--param key=value ...]  # shim-exempt: internal orchestration script
    ```
    Capture stdout as `EXECUTOR_JSON`. On bash-level failure (non-zero exit before JSON is emitted) or empty output, synthesize:
    ```json
@@ -1529,7 +1550,7 @@ Route based on `TESTING_MODE`:
 
 3. **Format the result**:
    ```bash
-   bash "$PLUGIN_SCRIPTS/sprint/format-recipe-result.sh" <recipe_name> <<< "$EXECUTOR_JSON"
+   bash "$PLUGIN_SCRIPTS/sprint/format-recipe-result.sh" <recipe_name> <<< "$EXECUTOR_JSON"  # shim-exempt: internal orchestration script
    ```
    Capture stdout as `RECIPE_SUMMARY`.
 
