@@ -144,7 +144,7 @@ print(json.dumps({
 }
 
 # ── Test-double mode ──────────────────────────────────────────────────────────
-# DSO_TICKET_RAV_TEST=1: mock ticket CLI responses for unit-testing the assertion logic.
+# DSO_TICKET_RAV_TEST=1: mock ticket CLI responses for unit tests of the assertion logic.
 if [[ "${DSO_TICKET_RAV_TEST:-0}" == "1" ]]; then
     # Mock Step 1: simulate ticket mutation (always succeeds unless operation is invalid)
 

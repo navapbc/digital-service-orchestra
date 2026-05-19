@@ -654,7 +654,7 @@ Before finalizing each story, check each done definition for precision vocabular
 
 ```bash
 for _DD in "${_DONE_DEFINITIONS[@]}"; do
-    _LEXICON_RESULT=$(echo "$_DD" | bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-dd-lexicon.sh")
+    _LEXICON_RESULT=$(echo "$_DD" | bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-dd-lexicon.sh")  # shim-exempt: internal orchestration script
     _LEXICON_EXIT=$?
     if [[ $_LEXICON_EXIT -ne 0 ]]; then
         echo "DD LEXICON VIOLATION: $_LEXICON_RESULT"
@@ -677,7 +677,7 @@ _PIL_TMP=$(mktemp /tmp/pil-criteria.XXXXXX)
 _DD_TMP=$(mktemp /tmp/story-dds.XXXXXX)
 # Populate _PIL_TMP with {"criteria": [...]} JSON from the PIL for this story
 # Populate _DD_TMP with one done-definition per line
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/spec-fidelity-check.sh" \
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/spec-fidelity-check.sh" \  # shim-exempt: internal orchestration script
     --pil-json="$_PIL_TMP" \
     --story-dds="$_DD_TMP"
 if [[ $? -ne 0 ]]; then
@@ -866,7 +866,7 @@ Write the accumulated context as a structured comment on the epic ticket so that
 
 **Validate the PIL payload** (if loading a prior `PREPLANNING_CONTEXT:` comment): If a prior `PREPLANNING_CONTEXT:` comment exists on the epic, validate it before merging its data:
 ```bash
-echo "$_PREPLANNING_CONTEXT_JSON" | bash "${CLAUDE_PLUGIN_ROOT}/scripts/validate-pil-handoff.sh"
+echo "$_PREPLANNING_CONTEXT_JSON" | bash "${CLAUDE_PLUGIN_ROOT}/scripts/validate-pil-handoff.sh"  # shim-exempt: internal orchestration script
 if [[ $? -ne 0 ]]; then
     # Fail-open: log validation error but continue with planning
     echo "PIL_VALIDATION_ERROR: PREPLANNING_CONTEXT failed schema validation — treating as absent"

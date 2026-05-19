@@ -166,7 +166,7 @@ When `$_EPIC_CLASS == "class:architectural"`, dispatch the architectural probe b
 ```bash
 if [[ "$_EPIC_CLASS" == "class:architectural" ]]; then
     _PROBE_OUTPUT=$(mktemp /tmp/arch-probe-output.XXXXXX)
-    bash "${CLAUDE_PLUGIN_ROOT}/scripts/run-architectural-probe.sh" \
+    bash "${CLAUDE_PLUGIN_ROOT}/scripts/run-architectural-probe.sh" \  # shim-exempt: internal orchestration script
         --epic-class="$_EPIC_CLASS" \
         --output-file="$_PROBE_OUTPUT" \
         --epic-id="$_EPIC_ID"
