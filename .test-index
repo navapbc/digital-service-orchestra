@@ -483,3 +483,4 @@ plugins/dso/scripts/ticket-update-rav.sh:tests/scripts/test-ticket-update-rav.sh
 plugins/dso/scripts/run-architectural-probe.sh:tests/scripts/test-architectural-probe-gate.sh
 plugins/dso/scripts/validate-pil-handoff.sh:tests/scripts/test-pil-handoff-integration.sh
 plugins/dso/scripts/spec-fidelity-check.sh:tests/scripts/test-spec-fidelity-check.sh
+plugins/dso/scripts/bypass-log-check.sh:tests/scripts/test-bypass-log-enforcement.sh

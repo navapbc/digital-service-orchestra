@@ -2392,6 +2392,26 @@ Remove the `.sprint-active` marker so post-session commits (e.g., release pipeli
 rm -f "$(git rev-parse --show-toplevel)/.sprint-active"
 ```
 
+**Bypass log requirement**: When a closure gate is overridden, record a bypass log entry in the artifact bundle before proceeding:
+```json
+{
+  "gate_overrides": [
+    {
+      "gate_name": "<name>",
+      "bypass_log": {
+        "rationale": "<reason the gate was overridden>",
+        "caller_context": "<who/what triggered this override>",
+        "timestamp": "<ISO 8601 timestamp>"
+      }
+    }
+  ]
+}
+```
+Overrides without a complete `bypass_log` (both `rationale` and `caller_context` required) are a hard error. Validate with:
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/bypass-log-check.sh" --artifact-file="<artifact-bundle-path>"
+```
+
 Phase I delegates to `/dso:end-session`, which handles closing issues, committing, running `merge-to-main.sh`, and reporting.
 
 ### On Success (Score = 5)
