@@ -1,0 +1,26 @@
+name: review-sub-pr
+"on":
+  pull_request:
+    branches:
+      - 'session/**'
+      - 'session-**'
+      - 'session_**'
+      - 'bug-batch/**'
+jobs:
+  llm-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Compute diff and run reviewer
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          PR_NUMBER: ${{ github.event.number }}
+        run: |
+          gh pr diff "$PR_NUMBER" | bash plugins/dso/scripts/ci-llm-review-runner.sh
