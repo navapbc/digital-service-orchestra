@@ -1458,6 +1458,42 @@ Scripts that source `ticket-lib-api.sh` can rely on the following guarantees:
 
 ---
 
+## Well-Known Tag Conventions
+
+Tags are free-form strings attached to tickets, but several tag families carry system-level semantics enforced by scripts and skills.
+
+### `bug-type-*` — Bug classification tags
+
+Applied automatically by the bug classifier at every `Fixed:` closure (see fix-bug SKILL.md Bug Classification Step). Each closed bug ticket receives exactly one `bug-type-<slug>` tag drawn from the registry at `${CLAUDE_PLUGIN_ROOT}/docs/bug-classification-registry.json`.
+
+**Format:** `bug-type-<slug>` where `<slug>` is a registry slug (e.g., `bug-type-scope-drift`, `bug-type-logic-error`).
+
+**Special value:** `bug-type-uncategorized` — written when the classifier returns "uncategorized" (valid enum member) or when a schema failure occurs. Always present when `bug-type-classifier-failed-*` is also present.
+
+**Querying:**
+```bash
+# Count all bug-type tags for bugs created in the last 60 days
+.claude/scripts/dso bug-classification-stats.sh --window-days 60
+```
+
+### `bug-type-classifier-failed-*` — Classifier failure markers
+
+Written alongside `bug-type-uncategorized` when the bug classifier cannot produce a valid slug. Indicates the classification failed, not that the bug is truly uncategorized.
+
+**Format:** `bug-type-classifier-failed-<reason>` where `<reason>` is one of:
+
+| Reason | Meaning |
+|---|---|
+| `schema` | Classifier returned output not in the registry slug set (classify-bug-at-closure.sh) |
+| `timeout` | Classifier agent timed out |
+| `dispatch-error` | Agent dispatch failed (API error, unavailable) |
+| `empty-result` | Classifier returned an empty result (backfill-bug-types.sh) |
+| `unknown-slug` | Backfill classifier returned a slug not in the registry (backfill-bug-types.sh) |
+
+**Deduplication rule:** When both `bug-type-uncategorized` and `bug-type-classifier-failed-*` are present on a ticket, `bug-classification-stats.sh` counts the ticket under `classifier-failed` only — it is a strict subset of uncategorized.
+
+---
+
 ## Troubleshooting
 
 ### `DSO_TICKET_LEGACY=1` — Rollback flag for `_ensure_initialized`

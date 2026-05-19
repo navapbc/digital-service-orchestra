@@ -1142,6 +1142,38 @@ After the fix is verified GREEN and before committing, check whether the source 
 
 4. **If `.test-index` does not exist**: skip this step. The project may not use `.test-index`-based test discovery.
 
+## Bug Classification Step (/dso:fix-bug)
+
+**Trigger**: Run AFTER Phase G (Anti-Pattern Sweep & Test Index) completes and BEFORE Phase H Step 1 (Commit and Close).
+
+**MANDATORY on every `Fixed:` closure. SKIP when `--reason` starts with `Escalated to user:`.**
+
+This step is exempt from MAX_AGENTS/SESSION_USAGE throttle gating — the classifier is a single short haiku call that must run even when MAX_AGENTS=0 to prevent permanently mis-classified tickets.
+
+### Dispatch
+
+Load the registry slug list from `${CLAUDE_PLUGIN_ROOT}/docs/bug-classification-registry.json` (field: `entries[*].slug`). Dispatch `bug-classifier-haiku` agent with:
+- Registry slug list with classification questions
+- Bug title and description
+- One-line fix summary
+
+### Output Validation
+
+Trim whitespace from the agent response. Byte-for-byte compare against the registry slug set ∪ `{uncategorized}`. ANY deviation from this set is a schema failure.
+
+**On valid output**: apply the tag:
+```bash
+.claude/scripts/dso ticket tag <BUG_TICKET_ID> bug-type-<slug>
+```
+
+### Failure Handling
+
+Schema failure, timeout, or dispatch error → write BOTH tags:
+- `bug-type-uncategorized`
+- `bug-type-classifier-failed-<reason>` where `<reason>` is one of: `timeout`, `schema`, `dispatch-error`
+
+Retry tag writes once on failure. On second tag-write failure: post a comment recording the failure, then continue to Phase H.
+
 ## Phase H: Commit and Close
 
 ### Step 1: Commit and Close (/dso:fix-bug)

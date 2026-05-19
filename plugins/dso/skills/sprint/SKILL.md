@@ -2103,6 +2103,8 @@ bash "$PLUGIN_SCRIPTS/detect-session-leakage.sh" || { # shim-exempt: SKILL.md or
 
 Leakage detection is non-blocking: it surfaces commits that need re-attribution but does not abort Phase F. The sprint continues; operators must address flagged commits before merge-to-main.
 
+Before closing a bug with `Fixed:`, invoke the bug classifier (3-step): dispatch `bug-classifier-haiku` sub-agent with the ticket ID → extract slug → `CLASSIFIER_OUTPUT=<slug> .claude/scripts/dso classify-bug-at-closure.sh <id> "Fixed:"`.
+
 ```bash
 .claude/scripts/dso ticket comment <id> "Fixed: <summary>"
 .claude/scripts/dso ticket transition <id> open closed

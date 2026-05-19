@@ -137,6 +137,21 @@ Use AskUserQuestion to present findings by tier with estimated effort, then ask 
 
 ---
 
+## Bug Classification (MANDATORY)
+
+Run:
+  .claude/scripts/dso bug-classification-stats.sh --window-days 60
+
+For each finding, fire a DISTINCT labeled finding when any threshold is reached:
+- When `bug-type-uncategorized` count >= recurrence_threshold (default 3): add labeled finding `bug-type-uncategorized`
+- When any registry slug count >= recurrence_threshold: add labeled finding for that slug
+- When ANY `bug-type-classifier-failed-*` tag is present (threshold=1): add labeled finding `bug-type-classifier-failed`
+
+When NO threshold fires, emit exactly:
+  Bug classification health: no threshold breaches in this window.
+
+---
+
 ## Phase D: Epic Creation (/dso:retro)
 
 Create a ticket epic with remediation tasks based on user-confirmed scope.
