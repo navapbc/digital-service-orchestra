@@ -39,24 +39,9 @@ FAIL=0
 pass() { echo "  PASS: $1"; PASS=$((PASS + 1)); }
 fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
 
-# ---------------------------------------------------------------------------
-# Test (a): task-execution.md contains "### Design Context" heading
-# ---------------------------------------------------------------------------
-test_task_exec_design_context_heading() {
-  echo "=== test_task_exec_design_context_heading ==="
-
-  if [ ! -f "$TASK_EXEC_MD" ]; then
-    fail "task-execution.md missing at ${TASK_EXEC_MD}"
-    return
-  fi
-
-  if grep -qF "### Design Context" "$TASK_EXEC_MD"; then
-    pass "task-execution.md contains '### Design Context' heading"
-  else
-    fail "task-execution.md missing '### Design Context' heading"
-  fi
-}
-
+# Deleted: test_task_exec_design_context_heading — heading-grep with no
+# non-human consumer (LLMs paraphrase headings robustly).
+#
 # ---------------------------------------------------------------------------
 # Test (b): task-execution.md contains "{design_context}" placeholder
 # ---------------------------------------------------------------------------
@@ -76,82 +61,10 @@ test_task_exec_design_context_placeholder() {
   fi
 }
 
-# ---------------------------------------------------------------------------
-# Test (c): task-execution.md contains "NEEDS_REVIEW" text
-# ---------------------------------------------------------------------------
-test_task_exec_needs_review() {
-  echo ""
-  echo "=== test_task_exec_needs_review ==="
-
-  if [ ! -f "$TASK_EXEC_MD" ]; then
-    fail "task-execution.md missing at ${TASK_EXEC_MD}"
-    return
-  fi
-
-  if grep -qF "NEEDS_REVIEW" "$TASK_EXEC_MD"; then
-    pass "task-execution.md contains 'NEEDS_REVIEW' text"
-  else
-    fail "task-execution.md missing 'NEEDS_REVIEW' text"
-  fi
-}
-
-# ---------------------------------------------------------------------------
-# Test (d): task-execution.md contains "authoritative for behavior"
-# ---------------------------------------------------------------------------
-test_task_exec_authoritative_for_behavior() {
-  echo ""
-  echo "=== test_task_exec_authoritative_for_behavior ==="
-
-  if [ ! -f "$TASK_EXEC_MD" ]; then
-    fail "task-execution.md missing at ${TASK_EXEC_MD}"
-    return
-  fi
-
-  if grep -qF "authoritative for behavior" "$TASK_EXEC_MD"; then
-    pass "task-execution.md contains 'authoritative for behavior' text"
-  else
-    fail "task-execution.md missing 'authoritative for behavior' text"
-  fi
-}
-
-# ---------------------------------------------------------------------------
-# Test (e): task-execution.md contains "authoritative for visual"
-# ---------------------------------------------------------------------------
-test_task_exec_authoritative_for_visual() {
-  echo ""
-  echo "=== test_task_exec_authoritative_for_visual ==="
-
-  if [ ! -f "$TASK_EXEC_MD" ]; then
-    fail "task-execution.md missing at ${TASK_EXEC_MD}"
-    return
-  fi
-
-  if grep -qF "authoritative for visual" "$TASK_EXEC_MD"; then
-    pass "task-execution.md contains 'authoritative for visual' text"
-  else
-    fail "task-execution.md missing 'authoritative for visual' text"
-  fi
-}
-
-# ---------------------------------------------------------------------------
-# Test (f): sprint SKILL.md contains "Design Context Population" section
-# ---------------------------------------------------------------------------
-test_skill_design_context_population_section() {
-  echo ""
-  echo "=== test_skill_design_context_population_section ==="
-
-  if [ ! -f "$SPRINT_SKILL_MD" ]; then
-    fail "sprint SKILL.md missing at ${SPRINT_SKILL_MD}"
-    return
-  fi
-
-  if grep -qF "Design Context Population" "$SPRINT_SKILL_MD"; then
-    pass "sprint SKILL.md contains 'Design Context Population' section"
-  else
-    fail "sprint SKILL.md missing 'Design Context Population' section"
-  fi
-}
-
+# Deleted: test_task_exec_needs_review, test_task_exec_authoritative_for_behavior,
+# test_task_exec_authoritative_for_visual, test_skill_design_context_population_section
+# — all prose-grep on LLM instruction wording with no non-human consumer.
+#
 # ---------------------------------------------------------------------------
 # Test (g): sprint SKILL.md documents "design:approved" tag check
 # ---------------------------------------------------------------------------
@@ -171,27 +84,10 @@ test_skill_design_approved_tag() {
   fi
 }
 
-# ---------------------------------------------------------------------------
-# Test (h): sprint SKILL.md documents sonnet minimum model enforcement
-# (matches "sonnet" near "minimum" in either order)
-# ---------------------------------------------------------------------------
-test_skill_sonnet_minimum() {
-  echo ""
-  echo "=== test_skill_sonnet_minimum ==="
-
-  if [ ! -f "$SPRINT_SKILL_MD" ]; then
-    fail "sprint SKILL.md missing at ${SPRINT_SKILL_MD}"
-    return
-  fi
-
-  # Accept "minimum sonnet", "sonnet minimum", "minimum `sonnet`", etc.
-  if grep -qiE "(minimum.*sonnet|sonnet.*minimum)" "$SPRINT_SKILL_MD"; then
-    pass "sprint SKILL.md documents sonnet minimum model enforcement"
-  else
-    fail "sprint SKILL.md missing sonnet minimum model enforcement (pattern: minimum.*sonnet or sonnet.*minimum)"
-  fi
-}
-
+# Deleted: test_skill_sonnet_minimum — fuzzy regex on LLM instruction prose.
+# LLMs paraphrase "minimum model: sonnet" robustly; no parser branches on
+# the exact wording.
+#
 # ---------------------------------------------------------------------------
 # Test (i): sprint SKILL.md references figma-tags.conf
 # ---------------------------------------------------------------------------
@@ -214,14 +110,8 @@ test_skill_figma_tags_conf_reference() {
 # ---------------------------------------------------------------------------
 # Run all tests
 # ---------------------------------------------------------------------------
-test_task_exec_design_context_heading
 test_task_exec_design_context_placeholder
-test_task_exec_needs_review
-test_task_exec_authoritative_for_behavior
-test_task_exec_authoritative_for_visual
-test_skill_design_context_population_section
 test_skill_design_approved_tag
-test_skill_sonnet_minimum
 test_skill_figma_tags_conf_reference
 
 # ---------------------------------------------------------------------------

@@ -131,6 +131,40 @@ If either is `yes`: the heading IS the interface — grep is appropriate, like `
 
 If both are `no`: the heading is organizational content. Renaming `## Severity Calibration Rubric` to `## Calibration Rules` is a safe refactor that preserves intent — a test that breaks on that rename is a change-detector test (Rule 4), not a structural assertion. Replace it with a behavioral test that submits a finding and asserts the validator/agent applies the calibration as expected.
 
+**The non-human-consumer test (extension of bug 725c-5159 — bug acff-b6eb-fp01):**
+
+The two-question test above generalizes beyond headings to any grep-on-prose assertion. Restated as a single litmus:
+
+> **Is the grepped string read by something other than a human (or an LLM)?**
+> If YES: contract test — grep is appropriate.
+> If NO: change-detector — grep guards the author's choice of wording, not behavior.
+
+A non-human consumer is one of:
+- A parser, validator, or schema-checker that branches on the exact value.
+- A grep/awk/sed downstream of the file that selects on the same token.
+- A registry / manifest reader (`.test-index`, `required-checks.txt`, plugin loader reading YAML keys).
+- A workflow runner that branches on a literal token (CI step name parsed by `gh workflow run`, ruleset enum value).
+
+The LLM is NOT a non-human consumer for the purpose of this rule. Two reasons:
+
+1. **LLMs are robust to paraphrasing.** "5-second" / "five-second" / "five seconds" / "5 sec" all produce the same downstream behavior. A test that breaks on the rewrite catches no real regression.
+2. **What the LLM does with a prompt is unverifiable by grep.** Whether the LLM actually behaves per the instruction is empirically testable only by running the LLM with a representative input and asserting the output. Grepping the prompt for "intent words" is a proxy that doesn't measure the intent.
+
+The defense "the LLM consumes this prompt, so the prose IS the contract" does not rescue prose-grep from being a change-detector. The LLM's consumption is fuzzy; the test's match is exact. The two are mismatched.
+
+**Common misapplications to avoid:**
+
+| Pattern | Verdict | Why |
+|---|---|---|
+| `grep -q "Inputs"` in `SKILL.md` | Change-detector | "Inputs" is a heading word; renaming to "Required Inputs" preserves intent. |
+| `grep -q "5-second"` in `SKILL.md` | Change-detector | The duration is a soft instruction to the LLM, not a parsed constant. |
+| `grep -qiE "rationali[sz]"` (anti-rationalization language) | Change-detector | Tests for the *flavor* of warning language, not a parsed token. |
+| `grep -q "baseline, adoption rate, A/B test"` (example list) | Change-detector | Examples are illustrative; any synonyms preserve intent. |
+| `grep -q "design:approved"` in a script | Contract test | Exact tag token consumed by ticket CLI / hook. |
+| `grep -q "<<inferred:"` in `SKILL.md` | Contract test | Token literally parsed by orchestrator regex elsewhere. |
+| YAML frontmatter `name:` / `model:` / `description:` validation | Contract test | Plugin loader reads these field names. |
+| `grep -q "dso.workflow=ci-pr"` in `dso-config.conf` | Contract test | Exact enum value branched on by `read-config.sh`. |
+
 **What this rule prohibits and why:**
 
 ```bash
