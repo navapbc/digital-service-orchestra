@@ -493,3 +493,4 @@ plugins/dso/scripts/bypass-log-check.sh:tests/scripts/test-bypass-log-enforcemen
 .github/workflows/review-sub-pr.yml:tests/workflows/test-review-sub-pr-trigger.sh
 plugins/dso/scripts/scan-red-markers.sh:tests/scripts/test-scan-red-markers.sh [test_scan_red_markers_unit_marker_present]
 plugins/dso/scripts/lib/worktree-removal-guards.sh:tests/scripts/test-worktree-removal-guards.sh [test_worktree_removal_guards]
+plugins/dso/scripts/dso_ci_review/file_filter.py:tests/scripts/test_dso_ci_review_file_filter.py [test_linguist_generated_files_are_filtered_out]
