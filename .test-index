@@ -455,6 +455,8 @@ plugins/dso/scripts/detect-session-leakage.sh:tests/scripts/test-detect-session-
 plugins/dso/scripts/sprint/compute-rereviewed-loc.sh:tests/scripts/test-compute-rereviewed-loc.sh
 plugins/dso/scripts/review-defense-store.sh:tests/review/test-defense-store-ticket-binding.sh,tests/review/test-defense-store-sha-range.sh,tests/review/test-defense-store-dropped-by-arbiter.sh [test_defense_store_drops_unknown_defense_type_gracefully],tests/review/test-arbiter-ruling-dispatch.sh [test_defer_ruling_creates_orphan_ticket],tests/scripts/test-review-defense-store-pr-keyed.sh [test_review_defense_store_pr_keyed]
 plugins/dso/scripts/review-github-defense-store.sh:tests/scripts/test-review-github-defense-store-pr-keyed.sh [test_review_github_defense_store_pr_keyed]
+plugins/dso/scripts/review-defense-store.sh:tests/review/test-defense-store-ticket-binding.sh,tests/review/test-defense-store-sha-range.sh,tests/review/test-defense-store-dropped-by-arbiter.sh [test_defense_store_drops_unknown_defense_type_gracefully],tests/review/test-arbiter-ruling-dispatch.sh [test_defer_ruling_creates_orphan_ticket]
+plugins/dso/scripts/review-github-defense-store.sh:tests/scripts/test-review-github-defense-store-pr-keyed.sh
 tests/review/test-defense-store-dropped-by-arbiter.sh:tests/review/test-defense-store-dropped-by-arbiter.sh [test_defense_store_drops_unknown_defense_type_gracefully]
 tests/review/test-arbiter-ruling-dispatch.sh:tests/review/test-arbiter-ruling-dispatch.sh [test_defer_ruling_creates_orphan_ticket]
 plugins/dso/scripts/check-unacked-degradations.sh:tests/scripts/test-check-unacked-degradations.sh
