@@ -482,3 +482,4 @@ plugins/dso/scripts/classify-epic-class.sh:tests/scripts/test-classify-epic-clas
 plugins/dso/scripts/ticket-update-rav.sh:tests/scripts/test-ticket-update-rav.sh
 plugins/dso/scripts/run-architectural-probe.sh:tests/scripts/test-architectural-probe-gate.sh
 plugins/dso/scripts/validate-pil-handoff.sh:tests/scripts/test-pil-handoff-integration.sh
+plugins/dso/scripts/spec-fidelity-check.sh:tests/scripts/test-spec-fidelity-check.sh
