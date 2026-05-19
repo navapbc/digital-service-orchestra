@@ -88,3 +88,32 @@ Phases: `sync → merge → version_bump → validate → push → archive → c
 - PR mode (`dso.workflow=ci-pr`) appends a `remediate` phase (bounded retry loop, per-tier ceiling=5, global ceiling=15; exit 2 = remediation exhaustion with escalation JSON on stdout; exit 1 = pre-remediation failure).
 - State file: `/tmp/merge-to-main-state-<branch>.json` (4h TTL); `--resume` continues from checkpoint.
 - See `CONFIGURATION-REFERENCE.md` for the `dso.workflow` key (`ci-pr` or `local`). Legacy keys `merge.strategy` and `enforcement.strategy` are deprecated — use `dso.workflow` instead.
+
+### Source-branch version-bump phase (PR mode only)
+
+In `dso.workflow=ci-pr` (PR mode), `${CLAUDE_PLUGIN_ROOT}/scripts/merge-to-main-pr.sh` runs a **pre-merge** `_phase_source_branch_version_bump` step on the source/session branch before the PR is created or queued for merge. This is distinct from the legacy post-merge bump path used by direct mode.
+
+**What the phase does:**
+
+1. Resolves `version.file_path` from `dso-config.conf` (or the `VERSION_FILE_PATH` env var). If unconfigured or the file is absent, the phase is a no-op.
+2. **Idempotency gate**: runs `git diff --quiet -- <version-file>`. If the file is already modified on disk vs HEAD (e.g. from an interrupted prior attempt), the bump step is skipped and only the commit/push steps run — preventing a double-bump.
+3. Calls `bump-version.sh --<bump-type>` (default: `--patch`) with `DSO_MERGE_TO_MAIN_PHASE=version_bump` set so the branch guard in `bump-version.sh` passes.
+4. Stages the version file and `package-lock.json` (when the version file is `package.json`).
+5. Commits with a `DSO-Story-Merge: <story-id>` trailer so `verify-session-provenance.sh` treats the bump commit as provenanced and excludes it from the un-provenanced commit count. When no story-id is available, the trailer is omitted.
+6. Pushes the bump commit to `origin HEAD` **before** the PR merge is initiated. Push failure aborts the pipeline (exit non-zero); the merge never proceeds with an unpushed bump.
+
+**Post-merge no-op detection:**
+
+After the PR merges to `origin/main`, the post-merge `_phase_version_bump` runs `git log HEAD^1..HEAD --format=%B -- <version-file>` and greps for a `DSO-Story(-Merge)?:` trailer. If the trailer is found, the source-branch bump already landed in the merged history, and `_phase_version_bump` marks itself complete without re-bumping. If the trailer is absent (old workflow, or no version file), it falls through to the legacy post-merge bump path (see below).
+
+**Design rationale:** bumping on the source branch rather than post-merge main ensures the version bump appears in the per-story PR history, avoids race conditions with concurrent merges, and makes the post-merge phase a pure no-op check.
+
+**Bump scope:** every session→main PR that has `version.file_path` configured receives a version-bump commit on the source branch. There is no per-PR opt-out mechanism. If the bump-version logic detects no version-file change (version already at the bumped value, e.g. after a retry), the phase commits nothing and returns without error.
+
+### Legacy post-merge bump path (direct mode and fallthrough)
+
+`merge-to-main-direct.sh` retains the original post-merge bump behavior: after the merge commit lands on `main`, the `_phase_version_bump` function runs `bump-version.sh`, stages the result, and amends or commits directly on `main`. This path is intentionally **not** changed by S5 — direct mode has no PR workflow, so a pre-merge source-branch bump would require non-trivial architectural changes out of scope for this story.
+
+When running in PR mode with `--resume` on a pipeline that was started *before* S5 (state file shows `version_bump` in `completed_phases` but no source-branch bump trailer), the resume-skip guard fires first and the legacy path is never reached. Pre-S5 in-flight pipelines that have not yet reached `version_bump` fall through to the legacy bump with a deprecation log line (`"post-merge version_bump: no source-branch bump detected — running legacy post-merge bump (deprecated in S5)"`).
+
+The `_try_reset_stale_version_bump` helper (which detects and discards orphan version-bump commits on local `main`) is direct-mode-only and is explicitly skipped in PR mode.
