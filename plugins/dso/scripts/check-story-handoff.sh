@@ -74,8 +74,8 @@ else
     if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
         _repo_root="$(cd "$CLAUDE_PLUGIN_ROOT/../.." && pwd 2>/dev/null || echo "")"
     else
-        _script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-        _repo_root="$(cd "$_script_dir/../../../.." && pwd 2>/dev/null || echo "")"
+        # CLAUDE_PLUGIN_ROOT unset (script invoked outside the plugin loader): fall back to git.
+        _repo_root="$(git rev-parse --show-toplevel 2>/dev/null || echo "")"
     fi
     if [[ -n "$_repo_root" ]] && [[ -f "$_repo_root/.claude/scripts/dso" ]]; then
         _dso_shim="$_repo_root/.claude/scripts/dso"
