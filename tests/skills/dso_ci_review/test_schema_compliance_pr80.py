@@ -57,7 +57,12 @@ def _run_runner_with_pr80(tmp_path: Path) -> dict:
         "DSO_CI_REVIEW_OUTPUT_PATH": str(output_file),
         "ANTHROPIC_API_KEY": api_key,
         "CI_REVIEW_PROVIDER": "anthropic",
-        # Ensure a predictable, cost-bounded invocation
+        # Ensure a predictable, cost-bounded invocation (single-cycle path).
+        # Classification-b (task 36cf audit): DSO_REVIEW_CYCLE=1 is a fixture
+        # convenience — it forces the single-cycle path. This subprocess invocation
+        # does not mock _init_cycle_ledger; when task 36cf lands, the ledger-based
+        # implementation will also return 1 for a fresh invocation, so this env var
+        # will become a no-op. Keep until confirmed by task 36cf testing.
         "DSO_REVIEW_CYCLE": "1",
         "DSO_CI_REVIEW_DRY_RUN": "",
         "DSO_CI_REVIEW_REGION_SPLIT": "",

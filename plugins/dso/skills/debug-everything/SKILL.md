@@ -32,7 +32,9 @@ You are a **Senior Software Engineer at Google** brought in to restore a project
 /dso:debug-everything --aws            # Include proactive AWS infrastructure scan in Phase B
 ```
 
-**ci-pr mode** (when `dso.workflow=ci-pr`): `/dso:debug-everything` runs in ci-pr mode. Each fix batch is committed to a per-tier sub-branch (`bug-batch/<session-id>/tier-<N>-batch-<K>`), opened as a PR against `SESSION_BRANCH` (not main), and reviewed via local `/dso:review` dispatch before merging to the session branch. The session's aggregate progress is tracked in a `Debug:` draft PR. Phase B Step 1 creates a `.debug-active` marker (schema v1) on the repo root; Phase K removes it. The draft PR is also created in Phase B Step 1.
+**ci-pr mode** (when `dso.workflow=ci-pr`): `/dso:debug-everything` runs in ci-pr mode. Each fix batch is committed to a per-tier sub-branch (`bug-batch/<session-id>/tier-<N>-batch-<K>`), opened as a PR against `SESSION_BRANCH` (not main), and merged to the session branch after review. The session's aggregate progress is tracked in a `Debug:` draft PR. Phase B Step 1 creates a `.debug-active` marker (schema v1) on the repo root; Phase K removes it. The draft PR is also created in Phase B Step 1.
+
+> **KNOWN GAP (tracked under upcoming remediation epic; post-mortem bug 576b-a6c7-3de3-4eef)**: in ci-pr mode, sub-branch PRs currently do NOT trigger internal LLM review. `.github/workflows/per-branch-review.yml` (which previously provided per-sub-PR review) was deleted by story 20d7-09d6-b831-4c3a. `ci.yml`'s `llm-review` job is gated to `base_ref == 'main'` and does not fire on sub-branch PRs. `/dso:review` is HARD-GATED to no-op under `dso.workflow=ci-pr`. External advisory reviewers (CodeRabbit, Gitar) may run but are not required checks. Internal review coverage currently fires only at the eventual session→main PR, on the cumulative diff. The remediation epic restores per-sub-PR internal review with a no-duplicate-checks invariant.
 
 **Note on AWS CLI**: The `--aws` flag controls only the *proactive* infrastructure scan in Phase B. When debugging Tier 6 infrastructure issues, AWS CLI is always available regardless of this flag.
 <!-- EMIT-PRECONDITIONS: gate_name=debug_everything_aws_infra degradation_type=inferred_decision -->
@@ -730,7 +732,7 @@ fi
 - Branch naming: `bug-batch/<debug-session-id>/tier-0` and `bug-batch/<debug-session-id>/tier-1`
 - Use direct `git checkout -b bug-batch/<debug-session-id>/tier-<N>` (create-story-branch.sh appends /<epic>/<story> and cannot produce tier branch names)
 - When a tier has 0 bugs/changes: no sub-branch is created AND no annotation is added to the aggregate draft PR for that tier (zero-bug tier skip)
-- Apply all tier changes on the sub-branch, push to origin, then open a PR against `SESSION_BRANCH` (not main): `gh pr create --base "$SESSION_BRANCH" --head <sub-branch> --title "auto-fix: tier-<N>" --body "Auto-fix tier <N> changes"`. Then dispatch `/dso:review` locally against the sub-branch diff before merging.
+- Apply all tier changes on the sub-branch, push to origin, then open a PR against `SESSION_BRANCH` (not main): `gh pr create --base "$SESSION_BRANCH" --head <sub-branch> --title "auto-fix: tier-<N>" --body "Auto-fix tier <N> changes"`. Sub-branch PR internal review is currently degraded under `dso.workflow=ci-pr` (see KNOWN GAP near top of this file); the cumulative review fires at the eventual session→main PR.
 
 <HARD-GATE>
 **Sub-branch invariant pre-flight (Flow C analog of bug da45-7d92-6c86-42bc)**: BEFORE invoking `gh pr create` for the tier sub-branch, run `assert-batch-branch.sh` from the session branch directory to confirm the bug-batch sub-branch has been created locally AND pushed to origin. Without the push, no PR can be opened and LLM Sub-Branch Review will be silently bypassed — the exact failure pattern that left every prior debug-everything bug-batch PR unreviewed.
@@ -754,9 +756,9 @@ In local mode (DEBUG_MODE=direct or absent): no sub-branch created; commit direc
 
 ### Per-Sub-Branch CI Review (ci-pr mode only — Phase F)
 
-After each sub-branch PR is opened in ci-pr mode, review is handled automatically by CI:
+> **KNOWN GAP (tracked under upcoming remediation epic; post-mortem bug 576b-a6c7-3de3-4eef)**: Per-sub-branch internal LLM review is currently NOT firing. `.github/workflows/per-branch-review.yml` was deleted by story 20d7. `ci.yml`'s `llm-review` job is gated to `base_ref == 'main'`. `/dso:review` is HARD-GATED to no-op under `dso.workflow=ci-pr`. External advisory reviewers (CodeRabbit, Gitar) may run but are not required checks. Cumulative review fires only at the eventual session→main PR. Remediation epic restores per-sub-branch internal review.
 
-- After opening the PR with `base=$SESSION_BRANCH`, dispatch `/dso:review` locally against the sub-branch diff. Wait for the review to complete before merging the sub-branch into the session branch.
+Until remediation epic ships, sub-branches are merged into the session branch after CI passes (Hook Tests, Script Tests, lint) but without an enforced per-sub-branch internal LLM review gate:
 - **Return discriminated merge outcome** for this sub-branch:
   - `MERGED`: CI review passed; merge sub-branch into session branch.
   - `ESCALATED`: CI review failed or PR blocked; do NOT merge; write `SUBBRANCH_ESCALATED: <sub-branch> reason=<...>` ticket comment FIRST (ticket comment is the authoritative source of truth — COMPACTION_RESUME reconciles PR annotation from ticket comments on resume), then update aggregate draft PR `BLOCKED_SUBBRANCHES:` annotation SECOND; continue to next sub-branch (ESCALATED does not halt the tier loop — loop continues to next sub-branch after ESCALATED).
@@ -834,8 +836,8 @@ After each sub-branch is created and changes committed in ci-pr mode, push the s
 In `local` mode (DEBUG_MODE=direct) this is a silent no-op (exit 0). In `ci-pr` mode the orchestrator MUST NOT open a sub-branch PR if the branch was not created+pushed. Do NOT skip, soften, or work around this gate — bypassing reproduces the Flow C silent-skip pattern.
 </HARD-GATE>
 
-- Open the sub-branch PR against `SESSION_BRANCH` (not main): `gh pr create --base "$SESSION_BRANCH" --head <sub-branch> --title "auto-fix: tier-<N>-batch-<K>" --body "Auto-fix tier <N> batch <K> changes"`. Then dispatch `/dso:review` locally against the sub-branch diff before merging.
-- Wait for the local review to complete before merging the sub-branch into the session branch.
+- Open the sub-branch PR against `SESSION_BRANCH` (not main): `gh pr create --base "$SESSION_BRANCH" --head <sub-branch> --title "auto-fix: tier-<N>-batch-<K>" --body "Auto-fix tier <N> batch <K> changes"`. Internal LLM review is currently degraded under `dso.workflow=ci-pr` (see KNOWN GAP earlier in this file).
+- Wait for CI test jobs (Hook Tests, Script Tests, ShellCheck, Lint) to complete before merging the sub-branch into the session branch.
 - **Return discriminated merge outcome** for this sub-branch:
   - `MERGED`: CI review passed; merge sub-branch into session branch.
   - `ESCALATED`: CI review failed or PR blocked; do NOT merge; write `SUBBRANCH_ESCALATED: <sub-branch> reason=<...>` ticket comment FIRST (ticket comment is the authoritative source of truth — COMPACTION_RESUME reconciles PR annotation from ticket comments on resume), then update aggregate draft PR `BLOCKED_SUBBRANCHES:` annotation SECOND; continue to next sub-branch (ESCALATED does not halt the tier loop — loop continues to next sub-branch after ESCALATED).
