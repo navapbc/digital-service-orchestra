@@ -524,12 +524,20 @@ def main(
         rulings_path = os.path.join(artifacts_dir, "arbiter-rulings.json")
         try:
             with open(rulings_path) as f:
-                rulings = json.load(f)
+                sidecar_data = json.load(f)
         except (OSError, json.JSONDecodeError):
-            rulings = []
+            sidecar_data = {}
+        # arbiter-rulings.json is a dict {"schema_version": ..., "rulings": [...], ...}.
+        # Support legacy flat-list format defensively for backward-compat with any
+        # pre-schema-v1 sidecars that may still exist in the wild.
+        if isinstance(sidecar_data, dict):
+            ruling_list = sidecar_data.get("rulings", [])
+        elif isinstance(sidecar_data, list):
+            ruling_list = sidecar_data
+        else:
+            ruling_list = []
         has_block = any(
-            r.get("ruling") == "BLOCK"
-            for r in (rulings if isinstance(rulings, list) else [])
+            isinstance(r, dict) and r.get("ruling") == "BLOCK" for r in ruling_list
         )
         return 1 if has_block else 0
 
