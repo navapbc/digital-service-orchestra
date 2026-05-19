@@ -388,7 +388,9 @@ test_run_hook_syntax_error_writes_new_canonical_path() {
     TEST_HOME=$(_make_test_home)
 
     local BROKEN_HOOK
-    BROKEN_HOOK=$(mktemp -t test-broken-hookXXXXX)
+    # Audit P4-3: `mktemp -t` has divergent BSD vs GNU semantics. Use the
+    # portable explicit-template form (CLAUDE.md rule #15).
+    BROKEN_HOOK=$(mktemp /tmp/test-broken-hook.XXXXXX)
     _TEST_TMPDIRS+=("$BROKEN_HOOK")
     printf '#!/usr/bin/env bash\nif then fi\n' > "$BROKEN_HOOK"
     chmod +x "$BROKEN_HOOK"
