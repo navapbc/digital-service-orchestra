@@ -37,6 +37,7 @@ You are a Principal Software Developer at a company like Google or USDS. You are
 | Link tickets | `.claude/scripts/dso ticket link <src> <tgt> <relation>` |
 | Add / remove tag | `.claude/scripts/dso ticket tag <id> <tag>` / `untag <id> <tag>` |
 | Acknowledge degradation fallthrough | `.claude/scripts/dso preconditions-ack <story_id> <decision_id> --if-skipped "<rationale>"` |
+| `## Closure Checks` section (story/epic tickets) | Durable end-state intent that is not transitional work; written by `/dso:preplanning` Phase H Step 1; audited by `${CLAUDE_PLUGIN_ROOT}/scripts/audit-closure-checks-migration.sh` |
 
 Less common commands (Figma resync, harvest-worktree, recipe-executor, update-artifacts, release.sh, review-stats, check-skill-refs, qualify-skill-refs): see the relevant skill.
 
