@@ -248,6 +248,18 @@ Before returning results, emit the preconditions exit event for epic-closure (fa
 _dso_pv_exit_write "epic-closure" "${_UPSTREAM_EVENT_ID:-}" "${SPEC_HASH:-}" "${EPIC_ID:-}" || true
 ```
 
+**Populate the `narrative` field** by calling `render-closure-narrative.sh` with the verifier JSON output. The output of that script is the `narrative` field value verbatim — do NOT write a summary, paraphrase findings, or generate prose:
+
+```bash
+# Write the verifier JSON to a temp file, then render the narrative
+_VERIFIER_TMP=$(mktemp /tmp/verifier-output.XXXXXX)
+# <write the verifier JSON to $_VERIFIER_TMP>
+_NARRATIVE=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/render-closure-narrative.sh" "$_VERIFIER_TMP")
+# Use $_NARRATIVE as the "narrative" field value verbatim
+```
+
+The rendered format is: `P1={P1} criteria_met={N}/{total} blocked_by={B}`
+
 Return a structured JSON block matching the output schema below. After the JSON block, include a plain-text **Verification Summary** section.
 
 ---

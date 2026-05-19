@@ -2249,14 +2249,22 @@ Read and execute `prompts/epic-ci-and-e2e-gates.md` for the integration test gat
 
 **MANDATORY**: Dispatch the completion-verifier using the same shape defined in Phase F Step 18's "Verifier dispatch shape" HARD-GATE — primary form uses `subagent_type: "dso:completion-verifier"` with `model: "sonnet"`; fallback form reads `agents/completion-verifier.md` verbatim and passes its full contents under `subagent_type: "general-purpose"`. Hand-written paraphrases of the agent file are CLAUDE.md rule #20 violations (bug c716-952a). Pass the epic ID instead of a story ID.
 
-After receiving the verifier JSON output, run these two gate checks BEFORE proceeding to story closure:
+After receiving the verifier JSON output, render the closure narrative FIRST, then run the gate checks:
+
+**Render closure narrative (before gate checks)**
+
+```bash
+# Save verifier JSON output to a temp file
+VERIFIER_JSON_PATH=$(mktemp /tmp/verifier-output.XXXXXX)
+# <write verifier JSON to $VERIFIER_JSON_PATH>
+# Render deterministic closure narrative — use this output verbatim in any closure summary; do NOT paraphrase or summarize LLM-style
+CLOSURE_NARRATIVE=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/render-closure-narrative.sh" "$VERIFIER_JSON_PATH")
+echo "Closure narrative: $CLOSURE_NARRATIVE"
+```
 
 **Gate 1: Machine-readable verdict check**
 
 ```bash
-# Save verifier JSON output to a temp file first
-VERIFIER_JSON_PATH=$(mktemp /tmp/verifier-output.XXXXXX)
-# <write verifier JSON to $VERIFIER_JSON_PATH>
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-verifier-verdict.sh" "$VERIFIER_JSON_PATH"
 ```
 

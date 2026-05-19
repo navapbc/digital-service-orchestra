@@ -9,9 +9,9 @@
 #
 # Output format: P1={P1} criteria_met={N}/{total} blocked_by={B}
 #   P1     — value of the "P1" field from the input JSON
-#   N      — count of criteria_results entries with status=PASS
+#   N      — count of criteria_results entries with verdict=PASS
 #   total  — total count of criteria_results entries
-#   B      — count of criteria_results entries with status=FAIL or BLOCKED
+#   B      — count of criteria_results entries with verdict=FAIL or BLOCKED
 #
 # Exit codes:
 #   0  — success; narrative written to stdout
@@ -67,9 +67,9 @@ if not isinstance(criteria, list):
     sys.exit(1)
 
 total = len(criteria)
-passed = sum(1 for c in criteria if c.get("status") == "PASS")
+passed = sum(1 for c in criteria if c.get("verdict") == "PASS")
 blocked = sum(
-    1 for c in criteria if c.get("status") in ("FAIL", "BLOCKED")
+    1 for c in criteria if c.get("verdict") in ("FAIL", "BLOCKED")
 )
 
 print(f"P1={p1} criteria_met={passed}/{total} blocked_by={blocked}")

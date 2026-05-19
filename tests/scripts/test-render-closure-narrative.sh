@@ -27,7 +27,7 @@ echo "=== test-render-closure-narrative.sh ==="
 test_p1_pass_all_criteria_met() {
     _snapshot_fail
     local json
-    json='{"P1":"PASS","criteria_results":[{"status":"PASS"},{"status":"PASS"},{"status":"PASS"}]}'
+    json='{"P1":"PASS","criteria_results":[{"verdict":"PASS"},{"verdict":"PASS"},{"verdict":"PASS"}]}'
     local output
     output=$(echo "$json" | bash "$SCRIPT" 2>/dev/null)
     assert_eq "test_p1_pass_all_criteria_met: narrative string" \
@@ -40,7 +40,7 @@ test_p1_pass_all_criteria_met() {
 test_p1_fail_partial_criteria() {
     _snapshot_fail
     local json
-    json='{"P1":"FAIL","criteria_results":[{"status":"PASS"},{"status":"FAIL"}]}'
+    json='{"P1":"FAIL","criteria_results":[{"verdict":"PASS"},{"verdict":"FAIL"}]}'
     local output
     output=$(echo "$json" | bash "$SCRIPT" 2>/dev/null)
     assert_eq "test_p1_fail_partial_criteria: narrative string" \
@@ -53,7 +53,7 @@ test_p1_fail_partial_criteria() {
 test_determinism_three_runs() {
     _snapshot_fail
     local json
-    json='{"P1":"PASS","criteria_results":[{"status":"PASS"},{"status":"FAIL"},{"status":"PASS"}]}'
+    json='{"P1":"PASS","criteria_results":[{"verdict":"PASS"},{"verdict":"FAIL"},{"verdict":"PASS"}]}'
     local out1 out2 out3
     out1=$(echo "$json" | bash "$SCRIPT" 2>/dev/null)
     out2=$(echo "$json" | bash "$SCRIPT" 2>/dev/null)
