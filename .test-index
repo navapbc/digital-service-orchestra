@@ -483,6 +483,7 @@ plugins/dso/scripts/migrate-dso-workflow-config.sh:tests/scripts/test-legacy-cle
 plugins/dso/scripts/migrate-story-pr-bases.sh:tests/scripts/test-migrate-story-pr-bases.sh
 plugins/dso/scripts/migrate-ledger-v11-to-v12.sh:tests/scripts/test-migrate-ledger-v11-to-v12.sh [test_migrate_ledger_v11_to_v12]
 plugins/dso/scripts/verify-session-provenance.sh:tests/scripts/test-verify-session-provenance.sh,tests/scripts/test-bug-reproducer-cafb.sh
+plugins/dso/scripts/verify-session-provenance.sh:tests/scripts/test-verify-session-provenance.sh,tests/scripts/test-bug-reproducer-cafb.sh,tests/scripts/test-verify-session-provenance-contract.sh [test_verify_session_provenance_contract]
 plugins/dso/scripts/redistribute-session-commits.sh:tests/scripts/test-redistribute-session-commits.sh [test_script_exists]
 plugins/dso/scripts/write-cycle-ledger.sh:tests/scripts/test-write-cycle-ledger.sh,tests/scripts/test-write-cycle-ledger-integration.sh
 tests/scripts/test-cycle-arbiter.sh:tests/scripts/test-cycle-arbiter.sh [test_block_critical_defense_absent_ruling]
@@ -501,3 +502,4 @@ plugins/dso/scripts/lib/worktree-removal-guards.sh:tests/scripts/test-worktree-r
 plugins/dso/scripts/exempt-in-flight-prs.sh:tests/scripts/test-exempt-in-flight-prs.sh [test_labels_all_in_flight_prs]
 plugins/dso/scripts/rollback-sub-pr-cutover.sh:tests/scripts/test-rollback-sub-pr-cutover.sh [test_rollback_sub_pr_cutover]
 plugins/dso/scripts/dso_ci_review/file_filter.py:tests/scripts/test_dso_ci_review_file_filter.py [test_linguist_generated_files_are_filtered_out]
+plugins/dso/scripts/llm-review-dispatch-or-skip.sh:tests/scripts/test-llm-review-dispatch-or-skip.sh [test_llm_review_dispatch_or_skip]
