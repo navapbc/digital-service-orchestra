@@ -486,4 +486,4 @@ plugins/dso/scripts/dso_ci_review/local_workflow.py:tests/skills/dso_ci_review/t
 plugins/dso/scripts/review-workflow.sh:tests/skills/dso_ci_review/test_local_workflow_ledger.py,tests/scripts/test-local-review-workflow-e2e.sh [test_e2e_three_cycles_then_arbiter_block,test_e2e_pass_branch_cycle_1,test_e2e_short_circuit_on_rerun_same_sha,test_e2e_max_cycles_arbiter,test_e2e_drop_writes_tracker_only]
 .github/workflows/review-sub-pr.yml:tests/workflows/test-review-sub-pr-trigger.sh
 plugins/dso/scripts/scan-red-markers.sh:tests/scripts/test-scan-red-markers.sh [test_scan_red_markers_unit_marker_present]
-plugins/dso/scripts/lib/worktree-removal-guards.sh:tests/scripts/test-worktree-removal-guards.sh [test_worktree_removal_guards]
+plugins/dso/scripts/lib/worktree-removal-guards.sh:tests/scripts/test-worktree-removal-guards.sh
