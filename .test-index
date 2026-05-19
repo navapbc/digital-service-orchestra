@@ -490,3 +490,5 @@ plugins/dso/scripts/review-workflow.sh:tests/skills/dso_ci_review/test_local_wor
 plugins/dso/scripts/scan-red-markers.sh:tests/scripts/test-scan-red-markers.sh [test_scan_red_markers_unit_marker_present],tests/workflows/test-red-test-blocker-merged-tree-scan.sh [test_red_test_blocker_two_subpr],tests/scripts/test-scan-red-markers-vs-parse-test-index-parity.sh [test_scan_red_markers_grammar_parity]
 plugins/dso/scripts/scan-red-markers.sh:tests/scripts/test-scan-red-markers.sh
 plugins/dso/scripts/lib/worktree-removal-guards.sh:tests/scripts/test-worktree-removal-guards.sh [test_worktree_removal_guards]
+plugins/dso/scripts/scan-red-markers.sh:tests/scripts/test-scan-red-markers.sh [test_scan_red_markers_unit_marker_present]
+plugins/dso/scripts/lib/worktree-removal-guards.sh:tests/scripts/test-worktree-removal-guards.sh [test_worktree_removal_guards],tests/scripts/test-worktree-removal-guards-e2e.sh [test_claude_safe_multiple_sub_prs]
