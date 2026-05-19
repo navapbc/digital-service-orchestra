@@ -43,26 +43,13 @@ assert_contains "test_help_documents_bump_default_when_version_file_configured" 
 
 assert_pass_if_clean "test_help_documents_bump_default_when_version_file_configured"
 
-# =============================================================================
-# Test A: pr.sh tail invokes _try_reset_stale_version_bump before
-# _phase_version_bump (cb31-3552 Defect A).
-# Structural: the orphan-reset call must appear in the PR-tail flow before the
-# version_bump call.
-# =============================================================================
-echo ""
-echo "--- test_pr_tail_invokes_orphan_reset_before_version_bump ---"
-_snapshot_fail
-
-_PR_SAW_RESET=$(awk '
-    /_try_reset_stale_version_bump/ { saw_reset = NR }
-    /^_phase_version_bump$/ {
-        if (saw_reset && saw_reset < NR) { print "guarded"; exit }
-    }
-' "$PR_SCRIPT")
-
-assert_eq "test_pr_tail_invokes_orphan_reset_before_version_bump" "guarded" "$_PR_SAW_RESET"
-
-assert_pass_if_clean "test_pr_tail_invokes_orphan_reset_before_version_bump"
+# Test A (formerly source-grepping for bump-before-push ordering) was deleted
+# during the b6e3-e771 + bbba-123d remediation. The observable ordering claim
+# (bump commit reaches origin/<branch> before the merge to main) is verified
+# end-to-end by t_pr_version_bump_pushed_to_origin in test-merge-to-main-pr.sh.
+# Per behavioral testing standard rule 3 (Behavioral Testing Standard
+# skills/shared/prompts/behavioral-testing-standard.md), source-file grepping
+# of merge-to-main-pr.sh for function-call ordering is a change-detector.
 
 # =============================================================================
 # Test C-structural: _phase_push_self_healing helper exists and _phase_push

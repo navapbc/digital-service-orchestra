@@ -4773,14 +4773,18 @@ t_check_duplicate_pr_isdraft_filter_returns_empty_not_null
 #        a real git worktree (so git rev-parse --git-common-dir resolves
 #        MAIN_REPO correctly to the main checkout).
 # When: merge-to-main-pr.sh runs successfully
-# Then: origin/main MUST contain the bumped version (not the original)
-#       because _phase_push must be called after _phase_version_bump.
+# Then: the session branch ref on origin MUST contain the bumped version
+#       (not the original) because _phase_source_branch_version_bump must
+#       commit the bump on the session branch before the push (b6e3-e771 +
+#       bbba-123d). The bump then lands on main as part of the PR's squash-
+#       merge commit — NOT as a post-merge direct commit on main.
 #
-# REVIEW-DEFENSE (PR #111 important): The RED marker [RED: 0a63-754f-7984-446b]
-# was removed from .test-index because this test (t_pr_version_bump_pushed_to_origin)
-# IS the implementation that the marker was waiting for. The test is fully implemented
-# and passes. Removing a RED marker after the test is implemented is correct — the
-# marker signals "not yet implemented", not "should remain marked forever".
+# UPDATED for the architectural fix (b6e3-e771): prior behavior asserted that
+# origin/main directly received the bump commit via the post-merge _phase_push
+# call. That path was removed because it diverged main from the PR's merged
+# content and was rejected by the always-run compliance-verifier hook. The
+# updated assertion checks origin/<branch> instead, which is where the bump
+# now lives until the PR squash-merges it.
 # ---------------------------------------------------------------------------
 t_pr_version_bump_pushed_to_origin() {
     local _T _ec _branch_safe _state_file
@@ -4915,33 +4919,53 @@ GIT_SHIM
     # Assert 1: script exits zero (or non-fatal — the key invariant is Assert 2)
     assert_eq "t_pr_version_bump_pushed_to_origin:exits_zero" "0" "$_ec"
 
-    # Assert 2: origin/main must have exactly "1.0.1" (patch bump from "1.0.0").
-    # Before fix: _phase_push is never called → origin/main stays at "1.0.0" → FAIL.
-    # After fix: _phase_push pushes the bumped commit → origin/main has "1.0.1" → PASS.
+    # Assert 2: the session branch ref on origin must have plugin.json at "1.0.1"
+    # (patch bump from "1.0.0"). Before fix: post-merge _phase_push pushed the
+    # bump directly to origin/main. After fix: _phase_source_branch_version_bump
+    # commits the bump on the session branch, and the subsequent `git push -u
+    # origin "$BRANCH"` publishes it to origin/<branch>. The bump lands on main
+    # only via the PR's squash-merge (gh pr merge, stubbed in this test).
+    local _branch_ref="refs/remotes/origin/${branch}"
     local _origin_version
-    # Use && to propagate fetch failure so stale refs don't mask a fetch error.
     _origin_version=$(
-        "$real_git" -C "$main_checkout" fetch -q origin "main:refs/remotes/origin/main" 2>/dev/null && \
-        "$real_git" -C "$main_checkout" show "refs/remotes/origin/main:plugin.json" 2>/dev/null | \
+        "$real_git" -C "$main_checkout" fetch -q origin "${branch}:${_branch_ref}" 2>/dev/null && \
+        "$real_git" -C "$main_checkout" show "${_branch_ref}:plugin.json" 2>/dev/null | \
         python3 -c "import json,sys; print(json.load(sys.stdin).get('version','MISSING'))" 2>/dev/null \
         || echo "FETCH_ERROR"
     )
 
-    assert_eq "t_pr_version_bump_pushed_to_origin:version_on_origin_is_1.0.1" "1.0.1" "$_origin_version"
+    assert_eq "t_pr_version_bump_pushed_to_origin:version_on_origin_branch_is_1.0.1" "1.0.1" "$_origin_version"
 
-    # Assert 3: commit message must name the actual version, not "vunknown".
+    # Assert 3: HEAD commit on origin/<branch> must be the bump commit, named
+    # with the actual version (not "vunknown") and carrying a DSO-Story trailer.
     local _bump_msg
-    _bump_msg=$("$real_git" -C "$main_checkout" log --format="%s" "refs/remotes/origin/main" -1 2>/dev/null || echo "")
+    _bump_msg=$("$real_git" -C "$main_checkout" log --format="%s" "$_branch_ref" -1 2>/dev/null || echo "")
     assert_eq "t_pr_version_bump_pushed_to_origin:commit_message_names_version" \
               "chore: bump version to v1.0.1" "$_bump_msg"
+
+    # Assert 4: the bump commit body must carry a DSO-Story trailer so
+    # verify-session-provenance.sh accepts it on the session branch.
+    local _bump_body _trailer_found="no"
+    _bump_body=$("$real_git" -C "$main_checkout" log --format="%B" "$_branch_ref" -1 2>/dev/null || echo "")
+    if printf '%s\n' "$_bump_body" | grep -qE '^DSO-Story(-Merge)?:[[:space:]]'; then
+        _trailer_found="yes"
+    fi
+    assert_eq "t_pr_version_bump_pushed_to_origin:bump_commit_has_dso_story_trailer" \
+              "yes" "$_trailer_found"
 }
 t_pr_version_bump_pushed_to_origin
 
 # ---------------------------------------------------------------------------
-# t_pr_version_bump_main_repo_not_on_main: Exercises the branch-switch guard
-# added in merge-to-main-pr.sh. MAIN_REPO starts on a detached-ish branch
-# (not main); the script must switch it to main before version bump + push.
-# Regression target: coderabbit finding PRRT_kwDORoc4TM6BoIjn.
+# t_pr_version_bump_main_repo_not_on_main: regression test for worktree
+# topologies where MAIN_REPO is currently on a non-main branch.
+#
+# UPDATED for b6e3-e771: the prior MAIN_REPO branch-switch guard was specific
+# to the post-merge _phase_version_bump path, which has been removed. With the
+# new architecture the bump runs on the session worktree (not MAIN_REPO), so
+# MAIN_REPO's checked-out branch is irrelevant to the bump itself. This test
+# still asserts that the bump lands on origin/<session-branch> even when
+# MAIN_REPO is on a non-main branch — i.e., the new architecture does not
+# regress the topology that the old branch-switch guard was protecting.
 # ---------------------------------------------------------------------------
 t_pr_version_bump_main_repo_not_on_main() {
     local _T _ec _branch_safe _state_file
@@ -5067,19 +5091,22 @@ GIT_SHIM
 
     assert_eq "t_pr_version_bump_main_repo_not_on_main:exits_zero" "0" "$_ec"
 
-    # origin/main must have the bumped version (branch-switch guard ran + push succeeded)
+    # origin/<branch> must have the bumped version (session worktree commits
+    # the bump and pushes it as part of the merge phase, regardless of which
+    # branch MAIN_REPO has checked out).
+    local _branch_ref="refs/remotes/origin/${branch}"
     local _origin_version
     _origin_version=$(
-        "$real_git" -C "$main_checkout" fetch -q origin "main:refs/remotes/origin/main" 2>/dev/null && \
-        "$real_git" -C "$main_checkout" show "refs/remotes/origin/main:plugin.json" 2>/dev/null | \
+        "$real_git" -C "$main_checkout" fetch -q origin "${branch}:${_branch_ref}" 2>/dev/null && \
+        "$real_git" -C "$main_checkout" show "${_branch_ref}:plugin.json" 2>/dev/null | \
         python3 -c "import json,sys; print(json.load(sys.stdin).get('version','MISSING'))" 2>/dev/null \
         || echo "FETCH_ERROR"
     )
-    assert_eq "t_pr_version_bump_main_repo_not_on_main:version_on_origin_is_1.0.1" "1.0.1" "$_origin_version"
+    assert_eq "t_pr_version_bump_main_repo_not_on_main:version_on_origin_branch_is_1.0.1" "1.0.1" "$_origin_version"
 
-    # Assert 3: commit message must name the actual version, not "vunknown".
+    # Assert 3: commit message on origin/<branch> must name the actual version.
     local _bump_msg
-    _bump_msg=$("$real_git" -C "$main_checkout" log --format="%s" "refs/remotes/origin/main" -1 2>/dev/null || echo "")
+    _bump_msg=$("$real_git" -C "$main_checkout" log --format="%s" "$_branch_ref" -1 2>/dev/null || echo "")
     assert_eq "t_pr_version_bump_main_repo_not_on_main:commit_message_names_version" \
               "chore: bump version to v1.0.1" "$_bump_msg"
 }
@@ -5849,10 +5876,17 @@ EOF
     local _bump_sha
     _bump_sha="$("$_real_git" -C "$_worktree_dir" rev-parse HEAD 2>/dev/null || echo "")"
     # main-checkout still at the pre-bump seed commit (no merge has happened).
-    local _on_main
-    _on_main="$("$_real_git" -C "$_main_checkout" branch --contains "$_bump_sha" 2>/dev/null | grep -c 'main' || echo "0")"
+    # Check whether the bump SHA is an ancestor of main on the main-checkout.
+    # `git merge-base --is-ancestor X main` exits 0 when X is in main's history,
+    # 1 otherwise. The prior grep-based check ('branch --contains | grep -c main')
+    # over-counted because grep -c always prints "0" to stdout, and the
+    # `|| echo "0"` appended an extra "0" on no-match — yielding "0\n0".
+    local _on_main="no"
+    if "$_real_git" -C "$_main_checkout" merge-base --is-ancestor "$_bump_sha" main 2>/dev/null; then
+        _on_main="yes"
+    fi
     assert_eq "test_merge_to_main_pr_source_branch_bump:bump_commit_not_yet_on_main" \
-        "0" "$_on_main"
+        "no" "$_on_main"
 
     # ---- Part B: _phase_version_bump is a no-op after merge ----------------
     # Simulate the merge: fast-forward main-checkout to include the session

@@ -39,15 +39,24 @@
 
 set -euo pipefail
 
-# Source shared dependency library (provides get_artifacts_dir, hash_stdin, etc.)
+# Source shared dependency library (provides get_artifacts_dir, hash_stdin, etc.).
+# This script lives under ${CLAUDE_PLUGIN_ROOT}/hooks/ and is symlinked under
+# ${CLAUDE_PLUGIN_ROOT}/scripts/ for dso-shim discovery. When invoked via the
+# scripts/ symlink, BASH_SOURCE[0] is the symlink path and `cd "$(dirname ...)"`
+# yields scripts/ — but the shared libraries are at hooks/lib/. Derive
+# _PLUGIN_ROOT from the script's parent directory (script-location-based, NOT
+# env-var-based) so the path tracks the actual file location in all invocation
+# modes — canonical hooks/, scripts/ symlink, or test fixture that mocks the
+# plugin layout (bug 654e-7314-2d10-42c1).
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$HOOK_DIR/lib/deps.sh"
+_PLUGIN_ROOT="$(cd "$HOOK_DIR/.." && pwd)"
+source "$_PLUGIN_ROOT/hooks/lib/deps.sh"
 
 # Source config-driven path resolver (provides CFG_VISUAL_BASELINE_PATH, CFG_UNIT_SNAPSHOT_PATH, etc.)
-source "$HOOK_DIR/lib/config-paths.sh"
+source "$_PLUGIN_ROOT/hooks/lib/config-paths.sh"
 
 # Source merge-state library for merge/rebase-aware overlap check (28c4-3fed).
-source "$HOOK_DIR/lib/merge-state.sh"
+source "$_PLUGIN_ROOT/hooks/lib/merge-state.sh"
 
 # Pre-flight: python3 and shasum are required (integrity-critical hook).
 # This hook hard-fails without shasum rather than cascading to weaker hashes,
@@ -165,9 +174,9 @@ if [[ -n "$ATTEST_SOURCE_DIR" ]]; then
         exit 1
     fi
 
-    # Compute the current session diff hash
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    DIFF_HASH=$("$SCRIPT_DIR/compute-diff-hash.sh")
+    # Compute the current session diff hash (use _PLUGIN_ROOT resolved at top
+    # of file so the path holds when invoked via the scripts/ symlink — bug 654e-7314-2d10-42c1).
+    DIFF_HASH=$("$_PLUGIN_ROOT/hooks/compute-diff-hash.sh")
 
     # Extract worktree ID from basename of the artifacts dir path
     WORKTREE_ID=$(basename "$ATTEST_SOURCE_DIR")
@@ -543,8 +552,9 @@ fi
 REVIEW_STATE_FILE="$ARTIFACTS_DIR/review-status"
 
 # Compute a hash of the current diff (staged + unstaged) to fingerprint the code state.
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DIFF_HASH=$("$SCRIPT_DIR/compute-diff-hash.sh")
+# Use _PLUGIN_ROOT resolved at top of file so the path holds when invoked via
+# the scripts/ symlink (bug 654e-7314-2d10-42c1).
+DIFF_HASH=$("$_PLUGIN_ROOT/hooks/compute-diff-hash.sh")
 
 # If --expected-hash was provided, reject if the diff has changed since the caller captured it
 if [[ -n "$EXPECTED_HASH" && "$EXPECTED_HASH" != "$DIFF_HASH" ]]; then
@@ -700,8 +710,10 @@ fi
 # The same script is used by REVIEW-WORKFLOW.md Step 4 (in classifier mode) so
 # the dispatch decision and the post-commit gate cannot disagree on overlay state.
 if [[ -f "$TELEMETRY_FILE" ]]; then
-    # HOOK_DIR is set at script init (line 43). Plugin root is its parent.
-    _READ_OVERLAY_SCRIPT="$(dirname "$HOOK_DIR")/scripts/read-overlay-flags.sh"
+    # _PLUGIN_ROOT is resolved at script init from HOOK_DIR/.. — tracks the
+    # actual script location so test fixtures that mock the plugin layout
+    # continue to work.
+    _READ_OVERLAY_SCRIPT="$_PLUGIN_ROOT/scripts/read-overlay-flags.sh"
     if [[ ! -x "$_READ_OVERLAY_SCRIPT" ]]; then
         # Fail-closed: if telemetry exists but the helper does not, the gate
         # cannot enforce. Allowing the commit through would silently disable
