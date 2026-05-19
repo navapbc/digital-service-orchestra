@@ -1534,6 +1534,18 @@ Route based on `TESTING_MODE`:
 
 **recipe: execution flow**: When `TESTING_MODE` starts with `recipe:`, the orchestrator executes the recipe directly — no Task sub-agent is dispatched and no story branch is created.
 
+**Pre-execution engine check (missing-engine fallback)**: Before executing the recipe, check whether the recipe's engine appears in `MISSING_ENGINES_LIST` (stored in session context from Phase C Step 1 recipe: pre-flight output). To check: look up the recipe's `engine` field from the registry for this recipe name; if that engine name appears in `MISSING_ENGINES_LIST`, route to LLM fallback:
+
+1. Look up `capability_description` and `engine` from the registry for this recipe name.
+2. Call `bash "$PLUGIN_SCRIPTS/sprint/translate-recipe-to-llm-task.sh" --recipe=<recipe_name> --intent="<capability_description>" [--param key=value ...] --output-format=task-prompt` to produce an LLM task description. Capture as `LLM_TASK_PROMPT`. # shim-exempt: internal orchestration script
+3. Dispatch a normal LLM sub-agent with `LLM_TASK_PROMPT` as the task description (same GREEN dispatch flow — create story branch, dispatch sub-agent with isolation: "worktree", process via Phase F per-worktree-review-commit.md).
+4. Record a ticket comment on the recipe task: `.claude/scripts/dso ticket comment <task_id> "RECIPE_FALLBACK: recipe=<recipe_name> engine=<engine_name> reason=engine_not_installed — executing via LLM sub-agent"`
+5. Fallback LLM task proceeds through normal Phase F (review, commit, verify) — identical downstream structure to any GREEN task.
+6. Count the fallback sub-agent dispatch toward the `max_agents` cap.
+7. Skip steps 1–6 of the normal recipe execution flow below.
+
+**When `MISSING_ENGINES_LIST` is empty, not set, or the recipe's engine does not appear in it**: proceed with the normal recipe execution flow (steps 1–6 below).
+
 1. **Parse task description** for:
    - `recipe_name` — the recipe identifier (e.g. `sync-jira-labels`)
    - `recipe_params` — zero or more `key=value` pairs
