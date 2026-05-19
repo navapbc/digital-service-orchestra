@@ -113,6 +113,32 @@ for recipe in "${recipe_names[@]}"; do
                 any_problem=1
             fi
             ;;
+        ts-morph)
+            # ts-morph is an npm library, not a CLI binary; detect via node require
+            if ! command -v node >/dev/null 2>&1; then
+                echo "MISSING_ENGINE: $engine minimum:$min_ver"
+                missing_engines+=("$engine")
+                any_problem=1
+                continue
+            fi
+            found_ver="$(node -e "process.stdout.write(require('ts-morph/package.json').version)" 2>/dev/null)" || {
+                echo "MISSING_ENGINE: $engine minimum:$min_ver"
+                missing_engines+=("$engine")
+                any_problem=1
+                continue
+            }
+            if [[ -z "$found_ver" ]]; then
+                echo "MISSING_ENGINE: $engine minimum:$min_ver"
+                missing_engines+=("$engine")
+                any_problem=1
+                continue
+            fi
+            if ! _version_gte "$found_ver" "$min_ver"; then
+                echo "OUTDATED_ENGINE: $engine found:$found_ver minimum:$min_ver"
+                missing_engines+=("$engine")
+                any_problem=1
+            fi
+            ;;
         *)
             if ! command -v "$engine" >/dev/null 2>&1; then
                 echo "MISSING_ENGINE: $engine minimum:$min_ver"

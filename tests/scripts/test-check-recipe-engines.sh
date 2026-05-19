@@ -244,4 +244,126 @@ fi
 assert_eq "test_missing_registry_exits_nonzero: stderr must contain registry error message" "1" "$_reg_has_error"
 assert_pass_if_clean "test_missing_registry_exits_nonzero"
 
+# ── test_tsmorph_installed_detected_via_node_require ─────────────────────────
+# Given: a task list with a recipe that uses the ts-morph engine
+# AND:   node is available AND ts-morph package is accessible at version 20.0.0
+#        (simulated via node stub that intercepts ts-morph package require)
+# When:  check-recipe-engines.sh is invoked
+# Then:  the script outputs "ENGINES_OK" and exits 0
+# (RED: current wildcard case uses 'command -v ts-morph' which always fails)
+_snapshot_fail
+_tsm_ok_reg="$(mktemp /tmp/test-check-recipe-engines-tsm-reg.XXXXXX.yaml)"
+_TMPFILES+=("$_tsm_ok_reg")
+cat > "$_tsm_ok_reg" <<'YAML'
+recipes:
+  - name: refactor-typescript
+    language: typescript
+    engine: ts-morph
+    adapter: ts-morph-adapter.sh
+    capability_description: "TypeScript refactoring via ts-morph"
+    scope: cross-file
+    min_engine_version: "17.0.0"
+    installation_instructions: "npm install ts-morph@>=17"
+YAML
+
+_tsm_ok_tasks="$(mktemp /tmp/test-check-recipe-engines-tsm-tasks.XXXXXX.json)"
+_TMPFILES+=("$_tsm_ok_tasks")
+cat > "$_tsm_ok_tasks" <<'JSON'
+[{"id": "task-ts-001", "title": "Refactor TS", "tags": ["recipe:refactor-typescript"], "status": "open"}]
+JSON
+
+# Stub node: ts-morph package present at version 20.0.0
+_tsm_ok_stub="$(mktemp -d /tmp/test-check-recipe-engines-tsm-ok.XXXXXX)"
+_TMPDIRS+=("$_tsm_ok_stub")
+cat > "$_tsm_ok_stub/node" <<'STUB'
+#!/usr/bin/env bash
+# Stub node: ts-morph installed at version 20.0.0
+if [[ "$*" == *"ts-morph"* ]]; then
+    printf "20.0.0"
+    exit 0
+fi
+exec /usr/bin/env node "$@"
+STUB
+chmod +x "$_tsm_ok_stub/node"
+
+_tsm_ok_output=""
+_tsm_ok_exit=0
+_tsm_ok_output=$(
+    RECIPE_REGISTRY_PATH="$_tsm_ok_reg" \
+    TASK_LIST_FILE="$_tsm_ok_tasks" \
+    PATH="$_tsm_ok_stub:$PATH" \
+    bash "$SCRIPT" 2>&1
+) || _tsm_ok_exit=$?
+
+assert_eq "test_tsmorph_installed_detected_via_node_require: must exit 0 when ts-morph installed" "0" "$_tsm_ok_exit"
+assert_contains "test_tsmorph_installed_detected_via_node_require: output must contain ENGINES_OK" \
+    "ENGINES_OK" "$_tsm_ok_output"
+assert_pass_if_clean "test_tsmorph_installed_detected_via_node_require"
+
+# ── test_tsmorph_missing_package_reports_missing_engine ──────────────────────
+# Given: a task list with a recipe that uses the ts-morph engine
+# AND:   node is available but ts-morph package is NOT installed (require fails)
+# When:  check-recipe-engines.sh is invoked
+# Then:  output contains "MISSING_ENGINE: ts-morph minimum:17.0.0" and exits non-zero
+_snapshot_fail
+_tsm_miss_stub="$(mktemp -d /tmp/test-check-recipe-engines-tsm-miss.XXXXXX)"
+_TMPDIRS+=("$_tsm_miss_stub")
+cat > "$_tsm_miss_stub/node" <<'STUB'
+#!/usr/bin/env bash
+# Stub node: ts-morph package NOT installed
+if [[ "$*" == *"ts-morph"* ]]; then
+    echo "Cannot find module 'ts-morph/package.json'" >&2
+    exit 1
+fi
+exec /usr/bin/env node "$@"
+STUB
+chmod +x "$_tsm_miss_stub/node"
+
+_tsm_miss_output=""
+_tsm_miss_exit=0
+_tsm_miss_output=$(
+    RECIPE_REGISTRY_PATH="$_tsm_ok_reg" \
+    TASK_LIST_FILE="$_tsm_ok_tasks" \
+    PATH="$_tsm_miss_stub:$PATH" \
+    bash "$SCRIPT" 2>&1
+) || _tsm_miss_exit=$?
+
+assert_ne "test_tsmorph_missing_package_reports_missing_engine: must exit non-zero" "0" "$_tsm_miss_exit"
+assert_contains "test_tsmorph_missing_package_reports_missing_engine: output must contain MISSING_ENGINE: ts-morph" \
+    "MISSING_ENGINE: ts-morph minimum:17.0.0" "$_tsm_miss_output"
+assert_pass_if_clean "test_tsmorph_missing_package_reports_missing_engine"
+
+# ── test_tsmorph_outdated_version_detected ───────────────────────────────────
+# Given: a task list with a recipe that uses the ts-morph engine
+# AND:   ts-morph is installed but at version 15.0.0 (below minimum 17.0.0)
+# When:  check-recipe-engines.sh is invoked
+# Then:  output contains "OUTDATED_ENGINE: ts-morph found:15.0.0 minimum:17.0.0" and exits non-zero
+_snapshot_fail
+_tsm_old_stub="$(mktemp -d /tmp/test-check-recipe-engines-tsm-old.XXXXXX)"
+_TMPDIRS+=("$_tsm_old_stub")
+cat > "$_tsm_old_stub/node" <<'STUB'
+#!/usr/bin/env bash
+# Stub node: ts-morph installed at version 15.0.0 (outdated)
+if [[ "$*" == *"ts-morph"* ]]; then
+    printf "15.0.0"
+    exit 0
+fi
+exec /usr/bin/env node "$@"
+STUB
+chmod +x "$_tsm_old_stub/node"
+
+_tsm_old_output=""
+_tsm_old_exit=0
+_tsm_old_output=$(
+    RECIPE_REGISTRY_PATH="$_tsm_ok_reg" \
+    TASK_LIST_FILE="$_tsm_ok_tasks" \
+    PATH="$_tsm_old_stub:$PATH" \
+    bash "$SCRIPT" 2>&1
+) || _tsm_old_exit=$?
+
+assert_ne "test_tsmorph_outdated_version_detected: must exit non-zero for outdated ts-morph" "0" "$_tsm_old_exit"
+assert_contains "test_tsmorph_outdated_version_detected: output must contain OUTDATED_ENGINE" \
+    "OUTDATED_ENGINE: ts-morph found:15.0.0 minimum:17.0.0" "$_tsm_old_output"
+assert_pass_if_clean "test_tsmorph_outdated_version_detected"
+
 print_summary
