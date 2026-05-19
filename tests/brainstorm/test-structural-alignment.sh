@@ -15,19 +15,20 @@ fail() { echo "  FAIL: $1"; FAIL=$((FAIL+1)); }
 
 echo "=== test_all_8_markers_present ==="
 
-# Marker 1: SKILL.md contains "Inputs" in the progressive validation probe table
+# Marker 1+2 (collapsed per SDET audit P2 row 2): both prior checks grepped
+# the SAME file for the SAME literal ("Inputs" in
+# plugins/dso/skills/brainstorm/SKILL.md). They cannot distinguish
+# "missing from probe table" from "missing from Understanding Summary" —
+# the same grep both fires for either context, so the second check adds
+# zero signal and rots in lockstep with the first. Collapsed to one
+# check; if a future change wants to assert *both contexts* are present,
+# the assertion must be section-scoped (e.g., extract the table region,
+# then check; extract the bullet section, then check) — not a duplicate
+# whole-file grep.
 if grep -q "Inputs" "$REPO_ROOT/plugins/dso/skills/brainstorm/SKILL.md"; then
-  pass "Marker 1: SKILL.md contains 'Inputs' (probe table)"
+  pass "Marker 1+2: SKILL.md contains 'Inputs' (probe table / Understanding Summary)"
 else
-  fail "Marker 1: SKILL.md missing 'Inputs' (probe table)"
-fi
-
-# Marker 2: SKILL.md contains "Inputs" as a non-optional Understanding Summary bullet
-# (same file, confirmed present in Understanding Summary section)
-if grep -q "Inputs" "$REPO_ROOT/plugins/dso/skills/brainstorm/SKILL.md"; then
-  pass "Marker 2: SKILL.md contains 'Inputs' (Understanding Summary)"
-else
-  fail "Marker 2: SKILL.md missing 'Inputs' (Understanding Summary)"
+  fail "Marker 1+2: SKILL.md missing 'Inputs' (probe table / Understanding Summary)"
 fi
 
 # Marker 3a: epic-scrutiny-pipeline.md Part B contains "Inference-Signal Scan"
