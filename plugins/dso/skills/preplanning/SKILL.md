@@ -610,6 +610,12 @@ Done Definitions:
   ← Satisfies: "[quoted epic criterion]"
 ```
 
+For done definitions that link to a `## Closure Checks` item rather than an epic Success Criterion, use the alternate form:
+```
+  ← Validates Closure Check: "<quoted closure check text>"
+```
+`← Satisfies:` points to `## Success Criteria` items in the epic; `← Validates Closure Check:` points to `## Closure Checks` items. Both forms are accepted traceability annotations — use whichever matches the upstream artifact the DD is satisfying.
+
 Example:
 ```
 Done Definitions:
@@ -620,6 +626,14 @@ Done Definitions:
 - When this story is complete, reviewed rules persist across sessions
   and are visible when the user returns to the same document
   ← Satisfies: "Review state is preserved"
+```
+
+Example with Closure Check traceability:
+```
+Done Definitions:
+- When this story is complete, the export summary always lists
+  which closure checks were verified during preplanning
+  ← Validates Closure Check: "Each epic's closure checks are traceable to a done definition"
 ```
 
 **Good** done definitions (observable outcomes):
@@ -644,6 +658,8 @@ If a contradiction is found:
 1. Revise the DD to align with the SC — the SC is authoritative (it was approved by the user in brainstorm)
 2. If the SC itself is wrong or too strict, flag it for the user: `"SC '<criterion>' may be too strict for this decomposition — <reason>. Revise the SC, or confirm the current SC should be met as written?"`
 3. Do NOT proceed with stories whose DDs contradict their SCs — this produces plans that are structurally guaranteed to fail the completion verifier (c734-2e8c).
+
+**Note**: A done definition annotated with `← Validates Closure Check: "<text>"` is a valid traceability link to the `## Closure Checks` section — it is NOT an orphaned annotation and must NOT be flagged as a contradiction. The `← Validates Closure Check:` form is an accepted traceability link form alongside `← Satisfies:`; both are structurally correct and the SC Contradiction Check applies only to DDs using `← Satisfies:`.
 
 #### TDD Done-of-Done Requirement
 
