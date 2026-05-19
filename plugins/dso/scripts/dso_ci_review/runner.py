@@ -2123,6 +2123,7 @@ def main() -> int:
             reviewed_sha,
             _findings_hash_val,
             halt_reason=None,
+            pr_number=_pr_number_for_ledger,
         )
         _post_cycle_marker_comment(
             pr_number=_pr_number_for_ledger,
