@@ -487,3 +487,5 @@ plugins/dso/scripts/review-workflow.sh:tests/skills/dso_ci_review/test_local_wor
 .github/workflows/review-sub-pr.yml:tests/workflows/test-review-sub-pr-trigger.sh
 plugins/dso/scripts/scan-red-markers.sh:tests/scripts/test-scan-red-markers.sh [test_scan_red_markers_unit_marker_present]
 plugins/dso/scripts/lib/worktree-removal-guards.sh:tests/scripts/test-worktree-removal-guards.sh
+plugins/dso/scripts/scan-red-markers.sh:tests/scripts/test-scan-red-markers.sh
+plugins/dso/scripts/lib/worktree-removal-guards.sh:tests/scripts/test-worktree-removal-guards.sh [test_worktree_removal_guards]
