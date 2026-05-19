@@ -4,7 +4,8 @@
 # using REALISTIC completion-verifier output JSON blobs.
 #
 # Tests cover: schema_version=2 with P1=PASS, P1=FAIL, P1=BLOCKED,
-# P1=INCONCLUSIVE, and legacy schema_version=1 (no P1 field) → exit 2.
+# P1=INCONCLUSIVE, and legacy schema (no schema_version, overall_verdict=PASS) → exit 0
+# via backward-compat shim (S1b: schema_version<2 falls back to overall_verdict).
 #
 # Usage: bash tests/scripts/test-verifier-integration.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
@@ -205,10 +206,12 @@ EOF
     assert_pass_if_clean "test_realistic_p1_inconclusive_exits_1"
 }
 
-# ── test_legacy_schema_no_p1_exits_2 ──────────────────────────────────────────
-# Realistic verifier JSON using OLD schema (schema_version absent/1, no P1 field)
-# with only overall_verdict → check-verifier-verdict.sh must exit 2 (P1 absent)
-test_legacy_schema_no_p1_exits_2() {
+# ── test_legacy_schema_no_p1_exits_0 ──────────────────────────────────────────
+# Realistic verifier JSON using OLD schema (schema_version absent, no P1 field)
+# with overall_verdict=PASS → backward-compat path exits 0 with a warning to stderr.
+# (S1b: check-verifier-verdict.sh now implements the schema_version<2 backward-compat
+# shim per verifier-verdict.md contract — falls back to overall_verdict when P1 absent.)
+test_legacy_schema_no_p1_exits_0() {
     _snapshot_fail
     local rc=0
     cat <<'EOF' | bash "$SCRIPT" 2>/dev/null || rc=$?
@@ -234,8 +237,8 @@ test_legacy_schema_no_p1_exits_2() {
   "remediation_tasks_created": []
 }
 EOF
-    assert_eq "test_legacy_schema_no_p1_exits_2: exit code is 2 for legacy schema (no P1 field)" "2" "$rc"
-    assert_pass_if_clean "test_legacy_schema_no_p1_exits_2"
+    assert_eq "test_legacy_schema_no_p1_exits_0: exit code is 0 for legacy schema (no schema_version, overall_verdict=PASS, backward-compat)" "0" "$rc"
+    assert_pass_if_clean "test_legacy_schema_no_p1_exits_0"
 }
 
 # ── Run all tests ──────────────────────────────────────────────────────────────
@@ -243,6 +246,6 @@ test_realistic_p1_pass_exits_0
 test_realistic_p1_fail_exits_1
 test_realistic_p1_blocked_exits_1
 test_realistic_p1_inconclusive_exits_1
-test_legacy_schema_no_p1_exits_2
+test_legacy_schema_no_p1_exits_0
 
 print_summary
