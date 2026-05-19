@@ -1,0 +1,260 @@
+{
+  "schema_version": 1,
+  "total": 27,
+  "groups": [
+    {"id": "A", "name": "Planning & Requirements"},
+    {"id": "B", "name": "LLM-Behavioral"},
+    {"id": "C", "name": "Code Quality"},
+    {"id": "D", "name": "Test & Integration"},
+    {"id": "E", "name": "Concurrency & State"},
+    {"id": "F", "name": "Failure Paths & Recovery"},
+    {"id": "G", "name": "Defense Manifest & Preconditions"},
+    {"id": "H", "name": "Release & E2E"},
+    {"id": "I", "name": "Operational & Process"}
+  ],
+  "entries": [
+    {
+      "slug": "scope-drift",
+      "group": "A",
+      "classification_question": "Was this change implemented beyond the agreed story scope?",
+      "primary_defense_layer": "planning_review",
+      "defense_artifact_ref": "plugin:skills/preplanning/SKILL.md",
+      "example_tickets": [],
+      "applies_to_project_classes": "all"
+    },
+    {
+      "slug": "unverified-assumption",
+      "group": "A",
+      "classification_question": "Was a major design assumption made without evidence from the codebase or stakeholders?",
+      "primary_defense_layer": "planning_review",
+      "defense_artifact_ref": "plugin:skills/brainstorm/SKILL.md",
+      "example_tickets": [],
+      "applies_to_project_classes": "all"
+    },
+    {
+      "slug": "missing-acceptance-criteria",
+      "group": "A",
+      "classification_question": "Was a required acceptance criterion absent from the ticket when implementation began?",
+      "primary_defense_layer": "planning_review",
+      "defense_artifact_ref": "plugin:docs/ACCEPTANCE-CRITERIA-LIBRARY.md",
+      "example_tickets": [],
+      "applies_to_project_classes": "all"
+    },
+    {
+      "slug": "skill-guidance-gap",
+      "group": "B",
+      "classification_question": "Did a missing or unclear skill instruction cause the LLM to skip or misperform a required workflow step?",
+      "primary_defense_layer": "prose_manifest_test",
+      "defense_artifact_ref": "plugin:skills/fix-bug/SKILL.md",
+      "example_tickets": [],
+      "applies_to_project_classes": "agent_orchestration"
+    },
+    {
+      "slug": "agent-skips-required-step",
+      "group": "B",
+      "classification_question": "Did an agent omit a mandatory step from its workflow without encountering an explicit gate blocking it?",
+      "primary_defense_layer": "prose_manifest_test",
+      "defense_artifact_ref": "plugin:docs/HOOKS-REFERENCE.md",
+      "example_tickets": [],
+      "applies_to_project_classes": "agent_orchestration"
+    },
+    {
+      "slug": "llm-output-format-drift",
+      "group": "B",
+      "classification_question": "Did LLM output deviate from the required schema, structure, or format contract?",
+      "primary_defense_layer": "prose_manifest_test",
+      "defense_artifact_ref": "plugin:docs/REVIEW-SCHEMA.md",
+      "example_tickets": [],
+      "applies_to_project_classes": "agent_orchestration"
+    },
+    {
+      "slug": "unchecked-exit-code",
+      "group": "C",
+      "classification_question": "Was a shell command's exit code left unhandled, allowing silent continuation after failure?",
+      "primary_defense_layer": "code_review",
+      "defense_artifact_ref": "plugin:docs/SOFTWARE-DESIGN-PATTERN-CATALOG.md",
+      "example_tickets": [],
+      "applies_to_project_classes": "all"
+    },
+    {
+      "slug": "silent-failure",
+      "group": "C",
+      "classification_question": "Did an error occur without emitting a user-visible signal, log line, or non-zero exit?",
+      "primary_defense_layer": "code_review",
+      "defense_artifact_ref": "plugin:docs/SOFTWARE-DESIGN-PATTERN-CATALOG.md",
+      "example_tickets": [],
+      "applies_to_project_classes": "all"
+    },
+    {
+      "slug": "unreachable-error-handler",
+      "group": "C",
+      "classification_question": "Was error-handling code structurally unreachable in the execution flow?",
+      "primary_defense_layer": "code_review",
+      "defense_artifact_ref": "plugin:docs/REVIEWER-FILE-CHECKLIST.md",
+      "example_tickets": [],
+      "applies_to_project_classes": "all"
+    },
+    {
+      "slug": "test-coverage-gap",
+      "group": "D",
+      "classification_question": "Was a code path exercised in production but not covered by any automated test?",
+      "primary_defense_layer": "matrix_ci",
+      "defense_artifact_ref": "plugin:skills/shared/prompts/behavioral-testing-standard.md",
+      "example_tickets": [],
+      "applies_to_project_classes": "all"
+    },
+    {
+      "slug": "mock-production-divergence",
+      "group": "D",
+      "classification_question": "Did a test mock diverge from the real system's behavior in a way that masked a real defect?",
+      "primary_defense_layer": "matrix_ci",
+      "defense_artifact_ref": "plugin:skills/shared/prompts/behavioral-testing-standard.md",
+      "example_tickets": [],
+      "applies_to_project_classes": "all"
+    },
+    {
+      "slug": "integration-test-missing",
+      "group": "D",
+      "classification_question": "Was an integration boundary between two components left without an integration test?",
+      "primary_defense_layer": "matrix_ci",
+      "defense_artifact_ref": "plugin:docs/CI-INTEGRATION.md",
+      "example_tickets": [],
+      "applies_to_project_classes": "all"
+    },
+    {
+      "slug": "race-condition",
+      "group": "E",
+      "classification_question": "Did two concurrent operations create non-deterministic state or data corruption?",
+      "primary_defense_layer": "concurrency_test",
+      "defense_artifact_ref": "plugin:docs/FLAKY-TEST-REPORTING.md",
+      "example_tickets": [],
+      "applies_to_project_classes": "all"
+    },
+    {
+      "slug": "non-atomic-state-update",
+      "group": "E",
+      "classification_question": "Was a multi-step state transition left non-atomic, allowing an inconsistent intermediate state to be observed?",
+      "primary_defense_layer": "concurrency_test",
+      "defense_artifact_ref": "plugin:docs/FLAKY-TEST-REPORTING.md",
+      "example_tickets": [],
+      "applies_to_project_classes": "all"
+    },
+    {
+      "slug": "stale-cache-read",
+      "group": "E",
+      "classification_question": "Was a stale cached value read after the underlying source of truth had changed?",
+      "primary_defense_layer": "concurrency_test",
+      "defense_artifact_ref": "plugin:docs/SOFTWARE-DESIGN-PATTERN-CATALOG.md",
+      "example_tickets": [],
+      "applies_to_project_classes": "all"
+    },
+    {
+      "slug": "missing-rollback",
+      "group": "F",
+      "classification_question": "Was a partial write or destructive operation left without a rollback path?",
+      "primary_defense_layer": "failure_path_test",
+      "defense_artifact_ref": "plugin:skills/fix-bug/SKILL.md",
+      "example_tickets": [],
+      "applies_to_project_classes": "all"
+    },
+    {
+      "slug": "partial-write-no-cleanup",
+      "group": "F",
+      "classification_question": "Did a failure leave behind temp files, partial commits, or other artifacts that were never cleaned up?",
+      "primary_defense_layer": "failure_path_test",
+      "defense_artifact_ref": "plugin:skills/fix-bug/SKILL.md",
+      "example_tickets": [],
+      "applies_to_project_classes": "all"
+    },
+    {
+      "slug": "unhandled-edge-case",
+      "group": "F",
+      "classification_question": "Did an expected edge case (empty input, boundary value, missing field) reach code without a handler?",
+      "primary_defense_layer": "failure_path_test",
+      "defense_artifact_ref": "plugin:skills/shared/prompts/behavioral-testing-standard.md",
+      "example_tickets": [],
+      "applies_to_project_classes": "all"
+    },
+    {
+      "slug": "defense-artifact-missing",
+      "group": "G",
+      "classification_question": "Was a required defense artifact (rubric, checklist, reviewer doc) absent from the manifest?",
+      "primary_defense_layer": "defense_manifest_test",
+      "defense_artifact_ref": "plugin:docs/REVIEWER-FILE-CHECKLIST.md",
+      "example_tickets": [],
+      "applies_to_project_classes": "agent_orchestration"
+    },
+    {
+      "slug": "unchecked-precondition",
+      "group": "G",
+      "classification_question": "Was a workflow entry precondition left unvalidated, allowing the workflow to proceed in an invalid state?",
+      "primary_defense_layer": "defense_manifest_test",
+      "defense_artifact_ref": "plugin:hooks/lib/preconditions-validator-lib.sh",
+      "example_tickets": [],
+      "applies_to_project_classes": "agent_orchestration"
+    },
+    {
+      "slug": "unacknowledged-degradation",
+      "group": "G",
+      "classification_question": "Did a graceful-degradation fallthrough occur without a corresponding acknowledgment record?",
+      "primary_defense_layer": "defense_manifest_test",
+      "defense_artifact_ref": "plugin:docs/contracts/ack-rationale-rubric.md",
+      "example_tickets": [],
+      "applies_to_project_classes": "agent_orchestration"
+    },
+    {
+      "slug": "e2e-regression",
+      "group": "H",
+      "classification_question": "Did a change cause a regression visible only in end-to-end or acceptance testing?",
+      "primary_defense_layer": "release_e2e",
+      "defense_artifact_ref": "plugin:docs/CI-INTEGRATION.md",
+      "example_tickets": [],
+      "applies_to_project_classes": "all"
+    },
+    {
+      "slug": "config-drift",
+      "group": "H",
+      "classification_question": "Did environment or runtime configuration diverge from what the code expected, causing a production-only failure?",
+      "primary_defense_layer": "release_e2e",
+      "defense_artifact_ref": "plugin:docs/CONFIGURATION-REFERENCE.md",
+      "example_tickets": [],
+      "applies_to_project_classes": "all"
+    },
+    {
+      "slug": "version-skew",
+      "group": "H",
+      "classification_question": "Did a version mismatch between two components (plugin vs. host, schema vs. reader) cause a runtime failure?",
+      "primary_defense_layer": "release_e2e",
+      "defense_artifact_ref": "plugin:docs/CONFIGURATION-REFERENCE.md",
+      "example_tickets": [],
+      "applies_to_project_classes": "all"
+    },
+    {
+      "slug": "runbook-missing",
+      "group": "I",
+      "classification_question": "Was there no documented runbook for a failure mode that occurred during an incident?",
+      "primary_defense_layer": "operational_process",
+      "defense_artifact_ref": "plugin:docs/INCIDENT-TEMPLATE.md",
+      "example_tickets": [],
+      "applies_to_project_classes": "all"
+    },
+    {
+      "slug": "alert-threshold-misconfigured",
+      "group": "I",
+      "classification_question": "Was an alert threshold set incorrectly, causing the alert to fire too late or not at all?",
+      "primary_defense_layer": "operational_process",
+      "defense_artifact_ref": "plugin:docs/INCIDENT-TEMPLATE.md",
+      "example_tickets": [],
+      "applies_to_project_classes": "all"
+    },
+    {
+      "slug": "oncall-gap",
+      "group": "I",
+      "classification_question": "Did an incident reveal a gap in on-call coverage, escalation path, or handoff procedure?",
+      "primary_defense_layer": "operational_process",
+      "defense_artifact_ref": "plugin:docs/INCIDENT-TEMPLATE.md",
+      "example_tickets": [],
+      "applies_to_project_classes": "all"
+    }
+  ]
+}
