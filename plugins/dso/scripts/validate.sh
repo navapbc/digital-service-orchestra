@@ -508,6 +508,9 @@ if [ "${VALIDATE_SKIP_PLUGIN_CHECKS:-}" != "1" ]; then
     if [ -f "$PLUGIN_SCRIPTS/check-session-branch-invariant.sh" ]; then
         (cd "$REPO_ROOT" && run_check "session-branch-invariant" "$TIMEOUT_SYNTAX" bash "$PLUGIN_SCRIPTS/check-session-branch-invariant.sh") &
     fi
+    if [ -f "$PLUGIN_SCRIPTS/coherence-walk.sh" ]; then
+        (cd "$REPO_ROOT" && run_check "coherence-walk" "$TIMEOUT_SYNTAX" bash "$PLUGIN_SCRIPTS/coherence-walk.sh" --target "$REPO_ROOT") &
+    fi
 fi
 if [ "${VALIDATE_SKIP_PLUGIN_CHECKS:-}" != "1" ]; then
     check_hook_drift &
@@ -660,6 +663,7 @@ if [ "$VERBOSE" = "0" ]; then
         [ -f "$PLUGIN_SCRIPTS/check-contract-schemas.sh" ] && report_check "contract-schema" "contract-schema" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/check-contract-schemas.sh"
         [ -f "$PLUGIN_SCRIPTS/check-referential-integrity.sh" ] && report_check "referential-integrity" "referential-integrity" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/check-referential-integrity.sh"
         [ -f "$PLUGIN_SCRIPTS/check-session-branch-invariant.sh" ] && report_check "session-branch-invariant" "session-branch-invariant" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/check-session-branch-invariant.sh"
+        [ -f "$PLUGIN_SCRIPTS/coherence-walk.sh" ] && report_check "coherence-walk" "coherence-walk" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/coherence-walk.sh --target \"$REPO_ROOT\""
         report_check "hook-drift" "hook-drift" "$TIMEOUT_SYNTAX" "diff <(grep 'id:' .pre-commit-config.yaml) <(grep 'id:' ${CLAUDE_PLUGIN_ROOT}/docs/examples/pre-commit-config.example.yaml)"
     fi
 else
@@ -680,6 +684,7 @@ else
         [ -f "$PLUGIN_SCRIPTS/check-contract-schemas.sh" ] && tally_check "contract-schema" "contract-schema"
         [ -f "$PLUGIN_SCRIPTS/check-referential-integrity.sh" ] && tally_check "referential-integrity" "referential-integrity"
         [ -f "$PLUGIN_SCRIPTS/check-session-branch-invariant.sh" ] && tally_check "session-branch-invariant" "session-branch-invariant"
+        [ -f "$PLUGIN_SCRIPTS/coherence-walk.sh" ] && tally_check "coherence-walk" "coherence-walk"
         tally_check "hook-drift" "hook-drift"
     fi
 fi
