@@ -1,0 +1,1 @@
+{"author":"Test","data":{"body":"Classification: behavioral, Score: 1 (BASIC). Intent Gate: intent-aligned (high confidence). Wildcard case skips version check, contradicting story 3bd2-d868 AC."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1779224076337334000,"uuid":"4f44e973-fcc6-4ee8-b531-c11f9a8c7bf1"}
