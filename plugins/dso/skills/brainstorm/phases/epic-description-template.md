@@ -14,6 +14,10 @@ Canonical template for the epic description written at Phase 3 Step 1 via `ticke
 - [criterion 1]
 - [criterion 2]
 
+## Closure Checks
+- [durable end-state acceptance criterion that would fail the session-infeasibility check but is not transitional work]
+(Leave empty if all SCs pass the verifiable-sc-check litmus; populate only for criteria routed here via option (c))
+
 ## Dependencies
 [dependencies or 'None']
 
