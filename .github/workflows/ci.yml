@@ -217,7 +217,16 @@ jobs:
 
       - name: Run hook tests
         if: needs.changes.outputs.code_changed == 'true'
-        run: bash tests/hooks/run-hook-tests.sh
+        run: bash tests/hooks/run-hook-tests.sh 2>&1 | tee /tmp/test-hooks.log
+
+      - name: Upload hook test logs (audit P5-4)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-hooks-log-${{ github.run_id }}-${{ github.run_attempt }}
+          path: /tmp/test-hooks.log
+          retention-days: 30
+          if-no-files-found: ignore
 
       - name: Job timing report
         if: always()
@@ -253,7 +262,16 @@ jobs:
 
       - name: Run script tests
         if: needs.changes.outputs.code_changed == 'true'
-        run: bash tests/scripts/run-script-tests.sh
+        run: bash tests/scripts/run-script-tests.sh 2>&1 | tee /tmp/test-scripts.log
+
+      - name: Upload script test logs (audit P5-4)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-scripts-log-${{ github.run_id }}-${{ github.run_attempt }}
+          path: /tmp/test-scripts.log
+          retention-days: 30
+          if-no-files-found: ignore
 
       - name: Job timing report
         if: always()

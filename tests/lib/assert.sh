@@ -22,6 +22,12 @@
 : "${PASS:=0}"
 : "${FAIL:=0}"
 
+# All assertion helpers below print FAIL messages that include the caller's
+# source file and line number (audit P5-1). Use `${BASH_SOURCE[1]}` and
+# `${BASH_LINENO[0]}` — NOT `${LINENO}`, which would expand to this library's
+# own line. With dozens of assertions per test, the caller location is the
+# single highest debugging-UX improvement available here.
+
 # assert_eq label expected actual
 # Increments PASS if expected == actual, FAIL otherwise.
 assert_eq() {
@@ -30,7 +36,7 @@ assert_eq() {
         (( ++PASS ))
     else
         (( ++FAIL ))
-        printf "FAIL: %s\n  expected: %s\n  actual:   %s\n" "$label" "$expected" "$actual" >&2
+        printf "FAIL: %s (%s:%s)\n  expected: %s\n  actual:   %s\n" "$label" "${BASH_SOURCE[1]:-?}" "${BASH_LINENO[0]:-?}" "$expected" "$actual" >&2
     fi
 }
 
@@ -42,7 +48,7 @@ assert_ne() {
         (( ++PASS ))
     else
         (( ++FAIL ))
-        printf "FAIL: %s\n  should NOT be: %s\n  actual:        %s\n" "$label" "$not_expected" "$actual" >&2
+        printf "FAIL: %s (%s:%s)\n  should NOT be: %s\n  actual:        %s\n" "$label" "${BASH_SOURCE[1]:-?}" "${BASH_LINENO[0]:-?}" "$not_expected" "$actual" >&2
     fi
 }
 
@@ -54,7 +60,7 @@ assert_contains() {
         (( ++PASS ))
     else
         (( ++FAIL ))
-        printf "FAIL: %s\n  expected to contain: %s\n  actual:              %s\n" "$label" "$substring" "$string" >&2
+        printf "FAIL: %s (%s:%s)\n  expected to contain: %s\n  actual:              %s\n" "$label" "${BASH_SOURCE[1]:-?}" "${BASH_LINENO[0]:-?}" "$substring" "$string" >&2
     fi
 }
 
@@ -66,7 +72,7 @@ assert_not_contains() {
         (( ++PASS ))
     else
         (( ++FAIL ))
-        printf "FAIL: %s\n  expected NOT to contain: %s\n  actual:                  %s\n" "$label" "$substring" "$string" >&2
+        printf "FAIL: %s (%s:%s)\n  expected NOT to contain: %s\n  actual:                  %s\n" "$label" "${BASH_SOURCE[1]:-?}" "${BASH_LINENO[0]:-?}" "$substring" "$string" >&2
     fi
 }
 
@@ -86,7 +92,7 @@ assert_pass_if_clean() {
     if [[ "$FAIL" -eq "$_fail_snapshot" ]]; then
         echo "$label ... PASS"
     else
-        echo "FAIL: $label" >&2
+        printf "FAIL: %s (%s:%s)\n" "$label" "${BASH_SOURCE[1]:-?}" "${BASH_LINENO[0]:-?}" >&2
     fi
 }
 

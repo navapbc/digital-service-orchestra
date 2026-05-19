@@ -1,4 +1,9 @@
 
+# _metadata: schema_version=1, format=source_path:test_path[,test_path]...
+#            tests may carry markers via "test_path [marker1,marker2,...]"
+# audit P5-2: mechanical staleness detection lives in the version field above;
+# parsers should skip lines beginning with # (existing grep -F invocations do).
+#
 # REVIEW-DEFENSE (PR #78 finding 2): marker syntax is `source.py:[test_name] test_file.py`
 # (no space between the colon and the opening bracket). Lines 179 and 181 use the correct
 # format. The finding claimed a space was present; inspection of the file confirms none exists.
