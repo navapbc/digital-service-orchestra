@@ -133,7 +133,7 @@ plugins/dso/hooks/lib/test-result-processor.sh:tests/hooks/test-record-test-stat
 plugins/dso/hooks/lib/validate-check-runners.sh:tests/scripts/test-validate-test-batched-integration.sh
 plugins/dso/hooks/lib/validate-helpers.sh:tests/scripts/test-validate-test-batched-integration.sh
 plugins/dso/hooks/pre-commit-enforcement-boundary-check.sh:tests/hooks/test-enforcement-boundary-check.sh
-plugins/dso/hooks/pre-commit-review-gate.sh:tests/hooks/test-enforcement-gate.sh
+plugins/dso/hooks/pre-commit-review-gate.sh:tests/hooks/test-enforcement-gate.sh,tests/hooks/test-pre-commit-review-gate-arbiter.sh [test_arbiter_block_for_current_sha_blocks_commit,test_corrupt_arbiter_sidecar_fails_closed_with_warning,test_self_heal_path_still_checks_arbiter_block],tests/scripts/test-pre-commit-review-gate-arbiter.sh [test_arbiter_block_for_current_sha_blocks_commit
 plugins/dso/hooks/pre-commit-test-gate.sh:tests/hooks/test-enforcement-gate.sh
 plugins/dso/hooks/pre-commit-test-quality-gate.sh:tests/hooks/test-enforcement-gate.sh
 plugins/dso/hooks/pre-commit-ticket-gate.sh:tests/hooks/test-pre-commit-ticket-gate.sh
@@ -470,4 +470,4 @@ plugins/dso/scripts/redistribute-session-commits.sh:tests/scripts/test-redistrib
 plugins/dso/scripts/write-cycle-ledger.sh:tests/scripts/test-write-cycle-ledger.sh,tests/scripts/test-write-cycle-ledger-integration.sh
 tests/scripts/test-cycle-arbiter.sh:tests/scripts/test-cycle-arbiter.sh [test_block_critical_defense_absent_ruling]
 plugins/dso/scripts/dso_ci_review/local_workflow.py:tests/skills/dso_ci_review/test_local_workflow_ledger.py [test_local_workflow_reads_existing_ledger],tests/skills/dso_ci_review/test_local_workflow_loop.py [test_loop_dispatches_three_cycles_then_pass,test_loop_returns_pass_after_one_cycle_with_no_findings,test_loop_breaks_on_dispatch_arbiter_at_max_cycles,test_loop_short_circuits_pre_loop_with_prior_arbiter,test_loop_atomic_ledger_append_per_cycle],tests/skills/dso_ci_review/test_local_workflow_arbiter.py [test_local_arbiter_calls_process_rulings_with_pr_number_none_and_branch_name,test_local_arbiter_aligned_finding_map,test_local_defer_orphan_ticket_uses_branch_scope,test_local_drop_skips_pr_defense_store,test_local_arbiter_writes_sidecar_with_block_list,test_local_arbiter_block_exits_one,test_local_arbiter_no_block_exits_zero,test_local_arbiter_max_cycles_threading]
-plugins/dso/scripts/review-workflow.sh:tests/skills/dso_ci_review/test_local_workflow_ledger.py
+plugins/dso/scripts/review-workflow.sh:tests/skills/dso_ci_review/test_local_workflow_ledger.py,tests/scripts/test-local-review-workflow-e2e.sh [test_e2e_three_cycles_then_arbiter_block,test_e2e_pass_branch_cycle_1,test_e2e_short_circuit_on_rerun_same_sha,test_e2e_max_cycles_arbiter,test_e2e_drop_writes_tracker_only]
