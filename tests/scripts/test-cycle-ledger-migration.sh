@@ -260,9 +260,23 @@ print(entry.get('commit_sha','__MISSING__'))
 # ---------------------------------------------------------------------------
 # Run all tests
 # ---------------------------------------------------------------------------
+# Each test wrapped with the _fail_snapshot + assert_pass_if_clean pattern so
+# the suite-engine's parse_failing_tests_from_output can extract function names
+# from "FAIL: <name>" lines and match against the .test-index RED marker.
+_fail_snapshot=$FAIL
 test_cycle_ledger_migration_v11_to_v12
+assert_pass_if_clean "test_cycle_ledger_migration_v11_to_v12"
+
+_fail_snapshot=$FAIL
 test_cycle_ledger_mixed_format_v12_wins
+assert_pass_if_clean "test_cycle_ledger_mixed_format_v12_wins"
+
+_fail_snapshot=$FAIL
 test_cycle_ledger_empty_ledger_schema_version_is_v12
+assert_pass_if_clean "test_cycle_ledger_empty_ledger_schema_version_is_v12"
+
+_fail_snapshot=$FAIL
 test_cycle_ledger_append_cycle_pr_number_round_trip
+assert_pass_if_clean "test_cycle_ledger_append_cycle_pr_number_round_trip"
 
 print_summary
