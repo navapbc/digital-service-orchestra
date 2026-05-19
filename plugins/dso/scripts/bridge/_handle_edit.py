@@ -136,8 +136,12 @@ def handle_edit(
         local_tags = local_state.get("tags") or []
         if not isinstance(local_tags, list):
             local_tags = []
-        if jira_labels_clean and set(jira_labels_clean) != set(local_tags):
-            edit_fields["tags"] = jira_labels_clean
+        if jira_labels_clean:
+            # Preserve bug-type-* local tags that Jira may not carry
+            preserved = [t for t in local_tags if t.startswith("bug-type-")]
+            merged = list(dict.fromkeys(jira_labels_clean + preserved))
+            if set(merged) != set(local_tags):
+                edit_fields["tags"] = merged
 
     if edit_fields:
         write_edit_event_fn(

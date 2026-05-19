@@ -869,7 +869,7 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 
 | | |
 |---|---|
-| **Description** | GitHub check name for the per-branch review CI job. Triple-consistency requirement: this value MUST match all three of (1) the `name:` field in `.github/workflows/per-branch-review.yml`, (2) the `required_status_checks` value in the GitHub Ruleset for `session-*` branches, and (3) the expected check name asserted by Phase A preflight (`check-ruleset-preflight.sh`). When unset, `check-ruleset-preflight.sh` falls back to `Sprint Story Review`. |
+| **Description** | GitHub check name for the PR-side LLM review CI job. Dual-consistency requirement: this value MUST match both (1) the `required_status_checks` value in the GitHub Ruleset for `session-*` branches, and (2) the expected check name asserted by Phase A preflight (`check-ruleset-preflight.sh`). When unset, `check-ruleset-preflight.sh` falls back to `Sprint Story Review`. Note: `per-branch-review.yml` was removed in story 20d7-09d6; `ci.yml`'s `llm-review` job is now the sole PR-side consumer. |
 | **Accepted values** | Non-empty string. Must match the literal check name produced by GitHub Actions (no shell-quoting, no leading/trailing whitespace). |
 | **Default** | `Sprint Story Review` |
 | **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/sprint/check-ruleset-preflight.sh` |
@@ -1103,6 +1103,28 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 | **Accepted values** | Comma-separated list of workflow file names |
 | **Default** | (empty — scan skipped when absent) |
 | **Used by** | `/dso:debug-everything` (Phase A — GHA pre-scan) |
+
+---
+
+### `bug_classification.retro_window_days`
+
+| | |
+|---|---|
+| **Description** | Number of days of closed bugs to include in the `/dso:retro` Bug Classification analysis. Passed as `--window-days N` to `bug-classification-stats.sh`. |
+| **Accepted values** | Positive integer |
+| **Default** | `60` |
+| **Used by** | `/dso:retro` (Bug Classification step) |
+
+---
+
+### `bug_classification.recurrence_threshold`
+
+| | |
+|---|---|
+| **Description** | Minimum count of bugs sharing a single `bug-type-*` slug (or `bug-type-uncategorized`) before `/dso:retro` fires a labeled finding for that slug. |
+| **Accepted values** | Positive integer |
+| **Default** | `3` |
+| **Used by** | `/dso:retro` (Bug Classification step) |
 
 ---
 

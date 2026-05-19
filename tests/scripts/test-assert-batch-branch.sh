@@ -2,9 +2,8 @@
 # tests/scripts/test-assert-batch-branch.sh
 # Behavioral tests for plugins/dso/scripts/assert-batch-branch.sh
 #
-# Refuses to allow debug-everything Phase F/G to open a sub-branch PR (and
-# rely on per-branch-review.yml firing) when in ci-pr mode without a properly
-# created and pushed bug-batch sub-branch.
+# Refuses to allow debug-everything Phase F/G to open a sub-branch PR when in
+# ci-pr mode without a properly created and pushed bug-batch sub-branch.
 #
 # Usage: bash tests/scripts/test-assert-batch-branch.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail

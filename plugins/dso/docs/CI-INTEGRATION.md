@@ -43,16 +43,18 @@ In `ci-pr` mode (`dso.workflow=ci-pr`), the sprint uses a unified per-branch rev
 ### Merge paths
 
 - **session→main is the sole merge path** for sprint and debug-everything in ci-pr mode. Sub-branch story PRs merge into the session branch; the session branch PR merges into main. No direct sub-branch → main merges are allowed.
-- Sub-branches (`story/<epic-id>/<story-id>`) are gated by `per-branch-review.yml` before merging into the session branch.
+- Sub-branches (`story/<epic-id>/<story-id>`) merge into the session branch after CI test/lint jobs pass.
 
-### `per-branch-review.yml` — sub-branch CI gate
+> **KNOWN GAP (tracked under remediation epic; post-mortem bug 576b-a6c7-3de3-4eef)**: Sub-branch internal LLM review is currently NOT enforced. `.github/workflows/per-branch-review.yml` (which previously gated sub-branch PRs with per-story LLM review) was deleted by story 20d7-09d6 to enforce a no-duplicate-checks-per-SHA invariant required by epic b575's cycle-ledger machinery. `ci.yml`'s `llm-review` job is gated to `base_ref == 'main'` and does NOT fire on sub-branch PRs. `/dso:review` is HARD-GATED to no-op under `dso.workflow=ci-pr`. External advisory reviewers (CodeRabbit, Gitar) may run but are NOT required checks. Internal LLM review currently fires only at the cumulative session→main PR. The remediation epic restores per-sub-branch internal review with ledger keying (`(pr_number, sha)` instead of `sha` alone) so per-sub-PR and session→main reviews can coexist without double-counting.
 
-`per-branch-review.yml` is the CI workflow that runs on each `story/*` branch PR (targeting the session branch). It replaces the former `sprint-story-review.yml`. Responsibilities:
+### `ci.yml` — sole PR-side LLM-review entry point (story 20d7-09d6) — gated to base=main
 
-- Resolves the per-branch review base via `resolve-per-branch-review-base.sh`. The resolver consults the `SPRINT_SESSION_ID` repo variable (set by Phase A) as one input, but the actual base resolution may also consider the branch's PR target, the most recent `story/<epic-id>/...` parent on the session branch, and other signals. The resolver is the source of truth — the repo variable is not consulted directly by the workflow.
-- Computes a per-story diff (story branch vs. session branch HEAD) for scoped review.
+`ci.yml`'s `llm-review` job is currently the sole CI workflow that runs LLM review. It is gated to `base_ref == 'main'` (see ci.yml:314), so it fires ONLY on the session→main PR. It does NOT fire on sub-branch PRs (`story/*` and `bug-batch/*` targeting the session branch). Responsibilities (when it fires):
+
+- Resolves the review base via a resolver script. The resolver consults the `SPRINT_SESSION_ID` repo variable (set by sprint Phase A) as one input, but the actual base resolution may also consider the branch's PR target, the most recent `story/<epic-id>/...` parent on the session branch, and other signals. The resolver is the source of truth — the repo variable is not consulted directly by the workflow.
+- Computes the integration review scope (see "Integration review scope definition" below).
 - Dispatches the LLM review orchestrator (`ci-llm-review-runner.sh`) against that scoped diff.
-- Blocks the story PR merge until the review passes.
+- Blocks the session→main PR merge until the review passes.
 
 ### `verify-session-provenance.sh` — integration review pre-step
 
@@ -75,7 +77,9 @@ This script is called by Phase F during story PR creation to set `STORY_PR_BASE`
 
 ### Integration review scope definition
 
-"Integration scope" is intentionally narrow: only files that appear in commits from two or more distinct story branches, plus any commits that bypassed per-branch review. Per-branch-reviewed commits that touch only one story's files are excluded from integration-level LLM review (their review is already recorded by `per-branch-review.yml`).
+"Integration scope" is intentionally narrow: only files that appear in commits from two or more distinct story branches, plus any commits that bypassed per-branch review. Commits that touch only one story's files are intended to be excluded from integration-level LLM review (their review would be recorded by the per-sub-branch review job when present).
+
+> **NOTE**: The integration-scope narrowing logic in `ci.yml` was disabled by bug 1624-5fb9 (reverted to full-diff fallback). Currently, the session→main `llm-review` runs against the FULL cumulative diff, not the narrowed integration scope. Re-enabling incremental scope is in the remediation epic.
 
 ## Merge-to-main pipeline
 

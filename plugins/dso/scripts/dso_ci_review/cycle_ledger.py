@@ -198,7 +198,16 @@ def append_cycle(
                 "findings_hash": findings_hash,
                 "halt_reason": halt_reason,
             }
-            ledger.setdefault("cycles", []).append(new_entry)
+            # Upsert: replace placeholder entry if one already exists for this
+            # cycle_num (written by _init_local_ledger to reserve the slot),
+            # otherwise append a new entry.
+            cycles = ledger.setdefault("cycles", [])
+            for i, entry in enumerate(cycles):
+                if entry.get("cycle_num") == cycle_num:
+                    cycles[i] = new_entry
+                    break
+            else:
+                cycles.append(new_entry)
             _atomic_write(path, json.dumps(ledger, indent=2))
         finally:
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)

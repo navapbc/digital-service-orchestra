@@ -132,9 +132,9 @@ _TS=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "unknown")
 .claude/scripts/dso ticket comment <primary_ticket_id> "WORKTREE_TRACKING:start branch=${_BRANCH} session_branch=${_BRANCH} timestamp=${_TS}" 2>/dev/null || true
 ```
 
-**Set vars.SPRINT_SESSION_ID**: Set the `SPRINT_SESSION_ID` repo variable so `per-branch-review.yml` can fetch the session branch for per-story delta scoping. PATCH first (update existing); POST as fallback (initial creation). `|| true` ensures failure (no gh auth, no `actions:write` permission, fork repo) does not block sprint execution.
+**Set vars.SPRINT_SESSION_ID**: Set the `SPRINT_SESSION_ID` repo variable so `resolve-session-branch.sh` can discover the session branch as a fallback (step 2 of its 3-step fallback chain). PATCH first (update existing); POST as fallback (initial creation). `|| true` ensures failure (no gh auth, no `actions:write` permission, fork repo) does not block sprint execution.
 ```bash
-# Set vars.SPRINT_SESSION_ID so per-branch-review.yml can fetch the session branch.
+# Set vars.SPRINT_SESSION_ID for resolve-session-branch.sh session discovery fallback.
 _SESSION_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
 _GH_REPO=$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null || true)
 if [[ -n "$_GH_REPO" ]]; then
@@ -2075,8 +2075,12 @@ fi
 if [[ "${SPRINT_MODE:-local}" == "ci-pr" ]]; then
   # ci-pr mode: merge via GitHub PR — do NOT perform a local direct merge.
   # Resolve session branch via 3-step fallback — fail-fast, never silently
-  # default to main. CI per-branch-review.yml handles code review for each
-  # story PR; no local /dso:review dispatch is needed here.
+  # default to main. KNOWN GAP (tracked under remediation epic; bug
+  # 576b-a6c7-3de3-4eef): story PRs target the session branch, so ci.yml's
+  # llm-review job (gated to base_ref == 'main') does NOT fire on them.
+  # Internal LLM review currently fires only at the cumulative session→main
+  # PR. /dso:review is HARD-GATED to no-op under dso.workflow=ci-pr.
+  # Remediation epic restores per-story internal review.
   SESSION_BRANCH=$(bash "$PLUGIN_SCRIPTS/resolve-session-branch.sh") || { # shim-exempt: SKILL.md orchestrator instruction — sprint runs plugin scripts via $PLUGIN_SCRIPTS directly
     echo "ERROR: SESSION_BRANCH resolution failed — cannot open story PR against session branch" >&2
     exit 1
@@ -2118,6 +2122,8 @@ bash "$PLUGIN_SCRIPTS/detect-session-leakage.sh" || { # shim-exempt: SKILL.md or
 ```
 
 Leakage detection is non-blocking: it surfaces commits that need re-attribution but does not abort Phase F. The sprint continues; operators must address flagged commits before merge-to-main.
+
+Before closing a bug with `Fixed:`, invoke the bug classifier (3-step): dispatch `bug-classifier-haiku` sub-agent with the ticket ID → extract slug → `CLASSIFIER_OUTPUT=<slug> .claude/scripts/dso classify-bug-at-closure.sh <id> "Fixed:"`.
 
 ```bash
 .claude/scripts/dso ticket comment <id> "Fixed: <summary>"

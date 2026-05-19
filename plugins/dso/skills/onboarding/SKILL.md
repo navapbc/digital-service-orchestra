@@ -1366,7 +1366,7 @@ fi
 
 #### Ticket Smoke Test
 
-After initialization, perform a ticket smoke test to verify the system works end-to-end. Create a test ticket and read it back:
+After initialization, perform a ticket smoke test to verify the system works end-to-end. Create a test ticket and read it back. Note: in production workflows, before closing a bug with `Fixed:`, invoke the bug classifier (3-step): dispatch `bug-classifier-haiku` sub-agent with the ticket ID → extract slug → `CLASSIFIER_OUTPUT=<slug> .claude/scripts/dso classify-bug-at-closure.sh <ticket-id> "Fixed:"`
 
 ```bash
 # Smoke test: create and read a ticket

@@ -8,6 +8,7 @@
     "./agents/approach-decision-maker.md",
     "./agents/bloat-blue-team.md",
     "./agents/bloat-resolver.md",
+    "./agents/bug-classifier-haiku.md",
     "./agents/blue-team-filter.md",
     "./agents/bot-psychologist.md",
     "./agents/code-reviewer-arbiter.md",

@@ -32,7 +32,7 @@ Run `test -f .git`. If `.git` is a directory (not a file), abort: "This command 
 ### 2. Close Completed Issues
 1. Run `.claude/scripts/dso ticket list --status=open,in_progress` and `git log main..HEAD --oneline`
 2. Cross-reference: which issues were completed based on commits?
-3. Ask user which to close. Close confirmed: `.claude/scripts/dso ticket transition <id> open closed` for each. **Bug tickets require** `--reason="Fixed: <summary>"` — omitting it causes a silent failure.
+3. Ask user which to close. Close confirmed: `.claude/scripts/dso ticket transition <id> open closed` for each. **Bug tickets require** `--reason="Fixed: <summary>"` — omitting it causes a silent failure. Before closing with `Fixed:`, invoke the bug classifier (3-step): dispatch `bug-classifier-haiku` sub-agent with ticket ID → extract slug → `CLASSIFIER_OUTPUT=<slug> .claude/scripts/dso classify-bug-at-closure.sh <ticket-id> "Fixed:"`
 4. **Skip if no in-progress issues** — this is common when called after `/dso:debug-everything` or `/dso:sprint`, which close their own issues. Report: "No in-progress issues to close (already handled)."
 
 ### 3. Close Orphaned Epics (safety net)

@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
 # assert-batch-branch.sh
-# Refuses to allow debug-everything Phase F/G to open a sub-branch PR (and rely
-# on per-branch-review.yml firing on push) without a properly created and
-# pushed bug-batch sub-branch.
+# Refuses to allow debug-everything Phase F/G to open a sub-branch PR without a
+# properly created and pushed bug-batch sub-branch.
 #
 # Without this gate, an orchestrator error that skipped
 # `git checkout -b bug-batch/...` or `git push origin <sub>` silently lands the
-# changes on the session branch with no CI review — the exact failure mode that
+# changes on the session branch without a PR — the exact failure mode that
 # PR #188 (Flow A) closed for direct PRs but left open for debug-everything's
 # bug-batch/** flow (Flow C).
 #
@@ -16,7 +15,7 @@
 #       * BATCH_BRANCH arg (positional 1) must be set and non-empty
 #       * BATCH_BRANCH must match the bug-batch/ prefix
 #       * The branch named in BATCH_BRANCH must exist locally
-#       * The branch must be pushed to origin (so per-branch-review.yml can fire)
+#       * The branch must be pushed to origin (so the PR can be opened and reviewed)
 #     Any failure → exit 1 with a remediation message on stderr.
 #
 # Usage: assert-batch-branch.sh <branch-name>
@@ -62,8 +61,8 @@ Remediation (example for debug-session 2026-05-17, tier 3 batch 1):
   git push -u origin "bug-batch/2026-05-17-debug/tier-3-batch-1"
   .claude/scripts/dso assert-batch-branch.sh "bug-batch/2026-05-17-debug/tier-3-batch-1"
 
-Without a pushed bug-batch sub-branch, per-branch-review.yml will not trigger
-and LLM Sub-Branch Review will be silently bypassed.
+Without a pushed bug-batch sub-branch, no PR can be opened and the changes
+will be missing from the sub-branch review flow.
 EOF
     exit 1
 fi
@@ -74,7 +73,7 @@ if [[ "$BATCH_BRANCH" != bug-batch/* ]]; then
     cat >&2 <<EOF
 ERROR: BATCH_BRANCH='$BATCH_BRANCH' does not match the required prefix.
 debug-everything Phase F/G sub-branches MUST be named 'bug-batch/<...>' so
-per-branch-review.yml's push.branches filter ('bug-batch/**') will match.
+the bug-batch/ namespace is the expected prefix for debug-everything sub-branches.
 
 Remediation:
   Rename or recreate the branch under the bug-batch/ namespace:
@@ -106,7 +105,7 @@ EOF
     exit 1
 fi
 
-# Verify the branch is pushed to origin (this is what makes per-branch-review.yml fire).
+# Verify the branch is pushed to origin (required so the PR can be opened).
 # Distinguish "no origin remote" from "branch not pushed" so the remediation
 # message points at the actual problem. Without this split, a missing/misconfigured
 # `origin` remote would mislead the operator into running `git push -u origin ...`
@@ -114,8 +113,8 @@ fi
 if ! git remote get-url origin >/dev/null 2>&1; then
     cat >&2 <<EOF
 ERROR: no 'origin' remote configured in this repository.
-per-branch-review.yml fires on pushes to the GitHub remote — without an
-'origin' remote, no sub-branch PR flow is possible.
+A GitHub remote is required for the sub-branch PR flow — without an
+'origin' remote, no sub-branch PR can be opened.
 
 Remediation:
   git remote add origin <github-url>
@@ -131,8 +130,8 @@ _ls_remote_stderr=$(git ls-remote --exit-code origin "refs/heads/$BATCH_BRANCH" 
 if [[ "$_ls_remote_ok" == "0" ]]; then
     cat >&2 <<EOF
 ERROR: BATCH_BRANCH='$BATCH_BRANCH' exists locally but is not found on origin.
-per-branch-review.yml triggers on push to bug-batch/** — without the push,
-LLM Sub-Branch Review will not run for this tier/batch.
+A pushed branch is required to open a PR — without the push,
+no sub-branch review will run for this tier/batch.
 
 git ls-remote diagnostic: $_ls_remote_stderr
 
