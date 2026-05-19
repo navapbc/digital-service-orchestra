@@ -667,6 +667,28 @@ done
 
 A **compound** violation (type `compound`) means the DD contains ` AND ` joining two requirements — split into two separate done definitions. A **vague** violation (type `vague`) means the DD uses imprecise language (e.g., `properly`, `correctly`, `should`) — replace with observable, measurable language.
 
+#### Spec-Fidelity Check
+
+Before finalizing each story, verify PIL criteria against written done definitions:
+
+```bash
+# Write PIL criteria and story DDs to temp files
+_PIL_TMP=$(mktemp /tmp/pil-criteria.XXXXXX)
+_DD_TMP=$(mktemp /tmp/story-dds.XXXXXX)
+# Populate _PIL_TMP with {"criteria": [...]} JSON from the PIL for this story
+# Populate _DD_TMP with one done-definition per line
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/spec-fidelity-check.sh" \
+    --pil-json="$_PIL_TMP" \
+    --story-dds="$_DD_TMP"
+if [[ $? -ne 0 ]]; then
+    echo "FIDELITY_FAIL: PIL field dropped or mutated in story done definitions"
+    # halt — show diff to user, do NOT auto-correct
+fi
+rm -f "$_PIL_TMP" "$_DD_TMP"
+```
+
+A PIL criterion is considered matched when ≥80% of its words appear in any DD line (near-match). If a criterion has no match, the script emits JSON `{"type":"drop","pil_text":"<criterion>","dd_matches":[]}` on stderr and exits 1. **Do not auto-correct** — surface the mismatch to the user and halt story finalization.
+
 #### Considerations
 Notes from the Risk & Scope Scan (Phase C). These provide context for `/dso:implementation-plan` to incorporate into task-level acceptance criteria:
 
