@@ -843,6 +843,42 @@ if [[ "$FAIL" -eq "$_fail_before_dwclk" ]]; then
 fi
 rm -f "$_tmp_dwclk"
 
+# ── test_dso_workflow_silent_default_local_warns_loudly ─────────────────────
+# Given: a config file that exists but contains neither dso.workflow nor any
+#        legacy merge.strategy/enforcement.strategy keys
+# When:  read-config.sh dso.workflow <config>
+# Then:  stdout=local, exit 0, and stderr contains a clear warning that names
+#        the silent-default-to-'local' fall-through (using the word
+#        'defaulting'). The previous behavior emitted a generic
+#        'merge.strategy/enforcement.strategy are deprecated' message even
+#        when those legacy keys were absent, which did not surface the actual
+#        reason for the 'local' output and made the failure mode hard to
+#        diagnose. This test asserts the loud, specific warning is emitted.
+# Bug f6fd-af80-9b13-4649: this is the failure mode the user observed when
+# sprint Phase A's mode-detect.sh returned 'local' despite dso.workflow=ci-pr
+# being intended; the hardened warning helps the next person diagnose which
+# fallback was taken.
+_fail_before_dwsd=$FAIL
+_tmp_dwsd="$(mktemp)"
+printf 'version=1.1.0\n' > "$_tmp_dwsd"  # config exists, no canonical or legacy keys
+dwsd_exit=0
+dwsd_stdout=""
+dwsd_stderr=""
+dwsd_stdout=$(bash "$SCRIPT" dso.workflow "$_tmp_dwsd" 2>"$TMPDIR_FIXTURE/dwsd_stderr.txt") || dwsd_exit=$?
+dwsd_stderr=$(cat "$TMPDIR_FIXTURE/dwsd_stderr.txt")
+assert_eq "test_dso_workflow_silent_default_local_warns_loudly: exit 0" "0" "$dwsd_exit"
+assert_eq "test_dso_workflow_silent_default_local_warns_loudly: stdout is local" "local" "$dwsd_stdout"
+if echo "$dwsd_stderr" | grep -qi 'defaulting'; then
+    dwsd_warn="found"
+else
+    dwsd_warn="missing"
+fi
+assert_eq "test_dso_workflow_silent_default_local_warns_loudly: stderr names default-to-local" "found" "$dwsd_warn"
+if [[ "$FAIL" -eq "$_fail_before_dwsd" ]]; then
+    echo "test_dso_workflow_silent_default_local_warns_loudly ... PASS"
+fi
+rm -f "$_tmp_dwsd"
+
 # ── Sentinel lockout tests (RED — implementation in read-config.sh not yet added) ──
 # These tests specify the sentinel lockout behavior: when .claude/.dso-config-v2-migrated
 # exists in the git root, reading legacy keys (merge.strategy, enforcement.strategy)

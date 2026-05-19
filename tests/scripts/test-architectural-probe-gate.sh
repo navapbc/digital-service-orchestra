@@ -33,23 +33,10 @@ _make_tmpfile() {
     mktemp /tmp/arch-probe-test.XXXXXX
 }
 
-# ── test_gate_script_exists ──────────────────────────────────────────────────
-# The gate script must exist at the expected path and be executable.
-# RED: script does not yet exist.
-test_gate_script_exists() {
-    _snapshot_fail
-    if [[ -f "$GATE_SCRIPT" ]]; then
-        assert_eq "test_gate_script_exists: script present" "exists" "exists"
-    else
-        assert_eq "test_gate_script_exists: run-architectural-probe.sh must exist" "exists" "missing"
-    fi
-    if [[ -x "$GATE_SCRIPT" ]]; then
-        assert_eq "test_gate_script_exists: script is executable" "executable" "executable"
-    else
-        assert_eq "test_gate_script_exists: script must be executable" "executable" "not_executable"
-    fi
-    assert_pass_if_clean "test_gate_script_exists"
-}
+# Deleted: test_gate_script_exists — solo existence/executable check. The
+# behavioral tests below invoke $GATE_SCRIPT; if it is missing or not
+# executable they fail with a more informative error than a wrapped
+# `assert_eq "exists" "missing"`.
 
 # ── test_architectural_class_with_nonempty_output_exits_0 ────────────────────
 # Contract: When epic-class is class:architectural and DSO_PROBE_TEST_OUTPUT is
@@ -216,7 +203,6 @@ test_default_stub_written_when_env_unset() {
 }
 
 # ── Run all tests ────────────────────────────────────────────────────────────
-test_gate_script_exists
 test_architectural_class_with_nonempty_output_exits_0
 test_behavioral_class_is_noop_exits_0
 test_architectural_class_with_empty_output_exits_1

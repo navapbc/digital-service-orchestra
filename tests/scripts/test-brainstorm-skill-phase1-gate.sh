@@ -49,29 +49,11 @@ fi
 # Section heading (structural boundary): "### Understanding Summary Phrasing"
 # or equivalent that signals a MUST requirement, not example text.
 # ============================================================
-test_skill_has_understanding_summary_phrasing_section() {
-    local found=0
-    grep -q '^### Understanding Summary Phrasing\|^### Closing Phrasing\|^#### Required Closing Phrasing\|^#### Understanding Summary Phrasing' \
-        "$SKILL_FILE" 2>/dev/null && found=1 || true
-    assert_eq "skill has Understanding Summary phrasing requirement section (7c1d-e70d)" "1" "$found"
-}
-
-# ============================================================
-# test_skill_has_codebase_investigation_gate_section (a3e6-ac52)
-#
-# The codebase-investigation rule must be elevated to a mandatory gate
-# section heading so agents recognize it as a hard gate before presenting
-# any question to the user — not a soft suggestion buried in prose.
-#
-# Section heading (structural boundary): "### Codebase Investigation Gate"
-# or equivalent signaling a mandatory pre-question check.
-# ============================================================
-test_skill_has_codebase_investigation_gate_section() {
-    local found=0
-    grep -q '^### Codebase Investigation Gate\|^### Investigation Gate\|^#### Codebase Investigation' \
-        "$SKILL_FILE" 2>/dev/null && found=1 || true
-    assert_eq "skill has codebase investigation gate section heading (a3e6-ac52)" "1" "$found"
-}
+# Deleted: test_skill_has_understanding_summary_phrasing_section,
+# test_skill_has_codebase_investigation_gate_section — heading-grep tests
+# with no non-human consumer. LLMs paraphrase heading wording robustly; the
+# real signal would be behavioral (does the agent actually gate questions
+# on codebase investigation?), which grep cannot measure.
 
 # ============================================================
 # test_brainstorm_skill_references_preconditions_record (ee92-7fb9)
@@ -89,8 +71,6 @@ test_brainstorm_skill_references_preconditions_record() {
 }
 
 # ── Run all tests ────────────────────────────────────────────────────────────
-test_skill_has_understanding_summary_phrasing_section
-test_skill_has_codebase_investigation_gate_section
 test_brainstorm_skill_references_preconditions_record
 
 print_summary

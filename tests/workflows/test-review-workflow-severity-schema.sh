@@ -53,21 +53,13 @@ else
         "MIN_SCORE still present in REVIEW-WORKFLOW.md"
 fi
 
-# ---------------------------------------------------------------------------
-# test_review_workflow_severity_trigger_language
-# Positive: REVIEW-WORKFLOW.md documents that critical/important findings trigger resolution.
-# verify REQUIRED contract elements (severity schema terms) exist in instruction files.
-# Removing these terms would break the downstream LLM agent contract. This is structural
-# boundary testing, not arbitrary prose pinning.
-# ---------------------------------------------------------------------------
-echo "=== test_review_workflow_severity_trigger_language ==="
-if grep -q 'critical or important finding' "$REVIEW_WORKFLOW"; then
-    assert_eq "REVIEW-WORKFLOW.md documents critical/important finding trigger" "present" "present"
-else
-    assert_eq "REVIEW-WORKFLOW.md documents critical/important finding trigger" \
-        "critical/important trigger language present" \
-        "critical/important trigger language missing from REVIEW-WORKFLOW.md"
-fi
+# Deleted: test_review_workflow_severity_trigger_language — grep for the
+# exact prose "critical or important finding". Synonyms ("critical/important
+# finding", "findings with critical or important severity", etc.) all preserve
+# the same instruction to the LLM but break this test. No code parses this
+# wording — record-review.sh parses findings[].severity directly. The other
+# two tests in this file (MIN_SCORE / all scores >= 4 absence) DO target
+# tokens parsed by record-review.sh and are retained as real contract tests.
 
 # ---------------------------------------------------------------------------
 # test_review_workflow_no_all_scores_criterion

@@ -17,23 +17,10 @@ source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 ALLOWLIST="$DSO_PLUGIN_DIR/hooks/lib/review-gate-allowlist.conf"
 
-# --- Test: file exists ---
-test_allowlist_file_exists() {
-    if [[ -f "$ALLOWLIST" ]]; then
-        assert_eq "allowlist file exists" "true" "true"
-    else
-        assert_eq "allowlist file exists" "true" "false"
-    fi
-}
-
-# --- Test: file is non-empty ---
-test_allowlist_file_non_empty() {
-    if [[ -s "$ALLOWLIST" ]]; then
-        assert_eq "allowlist file is non-empty" "true" "true"
-    else
-        assert_eq "allowlist file is non-empty" "true" "false"
-    fi
-}
+# Deleted: test_allowlist_file_exists and test_allowlist_file_non_empty —
+# tautological `assert_eq "true" "true"` wrappers around `[ -f ]` / `[ -s ]`.
+# Existence/non-emptiness is implicitly required by every downstream
+# content-pattern test; a missing or empty file would fail those naturally.
 
 # --- Test: file is parseable (non-empty lines excluding comments) ---
 test_allowlist_file_parseable() {
@@ -123,8 +110,6 @@ test_allowlist_contains_package_lock_json() {
 }
 
 # --- Run all tests ---
-test_allowlist_file_exists
-test_allowlist_file_non_empty
 test_allowlist_file_parseable
 test_allowlist_contains_tickets_pattern
 test_allowlist_contains_sync_state_pattern

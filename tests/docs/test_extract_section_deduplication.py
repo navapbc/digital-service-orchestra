@@ -24,15 +24,6 @@ def _get_local_function_names(filepath: Path) -> set[str]:
     }
 
 
-def test_shared_helper_module_exists() -> None:
-    """tests/lib/markdown_helpers.py must exist as the shared location."""
-    helper = REPO_ROOT / "tests" / "lib" / "markdown_helpers.py"
-    assert helper.exists(), (
-        f"Shared helper module not found at {helper}. "
-        "Create it with the extract_section function to deduplicate."
-    )
-
-
 def test_shared_helper_defines_extract_section() -> None:
     """The shared module must define extract_section."""
     helper = REPO_ROOT / "tests" / "lib" / "markdown_helpers.py"
