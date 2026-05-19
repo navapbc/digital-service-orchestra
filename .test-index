@@ -480,4 +480,4 @@ plugins/dso/scripts/write-cycle-ledger.sh:tests/scripts/test-write-cycle-ledger.
 tests/scripts/test-cycle-arbiter.sh:tests/scripts/test-cycle-arbiter.sh [test_block_critical_defense_absent_ruling]
 plugins/dso/scripts/classify-epic-class.sh:tests/scripts/test-classify-epic-class.sh
 plugins/dso/scripts/ticket-update-rav.sh:tests/scripts/test-ticket-update-rav.sh
-RED:7a5d-4274-756e-4068 plugins/dso/scripts/run-architectural-probe.sh:tests/scripts/test-architectural-probe-gate.sh
+plugins/dso/scripts/run-architectural-probe.sh:tests/scripts/test-architectural-probe-gate.sh
