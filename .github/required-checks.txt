@@ -15,7 +15,7 @@
 #
 # Ownership:
 #   ci.yml                     — Actionlint, ShellCheck, Lint Python (ruff), Hook Tests,
-#                                Script Tests, llm-review
+#                                Script Tests, llm-review, merge-pipeline-checks
 #   ticket-platform-matrix.yml — Ticket tests (linux-bash4), Ticket tests (macos-bash3),
 #                                Ticket tests (alpine-busybox)
 
@@ -26,6 +26,7 @@ Lint Python (ruff)
 Hook Tests
 Script Tests
 llm-review
+merge-pipeline-checks
 
 # ── ticket-platform-matrix.yml checks ────────────────────────────────────────
 Ticket tests (linux-bash4)

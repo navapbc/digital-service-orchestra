@@ -10,7 +10,7 @@
 # the source-file-side `source.py:[test_name]` format (no space). Both are intentional.
 .claude-plugin/marketplace.json:tests/scripts/test-marketplace-json.sh
 .github/workflows/ci-python-skills.yml:tests/skills/test_ci_workflow_pip_cache.py
-.github/workflows/ci.yml:tests/scripts/test-ci-hyperfine-installed.sh,tests/scripts/test-ci-consolidated-changes-detection.sh,tests/workflows/test-ci-integration-review-scope.sh,tests/scripts/test-bug-reproducer-8ee4.sh,tests/scripts/test-single-llm-review-per-sha.sh
+.github/workflows/ci.yml:tests/scripts/test-ci-hyperfine-installed.sh,tests/scripts/test-ci-consolidated-changes-detection.sh,tests/workflows/test-ci-integration-review-scope.sh,tests/scripts/test-bug-reproducer-8ee4.sh,tests/scripts/test-single-llm-review-per-sha.sh,tests/workflows/test-red-test-blocker-merged-tree-scan.sh
 .github/workflows/inbound-bridge.yml:tests/scripts/test-inbound-bridge-push-retry.sh
 .github/workflows/outbound-bridge.yml:tests/scripts/test-outbound-bridge-push-retry.sh
 .github/workflows/ticket-platform-matrix.yml:tests/scripts/test-ticket-platform-matrix-trigger.sh
@@ -485,5 +485,5 @@ plugins/dso/scripts/bypass-log-check.sh:tests/scripts/test-bypass-log-enforcemen
 plugins/dso/scripts/dso_ci_review/local_workflow.py:tests/skills/dso_ci_review/test_local_workflow_ledger.py [test_local_workflow_reads_existing_ledger],tests/skills/dso_ci_review/test_local_workflow_loop.py [test_loop_dispatches_three_cycles_then_pass,test_loop_returns_pass_after_one_cycle_with_no_findings,test_loop_breaks_on_dispatch_arbiter_at_max_cycles,test_loop_short_circuits_pre_loop_with_prior_arbiter,test_loop_atomic_ledger_append_per_cycle],tests/skills/dso_ci_review/test_local_workflow_arbiter.py [test_local_arbiter_calls_process_rulings_with_pr_number_none_and_branch_name,test_local_arbiter_aligned_finding_map,test_local_defer_orphan_ticket_uses_branch_scope,test_local_drop_skips_pr_defense_store,test_local_arbiter_writes_sidecar_with_block_list,test_local_arbiter_block_exits_one,test_local_arbiter_no_block_exits_zero,test_local_arbiter_max_cycles_threading]
 plugins/dso/scripts/review-workflow.sh:tests/skills/dso_ci_review/test_local_workflow_ledger.py,tests/scripts/test-local-review-workflow-e2e.sh [test_e2e_three_cycles_then_arbiter_block,test_e2e_pass_branch_cycle_1,test_e2e_short_circuit_on_rerun_same_sha,test_e2e_max_cycles_arbiter,test_e2e_drop_writes_tracker_only]
 .github/workflows/review-sub-pr.yml:tests/workflows/test-review-sub-pr-trigger.sh
-plugins/dso/scripts/scan-red-markers.sh:tests/scripts/test-scan-red-markers.sh [test_scan_red_markers_unit_marker_present]
+plugins/dso/scripts/scan-red-markers.sh:tests/scripts/test-scan-red-markers.sh
 plugins/dso/scripts/lib/worktree-removal-guards.sh:tests/scripts/test-worktree-removal-guards.sh [test_worktree_removal_guards]
