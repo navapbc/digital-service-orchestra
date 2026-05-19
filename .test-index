@@ -252,6 +252,7 @@ plugins/dso/scripts/onboarding/plugin-inventory.sh:tests/unit/scripts/test-plugi
 plugins/dso/scripts/onboarding/prefill-config.sh:tests/unit/scripts/test-prefill-config.sh
 plugins/dso/scripts/onboarding/provision-ruleset.sh:tests/scripts/test-provision-ruleset.sh
 plugins/dso/scripts/onboarding/validate-required-checks.sh:tests/scripts/test-validate-required-checks.sh
+plugins/dso/scripts/update-required-checks-manifest.sh:tests/scripts/test-validate-required-checks.sh [test_update_manifest_adds_review_sub_pr]
 plugins/dso/scripts/pre-commit-format-fix.sh:tests/scripts/test-precommit-format-fix-config-paths.sh,tests/scripts/test-residual-callers-polyglot.sh
 plugins/dso/scripts/preconditions-baseline-collect.sh:tests/scripts/test-preconditions-baseline.sh
 plugins/dso/scripts/preconditions-benchmark.sh:tests/scripts/test-preconditions-benchmark.sh

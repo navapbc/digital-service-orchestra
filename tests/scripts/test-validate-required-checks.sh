@@ -165,4 +165,123 @@ bash "$SCRIPT" --checks-file "$CHECKS_FILE5" --workflows-dir "$WORKFLOWS_DIR5" 2
 assert_eq "test_empty_workflows_dir_with_checks_exits_nonzero exit" "1" "$rc5"
 assert_pass_if_clean "test_empty_workflows_dir_with_checks_exits_nonzero"
 
+# ── RED MARKER BOUNDARY ──────────────────────────────────────────────────────
+# The four tests below are RED until update-required-checks-manifest.sh is
+# created (T4) and validate-required-checks.sh gains duplicate/malformed-entry
+# rejection (T4). They MUST fail before T4 is implemented.
+#
+# RED MARKER:
+# tests/scripts/test-validate-required-checks.sh [test_update_manifest_adds_review_sub_pr]
+
+UPDATE_SCRIPT="$REPO_ROOT/plugins/dso/scripts/update-required-checks-manifest.sh"
+
+# -- test_update_manifest_adds_review_sub_pr ----------------------------------
+# update-required-checks-manifest.sh adds 'review-sub-pr' when it is missing.
+_snapshot_fail
+TMP_DIR6="$(mktemp -d)"
+_TMP_DIRS+=("$TMP_DIR6")
+
+MANIFEST6="$(mktemp "$TMP_DIR6/required-checks.XXXXXX")"
+cat > "$MANIFEST6" <<'EOF'
+# existing checks
+ShellCheck
+Lint Python (ruff)
+EOF
+
+# Script doesn't exist yet — this will exit non-zero (RED).
+rc6=0
+bash "$UPDATE_SCRIPT" --checks-file "$MANIFEST6" 2>/dev/null || rc6=$?
+assert_eq "test_update_manifest_adds_review_sub_pr exit" "0" "$rc6"
+
+# Verify 'review-sub-pr' was added to the manifest.
+added6=false
+grep -q 'review-sub-pr' "$MANIFEST6" 2>/dev/null && added6=true
+assert_eq "test_update_manifest_adds_review_sub_pr entry-present" "true" "$added6"
+assert_pass_if_clean "test_update_manifest_adds_review_sub_pr"
+
+# -- test_update_manifest_idempotent ------------------------------------------
+# update-required-checks-manifest.sh is a no-op when both entries already
+# exist.  Running it twice must produce identical manifest content.
+_snapshot_fail
+TMP_DIR7="$(mktemp -d)"
+_TMP_DIRS+=("$TMP_DIR7")
+
+MANIFEST7="$(mktemp "$TMP_DIR7/required-checks.XXXXXX")"
+cat > "$MANIFEST7" <<'EOF'
+# pre-populated checks
+review-sub-pr
+merge-pipeline-checks
+ShellCheck
+EOF
+
+content_before7="$(cat "$MANIFEST7" 2>/dev/null || true)"
+
+rc7=0
+bash "$UPDATE_SCRIPT" --checks-file "$MANIFEST7" 2>/dev/null || rc7=$?
+assert_eq "test_update_manifest_idempotent exit" "0" "$rc7"
+
+content_after7="$(cat "$MANIFEST7" 2>/dev/null || true)"
+assert_eq "test_update_manifest_idempotent manifest-unchanged" "$content_before7" "$content_after7"
+assert_pass_if_clean "test_update_manifest_idempotent"
+
+# -- test_validate_rejects_duplicate_entries ----------------------------------
+# validate-required-checks.sh exits non-zero when the manifest contains
+# duplicate entries.
+_snapshot_fail
+TMP_DIR8="$(mktemp -d)"
+_TMP_DIRS+=("$TMP_DIR8")
+
+CHECKS_FILE8="$(mktemp "$TMP_DIR8/checks.XXXXXX")"
+cat > "$CHECKS_FILE8" <<'EOF'
+ShellCheck
+ShellCheck
+EOF
+
+WORKFLOWS_DIR8="$TMP_DIR8/workflows"
+mkdir -p "$WORKFLOWS_DIR8"
+cat > "$WORKFLOWS_DIR8/ci.yml" <<'EOF'
+name: CI
+jobs:
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo ok
+EOF
+
+rc8=0
+bash "$SCRIPT" --checks-file "$CHECKS_FILE8" --workflows-dir "$WORKFLOWS_DIR8" 2>/dev/null || rc8=$?
+assert_eq "test_validate_rejects_duplicate_entries exit" "1" "$rc8"
+assert_pass_if_clean "test_validate_rejects_duplicate_entries"
+
+# -- test_validate_rejects_malformed_entries ----------------------------------
+# validate-required-checks.sh exits non-zero when the manifest contains
+# malformed entries (lines with leading/trailing special characters that would
+# never match a real GitHub Actions job name).
+_snapshot_fail
+TMP_DIR9="$(mktemp -d)"
+_TMP_DIRS+=("$TMP_DIR9")
+
+CHECKS_FILE9="$(mktemp "$TMP_DIR9/checks.XXXXXX")"
+cat > "$CHECKS_FILE9" <<'EOF'
+  - invalid-yaml-list-entry
+EOF
+
+WORKFLOWS_DIR9="$TMP_DIR9/workflows"
+mkdir -p "$WORKFLOWS_DIR9"
+cat > "$WORKFLOWS_DIR9/ci.yml" <<'EOF'
+name: CI
+jobs:
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo ok
+EOF
+
+rc9=0
+bash "$SCRIPT" --checks-file "$CHECKS_FILE9" --workflows-dir "$WORKFLOWS_DIR9" 2>/dev/null || rc9=$?
+assert_eq "test_validate_rejects_malformed_entries exit" "1" "$rc9"
+assert_pass_if_clean "test_validate_rejects_malformed_entries"
+
 print_summary
