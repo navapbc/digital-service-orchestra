@@ -1767,8 +1767,18 @@ def main() -> int:
         # SHA change — so this block is skipped on a new commit (desired: no stale
         # defenses from a previous SHA). On a true re-review of the same SHA,
         # cycle_num >= 2 holds, and prior defenses are loaded. No behavioral change needed.
+        #
+        # DSO_SUPPRESS_PRIOR_DEFENSES: when set to "true" (emitted by ci.yml's
+        # "Suppress prior defenses for integration review" step), skip prior-defense
+        # loading entirely even when cycle_number >= 2. This allows the integration
+        # review (session→main PR) to evaluate findings fresh, without sub-PR defenses
+        # suppressing findings that the integration reviewer should see. T10: wired here
+        # so DSO_SUPPRESS_PRIOR_DEFENSES gates cycle_number-based prior-defense loading.
+        _suppress_prior_defenses = (
+            os.environ.get("DSO_SUPPRESS_PRIOR_DEFENSES", "").lower() == "true"
+        )
         prior_defenses: list[dict] = []
-        if cycle_number >= 2:
+        if cycle_number >= 2 and not _suppress_prior_defenses:
             if pr_number:
                 prior_defenses = _fetch_pr_defenses(pr_number)
                 if prior_defenses:
@@ -1777,6 +1787,12 @@ def main() -> int:
                         "prior defense record(s) for dismissal-memory filter",
                         file=sys.stderr,
                     )
+        elif cycle_number >= 2 and _suppress_prior_defenses:
+            print(
+                f"INFO: cycle {cycle_number} — DSO_SUPPRESS_PRIOR_DEFENSES=true: "
+                "prior defenses suppressed for integration review pass",
+                file=sys.stderr,
+            )
 
         # Resolve config_path once for overlay agent construction
         config_path: str | None = None

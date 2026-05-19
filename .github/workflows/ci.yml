@@ -569,20 +569,17 @@ jobs:
       - name: Suppress prior defenses for integration review
         if: needs.changes.outputs.code_changed == 'true'
         run: |
-          # Integration review SHOULD suppress TrackerDefenseStore defenses from
+          # Integration review suppresses TrackerDefenseStore defenses from
           # prior review cycles, preventing already-defended findings from being
           # re-flagged in the integration review pass.
           #
-          # NOTE (PR #140 retro-review): the DSO_SUPPRESS_PRIOR_DEFENSES env var
-          # is currently set here and passed to Run LLM review below, but no
-          # consumer in plugins/dso/scripts/dso_ci_review/ or
-          # ci-llm-review-runner.sh reads or acts on the flag — the suppression
-          # contract is documented intent, not implemented behavior. Retaining
-          # the env wiring so the future consumer has a stable interface to
-          # bind against; remove this step + the corresponding env passing if
-          # the suppression feature is dropped.
+          # DSO_SUPPRESS_PRIOR_DEFENSES=true is read by runner.py:
+          # when set, prior defenses are NOT loaded on cycle_number >= 2,
+          # so the integration review sees the full unfiltered finding set
+          # from the session's sub-PR review history. Consumer wired in T10
+          # (story 0aed-4d7a-991d-4f7f).
           echo "DSO_SUPPRESS_PRIOR_DEFENSES=true" >> "$GITHUB_ENV"
-          echo "suppress-prior-defenses: env var set (consumer not yet implemented — see PR #140 review)"
+          echo "suppress-prior-defenses: env var set — runner.py consumer active (T10)"
 
       - name: Run LLM review
         # bug 1624-5fb9: gate removed (was `&& env.INTEGRATION_SCOPE_EMPTY != 'true'`).
