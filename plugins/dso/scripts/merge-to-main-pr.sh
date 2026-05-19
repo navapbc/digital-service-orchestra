@@ -514,6 +514,36 @@ _phase_merge() {
         echo "WARNING: git fetch origin main failed — skipping origin/main sync; proceeding with current HEAD." >&2
     fi
 
+    # --- 1a. Source-branch version bump (b6e3-e771 + bbba-123d) ---
+    # In PR mode, the version bump MUST commit to the session branch BEFORE
+    # the push, so the bump lands in main as part of the PR's squash-merge
+    # commit. Doing the bump post-merge (the prior approach) diverged main
+    # from the PR's merged content and was rejected by the always-run
+    # compliance-verifier pre-commit hook.
+    #
+    # Extract the story id from existing branch trailers (best-effort): the
+    # bump commit carries a DSO-Story(-Merge)?: trailer so
+    # verify-session-provenance.sh accepts it on the session branch (S1.T5 grammar).
+    local _bump_story_id=""
+    _bump_story_id=$(git log --pretty=format:%B main..HEAD 2>/dev/null \
+        | grep -Eiom1 '^[[:space:]]*DSO-Story(-Merge)?:[[:space:]]*[A-Za-z0-9._/-]+' \
+        | sed -E 's/^[[:space:]]*DSO-Story(-Merge)?:[[:space:]]*//I' \
+        || true)
+    if [[ -z "$_bump_story_id" ]]; then
+        _bump_story_id=$(git log --pretty=format:%B origin/main..HEAD 2>/dev/null \
+            | grep -Eiom1 '^[[:space:]]*DSO-Story(-Merge)?:[[:space:]]*[A-Za-z0-9._/-]+' \
+            | sed -E 's/^[[:space:]]*DSO-Story(-Merge)?:[[:space:]]*//I' \
+            || true)
+    fi
+    # Fall back to the branch name when no trailer is present; the bump
+    # commit still gets a parseable trailer for downstream tooling.
+    [[ -z "$_bump_story_id" ]] && _bump_story_id="${BRANCH:-unknown}"
+
+    if ! _phase_source_branch_version_bump "$_bump_story_id"; then
+        echo "ERROR: source-branch version bump failed." >&2
+        return 1
+    fi
+
     # --- 1b. Publish branch ---
     # Pre-push sync: when the remote ref already exists and has advanced
     # past our local HEAD (e.g. a previous "Merge branch 'main' into <branch>"
