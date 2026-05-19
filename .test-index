@@ -127,7 +127,7 @@ plugins/dso/hooks/lib/merge-helpers.sh:tests/integration/test-merge-to-main-pr-t
 plugins/dso/hooks/lib/planning-config.sh:tests/hooks/test-planning-config.sh
 plugins/dso/hooks/lib/post-functions.sh:tests/hooks/test-post-functions-attribution.sh,tests/hooks/test-post-skill-attribution.sh
 plugins/dso/hooks/lib/pre-all-functions.sh:tests/hooks/test-hook-inline-trap-consolidation.sh
-plugins/dso/hooks/lib/pre-bash-functions.sh:tests/hooks/test-hook-inline-trap-consolidation.sh
+plugins/dso/hooks/lib/pre-bash-functions.sh:tests/hooks/test-hook-inline-trap-consolidation.sh,tests/hooks/test-worktree-bash-guard-lib-direct.sh
 plugins/dso/hooks/lib/preconditions-validator-lib.sh:tests/hooks/test-preconditions-validator-lib.sh,tests/integration/test-preconditions-chain-5stage.sh
 plugins/dso/hooks/lib/review-gate-allowlist.conf:tests/hooks/test-review-gate-allowlist.sh
 plugins/dso/hooks/lib/review-gate-bypass-sentinel.sh:tests/hooks/test-review-gate-bypass-sentinel.sh
@@ -146,7 +146,7 @@ plugins/dso/hooks/record-review.sh:tests/hooks/test-record-review-attest.sh
 plugins/dso/hooks/record-test-status.sh:tests/hooks/test-record-test-status-part4.sh,tests/hooks/test-record-test-status-staged-test-no-source.sh,tests/hooks/test-record-test-status-part1.sh,tests/hooks/test-record-test-status-accumulative.sh,tests/hooks/test-record-test-status-attest.sh,tests/hooks/test-record-test-status-centrality.sh,tests/hooks/test-record-test-status-eagain.sh,tests/hooks/test-record-test-status-split-guard.sh,tests/hooks/test-record-test-status-batch-threshold.sh,tests/hooks/test-record-test-status-red-zone-merge.sh,tests/hooks/test-record-test-status-worktree-cwd.sh,tests/hooks/test-record-test-status-part2.sh,tests/hooks/test-record-test-status-stale-failure-warn.sh,tests/hooks/test-record-test-status-part3.sh
 plugins/dso/hooks/resolve-overlay-findings.sh:tests/hooks/test-overlay-resolution-integration.sh
 plugins/dso/hooks/run-hook.sh:tests/hooks/test-run-hook-relative-paths.sh,tests/hooks/test-hook-inline-trap-consolidation.sh
-plugins/dso/hooks/session-safety-check.sh:tests/hooks/test-session-safety.sh
+plugins/dso/hooks/session-safety-check.sh:tests/hooks/test-session-safety.sh,tests/hooks/test-session-safety-24h-boundary.sh
 plugins/dso/README.md:tests/skills/test-nextjs-starter-docs.sh
 plugins/dso/recipes/recipe-registry.yaml:tests/scripts/test-recipe-registry.sh
 plugins/dso/recipes/templates/flask/route.py.tmpl:tests/scripts/test_gate_escalation_router.py
