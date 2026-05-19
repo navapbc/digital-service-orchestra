@@ -751,6 +751,10 @@ Each task must include:
 
 Before creating each task, partition the story's done definitions across all tasks so every DD appears in exactly one task's Story DD Coverage section. Every story DD must be owned by at least one task.
 
+**Closure Checks exclusion**: Items under `## Closure Checks` are excluded from the DD partition. Only done definitions and success criteria from `## Done Definitions` / `## Success Criteria` sections are assigned to tasks.
+
+> **Why**: Closure Checks are verified at story/epic closure by the completion-verifier agent; they are not implementation targets.
+
 ```bash
 TASK_ID=$(.claude/scripts/dso ticket create task "{title}" --parent=<story-id> --priority=2 -d "$(cat <<'DESCRIPTION'
 ## Testing Mode
