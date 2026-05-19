@@ -1504,11 +1504,42 @@ Route based on `TESTING_MODE`:
 | `RED` | Dispatch `dso:red-test-writer` before implementation (existing behavior) |
 | `GREEN` | Skip RED test dispatch entirely. Sub-agent validates existing tests pass after implementation. |
 | `UPDATE` | Sub-agent modifies existing tests to assert new behavior **before** implementing. Do NOT dispatch `dso:red-test-writer`. |
+| `recipe:` | Execute via `recipe-executor.sh` directly — no sub-agent dispatch. See **recipe: execution flow** below. |
 | absent / empty | Default to RED behavior (backward compatibility — tasks created before this field was introduced) |
 
 **GREEN mode**: Pass the following instruction to the sub-agent's Step 4 in `task-execution.md`: skip writing new tests; after implementation, validate that existing tests still pass.
 
 **UPDATE mode**: Pass the following instruction to the sub-agent's Step 4 in `task-execution.md`: modify the existing test file(s) listed in the file impact table to assert the new expected behavior before implementing the source change. The test must fail (RED) on the current code before the fix.
+
+**recipe: execution flow**: When `TESTING_MODE` starts with `recipe:`, the orchestrator executes the recipe directly — no Task sub-agent is dispatched and no story branch is created.
+
+1. **Parse task description** for:
+   - `recipe_name` — the recipe identifier (e.g. `sync-jira-labels`)
+   - `recipe_params` — zero or more `key=value` pairs
+   - `intent` — human-readable description of what the recipe does (used in sprint log)
+
+2. **Execute the recipe**:
+   ```bash
+   bash "$PLUGIN_SCRIPTS/recipe-executor.sh" <recipe_name> [--param key=value ...]
+   ```
+   Capture stdout as `EXECUTOR_JSON`. On bash-level failure (non-zero exit before JSON is emitted) or empty output, synthesize:
+   ```json
+   {"exit_code": 1, "errors": ["recipe-executor.sh failed or produced no output"], "engine_name": "<recipe_name>", "degraded": false}
+   ```
+
+3. **Format the result**:
+   ```bash
+   bash "$PLUGIN_SCRIPTS/sprint/format-recipe-result.sh" <recipe_name> <<< "$EXECUTOR_JSON"
+   ```
+   Capture stdout as `RECIPE_SUMMARY`.
+
+4. **Record in sprint log**: Log `RECIPE_RESULT: <task_id> — <intent> — <RECIPE_SUMMARY>` as the task result.
+
+5. **On non-zero `exit_code` in JSON**: Mark the task failed in the sprint log with the error summary; continue the batch — do not crash the sprint or halt further task dispatch.
+
+6. **On `degraded=true` in JSON**: Log a degraded warning: `RECIPE_DEGRADED: <task_id> — engine: <engine_name> — <RECIPE_SUMMARY>` with a note that fallback behavior was used. Continue the batch.
+
+**Note**: `recipe:` tasks do NOT create a story branch. They are direct orchestrator-executed actions with no sub-branch worktree.
 
 **Backward compatibility**: When `TESTING_MODE` is absent or empty, treat as `RED` — dispatch `dso:red-test-writer` as normal.
 
