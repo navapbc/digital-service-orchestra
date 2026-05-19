@@ -331,7 +331,7 @@ def dispatch_arbiter(
 
     try:
         result = dispatch_review(
-            diff=diff_text,
+            diff_text=diff_text,
             agent_id="code-reviewer-arbiter",
             primary_model=model,
             provider_chain=provider_chain,

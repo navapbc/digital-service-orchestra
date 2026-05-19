@@ -205,6 +205,30 @@ _is_formatting_only_drift() {
     return 0
 }
 
+# ── Helper: check arbiter-rulings.json sidecar for BLOCK rulings ─────────────
+# Reads $ARTIFACTS_DIR/arbiter-rulings.json (when present) and blocks the commit
+# if any ruling for the current HEAD SHA is BLOCK.  Fails closed on malformed JSON.
+# Returns 0 (continue) if no sidecar, sidecar is for a different SHA, or no BLOCK.
+# Exits 1 (blocking) if BLOCK ruling found or JSON is corrupt.
+_check_arbiter_sidecar_and_block() {
+    local artifacts_dir="$1"
+    local sidecar="$artifacts_dir/arbiter-rulings.json"
+    [[ -f "$sidecar" ]] || return 0
+    local head_sha
+    head_sha=$(git rev-parse HEAD 2>/dev/null || echo "")
+    local helper="$HOOK_DIR/../scripts/arbiter-sidecar-check.sh"
+    if [[ ! -x "$helper" ]]; then
+        echo "WARNING: arbiter-sidecar-check.sh not found or not executable; failing closed" >&2
+        log_decision "block"
+        exit 1
+    fi
+    if ! "$helper" "$sidecar" "$head_sha"; then
+        log_decision "block"
+        exit 1
+    fi
+    return 0
+}
+
 # ── Locate the shared allowlist ──────────────────────────────────────────────
 ALLOWLIST_PATH="${CONF_OVERRIDE:-$HOOK_DIR/lib/review-gate-allowlist.conf}"
 
@@ -220,7 +244,10 @@ if [[ -n "$_staged_output" ]]; then
 fi
 
 # No staged files → nothing to check; let git handle it
+# Still check the arbiter sidecar — a BLOCK ruling prevents any commit regardless
+# of staged file count (covers the case where formatting-only drift made staged==HEAD).
 if [[ ${#STAGED_FILES[@]} -eq 0 ]]; then
+    _check_arbiter_sidecar_and_block "$(get_artifacts_dir 2>/dev/null || echo "")"
     exit 0
 fi
 
@@ -467,6 +494,7 @@ if [[ "$RECORDED_HASH" != "$CURRENT_HASH" ]]; then
             echo "diff_hash=${_REHASH}" >> "$_TMP_STATUS"
             mv "$_TMP_STATUS" "$REVIEW_STATE_FILE"
             echo "pre-commit-review-gate: non-functional drift self-healed (rehash=${_REHASH:0:12}...)" >&2
+            _check_arbiter_sidecar_and_block "$ARTIFACTS_DIR"
             log_decision "pass"
             exit 0
         fi
@@ -478,5 +506,6 @@ fi
 
 # ── Hash matched — update telemetry flag, then allow commit ──────────────────
 _TELEMETRY_HASH_MATCH=true
+_check_arbiter_sidecar_and_block "$ARTIFACTS_DIR"
 log_decision "pass"
 exit 0

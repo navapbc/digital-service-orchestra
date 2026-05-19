@@ -46,7 +46,19 @@ if [ -f "$TEST_INDEX" ]; then
         if [[ "$line" =~ (tests/(skills|docs)/[^[:space:]]+\.py)(.*) ]]; then
             _marker_tail="${BASH_REMATCH[3]}"
             while [[ "$_marker_tail" =~ \[([^]]+)\] ]]; do
-                red_markers+=("${BASH_REMATCH[1]}")
+                # A marker bracket can carry one or more comma-separated test names:
+                # [test_a]  OR  [test_a,test_b,test_c]
+                # Split on comma so each test name is added as its own marker.
+                # Without this, joining markers with " or " for pytest -k produces
+                # invalid syntax: "not (X or test_a,test_b)" → pytest column-error.
+                _marker_group="${BASH_REMATCH[1]}"
+                IFS=',' read -ra _marker_items <<<"$_marker_group"
+                for _marker_item in "${_marker_items[@]}"; do
+                    # Strip surrounding whitespace from each split item.
+                    _marker_item="${_marker_item## }"
+                    _marker_item="${_marker_item%% }"
+                    [[ -n "$_marker_item" ]] && red_markers+=("$_marker_item")
+                done
                 _marker_tail="${_marker_tail#*]}"
             done
         fi

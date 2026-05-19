@@ -290,6 +290,9 @@ def run_verification(diff_path: str) -> dict:
         "PR_NUMBER": "",
         # Explicit overrides for known runner-affecting control env vars so
         # caller env does not silently alter the code path under test.
+        # Classification-b (task 36cf audit): DSO_REVIEW_CYCLE=1 is a fixture
+        # convenience forcing single-cycle path. When task 36cf lands, the ledger
+        # will also return 1 for a fresh invocation; this becomes a no-op then.
         "DSO_CI_REVIEW_DRY_RUN": "",
         "DSO_REVIEW_CYCLE": "1",
         "DSO_CI_REVIEW_REGION_SPLIT": "",

@@ -869,7 +869,7 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 
 | | |
 |---|---|
-| **Description** | GitHub check name for the per-branch review CI job. Triple-consistency requirement: this value MUST match all three of (1) the `name:` field in `.github/workflows/per-branch-review.yml`, (2) the `required_status_checks` value in the GitHub Ruleset for `session-*` branches, and (3) the expected check name asserted by Phase A preflight (`check-ruleset-preflight.sh`). When unset, `check-ruleset-preflight.sh` falls back to `Sprint Story Review`. |
+| **Description** | GitHub check name for the PR-side LLM review CI job. Dual-consistency requirement: this value MUST match both (1) the `required_status_checks` value in the GitHub Ruleset for `session-*` branches, and (2) the expected check name asserted by Phase A preflight (`check-ruleset-preflight.sh`). When unset, `check-ruleset-preflight.sh` falls back to `Sprint Story Review`. Note: `per-branch-review.yml` was removed in story 20d7-09d6; `ci.yml`'s `llm-review` job is now the sole PR-side consumer. |
 | **Accepted values** | Non-empty string. Must match the literal check name produced by GitHub Actions (no shell-quoting, no leading/trailing whitespace). |
 | **Default** | `Sprint Story Review` |
 | **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/sprint/check-ruleset-preflight.sh` |
