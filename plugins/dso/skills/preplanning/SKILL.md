@@ -842,6 +842,18 @@ Write the accumulated context as a structured comment on the epic ticket so that
 
 **Schema version**: The `schema_version` integer field (current value: `2`) is used by consumers for forward/backward compatibility — bump it whenever the payload structure changes in a non-additive way. Consumers reading an unfamiliar `schema_version` should fall back to defensive parsing rather than failing.
 
+**Validate the PIL payload** (if loading a prior `PREPLANNING_CONTEXT:` comment): If a prior `PREPLANNING_CONTEXT:` comment exists on the epic, validate it before merging its data:
+```bash
+echo "$_PREPLANNING_CONTEXT_JSON" | bash "${CLAUDE_PLUGIN_ROOT}/scripts/validate-pil-handoff.sh"
+if [[ $? -ne 0 ]]; then
+    # Fail-open: log validation error but continue with planning
+    echo "PIL_VALIDATION_ERROR: PREPLANNING_CONTEXT failed schema validation — treating as absent"
+    # Clear the context and proceed with full Input Analysis
+fi
+```
+<!-- EMIT-PRECONDITIONS: gate_name=preplanning_pil_handoff_validation degradation_type=inferred_decision -->
+Validation failure is non-blocking — treat the invalid payload as absent and continue with full preplanning. This prevents a corrupt or stale PIL from silently poisoning downstream story decomposition.
+
 **Merging prior research findings (RESEARCH_FINDINGS:)**: Before writing the new `PREPLANNING_CONTEXT:` comment, scan the epic's ticket comments for the most recent `RESEARCH_FINDINGS:` comment (a JSON array of `{capability, status, source, skill_name, timestamp}` entries written by upstream skills like brainstorm or prior preplanning runs). Parse it and merge into the `researchFindings` array of the new context payload.
 <!-- EMIT-PRECONDITIONS: gate_name=preplanning_research_findings_merge degradation_type=inferred_decision -->
 Treat a missing or corrupt `RESEARCH_FINDINGS:` comment as an empty array (fail-open — never block the write). This compounds research across pipeline stages so downstream skills (implementation-plan, sprint) can deduplicate WebSearch calls.

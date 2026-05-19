@@ -481,5 +481,4 @@ tests/scripts/test-cycle-arbiter.sh:tests/scripts/test-cycle-arbiter.sh [test_bl
 plugins/dso/scripts/classify-epic-class.sh:tests/scripts/test-classify-epic-class.sh
 plugins/dso/scripts/ticket-update-rav.sh:tests/scripts/test-ticket-update-rav.sh
 plugins/dso/scripts/run-architectural-probe.sh:tests/scripts/test-architectural-probe-gate.sh
-# RED:5f83-058f-eae6-4047 — PIL handoff integration test (validate-pil-handoff.sh not yet implemented)
 plugins/dso/scripts/validate-pil-handoff.sh:tests/scripts/test-pil-handoff-integration.sh
