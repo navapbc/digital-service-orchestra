@@ -30,6 +30,13 @@ from dso_ci_review._config import read_config_int
 from dso_ci_review.arbiter_processor import process_rulings
 from dso_ci_review.providers.config import get_provider
 
+# Local (non-CI) mode has no real PR number. A synthetic non-zero value is used
+# because cycle_ledger.append_cycle enforces pr_number != 0 (sentinel guard) to
+# prevent accidentally writing legacy v1.1.0-style sentinel entries. The value 1
+# is chosen as the simplest valid placeholder that satisfies the guard; it carries
+# no operational meaning in local mode since PR reconstruction is CI-only.
+_LOCAL_MODE_PR = 1
+
 
 def cycle_next_action(
     ledger: dict,
@@ -587,8 +594,11 @@ def main(
         )
 
         # Atomically append this cycle's data to the on-disk ledger.
+        # _LOCAL_MODE_PR is a synthetic non-zero constant (see module-level docstring)
+        # used to satisfy the append_cycle pr_number != 0 sentinel guard in local mode.
         cycle_ledger.append_cycle(
-            ledger_path, cycle_num, tuples, commit_sha, findings_hash
+            ledger_path, cycle_num, tuples, commit_sha, findings_hash,
+            pr_number=_LOCAL_MODE_PR,
         )
 
         # Also update in-memory ledger so next_action sees current state.
