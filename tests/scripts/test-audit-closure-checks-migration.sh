@@ -223,9 +223,12 @@ test_exits_1_when_all_migrated() {
     _setup_all_migrated_fixture "$repo/.tickets-tracker"
 
     local exit_code=0
-    bash "$AUDIT_SCRIPT" --target "$repo" >/dev/null 2>&1 || exit_code=$?
+    local stdout
+    stdout=$(bash "$AUDIT_SCRIPT" --target "$repo" 2>/dev/null) || exit_code=$?
 
     assert_eq "exits 1 when all tickets already migrated" "1" "$exit_code"
+    # Distinguish intentional exit 1 (all migrated → empty output) from set -e abort (also exit 1)
+    assert_eq "stdout empty when all migrated (not a crash)" "" "$stdout"
 
     assert_pass_if_clean "test_exits_1_when_all_migrated"
 }

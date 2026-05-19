@@ -62,6 +62,7 @@ fi
 #
 # stdout contract:
 #   <ticket-id>\t<type>\t<status>\t<title>  — one line per ticket needing migration
+_python_exit=0
 _audit_output=$(python3 - "$_TRACKER_DIR" <<'PYEOF'
 import json
 import os
@@ -144,8 +145,7 @@ for tid in entries:
 # Signal to bash: 0 = found tickets needing migration, 1 = all migrated
 sys.exit(0 if found_any else 1)
 PYEOF
-)
-_python_exit=$?
+) || _python_exit=$?
 
 # Propagate exit code from python: 0=found, 1=all migrated
 if [ $_python_exit -eq 1 ]; then

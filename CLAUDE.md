@@ -37,8 +37,6 @@ You are a Principal Software Developer at a company like Google or USDS. You are
 | Link tickets | `.claude/scripts/dso ticket link <src> <tgt> <relation>` |
 | Add / remove tag | `.claude/scripts/dso ticket tag <id> <tag>` / `untag <id> <tag>` |
 | Acknowledge degradation fallthrough | `.claude/scripts/dso preconditions-ack <story_id> <decision_id> --if-skipped "<rationale>"` |
-| `## Closure Checks` section (story/epic tickets) | Durable end-state intent that is not transitional work; written by `/dso:preplanning` Phase H Step 1; audited by `${CLAUDE_PLUGIN_ROOT}/scripts/audit-closure-checks-migration.sh` |
-
 Less common commands (Figma resync, harvest-worktree, recipe-executor, update-artifacts, release.sh, review-stats, check-skill-refs, qualify-skill-refs): see the relevant skill.
 
 Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
@@ -50,6 +48,7 @@ Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
 ## Architecture (pointers)
 
 - **Ticket system v3 (event-sourced)**: orphan branch `tickets` → `.tickets-tracker/`. CLI: `.claude/scripts/dso ticket <subcommand>`. Full reference and rules: `plugins/dso/docs/ticket-cli-reference.md`. The CLI_user tag marks bugs reported explicitly by a human during an interactive session.  <!-- tickets-boundary-ok -->
+- **`## Closure Checks` section** (epic/story tickets): durable end-state intent that is not transitional work; written by `/dso:preplanning` Phase H; verified at closure by `dso:completion-verifier`; audited pre-migration by `${CLAUDE_PLUGIN_ROOT}/scripts/audit-closure-checks-migration.sh`.
 - **Sub-agents and routing**: `plugins/dso/docs/AGENTS.md` (full named-agent table), `plugins/dso/docs/SUB-AGENT-BOUNDARIES.md` (rules), `INSTALL.md` (routing config).
 - **Hooks, gates, test gate, review gate, hook error handler**: `plugins/dso/docs/HOOKS-REFERENCE.md`.
 - **Compliance verifier** (wrapper-driven artifact verification, load-bearing pre-commit gate): see `plugins/dso/docs/HOOKS-REFERENCE.md`.
