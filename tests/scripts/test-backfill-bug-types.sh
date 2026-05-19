@@ -82,7 +82,7 @@ test_dry_run_exits_0() {
     _CLEANUP_DIRS+=("$mock_cmd")  # single file; rm -rf a file is safe
 
     local exit_code=0
-    TICKET_CMD="$mock_cmd" bash "$TARGET_SCRIPT" --dry-run >/dev/null 2>&1 || exit_code=$?
+    SKIP_TICKETS_BRANCH_CHECK=1 TICKET_CMD="$mock_cmd" bash "$TARGET_SCRIPT" --dry-run >/dev/null 2>&1 || exit_code=$?
     assert_eq "test_dry_run_exits_0: --dry-run exits with code 0" "0" "$exit_code"
 
     rm -f "$mock_cmd"
@@ -137,7 +137,7 @@ test_already_tagged_tickets_skipped() {
     mock_cmd=$(make_mock_ticket_cmd "$_ONE_TAGGED_ONE_UNTAGGED")
 
     local output exit_code=0
-    output=$(TICKET_CMD="$mock_cmd" bash "$TARGET_SCRIPT" --dry-run 2>&1) || exit_code=$?
+    output=$(SKIP_TICKETS_BRANCH_CHECK=1 TICKET_CMD="$mock_cmd" bash "$TARGET_SCRIPT" --dry-run 2>&1) || exit_code=$?
 
     # Script must exit 0 for this test to be meaningful
     assert_eq "test_already_tagged_tickets_skipped: --dry-run exits 0" "0" "$exit_code"
@@ -219,7 +219,7 @@ MOCK_EOF
     _CLEANUP_DIRS+=("$mock_cmd")
 
     local output exit_code=0
-    output=$(TICKET_CMD="$mock_cmd" bash "$TARGET_SCRIPT" --dry-run --window-days 60 2>&1) || exit_code=$?
+    output=$(SKIP_TICKETS_BRANCH_CHECK=1 TICKET_CMD="$mock_cmd" bash "$TARGET_SCRIPT" --dry-run --window-days 60 2>&1) || exit_code=$?
 
     assert_eq "test_window_days_filters_old_tickets: exits 0" "0" "$exit_code"
     assert_contains "test_window_days_filters_old_tickets: recent ticket new1 mentioned" \

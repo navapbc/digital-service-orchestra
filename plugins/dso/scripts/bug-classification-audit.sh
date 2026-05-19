@@ -50,7 +50,7 @@ done
 
 # ── --check-tags mode ─────────────────────────────────────────────────────────
 if [[ "$CHECK_TAGS_MODE" -eq 1 ]]; then
-    REGISTRY_FILE="${REGISTRY_FILE:-${SCRIPT_DIR}/../docs/bug-classification-registry.json}"
+    REGISTRY_FILE="${REGISTRY_FILE:-${_PLUGIN_ROOT}/docs/bug-classification-registry.json}"
     TICKET_CMD="${TICKET_CMD:-$SCRIPT_DIR/ticket}"
 
     python3 - "$REGISTRY_FILE" "$TICKET_CMD" <<'PYEOF'

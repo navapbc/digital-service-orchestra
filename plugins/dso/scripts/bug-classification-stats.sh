@@ -20,10 +20,11 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_PLUGIN_ROOT="$SCRIPT_DIR/.."
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 TICKET_CMD="${TICKET_CMD:-$SCRIPT_DIR/ticket}"
-REGISTRY_FILE="${REGISTRY_FILE:-${SCRIPT_DIR}/../docs/bug-classification-registry.json}"
+REGISTRY_FILE="${REGISTRY_FILE:-${_PLUGIN_ROOT}/docs/bug-classification-registry.json}"
 
 # Default window-days: 60
 WINDOW_DAYS=60

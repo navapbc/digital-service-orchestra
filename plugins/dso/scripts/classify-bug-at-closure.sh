@@ -21,6 +21,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_PLUGIN_ROOT="$SCRIPT_DIR/.."
 
 # ── Arguments ─────────────────────────────────────────────────────────────────
 TICKET_ID="${1:-}"
@@ -33,7 +34,7 @@ fi
 
 # ── Environment defaults ──────────────────────────────────────────────────────
 TICKET_CMD="${TICKET_CMD:-"$SCRIPT_DIR/ticket"}"
-REGISTRY_FILE="${REGISTRY_FILE:-"$SCRIPT_DIR/../docs/bug-classification-registry.json"}"
+REGISTRY_FILE="${REGISTRY_FILE:-"$_PLUGIN_ROOT/docs/bug-classification-registry.json"}"
 
 # ── Skip condition ────────────────────────────────────────────────────────────
 # Only classify tickets closed with "Fixed:" prefix.
