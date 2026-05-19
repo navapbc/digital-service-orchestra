@@ -197,8 +197,7 @@ plugins/dso/scripts/create-sprint-draft-pr.sh:tests/scripts/test-create-sprint-d
 plugins/dso/scripts/design-approve.sh:tests/scripts/test-design-approve.sh
 plugins/dso/scripts/ci-review-corpus-delta.sh:tests/skills/dso_ci_review/test-ci-review-corpus-delta.sh
 plugins/dso/scripts/dso_ci_review/context_request.py:tests/skills/dso_ci_review/test_context_augmentation.py
-plugins/dso/scripts/dso_ci_review/cycle_ledger.py:tests/skills/dso_ci_review/test_cycle_ledger.py [test_read_ledger_returns_empty_when_file_absent],tests/scripts/test-cycle-ledger-migration.sh
-plugins/dso/scripts/dso_ci_review/cycle_ledger.py:tests/skills/dso_ci_review/test_cycle_ledger.py [test_read_ledger_returns_empty_when_file_absent],tests/scripts/test-cycle-ledger-migration.sh [test_cycle_ledger_migration_v11_to_v12],tests/perf/test-cycle-ledger-perf.py [test_append_cycle_no_regression,test_reconstruct_v11_no_regression,test_reconstruct_v12_no_regression]
+plugins/dso/scripts/dso_ci_review/cycle_ledger.py:tests/skills/dso_ci_review/test_cycle_ledger.py [test_read_ledger_returns_empty_when_file_absent],tests/scripts/test-cycle-ledger-migration.sh,tests/perf/test-cycle-ledger-perf.py [test_append_cycle_no_regression,test_reconstruct_v11_no_regression,test_reconstruct_v12_no_regression]
 plugins/dso/scripts/dso_ci_review/dispatch.py:tests/skills/dso_ci_review/test_dispatch_fallback.py,tests/skills/dso_ci_review/test_tier_wiring.py,tests/skills/dso_ci_review/test_context_augmentation.py,tests/skills/dso_ci_review/test_prompt_caching.py,tests/skills/dso_ci_review/test_integration_full_loop.py,tests/skills/dso_ci_review/test_dispatch_schema_correction.py
 plugins/dso/scripts/dso_ci_review/arbiter.py:tests/skills/dso_ci_review/test_arbiter.py [test_dispatch_arbiter_called_on_resustain_of_with_prior_defense],tests/scripts/test-cycle-arbiter.sh
 plugins/dso/scripts/dso_ci_review/cycle_dispatcher.py:tests/skills/dso_ci_review/test_cycle_dispatcher.py [test_dispatch_arbiter_when_cycle_num_reaches_max]
@@ -228,6 +227,7 @@ plugins/dso/scripts/flag-deprecation-check.sh:tests/scripts/test-flag-deprecatio
 plugins/dso/scripts/format-and-lint.sh:tests/scripts/test-residual-callers-polyglot.sh
 plugins/dso/scripts/fp-rate-tracker.sh:tests/scripts/test-fp-rate-tracker.sh,tests/scripts/test-fp-fallback-integration.sh
 plugins/dso/scripts/harvest-worktree.sh:tests/scripts/test-harvest-worktree.sh
+plugins/dso/scripts/lib/worktree-removal-guards.sh:tests/scripts/test-harvest-worktree-guards.sh [test_harvest_worktree_guards],tests/scripts/test-worktree-removal-guards.sh
 plugins/dso/scripts/implementation-plan/approach-cycle-state.sh:tests/scripts/test-implementation-plan-helpers.sh
 plugins/dso/scripts/implementation-plan/check-reinvocation.sh:tests/scripts/test-implementation-plan-helpers.sh
 plugins/dso/scripts/implementation-plan/check-tag-guards.sh:tests/scripts/test-implementation-plan-helpers.sh
@@ -453,7 +453,8 @@ plugins/dso/scripts/check-sprint-trailer.sh:tests/hooks/test-check-sprint-traile
 .pre-commit-config.yaml:tests/hooks/test-sprint-trailer-registration.sh
 plugins/dso/scripts/detect-session-leakage.sh:tests/scripts/test-detect-session-leakage.sh
 plugins/dso/scripts/sprint/compute-rereviewed-loc.sh:tests/scripts/test-compute-rereviewed-loc.sh
-plugins/dso/scripts/review-defense-store.sh:tests/review/test-defense-store-ticket-binding.sh,tests/review/test-defense-store-sha-range.sh,tests/review/test-defense-store-dropped-by-arbiter.sh [test_defense_store_drops_unknown_defense_type_gracefully],tests/review/test-arbiter-ruling-dispatch.sh [test_defer_ruling_creates_orphan_ticket]
+plugins/dso/scripts/review-defense-store.sh:tests/review/test-defense-store-ticket-binding.sh,tests/review/test-defense-store-sha-range.sh,tests/review/test-defense-store-dropped-by-arbiter.sh [test_defense_store_drops_unknown_defense_type_gracefully],tests/review/test-arbiter-ruling-dispatch.sh [test_defer_ruling_creates_orphan_ticket],tests/scripts/test-review-defense-store-pr-keyed.sh [test_review_defense_store_pr_keyed]
+plugins/dso/scripts/review-github-defense-store.sh:tests/scripts/test-review-github-defense-store-pr-keyed.sh [test_review_github_defense_store_pr_keyed]
 tests/review/test-defense-store-dropped-by-arbiter.sh:tests/review/test-defense-store-dropped-by-arbiter.sh [test_defense_store_drops_unknown_defense_type_gracefully]
 tests/review/test-arbiter-ruling-dispatch.sh:tests/review/test-arbiter-ruling-dispatch.sh [test_defer_ruling_creates_orphan_ticket]
 plugins/dso/scripts/check-unacked-degradations.sh:tests/scripts/test-check-unacked-degradations.sh
@@ -486,5 +487,4 @@ plugins/dso/scripts/bypass-log-check.sh:tests/scripts/test-bypass-log-enforcemen
 plugins/dso/scripts/dso_ci_review/local_workflow.py:tests/skills/dso_ci_review/test_local_workflow_ledger.py [test_local_workflow_reads_existing_ledger],tests/skills/dso_ci_review/test_local_workflow_loop.py [test_loop_dispatches_three_cycles_then_pass,test_loop_returns_pass_after_one_cycle_with_no_findings,test_loop_breaks_on_dispatch_arbiter_at_max_cycles,test_loop_short_circuits_pre_loop_with_prior_arbiter,test_loop_atomic_ledger_append_per_cycle],tests/skills/dso_ci_review/test_local_workflow_arbiter.py [test_local_arbiter_calls_process_rulings_with_pr_number_none_and_branch_name,test_local_arbiter_aligned_finding_map,test_local_defer_orphan_ticket_uses_branch_scope,test_local_drop_skips_pr_defense_store,test_local_arbiter_writes_sidecar_with_block_list,test_local_arbiter_block_exits_one,test_local_arbiter_no_block_exits_zero,test_local_arbiter_max_cycles_threading]
 plugins/dso/scripts/review-workflow.sh:tests/skills/dso_ci_review/test_local_workflow_ledger.py,tests/scripts/test-local-review-workflow-e2e.sh [test_e2e_three_cycles_then_arbiter_block,test_e2e_pass_branch_cycle_1,test_e2e_short_circuit_on_rerun_same_sha,test_e2e_max_cycles_arbiter,test_e2e_drop_writes_tracker_only]
 .github/workflows/review-sub-pr.yml:tests/workflows/test-review-sub-pr-trigger.sh
-plugins/dso/scripts/scan-red-markers.sh:tests/scripts/test-scan-red-markers.sh [test_scan_red_markers_unit_marker_present]
-plugins/dso/scripts/lib/worktree-removal-guards.sh:tests/scripts/test-worktree-removal-guards.sh
+plugins/dso/scripts/scan-red-markers.sh:tests/scripts/test-scan-red-markers.sh [test_scan_red_markers_unit_marker_present],tests/workflows/test-red-test-blocker-merged-tree-scan.sh [test_red_test_blocker_two_subpr],tests/scripts/test-scan-red-markers-vs-parse-test-index-parity.sh [test_scan_red_markers_grammar_parity]
