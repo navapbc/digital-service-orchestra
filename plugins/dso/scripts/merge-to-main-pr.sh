@@ -2028,6 +2028,303 @@ _phase_comment_response() {
 }
 
 # =============================================================================
+# S5: Pre-merge source-branch version bump and post-merge no-op detection
+#
+# _phase_source_branch_version_bump <story-id>
+#   Commits a version bump on the CURRENT (source/session) branch HEAD, before
+#   the branch is merged to main. The bump commit carries a DSO-Story-Merge:
+#   trailer for provenance tracing. After a successful commit, pushes to
+#   origin HEAD; push failure aborts the pipeline before merge begins.
+#
+# Design rationale: bumping on the source branch rather than post-merge main
+# ensures the version bump is visible in per-story PR history (SC4(b)), avoids
+# race conditions with concurrent merges, and simplifies post-merge
+# _phase_version_bump to a no-op check.
+#
+# bump-version.sh line-85 branch guard compatibility (AC AMENDMENT plan-review F1):
+#   The guard refuses to run on 'main'/'master' in the primary checkout unless
+#   DSO_MERGE_TO_MAIN_PHASE=version_bump is set. On a feature/session branch
+#   (worktree), the guard passes without that env var because git-dir != git-common-dir.
+#   DSO_MERGE_TO_MAIN_PHASE=version_bump is set here for consistency and to
+#   satisfy downstream signal consumers that inspect it. On source-branch
+#   execution the primary-checkout guard is never reached.
+#
+# See: S5.T2 (ticket 4e94-0452-7a6c-4e7e)
+# =============================================================================
+_phase_source_branch_version_bump() {
+    local _story_id="${1:-}"
+
+    # Resolve version file path: explicit env var overrides, then config.
+    local _vf="${VERSION_FILE_PATH:-}"
+    if [[ -z "$_vf" ]]; then
+        local _rc_sh="${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh"  # shim-exempt: internal plugin script
+        if [[ -f "$_rc_sh" ]]; then
+            _vf="$(bash "$_rc_sh" version.file_path 2>/dev/null || true)"
+        fi
+    fi
+    if [[ -z "$_vf" ]]; then
+        echo "INFO: _phase_source_branch_version_bump: version.file_path not configured — skipping."
+        return 0
+    fi
+    if [[ ! -f "$_vf" ]]; then
+        echo "INFO: _phase_source_branch_version_bump: version file '$_vf' not found — skipping."
+        return 0
+    fi
+
+    # Idempotency gate (AC AMENDMENT plan-review F2 + gap-F3):
+    # Use 'git diff --quiet -- "$_vf"' as the skip gate.
+    # If the version file is already modified on disk vs HEAD (e.g. from a
+    # prior interrupted attempt), skip bump-version.sh to avoid double-bump.
+    if ! git diff --quiet -- "$_vf" 2>/dev/null; then
+        echo "INFO: _phase_source_branch_version_bump: version file already modified (prior attempt) — skipping bump, proceeding to commit."
+    else
+        # Resolve bump-version.sh path.
+        local _bf="--${BUMP_TYPE:-patch}" _bs
+        _bs="$(command -v bump-version.sh 2>/dev/null || echo "${CLAUDE_PLUGIN_ROOT:-}/scripts/bump-version.sh")"
+        echo "INFO: _phase_source_branch_version_bump: bumping version ($_bf) on source branch..."
+        # DSO_MERGE_TO_MAIN_PHASE=version_bump: passes bump-version.sh branch guard
+        # when running on primary checkout (vestigial on worktree/feature branch but
+        # preserved for downstream signal consumers). See function header for details.
+        if ! DSO_MERGE_TO_MAIN_PHASE=version_bump bash "$_bs" "$_bf" 2>&1; then
+            echo "ERROR: _phase_source_branch_version_bump: bump-version.sh failed." >&2
+            return 1
+        fi
+    fi
+
+    # Stage the version file (and package-lock.json if applicable).
+    git add "$_vf" 2>/dev/null || git add -u 2>/dev/null || true
+    if [[ "${_vf}" == *"package.json" ]] && command -v npm >/dev/null 2>&1; then
+        local _pkg_dir
+        _pkg_dir="$(dirname "$_vf")"
+        (cd "$_pkg_dir" && npm install --package-lock-only --quiet 2>/dev/null) || true
+        git add "${_pkg_dir}/package-lock.json" 2>/dev/null || true
+    fi
+
+    # If nothing is staged, version file was already at the bumped value.
+    if git diff --cached --quiet 2>/dev/null; then
+        echo "INFO: _phase_source_branch_version_bump: nothing to commit — version already at bumped value."
+        return 0
+    fi
+
+    # Read new version for commit subject.
+    local _new_ver="unknown"
+    _new_ver="$(_VF="$_vf" python3 -c "
+import os, sys
+_f = os.environ.get('_VF', '')
+if not _f:
+    sys.exit(1)
+try:
+    import json
+    with open(_f) as fh:
+        d = json.load(fh)
+    v = d.get('version', '')
+    if v:
+        print(v); sys.exit(0)
+except Exception:
+    pass
+try:
+    content = open(_f).read().strip()
+    if content:
+        print(content); sys.exit(0)
+except Exception:
+    pass
+sys.exit(1)
+" 2>/dev/null || echo "unknown")"
+
+    # Build commit message with DSO-Story-Merge: trailer for provenance.
+    local _commit_msg
+    if [[ -n "$_story_id" ]]; then
+        _commit_msg="$(printf 'chore: bump version to v%s\n\nDSO-Story-Merge: %s' "$_new_ver" "$_story_id")"
+    else
+        _commit_msg="chore: bump version to v${_new_ver}"
+    fi
+
+    git commit -m "$_commit_msg" --quiet
+    echo "INFO: _phase_source_branch_version_bump: committed bump (v${_new_ver}) with DSO-Story-Merge trailer."
+
+    # Push to origin immediately after committing (AC AMENDMENT plan-review F3 + gap-F2).
+    # On failure (non-fast-forward, hook rejection, network error): log full stderr,
+    # mark state source_branch_version_bump=failed, and exit non-zero.
+    # Do NOT proceed to gh pr merge with an unpushed bump.
+    echo "INFO: _phase_source_branch_version_bump: pushing source branch..."
+    local _push_stderr_file
+    _push_stderr_file="$(mktemp /tmp/dso-src-bump-push.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -f '$_push_stderr_file'" RETURN
+    if ! git push origin HEAD 2>"$_push_stderr_file"; then
+        echo "ERROR: _phase_source_branch_version_bump: git push origin HEAD failed — aborting pipeline before merge." >&2
+        cat "$_push_stderr_file" >&2
+        rm -f "$_push_stderr_file"
+        # Mark state so --resume can detect the push failure.
+        if type _state_write_phase >/dev/null 2>&1; then
+            _state_write_phase "source_branch_version_bump" 2>/dev/null || true
+        fi
+        return 1
+    fi
+    rm -f "$_push_stderr_file"
+
+    echo "INFO: _phase_source_branch_version_bump: source branch pushed successfully."
+    # Record completion if state functions are available.
+    if type _state_mark_complete >/dev/null 2>&1; then
+        _state_mark_complete "source_branch_version_bump" 2>/dev/null || true
+    fi
+    return 0
+}
+
+# =============================================================================
+# _phase_version_bump (PR-mode definition for PR_LIB_MODE=1 and production)
+#
+# Extends the post-merge version bump with source-branch bump detection:
+# if the version file already changed between HEAD^1 and HEAD (the merge
+# commit), the pre-merge _phase_source_branch_version_bump ran successfully
+# — mark complete and return without re-bumping.
+#
+# Post-merge no-op detection (AC AMENDMENT plan-review F4):
+# Uses 'git diff --cached --quiet' as the final commit-skip gate (after
+# git add -u), covering all staged files (version file + package-lock.json).
+#
+# Forward-compat / pre-S5 state.json (gap-F6):
+# If state.json shows phase=version_bump (legacy post-merge name) and
+# 'version_bump' is in completed_phases, the resume-skip guard fires first
+# (version_bump in completed_phases → return early). Pre-S5 in-flight PRs
+# that have not yet reached the version_bump phase fall through to the
+# legacy post-merge bump path below with a deprecation log.
+#
+# Backward-compat (legacy post-merge bump):
+# If the source-branch bump did NOT run (old workflow or no version file),
+# HEAD^1..HEAD shows no version-file change → falls through to normal bump.
+#
+# Override note: In PR_LIB_MODE=1, direct.sh is not sourced, so this
+# definition is the only one available. In production top-level execution,
+# this definition is re-applied after sourcing direct.sh (see below the
+# library-mode guard) to preserve the override.
+# =============================================================================
+# shellcheck disable=SC2317
+_phase_version_bump() {
+    _CURRENT_PHASE="version_bump"
+    if type _state_write_phase >/dev/null 2>&1; then
+        _state_write_phase "version_bump" 2>/dev/null || true
+    fi
+
+    # Resolve version file path (needed for no-op detection before MAIN_REPO cd).
+    local _vf="${VERSION_FILE_PATH:-}"
+    if [[ -z "$_vf" ]]; then
+        local _rc_sh="${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh"  # shim-exempt: internal plugin script
+        if [[ -f "$_rc_sh" ]]; then
+            _vf="$(bash "$_rc_sh" version.file_path 2>/dev/null || true)"
+        fi
+    fi
+
+    # Source-branch bump detection (S5 no-op guard):
+    # Check if any commit in HEAD^1..HEAD that touched the version file carries a
+    # DSO-Story(-Merge)? trailer — the provenance signal written by
+    # _phase_source_branch_version_bump. If so, the pre-merge bump already landed
+    # in the merged history; skip re-bumping to prevent double-bump.
+    #
+    # Using 'git log HEAD^1..HEAD --format=%B -- "$_vf"' (bodies of commits in
+    # the merged range that touched the version file) and grep for the trailer
+    # is more precise than 'git diff HEAD^1 -- "$_vf"' alone, which would
+    # false-positive on initial version-file additions from feature branches.
+    if [[ -n "$_vf" && -f "$_vf" ]]; then
+        if git log "HEAD^1..HEAD" --format="%B" -- "$_vf" 2>/dev/null \
+               | grep -qE '^DSO-Story(-Merge)?:[[:space:]]'; then
+            echo "INFO: post-merge version_bump: source-branch bump detected on merged commit — phase no-op."
+            if type _state_mark_complete >/dev/null 2>&1; then
+                _state_mark_complete "version_bump" 2>/dev/null || true
+            fi
+            return 0
+        fi
+    fi
+
+    # No source-branch bump detected — fall through to legacy post-merge bump.
+    # Resume-skip check (mirrors direct.sh's guard; needed when running in
+    # PR_LIB_MODE where direct.sh is not sourced).
+    if [[ "${_CLI_RESUME:-false}" == "true" ]] || [[ "${DSO_MERGE_RESUMING:-0}" == "1" ]]; then
+        local _state_file
+        if type _state_file_path >/dev/null 2>&1; then
+            _state_file="$(_state_file_path 2>/dev/null || true)"
+            if [[ -n "$_state_file" && -f "$_state_file" ]] && \
+               [[ "$(python3 -c "import json,sys
+try:
+    d=json.load(open('$_state_file'))
+    print('y' if 'version_bump' in d.get('completed_phases',[]) else 'n')
+except Exception:
+    print('n')" 2>/dev/null)" == "y" ]]; then
+                echo "INFO: version_bump already completed (resume skip)."
+                return 0
+            fi
+        fi
+    fi
+
+    # Deprecation note: legacy post-merge bump path, preserved for backward-compat
+    # with workflows that do not run _phase_source_branch_version_bump.
+    # (gap-F6: pre-S5 state.json falling through here is expected and handled.)
+    echo "INFO: post-merge version_bump: no source-branch bump detected — running legacy post-merge bump (deprecated in S5)."
+
+    # Ensure CWD is MAIN_REPO for git operations (mirrors direct.sh behavior).
+    if [[ -n "${MAIN_REPO:-}" ]]; then
+        cd "$MAIN_REPO" 2>/dev/null || true
+    fi
+
+    if [[ -z "${BUMP_TYPE:-}" ]]; then
+        if [[ -n "$_vf" ]]; then
+            BUMP_TYPE="patch"
+            echo "INFO: --bump not specified — defaulting to patch (version.file_path configured)."
+        else
+            echo "INFO: --bump not specified and version.file_path not configured -- skipping version bump."
+            if type _state_mark_complete >/dev/null 2>&1; then _state_mark_complete "version_bump"; fi
+            return 0
+        fi
+    fi
+    if [[ "${VERSION_FILE_PATH+SET}" == "SET" && -z "${VERSION_FILE_PATH:-}" ]]; then
+        echo "INFO: version.file_path not configured -- skipping version bump."
+        if type _state_mark_complete >/dev/null 2>&1; then _state_mark_complete "version_bump"; fi
+        return 0
+    fi
+
+    local _bf="--${BUMP_TYPE:-patch}" _bs
+    _bs="$(command -v bump-version.sh 2>/dev/null || echo "${_SCRIPT_DIR:-${CLAUDE_PLUGIN_ROOT:-}/scripts}/bump-version.sh")"
+    # Idempotency guard: version file already bumped from a prior interrupted attempt.
+    if [[ -n "$_vf" && -f "$_vf" ]] && ! git diff --quiet -- "$_vf" 2>/dev/null; then
+        echo "INFO: version file already bumped (prior attempt) — skipping bump-version.sh."
+    else
+        echo "Bumping version ($_bf)..."
+        if ! DSO_MERGE_TO_MAIN_PHASE=version_bump bash "$_bs" "$_bf" 2>&1; then
+            echo "ERROR: bump-version.sh failed. Fix version file before pushing."
+            exit 1
+        fi
+    fi
+    echo "OK: Version bumped."
+    # Sync package-lock.json if version file is package.json.
+    if [[ "${_vf}" == *"package.json" ]] && command -v npm >/dev/null 2>&1; then
+        local _pkg_dir
+        _pkg_dir="$(dirname "$_vf")"
+        echo "version_bump: running npm install --package-lock-only to sync package-lock.json"
+        (cd "$_pkg_dir" && npm install --package-lock-only --quiet 2>/dev/null) || \
+            echo "WARNING: npm install --package-lock-only failed — package-lock.json may be out of sync"
+    fi
+    git add -u 2>/dev/null || true
+    # Final commit-skip gate (AC AMENDMENT plan-review F4): git diff --cached --quiet
+    # covers all staged files (version file + package-lock.json) together.
+    if ! git diff --cached --quiet 2>/dev/null; then
+        if [[ "${DSO_WORKFLOW:-local}" == "ci-pr" ]]; then
+            local _new_ver="unknown"
+            if [[ -n "${_vf}" ]]; then
+                _new_ver="$(_VF="$_vf" python3 -c "import json,sys,os;_f=open(os.environ['_VF']);d=json.load(_f);_f.close();v=d.get('version','');sys.exit(1) if not v else print(v)" 2>/dev/null || echo "unknown")"
+            fi
+            git commit -m "chore: bump version to v${_new_ver}" --quiet
+            echo "OK: Version bump committed (v${_new_ver})."
+        else
+            DSO_MECHANICAL_AMEND=1 git commit --amend --no-edit --quiet
+            echo "OK: Folded version bump into merge commit."
+        fi
+    fi
+    if type _state_mark_complete >/dev/null 2>&1; then
+        _state_mark_complete "version_bump"
+    fi
+}
+
+# =============================================================================
 # Library-mode guard: when sourced with PR_LIB_MODE=1, skip all top-level
 # execution. Used by tests to load function definitions without running the
 # phase pipeline.
@@ -2262,6 +2559,130 @@ export _CFG_TKDIR
 # shellcheck source=./merge-to-main-direct.sh disable=SC1091
 MERGE_TO_MAIN_DIRECT_LIB=1 source "$_DIRECT_SH"
 
+# Re-apply the S5 _phase_version_bump override: direct.sh's sourcing above
+# would overwrite the PR-mode definition (with source-branch bump detection)
+# that was defined in the pr.sh library section. Re-define here so the
+# production top-level execution uses the S5-aware version.
+# The library-section definition and this one are intentionally identical
+# in semantics; the duplication is structural (bash function override after source).
+# shellcheck disable=SC2317
+_phase_version_bump() {
+    _CURRENT_PHASE="version_bump"
+    if type _state_write_phase >/dev/null 2>&1; then
+        _state_write_phase "version_bump" 2>/dev/null || true
+    fi
+
+    # Resolve version file path.
+    local _vf="${VERSION_FILE_PATH:-}"
+    if [[ -z "$_vf" ]]; then
+        local _rc_sh="${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh"  # shim-exempt: internal plugin script
+        if [[ -f "$_rc_sh" ]]; then
+            _vf="$(bash "$_rc_sh" version.file_path 2>/dev/null || true)"
+        fi
+    fi
+
+    # Source-branch bump detection (S5 no-op guard, AC AMENDMENT plan-review F4):
+    # Check if any commit in HEAD^1..HEAD that touched the version file carries a
+    # DSO-Story(-Merge)? trailer — the provenance signal written by
+    # _phase_source_branch_version_bump. More precise than 'git diff HEAD^1 --'
+    # alone (avoids false-positive on initial version-file additions).
+    if [[ -n "$_vf" ]]; then
+        # Ensure we are in MAIN_REPO for git operations.
+        if [[ -n "${MAIN_REPO:-}" ]]; then
+            cd "$MAIN_REPO" 2>/dev/null || true
+        fi
+        if [[ -f "$_vf" ]]; then
+            if git log "HEAD^1..HEAD" --format="%B" -- "$_vf" 2>/dev/null \
+                   | grep -qE '^DSO-Story(-Merge)?:[[:space:]]'; then
+                echo "INFO: post-merge version_bump: source-branch bump detected on merged commit — phase no-op."
+                if type _state_mark_complete >/dev/null 2>&1; then
+                    _state_mark_complete "version_bump" 2>/dev/null || true
+                fi
+                return 0
+            fi
+        fi
+    fi
+
+    # No source-branch bump detected — delegate to direct.sh's bump logic.
+    # Invoke the direct.sh implementation directly so MAIN_REPO / state wiring
+    # works correctly. We can't call the original _phase_version_bump (it was
+    # overridden above), so inline the delegation here via a sourced re-call.
+    # Use DSO_MERGE_TO_MAIN_PHASE signal for downstream consumers.
+    if [[ "${_CLI_RESUME:-false}" == "true" ]] || [[ "${DSO_MERGE_RESUMING:-0}" == "1" ]]; then
+        local _state_file
+        if type _state_file_path >/dev/null 2>&1; then
+            _state_file="$(_state_file_path 2>/dev/null || true)"
+            if [[ -n "$_state_file" && -f "$_state_file" ]] && \
+               [[ "$(python3 -c "import json,sys
+try:
+    d=json.load(open('$_state_file'))
+    print('y' if 'version_bump' in d.get('completed_phases',[]) else 'n')
+except Exception:
+    print('n')" 2>/dev/null)" == "y" ]]; then
+                echo "INFO: version_bump already completed (resume skip)."
+                return 0
+            fi
+        fi
+    fi
+
+    echo "INFO: post-merge version_bump: no source-branch bump detected — running legacy post-merge bump (deprecated in S5)."
+
+    if [[ -n "${MAIN_REPO:-}" ]]; then
+        cd "$MAIN_REPO" 2>/dev/null || true
+    fi
+    if [[ -z "${BUMP_TYPE:-}" ]]; then
+        if [[ -n "$_vf" ]]; then
+            BUMP_TYPE="patch"
+            echo "INFO: --bump not specified — defaulting to patch (version.file_path configured)."
+        else
+            echo "INFO: --bump not specified and version.file_path not configured -- skipping version bump."
+            if type _state_mark_complete >/dev/null 2>&1; then _state_mark_complete "version_bump"; fi
+            return 0
+        fi
+    fi
+    if [[ "${VERSION_FILE_PATH+SET}" == "SET" && -z "${VERSION_FILE_PATH:-}" ]]; then
+        echo "INFO: version.file_path not configured -- skipping version bump."
+        if type _state_mark_complete >/dev/null 2>&1; then _state_mark_complete "version_bump"; fi
+        return 0
+    fi
+    local _bf="--${BUMP_TYPE:-patch}" _bs
+    _bs="$(command -v bump-version.sh 2>/dev/null || echo "${_SCRIPT_DIR:-${CLAUDE_PLUGIN_ROOT:-}/scripts}/bump-version.sh")"
+    if [[ -n "$_vf" && -f "$_vf" ]] && ! git diff --quiet -- "$_vf" 2>/dev/null; then
+        echo "INFO: version file already bumped (prior attempt) — skipping bump-version.sh."
+    else
+        echo "Bumping version ($_bf)..."
+        if ! DSO_MERGE_TO_MAIN_PHASE=version_bump bash "$_bs" "$_bf" 2>&1; then
+            echo "ERROR: bump-version.sh failed. Fix version file before pushing."
+            exit 1
+        fi
+    fi
+    echo "OK: Version bumped."
+    if [[ "${_vf}" == *"package.json" ]] && command -v npm >/dev/null 2>&1; then
+        local _pkg_dir; _pkg_dir="$(dirname "$_vf")"
+        echo "version_bump: running npm install --package-lock-only to sync package-lock.json"
+        (cd "$_pkg_dir" && npm install --package-lock-only --quiet 2>/dev/null) || \
+            echo "WARNING: npm install --package-lock-only failed — package-lock.json may be out of sync"
+    fi
+    git add -u 2>/dev/null || true
+    # Final commit-skip gate (AC AMENDMENT plan-review F4).
+    if ! git diff --cached --quiet 2>/dev/null; then
+        if [[ "${DSO_WORKFLOW:-local}" == "ci-pr" ]]; then
+            local _new_ver="unknown"
+            if [[ -n "${_vf}" ]]; then
+                _new_ver="$(_VF="$_vf" python3 -c "import json,sys,os;_f=open(os.environ['_VF']);d=json.load(_f);_f.close();v=d.get('version','');sys.exit(1) if not v else print(v)" 2>/dev/null || echo "unknown")"
+            fi
+            git commit -m "chore: bump version to v${_new_ver}" --quiet
+            echo "OK: Version bump committed (v${_new_ver})."
+        else
+            DSO_MECHANICAL_AMEND=1 git commit --amend --no-edit --quiet
+            echo "OK: Folded version bump into merge commit."
+        fi
+    fi
+    if type _state_mark_complete >/dev/null 2>&1; then
+        _state_mark_complete "version_bump"
+    fi
+}
+
 # Propagate resume context into direct.sh phase functions (bug cb31-3552).
 # _phase_version_bump's resume-skip guard reads DSO_MERGE_RESUMING (the
 # library-mode equivalent of direct.sh's _CLI_RESUME local). Without this,
@@ -2317,10 +2738,22 @@ fi
 # orphan (1.17.6 → 1.17.7 → 1.17.8 …). _try_reset_stale_version_bump is
 # conservative: it only resets when the SOLE divergent file is the configured
 # version file. Any other divergent file is a no-op so real work is preserved.
-(
-    cd "$MAIN_REPO" 2>/dev/null || exit 0
-    _try_reset_stale_version_bump || true
-) 2>&1 || true
+#
+# AC AMENDMENT gap-F4: _try_reset_stale_version_bump is legacy-direct-mode-only.
+# In PR mode (MERGE_STRATEGY=pr), the source-branch bump phase (_phase_source_branch_version_bump)
+# lands the bump on the source branch before the PR is created. After the PR
+# is merged, the post-merge _phase_version_bump is a no-op (source-branch bump
+# detection fires). There are no orphan version-bump commits on local main in
+# PR mode because _phase_version_bump never commits to main in this path.
+# This guard documents and enforces that semantic.
+if [[ "${MERGE_STRATEGY:-}" != "pr" ]]; then
+    (
+        cd "$MAIN_REPO" 2>/dev/null || exit 0
+        _try_reset_stale_version_bump || true
+    ) 2>&1 || true
+else
+    echo "INFO: _try_reset_stale_version_bump skipped in PR mode (legacy-direct-mode-only; see AC AMENDMENT gap-F4)." >&2
+fi
 
 _phase_version_bump
 # REVIEW-DEFENSE (PR #111 important): _phase_push is called exactly once here.
