@@ -9,6 +9,7 @@ the front of sys.path so that ``from dso_ci_review.providers.config import
 """
 
 import json
+import os
 import pathlib
 import sys
 
@@ -16,6 +17,15 @@ import pytest
 
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 _SCRIPTS_DIR = str(_REPO_ROOT / "plugins" / "dso" / "scripts")
+
+# Ensure PYTHONPATH includes _SCRIPTS_DIR at the front so that spawned
+# sub-processes (multiprocessing 'spawn' start method on macOS) also resolve
+# dso_ci_review from the plugin scripts, not the test package.
+_existing_pythonpath = os.environ.get("PYTHONPATH", "")
+if _SCRIPTS_DIR not in _existing_pythonpath.split(os.pathsep):
+    os.environ["PYTHONPATH"] = (
+        _SCRIPTS_DIR + (os.pathsep + _existing_pythonpath if _existing_pythonpath else "")
+    )
 
 
 def _ensure_plugin_package() -> None:
@@ -79,19 +89,56 @@ def _ensure_plugin_package() -> None:
     _load_from_plugin("proximity")
     _load_from_plugin("speculation_markers")
     _load_from_plugin("region_split")
-    _load_from_plugin("runner")
-    _load_from_plugin("arbiter")
-    _load_from_plugin("arbiter_processor")
-    _load_from_plugin("verifier")
+    # cycle_ledger, stability, and cycle_dispatcher must load before runner
+    # because runner now imports them at module level (task ba75-1ba2).
     _load_from_plugin("cycle_ledger")
     _load_from_plugin("stability")
     _load_from_plugin("cycle_dispatcher")
+    # arbiter and arbiter_processor must load before runner because runner
+    # now imports them at module level (task 7626-2e24-faa9-4688).
+    _load_from_plugin("arbiter")
+    _load_from_plugin("arbiter_processor")
+    _load_from_plugin("local_workflow")
+    _load_from_plugin("runner")
+    _load_from_plugin("verifier")
 
 
 _ensure_plugin_package()
 
 REPO_ROOT = pathlib.Path(__file__).parents[3]
 FIXTURE_DIR = REPO_ROOT / "tests" / "fixtures" / "ci-review-corpus"
+
+
+@pytest.fixture(autouse=True)
+def _isolate_cycle_ledger_artifacts(tmp_path_factory, monkeypatch):
+    """Isolate WORKFLOW_PLUGIN_ARTIFACTS_DIR per test so cycle-ledger state
+    does not leak across tests.
+
+    Without this, runner.main() resolves artifacts_dir to the global
+    /tmp/workflow-plugin-<hash>/ directory, and cycle-ledger.json accumulates
+    cycles across test invocations. Tests that expect cycle_num=1 (default)
+    see cycle_num=N where N is the number of prior test invocations, which
+    triggers the cycle>=2 novelty gate / DISPATCH_ARBITER paths and breaks
+    severity-gate assertions.
+
+    The autouse fixture creates a unique tmp subdirectory per test and
+    points WORKFLOW_PLUGIN_ARTIFACTS_DIR at it for the test's duration.
+    Tests that explicitly set their own WORKFLOW_PLUGIN_ARTIFACTS_DIR (e.g.
+    via _run_main_with) still win because their patch.dict applies inside
+    the test body, overriding this autouse fixture's setting.
+
+    Additionally stubs runner.cycle_next_action to return DISPATCH_NEXT by
+    default. Tests exercising arbiter / SHORT_CIRCUIT / PASS branches must
+    override this stub explicitly with their own patch. Without the stub,
+    the runner's post-Step-8a cycle_next_action call (which sees the
+    just-appended cycle in the ledger) may return DISPATCH_ARBITER and
+    trigger a real LLM call via dispatch_cycle_end_arbiter, which fails
+    auth with the test-stub API key and propagates a ValueError when the
+    empty rulings list is validated.
+    """
+    isolated = tmp_path_factory.mktemp("artifacts")
+    monkeypatch.setenv("WORKFLOW_PLUGIN_ARTIFACTS_DIR", str(isolated))
+
 
 
 @pytest.fixture()
@@ -107,6 +154,8 @@ def pytest_configure(config):
             "markers",
             "integration: mark test as a live-provider integration test (skipped without API keys)",
         )
+
+
 
 
 @pytest.fixture()

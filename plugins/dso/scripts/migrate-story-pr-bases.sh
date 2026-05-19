@@ -7,9 +7,8 @@
 #   1. Resolve the session branch via resolve-session-branch.sh (or DSO_RESOLVE_SESSION_BRANCH env var override)
 #   2. List story/* PRs currently targeting main
 #   3. For each such PR, PATCH its base to the session branch
-#   4. Trigger per-branch-review.yml workflow run for each migrated PR
-#   5. Note TrackerDefenseStore cache invalidation for each migrated PR
-#   6. Skip PRs already targeting the session branch (idempotent)
+#   4. Note TrackerDefenseStore cache invalidation for each migrated PR
+#   5. Skip PRs already targeting the session branch (idempotent)
 #
 # Environment variables:
 #   DSO_RESOLVE_SESSION_BRANCH  Path to resolve-session-branch.sh override (for test isolation)
@@ -101,9 +100,7 @@ while IFS=$'\t' read -r pr_number head_ref base_ref; do
     gh api --method PATCH "repos/${_repo}/pulls/${pr_number}" \
         -f base="${session_branch}" > /dev/null
 
-    # Trigger per-branch-review workflow for the migrated PR
-    gh workflow run per-branch-review.yml --ref "${head_ref}"
-
-    # Note cache invalidation
-    echo "NOTE: TrackerDefenseStore entries for PR #${pr_number} were written against base=main and are no longer valid. A fresh per-branch-review run has been triggered."
+    # Note cache invalidation (per-branch-review.yml was removed in story 20d7-09d6;
+    # ci.yml llm-review fires automatically when the PR targets main)
+    echo "NOTE: TrackerDefenseStore entries for PR #${pr_number} were written against base=main and are no longer valid."
 done <<< "$_pr_lines"
