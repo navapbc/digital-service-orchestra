@@ -730,4 +730,56 @@ test_resume_skips_already_processed() {
 test_resume_skips_already_processed
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Test 16: Post-migration tickets satisfy completion-verifier Step 2.5 logic
+# (structural proxy: verifier reads ## Closure Checks from compiled description)
+# ═══════════════════════════════════════════════════════════════════════════════
+echo "Test 16: post-migration tickets pass completion-verifier Step 2.5 structural check"
+test_post_migration_passes_verifier_step2_5() {
+    _snapshot_fail
+
+    if [ ! -f "$MIGRATE_SCRIPT" ]; then
+        assert_eq "migrate script exists (prereq)" "exists" "missing"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+    _setup_mixed_fixture "$repo/.tickets-tracker"
+
+    # Run migration
+    bash "$MIGRATE_SCRIPT" --target "$repo" >/dev/null 2>&1 || true
+
+    # Structural proxy for completion-verifier Step 2.5:
+    # The verifier reads ## Closure Checks from the compiled ticket description.
+    # After migration, every epic/story that lacked the section should now have it.
+    # Verify for each ticket that was missing the section (the three in the fixture).
+    local all_pass=1
+    for ticket_id in epic-no-closure-01 epic-no-closure-02 story-no-closure-01; do
+        local desc
+        desc=$(_get_ticket_description "$repo" "$ticket_id")
+        # Replicate verifier Step 2.5: find "## Closure Checks" heading in description
+        local verifier_result
+        verifier_result=$(python3 -c "
+import sys
+desc = sys.argv[1]
+CLOSURE_HEADING = '## Closure Checks'
+found = CLOSURE_HEADING in desc
+print('PASS' if found else 'FAIL')
+" "$desc" 2>/dev/null || echo "FAIL")
+        assert_eq "verifier Step 2.5 passes for $ticket_id post-migration" "PASS" "$verifier_result"
+        [ "$verifier_result" != "PASS" ] && all_pass=0
+    done
+
+    # Also verify the already-migrated ticket was not double-migrated (verifier sees exactly 1 section)
+    local desc_has
+    desc_has=$(_get_ticket_description "$repo" "epic-has-closure-01")
+    local section_count
+    section_count=$(_count_closure_checks_sections "$desc_has")
+    assert_eq "verifier Step 2.5: already-migrated ticket has exactly 1 section (no double-migration)" "1" "$section_count"
+
+    assert_pass_if_clean "test_post_migration_passes_verifier_step2_5"
+}
+test_post_migration_passes_verifier_step2_5
+
+# ═══════════════════════════════════════════════════════════════════════════════
 print_summary
