@@ -53,8 +53,20 @@ if [[ "$key" == "dso.workflow" ]]; then
     [[ -n "$_canonical" ]] && { printf '%s\n' "$_canonical"; exit 0; }
     _merge=$(grep -m1 "^merge\.strategy=" "$_wf_config" 2>/dev/null | cut -d= -f2-)
     _enforce=$(grep -m1 "^enforcement\.strategy=" "$_wf_config" 2>/dev/null | cut -d= -f2-)
-    [[ -z "${DSO_DEPRECATION_QUIET:-}" ]] && echo "DSO deprecation: merge.strategy/enforcement.strategy are deprecated. Set dso.workflow=ci-pr|local" >&2
-    [[ "$_merge" == "pr" && "$_enforce" == "ci" ]] && printf '%s' "ci-pr" || printf '%s' "local"
+    # Only emit the legacy-deprecation message when at least one legacy key is
+    # actually present; otherwise the user has no legacy keys to deprecate.
+    if [[ -n "$_merge" || -n "$_enforce" ]]; then
+        [[ -z "${DSO_DEPRECATION_QUIET:-}" ]] && echo "DSO deprecation: merge.strategy/enforcement.strategy are deprecated. Set dso.workflow=ci-pr|local" >&2
+    fi
+    if [[ "$_merge" == "pr" && "$_enforce" == "ci" ]]; then
+        printf '%s' "ci-pr"
+    else
+        # Bug f6fd-af80-9b13-4649: when the canonical key is missing AND the
+        # legacy keys are absent or do not match the required pair, emit a
+        # loud warning so callers can diagnose which fallback was taken.
+        [[ -z "${DSO_DEPRECATION_QUIET:-}" ]] && echo "DSO WARNING: dso.workflow could not be resolved from $_wf_config (canonical key missing, legacy keys absent or incomplete); defaulting to 'local'" >&2
+        printf '%s' "local"
+    fi
     exit 0
 fi
 
