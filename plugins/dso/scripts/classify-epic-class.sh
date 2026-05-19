@@ -38,9 +38,13 @@ done
 
 # ── Read epic JSON ────────────────────────────────────────────────────────────
 if [[ -n "$TICKET_ID" ]]; then
-    # Resolve REPO_ROOT from the script's location to find the dso shim
-    _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    _REPO_ROOT="$(cd "$_SCRIPT_DIR/../../.." && pwd)"
+    # Prefer CLAUDE_PLUGIN_ROOT (set by the plugin loader); fall back to git rev-parse
+    # when invoked outside the loader. Avoid hard-coded relative walks.
+    if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
+        _REPO_ROOT="$(cd "$CLAUDE_PLUGIN_ROOT/../.." && pwd 2>/dev/null || echo "")"
+    else
+        _REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo "")"
+    fi
     epic_json=$("$_REPO_ROOT/.claude/scripts/dso" ticket show "$TICKET_ID" 2>/dev/null) || epic_json="{}"
 else
     epic_json=$(cat)

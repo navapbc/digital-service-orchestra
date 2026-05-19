@@ -110,7 +110,16 @@ assert_eq "post-bash exits 0 for test command (non-blocking)" "0" "$_exit_code"
 # Behavioral: pre-edit still works without validation_gate
 # ============================================================
 echo "--- test_pre_edit_still_allows_normal_edits ---"
-_INPUT='{"tool_name":"Edit","tool_input":{"file_path":"'"$REPO_ROOT"'/app/src/some_module.py","old_string":"old","new_string":"new"}}'
+# Out-of-repo file_path so this assertion stays focused on validation_gate removal
+# and is unaffected by hook_no_edit_on_main (which targets in-repo edits on main).
+# Use mktemp per CLAUDE.md rule 15 to avoid cross-session path collisions.
+# Pre-declare both paths so the EXIT trap is safe under `set -u` (line 15) regardless
+# of which mktemp succeeds before an early exit.
+_EDIT_PATH=""
+_WRITE_PATH=""
+trap 'rm -f "$_EDIT_PATH" "$_WRITE_PATH"' EXIT
+_EDIT_PATH=$(mktemp /tmp/dso-test-edit.XXXXXX)
+_INPUT='{"tool_name":"Edit","tool_input":{"file_path":"'"$_EDIT_PATH"'","old_string":"old","new_string":"new"}}'
 _exit_code=0
 printf '%s' "$_INPUT" | bash "$DISPATCHERS_DIR/pre-edit.sh" 2>/dev/null || _exit_code=$?
 assert_eq "pre-edit allows normal edits without validation_gate" "0" "$_exit_code"
@@ -119,7 +128,8 @@ assert_eq "pre-edit allows normal edits without validation_gate" "0" "$_exit_cod
 # Behavioral: pre-write still works without validation_gate
 # ============================================================
 echo "--- test_pre_write_still_allows_normal_writes ---"
-_INPUT='{"tool_name":"Write","tool_input":{"file_path":"'"$REPO_ROOT"'/app/src/output.py","content":"print(\"hello\")"}}'
+_WRITE_PATH=$(mktemp /tmp/dso-test-write.XXXXXX)
+_INPUT='{"tool_name":"Write","tool_input":{"file_path":"'"$_WRITE_PATH"'","content":"print(\"hello\")"}}'
 _exit_code=0
 printf '%s' "$_INPUT" | bash "$DISPATCHERS_DIR/pre-write.sh" 2>/dev/null || _exit_code=$?
 assert_eq "pre-write allows normal writes without validation_gate" "0" "$_exit_code"

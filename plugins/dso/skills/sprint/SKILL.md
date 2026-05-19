@@ -1285,7 +1285,7 @@ Before dispatching a story sub-agent, check predecessor verdict when applicable:
 
 ```bash
 if [[ -n "$_PREDECESSOR_STORY_ID" ]]; then
-    bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-story-handoff.sh" \
+    bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-story-handoff.sh" \  # shim-exempt: internal orchestration script
         --predecessor-story-id="$_PREDECESSOR_STORY_ID"
     _HANDOFF_RC=$?
     if [[ $_HANDOFF_RC -ne 0 ]]; then
@@ -2280,7 +2280,7 @@ After receiving the verifier JSON output, render the closure narrative FIRST, th
 VERIFIER_JSON_PATH=$(mktemp /tmp/verifier-output.XXXXXX)
 # <write verifier JSON to $VERIFIER_JSON_PATH>
 # Render deterministic closure narrative — use this output verbatim in any closure summary; do NOT paraphrase or summarize LLM-style
-CLOSURE_NARRATIVE=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/render-closure-narrative.sh" "$VERIFIER_JSON_PATH")
+CLOSURE_NARRATIVE=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/render-closure-narrative.sh" "$VERIFIER_JSON_PATH")  # shim-exempt: internal orchestration script
 echo "Closure narrative: $CLOSURE_NARRATIVE"
 ```
 
@@ -2288,7 +2288,7 @@ echo "Closure narrative: $CLOSURE_NARRATIVE"
 <!-- Consumer migrated to schema_version=2 P1 typed-enum field (S1b). Backward-compat for schema_version<2 payloads is handled inside check-verifier-verdict.sh (falls back to overall_verdict with a deprecation warning). -->
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-verifier-verdict.sh" "$VERIFIER_JSON_PATH"
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-verifier-verdict.sh" "$VERIFIER_JSON_PATH"  # shim-exempt: internal orchestration script
 ```
 
 - Exit 0 (`P1=PASS`): continue to story closure
@@ -2298,7 +2298,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-verifier-verdict.sh" "$VERIFIER_JSON_P
 **Gate 2: Manifest completeness check**
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-manifest-completeness.sh" "$VERIFIER_JSON_PATH"
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-manifest-completeness.sh" "$VERIFIER_JSON_PATH"  # shim-exempt: internal orchestration script
 ```
 
 - Exit 0 (complete): continue
@@ -2415,7 +2415,7 @@ rm -f "$(git rev-parse --show-toplevel)/.sprint-active"
 ```
 Overrides without a complete `bypass_log` (both `rationale` and `caller_context` required) are a hard error. Validate with:
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/bypass-log-check.sh" --artifact-file="<artifact-bundle-path>"
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/bypass-log-check.sh" --artifact-file="<artifact-bundle-path>"  # shim-exempt: internal orchestration script
 ```
 
 Phase I delegates to `/dso:end-session`, which handles closing issues, committing, running `merge-to-main.sh`, and reporting.
