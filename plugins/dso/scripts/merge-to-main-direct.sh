@@ -649,6 +649,21 @@ except Exception:
             return 0
         fi
     fi
+    # Idempotency guard for PR mode (bugs b6e3-e771 + bbba-123d): if the
+    # version bump has already landed in the merged history (committed on the
+    # session branch by _phase_source_branch_version_bump before push, then
+    # squash-merged to main), HEAD's subject will be `chore: bump version to v...`.
+    # Detect that and exit early so the post-merge call here does not double-bump.
+    # This guard is safe in direct mode too: direct mode amends the bump into
+    # the merge commit so HEAD's subject is the merge subject, not the bump
+    # subject — the regex won't match and the function proceeds normally.
+    local _head_subject_for_bump_check
+    _head_subject_for_bump_check=$(git log -1 --pretty=%s 2>/dev/null || true)
+    if [[ "$_head_subject_for_bump_check" =~ ^chore:\ bump\ version\ to\ v ]]; then
+        echo "INFO: HEAD is already a version-bump commit ('${_head_subject_for_bump_check}') — skipping post-merge version_bump (bump already in history)."
+        _state_mark_complete "version_bump"
+        return 0
+    fi
     if [[ -z "${BUMP_TYPE:-}" ]]; then
         # Default to patch when version.file_path is configured (fb93-69da).
         # This eliminates the fragile multi-hop --bump relay chain:

@@ -19,7 +19,6 @@
 #   test_non_allowlisted_with_valid_review_passes
 #   test_blocked_error_message_names_files
 #   test_blocked_error_message_directs_to_commit_or_review
-#   test_hook_reads_from_shared_allowlist
 #
 # NOTE: Merge-state tests (MERGE_HEAD, REBASE_HEAD) have been removed from this
 # consumer file. Coverage is now provided by:
@@ -273,22 +272,11 @@ test_blocked_error_message_directs_to_commit_or_review() {
     assert_eq "test_blocked_error_message_directs_to_commit_or_review" "1" "$found_directive"
 }
 
-# ============================================================
-# test_hook_reads_from_shared_allowlist
-#
-# The hook script must reference review-gate-allowlist.conf — verified
-# by grep (the hook must read from the shared allowlist file, not have
-# hardcoded patterns).
-# ============================================================
-test_hook_reads_from_shared_allowlist() {
-    local found
-    found=$(grep -c 'review-gate-allowlist.conf' "$HOOK" 2>/dev/null || echo "0")
-    if [[ "$found" -gt 0 ]]; then
-        assert_eq "test_hook_reads_from_shared_allowlist" "true" "true"
-    else
-        assert_eq "test_hook_reads_from_shared_allowlist" "true" "false"
-    fi
-}
+# Deleted: test_hook_reads_from_shared_allowlist — self-referential change
+# detector that grepped the hook source for the literal config filename.
+# The behavioral consequence (allowlist patterns are honored) is covered
+# by the test-review-gate-allowlist.sh content-pattern tests + downstream
+# integration tests that exercise the hook with sample inputs.
 
 # ============================================================
 # test_formatting_only_drift_self_heals
@@ -559,7 +547,6 @@ test_non_allowlisted_without_review_is_blocked
 test_non_allowlisted_with_valid_review_passes
 test_blocked_error_message_names_files
 test_blocked_error_message_directs_to_commit_or_review
-test_hook_reads_from_shared_allowlist
 test_formatting_only_drift_self_heals
 test_code_change_after_review_blocked
 test_shellcheck_disable_only_drift_self_heals
