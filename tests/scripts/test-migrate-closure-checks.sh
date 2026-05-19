@@ -782,4 +782,191 @@ print('PASS' if found else 'FAIL')
 test_post_migration_passes_verifier_step2_5
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Test 17: Satisfies annotations pointing to Closure Checks text are rewritten
+# Testing Mode: RED — requires annotation-rewrite step in migrate-closure-checks.sh
+# ═══════════════════════════════════════════════════════════════════════════════
+echo "Test 17: satisfies annotation rewritten to validates-closure-check"
+test_satisfies_annotation_rewritten_to_validates_closure_check() {
+    _snapshot_fail
+
+    if [ ! -f "$MIGRATE_SCRIPT" ]; then
+        assert_eq "migrate script exists (prereq)" "exists" "missing"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+    local tracker_dir="$repo/.tickets-tracker"
+
+    # Parent epic: ALREADY has BOTH ## Success Criteria AND ## Closure Checks
+    # (idempotent for the main migration; annotation-rewrite should still run)
+    local epic_dir="$tracker_dir/epic-annotate-01"
+    mkdir -p "$epic_dir"
+    local epic_desc
+    epic_desc='{"ticket_type": "epic", "title": "Epic with both SC and CC sections", "status": "open", "parent_id": null, "description": "## Context\n\nContext here.\n\n## Success Criteria\n- criterion X\n\n## Closure Checks\n- criterion X\n\n## Dependencies\nNone"}'
+    _write_event "$epic_dir" "1742700100" "00000000-0000-4000-8000-annotate01001" "CREATE" "$epic_desc"
+
+    # Child story: has annotation pointing to "criterion X" (which is in Closure Checks)
+    local story_dir="$tracker_dir/story-annotate-01"
+    mkdir -p "$story_dir"
+    local story_desc
+    story_desc='{"ticket_type": "story", "title": "Child story with Satisfies annotation", "status": "open", "parent_id": "epic-annotate-01", "description": "## Description\n\nAs a user, I want something.\n\n← Satisfies: \"criterion X\"\n\n## Done Definitions\n- DD1\n"}'
+    _write_event "$story_dir" "1742700200" "00000000-0000-4000-8000-annotate01002" "CREATE" "$story_desc"
+
+    bash "$MIGRATE_SCRIPT" --target "$repo" >/dev/null 2>&1 || true
+
+    # The child story annotation should be rewritten
+    local story_desc_after
+    story_desc_after=$(_get_ticket_description "$repo" "story-annotate-01")
+
+    local has_old_annotation
+    has_old_annotation=$(echo "$story_desc_after" | grep -c '← Satisfies:' 2>/dev/null || true)
+    local has_new_annotation
+    has_new_annotation=$(echo "$story_desc_after" | grep -c '← Validates Closure Check:' 2>/dev/null || true)
+
+    assert_eq "story-annotate-01: old '← Satisfies:' annotation removed" "0" "$has_old_annotation"
+    assert_eq "story-annotate-01: new '← Validates Closure Check:' annotation present" "1" "$has_new_annotation"
+
+    assert_pass_if_clean "test_satisfies_annotation_rewritten_to_validates_closure_check"
+}
+test_satisfies_annotation_rewritten_to_validates_closure_check
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Test 18: Satisfies annotations pointing to SC-only text are NOT rewritten
+# Testing Mode: RED — requires annotation-rewrite step in migrate-closure-checks.sh
+# ═══════════════════════════════════════════════════════════════════════════════
+echo "Test 18: satisfies annotation pointing to SC-only text remains unchanged"
+test_satisfies_annotation_in_sc_unchanged() {
+    _snapshot_fail
+
+    if [ ! -f "$MIGRATE_SCRIPT" ]; then
+        assert_eq "migrate script exists (prereq)" "exists" "missing"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+    local tracker_dir="$repo/.tickets-tracker"
+
+    # Parent epic: "criterion Y" is ONLY in ## Success Criteria, NOT in Closure Checks
+    local epic_dir="$tracker_dir/epic-annotate-02"
+    mkdir -p "$epic_dir"
+    local epic_desc
+    epic_desc='{"ticket_type": "epic", "title": "Epic with SC-only criterion", "status": "open", "parent_id": null, "description": "## Context\n\nContext here.\n\n## Success Criteria\n- criterion Y\n\n## Dependencies\nNone"}'
+    _write_event "$epic_dir" "1742700300" "00000000-0000-4000-8000-annotate02001" "CREATE" "$epic_desc"
+
+    # Child story: has annotation pointing to "criterion Y" (which is only in SC)
+    local story_dir="$tracker_dir/story-annotate-02"
+    mkdir -p "$story_dir"
+    local story_desc
+    story_desc='{"ticket_type": "story", "title": "Child story with SC-only annotation", "status": "open", "parent_id": "epic-annotate-02", "description": "## Description\n\nAs a user, I want something.\n\n← Satisfies: \"criterion Y\"\n\n## Done Definitions\n- DD1\n"}'
+    _write_event "$story_dir" "1742700400" "00000000-0000-4000-8000-annotate02002" "CREATE" "$story_desc"
+
+    bash "$MIGRATE_SCRIPT" --target "$repo" >/dev/null 2>&1 || true
+
+    # The child story annotation for SC-only text should remain unchanged
+    local story_desc_after
+    story_desc_after=$(_get_ticket_description "$repo" "story-annotate-02")
+
+    local has_old_annotation
+    has_old_annotation=$(echo "$story_desc_after" | grep -c '← Satisfies:' 2>/dev/null || true)
+    local has_new_annotation
+    has_new_annotation=$(echo "$story_desc_after" | grep -c '← Validates Closure Check:' 2>/dev/null || true)
+
+    assert_eq "story-annotate-02: '← Satisfies:' annotation preserved (SC-only text)" "1" "$has_old_annotation"
+    assert_eq "story-annotate-02: no '← Validates Closure Check:' annotation added" "0" "$has_new_annotation"
+
+    assert_pass_if_clean "test_satisfies_annotation_in_sc_unchanged"
+}
+test_satisfies_annotation_in_sc_unchanged
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Test 19: Zero orphaned annotations after migration
+# Testing Mode: RED — requires annotation-rewrite step in migrate-closure-checks.sh
+# ═══════════════════════════════════════════════════════════════════════════════
+echo "Test 19: zero orphaned satisfies annotations after migration"
+test_zero_orphaned_annotations_after_migration() {
+    _snapshot_fail
+
+    if [ ! -f "$MIGRATE_SCRIPT" ]; then
+        assert_eq "migrate script exists (prereq)" "exists" "missing"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+    local tracker_dir="$repo/.tickets-tracker"
+
+    # Parent epic: has BOTH SC and Closure Checks with overlapping content
+    local epic_dir="$tracker_dir/epic-annotate-03"
+    mkdir -p "$epic_dir"
+    local epic_desc
+    epic_desc='{"ticket_type": "epic", "title": "Epic with mixed SC and CC", "status": "open", "parent_id": null, "description": "## Context\n\nContext here.\n\n## Success Criteria\n- sc-only item\n- shared item\n\n## Closure Checks\n- shared item\n- cc-only item\n\n## Dependencies\nNone"}'
+    _write_event "$epic_dir" "1742700500" "00000000-0000-4000-8000-annotate03001" "CREATE" "$epic_desc"
+
+    # Child story 1: annotation pointing to Closure Checks text ("cc-only item")
+    local story_dir1="$tracker_dir/story-annotate-03a"
+    mkdir -p "$story_dir1"
+    local story_desc1
+    story_desc1='{"ticket_type": "story", "title": "Story with CC annotation", "status": "open", "parent_id": "epic-annotate-03", "description": "## Description\n\nAs a user, I want something.\n\n← Satisfies: \"cc-only item\"\n\n## Done Definitions\n- DD1\n"}'
+    _write_event "$story_dir1" "1742700600" "00000000-0000-4000-8000-annotate03002" "CREATE" "$story_desc1"
+
+    # Child story 2: annotation pointing to SC-only text ("sc-only item") — should NOT be rewritten
+    local story_dir2="$tracker_dir/story-annotate-03b"
+    mkdir -p "$story_dir2"
+    local story_desc2
+    story_desc2='{"ticket_type": "story", "title": "Story with SC-only annotation", "status": "open", "parent_id": "epic-annotate-03", "description": "## Description\n\nAs a user, I want something else.\n\n← Satisfies: \"sc-only item\"\n\n## Done Definitions\n- DD2\n"}'
+    _write_event "$story_dir2" "1742700700" "00000000-0000-4000-8000-annotate03003" "CREATE" "$story_desc2"
+
+    bash "$MIGRATE_SCRIPT" --target "$repo" >/dev/null 2>&1 || true
+
+    # Get the Closure Checks items from the epic
+    local epic_desc_after
+    epic_desc_after=$(_get_ticket_description "$repo" "epic-annotate-03")
+
+    # Extract the Closure Checks items
+    local cc_items
+    cc_items=$(python3 -c "
+import re, sys
+desc = sys.argv[1]
+m = re.search(r'## Closure Checks\n(.*?)(?=\n## |\Z)', desc, re.DOTALL)
+if not m:
+    sys.exit(0)
+section = m.group(1)
+items = []
+for line in section.splitlines():
+    stripped = line.lstrip('-*+ \t').strip()
+    if stripped:
+        items.append(stripped)
+print('\n'.join(items))
+" "$epic_desc_after" 2>/dev/null || echo "")
+
+    # For each child story, check that no '← Satisfies:' annotation points to a CC item
+    local orphaned_count=0
+    for story_id in story-annotate-03a story-annotate-03b; do
+        local child_desc
+        child_desc=$(_get_ticket_description "$repo" "$story_id")
+
+        local story_orphans
+        story_orphans=$(python3 -c "
+import re, sys
+desc = sys.argv[1]
+cc_items_raw = sys.argv[2]
+cc_items = [item.lower() for item in cc_items_raw.splitlines() if item.strip()]
+# Find all '← Satisfies: \"text\"' annotations
+matches = re.findall(r'← Satisfies:\s*\"([^\"]+)\"', desc)
+orphans = sum(1 for m in matches if m.lower() in cc_items)
+print(orphans)
+" "$child_desc" "$cc_items" 2>/dev/null || echo "0")
+
+        orphaned_count=$(( orphaned_count + story_orphans ))
+    done
+
+    assert_eq "zero orphaned '← Satisfies:' annotations pointing to Closure Checks text" "0" "$orphaned_count"
+
+    assert_pass_if_clean "test_zero_orphaned_annotations_after_migration"
+}
+test_zero_orphaned_annotations_after_migration
+
+# ═══════════════════════════════════════════════════════════════════════════════
 print_summary

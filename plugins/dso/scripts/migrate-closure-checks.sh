@@ -281,6 +281,207 @@ except OSError as e:
 PYEOF
 }
 
+# ── Python annotation-rewrite function (inline) ───────────────────────────────
+# After migrating an epic, rewrite child-story "← Satisfies: <text>" annotations
+# to "← Validates Closure Check: <text>" when <text> matches a Closure Checks item.
+# Returns one line per child processed: ANNOTATE:<id>:rewritten N or ANNOTATE:<id>:skipped
+_rewrite_annotations_for_epic() {
+    local epic_id="$1"
+    local tracker_dir="$2"
+    local dryrun="$3"
+
+    python3 - "$epic_id" "$tracker_dir" "$dryrun" <<'PYEOF'
+import json, os, re, sys, time, uuid
+
+EPIC_ID = sys.argv[1]
+TRACKER = sys.argv[2]
+DRYRUN = sys.argv[3] == "1"
+CLOSURE_HEADING = "## Closure Checks"
+SATISFIES_PATTERN = re.compile(r'← Satisfies:\s*"([^"]+)"')
+ALREADY_REWRITTEN_PATTERN = re.compile(r'← Validates Closure Check:\s*"')
+
+
+def _read_events(tdir):
+    """Return list of (filename, event_dict) sorted chronologically."""
+    try:
+        files = sorted(f for f in os.listdir(tdir)
+                       if f.endswith('.json') and not f.startswith('.'))
+    except OSError:
+        return []
+    results = []
+    for fn in files:
+        try:
+            with open(os.path.join(tdir, fn)) as f:
+                ev = json.load(f)
+            results.append((fn, ev))
+        except (json.JSONDecodeError, OSError):
+            continue
+    return results
+
+
+def _get_current_description(tdir):
+    """Return the most up-to-date description by reducing events in order."""
+    description = None
+    for _fn, ev in _read_events(tdir):
+        etype = ev.get('event_type', '')
+        data = ev.get('data') or {}
+        if etype == 'CREATE':
+            desc = data.get('description')
+            if desc is not None:
+                description = desc
+        elif etype == 'EDIT':
+            fields = data.get('fields') or {}
+            desc = fields.get('description')
+            if desc is not None:
+                description = desc
+        elif etype == 'SNAPSHOT':
+            cs = data.get('compiled_state') or {}
+            desc = cs.get('description')
+            if desc is not None:
+                description = desc
+    return description
+
+
+def _get_ticket_type(tdir):
+    """Return ticket_type string for the ticket directory."""
+    for _fn, ev in _read_events(tdir):
+        data = ev.get('data') or {}
+        etype = ev.get('event_type', '')
+        tt = data.get('ticket_type')
+        if tt:
+            return tt
+        if etype == 'SNAPSHOT':
+            cs = data.get('compiled_state') or {}
+            tt2 = cs.get('ticket_type')
+            if tt2:
+                return tt2
+    return None
+
+
+def _get_parent_id(tdir):
+    """Return parent_id for the ticket, or None."""
+    parent_id = None
+    for _fn, ev in _read_events(tdir):
+        data = ev.get('data') or {}
+        etype = ev.get('event_type', '')
+        if etype == 'CREATE':
+            p = data.get('parent_id')
+            if p is not None:
+                parent_id = p
+        elif etype == 'EDIT':
+            fields = data.get('fields') or {}
+            p = fields.get('parent_id')
+            if p is not None:
+                parent_id = p
+        elif etype == 'SNAPSHOT':
+            cs = data.get('compiled_state') or {}
+            p = cs.get('parent_id')
+            if p is not None:
+                parent_id = p
+    return parent_id
+
+
+def _extract_closure_checks_items(description):
+    """
+    Extract normalized items from the ## Closure Checks section.
+    Returns a list of lowercase strings (stripped of leading list markers).
+    """
+    if not description:
+        return []
+    m = re.search(r'## Closure Checks\n(.*?)(?=\n## |\Z)', description, re.DOTALL)
+    if not m:
+        return []
+    section = m.group(1)
+    items = []
+    for line in section.splitlines():
+        stripped = re.sub(r'^[-*+]\s*', '', line).strip()
+        if stripped:
+            items.append(stripped.lower())
+    return items
+
+
+def write_edit_event(tdir, new_description):
+    ts = time.time_ns()
+    u = str(uuid.uuid4())
+    fname = f"{ts}-{u}-EDIT.json"
+    fpath = os.path.join(tdir, fname)
+    event = {
+        "timestamp": ts,
+        "uuid": u,
+        "event_type": "EDIT",
+        "env_id": "00000000-0000-4000-8000-migration003",
+        "author": "migrate-closure-checks/annotate",
+        "data": {"fields": {"description": new_description}},
+    }
+    with open(fpath, 'w', encoding='utf-8') as f:
+        json.dump(event, f, ensure_ascii=False)
+    return fname
+
+
+# 1. Read the epic's current Closure Checks items
+epic_tdir = os.path.join(TRACKER, EPIC_ID)
+epic_desc = _get_current_description(epic_tdir)
+cc_items = _extract_closure_checks_items(epic_desc)
+
+if not cc_items:
+    print(f"[ANNOTATE] {EPIC_ID}: no Closure Checks items — skipping annotation rewrite")
+    sys.exit(0)
+
+# 2. Scan all tickets in the tracker for children of this epic
+try:
+    all_ticket_dirs = [d for d in os.listdir(TRACKER)
+                       if os.path.isdir(os.path.join(TRACKER, d))
+                       and not d.startswith('.')]
+except OSError as e:
+    print(f"[ANNOTATE] {EPIC_ID}: error scanning tracker — {e}", file=sys.stderr)
+    sys.exit(1)
+
+for ticket_id in sorted(all_ticket_dirs):
+    tdir = os.path.join(TRACKER, ticket_id)
+    parent_id = _get_parent_id(tdir)
+    if parent_id != EPIC_ID:
+        continue
+
+    desc = _get_current_description(tdir)
+    if not desc:
+        print(f"[ANNOTATE] {ticket_id}: skipped — 0 matches")
+        continue
+
+    # Idempotency: check if already-rewritten annotation exists for any CC item
+    # Count how many '← Satisfies: "X"' where X is a CC item
+    def _make_replacement(cc_set):
+        def replacer(m):
+            text = m.group(1)
+            if text.lower() in cc_set:
+                return f'← Validates Closure Check: "{text}"'
+            return m.group(0)
+        return replacer
+
+    cc_set = set(cc_items)
+    new_desc = SATISFIES_PATTERN.sub(_make_replacement(cc_set), desc)
+
+    # Count rewrites
+    rewrites = 0
+    for match in SATISFIES_PATTERN.finditer(desc):
+        if match.group(1).lower() in cc_set:
+            rewrites += 1
+
+    if rewrites == 0:
+        print(f"[ANNOTATE] {ticket_id}: skipped — 0 matches")
+        continue
+
+    if DRYRUN:
+        print(f"[ANNOTATE] {ticket_id}: would rewrite {rewrites} annotation(s)")
+        continue
+
+    try:
+        fname = write_edit_event(tdir, new_desc)
+        print(f"[ANNOTATE] {ticket_id}: rewrote {rewrites} annotation(s) fname={fname}")
+    except OSError as e:
+        print(f"[ANNOTATE] {ticket_id}: ERROR — {e}", file=sys.stderr)
+PYEOF
+}
+
 # ── Process tickets in batches of 25 ─────────────────────────────────────────
 _BATCH_SIZE=25
 _total=${#_TICKET_LINES[@]}
@@ -343,6 +544,46 @@ while [ "$_i" -lt "$_total" ]; do
                 if [ "$_DRYRUN" = "0" ]; then
                     echo "$_ticket_id" >> "$_PROGRESS_FILE"
                 fi
+                # Run annotation-rewrite pass for epics (stories don't have child stories)
+                # Check ticket type: only run for epics
+                _ticket_type=$(python3 -c "
+import json, os, sys
+tdir = os.path.join(sys.argv[1], sys.argv[2])
+files = sorted(f for f in os.listdir(tdir) if f.endswith('.json') and not f.startswith('.'))
+for fn in files:
+    try:
+        ev = json.load(open(os.path.join(tdir, fn)))
+    except Exception:
+        continue
+    data = ev.get('data') or {}
+    tt = data.get('ticket_type')
+    if tt:
+        print(tt)
+        sys.exit(0)
+    if ev.get('event_type') == 'SNAPSHOT':
+        cs = data.get('compiled_state') or {}
+        tt2 = cs.get('ticket_type')
+        if tt2:
+            print(tt2)
+            sys.exit(0)
+print('')
+" "$_TRACKER_DIR" "$_ticket_id" 2>/dev/null || echo "")
+                if [ "$_ticket_type" = "epic" ]; then
+                    _rewrite_annotations_for_epic "$_ticket_id" "$_TRACKER_DIR" "$_DRYRUN" | while IFS= read -r _annotate_line; do
+                        _display_line=$(echo "$_annotate_line" | sed 's/ fname=[^ ]*$//')
+                        echo "$_display_line"
+                        # Commit annotation EDIT events for each child ticket
+                        if [ "$_DRYRUN" = "0" ] && echo "$_annotate_line" | grep -q '^\[ANNOTATE\].*rewrote'; then
+                            _child_id=$(echo "$_annotate_line" | sed 's/\[ANNOTATE\] \([^:]*\):.*/\1/')
+                            _edit_fname=$(echo "$_annotate_line" | sed 's/.*fname=\([^ ]*\).*/\1/')
+                            if [ -n "$_edit_fname" ] && [ "$_edit_fname" != "$_annotate_line" ]; then
+                                git -C "$_TRACKER_DIR" add "$_child_id/$_edit_fname" 2>/dev/null && \
+                                    git -C "$_TRACKER_DIR" commit -m "migration: rewrite annotation(s) in $_child_id" 2>/dev/null || \
+                                    git -C "$_TRACKER_DIR" reset 2>/dev/null || true
+                            fi
+                        fi
+                    done
+                fi
                 ;;
             WOULD_WRITE:*)
                 echo "DRY-RUN: $_ticket_id"
@@ -380,6 +621,85 @@ while [ "$_i" -lt "$_total" ]; do
     _batch_skipped=0
     _i="$_batch_end"
 done
+
+# ── Annotation-rewrite pass (global, independent of migration) ────────────────
+# Runs for ALL epics that have ## Closure Checks content, including those
+# that were already migrated before this run (skipped by main migration).
+# This pass is idempotent: already-rewritten annotations are skipped.
+if [ "$_DRYRUN" = "0" ] || [ "$_DRYRUN" = "1" ]; then
+    echo ""
+    echo "INFO: Running annotation-rewrite pass for all epics with Closure Checks..."
+    _annotate_rewrites=0
+
+    # Enumerate all epic tickets with ## Closure Checks
+    for _epic_dir in "$_TRACKER_DIR"/*/; do
+        _epic_id=$(basename "$_epic_dir")
+        [[ "$_epic_id" == .* ]] && continue
+        [ ! -d "$_epic_dir" ] && continue
+
+        # Check if this is an epic with Closure Checks
+        _is_epic_with_cc=$(python3 -c "
+import json, os, re, sys
+tdir = sys.argv[1]
+try:
+    files = sorted(f for f in os.listdir(tdir) if f.endswith('.json') and not f.startswith('.'))
+except OSError:
+    print('0')
+    sys.exit(0)
+ticket_type = None
+description = None
+for fn in files:
+    try:
+        ev = json.load(open(os.path.join(tdir, fn)))
+    except Exception:
+        continue
+    data = ev.get('data') or {}
+    etype = ev.get('event_type', '')
+    tt = data.get('ticket_type')
+    if tt:
+        ticket_type = tt
+    if etype == 'CREATE':
+        d = data.get('description')
+        if d is not None:
+            description = d
+    elif etype == 'EDIT':
+        d = (data.get('fields') or {}).get('description')
+        if d is not None:
+            description = d
+    elif etype == 'SNAPSHOT':
+        cs = data.get('compiled_state') or {}
+        d = cs.get('description')
+        if d is not None:
+            description = d
+        tt2 = cs.get('ticket_type')
+        if tt2:
+            ticket_type = tt2
+if ticket_type == 'epic' and description and '## Closure Checks' in description:
+    print('1')
+else:
+    print('0')
+" "$_epic_dir" 2>/dev/null || echo "0")
+
+        [ "$_is_epic_with_cc" != "1" ] && continue
+
+        # Run annotation-rewrite for this epic
+        _rewrite_annotations_for_epic "$_epic_id" "$_TRACKER_DIR" "$_DRYRUN" | while IFS= read -r _annotate_line; do
+            # Strip fname= trailer for display
+            _display_line=$(echo "$_annotate_line" | sed 's/ fname=[^ ]*$//')
+            echo "$_display_line"
+            # Commit annotation EDIT events for each child ticket
+            if [ "$_DRYRUN" = "0" ] && echo "$_annotate_line" | grep -q '^\[ANNOTATE\].*rewrote'; then
+                _child_id=$(echo "$_annotate_line" | sed 's/\[ANNOTATE\] \([^:]*\):.*/\1/')
+                _edit_fname=$(echo "$_annotate_line" | sed 's/.*fname=\([^ ]*\).*/\1/')
+                if [ -n "$_edit_fname" ] && [ "$_edit_fname" != "$_annotate_line" ]; then
+                    git -C "$_TRACKER_DIR" add "$_child_id/$_edit_fname" 2>/dev/null && \
+                        git -C "$_TRACKER_DIR" commit -m "migration: rewrite annotation(s) in $_child_id" 2>/dev/null || \
+                        git -C "$_TRACKER_DIR" reset 2>/dev/null || true
+                fi
+            fi
+        done
+    done
+fi
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 echo ""
