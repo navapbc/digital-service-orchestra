@@ -1279,6 +1279,22 @@ STORY_BRANCH=$(bash "$PLUGIN_SCRIPTS/create-story-branch.sh" "$EPIC_ID" "$STORY_
 # STORY_BRANCH = story/<epic-id>/<story-id>; used by Phase F after all worktrees harvested
 ```
 
+### Predecessor Handoff Check
+
+Before dispatching a story sub-agent, check predecessor verdict when applicable:
+
+```bash
+if [[ -n "$_PREDECESSOR_STORY_ID" ]]; then
+    bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-story-handoff.sh" \
+        --predecessor-story-id="$_PREDECESSOR_STORY_ID"
+    _HANDOFF_RC=$?
+    if [[ $_HANDOFF_RC -ne 0 ]]; then
+        echo "DISPATCH_BLOCKED: predecessor $PREDECESSOR_STORY_ID verdict != PASS"
+        # add to blocked list; do not dispatch this story
+    fi
+fi
+```
+
 <HARD-GATE>
 Do NOT implement any task directly using Edit, Write, or other file-modification tools. ALL implementation tasks must be dispatched to sub-agents via the Task tool — regardless of how small, simple, or obvious the change appears. "Small markdown edit", "single-line change", "user already approved", or "sub-agent dispatch is overhead" are not valid exceptions. Direct implementation by the orchestrator bypasses checkpoint protocol, code review, and acceptance criteria gates.
 
