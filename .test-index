@@ -267,6 +267,7 @@ plugins/dso/scripts/sprint-drift-check.sh:tests/scripts/test-sprint-drift-check.
 plugins/dso/scripts/sprint-list-epics.sh:tests/scripts/test-sprint-list-epics.sh,tests/scripts/test-sprint-list-epics-without-tag.sh,tests/scripts/test-brainstorm-tag-flow.sh
 plugins/dso/scripts/sprint-next-batch.sh:tests/test-sprint-next-batch.sh,tests/scripts/test_sprint_next_batch_extensionless.py
 plugins/dso/scripts/sprint-review-scope-check.sh:tests/scripts/test-sprint-review-scope-check.sh,tests/scripts/test-sprint-review-scope-check-storage-api.sh
+plugins/dso/scripts/sprint/format-recipe-result.sh:tests/scripts/test-format-recipe-result.sh [output_success]
 plugins/dso/scripts/sprint/sprint-drift-check.sh:tests/scripts/test-sprint-drift-check.sh,tests/scripts/test-sprint-drift-check-storage-api.sh
 plugins/dso/scripts/sprint/sprint-manual-drain.sh:tests/test-sprint-manual-drain.sh
 plugins/dso/scripts/sprint/sprint-pause-state.sh:tests/scripts/test-sprint-pause-state.sh
