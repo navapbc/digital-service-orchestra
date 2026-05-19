@@ -1520,7 +1520,7 @@ Route based on `TESTING_MODE`:
 
 2. **Execute the recipe**:
    ```bash
-   bash "$PLUGIN_SCRIPTS/recipe-executor.sh" <recipe_name> [--param key=value ...]
+   bash "$PLUGIN_SCRIPTS/recipe-executor.sh" <recipe_name> [--param key=value ...]  # shim-exempt: internal orchestration script
    ```
    Capture stdout as `EXECUTOR_JSON`. On bash-level failure (non-zero exit before JSON is emitted) or empty output, synthesize:
    ```json
@@ -1529,7 +1529,7 @@ Route based on `TESTING_MODE`:
 
 3. **Format the result**:
    ```bash
-   bash "$PLUGIN_SCRIPTS/sprint/format-recipe-result.sh" <recipe_name> <<< "$EXECUTOR_JSON"
+   bash "$PLUGIN_SCRIPTS/sprint/format-recipe-result.sh" <recipe_name> <<< "$EXECUTOR_JSON"  # shim-exempt: internal orchestration script
    ```
    Capture stdout as `RECIPE_SUMMARY`.
 
@@ -1683,6 +1683,41 @@ DISCOVERIES=$(.claude/scripts/dso collect-discoveries.sh 2>/dev/null) || DISCOVE
   warning and continue with `DISCOVERIES="[]"`. Discovery collection failure must not block the
   sprint. The script itself handles per-file validation — malformed individual files are skipped
   with warnings to stderr.
+
+### Cleanup Recipe Phase (Post-Agent, Pre-Review)
+
+After collecting agent discoveries (Step 6) and before acceptance criteria validation (Step 7), detect and apply applicable cleanup recipes to the staged output.
+
+```bash
+RECIPE_REGISTRY_PATH="${CLAUDE_PLUGIN_ROOT}/recipes/recipe-registry.yaml"
+CLEANUP_RECIPES="$(RECIPE_REGISTRY_PATH="$RECIPE_REGISTRY_PATH" bash "$PLUGIN_SCRIPTS/sprint/detect-cleanup-recipes.sh" 2>/dev/null || true)"  # shim-exempt: internal orchestration script
+```
+
+**No-op handling**: If `detect-cleanup-recipes.sh` produces no output (no applicable recipes), skip the cleanup phase entirely — no log entry.
+
+For each applicable recipe in `CLEANUP_RECIPES`:
+
+1. Capture a pre-cleanup snapshot for conflict detection:
+   ```bash
+   PRE_CLEANUP_DIFF="$(git diff --staged)"
+   ```
+
+2. Run the recipe executor:
+   ```bash
+   bash "$PLUGIN_SCRIPTS/recipe-executor.sh" <recipe_name> --param language=<lang>  # shim-exempt: internal orchestration script
+   ```
+
+3. **Conflict detection**: After execution, compare the new staged diff to `PRE_CLEANUP_DIFF`. If the recipe reverted sub-agent staged changes, log a WARNING and skip that recipe for those files:
+   ```
+   WARNING: Cleanup recipe '<name>' reverted staged changes in <file> — skipping for that file
+   ```
+
+4. **Log cleanup diff as distinct ticket comment**: Record post-cleanup state as a distinct ticket comment (NOT merged with the sub-agent diff), so completion-verifier and reviewers see the accurate post-cleanup diff:
+   ```bash
+   .claude/scripts/dso ticket comment <task-id> "CLEANUP_DIFF: $(git diff --staged)"
+   ```
+
+Sprint log records post-cleanup state (not pre-cleanup state), ensuring reviewers see clean code after mechanical cleanup.
 
 ### Step 7: Acceptance Criteria Validation (/dso:sprint)
 
