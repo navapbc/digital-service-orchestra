@@ -159,6 +159,24 @@ Write the classification to the epic spec as a machine-readable field. Update th
 
 Valid class values: `class:architectural` | `class:integration` | `class:infra` | `class:behavioral`
 
+### Architectural Probe Dispatch
+
+When `$_EPIC_CLASS == "class:architectural"`, dispatch the architectural probe before scrutiny:
+
+```bash
+if [[ "$_EPIC_CLASS" == "class:architectural" ]]; then
+    _PROBE_OUTPUT=$(mktemp /tmp/arch-probe-output.XXXXXX)
+    bash "${CLAUDE_PLUGIN_ROOT}/scripts/run-architectural-probe.sh" \
+        --epic-class="$_EPIC_CLASS" \
+        --output-file="$_PROBE_OUTPUT" \
+        --epic-id="$_EPIC_ID"
+    if [[ $? -ne 0 ]] || [[ ! -s "$_PROBE_OUTPUT" ]]; then
+        echo "PROBE_GATE_BLOCKED: architectural epic requires probe output before scrutiny"
+        exit 1
+    fi
+fi
+```
+
 ### Codebase Investigation Gate (Mandatory Before Any User Question)
 
 Before presenting ANY question to the user, you MUST first check whether the answer is discoverable by reading the codebase. Read existing skill files (sprint SKILL.md, fix-bug SKILL.md), ARCH_ENFORCEMENT.md, pyproject.toml, project-understanding.md, and relevant scripts/module structure. Only ask the user questions whose answers cannot be found in the repo. Questions about design approach, user experience preferences, or business priorities are appropriate for the user; questions about existing implementations, available tools, or project structure are NOT — find those answers yourself first.
