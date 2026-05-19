@@ -185,6 +185,7 @@ plugins/dso/scripts/ci-llm-review-runner.sh:tests/scripts/test-ci-llm-review-run
 plugins/dso/scripts/classify-task.py:tests/scripts/test-classify-task.sh
 plugins/dso/scripts/claude-safe:tests/scripts/test-claude-safe-portability.sh,tests/scripts/test-claude-safe-post-merge-amend.sh,tests/scripts/test-claude-safe-tickets-dir.sh,tests/scripts/test-worktree-pr-merge-detection.sh,tests/scripts/test-claude-safe-stale-local-main.sh
 plugins/dso/scripts/collect-discoveries.sh:tests/scripts/test-collect-discoveries-plugin-root.sh
+plugins/dso/scripts/consult-recipe-registry.sh:tests/scripts/test-consult-recipe-registry.sh
 plugins/dso/scripts/create-dso-app.sh:tests/scripts/test-create-dso-app.sh
 plugins/dso/scripts/create-story-branch.sh:tests/scripts/test-create-story-branch.sh
 plugins/dso/scripts/create-sprint-draft-pr.sh:tests/scripts/test-create-sprint-draft-pr.sh

@@ -198,6 +198,18 @@ If no parent, proceed with story context alone and note the limited scope.
 - Grep for "system context", "architecture", "standardization", "ADR"
 - Glob for `docs/adr/**/*.md`
 
+### Recipe Consultation
+
+Query the recipe registry to surface available mechanical transforms for the story's language context:
+
+```bash
+bash "$PLUGIN_SCRIPTS/consult-recipe-registry.sh" --language <primary-language>
+```
+
+Record the output as **available recipe capabilities**. Run without `--language` if the story spans multiple languages or the language is unknown. Empty output (unknown language or missing registry) is not an error — proceed without recipe context.
+
+Recipe-eligible transforms are mechanical and deterministic: function-signature changes, import normalization. Business logic additions, feature decisions, and architectural changes are NOT recipe-eligible regardless of the registry contents.
+
 ### Ambiguity Scan
 
 **Curiosity before planning.** A plan built on assumptions is worse than no plan.
@@ -504,6 +516,7 @@ The mode applies to the **source file task** (not the test task). A test task fo
 | Source action = `modify`, behavior changes, `needs-modification` | **UPDATE** | Existing file with observable behavior change; existing tests must be updated to assert new behavior before implementation runs |
 | Source action = `modify`, no behavior change (refactor), `still-valid` | **GREEN** | Implementation change only; existing tests remain correct |
 | Source action = `remove`, `needs-removal` | **GREEN** | Deleting behavior; remove corresponding tests to keep the suite honest |
+| Task matches a recipe capability from the registry | **recipe:** | Mechanical transform; execution delegates to the recipe executor; specify recipe_name, recipe_params, and intent |
 
 **Behavioral framing rule**: testing_mode reflects what the code *does* — observable outputs, decisions, or side effects — not what it *contains*. A refactor that renames internal methods without changing returned values is GREEN regardless of line count.
 
@@ -511,8 +524,30 @@ Emit per task:
 
 ```
 Task: <task title>
-testing_mode: RED | GREEN | UPDATE
+testing_mode: RED | GREEN | UPDATE | recipe:
 ```
+
+### Recipe Task Type
+
+Assign `testing_mode: recipe:` when a task matches a capability in the recipe registry (from Recipe Consultation in Step 1).
+
+**When to assign recipe:**
+- Task is a mechanical, deterministic code transform whose entire behavior is described by a registry `capability_description`
+- Examples: adding a parameter to a function signature and updating all callers (`add-parameter`); sorting and deduplicating import statements (`normalize-imports`)
+- No judgment about business behavior is required — the transform is fully parameterizable
+
+**When NOT to assign recipe:** feature additions, algorithm changes, API contract decisions, or any task where the "what" requires domain reasoning rather than parameterization.
+
+**Required fields for `recipe:` tasks** (in addition to standard task fields):
+
+```
+testing_mode: recipe:
+recipe_name: <name field from the registry — e.g., add-parameter>
+recipe_params: <key=value pairs for the transform — e.g., function_name=process_request, param_name=timeout, param_type=int, default_value=30>
+intent: <natural-language description of this specific transform, derived from capability_description>
+```
+
+`recipe:` tasks do not require a preceding RED test task; the recipe executor owns the test contract for mechanical transforms.
 
 ### TDD Task Structure
 
