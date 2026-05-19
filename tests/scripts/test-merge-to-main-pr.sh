@@ -5850,7 +5850,9 @@ EOF
     _bump_sha="$("$_real_git" -C "$_worktree_dir" rev-parse HEAD 2>/dev/null || echo "")"
     # main-checkout still at the pre-bump seed commit (no merge has happened).
     local _on_main
-    _on_main="$("$_real_git" -C "$_main_checkout" branch --contains "$_bump_sha" 2>/dev/null | grep -c 'main' || echo "0")"
+    # grep -c exits 1 when count is 0 on macOS, triggering || echo "0" and
+    # producing "0\n0". Remove the fallback since grep -c always emits the count.
+    _on_main="$("$_real_git" -C "$_main_checkout" branch --contains "$_bump_sha" 2>/dev/null | grep -c 'main')"
     assert_eq "test_merge_to_main_pr_source_branch_bump:bump_commit_not_yet_on_main" \
         "0" "$_on_main"
 
