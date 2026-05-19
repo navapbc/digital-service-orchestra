@@ -47,7 +47,7 @@ Output is a JSON array `[{epic_id, title, child_status, session_related, match_r
 
 - `child_status: "no_children"` — skip silently.
 - `child_status: "open_children"` — do NOT close. Report it as still in progress.
-- `child_status: "all_closed"` AND `session_related: true` — closeable candidate. Confirm with the user that completion criteria are met and the completion verifier was run this session. Close ONLY if the user confirms OR the sprint context passed to end-session includes `overall_verdict: PASS` from a prior completion-verifier dispatch:
+- `child_status: "all_closed"` AND `session_related: true` — closeable candidate. Confirm with the user that completion criteria are met and the completion verifier was run this session. Close ONLY if the user confirms OR the sprint context passed to end-session includes `P1: PASS` (schema_version=2) or `overall_verdict: PASS` (schema_version=1, backward-compat) from a prior completion-verifier dispatch:
   ```bash
   .claude/scripts/dso ticket transition <epic-id> in_progress closed --reason="Epic complete: all children closed (safety-net close by /dso:end-session, verifier confirmed by user)"
   ```
