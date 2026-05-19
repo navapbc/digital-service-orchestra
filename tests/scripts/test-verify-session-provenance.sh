@@ -399,6 +399,60 @@ test_unprovenanced_sha_written_to_scope_file() {
     rm -rf "$repo" "$artifact_dir"
 }
 
+## S1 trailer grammar fixtures
+# ── Test 9: DSO-Story: trailer (no -Merge) → exits 0 ─────────────────────────
+# RED phase: verify-session-provenance.sh:137 only accepts ^DSO-Story-Merge:
+# so a commit with DSO-Story: (no -Merge suffix) is currently unprovenanced.
+# GREEN phase: after extending the grep to accept both trailers, this exits 0.
+test_verify_session_provenance_accepts_both_trailers() {
+    local repo
+    repo="$(setup_git_repo)"
+
+    # base commit on "main"
+    make_commit "$repo" "Initial commit" > /dev/null
+    local base_sha
+    base_sha="$(git -C "$repo" rev-parse HEAD)"
+
+    # Fixture A: DSO-Story: trailer only (no -Merge suffix) — RED fixture
+    make_commit "$repo" "$(printf 'feat: story work\n\nDSO-Story: story-abc-id')" > /dev/null
+    local session_head_a
+    session_head_a="$(git -C "$repo" rev-parse HEAD)"
+
+    local artifact_dir_a
+    artifact_dir_a="$(mktemp -d)"
+
+    local exit_code_a=0
+    DSO_REPO_PATH="$repo" \
+    DSO_BASE_SHA="$base_sha" \
+    DSO_SESSION_HEAD="$session_head_a" \
+    DSO_ARTIFACT_DIR="$artifact_dir_a" \
+        bash "$SCRIPT" 2>/dev/null || exit_code_a=$?
+
+    assert_eq "test_verify_session_provenance_accepts_both_trailers: DSO-Story: trailer exits 0" \
+        "0" "$exit_code_a"
+
+    # Fixture B: DSO-Story-Merge: trailer (existing behavior must still pass)
+    make_commit "$repo" "$(printf 'feat: story-merge work\n\nDSO-Story-Merge: story-def-id')" > /dev/null
+    local session_head_b
+    session_head_b="$(git -C "$repo" rev-parse HEAD)"
+
+    local artifact_dir_b
+    artifact_dir_b="$(mktemp -d)"
+
+    local exit_code_b=0
+    DSO_REPO_PATH="$repo" \
+    DSO_BASE_SHA="$session_head_a" \
+    DSO_SESSION_HEAD="$session_head_b" \
+    DSO_ARTIFACT_DIR="$artifact_dir_b" \
+        bash "$SCRIPT" 2>/dev/null || exit_code_b=$?
+
+    assert_eq "test_verify_session_provenance_accepts_both_trailers: DSO-Story-Merge: trailer exits 0" \
+        "0" "$exit_code_b"
+
+    rm -rf "$repo" "$artifact_dir_a" "$artifact_dir_b"
+}
+## end S1 trailer grammar fixtures
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 test_script_exists
 test_all_provenanced_exits_zero
@@ -408,5 +462,6 @@ test_cache_prevents_requery
 test_squash_merge_dso_story_merge_trailer_accepted
 test_backoff_on_429
 test_unprovenanced_sha_written_to_scope_file
+test_verify_session_provenance_accepts_both_trailers
 
 print_summary

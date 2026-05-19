@@ -190,7 +190,7 @@ When a story has the tag `manual:awaiting_user`:
 
    | Sentinel state | Verdict |
    |---|---|
-   | **Absent** | `PENDING` — story may be mid-handshake; do not count as FAIL. Log: "Manual story `<id>` has no sentinel yet — story may be mid-handshake. Skipping done-definition evaluation." Mark all done definitions `PENDING`. overall_verdict for this story: `PENDING`. |
+   | **Absent** | `PENDING` — story may be mid-handshake; do not count as FAIL. Log: "Manual story `<id>` has no sentinel yet — story may be mid-handshake. Skipping done-definition evaluation." Mark all done definitions `PENDING`. `overall_verdict` for this story: `PENDING`; `P1`: `BLOCKED`. |
    | Present, `handshake_outcome=done` or `done_with_story_id`, `verification_command_exit_code=0` | All done definitions `PASS`. |
    | Present, `handshake_outcome=done` or `done_with_story_id`, `verification_command_exit_code=null`, `user_input` non-null | All done definitions `PASS` (confirmation token confirmed). |
    | Present, `handshake_outcome=skip` | All done definitions `SKIPPED` (not FAIL — skip is a legitimate outcome). |
@@ -248,17 +248,43 @@ Before returning results, emit the preconditions exit event for epic-closure (fa
 _dso_pv_exit_write "epic-closure" "${_UPSTREAM_EVENT_ID:-}" "${SPEC_HASH:-}" "${EPIC_ID:-}" || true
 ```
 
+**Populate the `narrative` field** by calling `render-closure-narrative.sh` with the verifier JSON output. The output of that script is the `narrative` field value verbatim — do NOT write a summary, paraphrase findings, or generate prose:
+
+```bash
+# Write the verifier JSON to a temp file, then render the narrative
+_VERIFIER_TMP=$(mktemp /tmp/verifier-output.XXXXXX)
+# <write the verifier JSON to $_VERIFIER_TMP>
+_NARRATIVE=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/render-closure-narrative.sh" "$_VERIFIER_TMP")
+# Use $_NARRATIVE as the "narrative" field value verbatim
+```
+
+The rendered format is: `P1={P1} criteria_met={N}/{total} blocked_by={B}`
+
+Before finalizing output, check bypass log completeness if any gate overrides occurred:
+
+```bash
+# If artifact bundle has gate_overrides, validate bypass logs
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/bypass-log-check.sh" --artifact-file="$_VERIFIER_TMP"
+```
+
+If `bypass-log-check.sh` exits non-zero, set `P1: FAIL` and add a criterion result entry documenting the missing bypass log. Do NOT emit a PASS verdict when gate overrides lack required bypass log entries.
+
 Return a structured JSON block matching the output schema below. After the JSON block, include a plain-text **Verification Summary** section.
 
 ---
 
 ## Output Schema
 
+<!-- TODO: remove overall_verdict when all consumers migrate to P1 (schema_version=2) -->
+
 ```json
 {
   "ticket_id": "<id>",
   "ticket_type": "epic|story",
+  "schema_version": 2,
+  "P1": "PASS|FAIL|BLOCKED|INCONCLUSIVE",
   "overall_verdict": "PASS|FAIL|PENDING|SKIPPED",
+  "narrative": "<string sourced from render-closure-narrative.sh template only; no LLM-generated prose>",
   "criteria_results": [
     {
       "criterion": "<verbatim criterion text>",
@@ -288,9 +314,14 @@ Return a structured JSON block matching the output schema below. After the JSON 
 
 **Rules:**
 
+- `schema_version` MUST be `2` when `P1` is emitted.
+- `P1` MUST be one of: `PASS`, `FAIL`, `BLOCKED`, `INCONCLUSIVE`. It is the primary machine-readable verdict.
+- `P1` maps from `overall_verdict` as: PASS→PASS, FAIL→FAIL, PENDING→BLOCKED, SKIPPED→INCONCLUSIVE.
+- `overall_verdict` is retained for backward compatibility with schema_version=1 consumers; **deprecated in schema_version=2, use P1**.
 - `overall_verdict` is `PASS` only when ALL criteria results AND all consumer smoke tests are `PASS`. A single `FAIL` makes the overall verdict `FAIL`. `PENDING` is used when a `manual:awaiting_user` story has no sentinel yet (Step 3b). `SKIPPED` is used when a story was explicitly skipped during the manual handshake.
+- `narrative` MUST be sourced from the `render-closure-narrative.sh` template; LLM-generated prose is not permitted here.
 - `consumer_smoke_tests` may be an empty array `[]` when the ticket does not modify shared infrastructure.
-- `remediation_tasks_created` is an empty array `[]` when overall_verdict is `PASS`.
+- `remediation_tasks_created` is an empty array `[]` when `P1` is `PASS`.
 - Do NOT fabricate evidence — if you cannot find evidence for a criterion, record what you searched and mark `FAIL`.
 - Do NOT close the parent ticket — closure decision belongs to the caller.
 

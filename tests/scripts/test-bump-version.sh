@@ -14,6 +14,12 @@
 
 set -uo pipefail
 
+# Authorize bump-version.sh invocations from this test fixture even when CI
+# checks out the primary repo on main/master. The on-main guard exists to
+# block accidental human invocations, not test harness calls that operate on
+# isolated mktemp fixtures via --config.
+export DSO_ALLOW_BUMP_ON_MAIN=1
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"

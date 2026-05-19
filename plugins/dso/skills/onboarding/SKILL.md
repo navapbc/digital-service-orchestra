@@ -703,7 +703,7 @@ Optional environment variables (defaults shown):
 
 dso-config.conf keys for Jira sync:
   - jira.project=<KEY>       Jira project key (written from this prompt)
-  - dso.workflow=<direct|pr>    PR mode integrates with the CI llm-review
+  - dso.workflow=<local|ci-pr>  ci-pr mode integrates with the CI llm-review
                                 workflow that the bridge job depends on
 
 Operational artifacts (written by the bridge, audit only):
@@ -763,14 +763,14 @@ On no or skip: write `confluence.enabled=false` to `.claude/dso-config.conf` as 
 Before asking, read `dso.workflow` from `.claude/dso-config.conf` (if present). If the key already exists, present the existing value as the prompt default. The chosen answer is always written to config in Phase 3 (Step 2b.1) — never silently kept.
 
 ```
-Which merge strategy for this project?
-  (a) direct (default — push directly to main; suitable for solo or non-technical projects)
-  (b) pr (GitHub Ruleset enforcement — PR-based merge with CI gate; suitable for team projects)
+Which workflow mode for this project?
+  (a) local (default — direct merge to main + local enforcement; suitable for solo or non-technical projects)
+  (b) ci-pr (GitHub Ruleset enforcement — PR-based merge with CI gate + attribution; suitable for team projects)
 
-Press Enter or type 'a' for direct (recommended for most projects).
+Press Enter or type 'a' for local (recommended for most projects).
 ```
 
-Record the choice in the scratchpad as `MERGE_STRATEGY=direct` or `MERGE_STRATEGY=pr`. On `pr`, also note: the GitHub Ruleset will be provisioned during the `initial-commit` batch (GitHub bootstrap step). If a 'DSO CI Enforcement' Ruleset already exists on the repo, `github-bootstrap.sh` will exit with an error directing you to disable the Ruleset for the bootstrap window before retrying.
+Record the choice in the scratchpad as `DSO_WORKFLOW=local` or `DSO_WORKFLOW=ci-pr`. On `ci-pr`, also note: the GitHub Ruleset will be provisioned during the `initial-commit` batch (GitHub bootstrap step). If a 'DSO CI Enforcement' Ruleset already exists on the repo, `github-bootstrap.sh` will exit with an error directing you to disable the Ruleset for the bootstrap window before retrying.
 
 #### 12. CI trigger events
 
@@ -1097,6 +1097,7 @@ After running `project-detect.sh`, inspect `ci_workflow_confidence` and `ci_work
 | `format` | `format.line_length`, `format.indent` | Enforcement answers |
 | `ci` | `ci.workflow_name`, `ci.fast_gate_job`, `ci.fast_fail_job`, `ci.test_ceil_job`, `ci.integration_workflow` | Confirmed from workflow filenames + `ci_workflow_names` detection (`ci.workflow_name` replaces deprecated `merge.ci_workflow_name`; see auto-migration above) |
 | `commands` | `commands.test`, `commands.lint`, `commands.format`, `commands.format_check` | Commands area answers |
+| `dso.workflow` | `dso.workflow` (write `local` or `ci-pr` per Phase 2 section 11 answer; idempotent — skip if key already present; on `ci-pr`, the GitHub Ruleset is provision-ruleset during the `initial-commit` batch via `github-bootstrap.sh`) | Phase 2 workflow strategy dialogue answer |
 | `jira` | `jira.project` (if Jira integration desired) | User-stated |
 | `design` | `design.system_name`, `design.component_library` | Design area answers |
 | `tickets` | `tickets.prefix` | Derived from project name (see below) |

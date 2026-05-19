@@ -25,6 +25,9 @@
 _PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/../.." && pwd)"
 _READ_CONFIG="$_PLUGIN_ROOT/scripts/read-config.sh"
 
+# Flag audit (S7 2026-05-18): 1 active flag, 0 legacy flags removed.
+# is_external_dep_block_enabled: active — used by preplanning skill.
+
 # is_external_dep_block_enabled
 # Returns exit 0 if planning.external_dependency_block_enabled=true, exit 1 otherwise.
 # Default is false when the key is absent.

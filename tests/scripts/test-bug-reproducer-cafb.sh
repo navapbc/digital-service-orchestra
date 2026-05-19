@@ -23,11 +23,15 @@ echo "Bug: squash-merged commits falsely flagged as un-provenanced; DSO-Story-Me
 echo ""
 
 # ── Test 1: verify-session-provenance.sh contains DSO-Story-Merge trailer check ─
+# S1.T5 (f9c1-a561-d19c-4485) extended the grep from "^DSO-Story-Merge:" to
+# "^DSO-Story(-Merge)?:" so both DSO-Story: and DSO-Story-Merge: trailers are
+# accepted as provenanced. The literal substring "DSO-Story-Merge:" no longer
+# appears in the script body; behavior preserved via the optional-group regex.
 echo "Test 1: verify-session-provenance.sh checks for DSO-Story-Merge trailer"
 script_content="$(cat "$PROVENANCE_SCRIPT")"
 assert_contains \
-    "verify-session-provenance.sh greps for DSO-Story-Merge trailer" \
-    "DSO-Story-Merge:" \
+    "verify-session-provenance.sh greps for DSO-Story(-Merge)?: trailer" \
+    "DSO-Story(-Merge)?:" \
     "$script_content"
 
 # ── Test 2: Trailer check uses grep on commit body (not SHA ancestry) ──────────

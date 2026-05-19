@@ -5682,5 +5682,227 @@ EOF
 t_merge_strategy_derived_from_config_when_unset
 
 # ---------------------------------------------------------------------------
+# test_merge_to_main_pr_source_branch_bump
+# S5.T1 RED: _phase_source_branch_version_bump commits the version-bump on the
+# SOURCE BRANCH HEAD before the branch is merged to main. The bump commit must
+# carry a DSO-Story(-Merge)?: trailer. After the merge, _phase_version_bump
+# must detect the bump is already on the merged commit's history and become a
+# no-op (no double-bump).
+#
+# RED reason: _phase_source_branch_version_bump does not exist yet in
+# merge-to-main-pr.sh. Sourcing the script in PR_LIB_MODE=1 and calling the
+# function will fail with "command not found", causing the test to assert on
+# "PHASE_NOT_FOUND" vs the expected "EXISTS".
+#
+# PRECONDITION GUARD: version files (VERSION, pyproject.toml, package.json)
+# MUST NOT be in .test-index. If they are, bump-version.sh changes to those
+# files would trigger S4 RED-test-blocker. The test fails loudly here so the
+# S4+S5 integration breaks visibly rather than silently.
+# ---------------------------------------------------------------------------
+test_merge_to_main_pr_source_branch_bump() {
+    # ---- Precondition: version files must not appear in .test-index --------
+    local _test_index_path
+    _test_index_path="$(git rev-parse --show-toplevel)/.test-index"
+    if grep -E '(^|[[:space:]/])(VERSION|pyproject\.toml|package\.json)([[:space:]]|$|:)' \
+            "$_test_index_path" 2>/dev/null; then
+        echo "PRECONDITION FAIL: .test-index contains a version file (VERSION/pyproject.toml/package.json)." >&2
+        echo "  This would cause bump-version.sh file changes to trigger S4 RED-test-blocker." >&2
+        echo "  Remove version files from .test-index before proceeding." >&2
+        assert_eq "precondition:version_files_not_in_test_index" "ABSENT" "PRESENT"
+        return
+    fi
+
+    local _T _real_git _branch _branch_safe _state_file
+    _T="$(mktemp -d /tmp/dso-src-branch-bump.XXXXXX)"
+    _real_git="$(command -v git)"
+    _branch="session/test-epic-srcbump-$$"
+    _branch_safe="${_branch//\//-}"
+    _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
+    rm -f "$_state_file"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'; rm -f '$_state_file'; rm -f '/tmp/merge-state-init-marker-${_branch_safe}'" RETURN
+
+    # ---- Build git fixture -------------------------------------------------
+    # Structure: bare remote ← main-checkout (worktree parent) ← session worktree
+    # The session branch has one work commit + a plain-text VERSION file.
+    # main does NOT have the VERSION file yet (the session branch adds it).
+
+    local _remote_dir="$_T/remote.git"
+    local _main_checkout="$_T/main-checkout"
+    local _worktree_dir="$_T/worktree"
+
+    # 1. Bare remote with a seed commit on main.
+    "$_real_git" init -q --bare -b main "$_remote_dir" >/dev/null 2>&1
+    "$_real_git" init -q -b main "$_main_checkout" >/dev/null 2>&1
+    (
+        cd "$_main_checkout" || exit 1
+        "$_real_git" config user.email "test@test.local"
+        "$_real_git" config user.name "test"
+        echo "seed" > seed.txt
+        "$_real_git" add seed.txt
+        "$_real_git" commit -q -m "chore: seed" >/dev/null
+        "$_real_git" remote add origin "$_remote_dir"
+        "$_real_git" push -q origin main >/dev/null 2>&1
+    )
+
+    # 2. Create session branch with a work commit + VERSION file (1.2.3).
+    "$_real_git" -C "$_main_checkout" worktree add -q "$_worktree_dir" -b "$_branch" >/dev/null 2>&1
+    (
+        cd "$_worktree_dir" || exit 1
+        "$_real_git" config user.email "test@test.local"
+        "$_real_git" config user.name "test"
+        echo "1.2.3" > VERSION
+        echo "feat work" > work.txt
+        "$_real_git" add VERSION work.txt
+        "$_real_git" commit -q -m "feat: add work
+
+DSO-Story: test-story-abc" >/dev/null
+    )
+    local _pre_bump_sha
+    _pre_bump_sha="$("$_real_git" -C "$_worktree_dir" rev-parse HEAD)"
+    local _pre_bump_count
+    _pre_bump_count="$("$_real_git" -C "$_worktree_dir" rev-list --count HEAD 2>/dev/null)"
+
+    # dso-config.conf: ci-pr workflow, version.file_path=VERSION
+    cat > "$_T/dso-config.conf" <<EOF
+version=1.1.0
+merge.pr_poll_interval_seconds=0
+merge.pr_max_wait_seconds=3600
+version.file_path=$_worktree_dir/VERSION
+dso.workflow=ci-pr
+EOF
+
+    # ---- Part A: invoke _phase_source_branch_version_bump ------------------
+    # Source merge-to-main-pr.sh in PR_LIB_MODE=1 so only functions are
+    # imported. Then call _phase_source_branch_version_bump from the session
+    # worktree CWD, passing the story-id as argument.
+    #
+    # RED: _phase_source_branch_version_bump does not exist → the function-
+    # presence probe ("type -t") returns "PHASE_NOT_FOUND"; assert_eq fails.
+    local _phase_exists
+    _phase_exists="$(
+        cd "$_worktree_dir" || exit 1
+        WORKFLOW_CONFIG_FILE="$_T/dso-config.conf" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        PR_LIB_MODE="1" \
+        bash -c '
+            source "$0" 2>/dev/null || true
+            if type _phase_source_branch_version_bump >/dev/null 2>&1; then
+                echo "EXISTS"
+            else
+                echo "PHASE_NOT_FOUND"
+            fi
+        ' "$PR_SCRIPT" 2>/dev/null
+    )"
+    assert_eq "test_merge_to_main_pr_source_branch_bump:phase_function_defined" \
+        "EXISTS" "$_phase_exists"
+
+    # If phase does not exist, remaining assertions are skipped to keep output clean.
+    if [[ "$_phase_exists" != "EXISTS" ]]; then
+        return
+    fi
+
+    # ---- Invoke the phase ---------------------------------------------------
+    local _invoke_ec=0
+    (
+        cd "$_worktree_dir" || exit 1
+        WORKFLOW_CONFIG_FILE="$_T/dso-config.conf" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        PR_LIB_MODE="1" \
+        VERSION_FILE_PATH="$_worktree_dir/VERSION" \
+        bash -c '
+            source "$0" 2>/dev/null || true
+            _phase_source_branch_version_bump "test-story-abc"
+        ' "$PR_SCRIPT" >/dev/null 2>&1
+    ) || _invoke_ec=$?
+
+    assert_eq "test_merge_to_main_pr_source_branch_bump:phase_exits_zero" \
+        "0" "$_invoke_ec"
+
+    # ---- Assert A1: commit count grew by exactly 1 -------------------------
+    local _post_bump_count
+    _post_bump_count="$("$_real_git" -C "$_worktree_dir" rev-list --count HEAD 2>/dev/null || echo "0")"
+    local _expected_count=$(( _pre_bump_count + 1 ))
+    assert_eq "test_merge_to_main_pr_source_branch_bump:one_new_commit_on_source_branch" \
+        "$_expected_count" "$_post_bump_count"
+
+    # ---- Assert A2: VERSION file was modified in the bump commit -----------
+    local _version_in_bump_commit
+    _version_in_bump_commit="$("$_real_git" -C "$_worktree_dir" show "HEAD:VERSION" 2>/dev/null | tr -d '[:space:]' || echo "MISSING")"
+    # The bump must be different from "1.2.3" (old version).
+    assert_ne "test_merge_to_main_pr_source_branch_bump:version_file_changed_from_original" \
+        "1.2.3" "$_version_in_bump_commit"
+
+    # ---- Assert A3: bump commit carries a DSO-Story(-Merge)?: trailer ------
+    local _bump_commit_body
+    _bump_commit_body="$("$_real_git" -C "$_worktree_dir" log -1 --format="%B" 2>/dev/null || echo "")"
+    local _trailer_found="no"
+    if printf '%s\n' "$_bump_commit_body" | grep -qE '^DSO-Story(-Merge)?:[[:space:]]'; then
+        _trailer_found="yes"
+    fi
+    assert_eq "test_merge_to_main_pr_source_branch_bump:bump_commit_has_dso_story_trailer" \
+        "yes" "$_trailer_found"
+
+    # ---- Assert A4: bump commit is NOT yet on main -------------------------
+    local _bump_sha
+    _bump_sha="$("$_real_git" -C "$_worktree_dir" rev-parse HEAD 2>/dev/null || echo "")"
+    # main-checkout still at the pre-bump seed commit (no merge has happened).
+    local _on_main
+    _on_main="$("$_real_git" -C "$_main_checkout" branch --contains "$_bump_sha" 2>/dev/null | grep -c 'main' || echo "0")"
+    assert_eq "test_merge_to_main_pr_source_branch_bump:bump_commit_not_yet_on_main" \
+        "0" "$_on_main"
+
+    # ---- Part B: _phase_version_bump is a no-op after merge ----------------
+    # Simulate the merge: fast-forward main-checkout to include the session
+    # branch commits (including the bump commit), then invoke _phase_version_bump
+    # with DSO_MERGE_RESUMING=0 (fresh run). It must detect the bump commit in
+    # the merged history and skip re-bumping (no new commit, VERSION unchanged).
+    (
+        cd "$_main_checkout" || exit 1
+        "$_real_git" merge --no-ff -q "$_branch" -m "Merge session branch" >/dev/null 2>&1 || true
+    )
+    local _main_version_before_phase_bump
+    _main_version_before_phase_bump="$("$_real_git" -C "$_main_checkout" show "HEAD:VERSION" 2>/dev/null | tr -d '[:space:]' || echo "MISSING")"
+
+    # Invoke _phase_version_bump from main-checkout (post-merge state).
+    local _noop_ec=0
+    (
+        cd "$_main_checkout" || exit 1
+        WORKFLOW_CONFIG_FILE="$_T/dso-config.conf" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        PR_LIB_MODE="1" \
+        MAIN_REPO="$_main_checkout" \
+        VERSION_FILE_PATH="$_main_checkout/VERSION" \
+        BUMP_TYPE="patch" \
+        DSO_WORKFLOW="ci-pr" \
+        DSO_MERGE_RESUMING="0" \
+        bash -c '
+            source "$0" 2>/dev/null || true
+            # Minimal state stubs so _phase_version_bump can run without state file I/O.
+            _state_write_phase()  { return 0; }
+            _state_mark_complete() { return 0; }
+            _phase_version_bump
+        ' "$PR_SCRIPT" >/dev/null 2>&1
+    ) || _noop_ec=$?
+
+    local _main_version_after_phase_bump
+    _main_version_after_phase_bump="$("$_real_git" -C "$_main_checkout" show "HEAD:VERSION" 2>/dev/null | tr -d '[:space:]' || echo "MISSING")"
+
+    # The no-op guard: version on main must NOT change a second time after the
+    # post-merge _phase_version_bump runs, because the bump is already in history.
+    assert_eq "test_merge_to_main_pr_source_branch_bump:post_merge_phase_version_bump_noop" \
+        "$_main_version_before_phase_bump" "$_main_version_after_phase_bump"
+}
+# Wrap with snapshot+assert_pass_if_clean so suite-engine can extract
+# "FAIL: test_merge_to_main_pr_source_branch_bump" from output and match
+# the .test-index RED marker.
+_fail_snapshot=$FAIL
+test_merge_to_main_pr_source_branch_bump
+assert_pass_if_clean "test_merge_to_main_pr_source_branch_bump"
+
+# ---------------------------------------------------------------------------
 # end of file
 print_summary
