@@ -904,9 +904,21 @@ def _run_main_with(diff_path, output_path, dispatch_findings, env_extra=None):
 
     import dso_ci_review.runner as runner_mod
 
+    # Isolate cycle ledger / arbiter sidecar state per test by pointing
+    # WORKFLOW_PLUGIN_ARTIFACTS_DIR at a per-test tmp subdir. Without this,
+    # the runner's _init_cycle_ledger resolves to the global /tmp/workflow-plugin-*
+    # path and accumulates cycle_num across test invocations — eventually
+    # triggering the cycle>=2 novelty gate and downgrading critical findings
+    # the smoke tests expect to remain critical.
+    _artifacts_isolation_dir = str(diff_path.parent / "artifacts")
+    import os as _os  # noqa: PLC0415
+
+    _os.makedirs(_artifacts_isolation_dir, exist_ok=True)
+
     env = {
         "DSO_CI_REVIEW_DIFF_PATH": str(diff_path),
         "DSO_CI_REVIEW_OUTPUT_PATH": str(output_path),
+        "WORKFLOW_PLUGIN_ARTIFACTS_DIR": _artifacts_isolation_dir,
         "CI_REVIEW_PROVIDER": "anthropic",
         "ANTHROPIC_API_KEY": "test-key",
         # Suppress real GitHub Actions env that would otherwise leak in via
