@@ -2263,6 +2263,7 @@ echo "Closure narrative: $CLOSURE_NARRATIVE"
 ```
 
 **Gate 1: Machine-readable verdict check**
+<!-- Consumer migrated to schema_version=2 P1 typed-enum field (S1b). Backward-compat for schema_version<2 payloads is handled inside check-verifier-verdict.sh (falls back to overall_verdict with a deprecation warning). -->
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-verifier-verdict.sh" "$VERIFIER_JSON_PATH"

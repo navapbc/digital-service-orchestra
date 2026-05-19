@@ -62,6 +62,7 @@ plugins/dso/docs/contracts/meta-question-signal.md:tests/docs/test-inference-sig
 plugins/dso/docs/contracts/phase1-gate-attestation.md:tests/skills/test-brainstorm-attestation-contract.sh
 plugins/dso/docs/contracts/revert-event.md:tests/scripts/test_revert_event.py
 plugins/dso/docs/contracts/scrutiny-pending-tag.md:tests/scripts/test-tag-policy-docs.sh
+plugins/dso/docs/contracts/verifier-verdict.md:tests/scripts/test-verifier-consumer-migration.sh
 plugins/dso/docs/contracts/worktree-tracking-comment.md:tests/skills/test-worktree-tracking-start-writes.sh
 plugins/dso/docs/decisions/adr-config-system.md:tests/scripts/test-adr-config-system.sh
 plugins/dso/docs/DEPENDENCY-GUIDANCE.md:tests/docs/test-doc-polyglot-compliance.sh
@@ -183,9 +184,9 @@ plugins/dso/scripts/check-session-merge-only.sh:tests/hooks/test-check-session-m
 plugins/dso/scripts/check-manifest-completeness.sh:tests/scripts/test-check-manifest-completeness.sh
 plugins/dso/scripts/check-skill-refs.sh:tests/scripts/test-check-skill-refs.sh
 plugins/dso/scripts/check-test-index-duplicates.sh:tests/scripts/test-check-test-index-duplicates.sh
-plugins/dso/scripts/check-verifier-verdict.sh:tests/scripts/test-check-verifier-verdict.sh
+plugins/dso/scripts/check-verifier-verdict.sh:tests/scripts/test-check-verifier-verdict.sh,tests/scripts/test-verifier-consumer-migration.sh
 plugins/dso/scripts/check-dd-lexicon.sh:tests/scripts/test-check-dd-lexicon.sh
-plugins/dso/scripts/render-closure-narrative.sh:tests/scripts/test-render-closure-narrative.sh
+plugins/dso/scripts/render-closure-narrative.sh:tests/scripts/test-render-closure-narrative.sh,tests/scripts/test-verifier-consumer-migration.sh
 plugins/dso/scripts/ci-llm-review-runner.sh:tests/scripts/test-ci-llm-review-runner.sh
 plugins/dso/scripts/classify-task.py:tests/scripts/test-classify-task.sh
 plugins/dso/scripts/claude-safe:tests/scripts/test-claude-safe-portability.sh,tests/scripts/test-claude-safe-post-merge-amend.sh,tests/scripts/test-claude-safe-tickets-dir.sh,tests/scripts/test-worktree-pr-merge-detection.sh,tests/scripts/test-claude-safe-stale-local-main.sh
