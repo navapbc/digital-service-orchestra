@@ -125,7 +125,7 @@ There is no line-based prefix for this signal. The JSON file itself is the recor
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `finding_id` | string | Yes | Stable identifier for this finding, unique within the review cycle. Format: `f-<hex8>`. |
-| `severity` | string | Yes | One of: `critical`, `important`, `minor`. Auto-downgrade rules may lower this value (see below). |
+| `severity` | string | Yes | One of: `critical`, `important`, `minor`, `suggestion`. Auto-downgrade rules may lower this value (see below). `suggestion` is the auto-downgraded class produced by the novelty gate and defended-finding suppression in `dso_ci_review/runner.py` — reviewers do not emit it directly. |
 | `dimension` | string | Yes | Review dimension: `correctness`, `security`, `maintainability`, `performance`, `hygiene`. |
 | `description` | string | Yes | Finding description. |
 | `cited_lines` | array of string | Yes | List of `<file>:<line>` references supporting the finding. |
@@ -440,3 +440,4 @@ This contract is versioned. Breaking changes (field removal, enum value removal,
 - **2026-05-07**: Initial version — defines review-findings-schema relation taxonomy (NEW_INTRODUCED, NEW_PRE_EXISTING, RESUSTAIN_OF, REFRAME_OF), prior_finding_id rules, escape_rationale structural validation, auto-downgrade rule with severity_history, and Call 2 completeness check protocol. Emitted by cycle-N+1 reviewer agents; parsed by REVIEW-WORKFLOW.md orchestrator.
 - **2026-05-14**: Added `verification_evidence: {command, output}` field. Absence-claim detection via `absence-claim-anchors.json` pattern set. Soft-deprecation mode by default; hard enforcement via `absence-claim-enforcement-v1` sentinel file.
 - **2026-05-15**: Added runtime enforcement notes for ±5-line proximity matching (now enforced by `runner.py _suppress_defended_findings`, Story A 1ef8-79c4) and for `NEW_INTRODUCED` relation + escape_rationale validation (now enforced by `runner.py _apply_novelty_gate`, Story B 0b1b-8177).
+- **2026-05-19**: Added `suggestion` to the `severity` enum (R7 of project-audit-2026-05-19). `suggestion` is the auto-downgraded class produced by `runner.py _suppress_defended_findings` (`runner.py:1132`) and `runner.py _apply_novelty_gate` (`runner.py:1065`); reviewers do not emit it directly. Prior to this entry the enum table excluded `suggestion` even though the narrative sections at lines describing auto-downgrade behavior already referenced the value.
