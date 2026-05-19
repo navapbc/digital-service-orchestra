@@ -478,6 +478,7 @@ plugins/dso/scripts/dso_ci_review/verifier.py:tests/skills/dso_ci_review/test_ve
 tests/skills/dso_ci_review/test_suppress_proximity_regression.py:tests/skills/dso_ci_review/test_suppress_proximity_regression.py
 plugins/dso/scripts/migrate-dso-workflow-config.sh:tests/scripts/test-legacy-cleanup-grep.sh
 plugins/dso/scripts/migrate-story-pr-bases.sh:tests/scripts/test-migrate-story-pr-bases.sh
+plugins/dso/scripts/migrate-ledger-v11-to-v12.sh:tests/scripts/test-migrate-ledger-v11-to-v12.sh [test_migrate_ledger_v11_to_v12]
 plugins/dso/scripts/verify-session-provenance.sh:tests/scripts/test-verify-session-provenance.sh,tests/scripts/test-bug-reproducer-cafb.sh
 plugins/dso/scripts/redistribute-session-commits.sh:tests/scripts/test-redistribute-session-commits.sh [test_script_exists]
 plugins/dso/scripts/write-cycle-ledger.sh:tests/scripts/test-write-cycle-ledger.sh,tests/scripts/test-write-cycle-ledger-integration.sh
