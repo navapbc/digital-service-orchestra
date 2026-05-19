@@ -180,7 +180,7 @@ plugins/dso/scripts/check-local-env.sh:tests/scripts/test-check-local-env-portab
 plugins/dso/scripts/check-script-writes.py:tests/scripts/test-check-script-writes.sh
 plugins/dso/scripts/check-session-branch-invariant.sh:tests/scripts/test-check-session-branch-invariant.sh
 plugins/dso/scripts/check-session-merge-only.sh:tests/hooks/test-check-session-merge-only.sh [test_sprint_bypass_without_reason_refused]
-plugins/dso/scripts/check-manifest-completeness.sh:tests/scripts/test-check-manifest-completeness.sh [test_complete_json_exits_0]
+plugins/dso/scripts/check-manifest-completeness.sh:tests/scripts/test-check-manifest-completeness.sh
 plugins/dso/scripts/check-skill-refs.sh:tests/scripts/test-check-skill-refs.sh
 plugins/dso/scripts/check-test-index-duplicates.sh:tests/scripts/test-check-test-index-duplicates.sh
 plugins/dso/scripts/check-verifier-verdict.sh:tests/scripts/test-check-verifier-verdict.sh
@@ -202,11 +202,11 @@ plugins/dso/scripts/dso_ci_review/arbiter_processor.py:tests/skills/dso_ci_revie
 plugins/dso/scripts/dso_ci_review/findings.py:tests/skills/dso_ci_review/test_findings.py,tests/skills/dso_ci_review/test_region_dedup.py
 plugins/dso/scripts/dso_ci_review/proximity.py:tests/skills/dso_ci_review/test_proximity.py
 plugins/dso/scripts/dso_ci_review/speculation_markers.py:tests/skills/dso_ci_review/test_speculation_markers.py
-plugins/dso/scripts/dso_ci_review/stability.py:tests/skills/dso_ci_review/test_stability.py [test_jaccard_zero_set_both_empty]
+plugins/dso/scripts/dso_ci_review/stability.py:tests/skills/dso_ci_review/test_stability.py
 plugins/dso/scripts/dso_ci_review/providers/config.py:tests/skills/dso_ci_review/test_providers_config.py,tests/skills/dso_ci_review/test_dispatch_config.py
 plugins/dso/scripts/dso_ci_review/providers/openai.py:tests/skills/dso_ci_review/test_providers_unit.py [test_openai_provider_review_diff]
 plugins/dso/scripts/dso_ci_review/region_split.py:tests/skills/dso_ci_review/test_region_split.py
-plugins/dso/scripts/dso_ci_review/runner.py:tests/skills/dso_ci_review/test_runner_smoke.py,tests/skills/dso_ci_review/verify_pr80_schema_compliance.py,tests/skills/dso_ci_review/test_schema_compliance_pr80.py,tests/skills/dso_ci_review/test_suppress_proximity.py,tests/skills/dso_ci_review/test_novelty_gate.py [test_novelty_gate_downgrades_unjustified_new_introduced]
+plugins/dso/scripts/dso_ci_review/runner.py:tests/skills/dso_ci_review/test_runner_smoke.py,tests/skills/dso_ci_review/verify_pr80_schema_compliance.py,tests/skills/dso_ci_review/test_schema_compliance_pr80.py,tests/skills/dso_ci_review/test_suppress_proximity.py,tests/skills/dso_ci_review/test_novelty_gate.py
 plugins/dso/scripts/end-session/check-orphan-epics.sh:tests/scripts/test-check-orphan-epics.sh
 plugins/dso/scripts/end-session/end-session-cleanup.sh:tests/scripts/test-end-session-cleanup.sh
 plugins/dso/scripts/end-session/error-sweep.sh:tests/skills/test-end-session-error-sweep.sh,tests/scripts/test-error-sweep-config-gate.sh,tests/skills/test-end-session-error-sweep-subprocess.sh
@@ -465,7 +465,7 @@ plugins/dso/agents/code-reviewer-security-red-team.md:tests/agents/test-verifica
 plugins/dso/agents/code-reviewer-security-blue-team.md:tests/agents/test-verification-evidence-emission.sh
 plugins/dso/docs/contracts/reviewer-findings.md:tests/scripts/test-record-review-verifier-fields.sh [test_reviewer_findings_contract_lists_verifier_status]
 plugins/dso/scripts/record-review.sh:tests/scripts/test-record-review-verifier-fields.sh [test_reviewer_findings_contract_lists_verifier_status]
-plugins/dso/scripts/dso_ci_review/verifier.py:tests/skills/dso_ci_review/test_verifier_feature_flag.py [test_verifier_disabled_by_default_skips_dispatch]
+plugins/dso/scripts/dso_ci_review/verifier.py:tests/skills/dso_ci_review/test_verifier_feature_flag.py
 tests/skills/dso_ci_review/test_suppress_proximity_regression.py:tests/skills/dso_ci_review/test_suppress_proximity_regression.py
 plugins/dso/scripts/migrate-dso-workflow-config.sh:tests/scripts/test-legacy-cleanup-grep.sh
 plugins/dso/scripts/migrate-story-pr-bases.sh:tests/scripts/test-migrate-story-pr-bases.sh
