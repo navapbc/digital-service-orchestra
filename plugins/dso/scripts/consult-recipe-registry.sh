@@ -22,8 +22,8 @@
 
 set -uo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REGISTRY="${RECIPE_REGISTRY_PATH:-$SCRIPT_DIR/../recipes/recipe-registry.yaml}"
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/..}"
+REGISTRY="${RECIPE_REGISTRY_PATH:-${_PLUGIN_ROOT}/recipes/recipe-registry.yaml}"
 
 # ── Argument parsing ──────────────────────────────────────────────────────────
 
