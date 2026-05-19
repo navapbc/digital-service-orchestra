@@ -148,6 +148,37 @@ git rev-parse --show-toplevel 2>/dev/null
 
 If a PRD or `.claude/design-notes.md` exists, open with a brief summary of what you already know, then probe deeper rather than starting from scratch.
 
+### Epic Architectural Classification
+
+Run the epic classifier to determine architectural class before scrutiny. When enriching an existing epic, pipe the epic JSON to the classifier; for new epics, run after the epic ticket is created in Phase 3:
+
+```bash
+_EPIC_JSON=$(.claude/scripts/dso ticket show "${_EPIC_ID}" 2>/dev/null || echo '{}')
+_EPIC_CLASS=$(echo "$_EPIC_JSON" | bash "${CLAUDE_PLUGIN_ROOT}/scripts/classify-epic-class.sh")  # shim-exempt: internal plugin script invoked directly from within the plugin skill
+```
+
+Write the classification to the epic spec as a machine-readable field. Update the epic description to include an `EPIC_CLASS:` line (e.g., `EPIC_CLASS: class:architectural`), or post it as a structured comment if the description is already finalized. Log the classification decision so downstream orchestrators (sprint, preplanning) can skip or require architectural probes accordingly.
+
+Valid class values: `class:architectural` | `class:integration` | `class:infra` | `class:behavioral`
+
+### Architectural Probe Dispatch
+
+When `$_EPIC_CLASS == "class:architectural"`, dispatch the architectural probe before scrutiny:
+
+```bash
+if [[ "$_EPIC_CLASS" == "class:architectural" ]]; then
+    _PROBE_OUTPUT=$(mktemp /tmp/arch-probe-output.XXXXXX)
+    bash "${CLAUDE_PLUGIN_ROOT}/scripts/run-architectural-probe.sh" \  # shim-exempt: internal orchestration script
+        --epic-class="$_EPIC_CLASS" \
+        --output-file="$_PROBE_OUTPUT" \
+        --epic-id="$_EPIC_ID"
+    if [[ $? -ne 0 ]] || [[ ! -s "$_PROBE_OUTPUT" ]]; then
+        echo "PROBE_GATE_BLOCKED: architectural epic requires probe output before scrutiny"
+        exit 1
+    fi
+fi
+```
+
 ### Codebase Investigation Gate (Mandatory Before Any User Question)
 
 Before presenting ANY question to the user, you MUST first check whether the answer is discoverable by reading the codebase. Read existing skill files (sprint SKILL.md, fix-bug SKILL.md), ARCH_ENFORCEMENT.md, pyproject.toml, project-understanding.md, and relevant scripts/module structure. Only ask the user questions whose answers cannot be found in the repo. Questions about design approach, user experience preferences, or business priorities are appropriate for the user; questions about existing implementations, available tools, or project structure are NOT — find those answers yourself first.
@@ -372,6 +403,8 @@ Using the chosen approach and the Phase 1 dialogue, draft the epic spec:
 - At least one criterion should hint at a validation signal — how you'll know the capability is actually being used
 - **Executable-artifact rule**: When the epic produces an executable artifact whose runtime environment cannot be reproduced locally (CI workflows, GitHub Actions, scheduled jobs, deploy pipelines, webhook handlers, hosted endpoints), include at least one SC that exercises the artifact end-to-end in one of: (a) an integration test against the real environment, (b) a non-blocking / shadow landing on the project followed by an in-session green-run check, or (c) a live invocation against the real or a throwaway target. Spike findings on a *different* artifact (even one that uses the same underlying API) do NOT satisfy this rule — the unit of verification is the actual artifact being shipped.
 - **Superseding or closing another epic is NEVER an SC.** Ticket bookkeeping (closing superseded epics, re-parenting children, updating links) is executed as post-creation work in Phase 3 after `ticket create` returns the new epic ID. Including it as an SC conflates the epic's delivered outcome with the workflow step that records the outcome — the `ticket transition` call is a side-effect of scope consolidation, not a criterion a reviewer can pass or fail the epic against. When a supersede is part of the scope, record it in the Phase 3 bookkeeping plan; do not list it under `## Success Criteria`.
+
+**Bookkeeping note (not an SC):** Bug tickets closed during brainstorm bookkeeping require the classifier (3-step): dispatch `bug-classifier-haiku` sub-agent with ticket ID → extract slug → `CLASSIFIER_OUTPUT=<slug> .claude/scripts/dso classify-bug-at-closure.sh <ticket-id> "Fixed:"`.
 
 **Context narrative rules:**
 - Name the specific user or stakeholder affected

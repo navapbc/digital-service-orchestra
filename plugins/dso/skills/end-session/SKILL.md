@@ -32,7 +32,7 @@ Run `test -f .git`. If `.git` is a directory (not a file), abort: "This command 
 ### 2. Close Completed Issues
 1. Run `.claude/scripts/dso ticket list --status=open,in_progress` and `git log main..HEAD --oneline`
 2. Cross-reference: which issues were completed based on commits?
-3. Ask user which to close. Close confirmed: `.claude/scripts/dso ticket transition <id> open closed` for each. **Bug tickets require** `--reason="Fixed: <summary>"` — omitting it causes a silent failure.
+3. Ask user which to close. Close confirmed: `.claude/scripts/dso ticket transition <id> open closed` for each. **Bug tickets require** `--reason="Fixed: <summary>"` — omitting it causes a silent failure. Before closing with `Fixed:`, invoke the bug classifier (3-step): dispatch `bug-classifier-haiku` sub-agent with ticket ID → extract slug → `CLASSIFIER_OUTPUT=<slug> .claude/scripts/dso classify-bug-at-closure.sh <ticket-id> "Fixed:"`
 4. **Skip if no in-progress issues** — this is common when called after `/dso:debug-everything` or `/dso:sprint`, which close their own issues. Report: "No in-progress issues to close (already handled)."
 
 ### 3. Close Orphaned Epics (safety net)
@@ -47,7 +47,8 @@ Output is a JSON array `[{epic_id, title, child_status, session_related, match_r
 
 - `child_status: "no_children"` — skip silently.
 - `child_status: "open_children"` — do NOT close. Report it as still in progress.
-- `child_status: "all_closed"` AND `session_related: true` — closeable candidate. Confirm with the user that completion criteria are met and the completion verifier was run this session. Close ONLY if the user confirms OR the sprint context passed to end-session includes `overall_verdict: PASS` from a prior completion-verifier dispatch:
+<!-- Consumer migrated to schema_version=2 P1 typed-enum field (S1b). Explicit schema_version check documented inline below; schema_version<2 falls back to overall_verdict per verifier-verdict.md contract. -->
+- `child_status: "all_closed"` AND `session_related: true` — closeable candidate. Confirm with the user that completion criteria are met and the completion verifier was run this session. Close ONLY if the user confirms OR the sprint context passed to end-session includes `P1: PASS` (schema_version=2) or `overall_verdict: PASS` (schema_version=1, backward-compat) from a prior completion-verifier dispatch:
   ```bash
   .claude/scripts/dso ticket transition <epic-id> in_progress closed --reason="Epic complete: all children closed (safety-net close by /dso:end-session, verifier confirmed by user)"
   ```

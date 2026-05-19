@@ -964,6 +964,11 @@ Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/post-batch-
 2. Leave the ticket **OPEN** (do NOT transition to closed)
 3. Surface the ticket in the session summary under the `ESCALATED BUGS` section so the user sees it
 
+Before closing with `Fixed:`, invoke the bug classifier (3-step process):
+1. Dispatch the `bug-classifier-haiku` sub-agent with the ticket ID to classify the bug.
+2. Extract the slug from the agent result (`CLASSIFIER_OUTPUT=<slug>`).
+3. Apply the tag: `CLASSIFIER_OUTPUT=<slug> .claude/scripts/dso classify-bug-at-closure.sh <ticket-id> "Fixed:"`
+
 Valid close example (after code fix):
 - `.claude/scripts/dso ticket transition <id> in_progress closed --reason="Fixed: added comment_penalty to quality_helpers.py"`
 

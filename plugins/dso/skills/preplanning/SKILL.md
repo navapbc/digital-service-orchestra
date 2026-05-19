@@ -648,6 +648,47 @@ Code-change stories (stories that produce or modify source code) must include **
 
 Documentation, research, and other non-code stories are exempt from this requirement — their Done Definitions focus on observable outcomes rather than test coverage.
 
+#### DD Lexicon Check
+
+Before finalizing each story, check each done definition for precision vocabulary and compound requirements:
+
+```bash
+for _DD in "${_DONE_DEFINITIONS[@]}"; do
+    _LEXICON_RESULT=$(echo "$_DD" | bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-dd-lexicon.sh")  # shim-exempt: internal orchestration script
+    _LEXICON_EXIT=$?
+    if [[ $_LEXICON_EXIT -ne 0 ]]; then
+        echo "DD LEXICON VIOLATION: $_LEXICON_RESULT"
+        echo "Split or revise: '$_DD'"
+        # halt — do not finalize this story
+        exit 1
+    fi
+done
+```
+
+A **compound** violation (type `compound`) means the DD contains ` AND ` joining two requirements — split into two separate done definitions. A **vague** violation (type `vague`) means the DD uses imprecise language (e.g., `properly`, `correctly`, `should`) — replace with observable, measurable language.
+
+#### Spec-Fidelity Check
+
+Before finalizing each story, verify PIL criteria against written done definitions:
+
+```bash
+# Write PIL criteria and story DDs to temp files
+_PIL_TMP=$(mktemp /tmp/pil-criteria.XXXXXX)
+_DD_TMP=$(mktemp /tmp/story-dds.XXXXXX)
+# Populate _PIL_TMP with {"criteria": [...]} JSON from the PIL for this story
+# Populate _DD_TMP with one done-definition per line
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/spec-fidelity-check.sh" \  # shim-exempt: internal orchestration script
+    --pil-json="$_PIL_TMP" \
+    --story-dds="$_DD_TMP"
+if [[ $? -ne 0 ]]; then
+    echo "FIDELITY_FAIL: PIL field dropped or mutated in story done definitions"
+    # halt — show diff to user, do NOT auto-correct
+fi
+rm -f "$_PIL_TMP" "$_DD_TMP"
+```
+
+A PIL criterion is considered matched when ≥80% of its words appear in any DD line (near-match). If a criterion has no match, the script emits JSON `{"type":"drop","pil_text":"<criterion>","dd_matches":[]}` on stderr and exits 1. **Do not auto-correct** — surface the mismatch to the user and halt story finalization.
+
 #### Considerations
 Notes from the Risk & Scope Scan (Phase C). These provide context for `/dso:implementation-plan` to incorporate into task-level acceptance criteria:
 
@@ -822,6 +863,18 @@ If the user requests changes, iterate on the plan and re-present. Once the user 
 Write the accumulated context as a structured comment on the epic ticket so that `/dso:implementation-plan` can load richer context when planning individual stories from this epic, regardless of which session or environment runs next.
 
 **Schema version**: The `schema_version` integer field (current value: `2`) is used by consumers for forward/backward compatibility — bump it whenever the payload structure changes in a non-additive way. Consumers reading an unfamiliar `schema_version` should fall back to defensive parsing rather than failing.
+
+**Validate the PIL payload** (if loading a prior `PREPLANNING_CONTEXT:` comment): If a prior `PREPLANNING_CONTEXT:` comment exists on the epic, validate it before merging its data:
+```bash
+echo "$_PREPLANNING_CONTEXT_JSON" | bash "${CLAUDE_PLUGIN_ROOT}/scripts/validate-pil-handoff.sh"  # shim-exempt: internal orchestration script
+if [[ $? -ne 0 ]]; then
+    # Fail-open: log validation error but continue with planning
+    echo "PIL_VALIDATION_ERROR: PREPLANNING_CONTEXT failed schema validation — treating as absent"
+    # Clear the context and proceed with full Input Analysis
+fi
+```
+<!-- EMIT-PRECONDITIONS: gate_name=preplanning_pil_handoff_validation degradation_type=inferred_decision -->
+Validation failure is non-blocking — treat the invalid payload as absent and continue with full preplanning. This prevents a corrupt or stale PIL from silently poisoning downstream story decomposition.
 
 **Merging prior research findings (RESEARCH_FINDINGS:)**: Before writing the new `PREPLANNING_CONTEXT:` comment, scan the epic's ticket comments for the most recent `RESEARCH_FINDINGS:` comment (a JSON array of `{capability, status, source, skill_name, timestamp}` entries written by upstream skills like brainstorm or prior preplanning runs). Parse it and merge into the `researchFindings` array of the new context payload.
 <!-- EMIT-PRECONDITIONS: gate_name=preplanning_research_findings_merge degradation_type=inferred_decision -->

@@ -26,6 +26,7 @@ TEST_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test)  # shim-exempt: 
 LINT_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.lint)  # shim-exempt: internal orchestration script
 VISUAL_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test_visual)  # shim-exempt: internal orchestration script
 E2E_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test_e2e)  # shim-exempt: internal orchestration script
+SPRINT_MODE=$(bash "$PLUGIN_SCRIPTS/mode-detect.sh")  # shim-exempt: SPRINT_MODE must be set before any ci-pr-only Phase A block reads it (bug f6fd-af80-9b13-4649)
 ```
 
 Resolution order: See `${CLAUDE_PLUGIN_ROOT}/docs/CONFIG-RESOLUTION.md`.
@@ -35,6 +36,7 @@ Resolved commands used in this skill:
 - `LINT_CMD` — replaces `make lint` in validation steps
 - `VISUAL_CMD` — replaces `make test-visual` in post-batch checks
 - `E2E_CMD` — replaces `make test-e2e` in post-batch checks
+- `SPRINT_MODE` — `ci-pr` or `local`; governs per-story PR mechanisms. Resolved here at activation so every Phase A ci-pr-only block (Ruleset Preflight, Draft PR Creation) can read it safely. The Mode Banner subsection later in Phase A only emits the banner.
 
 <!-- Schema reference: docs/designs/stage-boundary-preconditions/ -->
 
@@ -337,13 +339,9 @@ Wait for user response and route accordingly:
 - **(b) brainstorm**: invoke `/dso:brainstorm <primary_ticket_id>` via Skill tool, then re-enter Preplanning Gate.
 - **(c) proceed**: log `"User elected to proceed with low-clarity ticket."`, continue to Preplanning Gate.
 
-### Mode Detection
+### Mode Banner
 
-Detect whether per-story PR mechanisms are active for this sprint run:
-
-```bash
-SPRINT_MODE=$(bash "$PLUGIN_SCRIPTS/mode-detect.sh")  # shim-exempt: internal orchestration script
-```
+`SPRINT_MODE` is resolved during the Config Resolution block at the top of Phase A. This subsection only emits the banner.
 
 Emit exactly one banner based on the result:
 
@@ -1300,6 +1298,22 @@ STORY_BRANCH=$(bash "$PLUGIN_SCRIPTS/create-story-branch.sh" "$EPIC_ID" "$STORY_
 # STORY_BRANCH = story/<epic-id>/<story-id>; used by Phase F after all worktrees harvested
 ```
 
+### Predecessor Handoff Check
+
+Before dispatching a story sub-agent, check predecessor verdict when applicable:
+
+```bash
+if [[ -n "$_PREDECESSOR_STORY_ID" ]]; then
+    bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-story-handoff.sh" \  # shim-exempt: internal orchestration script
+        --predecessor-story-id="$_PREDECESSOR_STORY_ID"
+    _HANDOFF_RC=$?
+    if [[ $_HANDOFF_RC -ne 0 ]]; then
+        echo "DISPATCH_BLOCKED: predecessor $PREDECESSOR_STORY_ID verdict != PASS"
+        # add to blocked list; do not dispatch this story
+    fi
+fi
+```
+
 <HARD-GATE>
 Do NOT implement any task directly using Edit, Write, or other file-modification tools. ALL implementation tasks must be dispatched to sub-agents via the Task tool — regardless of how small, simple, or obvious the change appears. "Small markdown edit", "single-line change", "user already approved", or "sub-agent dispatch is overhead" are not valid exceptions. Direct implementation by the orchestrator bypasses checkpoint protocol, code review, and acceptance criteria gates.
 
@@ -1989,7 +2003,7 @@ Do NOT merge to main here.
 ```
 
 <HARD-GATE>
-Do NOT proceed to Step 19 until Step 18 (completion-verifier dispatch) has completed and returned an overall_verdict. The orchestrator is biased toward confirming its own work — CLAUDE.md rule 24 exists because this step has been skipped in past sessions. "All tests pass" and "all tasks closed" do NOT substitute for independent verification.
+Do NOT proceed to Step 19 until Step 18 (completion-verifier dispatch) has completed and Gate 1 (`check-verifier-verdict.sh`) has returned a verdict (`P1` field populated). The orchestrator is biased toward confirming its own work — CLAUDE.md rule 24 exists because this step has been skipped in past sessions. "All tests pass" and "all tasks closed" do NOT substitute for independent verification.
 
 Do NOT rationalize skipping Step 18. Prior evidence ("RED tests are GREEN", "CI passes", "AC verified") does not satisfy the completion-verifier requirement. The verifier checks done-definitions that task-level AC verification does not cover.
 
@@ -2106,13 +2120,13 @@ What is NOT acceptable (all of these are CLAUDE.md rule #20 violations):
 
 If neither form is achievable (e.g., Agent tool unavailable), STOP and surface to the user — do not synthesize a verifier prompt yourself.
 </HARD-GATE>
-- `overall_verdict: PASS` → proceed with closure
-- `overall_verdict: FAIL` → see branching logic below
-- **Fallback (technical failure only)**: On timeout/unparseable JSON, log warning and proceed with closure.
+- `P1: PASS` → proceed with closure
+- `P1: FAIL` / `P1: BLOCKED` / `P1: INCONCLUSIVE` → see branching logic below
+- **Fallback (technical failure only)**: On timeout/unparseable JSON (`check-verifier-verdict.sh` exit 2), log warning and proceed with closure.
 
-**Re-dispatch rule (d039-ac65)**: If the completion-verifier returned `overall_verdict: FAIL` on ANY prior run during this story's lifecycle AND a fix was subsequently applied (remediation tasks completed, Phase C re-entry executed), you MUST re-dispatch the completion-verifier before closing the story — even when confidence is high that the fix addressed the failing criterion. High confidence is NOT a valid bypass. The verifier must confirm the fix did not introduce regressions on other criteria. Only technical failure (timeout, unparseable JSON) permits proceeding without re-verification. "I fixed the exact criterion that failed" is NOT a substitute for re-dispatch.
+**Re-dispatch rule (d039-ac65)**: If the completion-verifier returned a non-PASS `P1` on ANY prior run during this story's lifecycle AND a fix was subsequently applied (remediation tasks completed, Phase C re-entry executed), you MUST re-dispatch the completion-verifier before closing the story — even when confidence is high that the fix addressed the failing criterion. High confidence is NOT a valid bypass. The verifier must confirm the fix did not introduce regressions on other criteria. Only technical failure (timeout, unparseable JSON) permits proceeding without re-verification. "I fixed the exact criterion that failed" is NOT a substitute for re-dispatch.
 
-**Story validation failure detection** — when `overall_verdict: FAIL`:
+**Story validation failure detection** — when `P1` is non-PASS (`FAIL`, `BLOCKED`, or `INCONCLUSIVE`):
 
 Check whether all tasks under the story are closed (no open or in-progress tasks remain):
 
@@ -2134,10 +2148,10 @@ Check whether all tasks under the story are closed (no open or in-progress tasks
   7. Return to Phase C (Batch Preparation) to execute the new remediation tasks.
 
 <HARD-GATE>
-Do NOT rationalize around a FAIL verdict. The verifier's verdict is final — scope-scoping arguments ("pre-existing failures," "out-of-scope tests," "RED marker tolerance," "already tracked as a separate bug") do not override the FAIL → Phase C path. The orchestrator's judgment about whether the FAIL "really applies" is exactly the bias the verifier was designed to counteract. Only `overall_verdict: PASS` or technical failure (timeout/unparseable JSON) permits proceeding past this step.
+Do NOT rationalize around a non-PASS P1 verdict. The verifier's verdict is final — scope-scoping arguments ("pre-existing failures," "out-of-scope tests," "RED marker tolerance," "already tracked as a separate bug") do not override the non-PASS → Phase C path. The orchestrator's judgment about whether the verdict "really applies" is exactly the bias the verifier was designed to counteract. Only `P1: PASS` or technical failure (timeout/unparseable JSON) permits proceeding past this step.
 </HARD-GATE>
 
-**RED marker cleanup (before closure)**: After `overall_verdict: PASS`, check `.test-index` for stale RED markers associated with tests from this story's scope. If any `[test_name]` entries exist for tests that now pass (GREEN), remove them before closing the story. Stale markers accumulate across story completions and block epic closure.
+**RED marker cleanup (before closure)**: After `P1: PASS`, check `.test-index` for stale RED markers associated with tests from this story's scope. If any `[test_name]` entries exist for tests that now pass (GREEN), remove them before closing the story. Stale markers accumulate across story completions and block epic closure.
 
 ```bash
 # Check for stale RED markers
@@ -2206,6 +2220,8 @@ bash "$PLUGIN_SCRIPTS/detect-session-leakage.sh" || { # shim-exempt: SKILL.md or
 
 Leakage detection is non-blocking: it surfaces commits that need re-attribution but does not abort Phase F. The sprint continues; operators must address flagged commits before merge-to-main.
 
+Before closing a bug with `Fixed:`, invoke the bug classifier (3-step): dispatch `bug-classifier-haiku` sub-agent with the ticket ID → extract slug → `CLASSIFIER_OUTPUT=<slug> .claude/scripts/dso classify-bug-at-closure.sh <id> "Fixed:"`.
+
 ```bash
 .claude/scripts/dso ticket comment <id> "Fixed: <summary>"
 .claude/scripts/dso ticket transition <id> open closed
@@ -2215,7 +2231,7 @@ Do NOT close tasks that are still open or in a failed state.
 
 ### Step 19: Context Compaction Check (/dso:sprint)
 
-**Pre-Step 19 gate (5b10-0d02):** Before doing anything else in Step 19, confirm that Step 18 completed successfully this story cycle: dso:completion-verifier was dispatched via the Task tool AND returned an `overall_verdict`. If you cannot confirm this (e.g., Step 18 was skipped or the verifier result is not in context), STOP and return to Step 18 now. Do NOT proceed to Step 19 without the verifier verdict.
+**Pre-Step 19 gate (5b10-0d02):** Before doing anything else in Step 19, confirm that Step 18 completed successfully this story cycle: dso:completion-verifier was dispatched via the Task tool AND Gate 1 (`check-verifier-verdict.sh`) returned a verdict (exit 0 for `P1: PASS`, or exit 1/2 for non-PASS/invalid). If you cannot confirm this (e.g., Step 18 was skipped or the verifier result is not in context), STOP and return to Step 18 now. Do NOT proceed to Step 19 without the verifier verdict.
 
 Between batches — after all work is committed and pushed — check whether the session context is at least 70% capacity.
 
@@ -2337,7 +2353,7 @@ Decision: Involuntary compaction detected? → Yes: P8 (Graceful Shutdown)
 **Triggered when**: all child tasks are closed (or all remaining are failed/blocked).
 
 <HARD-GATE>
-Do NOT execute any Phase G step until Step 2 (completion-verifier dispatch) has completed and returned an overall_verdict for the epic. Do NOT skip Step 2 because "all stories are closed" or "all tasks passed" — those are orchestrator-level observations, not independent verification. CLAUDE.md rule 24: the verifier exists because the orchestrator is biased toward confirming its own work.
+Do NOT execute any Phase G step until Step 2 (completion-verifier dispatch) has completed and Gate 1 (`check-verifier-verdict.sh`) has returned a `P1` verdict for the epic. Do NOT skip Step 2 because "all stories are closed" or "all tasks passed" — those are orchestrator-level observations, not independent verification. CLAUDE.md rule 24: the verifier exists because the orchestrator is biased toward confirming its own work.
 
 Do NOT proceed to Step 3 (/dso:validate-work) or Phase I (Session Close) without the completion-verifier result. Phase G steps must execute in order: Step 2 → Step 3 → Step 4 → Step 5 → Step 6 → Step 7.
 </HARD-GATE>
@@ -2348,15 +2364,54 @@ Read and execute `prompts/epic-ci-and-e2e-gates.md` for the integration test gat
 
 ### Step 2: Completion Verification (/dso:sprint)
 
+<!-- DD4: self-application validation deferred to S11 (684d-ed77-c6ce-442b) -->
+
 **MANDATORY**: Dispatch the completion-verifier using the same shape defined in Phase F Step 18's "Verifier dispatch shape" HARD-GATE — primary form uses `subagent_type: "dso:completion-verifier"` with `model: "sonnet"`; fallback form reads `agents/completion-verifier.md` verbatim and passes its full contents under `subagent_type: "general-purpose"`. Hand-written paraphrases of the agent file are CLAUDE.md rule #20 violations (bug c716-952a). Pass the epic ID instead of a story ID.
-- `overall_verdict: PASS` → proceed to Step 3
-- `overall_verdict: FAIL` → **STOP. Do NOT proceed to Phase H or epic closure under ANY circumstances.** Create bug tasks from `remediation_tasks_created` and return to Phase C (Batch Preparation).
-- **Fallback (technical failure only)**: On timeout/unparseable JSON, log warning and proceed to Step 3.
+
+After receiving the verifier JSON output, render the closure narrative FIRST, then run the gate checks:
+
+**Render closure narrative (before gate checks)**
+
+```bash
+# Save verifier JSON output to a temp file
+VERIFIER_JSON_PATH=$(mktemp /tmp/verifier-output.XXXXXX)
+# <write verifier JSON to $VERIFIER_JSON_PATH>
+# Render deterministic closure narrative — use this output verbatim in any closure summary; do NOT paraphrase or summarize LLM-style
+CLOSURE_NARRATIVE=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/render-closure-narrative.sh" "$VERIFIER_JSON_PATH")  # shim-exempt: internal orchestration script
+echo "Closure narrative: $CLOSURE_NARRATIVE"
+```
+
+**Gate 1: Machine-readable verdict check**
+<!-- Consumer migrated to schema_version=2 P1 typed-enum field (S1b). Backward-compat for schema_version<2 payloads is handled inside check-verifier-verdict.sh (falls back to overall_verdict with a deprecation warning). -->
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-verifier-verdict.sh" "$VERIFIER_JSON_PATH"  # shim-exempt: internal orchestration script
+```
+
+- Exit 0 (`P1=PASS`): continue to story closure
+- Exit 1 (non-PASS: `FAIL`/`BLOCKED`/`INCONCLUSIVE`): **HALT** — do not close story; emit `CLOSURE_BLOCKED: P1=<value>`
+- Exit 2 (missing/invalid): **HALT** — emit `CLOSURE_BLOCKED: verifier output invalid`
+
+**Gate 2: Manifest completeness check**
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-manifest-completeness.sh" "$VERIFIER_JSON_PATH"  # shim-exempt: internal orchestration script
+```
+
+- Exit 0 (complete): continue
+- Exit 1 (incomplete): **HALT** — emit `MANIFEST_INCOMPLETE: missing field <field>`
+- Exit 2 (invalid): **HALT** — emit `MANIFEST_INCOMPLETE: verifier output unreadable`
+
+Only when both gates exit 0, interpret the verdict:
+
+- `P1: PASS` → proceed to Step 3
+- `P1: FAIL` or `P1: BLOCKED` or `P1: INCONCLUSIVE` → **STOP. Do NOT proceed to Phase H or epic closure under ANY circumstances.** Create bug tasks from `remediation_tasks_created` and return to Phase C (Batch Preparation).
+- **Fallback (technical failure only)**: On timeout/unparseable JSON (Gate 1 exit 2), log warning and proceed to Step 3.
 
 <HARD-GATE>
-Do NOT rationalize around a FAIL verdict (7c1d-9acf). The verifier's verdict is final — scope-scoping arguments ("pre-existing failures," "out-of-scope tests," "RED marker tolerance," "already tracked as a separate bug") do not override the FAIL → Phase C path. The orchestrator's judgment about whether the FAIL "really applies" is exactly the bias the verifier was designed to counteract. Only `overall_verdict: PASS` or technical failure (timeout/unparseable JSON) permits proceeding to Step 3.
+Do NOT rationalize around a non-PASS P1 verdict (7c1d-9acf). The verifier's verdict is final — scope-scoping arguments ("pre-existing failures," "out-of-scope tests," "RED marker tolerance," "already tracked as a separate bug") do not override the FAIL → Phase C path. The orchestrator's judgment about whether the verdict "really applies" is exactly the bias the verifier was designed to counteract. Only `P1: PASS` (Gate 1 exit 0) or technical failure (timeout/unparseable JSON) permits proceeding to Step 3.
 
-On FAIL: the ONLY valid responses are (a) return to Phase C to create and complete remediation tasks, or (b) if the user explicitly says to stop the sprint (not "close the epic anyway"), escalate for sprint abort. Do NOT present FAIL findings with waiver arguments. Do NOT ask the user if criteria can be skipped. Do NOT proceed to Phase H.
+On non-PASS: the ONLY valid responses are (a) return to Phase C to create and complete remediation tasks, or (b) if the user explicitly says to stop the sprint (not "close the epic anyway"), escalate for sprint abort. Do NOT present non-PASS findings with waiver arguments. Do NOT ask the user if criteria can be skipped. Do NOT proceed to Phase H.
 </HARD-GATE>
 
 ### Step 3: Run /dso:validate-work (/dso:sprint)
@@ -2440,22 +2495,42 @@ Remove the `.sprint-active` marker so post-session commits (e.g., release pipeli
 rm -f "$(git rev-parse --show-toplevel)/.sprint-active"
 ```
 
+**Bypass log requirement**: When a closure gate is overridden, record a bypass log entry in the artifact bundle before proceeding:
+```json
+{
+  "gate_overrides": [
+    {
+      "gate_name": "<name>",
+      "bypass_log": {
+        "rationale": "<reason the gate was overridden>",
+        "caller_context": "<who/what triggered this override>",
+        "timestamp": "<ISO 8601 timestamp>"
+      }
+    }
+  ]
+}
+```
+Overrides without a complete `bypass_log` (both `rationale` and `caller_context` required) are a hard error. Validate with:
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/bypass-log-check.sh" --artifact-file="<artifact-bundle-path>"  # shim-exempt: internal orchestration script
+```
+
 Phase I delegates to `/dso:end-session`, which handles closing issues, committing, running `merge-to-main.sh`, and reporting.
 
 ### On Success (Score = 5)
 
-**Pre-condition**: Phase G Step 2 must have returned `overall_verdict: PASS` during this session. If the completion-verifier returned FAIL at any point and no remediation batch was executed after the FAIL (i.e., the FAIL was not addressed via Phase C re-entry), do NOT proceed with epic closure — return to Phase C to address the FAIL findings first.
+**Pre-condition**: Phase G Step 2 must have returned `P1: PASS` (Gate 1 exit 0) during this session. If the completion-verifier returned a non-PASS P1 at any point and no remediation batch was executed after the non-PASS (i.e., the failure was not addressed via Phase C re-entry), do NOT proceed with epic closure — return to Phase C to address the FAIL findings first.
 
-**FAIL is unconditionally blocking.** If the completion-verifier returned `overall_verdict: FAIL` at any point (Phase F Step 18 story-level or Phase G Step 2 epic-level) and no subsequent remediation batch resolved the FAIL findings, do NOT proceed to epic closure. Do NOT:
-- Present the FAIL verdict to the user with rationalizations
+**Non-PASS P1 is unconditionally blocking.** If the completion-verifier returned `P1: FAIL`, `P1: BLOCKED`, or `P1: INCONCLUSIVE` at any point (Phase F Step 18 story-level or Phase G Step 2 epic-level) and no subsequent remediation batch resolved the findings, do NOT proceed to epic closure. Do NOT:
+- Present the non-PASS verdict to the user with rationalizations
 - Ask the user whether failing criteria can be waived
 - Suggest that "most" criteria passing is sufficient
 - Offer to close the epic with caveats
 
-The only valid actions on FAIL are: (a) return to Phase C to address the findings, or (b) explicitly confirm with the user that they want to STOP the sprint entirely (not close the epic as "done").
+The only valid actions on non-PASS are: (a) return to Phase C to address the findings, or (b) explicitly confirm with the user that they want to STOP the sprint entirely (not close the epic as "done").
 
 <HARD-GATE>
-Before closing the epic, confirm that dso:completion-verifier was dispatched at Phase G Step 2 with the EPIC ID (not a story ID) and returned overall_verdict: PASS during THIS session. Story-level verifier results from Phase F Step 18 do NOT satisfy this requirement — each story verifier runs against one story's done definition; only the epic-level verifier (Phase G Step 2) runs against all epic-level success criteria simultaneously. If Phase G Step 2 has not yet been dispatched for the epic, stop and return to Phase G Step 2 NOW. Do NOT proceed to epic closure until the epic-level verifier verdict is received.
+Before closing the epic, confirm that dso:completion-verifier was dispatched at Phase G Step 2 with the EPIC ID (not a story ID) and Gate 1 (`check-verifier-verdict.sh`) returned exit 0 (`P1: PASS`) during THIS session. Story-level verifier results from Phase F Step 18 do NOT satisfy this requirement — each story verifier runs against one story's done definition; only the epic-level verifier (Phase G Step 2) runs against all epic-level success criteria simultaneously. If Phase G Step 2 has not yet been dispatched for the epic, stop and return to Phase G Step 2 NOW. Do NOT proceed to epic closure until the epic-level verifier verdict is received.
 </HARD-GATE>
 
 1. **Verify all changes are merged before closing the epic** (399f-abad):

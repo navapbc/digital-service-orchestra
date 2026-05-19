@@ -3,6 +3,18 @@
 # Structural tests verifying design context additions to task-execution.md
 # and sprint SKILL.md. Asserts text presence only.
 #
+# RE-AUDIT (SDET audit P2 row 3, MODIFY): the original audit recommended
+# DELETE; on re-audit at the correct path (this file lives under
+# tests/skills/, NOT tests/docs/ as the audit cited) the verdict is
+# RETAIN. Per the project's Behavioral Testing Standard Rule 5 and the
+# code-reviewer-standard "PRESENCE of source-grep tests on structural
+# artifacts" carve-out, grep-on-prose assertions are the AUTHORIZED
+# testing boundary for non-executable instruction files (SKILL.md,
+# prompts/*.md). Those files have no runtime to execute; grepping for
+# structural anchors used by the LLM orchestrator IS the deterministic
+# integration test. DO NOT convert these to behavioral assertions —
+# there is no behavior to observe; the file IS the contract.
+#
 # Tests for task-execution.md:
 #   (a) "### Design Context" heading exists
 #   (b) "{design_context}" placeholder present

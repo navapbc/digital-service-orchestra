@@ -31,6 +31,12 @@
 
 set -uo pipefail
 
+# Authorize bump-version.sh invocations from this integration test even when
+# CI checks out the primary repo on main/master. The on-main guard targets
+# accidental human invocations on the real repo; this test invokes the bump
+# script against an isolated mktemp fixture via --config.
+export DSO_ALLOW_BUMP_ON_MAIN=1
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 BUMP_SCRIPT="$PLUGIN_ROOT/plugins/dso/scripts/bump-version.sh"

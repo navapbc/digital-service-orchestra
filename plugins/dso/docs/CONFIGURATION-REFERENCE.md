@@ -1106,6 +1106,28 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 
 ---
 
+### `bug_classification.retro_window_days`
+
+| | |
+|---|---|
+| **Description** | Number of days of closed bugs to include in the `/dso:retro` Bug Classification analysis. Passed as `--window-days N` to `bug-classification-stats.sh`. |
+| **Accepted values** | Positive integer |
+| **Default** | `60` |
+| **Used by** | `/dso:retro` (Bug Classification step) |
+
+---
+
+### `bug_classification.recurrence_threshold`
+
+| | |
+|---|---|
+| **Description** | Minimum count of bugs sharing a single `bug-type-*` slug (or `bug-type-uncategorized`) before `/dso:retro` fires a labeled finding for that slug. |
+| **Accepted values** | Positive integer |
+| **Default** | `3` |
+| **Used by** | `/dso:retro` (Bug Classification step) |
+
+---
+
 ### `scope_drift.enabled`
 
 | | |

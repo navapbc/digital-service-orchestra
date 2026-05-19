@@ -6,8 +6,10 @@
   "skills": "./skills/",
   "agents": [
     "./agents/approach-decision-maker.md",
+    "./agents/architectural-probe.md",
     "./agents/bloat-blue-team.md",
     "./agents/bloat-resolver.md",
+    "./agents/bug-classifier-haiku.md",
     "./agents/blue-team-filter.md",
     "./agents/bot-psychologist.md",
     "./agents/code-reviewer-arbiter.md",
@@ -48,6 +50,7 @@
     "./agents/red-test-writer.md",
     "./agents/schema-correction.md",
     "./agents/scope-drift-reviewer.md",
+    "./agents/second-source-verifier.md",
     "./agents/ui-designer.md"
   ],
   "hooks": {
