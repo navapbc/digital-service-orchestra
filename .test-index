@@ -310,6 +310,7 @@ plugins/dso/scripts/ticket-list-descendants.sh:tests/scripts/test-ticket-list-de
 plugins/dso/scripts/ticket-list-epics.sh:tests/scripts/test-ticket-list-epics-dispatcher.sh,tests/scripts/test-ticket-list-epics-alias.sh
 plugins/dso/scripts/ticket-list.sh:tests/scripts/test-ticket-list.sh,tests/scripts/test-ticket-subprocess-count.sh,tests/scripts/test-ticket-perf.sh
 plugins/dso/scripts/ticket-migrate-brainstorm-tags.sh:tests/scripts/test-ticket-migrate-brainstorm-tags.sh,tests/scripts/test-brainstorm-tag-flow.sh
+plugins/dso/scripts/ticket-migrate-closure-checks-v1.sh:tests/scripts/test-ticket-migrate-closure-checks-v1.sh
 plugins/dso/scripts/ticket-migrate-file-impact-v1.sh:tests/scripts/test-ticket-migrate-file-impact-v1.sh
 plugins/dso/scripts/ticket-migrate-schema-hardening.sh:tests/scripts/test-ticket-migration.sh
 plugins/dso/scripts/ticket-next-batch.sh:tests/scripts/test-ticket-next-batch-dispatcher.sh,tests/scripts/test-ticket-transition-deleted.sh

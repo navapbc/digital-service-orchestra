@@ -42,3 +42,7 @@ DEFERRED_MEASUREMENT: <criterion text> — measurement plan: <who measures, when
 ```
 
 Do NOT count `DEFERRED_MEASUREMENT` items toward the 3–6 verifiable SC quota.
+
+**(c) Route to Closure Checks** — add the criterion to the epic's or story's `## Closure Checks` section when it represents durable end-state intent (something that should remain true after the epic is closed) but cannot be evaluated deterministically during the closing session.
+
+Criteria suitable for Closure Checks: architectural invariants, operational health targets, non-regressing behavioral contracts. Do NOT use Closure Checks for one-time transitional work (setup steps, migration markers, manual verification checkboxes) — those belong in the Done Definitions as explicit closure tasks.

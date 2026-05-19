@@ -555,6 +555,9 @@ STORY_ID=$(.claude/scripts/dso ticket create story "As a [persona], [goal]" --pa
 - When this story is complete, <observable outcome 2>
   ← Satisfies: "<quoted epic criterion>"
 
+## Closure Checks
+- (items routed from verifiable-sc-check.md option (c) — durable end-state intent that is not session-verifiable)
+
 ## Considerations
 
 - [<Area>] <concern from Risk & Scope Scan>
