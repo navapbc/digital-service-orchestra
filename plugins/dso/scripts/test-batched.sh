@@ -373,6 +373,86 @@ except Exception:
 " "$file" 2>/dev/null
 }
 
+# ── Acquire advisory lock on STATE_FILE (audit P0-6) ──────────────────────────
+# Two concurrent test-batched runs against the same state file would race
+# read-modify-write and silently drop test results. Use `mkdir` as a POSIX-
+# atomic lock primitive (portable across macOS/Linux without flock/lockf) and
+# write the holder PID inside so stale locks from crashed runs can be
+# reclaimed. Fail-loud with exit 75 (EX_TEMPFAIL) only when the holder is
+# still alive — distinguishes "another run in progress" from "state corrupt".
+_STATE_LOCK_DIR="${STATE_FILE}.lock"
+_acquire_state_lock() {
+    # Stamp the holder.pid via an atomic mv-into-the-locked-dir so there is
+    # no window between mkdir-succeeded and holder.pid-written. Without this
+    # an unlucky concurrent reclaim could see "no holder.pid" and steal the
+    # lock. Stage the file to a sibling temp path first, then mv into place.
+    local _stamp_tmp
+    if mkdir "$_STATE_LOCK_DIR" 2>/dev/null; then
+        _stamp_tmp=$(mktemp "${STATE_FILE}.stamp.XXXXXX") || return 1
+        echo "$$" > "$_stamp_tmp"
+        mv -f "$_stamp_tmp" "$_STATE_LOCK_DIR/holder.pid" 2>/dev/null || {
+            rm -f "$_stamp_tmp"
+            return 1
+        }
+        return 0
+    fi
+    # Lock dir exists — check if holder is alive.
+    # Read with a brief retry to tolerate the (now-tiny but still-possible)
+    # window where another process is mid-acquire and has not finished the
+    # mv yet — refuse-on-no-pid rather than reclaim-on-no-pid to avoid lock
+    # theft.
+    local _holder_pid="" _try=0
+    while [ "$_try" -lt 5 ] && [ -z "$_holder_pid" ]; do
+        [ -r "$_STATE_LOCK_DIR/holder.pid" ] && \
+            _holder_pid=$(cat "$_STATE_LOCK_DIR/holder.pid" 2>/dev/null || true)
+        [ -n "$_holder_pid" ] && break
+        _try=$((_try + 1))
+        sleep 0.05
+    done
+    if [ -z "$_holder_pid" ]; then
+        # holder.pid still missing after retries → treat as a truly broken
+        # lock dir (e.g. host crashed between mkdir and mv). Reclaim.
+        rm -rf "$_STATE_LOCK_DIR" 2>/dev/null || true
+        if mkdir "$_STATE_LOCK_DIR" 2>/dev/null; then
+            _stamp_tmp=$(mktemp "${STATE_FILE}.stamp.XXXXXX") || return 1
+            echo "$$" > "$_stamp_tmp"
+            mv -f "$_stamp_tmp" "$_STATE_LOCK_DIR/holder.pid" 2>/dev/null || {
+                rm -f "$_stamp_tmp"
+                return 1
+            }
+            return 0
+        fi
+        return 1
+    fi
+    if kill -0 "$_holder_pid" 2>/dev/null; then
+        return 1  # Live holder — refuse.
+    fi
+    # Stale lock (holder PID dead) — reclaim.
+    rm -rf "$_STATE_LOCK_DIR" 2>/dev/null || true
+    if mkdir "$_STATE_LOCK_DIR" 2>/dev/null; then
+        _stamp_tmp=$(mktemp "${STATE_FILE}.stamp.XXXXXX") || return 1
+        echo "$$" > "$_stamp_tmp"
+        mv -f "$_stamp_tmp" "$_STATE_LOCK_DIR/holder.pid" 2>/dev/null || {
+            rm -f "$_stamp_tmp"
+            return 1
+        }
+        return 0
+    fi
+    return 1
+}
+if ! _acquire_state_lock; then
+    echo "ERROR: another test-batched run holds the state lock at $_STATE_LOCK_DIR" >&2
+    echo "       The holder appears to be alive. If you believe it has crashed," >&2
+    echo "       run: rm -rf '$_STATE_LOCK_DIR'" >&2
+    exit 75
+fi
+# Append to any existing EXIT trap so we don't clobber prior cleanup.
+_prev_state_lock_trap=$(trap -p EXIT | sed "s/^trap -- '//;s/' EXIT$//")
+trap '
+    rm -rf "'"$_STATE_LOCK_DIR"'" 2>/dev/null || true
+    '"${_prev_state_lock_trap:+$_prev_state_lock_trap}"'
+' EXIT
+
 # ── Load or initialize state ──────────────────────────────────────────────────
 COMPLETED_LIST=()
 RESULTS_JSON="{}"
@@ -612,9 +692,15 @@ fi
 echo "Running: $CMD"
 test_exit=0
 
-# Use mktemp for the exit code file to avoid PID-based collisions
+# Use mktemp for the exit code file to avoid PID-based collisions.
+# Append to any existing EXIT trap so we don't clobber the state-lock
+# release trap installed earlier (audit P0-6).
 _exit_code_file=$(mktemp /tmp/test-batched-exit-XXXXXX)
-trap 'rm -f "$_exit_code_file"' EXIT
+_prev_exit_code_trap=$(trap -p EXIT | sed "s/^trap -- '//;s/' EXIT$//")
+trap '
+    rm -f "'"$_exit_code_file"'"
+    '"${_prev_exit_code_trap:+$_prev_exit_code_trap}"'
+' EXIT
 
 # Use a background job to enforce timeout during execution
 (
