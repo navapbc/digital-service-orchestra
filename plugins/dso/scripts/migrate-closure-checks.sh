@@ -82,19 +82,11 @@ fi
 
 # ── Helper scripts ────────────────────────────────────────────────────────────
 _AUDIT_SCRIPT="$_SCRIPT_DIR/audit-closure-checks-migration.sh"
-_PER_TICKET_PY="$_SCRIPT_DIR/ticket-reducer.py"
-
 # ── Per-session progress file ─────────────────────────────────────────────────
-# Unique per invocation but stable across resume calls in the same shell session.
-# Uses a fixed prefix so tests can locate it, combined with a content hash of
-# the target path to keep separate repos from sharing a progress file.
+# Stable across resume calls — uses a hash of the target path so separate repos
+# don't share a progress file.
 _TARGET_HASH=$(printf '%s' "$_TARGET" | python3 -c "import sys, hashlib; print(hashlib.sha1(sys.stdin.buffer.read()).hexdigest()[:8])")
-_SESSION_FILE=$(mktemp /tmp/migrate-closure-checks.XXXXXX)
-# Rename to a deterministic name for resume semantics within the same session
 _PROGRESS_FILE="/tmp/migrate-closure-checks.${_TARGET_HASH}.progress"
-
-# Clean up the mktemp placeholder (we use _PROGRESS_FILE instead)
-rm -f "$_SESSION_FILE"
 
 # ── Collect ticket IDs to process ─────────────────────────────────────────────
 # Collect lines from stdin if it is not a TTY; otherwise scan via audit script.
@@ -297,6 +289,8 @@ _migrated=0
 _skipped=0
 _failed=0
 _batch_failed=0
+_batch_migrated=0
+_batch_skipped=0
 
 _i=0
 while [ "$_i" -lt "$_total" ]; do
@@ -344,6 +338,7 @@ while [ "$_i" -lt "$_total" ]; do
                 fi
                 echo "MIGRATED: $_ticket_id"
                 _migrated=$(( _migrated + 1 ))
+                _batch_migrated=$(( _batch_migrated + 1 ))
                 # Record in progress file for resume semantics
                 if [ "$_DRYRUN" = "0" ]; then
                     echo "$_ticket_id" >> "$_PROGRESS_FILE"
@@ -352,11 +347,13 @@ while [ "$_i" -lt "$_total" ]; do
             WOULD_WRITE:*)
                 echo "DRY-RUN: $_ticket_id"
                 _migrated=$(( _migrated + 1 ))
+                _batch_migrated=$(( _batch_migrated + 1 ))
                 ;;
             SKIPPED:*)
                 _reason="${_result#SKIPPED:*:}"
                 echo "SKIPPED: $_ticket_id ($_reason)"
                 _skipped=$(( _skipped + 1 ))
+                _batch_skipped=$(( _batch_skipped + 1 ))
                 # Record skipped-already-has-section in progress file (idempotency)
                 if [ "$_DRYRUN" = "0" ] && [[ "$_result" == *"already-has-section"* ]]; then
                     echo "$_ticket_id" >> "$_PROGRESS_FILE"
@@ -377,8 +374,10 @@ while [ "$_i" -lt "$_total" ]; do
         esac
     done
 
-    echo "BATCH_COMPLETE: batch $_batch_num — migrated: $_migrated, skipped: $_skipped, failed: $_batch_failed"
+    echo "BATCH_COMPLETE: batch $_batch_num — migrated_this_batch: $_batch_migrated, skipped_this_batch: $_batch_skipped, failed: $_batch_failed (total so far: migrated=$_migrated skipped=$_skipped)"
     _batch_failed=0
+    _batch_migrated=0
+    _batch_skipped=0
     _i="$_batch_end"
 done
 

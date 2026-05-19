@@ -677,4 +677,57 @@ test_audit_reports_zero_after_migration() {
 test_audit_reports_zero_after_migration
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Test 15: Resume-from-progress-file skips already-processed tickets
+# ═══════════════════════════════════════════════════════════════════════════════
+echo "Test 15: resume-from-progress-file skips already-processed tickets in a second run"
+test_resume_skips_already_processed() {
+    _snapshot_fail
+
+    if [ ! -f "$MIGRATE_SCRIPT" ]; then
+        assert_eq "migrate script exists (prereq)" "exists" "missing"
+        return
+    fi
+
+    local repo
+    repo=$(_make_test_repo)
+    _setup_mixed_fixture "$repo/.tickets-tracker"
+
+    # Compute the same _TARGET_HASH that the script uses internally
+    local target_hash
+    target_hash=$(printf '%s' "$repo" | python3 -c "import sys, hashlib; print(hashlib.sha1(sys.stdin.buffer.read()).hexdigest()[:8])")
+    local progress_file="/tmp/migrate-closure-checks.${target_hash}.progress"
+    _CLEANUP_DIRS+=("$progress_file")
+
+    # Seed the progress file with epic-no-closure-01 as if it was already processed
+    echo "epic-no-closure-01" > "$progress_file"
+
+    # Run migration — epic-no-closure-01 should be skipped (in progress file)
+    local output
+    output=$(bash "$MIGRATE_SCRIPT" --target "$repo" 2>/dev/null)
+
+    # epic-no-closure-01 should NOT have a new EDIT event (it was in progress file)
+    local edit_count_01
+    edit_count_01=$(_count_edit_events "$repo/.tickets-tracker" "epic-no-closure-01")
+    assert_eq "resume: epic-no-closure-01 skipped (no new EDIT)" "0" "$edit_count_01"
+
+    # epic-no-closure-02 should be migrated (not in progress file)
+    local desc2
+    desc2=$(_get_ticket_description "$repo" "epic-no-closure-02")
+    local count2
+    count2=$(_count_closure_checks_sections "$desc2")
+    assert_eq "resume: epic-no-closure-02 migrated (not in progress file)" "1" "$count2"
+
+    # Output should contain RESUME-SKIP for epic-no-closure-01
+    local resume_skip_count
+    resume_skip_count=$(echo "$output" | grep -c "RESUME-SKIP:.*epic-no-closure-01" 2>/dev/null || true)
+    assert_eq "resume: RESUME-SKIP line emitted for already-processed ticket" "1" "$resume_skip_count"
+
+    # Clean up progress file
+    rm -f "$progress_file"
+
+    assert_pass_if_clean "test_resume_skips_already_processed"
+}
+test_resume_skips_already_processed
+
+# ═══════════════════════════════════════════════════════════════════════════════
 print_summary
