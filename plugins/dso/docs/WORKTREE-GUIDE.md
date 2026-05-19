@@ -168,6 +168,100 @@ git status
 git log @{u}.. --oneline  # commits not pushed to remote
 ```
 
+### Worktree removal safety guards
+
+The DSO plugin enforces removal safety via a shared library:
+
+```
+${CLAUDE_PLUGIN_ROOT}/scripts/lib/worktree-removal-guards.sh
+```
+
+Source it with `_GUARDS_SOURCE_ONLY=1` to import guard functions without executing anything. Two consumer scripts use this library: `claude-safe` (interactive sessions) and `harvest-worktree.sh` (batched sub-agent merge path). Both source the library the same way:
+
+```bash
+_GUARDS_SOURCE_ONLY=1 source "${PLUGIN_SCRIPTS}/lib/worktree-removal-guards.sh"
+```
+
+#### The 3 guards
+
+| Guard | Fires when | Bypassable by `--force`? |
+|-------|-----------|--------------------------|
+| `guard_protected_branch` | Branch is `main`, `master`, `develop`, or `release/*` | **Never** — structural invariant |
+| `guard_uncommitted` | Working tree has staged or unstaged changes | Yes |
+| `guard_unpushed` | Branch has commits not pushed to upstream; also fires when no upstream is configured (conservative default) | Yes |
+| `guard_open_pr` | One or more open PRs are found for the branch or SHA (see 3-tier detection below) | Yes |
+
+#### The `assert_worktree_removable` orchestrator
+
+`assert_worktree_removable` runs all four guards without short-circuiting — every guard's message is printed regardless:
+
+```bash
+assert_worktree_removable \
+  --worktree-path /path/to/worktree \
+  --branch my-feature-branch \
+  [--force]
+```
+
+- Without `--force`: exits 1 if any guard fires; prints all firing guard messages to stderr.
+- With `--force`: exits 0 even when guards fire (messages still printed); `guard_protected_branch` is never bypassed regardless of `--force`.
+
+#### 3-tier open-PR detection
+
+`guard_open_pr` uses a 3-tier fallback chain to find open PRs. Tier-A was promoted as the primary tier after the S1.T1 spike confirmed that `gh pr list --search` catches fork PRs that `--head` misses (gh/cli issue #6462):
+
+| Tier | Command | Rationale |
+|------|---------|-----------|
+| A (primary) | `gh pr list --search "head:<branch>" --state open` | Finds fork PRs that `--head` misses (gh/cli #6462) |
+| B | `gh pr list --head "<branch>" --state open` | Standard head-branch filter |
+| C | `gh api repos/{owner}/{repo}/commits/<sha>/pulls` | SHA-based lookup; catches renamed-branch PRs |
+
+In addition to the main-session PR search (Tier A/B/C above), `guard_open_pr` runs an independent additive query for sub-PRs targeting the branch as their base:
+
+```bash
+gh pr list --base "<branch>" --state open
+```
+
+This catches story branches whose PRs target the session branch (e.g., `story/<epic-id>/<story-id>` PRs targeting `worktree-YYYYMMDD-HHMMSS`). Results from all queries are deduplicated by PR number before evaluation.
+
+#### Fail-CLOSED contract and override
+
+If `gh` is not installed, `gh auth status` fails, or any `gh` call returns a rate-limit error, `guard_open_pr` exits non-zero (refusal). The printed message is `GUARD_PR_CHECK_UNAVAILABLE: <cause>`.
+
+To bypass the PR guard when `gh` is unavailable, both variables must be set (mirrors the `DSO_SPRINT_ACTIVE_BYPASS_REASON` pattern — a single var is insufficient):
+
+```bash
+WORKTREE_REMOVAL_SKIP_PR_CHECK=1 \
+WORKTREE_REMOVAL_SKIP_PR_CHECK_REASON="<non-empty justification>" \
+  <removal command>
+```
+
+Setting only `WORKTREE_REMOVAL_SKIP_PR_CHECK=1` without the `_REASON` companion does NOT bypass the guard; the guard continues to the fail-CLOSED path.
+
+#### `--force` bypass semantics
+
+`--force` bypasses guards related to data loss (uncommitted changes, unpushed commits) and open PRs, but does NOT bypass `guard_protected_branch`. Specifically:
+
+- **What `--force` bypasses**: `guard_uncommitted`, `guard_unpushed`, `guard_open_pr` — all become non-blocking (messages still printed to stderr).
+- **What `--force` does NOT bypass**: `guard_protected_branch` — removing a protected branch (main, master, develop, release/*) is always refused regardless of `--force`.
+- **URL printing**: GUARD messages (including PR URLs) are always printed to stderr even when `--force` allows the removal to proceed. This provides an audit trail.
+
+#### Two consumers: interactive vs. batched
+
+**`claude-safe` (interactive + TOCTOU double-check)**
+
+`claude-safe` runs `assert_worktree_removable` twice: once as a pre-check after the Claude session exits, and again immediately before `git worktree remove` inside a `flock`-protected subshell. The double-check pattern narrows the TOCTOU window — PR state or branch contents can change during an interactive session.
+
+The double-check is asymmetric with `harvest-worktree.sh` because interactive sessions can span minutes to hours; the state window is large.
+
+**`harvest-worktree.sh` (batched + single-check)**
+
+`harvest-worktree.sh` uses a single guard check for a different reason: it is a non-interactive batched fast path where the window between the pre-merge guard check and `git worktree remove` is sub-second. A double-check would have negligible benefit.
+
+`harvest-worktree.sh` splits guard usage across two points:
+
+1. **Pre-merge** (before the expensive attest step): runs `guard_protected_branch` and `guard_open_pr` individually so that fail-CLOSED results block early.
+2. **Post-merge cleanup**: calls `assert_worktree_removable --force` to re-run all guards. `--force` is always passed here because uncommitted/unpushed guards are not meaningful when content has already been merged — data loss is not a risk. `guard_protected_branch` still fires (and blocks) regardless of `--force`.
+
 ---
 
 ## Running Parallel Claude Code Sessions
