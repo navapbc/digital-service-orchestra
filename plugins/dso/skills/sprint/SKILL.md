@@ -26,6 +26,7 @@ TEST_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test)  # shim-exempt: 
 LINT_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.lint)  # shim-exempt: internal orchestration script
 VISUAL_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test_visual)  # shim-exempt: internal orchestration script
 E2E_CMD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" commands.test_e2e)  # shim-exempt: internal orchestration script
+SPRINT_MODE=$(bash "$PLUGIN_SCRIPTS/mode-detect.sh")  # shim-exempt: SPRINT_MODE must be set before any ci-pr-only Phase A block reads it (bug f6fd-af80-9b13-4649)
 ```
 
 Resolution order: See `${CLAUDE_PLUGIN_ROOT}/docs/CONFIG-RESOLUTION.md`.
@@ -35,6 +36,7 @@ Resolved commands used in this skill:
 - `LINT_CMD` — replaces `make lint` in validation steps
 - `VISUAL_CMD` — replaces `make test-visual` in post-batch checks
 - `E2E_CMD` — replaces `make test-e2e` in post-batch checks
+- `SPRINT_MODE` — `ci-pr` or `local`; governs per-story PR mechanisms. Resolved here at activation so every Phase A ci-pr-only block (Ruleset Preflight, Draft PR Creation) can read it safely. The Mode Banner subsection later in Phase A only emits the banner.
 
 <!-- Schema reference: docs/designs/stage-boundary-preconditions/ -->
 
@@ -337,13 +339,9 @@ Wait for user response and route accordingly:
 - **(b) brainstorm**: invoke `/dso:brainstorm <primary_ticket_id>` via Skill tool, then re-enter Preplanning Gate.
 - **(c) proceed**: log `"User elected to proceed with low-clarity ticket."`, continue to Preplanning Gate.
 
-### Mode Detection
+### Mode Banner
 
-Detect whether per-story PR mechanisms are active for this sprint run:
-
-```bash
-SPRINT_MODE=$(bash "$PLUGIN_SCRIPTS/mode-detect.sh")  # shim-exempt: internal orchestration script
-```
+`SPRINT_MODE` is resolved during the Config Resolution block at the top of Phase A. This subsection only emits the banner.
 
 Emit exactly one banner based on the result:
 
