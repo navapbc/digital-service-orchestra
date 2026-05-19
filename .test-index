@@ -477,3 +477,5 @@ plugins/dso/scripts/redistribute-session-commits.sh:tests/scripts/test-redistrib
 plugins/dso/scripts/write-cycle-ledger.sh:tests/scripts/test-write-cycle-ledger.sh,tests/scripts/test-write-cycle-ledger-integration.sh
 tests/scripts/test-cycle-arbiter.sh:tests/scripts/test-cycle-arbiter.sh [test_block_critical_defense_absent_ruling]
 plugins/dso/scripts/classify-epic-class.sh:tests/scripts/test-classify-epic-class.sh
+# RED:e5a2-1d45-3217-4922 — ticket-update-rav.sh not yet implemented
+plugins/dso/scripts/ticket-update-rav.sh:tests/scripts/test-ticket-update-rav.sh
