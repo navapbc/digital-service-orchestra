@@ -93,6 +93,44 @@ test_malformed_json_exits_2() {
     assert_pass_if_clean "test_malformed_json_exits_2"
 }
 
+# ── test_unrecognized_p1_exits_1_with_warning ─────────────────────────────────
+# JSON with schema_version=2 and an unrecognized P1 value must:
+#   (a) exit 1 (per contract: safe-default gate-block — never fail open on unknown)
+#   (b) emit a WARNING to stderr mentioning the unrecognized value
+# Prior behavior was exit 2 (parser-error), which a future consumer distinguishing
+# parser-error from gate-block would treat as fail-open. R6 of project-audit-2026-05-19.md.
+test_unrecognized_p1_exits_1_with_warning() {
+    _snapshot_fail
+    local rc=0
+    local stderr_file
+    stderr_file=$(mktemp /tmp/test-check-verifier-verdict-stderr.XXXXXX)
+    echo '{"schema_version": 2, "P1": "WAFFLE"}' | bash "$SCRIPT" 2>"$stderr_file" || rc=$?
+    local stderr_content
+    stderr_content=$(cat "$stderr_file")
+    rm -f "$stderr_file"
+    assert_eq "test_unrecognized_p1_exits_1_with_warning: exit code is 1 for unrecognized P1=WAFFLE" "1" "$rc"
+    if echo "$stderr_content" | grep -qE 'WARNING.*unrecognized P1.*WAFFLE'; then
+        echo "  PASS: test_unrecognized_p1_exits_1_with_warning: stderr contains WARNING about unrecognized P1 'WAFFLE'"
+        (( PASS++ ))
+    else
+        echo "  FAIL: test_unrecognized_p1_exits_1_with_warning: stderr did not contain expected WARNING" >&2
+        echo "  Actual stderr: $stderr_content" >&2
+        (( FAIL++ ))
+    fi
+    assert_pass_if_clean "test_unrecognized_p1_exits_1_with_warning"
+}
+
+# ── test_unrecognized_p1_lowercase_exits_1 ────────────────────────────────────
+# Belt-and-braces: confirm the unrecognized-P1 branch fires regardless of case
+# (script does not lowercase-normalize before matching).
+test_unrecognized_p1_lowercase_exits_1() {
+    _snapshot_fail
+    local rc=0
+    echo '{"schema_version": 2, "P1": "pass"}' | bash "$SCRIPT" 2>/dev/null || rc=$?
+    assert_eq "test_unrecognized_p1_lowercase_exits_1: exit code is 1 for unrecognized P1='pass' (lowercase not in enum)" "1" "$rc"
+    assert_pass_if_clean "test_unrecognized_p1_lowercase_exits_1"
+}
+
 # ── Run all tests ──────────────────────────────────────────────────────────────
 test_p1_pass_exits_0
 test_p1_fail_exits_1
@@ -101,5 +139,7 @@ test_p1_inconclusive_exits_1
 test_missing_p1_legacy_compat_exits_0
 test_schema_v2_missing_p1_exits_2
 test_malformed_json_exits_2
+test_unrecognized_p1_exits_1_with_warning
+test_unrecognized_p1_lowercase_exits_1
 
 print_summary

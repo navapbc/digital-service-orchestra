@@ -185,7 +185,8 @@ else:
    - `FAIL` → gate blocks (success criteria not met).
    - `BLOCKED` → gate defers (dependency or external blocker prevents verification).
    - `INCONCLUSIVE` → gate defers (insufficient evidence; re-verify when conditions allow).
-   - Any other value, or `P1` absent on a schema_version=2 payload → treat as `BLOCKED` and emit a warning.
+   - Any other (unrecognized) value → treat as `BLOCKED` (safe-default gate-block) and emit a warning to stderr.
+   - `P1` absent on a schema_version=2 payload → treat as a malformed-payload error (exit 2). The producer claimed schema_version=2 but failed to emit the required `P1` field; this is a producer bug, not a verdict-class deferral.
 4. Parsers MUST NOT gate on `narrative` content — only `P1` is authoritative.
 
 There is no line-based prefix for this signal. The JSON object is the record; parsers operate on the parsed object, not on raw text.
@@ -199,8 +200,8 @@ The script `check-verifier-verdict.sh` reads a verifier JSON payload and exits w
 | Exit code | Condition |
 |---|---|
 | `0` | `P1 == "PASS"` |
-| `1` | `P1 == "FAIL"`, `"BLOCKED"`, or `"INCONCLUSIVE"` |
-| `2` | `P1` field absent, JSON malformed, or no input provided |
+| `1` | `P1 == "FAIL"`, `"BLOCKED"`, `"INCONCLUSIVE"`, or any other (unrecognized) `P1` value (per safe-default gate-block; emits a warning to stderr) |
+| `2` | `P1` field absent on a `schema_version=2` payload, JSON malformed, or no input provided |
 
 Usage: `echo '{"P1":"PASS"}' | check-verifier-verdict.sh` or `check-verifier-verdict.sh path/to/output.json`
 
@@ -221,3 +222,4 @@ Usage: `echo '{"P1":"PASS"}' | check-verifier-verdict.sh` or `check-verifier-ver
 ### Change Log
 
 - **2026-05-18**: Initial version — defines P1 enum `{PASS, FAIL, BLOCKED, INCONCLUSIVE}`, schema_version=2 signal, PENDING→BLOCKED / SKIPPED→INCONCLUSIVE legacy mapping, narrative template constraint, backward-compat schema_version check rule, and check-verifier-verdict.sh exit code semantics.
+- **2026-05-19**: Split the "unrecognized P1" case from the "P1 absent" case in `check-verifier-verdict.sh` exit semantics (R6 of project-audit-2026-05-19). Unrecognized P1 values now exit 1 with a `WARNING: unrecognized P1 verdict` to stderr (safe-default gate-block, matching the BLOCKED policy in the P1 narrative). P1 absent on a `schema_version=2` payload continues to exit 2 (malformed-payload — producer claimed schema_version=2 but did not emit the required field). Updated narrative under "Signal Routing" and the exit-code table accordingly.
