@@ -1,0 +1,1 @@
+{"event_type": "PRECONDITIONS", "schema_version": 1, "manifest_depth": "minimal", "gate_name": "epic-closure_complete", "session_id": "pv-session-1779172233848", "worktree_id": "unknown", "tier": "minimal", "timestamp": 1779172233848, "spec_hash": "", "gate_verdicts": [], "workflow_completion_checklist": [], "completeness": "complete", "data": {}}

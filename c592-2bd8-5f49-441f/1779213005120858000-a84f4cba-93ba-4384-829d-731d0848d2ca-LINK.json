@@ -1,0 +1,1 @@
+{"event_type": "LINK", "uuid": "a84f4cba-93ba-4384-829d-731d0848d2ca", "timestamp": 1779213005120858000, "author": "ticket-graph", "env_id": "00000000-0000-4000-8000-000000000000", "data": {"target_id": "9480-dadf-29c6-4f81", "relation": "depends_on"}}
