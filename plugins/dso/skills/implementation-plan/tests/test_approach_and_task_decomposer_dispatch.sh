@@ -79,6 +79,20 @@ for gate in gate_1_yagni gate_2_rule_of_three gate_3_new_dependency; do
   fi
 done
 
+# Both agents must explicitly distinguish success-response keys from error-envelope
+# keys. Without this disambiguation, an `error` field in the envelope contradicts
+# the "exactly these top-level keys" rule and risks the agent omitting `error`
+# entirely (breaking SKILL.md's validation routing).
+for agent_pair in "approach-proposer:$APPROACH_PROPOSER_AGENT" "task-decomposer:$TASK_DECOMPOSER_AGENT"; do
+  name="${agent_pair%%:*}"
+  path="${agent_pair##*:}"
+  if grep -qi 'Success Response' "$path" && grep -qi 'Error Envelope' "$path"; then
+    pass "$name distinguishes Success Response from Error Envelope sections"
+  else
+    fail "$name does not distinguish Success Response from Error Envelope (contradictory 'exactly these top-level keys' contract risks dropped error fields)"
+  fi
+done
+
 # ---------- task-decomposer schema ----------
 echo
 echo "=== task-decomposer output schema ==="
@@ -121,6 +135,15 @@ if grep -q '## Story DD Coverage' "$TASK_DECOMPOSER_AGENT"; then
   pass "task-decomposer example descriptions embed '## Story DD Coverage' section header"
 else
   fail "task-decomposer example descriptions do not embed '## Story DD Coverage' — completeness reviewer's audit will find no owning tasks"
+fi
+# The header must be elevated to a hard schema requirement in the Rules section
+# so models reading the bottom of the file (rather than copy-pasting the example)
+# still pick up the obligation. Extract from "## Rules" to EOF (the Rules section
+# is the final section in the agent file).
+if awk '/^## Rules/{found=1} found' "$TASK_DECOMPOSER_AGENT" | grep -q 'Story DD Coverage'; then
+  pass "task-decomposer Rules section enforces '## Story DD Coverage' header"
+else
+  fail "task-decomposer Rules section does not enforce '## Story DD Coverage' header (only examples include it)"
 fi
 # Universal Criteria in the example must use the guarded shell form that
 # matches the SKILL.md Step 5 Task Creation template.
@@ -202,6 +225,35 @@ if echo "$step3" | grep -qi 'Do NOT fall back to inline'; then
 else
   fail "Step 3 missing 'Do NOT fall back to inline' guard"
 fi
+# Step 3 schema validation must check that every task description begins with
+# the '## Story DD Coverage' header — the audit-trail invariant that the
+# completeness reviewer downstream depends on.
+if echo "$step3" | grep -q '## Story DD Coverage'; then
+  pass "Step 3 schema validation references the '## Story DD Coverage' header rule"
+else
+  fail "Step 3 schema validation does not require the '## Story DD Coverage' header on task descriptions"
+fi
+# Both Steps must disambiguate dispatch-target fallback from inline-drafting fallback
+# so a reader does not conflate transport-routing with the forbidden orchestrator-does-the-work path.
+for label in "Step 1:$step1" "Step 3:$step3"; do
+  name="${label%%:*}"
+  body="${label#*:}"
+  if echo "$body" | grep -q 'Dispatch-target fallback' && echo "$body" | grep -q 'Inline-drafting fallback'; then
+    pass "$name disambiguates Dispatch-target fallback from Inline-drafting fallback"
+  else
+    fail "$name does not disambiguate the two fallback concepts (reader may conflate transport-routing with forbidden inline drafting)"
+  fi
+done
+# Sync-discipline note must appear in both steps (Step 3 already had it; Step 1 was missing it).
+for label in "Step 1:$step1" "Step 3:$step3"; do
+  name="${label%%:*}"
+  body="${label#*:}"
+  if echo "$body" | grep -qi 'sync discipline\|keep the two in sync\|dual-maintained'; then
+    pass "$name carries a sync-discipline note"
+  else
+    fail "$name lacks a sync-discipline note (silent drift risk between SKILL.md and the agent file)"
+  fi
+done
 
 # ---------- Completeness reviewer augmentation ----------
 echo

@@ -292,6 +292,8 @@ Signals that indicate a doc-only story:
 
 ### Proposal Generation (via `dso:approach-proposer` opus sub-agent)
 
+**Sync discipline** — the contract summary, dispatch wiring, validation steps, and `agents/approach-proposer.md` are dual-maintained. When updating complexity-gate criteria, the four distinctness axes, the minimum-proposal count, or any other rule below, you MUST update `agents/approach-proposer.md` in the same change to keep the two in sync. The structural test pins wiring + summary presence but does not detect semantic drift between this SKILL.md block and the agent's embedded protocol.
+
 **Contract summary** (the agent enforces these; this block is the human-readable contract surface for SKILL.md readers and is pinned by `tests/scripts/test-implementation-plan-proposals.sh`):
 
 - **Minimum count**: the agent must produce **at least 3 distinct proposals**. Fewer is permitted only when the solution space is genuinely constrained (≥ 2 required); the constraint must be documented in `generation_notes`.
@@ -307,7 +309,14 @@ Signals that indicate a doc-only story:
 Read `shared/prompts/complexity-gate.md` to confirm it is present. If unreadable, STOP and emit:
 "ERROR: complexity-gate.md not found at skills/shared/prompts/complexity-gate.md — create this file before running implementation-plan."
 
-Dispatch via `subagent_type: "dso:approach-proposer"` with `model: "opus"` passed explicitly (do not rely on the agent frontmatter default — distinct-approach reasoning, complexity-gate evaluation, and structural-axis analysis depend on opus-level sustained reasoning, and the explicit param defends against future routing changes that might silently downgrade). If the named type is unregistered, fall back to `subagent_type: "general-purpose"` with `model: "opus"` and `agents/approach-proposer.md` content read inline. Pass the following as task arguments:
+Dispatch via `subagent_type: "dso:approach-proposer"` with `model: "opus"` passed explicitly (do not rely on the agent frontmatter default — distinct-approach reasoning, complexity-gate evaluation, and structural-axis analysis depend on opus-level sustained reasoning, and the explicit param defends against future routing changes that might silently downgrade).
+
+**Two distinct fallback concepts — do not conflate:**
+
+- **Dispatch-target fallback** (this paragraph): if the named `subagent_type: "dso:approach-proposer"` is unregistered in this session ("Unknown agent type" or similar dispatch error), re-dispatch with `subagent_type: "general-purpose"` + `model: "opus"` and `agents/approach-proposer.md` content read inline as the prompt. **The agent still does the work** — only the dispatch transport changes. This is NOT inline drafting.
+- **Inline-drafting fallback** (forbidden, see Validation below): the orchestrator itself drafts proposals without the agent. This is the bug class the dispatch was introduced to eliminate and is explicitly prohibited regardless of what dispatch path was taken.
+
+Pass the following as task arguments:
 
 - `{story-id}`, `{story-title}`, `{story-description}` from the story ticket
 - `{story-done-definitions}` — the story's DDs, one per line, with stable identifiers (`dd-1`, `dd-2`, ...). Parse these from the story description's `## Done Definitions` section; do NOT rely on session memory.
@@ -411,7 +420,14 @@ Draft tasks that **collectively fulfill all done definitions** of the User Story
 
 ### Dispatch
 
-Dispatch via `subagent_type: "dso:task-decomposer"` with `model: "opus"` passed explicitly. If the named type is unregistered, fall back to `subagent_type: "general-purpose"` with `model: "opus"` and `agents/task-decomposer.md` content read inline. Pass the following as task arguments:
+Dispatch via `subagent_type: "dso:task-decomposer"` with `model: "opus"` passed explicitly.
+
+**Two distinct fallback concepts — do not conflate:**
+
+- **Dispatch-target fallback** (this paragraph): if the named `subagent_type: "dso:task-decomposer"` is unregistered ("Unknown agent type" or similar dispatch error), re-dispatch with `subagent_type: "general-purpose"` + `model: "opus"` and `agents/task-decomposer.md` content read inline as the prompt. **The agent still does the work** — only the dispatch transport changes. This is NOT inline drafting.
+- **Inline-drafting fallback** (forbidden, see Validation below): the orchestrator itself drafts tasks without the agent. This is the bug class the dispatch was introduced to eliminate and is explicitly prohibited regardless of what dispatch path was taken.
+
+Pass the following as task arguments:
 
 - `{story-id}`, `{story-title}`, `{story-description}` from the story ticket
 - `{story-done-definitions}` — the story's DDs with stable identifiers (`dd-1`, `dd-2`, ...). Parse from the story description's `## Done Definitions` section.
@@ -428,7 +444,7 @@ The agent returns a JSON object with `dd_partition_map`, `task_drafts`, and `dec
 <!-- VALIDATION-STEP-1.5: domain-error-escalation -->
 2. **Domain-error escalation (second)**: if the response carries `"error": "decomposition_blocked"` (documented in `agents/task-decomposer.md`), this is a legitimate signal that the inputs are insufficient or contradictory — NOT a malformed response. Surface the agent's `decomposition_notes` to the user and HALT with diagnostic: `"Task decomposer: decomposition_blocked — <decomposition_notes joined>. Re-supply the missing input (selected approach, file impact table, or story DDs) and re-run /dso:implementation-plan."` Do NOT proceed to schema validation; empty `task_drafts` / `dd_partition_map` arrays under this error code are the intended shape.
 <!-- VALIDATION-STEP-2: schema-validation -->
-3. **Schema validation (third)**: with both error-envelope branches ruled out, validate that `dd_partition_map` covers every story DD (union of all `owning_task_ids` is non-empty for every DD, and there are no duplicate ownerships unless explicitly sub-partitioned in `decomposition_notes`); `task_drafts` is a non-empty array with the required fields per the agent's output spec; every task's first three `acceptance_criteria` lines are the Universal Criteria using the project commands verbatim; every task whose `testing_mode` is `RED` has a `tdd_test_spec` Given/When/Then sentence. If schema validation fails, HALT with diagnostic: `"Task decomposer returned malformed output; cannot proceed without verified drafts."` Do NOT fall back to inline drafting — inline drafting is the failure mode this dispatch exists to prevent.
+3. **Schema validation (third)**: with both error-envelope branches ruled out, validate that `dd_partition_map` covers every story DD (union of all `owning_task_ids` is non-empty for every DD, and there are no duplicate ownerships unless explicitly sub-partitioned in `decomposition_notes`); `task_drafts` is a non-empty array with the required fields per the agent's output spec; **every task's `description` field begins with a literal `## Story DD Coverage` section header (verbatim — the completeness reviewer's `dd_collective_ac_coverage` audit greps for this exact heading; a missing header silently invalidates the audit)**; every task's first three `acceptance_criteria` lines are the Universal Criteria using the project commands verbatim; every task whose `testing_mode` is `RED` has a `tdd_test_spec` Given/When/Then sentence. If schema validation fails, HALT with diagnostic: `"Task decomposer returned malformed output; cannot proceed without verified drafts."` Do NOT fall back to inline drafting — inline drafting is the failure mode this dispatch exists to prevent.
 
 **Why halt (not skip-and-continue) here, while Step 6 Gap Analysis falls through on failure?** Task decomposition is a **correctness gate**: every subsequent step (Plan Review, Task Creation, Gap Analysis) consumes the draft set, and inline orchestrator drafting (the only available fallback) is the bug class this dispatch eliminates. Step 6 Gap Analysis is a **quality gate** with a defined skip path — losing it degrades coverage but does not break downstream steps.
 
