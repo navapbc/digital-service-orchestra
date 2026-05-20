@@ -65,6 +65,17 @@ Schema: `docs/workflow-config-schema.json`
 
 ---
 
+### `orchestration.max_agents`
+
+| | |
+|---|---|
+| **Description** | Upper bound on the number of sub-agents the orchestrator dispatches in a single batch. When unset, the cap is unlimited (subject to usage-tier overrides at 90/95/98% which force the effective cap to `1` or `0` per CLAUDE.md `rule:agent-cap`). Set this to a small positive integer to throttle parallelism on shared infrastructure or to enforce single-agent debugging. |
+| **Accepted values** | Positive integer, or unset (= unlimited) |
+| **Default** | Unset (unlimited) |
+| **Used by** | `scripts/agent-batch-lifecycle.sh`, `skills/validate-work/SKILL.md` | # shim-exempt: internal implementation references in config documentation
+
+---
+
 ### `paths.app_dir`
 
 | | |
@@ -533,6 +544,17 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 
 ---
 
+### `design.figma_collaboration`
+
+| | |
+|---|---|
+| **Description** | Gates Figma design integration during onboarding and sprint flows. When `true`, the design collaboration features (Figma pull, figma-staleness warnings, design-aware UI stories) are active. When `false` or absent, those features are skipped — a project without a Figma workflow does not pay the discovery cost. Set explicitly to `false` (rather than left absent) by `/dso:onboarding` as a sentinel meaning "the user was asked and opted out." |
+| **Accepted values** | `true` \| `false` (any other value or absence is treated as `false`) |
+| **Default** | `false` |
+| **Used by** | `/dso:onboarding` (writes the value as a sentinel); no current automated consumer reads the flag — sprint and other skills currently key off `design.figma_staleness_days` and individual figma-related tags instead. Future Figma-aware behaviors are expected to gate on this key. |
+
+---
+
 ### `design.figma_staleness_days`
 
 | | |
@@ -660,9 +682,20 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 
 | | |
 |---|---|
-| **Description** | Git branch naming pattern for worktree validation and cleanup. Used to identify branches created by worktree workflows during automated cleanup. |
+| **Description** | **Deprecated — use `worktree.orphan_patterns` instead.** Git branch naming pattern for worktree validation and cleanup. Precedence in `worktree-cleanup.sh`: (1) `worktree.orphan_patterns` list (canonical), (2) this key with a one-time deprecation warning to stderr, (3) hardcoded default patterns `worktree-*` and `story/*`. Replace with `worktree.orphan_patterns` to silence the warning and gain multi-pattern support. |
 | **Accepted values** | Branch name pattern (e.g., `worktree-*`) |
-| **Default** | Absent — cleanup uses default heuristics |
+| **Default** | Absent — cleanup uses the hardcoded defaults `worktree-*` and `story/*` |
+| **Used by** | `scripts/worktree-cleanup.sh` (legacy fallback only) | # shim-exempt: internal implementation reference in config documentation
+
+---
+
+### `worktree.orphan_patterns`
+
+| | |
+|---|---|
+| **Description** | List of git branch-name patterns identifying worktree branches eligible for orphan cleanup. Supersedes the scalar `worktree.branch_pattern`. Each list entry is one pattern; matching uses `read-config.sh --list` semantics (multiple lines of `worktree.orphan_patterns=<pattern>` in `dso-config.conf`). Branches matching ANY listed pattern are considered cleanup candidates by `worktree-cleanup.sh`. |
+| **Accepted values** | One or more branch-name patterns (e.g., `worktree-*`, `feature/wt-*`); read as a list via `read-config.sh --list` |
+| **Default** | Absent — cleanup falls back to default heuristics when neither this key nor the deprecated `worktree.branch_pattern` is set |
 | **Used by** | `scripts/worktree-cleanup.sh` | # shim-exempt: internal implementation reference in config documentation
 
 ---
@@ -843,6 +876,28 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 
 ---
 
+### `debug.session_ttl_hours`
+
+| | |
+|---|---|
+| **Description** | Time-to-live (in hours) for `.debug-active` session markers. `/dso:debug-everything` considers a session expired when the timestamp embedded in the `debug-session-id` is older than this TTL; expired markers are eligible for cleanup. See `${CLAUDE_PLUGIN_ROOT}/skills/debug-everything/docs/debug-active-marker-schema.md` for the marker schema. |
+| **Accepted values** | Positive integer (hours) |
+| **Default** | `24` |
+| **Used by** | `/dso:debug-everything` (consumes via `read-config.sh`), `debug-active-marker-schema.md` (documents the consumer contract) |
+
+---
+
+### `suggestion.tool_use_count_threshold`
+
+| | |
+|---|---|
+| **Description** | Number of tool-use events after which the suggestion gate may surface an "are you stuck?" prompt. Used by `hooks/lib/session-misc-functions.sh` to throttle proactive suggestions so they fire after sustained activity rather than on every tool call. Overridable per-process via the `DSO_SUGGESTION_TOOL_USE_THRESHOLD` environment variable, which takes precedence over the config value. |
+| **Accepted values** | Positive integer |
+| **Default** | Absent — falls back to a hardcoded `200` in `hooks/lib/session-misc-functions.sh` (suggestions trigger after 200 tool-use events). Set this key (or the `DSO_SUGGESTION_TOOL_USE_THRESHOLD` env var) to override; there is no documented way to disable the gate entirely short of editing the hook. |
+| **Used by** | `hooks/lib/session-misc-functions.sh` | # shim-exempt: internal implementation reference in config documentation
+
+---
+
 ### `checks.script_write_scan_dir`
 
 | | |
@@ -851,17 +906,6 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 | **Accepted values** | Directory path (e.g., `.`) |
 | **Default** | Absent — check skipped |
 | **Used by** | `.claude/scripts/dso validate.sh` |
-
----
-
-### `checks.assertion_density_cmd`
-
-| | |
-|---|---|
-| **Description** | Command to run assertion density analysis on test files. When absent, assertion_coverage is scored null in retro reviews. |
-| **Accepted values** | Any shell command string (e.g., `python3 scripts/check_assertion_density.py`) |
-| **Default** | Absent — scored null |
-| **Used by** | `/dso:sprint` retro review |
 
 ---
 
@@ -1171,22 +1215,6 @@ Before this key existed, `/dso:preplanning` always ran interactively. With the k
 **KNOWN_KEYS registration note:**
 
 When adding `preplanning.interactive` to a new host project's `dso-config.conf`, also add `preplanning.interactive` to the `KNOWN_KEYS` array in `validate-config.sh` to prevent CI breakage on unknown-key validation. DSO's own `KNOWN_KEYS` registration was completed in story d481-3e6c.
-
----
-
-### `brainstorm.max_interaction_cycles`
-
-| Key | Type | Default | Description |
-|---|---|---|---|
-| `brainstorm.max_interaction_cycles` | integer | 2 | Maximum number of cross-epic interaction re-scans allowed after practitioner resolves an ambiguity or conflict. When absent, defaults to 2. |
-
-After each resolution of an AMBIGUITY or CONFLICT cross-epic signal, brainstorm re-runs the cross-epic scan to check for remaining interactions. This key bounds how many re-scans can occur before brainstorm presents any remaining unresolved signals to the practitioner and asks whether to proceed.
-
-| | |
-|---|---|
-| **Accepted values** | Positive integer |
-| **Default** | `2` |
-| **Used by** | `/dso:brainstorm` (cross-epic interaction re-scan loop) |
 
 ---
 

@@ -29,7 +29,7 @@ Each record is a single-line JSON object with the following fields:
 |-------|------|-------------|
 | `ticket_id` | string | The ticket ID associated with the inference incident (e.g., `abcd-1234`) |
 | `inferred_decision_text` | string | The full text of the inference decision that was made without sufficient evidence |
-| `affects_fields` | enum | The ticket field(s) affected by the inference: `title`, `description`, `acceptance_criteria`, `done_definitions`, or `tags` |
+| `affects_fields` | enum | The ticket field or workflow artifact affected by the inference. Ticket fields: `title`, `description`, `acceptance_criteria`, `done_definitions`, `tags`. Workflow artifacts: `gate_verdicts`, `workflow_completion_checklist`. The two workflow-artifact values trigger the always-challenge tier in `red-team-reviewer.md`; ticket-field values fall under the probabilistic tier. |
 | `outcome` | string | The outcome of the inference incident — what happened as a result of the inference (e.g., `ticket_reopened`, `scope_changed`, `user_corrected`) |
 | `source_decision_text` | string | The original text from the source that triggered the inference decision |
 
@@ -37,7 +37,7 @@ Each record is a single-line JSON object with the following fields:
 
 - `ticket_id`: non-empty string; must match the ticket ID format used in the ticket system
 - `inferred_decision_text`: non-empty string; must contain the verbatim inference claim
-- `affects_fields`: enum value — one of `title`, `description`, `acceptance_criteria`, `done_definitions`, `tags`
+- `affects_fields`: enum value — one of `title`, `description`, `acceptance_criteria`, `done_definitions`, `tags`, `gate_verdicts`, or `workflow_completion_checklist` (see the table above for the semantic split between ticket-field and workflow-artifact values)
 - `outcome`: non-empty string; free-text description of what occurred after the inference was made
 - `source_decision_text`: non-empty string; the verbatim source text that led to the inference
 
