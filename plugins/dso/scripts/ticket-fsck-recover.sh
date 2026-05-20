@@ -36,7 +36,7 @@
 #   2  fatal error (no tracker dir, invalid args)
 #   3  stale rebase detected and --detect-only was passed
 
-set -uo pipefail
+set -euo pipefail
 
 # ── Parse args ───────────────────────────────────────────────────────────────
 TRACKER_DIR=""

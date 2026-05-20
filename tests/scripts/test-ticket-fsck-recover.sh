@@ -164,9 +164,12 @@ test_detects_rebase_merge_marker() {
         return
     }
 
-    # Recovery script should DETECT the rebase
+    # Recovery script should DETECT the rebase via stdout signal AND exit code 3
+    # (the documented machine-readable contract — callers branch on exit code).
     local output
-    output=$(bash "$RECOVER_SCRIPT" --tracker-dir "$repo" --detect-only 2>&1 || true)
+    local detect_exit=0
+    output=$(bash "$RECOVER_SCRIPT" --tracker-dir "$repo" --detect-only 2>&1) || detect_exit=$?
+    assert_eq "--detect-only exit code is 3 (documented detection signal)" "3" "$detect_exit"
     if echo "$output" | grep -qiE 'rebase.*detected|paused.*rebase|in.progress'; then
         assert_eq "detection output contains rebase signal" "found" "found"
     else

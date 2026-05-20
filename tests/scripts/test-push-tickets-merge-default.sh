@@ -186,4 +186,53 @@ test_no_rebase_on_primary_path() {
 }
 test_no_rebase_on_primary_path
 
+# ── Test 4: defense-in-depth — refuse to reconcile when tracker is mid-recovery ─
+echo "Test 4: _push_tickets_branch refuses merge when tracker is in rebase recovery state"
+test_refuses_merge_when_in_rebase_state() {
+    _snapshot_fail
+    if [ ! -f "$TICKET_LIB" ]; then
+        assert_eq "prereq: ticket-lib.sh exists" "exists" "missing"
+        return
+    fi
+    # Build a non-FF fixture, then synthesize a rebase-merge/ marker BEFORE
+    # calling _push_tickets_branch — verifies the defense-in-depth guard fires.
+    local fx
+    fx=$(_make_non_ff_fixture)
+    local tracker="$fx/tracker"
+    local git_dir
+    git_dir=$(_resolve_git_dir "$tracker")
+    mkdir -p "$git_dir/rebase-merge"
+    echo "$(git -C "$tracker" rev-parse HEAD)" > "$git_dir/rebase-merge/head-name"
+    echo "1" > "$git_dir/rebase-merge/msgnum"
+    echo "3" > "$git_dir/rebase-merge/end"
+
+    # Capture stderr to verify guard message; function returns 0 (best-effort)
+    local output
+    output=$(
+        source "$TICKET_LIB"
+        _push_tickets_branch "$tracker" 2>&1
+    )
+
+    # Guard should fire — output contains the recovery hint
+    if echo "$output" | grep -qiE 'rebase.*recovery|fsck.recover|cannot reconcile'; then
+        assert_eq "guard message emitted when tracker in rebase state" "found" "found"
+    else
+        assert_eq "guard message emitted when tracker in rebase state" "found" "not-found"
+        echo "  actual output: $output"
+    fi
+
+    # Tracker should still be in rebase state (no merge attempted)
+    if [ -d "$git_dir/rebase-merge" ]; then
+        assert_eq "rebase-merge state preserved (no merge attempted)" "present" "present"
+    else
+        assert_eq "rebase-merge state preserved (no merge attempted)" "present" "removed"
+    fi
+
+    # Clean up rebase-merge so the fixture tempdir cleanup doesn't hit perms
+    rm -rf "$git_dir/rebase-merge" 2>/dev/null || true
+
+    assert_pass_if_clean "test_refuses_merge_when_in_rebase_state"
+}
+test_refuses_merge_when_in_rebase_state
+
 print_summary

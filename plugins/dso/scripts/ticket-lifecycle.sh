@@ -7,11 +7,12 @@
 #                      (default: <repo-root>/.tickets-tracker/)
 #
 # Operations:
-#   1. Sync once (fetch + pull --rebase)
+#   1. Sync once (fetch + reset-or-merge depending on history relationship)
 #   2. Bulk compact: compact tickets above 10-event threshold (--no-commit)
 #   3. Archive: write ARCHIVED events for eligible closed tickets
 #   4. Single git commit for all changes
-#   5. Push with 3-retry fetch-rebase-push on non-fast-forward
+#   5. Push with 3-retry fetch-merge-push on non-fast-forward (bug 637b Fix 3:
+#      merge replaces rebase as the primary reconciliation path)
 #
 # Exit codes:
 #   0 = success or nothing to do
@@ -19,6 +20,12 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source ticket-lib.sh for _check_no_rebase_in_progress (bug 637b Fix 1
+# defensive guard). ticket-lib.sh defines functions only — no side effects on
+# source — so this is safe.
+# shellcheck source=ticket-lib.sh disable=SC1091
+source "$SCRIPT_DIR/ticket-lib.sh"
 
 # ── Parse arguments ──────────────────────────────────────────────────────────
 base_path=""
@@ -49,7 +56,7 @@ if [ ! -d "$base_path" ]; then
 fi
 
 # ── Step 1: Sync once ───────────────────────────────────────────────────────
-# Fetch and rebase from origin tickets branch (best-effort; skip if no remote)
+# Fetch and reset-or-merge from origin tickets branch (best-effort; skip if no remote)
 _has_remote=false
 if git -C "$base_path" remote get-url origin >/dev/null 2>&1; then
     _has_remote=true
@@ -213,6 +220,15 @@ while [ "$push_attempt" -lt "$max_push_retries" ]; do
     else
         # Non-retryable failure — exit immediately
         echo "Error: push failed (non-retryable, exit $push_exit): $push_stderr" >&2
+        exit 1
+    fi
+
+    # Defense in depth (bug 637b Fix 1 parity with _push_tickets_branch): if a
+    # prior interrupted operation left the tracker in a rebase/merge recovery
+    # state, refuse to merge. Otherwise the merge would fail compounding the
+    # error rather than producing a clean "run fsck-recover" signal.
+    if ! _check_no_rebase_in_progress "$base_path" 2>/dev/null; then
+        echo "Error: cannot reconcile push — tracker is in rebase/merge recovery state. Run ticket-fsck-recover.sh." >&2
         exit 1
     fi
 
