@@ -6,6 +6,7 @@ the module itself does not yet exist, so imports are deferred to runtime.
 
 Story: 7034-071c-82b1-4cae  Task: 9740-0303-c873-4691
 """
+
 from __future__ import annotations
 
 import json
@@ -202,7 +203,9 @@ def test_loop_short_circuits_pre_loop_with_prior_arbiter(tmp_path):
 
     # Write a fake arbiter-rulings.json with a BLOCK ruling
     rulings_path = tmp_path / "arbiter-rulings.json"
-    rulings_path.write_text(json.dumps([{"ruling": "BLOCK", "reason": "critical finding"}]))
+    rulings_path.write_text(
+        json.dumps([{"ruling": "BLOCK", "reason": "critical finding"}])
+    )
 
     pre_loop_response = {
         "action": "SHORT_CIRCUIT",
@@ -230,9 +233,7 @@ def test_loop_short_circuits_pre_loop_with_prior_arbiter(tmp_path):
     assert mock_reviewer.call_count == 0, (
         f"Expected reviewer NOT dispatched on SHORT_CIRCUIT, got {mock_reviewer.call_count} calls"
     )
-    assert result == 1, (
-        f"Expected return code 1 (BLOCK ruling present), got {result}"
-    )
+    assert result == 1, f"Expected return code 1 (BLOCK ruling present), got {result}"
 
 
 # ---------------------------------------------------------------------------
@@ -255,8 +256,18 @@ def test_loop_atomic_ledger_append_per_cycle(tmp_path):
 
     append_calls: list[tuple] = []
 
-    def _capture_append(ledger_path, cycle_num, findings_tuples, commit_sha, findings_hash):
-        append_calls.append((ledger_path, cycle_num, findings_tuples, commit_sha, findings_hash))
+    def _capture_append(
+        ledger_path,
+        cycle_num,
+        findings_tuples,
+        commit_sha,
+        findings_hash,
+        halt_reason=None,
+        pr_number=0,
+    ):
+        append_calls.append(
+            (ledger_path, cycle_num, findings_tuples, commit_sha, findings_hash)
+        )
 
     with (
         patch(

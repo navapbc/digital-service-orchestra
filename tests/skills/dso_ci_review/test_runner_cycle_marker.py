@@ -57,7 +57,9 @@ def test_post_cycle_marker_creates_new_comment_when_absent():
     RED: fails because _post_cycle_marker_comment does not exist yet.
     """
     if _post_cycle_marker_comment is None:
-        pytest.fail("_post_cycle_marker_comment not implemented in dso_ci_review.runner")
+        pytest.fail(
+            "_post_cycle_marker_comment not implemented in dso_ci_review.runner"
+        )
 
     pr_number = "123"
     cycle_num = 1
@@ -75,7 +77,9 @@ def test_post_cycle_marker_creates_new_comment_when_absent():
     create_response.stdout = json.dumps({"id": 9999})
     create_response.stderr = ""
 
-    with patch("subprocess.run", side_effect=[list_response, create_response]) as mock_run:
+    with patch(
+        "subprocess.run", side_effect=[list_response, create_response]
+    ) as mock_run:
         _post_cycle_marker_comment(
             pr_number=pr_number,
             cycle_num=cycle_num,
@@ -92,9 +96,7 @@ def test_post_cycle_marker_creates_new_comment_when_absent():
     # Inspect all call args for the CREATE call containing the marker body
     all_call_args = [str(c) for c in mock_run.call_args_list]
     expected_marker = _marker_body(cycle_num, commit_sha, findings_hash)
-    create_calls_with_marker = [
-        c for c in all_call_args if expected_marker in c
-    ]
+    create_calls_with_marker = [c for c in all_call_args if expected_marker in c]
     assert create_calls_with_marker, (
         f"Expected a gh api call containing '{expected_marker}' in its args.\n"
         f"Actual calls: {all_call_args}"
@@ -115,9 +117,13 @@ def test_post_cycle_marker_updates_existing_with_same_cycle_and_sha():
     RED: fails because _post_cycle_marker_comment does not exist yet.
     """
     if _post_cycle_marker_comment is None:
-        pytest.fail("_post_cycle_marker_comment not implemented in dso_ci_review.runner")
+        pytest.fail(
+            "_post_cycle_marker_comment not implemented in dso_ci_review.runner"
+        )
 
-    existing_body = _marker_body(cycle_num=2, commit_sha="abc", findings_hash="old_hash")
+    existing_body = _marker_body(
+        cycle_num=2, commit_sha="abc", findings_hash="old_hash"
+    )
     existing_comment = _make_comment(existing_body, comment_id=5555)
 
     list_response = MagicMock()
@@ -130,7 +136,9 @@ def test_post_cycle_marker_updates_existing_with_same_cycle_and_sha():
     patch_response.stdout = json.dumps({"id": 5555})
     patch_response.stderr = ""
 
-    with patch("subprocess.run", side_effect=[list_response, patch_response]) as mock_run:
+    with patch(
+        "subprocess.run", side_effect=[list_response, patch_response]
+    ) as mock_run:
         _post_cycle_marker_comment(
             pr_number="99",
             cycle_num=2,
@@ -176,7 +184,9 @@ def test_post_cycle_marker_does_not_overwrite_marker_for_different_sha():
     RED: fails because _post_cycle_marker_comment does not exist yet.
     """
     if _post_cycle_marker_comment is None:
-        pytest.fail("_post_cycle_marker_comment not implemented in dso_ci_review.runner")
+        pytest.fail(
+            "_post_cycle_marker_comment not implemented in dso_ci_review.runner"
+        )
 
     old_sha = "old_sha"
     new_sha = "new_sha"
@@ -193,7 +203,9 @@ def test_post_cycle_marker_does_not_overwrite_marker_for_different_sha():
     create_response.stdout = json.dumps({"id": 8888})
     create_response.stderr = ""
 
-    with patch("subprocess.run", side_effect=[list_response, create_response]) as mock_run:
+    with patch(
+        "subprocess.run", side_effect=[list_response, create_response]
+    ) as mock_run:
         _post_cycle_marker_comment(
             pr_number="55",
             cycle_num=1,
@@ -238,7 +250,9 @@ def test_post_cycle_marker_skips_when_no_pr():
     RED: fails because _post_cycle_marker_comment does not exist yet.
     """
     if _post_cycle_marker_comment is None:
-        pytest.fail("_post_cycle_marker_comment not implemented in dso_ci_review.runner")
+        pytest.fail(
+            "_post_cycle_marker_comment not implemented in dso_ci_review.runner"
+        )
 
     with patch("subprocess.run") as mock_run:
         _post_cycle_marker_comment(
@@ -320,7 +334,15 @@ def test_append_cycle_called_after_review(tmp_path):
 
     append_cycle_calls: list = []
 
-    def mock_append_cycle(path, cycle_num, findings_tuples, commit_sha, findings_hash, halt_reason=None):
+    def mock_append_cycle(
+        path,
+        cycle_num,
+        findings_tuples,
+        commit_sha,
+        findings_hash,
+        halt_reason=None,
+        pr_number=0,
+    ):
         append_cycle_calls.append(
             dict(
                 path=path,
@@ -443,9 +465,7 @@ def test_findings_hash_determinism():
 
     # Hash must be a 16-character lowercase hex string
     hex_pattern = re.compile(r"^[0-9a-f]{16}$")
-    assert hex_pattern.match(hash_a), (
-        f"Expected 16-char hex string, got '{hash_a}'"
-    )
+    assert hex_pattern.match(hash_a), f"Expected 16-char hex string, got '{hash_a}'"
 
     # Calling again with same input must produce same result (pure function)
     hash_a2 = _compute_findings_hash(tuples_a)
