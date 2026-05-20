@@ -172,7 +172,7 @@ test_dry_run_is_default() {
     local target_file="$tempdir/sample.md"
     printf "## Closure Checks\nbody\n" > "$target_file"
     local pre_mtime
-    pre_mtime=$(stat -f "%m" "$target_file" 2>/dev/null || stat -c "%Y" "$target_file" 2>/dev/null)
+    pre_mtime=$(python3 -c "import os, sys; print(int(os.path.getmtime(sys.argv[1])))" "$target_file")
 
     _write_audit_json "$audit_json" "buckets = {
     'section-name-reference': [{'file': 'plugins/foo.md', 'line': 1, 'match_text': '## Closure Checks', 'dynamic_load': False}],
@@ -190,7 +190,7 @@ test_dry_run_is_default() {
     # Allow time-based stat to settle.
     sleep 1
     local post_mtime
-    post_mtime=$(stat -f "%m" "$target_file" 2>/dev/null || stat -c "%Y" "$target_file" 2>/dev/null)
+    post_mtime=$(python3 -c "import os, sys; print(int(os.path.getmtime(sys.argv[1])))" "$target_file")
 
     assert_eq "exit code is 0 (dry-run is normal completion)" "0" "$_APPLY_EXIT"
     assert_eq "target file NOT modified in dry-run (mtime unchanged)" "$pre_mtime" "$post_mtime"

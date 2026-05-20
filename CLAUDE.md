@@ -48,7 +48,7 @@ Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
 ## Architecture (pointers)
 
 - **Ticket system v3 (event-sourced)**: orphan branch `tickets` → `.tickets-tracker/`. CLI: `.claude/scripts/dso ticket <subcommand>`. Full reference and rules: `plugins/dso/docs/ticket-cli-reference.md`. The CLI_user tag marks bugs reported explicitly by a human during an interactive session.  <!-- tickets-boundary-ok -->
-- **`## Closure Checks` section** (epic/story tickets): durable end-state intent that is not transitional work; written by `/dso:preplanning` Phase H; verified at closure by `dso:completion-verifier`; audited pre-migration by `${CLAUDE_PLUGIN_ROOT}/scripts/audit-closure-checks-migration.sh`.
+- **`## Closure Checks` section** (epic/story tickets): durable end-state intent that is not transitional work; written by `/dso:preplanning` Phase H; verified at closure by `dso:completion-verifier`; audited pre-migration by `.claude/scripts/dso audit-closure-checks-migration.sh`.
 - **Sub-agents and routing**: `plugins/dso/docs/AGENTS.md` (full named-agent table), `plugins/dso/docs/SUB-AGENT-BOUNDARIES.md` (rules), `INSTALL.md` (routing config).
 - **Hooks, gates, test gate, review gate, hook error handler**: `plugins/dso/docs/HOOKS-REFERENCE.md`.
 - **Compliance verifier** (wrapper-driven artifact verification, load-bearing pre-commit gate): see `plugins/dso/docs/HOOKS-REFERENCE.md`.
