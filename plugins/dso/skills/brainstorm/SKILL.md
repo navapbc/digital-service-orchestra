@@ -5,6 +5,8 @@ user-invocable: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
+<!-- Schema reference: docs/designs/stage-boundary-preconditions/ -->
+
 <SUB-AGENT-GUARD>
 Requires Agent tool. If running as a sub-agent (Agent tool unavailable), STOP and return: "ERROR: /dso:brainstorm requires Agent tool; invoke from orchestrator."
 </SUB-AGENT-GUARD>

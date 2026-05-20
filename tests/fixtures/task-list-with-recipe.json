@@ -1,0 +1,16 @@
+[
+  {
+    "id": "task-001",
+    "title": "Add a parameter to process_user function",
+    "tags": ["recipe:add-parameter"],
+    "status": "open",
+    "description": "Use rope recipe to add a new parameter to process_user and update all callers"
+  },
+  {
+    "id": "task-002",
+    "title": "Write unit tests for process_user",
+    "tags": [],
+    "status": "open",
+    "description": "Write tests for the updated process_user function"
+  }
+]

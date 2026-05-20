@@ -24,6 +24,26 @@ DSO plugin users need to run deterministic code transforms (add-parameter, scaff
 - RECIPE_PARAM_* protocol requires callers to translate flags (--param key=value) to env var form before invoking adapters
 - Integration test fixtures live in `tests/integration/fixtures/` — synthetic Python + TypeScript projects that must remain stable for tests to be deterministic
 
+## ADR-002: Recipe Integration into Sprint Execution Pipeline
+
+### Status
+Accepted
+
+### Context
+Recipe tasks (planned by `/dso:implementation-plan` with `recipe:` task type) need to integrate with the sprint execution pipeline without disrupting the existing sub-agent dispatch flow.
+
+### Decision
+**Pre-flight engine check** (Phase C Step 1): Sprint scans all recipe: tasks for referenced engines before any task executes. Missing or outdated engines populate `MISSING_ENGINES_LIST`. Pre-flight is a no-op when the plan has no recipe: tasks and does not block epics with zero recipe tasks.
+
+**Cleanup phase** (Phase F, post-sub-agent): Applicable cleanup recipes (e.g., normalize-imports) run after each sub-agent returns and before code review. This catches mechanical defects deterministically before the reviewer sees the diff. Sprint log records the post-cleanup state.
+
+**LLM fallback** (graceful degradation): When an engine from `MISSING_ENGINES_LIST` is needed, `translate-recipe-to-llm-task.sh` converts the recipe task spec to a natural-language LLM sub-agent task. The intent comes from `capability_description` in the registry. A ticket comment (`RECIPE_FALLBACK:`) records the fallback with engine name and reason. The fallback task routes through the identical Phase F pipeline as any GREEN task.
+
+### Consequences
+- `translate-recipe-to-llm-task.sh` is the authoritative conversion layer; callers inject `RECIPE_REGISTRY_PATH` for test isolation
+- Pre-flight version check uses the registry's `minimum_version` field, not just engine presence
+- Cleanup recipes that produce no-op diffs (already clean) are skipped silently
+
 ## Follow-on Observability: Story-Branch Leakage Metrics
 
 After the per-story PR pipeline (epic f61f-7e0a-36d3-4e7d) is fully deployed, instrument story-branch leakage: track how often `check-session-merge-only.sh` fires (session-worktree direct commit attempts), how often `check-sprint-trailer.sh` rejects a merge (missing `DSO-Story:` trailer), and whether story branches are created outside Phase E (branch naming violations). These signals indicate orchestrator discipline gaps and should feed back into sprint SKILL.md guidance.
