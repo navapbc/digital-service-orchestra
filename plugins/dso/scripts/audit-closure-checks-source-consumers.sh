@@ -38,7 +38,7 @@
 # Outside of tests this file should never be present, and absent the marker
 # the audit is fully read-only.
 
-set -uo pipefail
+set -euo pipefail
 
 # ── Self-location ────────────────────────────────────────────────────────────
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -57,6 +57,7 @@ _TARGET=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --target)
+            if [ $# -lt 2 ]; then echo "Error: --target requires a value" >&2; exit 2; fi
             _TARGET="$2"
             shift 2
             ;;
@@ -295,13 +296,29 @@ def is_dynamic_import_arg(arg):
 def is_dynamic_source_path(path_token):
     """Decide whether a `source <path>` token is dynamic.
 
-    Dynamic if the path contains TWO OR MORE `$VAR` segments OR is purely
-    a bare variable with no literal trailing segment. Static if the path
-    contains zero or one `$VAR` prefix followed by a literal tail.
+    Dynamic if any of:
+      * the path contains TWO OR MORE `$VAR` segments
+      * the path is a bare variable with no literal trailing segment
+        (e.g. `"$SOME_VAR"`, `$VAR`, `"${VAR}"`) — runtime alone determines
+        the load target, so a static scan cannot reach the consumer.
+    Static if the path contains zero or one `$VAR` followed by a literal
+    trailing segment (e.g. `"$PLUGIN_ROOT/scripts/foo.sh"`).
     """
     var_count = len(RE_SH_DOLLAR_VAR.findall(path_token))
     if var_count >= 2:
         return True
+    if var_count == 1:
+        # Check if there is a literal trailing segment after the variable.
+        # Strip surrounding quotes for the check.
+        stripped = path_token.strip()
+        if (stripped.startswith('"') and stripped.endswith('"')) or \
+           (stripped.startswith("'") and stripped.endswith("'")):
+            stripped = stripped[1:-1]
+        # Remove a single leading $VAR or ${VAR} token; if nothing remains
+        # (or only whitespace), the path is dynamic.
+        residue = RE_SH_DOLLAR_VAR.sub("", stripped, count=1).strip()
+        if not residue:
+            return True
     return False
 
 

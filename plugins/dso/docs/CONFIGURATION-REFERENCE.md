@@ -601,7 +601,8 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 When set, the completion-verifier invokes each listed hook script for every item in the `## Closure Checks` section of the ticket being verified. Each hook receives the item text via the `ITEM_TEXT` environment variable, the ticket ID via `ITEM_SOURCE_TICKET_ID`, and the closure timestamp via `CLOSURE_TIMESTAMP`. Hook output conforms to the `end-state-item-validator` contract at `${CLAUDE_PLUGIN_ROOT}/docs/contracts/end-state-item-validator.md`.
 
 **Example**:
-```
+
+```ini
 project_closure_hooks = scripts/my-closure-validator.sh
 ```
 

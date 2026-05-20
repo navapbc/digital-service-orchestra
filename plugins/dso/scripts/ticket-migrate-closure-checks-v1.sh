@@ -242,6 +242,11 @@ PYEOF
 # the EDIT event file has been successfully written; on OSError it emits ERROR:
 # to stderr and skips that ticket, so a partial-write failure cannot cause a
 # mis-committed EDIT for that ticket.
+# Track commit failures so the marker file is only written after every
+# WROTE: line landed a successful commit. Otherwise the marker would
+# suppress future runs even though some tickets were never actually
+# migrated to the tickets branch.
+_commit_failures=0
 while IFS= read -r _line; do
     [[ -z "$_line" ]] && continue
     case "$_line" in
@@ -249,9 +254,18 @@ while IFS= read -r _line; do
             _rest="${_line#WROTE:}"
             _ticket_id="${_rest%%:*}"
             _event_name="${_rest#*:}"
-            git -C "$_TRACKER_DIR" add "$_ticket_id/$_event_name" 2>/dev/null && \
-                git -C "$_TRACKER_DIR" commit -m "migration: add ## Closure Checks section to $_ticket_id" 2>/dev/null || \
+            if git -C "$_TRACKER_DIR" add "$_ticket_id/$_event_name" 2>/dev/null \
+                && git -C "$_TRACKER_DIR" commit -m "migration: add ## Closure Checks section to $_ticket_id" 2>/dev/null; then
+                : # success
+            else
+                _commit_failures=$(( _commit_failures + 1 ))
                 git -C "$_TRACKER_DIR" reset 2>/dev/null || true
+                # Remove the staged event file so the next run re-emits a
+                # WROTE: line for this ticket; otherwise the python pass
+                # would see the new EDIT event on disk and SKIP it.
+                rm -f "$_TRACKER_DIR/$_ticket_id/$_event_name" 2>/dev/null || true
+                echo "ERROR: $_ticket_id — git add/commit failed; will retry next run" >&2
+            fi
             ;;
         WOULD_WRITE:*)
             echo "DRY-RUN: ${_line#WOULD_WRITE:}"
@@ -259,10 +273,18 @@ while IFS= read -r _line; do
     esac
 done <<< "$_migrate_output"
 
-# ── Write marker file (skipped in dry-run mode) ───────────────────────────────
-if [ "$_DRYRUN" = "0" ]; then
+# ── Write marker file (skipped in dry-run mode AND when any commit failed) ───
+# The marker is the "all done" sentinel — only write it when all WROTE: events
+# successfully committed. With partial failures, leave the marker absent so
+# the next run retries the failed tickets and the audit script will still
+# surface them as needing migration.
+if [ "$_DRYRUN" = "0" ] && [ "$_commit_failures" -eq 0 ]; then
     mkdir -p "$(dirname "$_MARKER_FILE")"
     touch "$_MARKER_FILE"
 fi
 
+if [ "$_commit_failures" -gt 0 ]; then
+    echo "ERROR: $_commit_failures ticket(s) had failed git commit; marker not written; re-run after resolving" >&2
+    exit 1
+fi
 exit 0

@@ -18,7 +18,7 @@ Freezing this schema decouples emitter and consumer: T3 can implement against th
 
 `closure-checks-source-audit-output` — a per-run JSON artifact written to:
 
-```
+```text
 <target>/<plugin-git-path>/.audit-output/closure-checks-migration-<UTC-timestamp>-<nano-or-pid>.json
 ```
 

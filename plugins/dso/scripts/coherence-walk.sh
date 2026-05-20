@@ -49,6 +49,7 @@ _EPIC_FILTER=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --target)
+            if [ $# -lt 2 ]; then echo "Error: --target requires a value" >&2; exit 2; fi
             _TARGET="$2"
             shift 2
             ;;
@@ -57,6 +58,7 @@ while [ $# -gt 0 ]; do
             shift
             ;;
         --epic)
+            if [ $# -lt 2 ]; then echo "Error: --epic requires a value" >&2; exit 2; fi
             _EPIC_FILTER="$2"
             shift 2
             ;;
@@ -215,10 +217,10 @@ def _get_compiled_state(tdir):
         elif etype == "CREATE":
             state.update({
                 k: v for k, v in data.items()
-                if k in ("ticket_type", "title", "status", "description")
+                if k in ("ticket_type", "title", "status", "description", "parent_id")
             })
         elif etype in ("UPDATE", "TRANSITION"):
-            for k in ("ticket_type", "title", "status", "description"):
+            for k in ("ticket_type", "title", "status", "description", "parent_id"):
                 if k in data:
                     state[k] = data[k]
 

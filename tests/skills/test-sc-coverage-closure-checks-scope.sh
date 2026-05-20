@@ -49,10 +49,16 @@ echo "=== test-sc-coverage-closure-checks-scope.sh ==="
 # coverage check to ## Success Criteria only and stop at ## Closure Checks.
 # ---------------------------------------------------------------------------
 test_haiku_has_closure_checks_scoping_instruction() {
+    # Tightened (per llm-review #8): require BOTH sides of the scoping rule —
+    # the prompt must mention "Closure Checks" AND mention either "Success
+    # Criteria only" / "only ## Success Criteria" / "stop parsing" — so a
+    # prompt that merely mentions Closure Checks anywhere is not sufficient.
+    local has_cc=0 has_scope=0
+    grep -qEi "Closure Checks" "$HAIKU_PROMPT" 2>/dev/null && has_cc=1
+    grep -qEi "stop[^.]*parsing|Success Criteria.*only|only[^.]*Success Criteria" "$HAIKU_PROMPT" 2>/dev/null && has_scope=1
     local match=0
-    match=$(grep -cEi "Closure Checks|stop.*parsing|Success Criteria.*only|only.*Success Criteria" "$HAIKU_PROMPT" 2>/dev/null) || match=0
-    [[ "$match" -gt 0 ]] && match=1
-    assert_eq "test_haiku_has_closure_checks_scoping_instruction: sc-coverage-haiku.md contains Closure Checks scoping instruction" "1" "$match"
+    [[ "$has_cc" -eq 1 && "$has_scope" -eq 1 ]] && match=1
+    assert_eq "test_haiku_has_closure_checks_scoping_instruction: sc-coverage-haiku.md contains both Closure Checks mention AND scoping rule" "1" "$match"
 }
 
 # ---------------------------------------------------------------------------
@@ -61,10 +67,12 @@ test_haiku_has_closure_checks_scoping_instruction() {
 # coverage check to ## Success Criteria only and stop at ## Closure Checks.
 # ---------------------------------------------------------------------------
 test_sonnet_has_closure_checks_scoping_instruction() {
+    local has_cc=0 has_scope=0
+    grep -qEi "Closure Checks" "$SONNET_PROMPT" 2>/dev/null && has_cc=1
+    grep -qEi "stop[^.]*parsing|Success Criteria.*only|only[^.]*Success Criteria" "$SONNET_PROMPT" 2>/dev/null && has_scope=1
     local match=0
-    match=$(grep -cEi "Closure Checks|stop.*parsing|Success Criteria.*only|only.*Success Criteria" "$SONNET_PROMPT" 2>/dev/null) || match=0
-    [[ "$match" -gt 0 ]] && match=1
-    assert_eq "test_sonnet_has_closure_checks_scoping_instruction: sc-coverage-sonnet.md contains Closure Checks scoping instruction" "1" "$match"
+    [[ "$has_cc" -eq 1 && "$has_scope" -eq 1 ]] && match=1
+    assert_eq "test_sonnet_has_closure_checks_scoping_instruction: sc-coverage-sonnet.md contains both Closure Checks mention AND scoping rule" "1" "$match"
 }
 
 # ---------------------------------------------------------------------------
@@ -73,10 +81,12 @@ test_sonnet_has_closure_checks_scoping_instruction() {
 # coverage check to ## Success Criteria only and stop at ## Closure Checks.
 # ---------------------------------------------------------------------------
 test_opus_has_closure_checks_scoping_instruction() {
+    local has_cc=0 has_scope=0
+    grep -qEi "Closure Checks" "$OPUS_PROMPT" 2>/dev/null && has_cc=1
+    grep -qEi "stop[^.]*parsing|Success Criteria.*only|only[^.]*Success Criteria" "$OPUS_PROMPT" 2>/dev/null && has_scope=1
     local match=0
-    match=$(grep -cEi "Closure Checks|stop.*parsing|Success Criteria.*only|only.*Success Criteria" "$OPUS_PROMPT" 2>/dev/null) || match=0
-    [[ "$match" -gt 0 ]] && match=1
-    assert_eq "test_opus_has_closure_checks_scoping_instruction: sc-coverage-opus.md contains Closure Checks scoping instruction" "1" "$match"
+    [[ "$has_cc" -eq 1 && "$has_scope" -eq 1 ]] && match=1
+    assert_eq "test_opus_has_closure_checks_scoping_instruction: sc-coverage-opus.md contains both Closure Checks mention AND scoping rule" "1" "$match"
 }
 
 # ---------------------------------------------------------------------------

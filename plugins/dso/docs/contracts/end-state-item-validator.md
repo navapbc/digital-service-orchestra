@@ -34,7 +34,7 @@ Host project hook scripts, registered via the `project_closure_hooks` config key
 
 In `.claude/dso-config.conf`:
 
-```
+```ini
 project_closure_hooks=<hook-name-1>,<hook-name-2>
 ```
 

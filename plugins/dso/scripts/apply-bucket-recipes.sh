@@ -45,7 +45,7 @@
 #   1 — Audit JSON input not found or invalid.
 #   2 — Error during processing.
 
-set -uo pipefail
+set -euo pipefail
 
 # ── Self-location ────────────────────────────────────────────────────────────
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -66,6 +66,7 @@ _BUCKET=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --audit-output)
+            if [ $# -lt 2 ]; then echo "Error: --audit-output requires a value" >&2; exit 2; fi
             _AUDIT_OUTPUT="$2"
             shift 2
             ;;
@@ -78,6 +79,7 @@ while [ $# -gt 0 ]; do
             shift
             ;;
         --bucket)
+            if [ $# -lt 2 ]; then echo "Error: --bucket requires a value" >&2; exit 2; fi
             _BUCKET="$2"
             shift 2
             ;;

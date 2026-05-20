@@ -84,7 +84,7 @@ The migration is split across **two surfaces** — ticket-body migration (epics/
 
 | Script | Surface | Purpose |
 |--------|---------|---------|
-| `${CLAUDE_PLUGIN_ROOT}/scripts/audit-closure-checks-migration.sh` | Ticket bodies | Dry-run audit — lists all epics/stories missing the `## Closure Checks` section; exits non-zero if any are found |
+| `${CLAUDE_PLUGIN_ROOT}/scripts/audit-closure-checks-migration.sh` | Ticket bodies | Dry-run audit — lists all epics/stories missing the `## Closure Checks` section. Exit codes: `0` when tickets needing migration are found (the lines are the work list), `1` when none are found (all migrated), `2` on error. Pipe to `migrate-closure-checks.sh` to apply. |
 | `${CLAUDE_PLUGIN_ROOT}/scripts/migrate-closure-checks.sh` | Ticket bodies | Bulk migration — adds an empty `## Closure Checks` section to every epic/story that is missing it |
 | `${CLAUDE_PLUGIN_ROOT}/scripts/audit-closure-checks-source-consumers.sh` | Source files | Source-file consumer audit — scans `.md`/`.sh`/`.py`/`.yaml`/`.yml` under `plugins/`, `tests/`, `docs/` for Closure Checks references; classifies each match into one of six precedence-ordered buckets and emits a JSON artifact for downstream tooling |
 | `${CLAUDE_PLUGIN_ROOT}/scripts/apply-bucket-recipes.sh` | Source files | Source-file recipe applier — consumes the bucket JSON and applies the bucket-specific recipe (dry-run by default; see "Dry-run policy" below) |
@@ -119,10 +119,10 @@ After migration, the ticket tracker's schema version is updated to `1.2.0`. The 
 
 | Pattern | Gate behavior |
 |---------|--------------|
-| A `## Success Criteria` item and a `## Closure Checks` item are textually identical (exact duplicate) | Warning — suggests the SC item may be transitional and should be reviewed |
-| A `## Success Criteria` item contains transitional language markers (`currently`, `pending`, `until`, `temporary`, `feature flag`, `as of`) | Advisory — not a hard gate failure; surfaced for human review |
+| A `## Success Criteria` item and a `## Closure Checks` item are textually identical (exact duplicate) | **FAIL** (hard gate — `coherence-walk.sh` exits 1; `validate.sh` reports the check as failed) |
+| A `## Success Criteria` item contains transitional language markers (`currently`, `pending`, `until`, `temporary`, `feature flag`, `as of`) | **AMBIGUOUS** (advisory — script exits 0; surfaced for human review) |
 
-Neither pattern is a hard failure — they are advisory signals that flag tickets for human review during sprint retrospectives or audits.
+Duplicates are hard failures because the same text in both sections is structurally inconsistent: the verifier evaluates SC and CC items separately and would double-count. Transitional-language matches are advisory because they are heuristic — the surface text may be intentional in some contexts.
 
 ---
 
@@ -170,7 +170,7 @@ Hook environment variables:
 | `ITEM_SOURCE_TICKET_ID` | The ticket ID the item came from |
 | `CLOSURE_TIMESTAMP` | ISO-8601 timestamp of the closure event |
 
-Hook output (stdout): `{ "valid": true|false, "reason": "<string>", "severity": "PASS|FAIL|WARN" }`
+Hook output (stdout): `{ "valid": true|false, "reason": "<string>", "severity": "block|warn" }` — per the contract at `${CLAUDE_PLUGIN_ROOT}/docs/contracts/end-state-item-validator.md`. `severity` describes the impact of a `valid: false` result: `block` prevents closure; `warn` is advisory.
 
 ---
 

@@ -459,6 +459,7 @@ if [ "${VALIDATE_SKIP_PLUGIN_CHECKS:-}" != "1" ]; then
     [ -f "$PLUGIN_SCRIPTS/check-contract-schemas.sh" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS contract-schema"
     [ -f "$PLUGIN_SCRIPTS/check-referential-integrity.sh" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS referential-integrity"
     [ -f "$PLUGIN_SCRIPTS/check-session-branch-invariant.sh" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS session-branch-invariant"
+    [ -f "$PLUGIN_SCRIPTS/coherence-walk.sh" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS coherence-walk"
     [ -f "$PLUGIN_SCRIPTS/audit-closure-checks-source-consumers.sh" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS audit-source-consumers"
 fi
 [ -n "$CMD_BUILD" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS build"

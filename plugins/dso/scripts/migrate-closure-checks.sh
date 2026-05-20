@@ -37,7 +37,7 @@
 #   Each ticket is checked for the v1.2.0 sentinel (## Closure Checks heading)
 #   before processing. Already-migrated tickets are skipped with SKIPPED:<id>.
 
-set -uo pipefail
+set -euo pipefail
 
 # ── Self-location ─────────────────────────────────────────────────────────────
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -49,6 +49,7 @@ _DRYRUN=0
 while [ $# -gt 0 ]; do
     case "$1" in
         --target)
+            if [ $# -lt 2 ]; then echo "Error: --target requires a value" >&2; exit 2; fi
             _TARGET="$2"
             shift 2
             ;;
@@ -92,7 +93,7 @@ _PROGRESS_FILE="/tmp/migrate-closure-checks.${_TARGET_HASH}.progress"
 # Collect lines from stdin if it is not a TTY; otherwise scan via audit script.
 _TICKET_LINES=()
 
-if [ -p /dev/stdin ]; then
+if [ -p /dev/stdin ] || { [ -f /dev/stdin ] && [ -s /dev/stdin ]; }; then
     # stdin mode: read tab-separated audit lines (stdin is a pipe)
     while IFS= read -r _line; do
         [[ -z "$_line" ]] && continue
@@ -531,18 +532,36 @@ while [ "$_i" -lt "$_total" ]; do
                 _rest="${_result#WROTE:}"
                 _tid="${_rest%%:*}"
                 _event_name="${_rest#*:}"
-                # Commit the EDIT event to the tickets branch
+                # Commit the EDIT event to the tickets branch. Track commit
+                # success — a failed add+commit must NOT count as MIGRATED,
+                # because the resume file would then suppress retry next run.
+                _commit_ok=1
                 if [ "$_DRYRUN" = "0" ]; then
-                    git -C "$_TRACKER_DIR" add "$_tid/$_event_name" 2>/dev/null && \
-                        git -C "$_TRACKER_DIR" commit -m "migration: add ## Closure Checks section to $_tid" 2>/dev/null || \
+                    _commit_ok=0
+                    if git -C "$_TRACKER_DIR" add "$_tid/$_event_name" 2>/dev/null \
+                        && git -C "$_TRACKER_DIR" commit -m "migration: add ## Closure Checks section to $_tid" 2>/dev/null; then
+                        _commit_ok=1
+                    else
+                        # Clean up the staged add so the working tree stays
+                        # consistent for retry on the next run.
                         git -C "$_TRACKER_DIR" reset 2>/dev/null || true
+                        rm -f "$_TRACKER_DIR/$_tid/$_event_name" 2>/dev/null || true
+                    fi
                 fi
-                echo "MIGRATED: $_ticket_id"
-                _migrated=$(( _migrated + 1 ))
-                _batch_migrated=$(( _batch_migrated + 1 ))
-                # Record in progress file for resume semantics
-                if [ "$_DRYRUN" = "0" ]; then
-                    echo "$_ticket_id" >> "$_PROGRESS_FILE"
+                if [ "$_commit_ok" = "1" ]; then
+                    echo "MIGRATED: $_ticket_id"
+                    _migrated=$(( _migrated + 1 ))
+                    _batch_migrated=$(( _batch_migrated + 1 ))
+                    if [ "$_DRYRUN" = "0" ]; then
+                        echo "$_ticket_id" >> "$_PROGRESS_FILE"
+                    fi
+                else
+                    echo "ERROR: $_ticket_id — git add/commit failed; not recorded as MIGRATED; will retry next run" >&2
+                    _failed=$(( _failed + 1 ))
+                    _batch_failed=$(( _batch_failed + 1 ))
+                    # Skip annotation-rewrite when commit failed.
+                    _j=$(( _j ))
+                    continue
                 fi
                 # Run annotation-rewrite pass for epics (stories don't have child stories)
                 # Check ticket type: only run for epics
