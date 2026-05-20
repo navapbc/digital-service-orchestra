@@ -348,7 +348,7 @@ hook_worktree_bash_guard() {
     if echo "$COMMAND" | grep -qE "cd[[:space:]]+(\"$MAIN_REPO_ROOT\"|'$MAIN_REPO_ROOT'|$MAIN_REPO_ROOT)([[:space:]]|[;&\|]|$)"; then
         echo "BLOCKED: Bash command cd's into the main repo from a worktree session." >&2
         echo "" >&2
-        echo "CLAUDE.md rule 11: \"Never edit main repo files from a worktree session.\"" >&2
+        echo "CLAUDE.md \`rule:no-edit-main-from-worktree\`: \"Never edit main repo files from a worktree session.\"" >&2
         echo "  Command:   cd $MAIN_REPO_ROOT ..." >&2
         echo "  Main repo: $MAIN_REPO_ROOT" >&2
         echo "  Worktree:  $WORKTREE_ROOT" >&2
@@ -428,7 +428,7 @@ hook_worktree_edit_guard() {
         if echo "$COMMAND" | grep -qE "mkdir[[:space:]].*['\"]?${MAIN_REPO_ROOT}"; then
             echo "BLOCKED: Bash mkdir targeting main repo from worktree session." >&2
             echo "" >&2
-            echo "CLAUDE.md rule 11: \"Never edit main repo files from a worktree session.\"" >&2
+            echo "CLAUDE.md \`rule:no-edit-main-from-worktree\`: \"Never edit main repo files from a worktree session.\"" >&2
             echo "  Command:   $COMMAND" >&2
             echo "  Main repo: $MAIN_REPO_ROOT" >&2
             echo "  Worktree:  $WORKTREE_ROOT" >&2
@@ -463,7 +463,7 @@ hook_worktree_edit_guard() {
         [[ -z "$TOOL_NAME" ]] && TOOL_NAME="Edit/Write"
         echo "BLOCKED: $TOOL_NAME targeting main repo from worktree session." >&2
         echo "" >&2
-        echo "CLAUDE.md rule 11: \"Never edit main repo files from a worktree session.\"" >&2
+        echo "CLAUDE.md \`rule:no-edit-main-from-worktree\`: \"Never edit main repo files from a worktree session.\"" >&2
         echo "  Target file: $FILE_PATH" >&2
         echo "  Main repo:   $MAIN_REPO_ROOT" >&2
         echo "  Worktree:    $WORKTREE_ROOT" >&2
@@ -693,7 +693,7 @@ hook_review_integrity_guard() {
         fi
         echo "BLOCKED [review-integrity-guard]: Direct write to review-status file." >&2
         echo "Use the review workflow (record-review.sh) instead." >&2
-        echo "See CLAUDE.md rule #14: Never manually generate review JSON." >&2
+        echo "See CLAUDE.md \`rule:fabrication\`: Never manually generate review JSON." >&2
         trap - ERR; return 2
     fi
 

@@ -103,7 +103,7 @@ class _SchemaValidationResult(NamedTuple):
 #   before invoking these tests; PyYAML is guaranteed available at the call site.
 
 # Severity values that must block merge — match local record-review.sh enforcement.
-# fragile is treated identically to important per CLAUDE.md rule 11 / reviewer-base.md.
+# fragile is treated identically to important per CLAUDE.md `rule:severity-override` / reviewer-base.md.
 _BLOCKING_SEVERITIES = frozenset({"critical", "important", "fragile"})
 
 # Synthetic finding types — produced by infrastructure failures, not real review work.

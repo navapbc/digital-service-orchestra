@@ -42,7 +42,7 @@ source "$_PRE_EDIT_WRITE_FUNC_DIR/pre-bash-functions.sh"
 # ---------------------------------------------------------------------------
 # PreToolUse hook: block Edit/Write when fix cascade threshold is reached.
 #
-# Enforces CLAUDE.md rule 13:
+# Enforces CLAUDE.md `rule:cascade-circuit`:
 #   "Never continue fixing after 5 cascading failures — run /dso:fix-cascade-recovery"
 #
 # Passthrough (never blocked):
@@ -128,7 +128,7 @@ hook_cascade_circuit_breaker() {
     local CASCADE_THRESHOLD=5
 
     if (( COUNTER >= CASCADE_THRESHOLD )); then
-        echo "BLOCKED: Fix cascade (rule 13). $COUNTER consecutive fixes produced different errors." >&2
+        echo "BLOCKED: Fix cascade (\`rule:cascade-circuit\`). $COUNTER consecutive fixes produced different errors." >&2
         echo "Run /dso:fix-cascade-recovery to analyze root cause and reset." >&2
         echo "Manual reset: echo 0 > $COUNTER_FILE" >&2
         return 2
