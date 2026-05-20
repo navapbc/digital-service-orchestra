@@ -290,51 +290,55 @@ Signals that indicate a doc-only story:
 - All affected files in the file impact table are `.md` or `.conf` with no associated executable code change
 - Story is testing_mode: GREEN with only instruction file updates in scope
 
-### Proposal Generation
+### Proposal Generation (via `dso:approach-proposer` opus sub-agent)
 
-Read `shared/prompts/complexity-gate.md`. If unreadable, STOP and emit:
+**Sync discipline** — the contract summary, dispatch wiring, validation steps, and `agents/approach-proposer.md` are dual-maintained. When updating complexity-gate criteria, the four distinctness axes, the minimum-proposal count, or any other rule below, you MUST update `agents/approach-proposer.md` in the same change to keep the two in sync. The structural test pins wiring + summary presence but does not detect semantic drift between this SKILL.md block and the agent's embedded protocol.
+
+**Contract summary** (the agent enforces these; this block is the human-readable contract surface for SKILL.md readers and is pinned by `tests/scripts/test-implementation-plan-proposals.sh`):
+
+- **Minimum count**: the agent must produce **at least 3 distinct proposals**. Fewer is permitted only when the solution space is genuinely constrained (≥ 2 required); the constraint must be documented in `generation_notes`.
+- **Proposal schema** (six required fields per `prompts/proposal-schema.md`): `title`, `description`, `files`, `pros`, `cons`, `risk` (one of `low` / `medium` / `high`).
+- **Distinctness validation gate**: every pair of proposals must differ on at least one of the four structural axes:
+  - **data layer** — where state is stored or retrieved
+  - **control flow** — execution path or orchestration strategy
+  - **dependency graph** — modules, packages, or services introduced or removed
+  - **interface boundary** — where the public contract is drawn
+  A set with any structurally equivalent pair MUST NOT be emitted by the agent. The agent records pairwise comparisons in `distinctness_summary` so the audit trail proves the gate ran.
+- **Complexity gates** (per `${CLAUDE_PLUGIN_ROOT}/skills/shared/prompts/complexity-gate.md`): every proposal is gated through Gate 1 (YAGNI), Gate 2 (Rule of Three), and Gate 3 (new-dependency) with outcomes recorded in `complexity_gate_summary`.
+
+Read `shared/prompts/complexity-gate.md` to confirm it is present. If unreadable, STOP and emit:
 "ERROR: complexity-gate.md not found at skills/shared/prompts/complexity-gate.md — create this file before running implementation-plan."
 
-After cross-cutting detection, generate **at least 3 distinct implementation proposals** before task drafting. Each represents a genuinely different approach.
+Dispatch via `subagent_type: "dso:approach-proposer"` with `model: "opus"` passed explicitly (do not rely on the agent frontmatter default — distinct-approach reasoning, complexity-gate evaluation, and structural-axis analysis depend on opus-level sustained reasoning, and the explicit param defends against future routing changes that might silently downgrade).
 
-**Complexity gates per proposal** (apply Gates 1, 2 from `shared/prompts/complexity-gate.md` before submitting to the decision-maker):
+**Two distinct fallback concepts — do not conflate:**
 
-- **Gate 1 (YAGNI)**: does this add functionality not required by the story's done definitions? Revise or include a `justified-complexity` block with evidence.
-- **Gate 2 (Rule of Three)**: does this introduce an abstraction with fewer than 3 existing call sites? Inline or include a `justified-complexity` block.
-- **Gate 3 (new dependency)**: when a proposal adds a new library, include the GATE/CHECKED/FINDING/VERDICT block (format in `complexity-gate.md`) in the proposal's `cons` or as an annotation.
+- **Dispatch-target fallback** (this paragraph): if the named `subagent_type: "dso:approach-proposer"` is unregistered in this session ("Unknown agent type" or similar dispatch error), re-dispatch with `subagent_type: "general-purpose"` + `model: "opus"` and `agents/approach-proposer.md` content read inline as the prompt. **The agent still does the work** — only the dispatch transport changes. This is NOT inline drafting.
+- **Inline-drafting fallback** (forbidden, see Validation below): the orchestrator itself drafts proposals without the agent. This is the bug class the dispatch was introduced to eliminate and is explicitly prohibited regardless of what dispatch path was taken.
 
-**Proposal format**: each proposal MUST include all six fields defined in `prompts/proposal-schema.md` (single source of truth):
+Pass the following as task arguments:
 
-| Field | Description |
-|-------|-------------|
-| `title` | Concise name (≤ 80 chars) |
-| `description` | How the approach works and why it satisfies the SC |
-| `files` | File paths likely touched |
-| `pros` | Concrete advantages traceable to design decisions |
-| `cons` | Concrete drawbacks/risks — do not omit known tradeoffs |
-| `risk` | One of `low`, `medium`, `high` (criteria in `proposal-schema.md`) |
+- `{story-id}`, `{story-title}`, `{story-description}` from the story ticket
+- `{story-done-definitions}` — the story's DDs, one per line, with stable identifiers (`dd-1`, `dd-2`, ...). Parse these from the story description's `## Done Definitions` section; do NOT rely on session memory.
+- `{codebase-context}` — discovery output from Step 1 (relevant files, existing patterns, architectural reviewer findings, walking-skeleton flags)
+- `{counter-proposal-feedback}` — if NEW_COUNT ≥ 1, the prior counter-proposal's `approach` and `done_definitions` from the cycle state file; otherwise pass `(none — first cycle)`
 
-If the story is genuinely constrained to fewer viable approaches, document the constraint and generate as many distinct ones as exist — but attempt at least 3 first.
+The agent returns a JSON object with `proposals`, `distinctness_summary`, `complexity_gate_summary`, and `generation_notes`. Validate the output in this order — do NOT reorder, the model-requirement check MUST run before schema validation:
 
-**Fitness-Function-as-Scaffolding Proposals**: when a proposal generates an enforcement/linting test (e.g., `test_no_raw_env_reads_outside_config_module()` from `architect-foundation` AP-5), the task description MUST include:
-1. **Baseline-capture step**: Run the fitness function against the existing codebase FIRST to identify all current violations.
-2. **Allowlist capture**: Document all baseline violations as a `BASELINE_VIOLATIONS` allowlist in the spec — the fitness function should assert that all observed violations are in the allowlist, failing only on NEW violations.
-3. **Sanity criterion**: Include an acceptance criterion verifying the baseline allowlist is non-empty (proof that the baseline scan executed and found existing violations).
-4. **Reference**: See `${CLAUDE_PLUGIN_ROOT}/skills/architect-foundation/fitness-function-templates.md` for concrete examples and anti-pattern codes.
+<!-- VALIDATION-ORDER: model_requirement_unmet → domain-error escalation → schema validation. -->
+<!-- VALIDATION-STEP-1: model_requirement_unmet -->
+1. **Model-requirement check (first)**: if the response carries `"error": "model_requirement_unmet"`, log `"Approach proposer model requirement unmet — re-dispatching with explicit model: opus"` and retry once via the fallback path. If the retry also returns `model_requirement_unmet`, HALT with diagnostic: `"Approach proposal generation requires opus; configure the environment to allow opus dispatch and re-run /dso:implementation-plan."` Do NOT fall back to inline proposal drafting.
+<!-- VALIDATION-STEP-1.5: domain-error-escalation -->
+2. **Domain-error escalation (second)**: if the response carries `"error": "insufficient_solution_space"` (documented in `agents/approach-proposer.md`), this is a legitimate signal that the story is genuinely constrained to fewer than 2 viable approaches — NOT a malformed response. Surface the agent's `generation_notes` to the user and HALT with diagnostic: `"Approach proposer: insufficient_solution_space — <generation_notes joined>. Refine the story constraints (or accept the single-approach path manually) and re-run /dso:implementation-plan."` Do NOT proceed to schema validation; an empty `proposals` array under this error code is the intended shape.
+<!-- VALIDATION-STEP-2: schema-validation -->
+3. **Schema validation (third)**: with both error-envelope branches ruled out, validate that `proposals` conforms to `prompts/proposal-schema.md` (every proposal has all six fields), `distinctness_summary` is a non-empty array of pairwise comparisons (every pair has `differs_on` non-empty), and `complexity_gate_summary` has one entry per proposal with all three gate outcomes recorded. If schema validation fails, HALT with diagnostic: `"Approach proposer returned malformed output; cannot proceed without verified proposals."` Do NOT fall back to inline drafting — inline drafting is the failure mode this phase exists to prevent.
 
-**Distinctness validation gate**: every pair of proposals must differ on at least one of four structural axes (defined in `prompts/proposal-schema.md`):
-
-- **Data layer** — how/where state is stored or retrieved
-- **Control flow** — execution path or orchestration strategy
-- **Dependency graph** — modules/packages/services introduced or removed
-- **Interface boundary** — where the public contract is drawn
-
-If any pair is structurally equivalent on all four axes, **reject one and replace** with a genuinely different approach, then re-verify. A set with any equivalent pair MUST NOT be presented or passed to the decision-maker.
+**Why halt (not skip-and-continue) here?** Proposal generation is a **correctness gate**: the selected approach drives every subsequent task in Step 3, and inline orchestrator drafting (the only available fallback) is the bug class this dispatch was introduced to eliminate.
 
 **Approach resolution routing** (config-driven via `APPROACH_RESOLUTION`):
 
-- **`autonomous`** (default): pass the full proposal set to the decision-maker; use the selected proposal as the basis for Step 3. Do NOT show proposals to the user or wait for selection.
-- **`interactive`**: display proposals to the user (title, description, pros, cons, risk); wait for user selection before Step 3. Do NOT dispatch the decision-maker.
+- **`autonomous`** (default): pass the agent's full `proposals` set to the decision-maker; use the selected proposal as the basis for Step 3. Do NOT show proposals to the user or wait for selection.
+- **`interactive`**: display the agent's `proposals` to the user (title, description, pros, cons, risk); wait for user selection before Step 3. Do NOT dispatch the decision-maker.
 
 ### Resolution Loop
 
@@ -410,9 +414,41 @@ If a pattern change is proposed, read and execute `${CLAUDE_PLUGIN_ROOT}/docs/wo
 
 ---
 
-## Step 3: Atomic Task Drafting
+## Step 3: Atomic Task Drafting (via `dso:task-decomposer` opus sub-agent)
 
-Draft tasks that **collectively fulfill all success criteria** of the User Story. If a new pattern was approved in Step 2, include consistency tasks.
+Draft tasks that **collectively fulfill all done definitions** of the User Story. If a new pattern was approved in Step 2, include consistency tasks. Task drafting is delegated to the `dso:task-decomposer` sub-agent; the orchestrator collects inputs, dispatches, validates output, then proceeds to Step 4 with the resulting draft set.
+
+### Dispatch
+
+Dispatch via `subagent_type: "dso:task-decomposer"` with `model: "opus"` passed explicitly.
+
+**Two distinct fallback concepts — do not conflate:**
+
+- **Dispatch-target fallback** (this paragraph): if the named `subagent_type: "dso:task-decomposer"` is unregistered ("Unknown agent type" or similar dispatch error), re-dispatch with `subagent_type: "general-purpose"` + `model: "opus"` and `agents/task-decomposer.md` content read inline as the prompt. **The agent still does the work** — only the dispatch transport changes. This is NOT inline drafting.
+- **Inline-drafting fallback** (forbidden, see Validation below): the orchestrator itself drafts tasks without the agent. This is the bug class the dispatch was introduced to eliminate and is explicitly prohibited regardless of what dispatch path was taken.
+
+Pass the following as task arguments:
+
+- `{story-id}`, `{story-title}`, `{story-description}` from the story ticket
+- `{story-done-definitions}` — the story's DDs with stable identifiers (`dd-1`, `dd-2`, ...). Parse from the story description's `## Done Definitions` section.
+- `{selected-approach}` — the proposal selected by `dso:approach-decision-maker` (full proposal: title, description, files, pros, cons, risk)
+- `{file-impact-table}` — the orchestrator's enumeration from "File Impact Enumeration" below (every file × action × test-classification)
+- `{project-commands}` — `commands.test_unit`, `commands.lint`, `commands.format_check` from `dso-config.conf` (verbatim)
+- `{testing-mode}` — the story's testing-mode classification (RED / GREEN / UPDATE; default RED)
+
+The agent returns a JSON object with `dd_partition_map`, `task_drafts`, and `decomposition_notes`. Validate in this order — do NOT reorder:
+
+<!-- VALIDATION-ORDER: model_requirement_unmet → domain-error escalation → schema validation. -->
+<!-- VALIDATION-STEP-1: model_requirement_unmet -->
+1. **Model-requirement check (first)**: if the response carries `"error": "model_requirement_unmet"`, log `"Task decomposer model requirement unmet — re-dispatching with explicit model: opus"` and retry once via the fallback path. If the retry also returns `model_requirement_unmet`, HALT with diagnostic: `"Task decomposition requires opus; configure the environment to allow opus dispatch and re-run /dso:implementation-plan."` Do NOT fall back to inline task drafting.
+<!-- VALIDATION-STEP-1.5: domain-error-escalation -->
+2. **Domain-error escalation (second)**: if the response carries `"error": "decomposition_blocked"` (documented in `agents/task-decomposer.md`), this is a legitimate signal that the inputs are insufficient or contradictory — NOT a malformed response. Surface the agent's `decomposition_notes` to the user and HALT with diagnostic: `"Task decomposer: decomposition_blocked — <decomposition_notes joined>. Re-supply the missing input (selected approach, file impact table, or story DDs) and re-run /dso:implementation-plan."` Do NOT proceed to schema validation; empty `task_drafts` / `dd_partition_map` arrays under this error code are the intended shape.
+<!-- VALIDATION-STEP-2: schema-validation -->
+3. **Schema validation (third)**: with both error-envelope branches ruled out, validate that `dd_partition_map` covers every story DD (union of all `owning_task_ids` is non-empty for every DD, and there are no duplicate ownerships unless explicitly sub-partitioned in `decomposition_notes`); `task_drafts` is a non-empty array with the required fields per the agent's output spec; **every task's `description` field begins with a literal `## Story DD Coverage` section header (verbatim — the completeness reviewer's `dd_collective_ac_coverage` audit greps for this exact heading; a missing header silently invalidates the audit)**; every task's first three `acceptance_criteria` lines are the Universal Criteria using the project commands verbatim; every task whose `testing_mode` is `RED` has a `tdd_test_spec` Given/When/Then sentence. If schema validation fails, HALT with diagnostic: `"Task decomposer returned malformed output; cannot proceed without verified drafts."` Do NOT fall back to inline drafting — inline drafting is the failure mode this dispatch exists to prevent.
+
+**Why halt (not skip-and-continue) here, while Step 6 Gap Analysis falls through on failure?** Task decomposition is a **correctness gate**: every subsequent step (Plan Review, Task Creation, Gap Analysis) consumes the draft set, and inline orchestrator drafting (the only available fallback) is the bug class this dispatch eliminates. Step 6 Gap Analysis is a **quality gate** with a defined skip path — losing it degrades coverage but does not break downstream steps.
+
+The sub-sections below **mirror the rules embedded in `agents/task-decomposer.md`**. They are kept here for human reference and for the orchestrator's input-construction step (file impact enumeration in particular). The agent does NOT load them at dispatch time — it carries its own embedded protocol. When updating gate criteria, AC-library instructions, or sequencing rules below, you MUST update `agents/task-decomposer.md` in the same change to keep the two in sync. The orchestrator itself does not draft tasks inline; it only enumerates the file impact table (which the agent consumes), validates the agent's output, and proceeds to Step 4.
 
 ### Directives
 
