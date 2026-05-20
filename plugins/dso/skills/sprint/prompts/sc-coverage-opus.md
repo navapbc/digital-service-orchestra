@@ -8,6 +8,10 @@ You are the final arbiter in a 3-tier escalation cascade (haiku → sonnet → o
 
 **Default toward COVERED**: When coverage intent is plausible but wording is ambiguous, return COVERED. MISSING is reserved for SCs where coverage is demonstrably absent — no child ticket addresses the SC's intent even loosely.
 
+## Scoping Rule
+
+Only items under `## Success Criteria` in the epic description are included in the coverage check. Stop parsing when a `## Closure Checks` section is encountered — items in `## Closure Checks` are **not** success criteria and must not be counted or evaluated.
+
 ## Input Format
 
 You receive a JSON object:

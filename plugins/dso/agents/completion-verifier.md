@@ -90,6 +90,23 @@ For each success criterion or done definition, gather evidence from the codebase
 
 Do not assume — verify each criterion explicitly.
 
+### Step 2.5: Read `## Closure Checks` Section
+
+After loading implementation evidence, read the `## Closure Checks` section from the ticket body separately from `## Success Criteria`. This section contains one-shot end-state acceptance criteria that are evaluated at closure time and are not persistent tracked items.
+
+```bash
+# Extract ## Closure Checks items from the ticket body
+# Items are lines starting with "- [ ]" or "- [x]" under the ## Closure Checks heading
+```
+
+**Backward compatibility**: Tickets lacking a `## Closure Checks` section are treated as having an empty section — this step passes trivially (empty section = no items to check). No regressions for tickets created before this mechanism was introduced.
+
+**One-shot evaluation**: Closure Checks items are evaluated once at verification time using the registered `project_closure_hooks`. They are not re-evaluated on subsequent runs unless the ticket body is updated.
+
+Record the list of Closure Checks items found (or that the section was absent) in the verification summary output.
+
+---
+
 ### Step 3: Evaluate Each Criterion
 
 For each success criterion (epic) or done definition (story):
@@ -112,6 +129,8 @@ A criterion **FAILS** when:
 - A verification command exits non-zero
 - A consumer smoke test fails (see Step 4)
 
+**Parent_id walk scope (enumeration only)**: The parent_id walk enumerates SUCCESS CRITERIA TEXT only. It identifies which SC items are listed in the ticket body. It does NOT discover which remediation tasks relate to a criterion — that belongs to `relates_to` edges, not the parent_id walk. Remediation tasks are excluded from the parent_id walk.
+
 ### Step 3a: Epic-Level Story Verdict Trust
 
 When verifying an **epic**, check whether all child stories have already been closed with a completion-verifier PASS verdict. For each SC that maps to a story's done definitions:
@@ -122,9 +141,19 @@ When verifying an **epic**, check whether all child stories have already been cl
 
 This prevents the epic verifier from applying stricter criteria than the story verifier used, which causes unnecessary remediation cycles when a story-level PASS is overturned at epic level.
 
-### Step 3.5: Epic-Closure SC9/SC13/SC14 Gates (Epic Only)
+### Step 3.5: Project Closure Hooks (Epic Only)
 
 **Applies only when `ticket_type == "epic"`.** Skip this step entirely for stories.
+
+After evaluating all SC criteria but before running consumer smoke tests, apply the project closure hooks mechanism. Read the `project_closure_hooks` config key to determine whether project-specific hooks are registered. See `${CLAUDE_PLUGIN_ROOT}/docs/contracts/end-state-item-validator.md` for the full hook interface contract.
+
+```bash
+_CLOSURE_HOOKS=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" project_closure_hooks 2>/dev/null || true)
+```
+
+**If `project_closure_hooks` is present and non-empty**: Dispatch each registered hook against the `## Closure Checks` items read in Step 2.5. **If the Closure Checks section is absent or empty, skip hook invocation entirely** — hooks are not called when there are no items to evaluate; `closure_checks_results` is an empty array in that case. For each hook invocation, pass inputs as environment variables (`ITEM_TEXT`, `ITEM_SOURCE_TICKET_ID`, `CLOSURE_TIMESTAMP`) and capture JSON from stdout. Apply the verdict rules from the `end-state-item-validator` contract: `valid: true` = PASS, `valid: false` + `severity: "block"` = FAIL (blocks closure), `valid: false` + `severity: "warn"` = WARN (advisory, does not block). Include hook results in `closure_checks_results` with the hook name as an annotation; only FAIL results (not WARN) should appear in `criteria_results`.
+
+**If `project_closure_hooks` is absent or empty (default)**: Run the three default infrastructure gates below. This default is the backward-compatibility behavior — identical to the pre-refactor behavior for all existing epics that do not configure project hooks.
 
 After evaluating all SC criteria but before running consumer smoke tests, run the following three epic-closure gates and include their results in `criteria_results`. These gates are infrastructure checks — their verdicts are mandatory and cannot be skipped.
 
@@ -302,6 +331,13 @@ Return a structured JSON block matching the output schema below. After the JSON 
       "output_excerpt": "<relevant lines from output>"
     }
   ],
+  "closure_checks_results": [
+    {
+      "item": "<verbatim closure check text>",
+      "verdict": "PASS|FAIL|WARN|SKIPPED",
+      "evidence_found": "<what was verified>"
+    }
+  ],
   "remediation_tasks_created": [
     {
       "title": "<concise summary of the gap>",
@@ -321,6 +357,7 @@ Return a structured JSON block matching the output schema below. After the JSON 
 - `overall_verdict` is `PASS` only when ALL criteria results AND all consumer smoke tests are `PASS`. A single `FAIL` makes the overall verdict `FAIL`. `PENDING` is used when a `manual:awaiting_user` story has no sentinel yet (Step 3b). `SKIPPED` is used when a story was explicitly skipped during the manual handshake.
 - `narrative` MUST be sourced from the `render-closure-narrative.sh` template; LLM-generated prose is not permitted here.
 - `consumer_smoke_tests` may be an empty array `[]` when the ticket does not modify shared infrastructure.
+- `closure_checks_results` is an empty array `[]` when the ticket body has no `## Closure Checks` section or when `project_closure_hooks` is absent/empty (backward-compat: absent section = no items = pass). `WARN` verdicts appear in `closure_checks_results` but do NOT block closure and are NOT added to `criteria_results`.
 - `remediation_tasks_created` is an empty array `[]` when `P1` is `PASS`.
 - Do NOT fabricate evidence — if you cannot find evidence for a criterion, record what you searched and mark `FAIL`.
 - Do NOT close the parent ticket — closure decision belongs to the caller.

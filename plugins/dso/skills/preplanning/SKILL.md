@@ -339,6 +339,7 @@ Skip this phase entirely when running under `--lightweight` (lightweight mode do
 
 ### Dispatch
 
+<!-- EMIT-PRECONDITIONS: gate_name=preplanning_story_decomposer_dispatch degradation_type=inferred_decision -->
 Dispatch via `subagent_type: "dso:story-decomposer"` with `model: "opus"` passed explicitly (do not rely on the agent frontmatter default — vertical slicing, INVEST-checking, and SC-coverage decomposition require opus, and the explicit param defends against future routing changes that might silently downgrade). If the named type is unregistered in this session, fall back to `subagent_type: "general-purpose"` with `model: "opus"` and `agents/story-decomposer.md` content read inline as the prompt.
 
 Pass the following as task arguments:
@@ -365,9 +366,11 @@ The agent returns a JSON object with `sc_coverage_plan`, `story_drafts`, and `de
 3. Every SC with verdict `uncovered` or `partial_coverage` is referenced by at least one draft (cross-check: the SC's `sc_id` appears in at least one DD's `← Satisfies: sc-N` annotation, and at least one `draft_id` for that SC is non-empty).
 4. Every draft's `depends_on` references either an existing story id or another `temp_id` in this same response — no dangling references.
 
+<!-- EMIT-PRECONDITIONS: gate_name=preplanning_story_decomposer_model_retry degradation_type=inferred_decision -->
 **On `model_requirement_unmet`**: If the agent returns `{"story_drafts": [], "sc_coverage_plan": [], "error": "model_requirement_unmet"}`, log `"Story decomposer model requirement unmet — re-dispatching with explicit model: opus"` and retry once via the fallback path (`general-purpose` + `model: "opus"` + inline prompt). If the retry also returns `model_requirement_unmet`, HALT preplanning with diagnostic: `"Story decomposition requires opus; configure the environment to allow opus dispatch and re-run /dso:preplanning."` Do NOT fall back to inline drafting.
 
-**On schema validation failure**: HALT preplanning with diagnostic: `"Story decomposer returned malformed output; cannot proceed without verified drafts."` Do NOT fall back to inline drafting — inline drafting is the failure mode this phase exists to prevent.
+**On schema validation failure**: HALT preplanning with diagnostic: `"Story decomposer returned malformed output; cannot proceed without verified drafts."` Do NOT fall back to inline drafting — inline drafting is the failure mode this phase exists to prevent.  <!-- precondition-emit-ok: negation — HALT, no degradation event -->
+<!-- EMIT-PRECONDITIONS landmark above also covers this section per the within-10-lines rule. -->
 
 **Why halt (not skip-and-continue) here, while Phase E falls through to Phase F on failure?** Story decomposition is a **correctness gate**: every subsequent phase consumes its output, and inline orchestrator drafting (the only available fallback) is the bug class this phase was introduced to eliminate. Phase E's adversarial review is a **quality gate** with a defined skip path — losing it degrades coverage but does not break downstream phases. The asymmetry is intentional.
 
@@ -639,6 +642,9 @@ artifact (story-decomposition-<epic-id>.json) — copy it verbatim from the draf
 ticket reader. Machine-parsing downstream (SC contradiction check, completion verifier)
 keys off `sc-N`, not the quoted text.
 
+## Closure Checks
+- (items routed from verifiable-sc-check.md option (c) — durable end-state intent that is not session-verifiable)
+
 ## Considerations
 
 - [<Area>] <concern from Risk & Scope Scan>
@@ -696,6 +702,12 @@ in the artifact `story-decomposition-<epic-id>.json`. Downstream machine parsing
 (SC contradiction check, completion verifier) keys off `sc-N`; the parenthetical
 quoted text is for human readers only.
 
+For done definitions that link to a `## Closure Checks` item rather than an epic Success Criterion, use the alternate form:
+```
+  ← Validates Closure Check: "<quoted closure check text>"
+```
+`← Satisfies:` points to `## Success Criteria` items in the epic; `← Validates Closure Check:` points to `## Closure Checks` items. Both forms are accepted traceability annotations — use whichever matches the upstream artifact the DD is satisfying.
+
 Example:
 ```
 Done Definitions:
@@ -706,6 +718,14 @@ Done Definitions:
 - When this story is complete, reviewed rules persist across sessions
   and are visible when the user returns to the same document
   ← Satisfies: sc-4  (sc-4: "Review state is preserved")
+```
+
+Example with Closure Check traceability:
+```
+Done Definitions:
+- When this story is complete, the export summary always lists
+  which closure checks were verified during preplanning
+  ← Validates Closure Check: "Each epic's closure checks are traceable to a done definition"
 ```
 
 **Good** done definitions (observable outcomes):
@@ -730,6 +750,8 @@ If a contradiction is found:
 1. Revise the DD to align with the SC — the SC is authoritative (it was approved by the user in brainstorm)
 2. If the SC itself is wrong or too strict, flag it for the user: `"SC '<criterion>' may be too strict for this decomposition — <reason>. Revise the SC, or confirm the current SC should be met as written?"`
 3. Do NOT proceed with stories whose DDs contradict their SCs — this produces plans that are structurally guaranteed to fail the completion verifier (c734-2e8c).
+
+**Note**: A done definition annotated with `← Validates Closure Check: "<text>"` is a valid traceability link to the `## Closure Checks` section — it is NOT an orphaned annotation and must NOT be flagged as a contradiction. The `← Validates Closure Check:` form is an accepted traceability link form alongside `← Satisfies:`; both are structurally correct and the SC Contradiction Check applies only to DDs using `← Satisfies:`.
 
 #### TDD Done-of-Done Requirement
 

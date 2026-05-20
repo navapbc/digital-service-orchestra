@@ -459,6 +459,8 @@ if [ "${VALIDATE_SKIP_PLUGIN_CHECKS:-}" != "1" ]; then
     [ -f "$PLUGIN_SCRIPTS/check-contract-schemas.sh" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS contract-schema"
     [ -f "$PLUGIN_SCRIPTS/check-referential-integrity.sh" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS referential-integrity"
     [ -f "$PLUGIN_SCRIPTS/check-session-branch-invariant.sh" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS session-branch-invariant"
+    [ -f "$PLUGIN_SCRIPTS/coherence-walk.sh" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS coherence-walk"
+    [ -f "$PLUGIN_SCRIPTS/audit-closure-checks-source-consumers.sh" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS audit-source-consumers"
 fi
 [ -n "$CMD_BUILD" ] && LAUNCHED_CHECKS="$LAUNCHED_CHECKS build"
 # Commands like "make format-check" must split into ["make", "format-check"] for run_check.
@@ -507,6 +509,22 @@ if [ "${VALIDATE_SKIP_PLUGIN_CHECKS:-}" != "1" ]; then
     fi
     if [ -f "$PLUGIN_SCRIPTS/check-session-branch-invariant.sh" ]; then
         (cd "$REPO_ROOT" && run_check "session-branch-invariant" "$TIMEOUT_SYNTAX" bash "$PLUGIN_SCRIPTS/check-session-branch-invariant.sh") &
+    fi
+    if [ -f "$PLUGIN_SCRIPTS/coherence-walk.sh" ]; then
+        (cd "$REPO_ROOT" && run_check "coherence-walk" "$TIMEOUT_SYNTAX" bash "$PLUGIN_SCRIPTS/coherence-walk.sh" --target "$REPO_ROOT") &
+    fi
+    if [ -f "$PLUGIN_SCRIPTS/audit-closure-checks-source-consumers.sh" ]; then
+        # Exit-code semantics for audit-closure-checks-source-consumers.sh:
+        #   0 — convergent (PASS)
+        #   1 — RECONCILIATION_INCOMPLETE (soft warning — does NOT fail validate.sh)
+        #   2 — hard error (FAIL)
+        # The inline wrapper remaps exit 1 → 0 so an incomplete reconciliation is
+        # informational; exit 2 still propagates as a validation failure.
+        # Dry-run policy: validate.sh only invokes the *audit* script — never the
+        # recipe applier. Any future recipe-applier integration here MUST default
+        # to --dry-run (see docs/designs/closure-checks/README.md "Dry-run policy").
+        # shellcheck disable=SC2016  # Single quotes intentional — $1/$2/$rc expand in the inner bash -c shell, not here.
+        (cd "$REPO_ROOT" && run_check "audit-source-consumers" "$TIMEOUT_SYNTAX" bash -c 'rc=0; "$1" --target "$2" || rc=$?; if [ "$rc" -eq 1 ]; then exit 0; fi; exit "$rc"' _ "$PLUGIN_SCRIPTS/audit-closure-checks-source-consumers.sh" "$REPO_ROOT") &
     fi
 fi
 if [ "${VALIDATE_SKIP_PLUGIN_CHECKS:-}" != "1" ]; then
@@ -660,6 +678,8 @@ if [ "$VERBOSE" = "0" ]; then
         [ -f "$PLUGIN_SCRIPTS/check-contract-schemas.sh" ] && report_check "contract-schema" "contract-schema" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/check-contract-schemas.sh"
         [ -f "$PLUGIN_SCRIPTS/check-referential-integrity.sh" ] && report_check "referential-integrity" "referential-integrity" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/check-referential-integrity.sh"
         [ -f "$PLUGIN_SCRIPTS/check-session-branch-invariant.sh" ] && report_check "session-branch-invariant" "session-branch-invariant" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/check-session-branch-invariant.sh"
+        [ -f "$PLUGIN_SCRIPTS/coherence-walk.sh" ] && report_check "coherence-walk" "coherence-walk" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/coherence-walk.sh --target \"$REPO_ROOT\""
+        [ -f "$PLUGIN_SCRIPTS/audit-closure-checks-source-consumers.sh" ] && report_check "audit-source-consumers" "audit-source-consumers" "$TIMEOUT_SYNTAX" "bash $PLUGIN_SCRIPTS/audit-closure-checks-source-consumers.sh --target \"$REPO_ROOT\""
         report_check "hook-drift" "hook-drift" "$TIMEOUT_SYNTAX" "diff <(grep 'id:' .pre-commit-config.yaml) <(grep 'id:' ${CLAUDE_PLUGIN_ROOT}/docs/examples/pre-commit-config.example.yaml)"
     fi
 else
@@ -680,6 +700,8 @@ else
         [ -f "$PLUGIN_SCRIPTS/check-contract-schemas.sh" ] && tally_check "contract-schema" "contract-schema"
         [ -f "$PLUGIN_SCRIPTS/check-referential-integrity.sh" ] && tally_check "referential-integrity" "referential-integrity"
         [ -f "$PLUGIN_SCRIPTS/check-session-branch-invariant.sh" ] && tally_check "session-branch-invariant" "session-branch-invariant"
+        [ -f "$PLUGIN_SCRIPTS/coherence-walk.sh" ] && tally_check "coherence-walk" "coherence-walk"
+        [ -f "$PLUGIN_SCRIPTS/audit-closure-checks-source-consumers.sh" ] && tally_check "audit-source-consumers" "audit-source-consumers"
         tally_check "hook-drift" "hook-drift"
     fi
 fi
