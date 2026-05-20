@@ -68,19 +68,23 @@ MOCKEOF
 
 # ── Test 1: wrapper script exists and is executable ───────────────────────────
 test_wrapper_exists() {
+    _snapshot_fail
     local exists
     if [[ -f "$WRAPPER" && -x "$WRAPPER" ]]; then exists="yes"; else exists="no"; fi
     assert_eq "test_wrapper_exists: llm-review-dispatch-or-skip.sh exists and is executable" \
         "yes" "$exists"
+    assert_pass_if_clean "test_wrapper_exists"
 }
 
 # ── Test 2: exit 0 → wrapper skips dispatch (runner NOT called) ──────────────
 # When verify-session-provenance.sh exits 0, all commits are provenanced.
 # The wrapper must NOT call ci-llm-review-runner.sh.
 test_exit0_skips_runner() {
+    _snapshot_fail
     if [[ ! -f "$WRAPPER" ]]; then
         assert_eq "test_exit0_skips_runner: wrapper must exist to test routing" \
             "wrapper_exists" "wrapper_missing"
+        assert_pass_if_clean "test_exit0_skips_runner"
         return
     fi
 
@@ -105,15 +109,18 @@ test_exit0_skips_runner() {
         "no" "$runner_called"
 
     rm -rf "$artifact_dir"
+    assert_pass_if_clean "test_exit0_skips_runner"
 }
 
 # ── Test 3: exit 0 → wrapper emits 'skipped' check-run conclusion ────────────
 # The wrapper must emit a conclusion of 'skipped' (not 'failure' or 'success')
 # when all commits are provenanced.
 test_exit0_emits_skipped_conclusion() {
+    _snapshot_fail
     if [[ ! -f "$WRAPPER" ]]; then
         assert_eq "test_exit0_emits_skipped_conclusion: wrapper must exist" \
             "wrapper_exists" "wrapper_missing"
+        assert_pass_if_clean "test_exit0_emits_skipped_conclusion"
         return
     fi
 
@@ -133,15 +140,18 @@ test_exit0_emits_skipped_conclusion() {
         "skipped" "$output"
 
     rm -rf "$artifact_dir"
+    assert_pass_if_clean "test_exit0_emits_skipped_conclusion"
 }
 
 # ── Test 4: exit 0 → summary lists covering sub-PR liveness assertion ─────────
 # When skipping, the wrapper must emit a liveness assertion referencing the
 # sub-PRs that cover the provenanced commits (coverage is non-empty reference).
 test_exit0_liveness_assertion_in_summary() {
+    _snapshot_fail
     if [[ ! -f "$WRAPPER" ]]; then
         assert_eq "test_exit0_liveness_assertion_in_summary: wrapper must exist" \
             "wrapper_exists" "wrapper_missing"
+        assert_pass_if_clean "test_exit0_liveness_assertion_in_summary"
         return
     fi
 
@@ -169,15 +179,18 @@ test_exit0_liveness_assertion_in_summary() {
         "yes" "$has_coverage"
 
     rm -rf "$artifact_dir"
+    assert_pass_if_clean "test_exit0_liveness_assertion_in_summary"
 }
 
 # ── Test 5: exit 1 → wrapper invokes runner (unprovenanced path) ─────────────
 # When verify-session-provenance.sh exits 1, one or more commits lack
 # provenance. The wrapper MUST call ci-llm-review-runner.sh.
 test_exit1_invokes_runner() {
+    _snapshot_fail
     if [[ ! -f "$WRAPPER" ]]; then
         assert_eq "test_exit1_invokes_runner: wrapper must exist to test routing" \
             "wrapper_exists" "wrapper_missing"
+        assert_pass_if_clean "test_exit1_invokes_runner"
         return
     fi
 
@@ -202,15 +215,18 @@ test_exit1_invokes_runner() {
         "yes" "$runner_called"
 
     rm -rf "$artifact_dir"
+    assert_pass_if_clean "test_exit1_invokes_runner"
 }
 
 # ── Test 6: exit 2 → wrapper invokes runner (budget-exhausted path) ───────────
 # When verify-session-provenance.sh exits 2 (budget exhausted), the wrapper
 # must fall back to the full-diff path — call ci-llm-review-runner.sh.
 test_exit2_invokes_runner() {
+    _snapshot_fail
     if [[ ! -f "$WRAPPER" ]]; then
         assert_eq "test_exit2_invokes_runner: wrapper must exist to test routing" \
             "wrapper_exists" "wrapper_missing"
+        assert_pass_if_clean "test_exit2_invokes_runner"
         return
     fi
 
@@ -235,6 +251,7 @@ test_exit2_invokes_runner() {
         "yes" "$runner_called"
 
     rm -rf "$artifact_dir"
+    assert_pass_if_clean "test_exit2_invokes_runner"
 }
 
 # ── Test 7: exit 3 → wrapper skips dispatch (OVER_BOUND path) ────────────────
@@ -242,9 +259,11 @@ test_exit2_invokes_runner() {
 # commits acknowledged and routed to admin/FP-recovery), the wrapper must NOT
 # call ci-llm-review-runner.sh.
 test_exit3_skips_runner() {
+    _snapshot_fail
     if [[ ! -f "$WRAPPER" ]]; then
         assert_eq "test_exit3_skips_runner: wrapper must exist to test routing" \
             "wrapper_exists" "wrapper_missing"
+        assert_pass_if_clean "test_exit3_skips_runner"
         return
     fi
 
@@ -269,6 +288,7 @@ test_exit3_skips_runner() {
         "no" "$runner_called"
 
     rm -rf "$artifact_dir"
+    assert_pass_if_clean "test_exit3_skips_runner"
 }
 
 # ── Test 8: exit 3 → wrapper emits 'skipped' conclusion + OVER_BOUND message ─
@@ -277,9 +297,11 @@ test_exit3_skips_runner() {
 #   (b) include 'OVER_BOUND' in the summary
 #   (c) mention 'admin/FP-recovery' routing
 test_exit3_emits_over_bound_summary() {
+    _snapshot_fail
     if [[ ! -f "$WRAPPER" ]]; then
         assert_eq "test_exit3_emits_over_bound_summary: wrapper must exist" \
             "wrapper_exists" "wrapper_missing"
+        assert_pass_if_clean "test_exit3_emits_over_bound_summary"
         return
     fi
 
@@ -312,6 +334,7 @@ test_exit3_emits_over_bound_summary() {
         "yes" "$has_routing"
 
     rm -rf "$artifact_dir"
+    assert_pass_if_clean "test_exit3_emits_over_bound_summary"
 }
 
 # ── Run all tests ─────────────────────────────────────────────────────────────

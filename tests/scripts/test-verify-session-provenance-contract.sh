@@ -72,6 +72,7 @@ MOCKEOF
 # Strict contract: verifier MUST exit exactly 0 when all commits in range
 # carry a DSO-Story-Merge or DSO-Story: trailer.
 test_all_provenanced_exits_exactly_0() {
+    _snapshot_fail
     local repo
     repo="$(_setup_git_repo)"
 
@@ -100,11 +101,13 @@ test_all_provenanced_exits_exactly_0() {
         "0" "$exit_code"
 
     rm -rf "$repo" "$artifact_dir"
+    assert_pass_if_clean "test_all_provenanced_exits_exactly_0"
 }
 
 # ── Contract 2: DSO-Story: form (no -Merge suffix) also exits 0 ───────────────
 # Both 'DSO-Story-Merge:' and 'DSO-Story:' are recognized as provenance trailers.
 test_dso_story_trailer_exits_0() {
+    _snapshot_fail
     local repo
     repo="$(_setup_git_repo)"
 
@@ -132,12 +135,14 @@ test_dso_story_trailer_exits_0() {
         "0" "$exit_code"
 
     rm -rf "$repo" "$artifact_dir"
+    assert_pass_if_clean "test_dso_story_trailer_exits_0"
 }
 
 # ── Contract 3: One un-trailered commit (no PR link) → exits exactly 1 ────────
 # When at least one commit lacks a DSO trailer AND has no associated PR,
 # verifier MUST exit exactly 1.
 test_one_unprovenanced_exits_exactly_1() {
+    _snapshot_fail
     local repo
     repo="$(_setup_git_repo)"
 
@@ -172,11 +177,13 @@ test_one_unprovenanced_exits_exactly_1() {
         "1" "$exit_code"
 
     rm -rf "$repo" "$artifact_dir"
+    assert_pass_if_clean "test_one_unprovenanced_exits_exactly_1"
 }
 
 # ── Contract 4: All commits lack trailers and no PRs → exits 1 ───────────────
 # Multiple un-provenanced commits still exit 1 (not some other code).
 test_all_unprovenanced_exits_1() {
+    _snapshot_fail
     local repo
     repo="$(_setup_git_repo)"
 
@@ -208,12 +215,14 @@ test_all_unprovenanced_exits_1() {
         "1" "$exit_code"
 
     rm -rf "$repo" "$artifact_dir"
+    assert_pass_if_clean "test_all_unprovenanced_exits_1"
 }
 
 # ── Contract 5: Budget exhausted → exits exactly 2 ───────────────────────────
 # When GH_BUDGET=0 (or budget is exhausted immediately), verifier MUST exit
 # exactly 2 — distinct from exit 1 (unprovenanced) and exit 0 (all clear).
 test_budget_exhausted_exits_exactly_2() {
+    _snapshot_fail
     local repo
     repo="$(_setup_git_repo)"
 
@@ -253,6 +262,7 @@ MOCKEOF
         "2" "$exit_code"
 
     rm -rf "$repo" "$artifact_dir"
+    assert_pass_if_clean "test_budget_exhausted_exits_exactly_2"
 }
 
 # ── Contract 6: Exit 2 is distinct from exit 1 ────────────────────────────────
@@ -260,6 +270,7 @@ MOCKEOF
 # This confirms the contract distinction that llm-review-dispatch-or-skip.sh
 # can rely on: both route to full-diff, but the exit code semantics differ.
 test_budget_exit2_distinct_from_exit1() {
+    _snapshot_fail
     local repo
     repo="$(_setup_git_repo)"
 
@@ -317,11 +328,13 @@ MOCKEOF
         "$budget_exit" "$noPr_exit"
 
     rm -rf "$repo" "$artifact_dir1" "$artifact_dir2"
+    assert_pass_if_clean "test_budget_exit2_distinct_from_exit1"
 }
 
 # ── Contract 7: Empty commit range → exits 0 ─────────────────────────────────
 # If there are no commits in BASE..HEAD, all commits are trivially provenanced.
 test_empty_range_exits_0() {
+    _snapshot_fail
     local repo
     repo="$(_setup_git_repo)"
 
@@ -346,6 +359,7 @@ test_empty_range_exits_0() {
         "0" "$exit_code"
 
     rm -rf "$repo" "$artifact_dir"
+    assert_pass_if_clean "test_empty_range_exits_0"
 }
 
 # ── Contract 8: OVER_BOUND-marked commit → exits 3 ───────────────────────────
@@ -357,6 +371,7 @@ test_empty_range_exits_0() {
 # RED-gate: verify-session-provenance.sh does NOT yet recognize OVER_BOUND
 # markers — exit 3 support is added in S7.T11.
 test_over_bound_marker_exits_3() {
+    _snapshot_fail
     local repo
     repo="$(_setup_git_repo)"
 
@@ -384,6 +399,7 @@ test_over_bound_marker_exits_3() {
         "3" "$exit_code"
 
     rm -rf "$repo" "$artifact_dir"
+    assert_pass_if_clean "test_over_bound_marker_exits_3"
 }
 
 # ── Run all contract tests ────────────────────────────────────────────────────
