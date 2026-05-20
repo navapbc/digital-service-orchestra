@@ -81,6 +81,59 @@ This script is called by Phase F during story PR creation to set `STORY_PR_BASE`
 
 > **NOTE**: The integration-scope narrowing logic in `ci.yml` was disabled by bug 1624-5fb9 (reverted to full-diff fallback). Currently, the session→main `llm-review` runs against the FULL cumulative diff, not the narrowed integration scope. Re-enabling incremental scope is in the remediation epic.
 
+## merge-pipeline-checks umbrella job
+
+`merge-pipeline-checks` is a dedicated CI job in `ci.yml` that provides a **stable required-check name** for branch protection, decoupled from the conditional steps it wraps.
+
+### Purpose and umbrella pattern
+
+Branch-protection rulesets require a fixed check-context name. When a step is gated behind an `if:` conditional, GitHub marks it as skipped rather than successful — preventing it from satisfying the required-check. The umbrella pattern resolves this: a single job (`merge-pipeline-checks`) always runs and always completes with a result on its stable name, while individual gate steps inside it carry their own `if:` conditions. Any step that does not fire simply skips within an otherwise-successful job.
+
+**Current members:**
+
+| Step | Trigger condition | Purpose |
+|------|-------------------|---------|
+| `red-test-blocker` | PR base == `main` AND head is `session/**`, `session-**`, `session_**`, or `bug-batch/**` | Blocks merge when RED markers remain in the cumulative session-merge tree |
+
+Future merge-pipeline gates (worktree-cleanup guard, version-bump provenance verification, etc.) should be added as additional steps inside this same job, not as separate required-check jobs.
+
+### red-test-blocker step
+
+Invokes `${CLAUDE_PLUGIN_ROOT}/scripts/scan-red-markers.sh` to scan the merged `.test-index` for RED-phase test markers left over from TDD discipline (markers should exist only during the RED phase; GREEN commits remove them). It fires only on session→main PRs — sub-branch story PRs targeting the session branch are intentionally excluded.
+
+**Why merged-tree scan vs session HEAD:** scanning the HEAD's `.test-index` alone misses cases where a story branch committed a RED marker that was never removed before merging into the session branch. `scan-red-markers.sh` uses `git merge-tree --write-tree` to compute the merged tree of BASE and HEAD without touching the working tree, then reads `.test-index` from that virtual merged tree. This catches pre-existing RED failures from any merged sub-branch, not just the most recent commit.
+
+**Exit codes:**
+
+- `0` — no RED markers found (or `.test-index` absent / repo unreachable — treated as clean)
+- `1` — one or more RED markers found, or `.test-index` has merge conflict markers
+
+### SHA-pinning contract (race safety)
+
+A `Capture PR SHAs` step runs first in the job (before any conditional steps) and writes `BASE_SHA` and `HEAD_SHA` to `$GITHUB_ENV` from `github.event.pull_request.base.sha` and `github.event.pull_request.head.sha`. The `red-test-blocker` step receives these pinned SHAs as positional arguments `$1` / `$2`.
+
+Passing explicit SHAs rather than branch refs prevents a race condition: if a concurrent push updates the session branch between workflow trigger and step execution, a ref-based lookup would scan a newer commit than the one that triggered the check. The SHA-pinned approach always scans the exact commit pair that was present at workflow start (bug a794-e908-6ae8-4516 gap-analysis #3).
+
+`scan-red-markers.sh` validates both arguments match `[0-9a-fA-F]{7,40}` and rejects symbolic refs with a warning, exiting 0 (clean) rather than failing.
+
+### DEFERRED override mechanism
+
+When a RED marker is intentional — for example, a task intentionally left in RED phase across a checkpoint — the test owner can add a `DEFERRED` exemption header to `.test-index`:
+
+```
+# DEFERRED: <path>:<test_name> reason=<text> ticket=<id>
+```
+
+`scan-red-markers.sh` checks each RED marker against the DEFERRED allowlist. A matching marker logs `WARN: RED marker … intentionally deferred (ticket=<id>) — not blocking` and does NOT exit non-zero. Unmatched RED markers still fail the step. Both blocking and exempt markers are listed in job output for auditability.
+
+See `${CLAUDE_PLUGIN_ROOT}/scripts/scan-red-markers.sh` for the full contract (argument validation, git-context resolution priority, TMPDIR fallback for test harnesses, conflict-marker detection, and grammar spec).
+
+### Required-check registration and S_migration cutover
+
+The umbrella job name `merge-pipeline-checks` is registered in `.github/required-checks.txt`. This file is the canonical source of truth for required-check names consumed by `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh`, which configures main-branch protection via the GitHub API.
+
+**Cutover handoff to S_migration:** adding the job to `ci.yml` and `required-checks.txt` is a necessary prerequisite, but branch protection enforcement is not live until `provision-ruleset.sh` is run (S_migration phase). The S_migration run adds `merge-pipeline-checks` to the main branch's required status checks. Until that run, the job fires on PRs and reports results, but a failing check does not block merge. After S_migration, failure blocks merge.
+
 ## Merge-to-main pipeline
 
 Phases: `sync → merge → version_bump → validate → push → archive → ci_trigger → comment_response`.
@@ -88,3 +141,32 @@ Phases: `sync → merge → version_bump → validate → push → archive → c
 - PR mode (`dso.workflow=ci-pr`) appends a `remediate` phase (bounded retry loop, per-tier ceiling=5, global ceiling=15; exit 2 = remediation exhaustion with escalation JSON on stdout; exit 1 = pre-remediation failure).
 - State file: `/tmp/merge-to-main-state-<branch>.json` (4h TTL); `--resume` continues from checkpoint.
 - See `CONFIGURATION-REFERENCE.md` for the `dso.workflow` key (`ci-pr` or `local`). Legacy keys `merge.strategy` and `enforcement.strategy` are deprecated — use `dso.workflow` instead.
+
+### Source-branch version-bump phase (PR mode only)
+
+In `dso.workflow=ci-pr` (PR mode), `${CLAUDE_PLUGIN_ROOT}/scripts/merge-to-main-pr.sh` runs a **pre-merge** `_phase_source_branch_version_bump` step on the source/session branch before the PR is created or queued for merge. This is distinct from the legacy post-merge bump path used by direct mode.
+
+**What the phase does:**
+
+1. Resolves `version.file_path` from `dso-config.conf` (or the `VERSION_FILE_PATH` env var). If unconfigured or the file is absent, the phase is a no-op.
+2. **Idempotency gate**: runs `git diff --quiet -- <version-file>`. If the file is already modified on disk vs HEAD (e.g. from an interrupted prior attempt), the bump step is skipped and only the commit/push steps run — preventing a double-bump.
+3. Calls `bump-version.sh --<bump-type>` (default: `--patch`) with `DSO_MERGE_TO_MAIN_PHASE=version_bump` set so the branch guard in `bump-version.sh` passes.
+4. Stages the version file and `package-lock.json` (when the version file is `package.json`).
+5. Commits with a `DSO-Story-Merge: <story-id>` trailer so `verify-session-provenance.sh` treats the bump commit as provenanced and excludes it from the un-provenanced commit count. When no story-id is available, the trailer is omitted.
+6. Pushes the bump commit to `origin HEAD` **before** the PR merge is initiated. Push failure aborts the pipeline (exit non-zero); the merge never proceeds with an unpushed bump.
+
+**Post-merge no-op detection:**
+
+After the PR merges to `origin/main`, the post-merge `_phase_version_bump` runs `git log HEAD^1..HEAD --format=%B -- <version-file>` and greps for a `DSO-Story(-Merge)?:` trailer. If the trailer is found, the source-branch bump already landed in the merged history, and `_phase_version_bump` marks itself complete without re-bumping. If the trailer is absent (old workflow, or no version file), it falls through to the legacy post-merge bump path (see below).
+
+**Design rationale:** bumping on the source branch rather than post-merge main ensures the version bump appears in the per-story PR history, avoids race conditions with concurrent merges, and makes the post-merge phase a pure no-op check.
+
+**Bump scope:** every session→main PR that has `version.file_path` configured receives a version-bump commit on the source branch. There is no per-PR opt-out mechanism. If the bump-version logic detects no version-file change (version already at the bumped value, e.g. after a retry), the phase commits nothing and returns without error.
+
+### Legacy post-merge bump path (direct mode and fallthrough)
+
+`merge-to-main-direct.sh` retains the original post-merge bump behavior: after the merge commit lands on `main`, the `_phase_version_bump` function runs `bump-version.sh`, stages the result, and amends or commits directly on `main`. This path is intentionally **not** changed by S5 — direct mode has no PR workflow, so a pre-merge source-branch bump would require non-trivial architectural changes out of scope for this story.
+
+When running in PR mode with `--resume` on a pipeline that was started *before* S5 (state file shows `version_bump` in `completed_phases` but no source-branch bump trailer), the resume-skip guard fires first and the legacy path is never reached. Pre-S5 in-flight pipelines that have not yet reached `version_bump` fall through to the legacy bump with a deprecation log line (`"post-merge version_bump: no source-branch bump detected — running legacy post-merge bump (deprecated in S5)"`).
+
+The `_try_reset_stale_version_bump` helper (which detects and discards orphan version-bump commits on local `main`) is direct-mode-only and is explicitly skipped in PR mode.

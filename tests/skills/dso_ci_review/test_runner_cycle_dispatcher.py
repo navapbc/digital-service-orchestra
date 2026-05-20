@@ -8,10 +8,9 @@ DISPATCH_ARBITER → exit 1, DISPATCH_NEXT → falls through to severity gate.
 from __future__ import annotations
 
 import contextlib
-import json
 import pathlib
 import sys
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 _SCRIPTS_DIR = str(_REPO_ROOT / "plugins" / "dso" / "scripts")
@@ -147,9 +146,7 @@ def _common_patches(tmp_path, specialist_findings, action_result, *, extra_env=N
     stack.enter_context(
         patch("dso_ci_review.runner._resolve_pr_number", return_value=None)
     )
-    stack.enter_context(
-        patch("dso_ci_review.runner._resolve_repo", return_value=None)
-    )
+    stack.enter_context(patch("dso_ci_review.runner._resolve_repo", return_value=None))
     stack.enter_context(patch("dso_ci_review.runner._append_cycle"))
     stack.enter_context(patch("dso_ci_review.runner._post_cycle_marker_comment"))
     stack.enter_context(
@@ -171,7 +168,11 @@ def test_cycle_dispatcher_pass_action_returns_exit_0(tmp_path):
     When: runner.main() is called with no real findings.
     Then: exit code is 0 (severity gate not reached).
     """
-    action_result = {"action": "PASS", "reason": "no unresolved findings", "cycle_num": 1}
+    action_result = {
+        "action": "PASS",
+        "reason": "no unresolved findings",
+        "cycle_num": 1,
+    }
     # No findings → PASS makes sense; severity gate would also pass, but
     # the early return on PASS means we don't reach it.
     findings = _make_specialist_findings(severity=None)
@@ -179,9 +180,7 @@ def test_cycle_dispatcher_pass_action_returns_exit_0(tmp_path):
     with _common_patches(tmp_path, findings, action_result):
         exit_code = runner_mod.main()
 
-    assert exit_code == 0, (
-        f"Expected exit 0 on PASS action, got {exit_code}"
-    )
+    assert exit_code == 0, f"Expected exit 0 on PASS action, got {exit_code}"
 
 
 # ---------------------------------------------------------------------------
@@ -205,9 +204,7 @@ def test_cycle_dispatcher_short_circuit_returns_exit_0(tmp_path):
     with _common_patches(tmp_path, findings, action_result):
         exit_code = runner_mod.main()
 
-    assert exit_code == 0, (
-        f"Expected exit 0 on SHORT_CIRCUIT action, got {exit_code}"
-    )
+    assert exit_code == 0, f"Expected exit 0 on SHORT_CIRCUIT action, got {exit_code}"
 
 
 # ---------------------------------------------------------------------------
@@ -258,5 +255,3 @@ def test_cycle_dispatcher_dispatch_next_with_critical_finding_returns_exit_1(tmp
     assert exit_code == 1, (
         f"Expected exit 1 on DISPATCH_NEXT with critical finding, got {exit_code}"
     )
-
-

@@ -348,7 +348,7 @@ hook_worktree_bash_guard() {
     if echo "$COMMAND" | grep -qE "cd[[:space:]]+(\"$MAIN_REPO_ROOT\"|'$MAIN_REPO_ROOT'|$MAIN_REPO_ROOT)([[:space:]]|[;&\|]|$)"; then
         echo "BLOCKED: Bash command cd's into the main repo from a worktree session." >&2
         echo "" >&2
-        echo "CLAUDE.md rule 11: \"Never edit main repo files from a worktree session.\"" >&2
+        echo "CLAUDE.md \`rule:no-edit-main-from-worktree\`: \"Never edit main repo files from a worktree session.\"" >&2
         echo "  Command:   cd $MAIN_REPO_ROOT ..." >&2
         echo "  Main repo: $MAIN_REPO_ROOT" >&2
         echo "  Worktree:  $WORKTREE_ROOT" >&2
@@ -428,7 +428,7 @@ hook_worktree_edit_guard() {
         if echo "$COMMAND" | grep -qE "mkdir[[:space:]].*['\"]?${MAIN_REPO_ROOT}"; then
             echo "BLOCKED: Bash mkdir targeting main repo from worktree session." >&2
             echo "" >&2
-            echo "CLAUDE.md rule 11: \"Never edit main repo files from a worktree session.\"" >&2
+            echo "CLAUDE.md \`rule:no-edit-main-from-worktree\`: \"Never edit main repo files from a worktree session.\"" >&2
             echo "  Command:   $COMMAND" >&2
             echo "  Main repo: $MAIN_REPO_ROOT" >&2
             echo "  Worktree:  $WORKTREE_ROOT" >&2
@@ -463,7 +463,7 @@ hook_worktree_edit_guard() {
         [[ -z "$TOOL_NAME" ]] && TOOL_NAME="Edit/Write"
         echo "BLOCKED: $TOOL_NAME targeting main repo from worktree session." >&2
         echo "" >&2
-        echo "CLAUDE.md rule 11: \"Never edit main repo files from a worktree session.\"" >&2
+        echo "CLAUDE.md \`rule:no-edit-main-from-worktree\`: \"Never edit main repo files from a worktree session.\"" >&2
         echo "  Target file: $FILE_PATH" >&2
         echo "  Main repo:   $MAIN_REPO_ROOT" >&2
         echo "  Worktree:    $WORKTREE_ROOT" >&2
@@ -608,65 +608,6 @@ hook_no_edit_on_main() {
 }
 
 # ---------------------------------------------------------------------------
-# hook_tool_use_guard
-# ---------------------------------------------------------------------------
-# PreToolUse hook: warn when cat/head/tail/grep/rg are used via Bash instead
-# of the dedicated Read/Grep tools. WARNING ONLY.
-hook_tool_use_guard() {
-    local INPUT="$1"
-    local HOOK_ERROR_LOG="$HOME/.claude/logs/dso-hook-errors.jsonl"
-    trap 'printf "{\"ts\":\"%s\",\"hook\":\"tool-use-guard\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; return 0' ERR
-
-    # Fast-path: extract first token without full JSON parse
-    local QUICK_CMD=""
-    if [[ "$INPUT" =~ \"command\"[[:space:]]*:[[:space:]]*\" ]]; then
-        local _local_after="${INPUT#*\"command\"*:*\"}"
-        QUICK_CMD="${_local_after%%[[:space:]\"]*}"
-    fi
-
-    # Fast exit if first token isn't one of our targets
-    case "$QUICK_CMD" in
-        cat|head|tail|grep|rg) ;;
-        *) return 0 ;;
-    esac
-
-    local COMMAND
-    COMMAND=$(parse_json_field "$INPUT" '.tool_input.command')
-    if [[ -z "$COMMAND" ]]; then
-        return 0
-    fi
-
-    local FIRST_TOKEN="${COMMAND%%[[:space:]]*}"
-
-    # cat/head/tail check
-    if [[ "$FIRST_TOKEN" == "cat" || "$FIRST_TOKEN" == "head" || "$FIRST_TOKEN" == "tail" ]]; then
-        if [[ "$COMMAND" == *"|"* || "$COMMAND" == *"<<"* || "$COMMAND" == *">"* ]]; then
-            return 0
-        fi
-        echo "WARNING [tool-use-guard]: Consider using the Read tool instead of $FIRST_TOKEN. It provides line numbers and is more token-efficient." >&2
-        return 0
-    fi
-
-    # grep/rg check
-    if [[ "$FIRST_TOKEN" == "grep" || "$FIRST_TOKEN" == "rg" ]]; then
-        if [[ "$COMMAND" == *"|"* || "$COMMAND" == *">"* ]]; then
-            return 0
-        fi
-        if [[ "$COMMAND" == *"git "* || "$COMMAND" == *"make "* || \
-              "$COMMAND" == *"validate"* || "$COMMAND" == *"ci-status"* || \
-              "$COMMAND" == *"check_assertion_density"* ]]; then
-            return 0
-        fi
-        echo "WARNING [tool-use-guard]: Consider using the Grep tool instead of $FIRST_TOKEN. It has structured output and optimized permissions." >&2
-        return 0
-    fi
-
-    return 0
-}
-
-
-
-# ---------------------------------------------------------------------------
 # hook_review_integrity_guard
 # ---------------------------------------------------------------------------
 # PreToolUse hook: block direct writes to review-status files.
@@ -693,7 +634,7 @@ hook_review_integrity_guard() {
         fi
         echo "BLOCKED [review-integrity-guard]: Direct write to review-status file." >&2
         echo "Use the review workflow (record-review.sh) instead." >&2
-        echo "See CLAUDE.md rule #14: Never manually generate review JSON." >&2
+        echo "See CLAUDE.md \`rule:fabrication\`: Never manually generate review JSON." >&2
         trap - ERR; return 2
     fi
 

@@ -2,7 +2,7 @@
 
 Review current code diff using a code-reviewer sub-agent.
 
-**CRITICAL**: The workflow dispatches a mandatory sub-agent (CLAUDE.md rule #15).
+**CRITICAL**: The workflow dispatches a mandatory sub-agent (CLAUDE.md `rule:fabrication`).
 
 ## Your task
 

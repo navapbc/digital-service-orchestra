@@ -12,7 +12,8 @@
 # Exit codes:
 #   0  P1 == "PASS"  (schema_version=2)
 #      OR overall_verdict == "PASS" (schema_version<2 backward-compat)
-#   1  P1 == "FAIL", "BLOCKED", or "INCONCLUSIVE"  (schema_version=2)
+#   1  P1 == "FAIL", "BLOCKED", "INCONCLUSIVE", or unrecognized P1 value (schema_version=2;
+#         unrecognized values are treated as BLOCKED per contract — safe-default gate-block)
 #      OR overall_verdict == "FAIL" / "PENDING" / "SKIPPED"  (schema_version<2)
 #   2  P1 field absent on schema_version=2 payload, JSON malformed, or no input provided
 #
@@ -97,9 +98,10 @@ if [[ "$sv_int" -ge 2 ]]; then
             exit 2
             ;;
         *)
-            # Unrecognized P1 value
-            echo "check-verifier-verdict: unrecognized P1 value: $p1_value" >&2
-            exit 2
+            # Unrecognized P1 value — per contract (verifier-verdict.md), treat as BLOCKED with warning.
+            # Safe-default: gate-block on values we don't recognize rather than fail open.
+            echo "check-verifier-verdict: WARNING: unrecognized P1 verdict '$p1_value'; treating as BLOCKED" >&2
+            exit 1
             ;;
     esac
 else

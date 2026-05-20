@@ -99,7 +99,7 @@ if [[ -f "$_debug_marker" ]]; then
     fi
     # Use cut (portable) to extract YYYYMMDD-HHMMSS from YYYYMMDD-HHMMSS-<6char>
     _marker_ts=$(grep '^debug-session-id=' "$_debug_marker" 2>/dev/null | cut -d= -f2 | cut -d- -f1,2 || true)
-    _ttl_hours=$(bash "$PLUGIN_SCRIPTS/read-config.sh" debug.session_ttl_hours 2>/dev/null || echo 24)
+    _ttl_hours=$(bash "$PLUGIN_SCRIPTS/read-config.sh" debug.session_ttl_hours 2>/dev/null || echo 24)  # shim-exempt: SKILL.md orchestrator-direct invocation, legacy pattern pre-dating PR-D
     _ttl_hours=${_ttl_hours:-24}  # guard: read-config.sh exits 0 with empty output when key absent
     _ttl_secs=$(( _ttl_hours * 3600 ))
     _now=$(date +%s 2>/dev/null || echo 0)
@@ -431,7 +431,7 @@ Begin the loop. Process each ticket via `/dso:fix-bug` per the steps below. Cont
 
    After each fix-bug invocation (whether it succeeded or failed), run session-leakage detection (non-fatal):
    ```bash
-   STORY_BRANCH_PREFIX=bug-batch/ bash "$PLUGIN_SCRIPTS/detect-session-leakage.sh" 2>&1 || true
+   STORY_BRANCH_PREFIX=bug-batch/ bash "$PLUGIN_SCRIPTS/detect-session-leakage.sh" 2>&1 || true  # shim-exempt: SKILL.md orchestrator-direct invocation, legacy pattern pre-dating PR-D
    ```
 
    **Closed-bug-trailer race protection**: When a sub-agent commit references a ticket closed during parallel batch execution, the commit's DSO-Bug: trailer references a closed ticket. Route to --force-route-to-pending state: log SHA + closed-ticket-id and flag for post-session manual attribution rather than stalling integration. This is the closed-bug-trailer race condition; handle it gracefully without aborting the loop.
@@ -593,7 +593,7 @@ After triage, identify which issues touch safeguarded files and route them throu
 
 ### Step 1: Detect Safeguarded Issues (/dso:debug-everything)
 
-Safeguarded file patterns (from CLAUDE.md rule 20):
+Safeguarded file patterns (from CLAUDE.md `rule:no-safeguard-edits`):
 - `${CLAUDE_PLUGIN_ROOT}/skills/**`, `${CLAUDE_PLUGIN_ROOT}/hooks/**`, `${CLAUDE_PLUGIN_ROOT}/docs/workflows/**`
 - `.claude/settings.json`, `.claude/docs/**`
 - `scripts/**`, `CLAUDE.md`
@@ -623,7 +623,7 @@ Non-interactive: apply Non-Interactive Deferral Protocol (see Phase B Step 1) us
 **Interactive mode**: Read the proposals file from disk. Present each proposal to the user:
 
 ```
-SAFEGUARD BUG PROPOSALS (require approval per CLAUDE.md rule 20)
+SAFEGUARD BUG PROPOSALS (require approval per CLAUDE.md `rule:no-safeguard-edits`)
 ================================================================
 [1] <bug-id>: <title>
     File: <path> (lines <N>-<M>)
@@ -767,7 +767,7 @@ Until remediation epic ships, sub-branches are merged into the session branch af
 
 After each batch merge in Phase F, run session-leakage detection (non-fatal):
 ```bash
-STORY_BRANCH_PREFIX=bug-batch/ bash "$PLUGIN_SCRIPTS/detect-session-leakage.sh" 2>&1 || true
+STORY_BRANCH_PREFIX=bug-batch/ bash "$PLUGIN_SCRIPTS/detect-session-leakage.sh" 2>&1 || true  # shim-exempt: SKILL.md orchestrator-direct invocation, legacy pattern pre-dating PR-D
 ```
 
 ### Launch Auto-Fix Sub-Agent
@@ -847,7 +847,7 @@ In `local` mode (DEBUG_MODE=direct) this is a silent no-op (exit 0). In `ci-pr` 
 
 After each batch merge in Phase G, run session-leakage detection (non-fatal):
 ```bash
-STORY_BRANCH_PREFIX=bug-batch/ bash "$PLUGIN_SCRIPTS/detect-session-leakage.sh" 2>&1 || true
+STORY_BRANCH_PREFIX=bug-batch/ bash "$PLUGIN_SCRIPTS/detect-session-leakage.sh" 2>&1 || true  # shim-exempt: SKILL.md orchestrator-direct invocation, legacy pattern pre-dating PR-D
 ```
 
 ---
@@ -1128,7 +1128,7 @@ No other entry to Phase K is valid. In particular: "context usage feels high", "
 
    Run the final session-leakage sweep before removing the .debug-active marker:
    ```bash
-   STORY_BRANCH_PREFIX=bug-batch/ bash "$PLUGIN_SCRIPTS/detect-session-leakage.sh" 2>&1 || true
+   STORY_BRANCH_PREFIX=bug-batch/ bash "$PLUGIN_SCRIPTS/detect-session-leakage.sh" 2>&1 || true  # shim-exempt: SKILL.md orchestrator-direct invocation, legacy pattern pre-dating PR-D
    ```
    ```bash
    rm -f "$(git rev-parse --show-toplevel)/.debug-active" 2>/dev/null || true
@@ -1147,7 +1147,7 @@ No other entry to Phase K is valid. In particular: "context usage feels high", "
    rm -f "$(git rev-parse --show-toplevel)/.debug-active" 2>/dev/null || true
    ```
 2. Do NOT launch new sub-agents.
-3. Stage modifications via `git status --short` (do NOT run a full test/lint pass — `make test-unit-only` exceeds the tool timeout ceiling per CLAUDE.md "Never Do These" rule 19; the post-batch validation sub-agent in Phase H has already validated this batch).
+3. Stage modifications via `git status --short` (do NOT run a full test/lint pass — `make test-unit-only` exceeds the tool timeout ceiling per CLAUDE.md `rule:no-broad-tests-bash`; the post-batch validation sub-agent in Phase H has already validated this batch).
 4. Commit checkpoint:
    ```bash
    git add <modified files>

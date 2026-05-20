@@ -1,15 +1,23 @@
 """dso_ci_review.cycle_ledger — Python reader/writer for cycle-ledger.json.
 
 Coordinates with write-cycle-ledger.sh via the same lock file
-($ARTIFACTS_DIR/cycle-ledger.lock) and the same v1.1.0 schema documented in
+($ARTIFACTS_DIR/cycle-ledger.lock) and the same v1.2.0 schema documented in
 ${CLAUDE_PLUGIN_ROOT}/docs/contracts/cycle-ledger.md.
 
 Public functions:
-    read_ledger(path)              — load ledger; empty v1.1.0 schema if absent
+    read_ledger(path)              — load ledger; empty v1.2.0 schema if absent
     write_ledger(path, ledger)     — atomic write with cross-process lock
     append_cycle(path, ...)        — read-modify-write under lock; append cycle entry
     reconstruct_from_pr_comments(pr_number, repo) — rebuild ledger from PR comments
     _resolve_artifacts_dir()       — mirrors shell get_artifacts_dir() semantics
+
+## Backward-Compatibility
+
+The reader tolerates BOTH v1.1.0 (sha-only) and v1.2.0 (pr+sha) marker
+formats. v1.1.0 entries are returned with pr_number=_SENTINEL_PR_NUMBER (0).
+A v1.1.0 entry matches any pr_number filter until a v1.2.0 entry is written
+for that specific pr_number on the same sha, at which point the v1.2.0 entry
+supersedes for that (pr_number, sha) tuple. Writer emits v1.2.0 only.
 """
 
 from __future__ import annotations
@@ -27,13 +35,26 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
+# Sentinel pr_number for legacy v1.1.0 entries lacking explicit pr_number.
+# Reading: a v1.1.0 entry is materialized into the in-memory ledger with
+# pr_number=_SENTINEL_PR_NUMBER, which matches any pr_number filter until
+# the next review cycle on that PR writes a v1.2.0 entry that supersedes it.
+# Writing: append_cycle MUST NEVER write _SENTINEL_PR_NUMBER for new cycles.
+_SENTINEL_PR_NUMBER = 0
+
 # Marker grammar — must match the format documented in cycle-ledger.md
 #
 # v1.1.0 marker example:
 #   DSO-Review-Cycle: 1 commit_sha=abc123 findings_hash=h1 tuples=[["x.py","1","c"]]
 #
+# v1.2.0 marker example (adds pr_number= field before commit_sha):
+#   DSO-Review-Cycle: 1 pr_number=42 commit_sha=abc123 findings_hash=h1 tuples=[["x.py","1","c"]]
+#
 # We capture up to end-of-string for tuples= because the JSON value may contain
 # bracket nesting; a non-greedy /\[.*?\]/ would stop at the first inner ']'.
+_MARKER_RE_V12 = re.compile(
+    r"DSO-Review-Cycle:\s+(\S+)\s+pr_number=(\d+)\s+commit_sha=(\S+)\s+findings_hash=(\S+)\s+tuples=(\[.*\])\s*$"
+)
 _MARKER_RE_V11 = re.compile(
     r"DSO-Review-Cycle:\s+(\S+)\s+commit_sha=(\S+)\s+findings_hash=(\S+)\s+tuples=(\[.*\])\s*$"
 )
@@ -87,7 +108,7 @@ def _resolve_artifacts_dir() -> str:
 
 
 def _empty_ledger() -> dict:
-    return {"schema_version": "1.1.0", "epic_id": "", "cycles": []}
+    return {"schema_version": "1.2.0", "epic_id": "", "cycles": []}
 
 
 def read_ledger(path: str) -> dict:
@@ -176,12 +197,29 @@ def append_cycle(
     commit_sha: str,
     findings_hash: str,
     halt_reason: str | None = None,
+    pr_number: int = _SENTINEL_PR_NUMBER,
 ) -> None:
     """Read-modify-write under lock; append a cycle entry to the ledger.
 
     The lock path is exactly ``<dir>/cycle-ledger.lock`` (sibling of the
     ledger file) so that this writer coordinates with write-cycle-ledger.sh.
+
+    Args:
+        pr_number: The PR number for this cycle entry. Must not be
+            _SENTINEL_PR_NUMBER (0) — sentinel is reserved for backward-
+            compatible reads of legacy v1.1.0 entries and must never be
+            written as a new cycle.
+
+    Raises:
+        ValueError: If pr_number == _SENTINEL_PR_NUMBER (defensive guard
+            against accidental sentinel-write).
     """
+    if pr_number == _SENTINEL_PR_NUMBER:
+        raise ValueError(
+            f"append_cycle: pr_number must not be {_SENTINEL_PR_NUMBER} "
+            f"(_SENTINEL_PR_NUMBER is reserved for legacy v1.1.0 reads, "
+            f"never for new cycle writes)"
+        )
     lock_path = _lock_path(path)
     Path(lock_path).parent.mkdir(parents=True, exist_ok=True)
     with _open_lock(lock_path) as lock_file:
@@ -193,6 +231,7 @@ def append_cycle(
                 "timestamp_utc": datetime.now(timezone.utc).strftime(
                     "%Y-%m-%dT%H:%M:%SZ"
                 ),
+                "pr_number": pr_number,
                 "commit_sha": commit_sha,
                 "findings": findings_tuples,
                 "findings_hash": findings_hash,
@@ -260,7 +299,9 @@ def reconstruct_from_pr_comments(pr_number: int, repo: str) -> dict:
 
     ledger = _empty_ledger()
     has_gaps = False
-    seen_cycles: set[int] = set()
+    # Map from cycle_num to (entry_dict, is_v12). v1.2.0 entries supersede v1.1.0
+    # entries for the same cycle_num (mixed-format deduplication: v1.2.0 wins).
+    seen_cycles: dict[int, tuple[dict, bool]] = {}
 
     for comment in comments:
         body = comment.get("body", "")
@@ -268,7 +309,48 @@ def reconstruct_from_pr_comments(pr_number: int, repo: str) -> dict:
             line = raw_line.strip()
             if not line.startswith("DSO-Review-Cycle:"):
                 continue
-            # Try v1.1.0 format first
+
+            # Try v1.2.0 format first (pr_number field present)
+            m_v12 = _MARKER_RE_V12.search(line)
+            if m_v12:
+                try:
+                    cycle_num = int(m_v12.group(1))
+                    pr_num = int(m_v12.group(2))
+                except ValueError:
+                    print(
+                        f"WARNING: malformed v1.2.0 marker (non-int cycle_num or pr_number), "
+                        f"skipping: {line!r}",
+                        file=sys.stderr,
+                    )
+                    has_gaps = True
+                    continue
+                commit_sha = m_v12.group(3)
+                findings_hash = m_v12.group(4)
+                try:
+                    tuples = json.loads(m_v12.group(5))
+                except json.JSONDecodeError:
+                    print(
+                        f"WARNING: malformed v1.2.0 marker (bad tuples JSON), "
+                        f"skipping: {line!r}",
+                        file=sys.stderr,
+                    )
+                    has_gaps = True
+                    continue
+                # v1.2.0 always supersedes any existing entry for this cycle_num
+                seen_cycles[cycle_num] = (
+                    {
+                        "cycle_num": cycle_num,
+                        "pr_number": pr_num,
+                        "commit_sha": commit_sha,
+                        "findings": tuples,
+                        "findings_hash": findings_hash,
+                        "halt_reason": None,
+                    },
+                    True,  # is_v12
+                )
+                continue
+
+            # Try v1.1.0 format (no pr_number field)
             m_v11 = _MARKER_RE_V11.search(line)
             if m_v11:
                 try:
@@ -293,17 +375,22 @@ def reconstruct_from_pr_comments(pr_number: int, repo: str) -> dict:
                     )
                     has_gaps = True
                     continue
-                if cycle_num in seen_cycles:
+                # v1.1.0 only added if no entry exists or existing entry is also v1.1.0;
+                # a v1.2.0 entry for the same cycle_num takes precedence.
+                existing = seen_cycles.get(cycle_num)
+                if existing is not None and existing[1]:
+                    # Already have a v1.2.0 entry for this cycle — skip v1.1.0
                     continue
-                seen_cycles.add(cycle_num)
-                ledger["cycles"].append(
+                seen_cycles[cycle_num] = (
                     {
                         "cycle_num": cycle_num,
+                        "pr_number": _SENTINEL_PR_NUMBER,
                         "commit_sha": commit_sha,
                         "findings": tuples,
                         "findings_hash": findings_hash,
                         "halt_reason": None,
-                    }
+                    },
+                    False,  # is_v12
                 )
                 continue
 
@@ -321,18 +408,18 @@ def reconstruct_from_pr_comments(pr_number: int, repo: str) -> dict:
                     has_gaps = True
                     continue
                 findings_hash = m_legacy.group(2) or ""
-                if cycle_num in seen_cycles:
-                    continue
-                seen_cycles.add(cycle_num)
-                ledger["cycles"].append(
-                    {
-                        "cycle_num": cycle_num,
-                        "commit_sha": "",
-                        "findings": [],
-                        "findings_hash": findings_hash,
-                        "halt_reason": None,
-                    }
-                )
+                # Only add if no higher-version entry already captured this cycle_num
+                if cycle_num not in seen_cycles:
+                    seen_cycles[cycle_num] = (
+                        {
+                            "cycle_num": cycle_num,
+                            "commit_sha": "",
+                            "findings": [],
+                            "findings_hash": findings_hash,
+                            "halt_reason": None,
+                        },
+                        False,  # is_v12
+                    )
                 continue
 
             # No grammar matched — count as gap and warn
@@ -341,6 +428,8 @@ def reconstruct_from_pr_comments(pr_number: int, repo: str) -> dict:
                 file=sys.stderr,
             )
             has_gaps = True
+
+    ledger["cycles"] = [entry for entry, _ in seen_cycles.values()]
 
     if has_gaps:
         ledger["reconstruction_gaps"] = True

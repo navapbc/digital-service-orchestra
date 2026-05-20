@@ -36,11 +36,11 @@ from dso_ci_review.cycle_ledger import (  # noqa: E402
 def test_read_ledger_returns_empty_when_file_absent(tmp_path):
     """Given: nonexistent path.
     When: read_ledger(path) is called.
-    Then: returns empty v1.1.0 schema.
+    Then: returns empty v1.2.0 schema.
     """
     result = read_ledger(str(tmp_path / "nonexistent.json"))
-    assert result["schema_version"] == "1.1.0", (
-        f"Expected schema_version '1.1.0', got {result.get('schema_version')!r}"
+    assert result["schema_version"] == "1.2.0", (
+        f"Expected schema_version '1.2.0', got {result.get('schema_version')!r}"
     )
     assert result["epic_id"] == "", (
         f"Expected empty epic_id, got {result.get('epic_id')!r}"
@@ -104,6 +104,7 @@ def test_append_cycle_increments_cycles_array(tmp_path):
         findings_tuples=[["x.py", "1", "c"]],
         commit_sha="s2" + "0" * 38,
         findings_hash="h2",
+        pr_number=42,
     )
     result = read_ledger(path)
     assert len(result["cycles"]) == 2, (
@@ -262,6 +263,7 @@ def test_concurrent_shell_and_python_writers_coordinate_on_lockfile(tmp_path):
             findings_tuples=[["x.py", "1", "c"]],
             commit_sha="s" * 40,
             findings_hash="h1",
+            pr_number=42,
         )
         elapsed = time.time() - start
     finally:
@@ -299,6 +301,7 @@ def test_append_atomic_write_no_corruption_on_concurrent_appends(tmp_path):
             findings_tuples=[[f"f{n}.py", "1", "c"]],
             commit_sha=f"sha{n}" + "0" * 36,
             findings_hash=f"h{n}",
+            pr_number=42,
         )
 
     t1 = threading.Thread(target=do_append, args=(1,))

@@ -83,6 +83,15 @@ KNOWN_KEYS=(
     session.usage_check_cmd
     session.artifact_prefix
 
+    # Debug
+    debug.session_ttl_hours
+
+    # Suggestion
+    suggestion.tool_use_count_threshold
+
+    # Orchestration
+    orchestration.max_agents
+
     # Jira
     jira.project
 
@@ -96,6 +105,7 @@ KNOWN_KEYS=(
     design.design_notes_path
     design.manifest_patterns
     design.figma_pat
+    design.figma_collaboration
 
     # Merge
     merge.visual_baseline_path
@@ -111,6 +121,7 @@ KNOWN_KEYS=(
     worktree.branch_pattern
     worktree.max_age_hours
     worktree.service_start_cmd
+    worktree.orphan_patterns
 
     # Skills
     skills.playwright_debug_reference
@@ -169,6 +180,7 @@ KNOWN_LIST_KEYS=(
     design.manifest_patterns
     persistence.source_patterns
     persistence.test_patterns
+    worktree.orphan_patterns
 )
 
 # ── Resolve config file ─────────────────────────────────────────────────────

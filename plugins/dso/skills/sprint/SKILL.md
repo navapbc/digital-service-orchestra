@@ -996,6 +996,27 @@ $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh cleanup-discoveries  # shim-exempt: int
 
 Output: `DISCOVERIES_CLEANED: <N>`. Exit 0 always (best-effort).
 
+**Recipe Engine Pre-flight**
+
+After cleaning discoveries, validate engine availability for recipe-tagged tasks in the upcoming batch:
+
+```bash
+_TASK_FILE=$(mktemp /tmp/task-list.XXXXXX.json)
+.claude/scripts/dso ticket next-batch <epic-id> --json > "$_TASK_FILE" 2>/dev/null || echo "[]" > "$_TASK_FILE"
+
+RECIPE_REGISTRY_PATH="${CLAUDE_PLUGIN_ROOT}/recipes/recipe-registry.yaml" \
+TASK_LIST_FILE="$_TASK_FILE" \
+  bash "$PLUGIN_SCRIPTS/sprint/check-recipe-engines.sh"  # shim-exempt: internal orchestration script
+rm -f "$_TASK_FILE"
+```
+
+Parse output and act:
+- `NO_RECIPE_TASKS`: Log `"No recipe tasks in batch — skipping engine pre-flight"` and continue.
+- `ENGINES_OK`: Log `"Engine pre-flight passed"` and continue.
+- `MISSING_ENGINE: <e>` or `OUTDATED_ENGINE: <e>`: Surface a warning listing missing/outdated engines. Store the `MISSING_ENGINES_LIST=<csv>` value from output in session context for S5 fallback consumption.
+
+Pre-flight does NOT block sprint execution — warn and continue regardless of engine availability.
+
 **MAX_AGENTS protocol** (3-tier):
 
 | `max_agents` value | Behavior |
@@ -1518,11 +1539,54 @@ Route based on `TESTING_MODE`:
 | `RED` | Dispatch `dso:red-test-writer` before implementation (existing behavior) |
 | `GREEN` | Skip RED test dispatch entirely. Sub-agent validates existing tests pass after implementation. |
 | `UPDATE` | Sub-agent modifies existing tests to assert new behavior **before** implementing. Do NOT dispatch `dso:red-test-writer`. |
+| `recipe:` | Execute via `recipe-executor.sh` directly — no sub-agent dispatch. See **recipe: execution flow** below. |
 | absent / empty | Default to RED behavior (backward compatibility — tasks created before this field was introduced) |
 
 **GREEN mode**: Pass the following instruction to the sub-agent's Step 4 in `task-execution.md`: skip writing new tests; after implementation, validate that existing tests still pass.
 
 **UPDATE mode**: Pass the following instruction to the sub-agent's Step 4 in `task-execution.md`: modify the existing test file(s) listed in the file impact table to assert the new expected behavior before implementing the source change. The test must fail (RED) on the current code before the fix.
+
+**recipe: execution flow**: When `TESTING_MODE` starts with `recipe:`, the orchestrator executes the recipe directly — no Task sub-agent is dispatched and no story branch is created.
+
+**Pre-execution engine check (missing-engine fallback)**: Before executing the recipe, check whether the recipe's engine appears in `MISSING_ENGINES_LIST` (stored in session context from Phase C Step 1 recipe: pre-flight output). To check: look up the recipe's `engine` field from the registry for this recipe name; if that engine name appears in `MISSING_ENGINES_LIST`, route to LLM fallback:
+
+1. Look up `capability_description` and `engine` from the registry for this recipe name.
+2. Call `bash "$PLUGIN_SCRIPTS/sprint/translate-recipe-to-llm-task.sh" --recipe=<recipe_name> --intent="<capability_description>" [--param key=value ...] --output-format=task-prompt` to produce an LLM task description. Capture as `LLM_TASK_PROMPT`. # shim-exempt: internal orchestration script
+3. Dispatch a normal LLM sub-agent with `LLM_TASK_PROMPT` as the task description (same GREEN dispatch flow — create story branch, dispatch sub-agent with isolation: "worktree", process via Phase F per-worktree-review-commit.md).
+4. Record a ticket comment on the recipe task: `.claude/scripts/dso ticket comment <task_id> "RECIPE_FALLBACK: recipe=<recipe_name> engine=<engine_name> reason=engine_not_installed — executing via LLM sub-agent"`
+5. Fallback LLM task proceeds through normal Phase F (review, commit, verify) — identical downstream structure to any GREEN task.
+6. Count the fallback sub-agent dispatch toward the `max_agents` cap.
+7. Skip steps 1–6 of the normal recipe execution flow below.
+
+**When `MISSING_ENGINES_LIST` is empty, not set, or the recipe's engine does not appear in it**: proceed with the normal recipe execution flow (steps 1–6 below).
+
+1. **Parse task description** for:
+   - `recipe_name` — the recipe identifier (e.g. `sync-jira-labels`)
+   - `recipe_params` — zero or more `key=value` pairs
+   - `intent` — human-readable description of what the recipe does (used in sprint log)
+
+2. **Execute the recipe**:
+   ```bash
+   bash "$PLUGIN_SCRIPTS/recipe-executor.sh" <recipe_name> [--param key=value ...]  # shim-exempt: internal orchestration script
+   ```
+   Capture stdout as `EXECUTOR_JSON`. On bash-level failure (non-zero exit before JSON is emitted) or empty output, synthesize:
+   ```json
+   {"exit_code": 1, "errors": ["recipe-executor.sh failed or produced no output"], "engine_name": "<recipe_name>", "degraded": false}
+   ```
+
+3. **Format the result**:
+   ```bash
+   bash "$PLUGIN_SCRIPTS/sprint/format-recipe-result.sh" <recipe_name> <<< "$EXECUTOR_JSON"  # shim-exempt: internal orchestration script
+   ```
+   Capture stdout as `RECIPE_SUMMARY`.
+
+4. **Record in sprint log**: Log `RECIPE_RESULT: <task_id> — <intent> — <RECIPE_SUMMARY>` as the task result.
+
+5. **On non-zero `exit_code` in JSON**: Mark the task failed in the sprint log with the error summary; continue the batch — do not crash the sprint or halt further task dispatch.
+
+6. **On `degraded=true` in JSON**: Log a degraded warning: `RECIPE_DEGRADED: <task_id> — engine: <engine_name> — <RECIPE_SUMMARY>` with a note that fallback behavior was used. Continue the batch.
+
+**Note**: `recipe:` tasks do NOT create a story branch. They are direct orchestrator-executed actions with no sub-branch worktree.
 
 **Backward compatibility**: When `TESTING_MODE` is absent or empty, treat as `RED` — dispatch `dso:red-test-writer` as normal.
 
@@ -1666,6 +1730,41 @@ DISCOVERIES=$(.claude/scripts/dso collect-discoveries.sh 2>/dev/null) || DISCOVE
   warning and continue with `DISCOVERIES="[]"`. Discovery collection failure must not block the
   sprint. The script itself handles per-file validation — malformed individual files are skipped
   with warnings to stderr.
+
+### Cleanup Recipe Phase (Post-Agent, Pre-Review)
+
+After collecting agent discoveries (Step 6) and before acceptance criteria validation (Step 7), detect and apply applicable cleanup recipes to the staged output.
+
+```bash
+RECIPE_REGISTRY_PATH="${CLAUDE_PLUGIN_ROOT}/recipes/recipe-registry.yaml"
+CLEANUP_RECIPES="$(RECIPE_REGISTRY_PATH="$RECIPE_REGISTRY_PATH" bash "$PLUGIN_SCRIPTS/sprint/detect-cleanup-recipes.sh" 2>/dev/null || true)"  # shim-exempt: internal orchestration script
+```
+
+**No-op handling**: If `detect-cleanup-recipes.sh` produces no output (no applicable recipes), skip the cleanup phase entirely — no log entry.
+
+For each applicable recipe in `CLEANUP_RECIPES`:
+
+1. Capture a pre-cleanup snapshot for conflict detection:
+   ```bash
+   PRE_CLEANUP_DIFF="$(git diff --staged)"
+   ```
+
+2. Run the recipe executor:
+   ```bash
+   bash "$PLUGIN_SCRIPTS/recipe-executor.sh" <recipe_name> --param language=<lang>  # shim-exempt: internal orchestration script
+   ```
+
+3. **Conflict detection**: After execution, compare the new staged diff to `PRE_CLEANUP_DIFF`. If the recipe reverted sub-agent staged changes, log a WARNING and skip that recipe for those files:
+   ```
+   WARNING: Cleanup recipe '<name>' reverted staged changes in <file> — skipping for that file
+   ```
+
+4. **Log cleanup diff as distinct ticket comment**: Record post-cleanup state as a distinct ticket comment (NOT merged with the sub-agent diff), so completion-verifier and reviewers see the accurate post-cleanup diff:
+   ```bash
+   .claude/scripts/dso ticket comment <task-id> "CLEANUP_DIFF: $(git diff --staged)"
+   ```
+
+Sprint log records post-cleanup state (not pre-cleanup state), ensuring reviewers see clean code after mechanical cleanup.
 
 ### Step 7: Acceptance Criteria Validation (/dso:sprint)
 
@@ -1904,7 +2003,7 @@ Do NOT merge to main here.
 ```
 
 <HARD-GATE>
-Do NOT proceed to Step 19 until Step 18 (completion-verifier dispatch) has completed and Gate 1 (`check-verifier-verdict.sh`) has returned a verdict (`P1` field populated). The orchestrator is biased toward confirming its own work — CLAUDE.md rule 24 exists because this step has been skipped in past sessions. "All tests pass" and "all tasks closed" do NOT substitute for independent verification.
+Do NOT proceed to Step 19 until Step 18 (completion-verifier dispatch) has completed and Gate 1 (`check-verifier-verdict.sh`) has returned a verdict (`P1` field populated). The orchestrator is biased toward confirming its own work — CLAUDE.md `rule:dispatch-verifier` exists because this step has been skipped in past sessions. "All tests pass" and "all tasks closed" do NOT substitute for independent verification.
 
 Do NOT rationalize skipping Step 18. Prior evidence ("RED tests are GREEN", "CI passes", "AC verified") does not satisfy the completion-verifier requirement. The verifier checks done-definitions that task-level AC verification does not cover.
 
@@ -1989,7 +2088,7 @@ Do NOT close this story, do NOT transition it to closed, and do NOT proceed to S
 <HARD-GATE>
 **Verifier dispatch shape — DO NOT DEVIATE (bug c716-952a)**
 
-The Agent tool call MUST use the named agent type. Hand-written prompts that paraphrase the agent file — even prompts starting "You are the dso:completion-verifier agent..." — are fabrication and violate CLAUDE.md rule #20. The named-agent dispatch loads the canonical rubric, schema, and verification questions; an inline prompt cannot reproduce them faithfully and skips the structural output contract.
+The Agent tool call MUST use the named agent type. Hand-written prompts that paraphrase the agent file — even prompts starting "You are the dso:completion-verifier agent..." — are fabrication and violate CLAUDE.md `rule:dispatch-verifier`. The named-agent dispatch loads the canonical rubric, schema, and verification questions; an inline prompt cannot reproduce them faithfully and skips the structural output contract.
 
 The ONLY two valid dispatch forms are:
 
@@ -2013,7 +2112,7 @@ The ONLY two valid dispatch forms are:
    })
    ```
 
-What is NOT acceptable (all of these are CLAUDE.md rule #20 violations):
+What is NOT acceptable (all of these are CLAUDE.md `rule:dispatch-verifier` violations):
 - Hand-written check lists or ad-hoc rubrics in the prompt
 - Prompts that reference the agent file by name without loading its contents
 - Prompts that summarize the agent file's instructions in your own words
@@ -2254,7 +2353,7 @@ Decision: Involuntary compaction detected? → Yes: P8 (Graceful Shutdown)
 **Triggered when**: all child tasks are closed (or all remaining are failed/blocked).
 
 <HARD-GATE>
-Do NOT execute any Phase G step until Step 2 (completion-verifier dispatch) has completed and Gate 1 (`check-verifier-verdict.sh`) has returned a `P1` verdict for the epic. Do NOT skip Step 2 because "all stories are closed" or "all tasks passed" — those are orchestrator-level observations, not independent verification. CLAUDE.md rule 24: the verifier exists because the orchestrator is biased toward confirming its own work.
+Do NOT execute any Phase G step until Step 2 (completion-verifier dispatch) has completed and Gate 1 (`check-verifier-verdict.sh`) has returned a `P1` verdict for the epic. Do NOT skip Step 2 because "all stories are closed" or "all tasks passed" — those are orchestrator-level observations, not independent verification. CLAUDE.md `rule:dispatch-verifier`: the verifier exists because the orchestrator is biased toward confirming its own work.
 
 Do NOT proceed to Step 3 (/dso:validate-work) or Phase I (Session Close) without the completion-verifier result. Phase G steps must execute in order: Step 2 → Step 3 → Step 4 → Step 5 → Step 6 → Step 7.
 </HARD-GATE>
@@ -2267,7 +2366,7 @@ Read and execute `prompts/epic-ci-and-e2e-gates.md` for the integration test gat
 
 <!-- DD4: self-application validation deferred to S11 (684d-ed77-c6ce-442b) -->
 
-**MANDATORY**: Dispatch the completion-verifier using the same shape defined in Phase F Step 18's "Verifier dispatch shape" HARD-GATE — primary form uses `subagent_type: "dso:completion-verifier"` with `model: "sonnet"`; fallback form reads `agents/completion-verifier.md` verbatim and passes its full contents under `subagent_type: "general-purpose"`. Hand-written paraphrases of the agent file are CLAUDE.md rule #20 violations (bug c716-952a). Pass the epic ID instead of a story ID.
+**MANDATORY**: Dispatch the completion-verifier using the same shape defined in Phase F Step 18's "Verifier dispatch shape" HARD-GATE — primary form uses `subagent_type: "dso:completion-verifier"` with `model: "sonnet"`; fallback form reads `agents/completion-verifier.md` verbatim and passes its full contents under `subagent_type: "general-purpose"`. Hand-written paraphrases of the agent file are CLAUDE.md `rule:dispatch-verifier` violations (bug c716-952a). Pass the epic ID instead of a story ID.
 
 After receiving the verifier JSON output, render the closure narrative FIRST, then run the gate checks:
 

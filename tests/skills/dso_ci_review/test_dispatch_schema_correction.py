@@ -1015,9 +1015,9 @@ def test_correction_dispatch_infra_failure_triggers_reachability_fallback(
     _fallback_exhausted_entry = {
         "type": "fallback_exhausted",
         "agent_id": "schema-correction",
-        "primary_model": "claude-haiku-4-5-20251001",
+        "primary_model": "claude-haiku-4-5",
         "attempted_cross_provider": ["anthropic"],
-        "attempted_context_models": ["claude-haiku-4-5-20251001"],
+        "attempted_context_models": ["claude-haiku-4-5"],
         "final_exception_class": "InternalServerError",
         "final_exception_message": "API key validation is temporarily unavailable. Please retry.",
     }

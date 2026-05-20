@@ -143,8 +143,8 @@ Read config values before running (defaults: retro_window_days=60, recurrence_th
 
 ```bash
 PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
-RETRO_WINDOW=$(bash "$PLUGIN_SCRIPTS/read-config.sh" bug_classification.retro_window_days 2>/dev/null || echo 60)
-RECURRENCE_THRESHOLD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" bug_classification.recurrence_threshold 2>/dev/null || echo 3)
+RETRO_WINDOW=$(bash "$PLUGIN_SCRIPTS/read-config.sh" bug_classification.retro_window_days 2>/dev/null || echo 60)  # shim-exempt: SKILL.md orchestrator-direct invocation, legacy pattern pre-dating PR-E
+RECURRENCE_THRESHOLD=$(bash "$PLUGIN_SCRIPTS/read-config.sh" bug_classification.recurrence_threshold 2>/dev/null || echo 3)  # shim-exempt: SKILL.md orchestrator-direct invocation, legacy pattern pre-dating PR-E
 RETRO_WINDOW="${RETRO_WINDOW:-60}"
 RECURRENCE_THRESHOLD="${RECURRENCE_THRESHOLD:-3}"
 ```
@@ -202,6 +202,118 @@ Any item requiring tests or validation is NOT a quick win.
 Ask user: "X trivial items can be fixed now (Est: Y minutes). Fix them immediately?"
 
 If yes: execute sequentially, one commit per fix, close corresponding task after each. If no: leave all tasks in epic.
+
+---
+
+## Phase F: Quarterly Inference-Incident Curation (/dso:retro)
+
+Quarterly append step for the inference-incident corpus consumed by `inference-recall-replay.sh`. Wires the `dso:inference-incident-curator` agent into a recurring cadence (~90 days) so the corpus grows from new closed tickets over time. See `${CLAUDE_PLUGIN_ROOT}/docs/contracts/inference-incident-schema.md` for the record shape and `docs/findings/project-audit-2026-05-19.md` Q2 for the wire-up rationale (R21 follow-up).
+
+### Cadence Gate (STOP HERE if SHOULD_RUN=false)
+
+Check `tests/fixtures/inference-incidents/last-curator-run.json` for the previous run's UTC timestamp. If the timestamp exists and is less than 90 days old, **skip the rest of Phase F** and proceed to Guardrails:
+
+```bash
+LAST_RUN_FILE="tests/fixtures/inference-incidents/last-curator-run.json"
+NOW_TS=$(date -u +%s)
+SHOULD_RUN=true
+if [[ -f "$LAST_RUN_FILE" ]]; then
+    LAST_TS=$(jq -r '.last_run_unix // 0' "$LAST_RUN_FILE" 2>/dev/null || echo 0)
+    if (( NOW_TS - LAST_TS < 90 * 24 * 3600 )); then
+        echo "Phase F: skipped (curator ran $(( (NOW_TS - LAST_TS) / 86400 )) days ago; cadence is 90 days)"
+        SHOULD_RUN=false
+    fi
+fi
+```
+
+When `SHOULD_RUN=false`, the orchestrator MUST proceed directly to the Guardrails section. The Curator Dispatch and Corpus Append blocks below are wrapped in `if [[ "$SHOULD_RUN" == "true" ]]; then ... fi` to make this gating explicit for any literal shell execution.
+
+### Curator Dispatch (when cadence threshold reached)
+
+Dispatch the named agent via the Agent tool with `subagent_type: "dso:inference-incident-curator"` and `model: "opus"`. The agent's documented purpose: scan closed tickets via `.claude/scripts/dso ticket list` and per-ticket comments/transitions, identify inference incidents per the contract anchors (assumption/correction/uncertainty/outcome markers), emit JSONL records conforming to `inference-incident-schema.md`.
+
+The agent's output contract:
+- Wrapped in the `inference-envelope` form (see `${CLAUDE_PLUGIN_ROOT}/docs/contracts/inference-envelope.md`).
+- Emits one validated incident JSON per line on stdout.
+- Emits `CORPUS_INSUFFICIENT` signal if fewer than 20 validated incidents are found.
+
+After the dispatch returns, capture the agent's stdout to a temp file for the append step:
+
+```bash
+if [[ "$SHOULD_RUN" == "true" ]]; then
+    NEW_INCIDENTS_FILE=$(mktemp /tmp/inference-incidents-new.XXXXXX.jsonl)
+    # Write the curator agent's JSONL stdout to "$NEW_INCIDENTS_FILE" via the
+    # orchestrator's Agent-tool transcript (the agent emits one JSON record per
+    # line; the orchestrator extracts those lines and writes them here).
+fi
+```
+
+### Corpus Append + Timestamp Update
+
+If the curator emitted at least one valid record, append to the corpus and update the run timestamp. The append block is gated on `SHOULD_RUN=true` and on the temp file being non-empty:
+
+```bash
+if [[ "$SHOULD_RUN" == "true" && -s "$NEW_INCIDENTS_FILE" ]]; then
+    cat "$NEW_INCIDENTS_FILE" >> tests/fixtures/inference-incidents/incidents.jsonl
+    printf '{"last_run_unix": %s, "last_run_iso": "%s"}\n' \
+        "$NOW_TS" "$(date -u -r "$NOW_TS" +%Y-%m-%dT%H:%M:%SZ)" \
+        > "$LAST_RUN_FILE"
+    rm -f "$NEW_INCIDENTS_FILE"
+elif [[ "$SHOULD_RUN" == "true" ]]; then
+    # CORPUS_INSUFFICIENT or zero records — advance the cadence timestamp anyway so the
+    # gate doesn't re-fire on every retro until the ticket history grows.
+    printf '{"last_run_unix": %s, "last_run_iso": "%s"}\n' \
+        "$NOW_TS" "$(date -u -r "$NOW_TS" +%Y-%m-%dT%H:%M:%SZ)" \
+        > "$LAST_RUN_FILE"
+    rm -f "$NEW_INCIDENTS_FILE"
+fi
+```
+
+### Post-Append Validation
+
+After appending, validate that the corpus's new tail parses as well-formed JSONL with the required schema fields. Direct `jq` validation is the lowest-cost check; `inference-recall-replay.sh` does not currently expose a validate-only mode, so we don't invoke it here.
+
+Required fields per `inference-incident-schema.md`: `ticket_id`, `inferred_decision_text`, `affects_fields`, `outcome`, `source_decision_text` (all 5 must be non-null on every record).
+
+```bash
+if [[ "$SHOULD_RUN" == "true" && -f tests/fixtures/inference-incidents/incidents.jsonl ]]; then
+    _corpus_file=tests/fixtures/inference-incidents/incidents.jsonl
+
+    # Step 1: detect JSONL parse errors. `jq empty` exits non-zero on the FIRST
+    # malformed line and writes its error to stderr; we want a count of parse
+    # errors across the whole file, so iterate per line.
+    _parse_errors=0
+    while IFS= read -r _line || [[ -n "$_line" ]]; do
+        [[ -z "$_line" ]] && continue
+        if ! printf '%s' "$_line" | jq empty 2>/dev/null; then
+            _parse_errors=$(( _parse_errors + 1 ))
+        fi
+    done < "$_corpus_file"
+
+    # Step 2: schema check — among lines that parse, flag any record missing one
+    # of the 5 required fields. Skipped when any parse error was detected
+    # because jq aborts the whole file on the first bad line, so the count
+    # would be unreliable.
+    _bad_lines=0
+    if [[ "$_parse_errors" -eq 0 ]]; then
+        _bad_lines=$(jq -c -r 'select(.ticket_id == null or .inferred_decision_text == null or .affects_fields == null or .outcome == null or .source_decision_text == null)' \
+            "$_corpus_file" 2>/dev/null | wc -l | tr -d ' ')
+    fi
+
+    if [[ "${_bad_lines:-0}" -gt 0 || "${_parse_errors:-0}" -gt 0 ]]; then
+        echo "WARNING: corpus validation flagged ${_bad_lines:-0} missing-field records + ${_parse_errors:-0} parse errors after curator append — review the new records"
+    fi
+fi
+```
+
+The validation is non-blocking — corpus issues surface as a warning rather than aborting the retro.
+
+### Phase F Skip Conditions
+
+In addition to the cadence gate, **skip Phase F entirely** when:
+- The session is operating under high token usage (the same constraint as Phase E).
+- The retro is run with `--no-curator` (user override; not implemented as a literal flag — surface as a Phase F prompt question).
+- The repo does not have `tests/fixtures/inference-incidents/` (e.g., DSO not fully onboarded).
 
 ---
 

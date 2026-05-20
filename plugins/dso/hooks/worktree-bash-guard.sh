@@ -5,7 +5,7 @@
 # This file is a thin wrapper. The hook logic lives in:
 #   hooks/lib/pre-bash-functions.sh (hook_worktree_bash_guard)
 #
-# Enforces CLAUDE.md rule 11:
+# Enforces CLAUDE.md `rule:no-edit-main-from-worktree`:
 #   "Never edit main repo files from a worktree session"
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

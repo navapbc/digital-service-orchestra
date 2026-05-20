@@ -48,4 +48,4 @@ Fallback (technical failure only — timeout or unparseable JSON): log the error
 
 - Never read `overall_verdict` as the pass/fail gate — use `P1`.
 - Never write the narrative field by hand or via LLM — always call `render-closure-narrative.sh`.
-- Inline verification (without dispatching the named verifier agent) is prohibited. See CLAUDE.md rule 20.
+- Inline verification (without dispatching the named verifier agent) is prohibited. See CLAUDE.md `rule:dispatch-verifier`.

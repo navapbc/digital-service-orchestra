@@ -85,6 +85,7 @@ _TEST2_EXIT=0
 echo "$_TEST2_INPUT" | WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_TEST2_DIR" bash "$HOOK" 2>/dev/null || _TEST2_EXIT=$?
 
 # Check that NO bash-start-ts-* files exist
+# shellcheck disable=SC2012  # pre-existing ls usage; this is a count-only operation on a temp dir
 _TEST2_TS_FILES=$(ls "$_TEST2_DIR"/bash-start-ts-* 2>/dev/null | wc -l | tr -d ' ')
 assert_eq "test_pre_non_bash_does_not_create_timestamp: no ts files" "0" "$_TEST2_TS_FILES"
 
@@ -527,7 +528,7 @@ _TEST16_INPUT='{"tool_name":"Bash","tool_input":{"command":"make test-unit-only"
 _TEST16_OUTPUT=$(echo "$_TEST16_INPUT" | WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_TEST16_DIR" bash "$POST_HOOK" 2>/dev/null) || true
 
 assert_contains "test_reminder_emitted_for_make_test_timeout: contains test-batched.sh" "test-batched.sh" "$_TEST16_OUTPUT"
-assert_contains "test_reminder_emitted_for_make_test_timeout: contains CLAUDE.md rule" "rule #16" "$_TEST16_OUTPUT"
+assert_contains "test_reminder_emitted_for_make_test_timeout: contains CLAUDE.md anchor" "always:test-batched-sh" "$_TEST16_OUTPUT"
 
 rm -rf "$_TEST16_DIR"
 

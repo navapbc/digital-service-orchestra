@@ -8,20 +8,35 @@ Skip this phase if fewer than 3 stories exist after Phase C completes. Adversari
 
 ## Step 1: Red Team Dispatch
 
-Dispatch via `subagent_type: "dso:red-team-reviewer"` (model defaults: opus). If the named type is unregistered in this session, fall back to `subagent_type: "general-purpose"` with `model: "opus"` and `agents/red-team-reviewer.md` content read inline as the prompt. The agent definition contains the full review prompt including the 6-category taxonomy and Consumer Enumeration directive. Pass the following as task arguments:
+Dispatch via `subagent_type: "dso:red-team-reviewer"` with `model: "opus"` passed explicitly (do not rely on the agent frontmatter default — the SC→DD coverage audit and cross-story taxonomy depend on opus-level sustained reasoning, and the explicit param defends against future routing changes that might silently downgrade). If the named type is unregistered in this session, fall back to `subagent_type: "general-purpose"` with `model: "opus"` and `agents/red-team-reviewer.md` content read inline as the prompt. Pass the following as task arguments:
 
 - `mode: story_review`
 - `{epic-title}`: Epic title from Phase A
 - `{epic-description}`: Epic description from Phase A
+- `{epic-success-criteria}`: The bullet items from the epic's `## Success Criteria` section, parsed from the ticket text (do NOT rely on session memory). Number them with stable identifiers in a Markdown list, e.g.:
+  ```
+  - sc-1: Users can export reviewed rules as Rego.
+  - sc-2: Review state persists across sessions.
+  - sc-3: An admin can audit who approved each rule.
+  ```
+  If the epic has no `## Success Criteria` section, pass `(none — epic has no Success Criteria section; coverage audit will be vacuous)` so the agent records the absence in `sc_coverage_summary` rather than failing.
 - `{story-map}`: All stories with their done definitions, considerations, and dependencies (formatted from Phase C output)
 - `{risk-register}`: Risk Register table from Phase C
 - `{dependency-graph}`: Dependency graph from `.claude/scripts/dso ticket deps <epic-id>`
 
-The red team sub-agent returns a JSON `findings` array. Parse the response and validate it contains well-formed JSON with the expected schema (array of objects with `type`, `target_story_id`, `title`, `description`, `rationale`, `taxonomy_category` fields).
+The red team sub-agent returns a JSON object. Parse and route in this order — do not reorder, the model-requirement check MUST run before schema validation so the error-envelope payload `{"findings": [], "error": "model_requirement_unmet"}` is not misclassified as "missing sc_coverage_summary":
+
+<!-- VALIDATION-ORDER: model_requirement_unmet check FIRST, schema validation SECOND. Do not reorder — tests/test_adversarial_review_prompts.sh pins the order with these anchor comments. -->
+<!-- VALIDATION-STEP-1: model_requirement_unmet -->
+1. **Model-requirement check (first)**: if the response is `{"findings": [], "error": "model_requirement_unmet"}` (or otherwise carries an `"error"` field equal to `"model_requirement_unmet"`), treat this as a dispatch defect — log `"Red team model requirement unmet — re-dispatching with explicit model: opus"` and retry once via the fallback path (`general-purpose` + `model: "opus"` + inline prompt). If the retry also returns `model_requirement_unmet`, log `"Red team review skipped: model_requirement_unmet on retry. Proceeding to Phase F."` and skip directly to Phase F.
+<!-- VALIDATION-STEP-2: schema-validation -->
+2. **Schema validation (second)**: with the model-requirement branch ruled out, validate the full response shape:
+   - `sc_coverage_summary` is present and is an array (one entry per SC passed in, with `sc_id`, `sc_text`, `verdict`, `covering_story_ids` fields; `gap_summary` present when verdict ∈ {`partially_covered`, `uncovered`, `out_of_scope_for_stories`}).
+   - `findings` is an array of objects with `type`, `target_story_id`, `title`, `description`, `rationale`, `taxonomy_category` fields; the `taxonomy_category` enum includes `sc_coverage_gap` for SC-traceability findings.
 
 **Fallback — two-path protocol**:
-- **Agent unavailable** (dispatch fails with "Unknown agent" or similar): Read `agents/red-team-reviewer.md` inline and re-dispatch as a general-purpose agent using that content as the prompt. Do NOT perform the review inline — the agent must do it.
-- **Execution failure** (timeout, malformed output, or fails to produce valid JSON): Log a warning `"Red team review failed: <reason>. Skipping adversarial review, proceeding to Phase F."` and skip directly to Phase F.
+- **Agent unavailable** (dispatch fails with "Unknown agent" or similar): Read `agents/red-team-reviewer.md` inline and re-dispatch as a general-purpose agent with `model: "opus"` using that content as the prompt. Do NOT perform the review inline — the agent must do it.
+- **Execution failure** (timeout, malformed output, missing `sc_coverage_summary`, or fails to produce valid JSON) — but NOT `model_requirement_unmet` (handled above): Log a warning `"Red team review failed: <reason>. Skipping adversarial review, proceeding to Phase F."` and skip directly to Phase F.
 
 ## Step 2: Blue Team Dispatch
 
@@ -42,34 +57,46 @@ The blue team sub-agent returns a filtered JSON object with `findings` (accepted
 
 ## Step 3: Apply Surviving Findings
 
-Parse the blue team's accepted findings and apply each one based on its `type`:
+Parse the blue team's accepted findings and apply each one based on its `type`. `taxonomy_category: "sc_coverage_gap"` findings use the same routing as their `type`, with one additional ticket-comment line citing the SC id for traceability.
 
 | Finding Type | Action |
 |-------------|--------|
-| `new_story` | Create a new story with description: `.claude/scripts/dso ticket create story "<title>" --parent=<epic-id> -d "<body with description, done definitions, and considerations>"`. |
-| `modify_done_definition` | Use `.claude/scripts/dso ticket comment <target_story_id> "Done definition update: <description>"` to record the modified done definition. |
+| `new_story` | Create a new story with description: `.claude/scripts/dso ticket create story "<title>" --parent=<epic-id> -d "<body with description, done definitions, and considerations>"`. For `sc_coverage_gap` findings, append `Covers: <sc_id>` to the description body so the SC→story link is preserved in the ticket. |
+| `modify_done_definition` | Use `.claude/scripts/dso ticket comment <target_story_id> "Done definition update: <description>"` to record the modified done definition. For `sc_coverage_gap` findings, prefix the comment with `[SC <sc_id>] ` so the comment thread carries the SC link. |
 | `add_dependency` | Add the dependency: `.claude/scripts/dso ticket link <target_story_id> <dependency_id> depends_on` (extract dependency ID from the finding's description). |
 | `add_consideration` | Use `.claude/scripts/dso ticket comment <target_story_id> "Consideration: <text>"` to append the consideration. |
 | `escalate_to_epic` | The finding signals that a cross-story concern belongs at the epic level. Read the current epic description via `ticket show`, then use `.claude/scripts/dso ticket edit <epic-id> --description="<current-description>\n\nSC: <title> — <description>"` to append the new Success Criterion. Before emitting the escalation signal, check `sprint.max_replan_cycles` from config (default 2): if the current `replan_cycle_count` has already reached the limit, log `"escalate_to_epic: max_replan_cycles reached — recording SC but skipping REPLAN_ESCALATE"` and continue without escalating. Otherwise emit `REPLAN_ESCALATE: brainstorm EXPLANATION:<title>` to trigger brainstorm re-review of the updated epic scope before continuing. |
 
+After applying findings, also post the SC coverage summary as a single ticket comment on the epic so the audit is visible in the epic timeline:
+```bash
+.claude/scripts/dso ticket comment <epic-id> "SC coverage audit (red team): <fully_covered_count> fully covered, <partially_covered_count> partial, <uncovered_count> uncovered, <out_of_scope_for_stories_count> out-of-scope. Full summary in adversarial review artifact."
+```
+
 Log a summary after applying findings:
 ```
 Adversarial review complete:
-- Red team findings: <N> total
+- SC coverage: <fully> fully / <partial> partial / <uncovered> uncovered / <oos> out-of-scope-for-stories
+- Red team findings: <N> total (<S> sc_coverage_gap, <O> other)
 - Blue team filtered: <M> rejected, <K> accepted
 - Applied: <A> new stories, <B> modified done definitions, <C> new dependencies, <D> new considerations
 ```
 
 ## Step 4: Persist Adversarial Review Exchange
 
-After processing blue team findings, the orchestrator persists the full exchange for post-mortem analysis. The blue team agent does NOT write files (it cannot run shell commands) — it returns `artifact_path: null`, and the orchestrator handles persistence here using the red team findings and the blue team's `findings`/`rejected` arrays.
+After processing blue team findings, the orchestrator persists the full exchange for post-mortem analysis. The blue team agent does NOT write files (it cannot run shell commands) — it returns `artifact_path: null`, and the orchestrator handles persistence here using the red team's `sc_coverage_summary` + raw findings and the blue team's `findings`/`rejected` arrays.
 
-1. Resolve the artifact path and write the full exchange JSON:
+1. Resolve the artifact path and write the full exchange JSON. The artifact must include the red team's `sc_coverage_summary` as a top-level key so the audit trail is preserved alongside the findings exchange:
    ```bash
    source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
    ARTIFACTS_DIR=$(get_artifacts_dir)
    ARTIFACT_PATH="$ARTIFACTS_DIR/adversarial-review-<epic-id>.json"
-   # Write JSON combining the red team output and blue team findings/rejected arrays
+   # JSON shape:
+   # {
+   #   "sc_coverage_summary": [ ... from red team ... ],
+   #   "red_team_findings": [ ... raw, unfiltered ... ],
+   #   "blue_team_accepted": [ ... ],
+   #   "blue_team_rejected": [ ... ]
+   # }
    ```
 2. Add a one-line ticket comment referencing the artifact:
    ```bash

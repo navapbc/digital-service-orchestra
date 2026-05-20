@@ -3,7 +3,8 @@
 # Usage: create-story-branch.sh [--prefix <name>] <epic-id> <story-id>
 # Options:
 #   --prefix <name>   Branch prefix (default: story)
-# Output: STORY_BRANCH=<prefix>/<epic-id>/<story-id>
+# Stdout: <prefix>/<epic-id>/<story-id>          (bare branch name; consumable via $(...) command substitution)
+# Stderr: STORY_BRANCH=<prefix>/<epic-id>/<story-id>  (human-readable log line)
 set -euo pipefail
 
 _PREFIX="story"
@@ -41,9 +42,11 @@ _BRANCH="${_PREFIX}/${_EPIC_ID}/${_STORY_ID}"
 
 if git rev-parse --verify "refs/heads/${_BRANCH}" >/dev/null 2>&1; then
   # Branch already exists — idempotent
-  echo "STORY_BRANCH=${_BRANCH}"
+  echo "STORY_BRANCH=${_BRANCH}" >&2
+  echo "${_BRANCH}"
   exit 0
 fi
 
 git checkout -b "${_BRANCH}"
-echo "STORY_BRANCH=${_BRANCH}"
+echo "STORY_BRANCH=${_BRANCH}" >&2
+echo "${_BRANCH}"

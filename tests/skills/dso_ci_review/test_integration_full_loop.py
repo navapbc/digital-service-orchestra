@@ -54,7 +54,7 @@ def test_anthropic_full_loop_produces_structured_findings():
         provider_chain=["anthropic"],
         environ={"ANTHROPIC_API_KEY": anthropic_key},
         agent_id="code-reviewer-standard",
-        primary_model="claude-haiku-4-5-20251001",
+        primary_model="claude-haiku-4-5",
         repo_root=str(REPO_ROOT),
         tier="standard",
         soft_cap=1,

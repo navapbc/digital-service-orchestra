@@ -424,7 +424,7 @@ async def _async_run_region_split(
             + json.dumps(prior_defenses, indent=2)
         )
     # Use the model from the first agent if available, else a sensible default
-    arch_model = "claude-opus-4-5"
+    arch_model = "claude-opus-4-7"
     if tier_agents:
         arch_model = tier_agents[0].get("model", arch_model)
 

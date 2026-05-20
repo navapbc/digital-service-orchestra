@@ -596,9 +596,9 @@ def test_build_agents_for_tier_reads_standard_model_from_config(tmp_path):
 
     config_file = tmp_path / "dso-config.conf"
     config_file.write_text(
-        "model.light=claude-haiku-4-5-20251001\n"
+        "model.light=claude-haiku-4-5\n"
         "model.standard=claude-sonnet-4-6\n"
-        "model.deep=claude-opus-4-6\n"
+        "model.deep=claude-opus-4-7\n"
     )
 
     agents = runner_mod._build_agents_for_tier(
@@ -614,9 +614,9 @@ def test_build_agents_for_tier_reads_standard_model_from_config(tmp_path):
 
 def test_build_agents_for_tier_reads_light_model_from_config(tmp_path):
     """
-    Given: dso-config.conf sets model.light=claude-haiku-4-5-20251001
+    Given: dso-config.conf sets model.light=claude-haiku-4-5
     When: _build_agents_for_tier("light", ...) is called with that config path
-    Then: the agent model is claude-haiku-4-5-20251001
+    Then: the agent model is claude-haiku-4-5
 
     RED marker: tests/skills/dso_ci_review/test_runner_smoke.py [test_build_agents_for_tier_reads_light_model_from_config]
     """
@@ -624,23 +624,23 @@ def test_build_agents_for_tier_reads_light_model_from_config(tmp_path):
 
     config_file = tmp_path / "dso-config.conf"
     config_file.write_text(
-        "model.light=claude-haiku-4-5-20251001\n"
+        "model.light=claude-haiku-4-5\n"
         "model.standard=claude-sonnet-4-6\n"
-        "model.deep=claude-opus-4-6\n"
+        "model.deep=claude-opus-4-7\n"
     )
 
     agents = runner_mod._build_agents_for_tier(
         "light", "diff text", {}, config_path=str(config_file)
     )
     assert len(agents) == 1
-    assert agents[0]["model"] == "claude-haiku-4-5-20251001"
+    assert agents[0]["model"] == "claude-haiku-4-5"
 
 
 def test_build_agents_for_tier_reads_deep_model_from_config(tmp_path):
     """
-    Given: dso-config.conf sets model.deep=claude-opus-4-6
+    Given: dso-config.conf sets model.deep=claude-opus-4-7
     When: _build_agents_for_tier("deep", ...) is called with that config path
-    Then: all three deep agents use claude-opus-4-6
+    Then: all three deep agents use claude-opus-4-7
 
     RED marker: tests/skills/dso_ci_review/test_runner_smoke.py [test_build_agents_for_tier_reads_deep_model_from_config]
     """
@@ -648,9 +648,9 @@ def test_build_agents_for_tier_reads_deep_model_from_config(tmp_path):
 
     config_file = tmp_path / "dso-config.conf"
     config_file.write_text(
-        "model.light=claude-haiku-4-5-20251001\n"
+        "model.light=claude-haiku-4-5\n"
         "model.standard=claude-sonnet-4-6\n"
-        "model.deep=claude-opus-4-6\n"
+        "model.deep=claude-opus-4-7\n"
     )
 
     agents = runner_mod._build_agents_for_tier(
@@ -658,8 +658,8 @@ def test_build_agents_for_tier_reads_deep_model_from_config(tmp_path):
     )
     assert len(agents) == 3
     for agent in agents:
-        assert agent["model"] == "claude-opus-4-6", (
-            f"deep tier agent {agent['agent_id']!r} should use claude-opus-4-6; "
+        assert agent["model"] == "claude-opus-4-7", (
+            f"deep tier agent {agent['agent_id']!r} should use claude-opus-4-7; "
             f"got {agent['model']!r}"
         )
 
@@ -685,7 +685,7 @@ def test_build_agents_for_tier_falls_back_to_tier_defaults_when_config_absent(tm
     )
     assert len(agents) == 1
     # Standard tier default must be sonnet, not haiku
-    assert agents[0]["model"] != "claude-haiku-4-5-20251001", (
+    assert agents[0]["model"] != "claude-haiku-4-5", (
         f"standard tier default should NOT be haiku; "
         f"got {agents[0]['model']!r}. Standard tier must default to sonnet "
         f"to match local review tiers (c86e-e177 Fix C)."
@@ -1758,7 +1758,7 @@ def test_build_agents_for_tier_includes_tier_in_agent_dicts(tmp_path):
     import dso_ci_review.runner as runner_mod
 
     config_file = tmp_path / "dso-config.conf"
-    config_file.write_text("model.light=claude-haiku-4-5-20251001\n")
+    config_file.write_text("model.light=claude-haiku-4-5\n")
 
     for tier in ("light", "standard", "deep"):
         agents = runner_mod._build_agents_for_tier(
@@ -1801,7 +1801,7 @@ def test_call_single_agent_passes_tier_to_dispatch_review():
             _call_single_agent(
                 agent_id="code-reviewer-light",
                 diff_text="diff text",
-                model="claude-haiku-4-5-20251001",
+                model="claude-haiku-4-5",
                 provider_chain=["anthropic"],
                 tier="light",
             )

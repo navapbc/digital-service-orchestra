@@ -1,6 +1,6 @@
 ---
 name: preplanning
-description: Use when breaking down an epic into user stories, story splitting, backlog grooming, defining acceptance criteria, or auditing and reconciling existing epic children before implementation. Decomposes the epic into prioritized vertical-slice user stories, drafts measurable done definitions per story, identifies dependencies, runs an adversarial red-team review pass, dispatches a UI designer for UI stories, and writes the story tickets to the tracker. Trigger phrases include 'break down this epic', 'split into stories', 'story splitting', 'backlog grooming', 'write user stories', 'define acceptance criteria', 'plan the epic', 'decompose the epic', 'reconcile epic children'.
+description: Use when breaking down an epic into user stories, story splitting, backlog grooming, defining acceptance criteria, or auditing and reconciling existing epic children before implementation. Dispatches an opus `dso:story-decomposer` sub-agent to draft prioritized vertical-slice user stories with measurable done definitions tied to epic Success Criteria (never inline), identifies dependencies, runs an adversarial red-team review pass, dispatches a UI designer for UI stories, and writes the story tickets to the tracker. Trigger phrases include 'break down this epic', 'split into stories', 'story splitting', 'backlog grooming', 'write user stories', 'define acceptance criteria', 'plan the epic', 'decompose the epic', 'reconcile epic children'.
 user-invocable: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
@@ -52,6 +52,7 @@ This skill transforms epics into implementable stories:
 - **Entry routing** (Phase A Step 1.5): classify epic complexity (SIMPLE → `/dso:implementation-plan`; MODERATE → lightweight mode; COMPLEX → full preplanning). Skipped when `--lightweight` was explicitly passed.
 - **Phase A**: Reconciliation — audit existing work, clarify scope
 - **Phase B**: External Dependencies Reading (flag-gated) — read epic's External Dependencies block, generate manual:awaiting_user stories
+- **Story Decomposition**: dispatch `dso:story-decomposer` (opus) to draft the new vertical-slice stories needed so the collective set covers every epic Success Criterion
 - **Phase C**: Risk & Scope Scan — flag cross-cutting concerns, identify split candidates
 - **Phase D**: Integration Research — verify external integrations pre-slicing
 - **Phase E**: Adversarial Review — red/blue team review for cross-story blind spots (3+ stories only)
@@ -324,9 +325,81 @@ For each entry in the `external_dependencies` block:
 
 ---
 
+## Story Decomposition (/dso:preplanning)
+
+<!-- EMIT-PRECONDITIONS: gate_name=preplanning_story_decomposition degradation_type=unresolved_question -->
+
+**Purpose.** The orchestrator MUST NOT draft new stories inline. After reconciliation (Phase A) and external-dependency story generation (Phase B), dispatch the `dso:story-decomposer` opus sub-agent to produce the new vertical-slice story drafts needed so the collective story set covers every epic Success Criterion. The orchestrator writes the drafts to the tracker in Phase H — this phase only produces the drafts.
+
+**Rationale.** Inline drafting by the orchestrator has been observed to produce under-specified Done Definitions and to drop SCs through summarization. Dispatching a dedicated opus sub-agent (mirroring the Phase E red-team and the sprint-tier opus arbiter) restores sustained multi-document reasoning for the highest-leverage step in preplanning.
+
+### Skip Condition
+
+Skip this phase entirely when running under `--lightweight` (lightweight mode does not create stories — see the Lightweight Mode Appendix).
+
+### Dispatch
+
+Dispatch via `subagent_type: "dso:story-decomposer"` with `model: "opus"` passed explicitly (do not rely on the agent frontmatter default — vertical slicing, INVEST-checking, and SC-coverage decomposition require opus, and the explicit param defends against future routing changes that might silently downgrade). If the named type is unregistered in this session, fall back to `subagent_type: "general-purpose"` with `model: "opus"` and `agents/story-decomposer.md` content read inline as the prompt.
+
+Pass the following as task arguments:
+
+- `{epic-title}`: Epic title from Phase A
+- `{epic-description}`: Epic description from Phase A
+- `{epic-success-criteria}`: Bullet items from the epic's `## Success Criteria` section parsed from the ticket text (do NOT rely on session memory). Number them with stable identifiers in a Markdown list, e.g.:
+  ```
+  - sc-1: Users can export reviewed rules as Rego.
+  - sc-2: Review state persists across sessions.
+  - sc-3: An admin can audit who approved each rule.
+  ```
+  If the epic has no `## Success Criteria` section, pass `(none — epic has no Success Criteria section)` so the agent records the absence in `decomposition_notes` and returns empty drafts rather than fabricating SCs.
+- `{existing-stories}`: The kept-or-modified children from Phase A reconciliation. For each, include id, title, description, current Done Definitions, and considerations. Format as a Markdown list with one entry per story.
+- `{external-dep-stories}`: The `manual:awaiting_user` stories created in Phase B. Same format as `{existing-stories}`. If Phase B was skipped (flag off or no entries), pass `(none)`.
+- `{escalation-policy}`: Both the `{escalation_policy_label}` from Phase A Step 2 and its full text, so the agent can write the label verbatim into every draft's `escalation_policy` field for Phase H.
+
+### Parse Output
+
+The agent returns a JSON object with `sc_coverage_plan`, `story_drafts`, and `decomposition_notes`. Validate:
+
+1. `sc_coverage_plan` is an array with one entry per SC passed in. Every entry has `sc_id`, `sc_text`, `verdict`, `covering_story_ids`, `draft_ids` fields; `gap_summary` is present when `verdict` ∈ {`partial_coverage`, `uncovered`, `out_of_scope_for_stories`} — must match the agent's field-table condition so a regression that drops `gap_summary` on `uncovered` SCs is caught at validation time.
+2. `story_drafts` is an array. Each draft has `temp_id` (matching the pattern `draft-N`), `title` (user-story-shaped), `priority` (integer 0–4), `description`, `done_definitions` (each ending with `← Satisfies: sc-N`), `depends_on`, `split_candidate`, and `escalation_policy`.
+3. Every SC with verdict `uncovered` or `partial_coverage` is referenced by at least one draft (cross-check: the SC's `sc_id` appears in at least one DD's `← Satisfies: sc-N` annotation, and at least one `draft_id` for that SC is non-empty).
+4. Every draft's `depends_on` references either an existing story id or another `temp_id` in this same response — no dangling references.
+
+**On `model_requirement_unmet`**: If the agent returns `{"story_drafts": [], "sc_coverage_plan": [], "error": "model_requirement_unmet"}`, log `"Story decomposer model requirement unmet — re-dispatching with explicit model: opus"` and retry once via the fallback path (`general-purpose` + `model: "opus"` + inline prompt). If the retry also returns `model_requirement_unmet`, HALT preplanning with diagnostic: `"Story decomposition requires opus; configure the environment to allow opus dispatch and re-run /dso:preplanning."` Do NOT fall back to inline drafting.
+
+**On schema validation failure**: HALT preplanning with diagnostic: `"Story decomposer returned malformed output; cannot proceed without verified drafts."` Do NOT fall back to inline drafting — inline drafting is the failure mode this phase exists to prevent.
+
+**Why halt (not skip-and-continue) here, while Phase E falls through to Phase F on failure?** Story decomposition is a **correctness gate**: every subsequent phase consumes its output, and inline orchestrator drafting (the only available fallback) is the bug class this phase was introduced to eliminate. Phase E's adversarial review is a **quality gate** with a defined skip path — losing it degrades coverage but does not break downstream phases. The asymmetry is intentional.
+
+### Persist the Decomposition Artifact
+
+Write the agent's full output to the artifacts directory so it remains available for Phase E (which consumes the SC list), Phase F (which consumes the `split_candidate` flags), and post-mortem analysis:
+
+```bash
+source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
+ARTIFACTS_DIR=$(get_artifacts_dir)
+ARTIFACT_PATH="$ARTIFACTS_DIR/story-decomposition-<epic-id>.json"
+# Write the full agent output JSON to ARTIFACT_PATH
+```
+
+Then post a one-line ticket comment on the epic for visibility:
+
+```bash
+.claude/scripts/dso ticket comment <epic-id> "Story decomposition: <N> drafts produced. Coverage: <fully> existing / <new_drafts> new / <oos> out-of-scope. Full artifact: $ARTIFACT_PATH"
+```
+
+### Feed Downstream Phases
+
+- Phase C scans the union of (existing stories from Phase A) + (external-dep stories from Phase B) + (drafts from this phase). Drafts identified as `split_candidate: true` here are pre-flagged; Phase C may add more.
+- Phase E's red-team receives the same draft set and re-audits SC coverage at the cross-story level; the two audits are intentionally redundant — decomposition is the constructive step, the red team is the adversarial check.
+- Phase F's Walking Skeleton step uses the `priority` ordering produced here as its starting point.
+- Phase H Step 1 creates tickets from the drafts via `.claude/scripts/dso ticket create`, copying `title`, `description`, `done_definitions`, `considerations`, `depends_on`, `priority`, and `escalation_policy` into the ticket body.
+
+---
+
 ## Phase C: Risk & Scope Scan (/dso:preplanning)
 
-Scan all drafted stories (new and modified) as a batch to flag cross-cutting concerns that individual tasks would be too granular to catch. This is a lightweight analysis — no sub-agent dispatch, no scored review, no revision cycles.
+Scan all drafted stories (new drafts from the Story Decomposition phase, plus modified children from Phase A, plus external-dep stories from Phase B) as a batch to flag cross-cutting concerns that individual tasks would be too granular to catch. This is a lightweight analysis — no sub-agent dispatch, no scored review, no revision cycles.
 
 ### Concern Areas
 
@@ -404,7 +477,7 @@ If no stories in the plan qualify for integration research, log: "No stories wit
 <!-- EMIT-PRECONDITIONS: gate_name=preplanning_adversarial_review degradation_type=unresolved_question -->
 **Trigger**: Phase C completed and the story map has ≥ 3 stories. If fewer, log `"Adversarial review skipped: fewer than 3 stories (<N> stories)."` and proceed directly to Phase F. Skipped entirely under `--lightweight` (lightweight mode does not create stories).
 
-**Load**: `${CLAUDE_PLUGIN_ROOT}/skills/preplanning/prompts/phase-e-adversarial-review.md` and follow it. The phase dispatches `dso:red-team-reviewer` (opus) with `mode: story_review` for cross-story gap analysis, then `dso:blue-team-filter` (sonnet) to triage findings; applies surviving findings per a 5-row Finding Type table (`new_story`, `modify_done_definition`, `add_dependency`, `add_consideration`, `escalate_to_epic`); persists the full red/blue exchange to `$ARTIFACTS_DIR/adversarial-review-<epic-id>.json`; and emits `REPLAN_ESCALATE: brainstorm` when a finding escalates to the epic and `sprint.max_replan_cycles` has not been exhausted.
+**Load**: `${CLAUDE_PLUGIN_ROOT}/skills/preplanning/prompts/phase-e-adversarial-review.md` and follow it. The phase dispatches `dso:red-team-reviewer` (opus, passed explicitly via `model: "opus"`) with `mode: story_review` to (a) audit that every epic Success Criterion is fully covered by the collective story Done Definitions and (b) perform cross-story gap analysis. The red team returns a mandatory `sc_coverage_summary` block plus a `findings` array tagged with the 8-value `taxonomy_category` enum (including `sc_coverage_gap`). `dso:blue-team-filter` (sonnet) then triages the findings; surviving findings are applied per the Finding Type table (`new_story`, `modify_done_definition`, `add_dependency`, `add_consideration`, `escalate_to_epic`); the full exchange — `sc_coverage_summary` + red/blue findings — is persisted to `$ARTIFACTS_DIR/adversarial-review-<epic-id>.json`; and `REPLAN_ESCALATE: brainstorm` is emitted when a finding escalates to the epic and `sprint.max_replan_cycles` has not been exhausted.
 
 ---
 
@@ -533,11 +606,16 @@ If no stories qualify under the trigger conditions above, log: `"No stories with
 For new stories, create the ticket then immediately write the full story body into the ticket file:
 
 ```bash
-# Assemble the story body from earlier phases and create the ticket in one command:
-# - Description: What/Why/Scope from Phase C analysis
-# - Done Definitions: assembled during Phase F
-# - Considerations: flags from Phase C Risk & Scope Scan
-# - Escalation Policy: selected in Phase A Step 2 (omit if Autonomous)
+# Assemble the story body from the Story Decomposition artifact and downstream phases:
+# - Title, Description, Done Definitions, depends_on, priority, escalation_policy:
+#     copied verbatim from the matching draft in story-decomposition-<epic-id>.json
+# - Considerations: merge the draft's `considerations` with any new flags raised by
+#     Phase C (Risk & Scope Scan), Phase D (Integration Research), and Phase E
+#     (Adversarial Review) for this story
+# - Foundation/Enhancement: if Phase F split the draft, the `splitRole` field is set
+#     on the resulting tickets per Phase F Step 4
+# Never assemble the body from session memory — always source from the artifact and
+# the recorded phase outputs (bug class: inline drafting summarized SCs and DDs past).
 
 STORY_ID=$(.claude/scripts/dso ticket create story "As a [persona], [goal]" --parent=<epic-id> --priority=<priority> -d "$(cat <<'DESCRIPTION'
 ## Description
@@ -551,9 +629,15 @@ STORY_ID=$(.claude/scripts/dso ticket create story "As a [persona], [goal]" --pa
 ## Done Definitions
 
 - When this story is complete, <observable outcome 1>
-  ← Satisfies: "<quoted epic criterion>"
+  ← Satisfies: sc-N  (sc-N: "<quoted epic criterion>")
 - When this story is complete, <observable outcome 2>
-  ← Satisfies: "<quoted epic criterion>"
+  ← Satisfies: sc-N  (sc-N: "<quoted epic criterion>")
+
+The `sc-N` form is the stable SC identifier assigned in the Story Decomposition phase
+artifact (story-decomposition-<epic-id>.json) — copy it verbatim from the draft's
+`done_definitions` strings. The parenthetical preserves human-readable context for the
+ticket reader. Machine-parsing downstream (SC contradiction check, completion verifier)
+keys off `sc-N`, not the quoted text.
 
 ## Closure Checks
 - (items routed from verifiable-sc-check.md option (c) — durable end-state intent that is not session-verifiable)
@@ -605,10 +689,15 @@ Format:
 ```
 Done Definitions:
 - When this story is complete, [observable outcome 1]
-  ← Satisfies: "[quoted epic criterion]"
+  ← Satisfies: sc-N  (sc-N: "[quoted epic criterion]")
 - When this story is complete, [observable outcome 2]
-  ← Satisfies: "[quoted epic criterion]"
+  ← Satisfies: sc-N  (sc-N: "[quoted epic criterion]")
 ```
+
+The `sc-N` identifier is assigned by the Story Decomposition phase and recorded
+in the artifact `story-decomposition-<epic-id>.json`. Downstream machine parsing
+(SC contradiction check, completion verifier) keys off `sc-N`; the parenthetical
+quoted text is for human readers only.
 
 For done definitions that link to a `## Closure Checks` item rather than an epic Success Criterion, use the alternate form:
 ```
@@ -622,10 +711,10 @@ Done Definitions:
 - When this story is complete, a user can view all extracted rules
   for a document, mark individual rules as approved or rejected,
   and see a summary count of pending reviews
-  ← Satisfies: "Users can review extracted rules before export"
+  ← Satisfies: sc-3  (sc-3: "Users can review extracted rules before export")
 - When this story is complete, reviewed rules persist across sessions
   and are visible when the user returns to the same document
-  ← Satisfies: "Review state is preserved"
+  ← Satisfies: sc-4  (sc-4: "Review state is preserved")
 ```
 
 Example with Closure Check traceability:
@@ -751,7 +840,7 @@ After all implementation stories are drafted, **decide whether a documentation u
   - **Gate 3 — onboarding/user-facing** → `INSTALL.md`, `README.md`, or `docs/user/`.
   - **Gate 4 — decision rationale** → new ADR in `docs/adr/`.
   - **Gate 5 — strictly every-session, not skill-scoped, not enforceable as a hook, ≤ 2 lines** → CLAUDE.md, **but only as a `CLAUDE_MD_SUGGESTED_CHANGE` report**; the sub-agent must NOT write CLAUDE.md directly. The orchestrator surfaces the report to the user for approval before any CLAUDE.md edit lands.
-- **CLAUDE.md is not a default target.** Authoring a doc story whose primary target is CLAUDE.md is an anti-pattern; the router prefers SKILL.md / reference docs / ADRs and only escalates to CLAUDE.md when Gate 5 strictly holds. See CLAUDE.md Architectural Invariant #2 (bloat criteria a–d).
+- **CLAUDE.md is not a default target.** Authoring a doc story whose primary target is CLAUDE.md is an anti-pattern; the router prefers SKILL.md / reference docs / ADRs and only escalates to CLAUDE.md when Gate 5 strictly holds. See CLAUDE.md `invariant:claude-md-purpose` (bloat criteria a–d).
 - **Depends on**: all implementation stories (runs last).
 - **Title format**: "Update project docs to reflect [epic summary]".
 - **Style guide**: if `.claude/docs/DOCUMENTATION-GUIDE.md` exists, follow it for formatting and structure.
@@ -833,7 +922,7 @@ Then, below the table, display each story's full description so the user can rev
 
 **Done Definitions**:
 - When this story is complete, [outcome 1]
-  ← Satisfies: "[epic criterion]"
+  ← Satisfies: sc-N  (sc-N: "[epic criterion]")
 
 **Considerations**:
 - [Area] concern
@@ -1084,7 +1173,8 @@ After writing the Scope section for each story, verify every "OUT" assertion tha
 |-------|-------------|-------|
 | A: Reconciliation | Load epic; classify complexity (Step 1.5, skipped if `--lightweight`) — SIMPLE → `/dso:implementation-plan`, MODERATE → lightweight, COMPLEX → full; audit children, clarify scope | `.claude/scripts/dso ticket show`, `.claude/scripts/dso ticket deps`, `dso:complexity-evaluator` (haiku, tier_schema=SIMPLE) |
 | B: External Dependencies Reading (flag-gated) | Read epic's External Dependencies block, generate `manual:awaiting_user` stories for `user_manual` entries. Schema: `${CLAUDE_PLUGIN_ROOT}/docs/contracts/external-dependencies-block.md` | `.claude/scripts/dso ticket tag` |
-| C: Risk & Scope Scan | Flag cross-cutting concerns, identify split candidates | Lightweight analysis (no sub-agents) |
+| Story Decomposition | Dispatch `dso:story-decomposer` (opus) to draft new vertical-slice stories with SC-tied DDs; persist artifact; never draft inline | `Task` (opus story-decomposer), `${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh` (`get_artifacts_dir`), `.claude/scripts/dso ticket comment` |
+| C: Risk & Scope Scan | Flag cross-cutting concerns, identify split candidates across the union of existing + external-dep + newly-drafted stories | Lightweight analysis (no sub-agents) |
 | D: Integration Research (pre-slicing) | Verify external integrations via WebSearch | `WebSearch` |
 | E: Adversarial Review | Red team attack on story map, blue team filter findings (skip if < 3 stories) | `Task` (opus red team, sonnet blue team) |
 | Refusal Gate | Halt if externally-shaped SCs lack External Dependencies block coverage | (gate, no tools) |
