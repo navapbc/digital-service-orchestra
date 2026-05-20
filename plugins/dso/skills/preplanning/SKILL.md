@@ -339,6 +339,7 @@ Skip this phase entirely when running under `--lightweight` (lightweight mode do
 
 ### Dispatch
 
+<!-- EMIT-PRECONDITIONS: gate_name=preplanning_story_decomposer_dispatch degradation_type=inferred_decision -->
 Dispatch via `subagent_type: "dso:story-decomposer"` with `model: "opus"` passed explicitly (do not rely on the agent frontmatter default — vertical slicing, INVEST-checking, and SC-coverage decomposition require opus, and the explicit param defends against future routing changes that might silently downgrade). If the named type is unregistered in this session, fall back to `subagent_type: "general-purpose"` with `model: "opus"` and `agents/story-decomposer.md` content read inline as the prompt.
 
 Pass the following as task arguments:
@@ -365,9 +366,11 @@ The agent returns a JSON object with `sc_coverage_plan`, `story_drafts`, and `de
 3. Every SC with verdict `uncovered` or `partial_coverage` is referenced by at least one draft (cross-check: the SC's `sc_id` appears in at least one DD's `← Satisfies: sc-N` annotation, and at least one `draft_id` for that SC is non-empty).
 4. Every draft's `depends_on` references either an existing story id or another `temp_id` in this same response — no dangling references.
 
+<!-- EMIT-PRECONDITIONS: gate_name=preplanning_story_decomposer_model_retry degradation_type=inferred_decision -->
 **On `model_requirement_unmet`**: If the agent returns `{"story_drafts": [], "sc_coverage_plan": [], "error": "model_requirement_unmet"}`, log `"Story decomposer model requirement unmet — re-dispatching with explicit model: opus"` and retry once via the fallback path (`general-purpose` + `model: "opus"` + inline prompt). If the retry also returns `model_requirement_unmet`, HALT preplanning with diagnostic: `"Story decomposition requires opus; configure the environment to allow opus dispatch and re-run /dso:preplanning."` Do NOT fall back to inline drafting.
 
-**On schema validation failure**: HALT preplanning with diagnostic: `"Story decomposer returned malformed output; cannot proceed without verified drafts."` Do NOT fall back to inline drafting — inline drafting is the failure mode this phase exists to prevent.
+**On schema validation failure**: HALT preplanning with diagnostic: `"Story decomposer returned malformed output; cannot proceed without verified drafts."` Do NOT fall back to inline drafting — inline drafting is the failure mode this phase exists to prevent.  <!-- precondition-emit-ok: negation — HALT, no degradation event -->
+<!-- EMIT-PRECONDITIONS landmark above also covers this section per the within-10-lines rule. -->
 
 **Why halt (not skip-and-continue) here, while Phase E falls through to Phase F on failure?** Story decomposition is a **correctness gate**: every subsequent phase consumes its output, and inline orchestrator drafting (the only available fallback) is the bug class this phase was introduced to eliminate. Phase E's adversarial review is a **quality gate** with a defined skip path — losing it degrades coverage but does not break downstream phases. The asymmetry is intentional.
 
