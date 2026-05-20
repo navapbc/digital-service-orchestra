@@ -134,6 +134,97 @@ The umbrella job name `merge-pipeline-checks` is registered in `.github/required
 
 **Cutover handoff to S_migration:** adding the job to `ci.yml` and `required-checks.txt` is a necessary prerequisite, but branch protection enforcement is not live until `provision-ruleset.sh` is run (S_migration phase). The S_migration run adds `merge-pipeline-checks` to the main branch's required status checks. Until that run, the job fires on PRs and reports results, but a failing check does not block merge. After S_migration, failure blocks merge.
 
+## Sub-PR cutover migration runbook
+
+This runbook covers the coordinated deployment of the sub-PR review workflow, cycle-ledger re-keying, and branch-protection updates introduced by the S_migration story. Run these steps in order; each script is idempotent unless stated otherwise.
+
+**Before you start — tag the pre-cutover state:**
+
+```bash
+git tag pre-cutover-sub-pr
+git push origin pre-cutover-sub-pr
+```
+
+This tag is the restore point for the rollback path (see "Rollback" below).
+
+### Step 1 — Migrate cycle-ledger v1.1.0 → v1.2.0
+
+Upgrades the on-disk `cycle-ledger.json` schema. Existing entries that lack a `pr_number` field receive the sentinel value `0` (marks "pre-v1.2.0 origin"). Already-migrated ledgers exit 0 without modification.
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/migrate-ledger-v11-to-v12.sh" \
+     .workflow-plugin-artifacts/cycle-ledger.json
+```
+
+Cross-link: the v1.2.0 grammar and sentinel rule are defined in S2 (`docs/contracts/cycle-ledger.md` under `${CLAUDE_PLUGIN_ROOT}`).
+
+**Idempotency:** safe to re-run. If `schema_version` is already `"1.2.0"`, the script exits 0 with no writes.
+
+### Step 2 — Update required-checks manifest
+
+Adds `review-sub-pr` (S1's per-sub-branch review job) and `merge-pipeline-checks` (S4's umbrella RED-test-blocker job) to `.github/required-checks.txt` when absent. No-op if both entries are already present.
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/update-required-checks-manifest.sh"
+```
+
+Cross-link: `merge-pipeline-checks` and the `red-test-blocker` step are documented in the "merge-pipeline-checks umbrella job" section above (S4). `review-sub-pr` is the per-sub-branch LLM review job introduced by S1.
+
+**Idempotency:** safe to re-run. Only missing entries are appended; no duplicates are created.
+
+### Step 3 — Stage new required checks as non-required (observation window start)
+
+Adds the new check-contexts to the main-branch GitHub Ruleset in **non-required** state so that CI reports pass/fail on open PRs without blocking merges. This begins the observation window.
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/promote-ruleset-required.sh" --stage-as-non-required
+```
+
+**Observation window:** wait at least one week. Monitor CI results on representative PRs before promoting.
+
+### Step 4 — Exempt in-flight PRs from the new required check
+
+Labels all currently-open PRs with `migration-grace` so they are not blocked by the new `review-sub-pr` required check. Also appends an exemption audit record to `docs/migration-exemptions/sub-pr-cutover.jsonl`.
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/exempt-in-flight-prs.sh"
+```
+
+**When to run:** after Step 3 and before promoting to required (Step 5). Running it after Step 5 is also safe — the label bypass is enforced by the `review-sub-pr` job's grace-label check.
+
+**Idempotency:** safe to re-run. PRs that already carry the `migration-grace` label are skipped; the exemption log is always appended for audit purposes.
+
+### Step 5 — Promote required checks to enforced
+
+After the observation window, promotes the staged check-contexts to **required** status on the main-branch Ruleset. From this point forward, PRs without a passing `review-sub-pr` check cannot merge (unless carrying the `migration-grace` label from Step 4).
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/promote-ruleset-required.sh" --promote-to-required
+```
+
+**Idempotency:** safe to re-run if checks are already required.
+
+### Rollback
+
+If the cutover must be reversed, run:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/rollback-sub-pr-cutover.sh"
+```
+
+**What rollback does:**
+
+1. Removes `.github/workflows/review-sub-pr.yml` (reverses the S1 workflow deploy).
+2. Removes the `migration-grace` label from all open PRs.
+3. Reads `cycle-ledger.json` for informational logging only — **does not downgrade** the v1.2.0 schema. The S2 reader handles both v1.1.0 and v1.2.0 entries, so leaving the migrated ledger in place is safe.
+
+**What rollback does NOT do automatically:**
+
+- Does not restore `.github/workflows/ci.yml` or other workflow files — to restore prior workflow state, check out from the pre-cutover tag: `git checkout pre-cutover-sub-pr -- .github/workflows/ci.yml`.
+- Does not demote branch-protection required checks — run `${CLAUDE_PLUGIN_ROOT}/scripts/promote-ruleset-required.sh --stage-as-non-required` (or remove entries from `.github/required-checks.txt` and re-provision the Ruleset) to revert Step 3/5.
+
+**Idempotency:** safe to re-run on an already-rolled-back state.
+
 ## Merge-to-main pipeline
 
 Phases: `sync → merge → version_bump → validate → push → archive → ci_trigger → comment_response`.
