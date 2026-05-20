@@ -453,6 +453,100 @@ test_verify_session_provenance_accepts_both_trailers() {
 }
 ## end S1 trailer grammar fixtures
 
+## S5 version-bump trailer fixtures
+# ── Test 10: version-bump commit with DSO-Story-Merge: trailer → exits 0 ──────
+# Simulates the source-branch bump commit produced by S5.T2's pre-merge phase.
+# The commit subject is a chore(version) bump; the body carries DSO-Story-Merge:
+# so verify-session-provenance.sh must recognize it as provenanced.
+#
+# RED state: before S1.T5's grammar extension lands, the script only accepted
+# ^DSO-Story-Merge: — once S1.T5 adds ^DSO-Story(-Merge)?: both forms pass.
+# This fixture tests that the version-bump commit's DSO-Story-Merge: trailer
+# is recognized by the post-S1.T5 grammar.
+test_verify_session_provenance_version_bump_trailer() {
+    local repo
+    repo="$(setup_git_repo)"
+
+    # base commit on "main"
+    make_commit "$repo" "Initial commit" > /dev/null
+    local base_sha
+    base_sha="$(git -C "$repo" rev-parse HEAD)"
+
+    # Positive fixture: chore(version) bump commit with DSO-Story-Merge: trailer
+    # (mirrors S5.T2's pre-merge source-branch bump commit format)
+    local bump_msg
+    bump_msg="$(printf 'chore(version): bump to 1.18.0\n\nDSO-Story-Merge: 0c55-1103-a14d-431e')"
+    make_commit "$repo" "$bump_msg" > /dev/null
+    local session_head
+    session_head="$(git -C "$repo" rev-parse HEAD)"
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+
+    local exit_code=0
+    DSO_REPO_PATH="$repo" \
+    DSO_BASE_SHA="$base_sha" \
+    DSO_SESSION_HEAD="$session_head" \
+    DSO_ARTIFACT_DIR="$artifact_dir" \
+        bash "$SCRIPT" 2>/dev/null || exit_code=$?
+
+    assert_eq "test_verify_session_provenance_version_bump_trailer: chore(version) bump with DSO-Story-Merge: exits 0" \
+        "0" "$exit_code"
+
+    # Control case: same chore(version) subject but WITHOUT the trailer → exits 1
+    local repo2
+    repo2="$(setup_git_repo)"
+    make_commit "$repo2" "Initial commit" > /dev/null
+    local base_sha2
+    base_sha2="$(git -C "$repo2" rev-parse HEAD)"
+
+    make_commit "$repo2" "chore(version): bump to 1.18.0" > /dev/null
+    local session_head2
+    session_head2="$(git -C "$repo2" rev-parse HEAD)"
+
+    local artifact_dir2
+    artifact_dir2="$(mktemp -d)"
+
+    local exit_code2=0
+    DSO_REPO_PATH="$repo2" \
+    DSO_BASE_SHA="$base_sha2" \
+    DSO_SESSION_HEAD="$session_head2" \
+    DSO_ARTIFACT_DIR="$artifact_dir2" \
+        bash "$SCRIPT" 2>/dev/null || exit_code2=$?
+
+    assert_ne "test_verify_session_provenance_version_bump_trailer: chore(version) bump WITHOUT trailer exits non-zero" \
+        "0" "$exit_code2"
+
+    # Additional fixture: DSO-Story: form (no -Merge) on a version-bump commit → also exits 0
+    local repo3
+    repo3="$(setup_git_repo)"
+    make_commit "$repo3" "Initial commit" > /dev/null
+    local base_sha3
+    base_sha3="$(git -C "$repo3" rev-parse HEAD)"
+
+    local bump_msg_story
+    bump_msg_story="$(printf 'chore(version): bump to 1.18.0\n\nDSO-Story: 0c55-1103-a14d-431e')"
+    make_commit "$repo3" "$bump_msg_story" > /dev/null
+    local session_head3
+    session_head3="$(git -C "$repo3" rev-parse HEAD)"
+
+    local artifact_dir3
+    artifact_dir3="$(mktemp -d)"
+
+    local exit_code3=0
+    DSO_REPO_PATH="$repo3" \
+    DSO_BASE_SHA="$base_sha3" \
+    DSO_SESSION_HEAD="$session_head3" \
+    DSO_ARTIFACT_DIR="$artifact_dir3" \
+        bash "$SCRIPT" 2>/dev/null || exit_code3=$?
+
+    assert_eq "test_verify_session_provenance_version_bump_trailer: chore(version) bump with DSO-Story: exits 0" \
+        "0" "$exit_code3"
+
+    rm -rf "$repo" "$artifact_dir" "$repo2" "$artifact_dir2" "$repo3" "$artifact_dir3"
+}
+## end S5 version-bump trailer fixtures
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 test_script_exists
 test_all_provenanced_exits_zero
@@ -463,5 +557,6 @@ test_squash_merge_dso_story_merge_trailer_accepted
 test_backoff_on_429
 test_unprovenanced_sha_written_to_scope_file
 test_verify_session_provenance_accepts_both_trailers
+test_verify_session_provenance_version_bump_trailer
 
 print_summary

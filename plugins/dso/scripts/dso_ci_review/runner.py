@@ -43,6 +43,7 @@ from dso_ci_review.cycle_ledger import (
     read_ledger as _read_cycle_ledger,
     append_cycle as _append_cycle,
     _resolve_artifacts_dir as _ledger_artifacts_dir,
+    _SENTINEL_PR_NUMBER,
 )
 from dso_ci_review.findings import merge_findings, _parse_line_range
 from dso_ci_review.providers.config import AuthError, ConfigError, get_provider
@@ -161,9 +162,25 @@ def _init_cycle_ledger(
         ledger = reconstruct_from_pr_comments(int(pr_number), repo)
 
     # Derive cycle_number from ledger (ledger is authoritative per cycle_dispatcher).
+    # Filter to cycles belonging to this pr_number. v1.1.0 sentinel entries
+    # (pr_number=_SENTINEL_PR_NUMBER=0) match any pr_number for backward-compat
+    # until superseded by a v1.2.0 entry for that specific pr_number.
     cycles = ledger.get("cycles", [])
-    if cycles and isinstance(cycles, list) and "cycle_num" in cycles[-1]:
-        cycle_number = cycles[-1]["cycle_num"] + 1
+    if pr_number is not None:
+        pr_num_int = int(pr_number)
+        matching = [
+            c
+            for c in cycles
+            if isinstance(c, dict)
+            and (
+                c.get("pr_number") == pr_num_int
+                or c.get("pr_number") == _SENTINEL_PR_NUMBER
+            )
+        ]
+    else:
+        matching = [c for c in cycles if isinstance(c, dict)]
+    if matching and "cycle_num" in matching[-1]:
+        cycle_number = matching[-1]["cycle_num"] + 1
     else:
         cycle_number = int(os.environ.get("DSO_REVIEW_CYCLE", "1"))
 
@@ -1750,8 +1767,18 @@ def main() -> int:
         # SHA change — so this block is skipped on a new commit (desired: no stale
         # defenses from a previous SHA). On a true re-review of the same SHA,
         # cycle_num >= 2 holds, and prior defenses are loaded. No behavioral change needed.
+        #
+        # DSO_SUPPRESS_PRIOR_DEFENSES: when set to "true" (emitted by ci.yml's
+        # "Suppress prior defenses for integration review" step), skip prior-defense
+        # loading entirely even when cycle_number >= 2. This allows the integration
+        # review (session→main PR) to evaluate findings fresh, without sub-PR defenses
+        # suppressing findings that the integration reviewer should see. T10: wired here
+        # so DSO_SUPPRESS_PRIOR_DEFENSES gates cycle_number-based prior-defense loading.
+        _suppress_prior_defenses = (
+            os.environ.get("DSO_SUPPRESS_PRIOR_DEFENSES", "").lower() == "true"
+        )
         prior_defenses: list[dict] = []
-        if cycle_number >= 2:
+        if cycle_number >= 2 and not _suppress_prior_defenses:
             if pr_number:
                 prior_defenses = _fetch_pr_defenses(pr_number)
                 if prior_defenses:
@@ -1760,6 +1787,12 @@ def main() -> int:
                         "prior defense record(s) for dismissal-memory filter",
                         file=sys.stderr,
                     )
+        elif cycle_number >= 2 and _suppress_prior_defenses:
+            print(
+                f"INFO: cycle {cycle_number} — DSO_SUPPRESS_PRIOR_DEFENSES=true: "
+                "prior defenses suppressed for integration review pass",
+                file=sys.stderr,
+            )
 
         # Resolve config_path once for overlay agent construction
         config_path: str | None = None
@@ -2090,6 +2123,7 @@ def main() -> int:
             reviewed_sha,
             _findings_hash_val,
             halt_reason=None,
+            pr_number=_pr_number_for_ledger,
         )
         _post_cycle_marker_comment(
             pr_number=_pr_number_for_ledger,
@@ -2202,19 +2236,26 @@ def main() -> int:
         _exc_class = type(exc).__name__
         _exc_msg = str(exc)[:200]
         # Redact bearer-token / Authorization-header / sk-… style patterns.
-        _exc_msg = re.sub(r"(?i)(bearer|authorization|api[-_]?key|token)[=:\s]+\S+",
-                          r"\1=[REDACTED]", _exc_msg)
+        _exc_msg = re.sub(
+            r"(?i)(bearer|authorization|api[-_]?key|token)[=:\s]+\S+",
+            r"\1=[REDACTED]",
+            _exc_msg,
+        )
         _exc_msg = re.sub(r"\bsk-[A-Za-z0-9_-]{8,}", "sk-[REDACTED]", _exc_msg)
         try:
-            _write_output({
-                "findings": [{
-                    "type": "specialist_error",
-                    "severity": "critical",
-                    "category": "infrastructure",
-                    "description": f"runner exception before Step 8: {_exc_class}: {_exc_msg}",
-                }],
-                "cycle_number": cycle_number,
-            })
+            _write_output(
+                {
+                    "findings": [
+                        {
+                            "type": "specialist_error",
+                            "severity": "critical",
+                            "category": "infrastructure",
+                            "description": f"runner exception before Step 8: {_exc_class}: {_exc_msg}",
+                        }
+                    ],
+                    "cycle_number": cycle_number,
+                }
+            )
         except Exception:  # noqa: BLE001
             pass  # ensure the original failure is not masked by a write error
         return 1

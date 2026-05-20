@@ -38,6 +38,17 @@ if [ -z "${PLUGIN_SCRIPTS:-}" ]; then
     PLUGIN_SCRIPTS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 fi
 
+# ── Worktree-removal guards library ──────────────────────────────────────────
+# Source the guards library from the plugin scripts lib/ directory.
+# PLUGIN_SCRIPTS is already resolved above — never hardcode the plugin path.
+# shellcheck disable=SC1091
+if [ -f "${PLUGIN_SCRIPTS}/lib/worktree-removal-guards.sh" ]; then
+    _GUARDS_SOURCE_ONLY=1 source "${PLUGIN_SCRIPTS}/lib/worktree-removal-guards.sh"
+    _GUARDS_AVAILABLE=1
+else
+    _GUARDS_AVAILABLE=0
+fi
+
 # ── Config helper ─────────────────────────────────────────────────────────────
 # _read_cfg [--list] <key> — read a config value via read-config.sh.
 # When WORKFLOW_CONFIG is set, it is passed as the config-file argument.
@@ -94,6 +105,7 @@ _cleanup_docker_for_worktree() {
 _offer_worktree_cleanup() {
     local wt_name="$1"
     local wt_path="$2"
+    local force_flag="${3:-}"   # optional: "--force" passed through from caller
 
     # Check if stdin is a terminal (interactive session).
     # _CLAUDE_SAFE_TEST_INTERACTIVE=1 bypasses this guard in tests.
@@ -112,6 +124,11 @@ _offer_worktree_cleanup() {
         return
     fi
 
+    # ── Pre-check: merged state + guards ─────────────────────────────────────
+    # Primary gate: check if the branch is merged to main/origin/main AND the
+    # working tree is clean. Only then proceed to removal.
+    # Secondary gate: run assert_worktree_removable for protected-branch and
+    # open-PR guards (uncommitted/unpushed are subsumed by the primary gate).
     local is_merged=0
     if git -C "$main_root" merge-base --is-ancestor "$branch" main 2>/dev/null; then
         is_merged=1
@@ -148,32 +165,7 @@ _offer_worktree_cleanup() {
         can_remove=1
     fi
 
-    # Auto-remove if safe; show blocking details otherwise
-    if [ "$can_remove" -eq 1 ]; then
-        echo ""
-        echo "Cleaning up worktree '$wt_name' (branch merged to main, working tree clean)..."
-
-        # Stop Docker containers/networks for this worktree
-        _cleanup_docker_for_worktree "$wt_name" "$wt_path"
-
-        local removed=0
-        if git -C "$main_root" worktree remove "$wt_path" --force 2>/dev/null; then
-            removed=1
-        fi
-
-        if [ "$removed" -eq 1 ]; then
-            echo "Worktree removed."
-            # Delete local branch
-            git -C "$main_root" branch -d "$branch" 2>/dev/null && echo "Local branch '$branch' deleted." || \
-            git -C "$main_root" branch -D "$branch" 2>/dev/null && echo "Local branch '$branch' deleted." || true
-            # Delete remote branch if it exists
-            if git -C "$main_root" ls-remote --heads origin "$branch" 2>/dev/null | grep -q .; then
-                git -C "$main_root" push origin --delete "$branch" 2>/dev/null && echo "Remote branch 'origin/$branch' deleted." || true
-            fi
-        else
-            echo "Worktree removal failed. Run 'worktree-cleanup.sh' from the main repo."
-        fi
-    else
+    if [ "$can_remove" -eq 0 ]; then
         echo ""
         echo "Worktree '$wt_name' cannot be auto-removed:"
         if [ "$is_merged" -eq 0 ]; then
@@ -188,6 +180,78 @@ _offer_worktree_cleanup() {
         fi
         echo ""
         echo "Run 'worktree-cleanup.sh' from the main repo to manage worktrees."
+        return
+    fi
+
+
+    echo ""
+    echo "Cleaning up worktree '$wt_name' (branch merged to main, working tree clean)..."
+
+    # Stop Docker containers/networks for this worktree
+    _cleanup_docker_for_worktree "$wt_name" "$wt_path"
+
+    # ── Concurrent-claude-safe lock ───────────────────────────────────────────
+    # Acquire a non-blocking flock to prevent two concurrent claude-safe processes
+    # from racing to remove the same worktree. Lockfile is a sibling of the
+    # worktree parent directory so it survives worktree removal.
+    local _wt_parent _lock_file
+    _wt_parent="$(dirname "$wt_path")"
+    _lock_file="${_wt_parent}/.claude-safe.${wt_name}.lock"
+
+    local _toctou_args=()
+    if [ "${_GUARDS_AVAILABLE:-0}" = "1" ]; then
+        _toctou_args=("--worktree-path" "$wt_path" "--branch" "$branch")
+        [ "$force_flag" = "--force" ] && _toctou_args+=("--force")
+    fi
+
+    local removed=0
+    (
+        # Acquire exclusive lock for the TOCTOU re-check + removal sequence.
+        flock -n 9 || {
+            echo "another claude-safe operation in progress on $wt_path" >&2
+            exit 1
+        }
+
+        # TOCTOU window mitigation: claude-safe runs an interactive Claude session
+        # between worktree creation and removal; state (PRs, uncommitted changes)
+        # can change during the session. Re-check immediately before git worktree
+        # remove narrows the window. This pattern is asymmetric with
+        # harvest-worktree.sh (single-check) — see the harvest-worktree.sh
+        # script for the batched-fast-path rationale.
+        if [ "${#_toctou_args[@]}" -gt 0 ]; then
+            if ! assert_worktree_removable "${_toctou_args[@]}" 2>&1; then
+                echo "Worktree '$wt_name' state changed during session; skipping removal." >&2
+                exit 1
+            fi
+        fi
+
+        # Execute worktree removal from the main repo root (cd avoids -C flag
+        # so the exact form 'git worktree remove' is used without intermediate flags).
+        local _remove_ok=0
+        (cd "$main_root" && git worktree remove -- "$wt_path" 2>/dev/null) && _remove_ok=1 || true
+        if [ "$_remove_ok" -eq 0 ]; then
+            # TOCTOU diagnostic: state may have changed between pre-check and removal attempt.
+            # Re-run assert_worktree_removable to surface which guard now fires.
+            if [ "${#_toctou_args[@]}" -gt 0 ]; then
+                assert_worktree_removable "${_toctou_args[@]}" 2>&1 || true
+            fi
+            exit 1
+        fi
+        exit 0
+    ) 9>"$_lock_file" && removed=1 || true
+    rm -f "$_lock_file" 2>/dev/null || true
+
+    if [ "$removed" -eq 1 ]; then
+        echo "Worktree removed."
+        # Delete local branch
+        git -C "$main_root" branch -d "$branch" 2>/dev/null && echo "Local branch '$branch' deleted." || \
+        git -C "$main_root" branch -D "$branch" 2>/dev/null && echo "Local branch '$branch' deleted." || true
+        # Delete remote branch if it exists
+        if git -C "$main_root" ls-remote --heads origin "$branch" 2>/dev/null | grep -q .; then
+            git -C "$main_root" push origin --delete "$branch" 2>/dev/null && echo "Remote branch 'origin/$branch' deleted." || true
+        fi
+    else
+        echo "Worktree removal failed. Run 'worktree-cleanup.sh' from the main repo."
     fi
 }
 

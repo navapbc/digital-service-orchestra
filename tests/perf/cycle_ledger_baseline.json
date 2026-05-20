@@ -1,0 +1,22 @@
+{
+  "captured_at": "2026-05-19T21:07:35Z",
+  "platform": "darwin",
+  "python_version": "3.14.4",
+  "iterations_per_op": 1000,
+  "fixture_entries": 1000,
+  "regression_threshold_pct": 10.0,
+  "append_cycle": {
+    "mean_s": 0.00037010704865679143,
+    "median_s": 0.00034957705065608025,
+    "mean_ms": 0.37010704865679145,
+    "median_ms": 0.34957705065608025,
+    "ops_per_s": 2701.920981049249
+  },
+  "reconstruct_v11": {
+    "mean_s": 0.0015563600030727685,
+    "median_s": 0.0014736166456714274,
+    "mean_ms": 1.5563600030727684,
+    "median_ms": 1.4736166456714275,
+    "ops_per_s": 642.5248644437469
+  }
+}

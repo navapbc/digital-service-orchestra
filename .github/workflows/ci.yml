@@ -1,5 +1,25 @@
 # Digital Service Orchestra (DSO) — Continuous Integration
 # Runs shellcheck, Python linting, and plugin tests.
+#
+# ── merge-pipeline-checks umbrella job ──────────────────────────────────────
+# Job: merge-pipeline-checks
+#   Stable check-context name that branch protection can require by job name.
+#   Runs on every pull_request event targeting session/**, session-**, session_**,
+#   bug-batch/**, or main. The job always reports a result on the stable check-context
+#   name regardless of which inner steps fire (umbrella pattern).
+#
+#   Step: red-test-blocker
+#     Fires only when PR base == main AND head matches a session/** or bug-batch/**
+#     pattern. Invokes plugins/dso/scripts/scan-red-markers.sh with explicit commit
+#     SHAs (not refs, to avoid race conditions with concurrent pushes) captured at
+#     job-start. Fails the umbrella when any RED markers are found in the merged tree.
+#
+#   Override mechanism for intentional RED markers:
+#     scan-red-markers.sh honours '# DEFERRED: <path>:<test_name> reason=<text> ticket=<id>'
+#     header lines in .test-index. When a marker matches a DEFERRED exemption, the scanner
+#     logs "WARN: RED marker ... intentionally deferred (ticket=<id>) — not blocking" and
+#     does NOT exit non-zero. Both blocking and exempt markers are listed in job output.
+#     See plugins/dso/scripts/scan-red-markers.sh for implementation details.
 
 name: CI
 
@@ -549,20 +569,17 @@ jobs:
       - name: Suppress prior defenses for integration review
         if: needs.changes.outputs.code_changed == 'true'
         run: |
-          # Integration review SHOULD suppress TrackerDefenseStore defenses from
+          # Integration review suppresses TrackerDefenseStore defenses from
           # prior review cycles, preventing already-defended findings from being
           # re-flagged in the integration review pass.
           #
-          # NOTE (PR #140 retro-review): the DSO_SUPPRESS_PRIOR_DEFENSES env var
-          # is currently set here and passed to Run LLM review below, but no
-          # consumer in plugins/dso/scripts/dso_ci_review/ or
-          # ci-llm-review-runner.sh reads or acts on the flag — the suppression
-          # contract is documented intent, not implemented behavior. Retaining
-          # the env wiring so the future consumer has a stable interface to
-          # bind against; remove this step + the corresponding env passing if
-          # the suppression feature is dropped.
+          # DSO_SUPPRESS_PRIOR_DEFENSES=true is read by runner.py:
+          # when set, prior defenses are NOT loaded on cycle_number >= 2,
+          # so the integration review sees the full unfiltered finding set
+          # from the session's sub-PR review history. Consumer wired in T10
+          # (story 0aed-4d7a-991d-4f7f).
           echo "DSO_SUPPRESS_PRIOR_DEFENSES=true" >> "$GITHUB_ENV"
-          echo "suppress-prior-defenses: env var set (consumer not yet implemented — see PR #140 review)"
+          echo "suppress-prior-defenses: env var set — runner.py consumer active (T10)"
 
       - name: Run LLM review
         # bug 1624-5fb9: gate removed (was `&& env.INTEGRATION_SCOPE_EMPTY != 'true'`).
@@ -632,3 +649,57 @@ jobs:
           fi
           echo "review liveness: ok ($(jq -r '.findings | length' "$F") findings)"
 
+  # ── Merge-pipeline checks (umbrella) ─────────────────────────────────────
+  # Stable required-check context for branch protection. This job always runs
+  # and always reports a result on the stable "merge-pipeline-checks" name.
+  # The red-test-blocker step fires only when a session branch targets main.
+
+  merge-pipeline-checks:
+    name: merge-pipeline-checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Run on pull_request events targeting session branches or main.
+    if: |
+      github.event_name == 'pull_request' && (
+        github.base_ref == 'main' ||
+        startsWith(github.base_ref, 'session/') ||
+        startsWith(github.base_ref, 'session-') ||
+        startsWith(github.base_ref, 'session_') ||
+        startsWith(github.base_ref, 'bug-batch/')
+      )
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Capture SHAs at job-start into env to avoid race conditions
+      # with concurrent pushes that might update the branch after the
+      # workflow starts (bug a794-e908-6ae8-4516 gap-analysis #3).
+      - name: Capture PR SHAs
+        id: capture-shas
+        run: |
+          echo "BASE_SHA=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_ENV"
+          echo "HEAD_SHA=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_ENV"
+          echo "Captured BASE_SHA=${{ github.event.pull_request.base.sha }}"
+          echo "Captured HEAD_SHA=${{ github.event.pull_request.head.sha }}"
+
+      # red-test-blocker: scan the merged .test-index for RED markers.
+      # Only fires when PR base == main AND head matches a session or bug-batch pattern.
+      # When the conditional does not fire, this step is a no-op success (umbrella
+      # still reports success on the stable check-context name).
+      - name: red-test-blocker
+        if: |
+          github.base_ref == 'main' && (
+            startsWith(github.head_ref, 'session/') ||
+            startsWith(github.head_ref, 'session-') ||
+            startsWith(github.head_ref, 'session_') ||
+            startsWith(github.head_ref, 'bug-batch/')
+          )
+        run: |
+          set -euo pipefail
+          echo "Scanning merged .test-index for RED markers (base=$BASE_SHA head=$HEAD_SHA)"
+          bash plugins/dso/scripts/scan-red-markers.sh "$BASE_SHA" "$HEAD_SHA"
+
+      - name: Job timing report
+        if: always()
+        run: echo "merge-pipeline-checks completed at $(date -u +%Y-%m-%dT%H:%M:%SZ)"

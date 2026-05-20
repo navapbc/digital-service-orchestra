@@ -295,12 +295,17 @@ def _worker_init_ledger(artifacts_dir: str, branch_name: str, commit_sha: str) -
         commit_sha=commit_sha,
     )
     # Write a cycle entry using the assigned cycle_num so we can assert both landed
+    # pr_number=cycle_num picks a synthetic non-sentinel value (each worker gets a
+    # distinct cycle_num assignment, so each gets a distinct pr_number). The
+    # sentinel guard (cycle_ledger._SENTINEL_PR_NUMBER=0) is reserved for legacy
+    # reads; new writes must supply a non-zero pr_number.
     append_cycle(
         path=str(pathlib.Path(artifacts_dir) / "cycle-ledger.json"),
         cycle_num=result["cycle_num"],
         findings_tuples=[],
         commit_sha=commit_sha,
         findings_hash=f"worker-{result['cycle_num']}",
+        pr_number=result["cycle_num"],
     )
 
 
