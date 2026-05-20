@@ -80,12 +80,14 @@ The `## Closure Checks` section was introduced in ticket schema v1.2.0. All exis
 
 ### Migration tooling
 
-Two scripts handle the migration:
+The migration is split across **two surfaces** — ticket-body migration (epics/stories) and source-file consumer migration (plugins/, tests/, docs/):
 
-| Script | Purpose |
-|--------|---------|
-| `${CLAUDE_PLUGIN_ROOT}/scripts/audit-closure-checks-migration.sh` | Dry-run audit — lists all epics/stories missing the `## Closure Checks` section; exits non-zero if any are found |
-| `${CLAUDE_PLUGIN_ROOT}/scripts/migrate-closure-checks.sh` | Bulk migration — adds an empty `## Closure Checks` section to every epic/story that is missing it |
+| Script | Surface | Purpose |
+|--------|---------|---------|
+| `${CLAUDE_PLUGIN_ROOT}/scripts/audit-closure-checks-migration.sh` | Ticket bodies | Dry-run audit — lists all epics/stories missing the `## Closure Checks` section; exits non-zero if any are found |
+| `${CLAUDE_PLUGIN_ROOT}/scripts/migrate-closure-checks.sh` | Ticket bodies | Bulk migration — adds an empty `## Closure Checks` section to every epic/story that is missing it |
+| `${CLAUDE_PLUGIN_ROOT}/scripts/audit-closure-checks-source-consumers.sh` | Source files | Source-file consumer audit — scans `.md`/`.sh`/`.py`/`.yaml`/`.yml` under `plugins/`, `tests/`, `docs/` for Closure Checks references; classifies each match into one of six precedence-ordered buckets and emits a JSON artifact for downstream tooling |
+| `${CLAUDE_PLUGIN_ROOT}/scripts/apply-bucket-recipes.sh` | Source files | Source-file recipe applier — consumes the bucket JSON and applies the bucket-specific recipe (dry-run by default; see "Dry-run policy" below) |
 
 ### Migration procedure
 
@@ -141,7 +143,9 @@ The following tools produce or consume the `## Closure Checks` section:
 |------|------|
 | `dso:completion-verifier` agent (Step 2.5) | Reads items and evaluates each; skips silently when section is absent or empty; invokes `project_closure_hooks` if configured |
 | `${CLAUDE_PLUGIN_ROOT}/scripts/coherence-walk.sh` | Gate in `validate.sh`; flags duplicate content and transitional language markers |
-| `${CLAUDE_PLUGIN_ROOT}/scripts/audit-closure-checks-migration.sh` | Pre-migration audit; lists tickets missing the section |
+| `${CLAUDE_PLUGIN_ROOT}/scripts/audit-closure-checks-migration.sh` | Pre-migration audit (ticket-body surface); lists tickets missing the section |
+| `${CLAUDE_PLUGIN_ROOT}/scripts/audit-closure-checks-source-consumers.sh` | Pre-migration audit (source-file surface); classifies source-file references into six buckets and emits JSON for the recipe applier and follow-on tooling. Wired into `validate.sh` as a soft check (exit 1 — incomplete reconciliation — does not fail validate) |
+| `${CLAUDE_PLUGIN_ROOT}/scripts/apply-bucket-recipes.sh` | Source-file recipe applier; reads the source-audit JSON and applies the bucket-specific recipe. Dry-run by default; `--apply` requires explicit opt-in |
 | SC coverage prompts (`sc-coverage-haiku.md`, `sc-coverage-sonnet.md`, `sc-coverage-opus.md`) | Scoping rule: prompts stop at the `## Closure Checks` heading and do not evaluate its items as success criteria |
 
 ### Boundary rule for SC coverage prompts
@@ -167,3 +171,62 @@ Hook environment variables:
 | `CLOSURE_TIMESTAMP` | ISO-8601 timestamp of the closure event |
 
 Hook output (stdout): `{ "valid": true|false, "reason": "<string>", "severity": "PASS|FAIL|WARN" }`
+
+---
+
+## Source-file consumer audit
+
+The ticket-body audit (`audit-closure-checks-migration.sh`) covers epic and story descriptions in the ticket tracker. A second surface — source code, tests, and documentation — also references the `## Closure Checks` schema (regex section sweeps, alias mentions, parser-driver imports, user-facing copy). Migrating the ticket bodies in isolation leaves the source-file surface unmanaged.
+
+`${CLAUDE_PLUGIN_ROOT}/scripts/audit-closure-checks-source-consumers.sh` closes that gap. It is **read-only**, emits a deterministic JSON artifact at `<host-project>/${CLAUDE_PLUGIN_ROOT}/.audit-output/closure-checks-migration-<timestamp>.json`, and is wired into `validate.sh` as a parallel check.
+
+| Property | Ticket-body audit | Source-file consumer audit |
+|----------|-------------------|----------------------------|
+| Script | `audit-closure-checks-migration.sh` | `audit-closure-checks-source-consumers.sh` |
+| Surface | Epic + story ticket descriptions | `.md`/`.sh`/`.py`/`.yaml`/`.yml` under `plugins/`, `tests/`, `docs/` |
+| Output | Stdout list of tickets missing the section | Stdout list of files with at least one match + JSON artifact with bucket counts and per-match metadata |
+| Exit codes | Non-zero if any tickets are missing the section | 0 = convergent, 1 = `RECONCILIATION_INCOMPLETE`, 2 = error |
+| `validate.sh` integration | Indirect (via `coherence-walk.sh`) | Direct (soft check; exit 1 → PASS, exit 2 → FAIL) |
+| Idempotent / reproducible? | Yes | Yes when reconciliation converges; the steady-state full-bucket comparison contract (below) is the verification |
+
+### Steady-state contract
+
+Two consecutive runs against an unchanged tree produce **identical** counts across all 8 numeric fields:
+
+- 6 bucket counts (`migration-in-progress`, `test-asserting-on-structure`, `semantic-consumer`, `user-facing-copy`, `section-name-reference`, `file-path-reference`)
+- `unbucketed_matches` count
+- `dynamic_load_count`
+
+If two runs disagree on any of those fields the audit MUST set `reconciliation_status: "incomplete"` and emit the `RECONCILIATION_INCOMPLETE` block on stdout. Downstream tooling (the recipe applier, manual review prompts) treats `incomplete` as a non-blocking signal — work continues, but the residual is surfaced for human attention.
+
+The JSON envelope schema is documented in `${CLAUDE_PLUGIN_ROOT}/docs/contracts/closure-checks-source-audit-output.md`.
+
+---
+
+## Bucket recipes
+
+The source-file audit classifies each match into one of six precedence-ordered buckets. Each bucket has a corresponding **recipe** — the bulk migration action that `apply-bucket-recipes.sh` performs when the bucket is targeted. Precedence is top-down (most specific first); a single match lands in exactly one bucket.
+
+| # | Bucket | Recipe (high level) |
+|---|--------|--------------------|
+| 1 | `migration-in-progress` | File is currently being migrated (file-level `MIGRATION-IN-PROGRESS` marker or `migrate-*.sh` filename). Skip — the migrating tool owns the rewrite. |
+| 2 | `test-asserting-on-structure` | Test file asserts on the section's literal presence/absence. Recipe: leave the assertion in place; if the assertion is checking schema-v1.1.0 absence, retarget to the v1.2.0 schema sentinel. |
+| 3 | `semantic-consumer` | Code parses/extracts/generates from the section (regex, parser, walker). Recipe: route through a shared helper that respects the v1.2.0 schema and degrades gracefully when the section is absent. |
+| 4 | `user-facing-copy` | The literal appears in a user-facing message (`print`/`echo`/`logger.*` calls, or markdown prose with `Error:`/`Note:`/imperative-prefixed lines). Recipe: leave the copy unchanged; humans read it. |
+| 5 | `section-name-reference` | A literal `## Closure Checks` heading appears in a markdown file (documentation, ADR, design note). Recipe: leave the heading; update surrounding prose only if it asserts pre-migration state. |
+| 6 | `file-path-reference` | A line mentions a known schema-consumer file (`migrate-closure-checks.sh`, `coherence-walk.sh`, etc.) without parsing or asserting. Recipe: validate the path is still correct; rewrite if the file has moved. |
+
+The recipe applier itself (`apply-bucket-recipes.sh`) is created and tested by a **separate parallel task** (T3 of story 7e2c-2f4c-cd95-4e60). This document defines the contract; the implementation lives in that task.
+
+---
+
+## Dry-run policy
+
+Any `validate.sh` integration that invokes a Closure-Checks migration tool MUST default to **dry-run** (read-only / no file mutations). This applies to:
+
+- `audit-closure-checks-source-consumers.sh` — already read-only by design; wired into `validate.sh` as a parallel check.
+- `apply-bucket-recipes.sh` — defaults to `--dry-run`; `--apply` is an explicit opt-in that MUST NOT be passed from `validate.sh` or any pre-commit hook.
+
+Rationale: `validate.sh` runs on every commit attempt and inside CI. Auto-applying a bulk migration as part of a routine validation pass would mutate the working tree without an explicit migration ticket and without giving a human the chance to review the bucket assignments. The recipe applier exists for **explicit human-driven migration runs**, not for ambient enforcement.
+
+Enforcement: `tests/scripts/test-validate-source-audit-integration.sh` asserts that `validate.sh` does not contain `apply-bucket-recipes` or a `--apply` flag anywhere in its source.
