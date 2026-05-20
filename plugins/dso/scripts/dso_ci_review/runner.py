@@ -1271,7 +1271,7 @@ def _classify_tier_via_bash(
 
 
 _TIER_MODEL_DEFAULTS: dict[str, str] = {
-    "light": "claude-haiku-4-5-20251001",
+    "light": "claude-haiku-4-5",
     "standard": "claude-sonnet-4-6",
     "deep": "claude-sonnet-4-6",
     "deep-arch": "claude-opus-4-7",

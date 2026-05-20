@@ -4,7 +4,7 @@
 # IDs in plugins/dso/ source files.
 #
 # Tests:
-#  1. test_detects_haiku_model_id   — file with claude-haiku-4-5-20251001 → exit != 0
+#  1. test_detects_haiku_model_id   — file with claude-haiku-4-5 → exit != 0
 #  2. test_detects_sonnet_model_id  — file with claude-sonnet-4-6 → exit != 0
 #  3. test_excludes_dso_config_conf — dso-config.conf excluded from scan → exit 0
 #  4. test_excludes_test_index      — .test-index excluded from scan → exit 0
@@ -44,7 +44,7 @@ _make_tmpdir() {
 }
 
 # ── test_detects_haiku_model_id ───────────────────────────────────────────────
-# A file inside plugins/dso/ containing a hardcoded claude-haiku-4-5-20251001
+# A file inside plugins/dso/ containing a hardcoded claude-haiku-4-5
 # model ID must cause the script to exit non-zero and report the violation.
 test_detects_haiku_model_id() {
     _snapshot_fail
@@ -52,7 +52,7 @@ test_detects_haiku_model_id() {
     _dir=$(_make_tmpdir)
     mkdir -p "$_dir/plugins/dso/evals"
     _file="$_dir/plugins/dso/evals/my-eval.yaml"
-    printf 'provider: anthropic:messages:claude-haiku-4-5-20251001\nmodel: claude-haiku-4-5-20251001\n' > "$_file"
+    printf 'provider: anthropic:messages:claude-haiku-4-5\nmodel: claude-haiku-4-5\n' > "$_file"
     _exit=0
     _out=$(bash "$SCRIPT" --scan-dir "$_dir/plugins/dso" "$_file" 2>&1) || _exit=$?
     assert_ne "test_detects_haiku_model_id: exit non-zero for hardcoded haiku model ID" "0" "$_exit"
@@ -87,7 +87,7 @@ test_excludes_dso_config_conf() {
     # name-based exclusion, not just filesystem boundary.
     mkdir -p "$_dir/plugins/dso/.claude"
     _file="$_dir/plugins/dso/.claude/dso-config.conf"
-    printf 'model.haiku=claude-haiku-4-5-20251001\nmodel.sonnet=claude-sonnet-4-6\n' > "$_file"
+    printf 'model.haiku=claude-haiku-4-5\nmodel.sonnet=claude-sonnet-4-6\n' > "$_file"
     _exit=0
     _out=$(bash "$SCRIPT" --scan-dir "$_dir/plugins/dso" 2>&1) || _exit=$?
     assert_eq "test_excludes_dso_config_conf: dso-config.conf does not trigger violation" "0" "$_exit"
@@ -111,7 +111,7 @@ test_excludes_test_index() {
     mkdir -p "$_dir/plugins/dso"
     _file="$_dir/plugins/dso/.test-index"
     printf '# Model ID references for TDD tracking\nplugins/dso/evals:tests/scripts/test-model-id-lint.sh\n' > "$_file"
-    printf 'provider: claude-haiku-4-5-20251001\n' >> "$_file"
+    printf 'provider: claude-haiku-4-5\n' >> "$_file"
     _exit=0
     _out=$(bash "$SCRIPT" --scan-dir "$_dir/plugins/dso" 2>&1) || _exit=$?
     assert_eq "test_excludes_test_index: .test-index does not trigger violation" "0" "$_exit"
@@ -130,7 +130,7 @@ test_excludes_tests_dir() {
     # that files outside --scan-dir are not found.
     mkdir -p "$_dir/plugins/dso/tests/fixtures"
     _file="$_dir/plugins/dso/tests/fixtures/eval-fixture.yaml"
-    printf 'model: claude-sonnet-4-6\nprovider: claude-haiku-4-5-20251001\n' > "$_file"
+    printf 'model: claude-sonnet-4-6\nprovider: claude-haiku-4-5\n' > "$_file"
     _exit=0
     _out=$(bash "$SCRIPT" --scan-dir "$_dir/plugins/dso" 2>&1) || _exit=$?
     assert_eq "test_excludes_tests_dir: tests/ directory does not trigger violation" "0" "$_exit"

@@ -872,7 +872,7 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 | **Description** | GitHub check name for the PR-side LLM review CI job. Dual-consistency requirement: this value MUST match both (1) the `required_status_checks` value in the GitHub Ruleset for `session-*` branches, and (2) the expected check name asserted by Phase A preflight (`check-ruleset-preflight.sh`). When unset, `check-ruleset-preflight.sh` falls back to `Sprint Story Review`. Note: `per-branch-review.yml` was removed in story 20d7-09d6; `ci.yml`'s `llm-review` job is now the sole PR-side consumer. |
 | **Accepted values** | Non-empty string. Must match the literal check name produced by GitHub Actions (no shell-quoting, no leading/trailing whitespace). |
 | **Default** | `Sprint Story Review` |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/sprint/check-ruleset-preflight.sh` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/sprint/check-ruleset-preflight.sh` | # shim-exempt: internal implementation reference in config documentation
 
 ---
 
@@ -883,7 +883,7 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 | **Description** | Maximum number of LLM dispatch attempts the schema-correction retry loop makes when `_validate_findings_schema()` returns `schema_fail`. A value of `0` disables correction dispatch entirely — a synthetic `schema_error` finding is appended instead. Negative values are clamped to `0`. Values above the ceiling (`3`) are clamped to `3` with a warning emitted to stderr. Disambiguate from `review.max_cycles`, which controls the autonomous fix/defend loop in REVIEW-WORKFLOW.md — this key controls only the schema-correction sub-loop within runner.py. These loops are independent: schema-correction runs within a single review pass; resolution runs across review cycles. |
 | **Accepted values** | Non-negative integer (0 = disable, 1–3 = enabled; values > 3 are clamped to 3 at read time with a stderr warning — not rejected at parse time) |
 | **Default** | `1` |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/runner.py` (`get_schema_correction_max_attempts()`, `_clamp_schema_correction_attempts()`) |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/runner.py` (`get_schema_correction_max_attempts()`, `_clamp_schema_correction_attempts()`) | # shim-exempt: internal implementation reference in config documentation
 
 ---
 
@@ -971,7 +971,7 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 | **Description** | LOC threshold above which a multi-file diff is partitioned into per-directory clusters by the region-split fallback (Strategy E) in `dso_ci_review.region_split`. Below this threshold the diff is reviewed monolithically. The default targets ~7-10% of Sonnet 4.6's diff-content budget after system prompt + finding schema + PR metadata overhead, leaving ample headroom for prompt growth. Single-file diffs are NEVER region-split regardless of this value (file-atomicity invariant — bug 532e-6ab7). Projects on smaller-context models should lower this; projects on 1M-context Sonnet can safely raise it. |
 | **Accepted values** | Positive integer. Non-numeric values fall back to default. |
 | **Default** | `3000` |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/region_split.py` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/region_split.py` | # shim-exempt: internal implementation reference in config documentation
 
 ---
 
@@ -982,7 +982,7 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 | **Description** | File-count threshold above which a diff is region-split. Triggers when the diff touches more than this many files. Distinct from `loc_threshold` — captures the case of many small files (e.g., a repo-wide rename) where per-cluster parallelism beats one monolithic review. Single-file diffs are NEVER region-split regardless of this value. |
 | **Accepted values** | Positive integer. Non-numeric values fall back to default. |
 | **Default** | `40` |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/region_split.py` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/region_split.py` | # shim-exempt: internal implementation reference in config documentation
 
 ---
 
@@ -993,7 +993,7 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 | **Description** | Maximum number of clusters dispatched in parallel by region-split. When the directory count exceeds this value, smallest clusters beyond the top `max_clusters - 1` are merged into an "overflow" cluster. Bounds wall-clock cost of N specialist API calls — not a context-window concern. |
 | **Accepted values** | Positive integer ≥ 1. Non-numeric values fall back to default. |
 | **Default** | `5` |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/region_split.py` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/region_split.py` | # shim-exempt: internal implementation reference in config documentation
 
 ---
 
@@ -1676,7 +1676,7 @@ ticket.display_mode=alias
 | | |
 |---|---|
 | **Description** | Canonical model ID for the haiku agent tier. Used by `resolve-model-id.sh` to look up the model string passed to Agent/Task dispatches. Override to pin to a specific model version or substitute a different model for the haiku tier. |
-| **Accepted values** | Anthropic model ID string (e.g., `claude-haiku-4-5-20251001`) |
+| **Accepted values** | Anthropic model ID string (e.g., `claude-haiku-4-5`) |
 | **Default** | No built-in default — **required** when any haiku-tier agent is dispatched |
 | **Used by** | `scripts/resolve-model-id.sh`, `scripts/enrich-file-impact.sh`, `scripts/semantic-conflict-check.py` | # shim-exempt: internal implementation references in config documentation
 
@@ -1698,7 +1698,7 @@ ticket.display_mode=alias
 | | |
 |---|---|
 | **Description** | Canonical model ID for the opus agent tier. Used by `resolve-model-id.sh` to look up the model string passed to Agent/Task dispatches. Override to pin to a specific model version or substitute a different model for the opus tier. |
-| **Accepted values** | Anthropic model ID string (e.g., `claude-opus-4-6`) |
+| **Accepted values** | Anthropic model ID string (e.g., `claude-opus-4-7`) |
 | **Default** | No built-in default — **required** when any opus-tier agent is dispatched |
 | **Used by** | `scripts/resolve-model-id.sh` | # shim-exempt: internal implementation reference in config documentation
 
@@ -1722,7 +1722,7 @@ ticket.display_mode=alias
 |---|---|
 | **Description** | Model ID used for light-tier CI review (when `dso_ci_review.runner` is invoked with `tier=light`). |
 | **Accepted values** | Provider model ID string |
-| **Default** | `claude-haiku-4-5-20251001` (Anthropic) / `gpt-5.4-nano` (OpenAI) |
+| **Default** | `claude-haiku-4-5` (Anthropic) / `gpt-5.4-nano` (OpenAI) |
 | **Used by** | `python3 -m dso_ci_review.runner` (via `DSO_CI_REVIEW_MODEL` env var) | # shim-exempt: internal implementation reference in config documentation
 
 ---

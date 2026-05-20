@@ -12,7 +12,7 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_MODEL = "claude-haiku-4-5-20251001"
+_DEFAULT_MODEL = "claude-haiku-4-5"
 _SYSTEM_PROMPT = (
     "You are a code reviewer. Analyze the provided diff and return a JSON object "
     'with a single key "findings" whose value is a list of finding objects. '
@@ -50,7 +50,7 @@ def review_diff(diff_text: str, model: str = _DEFAULT_MODEL) -> dict[str, Any]:
 
     Args:
         diff_text: The unified diff to review.
-        model: LiteLLM model identifier (default: claude-haiku-4-5-20251001).
+        model: LiteLLM model identifier (default: claude-haiku-4-5).
 
     Returns:
         A dict with a ``"findings"`` key containing a list of finding dicts.

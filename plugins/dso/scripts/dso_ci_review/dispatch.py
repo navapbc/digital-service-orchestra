@@ -138,9 +138,9 @@ def _validate_agent_files(required_ids: list[str] | None = None) -> None:
 # Default per-provider model identifiers (primary → context escalation chain)
 _DEFAULT_CONTEXT_CHAIN: dict[str, list[str]] = {
     "anthropic": [
-        "claude-haiku-4-5-20251001",
-        "claude-sonnet-4-5",
-        "claude-opus-4-5",
+        "claude-haiku-4-5",
+        "claude-sonnet-4-6",
+        "claude-opus-4-7",
     ],
     "openai": [
         "openai/gpt-4o-mini",
@@ -156,7 +156,7 @@ _PROVIDER_API_KEY: dict[str, str] = {
 
 # Map provider name → default primary model
 _PROVIDER_DEFAULT_MODEL: dict[str, str] = {
-    "anthropic": "claude-haiku-4-5-20251001",
+    "anthropic": "claude-haiku-4-5",
     "openai": "openai/gpt-4o-mini",
 }
 

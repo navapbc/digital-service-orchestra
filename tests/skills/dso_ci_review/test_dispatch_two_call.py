@@ -127,7 +127,7 @@ def test_call1_receives_index_not_defense_text():
             provider_chain=["anthropic"],
             environ={"ANTHROPIC_API_KEY": "test-key"},
             agent_id="code-reviewer-standard",
-            primary_model="claude-haiku-4-5-20251001",
+            primary_model="claude-haiku-4-5",
         )
 
     # Assert LLM was called exactly twice
@@ -214,7 +214,7 @@ def test_call2_receives_call1_output():
             provider_chain=["anthropic"],
             environ={"ANTHROPIC_API_KEY": "test-key"},
             agent_id="code-reviewer-standard",
-            primary_model="claude-haiku-4-5-20251001",
+            primary_model="claude-haiku-4-5",
         )
 
     # Call 2 must receive Call 1's output

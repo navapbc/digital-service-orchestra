@@ -27,6 +27,7 @@
 # on re-source, preventing re-execution and keeping the count accurate.
 : "${_MS_LOAD_COUNT:=0}"
 if [[ "${_MERGE_STATE_LOADED:-}" == "1" ]]; then
+    # shellcheck disable=SC2317  # `|| true` is reached when `return 0` is not valid (file run as script, not sourced)
     return 0 2>/dev/null || true
 fi
 _MERGE_STATE_LOADED=1

@@ -34,7 +34,7 @@ _make_config_with_haiku() {
 version=1.0.0
 model.haiku=${model_id}
 model.sonnet=claude-sonnet-4-6-20260320
-model.opus=claude-opus-4-6
+model.opus=claude-opus-4-7
 CONF
     printf '%s\n' "$cfg"
 }
@@ -89,8 +89,8 @@ BASHEOF
 # running enrich-file-impact.sh --dry-run must emit a string containing that
 # sentinel model ID — not the hardcoded model string.
 #
-# RED state: enrich-file-impact.sh hardcodes MODEL="claude-haiku-4-5-20251001"
-# so the dry-run output will contain "claude-haiku-4-5-20251001", not our sentinel.
+# RED state: enrich-file-impact.sh hardcodes MODEL="claude-haiku-4-5"
+# so the dry-run output will contain "claude-haiku-4-5", not our sentinel.
 # The test will FAIL in RED because the output won't match "test-sentinel-haiku-id".
 
 echo ""
@@ -123,7 +123,7 @@ assert_eq "test_enrich_file_impact_uses_config_model_id: dry-run output contains
 
 # Negative check: ensure it does NOT use the old hardcoded ID
 enrich_has_hardcoded=""
-[[ "$enrich_output" == *"claude-haiku-4-5-20251001"* ]] && enrich_has_hardcoded="yes"
+[[ "$enrich_output" == *"claude-haiku-4-5"* ]] && enrich_has_hardcoded="yes"
 assert_eq "test_enrich_file_impact_uses_config_model_id: dry-run output does NOT contain hardcoded model ID" \
     "" "$enrich_has_hardcoded"
 
