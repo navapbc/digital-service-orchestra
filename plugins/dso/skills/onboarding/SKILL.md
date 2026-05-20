@@ -1286,9 +1286,9 @@ Install the DSO git pre-commit hooks (`pre-commit-test-gate.sh` and `pre-commit-
    ```bash
    HOOKS_DIR="$REPO_ROOT/.husky"
    grep -qF 'pre-commit-test-gate' "$HOOKS_DIR/pre-commit" 2>/dev/null || \
-     echo 'bash "${CLAUDE_PLUGIN_ROOT}/hooks/dispatchers/pre-commit-test-gate.sh"' >> "$HOOKS_DIR/pre-commit"
+     echo 'bash "${CLAUDE_PLUGIN_ROOT}/hooks/pre-commit-test-gate.sh"' >> "$HOOKS_DIR/pre-commit"
    grep -qF 'pre-commit-review-gate' "$HOOKS_DIR/pre-commit" 2>/dev/null || \
-     echo 'bash "${CLAUDE_PLUGIN_ROOT}/hooks/dispatchers/pre-commit-review-gate.sh"' >> "$HOOKS_DIR/pre-commit"
+     echo 'bash "${CLAUDE_PLUGIN_ROOT}/hooks/pre-commit-review-gate.sh"' >> "$HOOKS_DIR/pre-commit"
    ```
 
 2. **pre-commit framework** — if `.pre-commit-config.yaml` exists, add DSO hooks as local hooks in the config.
@@ -1297,8 +1297,8 @@ Install the DSO git pre-commit hooks (`pre-commit-test-gate.sh` and `pre-commit-
    ```bash
    GIT_COMMON_DIR=$(git rev-parse --git-common-dir)
    HOOKS_DIR="$GIT_COMMON_DIR/hooks"
-   cp "${CLAUDE_PLUGIN_ROOT}/hooks/dispatchers/pre-commit-test-gate.sh" "$HOOKS_DIR/pre-commit-test-gate"
-   cp "${CLAUDE_PLUGIN_ROOT}/hooks/dispatchers/pre-commit-review-gate.sh" "$HOOKS_DIR/pre-commit-review-gate"
+   cp "${CLAUDE_PLUGIN_ROOT}/hooks/pre-commit-test-gate.sh" "$HOOKS_DIR/pre-commit-test-gate"
+   cp "${CLAUDE_PLUGIN_ROOT}/hooks/pre-commit-review-gate.sh" "$HOOKS_DIR/pre-commit-review-gate"
    # Ensure the pre-commit hook calls both
    PRECOMMIT_HOOK="$HOOKS_DIR/pre-commit"
    if [[ ! -f "$PRECOMMIT_HOOK" ]]; then

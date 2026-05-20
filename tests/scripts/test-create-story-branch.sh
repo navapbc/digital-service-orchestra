@@ -82,22 +82,35 @@ else
     (( FAIL++ ))
 fi
 
-# ── Test 4: stdout contains STORY_BRANCH=story/<epic>/<story> ───────────────
+# ── Test 4: stdout is the bare branch name; stderr carries the STORY_BRANCH= log ───
 # Given: a fresh git repo and valid args
 # When:  create-story-branch.sh my-epic my-story is invoked
-# Then:  stdout includes the line STORY_BRANCH=story/my-epic/my-story
-echo "Test 4: stdout contains STORY_BRANCH=story/my-epic/my-story"
+# Then:  stdout contains exactly "story/my-epic/my-story" (consumable via $(...))
+#        and stderr contains "STORY_BRANCH=story/my-epic/my-story" (human-readable log)
+echo "Test 4: stdout=bare branch name; stderr=STORY_BRANCH= log line"
 SCRATCH4=$(
     _make_scratch_repo
 )
-t4_output=""
-t4_output=$( cd "$SCRATCH4" && bash "$SCRIPT" my-epic my-story 2>/dev/null ) || true
-if echo "$t4_output" | grep -qF "STORY_BRANCH=story/my-epic/my-story"; then
-    echo "  PASS: stdout contains STORY_BRANCH=story/my-epic/my-story"
+t4_stderr_file=$(mktemp /tmp/test-create-story-branch-t4.XXXXXX)
+t4_stdout=""
+t4_stdout=$( cd "$SCRATCH4" && bash "$SCRIPT" my-epic my-story 2>"$t4_stderr_file" ) || true
+t4_stderr=$(cat "$t4_stderr_file")
+rm -f "$t4_stderr_file"
+if [ "$t4_stdout" = "story/my-epic/my-story" ]; then
+    echo "  PASS: stdout is the bare branch name 'story/my-epic/my-story'"
     (( PASS++ ))
 else
-    echo "  FAIL: stdout did not contain STORY_BRANCH=story/my-epic/my-story" >&2
-    echo "  Actual output: $t4_output" >&2
+    echo "  FAIL: stdout was not the bare branch name" >&2
+    echo "  Expected: story/my-epic/my-story" >&2
+    echo "  Actual:   $t4_stdout" >&2
+    (( FAIL++ ))
+fi
+if echo "$t4_stderr" | grep -qF "STORY_BRANCH=story/my-epic/my-story"; then
+    echo "  PASS: stderr contains STORY_BRANCH=story/my-epic/my-story"
+    (( PASS++ ))
+else
+    echo "  FAIL: stderr did not contain STORY_BRANCH=story/my-epic/my-story" >&2
+    echo "  Actual stderr: $t4_stderr" >&2
     (( FAIL++ ))
 fi
 
@@ -165,9 +178,14 @@ echo "--- Test: --prefix creates debug/ branch ---"
 test_create_story_branch_custom_prefix() {
     local _repo
     _repo=$(_make_scratch_repo)
-    local output
-    output=$(cd "$_repo" && bash "$SCRIPT" epic-001 story-002 --prefix debug 2>&1)
+    local _stderr_file
+    _stderr_file=$(mktemp /tmp/test-create-story-branch-cp.XXXXXX)
+    local _stdout
+    _stdout=$(cd "$_repo" && bash "$SCRIPT" epic-001 story-002 --prefix debug 2>"$_stderr_file")
     local exit_code=$?
+    local _stderr
+    _stderr=$(cat "$_stderr_file")
+    rm -f "$_stderr_file"
     if [ "$exit_code" -eq 0 ]; then
         echo "  PASS: test_create_story_branch_custom_prefix: exit code 0"
         (( PASS++ ))
@@ -175,12 +193,21 @@ test_create_story_branch_custom_prefix() {
         echo "  FAIL: test_create_story_branch_custom_prefix: expected exit 0, got $exit_code" >&2
         (( FAIL++ ))
     fi
-    if echo "$output" | grep -qF "STORY_BRANCH=debug/epic-001/story-002"; then
-        echo "  PASS: test_create_story_branch_custom_prefix: output contains debug prefix"
+    if [ "$_stdout" = "debug/epic-001/story-002" ]; then
+        echo "  PASS: test_create_story_branch_custom_prefix: stdout is bare branch 'debug/epic-001/story-002'"
         (( PASS++ ))
     else
-        echo "  FAIL: test_create_story_branch_custom_prefix: expected STORY_BRANCH=debug/epic-001/story-002 in output" >&2
-        echo "  Actual output: $output" >&2
+        echo "  FAIL: test_create_story_branch_custom_prefix: stdout was not the bare branch name" >&2
+        echo "  Expected: debug/epic-001/story-002" >&2
+        echo "  Actual:   $_stdout" >&2
+        (( FAIL++ ))
+    fi
+    if echo "$_stderr" | grep -qF "STORY_BRANCH=debug/epic-001/story-002"; then
+        echo "  PASS: test_create_story_branch_custom_prefix: stderr contains STORY_BRANCH=debug/epic-001/story-002"
+        (( PASS++ ))
+    else
+        echo "  FAIL: test_create_story_branch_custom_prefix: expected STORY_BRANCH=debug/epic-001/story-002 in stderr" >&2
+        echo "  Actual stderr: $_stderr" >&2
         (( FAIL++ ))
     fi
 }
@@ -195,9 +222,14 @@ echo "--- Test: no --prefix uses story/ default ---"
 test_create_story_branch_prefix_default() {
     local _repo
     _repo=$(_make_scratch_repo)
-    local output
-    output=$(cd "$_repo" && bash "$SCRIPT" epic-001 story-002 2>&1)
+    local _stderr_file
+    _stderr_file=$(mktemp /tmp/test-create-story-branch-pd.XXXXXX)
+    local _stdout
+    _stdout=$(cd "$_repo" && bash "$SCRIPT" epic-001 story-002 2>"$_stderr_file")
     local exit_code=$?
+    local _stderr
+    _stderr=$(cat "$_stderr_file")
+    rm -f "$_stderr_file"
     if [ "$exit_code" -eq 0 ]; then
         echo "  PASS: test_create_story_branch_prefix_default: exit code 0"
         (( PASS++ ))
@@ -205,12 +237,21 @@ test_create_story_branch_prefix_default() {
         echo "  FAIL: test_create_story_branch_prefix_default: expected exit 0, got $exit_code" >&2
         (( FAIL++ ))
     fi
-    if echo "$output" | grep -qF "STORY_BRANCH=story/epic-001/story-002"; then
-        echo "  PASS: test_create_story_branch_prefix_default: output uses story prefix"
+    if [ "$_stdout" = "story/epic-001/story-002" ]; then
+        echo "  PASS: test_create_story_branch_prefix_default: stdout is bare branch 'story/epic-001/story-002'"
         (( PASS++ ))
     else
-        echo "  FAIL: test_create_story_branch_prefix_default: expected STORY_BRANCH=story/epic-001/story-002 in output" >&2
-        echo "  Actual output: $output" >&2
+        echo "  FAIL: test_create_story_branch_prefix_default: stdout was not the bare branch name" >&2
+        echo "  Expected: story/epic-001/story-002" >&2
+        echo "  Actual:   $_stdout" >&2
+        (( FAIL++ ))
+    fi
+    if echo "$_stderr" | grep -qF "STORY_BRANCH=story/epic-001/story-002"; then
+        echo "  PASS: test_create_story_branch_prefix_default: stderr contains STORY_BRANCH=story/epic-001/story-002"
+        (( PASS++ ))
+    else
+        echo "  FAIL: test_create_story_branch_prefix_default: expected STORY_BRANCH=story/epic-001/story-002 in stderr" >&2
+        echo "  Actual stderr: $_stderr" >&2
         (( FAIL++ ))
     fi
 }
@@ -225,9 +266,14 @@ echo "--- Test: --prefix leading position in args ---"
 test_create_story_branch_prefix_anywhere() {
     local _repo
     _repo=$(_make_scratch_repo)
-    local output
-    output=$(cd "$_repo" && bash "$SCRIPT" --prefix debug epic-001 story-002 2>&1)
+    local _stderr_file
+    _stderr_file=$(mktemp /tmp/test-create-story-branch-pa.XXXXXX)
+    local _stdout
+    _stdout=$(cd "$_repo" && bash "$SCRIPT" --prefix debug epic-001 story-002 2>"$_stderr_file")
     local exit_code=$?
+    local _stderr
+    _stderr=$(cat "$_stderr_file")
+    rm -f "$_stderr_file"
     if [ "$exit_code" -eq 0 ]; then
         echo "  PASS: test_create_story_branch_prefix_anywhere: exit code 0"
         (( PASS++ ))
@@ -235,12 +281,21 @@ test_create_story_branch_prefix_anywhere() {
         echo "  FAIL: test_create_story_branch_prefix_anywhere: expected exit 0, got $exit_code" >&2
         (( FAIL++ ))
     fi
-    if echo "$output" | grep -qF "STORY_BRANCH=debug/epic-001/story-002"; then
-        echo "  PASS: test_create_story_branch_prefix_anywhere: output contains debug prefix"
+    if [ "$_stdout" = "debug/epic-001/story-002" ]; then
+        echo "  PASS: test_create_story_branch_prefix_anywhere: stdout is bare branch 'debug/epic-001/story-002'"
         (( PASS++ ))
     else
-        echo "  FAIL: test_create_story_branch_prefix_anywhere: expected STORY_BRANCH=debug/epic-001/story-002 in output" >&2
-        echo "  Actual output: $output" >&2
+        echo "  FAIL: test_create_story_branch_prefix_anywhere: stdout was not the bare branch name" >&2
+        echo "  Expected: debug/epic-001/story-002" >&2
+        echo "  Actual:   $_stdout" >&2
+        (( FAIL++ ))
+    fi
+    if echo "$_stderr" | grep -qF "STORY_BRANCH=debug/epic-001/story-002"; then
+        echo "  PASS: test_create_story_branch_prefix_anywhere: stderr contains STORY_BRANCH=debug/epic-001/story-002"
+        (( PASS++ ))
+    else
+        echo "  FAIL: test_create_story_branch_prefix_anywhere: expected STORY_BRANCH=debug/epic-001/story-002 in stderr" >&2
+        echo "  Actual stderr: $_stderr" >&2
         (( FAIL++ ))
     fi
 }

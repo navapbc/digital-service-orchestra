@@ -27,9 +27,49 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # ── Canonical skill list ───────────────────────────────────────────────────────
-# Single source of truth. qualify-skill-refs.sh (dso-0isl) sources this file
-# and reads DSO_SKILLS to avoid drift.
-DSO_SKILLS="sprint commit review end implementation-plan preplanning debug-everything brainstorm plan-review interface-contracts resolve-conflicts retro roadmap oscillation-check design-review ui-discover validate-work tickets-health playwright-debug dryrun quick-ref fix-cascade-recovery onboarding architect-foundation fix-bug verification-before-completion"
+# Single source of truth, auto-discovered from the filesystem by file-presence:
+#   - skills/<name>/SKILL.md  (excluding skills/shared and skills/ui-designer —
+#     `shared` is a prompt-library directory, `ui-designer` is an agent dispatch
+#     directory, neither is a user-invocable skill)
+#   - commands/<name>.md      (Claude Code slash commands; resolved via /dso:<name>
+#     before the skills/ namespace)
+#
+# qualify-skill-refs.sh (dso-0isl) consumes DSO_SKILLS by sourcing this file with
+# DSO_SKILL_REFS_NO_SCAN=1 to skip the scan logic below.
+#
+# Fail-loud: an empty allowlist would silently pass every typo, strictly worse
+# than the pre-2026-05-19 stale-but-non-empty hardcoded list. Refuse to run if
+# either source directory yields zero entries.
+_skills_from_fs=$(find "${_PLUGIN_ROOT}/skills" -maxdepth 2 -name SKILL.md \
+    -not -path '*/shared/*' -not -path '*/ui-designer/*' 2>/dev/null \
+    | while IFS= read -r _f; do dirname "$_f" | xargs basename; done \
+    | sort -u | tr '\n' ' ')
+_commands_from_fs=$(find "${_PLUGIN_ROOT}/commands" -maxdepth 1 -name '*.md' 2>/dev/null \
+    | while IFS= read -r _f; do basename "$_f" .md; done \
+    | sort -u | tr '\n' ' ')
+
+if [[ -z "${_skills_from_fs// /}" ]]; then
+    echo "check-skill-refs: FATAL: no skills found under ${_PLUGIN_ROOT}/skills/ — refusing to run with empty allowlist" >&2
+    exit 2
+fi
+if [[ -z "${_commands_from_fs// /}" ]]; then
+    echo "check-skill-refs: FATAL: no commands found under ${_PLUGIN_ROOT}/commands/ — refusing to run with empty allowlist" >&2
+    exit 2
+fi
+
+# DSO_SKILLS line kept in literal form on a single line so qualify-skill-refs.sh
+# (and any other line-grep consumer) sees the expected `^DSO_SKILLS="..."` shape
+# after command substitution evaluates. Final sort -u dedupes across the
+# skills/commands boundary (e.g., debug-everything has both a skill and a command).
+DSO_SKILLS="$(printf '%s %s' "${_skills_from_fs% }" "${_commands_from_fs% }" | tr ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/^ //; s/ $//')"
+
+# ── Sourceable early-return ────────────────────────────────────────────────────
+# When sourced with DSO_SKILL_REFS_NO_SCAN=1, the caller obtains DSO_SKILLS in
+# its shell without triggering the scan or the exit below. The `2>/dev/null`
+# swallows the no-op error if accidentally set during a direct invocation.
+if [[ "${DSO_SKILL_REFS_NO_SCAN:-}" == "1" ]]; then
+    return 0 2>/dev/null
+fi
 
 # ── Build alternation pattern ─────────────────────────────────────────────────
 _skill_alternation=""
