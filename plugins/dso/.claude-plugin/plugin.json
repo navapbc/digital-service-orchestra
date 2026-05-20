@@ -6,6 +6,7 @@
   "skills": "./skills/",
   "agents": [
     "./agents/approach-decision-maker.md",
+    "./agents/approach-proposer.md",
     "./agents/architectural-probe.md",
     "./agents/bloat-blue-team.md",
     "./agents/bloat-resolver.md",
@@ -52,6 +53,7 @@
     "./agents/scope-drift-reviewer.md",
     "./agents/second-source-verifier.md",
     "./agents/story-decomposer.md",
+    "./agents/task-decomposer.md",
     "./agents/ui-designer.md"
   ],
   "hooks": {
