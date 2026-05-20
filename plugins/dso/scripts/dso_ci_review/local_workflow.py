@@ -191,10 +191,10 @@ def _local_arbiter_branch(
     # Resolve model and provider chain from config/environment.
     try:
         provider = get_provider()
-        model = getattr(provider, "model", "claude-opus-4-5")
+        model = getattr(provider, "model", "claude-opus-4-7")
         provider_chain = [getattr(provider, "name", "anthropic")]
     except Exception:
-        model = "claude-opus-4-5"
+        model = "claude-opus-4-7"
         provider_chain = ["anthropic"]
 
     # Build reviewer breakdown for cross-reviewer agreement derivation.

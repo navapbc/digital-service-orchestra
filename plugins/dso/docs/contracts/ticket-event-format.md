@@ -99,6 +99,8 @@ All event files are valid JSON objects containing the following base fields:
 | `status`         | string | The target status. One of: `open`, `in_progress`, `closed`, `blocked`.     |
 | `current_status` | string | The status the writer read before transitioning (optimistic concurrency proof). The reducer must apply this event only if the ticket's current compiled status matches this value; otherwise it should flag a conflict. |
 
+**Note on `deleted`**: The STATUS event format itself accepts `deleted` as a `status` value — `ticket-lib-api.sh` writes `STATUS(data.status="deleted")` as part of the delete write-pair (a `STATUS(deleted)` event followed by an `ARCHIVED` event, plus a sibling `.tombstone.json` file documented in `tombstone-archive-format.md`). The bash CLI entry point `ticket-transition.sh:104` rejects `deleted` as a transition target so users must invoke `ticket delete` instead, but the underlying event format does carry the value. Consumers reading compiled state should therefore handle 5 possible status values (`open`, `in_progress`, `closed`, `blocked`, `deleted`) even though the user-facing transition CLI lists only 4.
+
 #### `COMMENT`
 
 ```json

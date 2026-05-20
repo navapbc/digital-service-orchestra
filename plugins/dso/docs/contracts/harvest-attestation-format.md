@@ -51,7 +51,7 @@ Line-oriented key=value format. Each field occupies one line.
 | 2 | `diff_hash` | string | SHA-256 hash of the post-merge staged+unstaged diff (computed by `compute-diff-hash.sh` in the session context). |
 | 3 | `timestamp` | string | ISO 8601 UTC timestamp of the attestation write (e.g., `2026-04-12T14:30:00Z`). |
 | 4 | `tested_files` | string | Comma-separated list of test files. Union of the source worktree's `tested_files` and any locally-required tests for session-side staged files. |
-| 5 | `attest_source` | string | Worktree artifacts directory path that provided the source gate status. Identifies the trust chain origin. |
+| 5 | `attest_source` | string | Worktree identifier (basename of the source artifacts directory, e.g. `workflow-plugin-abc123`) that provided the source gate status. Identifies the trust chain origin. |
 
 **Example**:
 
@@ -60,7 +60,7 @@ passed
 diff_hash=a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2
 timestamp=2026-04-12T14:30:00Z
 tested_files=tests/unit/test_foo.sh,tests/unit/test_bar.sh
-attest_source=/tmp/workflow-plugin-abc123/
+attest_source=workflow-plugin-abc123
 ```
 
 ### review-status
@@ -73,7 +73,7 @@ Line-oriented key=value format. Each field occupies one line.
 | 2 | `timestamp` | string | ISO 8601 UTC timestamp of the attestation write. |
 | 3 | `diff_hash` | string | SHA-256 hash of the post-merge staged+unstaged diff (computed by `compute-diff-hash.sh` in the session context). |
 | 4 | `review_hash` | string | SHA-256 hash of the original `reviewer-findings.json` (carried forward from source). |
-| 5 | `attest_source` | string | Worktree artifacts directory path that provided the source gate status. Identifies the trust chain origin. |
+| 5 | `attest_source` | string | Worktree identifier (basename of the source artifacts directory, e.g. `workflow-plugin-abc123`) that provided the source gate status. Identifies the trust chain origin. |
 
 **Example**:
 
@@ -82,7 +82,7 @@ passed
 timestamp=2026-04-12T14:30:05Z
 diff_hash=a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2
 review_hash=b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3
-attest_source=/tmp/workflow-plugin-abc123/
+attest_source=workflow-plugin-abc123
 ```
 
 ---

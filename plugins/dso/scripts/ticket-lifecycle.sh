@@ -87,15 +87,16 @@ for ticket_dir in "$base_path"/*/; do
     event_count=$(find "$ticket_dir" -maxdepth 1 -name '*.json' ! -name '.*' 2>/dev/null | wc -l | tr -d ' ')
     if [ "$event_count" -gt "$compact_threshold" ]; then
         # Run compact with --no-commit and --skip-sync (we already synced)
+        compact_err=$(mktemp /tmp/lifecycle-compact-err.XXXXXX)
         compact_exit=0
         TICKET_TRACKER_DIR="$base_path" bash "$SCRIPT_DIR/ticket-compact.sh" "$ticket_id" \
-            --threshold="$compact_threshold" --skip-sync --no-commit 2>/tmp/lifecycle-compact-err.$$ || compact_exit=$?
+            --threshold="$compact_threshold" --skip-sync --no-commit 2>"$compact_err" || compact_exit=$?
         if [ "$compact_exit" -ne 0 ]; then
-            echo "WARNING: compact failed for $ticket_id (exit $compact_exit): $(cat /tmp/lifecycle-compact-err.$$ 2>/dev/null)" >&2
-            rm -f /tmp/lifecycle-compact-err.$$
+            echo "WARNING: compact failed for $ticket_id (exit $compact_exit): $(cat "$compact_err" 2>/dev/null)" >&2
+            rm -f "$compact_err"
             continue
         fi
-        rm -f /tmp/lifecycle-compact-err.$$
+        rm -f "$compact_err"
         compacted_count=$((compacted_count + 1))
     fi
 done
@@ -150,14 +151,15 @@ for tid in ids:
 
 # ── Step 4: Single git commit ───────────────────────────────────────────────
 # Stage all changes and commit once
+add_err=$(mktemp /tmp/lifecycle-add-err.XXXXXX)
 add_exit=0
-git -C "$base_path" add -A 2>/tmp/lifecycle-add-err.$$ || add_exit=$?
+git -C "$base_path" add -A 2>"$add_err" || add_exit=$?
 if [ "$add_exit" -ne 0 ]; then
-    echo "Error: git add failed (exit $add_exit): $(cat /tmp/lifecycle-add-err.$$ 2>/dev/null)" >&2
-    rm -f /tmp/lifecycle-add-err.$$
+    echo "Error: git add failed (exit $add_exit): $(cat "$add_err" 2>/dev/null)" >&2
+    rm -f "$add_err"
     exit 1
 fi
-rm -f /tmp/lifecycle-add-err.$$
+rm -f "$add_err"
 
 # Check if there are staged changes
 if git -C "$base_path" diff --cached --quiet 2>/dev/null; then
@@ -165,14 +167,15 @@ if git -C "$base_path" diff --cached --quiet 2>/dev/null; then
     exit 0
 fi
 
+commit_err=$(mktemp /tmp/lifecycle-commit-err.XXXXXX)
 commit_exit=0
-git -C "$base_path" commit -q --no-verify -m "chore: ticket lifecycle — bulk compact and archive" 2>/tmp/lifecycle-commit-err.$$ || commit_exit=$?
+git -C "$base_path" commit -q --no-verify -m "chore: ticket lifecycle — bulk compact and archive" 2>"$commit_err" || commit_exit=$?
 if [ "$commit_exit" -ne 0 ]; then
-    echo "Error: git commit failed (exit $commit_exit): $(cat /tmp/lifecycle-commit-err.$$ 2>/dev/null)" >&2
-    rm -f /tmp/lifecycle-commit-err.$$
+    echo "Error: git commit failed (exit $commit_exit): $(cat "$commit_err" 2>/dev/null)" >&2
+    rm -f "$commit_err"
     exit 1
 fi
-rm -f /tmp/lifecycle-commit-err.$$
+rm -f "$commit_err"
 
 # Write .archived markers now that the ARCHIVED events are durably committed (SC2)
 # Error-tolerant — failure degrades to slow path on next read, does not block push.

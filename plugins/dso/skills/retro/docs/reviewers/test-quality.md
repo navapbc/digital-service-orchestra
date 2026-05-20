@@ -39,8 +39,11 @@ remediation (e.g., "Add assertion `assert result.status == 'active'`" or "Rename
 `test_basic` to `test_process_document_when_valid_input_then_returns_job_id`").
 
 Do NOT flag test helpers or fixture functions as assertion violations — only evaluate
-functions with the `test_` prefix. Score `null` for `assertion_coverage` if the
-assertion density check command (`checks.assertion_density_cmd` in dso-config.conf) was not configured or not run.
+functions with the `test_` prefix. Score `null` for `assertion_coverage` if no
+assertion-density data was supplied with this review pass. (The opt-in hook for
+piping density data to this reviewer is tracked by bug 19ce-2d18-5d2f-4b81 — either
+"retire" or "implement the runner pipeline" — until that resolves, scoring null is
+the expected behavior.)
 Score `null` for `determinism` if no flaky test data is available (no CI history or
 rerun logs). Score `null` for `risk_coverage` if no risk classification of source
 modules is available.
