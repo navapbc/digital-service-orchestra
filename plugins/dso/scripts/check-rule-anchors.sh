@@ -33,14 +33,23 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Plugin root = one level up from scripts/ (canonical script-relative resolution).
-# REPO_ROOT = three levels up from scripts/ (REPO/<plugin>/scripts -> REPO).
+# REPO_ROOT is derived via `git rev-parse --show-toplevel` (the project's mandatory
+# pattern; tests/scripts/test-plugin-scripts-no-relative-paths.sh blocks `../`
+# chains as a portability invariant).
 # CLAUDE_PLUGIN_ROOT is intentionally NOT consulted here: when set in an interactive
 # session it typically points at the host project's plugin cache (e.g.,
 # ~/.claude/plugins/...) or a sibling main repo, which would cause the pre-commit hook
 # to scan the wrong tree and silently fail to detect broken citations in the worktree's
 # current changes (R13 follow-up — important finding from PR-D reviewer pass).
 _PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+# Match the canonical project pattern used by other plugin scripts
+# (audit-skill-resolution.sh, merge-to-main.sh, etc.). Pre-commit hooks always run
+# from the repo root so the bare git rev-parse works without needing -C.
+REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null)}"
+if [[ -z "$REPO_ROOT" ]]; then
+    echo "check-rule-anchors: FATAL: cannot determine REPO_ROOT (not in a git repo?)" >&2
+    exit 2
+fi
 CLAUDE_MD="$REPO_ROOT/CLAUDE.md"
 
 # Anchor pattern: <!-- (rule|invariant|always):<slug> -->
