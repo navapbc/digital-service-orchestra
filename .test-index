@@ -313,7 +313,7 @@ plugins/dso/scripts/ticket-list-epics.sh:tests/scripts/test-ticket-list-epics-di
 plugins/dso/scripts/ticket-list.sh:tests/scripts/test-ticket-list.sh,tests/scripts/test-ticket-subprocess-count.sh,tests/scripts/test-ticket-perf.sh
 plugins/dso/scripts/ticket-migrate-brainstorm-tags.sh:tests/scripts/test-ticket-migrate-brainstorm-tags.sh,tests/scripts/test-brainstorm-tag-flow.sh
 plugins/dso/scripts/audit-closure-checks-migration.sh:tests/scripts/test-audit-closure-checks-migration.sh
-plugins/dso/scripts/audit-closure-checks-source-consumers.sh:tests/scripts/test-audit-source-consumers.sh [test_script_exists_and_executable,test_target_flag_accepted_and_enumerates_files,test_pattern_sweep_section_name_regex,test_pattern_sweep_aliases,test_pattern_sweep_variable_interpolation,test_reverse_dep_static_imports,test_reverse_dep_dynamic_loads_flagged,test_six_bucket_classification,test_json_output_to_audit_output_dir,test_audit_output_dir_created_if_absent,test_reconciliation_max_5_iterations,test_reconciliation_convergence,test_tie_breaking_bucket_precedence]
+plugins/dso/scripts/audit-closure-checks-source-consumers.sh:tests/scripts/test-audit-source-consumers.sh
 plugins/dso/scripts/coherence-walk.sh:tests/scripts/test-coherence-walk.sh
 plugins/dso/scripts/ticket-migrate-closure-checks-v1.sh:tests/scripts/test-ticket-migrate-closure-checks-v1.sh
 plugins/dso/scripts/migrate-closure-checks.sh:tests/scripts/test-migrate-closure-checks.sh

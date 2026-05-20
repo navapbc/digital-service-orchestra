@@ -63,3 +63,6 @@ reviewer-findings.json
 .claude/dso-artifact-check-cache
 .claude/.brainstorm-tag-migration-*
 .claude/scheduled_tasks.lock
+
+# Closure-checks source-consumer audit artifacts (timestamped, never committed)
+plugins/dso/.audit-output/

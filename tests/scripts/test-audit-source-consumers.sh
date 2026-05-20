@@ -30,6 +30,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 AUDIT_SCRIPT="$REPO_ROOT/plugins/dso/scripts/audit-closure-checks-source-consumers.sh"
 
+# Side-channel for the audit subprocess's exit code. The _run_audit helper
+# below is called inside `out=$(_run_audit ...)` — i.e. in a subshell — so a
+# plain global assignment inside the helper does not propagate back. We write
+# the exit code to a sidecar file and read it after the substitution.
+_AUDIT_EXIT_FILE="$(mktemp "/tmp/test-audit-source-consumers-exit.XXXXXX")"
+_AUDIT_EXIT=0
+trap 'rm -f "$_AUDIT_EXIT_FILE"' EXIT
+
 source "$REPO_ROOT/tests/lib/assert.sh"
 source "$REPO_ROOT/tests/lib/git-fixtures.sh"
 
@@ -77,8 +85,16 @@ _run_audit() {
     local exit_code=0
     local out
     out=$(bash "$AUDIT_SCRIPT" --target "$target" "$@" 2>/dev/null) || exit_code=$?
-    _AUDIT_EXIT=$exit_code
+    # Sidecar write so the value survives the $(...) subshell wrapping.
+    printf '%s' "$exit_code" > "$_AUDIT_EXIT_FILE"
     printf '%s' "$out"
+}
+
+# Read the most recent _run_audit exit code into _AUDIT_EXIT for assertion.
+_load_audit_exit() {
+    if [ -s "$_AUDIT_EXIT_FILE" ]; then
+        _AUDIT_EXIT=$(cat "$_AUDIT_EXIT_FILE")
+    fi
 }
 
 # ── Helper: locate the JSON artifact under <target>/plugins/dso/.audit-output/
@@ -137,6 +153,7 @@ test_target_flag_accepted_and_enumerates_files() {
 
     local out
     out=$(_run_audit "$tempdir")
+    _load_audit_exit
 
     assert_eq "exit code is 0 with --target flag" "0" "$_AUDIT_EXIT"
     assert_contains "stdout enumerates plugins/foo.md" "plugins/foo.md" "$out"
