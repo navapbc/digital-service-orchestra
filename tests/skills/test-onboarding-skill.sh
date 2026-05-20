@@ -1527,9 +1527,10 @@ test_step2b_empty_string_treated_as_not_set
 # is the ONLY valid test for non-executable instruction files per behavioral-testing-standard.md Rule 5.
 # Rule 5 requires testing the structural boundary (that the contract phrase exists) rather than
 # behavioral correctness (that the agent follows the instruction at runtime, which is non-deterministic).
-# The substrings 'merge.strategy', 'direct', 'pr', 'provision-ruleset' are contract-surface markers
-# that must appear in Phase 3 Step 2b.1 per story DD1. This is a structural boundary check,
+# The substrings 'dso.workflow', 'direct', 'pr', 'provision-ruleset' are contract-surface markers
+# that must appear in Phase 3 Step 2b.1. This is a structural boundary check,
 # not implementation-coupled source-file-grepping.
+# bc05-2992: updated from merge.strategy to dso.workflow after config key migration.
 test_onboarding_skill_has_merge_strategy_question() {
     _snapshot_fail
     local section
@@ -1542,7 +1543,7 @@ test_onboarding_skill_has_merge_strategy_question() {
     local has_provision="no"
     local has_idempotent="no"
 
-    if echo "$section" | grep -q 'merge\.strategy'; then
+    if echo "$section" | grep -q 'dso\.workflow'; then
         has_merge_strategy="yes"
     fi
     if echo "$section" | grep -q 'direct'; then
@@ -1558,7 +1559,7 @@ test_onboarding_skill_has_merge_strategy_question() {
         has_idempotent="yes"
     fi
 
-    assert_eq "test_onboarding_skill_has_merge_strategy_question (merge.strategy)" "yes" "$has_merge_strategy"
+    assert_eq "test_onboarding_skill_has_merge_strategy_question (dso.workflow)" "yes" "$has_merge_strategy"
     assert_eq "test_onboarding_skill_has_merge_strategy_question (direct option)" "yes" "$has_direct"
     assert_eq "test_onboarding_skill_has_merge_strategy_question (pr option)" "yes" "$has_pr"
     assert_eq "test_onboarding_skill_has_merge_strategy_question (provision-ruleset)" "yes" "$has_provision"
