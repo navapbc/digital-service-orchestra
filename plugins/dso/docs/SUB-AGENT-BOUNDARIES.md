@@ -25,7 +25,7 @@ Sub-agents must NOT:
   (orchestrator → resolution → re-review) cause `[Tool result missing due to internal error]`.
   Resolution sub-agents apply fixes only and return `RESOLUTION_RESULT: FIXES_APPLIED`.
   The orchestrator dispatches re-review sub-agents after the resolution agent returns.
-  See CLAUDE.md Never Do These rule 23.
+  See CLAUDE.md `rule:no-nested-task`.
 
 ## Prohibited Fix Patterns
 

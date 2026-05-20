@@ -141,6 +141,6 @@ LINT_CMD=$(.claude/scripts/dso read-config commands.lint) && $LINT_CMD  # Must p
 # 6. Run validation
 .claude/scripts/dso validate.sh --ci
 
-# 7. Commit using the project commit workflow (CLAUDE.md rule 13)
+# 7. Commit using the project commit workflow (CLAUDE.md `rule:raw-commit`)
 # Use /dso:commit or follow COMMIT-WORKFLOW.md — never raw git commit
 ```

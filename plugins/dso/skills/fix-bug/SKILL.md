@@ -690,7 +690,7 @@ Read: ${CLAUDE_PLUGIN_ROOT}/agents/complexity-evaluator.md
 Input: approved fix description, files affected, estimated change scope
 ```
 
-**Note**: fix-bug reads the complexity-evaluator agent definition inline (rather than dispatching a sub-agent) to avoid nested dispatch — fix-bug often runs as a sub-agent of debug-everything, and dispatching a sub-agent from within a sub-agent risks Critical Rule 23 failures. The agent definition file contains the same five-dimension rubric and classification rules.
+**Note**: fix-bug reads the complexity-evaluator agent definition inline (rather than dispatching a sub-agent) to avoid nested dispatch — fix-bug often runs as a sub-agent of debug-everything, and dispatching a sub-agent from within a sub-agent risks `rule:no-nested-task` failures. The agent definition file contains the same five-dimension rubric and classification rules.
 
 **TRIVIAL or MODERATE fix**: proceed to Phase E Step 1 (RED Test).
 

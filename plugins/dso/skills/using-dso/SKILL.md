@@ -142,7 +142,7 @@ Claude defaults to sequential, inline work. These thoughts mean STOP—delegate 
 
 **Scope**: Sub-agents dispatched by this guidance must NOT re-apply this startup hook guidance to spawn further sub-agents. Recursive agent spawning is prohibited.
 
-**Limits**: Sub-agent count caps and commit-before-new-batch requirements are governed by CLAUDE.md Never-Do rules (rules 1–2).
+**Limits**: Sub-agent count caps and commit-before-new-batch requirements are governed by CLAUDE.md `rule:agent-cap` and `rule:batch-commit`.
 
 ## Friction Recording
 

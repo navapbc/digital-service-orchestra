@@ -41,6 +41,30 @@ repos:
         stages: [pre-commit]
         files: ^plugins/dso/
 
+      - id: rule-anchors-check
+        name: Rule Anchors Check (5s timeout)
+        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh rule-anchors-check 5 "plugins/dso/scripts/check-rule-anchors.sh"
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^(CLAUDE\.md|plugins/dso/(skills|docs|hooks|agents|scripts|commands)/)
+
+      - id: agents-doc-check
+        name: Agents Doc Drift Check (5s timeout)
+        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh agents-doc-check 5 "plugins/dso/scripts/check-agents-doc.sh"
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^plugins/dso/(agents/|docs/AGENTS\.md$)
+
+      - id: hooks-doc-check
+        name: Hooks Doc Drift Check (5s timeout)
+        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh hooks-doc-check 5 "plugins/dso/scripts/check-hooks-doc.sh"
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^plugins/dso/(hooks/[^/]+\.sh$|docs/HOOKS-REFERENCE\.md$)
+
       - id: contract-schema-check
         name: Contract Schema Check (60s timeout)
         entry: ./plugins/dso/scripts/pre-commit-wrapper.sh contract-schema-check 60 "plugins/dso/scripts/check-contract-schemas.sh"
