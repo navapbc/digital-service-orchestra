@@ -48,17 +48,59 @@ _ensure_env_id() {
 if [ -d "$TRACKER_DIR" ] && [ -f "$TRACKER_DIR/.git" ]; then
     # Verify it's actually a valid worktree
     if git -C "$TRACKER_DIR" rev-parse --is-inside-work-tree &>/dev/null; then
-        # Detect and abort stale rebase state on the tickets branch.
-        # pull --rebase can leave REBASE_HEAD if a conflict occurs and the
-        # error is swallowed by || true. This breaks all subsequent ticket
-        # operations with "error: Committing is not possible because you
-        # have unmerged files".
+        # Detect and recover stale rebase/merge state on the tickets branch.
+        # Modern git (>= 2.6) uses rebase-merge/ directory for interactive and
+        # merge-backend rebases, rebase-apply/ for am-style rebases, and
+        # MERGE_HEAD file during a paused merge. The legacy REBASE_HEAD file
+        # at gitdir root is NOT created for the merge-backend rebases that the
+        # _push_tickets_branch flow uses, so checking only REBASE_HEAD misses
+        # the actual failure mode and leaves picks stranded as dangling
+        # commits (bug 637b-63fe-9d44-4aab).
+        #
+        # Recovery strategy: first attempt `git rebase --continue` (with a
+        # short timeout) to drain pending picks. Only abort if --continue
+        # fails — abort discards the pending picks and forces re-recovery
+        # via cherry-pick of dangling commits (see ticket-fsck-recover.sh).
         _tickets_git_dir=$(git -C "$TRACKER_DIR" rev-parse --git-dir 2>/dev/null)
-        if [ -n "$_tickets_git_dir" ] && [ -f "$_tickets_git_dir/REBASE_HEAD" ]; then
-            if [[ "$_silent" == false ]]; then
-                echo "WARNING: Aborting stale rebase on tickets branch" >&2
+        _stale_rebase_kind=""
+        if [ -n "$_tickets_git_dir" ]; then
+            if [ -d "$_tickets_git_dir/rebase-merge" ]; then
+                _stale_rebase_kind="rebase-merge"
+            elif [ -d "$_tickets_git_dir/rebase-apply" ]; then
+                _stale_rebase_kind="rebase-apply"
+            elif [ -f "$_tickets_git_dir/REBASE_HEAD" ]; then
+                _stale_rebase_kind="REBASE_HEAD"
+            elif [ -f "$_tickets_git_dir/MERGE_HEAD" ]; then
+                _stale_rebase_kind="MERGE_HEAD"
             fi
-            git -C "$TRACKER_DIR" rebase --abort 2>/dev/null || true
+        fi
+        if [ -n "$_stale_rebase_kind" ]; then
+            if [[ "$_silent" == false ]]; then
+                echo "WARNING: Stale ${_stale_rebase_kind} state on tickets branch; attempting recovery" >&2
+            fi
+            case "$_stale_rebase_kind" in
+                rebase-merge|rebase-apply|REBASE_HEAD)
+                    # Try --continue first with a 10s timeout; abort on timeout/failure
+                    _continue_rc=0
+                    if command -v timeout >/dev/null 2>&1; then
+                        timeout 10 git -C "$TRACKER_DIR" -c rebase.autostash=true rebase --continue >/dev/null 2>&1 || _continue_rc=$?
+                    else
+                        git -C "$TRACKER_DIR" -c rebase.autostash=true rebase --continue >/dev/null 2>&1 || _continue_rc=$?
+                    fi
+                    if [ "$_continue_rc" -ne 0 ]; then
+                        if [[ "$_silent" == false ]]; then
+                            echo "WARNING: rebase --continue failed (exit=$_continue_rc); aborting rebase. Run 'bash ${CLAUDE_PLUGIN_ROOT:-${SCRIPT_DIR:-.}}/scripts/ticket-fsck-recover.sh' to cherry-pick stranded commits." >&2
+                        fi
+                        git -C "$TRACKER_DIR" rebase --abort 2>/dev/null || true
+                    fi
+                    ;;
+                MERGE_HEAD)
+                    if [[ "$_silent" == false ]]; then
+                        echo "WARNING: Aborting stale merge on tickets branch" >&2
+                    fi
+                    git -C "$TRACKER_DIR" merge --abort 2>/dev/null || true
+                    ;;
+            esac
         fi
         _ensure_env_id "$TRACKER_DIR"
         if [[ "$_silent" == false ]]; then

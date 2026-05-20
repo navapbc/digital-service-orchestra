@@ -206,6 +206,51 @@ sys.exit(0)
 
 # Stable internal API — used by write_commit_event and emit-review-event.sh
 #
+# _check_no_rebase_in_progress <tracker_dir>
+# Returns 0 if the tracker is in a clean (non-rebase, non-merge) state.
+# Returns 75 (EX_TEMPFAIL) if a rebase-merge/, rebase-apply/, REBASE_HEAD, or
+# MERGE_HEAD marker is present, indicating the tracker is mid-recovery and
+# committing on top of it would silently abandon pending picks (bug 637b).
+#
+# When the guard fires, emits a clear stderr message with the recovery hint
+# pointing at ticket-fsck-recover.sh.
+_check_no_rebase_in_progress() {
+    local tracker_dir="$1"
+    local tracker_git_file="$tracker_dir/.git"
+    local tracker_git_dir=""
+    if [ -f "$tracker_git_file" ]; then
+        tracker_git_dir=$(sed 's/^gitdir: //' "$tracker_git_file")
+        if [[ "$tracker_git_dir" != /* ]]; then
+            tracker_git_dir="$tracker_dir/$tracker_git_dir"
+        fi
+    elif [ -d "$tracker_git_file" ]; then
+        tracker_git_dir="$tracker_git_file"
+    fi
+    if [ -z "$tracker_git_dir" ]; then
+        # Defensive: if we can't resolve the gitdir, don't block — let the
+        # downstream git command fail with its own clearer error.
+        return 0
+    fi
+    local rebase_kind=""
+    if [ -d "$tracker_git_dir/rebase-merge" ]; then
+        rebase_kind="rebase-merge"
+    elif [ -d "$tracker_git_dir/rebase-apply" ]; then
+        rebase_kind="rebase-apply"
+    elif [ -f "$tracker_git_dir/REBASE_HEAD" ]; then
+        rebase_kind="REBASE_HEAD"
+    elif [ -f "$tracker_git_dir/MERGE_HEAD" ]; then
+        rebase_kind="MERGE_HEAD"
+    fi
+    if [ -n "$rebase_kind" ]; then
+        echo "Error: ticket write blocked — tracker is in $rebase_kind recovery state." >&2
+        echo "  tracker: $tracker_dir" >&2
+        echo "  Run: bash \"\${CLAUDE_PLUGIN_ROOT:-\${SCRIPT_DIR:-.}}/scripts/ticket-fsck-recover.sh\" --tracker-dir \"$tracker_dir\"" >&2
+        echo "  Or via the dso CLI shim if available." >&2
+        return 75
+    fi
+    return 0
+}
+
 # _flock_stage_commit <tracker_dir> <staging_temp> <final_path> <commit_msg>
 # Args:
 #   tracker_dir:   canonical path to .tickets-tracker/ (derives lock_file)
@@ -215,6 +260,10 @@ sys.exit(0)
 #
 # Handles:
 #   - Acquires flock on .tickets-tracker/.ticket-write.lock
+#   - REBASE/MERGE GUARD: refuses commit when tracker is in rebase-merge/,
+#     rebase-apply/, REBASE_HEAD, or MERGE_HEAD recovery state (bug 637b) —
+#     commits during a paused rebase silently abandon pending picks, so we
+#     fail loudly with exit 75 + recovery hint instead.
 #   - atomic rename (staging_temp → final_path)
 #   - git add (tracker_dir-relative path) + git commit
 #   - gc.auto=0 guard
@@ -291,6 +340,11 @@ _flock_stage_commit() {
             # shellcheck disable=SC2093
             (
                 "$_flock_bin" -x -w "$flock_timeout" 200 || exit 1
+                # REBASE/MERGE GUARD (bug 637b): refuse to commit if tracker is
+                # in rebase-merge/, rebase-apply/, REBASE_HEAD, or MERGE_HEAD
+                # recovery state. Committing during a paused rebase silently
+                # abandons pending picks, so fail loudly instead.
+                _check_no_rebase_in_progress "$tracker_dir" || exit 75
                 # Atomic rename (same filesystem — mktemp was created inside tracker_dir)
                 mv "$staging_temp" "$final_path" || exit 3
                 # git add + commit while holding the lock; clean up final_path on failure
@@ -316,6 +370,10 @@ _flock_stage_commit() {
                 flock_exit=1
             else
                 (
+                    # REBASE/MERGE GUARD (bug 637b): refuse to commit if
+                    # tracker is in rebase/merge recovery state. See the
+                    # flock-bin path above for rationale.
+                    _check_no_rebase_in_progress "$tracker_dir" || exit 75
                     mv "$staging_temp" "$final_path" || exit 3
                     git -C "$tracker_dir" add "$relative_path" 2>/dev/null \
                         && git -C "$tracker_dir" commit -q --no-verify -m "$commit_msg" 2>/dev/null \
@@ -335,6 +393,12 @@ _flock_stage_commit() {
             rm -f "$staging_temp"
             echo "Error: atomic rename failed" >&2
             return 1
+        elif [ "$flock_exit" -eq 75 ]; then
+            # Rebase/merge guard fired (bug 637b) — refuse the write rather
+            # than silently abandon pending picks. Do not retry; the tracker
+            # needs operational recovery before any new ticket write.
+            rm -f "$staging_temp"
+            return 75
         fi
         # flock_exit=1 means lock timeout — retry
     done
