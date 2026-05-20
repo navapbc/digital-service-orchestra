@@ -498,5 +498,5 @@ plugins/dso/scripts/bypass-log-check.sh:tests/scripts/test-bypass-log-enforcemen
 plugins/dso/scripts/scan-red-markers.sh:tests/scripts/test-scan-red-markers.sh [test_scan_red_markers_unit_marker_present],tests/workflows/test-red-test-blocker-merged-tree-scan.sh [test_red_test_blocker_two_subpr],tests/scripts/test-scan-red-markers-vs-parse-test-index-parity.sh [test_scan_red_markers_grammar_parity],tests/workflows/test-sprint-fixture-red-marker-blocker.sh [test_sprint_fixture_red_marker_blocker_exits_nonzero]
 plugins/dso/scripts/exempt-in-flight-prs.sh:tests/scripts/test-exempt-in-flight-prs.sh [test_labels_all_in_flight_prs]
 plugins/dso/scripts/rollback-sub-pr-cutover.sh:tests/scripts/test-rollback-sub-pr-cutover.sh [test_script_exists_and_executable]
-plugins/dso/scripts/dso_ci_review/file_filter.py:tests/scripts/test_dso_ci_review_file_filter.py [test_linguist_generated_files_are_filtered_out]
+plugins/dso/scripts/dso_ci_review/file_filter.py:tests/scripts/test_dso_ci_review_file_filter.py
 plugins/dso/scripts/llm-review-dispatch-or-skip.sh:tests/scripts/test-llm-review-dispatch-or-skip.sh [test_wrapper_exists]
