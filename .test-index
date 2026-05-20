@@ -15,7 +15,7 @@
 # the source-file-side `source.py:[test_name]` format (no space). Both are intentional.
 .claude-plugin/marketplace.json:tests/scripts/test-marketplace-json.sh
 .github/workflows/ci-python-skills.yml:tests/skills/test_ci_workflow_pip_cache.py
-.github/workflows/ci.yml:tests/scripts/test-ci-hyperfine-installed.sh,tests/scripts/test-ci-consolidated-changes-detection.sh,tests/workflows/test-ci-integration-review-scope.sh,tests/scripts/test-bug-reproducer-8ee4.sh,tests/scripts/test-single-llm-review-per-sha.sh,tests/workflows/test-red-test-blocker-merged-tree-scan.sh,tests/workflows/test-ci-suppress-prior-defenses-round-trip.sh
+.github/workflows/ci.yml:tests/scripts/test-ci-hyperfine-installed.sh,tests/scripts/test-ci-consolidated-changes-detection.sh,tests/workflows/test-ci-integration-review-scope.sh,tests/scripts/test-bug-reproducer-8ee4.sh,tests/scripts/test-single-llm-review-per-sha.sh,tests/scripts/test-no-duplicate-checks-per-sha.sh,tests/workflows/test-red-test-blocker-merged-tree-scan.sh,tests/workflows/test-ci-suppress-prior-defenses-round-trip.sh
 .github/workflows/inbound-bridge.yml:tests/scripts/test-inbound-bridge-push-retry.sh
 .github/workflows/outbound-bridge.yml:tests/scripts/test-outbound-bridge-push-retry.sh
 .github/workflows/ticket-platform-matrix.yml:tests/scripts/test-ticket-platform-matrix-trigger.sh
