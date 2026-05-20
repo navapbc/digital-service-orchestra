@@ -8,6 +8,7 @@ name: review-sub-pr
       - 'bug-batch/**'
 jobs:
   llm-review-sub-pr:
+    name: review-sub-pr
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     env:

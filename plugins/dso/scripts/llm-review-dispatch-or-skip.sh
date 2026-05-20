@@ -33,11 +33,45 @@ bash "$_VERIFIER" || provenance_exit=$?
 # ── Route on exit code ────────────────────────────────────────────────────────
 case "$provenance_exit" in
   0)
-    # All commits are provenanced — covered by sub-PR reviews; skip LLM dispatch
-    # Emit liveness assertion referencing sub-PR coverage (provenance already verified)
+    # All commits are provenanced — covered by sub-PR reviews; skip LLM dispatch.
+    # Emit structured 'Covered by sub-PR reviews:' line per ADR 0015 listing the
+    # short SHA (and PR# when extractable from DSO-Story-Merge trailer) of each
+    # commit in BASE..HEAD. Falls back to "(provenance verified)" when the range
+    # cannot be walked (no DSO_BASE_SHA in env).
     echo "CONCLUSION: skipped"
-    echo "All commits covered by sub-PR reviews (provenance verified)."
+
+    _git_repo_path="${DSO_REPO_PATH:-$(git rev-parse --show-toplevel 2>/dev/null || echo .)}"
+    _base_sha="${DSO_BASE_SHA:-}"
+    _session_head="${DSO_SESSION_HEAD:-HEAD}"
+    _covered=""
+    if [[ -n "$_base_sha" ]]; then
+        while IFS= read -r _sha; do
+            [[ -z "$_sha" ]] && continue
+            _short="${_sha:0:8}"
+            # Extract PR# from DSO-Story-Merge trailer when present, else PR#?
+            _trailer_pr="$(git -C "$_git_repo_path" log -1 --format='%B' "$_sha" 2>/dev/null \
+                | grep -oE 'PR[#]?[0-9]+' | head -1 | tr -d '#' || true)"
+            if [[ -n "$_trailer_pr" ]]; then
+                _ident="${_trailer_pr}:${_short}"
+            else
+                _ident="PR#?:${_short}"
+            fi
+            if [[ -z "$_covered" ]]; then
+                _covered="$_ident"
+            else
+                _covered="$_covered, $_ident"
+            fi
+        done < <(git -C "$_git_repo_path" log "${_base_sha}..${_session_head}" --format="%H" 2>/dev/null || true)
+    fi
+    echo "Covered by sub-PR reviews: ${_covered:-(provenance verified)}"
     echo "Liveness assertion: commits are covered by sub-PRs with verified provenance."
+
+    # Stub findings.json so ci.yml 'Assert review liveness' step passes when the
+    # skip path is taken (runner is never invoked, so its writer never fires).
+    _output_path="${DSO_CI_REVIEW_OUTPUT_PATH:-${DSO_ARTIFACT_DIR:-/tmp}/findings.json}"
+    mkdir -p "$(dirname "$_output_path")" 2>/dev/null || true
+    printf '{"findings": [], "skip_reason": "all_commits_provenanced"}\n' > "$_output_path" 2>/dev/null || true
+
     exit 0
     ;;
   3)
