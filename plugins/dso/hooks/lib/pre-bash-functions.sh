@@ -608,65 +608,6 @@ hook_no_edit_on_main() {
 }
 
 # ---------------------------------------------------------------------------
-# hook_tool_use_guard
-# ---------------------------------------------------------------------------
-# PreToolUse hook: warn when cat/head/tail/grep/rg are used via Bash instead
-# of the dedicated Read/Grep tools. WARNING ONLY.
-hook_tool_use_guard() {
-    local INPUT="$1"
-    local HOOK_ERROR_LOG="$HOME/.claude/logs/dso-hook-errors.jsonl"
-    trap 'printf "{\"ts\":\"%s\",\"hook\":\"tool-use-guard\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; return 0' ERR
-
-    # Fast-path: extract first token without full JSON parse
-    local QUICK_CMD=""
-    if [[ "$INPUT" =~ \"command\"[[:space:]]*:[[:space:]]*\" ]]; then
-        local _local_after="${INPUT#*\"command\"*:*\"}"
-        QUICK_CMD="${_local_after%%[[:space:]\"]*}"
-    fi
-
-    # Fast exit if first token isn't one of our targets
-    case "$QUICK_CMD" in
-        cat|head|tail|grep|rg) ;;
-        *) return 0 ;;
-    esac
-
-    local COMMAND
-    COMMAND=$(parse_json_field "$INPUT" '.tool_input.command')
-    if [[ -z "$COMMAND" ]]; then
-        return 0
-    fi
-
-    local FIRST_TOKEN="${COMMAND%%[[:space:]]*}"
-
-    # cat/head/tail check
-    if [[ "$FIRST_TOKEN" == "cat" || "$FIRST_TOKEN" == "head" || "$FIRST_TOKEN" == "tail" ]]; then
-        if [[ "$COMMAND" == *"|"* || "$COMMAND" == *"<<"* || "$COMMAND" == *">"* ]]; then
-            return 0
-        fi
-        echo "WARNING [tool-use-guard]: Consider using the Read tool instead of $FIRST_TOKEN. It provides line numbers and is more token-efficient." >&2
-        return 0
-    fi
-
-    # grep/rg check
-    if [[ "$FIRST_TOKEN" == "grep" || "$FIRST_TOKEN" == "rg" ]]; then
-        if [[ "$COMMAND" == *"|"* || "$COMMAND" == *">"* ]]; then
-            return 0
-        fi
-        if [[ "$COMMAND" == *"git "* || "$COMMAND" == *"make "* || \
-              "$COMMAND" == *"validate"* || "$COMMAND" == *"ci-status"* || \
-              "$COMMAND" == *"check_assertion_density"* ]]; then
-            return 0
-        fi
-        echo "WARNING [tool-use-guard]: Consider using the Grep tool instead of $FIRST_TOKEN. It has structured output and optimized permissions." >&2
-        return 0
-    fi
-
-    return 0
-}
-
-
-
-# ---------------------------------------------------------------------------
 # hook_review_integrity_guard
 # ---------------------------------------------------------------------------
 # PreToolUse hook: block direct writes to review-status files.

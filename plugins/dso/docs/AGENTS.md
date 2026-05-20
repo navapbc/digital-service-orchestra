@@ -30,8 +30,10 @@ Agent files live in `${CLAUDE_PLUGIN_ROOT}/agents/`. The `dso:*` labels below ar
 | `dso:red-test-evaluator` | opus | On red-test-writer rejection (REVISE/REJECT/CONFIRM) |
 | `dso:code-reviewer-light` | haiku | `/dso:review` (score 0–2) |
 | `dso:code-reviewer-standard` | sonnet | `/dso:review` (score 3–6) |
-| `dso:code-reviewer-deep-*` (3 agents) | sonnet | `/dso:review` (score 7+, parallel) |
-| `dso:code-reviewer-deep-arch` | opus | `/dso:review` (score 7+, synthesis) |
+| `dso:code-reviewer-deep-correctness` | sonnet | `/dso:review` (score 7+, deep-tier specialist — edge cases, error handling, security, efficiency) |
+| `dso:code-reviewer-deep-hygiene` | sonnet | `/dso:review` (score 7+, deep-tier specialist — hygiene, design, maintainability) |
+| `dso:code-reviewer-deep-verification` | sonnet | `/dso:review` (score 7+, deep-tier specialist — test presence/quality/coverage, mock correctness) |
+| `dso:code-reviewer-deep-arch` | opus | `/dso:review` (score 7+, synthesis — unifies the 3 deep specialists' findings into a verdict) |
 | `dso:code-reviewer-security-red-team` | opus | `/dso:review` overlay — parallel when classifier flags `security_overlay:true`; serial when tier reviewer flags `security_overlay_warranted:yes` |
 | `dso:code-reviewer-security-blue-team` | opus | `/dso:review` overlay — triages red team findings with dismiss/downgrade/sustain; dispatched after red team |
 | `dso:code-reviewer-performance` | opus | `/dso:review` overlay — parallel when classifier flags `performance_overlay:true`; serial when tier reviewer flags `performance_overlay_warranted:yes` |
@@ -39,9 +41,34 @@ Agent files live in `${CLAUDE_PLUGIN_ROOT}/agents/`. The `dso:*` labels below ar
 | `dso:approach-decision-maker` | opus | `/dso:implementation-plan` proposal resolution loop — evaluates distinct implementation proposals against 5 dimensions; emits `APPROACH_DECISION` signal (contract: `${CLAUDE_PLUGIN_ROOT}/docs/contracts/approach-decision-output.md`) |
 | `dso:ui-designer` | sonnet | `/dso:preplanning` Step 6 — creates design artifacts (spatial layout, SVG wireframe, token overlay, manifest) for UI stories via Agent tool dispatch; returns `UI_DESIGNER_PAYLOAD` (contract: `${CLAUDE_PLUGIN_ROOT}/docs/contracts/ui-designer-payload.md`) |
 | `dso:plan-review` | sonnet | `/dso:plan-review` — evaluates implementation plans and design artifacts on feasibility, completeness, YAGNI, and codebase alignment before the user sees them |
-| `dso:bloat-blue-team` | opus | `/dso:remediate` — evaluates probabilistic bloat candidates, classifying as CONFIRM/DISMISS/NEEDS_HUMAN with asymmetric error policy (defaults to DISMISS when uncertain) |
-| `dso:bloat-resolver` | opus | `/dso:remediate` Path B (auto-resolve) — applies confirmed bloat removals with dependency checks before each deletion |
-| `dso:inference-incident-curator` | opus | `/dso:brainstorm` SC4 dogfooding (runnable quarterly) — scans ticket history for inference incidents and emits JSONL corpus records (contract: `${CLAUDE_PLUGIN_ROOT}/docs/contracts/inference-incident-schema.md`) |
+| `dso:bloat-blue-team` | opus | _Pending epic `w21-bsnz` implementation (consumed by `bc7f-1a0d`, `2687-3d0d-e817-4721`)._ Evaluates probabilistic bloat candidates, classifying as CONFIRM/DISMISS/NEEDS_HUMAN with asymmetric error policy (defaults to DISMISS when uncertain). Orchestrator skill (`/dso:remediate` for bloat detection) is not yet implemented. |
+| `dso:bloat-resolver` | opus | _Pending epic `w21-bsnz` implementation (consumed by `bc7f-1a0d`, `2687-3d0d-e817-4721`)._ Path B auto-resolve — applies confirmed bloat removals with dependency checks before each deletion. Same orchestrator-pending status as `bloat-blue-team`. |
+| `dso:inference-incident-curator` | opus | `/dso:retro` (quarterly append step; wired 2026-05-19 per project-audit Q2) — scans ticket history for inference incidents and emits JSONL corpus records consumed by `inference-recall-replay.sh` (contract: `${CLAUDE_PLUGIN_ROOT}/docs/contracts/inference-incident-schema.md`). |
+| `dso:second-source-verifier` | sonnet | Read-only post-closure audit of epic story closures (confirms typed-enum verifier P1, `render-closure-narrative.sh`, `check-story-handoff.sh` were actually used). Manual-invocation orchestrator-level addition; in-progress epic for full wire-up. |
+
+## Specialty agents
+
+Execution-tier specialists dispatched by specific phase blocks in larger workflows. The main "Agents" table covers orchestration-tier routing; this subsection enumerates the agents that fire from inside a workflow's body rather than from a top-level skill dispatch.
+
+| Agent | Model | Dispatched by |
+|-------|-------|---------------|
+| `dso:investigator-basic` | sonnet | `/dso:fix-bug` Phase D — BASIC tier (single-pass localization, five-whys, single proposed fix for low-complexity bugs) |
+| `dso:investigator-intermediate` | opus | `/dso:fix-bug` Phase D — INTERMEDIATE primary (dependency-ordered reading, ≥2 ranked fixes with tradeoffs) |
+| `dso:investigator-intermediate-fallback` | opus | `/dso:fix-bug` Phase D — INTERMEDIATE fallback when `error-detective` is unavailable |
+| `dso:investigator-advanced-code-tracer` | opus | `/dso:fix-bug` Phase D — ADVANCED Code Tracer lens (execution path tracing, intermediate variable tracking; concurrent with Historical) |
+| `dso:investigator-advanced-historical` | opus | `/dso:fix-bug` Phase D — ADVANCED Historical lens (timeline reconstruction, fault-tree, git bisect; concurrent with Code Tracer) |
+| `dso:investigator-escalated-web` | opus | `/dso:fix-bug` Phase D — ESCALATED Web Researcher (error pattern analysis, dependency changelogs, upstream issue correlation) |
+| `dso:investigator-escalated-history` | opus | `/dso:fix-bug` Phase D — ESCALATED History Analyst (deep timeline reconstruction beyond ADVANCED depth) |
+| `dso:investigator-escalated-code-tracer` | opus | `/dso:fix-bug` Phase D — ESCALATED Code Tracer (deep execution-path tracing, dependency-ordered analysis, state/concurrency inspection) |
+| `dso:investigator-escalated-empirical` | opus | `/dso:fix-bug` Phase D — ESCALATED Empirical Agent (authorized to add temporary logging; veto authority over theoretical consensus) |
+| `dso:huge-diff-reviewer-light` | opus | `REVIEW-WORKFLOW-HUGE.md` — large-refactor light tier (orchestrator path only; CI runner uses Strategy E region-split — see bug `7c1e-05b6-8f3a-418e` for the divergence) |
+| `dso:huge-diff-reviewer-standard` | opus | `REVIEW-WORKFLOW-HUGE.md` — large-refactor standard tier (same orchestrator-only caveat as above) |
+| `dso:huge-diff-refactor-anomaly` | opus | `REVIEW-WORKFLOW-HUGE.md` — anomalous-file conformance sweep when ≥5 of 7 sampled files share an identical transformation pattern (CONFIRMED_REFACTOR mode); same orchestrator-only caveat |
+| `dso:code-reviewer-arbiter` | opus | `REVIEW-WORKFLOW.md` cycle-end + `arbiter_processor.py` — adjudicates severity disputes between reviewer and defense; trinary ruling (binding, no partial accepts) |
+| `dso:code-reviewer-verifier` | opus | `REVIEW-WORKFLOW.md` — post-review absence-claim verification |
+| `dso:architectural-probe` | opus | `/dso:brainstorm` — invoked via `scripts/run-architectural-probe.sh` for pattern probing |
+| `dso:bug-classifier-haiku` | haiku | `/dso:debug-everything`, `/dso:fix-bug`, `/dso:brainstorm`, `/dso:sprint`, `/dso:end-session`, `/dso:onboarding` — bug type classification |
+| `dso:schema-correction` | haiku | `dso_ci_review/runner.py:1974-2009` Step 7.5 — schema-fail recovery (corrects a reviewer's findings JSON to validate-clean) |
 
 ## Tiered review summary
 
