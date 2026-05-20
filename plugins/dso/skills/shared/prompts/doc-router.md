@@ -106,6 +106,6 @@ The orchestrator resolves ambiguity (typically by escalating to the user) before
 ## Anti-patterns
 
 - **"This rule is important so it must go in CLAUDE.md"**: importance ≠ universal scope. Skill-specific rules belong in the skill's SKILL.md, where they are loaded with full attention only when relevant. CLAUDE.md rules compete for attention every session — context-rot research (Chroma 2025; lost-in-the-middle) shows degradation at all length increments.
-- **"This is architectural so it must go in CLAUDE.md"**: architecture descriptions belong in reference docs (Gate 2). CLAUDE.md holds **pointers** to architecture, not architecture itself. See CLAUDE.md Architectural Invariant #2 (bloat criteria a–d).
+- **"This is architectural so it must go in CLAUDE.md"**: architecture descriptions belong in reference docs (Gate 2). CLAUDE.md holds **pointers** to architecture, not architecture itself. See CLAUDE.md `invariant:claude-md-purpose` (bloat criteria a–d).
 - **"It's only a few lines"**: bloat is cumulative. Rules added as 2-line entries become 6-line entries with examples and exceptions over time. Externalize first; let CLAUDE.md hold the one-liner pointer.
 - **Duplicating an existing rule under a slightly different framing**: strengthen the existing rule instead.

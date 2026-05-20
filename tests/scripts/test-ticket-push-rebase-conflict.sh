@@ -60,18 +60,25 @@ test_merge_fallback_exists_in_lib() {
     fi
 }
 test_merge_fallback_exists_in_lib
-echo "Test 3: rebase conflict handling continues to merge fallback (not immediate return)"
-test_rebase_conflict_does_not_immediately_return() {
+echo "Test 3: merge is the primary reconciliation path (Fix 3 of bug 637b superseded rebase-first)"
+# Historical context: this test previously asserted that 'rebase --abort' was
+# followed by merge fallback (covering bugs 89dc-0913 + eb1d-0e5b — "gives up on
+# rebase conflict instead of falling back to git merge"). Bug 637b-63fe-9d44-4aab
+# Fix 3 eliminated the rebase path entirely from _push_tickets_branch — merge
+# is now the primary reconciliation, not a fallback after rebase failure. The
+# original invariant ("merge runs on diverged branches") still holds, validated
+# by Test 1 (behavioral) and Test 2 (presence). This test now asserts the
+# stronger post-Fix-3 invariant: the primary path does NOT call git rebase on
+# origin/tickets at all.
+test_no_rebase_on_primary_reconciliation_path() {
     local fn_body; fn_body=$(awk '/_push_tickets_branch\(\)/{found=1} found{print} found && /^}$/{found=0}' "$TICKET_LIB")
-    local rebase_abort_line; rebase_abort_line=$(echo "$fn_body" | grep -n "rebase --abort" | head -1 | cut -d: -f1)
-    if [ -z "$rebase_abort_line" ]; then (( ++FAIL )); echo "FAIL: rebase --abort not found" >&2; return; fi
-    local line_after_abort; line_after_abort=$(echo "$fn_body" | sed -n "$((rebase_abort_line + 1))p" | tr -d ' \t')
-    if [[ "$line_after_abort" == "return0"* ]]; then
-        (( ++FAIL )); echo "FAIL: line after rebase --abort is 'return 0' - merge fallback not implemented" >&2
+    # shellcheck disable=SC2016
+    if echo "$fn_body" | grep -qE '^\s*git[[:space:]]+-C[[:space:]]+"\$base_path"[[:space:]]+rebase[[:space:]]+origin/tickets'; then
+        (( ++FAIL )); echo "FAIL: _push_tickets_branch still uses 'git rebase origin/tickets' on primary path (Fix 3 of bug 637b regressed)" >&2
     else
-        (( ++PASS )); echo "PASS: line after rebase --abort continues to fallback logic"
+        (( ++PASS )); echo "PASS: _push_tickets_branch uses merge (not rebase) on primary path"
     fi
 }
-test_rebase_conflict_does_not_immediately_return
+test_no_rebase_on_primary_reconciliation_path
 echo ""
 print_summary

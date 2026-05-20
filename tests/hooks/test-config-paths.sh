@@ -1,4 +1,11 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2030,SC2031,SC2164,SC2329
+# Pre-existing test-file patterns surfaced when this file was promoted from 0644 to 0755:
+#   SC2030/SC2031: $( ... ) subshells intentionally scope `export` for test isolation
+#   SC2164: bare `cd` in test setup (tmpdirs always exist; adding `|| exit` would alter
+#           failure semantics — defer to a follow-up tracking ticket)
+#   SC2329: `_cleanup` is invoked indirectly via `trap _cleanup EXIT` at line 32
+#
 # tests/hooks/test-config-paths.sh
 # Unit tests for config-paths.sh shared config path resolver.
 #

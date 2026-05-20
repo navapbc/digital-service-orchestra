@@ -42,7 +42,7 @@ Update each new issue with its full error details:
 .claude/scripts/dso ticket comment <id> "<full list of errors in the cluster>"
 ```
 
-When a bug's root cause requires editing a safeguarded file (matching patterns from CLAUDE.md rule 20: `.claude/skills/**`, `.claude/hooks/**`, `.claude/settings.json`, `.claude/docs/**`, `scripts/**`, `CLAUDE.md`), also tag it after creation:
+When a bug's root cause requires editing a safeguarded file (matching patterns from CLAUDE.md `rule:no-safeguard-edits`: `.claude/skills/**`, `.claude/hooks/**`, `.claude/settings.json`, `.claude/docs/**`, `scripts/**`, `CLAUDE.md`), also tag it after creation:
 ```bash
 .claude/scripts/dso ticket comment <id> "SAFEGUARDED: fix requires editing protected file(s): <paths>"
 ```

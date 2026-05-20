@@ -7,11 +7,12 @@
 #                      (default: <repo-root>/.tickets-tracker/)
 #
 # Operations:
-#   1. Sync once (fetch + pull --rebase)
+#   1. Sync once (fetch + reset-or-merge depending on history relationship)
 #   2. Bulk compact: compact tickets above 10-event threshold (--no-commit)
 #   3. Archive: write ARCHIVED events for eligible closed tickets
 #   4. Single git commit for all changes
-#   5. Push with 3-retry fetch-rebase-push on non-fast-forward
+#   5. Push with 3-retry fetch-merge-push on non-fast-forward (bug 637b Fix 3:
+#      merge replaces rebase as the primary reconciliation path)
 #
 # Exit codes:
 #   0 = success or nothing to do
@@ -19,6 +20,12 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source ticket-lib.sh for _check_no_rebase_in_progress (bug 637b Fix 1
+# defensive guard). ticket-lib.sh defines functions only — no side effects on
+# source — so this is safe.
+# shellcheck source=ticket-lib.sh disable=SC1091
+source "$SCRIPT_DIR/ticket-lib.sh"
 
 # ── Parse arguments ──────────────────────────────────────────────────────────
 base_path=""
@@ -49,7 +56,7 @@ if [ ! -d "$base_path" ]; then
 fi
 
 # ── Step 1: Sync once ───────────────────────────────────────────────────────
-# Fetch and rebase from origin tickets branch (best-effort; skip if no remote)
+# Fetch and reset-or-merge from origin tickets branch (best-effort; skip if no remote)
 _has_remote=false
 if git -C "$base_path" remote get-url origin >/dev/null 2>&1; then
     _has_remote=true
@@ -87,15 +94,16 @@ for ticket_dir in "$base_path"/*/; do
     event_count=$(find "$ticket_dir" -maxdepth 1 -name '*.json' ! -name '.*' 2>/dev/null | wc -l | tr -d ' ')
     if [ "$event_count" -gt "$compact_threshold" ]; then
         # Run compact with --no-commit and --skip-sync (we already synced)
+        compact_err=$(mktemp /tmp/lifecycle-compact-err.XXXXXX)
         compact_exit=0
         TICKET_TRACKER_DIR="$base_path" bash "$SCRIPT_DIR/ticket-compact.sh" "$ticket_id" \
-            --threshold="$compact_threshold" --skip-sync --no-commit 2>/tmp/lifecycle-compact-err.$$ || compact_exit=$?
+            --threshold="$compact_threshold" --skip-sync --no-commit 2>"$compact_err" || compact_exit=$?
         if [ "$compact_exit" -ne 0 ]; then
-            echo "WARNING: compact failed for $ticket_id (exit $compact_exit): $(cat /tmp/lifecycle-compact-err.$$ 2>/dev/null)" >&2
-            rm -f /tmp/lifecycle-compact-err.$$
+            echo "WARNING: compact failed for $ticket_id (exit $compact_exit): $(cat "$compact_err" 2>/dev/null)" >&2
+            rm -f "$compact_err"
             continue
         fi
-        rm -f /tmp/lifecycle-compact-err.$$
+        rm -f "$compact_err"
         compacted_count=$((compacted_count + 1))
     fi
 done
@@ -150,14 +158,15 @@ for tid in ids:
 
 # ── Step 4: Single git commit ───────────────────────────────────────────────
 # Stage all changes and commit once
+add_err=$(mktemp /tmp/lifecycle-add-err.XXXXXX)
 add_exit=0
-git -C "$base_path" add -A 2>/tmp/lifecycle-add-err.$$ || add_exit=$?
+git -C "$base_path" add -A 2>"$add_err" || add_exit=$?
 if [ "$add_exit" -ne 0 ]; then
-    echo "Error: git add failed (exit $add_exit): $(cat /tmp/lifecycle-add-err.$$ 2>/dev/null)" >&2
-    rm -f /tmp/lifecycle-add-err.$$
+    echo "Error: git add failed (exit $add_exit): $(cat "$add_err" 2>/dev/null)" >&2
+    rm -f "$add_err"
     exit 1
 fi
-rm -f /tmp/lifecycle-add-err.$$
+rm -f "$add_err"
 
 # Check if there are staged changes
 if git -C "$base_path" diff --cached --quiet 2>/dev/null; then
@@ -165,14 +174,15 @@ if git -C "$base_path" diff --cached --quiet 2>/dev/null; then
     exit 0
 fi
 
+commit_err=$(mktemp /tmp/lifecycle-commit-err.XXXXXX)
 commit_exit=0
-git -C "$base_path" commit -q --no-verify -m "chore: ticket lifecycle — bulk compact and archive" 2>/tmp/lifecycle-commit-err.$$ || commit_exit=$?
+git -C "$base_path" commit -q --no-verify -m "chore: ticket lifecycle — bulk compact and archive" 2>"$commit_err" || commit_exit=$?
 if [ "$commit_exit" -ne 0 ]; then
-    echo "Error: git commit failed (exit $commit_exit): $(cat /tmp/lifecycle-commit-err.$$ 2>/dev/null)" >&2
-    rm -f /tmp/lifecycle-commit-err.$$
+    echo "Error: git commit failed (exit $commit_exit): $(cat "$commit_err" 2>/dev/null)" >&2
+    rm -f "$commit_err"
     exit 1
 fi
-rm -f /tmp/lifecycle-commit-err.$$
+rm -f "$commit_err"
 
 # Write .archived markers now that the ARCHIVED events are durably committed (SC2)
 # Error-tolerant — failure degrades to slow path on next read, does not block push.
@@ -205,7 +215,10 @@ while [ "$push_attempt" -lt "$max_push_retries" ]; do
 
     # Check if failure is retryable (non-fast-forward) vs fatal (auth, network, etc.)
     if echo "$push_stderr" | grep -qiE 'non-fast-forward|rejected|fetch first'; then
-        # Retryable: fetch, rebase, retry
+        # Retryable: fetch and MERGE (not rebase) — see bug 637b Fix 3 in
+        # ticket-lib.sh::_push_tickets_branch for rationale. Rebase exposes a
+        # multi-step state machine vulnerable to mid-pick interruption +
+        # concurrent-commit data loss; merge is atomic.
         git -C "$base_path" fetch origin tickets 2>/dev/null || true
     else
         # Non-retryable failure — exit immediately
@@ -213,13 +226,22 @@ while [ "$push_attempt" -lt "$max_push_retries" ]; do
         exit 1
     fi
 
-    rebase_exit=0
-    git -C "$base_path" rebase origin/tickets 2>/dev/null || rebase_exit=$?
+    # Defense in depth (bug 637b Fix 1 parity with _push_tickets_branch): if a
+    # prior interrupted operation left the tracker in a rebase/merge recovery
+    # state, refuse to merge. Otherwise the merge would fail compounding the
+    # error rather than producing a clean "run fsck-recover" signal.
+    if ! _check_no_rebase_in_progress "$base_path" 2>/dev/null; then
+        echo "Error: cannot reconcile push — tracker is in rebase/merge recovery state. Run ticket-fsck-recover.sh." >&2
+        exit 1
+    fi
 
-    if [ "$rebase_exit" -ne 0 ]; then
-        # Rebase conflict — abort and fail
-        git -C "$base_path" rebase --abort 2>/dev/null || true
-        echo "Error: rebase conflict during push retry (attempt $push_attempt)" >&2
+    merge_exit=0
+    git -C "$base_path" merge origin/tickets --no-edit -m "Merge origin/tickets (auto-reconcile during push retry)" 2>/dev/null || merge_exit=$?
+
+    if [ "$merge_exit" -ne 0 ]; then
+        # Merge conflict — abort and fail
+        git -C "$base_path" merge --abort 2>/dev/null || true
+        echo "Error: merge conflict during push retry (attempt $push_attempt)" >&2
         exit 1
     fi
 done

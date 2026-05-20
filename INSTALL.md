@@ -43,6 +43,17 @@ DSO is published on two channels. Choose the channel that fits your team's risk 
 
 **Recommendation**: Enable auto-update for your chosen channel in the marketplace via the `/plugin` UI so you receive fixes and improvements automatically without a manual reinstall.
 
+### Layer 2 Review-Gate Coverage Note
+
+The DSO review-gate is two-layer (see `plugins/dso/docs/HOOKS-REFERENCE.md`):
+
+- **Layer 1** — `pre-commit-review-gate.sh`, a git pre-commit hook that enforces the allowlist + review-status + diff-hash invariants.
+- **Layer 2** — a PreToolUse Bash hook that blocks bypass vectors like `--no-verify`, `core.hooksPath` overrides, `git commit-tree`, direct writes to `.git/hooks/`. The bypass logic lives in `plugins/dso/hooks/lib/review-gate-bypass-sentinel.sh` (function: `hook_review_bypass_sentinel`).
+
+Layer 2 is wired automatically when DSO is installed via the Claude Code plugin manager — `plugins/dso/.claude-plugin/plugin.json` registers the PreToolUse Bash matcher that dispatches `dispatchers/pre-bash.sh`, which sources the lib and runs the sentinel.
+
+**If you install DSO as files-only (not as a Claude Code plugin) you MUST wire Layer 2 manually** by adding the wrapper `plugins/dso/hooks/review-gate.sh` to your project's `settings.json` `hooks.PreToolUse` array with a Bash matcher. Without this wiring, `--no-verify` and the other bypass vectors are not blocked. The same applies to `plan-review-gate.sh` (PreToolUse ExitPlanMode matcher) for plan-review enforcement.
+
 ## Optional Dependencies
 
 - **ast-grep** (`sg`): enables structural code search in `/dso:fix-bug`, `/dso:sprint`, and other skills. DSO falls back to text grep when `ast-grep` is absent, but structural search significantly reduces false positives when tracing call sites and dependency graphs. Install with:

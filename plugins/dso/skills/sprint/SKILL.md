@@ -2003,7 +2003,7 @@ Do NOT merge to main here.
 ```
 
 <HARD-GATE>
-Do NOT proceed to Step 19 until Step 18 (completion-verifier dispatch) has completed and Gate 1 (`check-verifier-verdict.sh`) has returned a verdict (`P1` field populated). The orchestrator is biased toward confirming its own work — CLAUDE.md rule 24 exists because this step has been skipped in past sessions. "All tests pass" and "all tasks closed" do NOT substitute for independent verification.
+Do NOT proceed to Step 19 until Step 18 (completion-verifier dispatch) has completed and Gate 1 (`check-verifier-verdict.sh`) has returned a verdict (`P1` field populated). The orchestrator is biased toward confirming its own work — CLAUDE.md `rule:dispatch-verifier` exists because this step has been skipped in past sessions. "All tests pass" and "all tasks closed" do NOT substitute for independent verification.
 
 Do NOT rationalize skipping Step 18. Prior evidence ("RED tests are GREEN", "CI passes", "AC verified") does not satisfy the completion-verifier requirement. The verifier checks done-definitions that task-level AC verification does not cover.
 
@@ -2088,7 +2088,7 @@ Do NOT close this story, do NOT transition it to closed, and do NOT proceed to S
 <HARD-GATE>
 **Verifier dispatch shape — DO NOT DEVIATE (bug c716-952a)**
 
-The Agent tool call MUST use the named agent type. Hand-written prompts that paraphrase the agent file — even prompts starting "You are the dso:completion-verifier agent..." — are fabrication and violate CLAUDE.md rule #20. The named-agent dispatch loads the canonical rubric, schema, and verification questions; an inline prompt cannot reproduce them faithfully and skips the structural output contract.
+The Agent tool call MUST use the named agent type. Hand-written prompts that paraphrase the agent file — even prompts starting "You are the dso:completion-verifier agent..." — are fabrication and violate CLAUDE.md `rule:dispatch-verifier`. The named-agent dispatch loads the canonical rubric, schema, and verification questions; an inline prompt cannot reproduce them faithfully and skips the structural output contract.
 
 The ONLY two valid dispatch forms are:
 
@@ -2112,7 +2112,7 @@ The ONLY two valid dispatch forms are:
    })
    ```
 
-What is NOT acceptable (all of these are CLAUDE.md rule #20 violations):
+What is NOT acceptable (all of these are CLAUDE.md `rule:dispatch-verifier` violations):
 - Hand-written check lists or ad-hoc rubrics in the prompt
 - Prompts that reference the agent file by name without loading its contents
 - Prompts that summarize the agent file's instructions in your own words
@@ -2353,7 +2353,7 @@ Decision: Involuntary compaction detected? → Yes: P8 (Graceful Shutdown)
 **Triggered when**: all child tasks are closed (or all remaining are failed/blocked).
 
 <HARD-GATE>
-Do NOT execute any Phase G step until Step 2 (completion-verifier dispatch) has completed and Gate 1 (`check-verifier-verdict.sh`) has returned a `P1` verdict for the epic. Do NOT skip Step 2 because "all stories are closed" or "all tasks passed" — those are orchestrator-level observations, not independent verification. CLAUDE.md rule 24: the verifier exists because the orchestrator is biased toward confirming its own work.
+Do NOT execute any Phase G step until Step 2 (completion-verifier dispatch) has completed and Gate 1 (`check-verifier-verdict.sh`) has returned a `P1` verdict for the epic. Do NOT skip Step 2 because "all stories are closed" or "all tasks passed" — those are orchestrator-level observations, not independent verification. CLAUDE.md `rule:dispatch-verifier`: the verifier exists because the orchestrator is biased toward confirming its own work.
 
 Do NOT proceed to Step 3 (/dso:validate-work) or Phase I (Session Close) without the completion-verifier result. Phase G steps must execute in order: Step 2 → Step 3 → Step 4 → Step 5 → Step 6 → Step 7.
 </HARD-GATE>
@@ -2366,7 +2366,7 @@ Read and execute `prompts/epic-ci-and-e2e-gates.md` for the integration test gat
 
 <!-- DD4: self-application validation deferred to S11 (684d-ed77-c6ce-442b) -->
 
-**MANDATORY**: Dispatch the completion-verifier using the same shape defined in Phase F Step 18's "Verifier dispatch shape" HARD-GATE — primary form uses `subagent_type: "dso:completion-verifier"` with `model: "sonnet"`; fallback form reads `agents/completion-verifier.md` verbatim and passes its full contents under `subagent_type: "general-purpose"`. Hand-written paraphrases of the agent file are CLAUDE.md rule #20 violations (bug c716-952a). Pass the epic ID instead of a story ID.
+**MANDATORY**: Dispatch the completion-verifier using the same shape defined in Phase F Step 18's "Verifier dispatch shape" HARD-GATE — primary form uses `subagent_type: "dso:completion-verifier"` with `model: "sonnet"`; fallback form reads `agents/completion-verifier.md` verbatim and passes its full contents under `subagent_type: "general-purpose"`. Hand-written paraphrases of the agent file are CLAUDE.md `rule:dispatch-verifier` violations (bug c716-952a). Pass the epic ID instead of a story ID.
 
 After receiving the verifier JSON output, render the closure narrative FIRST, then run the gate checks:
 

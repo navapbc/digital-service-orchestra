@@ -17,7 +17,7 @@ The orchestrator → resolution sub-agent → re-review sub-agent chain (two lev
 `[Tool result missing due to internal error]` failures. The resolution sub-agent applies fixes only.
 The orchestrator dispatches all re-review sub-agents after this agent returns.
 
-See CLAUDE.md Never Do These rule 23 and SUB-AGENT-BOUNDARIES.md for the full prohibition.
+See CLAUDE.md `rule:no-nested-task` and SUB-AGENT-BOUNDARIES.md for the full prohibition.
 
 ## Placeholders
 
@@ -161,7 +161,7 @@ make format-modified 2>&1 | tail -3
 make lint-ruff 2>&1 | tail -3
 make lint-mypy 2>&1 | tail -5
 # Capture to file — avoids 5K-20K tokens of test output in context.
-# Use test-batched.sh instead of raw `make test-unit-only` per CLAUDE.md rule 19
+# Use test-batched.sh instead of raw `make test-unit-only` per CLAUDE.md `rule:no-broad-tests-bash`
 # (raw `make` exceeds the ~73s Bash-tool ceiling and gets killed with exit 144;
 # test-batched.sh batches across multiple Bash calls and emits per-test exit codes).
 # CWD is `{repo_root}/app` here (set by the surrounding block); use REPO_ROOT-anchored

@@ -46,7 +46,7 @@ from dso_ci_review.providers.config import ConfigError  # noqa: E402
 
 _DIFF_TEXT = "--- a/foo.py\n+++ b/foo.py\n@@ -1 +1 @@\n-x = 1\n+x = 2\n"
 
-_PRIMARY_MODEL = "claude-haiku-4-5-20251001"
+_PRIMARY_MODEL = "claude-haiku-4-5"
 
 
 # ---------------------------------------------------------------------------
@@ -156,7 +156,7 @@ def test_fallback_context_window_exceeded_escalates_to_sonnet(monkeypatch) -> No
         diff_text=_DIFF_TEXT,
         provider_chain=["anthropic"],
         agent_id="code-reviewer-light",
-        context_model_chain=["claude-haiku-4-5-20251001", "claude-sonnet-4-5"],
+        context_model_chain=["claude-haiku-4-5", "claude-sonnet-4-6"],
         environ={"ANTHROPIC_API_KEY": "test-key"},
     )
 

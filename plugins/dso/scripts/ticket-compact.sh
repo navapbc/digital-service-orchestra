@@ -82,18 +82,19 @@ if [ "$skip_sync" != "true" ]; then
     _sync_cmd="${TICKET_SYNC_CMD:-ticket sync}"
 
     # Run sync; treat exit 127 (subcommand absent) as a graceful skip (warn + continue).
+    _sync_err=$(mktemp /tmp/ticket-compact-sync-err.XXXXXX)
     _sync_exit=0
-    eval "$_sync_cmd" 2>/tmp/ticket-compact-sync-err.$$ || _sync_exit=$?
+    eval "$_sync_cmd" 2>"$_sync_err" || _sync_exit=$?
     if [ "$_sync_exit" -eq 127 ]; then
         echo "warning: sync unavailable (sync subcommand absent) — skipping sync before compact" >&2
         _sync_exit=0
     elif [ "$_sync_exit" -ne 0 ]; then
-        _sync_stderr=$(cat /tmp/ticket-compact-sync-err.$$ 2>/dev/null || true)
-        rm -f /tmp/ticket-compact-sync-err.$$
+        _sync_stderr=$(cat "$_sync_err" 2>/dev/null || true)
+        rm -f "$_sync_err"
         echo "Error: ticket sync failed (exit $_sync_exit)${_sync_stderr:+: $_sync_stderr}" >&2
         exit "$_sync_exit"
     fi
-    rm -f /tmp/ticket-compact-sync-err.$$
+    rm -f "$_sync_err"
 
     # ── Remote SNAPSHOT check ─────────────────────────────────────────────────
     # If any SNAPSHOT file already exists in the ticket dir (written by a remote

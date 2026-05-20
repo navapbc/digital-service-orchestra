@@ -34,7 +34,7 @@ from dso_ci_review.dispatch import (  # noqa: E402
 )
 
 _DIFF_TEXT = "--- a/foo.py\n+++ b/foo.py\n@@ -1 +1 @@\n-x = 1\n+x = 2\n"
-_PRIMARY_MODEL = "claude-haiku-4-5-20251001"
+_PRIMARY_MODEL = "claude-haiku-4-5"
 _ANTHROPIC_ENV = {"ANTHROPIC_API_KEY": "test-key"}
 _OPENAI_ENV = {"OPENAI_API_KEY": "test-key"}
 

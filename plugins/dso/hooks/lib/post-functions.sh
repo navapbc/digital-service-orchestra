@@ -158,7 +158,7 @@ print(json.dumps(entry))
     Example:
       .claude/scripts/dso test-batched.sh --timeout=50 "make test-unit-only"
 
-    See CLAUDE.md rule #16: "Use test-batched.sh for test commands expected to exceed 60 seconds."
+    See CLAUDE.md `always:test-batched-sh`: "Use test-batched.sh for test commands expected to exceed 60 seconds."
     Re-run this command using test-batched.sh now.
 REMINDER
         fi
@@ -362,8 +362,8 @@ _resolve_attribution_read_config_script() {
         echo "$_on_path"
         return 0
     fi
-    if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh" ]]; then
-        echo "$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh"
+    if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh" ]]; then  # shim-exempt: path-existence check; not an invocation, no shim resolution needed
+        echo "$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh"  # shim-exempt: emitting resolved path for caller; not an invocation site
         return 0
     fi
     echo ""

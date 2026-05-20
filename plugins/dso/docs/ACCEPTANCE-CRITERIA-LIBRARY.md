@@ -55,7 +55,7 @@ The existing categories below (e.g., `API Endpoint` requires success-case AND er
 - [ ] `make format-check` passes (exit 0)
   Verify: cd $(git rev-parse --show-toplevel)/app && make format-check
 
-[^test-batched]: `test-batched.sh` is used in agent-executed `Verify:` lines instead of `make test-unit-only` because CLAUDE.md rule 19 prohibits the latter from the Bash tool — a single `make test-unit-only` invocation can exceed the ~73s tool-timeout ceiling and get killed (exit 144). `test-batched.sh` is purpose-built for the ceiling: it batches tests, emits per-test exit codes, and resumes across multiple Bash calls until the suite completes. Human terminal sessions and CI runners have no such ceiling and may continue using `make test-unit-only` directly.
+[^test-batched]: `test-batched.sh` is used in agent-executed `Verify:` lines instead of `make test-unit-only` because CLAUDE.md `rule:no-broad-tests-bash` prohibits the latter from the Bash tool — a single `make test-unit-only` invocation can exceed the ~73s tool-timeout ceiling and get killed (exit 144). `test-batched.sh` is purpose-built for the ceiling: it batches tests, emits per-test exit codes, and resumes across multiple Bash calls until the suite completes. Human terminal sessions and CI runners have no such ceiling and may continue using `make test-unit-only` directly.
 
 ## Category: New Source File
 

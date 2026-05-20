@@ -65,6 +65,17 @@ Schema: `docs/workflow-config-schema.json`
 
 ---
 
+### `orchestration.max_agents`
+
+| | |
+|---|---|
+| **Description** | Upper bound on the number of sub-agents the orchestrator dispatches in a single batch. When unset, the cap is unlimited (subject to usage-tier overrides at 90/95/98% which force the effective cap to `1` or `0` per CLAUDE.md `rule:agent-cap`). Set this to a small positive integer to throttle parallelism on shared infrastructure or to enforce single-agent debugging. |
+| **Accepted values** | Positive integer, or unset (= unlimited) |
+| **Default** | Unset (unlimited) |
+| **Used by** | `scripts/agent-batch-lifecycle.sh`, `skills/validate-work/SKILL.md` | # shim-exempt: internal implementation references in config documentation
+
+---
+
 ### `paths.app_dir`
 
 | | |
@@ -533,6 +544,17 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 
 ---
 
+### `design.figma_collaboration`
+
+| | |
+|---|---|
+| **Description** | Gates Figma design integration during onboarding and sprint flows. When `true`, the design collaboration features (Figma pull, figma-staleness warnings, design-aware UI stories) are active. When `false` or absent, those features are skipped — a project without a Figma workflow does not pay the discovery cost. Set explicitly to `false` (rather than left absent) by `/dso:onboarding` as a sentinel meaning "the user was asked and opted out." |
+| **Accepted values** | `true` \| `false` (any other value or absence is treated as `false`) |
+| **Default** | `false` |
+| **Used by** | `/dso:onboarding` (writes the value as a sentinel); no current automated consumer reads the flag — sprint and other skills currently key off `design.figma_staleness_days` and individual figma-related tags instead. Future Figma-aware behaviors are expected to gate on this key. |
+
+---
+
 ### `design.figma_staleness_days`
 
 | | |
@@ -660,9 +682,20 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 
 | | |
 |---|---|
-| **Description** | Git branch naming pattern for worktree validation and cleanup. Used to identify branches created by worktree workflows during automated cleanup. |
+| **Description** | **Deprecated — use `worktree.orphan_patterns` instead.** Git branch naming pattern for worktree validation and cleanup. Precedence in `worktree-cleanup.sh`: (1) `worktree.orphan_patterns` list (canonical), (2) this key with a one-time deprecation warning to stderr, (3) hardcoded default patterns `worktree-*` and `story/*`. Replace with `worktree.orphan_patterns` to silence the warning and gain multi-pattern support. |
 | **Accepted values** | Branch name pattern (e.g., `worktree-*`) |
-| **Default** | Absent — cleanup uses default heuristics |
+| **Default** | Absent — cleanup uses the hardcoded defaults `worktree-*` and `story/*` |
+| **Used by** | `scripts/worktree-cleanup.sh` (legacy fallback only) | # shim-exempt: internal implementation reference in config documentation
+
+---
+
+### `worktree.orphan_patterns`
+
+| | |
+|---|---|
+| **Description** | List of git branch-name patterns identifying worktree branches eligible for orphan cleanup. Supersedes the scalar `worktree.branch_pattern`. Each list entry is one pattern; matching uses `read-config.sh --list` semantics (multiple lines of `worktree.orphan_patterns=<pattern>` in `dso-config.conf`). Branches matching ANY listed pattern are considered cleanup candidates by `worktree-cleanup.sh`. |
+| **Accepted values** | One or more branch-name patterns (e.g., `worktree-*`, `feature/wt-*`); read as a list via `read-config.sh --list` |
+| **Default** | Absent — cleanup falls back to default heuristics when neither this key nor the deprecated `worktree.branch_pattern` is set |
 | **Used by** | `scripts/worktree-cleanup.sh` | # shim-exempt: internal implementation reference in config documentation
 
 ---
@@ -843,6 +876,28 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 
 ---
 
+### `debug.session_ttl_hours`
+
+| | |
+|---|---|
+| **Description** | Time-to-live (in hours) for `.debug-active` session markers. `/dso:debug-everything` considers a session expired when the timestamp embedded in the `debug-session-id` is older than this TTL; expired markers are eligible for cleanup. See `${CLAUDE_PLUGIN_ROOT}/skills/debug-everything/docs/debug-active-marker-schema.md` for the marker schema. |
+| **Accepted values** | Positive integer (hours) |
+| **Default** | `24` |
+| **Used by** | `/dso:debug-everything` (consumes via `read-config.sh`), `debug-active-marker-schema.md` (documents the consumer contract) |
+
+---
+
+### `suggestion.tool_use_count_threshold`
+
+| | |
+|---|---|
+| **Description** | Number of tool-use events after which the suggestion gate may surface an "are you stuck?" prompt. Used by `hooks/lib/session-misc-functions.sh` to throttle proactive suggestions so they fire after sustained activity rather than on every tool call. Overridable per-process via the `DSO_SUGGESTION_TOOL_USE_THRESHOLD` environment variable, which takes precedence over the config value. |
+| **Accepted values** | Positive integer |
+| **Default** | Absent — falls back to a hardcoded `200` in `hooks/lib/session-misc-functions.sh` (suggestions trigger after 200 tool-use events). Set this key (or the `DSO_SUGGESTION_TOOL_USE_THRESHOLD` env var) to override; there is no documented way to disable the gate entirely short of editing the hook. |
+| **Used by** | `hooks/lib/session-misc-functions.sh` | # shim-exempt: internal implementation reference in config documentation
+
+---
+
 ### `checks.script_write_scan_dir`
 
 | | |
@@ -854,17 +909,6 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 
 ---
 
-### `checks.assertion_density_cmd`
-
-| | |
-|---|---|
-| **Description** | Command to run assertion density analysis on test files. When absent, assertion_coverage is scored null in retro reviews. |
-| **Accepted values** | Any shell command string (e.g., `python3 scripts/check_assertion_density.py`) |
-| **Default** | Absent — scored null |
-| **Used by** | `/dso:sprint` retro review |
-
----
-
 ### `dso.review.check_name`
 
 | | |
@@ -872,7 +916,7 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 | **Description** | GitHub check name for the PR-side LLM review CI job. Dual-consistency requirement: this value MUST match both (1) the `required_status_checks` value in the GitHub Ruleset for `session-*` branches, and (2) the expected check name asserted by Phase A preflight (`check-ruleset-preflight.sh`). When unset, `check-ruleset-preflight.sh` falls back to `Sprint Story Review`. Note: `per-branch-review.yml` was removed in story 20d7-09d6; `ci.yml`'s `llm-review` job is now the sole PR-side consumer. |
 | **Accepted values** | Non-empty string. Must match the literal check name produced by GitHub Actions (no shell-quoting, no leading/trailing whitespace). |
 | **Default** | `Sprint Story Review` |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/sprint/check-ruleset-preflight.sh` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/sprint/check-ruleset-preflight.sh` | # shim-exempt: internal implementation reference in config documentation
 
 ---
 
@@ -883,7 +927,7 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 | **Description** | Maximum number of LLM dispatch attempts the schema-correction retry loop makes when `_validate_findings_schema()` returns `schema_fail`. A value of `0` disables correction dispatch entirely — a synthetic `schema_error` finding is appended instead. Negative values are clamped to `0`. Values above the ceiling (`3`) are clamped to `3` with a warning emitted to stderr. Disambiguate from `review.max_cycles`, which controls the autonomous fix/defend loop in REVIEW-WORKFLOW.md — this key controls only the schema-correction sub-loop within runner.py. These loops are independent: schema-correction runs within a single review pass; resolution runs across review cycles. |
 | **Accepted values** | Non-negative integer (0 = disable, 1–3 = enabled; values > 3 are clamped to 3 at read time with a stderr warning — not rejected at parse time) |
 | **Default** | `1` |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/runner.py` (`get_schema_correction_max_attempts()`, `_clamp_schema_correction_attempts()`) |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/runner.py` (`get_schema_correction_max_attempts()`, `_clamp_schema_correction_attempts()`) | # shim-exempt: internal implementation reference in config documentation
 
 ---
 
@@ -971,7 +1015,7 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 | **Description** | LOC threshold above which a multi-file diff is partitioned into per-directory clusters by the region-split fallback (Strategy E) in `dso_ci_review.region_split`. Below this threshold the diff is reviewed monolithically. The default targets ~7-10% of Sonnet 4.6's diff-content budget after system prompt + finding schema + PR metadata overhead, leaving ample headroom for prompt growth. Single-file diffs are NEVER region-split regardless of this value (file-atomicity invariant — bug 532e-6ab7). Projects on smaller-context models should lower this; projects on 1M-context Sonnet can safely raise it. |
 | **Accepted values** | Positive integer. Non-numeric values fall back to default. |
 | **Default** | `3000` |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/region_split.py` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/region_split.py` | # shim-exempt: internal implementation reference in config documentation
 
 ---
 
@@ -982,7 +1026,7 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 | **Description** | File-count threshold above which a diff is region-split. Triggers when the diff touches more than this many files. Distinct from `loc_threshold` — captures the case of many small files (e.g., a repo-wide rename) where per-cluster parallelism beats one monolithic review. Single-file diffs are NEVER region-split regardless of this value. |
 | **Accepted values** | Positive integer. Non-numeric values fall back to default. |
 | **Default** | `40` |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/region_split.py` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/region_split.py` | # shim-exempt: internal implementation reference in config documentation
 
 ---
 
@@ -993,7 +1037,7 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 | **Description** | Maximum number of clusters dispatched in parallel by region-split. When the directory count exceeds this value, smallest clusters beyond the top `max_clusters - 1` are merged into an "overflow" cluster. Bounds wall-clock cost of N specialist API calls — not a context-window concern. |
 | **Accepted values** | Positive integer ≥ 1. Non-numeric values fall back to default. |
 | **Default** | `5` |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/region_split.py` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/region_split.py` | # shim-exempt: internal implementation reference in config documentation
 
 ---
 
@@ -1215,22 +1259,6 @@ Before this key existed, `/dso:preplanning` always ran interactively. With the k
 **KNOWN_KEYS registration note:**
 
 When adding `preplanning.interactive` to a new host project's `dso-config.conf`, also add `preplanning.interactive` to the `KNOWN_KEYS` array in `validate-config.sh` to prevent CI breakage on unknown-key validation. DSO's own `KNOWN_KEYS` registration was completed in story d481-3e6c.
-
----
-
-### `brainstorm.max_interaction_cycles`
-
-| Key | Type | Default | Description |
-|---|---|---|---|
-| `brainstorm.max_interaction_cycles` | integer | 2 | Maximum number of cross-epic interaction re-scans allowed after practitioner resolves an ambiguity or conflict. When absent, defaults to 2. |
-
-After each resolution of an AMBIGUITY or CONFLICT cross-epic signal, brainstorm re-runs the cross-epic scan to check for remaining interactions. This key bounds how many re-scans can occur before brainstorm presents any remaining unresolved signals to the practitioner and asks whether to proceed.
-
-| | |
-|---|---|
-| **Accepted values** | Positive integer |
-| **Default** | `2` |
-| **Used by** | `/dso:brainstorm` (cross-epic interaction re-scan loop) |
 
 ---
 
@@ -1720,7 +1748,7 @@ ticket.display_mode=alias
 | | |
 |---|---|
 | **Description** | Canonical model ID for the haiku agent tier. Used by `resolve-model-id.sh` to look up the model string passed to Agent/Task dispatches. Override to pin to a specific model version or substitute a different model for the haiku tier. |
-| **Accepted values** | Anthropic model ID string (e.g., `claude-haiku-4-5-20251001`) |
+| **Accepted values** | Anthropic model ID string (e.g., `claude-haiku-4-5`) |
 | **Default** | No built-in default — **required** when any haiku-tier agent is dispatched |
 | **Used by** | `scripts/resolve-model-id.sh`, `scripts/enrich-file-impact.sh`, `scripts/semantic-conflict-check.py` | # shim-exempt: internal implementation references in config documentation
 
@@ -1742,7 +1770,7 @@ ticket.display_mode=alias
 | | |
 |---|---|
 | **Description** | Canonical model ID for the opus agent tier. Used by `resolve-model-id.sh` to look up the model string passed to Agent/Task dispatches. Override to pin to a specific model version or substitute a different model for the opus tier. |
-| **Accepted values** | Anthropic model ID string (e.g., `claude-opus-4-6`) |
+| **Accepted values** | Anthropic model ID string (e.g., `claude-opus-4-7`) |
 | **Default** | No built-in default — **required** when any opus-tier agent is dispatched |
 | **Used by** | `scripts/resolve-model-id.sh` | # shim-exempt: internal implementation reference in config documentation
 
@@ -1766,7 +1794,7 @@ ticket.display_mode=alias
 |---|---|
 | **Description** | Model ID used for light-tier CI review (when `dso_ci_review.runner` is invoked with `tier=light`). |
 | **Accepted values** | Provider model ID string |
-| **Default** | `claude-haiku-4-5-20251001` (Anthropic) / `gpt-5.4-nano` (OpenAI) |
+| **Default** | `claude-haiku-4-5` (Anthropic) / `gpt-5.4-nano` (OpenAI) |
 | **Used by** | `python3 -m dso_ci_review.runner` (via `DSO_CI_REVIEW_MODEL` env var) | # shim-exempt: internal implementation reference in config documentation
 
 ---

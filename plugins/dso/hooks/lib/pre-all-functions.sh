@@ -54,8 +54,8 @@ hook_checkpoint_rollback() {
     # Read marker filename from config (with fallback default)
     local MARKER_FILE=".checkpoint-pending-rollback"
     local _READ_CONFIG=""
-    if [[ -f "$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh" ]]; then
-        _READ_CONFIG="$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh"
+    if [[ -f "$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh" ]]; then  # shim-exempt: hook lib sourced before shim is in PATH; dispatcher sets CLAUDE_PLUGIN_ROOT
+        _READ_CONFIG="$CLAUDE_PLUGIN_ROOT/scripts/read-config.sh"  # shim-exempt: hook lib sourced before shim is in PATH; dispatcher sets CLAUDE_PLUGIN_ROOT
     fi
     if [[ -n "$_READ_CONFIG" ]]; then
         local _MARKER

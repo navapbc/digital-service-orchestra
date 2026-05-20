@@ -51,7 +51,7 @@ Use the sections below. **Required** sections must always be populated. **Option
 
 ### 1. Technical Environment (Optional)
 
-* **Model ID:** [e.g., claude-opus-4-6]
+* **Model ID:** [e.g., claude-opus-4-7]
 * **Plugin/Tool Versions:** [e.g., dso plugin v1.2]
 * **Active Configs:** [Key environment variables, flags, or configs affecting execution]
 * **Context Scope:** [Working directory, repo branch, or specific file path]

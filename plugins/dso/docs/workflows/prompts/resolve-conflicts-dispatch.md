@@ -8,7 +8,7 @@ Template for the conflict-resolution sub-agent dispatched from `_dispatch_resolv
 
 ## NESTING PROHIBITION
 
-**This sub-agent MUST NOT dispatch nested Task tool calls (sub-agents).** The orchestrator → resolution → re-poll chain (two levels) causes `[Tool result missing due to internal error]` failures (see CLAUDE.md Never Do These rule 17). Resolve conflicts only; orchestrator handles re-poll after this agent returns.
+**This sub-agent MUST NOT dispatch nested Task tool calls (sub-agents).** The orchestrator → resolution → re-poll chain (two levels) causes `[Tool result missing due to internal error]` failures (see CLAUDE.md `rule:no-nested-task`). Resolve conflicts only; orchestrator handles re-poll after this agent returns.
 
 ## Placeholders
 
