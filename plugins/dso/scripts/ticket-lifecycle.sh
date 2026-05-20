@@ -205,7 +205,10 @@ while [ "$push_attempt" -lt "$max_push_retries" ]; do
 
     # Check if failure is retryable (non-fast-forward) vs fatal (auth, network, etc.)
     if echo "$push_stderr" | grep -qiE 'non-fast-forward|rejected|fetch first'; then
-        # Retryable: fetch, rebase, retry
+        # Retryable: fetch and MERGE (not rebase) — see bug 637b Fix 3 in
+        # ticket-lib.sh::_push_tickets_branch for rationale. Rebase exposes a
+        # multi-step state machine vulnerable to mid-pick interruption +
+        # concurrent-commit data loss; merge is atomic.
         git -C "$base_path" fetch origin tickets 2>/dev/null || true
     else
         # Non-retryable failure — exit immediately
@@ -213,13 +216,13 @@ while [ "$push_attempt" -lt "$max_push_retries" ]; do
         exit 1
     fi
 
-    rebase_exit=0
-    git -C "$base_path" rebase origin/tickets 2>/dev/null || rebase_exit=$?
+    merge_exit=0
+    git -C "$base_path" merge origin/tickets --no-edit -m "Merge origin/tickets (auto-reconcile during push retry)" 2>/dev/null || merge_exit=$?
 
-    if [ "$rebase_exit" -ne 0 ]; then
-        # Rebase conflict — abort and fail
-        git -C "$base_path" rebase --abort 2>/dev/null || true
-        echo "Error: rebase conflict during push retry (attempt $push_attempt)" >&2
+    if [ "$merge_exit" -ne 0 ]; then
+        # Merge conflict — abort and fail
+        git -C "$base_path" merge --abort 2>/dev/null || true
+        echo "Error: merge conflict during push retry (attempt $push_attempt)" >&2
         exit 1
     fi
 done

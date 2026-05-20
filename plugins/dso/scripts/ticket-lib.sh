@@ -704,21 +704,32 @@ _push_tickets_branch() {
         fi
 
         if echo "$_push_stderr" | grep -qiE 'non-fast-forward|rejected|fetch first'; then
+            # MERGE-AS-DEFAULT (bug 637b Fix 3): reconcile a non-fast-forward
+            # push by MERGING origin/tickets, not REBASING. Rebase exposes a
+            # multi-step state machine (rebase-merge/ directory + sequencer)
+            # which, if interrupted mid-pick by signal or by a concurrent
+            # writer landing a commit on the in-rebase HEAD, strands the
+            # pending picks as unreachable dangling commits — silent data loss.
+            # Merge is atomic: one commit object, no rebase-merge state.
+            # Ticket event files use UUID-named append-only filenames, so the
+            # merge is correct even across compaction boundaries where rebase
+            # would conflict on deleted files.
             git -C "$base_path" fetch origin tickets 2>/dev/null || true
-            local _rebase_exit=0
-            git -C "$base_path" rebase origin/tickets 2>/dev/null || _rebase_exit=$?
-            if [ "$_rebase_exit" -ne 0 ]; then
-                git -C "$base_path" rebase --abort 2>/dev/null || true
-                # Rebase failed (e.g., compaction deleted files diverged). Fall back to merge.
-                # Ticket event files use UUID-named append-only filenames, so merge is safe
-                # even across compaction boundaries where rebase would conflict.
-                local _merge_exit=0
-                git -C "$base_path" merge origin/tickets --no-edit 2>/dev/null || _merge_exit=$?
-                if [ "$_merge_exit" -ne 0 ]; then
-                    git -C "$base_path" merge --abort 2>/dev/null || true
-                    echo "Warning: tickets branch push failed (rebase and merge conflict, attempt $_attempt)" >&2
-                    return 0  # Best-effort: don't fail the caller
-                fi
+
+            # Defense in depth: if a prior failure left the tracker in a
+            # rebase/merge recovery state, refuse to merge (would compound
+            # the failure). Surfaces the recovery requirement loudly.
+            if ! _check_no_rebase_in_progress "$base_path" 2>/dev/null; then
+                echo "Warning: cannot reconcile push — tracker is in rebase/merge recovery state. Run ticket-fsck-recover.sh." >&2
+                return 0  # Best-effort: don't fail the caller
+            fi
+
+            local _merge_exit=0
+            git -C "$base_path" merge origin/tickets --no-edit -m "Merge origin/tickets (auto-reconcile during push retry)" 2>/dev/null || _merge_exit=$?
+            if [ "$_merge_exit" -ne 0 ]; then
+                git -C "$base_path" merge --abort 2>/dev/null || true
+                echo "Warning: tickets branch push failed (merge conflict, attempt $_attempt)" >&2
+                return 0  # Best-effort: don't fail the caller
             fi
         else
             echo "Warning: tickets branch push failed (exit $_push_exit): $_push_stderr" >&2
