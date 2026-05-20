@@ -1062,6 +1062,50 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 
 ---
 
+### `review.file_filter.max_files`
+
+| | |
+|---|---|
+| **Description** | Maximum number of files sent to LLM review across all cluster dispatches. Works as part of the hard upper bound: when the product `max_files × max_calls` is exceeded by the PR, the runner emits `OVER_BOUND` (exit 3) and bypasses LLM dispatch entirely. Setting this value to `0` emits a `UserWarning` — no files will be reviewed, which is likely a misconfiguration. When unset, no per-file cap is applied (the region-split cluster count acts as the effective bound). |
+| **Accepted values** | Non-negative integer. `0` is accepted but emits a warning. Non-numeric values are ignored and the key is treated as unset. |
+| **Default** | Unset (no cap) |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/file_filter.py` (`load_filter_config`) |
+
+---
+
+### `review.file_filter.max_calls`
+
+| | |
+|---|---|
+| **Description** | Maximum number of LLM dispatch calls across all cluster dispatches. Works together with `review.file_filter.max_files` to define the hard upper bound (`max_files × max_calls`). The aggregation synthesis call counts as ONE call against this budget regardless of cluster count (DD4 single-ledger-entry invariant). Setting this value to `0` emits a `UserWarning` — no LLM calls will be dispatched. When unset, no per-call cap is applied. |
+| **Accepted values** | Non-negative integer. `0` is accepted but emits a warning. Non-numeric values are ignored and the key is treated as unset. |
+| **Default** | Unset (no cap) |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/file_filter.py` (`load_filter_config`) |
+
+---
+
+### `review.file_filter.ignore.glob`
+
+| | |
+|---|---|
+| **Description** | Additional glob pattern (additive) for skipping files before LLM dispatch. Applied after the built-in default patterns (`**/package-lock.json`, `**/yarn.lock`, `**/poetry.lock`, `**/go.sum`) and after linguist-tag filtering from `.gitattributes`. Custom patterns are ADDITIVE — they extend, not replace, the defaults. Multiple patterns may be specified by repeating the key. Skipped files are reported in the `DSO-Review-Coverage:` visibility trailer with reason `ignore.glob:<pattern>`. |
+| **Accepted values** | Glob string. Patterns starting with `**/` match any path depth. |
+| **Default** | None (built-in defaults always apply: `**/package-lock.json`, `**/yarn.lock`, `**/poetry.lock`, `**/go.sum`) |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/file_filter.py` (`load_filter_config`, `filter_files`) |
+
+---
+
+### `review.file_filter.ignore.regex`
+
+| | |
+|---|---|
+| **Description** | Additional regex pattern (additive) for skipping files before LLM dispatch. Applied after glob filtering (Layer 3 in the filter pipeline). Multiple patterns may be specified by repeating the key. Malformed regex patterns are silently ignored. Skipped files are reported in the `DSO-Review-Coverage:` visibility trailer with reason `ignore.regex:<pattern>`. |
+| **Accepted values** | Python `re.search`-compatible regex string |
+| **Default** | None |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/file_filter.py` (`load_filter_config`, `filter_files`) |
+
+---
+
 ### `review.context_aug.soft_cap`
 
 | | |

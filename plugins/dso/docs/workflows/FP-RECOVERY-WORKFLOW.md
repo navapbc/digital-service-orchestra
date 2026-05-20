@@ -12,7 +12,8 @@ All of the following must hold:
 
 1. The PR's required check `llm-review` (ci.yml) has reported `failure`.
 2. All other required checks pass (or have known intermittent failures filed as bugs — see bug `53f9-a218-8799-49be`).
-3. The engineer believes the blocking finding is an FP after reading it. Common FP signatures:
+3. The PR's CI output does **NOT** contain an `OVER_BOUND:` marker. OVER_BOUND means the PR exceeded the `max_files × max_calls` hard upper bound before the LLM reviewer ran — there is no LLM finding to adjudicate. Use Step 0's eligibility check to confirm.
+4. The engineer believes the blocking finding is an FP after reading it. Common FP signatures:
    - Claims about variable types that can be refuted by reading the script (e.g., the int-vs-string FP on PR #213 cycle 1).
    - Claims about missing files that exist under a different subdirectory (mitigated by the cascade fix in PR #213 but not eliminated).
    - Speculative reachability assertions ("an attacker could control X") without naming a specific re-shelling sink (NOT-flag Rule 4 in the standard reviewer).
@@ -23,6 +24,32 @@ If the finding is genuinely uncertain — not clearly an FP — do NOT use this 
 ---
 
 ## Procedure
+
+### Step 0: OVER_BOUND pre-check (mandatory — do this before anything else)
+
+Before capturing the diff or dispatching any reviewer, verify that the PR's CI llm-review status is `FP-suspected` (i.e., the LLM actually ran and produced a finding), not `OVER_BOUND` (i.e., the PR was rejected before LLM dispatch due to exceeding the `max_files × max_calls` hard upper bound).
+
+```bash
+# Fetch the llm-review job log for the PR's head commit
+PR_NUMBER="<the PR number>"
+CI_LOG_FILE=$(mktemp /tmp/fp-recovery-ci-log.XXXXXX)
+gh run list --workflow=ci.yml --branch "$(gh pr view "$PR_NUMBER" --json headRefName --jq '.headRefName')" \
+    --limit=1 --json databaseId --jq '.[0].databaseId' \
+    | xargs -I{} gh run view {} --log 2>/dev/null | grep -A5 "Run LLM review" > "$CI_LOG_FILE" || true
+
+# Run the eligibility check
+DSO_CI_LOG="$CI_LOG_FILE" bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-fp-recovery-eligibility.sh"
+```
+
+If the eligibility check exits non-zero (OVER_BOUND detected), **stop immediately** and emit:
+
+> `OVER_BOUND PRs are not eligible for FP-recovery — these require admin attention (chunking budget exceeded, not a false-positive).`
+> `The CI llm-review never ran on this PR because it exceeded the max_files × max_calls hard upper bound.`
+> `Next step: request admin review or split the PR into smaller chunks.`
+
+Do NOT proceed to Step 1 for an OVER_BOUND PR. The `check-fp-recovery-eligibility.sh` script emits these messages to stderr when it detects the `OVER_BOUND:` marker in the CI log. Surface them to the user and exit.
+
+If the eligibility check exits 0, continue to Step 1.
 
 ### Step 1: Capture the PR diff
 
@@ -152,6 +179,7 @@ This is the data source for future FP-rate measurement once `side-pane-tithe` sh
 - **Does NOT change CI config.** No edits to `required-checks.txt`, branch protection, or workflow files. The escape valve is procedural, not infrastructural.
 - **Does NOT apply to test failures.** If `Hook Tests`, `Script Tests`, `actionlint`, etc. are failing, fix the failing tests. This workflow is review-specific.
 - **Does NOT apply to intermittent CI failures.** If `Script Tests` is failing intermittently (bug `53f9-a218-8799-49be`), the path is to re-push or wait for re-run, not to force-merge.
+- **Does NOT apply to OVER_BOUND PRs.** If the PR's CI output contains an `OVER_BOUND:` marker, the LLM reviewer never ran — there is no finding to adjudicate as an FP. Step 0 rejects these PRs early. The correct path for OVER_BOUND PRs is admin review or PR splitting.
 
 ---
 

@@ -1,0 +1,82 @@
+{
+  "total_count": 7,
+  "workflow_runs": [
+    {
+      "id": 2001,
+      "name": "CI / Build and Test",
+      "head_sha": "abc123def456abc123def456abc123def456abc1",
+      "path": ".github/workflows/ci.yml",
+      "check_suite_id": 9001,
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "failure",
+      "run_started_at": "2026-05-19T10:00:00Z"
+    },
+    {
+      "id": 2002,
+      "name": "CI / Build and Test",
+      "head_sha": "abc123def456abc123def456abc123def456abc1",
+      "path": ".github/workflows/ci.yml",
+      "check_suite_id": 9001,
+      "run_attempt": 2,
+      "status": "completed",
+      "conclusion": "success",
+      "run_started_at": "2026-05-19T10:10:00Z"
+    },
+    {
+      "id": 2003,
+      "name": "LLM Review",
+      "head_sha": "abc123def456abc123def456abc123def456abc1",
+      "path": ".github/workflows/ci.yml",
+      "check_suite_id": 9002,
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "run_started_at": "2026-05-19T10:05:00Z"
+    },
+    {
+      "id": 2004,
+      "name": "Ticket Platform Matrix",
+      "head_sha": "abc123def456abc123def456abc123def456abc1",
+      "path": ".github/workflows/ticket-platform-matrix.yml",
+      "check_suite_id": 9003,
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "run_started_at": "2026-05-19T10:03:00Z"
+    },
+    {
+      "id": 2005,
+      "name": "LLM Review",
+      "head_sha": "abc123def456abc123def456abc123def456abc1",
+      "path": ".github/workflows/per-branch-review.yml",
+      "check_suite_id": 9006,
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "run_started_at": "2026-05-19T10:06:00Z"
+    },
+    {
+      "id": 2006,
+      "name": "CI / Build and Test",
+      "head_sha": "def789ghi012def789ghi012def789ghi012def7",
+      "path": ".github/workflows/ci.yml",
+      "check_suite_id": 9004,
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "run_started_at": "2026-05-19T09:00:00Z"
+    },
+    {
+      "id": 2007,
+      "name": "Ticket Platform Matrix",
+      "head_sha": "def789ghi012def789ghi012def789ghi012def7",
+      "path": ".github/workflows/ticket-platform-matrix.yml",
+      "check_suite_id": 9005,
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "run_started_at": "2026-05-19T09:02:00Z"
+    }
+  ]
+}
