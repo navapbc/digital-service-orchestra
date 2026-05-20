@@ -28,13 +28,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # ── Read canonical skill list from check-skill-refs.sh ───────────────────────
-# check-skill-refs.sh is the single source of truth for DSO_SKILLS.
-# We extract the value directly rather than sourcing (sourcing triggers the scan
-# and exits with a non-zero code when violations are present).
-DSO_SKILLS=$(grep '^DSO_SKILLS=' "$SCRIPT_DIR/check-skill-refs.sh" | head -1 | sed 's/^DSO_SKILLS="//' | sed 's/"$//')
+# check-skill-refs.sh is the single source of truth for DSO_SKILLS — since
+# 2026-05-19 (R1 of project-audit-2026-05-19) it auto-discovers from filesystem
+# rather than a hardcoded list. We source it with DSO_SKILL_REFS_NO_SCAN=1 so
+# check-skill-refs.sh sets DSO_SKILLS in this shell and returns before running
+# its own scan logic.
+# shellcheck source=./check-skill-refs.sh
+DSO_SKILL_REFS_NO_SCAN=1 source "$SCRIPT_DIR/check-skill-refs.sh"
 
-if [[ -z "$DSO_SKILLS" ]]; then
-    echo "qualify-skill-refs: ERROR: Could not read DSO_SKILLS from check-skill-refs.sh" >&2
+if [[ -z "${DSO_SKILLS:-}" ]]; then
+    echo "qualify-skill-refs: ERROR: DSO_SKILLS not set after sourcing check-skill-refs.sh" >&2
     exit 1
 fi
 
@@ -94,6 +97,11 @@ fi
 #   commit/review                   → unchanged (preceded by word char)
 #   prompts/tickets-health.md       → unchanged (preceded by path char)
 
+# shellcheck disable=SC2016
+# $1 and $2 are perl backreferences (the URL capture and skill-name capture),
+# intentionally NOT expanded by the shell. The single-quoted segments around the
+# double-quoted "${_skill_alternation}" interpolation are the canonical pattern
+# for embedding perl scripts inside bash without shell-expanding perl variables.
 _perl_script='s{(https?://\S+)|(?<![a-zA-Z0-9_/])(?<!dso:)/('"${_skill_alternation}"')(?![a-zA-Z0-9_:-])}{ defined $1 ? $1 : "/dso:$2" }ge'
 
 _qualify_file() {
