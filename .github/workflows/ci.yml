@@ -581,7 +581,11 @@ jobs:
           echo "DSO_SUPPRESS_PRIOR_DEFENSES=true" >> "$GITHUB_ENV"
           echo "suppress-prior-defenses: env var set — runner.py consumer active (T10)"
 
-      - name: Run LLM review
+      - name: Run LLM review (provenance-aware)
+        # S3.T3: replaces direct ci-llm-review-runner.sh invocation with the
+        # provenance-aware wrapper. The wrapper calls verify-session-provenance.sh
+        # and routes: exit 0 → skip (all provenanced), exit 3 → skip (OVER_BOUND),
+        # exit 1|2 → invoke ci-llm-review-runner.sh (full-diff path).
         # bug 1624-5fb9: gate removed (was `&& env.INTEGRATION_SCOPE_EMPTY != 'true'`).
         # The pre-9a4847206b contract was that every code-changing PR receives an
         # LLM review against its full diff. The integration-scope narrowing —
@@ -606,21 +610,15 @@ jobs:
           # runner writes to stdout only and the gating job has no artifact to
           # inspect — a regression in the runner could silently exit 0.
           DSO_CI_REVIEW_OUTPUT_PATH: ${{ env.DSO_CI_REVIEW_FINDINGS_PATH }}
+          # S3.T3: provenance range — read by verify-session-provenance.sh
+          # (called internally by the wrapper). Uses PR event SHAs so the
+          # verifier always receives concrete commit hashes.
+          DSO_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          DSO_SESSION_HEAD: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         shell: bash -eo pipefail {0}
         run: |
-          PR_NUMBER="${GITHUB_REF#refs/pull/}"
-          PR_NUMBER="${PR_NUMBER%/merge}"
-          # bug 1624-5fb9: full-PR-diff fallback. When the integration scope is
-          # empty (direct PR with no cross-branch concerns), review the entire
-          # PR diff rather than skipping. The narrowed scope file is left in
-          # place so the runner can prioritize integration files when populated,
-          # but it is no longer load-bearing — the review always runs.
-          if [[ "${INTEGRATION_SCOPE_EMPTY:-false}" == "true" ]]; then
-            echo "Integration scope empty — reviewing full PR diff (direct-PR path)"
-          else
-            echo "Integration scope populated — runner may narrow to ${INTEGRATION_SCOPE_FILE:-(unset)}"
-          fi
-          gh pr diff "$PR_NUMBER" | bash plugins/dso/scripts/ci-llm-review-runner.sh
+          bash plugins/dso/scripts/llm-review-dispatch-or-skip.sh
 
       - name: Assert review liveness
         # c131-0f34: end-to-end liveness invariant. Fails the job if the

@@ -25,6 +25,71 @@ Advancing the stable channel requires running `scripts/release.sh` at the repo r
 
 Consumers who want stability install `dso`; consumers who want every merge install `dso-dev`. See `VERSIONING.md` for the broader release discipline.
 
+## Large-diff fallback pipeline (Strategy E + F)
+
+When a PR diff is too large to review in a single LLM pass, the CI review pipeline applies a multi-stage large-diff fallback. This section documents the complete flow, config surface, and operator semantics.
+
+### Flow overview
+
+```
+PR diff
+  │
+  ├─ filter_files()   ← ignore.glob defaults (lockfiles) + linguist tags + custom patterns
+  │
+  ├─ threshold check  ← region_split.loc_threshold / region_split.file_count_threshold
+  │     │
+  │     ├─ below threshold → standard monolithic review (Strategy A/B/C/D)
+  │     │
+  │     └─ above threshold → Strategy E: cluster by directory prefix (≤ max_clusters)
+  │           │
+  │           └─ Strategy F: per-cluster oversized check (per-cluster LOC > loc_threshold)
+  │                 → fan out to per-file sub-clusters
+  │
+  ├─ max_files × max_calls hard-upper-bound check
+  │     │
+  │     └─ exceeds bound → OVER_BOUND (exit 3, bypass LLM, route to admin)
+  │
+  ├─ parallel per-cluster/per-file dispatch → tier-appropriate reviewers
+  │
+  └─ aggregate_cluster_findings()  ← one LLM synthesis call + visibility trailer
+```
+
+### OVER_BOUND status
+
+`OVER_BOUND` is a distinct review outcome that fires when the PR exceeds the hard upper bound computed as `max_files × max_calls`. It is **not** equivalent to FP-suspected — it means the PR is structurally too large for automated review at the configured budget.
+
+When `OVER_BOUND` is emitted:
+
+- `llm-review-dispatch-or-skip.sh` exits 3, emits an `OVER_BOUND` summary, and reports the CI check-run conclusion as `skipped`.
+- No LLM reviewer is dispatched — the PR bypasses the review pipeline entirely.
+- The PR is routed to admin/FP-recovery for manual handling.
+- `/dso:fp-recovery` **rejects** PRs with `OVER_BOUND` status. FP-recovery is designed for false-positive findings, not structurally unreviewed PRs. Using FP-recovery on an OVER_BOUND PR would undermine signal integrity by approving a PR that received zero automated review.
+
+Operators encountering `OVER_BOUND` must either increase `max_files` / `max_calls` in `dso-config.conf` or split the PR into smaller units.
+
+### `DSO-Review-Coverage:` visibility trailer
+
+After all clusters are reviewed and aggregated, `dso_ci_review.aggregator.build_visibility_trailer()` emits a `DSO-Review-Coverage:` trailer that records which files were reviewed and which were skipped (with skip reasons):
+
+```
+DSO-Review-Coverage:
+  reviewed: src/foo.py, src/bar.py
+  skipped: package-lock.json (ignore.glob:**/package-lock.json)
+```
+
+**Namespace distinctness**: `DSO-Review-Coverage:` is intentionally different from `DSO-Story-Merge:`. The `verify-session-provenance.sh` provenance check greps for `DSO-Story-Merge:` to detect provenanced commits. A colliding namespace would cause the provenance check to misidentify aggregation-annotated commits as story-merge commits, producing incorrect provenance accounting. The `NAMESPACE` constant in `aggregator.py` is the single source of truth for this key.
+
+### Chunked review: cross-file context limitations
+
+File-level chunking (Strategy E + F) reviews each cluster in isolation. This means:
+
+- A reviewer assigned to `src/api/` does not see `src/db/` changes.
+- Cross-file bugs that span cluster boundaries may be missed by per-cluster reviewers.
+- **Partial mitigation**: `aggregate_cluster_findings()` performs one LLM synthesis call across all cluster results. This synthesis pass can surface cross-file patterns visible in the merged finding set, but it operates on findings (not raw diffs) — it cannot detect issues that no per-cluster reviewer flagged.
+- Failure mode F4a: if the synthesis LLM returns malformed JSON, aggregation falls back to per-cluster results concatenated without synthesis. The `aggregation_status` field in the result is `"failed"` in this case.
+
+Operators with large PRs that span many directories should treat chunked review results with heightened caution for cross-file concerns, and consider splitting PRs along coherent module boundaries when possible.
+
 ## CI llm-review: Strategy E — Region-Split FALLBACK
 
 When a PR diff exceeds **400 LOC or 15 files**, `_should_region_split()` returns True and the review pipeline switches to file-clustered parallel review instead of submitting the full diff to a single reviewer pass.
@@ -64,6 +129,31 @@ Before the session→main PR triggers the full integration LLM review, `verify-s
 - **Un-provenanced commits**: commits on the session branch that lack a `DSO-Story-Merge` trailer or equivalent GitHub PR merge provenance (potential leakage).
 
 If the resulting scope is empty (all commits are provenanced and no files span multiple sub-branches), the integration review job exits 0 immediately without dispatching any LLM reviewer.
+
+#### Exit-code contract
+
+`verify-session-provenance.sh` exits with one of three codes. This contract is tested by `tests/scripts/test-verify-session-provenance-contract.sh` and must not change without a new ADR.
+
+| Exit code | Meaning | Caller action |
+|-----------|---------|---------------|
+| `0` | All commits in `main..SESSION_HEAD` are provenanced (via `DSO-Story-Merge:` trailer or linked GitHub PR) | Skip LLM dispatch — emit `skipped` conclusion + liveness assertion |
+| `1` | One or more commits lack provenance (written to `${DSO_ARTIFACT_DIR}/unprovenanced-shas.txt`) | Invoke full-diff LLM review |
+| `2` | `BUDGET_EXHAUSTED` — GitHub API call budget (`DSO_GH_BUDGET`, default 200) exhausted before all commits were checked | Invoke full-diff LLM review (safe fallback — never silently skip) |
+
+### `llm-review-dispatch-or-skip.sh` — provenance-aware dispatch wrapper
+
+`${CLAUDE_PLUGIN_ROOT}/scripts/llm-review-dispatch-or-skip.sh` is the sole entry point invoked by `ci.yml`'s `Run LLM review` step (replacing the direct `ci-llm-review-runner.sh` call in S3). It calls `verify-session-provenance.sh`, then routes on the exit code:
+
+| Verifier exit | Wrapper behavior | check-run conclusion |
+|---------------|-----------------|----------------------|
+| `0` — all provenanced | Emits liveness assertion; exits 0. No LLM dispatch. Summary: `"Covered by sub-PR reviews: PR#<num>:<sha>, ..."` | `skipped` |
+| `1` — unprovenanced | Invokes `ci-llm-review-runner.sh` with full-diff path | `success` or `failure` (per reviewer) |
+| `2` — budget exhausted | Invokes `ci-llm-review-runner.sh` with full-diff path (safe fallback) | `success` or `failure` (per reviewer) |
+| `3` — OVER_BOUND | Emits OVER_BOUND summary; exits 0. Routes to admin/FP-recovery. | `skipped` |
+
+The `OVER_BOUND` exit code (3) is emitted by `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/runner.py` when a PR exceeds the `max_files × max_calls` hard upper bound defined in SC2. It bypasses LLM dispatch entirely and sends the PR to admin/FP-recovery. `/dso:fp-recovery` rejects PRs with `OVER_BOUND` status to preserve FP-recovery's signal integrity.
+
+**SC5(c) carve-out**: the `ci.yml:llm-review` job's invocation surface is unchanged by S3 — the same `Run LLM review` step exists at the same position in `ci.yml`. What changed is that the step now calls the wrapper instead of the runner directly. Execution outcome (run vs. skip) is data-dependent on `verify-session-provenance.sh`. This is a CONTRACT-PRESERVING BEHAVIOR CHANGE under SC5(c) because the alternative (always running the integration review regardless of per-sub-PR coverage) is the regression class the epic is fixing. See ADR 0015 for the full rationale.
 
 ### `resolve-session-branch.sh` — session branch discovery
 
@@ -134,6 +224,97 @@ The umbrella job name `merge-pipeline-checks` is registered in `.github/required
 
 **Cutover handoff to S_migration:** adding the job to `ci.yml` and `required-checks.txt` is a necessary prerequisite, but branch protection enforcement is not live until `provision-ruleset.sh` is run (S_migration phase). The S_migration run adds `merge-pipeline-checks` to the main branch's required status checks. Until that run, the job fires on PRs and reports results, but a failing check does not block merge. After S_migration, failure blocks merge.
 
+## Sub-PR cutover migration runbook
+
+This runbook covers the coordinated deployment of the sub-PR review workflow, cycle-ledger re-keying, and branch-protection updates introduced by the S_migration story. Run these steps in order; each script is idempotent unless stated otherwise.
+
+**Before you start — tag the pre-cutover state:**
+
+```bash
+git tag pre-cutover-sub-pr
+git push origin pre-cutover-sub-pr
+```
+
+This tag is the restore point for the rollback path (see "Rollback" below).
+
+### Step 1 — Migrate cycle-ledger v1.1.0 → v1.2.0
+
+Upgrades the on-disk `cycle-ledger.json` schema. Existing entries that lack a `pr_number` field receive the sentinel value `0` (marks "pre-v1.2.0 origin"). Already-migrated ledgers exit 0 without modification.
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/migrate-ledger-v11-to-v12.sh" \
+     .workflow-plugin-artifacts/cycle-ledger.json
+```
+
+Cross-link: the v1.2.0 grammar and sentinel rule are defined in S2 (`docs/contracts/cycle-ledger.md` under `${CLAUDE_PLUGIN_ROOT}`).
+
+**Idempotency:** safe to re-run. If `schema_version` is already `"1.2.0"`, the script exits 0 with no writes.
+
+### Step 2 — Update required-checks manifest
+
+Adds `review-sub-pr` (S1's per-sub-branch review job) and `merge-pipeline-checks` (S4's umbrella RED-test-blocker job) to `.github/required-checks.txt` when absent. No-op if both entries are already present.
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/update-required-checks-manifest.sh"
+```
+
+Cross-link: `merge-pipeline-checks` and the `red-test-blocker` step are documented in the "merge-pipeline-checks umbrella job" section above (S4). `review-sub-pr` is the per-sub-branch LLM review job introduced by S1.
+
+**Idempotency:** safe to re-run. Only missing entries are appended; no duplicates are created.
+
+### Step 3 — Stage new required checks as non-required (observation window start)
+
+Adds the new check-contexts to the main-branch GitHub Ruleset in **non-required** state so that CI reports pass/fail on open PRs without blocking merges. This begins the observation window.
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/promote-ruleset-required.sh" --stage-as-non-required
+```
+
+**Observation window:** wait at least one week. Monitor CI results on representative PRs before promoting.
+
+### Step 4 — Exempt in-flight PRs from the new required check
+
+Labels all currently-open PRs with `migration-grace` so they are not blocked by the new `review-sub-pr` required check. Also appends an exemption audit record to `docs/migration-exemptions/sub-pr-cutover.jsonl`.
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/exempt-in-flight-prs.sh"
+```
+
+**When to run:** after Step 3 and before promoting to required (Step 5). Running it after Step 5 is also safe — the label bypass is enforced by the `review-sub-pr` job's grace-label check.
+
+**Idempotency:** safe to re-run. PRs that already carry the `migration-grace` label are skipped; the exemption log is always appended for audit purposes.
+
+### Step 5 — Promote required checks to enforced
+
+After the observation window, promotes the staged check-contexts to **required** status on the main-branch Ruleset. From this point forward, PRs without a passing `review-sub-pr` check cannot merge (unless carrying the `migration-grace` label from Step 4).
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/promote-ruleset-required.sh" --promote-to-required
+```
+
+**Idempotency:** safe to re-run if checks are already required.
+
+### Rollback
+
+If the cutover must be reversed, run:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/rollback-sub-pr-cutover.sh"
+```
+
+**What rollback does:**
+
+1. Removes `.github/workflows/review-sub-pr.yml` (reverses the S1 workflow deploy).
+2. Removes the `migration-grace` label from all open PRs.
+3. Reads `cycle-ledger.json` for informational logging only — **does not downgrade** the v1.2.0 schema. The S2 reader handles both v1.1.0 and v1.2.0 entries, so leaving the migrated ledger in place is safe.
+
+**What rollback does NOT do automatically:**
+
+- Does not restore `.github/workflows/ci.yml` or other workflow files — to restore prior workflow state, check out from the pre-cutover tag: `git checkout pre-cutover-sub-pr -- .github/workflows/ci.yml`.
+- Does not demote branch-protection required checks — run `${CLAUDE_PLUGIN_ROOT}/scripts/promote-ruleset-required.sh --stage-as-non-required` (or remove entries from `.github/required-checks.txt` and re-provision the Ruleset) to revert Step 3/5.
+
+**Idempotency:** safe to re-run on an already-rolled-back state.
+
 ## Merge-to-main pipeline
 
 Phases: `sync → merge → version_bump → validate → push → archive → ci_trigger → comment_response`.
@@ -144,7 +325,7 @@ Phases: `sync → merge → version_bump → validate → push → archive → c
 
 ### Source-branch version-bump phase (PR mode only)
 
-In `dso.workflow=ci-pr` (PR mode), `${CLAUDE_PLUGIN_ROOT}/scripts/merge-to-main-pr.sh` runs a **pre-merge** `_phase_source_branch_version_bump` step on the source/session branch before the PR is created or queued for merge. This is distinct from the legacy post-merge bump path used by direct mode.
+In `dso.workflow=ci-pr` (PR mode), `${CLAUDE_PLUGIN_ROOT}/scripts/merge-to-main-pr.sh` runs a **pre-merge** `_phase_source_branch_version_bump` step on the source/session branch before the PR is created or queued for merge. This is distinct from the legacy post-merge bump path used by direct mode. See `docs/adr/0016-version-bump-design.md` for the tradeoff analysis (bump-before-final-review vs. bump-after-review) and the SC5(c) cross-reference.
 
 **What the phase does:**
 

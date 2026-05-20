@@ -2831,11 +2831,11 @@ def test_runner_calls_run_region_split_for_large_diff(tmp_path):
     """
     Given: a multi-file diff exceeding the region-split LOC threshold (default 3000)
     When: runner.main() is called in-process
-    Then: run_region_split is called (not standard tier dispatch)
-          AND async_dispatch_specialists is NOT called directly by the runner
+    Then: run_region_split_strategy_f is called (not standard tier dispatch)
+          AND _aggregate_cluster_findings is called to synthesize results
 
-    Strategy E (bed6-3871-f13c-4160): large diffs bypass the standard tier path
-    and route through the region-split pipeline.
+    Strategy F (S7.T7): large diffs bypass the standard tier path and route
+    through the filter → Strategy F chunk → dispatch → aggregate pipeline.
 
     Threshold history (bug 532e-6ab7): default raised 400 → 3000 to match
     Sonnet's actual context budget. The diff used here clears the new default
@@ -2852,11 +2852,18 @@ def test_runner_calls_run_region_split_for_large_diff(tmp_path):
     diff_file.write_text(diff_text)
     output_file = tmp_path / "out.json"
 
-    region_split_called: list[dict] = []
+    strategy_f_called: list[dict] = []
 
-    def mock_run_region_split(**kwargs):
-        region_split_called.append(kwargs)
-        return {"findings": []}
+    def mock_run_region_split_strategy_f(**kwargs):
+        strategy_f_called.append(kwargs)
+        # Return a minimal dispatch spec so the pipeline can proceed.
+        return [{"cluster_dir": ".", "files": ["file0.py"], "diff": diff_text, "oversized_single_file": False}]
+
+    aggregate_called: list[dict] = []
+
+    def mock_aggregate(**kwargs):
+        aggregate_called.append(kwargs)
+        return {"findings": [], "visibility_trailer": "", "aggregation_status": "ok"}
 
     dispatch_called: list = []
 
@@ -2888,8 +2895,12 @@ def test_runner_calls_run_region_split_for_large_diff(tmp_path):
             return_value=runner_mod._SchemaValidationResult("schema_pass", []),
         ),
         patch(
-            "dso_ci_review.runner.run_region_split",
-            side_effect=mock_run_region_split,
+            "dso_ci_review.runner.run_region_split_strategy_f",
+            side_effect=mock_run_region_split_strategy_f,
+        ),
+        patch(
+            "dso_ci_review.runner._aggregate_cluster_findings",
+            side_effect=mock_aggregate,
         ),
         patch(
             "dso_ci_review.runner.async_dispatch_specialists",
@@ -2903,13 +2914,13 @@ def test_runner_calls_run_region_split_for_large_diff(tmp_path):
         f"Expected exit code 0 (no blocking findings), got {exit_code}. "
         f"stderr={stderr_capture.getvalue()!r}"
     )
-    assert region_split_called, (
-        "run_region_split must be called when a multi-file diff exceeds the "
-        "region-split LOC threshold (default 3000; see bug 532e-6ab7)"
+    assert strategy_f_called, (
+        "run_region_split_strategy_f must be called when a multi-file diff exceeds "
+        "the region-split LOC threshold (default 3000; see bug 532e-6ab7)"
     )
-    assert not dispatch_called, (
-        "async_dispatch_specialists must NOT be called by the runner when "
-        f"region-split is active; called with: {dispatch_called!r}"
+    assert aggregate_called, (
+        "_aggregate_cluster_findings must be called after Strategy F dispatch "
+        "to synthesize per-cluster results into a unified payload"
     )
 
 
@@ -2917,10 +2928,10 @@ def test_runner_skips_run_region_split_for_small_diff(tmp_path):
     """
     Given: a diff below the region-split LOC threshold (default 3000 per bug 532e-6ab7)
     When: runner.main() is called in-process
-    Then: run_region_split is NOT called
+    Then: run_region_split_strategy_f is NOT called
           AND async_dispatch_specialists IS called (normal path)
 
-    Strategy E (bed6-3871-f13c-4160): small diffs use the standard tier pipeline.
+    Strategy F (S7.T7): small diffs use the standard tier pipeline.
     """
     import io
     from contextlib import redirect_stderr
@@ -2932,11 +2943,11 @@ def test_runner_skips_run_region_split_for_small_diff(tmp_path):
     diff_file.write_text(diff_text)
     output_file = tmp_path / "out.json"
 
-    region_split_called: list = []
+    strategy_f_called: list = []
 
-    def mock_run_region_split(**kwargs):
-        region_split_called.append(kwargs)
-        return {"findings": []}
+    def mock_run_region_split_strategy_f(**kwargs):
+        strategy_f_called.append(kwargs)
+        return []
 
     dispatch_called: list = []
 
@@ -2968,8 +2979,8 @@ def test_runner_skips_run_region_split_for_small_diff(tmp_path):
             return_value=runner_mod._SchemaValidationResult("schema_pass", []),
         ),
         patch(
-            "dso_ci_review.runner.run_region_split",
-            side_effect=mock_run_region_split,
+            "dso_ci_review.runner.run_region_split_strategy_f",
+            side_effect=mock_run_region_split_strategy_f,
         ),
         patch(
             "dso_ci_review.runner.async_dispatch_specialists",
@@ -2983,9 +2994,9 @@ def test_runner_skips_run_region_split_for_small_diff(tmp_path):
         f"Expected exit code 0 (no blocking findings), got {exit_code}. "
         f"stderr={stderr_capture.getvalue()!r}"
     )
-    assert not region_split_called, (
-        "run_region_split must NOT be called for small diffs; "
-        f"was called with: {region_split_called!r}"
+    assert not strategy_f_called, (
+        "run_region_split_strategy_f must NOT be called for small diffs; "
+        f"was called with: {strategy_f_called!r}"
     )
     assert dispatch_called, (
         "async_dispatch_specialists must be called for small diffs (standard tier path)"

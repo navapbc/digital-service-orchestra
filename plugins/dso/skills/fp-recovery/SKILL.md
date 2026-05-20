@@ -13,6 +13,10 @@ Shallow entry point for the FP-recovery workflow. Loads and executes `${CLAUDE_P
 
 CI `llm-review` (ci.yml) has reported `failure` AND the engineer believes the blocking finding is a false positive. All other required checks must pass (or be filed as known intermittent bugs). See FP-RECOVERY-WORKFLOW.md "When to invoke" for the full precondition list.
 
+**OVER_BOUND PRs are not eligible for FP-recovery.** If the PR's CI output contains an `OVER_BOUND:` marker (emitted when the PR exceeds the `max_files × max_calls` hard upper bound), reject immediately with:
+`OVER_BOUND PRs are not eligible for FP-recovery — these require admin attention (chunking budget exceeded, not a false-positive).`
+The CI reviewer never ran on an OVER_BOUND PR; there is no LLM finding to adjudicate. These PRs require admin review or must be split into smaller chunks. Use `${CLAUDE_PLUGIN_ROOT}/scripts/check-fp-recovery-eligibility.sh` (env: `DSO_CI_LOG=<path>`) to perform this gate programmatically.
+
 **This is an escape valve, not a routine path.** Routine PRs ship through `/dso:commit` + `merge-to-main.sh`. Invoke this skill only when the CI reviewer has produced a clearly-wrong blocking finding.
 
 ## What this skill does NOT do
@@ -39,7 +43,7 @@ Or with the PR number derived from the current branch:
 **IMPORTANT**: Do NOT call the Skill tool again or re-invoke `/dso:fp-recovery` recursively. Instead:
 
 1. Read `${CLAUDE_PLUGIN_ROOT}/docs/workflows/FP-RECOVERY-WORKFLOW.md` now.
-2. Execute its steps in order — starting from Step 1 (Capture the PR diff).
+2. Execute its steps in order — starting from Step 0 (OVER_BOUND pre-check), then Step 1 (Capture the PR diff).
 3. Follow the verdict criteria in Step 4 strictly: only clear the force-merge when ALL four criteria hold (zero critical, zero important, zero fragile, ≥10 tool calls and ≥60s runtime on the manual review dispatch).
 4. If the manual review produces critical or important findings, **abort** and surface those findings to the user. Do NOT force-merge.
 5. If clearance is reached, emit the force-merge command with the required annotation template per Step 5 of the workflow. The user runs the merge command — this skill does NOT execute the merge.

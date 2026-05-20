@@ -98,6 +98,11 @@ def _ensure_plugin_package() -> None:
     # now imports them at module level (task 7626-2e24-faa9-4688).
     _load_from_plugin("arbiter")
     _load_from_plugin("arbiter_processor")
+    # file_filter and aggregator must load before runner because runner now
+    # imports them at module level (task 0b31-0c73-01d1-45fc S7.T7).
+    _load_from_plugin("file_filter")
+    _load_from_plugin("cycle_ledger")  # re-ensure before aggregator
+    _load_from_plugin("aggregator")
     _load_from_plugin("local_workflow")
     _load_from_plugin("runner")
     _load_from_plugin("verifier")

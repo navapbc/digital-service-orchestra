@@ -17,6 +17,8 @@
 #   0  = all commits provenanced
 #   1  = one or more un-provenanced commits found (written to unprovenanced-shas.txt)
 #   2  = BUDGET_EXHAUSTED — API call budget used up before all commits checked
+#   3  = OVER_BOUND — non-provenanced commits acknowledged via DSO-Over-Bound: marker
+#        (large-diff routed to admin/FP-recovery; skip LLM dispatch)
 
 set -euo pipefail
 
@@ -95,6 +97,7 @@ fi
 # ── Initialize output tracking ────────────────────────────────────────────────
 _api_call_count=0
 _unprovenanced_shas=()
+_over_bound_shas=()
 _budget_exhausted=0
 
 # ── Helper: check cache ───────────────────────────────────────────────────────
@@ -137,6 +140,14 @@ while IFS=' ' read -r sha subject; do
     if echo "$commit_body" | grep -qE "^DSO-Story(-Merge)?:"; then
         # Commit is provenanced via story merge trailer — cache and skip
         _cache_set "$sha" "provenanced"
+        continue
+    fi
+
+    # Step 1b: Check for DSO-Over-Bound: marker (acknowledged non-provenanced)
+    if echo "$commit_body" | grep -q "^DSO-Over-Bound:"; then
+        # Commit is acknowledged as non-provenanced (large-diff / OVER_BOUND path)
+        echo "commit $sha status=OVER_BOUND; acknowledged non-provenanced (large-diff routed to FP-recovery)"
+        _over_bound_shas+=("$sha")
         continue
     fi
 
@@ -226,6 +237,9 @@ if (( _budget_exhausted )); then
     exit 2
 elif (( ${#_unprovenanced_shas[@]} > 0 )); then
     exit 1
+elif (( ${#_over_bound_shas[@]} > 0 )); then
+    echo "OVER_BOUND: ${#_over_bound_shas[@]} commit(s) acknowledged as non-provenanced (large-diff routed to admin review)"
+    exit 3
 else
     echo "All commits provenanced"
     exit 0
