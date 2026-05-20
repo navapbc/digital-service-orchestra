@@ -65,6 +65,40 @@ if [[ ${#CHECK_NAMES[@]} -eq 0 ]]; then
     exit 0
 fi
 
+# Reject malformed entries: lines starting with whitespace followed by '-'
+# (YAML list syntax that would never match a real GitHub Actions job name).
+MALFORMED=()
+for name in "${CHECK_NAMES[@]}"; do
+    if [[ "$name" =~ ^[[:space:]]*- ]]; then
+        MALFORMED+=("$name")
+    fi
+done
+if [[ ${#MALFORMED[@]} -gt 0 ]]; then
+    echo "ERROR: The following check names are malformed (YAML list syntax not allowed):" >&2
+    for name in "${MALFORMED[@]}"; do
+        printf '  - %s\n' "$name" >&2
+    done
+    exit 1
+fi
+
+# Reject duplicate entries
+declare -A _SEEN_NAMES
+DUPLICATES=()
+for name in "${CHECK_NAMES[@]}"; do
+    if [[ -n "${_SEEN_NAMES[$name]+_}" ]]; then
+        DUPLICATES+=("$name")
+    else
+        _SEEN_NAMES["$name"]=1
+    fi
+done
+if [[ ${#DUPLICATES[@]} -gt 0 ]]; then
+    echo "ERROR: The following check names are duplicated in the manifest:" >&2
+    for name in "${DUPLICATES[@]}"; do
+        printf '  - %s\n' "$name" >&2
+    done
+    exit 1
+fi
+
 # Delegate YAML parsing and matrix expansion to Python
 EXPANDED_JOB_NAMES="$(python3 - "$WORKFLOWS_DIR" <<'PYEOF'
 import sys
