@@ -24,14 +24,16 @@ Dispatch via `subagent_type: "dso:red-team-reviewer"` with `model: "opus"` passe
 - `{risk-register}`: Risk Register table from Phase C
 - `{dependency-graph}`: Dependency graph from `.claude/scripts/dso ticket deps <epic-id>`
 
-The red team sub-agent returns a JSON object with `sc_coverage_summary` (mandatory) and `findings` (may be empty) arrays. Parse the response and validate that:
-1. `sc_coverage_summary` is present and is an array (an entry per SC passed in, with `sc_id`, `sc_text`, `verdict`, `covering_story_ids` fields; `gap_summary` present when verdict ≠ `fully_covered`).
-2. `findings` is an array of objects with `type`, `target_story_id`, `title`, `description`, `rationale`, `taxonomy_category` fields; the `taxonomy_category` includes `sc_coverage_gap` for SC-traceability findings.
-3. If the agent returns `{"findings": [], "error": "model_requirement_unmet"}`, treat this as a dispatch defect: log `"Red team model requirement unmet — re-dispatching with explicit model: opus"` and retry once with the fallback path (`general-purpose` + `model: "opus"` + inline prompt). If the retry also returns `model_requirement_unmet`, log and skip to Phase F.
+The red team sub-agent returns a JSON object. Parse and route in this order — do not reorder, the model-requirement check MUST run before schema validation so the error-envelope payload `{"findings": [], "error": "model_requirement_unmet"}` is not misclassified as "missing sc_coverage_summary":
+
+1. **Model-requirement check (first)**: if the response is `{"findings": [], "error": "model_requirement_unmet"}` (or otherwise carries an `"error"` field equal to `"model_requirement_unmet"`), treat this as a dispatch defect — log `"Red team model requirement unmet — re-dispatching with explicit model: opus"` and retry once via the fallback path (`general-purpose` + `model: "opus"` + inline prompt). If the retry also returns `model_requirement_unmet`, log `"Red team review skipped: model_requirement_unmet on retry. Proceeding to Phase F."` and skip directly to Phase F.
+2. **Schema validation (second)**: with the model-requirement branch ruled out, validate the full response shape:
+   - `sc_coverage_summary` is present and is an array (one entry per SC passed in, with `sc_id`, `sc_text`, `verdict`, `covering_story_ids` fields; `gap_summary` present when verdict ∈ {`partially_covered`, `uncovered`, `out_of_scope_for_stories`}).
+   - `findings` is an array of objects with `type`, `target_story_id`, `title`, `description`, `rationale`, `taxonomy_category` fields; the `taxonomy_category` enum includes `sc_coverage_gap` for SC-traceability findings.
 
 **Fallback — two-path protocol**:
 - **Agent unavailable** (dispatch fails with "Unknown agent" or similar): Read `agents/red-team-reviewer.md` inline and re-dispatch as a general-purpose agent with `model: "opus"` using that content as the prompt. Do NOT perform the review inline — the agent must do it.
-- **Execution failure** (timeout, malformed output, missing `sc_coverage_summary`, or fails to produce valid JSON): Log a warning `"Red team review failed: <reason>. Skipping adversarial review, proceeding to Phase F."` and skip directly to Phase F.
+- **Execution failure** (timeout, malformed output, missing `sc_coverage_summary`, or fails to produce valid JSON) — but NOT `model_requirement_unmet` (handled above): Log a warning `"Red team review failed: <reason>. Skipping adversarial review, proceeding to Phase F."` and skip directly to Phase F.
 
 ## Step 2: Blue Team Dispatch
 

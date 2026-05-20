@@ -65,12 +65,34 @@ else
 fi
 
 # Model enforcement: opus must be passed explicitly to the red team dispatch,
-# not just relied on via agent frontmatter. The dispatcher line must combine
-# the named subagent_type with an explicit model: "opus" parameter.
-if grep -E 'subagent_type:\s*"?dso:red-team-reviewer"?.*model:\s*"opus"|model:\s*"opus".*dso:red-team-reviewer' "$PHASE_E" >/dev/null; then
-  pass "phase-e passes model: \"opus\" explicitly to red team dispatch"
+# not just relied on via agent frontmatter. Scope the check to the "Step 1: Red
+# Team Dispatch" section so prose that mentions opus elsewhere in the file does
+# not produce a false positive. The dispatcher line must combine the named
+# subagent_type with an explicit model: "opus" parameter on the same line.
+red_team_section=$(awk '
+  /^## Step 1: Red Team Dispatch/ { in_section = 1; print; next }
+  in_section && /^## / { exit }
+  in_section { print }
+' "$PHASE_E")
+if echo "$red_team_section" | grep -E 'subagent_type:\s*"?dso:red-team-reviewer"?[^\n]*model:\s*"opus"' >/dev/null; then
+  pass "phase-e Step 1 passes model: \"opus\" on the dso:red-team-reviewer dispatch line"
 else
-  fail "phase-e does not pass model: \"opus\" explicitly to red team dispatch (frontmatter default is not sufficient)"
+  fail "phase-e Step 1 does not pass model: \"opus\" on the dso:red-team-reviewer dispatch line (mentions elsewhere do not count — the dispatch line itself must carry the param)"
+fi
+
+# Model-requirement check must run BEFORE schema validation in the dispatcher.
+# Without this ordering, the `{"findings": [], "error": "model_requirement_unmet"}`
+# error envelope fails the schema check first and the retry branch becomes dead code.
+mru_line=$(echo "$red_team_section" | grep -nE 'model_requirement_unmet' | head -1 | cut -d: -f1)
+schema_line=$(echo "$red_team_section" | grep -nE 'sc_coverage_summary.*present|Schema validation' | head -1 | cut -d: -f1)
+if [[ -n "$mru_line" && -n "$schema_line" ]]; then
+  if (( mru_line < schema_line )); then
+    pass "model_requirement_unmet check runs before schema validation (line $mru_line < $schema_line)"
+  else
+    fail "model_requirement_unmet check runs AFTER schema validation (line $mru_line >= $schema_line) — error envelope will be misclassified as schema failure"
+  fi
+else
+  fail "could not locate model_requirement_unmet ($mru_line) or schema validation ($schema_line) in red team section"
 fi
 
 # Red team agent frontmatter must declare opus.
