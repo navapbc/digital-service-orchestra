@@ -85,7 +85,7 @@ _matches_allowlist() {
 
 # dso.workflow=ci-pr short-circuit (ab7b-785f): when CI is the source of
 # truth for review, the local pipeline is redundant — both review-gate layers
-# already skip enforcement under this workflow (CLAUDE.md rule 18). Returning
+# already skip enforcement under this workflow (CLAUDE.md `rule:no-bypass-review`). Returning
 # SKIP=true here lets COMMIT-WORKFLOW.md Step 0.5 bypass Steps 1.5-3a + 5
 # entirely, saving sub-agent budget per commit.
 #

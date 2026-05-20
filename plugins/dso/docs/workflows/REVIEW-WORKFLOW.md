@@ -22,11 +22,11 @@ The artifacts directory is computed by `get_artifacts_dir()` in `hooks/lib/deps.
 
 The pre-commit compliance verifier accepts `.skipped` markers as valid substitutes for `.result` files. `.skipped` markers are written by `commit-step skip <name> "<reason>"` and contain `{"step", "reason", "timestamp"}`.
 
-**CRITICAL**: Steps 0-5 are mandatory and sequential. Step 0 clears stale artifacts — always start here, even when restarting. Step 1 runs auto-fixers (format/lint/type-check) BEFORE Step 2 captures the diff hash — this ordering prevents pre-commit hooks from invalidating the hash. You MUST dispatch the code-reviewer sub-agent in Step 4. Skipping the sub-agent and recording review JSON directly is fabrication — it violates CLAUDE.md rule #15 regardless of how "simple" the changes appear.
+**CRITICAL**: Steps 0-5 are mandatory and sequential. Step 0 clears stale artifacts — always start here, even when restarting. Step 1 runs auto-fixers (format/lint/type-check) BEFORE Step 2 captures the diff hash — this ordering prevents pre-commit hooks from invalidating the hash. You MUST dispatch the code-reviewer sub-agent in Step 4. Skipping the sub-agent and recording review JSON directly is fabrication — it violates CLAUDE.md `rule:fabrication` regardless of how "simple" the changes appear.
 
 **Worktree context (sprint Phase F / per-worktree-review-commit.md)**: If reviewing code inside an isolated worktree, do NOT follow this document directly. Use `per-worktree-review-commit.md` Step 2 instead — it wraps these steps with mandatory `cd $WORKTREE_PATH &&` prefixes and `WORKFLOW_PLUGIN_ARTIFACTS_DIR="$WORKTREE_ARTIFACTS"` exports that must be set for both the classifier (Step 3) and the review sub-agent (Step 4). Following REVIEW-WORKFLOW.md directly from the orchestrator's CWD will produce a `DIFF_VALID: no` error because diff hash and findings land in the wrong artifacts directory.
 
-**This workflow reviews CODE (diffs, commits). To review a PLAN or DESIGN, use `/dso:plan-review` instead.** See CLAUDE.md "Always Do These" rule 10 for the review routing table.
+**This workflow reviews CODE (diffs, commits). To review a PLAN or DESIGN, use `/dso:plan-review` instead.** See CLAUDE.md `always:correct-review-tool` for the review routing table.
 
 ---
 
@@ -92,7 +92,7 @@ Run these checks in order. They mirror the pre-commit hook suite so the diff has
    - This keeps the staged diff in sync with the formatted state.
 2. **Lint check**: `cd app && $commands.lint 2>&1 | tail -3` (on success, only summary needed; re-run with full output on failure)
 3. **Type check**: `cd app && $commands.type_check 2>&1 | tail -5` (on success, only summary needed; re-run with full output on failure)
-4. **Unit tests**: `DSO_COMMIT_WORKFLOW=1 .claude/scripts/dso record-test-status` — runs ONLY the tests mapped to staged files via `.test-index` (typically <30 tests), records `passed` + diff_hash to `test-gate-status`, and arms the pre-commit gate's fast-path. **Prerequisite: changed files must be staged (`git add -u`) before this step** — `record-test-status` hashes the staged index, so an unstaged or partially staged tree produces a `diff_hash` mismatch at the pre-commit gate. Items 1–3 above already re-stage when format modifies files; if entering REVIEW-WORKFLOW.md independently of COMMIT-WORKFLOW.md, run `git add -u` first. Do NOT run the full suite (`make test-unit-only` is prohibited per CLAUDE.md rule 19 — it exceeds the ~73s tool timeout ceiling and produces spurious failures). On a non-zero exit, re-run with full output to see which mapped test failed; fix and restart from Step 0. Falls back to the full validate command (`.claude/scripts/dso validate.sh --ci`) only if `record-test-status` is unavailable.
+4. **Unit tests**: `DSO_COMMIT_WORKFLOW=1 .claude/scripts/dso record-test-status` — runs ONLY the tests mapped to staged files via `.test-index` (typically <30 tests), records `passed` + diff_hash to `test-gate-status`, and arms the pre-commit gate's fast-path. **Prerequisite: changed files must be staged (`git add -u`) before this step** — `record-test-status` hashes the staged index, so an unstaged or partially staged tree produces a `diff_hash` mismatch at the pre-commit gate. Items 1–3 above already re-stage when format modifies files; if entering REVIEW-WORKFLOW.md independently of COMMIT-WORKFLOW.md, run `git add -u` first. Do NOT run the full suite (`make test-unit-only` is prohibited per CLAUDE.md `rule:no-broad-tests-bash` — it exceeds the ~73s tool timeout ceiling and produces spurious failures). On a non-zero exit, re-run with full output to see which mapped test failed; fix and restart from Step 0. Falls back to the full validate command (`.claude/scripts/dso validate.sh --ci`) only if `record-test-status` is unavailable.
 
 If Docker is not available, use `python3 -m py_compile` on changed Python files as a lint fallback.
 
@@ -302,7 +302,7 @@ If no issue is associated with the current work, omit the issue context section.
 
 ### Dispatch (Light / Standard Tiers)
 
-**VERBATIM REQUIRED** — you MUST read the agent file and pass its content as the first element of the prompt. Do NOT write a constructed prompt (e.g., "Review the code changes for correctness and security.") — that is fabrication and violates CLAUDE.md rule 8. This applies in every session state, including post-compaction and long-running sessions. If you have not yet executed the bash block below to read the agent file, STOP and do it now before filling in the `prompt:` field.
+**VERBATIM REQUIRED** — you MUST read the agent file and pass its content as the first element of the prompt. Do NOT write a constructed prompt (e.g., "Review the code changes for correctness and security.") — that is fabrication and violates CLAUDE.md `rule:fabrication`. This applies in every session state, including post-compaction and long-running sessions. If you have not yet executed the bash block below to read the agent file, STOP and do it now before filling in the `prompt:` field.
 
 For `light` and `standard` tiers, dispatch a single named review agent. When `REVIEW_AGENT_OVERRIDE` is set (from the size upgrade path in Step 3b), use `REVIEW_AGENT_OVERRIDE` instead of `REVIEW_AGENT` — this ensures the opus upgrade takes effect at the current tier's scope:
 
@@ -1133,7 +1133,7 @@ If `N > 0` (at least one finding was Fixed) AND `N1 == 0` AND `N2 == 0` (all fix
 
 ```
 TDD_VIOLATION_DETECTED: TESTING_MODES reports green-only for fixes that change observable behavior.
-Per CLAUDE.md rule 16 and REVIEW-WORKFLOW.md TDD requirement, each behavioral fix requires:
+Per CLAUDE.md `rule:tdd-requires-test` and REVIEW-WORKFLOW.md TDD requirement, each behavioral fix requires:
   - A RED failing test written BEFORE the fix
   - The fix applied to make it GREEN
 Re-examine your Fix findings. For each finding that changes observable behavior (error handling, logic,

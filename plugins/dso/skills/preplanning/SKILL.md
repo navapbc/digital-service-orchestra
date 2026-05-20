@@ -732,7 +732,7 @@ After all implementation stories are drafted, **decide whether a documentation u
   - **Gate 3 — onboarding/user-facing** → `INSTALL.md`, `README.md`, or `docs/user/`.
   - **Gate 4 — decision rationale** → new ADR in `docs/adr/`.
   - **Gate 5 — strictly every-session, not skill-scoped, not enforceable as a hook, ≤ 2 lines** → CLAUDE.md, **but only as a `CLAUDE_MD_SUGGESTED_CHANGE` report**; the sub-agent must NOT write CLAUDE.md directly. The orchestrator surfaces the report to the user for approval before any CLAUDE.md edit lands.
-- **CLAUDE.md is not a default target.** Authoring a doc story whose primary target is CLAUDE.md is an anti-pattern; the router prefers SKILL.md / reference docs / ADRs and only escalates to CLAUDE.md when Gate 5 strictly holds. See CLAUDE.md Architectural Invariant #2 (bloat criteria a–d).
+- **CLAUDE.md is not a default target.** Authoring a doc story whose primary target is CLAUDE.md is an anti-pattern; the router prefers SKILL.md / reference docs / ADRs and only escalates to CLAUDE.md when Gate 5 strictly holds. See CLAUDE.md `invariant:claude-md-purpose` (bloat criteria a–d).
 - **Depends on**: all implementation stories (runs last).
 - **Title format**: "Update project docs to reflect [epic summary]".
 - **Style guide**: if `.claude/docs/DOCUMENTATION-GUIDE.md` exists, follow it for formatting and structure.

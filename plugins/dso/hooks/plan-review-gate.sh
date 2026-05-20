@@ -9,6 +9,13 @@
 #   3. Blocks (exit 2) if no review has been run
 #
 # The marker file is written by the plan-review skill after a successful review.
+#
+# FILES-ONLY-INSTALL ENTRY POINT: For plugin-managed installs the live path is
+# plugin.json PreToolUse ExitPlanMode matcher → dispatchers/pre-exitplanmode.sh
+# → hook_plan_review_gate (lib/session-misc-functions.sh). This wrapper is
+# preserved as the canonical entry point for host projects that install DSO as
+# files (not as a Claude Code plugin) — their settings.json wires this file
+# directly. The rollback snapshots also reference it. KEEP.
 
 HOOK_ERROR_LOG="$HOME/.claude/logs/dso-hook-errors.jsonl"
 trap 'printf "{\"ts\":\"%s\",\"hook\":\"plan-review-gate.sh\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; exit 0' ERR

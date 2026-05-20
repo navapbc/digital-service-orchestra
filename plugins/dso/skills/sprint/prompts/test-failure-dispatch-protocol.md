@@ -29,7 +29,7 @@ Read from `${CLAUDE_PLUGIN_ROOT}/skills/shared/prompts/test-failure-fix.md` and 
 
 ## Nesting Prohibition
 
-The sprint ORCHESTRATOR dispatches the debugging sub-agent directly via `Task` tool — the debugging sub-agent must NOT dispatch nested `Task` calls. This respects CLAUDE.md rule #23 (two-level nesting causes `[Tool result missing due to internal error]` failures).
+The sprint ORCHESTRATOR dispatches the debugging sub-agent directly via `Task` tool — the debugging sub-agent must NOT dispatch nested `Task` calls. This respects CLAUDE.md `rule:no-nested-task` (two-level nesting causes `[Tool result missing due to internal error]` failures).
 
 ## Parse RESULT
 

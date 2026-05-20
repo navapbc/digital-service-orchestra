@@ -133,7 +133,7 @@ is_behavioral_file() {
     return 1
 }
 
-# --- Safeguard file patterns (CLAUDE.md rule #20) ---
+# --- Safeguard file patterns (CLAUDE.md `rule:no-safeguard-edits`) ---
 declare -a SAFEGUARD_PATTERNS=(
     "${_PLUGIN_GIT_PATH}/skills/*"
     "${_PLUGIN_GIT_PATH}/hooks/*"

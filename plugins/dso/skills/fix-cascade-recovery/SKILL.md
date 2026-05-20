@@ -1,13 +1,13 @@
 ---
 name: fix-cascade-recovery
-description: Use when 5+ fix attempts have cascaded into new failures, when the cascade circuit-breaker fires (CLAUDE.md rule 6), or when repeated edits are propagating errors instead of resolving them. Stops further edits, assesses blast radius via git diff, decides whether to fully revert / selectively revert / keep changes, attaches cascade context to the active ticket, hands off to /dso:fix-bug for informed investigation, and resets the circuit-breaker counter. Trigger phrases include 'cascade circuit-breaker fired', 'too many failed attempts', 'rollback cascading changes', 'revert this mess', 'stop the edits', 'recover from a cascade', 'undo cascading edits'.
+description: Use when 5+ fix attempts have cascaded into new failures, when the cascade circuit-breaker fires (CLAUDE.md `rule:cascade-circuit`), or when repeated edits are propagating errors instead of resolving them. Stops further edits, assesses blast radius via git diff, decides whether to fully revert / selectively revert / keep changes, attaches cascade context to the active ticket, hands off to /dso:fix-bug for informed investigation, and resets the circuit-breaker counter. Trigger phrases include 'cascade circuit-breaker fired', 'too many failed attempts', 'rollback cascading changes', 'revert this mess', 'stop the edits', 'recover from a cascade', 'undo cascading edits'.
 user-invocable: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
 # Fix Cascade Recovery Protocol
 
-Emergency brake fired by the cascade circuit-breaker after 5 cascading failures (CLAUDE.md rule 6). The root cause is rarely where errors appear — read widely, edit narrowly. The fix is usually 1–5 lines once the actual problem is understood.
+Emergency brake fired by the cascade circuit-breaker after 5 cascading failures (CLAUDE.md `rule:cascade-circuit`). The root cause is rarely where errors appear — read widely, edit narrowly. The fix is usually 1–5 lines once the actual problem is understood.
 
 ## Prerequisites
 
@@ -30,7 +30,7 @@ git log --oneline -10                                 # last known good
 [[ -n "${TICKET_ID:-}" ]] && .claude/scripts/dso ticket show "$TICKET_ID" 2>/dev/null  # checkpoint notes
 ```
 
-Do NOT re-run the project test suite here — it is known-broken (that's why the breaker fired) and exceeds the 73s tool timeout (CLAUDE.md rule 19, INC-001). The file count from `git diff --stat` is the load-bearing signal.
+Do NOT re-run the project test suite here — it is known-broken (that's why the breaker fired) and exceeds the 73s tool timeout (CLAUDE.md `rule:no-broad-tests-bash`, INC-001). The file count from `git diff --stat` is the load-bearing signal.
 
 If `TICKET_ID` is set, record file count and original task:
 
