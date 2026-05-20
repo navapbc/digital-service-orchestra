@@ -26,7 +26,10 @@ Dispatch via `subagent_type: "dso:red-team-reviewer"` with `model: "opus"` passe
 
 The red team sub-agent returns a JSON object. Parse and route in this order — do not reorder, the model-requirement check MUST run before schema validation so the error-envelope payload `{"findings": [], "error": "model_requirement_unmet"}` is not misclassified as "missing sc_coverage_summary":
 
+<!-- VALIDATION-ORDER: model_requirement_unmet check FIRST, schema validation SECOND. Do not reorder — tests/test_adversarial_review_prompts.sh pins the order with these anchor comments. -->
+<!-- VALIDATION-STEP-1: model_requirement_unmet -->
 1. **Model-requirement check (first)**: if the response is `{"findings": [], "error": "model_requirement_unmet"}` (or otherwise carries an `"error"` field equal to `"model_requirement_unmet"`), treat this as a dispatch defect — log `"Red team model requirement unmet — re-dispatching with explicit model: opus"` and retry once via the fallback path (`general-purpose` + `model: "opus"` + inline prompt). If the retry also returns `model_requirement_unmet`, log `"Red team review skipped: model_requirement_unmet on retry. Proceeding to Phase F."` and skip directly to Phase F.
+<!-- VALIDATION-STEP-2: schema-validation -->
 2. **Schema validation (second)**: with the model-requirement branch ruled out, validate the full response shape:
    - `sc_coverage_summary` is present and is an array (one entry per SC passed in, with `sc_id`, `sc_text`, `verdict`, `covering_story_ids` fields; `gap_summary` present when verdict ∈ {`partially_covered`, `uncovered`, `out_of_scope_for_stories`}).
    - `findings` is an array of objects with `type`, `target_story_id`, `title`, `description`, `rationale`, `taxonomy_category` fields; the `taxonomy_category` enum includes `sc_coverage_gap` for SC-traceability findings.

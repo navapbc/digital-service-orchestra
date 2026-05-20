@@ -360,7 +360,7 @@ Pass the following as task arguments:
 
 The agent returns a JSON object with `sc_coverage_plan`, `story_drafts`, and `decomposition_notes`. Validate:
 
-1. `sc_coverage_plan` is an array with one entry per SC passed in. Every entry has `sc_id`, `sc_text`, `verdict`, `covering_story_ids`, `draft_ids` fields; `gap_summary` is present when `verdict` ∈ {`partial_coverage`, `out_of_scope_for_stories`}.
+1. `sc_coverage_plan` is an array with one entry per SC passed in. Every entry has `sc_id`, `sc_text`, `verdict`, `covering_story_ids`, `draft_ids` fields; `gap_summary` is present when `verdict` ∈ {`partial_coverage`, `uncovered`, `out_of_scope_for_stories`} — must match the agent's field-table condition so a regression that drops `gap_summary` on `uncovered` SCs is caught at validation time.
 2. `story_drafts` is an array. Each draft has `temp_id` (matching the pattern `draft-N`), `title` (user-story-shaped), `priority` (integer 0–4), `description`, `done_definitions` (each ending with `← Satisfies: sc-N`), `depends_on`, `split_candidate`, and `escalation_policy`.
 3. Every SC with verdict `uncovered` or `partial_coverage` is referenced by at least one draft (cross-check: the SC's `sc_id` appears in at least one DD's `← Satisfies: sc-N` annotation, and at least one `draft_id` for that SC is non-empty).
 4. Every draft's `depends_on` references either an existing story id or another `temp_id` in this same response — no dangling references.
@@ -686,10 +686,15 @@ Format:
 ```
 Done Definitions:
 - When this story is complete, [observable outcome 1]
-  ← Satisfies: "[quoted epic criterion]"
+  ← Satisfies: sc-N  (sc-N: "[quoted epic criterion]")
 - When this story is complete, [observable outcome 2]
-  ← Satisfies: "[quoted epic criterion]"
+  ← Satisfies: sc-N  (sc-N: "[quoted epic criterion]")
 ```
+
+The `sc-N` identifier is assigned by the Story Decomposition phase and recorded
+in the artifact `story-decomposition-<epic-id>.json`. Downstream machine parsing
+(SC contradiction check, completion verifier) keys off `sc-N`; the parenthetical
+quoted text is for human readers only.
 
 Example:
 ```
@@ -697,10 +702,10 @@ Done Definitions:
 - When this story is complete, a user can view all extracted rules
   for a document, mark individual rules as approved or rejected,
   and see a summary count of pending reviews
-  ← Satisfies: "Users can review extracted rules before export"
+  ← Satisfies: sc-3  (sc-3: "Users can review extracted rules before export")
 - When this story is complete, reviewed rules persist across sessions
   and are visible when the user returns to the same document
-  ← Satisfies: "Review state is preserved"
+  ← Satisfies: sc-4  (sc-4: "Review state is preserved")
 ```
 
 **Good** done definitions (observable outcomes):
@@ -898,7 +903,7 @@ Then, below the table, display each story's full description so the user can rev
 
 **Done Definitions**:
 - When this story is complete, [outcome 1]
-  ← Satisfies: "[epic criterion]"
+  ← Satisfies: sc-N  (sc-N: "[epic criterion]")
 
 **Considerations**:
 - [Area] concern

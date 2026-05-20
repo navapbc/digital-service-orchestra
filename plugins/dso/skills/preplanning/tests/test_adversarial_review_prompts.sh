@@ -82,17 +82,20 @@ fi
 
 # Model-requirement check must run BEFORE schema validation in the dispatcher.
 # Without this ordering, the `{"findings": [], "error": "model_requirement_unmet"}`
-# error envelope fails the schema check first and the retry branch becomes dead code.
-mru_line=$(echo "$red_team_section" | grep -nE 'model_requirement_unmet' | head -1 | cut -d: -f1)
-schema_line=$(echo "$red_team_section" | grep -nE 'sc_coverage_summary.*present|Schema validation' | head -1 | cut -d: -f1)
+# error envelope fails the schema check first and the retry branch becomes dead
+# code. Anchor on machine-readable HTML-comment markers (VALIDATION-STEP-1 /
+# VALIDATION-STEP-2) rather than English prose so the assertion does not break
+# on natural rewording of the section headings.
+mru_line=$(echo "$red_team_section" | grep -nE 'VALIDATION-STEP-1:[[:space:]]*model_requirement_unmet' | head -1 | cut -d: -f1)
+schema_line=$(echo "$red_team_section" | grep -nE 'VALIDATION-STEP-2:[[:space:]]*schema-validation' | head -1 | cut -d: -f1)
 if [[ -n "$mru_line" && -n "$schema_line" ]]; then
   if (( mru_line < schema_line )); then
-    pass "model_requirement_unmet check runs before schema validation (line $mru_line < $schema_line)"
+    pass "VALIDATION-STEP-1 (model_requirement_unmet) precedes VALIDATION-STEP-2 (schema-validation) (line $mru_line < $schema_line)"
   else
-    fail "model_requirement_unmet check runs AFTER schema validation (line $mru_line >= $schema_line) — error envelope will be misclassified as schema failure"
+    fail "VALIDATION-STEP-1 anchor appears AFTER VALIDATION-STEP-2 (line $mru_line >= $schema_line) — error envelope will be misclassified as schema failure"
   fi
 else
-  fail "could not locate model_requirement_unmet ($mru_line) or schema validation ($schema_line) in red team section"
+  fail "could not locate VALIDATION-STEP-1 ($mru_line) or VALIDATION-STEP-2 ($schema_line) anchor comment in red team section — add the marker comments back to phase-e-adversarial-review.md"
 fi
 
 # Red team agent frontmatter must declare opus.
