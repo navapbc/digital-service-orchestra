@@ -25,6 +25,71 @@ Advancing the stable channel requires running `scripts/release.sh` at the repo r
 
 Consumers who want stability install `dso`; consumers who want every merge install `dso-dev`. See `VERSIONING.md` for the broader release discipline.
 
+## Large-diff fallback pipeline (Strategy E + F)
+
+When a PR diff is too large to review in a single LLM pass, the CI review pipeline applies a multi-stage large-diff fallback. This section documents the complete flow, config surface, and operator semantics.
+
+### Flow overview
+
+```
+PR diff
+  │
+  ├─ filter_files()   ← ignore.glob defaults (lockfiles) + linguist tags + custom patterns
+  │
+  ├─ threshold check  ← region_split.loc_threshold / region_split.file_count_threshold
+  │     │
+  │     ├─ below threshold → standard monolithic review (Strategy A/B/C/D)
+  │     │
+  │     └─ above threshold → Strategy E: cluster by directory prefix (≤ max_clusters)
+  │           │
+  │           └─ Strategy F: per-cluster oversized check (per-cluster LOC > loc_threshold)
+  │                 → fan out to per-file sub-clusters
+  │
+  ├─ max_files × max_calls hard-upper-bound check
+  │     │
+  │     └─ exceeds bound → OVER_BOUND (exit 3, bypass LLM, route to admin)
+  │
+  ├─ parallel per-cluster/per-file dispatch → tier-appropriate reviewers
+  │
+  └─ aggregate_cluster_findings()  ← one LLM synthesis call + visibility trailer
+```
+
+### OVER_BOUND status
+
+`OVER_BOUND` is a distinct review outcome that fires when the PR exceeds the hard upper bound computed as `max_files × max_calls`. It is **not** equivalent to FP-suspected — it means the PR is structurally too large for automated review at the configured budget.
+
+When `OVER_BOUND` is emitted:
+
+- `llm-review-dispatch-or-skip.sh` exits 3, emits an `OVER_BOUND` summary, and reports the CI check-run conclusion as `skipped`.
+- No LLM reviewer is dispatched — the PR bypasses the review pipeline entirely.
+- The PR is routed to admin/FP-recovery for manual handling.
+- `/dso:fp-recovery` **rejects** PRs with `OVER_BOUND` status. FP-recovery is designed for false-positive findings, not structurally unreviewed PRs. Using FP-recovery on an OVER_BOUND PR would undermine signal integrity by approving a PR that received zero automated review.
+
+Operators encountering `OVER_BOUND` must either increase `max_files` / `max_calls` in `dso-config.conf` or split the PR into smaller units.
+
+### `DSO-Review-Coverage:` visibility trailer
+
+After all clusters are reviewed and aggregated, `dso_ci_review.aggregator.build_visibility_trailer()` emits a `DSO-Review-Coverage:` trailer that records which files were reviewed and which were skipped (with skip reasons):
+
+```
+DSO-Review-Coverage:
+  reviewed: src/foo.py, src/bar.py
+  skipped: package-lock.json (ignore.glob:**/package-lock.json)
+```
+
+**Namespace distinctness**: `DSO-Review-Coverage:` is intentionally different from `DSO-Story-Merge:`. The `verify-session-provenance.sh` provenance check greps for `DSO-Story-Merge:` to detect provenanced commits. A colliding namespace would cause the provenance check to misidentify aggregation-annotated commits as story-merge commits, producing incorrect provenance accounting. The `NAMESPACE` constant in `aggregator.py` is the single source of truth for this key.
+
+### Chunked review: cross-file context limitations
+
+File-level chunking (Strategy E + F) reviews each cluster in isolation. This means:
+
+- A reviewer assigned to `src/api/` does not see `src/db/` changes.
+- Cross-file bugs that span cluster boundaries may be missed by per-cluster reviewers.
+- **Partial mitigation**: `aggregate_cluster_findings()` performs one LLM synthesis call across all cluster results. This synthesis pass can surface cross-file patterns visible in the merged finding set, but it operates on findings (not raw diffs) — it cannot detect issues that no per-cluster reviewer flagged.
+- Failure mode F4a: if the synthesis LLM returns malformed JSON, aggregation falls back to per-cluster results concatenated without synthesis. The `aggregation_status` field in the result is `"failed"` in this case.
+
+Operators with large PRs that span many directories should treat chunked review results with heightened caution for cross-file concerns, and consider splitting PRs along coherent module boundaries when possible.
+
 ## CI llm-review: Strategy E — Region-Split FALLBACK
 
 When a PR diff exceeds **400 LOC or 15 files**, `_should_region_split()` returns True and the review pipeline switches to file-clustered parallel review instead of submitting the full diff to a single reviewer pass.

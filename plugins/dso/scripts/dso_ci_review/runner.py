@@ -48,10 +48,17 @@ from dso_ci_review.cycle_ledger import (
 from dso_ci_review.findings import merge_findings, _parse_line_range
 from dso_ci_review.providers.config import AuthError, ConfigError, get_provider
 from dso_ci_review.proximity import compute_proximity_overlap, validate_escape_rationale
-from dso_ci_review.region_split import _should_region_split, run_region_split
+from dso_ci_review.region_split import _should_region_split, run_region_split_strategy_f
 from dso_ci_review import cycle_ledger
 from dso_ci_review.arbiter import dispatch_cycle_end_arbiter
 from dso_ci_review.arbiter_processor import process_rulings
+from dso_ci_review.file_filter import (
+    filter_files as _filter_files,
+    load_filter_config as _load_filter_config,
+)
+from dso_ci_review.aggregator import (
+    aggregate_cluster_findings as _aggregate_cluster_findings,
+)
 
 
 class _SchemaValidationResult(NamedTuple):
@@ -110,6 +117,66 @@ _BLOCKING_SEVERITIES = frozenset({"critical", "important", "fragile"})
 # These carry a severity field for schema conformance but must not count toward the
 # severity gate (the all-specialist-errors check below handles infra failures separately).
 _SYNTHETIC_TYPES = frozenset({"specialist_error", "fallback_exhausted", "parse_error"})
+
+# ---------------------------------------------------------------------------
+# Large-diff pipeline — OVER_BOUND status and config validation
+# ---------------------------------------------------------------------------
+
+# Status string emitted when the cluster × call budget is exceeded.
+# Distinct from FP-suspected, BLOCK, etc. Routed to admin/FP-recovery by T8.
+OVER_BOUND = "OVER_BOUND"
+
+
+def _validate_large_diff_config(config: dict) -> None:
+    """Validate large-diff pipeline config values; emit warnings or raise.
+
+    Rules (per DD1 / AC amendment F6):
+      - max_files=0 → emit warning to stderr; do NOT raise.
+      - max_calls=0 → emit warning to stderr; do NOT raise.
+      - ignore.glob empty → emit warning to stderr; do NOT raise.
+      - max_calls < max_files + 1 → raise ValueError (one aggregation pass
+        requires at least max_files dispatches + 1 synthesis call).
+
+    Args:
+        config: dict from _load_filter_config() or equivalent.
+    """
+    max_files = config.get("max_files")
+    max_calls = config.get("max_calls")
+    ignore_globs = config.get("ignore_globs", [])
+
+    if max_files == 0:
+        print(
+            "WARNING: review.large_diff.max_files=0 disables chunking; "
+            "reviews on oversized diffs will fail open",
+            file=sys.stderr,
+        )
+    if max_calls == 0:
+        print(
+            "WARNING: review.large_diff.max_calls=0 disables chunking; "
+            "reviews on oversized diffs will fail open",
+            file=sys.stderr,
+        )
+    if not ignore_globs:
+        print(
+            "WARNING: review.large_diff.ignore.glob empty; consider defaults",
+            file=sys.stderr,
+        )
+
+    # F6 constraint: max_calls must accommodate at least (max_files dispatches
+    # + 1 aggregation call). Only enforced when both values are explicitly set
+    # and non-zero.
+    if (
+        max_files is not None
+        and max_calls is not None
+        and max_files > 0
+        and max_calls > 0
+        and max_calls < max_files + 1
+    ):
+        raise ValueError(
+            f"review.large_diff config invalid: max_calls ({max_calls}) must be "
+            f">= max_files + 1 ({max_files + 1}); one aggregation pass requires "
+            f"at least max_files={max_files} dispatches plus 1 synthesis call."
+        )
 
 
 def _real_blocking_findings(findings: list[dict]) -> list[dict]:
@@ -1810,25 +1877,165 @@ def main() -> int:
             agent.setdefault("model", base_model)
             agent.setdefault("provider_chain", provider_chain)
 
-        # Strategy E: region-split FALLBACK for large diffs (bed6-3871-f13c-4160).
+        # Strategy E / F: region-split FALLBACK for large diffs (bed6-3871-f13c-4160).
         # When the diff exceeds the LOC or file-count threshold, bypass the standard
         # tier dispatch path and cluster the diff into per-directory regions, dispatching
-        # specialists per cluster in parallel before running arch synthesis.
+        # specialists per cluster in parallel.
+        #
+        # Strategy F extension (S7.T7): when Strategy F is active, the pipeline is:
+        #   1. Pre-filter files via file_filter (linguist tags + ignore.glob)
+        #   2. Chunk via run_region_split_strategy_f (per-file fan-out for oversized clusters)
+        #   3. OVER_BOUND check: if clusters × calls exceeds budget, emit OVER_BOUND status
+        #   4. Dispatch each cluster (reuse existing primary→fallback model chain)
+        #   5. Aggregate via aggregate_cluster_findings (cross-file synthesis + visibility trailer)
+        #
         # This gate runs BEFORE the two-call and standard dispatch paths so the
         # huge-diff path is a first-class route, not an afterthought.
         if _should_region_split(diff_text):
             print(
-                "INFO: diff exceeds region-split threshold — activating Strategy E "
-                "file-clustered parallel review",
+                "INFO: diff exceeds region-split threshold — activating Strategy F "
+                "file-filter + chunked + aggregated review",
                 file=sys.stderr,
             )
-            merged = run_region_split(
-                diff_text=diff_text,
-                tier_agents=tier_agents,
-                provider_chain=provider_chain,
-                config_path=config_path,
-                prior_defenses=prior_defenses or None,
+
+            # Load large-diff config and validate (DD1 / F6 AC amendment).
+            _large_diff_config = _load_filter_config(config_path)
+            try:
+                _validate_large_diff_config(_large_diff_config)
+            except ValueError as _cfg_exc:
+                print(f"ERROR: large-diff config: {_cfg_exc}", file=sys.stderr)
+                _write_output(
+                    {
+                        "findings": [],
+                        "status": OVER_BOUND,
+                        "over_bound_reason": str(_cfg_exc),
+                    }
+                )
+                return 1
+
+            # Step 1: pre-filter files via file_filter (linguist tags + ignore.glob).
+            from dso_ci_review.region_split import (
+                _extract_filenames as _rs_extract_filenames,
+            )  # noqa: PLC0415
+
+            _all_diff_files = _rs_extract_filenames(diff_text)
+            _reviewable_files, _skipped_files = _filter_files(
+                _all_diff_files,
+                config=_large_diff_config,
             )
+
+            # Step 2: chunk via Strategy F (per-file fan-out for oversized clusters).
+            _dispatch_specs = run_region_split_strategy_f(diff_text=diff_text)
+
+            # Filter specs to only include reviewable files (remove skipped files).
+            _skipped_set = {path for path, _ in _skipped_files}
+            _filtered_specs = [
+                spec
+                for spec in _dispatch_specs
+                if not all(f in _skipped_set for f in spec.get("files", []))
+            ]
+
+            # Step 3: OVER_BOUND check — clusters × calls exceeds budget.
+            _max_files_cfg = _large_diff_config.get("max_files") or 0
+            _max_calls_cfg = _large_diff_config.get("max_calls") or 0
+            _total_dispatches = len(_filtered_specs)
+            _budget_exceeded = False
+            if _max_files_cfg > 0 and _total_dispatches > _max_files_cfg:
+                _budget_exceeded = True
+            if (
+                _max_calls_cfg > 0
+                and _total_dispatches > _max_files_cfg * _max_calls_cfg
+            ):
+                _budget_exceeded = True
+
+            if _budget_exceeded:
+                _over_bound_msg = (
+                    f"{OVER_BOUND}: {_total_dispatches} clusters exceeds "
+                    f"max_files ({_max_files_cfg}) × max_calls ({_max_calls_cfg}). "
+                    "Routed to admin/FP-recovery."
+                )
+                print(f"INFO: {_over_bound_msg}", file=sys.stderr)
+                _write_output(
+                    {
+                        "findings": [],
+                        "status": OVER_BOUND,
+                        "over_bound_reason": _over_bound_msg,
+                    }
+                )
+                return 1
+
+            # Step 4: dispatch each cluster using existing primary→fallback model chain.
+            _cluster_results: list[dict] = []
+            for _spec in _filtered_specs:
+                _cluster_diff = _spec.get("diff", diff_text)
+                _cluster_files = _spec.get("files", [])
+                _cluster_dir = _spec.get("cluster_dir", ".")
+
+                # Build cluster-scoped agents (reuse tier_agents model chain).
+                _cluster_agents = []
+                for _agent in tier_agents:
+                    _cluster_agent = dict(_agent)
+                    _cluster_agent["diff_text"] = _cluster_diff
+                    _cluster_agents.append(_cluster_agent)
+
+                try:
+                    _cluster_dispatch_results = asyncio.run(
+                        async_dispatch_specialists(_cluster_agents)
+                    )
+                    _cluster_findings: list[dict] = []
+                    for _dr in _cluster_dispatch_results:
+                        if isinstance(_dr, dict):
+                            _cluster_findings.extend(_dr.get("findings", []))
+                    _cluster_results.append(
+                        {
+                            "cluster_id": _cluster_dir,
+                            "file_paths": _cluster_files,
+                            "findings": _cluster_findings,
+                            "status": "ok",
+                        }
+                    )
+                except Exception as _disp_exc:  # noqa: BLE001
+                    print(
+                        f"WARNING: cluster dispatch failed for {_cluster_dir}: "
+                        f"{type(_disp_exc).__name__}: {_disp_exc}",
+                        file=sys.stderr,
+                    )
+                    _cluster_results.append(
+                        {
+                            "cluster_id": _cluster_dir,
+                            "file_paths": _cluster_files,
+                            "findings": [],
+                            "status": "dispatch_error",
+                        }
+                    )
+
+            # Step 5: aggregate via aggregate_cluster_findings (cross-file synthesis
+            # + visibility trailer + single ledger entry).
+            _pr_num_int = (
+                int(pr_number) if pr_number and str(pr_number).isdigit() else None
+            )
+            _ledger_path_for_agg = os.path.join(artifacts_dir, "cycle-ledger.json")
+            _agg_result = _aggregate_cluster_findings(
+                cluster_results=_cluster_results,
+                reviewed_files=_reviewable_files,
+                skipped_files=_skipped_files,
+                pr_number=_pr_num_int,
+                commit_sha=reviewed_sha,
+                cycle_num=cycle_number,
+                ledger_path=_ledger_path_for_agg,
+            )
+
+            # Build merged result from aggregator output with visibility trailer.
+            _agg_findings = _agg_result.get("findings", [])
+            _visibility_trailer = _agg_result.get("visibility_trailer", "")
+            merged = {
+                "findings": _agg_findings,
+                "visibility_trailer": _visibility_trailer,
+                "aggregation_status": _agg_result.get("aggregation_status", "ok"),
+            }
+            if _visibility_trailer:
+                print(f"INFO: {_visibility_trailer}", file=sys.stderr)
+
         else:
             # Step 3: dispatch tier agents + classifier-flagged overlays together (parallel).
             # On cycle N≥2 with prior defenses, single-agent tiers (light/standard) use the

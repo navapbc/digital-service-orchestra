@@ -227,7 +227,10 @@ plugins/dso/scripts/fix-bug/route-escalation.sh:tests/scripts/test_gate_escalati
 plugins/dso/scripts/fix-cascade-recovery/reset-cascade-counter.sh:tests/scripts/test-reset-cascade-counter.sh
 plugins/dso/scripts/flag-deprecation-check.sh:tests/scripts/test-flag-deprecation-check.sh
 plugins/dso/scripts/format-and-lint.sh:tests/scripts/test-residual-callers-polyglot.sh
+plugins/dso/scripts/check-fp-recovery-eligibility.sh:tests/scripts/test_fp_recovery_over_bound_rejection.sh [test_over_bound_rejected,test_fp_suspected_allowed,test_empty_log_allowed,test_over_bound_rejection_message_content]
 plugins/dso/scripts/fp-rate-tracker.sh:tests/scripts/test-fp-rate-tracker.sh,tests/scripts/test-fp-fallback-integration.sh
+plugins/dso/skills/fp-recovery/SKILL.md:tests/scripts/test_fp_recovery_over_bound_rejection.sh [test_over_bound_rejected]
+plugins/dso/docs/workflows/FP-RECOVERY-WORKFLOW.md:tests/scripts/test_fp_recovery_over_bound_rejection.sh [test_over_bound_rejected]
 plugins/dso/scripts/harvest-worktree.sh:tests/scripts/test-harvest-worktree.sh
 plugins/dso/scripts/lib/worktree-removal-guards.sh:tests/scripts/test-harvest-worktree-guards.sh [test_harvest_refuses_removal_when_open_pr_guard_fires],tests/scripts/test-worktree-removal-guards.sh,tests/scripts/test-worktree-removal-guards-e2e.sh [test_claude_safe_multiple_sub_prs]
 plugins/dso/scripts/implementation-plan/approach-cycle-state.sh:tests/scripts/test-implementation-plan-helpers.sh
@@ -480,7 +483,7 @@ tests/skills/dso_ci_review/test_suppress_proximity_regression.py:tests/skills/ds
 plugins/dso/scripts/migrate-dso-workflow-config.sh:tests/scripts/test-legacy-cleanup-grep.sh
 plugins/dso/scripts/migrate-story-pr-bases.sh:tests/scripts/test-migrate-story-pr-bases.sh
 plugins/dso/scripts/migrate-ledger-v11-to-v12.sh:tests/scripts/test-migrate-ledger-v11-to-v12.sh
-plugins/dso/scripts/verify-session-provenance.sh:tests/scripts/test-verify-session-provenance.sh,tests/scripts/test-bug-reproducer-cafb.sh,tests/scripts/test-verify-session-provenance-contract.sh [test_all_provenanced_exits_exactly_0]
+plugins/dso/scripts/verify-session-provenance.sh:tests/scripts/test-verify-session-provenance.sh,tests/scripts/test-bug-reproducer-cafb.sh,tests/scripts/test-verify-session-provenance-contract.sh
 plugins/dso/scripts/redistribute-session-commits.sh:tests/scripts/test-redistribute-session-commits.sh [test_script_exists]
 plugins/dso/scripts/write-cycle-ledger.sh:tests/scripts/test-write-cycle-ledger.sh,tests/scripts/test-write-cycle-ledger-integration.sh
 tests/scripts/test-cycle-arbiter.sh:tests/scripts/test-cycle-arbiter.sh [test_block_critical_defense_absent_ruling]
@@ -501,4 +504,5 @@ plugins/dso/scripts/rollback-sub-pr-cutover.sh:tests/scripts/test-rollback-sub-p
 plugins/dso/scripts/promote-ruleset-required.sh:tests/scripts/test-promote-ruleset-required.sh
 plugins/dso/scripts/dso_ci_review/file_filter.py:tests/scripts/test_dso_ci_review_file_filter.py
 plugins/dso/scripts/dso_ci_review/aggregator.py:tests/scripts/test_dso_ci_review_aggregator.py
+tests/scripts/test_dso_ci_review_large_diff_e2e.py:tests/scripts/test_dso_ci_review_large_diff_e2e.py [test_dso_ci_review_large_diff_e2e]
 plugins/dso/scripts/llm-review-dispatch-or-skip.sh:tests/scripts/test-llm-review-dispatch-or-skip.sh [test_wrapper_exists],tests/workflows/test-integration-review-skip-on-provenance.sh [test_verifier_exits_0_for_large_all_provenanced_diff]
