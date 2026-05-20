@@ -314,6 +314,7 @@ plugins/dso/scripts/ticket-list.sh:tests/scripts/test-ticket-list.sh,tests/scrip
 plugins/dso/scripts/ticket-migrate-brainstorm-tags.sh:tests/scripts/test-ticket-migrate-brainstorm-tags.sh,tests/scripts/test-brainstorm-tag-flow.sh
 plugins/dso/scripts/audit-closure-checks-migration.sh:tests/scripts/test-audit-closure-checks-migration.sh
 plugins/dso/scripts/audit-closure-checks-source-consumers.sh:tests/scripts/test-audit-source-consumers.sh
+plugins/dso/scripts/apply-bucket-recipes.sh:tests/scripts/test-apply-bucket-recipes.sh
 plugins/dso/scripts/coherence-walk.sh:tests/scripts/test-coherence-walk.sh
 plugins/dso/scripts/ticket-migrate-closure-checks-v1.sh:tests/scripts/test-ticket-migrate-closure-checks-v1.sh
 plugins/dso/scripts/migrate-closure-checks.sh:tests/scripts/test-migrate-closure-checks.sh
