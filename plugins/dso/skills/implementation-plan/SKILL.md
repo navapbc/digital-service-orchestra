@@ -292,6 +292,18 @@ Signals that indicate a doc-only story:
 
 ### Proposal Generation (via `dso:approach-proposer` opus sub-agent)
 
+**Contract summary** (the agent enforces these; this block is the human-readable contract surface for SKILL.md readers and is pinned by `tests/scripts/test-implementation-plan-proposals.sh`):
+
+- **Minimum count**: the agent must produce **at least 3 distinct proposals**. Fewer is permitted only when the solution space is genuinely constrained (≥ 2 required); the constraint must be documented in `generation_notes`.
+- **Proposal schema** (six required fields per `prompts/proposal-schema.md`): `title`, `description`, `files`, `pros`, `cons`, `risk` (one of `low` / `medium` / `high`).
+- **Distinctness validation gate**: every pair of proposals must differ on at least one of the four structural axes:
+  - **data layer** — where state is stored or retrieved
+  - **control flow** — execution path or orchestration strategy
+  - **dependency graph** — modules, packages, or services introduced or removed
+  - **interface boundary** — where the public contract is drawn
+  A set with any structurally equivalent pair MUST NOT be emitted by the agent. The agent records pairwise comparisons in `distinctness_summary` so the audit trail proves the gate ran.
+- **Complexity gates** (per `${CLAUDE_PLUGIN_ROOT}/skills/shared/prompts/complexity-gate.md`): every proposal is gated through Gate 1 (YAGNI), Gate 2 (Rule of Three), and Gate 3 (new-dependency) with outcomes recorded in `complexity_gate_summary`.
+
 Read `shared/prompts/complexity-gate.md` to confirm it is present. If unreadable, STOP and emit:
 "ERROR: complexity-gate.md not found at skills/shared/prompts/complexity-gate.md — create this file before running implementation-plan."
 
