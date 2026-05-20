@@ -500,5 +500,5 @@ plugins/dso/scripts/exempt-in-flight-prs.sh:tests/scripts/test-exempt-in-flight-
 plugins/dso/scripts/rollback-sub-pr-cutover.sh:tests/scripts/test-rollback-sub-pr-cutover.sh [test_script_exists_and_executable]
 plugins/dso/scripts/promote-ruleset-required.sh:tests/scripts/test-promote-ruleset-required.sh
 plugins/dso/scripts/dso_ci_review/file_filter.py:tests/scripts/test_dso_ci_review_file_filter.py
-plugins/dso/scripts/dso_ci_review/aggregator.py:tests/scripts/test_dso_ci_review_aggregator.py [test_dso_ci_review_aggregator]
+plugins/dso/scripts/dso_ci_review/aggregator.py:tests/scripts/test_dso_ci_review_aggregator.py
 plugins/dso/scripts/llm-review-dispatch-or-skip.sh:tests/scripts/test-llm-review-dispatch-or-skip.sh [test_wrapper_exists],tests/workflows/test-integration-review-skip-on-provenance.sh [test_verifier_exits_0_for_large_all_provenanced_diff]
