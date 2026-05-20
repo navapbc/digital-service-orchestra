@@ -21,6 +21,19 @@ P1: "PASS" | "FAIL" | "DEGRADED"
 | `check-manifest-completeness.sh` | Validates the closure audit trail (all required artifact fields present) |
 | `validate-verifier-output.sh` | Schema-validates raw verifier JSON before downstream consumption |
 
+## Closure Checks validation (Step 2.5)
+
+The verifier reads the `## Closure Checks` section from the ticket description separately from `## Success Criteria`, in Step 2.5 of its evaluation sequence.
+
+- **Absent or empty section**: Step 2.5 is skipped silently. This is the backward-compatible path for tickets created before the v1.2.0 schema migration.
+- **Items present, no hooks configured**: each item is evaluated with the default pass (no external validation). The step returns `verdict: PASS`.
+- **Items present, `project_closure_hooks` configured** (see `CONFIGURATION-REFERENCE.md`): each configured hook is invoked once per item, receiving `ITEM_TEXT`, `ITEM_SOURCE_TICKET_ID`, and `CLOSURE_TIMESTAMP` as environment variables. If any hook returns a non-pass result, the step returns `verdict: FAIL` or `verdict: WARN` accordingly.
+- **Step is one-shot**: unlike the iterative SC coverage gate, Step 2.5 is evaluated once and does not retry. Its result is recorded in the `closure_checks_results` output field with shape `{ "verdict": "PASS|FAIL|WARN|SKIPPED", "items": [...] }`.
+
+The `closure_checks_results` field is included in the verifier's output JSON even when SKIPPED — this allows downstream tooling to distinguish "section was absent" from "section was present and passed".
+
+Design reference: `docs/designs/closure-checks/README.md`.
+
 ## Closure handoff protocol
 
 1. Orchestrator dispatches `dso:completion-verifier` at story close and epic close.
