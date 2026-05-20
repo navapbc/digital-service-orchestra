@@ -51,6 +51,7 @@
     "./agents/schema-correction.md",
     "./agents/scope-drift-reviewer.md",
     "./agents/second-source-verifier.md",
+    "./agents/story-decomposer.md",
     "./agents/ui-designer.md"
   ],
   "hooks": {
