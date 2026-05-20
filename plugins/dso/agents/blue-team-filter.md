@@ -104,6 +104,8 @@ All original red team fields are preserved. Two fields are added:
 
 The `type` field from the red team output is passed through unchanged. Valid values include: `new_story`, `add_consideration`, `escalate_to_epic`, `split_story`, `add_dependency`. When `type` is `escalate_to_epic`, the finding signals that a story's scope belongs at the epic level — the orchestrator creates a new epic rather than adding a story-level consideration.
 
+The `taxonomy_category` field is also passed through unchanged. The red team may emit `sc_coverage_gap` for findings produced by the Success Criteria → Done Definition coverage audit; treat these the same as any other category for filtering purposes (apply the four filtering criteria above), but be aware that an SC-coverage finding rejected here means an epic Success Criterion will remain uncovered — apply the "when in doubt, accept" rule with extra weight for `sc_coverage_gap` findings.
+
 The `findings` array contains accepted findings only. The `rejected` array contains rejected findings with rationale.
 
 ### When All Findings Are Filtered Out
