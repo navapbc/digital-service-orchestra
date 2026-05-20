@@ -1,14 +1,22 @@
 #!/usr/bin/env bash
 # coherence-walk.sh
-# Multi-opus coherence gate: scan compiled ticket artifacts and flag when
-# ## Success Criteria and ## Closure Checks conflict or overlap.
+# Phase 1 heuristic coherence gate: scan compiled ticket artifacts and flag
+# when ## Success Criteria and ## Closure Checks conflict or overlap.
 #
-# DESIGN NOTE: This script is designed to eventually invoke LLM (multi-opus)
-# analysis for semantic coherence checking. The current implementation uses
-# deterministic heuristic keyword checks (transitional-language detection and
-# text-overlap analysis) to keep validation fast and reproducible. Future
-# integration point: replace/augment the Python heuristic pass with a call
-# to the Anthropic API when ANTHROPIC_API_KEY is available.
+# SCOPE NOTE — This is the Phase 1 heuristic implementation of epic
+# a03c-d55e-1393-4f27 SC10. It does NOT implement the full six-chunk
+# multi-opus workflow coherence walkthrough that SC10 specifies (chunks for
+# brainstorm / preplanning / implementation-plan / sprint / commit-and-review /
+# operational-dry-run, each producing structured JSON with workflow_stage,
+# status, evidence_citations, findings; aggregated report attached to epic
+# ticket; FAIL/AMBIGUOUS blocks Phase 4). The full SC10 implementation is
+# tracked as a separate follow-up child story of epic a03c-d55e-1393-4f27.
+#
+# The current heuristic uses deterministic keyword checks (transitional-
+# language detection and text-overlap analysis) to keep validation fast and
+# reproducible without an API key dependency. Future integration point:
+# replace/augment the Python heuristic pass with a call to the Anthropic API
+# when ANTHROPIC_API_KEY is available.
 #
 # Usage:
 #   coherence-walk.sh [--target <host-project-root>] [--epic <epic-id>]

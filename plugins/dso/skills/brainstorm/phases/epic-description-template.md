@@ -18,6 +18,23 @@ Canonical template for the epic description written at Phase 3 Step 1 via `ticke
 - [durable end-state acceptance criterion that would fail the session-infeasibility check but is not transitional work]
 (Leave empty if all SCs pass the verifiable-sc-check litmus; populate only for criteria routed here via option (c))
 
+<!--
+One-shot-verifiable requirement (enforced at brainstorm time):
+Each Closure Check item MUST be one-shot verifiable — phrased as one of:
+  (a) a command that produces a deterministic pass/fail (e.g., "grep -n 'X' file.md returns ≥1 match")
+  (b) a state check on a named artifact (e.g., "file <path> exists and contains <signal>")
+  (c) a reference to a specific named artifact whose presence/absence is the check (e.g., "ADR-NNNN published at docs/adr/")
+
+REJECT items that describe human activity, judgment, or aggregate feedback — e.g.,
+"team has reviewed the design", "users find the UI intuitive", "documentation is clear".
+These cannot be evaluated one-shot at closure time and must be reframed or removed.
+-->
+
+Examples of acceptable Closure Check items:
+- "`grep -n 'contract_version' ${CLAUDE_PLUGIN_ROOT}/docs/contracts/end-state-item-validator.md` returns ≥1 match"
+- "the file `docs/adr/0042-closure-checks-schema.md` exists and contains an `## Decision` heading"
+- "`./scripts/health-check.sh prod` exits 0"
+
 ## Dependencies
 [dependencies or 'None']
 

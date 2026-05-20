@@ -46,3 +46,27 @@ Do NOT count `DEFERRED_MEASUREMENT` items toward the 3–6 verifiable SC quota.
 **(c) Route to Closure Checks** — add the criterion to the epic's or story's `## Closure Checks` section when it represents durable end-state intent (something that should remain true after the epic is closed) but cannot be evaluated deterministically during the closing session.
 
 Criteria suitable for Closure Checks: architectural invariants, operational health targets, non-regressing behavioral contracts. Do NOT use Closure Checks for one-time transitional work (setup steps, migration markers, manual verification checkboxes) — those belong in the Done Definitions as explicit closure tasks.
+
+## End-state-only rule (route-to-Closure-Checks litmus)
+
+When deciding between an SC (durable system property) and a Closure Check (one-time transition), apply this canonical litmus test:
+
+> *Could this item be false before the sprint began and true only because of this sprint's specific work? If yes, route to Closure Checks.*
+
+If the item describes a durable property the system will continue to satisfy (independent of which sprint shipped it), it is a valid SC. If the item describes a transition (a state change effected by this sprint's work) it belongs in Closure Checks.
+
+### Accept examples (valid SCs — durable system properties)
+
+- "the system supports OAuth" — present-tense durable capability; remains true after this sprint and indefinitely.
+- "the legacy adapter is absent from imports" — present-tense durable invariant; the absence is itself the end-state property.
+
+### Reject examples (route to Closure Checks — past-tense transitions)
+
+- "OAuth has been migrated" — describes a transition, not a durable property. The system either supports OAuth or doesn't; "has been migrated" is the act of this sprint, not a persistent invariant.
+- "legacy adapter has been removed" — describes the removal event, not the durable absence. Reframe as "the legacy adapter is absent from imports" to make it a valid SC, or route the removal step to Closure Checks.
+
+### Brainstorm refusal copy
+
+When a participant proposes an SC that fails this litmus test, surface the following refusal:
+
+> "This SC describes a one-time transition rather than a durable system property — moving it to Closure Checks. To keep it as an SC, reframe it as ongoing system behavior."

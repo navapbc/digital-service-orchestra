@@ -3,6 +3,8 @@
 # Read-only audit: scan all tickets in .tickets-tracker/ and report which  # tickets-boundary-ok
 # epics/stories lack a ## Closure Checks section.
 #
+# use sparingly — for simple field renames, targeted grep + one-pass update is sufficient.
+#
 # Usage:
 #   audit-closure-checks-migration.sh [--target <host-project-root>]
 #
