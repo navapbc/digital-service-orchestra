@@ -82,6 +82,55 @@ Enforcement hooks (annotated `# hook-boundary: enforcement`) MUST NOT source thi
 
 `validate.sh`, `gate-2b`, `gate-2d`, and `auto-format.sh` read `commands.lint`, `commands.format`, and `commands.format_check` from config — replacing hardcoded Python/ruff calls. When a key is absent, each script emits `[DSO WARN]` and falls back gracefully (ruff for `.py`; skip for other extensions). Per-stack defaults: see `CONFIGURATION-REFERENCE.md`.
 
+## CI workflow signals introduced by epic f691-681e
+
+The PR/review-workflow remediation epic added several new CI-level signals and scripts that interact with hooks and gates. This section documents them as a reference for operators and plugin authors.
+
+### `review-sub-pr` — per-sub-branch LLM review job
+
+`.github/workflows/review-sub-pr.yml` runs LLM review on story/bug-batch sub-branch PRs that target the session branch (`session/**`, `session-**`, `session_**`, `bug-batch/**`). It is registered as a required check in `.github/required-checks.txt` and enforced via the main-branch Ruleset after the S_migration cutover.
+
+Key signals:
+- **Liveness invariant** (`c131-0f34`): the job writes a `findings.json` artifact (`DSO_CI_REVIEW_OUTPUT_PATH`) and then validates it exists and contains a `findings` array. A silent reviewer exit-0 with no output fails the liveness step.
+- **`DSO_SUPPRESS_PRIOR_DEFENSES`**: environment variable consumed by `dso_ci_review/runner.py`. When `"true"` (set by the integration-review step in `ci.yml`), the runner skips prior-defense loading even on cycle ≥ 2. Prevents sub-PR defenses from suppressing findings that the integration (session→main) reviewer should see fresh. This variable is set by `ci.yml` — it is NOT a `dso-config.conf` key.
+
+### `merge-pipeline-checks` — umbrella required-check job (S4)
+
+A dedicated CI job in `ci.yml` that provides a **stable required-check name** for branch protection, decoupled from conditional steps it wraps. Registered in `.github/required-checks.txt`.
+
+**Current member step:**
+
+| Step | Trigger | Purpose |
+|------|---------|---------|
+| `red-test-blocker` | PR base == `main` AND head is `session/**`, `session-**`, `session_**`, or `bug-batch/**` | Blocks merge when RED-phase TDD markers remain in the merged `.test-index` |
+
+`red-test-blocker` invokes `${CLAUDE_PLUGIN_ROOT}/scripts/scan-red-markers.sh`. It scans the **merged tree** (computed via `git merge-tree --write-tree`) rather than HEAD alone, so it catches RED markers from any merged sub-branch. Exit 0 = clean; exit 1 = RED markers remain.
+
+**DEFERRED exemptions**: a `# DEFERRED: <path>:<test_name> reason=<text> ticket=<id>` line in `.test-index` exempts matching RED markers from blocking. Unmatched RED markers still fail the step.
+
+### `llm-review-dispatch-or-skip.sh` — provenance-aware dispatch wrapper
+
+`${CLAUDE_PLUGIN_ROOT}/scripts/llm-review-dispatch-or-skip.sh` wraps `ci-llm-review-runner.sh` for the integration (session→main) review. Calls `verify-session-provenance.sh` first and routes:
+
+| Verifier exit | Wrapper behavior |
+|---------------|-----------------|
+| `0` — all provenanced | Skip dispatch; emit `skipped` conclusion |
+| `1` — unprovenanced | Invoke full-diff LLM review |
+| `2` — budget exhausted | Invoke full-diff LLM review (safe fallback) |
+| `3` — `OVER_BOUND` | Emit OVER_BOUND summary; route to admin; exit 0 |
+
+`OVER_BOUND` (exit 3) fires when a PR exceeds the `max_files × max_calls` hard upper bound. It is NOT an FP — no LLM reviewer ran. `check-fp-recovery-eligibility.sh` (consumed by `/dso:fp-recovery`) rejects such PRs. See `CI-INTEGRATION.md §OVER_BOUND status`.
+
+### `check-fp-recovery-eligibility.sh` — FP-recovery pre-gate
+
+`${CLAUDE_PLUGIN_ROOT}/scripts/check-fp-recovery-eligibility.sh` is a pre-check gate for `/dso:fp-recovery`. Reads `DSO_CI_LOG` (path to the CI output log) and exits 1 if an `OVER_BOUND:` marker is detected. When `DSO_CI_LOG` is absent or the file does not exist, exits 0 (eligible — no signal). Documented in `docs/workflows/FP-RECOVERY-WORKFLOW.md`.
+
+### Worktree-removal-guards library
+
+`${CLAUDE_PLUGIN_ROOT}/scripts/lib/worktree-removal-guards.sh` — shared library of four safety guards used by `claude-safe` (interactive) and `harvest-worktree.sh` (batched). Source with `_GUARDS_SOURCE_ONLY=1`. Guards: `guard_protected_branch`, `guard_uncommitted`, `guard_unpushed`, `guard_open_pr`. The `assert_worktree_removable` orchestrator runs all four without short-circuiting.
+
+For full semantics (3-tier PR detection, `--force` bypass, fail-CLOSED contract, TOCTOU double-check in `claude-safe`), see `WORKTREE-GUIDE.md §Worktree removal safety guards`.
+
 ## GitHub CI Ruleset enforcement
 
-`.github/required-checks.txt` lists required GitHub check-context names (must match workflow `name:` fields exactly). Provisioned during `/dso:onboarding` via `github-bootstrap.sh` (fail-open — never blocks setup). After editing workflow job names, run `bash ${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/validate-required-checks.sh` to catch alignment drift before pushing.
+`.github/required-checks.txt` lists required GitHub check-context names (must match workflow `name:` fields exactly). As of epic f691-681e, required checks include `review-sub-pr` (S1) and `merge-pipeline-checks` (S4) in addition to existing entries. Provisioned during `/dso:onboarding` via `github-bootstrap.sh` (fail-open — never blocks setup). Managed post-cutover via `${CLAUDE_PLUGIN_ROOT}/scripts/update-required-checks-manifest.sh` (additive, idempotent) and `${CLAUDE_PLUGIN_ROOT}/scripts/promote-ruleset-required.sh` (stages as non-required, then promotes). After editing workflow job names, run `bash ${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/validate-required-checks.sh` to catch alignment drift before pushing.

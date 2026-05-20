@@ -325,7 +325,7 @@ Phases: `sync → merge → version_bump → validate → push → archive → c
 
 ### Source-branch version-bump phase (PR mode only)
 
-In `dso.workflow=ci-pr` (PR mode), `${CLAUDE_PLUGIN_ROOT}/scripts/merge-to-main-pr.sh` runs a **pre-merge** `_phase_source_branch_version_bump` step on the source/session branch before the PR is created or queued for merge. This is distinct from the legacy post-merge bump path used by direct mode.
+In `dso.workflow=ci-pr` (PR mode), `${CLAUDE_PLUGIN_ROOT}/scripts/merge-to-main-pr.sh` runs a **pre-merge** `_phase_source_branch_version_bump` step on the source/session branch before the PR is created or queued for merge. This is distinct from the legacy post-merge bump path used by direct mode. See `docs/adr/0016-version-bump-design.md` for the tradeoff analysis (bump-before-final-review vs. bump-after-review) and the SC5(c) cross-reference.
 
 **What the phase does:**
 
