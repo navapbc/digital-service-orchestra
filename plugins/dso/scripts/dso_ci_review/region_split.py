@@ -462,3 +462,161 @@ def run_region_split(
             diff_text, tier_agents, provider_chain, config_path, prior_defenses
         )
     )
+
+
+def _count_cluster_loc(cluster_dir: str, cluster_files: list[str], diff_text: str) -> int:
+    """Count the number of added/removed lines in the given cluster.
+
+    Used by Strategy F to determine whether a cluster exceeds the per-cluster
+    LOC threshold and requires per-file fan-out.
+    """
+    cluster_diff = _extract_cluster_diff(diff_text, cluster_dir, cluster_files)
+    loc = 0
+    for line in cluster_diff.splitlines():
+        if line.startswith("+") and not line.startswith("+++"):
+            loc += 1
+        elif line.startswith("-") and not line.startswith("---"):
+            loc += 1
+    return loc
+
+
+def split_cluster_by_file(
+    cluster_dir: str,
+    cluster_files: list[str],
+    diff_text: str,
+) -> list[dict[str, Any]]:
+    """Strategy F: split an oversized cluster into per-file sub-clusters.
+
+    Each output cluster contains exactly ONE file from the input cluster — the
+    file-atomicity invariant is preserved. A single file is NEVER split by hunk
+    across multiple clusters.
+
+    For a cluster with a single oversized file (LOC > _loc_threshold()), the
+    file is passed through as-is with oversized_single_file=True so downstream
+    callers (aggregator + reviewer) can apply graceful truncation / visibility
+    trailers. This is a pass-through, NOT a split — the file-atomicity invariant
+    is NOT violated.
+
+    Args:
+        cluster_dir: The directory label for the cluster (from Strategy E).
+        cluster_files: List of filenames in this cluster (basenames for ordinary
+            clusters; full paths for "." and "__overflow__" pseudo-clusters).
+        diff_text: Full diff text for hunk extraction.
+
+    Returns:
+        A list of single-file dispatch specs, each with keys:
+            "cluster_dir": str — the directory this file belongs to
+            "files": list[str] — list with exactly one filename (basename or full path)
+            "diff": str — the diff hunk for this file
+            "oversized_single_file": bool — True when the file's LOC exceeds the
+                threshold and it is the only file in the cluster (pass-through flag
+                for downstream handling; see AC amendment in ticket ef84-f980-d798-479e).
+    """
+    threshold = _loc_threshold()
+    result: list[dict[str, Any]] = []
+
+    for filename in cluster_files:
+        # Extract the diff for just this single file
+        file_diff = _extract_cluster_diff(diff_text, cluster_dir, [filename])
+
+        # Count LOC for this file to detect single-oversized-file case
+        file_loc = 0
+        for line in file_diff.splitlines():
+            if line.startswith("+") and not line.startswith("+++"):
+                file_loc += 1
+            elif line.startswith("-") and not line.startswith("---"):
+                file_loc += 1
+
+        # Single-oversized-file pass-through (AC amendment, ticket ef84-f980-d798-479e):
+        # When a cluster has exactly ONE file and that file exceeds the LOC threshold,
+        # dispatch it as-is with oversized_single_file=True. Downstream (aggregator +
+        # reviewer) handles graceful truncation. The file is NOT split by hunk — that
+        # would violate the file-atomicity invariant.
+        is_oversized_single_file = (len(cluster_files) == 1 and file_loc > threshold)
+
+        # Build the full path for the "files" field so callers can filter and
+        # reconstruct paths unambiguously. For "." and "__overflow__" pseudo-clusters
+        # the input filenames are already full paths; for ordinary directory clusters
+        # we prefix with cluster_dir to produce the canonical full path.
+        if cluster_dir in {".", _OVERFLOW_LABEL}:
+            full_path = filename
+        else:
+            full_path = f"{cluster_dir}/{filename}"
+
+        result.append({
+            "cluster_dir": cluster_dir,
+            "files": [full_path],
+            "diff": file_diff,
+            "oversized_single_file": is_oversized_single_file,
+        })
+
+    return result
+
+
+def run_region_split_strategy_f(
+    diff_text: str,
+    threshold: int | None = None,
+) -> list[dict[str, Any]]:
+    """Strategy F orchestrator: per-file fan-out for oversized clusters.
+
+    Strategy F extends Strategy E: after Strategy E clusters the diff by directory,
+    any cluster whose total LOC count >= threshold is fanned out to one dispatch
+    per file (split_cluster_by_file). Clusters below the threshold remain at
+    Strategy E granularity (one dispatch per directory cluster).
+
+    File-atomicity invariant: a single file is NEVER split across reviewers.
+    RegionSplitInvariantError is NOT raised by Strategy F output (each per-file
+    cluster contains exactly one file from the input cluster).
+
+    Args:
+        diff_text: Full diff text to cluster and optionally fan out.
+        threshold: LOC threshold for per-cluster fan-out. Defaults to
+            _loc_threshold() (config key review.region_split.loc_threshold,
+            default 3000).
+
+    Returns:
+        A flat list of dispatch specs (each spec is one cluster to review):
+        - For oversized clusters: N per-file specs (one per file in the cluster)
+        - For under-threshold clusters: 1 directory-level spec (Strategy E, unchanged)
+
+        Each spec has:
+            "cluster_dir": str
+            "files": list[str]
+            "diff": str
+            "oversized_single_file": bool (True only for single-file oversized pass-through)
+    """
+    if threshold is None:
+        threshold = _loc_threshold()
+
+    filenames = _extract_filenames(diff_text)
+    clusters = _cluster_files(filenames)
+
+    dispatch_specs: list[dict[str, Any]] = []
+
+    for cluster_dir, cluster_file_list in clusters.items():
+        cluster_loc = _count_cluster_loc(cluster_dir, cluster_file_list, diff_text)
+
+        if cluster_loc >= threshold:
+            # Strategy F: fan out to per-file dispatches
+            per_file_specs = split_cluster_by_file(
+                cluster_dir=cluster_dir,
+                cluster_files=cluster_file_list,
+                diff_text=diff_text,
+            )
+            dispatch_specs.extend(per_file_specs)
+        else:
+            # Strategy E: keep as directory-level dispatch (unchanged)
+            cluster_diff = _extract_cluster_diff(diff_text, cluster_dir, cluster_file_list)
+            # Build full paths for the "files" field so callers can filter by path
+            if cluster_dir in {".", _OVERFLOW_LABEL}:
+                full_paths = list(cluster_file_list)
+            else:
+                full_paths = [f"{cluster_dir}/{f}" for f in cluster_file_list]
+            dispatch_specs.append({
+                "cluster_dir": cluster_dir,
+                "files": full_paths,
+                "diff": cluster_diff,
+                "oversized_single_file": False,
+            })
+
+    return dispatch_specs

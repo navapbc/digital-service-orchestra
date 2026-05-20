@@ -65,6 +65,31 @@ Before the session→main PR triggers the full integration LLM review, `verify-s
 
 If the resulting scope is empty (all commits are provenanced and no files span multiple sub-branches), the integration review job exits 0 immediately without dispatching any LLM reviewer.
 
+#### Exit-code contract
+
+`verify-session-provenance.sh` exits with one of three codes. This contract is tested by `tests/scripts/test-verify-session-provenance-contract.sh` and must not change without a new ADR.
+
+| Exit code | Meaning | Caller action |
+|-----------|---------|---------------|
+| `0` | All commits in `main..SESSION_HEAD` are provenanced (via `DSO-Story-Merge:` trailer or linked GitHub PR) | Skip LLM dispatch — emit `skipped` conclusion + liveness assertion |
+| `1` | One or more commits lack provenance (written to `${DSO_ARTIFACT_DIR}/unprovenanced-shas.txt`) | Invoke full-diff LLM review |
+| `2` | `BUDGET_EXHAUSTED` — GitHub API call budget (`DSO_GH_BUDGET`, default 200) exhausted before all commits were checked | Invoke full-diff LLM review (safe fallback — never silently skip) |
+
+### `llm-review-dispatch-or-skip.sh` — provenance-aware dispatch wrapper
+
+`${CLAUDE_PLUGIN_ROOT}/scripts/llm-review-dispatch-or-skip.sh` is the sole entry point invoked by `ci.yml`'s `Run LLM review` step (replacing the direct `ci-llm-review-runner.sh` call in S3). It calls `verify-session-provenance.sh`, then routes on the exit code:
+
+| Verifier exit | Wrapper behavior | check-run conclusion |
+|---------------|-----------------|----------------------|
+| `0` — all provenanced | Emits liveness assertion; exits 0. No LLM dispatch. Summary: `"Covered by sub-PR reviews: PR#<num>:<sha>, ..."` | `skipped` |
+| `1` — unprovenanced | Invokes `ci-llm-review-runner.sh` with full-diff path | `success` or `failure` (per reviewer) |
+| `2` — budget exhausted | Invokes `ci-llm-review-runner.sh` with full-diff path (safe fallback) | `success` or `failure` (per reviewer) |
+| `3` — OVER_BOUND | Emits OVER_BOUND summary; exits 0. Routes to admin/FP-recovery. | `skipped` |
+
+The `OVER_BOUND` exit code (3) is emitted by `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/runner.py` when a PR exceeds the `max_files × max_calls` hard upper bound defined in SC2. It bypasses LLM dispatch entirely and sends the PR to admin/FP-recovery. `/dso:fp-recovery` rejects PRs with `OVER_BOUND` status to preserve FP-recovery's signal integrity.
+
+**SC5(c) carve-out**: the `ci.yml:llm-review` job's invocation surface is unchanged by S3 — the same `Run LLM review` step exists at the same position in `ci.yml`. What changed is that the step now calls the wrapper instead of the runner directly. Execution outcome (run vs. skip) is data-dependent on `verify-session-provenance.sh`. This is a CONTRACT-PRESERVING BEHAVIOR CHANGE under SC5(c) because the alternative (always running the integration review regardless of per-sub-PR coverage) is the regression class the epic is fixing. See ADR 0015 for the full rationale.
+
 ### `resolve-session-branch.sh` — session branch discovery
 
 `resolve-session-branch.sh` provides a 3-step fallback to determine the current session branch name (matches the script's actual implementation):
