@@ -201,8 +201,17 @@ MOCKEOF
     artifact_dir="$(mktemp -d /tmp/test-provenance-artifacts2.XXXXXX)"
     _CLEANUP_DIRS+=("$artifact_dir")
 
-    # Invoke the full wrapper with the real verifier against the fixture repo.
-    # The verifier will scan the fixture's commits directly via DSO_REPO_PATH.
+    # bug 8a77 v2 (Change B): the dispatcher consumes verifier-written
+    # artifacts rather than re-invoking the verifier. Pre-run the verifier
+    # to populate artifact dir — this mirrors the real ci.yml step ordering
+    # (Step 1 verify-session-provenance → Step 2 llm-review-dispatch-or-skip).
+    DSO_REPO_PATH="$FIXTURE_REPO" \
+    DSO_BASE_SHA="$FIXTURE_BASE_SHA" \
+    DSO_SESSION_HEAD="$FIXTURE_HEAD_SHA" \
+    DSO_ARTIFACT_DIR="$artifact_dir" \
+        bash "$VERIFIER" >/dev/null 2>&1 || true
+
+    # Invoke the wrapper against the populated artifact dir.
     local wrapper_exit=0
     DSO_REPO_PATH="$FIXTURE_REPO" \
     DSO_BASE_SHA="$FIXTURE_BASE_SHA" \
@@ -261,6 +270,13 @@ MOCKEOF
     artifact_dir="$(mktemp -d /tmp/test-provenance-artifacts3.XXXXXX)"
     _CLEANUP_DIRS+=("$artifact_dir")
 
+    # bug 8a77 v2: pre-run verifier to populate artifact dir (see Test 2 note).
+    DSO_REPO_PATH="$FIXTURE_REPO" \
+    DSO_BASE_SHA="$FIXTURE_BASE_SHA" \
+    DSO_SESSION_HEAD="$FIXTURE_HEAD_SHA" \
+    DSO_ARTIFACT_DIR="$artifact_dir" \
+        bash "$VERIFIER" >/dev/null 2>&1 || true
+
     local output
     output=$(
         DSO_REPO_PATH="$FIXTURE_REPO" \
@@ -312,6 +328,13 @@ MOCKEOF
     local artifact_dir
     artifact_dir="$(mktemp -d /tmp/test-provenance-artifacts4.XXXXXX)"
     _CLEANUP_DIRS+=("$artifact_dir")
+
+    # bug 8a77 v2: pre-run verifier to populate artifact dir (see Test 2 note).
+    DSO_REPO_PATH="$FIXTURE_REPO" \
+    DSO_BASE_SHA="$FIXTURE_BASE_SHA" \
+    DSO_SESSION_HEAD="$FIXTURE_HEAD_SHA" \
+    DSO_ARTIFACT_DIR="$artifact_dir" \
+        bash "$VERIFIER" >/dev/null 2>&1 || true
 
     local output
     output=$(
@@ -404,6 +427,16 @@ MOCKEOF
     local artifact_dir
     artifact_dir="$(mktemp -d /tmp/test-provenance-artifacts5.XXXXXX)"
     _CLEANUP_DIRS+=("$artifact_dir")
+
+    # bug 8a77 v2: pre-run verifier so the dispatcher has artifacts to consume
+    # (mirrors ci.yml Step 1 → Step 2 ordering).
+    PATH="$mock_bin:$PATH" \
+    DSO_REPO_PATH="$repo" \
+    DSO_BASE_SHA="$base_sha" \
+    DSO_SESSION_HEAD="$head_sha" \
+    DSO_ARTIFACT_DIR="$artifact_dir" \
+    DSO_GH_REPO="owner/repo" \
+        bash "$VERIFIER" >/dev/null 2>&1 || true
 
     PATH="$mock_bin:$PATH" \
     DSO_REPO_PATH="$repo" \

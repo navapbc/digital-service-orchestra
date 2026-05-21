@@ -14,11 +14,15 @@
 #   DSO_GH_BUDGET      Override the maximum number of gh API calls (default: 200)
 #
 # ── Exit codes ────────────────────────────────────────────────────────────────
-#   0  = all commits provenanced
-#   1  = one or more un-provenanced commits found (written to unprovenanced-shas.txt)
+#   0  = all commits provenanced (writes provenance-complete.marker + covered-shas.txt)
+#   1  = one or more un-provenanced commits found (writes unprovenanced-shas.txt + marker + covered)
 #   2  = BUDGET_EXHAUSTED — API call budget used up before all commits checked
 #   3  = OVER_BOUND — non-provenanced commits acknowledged via DSO-Over-Bound: marker
-#        (large-diff routed to admin/FP-recovery; skip LLM dispatch)
+#        (writes over-bound-shas.txt + marker + covered; large-diff routed to admin/FP-recovery)
+#   4  = BASE_SHA or SESSION_HEAD unreachable in working tree (configuration error;
+#        no marker written — distinguishes 'never ran cleanly' from 'ran cleanly')
+#
+# Exit-code contract details: docs/contracts/verify-session-provenance-exit-codes.md (under ${CLAUDE_PLUGIN_ROOT})
 
 set -euo pipefail
 
@@ -175,6 +179,7 @@ _atomic_write_cache() {
 _api_call_count=0
 _unprovenanced_shas=()
 _over_bound_shas=()
+_covered_shas=()        # bug 8a77 v2 MF3: SHAs classified as provenanced (trailer/cache/API)
 _budget_exhausted=0
 
 _cache_init
@@ -257,6 +262,25 @@ print(json.dumps(data))
     return 0
 }
 
+# ── Pre-walk reachability guard (bug 8a77 v2) ─────────────────────────────────
+# `git log $BASE..$HEAD 2>/dev/null` returns empty stdout — silently — when
+# either SHA is unreachable in the working tree (typical under
+# `actions/checkout@v4` with default fetch-depth=1; the action fetches
+# refs/pull/N/merge but NOT pull/N/head). The empty stdout previously caused
+# the while-loop to iterate zero times and the script fell through to
+# "All commits provenanced" exit 0, bypassing the A1-A4 layered filters
+# entirely. Surface the failure loudly via the shared reachability helper.
+_REACHABILITY_LIB="$(dirname "${BASH_SOURCE[0]}")/lib/reachability.sh"
+if [[ ! -f "$_REACHABILITY_LIB" ]]; then
+    echo "ERROR: required helper $_REACHABILITY_LIB not found" >&2
+    exit 4
+fi
+# shellcheck source=lib/reachability.sh
+source "$_REACHABILITY_LIB"
+
+assert_sha_reachable "$BASE_SHA" "BASE_SHA" "$GIT_REPO_PATH" || exit 4
+assert_sha_reachable "$SESSION_HEAD" "SESSION_HEAD" "$GIT_REPO_PATH" || exit 4
+
 # ── Walk commits ──────────────────────────────────────────────────────────────
 # Get all commits in range BASE_SHA..SESSION_HEAD
 while IFS=' ' read -r sha subject; do
@@ -270,6 +294,7 @@ while IFS=' ' read -r sha subject; do
         # documented "bypass cache for this run" semantics); without it,
         # `set -e` would abort the entire walk on a cache write error.
         _cache_set "$sha" "provenanced" || true
+        _covered_shas+=("$sha")   # bug 8a77 v2 MF2 site (a): trailer-provenanced
         continue
     fi
 
@@ -284,6 +309,7 @@ while IFS=' ' read -r sha subject; do
     # Step 2: Check SHA→PR cache
     cached_result="$(_cache_get "$sha")"
     if [[ "$cached_result" == "provenanced" ]]; then
+        _covered_shas+=("$sha")   # bug 8a77 v2 MF2 site (b): cache-hit provenanced
         continue
     elif [[ "$cached_result" == "unprovenanced" ]]; then
         _unprovenanced_shas+=("$sha")
@@ -416,19 +442,47 @@ print(count)
     # `|| true` per the documented "bypass cache for this run" semantics —
     # see commentary on the trailer-cache call site above.
     if (( covering_count > 0 )); then
+        _covered_shas+=("$sha")   # bug 8a77 v2 MF2 site (c): API-covered (BEFORE cache_set)
         _cache_set "$sha" "provenanced" || true
     else
         _unprovenanced_shas+=("$sha")
         _cache_set "$sha" "unprovenanced" || true
     fi
 
-done < <(git -C "$GIT_REPO_PATH" log "${BASE_SHA}..${SESSION_HEAD}" --format="%H %s" 2>/dev/null)
+done < <(git -C "$GIT_REPO_PATH" log "${BASE_SHA}..${SESSION_HEAD}" --format="%H %s")
 
 # ── Write unprovenanced SHAs to artifact file ─────────────────────────────────
 if (( ${#_unprovenanced_shas[@]} > 0 )); then
     printf '%s\n' "${_unprovenanced_shas[@]}" > "$UNPROVENANCED_FILE"
     printf '%s\n' "${_unprovenanced_shas[@]}"
 fi
+
+# ── Write over-bound SHAs to artifact file (bug 8a77 v2 MF1) ──────────────────
+# Without this, the dispatcher's `[[ -s over-bound-shas.txt ]]` route check
+# is dead code and OVER_BOUND commits silently route as exit 0.
+if (( ${#_over_bound_shas[@]} > 0 )); then
+    printf '%s\n' "${_over_bound_shas[@]}" > "${ARTIFACT_DIR}/over-bound-shas.txt"
+fi
+
+# ── Write success marker and covered-list artifacts (bug 8a77 v2 Change F) ────
+# The success marker proves the verifier ran to completion without an
+# unreachable-SHA or other early-exit error. Downstream consumers (dispatcher)
+# require this marker before trusting "no unprovenanced file" == all-provenanced.
+# Without the marker, "absent file" is ambiguous (crash vs. clean exit).
+_MARKER="${ARTIFACT_DIR}/provenance-complete.marker"
+_COVERED_FILE="${ARTIFACT_DIR}/covered-shas.txt"
+
+# covered-shas.txt: every SHA the walk classified as provenanced (trailer /
+# cache / API). Used by the dispatcher's "Covered by sub-PR reviews:" line
+# rather than re-walking BASE..HEAD (which is vulnerable to shallow clones).
+if (( ${#_covered_shas[@]} > 0 )); then
+    printf '%s\n' "${_covered_shas[@]}" > "$_COVERED_FILE"
+else
+    : > "$_COVERED_FILE"   # empty file = no covered SHAs (e.g., empty range)
+fi
+
+# Success marker (touched only on clean walk completion — NOT on exit 4)
+date -u +%Y-%m-%dT%H:%M:%SZ > "$_MARKER"
 
 # ── Exit with appropriate code ────────────────────────────────────────────────
 if (( _budget_exhausted )); then

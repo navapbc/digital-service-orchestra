@@ -402,6 +402,256 @@ test_over_bound_marker_exits_3() {
     assert_pass_if_clean "test_over_bound_marker_exits_3"
 }
 
+# ── Contract 9 (bug 8a77 v2): Unreachable BASE_SHA → exits 4 + non-empty stderr ─
+# When DSO_BASE_SHA refers to a SHA that is not reachable in the working tree
+# (typical under shallow CI clone), the verifier MUST exit 4 with a descriptive
+# stderr — rather than silently falling through to exit 0 ("all provenanced").
+# This is the load-bearing fix for bug 8a77.
+test_unreachable_base_sha_exits_4() {
+    _snapshot_fail
+    local repo
+    repo="$(_setup_git_repo)"
+
+    _make_commit "$repo" "Initial commit" > /dev/null
+    local session_head
+    session_head="$(git -C "$repo" rev-parse HEAD)"
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+    local stderr_file
+    stderr_file="$(mktemp)"
+
+    local exit_code=99
+    DSO_REPO_PATH="$repo" \
+    DSO_BASE_SHA="0000000000000000000000000000000000000001" \
+    DSO_SESSION_HEAD="$session_head" \
+    DSO_ARTIFACT_DIR="$artifact_dir" \
+        bash "$VERIFIER" > /dev/null 2> "$stderr_file"
+    exit_code=$?
+
+    assert_eq "test_unreachable_base_sha_exits_4: unreachable BASE_SHA exits 4" \
+        "4" "$exit_code"
+
+    local stderr_size=0
+    if [[ -s "$stderr_file" ]]; then stderr_size=1; fi
+    assert_eq "test_unreachable_base_sha_exits_4: non-empty stderr on exit 4" \
+        "1" "$stderr_size"
+
+    rm -rf "$repo" "$artifact_dir" "$stderr_file"
+    assert_pass_if_clean "test_unreachable_base_sha_exits_4"
+}
+
+# ── Contract 10 (bug 8a77 v2): Unreachable SESSION_HEAD → exits 4 + non-empty stderr
+test_unreachable_session_head_exits_4() {
+    _snapshot_fail
+    local repo
+    repo="$(_setup_git_repo)"
+
+    _make_commit "$repo" "Initial commit" > /dev/null
+    local base_sha
+    base_sha="$(git -C "$repo" rev-parse HEAD)"
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+    local stderr_file
+    stderr_file="$(mktemp)"
+
+    local exit_code=99
+    DSO_REPO_PATH="$repo" \
+    DSO_BASE_SHA="$base_sha" \
+    DSO_SESSION_HEAD="0000000000000000000000000000000000000002" \
+    DSO_ARTIFACT_DIR="$artifact_dir" \
+        bash "$VERIFIER" > /dev/null 2> "$stderr_file"
+    exit_code=$?
+
+    assert_eq "test_unreachable_session_head_exits_4: unreachable SESSION_HEAD exits 4" \
+        "4" "$exit_code"
+
+    local stderr_size=0
+    if [[ -s "$stderr_file" ]]; then stderr_size=1; fi
+    assert_eq "test_unreachable_session_head_exits_4: non-empty stderr on exit 4" \
+        "1" "$stderr_size"
+
+    rm -rf "$repo" "$artifact_dir" "$stderr_file"
+    assert_pass_if_clean "test_unreachable_session_head_exits_4"
+}
+
+# ── Contract 11 (bug 8a77 v2): Success marker written on exit 0 ───────────────
+# On clean completion (all provenanced), the verifier MUST write
+# provenance-complete.marker into ARTIFACT_DIR so the dispatcher can
+# distinguish "ran clean" from "never ran / crashed".
+test_marker_written_on_all_provenanced() {
+    _snapshot_fail
+    local repo
+    repo="$(_setup_git_repo)"
+
+    _make_commit "$repo" "Initial commit" > /dev/null
+    local base_sha
+    base_sha="$(git -C "$repo" rev-parse HEAD)"
+
+    _make_commit "$repo" "$(printf 'Merge story\n\nDSO-Story-Merge: abc-0001')" > /dev/null
+    local session_head
+    session_head="$(git -C "$repo" rev-parse HEAD)"
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+
+    DSO_REPO_PATH="$repo" \
+    DSO_BASE_SHA="$base_sha" \
+    DSO_SESSION_HEAD="$session_head" \
+    DSO_ARTIFACT_DIR="$artifact_dir" \
+        bash "$VERIFIER" > /dev/null 2>/dev/null
+
+    local marker_exists="no"
+    if [[ -f "$artifact_dir/provenance-complete.marker" ]]; then marker_exists="yes"; fi
+    assert_eq "test_marker_written_on_all_provenanced: marker created on exit 0" \
+        "yes" "$marker_exists"
+
+    rm -rf "$repo" "$artifact_dir"
+    assert_pass_if_clean "test_marker_written_on_all_provenanced"
+}
+
+# ── Contract 12 (bug 8a77 v2): Success marker written on exit 1 (unprovenanced) ─
+test_marker_written_on_unprovenanced() {
+    _snapshot_fail
+    local repo
+    repo="$(_setup_git_repo)"
+
+    _make_commit "$repo" "Initial commit" > /dev/null
+    local base_sha
+    base_sha="$(git -C "$repo" rev-parse HEAD)"
+
+    _make_commit "$repo" "chore: untrailered" > /dev/null
+    local session_head
+    session_head="$(git -C "$repo" rev-parse HEAD)"
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+
+    _make_mock_gh_no_prs
+
+    PATH="$MOCK_BIN:$PATH" \
+    DSO_REPO_PATH="$repo" \
+    DSO_BASE_SHA="$base_sha" \
+    DSO_SESSION_HEAD="$session_head" \
+    DSO_ARTIFACT_DIR="$artifact_dir" \
+    DSO_GH_REPO="owner/repo" \
+        bash "$VERIFIER" > /dev/null 2>/dev/null
+
+    local marker_exists="no"
+    if [[ -f "$artifact_dir/provenance-complete.marker" ]]; then marker_exists="yes"; fi
+    assert_eq "test_marker_written_on_unprovenanced: marker created on exit 1" \
+        "yes" "$marker_exists"
+
+    rm -rf "$repo" "$artifact_dir"
+    assert_pass_if_clean "test_marker_written_on_unprovenanced"
+}
+
+# ── Contract 13 (bug 8a77 v2): NO marker written on exit 4 (unreachable SHA) ──
+test_marker_NOT_written_on_unreachable_sha() {
+    _snapshot_fail
+    local repo
+    repo="$(_setup_git_repo)"
+
+    _make_commit "$repo" "Initial commit" > /dev/null
+    local session_head
+    session_head="$(git -C "$repo" rev-parse HEAD)"
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+
+    DSO_REPO_PATH="$repo" \
+    DSO_BASE_SHA="0000000000000000000000000000000000000003" \
+    DSO_SESSION_HEAD="$session_head" \
+    DSO_ARTIFACT_DIR="$artifact_dir" \
+        bash "$VERIFIER" > /dev/null 2>/dev/null || true
+
+    local marker_exists="yes"
+    if [[ ! -f "$artifact_dir/provenance-complete.marker" ]]; then marker_exists="no"; fi
+    assert_eq "test_marker_NOT_written_on_unreachable_sha: marker absent on exit 4" \
+        "no" "$marker_exists"
+
+    rm -rf "$repo" "$artifact_dir"
+    assert_pass_if_clean "test_marker_NOT_written_on_unreachable_sha"
+}
+
+# ── Contract 14 (bug 8a77 v2 MF1): over-bound-shas.txt written when OVER_BOUND ─
+# Without this artifact, the dispatcher's `[[ -s "$OVERBOUND_FILE" ]]` route
+# check is dead code and OVER_BOUND commits silently route as exit 0.
+test_overbound_artifact_written() {
+    _snapshot_fail
+    local repo
+    repo="$(_setup_git_repo)"
+
+    _make_commit "$repo" "Initial commit" > /dev/null
+    local base_sha
+    base_sha="$(git -C "$repo" rev-parse HEAD)"
+
+    _make_commit "$repo" "$(printf 'chore: routed\n\nDSO-Over-Bound: acknowledged')" > /dev/null
+    local session_head
+    session_head="$(git -C "$repo" rev-parse HEAD)"
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+
+    DSO_REPO_PATH="$repo" \
+    DSO_BASE_SHA="$base_sha" \
+    DSO_SESSION_HEAD="$session_head" \
+    DSO_ARTIFACT_DIR="$artifact_dir" \
+        bash "$VERIFIER" > /dev/null 2>/dev/null || true
+
+    local overbound_nonempty="no"
+    if [[ -s "$artifact_dir/over-bound-shas.txt" ]]; then overbound_nonempty="yes"; fi
+    assert_eq "test_overbound_artifact_written: over-bound-shas.txt non-empty on OVER_BOUND" \
+        "yes" "$overbound_nonempty"
+
+    rm -rf "$repo" "$artifact_dir"
+    assert_pass_if_clean "test_overbound_artifact_written"
+}
+
+# ── Contract 15 (bug 8a77 v2 MF2): covered-shas.txt written for trailer-provenanced ─
+# When commits are provenanced via DSO-Story-Merge trailer, the verifier must
+# write their SHAs to covered-shas.txt so the dispatcher can render the
+# "Covered by sub-PR reviews:" line without re-walking BASE..HEAD.
+test_covered_shas_written_for_trailer_provenanced() {
+    _snapshot_fail
+    local repo
+    repo="$(_setup_git_repo)"
+
+    _make_commit "$repo" "Initial commit" > /dev/null
+    local base_sha
+    base_sha="$(git -C "$repo" rev-parse HEAD)"
+
+    _make_commit "$repo" "$(printf 'Merge story-A\n\nDSO-Story-Merge: epic-A/story-1')" > /dev/null
+    local sha_a
+    sha_a="$(git -C "$repo" rev-parse HEAD)"
+    _make_commit "$repo" "$(printf 'Merge story-B\n\nDSO-Story-Merge: epic-A/story-2')" > /dev/null
+    local sha_b
+    sha_b="$(git -C "$repo" rev-parse HEAD)"
+    local session_head="$sha_b"
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+
+    DSO_REPO_PATH="$repo" \
+    DSO_BASE_SHA="$base_sha" \
+    DSO_SESSION_HEAD="$session_head" \
+    DSO_ARTIFACT_DIR="$artifact_dir" \
+        bash "$VERIFIER" > /dev/null 2>/dev/null
+
+    local covered_content=""
+    if [[ -f "$artifact_dir/covered-shas.txt" ]]; then
+        covered_content="$(cat "$artifact_dir/covered-shas.txt")"
+    fi
+    assert_contains "test_covered_shas_written_for_trailer_provenanced: covered-shas.txt contains sha_a" \
+        "$sha_a" "$covered_content"
+    assert_contains "test_covered_shas_written_for_trailer_provenanced: covered-shas.txt contains sha_b" \
+        "$sha_b" "$covered_content"
+
+    rm -rf "$repo" "$artifact_dir"
+    assert_pass_if_clean "test_covered_shas_written_for_trailer_provenanced"
+}
+
 # ── Run all contract tests ────────────────────────────────────────────────────
 test_all_provenanced_exits_exactly_0
 test_dso_story_trailer_exits_0
@@ -411,5 +661,12 @@ test_budget_exhausted_exits_exactly_2
 test_budget_exit2_distinct_from_exit1
 test_empty_range_exits_0
 test_over_bound_marker_exits_3
+test_unreachable_base_sha_exits_4
+test_unreachable_session_head_exits_4
+test_marker_written_on_all_provenanced
+test_marker_written_on_unprovenanced
+test_marker_NOT_written_on_unreachable_sha
+test_overbound_artifact_written
+test_covered_shas_written_for_trailer_provenanced
 
 print_summary
