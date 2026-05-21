@@ -207,7 +207,9 @@ while [ "$push_attempt" -lt "$max_push_retries" ]; do
 
     push_exit=0
     push_stderr=""
-    push_stderr=$(PRE_COMMIT_ALLOW_NO_CONFIG=1 git -C "$base_path" push origin tickets 2>&1) || push_exit=$?
+    # Push HEAD:tickets (not bare "tickets") so the current detached-HEAD
+    # commit is pushed regardless of refs/heads/tickets state. Bug 27d8-b230.
+    push_stderr=$(PRE_COMMIT_ALLOW_NO_CONFIG=1 git -C "$base_path" push origin HEAD:tickets 2>&1) || push_exit=$?
 
     if [ "$push_exit" -eq 0 ]; then
         exit 0

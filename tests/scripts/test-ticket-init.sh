@@ -141,6 +141,38 @@ test_ticket_init_adds_to_gitignore() {
 }
 test_ticket_init_adds_to_gitignore
 
+# ── Test 4b: test_ticket_init_seeds_precommit_stub ────────────────────────────
+# Bug 27d8-b230: the tickets orphan branch needs a no-op .pre-commit-config.yaml
+# so the pre-commit framework (when installed as a pre-push hook in the host
+# repo) accepts pushes from .tickets-tracker without PRE_COMMIT_ALLOW_NO_CONFIG=1
+# on every caller.
+echo "Test 4b: ticket init commits no-op .pre-commit-config.yaml on tickets branch"
+test_ticket_init_seeds_precommit_stub() {
+    local repo
+    repo=$(_make_test_repo)
+
+    (cd "$repo" && bash "$TICKET_SCRIPT" init 2>/dev/null) || true
+
+    # Assert: .pre-commit-config.yaml exists as a committed file on the tickets branch
+    if git -C "$repo/.tickets-tracker" show tickets:.pre-commit-config.yaml &>/dev/null; then
+        assert_eq "precommit-stub: committed on tickets branch" "committed" "committed"
+    else
+        assert_eq "precommit-stub: committed on tickets branch" "committed" "missing"
+        return
+    fi
+
+    # Assert: content declares no-op repos list (the framework requires `repos:` key)
+    local stub_content
+    stub_content=$(git -C "$repo/.tickets-tracker" show tickets:.pre-commit-config.yaml 2>/dev/null)
+    if [[ "$stub_content" == *"repos: []"* ]]; then
+        assert_eq "precommit-stub: declares 'repos: []' no-op" "ok" "ok"
+    else
+        assert_eq "precommit-stub: declares 'repos: []' no-op" "ok" "missing"
+    fi
+}
+test_ticket_init_seeds_precommit_stub
+
+
 # ── Test 5: test_ticket_init_adds_to_git_info_exclude ────────────────────────
 echo "Test 5: ticket init adds .tickets-tracker to .git/info/exclude"
 test_ticket_init_adds_to_git_info_exclude() {

@@ -327,6 +327,27 @@ GITIGNORE
     git -C "$TRACKER_DIR" commit -q --no-verify -m "chore: add .gitignore for env-id and state-cache"
 fi
 
+# ── Commit no-op .pre-commit-config.yaml on the tickets branch ───────────────
+# The pre-commit framework, when installed as a pre-push hook in the host
+# repo's .git/hooks/pre-push, runs on every push from this linked worktree.
+# Without a .pre-commit-config.yaml the framework exits non-zero and rejects
+# the push. A stub `repos: []` config is a valid no-op: pre-commit accepts
+# it and runs no hooks, so pushes succeed without requiring callers to set
+# PRE_COMMIT_ALLOW_NO_CONFIG=1. Bug 27d8-b230.
+if ! git -C "$TRACKER_DIR" show tickets:.pre-commit-config.yaml &>/dev/null 2>&1; then
+    cat > "$TRACKER_DIR/.pre-commit-config.yaml" <<'PRECOMMIT'
+# No-op pre-commit config for the tickets orphan branch.
+# The tickets branch carries event-sourced ticket data only — no source
+# code to lint — so no hooks are needed. This empty config exists solely
+# so the pre-commit framework (when installed as a pre-push hook in the
+# host repo) accepts pushes from the .tickets-tracker linked worktree
+# without requiring PRE_COMMIT_ALLOW_NO_CONFIG=1 on every caller.
+repos: []
+PRECOMMIT
+    git -C "$TRACKER_DIR" add .pre-commit-config.yaml
+    git -C "$TRACKER_DIR" commit -q --no-verify -m "chore: add no-op .pre-commit-config.yaml (bug 27d8-b230)"
+fi
+
 # ── Generate env-id ───────────────────────────────────────────────────────────
 if [ ! -f "$TRACKER_DIR/.env-id" ]; then
     python3 -c "import uuid; print(uuid.uuid4())" > "$TRACKER_DIR/.env-id"
