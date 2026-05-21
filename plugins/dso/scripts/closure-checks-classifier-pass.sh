@@ -59,6 +59,9 @@ SESSION_ID=""
 MIGRATION_RUN_ID=""
 REMAINING_BUDGET=25
 DRYRUN=0
+PLAN_OUTPUT=""        # NEW: when set, runs in plan-only mode (no prompting, no mutations)
+APPLY_FROM_PLAN=""    # NEW: when set, applies decisions against this plan (no classifier dispatch)
+DECISIONS_FILE=""     # NEW: required with --apply-from-plan; contains user decisions per item index
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -73,6 +76,12 @@ while [[ $# -gt 0 ]]; do
         --remaining-budget)  REMAINING_BUDGET="$2"; shift 2 ;;
         --remaining-budget=*) REMAINING_BUDGET="${1#--remaining-budget=}"; shift ;;
         --dry-run)           DRYRUN=1; shift ;;
+        --plan-output)       PLAN_OUTPUT="$2"; shift 2 ;;
+        --plan-output=*)     PLAN_OUTPUT="${1#--plan-output=}"; shift ;;
+        --apply-from-plan)   APPLY_FROM_PLAN="$2"; shift 2 ;;
+        --apply-from-plan=*) APPLY_FROM_PLAN="${1#--apply-from-plan=}"; shift ;;
+        --decisions-file)    DECISIONS_FILE="$2"; shift 2 ;;
+        --decisions-file=*)  DECISIONS_FILE="${1#--decisions-file=}"; shift ;;
         --help|-h)
             sed -n '2,40p' "$0"
             exit 0
@@ -83,6 +92,12 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# Mode validation
+if [[ -n "$APPLY_FROM_PLAN" && -z "$DECISIONS_FILE" ]]; then
+    echo "ERROR: --apply-from-plan requires --decisions-file" >&2
+    exit 1
+fi
 
 for var in TICKET_ID TARGET SESSION_ID MIGRATION_RUN_ID; do
     if [[ -z "${!var}" ]]; then
@@ -154,8 +169,140 @@ AUDIT_JSON_FILE="$(mktemp /tmp/audit-comment.XXXXXX.json)"
 NEW_DESC_FILE="$(mktemp /tmp/new-desc.XXXXXX.txt)"
 trap 'rm -f "$AUDIT_JSON_FILE" "$NEW_DESC_FILE"' EXIT
 
-# Export env vars the python helper reads
-export TICKET_ID SNAPSHOT_TIMESTAMP MIGRATION_RUN_ID REMAINING_BUDGET DRYRUN AUDIT_JSON_FILE NEW_DESC_FILE SESSION_ID SNAPSHOT_FILE
+# ── Apply-from-plan mode (Claude-driven ack flow) ───────────────────────────
+# Reads a plan file (produced earlier by --plan-output mode) plus a decisions
+# file (produced by the orchestrator after asking the user). Builds the audit
+# comment and applies section moves. Does NOT dispatch the classifier — uses
+# the cached classification from the plan.
+if [[ -n "$APPLY_FROM_PLAN" ]]; then
+    export TICKET_ID SNAPSHOT_TIMESTAMP MIGRATION_RUN_ID DRYRUN AUDIT_JSON_FILE NEW_DESC_FILE SNAPSHOT_FILE APPLY_FROM_PLAN DECISIONS_FILE
+    python3 - <<'PYEOF'
+import json, os, re, sys
+
+TICKET_ID = os.environ["TICKET_ID"]
+SNAPSHOT_TIMESTAMP = os.environ["SNAPSHOT_TIMESTAMP"]
+MIGRATION_RUN_ID = os.environ["MIGRATION_RUN_ID"]
+DRYRUN = os.environ["DRYRUN"] == "1"
+AUDIT_JSON_FILE = os.environ["AUDIT_JSON_FILE"]
+NEW_DESC_FILE = os.environ["NEW_DESC_FILE"]
+SNAPSHOT_FILE = os.environ["SNAPSHOT_FILE"]
+APPLY_FROM_PLAN = os.environ["APPLY_FROM_PLAN"]
+DECISIONS_FILE = os.environ["DECISIONS_FILE"]
+
+with open(APPLY_FROM_PLAN) as f:
+    plan = json.load(f)
+with open(DECISIONS_FILE) as f:
+    decisions_obj = json.load(f)
+
+# Index decisions by item index
+dec_by_index = {d["index"]: d["user_decision"] for d in decisions_obj.get("decisions", [])}
+
+# Load snapshot description for section-move regex
+with open(SNAPSHOT_FILE) as f:
+    raw = f.read()
+lines = raw.split("\n")
+if lines and lines[0].startswith("# snapshot_timestamp:"):
+    lines = lines[2:] if len(lines) > 1 else lines[1:]
+description = "\n".join(lines)
+
+audit_items = []
+moves = []  # list of original_text values that move SC → CC
+
+for item in plan["items"]:
+    idx = item["index"]
+    original_text = item["original_text"]
+    section = item["original_section"]
+    cls = item["classification"]
+    label = cls["label"]
+    ranking = cls["ranking"]
+
+    if item.get("auto_accepted"):
+        decision = "auto"
+        target = section
+    else:
+        # User-decided (or defer if not in decisions file)
+        decision = dec_by_index.get(idx, "defer")
+        if decision == "accept":
+            target = item.get("proposed_target", section)
+        else:
+            target = section
+
+    post_section = "CC" if target == "CC" else "SC"
+    audit_items.append({
+        "original_text": original_text,
+        "original_section": section,
+        "classification": cls,
+        "user_decision": decision,
+        "post_migration_section": post_section,
+    })
+    print(f"ITEM: {TICKET_ID} {section} {label} {ranking} {decision} {post_section}")
+
+    if target == "CC" and not DRYRUN:
+        moves.append((idx, "CC", original_text))
+
+# Write audit comment file
+audit = {
+    "schema_version": 1,
+    "migration_run_id": MIGRATION_RUN_ID,
+    "snapshot_timestamp": SNAPSHOT_TIMESTAMP,
+    "ticket_id": TICKET_ID,
+    "items": audit_items,
+}
+with open(AUDIT_JSON_FILE, "w") as f:
+    json.dump(audit, f, indent=2)
+
+# Build new description if there are moves to apply (and not dry-run)
+if moves and not DRYRUN:
+    new_desc = description
+    cc_items_to_add = []
+    for idx, target_section, original_text in moves:
+        bullet_marker = original_text.split("\n")[0][:80]
+        pattern = re.compile(r"(\n[ \t]*[-*]\s+" + re.escape(bullet_marker) + r"[^\n]*(?:\n[ \t]+\S[^\n]*)*)", re.MULTILINE)
+        m = pattern.search(new_desc)
+        if m:
+            new_desc = new_desc[:m.start()] + new_desc[m.end():]
+            cc_items_to_add.append(original_text)
+
+    if cc_items_to_add:
+        cc_heading = "## Closure Checks"
+        if cc_heading in new_desc:
+            m = re.search(re.escape(cc_heading) + r"\s*\n(.*?)(?=\n## |\Z)", new_desc, re.DOTALL)
+            if m:
+                section_end = m.end()
+                additions = "\n" + "\n".join(f"- {it}" for it in cc_items_to_add)
+                new_desc = new_desc[:section_end] + additions + new_desc[section_end:]
+        else:
+            additions = "\n\n## Closure Checks\n\n" + "\n".join(f"- {it}" for it in cc_items_to_add) + "\n"
+            new_desc = new_desc + additions
+
+    with open(NEW_DESC_FILE, "w") as f:
+        f.write(new_desc)
+
+print(f"BUDGET_CONSUMED: {sum(1 for d in dec_by_index.values())}")
+sys.exit(0)
+PYEOF
+    APPLY_RC=$?
+    if [[ $APPLY_RC -ne 0 ]]; then
+        echo "ERROR: $TICKET_ID — apply-from-plan helper failed" >&2
+        exit 1
+    fi
+
+    # Write audit comment + description mutation (shared code path with default mode below)
+    if [[ "$DRYRUN" = "0" && -s "$AUDIT_JSON_FILE" ]]; then
+        AUDIT_BODY="$(cat "$AUDIT_JSON_FILE")"
+        "$TICKET_CLI" ticket comment "$TICKET_ID" "CLOSURE_CHECKS_CLASSIFIER_AUDIT: $AUDIT_BODY" 2>&1 | tail -1
+        echo "AUDIT_WRITTEN: $TICKET_ID"
+    fi
+    if [[ "$DRYRUN" = "0" && -s "$NEW_DESC_FILE" ]]; then
+        NEW_DESC="$(cat "$NEW_DESC_FILE")"
+        "$TICKET_CLI" ticket edit "$TICKET_ID" --description="$NEW_DESC" 2>&1 | tail -1
+        echo "DESCRIPTION_UPDATED: $TICKET_ID"
+    fi
+    exit 0
+fi
+
+# Export env vars the python helper reads (default + plan-output modes)
+export TICKET_ID SNAPSHOT_TIMESTAMP MIGRATION_RUN_ID REMAINING_BUDGET DRYRUN AUDIT_JSON_FILE NEW_DESC_FILE SESSION_ID SNAPSHOT_FILE PLAN_OUTPUT
 
 python3 - <<'PYEOF'
 import json, os, re, sys
@@ -348,10 +495,16 @@ Proposed:   {classification['_original_section']} → {proposed_target}
         tty_out.write("Please type a, r, or d: ")
         tty_out.flush()
 
+# Plan-output mode flag (read from env; written by --plan-output bash flag)
+PLAN_OUTPUT = os.environ.get("PLAN_OUTPUT", "")
+
 # Build the audit + plan
 audit_items = []
 moves = []  # list of (item_index_in_items_extracted, target_section)
 items_remaining_budget = REMAINING_BUDGET
+
+# Plan-mode collection (used when PLAN_OUTPUT is set)
+plan_items = []
 
 batch_paused = False
 
@@ -359,6 +512,15 @@ for idx, (section_code, item_text, _, _) in enumerate(items_extracted):
     cls = classify_one(item_text)
     if cls is None:
         # Classification failed; record as uncertain auto-defer (does not consume budget)
+        if PLAN_OUTPUT:
+            plan_items.append({
+                "index": idx,
+                "original_text": item_text,
+                "original_section": section_code,
+                "classification": {"label": "uncertain", "ranking": 1, "rationale": "classifier dispatch failed; auto-deferred"},
+                "auto_accepted": True,
+                "proposed_target": section_code,
+            })
         audit_items.append({
             "original_text": item_text,
             "original_section": section_code,
@@ -379,6 +541,15 @@ for idx, (section_code, item_text, _, _) in enumerate(items_extracted):
         # Auto-accept; stays in original section
         decision = "auto"
         target = section_code
+        if PLAN_OUTPUT:
+            plan_items.append({
+                "index": idx,
+                "original_text": item_text,
+                "original_section": section_code,
+                "classification": {"label": label, "ranking": ranking, "rationale": rationale},
+                "auto_accepted": True,
+                "proposed_target": section_code,
+            })
     else:
         # Per-item escalation required
         if items_remaining_budget <= 0:
@@ -392,6 +563,20 @@ for idx, (section_code, item_text, _, _) in enumerate(items_extracted):
             proposed_target = "CC"
         else:
             proposed_target = section_code  # uncertain / low-confidence end-state stays in original
+
+        if PLAN_OUTPUT:
+            # Plan-mode: record what would be asked; consume budget; do not prompt
+            plan_items.append({
+                "index": idx,
+                "original_text": item_text,
+                "original_section": section_code,
+                "classification": {"label": label, "ranking": ranking, "rationale": rationale},
+                "auto_accepted": False,
+                "proposed_target": proposed_target,
+            })
+            items_remaining_budget -= 1
+            # Skip the rest of the per-item loop body (no prompt, no audit, no moves)
+            continue
 
         decision = prompt_user(item_text, cls, proposed_target)
         items_remaining_budget -= 1
@@ -415,6 +600,25 @@ for idx, (section_code, item_text, _, _) in enumerate(items_extracted):
 
     if target == "CC" and not DRYRUN:
         moves.append((idx, "CC", item_text))
+
+# Plan-output mode: write the proposed plan and exit early (no audit, no moves)
+if PLAN_OUTPUT:
+    plan = {
+        "schema_version": 1,
+        "ticket_id": TICKET_ID,
+        "snapshot_timestamp": SNAPSHOT_TIMESTAMP,
+        "migration_run_id": MIGRATION_RUN_ID,
+        "items": plan_items,
+    }
+    with open(PLAN_OUTPUT, "w") as f:
+        json.dump(plan, f, indent=2)
+    budget_consumed = REMAINING_BUDGET - items_remaining_budget
+    print(f"PLAN_WRITTEN: {PLAN_OUTPUT} items={len(plan_items)} needs_ack={sum(1 for it in plan_items if not it.get('auto_accepted'))}")
+    print(f"BUDGET_CONSUMED: {budget_consumed}")
+    if batch_paused:
+        print(f"BATCH_PAUSE: {budget_consumed}")
+        sys.exit(2)
+    sys.exit(0)
 
 # Write audit comment file
 audit = {
