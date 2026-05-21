@@ -10,22 +10,17 @@ DSO="${DSO:-$SCRIPT_DIR/dso}"
 
 bootstrap_ticket() {
   local alias="$1" title="$2" desc="$3"
-  local exists_rc=0
-  # Capture exit code without triggering set -e (|| prevents set -e on non-zero)
-  "$DSO" ticket exists "$alias" 2>/dev/null || exists_rc=$?
-  case $exists_rc in
-    0)
-      echo "bootstrap: $alias already exists — skipping"
-      ;;
-    1)
-      "$DSO" ticket create story "$title" --alias="$alias" --description="$desc"
-      echo "bootstrap: $alias created"
-      ;;
-    *)
-      echo "bootstrap: exists check for $alias failed (rc=$exists_rc)" >&2
-      exit "$exists_rc"
-      ;;
-  esac
+  # ticket exists only accepts UUID-format IDs, not human-readable aliases.
+  # Use list-epics --has-tag= for idempotency; tab character in output means found.
+  local list_out
+  list_out=$("$DSO" ticket list-epics --has-tag="$alias" 2>/dev/null || true)
+  if printf '%s\n' "$list_out" | grep -q "	"; then
+    echo "bootstrap: $alias already exists — skipping"
+    return 0
+  fi
+  # Create as epic type: calibration-report.sh health-ticket lookup uses --type=epic.
+  "$DSO" ticket create epic "$title" --tags="$alias" --description="$desc"
+  echo "bootstrap: $alias created"
 }
 
 bootstrap_ticket "calibration-program-health" \

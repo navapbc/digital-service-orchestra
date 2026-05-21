@@ -80,25 +80,31 @@ _load_fixture() {
 }
 
 # ── Helper: load bugs from DSO ticket CLI ───────────────────────────────────
-# Lists all bug tickets and emits a JSON array to stdout.
+# Lists bug tickets for the given period and emits a filtered JSON array.
+# Period is YYYY-MM (monthly) or YYYY-Q[1-4] (quarterly).
+# Uses default JSON format (not --format=llm) so created_at and tags are present.
 _load_from_cli() {
-    "$DSO" ticket list --type=bug --format=llm 2>/dev/null \
+    local period="$1"
+    "$DSO" ticket list --type=bug 2>/dev/null \
         | python3 -c '
-import sys, json
-lines = sys.stdin.read().strip().splitlines()
-bugs = []
-for line in lines:
-    line = line.strip()
-    if not line:
-        continue
+import sys, json, re
+from datetime import datetime, timezone
+period = sys.argv[1]
+try:
+    bugs_all = json.load(sys.stdin)
+except Exception:
+    bugs_all = []
+def bug_bucket(ca):
     try:
-        obj = json.loads(line)
-        # Expand to full shape via ticket show if needed; for now use list shape.
-        bugs.append(obj)
-    except json.JSONDecodeError:
-        pass
-print(json.dumps(bugs))
-'
+        dt = datetime.fromtimestamp(int(ca) / 1e9, tz=timezone.utc)
+    except (ValueError, OSError, TypeError):
+        return None
+    if re.match(r"^\d{4}-Q\d$", period):
+        return f"{dt.year}-Q{(dt.month - 1) // 3 + 1}"
+    return dt.strftime("%Y-%m")
+filtered = [b for b in bugs_all if bug_bucket(b.get("created_at")) == period]
+print(json.dumps(filtered))
+' "$period"
 }
 
 # ── Helper: resolve current UTC quarter as YYYY-Q[1-4] ──────────────────────
@@ -222,7 +228,7 @@ _cmd_monthly() {
     if [ -n "$fixture_dir" ]; then
         bugs_json=$(_load_fixture "$fixture_dir")
     else
-        bugs_json=$(_load_from_cli)
+        bugs_json=$(_load_from_cli "$period")
     fi
 
     # Aggregate by channel
@@ -239,24 +245,20 @@ _cmd_monthly() {
     fi
 
     # Post rollup as comment on calibration-program-health ticket
-    # Find calibration-program-health ticket by tag
+    # Find calibration-program-health ticket by tag (default JSON format; --format=llm renames tags→tg)
     local health_ticket_id
     health_ticket_id=$(
-        "$DSO" ticket list --type=epic --format=llm 2>/dev/null \
+        "$DSO" ticket list --type=epic 2>/dev/null \
             | python3 -c '
 import json, sys
-for line in sys.stdin:
-    line = line.strip()
-    if not line:
-        continue
-    try:
-        t = json.loads(line)
-        tags = t.get("tags", [])
-        if "calibration-program-health" in tags:
-            print(t.get("id") or t.get("ticket_id", ""))
-            break
-    except Exception:
-        pass
+try:
+    tickets = json.load(sys.stdin)
+except Exception:
+    tickets = []
+for t in tickets:
+    if "calibration-program-health" in t.get("tags", []):
+        print(t.get("ticket_id") or t.get("id", ""))
+        break
 ' || true
     )
 
@@ -266,10 +268,20 @@ for line in sys.stdin:
         return 0
     fi
 
-    # Idempotency guard: check if a rollup for this period/kind has already been posted.
+    # Idempotency guard: check via ticket show comments (ticket list-comments does not exist).
     local idempotency_marker="<!-- calibration-rollup: period=${period} kind=monthly -->"
     local existing_comments
-    existing_comments=$("$DSO" ticket list-comments "$health_ticket_id" 2>/dev/null || true)
+    existing_comments=$(
+        "$DSO" ticket show "$health_ticket_id" 2>/dev/null \
+            | python3 -c '
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    print("\n".join(c.get("body", "") for c in d.get("comments", [])))
+except Exception:
+    pass
+' || true
+    )
     if echo "$existing_comments" | grep -qF "$idempotency_marker"; then
         echo "calibration-report: skipping: rollup already posted for ${period}" >&2
         return 0
@@ -355,7 +367,7 @@ _cmd_quarterly() {
     if [ -n "$fixture_dir" ]; then
         bugs_json=$(_load_fixture "$fixture_dir")
     else
-        bugs_json=$(_load_from_cli)
+        bugs_json=$(_load_from_cli "$period")
     fi
 
     # Aggregate by channel (shared function)
@@ -372,23 +384,20 @@ _cmd_quarterly() {
     fi
 
     # Post rollup as comment on calibration-program-health ticket
+    # (default JSON format; --format=llm renames tags→tg)
     local health_ticket_id
     health_ticket_id=$(
-        "$DSO" ticket list --type=epic --format=llm 2>/dev/null \
+        "$DSO" ticket list --type=epic 2>/dev/null \
             | python3 -c '
 import json, sys
-for line in sys.stdin:
-    line = line.strip()
-    if not line:
-        continue
-    try:
-        t = json.loads(line)
-        tags = t.get("tags", [])
-        if "calibration-program-health" in tags:
-            print(t.get("id") or t.get("ticket_id", ""))
-            break
-    except Exception:
-        pass
+try:
+    tickets = json.load(sys.stdin)
+except Exception:
+    tickets = []
+for t in tickets:
+    if "calibration-program-health" in t.get("tags", []):
+        print(t.get("ticket_id") or t.get("id", ""))
+        break
 ' || true
     )
 
@@ -399,9 +408,20 @@ for line in sys.stdin:
     fi
 
     # Idempotency guard: quarterly markers use kind=quarterly — no collision with monthly.
+    # Use ticket show comments (ticket list-comments does not exist as a subcommand).
     local idempotency_marker="<!-- calibration-rollup: period=${period} kind=quarterly -->"
     local existing_comments
-    existing_comments=$("$DSO" ticket list-comments "$health_ticket_id" 2>/dev/null || true)
+    existing_comments=$(
+        "$DSO" ticket show "$health_ticket_id" 2>/dev/null \
+            | python3 -c '
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    print("\n".join(c.get("body", "") for c in d.get("comments", [])))
+except Exception:
+    pass
+' || true
+    )
     if echo "$existing_comments" | grep -qF "$idempotency_marker"; then
         echo "calibration-report: skipping: quarterly rollup already posted for ${period}" >&2
         return 0

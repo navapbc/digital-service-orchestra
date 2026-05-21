@@ -272,41 +272,38 @@ test_monthly_idempotency_skip_duplicate() {
     local stub="${tmp_dir}/dso"
 
     # The stub simulates:
-    #   ticket list --type=epic --format=llm  →  one epic with calibration-program-health tag
-    #   ticket list-comments <id>             →  existing comment with the marker for 2026-04
-    #   ticket comment ...                    →  logs the call so we can assert it was NOT made
-    cat > "$stub" <<'STUB'
+    #   ticket list --type=epic          →  JSON array with calibration-program-health epic
+    #   ticket show mock-health-001      →  JSON with existing rollup comment for 2026-04
+    #   ticket comment ...               →  logs the call so we can assert it was NOT made
+    cat > "$stub" <<STUB
 #!/usr/bin/env bash
 # Mock DSO stub for idempotency test
-COMMENT_CALL_LOG="__COMMENT_LOG__"
+COMMENT_CALL_LOG="${comment_call_log}"
 
-subcmd="$1"; shift
+subcmd="\$1"; shift
 
-case "$subcmd" in
+case "\$subcmd" in
     ticket)
-        ticket_subcmd="$1"; shift
-        case "$ticket_subcmd" in
+        ticket_subcmd="\$1"; shift
+        case "\$ticket_subcmd" in
             list)
-                # Return an epic with calibration-program-health tag
-                if [[ "$*" == *"--type=epic"* ]]; then
-                    echo '{"id":"mock-health-001","type":"epic","title":"Health","tags":["calibration-program-health"],"status":"open"}'
+                # Return JSON array with health epic (default format — tags field, not tg)
+                if [[ "\$*" == *"--type=epic"* ]]; then
+                    echo '[{"ticket_id":"mock-health-001","type":"epic","title":"Health","tags":["calibration-program-health"],"status":"open"}]'
                 fi
                 ;;
-            list-comments)
-                # Return a comment body containing the monthly marker for 2026-04
-                printf '<!-- calibration-rollup: period=2026-04 kind=monthly -->\n## Calibration Monthly Rollup — 2026-04\n'
+            show)
+                # Return full ticket JSON with existing rollup comment containing 2026-04 marker
+                echo '{"ticket_id":"mock-health-001","comments":[{"body":"<!-- calibration-rollup: period=2026-04 kind=monthly -->\\n## Rollup","author":"bot","timestamp":1000000}]}'
                 ;;
             comment)
                 # Log this call — should NOT happen on duplicate
-                echo "ticket comment called: $*" >> "$COMMENT_CALL_LOG"
+                echo "ticket comment called: \$*" >> "\$COMMENT_CALL_LOG"
                 ;;
         esac
         ;;
 esac
 STUB
-
-    # Substitute the log path into the stub
-    sed -i '' "s|__COMMENT_LOG__|${comment_call_log}|g" "$stub"
     chmod +x "$stub"
 
     # Invoke monthly for the same period — should detect marker and skip
@@ -563,6 +560,212 @@ test_shared_aggregation_function_referenced() {
     assert_pass_if_clean "test_shared_aggregation_function_referenced"
 }
 test_shared_aggregation_function_referenced
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Test 15: idempotency guard must use ticket show, NOT ticket list-comments
+#
+# Given: a DSO stub that handles ticket show (with marker) but NOT list-comments
+# When:  monthly is invoked for the same period (2026-04)
+# Then:  guard finds marker via ticket show → skips → no comment posted
+# RED on current impl: calls ticket list-comments (not stubbed) → empty → posts
+# ═══════════════════════════════════════════════════════════════════════════════
+echo "Test 15: idempotency guard uses ticket show, not ticket list-comments"
+test_idempotency_guard_uses_ticket_show() {
+    _snapshot_fail
+
+    if [ ! -x "$CALIBRATION_SCRIPT" ]; then
+        assert_eq "calibration-report.sh executable (prereq)" "executable" "missing"
+        assert_pass_if_clean "test_idempotency_guard_uses_ticket_show"
+        return
+    fi
+
+    local tmp_dir comment_log stub
+    tmp_dir=$(mktemp -d /tmp/cal-red-idempotency.XXXXXX)
+    comment_log="${tmp_dir}/comment_calls.log"
+    stub="${tmp_dir}/dso"
+
+    # Cooperating stub for health-ticket lookup (both current and fixed impl can find it).
+    # ticket show returns JSON with monthly marker. ticket list-comments NOT handled.
+    # ticket comment logs (must NOT be called if guard works).
+    cat > "$stub" <<STUB
+#!/usr/bin/env bash
+log="${comment_log}"
+case "\$*" in
+  *"ticket list"*"--type=epic"*)
+    printf '[{"id":"mock-h-001","ticket_id":"mock-h-001","type":"epic","title":"Health","tags":["calibration-program-health"],"tg":["calibration-program-health"],"status":"open"}]\n'
+    ;;
+  *"ticket show"*"mock-h-001"*)
+    printf '{"ticket_id":"mock-h-001","tags":["calibration-program-health"],"comments":[{"body":"<!-- calibration-rollup: period=2026-04 kind=monthly -->","author":"bot","timestamp":1000000}]}\n'
+    ;;
+  *"ticket comment"*)
+    echo "comment posted" >> "\$log"
+    ;;
+esac
+STUB
+    chmod +x "$stub"
+
+    local exit_code=0
+    DSO="$stub" "$CALIBRATION_SCRIPT" monthly \
+        --fixture "$FIXTURE_DIR" --period 2026-04 2>/dev/null || exit_code=$?
+
+    assert_eq "exits 0 (idempotent)" "0" "$exit_code"
+
+    if [ -f "$comment_log" ] && [ -s "$comment_log" ]; then
+        assert_eq "no duplicate comment posted (idempotent via ticket show)" "no-post" "posted"
+    else
+        assert_eq "no duplicate comment posted (idempotent via ticket show)" "no-post" "no-post"
+    fi
+
+    rm -rf "$tmp_dir"
+    assert_pass_if_clean "test_idempotency_guard_uses_ticket_show"
+}
+test_idempotency_guard_uses_ticket_show
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Test 16: health-ticket lookup must NOT use --format=llm
+#
+# Given: stub where --format=llm returns empty; default format returns health ticket
+# When:  monthly is invoked (non-dry-run, fixture)
+# Then:  health ticket is found → rollup comment IS posted
+# RED on current impl: uses --format=llm → empty → WARNING → no post
+# ═══════════════════════════════════════════════════════════════════════════════
+echo "Test 16: health-ticket lookup uses default JSON format, not --format=llm"
+test_health_ticket_lookup_uses_default_format() {
+    _snapshot_fail
+
+    if [ ! -x "$CALIBRATION_SCRIPT" ]; then
+        assert_eq "calibration-report.sh executable (prereq)" "executable" "missing"
+        assert_pass_if_clean "test_health_ticket_lookup_uses_default_format"
+        return
+    fi
+
+    local tmp_dir comment_log stub
+    tmp_dir=$(mktemp -d /tmp/cal-red-lookup.XXXXXX)
+    comment_log="${tmp_dir}/comment_calls.log"
+    stub="${tmp_dir}/dso"
+
+    cat > "$stub" <<STUB
+#!/usr/bin/env bash
+log="${comment_log}"
+case "\$*" in
+  *"ticket list"*"--format=llm"*)
+    # llm format returns empty (real behavior: tags→tg, missing fields)
+    ;;
+  *"ticket list"*"--type=epic"*)
+    # Default format: JSON array with health ticket and tags field
+    printf '[{"ticket_id":"mock-h-001","type":"epic","title":"Health","tags":["calibration-program-health"],"status":"open"}]\n'
+    ;;
+  *"ticket show"*"mock-h-001"*)
+    printf '{"ticket_id":"mock-h-001","comments":[]}\n'
+    ;;
+  *"ticket comment"*)
+    echo "posted" >> "\$log"
+    ;;
+esac
+STUB
+    chmod +x "$stub"
+
+    local exit_code=0
+    DSO="$stub" "$CALIBRATION_SCRIPT" monthly \
+        --fixture "$FIXTURE_DIR" --period 2026-05 2>/dev/null || exit_code=$?
+
+    assert_eq "exits 0" "0" "$exit_code"
+
+    if [ -f "$comment_log" ] && [ -s "$comment_log" ]; then
+        assert_eq "rollup comment posted (health ticket found via default format)" "posted" "posted"
+    else
+        assert_eq "rollup comment posted (health ticket found via default format)" "posted" "not-posted"
+    fi
+
+    rm -rf "$tmp_dir"
+    assert_pass_if_clean "test_health_ticket_lookup_uses_default_format"
+}
+test_health_ticket_lookup_uses_default_format
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Test 17: monthly CLI path must filter bugs by period (not all-time)
+#
+# Given: DSO stub returning bugs from 2026-01 (detected_by:tests) and
+#        2026-05 (detected_by:user-report); period requested is 2026-01
+# When:  monthly --period 2026-01 (no --fixture; uses CLI path)
+# Then:  rollup only counts January bug; user-report channel absent
+# RED on current impl: _load_from_cli loads ALL bugs → both channels counted
+# ═══════════════════════════════════════════════════════════════════════════════
+echo "Test 17: monthly CLI path filters bugs to the specified period"
+test_monthly_cli_filters_by_period() {
+    _snapshot_fail
+
+    if [ ! -x "$CALIBRATION_SCRIPT" ]; then
+        assert_eq "calibration-report.sh executable (prereq)" "executable" "missing"
+        assert_pass_if_clean "test_monthly_cli_filters_by_period"
+        return
+    fi
+
+    local tmp_dir comment_log stub
+    tmp_dir=$(mktemp -d /tmp/cal-red-period.XXXXXX)
+    comment_log="${tmp_dir}/comment_calls.log"
+    stub="${tmp_dir}/dso"
+
+    # 2026-01-15 UTC ≈ 1768435200s → ns; 2026-05-15 UTC ≈ 1778803200s → ns
+    local jan_ns may_ns
+    jan_ns="1768435200000000000"
+    may_ns="1778803200000000000"
+
+    cat > "$stub" <<STUB
+#!/usr/bin/env bash
+log="${comment_log}"
+jan_ns="${jan_ns}"
+may_ns="${may_ns}"
+case "\$*" in
+  *"ticket list"*"--format=llm"*)
+    ;;
+  *"ticket list"*"--type=epic"*)
+    printf '[{"ticket_id":"mock-h-001","type":"epic","title":"Health","tags":["calibration-program-health"],"status":"open"}]\n'
+    ;;
+  *"ticket list"*"--type=bug"*)
+    printf '[{"ticket_id":"b-jan","type":"bug","title":"Jan bug","status":"open","created_at":%s,"tags":["detected_by:tests"]},{"ticket_id":"b-may","type":"bug","title":"May bug","status":"open","created_at":%s,"tags":["detected_by:user-report"]}]\n' "\$jan_ns" "\$may_ns"
+    ;;
+  *"ticket show"*"mock-h-001"*)
+    printf '{"ticket_id":"mock-h-001","comments":[]}\n'
+    ;;
+  *"ticket comment"*)
+    printf '%s\n' "\$*" >> "\$log"
+    ;;
+esac
+STUB
+    chmod +x "$stub"
+
+    local exit_code=0
+    DSO="$stub" "$CALIBRATION_SCRIPT" monthly --period 2026-01 2>/dev/null || exit_code=$?
+
+    assert_eq "exits 0" "0" "$exit_code"
+
+    if [ ! -f "$comment_log" ] || [ ! -s "$comment_log" ]; then
+        assert_eq "rollup comment posted" "posted" "not-posted"
+        rm -rf "$tmp_dir"
+        assert_pass_if_clean "test_monthly_cli_filters_by_period"
+        return
+    fi
+
+    local comment_content
+    comment_content=$(cat "$comment_log")
+
+    if echo "$comment_content" | grep -q "tests"; then
+        assert_eq "Jan channel (tests) in rollup" "present" "present"
+    else
+        assert_eq "Jan channel (tests) in rollup" "present" "absent"
+    fi
+
+    if echo "$comment_content" | grep -q "user-report"; then
+        assert_eq "May channel (user-report) absent in 2026-01 rollup" "absent" "present"
+    else
+        assert_eq "May channel (user-report) absent in 2026-01 rollup" "absent" "absent"
+    fi
+
+    rm -rf "$tmp_dir"
+    assert_pass_if_clean "test_monthly_cli_filters_by_period"
+}
+test_monthly_cli_filters_by_period
 
 # ═══════════════════════════════════════════════════════════════════════════════
 print_summary
