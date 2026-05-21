@@ -387,12 +387,18 @@ Using the chosen approach and the Phase 1 dialogue, draft the epic spec:
 [2-4 sentence narrative: who is affected, what problem they face today, why this matters now]
 
 ## Success Criteria
-- [Specific, observable outcome — what a user sees or does, not what code does]
+- [Specific, observable end-state outcome — what a user sees or does, not what code does]
+- [...]
+
+## Closure Checks
+- [One-shot durable invariant — items routed here by the verifiable-sc-check.md litmus test (option c). Validated once at epic closure, not per-sprint-action. Optional; omit the section if no items belong here.]
 - [...]
 
 ## Dependencies
 [Any other epics that must be completed first, or "None"]
 ```
+
+The `## Closure Checks` section is structurally distinct from `## Success Criteria` per epic a03c-d55e-1393-4f27 SC1. Items belong in Closure Checks when the verifiable-sc-check.md litmus test routes them via option (c): they describe a one-time transition rather than a durable system property, AND they should still be verified at closure (e.g., "the legacy adapter is absent from imports"). Items remaining in Success Criteria are durable end-state properties.
 
 **Success criteria rules:**
 - 3–6 criteria per epic
