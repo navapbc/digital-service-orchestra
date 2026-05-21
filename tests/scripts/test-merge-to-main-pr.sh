@@ -127,7 +127,7 @@ case "\$1" in
         ;;
       checks)
         # Polling-phase: return all SUCCESS so the loop proceeds to state check.
-        echo '[{"name":"ci","state":"COMPLETED","conclusion":"SUCCESS"}]'
+        echo '[{"name":"ci","state":"COMPLETED","bucket":"pass"}]'
         exit 0
         ;;
       merge)
@@ -523,23 +523,23 @@ case "\$1" in
         case "$mode" in
           success_after_2)
             if [[ "\$_iter" -ge 2 ]]; then
-              echo '[{"name":"ci","state":"COMPLETED","conclusion":"SUCCESS"}]'
+              echo '[{"name":"ci","state":"COMPLETED","bucket":"pass"}]'
             else
-              echo '[{"name":"ci","state":"IN_PROGRESS","conclusion":""}]'
+              echo '[{"name":"ci","state":"IN_PROGRESS","bucket":"pending"}]'
             fi
             ;;
           success_after_3)
             if [[ "\$_iter" -ge 3 ]]; then
-              echo '[{"name":"ci","state":"COMPLETED","conclusion":"SUCCESS"}]'
+              echo '[{"name":"ci","state":"COMPLETED","bucket":"pass"}]'
             else
-              echo '[{"name":"ci","state":"IN_PROGRESS","conclusion":""}]'
+              echo '[{"name":"ci","state":"IN_PROGRESS","bucket":"pending"}]'
             fi
             ;;
           check_failure)
-            echo '[{"name":"ci","state":"COMPLETED","conclusion":"FAILURE"}]'
+            echo '[{"name":"ci","state":"COMPLETED","bucket":"fail"}]'
             ;;
           forever_pending)
-            echo '[{"name":"ci","state":"IN_PROGRESS","conclusion":""}]'
+            echo '[{"name":"ci","state":"IN_PROGRESS","bucket":"pending"}]'
             ;;
         esac
         exit 0
@@ -922,7 +922,7 @@ case "\$1" in
         exit 0
         ;;
       checks)
-        echo '[{"name":"ci","state":"COMPLETED","conclusion":"SUCCESS"}]'
+        echo '[{"name":"ci","state":"COMPLETED","bucket":"pass"}]'
         exit 0
         ;;
       merge) exit 0 ;;
@@ -1242,12 +1242,23 @@ t_phase_poll_records_failed_run_id_on_ci_failure() {
     trap "rm -rf '$_T'; rm -f '$_state_file'; rm -f '/tmp/merge-state-init-marker-${_branch_safe}'" RETURN
 
     mkdir -p "$_T/bin"
+    # Real gh CLI surfaces check outcomes via the `bucket` field (pass|fail|pending|
+    # skipping|cancel), NOT a `conclusion` field. Requesting --json conclusion exits
+    # non-zero with "Unknown JSON field". This mock mirrors the real schema so the
+    # test actually exercises the production code path. Bug 075d-741a.
     cat > "$_T/bin/gh" <<GH_SHIM
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >> "$_T/gh-argv.log"
+# Detect requests for unsupported fields (real gh behavior — exits 1).
+if [[ "\$*" == *"--json"* ]] && [[ "\$*" == *"conclusion"* ]]; then
+    echo 'Unknown JSON field: "conclusion"' >&2
+    echo 'Available fields:' >&2
+    echo '  bucket' >&2
+    exit 1
+fi
 case "\$1 \$2" in
   "pr checks")
-    echo '[{"name":"ci","state":"COMPLETED","conclusion":"FAILURE"}]'
+    echo '[{"name":"ci","state":"COMPLETED","bucket":"fail"}]'
     exit 0
     ;;
   "pr view")
@@ -1309,11 +1320,16 @@ t_phase_poll_run_list_filters_by_branch() {
     trap "rm -rf '$_T'; rm -f '$_state_file'; rm -f '/tmp/merge-state-init-marker-${_branch_safe}'" RETURN
 
     mkdir -p "$_T/bin"
+    # Mock mirrors real gh schema (bucket, not conclusion). Bug 075d-741a.
     cat > "$_T/bin/gh" <<GH_SHIM
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >> "$_T/gh-argv.log"
+if [[ "\$*" == *"--json"* ]] && [[ "\$*" == *"conclusion"* ]]; then
+    echo 'Unknown JSON field: "conclusion"' >&2
+    exit 1
+fi
 case "\$1 \$2" in
-  "pr checks")  echo '[{"name":"ci","state":"COMPLETED","conclusion":"FAILURE"}]' ;;
+  "pr checks")  echo '[{"name":"ci","state":"COMPLETED","bucket":"fail"}]' ;;
   "pr view")    echo '{"state":"OPEN"}' ;;
   "run list")   echo '[{"databaseId":"RUN999"}]' ;;
   *) ;;
@@ -1547,9 +1563,9 @@ case "\$1 \$2" in
     printf 'x' >> "$_T/checks-count"
     _iter=\$(wc -c < "$_T/checks-count" 2>/dev/null | tr -d ' ' || echo 0)
     if [[ "\$_iter" -ge 2 ]]; then
-      echo '[{"name":"ci","state":"COMPLETED","conclusion":"SUCCESS"}]'
+      echo '[{"name":"ci","state":"COMPLETED","bucket":"pass"}]'
     else
-      echo '[{"name":"ci","state":"COMPLETED","conclusion":"FAILURE"}]'
+      echo '[{"name":"ci","state":"COMPLETED","bucket":"fail"}]'
     fi
     exit 0
     ;;
@@ -1969,7 +1985,7 @@ case "\$1 \$2" in
     exit 0
     ;;
   "pr checks")
-    echo '[{"name":"ci","state":"COMPLETED","conclusion":"FAILURE"}]'
+    echo '[{"name":"ci","state":"COMPLETED","bucket":"fail"}]'
     exit 0
     ;;
   "pr view")
@@ -2096,7 +2112,7 @@ FIX_EOF
         cat > "$_T/bin/gh" <<GH_SHIM2
 #!/usr/bin/env bash
 case "\$1 \$2" in
-  "pr checks")  echo '[{"name":"ci","state":"COMPLETED","conclusion":"SUCCESS"}]'; exit 0 ;;
+  "pr checks")  echo '[{"name":"ci","state":"COMPLETED","bucket":"pass"}]'; exit 0 ;;
   "pr view")
     if [[ "\$*" == *"--json state"* ]]; then echo '{"state":"MERGED"}'; exit 0; fi
     if [[ "\$*" == *"--json mergeCommit"* ]]; then echo '{"mergeCommit":{"oid":"abc123"}}'; exit 0; fi
@@ -3831,7 +3847,7 @@ case "\$1" in
         fi
         echo '{"mergeable":"MERGEABLE","number":42,"url":"https://github.com/x/y/pull/42"}'
         exit 0 ;;
-      checks) echo '[{"name":"ci","state":"COMPLETED","conclusion":"SUCCESS"}]'; exit 0 ;;
+      checks) echo '[{"name":"ci","state":"COMPLETED","bucket":"pass"}]'; exit 0 ;;
       merge) exit 0 ;;
       *) exit 0 ;;
     esac ;;
@@ -4298,7 +4314,7 @@ case "\$1" in
         echo '{"mergeable":"MERGEABLE","number":42,"url":"https://github.com/x/y/pull/42"}'
         exit 0
         ;;
-      checks) echo '[{"name":"ci","state":"COMPLETED","conclusion":"SUCCESS"}]'; exit 0 ;;
+      checks) echo '[{"name":"ci","state":"COMPLETED","bucket":"pass"}]'; exit 0 ;;
       merge) exit 0 ;;
       *) exit 0 ;;
     esac
@@ -4871,7 +4887,7 @@ case "\$1" in
         echo '{"mergeable":"MERGEABLE","number":42,"url":"https://github.com/x/y/pull/42"}'
         exit 0
         ;;
-      checks) echo '[{"name":"ci","state":"COMPLETED","conclusion":"SUCCESS"}]'; exit 0 ;;
+      checks) echo '[{"name":"ci","state":"COMPLETED","bucket":"pass"}]'; exit 0 ;;
       merge) exit 0 ;;
       *) exit 0 ;;
     esac
@@ -5049,7 +5065,7 @@ case "\$1" in
         echo '{"mergeable":"MERGEABLE","number":99,"url":"https://github.com/x/y/pull/99"}'
         exit 0
         ;;
-      checks) echo '[{"name":"ci","state":"COMPLETED","conclusion":"SUCCESS"}]'; exit 0 ;;
+      checks) echo '[{"name":"ci","state":"COMPLETED","bucket":"pass"}]'; exit 0 ;;
       merge) exit 0 ;;
       *) exit 0 ;;
     esac
@@ -5146,7 +5162,7 @@ printf '%s\n' "$*" >> "LOGFILE"
 case "$1 $2" in
   "pr checks")
     printf 'x' >> "COUNTFILE"
-    echo '[{"name":"ci","state":"COMPLETED","conclusion":"SUCCESS"}]'
+    echo '[{"name":"ci","state":"COMPLETED","bucket":"pass"}]'
     exit 0
     ;;
   "pr view")
@@ -5254,7 +5270,7 @@ t_phase_poll_behind_clean_returns_zero() {
 #!/usr/bin/env bash
 case "$1 $2" in
   "pr checks")
-    echo '[{"name":"ci","state":"COMPLETED","conclusion":"SUCCESS"}]'
+    echo '[{"name":"ci","state":"COMPLETED","bucket":"pass"}]'
     exit 0
     ;;
   "pr view")
@@ -5335,7 +5351,7 @@ t_phase_poll_behind_exhausts_update_cap_exits_nonzero() {
 #!/usr/bin/env bash
 case "$1 $2" in
   "pr checks")
-    echo '[{"name":"ci","state":"COMPLETED","conclusion":"SUCCESS"}]'
+    echo '[{"name":"ci","state":"COMPLETED","bucket":"pass"}]'
     exit 0
     ;;
   "pr view")
@@ -5434,7 +5450,7 @@ case "\$1" in
       create) echo "https://github.com/x/y/pull/42"; exit 0 ;;
       ready)  exit 0 ;;
       merge)  exit 0 ;;
-      checks) echo '[{"name":"ci","state":"COMPLETED","conclusion":"SUCCESS"}]'; exit 0 ;;
+      checks) echo '[{"name":"ci","state":"COMPLETED","bucket":"pass"}]'; exit 0 ;;
       view)
         if [[ "\$*" == *"isDraft"* ]];               then echo '{"isDraft":true}'; exit 0; fi
         if [[ "\$*" == *"headRefOid"* ]];             then echo ""; exit 0; fi
