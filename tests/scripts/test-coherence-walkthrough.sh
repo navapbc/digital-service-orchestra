@@ -6,12 +6,15 @@
 # by story 5362-7f18-4f37-4fa9. Validates:
 #   - --help renders the usage block
 #   - missing required --epic-id yields a clear error
-#   - --manifest produces a structured JSON manifest with 6 chunks under all
-#     branches (including the no-API-key preview path which still emits a
-#     manifest with chunk F getting a preview_error inline)
+#   - --manifest produces a structured JSON manifest with 6 chunks
+#
+# Synthetic --epic-id values are used; the orchestrator does not resolve the
+# epic id (it embeds it as the aggregation target string). The preview script
+# it invokes does query the live tracker (read-only ticket list), but the
+# preview gracefully degrades with ANTHROPIC_API_KEY unset, so the test does
+# not depend on any specific live ticket existing.
 #
 # Usage: bash tests/scripts/test-coherence-walkthrough.sh
-# Returns: exit 0 if all tests pass, exit 1 if any fail
 
 set -uo pipefail
 
@@ -33,6 +36,8 @@ if [ "${_RUN_ALL_ACTIVE:-0}" = "1" ] && [ ! -f "$ORCH_SCRIPT" ]; then
     exit 0
 fi
 
+SYNTHETIC_EPIC="test-fixture-walkthrough-0001"
+
 # Test 1: script exists and is executable
 if [ -x "$ORCH_SCRIPT" ]; then
     _pass "script exists and is executable"
@@ -42,10 +47,11 @@ fi
 
 # Test 2: --help renders without error
 help_out=$("$ORCH_SCRIPT" --help 2>&1)
-if [ "$?" = "0" ] && echo "$help_out" | grep -q "coherence-walkthrough.sh"; then
+help_rc=$?
+if [ "$help_rc" = "0" ] && echo "$help_out" | grep -q "coherence-walkthrough.sh"; then
     _pass "--help exits 0 and prints usage block"
 else
-    _fail "--help failed"
+    _fail "--help failed (rc=$help_rc)"
 fi
 
 # Test 3: missing --epic-id yields a clear error
@@ -57,12 +63,11 @@ else
     _fail "missing --epic-id did not exit 1 (rc=$err_rc, out='$err_out')"
 fi
 
-# Test 4: --manifest produces a structured manifest with 6 chunks (ANTHROPIC_API_KEY may be unset;
-# the preview script will return preview_error, but the orchestrator still emits the manifest)
+# Test 4: --manifest produces a structured manifest with 6 chunks
 TMP_MANIFEST=$(mktemp /tmp/test-cw-manifest.XXXXXX.json)
 trap 'rm -f "$TMP_MANIFEST"' EXIT
 ANTHROPIC_API_KEY="" "$ORCH_SCRIPT" \
-    --epic-id a03c-d55e-1393-4f27 \
+    --epic-id "$SYNTHETIC_EPIC" \
     --limit 1 \
     --manifest "$TMP_MANIFEST" > /dev/null 2>&1
 # Exit code may be 0 or 2 (soft preview failure); both are acceptable
@@ -84,6 +89,7 @@ for k in required:
 assert m['dispatch_model'] == 'opus'
 assert m['parallel_dispatch'] is True
 assert m['retry_policy']['retries_per_chunk'] == 1
+assert m['epic_id'] == '$SYNTHETIC_EPIC'
 " 2>/dev/null; then
         _pass "manifest schema includes required fields with expected values"
     else

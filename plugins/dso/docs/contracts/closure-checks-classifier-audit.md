@@ -100,9 +100,10 @@ The `post_migration_section` field encodes the FINAL location after the user's d
 - `user_decision: auto` AND `classification.label: uncertain` → `post_migration_section: SC` (uncertain auto stays in SC)
 - `user_decision: accept` AND `classification.label: transitional` → `post_migration_section: CC` (transitional items move SC→CC on accept)
 - `user_decision: accept` AND `classification.label` in `{end-state, uncertain}` → `post_migration_section: SC` (end-state and uncertain items stay in SC on accept)
-- `user_decision: accept` AND `override_target: <value>` → `post_migration_section: <override_target>` (explicit user override of the classifier's proposed_target; overrides take precedence over label-derived defaults)
 - `user_decision: reject` → `post_migration_section: SC` (item stays in original section regardless of label)
 - `user_decision: defer` → `post_migration_section: SC` (item stays untouched pending future re-classification)
+
+Note: the orchestrator's decisions-input file may carry an `override_target` field that lets the user explicitly direct an item to a section different from the classifier's `proposed_target` on `accept`. The override propagates only to `post_migration_section` in this audit; it is a property of the decisions-input contract, not the audit JSON. See `scripts/closure-checks-classifier-pass.sh` `--apply-from-plan` mode for the override handling.
 
 ---
 

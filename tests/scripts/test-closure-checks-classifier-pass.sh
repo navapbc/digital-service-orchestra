@@ -4,14 +4,10 @@
 #
 # Testing Mode: GREEN — covers the Phase 2 classifier helper added by story
 # ad70-f38a-7684-4e00. Focused on entry-point validation, arg parsing, and
-# graceful-degradation paths that do not require a live ANTHROPIC_API_KEY:
-#
-#   - --help renders the usage block
-#   - missing required args fail with a clear error
-#   - --plan-output mode emits a structured plan file or graceful NOTICE
-#     when ANTHROPIC_API_KEY is unset
-#   - --apply-from-plan with a small fixture plan and decisions file emits
-#     the expected ITEM lines and audit JSON file
+# graceful-degradation paths that do not require a live ANTHROPIC_API_KEY.
+# Tests are decoupled from specific live tracker tickets: synthetic ticket-ids
+# are paired with pre-created snapshot files so the helper's `ticket show`
+# fallback is bypassed.
 #
 # Usage: bash tests/scripts/test-closure-checks-classifier-pass.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
@@ -36,6 +32,19 @@ if [ "${_RUN_ALL_ACTIVE:-0}" = "1" ] && [ ! -f "$HELPER_SCRIPT" ]; then
     printf "PASSED: 0  FAILED: 0\n"
     exit 0
 fi
+
+# ── Per-suite temp state (mktemp-managed) ────────────────────────────────────
+# Use a per-suite mktemp directory as the parent for all snapshot subdirs so
+# parallel-test runs do not collide. Session IDs are mktemp'd too — see
+# always:mktemp-tmp.
+_SUITE_TMP=$(mktemp -d /tmp/test-classifier-pass.XXXXXX)
+trap 'rm -rf "$_SUITE_TMP"' EXIT
+
+# Synthetic ticket-ids that do not exist in any live tracker. The helper reads
+# the snapshot file before falling back to `ticket show`, so these IDs never
+# need to resolve via the ticket CLI.
+SYNTHETIC_TID_DEGRADE="test-classifier-degrade-0001"
+SYNTHETIC_TID_APPLY="test-classifier-apply-0002"
 
 # Test 1: script exists and is executable
 if [ -x "$HELPER_SCRIPT" ]; then
@@ -63,12 +72,20 @@ else
 fi
 
 # Test 4: graceful degradation when ANTHROPIC_API_KEY is unset.
-# Pass a real ticket-id from the live tracker so the helper can capture a snapshot,
-# then expect the NOTICE skip path (BUDGET_CONSUMED: 0).
+# Use a synthetic ticket-id + pre-supplied snapshot so the helper skips its
+# `ticket show` fallback (which would otherwise contact the live tracker).
+SESSION_DEGRADE="degrade-$(basename "$_SUITE_TMP")"
+DEGRADE_SNAP_DIR="/tmp/migrate-closure-checks-classify.${SESSION_DEGRADE}.snapshot"
+mkdir -p "$DEGRADE_SNAP_DIR"
+{
+    printf '# snapshot_timestamp: %s\n\n' "2026-05-20T00:00:00Z"
+    printf '## Success Criteria\n\n- placeholder synthetic item for degradation test\n'
+} > "$DEGRADE_SNAP_DIR/${SYNTHETIC_TID_DEGRADE}.txt"
+
 DEGRADE_OUT=$(ANTHROPIC_API_KEY="" "$HELPER_SCRIPT" \
-    --ticket-id ad70-f38a-7684-4e00 \
+    --ticket-id "$SYNTHETIC_TID_DEGRADE" \
     --target "$REPO_ROOT" \
-    --session-id testsession-no-api-key \
+    --session-id "$SESSION_DEGRADE" \
     --migration-run-id 00000000-0000-0000-0000-000000000000 \
     --remaining-budget 1 \
     --dry-run 2>&1)
@@ -78,15 +95,19 @@ if [ "$DEGRADE_RC" = "0" ] && echo "$DEGRADE_OUT" | grep -q "BUDGET_CONSUMED:"; 
 else
     _fail "no-API-key degradation path failed (rc=$DEGRADE_RC, out tail='$(echo "$DEGRADE_OUT" | tail -3)')"
 fi
+rm -rf "$DEGRADE_SNAP_DIR"
 
-# Test 5: --apply-from-plan with a synthesized empty plan should succeed without classifier dispatch
+# Test 5: --apply-from-plan with a synthesized empty plan should succeed without classifier dispatch.
+# Uses mktemp-managed plan/decisions files + a synthetic ticket-id + pre-created snapshot.
 TMP_PLAN=$(mktemp /tmp/test-classifier-plan.XXXXXX.json)
 TMP_DEC=$(mktemp /tmp/test-classifier-dec.XXXXXX.json)
-trap 'rm -f "$TMP_PLAN" "$TMP_DEC"' EXIT
-cat > "$TMP_PLAN" <<'EOF'
+# Note: TMP_PLAN/TMP_DEC are cleaned by the suite-level trap that removes
+# $_SUITE_TMP — but they live outside that dir, so clean them explicitly too.
+trap 'rm -rf "$_SUITE_TMP"; rm -f "$TMP_PLAN" "$TMP_DEC"' EXIT
+cat > "$TMP_PLAN" <<EOF
 {
   "schema_version": 1,
-  "ticket_id": "ad70-f38a-7684-4e00",
+  "ticket_id": "$SYNTHETIC_TID_APPLY",
   "snapshot_timestamp": "2026-05-20T00:00:00Z",
   "migration_run_id": "00000000-0000-0000-0000-000000000000",
   "items": []
@@ -94,18 +115,18 @@ cat > "$TMP_PLAN" <<'EOF'
 EOF
 echo '{"decisions": []}' > "$TMP_DEC"
 
-# Snapshot must exist for the helper's read path
-SNAP_DIR="/tmp/migrate-closure-checks-classify.test-apply.snapshot"
-mkdir -p "$SNAP_DIR"
+SESSION_APPLY="apply-$(basename "$_SUITE_TMP")"
+APPLY_SNAP_DIR="/tmp/migrate-closure-checks-classify.${SESSION_APPLY}.snapshot"
+mkdir -p "$APPLY_SNAP_DIR"
 {
     printf '# snapshot_timestamp: %s\n\n' "2026-05-20T00:00:00Z"
-    printf '## Success Criteria\n\n- placeholder\n'
-} > "$SNAP_DIR/ad70-f38a-7684-4e00.txt"
+    printf '## Success Criteria\n\n- placeholder synthetic item for apply test\n'
+} > "$APPLY_SNAP_DIR/${SYNTHETIC_TID_APPLY}.txt"
 
 APPLY_OUT=$("$HELPER_SCRIPT" \
-    --ticket-id ad70-f38a-7684-4e00 \
+    --ticket-id "$SYNTHETIC_TID_APPLY" \
     --target "$REPO_ROOT" \
-    --session-id test-apply \
+    --session-id "$SESSION_APPLY" \
     --migration-run-id 00000000-0000-0000-0000-000000000000 \
     --remaining-budget 5 \
     --apply-from-plan "$TMP_PLAN" \
@@ -117,13 +138,13 @@ if [ "$APPLY_RC" = "0" ] && echo "$APPLY_OUT" | grep -q "BUDGET_CONSUMED:"; then
 else
     _fail "--apply-from-plan with empty plan failed (rc=$APPLY_RC, out='$APPLY_OUT')"
 fi
-rm -rf "$SNAP_DIR"
+rm -rf "$APPLY_SNAP_DIR"
 
 # Test 6: --apply-from-plan without --decisions-file should error
 ERR_OUT=$("$HELPER_SCRIPT" \
-    --ticket-id ad70-f38a-7684-4e00 \
+    --ticket-id "$SYNTHETIC_TID_APPLY" \
     --target "$REPO_ROOT" \
-    --session-id test-err \
+    --session-id "$SESSION_APPLY" \
     --migration-run-id 00000000-0000-0000-0000-000000000000 \
     --apply-from-plan "$TMP_PLAN" 2>&1)
 ERR_RC=$?
