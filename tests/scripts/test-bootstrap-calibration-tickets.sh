@@ -55,7 +55,8 @@ test_creates_all_three_when_missing() {
   trap "rm -rf $tmp_dir" RETURN
   local call_log; call_log="$(make_dso_stub "$tmp_dir" 1 1 1 0)"
   DSO="$tmp_dir/dso" bash "$BOOTSTRAP_SCRIPT" 2>/dev/null || return 1
-  local create_count; create_count=$(grep -c "^ticket create" "$call_log" 2>/dev/null || echo 0)
+  local create_count
+  create_count=$(grep -c "^ticket create" "$call_log" 2>/dev/null) || create_count=0
   [ "$create_count" -eq 3 ]
 }
 
@@ -67,7 +68,8 @@ test_no_op_when_all_exist() {
   trap "rm -rf $tmp_dir" RETURN
   local call_log; call_log="$(make_dso_stub "$tmp_dir" 0 0 0 0)"
   DSO="$tmp_dir/dso" bash "$BOOTSTRAP_SCRIPT" 2>/dev/null || return 1
-  local create_count; create_count=$(grep -c "^ticket create" "$call_log" 2>/dev/null || echo 0)
+  local create_count
+  create_count=$(grep -c "^ticket create" "$call_log" 2>/dev/null) || create_count=0
   [ "$create_count" -eq 0 ]
 }
 
@@ -80,7 +82,8 @@ test_partial_idempotent() {
   trap "rm -rf $tmp_dir" RETURN
   local call_log; call_log="$(make_dso_stub "$tmp_dir" 0 1 1 0)"
   DSO="$tmp_dir/dso" bash "$BOOTSTRAP_SCRIPT" 2>/dev/null || return 1
-  local create_count; create_count=$(grep -c "^ticket create" "$call_log" 2>/dev/null || echo 0)
+  local create_count
+  create_count=$(grep -c "^ticket create" "$call_log" 2>/dev/null) || create_count=0
   [ "$create_count" -eq 2 ] &&
     grep -q "mutation-history" "$call_log" &&
     grep -q "suite-churn-history" "$call_log"
