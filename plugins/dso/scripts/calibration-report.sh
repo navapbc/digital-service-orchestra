@@ -238,6 +238,15 @@ for line in sys.stdin:
         return 0
     fi
 
+    # Idempotency guard: check if a rollup for this period/kind has already been posted.
+    local idempotency_marker="<!-- calibration-rollup: period=${period} kind=monthly -->"
+    local existing_comments
+    existing_comments=$("$DSO" ticket list-comments "$health_ticket_id" 2>/dev/null || true)
+    if echo "$existing_comments" | grep -qF "$idempotency_marker"; then
+        echo "calibration-report: skipping: rollup already posted for ${period}" >&2
+        return 0
+    fi
+
     "$DSO" ticket comment "$health_ticket_id" "$rollup_body"
     echo "calibration-report: rollup comment posted to ticket ${health_ticket_id} for period ${period}" >&2
 }

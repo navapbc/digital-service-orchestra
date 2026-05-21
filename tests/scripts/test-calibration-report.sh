@@ -247,4 +247,97 @@ test_nonexistent_fixture_exits_nonzero() {
 test_nonexistent_fixture_exits_nonzero
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Test 8: monthly idempotency guard — skip posting if rollup already posted
+#
+# Given: a DSO stub that returns calibration-program-health with the marker
+#        already present in its comments for period 2026-04
+# When:  monthly is invoked for the same period (2026-04)
+# Then:  script exits 0, stderr contains 'skip' or 'already',
+#        and no 'ticket comment' call is made
+# ═══════════════════════════════════════════════════════════════════════════════
+echo "Test 8: monthly idempotency guard skips duplicate rollup posting"
+test_monthly_idempotency_skip_duplicate() {
+    _snapshot_fail
+
+    if [ ! -x "$CALIBRATION_SCRIPT" ]; then
+        assert_eq "calibration-report.sh executable (prereq)" "executable" "missing"
+        assert_pass_if_clean "test_monthly_idempotency_skip_duplicate"
+        return
+    fi
+
+    # Build a temp dir for the DSO stub and tracking file
+    local tmp_dir
+    tmp_dir=$(mktemp -d /tmp/cal-idempotency.XXXXXX)
+    local comment_call_log="${tmp_dir}/comment_calls.log"
+    local stub="${tmp_dir}/dso"
+
+    # The stub simulates:
+    #   ticket list --type=epic --format=llm  →  one epic with calibration-program-health tag
+    #   ticket list-comments <id>             →  existing comment with the marker for 2026-04
+    #   ticket comment ...                    →  logs the call so we can assert it was NOT made
+    cat > "$stub" <<'STUB'
+#!/usr/bin/env bash
+# Mock DSO stub for idempotency test
+COMMENT_CALL_LOG="__COMMENT_LOG__"
+
+subcmd="$1"; shift
+
+case "$subcmd" in
+    ticket)
+        ticket_subcmd="$1"; shift
+        case "$ticket_subcmd" in
+            list)
+                # Return an epic with calibration-program-health tag
+                if [[ "$*" == *"--type=epic"* ]]; then
+                    echo '{"id":"mock-health-001","type":"epic","title":"Health","tags":["calibration-program-health"],"status":"open"}'
+                fi
+                ;;
+            list-comments)
+                # Return a comment body containing the monthly marker for 2026-04
+                printf '<!-- calibration-rollup: period=2026-04 kind=monthly -->\n## Calibration Monthly Rollup — 2026-04\n'
+                ;;
+            comment)
+                # Log this call — should NOT happen on duplicate
+                echo "ticket comment called: $*" >> "$COMMENT_CALL_LOG"
+                ;;
+        esac
+        ;;
+esac
+STUB
+
+    # Substitute the log path into the stub
+    sed -i '' "s|__COMMENT_LOG__|${comment_call_log}|g" "$stub"
+    chmod +x "$stub"
+
+    # Invoke monthly for the same period — should detect marker and skip
+    local stderr_out exit_code=0
+    stderr_out=$(DSO="$stub" "$CALIBRATION_SCRIPT" monthly \
+        --fixture "$FIXTURE_DIR" --period 2026-04 2>&1 >/dev/null) || exit_code=$?
+
+    # Assert: exits 0
+    assert_eq "idempotency guard exits 0" "0" "$exit_code"
+
+    # Assert: stderr contains 'skip' or 'already'
+    local stderr_lower
+    stderr_lower=$(echo "$stderr_out" | tr '[:upper:]' '[:lower:]')
+    if echo "$stderr_lower" | grep -qE 'skip|already'; then
+        assert_eq "stderr mentions skip or already" "found" "found"
+    else
+        assert_eq "stderr mentions skip or already" "found" "not-found"
+    fi
+
+    # Assert: no 'ticket comment' call was made
+    if [ -f "$comment_call_log" ] && [ -s "$comment_call_log" ]; then
+        assert_eq "no ticket comment call made (idempotent)" "no-call" "called"
+    else
+        assert_eq "no ticket comment call made (idempotent)" "no-call" "no-call"
+    fi
+
+    rm -rf "$tmp_dir"
+
+    assert_pass_if_clean "test_monthly_idempotency_skip_duplicate"
+}
+test_monthly_idempotency_skip_duplicate
+
+# ═══════════════════════════════════════════════════════════════════════════════
 print_summary
