@@ -54,6 +54,40 @@ MOCKEOF
     chmod +x "$MOCK_BIN/verify-session-provenance.sh"
 }
 
+# ── Helper (bug 8a77 v2): pre-populate artifact-driven dispatcher inputs ─────
+# After Change B, the dispatcher reads artifacts (provenance-complete.marker,
+# unprovenanced-shas.txt, over-bound-shas.txt, covered-shas.txt) instead of
+# re-invoking the verifier. This helper sets up the artifact dir to simulate
+# each verifier outcome.
+#
+# Usage: _seed_artifacts <dir> <outcome> [<sha-list>]
+#   outcome: all_provenanced | unprovenanced | overbound | no_marker
+#   sha-list: optional newline-separated SHAs to seed into the relevant file
+_seed_artifacts() {
+    local dir="$1" outcome="$2" shalist="${3:-}"
+    case "$outcome" in
+        all_provenanced)
+            date -u +%Y-%m-%dT%H:%M:%SZ > "$dir/provenance-complete.marker"
+            if [[ -n "$shalist" ]]; then
+                printf '%s\n' "$shalist" > "$dir/covered-shas.txt"
+            else
+                : > "$dir/covered-shas.txt"
+            fi
+            ;;
+        unprovenanced)
+            date -u +%Y-%m-%dT%H:%M:%SZ > "$dir/provenance-complete.marker"
+            printf '%s\n' "${shalist:-deadbeef}" > "$dir/unprovenanced-shas.txt"
+            ;;
+        overbound)
+            date -u +%Y-%m-%dT%H:%M:%SZ > "$dir/provenance-complete.marker"
+            printf '%s\n' "${shalist:-cafef00d}" > "$dir/over-bound-shas.txt"
+            ;;
+        no_marker)
+            : # leave artifact dir empty
+            ;;
+    esac
+}
+
 # ── Helper: create a mock runner that records invocation ─────────────────────
 _make_mock_runner() {
     local call_log="$1"
@@ -95,6 +129,7 @@ test_exit0_skips_runner() {
 
     local artifact_dir
     artifact_dir="$(mktemp -d)"
+    _seed_artifacts "$artifact_dir" "all_provenanced"
 
     DSO_VERIFIER_PATH="$MOCK_BIN/verify-session-provenance.sh" \
     DSO_RUNNER_PATH="$MOCK_BIN/ci-llm-review-runner.sh" \
@@ -127,6 +162,7 @@ test_exit0_emits_skipped_conclusion() {
     _make_mock_verifier 0
     local artifact_dir
     artifact_dir="$(mktemp -d)"
+    _seed_artifacts "$artifact_dir" "all_provenanced"
 
     local output
     output=$(
@@ -158,6 +194,7 @@ test_exit0_liveness_assertion_in_summary() {
     _make_mock_verifier 0
     local artifact_dir
     artifact_dir="$(mktemp -d)"
+    _seed_artifacts "$artifact_dir" "all_provenanced"
 
     local output
     output=$(
@@ -201,6 +238,7 @@ test_exit1_invokes_runner() {
 
     local artifact_dir
     artifact_dir="$(mktemp -d)"
+    _seed_artifacts "$artifact_dir" "unprovenanced"
 
     DSO_VERIFIER_PATH="$MOCK_BIN/verify-session-provenance.sh" \
     DSO_RUNNER_PATH="$MOCK_BIN/ci-llm-review-runner.sh" \
@@ -218,9 +256,12 @@ test_exit1_invokes_runner() {
     assert_pass_if_clean "test_exit1_invokes_runner"
 }
 
-# ── Test 6: exit 2 → wrapper invokes runner (budget-exhausted path) ───────────
-# When verify-session-provenance.sh exits 2 (budget exhausted), the wrapper
-# must fall back to the full-diff path — call ci-llm-review-runner.sh.
+# ── Test 6: budget-exhausted state routes to runner ───────────────────────────
+# Pre-bug-8a77-v2: wrapper invoked verifier; this case covered verifier exit 2.
+# Post-v2: wrapper reads artifacts and treats a non-empty unprovenanced-shas.txt
+# (which the verifier writes for partial / budget-exhausted runs per verifier
+# lines 297, 317, 335) as the dispatch trigger — same end behavior, different
+# data flow. ci-llm-review-runner.sh must be called.
 test_exit2_invokes_runner() {
     _snapshot_fail
     if [[ ! -f "$WRAPPER" ]]; then
@@ -237,6 +278,10 @@ test_exit2_invokes_runner() {
 
     local artifact_dir
     artifact_dir="$(mktemp -d)"
+    # Budget-exhausted: verifier still writes unprovenanced-shas.txt for the
+    # incompletely-checked commits (verifier source lines 297-298, 317, 335).
+    # The dispatcher's artifact route consumes that as exit 1 → invoke runner.
+    _seed_artifacts "$artifact_dir" "unprovenanced"
 
     DSO_VERIFIER_PATH="$MOCK_BIN/verify-session-provenance.sh" \
     DSO_RUNNER_PATH="$MOCK_BIN/ci-llm-review-runner.sh" \
@@ -274,6 +319,7 @@ test_exit3_skips_runner() {
 
     local artifact_dir
     artifact_dir="$(mktemp -d)"
+    _seed_artifacts "$artifact_dir" "overbound"
 
     DSO_VERIFIER_PATH="$MOCK_BIN/verify-session-provenance.sh" \
     DSO_RUNNER_PATH="$MOCK_BIN/ci-llm-review-runner.sh" \
@@ -308,6 +354,7 @@ test_exit3_emits_over_bound_summary() {
     _make_mock_verifier 3
     local artifact_dir
     artifact_dir="$(mktemp -d)"
+    _seed_artifacts "$artifact_dir" "overbound"
 
     local output
     output=$(
@@ -337,6 +384,198 @@ test_exit3_emits_over_bound_summary() {
     assert_pass_if_clean "test_exit3_emits_over_bound_summary"
 }
 
+# ── Test 9 (bug 8a77 v2): no marker → exits 1 with diagnostic ─────────────────
+# When the verifier never wrote provenance-complete.marker (crash, never ran,
+# permission failure, etc.), the dispatcher MUST exit 1 with a descriptive
+# error rather than silently falling through to "all provenanced" exit 0.
+test_dispatcher_no_marker_exits_1() {
+    _snapshot_fail
+    if [[ ! -f "$WRAPPER" ]]; then
+        assert_eq "test_dispatcher_no_marker_exits_1: wrapper must exist" \
+            "wrapper_exists" "wrapper_missing"
+        assert_pass_if_clean "test_dispatcher_no_marker_exits_1"
+        return
+    fi
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+    _seed_artifacts "$artifact_dir" "no_marker"
+
+    local stderr_file
+    stderr_file="$(mktemp)"
+    local exit_code=99
+    DSO_RUNNER_PATH="$MOCK_BIN/ci-llm-review-runner.sh" \
+    DSO_ARTIFACT_DIR="$artifact_dir" \
+        bash "$WRAPPER" > /dev/null 2> "$stderr_file"
+    exit_code=$?
+
+    assert_eq "test_dispatcher_no_marker_exits_1: missing marker exits 1" \
+        "1" "$exit_code"
+
+    local stderr_content
+    stderr_content=$(cat "$stderr_file")
+    assert_contains "test_dispatcher_no_marker_exits_1: stderr names the marker" \
+        "provenance-complete.marker" "$stderr_content"
+
+    rm -rf "$artifact_dir" "$stderr_file"
+    assert_pass_if_clean "test_dispatcher_no_marker_exits_1"
+}
+
+# ── Test 10 (bug 8a77 v2): marker only (no unprov/overbound) → skipped ────────
+test_dispatcher_marker_only_skipped() {
+    _snapshot_fail
+    if [[ ! -f "$WRAPPER" ]]; then
+        assert_eq "test_dispatcher_marker_only_skipped: wrapper must exist" \
+            "wrapper_exists" "wrapper_missing"
+        assert_pass_if_clean "test_dispatcher_marker_only_skipped"
+        return
+    fi
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+    _seed_artifacts "$artifact_dir" "all_provenanced"
+
+    local call_log
+    call_log="$(mktemp "$TMPDIR_TEST/runner-calls-marker-only.XXXXXX")"
+    _make_mock_runner "$call_log"
+
+    local output
+    output=$(
+        DSO_RUNNER_PATH="$MOCK_BIN/ci-llm-review-runner.sh" \
+        DSO_ARTIFACT_DIR="$artifact_dir" \
+            bash "$WRAPPER" 2>&1
+    ) || true
+
+    assert_contains "test_dispatcher_marker_only_skipped: output contains 'CONCLUSION: skipped'" \
+        "CONCLUSION: skipped" "$output"
+
+    local runner_called="no"
+    if [[ -f "$call_log" ]] && grep -q "runner-called" "$call_log" 2>/dev/null; then
+        runner_called="yes"
+    fi
+    assert_eq "test_dispatcher_marker_only_skipped: runner NOT invoked" \
+        "no" "$runner_called"
+
+    rm -rf "$artifact_dir"
+    assert_pass_if_clean "test_dispatcher_marker_only_skipped"
+}
+
+# ── Test 11 (bug 8a77 v2 MF1): overbound artifact routes correctly ────────────
+test_dispatcher_overbound_routes_correctly() {
+    _snapshot_fail
+    if [[ ! -f "$WRAPPER" ]]; then
+        assert_eq "test_dispatcher_overbound_routes_correctly: wrapper must exist" \
+            "wrapper_exists" "wrapper_missing"
+        assert_pass_if_clean "test_dispatcher_overbound_routes_correctly"
+        return
+    fi
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+    _seed_artifacts "$artifact_dir" "overbound" "feedf00d"
+
+    local call_log
+    call_log="$(mktemp "$TMPDIR_TEST/runner-calls-overbound.XXXXXX")"
+    _make_mock_runner "$call_log"
+
+    local output
+    output=$(
+        DSO_RUNNER_PATH="$MOCK_BIN/ci-llm-review-runner.sh" \
+        DSO_ARTIFACT_DIR="$artifact_dir" \
+            bash "$WRAPPER" 2>&1
+    ) || true
+
+    assert_contains "test_dispatcher_overbound_routes_correctly: output contains 'CONCLUSION: skipped'" \
+        "CONCLUSION: skipped" "$output"
+    assert_contains "test_dispatcher_overbound_routes_correctly: output contains 'OVER_BOUND'" \
+        "OVER_BOUND" "$output"
+
+    local runner_called="no"
+    if [[ -f "$call_log" ]] && grep -q "runner-called" "$call_log" 2>/dev/null; then
+        runner_called="yes"
+    fi
+    assert_eq "test_dispatcher_overbound_routes_correctly: runner NOT invoked on overbound" \
+        "no" "$runner_called"
+
+    rm -rf "$artifact_dir"
+    assert_pass_if_clean "test_dispatcher_overbound_routes_correctly"
+}
+
+# ── Test 12 (bug 8a77 v2): unprovenanced artifact → runner dispatched ─────────
+test_dispatcher_unprovenanced_dispatches_runner() {
+    _snapshot_fail
+    if [[ ! -f "$WRAPPER" ]]; then
+        assert_eq "test_dispatcher_unprovenanced_dispatches_runner: wrapper must exist" \
+            "wrapper_exists" "wrapper_missing"
+        assert_pass_if_clean "test_dispatcher_unprovenanced_dispatches_runner"
+        return
+    fi
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+    _seed_artifacts "$artifact_dir" "unprovenanced" "deadbeef"
+
+    local call_log
+    call_log="$(mktemp "$TMPDIR_TEST/runner-calls-unprov.XXXXXX")"
+    cat > "$MOCK_BIN/ci-llm-review-runner.sh" << MOCKEOF
+#!/usr/bin/env bash
+echo "MOCK_INVOKED" >> "$call_log"
+exit 0
+MOCKEOF
+    chmod +x "$MOCK_BIN/ci-llm-review-runner.sh"
+
+    DSO_RUNNER_PATH="$MOCK_BIN/ci-llm-review-runner.sh" \
+    DSO_ARTIFACT_DIR="$artifact_dir" \
+        bash "$WRAPPER" > /dev/null 2>/dev/null || true
+
+    local mock_invoked="no"
+    if [[ -f "$call_log" ]] && grep -q "MOCK_INVOKED" "$call_log" 2>/dev/null; then
+        mock_invoked="yes"
+    fi
+    assert_eq "test_dispatcher_unprovenanced_dispatches_runner: mock runner invoked" \
+        "yes" "$mock_invoked"
+
+    rm -rf "$artifact_dir"
+    assert_pass_if_clean "test_dispatcher_unprovenanced_dispatches_runner"
+}
+
+# ── Test 13 (bug 8a77 v2): covered list from artifact appears in output ───────
+# The "Covered by sub-PR reviews:" line MUST render its identifier list from
+# the covered-shas.txt artifact rather than re-walking BASE..HEAD (the
+# shallow-clone vulnerability).
+test_dispatcher_covered_list_from_artifact() {
+    _snapshot_fail
+    if [[ ! -f "$WRAPPER" ]]; then
+        assert_eq "test_dispatcher_covered_list_from_artifact: wrapper must exist" \
+            "wrapper_exists" "wrapper_missing"
+        assert_pass_if_clean "test_dispatcher_covered_list_from_artifact"
+        return
+    fi
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+    # Seed covered-shas.txt with two recognizable SHAs
+    _seed_artifacts "$artifact_dir" "all_provenanced" "$(printf 'aaaaaaaa11111111\nbbbbbbbb22222222')"
+
+    local output
+    output=$(
+        DSO_RUNNER_PATH="$MOCK_BIN/ci-llm-review-runner.sh" \
+        DSO_ARTIFACT_DIR="$artifact_dir" \
+            bash "$WRAPPER" 2>&1
+    ) || true
+
+    assert_contains "test_dispatcher_covered_list_from_artifact: output contains Covered by sub-PR reviews line" \
+        "Covered by sub-PR reviews:" "$output"
+    # Short forms of seeded SHAs (first 8 chars) should appear
+    assert_contains "test_dispatcher_covered_list_from_artifact: output contains aaaaaaaa short SHA" \
+        "aaaaaaaa" "$output"
+    assert_contains "test_dispatcher_covered_list_from_artifact: output contains bbbbbbbb short SHA" \
+        "bbbbbbbb" "$output"
+
+    rm -rf "$artifact_dir"
+    assert_pass_if_clean "test_dispatcher_covered_list_from_artifact"
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 test_wrapper_exists
 test_exit0_skips_runner
@@ -346,5 +585,10 @@ test_exit1_invokes_runner
 test_exit2_invokes_runner
 test_exit3_skips_runner
 test_exit3_emits_over_bound_summary
+test_dispatcher_no_marker_exits_1
+test_dispatcher_marker_only_skipped
+test_dispatcher_overbound_routes_correctly
+test_dispatcher_unprovenanced_dispatches_runner
+test_dispatcher_covered_list_from_artifact
 
 print_summary

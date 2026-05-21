@@ -382,11 +382,15 @@ test_unprovenanced_sha_written_to_scope_file() {
     DSO_ARTIFACT_DIR="$artifact_dir" \
         bash "$SCRIPT" 2>/dev/null || true
 
-    # The scope file should exist somewhere in artifact_dir
+    # The scope file should exist somewhere in artifact_dir.
+    # Prefer unprovenanced-shas.txt by name (bug 8a77 v2 adds covered-shas.txt
+    # and over-bound-shas.txt to the same dir; the prior `*.txt` glob picked
+    # an unrelated file alphabetically).
     local scope_file_contents=""
     local scope_file
-    for scope_file in "$artifact_dir"/*.txt "$artifact_dir"/unprovenanced-shas.txt \
-                      /tmp/unprovenanced-shas.txt; do
+    for scope_file in "$artifact_dir"/unprovenanced-shas.txt \
+                      /tmp/unprovenanced-shas.txt \
+                      "$artifact_dir"/*.txt; do
         if [[ -f "$scope_file" ]]; then
             scope_file_contents="$(cat "$scope_file")"
             break

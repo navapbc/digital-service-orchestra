@@ -336,6 +336,42 @@ print('yes' if any(k.startswith('$FEAT') for k in entries) else 'no')
 _expect "t12 API error does NOT poison cache" "[[ '$cache_has_sha' == 'no' ]]"
 rm -rf "$FAIL_MOCK_DIR" "$ARTIFACT_DIR_T12" "$REPO"
 
+# ─── t14 (bug 8a77 v2): `git diff-tree -m` extracts files from merge commit ───
+# This test validates the empirical premise behind ci.yml Change C and Change E.
+# The OLD form (`git diff-tree --no-commit-id -r --name-only <merge_sha>`)
+# returns empty for merge commits — silently dropping the merge SHA's files
+# from INTEGRATION_SCOPE. The NEW form (`git diff-tree -m --no-commit-id
+# --name-only -r <merge_sha>`) returns the union of file changes across each
+# parent, exposing the feature file.
+echo
+echo "=== t14: git diff-tree -m exposes files from merge commit ==="
+T14_REPO=$(mktemp -d "${TMPDIR:-/tmp}/t14-merge.XXXXXX")
+T14_MSHA_FILE=$(mktemp /tmp/t14-msha.XXXXXX)
+(
+    cd "$T14_REPO" || exit
+    git init -q -b main
+    git config user.email t@example.com
+    git config user.name Test
+    echo base > base.txt
+    git add base.txt
+    git commit -q -m "base"
+    git checkout -q -b feature
+    echo feat > feature-file.txt
+    git add feature-file.txt
+    git commit -q -m "feat commit"
+    git checkout -q main
+    git merge -q --no-ff --no-edit feature
+    MSHA=$(git rev-parse HEAD)
+    echo "$MSHA" > "$T14_MSHA_FILE"
+)
+T14_MSHA=$(cat "$T14_MSHA_FILE")
+T14_OLD=$(cd "$T14_REPO" && git diff-tree --no-commit-id -r --name-only "$T14_MSHA" 2>/dev/null || true)
+T14_NEW=$(cd "$T14_REPO" && git diff-tree -m --no-commit-id --name-only -r "$T14_MSHA" 2>/dev/null || true)
+_expect "t14a: OLD diff-tree returns empty for merge commit (premise)" "[[ -z '$T14_OLD' ]]"
+_expect "t14b: NEW diff-tree -m includes feature-file.txt" "[[ '$T14_NEW' == *'feature-file.txt'* ]]"
+rm -f "$T14_MSHA_FILE"
+rm -rf "$T14_REPO"
+
 echo "================================="
 echo "Results: $PASS passed, $FAIL failed"
 echo "================================="

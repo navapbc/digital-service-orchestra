@@ -512,3 +512,4 @@ plugins/dso/scripts/dso_ci_review/file_filter.py:tests/scripts/test_dso_ci_revie
 plugins/dso/scripts/dso_ci_review/aggregator.py:tests/scripts/test_dso_ci_review_aggregator.py
 tests/scripts/test_dso_ci_review_large_diff_e2e.py:tests/scripts/test_dso_ci_review_large_diff_e2e.py
 plugins/dso/scripts/llm-review-dispatch-or-skip.sh:tests/scripts/test-llm-review-dispatch-or-skip.sh,tests/workflows/test-integration-review-skip-on-provenance.sh
+plugins/dso/scripts/lib/reachability.sh:tests/scripts/test-reachability-helper.sh
