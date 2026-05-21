@@ -420,6 +420,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DSO_ARTIFACT_DIR: ${{ runner.temp }}/dso-review
+          # PR_NUMBER must be exported so verify-session-provenance.sh's A1
+          # self-exclusion filter (bug 8a77) can identify and reject the
+          # PR-under-review when it appears in the GH API response. Without
+          # this, A1 is a no-op (defaults to 0) and the script can silently
+          # treat self-PR-only coverage as "provenanced" — the original bug
+          # 8a77 symptom that persisted past PR #259's partial fix.
+          # Pattern matches the GITHUB_REF parse used by other steps in this
+          # workflow (e.g., lines 347-348, 537-538).
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
           mkdir -p "$DSO_ARTIFACT_DIR"
