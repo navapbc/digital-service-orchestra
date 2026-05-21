@@ -89,10 +89,87 @@ else
     GH_REPO="$(echo "$_origin" | sed -E 's|.*[:/]([^/.]+/[^/.]+)(\.git)?$|\1|')" || true
 fi
 
+# ── Cache schema and key format (bug 8a77 v3 hardening, folds Bug E) ──────────
+# Cache file shape (v2):
+#   {
+#     "cache_version": 2,
+#     "entries": {
+#       "<sha>.pr<N>": "provenanced" | "unprovenanced",
+#       ...
+#     }
+#   }
+#
+# The key is `${sha}.pr${PR_NUMBER:-0}`. This lets the same SHA produce
+# different verdicts under different PR contexts (a commit that is "covered"
+# by PR #252 when reviewed from PR #253 may not be "covered" when reviewed
+# from PR #252 itself — the self-exclusion filter changes the answer).
+#
+# Cache poisoning prevention: only verified verdicts ("provenanced" /
+# "unprovenanced") are cached. API errors (rate-limit, 404, timeout) yield
+# "unknown-due-to-error" which is NOT persisted — the next CI run will
+# re-evaluate that SHA rather than reading a stale failure verdict.
+#
+# Migration: on load, ledgers missing `cache_version` OR with version != 2
+# are silently ignored (treated as empty cache). Avoids the per-key
+# migration headache; first write seeds the new shape.
+CACHE_VERSION=2
+
 # ── Initialize cache ──────────────────────────────────────────────────────────
-if [[ ! -f "$CACHE_FILE" ]]; then
-    echo '{}' > "$CACHE_FILE"
-fi
+_cache_init() {
+    if [[ ! -f "$CACHE_FILE" ]]; then
+        printf '{"cache_version": %s, "entries": {}}\n' "$CACHE_VERSION" > "$CACHE_FILE"
+        return 0
+    fi
+    # Validate existing cache file: must be JSON and carry the expected version.
+    local valid
+    valid="$(python3 -c "
+import sys, json
+try:
+    with open(sys.argv[1]) as f:
+        data = json.load(f)
+    if not isinstance(data, dict):
+        print('invalid')
+        sys.exit(0)
+    if data.get('cache_version') != int(sys.argv[2]):
+        print('invalid')
+        sys.exit(0)
+    if not isinstance(data.get('entries'), dict):
+        print('invalid')
+        sys.exit(0)
+    print('valid')
+except Exception:
+    print('invalid')
+" "$CACHE_FILE" "$CACHE_VERSION" 2>/dev/null)" || valid="invalid"
+    if [[ "$valid" != "valid" ]]; then
+        # Corrupted or wrong-version cache; rewrite empty. Use atomic_write
+        # so a concurrent reader never sees a partial JSON.
+        echo "WARNING: provenance cache schema mismatch or invalid; reinitializing" >&2
+        _atomic_write_cache "{\"cache_version\": $CACHE_VERSION, \"entries\": {}}"
+    fi
+}
+
+# ── Helper: atomic cache write (folds in Bug E lock-free race fix) ────────────
+_atomic_write_cache() {
+    local payload="$1"
+    local tmp_file
+    tmp_file="$(mktemp "${ARTIFACT_DIR}/cache-write.XXXXXX")" || {
+        echo "WARNING: cache write failed (mktemp); bypassing cache for this run" >&2
+        return 1
+    }
+    # Write to temp + rename = atomic; a concurrent reader either sees the old
+    # complete file or the new complete file, never a half-written file.
+    if ! printf '%s\n' "$payload" > "$tmp_file"; then
+        echo "WARNING: cache write failed (write to tmp); bypassing cache for this run" >&2
+        rm -f "$tmp_file"
+        return 1
+    fi
+    if ! mv -f "$tmp_file" "$CACHE_FILE"; then
+        echo "WARNING: cache write failed (atomic rename); bypassing cache for this run" >&2
+        rm -f "$tmp_file"
+        return 1
+    fi
+    return 0
+}
 
 # ── Initialize output tracking ────────────────────────────────────────────────
 _api_call_count=0
@@ -100,34 +177,84 @@ _unprovenanced_shas=()
 _over_bound_shas=()
 _budget_exhausted=0
 
+_cache_init
+
+# ── Cache key derivation (per-PR — bug 8a77 v3) ───────────────────────────────
+_cache_key() {
+    local sha="$1"
+    # PR_NUMBER from env (ci.yml exports it); 0 when unset.
+    local _pr="${PR_NUMBER:-0}"
+    if ! [[ "$_pr" =~ ^[0-9]+$ ]]; then
+        _pr=0
+    fi
+    echo "${sha}.pr${_pr}"
+}
+
 # ── Helper: check cache ───────────────────────────────────────────────────────
 _cache_get() {
     local sha="$1"
-    # Returns "provenanced", "unprovenanced", or empty string if not cached
+    local key
+    key="$(_cache_key "$sha")"
+    # Returns "provenanced", "unprovenanced", or empty string if not cached.
+    # Surfaces JSON-decode failures via the Python script's print-to-stderr
+    # (which inherits the caller's stderr — no fd juggling needed).
     local cached
-    cached="$(cat "$CACHE_FILE" | python3 -c "
+    cached="$(python3 -c "
 import sys, json
-data = json.load(sys.stdin)
-sha = sys.argv[1]
-if sha in data:
-    print(data[sha])
-" "$sha" 2>/dev/null)" || true
+try:
+    with open(sys.argv[1]) as f:
+        data = json.load(f)
+    entries = data.get('entries', {}) if isinstance(data, dict) else {}
+    key = sys.argv[2]
+    if key in entries:
+        # Defensive: only print recognized verdicts; otherwise treat as miss.
+        verdict = entries[key]
+        if verdict in ('provenanced', 'unprovenanced'):
+            print(verdict)
+except Exception as e:
+    print(f'WARNING: _cache_get parse failure: {e}', file=sys.stderr)
+" "$CACHE_FILE" "$key" 2>/dev/null)" || cached=""
     echo "$cached"
 }
 
 _cache_set() {
     local sha="$1" value="$2"
-    local tmp_file
-    tmp_file="$(mktemp "${ARTIFACT_DIR}/cache-update.XXXXXX")"
-    python3 -c "
+    # Bug 8a77 v3: do NOT cache "unknown-due-to-error" — caller passes the
+    # verified verdict only. The "unknown" case bypasses the cache so the
+    # next CI run re-evaluates.
+    if [[ "$value" != "provenanced" && "$value" != "unprovenanced" ]]; then
+        echo "WARNING: _cache_set refusing to cache non-verified verdict '$value' for $sha" >&2
+        return 0
+    fi
+    local key
+    key="$(_cache_key "$sha")"
+    # Read-modify-write under the atomic_write helper. A concurrent invocation
+    # may overwrite our write; that's acceptable for a verdict cache (the
+    # next read will re-fetch from API). The atomic_write ensures readers
+    # never see a half-written file.
+    local new_payload
+    new_payload="$(python3 -c "
 import sys, json
-with open(sys.argv[1]) as f:
-    data = json.load(f)
-data[sys.argv[2]] = sys.argv[3]
-with open(sys.argv[1], 'w') as f:
-    json.dump(data, f)
-" "$CACHE_FILE" "$sha" "$value" 2>/dev/null || true
-    rm -f "$tmp_file"
+try:
+    with open(sys.argv[1]) as f:
+        data = json.load(f)
+except Exception:
+    data = {'cache_version': int(sys.argv[4]), 'entries': {}}
+if not isinstance(data, dict):
+    data = {'cache_version': int(sys.argv[4]), 'entries': {}}
+data.setdefault('cache_version', int(sys.argv[4]))
+entries = data.setdefault('entries', {})
+if not isinstance(entries, dict):
+    entries = {}
+    data['entries'] = entries
+entries[sys.argv[2]] = sys.argv[3]
+print(json.dumps(data))
+" "$CACHE_FILE" "$key" "$value" "$CACHE_VERSION" 2>/dev/null)" || {
+        echo "WARNING: _cache_set payload build failed for $sha; bypassing cache for this entry" >&2
+        return 1
+    }
+    _atomic_write_cache "$new_payload" || return 1
+    return 0
 }
 
 # ── Walk commits ──────────────────────────────────────────────────────────────
@@ -138,8 +265,11 @@ while IFS=' ' read -r sha subject; do
     # Step 1: Check for DSO-Story-Merge trailer in commit message
     commit_body="$(git -C "$GIT_REPO_PATH" log -1 --format="%B" "$sha" 2>/dev/null)" || true
     if echo "$commit_body" | grep -qE "^DSO-Story(-Merge)?:"; then
-        # Commit is provenanced via story merge trailer — cache and skip
-        _cache_set "$sha" "provenanced"
+        # Commit is provenanced via story merge trailer — cache and skip.
+        # `|| true` keeps the script alive if _cache_set fails (per the
+        # documented "bypass cache for this run" semantics); without it,
+        # `set -e` would abort the entire walk on a cache write error.
+        _cache_set "$sha" "provenanced" || true
         continue
     fi
 
@@ -187,9 +317,14 @@ while IFS=' ' read -r sha subject; do
             _unprovenanced_shas+=("$sha")
             continue
         fi
-        # Other error — treat as unprovenanced
+        # Bug 8a77 v3 hardening: API error → flag in-memory as unprovenanced
+        # so CI surfaces the failure, but DO NOT cache. Caching the failure
+        # would poison the cache through the rest of the run and across
+        # subsequent CI re-runs (the SHA would be permanently marked
+        # unprovenanced until cache_version bump). The next CI run will
+        # re-fetch from the API.
+        echo "WARNING: gh api failed for $sha; flagging unprovenanced (not cached): ${pr_result:0:200}" >&2
         _unprovenanced_shas+=("$sha")
-        _cache_set "$sha" "unprovenanced"
         continue
     }
 
@@ -278,11 +413,13 @@ for pr in pr_list:
 print(count)
 " 2>/dev/null)" || covering_count=0
 
+    # `|| true` per the documented "bypass cache for this run" semantics —
+    # see commentary on the trailer-cache call site above.
     if (( covering_count > 0 )); then
-        _cache_set "$sha" "provenanced"
+        _cache_set "$sha" "provenanced" || true
     else
         _unprovenanced_shas+=("$sha")
-        _cache_set "$sha" "unprovenanced"
+        _cache_set "$sha" "unprovenanced" || true
     fi
 
 done < <(git -C "$GIT_REPO_PATH" log "${BASE_SHA}..${SESSION_HEAD}" --format="%H %s" 2>/dev/null)

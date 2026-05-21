@@ -268,6 +268,74 @@ _expect "t10 exit code 1 (404 treated as unprovenanced)" "[[ '$rc' == '1' ]]"
 # Summary
 # ─────────────────────────────────────────────────────────────────────────────
 echo
+# ─── t11: cache_version mismatch → empty cache (no poisoning across versions) ─
+echo
+echo "=== t11: cache_version mismatch → cache is reinitialized ==="
+ARTIFACT_DIR_T11=$(mktemp -d)
+# Seed a v1 (broken/legacy) cache file
+echo '{"some-sha": "provenanced"}' > "$ARTIFACT_DIR_T11/session-provenance-cache.json"
+read -r BASE FEAT REPO < <(_make_fake_repo)
+MOCK_DIR=$(_make_mock_gh "[]")
+PATH="$MOCK_DIR:$PATH" DSO_REPO_PATH="$REPO" DSO_BASE_SHA="$BASE" DSO_SESSION_HEAD="$FEAT" \
+    DSO_ARTIFACT_DIR="$ARTIFACT_DIR_T11" DSO_GH_REPO="navapbc/test-repo" PR_NUMBER="253" GH_RETRY_MAX=1 \
+    bash "$SCRIPT" > /dev/null 2>&1 || true
+# After run, cache file should have version=2 and entries dict
+cache_version=$(python3 -c "import json; print(json.load(open('$ARTIFACT_DIR_T11/session-provenance-cache.json')).get('cache_version'))" 2>/dev/null)
+_expect "t11 cache reinitialized to v2 on schema mismatch" "[[ '$cache_version' == '2' ]]"
+rm -rf "$MOCK_DIR" "$ARTIFACT_DIR_T11" "$REPO"
+
+# ─── t13: cache HIT — pre-populated v2 cache returns verdict without API call ─
+echo
+echo "=== t13: cache hit on v2 cache skips API call ==="
+ARTIFACT_DIR_T13=$(mktemp -d)
+read -r BASE FEAT REPO < <(_make_fake_repo)
+# Pre-populate cache with the feature SHA + PR_NUMBER=253 → "provenanced".
+# Format must match the v2 schema and the _cache_key derivation: ${sha}.pr${pr}.
+cat > "$ARTIFACT_DIR_T13/session-provenance-cache.json" <<EOF
+{"cache_version": 2, "entries": {"$FEAT.pr253": "provenanced"}}
+EOF
+# Mock gh is fail-loud — should never be called because cache hit short-circuits.
+FAIL_LOUD_MOCK=$(mktemp -d)
+cat > "$FAIL_LOUD_MOCK/gh" <<'FAILLOUD'
+#!/usr/bin/env bash
+echo "ERROR: gh should not have been called — cache hit expected" >&2
+exit 1
+FAILLOUD
+chmod +x "$FAIL_LOUD_MOCK/gh"
+PATH="$FAIL_LOUD_MOCK:$PATH" DSO_REPO_PATH="$REPO" DSO_BASE_SHA="$BASE" DSO_SESSION_HEAD="$FEAT" \
+    DSO_ARTIFACT_DIR="$ARTIFACT_DIR_T13" DSO_GH_REPO="navapbc/test-repo" PR_NUMBER="253" GH_RETRY_MAX=1 \
+    bash "$SCRIPT" > /dev/null 2>&1
+rc=$?
+_expect "t13 cache hit short-circuits API call (exit 0)" "[[ '$rc' == '0' ]]"
+rm -rf "$FAIL_LOUD_MOCK" "$ARTIFACT_DIR_T13" "$REPO"
+
+# ─── t12: API error → NOT cached (poisoning prevention) ───────────────────────
+echo
+echo "=== t12: API error (gh non-zero exit) → SHA flagged but not cached ==="
+ARTIFACT_DIR_T12=$(mktemp -d)
+# Mock gh that returns non-zero (rate-limit-like persistent failure)
+FAIL_MOCK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/fail-gh.XXXXXX")
+cat > "$FAIL_MOCK_DIR/gh" <<'FAIL_GH_EOF'
+#!/usr/bin/env bash
+echo "FAKE: rate limit exceeded" >&2
+exit 1
+FAIL_GH_EOF
+chmod +x "$FAIL_MOCK_DIR/gh"
+read -r BASE FEAT REPO < <(_make_fake_repo)
+PATH="$FAIL_MOCK_DIR:$PATH" DSO_REPO_PATH="$REPO" DSO_BASE_SHA="$BASE" DSO_SESSION_HEAD="$FEAT" \
+    DSO_ARTIFACT_DIR="$ARTIFACT_DIR_T12" DSO_GH_REPO="navapbc/test-repo" PR_NUMBER="253" GH_RETRY_MAX=1 \
+    bash "$SCRIPT" > /dev/null 2>&1 || true
+# Cache file should exist (initialized) but the SHA should NOT be in entries
+cache_has_sha=$(python3 -c "
+import json
+data = json.load(open('$ARTIFACT_DIR_T12/session-provenance-cache.json'))
+entries = data.get('entries', {})
+# Look for any key starting with the feature sha
+print('yes' if any(k.startswith('$FEAT') for k in entries) else 'no')
+" 2>/dev/null)
+_expect "t12 API error does NOT poison cache" "[[ '$cache_has_sha' == 'no' ]]"
+rm -rf "$FAIL_MOCK_DIR" "$ARTIFACT_DIR_T12" "$REPO"
+
 echo "================================="
 echo "Results: $PASS passed, $FAIL failed"
 echo "================================="
