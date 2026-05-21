@@ -1,0 +1,1 @@
+{"event_type": "BRIDGE_ALERT", "timestamp": 1779394401729144169, "uuid": "2d58936f-63ab-4167-886e-6494063f102f", "env_id": "87bd1065-0264-4126-94b7-ae8c71b8d506", "ticket_id": "71df-5bd8", "data": {"reason": "get_comments failed for DIG-2317: Command '['acli', 'jira', 'workitem', 'comment', 'list', '--key', 'DIG-2317', '--json']' returned non-zero exit status 1."}}
