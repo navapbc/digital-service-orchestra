@@ -339,19 +339,25 @@ def extract_items(desc):
         next_h = re.search(r"\n## ", desc[body_start:])
         body_end = body_start + next_h.start() if next_h else len(desc)
         body = desc[body_start:body_end]
-        # Tokenize as top-level bullets ("- " or "* " followed by content; multi-line until blank line or next bullet)
-        # Simple approach: split by lines, group bullet starts with following indented continuations
+        # Tokenize TOP-LEVEL bullets only ("- " or "* " with ≤3 leading spaces).
+        # Sub-bullets (4+ spaces of indentation) are treated as continuations of
+        # their parent bullet, not as separate items. This prevents the
+        # classifier from being asked to evaluate sub-items as if they were
+        # independent SCs (e.g., SC10's "Chunk A reads..." sub-bullets that
+        # describe the validation property of the chunks, not migration targets).
+        # See story ad70-f38a-7684-4e00 §6 (smart extraction amendment).
         cur_text = None
         cur_start_line = None
         body_lines = body.split("\n")
+        TOP_BULLET_RE = re.compile(r"^[-*]\s+")
         for i, line in enumerate(body_lines):
-            if re.match(r"^\s*[-*]\s+", line):
-                # Flush prior bullet
+            if TOP_BULLET_RE.match(line):
+                # Top-level bullet — start a new item, flush prior
                 if cur_text:
                     items.append((code, cur_text.strip(), 0, 0))
-                cur_text = re.sub(r"^\s*[-*]\s+", "", line)
+                cur_text = TOP_BULLET_RE.sub("", line, count=1)
             elif cur_text is not None and re.match(r"^\s+\S", line):
-                # Indented continuation
+                # Indented continuation (any indentation level) — fold into current item
                 cur_text += "\n" + line.strip()
             else:
                 # Blank or new content; flush
@@ -536,11 +542,32 @@ for idx, (section_code, item_text, _, _) in enumerate(items_extracted):
     rationale = cls["rationale"]
     cls["_original_section"] = section_code
 
-    # Decision routing
+    # Decision routing (per story ad70-f38a-7684-4e00 §6 automation amendment):
+    # - end-state ranking >= 4   → auto-accept, stays in SC
+    # - transitional ranking 5   → auto-apply, moves SC → CC (classifier is maximally confident)
+    # - uncertain ranking 5      → auto-keep in SC (classifier confident it's uncertain; can't move)
+    # - everything else (ranking 1-4 non-end-state) → user ack required
     if label == "end-state" and ranking >= 4:
-        # Auto-accept; stays in original section
         decision = "auto"
         target = section_code
+        proposed_target = section_code
+        auto_apply = True
+    elif ranking == 5 and label == "transitional":
+        decision = "auto"
+        target = "CC"
+        proposed_target = "CC"
+        auto_apply = True
+    elif ranking == 5 and label == "uncertain":
+        # r=5 uncertain is rare (the classifier is confident in indecision);
+        # keep in SC, record as auto-deferred. No section change.
+        decision = "auto"
+        target = section_code
+        proposed_target = section_code
+        auto_apply = True
+    else:
+        auto_apply = False
+
+    if auto_apply:
         if PLAN_OUTPUT:
             plan_items.append({
                 "index": idx,
@@ -548,7 +575,7 @@ for idx, (section_code, item_text, _, _) in enumerate(items_extracted):
                 "original_section": section_code,
                 "classification": {"label": label, "ranking": ranking, "rationale": rationale},
                 "auto_accepted": True,
-                "proposed_target": section_code,
+                "proposed_target": proposed_target,
             })
     else:
         # Per-item escalation required
