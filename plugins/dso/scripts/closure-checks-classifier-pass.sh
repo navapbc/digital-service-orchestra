@@ -194,8 +194,11 @@ with open(APPLY_FROM_PLAN) as f:
 with open(DECISIONS_FILE) as f:
     decisions_obj = json.load(f)
 
-# Index decisions by item index
-dec_by_index = {d["index"]: d["user_decision"] for d in decisions_obj.get("decisions", [])}
+# Index decisions by item index. Keep full decision dicts so override_target
+# (when the user explicitly overrides the classifier's proposed_target) is
+# honored alongside user_decision. Without override_target, accept respects
+# proposed_target; reject/defer keep the item in its original section.
+dec_by_index = {d["index"]: d for d in decisions_obj.get("decisions", [])}
 
 # Load snapshot description for section-move regex
 with open(SNAPSHOT_FILE) as f:
@@ -218,14 +221,25 @@ for item in plan["items"]:
 
     if item.get("auto_accepted"):
         decision = "auto"
-        target = section
+        # Auto items honor the proposed_target captured at plan time. This is
+        # critical for r=5 transitional auto-apply: the plan recorded
+        # proposed_target=CC, and the apply step must move SC→CC accordingly.
+        target = item.get("proposed_target", section)
     else:
-        # User-decided (or defer if not in decisions file)
-        decision = dec_by_index.get(idx, "defer")
-        if decision == "accept":
-            target = item.get("proposed_target", section)
-        else:
+        dec_entry = dec_by_index.get(idx)
+        if dec_entry is None:
+            decision = "defer"
             target = section
+        else:
+            decision = dec_entry["user_decision"]
+            override = dec_entry.get("override_target")
+            if override:
+                # Explicit user override takes precedence over classifier's proposed_target
+                target = override
+            elif decision == "accept":
+                target = item.get("proposed_target", section)
+            else:
+                target = section
 
     post_section = "CC" if target == "CC" else "SC"
     audit_items.append({
