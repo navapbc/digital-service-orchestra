@@ -51,10 +51,10 @@ if [[ ! -f "$LEDGER_PATH" ]]; then
     run_test "ledger file created" "FAIL: $LEDGER_PATH does not exist"
 else
     schema=$(python3 -c "import json; print(json.load(open('$LEDGER_PATH'))['schema_version'])" 2>/dev/null)
-    if [[ "$schema" == "1.1.0" ]]; then
-        run_test "schema_version == 1.1.0" "PASS"
+    if [[ "$schema" == "1.2.0" ]]; then
+        run_test "schema_version == 1.2.0" "PASS"
     else
-        run_test "schema_version == 1.1.0" "got $schema"
+        run_test "schema_version == 1.2.0" "got $schema"
     fi
 
     # Test 2: cycle has findings array (and the value we passed in)
@@ -94,7 +94,7 @@ import sys
 sys.path.insert(0, '$REPO_ROOT/plugins/dso/scripts')
 from dso_ci_review.cycle_ledger import read_ledger
 ledger = read_ledger('$LEDGER_PATH')
-assert ledger['schema_version'] == '1.1.0', f'expected 1.1.0, got {ledger[\"schema_version\"]}'
+assert ledger['schema_version'] == '1.2.0', f'expected 1.2.0, got {ledger[\"schema_version\"]}'
 assert len(ledger['cycles']) >= 1, 'no cycles'
 got_findings = ledger['cycles'][-1].get('findings')
 assert got_findings == [['src/foo.py','10-20','correctness']], f'findings mismatch: {got_findings!r}'
