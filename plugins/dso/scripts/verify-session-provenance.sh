@@ -201,23 +201,84 @@ while IFS=' ' read -r sha subject; do
         continue
     fi
 
-    # Determine provenance from PR result
-    # If there's at least one PR, commit is provenanced
-    pr_count="$(echo "$pr_result" | python3 -c "
-import sys, json
+    # ─── Layered provenance filter (bug 8a77 fix) ────────────────────────────
+    # The GitHub API `repos/{owner}/{repo}/commits/{sha}/pulls` endpoint
+    # returns EVERY PR whose branch HEAD history contains this commit —
+    # including the PR being reviewed. Counting any non-empty list as
+    # "covered" was the pre-fix bug that silently disabled llm-review on
+    # every PR. We now apply 4 filters and count only PRs that survive:
+    #
+    #   A2  state == "closed" AND merged_at != null  (merged PRs only — an
+    #        open/draft/closed-unmerged PR carries no review evidence)
+    #   A3a head.sha != $sha                          (PR cannot cover its
+    #        own HEAD commit — defends push-event case where PR_NUMBER is
+    #        unset)
+    #   A3b merge_commit_sha != $sha                  (self-merge guard)
+    #   A1  number != $PR_NUMBER                      (self-exclusion when
+    #        PR_NUMBER env is set; no-op when unset since GitHub PR numbers
+    #        are always > 0)
+    #
+    # A3c (ancestor filter — require covering PR's merge_commit_sha to be an
+    # ancestor of BASE_SHA) was deliberately DROPPED during v2 review: it is
+    # broken under CI's depth-1 shallow fetch (ci.yml:431 does
+    # `git fetch --depth=1 origin <base_ref>`), so `git merge-base
+    # --is-ancestor` returns false for genuinely-covering merge SHAs that
+    # are not in the shallow fetch — producing false unprovenanced verdicts.
+    # Do not re-introduce A3c without first solving the shallow-fetch
+    # problem (e.g., `git fetch <covering_merge_sha>` before the check).
+    #
+    # Non-array responses (rate-limit / 404 / object envelope) yield
+    # covering_count=0 → treated as unprovenanced. The status code from
+    # _call_gh_with_backoff is the load-bearing signal; a successful HTTP
+    # 200 with an object body means the parser falls through to 0.
+    covering_count="$(echo "$pr_result" | PR_UNDER_REVIEW="${PR_NUMBER:-0}" SHA_UNDER_REVIEW="$sha" python3 -c "
+import sys, json, os
+pr_under_review_str = os.environ.get('PR_UNDER_REVIEW', '0')
+try:
+    pr_under_review = int(pr_under_review_str)
+except (TypeError, ValueError):
+    pr_under_review = 0
+sha_under_review = os.environ.get('SHA_UNDER_REVIEW', '')
 try:
     data = json.load(sys.stdin)
-    if isinstance(data, list):
-        print(len(data))
-    elif isinstance(data, dict) and 'items' in data:
-        print(len(data['items']))
-    else:
-        print(0)
 except Exception:
     print(0)
-" 2>/dev/null)" || pr_count=0
+    sys.exit(0)
+if isinstance(data, dict) and 'items' in data:
+    pr_list = data['items']
+elif isinstance(data, list):
+    pr_list = data
+else:
+    # Non-array, non-items shape (rate-limit error object, etc.) — treat as
+    # zero covering PRs. The exit status from _call_gh_with_backoff would
+    # have caught the typical error path; if we reached here with an object
+    # body, the safe default is 'no covering evidence'.
+    print(0)
+    sys.exit(0)
+count = 0
+for pr in pr_list:
+    if not isinstance(pr, dict):
+        continue
+    # A2: must be merged (state==closed AND merged_at present and non-null)
+    if pr.get('state') != 'closed':
+        continue
+    if not pr.get('merged_at'):
+        continue
+    # A3a: PR cannot cover its own HEAD
+    head_sha = (pr.get('head') or {}).get('sha', '')
+    if head_sha == sha_under_review:
+        continue
+    # A3b: self-merge guard
+    if pr.get('merge_commit_sha') == sha_under_review:
+        continue
+    # A1: exclude the PR being reviewed (self-exclusion via env var)
+    if pr_under_review > 0 and pr.get('number') == pr_under_review:
+        continue
+    count += 1
+print(count)
+" 2>/dev/null)" || covering_count=0
 
-    if (( pr_count > 0 )); then
+    if (( covering_count > 0 )); then
         _cache_set "$sha" "provenanced"
     else
         _unprovenanced_shas+=("$sha")
