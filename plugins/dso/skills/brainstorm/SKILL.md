@@ -398,7 +398,7 @@ Using the chosen approach and the Phase 1 dialogue, draft the epic spec:
 [Any other epics that must be completed first, or "None"]
 ```
 
-The `## Closure Checks` section is structurally distinct from `## Success Criteria` per epic a03c-d55e-1393-4f27 SC1. Items belong in Closure Checks when the verifiable-sc-check.md litmus test routes them via option (c): they describe a one-time transition rather than a durable system property, AND they should still be verified at closure (e.g., "the legacy adapter is absent from imports"). Items remaining in Success Criteria are durable end-state properties.
+The `## Closure Checks` section is structurally distinct from `## Success Criteria` per epic a03c-d55e-1393-4f27 SC1. Items belong in Closure Checks when the verifiable-sc-check.md litmus test routes them via option (c): they describe **durable end-state intent** that would fail the session-infeasibility check (cannot be evaluated deterministically before the closing session) but is itself a one-shot verifiable durable invariant (a state check, a reference to a specific named artifact, or a one-shot command). Items remaining in Success Criteria are also durable end-state properties but ARE verifiable within the closing session. Items that describe one-time transitional work (e.g., "OAuth migration is complete") are rejected by the end-state-only litmus and NEITHER section accepts them — they should be reframed as durable system behavior, or recorded as transitional work elsewhere (e.g., as task tickets).
 
 **Success criteria rules:**
 - 3–6 criteria per epic

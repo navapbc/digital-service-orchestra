@@ -325,7 +325,10 @@ plugins/dso/scripts/audit-closure-checks-source-consumers.sh:tests/scripts/test-
 plugins/dso/scripts/apply-bucket-recipes.sh:tests/scripts/test-apply-bucket-recipes.sh
 plugins/dso/scripts/coherence-walk.sh:tests/scripts/test-coherence-walk.sh
 plugins/dso/scripts/ticket-migrate-closure-checks-v1.sh:tests/scripts/test-ticket-migrate-closure-checks-v1.sh
-plugins/dso/scripts/migrate-closure-checks.sh:tests/scripts/test-migrate-closure-checks.sh
+plugins/dso/scripts/migrate-closure-checks.sh:tests/scripts/test-migrate-closure-checks.sh,tests/scripts/test-closure-checks-classifier-pass.sh
+plugins/dso/scripts/closure-checks-classifier-pass.sh:tests/scripts/test-closure-checks-classifier-pass.sh
+plugins/dso/scripts/closure-checks-migration-preview.sh:tests/scripts/test-closure-checks-migration-preview.sh
+plugins/dso/scripts/coherence-walkthrough.sh:tests/scripts/test-coherence-walkthrough.sh
 plugins/dso/scripts/ticket-migrate-file-impact-v1.sh:tests/scripts/test-ticket-migrate-file-impact-v1.sh
 plugins/dso/scripts/ticket-migrate-schema-hardening.sh:tests/scripts/test-ticket-migration.sh
 plugins/dso/scripts/ticket-next-batch.sh:tests/scripts/test-ticket-next-batch-dispatcher.sh,tests/scripts/test-ticket-transition-deleted.sh

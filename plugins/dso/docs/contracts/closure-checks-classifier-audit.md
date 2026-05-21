@@ -74,18 +74,33 @@ The `user_decision` field captures who made the decision and what they decided:
 
 | `user_decision` | Meaning | When it applies |
 |-----------------|---------|----------------|
-| `auto` | The classifier returned `label: end-state` AND `ranking >= 4`. No user prompt fired. Item stays in original section. | High-confidence end-state items. |
+| `auto` | The classifier returned a verdict at high enough confidence that no user prompt fired. Three sub-cases exist per the DD4 amendment (story ad70-f38a-7684-4e00 §6 — `commit:ce2ec1a65c`). See "auto sub-cases" table below. | High-confidence classifier verdicts. |
 | `accept` | The user explicitly accepted the proposed migration via the per-item ack UX (`[a]ccept`). The proposed section change (if any) is applied. | All non-`auto` items where the user typed `a`. |
 | `reject` | The user explicitly rejected the proposed migration (`[r]eject`). The item stays in its original section regardless of the classifier label. | All non-`auto` items where the user typed `r`. |
 | `defer` | The user deferred the decision (`[d]efer`) OR the script ran in non-TTY mode and could not prompt. The item stays in its original section AND the audit comment records `user_decision: defer` so the next run sees it as untouched and re-classifies. | All non-`auto` items where the user typed `d` or where stdin was not a TTY. |
+
+### Auto sub-cases (DD4 amendment)
+
+The classifier's verdict drives auto-apply behavior only in these three configurations:
+
+| `classification.label` | `classification.ranking` | `post_migration_section` | Rationale |
+|------------------------|--------------------------|--------------------------|-----------|
+| `end-state` | `>= 4` | `SC` | Classifier is confident the item describes a durable system property; item stays in Success Criteria. |
+| `transitional` | `== 5` | `CC` | Classifier is maximally confident the item is a one-time transition; auto-route to Closure Checks. |
+| `uncertain` | `== 5` | `SC` | Classifier is confident in indecision (rare); preserve item in original section pending future re-classification. |
+
+All other label/ranking combinations require explicit user ack via the `accept`/`reject`/`defer` flow (no `auto`). This includes `transitional ranking 1-4` and `uncertain ranking 1-4`.
 
 ### Post-migration section semantics
 
 The `post_migration_section` field encodes the FINAL location after the user's decision is applied:
 
-- `user_decision: auto` → `post_migration_section: SC` (item stays in original section, which for auto-rated end-state items is SC)
+- `user_decision: auto` AND `classification.label: end-state` → `post_migration_section: SC` (high-confidence end-state stays in original section)
+- `user_decision: auto` AND `classification.label: transitional` AND `classification.ranking: 5` → `post_migration_section: CC` (max-confidence transitional auto-moves SC→CC)
+- `user_decision: auto` AND `classification.label: uncertain` → `post_migration_section: SC` (uncertain auto stays in SC)
 - `user_decision: accept` AND `classification.label: transitional` → `post_migration_section: CC` (transitional items move SC→CC on accept)
 - `user_decision: accept` AND `classification.label` in `{end-state, uncertain}` → `post_migration_section: SC` (end-state and uncertain items stay in SC on accept)
+- `user_decision: accept` AND `override_target: <value>` → `post_migration_section: <override_target>` (explicit user override of the classifier's proposed_target; overrides take precedence over label-derived defaults)
 - `user_decision: reject` → `post_migration_section: SC` (item stays in original section regardless of label)
 - `user_decision: defer` → `post_migration_section: SC` (item stays untouched pending future re-classification)
 
