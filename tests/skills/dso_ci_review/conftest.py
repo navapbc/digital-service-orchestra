@@ -80,6 +80,10 @@ def _ensure_plugin_package() -> None:
     # and runner now depend on for read_config_int / default_config_path. Load
     # it first so importers downstream can resolve it.
     _load_from_plugin("_config")
+    # cycle_marker_format is a leaf module (no intra-package imports). Load
+    # it before cycle_ledger so the downstream re-export wired up in a
+    # follow-up commit will resolve cleanly without import-order issues.
+    _load_from_plugin("cycle_marker_format")
     _load_from_plugin("providers")
     _load_from_plugin("providers.config")
     _load_from_plugin("context_request")
