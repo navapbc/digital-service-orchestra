@@ -152,11 +152,17 @@ def _write_link_event(
     if _remote_check.stdout.strip():
         _max_retries = 3
         _attempt = 0
+        # Push HEAD:tickets (not bare "tickets") so the detached-HEAD commit
+        # is pushed regardless of refs/heads/tickets state. The bash callers
+        # in ticket-lib.sh / ticket-lifecycle.sh / merge-to-main-direct.sh use
+        # the same refspec for the same reason. Bug 27d8-b230.
+        _push_env = {**os.environ, "PRE_COMMIT_ALLOW_NO_CONFIG": "1"}
         while _attempt < _max_retries:
             _push = _sp.run(
-                ["git", "-C", tracker_dir, "push", "origin", "tickets"],
+                ["git", "-C", tracker_dir, "push", "origin", "HEAD:tickets"],
                 capture_output=True,
                 text=True,
+                env=_push_env,
             )
             if _push.returncode == 0:
                 break

@@ -102,14 +102,15 @@ except Exception:
 
     assert_eq "show: ticket_type is 'task'" "task" "$type_check"
 
-    # 1d. Assert tickets branch has exactly 3 commits after init + 1 create.
-    # ticket-init.sh creates 2 commits:
+    # 1d. Assert tickets branch has exactly 4 commits after init + 1 create.
+    # ticket-init.sh creates 3 commits:
     #   1. "chore: initialize ticket tracker" (orphan empty commit)
     #   2. "chore: add .gitignore for env-id and state-cache"
-    # ticket-create.sh adds 1 more commit = 3 total.
+    #   3. "chore: add no-op .pre-commit-config.yaml (bug 27d8-b230)"
+    # ticket-create.sh adds 1 more commit = 4 total.
     local commits_after_create
     commits_after_create=$(git -C "$repo/.tickets-tracker" log --oneline 2>/dev/null | wc -l | tr -d ' ')
-    assert_eq "tickets branch has exactly 3 commits (2 init + 1 create)" "3" "$commits_after_create"
+    assert_eq "tickets branch has exactly 4 commits (3 init + 1 create)" "4" "$commits_after_create"
 
     # Additionally verify the latest commit message references the ticket ID
     local latest_msg

@@ -1504,9 +1504,13 @@ _phase_resolve_threads() {
 # DD3: configurable max-wait timeout (merge.pr_max_wait_seconds, default 3600)
 #
 # Each iteration:
-#   1. `gh pr checks <num> --json name,state,conclusion`
-#      - any FAILURE/CANCELLED conclusion → exit 1 with PR url
-#      - all SUCCESS → query merge state (step 2)
+#   1. `gh pr checks <num> --json name,state,bucket`
+#      - any fail/cancel bucket → exit 1 with PR url
+#      - all pass bucket → query merge state (step 2)
+#      Note: `bucket` is gh CLI's canonical check-outcome field (pass|fail|
+#      pending|skipping|cancel). The legacy `conclusion` field is NOT exposed
+#      by `gh pr checks --json`; requesting it exits 1 with "Unknown JSON
+#      field" and silently disables failure detection. Bug 075d-741a.
 #   2. `gh pr view <num> --json state --jq .state`
 #      - state == MERGED → break, success
 #      - else → continue
@@ -1535,12 +1539,16 @@ _phase_poll() {
     while :; do
         # --- Step 1: ONE pr checks call ---
         local _checks_json _checks_rc=0
-        _checks_json=$(gh pr checks "$_pr_number" --json name,state,conclusion 2>&1) || _checks_rc=$?
+        # `bucket` (pass|fail|pending|skipping|cancel) is gh CLI's canonical check
+        # outcome field; the previously-used `conclusion` field is not exposed via
+        # --json and would silently disable failure detection. See pr-finalize-classify.sh
+        # line 190 for the established pattern. Bug 075d-741a.
+        _checks_json=$(gh pr checks "$_pr_number" --json name,state,bucket 2>&1) || _checks_rc=$?
 
         # When PR has no checks, `gh pr checks` exits 8 with stderr "no checks reported".
         # Treat as "no failures yet" — continue polling for merge state.
         if [[ "$_checks_rc" -eq 0 ]]; then
-            # Detect any failed conclusion
+            # Detect any failed bucket
             local _has_failure
             _has_failure=$(echo "$_checks_json" | python3 -c "
 import json, sys
@@ -1549,8 +1557,8 @@ try:
     if not isinstance(d, list):
         print('false'); sys.exit(0)
     for c in d:
-        concl = (c.get('conclusion') or '').upper()
-        if concl in ('FAILURE', 'CANCELLED', 'TIMED_OUT', 'ACTION_REQUIRED'):
+        bucket = (c.get('bucket') or '').lower()
+        if bucket in ('fail', 'cancel'):
             print('true'); sys.exit(0)
     print('false')
 except Exception:
@@ -1605,11 +1613,15 @@ try:
     if not isinstance(d, list) or not d:
         print('false'); sys.exit(0)
     for c in d:
-        state = (c.get('state') or '').upper()
-        concl = (c.get('conclusion') or '').upper()
-        if state in ('IN_PROGRESS', 'QUEUED', 'PENDING') or not concl:
+        bucket = (c.get('bucket') or '').lower()
+        # Any check still pending (or no bucket reported yet) blocks readiness.
+        if bucket in ('pending',) or not bucket:
             print('false'); sys.exit(0)
-        if concl != 'SUCCESS':
+        # Manual-merge readiness requires every reported check to pass.
+        # NEUTRAL/SKIPPED (bucket=skipping) and cancel/fail are NOT accepted
+        # here — branch protection may treat them as not-passing-required and
+        # a manual `gh pr merge --merge` would be rejected.
+        if bucket != 'pass':
             print('false'); sys.exit(0)
     print('true')
 except Exception:
