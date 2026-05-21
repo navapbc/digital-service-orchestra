@@ -95,26 +95,21 @@ pr_number_arg=""
 # Delegates to the Python CLI (cycle_ledger._cli_main) which uses the
 # shared cycle_marker_format grammar — eliminating the shell-embedded
 # parser drift class (bug 9788).
+#
+# Uses the same _PLUGIN_ROOT resolution pattern as the deps.sh source
+# above (CLAUDE_PLUGIN_ROOT env first, SCRIPT_DIR/.. fallback) to avoid
+# introducing a relative path that check-plugin-scripts-no-relative-paths
+# would flag.
 if [[ "${1:-}" == "--reconstruct-from-pr" && $# -ge 3 && "${2:-}" =~ ^[0-9]+$ ]]; then
     _pos_pr="$2"
     _pos_repo="$3"
-    _PLUGIN_SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    _out_dir="${WORKFLOW_PLUGIN_ARTIFACTS_DIR:-}"
+    _out_dir="${WORKFLOW_PLUGIN_ARTIFACTS_DIR:-$(get_artifacts_dir)}"
     if [[ -z "$_out_dir" ]]; then
-        # Resolve via deps.sh shim if env var unset (mirrors get_artifacts_dir
-        # semantics on the bash side).
-        _DEPS_SH="$_PLUGIN_SCRIPTS_DIR/../hooks/lib/deps.sh"
-        if [[ -f "$_DEPS_SH" ]]; then
-            # shellcheck disable=SC1090
-            source "$_DEPS_SH"
-            _out_dir="$(get_artifacts_dir)"
-        else
-            echo "error: cannot resolve artifacts dir (set WORKFLOW_PLUGIN_ARTIFACTS_DIR)" >&2
-            exit 1
-        fi
+        echo "error: cannot resolve artifacts dir (set WORKFLOW_PLUGIN_ARTIFACTS_DIR)" >&2
+        exit 1
     fi
     mkdir -p "$_out_dir"
-    PYTHONPATH="$_PLUGIN_SCRIPTS_DIR${PYTHONPATH:+:$PYTHONPATH}" \
+    PYTHONPATH="${_PLUGIN_ROOT}/scripts${PYTHONPATH:+:$PYTHONPATH}" \
         python3 -m dso_ci_review.cycle_ledger reconstruct-from-pr "$_pos_pr" "$_pos_repo" \
         > "$_out_dir/cycle-ledger.json"
     exit $?
