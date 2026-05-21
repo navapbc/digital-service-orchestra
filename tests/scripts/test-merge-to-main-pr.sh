@@ -1242,12 +1242,23 @@ t_phase_poll_records_failed_run_id_on_ci_failure() {
     trap "rm -rf '$_T'; rm -f '$_state_file'; rm -f '/tmp/merge-state-init-marker-${_branch_safe}'" RETURN
 
     mkdir -p "$_T/bin"
+    # Real gh CLI surfaces check outcomes via the `bucket` field (pass|fail|pending|
+    # skipping|cancel), NOT a `conclusion` field. Requesting --json conclusion exits
+    # non-zero with "Unknown JSON field". This mock mirrors the real schema so the
+    # test actually exercises the production code path. Bug 075d-741a.
     cat > "$_T/bin/gh" <<GH_SHIM
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >> "$_T/gh-argv.log"
+# Detect requests for unsupported fields (real gh behavior — exits 1).
+if [[ "\$*" == *"--json"* ]] && [[ "\$*" == *"conclusion"* ]]; then
+    echo 'Unknown JSON field: "conclusion"' >&2
+    echo 'Available fields:' >&2
+    echo '  bucket' >&2
+    exit 1
+fi
 case "\$1 \$2" in
   "pr checks")
-    echo '[{"name":"ci","state":"COMPLETED","conclusion":"FAILURE"}]'
+    echo '[{"name":"ci","state":"COMPLETED","bucket":"fail"}]'
     exit 0
     ;;
   "pr view")
@@ -1309,11 +1320,16 @@ t_phase_poll_run_list_filters_by_branch() {
     trap "rm -rf '$_T'; rm -f '$_state_file'; rm -f '/tmp/merge-state-init-marker-${_branch_safe}'" RETURN
 
     mkdir -p "$_T/bin"
+    # Mock mirrors real gh schema (bucket, not conclusion). Bug 075d-741a.
     cat > "$_T/bin/gh" <<GH_SHIM
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >> "$_T/gh-argv.log"
+if [[ "\$*" == *"--json"* ]] && [[ "\$*" == *"conclusion"* ]]; then
+    echo 'Unknown JSON field: "conclusion"' >&2
+    exit 1
+fi
 case "\$1 \$2" in
-  "pr checks")  echo '[{"name":"ci","state":"COMPLETED","conclusion":"FAILURE"}]' ;;
+  "pr checks")  echo '[{"name":"ci","state":"COMPLETED","bucket":"fail"}]' ;;
   "pr view")    echo '{"state":"OPEN"}' ;;
   "run list")   echo '[{"databaseId":"RUN999"}]' ;;
   *) ;;
