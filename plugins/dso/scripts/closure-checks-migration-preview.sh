@@ -169,13 +169,18 @@ epic_json_path = sys.argv[1]
 with open(epic_json_path) as f:
     epics = json.load(f)
 
-try:
-    import anthropic
-except ImportError:
-    print(json.dumps({"preview_error": "anthropic SDK not installed", "epics": []}))
+# Dispatch haiku classifier via stdlib urllib (avoids anthropic SDK
+# package dependency — the host environment may not have it installed).
+import urllib.request
+import urllib.error
+
+API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+if not API_KEY:
+    print(json.dumps({"preview_error": "ANTHROPIC_API_KEY not set; classifier cannot run", "epics": []}))
     sys.exit(2)
 
-client = anthropic.Anthropic()
+ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
+ANTHROPIC_VERSION = "2023-06-01"
 
 # Extract items from each epic's ## Success Criteria, ## Done Definitions,
 # and ## Acceptance Criteria sections. Returns list of strings.
@@ -217,21 +222,38 @@ Item: '''
 
 def classify_one(item_text):
     try:
-        msg = client.messages.create(
-            model='claude-haiku-4-5-20251001',
-            max_tokens=10,
-            messages=[{'role': 'user', 'content': CLASSIFIER_PROMPT + item_text}],
+        body = json.dumps({
+            "model": "claude-haiku-4-5-20251001",
+            "max_tokens": 10,
+            "messages": [{"role": "user", "content": CLASSIFIER_PROMPT + item_text}],
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            ANTHROPIC_API_URL,
+            data=body,
+            method="POST",
+            headers={
+                "x-api-key": API_KEY,
+                "anthropic-version": ANTHROPIC_VERSION,
+                "content-type": "application/json",
+            },
         )
-        resp = msg.content[0].text.strip().lower()
-        if resp.startswith('end'):
-            return 'end-state'
-        if resp.startswith('trans'):
-            return 'transitional'
-        if resp.startswith('uncertain'):
-            return 'uncertain'
-        return 'uncertain'
-    except Exception as e:
-        return 'uncertain'
+        with urllib.request.urlopen(req, timeout=60) as r:
+            data = json.loads(r.read().decode("utf-8"))
+        content = data.get("content") or []
+        resp = ""
+        for block in content:
+            if block.get("type") == "text":
+                resp += block.get("text", "")
+        resp = resp.strip().lower()
+        if resp.startswith("end"):
+            return "end-state"
+        if resp.startswith("trans"):
+            return "transitional"
+        if resp.startswith("uncertain"):
+            return "uncertain"
+        return "uncertain"
+    except Exception:
+        return "uncertain"
 
 results = []
 for epic in epics:
