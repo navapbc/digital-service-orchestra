@@ -146,6 +146,72 @@ else
 fi
 rm -rf "$TEST_DIR3"
 
+# Test 7: --pr-number CLI flag writes pr_number=N into the v1.2.0 entry
+# (bug 9788 v3 — regression guard for the --pr-number end-to-end path).
+TEST_DIR4=$(mktemp -d /tmp/test-write-cycle-ledger-prnumflag.XXXXXX)
+unset DSO_CI_REVIEW_PR
+WORKFLOW_PLUGIN_ARTIFACTS_DIR="$TEST_DIR4" bash "$REPO_ROOT/plugins/dso/scripts/write-cycle-ledger.sh" \
+    --epic-id test-pr-num \
+    --cycle-num 1 \
+    --findings-hash dummy4 \
+    --commit-sha abc1234567890abcdef1234567890abcdef12345 \
+    --pr-number 42 >/dev/null 2>&1
+LEDGER4="$TEST_DIR4/cycle-ledger.json"
+if [[ -f "$LEDGER4" ]]; then
+    pr_num=$(python3 -c "import json; print(json.load(open('$LEDGER4'))['cycles'][-1].get('pr_number','missing'))" 2>/dev/null)
+    if [[ "$pr_num" == "42" ]]; then
+        run_test "--pr-number 42 writes pr_number=42 into v1.2.0 entry" "PASS"
+    else
+        run_test "--pr-number 42 writes pr_number=42 into v1.2.0 entry" "got '$pr_num'"
+    fi
+else
+    run_test "--pr-number 42 writes pr_number=42 into v1.2.0 entry" "ledger file not created"
+fi
+rm -rf "$TEST_DIR4"
+
+# Test 8: --pr-number wins over DSO_CI_REVIEW_PR env var (precedence rule).
+TEST_DIR5=$(mktemp -d /tmp/test-write-cycle-ledger-prflag-wins.XXXXXX)
+DSO_CI_REVIEW_PR=99 WORKFLOW_PLUGIN_ARTIFACTS_DIR="$TEST_DIR5" bash "$REPO_ROOT/plugins/dso/scripts/write-cycle-ledger.sh" \
+    --epic-id test-pr-precedence \
+    --cycle-num 1 \
+    --findings-hash dummy5 \
+    --commit-sha abc1234567890abcdef1234567890abcdef12345 \
+    --pr-number 42 >/dev/null 2>&1
+LEDGER5="$TEST_DIR5/cycle-ledger.json"
+if [[ -f "$LEDGER5" ]]; then
+    pr_num=$(python3 -c "import json; print(json.load(open('$LEDGER5'))['cycles'][-1].get('pr_number','missing'))" 2>/dev/null)
+    if [[ "$pr_num" == "42" ]]; then
+        run_test "--pr-number wins over DSO_CI_REVIEW_PR env var" "PASS"
+    else
+        run_test "--pr-number wins over DSO_CI_REVIEW_PR env var" "got '$pr_num' (expected 42, not 99)"
+    fi
+else
+    run_test "--pr-number wins over DSO_CI_REVIEW_PR env var" "ledger file not created"
+fi
+rm -rf "$TEST_DIR5"
+
+# Test 9: pr_number field omitted when neither --pr-number nor env provided
+# (sentinel rule: writers MUST NOT emit pr_number=0).
+TEST_DIR6=$(mktemp -d /tmp/test-write-cycle-ledger-no-prnum.XXXXXX)
+unset DSO_CI_REVIEW_PR
+WORKFLOW_PLUGIN_ARTIFACTS_DIR="$TEST_DIR6" bash "$REPO_ROOT/plugins/dso/scripts/write-cycle-ledger.sh" \
+    --epic-id test-no-pr \
+    --cycle-num 1 \
+    --findings-hash dummy6 \
+    --commit-sha abc1234567890abcdef1234567890abcdef12345 >/dev/null 2>&1
+LEDGER6="$TEST_DIR6/cycle-ledger.json"
+if [[ -f "$LEDGER6" ]]; then
+    has_pr=$(python3 -c "import json; c=json.load(open('$LEDGER6'))['cycles'][-1]; print('yes' if 'pr_number' in c else 'no')" 2>/dev/null)
+    if [[ "$has_pr" == "no" ]]; then
+        run_test "pr_number field omitted when not provided (sentinel rule)" "PASS"
+    else
+        run_test "pr_number field omitted when not provided (sentinel rule)" "field present: $has_pr"
+    fi
+else
+    run_test "pr_number field omitted when not provided (sentinel rule)" "ledger file not created"
+fi
+rm -rf "$TEST_DIR6"
+
 echo ""
 echo "Results: $PASS_COUNT passed, $FAIL_COUNT failed, $SKIP_COUNT skipped"
 [[ $FAIL_COUNT -eq 0 ]]

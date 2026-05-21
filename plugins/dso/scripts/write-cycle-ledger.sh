@@ -354,7 +354,7 @@ staging_temp     = sys.argv[9]
 commit_sha       = sys.argv[10]
 findings_raw     = sys.argv[11]
 
-# v1.1.0 schema constants — keep in sync with cycle-ledger.md contract
+# v1.2.0 schema constants — keep in sync with cycle-ledger.md contract
 SCHEMA_VERSION = "1.2.0"
 
 # findings is validated as JSON in the bash wrapper before we reach this point,
