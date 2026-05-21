@@ -3,16 +3,23 @@
 # Location: ${CLAUDE_PLUGIN_ROOT}/scripts/calibration-report.sh
 #
 # Subcommands:
-#   monthly   Aggregate bug tickets by detected_by:<channel> tag for a calendar month.
-#   quarterly Aggregate bug tickets by detected_by:<channel> tag for a calendar quarter.
+#   monthly         Aggregate bug tickets by detected_by:<channel> tag for a calendar month.
+#   quarterly       Aggregate bug tickets by detected_by:<channel> tag for a calendar quarter.
+#   mutation-append Append a mutation-testing result comment for a PR (idempotent).
+#   churn-append    Append a churn result comment for a PR (idempotent).
 #
 # Usage:
 #   calibration-report.sh monthly [--period YYYY-MM] [--fixture <dir>] [--dry-run]
 #   calibration-report.sh quarterly [--period YYYY-Q[1-4]] [--fixture <dir>] [--dry-run]
+#   calibration-report.sh mutation-append --pr <pr-id> --findings <count> [--dry-run]
+#   calibration-report.sh churn-append --pr <pr-id> --churn <count> [--dry-run]
 #
 # Options:
 #   --period YYYY-MM        Target month (UTC). Defaults to current UTC month.
 #   --period YYYY-Q[1-4]    Target quarter (UTC). Defaults to current UTC quarter.
+#   --pr <pr-id>            PR identifier for mutation-append / churn-append.
+#   --findings <count>      Number of mutation findings (mutation-append only).
+#   --churn <count>         Churn count (churn-append only).
 #   --fixture <dir>         Read pre-canned JSON from <dir>/bugs.json instead of
 #                           calling the DSO ticket CLI (for testing).
 #   --dry-run               Print rollup to stdout; skip posting CLI comment.
@@ -34,8 +41,10 @@ _usage() {
 Usage: calibration-report.sh <subcommand> [options]
 
 Subcommands:
-  monthly   Aggregate bug tickets by detected_by:<channel> for a calendar month.
-  quarterly Aggregate bug tickets by detected_by:<channel> for a calendar quarter.
+  monthly         Aggregate bug tickets by detected_by:<channel> for a calendar month.
+  quarterly       Aggregate bug tickets by detected_by:<channel> for a calendar quarter.
+  mutation-append Append a mutation-testing result for a PR (idempotent).
+  churn-append    Append a churn result for a PR (idempotent).
 
 Options for monthly:
   --period YYYY-MM        Target month in UTC (default: current UTC month).
@@ -46,6 +55,12 @@ Options for quarterly:
   --period YYYY-Q[1-4]   Target quarter in UTC (default: current UTC quarter).
   --fixture <dir>         Use pre-canned JSON from <dir>/bugs.json (for testing).
   --dry-run               Print rollup to stdout; skip posting CLI comment.
+
+Options for mutation-append / churn-append:
+  --pr <pr-id>            PR identifier (required).
+  --findings <count>      Number of mutation findings (mutation-append only).
+  --churn <count>         Churn count (churn-append only).
+  --dry-run               Print comment body to stdout; skip posting CLI comment.
 USAGE
 }
 
@@ -247,20 +262,7 @@ _cmd_monthly() {
     # Post rollup as comment on calibration-program-health ticket
     # Find calibration-program-health ticket by tag (default JSON format; --format=llm renames tags→tg)
     local health_ticket_id
-    health_ticket_id=$(
-        "$DSO" ticket list --type=epic 2>/dev/null \
-            | python3 -c '
-import json, sys
-try:
-    tickets = json.load(sys.stdin)
-except Exception:
-    tickets = []
-for t in tickets:
-    if "calibration-program-health" in t.get("tags", []):
-        print(t.get("ticket_id") or t.get("id", ""))
-        break
-' || true
-    )
+    health_ticket_id=$(_find_health_ticket)
 
     if [ -z "$health_ticket_id" ]; then
         echo "calibration-report: WARNING: calibration-program-health ticket not found; rollup not posted." >&2
@@ -271,17 +273,7 @@ for t in tickets:
     # Idempotency guard: check via ticket show comments (ticket list-comments does not exist).
     local idempotency_marker="<!-- calibration-rollup: period=${period} kind=monthly -->"
     local existing_comments
-    existing_comments=$(
-        "$DSO" ticket show "$health_ticket_id" 2>/dev/null \
-            | python3 -c '
-import json, sys
-try:
-    d = json.load(sys.stdin)
-    print("\n".join(c.get("body", "") for c in d.get("comments", [])))
-except Exception:
-    pass
-' || true
-    )
+    existing_comments=$(_read_ticket_comments "$health_ticket_id")
     if echo "$existing_comments" | grep -qF "$idempotency_marker"; then
         echo "calibration-report: skipping: rollup already posted for ${period}" >&2
         return 0
@@ -386,20 +378,7 @@ _cmd_quarterly() {
     # Post rollup as comment on calibration-program-health ticket
     # (default JSON format; --format=llm renames tags→tg)
     local health_ticket_id
-    health_ticket_id=$(
-        "$DSO" ticket list --type=epic 2>/dev/null \
-            | python3 -c '
-import json, sys
-try:
-    tickets = json.load(sys.stdin)
-except Exception:
-    tickets = []
-for t in tickets:
-    if "calibration-program-health" in t.get("tags", []):
-        print(t.get("ticket_id") or t.get("id", ""))
-        break
-' || true
-    )
+    health_ticket_id=$(_find_health_ticket)
 
     if [ -z "$health_ticket_id" ]; then
         echo "calibration-report: WARNING: calibration-program-health ticket not found; rollup not posted." >&2
@@ -411,17 +390,7 @@ for t in tickets:
     # Use ticket show comments (ticket list-comments does not exist as a subcommand).
     local idempotency_marker="<!-- calibration-rollup: period=${period} kind=quarterly -->"
     local existing_comments
-    existing_comments=$(
-        "$DSO" ticket show "$health_ticket_id" 2>/dev/null \
-            | python3 -c '
-import json, sys
-try:
-    d = json.load(sys.stdin)
-    print("\n".join(c.get("body", "") for c in d.get("comments", [])))
-except Exception:
-    pass
-' || true
-    )
+    existing_comments=$(_read_ticket_comments "$health_ticket_id")
     if echo "$existing_comments" | grep -qF "$idempotency_marker"; then
         echo "calibration-report: skipping: quarterly rollup already posted for ${period}" >&2
         return 0
@@ -429,6 +398,232 @@ except Exception:
 
     "$DSO" ticket comment "$health_ticket_id" "$rollup_body"
     echo "calibration-report: quarterly rollup comment posted to ticket ${health_ticket_id} for period ${period}" >&2
+}
+
+# ── Helper: find the calibration-program-health ticket ID ──────────────────
+# Emits the ticket ID to stdout, or empty string if not found.
+_find_health_ticket() {
+    "$DSO" ticket list --type=epic 2>/dev/null \
+        | python3 -c '
+import json, sys
+try:
+    tickets = json.load(sys.stdin)
+except Exception:
+    tickets = []
+for t in tickets:
+    if "calibration-program-health" in t.get("tags", []):
+        print(t.get("ticket_id") or t.get("id", ""))
+        break
+' || true
+}
+
+# ── Helper: resolve flock executable ───────────────────────────────────────
+# Returns 0 and prints path if found; returns 1 if unavailable.
+_find_flock() {
+    if command -v flock >/dev/null 2>&1; then
+        command -v flock
+    elif [ -x /opt/homebrew/opt/util-linux/bin/flock ]; then
+        echo "/opt/homebrew/opt/util-linux/bin/flock"
+    else
+        return 1
+    fi
+}
+
+# ── Helper: read existing comments from a ticket ───────────────────────────
+# Emits all comment bodies concatenated, one per line.
+_read_ticket_comments() {
+    local ticket_id="$1"
+    "$DSO" ticket show "$ticket_id" 2>/dev/null \
+        | python3 -c '
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    print("\n".join(c.get("body", "") for c in d.get("comments", [])))
+except Exception:
+    pass
+' || true
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Subcommand: mutation-append
+# ═══════════════════════════════════════════════════════════════════════════════
+_cmd_mutation_append() {
+    local pr_id="" findings_count="" dry_run=0
+
+    # Parse options
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --pr)
+                [[ $# -ge 2 ]] || { echo "calibration-report: --pr requires an argument" >&2; exit 1; }
+                pr_id="$2"
+                shift 2
+                ;;
+            --findings)
+                [[ $# -ge 2 ]] || { echo "calibration-report: --findings requires an argument" >&2; exit 1; }
+                findings_count="$2"
+                shift 2
+                ;;
+            --dry-run)
+                dry_run=1
+                shift
+                ;;
+            *)
+                echo "calibration-report mutation-append: unknown option: $1" >&2
+                _usage
+                exit 1
+                ;;
+        esac
+    done
+
+    # Validate required args
+    if [ -z "$pr_id" ]; then
+        echo "calibration-report mutation-append: --pr is required" >&2
+        exit 1
+    fi
+    if [ -z "$findings_count" ]; then
+        echo "calibration-report mutation-append: --findings is required" >&2
+        exit 1
+    fi
+
+    local idempotency_marker="<!-- calibration-mutation: pr=${pr_id} -->"
+    local comment_body
+    comment_body="${idempotency_marker}
+**Mutation Append** — PR #${pr_id} | findings: ${findings_count} | $(TZ="${CALIBRATION_TZ}" date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+    if [ "$dry_run" -eq 1 ]; then
+        echo "$comment_body"
+        return 0
+    fi
+
+    # Resolve health ticket
+    local health_ticket_id
+    health_ticket_id=$(_find_health_ticket)
+
+    if [ -z "$health_ticket_id" ]; then
+        echo "calibration-report: WARNING: calibration-program-health ticket not found; mutation-append not posted." >&2
+        echo "$comment_body"
+        return 0
+    fi
+
+    # Acquire exclusive lock per PR to prevent TOCTOU race (d079)
+    local _LOCK_FILE="/tmp/calibration-append-${pr_id}.lock"
+    local flock_bin
+    if flock_bin=$(_find_flock); then
+        (
+            "$flock_bin" -x 9
+            # Read-check-post sequence (inside lock)
+            local existing_comments
+            existing_comments=$(_read_ticket_comments "$health_ticket_id")
+            if echo "$existing_comments" | grep -qF "$idempotency_marker"; then
+                echo "calibration-report: skipping: mutation already posted for pr=${pr_id}" >&2
+                exit 0
+            fi
+            "$DSO" ticket comment "$health_ticket_id" "$comment_body"
+            echo "calibration-report: mutation-append comment posted to ticket ${health_ticket_id} for pr=${pr_id}" >&2
+        ) 9>"$_LOCK_FILE"
+    else
+        echo "calibration-report: WARNING: flock not available; proceeding without lock" >&2
+        # Read-check-post sequence (no lock — best effort)
+        local existing_comments
+        existing_comments=$(_read_ticket_comments "$health_ticket_id")
+        if echo "$existing_comments" | grep -qF "$idempotency_marker"; then
+            echo "calibration-report: skipping: mutation already posted for pr=${pr_id}" >&2
+            return 0
+        fi
+        "$DSO" ticket comment "$health_ticket_id" "$comment_body"
+        echo "calibration-report: mutation-append comment posted to ticket ${health_ticket_id} for pr=${pr_id}" >&2
+    fi
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Subcommand: churn-append
+# ═══════════════════════════════════════════════════════════════════════════════
+_cmd_churn_append() {
+    local pr_id="" churn_count="" dry_run=0
+
+    # Parse options
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --pr)
+                [[ $# -ge 2 ]] || { echo "calibration-report: --pr requires an argument" >&2; exit 1; }
+                pr_id="$2"
+                shift 2
+                ;;
+            --churn)
+                [[ $# -ge 2 ]] || { echo "calibration-report: --churn requires an argument" >&2; exit 1; }
+                churn_count="$2"
+                shift 2
+                ;;
+            --dry-run)
+                dry_run=1
+                shift
+                ;;
+            *)
+                echo "calibration-report churn-append: unknown option: $1" >&2
+                _usage
+                exit 1
+                ;;
+        esac
+    done
+
+    # Validate required args
+    if [ -z "$pr_id" ]; then
+        echo "calibration-report churn-append: --pr is required" >&2
+        exit 1
+    fi
+    if [ -z "$churn_count" ]; then
+        echo "calibration-report churn-append: --churn is required" >&2
+        exit 1
+    fi
+
+    local idempotency_marker="<!-- calibration-churn: pr=${pr_id} -->"
+    local comment_body
+    comment_body="${idempotency_marker}
+**Churn Append** — PR #${pr_id} | churn: ${churn_count} | $(TZ="${CALIBRATION_TZ}" date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+    if [ "$dry_run" -eq 1 ]; then
+        echo "$comment_body"
+        return 0
+    fi
+
+    # Resolve health ticket
+    local health_ticket_id
+    health_ticket_id=$(_find_health_ticket)
+
+    if [ -z "$health_ticket_id" ]; then
+        echo "calibration-report: WARNING: calibration-program-health ticket not found; churn-append not posted." >&2
+        echo "$comment_body"
+        return 0
+    fi
+
+    # Acquire exclusive lock per PR to prevent TOCTOU race (d079)
+    local _LOCK_FILE="/tmp/calibration-append-${pr_id}.lock"
+    local flock_bin
+    if flock_bin=$(_find_flock); then
+        (
+            "$flock_bin" -x 9
+            # Read-check-post sequence (inside lock)
+            local existing_comments
+            existing_comments=$(_read_ticket_comments "$health_ticket_id")
+            if echo "$existing_comments" | grep -qF "$idempotency_marker"; then
+                echo "calibration-report: skipping: churn already posted for pr=${pr_id}" >&2
+                exit 0
+            fi
+            "$DSO" ticket comment "$health_ticket_id" "$comment_body"
+            echo "calibration-report: churn-append comment posted to ticket ${health_ticket_id} for pr=${pr_id}" >&2
+        ) 9>"$_LOCK_FILE"
+    else
+        echo "calibration-report: WARNING: flock not available; proceeding without lock" >&2
+        # Read-check-post sequence (no lock — best effort)
+        local existing_comments
+        existing_comments=$(_read_ticket_comments "$health_ticket_id")
+        if echo "$existing_comments" | grep -qF "$idempotency_marker"; then
+            echo "calibration-report: skipping: churn already posted for pr=${pr_id}" >&2
+            return 0
+        fi
+        "$DSO" ticket comment "$health_ticket_id" "$comment_body"
+        echo "calibration-report: churn-append comment posted to ticket ${health_ticket_id} for pr=${pr_id}" >&2
+    fi
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -449,6 +644,12 @@ main() {
             ;;
         quarterly)
             _cmd_quarterly "$@"
+            ;;
+        mutation-append)
+            _cmd_mutation_append "$@"
+            ;;
+        churn-append)
+            _cmd_churn_append "$@"
             ;;
         *)
             echo "calibration-report: unknown subcommand: ${subcommand}" >&2
