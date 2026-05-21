@@ -51,8 +51,8 @@ check() {
 
 [[ -f "$LEDGER" ]] || { echo "FAIL: ledger not written"; exit 1; }
 
-check "schema_version is 1.1.0" \
-    "[[ \$(python3 -c \"import json; print(json.load(open('$LEDGER'))['schema_version'])\") == '1.1.0' ]]"
+check "schema_version is 1.2.0" \
+    "[[ \$(python3 -c \"import json; print(json.load(open('$LEDGER'))['schema_version'])\") == '1.2.0' ]]"
 
 check "reconstruction_gaps is true (v1.0.0 marker triggered gap)" \
     "[[ \$(python3 -c \"import json; d=json.load(open('$LEDGER')); print(d.get('reconstruction_gaps'))\") == 'True' ]]"

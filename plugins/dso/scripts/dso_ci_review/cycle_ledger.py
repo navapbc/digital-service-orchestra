@@ -26,7 +26,6 @@ import fcntl
 import hashlib
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -34,31 +33,25 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
+from dso_ci_review.cycle_marker_format import (
+    SENTINEL_PR_NUMBER as _SENTINEL_PR_NUMBER_FROM_FMT,
+    parse_cycle_marker,
+)
+
 
 # Sentinel pr_number for legacy v1.1.0 entries lacking explicit pr_number.
 # Reading: a v1.1.0 entry is materialized into the in-memory ledger with
 # pr_number=_SENTINEL_PR_NUMBER, which matches any pr_number filter until
 # the next review cycle on that PR writes a v1.2.0 entry that supersedes it.
 # Writing: append_cycle MUST NEVER write _SENTINEL_PR_NUMBER for new cycles.
-_SENTINEL_PR_NUMBER = 0
+#
+# Re-exported from cycle_marker_format (single source of truth post bug 9788).
+_SENTINEL_PR_NUMBER = _SENTINEL_PR_NUMBER_FROM_FMT
 
-# Marker grammar — must match the format documented in cycle-ledger.md
-#
-# v1.1.0 marker example:
-#   DSO-Review-Cycle: 1 commit_sha=abc123 findings_hash=h1 tuples=[["x.py","1","c"]]
-#
-# v1.2.0 marker example (adds pr_number= field before commit_sha):
-#   DSO-Review-Cycle: 1 pr_number=42 commit_sha=abc123 findings_hash=h1 tuples=[["x.py","1","c"]]
-#
-# We capture up to end-of-string for tuples= because the JSON value may contain
-# bracket nesting; a non-greedy /\[.*?\]/ would stop at the first inner ']'.
-_MARKER_RE_V12 = re.compile(
-    r"DSO-Review-Cycle:\s+(\S+)\s+pr_number=(\d+)\s+commit_sha=(\S+)\s+findings_hash=(\S+)\s+tuples=(\[.*\])\s*$"
-)
-_MARKER_RE_V11 = re.compile(
-    r"DSO-Review-Cycle:\s+(\S+)\s+commit_sha=(\S+)\s+findings_hash=(\S+)\s+tuples=(\[.*\])\s*$"
-)
-_MARKER_RE_LEGACY = re.compile(r"DSO-Review-Cycle:\s+(\S+)(?:\s+findings-hash=(\S+))?")
+# Marker grammar lives in dso_ci_review.cycle_marker_format (single source
+# of truth post bug 9788). This module dispatches via parse_cycle_marker()
+# and switches on the returned schema_version field rather than maintaining
+# its own regexes.
 
 
 def _resolve_artifacts_dir() -> str:
@@ -310,124 +303,54 @@ def reconstruct_from_pr_comments(pr_number: int, repo: str) -> dict:
             if not line.startswith("DSO-Review-Cycle:"):
                 continue
 
-            # Try v1.2.0 format first (pr_number field present)
-            m_v12 = _MARKER_RE_V12.search(line)
-            if m_v12:
-                try:
-                    cycle_num = int(m_v12.group(1))
-                    pr_num = int(m_v12.group(2))
-                except ValueError:
-                    print(
-                        f"WARNING: malformed v1.2.0 marker (non-int cycle_num or pr_number), "
-                        f"skipping: {line!r}",
-                        file=sys.stderr,
-                    )
-                    has_gaps = True
-                    continue
-                commit_sha = m_v12.group(3)
-                findings_hash = m_v12.group(4)
-                try:
-                    tuples = json.loads(m_v12.group(5))
-                except json.JSONDecodeError:
-                    print(
-                        f"WARNING: malformed v1.2.0 marker (bad tuples JSON), "
-                        f"skipping: {line!r}",
-                        file=sys.stderr,
-                    )
-                    has_gaps = True
-                    continue
-                # v1.2.0 always supersedes any existing entry for this cycle_num
-                seen_cycles[cycle_num] = (
-                    {
-                        "cycle_num": cycle_num,
-                        "pr_number": pr_num,
-                        "commit_sha": commit_sha,
-                        "findings": tuples,
-                        "findings_hash": findings_hash,
-                        "halt_reason": None,
-                    },
-                    True,  # is_v12
+            parsed = parse_cycle_marker(line)
+            if parsed is None:
+                # Either an unrecognized grammar OR a known grammar with a
+                # malformed tuples JSON. Both count as gaps for reconstruction
+                # confidence reporting.
+                print(
+                    f"WARNING: unrecognized or malformed DSO-Review-Cycle marker, "
+                    f"skipping: {line!r}",
+                    file=sys.stderr,
                 )
+                has_gaps = True
                 continue
 
-            # Try v1.1.0 format (no pr_number field)
-            m_v11 = _MARKER_RE_V11.search(line)
-            if m_v11:
-                try:
-                    cycle_num = int(m_v11.group(1))
-                except ValueError:
-                    print(
-                        f"WARNING: malformed v1.1.0 marker (non-int cycle_num), "
-                        f"skipping: {line!r}",
-                        file=sys.stderr,
-                    )
-                    has_gaps = True
-                    continue
-                commit_sha = m_v11.group(2)
-                findings_hash = m_v11.group(3)
-                try:
-                    tuples = json.loads(m_v11.group(4))
-                except json.JSONDecodeError:
-                    print(
-                        f"WARNING: malformed v1.1.0 marker (bad tuples JSON), "
-                        f"skipping: {line!r}",
-                        file=sys.stderr,
-                    )
-                    has_gaps = True
-                    continue
-                # v1.1.0 only added if no entry exists or existing entry is also v1.1.0;
-                # a v1.2.0 entry for the same cycle_num takes precedence.
-                existing = seen_cycles.get(cycle_num)
-                if existing is not None and existing[1]:
-                    # Already have a v1.2.0 entry for this cycle — skip v1.1.0
-                    continue
-                seen_cycles[cycle_num] = (
-                    {
-                        "cycle_num": cycle_num,
-                        "pr_number": _SENTINEL_PR_NUMBER,
-                        "commit_sha": commit_sha,
-                        "findings": tuples,
-                        "findings_hash": findings_hash,
-                        "halt_reason": None,
-                    },
-                    False,  # is_v12
-                )
-                continue
+            cycle_num = parsed.cycle_num
+            is_v12 = parsed.schema_version == "1.2.0"
 
-            # Fall back to legacy v1.0.0 format
-            m_legacy = _MARKER_RE_LEGACY.search(line)
-            if m_legacy:
-                try:
-                    cycle_num = int(m_legacy.group(1))
-                except ValueError:
-                    print(
-                        f"WARNING: malformed legacy marker (non-int cycle_num), "
-                        f"skipping: {line!r}",
-                        file=sys.stderr,
-                    )
-                    has_gaps = True
-                    continue
-                findings_hash = m_legacy.group(2) or ""
-                # Only add if no higher-version entry already captured this cycle_num
+            if parsed.schema_version == "1.0.0":
+                # Legacy format: only add if no higher-version entry already
+                # captured this cycle_num (legacy never supersedes).
                 if cycle_num not in seen_cycles:
                     seen_cycles[cycle_num] = (
                         {
                             "cycle_num": cycle_num,
                             "commit_sha": "",
                             "findings": [],
-                            "findings_hash": findings_hash,
+                            "findings_hash": parsed.findings_hash,
                             "halt_reason": None,
                         },
-                        False,  # is_v12
+                        False,
                     )
                 continue
 
-            # No grammar matched — count as gap and warn
-            print(
-                f"WARNING: unrecognized DSO-Review-Cycle marker, skipping: {line!r}",
-                file=sys.stderr,
-            )
-            has_gaps = True
+            if not is_v12:
+                # v1.1.0: only added if no v1.2.0 entry already captured this
+                # cycle_num (cycle-ledger.md:80 — Mixed-format dedup rule).
+                existing = seen_cycles.get(cycle_num)
+                if existing is not None and existing[1]:
+                    continue
+
+            entry = {
+                "cycle_num": cycle_num,
+                "pr_number": parsed.pr_number,
+                "commit_sha": parsed.commit_sha,
+                "findings": parsed.tuples,
+                "findings_hash": parsed.findings_hash,
+                "halt_reason": None,
+            }
+            seen_cycles[cycle_num] = (entry, is_v12)
 
     ledger["cycles"] = [entry for entry, _ in seen_cycles.values()]
 
