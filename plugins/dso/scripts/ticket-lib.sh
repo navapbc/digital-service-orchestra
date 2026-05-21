@@ -697,7 +697,12 @@ _push_tickets_branch() {
         _attempt=$((_attempt + 1))
         local _push_exit=0
         local _push_stderr=""
-        _push_stderr=$(PRE_COMMIT_ALLOW_NO_CONFIG=1 git -C "$base_path" push origin tickets 2>&1) || _push_exit=$?
+        # Push HEAD:tickets (not bare "tickets") so the current detached-HEAD
+        # commit is pushed regardless of refs/heads/tickets state. The
+        # .tickets-tracker worktree normally operates in detached HEAD; commits
+        # advance HEAD but not the local branch ref, so `push origin tickets`
+        # silently pushes a stale ref and fails non-fast-forward. Bug 27d8-b230.
+        _push_stderr=$(PRE_COMMIT_ALLOW_NO_CONFIG=1 git -C "$base_path" push origin HEAD:tickets 2>&1) || _push_exit=$?
 
         if [ "$_push_exit" -eq 0 ]; then
             return 0
