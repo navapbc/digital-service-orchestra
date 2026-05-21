@@ -109,7 +109,6 @@ ELIGIBLE_JSON="$(
     "$TICKET_CLI" ticket list \
         --type=epic \
         --status=closed \
-        --has-tag=brainstorm:complete \
         --format=llm 2>/dev/null \
     | python3 -c '
 import json, sys
@@ -120,9 +119,14 @@ try:
         if not line:
             continue
         try:
-            items.append(json.loads(line))
+            t = json.loads(line)
         except json.JSONDecodeError:
             continue
+        # Filter by tag in python — ticket list does not support --has-tag.
+        tags = t.get("tg") or t.get("tags") or []
+        if "brainstorm:complete" not in tags:
+            continue
+        items.append(t)
     items.sort(key=lambda t: t.get("closed_at", t.get("created_at", 0)), reverse=True)
     print(json.dumps(items))
 except Exception as e:
@@ -258,8 +262,8 @@ def classify_one(item_text):
 results = []
 for epic in epics:
     epic_id = epic.get('ticket_id') or epic.get('id', 'unknown')
-    title = epic.get('title', '')
-    desc = epic.get('description', '')
+    title = epic.get('title') or epic.get('ttl', '')
+    desc = epic.get('description') or epic.get('desc', '')
     items = extract_items(desc)
     counts = {'end-state': 0, 'transitional': 0, 'uncertain': 0}
     sample_transitional = []
