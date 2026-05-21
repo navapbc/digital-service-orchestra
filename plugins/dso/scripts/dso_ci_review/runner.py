@@ -52,6 +52,11 @@ from dso_ci_review.region_split import _should_region_split, run_region_split_st
 from dso_ci_review import cycle_ledger
 from dso_ci_review.arbiter import dispatch_cycle_end_arbiter
 from dso_ci_review.arbiter_processor import process_rulings
+from dso_ci_review.cycle_marker_format import (
+    cycle_dedup_key,
+    format_arbiter_marker,
+    format_cycle_marker,
+)
 from dso_ci_review.file_filter import (
     filter_files as _filter_files,
     load_filter_config as _load_filter_config,
@@ -427,7 +432,7 @@ def _post_arbiter_comment(
     if not pr_number:
         return
 
-    marker = f"DSO-Arbiter-Ruling: cycle={cycle_num} commit_sha={commit_sha}"
+    marker = format_arbiter_marker(cycle_num=cycle_num, commit_sha=commit_sha)
     if body is None:
         rulings_summary = json.dumps(rulings, indent=2)
         body = f"{marker}\n\n### Arbiter Rulings\n\n```json\n{rulings_summary}\n```"
@@ -1606,12 +1611,19 @@ def _post_cycle_marker_comment(
     commit_sha. If found, PATCHes it; otherwise creates a new comment.
     All gh CLI failures are logged as WARNINGs and are non-fatal.
     """
-    if pr_number is None:
+    # Pre-condition guard (see cycle_marker_format.format_cycle_marker docstring):
+    # the formatter raises ValueError on pr_number <= 0; convert that into a
+    # no-op here so callers without a real PR context (push-event reruns where
+    # PR_NUMBER may be unset) do not crash. Bug 9788 v3 fix scope.
+    if pr_number is None or int(pr_number) <= 0:
         return
 
-    body = (
-        f"DSO-Review-Cycle: cycle={cycle_num} commit_sha={commit_sha} "
-        f"findings_hash={findings_hash} tuples={json.dumps(tuples)}"
+    body = format_cycle_marker(
+        cycle_num=cycle_num,
+        pr_number=int(pr_number),
+        commit_sha=commit_sha,
+        findings_hash=findings_hash,
+        tuples=tuples,
     )
 
     # Fetch existing comments to check for dedup
@@ -1648,9 +1660,14 @@ def _post_cycle_marker_comment(
         )
         return
 
-    # Find existing comment matching BOTH cycle_num AND commit_sha
-    dedup_key_cycle = f"cycle={cycle_num}"
-    dedup_key_sha = f"commit_sha={commit_sha}"
+    # Find existing comment matching BOTH cycle_num AND commit_sha. The
+    # cycle_dedup_key helper returns two substrings guaranteed (by
+    # format_cycle_marker's documented format invariant) to appear verbatim
+    # in any well-formed cycle marker; pairing both protects against
+    # collision when one finding body coincidentally contains the cycle
+    # number or sha. Bug 9788 v3 fix scope (replaces the broken `cycle=K`
+    # substring that depended on the now-removed writer format).
+    dedup_key_cycle, dedup_key_sha = cycle_dedup_key(cycle_num, commit_sha)
     existing_id: int | None = None
     for comment in existing_comments:
         comment_body = comment.get("body", "")
@@ -2407,8 +2424,8 @@ def main() -> int:
                 artifacts_dir=artifacts_dir,
                 repo_root=repo,
             )
-            _arbiter_marker = (
-                f"DSO-Arbiter-Ruling: cycle={cycle_number} commit_sha={reviewed_sha}"
+            _arbiter_marker = format_arbiter_marker(
+                cycle_num=cycle_number, commit_sha=reviewed_sha
             )
             _arbiter_body = (
                 f"{_arbiter_marker}\n\n### Arbiter Rulings\n\n"
