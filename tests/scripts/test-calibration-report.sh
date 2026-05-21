@@ -340,4 +340,229 @@ STUB
 test_monthly_idempotency_skip_duplicate
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Test 9: quarterly subcommand exists in dispatcher
+#
+# Given: calibration-report.sh source file
+# When:  we grep for the quarterly) case in the dispatcher
+# Then:  it matches (proving the subcommand is registered)
+# ═══════════════════════════════════════════════════════════════════════════════
+echo "Test 9: quarterly subcommand registered in dispatcher"
+test_quarterly_subcommand_registered() {
+    _snapshot_fail
+
+    if [ ! -f "$CALIBRATION_SCRIPT" ]; then
+        assert_eq "calibration-report.sh exists (prereq)" "exists" "missing"
+        assert_pass_if_clean "test_quarterly_subcommand_registered"
+        return
+    fi
+
+    if grep -qE '^[[:space:]]*quarterly\)' "$CALIBRATION_SCRIPT"; then
+        assert_eq "quarterly) case registered" "found" "found"
+    else
+        assert_eq "quarterly) case registered" "found" "not-found"
+    fi
+
+    assert_pass_if_clean "test_quarterly_subcommand_registered"
+}
+test_quarterly_subcommand_registered
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Test 10: quarterly --dry-run output contains kind=quarterly HTML marker
+#
+# Given: fixture with 6 bugs across 3 channels
+# When:  quarterly --fixture --dry-run --period 2026-Q2
+# Then:  stdout contains <!-- calibration-rollup: period=2026-Q2 kind=quarterly -->
+# ═══════════════════════════════════════════════════════════════════════════════
+echo "Test 10: quarterly dry-run output contains kind=quarterly HTML marker"
+test_quarterly_dry_run_contains_marker() {
+    _snapshot_fail
+
+    if [ ! -x "$CALIBRATION_SCRIPT" ]; then
+        assert_eq "calibration-report.sh executable (prereq)" "executable" "missing"
+        assert_pass_if_clean "test_quarterly_dry_run_contains_marker"
+        return
+    fi
+
+    if [ ! -d "$FIXTURE_DIR" ]; then
+        assert_eq "fixture directory exists (prereq)" "exists" "missing"
+        assert_pass_if_clean "test_quarterly_dry_run_contains_marker"
+        return
+    fi
+
+    local out exit_code=0
+    out=$("$CALIBRATION_SCRIPT" quarterly --fixture "$FIXTURE_DIR" --dry-run --period 2026-Q2 2>/dev/null) \
+        || exit_code=$?
+
+    assert_eq "quarterly --dry-run exits 0" "0" "$exit_code"
+    assert_contains "stdout contains kind=quarterly marker" \
+        "<!-- calibration-rollup: period=2026-Q2 kind=quarterly -->" \
+        "$out"
+
+    assert_pass_if_clean "test_quarterly_dry_run_contains_marker"
+}
+test_quarterly_dry_run_contains_marker
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Test 11: quarterly aggregation shows correct per-channel counts
+#
+# Given: fixture with tests:3, review-llm:2, user-report:1
+# When:  quarterly --fixture --dry-run --period 2026-Q2
+# Then:  stdout shows channel names and counts matching fixture distribution
+# ═══════════════════════════════════════════════════════════════════════════════
+echo "Test 11: quarterly aggregation shows correct per-channel counts"
+test_quarterly_channel_counts() {
+    _snapshot_fail
+
+    if [ ! -x "$CALIBRATION_SCRIPT" ]; then
+        assert_eq "calibration-report.sh executable (prereq)" "executable" "missing"
+        assert_pass_if_clean "test_quarterly_channel_counts"
+        return
+    fi
+
+    if [ ! -d "$FIXTURE_DIR" ]; then
+        assert_eq "fixture directory exists (prereq)" "exists" "missing"
+        assert_pass_if_clean "test_quarterly_channel_counts"
+        return
+    fi
+
+    local out exit_code=0
+    out=$("$CALIBRATION_SCRIPT" quarterly --fixture "$FIXTURE_DIR" --dry-run --period 2026-Q2 2>/dev/null) \
+        || exit_code=$?
+
+    assert_eq "quarterly --dry-run exits 0" "0" "$exit_code"
+
+    assert_contains "stdout contains tests channel" "tests" "$out"
+    assert_contains "stdout contains review-llm channel" "review-llm" "$out"
+    assert_contains "stdout contains user-report channel" "user-report" "$out"
+
+    if echo "$out" | grep -q "tests.*3\|3.*tests"; then
+        assert_eq "tests channel count is 3" "found" "found"
+    else
+        assert_eq "tests channel count is 3" "found" "not-found"
+    fi
+
+    if echo "$out" | grep -q "review-llm.*2\|2.*review-llm"; then
+        assert_eq "review-llm channel count is 2" "found" "found"
+    else
+        assert_eq "review-llm channel count is 2" "found" "not-found"
+    fi
+
+    if echo "$out" | grep -q "user-report.*1\|1.*user-report"; then
+        assert_eq "user-report channel count is 1" "found" "found"
+    else
+        assert_eq "user-report channel count is 1" "found" "not-found"
+    fi
+
+    assert_pass_if_clean "test_quarterly_channel_counts"
+}
+test_quarterly_channel_counts
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Test 12: invalid quarter Q5 exits non-zero
+#
+# Given: --period 2026-Q5 (invalid; only Q1-Q4 are valid)
+# When:  quarterly is invoked with --period 2026-Q5 --dry-run
+# Then:  exit code is non-zero
+# ═══════════════════════════════════════════════════════════════════════════════
+echo "Test 12: invalid quarter Q5 exits non-zero"
+test_quarterly_invalid_q5_exits_nonzero() {
+    _snapshot_fail
+
+    if [ ! -x "$CALIBRATION_SCRIPT" ]; then
+        assert_eq "calibration-report.sh executable (prereq)" "executable" "missing"
+        assert_pass_if_clean "test_quarterly_invalid_q5_exits_nonzero"
+        return
+    fi
+
+    local exit_code=0
+    "$CALIBRATION_SCRIPT" quarterly --fixture "$FIXTURE_DIR" --dry-run --period 2026-Q5 2>/dev/null \
+        || exit_code=$?
+    assert_ne "Q5 exits non-zero" "0" "$exit_code"
+
+    assert_pass_if_clean "test_quarterly_invalid_q5_exits_nonzero"
+}
+test_quarterly_invalid_q5_exits_nonzero
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Test 13: monthly and quarterly markers are DISTINCT strings
+#
+# Given: same fixture, monthly period=2026-04, quarterly period=2026-Q2
+# When:  both subcommands run with --dry-run
+# Then:  the extracted HTML comment markers differ (no collision)
+# ═══════════════════════════════════════════════════════════════════════════════
+echo "Test 13: monthly and quarterly HTML markers are distinct"
+test_monthly_quarterly_markers_distinct() {
+    _snapshot_fail
+
+    if [ ! -x "$CALIBRATION_SCRIPT" ]; then
+        assert_eq "calibration-report.sh executable (prereq)" "executable" "missing"
+        assert_pass_if_clean "test_monthly_quarterly_markers_distinct"
+        return
+    fi
+
+    if [ ! -d "$FIXTURE_DIR" ]; then
+        assert_eq "fixture directory exists (prereq)" "exists" "missing"
+        assert_pass_if_clean "test_monthly_quarterly_markers_distinct"
+        return
+    fi
+
+    local m_marker q_marker
+    m_marker=$("$CALIBRATION_SCRIPT" monthly \
+        --fixture "$FIXTURE_DIR" --dry-run --period 2026-04 2>/dev/null \
+        | grep -oE '<!--[^>]*-->' | head -1)
+    q_marker=$("$CALIBRATION_SCRIPT" quarterly \
+        --fixture "$FIXTURE_DIR" --dry-run --period 2026-Q2 2>/dev/null \
+        | grep -oE '<!--[^>]*-->' | head -1)
+
+    assert_ne "monthly and quarterly markers are distinct" "$m_marker" "$q_marker"
+
+    # Also verify kind=quarterly appears in quarterly marker
+    if echo "$q_marker" | grep -q "kind=quarterly"; then
+        assert_eq "quarterly marker contains kind=quarterly" "found" "found"
+    else
+        assert_eq "quarterly marker contains kind=quarterly" "found" "not-found"
+    fi
+
+    # And kind=monthly appears in monthly marker
+    if echo "$m_marker" | grep -q "kind=monthly"; then
+        assert_eq "monthly marker contains kind=monthly" "found" "found"
+    else
+        assert_eq "monthly marker contains kind=monthly" "found" "not-found"
+    fi
+
+    assert_pass_if_clean "test_monthly_quarterly_markers_distinct"
+}
+test_monthly_quarterly_markers_distinct
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Test 14: aggregate_bugs_by_channel shared function used in both monthly + quarterly
+#
+# Given: calibration-report.sh source file
+# When:  we count occurrences of aggregate_bugs_by_channel (or aggregate_by_channel)
+# Then:  at least 2 references exist (definition + invocation from each subcommand)
+# ═══════════════════════════════════════════════════════════════════════════════
+echo "Test 14: shared aggregation function referenced at least twice"
+test_shared_aggregation_function_referenced() {
+    _snapshot_fail
+
+    if [ ! -f "$CALIBRATION_SCRIPT" ]; then
+        assert_eq "calibration-report.sh exists (prereq)" "exists" "missing"
+        assert_pass_if_clean "test_shared_aggregation_function_referenced"
+        return
+    fi
+
+    local count
+    count=$(grep -cE '(aggregate_bugs_by_channel|aggregate_by_channel)' "$CALIBRATION_SCRIPT" || true)
+
+    if [ "$count" -ge 2 ]; then
+        assert_eq "shared aggregation function referenced >= 2 times" "found" "found"
+    else
+        assert_eq "shared aggregation function referenced >= 2 times" "found" "not-found (count=$count)"
+    fi
+
+    assert_pass_if_clean "test_shared_aggregation_function_referenced"
+}
+test_shared_aggregation_function_referenced
+
+# ═══════════════════════════════════════════════════════════════════════════════
 print_summary
