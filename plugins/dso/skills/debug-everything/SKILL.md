@@ -514,8 +514,10 @@ For genuinely new failures (no matching open ticket exists), create a ticket. Fo
 
 ```bash
 # Title format: [Component]: [Condition] -> [Observed Result]
+# Detect filing channel for detected_by tag
+CHANNEL=$(DSO_FILING_CONTEXT=debug-everything bash "$PLUGIN_SCRIPTS/infer-detected-by.sh" 2>/dev/null || echo "other")
 # Capture both stdout and stderr to enable post-creation title validation
-BUG_CREATE_OUT=$(.claude/scripts/dso ticket create bug "[Component]: [Condition] -> [Observed Result]" -d "## Incident Overview ..." 2>/tmp/ticket_create_stderr.tmp)
+BUG_CREATE_OUT=$(.claude/scripts/dso ticket create bug "[Component]: [Condition] -> [Observed Result]" -d "## Incident Overview ..." --tags "detected_by:$CHANNEL" 2>/tmp/ticket_create_stderr.tmp)
 BUG_CREATE_ERR=$(cat /tmp/ticket_create_stderr.tmp); rm -f /tmp/ticket_create_stderr.tmp
 NEW_TICKET_ID=$(echo "$BUG_CREATE_OUT" | tail -1)
 
