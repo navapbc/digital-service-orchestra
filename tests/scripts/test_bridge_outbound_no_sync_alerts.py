@@ -161,9 +161,7 @@ def test_file_impact_event_no_sync_marker_writes_dedup_alert(
     mock_client.add_comment.assert_not_called()
 
     keys_first = _alert_dedup_keys(ticket_dir)
-    assert keys_first, (
-        "FILE_IMPACT on a no-SYNC ticket must write a BRIDGE_ALERT."
-    )
+    assert keys_first, "FILE_IMPACT on a no-SYNC ticket must write a BRIDGE_ALERT."
 
     bridge.process_outbound(
         events,
