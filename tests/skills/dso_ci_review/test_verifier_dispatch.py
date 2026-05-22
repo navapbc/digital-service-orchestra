@@ -43,6 +43,7 @@ def _enable_verifier(monkeypatch):
     """Force verifier enabled for all dispatch behavior tests."""
     monkeypatch.setattr(_verifier_mod, "_is_verifier_enabled", lambda: True)
 
+
 # ---------------------------------------------------------------------------
 # Shared constants
 # ---------------------------------------------------------------------------
@@ -169,9 +170,7 @@ class TestFabricatedEvidence:
         finding = _make_finding(severity="important")
         result = dispatch_verifier([finding], reviewed_sha=_CAPTURED_SHA)
 
-        assert result == [], (
-            f"Finding with drop ruling must be removed; got: {result}"
-        )
+        assert result == [], f"Finding with drop ruling must be removed; got: {result}"
 
 
 # ---------------------------------------------------------------------------
@@ -216,7 +215,9 @@ class TestShaConsistency:
         finding = _make_finding(severity="critical")
         dispatch_verifier([finding], reviewed_sha=_CAPTURED_SHA)
 
-        assert mock_call.called, "_call_verifier_agent must be called for critical findings"
+        assert mock_call.called, (
+            "_call_verifier_agent must be called for critical findings"
+        )
         _, kwargs = mock_call.call_args
         sha_received = kwargs.get("reviewed_sha") or mock_call.call_args[0][1]
         assert sha_received == _CAPTURED_SHA, (
@@ -422,7 +423,11 @@ class TestDropRuling:
 
         findings = [
             _make_finding(severity="important"),
-            {"severity": "important", "description": "Second finding", "cited_lines": ["bar.py:1"]},
+            {
+                "severity": "important",
+                "description": "Second finding",
+                "cited_lines": ["bar.py:1"],
+            },
         ]
         result = dispatch_verifier(findings, reviewed_sha=_CAPTURED_SHA)
 

@@ -1,0 +1,97 @@
+# Digital Service Orchestra (DSO) — Calibration Rollup
+# Automates calibration data collection:
+#   - On PR merge to main: appends mutation and churn records
+#   - On monthly schedule: generates monthly rollup report
+#   - On quarterly schedule: generates quarterly rollup report
+#
+# Invokes the calibration-report.sh script via the .claude/scripts/dso shim
+# so that the correct plugin root is resolved at runtime.
+
+name: Calibration Rollup
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 6 1 * *'        # monthly: 1st of each month at 06:00 UTC
+    - cron: '0 6 1 1,4,7,10 *' # quarterly: 1st of Jan/Apr/Jul/Oct at 06:00 UTC
+
+jobs:
+  calibration-rollup:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    concurrency:
+      group: calibration-rollup-${{ github.event_name }}
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fixture correctness check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          bash tests/scripts/test-calibration-attribution-e2e.sh
+
+      - name: Dry-run comment shape check
+        if: github.event_name == 'push'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_SHA: ${{ github.sha }}
+        run: |
+          _DRY_OUT=$(.claude/scripts/dso calibration-report.sh mutation-append \
+            --pr "${GH_SHA}" --findings 0 --dry-run 2>&1)
+          echo "$_DRY_OUT"
+          if ! echo "$_DRY_OUT" | grep -qF '<!-- calibration-mutation:'; then
+            echo "ERROR: dry-run output missing idempotency marker '<!-- calibration-mutation:'" >&2
+            exit 1
+          fi
+
+      - name: Append mutation calibration data (push only)
+        if: github.event_name == 'push'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_SHA: ${{ github.sha }}
+          # MUTATION_FINDINGS_COUNT: injected by upstream mutation-testing step (bug ad1d-c14f)
+        run: |
+          if [ -z "${MUTATION_FINDINGS_COUNT:-}" ]; then
+            echo "calibration-rollup: MUTATION_FINDINGS_COUNT not set; skipping mutation append (bug ad1d-c14f)"
+            exit 0
+          fi
+          .claude/scripts/dso calibration-report.sh mutation-append \
+            --pr "${GH_SHA}" \
+            --findings "${MUTATION_FINDINGS_COUNT}"
+
+      - name: Append churn calibration data (push only)
+        if: github.event_name == 'push'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_SHA: ${{ github.sha }}
+          # SUITE_CHURN_COUNT: injected by upstream test-churn step (bug ad1d-c14f)
+        run: |
+          if [ -z "${SUITE_CHURN_COUNT:-}" ]; then
+            echo "calibration-rollup: SUITE_CHURN_COUNT not set; skipping churn append (bug ad1d-c14f)"
+            exit 0
+          fi
+          .claude/scripts/dso calibration-report.sh churn-append \
+            --pr "${GH_SHA}" \
+            --churn "${SUITE_CHURN_COUNT}"
+
+      - name: Generate monthly rollup report
+        if: github.event_name == 'schedule'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          .claude/scripts/dso calibration-report.sh monthly
+
+      - name: Generate quarterly rollup report
+        if: github.event_name == 'schedule'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          .claude/scripts/dso calibration-report.sh quarterly

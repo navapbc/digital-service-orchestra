@@ -1226,7 +1226,7 @@ def test_absence_claim_fallback_injects_verification_evidence_boilerplate(
             "category": "correctness",
             "description": "Handler is not present in the module",
             "file": f"src/file{i}.py",
-            "cited_lines": [f"src/file{i}.py:{i+1}"],
+            "cited_lines": [f"src/file{i}.py:{i + 1}"],
             "finding_id": f"f-cc00000{i}",
             "cited_excerpt": "# nothing",
             "reachability": "caller → missing handler → crash",
@@ -1338,7 +1338,12 @@ def test_synthetic_only_original_allows_zero_real_findings(monkeypatch) -> None:
     )
     # The accepted correction result is the empty list, so the final findings
     # contain neither the synthetic schema_error nor the original sentinel.
-    real = [f for f in findings if f.get("type") not in {"fallback_exhausted", "specialist_error", "parse_error"}]
+    real = [
+        f
+        for f in findings
+        if f.get("type")
+        not in {"fallback_exhausted", "specialist_error", "parse_error"}
+    ]
     assert real == [], f"Expected zero real findings; got {real}"
 
 
@@ -1476,5 +1481,10 @@ def test_interleaved_real_and_synthetic_zip_alignment(monkeypatch) -> None:
         f"(synthetic correctly dropped). No schema_error expected. got: {findings}"
     )
     # Sanity: the corrected real finding made it through
-    real_findings = [f for f in findings if f.get("type") not in {"fallback_exhausted", "specialist_error", "parse_error"}]
+    real_findings = [
+        f
+        for f in findings
+        if f.get("type")
+        not in {"fallback_exhausted", "specialist_error", "parse_error"}
+    ]
     assert len(real_findings) == 1, f"Expected 1 real finding; got {len(real_findings)}"

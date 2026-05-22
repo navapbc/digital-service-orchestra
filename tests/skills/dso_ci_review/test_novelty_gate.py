@@ -2,6 +2,7 @@
 RED tests for _apply_novelty_gate in runner.py.
 All tests must fail before T3 (GREEN) implements _apply_novelty_gate.
 """
+
 from __future__ import annotations
 
 import pathlib
@@ -64,9 +65,7 @@ def test_novelty_gate_passes_with_valid_escape_rationale():
     defenses = []
     diff_text = "token_word some diff content line 10"
 
-    with patch(
-        "dso_ci_review.runner.validate_escape_rationale", return_value=True
-    ):
+    with patch("dso_ci_review.runner.validate_escape_rationale", return_value=True):
         result_findings, _stats = _apply_novelty_gate(
             findings=[finding],
             defenses=defenses,
@@ -224,7 +223,7 @@ def test_novelty_gate_no_defenses_downgrades_all_new_introduced():
     findings = [
         _make_finding(
             relation="NEW_INTRODUCED",
-            cited_lines=[f"file.py:{i*10}"],
+            cited_lines=[f"file.py:{i * 10}"],
             severity="critical",
         )
         for i in range(1, 4)
@@ -251,10 +250,27 @@ def test_novelty_gate_no_defenses_downgrades_all_new_introduced():
 def test_pr102_new_file_findings_all_downgraded():
     """Replay test: PR-102 cycle 2 new-file findings should all be downgraded."""
     import json
-    fixtures_dir = pathlib.Path(__file__).parent.parent.parent / "fixtures"
-    findings = [json.loads(line) for line in (fixtures_dir / "pr-102-cycle-2-new-file-findings.jsonl").read_text().splitlines() if line.strip()]
-    defenses = [json.loads(line) for line in (fixtures_dir / "pr-102-cycle-1-defenses.jsonl").read_text().splitlines() if line.strip()]
 
-    result, stats = _apply_novelty_gate(findings, defenses, diff_text="", cycle_number=2)
+    fixtures_dir = pathlib.Path(__file__).parent.parent.parent / "fixtures"
+    findings = [
+        json.loads(line)
+        for line in (fixtures_dir / "pr-102-cycle-2-new-file-findings.jsonl")
+        .read_text()
+        .splitlines()
+        if line.strip()
+    ]
+    defenses = [
+        json.loads(line)
+        for line in (fixtures_dir / "pr-102-cycle-1-defenses.jsonl")
+        .read_text()
+        .splitlines()
+        if line.strip()
+    ]
+
+    result, stats = _apply_novelty_gate(
+        findings, defenses, diff_text="", cycle_number=2
+    )
     downgraded = [f for f in result if f.get("severity") == "suggestion"]
-    assert len(downgraded) == len(findings), f"Expected 100% downgraded, got {len(downgraded)}/{len(findings)}"
+    assert len(downgraded) == len(findings), (
+        f"Expected 100% downgraded, got {len(downgraded)}/{len(findings)}"
+    )
