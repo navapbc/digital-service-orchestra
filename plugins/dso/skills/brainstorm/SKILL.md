@@ -431,6 +431,18 @@ Track provenance internally — the approval gate (Step 4) uses these categories
 
 When drafting the epic spec narrative in Phase 2, wrap inferred input source noun phrases with `<<inferred:source-name>>` structural markers. For example, if the spec mentions "data fetched from the user service" and the user service was inferred (not explicitly stated), write `<<inferred:user-service>>` around the reference. See `${CLAUDE_PLUGIN_ROOT}/docs/contracts/inferred-source-marker.md` for the full contract specification.
 
+### State Lifecycle Owner Block (conditional, bug 3f3d-3834-0714-4d98)
+
+When the epic introduces or modifies any shared state — a CI repo variable, a sprint marker file (e.g., `.sprint-active`), a lock file, a `/tmp` artifact consumed by hooks, an environment variable consumed by other skills, a `.tickets-tracker` event class, or any similar piece of state read or written by code outside the epic's primary modules — write a `## State Lifecycle` section into the epic spec with one row per shared-state variable:
+
+| Variable | CREATE | UPDATE | CONSUME | RETIRE |
+|----------|--------|--------|---------|--------|
+| `<name>` | <which skill/script writes it the first time> | <which skill/script mutates it after creation> | <every skill/script that reads it> | <which skill/script removes it, AND under what condition> |
+
+Each cell names the **specific skill, script, or hook** that performs the action — not a category. If a CONSUMER is unknown, mark it `UNKNOWN — investigate before sprint` so the gap is visible at approval time rather than discovered post-merge when a consumer reads stale or missing state. RETIRE must always be filled in (even if "never retired — persists for project lifetime"): an unowned RETIRE row is itself a state-lifecycle defect, and the most common shape of bug 3f3d.
+
+Skip this section only when the epic introduces NO shared state — pure local changes inside a single skill or library that are read and written only by that module. The litmus test: if any code outside the files this epic edits reads the variable, RETIRE must be answered.
+
 ### Step 2.25: Cross-Epic Interaction Scan
 
 <HARD-GATE>
@@ -464,6 +476,17 @@ SUBSTITUTIONS PROHIBITED. The canonical scrutiny pipeline (epic-scrutiny-pipelin
 - Any agent or workflow not named in epic-scrutiny-pipeline.md
 
 When /dso:plan-review or any non-canonical substitute was used, the brainstorm:complete tag will be REJECTED by the validator because no "### Planning Intelligence Log" event will be present. The only remedy is to run the canonical pipeline from the beginning. There is no bypass, annotation, or override — the PIL marker must be written by the canonical pipeline.
+
+USER-FACING SKIP PROHIBITED (bug 1dbc-3717-bef5-4d72). The scrutiny
+pipeline is also non-optional from the user's perspective. NEVER present
+the user with a choice that includes skipping, deferring, abbreviating,
+or "running scrutiny later" as an option — regardless of token budget,
+time pressure, or context constraints. Offering a skip as a user-facing
+choice is itself a HARD-GATE violation, because the option text creates
+permission the gate is supposed to deny. The only valid scrutiny-skip is
+the placeholder-epic exception documented later in this skill
+(`scrutiny:pending` stub epics that defer scrutiny until they are
+expanded into real epics).
 </HARD-GATE>
 
 Read and execute `skills/shared/workflows/epic-scrutiny-pipeline.md`. Pass the current epic spec as input, with:
@@ -501,7 +524,9 @@ After the pipeline returns, read `phases/post-scrutiny-handlers.md` and execute 
 ### Step 4: Approval Gate
 
 <HARD-GATE>
-Before reading approval-gate.md: Red Team, Blue Team, and all three fidelity reviewers must have run as dispatched sub-agent calls. Valid exemptions: ≤2 SCs (scenario skipped), no integration signals (feasibility skipped). Inline reasoning does not count as dispatch. Dispatch any missing agents now.
+Before reading approval-gate.md: Red Team, Blue Team, and all three fidelity reviewers — **Agent Clarity** (`skills/shared/docs/reviewers/agent-clarity.md`), **Scope** (`skills/shared/docs/reviewers/scope.md`), and **Value** (`skills/shared/docs/reviewers/value.md`) — must have run as dispatched sub-agent calls. Valid exemptions: ≤2 SCs (scenario skipped), no integration signals (feasibility skipped). Inline reasoning does not count as dispatch. Dispatch any missing agents now.
+
+SUBSTITUTIONS PROHIBITED for fidelity reviewers (bug ae9a-7074-af10-4d52). The three fidelity reviewers listed above are the ONLY valid path for fidelity dispatch. `/dso:plan-review` is NOT a substitute for any of them — it dispatches red-team-reviewer + blue-team-filter + plan-review, which cover scrutiny but do NOT exercise the Agent Clarity / Scope / Value rubrics. Substituting `/dso:plan-review` for fidelity is the same class of bypass as substituting it for scrutiny (see the earlier HARD-GATE on `SUBSTITUTIONS PROHIBITED`).
 </HARD-GATE>
 
 Read and execute `phases/approval-gate.md`. On approval, proceed to Phase 3.
