@@ -359,6 +359,24 @@ def dispatch_arbiter(
             if finding.get("severity") in ("critical", "important")
         ]
 
+    # DIAGNOSTIC (bug 47b0-8023 — 5th-layer agent-collapse instrumentation):
+    # Capture the raw dispatch_review return value to disambiguate which of
+    # hypotheses A-E applies (model collapse vs parser collapse vs wrapper
+    # vs truncation). Logged to stderr so it lands in CI job logs.
+    try:
+        _result_repr = (
+            _json.dumps(result)[:8000] if not isinstance(result, str) else result[:8000]
+        )
+    except (TypeError, ValueError):
+        _result_repr = repr(result)[:8000]
+    print(
+        f"arbiter_raw_result type={type(result).__name__} "
+        f"len={len(result) if hasattr(result, '__len__') else 'n/a'} "
+        f"findings_count={len(findings)} "
+        f"repr={_result_repr}",
+        file=sys.stderr,
+    )
+
     # Agent contract: returns a JSON array of per-finding rulings.
     # Backward-compat: a single-ruling dict response is wrapped in a list.
     if isinstance(result, dict):
