@@ -772,6 +772,16 @@ Press Enter or type 'a' for local (recommended for most projects).
 
 Record the choice in the scratchpad as `DSO_WORKFLOW=local` or `DSO_WORKFLOW=ci-pr`. On `ci-pr`, also note: the GitHub Ruleset will be provisioned during the `initial-commit` batch (GitHub bootstrap step). If a 'DSO CI Enforcement' Ruleset already exists on the repo, `github-bootstrap.sh` will exit with an error directing you to disable the Ruleset for the bootstrap window before retrying.
 
+**`ci-pr` reviewer verifier recommendation**: When `DSO_WORKFLOW=ci-pr`, recommend enabling the absence-claim verifier in the Phase 3 config write:
+
+```
+# Recommended for ci-pr workflows: enables the absence-claim verifier agent,
+# which filters false-positive findings before the autonomous resolution loop.
+review.verifier_enabled=true
+```
+
+Write this key to `.claude/dso-config.conf` when `DSO_WORKFLOW=ci-pr` and the key is not already present. For `local` mode, omit the key (verifier adds no value without a CI review pipeline).
+
 #### 12. CI trigger events
 
 **MANDATORY PROMPT — do NOT assume a PR-based workflow.** Apply the Confidence Routing rules above.
