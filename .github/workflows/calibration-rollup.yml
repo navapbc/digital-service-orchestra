@@ -32,6 +32,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Fixture correctness check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          bash tests/scripts/test-calibration-attribution-e2e.sh
+
       - name: Append mutation calibration data (push only)
         if: github.event_name == 'push'
         env:
