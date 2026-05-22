@@ -590,6 +590,7 @@ ticket_list() {
         local filter_type=""
         local filter_status=""
         local filter_parent=""
+        local filter_tag=""
         local arg
         for arg in "$@"; do
             case "$arg" in
@@ -612,8 +613,11 @@ ticket_list() {
                 --parent=*)
                     filter_parent="${arg#--parent=}"
                     ;;
+                --has-tag=*)
+                    filter_tag="${arg#--has-tag=}"
+                    ;;
                 --help|-h)
-                    echo "Usage: ticket list [--format=llm] [--include-archived] [--type=<type>] [--status=<status>] [--parent=<id>]" >&2
+                    echo "Usage: ticket list [--format=llm] [--include-archived] [--type=<type>] [--status=<status>] [--parent=<id>] [--has-tag=<tag>]" >&2
                     return 0
                     ;;
                 -*)
@@ -623,6 +627,17 @@ ticket_list() {
             esac
         done
 
+        # --has-tag=detected_by:* auto-intersects with bug type (detected_by namespace is bug-only)
+        if [ -n "$filter_tag" ]; then
+            case "$filter_tag" in
+                detected_by:*)
+                    if [ -z "$filter_type" ]; then
+                        filter_type="bug"
+                    fi
+                    ;;
+            esac
+        fi
+
         if [ ! -d "$TRACKER_DIR" ]; then
             echo "Error: ticket system not initialized. Run 'ticket init' first." >&2
             return 1
@@ -631,7 +646,7 @@ ticket_list() {
         if [ "$format" = "llm" ]; then
             _TRACKER_DIR="$TRACKER_DIR" _INCLUDE_ARCHIVED="$include_archived" \
             _TYPE_FILTER="$filter_type" _STATUS_FILTER="$filter_status" \
-            _PARENT_FILTER="$filter_parent" \
+            _PARENT_FILTER="$filter_parent" _TAG_FILTER="$filter_tag" \
             _SCRIPT_DIR="$_TICKETLIB_DIR" python3 -c "
 import sys, os, json
 sys.path.insert(0, os.environ['_SCRIPT_DIR'])
@@ -643,6 +658,7 @@ include_archived = os.environ.get('_INCLUDE_ARCHIVED', '') == 'true'
 type_filter = os.environ.get('_TYPE_FILTER', '')
 status_filter = os.environ.get('_STATUS_FILTER', '')
 parent_filter = os.environ.get('_PARENT_FILTER', '')
+tag_filter = os.environ.get('_TAG_FILTER', '')
 
 results = reduce_all_tickets(tracker_dir, exclude_archived=not include_archived)
 if status_filter not in ('error', 'fsck_needed'):
@@ -654,13 +670,15 @@ if status_filter:
     results = [t for t in results if t.get('status') in status_values]
 if parent_filter:
     results = [t for t in results if t.get('parent_id') == parent_filter]
+if tag_filter:
+    results = [t for t in results if tag_filter in (t.get('tags') or [])]
 for t in results:
     print(json.dumps(to_llm(t), ensure_ascii=False, separators=(',', ':')))
 "
         else
             _TRACKER_DIR="$TRACKER_DIR" _INCLUDE_ARCHIVED="$include_archived" \
             _TYPE_FILTER="$filter_type" _STATUS_FILTER="$filter_status" \
-            _PARENT_FILTER="$filter_parent" \
+            _PARENT_FILTER="$filter_parent" _TAG_FILTER="$filter_tag" \
             _SCRIPT_DIR="$_TICKETLIB_DIR" python3 -c "
 import sys, os, json
 sys.path.insert(0, os.environ['_SCRIPT_DIR'])
@@ -671,6 +689,7 @@ include_archived = os.environ.get('_INCLUDE_ARCHIVED', '') == 'true'
 type_filter = os.environ.get('_TYPE_FILTER', '')
 status_filter = os.environ.get('_STATUS_FILTER', '')
 parent_filter = os.environ.get('_PARENT_FILTER', '')
+tag_filter = os.environ.get('_TAG_FILTER', '')
 
 results = reduce_all_tickets(tracker_dir, exclude_archived=not include_archived)
 if status_filter not in ('error', 'fsck_needed'):
@@ -682,6 +701,8 @@ if status_filter:
     results = [t for t in results if t.get('status') in status_values]
 if parent_filter:
     results = [t for t in results if t.get('parent_id') == parent_filter]
+if tag_filter:
+    results = [t for t in results if tag_filter in (t.get('tags') or [])]
 print(json.dumps(results, ensure_ascii=False))
 
 alerted_count = sum(

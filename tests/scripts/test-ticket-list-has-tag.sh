@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # tests/scripts/test-ticket-list-has-tag.sh
-# RED tests for --has-tag filter in plugins/dso/scripts/ticket-list.sh.
+# RED tests for --has-tag filter in ticket list (both legacy ticket-list.sh and
+# in-process ticket_list() in ticket-lib-api.sh).
 #
-# Covers 4 scenarios:
+# Covers 4 scenarios x 2 paths (legacy and in-process via `ticket` dispatcher):
 #   1. Bug with detected_by:tests tag → appears in --has-tag=detected_by:tests results
 #   2. Story (non-bug) with detected_by:tests tag → does NOT appear in
 #      --has-tag=detected_by:tests results (detected_by namespace auto-intersects with bug type)
@@ -15,6 +16,8 @@
 # tests/scripts/test-ticket-list-has-tag.sh [test_non_bug_excluded_from_detected_by_filter]
 # tests/scripts/test-ticket-list-has-tag.sh [test_non_bug_included_for_non_detected_by_tag]
 # tests/scripts/test-ticket-list-has-tag.sh [test_no_matching_tickets_exits_0_empty]
+# tests/scripts/test-ticket-list-has-tag.sh [test_inprocess_bug_with_detected_by_tag_appears]
+# tests/scripts/test-ticket-list-has-tag.sh [test_inprocess_non_bug_excluded_from_detected_by_filter]
 #
 # Usage: bash tests/scripts/test-ticket-list-has-tag.sh
 # Returns: exit 0 if all tests pass, exit non-zero if any fail
@@ -25,6 +28,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 TICKET_LIST_SCRIPT="$PLUGIN_ROOT/plugins/dso/scripts/ticket-list.sh"
+TICKET_DISPATCHER="$PLUGIN_ROOT/plugins/dso/scripts/ticket"
 TICKET_REDUCER_DIR="$PLUGIN_ROOT/plugins/dso/scripts"
 
 source "$SCRIPT_DIR/../lib/assert.sh"
@@ -256,5 +260,62 @@ except Exception as e:
     assert_eq "test4: result is empty array (0 tickets)" "0" "$ticket_count"
 }
 test_no_matching_tickets_exits_0_empty
+
+# ── In-process path tests (ticket_list() in ticket-lib-api.sh) ────────────────
+# These exercise the default (non-legacy) path used by `.claude/scripts/dso ticket list`.
+
+# ── Scenario 5: in-process — bug with detected_by:tests appears ───────────────
+echo "Test 5: [in-process] bug with detected_by:tests tag appears in --has-tag=detected_by:tests results"
+test_inprocess_bug_with_detected_by_tag_appears() {
+    local tracker_dir
+    tracker_dir=$(_make_tracker)
+
+    local output exit_code=0
+    output=$(TICKETS_TRACKER_DIR="$tracker_dir" bash "$TICKET_DISPATCHER" list \
+        --has-tag=detected_by:tests 2>/dev/null) || exit_code=$?
+
+    assert_eq "test5: in-process --has-tag exits 0" "0" "$exit_code"
+
+    local found
+    found=$(python3 -c "
+import json, sys
+try:
+    tickets = json.loads(sys.argv[1])
+    ids = [t.get('ticket_id') for t in tickets if isinstance(t, dict)]
+    print('found' if 'bug-tag-001' in ids else 'missing')
+except Exception as e:
+    print(f'error:{e}')
+" "$output" 2>/dev/null || echo "error:parse")
+
+    assert_eq "test5: bug-tag-001 found in in-process --has-tag=detected_by:tests output" "found" "$found"
+}
+test_inprocess_bug_with_detected_by_tag_appears
+
+# ── Scenario 6: in-process — non-bug story EXCLUDED by detected_by auto-intersect ─
+echo "Test 6: [in-process] non-bug story with detected_by:tests tag does NOT appear (auto-intersect with type=bug)"
+test_inprocess_non_bug_excluded_from_detected_by_filter() {
+    local tracker_dir
+    tracker_dir=$(_make_tracker)
+
+    local output exit_code=0
+    output=$(TICKETS_TRACKER_DIR="$tracker_dir" bash "$TICKET_DISPATCHER" list \
+        --has-tag=detected_by:tests 2>/dev/null) || exit_code=$?
+
+    assert_eq "test6: in-process --has-tag exits 0" "0" "$exit_code"
+
+    local found
+    found=$(python3 -c "
+import json, sys
+try:
+    tickets = json.loads(sys.argv[1])
+    ids = [t.get('ticket_id') for t in tickets if isinstance(t, dict)]
+    print('present' if 'story-tag-001' in ids else 'absent')
+except Exception as e:
+    print(f'error:{e}')
+" "$output" 2>/dev/null || echo "error:parse")
+
+    assert_eq "test6: story-tag-001 absent from in-process --has-tag=detected_by:tests output" "absent" "$found"
+}
+test_inprocess_non_bug_excluded_from_detected_by_filter
 
 print_summary
