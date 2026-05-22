@@ -1,1 +1,0 @@
-{"author":"Test","data":{"body":"Classification: llm-behavioral (dual-signal: ticket references LLM output quality + affected file is plugins/dso/agents/code-reviewer-arbiter.md)"},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1779473614075388000,"uuid":"bb694370-b63b-478b-a55f-cd78cb5b6681"}
