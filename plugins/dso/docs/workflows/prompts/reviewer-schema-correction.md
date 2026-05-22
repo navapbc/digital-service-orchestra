@@ -19,8 +19,10 @@ You MUST NOT:
 - Remove existing findings
 - Change any finding's severity
 - Re-evaluate the diff or reassess code quality
-- Alter any finding's description or category
+- Alter any finding's description
 - Change scores or summary assessments
+
+`category` is **conditionally** modifiable — see SAFEGUARD 2 below for the exact rule.
 
 The findings below were produced by a code reviewer agent. That agent's judgments are
 final. Your only job is to correct field-level schema violations so the JSON passes
@@ -37,11 +39,21 @@ not for clarity, not to fix perceived errors in their content.
 | Field | Frozen |
 |---|---|
 | `severity` | YES — byte-for-byte identical to original |
-| `category` | YES — byte-for-byte identical to original |
+| `category` | CONDITIONAL — must be in the canonical 5-value enum {`correctness`, `design`, `hygiene`, `maintainability`, `verification`}; remap to the closest canonical value when the original is off-enum (see schema-correction.md). When the original is already canonical, the field is frozen. |
 | `description` | YES — byte-for-byte identical to original |
 | `file` | YES — byte-for-byte identical to original |
 | `cited_lines` | CONDITIONAL — see exception below |
 | `finding_id` | YES — byte-for-byte identical to original (see exception below) |
+
+**`category` exception (bug 0623-54f4-d31b-4623)**: The validator
+(`validate-review-output.sh`) hard-rejects any `category` outside the canonical
+5-value enum: `correctness`, `design`, `hygiene`, `maintainability`,
+`verification`. When the original `category` is OFF that enum (e.g.
+`code_smell`, `missing_test_coverage`), you MUST remap it to the closest
+canonical value during correction (e.g. `code_smell` → `hygiene`;
+`missing_test_coverage` → `verification`). When the original `category` is
+already canonical, treat it as frozen — do NOT re-map between canonical
+buckets.
 
 **`cited_lines` exception**: If the original `cited_lines` is absent, empty (`[]`), or
 contains entries that do not match the valid formats, you MAY correct the malformed
