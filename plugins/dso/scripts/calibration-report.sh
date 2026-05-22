@@ -266,9 +266,8 @@ _cmd_monthly() {
     health_ticket_id=$(_find_health_ticket)
 
     if [ -z "$health_ticket_id" ]; then
-        echo "calibration-report: WARNING: calibration-program-health ticket not found; rollup not posted." >&2
-        echo "$rollup_body"
-        return 0
+        echo "calibration-report: ERROR: calibration-program-health ticket not found. Run dso-bootstrap-calibration-tickets.sh to create it." >&2
+        exit 1
     fi
 
     # Idempotency guard: check via ticket show comments (ticket list-comments does not exist).
@@ -382,9 +381,8 @@ _cmd_quarterly() {
     health_ticket_id=$(_find_health_ticket)
 
     if [ -z "$health_ticket_id" ]; then
-        echo "calibration-report: WARNING: calibration-program-health ticket not found; rollup not posted." >&2
-        echo "$rollup_body"
-        return 0
+        echo "calibration-report: ERROR: calibration-program-health ticket not found. Run dso-bootstrap-calibration-tickets.sh to create it." >&2
+        exit 1
     fi
 
     # Idempotency guard: quarterly markers use kind=quarterly — no collision with monthly.
@@ -501,7 +499,7 @@ _cmd_mutation_append() {
     health_ticket_id=$(_find_health_ticket)
 
     if [ -z "$health_ticket_id" ]; then
-        echo "calibration-report: ERROR: calibration-program-health ticket not found; run bootstrap first." >&2
+        echo "calibration-report: ERROR: calibration-program-health ticket not found. Run dso-bootstrap-calibration-tickets.sh to create it." >&2
         exit 1
     fi
 
@@ -591,7 +589,7 @@ _cmd_churn_append() {
     health_ticket_id=$(_find_health_ticket)
 
     if [ -z "$health_ticket_id" ]; then
-        echo "calibration-report: ERROR: calibration-program-health ticket not found; run bootstrap first." >&2
+        echo "calibration-report: ERROR: calibration-program-health ticket not found. Run dso-bootstrap-calibration-tickets.sh to create it." >&2
         exit 1
     fi
 

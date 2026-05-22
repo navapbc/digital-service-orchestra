@@ -65,7 +65,7 @@ test_monthly_fixture_exits_0_with_channel_breakdown() {
     _snapshot_fail
 
     local out exit_code=0
-    out=$(bash "$CALIBRATION_SCRIPT" monthly --fixture "$FIXTURE_DIR" 2>/dev/null) || exit_code=$?
+    out=$(bash "$CALIBRATION_SCRIPT" monthly --fixture "$FIXTURE_DIR" --dry-run 2>/dev/null) || exit_code=$?
 
     # Assert exit code is 0
     assert_eq "monthly --fixture exits 0" "0" "$exit_code"
@@ -104,7 +104,7 @@ test_monthly_fixture_includes_known_channels() {
     _snapshot_fail
 
     local out exit_code=0
-    out=$(bash "$CALIBRATION_SCRIPT" monthly --fixture "$FIXTURE_DIR" 2>/dev/null) || exit_code=$?
+    out=$(bash "$CALIBRATION_SCRIPT" monthly --fixture "$FIXTURE_DIR" --dry-run 2>/dev/null) || exit_code=$?
 
     assert_eq "monthly --fixture exits 0 (prereq for channel check)" "0" "$exit_code"
 

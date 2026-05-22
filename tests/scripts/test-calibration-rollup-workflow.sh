@@ -18,6 +18,8 @@
 #      The workflow must invoke `.claude/scripts/dso` (the DSO shim).
 #   7. test_workflow_no_literal_plugins_dso
 #      The workflow must NOT contain the literal string `plugins/dso/`.
+#  10. test_workflow_has_dry_run_shape_check
+#      The workflow must contain the "Dry-run comment shape check" step (DD-3).
 #
 # Usage: bash tests/scripts/test-calibration-rollup-workflow.sh
 
@@ -172,6 +174,22 @@ if grep -qF 'cancel-in-progress: false' "$WORKFLOW_FILE"; then
     _HAS_NO_CANCEL="true"
 fi
 assert_eq "test_workflow_concurrency_no_cancel" "true" "$_HAS_NO_CANCEL"
+
+# =============================================================================
+# Test 10: test_workflow_has_dry_run_shape_check
+# Given: calibration-rollup.yml exists
+# When:  searching for the dry-run comment shape check step name
+# Then:  the file contains "Dry-run comment shape check" so that CI validates
+#        the mutation-append comment format before posting live data
+# =============================================================================
+echo ""
+echo "--- test_workflow_has_dry_run_shape_check ---"
+
+_HAS_DRY_RUN_STEP="false"
+if grep -qF 'Dry-run comment shape check' "$WORKFLOW_FILE"; then
+    _HAS_DRY_RUN_STEP="true"
+fi
+assert_eq "test_workflow_has_dry_run_shape_check" "true" "$_HAS_DRY_RUN_STEP"
 
 # =============================================================================
 print_summary

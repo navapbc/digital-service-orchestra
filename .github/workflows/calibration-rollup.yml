@@ -38,6 +38,20 @@ jobs:
         run: |
           bash tests/scripts/test-calibration-attribution-e2e.sh
 
+      - name: Dry-run comment shape check
+        if: github.event_name == 'push'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_SHA: ${{ github.sha }}
+        run: |
+          _DRY_OUT=$(.claude/scripts/dso calibration-report.sh mutation-append \
+            --pr "${GH_SHA}" --findings 0 --dry-run 2>&1)
+          echo "$_DRY_OUT"
+          if ! echo "$_DRY_OUT" | grep -qF '<!-- calibration-mutation:'; then
+            echo "ERROR: dry-run output missing idempotency marker '<!-- calibration-mutation:'" >&2
+            exit 1
+          fi
+
       - name: Append mutation calibration data (push only)
         if: github.event_name == 'push'
         env:

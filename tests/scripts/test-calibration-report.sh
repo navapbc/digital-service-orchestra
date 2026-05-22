@@ -804,6 +804,80 @@ STUB
 }
 test_mutation_append_exits_1_on_missing_health_ticket
 
+# ─── monthly exits 1 when health ticket is absent ────────────────────────────
+test_monthly_exits_1_on_missing_health_ticket() {
+    _snapshot_fail
+    if [ ! -x "$CALIBRATION_SCRIPT" ]; then
+        assert_eq "calibration-report.sh executable (prereq)" "executable" "missing"
+        assert_pass_if_clean "test_monthly_exits_1_on_missing_health_ticket"
+        return
+    fi
+
+    local tmp_dir stub
+    local exit_code=0
+    tmp_dir=$(mktemp -d /tmp/cal-test.XXXXXX)
+    stub="$tmp_dir/dso"
+
+    # Stub returns empty list — no calibration-program-health ticket
+    cat >"$stub" <<'STUB'
+#!/usr/bin/env bash
+case "$*" in
+  *"ticket list"*"--type=epic"*)
+    printf '[]\n'
+    ;;
+  *)
+    printf '[]\n'
+    ;;
+esac
+STUB
+    chmod +x "$stub"
+
+    DSO="$stub" "$CALIBRATION_SCRIPT" monthly --fixture "$FIXTURE_DIR" --period 2026-04 2>/dev/null || exit_code=$?
+
+    assert_eq "monthly exits 1 when health ticket absent" "1" "$exit_code"
+
+    rm -rf "$tmp_dir"
+    assert_pass_if_clean "test_monthly_exits_1_on_missing_health_ticket"
+}
+test_monthly_exits_1_on_missing_health_ticket
+
+# ─── quarterly exits 1 when health ticket is absent ───────────────────────────
+test_quarterly_exits_1_on_missing_health_ticket() {
+    _snapshot_fail
+    if [ ! -x "$CALIBRATION_SCRIPT" ]; then
+        assert_eq "calibration-report.sh executable (prereq)" "executable" "missing"
+        assert_pass_if_clean "test_quarterly_exits_1_on_missing_health_ticket"
+        return
+    fi
+
+    local tmp_dir stub
+    local exit_code=0
+    tmp_dir=$(mktemp -d /tmp/cal-test.XXXXXX)
+    stub="$tmp_dir/dso"
+
+    # Stub returns empty list — no calibration-program-health ticket
+    cat >"$stub" <<'STUB'
+#!/usr/bin/env bash
+case "$*" in
+  *"ticket list"*"--type=epic"*)
+    printf '[]\n'
+    ;;
+  *)
+    printf '[]\n'
+    ;;
+esac
+STUB
+    chmod +x "$stub"
+
+    DSO="$stub" "$CALIBRATION_SCRIPT" quarterly --fixture "$FIXTURE_DIR" --period 2026-Q2 2>/dev/null || exit_code=$?
+
+    assert_eq "quarterly exits 1 when health ticket absent" "1" "$exit_code"
+
+    rm -rf "$tmp_dir"
+    assert_pass_if_clean "test_quarterly_exits_1_on_missing_health_ticket"
+}
+test_quarterly_exits_1_on_missing_health_ticket
+
 # ─── churn-append exits 1 when health ticket is absent ────────────────────────
 test_churn_append_exits_1_on_missing_health_ticket() {
     _snapshot_fail
