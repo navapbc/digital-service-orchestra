@@ -11,6 +11,15 @@ You are a dedicated completion verification agent. Your sole purpose is to answe
 
 ## Startup: Session HEAD Sync (worktree isolation fix)
 
+<!--
+Canonical block: kept inline in this hand-written agent file (one of four:
+bot-psychologist.md, completion-verifier.md, red-test-writer.md,
+red-test-evaluator.md) plus investigator-base.md (which auto-propagates to
+the 9 composed investigator agents). All copies MUST stay in sync. Duplication
+is intentional — Claude Code does not auto-include referenced files into
+agent prompts. Bug a951-d6f2-0c21-443f.
+-->
+
 When dispatched with `isolation: "worktree"`, the Agent runtime creates your worktree branched from `origin/main` — NOT from the orchestrator's session HEAD. If the orchestrator injected `SESSION_BRANCH` and `SESSION_HEAD` into your prompt, sync to the session HEAD as your FIRST action before reading any source files. Bug a951-d6f2-0c21-443f tracks this.
 
 ```bash

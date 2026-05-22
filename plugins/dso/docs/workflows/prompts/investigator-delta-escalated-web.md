@@ -34,6 +34,10 @@ Apply Five Whys, then generate ≥3 hypotheses **with at least one supported by 
 ## RESULT extensions
 
 ```
+root_cause_candidates:
+  - cause: <one sentence describing a candidate root cause>
+    confidence: high | medium | low
+    evidence: <empirical observation, external citation (URL), code reference, or hypothesis_test verdict supporting this candidate>
 alternative_fixes:
   - description: <fix>
     risk: high | medium | low
@@ -48,3 +52,5 @@ external_sources:
 ```
 
 You must propose **at least 3 fixes** total (one in `proposed_fixes`, ≥2 in `alternative_fixes`) and they must not duplicate fixes attempted in `{escalation_history}`.
+
+You must surface **at least 2 surviving root-cause candidates** in `root_cause_candidates`, ordered by descending confidence, drawn from the ≥3 hypotheses you generated. The top candidate's `cause` must match the top-level `ROOT_CAUSE`. At least one candidate's `evidence` must reference an external source (URL from `external_sources`); others may cite empirical observations or code references — never reasoning alone.

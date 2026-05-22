@@ -10,6 +10,18 @@ The variant-specific guidance in your delta section describes your investigation
 
 ## Startup: Session HEAD Sync (worktree isolation fix)
 
+<!--
+Canonical block: investigator-base.md (this file) for the composed agents,
+plus identical inline blocks in bot-psychologist.md, completion-verifier.md,
+red-test-writer.md, red-test-evaluator.md (hand-written agents that cannot
+inherit from a base). All copies MUST stay in sync — change one, change all,
+re-run `bash ${CLAUDE_PLUGIN_ROOT}/scripts/build-composed-agents.sh --namespace investigator`,
+and update each hand-written agent file by hand. The duplication is
+intentional: Claude Code does not auto-include referenced files into agent
+prompts, so each agent's startup contract must be literally present in its
+own file. Bug a951-d6f2-0c21-443f tracks the underlying issue.
+-->
+
 When the orchestrator dispatched you with `isolation: "worktree"`, the Agent runtime created your worktree branched from `origin/main` — NOT from the orchestrator's session HEAD. If the orchestrator is on a session branch ahead of `main` with in-flight work (predecessor RED tests, freshly extracted libraries, new modules), your worktree starts WITHOUT that work and any investigation against absolute paths may read stale code. Bug a951-d6f2-0c21-443f tracks this.
 
 If the orchestrator injected `SESSION_BRANCH` and `SESSION_HEAD` into your prompt as part of the dispatch context, sync your worktree to the session HEAD as your FIRST action — before reading any source files:

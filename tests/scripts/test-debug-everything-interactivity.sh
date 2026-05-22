@@ -123,7 +123,7 @@ PYEOF
 )
 
     if [[ -n "$phase26_section" ]]; then
-        _tmp="$phase26_section"; shopt -s nocasematch
+        local _tmp; _tmp="$phase26_section"; shopt -s nocasematch
         if [[ "$_tmp" =~ non.?interactive.*defer|defer.*non.?interactive|interactive.*approval|non.?interactive.*auto.?defer|safeguard.*non.?interactive ]]; then
             shopt -u nocasematch
             safeguard_gate_found="found"
@@ -181,7 +181,7 @@ PYEOF
 )
 
     if [[ -n "$escalation_section" ]]; then
-        _tmp="$escalation_section"; shopt -s nocasematch
+        local _tmp; _tmp="$escalation_section"; shopt -s nocasematch
         if [[ "$_tmp" =~ non.?interactive.*comment|non.?interactive.*log|log.*non.?interactive|ticket\ comment.*non.?interactive|non.?interactive.*COMPLEX_ESCALATION|COMPLEX_ESCALATION.*non.?interactive ]]; then
             shopt -u nocasematch
             escalation_gate_found="found"
@@ -246,7 +246,7 @@ PYEOF
 )
 
     if [[ -n "$step1a_section" ]]; then
-        _tmp="$step1a_section"; shopt -s nocasematch
+        local _tmp; _tmp="$step1a_section"; shopt -s nocasematch
         if [[ "$_tmp" =~ non.?interactive.*defer|defer.*non.?interactive|non.?interactive.*escalat|escalat.*non.?interactive|non.?interactive.*overlap|overlap.*non.?interactive ]]; then
             shopt -u nocasematch
             overlap_gate_found="found"
@@ -293,7 +293,7 @@ PYEOF
 )
 
     if [[ -n "$step1b_section" ]]; then
-        _tmp="$step1b_section"; shopt -s nocasematch
+        local _tmp; _tmp="$step1b_section"; shopt -s nocasematch
         if [[ "$_tmp" =~ non.?interactive.*defer|defer.*non.?interactive|non.?interactive.*oscillat|oscillat.*non.?interactive|non.?interactive.*escalat.*user|escalat.*user.*non.?interactive ]]; then
             shopt -u nocasematch
             oscillation_gate_found="found"

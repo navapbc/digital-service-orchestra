@@ -223,9 +223,26 @@ _parse_markers() {
 }
 
 # ── Delta-mode: emit RED_MARKER and exit 1 only for NEW markers ──────────────
-# Pre-existing markers already on BASE_SHA represent intentional RED tolerances
-# accepted into main previously — they must not block PRs that did not
-# introduce them. Compute the set difference HEAD - BASE; only the delta fires.
+# DESIGN DECISION (bug 535a-9d42-cb16-445c):
+#
+# Previous behavior ("all-or-nothing"): exit 1 if ANY `[marker]` appears in the
+# merged tree's .test-index. This blocked every PR to main once main accumulated
+# pre-existing markers, because the merged tree always contained them.
+#
+# Current behavior ("delta-mode"): exit 1 ONLY when HEAD introduces a marker
+# that was NOT present in BASE_SHA's .test-index. Pre-existing markers already
+# on main are treated as intentional RED tolerances accepted in prior PRs —
+# the gate must not penalize new PRs for accepting their merged-tree presence.
+# Re-introduction of a marker that BASE removed (sub-PR 1 removes, sub-PR 2
+# re-adds against the new BASE) is correctly detected as new vs the post-
+# removal BASE; see tests/workflows/test-red-test-blocker-merged-tree-scan.sh
+# Test 1.
+#
+# Implementation: parse BASE and HEAD .test-index into source<TAB>marker sets,
+# `comm -23` head_set base_set yields the new-marker delta. Emit RED_MARKER
+# lines and exit 1 only when the delta is non-empty. Existing exit-0 fall-
+# throughs (missing .test-index, merge-tree failure, conflict markers) are
+# preserved.
 _head_tmp=$(mktemp /tmp/scan-red-head.XXXXXX)
 _base_tmp=$(mktemp /tmp/scan-red-base.XXXXXX)
 trap 'rm -f "$_head_tmp" "$_base_tmp"' EXIT
