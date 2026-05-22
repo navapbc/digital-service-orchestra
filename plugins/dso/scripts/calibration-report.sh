@@ -500,9 +500,8 @@ _cmd_mutation_append() {
     health_ticket_id=$(_find_health_ticket)
 
     if [ -z "$health_ticket_id" ]; then
-        echo "calibration-report: WARNING: calibration-program-health ticket not found; mutation-append not posted." >&2
-        echo "$comment_body"
-        return 0
+        echo "calibration-report: ERROR: calibration-program-health ticket not found; run bootstrap first." >&2
+        exit 1
     fi
 
     # Acquire exclusive lock per PR to prevent TOCTOU race (d079)
@@ -591,9 +590,8 @@ _cmd_churn_append() {
     health_ticket_id=$(_find_health_ticket)
 
     if [ -z "$health_ticket_id" ]; then
-        echo "calibration-report: WARNING: calibration-program-health ticket not found; churn-append not posted." >&2
-        echo "$comment_body"
-        return 0
+        echo "calibration-report: ERROR: calibration-program-health ticket not found; run bootstrap first." >&2
+        exit 1
     fi
 
     # Acquire exclusive lock per PR to prevent TOCTOU race (d079)
