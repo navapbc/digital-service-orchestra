@@ -47,13 +47,14 @@ for _expected_channel in tests review-llm review-human production user-report in
   fi
 done
 
-# Round-trip coverage: exercise 2 representative channels to stay within the
-# CI per-test 120s budget. Per-channel infer-mapping correctness is covered
-# exhaustively by tests/scripts/test-infer-detected-by.sh (all 7 channels);
-# this integration test verifies that the ticket create+show round-trip
-# preserves both CLI_user and detected_by:<channel> tags. One bug-class channel
-# (tests) and one human-reported channel (user-report) provide that coverage.
-SAMPLE_CHANNELS=(tests user-report)
+# Round-trip coverage: exercise 1 representative channel (tests) to stay
+# within the CI per-test 120s budget. Each ticket create+show+delete cycle
+# is O(N) on the tracker state (~20-30s in CI with 5000+ tickets). Per-
+# channel infer-mapping correctness is covered exhaustively by
+# tests/scripts/test-infer-detected-by.sh (all 7 channels); this integration
+# test only verifies that the ticket create+show round-trip preserves both
+# CLI_user and detected_by:<channel> tags via comma-separated --tags form.
+SAMPLE_CHANNELS=(tests)
 echo "Channels to test (round-trip sample): ${SAMPLE_CHANNELS[*]}"
 echo "All 7 channels covered by mapping unit tests in tests/scripts/test-infer-detected-by.sh"
 
