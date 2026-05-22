@@ -1705,6 +1705,13 @@ def _post_cycle_marker_comment(
     Deduplicates by checking for an existing comment that matches BOTH cycle_num AND
     commit_sha. If found, PATCHes it; otherwise creates a new comment.
     All gh CLI failures are logged as WARNINGs and are non-fatal.
+
+    Writer/reader endpoint parity (bug 230d): the writer posts via
+    `gh pr comment <pr> --body ...`, which targets the same issue-conversation
+    endpoint returned by `cycle_marker_list_endpoint` in `cycle_marker_format`.
+    The reader (`cycle_ledger.reconstruct_from_pr_comments`) MUST call that
+    helper rather than hardcode a URL — see bugs 9788/230d for the regression
+    that this parity protects against.
     """
     # Pre-condition guard (see cycle_marker_format.format_cycle_marker docstring):
     # the formatter raises ValueError on pr_number <= 0; convert that into a

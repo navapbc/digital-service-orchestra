@@ -203,6 +203,7 @@ plugins/dso/scripts/design-approve.sh:tests/scripts/test-design-approve.sh
 plugins/dso/scripts/ci-review-corpus-delta.sh:tests/skills/dso_ci_review/test-ci-review-corpus-delta.sh
 plugins/dso/scripts/dso_ci_review/context_request.py:tests/skills/dso_ci_review/test_context_augmentation.py
 plugins/dso/scripts/dso_ci_review/cycle_ledger.py:tests/skills/dso_ci_review/test_cycle_ledger.py,tests/scripts/test-cycle-ledger-migration.sh,tests/perf/test-cycle-ledger-perf.py
+plugins/dso/scripts/dso_ci_review/cycle_marker_format.py:tests/skills/dso_ci_review/test_cycle_ledger.py,tests/skills/dso_ci_review/test_cycle_marker_format.py
 plugins/dso/scripts/dso_ci_review/dispatch.py:tests/skills/dso_ci_review/test_dispatch_fallback.py,tests/skills/dso_ci_review/test_tier_wiring.py,tests/skills/dso_ci_review/test_context_augmentation.py,tests/skills/dso_ci_review/test_prompt_caching.py,tests/skills/dso_ci_review/test_integration_full_loop.py,tests/skills/dso_ci_review/test_dispatch_schema_correction.py,tests/skills/dso_ci_review/test_category_remap_pr_0623.py
 plugins/dso/scripts/dso_ci_review/arbiter.py:tests/skills/dso_ci_review/test_arbiter.py,tests/scripts/test-cycle-arbiter.sh
 plugins/dso/scripts/dso_ci_review/cycle_dispatcher.py:tests/skills/dso_ci_review/test_cycle_dispatcher.py
