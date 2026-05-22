@@ -54,9 +54,26 @@ _VALID_SEVERITIES: frozenset[str] = frozenset(
     {"critical", "important", "minor", "fragile", "fallback_exhausted"}
 )
 
+# Canonical 5-value enum for finding `category`. MUST stay in sync with
+# valid_categories in validate-review-output.sh (currently sha256
+# cb48a66fc3292083). Used by the scoped exception in the frozen-field loop
+# below to allow correction iff the original category is off-enum.
+_VALID_CATEGORIES: frozenset[str] = frozenset(
+    {"correctness", "design", "hygiene", "maintainability", "verification"}
+)
+
 # Frozen fields that must be preserved byte-for-byte during schema correction.
 # finding_id is handled separately below — it may be regenerated when the original
 # is absent, empty, or structurally malformed (not matching _FINDING_ID_RE).
+#
+# `category` exception (bug 0623-54f4-d31b-4623): category is treated as
+# conditionally frozen — when the original `category` is OFF the canonical
+# 5-value enum, correction MAY re-map it to a canonical bucket (otherwise
+# schema-correction is structurally incapable of repairing the very class of
+# violation the validator rejects, since validate-review-output.sh hard-rejects
+# any non-canonical category). When the original category IS canonical, the
+# frozen-field invariant remains in force — see the scoped check inside the
+# correction loop at the `field == "category"` branch.
 _FROZEN_FIELDS: tuple[str, ...] = (
     "severity",
     "category",
@@ -998,13 +1015,19 @@ def dispatch_schema_correction(
         # the corrected response is the empty array — no real review feedback).
         # Counting them as "expected" would force the corrector to fabricate
         # findings to satisfy a count it never should match (bug 881d-e5cc).
-        _SYNTHETIC_TYPE_NAMES = {"fallback_exhausted", "specialist_error", "parse_error"}
+        _SYNTHETIC_TYPE_NAMES = {
+            "fallback_exhausted",
+            "specialist_error",
+            "parse_error",
+        }
         _real_original = [
-            f for f in original_findings
+            f
+            for f in original_findings
             if not (isinstance(f, dict) and f.get("type") in _SYNTHETIC_TYPE_NAMES)
         ]
         _real_attempt = [
-            f for f in attempt_findings
+            f
+            for f in attempt_findings
             if not (isinstance(f, dict) and f.get("type") in _SYNTHETIC_TYPE_NAMES)
         ]
         if len(_real_attempt) != len(_real_original):
@@ -1089,6 +1112,17 @@ def dispatch_schema_correction(
                 if field == "severity":
                     if orig.get("severity") not in _VALID_SEVERITIES:
                         continue  # enum-invalid original — allow correction to repair enum
+                # category: frozen only when original is enum-valid (in
+                # _VALID_CATEGORIES — the canonical 5-value enum). When the
+                # original is off-enum (e.g. LLM emits "code_smell",
+                # "missing_test_coverage"), correction MUST be allowed to remap
+                # it to a canonical bucket — otherwise schema correction cannot
+                # resolve category-enum errors and the llm-review job fails
+                # closed (bug 0623-54f4-d31b-4623; 35 off-enum values observed
+                # in one PR #257/258 run). Mirrors the severity exception above.
+                if field == "category":
+                    if orig.get("category") not in _VALID_CATEGORIES:
+                        continue  # off-enum original — allow correction to remap to canonical
                 if corrected.get(field) != orig[field]:
                     last_error = (
                         f"frozen field {field!r} mutated at index {i}: "
