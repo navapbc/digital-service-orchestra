@@ -1,0 +1,1 @@
+{"event_type": "BRIDGE_ALERT", "timestamp": 1779487205168514572, "uuid": "f94d63bb-2a9f-4014-8590-a025b8e0cb5b", "env_id": "87bd1065-0264-4126-94b7-ae8c71b8d506", "ticket_id": "d633-d709-dca7-405e", "data": {"reason": "LINK event dropped: source ticket has no SYNC.json marker — source is not linked to Jira", "dedup_key": "outbound-link-no-source-sync-marker"}}
