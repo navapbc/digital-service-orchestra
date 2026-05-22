@@ -384,3 +384,175 @@ def test_semver_schema_compare_treats_dotted_versions_numerically(tmp_path):
     assert f("1.1.0", "1.1.0") is False
     assert f("1.0.5", "1.1.0") is False
     assert f("0.9.0", "1.1.0") is False
+
+
+# ── Bug ab89-4fbb PR-comment fallback for SHORT_CIRCUIT (CI re-run same SHA) ──
+
+
+def test_short_circuit_via_pr_comment_when_artifacts_dir_empty(tmp_path):
+    """SHORT_CIRCUIT via durable PR-comment state when artifacts dir has no
+    arbiter-rulings.json file (CI ephemeral ARTIFACTS_DIR scenario).
+
+    subprocess.run is patched to return a comment list containing a valid
+    DSO-Arbiter-Ruling marker matching current_commit_sha.  next_action must
+    return SHORT_CIRCUIT even though the filesystem file does not exist.
+    """
+    import json
+    import subprocess
+    from unittest.mock import MagicMock, patch
+
+    body_text = "DSO-Arbiter-Ruling: 4 commit_sha=abc123"
+    mock_result = MagicMock(spec=subprocess.CompletedProcess)
+    mock_result.returncode = 0
+    mock_result.stdout = json.dumps([{"body": body_text}])
+
+    ledger = {
+        "schema_version": "1.1.0",
+        "epic_id": "e1",
+        "cycles": [
+            {
+                "cycle_num": 4,
+                "commit_sha": "abc123",
+                "findings": [],
+                "findings_hash": "h4",
+            }
+        ],
+    }
+    # tmp_path is empty — no arbiter-rulings.json present
+    with patch(
+        "dso_ci_review.cycle_dispatcher.subprocess.run", return_value=mock_result
+    ):
+        result = next_action(
+            ledger,
+            max_cycles=4,
+            current_findings=[{"file": "x.py", "line_range": "1", "category": "c"}],
+            current_commit_sha="abc123",
+            artifacts_dir=str(tmp_path),
+            pr_number=270,
+            repo="navapbc/digital-service-orchestra",
+        )
+    assert result["action"] == "SHORT_CIRCUIT"
+
+
+def test_no_short_circuit_when_pr_has_no_matching_arbiter_marker(tmp_path):
+    """No SHORT_CIRCUIT when gh api returns an empty comment list.
+
+    With no arbiter marker on the PR and no arbiter-rulings.json on disk,
+    next_action must fall through to the normal dispatch path.  For a ledger
+    whose last cycle has the same SHA and cycle_num == max_cycles the expected
+    action is DISPATCH_ARBITER.
+    """
+    import json
+    import subprocess
+    from unittest.mock import MagicMock, patch
+
+    mock_result = MagicMock(spec=subprocess.CompletedProcess)
+    mock_result.returncode = 0
+    mock_result.stdout = json.dumps([])  # no comments
+
+    findings = [{"file": "x.py", "line_range": "1", "category": "c"}]
+    ledger = {
+        "schema_version": "1.1.0",
+        "epic_id": "e1",
+        "cycles": [
+            {
+                "cycle_num": 4,
+                "commit_sha": "abc123",
+                "findings": findings,
+                "findings_hash": "h4",
+            }
+        ],
+    }
+    # tmp_path is empty — no arbiter-rulings.json present
+    with patch(
+        "dso_ci_review.cycle_dispatcher.subprocess.run", return_value=mock_result
+    ):
+        result = next_action(
+            ledger,
+            max_cycles=4,
+            current_findings=findings,
+            current_commit_sha="abc123",
+            artifacts_dir=str(tmp_path),
+            pr_number=270,
+            repo="navapbc/digital-service-orchestra",
+        )
+    assert result["action"] != "SHORT_CIRCUIT"
+
+
+def test_pr_comment_fetch_failure_falls_through_to_dispatch(tmp_path):
+    """Fail-open: CalledProcessError from gh api must not propagate out of
+    next_action.  The function must return a non-SHORT_CIRCUIT action and must
+    not raise.
+    """
+    import subprocess
+    from unittest.mock import patch
+
+    findings = [{"file": "x.py", "line_range": "1", "category": "c"}]
+    ledger = {
+        "schema_version": "1.1.0",
+        "epic_id": "e1",
+        "cycles": [
+            {
+                "cycle_num": 4,
+                "commit_sha": "abc123",
+                "findings": findings,
+                "findings_hash": "h4",
+            }
+        ],
+    }
+
+    def _raise(*_args, **_kwargs):
+        raise subprocess.CalledProcessError(1, "gh api")
+
+    with patch("dso_ci_review.cycle_dispatcher.subprocess.run", side_effect=_raise):
+        try:
+            result = next_action(
+                ledger,
+                max_cycles=4,
+                current_findings=findings,
+                current_commit_sha="abc123",
+                artifacts_dir=str(tmp_path),
+                pr_number=270,
+                repo="navapbc/digital-service-orchestra",
+            )
+        except Exception as exc:
+            raise AssertionError(
+                f"next_action must not raise on gh api failure; got {exc!r}"
+            ) from exc
+    assert result["action"] != "SHORT_CIRCUIT"
+
+
+def test_local_mode_skips_pr_comment_check_when_repo_missing(tmp_path):
+    """When repo kwarg is absent (or None), the PR-comment helper must NOT be
+    invoked.  subprocess.run call count must be zero — no gh api call should
+    occur for local-mode invocations that lack PR context.
+    """
+    from unittest.mock import patch
+
+    findings = [{"file": "x.py", "line_range": "1", "category": "c"}]
+    ledger = {
+        "schema_version": "1.1.0",
+        "epic_id": "e1",
+        "cycles": [
+            {
+                "cycle_num": 4,
+                "commit_sha": "abc123",
+                "findings": findings,
+                "findings_hash": "h4",
+            }
+        ],
+    }
+    # tmp_path is empty — no arbiter-rulings.json present
+    with patch("dso_ci_review.cycle_dispatcher.subprocess.run") as mock_subprocess:
+        result = next_action(
+            ledger,
+            max_cycles=4,
+            current_findings=findings,
+            current_commit_sha="abc123",
+            artifacts_dir=str(tmp_path),
+            # repo is intentionally omitted — local mode
+        )
+    assert mock_subprocess.call_count == 0, (
+        "subprocess.run must not be called when repo kwarg is absent"
+    )
+    assert result["action"] != "SHORT_CIRCUIT"

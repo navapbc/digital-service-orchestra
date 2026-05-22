@@ -44,14 +44,24 @@ def cycle_next_action(
     current_findings: list,
     current_commit_sha: str,
     artifacts_dir: str | None = None,
+    pr_number: int | None = None,
+    repo: str | None = None,
 ) -> dict:
     """Module-level wrapper for cycle_dispatcher.next_action.
 
     Provides a patchable module attribute for tests while delegating to
-    the canonical implementation in cycle_dispatcher.
+    the canonical implementation in cycle_dispatcher. ``pr_number`` and
+    ``repo`` are forwarded to enable the durable PR-comment SHORT_CIRCUIT
+    fallback in CI; local-mode callers may omit them.
     """
     return cycle_dispatcher.next_action(
-        ledger, max_cycles, current_findings, current_commit_sha, artifacts_dir
+        ledger,
+        max_cycles,
+        current_findings,
+        current_commit_sha,
+        artifacts_dir,
+        pr_number=pr_number,
+        repo=repo,
     )
 
 

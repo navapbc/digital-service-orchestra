@@ -1944,8 +1944,17 @@ def main() -> int:
 
         # Pre-review SHORT_CIRCUIT check: when HEAD SHA matches last cycle AND
         # arbiter-rulings.json exists, skip dispatch and return early.
+        # Pass pr_number/repo so the durable PR-comment fallback fires when
+        # the filesystem arbiter-rulings.json is absent (CI-ephemeral
+        # $ARTIFACTS_DIR scenario — bug ab89-4fbb).
         _pre_check = cycle_next_action(
-            _ledger, max_cycles, [], reviewed_sha, artifacts_dir
+            _ledger,
+            max_cycles,
+            [],
+            reviewed_sha,
+            artifacts_dir,
+            pr_number=_pr_number_for_ledger,
+            repo=_repo_for_ledger,
         )
         if _pre_check.get("action") == "SHORT_CIRCUIT":
             rulings_path = os.path.join(artifacts_dir, "arbiter-rulings.json")
@@ -2502,7 +2511,13 @@ def main() -> int:
         # semantics. The bug was not caught at sub-PR time because Python
         # Skill/Doc Tests is gated to base=main — bug 69e5-824a-ec7e-4bd9.)
         _action_result = cycle_next_action(
-            ledger, max_cycles, _current_findings, reviewed_sha, _artifacts_dir
+            ledger,
+            max_cycles,
+            _current_findings,
+            reviewed_sha,
+            _artifacts_dir,
+            pr_number=_pr_number_for_ledger,
+            repo=_repo_for_ledger,
         )
         _action = _action_result.get("action", "DISPATCH_NEXT")
 
