@@ -778,3 +778,90 @@ def test_block_ruling_cove_and_impact_class_floor_both_apply():
     ), (
         f"Expected rationale to cite CoVe or impact_class floor, got {result['rationale']!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Bug eb3d-f283: dispatch_arbiter must thread findings/defenses/
+# reviewer_breakdown/ledger_history into the agent input via augmented
+# diff_text so the arbiter agent can enumerate per-finding rulings.
+# ---------------------------------------------------------------------------
+
+
+def test_dispatch_arbiter_forwards_findings_into_diff_text():
+    """Given: dispatch_arbiter called with findings, defenses, reviewer_breakdown,
+              and ledger_history each tagged with a unique sentinel string
+    When: dispatch_review is patched to capture its diff_text argument
+    Then: the captured diff_text contains every sentinel, proving that the four
+          context blocks were serialized into the agent input.
+    """
+    findings = [
+        {
+            "id": "f1",
+            "severity": "critical",
+            "title": "ALPHA_SQL_INJECTION_SENTINEL",
+        },
+        {
+            "id": "f2",
+            "severity": "important",
+            "title": "BETA_RACE_CONDITION_SENTINEL",
+        },
+        {
+            "id": "f3",
+            "severity": "minor",
+            "title": "GAMMA_STYLE_SENTINEL",
+        },
+    ]
+    defenses = [
+        {
+            "finding_id": "f1",
+            "rationale": "DEFENSE_DELTA_SENTINEL false-positive context",
+        }
+    ]
+    reviewer_breakdown = {
+        "f1": ["REVIEWER_EPSILON_SENTINEL"],
+    }
+    ledger_history = [
+        {
+            "cycle_num": 1,
+            "marker": "LEDGER_ZETA_SENTINEL",
+        }
+    ]
+    # Per agent contract: one ruling per finding (3 findings → 3 rulings).
+    fake_rulings = [
+        {"ruling": "BLOCK", "rationale": "r1", "schema_version": "1.0.0"},
+        {"ruling": "DEFER", "rationale": "r2", "schema_version": "1.0.0"},
+        {"ruling": "DROP", "rationale": "r3", "schema_version": "1.0.0"},
+    ]
+
+    with patch(
+        "dso_ci_review.arbiter.dispatch_review", return_value=fake_rulings
+    ) as mock_dispatch:
+        dispatch_arbiter(
+            findings=findings,
+            defenses=defenses,
+            diff_text="--- a/x\n+++ b/x\n@@ -1 +1 @@\n-old\n+new\n",
+            model="claude-sonnet-4-6",
+            provider_chain=["anthropic"],
+            cycle_num=1,
+            max_cycles=4,
+            reviewer_breakdown=reviewer_breakdown,
+            ledger_history=ledger_history,
+        )
+
+    assert mock_dispatch.call_count == 1, (
+        f"Expected dispatch_review called once, got {mock_dispatch.call_count}"
+    )
+    captured_diff_text = mock_dispatch.call_args.kwargs["diff_text"]
+    sentinels = [
+        "ALPHA_SQL_INJECTION_SENTINEL",
+        "BETA_RACE_CONDITION_SENTINEL",
+        "GAMMA_STYLE_SENTINEL",
+        "DEFENSE_DELTA_SENTINEL",
+        "REVIEWER_EPSILON_SENTINEL",
+        "LEDGER_ZETA_SENTINEL",
+    ]
+    missing = [s for s in sentinels if s not in captured_diff_text]
+    assert not missing, (
+        f"Expected augmented diff_text to contain all sentinels; missing={missing}. "
+        f"Captured diff_text (truncated to 2000 chars): {captured_diff_text[:2000]!r}"
+    )
