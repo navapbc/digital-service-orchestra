@@ -404,9 +404,14 @@ def _dispatch_local_reviewer(
     """
     from dso_ci_review.dispatch import dispatch_review  # noqa: PLC0415
 
+    # agent_id must be set explicitly — dispatch_review's "unknown" default
+    # triggers a RuntimeError in _load_agent_prompt. Use the standard tier
+    # reviewer; the local workflow does not currently route by complexity
+    # classifier the way the CI workflow does. Bug 5270-eafc-eda5-4e31.
     result = dispatch_review(
         diff_text=diff_text,
         provider_chain=["anthropic"],
+        agent_id="code-reviewer-standard",
     )
     return result.get("findings", [])
 

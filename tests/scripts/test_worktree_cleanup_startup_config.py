@@ -23,6 +23,11 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "plugins" / "dso" / "scripts" / "worktree-cleanup.sh"
 
 # The five CONFIG_* variables that must be declared by the startup config block
+# (consecutive read-config.sh lines at the top of worktree-cleanup.sh).
+# CONFIG_ORPHAN_PATTERNS (a list-valued config) is read separately later in the
+# script via `read-config.sh --list worktree.orphan_patterns`, not in the
+# startup block, so it is not in this list — but it IS counted in the
+# read_config_called_exactly_six_times test below (bug 7000-e366-367d-4ab2).
 REQUIRED_CONFIG_VARS = [
     "CONFIG_COMPOSE_DB_FILE",
     "CONFIG_COMPOSE_PROJECT",
@@ -31,7 +36,7 @@ REQUIRED_CONFIG_VARS = [
     "CONFIG_MAX_AGE_HOURS",
 ]
 
-# The five read-config.sh keys that must be read
+# The five read-config.sh keys that must be read in the startup block.
 REQUIRED_CONFIG_KEYS = [
     "infrastructure.compose_db_file",
     "infrastructure.compose_project",
@@ -218,10 +223,12 @@ class TestStartupConfigBlock:
                 f"Variable {var} was not printed at all.\nstdout: {output}"
             )
 
-    def test_read_config_called_exactly_five_times(self) -> None:
-        """read-config.sh is called exactly once per config key (5 total).
+    def test_read_config_called_exactly_six_times(self) -> None:
+        """read-config.sh is called exactly once per config key (6 total).
 
-        Ensures no per-use read-config.sh calls sneak in later.
+        Ensures no per-use read-config.sh calls sneak in later. The 6th call
+        reads `worktree.orphan_patterns` via `--list` for the orphan-branch
+        sweep — added after the original 5-call shape (bug 7000-e366-367d-4ab2).
         """
         content = SCRIPT.read_text()
         # Count lines that call bash ...read-config.sh
@@ -230,8 +237,8 @@ class TestStartupConfigBlock:
             for line in content.splitlines()
             if "read-config.sh" in line and "bash" in line
         ]
-        assert len(lines_with_calls) == 5, (
-            f"Expected exactly 5 'bash ... read-config.sh' calls, found {len(lines_with_calls)}.\n"
+        assert len(lines_with_calls) == 6, (
+            f"Expected exactly 6 'bash ... read-config.sh' calls, found {len(lines_with_calls)}.\n"
             f"Lines: {lines_with_calls}"
         )
 
@@ -403,12 +410,18 @@ class TestBranchPatternConfig:
     """git branch --list and .gitignore cleanup use CONFIG_BRANCH_PATTERN, not hardcoded 'worktree-*'."""
 
     def test_branch_pattern_uses_config_branch_pattern(self) -> None:
-        """git branch --list uses ${CONFIG_BRANCH_PATTERN:-worktree-*} instead of hardcoded 'worktree-*'.
+        """git branch --list uses a configured pattern, not hardcoded 'worktree-*'.
 
         RED: fails while the script still uses hardcoded 'worktree-*' in the branch --list call.
-        GREEN: passes after replacing 'worktree-*' with '${CONFIG_BRANCH_PATTERN:-worktree-*}'.
+        GREEN: passes after replacing 'worktree-*' with either
+          - ${CONFIG_BRANCH_PATTERN:-worktree-*}, or
+          - a loop variable bound from the CONFIG_ORPHAN_PATTERNS array (the
+            current shape, which supports multiple patterns).
 
-        The test checks that the git branch --list call references CONFIG_BRANCH_PATTERN.
+        The test checks that the git branch --list call references either
+        CONFIG_BRANCH_PATTERN directly or a loop variable from
+        CONFIG_ORPHAN_PATTERNS (bug 7000-e366-367d-4ab2: the orphan sweep
+        moved from a single glob to a configurable array).
         """
         content = SCRIPT.read_text()
         non_comment_lines = [
@@ -421,17 +434,42 @@ class TestBranchPatternConfig:
         )
         assert not hardcoded_list, (
             "Found 'git branch --list' with hardcoded 'worktree-*' glob — "
-            "replace with '${CONFIG_BRANCH_PATTERN:-worktree-*}' to use the config var."
+            "replace with '${CONFIG_BRANCH_PATTERN:-worktree-*}' or a loop "
+            "variable bound from the CONFIG_ORPHAN_PATTERNS array."
         )
-        # CONFIG_BRANCH_PATTERN must appear near the branch --list call
+        # The branch --list call must reference a configured pattern. Accept
+        # either CONFIG_BRANCH_PATTERN directly OR a loop variable bound from
+        # CONFIG_ORPHAN_PATTERNS earlier in the script (the current pattern).
         branch_list_lines = [
             line for line in non_comment_lines if "branch --list" in line
         ]
         assert branch_list_lines, "No 'git branch --list' call found in script."
-        config_used = any("CONFIG_BRANCH_PATTERN" in line for line in branch_list_lines)
-        assert config_used, (
-            "git branch --list call does not reference CONFIG_BRANCH_PATTERN — "
-            "replace hardcoded 'worktree-*' with '${CONFIG_BRANCH_PATTERN:-worktree-*}'."
+
+        config_branch_used = any(
+            "CONFIG_BRANCH_PATTERN" in line for line in branch_list_lines
+        )
+        # Detect the CONFIG_ORPHAN_PATTERNS loop form: the for-loop binds a
+        # local variable from "${CONFIG_ORPHAN_PATTERNS[@]}" and the branch
+        # --list call references that variable. Find the loop's iterator name,
+        # then check that the branch --list line uses it.
+        import re
+
+        loop_pat = re.compile(r'for\s+(\w+)\s+in\s+"\$\{CONFIG_ORPHAN_PATTERNS\[@\]\}"')
+        loop_var = None
+        for line in non_comment_lines:
+            m = loop_pat.search(line)
+            if m:
+                loop_var = m.group(1)
+                break
+        loop_var_used = bool(loop_var) and any(
+            f'"${loop_var}"' in line or f"${loop_var}" in line
+            for line in branch_list_lines
+        )
+
+        assert config_branch_used or loop_var_used, (
+            "git branch --list call does not reference CONFIG_BRANCH_PATTERN nor "
+            "a loop variable bound from CONFIG_ORPHAN_PATTERNS — replace "
+            "hardcoded 'worktree-*' with one of the configured-pattern forms."
         )
 
     def test_gitignore_cleanup_uses_config_branch_pattern(self) -> None:
