@@ -131,10 +131,18 @@ candidate_ids = json.loads(candidates_json)
 ticket_argv = json.loads(ticket_argv_json)
 
 def _load_one(tid):
-    proc = subprocess.run(
-        ticket_argv + ["show", tid],
-        check=False, capture_output=True, text=True, timeout=30,
-    )
+    # subprocess.run(timeout=30) raises subprocess.TimeoutExpired (not a
+    # non-zero return code) when ticket show hangs past the deadline on a
+    # bloated-event-log ticket. Treat it the same as the other recoverable
+    # failure modes: return None so the caller's `if t is None: continue`
+    # skips this candidate and the scan continues with the rest.
+    try:
+        proc = subprocess.run(
+            ticket_argv + ["show", tid],
+            check=False, capture_output=True, text=True, timeout=30,
+        )
+    except subprocess.TimeoutExpired:
+        return None
     if proc.returncode != 0 or not proc.stdout.strip():
         return None
     try:
