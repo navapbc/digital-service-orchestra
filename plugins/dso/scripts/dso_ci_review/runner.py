@@ -305,6 +305,101 @@ def _resolve_validator_script(plugin_root: str | None = None) -> str:
 _VALIDATE_REVIEW_SCHEMA_HASH = "cb48a66fc3292083"
 
 
+# ---------------------------------------------------------------------------
+# Category-remap layer (bug 0623-54f4-d31b-4623)
+# ---------------------------------------------------------------------------
+# Upstream LLM reviewers occasionally emit off-enum `category` values
+# (35 distinct off-enum values observed in PR #257/258 — e.g. "code_smell",
+# "missing_test_coverage"). The validator hard-rejects any non-canonical
+# category, and the schema-correction loop only allows the corrector to remap
+# category iff the original is off-enum (see dispatch._FROZEN_FIELDS comment).
+# Without this deterministic pre-validation remap, every off-enum batch would
+# spend a correction round-trip just to fix categories; this layer normalizes
+# the 35 observed values to canonical buckets BEFORE validation so the
+# correction loop is reserved for genuinely-novel schema issues.
+#
+# Unknown off-enum values (LLM produces novel ones) pass through unchanged so
+# the validator can still flag them as a fallback signal and the correction
+# loop can then repair them via the dispatch.py category exception.
+
+_CANONICAL_CATEGORIES: frozenset[str] = frozenset(
+    {"correctness", "design", "hygiene", "maintainability", "verification"}
+)
+
+# Maps off-enum category strings (observed in PR #257/258 and historical
+# review logs) → canonical bucket. When extending: add the off-enum string as
+# the key and pick the closest canonical bucket as the value.
+_CATEGORY_REMAP: dict[str, str] = {
+    # → correctness
+    "missing_implementation": "correctness",
+    "configuration_error": "correctness",
+    "data_integrity": "correctness",
+    "syntax_error": "correctness",
+    "error_handling": "correctness",
+    "incomplete_implementation": "correctness",
+    "resource_management": "correctness",
+    # → verification
+    "test_fragility": "verification",
+    "test_design_flaw": "verification",
+    "test_pattern_weakness": "verification",
+    "test_brittleness": "verification",
+    "test_state_management": "verification",
+    "test_diagnostics": "verification",
+    "missing_test_coverage": "verification",
+    "test_coverage_gap": "verification",
+    # → hygiene
+    "code_smell": "hygiene",
+    "code_duplication": "hygiene",
+    "inconsistent_style": "hygiene",
+    "code_style": "hygiene",
+    "code_complexity": "hygiene",
+    # → maintainability
+    "code_clarity": "maintainability",
+    "documentation": "maintainability",
+}
+
+
+def _log_category_remap(original: str, mapped: str) -> None:
+    """Emit a stderr observability line each time a finding's category is remapped.
+
+    Helps detect upstream-LLM drift over time without spamming when no remap
+    occurs. Called only inside `_remap_off_enum_categories` when a remap is
+    actually applied.
+    """
+    print(
+        f"INFO: category remap: {original!r} → {mapped!r} (bug 0623-54f4)",
+        file=sys.stderr,
+    )
+
+
+def _remap_off_enum_categories(findings: list[dict]) -> list[dict]:
+    """Deterministically normalize off-enum `category` values to canonical buckets.
+
+    Mutates each finding dict's `category` in place when an off-enum value is
+    found in `_CATEGORY_REMAP`. Canonical-enum and unknown-off-enum values are
+    left unchanged. Emits a stderr observability line per remap so upstream
+    LLM drift is detectable from CI logs.
+
+    Returns the same list (mutated) for ergonomic chaining at call sites.
+
+    See bug 0623-54f4-d31b-4623. Called immediately before
+    `_validate_findings_schema` so the schema-correction loop only fires for
+    genuinely-novel schema issues, not for the well-known 35 off-enum values.
+    """
+    for finding in findings:
+        if not isinstance(finding, dict):
+            continue
+        cat = finding.get("category")
+        if not isinstance(cat, str) or cat in _CANONICAL_CATEGORIES:
+            continue
+        mapped = _CATEGORY_REMAP.get(cat)
+        if mapped is None:
+            continue  # unknown off-enum — leave for validator + correction loop
+        finding["category"] = mapped
+        _log_category_remap(cat, mapped)
+    return findings
+
+
 def _validate_findings_schema(
     merged: dict,
     plugin_root: str | None = None,
@@ -1728,6 +1823,24 @@ def main() -> int:
 
     diff_text = _read_diff()
     if not diff_text.strip():
+        # Bug 9788 regression-detection guard: when PR context exists but the
+        # diff is empty, the caller likely failed to supply the diff (e.g., a
+        # dispatcher wrapper missing `gh pr diff` or DSO_CI_REVIEW_DIFF_PATH).
+        # Silent exit 0 with empty findings would mask the upstream wiring
+        # break — emit a loud warning AND a structured skip_reason so the
+        # "Assert review liveness" invariant downstream can detect the
+        # condition.
+        _pr_for_context = _resolve_pr_number()
+        if _pr_for_context and _pr_for_context.isdigit() and int(_pr_for_context) > 0:
+            print(
+                f"WARNING: empty diff received in PR context (PR #{_pr_for_context}) — "
+                "likely caller missing `gh pr diff` pipe or DSO_CI_REVIEW_DIFF_PATH env. "
+                "This will mask cycle-marker emission (bug 9788).",
+                file=sys.stderr,
+            )
+            _write_output({"findings": [], "skip_reason": "empty_diff_in_pr_context"})
+            return 1
+        # Non-PR context (local invocation / unit test): preserve historic behavior.
         _write_output({"findings": []})
         return 0
 
@@ -2212,6 +2325,17 @@ def main() -> int:
                 file=sys.stderr,
             )
             return 1
+
+        # Step 7a.75: pre-validation category remap (bug 0623-54f4-d31b-4623).
+        # Normalize the 35 known off-enum category values (e.g. "code_smell",
+        # "missing_test_coverage") to canonical buckets BEFORE schema validation
+        # so the correction loop is reserved for genuinely-novel schema issues.
+        # Mutates findings in place; canonical and unknown-off-enum values are
+        # left unchanged so the validator + correction loop can still catch
+        # genuinely novel off-enum values via the dispatch.py category exception.
+        merged["findings"] = _remap_off_enum_categories(
+            list(merged.get("findings") or [])
+        )
 
         # Step 7b: schema validation (schema hash 214949ee476be6d0)
         # Shell out to validate-review-output.sh before writing to disk.

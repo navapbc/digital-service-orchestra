@@ -117,8 +117,30 @@ case "$provenance_exit" in
     exit 0
     ;;
   1|2)
-    # Unprovenanced or budget-exhausted — invoke full-diff LLM review
-    bash "$_RUNNER" "$@"
+    # Unprovenanced or budget-exhausted — invoke full-diff LLM review.
+    # Bug 9788 regression fix: the runner expects the PR diff on stdin OR via
+    # DSO_CI_REVIEW_DIFF_PATH. Pre-S3.T3 ci.yml piped `gh pr diff "$PR_NUMBER"`
+    # to ci-llm-review-runner.sh; S3.T3 replaced that with the dispatcher
+    # wrapper but dropped the diff input. Without a diff, runner.py:_read_diff()
+    # returns empty and the runner short-circuits before reaching the
+    # cycle-marker post call (runner.py:1730-1732 → line 2352), causing
+    # DISPATCH_ARBITER to be unreachable on live PRs.
+    if [[ -z "${PR_NUMBER:-}" ]]; then
+        echo "ERROR: PR_NUMBER not set — cannot fetch PR diff for runner" >&2
+        exit 1
+    fi
+    _DIFF_PATH=$(mktemp /tmp/dso-pr-diff.XXXXXX)
+    _GH_STDERR=$(mktemp /tmp/dso-pr-diff-stderr.XXXXXX)
+    # Separate stderr from stdout so the diff file holds only the diff content;
+    # gh diagnostics (warnings, auth notices) on success path would otherwise
+    # contaminate the diff body and break runner.py's _read_diff() parsing.
+    trap 'rm -f "$_DIFF_PATH" "$_GH_STDERR"' EXIT
+    if ! gh pr diff "$PR_NUMBER" > "$_DIFF_PATH" 2> "$_GH_STDERR"; then
+        echo "ERROR: gh pr diff $PR_NUMBER failed:" >&2
+        cat "$_GH_STDERR" >&2
+        exit 1
+    fi
+    DSO_CI_REVIEW_DIFF_PATH="$_DIFF_PATH" bash "$_RUNNER" "$@"
     ;;
   *)
     echo "ERROR: unexpected derived provenance exit code: $provenance_exit" >&2

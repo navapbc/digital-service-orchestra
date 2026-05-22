@@ -100,6 +100,27 @@ MOCKEOF
     chmod +x "$MOCK_BIN/ci-llm-review-runner.sh"
 }
 
+# ── Helper (bug 9788): create a mock `gh` that returns a small synthetic diff
+# for `gh pr diff <N>`. Tests exercising the case 1|2 (dispatch-runner) branch
+# need this because the dispatcher fetches the PR diff via `gh pr diff` to
+# supply DSO_CI_REVIEW_DIFF_PATH to the runner.
+_make_mock_gh() {
+    cat > "$MOCK_BIN/gh" << 'MOCKGHEOF'
+#!/usr/bin/env bash
+# Mock gh — emits a 3-line synthetic diff for `gh pr diff <N>`, exits 0.
+if [[ "$1" == "pr" && "$2" == "diff" ]]; then
+    cat << 'DIFFEOF'
+diff --git a/x.py b/x.py
++pass
+DIFFEOF
+    exit 0
+fi
+echo "MOCK gh: unhandled args: $*" >&2
+exit 1
+MOCKGHEOF
+    chmod +x "$MOCK_BIN/gh"
+}
+
 # ── Test 1: wrapper script exists and is executable ───────────────────────────
 test_wrapper_exists() {
     _snapshot_fail
@@ -235,11 +256,15 @@ test_exit1_invokes_runner() {
     local call_log
     call_log="$(mktemp "$TMPDIR_TEST/runner-calls-exit1.XXXXXX")"
     _make_mock_runner "$call_log"
+    # Bug 9788: dispatcher now requires PR_NUMBER + `gh pr diff` for case 1|2.
+    _make_mock_gh
 
     local artifact_dir
     artifact_dir="$(mktemp -d)"
     _seed_artifacts "$artifact_dir" "unprovenanced"
 
+    PATH="$MOCK_BIN:$PATH" \
+    PR_NUMBER=99 \
     DSO_VERIFIER_PATH="$MOCK_BIN/verify-session-provenance.sh" \
     DSO_RUNNER_PATH="$MOCK_BIN/ci-llm-review-runner.sh" \
     DSO_ARTIFACT_DIR="$artifact_dir" \
@@ -275,6 +300,8 @@ test_exit2_invokes_runner() {
     local call_log
     call_log="$(mktemp "$TMPDIR_TEST/runner-calls-exit2.XXXXXX")"
     _make_mock_runner "$call_log"
+    # Bug 9788: dispatcher now requires PR_NUMBER + `gh pr diff` for case 1|2.
+    _make_mock_gh
 
     local artifact_dir
     artifact_dir="$(mktemp -d)"
@@ -283,6 +310,8 @@ test_exit2_invokes_runner() {
     # The dispatcher's artifact route consumes that as exit 1 → invoke runner.
     _seed_artifacts "$artifact_dir" "unprovenanced"
 
+    PATH="$MOCK_BIN:$PATH" \
+    PR_NUMBER=99 \
     DSO_VERIFIER_PATH="$MOCK_BIN/verify-session-provenance.sh" \
     DSO_RUNNER_PATH="$MOCK_BIN/ci-llm-review-runner.sh" \
     DSO_ARTIFACT_DIR="$artifact_dir" \
@@ -523,7 +552,11 @@ echo "MOCK_INVOKED" >> "$call_log"
 exit 0
 MOCKEOF
     chmod +x "$MOCK_BIN/ci-llm-review-runner.sh"
+    # Bug 9788: dispatcher now requires PR_NUMBER + `gh pr diff` for case 1|2.
+    _make_mock_gh
 
+    PATH="$MOCK_BIN:$PATH" \
+    PR_NUMBER=99 \
     DSO_RUNNER_PATH="$MOCK_BIN/ci-llm-review-runner.sh" \
     DSO_ARTIFACT_DIR="$artifact_dir" \
         bash "$WRAPPER" > /dev/null 2>/dev/null || true
@@ -576,6 +609,97 @@ test_dispatcher_covered_list_from_artifact() {
     assert_pass_if_clean "test_dispatcher_covered_list_from_artifact"
 }
 
+# ── Test 14 (bug 9788): dispatcher supplies diff to runner via env var ────────
+# Regression guard for bug 9788: when case 1|2 fires (unprovenanced-shas.txt
+# non-empty), the dispatcher MUST supply the PR diff to ci-llm-review-runner.sh.
+# Pre-S3.T3 ci.yml piped `gh pr diff "$PR_NUMBER"` into the runner; S3.T3
+# replaced that with the dispatcher wrapper but dropped the diff input. Without
+# a diff, runner.py:_read_diff() returns empty and the runner short-circuits
+# before reaching the cycle-marker post call, making DISPATCH_ARBITER
+# unreachable on live PRs (PRs #252–#262 had zero markers; PRs #245–#251 had
+# markers as expected).
+#
+# Contract: dispatcher MUST either pipe the diff on stdin OR set
+# DSO_CI_REVIEW_DIFF_PATH to a non-empty file before invoking the runner.
+# This test exercises the env-var variant since it is the chosen fix (it
+# preserves the runner's existing precedence: env-var wins over stdin).
+test_dispatcher_supplies_diff_to_runner() {
+    _snapshot_fail
+    if [[ ! -f "$WRAPPER" ]]; then
+        assert_eq "test_dispatcher_supplies_diff_to_runner: wrapper must exist" \
+            "wrapper_exists" "wrapper_missing"
+        assert_pass_if_clean "test_dispatcher_supplies_diff_to_runner"
+        return
+    fi
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+    _seed_artifacts "$artifact_dir" "unprovenanced" "deadbeef"
+
+    # Mock runner: capture DSO_CI_REVIEW_DIFF_PATH env var + (if set) its
+    # content into a log file the test can inspect after dispatch.
+    local env_log
+    env_log="$(mktemp "$TMPDIR_TEST/runner-env-log.XXXXXX")"
+    cat > "$MOCK_BIN/ci-llm-review-runner.sh" << MOCKEOF
+#!/usr/bin/env bash
+# Mock ci-llm-review-runner.sh — records DSO_CI_REVIEW_DIFF_PATH and content.
+printf 'DSO_CI_REVIEW_DIFF_PATH=%s\n' "\${DSO_CI_REVIEW_DIFF_PATH:-UNSET}" >> "$env_log"
+if [[ -n "\${DSO_CI_REVIEW_DIFF_PATH:-}" && -f "\${DSO_CI_REVIEW_DIFF_PATH}" ]]; then
+    printf 'DIFF_BYTES=%s\n' "\$(wc -c < "\${DSO_CI_REVIEW_DIFF_PATH}" | tr -d ' ')" >> "$env_log"
+else
+    printf 'DIFF_BYTES=0\n' >> "$env_log"
+fi
+exit 0
+MOCKEOF
+    chmod +x "$MOCK_BIN/ci-llm-review-runner.sh"
+
+    # Mock `gh` so the dispatcher's `gh pr diff "$PR_NUMBER"` call returns a
+    # small synthetic diff without hitting the network.
+    cat > "$MOCK_BIN/gh" << 'MOCKGHEOF'
+#!/usr/bin/env bash
+# Mock gh — emits a 3-line synthetic diff for `gh pr diff <N>`, exits 0.
+if [[ "$1" == "pr" && "$2" == "diff" ]]; then
+    cat << 'DIFFEOF'
+diff --git a/x.py b/x.py
++pass
+DIFFEOF
+    exit 0
+fi
+echo "MOCK gh: unhandled args: $*" >&2
+exit 1
+MOCKGHEOF
+    chmod +x "$MOCK_BIN/gh"
+
+    PATH="$MOCK_BIN:$PATH" \
+    PR_NUMBER=99 \
+    DSO_RUNNER_PATH="$MOCK_BIN/ci-llm-review-runner.sh" \
+    DSO_ARTIFACT_DIR="$artifact_dir" \
+        bash "$WRAPPER" > /dev/null 2>/dev/null || true
+
+    # Assertion A: DSO_CI_REVIEW_DIFF_PATH was set (not UNSET) when runner ran.
+    local env_log_content
+    env_log_content="$(cat "$env_log" 2>/dev/null || true)"
+    local diff_path_set="no"
+    if echo "$env_log_content" | grep -qE '^DSO_CI_REVIEW_DIFF_PATH=/'; then
+        diff_path_set="yes"
+    fi
+    assert_eq "test_dispatcher_supplies_diff_to_runner: DSO_CI_REVIEW_DIFF_PATH set to a file path" \
+        "yes" "$diff_path_set"
+
+    # Assertion B: the file pointed to was non-empty.
+    local diff_nonempty="no"
+    local bytes
+    bytes="$(echo "$env_log_content" | grep -oE '^DIFF_BYTES=[0-9]+' | tail -1 | cut -d= -f2)"
+    if [[ -n "$bytes" && "$bytes" != "0" ]]; then
+        diff_nonempty="yes"
+    fi
+    assert_eq "test_dispatcher_supplies_diff_to_runner: diff file is non-empty" \
+        "yes" "$diff_nonempty"
+
+    rm -rf "$artifact_dir" "$env_log"
+    assert_pass_if_clean "test_dispatcher_supplies_diff_to_runner"
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 test_wrapper_exists
 test_exit0_skips_runner
@@ -590,5 +714,6 @@ test_dispatcher_marker_only_skipped
 test_dispatcher_overbound_routes_correctly
 test_dispatcher_unprovenanced_dispatches_runner
 test_dispatcher_covered_list_from_artifact
+test_dispatcher_supplies_diff_to_runner
 
 print_summary
