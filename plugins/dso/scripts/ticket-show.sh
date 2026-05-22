@@ -108,7 +108,12 @@ for _raw_id in "${ticket_ids[@]}"; do
         echo
     fi
 
-    # Single python3 process handles reduce + format (no subprocess pipeline).
+    # ── Invoke reducer ────────────────────────────────────────────────────────
+    # Single subprocess handles reduce + format (no pipeline).
+    # Test invariant (test-ticket-subprocess-count.sh): exactly one direct
+    # interpreter spawn between this marker and the next `^fi$`. The
+    # multi-ID outer loop introduced for bug jira-dig-2565 runs this one
+    # call per ID; the per-section count is unchanged.
     _TICKET_DIR="$TRACKER_DIR/$ticket_id" _TICKET_ID="$ticket_id" \
     _FORMAT="$format" _SCRIPT_DIR="$SCRIPT_DIR" python3 -c "
 import sys, os, json
