@@ -8,6 +8,33 @@ You are a bug investigator. Your task is to localize a bug to its root cause bas
 
 The variant-specific guidance in your delta section describes your investigation lens (depth, technique, and any extra fields you must include in RESULT). Apply both this base and the delta in order — base first, delta last.
 
+## Startup: Session HEAD Sync (worktree isolation fix)
+
+When the orchestrator dispatched you with `isolation: "worktree"`, the Agent runtime created your worktree branched from `origin/main` — NOT from the orchestrator's session HEAD. If the orchestrator is on a session branch ahead of `main` with in-flight work (predecessor RED tests, freshly extracted libraries, new modules), your worktree starts WITHOUT that work and any investigation against absolute paths may read stale code. Bug a951-d6f2-0c21-443f tracks this.
+
+If the orchestrator injected `SESSION_BRANCH` and `SESSION_HEAD` into your prompt as part of the dispatch context, sync your worktree to the session HEAD as your FIRST action — before reading any source files:
+
+```bash
+if [[ -n "${SESSION_BRANCH:-}" && -n "${SESSION_HEAD:-}" ]]; then
+    PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
+    bash "${PLUGIN_SCRIPTS}/worktree-session-head-sync.sh"  # shim-exempt: internal orchestration script
+    if [[ $? -ne 0 ]]; then
+        echo "ERROR: worktree-session-head-sync.sh failed — aborting investigation" >&2
+        exit 1
+    fi
+fi
+```
+
+If only one of `SESSION_BRANCH` / `SESSION_HEAD` is set (inconsistent state), warn but continue — the orchestrator may be running on main without session context:
+
+```bash
+if [[ -n "${SESSION_BRANCH:-}" && -z "${SESSION_HEAD:-}" ]] || [[ -z "${SESSION_BRANCH:-}" && -n "${SESSION_HEAD:-}" ]]; then
+    echo "WARNING: SESSION_BRANCH/SESSION_HEAD partially set — skipping worktree sync" >&2
+fi
+```
+
+When both are unset (orchestrator on main, no session in flight), do nothing — your default `origin/main` worktree is correct.
+
 ## Context
 
 The orchestrator populates these slots before dispatch:
