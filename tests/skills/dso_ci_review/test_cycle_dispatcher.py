@@ -265,7 +265,7 @@ def test_corrupt_ledger_handled_deterministically():
     assert result["cycle_num"] == 1
 
 
-def test_forward_compat_schema_version_greater_than_1_1_0(capsys):
+def test_forward_compat_schema_version_greater_than_known_max(capsys):
     """schema_version='2.0.0' → log warning, best-effort proceed, no raise."""
     ledger = {
         "schema_version": "2.0.0",
@@ -288,6 +288,36 @@ def test_forward_compat_schema_version_greater_than_1_1_0(capsys):
     captured = capsys.readouterr()
     # warning emitted to stderr
     assert "schema_version" in captured.err.lower() or "version" in captured.err.lower()
+
+
+def test_known_max_schema_version_emits_no_warning(capsys):
+    """schema_version='1.2.0' (the dispatcher's known max) must NOT warn.
+
+    Pins the dispatcher's KNOWN_LEDGER_SCHEMA_VERSION to the writer's emitted
+    value so every llm-review run does not produce a noisy forward-compat
+    warning. Bump alongside the writer when the schema changes.
+    """
+    from dso_ci_review.cycle_dispatcher import KNOWN_LEDGER_SCHEMA_VERSION
+
+    ledger = {
+        "schema_version": KNOWN_LEDGER_SCHEMA_VERSION,
+        "epic_id": "e1",
+        "cycles": [
+            {
+                "cycle_num": 1,
+                "commit_sha": "sha1",
+                "findings": [],
+                "findings_hash": "h1",
+            }
+        ],
+    }
+    findings = [{"file": "x.py", "line_range": "1", "category": "c"}]
+    next_action(
+        ledger, max_cycles=4, current_findings=findings, current_commit_sha="sha1"
+    )
+    captured = capsys.readouterr()
+    assert "schema_version" not in captured.err.lower()
+    assert "best-effort" not in captured.err.lower()
 
 
 def test_reconstruction_gaps_with_multiple_cycles_skips_jaccard():

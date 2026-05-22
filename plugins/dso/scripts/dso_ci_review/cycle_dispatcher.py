@@ -34,6 +34,10 @@ from pathlib import Path
 
 from dso_ci_review.stability import should_halt
 
+# Highest cycle-ledger schema_version this dispatcher recognizes. Bump in
+# lockstep with the writer (write-cycle-ledger.sh, cycle_ledger.py).
+KNOWN_LEDGER_SCHEMA_VERSION = "1.2.0"
+
 
 def _is_unknown_future_schema(observed: str, known_max: str) -> bool:
     """Compare semver-style schema versions semantically (not lexicographically).
@@ -188,13 +192,19 @@ def next_action(
     if not isinstance(cycles, list):
         cycles = []
 
-    # Forward-compat: schema_version > 1.1.0 -> warn, best-effort proceed.
+    # Forward-compat: schema_version > KNOWN_LEDGER_SCHEMA_VERSION -> warn,
+    # best-effort proceed.
     schema_version = (
-        ledger.get("schema_version", "1.1.0") if isinstance(ledger, dict) else "1.1.0"
+        ledger.get("schema_version", KNOWN_LEDGER_SCHEMA_VERSION)
+        if isinstance(ledger, dict)
+        else KNOWN_LEDGER_SCHEMA_VERSION
     )
-    if schema_version and _is_unknown_future_schema(schema_version, "1.1.0"):
+    if schema_version and _is_unknown_future_schema(
+        schema_version, KNOWN_LEDGER_SCHEMA_VERSION
+    ):
         print(
-            f"WARNING: cycle-ledger schema_version={schema_version!r} > 1.1.0; "
+            f"WARNING: cycle-ledger schema_version={schema_version!r} > "
+            f"{KNOWN_LEDGER_SCHEMA_VERSION}; "
             "proceeding with best-effort interpretation",
             file=sys.stderr,
         )
@@ -248,9 +258,7 @@ def next_action(
 
     # Compute next cycle_num from ledger (ledger is authoritative).
     cycle_num = (
-        last_cycle["cycle_num"] + 1
-        if last_cycle and "cycle_num" in last_cycle
-        else 1
+        last_cycle["cycle_num"] + 1 if last_cycle and "cycle_num" in last_cycle else 1
     )
     _warn_env_vs_ledger_mismatch(cycle_num)
 
