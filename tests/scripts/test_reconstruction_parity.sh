@@ -25,7 +25,7 @@ trap 'rm -rf "$TEST_DIR" "$MOCK_DIR"' EXIT
 # Mock gh CLI: returns a canned PR-comments JSON array.
 #
 # The mock must satisfy BOTH access patterns:
-#  - Python:  gh api repos/<repo>/pulls/<pr>/comments --paginate  (expects JSON)
+#  - Python:  gh api repos/<repo>/issues/<pr>/comments --paginate  (expects JSON)
 #  - Shell (legacy, pre-unification): gh pr view <pr> --json comments --jq ...
 #
 # After unification the shell delegates to Python, so only the `api` form is
@@ -37,7 +37,7 @@ cat > "$MOCK_DIR/gh" << 'MOCK_GH'
 # Mock gh: return canned JSON for `gh api .../comments`, canned text for `gh pr view`.
 case "$1" in
     api)
-        # $2 is e.g. "repos/owner/repo/pulls/42/comments"
+        # $2 is e.g. "repos/owner/repo/issues/42/comments"
         cat <<'JSON'
 [
   {"body": "Cycle 1\nDSO-Review-Cycle: 1 commit_sha=abc123 findings_hash=h1 tuples=[[\"src/x.py\",\"10-20\",\"correctness\"]]"},

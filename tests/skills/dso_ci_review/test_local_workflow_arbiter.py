@@ -9,6 +9,7 @@ Testing mode: RED — these tests document the expected behaviour of the
 DISPATCH_ARBITER branch and are intentionally failing until the implementation
 lands (task 9bb1-c4cc-2c01-4a7f).
 """
+
 from __future__ import annotations
 
 import json
@@ -32,6 +33,7 @@ if _SCRIPTS_DIR not in sys.path:
 try:
     import dso_ci_review.local_workflow as _lw_mod  # noqa: E402
     from dso_ci_review.local_workflow import _local_arbiter_branch  # noqa: E402
+
     _LOCAL_ARBITER_BRANCH_EXISTS = True
 except ImportError:
     _lw_mod = None  # type: ignore[assignment]
@@ -43,17 +45,20 @@ except ImportError:
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _sample_rulings(types=("BLOCK",)):
     """Build a list of minimal ruling dicts."""
     result = []
     for i, ruling_type in enumerate(types):
-        result.append({
-            "ruling": ruling_type,
-            "rationale": f"Test rationale {i}",
-            "schema_version": "1.0.0",
-            "finding_index": i,
-            "impact_class": "bug" if ruling_type != "DROP" else "none",
-        })
+        result.append(
+            {
+                "ruling": ruling_type,
+                "rationale": f"Test rationale {i}",
+                "schema_version": "1.0.0",
+                "finding_index": i,
+                "impact_class": "bug" if ruling_type != "DROP" else "none",
+            }
+        )
     return result
 
 
@@ -91,7 +96,10 @@ def _make_ledger(cycle_num=1, sha="testsha123"):
 # Test 1: process_rulings called with pr_number=None and branch_name
 # ---------------------------------------------------------------------------
 
-def test_local_arbiter_calls_process_rulings_with_pr_number_none_and_branch_name(tmp_path):
+
+def test_local_arbiter_calls_process_rulings_with_pr_number_none_and_branch_name(
+    tmp_path,
+):
     """DISPATCH_ARBITER branch: process_rulings must be called with pr_number=None
     and a branch_name derived from the current git branch (local context, no PR).
 
@@ -109,12 +117,17 @@ def test_local_arbiter_calls_process_rulings_with_pr_number_none_and_branch_name
     branch_name = "story/test-branch"
 
     with (
-        patch("dso_ci_review.local_workflow._dispatch_cycle_end_arbiter", return_value=rulings),
+        patch(
+            "dso_ci_review.local_workflow._dispatch_cycle_end_arbiter",
+            return_value=rulings,
+        ),
         patch("dso_ci_review.local_workflow.process_rulings") as mock_process,
         patch("subprocess.check_output", return_value=branch_name.encode() + b"\n"),
     ):
         mock_process.return_value = {
-            "block": [{"ruling": rulings[0], "finding": findings[0], "finding_hash": "h1"}],
+            "block": [
+                {"ruling": rulings[0], "finding": findings[0], "finding_hash": "h1"}
+            ],
             "defer_ticket_ids": [],
             "drop_defense_records": [],
             "skipped_idempotent": [],
@@ -147,6 +160,7 @@ def test_local_arbiter_calls_process_rulings_with_pr_number_none_and_branch_name
 # Test 2: finding_map index alignment — findings match rulings by order
 # ---------------------------------------------------------------------------
 
+
 def test_local_arbiter_aligned_finding_map(tmp_path):
     """DISPATCH_ARBITER branch: finding_map passed to process_rulings must align
     with findings list — key 0 maps to findings[0], key 1 to findings[1], etc.
@@ -175,13 +189,22 @@ def test_local_arbiter_aligned_finding_map(tmp_path):
         elif "finding_map" in kwargs:
             captured_finding_map.update(kwargs["finding_map"])
         return {
-            "block": [], "defer_ticket_ids": [], "drop_defense_records": [],
-            "skipped_idempotent": [], "skipped_invalid_index": [],
+            "block": [],
+            "defer_ticket_ids": [],
+            "drop_defense_records": [],
+            "skipped_idempotent": [],
+            "skipped_invalid_index": [],
         }
 
     with (
-        patch("dso_ci_review.local_workflow._dispatch_cycle_end_arbiter", return_value=rulings),
-        patch("dso_ci_review.local_workflow.process_rulings", side_effect=capture_process_rulings),
+        patch(
+            "dso_ci_review.local_workflow._dispatch_cycle_end_arbiter",
+            return_value=rulings,
+        ),
+        patch(
+            "dso_ci_review.local_workflow.process_rulings",
+            side_effect=capture_process_rulings,
+        ),
         patch("subprocess.check_output", return_value=b"test-branch\n"),
     ):
         _local_arbiter_branch(
@@ -196,9 +219,7 @@ def test_local_arbiter_aligned_finding_map(tmp_path):
         f"finding_map should have 3 entries, got {len(captured_finding_map)}: {captured_finding_map}"
     )
     for idx, original_finding in enumerate(findings):
-        assert idx in captured_finding_map, (
-            f"finding_map missing key {idx}"
-        )
+        assert idx in captured_finding_map, f"finding_map missing key {idx}"
         assert captured_finding_map[idx] is original_finding or (
             captured_finding_map[idx] == original_finding
         ), f"finding_map[{idx}] does not correspond to findings[{idx}]"
@@ -207,6 +228,7 @@ def test_local_arbiter_aligned_finding_map(tmp_path):
 # ---------------------------------------------------------------------------
 # Test 3: DEFER orphan ticket uses branch:<name>, not #<pr_number>
 # ---------------------------------------------------------------------------
+
 
 def test_local_defer_orphan_ticket_uses_branch_scope(tmp_path):
     """DEFER ruling: orphan ticket description must use 'branch:<branch_name>'
@@ -238,7 +260,10 @@ def test_local_defer_orphan_ticket_uses_branch_scope(tmp_path):
         return result
 
     with (
-        patch("dso_ci_review.local_workflow._dispatch_cycle_end_arbiter", return_value=rulings),
+        patch(
+            "dso_ci_review.local_workflow._dispatch_cycle_end_arbiter",
+            return_value=rulings,
+        ),
         patch("subprocess.run", side_effect=mock_run),
         patch("subprocess.check_output", return_value=branch_name.encode() + b"\n"),
     ):
@@ -251,8 +276,7 @@ def test_local_defer_orphan_ticket_uses_branch_scope(tmp_path):
 
     # Find the ticket create subprocess call
     create_calls = [
-        c for c in subprocess_calls
-        if len(c) >= 4 and "ticket" in c and "create" in c
+        c for c in subprocess_calls if len(c) >= 4 and "ticket" in c and "create" in c
     ]
     assert create_calls, (
         f"No ticket create subprocess call found. All calls: {subprocess_calls}"
@@ -272,6 +296,7 @@ def test_local_defer_orphan_ticket_uses_branch_scope(tmp_path):
 # ---------------------------------------------------------------------------
 # Test 4: DROP ruling writes tracker store, never github defense store
 # ---------------------------------------------------------------------------
+
 
 def test_local_drop_skips_pr_defense_store(tmp_path):
     """DROP ruling: review-defense-store.sh must be invoked (tracker write);
@@ -298,7 +323,10 @@ def test_local_drop_skips_pr_defense_store(tmp_path):
         return result
 
     with (
-        patch("dso_ci_review.local_workflow._dispatch_cycle_end_arbiter", return_value=rulings),
+        patch(
+            "dso_ci_review.local_workflow._dispatch_cycle_end_arbiter",
+            return_value=rulings,
+        ),
         patch("subprocess.run", side_effect=mock_run),
         patch("subprocess.check_output", return_value=b"test-branch\n"),
     ):
@@ -311,7 +339,8 @@ def test_local_drop_skips_pr_defense_store(tmp_path):
 
     # review-defense-store.sh must have been invoked (tracker write)
     tracker_calls = [
-        c for c in subprocess_calls
+        c
+        for c in subprocess_calls
         if any("review-defense-store.sh" in part for part in c)
         and not any("github" in part for part in c)
     ]
@@ -321,7 +350,8 @@ def test_local_drop_skips_pr_defense_store(tmp_path):
 
     # review-github-defense-store.sh must NOT be invoked (no PR context)
     github_store_calls = [
-        c for c in subprocess_calls
+        c
+        for c in subprocess_calls
         if any("review-github-defense-store.sh" in part for part in c)
     ]
     assert not github_store_calls, (
@@ -333,6 +363,7 @@ def test_local_drop_skips_pr_defense_store(tmp_path):
 # ---------------------------------------------------------------------------
 # Test 5: arbiter-rulings.json sidecar written with correct schema
 # ---------------------------------------------------------------------------
+
 
 def test_local_arbiter_writes_sidecar_with_block_list(tmp_path):
     """DISPATCH_ARBITER branch: arbiter-rulings.json must be written to
@@ -360,7 +391,10 @@ def test_local_arbiter_writes_sidecar_with_block_list(tmp_path):
         return result
 
     with (
-        patch("dso_ci_review.local_workflow._dispatch_cycle_end_arbiter", return_value=rulings),
+        patch(
+            "dso_ci_review.local_workflow._dispatch_cycle_end_arbiter",
+            return_value=rulings,
+        ),
         patch("subprocess.run", side_effect=mock_run),
         patch("subprocess.check_output", return_value=b"test-branch\n"),
     ):
@@ -372,9 +406,7 @@ def test_local_arbiter_writes_sidecar_with_block_list(tmp_path):
         )
 
     sidecar_path = tmp_path / "arbiter-rulings.json"
-    assert sidecar_path.exists(), (
-        f"arbiter-rulings.json not written to {tmp_path}"
-    )
+    assert sidecar_path.exists(), f"arbiter-rulings.json not written to {tmp_path}"
     sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
 
     # Schema version
@@ -406,6 +438,7 @@ def test_local_arbiter_writes_sidecar_with_block_list(tmp_path):
 # ---------------------------------------------------------------------------
 # Test 6: BLOCK ruling causes exit code 1
 # ---------------------------------------------------------------------------
+
 
 def test_local_arbiter_block_exits_one(tmp_path):
     """When arbiter returns a BLOCK ruling, main() must return exit code 1.
@@ -444,16 +477,32 @@ def test_local_arbiter_block_exits_one(tmp_path):
         # Patch the cycle-level next_action to return DISPATCH_ARBITER on first call
         patch(
             "dso_ci_review.local_workflow.cycle_next_action",
-            return_value={"action": "DISPATCH_ARBITER", "reason": "max cycles", "cycle_num": 4},
+            return_value={
+                "action": "DISPATCH_ARBITER",
+                "reason": "max cycles",
+                "cycle_num": 4,
+            },
         ),
-        patch("dso_ci_review.local_workflow._dispatch_cycle_end_arbiter", return_value=rulings),
-        patch("dso_ci_review.local_workflow._dispatch_local_reviewer", return_value={"findings": findings}),
+        patch(
+            "dso_ci_review.local_workflow._dispatch_cycle_end_arbiter",
+            return_value=rulings,
+        ),
+        patch(
+            "dso_ci_review.local_workflow._dispatch_local_reviewer",
+            return_value={"findings": findings},
+        ),
         patch("subprocess.run", side_effect=mock_run),
         patch("subprocess.check_output", side_effect=mock_check_output),
-        patch("dso_ci_review.local_workflow._read_diff", return_value="diff --git a/x.py b/x.py\n+foo"),
+        patch(
+            "dso_ci_review.local_workflow._read_diff",
+            return_value="diff --git a/x.py b/x.py\n+foo",
+        ),
         patch("dso_ci_review.local_workflow._validate_agent_files"),
         patch("dso_ci_review.local_workflow.read_config_int", return_value=4),
-        patch("dso_ci_review.local_workflow.cycle_ledger.read_ledger", return_value=_make_ledger(cycle_num=3, sha="deadbeef1234")),
+        patch(
+            "dso_ci_review.local_workflow.cycle_ledger.read_ledger",
+            return_value=_make_ledger(cycle_num=3, sha="deadbeef1234"),
+        ),
         patch("dso_ci_review.local_workflow.get_provider"),
     ):
         exit_code = main()
@@ -466,6 +515,7 @@ def test_local_arbiter_block_exits_one(tmp_path):
 # ---------------------------------------------------------------------------
 # Test 7: no BLOCK ruling causes exit code 0
 # ---------------------------------------------------------------------------
+
 
 def test_local_arbiter_no_block_exits_zero(tmp_path):
     """When arbiter returns only DROP + DEFER (no BLOCK), main() must return 0.
@@ -502,16 +552,32 @@ def test_local_arbiter_no_block_exits_zero(tmp_path):
     with (
         patch(
             "dso_ci_review.local_workflow.cycle_next_action",
-            return_value={"action": "DISPATCH_ARBITER", "reason": "max cycles", "cycle_num": 4},
+            return_value={
+                "action": "DISPATCH_ARBITER",
+                "reason": "max cycles",
+                "cycle_num": 4,
+            },
         ),
-        patch("dso_ci_review.local_workflow._dispatch_cycle_end_arbiter", return_value=rulings),
-        patch("dso_ci_review.local_workflow._dispatch_local_reviewer", return_value={"findings": findings}),
+        patch(
+            "dso_ci_review.local_workflow._dispatch_cycle_end_arbiter",
+            return_value=rulings,
+        ),
+        patch(
+            "dso_ci_review.local_workflow._dispatch_local_reviewer",
+            return_value={"findings": findings},
+        ),
         patch("subprocess.run", side_effect=mock_run),
         patch("subprocess.check_output", side_effect=mock_check_output),
-        patch("dso_ci_review.local_workflow._read_diff", return_value="diff --git a/x.py b/x.py\n+foo"),
+        patch(
+            "dso_ci_review.local_workflow._read_diff",
+            return_value="diff --git a/x.py b/x.py\n+foo",
+        ),
         patch("dso_ci_review.local_workflow._validate_agent_files"),
         patch("dso_ci_review.local_workflow.read_config_int", return_value=4),
-        patch("dso_ci_review.local_workflow.cycle_ledger.read_ledger", return_value=_make_ledger(cycle_num=3, sha="deadbeef1234")),
+        patch(
+            "dso_ci_review.local_workflow.cycle_ledger.read_ledger",
+            return_value=_make_ledger(cycle_num=3, sha="deadbeef1234"),
+        ),
         patch("dso_ci_review.local_workflow.get_provider"),
     ):
         exit_code = main()
@@ -525,6 +591,7 @@ def test_local_arbiter_no_block_exits_zero(tmp_path):
 # ---------------------------------------------------------------------------
 # Test 8: max_cycles threading — consistent between pre-loop and arbiter
 # ---------------------------------------------------------------------------
+
 
 def test_local_arbiter_max_cycles_threading(tmp_path):
     """max_cycles config value must be passed consistently to both:
@@ -555,12 +622,22 @@ def test_local_arbiter_max_cycles_threading(tmp_path):
             return 6  # distinctive value to trace threading
         return default
 
-    def mock_next_action(ledger, max_cycles, current_findings, current_commit_sha, artifacts_dir=None):
+    def mock_next_action(
+        ledger, max_cycles, current_findings, current_commit_sha, artifacts_dir=None
+    ):
         next_action_calls.append({"max_cycles": max_cycles})
         return {"action": "DISPATCH_ARBITER", "reason": "max cycles", "cycle_num": 6}
 
-    def mock_dispatch_arbiter(findings, defenses, diff_text, model, provider_chain,
-                               cycle_num, max_cycles, **kwargs):
+    def mock_dispatch_arbiter(
+        findings,
+        defenses,
+        diff_text,
+        model,
+        provider_chain,
+        cycle_num,
+        max_cycles,
+        **kwargs,
+    ):
         arbiter_calls.append({"max_cycles": max_cycles, "cycle_num": cycle_num})
         return rulings
 
@@ -579,15 +656,33 @@ def test_local_arbiter_max_cycles_threading(tmp_path):
         return b"test-branch\n"
 
     with (
-        patch("dso_ci_review.local_workflow.cycle_next_action", side_effect=mock_next_action),
-        patch("dso_ci_review.local_workflow._dispatch_cycle_end_arbiter", side_effect=mock_dispatch_arbiter),
-        patch("dso_ci_review.local_workflow._dispatch_local_reviewer", return_value={"findings": findings}),
-        patch("dso_ci_review.local_workflow.read_config_int", side_effect=mock_read_config_int),
+        patch(
+            "dso_ci_review.local_workflow.cycle_next_action",
+            side_effect=mock_next_action,
+        ),
+        patch(
+            "dso_ci_review.local_workflow._dispatch_cycle_end_arbiter",
+            side_effect=mock_dispatch_arbiter,
+        ),
+        patch(
+            "dso_ci_review.local_workflow._dispatch_local_reviewer",
+            return_value={"findings": findings},
+        ),
+        patch(
+            "dso_ci_review.local_workflow.read_config_int",
+            side_effect=mock_read_config_int,
+        ),
         patch("subprocess.run", side_effect=mock_run),
         patch("subprocess.check_output", side_effect=mock_check_output),
-        patch("dso_ci_review.local_workflow._read_diff", return_value="diff --git a/x.py b/x.py\n+foo"),
+        patch(
+            "dso_ci_review.local_workflow._read_diff",
+            return_value="diff --git a/x.py b/x.py\n+foo",
+        ),
         patch("dso_ci_review.local_workflow._validate_agent_files"),
-        patch("dso_ci_review.local_workflow.cycle_ledger.read_ledger", return_value=_make_ledger(cycle_num=5, sha="sha1234")),
+        patch(
+            "dso_ci_review.local_workflow.cycle_ledger.read_ledger",
+            return_value=_make_ledger(cycle_num=5, sha="sha1234"),
+        ),
         patch("dso_ci_review.local_workflow.get_provider"),
     ):
         main()

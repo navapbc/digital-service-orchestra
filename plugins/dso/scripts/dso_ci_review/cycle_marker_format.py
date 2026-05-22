@@ -304,6 +304,25 @@ def arbiter_dedup_key(cycle_num: int, commit_sha: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Endpoint helper — writer/reader parity (bug 230d, family of bug 9788)
+# ---------------------------------------------------------------------------
+
+
+def cycle_marker_list_endpoint(repo: str, pr_number: int) -> str:
+    """Return the gh-api path for listing cycle marker comments on a PR.
+
+    Writer (`runner._post_cycle_marker_comment`, which posts via
+    `gh pr comment <pr> --body`) and reader
+    (`cycle_ledger.reconstruct_from_pr_comments`) MUST resolve the endpoint
+    through this single source of truth so endpoint drift cannot recur.
+    DSO-Review-Cycle markers live on the PR issue-conversation thread
+    (`/repos/{repo}/issues/{n}/comments`), NOT the line-attached PR review
+    comments endpoint (`/repos/{repo}/pulls/{n}/comments`).
+    """
+    return f"repos/{repo}/issues/{pr_number}/comments"
+
+
+# ---------------------------------------------------------------------------
 # Chunking helper (used by Bug D writer wire-up; parser already supports
 # continuation= field)
 # ---------------------------------------------------------------------------

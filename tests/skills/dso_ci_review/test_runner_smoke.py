@@ -326,7 +326,11 @@ def test_runner_pipeline_standard_tier(tmp_path):
         ),
         patch(
             "dso_ci_review.runner.cycle_next_action",
-            return_value={"action": "DISPATCH_NEXT", "reason": "smoke-test stub", "cycle_num": 1},
+            return_value={
+                "action": "DISPATCH_NEXT",
+                "reason": "smoke-test stub",
+                "cycle_num": 1,
+            },
         ),
     ):
         exit_code = runner_mod.main()
@@ -454,7 +458,11 @@ def test_runner_pipeline_deep_tier_dispatches_three_agents(tmp_path):
         ),
         patch(
             "dso_ci_review.runner.cycle_next_action",
-            return_value={"action": "DISPATCH_NEXT", "reason": "smoke-test stub", "cycle_num": 1},
+            return_value={
+                "action": "DISPATCH_NEXT",
+                "reason": "smoke-test stub",
+                "cycle_num": 1,
+            },
         ),
     ):
         exit_code = runner_mod.main()
@@ -1201,9 +1209,9 @@ def test_runner_posts_pr_review_when_findings(tmp_path):
 
     # Exclude DSO-Review-Cycle marker comments (cycle ledger infrastructure, not finding comments).
     issue_comment_calls = [
-        c for c in gh_calls
-        if "pr" in c and "comment" in c
-        and not _is_cycle_marker_comment(c)
+        c
+        for c in gh_calls
+        if "pr" in c and "comment" in c and not _is_cycle_marker_comment(c)
     ]
 
     assert len(reviews_api_calls) == 1, (
@@ -1307,8 +1315,7 @@ def test_runner_partial_post_failure_continues_remaining_findings(tmp_path):
 
     # Exclude DSO-Review-Cycle marker comments (cycle ledger infrastructure).
     issue_comment_calls = [
-        c for c in gh_calls
-        if "pr" in c and "comment" in c and not _is_cycle_marker(c)
+        c for c in gh_calls if "pr" in c and "comment" in c and not _is_cycle_marker(c)
     ]
 
     assert len(reviews_api_calls) == 1, (
@@ -2484,7 +2491,9 @@ def test_runner_cycle2_with_defenses_suppresses_reemitted_findings(tmp_path):
         ),
         # Ledger-based fixture: mock _init_cycle_ledger to return cycle 2.
         # Task 36cf replaces the env-var body; the mock point is now stable.
-        patch("dso_ci_review.runner._init_cycle_ledger", return_value=({"cycles": []}, 2)),
+        patch(
+            "dso_ci_review.runner._init_cycle_ledger", return_value=({"cycles": []}, 2)
+        ),
         patch(
             "dso_ci_review.runner._classify_tier_via_bash",
             return_value=_standard_tier_classification(),
@@ -2647,7 +2656,9 @@ def test_runner_cycle2_deep_tier_partial_failure_with_defenses(tmp_path):
         ),
         # Ledger-based fixture: mock _init_cycle_ledger to return cycle 2.
         # Task 36cf replaces the env-var body; the mock point is now stable.
-        patch("dso_ci_review.runner._init_cycle_ledger", return_value=({"cycles": []}, 2)),
+        patch(
+            "dso_ci_review.runner._init_cycle_ledger", return_value=({"cycles": []}, 2)
+        ),
         patch("dso_ci_review.runner._classify_tier_via_bash", return_value=tier_result),
         patch(
             "dso_ci_review.runner._validate_findings_schema",
@@ -2857,7 +2868,14 @@ def test_runner_calls_run_region_split_for_large_diff(tmp_path):
     def mock_run_region_split_strategy_f(**kwargs):
         strategy_f_called.append(kwargs)
         # Return a minimal dispatch spec so the pipeline can proceed.
-        return [{"cluster_dir": ".", "files": ["file0.py"], "diff": diff_text, "oversized_single_file": False}]
+        return [
+            {
+                "cluster_dir": ".",
+                "files": ["file0.py"],
+                "diff": diff_text,
+                "oversized_single_file": False,
+            }
+        ]
 
     aggregate_called: list[dict] = []
 

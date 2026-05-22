@@ -288,7 +288,7 @@ $ .claude/scripts/dso ticket show --format=llm w21-a3f7
 List all tickets.
 
 ```
-.claude/scripts/dso ticket list [--type=<type>] [--status=<status>] [--parent=<id>] [--format=llm] [--include-archived]
+.claude/scripts/dso ticket list [--type=<type>] [--status=<status>] [--parent=<id>] [--has-tag=<tag>] [--format=llm] [--include-archived]
 ```
 
 **Arguments:**
@@ -298,6 +298,7 @@ List all tickets.
 | `--type=<type>` | No | Filter by ticket type: `epic`, `story`, `task`, `bug` |
 | `--status=<status>` | No | Filter by status: `open`, `in_progress`, `closed`, `blocked` (comma-separated for multi) |
 | `--parent=<id>` | No | Filter to direct children of `<id>` (matches the `parent_id` field) |
+| `--has-tag=<tag>` | No | Filter to tickets carrying the exact tag value (e.g. `detected_by:tests`). Tags in the `detected_by:*` namespace also auto-intersect with `--type=bug`. |
 | `--format=llm` | No | JSONL output — one minified ticket per line (see Output Formats section) |
 | `--include-archived` | No | Include archived tickets in output (default: archived tickets are excluded) |
 
@@ -326,6 +327,9 @@ $ .claude/scripts/dso ticket list
 
 $ .claude/scripts/dso ticket list --type=bug --status=open
 [{"ticket_id":"w21-c4d8","ticket_type":"bug","title":"Login fails on Safari","status":"open",...}]
+
+$ .claude/scripts/dso ticket list --has-tag=detected_by:tests
+[{"ticket_id":"w21-c4d8","ticket_type":"bug","title":"Login fails on Safari","status":"open","tags":["detected_by:tests"],...}]
 
 $ .claude/scripts/dso ticket list --format=llm
 {"id":"w21-a3f7","t":"task","ttl":"Add rate limiting to API","st":"open","au":"Alice"}

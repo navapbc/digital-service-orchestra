@@ -145,3 +145,19 @@ DESC
 ```
 
 **Note:** Only add `--tags CLI_user` when the user explicitly requested the bug ticket during an interactive session. Do not add it for autonomously discovered bugs.
+
+---
+
+## detected_by Field
+
+The `detected_by` field records how the bug was discovered. Use one of the 7 allowed values (set automatically via `DSO_FILING_CONTEXT` or supplied manually):
+
+- **tests** — Bug surfaced by an automated test (e.g., mutation testing, CI test suite failure).
+- **review-llm** — Bug identified by an LLM-based code review (e.g., `/dso:fix-bug` Phase G, `/dso:debug-everything`).
+- **review-human** — Bug identified during a human code review or PR comment.
+- **production** — Bug observed in a live/production environment after deployment.
+- **user-report** — Bug explicitly reported by a user during an interactive session (distinct from `CLI_user` tag, which marks the ticket itself; this value records the discovery channel).
+- **internal-dogfood** — Bug found while dogfooding the system internally (pre-release or staging usage by team members).
+- **other** — Discovery channel does not match any of the above categories, or is unknown.
+
+The `infer-detected-by.sh` script maps `DSO_FILING_CONTEXT` to this field automatically. When filing manually, select the value that best describes how you found the bug.

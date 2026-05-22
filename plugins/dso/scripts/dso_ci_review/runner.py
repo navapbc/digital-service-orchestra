@@ -1705,6 +1705,13 @@ def _post_cycle_marker_comment(
     Deduplicates by checking for an existing comment that matches BOTH cycle_num AND
     commit_sha. If found, PATCHes it; otherwise creates a new comment.
     All gh CLI failures are logged as WARNINGs and are non-fatal.
+
+    Writer/reader endpoint parity (bug 230d): the writer posts via
+    `gh pr comment <pr> --body ...`, which targets the same issue-conversation
+    endpoint returned by `cycle_marker_list_endpoint` in `cycle_marker_format`.
+    The reader (`cycle_ledger.reconstruct_from_pr_comments`) MUST call that
+    helper rather than hardcode a URL — see bugs 9788/230d for the regression
+    that this parity protects against.
     """
     # Pre-condition guard (see cycle_marker_format.format_cycle_marker docstring):
     # the formatter raises ValueError on pr_number <= 0; convert that into a
@@ -1937,8 +1944,17 @@ def main() -> int:
 
         # Pre-review SHORT_CIRCUIT check: when HEAD SHA matches last cycle AND
         # arbiter-rulings.json exists, skip dispatch and return early.
+        # Pass pr_number/repo so the durable PR-comment fallback fires when
+        # the filesystem arbiter-rulings.json is absent (CI-ephemeral
+        # $ARTIFACTS_DIR scenario — bug ab89-4fbb).
         _pre_check = cycle_next_action(
-            _ledger, max_cycles, [], reviewed_sha, artifacts_dir
+            _ledger,
+            max_cycles,
+            [],
+            reviewed_sha,
+            artifacts_dir,
+            pr_number=_pr_number_for_ledger,
+            repo=_repo_for_ledger,
         )
         if _pre_check.get("action") == "SHORT_CIRCUIT":
             rulings_path = os.path.join(artifacts_dir, "arbiter-rulings.json")
@@ -2495,7 +2511,13 @@ def main() -> int:
         # semantics. The bug was not caught at sub-PR time because Python
         # Skill/Doc Tests is gated to base=main — bug 69e5-824a-ec7e-4bd9.)
         _action_result = cycle_next_action(
-            ledger, max_cycles, _current_findings, reviewed_sha, _artifacts_dir
+            ledger,
+            max_cycles,
+            _current_findings,
+            reviewed_sha,
+            _artifacts_dir,
+            pr_number=_pr_number_for_ledger,
+            repo=_repo_for_ledger,
         )
         _action = _action_result.get("action", "DISPATCH_NEXT")
 

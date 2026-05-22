@@ -58,12 +58,27 @@ def main() -> int:
         # Find the first CREATE event (typically exactly one per ticket;
         # if multiple ever appear, the lexically earliest wins — same
         # ordering rule the rest of the reducer applies).
+        # Also locate the lexically-latest SNAPSHOT event (excluding
+        # PRECONDITIONS-SNAPSHOT) so that compacted tickets — where the
+        # CREATE event has been folded into a SNAPSHOT — still expose the
+        # authoritative alias/jira_key from compiled_state.  Bug
+        # 9894-a463-090a-43e5: the wordlist evolves over time, so
+        # compute_alias(ticket_id) can diverge from the alias that was
+        # stored on the original CREATE event; for compacted tickets the
+        # SNAPSHOT's compiled_state.alias is the authoritative value and
+        # must take precedence over the backfill.
         create_path = None
+        snapshot_path = None
         try:
             for fname in sorted(os.listdir(ticket_dir)):
-                if fname.endswith("-CREATE.json"):
+                if fname.endswith("-CREATE.json") and create_path is None:
                     create_path = os.path.join(ticket_dir, fname)
-                    break
+                elif fname.endswith("-SNAPSHOT.json") and not fname.endswith(
+                    "-PRECONDITIONS-SNAPSHOT.json"
+                ):
+                    # Track the lexically-latest SNAPSHOT (sorted() yields
+                    # ascending order, so a later filename overwrites earlier).
+                    snapshot_path = os.path.join(ticket_dir, fname)
         except OSError:
             continue
         stored_alias = ""
@@ -76,14 +91,30 @@ def main() -> int:
                 jira_key = data.get("jira_key") or ""
             except (OSError, json.JSONDecodeError):
                 pass
+        # SNAPSHOT-only path: when no CREATE event provided an alias/jira_key
+        # (either because the CREATE is absent — compacted ticket — or its
+        # data.alias was empty), read compiled_state from the latest SNAPSHOT.
+        # This MUST run before the compute_alias backfill so the wordlist
+        # cannot override the authoritative stored value.
+        if snapshot_path and (not stored_alias or not jira_key):
+            try:
+                with open(snapshot_path, encoding="utf-8") as f:
+                    snap_data = json.load(f).get("data", {}) or {}
+                snap_state = snap_data.get("compiled_state", {}) or {}
+                if not stored_alias:
+                    stored_alias = snap_state.get("alias") or ""
+                if not jira_key:
+                    jira_key = snap_state.get("jira_key") or ""
+            except (OSError, json.JSONDecodeError):
+                pass
         # jira_key match
         if jira_key and jira_key == target:
             print(f"jira\t{name}")
             continue
-        # alias match — stored or backfilled (compute_alias is the same
-        # function ticket_reducer/_processors.process_create uses, so a
-        # stored alias and a backfilled alias for the same ticket_id are
-        # guaranteed to be identical).
+        # alias match — stored (CREATE or SNAPSHOT) or backfilled.  Backfill
+        # only fires when no event has supplied a stored alias; once a
+        # SNAPSHOT has recorded compiled_state.alias, that value is the
+        # source of truth and compute_alias is irrelevant.
         effective_alias = stored_alias or compute_alias(name) or ""
         if effective_alias and effective_alias == target:
             print(f"alias\t{name}")

@@ -539,7 +539,8 @@ def test_link_missing_source_sync_skips_event(
 ) -> None:
     """Given a LINK event where the source ticket has no SYNC file (no Jira key),
     when process_outbound is called,
-    then set_relationship() is NOT called and no exception is raised.
+    then set_relationship() is NOT called and a dedup'd BRIDGE_ALERT is written
+    so the dropped event is auditable (parallel to the missing-target path).
     """
     src_dir = tmp_path / "src-nosync"
     tgt_dir = tmp_path / "tgt-hassync"
@@ -585,6 +586,16 @@ def test_link_missing_source_sync_skips_event(
 
     assert mock_client.set_relationship.call_count == 0, (
         "set_relationship must NOT be called when source ticket has no SYNC (no Jira key)"
+    )
+    alert_files = list(src_dir.glob("*-BRIDGE_ALERT.json"))
+    assert len(alert_files) >= 1, (
+        "A BRIDGE_ALERT must be written when the source ticket has no SYNC — "
+        "silent skip hides dropped LINK events from operators."
+    )
+    payload = json.loads(alert_files[0].read_text(encoding="utf-8"))
+    assert (payload.get("data") or {}).get("dedup_key"), (
+        "LINK no-source-SYNC alert must carry a dedup_key so repeated runs "
+        "don't flood the tracker."
     )
 
 

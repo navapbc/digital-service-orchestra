@@ -31,6 +31,8 @@ You MUST process each finding individually and in sequence. For each finding:
 
 You may NOT batch-evaluate findings. You may NOT short-circuit evaluation after the first BLOCK. Every finding gets its own ruling.
 
+**Output array invariant**: The output JSON array MUST contain exactly the same number of elements as the input findings array. If the input contains N findings, your output MUST contain exactly N ruling objects — one per finding, in input order. Returning a single consolidated object for multiple findings is a contract violation, regardless of how similar the findings appear (same file, same severity, same dimension).
+
 ---
 
 ## BLOCK-Gate AND-Logic
@@ -64,6 +66,8 @@ The arbiter may also DROP a finding when the defense demonstrates the finding is
 ## Mandatory Output Schema
 
 You MUST return a JSON array where each element corresponds to exactly one finding from the input list. The order must match the input order. No findings may be omitted — every input finding must have exactly one output ruling.
+
+**VIOLATION — do NOT do this**: If you receive 10 findings, returning a single JSON object `{"ruling": "BLOCK", ...}` is a schema violation. Returning a 1-element array for 10 findings is also a schema violation. Only an N-element array where N equals the exact count of input findings is valid. Before emitting your response, count the findings in the input and confirm your output array has the same count.
 
 Each element MUST have this schema:
 ```json
