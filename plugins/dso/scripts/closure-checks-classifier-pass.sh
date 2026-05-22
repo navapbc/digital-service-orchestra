@@ -165,8 +165,13 @@ fi
 # This pattern keeps the heavy logic in python while letting bash own the
 # terminal interaction.
 
-AUDIT_JSON_FILE="$(mktemp /tmp/audit-comment.XXXXXX.json)"
-NEW_DESC_FILE="$(mktemp /tmp/new-desc.XXXXXX.txt)"
+# Bug 724a-53f1-5d72-45d0: BSD mktemp does NOT substitute X's when they are
+# followed by additional characters (.json / .txt). The X's must be the last
+# characters of the basename. Files are consumed by path internally — the
+# extension was decorative, not load-bearing — so we drop it. This also
+# enables parallel script invocations (each gets a unique substituted path).
+AUDIT_JSON_FILE="$(mktemp /tmp/audit-comment.XXXXXX)"
+NEW_DESC_FILE="$(mktemp /tmp/new-desc.XXXXXX)"
 trap 'rm -f "$AUDIT_JSON_FILE" "$NEW_DESC_FILE"' EXIT
 
 # ── Apply-from-plan mode (Claude-driven ack flow) ───────────────────────────
