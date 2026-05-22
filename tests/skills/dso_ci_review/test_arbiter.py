@@ -884,3 +884,58 @@ def test_dispatch_arbiter_forwards_findings_into_diff_text():
     assert isinstance(parsed_ledger, list)
     assert parsed_ledger[0]["cycle_num"] == 1
     assert parsed_ledger[0]["findings_hash"] == "abc123"
+
+
+# ---------------------------------------------------------------------------
+# Bug 2216-dc23: dispatch_arbiter must pin primary_model and
+# context_model_chain to opus regardless of the caller's model parameter.
+# Background: dispatch_review iterates context_model_chain from index 0
+# (haiku) and primary_model is dead code for the actual litellm.completion
+# call — so passing the caller's model ("claude-sonnet-4-6" from tier config)
+# caused the arbiter to land on haiku-4-5 instead of opus.
+# ---------------------------------------------------------------------------
+
+
+def test_dispatch_arbiter_pins_to_opus_regardless_of_caller_model():
+    """Given: caller passes model='claude-sonnet-4-6' (non-opus tier config value)
+    When: dispatch_arbiter calls dispatch_review
+    Then: dispatch_review receives primary_model='claude-opus-4-7' and
+          context_model_chain=['claude-opus-4-7'] — pinned to opus regardless
+          of the caller's model parameter, preventing haiku/sonnet dispatch.
+    """
+    findings = [{"id": "f1", "severity": "critical"}]
+    fake_rulings = [
+        {
+            "ruling": "BLOCK",
+            "rationale": "critical finding",
+            "schema_version": "1.0.0",
+        }
+    ]
+
+    with patch(
+        "dso_ci_review.arbiter.dispatch_review", return_value=fake_rulings
+    ) as mock_dispatch:
+        dispatch_arbiter(
+            findings=findings,
+            defenses=[],
+            diff_text="--- a/x\n+++ b/x\n@@ -1 +1 @@\n-old\n+new\n",
+            model="claude-sonnet-4-6",
+            provider_chain=["anthropic"],
+            cycle_num=1,
+            max_cycles=4,
+        )
+
+    assert mock_dispatch.call_count == 1, (
+        f"Expected dispatch_review called once, got {mock_dispatch.call_count}"
+    )
+    captured_kwargs = mock_dispatch.call_args.kwargs
+    assert captured_kwargs.get("primary_model") == "claude-opus-4-7", (
+        f"Expected primary_model=claude-opus-4-7, got "
+        f"{captured_kwargs.get('primary_model')!r}. "
+        "The arbiter must pin to opus regardless of the caller's model parameter."
+    )
+    assert captured_kwargs.get("context_model_chain") == ["claude-opus-4-7"], (
+        f"Expected context_model_chain=['claude-opus-4-7'], got "
+        f"{captured_kwargs.get('context_model_chain')!r}. The arbiter must not fall back to "
+        "smaller models — haiku/sonnet cannot reliably produce per-finding structured output."
+    )
