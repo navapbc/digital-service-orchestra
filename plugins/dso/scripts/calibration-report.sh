@@ -45,6 +45,7 @@ Subcommands:
   quarterly       Aggregate bug tickets by detected_by:<channel> for a calendar quarter.
   mutation-append Append a mutation-testing result for a PR (idempotent).
   churn-append    Append a churn result for a PR (idempotent).
+  query           Query calibration data (run 'query --help' for sub-handler list).
 
 Options for monthly:
   --period YYYY-MM        Target month in UTC (default: current UTC month).
@@ -625,6 +626,302 @@ _cmd_churn_append() {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Subcommand: query
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ── Help: query subcommand schema ───────────────────────────────────────────
+_cmd_query_help() {
+    cat <<'HELP'
+Usage: calibration-report.sh query <sub> [options]
+
+Sub-handlers:
+  intents-with-low-kill-rate   List intents where mutation kill_rate < threshold.
+  intents-without-coverage     List intents with no automated test coverage.
+  bugs-by-channel-and-type     Count bugs grouped by detected_by channel and type.
+  rule-effectiveness           Report effectiveness metrics for a review rule.
+
+Options (all subs):
+  --fixture <dir>   Use pre-canned JSON from <dir>/bugs.json instead of live CLI.
+  --dry-run         No-op flag for forward-compatibility (all query subs are read-only).
+
+Options for intents-with-low-kill-rate:
+  --threshold <pct> Kill-rate threshold (default: 50). Intents below this are returned.
+
+Options for rule-effectiveness:
+  <rule-id>         Positional: the rule ID to query (e.g. "rule:no-raw-commit").
+
+Output schema:
+  intents-with-low-kill-rate:
+    JSON array: [{"intent_id": "<title>", "kill_rate": <pct>, "bug_count": <n>}]
+    kill_rate=0 pending mutation integration (bug ad1d-c14f).
+
+  intents-without-coverage:
+    JSON array: [{"intent_id": "<title>", "bug_count": <n>}]
+    Coverage detection deferred (real mode emits []).
+
+  bugs-by-channel-and-type:
+    JSON array: [{"channel": "<ch>", "type": "<type>", "count": <n>}]
+
+  rule-effectiveness:
+    JSON object: {"rule_id": "<id>", "bug_count": <n>, "kill_rate": 0, "effectiveness_score": 0}
+    kill_rate and effectiveness_score pending mutation integration (bug ad1d-c14f).
+HELP
+}
+
+# ── Query sub-handler: intents-with-low-kill-rate ───────────────────────────
+_query_intents_with_low_kill_rate() {
+    local fixture_dir="$1"
+    local threshold="${2:-50}"
+
+    if [ -n "$fixture_dir" ]; then
+        local bugs_json
+        bugs_json=$(_load_fixture "$fixture_dir")
+        python3 -c "
+import json, sys
+
+bugs = json.loads(sys.argv[1])
+threshold = int(sys.argv[2])
+
+# Group bugs by title (intent)
+groups = {}
+for bug in bugs:
+    title = bug.get('title', '')
+    groups[title] = groups.get(title, 0) + 1
+
+# All intents have kill_rate=0 in fixture mode (no mutation data)
+results = []
+for title, count in sorted(groups.items()):
+    kill_rate = 0
+    if kill_rate < threshold:
+        results.append({'intent_id': title, 'kill_rate': kill_rate, 'bug_count': count})
+
+print(json.dumps(results))
+" "$bugs_json" "$threshold"
+    else
+        # Real mode: mutation history integration deferred per bug ad1d-c14f
+        echo "[]"
+    fi
+}
+
+# ── Query sub-handler: intents-without-coverage ─────────────────────────────
+_query_intents_without_coverage() {
+    local fixture_dir="$1"
+
+    if [ -n "$fixture_dir" ]; then
+        local bugs_json
+        bugs_json=$(_load_fixture "$fixture_dir")
+        python3 -c "
+import json, sys
+
+bugs = json.loads(sys.argv[1])
+
+# Group bugs by title (intent); check for test_run_id tags
+groups = {}
+has_coverage = set()
+for bug in bugs:
+    title = bug.get('title', '')
+    groups[title] = groups.get(title, 0) + 1
+    for tag in bug.get('tags', []):
+        if tag.startswith('test_run_id:'):
+            has_coverage.add(title)
+
+# Return intents with no test_run_id tag
+results = []
+for title, count in sorted(groups.items()):
+    if title not in has_coverage:
+        results.append({'intent_id': title, 'bug_count': count})
+
+print(json.dumps(results))
+" "$bugs_json"
+    else
+        # Real mode: test coverage integration deferred
+        echo "[]"
+    fi
+}
+
+# ── Query sub-handler: bugs-by-channel-and-type ─────────────────────────────
+_query_bugs_by_channel_and_type() {
+    local fixture_dir="$1"
+
+    if [ -n "$fixture_dir" ]; then
+        local bugs_json
+        bugs_json=$(_load_fixture "$fixture_dir")
+        python3 -c "
+import json, sys
+
+bugs = json.loads(sys.argv[1])
+
+# Group by (channel, type)
+groups = {}
+for bug in bugs:
+    bug_type = bug.get('ticket_type', 'bug')
+    channel = 'unknown'
+    for tag in bug.get('tags', []):
+        if tag.startswith('detected_by:'):
+            channel = tag[len('detected_by:'):]
+            break
+    key = (channel, bug_type)
+    groups[key] = groups.get(key, 0) + 1
+
+results = []
+for (channel, btype), count in sorted(groups.items()):
+    results.append({'channel': channel, 'type': btype, 'count': count})
+
+print(json.dumps(results))
+" "$bugs_json"
+    else
+        # Real mode: fetch from ticket system and aggregate
+        local bugs_json
+        bugs_json=$("$DSO" ticket list --type=bug 2>/dev/null || echo "[]")
+        python3 -c "
+import json, sys
+
+try:
+    bugs = json.loads(sys.argv[1])
+except Exception:
+    bugs = []
+
+groups = {}
+for bug in bugs:
+    bug_type = bug.get('ticket_type', 'bug')
+    channel = 'unknown'
+    for tag in bug.get('tags', []):
+        if tag.startswith('detected_by:'):
+            channel = tag[len('detected_by:'):]
+            break
+    key = (channel, bug_type)
+    groups[key] = groups.get(key, 0) + 1
+
+results = []
+for (channel, btype), count in sorted(groups.items()):
+    results.append({'channel': channel, 'type': btype, 'count': count})
+
+print(json.dumps(results))
+" "$bugs_json"
+    fi
+}
+
+# ── Query sub-handler: rule-effectiveness ───────────────────────────────────
+_query_rule_effectiveness() {
+    local rule_id="$1"
+    local fixture_dir="$2"
+
+    if [ -z "$rule_id" ]; then
+        echo "calibration-report query rule-effectiveness: <rule-id> argument required" >&2
+        exit 1
+    fi
+
+    local bug_count=0
+
+    if [ -n "$fixture_dir" ]; then
+        local bugs_json
+        bugs_json=$(_load_fixture "$fixture_dir")
+        bug_count=$(python3 -c "
+import json, sys
+
+bugs = json.loads(sys.argv[1])
+rule_tag = 'rule:' + sys.argv[2]
+count = sum(1 for b in bugs if rule_tag in b.get('tags', []))
+print(count)
+" "$bugs_json" "$rule_id")
+    else
+        bug_count=$("$DSO" ticket list --type=bug 2>/dev/null \
+            | python3 -c "
+import json, sys
+try:
+    bugs = json.load(sys.stdin)
+except Exception:
+    bugs = []
+rule_tag = 'rule:' + sys.argv[1]
+count = sum(1 for b in bugs if rule_tag in b.get('tags', []))
+print(count)
+" "$rule_id" || echo "0")
+    fi
+
+    python3 -c "
+import json, sys
+print(json.dumps({
+    'rule_id': sys.argv[1],
+    'bug_count': int(sys.argv[2]),
+    'kill_rate': 0,
+    'effectiveness_score': 0
+}))
+" "$rule_id" "$bug_count"
+}
+
+# ── Subcommand dispatcher: query ─────────────────────────────────────────────
+_cmd_query() {
+    local sub="" fixture_dir="" dry_run=0 threshold=50
+
+    # First pass: check for --help before requiring sub
+    for arg in "$@"; do
+        if [[ "$arg" == "--help" ]]; then
+            _cmd_query_help
+            return 0
+        fi
+    done
+
+    if [[ $# -eq 0 ]]; then
+        _cmd_query_help
+        exit 1
+    fi
+
+    sub="$1"
+    shift
+
+    # Parse shared flags
+    local positionals=()
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --fixture)
+                [[ $# -ge 2 ]] || { echo "calibration-report query: --fixture requires an argument" >&2; exit 1; }
+                fixture_dir="$2"
+                shift 2
+                ;;
+            --dry-run)
+                dry_run=1
+                shift
+                ;;
+            --threshold)
+                [[ $# -ge 2 ]] || { echo "calibration-report query: --threshold requires an argument" >&2; exit 1; }
+                threshold="$2"
+                shift 2
+                ;;
+            --*)
+                echo "calibration-report query: unknown option: $1" >&2
+                _cmd_query_help
+                exit 1
+                ;;
+            *)
+                positionals+=("$1")
+                shift
+                ;;
+        esac
+    done
+
+    case "$sub" in
+        intents-with-low-kill-rate)
+            _query_intents_with_low_kill_rate "$fixture_dir" "$threshold"
+            ;;
+        intents-without-coverage)
+            _query_intents_without_coverage "$fixture_dir"
+            ;;
+        bugs-by-channel-and-type)
+            _query_bugs_by_channel_and_type "$fixture_dir"
+            ;;
+        rule-effectiveness)
+            local rule_id="${positionals[0]:-}"
+            _query_rule_effectiveness "$rule_id" "$fixture_dir"
+            ;;
+        *)
+            echo "calibration-report query: unknown sub-handler: ${sub}" >&2
+            _cmd_query_help
+            exit 1
+            ;;
+    esac
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Main dispatcher
 # ═══════════════════════════════════════════════════════════════════════════════
 main() {
@@ -648,6 +945,9 @@ main() {
             ;;
         churn-append)
             _cmd_churn_append "$@"
+            ;;
+        query)
+            _cmd_query "$@"
             ;;
         *)
             echo "calibration-report: unknown subcommand: ${subcommand}" >&2

@@ -143,4 +143,35 @@ fi
 assert_eq "test_workflow_no_literal_plugins_dso" "false" "$_HAS_PLUGIN_REF"
 
 # =============================================================================
+# Test 8: test_workflow_has_concurrency_block
+# Given: calibration-rollup.yml exists
+# When:  searching for the `concurrency:` key
+# Then:  the file contains `concurrency:` to serialize concurrent runs
+# =============================================================================
+echo ""
+echo "--- test_workflow_has_concurrency_block ---"
+
+_HAS_CONCURRENCY="false"
+if grep -qF 'concurrency:' "$WORKFLOW_FILE"; then
+    _HAS_CONCURRENCY="true"
+fi
+assert_eq "test_workflow_has_concurrency_block" "true" "$_HAS_CONCURRENCY"
+
+# =============================================================================
+# Test 9: test_workflow_concurrency_no_cancel
+# Given: calibration-rollup.yml exists
+# When:  searching for `cancel-in-progress: false`
+# Then:  the file contains `cancel-in-progress: false` so queued jobs are not
+#        dropped (prevents silent loss of append or rollup runs)
+# =============================================================================
+echo ""
+echo "--- test_workflow_concurrency_no_cancel ---"
+
+_HAS_NO_CANCEL="false"
+if grep -qF 'cancel-in-progress: false' "$WORKFLOW_FILE"; then
+    _HAS_NO_CANCEL="true"
+fi
+assert_eq "test_workflow_concurrency_no_cancel" "true" "$_HAS_NO_CANCEL"
+
+# =============================================================================
 print_summary
