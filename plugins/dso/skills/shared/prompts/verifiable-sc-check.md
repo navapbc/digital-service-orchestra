@@ -69,4 +69,6 @@ If the item describes a durable property the system will continue to satisfy (in
 
 When a participant proposes an SC that fails this litmus test, surface the following refusal:
 
-> "This SC describes a one-time transition rather than a durable system property — moving it to Closure Checks. To keep it as an SC, reframe it as ongoing system behavior."
+> "Per the **end-state-only litmus test** in `shared/prompts/verifiable-sc-check.md` — could this item be false before the sprint began and true only because of this sprint's specific work? Yes — so it describes a one-time transition rather than a durable system property. Moving it to `## Closure Checks`. To keep it as an SC, reframe it as ongoing system behavior."
+
+The refusal references the canonical litmus test by name (per epic a03c-d55e-1393-4f27 SC2) so the user can trace the rejection back to the rule.
