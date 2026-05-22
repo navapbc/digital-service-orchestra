@@ -243,6 +243,122 @@ STUB
               "2" "$_rc"
 }
 
+# Given: all child tasks of a story are closed AND the parent epic has an
+#        unresolved REPLAN_TRIGGER:validation comment mentioning the story
+# When: check-reinvocation is called on the story
+# Then: verdict=replan_required (NOT all_closed) so the caller routes to
+#       diff-plan mode and creates new TDD remediation tasks instead of
+#       emitting STATUS:complete (which would cause the verifier ↔ impl-plan
+#       loop documented in bug 95db-941d-04d8-41d1).
+test_reinvocation_unresolved_replan_trigger_returns_replan_required() {
+    local _sandbox _story_id _epic_id _child_id
+    _sandbox=$(mktemp -d "/tmp/ipl-helpers-sandbox.XXXXXX")
+    _story_id="story-aaaa-1111-2222-3333"
+    _epic_id="epic-bbbb-4444-5555-6666"
+    _child_id="task-cccc-7777-8888-9999"
+    mkdir -p "$_sandbox/.claude/scripts"
+    cat > "$_sandbox/.claude/scripts/dso" <<STUB
+#!/usr/bin/env bash
+# Stub: story has one closed child; story's parent epic has an unresolved
+# REPLAN_TRIGGER:validation comment that mentions the story id.
+if [[ "\$1" == "ticket" && "\$2" == "deps" ]]; then
+    echo '{"ticket_id":"$_story_id","children":["$_child_id"],"deps":[],"blockers":[],"ready_to_work":false}'
+    exit 0
+fi
+if [[ "\$1" == "ticket" && "\$2" == "show" ]]; then
+    case "\$3" in
+        $_child_id)
+            echo '{"ticket_id":"$_child_id","status":"closed","parent_id":"$_story_id"}'
+            exit 0 ;;
+        $_story_id)
+            echo '{"ticket_id":"$_story_id","status":"open","parent_id":"$_epic_id","comments":[]}'
+            exit 0 ;;
+        $_epic_id)
+            # REPLAN_TRIGGER:validation present, no matching REPLAN_RESOLVED yet.
+            cat <<JSON
+{"ticket_id":"$_epic_id","status":"open","parent_id":null,"comments":[
+{"body":"REPLAN_TRIGGER: validation — Story $_story_id validation failed with all tasks closed. Creating TDD remediation tasks."}
+]}
+JSON
+            exit 0 ;;
+    esac
+fi
+exit 1
+STUB
+    chmod +x "$_sandbox/.claude/scripts/dso"
+
+    set +e
+    local _out
+    _out=$(cd "$_sandbox" && bash "$SCRIPTS/check-reinvocation.sh" "$_story_id" 2>/dev/null)
+    local _rc=$?
+    set -e
+    rm -rf "$_sandbox"
+
+    local _verdict
+    _verdict=$(echo "$_out" | grep '^verdict=' | cut -d= -f2-)
+    assert_eq "test_reinvocation_unresolved_replan_trigger_returns_replan_required: emits verdict=replan_required" \
+              "replan_required" "$_verdict"
+    assert_eq "test_reinvocation_unresolved_replan_trigger_returns_replan_required: exits 0" \
+              "0" "$_rc"
+}
+
+# Given: all child tasks closed AND parent epic has a REPLAN_TRIGGER:validation
+#        comment AND a subsequent REPLAN_RESOLVED:implementation-plan comment
+#        for the same story
+# When: check-reinvocation is called on the story
+# Then: verdict=all_closed (the trigger has been resolved; no further
+#       remediation needed)
+test_reinvocation_resolved_replan_trigger_returns_all_closed() {
+    local _sandbox _story_id _epic_id _child_id
+    _sandbox=$(mktemp -d "/tmp/ipl-helpers-sandbox.XXXXXX")
+    _story_id="story-dddd-1111-2222-3333"
+    _epic_id="epic-eeee-4444-5555-6666"
+    _child_id="task-ffff-7777-8888-9999"
+    mkdir -p "$_sandbox/.claude/scripts"
+    cat > "$_sandbox/.claude/scripts/dso" <<STUB
+#!/usr/bin/env bash
+if [[ "\$1" == "ticket" && "\$2" == "deps" ]]; then
+    echo '{"ticket_id":"$_story_id","children":["$_child_id"],"deps":[],"blockers":[],"ready_to_work":false}'
+    exit 0
+fi
+if [[ "\$1" == "ticket" && "\$2" == "show" ]]; then
+    case "\$3" in
+        $_child_id)
+            echo '{"ticket_id":"$_child_id","status":"closed","parent_id":"$_story_id"}'
+            exit 0 ;;
+        $_story_id)
+            echo '{"ticket_id":"$_story_id","status":"open","parent_id":"$_epic_id","comments":[]}'
+            exit 0 ;;
+        $_epic_id)
+            # TRIGGER followed by RESOLVED for the same story.
+            cat <<JSON
+{"ticket_id":"$_epic_id","status":"open","parent_id":null,"comments":[
+{"body":"REPLAN_TRIGGER: validation — Story $_story_id validation failed with all tasks closed."},
+{"body":"REPLAN_RESOLVED: implementation-plan — Remediation tasks created for story $_story_id."}
+]}
+JSON
+            exit 0 ;;
+    esac
+fi
+exit 1
+STUB
+    chmod +x "$_sandbox/.claude/scripts/dso"
+
+    set +e
+    local _out
+    _out=$(cd "$_sandbox" && bash "$SCRIPTS/check-reinvocation.sh" "$_story_id" 2>/dev/null)
+    local _rc=$?
+    set -e
+    rm -rf "$_sandbox"
+
+    local _verdict
+    _verdict=$(echo "$_out" | grep '^verdict=' | cut -d= -f2-)
+    assert_eq "test_reinvocation_resolved_replan_trigger_returns_all_closed: resolved trigger collapses to all_closed" \
+              "all_closed" "$_verdict"
+    assert_eq "test_reinvocation_resolved_replan_trigger_returns_all_closed: exits 0" \
+              "0" "$_rc"
+}
+
 # ─── Run tests ────────────────────────────────────────────────────────────────
 
 test_cycle_state_read_returns_zero_when_absent
@@ -257,5 +373,7 @@ test_tag_guards_missing_arg_errors
 test_reinvocation_lookup_failure_returns_fresh
 test_reinvocation_missing_arg_errors
 test_reinvocation_all_lookups_fail_returns_fresh
+test_reinvocation_unresolved_replan_trigger_returns_replan_required
+test_reinvocation_resolved_replan_trigger_returns_all_closed
 
 print_summary
