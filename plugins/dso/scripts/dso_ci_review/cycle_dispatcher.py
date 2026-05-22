@@ -25,8 +25,10 @@ Cycle counter semantics (per AC amendment from gap analysis):
 
 from __future__ import annotations
 
+import json
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -98,12 +100,61 @@ def _warn_env_vs_ledger_mismatch(ledger_cycle_num: int) -> None:
         )
 
 
+def _arbiter_ruling_exists_on_pr(
+    pr_number: int, current_commit_sha: str, repo: str
+) -> bool:
+    """Check PR issue comments for an existing DSO-Arbiter-Ruling marker
+    matching current_commit_sha.
+
+    Durable idempotency complement to the filesystem-only SHORT_CIRCUIT check.
+    In CI, ``$ARTIFACTS_DIR`` is ephemeral per workflow run, so the filesystem
+    arbiter-rulings.json may be absent even when the arbiter already ruled on
+    this SHA in a prior CI attempt. The DSO-Arbiter-Ruling PR comment posted
+    by the runner survives across reruns and is the durable signal.
+
+    Fail-open: any gh CLI / network / parse failure returns False so the
+    caller falls through to normal dispatch — never crashes. Mirrors
+    cycle_ledger.reconstruct_from_pr_comments's tri-except contract
+    (CalledProcessError, FileNotFoundError, JSONDecodeError).
+    """
+    from dso_ci_review.cycle_marker_format import (  # noqa: PLC0415
+        cycle_marker_list_endpoint,
+        parse_arbiter_marker,
+    )
+
+    endpoint = cycle_marker_list_endpoint(repo, pr_number)
+    cmd = ["gh", "api", endpoint, "--paginate"]
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        comments = json.loads(result.stdout)
+    except (
+        subprocess.CalledProcessError,
+        FileNotFoundError,
+        json.JSONDecodeError,
+    ):
+        return False
+
+    if not isinstance(comments, list):
+        return False
+    for comment in comments:
+        if not isinstance(comment, dict):
+            continue
+        body = comment.get("body", "")
+        for raw_line in body.split("\n"):
+            parsed = parse_arbiter_marker(raw_line.strip())
+            if parsed is not None and parsed.commit_sha == current_commit_sha:
+                return True
+    return False
+
+
 def next_action(
     ledger: dict,
     max_cycles: int,
     current_findings: list,
     current_commit_sha: str,
     artifacts_dir: str | None = None,
+    pr_number: int | None = None,
+    repo: str | None = None,
 ) -> dict:
     """Determine the next pipeline action.
 
@@ -118,6 +169,15 @@ def next_action(
         artifacts_dir: override location of arbiter-rulings.json for
             SHORT_CIRCUIT detection. Falls back to WORKFLOW_PLUGIN_ARTIFACTS_DIR
             then /tmp.
+        pr_number: optional PR number used by the durable-idempotency
+            fallback. When BOTH pr_number AND repo are truthy and the
+            filesystem arbiter-rulings.json is absent, next_action consults
+            PR issue comments for a DSO-Arbiter-Ruling marker matching
+            current_commit_sha. This complements the ephemeral CI
+            artifacts_dir with a durable signal that survives reruns.
+        repo: optional ``owner/repo`` slug for the PR-comment fallback.
+            See pr_number. Local-mode invocations that omit either kwarg
+            skip the PR-comment check (no gh api call).
 
     Returns:
         dict with keys:
@@ -152,10 +212,19 @@ def next_action(
     last_cycle = cycles[-1] if cycles else None
     artifacts = _resolve_artifacts_dir(artifacts_dir)
 
-    # Edge case: SHORT_CIRCUIT -- same SHA AND arbiter-rulings.json exists.
+    # Edge case: SHORT_CIRCUIT -- same SHA AND arbiter ruling exists.
+    # The filesystem check (arbiter-rulings.json) runs first. When the file is
+    # absent (CI-ephemeral $ARTIFACTS_DIR scenario) AND both pr_number and repo
+    # are truthy, fall back to the durable PR-comment DSO-Arbiter-Ruling marker.
+    # Local-mode invocations that omit either kwarg skip the PR-comment check.
     if last_cycle and last_cycle.get("commit_sha") == current_commit_sha:
         arbiter_path = Path(artifacts) / "arbiter-rulings.json"
-        if arbiter_path.exists():
+        pr_comment_short_circuit = False
+        if not arbiter_path.exists() and pr_number and repo:
+            pr_comment_short_circuit = _arbiter_ruling_exists_on_pr(
+                int(pr_number), current_commit_sha, repo
+            )
+        if arbiter_path.exists() or pr_comment_short_circuit:
             short_cycle_num = last_cycle.get("cycle_num", 1)
             _warn_env_vs_ledger_mismatch(short_cycle_num)
             return {
