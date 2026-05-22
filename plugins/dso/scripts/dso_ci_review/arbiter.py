@@ -349,13 +349,14 @@ def dispatch_arbiter(
     # and dispatch_arch_synthesis (dispatch.py "## Prior specialist findings").
     # Bug eb3d-f283: without this, the agent saw only the diff and returned a
     # single ruling, triggering the length-mismatch all-BLOCK fallback.
+    _n_findings = len(findings)
     augmented_diff = (
         diff_text
         + "\n\n## Unresolved findings (cycle "
         + str(cycle_num)
         + " of "
         + str(max_cycles)
-        + ")\n\n"
+        + f", N={_n_findings} — emit exactly {_n_findings} rulings)\n\n"
         + _json.dumps(findings, indent=2)
         + "\n\n## Defenses\n\n"
         + _json.dumps(defenses, indent=2)
