@@ -23,8 +23,8 @@ _SCRIPTS_DIR = str(_REPO_ROOT / "plugins" / "dso" / "scripts")
 # dso_ci_review from the plugin scripts, not the test package.
 _existing_pythonpath = os.environ.get("PYTHONPATH", "")
 if _SCRIPTS_DIR not in _existing_pythonpath.split(os.pathsep):
-    os.environ["PYTHONPATH"] = (
-        _SCRIPTS_DIR + (os.pathsep + _existing_pythonpath if _existing_pythonpath else "")
+    os.environ["PYTHONPATH"] = _SCRIPTS_DIR + (
+        os.pathsep + _existing_pythonpath if _existing_pythonpath else ""
     )
 
 
@@ -149,7 +149,6 @@ def _isolate_cycle_ledger_artifacts(tmp_path_factory, monkeypatch):
     monkeypatch.setenv("WORKFLOW_PLUGIN_ARTIFACTS_DIR", str(isolated))
 
 
-
 @pytest.fixture()
 def fixture_diff_path():
     """Return path to the fixture diff file."""
@@ -163,8 +162,6 @@ def pytest_configure(config):
             "markers",
             "integration: mark test as a live-provider integration test (skipped without API keys)",
         )
-
-
 
 
 @pytest.fixture()

@@ -2,6 +2,7 @@
 
 All tests fail until stability.py is created (Story 45da-5043 T5).
 """
+
 from __future__ import annotations
 
 import pathlib
@@ -17,6 +18,7 @@ from dso_ci_review.stability import finding_hash, jaccard, should_halt  # noqa: 
 
 
 # --- finding_hash tests ---
+
 
 def test_finding_hash_deterministic():
     """Same finding tuple → same hash, twice in a row."""
@@ -42,8 +44,12 @@ def test_finding_hash_is_sha256_hex_not_builtin_hash():
         "from dso_ci_review.stability import finding_hash; "
         "print(finding_hash({'file': 'a.py', 'line_range': '1-2', 'category': 'x'}))"
     )
-    out1 = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True).stdout.strip()
-    out2 = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True).stdout.strip()
+    out1 = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True
+    ).stdout.strip()
+    out2 = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True
+    ).stdout.strip()
     assert out1 == out2, "finding_hash must be deterministic across processes"
     # Verify it's hex (sha256-style), not a Python int
     int(out1, 16)  # raises ValueError if not hex
@@ -58,6 +64,7 @@ def test_finding_hash_normalizes_line_range_forms():
 
 
 # --- jaccard tests ---
+
 
 def test_jaccard_identical_sets():
     s = [{"file": f"{i}.py", "line_range": "1", "category": "c"} for i in range(3)]
@@ -92,6 +99,7 @@ def test_jaccard_zero_set_one_empty():
 
 
 # --- should_halt tests ---
+
 
 def test_should_halt_above_threshold():
     """Jaccard >= 0.85 → (True, 'STABLE_HALT')."""
@@ -137,6 +145,7 @@ def test_should_halt_prior_empty_skips_check():
 
 # ── Bug da45 PR #202 finding f-d4e5f6g7 — dict/tuple equivalence ──────────────
 
+
 def test_finding_hash_dict_and_tuple_forms_produce_identical_hashes():
     """Bug da45 PR #202 review finding f-d4e5f6g7: callers may pass current
     findings as dicts (from dispatch.py) and prior findings as tuples
@@ -149,10 +158,14 @@ def test_finding_hash_dict_and_tuple_forms_produce_identical_hashes():
     changes the field order could silently break equivalence.
     """
     pairs = [
-        ({"file": "x.py", "line_range": "1", "category": "correctness"},
-         ("x.py", "1", "correctness")),
-        ({"file": "src/a.py", "line_range": "10-20", "category": "verification"},
-         ("src/a.py", "10-20", "verification")),
+        (
+            {"file": "x.py", "line_range": "1", "category": "correctness"},
+            ("x.py", "1", "correctness"),
+        ),
+        (
+            {"file": "src/a.py", "line_range": "10-20", "category": "verification"},
+            ("src/a.py", "10-20", "verification"),
+        ),
         # Empty / partial dict equivalent to short tuple
         ({"file": "y.py"}, ("y.py",)),
         ({"file": "y.py", "category": "c"}, ("y.py", "", "c")),
@@ -176,8 +189,7 @@ def test_jaccard_dict_vs_tuple_input_returns_same_result_as_normalized():
         ("y.py", "10-20", "verification"),
     ]
     dict_form = [
-        {"file": f, "line_range": lr, "category": c}
-        for f, lr, c in findings_data
+        {"file": f, "line_range": lr, "category": c} for f, lr, c in findings_data
     ]
     tuple_form = findings_data
     score = jaccard(dict_form, tuple_form)

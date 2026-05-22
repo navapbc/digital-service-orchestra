@@ -114,11 +114,15 @@ class TestEscapeRationaleDiffTextCriterion1:
         When: validate_escape_rationale called with default diff_text
         Then: returns True (criterion 1 skipped when diff_text is empty; line 50 is outside overlap)
         """
-        escape_text = "The validate_csrf_token function at line 50 is a new security check"
+        escape_text = (
+            "The validate_csrf_token function at line 50 is a new security check"
+        )
         prior_cited_lines = ["auth/login.py:42"]
         overlap_region = ["auth/login.py:40-47"]
         # diff_text defaults to '' — criterion 1 is skipped
-        result = validate_escape_rationale(escape_text, prior_cited_lines, overlap_region)
+        result = validate_escape_rationale(
+            escape_text, prior_cited_lines, overlap_region
+        )
         assert result is True, (
             f"Expected True when diff_text is empty (criterion 1 skipped) and line 50 is "
             f"outside overlap region, got {result!r}"

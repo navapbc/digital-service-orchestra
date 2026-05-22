@@ -94,11 +94,20 @@ while [ $# -gt 0 ]; do
             shift 2
             ;;
         --tags)
-            tags="$2"
+            if [ -n "$tags" ]; then
+                tags="$tags,$2"
+            else
+                tags="$2"
+            fi
             shift 2
             ;;
         --tags=*)
-            tags="${1#--tags=}"
+            _tag_val="${1#--tags=}"
+            if [ -n "$tags" ]; then
+                tags="$tags,$_tag_val"
+            else
+                tags="$_tag_val"
+            fi
             shift
             ;;
         *)

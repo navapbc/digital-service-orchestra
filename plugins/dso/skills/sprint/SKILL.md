@@ -2224,7 +2224,7 @@ Before closing a bug with `Fixed:`, invoke the bug classifier (3-step): dispatch
 
 ```bash
 .claude/scripts/dso ticket comment <id> "Fixed: <summary>"
-.claude/scripts/dso ticket transition <id> open closed
+.claude/scripts/dso ticket transition <id> open closed --reason="Fixed: <summary>"
 ```
 
 Do NOT close tasks that are still open or in a failed state.

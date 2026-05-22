@@ -27,6 +27,26 @@ It defines: title format (`[Component]: [Condition] -> [Observed Result]`), prio
 4. **Validate the title post-creation.** The ticket-create script emits a stderr warning when the title pattern is malformed. Catch it and auto-repair.
 5. **Confirm** with `ticket show`.
 
+**Step 3a — Determine `detected_by` channel (CLI_user sessions only).**
+
+If `CLI_user` will be added (i.e., a human is directly filing this bug in the current interactive session), you **must** ask the user which channel detected the bug before creating the ticket:
+
+```
+AskUserQuestion: "Which channel detected this bug?"
+Options:
+  a) tests             — caught by automated tests / CI
+  b) review-llm        — flagged during an LLM code review
+  c) review-human      — flagged during a human code review
+  d) production        — observed in production
+  e) user-report       — reported by an end user
+  f) internal-dogfood  — found during internal dogfooding
+  g) other             — none of the above
+```
+
+Pass the chosen value as `--tags detected_by:<channel>` together with `--tags CLI_user` on the create command (e.g., `--tags CLI_user --tags detected_by:tests`).
+
+**Sub-agent / autonomous callers**: SKIP this prompt entirely. Instead, run `infer-detected-by.sh` (which reads `DSO_FILING_CONTEXT`) to obtain the channel value and pass it as `--tags detected_by:<channel>`. Do **not** add `--tags CLI_user` for autonomous creations.
+
 ```bash
 # Capture stderr to a unique temp file so concurrent callers do not collide.
 BUG_CREATE_ERR_FILE=$(mktemp /tmp/bug-create-err.XXXXXX)
@@ -70,6 +90,24 @@ fi
 **When to omit**: Autonomous creations — anti-pattern scans, debug discoveries, sub-agent blockers, error-pattern triage, end-session learnings — do **not** add `--tags CLI_user` even if the broader session was initiated by the user. The tag signals user-directed intent, not user-initiated sessions.
 
 **Downstream effect**: CLI_user-tagged bugs skip the intent-search gate in `/dso:fix-bug` Phase B Step 1, since user-reported bugs have known intent. Missing the tag causes unnecessary intent-search dispatch on every user-reported bug.
+
+## detected_by Field
+
+Every bug ticket must carry a `detected_by:<channel>` tag that records how the bug was found. The allowed values (must match the `ALLOWED` array in `${CLAUDE_PLUGIN_ROOT}/scripts/infer-detected-by.sh`) are:
+
+| Value | Meaning |
+|-------|---------|
+| `tests` | Caught by automated tests or CI |
+| `review-llm` | Flagged during an LLM code review |
+| `review-human` | Flagged during a human code review |
+| `production` | Observed in production |
+| `user-report` | Reported by an end user |
+| `internal-dogfood` | Found during internal dogfooding |
+| `other` | None of the above / unknown |
+
+**Interactive (CLI_user) sessions**: The LLM asks the user via `AskUserQuestion` (see Step 3a above) and passes the chosen value as `--tags detected_by:<channel>`.
+
+**Autonomous / sub-agent sessions**: Run `${CLAUDE_PLUGIN_ROOT}/scripts/infer-detected-by.sh` (reads `DSO_FILING_CONTEXT`) to obtain the channel value automatically; no user prompt is issued.
 
 ## Consolidation Rule
 

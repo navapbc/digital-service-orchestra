@@ -12,9 +12,7 @@ import importlib.util as _ilu
 import pathlib as _pathlib
 
 _REPO_ROOT = _pathlib.Path(__file__).resolve().parents[3]
-_ST_PATH = (
-    _REPO_ROOT / "plugins" / "dso" / "scripts" / "dso_ci_review" / "stability.py"
-)
+_ST_PATH = _REPO_ROOT / "plugins" / "dso" / "scripts" / "dso_ci_review" / "stability.py"
 
 _spec = _ilu.spec_from_file_location("dso_ci_review.stability", str(_ST_PATH))
 if _spec is not None and _spec.loader is not None:

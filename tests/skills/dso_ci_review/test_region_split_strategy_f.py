@@ -39,9 +39,6 @@ if _SCRIPTS_DIR not in sys.path:
 # Import Strategy E symbols (already exist — should not fail)
 from dso_ci_review.region_split import (  # noqa: E402
     RegionSplitInvariantError,
-    _cluster_files,
-    _extract_filenames,
-    _should_region_split,
 )
 
 # Strategy F imports — these MUST raise ImportError until S7.T4 implements them.
@@ -100,8 +97,12 @@ def _make_diff_mixed_clusters(
     small_loc_per_file: int,
 ) -> str:
     """Build a diff with one large cluster and one small cluster."""
-    large_diff = _make_diff_single_dir_multi_file(large_dir, large_files, large_loc_per_file)
-    small_diff = _make_diff_single_dir_multi_file(small_dir, small_files, small_loc_per_file)
+    large_diff = _make_diff_single_dir_multi_file(
+        large_dir, large_files, large_loc_per_file
+    )
+    small_diff = _make_diff_single_dir_multi_file(
+        small_dir, small_files, small_loc_per_file
+    )
     return large_diff + "\n" + small_diff
 
 
@@ -258,10 +259,10 @@ def test_strategy_f_only_triggers_on_oversized_clusters() -> None:
     diff = _make_diff_mixed_clusters(
         large_dir="src/payments",
         large_files=large_files,
-        large_loc_per_file=650,   # 6500 total → exceeds threshold
+        large_loc_per_file=650,  # 6500 total → exceeds threshold
         small_dir="src/utils",
         small_files=small_files,
-        small_loc_per_file=10,    # 20 total → below threshold
+        small_loc_per_file=10,  # 20 total → below threshold
     )
 
     # run_region_split_strategy_f returns a list of dispatch specs
@@ -271,8 +272,7 @@ def test_strategy_f_only_triggers_on_oversized_clusters() -> None:
 
     # Large cluster → 10 per-file dispatches
     large_dir_specs = [
-        s for s in dispatch_specs
-        if any("payments" in f for f in s.get("files", []))
+        s for s in dispatch_specs if any("payments" in f for f in s.get("files", []))
     ]
     assert len(large_dir_specs) == 10, (
         f"Oversized cluster (src/payments, 10 files) must produce 10 per-file dispatches; "
@@ -281,8 +281,7 @@ def test_strategy_f_only_triggers_on_oversized_clusters() -> None:
 
     # Small cluster → 1 directory-level dispatch (Strategy E, unchanged)
     small_dir_specs = [
-        s for s in dispatch_specs
-        if any("utils" in f for f in s.get("files", []))
+        s for s in dispatch_specs if any("utils" in f for f in s.get("files", []))
     ]
     assert len(small_dir_specs) == 1, (
         f"Small cluster (src/utils, 2 files, 20 LOC) must stay as 1 Strategy E dispatch; "
@@ -312,7 +311,7 @@ def test_strategy_f_does_not_raise_region_split_invariant_error_on_fan_out() -> 
 
     raised = None
     try:
-        per_file_clusters = split_cluster_by_file(
+        split_cluster_by_file(
             cluster_dir=directory,
             cluster_files=files,
             diff_text=diff,

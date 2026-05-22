@@ -1099,7 +1099,14 @@ for each batch of up to max_agents fix agents:
   6. Proceed to next batch
 ```
 
-If a batch returns `batch_status: FAILED` or `PARTIAL`, record findings as a bug ticket (`.claude/scripts/dso ticket create bug "[Component]: [Condition] -> [Observed Result]" -d "## Incident Overview ..." --parent=<EPIC_ID>` — follow `skills/create-bug/SKILL.md` format) and proceed to the next batch — do not block the entire scan on a single failing batch. Do NOT use `--tags CLI_user` for these tickets — they are autonomously-discovered defects identified by the anti-pattern scan, not bugs reported by the user during an interactive session.
+If a batch returns `batch_status: FAILED` or `PARTIAL`, record findings as a bug ticket and proceed to the next batch — do not block the entire scan on a single failing batch. Do NOT use `--tags CLI_user` for these tickets — they are autonomously-discovered defects identified by the anti-pattern scan, not bugs reported by the user during an interactive session.
+
+```bash
+CHANNEL=$(DSO_FILING_CONTEXT=fix-bug-phase-g bash "$PLUGIN_SCRIPTS/infer-detected-by.sh" 2>/dev/null || echo "other")
+.claude/scripts/dso ticket create bug "[Component]: [Condition] -> [Observed Result]" -d "## Incident Overview ..." --parent=<EPIC_ID> --tags "detected_by:$CHANNEL"
+```
+
+Follow `skills/create-bug/SKILL.md` format for the title and description.
 
 #### Observation Tracking (Dogfooding)
 

@@ -187,7 +187,11 @@ def test_resustain_of_with_proximity_triggers_arbiter():
         }
     )
     mock_arbiter = MagicMock(
-        return_value={"ruling": "BLOCK", "rationale": "critical finding undefended", "schema_version": "1.0.0"}
+        return_value={
+            "ruling": "BLOCK",
+            "rationale": "critical finding undefended",
+            "schema_version": "1.0.0",
+        }
     )
 
     result = _run_pipeline_with_mock(
