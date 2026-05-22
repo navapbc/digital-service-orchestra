@@ -209,6 +209,51 @@ def test_reconstruct_tolerates_legacy_marker_format():
     )
 
 
+def test_reconstruct_clean_v12_marker_has_no_gaps():
+    """Regression guard for bug 9788 fix scope: a successfully parsed v1.2.0
+    marker must NOT set reconstruction_gaps=True.
+
+    The refactor to use parse_cycle_marker() (commit 3 of the bug 9788 PR)
+    initially left a stray `has_gaps = True` line in the success branch,
+    which caused reconstruction_gaps to be True even for fully successful
+    reconstructions. This test locks that regression down.
+    """
+    clean_comment = (
+        "DSO-Review-Cycle: 1 pr_number=42 commit_sha=abc findings_hash=h1 "
+        'tuples=[["x.py","1","c"]]\n'
+    )
+    fake_response = json.dumps([{"body": clean_comment}])
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value.stdout = fake_response
+        mock_run.return_value.returncode = 0
+        ledger = reconstruct_from_pr_comments(42, "owner/repo")
+    assert len(ledger["cycles"]) == 1, (
+        f"Expected 1 reconstructed cycle, got {len(ledger['cycles'])}"
+    )
+    assert not ledger.get("reconstruction_gaps"), (
+        "Clean reconstruction must not flag gaps; got "
+        f"reconstruction_gaps={ledger.get('reconstruction_gaps')!r}"
+    )
+
+
+def test_reconstruct_clean_v11_marker_has_no_gaps():
+    """Sibling regression guard for v1.1.0 markers (bug 9788 fix)."""
+    clean_comment = (
+        "DSO-Review-Cycle: 1 commit_sha=abc findings_hash=h1 "
+        'tuples=[["x.py","1","c"]]\n'
+    )
+    fake_response = json.dumps([{"body": clean_comment}])
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value.stdout = fake_response
+        mock_run.return_value.returncode = 0
+        ledger = reconstruct_from_pr_comments(42, "owner/repo")
+    assert len(ledger["cycles"]) == 1
+    assert not ledger.get("reconstruction_gaps"), (
+        "Clean v1.1.0 reconstruction must not flag gaps; got "
+        f"reconstruction_gaps={ledger.get('reconstruction_gaps')!r}"
+    )
+
+
 def test_reconstruct_malformed_marker_logged_skipped(capsys):
     """Given: a comment block with one malformed and one valid DSO-Review-Cycle marker.
     When: reconstruct_from_pr_comments is called.

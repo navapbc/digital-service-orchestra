@@ -20,9 +20,23 @@ Your task is strictly limited to fixing the schema errors. You populate missing 
 
 - Add new findings
 - Remove existing findings
-- Change any finding's severity, category, description, file, or cited_lines
+- Change any finding's severity, description, file, or cited_lines
 - Re-evaluate the diff or reassess code quality
 - Return anything other than valid JSON in the expected schema
+
+## Conditional rule for `category`
+
+`category` is **conditionally frozen** (bug 0623-54f4-d31b-4623):
+
+- IF the original `category` is one of the canonical 5 values — `correctness`, `design`, `hygiene`, `maintainability`, `verification` — then `category` is **frozen** and you MUST NOT change it.
+- IF the original `category` is OFF that canonical enum (e.g. `code_smell`, `missing_test_coverage`, `test_fragility`), you MAY re-map it to the closest canonical value. This is the ONLY case where you may modify `category`.
+
+Examples of acceptable off-enum repairs:
+
+- `code_smell` → `hygiene`
+- `missing_test_coverage` → `verification`
+- `code_clarity` → `maintainability`
+- `missing_implementation` → `correctness`
 
 ## Output format
 
