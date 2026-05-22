@@ -195,13 +195,21 @@ _fetch_comments() {
     if (( issue_rc == 0 )) && [[ -n "$issue_fetched" ]]; then
         # Merge the two arrays into one. Use python3 (already a project
         # dependency) to avoid jq's stricter newline handling.
+        # Pass both JSON blobs via stdin (newline-separated) rather than
+        # argv. PRs with many or large comments can produce JSON arrays
+        # that exceed OS ARG_MAX when passed as command-line arguments
+        # (review finding on PR #282).
         local merged
-        merged=$(python3 -c "
+        merged=$(printf '%s\n\n%s\n' "$raw_comments_json" "$issue_fetched" | \
+            python3 -c "
 import json, sys
-inline = json.loads(sys.argv[1] or '[]')
-issue = json.loads(sys.argv[2] or '[]')
+text = sys.stdin.read()
+# Split on the blank-line separator. Empty halves default to '[]'.
+parts = text.split('\n\n', 1)
+inline = json.loads((parts[0].strip() or '[]')) if len(parts) > 0 else []
+issue = json.loads((parts[1].strip() or '[]')) if len(parts) > 1 else []
 print(json.dumps(inline + issue))
-" "$raw_comments_json" "$issue_fetched" 2>/dev/null) || merged=""
+" 2>/dev/null) || merged=""
         if [[ -n "$merged" ]]; then
             raw_comments_json="$merged"
         fi

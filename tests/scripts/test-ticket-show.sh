@@ -697,6 +697,16 @@ test_ticket_show_accepts_multiple_ids() {
     ticket_id_count=$(printf '%s\n' "$default_output" | grep -c '"ticket_id"' || true)
     assert_eq "ticket show default with 2 ids contains 2 ticket_id fields" "2" "$ticket_id_count"
 
+    # Mixed validity: one valid + one nonexistent ID. The function contract
+    # promises to continue processing remaining IDs but return non-zero if
+    # any single-ID call failed, so callers can scan the full output even
+    # in the partial-failure case. Bug jira-dig-2565 follow-up review of
+    # PR #282 (CodeRabbit).
+    local mixed_output="" mixed_exit=0
+    mixed_output=$(cd "$repo" && bash "$TICKET_SCRIPT" show --format=llm "$id_a" "nonexistent-id-zzz9-yyyy" 2>/dev/null) || mixed_exit=$?
+    assert_ne "ticket show with valid+invalid ids exits non-zero" "0" "$mixed_exit"
+    assert_contains "ticket show with valid+invalid ids still emits the valid ticket" "$id_a" "$mixed_output"
+
     rm -rf "$repo"
     assert_pass_if_clean "test_ticket_show_accepts_multiple_ids"
 }
