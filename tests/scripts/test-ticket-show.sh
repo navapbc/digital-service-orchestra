@@ -659,5 +659,48 @@ test_ticket_show_resolves_8hex_short_id() {
 }
 test_ticket_show_resolves_8hex_short_id
 
+# ── Test: ticket show accepts multiple IDs (bug jira-dig-2565) ──────────────
+echo "Test: ticket show accepts multiple ticket IDs in one call"
+test_ticket_show_accepts_multiple_ids() {
+    _snapshot_fail
+    local repo
+    repo=$(_make_test_repo)
+
+    local id_a id_b
+    id_a=$(cd "$repo" && bash "$TICKET_SCRIPT" create story "multi-id story A" 2>/dev/null | tail -1 || true)
+    id_b=$(cd "$repo" && bash "$TICKET_SCRIPT" create story "multi-id story B" 2>/dev/null | tail -1 || true)
+
+    if [ -z "$id_a" ] || [ -z "$id_b" ]; then
+        assert_eq "two tickets created for multi-id test" "non-empty" "empty"
+        rm -rf "$repo"
+        return
+    fi
+
+    # llm format: each ticket is one self-delimiting line of NDJSON.
+    local llm_output="" llm_exit=0
+    llm_output=$(cd "$repo" && bash "$TICKET_SCRIPT" show --format=llm "$id_a" "$id_b" 2>/dev/null) || llm_exit=$?
+
+    assert_eq "ticket show --format=llm with 2 ids exits 0" "0" "$llm_exit"
+    local llm_line_count
+    llm_line_count=$(printf '%s\n' "$llm_output" | grep -c '^{' || true)
+    assert_eq "ticket show --format=llm with 2 ids emits 2 ndjson lines" "2" "$llm_line_count"
+    assert_contains "ticket show --format=llm output references id_a" "$id_a" "$llm_output"
+    assert_contains "ticket show --format=llm output references id_b" "$id_b" "$llm_output"
+
+    # Default format: each ticket is a pretty-printed JSON document; both
+    # tickets must appear in the output.
+    local default_output="" default_exit=0
+    default_output=$(cd "$repo" && bash "$TICKET_SCRIPT" show "$id_a" "$id_b" 2>/dev/null) || default_exit=$?
+
+    assert_eq "ticket show default with 2 ids exits 0" "0" "$default_exit"
+    local ticket_id_count
+    ticket_id_count=$(printf '%s\n' "$default_output" | grep -c '"ticket_id"' || true)
+    assert_eq "ticket show default with 2 ids contains 2 ticket_id fields" "2" "$ticket_id_count"
+
+    rm -rf "$repo"
+    assert_pass_if_clean "test_ticket_show_accepts_multiple_ids"
+}
+test_ticket_show_accepts_multiple_ids
+
 
 print_summary

@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 # ticket-show.sh
-# Show compiled state for a ticket by invoking the event reducer.
+# Show compiled state for one or more tickets by invoking the event reducer.
 #
-# Usage: ticket show [--format=<fmt>] <ticket_id>
-#   ticket_id: ID of the ticket to show
+# Usage: ticket show [--format=<fmt>] <ticket_id> [<ticket_id> ...]
+#   ticket_id: ID(s) of the ticket(s) to show. Multiple IDs print one
+#              compiled state per ticket; default format outputs each as a
+#              standalone pretty-printed JSON document separated by blank
+#              lines; --format=llm emits one minified JSON object per line
+#              (NDJSON-compatible).
 #   --format=llm  Minified single-line JSON with shortened keys, stripped nulls,
 #                 and no verbose timestamps (created_at and env_id are omitted entirely).
 #                 Key mapping:
@@ -19,7 +23,12 @@
 #                   deps        → dp
 #                   conflicts   → cf
 #
-# Outputs the compiled ticket state to stdout.
+# Exit code: 0 if all requested tickets resolve and reduce successfully; 1 if
+# any one fails (the failure is reported and remaining tickets are still
+# processed before exit, so callers can scan the full output).
+#
+# Bug jira-dig-2565: prior versions silently dropped all positional args
+# after the first.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -39,13 +48,15 @@ fi
 
 # ── Usage ─────────────────────────────────────────────────────────────────────
 _usage() {
-    echo "Usage: ticket show [--format=llm] <ticket_id>" >&2
+    echo "Usage: ticket show [--format=llm] <ticket_id> [<ticket_id> ...]" >&2
     exit 1
 }
 
 # ── Parse arguments ──────────────────────────────────────────────────────────
+# Multi-ID support (bug jira-dig-2565): collect all positional args, not
+# just the first. Each ID is resolved and reduced independently below.
 format="default"
-ticket_id=""
+ticket_ids=()
 
 for arg in "$@"; do
     case "$arg" in
@@ -61,32 +72,45 @@ for arg in "$@"; do
             _usage
             ;;
         *)
-            if [ -z "$ticket_id" ]; then
-                ticket_id="$arg"
-            fi
+            ticket_ids+=("$arg")
             ;;
     esac
 done
 
-if [ -z "$ticket_id" ]; then
+if [ "${#ticket_ids[@]}" -eq 0 ]; then
     _usage
 fi
 
-# ── Resolve any ID form (full, short, alias, jira_key, prefix) to canonical ──
-if ! ticket_id=$(TICKETS_TRACKER_DIR="$TRACKER_DIR" resolve_ticket_id "$ticket_id"); then
-    exit 1
-fi
+# ── Resolve, verify, and reduce each ID ──────────────────────────────────────
+# Process each ticket independently. A failure on one does not abort the
+# rest; the script exits 1 at the end if any failed.
+_overall_rc=0
+_idx=0
+for _raw_id in "${ticket_ids[@]}"; do
+    _idx=$((_idx + 1))
 
-# ── Verify ticket directory exists ────────────────────────────────────────────
-if [ ! -d "$TRACKER_DIR/$ticket_id" ]; then
-    echo "Error: Ticket '$ticket_id' not found" >&2
-    exit 1
-fi
+    # Resolve any ID form (full, short, alias, jira_key, prefix) to canonical.
+    if ! ticket_id=$(TICKETS_TRACKER_DIR="$TRACKER_DIR" resolve_ticket_id "$_raw_id"); then
+        _overall_rc=1
+        continue
+    fi
 
-# ── Invoke reducer ────────────────────────────────────────────────────────────
-# Single python3 process handles reduce + format (no subprocess pipeline).
-_TICKET_DIR="$TRACKER_DIR/$ticket_id" _TICKET_ID="$ticket_id" \
-_FORMAT="$format" _SCRIPT_DIR="$SCRIPT_DIR" python3 -c "
+    if [ ! -d "$TRACKER_DIR/$ticket_id" ]; then
+        echo "Error: Ticket '$ticket_id' not found" >&2
+        _overall_rc=1
+        continue
+    fi
+
+    # In default (pretty) format, separate multi-ticket output with a blank
+    # line for readability; LLM format already emits one self-delimiting
+    # object per line (NDJSON), so no separator is needed.
+    if [ "$format" != "llm" ] && [ "$_idx" -gt 1 ]; then
+        echo
+    fi
+
+    # Single python3 process handles reduce + format (no subprocess pipeline).
+    _TICKET_DIR="$TRACKER_DIR/$ticket_id" _TICKET_ID="$ticket_id" \
+    _FORMAT="$format" _SCRIPT_DIR="$SCRIPT_DIR" python3 -c "
 import sys, os, json
 sys.path.insert(0, os.environ['_SCRIPT_DIR'])
 from ticket_reducer import reduce_ticket
@@ -105,8 +129,7 @@ if state.get('status') in ('error', 'fsck_needed'):
     sys.exit(1)
 
 if fmt == 'llm':
-    from ticket_reducer.llm_format import to_llm
-    print(json.dumps(to_llm(state), ensure_ascii=False, separators=(',', ':')))
+    print(json.dumps(__import__('ticket_reducer.llm_format', fromlist=['to_llm']).to_llm(state), ensure_ascii=False, separators=(',', ':')))
 else:
     print(json.dumps(state, indent=2, ensure_ascii=False))
     alerts = state.get('bridge_alerts', [])
@@ -117,4 +140,7 @@ else:
             ' Run: ticket bridge-status for details.',
             file=sys.stderr,
         )
-" || exit $?
+" || _overall_rc=1
+done
+
+exit "$_overall_rc"
