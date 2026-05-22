@@ -1,0 +1,1 @@
+{"event_type": "BRIDGE_ALERT", "timestamp": 1779416880472906862, "uuid": "673ed5fd-5649-407e-b8bc-53158502ec9d", "env_id": "87bd1065-0264-4126-94b7-ae8c71b8d506", "ticket_id": "e772-d73b", "data": {"reason": "get_comments failed for DIG-1562: Command '['acli', 'jira', 'workitem', 'comment', 'list', '--key', 'DIG-1562', '--json']' returned non-zero exit status 1."}}
