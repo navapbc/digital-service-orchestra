@@ -280,25 +280,39 @@ def dispatch_arbiter(
         max_cycles: Configured maximum review cycles.
         reviewer_breakdown: Optional mapping ``finding_id -> [reviewer_agent_id, ...]``
             recording which reviewer agents flagged each finding in the current
-            cycle. Accepted by this signature as forward-compat for **story
-            5621** (CI runner wiring), which will extend ``dispatch_review`` to
-            forward these inputs into the agent's input context for
-            ``cross_reviewer_agreement`` derivation. Until story 5621 lands, this
-            parameter is ACCEPTED but NOT THREADED — the arbiter agent will see
-            only the diff and will emit ``cross_reviewer_agreement: ["UNKNOWN"]``
-            for each ruling. Callers may safely pass real data now in
-            anticipation of the wiring change.
+            cycle. Serialized into the agent input (augmented ``diff_text``) so
+            the agent can derive ``cross_reviewer_agreement`` per finding. See
+            bug eb3d-f283 for the fix that closed this wiring gap.
         ledger_history: Optional list of prior cycle ledger entries (most recent
-            last) sourced from cycle-ledger.json. Same forward-compat contract
-            as ``reviewer_breakdown``: ACCEPTED but NOT THREADED until story
-            5621 wires ``dispatch_review`` to forward it. Agent emits
-            ``cross_cycle_pattern: ["UNKNOWN"]`` per ruling until then.
+            last) sourced from cycle-ledger.json. Serialized into the agent
+            input (augmented ``diff_text``) so the agent can derive
+            ``cross_cycle_pattern`` per finding. See bug eb3d-f283 for the fix
+            that closed this wiring gap.
 
     Returns:
-        A list of per-finding ruling dicts, each containing:
+        A list of per-finding ruling dicts, each containing at minimum:
         - ruling: one of BLOCK, DEFER, DROP
         - rationale: one-sentence explanation
-        - schema_version: "1.0.0"
+        - schema_version: "1.0.0" or "1.1.0"
+
+        v1.1.0 rulings additionally carry the enriched fields described by the
+        ``code-reviewer-arbiter`` agent contract:
+        - impact_class: one of the 9 enum values (8-category floor + ``none``)
+        - cross_reviewer_agreement: array of values from the 4-value enum
+        - cross_cycle_pattern: array of values from the 7-value enum
+
+        v1.0.0 is accepted for backward compatibility — legacy rulings that omit
+        the enriched fields bypass the impact_class floor check. The arbiter
+        agent emits v1.1.0; v1.0.0 appears only in fixture-replay paths and the
+        synthetic fail-closed BLOCK rulings produced by the length-mismatch and
+        dispatch-failure guards below.
+
+    Context threading: ``findings``, ``defenses``, ``reviewer_breakdown``, and
+    ``ledger_history`` are all serialized into the agent input by appending
+    labeled JSON blocks to ``diff_text`` before calling ``dispatch_review``
+    (same pattern as ``dispatch_two_call_review`` and
+    ``dispatch_arch_synthesis``). Without this, the agent sees only the diff
+    and cannot enumerate per-finding rulings — see bug eb3d-f283.
 
     The agent contract (see the ``code-reviewer-arbiter`` agent file under
     ``${CLAUDE_PLUGIN_ROOT}/agents/``) specifies the output as a JSON array
@@ -329,9 +343,31 @@ def dispatch_arbiter(
     if not findings:
         return []
 
+    # Augment diff_text with serialized JSON context blocks so the arbiter
+    # agent can enumerate per-finding rulings. Matches the pattern in
+    # dispatch_two_call_review (dispatch.py "## Prior review findings index")
+    # and dispatch_arch_synthesis (dispatch.py "## Prior specialist findings").
+    # Bug eb3d-f283: without this, the agent saw only the diff and returned a
+    # single ruling, triggering the length-mismatch all-BLOCK fallback.
+    augmented_diff = (
+        diff_text
+        + "\n\n## Unresolved findings (cycle "
+        + str(cycle_num)
+        + " of "
+        + str(max_cycles)
+        + ")\n\n"
+        + _json.dumps(findings, indent=2)
+        + "\n\n## Defenses\n\n"
+        + _json.dumps(defenses, indent=2)
+        + "\n\n## Reviewer breakdown\n\n"
+        + _json.dumps(reviewer_breakdown or {}, indent=2)
+        + "\n\n## Cycle ledger history\n\n"
+        + _json.dumps(ledger_history or [], indent=2)
+    )
+
     try:
         result = dispatch_review(
-            diff_text=diff_text,
+            diff_text=augmented_diff,
             agent_id="code-reviewer-arbiter",
             primary_model=model,
             provider_chain=provider_chain,

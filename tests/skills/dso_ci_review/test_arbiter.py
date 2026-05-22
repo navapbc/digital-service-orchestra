@@ -14,6 +14,7 @@ Behavioral contracts under test:
 
 from __future__ import annotations
 
+import json
 import sys
 import pathlib
 from unittest.mock import patch
@@ -778,3 +779,108 @@ def test_block_ruling_cove_and_impact_class_floor_both_apply():
     ), (
         f"Expected rationale to cite CoVe or impact_class floor, got {result['rationale']!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Bug eb3d-f283: dispatch_arbiter must thread findings/defenses/
+# reviewer_breakdown/ledger_history into the agent input via augmented
+# diff_text so the arbiter agent can enumerate per-finding rulings.
+# ---------------------------------------------------------------------------
+
+
+def test_dispatch_arbiter_forwards_findings_into_diff_text():
+    """Given: dispatch_arbiter called with structured findings, defenses,
+              reviewer_breakdown, and ledger_history payloads
+    When: dispatch_review is patched to capture its diff_text argument
+    Then: the captured diff_text contains parseable JSON blocks under their
+          named section headers AND the parsed JSON preserves the input
+          structure (ids, severities, defense rationales, reviewer mapping,
+          cycle ledger entries) — proving the agent receives the full
+          structured context, not just sentinel substrings.
+    """
+    findings = [
+        {"id": "f1", "severity": "critical", "title": "sqli"},
+        {"id": "f2", "severity": "important", "title": "race"},
+        {"id": "f3", "severity": "minor", "title": "style"},
+    ]
+    defenses = [
+        {"finding_id": "f1", "rationale": "false-positive context"},
+    ]
+    reviewer_breakdown = {"f1": ["reviewer-a", "reviewer-b"]}
+    ledger_history = [{"cycle_num": 1, "findings_hash": "abc123"}]
+    # Per agent contract: one ruling per finding (3 findings → 3 rulings).
+    fake_rulings = [
+        {"ruling": "BLOCK", "rationale": "r1", "schema_version": "1.0.0"},
+        {"ruling": "DEFER", "rationale": "r2", "schema_version": "1.0.0"},
+        {"ruling": "DROP", "rationale": "r3", "schema_version": "1.0.0"},
+    ]
+
+    with patch(
+        "dso_ci_review.arbiter.dispatch_review", return_value=fake_rulings
+    ) as mock_dispatch:
+        dispatch_arbiter(
+            findings=findings,
+            defenses=defenses,
+            diff_text="--- a/x\n+++ b/x\n@@ -1 +1 @@\n-old\n+new\n",
+            model="claude-sonnet-4-6",
+            provider_chain=["anthropic"],
+            cycle_num=1,
+            max_cycles=4,
+            reviewer_breakdown=reviewer_breakdown,
+            ledger_history=ledger_history,
+        )
+
+    assert mock_dispatch.call_count == 1, (
+        f"Expected dispatch_review called once, got {mock_dispatch.call_count}"
+    )
+    captured = mock_dispatch.call_args.kwargs["diff_text"]
+
+    # Behavioral contract: each context block must be parseable JSON under
+    # its named section header. Parsing (not substring match) defends against
+    # accidental serialization regressions (e.g., str() instead of json.dumps,
+    # truncation, escape corruption) that a substring assertion would miss.
+    def _extract_json(section_header: str, text: str):
+        """Locate a "## <section_header>" block and json.loads its payload."""
+        idx = text.find(f"## {section_header}")
+        assert idx != -1, f"Section header '## {section_header}' not in diff_text"
+        # JSON starts at first '[' or '{' after the header.
+        rest = text[idx + len(f"## {section_header}") :]
+        start_obj = rest.find("{")
+        start_arr = rest.find("[")
+        candidates = [c for c in (start_obj, start_arr) if c != -1]
+        assert candidates, f"No JSON payload after '## {section_header}'"
+        start = min(candidates)
+        # Greedy parse: keep extending until json.loads succeeds or we
+        # reach the next '## ' header (whichever comes first).
+        next_section = rest.find("\n## ", start)
+        end = next_section if next_section != -1 else len(rest)
+        return json.loads(rest[start:end].strip())
+
+    # Findings: section heading includes cycle indicators, so search for the
+    # canonical "Unresolved findings" prefix.
+    findings_idx = captured.find("## Unresolved findings")
+    assert findings_idx != -1, "Missing '## Unresolved findings' section"
+    parsed_findings = _extract_json("Unresolved findings", captured)
+    assert isinstance(parsed_findings, list), "findings payload must be a list"
+    assert [f["id"] for f in parsed_findings] == ["f1", "f2", "f3"], (
+        f"findings ids not preserved: {parsed_findings!r}"
+    )
+    assert [f["severity"] for f in parsed_findings] == [
+        "critical",
+        "important",
+        "minor",
+    ]
+
+    parsed_defenses = _extract_json("Defenses", captured)
+    assert isinstance(parsed_defenses, list)
+    assert parsed_defenses[0]["finding_id"] == "f1"
+    assert parsed_defenses[0]["rationale"] == "false-positive context"
+
+    parsed_breakdown = _extract_json("Reviewer breakdown", captured)
+    assert isinstance(parsed_breakdown, dict)
+    assert parsed_breakdown["f1"] == ["reviewer-a", "reviewer-b"]
+
+    parsed_ledger = _extract_json("Cycle ledger history", captured)
+    assert isinstance(parsed_ledger, list)
+    assert parsed_ledger[0]["cycle_num"] == 1
+    assert parsed_ledger[0]["findings_hash"] == "abc123"
