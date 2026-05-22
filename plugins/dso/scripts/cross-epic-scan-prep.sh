@@ -124,14 +124,26 @@ WORK_FILE=$(mktemp "$OUT_DIR/candidates.XXXXXX.json")
 TICKET_ARGV_JSON=$(python3 -c "import json,sys; print(json.dumps(sys.argv[1:]))" "${TICKET_ARGV[@]}")
 
 python3 - "$WORK_FILE" "$EPIC_ID" "$CANDIDATES_JSON" "$TICKET_ARGV_JSON" <<'PYEOF'
-import json, re, subprocess, sys
+import json, os, re, subprocess, sys
 
 work_path, epic_id, candidates_json, ticket_argv_json = sys.argv[1:5]
 candidate_ids = json.loads(candidates_json)
 ticket_argv = json.loads(ticket_argv_json)
 
+# Per-ticket-show timeout in seconds. Default 30 matches the original
+# hardcoded value. Override via DSO_TICKET_SHOW_TIMEOUT_SECS — used by
+# tests/scripts/test-cross-epic-scan-prep.sh to exercise the TimeoutExpired
+# recovery path without a 30s+ wall-clock wait. Negative or non-integer
+# values fall back to 30.
+try:
+    _ticket_show_timeout = int(os.environ.get("DSO_TICKET_SHOW_TIMEOUT_SECS", "30"))
+    if _ticket_show_timeout <= 0:
+        _ticket_show_timeout = 30
+except (TypeError, ValueError):
+    _ticket_show_timeout = 30
+
 def _load_one(tid):
-    # subprocess.run(timeout=30) raises subprocess.TimeoutExpired (not a
+    # subprocess.run(timeout=...) raises subprocess.TimeoutExpired (not a
     # non-zero return code) when ticket show hangs past the deadline on a
     # bloated-event-log ticket. Treat it the same as the other recoverable
     # failure modes: return None so the caller's `if t is None: continue`
@@ -139,7 +151,8 @@ def _load_one(tid):
     try:
         proc = subprocess.run(
             ticket_argv + ["show", tid],
-            check=False, capture_output=True, text=True, timeout=30,
+            check=False, capture_output=True, text=True,
+            timeout=_ticket_show_timeout,
         )
     except subprocess.TimeoutExpired:
         return None
