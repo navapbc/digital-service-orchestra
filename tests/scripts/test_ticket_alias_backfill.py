@@ -252,3 +252,117 @@ def test_load_warns_once_when_wordlist_missing(tmp_path, capsys, monkeypatch):
     assert occurrences == 1, (
         f"expected exactly one WARN, saw {occurrences} in stderr: {captured.err!r}"
     )
+
+
+# ── Bug 9894-a463-090a-43e5: SNAPSHOT-only ticket alias resolution ─────────────
+
+
+def _plant_snapshot_ticket(
+    root: Path, ticket_id: str, stored_alias: str, jira_key: str = ""
+) -> Path:
+    """Write a minimal SNAPSHOT event for ticket_id with the given compiled_state.alias.
+
+    No CREATE event is written — this simulates a compacted ticket where only
+    the SNAPSHOT remains.  The resolver must read compiled_state.alias from the
+    SNAPSHOT instead of falling back to compute_alias(ticket_id).
+    """
+    td = root / ticket_id
+    td.mkdir(parents=True, exist_ok=True)
+    ts = time.time_ns()
+    ev = str(uuid.uuid4())
+    compiled_state: dict = {
+        "ticket_id": ticket_id,
+        "ticket_type": "task",
+        "title": "compacted ticket",
+        "alias": stored_alias,
+        "status": "open",
+    }
+    if jira_key:
+        compiled_state["jira_key"] = jira_key
+    payload = {
+        "timestamp": ts,
+        "uuid": ev,
+        "event_type": "SNAPSHOT",
+        "env_id": "",
+        "author": "compact-script",
+        "data": {
+            "compiled_state": compiled_state,
+            "source_event_uuids": [],
+        },
+    }
+    (td / f"{ts}-{ev}-SNAPSHOT.json").write_text(json.dumps(payload))
+    return td
+
+
+def test_resolver_snapshot_only_ticket_matches_stored_alias(tmp_path):
+    """A SNAPSHOT-only ticket (no CREATE event) must resolve by the alias stored
+    in compiled_state.alias, not by compute_alias(ticket_id).
+
+    Bug 9894-a463-090a-43e5: the resolver fell back to compute_alias when no
+    CREATE event was found, ignoring the authoritative stored alias in the
+    SNAPSHOT's compiled_state.  After the fix the resolver must read the SNAPSHOT
+    and emit the stored alias, not the computed one.
+
+    Invariant: compute_alias('9894-a463-090a-43e5') == 'real-soil-anger'
+               stored alias                          == 'brawny-gill-inlay'
+               These must differ (verified below) so the test distinguishes
+               stored-wins from compute_alias-wins.
+    """
+    ticket_id = "9894-a463-090a-43e5"
+    stored = "brawny-gill-inlay"
+    computed = compute_alias(ticket_id)
+
+    # Invariant: the stored alias must differ from the computed alias so the test
+    # actually distinguishes "resolver reads SNAPSHOT" from "resolver falls back
+    # to compute_alias".
+    assert stored != computed, (
+        f"test invariant broken: stored alias {stored!r} must differ from "
+        f"compute_alias({ticket_id!r}) == {computed!r}"
+    )
+
+    _plant_snapshot_ticket(tmp_path, ticket_id, stored_alias=stored)
+
+    # Positive: resolver must find the ticket when given the stored alias.
+    rc, out, err = _run_resolver(stored, tmp_path)
+    assert rc == 0, f"expected exit 0, got {rc}; stderr={err!r}"
+    assert out.strip() == f"alias\t{ticket_id}", (
+        f"expected 'alias\\t{ticket_id}' in stdout; got {out.strip()!r}\n"
+        f"(Bug 9894: resolver probably fell back to compute_alias={computed!r} "
+        f"instead of reading compiled_state.alias={stored!r} from the SNAPSHOT)"
+    )
+
+
+def test_resolver_snapshot_only_ticket_does_not_match_computed_alias(tmp_path):
+    """Negative control for bug 9894-a463-090a-43e5.
+
+    When a SNAPSHOT-only ticket has a stored alias that differs from
+    compute_alias(ticket_id), querying by the COMPUTED alias must NOT match —
+    the stored alias in compiled_state is authoritative and the computed alias
+    is irrelevant once overridden.
+
+    If the resolver incorrectly falls back to compute_alias, this test passes
+    with a match, which is wrong behavior (it contradicts the stored value).
+    The correct post-fix behavior: compute_alias is not consulted for
+    SNAPSHOT-only tickets; no match is found; stdout is empty.
+    """
+    ticket_id = "9894-a463-090a-43e5"
+    stored = "brawny-gill-inlay"
+    computed = compute_alias(ticket_id)
+
+    # Same invariant guard as the positive test.
+    assert stored != computed, (
+        f"test invariant broken: stored alias {stored!r} must differ from "
+        f"compute_alias({ticket_id!r}) == {computed!r}"
+    )
+
+    _plant_snapshot_ticket(tmp_path, ticket_id, stored_alias=stored)
+
+    # Negative: querying by the computed alias must NOT match (stored wins).
+    rc, out, err = _run_resolver(computed, tmp_path)
+    assert rc == 0, f"expected exit 0, got {rc}; stderr={err!r}"
+    assert out.strip() == "", (
+        f"expected empty stdout when querying by compute_alias={computed!r}; "
+        f"got {out.strip()!r}\n"
+        f"(Bug 9894: if a match appears here, the resolver incorrectly used "
+        f"compute_alias instead of the SNAPSHOT compiled_state.alias={stored!r})"
+    )
