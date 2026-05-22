@@ -415,10 +415,19 @@ MOCKEOF
     chmod +x "$mock_runner"
 
     # gh mock: return empty PR list for any SHA (no PR provenance)
+    # gh mock: differentiate subcommands.
+    #   `gh api ...commits/.../pulls`  → empty PR list (verifier path)
+    #   `gh pr diff <N>`               → synthetic diff (bug 9788 fix: dispatcher
+    #                                    now invokes `gh pr diff` to supply
+    #                                    DSO_CI_REVIEW_DIFF_PATH to the runner)
     local mock_bin="$mock_dir/bin"
     mkdir -p "$mock_bin"
     cat > "$mock_bin/gh" <<'MOCKEOF'
 #!/usr/bin/env bash
+if [[ "${1:-}" == "pr" && "${2:-}" == "diff" ]]; then
+    printf 'diff --git a/direct_change.py b/direct_change.py\nnew file mode 100644\n--- /dev/null\n+++ b/direct_change.py\n+# direct work\n'
+    exit 0
+fi
 echo '[]'
 exit 0
 MOCKEOF
@@ -438,7 +447,9 @@ MOCKEOF
     DSO_GH_REPO="owner/repo" \
         bash "$VERIFIER" >/dev/null 2>&1 || true
 
+    # bug 9788 fix: dispatcher's case-1 branch requires PR_NUMBER to call gh pr diff.
     PATH="$mock_bin:$PATH" \
+    PR_NUMBER=99 \
     DSO_REPO_PATH="$repo" \
     DSO_BASE_SHA="$base_sha" \
     DSO_SESSION_HEAD="$head_sha" \

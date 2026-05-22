@@ -1728,6 +1728,24 @@ def main() -> int:
 
     diff_text = _read_diff()
     if not diff_text.strip():
+        # Bug 9788 regression-detection guard: when PR context exists but the
+        # diff is empty, the caller likely failed to supply the diff (e.g., a
+        # dispatcher wrapper missing `gh pr diff` or DSO_CI_REVIEW_DIFF_PATH).
+        # Silent exit 0 with empty findings would mask the upstream wiring
+        # break — emit a loud warning AND a structured skip_reason so the
+        # "Assert review liveness" invariant downstream can detect the
+        # condition.
+        _pr_for_context = _resolve_pr_number()
+        if _pr_for_context and _pr_for_context.isdigit() and int(_pr_for_context) > 0:
+            print(
+                f"WARNING: empty diff received in PR context (PR #{_pr_for_context}) — "
+                "likely caller missing `gh pr diff` pipe or DSO_CI_REVIEW_DIFF_PATH env. "
+                "This will mask cycle-marker emission (bug 9788).",
+                file=sys.stderr,
+            )
+            _write_output({"findings": [], "skip_reason": "empty_diff_in_pr_context"})
+            return 1
+        # Non-PR context (local invocation / unit test): preserve historic behavior.
         _write_output({"findings": []})
         return 0
 
