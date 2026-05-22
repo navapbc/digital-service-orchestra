@@ -97,6 +97,9 @@ Note: summary confirmation (Phase 1 Gate Step 1) does NOT collapse with gap anal
 - **[inferred or researched criterion — bold because it requires user review]**
 - [explicit or confirmed criterion — plain text]
 
+## Closure Checks
+- [items routed here by the verifiable-sc-check.md litmus test — durable invariants verified once at closure; omit section if empty]
+
 ## Scenario Analysis
 [if ran]
 
@@ -104,6 +107,8 @@ Note: summary confirmation (Phase 1 Gate Step 1) does NOT collapse with gap anal
 [...]
 
 _N of M criteria confirmed; K inferred requiring review_
+
+The `## Closure Checks` section is rendered in the approval gate alongside Success Criteria so the user sees and approves the SC/Closure-Checks partition explicitly before Phase 3 ticket write. Per epic a03c-d55e-1393-4f27 SC1, the two sections are structurally distinct: Success Criteria are durable end-state properties; Closure Checks are one-shot durable invariants routed via verifiable-sc-check.md option (c).
 
 Please choose how to proceed:
 

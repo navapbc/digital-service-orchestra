@@ -107,6 +107,53 @@ Record the list of Closure Checks items found (or that the section was absent) i
 
 ---
 
+### Step 2.6: Descendant Subtree Walk (Epic Only)
+
+**Applies only when `ticket_type == "epic"`.** Skip this step for stories.
+
+Before evaluating each criterion (Step 3), enumerate the epic's descendants and apply the following walk semantics. These rules prevent shared-descendant fan-out blocking and ensure the open-descendant gate behaves correctly under the SC-vs-Closure-Checks distinction (per epic a03c-d55e-1393-4f27 SC3 (c)).
+
+#### Edge type — parent_id only
+
+The descendant walk follows the `parent_id` edge exclusively. Do **NOT** include tickets reached via `relates_to` or `depends_on` edges. A `relates_to` link to an unrelated open ticket must not block this epic's closure; a `depends_on` link is a scheduling signal, not a containment signal.
+
+In practice, this is implemented via `ticket list-descendants <epic-id>` (which traverses parent_id only) or by recursive `ticket list --parent=<id>` calls.
+
+#### Descendant status filter
+
+For each descendant returned by the walk, apply:
+
+- `closed` → skip; treated as terminal.
+- `deleted` → skip; treated as terminal.
+- `open` or `in_progress` → include; subject to the Closure Checks rule below.
+- `blocked` → include; treat as `open` UNLESS every link in the descendant's `blocked_by` field resolves to a `closed` or `deleted` ticket, in which case treat as `closed` (the blocker is gone).
+
+#### Open-descendant Closure Checks rule (BLOCK vs WARN)
+
+For each descendant remaining after the status filter (open / in_progress / blocked-as-open):
+
+- If the descendant has a `## Closure Checks` section **and at least one item in it is unresolved**, emit **`severity: "block"`** in the verifier's findings. The epic cannot close until the Closure Check is resolved (on the descendant) or the descendant is itself closed.
+- If the descendant has a `## Closure Checks` section but every item is resolved, emit no finding for that descendant; the open descendant does not block.
+- If the descendant has **no `## Closure Checks` section at all**, emit **`severity: "warn"`** in the verifier's findings. The descendant being open is a signal worth surfacing to the user, but it does NOT block epic closure — a story without explicit Closure Checks contributes nothing the epic owes its consumers at closure time.
+
+This BLOCK vs WARN distinction is the core mechanism that lets an epic close cleanly when its open descendants carry no durable invariants that the epic depends on, while still blocking when they do. It is distinct from the hook-severity `severity` field used by `project_closure_hooks` (Step 3.5), which gates closure on hook-emitted findings against the epic's own Closure Checks items.
+
+#### Output format
+
+Each descendant evaluation adds an entry to `closure_checks_results` in the verifier output (see Output Schema):
+
+```json
+{
+  "descendant_ticket_id": "<id>",
+  "descendant_status": "open" | "in_progress" | "blocked",
+  "has_closure_checks_section": true | false,
+  "unresolved_closure_check_count": <int>,
+  "severity": "block" | "warn"
+}
+```
+
+---
+
 ### Step 3: Evaluate Each Criterion
 
 For each success criterion (epic) or done definition (story):

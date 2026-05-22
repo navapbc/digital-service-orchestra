@@ -1515,7 +1515,7 @@ resolve_ticket_id() {
             if [[ "${_base:0:9}" == "$input" ]]; then
                 _8hex_matches+=("$_base")
             fi
-        done < <(find "$_tracker_dir" -mindepth 1 -maxdepth 1 -type d \
+        done < <(find -L "$_tracker_dir" -mindepth 1 -maxdepth 1 -type d \
             ! -name '.*' -print0 2>/dev/null)
         if [ "${#_8hex_matches[@]}" -eq 1 ]; then
             echo "${_8hex_matches[0]}"
@@ -1592,7 +1592,7 @@ resolve_ticket_id() {
             if [[ "$_base2" == "$input"* ]]; then
                 _prefix_matches+=("$_base2")
             fi
-        done < <(find "$_tracker_dir" -mindepth 1 -maxdepth 1 -type d \
+        done < <(find -L "$_tracker_dir" -mindepth 1 -maxdepth 1 -type d \
             ! -name '.*' -print0 2>/dev/null)
         if [ "${#_prefix_matches[@]}" -eq 1 ]; then
             echo "${_prefix_matches[0]}"

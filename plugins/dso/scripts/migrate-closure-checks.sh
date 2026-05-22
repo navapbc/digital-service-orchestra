@@ -45,6 +45,7 @@ _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # ── Parse arguments ───────────────────────────────────────────────────────────
 _TARGET=""
 _DRYRUN=0
+_CLASSIFY=0
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -61,12 +62,41 @@ while [ $# -gt 0 ]; do
             _DRYRUN=1
             shift
             ;;
+        --classify)
+            # Phase 2 classifier pass — see story ad70-f38a-7684-4e00.
+            # Augments the structural Phase 1 migration with a haiku classifier
+            # pass per item, per-item ack flow, and audit comment write.
+            # Estimated cost per --classify run: at ~12 items per epic and ~80
+            # brainstorm:complete-tagged epics, ~960 haiku dispatches total.
+            _CLASSIFY=1
+            shift
+            ;;
         *)
             echo "Error: unknown argument '$1'" >&2
             exit 2
             ;;
     esac
 done
+
+# ── Classify-mode state ───────────────────────────────────────────────────────
+# Migration run identifier (recorded in every audit comment for cross-ticket
+# correlation of one classify run).
+_MIGRATION_RUN_ID=""
+_CLASSIFIER_BUDGET=25  # DD5: 25-item batch cap (cumulative across the session)
+_CLASSIFIER_CONSUMED=0
+_CLASSIFIER_HELPER=""
+if [ "$_CLASSIFY" = "1" ]; then
+    _MIGRATION_RUN_ID="$(python3 -c 'import uuid; print(uuid.uuid4())' 2>/dev/null)"
+    if [ -z "$_MIGRATION_RUN_ID" ]; then
+        echo "Error: could not generate migration_run_id (python3 + uuid required)" >&2
+        exit 2
+    fi
+    _CLASSIFIER_HELPER="$_SCRIPT_DIR/closure-checks-classifier-pass.sh"
+    if [ ! -x "$_CLASSIFIER_HELPER" ]; then
+        echo "Error: --classify requires closure-checks-classifier-pass.sh at '$_CLASSIFIER_HELPER'" >&2
+        exit 2
+    fi
+fi
 
 # Resolve target (default: git rev-parse --show-toplevel from within script context)
 if [ -z "$_TARGET" ]; then
@@ -99,6 +129,52 @@ if [ -p /dev/stdin ] || { [ -f /dev/stdin ] && [ -s /dev/stdin ]; }; then
         [[ -z "$_line" ]] && continue
         _TICKET_LINES+=("$_line")
     done
+elif [ "$_CLASSIFY" = "1" ]; then
+    # --classify scan mode: enumerate ALL brainstorm:complete-tagged epics
+    # (not just those needing structural migration). The classifier pass needs
+    # to evaluate every brainstorm:complete-tagged epic's SC/DD/AC items even
+    # when the Closure Checks section already exists — items in SC may need
+    # to move SC→CC based on the classifier's verdict.
+    echo "INFO: --classify mode — enumerating brainstorm:complete-tagged epics for classifier pass."
+    # Use ticket list --format=llm to get canonical IDs (list-epics column 1
+    # can be an alias, and aliases don't resolve via ticket show today — see
+    # bug 9894-a463-090a-43e5). The llm format emits one JSON line per ticket
+    # with stable ticket_id, ticket_type, status, title, and tags fields.
+    # `ticket list` does not accept --has-tag, so we enumerate by type+status
+    # and filter by tag in python.
+    _epic_list=$({
+        "$_TARGET/.claude/scripts/dso" ticket list --type=epic --status=open --format=llm 2>/dev/null
+        "$_TARGET/.claude/scripts/dso" ticket list --type=epic --status=in_progress --format=llm 2>/dev/null
+        "$_TARGET/.claude/scripts/dso" ticket list --type=epic --status=closed --format=llm 2>/dev/null
+    } | python3 -c '
+import json, sys
+for line in sys.stdin:
+    line = line.strip()
+    if not line:
+        continue
+    try:
+        t = json.loads(line)
+    except json.JSONDecodeError:
+        continue
+    tags = t.get("tg") or t.get("tags") or []
+    if "brainstorm:complete" not in tags:
+        continue
+    tid = t.get("ticket_id") or t.get("id")
+    if not tid:
+        continue
+    title = (t.get("ttl") or t.get("title") or "").replace("\t", " ")
+    status = t.get("st") or t.get("status") or "open"
+    print(f"{tid}\tepic\t{status}\t{title}")
+' 2>/dev/null)
+    while IFS= read -r _line; do
+        [[ -z "$_line" ]] && continue
+        _TICKET_LINES+=("$_line")
+    done <<< "$_epic_list"
+    if [ "${#_TICKET_LINES[@]}" -eq 0 ]; then
+        echo "INFO: No brainstorm:complete-tagged epics found — nothing to classify."
+        exit 0
+    fi
+    echo "INFO: ${#_TICKET_LINES[@]} brainstorm:complete-tagged epic(s) queued for classifier pass."
 else
     # Scan mode: run audit script to find all tickets needing migration
     if [ ! -f "$_AUDIT_SCRIPT" ]; then
@@ -517,8 +593,10 @@ while [ "$_i" -lt "$_total" ]; do
 
         [[ -z "$_ticket_id" ]] && continue
 
-        # Check progress file (resume semantics)
-        if [ "${_ALREADY_PROCESSED[$_ticket_id]+_}" = "_" ]; then
+        # Check progress file (resume semantics) — only for the structural
+        # migration pass. The --classify pass uses snapshot-based idempotency
+        # in the helper, so it re-evaluates every ticket.
+        if [ "${_ALREADY_PROCESSED[$_ticket_id]+_}" = "_" ] && [ "$_CLASSIFY" = "0" ]; then
             echo "RESUME-SKIP: $_ticket_id (already processed in prior session)"
             _skipped=$(( _skipped + 1 ))
             continue
@@ -632,6 +710,52 @@ print('')
                 _batch_failed=$(( _batch_failed + 1 ))
                 ;;
         esac
+
+        # ── Phase 2 classifier pass (story ad70 DD1–DD8) ─────────────────
+        # Invoke the per-ticket classifier helper when --classify is set AND
+        # the structural pass left the ticket in a classifiable state
+        # (WROTE, WOULD_WRITE, or SKIPPED:already-has-section). ERROR tickets
+        # are NOT classified — fix the structural pass first.
+        if [ "$_CLASSIFY" = "1" ]; then
+            case "$_result" in
+                WROTE:*|WOULD_WRITE:*|SKIPPED:*)
+                    _remaining=$(( _CLASSIFIER_BUDGET - _CLASSIFIER_CONSUMED ))
+                    if [ "$_remaining" -le "0" ]; then
+                        echo "BATCH_PAUSE: classifier budget exhausted ($_CLASSIFIER_CONSUMED/$_CLASSIFIER_BUDGET acknowledgments). Re-run to continue."
+                        # Exit the main loop; the outer `while [ "$_i" -lt "$_total" ]` will also exit.
+                        break 2
+                    fi
+                    _classify_dryrun_arg=""
+                    [ "$_DRYRUN" = "1" ] && _classify_dryrun_arg="--dry-run"
+                    _classify_exit=0
+                    _classify_out=$("$_CLASSIFIER_HELPER" \
+                        --ticket-id "$_ticket_id" \
+                        --target "$_TARGET" \
+                        --session-id "$_TARGET_HASH" \
+                        --migration-run-id "$_MIGRATION_RUN_ID" \
+                        --remaining-budget "$_remaining" \
+                        $_classify_dryrun_arg 2>&1) || _classify_exit=$?
+                    # Echo helper output so the operator sees ITEM: / AUDIT_WRITTEN: / etc lines
+                    printf '%s\n' "$_classify_out"
+                    # Update cumulative budget from BUDGET_CONSUMED line
+                    _consumed_this=$(printf '%s' "$_classify_out" | grep '^BUDGET_CONSUMED:' | tail -1 | sed 's|^BUDGET_CONSUMED: *||')
+                    if [ -n "$_consumed_this" ]; then
+                        _CLASSIFIER_CONSUMED=$(( _CLASSIFIER_CONSUMED + _consumed_this ))
+                    fi
+                    # On BATCH_PAUSE return (exit 2), break out of both loops
+                    if [ "$_classify_exit" = "2" ]; then
+                        echo "BATCH_PAUSE: classifier helper signaled budget exhausted mid-ticket. Re-run to continue."
+                        break 2
+                    fi
+                    if [ "$_classify_exit" = "1" ]; then
+                        echo "ERROR: $_ticket_id — classifier helper failed" >&2
+                    fi
+                    ;;
+                *)
+                    # ERROR or unexpected — skip classifier for this ticket
+                    ;;
+            esac
+        fi
     done
 
     echo "BATCH_COMPLETE: batch $_batch_num — migrated_this_batch: $_batch_migrated, skipped_this_batch: $_batch_skipped, failed: $_batch_failed (total so far: migrated=$_migrated skipped=$_skipped)"
