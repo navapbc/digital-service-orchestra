@@ -160,49 +160,107 @@ fi
 # ── Fetch comments ───────────────────────────────────────────────────────────
 # Fetch both inline review comments and top-level issue/conversation comments.
 # Returns a combined JSON array on stdout. Exits non-zero on API failure.
+#
+# Bug 9550-02ad-51b7-4531: `gh api --paginate` concatenates per-page response
+# bodies WITHOUT merging them, so when there are 2+ pages of comments the
+# raw output looks like `[ ... ][ ... ]` — not valid JSON. The downstream
+# `_normalize_comments` then fails JSON parse silently and the script
+# returns no comments at all. Use `--jq '.[]'` instead, which emits one
+# comment object per line (NDJSON), then re-wrap in `_paginated_to_array`.
+# This works correctly across any number of pages and matches the
+# fixture-stub behavior of returning a flat array.
 _fetch_comments() {
     local pr_num="$1"
     local raw_comments_json=""
     local rc=0
 
-    # Fetch: gh api with --paginate for completeness.
-    # The stub in tests returns a flat JSON array; real gh api returns the
-    # same structure for these endpoints.
     local fetched
-    fetched=$(gh api \
-        --method GET \
-        "repos/{owner}/{repo}/pulls/${pr_num}/comments" \
-        --paginate \
-        2>&1) || rc=$?
+    fetched=$(_paginated_to_array \
+        "repos/{owner}/{repo}/pulls/${pr_num}/comments") || rc=$?
 
     if (( rc != 0 )); then
         echo "ERROR: GitHub API call failed: $fetched" >&2
         return 1
     fi
 
-    # The stub returns the fixture JSON directly; real gh api --paginate
-    # returns JSON arrays concatenated per page. We treat the output as the
-    # full comment array.
     raw_comments_json="$fetched"
 
-    # Also fetch top-level issue comments (conversation comments)
+    # Also fetch top-level issue comments (conversation comments). Non-fatal
+    # on failure — review comments alone are still useful output.
     local issue_fetched=""
     local issue_rc=0
-    issue_fetched=$(gh api \
-        --method GET \
-        "repos/{owner}/{repo}/issues/${pr_num}/comments" \
-        --paginate \
-        2>&1) || issue_rc=$?
+    issue_fetched=$(_paginated_to_array \
+        "repos/{owner}/{repo}/issues/${pr_num}/comments") || issue_rc=$?
 
-    # Merge: if both succeed, combine; if issue fetch fails, continue with
-    # inline only (non-fatal for fetch path).
-    if (( issue_rc != 0 )); then
-        # Non-fatal: log and continue with whatever we got from review comments
-        true
+    if (( issue_rc == 0 )) && [[ -n "$issue_fetched" ]]; then
+        # Merge the two arrays into one. Use python3 (already a project
+        # dependency) to avoid jq's stricter newline handling.
+        local merged
+        merged=$(python3 -c "
+import json, sys
+inline = json.loads(sys.argv[1] or '[]')
+issue = json.loads(sys.argv[2] or '[]')
+print(json.dumps(inline + issue))
+" "$raw_comments_json" "$issue_fetched" 2>/dev/null) || merged=""
+        if [[ -n "$merged" ]]; then
+            raw_comments_json="$merged"
+        fi
     fi
 
-    # Emit the raw comments for normalization
     echo "$raw_comments_json"
+}
+
+# Helper: invoke `gh api --paginate --jq '.[]'` to get one JSON object per
+# line across all pages, then wrap in a single JSON array. Avoids the
+# `[ ... ][ ... ]` concatenation bug that breaks multi-page JSON-array
+# endpoints when consumed with `json.loads` (bug 9550-02ad-51b7-4531).
+#
+# Input shape handling: real `gh api --paginate --jq '.[]'` emits NDJSON
+# (one object per line) across pages. Some test stubs that do not honor
+# `--jq` echo back a single JSON array literal. Accept BOTH shapes — peek
+# at the first non-whitespace byte: `[` → already an array; anything else
+# → NDJSON, parse line-by-line and wrap.
+#
+# Args:
+#   $1 — gh api path (no method flag; defaults to GET)
+# Stdout: JSON array (possibly empty); exits non-zero on gh-api failure.
+_paginated_to_array() {
+    local path="$1"
+    local out
+    local rc=0
+    out=$(gh api --method GET "$path" --paginate --jq '.[]' 2>&1) || rc=$?
+    if (( rc != 0 )); then
+        printf '%s' "$out"
+        return "$rc"
+    fi
+    # Empty body → empty array (avoids python3 parse error on '').
+    if [[ -z "$out" ]]; then
+        echo "[]"
+        return 0
+    fi
+    python3 -c "
+import json, sys
+text = sys.stdin.read()
+stripped = text.lstrip()
+if not stripped:
+    print('[]')
+    sys.exit(0)
+if stripped[0] == '[':
+    # Already a JSON array (single page, or a stub that does not honor --jq).
+    # If the body is two concatenated arrays from a non-jq paginated call,
+    # this branch will fail to parse — that is the original bug and is fine
+    # to surface as a hard error rather than silently emit empty output.
+    print(json.dumps(json.loads(text)))
+else:
+    # NDJSON — one JSON object per line.
+    objs = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        objs.append(json.loads(line))
+    print(json.dumps(objs))
+" <<<"$out"
 }
 
 # ── Normalize raw comments to output schema ──────────────────────────────────
