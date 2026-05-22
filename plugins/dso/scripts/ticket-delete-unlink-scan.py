@@ -11,12 +11,22 @@ Output:
 Replaces the inline heredoc in ticket-lib-api.sh ticket_delete() (bugs
 0071-a28d, 3932-5199).  Uses reduce_all_tickets() so SNAPSHOT-compressed
 events are respected and the scan is O(N) across tickets.
+
+Fast path (bug 071c-24fe-d4e5-4370): when the deleted ticket has no
+outbound LINKs of its own AND no other ticket's LINK/SNAPSHOT files
+mention the deleted ID or any of its aliases, skip the O(N)
+reduce_all_tickets() pass and emit zero UNLINKs. This is conservative
+(false-positive-friendly): any string match falls through to the full
+reducer, which correctly handles LINK+UNLINK pairs and SNAPSHOT-compacted
+state.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import re
+import subprocess
 import sys
 import time
 import uuid
@@ -27,6 +37,96 @@ if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
 
 from ticket_reducer import reduce_all_tickets  # noqa: E402
+from ticket_reducer._alias import compute_alias  # noqa: E402
+
+
+def _has_any_link_refs(tracker_path: Path, deleted_id: str) -> bool:
+    """Conservative check: return False only when no LINK references can exist.
+
+    Fast-path optimization for the common case where the deleted ticket has
+    never been linked from anywhere (e.g., a freshly-created test ticket).
+
+    Returns True if any of these hold:
+      - Deleted ticket's own dir has any *-LINK.json file (outbound).
+      - Deleted ticket's own SNAPSHOT has non-empty deps (outbound, compacted).
+      - Any other ticket's *-LINK.json or *-SNAPSHOT.json file contains the
+        deleted ticket's UUID or its computed alias (inbound — by UUID or alias).
+
+    Returns False only when no LINK or SNAPSHOT files anywhere reference the
+    deleted ticket. In that case, caller may skip the O(N) reduce_all_tickets()
+    pass: there is nothing for it to find.
+
+    The check is conservative: false-positive matches (e.g., a LINK that was
+    subsequently UNLINKed) cause fall-through to the full reducer, which
+    correctly emits zero UNLINKs for already-unlinked pairs. The fast-path
+    only optimizes the obvious-no-refs case.
+    """
+    deleted_dir = tracker_path / deleted_id
+
+    # ── Outbound check: deleted ticket's own dir ──────────────────────────
+    if deleted_dir.is_dir():
+        for _ in deleted_dir.glob("*-LINK.json"):
+            return True
+        # Canonical SNAPSHOT structure: data.compiled_state.deps.
+        # Older/test formats may carry deps at state.deps or data.deps — check
+        # all three so this guard remains conservative.
+        for snap_path in deleted_dir.glob("*-SNAPSHOT.json"):
+            try:
+                snap = json.loads(snap_path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                continue
+            data = snap.get("data", {}) or {}
+            deps = (
+                data.get("compiled_state", {}).get("deps")
+                or data.get("deps")
+                or snap.get("state", {}).get("deps")
+                or []
+            )
+            if deps:
+                return True
+
+    # ── Inbound check: any other ticket's events reference deleted_id ─────
+    # Search terms: UUID + computed alias (LINK data may reference either form).
+    search_terms = [deleted_id]
+    try:
+        alias = compute_alias(deleted_id)
+    except Exception:
+        alias = None
+    if alias:
+        search_terms.append(alias)
+
+    pattern = "|".join(re.escape(t) for t in search_terms)
+    # grep over LINK and SNAPSHOT files only. Use -l (list filenames) since we
+    # only need a binary yes/no for the optimization.
+    try:
+        result = subprocess.run(
+            [
+                "grep",
+                "-rlE",
+                pattern,
+                str(tracker_path),
+                "--include=*-LINK.json",
+                "--include=*-SNAPSHOT.json",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        # grep unavailable or failed — fall through to full reducer (safe).
+        return True
+
+    if not result.stdout.strip():
+        return False
+
+    # Matches found. Exclude matches inside the deleted ticket's own dir
+    # (those are outbound and were already checked above).
+    deleted_prefix = str(deleted_dir) + os.sep
+    for matched_path in result.stdout.strip().split("\n"):
+        if not matched_path.startswith(deleted_prefix):
+            return True
+
+    return False
 
 
 def _write_unlink(
@@ -68,6 +168,11 @@ def main() -> None:
     if deleted_id is None:
         print(f"Error: ticket '{raw_deleted_id}' does not exist", file=sys.stderr)
         sys.exit(1)
+
+    # Fast path: skip the O(N) reduce_all_tickets() when no LINK or SNAPSHOT
+    # references the deleted ticket anywhere in the tracker.
+    if not _has_any_link_refs(tracker_path, deleted_id):
+        return
 
     all_states = reduce_all_tickets(tracker_dir)
 
