@@ -248,6 +248,81 @@ def test_outbound_push_comment_skips_ticket_without_sync(
 
 
 # ---------------------------------------------------------------------------
+# Test 2b: COMMENT event without SYNC writes a dedup'd BRIDGE_ALERT
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_outbound_push_comment_writes_bridge_alert_when_no_sync(
+    tmp_path: Path, bridge: ModuleType
+) -> None:
+    """A COMMENT event for a ticket with NO SYNC marker must write a dedup'd
+    BRIDGE_ALERT so operators see the dropped event instead of a silent no-op.
+
+    The alert must use a stable dedup_key so repeated cron runs against the
+    same unfixed ticket do not flood the tracker with duplicate alerts.
+    """
+    ticket_dir = tmp_path / "w21-no-sync-alert"
+    ticket_dir.mkdir()
+
+    comment_file = _write_event(
+        ticket_dir,
+        timestamp=1742605400,
+        uuid=_COMMENT_UUID,
+        event_type="COMMENT",
+        data={"body": "Comment on an unsynced ticket — must surface as alert."},
+        env_id=_OTHER_ENV_ID,
+    )
+
+    events = [
+        {
+            "ticket_id": "w21-no-sync-alert",
+            "event_type": "COMMENT",
+            "file_path": str(comment_file),
+        }
+    ]
+
+    mock_client = MagicMock()
+
+    bridge.process_outbound(
+        events,
+        acli_client=mock_client,
+        tickets_root=tmp_path,
+        bridge_env_id=_BRIDGE_ENV_ID,
+    )
+
+    mock_client.add_comment.assert_not_called()
+
+    alert_files = sorted(ticket_dir.glob("*-BRIDGE_ALERT.json"))
+    assert alert_files, (
+        "COMMENT on a ticket with no SYNC marker must write a BRIDGE_ALERT — "
+        "silent return hides dropped comments from operators."
+    )
+
+    payload = json.loads(alert_files[0].read_text(encoding="utf-8"))
+    data = payload.get("data") or {}
+    assert data.get("dedup_key"), (
+        "BRIDGE_ALERT must carry a dedup_key so repeated cron ticks against "
+        "the same unfixed ticket don't flood the tracker."
+    )
+
+    # Second invocation must NOT add a duplicate alert (dedup_key suppresses).
+    bridge.process_outbound(
+        events,
+        acli_client=mock_client,
+        tickets_root=tmp_path,
+        bridge_env_id=_BRIDGE_ENV_ID,
+    )
+    alert_files_after = sorted(ticket_dir.glob("*-BRIDGE_ALERT.json"))
+    assert len(alert_files_after) == len(alert_files), (
+        "dedup_key must suppress duplicate alerts on repeated runs; "
+        f"first run wrote {len(alert_files)}, second run added "
+        f"{len(alert_files_after) - len(alert_files)} more."
+    )
+
+
+# ---------------------------------------------------------------------------
 # Test 3: COMMENT event skipped when env_id matches bridge env ID (echo prevention)
 # ---------------------------------------------------------------------------
 
