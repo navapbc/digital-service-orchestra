@@ -3072,3 +3072,62 @@ class TestProcessInboundCursorReliability:
             f"{failing_updated_z!r}. Post-fix, cursor must preserve at/before "
             "the failing issue so it is retried on the next run."
         )
+
+    @pytest.mark.unit
+    @pytest.mark.scripts
+    def test_zero_fetch_preserves_cursor_does_not_advance_to_now(
+        self, tmp_path: Path, bridge: ModuleType
+    ) -> None:
+        """A zero-issue fetch must NOT advance the cursor to wall-clock now().
+
+        Pre-fix behavior: when search_issues returns [], process_inbound falls
+        through to _write_success_checkpoint with watermark_ts="", which advances
+        the cursor to datetime.now(). A single silently-broken Jira fetch then
+        permanently loses every change that happened in the window — the next
+        run's overlap buffer (15 min default) can no longer recover changes
+        older than now() - overlap_buffer.
+
+        Post-fix behavior: zero-fetch preserves the cursor at last_pull_ts.
+        If Jira is honestly empty, the next run re-queries the same window
+        (idempotent — has_existing_sync + status/edit comparison short-circuit).
+        If the fetch was silently broken, the next run still sees the full
+        original window plus any new changes.
+        """
+        tickets_root = tmp_path / ".tickets-tracker"
+        tickets_root.mkdir()
+
+        checkpoint_file = tmp_path / "bridge-checkpoint.json"
+        old_ts = "2026-03-21T10:00:00Z"
+        checkpoint_file.write_text(
+            json.dumps({"last_pull_ts": old_ts}), encoding="utf-8"
+        )
+
+        mock_client = MagicMock()
+        mock_client.search_issues = MagicMock(return_value=[])
+        mock_client.get_myself = MagicMock(return_value={"timeZone": "UTC"})
+
+        config = {
+            "bridge_env_id": _BRIDGE_ENV_ID,
+            "overlap_buffer_minutes": 15,
+            "checkpoint_file": str(checkpoint_file),
+            "status_mapping": {"To Do": "pending"},
+            "type_mapping": {"Task": "task"},
+        }
+
+        bridge.process_inbound(
+            tickets_root=tickets_root,
+            acli_client=mock_client,
+            last_pull_ts=old_ts,
+            config=config,
+        )
+
+        updated = json.loads(checkpoint_file.read_text(encoding="utf-8"))
+        new_ts = updated.get("last_pull_ts", "")
+
+        assert new_ts == old_ts, (
+            "Zero-fetch must preserve the cursor at the prior last_pull_ts so "
+            "a silently-broken Jira fetch does not permanently drop unseen "
+            f"changes; expected {old_ts!r}, got {new_ts!r} "
+            "(wall-clock now() fallback in _write_success_checkpoint is the "
+            "underlying defect)."
+        )

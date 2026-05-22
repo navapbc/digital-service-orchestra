@@ -528,6 +528,18 @@ def handle_snapshot_event(
     # next granular event flow (or a backfill run) will repair this.
     jira_key = _resolve_jira_key(ticket_dir)
     if not jira_key:
+        write_bridge_alert(
+            ticket_dir,
+            ticket_id=ticket_id,
+            reason=(
+                "SNAPSHOT event dropped: no SYNC.json marker — compacted "
+                "ticket has never been linked to Jira and SNAPSHOT alone "
+                "cannot CREATE (CREATE-only data is not preserved in "
+                "compiled_state)"
+            ),
+            bridge_env_id=bridge_env_id,
+            dedup_key="outbound-snapshot-no-sync-marker",
+        )
         return []
 
     # Compare to current Jira status; skip the update when already in sync.
@@ -756,6 +768,16 @@ def handle_comment_event(
 
     sync_files = sorted(ticket_dir.glob("*-SYNC.json"))
     if not sync_files:
+        write_bridge_alert(
+            ticket_dir,
+            ticket_id=ticket_id,
+            reason=(
+                "COMMENT event dropped: no SYNC.json marker — ticket is not "
+                "linked to Jira"
+            ),
+            bridge_env_id=bridge_env_id,
+            dedup_key="outbound-comment-no-sync-marker",
+        )
         return []
 
     sync_data = _read_event_file(sync_files[-1])
@@ -855,6 +877,16 @@ def handle_link_event(
 
     source_jira_key = _resolve_jira_key(ticket_dir)
     if not source_jira_key:
+        write_bridge_alert(
+            ticket_dir,
+            ticket_id=ticket_id,
+            reason=(
+                "LINK event dropped: source ticket has no SYNC.json marker — "
+                "source is not linked to Jira"
+            ),
+            bridge_env_id=bridge_env_id,
+            dedup_key="outbound-link-no-source-sync-marker",
+        )
         return [], link_types_cache
 
     if not target_id:
@@ -1095,6 +1127,16 @@ def handle_file_impact_event(
 
     jira_key = _resolve_jira_key(ticket_dir)
     if not jira_key:
+        write_bridge_alert(
+            ticket_dir,
+            ticket_id=ticket_id,
+            reason=(
+                "FILE_IMPACT event dropped: no SYNC.json marker — ticket is "
+                "not linked to Jira"
+            ),
+            bridge_env_id=bridge_env_id,
+            dedup_key="outbound-file-impact-no-sync-marker",
+        )
         return []
 
     dedup_map = _read_dedup_map(ticket_dir)
@@ -1194,6 +1236,16 @@ def handle_edit_event(
 
     sync_files = sorted(ticket_dir.glob("*-SYNC.json"))
     if not sync_files:
+        write_bridge_alert(
+            ticket_dir,
+            ticket_id=ticket_id,
+            reason=(
+                "EDIT event dropped: no SYNC.json marker — ticket is not "
+                "linked to Jira"
+            ),
+            bridge_env_id=bridge_env_id,
+            dedup_key="outbound-edit-no-sync-marker",
+        )
         return []
 
     sync_data = _read_event_file(sync_files[-1])

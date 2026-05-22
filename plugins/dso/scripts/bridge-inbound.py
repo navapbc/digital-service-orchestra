@@ -596,11 +596,20 @@ def process_inbound(
         logging.warning(
             "[inbound-bridge] zero issues fetched for project=%r window_start=%s "
             "overlap=%sm — if you expected issues in this window, the fetch "
-            "may be silently broken (bug 0e38-a5da).",
+            "may be silently broken (bug 0e38-a5da). Preserving cursor at "
+            "%s so the next run re-queries the same window.",
             project or "(none)",
             last_pull_ts,
             overlap_buffer_minutes,
+            last_pull_ts,
         )
+        # Zero-fetch preserves the cursor. Previously this path fell through to
+        # _write_success_checkpoint with watermark_ts="", which advances the
+        # cursor to datetime.now() — a single silently-broken Jira fetch then
+        # permanently lost changes older than the next run's overlap buffer.
+        # Preserving the cursor makes the JQL window re-query the same range on
+        # the next run; create-dedup and status/edit comparison make it cheap.
+        return
     # Cluster A fix: derive cursor from acknowledged-issue watermark, not now().
     # Clamp strictly below any failed issue's `updated` so retries land them.
     watermark_ts = ""
