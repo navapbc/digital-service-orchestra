@@ -35,6 +35,7 @@ from pathlib import Path
 
 from dso_ci_review.cycle_marker_format import (
     SENTINEL_PR_NUMBER as _SENTINEL_PR_NUMBER_FROM_FMT,
+    cycle_marker_list_endpoint,
     parse_cycle_marker,
 )
 
@@ -252,7 +253,12 @@ def reconstruct_from_pr_comments(pr_number: int, repo: str) -> dict:
     markers (findings-hash only). Malformed entries are skipped with a stderr
     warning and the top-level ``reconstruction_gaps`` flag is set to True.
     """
-    cmd = ["gh", "api", f"repos/{repo}/pulls/{pr_number}/comments", "--paginate"]
+    cmd = [
+        "gh",
+        "api",
+        cycle_marker_list_endpoint(repo, pr_number),
+        "--paginate",
+    ]
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         comments = json.loads(result.stdout)

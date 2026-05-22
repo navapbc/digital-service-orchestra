@@ -447,3 +447,79 @@ def test_atomic_write_cleans_up_temp_on_replace_failure(monkeypatch, tmp_path):
         f"_atomic_write left temp file(s) behind after replace failure: "
         f"{[p.name for p in leftovers]}"
     )
+
+
+# ── Bug 230d-6cab — reconstruct_from_pr_comments uses wrong gh-api endpoint ──
+
+
+def test_reconstruct_uses_issues_endpoint_not_pulls_endpoint():
+    """Bug 230d-6cab: reconstruct_from_pr_comments must call the
+    /issues/{n}/comments endpoint, NOT /pulls/{n}/comments.
+
+    gh pr comment (the writer) posts to the issue-conversation endpoint.
+    The reader was calling the review-thread endpoint, so the two sets are
+    disjoint and reconstruction never sees any markers.
+
+    This test inspects the cmd passed to subprocess.run — the observable
+    boundary between the function and the gh CLI.  It MUST fail today
+    (current code uses /pulls/) and pass after the Approach-B fix.
+    """
+    import json as _json
+
+    fake_response = _json.dumps([])
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value.stdout = fake_response
+        mock_run.return_value.returncode = 0
+        reconstruct_from_pr_comments(42, "owner/repo")
+
+    assert mock_run.called, "subprocess.run was never called"
+    cmd = mock_run.call_args[0][0]  # positional first arg is the cmd list
+
+    issues_endpoint = "repos/owner/repo/issues/42/comments"
+    pulls_endpoint = "repos/owner/repo/pulls/42/comments"
+
+    assert issues_endpoint in cmd, (
+        f"Expected cmd to contain '{issues_endpoint}' (issues/conversation endpoint), "
+        f"but got cmd={cmd!r}"
+    )
+    assert pulls_endpoint not in cmd, (
+        f"cmd must NOT contain '{pulls_endpoint}' (review-thread endpoint), "
+        f"but got cmd={cmd!r}"
+    )
+
+
+def test_reconstruct_endpoint_matches_shared_helper():
+    """Bug 230d-6cab writer/reader parity contract (Approach B).
+
+    The helper cycle_marker_list_endpoint does not exist yet — this import
+    will raise ImportError in the RED phase.  After the fix the helper exists
+    and both assertions must hold:
+      1. The helper returns the canonical issues-endpoint string.
+      2. reconstruct_from_pr_comments passes that exact string to gh.
+
+    Do NOT mock the helper: the contract is that both reference the same
+    string, not merely that the function calls the helper internally.
+    """
+    import json as _json
+
+    # This import is the RED trigger: ImportError until the helper is added.
+    from dso_ci_review.cycle_marker_format import cycle_marker_list_endpoint
+
+    expected_endpoint = cycle_marker_list_endpoint("owner/repo", 42)
+    assert expected_endpoint == "repos/owner/repo/issues/42/comments", (
+        f"Helper returned unexpected endpoint: {expected_endpoint!r}"
+    )
+
+    fake_response = _json.dumps([])
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value.stdout = fake_response
+        mock_run.return_value.returncode = 0
+        reconstruct_from_pr_comments(42, "owner/repo")
+
+    assert mock_run.called, "subprocess.run was never called"
+    cmd = mock_run.call_args[0][0]
+
+    assert expected_endpoint in cmd, (
+        f"reconstruct_from_pr_comments must pass the shared helper's endpoint "
+        f"'{expected_endpoint}' to gh, but got cmd={cmd!r}"
+    )
