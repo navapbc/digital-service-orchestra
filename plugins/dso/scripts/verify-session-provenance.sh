@@ -14,11 +14,15 @@
 #   DSO_GH_BUDGET      Override the maximum number of gh API calls (default: 200)
 #
 # ── Exit codes ────────────────────────────────────────────────────────────────
-#   0  = all commits provenanced
-#   1  = one or more un-provenanced commits found (written to unprovenanced-shas.txt)
+#   0  = all commits provenanced (writes provenance-complete.marker + covered-shas.txt)
+#   1  = one or more un-provenanced commits found (writes unprovenanced-shas.txt + marker + covered)
 #   2  = BUDGET_EXHAUSTED — API call budget used up before all commits checked
 #   3  = OVER_BOUND — non-provenanced commits acknowledged via DSO-Over-Bound: marker
-#        (large-diff routed to admin/FP-recovery; skip LLM dispatch)
+#        (writes over-bound-shas.txt + marker + covered; large-diff routed to admin/FP-recovery)
+#   4  = BASE_SHA or SESSION_HEAD unreachable in working tree (configuration error;
+#        no marker written — distinguishes 'never ran cleanly' from 'ran cleanly')
+#
+# Exit-code contract details: docs/contracts/verify-session-provenance-exit-codes.md (under ${CLAUDE_PLUGIN_ROOT})
 
 set -euo pipefail
 
@@ -89,46 +93,193 @@ else
     GH_REPO="$(echo "$_origin" | sed -E 's|.*[:/]([^/.]+/[^/.]+)(\.git)?$|\1|')" || true
 fi
 
+# ── Cache schema and key format (bug 8a77 v3 hardening, folds Bug E) ──────────
+# Cache file shape (v2):
+#   {
+#     "cache_version": 2,
+#     "entries": {
+#       "<sha>.pr<N>": "provenanced" | "unprovenanced",
+#       ...
+#     }
+#   }
+#
+# The key is `${sha}.pr${PR_NUMBER:-0}`. This lets the same SHA produce
+# different verdicts under different PR contexts (a commit that is "covered"
+# by PR #252 when reviewed from PR #253 may not be "covered" when reviewed
+# from PR #252 itself — the self-exclusion filter changes the answer).
+#
+# Cache poisoning prevention: only verified verdicts ("provenanced" /
+# "unprovenanced") are cached. API errors (rate-limit, 404, timeout) yield
+# "unknown-due-to-error" which is NOT persisted — the next CI run will
+# re-evaluate that SHA rather than reading a stale failure verdict.
+#
+# Migration: on load, ledgers missing `cache_version` OR with version != 2
+# are silently ignored (treated as empty cache). Avoids the per-key
+# migration headache; first write seeds the new shape.
+CACHE_VERSION=2
+
 # ── Initialize cache ──────────────────────────────────────────────────────────
-if [[ ! -f "$CACHE_FILE" ]]; then
-    echo '{}' > "$CACHE_FILE"
-fi
+_cache_init() {
+    if [[ ! -f "$CACHE_FILE" ]]; then
+        printf '{"cache_version": %s, "entries": {}}\n' "$CACHE_VERSION" > "$CACHE_FILE"
+        return 0
+    fi
+    # Validate existing cache file: must be JSON and carry the expected version.
+    local valid
+    valid="$(python3 -c "
+import sys, json
+try:
+    with open(sys.argv[1]) as f:
+        data = json.load(f)
+    if not isinstance(data, dict):
+        print('invalid')
+        sys.exit(0)
+    if data.get('cache_version') != int(sys.argv[2]):
+        print('invalid')
+        sys.exit(0)
+    if not isinstance(data.get('entries'), dict):
+        print('invalid')
+        sys.exit(0)
+    print('valid')
+except Exception:
+    print('invalid')
+" "$CACHE_FILE" "$CACHE_VERSION" 2>/dev/null)" || valid="invalid"
+    if [[ "$valid" != "valid" ]]; then
+        # Corrupted or wrong-version cache; rewrite empty. Use atomic_write
+        # so a concurrent reader never sees a partial JSON.
+        echo "WARNING: provenance cache schema mismatch or invalid; reinitializing" >&2
+        _atomic_write_cache "{\"cache_version\": $CACHE_VERSION, \"entries\": {}}"
+    fi
+}
+
+# ── Helper: atomic cache write (folds in Bug E lock-free race fix) ────────────
+_atomic_write_cache() {
+    local payload="$1"
+    local tmp_file
+    tmp_file="$(mktemp "${ARTIFACT_DIR}/cache-write.XXXXXX")" || {
+        echo "WARNING: cache write failed (mktemp); bypassing cache for this run" >&2
+        return 1
+    }
+    # Write to temp + rename = atomic; a concurrent reader either sees the old
+    # complete file or the new complete file, never a half-written file.
+    if ! printf '%s\n' "$payload" > "$tmp_file"; then
+        echo "WARNING: cache write failed (write to tmp); bypassing cache for this run" >&2
+        rm -f "$tmp_file"
+        return 1
+    fi
+    if ! mv -f "$tmp_file" "$CACHE_FILE"; then
+        echo "WARNING: cache write failed (atomic rename); bypassing cache for this run" >&2
+        rm -f "$tmp_file"
+        return 1
+    fi
+    return 0
+}
 
 # ── Initialize output tracking ────────────────────────────────────────────────
 _api_call_count=0
 _unprovenanced_shas=()
 _over_bound_shas=()
+_covered_shas=()        # bug 8a77 v2 MF3: SHAs classified as provenanced (trailer/cache/API)
 _budget_exhausted=0
+
+_cache_init
+
+# ── Cache key derivation (per-PR — bug 8a77 v3) ───────────────────────────────
+_cache_key() {
+    local sha="$1"
+    # PR_NUMBER from env (ci.yml exports it); 0 when unset.
+    local _pr="${PR_NUMBER:-0}"
+    if ! [[ "$_pr" =~ ^[0-9]+$ ]]; then
+        _pr=0
+    fi
+    echo "${sha}.pr${_pr}"
+}
 
 # ── Helper: check cache ───────────────────────────────────────────────────────
 _cache_get() {
     local sha="$1"
-    # Returns "provenanced", "unprovenanced", or empty string if not cached
+    local key
+    key="$(_cache_key "$sha")"
+    # Returns "provenanced", "unprovenanced", or empty string if not cached.
+    # Surfaces JSON-decode failures via the Python script's print-to-stderr
+    # (which inherits the caller's stderr — no fd juggling needed).
     local cached
-    cached="$(cat "$CACHE_FILE" | python3 -c "
+    cached="$(python3 -c "
 import sys, json
-data = json.load(sys.stdin)
-sha = sys.argv[1]
-if sha in data:
-    print(data[sha])
-" "$sha" 2>/dev/null)" || true
+try:
+    with open(sys.argv[1]) as f:
+        data = json.load(f)
+    entries = data.get('entries', {}) if isinstance(data, dict) else {}
+    key = sys.argv[2]
+    if key in entries:
+        # Defensive: only print recognized verdicts; otherwise treat as miss.
+        verdict = entries[key]
+        if verdict in ('provenanced', 'unprovenanced'):
+            print(verdict)
+except Exception as e:
+    print(f'WARNING: _cache_get parse failure: {e}', file=sys.stderr)
+" "$CACHE_FILE" "$key" 2>/dev/null)" || cached=""
     echo "$cached"
 }
 
 _cache_set() {
     local sha="$1" value="$2"
-    local tmp_file
-    tmp_file="$(mktemp "${ARTIFACT_DIR}/cache-update.XXXXXX")"
-    python3 -c "
+    # Bug 8a77 v3: do NOT cache "unknown-due-to-error" — caller passes the
+    # verified verdict only. The "unknown" case bypasses the cache so the
+    # next CI run re-evaluates.
+    if [[ "$value" != "provenanced" && "$value" != "unprovenanced" ]]; then
+        echo "WARNING: _cache_set refusing to cache non-verified verdict '$value' for $sha" >&2
+        return 0
+    fi
+    local key
+    key="$(_cache_key "$sha")"
+    # Read-modify-write under the atomic_write helper. A concurrent invocation
+    # may overwrite our write; that's acceptable for a verdict cache (the
+    # next read will re-fetch from API). The atomic_write ensures readers
+    # never see a half-written file.
+    local new_payload
+    new_payload="$(python3 -c "
 import sys, json
-with open(sys.argv[1]) as f:
-    data = json.load(f)
-data[sys.argv[2]] = sys.argv[3]
-with open(sys.argv[1], 'w') as f:
-    json.dump(data, f)
-" "$CACHE_FILE" "$sha" "$value" 2>/dev/null || true
-    rm -f "$tmp_file"
+try:
+    with open(sys.argv[1]) as f:
+        data = json.load(f)
+except Exception:
+    data = {'cache_version': int(sys.argv[4]), 'entries': {}}
+if not isinstance(data, dict):
+    data = {'cache_version': int(sys.argv[4]), 'entries': {}}
+data.setdefault('cache_version', int(sys.argv[4]))
+entries = data.setdefault('entries', {})
+if not isinstance(entries, dict):
+    entries = {}
+    data['entries'] = entries
+entries[sys.argv[2]] = sys.argv[3]
+print(json.dumps(data))
+" "$CACHE_FILE" "$key" "$value" "$CACHE_VERSION" 2>/dev/null)" || {
+        echo "WARNING: _cache_set payload build failed for $sha; bypassing cache for this entry" >&2
+        return 1
+    }
+    _atomic_write_cache "$new_payload" || return 1
+    return 0
 }
+
+# ── Pre-walk reachability guard (bug 8a77 v2) ─────────────────────────────────
+# `git log $BASE..$HEAD 2>/dev/null` returns empty stdout — silently — when
+# either SHA is unreachable in the working tree (typical under
+# `actions/checkout@v4` with default fetch-depth=1; the action fetches
+# refs/pull/N/merge but NOT pull/N/head). The empty stdout previously caused
+# the while-loop to iterate zero times and the script fell through to
+# "All commits provenanced" exit 0, bypassing the A1-A4 layered filters
+# entirely. Surface the failure loudly via the shared reachability helper.
+_REACHABILITY_LIB="$(dirname "${BASH_SOURCE[0]}")/lib/reachability.sh"
+if [[ ! -f "$_REACHABILITY_LIB" ]]; then
+    echo "ERROR: required helper $_REACHABILITY_LIB not found" >&2
+    exit 4
+fi
+# shellcheck source=lib/reachability.sh
+source "$_REACHABILITY_LIB"
+
+assert_sha_reachable "$BASE_SHA" "BASE_SHA" "$GIT_REPO_PATH" || exit 4
+assert_sha_reachable "$SESSION_HEAD" "SESSION_HEAD" "$GIT_REPO_PATH" || exit 4
 
 # ── Walk commits ──────────────────────────────────────────────────────────────
 # Get all commits in range BASE_SHA..SESSION_HEAD
@@ -138,8 +289,12 @@ while IFS=' ' read -r sha subject; do
     # Step 1: Check for DSO-Story-Merge trailer in commit message
     commit_body="$(git -C "$GIT_REPO_PATH" log -1 --format="%B" "$sha" 2>/dev/null)" || true
     if echo "$commit_body" | grep -qE "^DSO-Story(-Merge)?:"; then
-        # Commit is provenanced via story merge trailer — cache and skip
-        _cache_set "$sha" "provenanced"
+        # Commit is provenanced via story merge trailer — cache and skip.
+        # `|| true` keeps the script alive if _cache_set fails (per the
+        # documented "bypass cache for this run" semantics); without it,
+        # `set -e` would abort the entire walk on a cache write error.
+        _cache_set "$sha" "provenanced" || true
+        _covered_shas+=("$sha")   # bug 8a77 v2 MF2 site (a): trailer-provenanced
         continue
     fi
 
@@ -154,6 +309,7 @@ while IFS=' ' read -r sha subject; do
     # Step 2: Check SHA→PR cache
     cached_result="$(_cache_get "$sha")"
     if [[ "$cached_result" == "provenanced" ]]; then
+        _covered_shas+=("$sha")   # bug 8a77 v2 MF2 site (b): cache-hit provenanced
         continue
     elif [[ "$cached_result" == "unprovenanced" ]]; then
         _unprovenanced_shas+=("$sha")
@@ -187,9 +343,14 @@ while IFS=' ' read -r sha subject; do
             _unprovenanced_shas+=("$sha")
             continue
         fi
-        # Other error — treat as unprovenanced
+        # Bug 8a77 v3 hardening: API error → flag in-memory as unprovenanced
+        # so CI surfaces the failure, but DO NOT cache. Caching the failure
+        # would poison the cache through the rest of the run and across
+        # subsequent CI re-runs (the SHA would be permanently marked
+        # unprovenanced until cache_version bump). The next CI run will
+        # re-fetch from the API.
+        echo "WARNING: gh api failed for $sha; flagging unprovenanced (not cached): ${pr_result:0:200}" >&2
         _unprovenanced_shas+=("$sha")
-        _cache_set "$sha" "unprovenanced"
         continue
     }
 
@@ -201,36 +362,127 @@ while IFS=' ' read -r sha subject; do
         continue
     fi
 
-    # Determine provenance from PR result
-    # If there's at least one PR, commit is provenanced
-    pr_count="$(echo "$pr_result" | python3 -c "
-import sys, json
+    # ─── Layered provenance filter (bug 8a77 fix) ────────────────────────────
+    # The GitHub API `repos/{owner}/{repo}/commits/{sha}/pulls` endpoint
+    # returns EVERY PR whose branch HEAD history contains this commit —
+    # including the PR being reviewed. Counting any non-empty list as
+    # "covered" was the pre-fix bug that silently disabled llm-review on
+    # every PR. We now apply 4 filters and count only PRs that survive:
+    #
+    #   A2  state == "closed" AND merged_at != null  (merged PRs only — an
+    #        open/draft/closed-unmerged PR carries no review evidence)
+    #   A3a head.sha != $sha                          (PR cannot cover its
+    #        own HEAD commit — defends push-event case where PR_NUMBER is
+    #        unset)
+    #   A3b merge_commit_sha != $sha                  (self-merge guard)
+    #   A1  number != $PR_NUMBER                      (self-exclusion when
+    #        PR_NUMBER env is set; no-op when unset since GitHub PR numbers
+    #        are always > 0)
+    #
+    # A3c (ancestor filter — require covering PR's merge_commit_sha to be an
+    # ancestor of BASE_SHA) was deliberately DROPPED during v2 review: it is
+    # broken under CI's depth-1 shallow fetch (ci.yml:431 does
+    # `git fetch --depth=1 origin <base_ref>`), so `git merge-base
+    # --is-ancestor` returns false for genuinely-covering merge SHAs that
+    # are not in the shallow fetch — producing false unprovenanced verdicts.
+    # Do not re-introduce A3c without first solving the shallow-fetch
+    # problem (e.g., `git fetch <covering_merge_sha>` before the check).
+    #
+    # Non-array responses (rate-limit / 404 / object envelope) yield
+    # covering_count=0 → treated as unprovenanced. The status code from
+    # _call_gh_with_backoff is the load-bearing signal; a successful HTTP
+    # 200 with an object body means the parser falls through to 0.
+    covering_count="$(echo "$pr_result" | PR_UNDER_REVIEW="${PR_NUMBER:-0}" SHA_UNDER_REVIEW="$sha" python3 -c "
+import sys, json, os
+pr_under_review_str = os.environ.get('PR_UNDER_REVIEW', '0')
+try:
+    pr_under_review = int(pr_under_review_str)
+except (TypeError, ValueError):
+    pr_under_review = 0
+sha_under_review = os.environ.get('SHA_UNDER_REVIEW', '')
 try:
     data = json.load(sys.stdin)
-    if isinstance(data, list):
-        print(len(data))
-    elif isinstance(data, dict) and 'items' in data:
-        print(len(data['items']))
-    else:
-        print(0)
 except Exception:
     print(0)
-" 2>/dev/null)" || pr_count=0
+    sys.exit(0)
+if isinstance(data, dict) and 'items' in data:
+    pr_list = data['items']
+elif isinstance(data, list):
+    pr_list = data
+else:
+    # Non-array, non-items shape (rate-limit error object, etc.) — treat as
+    # zero covering PRs. The exit status from _call_gh_with_backoff would
+    # have caught the typical error path; if we reached here with an object
+    # body, the safe default is 'no covering evidence'.
+    print(0)
+    sys.exit(0)
+count = 0
+for pr in pr_list:
+    if not isinstance(pr, dict):
+        continue
+    # A2: must be merged (state==closed AND merged_at present and non-null)
+    if pr.get('state') != 'closed':
+        continue
+    if not pr.get('merged_at'):
+        continue
+    # A3a: PR cannot cover its own HEAD
+    head_sha = (pr.get('head') or {}).get('sha', '')
+    if head_sha == sha_under_review:
+        continue
+    # A3b: self-merge guard
+    if pr.get('merge_commit_sha') == sha_under_review:
+        continue
+    # A1: exclude the PR being reviewed (self-exclusion via env var)
+    if pr_under_review > 0 and pr.get('number') == pr_under_review:
+        continue
+    count += 1
+print(count)
+" 2>/dev/null)" || covering_count=0
 
-    if (( pr_count > 0 )); then
-        _cache_set "$sha" "provenanced"
+    # `|| true` per the documented "bypass cache for this run" semantics —
+    # see commentary on the trailer-cache call site above.
+    if (( covering_count > 0 )); then
+        _covered_shas+=("$sha")   # bug 8a77 v2 MF2 site (c): API-covered (BEFORE cache_set)
+        _cache_set "$sha" "provenanced" || true
     else
         _unprovenanced_shas+=("$sha")
-        _cache_set "$sha" "unprovenanced"
+        _cache_set "$sha" "unprovenanced" || true
     fi
 
-done < <(git -C "$GIT_REPO_PATH" log "${BASE_SHA}..${SESSION_HEAD}" --format="%H %s" 2>/dev/null)
+done < <(git -C "$GIT_REPO_PATH" log "${BASE_SHA}..${SESSION_HEAD}" --format="%H %s")
 
 # ── Write unprovenanced SHAs to artifact file ─────────────────────────────────
 if (( ${#_unprovenanced_shas[@]} > 0 )); then
     printf '%s\n' "${_unprovenanced_shas[@]}" > "$UNPROVENANCED_FILE"
     printf '%s\n' "${_unprovenanced_shas[@]}"
 fi
+
+# ── Write over-bound SHAs to artifact file (bug 8a77 v2 MF1) ──────────────────
+# Without this, the dispatcher's `[[ -s over-bound-shas.txt ]]` route check
+# is dead code and OVER_BOUND commits silently route as exit 0.
+if (( ${#_over_bound_shas[@]} > 0 )); then
+    printf '%s\n' "${_over_bound_shas[@]}" > "${ARTIFACT_DIR}/over-bound-shas.txt"
+fi
+
+# ── Write success marker and covered-list artifacts (bug 8a77 v2 Change F) ────
+# The success marker proves the verifier ran to completion without an
+# unreachable-SHA or other early-exit error. Downstream consumers (dispatcher)
+# require this marker before trusting "no unprovenanced file" == all-provenanced.
+# Without the marker, "absent file" is ambiguous (crash vs. clean exit).
+_MARKER="${ARTIFACT_DIR}/provenance-complete.marker"
+_COVERED_FILE="${ARTIFACT_DIR}/covered-shas.txt"
+
+# covered-shas.txt: every SHA the walk classified as provenanced (trailer /
+# cache / API). Used by the dispatcher's "Covered by sub-PR reviews:" line
+# rather than re-walking BASE..HEAD (which is vulnerable to shallow clones).
+if (( ${#_covered_shas[@]} > 0 )); then
+    printf '%s\n' "${_covered_shas[@]}" > "$_COVERED_FILE"
+else
+    : > "$_COVERED_FILE"   # empty file = no covered SHAs (e.g., empty range)
+fi
+
+# Success marker (touched only on clean walk completion — NOT on exit 4)
+date -u +%Y-%m-%dT%H:%M:%SZ > "$_MARKER"
 
 # ── Exit with appropriate code ────────────────────────────────────────────────
 if (( _budget_exhausted )); then

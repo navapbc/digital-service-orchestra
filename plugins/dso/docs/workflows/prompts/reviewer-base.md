@@ -177,12 +177,14 @@ Do NOT include a scores key.
 Do NOT add "schema_version", "review_result", "id", "review_date", "REVIEWER_HASH", or any other key except escalate_review (see Escalation section below) —
 the validator will reject unrecognized keys and force a re-dispatch.
 
+**`category` MUST be EXACTLY one of: `correctness`, `design`, `hygiene`, `maintainability`, `verification` — do NOT invent new categories like "code_smell" or "missing_test_coverage". The validator (validate-review-output.sh) hard-rejects any other value and the correction loop only has a single retry budget; off-enum categories burn that budget.**
+
 ```json
 {
   "findings": [
     {
       "severity": "critical|important|minor|fragile",
-      "category": "<one of the 5 review categories>",
+      "category": "correctness|design|hygiene|maintainability|verification",
       "description": "...",
       "file": "path/to/file (MUST be from the diff being reviewed)",
       "cited_lines": ["<path>:<line>"],

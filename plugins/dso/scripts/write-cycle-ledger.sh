@@ -35,24 +35,29 @@
 #   --findings <json>        JSON array of [file, line_range, category] tuples.
 #                            Default: [] (empty array). Used by Jaccard stability
 #                            computation across cycles.
+#   --pr-number <int>        PR number for v1.2.0 contract. When set, the
+#                            emitted cycle entry includes a pr_number field.
+#                            Also used as the PR for --reconstruct-from-pr.
+#                            Falls back to DSO_CI_REVIEW_PR env var when absent.
 #   --reconstruct-from-pr    Trigger CI reconstruction mode: parse PR comments
 #                            for prior DSO-Review-Cycle entries before appending
-#                            the current cycle. Requires DSO_CI_REVIEW_PR env var.
-#                            Parser recognizes v1.1.0 markers (commit_sha=,
-#                            findings_hash=, tuples=) and legacy v1.0.0 markers
-#                            (findings-hash= only).
+#                            the current cycle. Requires --pr-number or
+#                            DSO_CI_REVIEW_PR env var. Parser recognizes v1.2.0
+#                            (pr_number=, commit_sha=, findings_hash=, tuples=),
+#                            v1.1.0 (no pr_number=), and legacy v1.0.0
+#                            (findings-hash= only) markers.
 #
 # Output schema (cycle-ledger.json) — see the cycle-ledger.md contract
-# (${CLAUDE_PLUGIN_ROOT}/docs/contracts/cycle-ledger.md) for the full v1.1.0 spec:
+# (${CLAUDE_PLUGIN_ROOT}/docs/contracts/cycle-ledger.md) for the full v1.2.0 spec:
 #   {
-#     "schema_version": "1.1.0",
+#     "schema_version": "1.2.0",
 #     "epic_id": "<epic_id or empty>",
 #     "cycles": [ <cycle_entry>, ... ],
 #     "reconstruction_gaps": true   # only present when gaps detected during reconstruction
 #   }
 # Each cycle entry carries: cycle_num, timestamp_utc, findings_hash, plus the
 # v1.1.0 fields commit_sha (string) and findings (array of [file, line_range,
-# category] string tuples).
+# category] string tuples), plus the v1.2.0 pr_number field (when > 0).
 #
 # Exit codes:
 #   0  — success
@@ -83,6 +88,32 @@ commit_sha_explicit=0
 findings_arg=""
 findings_explicit=0
 reconstruct_from_pr=0
+pr_number_arg=""
+
+# Top-level positional handler for the parity test form:
+#   bash write-cycle-ledger.sh --reconstruct-from-pr <pr-number> <repo>
+# Delegates to the Python CLI (cycle_ledger._cli_main) which uses the
+# shared cycle_marker_format grammar — eliminating the shell-embedded
+# parser drift class (bug 9788).
+#
+# Uses the same _PLUGIN_ROOT resolution pattern as the deps.sh source
+# above (CLAUDE_PLUGIN_ROOT env first, SCRIPT_DIR/.. fallback) to avoid
+# introducing a relative path that check-plugin-scripts-no-relative-paths
+# would flag.
+if [[ "${1:-}" == "--reconstruct-from-pr" && $# -ge 3 && "${2:-}" =~ ^[0-9]+$ ]]; then
+    _pos_pr="$2"
+    _pos_repo="$3"
+    _out_dir="${WORKFLOW_PLUGIN_ARTIFACTS_DIR:-$(get_artifacts_dir)}"
+    if [[ -z "$_out_dir" ]]; then
+        echo "error: cannot resolve artifacts dir (set WORKFLOW_PLUGIN_ARTIFACTS_DIR)" >&2
+        exit 1
+    fi
+    mkdir -p "$_out_dir"
+    PYTHONPATH="${_PLUGIN_ROOT}/scripts${PYTHONPATH:+:$PYTHONPATH}" \
+        python3 -m dso_ci_review.cycle_ledger reconstruct-from-pr "$_pos_pr" "$_pos_repo" \
+        > "$_out_dir/cycle-ledger.json"
+    exit $?
+fi
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -146,6 +177,14 @@ while [[ $# -gt 0 ]]; do
             reconstruct_from_pr=1
             shift
             ;;
+        --pr-number)
+            pr_number_arg="$2"
+            shift 2
+            ;;
+        --pr-number=*)
+            pr_number_arg="${1#--pr-number=}"
+            shift
+            ;;
         *)
             echo "error: unknown argument: $1" >&2
             exit 1
@@ -189,8 +228,11 @@ if [[ "$use_new_interface" -eq 1 ]]; then
     fi
 
     if [[ "$reconstruct_from_pr" -eq 1 ]]; then
-        if [[ -z "${DSO_CI_REVIEW_PR:-}" ]] || ! [[ "${DSO_CI_REVIEW_PR}" =~ ^[0-9]+$ ]]; then
-            echo "error: DSO_CI_REVIEW_PR must be a positive integer when --reconstruct-from-pr is set" >&2
+        # PR number resolution: --pr-number CLI flag wins; fall back to env var.
+        # Matches the resolution order at line 321 (PR_NUMBER assignment).
+        _pr_resolved="${pr_number_arg:-${DSO_CI_REVIEW_PR:-}}"
+        if [[ -z "$_pr_resolved" ]] || ! [[ "$_pr_resolved" =~ ^[0-9]+$ ]]; then
+            echo "error: PR number must be a positive integer when --reconstruct-from-pr is set (set via --pr-number or DSO_CI_REVIEW_PR env)" >&2
             exit 1
         fi
     fi
@@ -276,7 +318,10 @@ if [[ "$use_new_interface" -eq 1 ]]; then
     # the existing ledger and released after the atomic rename — ensuring each
     # process sees the latest state.
     TIMESTAMP="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-    PR_NUMBER="${DSO_CI_REVIEW_PR:-}"
+    # --pr-number CLI flag wins; fall back to env var. Bug 9788 v3 fix scope:
+    # the shell writer must emit v1.2.0-compliant ledger entries that include
+    # the pr_number field.
+    PR_NUMBER="${pr_number_arg:-${DSO_CI_REVIEW_PR:-}}"
 
     python3 - \
         "$LEDGER_PATH" \
@@ -304,8 +349,8 @@ staging_temp     = sys.argv[9]
 commit_sha       = sys.argv[10]
 findings_raw     = sys.argv[11]
 
-# v1.1.0 schema constants — keep in sync with cycle-ledger.md contract
-SCHEMA_VERSION = "1.1.0"
+# v1.2.0 schema constants — keep in sync with cycle-ledger.md contract
+SCHEMA_VERSION = "1.2.0"
 
 # findings is validated as JSON in the bash wrapper before we reach this point,
 # so json.loads() is safe here. Always normalize to a list.
@@ -422,14 +467,23 @@ try:
         else:
             reconstruction_gaps = True
 
-        # Append the current cycle entry (v1.1.0 fields populated from args)
-        cycles.append({
+        # Append the current cycle entry (v1.2.0 fields populated from args).
+        # pr_number is included when > 0 (bug 9788 v3: shell writer must emit
+        # v1.2.0 with pr_number per cycle-ledger.md:67).
+        _new_entry = {
             "cycle_num": cycle_num,
             "timestamp_utc": timestamp_utc,
             "findings_hash": findings_hash,
             "commit_sha": commit_sha,
             "findings": findings_value,
-        })
+        }
+        try:
+            _pr_int = int(pr_number) if pr_number else 0
+        except (TypeError, ValueError):
+            _pr_int = 0
+        if _pr_int > 0:
+            _new_entry["pr_number"] = _pr_int
+        cycles.append(_new_entry)
 
         ledger = {
             "schema_version": SCHEMA_VERSION,
@@ -483,6 +537,13 @@ try:
             "commit_sha": commit_sha,
             "findings": findings_value,
         }
+        # pr_number when provided (bug 9788 v3: v1.2.0 contract)
+        try:
+            _pr_int = int(pr_number) if pr_number else 0
+        except (TypeError, ValueError):
+            _pr_int = 0
+        if _pr_int > 0:
+            new_entry["pr_number"] = _pr_int
         ledger["cycles"].append(new_entry)
 
     # Write to staging temp
@@ -515,7 +576,7 @@ ledger_path = sys.argv[1]
 raw_payload = sys.argv[2]
 staging_temp = sys.argv[3]
 
-SCHEMA_VERSION = "1.1.0"
+SCHEMA_VERSION = "1.2.0"
 
 new_entry = json.loads(raw_payload)
 

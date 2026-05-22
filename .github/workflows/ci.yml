@@ -420,6 +420,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DSO_ARTIFACT_DIR: ${{ runner.temp }}/dso-review
+          # PR_NUMBER must be exported so verify-session-provenance.sh's A1
+          # self-exclusion filter (bug 8a77) can identify and reject the
+          # PR-under-review when it appears in the GH API response. Without
+          # this, A1 is a no-op (defaults to 0) and the script can silently
+          # treat self-PR-only coverage as "provenanced" — the original bug
+          # 8a77 symptom that persisted past PR #259's partial fix.
+          # Pattern matches the GITHUB_REF parse used by other steps in this
+          # workflow (e.g., lines 347-348, 537-538).
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
           mkdir -p "$DSO_ARTIFACT_DIR"
@@ -442,14 +451,30 @@ jobs:
               echo "ERROR: cannot resolve origin/${{ github.base_ref }} after fetch — provenance check would silently false-pass; aborting step." >&2
               exit 1
           fi
-          # verify-session-provenance.sh writes unprovenanced-shas.txt and exits
-          # 0 (all provenanced), 1 (some unprovenanced), or 2 (budget exhausted).
-          # We continue regardless — failures feed into the integration scope.
+          # bug 8a77 v2 Change D: route on verifier exit code.
+          # Documented codes (0/1/2/3) proceed; exit 4 = unreachable SHA
+          # configuration error and MUST fail the step loud (previous pattern
+          # `2>/dev/null || true` swallowed it, burying the original bug).
+          #
           # NOTE: the script reads DSO_BASE_SHA / DSO_SESSION_HEAD from env;
           # it does NOT parse CLI flags. Passing --base-ref silently no-ops.
+          rc=0
           DSO_BASE_SHA="$BASE_SHA" \
             bash plugins/dso/scripts/verify-session-provenance.sh \
-            2>/dev/null || true
+            || rc=$?
+          case "$rc" in
+            0|1|2|3)
+              # Documented exit codes — proceed. Stderr is on the job log.
+              ;;
+            4)
+              echo "::error::verify-session-provenance.sh exit 4 — BASE_SHA or SESSION_HEAD unreachable. See stderr above for hints (typically: actions/checkout fetch-depth)."
+              exit 1
+              ;;
+            *)
+              echo "::error::verify-session-provenance.sh exited with unexpected code $rc"
+              exit 1
+              ;;
+          esac
           echo "DSO_ARTIFACT_DIR=$DSO_ARTIFACT_DIR" >> "$GITHUB_ENV"
 
       - name: Compute cross-branch file set from DSO-Story-Merge trailers
@@ -470,8 +495,11 @@ jobs:
             commit_body="$(git log -1 --format=%B "$sha" 2>/dev/null)" || continue
             story_id="$(echo "$commit_body" | grep "^DSO-Story-Merge:" | head -1 | sed 's/^DSO-Story-Merge:[[:space:]]*//')" || true
             [[ -z "$story_id" ]] && continue
-            # Collect files changed in this story branch merge commit
-            changed_files="$(git diff-tree --no-commit-id -r --name-only "$sha" 2>/dev/null)" || true
+            # Collect files changed in this story branch merge commit.
+            # bug 8a77 v2 Change E: use `-m` so merge commits (which `diff-tree`
+            # without `-m` returns empty for) aren't silently dropped — same
+            # follow-on as Change C below.
+            changed_files="$(git diff-tree -m --no-commit-id --name-only -r "$sha" 2>/dev/null)" || true
             while IFS= read -r f; do
               [[ -z "$f" ]] && continue
               story_file_sets["$f"]="${story_file_sets[$f]:-} $story_id"
@@ -497,11 +525,18 @@ jobs:
           CROSS_BRANCH="${ARTIFACT_DIR}/cross-branch-files.txt"
           INTEGRATION_SCOPE="${ARTIFACT_DIR}/integration-scope-files.txt"
           : > "$INTEGRATION_SCOPE"
-          # Collect files from unprovenanced commits
+          # Collect files from unprovenanced commits.
+          # bug 8a77 v2 Change C: `diff-tree -m` works for BOTH merge and
+          # non-merge commits — forces diff generation against EACH parent and
+          # emits the union (later deduped via `sort -u` below). For GitHub's
+          # synthesized refs/pull/N/merge, the first parent is the base tip so
+          # the output is the PR's contribution. Without `-m`, merge commits
+          # silently produce empty output and the SHA is dropped from
+          # INTEGRATION_SCOPE (bug 8a77 follow-on).
           if [[ -s "$UNPROVENANCED" ]]; then
             while IFS= read -r sha; do
               [[ -z "$sha" ]] && continue
-              git diff-tree --no-commit-id -r --name-only "$sha" 2>/dev/null \
+              git diff-tree -m --no-commit-id --name-only -r "$sha" 2>/dev/null \
                 >> "$INTEGRATION_SCOPE" || true
             done < "$UNPROVENANCED"
           fi

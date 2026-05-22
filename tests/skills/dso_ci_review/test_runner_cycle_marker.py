@@ -35,11 +35,20 @@ def _make_comment(body: str, comment_id: int = 1001) -> dict:
     return {"id": comment_id, "body": body}
 
 
-def _marker_body(cycle_num: int, commit_sha: str, findings_hash: str) -> str:
-    """Return the expected marker body string."""
+def _marker_body(
+    cycle_num: int, commit_sha: str, findings_hash: str, pr_number: int = 99
+) -> str:
+    """Return the expected v1.2.0 marker body string (bug 9788 fix).
+
+    The historical form `cycle=K` was wrong (parsers expected bare integer)
+    and missed the v1.2.0 `pr_number=` field. The dso_ci_review test suite
+    pinned the broken form, which let the writer continue emitting unparseable
+    markers in production until bug 9788 was filed. This helper now emits the
+    canonical v1.2.0 grammar.
+    """
     return (
-        f"{_MARKER_PREFIX} cycle={cycle_num} commit_sha={commit_sha} "
-        f"findings_hash={findings_hash}"
+        f"{_MARKER_PREFIX} {cycle_num} pr_number={pr_number} "
+        f"commit_sha={commit_sha} findings_hash={findings_hash}"
     )
 
 
@@ -95,7 +104,9 @@ def test_post_cycle_marker_creates_new_comment_when_absent():
 
     # Inspect all call args for the CREATE call containing the marker body
     all_call_args = [str(c) for c in mock_run.call_args_list]
-    expected_marker = _marker_body(cycle_num, commit_sha, findings_hash)
+    expected_marker = _marker_body(
+        cycle_num, commit_sha, findings_hash, pr_number=int(pr_number)
+    )
     create_calls_with_marker = [c for c in all_call_args if expected_marker in c]
     assert create_calls_with_marker, (
         f"Expected a gh api call containing '{expected_marker}' in its args.\n"
@@ -122,7 +133,7 @@ def test_post_cycle_marker_updates_existing_with_same_cycle_and_sha():
         )
 
     existing_body = _marker_body(
-        cycle_num=2, commit_sha="abc", findings_hash="old_hash"
+        cycle_num=2, commit_sha="abc", findings_hash="old_hash", pr_number=99
     )
     existing_comment = _make_comment(existing_body, comment_id=5555)
 
@@ -161,7 +172,9 @@ def test_post_cycle_marker_updates_existing_with_same_cycle_and_sha():
 
     # Ensure no CREATE (POST without comment id) was made — no new endpoint like
     # /repos/.../issues/comments without an id suffix in path.
-    new_marker = _marker_body(cycle_num=2, commit_sha="abc", findings_hash="h2")
+    new_marker = _marker_body(
+        cycle_num=2, commit_sha="abc", findings_hash="h2", pr_number=99
+    )
     # The update call should include the new hash but reference the old comment id.
     update_calls = [c for c in all_call_args if new_marker in c and "5555" in c]
     assert update_calls, (
@@ -190,7 +203,9 @@ def test_post_cycle_marker_does_not_overwrite_marker_for_different_sha():
 
     old_sha = "old_sha"
     new_sha = "new_sha"
-    old_body = _marker_body(cycle_num=1, commit_sha=old_sha, findings_hash="old_h")
+    old_body = _marker_body(
+        cycle_num=1, commit_sha=old_sha, findings_hash="old_h", pr_number=55
+    )
     old_comment = _make_comment(old_body, comment_id=7777)
 
     list_response = MagicMock()
@@ -228,7 +243,9 @@ def test_post_cycle_marker_does_not_overwrite_marker_for_different_sha():
     )
 
     # Must CREATE a new comment with new_sha marker
-    new_marker = _marker_body(cycle_num=1, commit_sha=new_sha, findings_hash="new_h")
+    new_marker = _marker_body(
+        cycle_num=1, commit_sha=new_sha, findings_hash="new_h", pr_number=55
+    )
     create_calls = [c for c in all_call_args if new_marker in c]
     assert create_calls, (
         f"Expected a CREATE call with marker '{new_marker}'.\n"

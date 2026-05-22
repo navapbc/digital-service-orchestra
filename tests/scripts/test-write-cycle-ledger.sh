@@ -389,7 +389,7 @@ test_write_cycle_ledger_schema_version() {
 
     local schema_version
     schema_version=$(python3 -c "import json; d=json.load(open('$ledger_file')); print(d.get('schema_version','missing'))" 2>/dev/null || echo "parse-error")
-    assert_eq "schema_version is 1.1.0" "1.1.0" "$schema_version"
+    assert_eq "schema_version is 1.2.0" "1.2.0" "$schema_version"
 }
 test_write_cycle_ledger_schema_version
 
