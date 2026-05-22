@@ -16,8 +16,9 @@ on:
     # asserts the ABSENCE of paths: under pull_request (the test exits 1 if paths: IS present).
     # Task 705d-66d4 removed the paths filter so all PRs trigger this workflow — the test now passes GREEN.
     # The RED marker in .test-index was correctly removed because the assertion now succeeds.
-    branches:
-      - main
+    #
+    # No base-branch filter either: fires on all PRs (story/*, session/*, base=main)
+    # so platform matrix runs on sub-branch PRs. Bug 69e5-824a-ec7e-4bd9.
   workflow_dispatch:
 
 concurrency:
