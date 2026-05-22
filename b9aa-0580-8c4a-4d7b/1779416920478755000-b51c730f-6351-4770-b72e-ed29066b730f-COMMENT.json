@@ -1,1 +1,0 @@
-{"author":"Test","data":{"body":"Fixed: ticket_list() in ticket-lib-api.sh now honors --has-tag with detected_by:* auto-intersection (commit cdf2e1fa2f). Re-running SC2 verification."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1779416920478755000,"uuid":"b51c730f-6351-4770-b72e-ed29066b730f"}
