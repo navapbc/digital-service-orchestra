@@ -87,7 +87,7 @@ else
     calibration_stdout=""
     calibration_exit=0
     # Capture stdout only; discard stderr to prevent false-positive channel matches
-    calibration_stdout=$("$CALIBRATION_REPORT" monthly --fixture "$FIXTURE_DIR" 2>/dev/null) || calibration_exit=$?
+    calibration_stdout=$("$CALIBRATION_REPORT" monthly --fixture "$FIXTURE_DIR" --dry-run 2>/dev/null) || calibration_exit=$?
 
     if [[ "$calibration_exit" -ne 0 ]]; then
         check2_status="FAIL"
