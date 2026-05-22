@@ -160,7 +160,11 @@ if echo "$_content" | grep -qE '^(<{7}|={7}|>{7})'; then
     exit 1
 fi
 
-# ── Parse .test-index for RED markers ────────────────────────────────────────
+# ── Parse markers from a .test-index content string ──────────────────────────
+# Reads .test-index content from $1 (string). Emits one line per marker on
+# stdout: "<source_file><TAB><marker_name>". WARNINGs for malformed lines go
+# to stderr.
+#
 # Grammar (canonical source: bash-runner.sh _RED_MARKER_MAP):
 #   source_file: test_file1 [marker_name], test_file2 [other_marker], test_file3
 #
@@ -171,55 +175,94 @@ fi
 #   - Right-hand side is comma-separated; each part may have a trailing [marker_name].
 #   - Marker regex: ^(.*[^[:space:]])[[:space:]]+\[([^]]+)\]$
 #     (identical to bash-runner.sh _RED_MARKER_MAP detection).
+_parse_markers() {
+    local _content="$1"
+    local _line _left _right _part _pmarker _local_IFS
 
-_marker_count=0
+    while IFS= read -r _line || [[ -n "$_line" ]]; do
+        # Skip blank lines.
+        [[ -z "$_line" ]] && continue
 
-while IFS= read -r _line || [[ -n "$_line" ]]; do
-    # Skip blank lines.
-    [[ -z "$_line" ]] && continue
+        # Skip comment lines (leading '#', possibly with whitespace).
+        [[ "$_line" =~ ^[[:space:]]*# ]] && continue
 
-    # Skip comment lines (leading '#', possibly with whitespace).
-    [[ "$_line" =~ ^[[:space:]]*# ]] && continue
-
-    # Require a colon separator. Warn on malformed lines but continue.
-    if ! [[ "$_line" =~ : ]]; then
-        echo "WARNING: malformed .test-index line (no ':' separator): $_line" >&2
-        continue
-    fi
-
-    _left="${_line%%:*}"
-    _right="${_line#*:}"
-
-    # Trim leading/trailing whitespace from source file path.
-    _left="${_left#"${_left%%[![:space:]]*}"}"
-    _left="${_left%"${_left##*[![:space:]]}"}"
-
-    # Split right side on commas; inspect each part for a [marker_name] suffix.
-    _local_IFS="$IFS"
-    IFS=','
-    # shellcheck disable=SC2086
-    set -- $_right
-    IFS="$_local_IFS"
-
-    for _part in "$@"; do
-        # Trim leading/trailing whitespace.
-        _part="${_part#"${_part%%[![:space:]]*}"}"
-        _part="${_part%"${_part##*[![:space:]]}"}"
-
-        [[ -z "$_part" ]] && continue
-
-        # Detect marker: "test_file_path [marker_name]"
-        # Regex matches bash-runner.sh _RED_MARKER_MAP grammar exactly.
-        if [[ "$_part" =~ ^(.*[^[:space:]])[[:space:]]+\[([^]]+)\]$ ]]; then
-            _pmarker="${BASH_REMATCH[2]}"
-            echo "RED_MARKER: $_pmarker for $_left" >&2
-            _marker_count=$(( _marker_count + 1 ))
+        # Require a colon separator. Warn on malformed lines but continue.
+        if ! [[ "$_line" =~ : ]]; then
+            echo "WARNING: malformed .test-index line (no ':' separator): $_line" >&2
+            continue
         fi
-    done
-done <<< "$_content"
 
-# Exit 1 if any RED markers were found, 0 if none.
-if [[ "$_marker_count" -gt 0 ]]; then
+        _left="${_line%%:*}"
+        _right="${_line#*:}"
+
+        # Trim leading/trailing whitespace from source file path.
+        _left="${_left#"${_left%%[![:space:]]*}"}"
+        _left="${_left%"${_left##*[![:space:]]}"}"
+
+        # Split right side on commas; inspect each part for a [marker_name] suffix.
+        _local_IFS="$IFS"
+        IFS=','
+        # shellcheck disable=SC2086
+        set -- $_right
+        IFS="$_local_IFS"
+
+        for _part in "$@"; do
+            # Trim leading/trailing whitespace.
+            _part="${_part#"${_part%%[![:space:]]*}"}"
+            _part="${_part%"${_part##*[![:space:]]}"}"
+
+            [[ -z "$_part" ]] && continue
+
+            # Detect marker: "test_file_path [marker_name]"
+            if [[ "$_part" =~ ^(.*[^[:space:]])[[:space:]]+\[([^]]+)\]$ ]]; then
+                _pmarker="${BASH_REMATCH[2]}"
+                printf '%s\t%s\n' "$_left" "$_pmarker"
+            fi
+        done
+    done <<< "$_content"
+}
+
+# ── Delta-mode: emit RED_MARKER and exit 1 only for NEW markers ──────────────
+# DESIGN DECISION (bug 535a-9d42-cb16-445c):
+#
+# Previous behavior ("all-or-nothing"): exit 1 if ANY `[marker]` appears in the
+# merged tree's .test-index. This blocked every PR to main once main accumulated
+# pre-existing markers, because the merged tree always contained them.
+#
+# Current behavior ("delta-mode"): exit 1 ONLY when HEAD introduces a marker
+# that was NOT present in BASE_SHA's .test-index. Pre-existing markers already
+# on main are treated as intentional RED tolerances accepted in prior PRs —
+# the gate must not penalize new PRs for accepting their merged-tree presence.
+# Re-introduction of a marker that BASE removed (sub-PR 1 removes, sub-PR 2
+# re-adds against the new BASE) is correctly detected as new vs the post-
+# removal BASE; see tests/workflows/test-red-test-blocker-merged-tree-scan.sh
+# Test 1.
+#
+# Implementation: parse BASE and HEAD .test-index into source<TAB>marker sets,
+# `comm -23` head_set base_set yields the new-marker delta. Emit RED_MARKER
+# lines and exit 1 only when the delta is non-empty. Existing exit-0 fall-
+# throughs (missing .test-index, merge-tree failure, conflict markers) are
+# preserved.
+_head_tmp=$(mktemp /tmp/scan-red-head.XXXXXX)
+_base_tmp=$(mktemp /tmp/scan-red-base.XXXXXX)
+trap 'rm -f "$_head_tmp" "$_base_tmp"' EXIT
+
+_parse_markers "$_content" | sort -u > "$_head_tmp"
+
+# BASE_SHA:.test-index — missing/empty → empty baseline set (any HEAD marker is new).
+_base_content=$(_git show "${BASE_SHA}:.test-index" 2>/dev/null || true)
+if [[ -n "$_base_content" ]]; then
+    _parse_markers "$_base_content" | sort -u > "$_base_tmp"
+fi
+
+# comm -23: lines in head_tmp but not in base_tmp. Both inputs must be sorted.
+_new_markers=$(comm -23 "$_head_tmp" "$_base_tmp")
+
+if [[ -n "$_new_markers" ]]; then
+    while IFS=$'\t' read -r _src _mk; do
+        [[ -z "$_src" ]] && continue
+        echo "RED_MARKER: $_mk for $_src" >&2
+    done <<< "$_new_markers"
     exit 1
 fi
 exit 0

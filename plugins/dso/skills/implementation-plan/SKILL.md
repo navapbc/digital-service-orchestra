@@ -145,11 +145,12 @@ Branch on `verdict`:
 
 - **`fresh`**: no children — proceed to Epic Type Detection.
 - **`in_progress_hold`**: at least one in-progress child. **Hard hold** — emit `STATUS:blocked REASON:in_progress_children_detected TASKS:<in_progress_ids>` and stop. The sprint orchestrator should retry after those tasks complete.
-- **`all_closed`**: all children closed/archived. Emit the early-exit STATUS line and stop:
+- **`all_closed`**: all children closed/archived AND no unresolved REPLAN_TRIGGER:validation on the parent. Emit the early-exit STATUS line and stop:
   ```
   STATUS:complete TASKS:<closed_ids> STORY:<story-id>
   ```
   Do not proceed further.
+- **`replan_required`** (bug 95db-941d-04d8-41d1): all children closed/archived BUT the parent epic has an unresolved `REPLAN_TRIGGER:validation` comment mentioning this story — i.e., the completion-verifier reported a story-level FAIL after the original tasks closed, and no `REPLAN_RESOLVED:implementation-plan` has acknowledged it yet. Do NOT emit `STATUS:complete` (that would re-trigger the verifier ↔ impl-plan loop). Enter **diff-plan mode**: read the verifier's `remediation_tasks_created` payload from the parent epic's `REPLAN_TRIGGER:validation` comment, treat its uncovered DDs as the AC source, and produce NEW TDD task pairs (RED + GREEN) addressing each uncovered DD. Continue to Epic Type Detection with the new tasks in scope; on completion, emit a `REPLAN_RESOLVED: implementation-plan — Remediation tasks created for story <story-id>.` comment on the parent epic so the next re-invocation collapses back to `all_closed`.
 - **`diff_plan`**: mixed open + closed children. Produce a diff plan covering only new tasks + revisions to open children — never touch closed children. Distinguish "new or reopened" tasks from unchanged ones in the output. Continue to Epic Type Detection with only the open/new tasks in scope.
 
 Log a one-liner: `Re-invocation guard: <closed_count> closed (read-only), <in_progress_count> in-progress (flagged), <open_count> open (candidates)`.

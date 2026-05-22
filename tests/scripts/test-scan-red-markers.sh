@@ -172,5 +172,42 @@ src/foo.py: tests/test_foo_other.py
 }
 assert_pass_if_clean "test_scan_red_markers_unit_conflict_markers"
 
+# ── TEST 7: delta-mode — BASE has pre-existing markers, HEAD adds no new ones ─
+# Given BASE commit has .test-index with a RED marker AND
+#       HEAD commit changes only an unrelated file (leaves .test-index identical)
+# When scan-red-markers.sh <base> <head> is invoked
+# Then exit code is 0 (pre-existing markers are not new — no delta introduced)
+# AND stderr contains no RED_MARKER: lines (no new markers to report)
+#
+# This test FAILS under the current all-or-nothing implementation (exits 1
+# whenever marker_count > 0) and PASSES after the delta-mode fix.
+_snapshot_fail
+{
+    REPO="$(make_tmpdir)"
+
+    git -C "$REPO" init -q
+    git -C "$REPO" config user.email "test@test.com"
+    git -C "$REPO" config user.name "Test"
+
+    # base commit — .test-index already contains a RED marker (pre-existing)
+    printf '%s\n' "src/legacy.py: tests/test_legacy.py [test_legacy_fails]" > "$REPO/.test-index"
+    git -C "$REPO" add .test-index
+    git -C "$REPO" commit -q -m "base: pre-existing marker"
+    BASE="$(git -C "$REPO" rev-parse HEAD)"
+
+    # head commit — touch only an unrelated file; .test-index is NOT modified
+    printf '%s\n' "unrelated change" > "$REPO/unrelated.txt"
+    git -C "$REPO" add unrelated.txt
+    git -C "$REPO" commit -q -m "head: unrelated change only"
+    HEAD="$(git -C "$REPO" rev-parse HEAD)"
+
+    rc=0
+    stderr_out="$(GIT_DIR="$REPO/.git" bash "$SCRIPT" "$BASE" "$HEAD" 2>&1 >/dev/null)" || rc=$?
+
+    assert_eq "T7: pre-existing markers, no new ones → exit 0" "0" "$rc"
+    assert_not_contains "T7: no RED_MARKER lines emitted for pre-existing markers" "RED_MARKER:" "$stderr_out"
+}
+assert_pass_if_clean "test_scan_red_markers_delta_preexisting_markers_no_new_exit0"
+
 # ─────────────────────────────────────────────────────────────────────────────
 print_summary
