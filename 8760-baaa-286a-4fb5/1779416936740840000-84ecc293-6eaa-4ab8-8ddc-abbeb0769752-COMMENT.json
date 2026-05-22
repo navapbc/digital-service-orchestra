@@ -1,0 +1,1 @@
+{"author":"Test","data":{"body":"Fixed: sprint SKILL.md bug-close pattern now uses hybrid form (ticket comment + ticket transition --reason='Fixed:') preserving audit trail (commit cdf2e1fa2f)"},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1779416936740840000,"uuid":"84ecc293-6eaa-4ab8-8ddc-abbeb0769752"}
