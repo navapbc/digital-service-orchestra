@@ -290,10 +290,22 @@ def dispatch_arbiter(
             that closed this wiring gap.
 
     Returns:
-        A list of per-finding ruling dicts, each containing:
+        A list of per-finding ruling dicts, each containing at minimum:
         - ruling: one of BLOCK, DEFER, DROP
         - rationale: one-sentence explanation
-        - schema_version: "1.0.0"
+        - schema_version: "1.0.0" or "1.1.0"
+
+        v1.1.0 rulings additionally carry the enriched fields described by the
+        ``code-reviewer-arbiter`` agent contract:
+        - impact_class: one of the 9 enum values (8-category floor + ``none``)
+        - cross_reviewer_agreement: array of values from the 4-value enum
+        - cross_cycle_pattern: array of values from the 7-value enum
+
+        v1.0.0 is accepted for backward compatibility — legacy rulings that omit
+        the enriched fields bypass the impact_class floor check. The arbiter
+        agent emits v1.1.0; v1.0.0 appears only in fixture-replay paths and the
+        synthetic fail-closed BLOCK rulings produced by the length-mismatch and
+        dispatch-failure guards below.
 
     Context threading: ``findings``, ``defenses``, ``reviewer_breakdown``, and
     ``ledger_history`` are all serialized into the agent input by appending
