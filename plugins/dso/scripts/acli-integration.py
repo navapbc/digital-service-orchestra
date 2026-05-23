@@ -772,6 +772,14 @@ class AcliClient:
         response = self._direct_rest_get(path)
         return response["value"]
 
+    def set_entity_property(self, issue_key: str, prop_name: str, value: Any) -> None:
+        """Alias for set_issue_property — sets a Jira entity property."""
+        return self.set_issue_property(issue_key, prop_name, value)
+
+    def get_entity_property(self, issue_key: str, prop_name: str) -> Any:
+        """Alias for get_issue_property — retrieves a Jira entity property."""
+        return self.get_issue_property(issue_key, prop_name)
+
     def unassign_issue(self, jira_key: str) -> None:
         """Explicitly unassign a Jira issue via REST v3 PUT.
 

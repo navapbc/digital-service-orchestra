@@ -152,7 +152,7 @@ plugins/dso/recipes/recipe-registry.yaml:tests/scripts/test-recipe-registry.sh
 plugins/dso/recipes/templates/flask/route.py.tmpl:tests/scripts/test_gate_escalation_router.py
 plugins/dso/resources/ticket-wordlist.txt:tests/scripts/test-ticket-create.sh
 plugins/dso/scripts/*.sh:tests/hooks/test-no-plugin-comment-refs.sh
-plugins/dso/scripts/acli-integration.py:tests/scripts/test_acli_integration.py,tests/scripts/test_acli_integration_comments.py,tests/scripts/test_acli_integration_set_issue_property.py,tests/scripts/test_bridge_delete_issue.py
+plugins/dso/scripts/acli-integration.py:tests/scripts/test_acli_integration.py,tests/scripts/test_acli_integration_comments.py,tests/scripts/test_acli_integration_set_issue_property.py,tests/scripts/test_bridge_delete_issue.py,tests/scripts/test_acli_entity_property.py
 plugins/dso/scripts/agent-profiles/red-test-writer.yaml:tests/scripts/test-red-test-writer-md-rule5-compliance.sh
 plugins/dso/scripts/analyze_tool/__init__.py:tests/hooks/test-init-skill.sh,tests/scripts/test-ticket-init-bash-native.sh,tests/scripts/test-ticket-init.sh,tests/scripts/test-ticket-autoinit.sh
 plugins/dso/scripts/analyze_tool/_constants.py:tests/skills/test-figma-tag-constants.sh
@@ -545,3 +545,4 @@ plugins/dso/scripts/dso_reconciler/config.py:tests/unit/dso_reconciler/test_conf
 plugins/dso/scripts/dso_reconciler/_concurrency.py:tests/unit/dso_reconciler/test_concurrency.py
 plugins/dso/scripts/dso_reconciler/differ.py:tests/unit/dso_reconciler/test_differ.py
 plugins/dso/scripts/dso_reconciler/reconcile.py:tests/unit/dso_reconciler/test_reconcile_once.py
+plugins/dso/scripts/dso_reconciler/conflict_resolver.py:tests/unit/dso_reconciler/test_conflict_resolver.py
