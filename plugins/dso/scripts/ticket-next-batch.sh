@@ -186,10 +186,19 @@ fi
 tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
 
-# Epic details via ticket show (v3 JSON output)
-"$TICKET_CMD" show "$epic_id" >"$tmpdir/epic.txt" 2>/dev/null || true
-if [ ! -s "$tmpdir/epic.txt" ]; then
+# Epic details via ticket show (v3 JSON output).
+# Bug 19a3-03ca follow-up: also check ticket show's exit code, not just file
+# emptiness. The in-process ticket_show (ticket-lib-api.sh) writes a
+# {"error":"ticket_not_found",...} JSON to stdout on miss — so the file is
+# never empty and the !-s check alone passes through to BATCH_SIZE: 0 for
+# any nonexistent epic. Previously masked by a perf regression that made the
+# resolver time-out before reaching this code path.
+if ! "$TICKET_CMD" show "$epic_id" >"$tmpdir/epic.txt" 2>/dev/null; then
     echo "Error: Could not load epic $epic_id" >&2
+    exit 1
+fi
+if [ ! -s "$tmpdir/epic.txt" ]; then
+    echo "Error: Could not load epic $epic_id (empty output)" >&2
     exit 1
 fi
 

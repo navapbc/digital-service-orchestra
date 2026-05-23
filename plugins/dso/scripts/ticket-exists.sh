@@ -24,7 +24,8 @@ if [[ "$ticket_id" =~ ^[a-z0-9]{4}-[a-z0-9]{4}$ ]]; then
     _full_id=""
     _match_count=0
     while IFS= read -r -d '' _entry; do
-        _base="$(basename "$_entry")"
+        # Bug 19a3-03ca: ${var##*/} param expansion — no basename subprocess per entry.
+        _base="${_entry##*/}"
         if [[ "${_base:0:9}" == "$ticket_id" ]] && \
            [[ "$_base" =~ ^[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}$ ]]; then
             _full_id="$_base"
