@@ -2178,12 +2178,13 @@ fi
 if [[ "${SPRINT_MODE:-local}" == "ci-pr" ]]; then
   # ci-pr mode: merge via GitHub PR — do NOT perform a local direct merge.
   # Resolve session branch via 3-step fallback — fail-fast, never silently
-  # default to main. KNOWN GAP (tracked under remediation epic; bug
-  # 576b-a6c7-3de3-4eef): story PRs target the session branch, so ci.yml's
-  # llm-review job (gated to base_ref == 'main') does NOT fire on them.
-  # Internal LLM review currently fires only at the cumulative session→main
-  # PR. /dso:review is HARD-GATED to no-op under dso.workflow=ci-pr.
-  # Remediation epic restores per-story internal review.
+  # default to main. Per-story LLM review is provided by review-sub-pr.yml
+  # (fires on PRs targeting worktree-** session branches). ci.yml's llm-review
+  # job (gated to base_ref == 'main') provides cumulative session→main review.
+  # /dso:review is HARD-GATED to no-op under dso.workflow=ci-pr.
+  # Branch naming dependency: review-sub-pr.yml trigger patterns must match
+  # the session branch naming convention (currently worktree-YYYYMMDD-HHMMSS).
+  # per-worktree-review-commit.md Step 2 has a fallback that detects mismatches.
   SESSION_BRANCH=$(bash "$PLUGIN_SCRIPTS/resolve-session-branch.sh") || { # shim-exempt: SKILL.md orchestrator instruction — sprint runs plugin scripts via $PLUGIN_SCRIPTS directly
     echo "ERROR: SESSION_BRANCH resolution failed — cannot open story PR against session branch" >&2
     exit 1
