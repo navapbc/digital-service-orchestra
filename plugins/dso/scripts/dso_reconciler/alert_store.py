@@ -66,7 +66,7 @@ def patch_bug_filed(key: str, bug_ticket_id: str, repo_root: Path) -> None:
                         rec["bug_ticket_id"] = bug_ticket_id
                         rec["op"] = "bug_filed"
                         patched = True
-                except Exception:
+                except json.JSONDecodeError:
                     pass
                 lines.append(json.dumps(rec) if isinstance(rec, dict) else line)
             if patched:

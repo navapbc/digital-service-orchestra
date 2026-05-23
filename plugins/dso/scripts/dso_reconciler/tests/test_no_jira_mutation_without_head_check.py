@@ -21,8 +21,6 @@ import ast
 import textwrap
 from pathlib import Path
 
-import pytest
-
 APPLIER_PATH = Path(__file__).parents[1] / "applier.py"
 
 # Names that represent Jira mutation dispatch at the apply() level
