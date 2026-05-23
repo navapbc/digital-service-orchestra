@@ -40,11 +40,24 @@ The orchestrator passes the following as task arguments:
 
 Evaluate all four rules in exact order. The **first rule whose condition is met wins** — do not evaluate subsequent rules once a match is found (short-circuit semantics).
 
+### Scope Pre-Classification (mandatory before rule evaluation)
+
+Before evaluating Rules 1–4, classify each failing criterion's intent against the loaded story and epic context:
+
+- **IN-STORY-SCOPE**: the failing criterion's intent corresponds to a done definition (DD) of the *current* story (e.g., the criterion text is identical to, or directly paraphrases, a story DD). The implementation should have addressed this DD but did not.
+- **NEW-IN-EPIC-SCOPE**: the failing criterion's intent corresponds to a success criterion (SC) of the *current epic* but does NOT correspond to any DD of the current story. The capability is within the epic's scope but no story was authored to deliver it.
+- **CROSS-EPIC-SCOPE**: the failing criterion's intent references behavior outside the current epic — for example, the criterion text explicitly names a different epic, or its required behavior is documented as the responsibility of an SC in a sibling/parent epic.
+- **AMBIGUOUS-SCOPE**: the classification cannot be made unambiguously from the available context (story body, epic body, criterion text). Treat as ambiguous and emit `confidence: "LOW"` at the rule that fires.
+
+This pre-classification is what distinguishes Rule 1 (in-story implementation gap) from Rule 3 (in-epic scope extension) and Rule 4 (cross-epic scope reach), all of which can present with identical zero-evidence verifier output language. Without this scope classification, the decision tree's short-circuit semantics will misroute any zero-evidence FAIL to Rule 1.
+
 ### Rule 1: `replan_story`
 
-**Condition:** At least one criterion in `criteria_results` has `verdict: FAIL` AND `evidence_found` contains no meaningful evidence (i.e., the field indicates nothing was found — phrases like "not found", "absent", "no evidence", "could not find", "missing" with no offsetting positive evidence, OR the field is empty/null).
+**Condition:** At least one **IN-STORY-SCOPE** criterion in `criteria_results` has `verdict: FAIL` AND `evidence_found` contains no meaningful evidence (i.e., the field indicates nothing was found — phrases like "not found", "absent", "no evidence", "could not find", "missing" with no offsetting positive evidence, OR the field is empty/null).
 
-**Rationale:** Zero-evidence failures indicate the implementation never addressed the criterion. This is a planning gap — the story's tasks did not cover the intent. The correct action is to replan the story (re-run preplanning for that story to produce new tasks).
+**Critical exclusion**: zero-evidence FAILs whose intent maps to NEW-IN-EPIC-SCOPE or CROSS-EPIC-SCOPE MUST NOT trigger Rule 1 — they fall through to Rule 3 or Rule 4 respectively. Rule 1 only fires when the implementation gap is **within the current story's stated DDs**.
+
+**Rationale:** In-story zero-evidence failures indicate the implementation never addressed a criterion that the story was authored to deliver. This is a planning gap inside the story — the story's tasks did not cover its own DD. The correct action is to replan the story (re-run preplanning for that story to produce new tasks).
 
 **Emit:** `scope: "replan_story"`, `escalation_upstream: "preplanning"`
 
@@ -67,11 +80,11 @@ Evaluate all four rules in exact order. The **first rule whose condition is met 
 
 ### Rule 3: `new_story_in_epic`
 
-**Condition:** At least one failing criterion requires **new user-facing behavior** that is not covered by the current story's done definitions — but the behavior IS within the epic's success criteria scope.
+**Condition:** At least one failing criterion is classified as **NEW-IN-EPIC-SCOPE** by the Scope Pre-Classification above — i.e., it requires user-facing behavior that is not covered by any current-story DD but IS within the parent epic's success criteria scope. The criterion may have zero-evidence (the feature has not been implemented), partial evidence (an adjacent feature exists), or no evidence — the discriminating signal is **scope membership**, not evidence quantity.
 
 **Rationale:** The failing criterion represents scope that belongs to the epic but was not included in the current story's done definitions. A new story (within the same epic) should be created to cover this behavior.
 
-**New-behavior signals (required for this rule):**
+**New-behavior signals (cross-check against the Pre-Classification):**
 - A failing criterion describes a capability the current story was not scoped to deliver
 - The epic's success criteria explicitly name the behavior but no story covers it
 - The gap is additive (new surface area), not corrective (fixing existing surface area)
@@ -80,7 +93,7 @@ Evaluate all four rules in exact order. The **first rule whose condition is met 
 
 ### Rule 4: `replan_epic`
 
-**Condition:** Failing criteria span multiple epics — either by explicitly referencing other epics, by requiring success criteria from a different epic's scope, or by requiring coordination across epic boundaries.
+**Condition:** At least one failing criterion is classified as **CROSS-EPIC-SCOPE** by the Scope Pre-Classification above — i.e., the criterion's required behavior is documented in (or implicitly belongs to) a different epic's scope, or remediation requires coordination across epic boundaries.
 
 **Rationale:** When a single verifier failure implicates multiple epics, the remediation requires re-planning at the epic level or above. This is the broadest remediation scope.
 
