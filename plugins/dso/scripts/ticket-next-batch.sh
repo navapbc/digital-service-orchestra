@@ -187,8 +187,13 @@ tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
 
 # Epic details via ticket show (v3 JSON output)
-"$TICKET_CMD" show "$epic_id" >"$tmpdir/epic.txt" 2>/dev/null || true
+"$TICKET_CMD" show "$epic_id" >"$tmpdir/epic.txt" 2>&1 || true
 if [ ! -s "$tmpdir/epic.txt" ]; then
+    echo "Error: Could not load epic $epic_id" >&2
+    exit 1
+fi
+# ticket show writes JSON error response to stdout on not-found; detect it
+if python3 -c "import json,sys; d=json.load(open('$tmpdir/epic.txt')); sys.exit(0 if d.get('error') else 1)" 2>/dev/null; then
     echo "Error: Could not load epic $epic_id" >&2
     exit 1
 fi
