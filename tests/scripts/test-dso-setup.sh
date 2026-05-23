@@ -1795,4 +1795,80 @@ test_setup_references_root_install_doc
 test_setup_precommit_stack_aware_generic_for_non_python
 test_setup_does_not_write_absolute_home_cache_path
 
+# ── Opt-out flags (bug 2145-fe0b-99ae-418f) ──────────────────────────────────
+# dso-setup.sh accepts --opt-ci=no / --opt-precommit=no / --opt-claude-md=no /
+# --opt-known-issues=no flags. Each gates the corresponding install block so
+# the Socratic dialog's opt-out signals are honored instead of being ignored.
+
+test_setup_opt_out_skips_ci_and_precommit() {
+    local T
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" \
+        --opt-ci=no --opt-precommit=no >/dev/null 2>&1 || true
+
+    local ci_status="present"
+    [[ ! -f "$T/.github/workflows/ci.yml" ]] && ci_status="absent"
+    assert_eq "opt-out: ci.yml absent under --opt-ci=no" "absent" "$ci_status"
+
+    local precommit_status="present"
+    [[ ! -f "$T/.pre-commit-config.yaml" ]] && precommit_status="absent"
+    assert_eq "opt-out: .pre-commit-config.yaml absent under --opt-precommit=no" \
+        "absent" "$precommit_status"
+}
+test_setup_opt_out_skips_ci_and_precommit
+
+test_setup_opt_out_skips_claude_md() {
+    local T
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" \
+        --opt-claude-md=no >/dev/null 2>&1 || true
+
+    local claude_md_status="present"
+    [[ ! -f "$T/.claude/CLAUDE.md" ]] && claude_md_status="absent"
+    assert_eq "opt-out: CLAUDE.md absent under --opt-claude-md=no" \
+        "absent" "$claude_md_status"
+}
+test_setup_opt_out_skips_claude_md
+
+test_setup_opt_out_skips_known_issues() {
+    local T
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" \
+        --opt-known-issues=no >/dev/null 2>&1 || true
+
+    local known_issues_status="present"
+    [[ ! -f "$T/.claude/docs/KNOWN-ISSUES.md" ]] && known_issues_status="absent"
+    assert_eq "opt-out: KNOWN-ISSUES.md absent under --opt-known-issues=no" \
+        "absent" "$known_issues_status"
+}
+test_setup_opt_out_skips_known_issues
+
+# Default behavior (no opt-out flags) installs all artifacts — confirms the
+# new flags don't regress callers that don't pass them.
+test_setup_default_installs_all_artifacts() {
+    local T
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
+
+    local ci_status="absent" precommit_status="absent" claude_md_status="absent" known_issues_status="absent"
+    [[ -f "$T/.github/workflows/ci.yml" ]] && ci_status="present"
+    [[ -f "$T/.pre-commit-config.yaml" ]] && precommit_status="present"
+    [[ -f "$T/.claude/CLAUDE.md" ]] && claude_md_status="present"
+    [[ -f "$T/.claude/docs/KNOWN-ISSUES.md" ]] && known_issues_status="present"
+
+    assert_eq "default install: ci.yml present" "present" "$ci_status"
+    assert_eq "default install: .pre-commit-config.yaml present" "present" "$precommit_status"
+    assert_eq "default install: CLAUDE.md present" "present" "$claude_md_status"
+    assert_eq "default install: KNOWN-ISSUES.md present" "present" "$known_issues_status"
+}
+test_setup_default_installs_all_artifacts
+
 print_summary
