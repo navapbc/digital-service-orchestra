@@ -2202,6 +2202,28 @@ PLANNER_TARGET=$(python3 -c "import json,sys; print(json.load(open('$PLANNER_JSO
 
   **`REPLAN_ESCALATE` handling**: If the decomposer emits `REPLAN_ESCALATE: <upstream>`, follow the upstream-enum routing in `${CLAUDE_PLUGIN_ROOT}/skills/shared/workflows/remediation-loop-protocol.md` Section 6. The cascade counter (`sprint.max_replan_cycles`) applies — escalate to the user when the cap is reached.
 
+**Remediation loop protocol (sprint verifier-fail touchpoint — story-level)**
+
+When the decomposer returns `REPLAN_ESCALATE: <upstream>` and the orchestrator re-dispatches the verifier, it enters a remediation loop governed by the shared protocol. Source `MAX_CYCLES` from `get_max_remediation_cycles()` in `${CLAUDE_PLUGIN_ROOT}/hooks/lib/planning-config.sh` before entering the loop.
+
+**Per-cycle declaration**: At the start of every remediation cycle, emit exactly:
+`Current cycle: N of MAX_CYCLES`
+where `N` is the 1-based cycle counter and `MAX_CYCLES` is the resolved maximum. This line is required before any findings, deltas, or token emissions within that cycle.
+
+**Oscillation-check hard gate (cycle >= 2)**: On any cycle where `N >= 2`, the orchestrator MUST invoke `/dso:oscillation-check` (Skill) before proceeding with findings analysis. Skipping this gate requires an explicit `OSCILLATION_CHECK_SKIPPED: <reason>` ticket comment capturing the rationale; no other skip reason is permitted.
+
+**Mid-loop success exit**: If the verifier returns `P1: PASS` on any cycle (before reaching `MAX_CYCLES`), the loop exits immediately and story closure proceeds. No terminal token is emitted on success.
+
+**HALT-vs-REPLAN exclusivity check**: `REPLAN_ESCALATE` MUST be emitted IFF `cycle_count == MAX_CYCLES AND findings non-empty`. No other condition may emit `REPLAN_ESCALATE`. All other terminal states use a different token — human-input required → `HALT_FOR_USER`; oscillation detected → `OSCILLATION_HALT`; illegal state transition → `PROTOCOL_ERROR`. Emitting `REPLAN_ESCALATE` under any other condition, or emitting it together with `PROTOCOL_ERROR`, is itself a `PROTOCOL_ERROR`.
+
+**Terminal REPLAN_ESCALATE with dynamic upstream**: On cycle `MAX_CYCLES` with the verifier still non-PASS, emit (per the canonical `${CLAUDE_PLUGIN_ROOT}/docs/contracts/replan-escalate-signal.md` colon-space prefix):
+`REPLAN_ESCALATE: <escalation_upstream> EXPLANATION:<explanation text>`
+The `<escalation_upstream>` value MUST be sourced dynamically from the planner's `escalation_upstream` field in its JSON output (`$PLANNER_JSON_PATH`) — it is NOT hardcoded. The planner determines the correct upstream per-dispatch based on the verifier failure context. See `${CLAUDE_PLUGIN_ROOT}/agents/verification-remediation-planner.md` for the field definition and the upstream enum (`brainstorm` / `preplanning` / `planner_supplied`) in Section 6 of the protocol doc. Emit this as a standalone ticket comment so the orchestrator's parent session can detect and route the escalation. The literal prefix `REPLAN_ESCALATE: ` (colon followed by a single space) and the `EXPLANATION:` field label are fixed by contract — do not vary them.
+
+**PROTOCOL_ERROR on invariant violation**: Any illegal state transition — emitting `REPLAN_ESCALATE` when `cycle_count < MAX_CYCLES`, emitting multiple terminal tokens, or violating the HALT-vs-REPLAN exclusivity invariant — MUST emit `PROTOCOL_ERROR` and halt remediation immediately.
+
+See: `${CLAUDE_PLUGIN_ROOT}/skills/shared/workflows/remediation-loop-protocol.md`
+
 Do NOT rationalize around a non-PASS P1 verdict. The verifier's verdict is final — scope-scoping arguments ("pre-existing failures," "out-of-scope tests," "RED marker tolerance," "already tracked as a separate bug") do not override the planner-gate → Phase C path. The orchestrator's judgment about whether the verdict "really applies" is exactly the bias the verifier+planner pair was designed to counteract. Only `P1: PASS` or technical failure (timeout/unparseable JSON) permits proceeding past this step.
 </HARD-GATE>
 
