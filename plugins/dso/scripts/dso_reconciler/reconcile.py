@@ -56,6 +56,7 @@ def reconcile_once(pass_id: str, repo_root: Path | None = None) -> dict:
     fetcher = _load("reconcile_fetcher", "fetcher.py")
     differ = _load("reconcile_differ", "differ.py")
     applier = _load("reconcile_applier", "applier.py")
+    health_mod = _load("reconcile_health", "health.py")
 
     # Ensure snapshots directory exists
     snapshots_dir = repo_root / "bridge_state" / "snapshots"
@@ -74,6 +75,17 @@ def reconcile_once(pass_id: str, repo_root: Path | None = None) -> dict:
 
     # Apply mutations and write manifest
     manifest_path = applier.apply(mutations, pass_id, repo_root)
+
+    # Record pass health metrics (pre_fsck/post_fsck/per_type_counts are
+    # placeholders until task aa2b wires capture_baseline()).
+    health_mod.record_pass(
+        pass_id=pass_id,
+        pre_fsck=0,
+        post_fsck=0,
+        per_type_counts={},
+        local_mutation_count=len(mutations),
+        repo_root=repo_root,
+    )
 
     # Advance prev snapshot so the next call converges to zero mutations
     shutil.copy2(curr_path, prev_path)

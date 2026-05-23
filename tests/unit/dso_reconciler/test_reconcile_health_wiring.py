@@ -1,0 +1,217 @@
+"""Tests for health.record_pass() wiring in reconcile_once().
+
+Verifies that after mutations are applied, reconcile_once() calls
+health.record_pass() with the correct pass_id and local_mutation_count.
+The pre_fsck / post_fsck / per_type_counts placeholders (0 / 0 / {}) are
+accepted as correct until task aa2b wires capture_baseline().
+"""
+
+from __future__ import annotations
+
+import importlib.util
+import sys
+import types
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+# ---------------------------------------------------------------------------
+# Module loading helpers
+# ---------------------------------------------------------------------------
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+RECONCILE_PATH = (
+    REPO_ROOT / "plugins" / "dso" / "scripts" / "dso_reconciler" / "reconcile.py"
+)
+
+
+def _load_module(name: str, path: Path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[name] = mod
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    return mod
+
+
+@pytest.fixture()
+def reconcile_mod():
+    """Load a fresh copy of reconcile.py for each test."""
+    # Remove any cached copy so we get a clean module with fresh _load() calls.
+    sys.modules.pop("reconcile", None)
+    if not RECONCILE_PATH.exists():
+        pytest.fail(
+            f"reconcile.py not found at {RECONCILE_PATH} — "
+            "implement the module to make tests pass."
+        )
+    return _load_module("reconcile", RECONCILE_PATH)
+
+
+# ---------------------------------------------------------------------------
+# Stub factories
+# ---------------------------------------------------------------------------
+
+
+def _make_stub_fetcher(tmp_path: Path, pass_id: str, snapshot: dict | None = None) -> types.ModuleType:
+    """Return a stub fetcher whose fetch_snapshot() writes a JSON file and returns its path."""
+    import json
+
+    snapshot = snapshot or {"DIG-1": {"key": "DIG-1", "fields": {"summary": "Test issue"}}}
+    snap_dir = tmp_path / "bridge_state" / "snapshots"
+    snap_dir.mkdir(parents=True, exist_ok=True)
+    snap_file = snap_dir / f"{pass_id}.curr.json"
+    snap_file.write_text(json.dumps(snapshot))
+
+    mod = types.ModuleType("reconcile_fetcher")
+    mod.fetch_snapshot = MagicMock(return_value=snap_file)
+    return mod
+
+
+def _make_stub_differ(mutations: list | None = None) -> types.ModuleType:
+    """Return a stub differ whose compute_mutations() returns a fixed list."""
+    mutations = mutations if mutations is not None else [{"op": "create", "key": "DIG-1"}]
+    mod = types.ModuleType("reconcile_differ")
+    mod.compute_mutations = MagicMock(return_value=mutations)
+    return mod
+
+
+def _make_stub_applier(tmp_path: Path, pass_id: str) -> types.ModuleType:
+    """Return a stub applier whose apply() writes a manifest file and returns its path."""
+    manifest_dir = tmp_path / "bridge_state" / "manifests"
+    manifest_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path = manifest_dir / f"{pass_id}.json"
+    manifest_path.write_text("{}")
+
+    mod = types.ModuleType("reconcile_applier")
+    mod.apply = MagicMock(return_value=manifest_path)
+    return mod
+
+
+def _make_stub_health() -> types.ModuleType:
+    """Return a stub health module whose record_pass() is a MagicMock."""
+    mod = types.ModuleType("reconcile_health")
+    mod.record_pass = MagicMock(return_value=None)
+    return mod
+
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
+
+
+def test_health_record_pass_called_after_apply(tmp_path, reconcile_mod):
+    """reconcile_once() calls health.record_pass() with correct pass_id and mutation count."""
+    pass_id = "test-pass"
+    mutations = [{"op": "create", "key": "DIG-1"}, {"op": "update", "key": "DIG-2"}]
+
+    stub_fetcher = _make_stub_fetcher(tmp_path, pass_id)
+    stub_differ = _make_stub_differ(mutations)
+    stub_applier = _make_stub_applier(tmp_path, pass_id)
+    stub_health = _make_stub_health()
+
+    # Pre-register stubs so reconcile._load() picks them up from sys.modules.
+    sys.modules["reconcile_fetcher"] = stub_fetcher
+    sys.modules["reconcile_differ"] = stub_differ
+    sys.modules["reconcile_applier"] = stub_applier
+    sys.modules["reconcile_health"] = stub_health
+
+    try:
+        result = reconcile_mod.reconcile_once(pass_id, repo_root=tmp_path)
+    finally:
+        for key in ("reconcile_fetcher", "reconcile_differ", "reconcile_applier", "reconcile_health"):
+            sys.modules.pop(key, None)
+
+    stub_health.record_pass.assert_called_once()
+    call_kwargs = stub_health.record_pass.call_args
+
+    # Accept both positional and keyword invocations.
+    kwargs = call_kwargs.kwargs if call_kwargs.kwargs else {}
+    args = call_kwargs.args if call_kwargs.args else ()
+
+    # Extract pass_id from args[0] or kwargs
+    actual_pass_id = kwargs.get("pass_id", args[0] if args else None)
+    assert actual_pass_id == pass_id, (
+        f"health.record_pass() must be called with pass_id={pass_id!r}, "
+        f"got {actual_pass_id!r}"
+    )
+
+    # Extract local_mutation_count
+    actual_count = kwargs.get("local_mutation_count")
+    if actual_count is None and len(args) >= 5:
+        actual_count = args[4]
+    assert actual_count == len(mutations), (
+        f"health.record_pass() must be called with local_mutation_count={len(mutations)}, "
+        f"got {actual_count}"
+    )
+
+    # Verify the overall result is still correct
+    assert result["pass_id"] == pass_id
+    assert result["mutation_count"] == len(mutations)
+
+
+def test_health_record_pass_called_with_zero_mutations(tmp_path, reconcile_mod):
+    """reconcile_once() calls health.record_pass() with local_mutation_count=0 when no mutations."""
+    pass_id = "zero-mutation-pass"
+    mutations: list = []
+
+    stub_fetcher = _make_stub_fetcher(tmp_path, pass_id)
+    stub_differ = _make_stub_differ(mutations)
+    stub_applier = _make_stub_applier(tmp_path, pass_id)
+    stub_health = _make_stub_health()
+
+    sys.modules["reconcile_fetcher"] = stub_fetcher
+    sys.modules["reconcile_differ"] = stub_differ
+    sys.modules["reconcile_applier"] = stub_applier
+    sys.modules["reconcile_health"] = stub_health
+
+    try:
+        reconcile_mod.reconcile_once(pass_id, repo_root=tmp_path)
+    finally:
+        for key in ("reconcile_fetcher", "reconcile_differ", "reconcile_applier", "reconcile_health"):
+            sys.modules.pop(key, None)
+
+    stub_health.record_pass.assert_called_once()
+    call_kwargs = stub_health.record_pass.call_args
+    kwargs = call_kwargs.kwargs if call_kwargs.kwargs else {}
+    actual_count = kwargs.get("local_mutation_count", None)
+    assert actual_count == 0, (
+        f"health.record_pass() must be called with local_mutation_count=0 "
+        f"when there are no mutations, got {actual_count}"
+    )
+
+
+def test_health_placeholder_values(tmp_path, reconcile_mod):
+    """reconcile_once() passes placeholder 0/0/{} for pre_fsck/post_fsck/per_type_counts."""
+    pass_id = "placeholder-pass"
+    mutations = [{"op": "create", "key": "DIG-99"}]
+
+    stub_fetcher = _make_stub_fetcher(tmp_path, pass_id)
+    stub_differ = _make_stub_differ(mutations)
+    stub_applier = _make_stub_applier(tmp_path, pass_id)
+    stub_health = _make_stub_health()
+
+    sys.modules["reconcile_fetcher"] = stub_fetcher
+    sys.modules["reconcile_differ"] = stub_differ
+    sys.modules["reconcile_applier"] = stub_applier
+    sys.modules["reconcile_health"] = stub_health
+
+    try:
+        reconcile_mod.reconcile_once(pass_id, repo_root=tmp_path)
+    finally:
+        for key in ("reconcile_fetcher", "reconcile_differ", "reconcile_applier", "reconcile_health"):
+            sys.modules.pop(key, None)
+
+    stub_health.record_pass.assert_called_once()
+    call_kwargs = stub_health.record_pass.call_args
+    kwargs = call_kwargs.kwargs if call_kwargs.kwargs else {}
+
+    assert kwargs.get("pre_fsck") == 0, (
+        f"pre_fsck placeholder must be 0, got {kwargs.get('pre_fsck')}"
+    )
+    assert kwargs.get("post_fsck") == 0, (
+        f"post_fsck placeholder must be 0, got {kwargs.get('post_fsck')}"
+    )
+    assert kwargs.get("per_type_counts") == {}, (
+        f"per_type_counts placeholder must be {{}}, got {kwargs.get('per_type_counts')}"
+    )
