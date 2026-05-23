@@ -1289,7 +1289,8 @@ Stories tagged `manual:awaiting_user` are collected into `awaiting_manual_storie
 
 ## Phase E: Sub-Agent Launch (/dso:sprint)
 
-# Story branches: story/<epic-id>/<story-id>; created here, merged in Phase F with DSO-Story-Merge trailer
+# Story branches: story/<epic-id>/<story-id>; created here, merged in Phase F with DSO-Story-Merge trailer.
+# In worktree-isolation mode (default), this branch is a logical ticket-tracking container — actual file movement happens via per-task harvest into the session branch (Phase F Step 5; see "Cross-Layer File Visibility Invariant" in Phase F worktree-isolation block).
 
 Before dispatching tasks for a story, create the story branch and capture the branch name:
 
@@ -1653,6 +1654,18 @@ Read and execute `skills/sprint/prompts/per-worktree-review-commit.md` for each 
 After all worktrees have been processed via `per-worktree-review-commit.md`, skip Steps 7 and 10 (which apply only in shared-directory mode) and proceed directly to Steps 8, 9, 10a, 11, and 13.
 
 In shared-directory mode (isolation disabled), proceed through Steps 0–13 as written below, including Step 13 (formal code review) and Step 17 (commit and push).
+
+### Cross-Layer File Visibility Invariant (bug 38b4-e9f6) (/dso:sprint)
+
+In worktree-isolation mode (the default), the file-visibility contract for Layer N+1 sub-agents is provided by **Phase F Step 5 (per-task harvest into session branch)** — NOT by the story-branch merge in Step 18. Each `worktree-agent-<task-id>` branch is merged into the session branch by `harvest-worktree.sh` (see `per-worktree-review-commit.md` Step 5) as soon as its individual review+commit+harvest cycle completes. This advances SESSION_HEAD to include the task's file artifacts BEFORE the parent story closes.
+
+**Invariant**: by the time `/dso:sprint` dispatches a Layer N+1 batch (Phase C → Phase E), SESSION_HEAD contains every harvested task commit from every Layer 0..N story whose tasks have completed Phase F Step 5. Sub-agents call `worktree-session-head-sync.sh` on this SESSION_HEAD on startup (per `skills/shared/prompts/worktree-dispatch.md` Step 2), so they see all prerequisite files from sibling-layer stories.
+
+**ci-pr mode mechanism**: in `dso.workflow=ci-pr`, harvest-worktree.sh's session-branch merge is realized as a per-task GitHub PR (`gh pr create --base $SESSION_BRANCH --head worktree-agent-<task-id>`). Each PR merges into the session branch as it lands. There are NO per-story PRs in worktree-isolation mode; the story branch created at Phase E is a **logical container** for ticket-tracking attribution, not a data-flow waypoint.
+
+**Phase F Step 18 story-branch merge in worktree-isolation mode**: the story branch's tip equals the session-branch tip at the moment Step 18 runs, because all of the story's tasks already harvested into the session branch via Step 5. The `merge-to-main.sh BRANCH=$STORY_BRANCH STORY_PR_BASE=$SESSION_BRANCH` call in Step 18 therefore creates a no-diff merge — handled by `merge-to-main.sh`'s internal no-diff detection. This is intentional — Step 18's contract (P1 verdict + story-closure trailer attribution + GitHub PR record) is preserved while the actual file movement happens in Step 5.
+
+**What this rules out**: the failure mode where Layer N+1 sub-agents start from a SESSION_HEAD that does not contain Layer N's file artifacts. That failure mode presupposes story-branches accumulating without ever merging to the session — which is the shared-directory-mode mental model, not the worktree-isolation-mode reality. In worktree-isolation mode (default), per-task harvest is the canonical, mechanically-realized file-visibility path.
 
 ### Step 1: Dispatch Failure Recovery (/dso:sprint)
 
@@ -2123,34 +2136,129 @@ What is NOT acceptable (all of these are CLAUDE.md `rule:dispatch-verifier` viol
 If neither form is achievable (e.g., Agent tool unavailable), STOP and surface to the user — do not synthesize a verifier prompt yourself.
 </HARD-GATE>
 - `P1: PASS` → proceed with closure
-- `P1: FAIL` / `P1: BLOCKED` / `P1: INCONCLUSIVE` → see branching logic below
+- `P1: FAIL` / `P1: BLOCKED` / `P1: INCONCLUSIVE` → see **Planner-dispatch HARD-GATE** below; do NOT create any ticket until the planner returns.
 - **Fallback (technical failure only)**: On timeout/unparseable JSON (`check-verifier-verdict.sh` exit 2), log warning and proceed with closure.
 
-**Re-dispatch rule (d039-ac65)**: If the completion-verifier returned a non-PASS `P1` on ANY prior run during this story's lifecycle AND a fix was subsequently applied (remediation tasks completed, Phase C re-entry executed), you MUST re-dispatch the completion-verifier before closing the story — even when confidence is high that the fix addressed the failing criterion. High confidence is NOT a valid bypass. The verifier must confirm the fix did not introduce regressions on other criteria. Only technical failure (timeout, unparseable JSON) permits proceeding without re-verification. "I fixed the exact criterion that failed" is NOT a substitute for re-dispatch.
+**Re-dispatch rule (d039-ac65)**: If the completion-verifier returned a non-PASS `P1` on ANY prior run during this story's lifecycle AND a fix was subsequently applied (remediation tasks completed, Phase C re-entry executed), you MUST re-dispatch the completion-verifier before closing the story — even when confidence is high that the fix addressed the failing criterion. High confidence is NOT a valid bypass. The verifier must confirm the fix did not introduce regressions on other criteria. Only technical failure (timeout, unparseable JSON) permits proceeding without re-verification. "I fixed the exact criterion that failed" is NOT a substitute for re-dispatch. **The Planner-dispatch HARD-GATE below applies to the re-dispatched verdict as well** — every P1 != PASS verdict, including those returned on a re-dispatch invocation under this rule, MUST route through `dso:verification-remediation-planner` before any remediation ticket creation. The re-dispatch site does NOT bypass the planner gate; the third dispatch path (re-dispatch) is held to the same invariant as the first.
 
-**Story validation failure detection** — when `P1` is non-PASS (`FAIL`, `BLOCKED`, or `INCONCLUSIVE`):
+<HARD-GATE id="planner-dispatch-story-level">
+**Planner-dispatch HARD-GATE (SC3 caller-side) — story-level (Phase F Step 18)**
 
-Check whether all tasks under the story are closed (no open or in-progress tasks remain):
+When `P1` is non-PASS (`FAIL`, `BLOCKED`, or `INCONCLUSIVE`), the orchestrator MUST dispatch `dso:verification-remediation-planner` BEFORE creating any remediation ticket. The "no ticket creation between verifier-result and planner-result" invariant is load-bearing — adding even a placeholder ticket here violates SC3 and corrupts producer-fidelity. Order matters: read verifier → dispatch planner → read planner output → only then route to a remediation skill or HALT.
 
-- **If open/in-progress tasks still exist**: create bug tasks from `remediation_tasks_created` and return to Phase C (Batch Preparation) as normal.
-- **If all tasks are closed but validation fails** (story-level done definition not satisfied despite no remaining tasks):
-  1. Do NOT close the story.
-  2. Log: `"Story <id> validation failed despite all tasks closed — creating TDD remediation tasks"`
-  3. Record a REPLAN_TRIGGER comment on the epic **before** invoking implementation-plan (so the audit trail exists even if re-planning fails):
-     ```bash
-     .claude/scripts/dso ticket comment <epic-id> "REPLAN_TRIGGER: validation — Story <story-id> validation failed with all tasks closed. Creating TDD remediation tasks."
-     ```
-  4. Re-invoke `/dso:implementation-plan <story-id>` via the Skill tool on the story to create remediation tasks. The implementation-plan re-invocation guard will detect existing closed children and produce a diff plan (new tasks only for uncovered success criteria — no duplication). **If implementation-plan emits `REPLAN_ESCALATE: brainstorm`**: add the story to the `replan-stories` list and route to **d-replan-collect** (Phase B replan logic). The cascade counter (`sprint.max_replan_cycles`) applies — if the cap is reached, escalate to the user. Do NOT assume implementation-plan always succeeds here. When the Skill tool returns, proceed immediately to step 5.
+**Step 1 — Save verifier output to a stable path.** Write the verifier JSON to `VERIFIER_JSON_PATH` (the same path used for the gate scripts). Do NOT call `.claude/scripts/dso ticket create`, `.claude/scripts/dso ticket comment`, or any other ticket-CLI mutation between this step and Step 4.
 
-  5. Implementation-plan will create TDD remediation tasks following standard flow: RED test task first (failing test targeting the unmet done definition), then implementation task depending on the RED test. No special logic is needed in sprint to enforce this ordering.
-  6. After re-planning completes (no REPLAN_ESCALATE), record resolution:
-     ```bash
-     .claude/scripts/dso ticket comment <epic-id> "REPLAN_RESOLVED: implementation-plan — Remediation tasks created for story <story-id>."
-     ```
-  7. Return to Phase C (Batch Preparation) to execute the new remediation tasks.
+```bash
+VERIFIER_JSON_PATH=$(mktemp /tmp/verifier-output.XXXXXX)
+# <write verifier JSON to $VERIFIER_JSON_PATH>
+```
 
-<HARD-GATE>
-Do NOT rationalize around a non-PASS P1 verdict. The verifier's verdict is final — scope-scoping arguments ("pre-existing failures," "out-of-scope tests," "RED marker tolerance," "already tracked as a separate bug") do not override the non-PASS → Phase C path. The orchestrator's judgment about whether the verdict "really applies" is exactly the bias the verifier was designed to counteract. Only `P1: PASS` or technical failure (timeout/unparseable JSON) permits proceeding past this step.
+**Step 2 — Dispatch the planner.** The Agent tool call MUST use the named agent type (`dso:verification-remediation-planner`). Hand-written prompts or generic-purpose substitutions are prohibited (same fabrication rule as the completion-verifier dispatch, per CLAUDE.md `rule:dispatch-verifier`).
+
+```
+Agent({
+  description: "Classify verifier failure for story <story-id>",
+  subagent_type: "dso:verification-remediation-planner",
+  model: "opus",
+  prompt: "VERIFIER_ARTIFACT_PATH: $VERIFIER_JSON_PATH\nSTORY_ID: <story-id>\nEPIC_ID: <epic-id>"
+})
+```
+
+Fallback form (only on "Unknown agent" error): read `${CLAUDE_PLUGIN_ROOT}/agents/verification-remediation-planner.md` verbatim and pass its full contents as the first element of the prompt under `subagent_type: "general-purpose"` with `model: "opus"`.
+
+**Step 3 — Parse planner output.** The planner emits a single JSON envelope: `scope`, `target_id`, `decomposer_context`, `escalation_upstream`, `confidence`. Save the JSON to `PLANNER_JSON_PATH`:
+
+```bash
+PLANNER_JSON_PATH=$(mktemp /tmp/planner-output.XXXXXX)
+# <write planner JSON to $PLANNER_JSON_PATH>
+PLANNER_SCOPE=$(python3 -c "import json,sys; print(json.load(open('$PLANNER_JSON_PATH'))['scope'])")
+PLANNER_CONFIDENCE=$(python3 -c "import json,sys; print(json.load(open('$PLANNER_JSON_PATH'))['confidence'])")
+PLANNER_UPSTREAM=$(python3 -c "import json,sys; print(json.load(open('$PLANNER_JSON_PATH'))['escalation_upstream'])")
+PLANNER_TARGET=$(python3 -c "import json,sys; print(json.load(open('$PLANNER_JSON_PATH'))['target_id'])")
+```
+
+**No-ticket-creation invariant**: Between writing `$VERIFIER_JSON_PATH` (Step 1) and reading `$PLANNER_JSON_PATH` (Step 3), the orchestrator MUST NOT invoke `.claude/scripts/dso ticket create` or any equivalent ticket-mutating CLI (no draft, placeholder, or precursor tickets — none). The conformance fixture asserts this textually at all three planner-dispatch sites (Phase F Step 18, Phase G Step 2, and the d039-ac65 re-dispatch site, which reuses Step 18's plumbing on re-invocation).
+
+**Step 4 — Route by planner output.**
+
+- **If `PLANNER_CONFIDENCE == "LOW"` (or `PLANNER_SCOPE == "PROTOCOL_ERROR"`)** — emit `HALT_FOR_USER` surfacing planner evidence and STOP. Do NOT create remediation tickets. The HALT message MUST include the planner's `decomposer_context.remediation_summary`, the `failing_criteria` list, and the `verifier_artifact_path` so the user can investigate.
+
+  ```bash
+  echo "HALT_FOR_USER: planner returned $PLANNER_CONFIDENCE confidence for story <story-id>"
+  python3 -c "import json; d=json.load(open('$PLANNER_JSON_PATH')); print('  scope:', d['scope']); print('  summary:', d['decomposer_context']['remediation_summary']); print('  failing_criteria:', d['decomposer_context']['failing_criteria']); print('  verifier_artifact_path:', d['decomposer_context']['verifier_artifact_path'])"
+  ```
+
+  HALT-vs-REPLAN exclusivity (per `${CLAUDE_PLUGIN_ROOT}/skills/shared/workflows/remediation-loop-protocol.md` Section 4): `HALT_FOR_USER` (this token) is structurally exclusive with `REPLAN_ESCALATE` — never emit both in the same execution.
+
+- **If `PLANNER_CONFIDENCE != "LOW"`** — dispatch the indicated decomposer with the planner's `decomposer_context`. Route by `PLANNER_SCOPE`:
+
+  | `scope` | Decomposer dispatch | Notes |
+  |---------|---------------------|-------|
+  | `replan_story` | `/dso:implementation-plan <story-id>` via Skill tool, with `decomposer_context` from `$PLANNER_JSON_PATH` | Re-plans the current story. `escalation_upstream: preplanning`. |
+  | `new_tasks_in_story` | Orchestrator creates tasks directly under `<story-id>` per `decomposer_context.remediation_summary` (planner-supplied tasks) | `escalation_upstream: planner_supplied`. No re-planning skill needed. |
+  | `new_story_in_epic` | `/dso:preplanning <epic-id>` via Skill tool, with `decomposer_context` | Adds a new story under the same epic. `escalation_upstream: preplanning`. |
+  | `replan_epic` | `/dso:brainstorm <epic-id>` via Skill tool, with `decomposer_context` | Re-examines epic scope. `escalation_upstream: brainstorm`. |
+
+  Record a REPLAN_TRIGGER comment on the epic BEFORE invoking the chosen decomposer (audit trail) — this is the FIRST ticket-CLI mutation permitted after the planner returns:
+
+  ```bash
+  .claude/scripts/dso ticket comment <epic-id> "REPLAN_TRIGGER: planner — scope=$PLANNER_SCOPE target=$PLANNER_TARGET upstream=$PLANNER_UPSTREAM confidence=$PLANNER_CONFIDENCE"
+  ```
+
+  After the decomposer returns (no `REPLAN_ESCALATE`), record resolution:
+
+  ```bash
+  .claude/scripts/dso ticket comment <epic-id> "REPLAN_RESOLVED: planner — scope=$PLANNER_SCOPE remediation tasks created for $PLANNER_TARGET."
+  ```
+
+  Then return to Phase C (Batch Preparation) to execute the new remediation tasks.
+
+  **`REPLAN_ESCALATE` handling**: If the decomposer emits `REPLAN_ESCALATE: <upstream>`, follow the upstream-enum routing in `${CLAUDE_PLUGIN_ROOT}/skills/shared/workflows/remediation-loop-protocol.md` Section 6. The cascade counter (`sprint.max_replan_cycles`) applies — escalate to the user when the cap is reached.
+
+**Remediation loop protocol (sprint verifier-fail touchpoint — story-level)**
+
+When the decomposer returns `REPLAN_ESCALATE: <upstream>` and the orchestrator re-dispatches the verifier, it enters a remediation loop governed by the shared protocol. Source `MAX_CYCLES` from `get_max_remediation_cycles()` in `${CLAUDE_PLUGIN_ROOT}/hooks/lib/planning-config.sh` before entering the loop.
+
+**Per-cycle declaration**: At the start of every remediation cycle, emit exactly:
+`Current cycle: N of MAX_CYCLES`
+where `N` is the 1-based cycle counter and `MAX_CYCLES` is the resolved maximum. This line is required before any findings, deltas, or token emissions within that cycle.
+
+**Oscillation-check hard gate (cycle >= 2)**: On any cycle where `N >= 2`, the orchestrator MUST invoke `/dso:oscillation-check` (Skill) before proceeding with findings analysis. Skipping this gate requires an explicit `OSCILLATION_CHECK_SKIPPED: <reason>` ticket comment capturing the rationale; no other skip reason is permitted.
+
+**Mid-loop success exit**: If the verifier returns `P1: PASS` on any cycle (before reaching `MAX_CYCLES`), the loop exits immediately and story closure proceeds. No terminal token is emitted on success.
+
+**HALT-vs-REPLAN exclusivity check**: `REPLAN_ESCALATE` MUST be emitted IFF `cycle_count == MAX_CYCLES AND findings non-empty`. No other condition may emit `REPLAN_ESCALATE`. All other terminal states use a different token — human-input required → `HALT_FOR_USER`; oscillation detected → `OSCILLATION_HALT`; illegal state transition → `PROTOCOL_ERROR`. Emitting `REPLAN_ESCALATE` under any other condition, or emitting it together with `PROTOCOL_ERROR`, is itself a `PROTOCOL_ERROR`.
+
+**Terminal REPLAN_ESCALATE with dynamic upstream**: On cycle `MAX_CYCLES` with the verifier still non-PASS, emit (per the canonical `${CLAUDE_PLUGIN_ROOT}/docs/contracts/replan-escalate-signal.md` colon-space prefix):
+`REPLAN_ESCALATE: <escalation_upstream> EXPLANATION:<explanation text>`
+The `<escalation_upstream>` value MUST be sourced dynamically from the planner's `escalation_upstream` field in its JSON output (`$PLANNER_JSON_PATH`) — it is NOT hardcoded. The planner determines the correct upstream per-dispatch based on the verifier failure context. See `${CLAUDE_PLUGIN_ROOT}/agents/verification-remediation-planner.md` for the field definition and the upstream enum (`brainstorm` / `preplanning` / `planner_supplied`) in Section 6 of the protocol doc. Emit this as a standalone ticket comment so the orchestrator's parent session can detect and route the escalation. The literal prefix `REPLAN_ESCALATE: ` (colon followed by a single space) and the `EXPLANATION:` field label are fixed by contract — do not vary them.
+
+**PROTOCOL_ERROR on invariant violation**: Any illegal state transition — emitting `REPLAN_ESCALATE` when `cycle_count < MAX_CYCLES`, emitting multiple terminal tokens, or violating the HALT-vs-REPLAN exclusivity invariant — MUST emit `PROTOCOL_ERROR` and halt remediation immediately.
+
+See: `${CLAUDE_PLUGIN_ROOT}/skills/shared/workflows/remediation-loop-protocol.md`
+
+**Per-cycle artifact append (9a9a/21f3 block — cycle recorder)**
+
+After each cycle's re-dispatch and verifier run, atomically append a `cycles[]` entry to the verifier-cycle artifact using the writer:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/append_review_cycle.py \
+  --artifact <path-to-verifier-cycle-artifact-for-story> \
+  --n <cycle-number> \
+  --draft-hash <sha256 of planner output> \
+  --findings-count <int> \
+  --verdict <pass|fail|escalate>
+```
+
+After the append, emit exactly ONE ticket comment per cycle that references the artifact path:
+
+```bash
+.claude/scripts/dso ticket comment <ticket-id> "Remediation cycle <n> recorded at <artifact-path>"
+```
+
+**Single-comment policy (SC6)**: The ticket comment references the artifact path and does NOT duplicate the cycle body — cycle entries live in the artifact's `cycles[]` array, not in ticket comments. One comment per cycle; no further detail in the comment body.
+
+Do NOT rationalize around a non-PASS P1 verdict. The verifier's verdict is final — scope-scoping arguments ("pre-existing failures," "out-of-scope tests," "RED marker tolerance," "already tracked as a separate bug") do not override the planner-gate → Phase C path. The orchestrator's judgment about whether the verdict "really applies" is exactly the bias the verifier+planner pair was designed to counteract. Only `P1: PASS` or technical failure (timeout/unparseable JSON) permits proceeding past this step.
 </HARD-GATE>
 
 **RED marker cleanup (before closure)**: After `P1: PASS`, check `.test-index` for stale RED markers associated with tests from this story's scope. If any `[test_name]` entries exist for tests that now pass (GREEN), remove them before closing the story. Stale markers accumulate across story completions and block epic closure.
@@ -2160,6 +2268,8 @@ Do NOT rationalize around a non-PASS P1 verdict. The verifier's verdict is final
 grep -n "\[.*\]" .test-index || true
 # Remove any markers for tests that are now passing
 ```
+
+**Worktree-isolation-mode note (bug 38b4-e9f6)**: in the default worktree-isolation mode, the story branch's tip equals the session-branch tip at this point — all of the story's tasks already harvested via Phase F Step 5 (see "Cross-Layer File Visibility Invariant" in the Phase F preamble). The `merge-to-main.sh` call below is structurally a no-diff merge in that mode; its purpose is preserving the P1-PASS attribution and trailer chain, NOT moving files. Do NOT skip the call — `merge-to-main.sh` internally detects the no-diff case and exits cleanly.
 
 **Story branch merge (before closure)**: After RED marker cleanup and before closing the story, merge the story branch. The merge path depends on `SPRINT_MODE`:
 - `ci-pr` mode: route through `merge-to-main.sh` to create a GitHub PR — do NOT perform a direct local merge
@@ -2412,13 +2522,79 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-manifest-completeness.sh" "$VERIFIER_J
 Only when both gates exit 0, interpret the verdict:
 
 - `P1: PASS` → proceed to Step 3
-- `P1: FAIL` or `P1: BLOCKED` or `P1: INCONCLUSIVE` → **STOP. Do NOT proceed to Phase H or epic closure under ANY circumstances.** Create bug tasks from `remediation_tasks_created` and return to Phase C (Batch Preparation).
+- `P1: FAIL` or `P1: BLOCKED` or `P1: INCONCLUSIVE` → **STOP. Do NOT proceed to Phase H or epic closure under ANY circumstances.** Route through the **Planner-dispatch HARD-GATE** below; do NOT create any remediation ticket until the planner returns.
 - **Fallback (technical failure only)**: On timeout/unparseable JSON (Gate 1 exit 2), log warning and proceed to Step 3.
 
-<HARD-GATE>
-Do NOT rationalize around a non-PASS P1 verdict (7c1d-9acf). The verifier's verdict is final — scope-scoping arguments ("pre-existing failures," "out-of-scope tests," "RED marker tolerance," "already tracked as a separate bug") do not override the FAIL → Phase C path. The orchestrator's judgment about whether the verdict "really applies" is exactly the bias the verifier was designed to counteract. Only `P1: PASS` (Gate 1 exit 0) or technical failure (timeout/unparseable JSON) permits proceeding to Step 3.
+<HARD-GATE id="planner-dispatch-epic-level">
+**Planner-dispatch HARD-GATE (SC3 caller-side) — epic-level (Phase G Step 2)**
 
-On non-PASS: the ONLY valid responses are (a) return to Phase C to create and complete remediation tasks, or (b) if the user explicitly says to stop the sprint (not "close the epic anyway"), escalate for sprint abort. Do NOT present non-PASS findings with waiver arguments. Do NOT ask the user if criteria can be skipped. Do NOT proceed to Phase H.
+When `P1` is non-PASS at the epic level, the orchestrator MUST dispatch `dso:verification-remediation-planner` BEFORE creating any remediation ticket. The "no ticket creation between verifier-result and planner-result" invariant is load-bearing here as well — adding even a placeholder ticket violates SC3.
+
+**Step 1 — Verifier JSON already persisted.** `$VERIFIER_JSON_PATH` was written above (before Gate 1). Do NOT call `.claude/scripts/dso ticket create`, `.claude/scripts/dso ticket comment`, or any other ticket-CLI mutation between the Gate 1 verdict and Step 4 below.
+
+**Step 2 — Dispatch the planner.** Pass the EPIC ID as both `STORY_ID` and `EPIC_ID` (epic-level invocation — the planner's decision tree treats the epic as its own scope context).
+
+```
+Agent({
+  description: "Classify epic-level verifier failure for epic <epic-id>",
+  subagent_type: "dso:verification-remediation-planner",
+  model: "opus",
+  prompt: "VERIFIER_ARTIFACT_PATH: $VERIFIER_JSON_PATH\nSTORY_ID: <epic-id>\nEPIC_ID: <epic-id>"
+})
+```
+
+Fallback form (only on "Unknown agent" error): read `${CLAUDE_PLUGIN_ROOT}/agents/verification-remediation-planner.md` verbatim and pass its full contents under `subagent_type: "general-purpose"` with `model: "opus"`.
+
+**Step 3 — Parse planner output.**
+
+```bash
+PLANNER_JSON_PATH=$(mktemp /tmp/planner-output.XXXXXX)
+# <write planner JSON to $PLANNER_JSON_PATH>
+PLANNER_SCOPE=$(python3 -c "import json,sys; print(json.load(open('$PLANNER_JSON_PATH'))['scope'])")
+PLANNER_CONFIDENCE=$(python3 -c "import json,sys; print(json.load(open('$PLANNER_JSON_PATH'))['confidence'])")
+PLANNER_UPSTREAM=$(python3 -c "import json,sys; print(json.load(open('$PLANNER_JSON_PATH'))['escalation_upstream'])")
+PLANNER_TARGET=$(python3 -c "import json,sys; print(json.load(open('$PLANNER_JSON_PATH'))['target_id'])")
+```
+
+**No-ticket-creation invariant**: Between writing `$VERIFIER_JSON_PATH` (Step 1) and reading `$PLANNER_JSON_PATH` (Step 3), the orchestrator MUST NOT invoke `.claude/scripts/dso ticket create` or any equivalent ticket-mutating CLI. The conformance fixture asserts this at the epic-level site independently of the story-level site.
+
+**Step 4 — Route by planner output.**
+
+- **If `PLANNER_CONFIDENCE == "LOW"` (or `PLANNER_SCOPE == "PROTOCOL_ERROR"`)** — emit `HALT_FOR_USER` surfacing planner evidence and STOP. Do NOT create remediation tickets.
+
+  ```bash
+  echo "HALT_FOR_USER: planner returned $PLANNER_CONFIDENCE confidence for epic <epic-id>"
+  python3 -c "import json; d=json.load(open('$PLANNER_JSON_PATH')); print('  scope:', d['scope']); print('  summary:', d['decomposer_context']['remediation_summary']); print('  failing_criteria:', d['decomposer_context']['failing_criteria']); print('  verifier_artifact_path:', d['decomposer_context']['verifier_artifact_path'])"
+  ```
+
+  HALT-vs-REPLAN exclusivity (per `${CLAUDE_PLUGIN_ROOT}/skills/shared/workflows/remediation-loop-protocol.md` Section 4): `HALT_FOR_USER` and `REPLAN_ESCALATE` are structurally exclusive — never emit both.
+
+- **If `PLANNER_CONFIDENCE != "LOW"`** — dispatch the indicated decomposer with the planner's `decomposer_context`:
+
+  | `scope` | Decomposer dispatch | Notes |
+  |---------|---------------------|-------|
+  | `replan_story` | `/dso:implementation-plan <target_id>` via Skill tool (target is a story under this epic) | `escalation_upstream: preplanning`. |
+  | `new_tasks_in_story` | Orchestrator creates tasks directly under `<target_id>` per `decomposer_context.remediation_summary` | `escalation_upstream: planner_supplied`. |
+  | `new_story_in_epic` | `/dso:preplanning <epic-id>` via Skill tool, with `decomposer_context` | Adds a new story to this epic. `escalation_upstream: preplanning`. |
+  | `replan_epic` | `/dso:brainstorm <epic-id>` via Skill tool, with `decomposer_context` | Re-examines epic scope. `escalation_upstream: brainstorm`. |
+
+  Record REPLAN_TRIGGER on the epic BEFORE invoking the chosen decomposer (this is the FIRST permitted ticket-CLI mutation after the planner returns):
+
+  ```bash
+  .claude/scripts/dso ticket comment <epic-id> "REPLAN_TRIGGER: planner (epic-level) — scope=$PLANNER_SCOPE target=$PLANNER_TARGET upstream=$PLANNER_UPSTREAM confidence=$PLANNER_CONFIDENCE"
+  ```
+
+  After the decomposer returns (no `REPLAN_ESCALATE`), record resolution:
+
+  ```bash
+  .claude/scripts/dso ticket comment <epic-id> "REPLAN_RESOLVED: planner (epic-level) — scope=$PLANNER_SCOPE remediation tasks created for $PLANNER_TARGET."
+  ```
+
+  Then return to Phase C (Batch Preparation) to execute the new remediation tasks.
+
+Do NOT rationalize around a non-PASS P1 verdict (7c1d-9acf). The verifier's verdict is final — scope-scoping arguments ("pre-existing failures," "out-of-scope tests," "RED marker tolerance," "already tracked as a separate bug") do not override the planner-gate → Phase C path. The orchestrator's judgment about whether the verdict "really applies" is exactly the bias the verifier+planner pair was designed to counteract. Only `P1: PASS` (Gate 1 exit 0) or technical failure (timeout/unparseable JSON) permits proceeding to Step 3.
+
+On non-PASS: the ONLY valid responses are (a) route through this Planner-dispatch HARD-GATE and return to Phase C to create and complete remediation tasks, or (b) if the user explicitly says to stop the sprint (not "close the epic anyway"), escalate for sprint abort. Do NOT present non-PASS findings with waiver arguments. Do NOT ask the user if criteria can be skipped. Do NOT proceed to Phase H.
 </HARD-GATE>
 
 ### Step 3: Run /dso:validate-work (/dso:sprint)

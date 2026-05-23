@@ -1,0 +1,82 @@
+{
+  "sc_coverage_summary": [
+    {
+      "sc_id": "sc-1",
+      "sc_text": "Operators see delta-only remediation, not full re-decomposition.",
+      "verdict": "partially_covered",
+      "covering_story_ids": ["a7c0-8e53-3502-4ddd"],
+      "gap_summary": "Caller-side Phase E wiring not yet covered by an existing story."
+    },
+    {
+      "sc_id": "sc-2",
+      "sc_text": "Phase E re-dispatches story-decomposer with by-reference payload.",
+      "verdict": "uncovered",
+      "covering_story_ids": [],
+      "gap_summary": "No existing story owns the dispatch block edit."
+    }
+  ],
+  "red_team_findings": [
+    {
+      "type": "new_story",
+      "target_story_id": "b345-913f-29d7-4ee9",
+      "title": "Add Phase E re-dispatch with remediation_context",
+      "description": "Phase E must build remediation_context and dispatch dso:story-decomposer when findings are non-empty.",
+      "rationale": "SC1 caller-side wiring is currently absent.",
+      "taxonomy_category": "sc_coverage_gap"
+    },
+    {
+      "type": "modify_done_definition",
+      "target_story_id": "b345-913f-29d7-4ee9",
+      "title": "DD must assert literal model:\"opus\" field",
+      "description": "Done definition should require the synthetic-findings fixture to assert the model field on the dispatch payload.",
+      "rationale": "Guards against accidental sonnet downgrade.",
+      "taxonomy_category": "sc_coverage_gap"
+    },
+    {
+      "type": "add_consideration",
+      "target_story_id": "b345-913f-29d7-4ee9",
+      "title": "Canonicalize artifact paths",
+      "description": "Artifact paths passed to sub-agents must be absolute; worktree base dir differs across contexts.",
+      "rationale": "Reliability under worktree-isolated dispatch.",
+      "taxonomy_category": "other"
+    }
+  ],
+  "blue_team_accepted": {
+    "findings": [
+      {
+        "type": "new_story",
+        "target_story_id": "b345-913f-29d7-4ee9",
+        "title": "Add Phase E re-dispatch with remediation_context",
+        "description": "Phase E must build remediation_context and dispatch dso:story-decomposer when findings are non-empty.",
+        "rationale": "SC1 caller-side wiring is currently absent.",
+        "taxonomy_category": "sc_coverage_gap",
+        "disposition": "accept",
+        "rejection_rationale": null
+      },
+      {
+        "type": "modify_done_definition",
+        "target_story_id": "b345-913f-29d7-4ee9",
+        "title": "DD must assert literal model:\"opus\" field",
+        "description": "Done definition should require the synthetic-findings fixture to assert the model field on the dispatch payload.",
+        "rationale": "Guards against accidental sonnet downgrade.",
+        "taxonomy_category": "sc_coverage_gap",
+        "disposition": "accept",
+        "rejection_rationale": null
+      }
+    ]
+  },
+  "blue_team_rejected": {
+    "findings": [
+      {
+        "type": "add_consideration",
+        "target_story_id": "b345-913f-29d7-4ee9",
+        "title": "Canonicalize artifact paths",
+        "description": "Artifact paths passed to sub-agents must be absolute; worktree base dir differs across contexts.",
+        "rationale": "Reliability under worktree-isolated dispatch.",
+        "taxonomy_category": "other",
+        "disposition": "reject",
+        "rejection_rationale": "Already covered by an existing consideration in the parent story."
+      }
+    ]
+  }
+}

@@ -55,37 +55,11 @@ The blue team sub-agent returns a filtered JSON object with `findings` (accepted
 - **Agent unavailable** (dispatch fails with "Unknown agent" or similar): Read `agents/blue-team-filter.md` inline and re-dispatch as a general-purpose agent using that content as the prompt. Do NOT perform the filtering inline — the agent must do it; inline filtering by the orchestrator defeats the purpose of the impartial blue team.
 - **Execution failure** (timeout, malformed output, or error): **Discard all unfiltered findings** and proceed to Phase F. Do NOT apply unfiltered red team findings — the blue team filter exists to prevent false positives from polluting the story map. Log: `"Blue team filter failed: <reason>. Discarding unfiltered red team findings, proceeding to Phase F."`
 
-## Step 3: Apply Surviving Findings
+## Step 3: Persist Adversarial Review Exchange
 
-Parse the blue team's accepted findings and apply each one based on its `type`. `taxonomy_category: "sc_coverage_gap"` findings use the same routing as their `type`, with one additional ticket-comment line citing the SC id for traceability.
+The orchestrator persists the full exchange for post-mortem analysis AND so the artifact path is available to the Step 4 remediation re-dispatch (the re-dispatch payload references the artifact by absolute path — the file must exist on disk before the dispatch builds the `remediation_context`). The blue team agent does NOT write files (it cannot run shell commands) — it returns `artifact_path: null`, and the orchestrator handles persistence here using the red team's `sc_coverage_summary` + raw findings and the blue team's `findings`/`rejected` arrays.
 
-| Finding Type | Action |
-|-------------|--------|
-| `new_story` | Create a new story with description: `.claude/scripts/dso ticket create story "<title>" --parent=<epic-id> -d "<body with description, done definitions, and considerations>"`. For `sc_coverage_gap` findings, append `Covers: <sc_id>` to the description body so the SC→story link is preserved in the ticket. |
-| `modify_done_definition` | Use `.claude/scripts/dso ticket comment <target_story_id> "Done definition update: <description>"` to record the modified done definition. For `sc_coverage_gap` findings, prefix the comment with `[SC <sc_id>] ` so the comment thread carries the SC link. |
-| `add_dependency` | Add the dependency: `.claude/scripts/dso ticket link <target_story_id> <dependency_id> depends_on` (extract dependency ID from the finding's description). |
-| `add_consideration` | Use `.claude/scripts/dso ticket comment <target_story_id> "Consideration: <text>"` to append the consideration. |
-| `escalate_to_epic` | The finding signals that a cross-story concern belongs at the epic level. Read the current epic description via `ticket show`, then use `.claude/scripts/dso ticket edit <epic-id> --description="<current-description>\n\nSC: <title> — <description>"` to append the new Success Criterion. Before emitting the escalation signal, check `sprint.max_replan_cycles` from config (default 2): if the current `replan_cycle_count` has already reached the limit, log `"escalate_to_epic: max_replan_cycles reached — recording SC but skipping REPLAN_ESCALATE"` and continue without escalating. Otherwise emit `REPLAN_ESCALATE: brainstorm EXPLANATION:<title>` to trigger brainstorm re-review of the updated epic scope before continuing. |
-
-After applying findings, also post the SC coverage summary as a single ticket comment on the epic so the audit is visible in the epic timeline:
-```bash
-.claude/scripts/dso ticket comment <epic-id> "SC coverage audit (red team): <fully_covered_count> fully covered, <partially_covered_count> partial, <uncovered_count> uncovered, <out_of_scope_for_stories_count> out-of-scope. Full summary in adversarial review artifact."
-```
-
-Log a summary after applying findings:
-```
-Adversarial review complete:
-- SC coverage: <fully> fully / <partial> partial / <uncovered> uncovered / <oos> out-of-scope-for-stories
-- Red team findings: <N> total (<S> sc_coverage_gap, <O> other)
-- Blue team filtered: <M> rejected, <K> accepted
-- Applied: <A> new stories, <B> modified done definitions, <C> new dependencies, <D> new considerations
-```
-
-## Step 4: Persist Adversarial Review Exchange
-
-After processing blue team findings, the orchestrator persists the full exchange for post-mortem analysis. The blue team agent does NOT write files (it cannot run shell commands) — it returns `artifact_path: null`, and the orchestrator handles persistence here using the red team's `sc_coverage_summary` + raw findings and the blue team's `findings`/`rejected` arrays.
-
-1. Resolve the artifact path and write the full exchange JSON. The artifact must include the red team's `sc_coverage_summary` as a top-level key so the audit trail is preserved alongside the findings exchange:
+1. Resolve the artifact paths and write the full exchange JSON. The artifact must include the red team's `sc_coverage_summary` as a top-level key so the audit trail is preserved alongside the findings exchange:
    ```bash
    source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
    ARTIFACTS_DIR=$(get_artifacts_dir)
@@ -94,16 +68,92 @@ After processing blue team findings, the orchestrator persists the full exchange
    # {
    #   "sc_coverage_summary": [ ... from red team ... ],
    #   "red_team_findings": [ ... raw, unfiltered ... ],
-   #   "blue_team_accepted": [ ... ],
-   #   "blue_team_rejected": [ ... ]
+   #   "blue_team_accepted": { "findings": [ ... ] },
+   #   "blue_team_rejected": { "findings": [ ... ] }
    # }
+   ```
+   Also persist the red-team and blue-team artifacts to separate absolute paths so the Step 4 re-dispatch can reference both producers' outputs independently:
+   ```bash
+   RED_TEAM_ARTIFACT_PATH="$ARTIFACTS_DIR/adversarial-review-<epic-id>-red-team.json"
+   BLUE_TEAM_ARTIFACT_PATH="$ARTIFACTS_DIR/adversarial-review-<epic-id>-blue-team.json"
    ```
 2. Add a one-line ticket comment referencing the artifact:
    ```bash
    .claude/scripts/dso ticket comment <epic-id> "Adversarial review: <N> findings, <M> accepted. Full exchange: $ARTIFACT_PATH"
    ```
-3. If writing the artifact fails (disk full, permission error): log a warning and continue — persistence failure is non-blocking.
+3. If writing the artifact fails (disk full, permission error): log a warning and continue — persistence failure is non-blocking. (If the artifact write fails, the Step 4 re-dispatch MUST also be skipped: the dispatch payload would carry a dangling absolute path that the producer's pre-generation Read gate would fail on.)
 4. The artifact is available for future post-mortem analysis but is not surfaced in normal `ticket show` output.
+
+Also post the SC coverage summary as a single ticket comment on the epic so the audit is visible in the epic timeline:
+```bash
+.claude/scripts/dso ticket comment <epic-id> "SC coverage audit (red team): <fully_covered_count> fully covered, <partially_covered_count> partial, <uncovered_count> uncovered, <out_of_scope_for_stories_count> out-of-scope. Full summary in adversarial review artifact."
+```
+
+## Step 4: Remediation Re-Dispatch (replaces Step 3 — supersedes the deprecated mechanical-transcription path)
+
+<!-- TOUCHPOINT-EMBEDDING-ANCHOR: phase-e-remediation-loop -->
+
+**Option A pin — this section replaces Step 3 (which is now persistence-only)**: Earlier revisions of this prompt had a Step 3 named "Apply Surviving Findings" that mechanically transcribed every blue-team-accepted finding type (`new_story` / `modify_done_definition` / `add_dependency` / `add_consideration` / `escalate_to_epic`) into inline ticket-CLI calls at the orchestrator. That mechanical-transcription step is the anti-pattern that the parent epic eliminates. The previous "Apply Surviving Findings" responsibility is **superseded** by this Step 4 re-dispatch and is deprecated. The orchestrator MUST NOT also run the deprecated transcription path inline; the re-dispatch is in lieu of Step 3, never additive. (Step 3 in this revised prompt is renamed to artifact persistence only.)
+
+**Null-case guard — BOTH branches MUST be preserved**:
+
+- **(a) PRE-filter — red team returned zero findings**: This branch is handled by Step 2's existing skip — see the "Red team found no cross-story gaps. Skipping blue team filter." log. When the red-team `findings` array is empty, Steps 2–4 are ALL skipped and the orchestrator proceeds directly to Phase F. This branch MUST remain intact.
+- **(b) POST-filter — blue team rejected everything (`blue_team_accepted.findings` is empty / `[]`)**: When the blue team filter accepts zero findings (every red-team finding is rejected), Phase E SKIPS the re-dispatch (null-case guard). Step 3 artifact persistence still completes (the empty exchange is recorded for audit), but Step 4 emits no Task call. Log: `"Blue team accepted zero findings (blue_team_accepted.findings is empty). Skipping remediation re-dispatch (null-case guard); proceeding to Phase F."` and continue to Phase F.
+
+Case (a) skips Steps 2–4 entirely; case (b) only skips Step 4 (Step 3 still runs). The two branches MUST be preserved separately — a naive single-guard implementation would conflate the PRE-filter and POST-filter null cases.
+
+**Re-dispatch (when `blue_team_accepted.findings` is non-empty)**:
+
+1. **Extract unique `target_story_ids`** from the accepted findings:
+   ```bash
+   target_story_ids=$(jq -r '[.blue_team_accepted.findings[].target_story_id] | unique | join(",")' "$ARTIFACT_PATH")
+   ```
+
+2. **Build the by-reference `remediation_context` payload**. The payload references reviewer artifacts by **absolute file path** (red-team artifact path + blue-team artifact path) plus the extracted `target_story_ids` list. The payload MUST NOT embed finding bodies — the producer (dso:story-decomposer in DELTA OUTPUT mode) re-reads the artifacts at the absolute paths and quotes evidence from each before emitting drafts (pre-generation Read gate, owned by sibling story a7c0-8e53-3502-4ddd).
+
+   The canonical payload shape is defined in `${CLAUDE_PLUGIN_ROOT}/docs/contracts/remediation-context-payload.md` — that document is the source of truth and is owned by sibling story ab28-87ea-8140-4452. Do NOT inline or duplicate the payload spec here; this prompt only references the contract by absolute path.
+
+   Skeleton (the linked spec is authoritative for the full shape):
+   ```json
+   {
+     "remediation_context": {
+       "red_team_artifact_path": "<absolute path: $RED_TEAM_ARTIFACT_PATH>",
+       "blue_team_artifact_path": "<absolute path: $BLUE_TEAM_ARTIFACT_PATH>",
+       "target_story_ids": ["<id1>", "<id2>", ...]
+     }
+   }
+   ```
+
+3. **Dispatch dso:story-decomposer** with `subagent_type: "dso:story-decomposer"` and the literal `model: "opus"` field on the dispatch payload. The `model: "opus"` token MUST be present on the dispatch line so the synthetic-findings fixture catches accidental sonnet downgrade:
+   ```
+   Task(
+     subagent_type: "dso:story-decomposer",
+     model: "opus",
+     prompt: <constructed-from-remediation_context>
+   )
+   ```
+   If the named subagent_type is unregistered, fall back to `subagent_type: "general-purpose"` while still passing `model: "opus"` and `agents/story-decomposer.md` content read inline as the prompt.
+
+4. **Instruct DELTA OUTPUT mode + evidence-quote in the dispatch prompt** (dispatch-block INSTRUCTIONS only — the producer's runtime output assertions are owned by sibling story a7c0). The dispatch prompt MUST instruct the sub-agent to:
+   - Declare `DELTA OUTPUT` mode at the top of its response (literal token).
+   - Quote evidence verbatim from each artifact path (one evidence quote per artifact) before emitting any story draft — the producer's pre-generation Read gate.
+   - Emit only stories whose `target_story_id` appears in the passed `target_story_ids` list — NO full re-decomposition; absence of unlisted stories is a contract assertion that the fixture verifies.
+
+5. **Consume the delta only**. After the sub-agent returns, parse the `DELTA OUTPUT` block and apply only the new/modified stories. Stories outside the passed `target_story_ids` MUST be absent from the producer's response; if any unlisted stories appear, log a contract violation and discard them.
+
+6. **Record a single ticket comment** on the epic referencing the dispatch (SC5 single-comment policy):
+   ```bash
+   .claude/scripts/dso ticket comment <epic-id> "Remediation re-dispatch (Phase E): dso:story-decomposer (model: opus) invoked with remediation_context referencing $RED_TEAM_ARTIFACT_PATH + $BLUE_TEAM_ARTIFACT_PATH; target_story_ids: $target_story_ids"
+   ```
+
+Log a summary after the re-dispatch returns:
+```
+Adversarial review complete:
+- SC coverage: <fully> fully / <partial> partial / <uncovered> uncovered / <oos> out-of-scope-for-stories
+- Red team findings: <N> total (<S> sc_coverage_gap, <O> other)
+- Blue team filtered: <M> rejected, <K> accepted
+- Remediation re-dispatch: <emitted | skipped (null-case guard)>; producer delta: <P> new stories, <Q> modified done definitions
+```
 
 ## Step 5: Continue to Phase F
 

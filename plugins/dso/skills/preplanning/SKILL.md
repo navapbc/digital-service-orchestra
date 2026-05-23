@@ -482,6 +482,49 @@ If no stories in the plan qualify for integration research, log: "No stories wit
 
 **Load**: `${CLAUDE_PLUGIN_ROOT}/skills/preplanning/prompts/phase-e-adversarial-review.md` and follow it. The phase dispatches `dso:red-team-reviewer` (opus, passed explicitly via `model: "opus"`) with `mode: story_review` to (a) audit that every epic Success Criterion is fully covered by the collective story Done Definitions and (b) perform cross-story gap analysis. The red team returns a mandatory `sc_coverage_summary` block plus a `findings` array tagged with the 8-value `taxonomy_category` enum (including `sc_coverage_gap`). `dso:blue-team-filter` (sonnet) then triages the findings; surviving findings are applied per the Finding Type table (`new_story`, `modify_done_definition`, `add_dependency`, `add_consideration`, `escalate_to_epic`); the full exchange — `sc_coverage_summary` + red/blue findings — is persisted to `$ARTIFACTS_DIR/adversarial-review-<epic-id>.json`; and `REPLAN_ESCALATE: brainstorm` is emitted when a finding escalates to the epic and `sprint.max_replan_cycles` has not been exhausted.
 
+**Re-dispatch loop (b345 block — Phase E remediation loop protocol)**
+
+When `dso:blue-team-filter` returns non-empty findings, the orchestrator enters a remediation loop governed by the shared protocol below. Source `MAX_CYCLES` from `get_max_remediation_cycles()` in `${CLAUDE_PLUGIN_ROOT}/hooks/lib/planning-config.sh` before entering the loop.
+
+**Per-cycle declaration**: At the start of every remediation cycle, emit exactly:
+`Current cycle: N of MAX_CYCLES`
+where `N` is the 1-based cycle counter and `MAX_CYCLES` is the resolved maximum. This line is required before any findings, deltas, or token emissions within that cycle.
+
+**Oscillation-check hard gate (cycle >= 2)**: On any cycle where `N >= 2`, the orchestrator MUST invoke `/dso:oscillation-check` (Skill) before proceeding with findings analysis. Skipping this gate requires an explicit `OSCILLATION_CHECK_SKIPPED: <reason>` ticket comment capturing the rationale; no other skip reason is permitted.
+
+**Mid-loop success exit**: If `dso:blue-team-filter` returns empty findings on any cycle (before reaching `MAX_CYCLES`), the loop exits immediately and Phase E proceeds to Phase F. No terminal token is emitted on success.
+
+**HALT-vs-REPLAN exclusivity check**: `REPLAN_ESCALATE` MUST be emitted IFF `cycle_count == MAX_CYCLES AND findings non-empty`. No other condition may emit `REPLAN_ESCALATE`. All other terminal states use a different token — human-input required → `HALT_FOR_USER`; oscillation detected → `OSCILLATION_HALT`; illegal state transition → `PROTOCOL_ERROR`. Emitting `REPLAN_ESCALATE` under any other condition, or emitting it together with `PROTOCOL_ERROR`, is itself a `PROTOCOL_ERROR`.
+
+**Terminal REPLAN_ESCALATE**: On cycle `MAX_CYCLES` with findings still non-empty, emit (per the canonical `${CLAUDE_PLUGIN_ROOT}/docs/contracts/replan-escalate-signal.md` colon-space prefix):
+`REPLAN_ESCALATE: brainstorm EXPLANATION:<explanation text>`
+The upstream for preplanning Phase E is `brainstorm` (per the upstream enum in Section 6 of the protocol doc). Emit this as a standalone ticket comment so the orchestrator's parent session can detect and route the escalation. The literal prefix `REPLAN_ESCALATE: ` (colon followed by a single space) and the `EXPLANATION:` field label are fixed by contract — do not vary them.
+
+**PROTOCOL_ERROR on invariant violation**: Any illegal state transition — emitting `REPLAN_ESCALATE` when `cycle_count < MAX_CYCLES`, emitting multiple terminal tokens, or violating the HALT-vs-REPLAN exclusivity invariant — MUST emit `PROTOCOL_ERROR` and halt remediation immediately.
+
+See: `${CLAUDE_PLUGIN_ROOT}/skills/shared/workflows/remediation-loop-protocol.md`
+
+**Per-cycle artifact append (084d/83d4 block — cycle recorder)**
+
+After each cycle's re-dispatch and review, atomically append a `cycles[]` entry to the adversarial-review artifact using the writer:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/append_review_cycle.py" \
+  --artifact "$ARTIFACTS_DIR/adversarial-review-<epic-id>.json" \
+  --n <cycle-number> \
+  --draft-hash <sha256 of DELTA OUTPUT block> \
+  --findings-count <int> \
+  --verdict <pass|fail|escalate>
+```
+
+After the append, emit exactly ONE ticket comment per cycle that references the artifact path:
+
+```bash
+.claude/scripts/dso ticket comment <ticket-id> "Remediation cycle <n> recorded at $ARTIFACTS_DIR/adversarial-review-<epic-id>.json"
+```
+
+**Single-comment policy (SC5)**: The ticket comment references the artifact path and does NOT duplicate the cycle body — cycle entries live in the artifact's `cycles[]` array, not in ticket comments. One comment per cycle; no further detail in the comment body.
+
 ---
 
 ## Refusal Gate: External Dependencies Block Check (/dso:preplanning)

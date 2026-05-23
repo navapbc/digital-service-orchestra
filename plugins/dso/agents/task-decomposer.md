@@ -68,6 +68,36 @@ On 3 consecutive opus failures (6 total): escalate to user with full failure his
 If MAX_AGENTS: 0 at sonnet→opus escalation time: skip opus step, escalate to user immediately
 ```
 
+### Remediation Context (optional)
+
+When the orchestrator is re-invoking this agent during a remediation cycle (e.g., after a reviewer identified gaps in the prior cycle's task list), it may pass a `remediation_context` object. This input is OPTIONAL — when absent, the agent follows the existing protocol unchanged and emits the standard success response with all three top-level keys (`task_drafts`, `dd_partition_map`, `decomposition_notes`).
+
+```json
+{
+  "reviewer_artifact_paths": [
+    "<absolute path to reviewer artifact markdown file>",
+    "<additional absolute path, if multiple reviewers ran>"
+  ],
+  "findings": [
+    {
+      "target": "<temp_id or existing task id this finding targets, or 'n/a' for set-wide findings>",
+      "description": "<what is wrong; verbatim summary of the reviewer's finding>"
+    }
+  ],
+  "target_story_id": "<the story this delta cycle is scoped to>"
+}
+```
+
+Sub-fields:
+
+- `reviewer_artifact_paths` (array of absolute paths) — reviewer artifacts that drive this delta cycle. Each path MUST be Read by the agent before any task is drafted (see DELTA OUTPUT MODE).
+- `findings` (array) — structured findings. Each finding carries at minimum a `target` (the `temp_id` or existing task id it addresses, or `n/a` for set-wide findings) and a `description` (verbatim finding text from the reviewer).
+- `target_story_id` (string) — the story id this delta cycle is scoped to. Used to filter the delta output to only tasks attached to that story (see DELTA OUTPUT MODE).
+
+When `remediation_context` is absent (or empty), the agent behaves bit-identically to its default mode — the output shape is unchanged. See **DELTA OUTPUT MODE** below.
+
+For MAX_CYCLES governance, escalation-token semantics, and the full delta-cycle protocol, see `${CLAUDE_PLUGIN_ROOT}/skills/shared/workflows/remediation-loop-protocol.md`.
+
 ## Decomposition Protocol
 
 Execute these steps in order. Do NOT shortcut.
@@ -148,6 +178,58 @@ Re-read your output against this checklist before emitting:
 7. No task bundles two independently-testable behaviors (Gate 3 violation).
 
 If any check fails, iterate until valid. Do not emit an invalid set.
+
+## DELTA OUTPUT MODE
+
+When `remediation_context` is provided (see Inputs > Remediation Context), the agent emits a **delta-only** response that updates the prior cycle's task list in place rather than regenerating from scratch. The full DELTA OUTPUT template (per-cycle declaration, termination tokens, items_added/removed/modified accounting) is defined in `${CLAUDE_PLUGIN_ROOT}/skills/shared/workflows/remediation-loop-protocol.md`. The per-agent schema-preservation rules for this agent are in the same doc under `### Schema Preservation — task-decomposer` — those four rules (preserved top-level keys verbatim, preserve-by-omission, TDD-structure preservation on the merged set — which bundles RED-before-GREEN ordering, `depends_on` chain integrity, `testing_mode` carry-forward, and the DD-partition-map invariant — and acceptance-criteria preservation for unchanged tasks) are normative for every delta emitted by this agent.
+
+The following runtime rules are **non-delegatable** — they MUST be honored inline by this agent on every delta cycle, regardless of the protocol doc:
+
+**Step 1 — Emit the mode declaration token first:**
+
+```
+=== DELTA OUTPUT MODE ===
+```
+
+**Step 2 — Pre-generation Read gate (REQUIRED before drafting):**
+
+Read each absolute path in `reviewer_artifact_paths` BEFORE drafting any task. Only after ALL artifacts have been Read may the agent emit any task draft in the delta output. For each artifact, emit an evidence block:
+
+```
+EVIDENCE FROM <absolute path>:
+<verbatim quote from the artifact — the finding text and recommendation>
+```
+
+One `EVIDENCE FROM <path>:` block per reviewer-artifact path. The literal prefix `EVIDENCE FROM` is mandatory — the orchestrator parses it to verify the pre-generation Read gate ran. If any Read returns a non-existent path or empty file, emit:
+
+```json
+{"error": "remediation_context_artifact_unreadable", "path": "<offending path>"}
+```
+
+and halt — do NOT emit any task drafts.
+
+**Step 3 — Preserve-by-omission rule:**
+
+Tasks not named in any finding MUST be **omitted** from the delta output entirely. Unchanged tasks are preserved by their absence from the delta — the orchestrator carries them forward verbatim from the prior cycle. Only tasks explicitly named in `findings` (via the `target` field) appear in the delta output, and only with the modifications the findings require. Emitting a preserved task in the delta is a protocol violation; omitting a modified task is equally a violation.
+
+**Step 4 — Build the target task set via `target_story_id` filter:**
+
+Collect every task that the `findings` array names via its `target` field (set-wide findings whose `target` is `n/a` modify the set as a whole, not a specific task). Cross-check against `target_story_id`: emit **only** tasks attached to that story id. Tasks not in that set are absent from output — no full re-decomposition for stories outside the target.
+
+**TDD-schema preservation (non-delegatable):**
+
+For tasks being modified in the delta, the agent MUST preserve the following TDD invariants across the merged set:
+
+- **RED-before-GREEN task ordering** — a task with `testing_mode: "RED"` for a given behavior MUST precede any `testing_mode: "GREEN"` or `testing_mode: "UPDATE"` task that depends on that behavior.
+- **`depends_on` chain integrity** — no orphaned edges: every referenced `temp_id` or pre-existing ticket id MUST resolve to a task in the merged set or an existing ticket.
+- **`testing_mode` field carry-forward** — the `testing_mode` field (RED/GREEN/UPDATE) on each preserved task MUST carry forward verbatim; a delta MUST NOT silently change a preserved task's testing mode.
+- **DD-partition-map invariant** — every story DD continues to be owned by **exactly one** task across the merged set. Delta-mode output MUST NOT silently drop a DD (orphaned DD with no owning task) or duplicate DD ownership (the same DD listed under two tasks' `story_dd_coverage`). Re-check `dd_partition_map` and every modified task's `story_dd_coverage` against the merged set, not only the modified subset.
+
+The agent MUST re-check these invariants on the merged set, not only on the modified subset. If the merged set violates any invariant, the agent MUST surface a finding rather than emitting an invalid delta.
+
+**Strict ordering**: emit mode declaration token → Read all artifacts → emit `EVIDENCE FROM` quotes → emit modified-task deltas → emit DELTA OUTPUT accounting block from the shared protocol. Never reorder.
+
+**Backward-compatible default**: when `remediation_context` is absent, skip the DELTA OUTPUT MODE block entirely and emit the standard success response per **Output Format** below. The output shape is unchanged from the pre-remediation behavior — `task_drafts`, `dd_partition_map`, and `decomposition_notes` all appear as documented, and no `=== DELTA OUTPUT MODE ===` token is emitted.
 
 ## Output Format
 
