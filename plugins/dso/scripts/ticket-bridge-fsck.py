@@ -209,6 +209,47 @@ def enumerate_stale_anomalies(
     return enriched
 
 
+def enumerate_duplicate_anomalies(tickets_dir: Path) -> list[dict]:
+    """Return enriched duplicate-mapping anomaly records from the bridge audit.
+
+    Delegates to ``audit_bridge_mappings`` internally and enriches each
+    duplicate record with the fields required by the anomaly contract:
+
+    * ``class_label``          — always ``"duplicate"``
+    * ``proposed_remediation`` — ``"close newer duplicates"``
+    * ``keeper``               — ``ticket_ids[0]`` (first = oldest by Jira
+                                 created_at ordering, preserved by the audit)
+    * ``closees``              — ``ticket_ids[1:]`` (all IDs after the keeper)
+
+    Each raw duplicate record from ``audit_bridge_mappings`` has the shape:
+    ``{jira_key, ticket_ids: [...]}``.  The enriched records returned here
+    carry those same fields plus the four enrichment fields above.
+
+    The existing ``audit_bridge_mappings`` return shape is preserved and its
+    CLI behaviour is unaffected.
+
+    Args:
+        tickets_dir: Path to the ticket tracker directory.
+
+    Returns:
+        A list of dicts, each containing at minimum:
+        ``jira_key``, ``ticket_ids``, ``class_label``, ``proposed_remediation``,
+        ``keeper``, ``closees``.
+    """
+    findings = audit_bridge_mappings(tickets_dir)
+    raw_duplicates = findings.get("duplicates", [])
+    enriched: list[dict] = []
+    for record in raw_duplicates:
+        entry = dict(record)
+        entry.setdefault("class_label", "duplicate")
+        entry.setdefault("proposed_remediation", "close newer duplicates")
+        ticket_ids = record.get("ticket_ids", [])
+        entry.setdefault("keeper", ticket_ids[0] if ticket_ids else None)
+        entry.setdefault("closees", ticket_ids[1:] if len(ticket_ids) > 1 else [])
+        enriched.append(entry)
+    return enriched
+
+
 def enumerate_orphan_anomalies(tickets_dir: Path) -> list[dict]:
     """Return enriched orphan anomaly records from the bridge audit.
 
