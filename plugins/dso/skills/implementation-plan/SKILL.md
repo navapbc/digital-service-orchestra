@@ -1076,6 +1076,38 @@ Add a **Gap Analysis Results** section:
 
 **When invoked from `/dso:sprint`**: after updating the summary, emit STATUS:complete per the Output Protocol. Do not wait for user input. Do not halt the session — STATUS:complete is a return value for the sprint orchestrator to parse; the orchestrator continues autonomously.
 
+### Remediation Re-dispatch
+
+On Step 6 gap-analysis findings (non-empty findings from the gap-analysis opus sub-agent that target existing tasks), re-dispatch `dso:task-decomposer` with literal `model: "opus"` on the dispatch payload to revise affected tasks in response to gap-analysis concerns.
+
+Build a `remediation_context` block before dispatching. Pass all artifact file paths by reference (absolute paths — do not inline file contents). The shape MUST match the schema declared in `${CLAUDE_PLUGIN_ROOT}/agents/task-decomposer.md` under `### Remediation Context (optional)`:
+
+```json
+{
+  "remediation_context": {
+    "reviewer_artifact_paths": [
+      "<absolute path to gap-analysis-<story-id>.json written by the gap-analysis sub-agent>",
+      "<absolute path to the task plan artifact from Step 5, if available>"
+    ],
+    "findings": [
+      {
+        "target": "<temp_id or existing task id this finding targets, or 'n/a' for set-wide concerns>",
+        "description": "<verbatim evidence quote from gap-analysis findings — copy the exact finding text that triggered the remediation>"
+      }
+    ],
+    "target_story_id": "<story id this delta cycle is scoped to>"
+  }
+}
+```
+
+The orchestrator-level dispatch operates in `mode: remediation` — i.e., the presence of `remediation_context` activates `dso:task-decomposer`'s DELTA OUTPUT MODE and produces only the changed tasks rather than a full re-decomposition. Do NOT add a `mode` field inside the `remediation_context` object itself (the schema does not declare it).
+
+Delta-mode behavior: the agent will preserve-by-omission — tasks not named in any finding are absent from the delta output but preserved verbatim in the merged set. Only tasks explicitly named in `findings` (via the `target` field) appear in the delta output with the modifications the findings require.
+
+After receiving the revised task set, merge the delta with the prior cycle's tasks and re-enter Step 6 Gap Analysis only if the gap-analysis sub-agent flagged structural issues requiring re-analysis; otherwise proceed to summary update. If the re-dispatched task-decomposer returns `model_requirement_unmet`, apply the same retry-once rule as in the Step 3 Dispatch section.
+
+Record exactly one `.claude/scripts/dso ticket comment <id> "REMEDIATION_CYCLE:<N> task-decomposer re-dispatched after Step 6 gap-analysis findings"` per cycle per SC5 single-comment policy.
+
 ---
 
 ## Common Mistakes (non-obvious)
