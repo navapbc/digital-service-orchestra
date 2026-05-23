@@ -57,6 +57,7 @@ def reconcile_once(pass_id: str, repo_root: Path | None = None) -> dict:
     differ = _load("reconcile_differ", "differ.py")
     applier = _load("reconcile_applier", "applier.py")
     health_mod = _load("reconcile_health", "health.py")
+    invariants_mod = _load("reconcile_invariants", "invariants.py")
 
     # Ensure snapshots directory exists
     snapshots_dir = repo_root / "bridge_state" / "snapshots"
@@ -69,6 +70,15 @@ def reconcile_once(pass_id: str, repo_root: Path | None = None) -> dict:
     # Fetch current remote state
     curr_path = fetcher.fetch_snapshot(pass_id, repo_root)
     curr_snapshot: dict = json.loads(curr_path.read_text())
+
+    # Check structural invariants on the post-fetch snapshot, before diffing
+    violations = invariants_mod.check_at_most_one_dso_local_id(
+        curr_snapshot, repo_root=repo_root
+    )
+    filed = violations  # check_at_most_one_dso_local_id returns only the filed violations
+    print(  # noqa: T201
+        f"invariants: scanned={len(curr_snapshot)} violations={len(filed)} filed={len(filed)}"
+    )
 
     # Compute mutations (pure function, no I/O)
     mutations = differ.compute_mutations(prev_snapshot, curr_snapshot)
