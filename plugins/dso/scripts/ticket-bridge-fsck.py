@@ -167,6 +167,44 @@ def audit_bridge_mappings(
     return {"orphaned": orphaned, "duplicates": duplicates, "stale": stale}
 
 
+def enumerate_orphan_anomalies(tickets_dir: Path) -> list[dict]:
+    """Return enriched orphan anomaly records from the bridge audit.
+
+    Calls ``audit_bridge_mappings`` internally and enriches each orphaned
+    record with the fields required by the anomaly contract:
+
+    * ``class_label``          — always ``"orphan"``
+    * ``side``                 — ``"local-only"`` when a local ticket exists but
+                                 has no Jira counterpart (SYNC without CREATE),
+                                 ``"jira-only"`` for Jira-sourced entries with
+                                 no local ticket.  The current audit model only
+                                 produces local-only orphans, so all records
+                                 emitted today carry ``"local-only"``.
+    * ``proposed_remediation`` — ``"delete orphan mapping"``
+
+    The existing ``audit_bridge_mappings`` return shape is preserved and its
+    CLI behaviour is unaffected.
+
+    Args:
+        tickets_dir: Path to the ticket tracker directory.
+
+    Returns:
+        A list of dicts, each containing at minimum:
+        ``ticket_id``, ``jira_key``, ``class_label``, ``side``,
+        ``proposed_remediation``.
+    """
+    findings = audit_bridge_mappings(tickets_dir)
+    raw_orphans = findings.get("orphaned", [])
+    enriched: list[dict] = []
+    for record in raw_orphans:
+        entry = dict(record)
+        entry.setdefault("class_label", "orphan")
+        entry.setdefault("side", "local-only")
+        entry.setdefault("proposed_remediation", "delete orphan mapping")
+        enriched.append(entry)
+    return enriched
+
+
 # ---------------------------------------------------------------------------
 # Output formatting
 # ---------------------------------------------------------------------------
