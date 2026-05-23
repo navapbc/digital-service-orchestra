@@ -45,6 +45,36 @@ If the orchestrator is in a revision cycle (NEW_COUNT ≥ 1), this block carries
 
 Read `${CLAUDE_PLUGIN_ROOT}/skills/shared/prompts/complexity-gate.md` and apply Gates 1, 2, and 3 to every proposal before emitting it. A proposal that fails a gate without a `justified-complexity` block must be revised or replaced.
 
+### Remediation Context (optional)
+
+When the orchestrator is re-invoking this agent during a remediation cycle (e.g., after a scrutiny reviewer identified gaps in the prior cycle's proposals), it may pass a `remediation_context` object. This input is OPTIONAL — when absent, the agent follows the existing protocol unchanged and emits the standard success response with all four top-level keys (`proposals`, `distinctness_summary`, `complexity_gate_summary`, `generation_notes`).
+
+```json
+{
+  "reviewer_artifact_paths": [
+    "<absolute path to reviewer artifact markdown file>",
+    "<additional absolute path, if multiple reviewers ran>"
+  ],
+  "findings": [
+    {
+      "target": "<proposal-N id this finding targets, or 'n/a' for set-wide findings>",
+      "description": "<what is wrong; verbatim summary of the reviewer's finding>"
+    }
+  ],
+  "target_story_id": "<the story this delta cycle is scoped to>"
+}
+```
+
+Sub-fields:
+
+- `reviewer_artifact_paths` (array of absolute paths) — reviewer artifacts that drive this delta cycle. Each path MUST be Read by the agent before any approach is drafted (see DELTA OUTPUT MODE).
+- `findings` (array) — structured findings. Each finding carries at minimum a `target` (the proposal id it addresses, or `n/a` for set-wide findings) and a `description` (verbatim finding text from the reviewer).
+- `target_story_id` (string) — the story id this delta cycle is scoped to. Used to filter the delta output to only proposals attached to that story (see DELTA OUTPUT MODE).
+
+When `remediation_context` is absent (or empty), the agent behaves bit-identically to its default mode — the output shape is unchanged. See **DELTA OUTPUT MODE** below.
+
+For MAX_CYCLES governance, escalation-token semantics, and the full delta-cycle protocol, see `${CLAUDE_PLUGIN_ROOT}/skills/shared/workflows/remediation-loop-protocol.md`.
+
 ## Proposal Generation Protocol
 
 Execute these steps in order. Do NOT shortcut.
@@ -105,6 +135,47 @@ Re-read your proposal set against this checklist:
 5. Every proposal has at least one entry each in `pros` and `cons` (balance rule from `proposal-schema.md`).
 
 If any check fails, iterate until the set is valid. Do not emit an invalid set.
+
+## DELTA OUTPUT MODE
+
+When `remediation_context` is provided (see Inputs > Remediation Context), the agent emits a **delta-only** response that updates the prior cycle's proposal set in place rather than regenerating from scratch. The full DELTA OUTPUT template (per-cycle declaration, termination tokens, items_added/removed/modified accounting) is defined in `${CLAUDE_PLUGIN_ROOT}/skills/shared/workflows/remediation-loop-protocol.md`. The per-agent schema-preservation rules for this agent are in the same doc under `### Schema Preservation — approach-proposer` — those four rules (preserved top-level keys verbatim, preserve-by-omission, distinctness-gate preservation on the merged set, complexity-gate preservation for unchanged proposals) are normative for every delta emitted by this agent.
+
+The following two runtime rules are **non-delegatable** — they MUST be honored inline by this agent on every delta cycle, regardless of the protocol doc:
+
+**Step 1 — Emit the mode declaration token first:**
+
+```
+=== DELTA OUTPUT MODE ===
+```
+
+**Step 2 — Pre-generation Read gate (REQUIRED before drafting):**
+
+Read each absolute path in `reviewer_artifact_paths` BEFORE drafting any approach. Only after ALL artifacts have been Read may the agent emit any proposal in the delta output. For each artifact, emit an evidence block:
+
+```
+EVIDENCE FROM <absolute path>:
+<verbatim quote from the artifact — the finding text and recommendation>
+```
+
+One `EVIDENCE FROM <path>:` block per reviewer-artifact path. The literal prefix `EVIDENCE FROM` is mandatory — the orchestrator parses it to verify the pre-generation Read gate ran. If any Read returns a non-existent path or empty file, emit:
+
+```json
+{"error": "remediation_context_artifact_unreadable", "path": "<offending path>"}
+```
+
+and halt — do NOT emit any proposals.
+
+**Step 3 — Preserve-by-omission rule:**
+
+Proposals not named in any finding MUST be **omitted** from the delta output entirely. Unchanged proposals are preserved by their absence from the delta — the orchestrator carries them forward verbatim from the prior cycle. Only proposals explicitly named in `findings` (via the `target` field) appear in the delta output, and only with the modifications the findings require. Emitting a preserved proposal in the delta is a protocol violation; omitting a modified proposal is equally a violation.
+
+**Step 4 — Build the target proposal set via `target_story_id` filter:**
+
+Collect every proposal that the `findings` array names via its `target` field (set-wide findings whose `target` is `n/a` modify the set as a whole, not a specific proposal). Cross-check against `target_story_id`: emit **only** proposals attached to that story id. Proposals not in that set are absent from output (no full re-decomposition for stories outside the target).
+
+**Strict ordering**: emit mode declaration token → Read all artifacts → emit `EVIDENCE FROM` quotes → emit modified-proposal deltas → emit DELTA OUTPUT accounting block from the shared protocol. Never reorder.
+
+**Backward-compatible default**: when `remediation_context` is absent, skip the DELTA OUTPUT MODE block entirely and emit the standard success response per **Output Format** below. The output shape is unchanged from the pre-remediation behavior — `proposals`, `distinctness_summary`, `complexity_gate_summary`, and `generation_notes` all appear as documented, and no `=== DELTA OUTPUT MODE ===` token is emitted.
 
 ## Output Format
 
