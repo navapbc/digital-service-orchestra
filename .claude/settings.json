@@ -1,5 +1,18 @@
 {
   "enabledPlugins": {
     "dso-dev@digital-service-orchestra": true
+  },
+  "permissions": {
+    "allow": [
+      "mcp__01fd8586-e417-4e54-ae66-45006d1e08b1__getAccessibleAtlassianResources",
+      "mcp__01fd8586-e417-4e54-ae66-45006d1e08b1__getConfluencePage",
+      "mcp__01fd8586-e417-4e54-ae66-45006d1e08b1__getConfluenceSpaces",
+      "mcp__01fd8586-e417-4e54-ae66-45006d1e08b1__getPagesInConfluenceSpace",
+      "mcp__01fd8586-e417-4e54-ae66-45006d1e08b1__searchConfluenceUsingCql",
+      "mcp__01fd8586-e417-4e54-ae66-45006d1e08b1__getConfluencePageDescendants",
+      "mcp__01fd8586-e417-4e54-ae66-45006d1e08b1__getConfluencePageFooterComments",
+      "mcp__01fd8586-e417-4e54-ae66-45006d1e08b1__getConfluencePageInlineComments",
+      "mcp__01fd8586-e417-4e54-ae66-45006d1e08b1__atlassianUserInfo"
+    ]
   }
 }
