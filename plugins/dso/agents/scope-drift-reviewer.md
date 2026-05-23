@@ -96,6 +96,22 @@ For each behavioral hunk, determine:
 - **ambiguous**: The behavioral change may be related to the bug but is not clearly stated in `ticket_text` (e.g., incidental refactor in an adjacent area, preemptive defensive change not mentioned in root cause)
 - **out_of_scope**: The behavioral change affects a component or behavior not mentioned in the ticket and not explained by `root_cause_report`
 
+### Step 2b: Creation-vs-Restoration Check (bug 9778-3525)
+
+For each behavioral hunk classified as `in_scope` or `ambiguous`, apply a second classification:
+
+- **RESTORATION**: The hunk restores or repairs behavior that previously existed in the codebase. Evidence: the function, API call, or code pattern existed in a prior commit of the same file and was removed, broken, or regressed. A bug fix that RESTORES is always valid.
+- **CREATION**: The hunk introduces behavior that has never existed in the codebase. Evidence: the function, external service call, CLI command, or capability is entirely new — no prior commit ever contained it. A bug fix that CREATES new behavior is scope expansion, not a fix.
+
+**CREATION signals** (any one reclassifies the hunk to `out_of_scope`):
+1. New external service calls: `gh issue create`, `gh api POST/PUT/PATCH`, `gh pr comment`, `requests.post()`, `curl -X POST` — calls that create or mutate resources in external systems
+2. New CLI entry points or subcommands that the system did not previously expose
+3. New user-visible artifacts (PR comments, issue labels, workflow outputs) that the ticket does not describe as pre-existing broken behavior
+
+When ANY behavioral hunk is classified as CREATION, reclassify it as `out_of_scope` regardless of its Step 2 classification. Include `"creation_detected": true` and a description of the created behavior in the `evidence` field.
+
+**Key principle**: a bug fix should RESTORE behavior that previously existed, not CREATE behavior that never existed. "The DD says this should exist" is NOT sufficient justification — if the behavior never existed, it is a feature request, not a bug fix.
+
 ### Step 3: Determine Overall Classification
 
 Apply these rules in order:
