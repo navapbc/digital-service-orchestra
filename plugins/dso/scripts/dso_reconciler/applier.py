@@ -12,6 +12,28 @@ import time
 from pathlib import Path
 
 
+# Exit code signalling that the caller should reschedule this pass.
+# Distinct from 1 (error) and 0 (success).  Chosen to be outside the
+# range used by common POSIX utilities so it remains unambiguous.
+EXIT_RESCHEDULE: int = 75
+
+
+class RescheduleError(Exception):
+    """Raised by apply() when rebase_retry exhausts all write attempts.
+
+    Carries the attempt count and the last error message so the caller can
+    emit a structured health event before exiting with EXIT_RESCHEDULE.
+    No retry-counter file is written to disk; the next pass starts fresh.
+    """
+
+    def __init__(self, attempt_count: int, last_error: str) -> None:
+        super().__init__(
+            f"reject_and_reschedule after {attempt_count} attempt(s): {last_error}"
+        )
+        self.attempt_count = attempt_count
+        self.last_error = last_error
+
+
 class JiraAPIError(Exception):
     """Exception raised by AcliClient stubs to simulate Jira HTTP error responses."""
 
@@ -231,6 +253,35 @@ def delete_one(mutation: dict, client) -> None:
     _call_with_retry(client.transition_issue, mutation.get("key"), "Closed")
 
 
+def _handle_failed_write_result(write_result, pass_id: str) -> None:
+    """Emit a health event to stderr and raise RescheduleError for a failed write.
+
+    Called when rebase_retry returns ok=False.  The only kind that maps to a
+    reschedule exit is 'reject_and_reschedule'; other kinds propagate as-is
+    through other code paths (HeadDriftError for drift, exception for error).
+
+    Args:
+        write_result: Result(ok=False) returned by rebase_retry.
+        pass_id:      Current reconciliation pass identifier (included in the
+                      health event for traceability).
+
+    Raises:
+        RescheduleError: Always, when this function is called.
+    """
+    event = write_result.event
+    attempt_count = event.attempt if event is not None else 0
+    last_error = event.message if event is not None else ""
+
+    health_event = {
+        "kind": "reject_and_reschedule",
+        "pass_id": pass_id,
+        "attempt_count": attempt_count,
+        "last_error": last_error,
+    }
+    print(json.dumps(health_event), file=sys.stderr)
+    raise RescheduleError(attempt_count=attempt_count, last_error=last_error)
+
+
 def apply(
     mutations: list[dict],
     pass_id: str,
@@ -255,8 +306,12 @@ def apply(
         Path to the written manifest file.
 
     Raises:
-        HeadDriftError: When the tickets-branch HEAD changes between mutations,
-                        indicating a concurrent write by another process.
+        HeadDriftError:   When the tickets-branch HEAD changes between mutations,
+                          indicating a concurrent write by another process.
+        RescheduleError:  When rebase_retry exhausts all write attempts
+                          (kind='reject_and_reschedule').  A health event JSON is
+                          emitted to stderr before the raise.  No retry-counter
+                          file is written to disk; the next pass starts fresh.
     """
     if repo_root is None:
         repo_root = Path(__file__).parents[4]
@@ -289,7 +344,7 @@ def apply(
             lambda: _write_pass_record(repo_root, pass_id, 0),
         )
         if not write_result.ok:
-            return write_result  # caller handles reject_and_reschedule
+            _handle_failed_write_result(write_result, pass_id)
         return manifest_path
 
     # Pin HEAD before first mutation
@@ -361,13 +416,14 @@ def apply(
 
     # Wrap the tickets-branch write in rebase_retry (up to 3 attempts).
     # On non-fast-forward push rejection the helper fetches + rebases + retries.
-    # On exhaustion, propagate Result(ok=False) to the caller (task-4 handles
-    # the reject-and-reschedule exit path).
+    # On exhaustion, emit a health event to stderr and raise RescheduleError so
+    # the process can exit with EXIT_RESCHEDULE.  No retry-counter file is
+    # written to disk; the next pass starts fresh.
     write_result = concurrency.rebase_retry(
         repo_root,
         lambda: _write_pass_record(repo_root, pass_id, len(mutations)),
     )
     if not write_result.ok:
-        return write_result  # caller handles reject_and_reschedule
+        _handle_failed_write_result(write_result, pass_id)
 
     return manifest_path

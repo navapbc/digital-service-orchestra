@@ -177,12 +177,12 @@ def test_apply_success_after_retry(tmp_path, applier, concurrency):
     assert call_count["n"] == 1, "rebase_retry must be called exactly once by apply()"
 
 
-def test_apply_exhaustion_returns_result(tmp_path, applier, concurrency):
-    """apply() where rebase_retry exhausts all attempts returns Result(ok=False).
+def test_apply_exhaustion_raises_reschedule_error(tmp_path, applier, concurrency):
+    """apply() where rebase_retry exhausts all attempts raises RescheduleError.
 
     When the tickets-branch write cannot succeed within max_attempts, apply()
-    must return the Result(ok=False, event.kind='reject_and_reschedule') so the
-    caller (task-4 reject-and-reschedule path) can handle it.
+    raises RescheduleError (task-4 reject-and-reschedule exit path) rather than
+    returning a Result object.  The error carries attempt_count and last_error.
     """
     pass_id = "2026-05-22-pass-rebase-03"
     mock_acli_mod, _ = _make_mock_acli_module()
@@ -207,12 +207,15 @@ def test_apply_exhaustion_returns_result(tmp_path, applier, concurrency):
         with __import__("unittest.mock", fromlist=["patch"]).patch.object(
             applier, "_load_acli", return_value=mock_acli_mod
         ):
-            result = applier.apply([], pass_id, repo_root=tmp_path)
+            with __import__("pytest").raises(applier.RescheduleError) as exc_info:
+                applier.apply([], pass_id, repo_root=tmp_path)
     finally:
         applier._load_concurrency = original_load_concurrency
 
-    assert not result.ok, "apply() must return Result(ok=False) on exhaustion"
-    assert result.event is not None, "Result must carry a ConcurrencyEvent on failure"
-    assert result.event.kind == "reject_and_reschedule", (
-        f"Expected kind='reject_and_reschedule', got {result.event.kind!r}"
+    err = exc_info.value
+    assert err.attempt_count == 3, (
+        f"RescheduleError.attempt_count must be 3, got {err.attempt_count}"
+    )
+    assert "exhausted 3 attempts" in err.last_error, (
+        f"RescheduleError.last_error must mention attempt count, got {err.last_error!r}"
     )
