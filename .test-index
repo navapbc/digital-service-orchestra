@@ -525,7 +525,7 @@ tests/scripts/test-infer-detected-by.sh:tests/scripts/test-infer-detected-by.sh 
 tests/scripts/test-bootstrap-calibration-tickets.sh:tests/scripts/test-bootstrap-calibration-tickets.sh
 plugins/dso/scripts/lib/reachability.sh:tests/scripts/test-reachability-helper.sh
 plugins/dso/scripts/jira-capability-probe.py:tests/scripts/test_jira_capability_probe.py
-plugins/dso/scripts/ticket-bridge-fsck.py:tests/unit/scripts/test_ticket_bridge_fsck_enumerate.py,tests/unit/scripts/test_ticket_bridge_fsck_enumerate_stale.py,tests/unit/scripts/test_ticket_bridge_fsck_enumerate_duplicates.py
+plugins/dso/scripts/ticket-bridge-fsck.py:tests/unit/scripts/test_ticket_bridge_fsck_enumerate.py,tests/unit/scripts/test_ticket_bridge_fsck_enumerate_stale.py,tests/unit/scripts/test_ticket_bridge_fsck_enumerate_duplicates.py,tests/unit/scripts/test_ticket_bridge_fsck_enumerate_open_count_skew.py
 plugins/dso/scripts/dso_reconciler/pre_cutover.py:tests/scripts/test_pre_cutover.py
 plugins/dso/scripts/dso_reconciler/forward_compat_probe.py:tests/scripts/test_forward_compat_probe.py
 plugins/dso/scripts/dso_reconciler/capability_check.py:tests/scripts/test_capability_check.py
@@ -534,9 +534,6 @@ plugins/dso/scripts/rollback-bridge-cutover.sh:tests/scripts/test-rollback-bridg
 plugins/dso/scripts/dso_reconciler/orphan_band.py:tests/scripts/test_orphan_band_plan.py,tests/unit/dso_reconciler/test_orphan_band_gate.py,tests/unit/dso_reconciler/test_orphan_band_apply.py
 plugins/dso/scripts/dso_reconciler/_attestation.py:tests/unit/dso_reconciler/test_attestation.py
 plugins/dso/scripts/dryrun-bridge-rollback-in-worktree.sh:tests/scripts/test-dryrun-bridge-rollback-in-worktree.sh,tests/scripts/test-rollback-dryrun-e2e.sh
-plugins/dso/scripts/dso_reconciler/stale_band.py:tests/unit/dso_reconciler/test_stale_band_plan.py
-plugins/dso/scripts/dso_reconciler/stale_band.py:tests/unit/dso_reconciler/test_stale_band_plan.py,tests/unit/dso_reconciler/test_stale_band_gate.py
-plugins/dso/scripts/dso_reconciler/duplicates_band.py:tests/unit/dso_reconciler/test_duplicates_band_plan.py
-plugins/dso/scripts/dso_reconciler/stale_band.py:tests/unit/dso_reconciler/test_stale_band_plan.py,tests/unit/dso_reconciler/test_stale_band_gate.py,tests/unit/dso_reconciler/test_stale_band_apply.py
 plugins/dso/scripts/dso_reconciler/stale_band.py:tests/unit/dso_reconciler/test_stale_band_plan.py,tests/unit/dso_reconciler/test_stale_band_gate.py,tests/unit/dso_reconciler/test_stale_band_apply.py
 plugins/dso/scripts/dso_reconciler/duplicates_band.py:tests/unit/dso_reconciler/test_duplicates_band_plan.py,tests/unit/dso_reconciler/test_duplicates_band_gate.py,tests/unit/dso_reconciler/test_duplicates_band_apply.py
+plugins/dso/scripts/dso_reconciler/open_count_skew_band.py:tests/unit/dso_reconciler/test_open_count_skew_band_plan.py,tests/unit/dso_reconciler/test_open_count_skew_band_apply.py

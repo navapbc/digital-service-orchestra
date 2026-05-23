@@ -250,6 +250,75 @@ def enumerate_duplicate_anomalies(tickets_dir: Path) -> list[dict]:
     return enriched
 
 
+def enumerate_open_count_skew_anomalies(tickets_dir: Path) -> list[dict]:
+    """Return open-count skew anomalies between local ticket store and Jira.
+
+    Makes 4 serial AcliClient.search_issues calls (one per type: epic/story/task/bug)
+    and walks the local ticket store to count local open items per type.
+    Returns list of {type, local_open, jira_open, delta} dicts for non-zero deltas only.
+
+    Args:
+        tickets_dir: Path to the ticket tracker directory.
+
+    Returns:
+        A list of dicts, each containing: type, local_open, jira_open, delta.
+        Only includes types where delta != 0.
+    """
+    import importlib.util as _ilu
+
+    # Load AcliClient via importlib (no package install required)
+    acli_path = Path(__file__).parent / "acli-integration.py"
+    spec = _ilu.spec_from_file_location("acli_integration", acli_path)
+    if spec is None:
+        raise FileNotFoundError(f"acli-integration.py not found at {acli_path}")
+    acli_mod = _ilu.module_from_spec(spec)
+    spec.loader.exec_module(acli_mod)  # type: ignore[union-attr]
+    client = acli_mod.AcliClient()
+
+    ticket_types = ["epic", "story", "task", "bug"]
+    results = []
+
+    for ttype in ticket_types:
+        # Count Jira open issues of this type
+        jira_issues = client.search_issues(
+            f"project = DIG AND issuetype = {ttype} AND status != Closed"
+        )
+        jira_open = len(jira_issues) if jira_issues is not None else 0
+
+        # Count local open tickets of this type
+        local_open = 0
+        if tickets_dir.is_dir():
+            for ticket_dir in tickets_dir.iterdir():
+                if not ticket_dir.is_dir():
+                    continue
+                event_files = sorted(ticket_dir.glob("*.json"))
+                ticket_type = None
+                ticket_status = None
+                for ef in event_files:
+                    data = _read_json(ef)
+                    if data is None:
+                        continue
+                    if data.get("event_type") == "CREATE":
+                        ticket_type = data.get("type", "")
+                    elif data.get("event_type") == "STATUS":
+                        ticket_status = data.get("status", "")
+                if ticket_type == ttype and ticket_status == "open":
+                    local_open += 1
+
+        delta = local_open - jira_open
+        if delta != 0:
+            results.append(
+                {
+                    "type": ttype,
+                    "local_open": local_open,
+                    "jira_open": jira_open,
+                    "delta": delta,
+                }
+            )
+
+    return results
+
+
 def enumerate_orphan_anomalies(tickets_dir: Path) -> list[dict]:
     """Return enriched orphan anomaly records from the bridge audit.
 
