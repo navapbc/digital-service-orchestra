@@ -412,6 +412,20 @@ def _build_parser() -> argparse.ArgumentParser:
         help="event_id of a prior event to link to (finding_event_id field). "
         "Takes precedence over --link lookup when provided directly by the parent.",
     )
+    parser.add_argument(
+        "--payload-field",
+        action="append",
+        default=[],
+        dest="payload_fields",
+        metavar="KEY=VALUE",
+        help="Add a per-event-type payload field to the envelope. May be "
+        "repeated. KEY is the field name (e.g., 'finding_id', 'tier'). VALUE "
+        "is parsed as JSON when it looks like JSON (e.g., 'true', '42', "
+        "'[\"a\",\"b\"]'); otherwise kept as a string. Used to populate "
+        "per-event-type fields without per-field argparse plumbing. See the "
+        "canonical schema at ${CLAUDE_PLUGIN_ROOT}/docs/contracts/"
+        "telemetry-event-schema.md for the per-event-type field list.",
+    )
     return parser
 
 
@@ -482,6 +496,23 @@ def main(argv: list[str] | None = None) -> int:
         "cycle": cycle,
         "language": language,
     }
+
+    # Inject per-event-type payload fields from --payload-field KEY=VALUE.
+    # JSON-shaped values (e.g., "true", "42", "[\"a\"]") are parsed as JSON
+    # so booleans, integers, and lists land in the envelope with the correct
+    # Python types — matching the canonical per-event-type schema enforced
+    # by the Lambda handler. Anything that doesn't parse cleanly as JSON is
+    # treated as a literal string.
+    for kv in args.payload_fields:
+        if "=" not in kv:
+            print(f"[telemetry] WARNING: --payload-field expects KEY=VALUE, got: {kv!r}", file=sys.stderr)
+            continue
+        key, _, value = kv.partition("=")
+        try:
+            parsed = json.loads(value)
+        except (ValueError, json.JSONDecodeError):
+            parsed = value
+        envelope[key] = parsed
 
     # Add cited_excerpt if provided (before privacy strip)
     if args.cited_excerpt is not None:
