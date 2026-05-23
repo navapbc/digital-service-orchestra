@@ -310,6 +310,16 @@ ensure_lambda_function() {
 
     echo "INFO: Creating Lambda function: $LAMBDA_FUNCTION_NAME"
 
+    # Build an empty-zip placeholder. /dev/null is not a zip archive and AWS
+    # CLI rejects `--zip-file fileb:///dev/null` with ParamValidation (bug 2c82).
+    # aws-deploy-handler.sh overwrites this with the real handler payload after
+    # the function exists.
+    local zip_placeholder
+    zip_placeholder="$(mktemp /tmp/dso-lambda-placeholder.XXXXXX.zip)"
+    python3 -c "import zipfile; zipfile.ZipFile('$zip_placeholder','w').close()"
+    # shellcheck disable=SC2064
+    trap "rm -f '$zip_placeholder'" EXIT
+
     local attempt=0
     local backoff=2
     while [[ $attempt -lt $MAX_CREATE_ATTEMPTS ]]; do
@@ -321,7 +331,7 @@ ensure_lambda_function() {
             --runtime "$LAMBDA_RUNTIME" \
             --role "$_ROLE_ARN" \
             --handler "lambda_function.handler" \
-            --zip-file "fileb:///dev/null" \
+            --zip-file "fileb://$zip_placeholder" \
             --output json 2>&1)" || create_exit=$?
 
         if [[ $create_exit -eq 0 ]]; then
