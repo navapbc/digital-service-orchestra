@@ -74,6 +74,18 @@ def cmd_gate(args: argparse.Namespace, repo_root: Path) -> int:
     return 0
 
 
+def _load_acli():
+    """Load acli-integration module via importlib."""
+    acli_path = Path(__file__).parent.parent / "acli-integration.py"
+    spec = importlib.util.spec_from_file_location("acli_integration", acli_path)
+    if spec is None:
+        raise FileNotFoundError(f"acli-integration.py not found at {acli_path}")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules.setdefault("acli_integration", mod)
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    return mod
+
+
 def cmd_plan(args: argparse.Namespace, repo_root: Path) -> int:
     """Write dry-run manifest of duplicate anomalies."""
     fsck = _load_fsck()
@@ -92,6 +104,72 @@ def cmd_plan(args: argparse.Namespace, repo_root: Path) -> int:
     output_path.write_text(json.dumps(manifest, indent=2))
 
     print(f"PLAN OK: wrote {len(anomalies)} anomalies to {output_path}")
+    return 0
+
+
+def cmd_apply(args: argparse.Namespace, repo_root: Path) -> int:
+    """Apply duplicate anomaly remediations: merge labels and close duplicate issues."""
+    # Inline gate check — reuse cmd_gate logic
+    gate_rc = cmd_gate(args, repo_root)
+    if gate_rc != 0:
+        print("APPLY FAIL: gate failed", file=sys.stderr)
+        return 1
+
+    bootstrap_dir = repo_root / "bridge_state" / "bootstrap"
+
+    manifest_path = bootstrap_dir / f"duplicates-{args.pass_id}.manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+
+    attested_path = bootstrap_dir / f"duplicates-{args.pass_id}.attested.json"
+    attested = json.loads(attested_path.read_text())
+    acknowledged_residual = attested.get("acknowledged_residual", 0)
+
+    acli = _load_acli()
+
+    outcomes: list[dict] = []
+    for anomaly in manifest["anomalies"]:
+        keeper: str = anomaly["keeper"]
+        closees: list[str] = anomaly["closees"]
+        jira_key: str = anomaly["jira_key"]
+
+        client = acli.AcliClient()
+
+        # (a) Label union into keeper
+        client.update_issue_labels(keeper, anomaly.get("labels", []))
+
+        # (b) For each duplicate: comment then close
+        for closee_key in closees:
+            client.add_issue_comment(
+                keeper, f"Merging duplicate {closee_key} into this issue."
+            )
+            client.transition_issue(closee_key, "Closed")
+
+        outcomes.append(
+            {
+                "jira_key": jira_key,
+                "keeper": keeper,
+                "closees": closees,
+                "status": "ok",
+            }
+        )
+
+    # Post-pass residual check
+    fsck = _load_fsck()
+    tickets_dir = repo_root / ".tickets-tracker"
+    post_pass = fsck.enumerate_duplicate_anomalies(tickets_dir)
+
+    if len(post_pass) > acknowledged_residual:
+        print(
+            f"APPLY FAIL: post-pass count {len(post_pass)} > residual {acknowledged_residual}",
+            file=sys.stderr,
+        )
+        return 1
+
+    # Write apply log
+    log_path = bootstrap_dir / f"duplicates-{args.pass_id}.apply.log.json"
+    log_path.write_text(json.dumps(outcomes, indent=2))
+
+    print(f"APPLY OK: {len(outcomes)} sets processed, post-pass: {len(post_pass)}")
     return 0
 
 
@@ -114,6 +192,18 @@ def main(argv: list[str] | None = None) -> int:
     gate_p.add_argument("--pass", dest="pass_id", required=True)
     gate_p.add_argument("--repo-root", default=None)
 
+    apply_p = sub.add_parser(
+        "apply", help="Apply duplicate anomaly remediations (merge labels + close)"
+    )
+    apply_p.add_argument(
+        "--pass", dest="pass_id", required=True, help="Pass identifier"
+    )
+    apply_p.add_argument(
+        "--repo-root",
+        default=None,
+        help="Repository root (default: auto-detect)",
+    )
+
     args = parser.parse_args(argv)
 
     if args.command is None:
@@ -127,6 +217,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "gate":
         return cmd_gate(args, repo_root)
+
+    if args.command == "apply":
+        return cmd_apply(args, repo_root)
 
     print(f"ERROR: unknown command {args.command!r}", file=sys.stderr)
     return 1
