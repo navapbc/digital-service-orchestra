@@ -1,20 +1,19 @@
 ## Task
 Ticket ID: {id}
 
-### Pre-Step: Git Root Verification (isolation:worktree only)
+### Pre-Step: Isolation Self-Check (path-shape verification)
 
-If `ORCHESTRATOR_ROOT` is set in this prompt (injected by the orchestrator under worktree isolation), verify your working directory root differs from the orchestrator's root before doing anything else:
+Confirm your CWD matches the isolated-worktree convention. Per bug 9679-695c-6e11-4d95, the orchestrator no longer injects its session-worktree path into your prompt — you have no canonical pointer to compare against. The check below is a tripwire for mis-configured dispatches (it does not — and cannot — fail when isolation is correctly applied):
 
 ```bash
 SUB_AGENT_ROOT=$(git rev-parse --show-toplevel)
-if [ "$SUB_AGENT_ROOT" = "$ORCHESTRATOR_ROOT" ]; then
-  echo "ERROR: Sub-agent git root matches orchestrator root — isolation not in effect" >&2
-  exit 1
+if [[ "$SUB_AGENT_ROOT" != *"/.claude/worktrees/agent-"* ]]; then
+  echo "WARNING: Sub-agent root does not match the isolated-worktree convention." >&2
+  echo "         Got: $SUB_AGENT_ROOT" >&2
 fi
-echo "Git root verified: $SUB_AGENT_ROOT (differs from orchestrator root: $ORCHESTRATOR_ROOT)"
 ```
 
-If `ORCHESTRATOR_ROOT` is not present in this prompt, skip this check and continue.
+The check is informational — continue regardless. The platform's CWD redirection under `isolation: "worktree"` already places you in your own worktree; this just records that fact in your logs.
 
 #### Session HEAD Sync (worktree isolation fix)
 
@@ -38,12 +37,12 @@ if [[ -n "${SESSION_BRANCH:-}" && -z "${SESSION_HEAD:-}" ]] || [[ -z "${SESSION_
 fi
 ```
 
-**CWD lock (isolation:worktree mode)**: When `ORCHESTRATOR_ROOT` is set, your current working directory at startup IS your isolated worktree root. Treat it as authoritative for all operations in this session:
-- Do NOT `cd` to `ORCHESTRATOR_ROOT` or any path derived from it.
-- Do NOT use `ORCHESTRATOR_ROOT` as a base path for any git command, file read, or file write.
+**CWD lock (isolation:worktree mode)**: Your current working directory at startup IS your isolated worktree root. Treat it as authoritative for all operations in this session:
 - All `git` commands (status, add, diff, log) operate on your isolation branch — not the session branch. This is correct and expected.
-- When computing `REPO_ROOT` for script paths (e.g., `.claude/scripts/dso`), always use `git rev-parse --show-toplevel` from your current directory — never substitute `ORCHESTRATOR_ROOT`.
-- The branch name you record in WORKTREE_TRACKING is your isolation branch (output of `git rev-parse --abbrev-ref HEAD` from your CWD), not the orchestrator's session branch.
+- Compute `REPO_ROOT` exclusively from `git rev-parse --show-toplevel` of YOUR CWD.
+- Do NOT enumerate other worktrees via `git worktree list` and target one of them. The other entries that command returns are sibling worktrees (including the orchestrator's session worktree); writing to any of them corrupts shared state.
+- Do NOT construct absolute paths outside your own worktree. If you find yourself building a string that starts with anything other than the output of `git rev-parse --show-toplevel`, stop.
+- The branch name you record in WORKTREE_TRACKING is your isolation branch (output of `git rev-parse --abbrev-ref HEAD` from your CWD), not any other branch.
 
 ### Instructions
 

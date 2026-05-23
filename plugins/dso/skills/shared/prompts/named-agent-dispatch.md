@@ -8,13 +8,12 @@ When a skill needs to dispatch a named DSO agent (e.g., `dso:intent-search`, `ds
 2. **Read the agent file inline** with the Read tool, then dispatch with `subagent_type: "general-purpose"` and the agent's frontmatter `model:` value. Pass the agent file's content verbatim as the prompt body, followed by your skill-specific input.
 3. **Generated agents** (composed from base + delta — `code-reviewer-*`, `investigator-*`) are equivalent to hand-written agents at the file level. Read them the same way.
 4. **Inline fallback** when the Agent tool is unavailable (sub-agent context): read the agent file as a reference and execute its instructions directly, applying the calling skill's investigation/dispatch framework rather than nesting another sub-agent dispatch (which is prohibited per CLAUDE.md `rule:no-nested-task`). Defer steps that require Agent-tool capabilities and surface them as `INTERACTIVITY_DEFERRED` in the RESULT.
-5. **Worktree-isolation preamble (MANDATORY when the orchestrator is in a session worktree).** When `IS_SESSION_WORKTREE=true` (`[ -f "$(git rev-parse --show-toplevel)/.git" ]`), every dispatch MUST include all four of the following — omitting any one of them is the documented intermittent-breach mode of bug c9df-0538:
+5. **Worktree-isolation preamble (MANDATORY when the orchestrator is in a session worktree).** When `IS_SESSION_WORKTREE=true` (`[ -f "$(git rev-parse --show-toplevel)/.git" ]`), every dispatch MUST include all three of the following:
    - `isolation: "worktree"` parameter on the Agent dispatch
-   - `ORCHESTRATOR_ROOT=<absolute path>` as a prompt-body line — used by the sub-agent's Git Root Verification snippet (`worktree-dispatch.md` Step 2)
    - `SESSION_BRANCH=<branch name>` as a prompt-body line — used by `worktree-session-head-sync.sh`
    - `SESSION_HEAD=<sha>` as a prompt-body line — used by `worktree-session-head-sync.sh`
 
-   The sub-agent receives a separate working tree and CWD but **NOT a filesystem sandbox** (see `worktree-dispatch.md` Purpose). Path-safety is the agent's responsibility — verify isolation before any write.
+   The sub-agent receives a separate working tree and CWD but **NOT a filesystem sandbox** (see `worktree-dispatch.md` Purpose). Per bug 9679-695c-6e11-4d95, the dispatch does NOT name the orchestrator's session-worktree absolute path — sub-agents derive their own `REPO_ROOT` from their own `git rev-parse --show-toplevel`. The agent-layer guard (every implementer agent derives writes exclusively from its own CWD) is tracked under epic b36c-3e66-c0f2-413d.
 
    **Reviewer-family exception**: `dso:code-reviewer-*` and `dso:huge-diff-*` agents are intentionally dispatched WITHOUT `isolation: "worktree"` (they must write `reviewer-findings.json` to the shared `$WORKTREE_ARTIFACTS`). For those agents, pass `WORKFLOW_PLUGIN_ARTIFACTS_DIR=$WORKTREE_ARTIFACTS` in the dispatch prompt and omit the `isolation` parameter. See `single-agent-integrate.md` Step 5 / `per-worktree-review-commit.md` for the canonical reviewer dispatch shape.
 
@@ -26,7 +25,6 @@ subagent_type: "general-purpose"
 model: <value of model: from <name>.md frontmatter>
 isolation: "worktree"           # required when IS_SESSION_WORKTREE=true; omit for reviewer-family agents
 prompt: |
-  ORCHESTRATOR_ROOT=<absolute path of session worktree root>
   SESSION_BRANCH=<session branch name>
   SESSION_HEAD=<session HEAD sha>
 
@@ -35,7 +33,7 @@ prompt: |
   Input: <skill-specific inputs as documented by the calling skill>
 ```
 
-The four-parameter preamble (`isolation:` + `ORCHESTRATOR_ROOT` + `SESSION_BRANCH` + `SESSION_HEAD`) is the contract the sub-agent's Git Root Verification snippet and `worktree-session-head-sync.sh` rely on. If your calling skill does not need the agent to write code, you may omit `isolation: "worktree"` (read-only classifiers, reviewers); see Rule 5 above for the reviewer-family exception.
+The three-parameter preamble (`isolation:` + `SESSION_BRANCH` + `SESSION_HEAD`) is the contract `worktree-session-head-sync.sh` relies on. If your calling skill does not need the agent to write code, you may omit `isolation: "worktree"` (read-only classifiers, reviewers); see Rule 5 above for the reviewer-family exception.
 
 ## Where applied
 

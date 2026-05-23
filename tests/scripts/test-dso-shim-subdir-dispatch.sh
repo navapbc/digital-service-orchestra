@@ -37,8 +37,18 @@ fi
 # TIMEOUT. d163-6756 (cluster Track D). `timeout` exits 124 on kill — distinct
 # from 127 (command not found), so the existing assertions remain correct.
 # Falls back to a no-op when `timeout` is unavailable (preserves prior behavior).
+#
+# Timeout sizing (bug cbf1-92cd-5d93-4bae):
+# The original 10s ceiling was too tight under MAX_PARALLEL=8 CI contention.
+# sprint-drift-check.sh invokes `ticket list`, which reads ~756 ticket event
+# files via ticket_reducer.reduce_all_tickets() — ~9.6s in isolation, but
+# ~10s+ under 8-way parallel I/O competition for the same .tickets-tracker
+# directory. 30s gives 3x headroom above the isolated baseline while still
+# catching genuine hangs well within the 120s suite ceiling. The timeout is
+# a hang-guard, not a performance assertion — the test asserts on the
+# dispatch's exit code, not on its wall-clock duration.
 if command -v timeout >/dev/null 2>&1; then
-    _TIMEOUT_WRAP=(timeout 10s)
+    _TIMEOUT_WRAP=(timeout 30s)
 else
     _TIMEOUT_WRAP=()
 fi
