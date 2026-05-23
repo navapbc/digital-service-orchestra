@@ -148,6 +148,80 @@ def cmd_gate(args: argparse.Namespace, repo_root: Path) -> int:
     return 0
 
 
+def cmd_apply(args: argparse.Namespace, repo_root: Path) -> int:
+    """Apply reviewed stale SYNC anomaly remediations (labels + property updates)."""
+    # --- Inline gate check ---
+    bootstrap_dir = repo_root / "bridge_state" / "bootstrap"
+    attestation_path = bootstrap_dir / f"stale-syncs-{args.pass_id}.attested.json"
+
+    if not attestation_path.exists():
+        print("APPLY FAIL: gate failed", file=sys.stderr)
+        return 1
+
+    attested = json.loads(attestation_path.read_text())
+    sha = attested.get("commit_sha", "")
+    if not sha:
+        print("APPLY FAIL: gate failed", file=sys.stderr)
+        return 1
+
+    manifest_path = bootstrap_dir / f"stale-syncs-{args.pass_id}.manifest.json"
+    recorded_hash = attested.get("manifest_hash", "")
+    actual_hash = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    if actual_hash != recorded_hash:
+        print("APPLY FAIL: gate failed", file=sys.stderr)
+        return 1
+
+    attestation_mod = _load_attestation()
+    ok = attestation_mod.verify_attested_commit(sha, BOT_ALLOWLIST)
+    if not ok:
+        print("APPLY FAIL: gate failed", file=sys.stderr)
+        return 1
+
+    # --- Load manifest and attestation ---
+    manifest = json.loads(manifest_path.read_text())
+    acknowledged_residual = attested.get("acknowledged_residual", 0)
+
+    # --- Apply anomalies ---
+    acli = _load_acli()
+    applied: list[dict] = []
+    skipped: list[dict] = []
+
+    for anomaly in manifest["anomalies"]:
+        if anomaly.get("needs_review", False):
+            skipped.append(anomaly)
+            continue
+        jira_key = anomaly.get("jira_key", "")
+        client = acli.AcliClient()
+        client.update_issue_labels(jira_key, anomaly)
+        client.update_issue_property(jira_key, "dso_stale_sync_resolved", True)
+        applied.append(anomaly)
+
+    # --- Post-pass check ---
+    fsck = _load_fsck()
+    tickets_dir = repo_root / ".tickets-tracker"
+    post_pass = fsck.enumerate_stale_anomalies(tickets_dir)
+
+    expected_residual = len(skipped)
+    residual_threshold = max(acknowledged_residual, expected_residual)
+    if len(post_pass) > residual_threshold:
+        print(
+            f"APPLY FAIL: post-pass count {len(post_pass)} > residual {residual_threshold}",
+            file=sys.stderr,
+        )
+        return 1
+
+    # --- Write result ---
+    output_path = bootstrap_dir / f"stale-syncs-{args.pass_id}.applied.json"
+    output_path.write_text(
+        json.dumps({"applied": applied, "skipped": skipped}, indent=2)
+    )
+
+    print(
+        f"APPLY OK: {len(applied)} applied, {len(skipped)} skipped, post-pass: {len(post_pass)}"
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Entry point for the stale-band CLI."""
     parser = argparse.ArgumentParser(prog="stale_band")
@@ -179,6 +253,10 @@ def main(argv: list[str] | None = None) -> int:
     gate_p.add_argument("--pass", dest="pass_id", required=True)
     gate_p.add_argument("--repo-root", default=None)
 
+    apply_p = sub.add_parser("apply", help="Apply stale SYNC anomaly remediations")
+    apply_p.add_argument("--pass", dest="pass_id", required=True)
+    apply_p.add_argument("--repo-root", default=None)
+
     args = parser.parse_args(argv)
 
     if args.command is None:
@@ -192,6 +270,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "gate":
         return cmd_gate(args, repo_root)
+
+    if args.command == "apply":
+        return cmd_apply(args, repo_root)
 
     print(f"ERROR: unknown command {args.command!r}", file=sys.stderr)
     return 1
