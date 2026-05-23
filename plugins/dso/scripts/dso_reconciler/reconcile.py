@@ -63,8 +63,8 @@ def reconcile_once(pass_id: str, repo_root: Path | None = None) -> dict:
     snapshots_dir = repo_root / "bridge_state" / "snapshots"
     snapshots_dir.mkdir(parents=True, exist_ok=True)
 
-    # Read previous snapshot (empty dict on first pass)
-    prev_path = snapshots_dir / f"{pass_id}.prev.json"
+    # Read previous snapshot (empty dict on first pass); stable name ensures level-triggered convergence
+    prev_path = snapshots_dir / "prev.json"
     prev_snapshot: dict = json.loads(prev_path.read_text()) if prev_path.exists() else {}
 
     # Fetch current remote state

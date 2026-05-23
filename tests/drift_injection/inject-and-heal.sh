@@ -87,10 +87,11 @@ case "${MODE}" in
     echo "Injected missing-prop: ${ISSUE_KEY} (local: ${LOCAL_ID})"
 
     # Set the property first (correct state)
-    curl -s -u ":${JIRA_API_TOKEN}" \
+    _prop_payload=$(python3 -c "import json, sys; print(json.dumps({'value': sys.argv[1]}))" "$LOCAL_ID")
+    curl -s -u "${JIRA_USER:-}:${JIRA_API_TOKEN}" \
         -H "Content-Type: application/json" \
         -X PUT "${JIRA_BASE_URL:-https://your-org.atlassian.net}/rest/api/3/issue/${ISSUE_KEY}/properties/dso_local_id" \
-        -d "{\"value\":\"${LOCAL_ID}\"}" > /dev/null
+        -d "$_prop_payload" > /dev/null
 
     # Now strip the property (inject drift)
     jira_strip_property "$ISSUE_KEY" "dso_local_id"

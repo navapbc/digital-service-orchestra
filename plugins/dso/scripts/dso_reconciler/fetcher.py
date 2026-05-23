@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -54,9 +55,9 @@ def fetch_snapshot(
 
     acli_mod = _load_acli()
     client = acli_mod.AcliClient(
-        jira_url="",
-        user="",
-        api_token="",
+        jira_url=os.environ.get("JIRA_URL", ""),
+        user=os.environ.get("JIRA_USER", ""),
+        api_token=os.environ.get("JIRA_API_TOKEN", ""),
     )
 
     issues = client.search_issues("project = DIG")

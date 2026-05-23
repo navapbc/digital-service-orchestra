@@ -54,7 +54,7 @@ Subcommands:
 
 For each mode, the harness:
 1. Asserts `ticket-bridge-fsck.py` exits non-zero **before** reconciliation (drift present)
-2. Runs `python -m dso_reconciler reconcile_once`
+2. Runs `python -m dso_reconciler`
 3. Asserts `ticket-bridge-fsck.py` exits zero **after** reconciliation (drift healed)
 
 A mode passes when step 3 exits 0. A mode fails when bridge-fsck remains

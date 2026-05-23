@@ -67,7 +67,7 @@ def patch_bug_filed(key: str, bug_ticket_id: str, repo_root: Path) -> None:
                         rec["op"] = "bug_filed"
                         patched = True
                 except json.JSONDecodeError:
-                    pass
+                    pass  # malformed JSONL line — skip and preserve original text
                 lines.append(json.dumps(rec) if isinstance(rec, dict) else line)
             if patched:
                 jf.write_text("\n".join(lines) + "\n", encoding="utf-8")

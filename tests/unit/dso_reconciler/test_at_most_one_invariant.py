@@ -455,8 +455,8 @@ def test_end_to_end_second_write_produces_one_alert_one_bug(tmp_path):
                 try:
                     rec = json.loads(line)
                     all_alert_lines.append(rec)
-                except Exception:
-                    pass
+                except json.JSONDecodeError:
+                    pass  # malformed alert line — skip
 
     assert len(all_alert_lines) == 1, (
         f"Expected exactly 1 BRIDGE_ALERT entry, found {len(all_alert_lines)}: "

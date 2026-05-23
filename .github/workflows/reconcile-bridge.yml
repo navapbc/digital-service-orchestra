@@ -45,7 +45,7 @@ jobs:
         working-directory: plugins/dso/scripts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
-          JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+          JIRA_URL: ${{ secrets.JIRA_URL }}
+          JIRA_USER: ${{ secrets.JIRA_USER }}
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
           BRIDGE_ENV_ID: ${{ secrets.BRIDGE_ENV_ID }}

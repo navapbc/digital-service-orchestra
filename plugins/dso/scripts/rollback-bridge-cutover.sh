@@ -64,7 +64,10 @@ fi
 if [[ -z "$_snapshot_src" ]]; then
     echo "WARN: no cursor snapshot found in bridge_state/bootstrap/ — skipping cursor restore"
 else
-    cp "$_snapshot_src" "$REPO_ROOT/bridge_state/cursor-snapshot.json"
+    if ! cp "$_snapshot_src" "$REPO_ROOT/bridge_state/cursor-snapshot.json"; then
+        echo "ERROR: failed to restore cursor snapshot from $_snapshot_src" >&2
+        exit 1
+    fi
     echo "STEP 2 OK (restored from $_snapshot_src)"
 fi
 

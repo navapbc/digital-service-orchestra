@@ -83,7 +83,7 @@ def compute_mutations(
                 if remote_val != local_val:
                     if field in conflict_resolver.FIELD_CLASSES:
                         resolved = conflict_resolver.resolve_field(
-                            field, local_val, remote_val, provenance_record={}
+                            field, local_val, remote_val, provenance_record=None
                         )
                         changed[field] = resolved
                     else:

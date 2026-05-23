@@ -14,7 +14,12 @@ def _load_step(name: str):
     here = Path(__file__).parent
     spec = importlib.util.spec_from_file_location(name, here / f"{name}.py")
     mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    sys.modules[name] = mod
+    try:
+        spec.loader.exec_module(mod)
+    except Exception:
+        sys.modules.pop(name, None)
+        raise
     return mod
 
 

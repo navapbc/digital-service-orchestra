@@ -181,7 +181,7 @@ def _write_mapping_json_atomic(mapping_path: Path, data: dict) -> None:
         try:
             os.unlink(tmp_path)
         except OSError:
-            pass
+            pass  # cleanup is best-effort; preserve and re-raise original write error
         raise
 
 

@@ -14,21 +14,12 @@ Exit codes:
 
 from __future__ import annotations
 
+import argparse
+import datetime
 import importlib
 import importlib.util
 import sys
 from pathlib import Path
-from typing import Callable
-
-# Pipeline modules called in order.  Modules not yet implemented are skipped.
-_PIPELINE_STEPS: list[str] = [
-    "fetcher",
-    "differ",
-    "applier",
-    "mapping",
-    "manifest",
-    "health",
-]
 
 
 def _try_load_step(name: str):
@@ -48,47 +39,40 @@ def _try_load_step(name: str):
 
 
 def run_pass(repo_root: Path | None = None) -> int:
-    """Execute one steady-state reconciliation pass.
+    """Execute one steady-state reconciliation pass via reconcile.reconcile_once().
 
     Returns 0 on converged state, 1 on unrecoverable error.
     """
     if repo_root is None:
         repo_root = Path(__file__).parents[4]
 
-    for step_name in _PIPELINE_STEPS:
-        mod = _try_load_step(step_name)
-        if mod is None:
-            # Module not yet implemented — walking skeleton, skip gracefully.
-            continue
+    reconcile = _try_load_step("reconcile")
+    if reconcile is None:
+        print("ERROR: reconcile.py not found — nothing to run", file=sys.stderr)
+        return 1
 
-        run_fn: Callable[..., int] | None = getattr(mod, "run", None)
-        if run_fn is None:
-            # Module exists but has no run() entrypoint yet — skip.
-            continue
+    pass_id = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H-%M-%S")
+    try:
+        result = reconcile.reconcile_once(pass_id, repo_root=repo_root)
+    except Exception as exc:  # noqa: BLE001
+        print(f"ERROR: reconcile_once raised: {exc}", file=sys.stderr)
+        return 1
 
-        try:
-            rc = run_fn(repo_root=repo_root)
-        except Exception as exc:  # noqa: BLE001
-            print(
-                f"ERROR: step '{step_name}' raised an unhandled exception: {exc}",
-                file=sys.stderr,
-            )
-            return 1
-
-        if rc != 0:
-            print(
-                f"ERROR: step '{step_name}' exited with non-zero code {rc}",
-                file=sys.stderr,
-            )
-            return 1
-
-    print("OK: steady-state pass converged")
+    print(f"OK: steady-state pass converged — {result['mutation_count']} mutations")
     return 0
 
 
 def main(argv: list[str] | None = None) -> int:
     """Entry point for ``python -m dso_reconciler``."""
-    return run_pass()
+    parser = argparse.ArgumentParser(prog="dso_reconciler")
+    parser.add_argument(
+        "--repo-root",
+        default=None,
+        help="Repository root (default: auto-detect from script location)",
+    )
+    args = parser.parse_args(argv)
+    repo_root = Path(args.repo_root) if args.repo_root else None
+    return run_pass(repo_root=repo_root)
 
 
 if __name__ == "__main__":
