@@ -4,10 +4,17 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib.util
 import json
+import subprocess
 import sys
 from pathlib import Path
+
+BOT_ALLOWLIST = [
+    "github-actions[bot]@users.noreply.github.com",
+    "noreply@github.com",
+]
 
 
 def _load_fsck():
@@ -17,6 +24,18 @@ def _load_fsck():
     spec = importlib.util.spec_from_file_location("ticket_bridge_fsck", fsck_path)
     mod = importlib.util.module_from_spec(spec)
     sys.modules.setdefault("ticket_bridge_fsck", mod)
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    return mod
+
+
+def _load_attestation():
+    """Load _attestation module via importlib."""
+    attestation_path = Path(__file__).parent / "_attestation.py"
+    spec = importlib.util.spec_from_file_location("_attestation", attestation_path)
+    if spec is None:
+        raise FileNotFoundError(f"_attestation.py not found at {attestation_path}")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules.setdefault("_attestation", mod)
     spec.loader.exec_module(mod)  # type: ignore[union-attr]
     return mod
 
@@ -86,6 +105,49 @@ def cmd_plan(args: argparse.Namespace, repo_root: Path) -> int:
     return 0
 
 
+def cmd_gate(args: argparse.Namespace, repo_root: Path) -> int:
+    """Verify attestation before allowing applier to run."""
+    bootstrap_dir = repo_root / "bridge_state" / "bootstrap"
+    attestation_path = bootstrap_dir / f"stale-syncs-{args.pass_id}.attested.json"
+
+    # (a) Check attestation file exists
+    if not attestation_path.exists():
+        print(f"GATE FAIL: attestation missing — {attestation_path}", file=sys.stderr)
+        return 1
+
+    # (b) Read the attestation commit SHA
+    attested = json.loads(attestation_path.read_text())
+    sha = attested.get("commit_sha", "")
+    if not sha:
+        print("GATE FAIL: attestation has no commit_sha", file=sys.stderr)
+        return 1
+
+    # (c) Verify manifest hash matches
+    manifest_path = bootstrap_dir / f"stale-syncs-{args.pass_id}.manifest.json"
+    recorded_hash = attested.get("manifest_hash", "")
+    actual_hash = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    if actual_hash != recorded_hash:
+        print("GATE FAIL: manifest hash mismatch", file=sys.stderr)
+        return 1
+
+    # (d) Verify the commit is signed and not by a bot
+    attestation_mod = _load_attestation()
+    ok = attestation_mod.verify_attested_commit(sha, BOT_ALLOWLIST)
+    if not ok:
+        # Distinguish: check whether signature is invalid or committer is a bot
+        proc = subprocess.run(["git", "verify-commit", sha], capture_output=True)
+        if proc.returncode != 0:
+            print(
+                f"GATE FAIL: attestation signature invalid for {sha}", file=sys.stderr
+            )
+        else:
+            print("GATE FAIL: attestation committer is a bot", file=sys.stderr)
+        return 1
+
+    print(f"GATE OK: attestation valid for pass {args.pass_id}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Entry point for the stale-band CLI."""
     parser = argparse.ArgumentParser(prog="stale_band")
@@ -113,6 +175,10 @@ def main(argv: list[str] | None = None) -> int:
         help="Jira API token for ACLI REST calls",
     )
 
+    gate_p = sub.add_parser("gate", help="Verify reviewer attestation")
+    gate_p.add_argument("--pass", dest="pass_id", required=True)
+    gate_p.add_argument("--repo-root", default=None)
+
     args = parser.parse_args(argv)
 
     if args.command is None:
@@ -123,6 +189,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "plan":
         return cmd_plan(args, repo_root)
+
+    if args.command == "gate":
+        return cmd_gate(args, repo_root)
 
     print(f"ERROR: unknown command {args.command!r}", file=sys.stderr)
     return 1
