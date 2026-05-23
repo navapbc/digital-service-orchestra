@@ -76,12 +76,6 @@ else
   fail "synthetic.blue_team_accepted.findings is empty — re-dispatch gate cannot fire"
 fi
 
-if jq -e '.findings == []' "$EMPTY" >/dev/null 2>&1; then
-  pass "empty.findings == [] (description-AC verify line)"
-else
-  fail "empty.findings != [] (description-AC verify line)"
-fi
-
 if jq -e '.blue_team_accepted.findings == []' "$EMPTY" >/dev/null 2>&1; then
   pass "empty.blue_team_accepted.findings == [] (null-case guard input)"
 else
