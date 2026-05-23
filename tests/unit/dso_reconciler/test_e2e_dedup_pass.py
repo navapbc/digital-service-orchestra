@@ -132,7 +132,9 @@ def test_pre_existing_dso_id_produces_zero_creates(tmp_path, differ, applier):
 
     # Build a fake acli module wrapping our fake client instance
     fake_acli_mod = types.ModuleType("acli_integration")
-    fake_acli_mod.AcliClient = lambda: fake_client  # type: ignore[attr-defined]
+    # Stub accepts kwargs because applier.apply() constructs the client with
+    # env-derived (jira_url, user, api_token) credentials.
+    fake_acli_mod.AcliClient = lambda **_: fake_client  # type: ignore[attr-defined]
 
     # Step 1 — differ: prev=empty, next=has uuid-X → must produce a create mutation
     prev_snapshot: dict = {}

@@ -165,7 +165,9 @@ def test_manifest_contains_dedup_event_on_hit(applier, tmp_path):
     existing_issue = {"key": "DIG-77", "fields": {}}
     mock_client = _make_mock_client(search_return=[existing_issue])
 
-    fake_acli = types.SimpleNamespace(AcliClient=lambda: mock_client)
+    # Stub accepts kwargs because applier.apply() constructs the client with
+    # env-derived (jira_url, user, api_token) credentials.
+    fake_acli = types.SimpleNamespace(AcliClient=lambda **_: mock_client)
     fake_concurrency = _make_mock_concurrency()
     with patch.object(applier, "_load_acli", return_value=fake_acli), \
          patch.object(applier, "_load_concurrency", return_value=fake_concurrency):
@@ -187,7 +189,9 @@ def test_manifest_contains_dedup_event_on_hit(applier, tmp_path):
 def test_manifest_events_empty_on_no_hits(applier, tmp_path):
     """apply() manifest has an empty events list when no JQL hits occur."""
     mock_client = _make_mock_client(search_return=[])
-    fake_acli = types.SimpleNamespace(AcliClient=lambda: mock_client)
+    # Stub accepts kwargs because applier.apply() constructs the client with
+    # env-derived (jira_url, user, api_token) credentials.
+    fake_acli = types.SimpleNamespace(AcliClient=lambda **_: mock_client)
     fake_concurrency = _make_mock_concurrency()
 
     with patch.object(applier, "_load_acli", return_value=fake_acli), \
@@ -208,7 +212,9 @@ def test_manifest_events_populated_for_each_hit(applier, tmp_path):
     """Multiple JQL hits produce one event per hit in the manifest events list."""
     existing_issue = {"key": "DIG-100", "fields": {}}
     mock_client = _make_mock_client(search_return=[existing_issue])
-    fake_acli = types.SimpleNamespace(AcliClient=lambda: mock_client)
+    # Stub accepts kwargs because applier.apply() constructs the client with
+    # env-derived (jira_url, user, api_token) credentials.
+    fake_acli = types.SimpleNamespace(AcliClient=lambda **_: mock_client)
     fake_concurrency = _make_mock_concurrency()
 
     mutations = [

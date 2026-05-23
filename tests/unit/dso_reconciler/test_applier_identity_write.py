@@ -13,7 +13,7 @@ from __future__ import annotations
 import importlib.util
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -133,6 +133,75 @@ def test_identity_writes_not_called_on_budget_defer(applier):
     assert result is None
     client.add_label.assert_not_called()
     client.set_entity_property.assert_not_called()
+
+
+def test_add_label_transient_5xx_absorbed_by_retry_no_rollback(applier):
+    """Regression: a transient 5xx on add_label must be absorbed by _call_with_retry
+    and NOT trigger the rollback branch (delete_issue + BRIDGE_ALERT).
+
+    Before this fix, add_label was called raw — a single transient 5xx would
+    fall through to the except-clause and delete the just-created Jira issue
+    unnecessarily, even though the next attempt would have succeeded.
+    """
+    local_id = "tick-trans-5xx"
+    client = _make_mock_client(create_return={"key": "DIG-555"})
+
+    # First add_label call raises 503; second call succeeds.
+    err_503 = applier.JiraAPIError("Service Unavailable", status_code=503)
+    client.add_label.side_effect = [err_503, None]
+    client.set_entity_property.return_value = None
+
+    mutation = _make_create_mutation(local_id)
+
+    # Patch time.sleep to keep the retry backoff cheap in tests.
+    with patch.object(applier, "time") as mock_time:
+        mock_time.sleep = MagicMock()
+        result = applier.create_one(mutation, client, rest_calls=0)
+
+    # create_one must return the create_issue result (rollback NOT triggered).
+    assert result == {"key": "DIG-555"}, (
+        f"create_one returned {result!r}; expected the create_issue result. "
+        "A returned-without-error result with no delete_issue call proves the "
+        "transient 5xx was absorbed by _call_with_retry."
+    )
+
+    # delete_issue MUST NOT have been called — rollback path must not fire.
+    client.delete_issue.assert_not_called()
+
+    # add_label was retried (called twice): once raising 503, once succeeding.
+    assert client.add_label.call_count == 2, (
+        f"Expected add_label to be retried after 503; got call_count="
+        f"{client.add_label.call_count}"
+    )
+
+
+def test_set_entity_property_transient_5xx_absorbed_by_retry_no_rollback(applier):
+    """Regression: a transient 5xx on set_entity_property must be absorbed by
+    _call_with_retry and NOT trigger the rollback branch.
+
+    Mirrors the add_label transient-5xx regression test for the second
+    identity-write call site (line ~327 of applier.py).
+    """
+    local_id = "tick-trans-prop"
+    client = _make_mock_client(create_return={"key": "DIG-556"})
+
+    # add_label succeeds; set_entity_property raises 502 then succeeds.
+    client.add_label.return_value = None
+    err_502 = applier.JiraAPIError("Bad Gateway", status_code=502)
+    client.set_entity_property.side_effect = [err_502, None]
+
+    mutation = _make_create_mutation(local_id)
+
+    with patch.object(applier, "time") as mock_time:
+        mock_time.sleep = MagicMock()
+        result = applier.create_one(mutation, client, rest_calls=0)
+
+    assert result == {"key": "DIG-556"}
+    client.delete_issue.assert_not_called()
+    assert client.set_entity_property.call_count == 2, (
+        f"Expected set_entity_property to be retried after 502; got "
+        f"call_count={client.set_entity_property.call_count}"
+    )
 
 
 def test_label_written_before_entity_property(applier):

@@ -71,7 +71,19 @@ def _make_alert_store_mock(deduped_keys: set[str] | None = None):
     return mock_store
 
 
-def _make_subprocess_result(returncode: int = 0, stdout: str = "bug-abc123"):
+def _make_subprocess_result(
+    returncode: int = 0, stdout: str = "abcd-1234-5678-90ef"
+):
+    """Build a mock subprocess.CompletedProcess result for ticket-create.sh.
+
+    The default stdout uses a canonical 16-hex dso ticket ID
+    (four groups of four lowercase hex digits) so that
+    invariants._extract_ticket_id's regex matches the returned value.
+    Tests that override stdout MUST pass a canonical-format ID for the
+    same reason — non-canonical strings cause _extract_ticket_id to
+    return the empty string, which the production code treats as
+    bug-filing failure and rolls the alert back.
+    """
     result = MagicMock()
     result.returncode = returncode
     result.stdout = stdout + "\n"
@@ -118,7 +130,13 @@ def test_b_single_violation(tmp_path, invariants):
     }
 
     mock_store = _make_alert_store_mock(deduped_keys=set())
-    mock_proc_result = _make_subprocess_result(returncode=0, stdout="bug-ticket-xyz")
+    # Canonical 16-hex format required: invariants._extract_ticket_id uses
+    # the regex \b[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}\b and
+    # returns "" on a miss — at which point production rolls the alert back
+    # and the assertions on append/run/patch_bug_filed below all fail.
+    mock_proc_result = _make_subprocess_result(
+        returncode=0, stdout="abcd-1234-5678-90ef"
+    )
 
     with patch.object(invariants, "_load_alert_store", return_value=mock_store):
         with patch("invariants.subprocess.run", return_value=mock_proc_result) as mock_run:
@@ -148,7 +166,7 @@ def test_b_single_violation(tmp_path, invariants):
     # patch_bug_filed called with the returned bug id
     mock_store.patch_bug_filed.assert_called_once()
     patch_args = mock_store.patch_bug_filed.call_args[0]
-    assert patch_args[1] == "bug-ticket-xyz"
+    assert patch_args[1] == "abcd-1234-5678-90ef"
 
 
 # ---------------------------------------------------------------------------
@@ -192,7 +210,10 @@ def test_d_cap_at_5(tmp_path, invariants):
     }
 
     mock_store = _make_alert_store_mock(deduped_keys=set())
-    mock_proc_result = _make_subprocess_result(returncode=0, stdout="bug-ticket-cap")
+    # Canonical 16-hex format required (see _make_subprocess_result docstring).
+    mock_proc_result = _make_subprocess_result(
+        returncode=0, stdout="cafe-babe-dead-beef"
+    )
 
     with patch.object(invariants, "_load_alert_store", return_value=mock_store):
         with patch("invariants.subprocess.run", return_value=mock_proc_result) as mock_run:

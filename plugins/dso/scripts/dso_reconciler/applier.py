@@ -1,5 +1,17 @@
 #!/usr/bin/env python3
-"""Applier: dispatches mutations to AcliClient and writes per-pass flat-JSON manifest."""
+"""Applier: dispatches mutations to AcliClient and writes per-pass flat-JSON manifest.
+
+TODO(follow-up): this module is 586 lines, exceeding the 500-line module-size
+threshold. The intended split is:
+    - mapping_io.py   — _load_mapping, _write_mapping_atomic, _write_mapping_json_atomic,
+                        _persist_field_provenance
+    - retry.py        — _call_with_retry, JiraAPIError, RetryExhaustedError
+    - dispatchers.py  — create_one, update_one, delete_one
+leaving applier.py with just the public apply() orchestrator + RescheduleError +
+_handle_failed_write_result. The refactor was deferred from PR #290 because the
+mechanical move + import-graph fixup is too large for the current PR. Track via
+a follow-up bug ticket before the next applier-touching change.
+"""
 
 from __future__ import annotations
 
@@ -323,8 +335,15 @@ def create_one(
     jira_key = result.get("key", "") if isinstance(result, dict) else ""
     if jira_key:
         try:
-            client.add_label(jira_key, f"dso-id:{local_id}")
-            client.set_entity_property(jira_key, "dso_local_id", local_id)
+            # Wrap identity writes in _call_with_retry so transient 5xx/429
+            # absorb the same retry budget as create_issue above. Without this,
+            # a single transient failure here triggers the unnecessary rollback
+            # branch (delete_issue + BRIDGE_ALERT) even though the underlying
+            # condition would have cleared on retry.
+            _call_with_retry(client.add_label, jira_key, f"dso-id:{local_id}")
+            _call_with_retry(
+                client.set_entity_property, jira_key, "dso_local_id", local_id
+            )
         except Exception as write_err:
             try:
                 client.delete_issue(jira_key)
@@ -461,7 +480,16 @@ def apply(
         repo_root = Path(__file__).parents[4]
 
     acli = _load_acli()
-    client = acli.AcliClient()
+    # Mirror fetcher.fetch_snapshot's pattern: AcliClient's real constructor
+    # requires (jira_url, user, api_token) — the no-arg form raises TypeError
+    # on every real invocation. Read credentials from the standard
+    # JIRA_URL / JIRA_USER / JIRA_API_TOKEN environment variables, defaulting
+    # to "" so test/CI shims that monkey-patch _load_acli still work.
+    client = acli.AcliClient(
+        jira_url=os.environ.get("JIRA_URL", ""),
+        user=os.environ.get("JIRA_USER", ""),
+        api_token=os.environ.get("JIRA_API_TOKEN", ""),
+    )
 
     rest_calls: int = 0
     deferred_creates: list[dict] = []

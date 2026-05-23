@@ -72,7 +72,9 @@ def _make_mock_acli(update_return=None):
         update_return if update_return is not None else {"key": "DIG-123"}
     )
     mock_client.search_issues.return_value = []
-    fake_acli = types.SimpleNamespace(AcliClient=lambda: mock_client)
+    # AcliClient stub must accept (jira_url, user, api_token) kwargs because
+    # applier.apply() now constructs the client with env-derived credentials.
+    fake_acli = types.SimpleNamespace(AcliClient=lambda **_: mock_client)
     return fake_acli, mock_client
 
 

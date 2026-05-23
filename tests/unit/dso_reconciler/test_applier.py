@@ -241,6 +241,78 @@ def test_delete_one_propagates_non_404_jira_errors(applier):
         applier.delete_one(mutation, client)
 
 
+def test_apply_constructs_client_with_env_derived_args(tmp_path, applier, monkeypatch):
+    """Regression: apply() must call AcliClient(jira_url=..., user=..., api_token=...)
+    using env vars JIRA_URL / JIRA_USER / JIRA_API_TOKEN — not AcliClient() with no args.
+
+    The real AcliClient requires three credential arguments; before this fix
+    apply() invoked it positionally with no args, which raises TypeError on
+    every real reconciler pass and shows up as 'apply did not execute' in
+    bridge_state without any other diagnostic. The unit-test suite did not
+    catch this because mocks accepted any signature.
+    """
+    pass_id = "2026-05-23-env-args"
+    _init_git_repo(tmp_path)
+
+    monkeypatch.setenv("JIRA_URL", "https://example.atlassian.net")
+    monkeypatch.setenv("JIRA_USER", "ci-bot@example.com")
+    monkeypatch.setenv("JIRA_API_TOKEN", "tok-abc-123")
+
+    mock_acli_mod, _ = _make_mock_acli_module()
+    constructor = mock_acli_mod.AcliClient  # MagicMock
+
+    with __import__("unittest.mock", fromlist=["patch"]).patch.object(
+        applier, "_load_acli", return_value=mock_acli_mod
+    ):
+        applier.apply([], pass_id, repo_root=tmp_path)
+
+    # AcliClient must have been constructed exactly once with the env-derived kwargs.
+    constructor.assert_called_once()
+    call = constructor.call_args
+    assert call.kwargs == {
+        "jira_url": "https://example.atlassian.net",
+        "user": "ci-bot@example.com",
+        "api_token": "tok-abc-123",
+    }, (
+        f"AcliClient must be constructed with env-derived kwargs; got args="
+        f"{call.args!r}, kwargs={call.kwargs!r}"
+    )
+    # Constructor must not have been called positionally — the real signature
+    # is keyword-style and a positional call risks ordering bugs.
+    assert call.args == (), (
+        f"AcliClient must not be constructed positionally; got args={call.args!r}"
+    )
+
+
+def test_apply_constructs_client_with_empty_strings_when_env_unset(
+    tmp_path, applier, monkeypatch
+):
+    """When the JIRA_* env vars are absent, apply() must still construct
+    AcliClient with empty-string defaults so test/CI shims that don't set the
+    env still work (mirrors fetcher.fetch_snapshot's pattern)."""
+    pass_id = "2026-05-23-env-unset"
+    _init_git_repo(tmp_path)
+
+    monkeypatch.delenv("JIRA_URL", raising=False)
+    monkeypatch.delenv("JIRA_USER", raising=False)
+    monkeypatch.delenv("JIRA_API_TOKEN", raising=False)
+
+    mock_acli_mod, _ = _make_mock_acli_module()
+    constructor = mock_acli_mod.AcliClient
+
+    with __import__("unittest.mock", fromlist=["patch"]).patch.object(
+        applier, "_load_acli", return_value=mock_acli_mod
+    ):
+        applier.apply([], pass_id, repo_root=tmp_path)
+
+    constructor.assert_called_once()
+    assert constructor.call_args.kwargs == {
+        "jira_url": "",
+        "user": "",
+        "api_token": "",
+    }
+
+
 def test_update_one_unpacks_fields_as_kwargs(applier):
     """F3 regression: update_one must unpack fields into kwargs.
 
