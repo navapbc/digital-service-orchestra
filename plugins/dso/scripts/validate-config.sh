@@ -131,6 +131,7 @@ KNOWN_KEYS=(
 
     # Planning
     planning.external_dependency_block_enabled
+    planning.max_remediation_cycles
 
     # Persistence — source patterns
     persistence.source_patterns

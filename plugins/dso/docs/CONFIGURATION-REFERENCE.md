@@ -579,6 +579,19 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 
 ---
 
+### `planning.max_remediation_cycles`
+
+| | |
+|---|---|
+| **Description** | Maximum number of remediation cycles the story-decomposer agent will attempt when stories fail acceptance criteria review. Values below the enforced minimum of 2 are rejected at load time — the function exits non-zero with a clear error message naming the rejected value and the minimum. The value is never silently clamped. |
+| **Accepted values** | Integer >= 2 |
+| **Default** | `3` |
+| **Minimum** | `2` (values < 2 are rejected at load time, not silently clamped) |
+| **Rejection behavior** | `get_max_remediation_cycles()` exits non-zero and writes to stderr: `planning.max_remediation_cycles must be >= 2 (got: <value>)`. An absent or empty value is treated as the default (3). |
+| **Used by** | `/dso:preplanning` (story-decomposer remediation loop) |
+
+---
+
 ### `planning.verification_command_timeout_seconds`
 
 | | |

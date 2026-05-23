@@ -1,0 +1,17 @@
+{
+  "sc_coverage_summary": [
+    {
+      "sc_id": "sc-1",
+      "sc_text": "Operators see delta-only remediation, not full re-decomposition.",
+      "verdict": "fully_covered",
+      "covering_story_ids": ["a7c0-8e53-3502-4ddd", "b345-913f-29d7-4ee9"]
+    }
+  ],
+  "red_team_findings": [],
+  "blue_team_accepted": {
+    "findings": []
+  },
+  "blue_team_rejected": {
+    "findings": []
+  }
+}
