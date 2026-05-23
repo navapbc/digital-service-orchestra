@@ -1,0 +1,24 @@
+{
+  "reviewer_artifact_path": "tests/fixtures/approach-proposer/reviewer-artifact-sample.md",
+  "findings": [
+    {
+      "target_story_id": "c010-e026-1276-4728",
+      "finding_id": "rf-001",
+      "severity": "critical",
+      "summary": "Approach Generation Protocol Step 1 enumerates solution-space axes but does not declare a DELTA output mode for revision cycles; remediation cycles re-emit the full proposal set instead of a delta.",
+      "recommendation": "Add a DELTA OUTPUT MODE section that activates when remediation_context is present, gating output on a pre-generation Read of each reviewer-artifact path."
+    },
+    {
+      "target_story_id": "c010-e026-1276-4728",
+      "finding_id": "rf-002",
+      "severity": "important",
+      "summary": "Backward-compat is implicit; without an explicit optional marker on remediation_context the agent cannot signal that the absent case preserves prior output shape.",
+      "recommendation": "Add remediation_context to Inputs with an explicit optional marker and preserve the existing `proposals` field heading in the Output Format."
+    }
+  ],
+  "metadata": {
+    "reviewer_agent": "red-team-reviewer",
+    "epic_id": "81d7-9da2-676e-4948",
+    "review_cycle": 2
+  }
+}

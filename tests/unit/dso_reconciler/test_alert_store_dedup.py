@@ -192,3 +192,49 @@ def test_patch_bug_filed_atomic_no_temp_leftover(tmp_path):
 
     leftover = list(store_dir.glob(".*.tmp.*"))
     assert leftover == [], f"Atomic write left temp files: {leftover}"
+
+
+# ---------------------------------------------------------------------------
+# Test (h): non-target dict lines are byte-identical to their original input.
+# Regression for the "mixed-formatting after partial re-serialization" concern:
+# the patch operation must preserve unchanged lines verbatim — no whitespace
+# drift, no key-order drift, no ensure_ascii recoding — so any future crash
+# mid-write cannot leave the file in a "some re-serialized, some original"
+# inconsistent state.
+# ---------------------------------------------------------------------------
+
+
+def test_patch_bug_filed_preserves_non_target_lines_byte_identical(tmp_path):
+    """Non-target dict lines are written back byte-identical to their original input."""
+    store_dir = tmp_path / "bridge_state" / "bridge_alerts"
+    store_dir.mkdir(parents=True)
+    today_file = store_dir / "2099-01-01.jsonl"
+
+    # Use deliberately quirky formatting that json.dumps would NOT re-emit
+    # identically: extra whitespace inside the JSON object, an unusual key
+    # order, and a Unicode character that would be re-encoded as a \\u escape
+    # if we passed it through json.dumps() with default ensure_ascii=True.
+    quirky_line_1 = '{ "resolved" : false, "key" : "other-key-1", "timestamp_ns" : 1, "note" : "café" }'
+    quirky_line_2 = '{"z":1,"a":2,"key":"other-key-2","resolved":false}'
+    target_original = json.dumps(
+        {"key": "target-key", "timestamp_ns": time.time_ns(), "resolved": False}
+    )
+
+    today_file.write_text(
+        quirky_line_1 + "\n" + quirky_line_2 + "\n" + target_original + "\n",
+        encoding="utf-8",
+    )
+
+    alert_store.patch_bug_filed("target-key", "bug-byte-identical", tmp_path)
+
+    out_lines = today_file.read_text(encoding="utf-8").splitlines()
+
+    # Non-target lines are byte-identical to their original input — no
+    # whitespace normalization, no key reordering, no Unicode escaping.
+    assert out_lines[0] == quirky_line_1
+    assert out_lines[1] == quirky_line_2
+    # Target line IS re-serialized with the patch fields applied.
+    patched = json.loads(out_lines[2])
+    assert patched["key"] == "target-key"
+    assert patched["bug_ticket_id"] == "bug-byte-identical"
+    assert patched["op"] == "bug_filed"

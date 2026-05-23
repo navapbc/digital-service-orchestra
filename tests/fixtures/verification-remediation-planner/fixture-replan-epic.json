@@ -1,0 +1,42 @@
+{
+  "ticket_id": "f6a7-b8c9-0123-defa",
+  "ticket_type": "story",
+  "schema_version": 2,
+  "P1": "FAIL",
+  "overall_verdict": "FAIL",
+  "narrative": "P1=FAIL criteria_met=1/3 blocked_by=2",
+  "criteria_results": [
+    {
+      "criterion": "DD-1: The inbound Jira bridge deduplicates events within a 5-minute window",
+      "verdict": "PASS",
+      "evidence_sought": "grep for deduplication logic in inbound-bridge.sh",
+      "evidence_found": "Found dedup window logic in plugins/dso/scripts/bridge/inbound-bridge.sh — uses SHA-256 of event payload with 5-minute TTL"
+    },
+    {
+      "criterion": "SC-7 (epic a03c): The outbound bridge cursor survives a full failover cycle across both the tickets branch and the main branch without data loss",
+      "verdict": "FAIL",
+      "evidence_sought": "grep for failover cursor recovery in outbound bridge",
+      "evidence_found": "not found — outbound bridge cursor failover logic does not exist; this criterion belongs to the cursor-reliability epic (a03c), not the current inbound-bridge story scope"
+    },
+    {
+      "criterion": "SC-2 (epic 4e55): The PR-merge workflow preserves bridge cursor state across merge-to-main.sh invocations",
+      "verdict": "FAIL",
+      "evidence_sought": "grep for cursor state preservation in merge-to-main.sh",
+      "evidence_found": "absent — merge-to-main.sh does not interact with the bridge cursor; this requirement is owned by the PR-merge workflow epic (4e55), not this story's scope"
+    }
+  ],
+  "consumer_smoke_tests": [],
+  "closure_checks_results": [],
+  "remediation_tasks_created": [
+    {
+      "title": "Implement outbound bridge cursor failover recovery (epic a03c SC-7)",
+      "description": "The cursor failover criterion belongs to epic a03c. Remediating this requires replanning at the epic level or above.",
+      "criterion": "SC-7 (epic a03c)"
+    },
+    {
+      "title": "Preserve bridge cursor state in merge-to-main.sh (epic 4e55 SC-2)",
+      "description": "The merge workflow cursor criterion belongs to epic 4e55. This requires cross-epic coordination.",
+      "criterion": "SC-2 (epic 4e55)"
+    }
+  ]
+}

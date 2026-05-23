@@ -66,6 +66,16 @@ FINDINGS_OUTPUT: <WORKTREE_ARTIFACTS value>/reviewer-findings.json
 
 **Step 3 — Record test status**: Run `record-test-status.sh` from the worktree context (`cd $WORKTREE_PATH && bash "${CLAUDE_PLUGIN_ROOT}/hooks/record-test-status.sh"`) to record test results in `$WORKTREE_ARTIFACTS` before commit.
 
+**Step 3.5 — Propagate sprint marker**: Copy `.sprint-active` from the session root into the worktree so `check-sprint-trailer.sh` enforces DSO-Story trailer correctly (bug e081-63c0). Run from the session root (no `cd $WORKTREE_PATH &&` prefix):
+
+```bash
+SESSION_ROOT=$(git rev-parse --show-toplevel)
+if [[ -f "$SESSION_ROOT/.sprint-active" ]]; then
+    cp "$SESSION_ROOT/.sprint-active" "$WORKTREE_PATH/.sprint-active" 2>/dev/null || \
+        echo "WARNING: failed to copy .sprint-active into $WORKTREE_PATH" >&2
+fi
+```
+
 **Step 4 — Commit in worktree branch**: Execute COMMIT-WORKFLOW.md from the worktree context (all Bash calls prefixed with `cd $WORKTREE_PATH &&`). The commit happens in the worktree's branch (not the session branch). Review gate passes because review-status and diff_hash are in `$WORKTREE_ARTIFACTS`.
 
 **Post-commit verification (mandatory — 1eda-6a0c)**: After the commit workflow, verify the branch tip actually advanced before proceeding to harvest:

@@ -1,0 +1,36 @@
+{
+  "ticket_id": "d4e5-f6a7-8901-bcde",
+  "ticket_type": "story",
+  "schema_version": 2,
+  "P1": "FAIL",
+  "overall_verdict": "FAIL",
+  "narrative": "P1=FAIL criteria_met=0/2 blocked_by=2",
+  "criteria_results": [
+    {
+      "criterion": "DD-1: The config loader reads dso.workflow from .claude/dso-config.conf and returns the value",
+      "verdict": "FAIL",
+      "evidence_sought": "grep for dso.workflow config key read in config loader",
+      "evidence_found": "Partial: config loader function exists in read-config.sh and handles other keys, but dso.workflow branch is missing from the switch statement — the key returns empty string instead of its value"
+    },
+    {
+      "criterion": "DD-2: When dso.workflow is absent from config, the loader returns the default value ci-pr",
+      "verdict": "FAIL",
+      "evidence_sought": "grep for default value handling for dso.workflow",
+      "evidence_found": "Partial: default value handling infrastructure exists for other config keys (e.g., max_agents returns 0 by default), but no default is registered for dso.workflow — the fallback path returns empty string rather than ci-pr"
+    }
+  ],
+  "consumer_smoke_tests": [],
+  "closure_checks_results": [],
+  "remediation_tasks_created": [
+    {
+      "title": "Add dso.workflow case to config loader switch statement",
+      "description": "The switch statement in read-config.sh handles other keys but is missing a case for dso.workflow. Adding the case will fix DD-1.",
+      "criterion": "DD-1"
+    },
+    {
+      "title": "Register ci-pr as default value for dso.workflow in config loader",
+      "description": "The default-value infrastructure exists but dso.workflow is not registered. Adding the default will fix DD-2.",
+      "criterion": "DD-2"
+    }
+  ]
+}

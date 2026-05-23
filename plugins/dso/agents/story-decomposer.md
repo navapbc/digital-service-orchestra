@@ -45,6 +45,65 @@ The escalation policy selected in Phase A Step 2, applied to every story in this
 
 {escalation-policy}
 
+### Remediation Context (optional)
+
+When the orchestrator is re-invoking this agent during a remediation cycle (e.g., after a scrutiny reviewer identified gaps), it may pass a `remediation_context` object:
+
+```json
+{
+  "reviewer_artifact_path": "<absolute path to reviewer artifact markdown file>",
+  "findings": [
+    {
+      "target_story_id": "<story id this finding targets>",
+      "finding_id": "<unique id>",
+      "severity": "critical|important",
+      "summary": "<what is wrong>",
+      "recommendation": "<how to fix it>"
+    }
+  ],
+  "metadata": {
+    "reviewer_agent": "<agent name>",
+    "epic_id": "<epic id>",
+    "review_cycle": 2
+  }
+}
+```
+
+When `remediation_context` is absent (or empty), the agent behaves bit-identically to its default mode — the output shape (including the `story_drafts` field) is unchanged. See **DELTA OUTPUT MODE** below.
+
+For MAX_CYCLES governance and escalation-token semantics, see `${CLAUDE_PLUGIN_ROOT}/skills/shared/workflows/remediation-loop-protocol.md`.
+
+## DELTA OUTPUT MODE
+
+When `remediation_context` is provided:
+
+**Step 1 — Emit the mode declaration token first:**
+```
+=== DELTA OUTPUT MODE ===
+```
+
+**Step 2 — Pre-generation Read gate (REQUIRED before drafting):**
+Read each absolute `reviewer_artifact_path` from the `remediation_context` before drafting any story. Only after ALL artifacts have been Read and quoted may the agent emit any `story_draft`.
+
+For each artifact, emit:
+```
+EVIDENCE FROM <path>:
+<verbatim quote from the artifact — the finding text and recommendation>
+```
+
+If any Read returns a non-existent path or empty file, emit:
+```json
+{"error": "remediation_context_artifact_unreadable", "path": "<offending path>"}
+```
+and halt — do NOT emit any story drafts.
+
+**Step 3 — Build the target set:**
+Collect all `target_story_id` values from `remediation_context.findings`. Emit **only** `story_drafts` whose `target_story_id` appears in that set. Stories not in that set are absent from output (no full re-decomposition).
+
+**Strict ordering**: emit mode declaration → Read all artifacts → emit evidence quotes → emit story drafts. Never reorder.
+
+**Backward-compatible default**: when `remediation_context` is absent, skip the DELTA OUTPUT MODE block entirely. The output shape is unchanged from current behavior.
+
 ## Decomposition Protocol
 
 Execute these steps in order. Do NOT shortcut.
@@ -210,6 +269,7 @@ Return a JSON object with exactly these top-level keys. The orchestrator will no
 | `depends_on` | array of string | Yes | List of `temp_id`s (this batch) or existing story ids; empty if independent |
 | `split_candidate` | boolean | Yes | `true` if the story has a Foundation/Enhancement split opportunity (Phase F will evaluate) |
 | `escalation_policy` | string | Yes | The escalation policy label passed in `{escalation-policy}` — copy verbatim |
+| `target_story_id` | string | Conditional | The story this draft addresses; required when `remediation_context` is present, omitted when absent |
 
 `decomposition_notes`:
 

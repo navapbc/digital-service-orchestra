@@ -48,10 +48,17 @@ def _snapshot_with_dup(jira_key: str = "DIG-100") -> dict:
     return {jira_key: {"dso_local_ids": ["id-a", "id-b"]}}
 
 
-def _ok_cli_result(bug_id: str = "bug-new-001") -> MagicMock:
+def _ok_cli_result(bug_id: str = "abc1-def2-1234-5678") -> MagicMock:
+    """Mock a successful ticket-create.sh stdout.
+
+    ticket-create.sh emits two lines on success: a human-readable summary
+    followed by the canonical 16-hex ticket ID on its own line. The mocked
+    stdout mirrors that format so the regex-based extractor in
+    invariants._extract_ticket_id sees real-shape data.
+    """
     r = MagicMock()
     r.returncode = 0
-    r.stdout = f"Created bug ticket {bug_id}\n"
+    r.stdout = f"Created ticket {bug_id}: at-most-one violation\n{bug_id}\n"
     r.stderr = ""
     return r
 
@@ -76,7 +83,7 @@ def test_dup_dso_local_ids_files_alert_and_bug(
     assert filed[0]["dedup_key"] == "at-most-one:DIG-100"
     mock_alert_store.append.assert_called_once()
     mock_alert_store.patch_bug_filed.assert_called_once_with(
-        "at-most-one:DIG-100", "bug-new-001", tmp_path
+        "at-most-one:DIG-100", "abc1-def2-1234-5678", tmp_path
     )
 
 
@@ -272,3 +279,103 @@ def test_non_list_dso_local_ids_is_ignored(
 
     assert filed == []
     mock_alert_store.append.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Regression: ticket-ID extraction is regex-based, not whitespace-split based.
+# Guards against the fragile `stdout.strip().split()[-1]` pattern that would
+# return whatever final token appears in stdout — including title fragments
+# or "ERROR" — and patch the alert with garbage.
+# ---------------------------------------------------------------------------
+
+
+def test_extract_ticket_id_canonical_format(invariants: ModuleType) -> None:
+    """The regex extractor returns the canonical 16-hex ticket ID."""
+    stdout = "Created ticket abc1-def2-1234-5678: title text\nabc1-def2-1234-5678\n"
+    assert invariants._extract_ticket_id(stdout) == "abc1-def2-1234-5678"
+
+
+def test_extract_ticket_id_garbage_returns_empty(invariants: ModuleType) -> None:
+    """Garbage stdout (no canonical-format token) returns the empty string."""
+    assert invariants._extract_ticket_id("ERROR") == ""
+    assert invariants._extract_ticket_id("Created ticket: foo\n") == ""
+    assert invariants._extract_ticket_id("") == ""
+    # Almost-but-not-quite canonical: wrong group lengths.
+    assert invariants._extract_ticket_id("abcd-12-345-6789") == ""
+
+
+def test_extract_ticket_id_picks_last_canonical_match(
+    invariants: ModuleType,
+) -> None:
+    """When multiple canonical IDs appear, the LAST one is returned (matches
+    the final-line position in ticket-create.sh stdout)."""
+    # Simulate human summary referencing an older ticket, then the canonical
+    # line for the newly-created ticket.
+    stdout = (
+        "Created ticket aaaa-bbbb-cccc-dddd (alias of 1111-2222-3333-4444): t\n"
+        "1111-2222-3333-4444\n"
+    )
+    assert (
+        invariants._extract_ticket_id(stdout) == "1111-2222-3333-4444"
+    )
+
+
+def test_garbage_cli_output_leaves_alert_unpatched(
+    invariants: ModuleType,
+    mock_alert_store: MagicMock,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """When the CLI exits 0 but stdout has no canonical ticket ID, the alert
+    is NOT patched with a wrong value — patch_bug_filed must not be called,
+    and a WARN is surfaced."""
+    garbage_result = MagicMock()
+    garbage_result.returncode = 0
+    garbage_result.stdout = "ERROR: something weird\n"
+    garbage_result.stderr = ""
+    with patch.object(invariants, "_load_alert_store", return_value=mock_alert_store):
+        with patch.object(invariants.subprocess, "run", return_value=garbage_result):
+            filed = invariants.check_at_most_one_dso_local_id(
+                _snapshot_with_dup(), repo_root=tmp_path, ticket_cli="/fake/dso"
+            )
+
+    # Violation IS recorded (alert was appended) but the bug-link patch is
+    # skipped because no canonical ID could be extracted.
+    assert len(filed) == 1
+    mock_alert_store.append.assert_called_once()
+    mock_alert_store.patch_bug_filed.assert_not_called()
+    err = capsys.readouterr().err
+    assert "WARN" in err
+    assert "no canonical ticket ID" in err
+
+
+def test_valid_cli_output_extracts_id_and_patches_alert(
+    invariants: ModuleType, mock_alert_store: MagicMock, tmp_path: Path
+) -> None:
+    """When CLI stdout contains a canonical-format ID, it is extracted and
+    used to patch the alert — guards against a regression to the
+    whitespace-split[-1] approach that would return the wrong token if the
+    title contains trailing tokens."""
+    # Title is "at-most-one violation: DIG-100 has multiple dso_local_ids" —
+    # if extraction reverted to split()[-1] of the FIRST line, it would return
+    # "dso_local_ids", not the canonical ID.
+    canonical_id = "9999-aaaa-bbbb-cccc"
+    multi_line_stdout = (
+        f"Created ticket some-alias ({canonical_id}): "
+        f"at-most-one violation: DIG-100 has multiple dso_local_ids\n"
+        f"{canonical_id}\n"
+    )
+    result = MagicMock()
+    result.returncode = 0
+    result.stdout = multi_line_stdout
+    result.stderr = ""
+    with patch.object(invariants, "_load_alert_store", return_value=mock_alert_store):
+        with patch.object(invariants.subprocess, "run", return_value=result):
+            filed = invariants.check_at_most_one_dso_local_id(
+                _snapshot_with_dup(), repo_root=tmp_path, ticket_cli="/fake/dso"
+            )
+
+    assert len(filed) == 1
+    mock_alert_store.patch_bug_filed.assert_called_once_with(
+        "at-most-one:DIG-100", canonical_id, tmp_path
+    )
