@@ -530,3 +530,4 @@ plugins/dso/scripts/dso_reconciler/pre_cutover.py:tests/scripts/test_pre_cutover
 plugins/dso/scripts/dso_reconciler/forward_compat_probe.py:tests/scripts/test_forward_compat_probe.py
 plugins/dso/scripts/dso_reconciler/capability_check.py:tests/scripts/test_capability_check.py
 plugins/dso/scripts/dso_reconciler/cursor_snapshot.py:tests/scripts/test_cursor_snapshot.py
+plugins/dso/scripts/rollback-bridge-cutover.sh:tests/scripts/test-rollback-bridge-cutover.sh
