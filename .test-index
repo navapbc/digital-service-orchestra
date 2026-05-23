@@ -532,3 +532,4 @@ plugins/dso/scripts/telemetry/aws-setup-lambda.sh:tests/scripts/test-aws-setup-l
 plugins/dso/scripts/telemetry/lambda-handler/s3_writer.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_s3_writer.py
 plugins/dso/scripts/telemetry/lambda-handler/privacy.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_privacy_truth_table.py
 plugins/dso/scripts/telemetry/lambda-handler/schema.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_schema.py
+plugins/dso/scripts/telemetry/lambda-handler/validator.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_validator.py
