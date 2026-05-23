@@ -2533,6 +2533,8 @@ Phase I delegates to `/dso:end-session`, which handles closing issues, committin
 
 The only valid actions on non-PASS are: (a) return to Phase C to address the findings, or (b) explicitly confirm with the user that they want to STOP the sprint entirely (not close the epic as "done").
 
+**Narrative framing discipline (bug 8f43-e219)**: When surfacing non-PASS SC failures to the user, present the verifier's structural category VERBATIM (external blocker / internal architecture gap / evidence pending). Do NOT collapse "internal architecture gap" failures into "external blocker" framing — if a SC fails because the epic's own scope did not ship the required capability, name the architecture gap as the proximate cause, even if external bugs are also present. Present the override decision as a structural choice: "This SC cannot be satisfied because scope item Z did not ship. Closing with the gap means Z is either (a) abandoned, (b) inherited by a successor epic, or (c) deferred."
+
 <HARD-GATE>
 Before closing the epic, confirm that dso:completion-verifier was dispatched at Phase G Step 2 with the EPIC ID (not a story ID) and Gate 1 (`check-verifier-verdict.sh`) returned exit 0 (`P1: PASS`) during THIS session. Story-level verifier results from Phase F Step 18 do NOT satisfy this requirement — each story verifier runs against one story's done definition; only the epic-level verifier (Phase G Step 2) runs against all epic-level success criteria simultaneously. If Phase G Step 2 has not yet been dispatched for the epic, stop and return to Phase G Step 2 NOW. Do NOT proceed to epic closure until the epic-level verifier verdict is received.
 </HARD-GATE>
