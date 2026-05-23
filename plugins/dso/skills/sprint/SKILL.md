@@ -2421,6 +2421,13 @@ Do NOT rationalize around a non-PASS P1 verdict (7c1d-9acf). The verifier's verd
 On non-PASS: the ONLY valid responses are (a) return to Phase C to create and complete remediation tasks, or (b) if the user explicitly says to stop the sprint (not "close the epic anyway"), escalate for sprint abort. Do NOT present non-PASS findings with waiver arguments. Do NOT ask the user if criteria can be skipped. Do NOT proceed to Phase H.
 </HARD-GATE>
 
+**Sprint abort with successor-handoff (bug 3487-9521)**: When the user chooses option (b) — stop the sprint — present each failing SC with its `failure_category` from the verifier output (see completion-verifier.md Step 3 item 6). For each failing SC, require the user to declare a disposition:
+- **(a) abandoned** — the SC is intentionally dropped; no successor will pick it up
+- **(b) inherited by successor** — the SC will be carried by a named successor epic (user must provide the epic ID or confirm one will be created)
+- **(c) deferred** — the SC is deferred to a future unspecified effort
+
+Record the SC dispositions as a ticket comment on the epic: `.claude/scripts/dso ticket comment <epic_id> "SPRINT_ABORT SC dispositions: <SC>: <disposition> ..."`. For SCs with disposition (b), verify the named successor epic exists and is `open` before accepting. Do NOT collapse `internal_architecture_gap` failures into `external_blocker` framing — if the epic's own scope did not ship the required capability, name the architecture gap as the proximate cause.
+
 ### Step 3: Run /dso:validate-work (/dso:sprint)
 
 Before invoking `/dso:validate-work`, gather the changed files:
@@ -2536,7 +2543,7 @@ Phase I delegates to `/dso:end-session`, which handles closing issues, committin
 
 The only valid actions on non-PASS are: (a) return to Phase C to address the findings, or (b) explicitly confirm with the user that they want to STOP the sprint entirely (not close the epic as "done").
 
-**Narrative framing discipline (bug 8f43-e219)**: When surfacing non-PASS SC failures to the user, present the verifier's structural category VERBATIM (external blocker / internal architecture gap / evidence pending). Do NOT collapse "internal architecture gap" failures into "external blocker" framing — if a SC fails because the epic's own scope did not ship the required capability, name the architecture gap as the proximate cause, even if external bugs are also present. Present the override decision as a structural choice: "This SC cannot be satisfied because scope item Z did not ship. Closing with the gap means Z is either (a) abandoned, (b) inherited by a successor epic, or (c) deferred."
+**Narrative framing discipline (bug 8f43-e219)**: Non-PASS SC failure presentation and successor-handoff enforcement are defined in the Phase G Step 2 HARD-GATE sprint abort path (bug 3487-9521). The verifier's `failure_category` field (external_blocker / internal_architecture_gap / evidence_pending) drives the disposition dialog. This section (On Success) is only reachable when P1=PASS — failing SC guidance belongs at the abort site, not here.
 
 <HARD-GATE>
 Before closing the epic, confirm that dso:completion-verifier was dispatched at Phase G Step 2 with the EPIC ID (not a story ID) and Gate 1 (`check-verifier-verdict.sh`) returned exit 0 (`P1: PASS`) during THIS session. Story-level verifier results from Phase F Step 18 do NOT satisfy this requirement — each story verifier runs against one story's done definition; only the epic-level verifier (Phase G Step 2) runs against all epic-level success criteria simultaneously. If Phase G Step 2 has not yet been dispatched for the epic, stop and return to Phase G Step 2 NOW. Do NOT proceed to epic closure until the epic-level verifier verdict is received.

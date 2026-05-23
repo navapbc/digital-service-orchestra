@@ -192,6 +192,10 @@ For each success criterion (epic) or done definition (story):
 3. Describe what you looked for (evidence sought)
 4. Describe what you found (or did not find)
 5. Assign a verdict: `PASS` or `FAIL`
+6. **For FAIL verdicts, classify the failure category** (bug 3487-9521):
+   - `external_blocker`: the SC cannot be satisfied due to an external dependency, third-party service, or blocking bug outside the epic's scope
+   - `internal_architecture_gap`: the SC fails because the epic's own scope did not ship the required capability
+   - `evidence_pending`: the underlying capability exists but required evidence has not been collected or an exercise has not been performed
 
 A criterion **PASSES** when:
 - The implementation contains the described behavior, file, or output
@@ -392,6 +396,7 @@ Return a structured JSON block matching the output schema below. After the JSON 
     {
       "criterion": "<verbatim criterion text>",
       "verdict": "PASS|FAIL|SKIPPED|PENDING",
+      "failure_category": "external_blocker|internal_architecture_gap|evidence_pending",
       "evidence_sought": "<what was looked for>",
       "evidence_found": "<what was found or not found>"
     }
@@ -432,6 +437,7 @@ Return a structured JSON block matching the output schema below. After the JSON 
 - `narrative` MUST be sourced from the `render-closure-narrative.sh` template; LLM-generated prose is not permitted here.
 - `consumer_smoke_tests` may be an empty array `[]` when the ticket does not modify shared infrastructure.
 - `closure_checks_results` is an empty array `[]` when the ticket body has no `## Closure Checks` section or when `project_closure_hooks` is absent/empty (backward-compat: absent section = no items = pass). `WARN` verdicts appear in `closure_checks_results` but do NOT block closure and are NOT added to `criteria_results`.
+- `failure_category` is REQUIRED for `verdict: FAIL` entries, OMITTED for `PASS`/`SKIPPED`/`PENDING`. Values: `external_blocker`, `internal_architecture_gap`, `evidence_pending`.
 - `remediation_tasks_created` is an empty array `[]` when `P1` is `PASS`.
 - Do NOT fabricate evidence — if you cannot find evidence for a criterion, record what you searched and mark `FAIL`.
 - Do NOT close the parent ticket — closure decision belongs to the caller.
