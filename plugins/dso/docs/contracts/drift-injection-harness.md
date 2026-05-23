@@ -14,16 +14,19 @@ against a real Jira sandbox environment.
 ## Three Injection Modes
 
 ### orphan
+
 Injects a Jira issue with no corresponding local ticket. Creates a mapping
 anomaly where the Jira side exists but the local tracker has no record.
 In bridge-fsck terms: produces an orphan mapping entry.
 
 ### mislabel
+
 Creates a Jira issue + local ticket pair, then overwrites the Jira label
 with a value that does not match the `dso-id:<uuid>` label. In bridge-fsck
 terms: label mismatch produces a BRIDGE_ALERT.
 
 ### missing-prop
+
 Creates a Jira issue + local ticket pair, then strips the `dso_local_id`
 entity property from the Jira issue. In bridge-fsck terms: missing property
 produces a BRIDGE_ALERT tagged `missing-dso-local-id`.
@@ -41,7 +44,7 @@ credentials in CI.
 
 ## Subcommand Surface
 
-```
+```text
 inject-and-heal.sh <subcommand>
 
 Subcommands:
