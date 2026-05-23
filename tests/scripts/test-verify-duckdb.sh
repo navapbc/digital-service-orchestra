@@ -27,6 +27,7 @@ cleanup() {
     for d in "${_TEST_TMPDIRS[@]:-}"; do
         [[ -d "$d" ]] && rm -rf "$d"
     done
+    return 0
 }
 trap cleanup EXIT
 
@@ -76,11 +77,13 @@ test_red_verify_duckdb_missing_binary() {
     local empty_bin
     empty_bin="$(make_tmpdir)"
 
-    # PATH has only our empty tmpdir — no duckdb binary present
+    # PATH = empty tmpdir + system bins (so bash itself resolves) but no duckdb.
+    # Using only `$empty_bin` would prevent bash from finding itself and the
+    # script would never execute (exit 127, "command not found" before script runs).
     local exit_code=0
     local output
     output=$(
-        PATH="$empty_bin" bash "$SCRIPT" 2>&1
+        PATH="$empty_bin:/usr/bin:/bin" bash "$SCRIPT" 2>&1
     ) || exit_code=$?
 
     assert_ne "test_red_verify_duckdb_missing_binary: exits non-zero when duckdb is absent" \
