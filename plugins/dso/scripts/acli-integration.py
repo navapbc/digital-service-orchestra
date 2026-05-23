@@ -772,6 +772,24 @@ class AcliClient:
         response = self._direct_rest_get(path)
         return response["value"]
 
+    def add_label(self, jira_key: str, label: str) -> None:
+        """Add a single label to a Jira issue via ACLI workitem edit.
+
+        Uses ``jira workitem edit --key KEY --label LABEL`` to append a label
+        without overwriting existing labels. ACLI's ``--label`` flag performs
+        an additive set operation on the issue's label list.
+        """
+        cmd = [
+            "jira",
+            "workitem",
+            "edit",
+            "--key",
+            jira_key,
+            "--label",
+            label,
+        ]
+        self._run(cmd)
+
     def set_entity_property(self, issue_key: str, prop_name: str, value: Any) -> None:
         """Alias for set_issue_property — sets a Jira entity property."""
         return self.set_issue_property(issue_key, prop_name, value)

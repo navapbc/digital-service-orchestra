@@ -240,7 +240,16 @@ def create_one(
 
         return {"status": "dedup-create-skipped", "key": hit_key}
 
-    return _call_with_retry(client.create_issue, mutation.get("fields", {}))
+    result = _call_with_retry(client.create_issue, mutation.get("fields", {}))
+
+    # Write identity markers so the issue can be re-discovered by dedup JQL
+    # and by inbound consumers that inspect entity properties.
+    jira_key = result.get("key", "") if isinstance(result, dict) else ""
+    if jira_key:
+        client.add_label(jira_key, f"dso-id:{local_id}")
+        client.set_entity_property(jira_key, "dso_local_id", local_id)
+
+    return result
 
 
 def update_one(mutation: dict, client) -> dict:
