@@ -288,6 +288,8 @@ This gate is a hard stop when the object does not exist at all. Squash-merged co
 
 ### Step 3: Score and Classify (/dso:fix-bug)
 
+**Defect-vs-proposed-fix separation (bug 3487-9521)**: When the bug description contains a proposed fix or remediation plan, evaluate the DEFECT separately from the proposed solution. The defect may have a simpler fix than what the filer proposed. Score complexity based on the minimal fix for the actual behavioral gap, not the proposed solution's scope. A ticket that proposes "add a two-tier verdict model" may describe a defect fixable by "move existing guidance from an unreachable section to the correct execution path." Classify and score the defect; defer the proposed solution's scope evaluation to Phase D Step 2.
+
 1. Read the bug description, error messages, and stack traces
 2. Classify: **mechanical**, **behavioral**, or **llm-behavioral** (see Error Type Classification above)
 3. If mechanical: follow the Mechanical Fix Path, then skip to Phase H Step 1
@@ -651,7 +653,9 @@ Before proceeding to fix approval or fix implementation, validate the `hypothesi
 
 4. **Check hypothesis-root-cause consistency**: The confirmed hypothesis must explain the ROOT_CAUSE identified in the investigation RESULT. If the confirmed hypothesis tests a different aspect than the ROOT_CAUSE (e.g., hypothesis confirms a config value exists but ROOT_CAUSE claims a code logic error), the gate fails — the investigation has confirmed a tangential fact, not the root cause. Escalate to the next investigation tier.
 
-Only when check 4 passes — the confirmed hypothesis directly explains the ROOT_CAUSE — proceed to Phase D Step 1 (Fix Approval).
+5. **Causal chain termination check (bug 6b67-2aad)**: The ROOT_CAUSE must name a specific actionable artifact — a line of code, a prompt instruction, a config value, a specific variable or path that is wrong. Category labels ("platform issue," "LLM behavior," "non-deterministic compliance") are not root causes; they are descriptions of the symptom class. If ROOT_CAUSE terminates at a category label rather than an artifact, the investigation is incomplete — escalate to the next tier with the instruction: "Trace the causal chain one more step. What specific code, instruction, or configuration provides the wrong information to the actor?" A root cause that cannot be traced to a changeable artifact cannot produce a fix.
+
+Only when checks 4 and 5 pass — the confirmed hypothesis directly explains the ROOT_CAUSE, and the ROOT_CAUSE names an actionable artifact — proceed to Phase D Step 1 (Fix Approval).
 
 **Escalation on gate failure**: When the gate rejects the investigation result (missing/empty `hypothesis_tests`, or all disproved), escalate following the standard escalation path (BASIC → INTERMEDIATE → ADVANCED → ESCALATED → User). Include the gate failure reason and all investigation findings in the escalation context so the next tier can build on prior work.
 

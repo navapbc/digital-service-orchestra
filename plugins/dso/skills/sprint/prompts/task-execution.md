@@ -15,6 +15,8 @@ fi
 
 The check is informational — continue regardless. The platform's CWD redirection under `isolation: "worktree"` already places you in your own worktree; this just records that fact in your logs.
 
+**CLAUDE.md path leak (bug 6b67-2aad)**: The CLAUDE.md file shown in your system context may reference the PARENT session worktree path (e.g., `Contents of /Users/.../worktree-20260523-.../CLAUDE.md`). That path is NOT your repo root — it is the orchestrator's session worktree. NEVER derive file paths from the CLAUDE.md system context path. Always use `$(git rev-parse --show-toplevel)` to construct absolute paths for Read, Edit, and Write tool calls.
+
 #### Session HEAD Sync (worktree isolation fix)
 
 If `SESSION_BRANCH` and `SESSION_HEAD` are both set in the environment, sync this worktree to the session HEAD:
