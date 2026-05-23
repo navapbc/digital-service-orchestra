@@ -1,0 +1,24 @@
+{
+  "reviewer_artifact_path": "tests/fixtures/story-decomposer/reviewer-artifact-sample.md",
+  "findings": [
+    {
+      "target_story_id": "a7c0-8e53-3502-4ddd",
+      "finding_id": "rf-001",
+      "severity": "critical",
+      "summary": "Story DD for sc-2 (cross-session persistence) is narrower than the SC requires; gap in approver-attribution coverage.",
+      "recommendation": "Extend DD or add a new vertical-slice story that covers durable persistence and approver identity capture."
+    },
+    {
+      "target_story_id": "b193-4f81-2c10-9ee2",
+      "finding_id": "rf-002",
+      "severity": "important",
+      "summary": "Existing story addresses approve/reject markers but does not bind approver identity to the audit log.",
+      "recommendation": "Add a DD that records approver user id + timestamp on every action, satisfying sc-3."
+    }
+  ],
+  "metadata": {
+    "reviewer_agent": "red-team-reviewer",
+    "epic_id": "81d7-9da2-676e-4948",
+    "review_cycle": 2
+  }
+}
