@@ -24,12 +24,20 @@ fi
 ```bash
 ENFORCEMENT=$(cd "$WORKTREE_PATH" && .claude/scripts/dso read-config.sh dso.workflow 2>/dev/null || echo "local")
 if [[ "$ENFORCEMENT" == "ci-pr" ]]; then
-    echo "Skipping worktree review: dso.workflow=ci-pr — review enforced by CI on PR merge"
-    # Proceed directly to Step 3 (Record test status). Do NOT run classifier, tier reviewer, or record-review.sh.
+    # Verify CI trigger patterns will match the session branch (bug 5f3a-a794).
+    # If patterns don't match, fall back to local review to prevent double-skip.
+    _SESSION_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+    if [[ "$_SESSION_BRANCH" =~ ^(session/|session-|session_|worktree-|bug-batch/) ]] || [[ "$_SESSION_BRANCH" == "main" ]]; then
+        echo "Skipping worktree review: dso.workflow=ci-pr — CI trigger patterns match session branch '$_SESSION_BRANCH'"
+        # Proceed directly to Step 3 (Record test status). Do NOT run classifier, tier reviewer, or record-review.sh.
+    else
+        echo "WARNING: dso.workflow=ci-pr but session branch '$_SESSION_BRANCH' does not match any CI trigger pattern (session/*, session-*, session_*, worktree-*, bug-batch/*) — running local review as fallback to prevent unreviewed code"
+        ENFORCEMENT="local"
+    fi
 fi
 ```
 
-When `dso.workflow=ci-pr`, skip all Step 2 sub-steps (classifier, reviewer dispatch, record-review) and proceed directly to Step 3. The pre-commit hooks also skip enforcement in ci-pr mode — the commit will not be blocked by the review gate. When `dso.workflow=local` or absent, continue with the full review pipeline below.
+When `dso.workflow=ci-pr` AND the session branch matches a known CI trigger pattern, skip all Step 2 sub-steps (classifier, reviewer dispatch, record-review) and proceed directly to Step 3. The pre-commit hooks also skip enforcement in ci-pr mode — the commit will not be blocked by the review gate. When the session branch does NOT match any CI trigger pattern, fall back to local review to prevent the "double skip" scenario (bug 5f3a-a794: local review skipped + CI review never fires = zero review). When `dso.workflow=local` or absent, continue with the full review pipeline below.
 
 The orchestrator runs all CWD-sensitive REVIEW-WORKFLOW.md steps as its own Bash calls (prefixed with `cd $WORKTREE_PATH &&`). Only the code analysis sub-agent is dispatched via Agent tool.
 
