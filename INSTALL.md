@@ -221,3 +221,76 @@ Create a personal access token at: https://help.figma.com/hc/en-us/articles/8085
 ### Confluence
 
 Confluence integration is planned but not yet available — no setup steps at this time.
+
+## Telemetry Infrastructure
+
+DSO ships an optional review-telemetry pipeline: a Lambda function receives POST events from the emitter shim, stores NDJSON records in S3, and exposes query capability via `query-stats.sh`. All scripts live under `plugins/dso/scripts/telemetry/`.
+
+### Prerequisites
+
+- **AWS credentials** configured — either environment variables (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_PROFILE`) or `~/.aws/credentials`. Verify with `aws sts get-caller-identity`.
+- **DuckDB CLI** installed — required for local `query-stats.sh` invocations. Verify with `plugins/dso/scripts/verify-duckdb.sh`.
+- **bash 4+** — DSO telemetry scripts require bash 4.0 or later (macOS ships 3.2; upgrade with `brew install bash`).
+- **jq** — required for `aws-status.sh` JSON output formatting. Install with `brew install jq` or `apt-get install jq`.
+
+### Setup Sequence (run in order)
+
+All four scripts must be run **in the order listed below** — each step writes config keys read by subsequent steps.
+
+#### 1. Provision the S3 bucket
+
+```bash
+plugins/dso/scripts/telemetry/aws-setup-bucket.sh
+```
+
+- Provisions an S3 bucket with public-access block, AES256 SSE, and a 90-day GLACIER_IR lifecycle rule.
+- Requires `review_telemetry.bucket_name_prefix` and `review_telemetry.lambda_role_arn` in `.claude/dso-config.conf` before running.
+- Success marker: `OK: DSO telemetry bucket setup complete: <bucket-name>`
+- Writes `review_telemetry.bucket_name` to `.claude/dso-config.conf`.
+
+#### 2. Provision the Lambda function and IAM role
+
+```bash
+plugins/dso/scripts/telemetry/aws-setup-lambda.sh
+```
+
+- Provisions the IAM execution role, CloudWatch log group (7-day retention), Lambda function (python3.13), Function URL (auth-type NONE), and reserved concurrency (10).
+- Requires `review_telemetry.bucket_name` (written by step 1).
+- Success marker: `OK: DSO telemetry Lambda setup complete: dso-telemetry-review`
+- Writes `review_telemetry.iam_role_name`, `review_telemetry.lambda_function_name`, and `review_telemetry.endpoint_url` to `.claude/dso-config.conf`.
+
+#### 3. Deploy the handler code
+
+```bash
+plugins/dso/scripts/telemetry/aws-deploy-handler.sh
+```
+
+- Packages `schema.py`, `validator.py`, `privacy.py`, `s3_writer.py`, and `handler.py` from `plugins/dso/scripts/telemetry/lambda-handler/` and deploys them via `lambda update-function-code`.
+- Requires `review_telemetry.lambda_function_name` and `review_telemetry.bucket_name` (written by steps 2 and 1 respectively).
+- Success marker: `Deploy complete: dso-telemetry-review`
+
+#### 4. Verify live (must pass before sprint closure)
+
+```bash
+plugins/dso/scripts/telemetry/aws-verify-live.sh
+```
+
+- Runs 7 live checks: Lambda Function URL configured, IAM role trust policy, S3 bucket existence, S3 SSE, S3 lifecycle, IAM simulate-principal-policy for `s3:PutObject`, and end-to-end POST → S3 object visibility.
+- Requires `review_telemetry.bucket_name`, `review_telemetry.lambda_function_name`, `review_telemetry.iam_role_name`, and `review_telemetry.lambda_function_url` in `.claude/dso-config.conf`.
+- Success marker: all 7 lines print `<check_name>: ok`; exit code 0.
+
+### Operations
+
+**Status check** (read-only JSON of all 5 resources — S3 bucket, Lambda function, IAM role, CloudWatch log group, and last-24h invocation count):
+
+```bash
+plugins/dso/scripts/telemetry/aws-status.sh
+```
+
+**Teardown** (permanently deletes all AWS resources in IAM-safe order — Lambda first, then IAM role with policy detach, then S3 bucket with version purge, then CloudWatch log group):
+
+```bash
+plugins/dso/scripts/telemetry/aws-teardown.sh --user-approved
+```
+
+The `--user-approved` flag is required as a safety gate. After teardown, stale `review_telemetry.*` entries remain in `.claude/dso-config.conf` and must be removed manually.
