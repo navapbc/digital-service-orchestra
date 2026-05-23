@@ -154,7 +154,12 @@ def test_empty_mutations_produces_manifest_with_zero_count(tmp_path, applier):
 
 
 def test_create_action_routes_to_create_issue(tmp_path, applier):
-    """'create' action calls client.create_issue with mutation fields."""
+    """'create' action calls client.create_issue with translated bridge schema.
+
+    The differ emits Jira snapshot field names ({summary, issuetype});
+    create_one translates these to AcliClient's bridge schema
+    ({title, ticket_type}) because AcliClient.create_issue extracts those.
+    """
     pass_id = "2026-05-22-pass-04"
     fields = {"summary": "New feature", "issuetype": {"name": "Story"}}
     mutations = [{"action": "create", "fields": fields}]
@@ -166,9 +171,14 @@ def test_create_action_routes_to_create_issue(tmp_path, applier):
     ):
         applier.apply(mutations, pass_id, repo_root=tmp_path)
 
-    mock_client.create_issue.assert_called_once_with(fields)
+    mock_client.create_issue.assert_called_once()
+    _call_args = mock_client.create_issue.call_args
+    _ticket_data = _call_args.args[0] if _call_args.args else _call_args.kwargs
+    assert _ticket_data.get("title") == "New feature"
+    assert _ticket_data.get("ticket_type") == "Story"
     mock_client.update_issue.assert_not_called()
-    mock_client.transition_issue.assert_not_called()
+    # delete is now via client.delete_issue, not transition_issue.
+    mock_client.delete_issue.assert_not_called()
 
 
 def test_update_action_routes_to_update_issue(tmp_path, applier):
@@ -187,11 +197,14 @@ def test_update_action_routes_to_update_issue(tmp_path, applier):
     # F3: fields must be unpacked as kwargs (real signature: update_issue(key, **kwargs))
     mock_client.update_issue.assert_called_once_with("DSO-42", **fields)
     mock_client.create_issue.assert_not_called()
-    mock_client.transition_issue.assert_not_called()
+    mock_client.delete_issue.assert_not_called()
 
 
-def test_delete_action_routes_to_transition_issue_closed(tmp_path, applier):
-    """'delete' action calls client.transition_issue(key, 'Closed')."""
+def test_delete_action_routes_to_delete_issue(tmp_path, applier):
+    """'delete' action calls client.delete_issue(key) — AcliClient exposes
+    delete_issue (REST DELETE), not transition_issue. The previous test
+    asserted transition_issue which doesn't exist on the real client.
+    """
     pass_id = "2026-05-22-pass-06"
     mutations = [{"action": "delete", "key": "DSO-99"}]
     mock_acli_mod, mock_client = _make_mock_acli_module()
@@ -202,7 +215,7 @@ def test_delete_action_routes_to_transition_issue_closed(tmp_path, applier):
     ):
         applier.apply(mutations, pass_id, repo_root=tmp_path)
 
-    mock_client.transition_issue.assert_called_once_with("DSO-99", "Closed")
+    mock_client.delete_issue.assert_called_once_with("DSO-99")
     mock_client.create_issue.assert_not_called()
     mock_client.update_issue.assert_not_called()
 
@@ -218,7 +231,7 @@ def test_delete_one_treats_404_as_success(applier):
     from unittest.mock import MagicMock
 
     client = MagicMock()
-    client.transition_issue.side_effect = applier.JiraAPIError(
+    client.delete_issue.side_effect = applier.JiraAPIError(
         "Issue does not exist", status_code=404
     )
 
@@ -233,7 +246,7 @@ def test_delete_one_propagates_non_404_jira_errors(applier):
     import pytest as _pytest
 
     client = MagicMock()
-    client.transition_issue.side_effect = applier.JiraAPIError(
+    client.delete_issue.side_effect = applier.JiraAPIError(
         "Forbidden", status_code=403
     )
     mutation = {"action": "delete", "key": "DSO-FORBIDDEN"}

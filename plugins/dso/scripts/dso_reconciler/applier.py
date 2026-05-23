@@ -328,7 +328,27 @@ def create_one(
 
         return {"status": "dedup-create-skipped", "key": hit_key}
 
-    result = _call_with_retry(client.create_issue, mutation.get("fields", {}))
+    # Translate differ-emitted Jira snapshot field names (summary, status,
+    # issuetype) into the bridge schema (title, ticket_type) that
+    # AcliClient.create_issue requires. Without this translation, create_issue
+    # raises ValueError("title/summary is empty") because the differ never
+    # emits a 'title' key. The mapping is conservative — only the two fields
+    # AcliClient inspects are remapped; everything else passes through.
+    _raw_fields = mutation.get("fields", {})
+    _ticket_data = dict(_raw_fields)
+    if "title" not in _ticket_data:
+        # 'summary' is Jira's canonical field for the human-readable headline;
+        # AcliClient.create_issue uses 'title' as the bridge-side equivalent.
+        _ticket_data["title"] = _ticket_data.get("summary", "")
+    if "ticket_type" not in _ticket_data:
+        _issuetype = _ticket_data.get("issuetype")
+        if isinstance(_issuetype, dict):
+            _ticket_data["ticket_type"] = _issuetype.get("name", "Task")
+        elif isinstance(_issuetype, str):
+            _ticket_data["ticket_type"] = _issuetype
+        else:
+            _ticket_data["ticket_type"] = "Task"
+    result = _call_with_retry(client.create_issue, _ticket_data)
 
     # Write identity markers so the issue can be re-discovered by dedup JQL
     # and by inbound consumers that inspect entity properties.
@@ -408,8 +428,12 @@ def delete_one(mutation: dict, client) -> None:
     satisfied, so we treat it as success rather than letting the JiraAPIError
     unwind the entire pass. Other JiraAPIError statuses propagate normally.
     """
+    # AcliClient exposes delete_issue (REST DELETE), not transition_issue.
+    # The "close = transition to Closed" model belongs to a different bridge
+    # surface that we don't use here — delete the Jira issue directly to
+    # achieve the desired post-state ("issue gone from Jira").
     try:
-        _call_with_retry(client.transition_issue, mutation.get("key"), "Closed")
+        _call_with_retry(client.delete_issue, mutation.get("key"))
     except JiraAPIError as exc:
         if getattr(exc, "status_code", None) == 404:
             return  # already-gone is the goal of a delete mutation

@@ -149,14 +149,21 @@ def test_jql_hit_skips_create_issue(applier, tmp_path):
 
 
 def test_jql_miss_calls_create_issue(applier):
-    """On JQL miss (empty search results), create_issue IS called."""
+    """On JQL miss (empty search results), create_issue IS called with translated
+    bridge schema (title from summary, ticket_type from issuetype)."""
     client = _make_mock_client(search_return=[])
 
     mutation = _make_create_mutation("tick-0006")
     result = applier.create_one(mutation, client, rest_calls=0)
 
     client.search_issues.assert_called_once()
-    client.create_issue.assert_called_once_with(mutation.get("fields", {}))
+    client.create_issue.assert_called_once()
+    _call_args = client.create_issue.call_args
+    _ticket_data = _call_args.args[0] if _call_args.args else _call_args.kwargs
+    # title and ticket_type are required by AcliClient.create_issue;
+    # the differ emits 'summary' / 'issuetype' which create_one translates.
+    assert "title" in _ticket_data
+    assert "ticket_type" in _ticket_data
     assert result is not None
     assert result.get("key") == "DIG-999"
 

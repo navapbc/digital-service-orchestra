@@ -216,5 +216,7 @@ def test_stable_head_all_mutations_dispatched(tmp_path, applier):
     assert mock_client.update_issue.call_count == 2, (
         f"Expected 2 update_issue calls, got {mock_client.update_issue.call_count}"
     )
-    mock_client.transition_issue.assert_called_once_with("DSO-22", "Closed")
+    # delete_one now calls client.delete_issue, not transition_issue (which
+    # does not exist on AcliClient).
+    mock_client.delete_issue.assert_called_once_with("DSO-22")
     assert manifest_path.exists(), "Manifest must be written after successful pass"
