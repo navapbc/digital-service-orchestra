@@ -125,6 +125,7 @@ VALIDATION_DIRS_CLEANED=0
 ARTIFACT_DIRS_CLEANED=0
 DEBUG_LOGS_CLEANED=0
 WORKTREES_PRUNED=0
+DEAD_LOCKS_REMOVED=0
 PLAYWRIGHT_CLEANED=0
 TMP_DIRS_CLEANED=0
 STATE_FILES_CLEANED=0
@@ -295,7 +296,7 @@ if [ -d "$CLAUDE_PROJECTS_DIR" ]; then
             log_action "  WARNING: Found $LARGE_COUNT agent JSONL file(s) >500MB"
         fi
     fi
-    if [ $JSONL_CLEANED -gt 0 ]; then
+    if [ "$JSONL_CLEANED" -gt 0 ]; then
         if [ $DRY_RUN -eq 1 ]; then
             log_action "  Would remove $JSONL_CLEANED stale/oversized agent JSONL file(s)"
         else
@@ -480,6 +481,33 @@ log "Checking for prunable git worktrees..."
 # Go to the main repo root (not a worktree) for pruning
 MAIN_REPO=$(git worktree list --porcelain 2>/dev/null | head -1 | sed 's/^worktree //')
 if [ -n "$MAIN_REPO" ]; then
+    # Sweep dead-PID locked agent worktrees (git worktree prune skips locked worktrees by design)
+    MAIN_GIT_DIR=$(git -C "$MAIN_REPO" rev-parse --absolute-git-dir 2>/dev/null || true)
+    if [ -n "$MAIN_GIT_DIR" ] && [ -d "$MAIN_GIT_DIR/worktrees" ]; then
+        while IFS= read -r -d '' lock_file; do
+            lock_content=$(cat "$lock_file" 2>/dev/null || true)
+            wt_pid=$(echo "$lock_content" | grep -oE '\(pid [0-9]+\)' | grep -oE '[0-9]+' || true)
+            [ -z "$wt_pid" ] && continue
+            if ! kill -0 "$wt_pid" 2>/dev/null; then
+                # Dead PID — safe to remove this locked worktree
+                wt_name=$(basename "$(dirname "$lock_file")")
+                # Resolve actual worktree path from the gitdir file
+                wt_gitdir_file="$(dirname "$lock_file")/gitdir"
+                wt_path=$(sed 's|/.git$||' "$wt_gitdir_file" 2>/dev/null || true)
+                if [ $DRY_RUN -eq 1 ]; then
+                    log_action "  Would remove dead-PID locked worktree: $wt_name (pid $wt_pid dead)"
+                else
+                    git -C "$MAIN_REPO" worktree unlock "$wt_path" 2>/dev/null || \
+                        git -C "$MAIN_REPO" worktree unlock "$wt_name" 2>/dev/null || true
+                    git -C "$MAIN_REPO" worktree remove --force "$wt_path" 2>/dev/null || \
+                        git -C "$MAIN_REPO" worktree remove --force "$wt_name" 2>/dev/null || true
+                    log_action "  Removed dead-PID locked worktree: $wt_name (pid $wt_pid)"
+                    (( DEAD_LOCKS_REMOVED++ )) || true
+                fi
+            fi
+        done < <(find "$MAIN_GIT_DIR/worktrees" -name "locked" -print0 2>/dev/null)
+    fi
+
     PRUNABLE=$(git -C "$MAIN_REPO" worktree list 2>/dev/null | grep "prunable" || true)
     if [ -n "$PRUNABLE" ]; then
         WORKTREES_PRUNED=$(echo "$PRUNABLE" | wc -l | tr -d ' ')
@@ -613,7 +641,7 @@ else
 fi
 
 # Summary
-TOTAL_CLEANED=$((PROCS_KILLED + LOGS_CLEANED + TASKS_CLEANED + CASCADE_CLEANED + VALIDATION_DIRS_CLEANED + ARTIFACT_DIRS_CLEANED + DEBUG_LOGS_CLEANED + WORKTREES_PRUNED + PLAYWRIGHT_CLEANED + TMP_DIRS_CLEANED + STATE_FILES_CLEANED))
+TOTAL_CLEANED=$((PROCS_KILLED + LOGS_CLEANED + TASKS_CLEANED + CASCADE_CLEANED + VALIDATION_DIRS_CLEANED + ARTIFACT_DIRS_CLEANED + DEBUG_LOGS_CLEANED + WORKTREES_PRUNED + PLAYWRIGHT_CLEANED + TMP_DIRS_CLEANED + STATE_FILES_CLEANED + DEAD_LOCKS_REMOVED))
 
 if [ $SUMMARY_ONLY -eq 1 ] && [ $QUIET -eq 0 ]; then
     # Summary-only mode: single line when clean, brief list when not
@@ -627,6 +655,7 @@ if [ $SUMMARY_ONLY -eq 1 ] && [ $QUIET -eq 0 ]; then
         [ $((VALIDATION_DIRS_CLEANED + ARTIFACT_DIRS_CLEANED)) -gt 0 ] && echo "  Dead worktree state removed: $((VALIDATION_DIRS_CLEANED + ARTIFACT_DIRS_CLEANED)) dirs"
         [ "$DEBUG_LOGS_CLEANED" -gt 0 ] && echo "  Debug logs removed: $DEBUG_LOGS_CLEANED"
         [ "$WORKTREES_PRUNED" -gt 0 ] && echo "  Worktrees pruned: $WORKTREES_PRUNED"
+        [ "$DEAD_LOCKS_REMOVED" -gt 0 ] && echo "  Dead-PID locked worktrees removed: $DEAD_LOCKS_REMOVED"
         [ "$TIMEOUT_ENTRIES" -gt 0 ] && echo "  Timeout events found: $TIMEOUT_ENTRIES (use /dso:retro to triage)"
     fi
 else
@@ -642,6 +671,7 @@ else
     log "  Dead worktree state:      $((VALIDATION_DIRS_CLEANED + ARTIFACT_DIRS_CLEANED)) dirs"
     log "  Debug logs removed:       $DEBUG_LOGS_CLEANED"
     log "  Worktrees pruned:         $WORKTREES_PRUNED"
+    log "  Dead-PID locked removed:  $DEAD_LOCKS_REMOVED"
     log "  Timeout events found:     $TIMEOUT_ENTRIES (not reset — use /dso:retro to triage)"
     log "========================"
     if [ $TOTAL_CLEANED -eq 0 ]; then

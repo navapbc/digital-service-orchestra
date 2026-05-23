@@ -321,6 +321,144 @@ else
     (( SKIP++ ))
 fi
 
+# ── Test 17: Dead-PID locked agent worktree is removed by cleanup ─────────────
+# BUG 619b-6252: Section 11 only calls `git worktree prune`, which skips locked
+# worktrees by git design. When a sprint sub-agent dies mid-harvest, the lock is
+# never removed, so the worktree stays permanently. After the fix, cleanup must
+# detect a locked worktree whose lock-file PID is dead and force-remove it.
+#
+# Observable surface: git worktree list output — the agent worktree must NOT
+# appear after cleanup runs.
+echo "Test 17: Cleanup removes a locked agent worktree whose lock-file PID is dead"
+if [ -x "$SCRIPT" ]; then
+    _T17_MAIN=$(mktemp -d)
+    _T17_BASE=$(mktemp -d)
+    _T17_WT="$_T17_BASE/agent-dead9999"
+    _t17_cleanup() { rm -rf "$_T17_MAIN" "$_T17_BASE" 2>/dev/null || true; }
+    trap _t17_cleanup EXIT
+
+    # Set up a minimal git repo
+    git -C "$_T17_MAIN" init -q
+    git -C "$_T17_MAIN" config user.email "test@test.com"
+    git -C "$_T17_MAIN" config user.name "Test"
+    touch "$_T17_MAIN/file.txt"
+    git -C "$_T17_MAIN" add .
+    git -C "$_T17_MAIN" commit -q -m "init"
+
+    # Add a worktree whose name matches the agent-* pattern
+    git -C "$_T17_MAIN" worktree add -q "$_T17_WT" -b "agent-dead9999"
+
+    # Lock it with a dead PID (PID 1 is init/launchd — never a sprint sub-agent;
+    # use a PID that is guaranteed dead: 99999 is out of typical range on macOS)
+    # We verify PID is actually dead before proceeding
+    _DEAD_PID=99999
+    if kill -0 "$_DEAD_PID" 2>/dev/null; then
+        # Fallback: use a PID we know is gone by forking and waiting
+        bash -c 'exit 0' &
+        _DEAD_PID=$!
+        wait "$_DEAD_PID" 2>/dev/null || true
+    fi
+
+    git -C "$_T17_MAIN" worktree lock \
+        --reason "claude agent agent-dead9999 (pid ${_DEAD_PID})" "$_T17_WT"
+
+    # Remove the actual worktree directory to simulate a crashed harvest
+    rm -rf "$_T17_WT"
+
+    # Confirm worktree is still listed (locked — prune would skip it)
+    _before=$(git -C "$_T17_MAIN" worktree list 2>/dev/null)
+    if ! echo "$_before" | grep -q "agent-dead9999"; then
+        echo "  SKIP: pre-condition failed — worktree not listed before cleanup" >&2
+        (( SKIP++ ))
+    else
+        # Run cleanup against the temp repo
+        _t17_out=$(cd "$_T17_MAIN" && \
+            CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+            bash "$SCRIPT" 2>&1) || true
+
+        # Observable assertion: worktree must no longer appear in git worktree list
+        _after=$(git -C "$_T17_MAIN" worktree list 2>/dev/null)
+        if echo "$_after" | grep -q "agent-dead9999"; then
+            echo "  FAIL: locked worktree with dead PID was NOT removed by cleanup" >&2
+            echo "  git worktree list output:" >&2
+            echo "$_after" | sed 's/^/    /' >&2
+            (( FAIL++ ))
+        else
+            echo "  PASS: locked worktree with dead PID was removed by cleanup"
+            (( PASS++ ))
+        fi
+    fi
+
+    trap - EXIT
+    _t17_cleanup
+else
+    echo "  SKIP: plugin script not yet created (expected — TDD)"
+    (( SKIP++ ))
+fi
+
+# ── Test 18: Live-PID locked agent worktree is preserved by cleanup ───────────
+# Safety check: cleanup must NOT remove a locked worktree whose lock-file PID
+# is still alive. Removing an in-flight sub-agent worktree would destroy work.
+#
+# Observable surface: git worktree list — the worktree must STILL appear after
+# cleanup runs when the PID in the lock file is alive.
+echo "Test 18: Cleanup preserves a locked agent worktree whose lock-file PID is alive"
+if [ -x "$SCRIPT" ]; then
+    _T18_MAIN=$(mktemp -d)
+    _T18_BASE=$(mktemp -d)
+    _T18_WT="$_T18_BASE/agent-live1234"
+    _t18_cleanup() {
+        kill "$_T18_LIVE_PID" 2>/dev/null || true
+        rm -rf "$_T18_MAIN" "$_T18_BASE" 2>/dev/null || true
+    }
+    trap _t18_cleanup EXIT
+
+    # Set up a minimal git repo
+    git -C "$_T18_MAIN" init -q
+    git -C "$_T18_MAIN" config user.email "test@test.com"
+    git -C "$_T18_MAIN" config user.name "Test"
+    touch "$_T18_MAIN/file.txt"
+    git -C "$_T18_MAIN" add .
+    git -C "$_T18_MAIN" commit -q -m "init"
+
+    # Add a worktree
+    git -C "$_T18_MAIN" worktree add -q "$_T18_WT" -b "agent-live1234"
+
+    # Spawn a live background process to use its PID as the "agent" PID
+    sleep 300 &
+    _T18_LIVE_PID=$!
+
+    git -C "$_T18_MAIN" worktree lock \
+        --reason "claude agent agent-live1234 (pid ${_T18_LIVE_PID})" "$_T18_WT"
+
+    # Remove the worktree directory (simulating a partially-cleaned-up state)
+    # The lock file still has a live PID — cleanup must NOT remove it
+    rm -rf "$_T18_WT"
+
+    # Run cleanup against the temp repo
+    _t18_out=$(cd "$_T18_MAIN" && \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        bash "$SCRIPT" 2>&1) || true
+
+    # Observable assertion: worktree must still appear in git worktree list
+    _after18=$(git -C "$_T18_MAIN" worktree list 2>/dev/null)
+    if echo "$_after18" | grep -q "agent-live1234"; then
+        echo "  PASS: locked worktree with live PID was preserved by cleanup"
+        (( PASS++ ))
+    else
+        echo "  FAIL: cleanup removed a locked worktree with a LIVE PID — data loss risk" >&2
+        echo "  git worktree list output:" >&2
+        echo "$_after18" | sed 's/^/    /' >&2
+        (( FAIL++ ))
+    fi
+
+    trap - EXIT
+    _t18_cleanup
+else
+    echo "  SKIP: plugin script not yet created (expected — TDD)"
+    (( SKIP++ ))
+fi
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed, $SKIP skipped"
 echo "PASSED: $PASS  FAILED: $FAIL"
