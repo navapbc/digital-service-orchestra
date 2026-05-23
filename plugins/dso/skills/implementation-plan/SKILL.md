@@ -465,6 +465,28 @@ Record exactly one `.claude/scripts/dso ticket comment <id> "REMEDIATION_CYCLE:<
 
 **Fallback**: if the review fails after autonomous resolution (`review.max_cycles`, default: 4) and user escalation, revert to existing patterns and note the unresolved concern. If no existing pattern solves the story, halt and consult the user.
 
+**Remediation loop protocol (Step 2 — architectural review re-dispatch)**
+
+When `dso:approach-proposer` returns revised proposals after a Step 2 FAIL verdict, the orchestrator enters a remediation loop governed by the shared protocol. Source `MAX_CYCLES` from `get_max_remediation_cycles()` in `${CLAUDE_PLUGIN_ROOT}/hooks/lib/planning-config.sh` before entering the loop.
+
+**Per-cycle declaration**: At the start of every remediation cycle, emit exactly:
+`Current cycle: N of MAX_CYCLES`
+where `N` is the 1-based cycle counter and `MAX_CYCLES` is the resolved maximum. This line is required before any findings, deltas, or token emissions within that cycle.
+
+**Oscillation-check hard gate (cycle >= 2)**: On any cycle where `N >= 2`, the orchestrator MUST invoke `/dso:oscillation-check` (Skill) before proceeding with findings analysis. Skipping this gate requires an explicit `OSCILLATION_CHECK_SKIPPED: <reason>` ticket comment capturing the rationale; no other skip reason is permitted.
+
+**Mid-loop success exit**: If the revised proposals pass architectural review on any cycle (before reaching `MAX_CYCLES`), the loop exits immediately and Step 2 proceeds to Step 3. No terminal token is emitted on success.
+
+**HALT-vs-REPLAN exclusivity check**: `REPLAN_ESCALATE` MUST be emitted IFF `cycle_count == MAX_CYCLES AND findings non-empty`. No other condition may emit `REPLAN_ESCALATE`. All other terminal states use a different token — human-input required → `HALT_FOR_USER`; oscillation detected → `OSCILLATION_HALT`; illegal state transition → `PROTOCOL_ERROR`. Emitting `REPLAN_ESCALATE` under any other condition, or emitting it together with `PROTOCOL_ERROR`, is itself a `PROTOCOL_ERROR`.
+
+**Terminal REPLAN_ESCALATE**: On cycle `MAX_CYCLES` with findings still non-empty, emit (per the canonical `${CLAUDE_PLUGIN_ROOT}/docs/contracts/replan-escalate-signal.md` colon-space prefix):
+`REPLAN_ESCALATE: planner_supplied EXPLANATION:<explanation text>`
+The upstream for implementation-plan Step 2 is `planner_supplied` (per the upstream enum in Section 6 of the protocol doc). Emit this as a standalone ticket comment so the orchestrator's parent session can detect and route the escalation. The literal prefix `REPLAN_ESCALATE: ` (colon followed by a single space) and the `EXPLANATION:` field label are fixed by contract — do not vary them.
+
+**PROTOCOL_ERROR on invariant violation**: Any illegal state transition — emitting `REPLAN_ESCALATE` when `cycle_count < MAX_CYCLES`, emitting multiple terminal tokens, or violating the HALT-vs-REPLAN exclusivity invariant — MUST emit `PROTOCOL_ERROR` and halt remediation immediately.
+
+See: `${CLAUDE_PLUGIN_ROOT}/skills/shared/workflows/remediation-loop-protocol.md`
+
 ---
 
 ## Step 3: Atomic Task Drafting (via `dso:task-decomposer` opus sub-agent)
@@ -889,6 +911,28 @@ After receiving the revised task set, merge the delta with the prior cycle's tas
 
 Record exactly one `.claude/scripts/dso ticket comment <id> "REMEDIATION_CYCLE:<N> task-decomposer re-dispatched after Step 4 plan-review findings"` per cycle per SC5 single-comment policy.
 
+**Remediation loop protocol (Step 4 — plan review re-dispatch)**
+
+When `dso:task-decomposer` returns revised tasks after Step 4 plan-review findings, the orchestrator enters a remediation loop governed by the shared protocol. Source `MAX_CYCLES` from `get_max_remediation_cycles()` in `${CLAUDE_PLUGIN_ROOT}/hooks/lib/planning-config.sh` before entering the loop.
+
+**Per-cycle declaration**: At the start of every remediation cycle, emit exactly:
+`Current cycle: N of MAX_CYCLES`
+where `N` is the 1-based cycle counter and `MAX_CYCLES` is the resolved maximum. This line is required before any findings, deltas, or token emissions within that cycle.
+
+**Oscillation-check hard gate (cycle >= 2)**: On any cycle where `N >= 2`, the orchestrator MUST invoke `/dso:oscillation-check` (Skill) before proceeding with findings analysis. Skipping this gate requires an explicit `OSCILLATION_CHECK_SKIPPED: <reason>` ticket comment capturing the rationale; no other skip reason is permitted.
+
+**Mid-loop success exit**: If the revised task set passes plan review on any cycle (before reaching `MAX_CYCLES`), the loop exits immediately and Step 4 proceeds to Step 5. No terminal token is emitted on success.
+
+**HALT-vs-REPLAN exclusivity check**: `REPLAN_ESCALATE` MUST be emitted IFF `cycle_count == MAX_CYCLES AND findings non-empty`. No other condition may emit `REPLAN_ESCALATE`. All other terminal states use a different token — human-input required → `HALT_FOR_USER`; oscillation detected → `OSCILLATION_HALT`; illegal state transition → `PROTOCOL_ERROR`. Emitting `REPLAN_ESCALATE` under any other condition, or emitting it together with `PROTOCOL_ERROR`, is itself a `PROTOCOL_ERROR`.
+
+**Terminal REPLAN_ESCALATE**: On cycle `MAX_CYCLES` with findings still non-empty, emit (per the canonical `${CLAUDE_PLUGIN_ROOT}/docs/contracts/replan-escalate-signal.md` colon-space prefix):
+`REPLAN_ESCALATE: planner_supplied EXPLANATION:<explanation text>`
+The upstream for implementation-plan Step 4 is `planner_supplied` (per the upstream enum in Section 6 of the protocol doc). Emit this as a standalone ticket comment so the orchestrator's parent session can detect and route the escalation. The literal prefix `REPLAN_ESCALATE: ` (colon followed by a single space) and the `EXPLANATION:` field label are fixed by contract — do not vary them.
+
+**PROTOCOL_ERROR on invariant violation**: Any illegal state transition — emitting `REPLAN_ESCALATE` when `cycle_count < MAX_CYCLES`, emitting multiple terminal tokens, or violating the HALT-vs-REPLAN exclusivity invariant — MUST emit `PROTOCOL_ERROR` and halt remediation immediately.
+
+See: `${CLAUDE_PLUGIN_ROOT}/skills/shared/workflows/remediation-loop-protocol.md`
+
 ---
 
 ## Step 5: Task Creation
@@ -1107,6 +1151,28 @@ Delta-mode behavior: the agent will preserve-by-omission — tasks not named in 
 After receiving the revised task set, merge the delta with the prior cycle's tasks and re-enter Step 6 Gap Analysis only if the gap-analysis sub-agent flagged structural issues requiring re-analysis; otherwise proceed to summary update. If the re-dispatched task-decomposer returns `model_requirement_unmet`, apply the same retry-once rule as in the Step 3 Dispatch section.
 
 Record exactly one `.claude/scripts/dso ticket comment <id> "REMEDIATION_CYCLE:<N> task-decomposer re-dispatched after Step 6 gap-analysis findings"` per cycle per SC5 single-comment policy.
+
+**Remediation loop protocol (Step 6 — gap analysis re-dispatch)**
+
+When `dso:task-decomposer` returns revised tasks after Step 6 gap-analysis findings, the orchestrator enters a remediation loop governed by the shared protocol. Source `MAX_CYCLES` from `get_max_remediation_cycles()` in `${CLAUDE_PLUGIN_ROOT}/hooks/lib/planning-config.sh` before entering the loop.
+
+**Per-cycle declaration**: At the start of every remediation cycle, emit exactly:
+`Current cycle: N of MAX_CYCLES`
+where `N` is the 1-based cycle counter and `MAX_CYCLES` is the resolved maximum. This line is required before any findings, deltas, or token emissions within that cycle.
+
+**Oscillation-check hard gate (cycle >= 2)**: On any cycle where `N >= 2`, the orchestrator MUST invoke `/dso:oscillation-check` (Skill) before proceeding with findings analysis. Skipping this gate requires an explicit `OSCILLATION_CHECK_SKIPPED: <reason>` ticket comment capturing the rationale; no other skip reason is permitted.
+
+**Mid-loop success exit**: If the revised task set shows no remaining gap-analysis concerns on any cycle (before reaching `MAX_CYCLES`), the loop exits immediately and Step 6 proceeds to summary update. No terminal token is emitted on success.
+
+**HALT-vs-REPLAN exclusivity check**: `REPLAN_ESCALATE` MUST be emitted IFF `cycle_count == MAX_CYCLES AND findings non-empty`. No other condition may emit `REPLAN_ESCALATE`. All other terminal states use a different token — human-input required → `HALT_FOR_USER`; oscillation detected → `OSCILLATION_HALT`; illegal state transition → `PROTOCOL_ERROR`. Emitting `REPLAN_ESCALATE` under any other condition, or emitting it together with `PROTOCOL_ERROR`, is itself a `PROTOCOL_ERROR`.
+
+**Terminal REPLAN_ESCALATE**: On cycle `MAX_CYCLES` with findings still non-empty, emit (per the canonical `${CLAUDE_PLUGIN_ROOT}/docs/contracts/replan-escalate-signal.md` colon-space prefix):
+`REPLAN_ESCALATE: planner_supplied EXPLANATION:<explanation text>`
+The upstream for implementation-plan Step 6 is `planner_supplied` (per the upstream enum in Section 6 of the protocol doc). Emit this as a standalone ticket comment so the orchestrator's parent session can detect and route the escalation. The literal prefix `REPLAN_ESCALATE: ` (colon followed by a single space) and the `EXPLANATION:` field label are fixed by contract — do not vary them.
+
+**PROTOCOL_ERROR on invariant violation**: Any illegal state transition — emitting `REPLAN_ESCALATE` when `cycle_count < MAX_CYCLES`, emitting multiple terminal tokens, or violating the HALT-vs-REPLAN exclusivity invariant — MUST emit `PROTOCOL_ERROR` and halt remediation immediately.
+
+See: `${CLAUDE_PLUGIN_ROOT}/skills/shared/workflows/remediation-loop-protocol.md`
 
 ---
 
