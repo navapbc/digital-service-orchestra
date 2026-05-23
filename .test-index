@@ -16,8 +16,6 @@
 .claude-plugin/marketplace.json:tests/scripts/test-marketplace-json.sh
 .github/workflows/ci-python-skills.yml:tests/skills/test_ci_workflow_pip_cache.py
 .github/workflows/ci.yml:tests/scripts/test-ci-hyperfine-installed.sh,tests/scripts/test-ci-consolidated-changes-detection.sh,tests/workflows/test-ci-integration-review-scope.sh,tests/scripts/test-bug-reproducer-8ee4.sh,tests/scripts/test-single-llm-review-per-sha.sh,tests/scripts/test-no-duplicate-checks-per-sha.sh,tests/workflows/test-red-test-blocker-merged-tree-scan.sh,tests/workflows/test-ci-suppress-prior-defenses-round-trip.sh
-.github/workflows/inbound-bridge.yml:tests/scripts/test-inbound-bridge-push-retry.sh
-.github/workflows/outbound-bridge.yml:tests/scripts/test-outbound-bridge-push-retry.sh
 .github/workflows/ticket-platform-matrix.yml:tests/scripts/test-ticket-platform-matrix-trigger.sh
 .github/workflows/calibration-rollup.yml:tests/scripts/test-calibration-rollup-workflow.sh,tests/scripts/test-calibration-rollup-fixture-gate.sh
 CLAUDE.md:tests/skills/test-nextjs-starter-docs.sh,tests/scripts/test-tag-policy-docs.sh
@@ -151,7 +149,13 @@ plugins/dso/recipes/recipe-registry.yaml:tests/scripts/test-recipe-registry.sh
 plugins/dso/recipes/templates/flask/route.py.tmpl:tests/scripts/test_gate_escalation_router.py
 plugins/dso/resources/ticket-wordlist.txt:tests/scripts/test-ticket-create.sh
 plugins/dso/scripts/*.sh:tests/hooks/test-no-plugin-comment-refs.sh
-plugins/dso/scripts/acli-integration.py:tests/scripts/test_acli_integration.py,tests/scripts/test_acli_integration_comments.py,tests/scripts/test_acli_integration_set_issue_property.py,tests/scripts/test_bridge_delete_issue.py
+plugins/dso/scripts/acli-integration.py:tests/scripts/test_acli_integration.py,tests/scripts/test_acli_integration_comments.py,tests/scripts/test_acli_integration_set_issue_property.py,tests/scripts/test_bridge_delete_issue.py,tests/scripts/test_acli_entity_property.py,tests/scripts/test_acli_integration_get_issue_property.py
+plugins/dso/scripts/jira-capability-probe.py:tests/scripts/test_jira_capability_probe.py
+plugins/dso/scripts/dso_reconciler/pre_cutover.py:tests/scripts/test_pre_cutover.py
+plugins/dso/scripts/dso_reconciler/forward_compat_probe.py:tests/scripts/test_forward_compat_probe.py
+plugins/dso/scripts/dso_reconciler/capability_check.py:tests/scripts/test_capability_check.py
+plugins/dso/scripts/dso_reconciler/cursor_snapshot.py:tests/scripts/test_cursor_snapshot.py
+plugins/dso/scripts/dso_reconciler/verify-gha-runner.sh:tests/scripts/test-verify-gha-runner.sh
 plugins/dso/scripts/agent-profiles/red-test-writer.yaml:tests/scripts/test-red-test-writer-md-rule5-compliance.sh
 plugins/dso/scripts/analyze_tool/__init__.py:tests/hooks/test-init-skill.sh,tests/scripts/test-ticket-init-bash-native.sh,tests/scripts/test-ticket-init.sh,tests/scripts/test-ticket-autoinit.sh
 plugins/dso/scripts/analyze_tool/_constants.py:tests/skills/test-figma-tag-constants.sh

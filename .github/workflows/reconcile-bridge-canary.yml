@@ -1,0 +1,287 @@
+# Digital Service Orchestra — Reconciler Heartbeat Canary
+# Monitors reconcile-bridge.yml for staleness and alerts via DSO bug ticket
+# when no successful run has occurred within HEARTBEAT_ALERT_WINDOW_HOURS.
+# Self-healing: closes the alert ticket when the reconciler recovers.
+
+name: Reconciler Heartbeat Canary
+
+on:
+  schedule:
+    - cron: '0 * * * *'   # every hour
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run — report staleness status without creating or closing tickets'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+      alert_window_hours:
+        description: 'Override alert window in hours (default: 2)'
+        required: false
+        default: '2'
+        type: string
+
+concurrency:
+  group: reconcile-bridge-canary
+  cancel-in-progress: false
+
+jobs:
+  canary:
+    name: Check reconciler heartbeat
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+
+    env:
+      ALERT_WINDOW_HOURS: ${{ inputs.alert_window_hours || '2' }}
+      DRY_RUN: ${{ inputs.dry_run || 'false' }}
+      ALERT_TAG: heartbeat-alert
+
+    steps:
+      - name: Checkout main (scripts and plugin code)
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+        with:
+          fetch-depth: 1
+          ref: main
+
+      - name: Mount tickets branch as worktree
+        run: |
+          git fetch origin tickets --depth=1
+          rm -rf .tickets-tracker
+          git worktree add .tickets-tracker tickets
+
+      - name: Configure git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git -C .tickets-tracker config user.name "github-actions[bot]"
+          git -C .tickets-tracker config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Check last successful reconcile-bridge run
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # Validate ALERT_WINDOW_HOURS is a positive integer before arithmetic
+          if ! [[ "$ALERT_WINDOW_HOURS" =~ ^[1-9][0-9]*$ ]]; then
+            echo "ERROR: alert_window_hours must be a positive integer, got: '${ALERT_WINDOW_HOURS}'"
+            exit 1
+          fi
+          window_secs=$(( ALERT_WINDOW_HOURS * 3600 ))
+          now_epoch=$(date -u +%s)
+          cutoff_epoch=$(( now_epoch - window_secs ))
+
+          # Capture stderr separately so we can distinguish "no runs" (legit
+          # zero-state) from a real GitHub API error. Treating an API error as
+          # "stale" would generate a false alarm ticket on every transient
+          # outage; treat as warning + skip alerting instead.
+          api_err_file=$(mktemp /tmp/canary-api-err.XXXXXX)
+          api_exit=0
+          last_success_json=$(gh api \
+            "repos/${{ github.repository }}/actions/workflows/reconcile-bridge.yml/runs?status=success&per_page=1" \
+            --jq '.workflow_runs[0] // empty' 2>"$api_err_file") || api_exit=$?
+          api_err=$(cat "$api_err_file"); rm -f "$api_err_file"
+
+          if [[ "$api_exit" -ne 0 ]]; then
+            echo "::warning::GitHub Actions API error (exit $api_exit): $api_err — treating as transient, no alert this cycle."
+            {
+              echo "stale=false"
+              echo "last_run_ago=unknown"
+              echo "status_msg=GitHub Actions API error — heartbeat indeterminate, treating as transient."
+            } >> "$GITHUB_OUTPUT"
+          elif [[ -z "$last_success_json" ]]; then
+            {
+              echo "stale=true"
+              echo "last_run_ago=never"
+              echo "status_msg=No successful reconcile-bridge.yml runs found."
+            } >> "$GITHUB_OUTPUT"
+          else
+            completed_at=$(echo "$last_success_json" | jq -r '.updated_at')
+            run_epoch=$(date -u -d "$completed_at" +%s)
+            age_secs=$(( now_epoch - run_epoch ))
+            age_hours=$(( age_secs / 3600 ))
+            age_mins=$(( (age_secs % 3600) / 60 ))
+
+            if (( run_epoch < cutoff_epoch )); then
+              {
+                echo "stale=true"
+                echo "last_run_ago=${age_hours}h ${age_mins}m ago"
+                echo "status_msg=Last successful run was ${age_hours}h ${age_mins}m ago (threshold: ${ALERT_WINDOW_HOURS}h)."
+              } >> "$GITHUB_OUTPUT"
+            else
+              {
+                echo "stale=false"
+                echo "last_run_ago=${age_hours}h ${age_mins}m ago"
+                echo "status_msg=Reconciler is healthy — last successful run was ${age_hours}h ${age_mins}m ago."
+              } >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+      - name: Log canary result
+        run: |
+          echo "Stale: ${{ steps.check.outputs.stale }}"
+          echo "Status: ${{ steps.check.outputs.status_msg }}"
+          echo "Dry run: ${{ env.DRY_RUN }}"
+
+      - name: Find existing open alert ticket
+        id: find_ticket
+        if: env.DRY_RUN == 'false'
+        run: |
+          # List open bug tickets tagged heartbeat-alert; take the first match.
+          existing=$(.claude/scripts/dso ticket list \
+            --type=bug --status=open --has-tag="${ALERT_TAG}" \
+            2>/dev/null | python3 -c "
+          import sys, json
+          tickets = json.load(sys.stdin)
+          print(tickets[0]['ticket_id'] if tickets else '')
+          " 2>/dev/null || echo '')
+          echo "ticket_id=${existing}" >> "$GITHUB_OUTPUT"
+
+      - name: Open alert ticket (stale + no existing open ticket)
+        if: >
+          steps.check.outputs.stale == 'true' &&
+          env.DRY_RUN == 'false' &&
+          steps.find_ticket.outputs.ticket_id == ''
+        run: |
+          set -euo pipefail
+          DETECTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          .claude/scripts/dso ticket create bug \
+            "[reconcile-bridge-canary]: reconcile-bridge.yml stale (${{ steps.check.outputs.last_run_ago }}) -> no successful run within ${ALERT_WINDOW_HOURS}h window" \
+            --priority 1 \
+            --tags "${ALERT_TAG}" \
+            --description "### 1. Technical Environment
+
+          * **code_version:** ${{ github.sha }}
+          * **workflow:** ${{ github.workflow }}
+          * **runner:** ubuntu-latest
+
+          ### 2. Incident Overview
+
+          * **Scenario Type:** Sub-Agent Blocker
+
+          #### Expected Behavior
+
+          reconcile-bridge.yml should complete a successful run at least once within every ${ALERT_WINDOW_HOURS}-hour window (cron: */20 * * * *).
+
+          #### Actual Behavior
+
+          ${{ steps.check.outputs.status_msg }}
+
+          * **Detected at:** ${DETECTED_AT}
+          * **Canary run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          ### 3. Action History
+
+          1. Is reconcile-bridge.yml disabled or failing? Check the Actions tab.
+          2. Is there a GHA runner outage?
+          3. Was the workflow intentionally paused? If so, close this ticket manually.
+
+          This ticket will be automatically closed when the next successful reconcile-bridge run is detected."
+
+      - name: Comment on existing alert ticket (stale + ticket already open)
+        if: >
+          steps.check.outputs.stale == 'true' &&
+          env.DRY_RUN == 'false' &&
+          steps.find_ticket.outputs.ticket_id != ''
+        run: |
+          DETECTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          .claude/scripts/dso ticket comment "${{ steps.find_ticket.outputs.ticket_id }}" \
+            "Still stale as of ${DETECTED_AT}: ${{ steps.check.outputs.status_msg }} Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+      - name: Close alert ticket on recovery
+        if: >
+          steps.check.outputs.stale == 'false' &&
+          env.DRY_RUN == 'false' &&
+          steps.find_ticket.outputs.ticket_id != ''
+        run: |
+          RECOVERED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          # NOTE: --reason must start with "Fixed:" or "Escalated to user:" per
+          # the bug-close validator (rule:bug-close-with-code). The reconciler
+          # auto-recovering counts as a fix from the canary's perspective.
+          .claude/scripts/dso ticket transition \
+            "${{ steps.find_ticket.outputs.ticket_id }}" open closed \
+            --reason "Fixed: Reconciler recovered at ${RECOVERED_AT} after stale window. ${{ steps.check.outputs.status_msg }}"
+
+      - name: Commit ticket changes back to tickets branch
+        if: env.DRY_RUN == 'false'
+        run: |
+          cd .tickets-tracker
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No ticket changes to commit — skipping."
+            exit 0
+          fi
+
+          git add -A
+          git commit -m "chore: reconciler heartbeat canary alert [run ${{ github.run_id }}]"
+
+          max_retries=5
+          attempt=0
+          while [ "$attempt" -lt "$max_retries" ]; do
+            attempt=$((attempt + 1))
+            push_stderr=""
+            push_exit=0
+            push_stderr=$(git push origin HEAD:tickets 2>&1) || push_exit=$?
+
+            if [ "$push_exit" -eq 0 ]; then
+              echo "Push succeeded (attempt $attempt)."
+              exit 0
+            fi
+
+            if echo "$push_stderr" | grep -qiE 'non-fast-forward|rejected|fetch first'; then
+              printf 'Push rejected (attempt %d):\n%s\n' "$attempt" "$push_stderr" >&2
+              fetch_exit=0
+              git fetch origin tickets 2>&1 || fetch_exit=$?
+              if [ "$fetch_exit" -ne 0 ]; then
+                echo "Fetch failed (exit $fetch_exit)" >&2
+              fi
+            else
+              echo "Push failed (non-retryable, exit $push_exit): $push_stderr" >&2
+              exit 1
+            fi
+
+            pre_sha=$(git rev-parse HEAD)
+            rebase_exit=0
+            git rebase origin/tickets 2>&1 || rebase_exit=$?
+            if [ "$rebase_exit" -ne 0 ]; then
+              git rebase --abort 2>/dev/null || true
+              echo "Rebase conflict during push retry (attempt $attempt)" >&2
+              exit 1
+            fi
+            post_sha=$(git rev-parse HEAD)
+            if [ "$pre_sha" = "$post_sha" ] && [ "$attempt" -lt "$max_retries" ]; then
+              git fetch origin tickets 2>&1 || true
+              if ! git rebase origin/tickets 2>&1; then
+                git rebase --abort 2>/dev/null || true
+                # Sleep before continuing so we do not hot-loop on persistent
+                # no-progress rebase conflicts (F14).
+                backoff=$(( (1 << attempt) + RANDOM % 3 ))
+                echo "Recovery rebase conflict — sleeping ${backoff}s before retry" >&2
+                sleep "$backoff"
+                continue
+              fi
+            fi
+
+            if [ "$attempt" -lt "$max_retries" ]; then
+              backoff=$(( (1 << attempt) + RANDOM % 3 ))
+              echo "Waiting ${backoff}s before retry $((attempt + 1))..." >&2
+              sleep "$backoff"
+            fi
+          done
+
+          echo "Push failed after $max_retries retries." >&2
+          exit 1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fail job on stale (makes alert runs visible as failures in GHA UI)
+        if: steps.check.outputs.stale == 'true'
+        run: |
+          echo "::error::Reconciler is stale — ${{ steps.check.outputs.status_msg }}"
+          exit 1
