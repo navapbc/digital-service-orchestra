@@ -34,6 +34,9 @@ def run() -> StepResult:
     jira_url = os.environ.get("JIRA_URL", "")
     jira_user = os.environ.get("JIRA_USER", "")
     jira_token = os.environ.get("JIRA_API_TOKEN", "")
+    # Project is configurable via env var for plugin portability; default
+    # preserves the in-tree DIG project for the dso bridge use case.
+    jira_project = os.environ.get("JIRA_PROJECT", "DIG")
 
     if not (jira_url and jira_user and jira_token):
         return StepResult(
@@ -53,7 +56,7 @@ def run() -> StepResult:
             jira_url=jira_url,
             user=jira_user,
             api_token=jira_token,
-            jira_project="DIG",
+            jira_project=jira_project,
         )
 
         # Create throwaway issue

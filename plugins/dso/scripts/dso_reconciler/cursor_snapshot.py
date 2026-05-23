@@ -34,6 +34,7 @@ def run(repo_root: Path | None = None) -> StepResult:
             text=True,
             cwd=str(repo_root),
             check=False,
+            timeout=30,
         )
         if result.returncode != 0:
             return StepResult(
@@ -65,6 +66,7 @@ def run(repo_root: Path | None = None) -> StepResult:
             text=True,
             cwd=str(repo_root),
             check=False,
+            timeout=30,
         )
         if cp_result.returncode == 0:
             try:
@@ -115,6 +117,7 @@ def run(repo_root: Path | None = None) -> StepResult:
             text=True,
             cwd=str(repo_root),
             check=False,
+            timeout=30,
         )
         if git_add.returncode != 0:
             return StepResult(
@@ -134,6 +137,7 @@ def run(repo_root: Path | None = None) -> StepResult:
             text=True,
             cwd=str(repo_root),
             check=False,
+            timeout=30,
         )
         # "nothing to commit" is ok (idempotent). Different git versions emit
         # the phrase on stdout vs stderr; check both before failing.

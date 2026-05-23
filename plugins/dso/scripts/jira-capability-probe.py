@@ -54,6 +54,9 @@ def main() -> None:
     jira_url = os.environ.get("JIRA_URL", "")
     jira_user = os.environ.get("JIRA_USER", "")
     jira_api_token = os.environ.get("JIRA_API_TOKEN", "")
+    # Project is configurable via env var for plugin portability; default
+    # preserves the in-tree DIG project for the dso bridge use case.
+    jira_project = os.environ.get("JIRA_PROJECT", "DIG")
 
     if not jira_url or not jira_user or not jira_api_token:
         print("PROBE_FAIL reason=missing_credentials")
@@ -66,7 +69,7 @@ def main() -> None:
         jira_url=jira_url,
         user=jira_user,
         api_token=jira_api_token,
-        jira_project="DIG",
+        jira_project=jira_project,
     )
 
     issue_key: str | None = None

@@ -781,9 +781,20 @@ class AcliClient:
 
         Calls /rest/api/3/issue/{jira_key}/properties/{property_key} and returns
         the 'value' field from the response per the Jira issue properties API contract.
+
+        Raises:
+            KeyError: when the response does not contain a 'value' field —
+                indicates either a malformed Jira response or a 404 surfaced
+                as a non-conforming body. Wrapped so callers can distinguish
+                the missing-property case from network/transport errors.
         """
         path = f"/rest/api/3/issue/{jira_key}/properties/{property_key}"
         response = self._direct_rest_get(path)
+        if not isinstance(response, dict) or "value" not in response:
+            raise KeyError(
+                f"Jira issue-property response for {jira_key}/{property_key} "
+                f"missing 'value' field: {response!r}"
+            )
         return response["value"]
 
     def add_label(self, jira_key: str, label: str) -> None:
