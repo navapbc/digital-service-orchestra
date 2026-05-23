@@ -66,15 +66,27 @@ def resolve_additive(local_val: Any, remote_val: Any) -> Any:
     return local_val if local_val is not None else remote_val
 
 
+_PROVENANCE_CAP = 50
+
+
 def resolve_set_valued(
     local_set: Any,
     remote_set: Any,
     provenance_record: Optional[Any],
 ) -> list[Any]:
-    """Union of both sets; provenance_record reserved for future use."""
+    """Union of both sets; updates provenance_record with a FIFO cap of 50."""
     local: set[Any] = set(local_set) if local_set else set()
     remote: set[Any] = set(remote_set) if remote_set else set()
-    return list(local | remote)
+    merged = list(local | remote)
+
+    if provenance_record is not None and isinstance(provenance_record, list):
+        for item in merged:
+            if item not in provenance_record:
+                if len(provenance_record) >= _PROVENANCE_CAP:
+                    provenance_record.pop(0)  # FIFO eviction: remove oldest
+                provenance_record.append(item)
+
+    return merged
 
 
 # ---------------------------------------------------------------------------

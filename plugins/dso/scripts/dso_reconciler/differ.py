@@ -22,6 +22,17 @@ def _load_config():
     return mod
 
 
+def _load_conflict_resolver():
+    resolver_path = Path(__file__).parent / "conflict_resolver.py"
+    spec = importlib.util.spec_from_file_location(
+        "dso_reconciler_conflict_resolver", resolver_path
+    )
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules.setdefault("dso_reconciler_conflict_resolver", mod)
+    spec.loader.exec_module(mod)
+    return mod
+
+
 def compute_mutations(
     prev_snapshot: dict[str, dict],
     next_snapshot: dict[str, dict],
@@ -41,6 +52,7 @@ def compute_mutations(
     This function is pure: it performs no I/O and has no side effects.
     """
     config = _load_config()
+    conflict_resolver = _load_conflict_resolver()
     excluded = set(config.EXCLUDED_FIELDS)
     mutations: list[dict] = []
 
@@ -66,8 +78,16 @@ def compute_mutations(
             for field in set(prev) | set(next_):
                 if field in excluded:
                     continue
-                if prev.get(field) != next_.get(field):
-                    changed[field] = next_.get(field)
+                local_val = next_.get(field)
+                remote_val = prev.get(field)
+                if remote_val != local_val:
+                    if field in conflict_resolver.FIELD_CLASSES:
+                        resolved = conflict_resolver.resolve_field(
+                            field, local_val, remote_val, provenance_record={}
+                        )
+                        changed[field] = resolved
+                    else:
+                        changed[field] = local_val
             if changed:
                 mutations.append({"action": "update", "key": key, "fields": changed})
 
