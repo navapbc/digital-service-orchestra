@@ -857,6 +857,38 @@ Read and execute `${CLAUDE_PLUGIN_ROOT}/docs/workflows/REVIEW-PROTOCOL-WORKFLOW.
 
 The plan **must** achieve all dimension scores of **5**. The review protocol workflow's revision protocol handles the iteration loop (max 3 cycles). After 3 attempts, present the plan at its current score with remaining issues to the user for judgment.
 
+### Remediation Re-dispatch
+
+On Step 4 plan-reviewer findings (non-empty findings list), re-dispatch `dso:task-decomposer` with literal `model: "opus"` on the dispatch payload to revise the task list in response to reviewer concerns.
+
+Build a `remediation_context` block before dispatching. Pass all artifact file paths by reference (absolute paths — do not inline file contents). The shape MUST match the schema declared in `${CLAUDE_PLUGIN_ROOT}/agents/task-decomposer.md` under `### Remediation Context (optional)`:
+
+```json
+{
+  "remediation_context": {
+    "reviewer_artifact_paths": [
+      "<absolute path to reviewer-findings.json from the failing plan review cycle>",
+      "<absolute path to the original task plan artifact, if available>"
+    ],
+    "findings": [
+      {
+        "target": "<temp_id or existing task id this finding targets, or 'n/a' for set-wide concerns>",
+        "description": "<verbatim evidence quote from reviewer findings — copy the exact reviewer text that triggered the finding>"
+      }
+    ],
+    "target_story_id": "<story id this delta cycle is scoped to>"
+  }
+}
+```
+
+The orchestrator-level dispatch operates in `mode: remediation` — i.e., the presence of `remediation_context` activates `dso:task-decomposer`'s DELTA OUTPUT MODE and produces only the changed tasks rather than a full re-decomposition. Do NOT add a `mode` field inside the `remediation_context` object itself (the schema does not declare it).
+
+Delta-mode behavior: the agent will preserve-by-omission — tasks not named in any finding are absent from the delta output but preserved verbatim in the merged set. Only tasks explicitly named in `findings` (via the `target` field) appear in the delta output with the modifications the findings require.
+
+After receiving the revised task set, merge the delta with the prior cycle's tasks and re-enter Step 4 Plan Review with the updated plan. If the re-dispatched task-decomposer returns `model_requirement_unmet`, apply the same retry-once rule as in the Step 3 Dispatch section.
+
+Record exactly one `.claude/scripts/dso ticket comment <id> "REMEDIATION_CYCLE:<N> task-decomposer re-dispatched after Step 4 plan-review findings"` per cycle per SC5 single-comment policy.
+
 ---
 
 ## Step 5: Task Creation
