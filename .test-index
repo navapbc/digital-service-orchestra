@@ -543,3 +543,4 @@ plugins/dso/scripts/dso_reconciler/__main__.py:tests/unit/dso_reconciler/test_ma
 plugins/dso/scripts/dso_reconciler/fetcher.py:tests/unit/dso_reconciler/test_fetcher_snapshot.py
 plugins/dso/scripts/dso_reconciler/config.py:tests/unit/dso_reconciler/test_config.py
 plugins/dso/scripts/dso_reconciler/_concurrency.py:tests/unit/dso_reconciler/test_concurrency.py
+plugins/dso/scripts/dso_reconciler/differ.py:tests/unit/dso_reconciler/test_differ.py
