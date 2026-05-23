@@ -86,13 +86,13 @@ def reconcile_once(pass_id: str, repo_root: Path | None = None) -> dict:
     # Apply mutations and write manifest
     manifest_path = applier.apply(mutations, pass_id, repo_root)
 
-    # Record pass health metrics (pre_fsck/post_fsck/per_type_counts are
-    # placeholders until task aa2b wires capture_baseline()).
+    # Record pass health metrics — per_type_counts from local ticket store
+    per_type_counts = health_mod.count_open_by_type(repo_root=repo_root)
     health_mod.record_pass(
         pass_id=pass_id,
         pre_fsck=0,
         post_fsck=0,
-        per_type_counts={},
+        per_type_counts=per_type_counts,
         local_mutation_count=len(mutations),
         repo_root=repo_root,
     )

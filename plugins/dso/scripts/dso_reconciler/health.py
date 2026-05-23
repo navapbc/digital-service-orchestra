@@ -53,6 +53,51 @@ def record_pass(
     return out_path
 
 
+def count_open_by_type(repo_root: Path | None = None) -> dict:
+    """Count open local tickets by type from the ticket tracker directory.
+
+    Walks the ticket store, reads CREATE (type) and the latest STATUS event
+    for each ticket directory, and returns ``{type: count}`` for open tickets.
+
+    Args:
+        repo_root: Repository root path. Defaults to four levels above this
+            file.
+
+    Returns:
+        Dict mapping ticket type string to open-ticket count.  Only types with
+        at least one open ticket are included.  Returns ``{}`` when the tracker
+        directory is absent.
+    """
+    if repo_root is None:
+        repo_root = Path(__file__).parents[4]  # repo root from dso_reconciler/
+
+    tickets_dir = repo_root / ".tickets-tracker"  # tickets-boundary-ok: direct event read for perf
+    counts: dict[str, int] = {}
+    if not tickets_dir.is_dir():
+        return counts
+
+    for ticket_dir in tickets_dir.iterdir():
+        if not ticket_dir.is_dir():
+            continue
+        event_files = sorted(ticket_dir.glob("*.json"))
+        ticket_type: str | None = None
+        latest_status: str | None = None
+        for ef in event_files:
+            try:
+                data = json.loads(ef.read_text())
+            except Exception:  # noqa: BLE001
+                continue
+            evt = data.get("event_type", "")
+            if evt == "CREATE":
+                ticket_type = data.get("type", "")
+            elif evt == "STATUS":
+                latest_status = data.get("status", "")
+        if ticket_type and latest_status == "open":
+            counts[ticket_type] = counts.get(ticket_type, 0) + 1
+
+    return counts
+
+
 def capture_baseline(pass_id: str, repo_root: Path | None = None) -> Path:
     """Capture pre-pass fsck total from the current ticket store state.
 

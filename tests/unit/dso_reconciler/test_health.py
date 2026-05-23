@@ -138,3 +138,36 @@ def test_capture_baseline_is_callable(
     result = health.capture_baseline(pass_id="test-baseline", repo_root=tmp_path)
     assert isinstance(result, Path)
     assert result.exists()
+
+
+def test_count_open_by_type_empty_tracker(health: ModuleType, tmp_path: Path) -> None:
+    """count_open_by_type returns {} when .tickets-tracker/ is absent."""
+    result = health.count_open_by_type(repo_root=tmp_path)
+    assert result == {}
+
+
+def test_count_open_by_type_counts_correctly(health: ModuleType, tmp_path: Path) -> None:
+    """count_open_by_type counts open tickets by type from .tickets-tracker/."""
+    import json as _json
+    import time
+
+    tracker = tmp_path / ".tickets-tracker"
+    for tid, ttype, tstatus in [
+        ("t1", "story", "open"),
+        ("t2", "task", "open"),
+        ("t3", "story", "closed"),
+        ("t4", "bug", "open"),
+        ("t5", "task", "open"),
+    ]:
+        d = tracker / tid
+        d.mkdir(parents=True)
+        ts = time.time_ns()
+        (d / f"{ts}-create.json").write_text(
+            _json.dumps({"event_type": "CREATE", "type": ttype})
+        )
+        (d / f"{ts + 1}-status.json").write_text(
+            _json.dumps({"event_type": "STATUS", "status": tstatus})
+        )
+
+    result = health.count_open_by_type(repo_root=tmp_path)
+    assert result == {"story": 1, "task": 2, "bug": 1}

@@ -1,0 +1,46 @@
+# Digital Service Orchestra — Weekly Bridge FSck Audit
+# Runs ticket-bridge-fsck.py on a weekly cadence to surface orphaned
+# mappings, duplicate Jira keys, and stale SYNC events before they accumulate.
+#
+# Exits 1 (workflow failure) when any anomalies are found so the on-call
+# operator sees the alert in the GitHub Actions summary.
+
+name: Weekly Bridge FSck Audit
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'   # Mondays at 06:00 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: weekly-bridge-fsck
+  cancel-in-progress: false
+
+jobs:
+  fsck:
+    name: Bridge FSck Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Checkout tickets branch
+        run: |
+          git fetch origin tickets
+          git checkout tickets -- .tickets-tracker/ || true  # tickets-boundary-ok
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Run bridge-fsck audit
+        run: |
+          python3 plugins/dso/scripts/ticket-bridge-fsck.py \
+            --tickets-tracker=.tickets-tracker
