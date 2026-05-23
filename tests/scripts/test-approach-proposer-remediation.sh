@@ -4,7 +4,7 @@
 # `remediation_context` input contract used by implementation-plan Step 2
 # so the proposer can emit a delta-only response on revision cycles.
 #
-# TDD RED phase: all four tests FAIL until the GREEN agent task adds the
+# TDD RED phase: all five tests FAIL until the GREEN agent task adds the
 # DELTA OUTPUT MODE section + Inputs entry to approach-proposer.md.
 #
 # Tests:
@@ -23,9 +23,20 @@
 #                                                directive (a 'preserve' verb
 #                                                AND one of 'not named in any finding',
 #                                                'omit unchanged', or 'unchanged proposals').
-#  4. test_backward_compat_default            — assert the Inputs section names
+#  4. test_target_story_id_filter_declared    — awk-scoped to the section;
+#                                                assert 'target_story_id' AND
+#                                                a filtering directive
+#                                                (e.g., 'emit only',
+#                                                'absent from output',
+#                                                'not in that set').
+#  5. test_backward_compat_default            — assert the Inputs section names
 #                                                'remediation_context' AND
-#                                                marks it optional; assert
+#                                                marks it optional (narrowed
+#                                                to a 3-line window after the
+#                                                field declaration to avoid
+#                                                vacuous match on unrelated
+#                                                'Counter-Proposal Feedback
+#                                                (optional)' heading); assert
 #                                                pre-change output shape
 #                                                ('proposals' field heading
 #                                                still present).
@@ -155,6 +166,34 @@ test_preserve_by_omission_rule() {
   assert_pass_if_clean "test_preserve_by_omission_rule"
 }
 
+# ── test_target_story_id_filter_declared ──────────────────────────────────────
+# Verify the DELTA OUTPUT MODE section declares the target_story_id allow-list
+# semantic and a filtering directive. Asserts:
+#   (a) the literal token 'target_story_id', AND
+#   (b) a filtering directive (one of: 'emit only', 'absent from output',
+#       'not in that set').
+# Awk-scoped to the section. Mirrors the analog test in
+# tests/scripts/test-story-decomposer-remediation.sh so the producer-pair
+# contract (SC1/SC2) is verified symmetrically.
+# RED: FAIL because the section does not exist yet.
+test_target_story_id_filter_declared() {
+  _snapshot_fail
+  local _section
+  _section=$(_extract_delta_section)
+  if [[ -z "$_section" ]]; then
+    _fail_section_missing "test_target_story_id_filter_declared: DELTA OUTPUT MODE section missing"
+    return
+  fi
+  local _has_target_id=0 _has_filter_directive=0
+  echo "$_section" | grep -qF 'target_story_id' && _has_target_id=1
+  echo "$_section" | grep -qE 'emit only|absent from output|not in that set' && _has_filter_directive=1
+  assert_eq "test_target_story_id_filter_declared: 'target_story_id' literal within DELTA OUTPUT MODE section" \
+    "1" "$_has_target_id"
+  assert_eq "test_target_story_id_filter_declared: filtering directive ('emit only' / 'absent from output' / 'not in that set') within section" \
+    "1" "$_has_filter_directive"
+  assert_pass_if_clean "test_target_story_id_filter_declared"
+}
+
 # ── test_backward_compat_default ──────────────────────────────────────────────
 # Verify the Inputs section declares `remediation_context` AND marks it
 # optional, so callers that omit it still get the pre-change output shape.
@@ -173,9 +212,15 @@ test_backward_compat_default() {
   fi
   local _has_remediation_context=0 _has_optional_marker=0 _has_proposals=0
   echo "$_inputs_section" | grep -qF 'remediation_context' && _has_remediation_context=1
-  # Accept any common optional-marker phrasing within the Inputs section
-  # ('optional', 'Optional', '(optional)', 'optional;', or 'optional —').
-  echo "$_inputs_section" | grep -qiE 'optional' && _has_optional_marker=1
+  # Narrow the optional-marker check to the 3-line window starting at the
+  # line that names 'remediation_context'. This prevents a vacuous-truth
+  # pass from the pre-existing '### Counter-Proposal Feedback (optional)'
+  # heading inside the Inputs section, which is unrelated to the new field.
+  # Accept any common optional-marker phrasing on the field's line or
+  # the two lines immediately below it.
+  local _remediation_window
+  _remediation_window=$(echo "$_inputs_section" | grep -A2 -m1 'remediation_context')
+  echo "$_remediation_window" | grep -qiE 'optional' && _has_optional_marker=1
   # Pre-change output shape: the 'proposals' field heading remains anywhere
   # in the agent file (Output Format JSON block or Field Definitions table).
   grep -qF 'proposals' "$APPROACH_PROPOSER_AGENT" && _has_proposals=1
@@ -192,6 +237,7 @@ test_backward_compat_default() {
 test_delta_output_mode_section_exists
 test_evidence_read_gate_required
 test_preserve_by_omission_rule
+test_target_story_id_filter_declared
 test_backward_compat_default
 
 print_summary
