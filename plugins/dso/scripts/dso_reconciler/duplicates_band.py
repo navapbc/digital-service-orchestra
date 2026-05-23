@@ -4,8 +4,10 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -14,6 +16,10 @@ BOT_ALLOWLIST = [
     "github-actions[bot]@users.noreply.github.com",
     "noreply@github.com",
 ]
+
+# Resolve the host repo's ticket CLI shim. Bands run under the repo root,
+# and the shim is installed at .claude/scripts/dso in every consumer.
+_DSO_CLI = "dso"
 
 
 def _load_fsck():
@@ -34,12 +40,9 @@ def _is_bot_signer(signer_email: str) -> bool:
 
 def cmd_gate(args: argparse.Namespace, repo_root: Path) -> int:
     """Verify attestation before allowing applier to run."""
-    attestation_path = (
-        repo_root
-        / "bridge_state"
-        / "bootstrap"
-        / f"duplicates-{args.pass_id}.attested.json"
-    )
+    bootstrap_dir = repo_root / "bridge_state" / "bootstrap"
+    attestation_path = bootstrap_dir / f"duplicates-{args.pass_id}.attested.json"
+    manifest_path = bootstrap_dir / f"duplicates-{args.pass_id}.manifest.json"
 
     # (a) Check attestation file exists
     if not attestation_path.exists():
@@ -53,13 +56,26 @@ def cmd_gate(args: argparse.Namespace, repo_root: Path) -> int:
         print("GATE FAIL: attestation has no commit_sha", file=sys.stderr)
         return 1
 
-    # (c) Verify the commit signature
+    # (c) Verify manifest hash matches (F8). Skip the check when the
+    # attestation omits manifest_hash entirely (backward compat with
+    # earlier attestations that predate this field).
+    recorded_hash = attested.get("manifest_hash", "")
+    if recorded_hash:
+        if not manifest_path.exists():
+            print("GATE FAIL: manifest missing for hash check", file=sys.stderr)
+            return 1
+        actual_hash = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+        if actual_hash != recorded_hash:
+            print("GATE FAIL: manifest hash mismatch", file=sys.stderr)
+            return 1
+
+    # (d) Verify the commit signature
     proc = subprocess.run(["git", "verify-commit", sha], capture_output=True)
     if proc.returncode != 0:
         print(f"GATE FAIL: attestation signature invalid for {sha}", file=sys.stderr)
         return 1
 
-    # (d) Check committer is not a bot
+    # (e) Check committer is not a bot
     email_proc = subprocess.run(
         ["git", "log", "-1", "--format=%ae", sha],
         capture_output=True,
@@ -107,8 +123,49 @@ def cmd_plan(args: argparse.Namespace, repo_root: Path) -> int:
     return 0
 
 
+def _delete_local_ticket(ticket_id: str, repo_root: Path) -> tuple[int, str]:
+    """Delete a local ticket mapping via the dso ticket CLI.
+
+    Used by cmd_apply to clear duplicate local-side mappings without
+    touching Jira (F2 — duplicate sets are N local tickets sharing one
+    jira_key; remediation is local-only). Returns (returncode, stderr-or-msg).
+    """
+    cli_shim = repo_root / ".claude" / "scripts" / "dso"
+    cli_cmd = str(cli_shim) if cli_shim.exists() else _DSO_CLI
+    try:
+        proc = subprocess.run(
+            [
+                cli_cmd,
+                "ticket",
+                "delete",
+                ticket_id,
+                "--user-approved",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=str(repo_root),
+        )
+        return proc.returncode, (proc.stderr or proc.stdout or "").strip()
+    except FileNotFoundError as exc:
+        return 1, f"ticket CLI not found: {exc}"
+
+
 def cmd_apply(args: argparse.Namespace, repo_root: Path) -> int:
-    """Apply duplicate anomaly remediations: merge labels and close duplicate issues."""
+    """Apply duplicate anomaly remediations by deleting duplicate local mappings.
+
+    F2 fix: a duplicate set is N local ticket mappings that all point to
+    ONE Jira key. The right remediation is to delete N-1 local mappings
+    (the closees) via the local ticket CLI and leave the Jira issue
+    alone — Jira has nothing to remediate because it owns a single issue,
+    not N. The previous implementation passed local ticket UUIDs to
+    Jira-key APIs (add_issue_comment, transition_issue) which would have
+    crashed or silently mutated unrelated Jira issues.
+
+    F5 follow-on: with Jira side-effects removed, the previous label
+    union into the keeper is no longer applicable — there is no remote
+    keeper to receive a union. The label-union call has been deleted
+    rather than left as a silent no-op.
+    """
     # Inline gate check — reuse cmd_gate logic
     gate_rc = cmd_gate(args, repo_root)
     if gate_rc != 0:
@@ -124,32 +181,32 @@ def cmd_apply(args: argparse.Namespace, repo_root: Path) -> int:
     attested = json.loads(attested_path.read_text())
     acknowledged_residual = attested.get("acknowledged_residual", 0)
 
-    acli = _load_acli()
-
     outcomes: list[dict] = []
     for anomaly in manifest["anomalies"]:
         keeper: str = anomaly["keeper"]
         closees: list[str] = anomaly["closees"]
         jira_key: str = anomaly["jira_key"]
 
-        client = acli.AcliClient()
-
-        # (a) Label union into keeper
-        client.update_issue_labels(keeper, anomaly.get("labels", []))
-
-        # (b) For each duplicate: comment then close
-        for closee_key in closees:
-            client.add_issue_comment(
-                keeper, f"Merging duplicate {closee_key} into this issue."
+        # Delete each duplicate local mapping. The keeper stays. Jira is
+        # not touched (it owns a single issue with N local-side mappings;
+        # Jira has nothing to remediate).
+        delete_results: list[dict] = []
+        all_ok = True
+        for closee_id in closees:
+            rc, msg = _delete_local_ticket(closee_id, repo_root)
+            delete_results.append(
+                {"ticket_id": closee_id, "rc": rc, "message": msg}
             )
-            client.transition_issue(closee_key, "Closed")
+            if rc != 0:
+                all_ok = False
 
         outcomes.append(
             {
                 "jira_key": jira_key,
                 "keeper": keeper,
                 "closees": closees,
-                "status": "ok",
+                "deletes": delete_results,
+                "status": "ok" if all_ok else "partial",
             }
         )
 
@@ -159,6 +216,9 @@ def cmd_apply(args: argparse.Namespace, repo_root: Path) -> int:
     post_pass = fsck.enumerate_duplicate_anomalies(tickets_dir)
 
     if len(post_pass) > acknowledged_residual:
+        # Write log before exit so operators can inspect partial results.
+        log_path = bootstrap_dir / f"duplicates-{args.pass_id}.apply.log.json"
+        log_path.write_text(json.dumps(outcomes, indent=2))
         print(
             f"APPLY FAIL: post-pass count {len(post_pass)} > residual {acknowledged_residual}",
             file=sys.stderr,

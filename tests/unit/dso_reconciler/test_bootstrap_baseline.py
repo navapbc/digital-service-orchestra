@@ -126,3 +126,18 @@ def test_capture_baseline_called_exactly_once(
     fake_health.capture_baseline.assert_called_once_with(
         "pass-once-001", repo_root=tmp_path
     )
+
+
+def test_apply_mode_raises_not_implemented(
+    bootstrap: ModuleType, tmp_path: Path
+) -> None:
+    """F6 regression: run_bootstrap(mode='apply') refuses with NotImplementedError.
+
+    The bootstrap orchestrator is currently a plan-mode stub; full apply
+    mode requires per-band operator attestation between plan and apply
+    (operator-in-the-loop signing of attested.json). Until the sequencer
+    exists, mode='apply' must fail-loud so operators never assume
+    automated end-to-end remediation works.
+    """
+    with pytest.raises(NotImplementedError, match="bootstrap apply mode"):
+        bootstrap.run_bootstrap("pass-apply-001", repo_root=tmp_path, mode="apply")

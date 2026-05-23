@@ -2,7 +2,9 @@
 
 The apply subcommand runs gated duplicate anomaly mutations:
 1. Inline gate check (attestation must be present and valid)
-2. Per-anomaly label union into keeper + comment and close of each duplicate
+2. Per-anomaly deletion of duplicate LOCAL mappings via the dso ticket CLI
+   (Jira is not touched — a duplicate set is N local mappings to ONE Jira
+   key; Jira owns a single issue and has nothing to remediate)
 3. Post-pass count against acknowledged_residual
 4. apply.log.json written with per-set outcomes
 """
@@ -12,6 +14,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import subprocess
 import sys
 import types
 from pathlib import Path
@@ -66,18 +69,19 @@ def _make_apply_args(pass_id: str, repo_root: str) -> argparse.Namespace:
 
 
 def _make_mock_acli(call_log: list | None = None) -> types.ModuleType:
-    """Return a stub acli module whose AcliClient records method calls."""
+    """Return a stub acli module — kept for backward-compat with patch sites.
+
+    After F2 the duplicates band no longer calls AcliClient at all (the
+    remediation is purely local: delete the duplicate local mappings via
+    the dso ticket CLI). This stub is preserved so existing tests that
+    pass ``_load_acli`` patches don't break, and so any future Jira-side
+    extension can plug in without re-introducing the patch wiring.
+    """
     log = call_log if call_log is not None else []
 
     class _MockClient:
-        def update_issue_labels(self, jira_key, labels):
-            log.append(("update_issue_labels", jira_key, labels))
-
-        def add_issue_comment(self, jira_key, comment):
-            log.append(("add_issue_comment", jira_key, comment))
-
-        def transition_issue(self, jira_key, status):
-            log.append(("transition_issue", jira_key, status))
+        def __init__(self, *args, **kwargs):
+            pass
 
     mock_acli = types.ModuleType("acli_integration")
     mock_acli.AcliClient = _MockClient
@@ -96,20 +100,36 @@ def _make_mock_fsck(post_pass_anomalies: list | None = None) -> types.ModuleType
 
 
 def _make_subprocess_mock(
-    verify_returncode: int = 0, committer_email: str = "human@example.com"
+    verify_returncode: int = 0,
+    committer_email: str = "human@example.com",
+    delete_returncode: int = 0,
+    delete_log: list | None = None,
 ):
-    """Return a side_effect function for subprocess.run handling git verify-commit and log."""
+    """Build a subprocess.run side_effect covering both gate and apply paths.
+
+    Handles three call shapes:
+      - ``git verify-commit <sha>`` — gate signature check
+      - ``git log -1 --format=%ae <sha>`` — gate committer email
+      - ``<dso-cli> ticket delete <id> --user-approved`` — apply path
+        (records the deleted ticket_id to ``delete_log`` when provided)
+    """
 
     def _side_effect(cmd, **kwargs):
-        mock = MagicMock()
-        if cmd[1] == "verify-commit":
+        mock = MagicMock(spec=subprocess.CompletedProcess)
+        mock.stdout = ""
+        mock.stderr = ""
+        if cmd and cmd[0] == "git" and cmd[1] == "verify-commit":
             mock.returncode = verify_returncode
-        elif cmd[1] == "log":
+        elif cmd and cmd[0] == "git" and cmd[1] == "log":
             mock.returncode = 0
             mock.stdout = committer_email + "\n"
+        elif "ticket" in cmd and "delete" in cmd:
+            mock.returncode = delete_returncode
+            if delete_log is not None:
+                # cmd shape: [cli, "ticket", "delete", <id>, "--user-approved"]
+                delete_log.append(cmd[cmd.index("delete") + 1])
         else:
             mock.returncode = 0
-            mock.stdout = ""
         return mock
 
     return _side_effect
@@ -145,12 +165,18 @@ def _write_attestation(
 
 
 def _make_sample_anomalies(n: int = 1) -> list[dict]:
-    """Return a list of n minimal duplicate anomaly dicts."""
+    """Return a list of n minimal duplicate anomaly dicts.
+
+    Each anomaly models N local ticket UUIDs all mapped to ONE Jira key.
+    keeper/closees are local ticket IDs (4-hex UUIDs), not Jira keys —
+    matches the enumerate_duplicate_anomalies contract that the apply
+    path now consumes post-F2.
+    """
     base = [
         {
             "jira_key": f"PROJ-{100 + i * 100}",
-            "keeper": f"PROJ-{100 + i * 100}",
-            "closees": [f"PROJ-{200 + i * 100}"],
+            "keeper": f"tick-{100 + i * 100:04d}",
+            "closees": [f"tick-{200 + i * 100:04d}"],
             "labels": ["duplicate"],
         }
         for i in range(n)
@@ -164,7 +190,7 @@ def _make_sample_anomalies(n: int = 1) -> list[dict]:
 
 
 def test_apply_refuses_when_gate_fails(tmp_path, duplicates_band):
-    """Apply returns exit code 1 and zero AcliClient calls when gate fails (no attested.json)."""
+    """Apply returns exit code 1 and zero delete calls when gate fails (no attested.json)."""
     pass_id = "2026-05-22-dup-01"
     bootstrap_dir = tmp_path / "bridge_state" / "bootstrap"
 
@@ -173,29 +199,35 @@ def test_apply_refuses_when_gate_fails(tmp_path, duplicates_band):
 
     args = _make_apply_args(pass_id=pass_id, repo_root=str(tmp_path))
 
-    call_log: list = []
-    mock_acli = _make_mock_acli(call_log)
-
+    delete_log: list = []
     with (
-        patch.object(duplicates_band, "_load_acli", return_value=mock_acli),
         patch.object(duplicates_band, "_load_fsck", return_value=_make_mock_fsck()),
+        patch(
+            "duplicates_band.subprocess.run",
+            side_effect=_make_subprocess_mock(delete_log=delete_log),
+        ),
     ):
         rc = duplicates_band.cmd_apply(args, tmp_path)
 
     assert rc == 1
-    assert call_log == [], "Expected zero AcliClient mutation calls when gate fails"
+    assert delete_log == [], "Expected zero ticket-delete calls when gate fails"
 
 
-def test_apply_merges_labels_and_closes_duplicates(tmp_path, duplicates_band):
-    """Apply calls label update on keeper, comment + transition on each closee; writes apply.log.json; returns 0."""
+def test_apply_deletes_duplicate_local_mappings(tmp_path, duplicates_band):
+    """Apply runs `dso ticket delete` for each closee local ID and leaves Jira untouched.
+
+    Post-F2: a duplicate set is N local mappings to ONE jira_key. The
+    band deletes the N-1 closees (local IDs) via the ticket CLI; Jira
+    has nothing to remediate (it owns one issue).
+    """
     pass_id = "2026-05-22-dup-02"
     bootstrap_dir = tmp_path / "bridge_state" / "bootstrap"
 
     anomalies = [
         {
             "jira_key": "PROJ-100",
-            "keeper": "PROJ-100",
-            "closees": ["PROJ-200"],
+            "keeper": "tick-0100",
+            "closees": ["tick-0200"],
             "labels": ["duplicate"],
         }
     ]
@@ -204,37 +236,27 @@ def test_apply_merges_labels_and_closes_duplicates(tmp_path, duplicates_band):
 
     args = _make_apply_args(pass_id=pass_id, repo_root=str(tmp_path))
 
-    call_log: list = []
-    mock_acli = _make_mock_acli(call_log)
+    delete_log: list = []
     mock_fsck = _make_mock_fsck(post_pass_anomalies=[])
 
     with (
-        patch.object(duplicates_band, "_load_acli", return_value=mock_acli),
         patch.object(duplicates_band, "_load_fsck", return_value=mock_fsck),
         patch(
             "duplicates_band.subprocess.run",
             side_effect=_make_subprocess_mock(
-                verify_returncode=0, committer_email="human@example.com"
+                verify_returncode=0,
+                committer_email="human@example.com",
+                delete_log=delete_log,
             ),
         ),
     ):
         rc = duplicates_band.cmd_apply(args, tmp_path)
 
     assert rc == 0
-
-    # Verify label update on keeper
-    label_calls = [c for c in call_log if c[0] == "update_issue_labels"]
-    assert len(label_calls) == 1
-    assert label_calls[0][1] == "PROJ-100"
-
-    # Verify comment + transition on closee
-    comment_calls = [c for c in call_log if c[0] == "add_issue_comment"]
-    transition_calls = [c for c in call_log if c[0] == "transition_issue"]
-    assert len(comment_calls) == 1
-    assert "PROJ-200" in comment_calls[0][2]
-    assert len(transition_calls) == 1
-    assert transition_calls[0][1] == "PROJ-200"
-    assert transition_calls[0][2] == "Closed"
+    # The single closee was deleted; the keeper was NOT
+    assert delete_log == ["tick-0200"], (
+        f"Expected only tick-0200 deleted, got {delete_log}"
+    )
 
     # Verify apply.log.json was written
     log_path = bootstrap_dir / f"duplicates-{pass_id}.apply.log.json"
@@ -253,12 +275,9 @@ def test_apply_blocks_on_high_post_pass_count(tmp_path, duplicates_band):
 
     args = _make_apply_args(pass_id=pass_id, repo_root=str(tmp_path))
 
-    call_log: list = []
-    mock_acli = _make_mock_acli(call_log)
     mock_fsck = _make_mock_fsck(post_pass_anomalies=_make_sample_anomalies(3))
 
     with (
-        patch.object(duplicates_band, "_load_acli", return_value=mock_acli),
         patch.object(duplicates_band, "_load_fsck", return_value=mock_fsck),
         patch(
             "duplicates_band.subprocess.run",
@@ -280,8 +299,8 @@ def test_apply_records_per_set_outcomes(tmp_path, duplicates_band):
     anomalies = [
         {
             "jira_key": "PROJ-100",
-            "keeper": "PROJ-100",
-            "closees": ["PROJ-200", "PROJ-300"],
+            "keeper": "tick-0100",
+            "closees": ["tick-0200", "tick-0300"],
             "labels": ["duplicate"],
         }
     ]
@@ -290,11 +309,9 @@ def test_apply_records_per_set_outcomes(tmp_path, duplicates_band):
 
     args = _make_apply_args(pass_id=pass_id, repo_root=str(tmp_path))
 
-    mock_acli = _make_mock_acli()
     mock_fsck = _make_mock_fsck(post_pass_anomalies=[])
 
     with (
-        patch.object(duplicates_band, "_load_acli", return_value=mock_acli),
         patch.object(duplicates_band, "_load_fsck", return_value=mock_fsck),
         patch(
             "duplicates_band.subprocess.run",
@@ -314,13 +331,13 @@ def test_apply_records_per_set_outcomes(tmp_path, duplicates_band):
 
     outcome = outcomes[0]
     assert outcome["jira_key"] == "PROJ-100"
-    assert outcome["keeper"] == "PROJ-100"
-    assert outcome["closees"] == ["PROJ-200", "PROJ-300"]
+    assert outcome["keeper"] == "tick-0100"
+    assert outcome["closees"] == ["tick-0200", "tick-0300"]
     assert outcome["status"] == "ok"
 
 
 def test_apply_handles_gate_verification(tmp_path, duplicates_band):
-    """Valid human attestation passes through gate to mutations; apply succeeds."""
+    """Valid human attestation passes through gate to deletes; apply succeeds."""
     pass_id = "2026-05-22-dup-05"
     bootstrap_dir = tmp_path / "bridge_state" / "bootstrap"
 
@@ -330,22 +347,22 @@ def test_apply_handles_gate_verification(tmp_path, duplicates_band):
 
     args = _make_apply_args(pass_id=pass_id, repo_root=str(tmp_path))
 
-    call_log: list = []
-    mock_acli = _make_mock_acli(call_log)
+    delete_log: list = []
     mock_fsck = _make_mock_fsck(post_pass_anomalies=[])
 
     with (
-        patch.object(duplicates_band, "_load_acli", return_value=mock_acli),
         patch.object(duplicates_band, "_load_fsck", return_value=mock_fsck),
         patch(
             "duplicates_band.subprocess.run",
             side_effect=_make_subprocess_mock(
-                verify_returncode=0, committer_email="human@example.com"
+                verify_returncode=0,
+                committer_email="human@example.com",
+                delete_log=delete_log,
             ),
         ),
     ):
         rc = duplicates_band.cmd_apply(args, tmp_path)
 
     assert rc == 0
-    # Mutations were executed (at least 1 call to AcliClient methods)
-    assert len(call_log) > 0, "Expected at least one AcliClient mutation call"
+    # At least one local-ticket delete was issued (the closee from the sample)
+    assert len(delete_log) > 0, "Expected at least one ticket-delete call"

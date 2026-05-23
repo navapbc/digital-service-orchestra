@@ -174,3 +174,37 @@ def test_gate_passes_for_signed_human_attestation(tmp_path, orphan_band, capsys)
     assert rc == 0
     captured = capsys.readouterr()
     assert "GATE OK" in captured.out
+
+
+def test_gate_rejects_swapped_manifest(tmp_path, orphan_band, capsys):
+    """F8 regression: gate rejects an apply when manifest was swapped after attestation."""
+    import hashlib
+
+    bootstrap_dir = tmp_path / "bridge_state" / "bootstrap"
+    bootstrap_dir.mkdir(parents=True)
+
+    # Write original manifest, compute attested hash, then SWAP the file
+    manifest_path = bootstrap_dir / "orphans-swap-pass.manifest.json"
+    original = b'{"pass_id": "swap-pass", "anomalies": []}'
+    manifest_path.write_bytes(original)
+    attested_hash = hashlib.sha256(original).hexdigest()
+
+    attestation_path = bootstrap_dir / "orphans-swap-pass.attested.json"
+    attestation_path.write_text(
+        json.dumps({"commit_sha": "abc123", "manifest_hash": attested_hash})
+    )
+
+    # Swap manifest contents — the gate must detect this
+    swapped = b'{"pass_id": "swap-pass", "anomalies": [{"injected": true}]}'
+    manifest_path.write_bytes(swapped)
+
+    args = _make_gate_args(pass_id="swap-pass", repo_root=str(tmp_path))
+
+    with patch.object(
+        orphan_band, "_load_attestation", return_value=_make_mock_attestation(True)
+    ):
+        rc = orphan_band.cmd_gate(args, tmp_path)
+
+    assert rc == 1
+    captured = capsys.readouterr()
+    assert "manifest hash mismatch" in captured.err

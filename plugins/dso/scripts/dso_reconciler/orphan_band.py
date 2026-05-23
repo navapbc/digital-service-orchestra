@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import hashlib
 import importlib.util
 import json
 import subprocess
@@ -63,12 +64,9 @@ def cmd_plan(args: argparse.Namespace, repo_root: Path) -> int:
 
 def cmd_gate(args: argparse.Namespace, repo_root: Path) -> int:
     """Verify attestation before allowing applier to run."""
-    attestation_path = (
-        repo_root
-        / "bridge_state"
-        / "bootstrap"
-        / f"orphans-{args.pass_id}.attested.json"
-    )
+    bootstrap_dir = repo_root / "bridge_state" / "bootstrap"
+    attestation_path = bootstrap_dir / f"orphans-{args.pass_id}.attested.json"
+    manifest_path = bootstrap_dir / f"orphans-{args.pass_id}.manifest.json"
 
     # (a) Check attestation file exists
     if not attestation_path.exists():
@@ -82,7 +80,19 @@ def cmd_gate(args: argparse.Namespace, repo_root: Path) -> int:
         print("GATE FAIL: attestation has no commit_sha", file=sys.stderr)
         return 1
 
-    # (c) Verify the commit is signed and not by a bot
+    # (c) Verify manifest hash matches (F8). Skip when attested.json omits
+    # manifest_hash (backward compat with earlier attestations).
+    recorded_hash = attested.get("manifest_hash", "")
+    if recorded_hash:
+        if not manifest_path.exists():
+            print("GATE FAIL: manifest missing for hash check", file=sys.stderr)
+            return 1
+        actual_hash = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+        if actual_hash != recorded_hash:
+            print("GATE FAIL: manifest hash mismatch", file=sys.stderr)
+            return 1
+
+    # (d) Verify the commit is signed and not by a bot
     attestation_mod = _load_attestation()
     ok = attestation_mod.verify_attested_commit(sha, BOT_ALLOWLIST)
     if not ok:
@@ -103,14 +113,28 @@ def cmd_gate(args: argparse.Namespace, repo_root: Path) -> int:
 def _apply_one(anomaly: dict, repo_root: Path) -> dict:
     """Apply a single orphan anomaly mutation.
 
-    This function is intentionally thin and mockable. Production callers
-    replace it via patch; the return dict follows the outcome schema:
-    ``{"anomaly_id": str, "status": "ok"|"error", "message": str}``.
+    F7 fix: previously a placeholder that returned ``{"status": "ok"}``
+    without mutating anything, which silently passed the post-pass check
+    in test mode but in production caused the residual count to remain
+    high (acknowledged_residual defaults to 0) and fail every run after
+    falsely reporting success on the per-anomaly outcomes. The production
+    mutation strategy is not yet implemented; operators must remediate
+    orphans manually:
+
+        .claude/scripts/dso ticket transition <id> <current-status> deleted --user-approved
+
+    Tests mock this function via ``patch.object(orphan_band, "_apply_one", ...)``
+    so the NotImplementedError only fires in real apply mode, not in unit
+    tests. See bug TBD for the orphan-remediation mutation strategy
+    sequencer (per-side dispatch driven by anomaly["proposed_remediation"]
+    and anomaly["side"]).
     """
-    anomaly_id = anomaly.get("ticket_id") or anomaly.get("jira_key", "unknown")
-    # Placeholder: real implementations will dispatch a remediation action
-    # based on anomaly["proposed_remediation"] and anomaly["side"].
-    return {"anomaly_id": anomaly_id, "status": "ok", "message": "applied"}
+    raise NotImplementedError(
+        "orphan-remediation mutation strategy not yet implemented; "
+        "operators must remediate orphans manually via "
+        "`dso ticket transition <id> <status> deleted --user-approved`. "
+        "See bug TBD for the orphan apply strategy sequencer."
+    )
 
 
 def cmd_apply(args: argparse.Namespace, repo_root: Path) -> int:
@@ -153,6 +177,11 @@ def cmd_apply(args: argparse.Namespace, repo_root: Path) -> int:
         return 1
 
     # 2. First-week mutation cap
+    # TODO(bug TBD — F12): no producer writes first-pass-date.txt. Until a
+    # writer is added in cmd_plan (or a separate bootstrap-init step), the
+    # cap is dead code on first invocation — silently bypassed. Tracked as
+    # a follow-up bug rather than fixed here because the producer's
+    # placement (plan-time vs bootstrap-init) is a design choice.
     first_pass_date_path = bootstrap_dir / "first-pass-date.txt"
     if first_pass_date_path.exists():
         raw_date = first_pass_date_path.read_text().strip()

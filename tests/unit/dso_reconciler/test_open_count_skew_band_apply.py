@@ -88,23 +88,45 @@ def _make_mock_fsck(post_pass_anomalies: list | None = None) -> types.ModuleType
 
 
 def _make_mock_acli(call_log: list | None = None) -> types.ModuleType:
-    """Return a stub acli module whose AcliClient records method calls."""
+    """Return a stub acli module whose AcliClient records method calls.
+
+    The FakeAcliClient and module-level transition_issue mirror the real
+    AcliClient surface that open_count_skew_band.cmd_apply now invokes
+    (post-F4):
+      - AcliClient(jira_url=..., user=..., api_token=..., jira_project=...)
+      - client.create_issue(ticket_data: dict)
+      - client.search_issues(jql: str)
+      - module-level transition_issue(jira_key, target_status)
+    """
     log = call_log if call_log is not None else []
 
     class _MockClient:
-        def create_issue(self, type, summary):  # noqa: A002
-            log.append(("create_issue", type))
+        def __init__(self, jira_url="", user="", api_token="", **kwargs):
+            pass
 
-        def search_issues(self, type):  # noqa: A002
+        def create_issue(self, ticket_data):
+            log.append(("create_issue", ticket_data.get("ticket_type")))
+
+        def search_issues(self, jql):
             # Return a list of fake issue dicts sufficient for any test
             return [{"key": f"DSO-{i}"} for i in range(20)]
 
-        def transition_issue(self, issue_key, status):
-            log.append(("transition_issue", issue_key))
+    def _module_transition_issue(jira_key, target_status, **kwargs):
+        log.append(("transition_issue", jira_key))
 
     mock_acli = types.ModuleType("acli_integration")
     mock_acli.AcliClient = _MockClient
+    mock_acli.transition_issue = _module_transition_issue
     return mock_acli
+
+
+@pytest.fixture(autouse=True)
+def _open_count_apply_env(monkeypatch):
+    """Provide JIRA_* env vars so _build_acli_client succeeds in tests."""
+    monkeypatch.setenv("JIRA_URL", "https://jira.example/")
+    monkeypatch.setenv("JIRA_USER", "test@example.com")
+    monkeypatch.setenv("JIRA_API_TOKEN", "test-token")
+    monkeypatch.setenv("JIRA_PROJECT", "DIG")
 
 
 def _write_manifest(

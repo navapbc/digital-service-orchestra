@@ -244,6 +244,12 @@ def enumerate_duplicate_anomalies(tickets_dir: Path) -> list[dict]:
         entry.setdefault("class_label", "duplicate")
         entry.setdefault("proposed_remediation", "close newer duplicates")
         ticket_ids = record.get("ticket_ids", [])
+        # TODO(bug TBD — F11): docstring claims ticket_ids[0] is the oldest by
+        # Jira created_at, but audit_bridge_mappings preserves filesystem
+        # iteration order (not created_at). Either re-sort here by oldest
+        # CREATE event timestamp, or weaken the docstring claim. Tracked as
+        # a follow-up because the fix touches the audit ordering contract,
+        # not just band code.
         entry.setdefault("keeper", ticket_ids[0] if ticket_ids else None)
         entry.setdefault("closees", ticket_ids[1:] if len(ticket_ids) > 1 else [])
         enriched.append(entry)
@@ -273,7 +279,22 @@ def enumerate_open_count_skew_anomalies(tickets_dir: Path) -> list[dict]:
         raise FileNotFoundError(f"acli-integration.py not found at {acli_path}")
     acli_mod = _ilu.module_from_spec(spec)
     spec.loader.exec_module(acli_mod)  # type: ignore[union-attr]
-    client = acli_mod.AcliClient()
+    # F1 fix: AcliClient() with no args raises TypeError — read credentials
+    # from JIRA_* env vars. Operators running fsck without these set will
+    # get an actionable RuntimeError instead of a cryptic constructor crash.
+    _required = ("JIRA_URL", "JIRA_USER", "JIRA_API_TOKEN")
+    _missing = [name for name in _required if not os.environ.get(name)]
+    if _missing:
+        raise RuntimeError(
+            f"missing JIRA_* environment variables: {', '.join(_missing)} "
+            "(required for enumerate_open_count_skew_anomalies)"
+        )
+    client = acli_mod.AcliClient(
+        jira_url=os.environ["JIRA_URL"],
+        user=os.environ["JIRA_USER"],
+        api_token=os.environ["JIRA_API_TOKEN"],
+        jira_project=os.environ.get("JIRA_PROJECT", "DIG"),
+    )
 
     ticket_types = ["epic", "story", "task", "bug"]
     results = []

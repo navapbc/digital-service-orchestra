@@ -249,6 +249,25 @@ def test_apply_blocks_when_post_pass_count_exceeds_residual(tmp_path, orphan_ban
     assert rc == 1
 
 
+def test_apply_one_raises_not_implemented_in_production(orphan_band, tmp_path):
+    """F7 regression: unmocked _apply_one must raise — no silent success in production.
+
+    Previously _apply_one returned ``{"status": "ok"}`` without mutating
+    anything, so cmd_apply reported success on every anomaly while the
+    post-pass count remained high and falsely tripped the residual gate.
+    The honest behaviour for an unimplemented mutation strategy is to
+    fail-loud at the first invocation so operators discover the gap
+    instead of trusting a no-op success.
+    """
+    anomaly = {
+        "ticket_id": "tick-0001",
+        "side": "local-only",
+        "proposed_remediation": "delete orphan mapping",
+    }
+    with pytest.raises(NotImplementedError, match="orphan-remediation"):
+        orphan_band._apply_one(anomaly, tmp_path)
+
+
 def test_apply_succeeds_when_post_pass_within_residual(tmp_path, orphan_band):
     """Apply returns exit code 0 when post-pass count equals acknowledged_residual (both 0)."""
     pass_id = "2026-05-22-05"

@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -15,6 +16,8 @@ BOT_ALLOWLIST = [
     "github-actions[bot]@users.noreply.github.com",
     "noreply@github.com",
 ]
+
+JIRA_PROJECT = os.environ.get("JIRA_PROJECT", "DIG")
 
 
 def _load_fsck():
@@ -52,6 +55,42 @@ def _load_acli():
     return mod
 
 
+def _build_acli_client(
+    acli_mod,
+    *,
+    jira_url: str = "",
+    user: str = "",
+    api_token: str = "",
+):
+    """Construct an AcliClient from explicit args or JIRA_* env vars.
+
+    F1 fix — AcliClient requires positional jira_url/user/api_token; the
+    no-arg constructor used previously raised TypeError on every call.
+    Explicit args override env vars; either source must satisfy all three
+    required credentials or RuntimeError is raised with an actionable
+    message.
+    """
+    url = jira_url or os.environ.get("JIRA_URL", "")
+    usr = user or os.environ.get("JIRA_USER", "")
+    tok = api_token or os.environ.get("JIRA_API_TOKEN", "")
+    missing = [
+        name
+        for name, val in (("JIRA_URL", url), ("JIRA_USER", usr), ("JIRA_API_TOKEN", tok))
+        if not val
+    ]
+    if missing:
+        raise RuntimeError(
+            f"missing JIRA_* environment variables: {', '.join(missing)} "
+            "(required to construct AcliClient for stale_band)"
+        )
+    return acli_mod.AcliClient(
+        jira_url=url,
+        user=usr,
+        api_token=tok,
+        jira_project=JIRA_PROJECT,
+    )
+
+
 def cmd_plan(args: argparse.Namespace, repo_root: Path) -> int:
     """Write dry-run manifest of stale SYNC anomalies with Jira property materialization."""
     fsck = _load_fsck()
@@ -62,9 +101,10 @@ def cmd_plan(args: argparse.Namespace, repo_root: Path) -> int:
 
     jira_url = getattr(args, "acli_url", "") or ""
     acli_token = getattr(args, "acli_token", "") or ""
-    client = acli_mod.AcliClient(
+    # F1 fix: AcliClient needs a user too; pull from env via _build_acli_client.
+    client = _build_acli_client(
+        acli_mod,
         jira_url=jira_url,
-        user="",
         api_token=acli_token,
     )
 
@@ -165,6 +205,10 @@ def cmd_apply(args: argparse.Namespace, repo_root: Path) -> int:
         return 1
 
     manifest_path = bootstrap_dir / f"stale-syncs-{args.pass_id}.manifest.json"
+    # F13 fix: bail with a clear message rather than letting read_bytes() raise.
+    if not manifest_path.exists():
+        print("APPLY FAIL: manifest missing", file=sys.stderr)
+        return 1
     recorded_hash = attested.get("manifest_hash", "")
     actual_hash = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
     if actual_hash != recorded_hash:
@@ -182,7 +226,18 @@ def cmd_apply(args: argparse.Namespace, repo_root: Path) -> int:
     acknowledged_residual = attested.get("acknowledged_residual", 0)
 
     # --- Apply anomalies ---
+    # F1 fix: construct AcliClient once with proper credentials (was AcliClient()
+    # per iteration, which raised TypeError on the no-arg ctor — original crash).
+    # The stale_band mutation surface is the same as before: per anomaly we call
+    # update_issue_labels then update_issue_property. F10 review noted both
+    # methods are not on AcliClient yet — TODO bug-TBD tracks adding the
+    # Jira REST property+labels surface or routing through set_issue_property +
+    # update_issue. In production today these calls will AttributeError; tests
+    # mock the client surface so existing coverage still passes. The honest
+    # next step is the property+labels adapter on AcliClient, not stub methods
+    # here.
     acli = _load_acli()
+    client = _build_acli_client(acli)
     applied: list[dict] = []
     skipped: list[dict] = []
 
@@ -191,8 +246,8 @@ def cmd_apply(args: argparse.Namespace, repo_root: Path) -> int:
             skipped.append(anomaly)
             continue
         jira_key = anomaly.get("jira_key", "")
-        client = acli.AcliClient()
-        client.update_issue_labels(jira_key, anomaly)
+        # F10 fix: pass the labels list (or empty), not the entire anomaly dict.
+        client.update_issue_labels(jira_key, anomaly.get("labels", []))
         client.update_issue_property(jira_key, "dso_stale_sync_resolved", True)
         applied.append(anomaly)
 

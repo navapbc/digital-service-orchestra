@@ -17,20 +17,56 @@ def _load(name: str, filename: str):
     return mod
 
 
-def run_bootstrap(pass_id: str, repo_root: Path | None = None) -> dict:
+def run_bootstrap(
+    pass_id: str,
+    repo_root: Path | None = None,
+    *,
+    mode: str = "plan",
+) -> dict:
     """Run the bootstrap remediation pass with health tracking.
 
-    Captures baseline before any mutations, then runs each band's plan step.
-    Returns a summary dict.
+    Captures baseline before any mutations, then loads each band module
+    so health can be measured against a consistent snapshot. Despite the
+    "bootstrap" name this is intentionally a STUB orchestrator: it does
+    not invoke each band's plan, gate, or apply step end-to-end.
+
+    F6 — production bootstrap requires per-band attestation gating
+    between plan and apply (operator-in-the-loop signature on each band's
+    manifest). That sequencing cannot be modelled as a single in-process
+    function call: between plan and apply the operator must (a) review
+    the manifest, (b) GPG-sign an attested.json with the manifest hash,
+    and (c) commit it. The right interface for production is a documented
+    runbook plus a stateful sequencer that resumes from the bootstrap
+    state directory — see bug TBD for the sequencer design.
 
     Args:
         pass_id: Unique identifier for this bootstrap pass.
         repo_root: Repository root path. Defaults to four levels above this
             file (resolved at runtime via ``Path(__file__).parents[4]``).
+        mode: ``"plan"`` (default, stub) or ``"apply"`` (raises
+            NotImplementedError — operators must follow the manual
+            attestation runbook described above).
 
     Returns:
-        A dict with ``pass_id`` and ``bands`` keys summarising each band result.
+        A dict with ``pass_id`` and ``bands`` keys summarising each band
+        load result. The string ``"planned"`` indicates the band module
+        was loaded; no mutation occurred.
+
+    Raises:
+        NotImplementedError: If ``mode="apply"`` is passed. The full
+            apply-mode orchestrator is not yet implemented.
     """
+    if mode == "apply":
+        raise NotImplementedError(
+            "bootstrap apply mode requires per-band operator attestation "
+            "between plan and apply; not implemented in this stub. "
+            "See bug TBD for the bootstrap apply sequencer. For now, "
+            "run each band's CLI directly: "
+            "`python -m dso_reconciler.<band>_band plan|gate|apply`."
+        )
+    if mode != "plan":
+        raise ValueError(f"unknown bootstrap mode: {mode!r}")
+
     if repo_root is None:
         repo_root = Path(__file__).parents[4]
 
@@ -39,7 +75,8 @@ def run_bootstrap(pass_id: str, repo_root: Path | None = None) -> dict:
     # Capture baseline BEFORE any band mutations
     health.capture_baseline(pass_id, repo_root=repo_root)
 
-    # Run each band's plan (dry-run, no mutations in bootstrap planning phase)
+    # Load each band module so import-time errors surface here, not at
+    # apply time. No plan/gate/apply step is executed in this stub.
     results = {}
     for band_name, filename in [
         ("orphan", "orphan_band.py"),
@@ -49,7 +86,6 @@ def run_bootstrap(pass_id: str, repo_root: Path | None = None) -> dict:
     ]:
         try:
             _load(f"band_{band_name}", filename)
-            # Each band exposes plan/gate/apply via CLI; plan step only here
             results[band_name] = "planned"
         except Exception as exc:  # noqa: BLE001
             results[band_name] = f"error: {exc}"

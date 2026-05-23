@@ -82,11 +82,22 @@ def _make_mock_fsck(post_pass_anomalies: list | None = None) -> types.ModuleType
 
 
 def _make_mock_acli(call_log: list | None = None) -> types.ModuleType:
-    """Return a stub acli module whose AcliClient records method call order."""
+    """Return a stub acli module whose AcliClient records method call order.
+
+    The FakeAcliClient mirrors the real AcliClient constructor surface
+    (kwargs jira_url/user/api_token/jira_project) so _build_acli_client
+    can instantiate it without TypeError. Production callers route
+    through _build_acli_client which validates JIRA_* env vars; tests
+    set those vars via monkeypatch (or use this fake which ignores
+    credentials entirely).
+    """
     log = call_log if call_log is not None else []
 
     class _MockClient:
-        def update_issue_labels(self, jira_key, anomaly):
+        def __init__(self, jira_url="", user="", api_token="", **kwargs):
+            pass
+
+        def update_issue_labels(self, jira_key, labels):
             log.append(("update_issue_labels", jira_key))
 
         def update_issue_property(self, jira_key, prop, value):
@@ -95,6 +106,15 @@ def _make_mock_acli(call_log: list | None = None) -> types.ModuleType:
     mock_acli = types.ModuleType("acli_integration")
     mock_acli.AcliClient = _MockClient
     return mock_acli
+
+
+@pytest.fixture(autouse=True)
+def _stale_apply_env(monkeypatch):
+    """Provide JIRA_* env vars so _build_acli_client succeeds in tests."""
+    monkeypatch.setenv("JIRA_URL", "https://jira.example/")
+    monkeypatch.setenv("JIRA_USER", "test@example.com")
+    monkeypatch.setenv("JIRA_API_TOKEN", "test-token")
+    monkeypatch.setenv("JIRA_PROJECT", "DIG")
 
 
 def _write_manifest(

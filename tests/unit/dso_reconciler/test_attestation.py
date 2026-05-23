@@ -114,3 +114,58 @@ def test_returns_false_on_subprocess_error(attestation):
         result = attestation.verify_attested_commit(_SHA, _BOT_ALLOWLIST)
 
     assert result is False
+
+
+# ---------------------------------------------------------------------------
+# verify_manifest_hash() — F8 regression coverage
+# ---------------------------------------------------------------------------
+
+
+def test_verify_manifest_hash_accepts_matching_hash(attestation, tmp_path):
+    """A manifest whose SHA-256 matches the attested hash returns True."""
+    import hashlib
+
+    manifest = tmp_path / "m.json"
+    payload = b'{"pass_id": "p-1", "anomalies": []}'
+    manifest.write_bytes(payload)
+    correct = hashlib.sha256(payload).hexdigest()
+
+    assert attestation.verify_manifest_hash(manifest, correct) is True
+
+
+def test_verify_manifest_hash_rejects_swapped_manifest(attestation, tmp_path):
+    """A manifest swapped between attestation time and gate time is rejected.
+
+    F8 regression — the 3 non-stale bands previously had no manifest-hash
+    check at all, so an attacker (or operational mishap) could substitute
+    a new manifest after the operator signed the attestation. The helper
+    must return False whenever the on-disk bytes differ from the recorded
+    hash.
+    """
+    import hashlib
+
+    manifest = tmp_path / "m.json"
+    original = b'{"pass_id": "p-1", "anomalies": []}'
+    manifest.write_bytes(original)
+    attested = hashlib.sha256(original).hexdigest()
+
+    # Swap the manifest contents after attestation was computed
+    swapped = b'{"pass_id": "p-1", "anomalies": [{"injected": true}]}'
+    manifest.write_bytes(swapped)
+
+    assert attestation.verify_manifest_hash(manifest, attested) is False
+
+
+def test_verify_manifest_hash_rejects_empty_attested_hash(attestation, tmp_path):
+    """An empty attested hash is treated as not-attested (False)."""
+    manifest = tmp_path / "m.json"
+    manifest.write_bytes(b"{}")
+
+    assert attestation.verify_manifest_hash(manifest, "") is False
+
+
+def test_verify_manifest_hash_rejects_missing_manifest(attestation, tmp_path):
+    """A missing manifest path returns False rather than raising."""
+    missing = tmp_path / "does-not-exist.json"
+
+    assert attestation.verify_manifest_hash(missing, "0" * 64) is False

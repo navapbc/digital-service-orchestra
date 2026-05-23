@@ -4,8 +4,10 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -14,6 +16,8 @@ BOT_ALLOWLIST = [
     "github-actions[bot]@users.noreply.github.com",
     "noreply@github.com",
 ]
+
+JIRA_PROJECT = os.environ.get("JIRA_PROJECT", "DIG")
 
 
 def _load_fsck():
@@ -51,6 +55,29 @@ def _load_acli():
     return mod
 
 
+def _build_acli_client(acli_mod):
+    """Construct an AcliClient from JIRA_* env vars or raise RuntimeError.
+
+    Centralised here so cmd_apply does not crash with a cryptic TypeError
+    on the no-arg AcliClient() call (the original bug). The helper is kept
+    on the band so tests can patch it independently of _load_acli (some
+    tests mock the module wholesale; others mock just the client factory).
+    """
+    required = ("JIRA_URL", "JIRA_USER", "JIRA_API_TOKEN")
+    missing = [name for name in required if not os.environ.get(name)]
+    if missing:
+        raise RuntimeError(
+            f"missing JIRA_* environment variables: {', '.join(missing)} "
+            "(required to construct AcliClient for open_count_skew apply)"
+        )
+    return acli_mod.AcliClient(
+        jira_url=os.environ["JIRA_URL"],
+        user=os.environ["JIRA_USER"],
+        api_token=os.environ["JIRA_API_TOKEN"],
+        jira_project=JIRA_PROJECT,
+    )
+
+
 def cmd_plan(args: argparse.Namespace, repo_root: Path) -> int:
     """Write dry-run manifest of open-count type skew anomalies."""
     fsck = _load_fsck()
@@ -74,12 +101,9 @@ def cmd_plan(args: argparse.Namespace, repo_root: Path) -> int:
 
 def cmd_gate(args: argparse.Namespace, repo_root: Path) -> int:
     """Verify attestation before allowing applier to run."""
-    attestation_path = (
-        repo_root
-        / "bridge_state"
-        / "bootstrap"
-        / f"open-count-skew-{args.pass_id}.attested.json"
-    )
+    bootstrap_dir = repo_root / "bridge_state" / "bootstrap"
+    attestation_path = bootstrap_dir / f"open-count-skew-{args.pass_id}.attested.json"
+    manifest_path = bootstrap_dir / f"open-count-skew-{args.pass_id}.manifest.json"
 
     # (a) Check attestation file exists
     if not attestation_path.exists():
@@ -93,7 +117,21 @@ def cmd_gate(args: argparse.Namespace, repo_root: Path) -> int:
         print("GATE FAIL: attestation has no commit_sha", file=sys.stderr)
         return 1
 
-    # (c) Verify the commit is signed and not by a bot
+    # (c) Verify manifest hash matches (F8 — tamper detection across bands).
+    # When attested.json omits manifest_hash entirely we accept (bands without
+    # a planning manifest are out of scope of this check); when it is present
+    # but mismatches the on-disk manifest, gate must fail.
+    recorded_hash = attested.get("manifest_hash", "")
+    if recorded_hash:
+        if not manifest_path.exists():
+            print("GATE FAIL: manifest missing for hash check", file=sys.stderr)
+            return 1
+        actual_hash = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+        if actual_hash != recorded_hash:
+            print("GATE FAIL: manifest hash mismatch", file=sys.stderr)
+            return 1
+
+    # (d) Verify the commit is signed and not by a bot
     attestation_mod = _load_attestation()
     ok = attestation_mod.verify_attested_commit(sha, BOT_ALLOWLIST)
     if not ok:
@@ -129,8 +167,14 @@ def cmd_apply(args: argparse.Namespace, repo_root: Path) -> int:
     acknowledged_residual = attested.get("acknowledged_residual", 5)
 
     # --- Apply anomalies ---
+    # F1 fix: AcliClient requires jira_url/user/api_token; construct from env.
+    # F4 fix: route through the real AcliClient API surface —
+    #   - create_issue(ticket_data: dict) replaces the previous kwargs form
+    #   - search_issues(jql: str) replaces the previous type= kwarg
+    #   - transition_issue is module-level (not on the client)
+    # F9 fix: JQL filters status="Open" so already-closed issues are not picked.
     acli = _load_acli()
-    client = acli.AcliClient()
+    client = _build_acli_client(acli)
     outcomes: list[dict] = []
 
     for anomaly in manifest["anomalies"]:
@@ -140,13 +184,24 @@ def cmd_apply(args: argparse.Namespace, repo_root: Path) -> int:
         if delta > 0:
             # Local has more open tickets than Jira — create surplus in Jira
             for _ in range(delta):
-                client.create_issue(type=ttype, summary=f"Reconcile open {ttype} count")
+                client.create_issue(
+                    {
+                        "title": f"Reconcile open {ttype} count",
+                        "ticket_type": ttype,
+                    }
+                )
             outcomes.append({"type": ttype, "delta": delta, "action": "created"})
         elif delta < 0:
-            # Jira has more open tickets than local — close surplus in Jira
-            surplus_issues = client.search_issues(type=ttype)
+            # Jira has more open tickets than local — close surplus in Jira.
+            # JQL must filter on Open status so we never re-close a Closed
+            # issue (the original code searched without a status filter — F9).
+            jql = (
+                f'project={JIRA_PROJECT} AND issuetype={ttype} '
+                f'AND status="Open"'
+            )
+            surplus_issues = client.search_issues(jql)
             for issue in surplus_issues[: abs(delta)]:
-                client.transition_issue(issue["key"], "Closed")
+                acli.transition_issue(issue["key"], "Closed")
             outcomes.append({"type": ttype, "delta": delta, "action": "closed"})
         else:
             outcomes.append({"type": ttype, "delta": 0, "action": "noop"})
