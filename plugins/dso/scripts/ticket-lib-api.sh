@@ -135,6 +135,43 @@ ticket_show() {
         return $?
     fi
 
+    # Multi-ID support (bug jira-dig-2565): if more than one positional ID is
+    # supplied, iterate and recurse single-ID for each, threading `--format=*`
+    # and any other flags through to each call. Default-format output is
+    # separated by a blank line between tickets; --format=llm output is one
+    # self-delimiting JSON object per line (NDJSON) and needs no separator.
+    # The function returns 1 if any single-ID call failed, after processing
+    # all tickets so callers can scan the full output. The recursive call
+    # lands in this same function with exactly one positional ID and falls
+    # through to the single-ID implementation below.
+    local _ms_format_args=()
+    local _ms_ids=()
+    local _ms_arg
+    for _ms_arg in "$@"; do
+        case "$_ms_arg" in
+            --format=*|-*) _ms_format_args+=("$_ms_arg") ;;
+            *)             _ms_ids+=("$_ms_arg") ;;
+        esac
+    done
+    if [ "${#_ms_ids[@]}" -gt 1 ]; then
+        local _ms_idx=0 _ms_rc=0 _ms_id _ms_is_llm=0 _ms_fa
+        for _ms_fa in "${_ms_format_args[@]}"; do
+            [ "$_ms_fa" = "--format=llm" ] && _ms_is_llm=1
+        done
+        for _ms_id in "${_ms_ids[@]}"; do
+            _ms_idx=$((_ms_idx + 1))
+            if [ "$_ms_idx" -gt 1 ] && [ "$_ms_is_llm" -eq 0 ]; then
+                echo
+            fi
+            if [ "${#_ms_format_args[@]}" -gt 0 ]; then
+                ticket_show "${_ms_format_args[@]}" "$_ms_id" || _ms_rc=1
+            else
+                ticket_show "$_ms_id" || _ms_rc=1
+            fi
+        done
+        return "$_ms_rc"
+    fi
+
     # Run the body with strict mode scoped to this function via a subshell.
     (
         set -euo pipefail
@@ -157,7 +194,7 @@ ticket_show() {
         fi
 
         _usage() {
-            echo "Usage: ticket show [--format=llm] <ticket_id>" >&2
+            echo "Usage: ticket show [--format=llm] <ticket_id> [<ticket_id> ...]" >&2
             return 1
         }
 

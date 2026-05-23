@@ -403,12 +403,11 @@ Begin the loop. Process each ticket via `/dso:fix-bug` per the steps below. Cont
 
    Read `$PLUGIN_ROOT/skills/fix-bug/SKILL.md` inline — NOT via the Skill tool or Task tool — so fix-bug's HARD-GATEs execute in this Agent tool context and fix-bug can dispatch its own investigation sub-agents (BASIC/INTERMEDIATE/ADVANCED). The orchestrator follows the SKILL.md steps as an instruction script; fix-bug's sub-agents do the actual investigation and code changes. CLI_user-tagged bugs are handled inside fix-bug Phase B Step 1 — no debug-everything-side check.
 
-   Pass the ticket as bug context. Always include `ORCHESTRATOR_ROOT=$(git rev-parse --show-toplevel)` in the dispatch prompt. When `DISPATCH_ISOLATION=true`, also add `isolation: "worktree"` to each fix-bug sub-agent dispatch.
+   Pass the ticket as bug context. When `DISPATCH_ISOLATION=true`, add `isolation: "worktree"` and inject `SESSION_BRANCH` / `SESSION_HEAD` to each fix-bug sub-agent dispatch. Do NOT inject the orchestrator's session-worktree absolute path (per bug 9679-695c-6e11-4d95).
 
    ```
    Bug ticket: <ticket-id>
    Title: <title from ticket show>
-   ORCHESTRATOR_ROOT: <value of $(git rev-parse --show-toplevel)>
    ```
 
    **After the fix sub-agent returns** — when `DISPATCH_ISOLATION=true`, follow `skills/shared/prompts/single-agent-integrate.md` to integrate the sub-agent's worktree changes onto the session branch. When `DISPATCH_ISOLATION=false`, no integration step is needed.

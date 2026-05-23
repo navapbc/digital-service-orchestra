@@ -24,8 +24,8 @@ on:
       - 'tests/scripts/test_bridge*.py'
       - '.github/workflows/*-bridge.yml'
   pull_request:
-    branches:
-      - main
+    # No base-branch filter: fires on all PRs (story/*, session/*, base=main).
+    # Sub-branch coverage was missing per bug 69e5-824a-ec7e-4bd9.
     paths:
       - 'plugins/dso/**/*.md'
       - 'plugins/dso/**/*.py'

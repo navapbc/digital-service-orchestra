@@ -9,8 +9,8 @@ on:
     branches:
       - main
   pull_request:
-    branches:
-      - main
+    # No base-branch filter: fires on all PRs (story/*, session/*, base=main)
+    # so portability smoke runs on sub-branch PRs too. Bug 69e5-824a-ec7e-4bd9.
 
 jobs:
   portability-smoke:

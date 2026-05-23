@@ -9,7 +9,8 @@ on:
       - 'tests/scripts/test-ticket-perf-regression.sh'
       - 'tests/scripts/benchmark-sprint-workflow.sh'
   pull_request:
-    branches: [main]
+    # No base-branch filter: fires on all PRs (story/*, session/*, base=main)
+    # so perf regression runs on sub-branch PRs. Bug 69e5-824a-ec7e-4bd9.
     paths:
       - 'plugins/dso/scripts/ticket-lib-api.sh'
       - 'tests/perf/**'

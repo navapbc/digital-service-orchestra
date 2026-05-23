@@ -8,15 +8,11 @@ When an orchestrator is running inside a worktree, sub-agents dispatched via the
 
 ### What `isolation: "worktree"` IS and IS NOT
 
-`isolation: "worktree"` is **CWD redirection plus a separate git working tree**. It is **NOT a filesystem sandbox**. The sub-agent process still has full read/write access to the orchestrator's working tree via:
+`isolation: "worktree"` is **CWD redirection plus a separate git working tree**. It is **NOT a filesystem sandbox**. A sub-agent still has read/write access to the broader filesystem via absolute paths and shares the main repo's git object database, so `git worktree list` enumerates every registered worktree (including the orchestrator's session worktree). The platform does not — and cannot, at this layer — prevent a sub-agent that *constructs* an absolute path from writing there.
 
-- Absolute paths derived from `ORCHESTRATOR_ROOT`
-- `cd "$ORCHESTRATOR_ROOT"` followed by ordinary writes / git operations on the session branch
-- Any script or helper that derives its `REPO_ROOT` from sources other than `$(git rev-parse --show-toplevel)` of its own CWD
+The dispatch protocol below addresses this by NEVER giving the sub-agent the session-worktree path. Sub-agents derive their own `REPO_ROOT` from `$(git rev-parse --show-toplevel)` of their own CWD (which the Agent runtime points at their isolated worktree). They have no canonical reason to single out the session worktree from the multitude of worktrees `git worktree list` returns, and the dispatch prompt offers no such pointer. This shifts the breach surface from "the sub-agent knows exactly which absolute path is the session" to "the sub-agent would have to autonomously decide to enumerate and target a specific sibling worktree" — which has no use case in any documented agent workflow.
 
-Empirically verified (bug c9df-0538): from inside an isolated sub-agent worktree, a write to `$ORCHESTRATOR_ROOT/some-file.txt` succeeds, and `cd "$ORCHESTRATOR_ROOT"` lands on the session branch with unrestricted git access.
-
-**Implication**: write-path safety is the *agent's* responsibility, not the platform's. Every implementer-class sub-agent must (a) run the Git Root Verification snippet as its first action, (b) treat `ORCHESTRATOR_ROOT` as a *read-only* reference for invoking the orchestrator's shim (`$ORCHESTRATOR_ROOT/.claude/scripts/dso`), and (c) never use `ORCHESTRATOR_ROOT` as a write base. Reviewer-family agents that intentionally write to the orchestrator's shared artifacts directory are the documented exception.
+Bug history: 9679-695c-6e11-4d95 closed the deliberate-pointer surface by removing the `ORCHESTRATOR_ROOT` injection from dispatch prompts. The complementary agent-layer guard (every implementer agent derives write paths exclusively from its own CWD, never from `git worktree list` or absolute paths outside its worktree) is tracked under epic b36c-3e66-c0f2-413d.
 
 ## Step 1 — Set Isolation Mode
 
@@ -81,37 +77,32 @@ Sub-agents must NOT commit, push, or run any commit-related command. Prohibited 
 
 Sub-agents implement only and return results to the orchestrator. The orchestrator is solely responsible for all commit and push operations.
 
-### Git Root Verification
+### Isolation Self-Check (path-shape verification)
 
-As the **first action after loading task context**, sub-agents MUST verify that their working directory root differs from the orchestrator's root when isolation is enabled:
+As the **first action after loading task context**, sub-agents SHOULD verify that their working directory matches the agent-worktree convention. Unlike the prior `ORCHESTRATOR_ROOT`-comparison check (which provided false reassurance — the platform already guarantees a distinct CWD under isolation), this check confirms the agent is in a recognized isolated location:
 
 ```bash
 SUB_AGENT_ROOT=$(git rev-parse --show-toplevel)
-# Orchestrator passes its root via the dispatch prompt as ORCHESTRATOR_ROOT
-if [ "$SUB_AGENT_ROOT" = "$ORCHESTRATOR_ROOT" ]; then
-  echo "ERROR: Sub-agent git root matches orchestrator root — isolation not in effect" >&2
-  exit 1
+if [[ "$SUB_AGENT_ROOT" != *"/.claude/worktrees/agent-"* ]]; then
+  echo "WARNING: Sub-agent root does not match the isolated-worktree convention." >&2
+  echo "         Got: $SUB_AGENT_ROOT" >&2
+  echo "         Expected substring: /.claude/worktrees/agent-" >&2
+  # Continue rather than exit — the convention check is a tripwire for
+  # mis-configured dispatches, not a hard barrier (the platform's CWD
+  # redirection already differentiates the sub-agent from the orchestrator).
 fi
-echo "Git root verified: $SUB_AGENT_ROOT (differs from orchestrator root: $ORCHESTRATOR_ROOT)"
 ```
 
-If `ORCHESTRATOR_ROOT` is not set, exit 1: `"ERROR: ORCHESTRATOR_ROOT not injected — refusing to proceed."` Do NOT log-and-continue (proceeding risks corrupting the orchestrator's session branch).
+The check is informational. Even when it fails (e.g., for non-isolated dispatches in test fixtures), the sub-agent proceeds — there is no safe "wrong place to do work" that this check could detect, because the platform's CWD redirection already ensures the sub-agent is in its own worktree.
 
 ## Orchestrator Responsibilities
 
 When using this protocol, orchestrators must:
 
 1. Set `ISOLATION_ENABLED=true` before the first Agent dispatch (Step 1 above).
-2. Pass `ORCHESTRATOR_ROOT=$(git rev-parse --show-toplevel)` in each sub-agent's dispatch prompt so the sub-agent can verify isolation.
+2. Inject `SESSION_BRANCH` and `SESSION_HEAD` into every sub-agent dispatch prompt when running from a session worktree (per Step 2 above).
 3. Apply the isolation parameter consistently — do not mix isolated and non-isolated dispatches within the same sprint or debug session.
-4. On sub-agent isolation error (exit 1), HALT the batch, record the failure as a ticket comment, and surface to the user. Do not silently re-dispatch.
-
-## Non-Interactive Fallback
-
-In non-interactive mode, on sub-agent isolation error:
-1. Add ticket comment: `.claude/scripts/dso ticket comment <task-id> "ISOLATION_ERROR: sub-agent exited 1 — ORCHESTRATOR_ROOT not injected"`
-2. Transition task back to open: `.claude/scripts/dso ticket transition <task-id> in_progress open`
-3. Do NOT silently continue — re-dispatch only after confirming the dispatch prompt includes `ORCHESTRATOR_ROOT`.
+4. Do NOT inject the orchestrator's session-worktree absolute path into sub-agent prompts (closed in bug 9679-695c-6e11-4d95). The agent layer derives its own paths from its own CWD; the dispatch prompt never names the session worktree.
 
 ## Post-Dispatch Integration
 
@@ -123,10 +114,4 @@ Multi-agent orchestrators (e.g., `/dso:sprint`) collect results from all sub-age
 
 Single-agent callers dispatch one sub-agent at a time and use a simpler integration path. After the sub-agent returns, follow `single-agent-integrate.md` to review, commit, and merge the sub-agent's worktree back into the session branch.
 
-The dispatch prompt for single-agent callers must inject the orchestrator's working directory so the sub-agent can verify isolation. Before constructing the dispatch prompt, set:
-
-```bash
-ORCHESTRATOR_ROOT=$(git rev-parse --show-toplevel)
-```
-
-Then include `{orchestrator_root}` in the dispatch prompt template. At runtime, replace `{orchestrator_root}` with the value of `$ORCHESTRATOR_ROOT` so the sub-agent receives the correct absolute path for isolation verification.
+The dispatch prompt for single-agent callers must NOT name the orchestrator's session-worktree absolute path (per bug 9679-695c-6e11-4d95). The orchestrator computes `ORCHESTRATOR_ROOT=$(git rev-parse --show-toplevel)` for its own bash context (used by `single-agent-integrate.md` to compare against the sub-agent's `WORKTREE_PATH` after return), but that variable lives only in the orchestrator's shell — it is not injected into the sub-agent prompt.

@@ -157,4 +157,72 @@ EXIT=0
 bash "$PREP" --epic-id foo --new-epic-payload /nonexistent --out-dir "$TMPDIR_T/out5" 2>/dev/null || EXIT=$?
 assert_eq "missing_payload_file_exits_2" "2" "$EXIT"
 
+# --- Test 6: timeout on one candidate → skip it, return STATUS=ok ---
+# Reproduces bug 3c02-08d5: when `ticket show` hangs past the deadline on
+# a single bloated-event-log ticket, the previous code raised
+# subprocess.TimeoutExpired uncaught and crashed the whole scan. With the
+# fix, the timed-out ticket is skipped (returns None, same as JSONDecodeError
+# / non-zero exit) and the remaining candidates appear in the batch.
+#
+# Uses DSO_TICKET_SHOW_TIMEOUT_SECS=1 so the test takes ~2s, not ~30s.
+# The stub sleeps 2s for ID "slow-001-aaaa-bbbb" and returns immediately
+# for all other IDs.
+{
+    REPO_TIMEOUT_DIR="$TMPDIR_T/timeout-stub-bin"
+    mkdir -p "$REPO_TIMEOUT_DIR"
+    cat > "$REPO_TIMEOUT_DIR/ticket" <<EOF
+#!/usr/bin/env bash
+case "\$1" in
+    list)
+        cat "$TMPDIR_T/list-fixture.ndjson" 2>/dev/null
+        ;;
+    show)
+        if [[ "\$2" == "slow-001-aaaa-bbbb" ]]; then
+            sleep 2
+            exit 0
+        fi
+        cat "$TMPDIR_T/show-\$2.json" 2>/dev/null
+        ;;
+    *)
+        exit 1
+        ;;
+esac
+EOF
+    chmod +x "$REPO_TIMEOUT_DIR/ticket"
+
+    # List fixture: one slow ticket + one fast ticket.
+    cat > "$TMPDIR_T/list-fixture.ndjson" <<EOF
+{"id":"slow-001-aaaa-bbbb","t":"epic","ttl":"slow","st":"open"}
+{"id":"fast-002-cccc-dddd","t":"epic","ttl":"fast","st":"open"}
+EOF
+    _make_epic_fixture "fast-002-cccc-dddd" "fast approach" "- sc fast"
+    # Note: no show-slow-001*.json — the stub sleeps instead, triggering
+    # subprocess.TimeoutExpired in the parent.
+
+    OUT_TIMEOUT="$TMPDIR_T/out-timeout"
+    RESULT=$(DSO_TICKET_CMD="$REPO_TIMEOUT_DIR/ticket" \
+        DSO_TICKET_SHOW_TIMEOUT_SECS=1 \
+        bash "$PREP" --epic-id new-001-aaaa-bbbb --new-epic-payload "$NEW_EPIC" --out-dir "$OUT_TIMEOUT" 2>&1)
+
+    # Bug 3c02 regression check:
+    # Status must be ok (scan did NOT crash on the timeout — that was the bug).
+    assert_contains "timeout_skipped_status_ok" "STATUS=ok" "$RESULT"
+
+    # Verify only the FAST ticket appears in the batch output — the slow
+    # one timed out and was correctly dropped to None. CANDIDATE_COUNT is
+    # the pre-filter list size (still 2); the evidence of skipping lives
+    # in the batch's open_epics array.
+    BATCH_FILES=$(grep "^BATCH_FILES=" <<<"$RESULT" | sed 's/^BATCH_FILES=//')
+    if [[ -n "$BATCH_FILES" ]]; then
+        FIRST_BATCH=$(cat "${BATCH_FILES%%,*}")
+        OPEN_EPICS_COUNT=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(len(d.get('open_epics',[])))" "$FIRST_BATCH")
+        SURVIVING_IDS=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(','.join(e.get('id','') for e in d.get('open_epics',[])))" "$FIRST_BATCH")
+        assert_eq "timeout_skipped_batch_contains_one_epic" "1" "$OPEN_EPICS_COUNT"
+        assert_eq "timeout_skipped_surviving_is_fast" "fast-002-cccc-dddd" "$SURVIVING_IDS"
+    else
+        (( ++FAIL ))
+        echo "FAIL: no BATCH_FILES emitted for timeout-recovery scenario" >&2
+    fi
+}
+
 print_summary

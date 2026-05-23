@@ -60,7 +60,7 @@ Empty string when blackboard is unavailable.
 
 ## 5. Dispatch each task via Task tool
 
-Launch all sub-agents in the batch in a single message, each with `run_in_background: true`. Set `isolation: "worktree"` when `DISPATCH_ISOLATION=true`. Pass `ORCHESTRATOR_ROOT=$(git rev-parse --show-toplevel)` so sub-agents can verify isolation.
+Launch all sub-agents in the batch in a single message, each with `run_in_background: true`. Set `isolation: "worktree"` when `DISPATCH_ISOLATION=true` and inject `SESSION_BRANCH` / `SESSION_HEAD` into each prompt (so sub-agents can sync to session HEAD). Do NOT inject the orchestrator's session-worktree absolute path (per bug 9679-695c-6e11-4d95).
 
 Description: 3–5 word summary derived from ticket title (e.g., "Fix review gate hash"), not the bug ID.
 

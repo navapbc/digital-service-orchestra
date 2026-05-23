@@ -36,7 +36,17 @@ For each failing success criterion (SC) identified in Phase G validation, dispat
 
 **Routing rules**:
 
-- `intent_gap` + `ROUTING: brainstorm` — REQUIRE user confirmation before proceeding. Do NOT autonomously invoke `/dso:brainstorm`. Present the failing SC text and classification explanation to the user. Ask the user to confirm that brainstorm re-examination is desired. Proceed to `/dso:brainstorm` only after explicit user approval. If the user declines, mark the SC as deferred and continue to the next SC.
+- `intent_gap` + `ROUTING: brainstorm` — REQUIRE user confirmation before proceeding. Do NOT autonomously invoke `/dso:brainstorm`. Present the failing SC text and classification explanation to the user.
+
+  <HARD-GATE>
+  When presenting the failing SC to the user, do NOT offer to "update / relax / rewrite / amend / revise / adjust" the success criteria, and do NOT label any such option as "Recommended." Success criteria are frozen at sprint entry; they may only be revised through `/dso:brainstorm`, never inline by the sprint orchestrator. The ONLY options to present are:
+  - **(a)** Confirm `/dso:brainstorm` re-examination of the SC (user explicitly approves the routing).
+  - **(b)** Defer this SC (mark as deferred, continue to the next SC; the SC remains unfulfilled and the epic cannot close on it).
+
+  This mirrors the Phase I closure HARD-GATE (sprint SKILL.md "On Success" section), which already prohibits SC-waiver offers at epic closure. Bug b29d-a9a6-11f1-4998 documented an instance where the orchestrator improvised an "Update SCs to match what was built (Recommended)" option at Phase H — that is exactly the pattern this gate forbids.
+  </HARD-GATE>
+
+  Ask the user to confirm that brainstorm re-examination is desired. Proceed to `/dso:brainstorm` only after explicit user approval. If the user declines (option b), mark the SC as deferred and continue to the next SC.
 
 - `implementation_gap` + `ROUTING: implementation-plan` — autonomous remediation is permitted. Proceed directly to **Step 1 (Create Remediation Tasks)** below without requiring user confirmation. **Important**: `ROUTING: implementation-plan` is a routing signal label — it does NOT mean invoking `/dso:implementation-plan` as a separate skill. The action for `implementation_gap` is bug-task creation via the Phase H Step 1 remediation flow (`.claude/scripts/dso ticket create bug`), which creates targeted implementation tasks under the epic. This is the correct and intended behavior for filling a clear implementation gap.
 

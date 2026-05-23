@@ -41,13 +41,16 @@ _cleanup() {
 }
 trap '_cleanup' EXIT
 
-# ── Test 1: two-sub-PR resurfacing blocks merge ───────────────────────────────
+# ── Test 1: resurfacing blocks merge under delta-aware semantics ──────────────
 # Fixture: isolated git repo in mktemp dir.
-# Commit chain:
+# Commit chain (models sub-PR 1's removal already merged to main; sub-PR 2
+# re-introduces the marker on a fresh session branch):
 #   (1) Initial commit on main: .test-index with [test_foo] marker present
-#   (2) Commit A on session/test: removes [test_foo]  (sub-PR 1)
-#   (3) Commit B on session/test: re-introduces [test_foo]  (sub-PR 2 — resurfacing)
-# Cumulative merged-tree state has the marker → scan must block (exit non-zero).
+#   (2) Commit A on main: sub-PR 1 lands — removes [test_foo]
+#   (3) session/test branched from main (post sub-PR 1)
+#   (4) Commit B on session/test: sub-PR 2 re-introduces [test_foo] — resurfacing
+# BASE = main post sub-PR 1 (no marker). HEAD = session tip (marker reintroduced).
+# Under delta-aware semantics, the reintroduction is NEW vs BASE → scan blocks.
 _snapshot_fail
 
 REPO1=$(mktemp -d /tmp/scan-red-markers-fixture.XXXXXX)
@@ -65,22 +68,24 @@ _WORK_DIRS+=("$REPO1")
     git add .test-index
     git commit -q -m "initial: .test-index with [test_foo] marker"
 
-    git checkout -q -b session/test
-
-    # Commit A (sub-PR 1): removes [test_foo] from .test-index.
+    # Sub-PR 1 lands on main: removes [test_foo]. Now main has no marker.
     printf '' > .test-index
     git add .test-index
-    git commit -q -m "sub-PR 1: remove [test_foo] marker"
+    git commit -q -m "sub-PR 1 (on main): remove [test_foo] marker"
 
-    # Commit B (sub-PR 2): re-introduces [test_foo] for src/foo.py — resurfacing.
+    # Branch session/test from current main (post sub-PR 1).
+    git checkout -q -b session/test
+
+    # Commit B (sub-PR 2 on session): re-introduces [test_foo] — resurfacing.
     printf 'src/foo.py: tests/test_foo.py [test_foo]\n' > .test-index
     git add .test-index
-    git commit -q -m "sub-PR 2: re-introduce [test_foo] marker for src/foo.py"
+    git commit -q -m "sub-PR 2 (on session): re-introduce [test_foo] marker for src/foo.py"
 )
 
-# Collect SHAs for the base (main tip) and the session tip.
+# BASE = main tip after sub-PR 1 merged (no marker).
+# HEAD = session tip after sub-PR 2 re-introduces the marker.
 # Pass explicit SHAs (not branch names) to scan-red-markers.sh.
-MAIN_SHA=$(git -C "$REPO1" rev-parse session/test~2)
+MAIN_SHA=$(git -C "$REPO1" rev-parse session/test~1)
 SESSION_SHA=$(git -C "$REPO1" rev-parse session/test)
 
 # Invoke scan-red-markers.sh; capture exit code and stderr.

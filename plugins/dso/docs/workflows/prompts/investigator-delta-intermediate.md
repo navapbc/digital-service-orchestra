@@ -43,6 +43,10 @@ Do not skip even when confident early — the exercise surfaces blind spots.
 Extend the universal RESULT with:
 
 ```
+root_cause_candidates:
+  - cause: <one sentence describing a candidate root cause>
+    confidence: high | medium | low
+    evidence: <empirical observation, command output, code reference, or hypothesis_test verdict supporting this candidate>
 alternative_fixes:
   - description: <what the alternative fix does>
     risk: high | medium | low
@@ -53,3 +57,5 @@ recommendation: <which fix and why>
 ```
 
 You must propose **at least 2 fixes** total (one in `proposed_fixes`, at least one in `alternative_fixes`). Each fix gets a confidence assessment in your prose, the recommendation explains the choice.
+
+You must surface **at least 2 surviving root-cause candidates** in `root_cause_candidates`, ordered by descending confidence. The top candidate's `cause` must match the top-level `ROOT_CAUSE`. Each `evidence` field must cite empirical observations or specific code references — not reasoning alone. Candidates eliminated during Hypothesis Generation and Elimination (marked `eliminated`) are omitted; only `confirmed` and `unresolved` candidates appear.

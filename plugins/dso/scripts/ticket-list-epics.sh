@@ -331,14 +331,21 @@ for tid, entry in index.items():
         priority = entry.get('priority')
         if priority is None:
             priority = 4
-        if status not in ('closed',) and priority == 0:
+        # Bug 5eb9-355b-fb39-4e0b: exclude archived/deleted (terminal
+        # statuses) in addition to closed — otherwise list-epics shows
+        # tombstoned bugs in the P0 banner.
+        if status not in ('closed', 'archived', 'deleted') and priority == 0:
             p0_bugs.append({'id': tid, 'title': entry.get('title', '')})
         continue
 
     if entry.get('type') != 'epic':
         continue
     status = entry.get('status', 'open')
-    if status in ('closed',):
+    # Bug 5eb9-355b-fb39-4e0b: archived/deleted are terminal statuses
+    # equivalent to closed for list-epics. Including them produced rows
+    # whose alias columns resolved to the tombstoned ticket, presenting
+    # them as if they were live.
+    if status in ('closed', 'archived', 'deleted'):
         continue
 
     deps = entry.get('deps', [])
