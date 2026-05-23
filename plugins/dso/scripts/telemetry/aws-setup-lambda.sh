@@ -37,9 +37,11 @@ readonly LAMBDA_ROLE_NAME="dso-telemetry-lambda-role"
 readonly LAMBDA_LOG_GROUP="/aws/lambda/${LAMBDA_FUNCTION_NAME}"
 readonly LAMBDA_REGION="us-east-1"
 readonly LAMBDA_RUNTIME="python3.13"
+readonly LAMBDA_HANDLER="handler.lambda_handler"
 readonly LAMBDA_RESERVED_CONCURRENCY=10
 readonly LOG_RETENTION_DAYS=7
 readonly MAX_CREATE_ATTEMPTS=3
+readonly LAMBDA_TIMEOUT_SECONDS=30
 
 # ── Resolve paths ──────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -296,7 +298,11 @@ except Exception:
 }
 
 # ── ensure_lambda_function ────────────────────────────────────────────────────
-# 3-attempt retry with backoff for IAM propagation delay
+# 3-attempt retry with backoff for IAM propagation delay.
+# Always sets the canonical Handler (LAMBDA_HANDLER) and TELEMETRY_BUCKET env on
+# create AND reconciles them on idempotent re-run — fixes bugs c1c2 + 404b
+# (handler name mismatched the deployed zip; env var was missing → handler.py
+# raised KeyError on first invoke).
 ensure_lambda_function() {
     local exit_code=0
     _aws_lambda get-function \
@@ -304,7 +310,17 @@ ensure_lambda_function() {
         --output json >/dev/null 2>&1 || exit_code=$?
 
     if [[ $exit_code -eq 0 ]]; then
-        echo "INFO: Lambda function already exists: $LAMBDA_FUNCTION_NAME"
+        echo "INFO: Lambda function already exists: $LAMBDA_FUNCTION_NAME — reconciling Handler + Environment"
+        # Bug c1c2 + 404b idempotent reconcile: ensure existing function has
+        # the canonical handler and TELEMETRY_BUCKET env var, even if it was
+        # created by an older version of this script (which hardcoded
+        # lambda_function.handler and omitted the env var).
+        _aws_lambda update-function-configuration \
+            --function-name "$LAMBDA_FUNCTION_NAME" \
+            --handler "$LAMBDA_HANDLER" \
+            --timeout "$LAMBDA_TIMEOUT_SECONDS" \
+            --environment "Variables={TELEMETRY_BUCKET=$_BUCKET_NAME}" \
+            --output json >/dev/null 2>&1 || true
         return 0
     fi
 
@@ -312,16 +328,16 @@ ensure_lambda_function() {
 
     # Build a non-empty placeholder zip. /dev/null is not a zip archive (bug
     # 2c82); AWS additionally rejects empty zips with "Uploaded file must be
-    # a non-empty zip" (bug 2c82b). The placeholder ships a minimal
-    # lambda_function.py stub matching the configured handler signature.
-    # aws-deploy-handler.sh overwrites this with the real payload after the
-    # function exists.
+    # a non-empty zip" (bug 2c82b). The placeholder ships a minimal handler.py
+    # stub matching LAMBDA_HANDLER's expected module/function so the function
+    # is invokable from the moment it is created — aws-deploy-handler.sh
+    # later overwrites it with the real payload.
     local zip_placeholder
     zip_placeholder="$(mktemp /tmp/dso-lambda-placeholder.XXXXXX.zip)"
     python3 - "$zip_placeholder" <<'PYEOF'
 import sys, zipfile
 with zipfile.ZipFile(sys.argv[1], 'w') as z:
-    z.writestr('lambda_function.py', 'def handler(event, context):\n    return {"statusCode": 202}\n')
+    z.writestr('handler.py', 'def lambda_handler(event, context):\n    return {"statusCode": 202, "body": ""}\n')
 PYEOF
     # shellcheck disable=SC2064
     trap "rm -f '$zip_placeholder'" EXIT
@@ -336,12 +352,14 @@ PYEOF
             --function-name "$LAMBDA_FUNCTION_NAME" \
             --runtime "$LAMBDA_RUNTIME" \
             --role "$_ROLE_ARN" \
-            --handler "lambda_function.handler" \
+            --handler "$LAMBDA_HANDLER" \
+            --timeout "$LAMBDA_TIMEOUT_SECONDS" \
+            --environment "Variables={TELEMETRY_BUCKET=$_BUCKET_NAME}" \
             --zip-file "fileb://$zip_placeholder" \
             --output json 2>&1)" || create_exit=$?
 
         if [[ $create_exit -eq 0 ]]; then
-            echo "INFO: Lambda function created on attempt $attempt"
+            echo "INFO: Lambda function created on attempt $attempt (handler=$LAMBDA_HANDLER, TELEMETRY_BUCKET=$_BUCKET_NAME)"
             return 0
         fi
 
