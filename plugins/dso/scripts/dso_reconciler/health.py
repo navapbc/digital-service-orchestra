@@ -12,6 +12,14 @@ from pathlib import Path
 
 SCHEMA_VERSION = 1
 
+# Canonical state-directory layout for the dso reconciler. The two-level
+# bridge_state/<feature> structure is part of the documented bridge contract
+# (see the bridge README). Consuming projects override the *location* by
+# passing a different repo_root; the layout itself is fixed.
+_STATE_SUBDIR = "bridge_state"
+_HEALTH_SUBDIR = "health"
+_TICKETS_TRACKER_SUBDIR = ".tickets-tracker"
+
 
 def record_pass(
     pass_id: str,
@@ -37,7 +45,7 @@ def record_pass(
     """
     if repo_root is None:
         repo_root = Path(__file__).parents[4]  # four levels up from dso_reconciler/
-    health_dir = repo_root / "bridge_state" / "health"
+    health_dir = repo_root / _STATE_SUBDIR / _HEALTH_SUBDIR
     health_dir.mkdir(parents=True, exist_ok=True)
     record = {
         "schema_version": SCHEMA_VERSION,
@@ -71,7 +79,7 @@ def count_open_by_type(repo_root: Path | None = None) -> dict:
     if repo_root is None:
         repo_root = Path(__file__).parents[4]  # repo root from dso_reconciler/
 
-    tickets_dir = repo_root / ".tickets-tracker"  # tickets-boundary-ok: direct event read for perf
+    tickets_dir = repo_root / _TICKETS_TRACKER_SUBDIR  # tickets-boundary-ok: direct event read for perf
     counts: dict[str, int] = {}
     if not tickets_dir.is_dir():
         return counts
@@ -124,7 +132,7 @@ def capture_baseline(pass_id: str, repo_root: Path | None = None) -> Path:
         repo_root = Path(__file__).parents[4]  # repo root from dso_reconciler/
 
     # Count total open tickets across all types as the baseline fsck total.
-    tickets_dir = repo_root / ".tickets-tracker"  # tickets-boundary-ok
+    tickets_dir = repo_root / _TICKETS_TRACKER_SUBDIR  # tickets-boundary-ok
     total_open = 0
     if tickets_dir.is_dir():
         for ticket_dir in tickets_dir.iterdir():
@@ -155,7 +163,7 @@ def capture_baseline(pass_id: str, repo_root: Path | None = None) -> Path:
             if latest_status == "open":
                 total_open += 1
 
-    health_dir = repo_root / "bridge_state" / "health"
+    health_dir = repo_root / _STATE_SUBDIR / _HEALTH_SUBDIR
     health_dir.mkdir(parents=True, exist_ok=True)
     baseline = {
         "pass_id": pass_id,
