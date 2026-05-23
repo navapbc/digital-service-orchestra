@@ -63,19 +63,29 @@ def run(repo_root: Path | None = None) -> StepResult:
         examined.append(attest_file.name)
         try:
             data = json.loads(attest_file.read_text())
-        except (OSError, json.JSONDecodeError) as exc:
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+            # UnicodeDecodeError covers binary-garbage attestations on hosts
+            # with a non-UTF-8 default locale (e.g., LANG=C containers). These
+            # land in parse_failures alongside JSON-shape and IO errors so the
+            # diagnostic trail captures bytes-level malformedness too.
+            # Note: only the exception type name is recorded — str(exc) for
+            # JSONDecodeError can include context characters from the offending
+            # content, which may leak attestation payload into telemetry sinks.
             parse_failures.append(
-                {"file": attest_file.name, "error_type": type(exc).__name__, "error": str(exc)}
+                {"file": attest_file.name, "error_type": type(exc).__name__}
             )
             continue
-        if isinstance(data, dict) and "band" in data:
+        # Require 'band' to be a non-empty string — `'band' in data` would
+        # accept `{"band": null}` / `{"band": ""}` / `{"band": []}` as valid,
+        # gating downstream pre_cutover on a meaningless value.
+        if isinstance(data, dict) and isinstance(data.get("band"), str) and data["band"]:
             return StepResult(
                 name="capability_check",
                 ok=True,
                 message=f"attestation found: {attest_file.name}",
                 details={"files_examined": examined, "matched": attest_file.name},
             )
-        # File parsed but lacked the 'band' key
+        # File parsed but lacked a usable 'band' key (missing, null, empty, or non-string)
         files_without_band.append(attest_file.name)
 
     return StepResult(

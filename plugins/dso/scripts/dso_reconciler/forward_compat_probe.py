@@ -113,36 +113,41 @@ def run() -> StepResult:
             )
 
         # Sub-op 3: jql_search — with retry/backoff for Jira's
-        # eventually-consistent label indexing (label writes can take 1-3s
-        # to become searchable).
-        try:
-            found = False
-            attempts = 0
-            for _attempt in range(_JQL_RETRY_COUNT):
-                attempts = _attempt + 1
+        # eventually-consistent label indexing. The try/except is INSIDE the
+        # retry loop so transient HTTP 5xx (Atlassian's dominant
+        # label-indexing-lag failure mode) also triggers backoff, not just
+        # the narrower 200-OK-with-empty-results case.
+        found = False
+        attempts = 0
+        last_error: str | None = None
+        for _attempt in range(_JQL_RETRY_COUNT):
+            attempts = _attempt + 1
+            try:
                 results = client.search_issues(f'labels="{label}"')
+                last_error = None
                 if any(r.get("key") == issue_key for r in results):
                     found = True
                     break
-                if _attempt < _JQL_RETRY_COUNT - 1:
-                    time.sleep(_JQL_RETRY_SLEEP_S)
-            sub_ops.append({"op": "jql_search", "ok": found, "attempts": attempts})
-            if not found:
-                return StepResult(
-                    name="forward_compat_probe",
-                    ok=False,
-                    message=(
-                        f"FAIL jql_search: issue key not found in label search results "
-                        f"after {attempts} attempt(s)"
-                    ),
-                    details={"sub_operations": sub_ops},
+            except Exception as exc:
+                last_error = str(exc)
+            if _attempt < _JQL_RETRY_COUNT - 1:
+                time.sleep(_JQL_RETRY_SLEEP_S)
+        entry: dict = {"op": "jql_search", "ok": found, "attempts": attempts}
+        if last_error is not None:
+            entry["error"] = last_error
+        sub_ops.append(entry)
+        if not found:
+            if last_error is not None:
+                msg = f"FAIL jql_search: {last_error} (after {attempts} attempt(s))"
+            else:
+                msg = (
+                    f"FAIL jql_search: issue key not found in label search "
+                    f"results after {attempts} attempt(s)"
                 )
-        except Exception as exc:
-            sub_ops.append({"op": "jql_search", "ok": False, "error": str(exc)})
             return StepResult(
                 name="forward_compat_probe",
                 ok=False,
-                message=f"FAIL jql_search: {exc}",
+                message=msg,
                 details={"sub_operations": sub_ops},
             )
 

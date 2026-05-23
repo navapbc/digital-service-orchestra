@@ -216,11 +216,10 @@ def test_jira_project_falls_back_when_env_var_empty(monkeypatch):
     instance.get_issue_property.side_effect = lambda *a, **k: "dummy"
 
     with patch.object(mod, "_load_acli_client", return_value=mock_class):
-        result = mod.run()
+        mod.run()
 
-    # The probe runs to completion (mocked) — what matters is which project
-    # the main-path AcliClient was constructed with.
-    assert result.ok is True or result.ok is False  # we only inspect the call args
+    # We only inspect the call args — the probe's ok/fail status is
+    # incidental to the JIRA_PROJECT fallback semantics being verified.
     main_construct = mock_class.call_args_list[0]
     assert main_construct.kwargs.get("jira_project") == "DIG", (
         "Empty-string JIRA_PROJECT must fall back to default 'DIG', "

@@ -62,10 +62,9 @@ def _run_probe_with_mocked_acli(
     if not PROBE_PATH.exists():
         pytest.fail(f"jira-capability-probe.py not found at {PROBE_PATH}")
 
-    # Build a real ModuleType so attribute-setting in fake_exec_module works
-    fake_acli_mod = types.ModuleType("acli_integration")
+    # The mocked module is actually produced inside _patched_module_from_spec
+    # (further down). We just need the AcliClient mock class for the patch.
     mock_acli_cls = mock.MagicMock(return_value=client_instance)
-    fake_acli_mod.AcliClient = mock_acli_cls  # type: ignore[attr-defined]
 
     # Build a mock spec whose loader.exec_module populates a module object
     mock_spec = mock.MagicMock()

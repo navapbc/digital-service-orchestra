@@ -72,9 +72,13 @@ def _load_cursors(repo_root: Path) -> tuple[dict | None, dict | None]:
     inbound: dict | None = None
     inbound_path = repo_root / "bridge_state" / "inbound-cursor.json"
     if inbound_path.exists():
+        # Catch OSError (permission/IO transient) and UnicodeDecodeError
+        # (binary garbage) alongside JSONDecodeError — _load_cursors is
+        # documented as best-effort, so ANY read failure degrades to inbound=None
+        # rather than aborting the entire snapshot step.
         try:
             inbound = json.loads(inbound_path.read_text())
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, OSError, UnicodeDecodeError):
             inbound = None
 
     return outbound, inbound
@@ -132,26 +136,43 @@ def _current_branch(repo_root: Path) -> str:
 
 def _commit_to_tickets_branch(
     repo_root: Path, snapshot_path: Path, head_sha: str
-) -> tuple[bool, str]:
+) -> tuple[bool, bool, str, str]:
     """Stage and commit the snapshot to the tickets branch.
 
-    Returns ``(ok, message)``. The commit step is only safe when the working
-    tree at ``repo_root`` is actually on the ``tickets`` branch; otherwise
-    `git add`/`git commit` would land the snapshot on the wrong branch
-    (typically ``main`` or a feature branch) — directly contradicting the
-    "commit to tickets orphan branch" intent.
+    Returns ``(ok, committed, branch, message)``:
+      * ``ok``         — step succeeded (no error). True for both the
+                         committed and skipped-on-non-tickets paths.
+      * ``committed``  — whether `git commit` actually ran (and a commit
+                         was either created or the tree was already clean
+                         per the "nothing to commit" idempotency rule).
+                         False when the step was skipped because the current
+                         branch is not 'tickets'.
+      * ``branch``     — the branch name observed at decision time, returned
+                         so callers can reuse it instead of re-spawning
+                         another `git rev-parse --abbrev-ref HEAD` subprocess.
+      * ``message``    — human-readable status for the StepResult message.
+
+    The commit step is only safe when the working tree at ``repo_root`` is
+    actually on the ``tickets`` branch; otherwise `git add`/`git commit`
+    would land the snapshot on the wrong branch (typically ``main`` or a
+    feature branch) — directly contradicting the "commit to tickets orphan
+    branch" intent.
 
     When ``repo_root`` is on a non-tickets branch we treat this step as a
     safe no-op: the snapshot file is already on disk via
     ``_write_snapshot_atomically`` (the durable artifact pre_cutover needs);
     we skip the commit and surface the skip in the message so operators
-    can route the commit to the correct worktree out of band.
+    can route the commit to the correct worktree out of band. Callers MUST
+    branch on ``committed`` (not just ``ok``) when downstream consumers
+    require a real commit on the tickets branch.
     """
-    current = _current_branch(repo_root)
-    if current != "tickets":
+    branch = _current_branch(repo_root)
+    if branch != "tickets":
         return (
             True,
-            f"snapshot written; commit step skipped (current branch={current!r}, not 'tickets')",
+            False,
+            branch,
+            f"snapshot written; commit step skipped (current branch={branch!r}, not 'tickets')",
         )
 
     git_add = subprocess.run(
@@ -163,7 +184,7 @@ def _commit_to_tickets_branch(
         timeout=_GIT_TIMEOUT_S,
     )
     if git_add.returncode != 0:
-        return False, f"git add failed: {git_add.stderr.strip()}"
+        return False, False, branch, f"git add failed: {git_add.stderr.strip()}"
 
     git_commit = subprocess.run(
         [
@@ -182,9 +203,9 @@ def _commit_to_tickets_branch(
     # the phrase on stdout vs stderr; check both before failing.
     _commit_output = git_commit.stdout + git_commit.stderr
     if git_commit.returncode != 0 and "nothing to commit" not in _commit_output:
-        return False, f"git commit failed: {git_commit.stderr.strip()}"
+        return False, False, branch, f"git commit failed: {git_commit.stderr.strip()}"
 
-    return True, f"cursor snapshot committed at tickets HEAD {head_sha[:8]}"
+    return True, True, branch, f"cursor snapshot committed at tickets HEAD {head_sha[:8]}"
 
 
 # ── Public entry point ──────────────────────────────────────────────────────
@@ -207,6 +228,12 @@ def run(repo_root: Path | None = None) -> StepResult:
         # Step 2: Idempotence check — skip the write+commit if the snapshot on
         # disk already pins the same tickets head.
         if snapshot_path.exists():
+            # Treat any read failure (JSON shape, binary garbage, transient IO,
+            # permissions glitch) as "corrupt — overwrite it" so the reconciler
+            # self-heals from bad disk state rather than getting stuck in a
+            # permanent-failure loop. The original `except Exception: pass`
+            # was over-broad; this enumerates the realistic failure modes
+            # without silencing genuine bugs.
             try:
                 existing = json.loads(snapshot_path.read_text())
                 if existing.get("head_sha") == head_sha:
@@ -216,7 +243,7 @@ def run(repo_root: Path | None = None) -> StepResult:
                         message="snapshot already current (idempotent)",
                         details={"skipped": True, "head_sha": head_sha},
                     )
-            except json.JSONDecodeError:
+            except (json.JSONDecodeError, OSError, UnicodeDecodeError):
                 pass  # corrupt snapshot — overwrite it
 
         # Step 3+4: Load outbound checkpoint and inbound cursor
@@ -232,8 +259,13 @@ def run(repo_root: Path | None = None) -> StepResult:
         # Step 6: Atomic write
         _write_snapshot_atomically(snapshot_path, snapshot)
 
-        # Step 7: Commit (no-op when not on tickets branch — see helper docstring)
-        ok, message = _commit_to_tickets_branch(repo_root, snapshot_path, head_sha)
+        # Step 7: Commit (no-op when not on tickets branch — see helper docstring).
+        # The helper returns the branch it observed, so we don't re-spawn another
+        # `git rev-parse --abbrev-ref HEAD` subprocess to populate details (and
+        # avoid a TOCTOU window between decision and details capture).
+        ok, committed, branch, message = _commit_to_tickets_branch(
+            repo_root, snapshot_path, head_sha
+        )
         return StepResult(
             name="cursor_snapshot",
             ok=ok,
@@ -242,7 +274,13 @@ def run(repo_root: Path | None = None) -> StepResult:
                 "head_sha": head_sha,
                 "outbound": outbound,
                 "inbound": inbound,
-                "branch": _current_branch(repo_root),
+                "branch": branch,
+                # Machine-checkable flag so callers can distinguish "commit
+                # happened" from "ok=True but commit was skipped because the
+                # current branch was not 'tickets'". Downstream automation
+                # that requires a durable tickets-branch commit must check
+                # `details['committed']`, not `result.ok`.
+                "committed": committed,
             },
         )
 

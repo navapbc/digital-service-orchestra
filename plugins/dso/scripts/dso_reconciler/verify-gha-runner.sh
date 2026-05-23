@@ -32,31 +32,45 @@ elif command -v gtimeout >/dev/null 2>&1; then
     _run_with_timeout() { gtimeout "$@"; }
 else
     # Pure-python timer: convert "30s"/"30" → seconds float, spawn the
-    # command, terminate it with SIGTERM on expiry, exit 124 to match
-    # GNU timeout's convention.
+    # command via subprocess.run(timeout=...) which sends SIGKILL on expiry
+    # (not SIGTERM — Python's subprocess.run timeout uses Popen.kill() under
+    # the hood), then exit 124 to match GNU `timeout`'s exit convention.
+    # This is a coarser cleanup than GNU timeout's SIGTERM-then-grace-period
+    # but is sufficient for non-interactive gh CLI calls.
     _run_with_timeout() {
         local _spec="$1"; shift
         python3 - "$_spec" "$@" <<'PYEOF'
-import os
 import re
-import signal
 import subprocess
 import sys
 
 spec = sys.argv[1]
 args = sys.argv[2:]
-m = re.match(r"^([0-9.]+)([smh]?)$", spec)
+# Strict numeric format: digits with optional single decimal, then optional unit.
+# Rejects "..5s", "1.2.3", ".s", etc. — those raise on the regex check below
+# rather than crashing float() with an uncaught ValueError.
+m = re.match(r"^([0-9]+(?:\.[0-9]+)?)([smh]?)$", spec)
 if not m:
     sys.stderr.write(f"_run_with_timeout: bad spec {spec!r}\n")
     sys.exit(125)
-n = float(m.group(1))
+try:
+    n = float(m.group(1))
+except ValueError:
+    sys.stderr.write(f"_run_with_timeout: bad numeric in spec {spec!r}\n")
+    sys.exit(125)
 unit = m.group(2) or "s"
 seconds = n * {"s": 1, "m": 60, "h": 3600}[unit]
+if not args:
+    sys.stderr.write("_run_with_timeout: no command given\n")
+    sys.exit(125)
 try:
     proc = subprocess.run(args, timeout=seconds)
     sys.exit(proc.returncode)
 except subprocess.TimeoutExpired:
     sys.exit(124)  # matches GNU `timeout` exit convention
+except FileNotFoundError:
+    sys.stderr.write(f"_run_with_timeout: command not found: {args[0]!r}\n")
+    sys.exit(127)  # matches `command not found` shell convention
 PYEOF
     }
 fi

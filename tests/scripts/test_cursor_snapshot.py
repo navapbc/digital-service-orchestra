@@ -63,15 +63,28 @@ def test_returns_ok_on_success(tmp_path):
     bridge_state.mkdir()
 
     outbound_data = {"sha": "old"}
+    add_calls: list = []
+    commit_calls: list = []
 
     def fake_subprocess_run(cmd, **kwargs):
-        if cmd[0] == "git" and cmd[1] == "rev-parse":
+        # Discriminate the two rev-parse forms: `rev-parse tickets` resolves
+        # the head SHA, `rev-parse --abbrev-ref HEAD` returns the branch name.
+        # Pre-fix this collided and the commit path was never exercised.
+        if cmd[0] == "git" and cmd[1] == "rev-parse" and cmd[2:] == ["tickets"]:
             return _make_proc(0, stdout="abc123\n")
+        if (
+            cmd[0] == "git"
+            and cmd[1] == "rev-parse"
+            and cmd[2:] == ["--abbrev-ref", "HEAD"]
+        ):
+            return _make_proc(0, stdout="tickets\n")  # force the commit path
         if cmd[0] == "git" and cmd[1] == "show":
             return _make_proc(0, stdout=json.dumps(outbound_data))
         if cmd[0] == "git" and cmd[1] == "add":
+            add_calls.append(cmd)
             return _make_proc(0)
         if cmd[0] == "git" and cmd[1] == "commit":
+            commit_calls.append(cmd)
             return _make_proc(0)
         return _make_proc(1, stderr="unexpected call")
 
@@ -86,6 +99,16 @@ def test_returns_ok_on_success(tmp_path):
     data = json.loads(snapshot_file.read_text())
     assert data["head_sha"] == "abc123"
     assert data["outbound_checkpoint"] == outbound_data
+    # Branch was 'tickets' so the commit path must have been taken — pin this
+    # so a future regression that breaks add/commit invocation is caught.
+    assert len(add_calls) == 1, (
+        f"expected exactly one git add call, got {len(add_calls)}"
+    )
+    assert len(commit_calls) == 1, (
+        f"expected exactly one git commit call, got {len(commit_calls)}"
+    )
+    assert result.details.get("committed") is True
+    assert result.details.get("branch") == "tickets"
 
 
 def test_idempotent_when_same_sha(tmp_path):
@@ -149,8 +172,14 @@ def test_atomic_write_uses_tempfile(tmp_path):
         original_replace(src, dst)
 
     def fake_subprocess_run(cmd, **kwargs):
-        if cmd[0] == "git" and cmd[1] == "rev-parse":
+        if cmd[0] == "git" and cmd[1] == "rev-parse" and cmd[2:] == ["tickets"]:
             return _make_proc(0, stdout="deadbeef\n")
+        if (
+            cmd[0] == "git"
+            and cmd[1] == "rev-parse"
+            and cmd[2:] == ["--abbrev-ref", "HEAD"]
+        ):
+            return _make_proc(0, stdout="tickets\n")
         if cmd[0] == "git" and cmd[1] == "show":
             return _make_proc(1, stderr="not found")  # no outbound checkpoint
         if cmd[0] == "git" and cmd[1] == "add":
@@ -174,3 +203,60 @@ def test_atomic_write_uses_tempfile(tmp_path):
     assert src.name.startswith(".cursor-snapshot-tmp.")
     # Destination should be the actual snapshot path
     assert dst.name == "cursor-snapshot.json"
+
+
+def test_commit_skipped_when_not_on_tickets_branch(tmp_path):
+    """When the current branch is not 'tickets', the snapshot is still written
+    to disk but git add/commit are NOT invoked, and details['committed'] is
+    False. This pins the safety invariant: cursor_snapshot must not commit
+    to whatever branch happens to be checked out — only to 'tickets'."""
+    cs = _load_cursor_snapshot()
+
+    bridge_state = tmp_path / "bridge_state"
+    bridge_state.mkdir()
+
+    add_calls: list = []
+    commit_calls: list = []
+
+    def fake_subprocess_run(cmd, **kwargs):
+        if cmd[0] == "git" and cmd[1] == "rev-parse" and cmd[2:] == ["tickets"]:
+            return _make_proc(0, stdout="abc123\n")
+        if (
+            cmd[0] == "git"
+            and cmd[1] == "rev-parse"
+            and cmd[2:] == ["--abbrev-ref", "HEAD"]
+        ):
+            return _make_proc(0, stdout="feature/foo\n")  # NOT tickets
+        if cmd[0] == "git" and cmd[1] == "show":
+            return _make_proc(1, stderr="no outbound checkpoint")
+        if cmd[0] == "git" and cmd[1] == "add":
+            add_calls.append(cmd)
+            return _make_proc(0)
+        if cmd[0] == "git" and cmd[1] == "commit":
+            commit_calls.append(cmd)
+            return _make_proc(0)
+        return _make_proc(1, stderr="unexpected call")
+
+    with patch("subprocess.run", side_effect=fake_subprocess_run):
+        result = cs.run(repo_root=tmp_path)
+
+    # ok=True (no error happened), but committed=False so callers requiring
+    # a durable tickets-branch commit can detect the skip.
+    assert result.ok is True
+    assert result.details.get("committed") is False, (
+        "When not on tickets branch, details['committed'] MUST be False — "
+        "callers depend on this flag to distinguish 'commit happened' from "
+        "'commit was skipped'."
+    )
+    assert result.details.get("branch") == "feature/foo"
+    assert "commit step skipped" in result.message
+    # The snapshot file IS still written even though commit was skipped —
+    # _write_snapshot_atomically runs before the commit step.
+    assert (bridge_state / "cursor-snapshot.json").exists()
+    # No git add or git commit calls should have been made.
+    assert add_calls == [], (
+        f"git add must not be called when not on tickets branch: {add_calls}"
+    )
+    assert commit_calls == [], (
+        f"git commit must not be called when not on tickets branch: {commit_calls}"
+    )
