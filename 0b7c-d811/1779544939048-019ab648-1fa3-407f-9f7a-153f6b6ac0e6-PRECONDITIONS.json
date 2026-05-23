@@ -1,0 +1,1 @@
+{"event_type": "PRECONDITIONS", "schema_version": 1, "manifest_depth": "minimal", "gate_name": "brainstorm_complete", "session_id": "session_01Gwz5m8FDs6o8cyW5zAe1AY", "worktree_id": "claude/brainstorm-0b7c-d811-YS1AV", "tier": "minimal", "timestamp": 1779544939048, "gate_verdicts": [], "evidence_ref": {}, "affects_fields": [], "data": {}}
