@@ -86,10 +86,9 @@ investigation. This is a separate CLI-resolution bug — file as follow-up.
 
 ## CI Verification Plan
 
-After this branch lands on main, the next runs of:
-- `.github/workflows/inbound-bridge.yml` — exercises cursor watermark + dead-letter
-- `.github/workflows/outbound-bridge.yml` — exercises BRIDGE_ALERT dedup
-
-provide live verification of all 3 cluster fixes against the real Jira project.
+After this branch lands on main, the reconciler (`reconcile-bridge.yml`) provides
+live verification of all 3 cluster fixes against the real Jira project.
+The legacy edge-triggered workflows (`inbound-bridge.yml`, `outbound-bridge.yml`)
+have been removed as part of the bridge cutover commit.
 Failure-to-converge from prior runs (the unbounded BRIDGE_ALERT replay on
 0585-c734 and 0b63-132b) should stop after the first post-fix outbound run.
