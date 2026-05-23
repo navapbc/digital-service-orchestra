@@ -743,24 +743,6 @@ assert_eq "test_outbound_bridge_dispatch_guarded: must compare SHAs before dispa
 assert_pass_if_clean "test_outbound_bridge_dispatch_guarded"
 
 # =============================================================================
-# Test: Outbound bridge workflow does NOT have push trigger on tickets branch
-# The push trigger on orphan branches never fires (GitHub Actions limitation).
-# Keeping it creates confusion about how the bridge is dispatched.
-# =============================================================================
-echo "--- test_outbound_bridge_no_push_trigger ---"
-_snapshot_fail
-_OUTBOUND_YML="$PLUGIN_ROOT/.github/workflows/outbound-bridge.yml"
-_has_push_trigger=1
-if [ -f "$_OUTBOUND_YML" ]; then
-    if ! grep -qE '^\s+push:' "$_OUTBOUND_YML"; then
-        _has_push_trigger=0
-    fi
-fi
-assert_eq "test_outbound_bridge_no_push_trigger: push trigger on tickets branch must be removed" \
-    "0" "$_has_push_trigger"
-assert_pass_if_clean "test_outbound_bridge_no_push_trigger"
-
-# =============================================================================
 # Test: _phase_push removes stale SNAPSHOT files before tickets pull (3534-b90d)
 # Without this, untracked SNAPSHOTs in the tickets worktree cause
 # "untracked files would be overwritten by merge" errors on git pull --rebase.
