@@ -539,4 +539,4 @@ plugins/dso/scripts/dso_reconciler/stale_band.py:tests/unit/dso_reconciler/test_
 plugins/dso/scripts/dso_reconciler/duplicates_band.py:tests/unit/dso_reconciler/test_duplicates_band_plan.py
 plugins/dso/scripts/dso_reconciler/stale_band.py:tests/unit/dso_reconciler/test_stale_band_plan.py,tests/unit/dso_reconciler/test_stale_band_gate.py,tests/unit/dso_reconciler/test_stale_band_apply.py
 plugins/dso/scripts/dso_reconciler/stale_band.py:tests/unit/dso_reconciler/test_stale_band_plan.py,tests/unit/dso_reconciler/test_stale_band_gate.py,tests/unit/dso_reconciler/test_stale_band_apply.py
-plugins/dso/scripts/dso_reconciler/duplicates_band.py:tests/unit/dso_reconciler/test_duplicates_band_plan.py,tests/unit/dso_reconciler/test_duplicates_band_gate.py
+plugins/dso/scripts/dso_reconciler/duplicates_band.py:tests/unit/dso_reconciler/test_duplicates_band_plan.py,tests/unit/dso_reconciler/test_duplicates_band_gate.py,tests/unit/dso_reconciler/test_duplicates_band_apply.py
