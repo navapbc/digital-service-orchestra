@@ -28,6 +28,7 @@ def record_pass(
     per_type_counts: dict,
     local_mutation_count: int,
     repo_root: Path | None = None,
+    failure_kind: str | None = None,
 ) -> Path:
     """Write a health record for a completed reconciler pass.
 
@@ -39,6 +40,10 @@ def record_pass(
         local_mutation_count: Number of mutations applied during this pass.
         repo_root: Repository root path. Defaults to four levels above this
             file (resolved at runtime via ``Path(__file__).parents[4]``).
+        failure_kind: Optional indicator that the pass failed (e.g.
+            ``"apply_error"``, ``"reschedule"``). When set, the record carries
+            a ``failure_kind`` field so monitoring can distinguish degraded
+            passes from successful zero-mutation passes. F8.
 
     Returns:
         Path to the written JSON health record file.
@@ -56,6 +61,8 @@ def record_pass(
         "local_mutation_count_at_pass": local_mutation_count,
         "timestamp_ns": time.time_ns(),
     }
+    if failure_kind is not None:
+        record["failure_kind"] = failure_kind
     out_path = health_dir / f"{pass_id}.json"
     out_path.write_text(json.dumps(record, indent=2))
     return out_path
