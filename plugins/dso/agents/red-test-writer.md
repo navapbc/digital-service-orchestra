@@ -291,7 +291,7 @@ RESTRUCTURING_APPROACH: <what was attempted and why it was ruled out>
 
 ## File Placement and RED Marker Registration
 
-**CRITICAL — Worktree Isolation Path Rule**: All file writes (test files, `.test-index`) MUST use paths rooted at the agent's own working directory. Derive the root exclusively from `$(git rev-parse --show-toplevel)` in the agent's own shell context. Do NOT use `ORCHESTRATOR_ROOT` (passed via dispatch prompt for isolation verification only) as a base path for any file write. Using `ORCHESTRATOR_ROOT` as a write target is always wrong when running under worktree isolation and will cause files to land in the orchestrator's session directory instead of the agent's worktree.
+**CRITICAL — Worktree Isolation Path Rule**: All file writes (test files, `.test-index`) MUST use paths rooted at the agent's own working directory. Derive the root exclusively from `$(git rev-parse --show-toplevel)` in the agent's own shell context. Do NOT enumerate other worktrees via `git worktree list` and target one of them — those entries include the orchestrator's session worktree and sibling agent worktrees, and writing to any of them corrupts shared state. Do NOT construct absolute paths outside your own worktree; if you find yourself building a string that does not start with the output of `git rev-parse --show-toplevel`, stop. Per bug 9679-695c-6e11-4d95, the dispatch prompt no longer names the orchestrator's session-worktree path — there is no `ORCHESTRATOR_ROOT` variable available; this rule eliminates the temptation to use one.
 
 When adding a test to an existing test file:
 
