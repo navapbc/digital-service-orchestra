@@ -68,24 +68,32 @@ def run(repo_root: Path | None = None) -> StepResult:
             # with a non-UTF-8 default locale (e.g., LANG=C containers). These
             # land in parse_failures alongside JSON-shape and IO errors so the
             # diagnostic trail captures bytes-level malformedness too.
-            # Note: only the exception type name is recorded — str(exc) for
-            # JSONDecodeError can include context characters from the offending
-            # content, which may leak attestation payload into telemetry sinks.
-            parse_failures.append(
-                {"file": attest_file.name, "error_type": type(exc).__name__}
-            )
+            entry: dict = {"file": attest_file.name, "error_type": type(exc).__name__}
+            # str(exc) for JSONDecodeError can include context characters from
+            # the offending content, which may leak attestation payload (band
+            # secret, signing material) into telemetry sinks. For OSError and
+            # UnicodeDecodeError, str(exc) carries operationally-load-bearing
+            # information (errno + path; byte offset + codec) that does NOT
+            # echo file contents, so we preserve it there.
+            if not isinstance(exc, json.JSONDecodeError):
+                entry["error"] = str(exc)
+            parse_failures.append(entry)
             continue
-        # Require 'band' to be a non-empty string — `'band' in data` would
-        # accept `{"band": null}` / `{"band": ""}` / `{"band": []}` as valid,
-        # gating downstream pre_cutover on a meaningless value.
-        if isinstance(data, dict) and isinstance(data.get("band"), str) and data["band"]:
+        # Require 'band' to be a non-empty string AFTER stripping whitespace —
+        # `'band' in data` would accept `{"band": null}` / `{"band": ""}` /
+        # `{"band": []}`, and `data["band"]` alone would accept whitespace-only
+        # strings like `{"band": "   "}` as truthy. Both gate downstream
+        # pre_cutover on a meaningless value.
+        band_value = data.get("band") if isinstance(data, dict) else None
+        if isinstance(band_value, str) and band_value.strip():
             return StepResult(
                 name="capability_check",
                 ok=True,
                 message=f"attestation found: {attest_file.name}",
                 details={"files_examined": examined, "matched": attest_file.name},
             )
-        # File parsed but lacked a usable 'band' key (missing, null, empty, or non-string)
+        # File parsed but lacked a usable 'band' key (missing, null, empty,
+        # whitespace-only, or non-string).
         files_without_band.append(attest_file.name)
 
     return StepResult(

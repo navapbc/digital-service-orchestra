@@ -6,6 +6,7 @@ from __future__ import annotations
 import importlib.util
 import os
 import time
+import urllib.error
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -116,7 +117,11 @@ def run() -> StepResult:
         # eventually-consistent label indexing. The try/except is INSIDE the
         # retry loop so transient HTTP 5xx (Atlassian's dominant
         # label-indexing-lag failure mode) also triggers backoff, not just
-        # the narrower 200-OK-with-empty-results case.
+        # the narrower 200-OK-with-empty-results case. The except is narrowed
+        # to transport-class exceptions so programming errors (AttributeError,
+        # TypeError) fail fast rather than burning N×sleep on a deterministic
+        # defect; an outer broad-Exception handler at the function level
+        # still catches genuinely-unexpected failures.
         found = False
         attempts = 0
         last_error: str | None = None
@@ -124,11 +129,16 @@ def run() -> StepResult:
             attempts = _attempt + 1
             try:
                 results = client.search_issues(f'labels="{label}"')
-                last_error = None
                 if any(r.get("key") == issue_key for r in results):
                     found = True
+                    # Only clear last_error when we genuinely located the
+                    # issue. A successful-but-empty result on attempt N
+                    # must NOT erase the diagnostic from a 5xx on attempt
+                    # N-1 — operators need the earlier error to triage.
+                    last_error = None
                     break
-            except Exception as exc:
+            except (urllib.error.URLError, ConnectionError, TimeoutError, OSError) as exc:
+                # Transport-class failures: capture and retry.
                 last_error = str(exc)
             if _attempt < _JQL_RETRY_COUNT - 1:
                 time.sleep(_JQL_RETRY_SLEEP_S)

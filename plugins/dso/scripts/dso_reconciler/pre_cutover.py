@@ -47,6 +47,23 @@ def main() -> int:
         if not result.ok:
             print(f"FAIL: {result.name} — {result.message}", file=sys.stderr)
             return 1
+        # cursor_snapshot exposes `details['committed']` to distinguish
+        # "snapshot committed to tickets branch" from "snapshot written but
+        # commit skipped because we're not on the tickets branch". The step
+        # itself still counts as passed (the snapshot file IS durable on
+        # disk), but operators need a visible signal that no commit landed
+        # on the orphan branch — otherwise downstream cutover may proceed
+        # on a stale tickets-branch view.
+        if step_name == "cursor_snapshot" and result.details.get("committed") is False:
+            print(
+                f"WARN: {result.name} — commit step was skipped "
+                f"(branch={result.details.get('branch')!r}); "
+                f"snapshot written locally but NOT committed to the tickets "
+                f"orphan branch. Downstream consumers that read from the "
+                f"tickets branch will see stale state until the commit is "
+                f"manually routed.",
+                file=sys.stderr,
+            )
         passed += 1
     print(f"OK: pre_cutover ({passed}/{len(steps)} steps passed)")
     return 0

@@ -119,7 +119,14 @@ def _write_snapshot_atomically(snapshot_path: Path, snapshot: dict) -> None:
 
 
 def _current_branch(repo_root: Path) -> str:
-    """Return the current branch name in repo_root, or empty on detached HEAD."""
+    """Return the current branch name in repo_root.
+
+    Returns ``"(detached)"`` for both detached-HEAD state and rev-parse
+    failures, so callers can distinguish "no branch" from "tickets" or any
+    other named branch by an explicit string rather than by an empty value.
+    Surfacing ``""`` was ambiguous — operators couldn't tell whether the
+    subprocess crashed or HEAD was simply detached.
+    """
     result = subprocess.run(
         ["git", "rev-parse", "--abbrev-ref", "HEAD"],
         capture_output=True,
@@ -129,9 +136,9 @@ def _current_branch(repo_root: Path) -> str:
         timeout=_GIT_TIMEOUT_S,
     )
     if result.returncode != 0:
-        return ""
+        return "(detached)"
     branch = result.stdout.strip()
-    return "" if branch == "HEAD" else branch
+    return "(detached)" if branch in ("", "HEAD") else branch
 
 
 def _commit_to_tickets_branch(
