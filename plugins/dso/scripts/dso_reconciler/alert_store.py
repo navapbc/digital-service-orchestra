@@ -112,12 +112,19 @@ def patch_bug_filed(key: str, bug_ticket_id: str, repo_root: Path) -> None:
     number from a corrupt writer) are preserved verbatim rather than crashing
     the patch attempt — the inner guard checks isinstance(rec, dict) before
     accessing rec.get().
+
+    Lines that are NOT the patch target are preserved BYTE-IDENTICAL to their
+    original text — we never re-serialize via json.dumps for non-target lines.
+    This guarantees that key order, whitespace, ensure_ascii encoding, and any
+    other writer-specific formatting stay stable across the patch operation,
+    so a crash mid-write cannot leave the file in a "some lines re-serialized,
+    some original" mixed-formatting state.
     """
     store_dir = _store_dir(repo_root)
     if not store_dir.is_dir():
         return
     for jf in sorted(store_dir.glob("*.jsonl"), reverse=True):
-        lines = []
+        out_lines: list[str] = []
         patched = False
         try:
             for line in jf.read_text(encoding="utf-8").splitlines():
@@ -135,9 +142,13 @@ def patch_bug_filed(key: str, bug_ticket_id: str, repo_root: Path) -> None:
                     rec["bug_ticket_id"] = bug_ticket_id
                     rec["op"] = "bug_filed"
                     patched = True
-                lines.append(json.dumps(rec) if isinstance(rec, dict) else line)
+                    # Only the patched line is re-serialized; all other lines
+                    # are written back byte-identical to their original input.
+                    out_lines.append(json.dumps(rec))
+                else:
+                    out_lines.append(line)
             if patched:
-                _atomic_write(jf, "\n".join(lines) + "\n")
+                _atomic_write(jf, "\n".join(out_lines) + "\n")
                 return
         except Exception:
             continue

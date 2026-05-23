@@ -67,6 +67,16 @@ def count_open_by_type(repo_root: Path | None = None) -> dict:
     Walks the ticket store, reads CREATE (type) and the latest STATUS event
     for each ticket directory, and returns ``{type: count}`` for open tickets.
 
+    File-order contract (load-bearing):
+        Event filenames MUST be timestamp-prefixed (e.g. ``{ts_ns}-create.json``,
+        ``{ts_ns}-status.json``) so that ``sorted(ticket_dir.glob("*.json"))``
+        yields the events in chronological order. The "latest STATUS wins"
+        logic depends on this — if a ticket has multiple STATUS events
+        (open -> closed -> open), the final iteration sets ``latest_status``,
+        so iteration order must equal write order for the result to be
+        correct. This is the canonical event-filename convention emitted by
+        ``ticket-create.sh`` / ``ticket-transition.sh``.
+
     Args:
         repo_root: Repository root path. Defaults to four levels above this
             file.
@@ -119,6 +129,18 @@ def capture_baseline(pass_id: str, repo_root: Path | None = None) -> Path:
     Reads the current open ticket count from the ticket store by inspecting
     the latest STATUS event for each ticket directory. Stores the result as a
     baseline snapshot so the reconciler can compare post-pass totals.
+
+    File-order contract (load-bearing):
+        Event filenames MUST be timestamp-prefixed (e.g. ``{ts_ns}-create.json``,
+        ``{ts_ns}-status.json``) so that ``sorted(ticket_dir.glob("*.json"))``
+        yields the events in chronological order. The "latest STATUS wins"
+        logic depends on this — if a ticket has multiple STATUS events
+        (open -> closed -> open), the final iteration sets ``latest_status``,
+        so iteration order must equal write order for the result to be
+        correct. The has_create + default-open pattern is event-order
+        independent: any CREATE anywhere in the directory marks the ticket
+        as present, and the absence of any STATUS leaves it at the canonical
+        reducer initial state of "open".
 
     Args:
         pass_id: Unique identifier for this reconciler pass.
