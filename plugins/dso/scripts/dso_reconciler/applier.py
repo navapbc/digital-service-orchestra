@@ -246,15 +246,24 @@ def create_one(
     # and by inbound consumers that inspect entity properties.
     jira_key = result.get("key", "") if isinstance(result, dict) else ""
     if jira_key:
-        client.add_label(jira_key, f"dso-id:{local_id}")
-        client.set_entity_property(jira_key, "dso_local_id", local_id)
+        try:
+            client.add_label(jira_key, f"dso-id:{local_id}")
+            client.set_entity_property(jira_key, "dso_local_id", local_id)
+        except Exception as write_err:
+            try:
+                client.delete_issue(jira_key)
+            except Exception:
+                pass  # rollback failure must not mask original error
+            raise write_err
 
     return result
 
 
 def update_one(mutation: dict, client) -> dict:
     """Update an existing Jira issue from the mutation's key and fields. Returns the client result."""
-    return _call_with_retry(client.update_issue, mutation.get("key"), mutation.get("fields", {}))
+    return _call_with_retry(
+        client.update_issue, mutation.get("key"), mutation.get("fields", {})
+    )
 
 
 def delete_one(mutation: dict, client) -> None:
@@ -364,9 +373,7 @@ def apply(
             # Re-check HEAD at the start of each iteration
             current_head = concurrency.snapshot_head(repo_root)
             if current_head != head_pin:
-                raise HeadDriftError(
-                    f"drift: {head_pin[:8]}→{current_head[:8]}"
-                )
+                raise HeadDriftError(f"drift: {head_pin[:8]}→{current_head[:8]}")
 
             action = mutation.get("action", "")
             outcome = dict(mutation)
@@ -381,7 +388,10 @@ def apply(
                     repo_root=repo_root,
                 )
                 # Only count REST call on actual create (not dedup-skipped, not deferred)
-                if result is not None and result.get("status") != "dedup-create-skipped":
+                if (
+                    result is not None
+                    and result.get("status") != "dedup-create-skipped"
+                ):
                     rest_calls += 1
                 outcome["result"] = result
             elif action == "update":

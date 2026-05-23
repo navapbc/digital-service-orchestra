@@ -9,6 +9,21 @@ import sys
 from pathlib import Path
 
 
+def _count_open_tickets(tickets_dir: Path) -> int:
+    """Count ticket directories in *tickets_dir* that contain at least one JSON file.
+
+    Each subdirectory with a *.json file is treated as one open ticket entry.
+    Returns 0 when *tickets_dir* does not exist.
+    """
+    if not tickets_dir.is_dir():
+        return 0
+    count = 0
+    for d in tickets_dir.iterdir():
+        if d.is_dir() and any(d.glob("*.json")):
+            count += 1
+    return count
+
+
 def cmd_summary(args: argparse.Namespace) -> int:
     health_dir = Path(args.health_dir)
     if not health_dir.is_dir():
@@ -35,6 +50,20 @@ def cmd_summary(args: argparse.Namespace) -> int:
         print(
             f"{r.get('pass_id', '?'):<30} {pre:>8} {post:>9} {ratio:>6} {mutations:>9}"
         )
+    # Parity check: compare latest health record totals against live ticket store
+    if getattr(args, "parity_check", False) and records:
+        latest = records[-1]  # most recent by sort order (filenames are sorted)
+        health_total = sum(latest.get("per_type_open_counts", {}).values())
+        tickets_dir = Path(getattr(args, "tickets_dir", ".tickets-tracker"))
+        live_total = _count_open_tickets(tickets_dir)
+        tolerance = max(1, int(health_total * 0.05))
+        if abs(health_total - live_total) <= tolerance:
+            print("PARITY: PASS")
+        else:
+            delta = live_total - health_total
+            print(
+                f"PARITY: DRIFT — health_total={health_total} live_total={live_total} delta={delta}"
+            )
     return 0
 
 
@@ -46,7 +75,17 @@ def main(argv=None):
         help="Path to health records directory",
     )
     sub = parser.add_subparsers(dest="command")
-    sub.add_parser("summary", help="Show summary of health records")
+    summary_p = sub.add_parser("summary", help="Show summary of health records")
+    summary_p.add_argument(
+        "--parity-check",
+        action="store_true",
+        help="Compare latest health record against live ticket counts",
+    )
+    summary_p.add_argument(
+        "--tickets-dir",
+        default=".tickets-tracker",
+        help="Path to ticket store for parity check (default: .tickets-tracker)",
+    )
     args = parser.parse_args(argv)
     if args.command == "summary":
         return cmd_summary(args)
