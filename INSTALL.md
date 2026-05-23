@@ -232,6 +232,7 @@ DSO ships an optional review-telemetry pipeline: a Lambda function receives POST
 - **DuckDB CLI** installed — required for local `query-stats.sh` invocations. Verify with `plugins/dso/scripts/verify-duckdb.sh`.
 - **bash 4+** — DSO telemetry scripts require bash 4.0 or later (macOS ships 3.2; upgrade with `brew install bash`).
 - **jq** — required for `aws-status.sh` JSON output formatting. Install with `brew install jq` or `apt-get install jq`.
+- **AWS Organization SCP must allow public Lambda Function URLs** — the deployed endpoint uses `AuthType=NONE` (per the epic d2f9 design — telemetry endpoints accept POSTs without authentication). If the AWS account is a member of an Organization whose SCP denies `lambda:InvokeFunctionUrl` for Principal `*`, anonymous POSTs to the deployed Function URL will return `403 Forbidden` regardless of the resource-based policy `aws-setup-lambda.sh` attaches. The script will still exit successfully, and the function works via direct AWS SDK / signed invocation, but the "no-auth public POST" surface requires either (a) an SCP exception for the function ARN, or (b) deployment in an account outside the restrictive Organization. Filed as bug `b3ac-1040-eca6-4b78`.
 
 ### Setup Sequence (run in order)
 
