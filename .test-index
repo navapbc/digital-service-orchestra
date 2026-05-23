@@ -16,8 +16,6 @@
 .claude-plugin/marketplace.json:tests/scripts/test-marketplace-json.sh
 .github/workflows/ci-python-skills.yml:tests/skills/test_ci_workflow_pip_cache.py
 .github/workflows/ci.yml:tests/scripts/test-ci-hyperfine-installed.sh,tests/scripts/test-ci-consolidated-changes-detection.sh,tests/workflows/test-ci-integration-review-scope.sh,tests/scripts/test-bug-reproducer-8ee4.sh,tests/scripts/test-single-llm-review-per-sha.sh,tests/scripts/test-no-duplicate-checks-per-sha.sh,tests/workflows/test-red-test-blocker-merged-tree-scan.sh,tests/workflows/test-ci-suppress-prior-defenses-round-trip.sh
-.github/workflows/inbound-bridge.yml:tests/scripts/test-inbound-bridge-push-retry.sh
-.github/workflows/outbound-bridge.yml:tests/scripts/test-outbound-bridge-push-retry.sh
 .github/workflows/ticket-platform-matrix.yml:tests/scripts/test-ticket-platform-matrix-trigger.sh
 .github/workflows/calibration-rollup.yml:tests/scripts/test-calibration-rollup-workflow.sh,tests/scripts/test-calibration-rollup-fixture-gate.sh
 CLAUDE.md:tests/skills/test-nextjs-starter-docs.sh,tests/scripts/test-tag-policy-docs.sh
@@ -541,3 +539,9 @@ plugins/dso/scripts/dso_reconciler/conflict_resolver.py:tests/unit/dso_reconcile
 plugins/dso/scripts/dso_reconciler/alert_store.py:tests/unit/dso_reconciler/test_alert_store_dedup.py
 plugins/dso/scripts/dso_reconciler/invariants.py:tests/unit/dso_reconciler/test_invariants.py
 plugins/dso/scripts/dso_reconciler/health.py:tests/unit/dso_reconciler/test_health.py,tests/unit/dso_reconciler/test_health_baseline.py,tests/unit/dso_reconciler/test_health_schema.py
+plugins/dso/scripts/dso_reconciler/_attestation.py:tests/unit/dso_reconciler/test_attestation.py
+plugins/dso/scripts/dso_reconciler/bootstrap.py:tests/unit/dso_reconciler/test_bootstrap_baseline.py
+plugins/dso/scripts/dso_reconciler/orphan_band.py:tests/unit/dso_reconciler/test_orphan_band_apply.py,tests/unit/dso_reconciler/test_orphan_band_gate.py
+plugins/dso/scripts/dso_reconciler/stale_band.py:tests/unit/dso_reconciler/test_stale_band_apply.py,tests/unit/dso_reconciler/test_stale_band_gate.py,tests/unit/dso_reconciler/test_stale_band_plan.py
+plugins/dso/scripts/dso_reconciler/duplicates_band.py:tests/unit/dso_reconciler/test_duplicates_band_apply.py,tests/unit/dso_reconciler/test_duplicates_band_gate.py,tests/unit/dso_reconciler/test_duplicates_band_plan.py
+plugins/dso/scripts/dso_reconciler/open_count_skew_band.py:tests/unit/dso_reconciler/test_open_count_skew_band_apply.py,tests/unit/dso_reconciler/test_open_count_skew_band_gate.py,tests/unit/dso_reconciler/test_open_count_skew_band_plan.py
