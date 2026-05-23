@@ -1,0 +1,154 @@
+# Digital Service Orchestra — Reconciler Heartbeat Canary
+# Monitors reconcile-bridge.yml for staleness and alerts via GitHub Issue
+# when no successful run has occurred within HEARTBEAT_ALERT_WINDOW_HOURS.
+# Self-healing: closes the alert issue when the reconciler recovers.
+
+name: Reconciler Heartbeat Canary
+
+on:
+  schedule:
+    - cron: '0 * * * *'   # every hour
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run — report staleness status without creating or closing issues'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+      alert_window_hours:
+        description: 'Override alert window in hours (default: 2)'
+        required: false
+        default: '2'
+        type: string
+
+permissions:
+  issues: write
+  actions: read
+
+jobs:
+  canary:
+    name: Check reconciler heartbeat
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    env:
+      ALERT_WINDOW_HOURS: ${{ inputs.alert_window_hours || '2' }}
+      DRY_RUN: ${{ inputs.dry_run || 'false' }}
+      ALERT_LABEL: heartbeat-alert
+
+    steps:
+      - name: Check last successful reconcile-bridge run
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          window_secs=$(( ALERT_WINDOW_HOURS * 3600 ))
+          now_epoch=$(date -u +%s)
+          cutoff_epoch=$(( now_epoch - window_secs ))
+
+          # Fetch the most recent successful run of reconcile-bridge.yml.
+          # Returns empty JSON array if the workflow doesn't exist yet (before SC1 lands).
+          last_success_json=$(gh api \
+            "repos/${{ github.repository }}/actions/workflows/reconcile-bridge.yml/runs?status=success&per_page=1" \
+            --jq '.workflow_runs[0] // empty' 2>/dev/null || echo '')
+
+          if [[ -z "$last_success_json" ]]; then
+            echo "stale=true" >> "$GITHUB_OUTPUT"
+            echo "last_run_ago=never" >> "$GITHUB_OUTPUT"
+            echo "status_msg=No successful reconcile-bridge.yml runs found." >> "$GITHUB_OUTPUT"
+          else
+            completed_at=$(echo "$last_success_json" | jq -r '.updated_at')
+            run_epoch=$(date -u -d "$completed_at" +%s 2>/dev/null || \
+                        date -u -j -f "%Y-%m-%dT%H:%M:%SZ" "$completed_at" +%s 2>/dev/null)
+            age_secs=$(( now_epoch - run_epoch ))
+            age_hours=$(( age_secs / 3600 ))
+            age_mins=$(( (age_secs % 3600) / 60 ))
+
+            if (( run_epoch < cutoff_epoch )); then
+              echo "stale=true" >> "$GITHUB_OUTPUT"
+              echo "last_run_ago=${age_hours}h ${age_mins}m ago" >> "$GITHUB_OUTPUT"
+              echo "status_msg=Last successful run was ${age_hours}h ${age_mins}m ago (threshold: ${ALERT_WINDOW_HOURS}h)." >> "$GITHUB_OUTPUT"
+            else
+              echo "stale=false" >> "$GITHUB_OUTPUT"
+              echo "last_run_ago=${age_hours}h ${age_mins}m ago" >> "$GITHUB_OUTPUT"
+              echo "status_msg=Reconciler is healthy — last successful run was ${age_hours}h ${age_mins}m ago." >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+      - name: Log canary result
+        run: |
+          echo "Stale: ${{ steps.check.outputs.stale }}"
+          echo "Status: ${{ steps.check.outputs.status_msg }}"
+          echo "Dry run: ${{ env.DRY_RUN }}"
+
+      - name: Find existing open alert issue
+        id: find_issue
+        if: env.DRY_RUN == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          issue_number=$(gh issue list \
+            --label "${{ env.ALERT_LABEL }}" \
+            --state open \
+            --json number \
+            --jq '.[0].number // empty' 2>/dev/null || echo '')
+          echo "issue_number=${issue_number}" >> "$GITHUB_OUTPUT"
+
+      - name: Open alert issue (stale + no existing issue)
+        if: >
+          steps.check.outputs.stale == 'true' &&
+          env.DRY_RUN == 'false' &&
+          steps.find_issue.outputs.issue_number == ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --title "[HEARTBEAT ALERT] reconcile-bridge has not run in ${ALERT_WINDOW_HOURS}h" \
+            --label "${{ env.ALERT_LABEL }}" \
+            --body "## Reconciler Heartbeat Alert
+
+          **Status**: ${{ steps.check.outputs.status_msg }}
+          **Alert window**: ${ALERT_WINDOW_HOURS} hours
+          **Detected at**: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+          **Canary run**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          ## What to check
+          1. Is \`reconcile-bridge.yml\` disabled or failing? Check the [Actions tab](${{ github.server_url }}/${{ github.repository }}/actions/workflows/reconcile-bridge.yml).
+          2. Is there a GHA runner outage? Check [githubstatus.com](https://www.githubstatus.com).
+          3. Was the workflow intentionally paused? If so, close this issue manually.
+
+          ## Auto-resolution
+          This issue will be automatically closed when the next successful reconcile-bridge run is detected."
+
+      - name: Update existing alert issue (stale + issue already open)
+        if: >
+          steps.check.outputs.stale == 'true' &&
+          env.DRY_RUN == 'false' &&
+          steps.find_issue.outputs.issue_number != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment "${{ steps.find_issue.outputs.issue_number }}" \
+            --body "**Still stale** as of $(date -u +%Y-%m-%dT%H:%M:%SZ): ${{ steps.check.outputs.status_msg }}"
+
+      - name: Close alert issue on recovery
+        if: >
+          steps.check.outputs.stale == 'false' &&
+          env.DRY_RUN == 'false' &&
+          steps.find_issue.outputs.issue_number != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue close "${{ steps.find_issue.outputs.issue_number }}" \
+            --comment "**Reconciler recovered** at $(date -u +%Y-%m-%dT%H:%M:%SZ). ${{ steps.check.outputs.status_msg }} Closing alert."
+
+      - name: Fail job on stale (makes canary runs visible as failures in GHA UI)
+        if: steps.check.outputs.stale == 'true'
+        run: |
+          echo "::error::Reconciler is stale — ${{ steps.check.outputs.status_msg }}"
+          exit 1
