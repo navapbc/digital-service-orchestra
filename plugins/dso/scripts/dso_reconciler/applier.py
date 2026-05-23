@@ -8,7 +8,62 @@ import json
 import os
 import sys
 import tempfile
+import time
 from pathlib import Path
+
+
+class JiraAPIError(Exception):
+    """Exception raised by AcliClient stubs to simulate Jira HTTP error responses."""
+
+    def __init__(self, message: str, status_code: int) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+
+
+class RetryExhaustedError(Exception):
+    """Raised when _call_with_retry exhausts all retry attempts."""
+
+
+def _call_with_retry(fn, *args, timeout_s: int = 30, max_retries: int = 3, **kwargs):
+    """Call fn(*args, **kwargs) with exponential backoff on retryable failures.
+
+    Retryable: TimeoutError, JiraAPIError with status 5xx, JiraAPIError with status 429.
+    Non-retryable: JiraAPIError with 4xx (except 429) — re-raised immediately.
+    On exhaustion of max_retries, raises RetryExhaustedError.
+
+    Args:
+        fn:          Callable to invoke.
+        *args:       Positional arguments forwarded to fn.
+        timeout_s:   Per-call timeout in seconds (currently advisory for stub-based callers).
+        max_retries: Maximum number of retry attempts after the first failure.
+        **kwargs:    Keyword arguments forwarded to fn.
+
+    Returns:
+        The return value of fn on success.
+
+    Raises:
+        RetryExhaustedError: When all retry attempts are exhausted.
+        JiraAPIError:        Immediately, for non-retryable 4xx (except 429) errors.
+    """
+    delays = [1, 2, 4]
+    last_exc: Exception | None = None
+
+    for attempt in range(max_retries + 1):
+        try:
+            return fn(*args, **kwargs)
+        except JiraAPIError as exc:
+            # 429 and 5xx are retryable; all other 4xx fail fast
+            if exc.status_code != 429 and 400 <= exc.status_code < 500:
+                raise
+            last_exc = exc
+        except TimeoutError as exc:
+            last_exc = exc
+
+        if attempt < max_retries:
+            delay = delays[min(attempt, len(delays) - 1)]
+            time.sleep(delay)
+
+    raise RetryExhaustedError(str(last_exc))
 
 
 def _load_acli():
@@ -163,17 +218,17 @@ def create_one(
 
         return {"status": "dedup-create-skipped", "key": hit_key}
 
-    return client.create_issue(mutation.get("fields", {}))
+    return _call_with_retry(client.create_issue, mutation.get("fields", {}))
 
 
 def update_one(mutation: dict, client) -> dict:
     """Update an existing Jira issue from the mutation's key and fields. Returns the client result."""
-    return client.update_issue(mutation.get("key"), mutation.get("fields", {}))
+    return _call_with_retry(client.update_issue, mutation.get("key"), mutation.get("fields", {}))
 
 
 def delete_one(mutation: dict, client) -> None:
     """Close a Jira issue by transitioning it to 'Closed'."""
-    client.transition_issue(mutation.get("key"), "Closed")
+    _call_with_retry(client.transition_issue, mutation.get("key"), "Closed")
 
 
 def apply(
