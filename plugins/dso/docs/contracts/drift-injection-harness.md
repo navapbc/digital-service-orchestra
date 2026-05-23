@@ -1,6 +1,9 @@
-# Drift Injection Harness Contract
+# Contract: Drift Injection Harness
 
-Version: 1.0
+- Status: accepted
+- Scope: dso-reconciler integration testing (inject-and-heal.sh + ticket-bridge-fsck.py)
+- Date: 2026-05-22
+- Version: 1.0
 
 ## Purpose
 
