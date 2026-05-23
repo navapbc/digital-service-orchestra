@@ -2007,6 +2007,8 @@ Do NOT proceed to Step 19 until Step 18 (completion-verifier dispatch) has compl
 
 Do NOT rationalize skipping Step 18. Prior evidence ("RED tests are GREEN", "CI passes", "AC verified") does not satisfy the completion-verifier requirement. The verifier checks done-definitions that task-level AC verification does not cover.
 
+Do NOT fabricate artifacts to satisfy done definitions or closure checks (bug cc4d-85c5). "Test alert triggered and received" means the GHA workflow fires and produces the artifact — NOT that the orchestrator creates the artifact by hand via `gh issue create`, `gh api`, or any other manual construction. Satisfying a DD requires the ACTUAL SYSTEM to produce the expected output. Constructing the expected output yourself is fabrication, regardless of framing ("simulating the logic directly", "verifying it fires by creating the output").
+
 Do NOT use the `/dso:commit` Skill tool here — read and execute COMMIT-WORKFLOW.md inline to avoid nested skill invocations that may not return control.
 </HARD-GATE>
 
