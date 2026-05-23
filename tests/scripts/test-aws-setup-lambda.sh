@@ -184,6 +184,12 @@ if [[ "$sub" == "lambda" && "$sub2" == "create-function" ]]; then
     exit 0
 fi
 
+if [[ "$sub" == "lambda" && "$sub2" == "update-function-configuration" ]]; then
+    # Bugs c1c2 + 404b idempotent reconciliation path. Returns updated config.
+    echo '{"FunctionName":"dso-telemetry-review","Handler":"handler.lambda_handler","Environment":{"Variables":{"TELEMETRY_BUCKET":"dso-telemetry-review-test"}}}'
+    exit 0
+fi
+
 if [[ "$sub" == "lambda" && "$sub2" == "get-function-url-config" ]]; then
     if [[ "$STUB_FN_URL_EXISTS" == "1" ]]; then
         echo '{"FunctionUrl":"https://abcdef1234567890.lambda-url.us-east-1.on.aws/","AuthType":"NONE"}'
@@ -310,6 +316,44 @@ t_happy_path_creates_all_resources() {
     local concurrency_count
     concurrency_count=$(grep -c "lambda put-function-concurrency" "$call_log" 2>/dev/null || echo "0")
     assert_ne "t_happy_path: lambda put-function-concurrency called" "0" "$concurrency_count"
+
+    # Bug c1c2 guard — create-function MUST use handler.lambda_handler
+    local handler_count
+    handler_count=$(grep -cE 'lambda create-function .*--handler handler\.lambda_handler' "$call_log" 2>/dev/null || echo 0)
+    assert_ne "t_happy_path: create-function --handler handler.lambda_handler (bug c1c2)" "0" "$handler_count"
+
+    # Bug 404b guard — create-function MUST set TELEMETRY_BUCKET env var
+    local env_count
+    env_count=$(grep -cE 'lambda create-function .*Variables=\{TELEMETRY_BUCKET=' "$call_log" 2>/dev/null || echo 0)
+    assert_ne "t_happy_path: create-function --environment TELEMETRY_BUCKET (bug 404b)" "0" "$env_count"
+}
+
+# ── Test 1b: Idempotent re-run reconciles handler + TELEMETRY_BUCKET env ─────
+# Bugs c1c2 + 404b — if an older script created the function with the wrong
+# handler name or missing env var, a re-run MUST repair both via
+# update-function-configuration.
+t_idempotent_rerun_reconciles_handler_and_env() {
+    local mock_bin call_log conf_file
+    mock_bin="$(make_tmpdir)"
+    call_log="$(make_tmpdir)/calls.log"
+    conf_file="$(make_tmpdir)/dso-config.conf"
+    touch "$call_log" "$conf_file"
+    write_aws_stub "$mock_bin"
+    write_read_config_stub "$mock_bin"
+
+    local exit_code=0
+    STUB_LAMBDA_EXISTS=1 \
+        DSO_AWS_CMD="$mock_bin/aws" \
+        DSO_READ_CONFIG_CMD="$mock_bin/read-config-stub.sh" \
+        DSO_CONFIG_FILE="$conf_file" \
+        CALL_LOG="$call_log" \
+        bash "$SCRIPT" >/dev/null 2>&1 || exit_code=$?
+
+    assert_eq "t_idempotent_rerun: exits 0" "0" "$exit_code"
+
+    local reconcile_count
+    reconcile_count=$(grep -cE 'lambda update-function-configuration .*--handler handler\.lambda_handler.*TELEMETRY_BUCKET' "$call_log" 2>/dev/null || echo 0)
+    assert_ne "t_idempotent_rerun: update-function-configuration reconciles handler+env (bugs c1c2+404b)" "0" "$reconcile_count"
 }
 
 # ── Test 2: Re-run is a no-op (per-ensure idempotency) ────────────────────────
@@ -879,6 +923,7 @@ t_region_pinned_to_us_east_1() {
 
 # ── Run all tests ──────────────────────────────────────────────────────────────
 t_happy_path_creates_all_resources
+t_idempotent_rerun_reconciles_handler_and_env
 t_rerun_is_no_op
 t_missing_iam_aborts_before_create
 t_sts_get_caller_identity_failure_aborts_before_create
