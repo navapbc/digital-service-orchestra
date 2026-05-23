@@ -487,6 +487,27 @@ The upstream for implementation-plan Step 2 is `planner_supplied` (per the upstr
 
 See: `${CLAUDE_PLUGIN_ROOT}/skills/shared/workflows/remediation-loop-protocol.md`
 
+**Per-cycle artifact append (Step 2 — cycle recorder)**
+
+After each cycle's re-dispatch and review, atomically append a `cycles[]` entry to the architectural-review artifact using the writer:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/append_review_cycle.py \
+  --artifact <path-to-architectural-review-artifact-for-step2> \
+  --n <cycle-number> \
+  --draft-hash <sha256 of DELTA OUTPUT block> \
+  --findings-count <int> \
+  --verdict <pass|fail|escalate>
+```
+
+After the append, emit exactly ONE ticket comment per cycle:
+
+```bash
+.claude/scripts/dso ticket comment <ticket-id> "Remediation cycle <n> recorded at <artifact-path>"
+```
+
+**Single-comment policy (SC5)**: The ticket comment references the artifact path and does NOT duplicate the cycle body — cycle entries live in the artifact's `cycles[]` array, not in ticket comments. One comment per cycle; no further detail in the comment body.
+
 ---
 
 ## Step 3: Atomic Task Drafting (via `dso:task-decomposer` opus sub-agent)
@@ -933,6 +954,25 @@ The upstream for implementation-plan Step 4 is `planner_supplied` (per the upstr
 
 See: `${CLAUDE_PLUGIN_ROOT}/skills/shared/workflows/remediation-loop-protocol.md`
 
+**Per-cycle artifact append (Step 4 — cycle recorder)**
+
+After each cycle's re-dispatch and review, atomically append a `cycles[]` entry to the plan-review artifact using the writer:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/append_review_cycle.py \
+  --artifact <path-to-plan-review-artifact-for-step4> \
+  --n <cycle-number> \
+  --draft-hash <sha256 of DELTA OUTPUT block> \
+  --findings-count <int> \
+  --verdict <pass|fail|escalate>
+```
+
+After the append, emit exactly ONE ticket comment per cycle:
+
+```bash
+.claude/scripts/dso ticket comment <ticket-id> "Remediation cycle <n> recorded at <artifact-path>"
+```
+
 ---
 
 ## Step 5: Task Creation
@@ -1173,6 +1213,25 @@ The upstream for implementation-plan Step 6 is `planner_supplied` (per the upstr
 **PROTOCOL_ERROR on invariant violation**: Any illegal state transition — emitting `REPLAN_ESCALATE` when `cycle_count < MAX_CYCLES`, emitting multiple terminal tokens, or violating the HALT-vs-REPLAN exclusivity invariant — MUST emit `PROTOCOL_ERROR` and halt remediation immediately.
 
 See: `${CLAUDE_PLUGIN_ROOT}/skills/shared/workflows/remediation-loop-protocol.md`
+
+**Per-cycle artifact append (Step 6 — cycle recorder)**
+
+After each cycle's re-dispatch and review, atomically append a `cycles[]` entry to the gap-analysis artifact using the writer:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/append_review_cycle.py \
+  --artifact <path-to-gap-analysis-artifact-for-step6> \
+  --n <cycle-number> \
+  --draft-hash <sha256 of DELTA OUTPUT block> \
+  --findings-count <int> \
+  --verdict <pass|fail|escalate>
+```
+
+After the append, emit exactly ONE ticket comment per cycle:
+
+```bash
+.claude/scripts/dso ticket comment <ticket-id> "Remediation cycle <n> recorded at <artifact-path>"
+```
 
 ---
 
