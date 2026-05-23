@@ -1507,35 +1507,34 @@ resolve_ticket_id() {
             return 0
         fi
         # Bug 19a3-03ca: delegate the scan to ticket-alias-resolve.py
-        # --mode=8hex.  Before this consolidation, a bash while-read loop
+        # --mode=8hex. Before this consolidation, a bash while-read loop
         # called $(basename ...) per directory across ~20K dirs, costing
-        # ~80s of fork/exec overhead at scale.  The Python helper does
+        # ~80s of fork/exec overhead at scale. The Python helper does
         # all directory iteration and substring comparison in one process.
-        # The bash param-expansion fallback below runs ONLY when the
-        # helper is unavailable (file missing OR python3 absent). Helper
-        # *failures* (exit non-zero) are reported and propagated as fatal
-        # — this matches the helper's documented contract ("HARD failure,
-        # not no-match"). Strict-error semantics intentionally differ from
-        # ticket-lib-api.sh _ticketlib_resolve_short_id (best-effort);
-        # the asymmetry is documented in both files.
-        local _8hex_matches=()
+        # Best-effort: bash fallback runs on either helper unavailable OR
+        # helper exit !=0; in both cases a stderr warning is emitted on
+        # failure so the cause is observable. Unified error semantics with
+        # _ticketlib_resolve_short_id in ticket-lib-api.sh.
+        local _8hex_matches=() _used_helper_8hex=0
         local _resolver_short
         _resolver_short="$(dirname "${BASH_SOURCE[0]}")/ticket-alias-resolve.py"
         if [ -f "$_resolver_short" ] && command -v python3 >/dev/null 2>&1; then
             local _short_out _short_rc=0
-            _short_out=$(python3 "$_resolver_short" --mode=8hex "$input" "$_tracker_dir") || _short_rc=$?
-            if [ "$_short_rc" -ne 0 ]; then
-                echo "Error: 8-hex resolver exited $_short_rc for input '$input'" >&2
-                return 1
+            _short_out=$(python3 "$_resolver_short" --mode=8hex "$input" "$_tracker_dir" 2>/dev/null) || _short_rc=$?
+            if [ "$_short_rc" -eq 0 ]; then
+                _used_helper_8hex=1
+                if [ -n "$_short_out" ]; then
+                    local _short_line
+                    while IFS= read -r _short_line; do
+                        [ -z "$_short_line" ] && continue
+                        _8hex_matches+=("$_short_line")
+                    done <<< "$_short_out"
+                fi
+            else
+                echo "Warning: 8-hex resolver exited $_short_rc for input '$input' — falling back to bash scan" >&2
             fi
-            if [ -n "$_short_out" ]; then
-                local _short_line
-                while IFS= read -r _short_line; do
-                    [ -z "$_short_line" ] && continue
-                    _8hex_matches+=("$_short_line")
-                done <<< "$_short_out"
-            fi
-        else
+        fi
+        if [ "$_used_helper_8hex" -eq 0 ]; then
             # Fallback bash scan — uses ${var##*/} param expansion (no fork).
             local _entry
             while IFS= read -r -d '' _entry; do
@@ -1615,27 +1614,29 @@ resolve_ticket_id() {
     # ── Step 5: Unique prefix (>= 4 chars) ───────────────────────────────────
     if [ "${#input}" -ge 4 ]; then
         # Bug 19a3-03ca: delegate to ticket-alias-resolve.py --mode=prefix
-        # (see Step 2 for performance rationale). Bash fallback runs ONLY
-        # when the helper is unavailable; helper failures are propagated
-        # as fatal per the helper's documented contract (see Step 2 above).
-        local _prefix_matches=()
+        # (see Step 2 for performance rationale). Best-effort error semantics
+        # — bash fallback runs on helper unavailable OR helper exit !=0,
+        # with a stderr warning on failure (see Step 2 above).
+        local _prefix_matches=() _used_helper_prefix=0
         local _resolver_pref
         _resolver_pref="$(dirname "${BASH_SOURCE[0]}")/ticket-alias-resolve.py"
         if [ -f "$_resolver_pref" ] && command -v python3 >/dev/null 2>&1; then
             local _pref_out _pref_rc=0
-            _pref_out=$(python3 "$_resolver_pref" --mode=prefix "$input" "$_tracker_dir") || _pref_rc=$?
-            if [ "$_pref_rc" -ne 0 ]; then
-                echo "Error: prefix resolver exited $_pref_rc for input '$input'" >&2
-                return 1
+            _pref_out=$(python3 "$_resolver_pref" --mode=prefix "$input" "$_tracker_dir" 2>/dev/null) || _pref_rc=$?
+            if [ "$_pref_rc" -eq 0 ]; then
+                _used_helper_prefix=1
+                if [ -n "$_pref_out" ]; then
+                    local _pref_line
+                    while IFS= read -r _pref_line; do
+                        [ -z "$_pref_line" ] && continue
+                        _prefix_matches+=("$_pref_line")
+                    done <<< "$_pref_out"
+                fi
+            else
+                echo "Warning: prefix resolver exited $_pref_rc for input '$input' — falling back to bash scan" >&2
             fi
-            if [ -n "$_pref_out" ]; then
-                local _pref_line
-                while IFS= read -r _pref_line; do
-                    [ -z "$_pref_line" ] && continue
-                    _prefix_matches+=("$_pref_line")
-                done <<< "$_pref_out"
-            fi
-        else
+        fi
+        if [ "$_used_helper_prefix" -eq 0 ]; then
             local _entry2
             while IFS= read -r -d '' _entry2; do
                 local _base2

@@ -34,27 +34,16 @@ _ticketlib_resolve_short_id() {
     if [[ "$_input" =~ ^[a-z0-9]{4}-[a-z0-9]{4}$ ]]; then
         local _matches=()
         # Bug 19a3-03ca: delegate the scan to ticket-alias-resolve.py --mode=8hex
-        # (one Python process instead of ~20K basename subprocesses). Bash
-        # fallback uses ${var##*/} param expansion — no fork per entry.
-        #
-        # Error contract (per llm-review finding 1):
-        # This function is best-effort: callers (_ticketlib_resolve_id) do NOT
-        # inspect its exit code — they treat unchanged output as "no match".
-        # Three cases route to the bash fallback, in this order:
-        #   1. Helper unavailable (file missing or python3 absent)
-        #   2. Helper exited non-zero (I/O error per ticket-alias-resolve.py
-        #      docstring — "HARD failure, not no-match"). Emit stderr warning
-        #      so the failure is observable; fall through to bash so callers
-        #      still get a best-effort answer.
-        #   3. Helper produced no match — handled by the common tail.
-        # Strict-error semantics (treat helper exit !=0 as fatal) live in
-        # resolve_ticket_id (ticket-lib.sh:1521), whose callers check rc.
+        # (one Python process instead of ~20K basename subprocesses). Best-effort:
+        # bash fallback runs on either helper unavailable OR helper exit !=0;
+        # in both cases a stderr warning is emitted on failure so the cause
+        # is observable. Unified error semantics with resolve_ticket_id in
+        # ticket-lib.sh (both fall back on helper failure).
         local _resolver_short _used_helper=0
         _resolver_short="$_TICKETLIB_DIR/ticket-alias-resolve.py"
         if [ -n "${_TICKETLIB_DIR:-}" ] && [ -f "$_resolver_short" ] && command -v python3 >/dev/null 2>&1; then
-            local _short_out _short_rc=0 _short_err
-            _short_err=$(mktemp /tmp/short-resolve-err.XXXXXX)
-            _short_out=$(python3 "$_resolver_short" --mode=8hex "$_input" "$_tracker" 2>"$_short_err") || _short_rc=$?
+            local _short_out _short_rc=0
+            _short_out=$(python3 "$_resolver_short" --mode=8hex "$_input" "$_tracker" 2>/dev/null) || _short_rc=$?
             if [ "$_short_rc" -eq 0 ]; then
                 _used_helper=1
                 if [ -n "$_short_out" ]; then
@@ -67,16 +56,8 @@ _ticketlib_resolve_short_id() {
                     done <<< "$_short_out"
                 fi
             else
-                # Helper hard-failure: emit stderr warning, then fall through
-                # to bash so the best-effort contract is preserved. Suppress
-                # the warning when the caller explicitly suppresses (legacy
-                # callers that already swallow stderr will still benefit from
-                # the diagnostic when stderr is inspected).
-                local _err_tail
-                _err_tail=$(tr -d '\n' < "$_short_err" 2>/dev/null | head -c 200)
-                echo "Warning: 8-hex resolver helper exited $_short_rc for '$_input' — falling back to bash scan${_err_tail:+: $_err_tail}" >&2
+                echo "Warning: 8-hex resolver helper exited $_short_rc for '$_input' — falling back to bash scan" >&2
             fi
-            rm -f "$_short_err"
         fi
         if [ "$_used_helper" -eq 0 ]; then
             # Fallback bash scan (param expansion — no fork per entry)
