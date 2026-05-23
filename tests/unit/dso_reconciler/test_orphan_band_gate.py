@@ -1,0 +1,176 @@
+"""Tests for orphan_band.py gate subcommand.
+
+The gate subcommand blocks applier execution until a valid human-signed
+reviewer attestation file is present.
+"""
+
+from __future__ import annotations
+
+import argparse
+import importlib.util
+import json
+import sys
+import types
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+# ---------------------------------------------------------------------------
+# Module loading
+# ---------------------------------------------------------------------------
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+ORPHAN_BAND_PATH = (
+    REPO_ROOT / "plugins" / "dso" / "scripts" / "dso_reconciler" / "orphan_band.py"
+)
+
+
+def _load_orphan_band():
+    spec = importlib.util.spec_from_file_location("orphan_band", ORPHAN_BAND_PATH)
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["orphan_band"] = mod
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    return mod
+
+
+@pytest.fixture(scope="module")
+def orphan_band():
+    """Load the orphan_band module, failing all tests if absent."""
+    if not ORPHAN_BAND_PATH.exists():
+        pytest.fail(
+            f"orphan_band.py not found at {ORPHAN_BAND_PATH} — "
+            "implement the module to make tests pass."
+        )
+    return _load_orphan_band()
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_gate_args(pass_id: str, repo_root: str):
+    """Build an argparse.Namespace matching the 'gate' subcommand."""
+    args = argparse.Namespace()
+    args.command = "gate"
+    args.pass_id = pass_id
+    args.repo_root = repo_root
+    return args
+
+
+def _make_mock_attestation(verify_result: bool) -> types.ModuleType:
+    """Return a stub attestation module with controlled verify_attested_commit."""
+    mock_attestation = types.ModuleType("_attestation")
+    mock_attestation.verify_attested_commit = MagicMock(return_value=verify_result)
+    return mock_attestation
+
+
+def _write_attestation_file(
+    bootstrap_dir: Path, pass_id: str, sha: str = "abc123"
+) -> Path:
+    """Write a minimal attested.json file and return its path."""
+    bootstrap_dir.mkdir(parents=True, exist_ok=True)
+    attestation_path = bootstrap_dir / f"orphans-{pass_id}.attested.json"
+    attestation_path.write_text(json.dumps({"commit_sha": sha}))
+    return attestation_path
+
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
+
+
+def test_gate_blocks_when_attestation_missing(tmp_path, orphan_band):
+    """Gate returns exit code 1 with 'attestation missing' when no attested.json exists."""
+    args = _make_gate_args(pass_id="test-pass", repo_root=str(tmp_path))
+
+    # Do NOT create bridge_state/bootstrap/ or any attested.json
+    with patch.object(
+        orphan_band, "_load_attestation", return_value=_make_mock_attestation(True)
+    ):
+        rc = orphan_band.cmd_gate(args, tmp_path)
+
+    assert rc == 1
+
+
+def test_gate_blocks_when_attestation_missing_stderr(tmp_path, orphan_band, capsys):
+    """Gate prints 'attestation missing' to stderr when attested.json is absent."""
+    args = _make_gate_args(pass_id="test-pass", repo_root=str(tmp_path))
+
+    with patch.object(
+        orphan_band, "_load_attestation", return_value=_make_mock_attestation(True)
+    ):
+        orphan_band.cmd_gate(args, tmp_path)
+
+    captured = capsys.readouterr()
+    assert "attestation missing" in captured.err
+
+
+def test_gate_blocks_when_signature_invalid(tmp_path, orphan_band, capsys):
+    """Gate returns exit code 1 with 'attestation signature invalid' when git verify-commit fails."""
+    bootstrap_dir = tmp_path / "bridge_state" / "bootstrap"
+    _write_attestation_file(bootstrap_dir, "test-pass", sha="deadbeef")
+
+    args = _make_gate_args(pass_id="test-pass", repo_root=str(tmp_path))
+
+    # verify_attested_commit returns False (signature bad), git verify-commit also fails
+    mock_attestation = _make_mock_attestation(False)
+
+    mock_proc = MagicMock()
+    mock_proc.returncode = 1  # git verify-commit fails → signature invalid
+
+    with (
+        patch.object(orphan_band, "_load_attestation", return_value=mock_attestation),
+        patch("orphan_band.subprocess.run", return_value=mock_proc),
+    ):
+        rc = orphan_band.cmd_gate(args, tmp_path)
+
+    assert rc == 1
+    captured = capsys.readouterr()
+    assert "attestation signature invalid" in captured.err
+
+
+def test_gate_blocks_when_committer_is_bot(tmp_path, orphan_band, capsys):
+    """Gate returns exit code 1 with 'attestation committer is a bot' when committer is a bot."""
+    bootstrap_dir = tmp_path / "bridge_state" / "bootstrap"
+    _write_attestation_file(bootstrap_dir, "test-pass", sha="deadbeef")
+
+    args = _make_gate_args(pass_id="test-pass", repo_root=str(tmp_path))
+
+    # verify_attested_commit returns False (bot committer), git verify-commit succeeds
+    mock_attestation = _make_mock_attestation(False)
+
+    mock_proc = MagicMock()
+    mock_proc.returncode = (
+        0  # git verify-commit passes → signature OK → bot is the reason
+    )
+
+    with (
+        patch.object(orphan_band, "_load_attestation", return_value=mock_attestation),
+        patch("orphan_band.subprocess.run", return_value=mock_proc),
+    ):
+        rc = orphan_band.cmd_gate(args, tmp_path)
+
+    assert rc == 1
+    captured = capsys.readouterr()
+    assert "attestation committer is a bot" in captured.err
+
+
+def test_gate_passes_for_signed_human_attestation(tmp_path, orphan_band, capsys):
+    """Gate returns exit code 0 when attestation is present and signed by a human."""
+    bootstrap_dir = tmp_path / "bridge_state" / "bootstrap"
+    _write_attestation_file(bootstrap_dir, "test-pass", sha="abc123")
+
+    args = _make_gate_args(pass_id="test-pass", repo_root=str(tmp_path))
+
+    # verify_attested_commit returns True → all checks pass
+    mock_attestation = _make_mock_attestation(True)
+
+    with patch.object(orphan_band, "_load_attestation", return_value=mock_attestation):
+        rc = orphan_band.cmd_gate(args, tmp_path)
+
+    assert rc == 0
+    captured = capsys.readouterr()
+    assert "GATE OK" in captured.out
