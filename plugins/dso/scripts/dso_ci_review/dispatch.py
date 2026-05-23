@@ -13,6 +13,7 @@ DD4: async_dispatch_specialists uses asyncio.gather(return_exceptions=True) for 
 from __future__ import annotations
 
 import asyncio
+import fcntl
 import functools
 import hashlib
 import json
@@ -21,6 +22,8 @@ import os
 import pathlib
 import re
 import sys
+import threading
+from datetime import datetime, timezone
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -91,6 +94,120 @@ _FINDING_ID_RE: re.Pattern[str] = re.compile(r"^f-[0-9a-f]{8}$")
 _CITED_LINE_RE: re.Pattern[str] = re.compile(
     r"^~?[^:]+:[1-9][0-9]*(?:[-~][1-9][0-9]*)?$"
 )
+
+
+# ---------------------------------------------------------------------------
+# Usage capture — review-cycle-usage.json
+# ---------------------------------------------------------------------------
+
+# Thread-local call-index counter so concurrent dispatch_review invocations
+# (via asyncio.gather) each get their own monotone sequence.
+_usage_call_counter = threading.local()
+
+_USAGE_SCHEMA_VERSION = "1.0.0"
+_USAGE_FILE_NAME = "review-cycle-usage.json"
+_USAGE_LOCK_FILE_NAME = ".review-cycle-usage.lock"
+
+
+def _write_usage_entry(
+    *,
+    agent_id: str,
+    cycle: int,
+    call_index: int,
+    model: str,
+    response: object | None,
+    review_outcome: str | None = None,
+    exception_class: str | None = None,
+    exception_message: str | None = None,
+) -> None:
+    """Append one usage entry to ``${ARTIFACTS_DIR}/review-cycle-usage.json``.
+
+    Uses ``fcntl.LOCK_EX`` read-modify-write for concurrent-write safety.
+    Silently no-ops on any exception so a usage-capture failure never
+    interrupts a review dispatch.
+
+    Usage fields are read from ``response.usage`` using the litellm
+    OpenAI-shape (``prompt_tokens`` / ``completion_tokens``).  Cache fields
+    are extracted defensively via ``getattr``.
+    """
+    try:
+        from dso_ci_review.cycle_ledger import _resolve_artifacts_dir  # noqa: PLC0415
+
+        artifacts_dir = _resolve_artifacts_dir()
+        usage_path = os.path.join(artifacts_dir, _USAGE_FILE_NAME)
+        lock_path = os.path.join(artifacts_dir, _USAGE_LOCK_FILE_NAME)
+
+        usage_obj = getattr(response, "usage", None) if response is not None else None
+
+        if usage_obj is not None:
+            # litellm OpenAI-shape: prompt_tokens / completion_tokens
+            input_tokens = getattr(usage_obj, "prompt_tokens", None)
+            output_tokens = getattr(usage_obj, "completion_tokens", None)
+            cache_read = getattr(usage_obj, "cache_read_input_tokens", None)
+            cache_creation = getattr(usage_obj, "cache_creation_input_tokens", None)
+        else:
+            input_tokens = None
+            output_tokens = None
+            cache_read = None
+            cache_creation = None
+
+        entry: dict[str, object] = {
+            "agent_id": agent_id,
+            "cycle": cycle,
+            "call_index": call_index,
+            "model": model,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "cache_read_input_tokens": cache_read,
+            "cache_creation_input_tokens": cache_creation,
+            "timestamp_iso": datetime.now(timezone.utc).isoformat(),
+        }
+        if review_outcome is not None:
+            entry["review_outcome"] = review_outcome
+        if exception_class is not None:
+            entry["exception_class"] = exception_class
+        if exception_message is not None:
+            entry["exception_message"] = exception_message
+
+        # fcntl.LOCK_EX read-modify-write
+        lock_fd = open(lock_path, "w")  # noqa: WPS515 — intentional open without with
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX)
+            # Read existing data
+            if os.path.exists(usage_path):
+                try:
+                    with open(usage_path, encoding="utf-8") as _f:
+                        data = json.load(_f)
+                except (json.JSONDecodeError, OSError):
+                    data = {"schema_version": _USAGE_SCHEMA_VERSION, "cycles": []}
+            else:
+                data = {"schema_version": _USAGE_SCHEMA_VERSION, "cycles": []}
+
+            if not isinstance(data.get("cycles"), list):
+                data["cycles"] = []
+
+            data["cycles"].append(entry)
+
+            # Write atomically (temp file + rename within same dir)
+            tmp_path = usage_path + ".tmp"
+            with open(tmp_path, "w", encoding="utf-8") as _f:
+                json.dump(data, _f, indent=2)
+            os.replace(tmp_path, usage_path)
+        finally:
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            lock_fd.close()
+    except Exception:  # noqa: BLE001
+        # Never let usage-capture failures interrupt review dispatch
+        pass
+
+
+def _next_call_index() -> int:
+    """Return a monotone per-thread call index (starting at 0)."""
+    if not hasattr(_usage_call_counter, "index"):
+        _usage_call_counter.index = 0
+    idx = _usage_call_counter.index
+    _usage_call_counter.index += 1
+    return idx
 
 
 @functools.lru_cache(maxsize=32)
@@ -392,16 +509,27 @@ def dispatch_review(
         os.path.realpath(repo_root) if repo_root else os.path.realpath(".")
     )
 
+    # Usage-capture: resolve cycle number from DSO_REVIEW_CYCLE env (default 1)
+    _usage_cycle = int(os.environ.get("DSO_REVIEW_CYCLE", "1") or "1")
+
     # Axis 2: manual context-window escalation loop.
     # NOTE: the `context_window_fallbacks` kwarg is a LiteLLM Router parameter
     # and is silently ignored by litellm.completion() — use a manual loop instead.
     for ctx_model in context_model_chain:
         try:
+            _call_idx_main = _next_call_index()
             response = litellm.completion(
                 model=ctx_model,
                 messages=messages,
                 stream=False,  # DD1: never stream
                 fallbacks=fallbacks,  # DD1: SDK-native cross-provider fallback (Axis 1)
+            )
+            _write_usage_entry(
+                agent_id=agent_id,
+                cycle=_usage_cycle,
+                call_index=_call_idx_main,
+                model=ctx_model,
+                response=response,
             )
 
             # Axis 3: multi-turn context-augmentation loop (non-light tiers only, SC4).
@@ -474,11 +602,19 @@ def dispatch_review(
                             {"role": "assistant", "content": assistant_content},
                             {"role": "user", "content": _AUG_FIRST_NUDGE},
                         ]
+                        _call_idx_nudge1 = _next_call_index()
                         current_response = litellm.completion(
                             model=ctx_model,
                             messages=aug_messages,
                             stream=False,
                             fallbacks=fallbacks,
+                        )
+                        _write_usage_entry(
+                            agent_id=agent_id,
+                            cycle=_usage_cycle,
+                            call_index=_call_idx_nudge1,
+                            model=ctx_model,
+                            response=current_response,
                         )
                         _aug_cache_read = _check_cache_usage(
                             current_response, aug_turn, _aug_cache_read, first_provider
@@ -496,11 +632,19 @@ def dispatch_review(
                             {"role": "assistant", "content": assistant_content},
                             {"role": "user", "content": _AUG_SECOND_NUDGE},
                         ]
+                        _call_idx_nudge2 = _next_call_index()
                         current_response = litellm.completion(
                             model=ctx_model,
                             messages=aug_messages,
                             stream=False,
                             fallbacks=fallbacks,
+                        )
+                        _write_usage_entry(
+                            agent_id=agent_id,
+                            cycle=_usage_cycle,
+                            call_index=_call_idx_nudge2,
+                            model=ctx_model,
+                            response=current_response,
                         )
                         _aug_cache_read = _check_cache_usage(
                             current_response, aug_turn, _aug_cache_read, first_provider
@@ -549,11 +693,19 @@ def dispatch_review(
                             {"role": "assistant", "content": assistant_content},
                             {"role": "user", "content": augmented_user_content},
                         ]
+                        _call_idx_aug = _next_call_index()
                         current_response = litellm.completion(
                             model=ctx_model,
                             messages=aug_messages,
                             stream=False,
                             fallbacks=fallbacks,
+                        )
+                        _write_usage_entry(
+                            agent_id=agent_id,
+                            cycle=_usage_cycle,
+                            call_index=_call_idx_aug,
+                            model=ctx_model,
+                            response=current_response,
                         )
                         _aug_cache_read = _check_cache_usage(
                             current_response, aug_turn, _aug_cache_read, first_provider
@@ -586,7 +738,20 @@ def dispatch_review(
                         failed_result["fallback_hops"] = fallback_hops
                     return failed_result
 
-            result = _parse_response(response)
+            try:
+                result = _parse_response(response)
+            except Exception as _parse_exc:  # noqa: BLE001
+                _write_usage_entry(
+                    agent_id=agent_id,
+                    cycle=_usage_cycle,
+                    call_index=_next_call_index(),
+                    model=ctx_model,
+                    response=response,
+                    review_outcome="failed",
+                    exception_class=type(_parse_exc).__name__,
+                    exception_message=str(_parse_exc),
+                )
+                raise
 
             # Record a hop if we advanced past the first model in the context chain (DD2).
             # Note: SDK-native cross-provider hops (via fallbacks= parameter) are also
@@ -745,6 +910,9 @@ def dispatch_two_call_review(
 
     _litellm = getattr(_self_mod, "litellm", litellm)
 
+    # Usage-capture: resolve cycle number from DSO_REVIEW_CYCLE env (default 1)
+    _two_call_usage_cycle = int(os.environ.get("DSO_REVIEW_CYCLE", "1") or "1")
+
     # --- Call 1: pass only the stripped index (no defense_text) ---
     index_context = (
         "\n\n## Prior review findings index (no defenses — evaluate independently)\n\n"
@@ -760,6 +928,13 @@ def dispatch_two_call_review(
         messages=call1_messages,
         stream=False,
         fallbacks=fallbacks,
+    )
+    _write_usage_entry(
+        agent_id=agent_id,
+        cycle=_two_call_usage_cycle,
+        call_index=_next_call_index(),
+        model=resolved_model,
+        response=call1_response,
     )
     call1_result = _parse_response(call1_response)
 
@@ -782,6 +957,13 @@ def dispatch_two_call_review(
         messages=call2_messages,
         stream=False,
         fallbacks=fallbacks,
+    )
+    _write_usage_entry(
+        agent_id=agent_id,
+        cycle=_two_call_usage_cycle,
+        call_index=_next_call_index(),
+        model=resolved_model,
+        response=call2_response,
     )
     call2_result = _parse_response(call2_response)
 
