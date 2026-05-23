@@ -1,0 +1,1 @@
+{"author":"Test","data":{"body":"Reassessment: core bug is the missing successor-handoff check in the override pathway, not the absence of a two-tier verdict model. Investigating current override behavior."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1779573271800014000,"uuid":"2a4ab0d7-8297-4e66-bc24-2123167dd154"}
