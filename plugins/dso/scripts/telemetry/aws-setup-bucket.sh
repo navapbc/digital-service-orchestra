@@ -95,26 +95,39 @@ preflight_credentials() {
     fi
 }
 
-# ── Preflight: verify IAM permissions ─────────────────────────────────────────
+# ── Preflight: verify IAM permissions via simulate-principal-policy ───────────
+# Uses the same pattern as aws-setup-lambda.sh:152 and aws-verify-live.sh:242 —
+# simulate-principal-policy works for both IAM users and assumed roles, whereas
+# list-attached-user-policies requires --user-name and breaks for role principals.
 preflight_iam() {
-    local raw exit_code=0
-    raw="$(_aws iam list-attached-user-policies --output json 2>&1)" || exit_code=$?
+    local caller_arn raw
+    caller_arn="$(_aws sts get-caller-identity --query Arn --output text 2>/dev/null || true)"
+    if [[ -z "${caller_arn:-}" ]]; then
+        echo "ERROR: Unable to resolve caller ARN from sts get-caller-identity." >&2
+        exit 5
+    fi
 
-    # Parse attached policies — if empty list, report missing permissions
-    local policy_count
-    policy_count="$(echo "$raw" | python3 -c "
+    raw="$(_aws iam simulate-principal-policy \
+        --policy-source-arn "$caller_arn" \
+        --action-names s3:CreateBucket s3:PutBucketPublicAccessBlock s3:PutEncryptionConfiguration s3:PutLifecycleConfiguration s3:PutBucketPolicy \
+        --output json 2>/dev/null || true)"
+
+    local denied_actions
+    denied_actions="$(echo "$raw" | python3 -c "
 import sys, json
 try:
     data = json.loads(sys.stdin.read())
-    policies = data.get('AttachedPolicies', [])
-    print(len(policies))
+    results = data.get('EvaluationResults', [])
+    denied = [r['EvalActionName'] for r in results if r.get('EvalDecision') != 'allowed']
+    print(','.join(denied))
 except Exception:
-    print(0)
-" 2>/dev/null || echo "0")"
+    print('s3:CreateBucket,s3:PutBucketPublicAccessBlock,s3:PutEncryptionConfiguration,s3:PutLifecycleConfiguration,s3:PutBucketPolicy')
+" 2>/dev/null || echo "s3:CreateBucket,s3:PutBucketPublicAccessBlock,s3:PutEncryptionConfiguration,s3:PutLifecycleConfiguration,s3:PutBucketPolicy")"
 
-    if [[ "${policy_count}" -eq 0 ]]; then
+    if [[ -n "${denied_actions:-}" ]]; then
         echo "ERROR: Missing required IAM permissions." >&2
         echo "Required: s3:CreateBucket, s3:PutBucketPublicAccessBlock, s3:PutEncryptionConfiguration, s3:PutLifecycleConfiguration, s3:PutBucketPolicy" >&2
+        echo "Denied: ${denied_actions}" >&2
         exit 5
     fi
 }
