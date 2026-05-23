@@ -1,21 +1,42 @@
 #!/usr/bin/env python3
-"""Single-pass alias / jira_key resolver for resolve_ticket_id.
+"""Ticket-ID resolver helper for resolve_ticket_id (multi-mode).
 
-Replaces the per-file Python loop in ticket-lib.sh resolve_ticket_id.
-For each ticket directory, reads its CREATE event once and matches
-against the input by:
-  - data.alias (stored, set at create time for new tickets)
-  - data.alias backfilled by computing from ticket_id (for legacy tickets)
-  - data.jira_key
+Single-pass scanner used by ticket-lib.sh resolve_ticket_id.  Avoids the
+fork-per-directory overhead of bash basename loops by doing all directory
+iteration and string comparison inside one Python process.
 
-Output (one line per match):
-  alias <ticket_dir_name>
-  jira  <ticket_dir_name>
+Modes:
+  --mode=alias   (default; backward-compatible positional invocation)
+      For each ticket directory, reads its CREATE event (and the latest
+      SNAPSHOT for compacted tickets) once and matches against the input by:
+        - data.alias (stored, set at create time for new tickets)
+        - data.alias backfilled by computing from ticket_id (legacy tickets)
+        - data.jira_key
+      Output (one line per match, tab-separated):
+        alias\\t<ticket_dir_name>
+        jira\\t<ticket_dir_name>
 
-Exit code is always 0 — caller dedupes and chooses match precedence.
+  --mode=8hex
+      Scans ticket directories whose first 9 chars (xxxx-xxxx) match the
+      input.  Used by the bash 8-hex resolution step.  Output: one full
+      16-hex ticket dir name per line.
+
+  --mode=prefix
+      Scans ticket directories whose name starts with the input string.
+      Used by the bash unique-prefix resolution step.  Output: one full
+      16-hex ticket dir name per line.
+
+Exit codes:
+  0  Success.  stdout may be empty (no matches) or contain matched IDs.
+     Caller distinguishes "exactly one match" vs "ambiguous" by counting.
+  1  Invalid arguments OR unexpected I/O failure (stderr is populated).
+     This is a HARD failure — must not be confused with "no match" by
+     callers.  (Bug 19a3-03ca: silent OSError masquerading as a miss
+     turned debuggable I/O into a mysterious lookup miss.)
 
 Usage:
-    ticket-alias-resolve.py <input> <tracker_dir>
+    ticket-alias-resolve.py <input> <tracker_dir>                  # alias mode
+    ticket-alias-resolve.py --mode={alias|8hex|prefix} <input> <tracker_dir>
 """
 
 from __future__ import annotations
@@ -34,19 +55,85 @@ if _SCRIPTS_DIR not in sys.path:
 from ticket_reducer._alias import compute_alias  # noqa: E402
 
 
-def main() -> int:
-    if len(sys.argv) != 3:
-        print(f"Usage: {sys.argv[0]} <input> <tracker_dir>", file=sys.stderr)
-        return 1
-    target = sys.argv[1]
-    tracker = sys.argv[2]
+def _parse_args(argv: list[str]) -> tuple[str, str, str] | None:
+    """Returns (mode, target, tracker) or None on usage error."""
+    args = list(argv[1:])
+    mode = "alias"
+    if args and args[0].startswith("--mode="):
+        mode = args[0].split("=", 1)[1]
+        args = args[1:]
+    elif args and args[0] == "--mode":
+        if len(args) < 2:
+            return None
+        mode = args[1]
+        args = args[2:]
+    if len(args) != 2:
+        return None
+    if mode not in ("alias", "8hex", "prefix"):
+        print(
+            f"ticket-alias-resolve: invalid --mode={mode!r}; "
+            "expected alias|8hex|prefix",
+            file=sys.stderr,
+        )
+        return None
+    return mode, args[0], args[1]
 
+
+def _list_tracker_dirs(tracker: str) -> list[str] | None:
+    """Returns sorted directory entries, or None on OSError (after logging)."""
     try:
-        entries = sorted(os.listdir(tracker))
+        return sorted(os.listdir(tracker))
     except OSError as exc:
         # Fail loud — silent OSError here looks identical to "no matches"
         # and turns a debuggable I/O failure into a mysterious lookup miss.
         print(f"ticket-alias-resolve: cannot list {tracker!r}: {exc}", file=sys.stderr)
+        return None
+
+
+def _run_short_scan(mode: str, target: str, tracker: str) -> int:
+    """Handles --mode=8hex and --mode=prefix.
+
+    Both modes do a single directory scan with a string comparison.  The
+    bash caller still owns the ambiguous/not-found error formatting — this
+    helper just emits matching directory names, one per line, on stdout.
+    """
+    entries = _list_tracker_dirs(tracker)
+    if entries is None:
+        return 1
+    for name in entries:
+        if name.startswith("."):
+            continue
+        full_path = os.path.join(tracker, name)
+        # isdir() is a stat call per entry, but on macOS/Linux readdir
+        # returns d_type for most filesystems so this is typically free
+        # via the OS cache.  Required because find -L was filtering -type d.
+        if not os.path.isdir(full_path):
+            continue
+        if mode == "8hex":
+            if name[:9] == target:
+                print(name)
+        else:  # prefix
+            if name.startswith(target):
+                print(name)
+    return 0
+
+
+def main() -> int:
+    parsed = _parse_args(sys.argv)
+    if parsed is None:
+        print(
+            f"Usage: {sys.argv[0]} [--mode=alias|8hex|prefix] <input> <tracker_dir>",
+            file=sys.stderr,
+        )
+        return 1
+    mode, target, tracker = parsed
+
+    if mode in ("8hex", "prefix"):
+        return _run_short_scan(mode, target, tracker)
+
+    # mode == "alias" — original behavior preserved verbatim below.
+    entries = _list_tracker_dirs(tracker)
+    if entries is None:
         return 1
 
     for name in entries:

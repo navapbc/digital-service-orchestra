@@ -32,14 +32,35 @@ command -v flock >/dev/null 2>&1 && _ticketlib_has_flock=1 || _ticketlib_has_flo
 _ticketlib_resolve_short_id() {
     local _input="$1" _tracker="$2"
     if [[ "$_input" =~ ^[a-z0-9]{4}-[a-z0-9]{4}$ ]]; then
-        local _matches=() _entry _base
-        while IFS= read -r -d '' _entry; do
-            _base="$(basename "$_entry")"
-            if [[ "${_base:0:9}" == "$_input" ]] && \
-               [[ "$_base" =~ ^[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}$ ]]; then
-                _matches+=("$_base")
+        local _matches=()
+        # Bug 19a3-03ca: delegate the scan to ticket-alias-resolve.py --mode=8hex
+        # (one Python process instead of ~20K basename subprocesses). Bash
+        # fallback uses ${var##*/} param expansion — no fork per entry.
+        local _resolver_short
+        _resolver_short="$_TICKETLIB_DIR/ticket-alias-resolve.py"
+        if [ -n "${_TICKETLIB_DIR:-}" ] && [ -f "$_resolver_short" ] && command -v python3 >/dev/null 2>&1; then
+            local _short_out _short_rc=0
+            _short_out=$(python3 "$_resolver_short" --mode=8hex "$_input" "$_tracker" 2>/dev/null) || _short_rc=$?
+            if [ "$_short_rc" -eq 0 ] && [ -n "$_short_out" ]; then
+                local _short_line
+                while IFS= read -r _short_line; do
+                    [ -z "$_short_line" ] && continue
+                    if [[ "$_short_line" =~ ^[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}$ ]]; then
+                        _matches+=("$_short_line")
+                    fi
+                done <<< "$_short_out"
             fi
-        done < <(find -L "$_tracker" -mindepth 1 -maxdepth 1 -type d ! -name '.*' -print0 2>/dev/null)
+        else
+            # Fallback bash scan (param expansion — no fork per entry)
+            local _entry _base
+            while IFS= read -r -d '' _entry; do
+                _base="${_entry##*/}"
+                if [[ "${_base:0:9}" == "$_input" ]] && \
+                   [[ "$_base" =~ ^[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}$ ]]; then
+                    _matches+=("$_base")
+                fi
+            done < <(find -L "$_tracker" -mindepth 1 -maxdepth 1 -type d ! -name '.*' -print0 2>/dev/null)
+        fi
         if [ "${#_matches[@]}" -eq 1 ]; then
             echo "${_matches[0]}"
             return 0
