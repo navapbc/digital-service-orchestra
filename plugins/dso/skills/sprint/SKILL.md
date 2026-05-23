@@ -2224,6 +2224,27 @@ The `<escalation_upstream>` value MUST be sourced dynamically from the planner's
 
 See: `${CLAUDE_PLUGIN_ROOT}/skills/shared/workflows/remediation-loop-protocol.md`
 
+**Per-cycle artifact append (9a9a/21f3 block — cycle recorder)**
+
+After each cycle's re-dispatch and verifier run, atomically append a `cycles[]` entry to the verifier-cycle artifact using the writer:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/append_review_cycle.py \
+  --artifact <path-to-verifier-cycle-artifact-for-story> \
+  --n <cycle-number> \
+  --draft-hash <sha256 of planner output> \
+  --findings-count <int> \
+  --verdict <pass|fail|escalate>
+```
+
+After the append, emit exactly ONE ticket comment per cycle that references the artifact path:
+
+```bash
+.claude/scripts/dso ticket comment <ticket-id> "Remediation cycle <n> recorded at <artifact-path>"
+```
+
+**Single-comment policy (SC6)**: The ticket comment references the artifact path and does NOT duplicate the cycle body — cycle entries live in the artifact's `cycles[]` array, not in ticket comments. One comment per cycle; no further detail in the comment body.
+
 Do NOT rationalize around a non-PASS P1 verdict. The verifier's verdict is final — scope-scoping arguments ("pre-existing failures," "out-of-scope tests," "RED marker tolerance," "already tracked as a separate bug") do not override the planner-gate → Phase C path. The orchestrator's judgment about whether the verdict "really applies" is exactly the bias the verifier+planner pair was designed to counteract. Only `P1: PASS` or technical failure (timeout/unparseable JSON) permits proceeding past this step.
 </HARD-GATE>
 
