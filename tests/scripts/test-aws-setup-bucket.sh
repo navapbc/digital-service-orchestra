@@ -82,11 +82,11 @@ if [[ "$sub" == "sts" && "$sub2" == "get-caller-identity" ]]; then
     exit 0
 fi
 
-if [[ "$sub" == "iam" && "$sub2" == "list-attached-user-policies" ]]; then
+if [[ "$sub" == "iam" && "$sub2" == "simulate-principal-policy" ]]; then
     if [[ "$STUB_IAM_MISSING_PERM" == "1" ]]; then
-        echo '{"AttachedPolicies":[]}'
+        echo '{"EvaluationResults":[{"EvalActionName":"s3:CreateBucket","EvalDecision":"explicitDeny"},{"EvalActionName":"s3:PutBucketPublicAccessBlock","EvalDecision":"explicitDeny"},{"EvalActionName":"s3:PutEncryptionConfiguration","EvalDecision":"explicitDeny"},{"EvalActionName":"s3:PutLifecycleConfiguration","EvalDecision":"explicitDeny"},{"EvalActionName":"s3:PutBucketPolicy","EvalDecision":"explicitDeny"}]}'
     else
-        echo '{"AttachedPolicies":[{"PolicyName":"AdministratorAccess","PolicyArn":"arn:aws:iam::aws:policy/AdministratorAccess"}]}'
+        echo '{"EvaluationResults":[{"EvalActionName":"s3:CreateBucket","EvalDecision":"allowed"},{"EvalActionName":"s3:PutBucketPublicAccessBlock","EvalDecision":"allowed"},{"EvalActionName":"s3:PutEncryptionConfiguration","EvalDecision":"allowed"},{"EvalActionName":"s3:PutLifecycleConfiguration","EvalDecision":"allowed"},{"EvalActionName":"s3:PutBucketPolicy","EvalDecision":"allowed"}]}'
     fi
     exit 0
 fi
@@ -314,8 +314,8 @@ if [[ "$sub" == "sts" && "$sub2" == "get-caller-identity" ]]; then
     exit 0
 fi
 
-if [[ "$sub" == "iam" && "$sub2" == "list-attached-user-policies" ]]; then
-    echo '{"AttachedPolicies":[{"PolicyName":"AdministratorAccess","PolicyArn":"arn:aws:iam::aws:policy/AdministratorAccess"}]}'
+if [[ "$sub" == "iam" && "$sub2" == "simulate-principal-policy" ]]; then
+    echo '{"EvaluationResults":[{"EvalActionName":"s3:CreateBucket","EvalDecision":"allowed"},{"EvalActionName":"s3:PutBucketPublicAccessBlock","EvalDecision":"allowed"},{"EvalActionName":"s3:PutEncryptionConfiguration","EvalDecision":"allowed"},{"EvalActionName":"s3:PutLifecycleConfiguration","EvalDecision":"allowed"},{"EvalActionName":"s3:PutBucketPolicy","EvalDecision":"allowed"}]}'
     exit 0
 fi
 
