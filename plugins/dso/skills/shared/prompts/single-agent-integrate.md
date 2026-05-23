@@ -10,18 +10,15 @@ For multi-agent sprint batch flows, use `per-worktree-review-commit.md` instead.
 
 ---
 
-## Step 1 — Guard: Verify WORKTREE_PATH is distinct from ORCHESTRATOR_ROOT
+## Step 1 — Guard: Verify WORKTREE_PATH is distinct from the orchestrator's CWD
 
-`ORCHESTRATOR_ROOT` is the session root — it must have been passed explicitly in the
-sub-agent dispatch prompt. `WORKTREE_PATH` is the path returned by the sub-agent.
+`WORKTREE_PATH` is the path returned by the sub-agent. Per bug 9679-695c-6e11-4d95, the orchestrator's session-worktree absolute path is no longer injected into sub-agent prompts — but the orchestrator following this protocol still owns its own `ORCHESTRATOR_ROOT` variable, derived from its own context. Self-bootstrap it as the first action of integration:
 
-This is a HARD guard. A `WORKTREE_PATH == ORCHESTRATOR_ROOT` reading means the sub-agent
-silently ran in the session root and wrote to the orchestrator's working tree — exactly
-the isolation-breach failure mode covered by `worktree-dispatch.md` Orchestrator
-Responsibility #4 ("HALT the batch, record the failure as a ticket comment, surface to
-the user"). Do NOT downgrade to "fall back to non-isolation path" — any writes the
-sub-agent made have already landed on the session branch unreviewed, and continuing
-would harvest a partial/un-isolated commit silently.
+```bash
+ORCHESTRATOR_ROOT=$(git rev-parse --show-toplevel)
+```
+
+This is a HARD guard. A `WORKTREE_PATH == ORCHESTRATOR_ROOT` reading means the sub-agent silently ran in the session root and wrote to the orchestrator's working tree — exactly the isolation-breach failure mode covered by `worktree-dispatch.md` Orchestrator Responsibility #4 ("HALT the batch, record the failure as a ticket comment, surface to the user"). Do NOT downgrade to "fall back to non-isolation path" — any writes the sub-agent made have already landed on the session branch unreviewed, and continuing would harvest a partial/un-isolated commit silently.
 
 ```bash
 if [ "$WORKTREE_PATH" = "$ORCHESTRATOR_ROOT" ]; then
@@ -41,10 +38,7 @@ fi
 
 If the guard passes (WORKTREE_PATH differs from ORCHESTRATOR_ROOT), continue to Step 2.
 
-**Orchestrator handling**: On `exit 1`, do NOT silently re-dispatch. Halt the calling skill,
-inspect the dispatch site that produced the un-isolated sub-agent, and resolve the gap
-(missing `isolation: "worktree"`, missing `ORCHESTRATOR_ROOT` injection, or an agent that
-disregarded its Git Root Verification snippet) before retrying.
+**Orchestrator handling**: On `exit 1`, do NOT silently re-dispatch. Halt the calling skill, inspect the dispatch site that produced the un-isolated sub-agent, and resolve the gap (missing `isolation: "worktree"`, or an agent that wrote outside its own worktree via a constructed absolute path) before retrying.
 
 ---
 

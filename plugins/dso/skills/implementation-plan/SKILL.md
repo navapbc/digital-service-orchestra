@@ -5,9 +5,28 @@ user-invocable: true
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
+<HARD-GATE>
 <SUB-AGENT-GUARD>
-Requires Agent tool. If running as a sub-agent (Agent tool unavailable), STOP and return: "ERROR: /dso:implementation-plan requires Agent tool; invoke from orchestrator."
+**/dso:implementation-plan is orchestrator-level only. It MUST NOT be invoked as a sub-agent.**
+
+The skill dispatches its own sub-agents (`dso:approach-proposer`, `dso:approach-decision-maker`, `dso:task-decomposer`, opus gap-analysis on COMPLEX). Running implementation-plan ITSELF as a sub-agent means those dispatches become nested Task calls — which CLAUDE.md `rule:no-nested-task` forbids, and which the platform surfaces as `[Tool result missing due to internal error]`, silently losing the plan output.
+
+**If you detect that this skill is running as a sub-agent**, STOP immediately and return verbatim:
+
+```
+ERROR: /dso:implementation-plan must be invoked at the orchestrator level, not as a sub-agent.
+REASON: This skill dispatches sub-agents internally; nesting would violate rule:no-nested-task.
+CALLER ACTION: Return control to your orchestrator and have IT invoke /dso:implementation-plan
+              directly (via the Skill tool, not the Agent/Task tool).
+```
+
+Do NOT proceed with any of the Phase A/B/C steps. Do NOT dispatch any further sub-agents. Do NOT produce a partial plan.
+
+**Proxy detection (best-effort)**: if the Agent tool is unavailable in your context (`<available_tools>` does not list `Agent` / `Task`), you are running as a sub-agent — refuse per above. If the Agent tool IS available, that is a necessary but not sufficient signal that you are at the orchestrator level; if the orchestrator's most recent user-facing turn does not match the trigger phrases for this skill (per the `description:` frontmatter), and you were invoked via Skill tool by an upstream skill rather than by the user directly, treat the invocation as suspect and prefer to STOP-and-return rather than proceed.
+
+**Caller-side enforcement**: orchestrators that detect the ERROR return from this skill MUST halt their own progression rather than swallow the ERROR and continue — silently continuing produces a broken plan with missing sub-agent outputs.
 </SUB-AGENT-GUARD>
+</HARD-GATE>
 
 <!-- Schema reference: docs/designs/stage-boundary-preconditions/ -->
 
