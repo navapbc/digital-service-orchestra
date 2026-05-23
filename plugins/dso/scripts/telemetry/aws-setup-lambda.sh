@@ -405,6 +405,27 @@ ensure_function_url() {
 
     _FUNCTION_URL="$(echo "$url_output" | python3 -c \
         "import sys,json; d=json.loads(sys.stdin.read()); print(d.get('FunctionUrl',''))" 2>/dev/null || true)"
+
+    # Bug b3ac: AUTH=NONE alone is insufficient — Lambda also requires a
+    # resource-based permission granting lambda:InvokeFunctionUrl to
+    # Principal=* with the FunctionUrlAuthType=NONE condition. This is the
+    # standard AWS pattern for public Function URLs; without it, anonymous
+    # POST returns 403 even with AUTH=NONE.
+    #
+    # NOTE on AWS Organizations: org-member accounts may carry an SCP that
+    # DENIES public Function URL invocation regardless of this resource
+    # policy. The permission still attaches successfully (so this script
+    # exits 0), but anonymous POSTs continue to return 403 until an org
+    # admin lifts the SCP or whitelists the function. See bug b3ac in the
+    # ticket tracker + INSTALL.md "Telemetry Infrastructure" notes for the
+    # org-policy prerequisite.
+    _aws_lambda add-permission \
+        --function-name "$LAMBDA_FUNCTION_NAME" \
+        --statement-id PublicInvokeFunctionUrl \
+        --action lambda:InvokeFunctionUrl \
+        --principal '*' \
+        --function-url-auth-type NONE \
+        --output json >/dev/null 2>&1 || true  # idempotent — non-fatal if already present
 }
 
 # ── ensure_reserved_concurrency ───────────────────────────────────────────────
