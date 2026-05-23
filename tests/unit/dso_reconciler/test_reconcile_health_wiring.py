@@ -187,6 +187,62 @@ def test_health_record_pass_called_with_zero_mutations(tmp_path, reconcile_mod):
     )
 
 
+def test_health_record_pass_still_fires_on_apply_failure(tmp_path, reconcile_mod):
+    """F8 regression: reconcile_once must call health.record_pass even when
+    applier.apply raises, so failed passes are not invisible to monitoring.
+
+    Before F8, the apply call was unguarded — any exception propagated past
+    record_pass, and the failed pass left no health record on disk. The fix
+    wraps apply in try/except/finally and emits a degraded record with
+    local_mutation_count=0 and an indicative failure_kind.
+    """
+    pass_id = "apply-failure-pass"
+    mutations = [{"op": "create", "key": "DIG-1"}]
+
+    stub_fetcher = _make_stub_fetcher(tmp_path, pass_id)
+    stub_differ = _make_stub_differ(mutations)
+
+    # Applier whose apply() raises a generic RuntimeError
+    stub_applier = types.ModuleType("reconcile_applier")
+    stub_applier.apply = MagicMock(side_effect=RuntimeError("boom"))
+
+    stub_health = _make_stub_health()
+
+    sys.modules["reconcile_fetcher"] = stub_fetcher
+    sys.modules["reconcile_differ"] = stub_differ
+    sys.modules["reconcile_applier"] = stub_applier
+    sys.modules["reconcile_health"] = stub_health
+
+    try:
+        # The original apply() error must propagate after health is recorded
+        import pytest as _pytest
+        with _pytest.raises(RuntimeError, match="boom"):
+            reconcile_mod.reconcile_once(pass_id, repo_root=tmp_path)
+    finally:
+        for key in ("reconcile_fetcher", "reconcile_differ", "reconcile_applier", "reconcile_health"):
+            sys.modules.pop(key, None)
+
+    # health.record_pass MUST have been called even though apply raised
+    stub_health.record_pass.assert_called_once()
+    kwargs = stub_health.record_pass.call_args.kwargs
+
+    assert kwargs.get("pass_id") == pass_id, (
+        f"degraded health record must carry the failing pass_id; got {kwargs!r}"
+    )
+    assert kwargs.get("local_mutation_count") == 0, (
+        "degraded health record must report 0 mutations (apply did not complete)"
+    )
+    # failure_kind must be present so monitoring can distinguish degraded
+    # passes from successful zero-mutation passes.
+    assert kwargs.get("failure_kind") is not None, (
+        f"degraded health record must include failure_kind; got {kwargs!r}"
+    )
+    assert kwargs.get("failure_kind") in ("apply_error", "reschedule"), (
+        f"failure_kind must be one of the documented values; got "
+        f"{kwargs.get('failure_kind')!r}"
+    )
+
+
 def test_health_per_type_counts_uses_count_open_by_type_result(tmp_path, reconcile_mod):
     """reconcile_once() passes the result of health.count_open_by_type() through
     to health.record_pass() as the per_type_counts kwarg.

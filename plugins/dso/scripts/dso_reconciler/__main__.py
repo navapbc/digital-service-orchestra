@@ -41,7 +41,8 @@ def _try_load_step(name: str):
 def run_pass(repo_root: Path | None = None) -> int:
     """Execute one steady-state reconciliation pass via reconcile.reconcile_once().
 
-    Returns 0 on converged state, 1 on unrecoverable error.
+    Returns 0 on converged state, EXIT_RESCHEDULE (75) when applier signals a
+    reschedule (rebase_retry exhausted), 1 on any other unrecoverable error.
     """
     if repo_root is None:
         repo_root = Path(__file__).parents[4]
@@ -52,10 +53,25 @@ def run_pass(repo_root: Path | None = None) -> int:
         print("OK: walking-skeleton no-op (reconcile.py not present)")
         return 0
 
+    # F6: load the applier module so RescheduleError + EXIT_RESCHEDULE are
+    # available for explicit handling. Without this, the broad `except
+    # Exception` below would mask RescheduleError under exit 1, hiding the
+    # reschedule signal from any scheduler that distinguishes 75 from 1.
+    applier = _try_load_step("applier")
+
     pass_id = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H-%M-%S")
+    reschedule_error_cls = getattr(applier, "RescheduleError", None) if applier else None
+    exit_reschedule = getattr(applier, "EXIT_RESCHEDULE", 75) if applier else 75
+
     try:
         result = reconcile.reconcile_once(pass_id, repo_root=repo_root)
     except Exception as exc:  # noqa: BLE001
+        if reschedule_error_cls is not None and isinstance(exc, reschedule_error_cls):
+            print(
+                f"RESCHEDULE: reconcile_once signalled reschedule: {exc}",
+                file=sys.stderr,
+            )
+            return exit_reschedule
         print(f"ERROR: reconcile_once raised: {exc}", file=sys.stderr)
         return 1
 

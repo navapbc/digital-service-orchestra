@@ -84,7 +84,9 @@ def _make_acli_module(issues: list[dict]) -> types.ModuleType:
         def create_issue(self, fields: dict) -> dict:
             return {"key": "DIG-NEW"}
 
-        def update_issue(self, key: str, fields: dict) -> dict:
+        def update_issue(self, key: str, **fields) -> dict:
+            # F3: applier unpacks fields as kwargs (real signature is
+            # update_issue(jira_key, **kwargs)).
             return {"key": key}
 
         def transition_issue(self, key: str, status: str) -> None:

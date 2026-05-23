@@ -184,7 +184,8 @@ def test_update_action_routes_to_update_issue(tmp_path, applier):
     ):
         applier.apply(mutations, pass_id, repo_root=tmp_path)
 
-    mock_client.update_issue.assert_called_once_with("DSO-42", fields)
+    # F3: fields must be unpacked as kwargs (real signature: update_issue(key, **kwargs))
+    mock_client.update_issue.assert_called_once_with("DSO-42", **fields)
     mock_client.create_issue.assert_not_called()
     mock_client.transition_issue.assert_not_called()
 
@@ -204,3 +205,69 @@ def test_delete_action_routes_to_transition_issue_closed(tmp_path, applier):
     mock_client.transition_issue.assert_called_once_with("DSO-99", "Closed")
     mock_client.create_issue.assert_not_called()
     mock_client.update_issue.assert_not_called()
+
+
+def test_delete_one_treats_404_as_success(applier):
+    """F5 regression: delete_one must swallow JiraAPIError(404) on transition.
+
+    Because the differ emits a delete precisely when the issue has already
+    disappeared from Jira, the subsequent transition_issue call may target a
+    gone-from-Jira key. A 404 there means the desired post-state is already
+    satisfied — delete_one returns silently. Other 4xx propagate.
+    """
+    from unittest.mock import MagicMock
+
+    client = MagicMock()
+    client.transition_issue.side_effect = applier.JiraAPIError(
+        "Issue does not exist", status_code=404
+    )
+
+    mutation = {"action": "delete", "key": "DSO-GONE"}
+    # Must NOT raise — 404 on delete is success.
+    applier.delete_one(mutation, client)
+
+
+def test_delete_one_propagates_non_404_jira_errors(applier):
+    """F5: 4xx other than 404 must still propagate from delete_one."""
+    from unittest.mock import MagicMock
+    import pytest as _pytest
+
+    client = MagicMock()
+    client.transition_issue.side_effect = applier.JiraAPIError(
+        "Forbidden", status_code=403
+    )
+    mutation = {"action": "delete", "key": "DSO-FORBIDDEN"}
+    with _pytest.raises(applier.JiraAPIError):
+        applier.delete_one(mutation, client)
+
+
+def test_update_one_unpacks_fields_as_kwargs(applier):
+    """F3 regression: update_one must unpack fields into kwargs.
+
+    AcliClient.update_issue's real signature is ``update_issue(jira_key, **kwargs)``.
+    Before F3, applier.update_one called ``client.update_issue(key, fields_dict)``
+    positionally, which raises TypeError against the real client. The fix
+    unpacks the field dict into kwargs.
+    """
+    from unittest.mock import MagicMock
+
+    client = MagicMock()
+    client.update_issue.return_value = {"key": "DSO-555"}
+
+    mutation = {
+        "action": "update",
+        "key": "DSO-555",
+        "fields": {"summary": "new summary", "priority": "high"},
+    }
+    applier.update_one(mutation, client)
+
+    client.update_issue.assert_called_once()
+    call = client.update_issue.call_args
+    # Only the jira_key may appear as a positional argument.
+    assert call.args == ("DSO-555",), (
+        f"update_one must pass only the jira_key positionally; got {call.args!r}"
+    )
+    # All field entries must appear as kwargs.
+    assert call.kwargs == {"summary": "new summary", "priority": "high"}, (
+        f"update_one must unpack fields as kwargs; got {call.kwargs!r}"
+    )

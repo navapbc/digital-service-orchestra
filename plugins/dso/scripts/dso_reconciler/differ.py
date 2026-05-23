@@ -66,10 +66,32 @@ def compute_mutations(
                 if f not in excluded
             }
             if fields:
-                mutations.append({"action": "create", "key": key, "fields": fields})
+                # local_id: for create, no local ticket exists yet — the bridge
+                # ASSIGNS one downstream. Use jira_key as the no-op default so
+                # JQL dedup ('dso-id:<local_id>') and mapping.json key lookups
+                # have a non-empty identifier in the common case.
+                # TODO: when the bridge gains a proper local_id allocator, swap
+                # this for the allocated UUID. F2: ensure local_id is always set.
+                mutations.append(
+                    {
+                        "action": "create",
+                        "key": key,
+                        "local_id": _derive_local_id(next_snapshot[key], key),
+                        "fields": fields,
+                    }
+                )
         elif key not in next_snapshot:
             # Deleted issue: emit a delete mutation with no field payload.
-            mutations.append({"action": "delete", "key": key, "fields": {}})
+            # local_id carried from the prior snapshot so downstream identity-
+            # write rollback paths have a non-empty key for the alert directory.
+            mutations.append(
+                {
+                    "action": "delete",
+                    "key": key,
+                    "local_id": _derive_local_id(prev_snapshot[key], key),
+                    "fields": {},
+                }
+            )
         else:
             # Existing issue: compare field-by-field for updates.
             prev = prev_snapshot[key]
@@ -89,6 +111,40 @@ def compute_mutations(
                     else:
                         changed[field] = local_val
             if changed:
-                mutations.append({"action": "update", "key": key, "fields": changed})
+                # For update, prefer the previous snapshot's dso_local_id (the
+                # canonical local identity already assigned). Fall back to the
+                # next snapshot's value, then the jira_key.
+                mutations.append(
+                    {
+                        "action": "update",
+                        "key": key,
+                        "local_id": _derive_local_id(
+                            prev, key, fallback_snapshot=next_
+                        ),
+                        "fields": changed,
+                    }
+                )
 
     return mutations
+
+
+def _derive_local_id(
+    snapshot_fields: dict,
+    jira_key: str,
+    fallback_snapshot: dict | None = None,
+) -> str:
+    """Derive a non-empty local_id for a mutation.
+
+    Order: snapshot's ``dso_local_id`` property → fallback snapshot's
+    ``dso_local_id`` → jira_key. The jira_key fallback guarantees JQL dedup
+    (``labels = "dso-id:<local_id>"``) and mapping.json writes use a non-empty
+    key — fixes F2 where empty local_id collapsed dedup and corrupted mapping.
+    """
+    candidate = snapshot_fields.get("dso_local_id") if isinstance(snapshot_fields, dict) else None
+    if candidate:
+        return str(candidate)
+    if fallback_snapshot and isinstance(fallback_snapshot, dict):
+        candidate = fallback_snapshot.get("dso_local_id")
+        if candidate:
+            return str(candidate)
+    return jira_key

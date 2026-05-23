@@ -144,7 +144,8 @@ def test_drift_mid_pass_no_jira_call_after_drift(tmp_path, applier):
             applier.apply(mutations, "pass-drift-02", repo_root=tmp_path)
 
     # Only the first mutation's update_issue should have been called
-    mock_client.update_issue.assert_called_once_with("DSO-10", {"summary": "first"})
+    # F3: fields unpacked as kwargs (real signature: update_issue(key, **kwargs))
+    mock_client.update_issue.assert_called_once_with("DSO-10", summary="first")
 
 
 def test_empty_mutations_no_head_check(tmp_path, applier):

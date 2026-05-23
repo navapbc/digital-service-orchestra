@@ -115,6 +115,51 @@ def test_run_pass_returns_1_when_reconcile_raises(main_mod, tmp_path):
     assert rc == 1
 
 
+def test_run_pass_returns_75_on_reschedule_error(main_mod, tmp_path):
+    """F6 regression: RescheduleError must surface as EXIT_RESCHEDULE (75), not 1.
+
+    Before F6, run_pass swallowed RescheduleError under the broad
+    ``except Exception`` and returned 1, hiding the reschedule signal from
+    any scheduler that distinguishes 75 from 1. The fix loads the applier
+    module, special-cases its RescheduleError, and returns
+    applier.EXIT_RESCHEDULE (75).
+    """
+    # Load the real applier so we use the real RescheduleError and EXIT_RESCHEDULE
+    import importlib.util
+
+    applier_path = (
+        REPO_ROOT
+        / "plugins"
+        / "dso"
+        / "scripts"
+        / "dso_reconciler"
+        / "applier.py"
+    )
+    spec = importlib.util.spec_from_file_location("applier_for_reschedule_test", applier_path)
+    applier_mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(applier_mod)
+
+    stub_reconcile = _make_stub_reconcile(
+        side_effect=applier_mod.RescheduleError(attempt_count=3, last_error="exhausted")
+    )
+
+    def _load_step(name):
+        if name == "reconcile":
+            return stub_reconcile
+        if name == "applier":
+            return applier_mod
+        return None
+
+    with patch.object(main_mod, "_try_load_step", side_effect=_load_step):
+        rc = main_mod.run_pass(repo_root=tmp_path)
+
+    assert rc == applier_mod.EXIT_RESCHEDULE, (
+        f"run_pass must return EXIT_RESCHEDULE (75) when reconcile_once raises "
+        f"RescheduleError; got {rc}"
+    )
+    assert rc == 75, f"EXIT_RESCHEDULE must equal 75; got {rc}"
+
+
 def test_main_returns_0_when_reconcile_succeeds(main_mod, tmp_path):
     """main() threads --repo-root through to run_pass and returns its exit code."""
     stub = _make_stub_reconcile()

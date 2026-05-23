@@ -182,6 +182,50 @@ def test_snapshot_field_keys_are_sorted(tmp_path, fetcher):
     )
 
 
+def test_fetcher_paginates_through_full_result_set(tmp_path, fetcher):
+    """F4 regression: fetch_snapshot must paginate to capture issues beyond page 1.
+
+    Before F4, fetch_snapshot called search_issues without start_at/max_results,
+    so AcliClient's default max_results=50 silently truncated snapshots to
+    50 issues and the next pass emitted spurious delete mutations for the rest.
+
+    The fix issues paginated calls with max_results=100; the loop terminates
+    when a page is shorter than the requested size. This test simulates
+    3 pages of 100, 100, 50 (250 total) and asserts every issue lands in the
+    snapshot file.
+    """
+
+    class _PaginatingClient:
+        def __init__(self, jira_url, user, api_token, **kwargs):
+            self.calls: list[dict] = []
+
+        def search_issues(self, jql: str, start_at: int = 0, max_results: int = 50):
+            self.calls.append({"start_at": start_at, "max_results": max_results})
+            # Total of 250 issues across three pages: 100, 100, 50
+            all_issues = [
+                {"key": f"DIG-{i}", "fields": {"summary": f"issue {i}"}}
+                for i in range(250)
+            ]
+            return all_issues[start_at : start_at + max_results]
+
+    mock_acli = types.ModuleType("acli_integration")
+    mock_acli.AcliClient = _PaginatingClient
+
+    with patch.object(fetcher, "_load_acli", return_value=mock_acli):
+        result_path = fetcher.fetch_snapshot(
+            "2026-05-22-pass-pagination", repo_root=tmp_path
+        )
+
+    parsed = json.loads(result_path.read_text())
+    assert len(parsed) == 250, (
+        f"Snapshot must contain all 250 issues across paginated pages; "
+        f"got {len(parsed)} (first-50 truncation regressed?)"
+    )
+    # Sanity: both the first and a late issue appear
+    assert "DIG-0" in parsed
+    assert "DIG-249" in parsed
+
+
 def test_search_issues_error_propagates(tmp_path, fetcher):
     """Errors raised by AcliClient.search_issues() propagate out of fetch_snapshot."""
 

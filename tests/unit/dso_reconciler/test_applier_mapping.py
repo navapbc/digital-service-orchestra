@@ -283,3 +283,28 @@ def test_no_partial_mapping_visible_during_write(applier, tmp_path):
     data = json.loads(mapping_path.read_text())
     assert isinstance(data, dict)
     assert data["tick-partial1"] == "DIG-200"
+
+
+def test_load_mapping_returns_empty_dict_for_non_dict_json(applier, tmp_path):
+    """F10 regression: _load_mapping must return {} when JSON parses to a non-dict.
+
+    Before F10, a corrupt write that produced a list / string / int parsed
+    cleanly via json.loads but downstream ``data[jira_key] = ...`` raised
+    TypeError. The fix guards with isinstance(data, dict) and returns {} so
+    subsequent writes overwrite the corrupt file with a clean dict.
+    """
+    mapping_path = tmp_path / "bridge_state" / "mapping.json"
+    mapping_path.parent.mkdir(parents=True, exist_ok=True)
+    # Write a JSON list (valid JSON, wrong shape)
+    mapping_path.write_text(json.dumps([1, 2, 3]))
+
+    loaded = applier._load_mapping(mapping_path)
+    assert loaded == {}, (
+        f"_load_mapping must return {{}} for non-dict JSON; got {loaded!r}"
+    )
+
+    # And a subsequent write must succeed cleanly, replacing the corrupt list
+    applier._write_mapping_atomic(mapping_path, "tick-recover", "DIG-RECOVER")
+    final = json.loads(mapping_path.read_text())
+    assert isinstance(final, dict)
+    assert final == {"tick-recover": "DIG-RECOVER"}

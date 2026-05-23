@@ -153,12 +153,21 @@ def _load_conflict_resolver():
 
 
 def _load_mapping(mapping_path: Path) -> dict:
-    """Load mapping.json, returning an empty dict if missing or corrupt."""
+    """Load mapping.json, returning an empty dict if missing or corrupt.
+
+    F10: when the file parses but contains a non-dict (e.g. a list or string
+    from a corrupt write), downstream code that calls ``data[jira_key] = ...``
+    would raise TypeError. Guard by returning ``{}`` for any non-dict value;
+    subsequent writes will overwrite the corrupt file with a clean dict.
+    """
     if mapping_path.exists():
         try:
-            return json.loads(mapping_path.read_text())
+            data = json.loads(mapping_path.read_text())
         except (json.JSONDecodeError, OSError):
             return {}
+        if not isinstance(data, dict):
+            return {}
+        return data
     return {}
 
 
@@ -328,7 +337,12 @@ def create_one(
                 import time as _time
                 import json as _json
                 _alert_root = (repo_root or Path(__file__).parents[4]) / ".tickets-tracker"
-                _ticket_dir = _alert_root / local_id
+                # F7: defensive guard — if local_id is falsy the alert directory
+                # would resolve to .tickets-tracker root and pollute it. Prefer
+                # the jira_key, falling back to a uuid so the alert always lands
+                # under a non-root subdirectory.
+                _alert_dir_key = local_id or jira_key or f"unknown-{_uuid.uuid4()}"
+                _ticket_dir = _alert_root / _alert_dir_key
                 _ticket_dir.mkdir(parents=True, exist_ok=True)
                 _ts = _time.time_ns()
                 _alert_uuid = str(_uuid.uuid4())
@@ -352,15 +366,35 @@ def create_one(
 
 
 def update_one(mutation: dict, client) -> dict:
-    """Update an existing Jira issue from the mutation's key and fields. Returns the client result."""
-    return _call_with_retry(
-        client.update_issue, mutation.get("key"), mutation.get("fields", {})
-    )
+    """Update an existing Jira issue from the mutation's key and fields.
+
+    F3: AcliClient.update_issue's real signature is ``update_issue(jira_key, **kwargs)``;
+    the field dict must be unpacked into keyword arguments rather than passed
+    positionally as a single dict — otherwise Jira receives a TypeError on every
+    real update call.
+    """
+    fields = mutation.get("fields", {})
+    if not isinstance(fields, dict):
+        fields = {}
+    return _call_with_retry(client.update_issue, mutation.get("key"), **fields)
 
 
 def delete_one(mutation: dict, client) -> None:
-    """Close a Jira issue by transitioning it to 'Closed'."""
-    _call_with_retry(client.transition_issue, mutation.get("key"), "Closed")
+    """Close a Jira issue by transitioning it to 'Closed'.
+
+    F5: tolerate 404 — when the differ emits a delete it's precisely because
+    the issue is no longer present in Jira; the subsequent transition_issue
+    call therefore targets a key that may have already been removed. A 404 on
+    the transition means the desired post-state ('issue gone') is already
+    satisfied, so we treat it as success rather than letting the JiraAPIError
+    unwind the entire pass. Other JiraAPIError statuses propagate normally.
+    """
+    try:
+        _call_with_retry(client.transition_issue, mutation.get("key"), "Closed")
+    except JiraAPIError as exc:
+        if getattr(exc, "status_code", None) == 404:
+            return  # already-gone is the goal of a delete mutation
+        raise
 
 
 def _handle_failed_write_result(write_result, pass_id: str) -> None:

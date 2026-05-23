@@ -72,7 +72,9 @@ class FakeAcliClient:
         self.creates.append(fields)
         return {"key": "PROJ-NEW"}
 
-    def update_issue(self, key: str, fields: dict) -> dict:
+    def update_issue(self, key: str, **fields) -> dict:
+        # F3: real signature is update_issue(jira_key, **kwargs); applier
+        # unpacks fields as kwargs, so the stub must accept them that way.
         self.updates.append((key, fields))
         return {"key": key}
 

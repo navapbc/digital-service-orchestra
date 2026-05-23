@@ -60,7 +60,24 @@ def fetch_snapshot(
         api_token=os.environ.get("JIRA_API_TOKEN", ""),
     )
 
-    issues = client.search_issues("project = DIG")
+    # F4: paginate through the full result set. AcliClient.search_issues
+    # defaults to max_results=50, so the un-paged call truncated snapshots to
+    # the first 50 issues — subsequent passes then emitted spurious "delete"
+    # mutations for every issue beyond 50. Loop until the returned page is
+    # shorter than the requested page size.
+    issues: list[dict] = []
+    page_size = 100
+    start_at = 0
+    while True:
+        page = client.search_issues(
+            "project = DIG", start_at=start_at, max_results=page_size
+        )
+        if not page:
+            break
+        issues.extend(page)
+        if len(page) < page_size:
+            break
+        start_at += page_size
 
     # Normalize: build {key -> fields} with deterministic field ordering
     snapshot: dict[str, dict] = {}

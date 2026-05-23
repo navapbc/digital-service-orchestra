@@ -71,31 +71,59 @@ def reconcile_once(pass_id: str, repo_root: Path | None = None) -> dict:
     curr_path = fetcher.fetch_snapshot(pass_id, repo_root)
     curr_snapshot: dict = json.loads(curr_path.read_text())
 
-    # Check structural invariants on the post-fetch snapshot, before diffing
-    violations = invariants_mod.check_at_most_one_dso_local_id(
+    # Check structural invariants on the post-fetch snapshot, before diffing.
+    # check_at_most_one_dso_local_id returns only the filed violations (capped
+    # at 5 per pass — see invariants._CAP_PER_PASS), so the prior log line's
+    # "violations" and "filed" numbers were identical by construction. F11: log
+    # filed count with the cap for clarity.
+    filed = invariants_mod.check_at_most_one_dso_local_id(
         curr_snapshot, repo_root=repo_root
     )
-    filed = violations  # check_at_most_one_dso_local_id returns only the filed violations
     print(  # noqa: T201
-        f"invariants: scanned={len(curr_snapshot)} violations={len(filed)} filed={len(filed)}"
+        f"invariants: scanned={len(curr_snapshot)} filed={len(filed)} (cap=5)"
     )
 
     # Compute mutations (pure function, no I/O)
     mutations = differ.compute_mutations(prev_snapshot, curr_snapshot)
 
-    # Apply mutations and write manifest
-    manifest_path = applier.apply(mutations, pass_id, repo_root)
-
-    # Record pass health metrics — per_type_counts from local ticket store
-    per_type_counts = health_mod.count_open_by_type(repo_root=repo_root)
-    health_mod.record_pass(
-        pass_id=pass_id,
-        pre_fsck=0,
-        post_fsck=0,
-        per_type_counts=per_type_counts,
-        local_mutation_count=len(mutations),
-        repo_root=repo_root,
-    )
+    # F8: wrap apply in try/except/finally so health.record_pass STILL fires
+    # on apply failure with degraded fields (local_mutation_count=0,
+    # failure_kind set). Without this wrapping, failed passes were invisible
+    # to monitoring.
+    manifest_path = None
+    apply_exc: BaseException | None = None
+    try:
+        manifest_path = applier.apply(mutations, pass_id, repo_root)
+    except BaseException as exc:  # noqa: BLE001 — must re-raise after recording
+        apply_exc = exc
+        raise
+    finally:
+        per_type_counts = health_mod.count_open_by_type(repo_root=repo_root)
+        if apply_exc is None:
+            health_mod.record_pass(
+                pass_id=pass_id,
+                pre_fsck=0,
+                post_fsck=0,
+                per_type_counts=per_type_counts,
+                local_mutation_count=len(mutations),
+                repo_root=repo_root,
+            )
+        else:
+            # Classify the failure: reschedule vs generic apply error.
+            failure_kind = (
+                "reschedule"
+                if type(apply_exc).__name__ == "RescheduleError"
+                else "apply_error"
+            )
+            health_mod.record_pass(
+                pass_id=pass_id,
+                pre_fsck=0,
+                post_fsck=0,
+                per_type_counts=per_type_counts,
+                local_mutation_count=0,
+                repo_root=repo_root,
+                failure_kind=failure_kind,
+            )
 
     # Advance prev snapshot so the next call converges to zero mutations
     shutil.copy2(curr_path, prev_path)

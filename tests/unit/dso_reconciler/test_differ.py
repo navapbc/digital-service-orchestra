@@ -177,3 +177,57 @@ def test_mutations_are_sorted_by_key(differ: ModuleType) -> None:
     result = differ.compute_mutations(prev, next_)
     keys = [m["key"] for m in result]
     assert keys == sorted(keys)
+
+
+def test_every_mutation_has_nonempty_local_id(differ: ModuleType) -> None:
+    """Regression for F2: every emitted mutation must carry a non-empty local_id.
+
+    Before F2, applier.create_one() read mutation['local_id'] but the differ
+    never set it, so JQL dedup collapsed to `labels = "dso-id:"` and mapping.json
+    was keyed under the empty string. The fix wires local_id into every
+    create / update / delete mutation: previous-snapshot dso_local_id property
+    when available, falling back to the jira_key.
+    """
+    prev = {
+        # Existing issue with an explicit dso_local_id property (update case)
+        "DSO-100": {
+            "summary": "old",
+            "dso_local_id": "loc-explicit-100",
+        },
+        # Existing issue WITHOUT a dso_local_id property (update case, fallback)
+        "DSO-101": {"summary": "before"},
+        # Issue that is going away (delete case)
+        "DSO-200": {"summary": "going", "dso_local_id": "loc-explicit-200"},
+    }
+    next_ = {
+        # Updated existing issues
+        "DSO-100": {"summary": "new", "dso_local_id": "loc-explicit-100"},
+        "DSO-101": {"summary": "after"},
+        # Brand-new issue (create case)
+        "DSO-300": {"summary": "brand new"},
+    }
+    mutations = differ.compute_mutations(prev, next_)
+
+    # Sanity: we should get 3 mutations (2 updates + 1 create + 1 delete = 4)
+    actions = sorted(m["action"] for m in mutations)
+    assert actions == ["create", "delete", "update", "update"], (
+        f"Expected exactly create+delete+update+update; got {actions}"
+    )
+
+    # Every mutation must carry a non-empty local_id
+    for mut in mutations:
+        assert "local_id" in mut, f"Mutation missing local_id: {mut}"
+        assert mut["local_id"], (
+            f"Mutation has empty local_id (would collapse JQL dedup): {mut}"
+        )
+
+    by_key = {m["key"]: m for m in mutations}
+
+    # Update with explicit dso_local_id → uses that property
+    assert by_key["DSO-100"]["local_id"] == "loc-explicit-100"
+    # Update with no dso_local_id property → falls back to jira_key
+    assert by_key["DSO-101"]["local_id"] == "DSO-101"
+    # Delete carries the prior-snapshot dso_local_id
+    assert by_key["DSO-200"]["local_id"] == "loc-explicit-200"
+    # Create falls back to jira_key (no local id allocated yet)
+    assert by_key["DSO-300"]["local_id"] == "DSO-300"
