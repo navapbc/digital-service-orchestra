@@ -2163,6 +2163,10 @@ grep -n "\[.*\]" .test-index || true
 - `ci-pr` mode: route through `merge-to-main.sh` to create a GitHub PR — do NOT perform a direct local merge
 - `local` mode (default): direct local merge with `DSO-Story-Merge` trailer via `merge-story-branch.sh`
 
+<HARD-GATE>
+**ci-pr merge enforcement (bug c7d1-8025)**: When `SPRINT_MODE=ci-pr`, you MUST use `merge-to-main.sh` with `STORY_PR_BASE=$SESSION_BRANCH` for EVERY story merge. NEVER use `merge-story-branch.sh` in ci-pr mode — it produces local direct merges with `DSO-Story-Merge` trailers that bypass the GitHub PR flow. Execute the bash block below VERBATIM — do NOT substitute merge-story-branch.sh for merge-to-main.sh regardless of how simple the merge appears.
+</HARD-GATE>
+
 ```bash
 # Conflict queue precondition (in-memory orchestrator check):
 if [[ ${#CONFLICT_QUEUE[@]} -gt 0 ]]; then
