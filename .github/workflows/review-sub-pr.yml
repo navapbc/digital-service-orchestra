@@ -6,6 +6,7 @@ name: review-sub-pr
       - 'session-**'
       - 'session_**'
       - 'bug-batch/**'
+      - 'worktree-**'
 jobs:
   llm-review-sub-pr:
     name: review-sub-pr
