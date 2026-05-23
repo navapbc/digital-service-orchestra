@@ -49,8 +49,35 @@ case "${MODE}" in
     echo "Post-heal fsck: exit 0 (PASS)"
     ;;
   mislabel)
-    echo "not yet implemented" >&2
-    exit 2
+    # Create a Jira issue + local ticket pair, then overwrite the Jira label
+    # with a wrong value (not matching dso-id:<uuid>)
+    LOCAL_ID="drift-mislabel-$(date +%s)"
+    ISSUE_KEY=$(jira_create_issue "DSO drift-injection mislabel $(date +%s)")
+    CLEANUP_KEYS+=("$ISSUE_KEY")
+    echo "Injected mislabel: ${ISSUE_KEY} (local: ${LOCAL_ID})"
+
+    # Set correct label first
+    jira_set_label "$ISSUE_KEY" "dso-id:${LOCAL_ID}"
+
+    # Now overwrite with wrong label (inject the drift)
+    jira_set_label "$ISSUE_KEY" "wrong-label-injected"
+
+    # Assert bridge-fsck non-zero before heal
+    python3 "${REPO_ROOT}/plugins/dso/scripts/ticket-bridge-fsck.py" && {
+        echo "FAIL: expected bridge-fsck non-zero exit before heal (mislabel)" >&2
+        exit 1
+    }
+    echo "Pre-heal fsck: non-zero exit (expected)"
+
+    # Run reconciler to heal
+    python3 -m dso_reconciler --repo-root "${REPO_ROOT}"
+
+    # Assert bridge-fsck exits 0
+    python3 "${REPO_ROOT}/plugins/dso/scripts/ticket-bridge-fsck.py" || {
+        echo "FAIL: bridge-fsck still non-zero after heal (mislabel)" >&2
+        exit 1
+    }
+    echo "Post-heal fsck: exit 0 (PASS)"
     ;;
   missing-prop)
     echo "not yet implemented" >&2
