@@ -8,6 +8,12 @@ from pathlib import Path
 
 _CAP_PER_PASS = 5
 
+# Canonical CLI shim path for the dso ticket tracker. Pulled out as a
+# named constant so the dso-specific contract is explicit. Consuming
+# projects override the *location* via repo_root; the shim path itself
+# is part of the documented bridge contract (see the bridge README).
+_TICKET_CLI_RELPATH = ".claude/scripts/dso"
+
 
 def _load_alert_store():
     """Load the sibling alert_store.py module.
@@ -43,7 +49,7 @@ def check_at_most_one_dso_local_id(
     if repo_root is None:
         repo_root = Path(__file__).parents[4]
     if ticket_cli is None:
-        ticket_cli = str(Path(__file__).parents[4] / ".claude/scripts/dso")
+        ticket_cli = str(Path(__file__).parents[4] / _TICKET_CLI_RELPATH)
 
     alert_store = _load_alert_store()
     violations_filed = []

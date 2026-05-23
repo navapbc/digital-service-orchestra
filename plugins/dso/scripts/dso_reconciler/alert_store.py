@@ -2,15 +2,32 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import tempfile
 import time
 from pathlib import Path
 
+# fcntl is POSIX-only; CI runs on Linux/macOS so we guard the import. On
+# Windows (unsupported by the bridge CI) we fall back to a no-op lock — the
+# caller still gets line-buffered append() semantics, just without the
+# cross-process serialization guarantee.
+if sys.platform != "win32":
+    import fcntl
+else:  # pragma: no cover - Windows fallback, not exercised by CI
+    fcntl = None  # type: ignore[assignment]
+
 _24H_NS = 24 * 3600 * 1_000_000_000
+
+# Canonical state-directory layout for the dso reconciler. The two-level
+# bridge_state/<feature> structure is part of the documented bridge contract
+# (see the bridge README). Consuming projects override the *location* by
+# passing a different repo_root; the layout itself is fixed.
+_STATE_SUBDIR = "bridge_state"
+_ALERTS_SUBDIR = "bridge_alerts"
 
 
 def _store_dir(repo_root: Path) -> Path:
-    return repo_root / "bridge_state" / "bridge_alerts"
+    return repo_root / _STATE_SUBDIR / _ALERTS_SUBDIR
 
 
 def _today_file(repo_root: Path) -> Path:
@@ -21,12 +38,25 @@ def _today_file(repo_root: Path) -> Path:
 
 
 def append(record: dict, repo_root: Path) -> None:
-    """Append a record to today's JSONL alert log."""
+    """Append a record to today's JSONL alert log.
+
+    Concurrent writers from multiple reconciler instances serialize on an
+    advisory ``fcntl.LOCK_EX`` flock so line boundaries cannot interleave.
+    The lock is released automatically when the file descriptor closes at
+    the end of the ``with`` block (POSIX semantics).
+    """
     store_dir = _store_dir(repo_root)
     store_dir.mkdir(parents=True, exist_ok=True)
     today = _today_file(repo_root)
     with today.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(record, ensure_ascii=False) + "\n")
+        if fcntl is not None:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+        try:
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+            f.flush()
+        finally:
+            if fcntl is not None:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
 
 def is_deduped(key: str, repo_root: Path, window_ns: int = _24H_NS) -> bool:
