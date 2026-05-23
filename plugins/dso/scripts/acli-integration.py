@@ -713,18 +713,32 @@ class AcliClient:
         return self._myself_cache
 
     def _direct_rest_put(self, path: str, data: Any) -> None:
-        """PUT JSON data to a Jira REST path using stored credentials.
+        """PUT JSON data to a Jira issue-properties REST path using stored credentials.
 
-        Follows the same urllib pattern as get_myself().
+        Wraps the body as ``{"value": data}`` per the Jira issue-properties
+        API contract (used by set_issue_property). Do NOT use this for any
+        other PUT endpoint (e.g. /rest/api/3/issue/{key} updates) — use
+        _direct_rest_put_raw() instead so the body is sent unwrapped.
+
         Spike confirmed ACLI has no issue properties subcommand.
+        Raises urllib.error.HTTPError on non-2xx response.
+        """
+        self._direct_rest_put_raw(path, {"value": data})
+
+    def _direct_rest_put_raw(self, path: str, body: Any) -> None:
+        """PUT JSON body to a Jira REST path verbatim (no wrapping).
+
+        Used for endpoints that take their own JSON shape — e.g.
+        /rest/api/3/issue/{key} with ``{"update": {"labels": [...]}}``.
+        Issue-property writes should go through _direct_rest_put().
         Raises urllib.error.HTTPError on non-2xx response.
         """
         url = f"{self.jira_url.rstrip('/')}{path}"
         creds = base64.b64encode(f"{self.user}:{self.api_token}".encode()).decode()
-        body = json.dumps({"value": data}, ensure_ascii=False).encode("utf-8")
+        data = json.dumps(body, ensure_ascii=False).encode("utf-8")
         req = urllib.request.Request(
             url,
-            data=body,
+            data=data,
             method="PUT",
             headers={
                 "Authorization": f"Basic {creds}",
@@ -742,6 +756,96 @@ class AcliClient:
         """
         path = f"/rest/api/3/issue/{jira_key}/properties/{property_key}"
         self._direct_rest_put(path, value)
+
+    def _direct_rest_get(self, path: str) -> Any:
+        """GET JSON data from a Jira REST path using stored credentials.
+
+        Follows the same urllib pattern as _direct_rest_put().
+        Raises urllib.error.HTTPError on non-2xx response.
+
+        Returns whatever json.loads decodes from the response body. Most Jira
+        endpoints return a JSON object, but a few (e.g. issue-properties value
+        when set to a scalar) return list/str/int/None. Callers that require a
+        dict shape must validate explicitly.
+        """
+        url = f"{self.jira_url.rstrip('/')}{path}"
+        creds = base64.b64encode(f"{self.user}:{self.api_token}".encode()).decode()
+        req = urllib.request.Request(
+            url,
+            method="GET",
+            headers={
+                "Authorization": f"Basic {creds}",
+                "Accept": "application/json",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+
+    def get_issue_property(self, jira_key: str, property_key: str) -> Any:
+        """Get a Jira issue property via REST GET.
+
+        Calls /rest/api/3/issue/{jira_key}/properties/{property_key} and returns
+        the 'value' field from the response per the Jira issue properties API contract.
+
+        Raises:
+            urllib.error.HTTPError: from the underlying _direct_rest_get. Note
+                that Jira returns 404 when the property does NOT exist on the
+                issue — that case surfaces as HTTPError, NOT as KeyError below.
+                Callers that need to handle "property not yet set" should catch
+                HTTPError and inspect ``.code``.
+            KeyError: only when the response IS a 2xx but the body shape is
+                malformed (response is not a dict, or it lacks the 'value'
+                field). This is a transport/proxy anomaly, NOT the
+                missing-property signal. The exception message includes a
+                truncated repr of the response for diagnostics; long bodies
+                are clipped to 200 chars to avoid leaking credentials or PII
+                from upstream error pages.
+        """
+        path = f"/rest/api/3/issue/{jira_key}/properties/{property_key}"
+        response = self._direct_rest_get(path)
+        if not isinstance(response, dict) or "value" not in response:
+            # Clip the response repr so corporate-gateway error bodies that
+            # may include auth headers or session cookies cannot leak in full
+            # to logs / StepResult.details.
+            _repr = repr(response)
+            if len(_repr) > 200:
+                _repr = _repr[:200] + f"...(truncated, {len(_repr)} chars total)"
+            raise KeyError(
+                f"Jira issue-property response for {jira_key}/{property_key} "
+                f"missing 'value' field: {_repr}"
+            )
+        return response["value"]
+
+    def add_label(self, jira_key: str, label: str) -> None:
+        """Add a single label to a Jira issue via ACLI workitem edit.
+
+        Uses ``jira workitem edit --key KEY --label LABEL`` to append a label
+        without overwriting existing labels. ACLI's ``--label`` flag performs
+        an additive set operation on the issue's label list.
+        """
+        cmd = [
+            "jira",
+            "workitem",
+            "edit",
+            "--key",
+            jira_key,
+            "--label",
+            label,
+        ]
+        self._run(cmd)
+
+    def set_entity_property(self, issue_key: str, prop_name: str, value: Any) -> None:
+        """Alias for set_issue_property — sets a Jira entity property."""
+        return self.set_issue_property(issue_key, prop_name, value)
+
+    def get_entity_property(self, issue_key: str, prop_name: str) -> Any:
+        """Alias for get_issue_property — retrieves a Jira entity property.
+
+        Inherits the same Raises contract as get_issue_property:
+        urllib.error.HTTPError on transport/4xx (including 404 for absent
+        properties), KeyError only when the 2xx body shape is malformed.
+        """
+        return self.get_issue_property(issue_key, prop_name)
 
     def unassign_issue(self, jira_key: str) -> None:
         """Explicitly unassign a Jira issue via REST v3 PUT.
