@@ -4,8 +4,6 @@ from __future__ import annotations
 import json
 import time
 
-import pytest
-
 from plugins.dso.scripts.dso_reconciler import alert_store
 
 

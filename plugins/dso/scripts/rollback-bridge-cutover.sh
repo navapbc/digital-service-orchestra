@@ -58,7 +58,7 @@ echo "STEP 2: restoring cursor snapshot from bridge_state/bootstrap/"
 _bootstrap_dir="$REPO_ROOT/bridge_state/bootstrap"
 _snapshot_src=""
 if [[ -d "$_bootstrap_dir" ]]; then
-    _snapshot_src="$(find "$_bootstrap_dir" -name "*.cursor-snapshot.json" 2>/dev/null | sort | tail -1 || true)"
+    _snapshot_src="$(find "$_bootstrap_dir" -name "cursor-snapshot.json" 2>/dev/null | sort | tail -1 || true)"
 fi
 
 if [[ -z "$_snapshot_src" ]]; then

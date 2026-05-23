@@ -157,7 +157,7 @@ def test_rebase_retry_abort_due_to_drift(concurrency, tmp_git_repo: Path) -> Non
         return "write_result"
 
     with patch.object(
-        importlib.import_module("_concurrency") if False else concurrency,
+        concurrency,
         "snapshot_head",
         side_effect=fake_snapshot_head,
     ):

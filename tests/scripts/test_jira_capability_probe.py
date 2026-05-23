@@ -42,7 +42,7 @@ def _make_client_mock(
         property_value = uuid_val
 
     client = mock.MagicMock()
-    client.create_issue.return_value = issue_key
+    client.create_issue.return_value = {"key": issue_key}
     client.search_issues.return_value = search_results
     client.get_issue_property.return_value = property_value
     client.set_issue_property.return_value = None

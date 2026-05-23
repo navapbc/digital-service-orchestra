@@ -66,6 +66,7 @@ def main() -> None:
         jira_url=jira_url,
         user=jira_user,
         api_token=jira_api_token,
+        jira_project="DIG",
     )
 
     issue_key: str | None = None
@@ -73,11 +74,13 @@ def main() -> None:
 
     try:
         # STEP 1: Create issue
-        issue_key = client.create_issue(
-            project="DIG",
-            summary=f"DSO capability probe {probe_uuid}",
-            issuetype="Task",
+        result = client.create_issue(
+            {
+                "title": f"DSO capability probe {probe_uuid}",
+                "ticket_type": "task",
+            }
         )
+        issue_key = result.get("key") or result.get("id")
         print("PROBE_PASS step=STEP_CREATE")
 
         # STEP 2: Add label

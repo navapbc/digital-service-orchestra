@@ -59,6 +59,7 @@ def patch_bug_filed(key: str, bug_ticket_id: str, repo_root: Path) -> None:
         patched = False
         try:
             for line in jf.read_text(encoding="utf-8").splitlines():
+                rec = None
                 try:
                     rec = json.loads(line)
                     if not patched and rec.get("key") == key and not rec.get("resolved"):

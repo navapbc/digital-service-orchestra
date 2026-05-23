@@ -12,7 +12,6 @@ Covers:
 from __future__ import annotations
 
 import importlib.util
-import json
 import sys
 import types
 from pathlib import Path

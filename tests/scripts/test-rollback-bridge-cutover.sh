@@ -22,7 +22,7 @@ SCRIPT="$REPO_ROOT/plugins/dso/scripts/rollback-bridge-cutover.sh"
 
 # Shared cleanup
 _TMP_DIRS=()
-trap 'rm -rf "${_TMP_DIRS[@]}"' EXIT
+trap '[[ ${#_TMP_DIRS[@]} -gt 0 ]] && rm -rf "${_TMP_DIRS[@]}"' EXIT
 
 echo "=== test-rollback-bridge-cutover.sh ==="
 

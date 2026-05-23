@@ -108,12 +108,9 @@ def _apply_one(anomaly: dict, repo_root: Path) -> dict:
     ``{"anomaly_id": str, "status": "ok"|"error", "message": str}``.
     """
     anomaly_id = anomaly.get("ticket_id") or anomaly.get("jira_key", "unknown")
-    try:
-        # Placeholder: real implementations will dispatch a remediation action
-        # based on anomaly["proposed_remediation"] and anomaly["side"].
-        return {"anomaly_id": anomaly_id, "status": "ok", "message": "applied"}
-    except Exception as exc:  # noqa: BLE001
-        return {"anomaly_id": anomaly_id, "status": "error", "message": str(exc)}
+    # Placeholder: real implementations will dispatch a remediation action
+    # based on anomaly["proposed_remediation"] and anomaly["side"].
+    return {"anomaly_id": anomaly_id, "status": "ok", "message": "applied"}
 
 
 def cmd_apply(args: argparse.Namespace, repo_root: Path) -> int:

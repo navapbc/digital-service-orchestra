@@ -75,9 +75,14 @@ def resolve_set_valued(
     provenance_record: Optional[Any],
 ) -> list[Any]:
     """Union of both sets; updates provenance_record with a FIFO cap of 50."""
-    local: set[Any] = set(local_set) if local_set else set()
-    remote: set[Any] = set(remote_set) if remote_set else set()
-    merged = list(local | remote)
+    seen: set[Any] = set()
+    merged: list[Any] = []
+    local_list = list(local_set) if local_set else []
+    remote_list = list(remote_set) if remote_set else []
+    for item in local_list + remote_list:
+        if item not in seen:
+            merged.append(item)
+            seen.add(item)
 
     if provenance_record is not None and isinstance(provenance_record, list):
         for item in merged:

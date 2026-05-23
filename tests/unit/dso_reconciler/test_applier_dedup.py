@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import importlib.util
 import sys
-import types
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -128,7 +127,7 @@ def test_budget_guard_does_not_defer_below_200(applier):
     deferred: list = []
     mutation = _make_create_mutation("tick-0004")
 
-    result = applier.create_one(mutation, client, rest_calls=199, deferred_creates=deferred)
+    applier.create_one(mutation, client, rest_calls=199, deferred_creates=deferred)
 
     assert deferred == [], "Mutation must NOT be deferred when rest_calls < 200"
     client.search_issues.assert_called_once()

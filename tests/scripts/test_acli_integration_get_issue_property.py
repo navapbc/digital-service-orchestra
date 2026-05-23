@@ -1,8 +1,4 @@
-"""RED tests for AcliClient.get_issue_property and _direct_rest_get in acli-integration.py.
-
-These tests are RED — they test functionality that does not yet exist.
-All test functions must FAIL with AttributeError before get_issue_property and
-_direct_rest_get are implemented in AcliClient.
+"""Tests for AcliClient.get_issue_property and _direct_rest_get in acli-integration.py.
 
 Contract:
   - AcliClient.get_issue_property(jira_key, property_key) sends a GET request to
@@ -13,7 +9,6 @@ Contract:
     returns the resulting dict.
 
 Test: python3 -m pytest tests/scripts/test_acli_integration_get_issue_property.py
-All tests must return non-zero (AttributeError) until the methods are implemented.
 """
 
 from __future__ import annotations
