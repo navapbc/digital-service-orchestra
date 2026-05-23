@@ -743,6 +743,61 @@ class AcliClient:
         path = f"/rest/api/3/issue/{jira_key}/properties/{property_key}"
         self._direct_rest_put(path, value)
 
+    def _direct_rest_get(self, path: str) -> dict:
+        """GET JSON data from a Jira REST path using stored credentials.
+
+        Follows the same urllib pattern as _direct_rest_put().
+        Raises urllib.error.HTTPError on non-2xx response.
+        """
+        url = f"{self.jira_url.rstrip('/')}{path}"
+        creds = base64.b64encode(f"{self.user}:{self.api_token}".encode()).decode()
+        req = urllib.request.Request(
+            url,
+            method="GET",
+            headers={
+                "Authorization": f"Basic {creds}",
+                "Accept": "application/json",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+
+    def get_issue_property(self, jira_key: str, property_key: str) -> Any:
+        """Get a Jira issue property via REST GET.
+
+        Calls /rest/api/3/issue/{jira_key}/properties/{property_key} and returns
+        the 'value' field from the response per the Jira issue properties API contract.
+        """
+        path = f"/rest/api/3/issue/{jira_key}/properties/{property_key}"
+        response = self._direct_rest_get(path)
+        return response["value"]
+
+    def add_label(self, jira_key: str, label: str) -> None:
+        """Add a single label to a Jira issue via ACLI workitem edit.
+
+        Uses ``jira workitem edit --key KEY --label LABEL`` to append a label
+        without overwriting existing labels. ACLI's ``--label`` flag performs
+        an additive set operation on the issue's label list.
+        """
+        cmd = [
+            "jira",
+            "workitem",
+            "edit",
+            "--key",
+            jira_key,
+            "--label",
+            label,
+        ]
+        self._run(cmd)
+
+    def set_entity_property(self, issue_key: str, prop_name: str, value: Any) -> None:
+        """Alias for set_issue_property — sets a Jira entity property."""
+        return self.set_issue_property(issue_key, prop_name, value)
+
+    def get_entity_property(self, issue_key: str, prop_name: str) -> Any:
+        """Alias for get_issue_property — retrieves a Jira entity property."""
+        return self.get_issue_property(issue_key, prop_name)
+
     def unassign_issue(self, jira_key: str) -> None:
         """Explicitly unassign a Jira issue via REST v3 PUT.
 
