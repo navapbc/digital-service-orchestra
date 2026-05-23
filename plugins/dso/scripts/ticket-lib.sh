@@ -1511,8 +1511,13 @@ resolve_ticket_id() {
         # called $(basename ...) per directory across ~20K dirs, costing
         # ~80s of fork/exec overhead at scale.  The Python helper does
         # all directory iteration and substring comparison in one process.
-        # The mechanical param-expansion fallback below preserves the bash
-        # code path if the helper is unavailable.
+        # The bash param-expansion fallback below runs ONLY when the
+        # helper is unavailable (file missing OR python3 absent). Helper
+        # *failures* (exit non-zero) are reported and propagated as fatal
+        # — this matches the helper's documented contract ("HARD failure,
+        # not no-match"). Strict-error semantics intentionally differ from
+        # ticket-lib-api.sh _ticketlib_resolve_short_id (best-effort);
+        # the asymmetry is documented in both files.
         local _8hex_matches=()
         local _resolver_short
         _resolver_short="$(dirname "${BASH_SOURCE[0]}")/ticket-alias-resolve.py"
@@ -1610,7 +1615,9 @@ resolve_ticket_id() {
     # ── Step 5: Unique prefix (>= 4 chars) ───────────────────────────────────
     if [ "${#input}" -ge 4 ]; then
         # Bug 19a3-03ca: delegate to ticket-alias-resolve.py --mode=prefix
-        # (see Step 2 for performance rationale).  Bash fallback preserved.
+        # (see Step 2 for performance rationale). Bash fallback runs ONLY
+        # when the helper is unavailable; helper failures are propagated
+        # as fatal per the helper's documented contract (see Step 2 above).
         local _prefix_matches=()
         local _resolver_pref
         _resolver_pref="$(dirname "${BASH_SOURCE[0]}")/ticket-alias-resolve.py"
