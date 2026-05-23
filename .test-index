@@ -528,4 +528,4 @@ plugins/dso/scripts/lib/reachability.sh:tests/scripts/test-reachability-helper.s
 plugins/dso/scripts/telemetry/telemetry_emit.py:tests/scripts/test-telemetry-emit.sh
 plugins/dso/scripts/telemetry/aws-setup-bucket.sh:tests/scripts/test-aws-setup-bucket.sh
 plugins/dso/scripts/telemetry/telemetry-emit.sh:tests/scripts/test-telemetry-emit.sh
-plugins/dso/scripts/telemetry/aws-setup-lambda.sh: tests/scripts/test-aws-setup-lambda.sh [t_happy_path_creates_all_resources]
+plugins/dso/scripts/telemetry/aws-setup-lambda.sh:tests/scripts/test-aws-setup-lambda.sh
