@@ -524,3 +524,7 @@ plugins/dso/scripts/llm-review-dispatch-or-skip.sh:tests/scripts/test-llm-review
 tests/scripts/test-infer-detected-by.sh:tests/scripts/test-infer-detected-by.sh [test_mutation_auto_bug_maps_to_tests]
 tests/scripts/test-bootstrap-calibration-tickets.sh:tests/scripts/test-bootstrap-calibration-tickets.sh
 plugins/dso/scripts/lib/reachability.sh:tests/scripts/test-reachability-helper.sh
+plugins/dso/scripts/dso_reconciler/conflict_resolver.py:tests/unit/dso_reconciler/test_conflict_resolver.py,tests/unit/dso_reconciler/test_conflict_resolver_cap.py,tests/unit/dso_reconciler/test_conflict_resolver_divergence.py,tests/unit/dso_reconciler/test_conflict_resolver_fitness.py
+plugins/dso/scripts/dso_reconciler/alert_store.py:tests/unit/dso_reconciler/test_alert_store_dedup.py
+plugins/dso/scripts/dso_reconciler/invariants.py:tests/unit/dso_reconciler/test_invariants.py
+plugins/dso/scripts/dso_reconciler/health.py:tests/unit/dso_reconciler/test_health.py,tests/unit/dso_reconciler/test_health_baseline.py,tests/unit/dso_reconciler/test_health_schema.py
