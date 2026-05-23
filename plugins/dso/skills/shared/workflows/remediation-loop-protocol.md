@@ -111,6 +111,24 @@ DELTA OUTPUT:
 
 All fields are required. `items_added`, `items_removed`, `items_modified`, and `findings_resolved` must be non-negative integers. `findings_remaining` drives the termination token decision: if `findings_remaining == 0`, the loop terminates successfully; if `findings_remaining > 0` and `cycle == MAX_CYCLES`, `REPLAN_ESCALATE` is emitted.
 
+### Schema Preservation — approach-proposer
+
+When the `approach-proposer` agent runs in delta mode (cycle >= 2), its output MUST follow these schema-preservation rules. Delta mode is a partial-update of the prior cycle's structured output, not a full regeneration.
+
+1. **Preserved top-level keys (verbatim when not named in any finding).** The following top-level keys MUST appear in the delta output unchanged from the prior cycle whenever no finding names them as needing modification:
+   - `proposals`
+   - `distinctness_summary`
+   - `complexity_gate_summary`
+   - `generation_notes`
+
+   When a finding does name one of these keys, only the parts of that key explicitly addressed by the finding are modified; all other parts are preserved verbatim.
+
+2. **Preserve-by-omission rule.** Proposals not named in any finding MUST appear unchanged in the delta output. Partial-update is only valid for proposals explicitly named in a finding — omitting a proposal that no finding addressed is a protocol violation. Equivalently: a proposal that is not named in any finding is omitted from the diff but preserved unchanged in the merged output.
+
+3. **Distinctness-gate preservation.** The four-axis distinctness invariant MUST still hold across the delta output, evaluated over the union of modified proposals and preserved proposals. The agent MUST re-check distinctness on the merged set, not only on the modified subset. If the merged set violates the four-axis distinctness invariant, the agent MUST surface a finding rather than emitting an invalid delta.
+
+4. **Complexity-gate preservation.** Each preserved proposal's prior complexity-gate outcomes are carried forward verbatim — the agent MUST NOT re-run the gates on unchanged proposals. Only proposals being modified in the current cycle re-run the complexity gates, and only their gate outcomes are refreshed in `complexity_gate_summary`. Preserved proposals' gate outcomes remain bit-identical to the prior cycle.
+
 ---
 
 ## Section 6: Upstream Enum
