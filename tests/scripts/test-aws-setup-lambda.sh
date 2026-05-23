@@ -13,7 +13,7 @@ set -euo pipefail
 #   2.  t_rerun_is_no_op                                         — per-ensure idempotency; zero mutating calls on re-run
 #   3.  t_missing_iam_aborts_before_create                       — IAM deny → exit 5; stderr names denied action; zero create-function
 #   4.  t_sts_get_caller_identity_failure_aborts_before_create   — STS fail → exit 4; zero create-function
-#   5.  t_missing_python_runtime_aborts_before_create            — no python3.13 runtime → exit non-zero; zero create-function
+#   5.  t_lambda_runtime_constant_is_supported                   — LAMBDA_RUNTIME constant matches known-supported set (bug 1a6e — no `lambda list-runtimes` API exists)
 #   6.  t_missing_bucket_name_in_config_aborts_with_exit_6       — bucket_name absent → exit 6
 #   7.  t_iam_policy_scoped_to_bucket_arn_only                   — no s3:*, no Resource:"*"; contains s3:PutObject + bucket ARN
 #   8.  t_iam_role_propagation_retry_with_backoff                — first create-function fails, retries; 3 attempts asserted; DSO_SLEEP_CMD=/bin/true
@@ -67,7 +67,7 @@ FUNCTION_URL="https://abcdef1234567890.lambda-url.us-east-1.on.aws/"
 #   CONFIG_WRITE_LOG        — file path for write_config_key ordering assertions
 #   STUB_STS_FAIL           — 1 → sts get-caller-identity exits 1
 #   STUB_IAM_DENY           — 1 → simulate-principal-policy returns implicitDeny
-#   STUB_NO_PYTHON_RUNTIME  — 1 → lambda list-runtimes omits python3.13
+#   STUB_NO_PYTHON_RUNTIME  — deprecated (bug 1a6e — `lambda list-runtimes` API does not exist); preserved as harmless no-op env var to keep CI parity
 #   STUB_LAMBDA_EXISTS      — 1 → lambda get-function exits 0 (idempotency)
 #   STUB_LOG_GROUP_EXISTS   — 1 → logs describe-log-groups returns existing group
 #   STUB_FN_URL_EXISTS      — 1 → lambda get-function-url-config exits 0
@@ -155,14 +155,9 @@ if [[ "$sub" == "iam" && "$sub2" == "wait" ]]; then
 fi
 
 # ── Lambda ─────────────────────────────────────────────────────────────────────
-if [[ "$sub" == "lambda" && "$sub2" == "list-runtimes" ]]; then
-    if [[ "$STUB_NO_PYTHON_RUNTIME" == "1" ]]; then
-        echo '{"Runtimes":[]}'
-    else
-        echo '{"Runtimes":[{"Id":"python3.13","RuntimeVersionConfig":{"RuntimeVersionArn":"arn:aws:lambda::runtime:python3.13"}}]}'
-    fi
-    exit 0
-fi
+# Note: preflight_python_runtime is now a local-only check against the known
+# supported runtimes — no `lambda list-runtimes` API exists. The stub block
+# previously here has been removed (bug 1a6e fix).
 
 if [[ "$sub" == "lambda" && "$sub2" == "get-function" ]]; then
     if [[ "$STUB_LAMBDA_EXISTS" == "1" ]]; then
@@ -429,29 +424,22 @@ t_sts_get_caller_identity_failure_aborts_before_create() {
     assert_eq "t_sts_fail: zero create-function calls" "0" "$create_fn"
 }
 
-# ── Test 5: Missing python3.13 runtime → exit non-zero; zero create-function ──
-t_missing_python_runtime_aborts_before_create() {
-    local mock_bin call_log conf_file
-    mock_bin="$(make_tmpdir)"
-    call_log="$(make_tmpdir)/calls.log"
-    conf_file="$(make_tmpdir)/dso-config.conf"
-    touch "$call_log" "$conf_file"
-    write_aws_stub "$mock_bin"
-    write_read_config_stub "$mock_bin"
-
-    local exit_code=0
-    STUB_NO_PYTHON_RUNTIME=1 \
-        DSO_AWS_CMD="$mock_bin/aws" \
-        DSO_READ_CONFIG_CMD="$mock_bin/read-config-stub.sh" \
-        DSO_CONFIG_FILE="$conf_file" \
-        CALL_LOG="$call_log" \
-        bash "$SCRIPT" >/dev/null 2>&1 || exit_code=$?
-
-    assert_ne "t_no_runtime: exits non-zero" "0" "$exit_code"
-
-    local create_fn
-    create_fn=$(grep -c "lambda create-function " "$call_log" 2>/dev/null || echo "0")
-    assert_eq "t_no_runtime: zero create-function calls" "0" "$create_fn"
+# ── Test 5: LAMBDA_RUNTIME constant in script is in the known-supported set ──
+# Replaces the previous t_missing_python_runtime_aborts_before_create test,
+# which relied on the fictitious `aws lambda list-runtimes` API (bug 1a6e).
+# The preflight is now a local-only check against a hardcoded supported set;
+# we verify the script's LAMBDA_RUNTIME constant is in that set.
+t_lambda_runtime_constant_is_supported() {
+    local runtime supported
+    runtime=$(grep -E '^readonly LAMBDA_RUNTIME=' "$SCRIPT" | sed -E 's/.*="([^"]+)".*/\1/')
+    supported=$(grep -E 'local known_supported=' "$SCRIPT" | sed -E 's/.*=\(([^)]+)\).*/\1/')
+    assert_eq "t_lambda_runtime: configured runtime is non-empty" "0" "$([ -n "$runtime" ] && echo 0 || echo 1)"
+    if echo "$supported" | grep -qw "$runtime"; then
+        echo "  pass: LAMBDA_RUNTIME='$runtime' present in known_supported set"
+    else
+        echo "  FAIL: LAMBDA_RUNTIME='$runtime' NOT in known_supported set '$supported'"
+        return 1
+    fi
 }
 
 # ── Test 6: Missing bucket_name in config → exit 6 ───────────────────────────
@@ -559,11 +547,6 @@ fi
 
 if [[ "\$sub" == "iam" ]]; then
     echo '{"Role":{"Arn":"arn:aws:iam::123456789012:role/dso-telemetry-lambda-role","RoleName":"dso-telemetry-lambda-role"}}'
-    exit 0
-fi
-
-if [[ "\$sub" == "lambda" && "\$sub2" == "list-runtimes" ]]; then
-    echo '{"Runtimes":[{"Id":"python3.13"}]}'
     exit 0
 fi
 
@@ -899,7 +882,7 @@ t_happy_path_creates_all_resources
 t_rerun_is_no_op
 t_missing_iam_aborts_before_create
 t_sts_get_caller_identity_failure_aborts_before_create
-t_missing_python_runtime_aborts_before_create
+t_lambda_runtime_constant_is_supported
 t_missing_bucket_name_in_config_aborts_with_exit_6
 t_iam_policy_scoped_to_bucket_arn_only
 t_iam_role_propagation_retry_with_backoff

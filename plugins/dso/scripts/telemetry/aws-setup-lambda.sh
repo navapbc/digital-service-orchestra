@@ -177,35 +177,23 @@ except Exception:
     fi
 }
 
-# ── Preflight: verify python3.13 runtime is available ────────────────────────
+# ── Preflight: verify configured Lambda runtime is in the supported set ──────
+# AWS Lambda has no `list-runtimes` API; runtime support is documented, not
+# API-queryable. We sanity-check the configured LAMBDA_RUNTIME against a known
+# set. If AWS later deprecates a runtime in the set, the downstream
+# create-function call surfaces the actual error with the AWS-native message.
 preflight_python_runtime() {
-    local raw exit_code=0
-    raw="$(_aws_lambda list-runtimes --output json 2>&1)" || exit_code=$?
-    if [[ $exit_code -ne 0 ]]; then
-        echo "ERROR: 'aws lambda list-runtimes' failed." >&2
-        echo "aws output: ${raw}" >&2
-        exit 1
-    fi
-
-    local has_python
-    has_python="$(echo "$raw" | python3 -c "
-import sys, json
-try:
-    data = json.loads(sys.stdin.read())
-    runtimes = data.get('Runtimes', [])
-    for r in runtimes:
-        if r.get('Id', '') == 'python3.13':
-            print('1')
-            sys.exit(0)
-    print('0')
-except Exception:
-    print('0')
-" 2>/dev/null || echo "0")"
-
-    if [[ "$has_python" != "1" ]]; then
-        echo "ERROR: python3.13 runtime is not available in this region." >&2
-        exit 1
-    fi
+    local known_supported=(python3.9 python3.10 python3.11 python3.12 python3.13)
+    local rt
+    for rt in "${known_supported[@]}"; do
+        if [[ "$LAMBDA_RUNTIME" == "$rt" ]]; then
+            return 0
+        fi
+    done
+    echo "ERROR: configured LAMBDA_RUNTIME='${LAMBDA_RUNTIME}' is not in the known-supported set." >&2
+    echo "Supported: ${known_supported[*]}" >&2
+    echo "Update LAMBDA_RUNTIME, or add the new runtime to known_supported after verifying against AWS Lambda documentation." >&2
+    exit 1
 }
 
 # ── Config fail-fast: required keys ──────────────────────────────────────────
