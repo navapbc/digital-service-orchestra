@@ -65,7 +65,7 @@ _dso_pv_entry_check "sprint" "implementation-plan" "${primary_ticket_id:-}" || t
 Flow: P1 (Init) → Preplanning Gate
   → [0 children/ambiguous] /dso:preplanning → P2
   → [children exist & clear] P2 (Task Analysis)
-  P2 → [stories without impl tasks?] layer-stratify → parallel dispatch (≤3/layer) → STATUS:complete→tasks created | STATUS:blocked→ask user → Re-gather → P3
+  P2 → [stories without impl tasks?] layer-stratify → sequential Skill-tool dispatch (per-layer) → STATUS:complete→tasks created | STATUS:blocked→ask user → Re-gather → P3
   P2 → [all have impl tasks] P3 (Batch Preparation)
   P3 → [execute] P4 (Sub-Agent Launch) → P5 (Post-Batch)
   P5 → [context >=70%] /compact → P3 (proactive, safe — all work committed)
@@ -856,7 +856,7 @@ b. For each story in the layer, invoke `/dso:implementation-plan` via Skill tool
    ```
    Skill("dso:implementation-plan", args="<story-id>")
    ```
-   **HARD GATE — SUBSTITUTION PROHIBITED (bug dea8-3ca9)**: NEVER dispatch `dso:plan-review` or any other named sub-agent via the Task tool to perform story decomposition. NEVER run implementation-plan steps inline in the orchestrator context (no contextual discovery, no proposal drafting, no `ticket create task` calls executed here). The ONLY valid mechanism for decomposing a story into tasks is the `Skill("dso:implementation-plan", args="<story-id>")` invocation shown above. Any Task tool dispatch targeting a planning or review agent in place of this Skill invocation is a critical routing error — it bypasses the tag guards, re-invocation guards, complexity gates, cross-cutting detection, distinctness validation, and approach-decision-maker dispatch that the canonical implementation-plan skill enforces.
+   **HARD GATE — SUBSTITUTION PROHIBITED (bug dea8-3ca9, bug 2dcb-6f08)**: NEVER dispatch `/dso:implementation-plan` via the Task tool OR the Agent tool. NEVER run implementation-plan steps inline in the orchestrator context (no contextual discovery, no proposal drafting, no `ticket create task` calls executed here). The ONLY valid mechanism for decomposing a story into tasks is the `Skill("dso:implementation-plan", args="<story-id>")` invocation shown above. Any Task tool or Agent tool dispatch targeting a planning or review agent in place of this Skill invocation is a critical routing error — it bypasses the tag guards, re-invocation guards, complexity gates, cross-cutting detection, distinctness validation, and approach-decision-maker dispatch that the canonical implementation-plan skill enforces. The Agent tool is explicitly prohibited because parallel sub-agent dispatch of implementation-plan creates orphan tasks and deeply nested calls (bug 2dcb-6f08).
    - Log: `"Story <id> has no implementation tasks — running /dso:implementation-plan to decompose."`
    - When the Skill tool returns, immediately execute step c — do not pause or wait for user input.
 
