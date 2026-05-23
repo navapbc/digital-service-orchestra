@@ -193,6 +193,22 @@ def _commit_to_tickets_branch(
     if git_add.returncode != 0:
         return False, False, branch, f"git add failed: {git_add.stderr.strip()}"
 
+    # TOCTOU defense: re-check the branch immediately before commit. If
+    # another process switched branches between our first _current_branch()
+    # check and now, abort rather than land the snapshot on the wrong branch.
+    # The git index stage we just made is left in place — `git reset` would
+    # mask the race; operators investigating an unexpected committed=False
+    # benefit from seeing the staged file.
+    branch_now = _current_branch(repo_root)
+    if branch_now != "tickets":
+        return (
+            True,
+            False,
+            branch_now,
+            f"snapshot written; commit aborted — branch switched mid-step "
+            f"(was 'tickets', now {branch_now!r})",
+        )
+
     git_commit = subprocess.run(
         [
             "git",

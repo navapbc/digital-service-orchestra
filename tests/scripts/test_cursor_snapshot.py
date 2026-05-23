@@ -260,3 +260,74 @@ def test_commit_skipped_when_not_on_tickets_branch(tmp_path):
     assert commit_calls == [], (
         f"git commit must not be called when not on tickets branch: {commit_calls}"
     )
+
+
+def test_commit_aborted_when_branch_switches_mid_step(tmp_path):
+    """TOCTOU defense: if another process switches branches between the
+    initial branch check and the post-`git add` re-check, the commit step
+    aborts cleanly with committed=False rather than landing the snapshot
+    on the wrong branch.
+
+    This pins the second-check semantics added after llm-review flagged the
+    narrow but real race window. Without the re-check, a feature-branch
+    switch after `git add` but before `git commit` would land the cursor
+    snapshot commit on the feature branch instead of `tickets`.
+    """
+    cs = _load_cursor_snapshot()
+
+    bridge_state = tmp_path / "bridge_state"
+    bridge_state.mkdir()
+
+    branch_call_count = [0]
+    add_calls: list = []
+    commit_calls: list = []
+
+    def fake_subprocess_run(cmd, **kwargs):
+        if cmd[0] == "git" and cmd[1] == "rev-parse" and cmd[2:] == ["tickets"]:
+            return _make_proc(0, stdout="abc123\n")
+        if (
+            cmd[0] == "git"
+            and cmd[1] == "rev-parse"
+            and cmd[2:] == ["--abbrev-ref", "HEAD"]
+        ):
+            branch_call_count[0] += 1
+            # First call (initial check): on tickets → proceed past the gate.
+            # Second call (post-`git add` re-check): a hostile process has
+            # switched to a feature branch → abort the commit.
+            if branch_call_count[0] == 1:
+                return _make_proc(0, stdout="tickets\n")
+            return _make_proc(0, stdout="feature/foo\n")
+        if cmd[0] == "git" and cmd[1] == "show":
+            return _make_proc(1, stderr="no outbound checkpoint")
+        if cmd[0] == "git" and cmd[1] == "add":
+            add_calls.append(cmd)
+            return _make_proc(0)
+        if cmd[0] == "git" and cmd[1] == "commit":
+            commit_calls.append(cmd)
+            return _make_proc(0)
+        return _make_proc(1, stderr="unexpected call")
+
+    with patch("subprocess.run", side_effect=fake_subprocess_run):
+        result = cs.run(repo_root=tmp_path)
+
+    assert result.ok is True
+    assert result.details.get("committed") is False, (
+        "When branch switches mid-step, committed MUST be False — the abort "
+        "branch is the only safety net against landing the snapshot on the "
+        "wrong branch."
+    )
+    assert result.details.get("branch") == "feature/foo"
+    assert "branch switched mid-step" in result.message
+    # git add ran (between the first and second branch checks) but git commit
+    # MUST NOT have been called.
+    assert len(add_calls) == 1, (
+        f"git add should run once before the second branch check: {add_calls}"
+    )
+    assert commit_calls == [], (
+        f"git commit must not run after the branch switch is detected: {commit_calls}"
+    )
+    # We expect exactly two branch checks: initial gate + post-add re-check.
+    assert branch_call_count[0] == 2, (
+        f"Expected 2 _current_branch calls (initial + TOCTOU re-check), got "
+        f"{branch_call_count[0]}"
+    )
