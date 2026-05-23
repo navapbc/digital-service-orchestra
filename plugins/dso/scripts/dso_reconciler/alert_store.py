@@ -8,7 +8,7 @@ _24H_NS = 24 * 3600 * 1_000_000_000
 
 
 def _store_dir(repo_root: Path) -> Path:
-    return repo_root / "bridge_state" / "alerts"
+    return repo_root / "bridge_state" / "bridge_alerts"
 
 
 def _today_file(repo_root: Path) -> Path:

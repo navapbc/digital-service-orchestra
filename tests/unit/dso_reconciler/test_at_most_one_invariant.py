@@ -445,7 +445,7 @@ def test_end_to_end_second_write_produces_one_alert_one_bug(tmp_path):
     )
 
     # Exactly one BRIDGE_ALERT entry must exist in bridge_state/alerts/
-    alerts_dir = tmp_path / "bridge_state" / "alerts"
+    alerts_dir = tmp_path / "bridge_state" / "bridge_alerts"
     alert_files = list(alerts_dir.glob("*.jsonl")) if alerts_dir.is_dir() else []
     all_alert_lines = []
     for af in alert_files:
