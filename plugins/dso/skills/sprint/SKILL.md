@@ -1289,7 +1289,8 @@ Stories tagged `manual:awaiting_user` are collected into `awaiting_manual_storie
 
 ## Phase E: Sub-Agent Launch (/dso:sprint)
 
-# Story branches: story/<epic-id>/<story-id>; created here, merged in Phase F with DSO-Story-Merge trailer
+# Story branches: story/<epic-id>/<story-id>; created here, merged in Phase F with DSO-Story-Merge trailer.
+# In worktree-isolation mode (default), this branch is a logical ticket-tracking container — actual file movement happens via per-task harvest into the session branch (Phase F Step 5; see "Cross-Layer File Visibility Invariant" in Phase F worktree-isolation block).
 
 Before dispatching tasks for a story, create the story branch and capture the branch name:
 
@@ -1653,6 +1654,18 @@ Read and execute `skills/sprint/prompts/per-worktree-review-commit.md` for each 
 After all worktrees have been processed via `per-worktree-review-commit.md`, skip Steps 7 and 10 (which apply only in shared-directory mode) and proceed directly to Steps 8, 9, 10a, 11, and 13.
 
 In shared-directory mode (isolation disabled), proceed through Steps 0–13 as written below, including Step 13 (formal code review) and Step 17 (commit and push).
+
+### Cross-Layer File Visibility Invariant (bug 38b4-e9f6) (/dso:sprint)
+
+In worktree-isolation mode (the default), the file-visibility contract for Layer N+1 sub-agents is provided by **Phase F Step 5 (per-task harvest into session branch)** — NOT by the story-branch merge in Step 18. Each `worktree-agent-<task-id>` branch is merged into the session branch by `harvest-worktree.sh` (see `per-worktree-review-commit.md` Step 5) as soon as its individual review+commit+harvest cycle completes. This advances SESSION_HEAD to include the task's file artifacts BEFORE the parent story closes.
+
+**Invariant**: by the time `/dso:sprint` dispatches a Layer N+1 batch (Phase C → Phase E), SESSION_HEAD contains every harvested task commit from every Layer 0..N story whose tasks have completed Phase F Step 5. Sub-agents call `worktree-session-head-sync.sh` on this SESSION_HEAD on startup (per `skills/shared/prompts/worktree-dispatch.md` Step 2), so they see all prerequisite files from sibling-layer stories.
+
+**ci-pr mode mechanism**: in `dso.workflow=ci-pr`, harvest-worktree.sh's session-branch merge is realized as a per-task GitHub PR (`gh pr create --base $SESSION_BRANCH --head worktree-agent-<task-id>`). Each PR merges into the session branch as it lands. There are NO per-story PRs in worktree-isolation mode; the story branch created at Phase E is a **logical container** for ticket-tracking attribution, not a data-flow waypoint.
+
+**Phase F Step 18 story-branch merge in worktree-isolation mode**: the story branch's tip equals the session-branch tip at the moment Step 18 runs, because all of the story's tasks already harvested into the session branch via Step 5. The `merge-to-main.sh BRANCH=$STORY_BRANCH STORY_PR_BASE=$SESSION_BRANCH` call in Step 18 therefore creates a no-diff merge — handled by `merge-to-main.sh`'s internal no-diff detection. This is intentional — Step 18's contract (P1 verdict + story-closure trailer attribution + GitHub PR record) is preserved while the actual file movement happens in Step 5.
+
+**What this rules out**: the failure mode where Layer N+1 sub-agents start from a SESSION_HEAD that does not contain Layer N's file artifacts. That failure mode presupposes story-branches accumulating without ever merging to the session — which is the shared-directory-mode mental model, not the worktree-isolation-mode reality. In worktree-isolation mode (default), per-task harvest is the canonical, mechanically-realized file-visibility path.
 
 ### Step 1: Dispatch Failure Recovery (/dso:sprint)
 
@@ -2255,6 +2268,8 @@ Do NOT rationalize around a non-PASS P1 verdict. The verifier's verdict is final
 grep -n "\[.*\]" .test-index || true
 # Remove any markers for tests that are now passing
 ```
+
+**Worktree-isolation-mode note (bug 38b4-e9f6)**: in the default worktree-isolation mode, the story branch's tip equals the session-branch tip at this point — all of the story's tasks already harvested via Phase F Step 5 (see "Cross-Layer File Visibility Invariant" in the Phase F preamble). The `merge-to-main.sh` call below is structurally a no-diff merge in that mode; its purpose is preserving the P1-PASS attribution and trailer chain, NOT moving files. Do NOT skip the call — `merge-to-main.sh` internally detects the no-diff case and exits cleanly.
 
 **Story branch merge (before closure)**: After RED marker cleanup and before closing the story, merge the story branch. The merge path depends on `SPRINT_MODE`:
 - `ci-pr` mode: route through `merge-to-main.sh` to create a GitHub PR — do NOT perform a direct local merge
