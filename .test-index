@@ -532,3 +532,4 @@ plugins/dso/scripts/dso_reconciler/capability_check.py:tests/scripts/test_capabi
 plugins/dso/scripts/dso_reconciler/cursor_snapshot.py:tests/scripts/test_cursor_snapshot.py
 plugins/dso/scripts/rollback-bridge-cutover.sh:tests/scripts/test-rollback-bridge-cutover.sh
 plugins/dso/scripts/dso_reconciler/orphan_band.py:tests/scripts/test_orphan_band_plan.py
+plugins/dso/scripts/dryrun-bridge-rollback-in-worktree.sh:tests/scripts/test-dryrun-bridge-rollback-in-worktree.sh
