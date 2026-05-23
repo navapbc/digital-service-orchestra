@@ -743,6 +743,35 @@ class AcliClient:
         path = f"/rest/api/3/issue/{jira_key}/properties/{property_key}"
         self._direct_rest_put(path, value)
 
+    def _direct_rest_get(self, path: str) -> dict:
+        """GET JSON data from a Jira REST path using stored credentials.
+
+        Follows the same urllib pattern as _direct_rest_put().
+        Raises urllib.error.HTTPError on non-2xx response.
+        """
+        url = f"{self.jira_url.rstrip('/')}{path}"
+        creds = base64.b64encode(f"{self.user}:{self.api_token}".encode()).decode()
+        req = urllib.request.Request(
+            url,
+            method="GET",
+            headers={
+                "Authorization": f"Basic {creds}",
+                "Accept": "application/json",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+
+    def get_issue_property(self, jira_key: str, property_key: str) -> Any:
+        """Get a Jira issue property via REST GET.
+
+        Calls /rest/api/3/issue/{jira_key}/properties/{property_key} and returns
+        the 'value' field from the response per the Jira issue properties API contract.
+        """
+        path = f"/rest/api/3/issue/{jira_key}/properties/{property_key}"
+        response = self._direct_rest_get(path)
+        return response["value"]
+
     def unassign_issue(self, jira_key: str) -> None:
         """Explicitly unassign a Jira issue via REST v3 PUT.
 
