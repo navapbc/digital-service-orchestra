@@ -12,7 +12,10 @@ from pathlib import Path
 def _load_step(name: str):
     """Load a step module from the same directory as this script."""
     here = Path(__file__).parent
-    spec = importlib.util.spec_from_file_location(name, here / f"{name}.py")
+    step_path = here / f"{name}.py"
+    spec = importlib.util.spec_from_file_location(name, step_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load step module {name!r} from {step_path}")
     mod = importlib.util.module_from_spec(spec)
     sys.modules[name] = mod
     try:

@@ -757,11 +757,16 @@ class AcliClient:
         path = f"/rest/api/3/issue/{jira_key}/properties/{property_key}"
         self._direct_rest_put(path, value)
 
-    def _direct_rest_get(self, path: str) -> dict:
+    def _direct_rest_get(self, path: str) -> Any:
         """GET JSON data from a Jira REST path using stored credentials.
 
         Follows the same urllib pattern as _direct_rest_put().
         Raises urllib.error.HTTPError on non-2xx response.
+
+        Returns whatever json.loads decodes from the response body. Most Jira
+        endpoints return a JSON object, but a few (e.g. issue-properties value
+        when set to a scalar) return list/str/int/None. Callers that require a
+        dict shape must validate explicitly.
         """
         url = f"{self.jira_url.rstrip('/')}{path}"
         creds = base64.b64encode(f"{self.user}:{self.api_token}".encode()).decode()

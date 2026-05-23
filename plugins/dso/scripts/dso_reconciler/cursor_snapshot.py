@@ -77,7 +77,7 @@ def _load_cursors(repo_root: Path) -> tuple[dict | None, dict | None]:
         # documented as best-effort, so ANY read failure degrades to inbound=None
         # rather than aborting the entire snapshot step.
         try:
-            inbound = json.loads(inbound_path.read_text())
+            inbound = json.loads(inbound_path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError, UnicodeDecodeError):
             inbound = None
 
@@ -104,7 +104,7 @@ def _write_snapshot_atomically(snapshot_path: Path, snapshot: dict) -> None:
             prefix=".cursor-snapshot-tmp.",
         )
         tmp_path = Path(tmp_path_str)
-        with os.fdopen(fd, "w") as f:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(snapshot, f, indent=2)
             f.flush()
             os.fsync(f.fileno())
@@ -242,7 +242,7 @@ def run(repo_root: Path | None = None) -> StepResult:
             # was over-broad; this enumerates the realistic failure modes
             # without silencing genuine bugs.
             try:
-                existing = json.loads(snapshot_path.read_text())
+                existing = json.loads(snapshot_path.read_text(encoding="utf-8"))
                 if existing.get("head_sha") == head_sha:
                     return StepResult(
                         name="cursor_snapshot",

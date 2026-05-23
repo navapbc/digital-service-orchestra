@@ -32,6 +32,8 @@ def _load_acli_client():
     # Navigate to the scripts directory (one level up from dso_reconciler/)
     acli_path = here.parent / "acli-integration.py"
     spec = importlib.util.spec_from_file_location("acli_integration", acli_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load acli-integration from {acli_path}")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod.AcliClient
@@ -186,6 +188,18 @@ def run() -> StepResult:
             name="forward_compat_probe",
             ok=True,
             message="all 4 sub-operations passed",
+            details={"sub_operations": sub_ops},
+        )
+
+    except Exception as exc:
+        # Outer broad-Exception guard: per the sub-op 3 narrowing rationale,
+        # programming errors (AttributeError, TypeError) and other
+        # genuinely-unexpected failures fall through here and surface as a
+        # structured StepResult rather than crashing the orchestrator.
+        return StepResult(
+            name="forward_compat_probe",
+            ok=False,
+            message=f"unexpected error: {exc!r}",
             details={"sub_operations": sub_ops},
         )
 

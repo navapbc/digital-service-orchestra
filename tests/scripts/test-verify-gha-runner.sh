@@ -28,7 +28,7 @@ TICKET_ID="7705-41e8-9f01-4ebb"
 
 echo "=== test-verify-gha-runner.sh ==="
 
-# Validate the target script exists (RED gate — expected to FAIL until GREEN task)
+# Validate the target script exists and is executable.
 echo ""
 echo "--- test_script_exists ---"
 _snapshot_fail

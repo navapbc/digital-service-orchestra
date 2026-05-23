@@ -29,10 +29,10 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 
 _HERE = Path(__file__).parent
-_acli_spec = importlib.util.spec_from_file_location(
-    "acli_integration",
-    _HERE / "acli-integration.py",
-)
+_acli_path = _HERE / "acli-integration.py"
+_acli_spec = importlib.util.spec_from_file_location("acli_integration", _acli_path)
+if _acli_spec is None or _acli_spec.loader is None:
+    raise ImportError(f"Cannot load acli-integration from {_acli_path}")
 _acli_mod = importlib.util.module_from_spec(_acli_spec)
 _acli_spec.loader.exec_module(_acli_mod)
 AcliClient = _acli_mod.AcliClient
