@@ -83,9 +83,11 @@ jobs:
             --jq '.workflow_runs[0] // empty' 2>/dev/null || echo '')
 
           if [[ -z "$last_success_json" ]]; then
-            echo "stale=true" >> "$GITHUB_OUTPUT"
-            echo "last_run_ago=never" >> "$GITHUB_OUTPUT"
-            echo "status_msg=No successful reconcile-bridge.yml runs found." >> "$GITHUB_OUTPUT"
+            {
+              echo "stale=true"
+              echo "last_run_ago=never"
+              echo "status_msg=No successful reconcile-bridge.yml runs found."
+            } >> "$GITHUB_OUTPUT"
           else
             completed_at=$(echo "$last_success_json" | jq -r '.updated_at')
             run_epoch=$(date -u -d "$completed_at" +%s)
@@ -94,13 +96,17 @@ jobs:
             age_mins=$(( (age_secs % 3600) / 60 ))
 
             if (( run_epoch < cutoff_epoch )); then
-              echo "stale=true" >> "$GITHUB_OUTPUT"
-              echo "last_run_ago=${age_hours}h ${age_mins}m ago" >> "$GITHUB_OUTPUT"
-              echo "status_msg=Last successful run was ${age_hours}h ${age_mins}m ago (threshold: ${ALERT_WINDOW_HOURS}h)." >> "$GITHUB_OUTPUT"
+              {
+                echo "stale=true"
+                echo "last_run_ago=${age_hours}h ${age_mins}m ago"
+                echo "status_msg=Last successful run was ${age_hours}h ${age_mins}m ago (threshold: ${ALERT_WINDOW_HOURS}h)."
+              } >> "$GITHUB_OUTPUT"
             else
-              echo "stale=false" >> "$GITHUB_OUTPUT"
-              echo "last_run_ago=${age_hours}h ${age_mins}m ago" >> "$GITHUB_OUTPUT"
-              echo "status_msg=Reconciler is healthy — last successful run was ${age_hours}h ${age_mins}m ago." >> "$GITHUB_OUTPUT"
+              {
+                echo "stale=false"
+                echo "last_run_ago=${age_hours}h ${age_mins}m ago"
+                echo "status_msg=Reconciler is healthy — last successful run was ${age_hours}h ${age_mins}m ago."
+              } >> "$GITHUB_OUTPUT"
             fi
           fi
 
