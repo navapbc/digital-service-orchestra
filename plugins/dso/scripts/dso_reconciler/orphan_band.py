@@ -21,6 +21,15 @@ def _load_fsck():
     return mod
 
 
+def _load_attestation():
+    """Load the shared _attestation module via importlib."""
+    attestation_path = Path(__file__).parent / "_attestation.py"
+    spec = importlib.util.spec_from_file_location("_attestation", attestation_path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    return mod
+
+
 def cmd_plan(args: argparse.Namespace, repo_root: Path) -> int:
     """Write dry-run manifest of orphan anomalies."""
     fsck = _load_fsck()

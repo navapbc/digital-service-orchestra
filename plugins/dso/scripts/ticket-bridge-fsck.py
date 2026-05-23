@@ -167,6 +167,48 @@ def audit_bridge_mappings(
     return {"orphaned": orphaned, "duplicates": duplicates, "stale": stale}
 
 
+def enumerate_stale_anomalies(
+    tickets_dir: Path,
+    now: int | None = None,
+) -> list[dict]:
+    """Return enriched stale-SYNC anomaly records from the bridge audit.
+
+    Delegates to ``audit_bridge_mappings`` internally and enriches each stale
+    record with the fields required by the anomaly contract:
+
+    * ``class_label``          — always ``"stale"``
+    * ``proposed_remediation`` — ``"re-sync or close"``
+
+    Each raw stale record from ``audit_bridge_mappings`` has the shape:
+    ``{ticket_id, jira_key, last_sync_ts}``.  The enriched records returned
+    here carry those same fields plus the two enrichment fields above.
+
+    The existing ``audit_bridge_mappings`` return shape is preserved and its
+    CLI behaviour is unaffected.
+
+    Args:
+        tickets_dir: Path to the ticket tracker directory.
+        now: Optional reference timestamp (UTC epoch nanoseconds) to use as
+            'now' for stale-detection calculations. Passed through to
+            ``audit_bridge_mappings`` as ``now_ts``. Defaults to
+            ``time.time_ns()``.
+
+    Returns:
+        A list of dicts, each containing at minimum:
+        ``ticket_id``, ``jira_key``, ``last_sync_ts``, ``class_label``,
+        ``proposed_remediation``.
+    """
+    findings = audit_bridge_mappings(tickets_dir, now_ts=now)
+    raw_stale = findings.get("stale", [])
+    enriched: list[dict] = []
+    for record in raw_stale:
+        entry = dict(record)
+        entry.setdefault("class_label", "stale")
+        entry.setdefault("proposed_remediation", "re-sync or close")
+        enriched.append(entry)
+    return enriched
+
+
 def enumerate_orphan_anomalies(tickets_dir: Path) -> list[dict]:
     """Return enriched orphan anomaly records from the bridge audit.
 

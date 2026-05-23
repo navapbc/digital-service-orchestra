@@ -525,10 +525,11 @@ tests/scripts/test-infer-detected-by.sh:tests/scripts/test-infer-detected-by.sh 
 tests/scripts/test-bootstrap-calibration-tickets.sh:tests/scripts/test-bootstrap-calibration-tickets.sh
 plugins/dso/scripts/lib/reachability.sh:tests/scripts/test-reachability-helper.sh
 plugins/dso/scripts/jira-capability-probe.py:tests/scripts/test_jira_capability_probe.py
-plugins/dso/scripts/ticket-bridge-fsck.py:tests/unit/scripts/test_ticket_bridge_fsck_enumerate.py
+plugins/dso/scripts/ticket-bridge-fsck.py:tests/unit/scripts/test_ticket_bridge_fsck_enumerate.py,tests/unit/scripts/test_ticket_bridge_fsck_enumerate_stale.py
 plugins/dso/scripts/dso_reconciler/pre_cutover.py:tests/scripts/test_pre_cutover.py
 plugins/dso/scripts/dso_reconciler/forward_compat_probe.py:tests/scripts/test_forward_compat_probe.py
 plugins/dso/scripts/dso_reconciler/capability_check.py:tests/scripts/test_capability_check.py
 plugins/dso/scripts/dso_reconciler/cursor_snapshot.py:tests/scripts/test_cursor_snapshot.py
 plugins/dso/scripts/rollback-bridge-cutover.sh:tests/scripts/test-rollback-bridge-cutover.sh
 plugins/dso/scripts/dso_reconciler/orphan_band.py:tests/scripts/test_orphan_band_plan.py
+plugins/dso/scripts/dso_reconciler/_attestation.py:tests/unit/dso_reconciler/test_attestation.py
