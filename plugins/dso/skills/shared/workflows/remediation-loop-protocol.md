@@ -129,6 +129,23 @@ When the `approach-proposer` agent runs in delta mode (cycle >= 2), its output M
 
 4. **Complexity-gate preservation.** Each preserved proposal's prior complexity-gate outcomes are carried forward verbatim — the agent MUST NOT re-run the gates on unchanged proposals. Only proposals being modified in the current cycle re-run the complexity gates, and only their gate outcomes are refreshed in `complexity_gate_summary`. Preserved proposals' gate outcomes remain bit-identical to the prior cycle.
 
+### Schema Preservation — task-decomposer
+
+When the `task-decomposer` agent runs in delta mode (cycle >= 2), its output MUST follow these schema-preservation rules. Delta mode is a partial-update of the prior cycle's structured output, not a full regeneration.
+
+1. **Preserved top-level keys (verbatim when not named in any finding).** The following top-level keys MUST appear in the delta output unchanged from the prior cycle whenever no finding names them as needing modification:
+   - `task_drafts`
+   - `dd_partition_map`
+   - `decomposition_notes`
+
+   When a finding does name one of these keys, only the parts of that key explicitly addressed by the finding are modified; all other parts are preserved verbatim.
+
+2. **Preserve-by-omission rule.** Task drafts not named in any finding MUST appear unchanged in the delta output, including their full `acceptance_criteria` list, `file_impact`, `depends_on`, and `retry_budget`. Partial-update is only valid for task drafts explicitly named in a finding — omitting a task draft that no finding addressed is a protocol violation. Equivalently: a task draft that is not named in any finding is omitted from the diff but preserved unchanged in the merged output.
+
+3. **TDD-structure preservation.** For task drafts being modified, the TDD invariants MUST be preserved across the merged delta output: the RED-before-GREEN sequencing (a task with `testing_mode: "RED"` for a given behavior MUST precede any `testing_mode: "GREEN"` or `testing_mode: "UPDATE"` task that depends on that behavior), the `depends_on` chain integrity (no orphaned edges — every referenced `temp_id` or pre-existing ticket id MUST resolve to a task in the merged set or an existing ticket), and the `testing_mode` field (RED/GREEN/UPDATE) on each preserved task MUST carry forward verbatim. Additionally, the DD-partition-map invariant MUST still hold across the merged set: every DD continues to be owned by exactly one task — delta-mode output may not silently drop or duplicate DD ownership. The agent MUST re-check these invariants on the merged set, not only on the modified subset. If the merged set violates any TDD invariant or the DD-partition invariant, the agent MUST surface a finding rather than emitting an invalid delta.
+
+4. **Acceptance-criteria preservation.** Each preserved task's prior `acceptance_criteria` list is carried forward verbatim — the agent MUST NOT re-author AC on unchanged tasks. Only task drafts being modified in the current cycle re-author AC, and even then the three Universal Criteria (`Unit tests pass`, `Lint passes`, `Format check passes`) MUST remain as the first three AC entries on every preserved or modified task, bit-identical to the canonical wording in the task-decomposer agent's Universal Criteria template. Preserved tasks' AC lists remain bit-identical to the prior cycle.
+
 ---
 
 ## Section 6: Upstream Enum
