@@ -1,0 +1,31 @@
+{
+  "ticket_id": "c3d4-e5f6-7890-abcd",
+  "ticket_type": "story",
+  "schema_version": 2,
+  "P1": "FAIL",
+  "overall_verdict": "FAIL",
+  "narrative": "P1=FAIL criteria_met=1/2 blocked_by=1",
+  "criteria_results": [
+    {
+      "criterion": "DD-1: The telemetry module emits a structured JSON event on every agent dispatch",
+      "verdict": "PASS",
+      "evidence_sought": "grep for telemetry emit call in dispatch path",
+      "evidence_found": "Found telemetry.emit_event() call in plugins/dso/scripts/dispatch-agent.sh line 47"
+    },
+    {
+      "criterion": "DD-2: The telemetry event includes a trace_id field that persists across the full agent invocation chain",
+      "verdict": "FAIL",
+      "evidence_sought": "grep for trace_id propagation in agent invocation chain",
+      "evidence_found": "not found — no trace_id field in telemetry schema; no propagation logic discovered in codebase search"
+    }
+  ],
+  "consumer_smoke_tests": [],
+  "closure_checks_results": [],
+  "remediation_tasks_created": [
+    {
+      "title": "Add trace_id field to telemetry event schema and propagate through agent chain",
+      "description": "DD-2 requires trace_id to persist across the full agent invocation chain. No trace_id field exists in the current telemetry schema and no propagation logic was found.",
+      "criterion": "DD-2"
+    }
+  ]
+}

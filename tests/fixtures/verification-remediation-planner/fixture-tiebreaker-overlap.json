@@ -1,0 +1,48 @@
+{
+  "ticket_id": "a7b8-c9d0-1234-efab",
+  "ticket_type": "story",
+  "schema_version": 2,
+  "P1": "FAIL",
+  "overall_verdict": "FAIL",
+  "narrative": "P1=FAIL criteria_met=0/3 blocked_by=3",
+  "_tiebreaker_note": "This fixture activates both Rule 2 (partial evidence + impl-only gap on DD-1/DD-2) and Rule 3 (new behavior on DD-3). Per tiebreaker T1, Rule 2 wins — expected output is new_tasks_in_story with NON-LOW confidence.",
+  "criteria_results": [
+    {
+      "criterion": "DD-1: The batch dispatcher retries a failed agent invocation up to 3 times before marking the task failed",
+      "verdict": "FAIL",
+      "evidence_sought": "grep for retry logic in batch dispatcher",
+      "evidence_found": "Partial: retry infrastructure exists in dispatch-batch.sh (retry loop present, exit code capture present), but the retry counter is hardcoded to 1 instead of 3 — a one-line fix to the loop bound"
+    },
+    {
+      "criterion": "DD-2: The batch dispatcher logs each retry attempt with the attempt number and agent exit code",
+      "verdict": "FAIL",
+      "evidence_sought": "grep for retry attempt logging in dispatch-batch.sh",
+      "evidence_found": "Partial: logging is present for the first attempt, but the retry-loop body omits the attempt number — the log line exists but the attempt_num variable is not interpolated into the message"
+    },
+    {
+      "criterion": "DD-3: Users see a progress bar in the terminal showing retry attempt N of 3 for each failed agent",
+      "verdict": "FAIL",
+      "evidence_sought": "grep for terminal progress bar or retry progress indicator",
+      "evidence_found": "absent — no progress bar or terminal rendering for retry progress exists anywhere in the codebase; this is a new user-facing behavior not mentioned in the current story's done definitions"
+    }
+  ],
+  "consumer_smoke_tests": [],
+  "closure_checks_results": [],
+  "remediation_tasks_created": [
+    {
+      "title": "Fix retry counter: change hardcoded 1 to 3 in dispatch-batch.sh retry loop",
+      "description": "DD-1: The retry loop bound is 1 instead of 3.",
+      "criterion": "DD-1"
+    },
+    {
+      "title": "Interpolate attempt_num variable into retry log line in dispatch-batch.sh",
+      "description": "DD-2: The log line exists but does not include the attempt number.",
+      "criterion": "DD-2"
+    },
+    {
+      "title": "Add terminal progress bar for retry progress (new user-facing behavior)",
+      "description": "DD-3: No progress bar exists. This is new user-facing behavior.",
+      "criterion": "DD-3"
+    }
+  ]
+}
