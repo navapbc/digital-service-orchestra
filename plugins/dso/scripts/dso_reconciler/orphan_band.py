@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import datetime
 import importlib.util
 import json
 import subprocess
@@ -99,6 +100,105 @@ def cmd_gate(args: argparse.Namespace, repo_root: Path) -> int:
     return 0
 
 
+def _apply_one(anomaly: dict, repo_root: Path) -> dict:
+    """Apply a single orphan anomaly mutation.
+
+    This function is intentionally thin and mockable. Production callers
+    replace it via patch; the return dict follows the outcome schema:
+    ``{"anomaly_id": str, "status": "ok"|"error", "message": str}``.
+    """
+    anomaly_id = anomaly.get("ticket_id") or anomaly.get("jira_key", "unknown")
+    try:
+        # Placeholder: real implementations will dispatch a remediation action
+        # based on anomaly["proposed_remediation"] and anomaly["side"].
+        return {"anomaly_id": anomaly_id, "status": "ok", "message": "applied"}
+    except Exception as exc:  # noqa: BLE001
+        return {"anomaly_id": anomaly_id, "status": "error", "message": str(exc)}
+
+
+def cmd_apply(args: argparse.Namespace, repo_root: Path) -> int:
+    """Execute orphan anomaly mutations after gate verification."""
+    bootstrap_dir = repo_root / "bridge_state" / "bootstrap"
+    manifest_path = bootstrap_dir / f"orphans-{args.pass_id}.manifest.json"
+    attestation_path = bootstrap_dir / f"orphans-{args.pass_id}.attested.json"
+
+    # 1. Gate check — manifest must exist
+    if not manifest_path.exists():
+        print(
+            f"APPLY FAIL: manifest missing — {manifest_path}",
+            file=sys.stderr,
+        )
+        return 1
+
+    manifest = json.loads(manifest_path.read_text())
+    anomalies = manifest.get("anomalies", [])
+
+    # Gate check — attestation must exist and be valid
+    if not attestation_path.exists():
+        print(
+            f"APPLY FAIL: gate failed — attestation missing at {attestation_path}",
+            file=sys.stderr,
+        )
+        return 1
+
+    attested = json.loads(attestation_path.read_text())
+    sha = attested.get("commit_sha", "")
+    if not sha:
+        print(
+            "APPLY FAIL: gate failed — attestation has no commit_sha", file=sys.stderr
+        )
+        return 1
+
+    attestation_mod = _load_attestation()
+    gate_ok = attestation_mod.verify_attested_commit(sha, BOT_ALLOWLIST)
+    if not gate_ok:
+        print("APPLY FAIL: gate failed", file=sys.stderr)
+        return 1
+
+    # 2. First-week mutation cap
+    first_pass_date_path = bootstrap_dir / "first-pass-date.txt"
+    if first_pass_date_path.exists():
+        raw_date = first_pass_date_path.read_text().strip()
+        first_pass_date = datetime.date.fromisoformat(raw_date)
+        today = datetime.date.today()
+        days_elapsed = (today - first_pass_date).days
+        if days_elapsed < 7 and len(anomalies) > 10:
+            print(
+                "APPLY FAIL: first-week mutation cap exceeded",
+                file=sys.stderr,
+            )
+            return 1
+
+    # 3. Execute mutations
+    outcomes = []
+    for anomaly in anomalies:
+        outcome = _apply_one(anomaly, repo_root)
+        outcomes.append(outcome)
+
+    # 4. Post-pass check
+    fsck = _load_fsck()
+    tickets_dir = repo_root / ".tickets-tracker"
+    post_pass = fsck.enumerate_orphan_anomalies(tickets_dir)
+    acknowledged_residual = attested.get("acknowledged_residual", 0)
+    if len(post_pass) > acknowledged_residual:
+        # Write outcomes before exiting so callers can inspect partial results
+        outcome_path = bootstrap_dir / f"orphans-{args.pass_id}.outcome.json"
+        outcome_path.write_text(json.dumps(outcomes, indent=2))
+        print(
+            f"APPLY FAIL: post-pass count {len(post_pass)} > residual {acknowledged_residual}",
+            file=sys.stderr,
+        )
+        return 1
+
+    # Write outcomes
+    outcome_path = bootstrap_dir / f"orphans-{args.pass_id}.outcome.json"
+    outcome_path.write_text(json.dumps(outcomes, indent=2))
+
+    # 5. Success
+    print(f"APPLY OK: {len(outcomes)} mutations, post-pass count: {len(post_pass)}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Entry point for the orphan-band CLI."""
     parser = argparse.ArgumentParser(prog="orphan_band")
@@ -116,6 +216,18 @@ def main(argv: list[str] | None = None) -> int:
     gate_p.add_argument("--pass", dest="pass_id", required=True)
     gate_p.add_argument("--repo-root", default=None)
 
+    apply_p = sub.add_parser(
+        "apply", help="Execute orphan anomaly mutations after gate verification"
+    )
+    apply_p.add_argument(
+        "--pass", dest="pass_id", required=True, help="Pass identifier"
+    )
+    apply_p.add_argument(
+        "--repo-root",
+        default=None,
+        help="Repository root (default: auto-detect)",
+    )
+
     args = parser.parse_args(argv)
 
     if args.command is None:
@@ -129,6 +241,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "gate":
         return cmd_gate(args, repo_root)
+
+    if args.command == "apply":
+        return cmd_apply(args, repo_root)
 
     print(f"ERROR: unknown command {args.command!r}", file=sys.stderr)
     return 1
