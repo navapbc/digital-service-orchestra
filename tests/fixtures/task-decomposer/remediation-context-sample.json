@@ -1,0 +1,34 @@
+{
+  "reviewer_artifact_path": "tests/fixtures/task-decomposer/reviewer-artifact-sample.md",
+  "target_story_id": "c010-e026-1276-4728",
+  "findings": [
+    {
+      "target_task_temp_id": "task-2",
+      "target_story_id": "c010-e026-1276-4728",
+      "finding_id": "rf-001",
+      "severity": "critical",
+      "summary": "Decomposition Protocol Step 1 partitions DDs across tasks but does not declare a DELTA output mode for revision cycles; remediation cycles re-emit the full task_drafts set instead of a delta, risking silent loss of unrelated prior tasks.",
+      "recommendation": "Add a DELTA OUTPUT MODE section that activates when remediation_context is present, gating output on a pre-generation Read of each reviewer-artifact path."
+    },
+    {
+      "target_task_temp_id": "task-3",
+      "target_story_id": "c010-e026-1276-4728",
+      "finding_id": "rf-002",
+      "severity": "critical",
+      "summary": "Delta-mode output has no explicit TDD-preservation clause; the agent could emit a modified GREEN/UPDATE task without its prior RED depends_on link, breaking RED-before-GREEN invariants and testing-mode semantics.",
+      "recommendation": "Inside DELTA OUTPUT MODE, add an inline TDD-preservation rule stating that any modified task MUST preserve its existing depends_on RED-before-GREEN links and testing-mode classification verbatim unless a finding explicitly authorizes a change."
+    },
+    {
+      "target_story_id": "c010-e026-1276-4728",
+      "finding_id": "rf-003",
+      "severity": "important",
+      "summary": "Backward-compat is implicit; without an explicit optional marker on remediation_context the agent cannot signal that the absent case preserves prior output shape.",
+      "recommendation": "Add remediation_context to Inputs with an explicit optional marker and preserve the existing `task_drafts` field heading in the Output Format."
+    }
+  ],
+  "metadata": {
+    "reviewer_agent": "red-team-reviewer",
+    "epic_id": "81d7-9da2-676e-4948",
+    "review_cycle": 2
+  }
+}
