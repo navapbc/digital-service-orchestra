@@ -65,7 +65,7 @@ _dso_pv_entry_check "sprint" "implementation-plan" "${primary_ticket_id:-}" || t
 Flow: P1 (Init) → Preplanning Gate
   → [0 children/ambiguous] /dso:preplanning → P2
   → [children exist & clear] P2 (Task Analysis)
-  P2 → [stories without impl tasks?] layer-stratify → parallel dispatch (≤3/layer) → STATUS:complete→tasks created | STATUS:blocked→ask user → Re-gather → P3
+  P2 → [stories without impl tasks?] layer-stratify → sequential Skill-tool dispatch (per-layer) → STATUS:complete→tasks created | STATUS:blocked→ask user → Re-gather → P3
   P2 → [all have impl tasks] P3 (Batch Preparation)
   P3 → [execute] P4 (Sub-Agent Launch) → P5 (Post-Batch)
   P5 → [context >=70%] /compact → P3 (proactive, safe — all work committed)
@@ -856,7 +856,7 @@ b. For each story in the layer, invoke `/dso:implementation-plan` via Skill tool
    ```
    Skill("dso:implementation-plan", args="<story-id>")
    ```
-   **HARD GATE — SUBSTITUTION PROHIBITED (bug dea8-3ca9)**: NEVER dispatch `dso:plan-review` or any other named sub-agent via the Task tool to perform story decomposition. NEVER run implementation-plan steps inline in the orchestrator context (no contextual discovery, no proposal drafting, no `ticket create task` calls executed here). The ONLY valid mechanism for decomposing a story into tasks is the `Skill("dso:implementation-plan", args="<story-id>")` invocation shown above. Any Task tool dispatch targeting a planning or review agent in place of this Skill invocation is a critical routing error — it bypasses the tag guards, re-invocation guards, complexity gates, cross-cutting detection, distinctness validation, and approach-decision-maker dispatch that the canonical implementation-plan skill enforces.
+   **HARD GATE — SUBSTITUTION PROHIBITED (bug dea8-3ca9, bug 2dcb-6f08)**: NEVER dispatch `/dso:implementation-plan` via the Task tool OR the Agent tool. NEVER run implementation-plan steps inline in the orchestrator context (no contextual discovery, no proposal drafting, no `ticket create task` calls executed here). The ONLY valid mechanism for decomposing a story into tasks is the `Skill("dso:implementation-plan", args="<story-id>")` invocation shown above. Any Task tool or Agent tool dispatch targeting a planning or review agent in place of this Skill invocation is a critical routing error — it bypasses the tag guards, re-invocation guards, complexity gates, cross-cutting detection, distinctness validation, and approach-decision-maker dispatch that the canonical implementation-plan skill enforces. The Agent tool is explicitly prohibited because parallel sub-agent dispatch of implementation-plan creates orphan tasks and deeply nested calls (bug 2dcb-6f08).
    - Log: `"Story <id> has no implementation tasks — running /dso:implementation-plan to decompose."`
    - When the Skill tool returns, immediately execute step c — do not pause or wait for user input.
 
@@ -2007,6 +2007,8 @@ Do NOT proceed to Step 19 until Step 18 (completion-verifier dispatch) has compl
 
 Do NOT rationalize skipping Step 18. Prior evidence ("RED tests are GREEN", "CI passes", "AC verified") does not satisfy the completion-verifier requirement. The verifier checks done-definitions that task-level AC verification does not cover.
 
+Do NOT fabricate artifacts to satisfy done definitions or closure checks (bug cc4d-85c5). "Test alert triggered and received" means the GHA workflow fires and produces the artifact — NOT that the orchestrator creates the artifact by hand via `gh issue create`, `gh api`, or any other manual construction. Satisfying a DD requires the ACTUAL SYSTEM to produce the expected output. Constructing the expected output yourself is fabrication, regardless of framing ("simulating the logic directly", "verifying it fires by creating the output").
+
 Do NOT use the `/dso:commit` Skill tool here — read and execute COMMIT-WORKFLOW.md inline to avoid nested skill invocations that may not return control.
 </HARD-GATE>
 
@@ -2215,6 +2217,10 @@ grep -n "\[.*\]" .test-index || true
 - `ci-pr` mode: route through `merge-to-main.sh` to create a GitHub PR — do NOT perform a direct local merge
 - `local` mode (default): direct local merge with `DSO-Story-Merge` trailer via `merge-story-branch.sh`
 
+<HARD-GATE>
+**ci-pr merge enforcement (bug c7d1-8025)**: When `SPRINT_MODE=ci-pr`, you MUST use `merge-to-main.sh` with `STORY_PR_BASE=$SESSION_BRANCH` for EVERY story merge. NEVER use `merge-story-branch.sh` in ci-pr mode — it produces local direct merges with `DSO-Story-Merge` trailers that bypass the GitHub PR flow. Execute the bash block below VERBATIM — do NOT substitute merge-story-branch.sh for merge-to-main.sh regardless of how simple the merge appears.
+</HARD-GATE>
+
 ```bash
 # Conflict queue precondition (in-memory orchestrator check):
 if [[ ${#CONFLICT_QUEUE[@]} -gt 0 ]]; then
@@ -2224,12 +2230,13 @@ fi
 if [[ "${SPRINT_MODE:-local}" == "ci-pr" ]]; then
   # ci-pr mode: merge via GitHub PR — do NOT perform a local direct merge.
   # Resolve session branch via 3-step fallback — fail-fast, never silently
-  # default to main. KNOWN GAP (tracked under remediation epic; bug
-  # 576b-a6c7-3de3-4eef): story PRs target the session branch, so ci.yml's
-  # llm-review job (gated to base_ref == 'main') does NOT fire on them.
-  # Internal LLM review currently fires only at the cumulative session→main
-  # PR. /dso:review is HARD-GATED to no-op under dso.workflow=ci-pr.
-  # Remediation epic restores per-story internal review.
+  # default to main. Per-story LLM review is provided by review-sub-pr.yml
+  # (fires on PRs targeting worktree-** session branches). ci.yml's llm-review
+  # job (gated to base_ref == 'main') provides cumulative session→main review.
+  # /dso:review is HARD-GATED to no-op under dso.workflow=ci-pr.
+  # Branch naming dependency: review-sub-pr.yml trigger patterns must match
+  # the session branch naming convention (currently worktree-YYYYMMDD-HHMMSS).
+  # per-worktree-review-commit.md Step 2 has a fallback that detects mismatches.
   SESSION_BRANCH=$(bash "$PLUGIN_SCRIPTS/resolve-session-branch.sh") || { # shim-exempt: SKILL.md orchestrator instruction — sprint runs plugin scripts via $PLUGIN_SCRIPTS directly
     echo "ERROR: SESSION_BRANCH resolution failed — cannot open story PR against session branch" >&2
     exit 1
@@ -2646,6 +2653,8 @@ Phase I delegates to `/dso:end-session`, which handles closing issues, committin
 - Offer to close the epic with caveats
 
 The only valid actions on non-PASS are: (a) return to Phase C to address the findings, or (b) explicitly confirm with the user that they want to STOP the sprint entirely (not close the epic as "done").
+
+**Narrative framing discipline (bug 8f43-e219)**: When surfacing non-PASS SC failures to the user, present the verifier's structural category VERBATIM (external blocker / internal architecture gap / evidence pending). Do NOT collapse "internal architecture gap" failures into "external blocker" framing — if a SC fails because the epic's own scope did not ship the required capability, name the architecture gap as the proximate cause, even if external bugs are also present. Present the override decision as a structural choice: "This SC cannot be satisfied because scope item Z did not ship. Closing with the gap means Z is either (a) abandoned, (b) inherited by a successor epic, or (c) deferred."
 
 <HARD-GATE>
 Before closing the epic, confirm that dso:completion-verifier was dispatched at Phase G Step 2 with the EPIC ID (not a story ID) and Gate 1 (`check-verifier-verdict.sh`) returned exit 0 (`P1: PASS`) during THIS session. Story-level verifier results from Phase F Step 18 do NOT satisfy this requirement — each story verifier runs against one story's done definition; only the epic-level verifier (Phase G Step 2) runs against all epic-level success criteria simultaneously. If Phase G Step 2 has not yet been dispatched for the epic, stop and return to Phase G Step 2 NOW. Do NOT proceed to epic closure until the epic-level verifier verdict is received.

@@ -6,6 +6,7 @@ name: review-sub-pr
       - 'session-**'
       - 'session_**'
       - 'bug-batch/**'
+      - 'worktree-**'
 jobs:
   llm-review-sub-pr:
     name: review-sub-pr
@@ -23,6 +24,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install Python dependencies
+        run: pip install litellm==1.83.7
       - name: Compute diff and run reviewer
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

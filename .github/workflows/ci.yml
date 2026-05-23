@@ -698,7 +698,8 @@ jobs:
         startsWith(github.base_ref, 'session/') ||
         startsWith(github.base_ref, 'session-') ||
         startsWith(github.base_ref, 'session_') ||
-        startsWith(github.base_ref, 'bug-batch/')
+        startsWith(github.base_ref, 'bug-batch/') ||
+        startsWith(github.base_ref, 'worktree-')
       )
     steps:
       - uses: actions/checkout@v4
