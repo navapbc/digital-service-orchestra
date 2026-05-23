@@ -196,7 +196,7 @@ plugins/dso/scripts/check-test-index-duplicates.sh:tests/scripts/test-check-test
 plugins/dso/scripts/check-story-handoff.sh:tests/scripts/test-check-story-handoff.sh
 plugins/dso/scripts/check-verifier-verdict.sh:tests/scripts/test-check-verifier-verdict.sh,tests/scripts/test-verifier-consumer-migration.sh
 plugins/dso/scripts/check-dd-lexicon.sh:tests/scripts/test-check-dd-lexicon.sh
-plugins/dso/scripts/cleanup-claude-session.sh:tests/scripts/test-cleanup-claude-session.sh [test_dead_pid_locked_agent_worktree_removed]
+plugins/dso/scripts/cleanup-claude-session.sh:tests/scripts/test-cleanup-claude-session.sh
 plugins/dso/scripts/render-closure-narrative.sh:tests/scripts/test-render-closure-narrative.sh,tests/scripts/test-verifier-consumer-migration.sh
 plugins/dso/scripts/ci-llm-review-runner.sh:tests/scripts/test-ci-llm-review-runner.sh,tests/workflows/test-ci-suppress-prior-defenses-round-trip.sh
 plugins/dso/scripts/classify-task.py:tests/scripts/test-classify-task.sh
@@ -424,8 +424,7 @@ plugins/dso/skills/shared/prompts/scale-inference.md:tests/skills/test-scale-inf
 plugins/dso/skills/shared/prompts/single-agent-integrate.md:tests/hooks/test-single-agent-integrate-structure.sh,tests/scripts/test-compute-diff-hash-shim-refs.sh
 plugins/dso/skills/shared/prompts/test-failure-fix.md:tests/scripts/test-debug-everything-prompt-contracts.sh
 plugins/dso/skills/shared/prompts/value-effort-scorer.md:tests/skills/test-value-effort-scorer-integration.sh
-plugins/dso/skills/shared/prompts/worktree-dispatch.md:tests/hooks/test-worktree-dispatch-orchestrator-root.sh,tests/hooks/test-sprint-active-propagation.sh [test_propagation_script_exists]
-plugins/dso/scripts/propagate-sprint-active.sh:tests/hooks/test-sprint-active-propagation.sh [test_propagation_script_exists]
+plugins/dso/skills/shared/prompts/worktree-dispatch.md:tests/hooks/test-worktree-dispatch-orchestrator-root.sh
 plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md:tests/skills/test-epic-scrutiny-pipeline.sh,tests/skills/test-epic-scrutiny-pipeline-relates-to.sh,tests/hooks/test-residual-state-probe.sh,tests/hooks/test-part-c-trigger.sh,tests/hooks/test-residual-state-e2e.sh
 plugins/dso/skills/sprint/prompts/per-worktree-review-commit.md:tests/skills/test-worktree-tracking-complete-landed.sh
 plugins/dso/skills/sprint/prompts/sc-coverage-haiku.md:tests/skills/test-sprint-sc-coverage-haiku-gate.sh,tests/skills/test-sprint-sc-coverage-prompts.sh,tests/skills/test-sc-coverage-closure-checks-scope.sh
