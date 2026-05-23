@@ -52,20 +52,10 @@ def acli() -> ModuleType:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.scripts
-def test_acli_client_has_set_entity_property(acli: ModuleType) -> None:
-    """AcliClient exposes a set_entity_property method."""
-    assert hasattr(acli.AcliClient, "set_entity_property"), (
-        "AcliClient is missing set_entity_property"
-    )
-
-
-@pytest.mark.scripts
-def test_acli_client_has_get_entity_property(acli: ModuleType) -> None:
-    """AcliClient exposes a get_entity_property method."""
-    assert hasattr(acli.AcliClient, "get_entity_property"), (
-        "AcliClient is missing get_entity_property"
-    )
+# Note: existence-only tests (hasattr checks) were removed — the delegation
+# tests below already exercise the methods, and AttributeError would surface
+# any missing-method regression with a clearer signal than a separate hasattr
+# assert. See PR #290 llm-review finding 1/3.
 
 
 @pytest.mark.scripts

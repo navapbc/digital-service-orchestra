@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -13,17 +15,33 @@ class StepResult:
 
 
 def run(repo_root: Path | None = None) -> StepResult:
-    """Check that identity-layer bootstrap attestation files exist."""
+    """Check that identity-layer bootstrap attestation files exist.
+
+    Populates StepResult.details with the file-examination trail so operators
+    can distinguish three failure modes that previously collapsed into one
+    generic message: (a) no bootstrap dir at all, (b) dir exists but is empty,
+    (c) files exist but are all malformed / missing the required 'band' key.
+    """
     if repo_root is None:
         repo_root = Path(__file__).parents[4]  # project root
 
     bootstrap_dir = repo_root / "bridge_state" / "bootstrap"
 
+    # Examination trail — empty on the bootstrap_dir-missing path so callers
+    # can tell "no dir" from "dir with malformed files" by inspecting it.
+    examined: list[str] = []
+    parse_failures: list[dict] = []
+    files_without_band: list[str] = []
+
     if not bootstrap_dir.is_dir():
         return StepResult(
             name="capability_check",
             ok=False,
-            message="identity-layer attestation absent — run cfd6 bootstrap first",
+            message=(
+                "identity-layer attestation absent — bootstrap_dir does not "
+                f"exist at {bootstrap_dir} — run cfd6 bootstrap first"
+            ),
+            details={"bootstrap_dir": str(bootstrap_dir), "exists": False},
         )
 
     attested_files = list(bootstrap_dir.glob("*.attested.json"))
@@ -31,26 +49,47 @@ def run(repo_root: Path | None = None) -> StepResult:
         return StepResult(
             name="capability_check",
             ok=False,
-            message="identity-layer attestation absent — run cfd6 bootstrap first",
+            message=(
+                "identity-layer attestation absent — no *.attested.json files "
+                f"in {bootstrap_dir} — run cfd6 bootstrap first"
+            ),
+            details={"bootstrap_dir": str(bootstrap_dir), "files_examined": []},
         )
 
-    # Validate at least one attestation file has required 'band' key
+    # Validate at least one attestation file has required 'band' key.
+    # Track every examination so failures carry diagnostic context instead
+    # of silently swallowing JSON-decode / IO errors.
     for attest_file in attested_files:
+        examined.append(attest_file.name)
         try:
-            import json
-
             data = json.loads(attest_file.read_text())
-            if isinstance(data, dict) and "band" in data:
-                return StepResult(
-                    name="capability_check",
-                    ok=True,
-                    message=f"attestation found: {attest_file.name}",
-                )
-        except Exception:
+        except (OSError, json.JSONDecodeError) as exc:
+            parse_failures.append(
+                {"file": attest_file.name, "error_type": type(exc).__name__, "error": str(exc)}
+            )
             continue
+        if isinstance(data, dict) and "band" in data:
+            return StepResult(
+                name="capability_check",
+                ok=True,
+                message=f"attestation found: {attest_file.name}",
+                details={"files_examined": examined, "matched": attest_file.name},
+            )
+        # File parsed but lacked the 'band' key
+        files_without_band.append(attest_file.name)
 
     return StepResult(
         name="capability_check",
         ok=False,
-        message="identity-layer attestation absent — run cfd6 bootstrap first",
+        message=(
+            "identity-layer attestation absent — examined "
+            f"{len(examined)} file(s), {len(parse_failures)} parse failure(s), "
+            f"{len(files_without_band)} without 'band' key — run cfd6 bootstrap first"
+        ),
+        details={
+            "bootstrap_dir": str(bootstrap_dir),
+            "files_examined": examined,
+            "parse_failures": parse_failures,
+            "files_without_band": files_without_band,
+        },
     )

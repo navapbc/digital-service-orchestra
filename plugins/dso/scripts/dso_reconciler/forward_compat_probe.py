@@ -5,9 +5,16 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import time
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
+
+# JQL search retry constants — mirror jira-capability-probe's pattern so both
+# probes are resilient to Jira's eventually-consistent label indexing. Search
+# results immediately after a label write can lag by 1-3 seconds.
+_JQL_RETRY_COUNT = 3
+_JQL_RETRY_SLEEP_S = 2
 
 
 @dataclass
@@ -105,16 +112,29 @@ def run() -> StepResult:
                 details={"sub_operations": sub_ops},
             )
 
-        # Sub-op 3: jql_search
+        # Sub-op 3: jql_search — with retry/backoff for Jira's
+        # eventually-consistent label indexing (label writes can take 1-3s
+        # to become searchable).
         try:
-            results = client.search_issues(f'labels="{label}"')
-            found = any(r.get("key") == issue_key for r in results)
-            sub_ops.append({"op": "jql_search", "ok": found})
+            found = False
+            attempts = 0
+            for _attempt in range(_JQL_RETRY_COUNT):
+                attempts = _attempt + 1
+                results = client.search_issues(f'labels="{label}"')
+                if any(r.get("key") == issue_key for r in results):
+                    found = True
+                    break
+                if _attempt < _JQL_RETRY_COUNT - 1:
+                    time.sleep(_JQL_RETRY_SLEEP_S)
+            sub_ops.append({"op": "jql_search", "ok": found, "attempts": attempts})
             if not found:
                 return StepResult(
                     name="forward_compat_probe",
                     ok=False,
-                    message="FAIL jql_search: issue key not found in label search results",
+                    message=(
+                        f"FAIL jql_search: issue key not found in label search results "
+                        f"after {attempts} attempt(s)"
+                    ),
                     details={"sub_operations": sub_ops},
                 )
         except Exception as exc:
