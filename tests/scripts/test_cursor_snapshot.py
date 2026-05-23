@@ -130,18 +130,23 @@ def test_returns_fail_when_tickets_branch_absent(tmp_path):
 
 
 def test_atomic_write_uses_tempfile(tmp_path):
-    """Verify that os.rename is called with a source path that is a tempfile in the same dir."""
+    """Verify that os.replace is called with a source path that is a tempfile in the same dir.
+
+    cursor_snapshot uses os.replace (not os.rename) for cross-platform atomic
+    overwrite semantics — on Windows, os.rename fails if the destination exists,
+    while os.replace overwrites atomically on all platforms.
+    """
     cs = _load_cursor_snapshot()
 
     bridge_state = tmp_path / "bridge_state"
     bridge_state.mkdir()
 
     rename_calls = []
-    original_rename = __import__("os").rename
+    original_replace = __import__("os").replace
 
-    def capture_rename(src, dst):
+    def capture_replace(src, dst):
         rename_calls.append((Path(src), Path(dst)))
-        original_rename(src, dst)
+        original_replace(src, dst)
 
     def fake_subprocess_run(cmd, **kwargs):
         if cmd[0] == "git" and cmd[1] == "rev-parse":
@@ -155,11 +160,11 @@ def test_atomic_write_uses_tempfile(tmp_path):
         return _make_proc(1, stderr="unexpected")
 
     with patch("subprocess.run", side_effect=fake_subprocess_run):
-        with patch("os.rename", side_effect=capture_rename):
+        with patch("os.replace", side_effect=capture_replace):
             result = cs.run(repo_root=tmp_path)
 
     assert result.ok is True, f"Expected ok=True, got message: {result.message}"
-    assert len(rename_calls) == 1, "Expected exactly one os.rename call"
+    assert len(rename_calls) == 1, "Expected exactly one os.replace call"
     src, dst = rename_calls[0]
     # Source must be in the same directory as destination (bridge_state)
     assert src.parent == dst.parent, (

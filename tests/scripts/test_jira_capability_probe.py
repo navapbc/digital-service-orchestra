@@ -118,8 +118,11 @@ def _run_probe_with_mocked_acli(
     with contextlib.ExitStack() as stack:
         for p in patches:
             stack.enter_context(p)  # type: ignore[arg-type]
+        # Load the module first (no main() side effect — main is guarded
+        # by `if __name__ == "__main__":`).
+        probe_spec.loader.exec_module(probe_mod)
         with pytest.raises(SystemExit) as exc_info:
-            probe_spec.loader.exec_module(probe_mod)
+            probe_mod.main()
         exit_code = exc_info.value.code
 
     return exit_code, captured.getvalue()
@@ -149,8 +152,11 @@ def _run_probe_no_acli(
         mock.patch.dict("os.environ", env, clear=False),
         mock.patch("sys.stdout", captured),
     ):
+        # Load the module first (no main() side effect — main is guarded
+        # by `if __name__ == "__main__":`).
+        probe_spec.loader.exec_module(probe_mod)
         with pytest.raises(SystemExit) as exc_info:
-            probe_spec.loader.exec_module(probe_mod)
+            probe_mod.main()
         exit_code = exc_info.value.code
 
     return exit_code, captured.getvalue()

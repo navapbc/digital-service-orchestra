@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import importlib.util
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 
@@ -28,15 +28,22 @@ class StepResult:
     name: str
     ok: bool
     message: str
-    details: str = ""
+    # Step modules emit structured details (sub-operations, head SHA, in/outbound
+    # counts) as a dict — capability_check.StepResult uses a dict and the other
+    # step modules do too; the orchestrator's StepResult must agree.
+    details: dict = field(default_factory=dict)
 
 
 def main() -> int:
     steps = ["capability_check", "forward_compat_probe", "cursor_snapshot"]
     passed = 0
     for step_name in steps:
-        mod = _load_step(step_name)
-        result: StepResult = mod.run()
+        try:
+            mod = _load_step(step_name)
+            result: StepResult = mod.run()
+        except Exception as exc:
+            print(f"FAIL: {step_name} — exception: {exc!r}", file=sys.stderr)
+            return 1
         if not result.ok:
             print(f"FAIL: {result.name} — {result.message}", file=sys.stderr)
             return 1

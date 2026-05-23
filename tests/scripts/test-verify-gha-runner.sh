@@ -8,14 +8,14 @@
 # Test cases:
 #   1. test_auth_success_empty_run_list  — gh auth success + empty run list → exits 0, calls dso ticket comment
 #   2. test_auth_failure                 — gh auth failure → exits 1, does NOT call ticket comment
-#   3. test_run_list_failure             — gh auth success + run list non-zero exit → exits 1
+#   3. test_run_list_failure             — gh auth success + run list non-zero exit → exits 1, does NOT call ticket comment
 #
-# Testing Mode: RED — verify-gha-runner.sh does not exist yet; all tests expected to FAIL.
+# Testing Mode: GREEN — verify-gha-runner.sh exists; tests assert observed behavior.
 #
 # Usage: bash tests/scripts/test-verify-gha-runner.sh
-# Returns: exit 1 (RED — implementation does not exist yet)
+# Returns: exit 0 on all tests passing, exit 1 on any test failure.
 
-set -uo pipefail
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -91,7 +91,10 @@ FAKEDSO
 chmod +x "$_STUB_DSO_AUTH_OK/dso"
 
 _auth_ok_exit=0
+# DSO_CMD override pins verify-gha-runner.sh to the stub (otherwise it resolves
+# to ${REPO_ROOT}/.claude/scripts/dso which would bypass the PATH stub).
 PATH="$_STUB_AUTH_OK:$_STUB_DSO_AUTH_OK:$PATH" \
+    DSO_CMD="$_STUB_DSO_AUTH_OK/dso" \
     bash "$VERIFY_SCRIPT" 2>/dev/null || _auth_ok_exit=$?
 
 assert_eq "test_auth_success_empty_run_list: script exits 0" "0" "$_auth_ok_exit"
@@ -148,6 +151,7 @@ chmod +x "$_STUB_DSO_AUTH_FAIL/dso"
 
 _auth_fail_exit=0
 PATH="$_STUB_AUTH_FAIL:$_STUB_DSO_AUTH_FAIL:$PATH" \
+    DSO_CMD="$_STUB_DSO_AUTH_FAIL/dso" \
     bash "$VERIFY_SCRIPT" 2>/dev/null || _auth_fail_exit=$?
 
 assert_eq "test_auth_failure: script exits 1 on auth failure" "1" "$_auth_fail_exit"
@@ -194,20 +198,32 @@ exit 0
 FAKEGH
 chmod +x "$_STUB_RUNLIST_FAIL/gh"
 
-# Stub dso (should not be called in this scenario, but include for completeness)
+# Stub dso (should NOT be called in this scenario; record every invocation so we
+# can assert no comment was posted after run-list failure).
 _STUB_DSO_RUNLIST="$_TMP/stub-dso-runlist-fail"
 mkdir -p "$_STUB_DSO_RUNLIST"
+_DSO_CALL_LOG_RUNLIST_FAIL="$_TMP/dso-calls-runlist-fail.log"
+true > "$_DSO_CALL_LOG_RUNLIST_FAIL"
 cat > "$_STUB_DSO_RUNLIST/dso" <<FAKEDSO
 #!/usr/bin/env bash
+echo "\$*" >> "$_DSO_CALL_LOG_RUNLIST_FAIL"
 exit 0
 FAKEDSO
 chmod +x "$_STUB_DSO_RUNLIST/dso"
 
+# DSO_CMD override pins verify-gha-runner.sh to the stub (it normally resolves
+# to ${REPO_ROOT}/.claude/scripts/dso which would bypass the PATH stub).
 _runlist_fail_exit=0
 PATH="$_STUB_RUNLIST_FAIL:$_STUB_DSO_RUNLIST:$PATH" \
+    DSO_CMD="$_STUB_DSO_RUNLIST/dso" \
     bash "$VERIFY_SCRIPT" 2>/dev/null || _runlist_fail_exit=$?
 
 assert_eq "test_run_list_failure: script exits 1 on run list failure" "1" "$_runlist_fail_exit"
+
+# Assert dso ticket comment was NOT called — the script must short-circuit on
+# run-list failure before reaching the comment step.
+_dso_call_count=$(wc -l < "$_DSO_CALL_LOG_RUNLIST_FAIL" | tr -d ' ')
+assert_eq "test_run_list_failure: dso ticket comment must not be invoked on run list failure" "0" "$_dso_call_count"
 
 assert_pass_if_clean "test_run_list_failure"
 

@@ -101,7 +101,8 @@ def run(repo_root: Path | None = None) -> StepResult:
                 json.dump(snapshot, f, indent=2)
                 f.flush()
                 os.fsync(f.fileno())
-            os.rename(tmp_path, snapshot_path)
+            # os.replace (not os.rename) for cross-platform atomic overwrite semantics.
+            os.replace(tmp_path, snapshot_path)
             tmp_path = None
         finally:
             if tmp_path and tmp_path.exists():
@@ -128,15 +129,16 @@ def run(repo_root: Path | None = None) -> StepResult:
                 "commit",
                 "-m",
                 f"chore: cursor snapshot at tickets HEAD {head_sha[:8]}",
-                "--allow-empty-message",
             ],
             capture_output=True,
             text=True,
             cwd=str(repo_root),
             check=False,
         )
-        # "nothing to commit" is ok (idempotent)
-        if git_commit.returncode != 0 and "nothing to commit" not in git_commit.stdout:
+        # "nothing to commit" is ok (idempotent). Different git versions emit
+        # the phrase on stdout vs stderr; check both before failing.
+        _commit_output = git_commit.stdout + git_commit.stderr
+        if git_commit.returncode != 0 and "nothing to commit" not in _commit_output:
             return StepResult(
                 name="cursor_snapshot",
                 ok=False,

@@ -81,10 +81,15 @@ def main() -> None:
             }
         )
         issue_key = result.get("key") or result.get("id")
+        if not issue_key:
+            print(
+                f"PROBE_FAIL step=STEP_CREATE reason=no_key_in_response detail={result!r}"
+            )
+            sys.exit(1)
         print("PROBE_PASS step=STEP_CREATE")
 
-        # STEP 2: Add label
-        client._direct_rest_put(
+        # STEP 2: Add label (raw PUT — issue updates take {"update": ...}, not {"value": ...})
+        client._direct_rest_put_raw(
             f"/rest/api/3/issue/{issue_key}",
             {"update": {"labels": [{"add": label}]}},
         )
@@ -133,8 +138,10 @@ def main() -> None:
                 print("PROBE_PASS step=STEP_DELETE")
             except Exception as exc:  # noqa: BLE001
                 print(f"PROBE_FAIL step=STEP_DELETE reason=exception detail={exc}")
+                failed = True
 
     sys.exit(1 if failed else 0)
 
 
-main()
+if __name__ == "__main__":
+    main()

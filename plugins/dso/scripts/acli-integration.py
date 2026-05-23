@@ -713,18 +713,32 @@ class AcliClient:
         return self._myself_cache
 
     def _direct_rest_put(self, path: str, data: Any) -> None:
-        """PUT JSON data to a Jira REST path using stored credentials.
+        """PUT JSON data to a Jira issue-properties REST path using stored credentials.
 
-        Follows the same urllib pattern as get_myself().
+        Wraps the body as ``{"value": data}`` per the Jira issue-properties
+        API contract (used by set_issue_property). Do NOT use this for any
+        other PUT endpoint (e.g. /rest/api/3/issue/{key} updates) — use
+        _direct_rest_put_raw() instead so the body is sent unwrapped.
+
         Spike confirmed ACLI has no issue properties subcommand.
+        Raises urllib.error.HTTPError on non-2xx response.
+        """
+        self._direct_rest_put_raw(path, {"value": data})
+
+    def _direct_rest_put_raw(self, path: str, body: Any) -> None:
+        """PUT JSON body to a Jira REST path verbatim (no wrapping).
+
+        Used for endpoints that take their own JSON shape — e.g.
+        /rest/api/3/issue/{key} with ``{"update": {"labels": [...]}}``.
+        Issue-property writes should go through _direct_rest_put().
         Raises urllib.error.HTTPError on non-2xx response.
         """
         url = f"{self.jira_url.rstrip('/')}{path}"
         creds = base64.b64encode(f"{self.user}:{self.api_token}".encode()).decode()
-        body = json.dumps({"value": data}, ensure_ascii=False).encode("utf-8")
+        data = json.dumps(body, ensure_ascii=False).encode("utf-8")
         req = urllib.request.Request(
             url,
-            data=body,
+            data=data,
             method="PUT",
             headers={
                 "Authorization": f"Basic {creds}",

@@ -62,10 +62,17 @@ def run() -> StepResult:
             "ticket_type": "task",
         })
         issue_key = result.get("key") or result.get("id")
+        if not issue_key:
+            return StepResult(
+                name="forward_compat_probe",
+                ok=False,
+                message=f"create_issue returned no key/id: {result!r}",
+                details={"sub_operations": sub_ops},
+            )
 
-        # Sub-op 1: label_write
+        # Sub-op 1: label_write (raw PUT — issue updates take {"update": ...}, not {"value": ...})
         try:
-            client._direct_rest_put(
+            client._direct_rest_put_raw(
                 f"/rest/api/3/issue/{issue_key}",
                 {"update": {"labels": [{"add": label}]}},
             )

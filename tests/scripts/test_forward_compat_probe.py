@@ -50,12 +50,15 @@ def _make_mock_client_class(
     search_results: list | None = None,
     set_issue_property_side_effect=None,
     direct_rest_put_side_effect=None,
+    direct_rest_put_raw_side_effect=None,
     get_issue_property_side_effect=None,
     delete_side_effect=None,
 ) -> tuple[MagicMock, MagicMock]:
     """Return (MockClass, mock_instance) with sensible defaults."""
     instance = MagicMock()
-    instance.create_issue.return_value = issue_key
+    # forward_compat_probe.run() calls result.get("key") on the create_issue
+    # return value — must be a dict, not a bare string.
+    instance.create_issue.return_value = {"key": issue_key}
 
     if search_results is None:
         search_results = [{"key": issue_key}]
@@ -70,6 +73,13 @@ def _make_mock_client_class(
         instance._direct_rest_put.side_effect = direct_rest_put_side_effect
     else:
         instance._direct_rest_put.return_value = None
+
+    # forward_compat_probe.run() uses _direct_rest_put_raw for label updates
+    # (raw PUT body, not the issue-properties wrapper).
+    if direct_rest_put_raw_side_effect is not None:
+        instance._direct_rest_put_raw.side_effect = direct_rest_put_raw_side_effect
+    else:
+        instance._direct_rest_put_raw.return_value = None
 
     if get_issue_property_side_effect is not None:
         instance.get_issue_property.side_effect = get_issue_property_side_effect
@@ -155,7 +165,8 @@ def test_label_write_failure_short_circuits(monkeypatch):
 
     mock_class, instance = _make_mock_client_class(
         issue_key="TEST-123",
-        direct_rest_put_side_effect=RuntimeError("403 Forbidden"),
+        # label_write now goes through _direct_rest_put_raw (raw body PUT).
+        direct_rest_put_raw_side_effect=RuntimeError("403 Forbidden"),
     )
 
     with patch.object(mod, "_load_acli_client", return_value=mock_class):
