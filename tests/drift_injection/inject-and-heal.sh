@@ -80,8 +80,37 @@ case "${MODE}" in
     echo "Post-heal fsck: exit 0 (PASS)"
     ;;
   missing-prop)
-    echo "not yet implemented" >&2
-    exit 2
+    # Create a Jira issue, set dso_local_id entity property, then strip it
+    LOCAL_ID="drift-missing-$(date +%s)"
+    ISSUE_KEY=$(jira_create_issue "DSO drift-injection missing-prop $(date +%s)")
+    CLEANUP_KEYS+=("$ISSUE_KEY")
+    echo "Injected missing-prop: ${ISSUE_KEY} (local: ${LOCAL_ID})"
+
+    # Set the property first (correct state)
+    curl -s -u ":${JIRA_API_TOKEN}" \
+        -H "Content-Type: application/json" \
+        -X PUT "${JIRA_BASE_URL:-https://your-org.atlassian.net}/rest/api/3/issue/${ISSUE_KEY}/properties/dso_local_id" \
+        -d "{\"value\":\"${LOCAL_ID}\"}" > /dev/null
+
+    # Now strip the property (inject drift)
+    jira_strip_property "$ISSUE_KEY" "dso_local_id"
+
+    # Assert bridge-fsck non-zero before heal
+    python3 "${REPO_ROOT}/plugins/dso/scripts/ticket-bridge-fsck.py" && {
+        echo "FAIL: expected bridge-fsck non-zero exit before heal (missing-prop)" >&2
+        exit 1
+    }
+    echo "Pre-heal fsck: non-zero exit (expected)"
+
+    # Run reconciler to heal
+    python3 -m dso_reconciler --repo-root "${REPO_ROOT}"
+
+    # Assert bridge-fsck exits 0
+    python3 "${REPO_ROOT}/plugins/dso/scripts/ticket-bridge-fsck.py" || {
+        echo "FAIL: bridge-fsck still non-zero after heal (missing-prop)" >&2
+        exit 1
+    }
+    echo "Post-heal fsck: exit 0 (PASS)"
     ;;
   *)
     echo "Usage: $0 <orphan|mislabel|missing-prop>" >&2
