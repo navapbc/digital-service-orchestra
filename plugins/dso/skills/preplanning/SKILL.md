@@ -504,6 +504,27 @@ The upstream for preplanning Phase E is `brainstorm` (per the upstream enum in S
 
 See: `${CLAUDE_PLUGIN_ROOT}/skills/shared/workflows/remediation-loop-protocol.md`
 
+**Per-cycle artifact append (084d/83d4 block — cycle recorder)**
+
+After each cycle's re-dispatch and review, atomically append a `cycles[]` entry to the adversarial-review artifact using the writer:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/append_review_cycle.py" \
+  --artifact "$ARTIFACTS_DIR/adversarial-review-<epic-id>.json" \
+  --n <cycle-number> \
+  --draft-hash <sha256 of DELTA OUTPUT block> \
+  --findings-count <int> \
+  --verdict <pass|fail|escalate>
+```
+
+After the append, emit exactly ONE ticket comment per cycle that references the artifact path:
+
+```bash
+.claude/scripts/dso ticket comment <ticket-id> "Remediation cycle <n> recorded at $ARTIFACTS_DIR/adversarial-review-<epic-id>.json"
+```
+
+**Single-comment policy (SC5)**: The ticket comment references the artifact path and does NOT duplicate the cycle body — cycle entries live in the artifact's `cycles[]` array, not in ticket comments. One comment per cycle; no further detail in the comment body.
+
 ---
 
 ## Refusal Gate: External Dependencies Block Check (/dso:preplanning)
