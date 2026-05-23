@@ -132,14 +132,17 @@ These are the only valid upstream targets. Any value not in this enum is a `PROT
 The `MAX_CYCLES` value used in all cycle declarations and termination conditions is sourced from the `planning.max_remediation_cycles` config key.
 
 - **Default**: 3
-- **Minimum**: 2 (values below 2 are treated as 2)
+- **Minimum**: 2 (values below 2 are **rejected** at load time with a non-zero exit and a stderr message of the form `planning.max_remediation_cycles must be >= 2 (got: <value>)` — the function does NOT silently clamp. See `CONFIGURATION-REFERENCE.md` for the canonical contract.)
 - **Config file**: the project's `.claude/dso-config.conf` (read via the standard `read-config.sh` helper)
 
-Callers source `MAX_CYCLES` via the `get_max_remediation_cycles()` function from `${CLAUDE_PLUGIN_ROOT}/hooks/lib/planning-config.sh`. Direct reading of the config key outside this function is not permitted; using the function ensures minimum-enforcement and default-fallback logic is applied consistently.
+Callers source `MAX_CYCLES` via the `get_max_remediation_cycles()` function from `${CLAUDE_PLUGIN_ROOT}/hooks/lib/planning-config.sh`. Direct reading of the config key outside this function is not permitted; using the function ensures default-fallback logic and load-time minimum-validation are applied consistently. Callers MUST check the function's exit code — on a non-zero exit, `MAX_CYCLES` will be empty and proceeding into a remediation loop would silently skip all cycles.
 
 ```bash
 source "$CLAUDE_PLUGIN_ROOT/hooks/lib/planning-config.sh"
-MAX_CYCLES=$(get_max_remediation_cycles)
+MAX_CYCLES=$(get_max_remediation_cycles) || {
+    echo "ERROR: planning.max_remediation_cycles invalid — halting remediation entry" >&2
+    exit 1
+}
 ```
 
 ---
