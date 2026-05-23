@@ -138,6 +138,94 @@ def _write_pass_record(repo_root: Path, pass_id: str, mutation_count: int) -> No
     record_path.write_text(json.dumps(record, indent=2))
 
 
+def _load_conflict_resolver():
+    """Load conflict_resolver module via importlib."""
+    resolver_path = Path(__file__).parent / "conflict_resolver.py"
+    spec = importlib.util.spec_from_file_location(
+        "dso_reconciler_conflict_resolver", resolver_path
+    )
+    if spec is None:
+        raise FileNotFoundError(f"conflict_resolver.py not found at {resolver_path}")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules.setdefault("dso_reconciler_conflict_resolver", mod)
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    return mod
+
+
+def _load_mapping(mapping_path: Path) -> dict:
+    """Load mapping.json, returning an empty dict if missing or corrupt."""
+    if mapping_path.exists():
+        try:
+            return json.loads(mapping_path.read_text())
+        except (json.JSONDecodeError, OSError):
+            return {}
+    return {}
+
+
+def _write_mapping_json_atomic(mapping_path: Path, data: dict) -> None:
+    """Write data to mapping_path atomically using temp-file + os.replace.
+
+    Args:
+        mapping_path: Full path to mapping.json.
+        data:         Complete dict to serialize.
+    """
+    mapping_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_fd, tmp_path = tempfile.mkstemp(
+        dir=mapping_path.parent, suffix=".tmp", prefix="mapping_"
+    )
+    try:
+        with os.fdopen(tmp_fd, "w") as fh:
+            json.dump(data, fh, indent=2)
+        os.replace(tmp_path, mapping_path)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
+def _persist_field_provenance(
+    mapping_path: Path,
+    jira_key: str,
+    field_name: str,
+    field_value,
+) -> None:
+    """Persist field provenance for a set-valued field to mapping.json.
+
+    Reads the current mapping.json, updates
+    ``mapping[jira_key]["field_provenance"][field_name]`` with a provenance_record
+    list derived from field_value, then writes back atomically.
+
+    Args:
+        mapping_path: Full path to mapping.json.
+        jira_key:     Jira issue key (top-level key in mapping).
+        field_name:   Name of the set-valued field (e.g., "labels").
+        field_value:  The field value (list) from the mutation.
+    """
+    # Build the provenance_record list from the field value
+    if isinstance(field_value, list):
+        provenance_record = list(field_value)
+    elif field_value is not None:
+        provenance_record = [field_value]
+    else:
+        provenance_record = []
+
+    data = _load_mapping(mapping_path)
+
+    # Ensure nested structure exists
+    if jira_key not in data:
+        data[jira_key] = {}
+    if not isinstance(data[jira_key], dict):
+        data[jira_key] = {}
+    if "field_provenance" not in data[jira_key]:
+        data[jira_key]["field_provenance"] = {}
+
+    data[jira_key]["field_provenance"][field_name] = provenance_record
+
+    _write_mapping_json_atomic(mapping_path, data)
+
+
 def _write_mapping_atomic(mapping_path: Path, local_id: str, jira_key: str) -> None:
     """Atomically update mapping.json with local_id -> jira_key entry.
 
@@ -151,31 +239,10 @@ def _write_mapping_atomic(mapping_path: Path, local_id: str, jira_key: str) -> N
     mapping_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Load existing mapping (tolerate missing file)
-    if mapping_path.exists():
-        try:
-            existing: dict = json.loads(mapping_path.read_text())
-        except (json.JSONDecodeError, OSError):
-            existing = {}
-    else:
-        existing = {}
-
+    existing = _load_mapping(mapping_path)
     existing[local_id] = jira_key
 
-    # Write to a sibling temp file then atomically rename
-    tmp_fd, tmp_path = tempfile.mkstemp(
-        dir=mapping_path.parent, suffix=".tmp", prefix="mapping_"
-    )
-    try:
-        with os.fdopen(tmp_fd, "w") as fh:
-            json.dump(existing, fh, indent=2)
-        os.replace(tmp_path, mapping_path)
-    except Exception:
-        # Clean up temp file on failure to avoid leftover debris
-        try:
-            os.unlink(tmp_path)
-        except OSError:
-            pass
-        raise
+    _write_mapping_json_atomic(mapping_path, existing)
 
 
 def create_one(
@@ -397,6 +464,18 @@ def apply(
             elif action == "update":
                 result = update_one(mutation, client)
                 outcome["result"] = result
+                # Persist provenance for set-valued fields after update
+                jira_key = mutation.get("key", "")
+                if jira_key:
+                    conflict_resolver = _load_conflict_resolver()
+                    mapping_path = repo_root / "bridge_state" / "mapping.json"
+                    for field_name, field_value in mutation.get("fields", {}).items():
+                        if (
+                            conflict_resolver.FIELD_CLASSES.get(field_name) == "set"
+                        ):
+                            _persist_field_provenance(
+                                mapping_path, jira_key, field_name, field_value
+                            )
             elif action == "delete":
                 delete_one(mutation, client)
                 outcome["result"] = None
