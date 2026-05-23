@@ -550,3 +550,4 @@ plugins/dso/scripts/dso_reconciler/dso-reconciler-health.py:tests/scripts/test_d
 plugins/dso/scripts/dso_reconciler/health.py:tests/unit/dso_reconciler/test_health.py,tests/unit/dso_reconciler/test_health_baseline.py,tests/unit/dso_reconciler/test_health_schema.py
 plugins/dso/scripts/dso_reconciler/bootstrap.py:tests/unit/dso_reconciler/test_bootstrap_baseline.py
 plugins/dso/scripts/dso_reconciler/alert_store.py:tests/unit/dso_reconciler/test_alert_store_dedup.py
+tests/drift_injection/inject-and-heal.sh:tests/drift_injection/inject-and-heal.sh
