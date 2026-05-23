@@ -50,7 +50,7 @@ is_external_dep_block_enabled() {
 # Stderr error format: "planning.max_remediation_cycles must be >= 2 (got: <value>)"
 get_max_remediation_cycles() {
     local _val
-    _val=$("$_READ_CONFIG" "planning.max_remediation_cycles" 2>/dev/null) || true
+    _val=$(WORKFLOW_CONFIG_FILE="${WORKFLOW_CONFIG_FILE:-}" "$_READ_CONFIG" "planning.max_remediation_cycles" 2>/dev/null) || true
 
     # Treat absent or empty as default
     if [[ -z "$_val" ]]; then
