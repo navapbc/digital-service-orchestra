@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# tests/unit/shared/test-planning-config-max-remediation-cycles.sh
+# tests/hooks/test-planning-config-max-remediation-cycles.sh
 # Behavioral tests for get_max_remediation_cycles() in planning-config.sh.
 #
 # Tests verify:
@@ -10,10 +10,8 @@
 #
 # Stderr error format: "planning.max_remediation_cycles must be >= 2 (got: <value>)"
 #
-# Usage: bash tests/unit/shared/test-planning-config-max-remediation-cycles.sh
+# Usage: bash tests/hooks/test-planning-config-max-remediation-cycles.sh
 # Exit code: 0 if all pass, 1 if any fail
-#
-# testing_mode: RED (function does not exist yet — tests must fail before implementation)
 
 set -uo pipefail
 
