@@ -1,0 +1,1 @@
+{"author":"Test","data":{"body":"User confirms current behavior is desired: CLAUDE_PLUGIN_ROOT precedence over relative dso.plugin_root in worktree sessions is intentional. Closing as not-a-bug."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1779542158136228000,"uuid":"0bf38531-83b1-4f41-8dd2-888b3b6a1fc5"}
