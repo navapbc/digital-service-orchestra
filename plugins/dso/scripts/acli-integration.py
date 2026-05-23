@@ -783,17 +783,31 @@ class AcliClient:
         the 'value' field from the response per the Jira issue properties API contract.
 
         Raises:
-            KeyError: when the response does not contain a 'value' field —
-                indicates either a malformed Jira response or a 404 surfaced
-                as a non-conforming body. Wrapped so callers can distinguish
-                the missing-property case from network/transport errors.
+            urllib.error.HTTPError: from the underlying _direct_rest_get. Note
+                that Jira returns 404 when the property does NOT exist on the
+                issue — that case surfaces as HTTPError, NOT as KeyError below.
+                Callers that need to handle "property not yet set" should catch
+                HTTPError and inspect ``.code``.
+            KeyError: only when the response IS a 2xx but the body shape is
+                malformed (response is not a dict, or it lacks the 'value'
+                field). This is a transport/proxy anomaly, NOT the
+                missing-property signal. The exception message includes a
+                truncated repr of the response for diagnostics; long bodies
+                are clipped to 200 chars to avoid leaking credentials or PII
+                from upstream error pages.
         """
         path = f"/rest/api/3/issue/{jira_key}/properties/{property_key}"
         response = self._direct_rest_get(path)
         if not isinstance(response, dict) or "value" not in response:
+            # Clip the response repr so corporate-gateway error bodies that
+            # may include auth headers or session cookies cannot leak in full
+            # to logs / StepResult.details.
+            _repr = repr(response)
+            if len(_repr) > 200:
+                _repr = _repr[:200] + f"...(truncated, {len(_repr)} chars total)"
             raise KeyError(
                 f"Jira issue-property response for {jira_key}/{property_key} "
-                f"missing 'value' field: {response!r}"
+                f"missing 'value' field: {_repr}"
             )
         return response["value"]
 
@@ -820,7 +834,12 @@ class AcliClient:
         return self.set_issue_property(issue_key, prop_name, value)
 
     def get_entity_property(self, issue_key: str, prop_name: str) -> Any:
-        """Alias for get_issue_property — retrieves a Jira entity property."""
+        """Alias for get_issue_property — retrieves a Jira entity property.
+
+        Inherits the same Raises contract as get_issue_property:
+        urllib.error.HTTPError on transport/4xx (including 404 for absent
+        properties), KeyError only when the 2xx body shape is malformed.
+        """
         return self.get_issue_property(issue_key, prop_name)
 
     def unassign_issue(self, jira_key: str) -> None:

@@ -125,3 +125,79 @@ def test_direct_rest_get_uses_basic_auth_and_timeout(acli: ModuleType) -> None:
     assert result == response_payload, (
         f"Expected _direct_rest_get to return {response_payload}, got {result}"
     )
+
+
+@pytest.mark.scripts
+def test_get_issue_property_raises_keyerror_on_missing_value(acli: ModuleType) -> None:
+    """A 2xx body without a 'value' field raises a typed KeyError carrying jira_key/property_key context."""
+    client = acli.AcliClient(
+        jira_url="https://jira.example.com", user="u", api_token="t"
+    )
+    # Malformed body: 2xx but no "value" — the transport/proxy anomaly case
+    # the defensive branch is meant to catch.
+    response_payload = {"key": "dso_local_id"}  # missing "value"
+    mock_response = MagicMock()
+    mock_response.__enter__ = lambda s: s
+    mock_response.__exit__ = MagicMock(return_value=False)
+    mock_response.read.return_value = json.dumps(response_payload).encode("utf-8")
+
+    with patch("urllib.request.urlopen", return_value=mock_response):
+        with pytest.raises(KeyError) as exc_info:
+            client.get_issue_property("PROJ-1", "dso_local_id")
+
+    # The message must include the jira_key/property_key context so callers can
+    # log a useful diagnostic without re-walking the call stack.
+    msg = str(exc_info.value)
+    assert "PROJ-1" in msg
+    assert "dso_local_id" in msg
+    assert "missing 'value' field" in msg
+
+
+@pytest.mark.scripts
+def test_get_issue_property_raises_keyerror_on_non_dict_response(
+    acli: ModuleType,
+) -> None:
+    """A 2xx body that decodes to a non-dict shape raises KeyError, not TypeError."""
+    client = acli.AcliClient(
+        jira_url="https://jira.example.com", user="u", api_token="t"
+    )
+    # JSON list instead of object — e.g., a corrupt proxy response. Previously
+    # `response["value"]` would have raised TypeError; the defensive branch
+    # now raises KeyError uniformly so callers don't need to handle two
+    # exception classes for the same "malformed body" condition.
+    response_payload: list = []
+    mock_response = MagicMock()
+    mock_response.__enter__ = lambda s: s
+    mock_response.__exit__ = MagicMock(return_value=False)
+    mock_response.read.return_value = json.dumps(response_payload).encode("utf-8")
+
+    with patch("urllib.request.urlopen", return_value=mock_response):
+        with pytest.raises(KeyError):
+            client.get_issue_property("PROJ-1", "dso_local_id")
+
+
+@pytest.mark.scripts
+def test_get_issue_property_keyerror_message_truncates_long_response(
+    acli: ModuleType,
+) -> None:
+    """A pathological body (e.g. echoed credentials in an upstream error page) is clipped
+    in the KeyError message so logs and StepResult.details cannot capture the full content."""
+    client = acli.AcliClient(
+        jira_url="https://jira.example.com", user="u", api_token="t"
+    )
+    # Build a long but well-formed JSON body that lacks "value" so the defensive
+    # branch fires AND the repr is long enough to be clipped (>200 chars).
+    response_payload = {"key": "dso_local_id", "leaked_secret": "x" * 500}
+    mock_response = MagicMock()
+    mock_response.__enter__ = lambda s: s
+    mock_response.__exit__ = MagicMock(return_value=False)
+    mock_response.read.return_value = json.dumps(response_payload).encode("utf-8")
+
+    with patch("urllib.request.urlopen", return_value=mock_response):
+        with pytest.raises(KeyError) as exc_info:
+            client.get_issue_property("PROJ-1", "dso_local_id")
+
+    msg = str(exc_info.value)
+    # Truncation marker must appear and the long secret value must NOT appear in full.
+    assert "truncated" in msg
+    assert "x" * 500 not in msg

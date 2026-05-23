@@ -199,3 +199,57 @@ def test_delete_called_even_on_failure(monkeypatch):
     assert result.ok is False
     # delete_issue must have been called once with the created key
     instance.delete_issue.assert_called_once_with("TEST-123")
+
+
+def test_jira_project_falls_back_when_env_var_empty(monkeypatch):
+    """Empty-string JIRA_PROJECT (e.g. blank CI secret) falls back to 'DIG' rather than
+    being passed through as an empty project key."""
+    for key, val in VALID_ENV.items():
+        monkeypatch.setenv(key, val)
+    # The footgun the fix defends against: os.environ.get("X", "DIG") returns "" if
+    # JIRA_PROJECT is set to empty; we expect `or "DIG"` to coerce that back to "DIG".
+    monkeypatch.setenv("JIRA_PROJECT", "")
+
+    mod = _load_forward_compat_probe()
+    mock_class, instance = _make_mock_client_class(issue_key="TEST-EMPTY")
+    instance.set_issue_property.side_effect = lambda *a, **k: None
+    instance.get_issue_property.side_effect = lambda *a, **k: "dummy"
+
+    with patch.object(mod, "_load_acli_client", return_value=mock_class):
+        result = mod.run()
+
+    # The probe runs to completion (mocked) — what matters is which project
+    # the main-path AcliClient was constructed with.
+    assert result.ok is True or result.ok is False  # we only inspect the call args
+    main_construct = mock_class.call_args_list[0]
+    assert main_construct.kwargs.get("jira_project") == "DIG", (
+        "Empty-string JIRA_PROJECT must fall back to default 'DIG', "
+        f"got jira_project={main_construct.kwargs.get('jira_project')!r}"
+    )
+
+
+def test_cleanup_client_uses_same_jira_project_as_main_path(monkeypatch):
+    """The finally-block AcliClient must be constructed with the same jira_project as
+    the main-path client, so any future cleanup logic that consults self.jira_project
+    targets the right project."""
+    for key, val in VALID_ENV.items():
+        monkeypatch.setenv(key, val)
+    monkeypatch.setenv("JIRA_PROJECT", "CUSTOM")
+
+    mod = _load_forward_compat_probe()
+    mock_class, instance = _make_mock_client_class(issue_key="TEST-CLEAN")
+    instance.set_issue_property.side_effect = lambda *a, **k: None
+    instance.get_issue_property.side_effect = lambda *a, **k: "dummy"
+
+    with patch.object(mod, "_load_acli_client", return_value=mock_class):
+        mod.run()
+
+    # Two AcliClient constructions: main-path (line ~57) and cleanup (line ~161).
+    # Both must use jira_project=CUSTOM.
+    assert len(mock_class.call_args_list) >= 2, (
+        f"Expected >=2 AcliClient constructions, got {len(mock_class.call_args_list)}"
+    )
+    for i, call in enumerate(mock_class.call_args_list):
+        assert call.kwargs.get("jira_project") == "CUSTOM", (
+            f"AcliClient call #{i} used jira_project={call.kwargs.get('jira_project')!r}, expected 'CUSTOM'"
+        )

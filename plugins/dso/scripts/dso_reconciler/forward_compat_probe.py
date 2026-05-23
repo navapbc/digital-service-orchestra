@@ -36,7 +36,10 @@ def run() -> StepResult:
     jira_token = os.environ.get("JIRA_API_TOKEN", "")
     # Project is configurable via env var for plugin portability; default
     # preserves the in-tree DIG project for the dso bridge use case.
-    jira_project = os.environ.get("JIRA_PROJECT", "DIG")
+    # `or "DIG"` (not the second arg to .get) so an explicit empty-string
+    # JIRA_PROJECT="" — common when a templated secret renders blank — falls
+    # back to the default rather than being passed through as an empty key.
+    jira_project = os.environ.get("JIRA_PROJECT") or "DIG"
 
     if not (jira_url and jira_user and jira_token):
         return StepResult(
@@ -155,10 +158,15 @@ def run() -> StepResult:
         if issue_key:
             try:
                 AcliClient = _load_acli_client()
+                # Match the main-path constructor: pass jira_project so the
+                # cleanup client targets the same project as the issue was
+                # created in (relevant for any future delete_issue codepath
+                # that consults self.jira_project).
                 client = AcliClient(
                     jira_url=jira_url,
                     user=jira_user,
                     api_token=jira_token,
+                    jira_project=jira_project,
                 )
                 client.delete_issue(issue_key)
             except Exception:

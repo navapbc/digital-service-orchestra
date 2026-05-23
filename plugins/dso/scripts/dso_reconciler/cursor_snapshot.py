@@ -156,6 +156,22 @@ def run(repo_root: Path | None = None) -> StepResult:
             details={"head_sha": head_sha, "outbound": outbound, "inbound": inbound},
         )
 
+    except subprocess.TimeoutExpired as exc:
+        # Distinct envelope for timeouts so operators can tell
+        # 'git hung past 30s' apart from any other crash class. A timeout on
+        # `git commit` may also leave .git/index.lock held — the message
+        # surfaces that explicitly so the next reconciler run does not
+        # spin on `Unable to create .git/index.lock: File exists`.
+        _cmd = " ".join(exc.cmd) if isinstance(exc.cmd, list) else str(exc.cmd)
+        return StepResult(
+            name="cursor_snapshot",
+            ok=False,
+            message=(
+                f"git command timed out after {exc.timeout}s: {_cmd} — "
+                "if this fired on `git commit`, .git/index.lock may be held; "
+                "investigate slow pre-commit hooks or repo lock contention"
+            ),
+        )
     except Exception as exc:
         return StepResult(
             name="cursor_snapshot",

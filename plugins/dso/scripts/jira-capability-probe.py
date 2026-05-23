@@ -56,7 +56,10 @@ def main() -> None:
     jira_api_token = os.environ.get("JIRA_API_TOKEN", "")
     # Project is configurable via env var for plugin portability; default
     # preserves the in-tree DIG project for the dso bridge use case.
-    jira_project = os.environ.get("JIRA_PROJECT", "DIG")
+    # `or "DIG"` (not the second arg to .get) so an explicit empty-string
+    # JIRA_PROJECT="" — common when a templated secret renders blank — falls
+    # back to the default rather than being passed through as an empty key.
+    jira_project = os.environ.get("JIRA_PROJECT") or "DIG"
 
     if not jira_url or not jira_user or not jira_api_token:
         print("PROBE_FAIL reason=missing_credentials")
@@ -118,16 +121,27 @@ def main() -> None:
         else:
             print("PROBE_PASS step=STEP_JQL_SEARCH")
 
-        # STEP 5: Read property back and verify
-        read_value = client.get_issue_property(issue_key, "dso_local_id")
-        if read_value != probe_uuid:
+        # STEP 5: Read property back and verify. Catch KeyError separately so
+        # a malformed-response signal (shape change in Jira's REST contract)
+        # surfaces as a distinct PROBE_FAIL reason rather than being collapsed
+        # into the catch-all `reason=exception` branch below.
+        try:
+            read_value = client.get_issue_property(issue_key, "dso_local_id")
+        except KeyError as exc:
             print(
                 f"PROBE_FAIL step=STEP_PROPERTY_READ "
-                f"reason=value_mismatch expected={probe_uuid} got={read_value}"
+                f"reason=malformed_response detail={exc}"
             )
             failed = True
         else:
-            print("PROBE_PASS step=STEP_PROPERTY_READ")
+            if read_value != probe_uuid:
+                print(
+                    f"PROBE_FAIL step=STEP_PROPERTY_READ "
+                    f"reason=value_mismatch expected={probe_uuid} got={read_value}"
+                )
+                failed = True
+            else:
+                print("PROBE_PASS step=STEP_PROPERTY_READ")
 
     except Exception as exc:  # noqa: BLE001
         print(f"PROBE_FAIL reason=exception detail={exc}")
