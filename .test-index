@@ -549,3 +549,4 @@ plugins/dso/scripts/dso_reconciler/conflict_resolver.py:tests/unit/dso_reconcile
 plugins/dso/scripts/dso_reconciler/dso-reconciler-health.py:tests/scripts/test_dso_reconciler_health_cli.py,tests/scripts/test_dso_reconciler_health_parity.py
 plugins/dso/scripts/dso_reconciler/health.py:tests/unit/dso_reconciler/test_health.py,tests/unit/dso_reconciler/test_health_baseline.py,tests/unit/dso_reconciler/test_health_schema.py
 plugins/dso/scripts/dso_reconciler/bootstrap.py:tests/unit/dso_reconciler/test_bootstrap_baseline.py
+plugins/dso/scripts/dso_reconciler/alert_store.py:tests/unit/dso_reconciler/test_alert_store_dedup.py
