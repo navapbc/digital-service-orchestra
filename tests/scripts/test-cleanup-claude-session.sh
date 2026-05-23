@@ -408,7 +408,7 @@ if [ -x "$SCRIPT" ]; then
     _T18_BASE=$(mktemp -d)
     _T18_WT="$_T18_BASE/agent-live1234"
     _t18_cleanup() {
-        kill "$_T18_LIVE_PID" 2>/dev/null || true
+        if [ -n "${_T18_LIVE_PID:-}" ]; then kill "$_T18_LIVE_PID" 2>/dev/null || true; fi
         rm -rf "$_T18_MAIN" "$_T18_BASE" 2>/dev/null || true
     }
     trap _t18_cleanup EXIT
