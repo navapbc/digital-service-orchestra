@@ -1399,7 +1399,7 @@ Read the config key:
 ISOLATION_ENABLED=true  # worktree isolation is always enabled
 ```
 
-When `ISOLATION_ENABLED` equals `true`, add `isolation: "worktree"` to each Agent/Task dispatch call and pass `ORCHESTRATOR_ROOT=$(git rev-parse --show-toplevel)` in each sub-agent's prompt so sub-agents can verify isolation. When `ISOLATION_ENABLED` is `false`, empty, or absent, omit the `isolation` parameter entirely.
+When `ISOLATION_ENABLED` equals `true`, add `isolation: "worktree"` to each Agent/Task dispatch call and inject `SESSION_BRANCH` / `SESSION_HEAD` (so sub-agents can sync to session HEAD via `worktree-session-head-sync.sh`). Do NOT inject the orchestrator's session-worktree absolute path into sub-agent prompts — per bug 9679-695c-6e11-4d95, sub-agents derive their own `REPO_ROOT` from their own `git rev-parse --show-toplevel`. When `ISOLATION_ENABLED` is `false`, empty, or absent, omit the `isolation` parameter entirely.
 
 **Parallel dispatch and stale HEAD**: All worktrees in a batch branch from the session HEAD at the moment of dispatch. When sub-agents are dispatched in parallel and harvested serially, the second and later harvests will encounter merge conflicts because those worktrees were created before earlier harvests advanced the session HEAD. This is **expected and normal** — not a bug. The per-worktree-review-commit.md conflict queue protocol (Step 6 exit 1) handles this case: after the clean worktrees are harvested, conflicting worktrees are rebased onto the updated session HEAD and re-processed through the review → commit → harvest pipeline. No full task re-implementation is needed for conflicts that arise solely from this ordering effect.
 

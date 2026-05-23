@@ -4,7 +4,7 @@
 #
 # What we test (structural contracts):
 #   worktree-dispatch.md:
-#     1. {orchestrator_root} literal placeholder exists
+#     1. {orchestrator_root} literal placeholder is ABSENT (Path 1b regression guard)
 #     2. single-agent-integrate reference exists
 #     3. SESSION_BRANCH injection protocol present
 #     4. SESSION_HEAD injection protocol present
@@ -34,19 +34,22 @@ _dispatch_content=$(cat "$TARGET_FILE" 2>/dev/null || true)
 _task_exec_content=$(cat "$TASK_EXEC_FILE" 2>/dev/null || true)
 
 # ===========================================================================
-# test_orchestrator_root_placeholder_present
-# worktree-dispatch.md must contain the literal string {orchestrator_root}
-# so that dispatch prompts can inject the orchestrator working directory
-# at runtime. Without this placeholder, sub-agents have no reliable path
-# anchor back to the session root.
+# test_orchestrator_root_placeholder_absent (Path 1b regression guard)
+# worktree-dispatch.md MUST NOT contain the literal string {orchestrator_root}.
+# Path 1b (commit 1e736d4a3b) deliberately removed the orchestrator-root
+# injection from sub-agent dispatch prompts: sub-agents bootstrap their own
+# REPO_ROOT via `git rev-parse --show-toplevel` instead of receiving the
+# orchestrator's session-worktree absolute path, so an exfiltrated path
+# cannot mislead a sub-agent into editing the session worktree (bug 9679-695c).
+# Re-introducing the placeholder would regress that removal.
 # ===========================================================================
-echo "--- test_orchestrator_root_placeholder_present ---"
+echo "--- test_orchestrator_root_placeholder_absent ---"
 _count=$(grep -c '{orchestrator_root}' "$TARGET_FILE" 2>/dev/null || true)
 _count="${_count:-0}"
-if [[ "$_count" -gt 0 ]]; then
-    assert_eq "test_orchestrator_root_placeholder_present: {orchestrator_root} found" "present" "present"
+if [[ "$_count" -eq 0 ]]; then
+    assert_eq "test_orchestrator_root_placeholder_absent: {orchestrator_root} not present" "absent" "absent"
 else
-    assert_eq "test_orchestrator_root_placeholder_present: {orchestrator_root} found" "present" "missing"
+    assert_eq "test_orchestrator_root_placeholder_absent: {orchestrator_root} not present" "absent" "present"
 fi
 
 # ===========================================================================
