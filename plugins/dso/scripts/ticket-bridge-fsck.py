@@ -167,6 +167,196 @@ def audit_bridge_mappings(
     return {"orphaned": orphaned, "duplicates": duplicates, "stale": stale}
 
 
+def enumerate_stale_anomalies(
+    tickets_dir: Path,
+    now: int | None = None,
+) -> list[dict]:
+    """Return enriched stale-SYNC anomaly records from the bridge audit.
+
+    Delegates to ``audit_bridge_mappings`` internally and enriches each stale
+    record with the fields required by the anomaly contract:
+
+    * ``class_label``          — always ``"stale"``
+    * ``proposed_remediation`` — ``"re-sync or close"``
+
+    Each raw stale record from ``audit_bridge_mappings`` has the shape:
+    ``{ticket_id, jira_key, last_sync_ts}``.  The enriched records returned
+    here carry those same fields plus the two enrichment fields above.
+
+    The existing ``audit_bridge_mappings`` return shape is preserved and its
+    CLI behaviour is unaffected.
+
+    Args:
+        tickets_dir: Path to the ticket tracker directory.
+        now: Optional reference timestamp (UTC epoch nanoseconds) to use as
+            'now' for stale-detection calculations. Passed through to
+            ``audit_bridge_mappings`` as ``now_ts``. Defaults to
+            ``time.time_ns()``.
+
+    Returns:
+        A list of dicts, each containing at minimum:
+        ``ticket_id``, ``jira_key``, ``last_sync_ts``, ``class_label``,
+        ``proposed_remediation``.
+    """
+    findings = audit_bridge_mappings(tickets_dir, now_ts=now)
+    raw_stale = findings.get("stale", [])
+    enriched: list[dict] = []
+    for record in raw_stale:
+        entry = dict(record)
+        entry.setdefault("class_label", "stale")
+        entry.setdefault("proposed_remediation", "re-sync or close")
+        enriched.append(entry)
+    return enriched
+
+
+def enumerate_duplicate_anomalies(tickets_dir: Path) -> list[dict]:
+    """Return enriched duplicate-mapping anomaly records from the bridge audit.
+
+    Delegates to ``audit_bridge_mappings`` internally and enriches each
+    duplicate record with the fields required by the anomaly contract:
+
+    * ``class_label``          — always ``"duplicate"``
+    * ``proposed_remediation`` — ``"close newer duplicates"``
+    * ``keeper``               — ``ticket_ids[0]`` (first = oldest by Jira
+                                 created_at ordering, preserved by the audit)
+    * ``closees``              — ``ticket_ids[1:]`` (all IDs after the keeper)
+
+    Each raw duplicate record from ``audit_bridge_mappings`` has the shape:
+    ``{jira_key, ticket_ids: [...]}``.  The enriched records returned here
+    carry those same fields plus the four enrichment fields above.
+
+    The existing ``audit_bridge_mappings`` return shape is preserved and its
+    CLI behaviour is unaffected.
+
+    Args:
+        tickets_dir: Path to the ticket tracker directory.
+
+    Returns:
+        A list of dicts, each containing at minimum:
+        ``jira_key``, ``ticket_ids``, ``class_label``, ``proposed_remediation``,
+        ``keeper``, ``closees``.
+    """
+    findings = audit_bridge_mappings(tickets_dir)
+    raw_duplicates = findings.get("duplicates", [])
+    enriched: list[dict] = []
+    for record in raw_duplicates:
+        entry = dict(record)
+        entry.setdefault("class_label", "duplicate")
+        entry.setdefault("proposed_remediation", "close newer duplicates")
+        ticket_ids = record.get("ticket_ids", [])
+        entry.setdefault("keeper", ticket_ids[0] if ticket_ids else None)
+        entry.setdefault("closees", ticket_ids[1:] if len(ticket_ids) > 1 else [])
+        enriched.append(entry)
+    return enriched
+
+
+def enumerate_open_count_skew_anomalies(tickets_dir: Path) -> list[dict]:
+    """Return open-count skew anomalies between local ticket store and Jira.
+
+    Makes 4 serial AcliClient.search_issues calls (one per type: epic/story/task/bug)
+    and walks the local ticket store to count local open items per type.
+    Returns list of {type, local_open, jira_open, delta} dicts for non-zero deltas only.
+
+    Args:
+        tickets_dir: Path to the ticket tracker directory.
+
+    Returns:
+        A list of dicts, each containing: type, local_open, jira_open, delta.
+        Only includes types where delta != 0.
+    """
+    import importlib.util as _ilu
+
+    # Load AcliClient via importlib (no package install required)
+    acli_path = Path(__file__).parent / "acli-integration.py"
+    spec = _ilu.spec_from_file_location("acli_integration", acli_path)
+    if spec is None:
+        raise FileNotFoundError(f"acli-integration.py not found at {acli_path}")
+    acli_mod = _ilu.module_from_spec(spec)
+    spec.loader.exec_module(acli_mod)  # type: ignore[union-attr]
+    client = acli_mod.AcliClient()
+
+    ticket_types = ["epic", "story", "task", "bug"]
+    results = []
+
+    for ttype in ticket_types:
+        # Count Jira open issues of this type
+        jira_issues = client.search_issues(
+            f"project = DIG AND issuetype = {ttype} AND status != Closed"
+        )
+        jira_open = len(jira_issues) if jira_issues is not None else 0
+
+        # Count local open tickets of this type
+        local_open = 0
+        if tickets_dir.is_dir():
+            for ticket_dir in tickets_dir.iterdir():
+                if not ticket_dir.is_dir():
+                    continue
+                event_files = sorted(ticket_dir.glob("*.json"))
+                ticket_type = None
+                ticket_status = None
+                for ef in event_files:
+                    data = _read_json(ef)
+                    if data is None:
+                        continue
+                    if data.get("event_type") == "CREATE":
+                        ticket_type = data.get("type", "")
+                    elif data.get("event_type") == "STATUS":
+                        ticket_status = data.get("status", "")
+                if ticket_type == ttype and ticket_status == "open":
+                    local_open += 1
+
+        delta = local_open - jira_open
+        if delta != 0:
+            results.append(
+                {
+                    "type": ttype,
+                    "local_open": local_open,
+                    "jira_open": jira_open,
+                    "delta": delta,
+                }
+            )
+
+    return results
+
+
+def enumerate_orphan_anomalies(tickets_dir: Path) -> list[dict]:
+    """Return enriched orphan anomaly records from the bridge audit.
+
+    Calls ``audit_bridge_mappings`` internally and enriches each orphaned
+    record with the fields required by the anomaly contract:
+
+    * ``class_label``          — always ``"orphan"``
+    * ``side``                 — ``"local-only"`` when a local ticket exists but
+                                 has no Jira counterpart (SYNC without CREATE),
+                                 ``"jira-only"`` for Jira-sourced entries with
+                                 no local ticket.  The current audit model only
+                                 produces local-only orphans, so all records
+                                 emitted today carry ``"local-only"``.
+    * ``proposed_remediation`` — ``"delete orphan mapping"``
+
+    The existing ``audit_bridge_mappings`` return shape is preserved and its
+    CLI behaviour is unaffected.
+
+    Args:
+        tickets_dir: Path to the ticket tracker directory.
+
+    Returns:
+        A list of dicts, each containing at minimum:
+        ``ticket_id``, ``jira_key``, ``class_label``, ``side``,
+        ``proposed_remediation``.
+    """
+    findings = audit_bridge_mappings(tickets_dir)
+    raw_orphans = findings.get("orphaned", [])
+    enriched: list[dict] = []
+    for record in raw_orphans:
+        entry = dict(record)
+        entry.setdefault("class_label", "orphan")
+        entry.setdefault("side", "local-only")
+        entry.setdefault("proposed_remediation", "delete orphan mapping")
+        enriched.append(entry)
+    return enriched
+
+
 # ---------------------------------------------------------------------------
 # Output formatting
 # ---------------------------------------------------------------------------
@@ -268,7 +458,8 @@ def main(argv: list[str] | None = None) -> int:
             repo_root = Path(result.stdout.strip())
         except Exception:
             repo_root = Path.cwd()
-        tracker_path = repo_root / ".tickets-tracker"
+        # fsck walks the tracker directly by design.
+        tracker_path = repo_root / ".tickets-tracker"  # tickets-boundary-ok
 
     findings = audit_bridge_mappings(tracker_path, now_ts=args.now_ts)
     report = _format_report(findings)
