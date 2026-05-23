@@ -435,8 +435,14 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[telemetry] ERROR: {exc}", file=sys.stderr)
         return 1
 
-    # Validate client_id (raises ValueError on empty → exit 1)
-    raw_client_id = config.get("telemetry.client_id", "")
+    # Validate client_id (raises ValueError on empty → exit 1).
+    # Reads telemetry.client_id with review_telemetry.client_id fallback so
+    # the emitter works against configs populated by aws-setup-*.sh (which
+    # writes review_telemetry.* keys). Either namespace satisfies the lookup.
+    raw_client_id = (
+        config.get("telemetry.client_id", "")
+        or config.get("review_telemetry.client_id", "")
+    )
     try:
         client_id = _resolve_client_id(raw_client_id)
     except ValueError as exc:
@@ -454,8 +460,13 @@ def main(argv: list[str] | None = None) -> int:
     cycle = _resolve_cycle(args.cycle)
     language = _resolve_language(args.language)
 
-    # Determine endpoint
-    endpoint = args.endpoint or config.get("telemetry.endpoint", "")
+    # Determine endpoint — telemetry.endpoint then review_telemetry.endpoint_url
+    # fallback (aws-setup-lambda.sh writes the latter).
+    endpoint = (
+        args.endpoint
+        or config.get("telemetry.endpoint", "")
+        or config.get("review_telemetry.endpoint_url", "")
+    )
 
     # Build envelope — include all fields, then strip None-valued optional fields
     envelope: dict[str, Any] = {
