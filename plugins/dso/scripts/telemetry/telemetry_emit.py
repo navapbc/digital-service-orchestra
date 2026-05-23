@@ -397,6 +397,21 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Language context (omit field when not provided).",
     )
+    parser.add_argument(
+        "--event-id",
+        default=None,
+        dest="event_id",
+        help="Explicit event_id (UUID4) to use instead of generating one. "
+        "Used by telemetry_emit_wrapper.py to ensure the child uses the "
+        "parent-generated id (race-safe key/link protocol).",
+    )
+    parser.add_argument(
+        "--event-id-link",
+        default=None,
+        dest="event_id_link",
+        help="event_id of a prior event to link to (finding_event_id field). "
+        "Takes precedence over --link lookup when provided directly by the parent.",
+    )
     return parser
 
 
@@ -429,7 +444,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     # Resolve all fields
-    event_id = _resolve_event_id()
+    # --event-id from CLI takes precedence over generated id (parent-generated in wrapper)
+    event_id = args.event_id if args.event_id else _resolve_event_id()
     tool_id = _resolve_tool_id(config.get("telemetry.tool_id", "dso"))
     tool_version = _resolve_tool_version(config.get("telemetry.tool_version", ""))
     timestamp = _resolve_timestamp()
@@ -460,8 +476,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.cited_excerpt is not None:
         envelope["cited_excerpt"] = args.cited_excerpt
 
-    # Add finding_event_id when --link is given
-    if args.link is not None:
+    # Add finding_event_id:
+    #   1. --event-id-link takes precedence (parent resolved the id before Popen)
+    #   2. --link triggers sidecar lookup
+    if args.event_id_link is not None:
+        envelope["finding_event_id"] = args.event_id_link
+    elif args.link is not None:
         linked_id = _lookup_link(args.link)
         if linked_id:
             envelope["finding_event_id"] = linked_id

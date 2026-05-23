@@ -64,6 +64,7 @@ from dso_ci_review.file_filter import (
 from dso_ci_review.aggregator import (
     aggregate_cluster_findings as _aggregate_cluster_findings,
 )
+from dso_ci_review.telemetry_emit_wrapper import emit_event as _telemetry_emit
 
 
 class _SchemaValidationResult(NamedTuple):
@@ -2465,6 +2466,65 @@ def main() -> int:
         )
         merged = dict(merged)
         merged["findings"] = _verifier_findings
+
+        # Step 7d: telemetry emission (fire-and-forget, fail-open).
+        # Emit one event per finding (review_finding or tool_finding), then
+        # one review_cycle event aggregating usage data. All calls are
+        # fire-and-forget via telemetry_emit_wrapper — any exception is
+        # swallowed by the wrapper and never propagates here.
+        _telemetry_findings = merged.get("findings") or []
+        _TOOL_FINDING_TYPES = frozenset(
+            {"specialist_error", "fallback_exhausted", "parse_error", "tool_finding"}
+        )
+        for _t_idx, _t_finding in enumerate(_telemetry_findings):
+            _t_type = _t_finding.get("type", "")
+            if _t_type in _TOOL_FINDING_TYPES:
+                # tool_finding event for lint/type/syntax/infra findings
+                _telemetry_emit(
+                    "tool_finding",
+                    finding_index=_t_idx,
+                    cycle=cycle_number,
+                )
+            else:
+                # review_finding event for real LLM review findings
+                _t_key = f"dso-llm:{cycle_number}:{_t_idx}"
+                _telemetry_emit(
+                    "review_finding",
+                    key=_t_key,
+                    cycle=cycle_number,
+                    finding_index=_t_idx,
+                )
+
+        # review_cycle event: aggregate usage from review-cycle-usage.json
+        _usage_path = os.path.join(_artifacts_dir, "review-cycle-usage.json")
+        _usage_input_tokens: int | None = None
+        _usage_output_tokens: int | None = None
+        _usage_duration: float | None = None
+        try:
+            if os.path.exists(_usage_path):
+                with open(_usage_path, encoding="utf-8") as _uf:
+                    _usage_data = json.load(_uf)
+                _usage_cycles = _usage_data.get("cycles", [])
+                _in_total = 0
+                _out_total = 0
+                for _ue in _usage_cycles:
+                    if isinstance(_ue, dict):
+                        _in = _ue.get("input_tokens")
+                        _out = _ue.get("output_tokens")
+                        if isinstance(_in, (int, float)):
+                            _in_total += int(_in)
+                        if isinstance(_out, (int, float)):
+                            _out_total += int(_out)
+                _usage_input_tokens = _in_total
+                _usage_output_tokens = _out_total
+        except (OSError, json.JSONDecodeError, TypeError):
+            pass
+        _cycle_kwargs: dict = {"cycle": cycle_number}
+        if _usage_input_tokens is not None:
+            _cycle_kwargs["input_tokens"] = _usage_input_tokens
+        if _usage_output_tokens is not None:
+            _cycle_kwargs["output_tokens"] = _usage_output_tokens
+        _telemetry_emit("review_cycle", **_cycle_kwargs)
 
         # Step 8: write output
         # Stamp the cycle number so the NEXT cycle's workflow can read it back

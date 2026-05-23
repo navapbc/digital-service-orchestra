@@ -108,6 +108,7 @@ def _ensure_plugin_package() -> None:
     _load_from_plugin("cycle_ledger")  # re-ensure before aggregator
     _load_from_plugin("aggregator")
     _load_from_plugin("local_workflow")
+    _load_from_plugin("telemetry_emit_wrapper")
     _load_from_plugin("runner")
     _load_from_plugin("verifier")
 

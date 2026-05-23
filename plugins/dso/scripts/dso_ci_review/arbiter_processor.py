@@ -28,6 +28,14 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
+try:
+    from dso_ci_review.telemetry_emit_wrapper import emit_event as _telemetry_emit
+except ImportError:  # pragma: no cover — wrapper not yet present during bootstrap
+
+    def _telemetry_emit(event_type: str, **kwargs) -> None:  # type: ignore[misc]
+        return None
+
+
 # arbiter-rulings sidecar schema version. Bumped if the on-disk shape changes
 # (record entries, top-level fields, etc.). Kept as a module constant per
 # PR #203 finding f-XXX (magic-string DRY) so future bumps require updating
@@ -78,12 +86,17 @@ def _query_existing_defer_ticket(
     try:
         result = subprocess.run(
             [
-                ticket_cmd_path, "ticket", "list",
+                ticket_cmd_path,
+                "ticket",
+                "list",
                 "--tag=orphan:deferred_review",
                 "--format=llm",
                 "--limit=0",
             ],
-            capture_output=True, text=True, check=False, timeout=30,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
         )
         if result.returncode != 0:
             return None
@@ -114,8 +127,12 @@ def _query_existing_defer_ticket(
 
 
 def _create_defer_ticket(
-    ruling: dict, finding: dict, finding_hash: str, scope: str,
-    cycle_num: int, ticket_cmd_path: str,
+    ruling: dict,
+    finding: dict,
+    finding_hash: str,
+    scope: str,
+    cycle_num: int,
+    ticket_cmd_path: str,
 ) -> str | None:
     """Create orphan-task ticket; return new ticket ID or None on failure."""
     rationale = ruling.get("rationale", "") or ""
@@ -126,9 +143,16 @@ def _create_defer_ticket(
         f"Rationale: {rationale}\n"
     )
     cmd = [
-        ticket_cmd_path, "ticket", "create", "task", title,
-        "--tags=orphan:deferred_review", "--tags=origin:arbiter",
-        "--priority=3", "-d", description,
+        ticket_cmd_path,
+        "ticket",
+        "create",
+        "task",
+        title,
+        "--tags=orphan:deferred_review",
+        "--tags=origin:arbiter",
+        "--priority=3",
+        "-d",
+        description,
     ]
     try:
         result = subprocess.run(
@@ -148,17 +172,21 @@ def _create_defer_ticket(
     # After creating, re-query: if there's a different ticket with the same
     # Finding-Hash + Scope marker that pre-existed, self-delete this one.
     try:
-        existing = _find_race_winner(
-            finding_hash, scope, new_id, ticket_cmd_path
-        )
+        existing = _find_race_winner(finding_hash, scope, new_id, ticket_cmd_path)
         if existing:
             subprocess.run(
                 [
-                    ticket_cmd_path, "ticket", "delete", new_id,
+                    ticket_cmd_path,
+                    "ticket",
+                    "delete",
+                    new_id,
                     "--user-approved",
                     "--reason=arbiter-dedup race loser",
                 ],
-                capture_output=True, text=True, check=False, timeout=30,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=30,
             )
             return existing
     except (subprocess.TimeoutExpired, subprocess.SubprocessError):
@@ -178,12 +206,17 @@ def _find_race_winner(
     try:
         result = subprocess.run(
             [
-                ticket_cmd_path, "ticket", "list",
+                ticket_cmd_path,
+                "ticket",
+                "list",
                 "--tag=orphan:deferred_review",
                 "--format=llm",
                 "--limit=0",
             ],
-            capture_output=True, text=True, check=False, timeout=30,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
         )
         if result.returncode != 0:
             return None
@@ -201,8 +234,12 @@ def _find_race_winner(
             if marker in desc and t.get("status") != "deleted":
                 return tid
         return None
-    except (subprocess.TimeoutExpired, subprocess.SubprocessError,
-            json.JSONDecodeError, ValueError):
+    except (
+        subprocess.TimeoutExpired,
+        subprocess.SubprocessError,
+        json.JSONDecodeError,
+        ValueError,
+    ):
         return None
 
 
@@ -222,8 +259,11 @@ def _plugin_scripts_dir(repo_root: str) -> str:
 
 
 def _write_drop_defense(
-    ruling: dict, finding_hash: str, cycle_num: int,
-    pr_number: int | None, repo_root: str,
+    ruling: dict,
+    finding_hash: str,
+    cycle_num: int,
+    pr_number: int | None,
+    repo_root: str,
 ) -> dict:
     """Write DROP defense record. Tracker first, PR best-effort.
 
@@ -241,11 +281,13 @@ def _write_drop_defense(
         "defender": "code-reviewer-arbiter",
         "cycle_number": cycle_num,
         "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "severity_history": [{
-            "cycle": cycle_num,
-            "severity": ruling.get("impact_class", "unknown"),
-            "relation": "DROPPED",
-        }],
+        "severity_history": [
+            {
+                "cycle": cycle_num,
+                "severity": ruling.get("impact_class", "unknown"),
+                "relation": "DROPPED",
+            }
+        ],
         "ticket_id": os.environ.get("DSO_SESSION_TICKET_ID", "UNBOUND"),
     }
     record_json = json.dumps(record)
@@ -257,7 +299,10 @@ def _write_drop_defense(
     try:
         result = subprocess.run(
             [tracker_script, "write", record_json],
-            capture_output=True, text=True, check=False, timeout=30,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
         )
         if result.returncode == 0:
             written_to.append("tracker")
@@ -270,7 +315,10 @@ def _write_drop_defense(
         try:
             result = subprocess.run(
                 [pr_script, "write", record_json, str(pr_number)],
-                capture_output=True, text=True, check=False, timeout=30,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=30,
             )
             if result.returncode == 0:
                 written_to.append("pr")
@@ -340,8 +388,7 @@ def _read_existing_sidecar(path: str) -> dict | None:
     if not schema_version or schema_version < ARBITER_SCHEMA_VERSION:
         # Legacy sidecar - log and treat as overwrite candidate.
         print(
-            f"arbiter_processor_legacy_sidecar_detected path={path} "
-            f"action=overwrite",
+            f"arbiter_processor_legacy_sidecar_detected path={path} action=overwrite",
             file=sys.stderr,
         )
         return None
@@ -376,7 +423,9 @@ def process_rulings(
         try:
             repo_root = subprocess.run(
                 ["git", "rev-parse", "--show-toplevel"],
-                capture_output=True, text=True, check=True,
+                capture_output=True,
+                text=True,
+                check=True,
             ).stdout.strip()
         except subprocess.CalledProcessError:
             repo_root = os.getcwd()
@@ -409,23 +458,35 @@ def process_rulings(
                 f"dispatcher returned stale or reordered indices.",
                 file=sys.stderr,
             )
-            result["skipped_invalid_index"] = result.get(
-                "skipped_invalid_index", []
+            result["skipped_invalid_index"] = result.get("skipped_invalid_index", [])
+            result["skipped_invalid_index"].append(
+                {
+                    "finding_index": finding_idx,
+                    "ruling_type": ruling_type,
+                }
             )
-            result["skipped_invalid_index"].append({
-                "finding_index": finding_idx,
-                "ruling_type": ruling_type,
-            })
             continue
         finding = finding_map[finding_idx]
         finding_hash = _finding_hash_for_dedup(finding)
 
+        # Telemetry: emit arbiter_ruling for every ruling (fire-and-forget).
+        # Link to the corresponding review_finding event via dso-llm:<cycle>:<idx> key.
+        _telem_key = f"dso-llm:{cycle_num}:{finding_idx}"
+        _telemetry_emit(
+            "arbiter_ruling",
+            link=_telem_key,
+            ruling_type=ruling_type,
+            cycle=cycle_num,
+        )
+
         if ruling_type == "BLOCK":
-            result["block"].append({
-                "ruling": ruling,
-                "finding": finding,
-                "finding_hash": finding_hash,
-            })
+            result["block"].append(
+                {
+                    "ruling": ruling,
+                    "finding": finding,
+                    "finding_hash": finding_hash,
+                }
+            )
         elif ruling_type == "DEFER":
             existing = _query_existing_defer_ticket(
                 finding_hash, scope, ticket_cmd_path
@@ -439,11 +500,25 @@ def process_rulings(
                 )
                 if new_id:
                     result["defer_ticket_ids"].append(new_id)
+            # Telemetry: emit resolver_outcome for DEFER rulings.
+            _telemetry_emit(
+                "resolver_outcome",
+                link=_telem_key,
+                resolution="DEFER",
+                cycle=cycle_num,
+            )
         elif ruling_type == "DROP":
             drop_result = _write_drop_defense(
                 ruling, finding_hash, cycle_num, pr_number, repo_root
             )
             result["drop_defense_records"].append(drop_result)
+            # Telemetry: emit resolver_outcome for DROP rulings.
+            _telemetry_emit(
+                "resolver_outcome",
+                link=_telem_key,
+                resolution="DROP",
+                cycle=cycle_num,
+            )
 
     # Sidecar: detect legacy + overwrite atomically with deterministic content.
     sidecar_path = os.path.join(artifacts_dir, "arbiter-rulings.json")
