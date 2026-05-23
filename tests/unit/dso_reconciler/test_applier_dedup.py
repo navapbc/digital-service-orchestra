@@ -135,13 +135,13 @@ def test_budget_guard_does_not_defer_below_200(applier):
     client.create_issue.assert_called_once()
 
 
-def test_jql_hit_skips_create_issue(applier):
+def test_jql_hit_skips_create_issue(applier, tmp_path):
     """On JQL hit, create_issue is NOT called and dedup sentinel is returned."""
     existing_issue = {"key": "DIG-500", "fields": {"summary": "existing"}}
     client = _make_mock_client(search_return=[existing_issue])
 
     mutation = _make_create_mutation("tick-0005")
-    result = applier.create_one(mutation, client, rest_calls=0)
+    result = applier.create_one(mutation, client, rest_calls=0, repo_root=tmp_path)
 
     client.create_issue.assert_not_called()
     assert result is not None

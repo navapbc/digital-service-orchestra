@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import sys
+import tempfile
 from pathlib import Path
 
 
@@ -21,11 +23,91 @@ def _load_acli():
     return mod
 
 
+class HeadDriftError(Exception):
+    """Raised when the tickets-branch HEAD changes mid-pass, indicating concurrent write."""
+
+
+def _load_concurrency():
+    """Load _concurrency module via importlib."""
+    concurrency_path = Path(__file__).parent / "_concurrency.py"
+    spec = importlib.util.spec_from_file_location("_concurrency", concurrency_path)
+    if spec is None:
+        raise FileNotFoundError(f"_concurrency.py not found at {concurrency_path}")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules.setdefault("_concurrency", mod)
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    return mod
+
+
+def _write_pass_record(repo_root: Path, pass_id: str, mutation_count: int) -> None:
+    """Write a pass completion record to bridge_state/snapshots/<pass_id>.pass_record.json.
+
+    This simulates the tickets-branch write.  In a full implementation this
+    would commit the record to the tickets orphan branch.
+
+    Args:
+        repo_root:      Repository root directory.
+        pass_id:        Unique identifier for this reconciliation pass.
+        mutation_count: Number of mutations processed in this pass.
+    """
+    snapshots_dir = repo_root / "bridge_state" / "snapshots"
+    snapshots_dir.mkdir(parents=True, exist_ok=True)
+    record_path = snapshots_dir / f"{pass_id}.pass_record.json"
+    record = {
+        "pass_id": pass_id,
+        "mutation_count": mutation_count,
+        "status": "complete",
+    }
+    record_path.write_text(json.dumps(record, indent=2))
+
+
+def _write_mapping_atomic(mapping_path: Path, local_id: str, jira_key: str) -> None:
+    """Atomically update mapping.json with local_id -> jira_key entry.
+
+    Uses a temp-file + os.replace pattern so readers never see a partial write.
+
+    Args:
+        mapping_path: Full path to mapping.json.
+        local_id:     Local ticket ID (key to set).
+        jira_key:     Jira issue key (value to set).
+    """
+    mapping_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Load existing mapping (tolerate missing file)
+    if mapping_path.exists():
+        try:
+            existing: dict = json.loads(mapping_path.read_text())
+        except (json.JSONDecodeError, OSError):
+            existing = {}
+    else:
+        existing = {}
+
+    existing[local_id] = jira_key
+
+    # Write to a sibling temp file then atomically rename
+    tmp_fd, tmp_path = tempfile.mkstemp(
+        dir=mapping_path.parent, suffix=".tmp", prefix="mapping_"
+    )
+    try:
+        with os.fdopen(tmp_fd, "w") as fh:
+            json.dump(existing, fh, indent=2)
+        os.replace(tmp_path, mapping_path)
+    except Exception:
+        # Clean up temp file on failure to avoid leftover debris
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
 def create_one(
     mutation: dict,
     client,
     rest_calls: int = 0,
     deferred_creates: list | None = None,
+    events_list: list | None = None,
+    repo_root: Path | None = None,
 ) -> dict | None:
     """Create a Jira issue from the mutation's fields, with budget guard and JQL dedup.
 
@@ -33,7 +115,8 @@ def create_one(
     returns None without issuing any REST calls.
 
     JQL dedup: searches for an existing issue with label 'dso-id:<local_id>' before
-    creating. On hit, skips create_issue() and returns a dedup-create-skipped sentinel.
+    creating. On hit, skips create_issue(), writes mapping.json atomically, appends a
+    dedup-create-skipped event to events_list, and returns a dedup sentinel.
     On miss, proceeds with create_issue().
 
     Args:
@@ -41,6 +124,9 @@ def create_one(
         client:           AcliClient instance.
         rest_calls:       Number of REST calls already issued in this pass.
         deferred_creates: List to append deferred mutations to (budget guard).
+        events_list:      List to append structured events to (dedup hit events).
+        repo_root:        Repository root for resolving bridge_state/mapping.json.
+                          Defaults to four levels above this file when None.
 
     Returns:
         The client.create_issue() result on miss, a dedup sentinel dict on hit,
@@ -58,6 +144,23 @@ def create_one(
 
     if hits:
         hit_key = hits[0].get("key", "")
+
+        # Persist local_id -> jira_key in mapping.json atomically
+        if repo_root is None:
+            repo_root = Path(__file__).parents[4]
+        mapping_path = repo_root / "bridge_state" / "mapping.json"
+        _write_mapping_atomic(mapping_path, local_id, hit_key)
+
+        # Emit structured event into the caller's events list
+        if events_list is not None:
+            events_list.append(
+                {
+                    "event": "dedup-create-skipped",
+                    "local_id": local_id,
+                    "jira_key": hit_key,
+                }
+            )
+
         return {"status": "dedup-create-skipped", "key": hit_key}
 
     return client.create_issue(mutation.get("fields", {}))
@@ -80,6 +183,13 @@ def apply(
 ) -> Path:
     """Dispatch mutations to AcliClient and write a flat-JSON manifest.
 
+    Performs HEAD-pin drift detection before each mutation: captures the
+    tickets-branch HEAD SHA before the first mutation, then re-checks before
+    each subsequent mutation. If the HEAD changes mid-pass, raises HeadDriftError
+    and aborts without issuing further Jira calls.
+
+    Empty mutations list is a no-op fast path (no HEAD check invoked).
+
     Args:
         mutations: List of mutation dicts, each with at least an "action" field
                    ("create", "update", or "delete").
@@ -88,6 +198,10 @@ def apply(
 
     Returns:
         Path to the written manifest file.
+
+    Raises:
+        HeadDriftError: When the tickets-branch HEAD changes between mutations,
+                        indicating a concurrent write by another process.
     """
     if repo_root is None:
         repo_root = Path(__file__).parents[4]
@@ -98,43 +212,107 @@ def apply(
     rest_calls: int = 0
     deferred_creates: list[dict] = []
     mutations_with_outcomes: list[dict] = []
+    events_list: list[dict] = []
 
-    for mutation in mutations:
-        action = mutation.get("action", "")
-        outcome = dict(mutation)
+    # Load concurrency module once (used both in the fast path and the main loop)
+    concurrency = _load_concurrency()
 
-        if action == "create":
-            result = create_one(
-                mutation,
-                client,
-                rest_calls=rest_calls,
-                deferred_creates=deferred_creates,
-            )
-            # Only count REST call on actual create (not dedup-skipped, not deferred)
-            if result is not None and result.get("status") != "dedup-create-skipped":
-                rest_calls += 1
-            outcome["result"] = result
-        elif action == "update":
-            result = update_one(mutation, client)
-            outcome["result"] = result
-        elif action == "delete":
-            delete_one(mutation, client)
-            outcome["result"] = None
-        else:
-            outcome["result"] = None
-            outcome["error"] = f"unknown action: {action!r}"
+    # Fast path: empty mutation list — skip HEAD check entirely
+    if not mutations:
+        manifest = {
+            "pass_id": pass_id,
+            "mutation_count": 0,
+            "mutations": [],
+            "events": [],
+        }
+        snapshots_dir = repo_root / "bridge_state" / "snapshots"
+        snapshots_dir.mkdir(parents=True, exist_ok=True)
+        manifest_path = snapshots_dir / f"{pass_id}.manifest.json"
+        manifest_path.write_text(json.dumps(manifest, indent=2))
+        write_result = concurrency.rebase_retry(
+            repo_root,
+            lambda: _write_pass_record(repo_root, pass_id, 0),
+        )
+        if not write_result.ok:
+            return write_result  # caller handles reject_and_reschedule
+        return manifest_path
 
-        mutations_with_outcomes.append(outcome)
+    # Pin HEAD before first mutation
+    head_pin = concurrency.snapshot_head(repo_root)
+
+    try:
+        for mutation in mutations:
+            # Re-check HEAD at the start of each iteration
+            current_head = concurrency.snapshot_head(repo_root)
+            if current_head != head_pin:
+                raise HeadDriftError(
+                    f"drift: {head_pin[:8]}→{current_head[:8]}"
+                )
+
+            action = mutation.get("action", "")
+            outcome = dict(mutation)
+
+            if action == "create":
+                result = create_one(
+                    mutation,
+                    client,
+                    rest_calls=rest_calls,
+                    deferred_creates=deferred_creates,
+                    events_list=events_list,
+                    repo_root=repo_root,
+                )
+                # Only count REST call on actual create (not dedup-skipped, not deferred)
+                if result is not None and result.get("status") != "dedup-create-skipped":
+                    rest_calls += 1
+                outcome["result"] = result
+            elif action == "update":
+                result = update_one(mutation, client)
+                outcome["result"] = result
+            elif action == "delete":
+                delete_one(mutation, client)
+                outcome["result"] = None
+            else:
+                outcome["result"] = None
+                outcome["error"] = f"unknown action: {action!r}"
+
+            mutations_with_outcomes.append(outcome)
+
+    except HeadDriftError:
+        # Emit abort event as structured log and re-raise for the caller
+        print(
+            json.dumps(
+                {
+                    "kind": "abort_due_to_drift",
+                    "pass_id": pass_id,
+                    "head_pin": head_pin,
+                    "mutations_completed": len(mutations_with_outcomes),
+                }
+            ),
+            file=sys.stderr,
+        )
+        raise
 
     manifest = {
         "pass_id": pass_id,
         "mutation_count": len(mutations),
         "mutations": mutations_with_outcomes,
+        "events": events_list,
     }
 
     snapshots_dir = repo_root / "bridge_state" / "snapshots"
     snapshots_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = snapshots_dir / f"{pass_id}.manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2))
+
+    # Wrap the tickets-branch write in rebase_retry (up to 3 attempts).
+    # On non-fast-forward push rejection the helper fetches + rebases + retries.
+    # On exhaustion, propagate Result(ok=False) to the caller (task-4 handles
+    # the reject-and-reschedule exit path).
+    write_result = concurrency.rebase_retry(
+        repo_root,
+        lambda: _write_pass_record(repo_root, pass_id, len(mutations)),
+    )
+    if not write_result.ok:
+        return write_result  # caller handles reject_and_reschedule
 
     return manifest_path
