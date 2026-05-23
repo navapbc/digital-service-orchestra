@@ -21,13 +21,50 @@ def _load_acli():
     return mod
 
 
-def create_one(mutation: dict, client) -> dict:
-    """Create a Jira issue from the mutation's fields. Returns the client result."""
+def create_one(
+    mutation: dict,
+    client,
+    rest_calls: int = 0,
+    deferred_creates: list | None = None,
+) -> dict | None:
+    """Create a Jira issue from the mutation's fields, with budget guard and JQL dedup.
+
+    Budget guard: if rest_calls >= 200, appends mutation to deferred_creates and
+    returns None without issuing any REST calls.
+
+    JQL dedup: searches for an existing issue with label 'dso-id:<local_id>' before
+    creating. On hit, skips create_issue() and returns a dedup-create-skipped sentinel.
+    On miss, proceeds with create_issue().
+
+    Args:
+        mutation:         Mutation dict with at least "fields" and optionally "local_id".
+        client:           AcliClient instance.
+        rest_calls:       Number of REST calls already issued in this pass.
+        deferred_creates: List to append deferred mutations to (budget guard).
+
+    Returns:
+        The client.create_issue() result on miss, a dedup sentinel dict on hit,
+        or None when the mutation is budget-deferred.
+    """
+    # Budget guard: defer without any REST call when at or over the limit
+    if rest_calls >= 200:
+        if deferred_creates is not None:
+            deferred_creates.append(mutation)
+        return None
+
+    local_id = mutation.get("local_id", "")
+    jql = f'labels = "dso-id:{local_id}"'
+    hits = client.search_issues(jql)
+
+    if hits:
+        hit_key = hits[0].get("key", "")
+        return {"status": "dedup-create-skipped", "key": hit_key}
+
     return client.create_issue(mutation.get("fields", {}))
 
 
 def update_one(mutation: dict, client) -> dict:
-    """Update an existing Jira issue. Returns the client result."""
+    """Update an existing Jira issue from the mutation's key and fields. Returns the client result."""
     return client.update_issue(mutation.get("key"), mutation.get("fields", {}))
 
 
@@ -58,6 +95,8 @@ def apply(
     acli = _load_acli()
     client = acli.AcliClient()
 
+    rest_calls: int = 0
+    deferred_creates: list[dict] = []
     mutations_with_outcomes: list[dict] = []
 
     for mutation in mutations:
@@ -65,7 +104,15 @@ def apply(
         outcome = dict(mutation)
 
         if action == "create":
-            result = create_one(mutation, client)
+            result = create_one(
+                mutation,
+                client,
+                rest_calls=rest_calls,
+                deferred_creates=deferred_creates,
+            )
+            # Only count REST call on actual create (not dedup-skipped, not deferred)
+            if result is not None and result.get("status") != "dedup-create-skipped":
+                rest_calls += 1
             outcome["result"] = result
         elif action == "update":
             result = update_one(mutation, client)
