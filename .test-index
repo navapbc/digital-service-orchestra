@@ -524,3 +524,4 @@ plugins/dso/scripts/llm-review-dispatch-or-skip.sh:tests/scripts/test-llm-review
 tests/scripts/test-infer-detected-by.sh:tests/scripts/test-infer-detected-by.sh [test_mutation_auto_bug_maps_to_tests]
 tests/scripts/test-bootstrap-calibration-tickets.sh:tests/scripts/test-bootstrap-calibration-tickets.sh
 plugins/dso/scripts/lib/reachability.sh:tests/scripts/test-reachability-helper.sh
+plugins/dso/scripts/jira-capability-probe.py:tests/scripts/test_jira_capability_probe.py
