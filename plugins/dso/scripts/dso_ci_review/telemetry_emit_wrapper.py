@@ -198,10 +198,17 @@ def emit_event(
     if link_event_id is not None:
         argv.extend(["--event-id-link", link_event_id])
 
-    # Forward additional payload kwargs as CLI args
+    # Forward additional payload kwargs as --payload-field KEY=VALUE so the
+    # emitter injects them into the envelope. Bools / ints / lists / dicts /
+    # None are JSON-serialised so the parser at the other end can recover
+    # the original Python type — required for the canonical per-event-type
+    # schema (e.g. review_cycle.pass must be a bool, not the string "True").
     for k, v in payload_kwargs.items():
-        cli_key = "--" + k.replace("_", "-")
-        argv.extend([cli_key, str(v)])
+        if isinstance(v, (bool, int, float, list, dict)) or v is None:
+            serialised = json.dumps(v)
+        else:
+            serialised = str(v)
+        argv.extend(["--payload-field", f"{k}={serialised}"])
 
     # --- Fire-and-forget via Popen ---
     try:
