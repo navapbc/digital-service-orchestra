@@ -136,6 +136,19 @@ cd "$WORKTREE_PATH" && bash "${CLAUDE_PLUGIN_ROOT}/hooks/record-test-status.sh"
 
 ---
 
+## Step 7.5 — Propagate sprint marker
+
+Copy `.sprint-active` from the session root into the worktree so `check-sprint-trailer.sh`
+enforces DSO-Story trailer correctly (bug e081-63c0). `ORCHESTRATOR_ROOT` is already set
+from Step 1:
+
+```bash
+if [[ -f "$ORCHESTRATOR_ROOT/.sprint-active" ]]; then
+    cp "$ORCHESTRATOR_ROOT/.sprint-active" "$WORKTREE_PATH/.sprint-active" 2>/dev/null || \
+        echo "WARNING: failed to copy .sprint-active into $WORKTREE_PATH" >&2
+fi
+```
+
 ## Step 8 — Commit in worktree branch
 
 Execute COMMIT-WORKFLOW.md from the worktree context. All Bash calls use the
