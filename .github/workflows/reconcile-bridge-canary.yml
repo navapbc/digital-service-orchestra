@@ -69,6 +69,11 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Validate ALERT_WINDOW_HOURS is a positive integer before arithmetic
+          if ! [[ "$ALERT_WINDOW_HOURS" =~ ^[1-9][0-9]*$ ]]; then
+            echo "ERROR: alert_window_hours must be a positive integer, got: '${ALERT_WINDOW_HOURS}'"
+            exit 1
+          fi
           window_secs=$(( ALERT_WINDOW_HOURS * 3600 ))
           now_epoch=$(date -u +%s)
           cutoff_epoch=$(( now_epoch - window_secs ))

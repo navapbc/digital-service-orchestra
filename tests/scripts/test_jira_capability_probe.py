@@ -268,7 +268,7 @@ def test_probe_retries_jql_search_three_times() -> None:
         "JIRA_API_TOKEN": "secret-token",
     }
 
-    _exit_code, _stdout = _run_probe_with_mocked_acli(
+    _run_probe_with_mocked_acli(
         env=env,
         client_instance=client_mock,
         extra_patches=[
