@@ -433,6 +433,36 @@ If a pattern change is proposed, read and execute `${CLAUDE_PLUGIN_ROOT}/docs/wo
   - [docs/reviewers/architectural/project-alignment.md](docs/reviewers/architectural/project-alignment.md) — `"Project Alignment"`
   - [docs/reviewers/architectural/justification.md](docs/reviewers/architectural/justification.md) — `"Justification"`
 
+### Remediation Re-dispatch
+
+On Step 2 architectural-reviewer FAIL verdict (i.e., the architectural-review protocol returns a non-passing score after all autonomous resolution cycles), re-dispatch `dso:approach-proposer` with `model: "opus"` on the dispatch payload to generate a revised approach.
+
+Build a `remediation_context` block before dispatching. Pass all artifact file paths by reference (absolute file paths — do not inline file contents). The shape MUST match the schema declared in `${CLAUDE_PLUGIN_ROOT}/agents/approach-proposer.md` under `### Remediation Context (optional)`:
+
+```json
+{
+  "remediation_context": {
+    "reviewer_artifact_paths": [
+      "<absolute path to reviewer-findings.json from the failing review cycle>",
+      "<absolute path to the original approach proposal artifact>"
+    ],
+    "findings": [
+      {
+        "target": "<proposal-N id that triggered the FAIL verdict, or 'n/a' for set-wide concerns>",
+        "description": "<verbatim evidence quote from reviewer findings — copy the exact reviewer text that triggered the FAIL verdict>"
+      }
+    ],
+    "target_story_id": "<story id this delta cycle is scoped to>"
+  }
+}
+```
+
+The orchestrator-level dispatch operates in `mode: remediation` — i.e., the presence of `remediation_context` activates `dso:approach-proposer`'s DELTA OUTPUT MODE and produces only the changed proposals rather than a full regeneration. Do NOT add a `mode` field inside the `remediation_context` object itself (the schema does not declare it).
+
+After receiving the revised proposals, re-enter the Resolution Loop from Dispatch with the new proposal set. If the re-dispatched approach-proposer returns `model_requirement_unmet`, apply the same retry-once rule as in the Proposal Generation section.
+
+Record exactly one `.claude/scripts/dso ticket comment <id> "REMEDIATION_CYCLE:<N> approach-proposer re-dispatched after Step 2 FAIL"` per cycle per SC5 single-comment policy.
+
 **Fallback**: if the review fails after autonomous resolution (`review.max_cycles`, default: 4) and user escalation, revert to existing patterns and note the unresolved concern. If no existing pattern solves the story, halt and consult the user.
 
 ---
