@@ -96,6 +96,15 @@ from typing import Any
 
 import yaml
 
+try:
+    import bm25s as _bm25s_module
+
+    _BM25S_AVAILABLE = True
+except ImportError:
+    _BM25S_AVAILABLE = False
+
+_NOTICE_EMITTED = False
+
 corpus_root = Path(sys.argv[1])
 raw_query = sys.argv[2]
 top_n = int(sys.argv[3])
@@ -249,6 +258,47 @@ def render_entry(entry: dict[str, Any], tier: str) -> str:
 # Main
 # ---------------------------------------------------------------------------
 
+def _rank_with_bm25s(
+    entries: list[dict[str, Any]],
+    query_tokens: list[str],
+    doc_token_lists: list[list[str]],
+) -> list[tuple[float, dict[str, Any]]]:
+    """Rank entries using the bm25s library accelerator; falls back to stdlib."""
+    try:
+        retriever = _bm25s_module.BM25()
+        retriever.index(_bm25s_module.tokenize([" ".join(t) for t in doc_token_lists]))
+        query_str = " ".join(query_tokens)
+        _results, scores = retriever.retrieve(
+            _bm25s_module.tokenize([query_str]),
+            corpus=list(range(len(entries))),
+            k=len(entries),
+        )
+        return [(float(s), entries[idx]) for idx, s in zip(_results[0], scores[0])]
+    except Exception:  # noqa: BLE001
+        return _rank_with_stdlib(entries, query_tokens, doc_token_lists)
+
+
+def _rank_with_stdlib(
+    entries: list[dict[str, Any]],
+    query_tokens: list[str],
+    doc_token_lists: list[list[str]],
+) -> list[tuple[float, dict[str, Any]]]:
+    """Rank entries using the stdlib BM25 implementation."""
+    global _NOTICE_EMITTED  # noqa: PLW0603
+    if not _NOTICE_EMITTED:
+        print(
+            "[ref-query] bm25s not available; using stdlib BM25 fallback",
+            file=sys.stderr,
+        )
+        _NOTICE_EMITTED = True
+    avg_doc_len = sum(len(t) for t in doc_token_lists) / max(len(doc_token_lists), 1)
+    scored: list[tuple[float, dict[str, Any]]] = []
+    for entry, doc_tokens in zip(entries, doc_token_lists):
+        score = bm25_score(query_tokens, doc_tokens, avg_doc_len)
+        scored.append((score, entry))
+    return scored
+
+
 entries = load_entries_from_dir(corpus_root)
 
 if not entries:
@@ -258,12 +308,11 @@ if not entries:
 query_tokens = tokenize(raw_query)
 doc_texts = [entry_to_text(e) for e in entries]
 doc_token_lists = [tokenize(t) for t in doc_texts]
-avg_doc_len = sum(len(t) for t in doc_token_lists) / max(len(doc_token_lists), 1)
 
-scored: list[tuple[float, dict[str, Any]]] = []
-for entry, doc_tokens in zip(entries, doc_token_lists):
-    score = bm25_score(query_tokens, doc_tokens, avg_doc_len)
-    scored.append((score, entry))
+if _BM25S_AVAILABLE:
+    scored = _rank_with_bm25s(entries, query_tokens, doc_token_lists)
+else:
+    scored = _rank_with_stdlib(entries, query_tokens, doc_token_lists)
 
 scored.sort(key=lambda x: x[0], reverse=True)
 top_results = [entry for score, entry in scored[:top_n] if score > 0]

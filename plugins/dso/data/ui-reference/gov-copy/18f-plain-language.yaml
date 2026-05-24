@@ -20,6 +20,7 @@ coverage:
 license: public-domain
 source: "18F Content Guide — plain language"
 precedence: 2
+rule_id: COPY-005
 prior_art: "https://content-guide.18f.gov/"
 summary: |
   18F's plain language guide provides actionable writing standards for U.S.

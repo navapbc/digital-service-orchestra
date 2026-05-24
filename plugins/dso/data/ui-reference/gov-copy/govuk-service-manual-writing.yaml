@@ -20,6 +20,7 @@ coverage:
 license: OGL-v3
 source: "GOV.UK Service Manual — Writing for User Interfaces"
 precedence: 2
+rule_id: COPY-003
 prior_art: "https://www.gov.uk/service-manual/design/writing-for-user-interfaces"
 summary: |
   The GOV.UK Service Manual defines writing standards for government user

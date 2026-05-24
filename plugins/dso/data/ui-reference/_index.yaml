@@ -2077,6 +2077,7 @@ those most relevant to DSO agents advising on government digital services.
     title: "USWDS Forms Copy: Labels, Helper Text, Error Messages, and Button Labels"
     source: "U.S. Web Design System (USWDS) v3"
     precedence: 1
+    rule_id: "COPY-001"
     license: "CC0-1.0"
     prior_art: "https://designsystem.digital.gov/components/form/"
     summary: "USWDS v3 form copy standards govern field labels, helper text, error
@@ -2110,6 +2111,7 @@ be specific and actionable. Button labels must use active verbs.
     title: "GOV.UK Error Message and Form Patterns: Error Summary and Inline Error Copy"
     source: "GOV.UK Design System"
     precedence: 2
+    rule_id: "COPY-002"
     license: "OGL-v3"
     prior_art: "https://design-system.service.gov.uk/components/error-message/"
     summary: "GOV.UK Design System error message patterns define how to write and position
@@ -2143,6 +2145,7 @@ Error copy uses plain, direct language and never says sorry.
     title: "GOV.UK Service Manual: Writing for User Interfaces and Plain Language Standards"
     source: "GOV.UK Service Manual — Writing for User Interfaces"
     precedence: 2
+    rule_id: "COPY-003"
     license: "OGL-v3"
     prior_art: "https://www.gov.uk/service-manual/design/writing-for-user-interfaces"
     summary: "GOV.UK Service Manual writing standards for government user interfaces.
@@ -2172,6 +2175,7 @@ test content with real users before launch.
     title: "VA.gov Content Style Guide: Error Anatomy, Capitalization, and Writing for Veterans"
     source: "VA.gov Design System — Content Style Guide"
     precedence: 1
+    rule_id: "COPY-004"
     license: "CC0-1.0"
     prior_art: "https://design.va.gov/content-style-guide/"
     summary: "VA.gov Content Style Guide for Veteran-facing digital services. Covers
@@ -2212,7 +2216,7 @@ the user not the agency; use 'you' and 'we'; active voice throughout; sentences
 25 words or fewer; paragraphs 5 sentences maximum; cut jargon; test copy with
 real users before launch.
 "
-    rule_id: "18f-plain-language"
+    rule_id: "COPY-005"
     domain:
       - gov-copy
     component:
@@ -2242,7 +2246,7 @@ Writing Act of 2010. Write for your audience; organize for the reader; use 'you'
 and 'we'; use active voice; choose plain familiar words; minimize abbreviations;
 use tables and lists; write short sentences and paragraphs.
 "
-    rule_id: "federal-plain-language-guidelines"
+    rule_id: "COPY-006"
     domain:
       - gov-copy
     component:
@@ -2274,7 +2278,7 @@ reading level (Flesch-Kincaid ≤ 6 or SMOG ≤ 6); avoid jargon; define terms;
 active voice; sentences 20 words or fewer; bullet lists for multi-step
 instructions; test materials with the target audience before distribution.
 "
-    rule_id: "cdc-reading-level-guidance"
+    rule_id: "COPY-007"
     domain:
       - gov-copy
     component:

@@ -24,6 +24,7 @@ coverage:
 license: CC0-1.0
 source: "U.S. Web Design System (USWDS) v3"
 precedence: 1
+rule_id: COPY-001
 prior_art: "https://designsystem.digital.gov/components/form/"
 summary: |
   USWDS v3 form copy standards govern field labels, helper text, error

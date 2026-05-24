@@ -22,6 +22,7 @@ coverage:
 license: public-domain
 source: "CDC Health Literacy — Plain Language Resources"
 precedence: 2
+rule_id: COPY-007
 prior_art: "https://www.cdc.gov/healthliteracy/developmaterials/plainlanguage.html"
 summary: |
   CDC health literacy guidance establishes reading level and plain language
