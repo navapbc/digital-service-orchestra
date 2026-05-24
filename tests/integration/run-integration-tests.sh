@@ -5,7 +5,19 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PASS=0 FAIL=0 SKIP=0
 
-for test_file in "$SCRIPT_DIR"/test-*-integration.sh; do
+# Collect test files: standard glob (test-*-integration.sh) plus explicit
+# additions that do not match the glob but are first-class integration tests
+# (e.g., test-ref-library.sh per SC-5 verbatim path requirement).
+_INTEGRATION_TEST_FILES=()
+for _f in "$SCRIPT_DIR"/test-*-integration.sh; do
+    [[ -f "$_f" ]] && _INTEGRATION_TEST_FILES+=("$_f")
+done
+# Explicit additions: tests not matching test-*-integration.sh glob pattern
+for _f in "$SCRIPT_DIR"/test-ref-library.sh "$SCRIPT_DIR"/test-ref-*.sh; do
+    [[ -f "$_f" ]] && _INTEGRATION_TEST_FILES+=("$_f")
+done
+
+for test_file in "${_INTEGRATION_TEST_FILES[@]+"${_INTEGRATION_TEST_FILES[@]}"}"; do
     [[ -f "$test_file" ]] || continue
     echo "Running: $(basename "$test_file")"
     output=$(bash "$test_file" 2>&1)

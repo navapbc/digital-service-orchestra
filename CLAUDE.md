@@ -37,6 +37,7 @@ You are a Principal Software Developer at a company like Google or USDS. You are
 | Link tickets | `.claude/scripts/dso ticket link <src> <tgt> <relation>` |
 | Add / remove tag | `.claude/scripts/dso ticket tag <id> <tag>` / `untag <id> <tag>` |
 | Acknowledge degradation fallthrough | `.claude/scripts/dso preconditions-ack <story_id> <decision_id> --if-skipped "<rationale>"` |
+| Query UI/UX corpus | `dso ref-query [--top-n N] [--tier=summary\|detail\|implementation] [--session-hash H]` |
 Less common commands (Figma resync, harvest-worktree, recipe-executor, update-artifacts, release.sh, review-stats, check-skill-refs, qualify-skill-refs): see the relevant skill.
 
 Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
@@ -70,6 +71,7 @@ Priority: 0-4 (0=critical, 4=backlog). Never use "high"/"medium"/"low".
 - **Scrutiny pipeline & `scrutiny:pending` / `ui_probes:deferred` gates**: see brainstorm SKILL.md and `plugins/dso/skills/shared/workflows/epic-scrutiny-pipeline.md`.
 - **File placement**: design documents go in `docs/designs/` (project-local) or `plugins/dso/skills/<skill>/docs/` (plugin-local) — not bare `designs/` at repo root.
 - **Jira reconciler** (level-triggered, supersedes the edge-triggered bridges per epic 3a03 cutover): workflow `.github/workflows/reconcile-bridge.yml`; implementation `plugins/dso/scripts/dso_reconciler/`; env vars (`BRIDGE_ENV_ID`, `BRIDGE_USER_MAP`, `JIRA_PROJECT`) documented in `plugins/dso/docs/CONFIGURATION-REFERENCE.md`.
+- **UI/UX reference corpus** (domain-partitioned YAML files with YAML frontmatter): corpus at `plugins/dso/data/ui-reference/`; retrieval via `plugins/dso/scripts/ref-query.sh` (BM25) and `dso ref-query` shim; `check-corpus-schema.sh` pre-commit hook enforces tag vocabulary; provenance at `docs/ui-reference-sources.yaml`; `plugins/dso/data/**` requires boundary allowlist entry maintenance.
 - **PRECONDITIONS degradation channel** (degradation:bool + degradation_type in event data; `EMIT-PRECONDITIONS` landmark required for graceful-degradation triggers in skill files; unacked-degradation check in sprint Step 18 blocks story closure; ack via `dso preconditions-ack`; non-Latin precondition text requires human review): see `plugins/dso/docs/contracts/ack-rationale-rubric.md` and `plugins/dso/hooks/check-precondition-emit.sh`.
 - **Orphan-task convention** (DEFER rulings, lifecycle, validate-issues.sh exemption): `docs/orphan-task-convention.md`
 - **Completion-verifier protocol** (typed-enum P1 gate, `check-verifier-verdict.sh`, `render-closure-narrative.sh`, `check-manifest-completeness.sh`): `plugins/dso/docs/VERIFIER-PROTOCOL.md`.
