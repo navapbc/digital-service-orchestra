@@ -97,11 +97,11 @@ def _make_mock_acli(call_log: list | None = None) -> types.ModuleType:
         def __init__(self, jira_url="", user="", api_token="", **kwargs):
             pass
 
-        def update_issue_labels(self, jira_key, labels):
-            log.append(("update_issue_labels", jira_key))
+        def add_label(self, jira_key, labels):
+            log.append(("add_label", jira_key))
 
-        def update_issue_property(self, jira_key, prop, value):
-            log.append(("update_issue_property", jira_key))
+        def set_issue_property(self, jira_key, prop, value):
+            log.append(("set_issue_property", jira_key))
 
     mock_acli = types.ModuleType("acli_integration")
     mock_acli.AcliClient = _MockClient
@@ -152,13 +152,19 @@ def _write_attestation(
 
 
 def _make_sample_anomalies(n: int, needs_review: bool = False) -> list[dict]:
-    """Return a list of n minimal stale-sync anomaly dicts."""
+    """Return a list of n minimal stale-sync anomaly dicts.
+
+    Each anomaly carries a single label so cmd_apply's per-label add_label
+    loop fires once per non-review anomaly. The actual label content is
+    irrelevant for these tests; only the call count matters.
+    """
     return [
         {
             "ticket_id": f"tick-{i:04d}",
             "jira_key": f"DSO-{200 + i}",
             "class_label": "stale_sync",
             "needs_review": needs_review,
+            "labels": [f"stale-resolved-{i}"],
         }
         for i in range(n)
     ]
@@ -230,8 +236,8 @@ def test_apply_skips_needs_review_entries(tmp_path, stale_band):
     assert rc == 0
 
     # 2 clean entries × 2 calls each = 4 total; 1 needs_review entry → 0 calls
-    labels_calls = [c for c in call_log if c[0] == "update_issue_labels"]
-    prop_calls = [c for c in call_log if c[0] == "update_issue_property"]
+    labels_calls = [c for c in call_log if c[0] == "add_label"]
+    prop_calls = [c for c in call_log if c[0] == "set_issue_property"]
     assert len(labels_calls) == 2
     assert len(prop_calls) == 2
 
@@ -244,7 +250,7 @@ def test_apply_skips_needs_review_entries(tmp_path, stale_band):
 
 
 def test_apply_calls_labels_before_property(tmp_path, stale_band):
-    """For each non-review entry, update_issue_labels is called before update_issue_property."""
+    """For each non-review entry, add_label is called before set_issue_property."""
     pass_id = "2026-05-22-stale-03"
     bootstrap_dir = tmp_path / "bridge_state" / "bootstrap"
 
@@ -274,10 +280,10 @@ def test_apply_calls_labels_before_property(tmp_path, stale_band):
 
     # Verify interleaved order: labels, property, labels, property (one pair per entry)
     assert len(call_log) == 4
-    assert call_log[0][0] == "update_issue_labels"
-    assert call_log[1][0] == "update_issue_property"
-    assert call_log[2][0] == "update_issue_labels"
-    assert call_log[3][0] == "update_issue_property"
+    assert call_log[0][0] == "add_label"
+    assert call_log[1][0] == "set_issue_property"
+    assert call_log[2][0] == "add_label"
+    assert call_log[3][0] == "set_issue_property"
 
 
 def test_apply_blocks_on_high_post_pass_count(tmp_path, stale_band):

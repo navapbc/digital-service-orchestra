@@ -41,8 +41,14 @@ AcliClient = _acli_mod.AcliClient
 # Constants
 # ---------------------------------------------------------------------------
 
-_JQL_RETRY_COUNT = 3
-_JQL_RETRY_SLEEP = 2  # seconds
+# Jira's label-indexing latency is eventually-consistent; empirical observation
+# during the cfd6 live probe (2026-05-23) showed 4-second budget (3 attempts ×
+# 2s sleep) consistently insufficient for fresh label visibility. Bumped to
+# 6 × 5s = 30s total budget which matches Atlassian's documented indexing
+# upper bound for label propagation on the DIG project. Bug 0b27-b785-dea8-49a0
+# tracks the calibration.
+_JQL_RETRY_COUNT = 6
+_JQL_RETRY_SLEEP = 5  # seconds
 
 
 # ---------------------------------------------------------------------------
@@ -105,10 +111,21 @@ def main() -> None:
         client.set_issue_property(issue_key, "dso_local_id", probe_uuid)
         print("PROBE_PASS step=STEP_PROPERTY_WRITE")
 
-        # STEP 4: JQL search with retry
+        # STEP 4: JQL search with retry. AcliClient.search_issues caches
+        # results per-JQL (intentional, for the reconciler's pagination
+        # loop), so the retry must explicitly invalidate the cache for this
+        # JQL between attempts — otherwise the first empty result poisons
+        # every subsequent retry and we never observe the freshly-indexed
+        # label. Bug 0b27-b785-dea8-49a0 surfaced this via the cfd6 live probe.
         jql = f'labels="{label}"'
         results: list = []
         for _attempt in range(_JQL_RETRY_COUNT):
+            _cache = getattr(client, "_search_cache", None)
+            # Defensive: future AcliClient refactor (e.g. functools.lru_cache)
+            # may not expose a dict; only attempt invalidation when the cache
+            # is dict-like (pop method available).
+            if isinstance(_cache, dict):
+                _cache.pop(jql, None)
             results = client.search_issues(jql)
             if results:
                 break

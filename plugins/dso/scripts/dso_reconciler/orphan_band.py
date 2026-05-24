@@ -111,30 +111,81 @@ def cmd_gate(args: argparse.Namespace, repo_root: Path) -> int:
 
 
 def _apply_one(anomaly: dict, repo_root: Path) -> dict:
-    """Apply a single orphan anomaly mutation.
+    """Apply a single orphan anomaly mutation by deleting the local ticket.
 
-    F7 fix: previously a placeholder that returned ``{"status": "ok"}``
-    without mutating anything, which silently passed the post-pass check
-    in test mode but in production caused the residual count to remain
-    high (acknowledged_residual defaults to 0) and fail every run after
-    falsely reporting success on the per-anomaly outcomes. The production
-    mutation strategy is not yet implemented; operators must remediate
-    orphans manually:
+    An orphan record has shape ``{ticket_id, jira_key, class_label='orphan',
+    side='local-only', proposed_remediation='delete orphan mapping', ...}``.
+    "local-only" means a SYNC event exists on the local ticket but no CREATE,
+    so the ticket has a Jira reference but is not a real local ticket. The
+    only durable remediation is to delete the local ticket via the
+    canonical CLI (`dso ticket delete <id> --user-approved`).
 
-        .claude/scripts/dso ticket transition <id> <current-status> deleted --user-approved
+    Mirrors the local-only remediation pattern used by duplicates_band's
+    `_delete_local_ticket`. Returns the per-anomaly outcome dict including
+    the delete subprocess result.
 
-    Tests mock this function via ``patch.object(orphan_band, "_apply_one", ...)``
-    so the NotImplementedError only fires in real apply mode, not in unit
-    tests. See bug TBD for the orphan-remediation mutation strategy
-    sequencer (per-side dispatch driven by anomaly["proposed_remediation"]
-    and anomaly["side"]).
+    ## Safeguards against unsupervised mass-delete
+
+    Auto-deletion of local tickets is a destructive operation. Four layers
+    gate against unsupervised mis-deletion at scale:
+
+    1. **Manifest attestation gate** (cmd_apply Step 1+2): the apply path
+       requires `orphans-<pass_id>.attested.json` signed via `git verify-commit`
+       by a non-bot committer. A human MUST review the per-anomaly manifest
+       and sign the attestation before apply can proceed.
+    2. **Per-pass cap** (`acknowledged_residual` from attested.json + the
+       first-week mutation cap from `bootstrap/first-pass-date.txt`): cap_per_pass
+       limits the blast radius to a small batch per scheduled run.
+    3. **Manifest-hash check** (F8): the manifest file SHA-256 must match the
+       value recorded at attestation time, so a manifest swap between attest
+       and apply is rejected.
+    4. **Bootstrap orchestrator NotImplementedError** (`bootstrap.run_bootstrap`):
+       the cross-band sequencer raises NotImplementedError for `mode="apply"`,
+       so production callers MUST invoke `orphan_band.py apply` directly with
+       full operator awareness — not via an automated bootstrap loop.
+
+    These gates collectively make this function safe to call from CI even
+    though the underlying operation is destructive.
     """
-    raise NotImplementedError(
-        "orphan-remediation mutation strategy not yet implemented; "
-        "operators must remediate orphans manually via "
-        "`dso ticket transition <id> <status> deleted --user-approved`. "
-        "See bug TBD for the orphan apply strategy sequencer."
-    )
+    ticket_id = anomaly.get("ticket_id", "")
+    if not ticket_id:
+        return {
+            "anomaly": anomaly,
+            "status": "skipped",
+            "reason": "anomaly missing ticket_id",
+        }
+
+    cli_shim = repo_root / ".claude" / "scripts" / "dso"
+    cli_cmd = str(cli_shim) if cli_shim.exists() else "dso"
+    try:
+        proc = subprocess.run(
+            [cli_cmd, "ticket", "delete", ticket_id, "--user-approved"],
+            capture_output=True,
+            text=True,
+            cwd=str(repo_root),
+            timeout=30,
+        )
+    except FileNotFoundError as exc:
+        return {
+            "anomaly": anomaly,
+            "status": "error",
+            "reason": f"ticket CLI not found: {exc}",
+        }
+    except subprocess.TimeoutExpired:
+        return {
+            "anomaly": anomaly,
+            "status": "error",
+            "reason": "ticket delete timed out after 30s",
+        }
+
+    if proc.returncode == 0:
+        return {"anomaly": anomaly, "status": "ok"}
+    return {
+        "anomaly": anomaly,
+        "status": "error",
+        "reason": (proc.stderr or proc.stdout or "non-zero exit").strip(),
+        "exit_code": proc.returncode,
+    }
 
 
 def cmd_apply(args: argparse.Namespace, repo_root: Path) -> int:

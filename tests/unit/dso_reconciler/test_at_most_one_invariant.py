@@ -176,7 +176,7 @@ def test_b_single_violation(tmp_path, invariants):
 
 def test_c_dedup_window(tmp_path, invariants):
     """Second call for the same jira_key within 24h dedup window skips ticket-cli."""
-    dedup_key = "at-most-one:PROJ-100"
+    dedup_key = "bridge-alert:at-most-one:PROJ-100"
     snapshot = {
         "PROJ-100": {"dso_local_ids": ["local-aaa", "local-bbb"]},
     }
@@ -191,6 +191,33 @@ def test_c_dedup_window(tmp_path, invariants):
             )
 
     # Deduped: no violation filed
+    assert result == []
+    mock_store.append.assert_not_called()
+    mock_run.assert_not_called()
+    mock_store.patch_bug_filed.assert_not_called()
+
+
+def test_c_legacy_dedup_key_still_recognized(tmp_path, invariants):
+    """An alert filed under the legacy 'at-most-one:<key>' format (pre prefix
+    change) is recognized by the backward-compat lookup added in commit
+    e04e0b289c so the violation is NOT re-filed under the new key during the
+    transition window. Regression for finding 4 of PR #332 cycle-3 review.
+    """
+    legacy_dedup_key = "at-most-one:PROJ-LEGACY"
+    snapshot = {
+        "PROJ-LEGACY": {"dso_local_ids": ["legacy-a", "legacy-b"]},
+    }
+
+    # Store has the LEGACY key only — not the new prefixed format.
+    mock_store = _make_alert_store_mock(deduped_keys={legacy_dedup_key})
+
+    with patch.object(invariants, "_load_alert_store", return_value=mock_store):
+        with patch("invariants.subprocess.run") as mock_run:
+            result = invariants.check_at_most_one_dso_local_id(
+                snapshot, repo_root=tmp_path, ticket_cli="/fake/dso"
+            )
+
+    # Backward-compat path: legacy-keyed alert recognized → no re-file.
     assert result == []
     mock_store.append.assert_not_called()
     mock_run.assert_not_called()

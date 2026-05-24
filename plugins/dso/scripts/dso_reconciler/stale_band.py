@@ -228,14 +228,13 @@ def cmd_apply(args: argparse.Namespace, repo_root: Path) -> int:
     # --- Apply anomalies ---
     # F1 fix: construct AcliClient once with proper credentials (was AcliClient()
     # per iteration, which raised TypeError on the no-arg ctor — original crash).
-    # The stale_band mutation surface is the same as before: per anomaly we call
-    # update_issue_labels then update_issue_property. F10 review noted both
-    # methods are not on AcliClient yet — TODO bug-TBD tracks adding the
-    # Jira REST property+labels surface or routing through set_issue_property +
-    # update_issue. In production today these calls will AttributeError; tests
-    # mock the client surface so existing coverage still passes. The honest
-    # next step is the property+labels adapter on AcliClient, not stub methods
-    # here.
+    # Mutation surface translation: AcliClient does not expose
+    # `update_issue_labels` or `update_issue_property` as named methods, but
+    # the underlying capabilities exist via `add_label` (single label add) and
+    # `set_issue_property` (property write). Translate the calls accordingly:
+    # for a labels list, loop and add each; for the resolved-marker property,
+    # call set_issue_property directly. Bug TBD tracks adding bulk-labels
+    # adapter if performance becomes a concern.
     acli = _load_acli()
     client = _build_acli_client(acli)
     applied: list[dict] = []
@@ -246,9 +245,12 @@ def cmd_apply(args: argparse.Namespace, repo_root: Path) -> int:
             skipped.append(anomaly)
             continue
         jira_key = anomaly.get("jira_key", "")
-        # F10 fix: pass the labels list (or empty), not the entire anomaly dict.
-        client.update_issue_labels(jira_key, anomaly.get("labels", []))
-        client.update_issue_property(jira_key, "dso_stale_sync_resolved", True)
+        # F10 fix + adapter translation: pass the labels list (or empty),
+        # not the entire anomaly dict; loop add_label since AcliClient has
+        # no batch labels API.
+        for _label in anomaly.get("labels", []):
+            client.add_label(jira_key, _label)
+        client.set_issue_property(jira_key, "dso_stale_sync_resolved", True)
         applied.append(anomaly)
 
     # --- Post-pass check ---
