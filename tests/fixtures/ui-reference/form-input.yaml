@@ -1,0 +1,26 @@
+id: ui-ref-form-input-003
+title: Form Input Field
+tier: component
+keywords:
+  - input
+  - form
+  - text
+  - field
+  - validation
+description: >
+  A form input field for collecting user text data. Supports text, email,
+  password, and number input types. Includes built-in validation display
+  and accessible label association.
+example: |
+  <Input
+    id="email"
+    label="Email address"
+    type="email"
+    value={email}
+    onChange={setEmail}
+    error={emailError}
+  />
+tags:
+  - ui
+  - form
+  - interactive

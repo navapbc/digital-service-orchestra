@@ -551,3 +551,4 @@ plugins/dso/data/ui-reference/principles/:tests/scripts/test_corpus_principles.p
 plugins/dso/data/ui-reference/patterns/:tests/scripts/test_corpus_patterns_dark.py [test_brignull_dark_patterns_yaml_exists]
 plugins/dso/data/ui-reference/accessibility/:tests/scripts/test_corpus_accessibility_wcag.py [test_accessibility_directory_exists]
 plugins/dso/data/ui-reference/anti-patterns/: tests/scripts/test_corpus_anti_patterns.py [test_anti_patterns_directory_exists]
+plugins/dso/scripts/ref-query.py:tests/scripts/test_ref_query.py [test_basic_query_returns_results]

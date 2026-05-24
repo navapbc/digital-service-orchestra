@@ -1,0 +1,24 @@
+id: ui-ref-nav-sidebar-005
+title: Navigation Sidebar
+tier: pattern
+keywords:
+  - navigation
+  - sidebar
+  - nav
+  - menu
+description: >
+  The navigation sidebar provides persistent left-hand navigation for the
+  application. Supports collapsible sections, active state highlighting,
+  and keyboard navigation. Use for top-level section navigation in dashboard
+  or multi-section applications.
+example: |
+  <Sidebar>
+    <SidebarSection label="Main">
+      <SidebarLink href="/dashboard" icon={<DashboardIcon />}>Dashboard</SidebarLink>
+      <SidebarLink href="/settings" icon={<SettingsIcon />}>Settings</SidebarLink>
+    </SidebarSection>
+  </Sidebar>
+tags:
+  - ui
+  - navigation
+  - layout
