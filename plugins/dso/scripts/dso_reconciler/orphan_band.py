@@ -123,6 +123,29 @@ def _apply_one(anomaly: dict, repo_root: Path) -> dict:
     Mirrors the local-only remediation pattern used by duplicates_band's
     `_delete_local_ticket`. Returns the per-anomaly outcome dict including
     the delete subprocess result.
+
+    ## Safeguards against unsupervised mass-delete
+
+    Auto-deletion of local tickets is a destructive operation. Four layers
+    gate against unsupervised mis-deletion at scale:
+
+    1. **Manifest attestation gate** (cmd_apply Step 1+2): the apply path
+       requires `orphans-<pass_id>.attested.json` signed via `git verify-commit`
+       by a non-bot committer. A human MUST review the per-anomaly manifest
+       and sign the attestation before apply can proceed.
+    2. **Per-pass cap** (`acknowledged_residual` from attested.json + the
+       first-week mutation cap from `bootstrap/first-pass-date.txt`): cap_per_pass
+       limits the blast radius to a small batch per scheduled run.
+    3. **Manifest-hash check** (F8): the manifest file SHA-256 must match the
+       value recorded at attestation time, so a manifest swap between attest
+       and apply is rejected.
+    4. **Bootstrap orchestrator NotImplementedError** (`bootstrap.run_bootstrap`):
+       the cross-band sequencer raises NotImplementedError for `mode="apply"`,
+       so production callers MUST invoke `orphan_band.py apply` directly with
+       full operator awareness — not via an automated bootstrap loop.
+
+    These gates collectively make this function safe to call from CI even
+    though the underlying operation is destructive.
     """
     ticket_id = anomaly.get("ticket_id", "")
     if not ticket_id:
