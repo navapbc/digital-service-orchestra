@@ -23,6 +23,7 @@ coverage:
   - detail
 license: CC0-1.0
 source: "VA.gov Design System — Content Style Guide"
+precedence: 1
 prior_art: "https://design.va.gov/content-style-guide/"
 summary: |
   The VA.gov Content Style Guide defines writing standards for Veteran-facing

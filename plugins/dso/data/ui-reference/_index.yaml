@@ -2076,6 +2076,7 @@ those most relevant to DSO agents advising on government digital services.
     id: "uswds-forms-copy"
     title: "USWDS Forms Copy: Labels, Helper Text, Error Messages, and Button Labels"
     source: "U.S. Web Design System (USWDS) v3"
+    precedence: 1
     license: "CC0-1.0"
     prior_art: "https://designsystem.digital.gov/components/form/"
     summary: "USWDS v3 form copy standards govern field labels, helper text, error
@@ -2108,6 +2109,7 @@ be specific and actionable. Button labels must use active verbs.
     id: "govuk-error-form-patterns"
     title: "GOV.UK Error Message and Form Patterns: Error Summary and Inline Error Copy"
     source: "GOV.UK Design System"
+    precedence: 2
     license: "OGL-v3"
     prior_art: "https://design-system.service.gov.uk/components/error-message/"
     summary: "GOV.UK Design System error message patterns define how to write and position
@@ -2140,6 +2142,7 @@ Error copy uses plain, direct language and never says sorry.
     id: "govuk-service-manual-writing"
     title: "GOV.UK Service Manual: Writing for User Interfaces and Plain Language Standards"
     source: "GOV.UK Service Manual — Writing for User Interfaces"
+    precedence: 2
     license: "OGL-v3"
     prior_art: "https://www.gov.uk/service-manual/design/writing-for-user-interfaces"
     summary: "GOV.UK Service Manual writing standards for government user interfaces.
@@ -2168,6 +2171,7 @@ test content with real users before launch.
     id: "vagov-content-style-guide"
     title: "VA.gov Content Style Guide: Error Anatomy, Capitalization, and Writing for Veterans"
     source: "VA.gov Design System — Content Style Guide"
+    precedence: 1
     license: "CC0-1.0"
     prior_art: "https://design.va.gov/content-style-guide/"
     summary: "VA.gov Content Style Guide for Veteran-facing digital services. Covers

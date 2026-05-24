@@ -23,6 +23,7 @@ coverage:
   - detail
 license: OGL-v3
 source: "GOV.UK Design System"
+precedence: 2
 prior_art: "https://design-system.service.gov.uk/components/error-message/"
 summary: |
   GOV.UK Design System error message patterns define how to write and position
