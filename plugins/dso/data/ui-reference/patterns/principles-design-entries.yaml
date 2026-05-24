@@ -1,0 +1,91 @@
+id: patterns-principles-design-001
+rule_id: DARK-005
+title: "Representative Design Principles from principles.design"
+domain:
+  - patterns
+component: []
+action:
+  - apply
+compliance: []
+severity: informational
+story_type:
+  - pattern
+coverage: detail
+source: "https://principles.design (MIT license, benbrignell/principles.design)"
+license: "MIT"
+prior_art: "https://github.com/benbrignell/principles.design"
+precedence: 1
+summary: |
+  A curated subset of design principle sets from the community-maintained
+  principles.design catalog (MIT license). These representative entries cover
+  human-centered design, service design, and digital government contexts.
+  The full catalog contains 100+ principle sets; this corpus file captures
+  those most relevant to DSO agents advising on government digital services.
+detail: |
+  ### Dieter Rams — 10 Principles for Good Design (1976)
+  Source: principles.design/examples/ten-principles-for-good-design
+
+  1. Good design is innovative.
+  2. Good design makes a product useful.
+  3. Good design is aesthetic.
+  4. Good design makes a product understandable.
+  5. Good design is unobtrusive.
+  6. Good design is honest — does not manipulate users with promises it cannot keep.
+  7. Good design is long-lasting — avoids being fashionable.
+  8. Good design is thorough down to the last detail.
+  9. Good design is environmentally friendly.
+  10. Good design is as little design as possible.
+
+  Government application: Principle 6 (honest) and Principle 4 (understandable)
+  directly counter dark patterns. Principle 5 (unobtrusive) applies to
+  notification systems and consent flows.
+
+  ### Inclusive Design Principles (Henny Swan et al.)
+  Source: principles.design/examples/inclusive-design-principles
+
+  1. Provide comparable experience — ensure equivalent experience for all users
+     regardless of ability or context.
+  2. Consider the situation — account for users in challenging environments
+     (bright sunlight, noisy rooms, low bandwidth, high stress).
+  3. Be consistent — use familiar conventions and apply them consistently.
+  4. Give control — let users choose how they interact; do not suppress or
+     hide functionality.
+  5. Offer choice — provide multiple ways to complete tasks (online, phone, in-person).
+  6. Prioritize content — help users focus on core tasks by deprioritizing secondary
+     content.
+  7. Add value — ensure features and technology add value for the user, not just the
+     organization.
+
+  Government application: Principle 2 and 5 are directly applicable to
+  government services with vulnerable or low-digital-literacy populations.
+
+  ### GOV.UK Design Principles
+  Source: principles.design/examples/gov-uk-design-principles
+
+  1. Start with user needs — not government needs.
+  2. Do less — support existing services and ecosystems; build only what is needed.
+  3. Design with data — use evidence; iterate based on real usage.
+  4. Do the hard work to make it simple — the work of simplification is done by
+     the service team, not imposed on the user.
+  5. Iterate then iterate again — release, learn, improve.
+  6. Build for inclusion — accessible design is good design for everyone.
+  7. Understand context — users are not sitting at a desk with good connectivity.
+  8. Build digital services, not websites — think about the whole journey.
+  9. Be consistent, not uniform — use the same language and design patterns where
+     appropriate; reuse and adapt where relevant.
+  10. Make things open — it makes things better.
+
+  Government application: Principles 1, 4, and 6 are the most directly actionable
+  for dark pattern prevention in government digital services.
+
+  ### Accessibility and Cognitive Load Principles (WebAIM)
+  Source: principles.design/examples/webaim-cognitive-accessibility
+
+  1. Reduce unnecessary cognitive load — simplify tasks, minimize distractions.
+  2. Make interactions forgiving — support undo, confirm before destructive actions.
+  3. Communicate clearly — use plain language, clear headings, and logical structure.
+  4. Support multiple means of engagement — offer diverse interaction modalities.
+  5. Provide adequate time — allow users to complete tasks without time pressure.
+
+  Government application: Principle 5 (adequate time) is violated by artificial
+  urgency dark patterns; Principle 2 is violated by roach motel patterns.

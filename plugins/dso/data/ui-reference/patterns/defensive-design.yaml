@@ -1,0 +1,85 @@
+id: patterns-defensive-design-001
+rule_id: DARK-004
+title: "Defensive Design Checklist for Government Services"
+domain:
+  - patterns
+component: []
+action:
+  - apply
+compliance: []
+severity: informational
+story_type:
+  - pattern
+coverage: detail
+source: "37signals Defensive Design for the Web (2004); GOV.UK Service Manual"
+license: "public-domain"
+prior_art: "https://design-system.service.gov.uk/patterns/problem-with-the-service/"
+precedence: 1
+summary: |
+  Defensive design anticipates errors, edge cases, and user mistakes and
+  handles them gracefully rather than placing the burden of correctness on
+  the user. For government digital services, defensive design is essential
+  because users may have low digital literacy, be under stress, and have no
+  alternative channel if the online service fails.
+detail: |
+  ### Error Prevention
+
+  - [ ] Validate inputs as the user types or on field blur, not only on
+        form submission; surface errors immediately so users can correct
+        them before losing context.
+  - [ ] Provide format hints before input rather than only error messages
+        after; show "MM/DD/YYYY" in the label, not just in the error state.
+  - [ ] Constrain inputs where possible: use date pickers for dates, numeric
+        keyboards for phone numbers, autocomplete for known value sets (states,
+        countries, ZIP codes).
+  - [ ] Sanitize and normalize inputs server-side; do not fail because a user
+        typed a phone number as "(555) 123-4567" vs "5551234567".
+  - [ ] Warn before destructive actions (delete, cancel application) with a
+        confirmation dialog that describes the consequences.
+
+  ### Error Recovery
+
+  - [ ] Write error messages in plain language: say what happened, why it
+        happened, and what the user should do next.
+  - [ ] Never show raw system errors, stack traces, or database error codes
+        to users; log them server-side and show a human-readable message.
+  - [ ] Preserve valid user input when a validation error occurs; do not
+        clear the form on submission failure.
+  - [ ] Provide a clear path back from every error state: a link to the
+        affected field, a summary of all errors at the top of the page, and
+        a way to contact support.
+  - [ ] For server-side errors or outages, show an estimated restoration
+        time and an alternative contact path (phone number, email, office).
+
+  ### Edge Case Handling
+
+  - [ ] Test all form paths with: no JavaScript, slow connections, screen
+        readers, keyboard-only navigation, and mobile viewports.
+  - [ ] Handle incomplete sessions: if a user returns mid-flow after a
+        timeout, restore their progress or clearly explain they must restart.
+  - [ ] Plan for unusual but valid inputs: names with apostrophes or hyphens,
+        addresses outside the standard US format, PO Boxes for rural users.
+  - [ ] Handle concurrent submission (double-click, double-tap) with
+        idempotent submission endpoints and disabled-after-first-click buttons.
+
+  ### Feedback and Visibility
+
+  - [ ] Show visible loading states for all async operations lasting more
+        than 300 milliseconds; users interpret blank screens as failures.
+  - [ ] Confirm every significant state change: form submission received,
+        document uploaded, payment processed, status changed.
+  - [ ] Provide a persistent application status page accessible after
+        submission so users can verify their submission without re-entering.
+  - [ ] Send a confirmation email or SMS (if contact info collected) for
+        all high-stakes submissions (benefits applications, appeals).
+
+  ### Accessibility and Inclusivity
+
+  - [ ] Ensure all error and success messages are announced to screen readers
+        via ARIA live regions or focus management.
+  - [ ] Do not rely solely on color to communicate error states; use icons
+        and text labels in addition to color changes.
+  - [ ] Support browser autofill for standard personal information fields
+        (name, address, email, phone) using correct autocomplete attributes.
+  - [ ] Design for the worst case: a user with low digital literacy, on a
+        slow mobile connection, under time pressure, in their second language.

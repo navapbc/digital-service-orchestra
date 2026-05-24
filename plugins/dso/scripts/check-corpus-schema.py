@@ -71,9 +71,12 @@ def validate_file(entry_path: Path, schema: dict) -> list[str]:
 
     required_fields: list[str] = schema.get("required_fields", [])
     tag_vocabulary: dict[str, list] = schema.get("tag_vocabulary", {})
+    optional_fields: list[str] = schema.get("optional_fields", [])
 
-    # Build the set of known field names (required + vocabulary keys)
-    known_fields: set[str] = set(required_fields) | set(tag_vocabulary.keys())
+    # Build the set of known field names (required + vocabulary keys + optional)
+    known_fields: set[str] = (
+        set(required_fields) | set(tag_vocabulary.keys()) | set(optional_fields)
+    )
 
     # --- Required fields check ---
     for field in required_fields:
@@ -84,7 +87,19 @@ def validate_file(entry_path: Path, schema: dict) -> list[str]:
     for field, vocab in tag_vocabulary.items():
         if field in content:
             value = content[field]
-            if value not in vocab:
+            # Handle list values: each element must be in the vocabulary.
+            # An empty list is treated as "field not set" and passes silently.
+            if isinstance(value, list):
+                if value:  # non-empty list
+                    invalid = [v for v in value if v not in vocab]
+                    if invalid:
+                        errors.append(
+                            f"Field '{field}' contains value(s) {invalid} which are not "
+                            f"in the vocabulary {vocab}."
+                        )
+            elif value is None or value == "":
+                pass  # None/empty string treated as "not set"
+            elif value not in vocab:
                 errors.append(
                     f"Field '{field}' has value '{value}' which is not in the vocabulary "
                     f"{vocab}."

@@ -3,6 +3,9 @@
 # This file defines the vocabulary for tag fields and the list of required
 # fields for all corpus entries in this directory.
 #
+# optional_fields: fields that are allowed but not required, and whose values
+# are not constrained by a vocabulary (free-text or arbitrary structure).
+#
 # Maintained by the DSO plugin. Do not edit without updating check-corpus-schema.py.
 
 required_fields:
@@ -62,3 +65,13 @@ tag_vocabulary:
     - W3C-Document
     - internal-nava
     - public-domain
+
+# optional_fields: allowed in corpus entries without vocabulary constraints.
+# Values may be any string, number, or YAML structure.
+optional_fields:
+  - source
+  - summary
+  - detail
+  - rule_id
+  - prior_art
+  - precedence

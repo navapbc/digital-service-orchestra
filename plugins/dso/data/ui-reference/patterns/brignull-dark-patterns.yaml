@@ -1,0 +1,86 @@
+id: patterns-brignull-dark-001
+title: "Brignull Dark Pattern Taxonomy"
+domain:
+  - patterns
+action:
+  - avoid
+severity: major
+story_type:
+  - anti-pattern
+coverage: detail
+license: public-domain
+rule_id: DARK-001
+source: "https://www.deceptive.design/types"
+prior_art: "https://www.deceptive.design/types"
+precedence: 1
+summary: |
+  Dark patterns are user interface design choices that trick or manipulate
+  users into doing things they did not intend, as catalogued by Harry Brignull
+  (deceptive.design). These 13 named pattern classes appear across commercial
+  and government digital services and reduce user trust and task completion.
+detail: |
+  ### Trick Questions
+  Forms that use confusing wording or double negatives to get users to opt into
+  something they did not intend. Example: a government benefits application with
+  an unchecked opt-out for future communications that is visually indistinct
+  from a required consent checkbox.
+
+  ### Sneak into Basket (Hidden Addition)
+  Extra items — fees, insurance, add-ons — added to a cart or form submission
+  without explicit user action. Example: a payment portal that pre-selects a
+  processing fee donation option during fee collection.
+
+  ### Roach Motel
+  A situation that is easy to enter but very hard to leave. Example: a benefits
+  enrollment portal that allows online sign-up but requires a phone call or
+  in-person visit to cancel.
+
+  ### Privacy Zuckering
+  Tricking users into sharing more personal information than they intend.
+  Example: a government service that requests optional demographic data in a
+  mandatory-looking required-field layout.
+
+  ### Misdirection
+  Using visual design, contrast, or animation to direct attention away from an
+  important element users should notice. Example: a brightly colored Continue
+  button next to a faint Review before submitting link.
+
+  ### Disguised Ads (Camouflaged Call to Action)
+  Content designed to look like editorial or navigation but that actually
+  functions as an upsell. Example: a Recommended upgrade link styled identically
+  to legitimate navigation items.
+
+  ### Hidden Costs
+  Withholding price information until the final steps of a checkout or
+  enrollment process. Example: a state licensing portal that shows fees only on
+  the final confirmation screen after all personal data is collected.
+
+  ### Bait and Switch
+  Advertising or presenting one option, then substituting a different one when
+  the user attempts to act on it. Example: a prominent Free Filing option that
+  redirects to a paid product when clicked.
+
+  ### Confirmshaming
+  Using emotionally manipulative language on opt-out options to pressure users
+  into complying. Example: labeling an opt-out link in a way that shames users
+  out of opting out.
+
+  ### Toying with Emotion (False Urgency)
+  Triggering emotional responses — anxiety, urgency, guilt — to push users
+  toward a desired action. Example: a countdown timer on a benefits enrollment
+  page implying the user's eligibility will expire, when eligibility is static.
+
+  ### Forced Continuity
+  Charging a user after a free trial ends without a clear reminder or easy
+  cancellation path. Example: a government subscription service that auto-bills
+  without a cancellation reminder.
+
+  ### Friend Spam
+  Requesting access to a user's contacts and then sending messages on their
+  behalf without clear consent. Example: a government portal that requests
+  email-book access and sends invitations without per-contact approval.
+
+  ### Visual Interference (Complexity-Based)
+  Using visual complexity — excessive fields, dense layouts, small font, low
+  contrast — to overwhelm users into abandoning a task or accepting a default.
+  Common in government forms presenting 40+ optional questions before required ones.

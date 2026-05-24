@@ -95,3 +95,53 @@ sources:
       Internal Nava design standards hosted in Confluence. Requires Nava
       Atlassian credentials. Content should NOT be committed verbatim to
       public repos; reference by URL only.
+
+  - name: "Brignull Dark Patterns (deceptive.design)"
+    url: "https://www.deceptive.design/types"
+    type: website
+    access: public
+    credentials_required: false
+    license: public-domain
+    domains:
+      - patterns
+    notes: >
+      Harry Brignull's canonical dark pattern taxonomy, hosted at
+      deceptive.design. Corpus entries use paraphrase with attribution
+      per public-domain / fair-use terms. Covers 13 named dark pattern
+      classes including trick questions, roach motel, privacy zuckering,
+      confirmshaming, and visual interference.
+    last_synced: "2026-05-24"
+
+  - name: "AidUI — Government Benefits Dark Pattern Taxonomy"
+    url: "https://github.com/SageSELab/AidUI"
+    github: "SageSELab/AidUI"
+    type: github-repo
+    access: public
+    credentials_required: false
+    license: MIT
+    domains:
+      - patterns
+    notes: >
+      Research-derived taxonomy of 27 dark pattern classes observed in
+      government benefits and aid-related digital services (unemployment
+      insurance, SNAP, Medicaid, Social Security). Published by SageSELab.
+      MIT licensed. Extends general dark pattern catalogs with patterns
+      unique to high-stakes, vulnerable-population services.
+    last_synced: "2026-05-24"
+
+  - name: "principles.design Community Catalog"
+    url: "https://principles.design"
+    github: "benbrignell/principles.design"
+    type: github-repo
+    access: public
+    credentials_required: false
+    license: MIT
+    domains:
+      - patterns
+    notes: >
+      Community-maintained catalog of 100+ design principle sets. MIT licensed.
+      Corpus file contains a representative subset covering principles most
+      relevant to government digital service design: Dieter Rams, GOV.UK,
+      Inclusive Design, and WebAIM cognitive accessibility principles.
+      Attribution required per MIT terms.
+    last_synced: "2026-05-24"
