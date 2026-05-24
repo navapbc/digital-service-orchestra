@@ -102,3 +102,486 @@ entries:
       - components
       - section-508
     summary: "USWDS v3 spacing scale, utility classes, and responsive spacing patterns"
+
+  # ── patterns ──────────────────────────────────────────────────────────────────
+  - path: patterns/aidui-taxonomy.yaml
+    id: patterns-aidui-taxonomy-001
+    tags:
+      - patterns
+      - avoid
+    summary: "AidUI is a 27-class taxonomy of dark patterns observed specifically in government benefits"
+  - path: patterns/brignull-dark-patterns.yaml
+    id: patterns-brignull-dark-001
+    tags:
+      - patterns
+      - avoid
+    summary: "Dark patterns are user interface design choices that trick or manipulate users into doing "
+  - path: patterns/cognitive-load-checklist.yaml
+    id: patterns-cognitive-load-001
+    tags:
+      - patterns
+      - apply
+    summary: "Cognitive load is the total mental effort required to process information and complete a t"
+  - path: patterns/defensive-design.yaml
+    id: patterns-defensive-design-001
+    tags:
+      - patterns
+      - apply
+    summary: "Defensive design anticipates errors, edge cases, and user mistakes and handles them gracef"
+  - path: patterns/principles-design-entries.yaml
+    id: patterns-principles-design-001
+    tags:
+      - patterns
+      - apply
+    summary: "A curated subset of design principle sets from the community-maintained principles.design "
+  # ── accessibility ─────────────────────────────────────────────────────────────
+  - path: accessibility/keyboard-navigation-wcag22.yaml
+    id: wcag-keyboard-navigation
+    tags:
+      - accessibility
+      - verify
+      - implement
+      - wcag-2.2-aaa
+      - section-508
+    summary: "This entry consolidates all WCAG 2.2 keyboard navigation success criteria at AA and AAA le"
+  - path: accessibility/wcag-operable.yaml
+    id: wcag-operable
+    tags:
+      - accessibility
+      - verify
+      - implement
+      - wcag-2.2-aaa
+      - section-508
+    summary: "WCAG 2.2 Principle 2 (Operable) requires that all UI components and navigation be operable"
+  - path: accessibility/wcag-perceivable.yaml
+    id: wcag-perceivable
+    tags:
+      - accessibility
+      - verify
+      - implement
+      - wcag-2.2-aaa
+      - section-508
+    summary: "WCAG 2.2 Principle 1 (Perceivable) requires that all information and user interface compon"
+  - path: accessibility/wcag-robust.yaml
+    id: wcag-robust
+    tags:
+      - accessibility
+      - verify
+      - implement
+      - wcag-2.2-aaa
+      - section-508
+    summary: "WCAG 2.2 Principle 4 (Robust) requires that content be robust enough to be reliably interp"
+  - path: accessibility/wcag-understandable.yaml
+    id: wcag-understandable
+    tags:
+      - accessibility
+      - verify
+      - implement
+      - wcag-2.2-aaa
+      - section-508
+    summary: "WCAG 2.2 Principle 3 (Understandable) requires that information and user interface operati"
+  # ── principles ────────────────────────────────────────────────────────────────
+  - path: principles/18f-ux-guide.yaml
+    id: principles-18f-ux-guide
+    tags:
+      - principles
+      - apply
+    summary: "The 18F UX Guide codifies research-driven design principles for U.S. federal digital servi"
+  - path: principles/digital-gov-principles.yaml
+    id: principles-digitalgov-federal-ux
+    tags:
+      - principles
+      - apply
+    summary: "Digital.gov (maintained by GSA Technology Transformation Services) documents federal UX re"
+  - path: principles/govuk-design-principles.yaml
+    id: principles-govuk-design-principles
+    tags:
+      - principles
+      - apply
+    summary: "The 10 UK Government Digital Service (GDS) design principles, published under the Open Gov"
+  - path: principles/inclusive-design-principles.yaml
+    id: principles-inclusive-design
+    tags:
+      - principles
+      - apply
+    summary: "The Inclusive Design Principles, developed by the Paciello Group and contributors, provide"
+  - path: principles/nielsen-heuristics.yaml
+    id: principles-nielsen-heuristics
+    tags:
+      - principles
+      - apply
+    summary: "Jakob Nielsen's 10 general principles for interaction design, originally published in 1994"
+  - path: principles/norman-principles.yaml
+    id: principles-norman-design
+    tags:
+      - principles
+      - apply
+    summary: "Don Norman's foundational principles from 'The Design of Everyday Things' (1988, revised 2"
+  # ── anti-patterns ─────────────────────────────────────────────────────────────
+  - path: anti-patterns/ap-001-smartphone-only-auth.yaml
+    id: ap-smartphone-only-auth
+    tags:
+      - anti-patterns
+      - avoid
+      - NIST-800-63B
+    summary: "Anti-pattern: Smartphone-Only Authentication"
+  - path: anti-patterns/ap-002-knowledge-based-auth.yaml
+    id: ap-knowledge-based-auth
+    tags:
+      - anti-patterns
+      - avoid
+      - NIST-800-63B
+      - WCAG-2.1
+    summary: "Anti-pattern: Knowledge-Based Verification as Primary Auth"
+  - path: anti-patterns/ap-003-captcha-no-accessible-alternative.yaml
+    id: ap-captcha-no-accessible-alternative
+    tags:
+      - anti-patterns
+      - avoid
+      - WCAG-2.1
+      - Section-508
+    summary: "Anti-pattern: CAPTCHA Without Accessible Alternative"
+  - path: anti-patterns/ap-004-session-timeout-no-warning.yaml
+    id: ap-session-timeout-no-warning
+    tags:
+      - anti-patterns
+      - avoid
+      - WCAG-2.2
+      - WCAG-2.1
+    summary: "Anti-pattern: Session Timeout Without Warning"
+  - path: anti-patterns/ap-005-single-identity-provider-no-fallback.yaml
+    id: ap-single-identity-provider-no-fallback
+    tags:
+      - anti-patterns
+      - avoid
+      - NIST-800-63B
+    summary: "Anti-pattern: Single Identity Provider Without Fallback"
+  - path: anti-patterns/ap-006-asking-info-government-has.yaml
+    id: ap-asking-info-government-has
+    tags:
+      - anti-patterns
+      - avoid
+      - PRA
+      - WCAG-3.3.7
+    summary: "Anti-pattern: Asking for Information the Government Already Has"
+  - path: anti-patterns/ap-007-multipage-form-no-save-resume.yaml
+    id: ap-multipage-form-no-save-resume
+    tags:
+      - anti-patterns
+      - avoid
+      - WCAG-2.2
+    summary: "Anti-pattern: Multi-Page Forms Without Save and Resume"
+  - path: anti-patterns/ap-008-required-fields-color-only.yaml
+    id: ap-required-fields-color-only
+    tags:
+      - anti-patterns
+      - avoid
+      - WCAG-1.4.1
+      - Section-508
+    summary: "Anti-pattern: Required Fields Indicated by Color Only"
+  - path: anti-patterns/ap-009-date-format-ambiguity.yaml
+    id: ap-date-format-ambiguity
+    tags:
+      - anti-patterns
+      - avoid
+      - WCAG-3.3
+    summary: "Anti-pattern: Date Format Ambiguity"
+  - path: anti-patterns/ap-010-address-fields-us-only.yaml
+    id: ap-address-fields-us-only
+    tags:
+      - anti-patterns
+      - avoid
+      - EO-13166
+    summary: "Anti-pattern: Address Fields Assuming US Continental Format"
+  - path: anti-patterns/ap-011-unnecessary-gender-collection.yaml
+    id: ap-unnecessary-gender-collection
+    tags:
+      - anti-patterns
+      - avoid
+      - EO-13988
+    summary: "Anti-pattern: Asking for Gender or Sex Unnecessarily"
+  - path: anti-patterns/ap-012-pdf-only-form-submission.yaml
+    id: ap-pdf-only-form-submission
+    tags:
+      - anti-patterns
+      - avoid
+      - Section-508
+      - WCAG-2.1
+    summary: "Anti-pattern: PDF-Only Form Submission"
+  - path: anti-patterns/ap-013-auto-advancing-form-steps.yaml
+    id: ap-auto-advancing-form-steps
+    tags:
+      - anti-patterns
+      - avoid
+      - WCAG-3.2.2
+      - WCAG-2.1
+    summary: "Anti-pattern: Auto-Advancing Multi-Step Forms"
+  - path: anti-patterns/ap-014-jargon-navigation-labels.yaml
+    id: ap-jargon-navigation-labels
+    tags:
+      - anti-patterns
+      - avoid
+      - plainlanguage.gov
+    summary: "Anti-pattern: Jargon-Based Navigation Labels"
+  - path: anti-patterns/ap-015-search-only-discovery.yaml
+    id: ap-search-only-discovery
+    tags:
+      - anti-patterns
+      - avoid
+      - WCAG-2.4
+    summary: "Anti-pattern: Search as the Only Discovery Path"
+  - path: anti-patterns/ap-016-mega-menus-no-keyboard-support.yaml
+    id: ap-mega-menus-no-keyboard-support
+    tags:
+      - anti-patterns
+      - avoid
+      - WCAG-2.1.1
+      - Section-508
+    summary: "Anti-pattern: Mega-Menus Without Keyboard Support"
+  - path: anti-patterns/ap-017-no-breadcrumbs-deep-pages.yaml
+    id: ap-no-breadcrumbs-deep-pages
+    tags:
+      - anti-patterns
+      - avoid
+      - WCAG-2.4.8
+    summary: "Anti-pattern: No Breadcrumbs on Deep Pages"
+  - path: anti-patterns/ap-018-external-links-no-warning.yaml
+    id: ap-external-links-no-warning
+    tags:
+      - anti-patterns
+      - avoid
+      - WCAG-2.4
+    summary: "Anti-pattern: Opening External Links Without Warning"
+  - path: anti-patterns/ap-019-breaking-back-button.yaml
+    id: ap-breaking-back-button
+    tags:
+      - anti-patterns
+      - avoid
+      - WCAG-2.4
+    summary: "Anti-pattern: Breaking the Back Button"
+  - path: anti-patterns/ap-020-reading-level-too-high.yaml
+    id: ap-reading-level-too-high
+    tags:
+      - anti-patterns
+      - avoid
+      - plainlanguage.gov
+      - WCAG-3.1.5
+    summary: "Anti-pattern: Reading Level Above 8th Grade"
+  - path: anti-patterns/ap-021-legal-disclaimers-primary-content.yaml
+    id: ap-legal-disclaimers-primary-content
+    tags:
+      - anti-patterns
+      - avoid
+      - plainlanguage.gov
+    summary: "Anti-pattern: Legal Disclaimers as Primary Content"
+  - path: anti-patterns/ap-022-english-only-critical-services.yaml
+    id: ap-english-only-critical-services
+    tags:
+      - anti-patterns
+      - avoid
+      - EO-13166
+      - Title-VI
+    summary: "Anti-pattern: English-Only Critical Services"
+  - path: anti-patterns/ap-023-acronyms-no-expansion.yaml
+    id: ap-acronyms-no-expansion
+    tags:
+      - anti-patterns
+      - avoid
+      - WCAG-3.1.4
+      - plainlanguage.gov
+    summary: "Anti-pattern: Acronyms Without First-Use Expansion"
+  - path: anti-patterns/ap-024-pdfs-instead-of-web-content.yaml
+    id: ap-pdfs-instead-of-web-content
+    tags:
+      - anti-patterns
+      - avoid
+      - Section-508
+      - WCAG-2.1
+    summary: "Anti-pattern: PDFs Instead of Web Content"
+  - path: anti-patterns/ap-025-overlay-widgets-compliance.yaml
+    id: ap-overlay-widgets-compliance
+    tags:
+      - anti-patterns
+      - avoid
+      - Section-508
+      - WCAG-2.1
+    summary: "Anti-pattern: Accessibility Overlay Widgets as Compliance Solution"
+  - path: anti-patterns/ap-026-color-only-status-indicators.yaml
+    id: ap-color-only-status-indicators
+    tags:
+      - anti-patterns
+      - avoid
+      - WCAG-1.4.1
+      - Section-508
+    summary: "Anti-pattern: Color-Only Status Indicators"
+  - path: anti-patterns/ap-027-auto-playing-media.yaml
+    id: ap-auto-playing-media
+    tags:
+      - anti-patterns
+      - avoid
+      - WCAG-1.4.2
+      - WCAG-2.3.3
+    summary: "Anti-pattern: Auto-Playing Video or Audio"
+  - path: anti-patterns/ap-028-missing-skip-navigation.yaml
+    id: ap-missing-skip-navigation
+    tags:
+      - anti-patterns
+      - avoid
+      - WCAG-2.4.1
+      - Section-508
+    summary: "Anti-pattern: Missing Skip Navigation Link"
+  - path: anti-patterns/ap-029-images-of-text.yaml
+    id: ap-images-of-text
+    tags:
+      - anti-patterns
+      - avoid
+      - WCAG-1.4.5
+      - Section-508
+    summary: "Anti-pattern: Images of Text"
+  - path: anti-patterns/ap-030-focus-order-mismatch.yaml
+    id: ap-focus-order-mismatch
+    tags:
+      - anti-patterns
+      - avoid
+      - WCAG-2.4.3
+      - Section-508
+    summary: "Anti-pattern: Focus Order Does Not Match Visual Order"
+  - path: anti-patterns/ap-031-missing-lang-attribute.yaml
+    id: ap-missing-lang-attribute
+    tags:
+      - anti-patterns
+      - avoid
+      - WCAG-3.1.1
+      - Section-508
+    summary: "Anti-pattern: Missing HTML lang Attribute"
+  - path: anti-patterns/ap-032-decorative-images-with-alt-text.yaml
+    id: ap-decorative-images-with-alt-text
+    tags:
+      - anti-patterns
+      - avoid
+      - WCAG-1.1.1
+      - Section-508
+    summary: "Anti-pattern: Decorative Images With Non-Empty Alt Text"
+  - path: anti-patterns/ap-033-third-party-tracking-no-consent.yaml
+    id: ap-third-party-tracking-no-consent
+    tags:
+      - anti-patterns
+      - avoid
+      - OMB-M-10-22
+      - FISMA
+    summary: "Anti-pattern: Third-Party Tracking Without Consent"
+  - path: anti-patterns/ap-034-pii-in-urls.yaml
+    id: ap-pii-in-urls
+    tags:
+      - anti-patterns
+      - avoid
+      - FISMA
+      - NIST-800-53
+    summary: "Anti-pattern: Exposing PII in URLs"
+  - path: anti-patterns/ap-035-mixed-content-gov-domains.yaml
+    id: ap-mixed-content-gov-domains
+    tags:
+      - anti-patterns
+      - avoid
+      - HSTS-Preloading
+      - FISMA
+    summary: "Anti-pattern: Mixed Content on .gov Domains"
+  - path: anti-patterns/ap-036-client-side-only-validation.yaml
+    id: ap-client-side-only-validation
+    tags:
+      - anti-patterns
+      - avoid
+      - OWASP
+      - FISMA
+    summary: "Anti-pattern: Client-Side-Only Input Validation"
+  - path: anti-patterns/ap-037-desktop-only-design.yaml
+    id: ap-desktop-only-design
+    tags:
+      - anti-patterns
+      - avoid
+      - OMB-M-17-06
+      - WCAG-1.4.10
+    summary: "Anti-pattern: Desktop-Only Design"
+  - path: anti-patterns/ap-038-horizontal-scrolling-mobile.yaml
+    id: ap-horizontal-scrolling-mobile
+    tags:
+      - anti-patterns
+      - avoid
+      - WCAG-1.4.10
+    summary: "Anti-pattern: Horizontal Scrolling on Mobile"
+  - path: anti-patterns/ap-039-touch-targets-too-small.yaml
+    id: ap-touch-targets-too-small
+    tags:
+      - anti-patterns
+      - avoid
+      - WCAG-2.5.8
+      - Section-508
+    summary: "Anti-pattern: Touch Targets Too Small"
+  - path: anti-patterns/ap-040-fixed-elements-covering-content.yaml
+    id: ap-fixed-elements-covering-content
+    tags:
+      - anti-patterns
+      - avoid
+      - WCAG-1.4.10
+      - WCAG-2.4.12
+    summary: "Anti-pattern: Fixed-Position Elements Covering Content"
+  - path: anti-patterns/ap-041-heavy-page-weight-broadband-assumed.yaml
+    id: ap-heavy-page-weight-broadband-assumed
+    tags:
+      - anti-patterns
+      - avoid
+      - OMB-M-17-06
+    summary: "Anti-pattern: Heavy Page Weight Assuming Broadband"
+  - path: anti-patterns/ap-042-no-offline-degraded-mode.yaml
+    id: ap-no-offline-degraded-mode
+    tags:
+      - anti-patterns
+      - avoid
+      - progressive-enhancement
+    summary: "Anti-pattern: No Offline or Degraded Mode for Critical Services"
+  - path: anti-patterns/ap-043-cdn-dependencies-critical-assets.yaml
+    id: ap-cdn-dependencies-critical-assets
+    tags:
+      - anti-patterns
+      - avoid
+      - FISMA
+      - FedRAMP
+    summary: "Anti-pattern: Third-Party CDN Dependencies for Critical Assets"
+  - path: anti-patterns/ap-044-email-only-notifications.yaml
+    id: ap-email-only-notifications
+    tags:
+      - anti-patterns
+      - avoid
+      - EO-14058
+    summary: "Anti-pattern: Email-Only Notifications for Critical Updates"
+  - path: anti-patterns/ap-045-no-status-tracking-submissions.yaml
+    id: ap-no-status-tracking-submissions
+    tags:
+      - anti-patterns
+      - avoid
+      - EO-14058
+      - OMB-A11-280
+    summary: "Anti-pattern: No Status Tracking for Submissions"
+  - path: anti-patterns/ap-046-jargon-in-status-messages.yaml
+    id: ap-jargon-in-status-messages
+    tags:
+      - anti-patterns
+      - avoid
+      - plainlanguage.gov
+    summary: "Anti-pattern: Jargon in Status Messages"
+  - path: anti-patterns/ap-047-charts-without-data-tables.yaml
+    id: ap-charts-without-data-tables
+    tags:
+      - anti-patterns
+      - avoid
+      - WCAG-1.1.1
+      - Section-508
+    summary: "Anti-pattern: Charts Without Accessible Data Table Alternatives"
+  - path: anti-patterns/ap-048-red-green-only-encoding.yaml
+    id: ap-red-green-only-encoding
+    tags:
+      - anti-patterns
+      - avoid
+      - WCAG-1.4.1
+      - Section-508
+    summary: "Anti-pattern: Red/Green-Only Encoding in Maps and Charts"
