@@ -266,14 +266,29 @@ def test_runner_emit_finding_dispatches_tool_finding_for_operational_types() -> 
 @pytest.mark.parametrize(
     "raw_severity,expected",
     [
+        # Canonical enum passthroughs.
         ("critical", "critical"),
         ("important", "important"),
         ("minor", "minor"),
         ("suggestion", "suggestion"),
-        ("high", "important"),  # alias
-        ("medium", "minor"),  # alias
-        ("UNKNOWN-LEVEL", "minor"),  # fallback
-        (None, "minor"),  # missing
+        # Every documented alias must be covered so a regression in the
+        # alias table fires the test rather than silently downgrading the
+        # severity at the Lambda boundary.
+        ("high", "important"),
+        ("fragile", "important"),  # DSO-internal severity, must map to important
+        ("medium", "minor"),
+        ("low", "minor"),
+        ("info", "suggestion"),
+        ("informational", "suggestion"),
+        # Case insensitivity.
+        ("CRITICAL", "critical"),
+        ("Important", "important"),
+        ("  minor  ", "minor"),  # whitespace stripped
+        # Fallback paths.
+        ("UNKNOWN-LEVEL", "minor"),
+        ("", "minor"),
+        (None, "minor"),
+        (42, "minor"),  # non-string types
     ],
 )
 def test_runner_normalise_review_severity(raw_severity, expected) -> None:
@@ -282,6 +297,115 @@ def test_runner_normalise_review_severity(raw_severity, expected) -> None:
     from dso_ci_review import runner
 
     assert runner._normalise_review_severity(raw_severity) == expected
+
+
+@pytest.mark.parametrize(
+    "raw_category,expected",
+    [
+        # Canonical enum passthroughs.
+        ("correctness", "correctness"),
+        ("design", "design"),
+        ("hygiene", "hygiene"),
+        ("maintainability", "maintainability"),
+        ("verification", "verification"),
+        # Every documented alias.
+        ("performance", "correctness"),
+        ("security", "correctness"),
+        ("style", "hygiene"),
+        ("documentation", "maintainability"),
+        ("test", "verification"),
+        ("tests", "verification"),
+        # Case + whitespace handling.
+        ("DESIGN", "design"),
+        ("  hygiene  ", "hygiene"),
+        # Fallbacks.
+        ("unknown-category", "correctness"),
+        ("", "correctness"),
+        (None, "correctness"),
+        (42, "correctness"),
+    ],
+)
+def test_runner_normalise_review_category(raw_category, expected) -> None:
+    """_normalise_review_category must map raw values to the canonical enum,
+    with documented aliases and a safe fallback to 'correctness'."""
+    from dso_ci_review import runner
+
+    assert runner._normalise_review_category(raw_category) == expected
+
+
+@pytest.mark.parametrize(
+    "raw_severity,expected",
+    [
+        # Each review-severity bucket maps to one of the 3 tool-severity buckets.
+        ("critical", "error"),
+        ("important", "warning"),
+        ("minor", "info"),
+        ("suggestion", "info"),
+        # Case-insensitive matching.
+        ("CRITICAL", "error"),
+        ("  important  ", "warning"),
+        # Unknown / missing fallback.
+        ("fragile", "info"),  # not in the 3-bucket map; falls back
+        ("", "info"),
+        (None, "info"),
+        (42, "info"),
+    ],
+)
+def test_runner_normalise_tool_severity(raw_severity, expected) -> None:
+    """_normalise_tool_severity must collapse the 4-bucket review enum into
+    the 3-bucket tool_finding enum (error/warning/info), with safe fallback
+    for unknown inputs."""
+    from dso_ci_review import runner
+
+    assert runner._normalise_tool_severity(raw_severity) == expected
+
+
+def test_runner_emit_review_cycle_with_empty_findings() -> None:
+    """The first-cycle clean-review state: empty findings list must still
+    produce a schema-valid review_cycle emit with pass=True and zero counts."""
+    from dso_ci_review import runner
+
+    captured: list[tuple[str, dict]] = []
+    runner._emit_review_cycle_telemetry(
+        [],
+        cycle_number=1,
+        tier="light",
+        reviewed_sha="0000000000000000000000000000000000000000",
+        emit_fn=lambda et, **kw: captured.append((et, kw)),
+    )
+    assert len(captured) == 1
+    et, kwargs = captured[0]
+    assert et == "review_cycle"
+    missing = REQUIRED_PER_TYPE_FIELDS["review_cycle"] - set(kwargs.keys())
+    assert not missing
+    assert kwargs["finding_count"] == 0
+    assert kwargs["critical_count"] == 0
+    assert kwargs["important_count"] == 0
+    assert kwargs["minor_count"] == 0
+    assert kwargs["pass"] is True
+    assert kwargs["resolution_attempts"] == 0
+
+
+def test_arbiter_emit_uses_synthetic_finding_id_when_missing() -> None:
+    """When the finding dict has no 'finding_id' key, the emit must fall
+    back to a deterministic synthetic id of the form
+    ``unknown-<cycle>-<idx>`` rather than emitting an empty finding_id (which
+    would fail the Lambda schema's required-non-empty contract)."""
+    from dso_ci_review import arbiter_processor
+
+    captured: list[tuple[str, dict]] = []
+    ruling = {"finding_index": 7, "ruling": "BLOCK", "rationale": "test"}
+    finding: dict = {}  # no finding_id key
+    arbiter_processor._emit_arbiter_ruling_telemetry(
+        ruling,
+        finding,
+        finding_idx=7,
+        cycle_num=4,
+        emit_fn=lambda et, **kw: captured.append((et, kw)),
+    )
+    assert captured[0][1]["finding_id"] == "unknown-4-7"
+    # prior_finding_id falls back to the same synthetic value (no lineage data).
+    assert captured[0][1]["prior_finding_id"] == "unknown-4-7"
 
 
 def test_runner_emit_review_cycle_carries_all_required_fields() -> None:

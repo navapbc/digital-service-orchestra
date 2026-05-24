@@ -78,6 +78,12 @@ from dso_ci_review.telemetry_emit_wrapper import emit_event as _telemetry_emit
 _REVIEW_SEVERITY_ENUM = ("critical", "important", "minor", "suggestion")
 _REVIEW_SEVERITY_ALIASES = {
     "high": "important",
+    # "fragile" is a DSO-internal severity emitted by every reviewer agent
+    # (see ${CLAUDE_PLUGIN_ROOT}/agents/code-reviewer-*.md) for findings that
+    # need a reachability statement. The Lambda canonical enum does not
+    # include "fragile"; map it to "important" to preserve the warning
+    # weight rather than silently downgrading into the minor noise.
+    "fragile": "important",
     "medium": "minor",
     "low": "minor",
     "info": "suggestion",
