@@ -1,0 +1,125 @@
+# WCAG 2.2 Principle 1: Perceivable
+# Action tag vocabulary:
+#   text-alternatives  — alt text, captions, descriptions
+#   color-contrast     — color contrast and visual cues
+#   verify             — compliance verification
+#   implement          — implementation guidance
+#
+# Precision query contract (Story-6):
+#   "WCAG 2.2 keyboard navigation" -> must return compliance: [wcag-2.2-aaa] AND action: [keyboard-nav]
+
+rule_id: wcag-perceivable
+title: "WCAG 2.2 Perceivable: Information and UI Components Must Be Presentable to Users"
+prior_art: https://www.w3.org/TR/WCAG22/#perceivable
+precedence: 1
+domain: accessibility
+component: []
+action:
+  - verify
+  - implement
+  - text-alternatives
+  - color-contrast
+compliance:
+  - wcag-2.2-aaa
+  - section-508
+severity: critical
+story_type:
+  - compliance-check
+coverage: detail
+source: w3c/wcag
+license: W3C-Document
+
+summary: |
+  WCAG 2.2 Principle 1 (Perceivable) requires that all information and user
+  interface components be presentable to users in ways they can perceive. For
+  federal government digital services, this means providing text alternatives
+  for non-text content, captions for time-based media, and content that can be
+  presented in different ways without losing information or structure.
+
+  Section 508 (36 CFR Part 1194) incorporates WCAG 2.0 Level AA by reference
+  for web content. OMB M-24-08 explicitly requires agencies to meet WCAG 2.1
+  Level AA at minimum, with AAA-level criteria strongly encouraged for benefit
+  enrollment and eligibility services accessed by people with disabilities.
+
+detail: |
+  SC 1.1.1 Non-text Content (Level A)
+  Normative text: "All non-text content that is presented to the user has a text
+  alternative that serves the equivalent purpose..."
+  - Provide alt text for all meaningful images
+  - Decorative images: alt="" (empty alt)
+  - Complex images (charts, graphs): long description in nearby text or aria-describedby
+  - Government context: Benefits application forms with instructional images
+    must include equivalent text descriptions. Section 508 1194.22(a).
+
+  SC 1.2.6 Sign Language (Prerecorded) (Level AAA)
+  Normative text: "Sign language interpretation is provided for all prerecorded
+  audio content in synchronized media."
+  - Provide ASL (American Sign Language) interpretation for all prerecorded videos
+  - Government context: USCIS, SSA, and VA benefit-explanation videos should
+    include embedded sign language interpreter window
+
+  SC 1.2.7 Extended Audio Description (Level AAA)
+  Normative text: "Where pauses in foreground audio are insufficient to allow
+  audio descriptions to convey the sense of the video, extended audio description
+  is provided for all prerecorded video content in synchronized media."
+  - Pause video to insert audio descriptions for complex visual sequences
+  - Government context: Tutorial videos for online benefit applications
+
+  SC 1.2.8 Media Alternative (Level AAA)
+  Normative text: "An alternative for time-based media is provided for all
+  prerecorded synchronized media and for all prerecorded video-only media."
+  - Full text transcript for all video/audio content
+  - Government context: Congressional hearing recordings, agency announcements
+
+  SC 1.2.9 Audio-only Live (Level AAA)
+  Normative text: "An alternative for time-based media that presents equivalent
+  information for live audio-only content is provided."
+  - Real-time captions or text equivalent for live audio streams
+  - Government context: Live press briefings, emergency broadcasts
+
+  SC 1.3.6 Identify Purpose (Level AAA)
+  Normative text: "In content implemented using markup languages, the purpose of
+  User Interface Components, icons, and regions can be programmatically determined."
+  - Use ARIA landmarks, roles, and autocomplete attributes
+  - Government context: Benefits application forms -- autocomplete="given-name",
+    "family-name", "street-address" enable assistive technology personalization
+
+  SC 1.4.6 Contrast Enhanced (Level AAA)
+  Normative text: "The visual presentation of text and images of text has a
+  contrast ratio of at least 7:1, except for Large Text (3:1), Incidental,
+  and Logotypes."
+  - Minimum 7:1 contrast ratio for body text (vs. 4.5:1 at AA)
+  - Minimum 3:1 for large text (18pt or 14pt bold)
+  - Government context: Accessible color palette for USWDS-based agency portals
+    serving users with low vision; benefits notices and eligibility letters
+
+  SC 1.4.7 Low or No Background Audio (Level AAA)
+  Normative text: "For prerecorded audio-only content... the audio does not
+  contain background sounds... or the background sounds can be turned off..."
+  - Audio content: -20 dB or more quieter than foreground, or no background audio
+  - Government context: Accessibility requirements for agency podcast content
+
+  SC 1.4.8 Visual Presentation (Level AAA)
+  Normative text: "For the visual presentation of blocks of text..."
+  - Foreground/background colors selectable by user
+  - Width no more than 80 characters
+  - Text not justified
+  - Line spacing at least 1.5x within paragraphs; paragraph spacing 1.5x line spacing
+  - Text resizable up to 200% without assistive technology
+  - Government context: Long-form benefit eligibility determinations, privacy notices
+
+  SC 1.4.9 Images of Text (No Exception) (Level AAA)
+  Normative text: "Images of text are only used for pure decoration or where a
+  particular presentation of text is essential to the information being conveyed."
+  - Use actual text, not images of text, in all cases except logos
+  - Government context: Agency seals and logos are exempt; all body content must
+    be real text for screen reader and reflow support
+
+  Section 508 Cross-References:
+  - 36 CFR 1194.22(a): Text equivalent for every non-text element
+  - 36 CFR 1194.22(b): Multimedia equivalents
+  - 36 CFR 1194.22(k): Forms with text labels
+
+  OMB M-24-08 Cross-References:
+  - Section 3.C: Enhanced contrast requirements for benefit portals
+  - Appendix A: Accessibility testing checklist items 1-9

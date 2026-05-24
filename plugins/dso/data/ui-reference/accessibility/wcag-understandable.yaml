@@ -1,0 +1,139 @@
+# WCAG 2.2 Principle 3: Understandable
+# Action tag vocabulary:
+#   verify             — compliance verification
+#   implement          — implementation guidance
+#   focus-management   — error prevention and focus on errors
+#
+# Precision query contract (Story-6):
+#   "WCAG 2.2 keyboard navigation" -> must return compliance: [wcag-2.2-aaa] AND action: [keyboard-nav]
+
+rule_id: wcag-understandable
+title: "WCAG 2.2 Understandable: Information and Operation Must Be Understandable"
+prior_art: https://www.w3.org/TR/WCAG22/#understandable
+precedence: 1
+domain: accessibility
+component: []
+action:
+  - verify
+  - implement
+  - focus-management
+compliance:
+  - wcag-2.2-aaa
+  - section-508
+severity: critical
+story_type:
+  - compliance-check
+coverage: detail
+source: w3c/wcag
+license: W3C-Document
+
+summary: |
+  WCAG 2.2 Principle 3 (Understandable) requires that information and user
+  interface operation be understandable -- readable, predictable, and providing
+  input assistance. Government benefit applications must be understandable by
+  users with cognitive disabilities, limited English proficiency, and varying
+  digital literacy levels.
+
+  OMB M-24-08 Equitable Delivery section explicitly requires that benefit
+  portals provide plain language, clear error messages, and accessible help
+  text. Section 508 1194.22 covers form labeling and error identification.
+
+detail: |
+  SC 3.1.3 Unusual Words (Level AAA)
+  Normative text: "A mechanism is available for identifying specific definitions
+  of words or phrases used in an unusual or restricted way, including idioms and
+  jargon."
+  - Provide glossary or inline definitions for technical/legal terms
+  Government context: Benefits eligibility terminology (e.g., "countable income",
+  "period of incapacity", "categorical eligibility") must have accessible
+  definitions. Plain Language Act (5 U.S.C. 301) reinforces this requirement.
+
+  SC 3.1.4 Abbreviations (Level AAA)
+  Normative text: "A mechanism for identifying the expanded form or meaning of
+  abbreviations is available."
+  - Use abbr element with title attribute or provide a glossary
+  Government context: Federal acronyms (SNAP, TANF, SSI, SSDI, CHIP, FMAP)
+  must be expanded on first use or linkable to definition
+
+  SC 3.1.5 Reading Level (Level AAA)
+  Normative text: "When text requires reading ability more advanced than the lower
+  secondary education level after removal of proper names and titles, supplemental
+  content, or a version that does not require reading ability more advanced than
+  the lower secondary education level, is available."
+  - Plain language at 6th-8th grade reading level (Flesch-Kincaid score 65+)
+  Government context: Required by Plain Language Act; OMB M-24-08 Section 3.A
+  mandates plain language for all public-facing benefit content
+
+  SC 3.1.6 Pronunciation (Level AAA)
+  Normative text: "A mechanism is available for identifying the specific
+  pronunciation of words where meaning of the words, in context, is ambiguous
+  without knowing the pronunciation."
+  - Provide phonetic guides for ambiguous terms where pronunciation affects meaning
+  Government context: Uncommon proper names in legal citations or procedural names
+
+  SC 3.2.5 Change on Request (Level AAA)
+  Normative text: "Changes of context are initiated only by user request or a
+  mechanism is available to turn off such changes."
+  - Do not auto-redirect, auto-submit, or auto-refresh without user action
+  Government context: Session timeout warnings must allow user to extend session;
+  benefits calculators must not auto-submit on last field
+
+  SC 3.3.3 Error Suggestion (Level AA)
+  Normative text: "If an input error is automatically detected and suggestions for
+  correction are known, then the suggestion is provided to the user, unless it
+  would jeopardize the security or purpose of the content."
+  - Error messages must describe the problem AND suggest correction
+  - Bad: "Invalid date" -- Good: "Enter a date in MM/DD/YYYY format, e.g. 01/15/2024"
+  Government context: Benefits application form validation; SSA online services
+  Section 508 1194.22(n) form error identification
+
+  SC 3.3.4 Error Prevention Legal Financial Data (Level AA)
+  Normative text: "For Web pages that cause legal commitments or financial
+  transactions for the user to occur, that modify or delete user-controllable data
+  in data storage systems... submissions are reversible, checked, or confirmed."
+  - Provide review step before final submission
+  - Allow users to correct errors before submitting
+  Government context: Benefits applications, tax filings, financial aid -- all
+  require confirmation step and ability to go back and correct
+
+  SC 3.3.6 Error Prevention All (Level AAA)
+  Normative text: "For Web pages that require the user to submit information,
+  at least one of the following is true: Reversible, Checked, Confirmed."
+  - Same as 3.3.4 but applies to ALL form submissions, not just financial/legal
+  Government context: Any government form submission -- contact forms, preference
+  updates, account changes -- must be reversible, checkable, or confirmed
+
+  SC 3.3.7 Redundant Entry (Level A - WCAG 2.2 NEW)
+  Normative text: "Information previously entered by or provided to the user that
+  is required to be entered again in the same process is either: auto-populated
+  or available for the user to select."
+  - Don't make users re-enter information within the same workflow
+  Government context: Multi-step benefit applications -- if name/address entered
+  on page 1, auto-populate on page 4 (mailing address same as home address)
+  OMB M-24-08 reduces re-entry burden for benefit applicants
+
+  SC 3.3.8 Accessible Authentication Minimum (Level AA - WCAG 2.2 NEW)
+  Normative text: "A cognitive function test (such as remembering a password or
+  solving a puzzle) is not required for any step in an authentication process
+  unless that step provides at least one of: alternative, mechanism, object
+  recognition, personal content"
+  - Allow password managers; do not block copy-paste in password fields
+  - Offer alternative authentication (email link, SMS OTP) if CAPTCHA used
+  Government context: Login.gov, ID.me -- must support password manager autofill;
+  CAPTCHA alternatives required for users with cognitive disabilities
+
+  SC 3.3.9 Accessible Authentication Enhanced (Level AAA - WCAG 2.2 NEW)
+  Normative text: "A cognitive function test (such as remembering a password or
+  solving a puzzle) is not required for any step in an authentication process."
+  - No cognitive function tests anywhere in authentication
+  Government context: Government SSO (Login.gov) must offer fully accessible
+  authentication paths -- magic links, WebAuthn/passkeys, or similar
+
+  Section 508 Cross-References:
+  - 36 CFR 1194.22(l): When pages use scripting, accessible equivalent information
+  - 36 CFR 1194.22(n): Online forms -- labels, instructions, error identification
+
+  OMB M-24-08 Cross-References:
+  - Section 3.A: Plain language requirements
+  - Section 3.B: Error handling and form accessibility
+  - Appendix A items 23-31: Understandability compliance checklist

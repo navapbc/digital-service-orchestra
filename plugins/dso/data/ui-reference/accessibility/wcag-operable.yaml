@@ -1,0 +1,153 @@
+# WCAG 2.2 Principle 2: Operable
+# Action tag vocabulary:
+#   keyboard-nav       — keyboard navigation patterns (SC 2.1.*)
+#   focus-management   — focus order and visibility (SC 2.4.*)
+#   verify             — compliance verification
+#   implement          — implementation guidance
+#
+# Precision query contract (Story-6):
+#   "WCAG 2.2 keyboard navigation" -> must return compliance: [wcag-2.2-aaa] AND action: [keyboard-nav]
+
+rule_id: wcag-operable
+title: "WCAG 2.2 Operable: User Interface Components and Navigation Must Be Operable"
+prior_art: https://www.w3.org/TR/WCAG22/#operable
+precedence: 1
+domain: accessibility
+component: []
+action:
+  - verify
+  - implement
+  - keyboard-nav
+  - focus-management
+compliance:
+  - wcag-2.2-aaa
+  - section-508
+severity: critical
+story_type:
+  - compliance-check
+coverage: detail
+source: w3c/wcag
+license: W3C-Document
+
+summary: |
+  WCAG 2.2 Principle 2 (Operable) requires that all UI components and navigation
+  be operable by all users, including those who rely exclusively on keyboard input,
+  switch access, or other non-pointer input methods. This principle is especially
+  critical for government benefit applications where mouse use cannot be assumed.
+
+  Section 508 1194.22(a)-(p) requires full keyboard accessibility for web
+  applications. OMB M-24-08 calls out keyboard navigation compliance as a
+  prerequisite for any federally-mandated benefit enrollment workflow.
+
+  WCAG 2.2 adds SC 2.4.11 (Focus Not Obscured Minimum AA), SC 2.4.12 (Focus
+  Not Obscured Enhanced AAA), SC 2.4.13 (Focus Appearance AAA), and
+  SC 2.5.7 (Dragging Movements AA), SC 2.5.8 (Target Size Minimum AA)
+  as new requirements relative to WCAG 2.1.
+
+detail: |
+  SC 2.1.1 Keyboard (Level A)
+  Normative text: "All functionality of the content is operable through a keyboard
+  interface without requiring specific timings for individual keystrokes, except
+  where the underlying function requires input that depends on the path of the
+  user's movement and not just the endpoints."
+  - All form controls reachable via Tab key
+  - Buttons activated via Enter or Space
+  - Links activated via Enter
+  - No functionality requiring mouse hover only
+  Section 508: 36 CFR 1194.22(a) -- keyboard-accessible interfaces
+
+  SC 2.1.2 No Keyboard Trap (Level A)
+  Normative text: "If keyboard focus can be moved to a component of the page using
+  a keyboard interface, then focus can be moved away from that component using only
+  a keyboard interface..."
+  - Modal dialogs: Esc key closes; focus trap within modal while open
+  - Date pickers, custom widgets: Esc exits to trigger element
+  Government context: Multi-step benefits forms; cookie consent banners
+
+  SC 2.1.3 Keyboard (No Exception) (Level AAA)
+  Normative text: "All functionality of the content is operable through a keyboard
+  interface without requiring specific timings for individual keystrokes, and where
+  the underlying function requires input that depends on the path of the user's
+  movement and not just the endpoints."
+  - Path-dependent interactions: keyboard alternative provided
+  - Drag-and-drop document upload: file input button alternative
+  Government context: VA.gov document upload, USCIS form upload interfaces
+  OMB M-24-08 Appendix A item 17: AAA keyboard requirement for benefit portals
+
+  SC 2.1.4 Character Key Shortcuts (Level A - WCAG 2.1)
+  Normative text: "If a keyboard shortcut is implemented in content using only
+  letter, punctuation, number, or symbol characters, then at least one of the
+  following is true: Turn off, Remap, Active only on focus"
+  - Single-character shortcuts must be remappable or disableable
+  Government context: Custom keyboard shortcuts in benefit calculators
+
+  SC 2.4.3 Focus Order (Level A)
+  Normative text: "If a Web page can be navigated sequentially and the navigation
+  sequences affect meaning or operation, focusable components receive focus in an
+  order that preserves meaning and operation."
+  - DOM order matches visual order; avoid tabindex values greater than 0
+  - After modal opens, focus moves to modal; after modal closes, returns to trigger
+  Government context: Multi-step benefit application wizards
+
+  SC 2.4.7 Focus Visible (Level AA)
+  Normative text: "Any keyboard operable user interface has a mode of operation
+  where the keyboard focus indicator is visible."
+  - Focus ring must be visually distinct
+  - USWDS 3.x default focus style satisfies this criterion
+  Government context: Agency portals using USWDS must not suppress focus outline
+
+  SC 2.4.11 Focus Not Obscured Minimum (Level AA - WCAG 2.2 NEW)
+  Normative text: "When a user interface component receives keyboard focus, the
+  component is not entirely hidden due to author-created content."
+  - Focused element must not be fully covered by sticky headers, banners, or overlays
+  Government context: Agency sites with sticky navigation bars and cookie consent
+  banners must ensure focused elements remain partially visible
+
+  SC 2.4.12 Focus Not Obscured Enhanced (Level AAA - WCAG 2.2 NEW)
+  Normative text: "When a user interface component receives keyboard focus, no
+  part of the component is hidden due to author-created content."
+  - Focused element must be fully visible (no partial occlusion)
+  Government context: Stricter requirement for benefit application critical paths;
+  scrollIntoView() or scroll-padding-top CSS to prevent sticky-header occlusion
+  OMB M-24-08 enhanced focus requirement
+
+  SC 2.4.13 Focus Appearance (Level AAA - WCAG 2.2 NEW)
+  Normative text: "When the keyboard focus indicator is visible, an area of the
+  focus indicator meets all of the following: minimum area, contrast ratio >= 3:1..."
+  - Focus indicator: minimum enclosed area, contrast >= 3:1 vs. adjacent colors
+  - USWDS focus ring: 2px + 2px offset satisfies this for most backgrounds
+  Government context: OMB M-24-08 enhanced focus requirement for government portals
+
+  SC 2.5.3 Label in Name (Level A)
+  Normative text: "For user interface components with labels that include text or
+  images of text, the name contains the text that is presented visually."
+  - Accessible name must include the visible label text
+  Government context: Submit buttons labeled "Continue" must have accessible
+  name containing "Continue"
+
+  SC 2.5.6 Concurrent Input Mechanisms (Level AAA)
+  Normative text: "Web content does not restrict use of input modalities available
+  on a platform except where the restriction is essential..."
+  - Do not lock users to a single input modality (e.g., touch-only)
+  Government context: Benefits kiosks with touchscreens must still support
+  keyboard/switch access
+
+  SC 2.5.7 Dragging Movements (Level AA - WCAG 2.2 NEW)
+  Normative text: "All functionality that uses a dragging movement for operation
+  can be achieved with a single pointer without dragging..."
+  - Drag-and-drop interactions need click/tap alternative
+  Government context: Document upload via drag-and-drop on benefits portals
+
+  SC 2.5.8 Target Size Minimum (Level AA - WCAG 2.2 NEW)
+  Normative text: "The size of the target for pointer inputs is at least 24 by 24
+  CSS pixels, except where spacing or essential exceptions apply"
+  - Interactive targets: 24x24 CSS px minimum; USWDS recommends 44x44px
+  Government context: Mobile benefit applications; form checkboxes and radio buttons
+
+  Section 508 Cross-References:
+  - 36 CFR 1194.22(a): Keyboard accessible
+  - 36 CFR 1194.22(n): Online forms with keyboard navigation
+
+  OMB M-24-08 Cross-References:
+  - Section 3.D: Keyboard navigation testing requirements
+  - Appendix A items 15-22: Interactive element keyboard compliance checklist
