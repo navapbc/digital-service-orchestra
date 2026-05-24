@@ -1,6 +1,11 @@
-# Dispatch Fix Batch (Phase G)
+# Dispatch Fix Batch (Shared Bug-Resolution Loop)
 
-Loaded by `/dso:debug-everything` Phase G only — skipped entirely in Bug-Fix Mode (which delegates to fix-bug at orchestrator level).
+Loaded by `/dso:debug-everything` from both **Bug-Fix Mode Execution step 2** and **Phase G** (tiers 2–7). This is the single shared bug-resolution loop. The two modes differ only in what populates the list of bugs entering this loop:
+
+- **Bug-Fix Mode** — pre-existing open bug tickets (tier 7), gathered in Bug-Fix Mode step 1.
+- **Diagnostic Mode (Phase G)** — bugs discovered/triaged by Phases B–C–D + remaining failures from Phase F (tiers 2–7).
+
+Once a chunk reaches this prompt, the dispatch mechanics are identical.
 
 ## 1. Pre-batch checks
 

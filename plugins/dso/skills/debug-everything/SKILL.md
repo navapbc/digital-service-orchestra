@@ -32,7 +32,7 @@ You are a **Senior Software Engineer at Google** brought in to restore a project
 /dso:debug-everything --aws            # Include proactive AWS infrastructure scan in Phase B
 ```
 
-**ci-pr mode** (when `dso.workflow=ci-pr`): `/dso:debug-everything` runs in ci-pr mode. Each fix batch is committed to a per-tier sub-branch (`bug-batch/<session-id>/tier-<N>-batch-<K>`), opened as a PR against `SESSION_BRANCH` (not main), and merged to the session branch after review. The session's aggregate progress is tracked in a `Debug:` draft PR. Phase B Step 1 creates a `.debug-active` marker (schema v1) on the repo root; Phase K removes it. The draft PR is also created in Phase B Step 1.
+**ci-pr mode** (when `dso.workflow=ci-pr`): `/dso:debug-everything` runs in ci-pr mode. Both Bug-Fix Mode and Diagnostic Mode commit fix batches to per-chunk sub-branches (`bug-batch/<session-id>/tier-<N>-batch-<K>` for Diagnostic Mode tiers 2–7; `bug-batch/<session-id>/bug-fix-batch-<K>` for Bug-Fix Mode tier-7-only), each opened as a PR against `SESSION_BRANCH` (not main) and merged to the session branch after review. The session's aggregate progress is tracked in a `Debug:` draft PR. Phase B Step 1 creates a `.debug-active` marker (schema v1) on the repo root; Phase K removes it. The draft PR is also created in Phase B Step 1.
 
 > **KNOWN GAP (tracked under upcoming remediation epic; post-mortem bug 576b-a6c7-3de3-4eef)**: in ci-pr mode, sub-branch PRs currently do NOT trigger internal LLM review. `.github/workflows/per-branch-review.yml` (which previously provided per-sub-PR review) was deleted by story 20d7-09d6-b831-4c3a. `ci.yml`'s `llm-review` job is gated to `base_ref == 'main'` and does not fire on sub-branch PRs. `/dso:review` is HARD-GATED to no-op under `dso.workflow=ci-pr`. External advisory reviewers (CodeRabbit, Gitar) may run but are not required checks. Internal review coverage currently fires only at the eventual session→main PR, on the cumulative diff. The remediation epic restores per-sub-PR internal review with a no-duplicate-checks invariant.
 
@@ -44,9 +44,13 @@ If AWS auth is not configured, infrastructure checks are skipped gracefully.
 
 **Step 0 (always first)**: GitHub Actions Pre-Scan — scans configured GHA workflows and creates bug tickets for untracked CI failures. Runs unconditionally before the open-bug-count pre-check so newly discovered failures are visible to mode selection. Skipped when `debug.gha_scan_enabled=false` or `debug.gha_workflows` is absent/empty.
 
-Two entry modes: (1) **Bug-Fix Mode** — when open bug tickets exist, skip diagnostics/triage and apply `/dso:fix-bug` directly to each ticket, then enter Validation Mode (inner loop, bounded by `debug.max_fix_validate_cycles`); (2) **Diagnostic Mode** — when no open bugs exist, run Phase B diagnostic scan, Phase C triage, then fix in tier order (Phases E-I). Both modes converge at Phase J (Full Validation). The outer loop (Phase B-J, max 5 cycles) and inner validation loop (Bug-Fix Mode, max `debug.max_fix_validate_cycles`) are independent and must not nest multiplicatively.
+Two entry modes that share the same bug-resolution loop (`prompts/dispatch-fix-batch.md`):
+1. **Bug-Fix Mode** — when open bug tickets exist, skip diagnostics/triage and chunk the open-bug list into tier-7 sub-branches via the shared loop, then enter Validation Mode (inner loop, bounded by `debug.max_fix_validate_cycles`).
+2. **Diagnostic Mode** — when no open bugs exist, run Phase B diagnostic scan, Phase C triage, then fix in tier order (Phases E-I), funneling each tier's chunks through the same shared loop.
 
-**Bug-Fix Mode note**: In bug-fix mode, `/dso:fix-bug` is invoked at orchestrator level — reads fix-bug/SKILL.md inline directly, NOT via Task tool dispatch — preserving Agent tool access for investigation sub-agents.
+Both modes converge at Phase J (Full Validation). The outer loop (Phase B-J, max 5 cycles) and inner validation loop (Bug-Fix Mode, max `debug.max_fix_validate_cycles`) are independent and must not nest multiplicatively. **The only structural difference between the two modes is that Diagnostic Mode does more to discover new bugs before entering the resolution loop**; the loop itself is shared.
+
+**Bug-Fix Mode note**: `/dso:fix-bug` is invoked at the orchestrator level (via `prompts/dispatch-fix-batch.md` Task dispatch with `isolation: "worktree"` when `DISPATCH_ISOLATION=true`) — preserving Agent tool access for fix-bug's investigation sub-agents.
 
 ---
 
@@ -395,30 +399,29 @@ Begin the loop. Process each ticket via `/dso:fix-bug` per the steps below. Cont
 
    Collect all returned ticket IDs (deduplicate by `ticket_id` in case a ticket appears in both queries). Order by priority (P0 first, then P1, P2, P3, P4).
 
-2. **For each open or in_progress bug ticket, invoke `/dso:fix-bug` at the orchestrator level**:
+2. **Apply Phase G's chunking + dispatch loop to the open-bug list (shared with Diagnostic Mode)**:
 
-   Each ticket is an independent fix-bug invocation; **fix-bug enforces its own HARD-GATE** ("Do NOT investigate inline", "Do NOT modify code until Steps 1–5 are complete") and its own investigation-dispatch requirement per ticket. Do not duplicate those gates here, and do not pre-write fixes or reuse prior-ticket findings in the orchestrator prompt.
+   Bug-Fix Mode and Diagnostic Mode share the bug-resolution loop. Both paths chunk the bug list into sub-branches and delegate each bug to `/dso:fix-bug` via `prompts/dispatch-fix-batch.md`. The only difference between the modes is that Diagnostic Mode's Phases B–C–D–F populate the list (discovery, triage, safeguard analysis, auto-fix of tiers 0–1) before this step; Bug-Fix Mode enters with the list already populated as pre-existing open bug tickets (tier 7).
 
-   **PROHIBITED (jira-dig-1662)**: The orchestrator MUST NOT investigate the bug, write code, read source files related to the bug, or produce a fix itself. These are fix-bug's responsibilities, not the orchestrator's. The orchestrator's sole role here is to read fix-bug/SKILL.md and follow it as a script — which means dispatching fix-bug's investigation sub-agents, not substituting for them.
+   **Chunking** — apply the algorithm from Phase G § Sub-Branch Chunking (ci-pr mode):
+   - Group the open-bug list into sub-branches of at most 5 bugs each, preserving priority order (P0 → P1 → P2 → P3 → P4 within tier 7).
+   - File-conflict split: bugs in the same chunk that modify the same file are split into separate sub-branches.
+   - Large-fix exception: a single bug whose estimated diff exceeds 500 lines gets its own sub-branch with a `-large` suffix.
+   - Branch naming: `bug-batch/<debug-session-id>/bug-fix-batch-<K>` (analogous to Diagnostic Mode's `tier-<N>-batch-<K>`; Bug-Fix Mode uses `bug-fix-batch-K` because there is only one tier in scope here — tier 7).
+   - Record a tracking comment per sub-branch: `DEBUG_BRANCH_TRACKING: sub_branch=<name> tier=7 batch=<K> timestamp=<UTC>`.
 
-   Read `$PLUGIN_ROOT/skills/fix-bug/SKILL.md` inline — NOT via the Skill tool or Task tool — so fix-bug's HARD-GATEs execute in this Agent tool context and fix-bug can dispatch its own investigation sub-agents (BASIC/INTERMEDIATE/ADVANCED). The orchestrator follows the SKILL.md steps as an instruction script; fix-bug's sub-agents do the actual investigation and code changes. CLI_user-tagged bugs are handled inside fix-bug Phase B Step 1 — no debug-everything-side check.
+   In `local` mode (DEBUG_MODE=direct or absent): no sub-branch chunking; commit each fix-bug result directly to the session branch as before.
 
-   Pass the ticket as bug context. When `DISPATCH_ISOLATION=true`, add `isolation: "worktree"` and inject `SESSION_BRANCH` / `SESSION_HEAD` to each fix-bug sub-agent dispatch. Do NOT inject the orchestrator's session-worktree absolute path (per bug 9679-695c-6e11-4d95).
+   **Per-chunk dispatch** — for each chunk, execute `prompts/dispatch-fix-batch.md` (the shared loop):
+   - The prompt handles pre-batch checks (`agent-batch-lifecycle.sh pre-check`), `MAX_AGENTS` protocol, task claim, blackboard write, file-ownership context, and Task tool dispatch with `/dso:fix-bug <bug-id>` delegation per bug in the chunk.
+   - Each fix-bug invocation enforces its own HARD-GATE (intent search, complexity scoring, RED test, Phase D approval). debug-everything does NOT re-implement those gates or pre-write fixes — fix-bug's investigation sub-agents do the work.
 
-   ```
-   Bug ticket: <ticket-id>
-   Title: <title from ticket show>
-   ```
+   **PROHIBITED (jira-dig-1662)** — the orchestrator MUST NOT investigate bugs, read source files related to bugs, write code, or produce fixes itself. These are fix-bug's responsibilities, not the orchestrator's.
 
-   **After the fix sub-agent returns** — when `DISPATCH_ISOLATION=true`, follow `skills/shared/prompts/single-agent-integrate.md` to integrate the sub-agent's worktree changes onto the session branch. When `DISPATCH_ISOLATION=false`, no integration step is needed.
-
-   **Sub-branch commit routing (Bug-Fix Mode)**:
-   - **ci-pr mode**: changes are committed to the current sub-branch (not the session branch). Resolve current sub-branch from the most-recent DEBUG_BRANCH_TRACKING: anchor (per S7 COMPACTION_RESUME pattern):
-     ```bash
-     _branch=$(.claude/scripts/dso ticket comment-list <epic-id> | grep "^DEBUG_BRANCH_TRACKING: " | tail -1 | sed "s/DEBUG_BRANCH_TRACKING: sub_branch=\([^ ]*\).*/\1/")
-     ```
-     If `_branch` is non-empty, commit fix-bug output to that sub-branch. If empty, create a new sub-branch and record a `DEBUG_BRANCH_TRACKING: sub_branch=<name>` tracking comment before committing.
-   - **local mode** (DEBUG_MODE=direct or absent): commit fix-bug output to the session branch directly (no sub-branch).
+   **Per-chunk PR + integration** (ci-pr mode):
+   - After all fix-bug calls in the chunk return, push the sub-branch and open a PR against `SESSION_BRANCH` (NOT main): `gh pr create --base "$SESSION_BRANCH" --head <sub-branch> --title "bug-fix: batch-<K>" --body "Bug-Fix Mode chunk <K>"`. Use the Phase G `assert-batch-branch.sh` invariant pre-flight before `gh pr create`.
+   - Await CI; classify outcome per Phase G's MERGED / ESCALATED / ERROR rules (lines 842–847). ESCALATED writes a `SUBBRANCH_ESCALATED:` ticket comment and updates `BLOCKED_SUBBRANCHES:` PR annotation, but does NOT halt the loop — continue to the next chunk.
+   - After each chunk merge, run session-leakage detection: `STORY_BRANCH_PREFIX=bug-batch/ bash "$PLUGIN_SCRIPTS/detect-session-leakage.sh"` (non-fatal).
 
 3. **Error handling**: If `/dso:fix-bug` fails for a ticket (unrecoverable error, repeated failure, or explicit escalation), write a CHECKPOINT note and continue to the next ticket:
 
@@ -514,7 +517,7 @@ For genuinely new failures (no matching open ticket exists), create a ticket. Fo
 ```bash
 # Title format: [Component]: [Condition] -> [Observed Result]
 # Detect filing channel for detected_by tag
-CHANNEL=$(DSO_FILING_CONTEXT=debug-everything bash "$PLUGIN_SCRIPTS/infer-detected-by.sh" 2>/dev/null || echo "other")
+CHANNEL=$(DSO_FILING_CONTEXT=debug-everything .claude/scripts/dso infer-detected-by.sh 2>/dev/null || echo "other")
 # Capture both stdout and stderr to enable post-creation title validation
 BUG_CREATE_OUT=$(.claude/scripts/dso ticket create bug "[Component]: [Condition] -> [Observed Result]" -d "## Incident Overview ..." --tags "detected_by:$CHANNEL" 2>/tmp/ticket_create_stderr.tmp)
 BUG_CREATE_ERR=$(cat /tmp/ticket_create_stderr.tmp); rm -f /tmp/ticket_create_stderr.tmp
@@ -790,6 +793,8 @@ Sub-agent prompt: Read `$PLUGIN_ROOT/skills/debug-everything/prompts/auto-fix.md
 ---
 
 ## Phase G: Sub-Agent Fix Batches — DEBUG_BRANCH_TRACKING written per sub-branch (/dso:debug-everything)
+
+> **Shared with Bug-Fix Mode**: the chunking algorithm and per-sub-branch CI loop below are the canonical bug-resolution loop. Bug-Fix Mode Execution step 2 invokes the same logic with tier 7 as its sole input (sub-branch suffix `bug-fix-batch-K` instead of `tier-N-batch-K`). Edits to the algorithm here are load-bearing for both modes.
 
 ### Sub-Branch Chunking (ci-pr mode only — when DEBUG_MODE=pr)
 
