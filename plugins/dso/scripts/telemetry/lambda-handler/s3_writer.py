@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timezone
+from datetime import datetime
 
 
 def write_to_s3(event: dict, bucket: str, s3_client=None) -> None:
