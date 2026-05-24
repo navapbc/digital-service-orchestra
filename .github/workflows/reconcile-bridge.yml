@@ -102,6 +102,20 @@ jobs:
           tar xzf ~/.acli/acli.tar.gz -C ~/.acli/ --strip-components=1
           chmod +x ~/.acli/acli
           rm -f ~/.acli/acli.tar.gz
+          # Validate the extracted binary: must exist, be non-empty, executable,
+          # and run --version cleanly. A corrupted tar.gz can pass the earlier
+          # file-existence check but produce a zero-byte or truncated binary;
+          # catch that here rather than letting the auth step's 'command not
+          # found' message hide the root cause.
+          if [ ! -s "$HOME/.acli/acli" ] || [ ! -x "$HOME/.acli/acli" ]; then
+            echo "::error::Extracted ACLI binary missing, empty, or not executable"
+            ls -la ~/.acli/ || true
+            exit 1
+          fi
+          if ! "$HOME/.acli/acli" --version >/dev/null 2>&1; then
+            echo "::error::Extracted ACLI binary failed --version smoke check"
+            exit 1
+          fi
 
       - name: Add ACLI to PATH and authenticate
         env:

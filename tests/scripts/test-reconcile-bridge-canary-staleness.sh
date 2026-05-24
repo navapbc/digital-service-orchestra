@@ -337,5 +337,26 @@ assert_eq \
 
 assert_pass_if_clean "test_large_alert_window_fresh"
 
+# ── Test 12: default --now-epoch path (no override) uses real wall clock ─────
+# Production canary invokes the helper WITHOUT --now-epoch; the script must
+# default to `date -u +%s`. Test the default path with a known-fresh
+# last-success timestamp so the result is deterministic regardless of when
+# the test runs.
+echo "--- test_default_now_epoch_uses_real_clock ---"
+_snapshot_fail
+
+# Use a last-success epoch one second from now (well within ANY alert window)
+LAST_SUCCESS_NOWISH=$(( $(date -u +%s) ))
+out=$("$CANARY_CHECK" \
+  --alert-window-hours 2 \
+  --last-success-epoch "$LAST_SUCCESS_NOWISH")
+# Default now-epoch path resolves now to real time → fresh result.
+assert_eq \
+  "default_now_epoch: stale=false when last-success is current wall clock" \
+  "false" \
+  "$(_get_field "$out" stale)"
+
+assert_pass_if_clean "test_default_now_epoch_uses_real_clock"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary

@@ -285,6 +285,38 @@ def test_apply_one_skips_anomaly_missing_ticket_id(orphan_band, tmp_path):
     assert "ticket_id" in result["reason"]
 
 
+def test_apply_one_returns_ok_on_subprocess_success(orphan_band, tmp_path):
+    """_apply_one happy path: when subprocess.run exits 0, return ok status.
+
+    This is the production success path — the orphan local ticket has been
+    deleted by the dso CLI. Mocks subprocess.run to return a zero-exit
+    CompletedProcess so the test does not depend on the real CLI being
+    on PATH.
+    """
+    from unittest.mock import patch, MagicMock
+
+    anomaly = {
+        "ticket_id": "tick-orphan-ok",
+        "side": "local-only",
+        "proposed_remediation": "delete orphan mapping",
+    }
+
+    mock_completed = MagicMock(returncode=0, stdout="", stderr="")
+    with patch.object(orphan_band.subprocess, "run", return_value=mock_completed) as mock_run:
+        result = orphan_band._apply_one(anomaly, tmp_path)
+
+    assert result["status"] == "ok"
+    assert result["anomaly"] is anomaly
+    # Verify the right CLI call was issued
+    mock_run.assert_called_once()
+    cmd_args = mock_run.call_args.args[0]
+    assert cmd_args[-3:] == ["ticket", "delete", "tick-orphan-ok"][1:] + ["--user-approved"] or (
+        "ticket" in cmd_args and "delete" in cmd_args
+        and "tick-orphan-ok" in cmd_args
+        and "--user-approved" in cmd_args
+    )
+
+
 def test_apply_succeeds_when_post_pass_within_residual(tmp_path, orphan_band):
     """Apply returns exit code 0 when post-pass count equals acknowledged_residual (both 0)."""
     pass_id = "2026-05-22-05"

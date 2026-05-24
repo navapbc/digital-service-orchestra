@@ -120,8 +120,12 @@ def main() -> None:
         jql = f'labels="{label}"'
         results: list = []
         for _attempt in range(_JQL_RETRY_COUNT):
-            if hasattr(client, "_search_cache"):
-                client._search_cache.pop(jql, None)
+            _cache = getattr(client, "_search_cache", None)
+            # Defensive: future AcliClient refactor (e.g. functools.lru_cache)
+            # may not expose a dict; only attempt invalidation when the cache
+            # is dict-like (pop method available).
+            if isinstance(_cache, dict):
+                _cache.pop(jql, None)
             results = client.search_issues(jql)
             if results:
                 break
