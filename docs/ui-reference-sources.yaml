@@ -1,0 +1,97 @@
+# UI Reference Sources
+# This file documents the external sources used to populate the UI reference corpus.
+# Future maintainers can use this file to identify the origin URL and license for any
+# corpus entry, and to know where to look when refreshing or expanding the corpus.
+#
+# Schema:
+#   name:                  Human-readable source name
+#   url:                   Canonical URL for the source
+#   github:                GitHub repo in "owner/repo" format (optional)
+#   type:                  github-repo | github-repo-private | confluence-page | website | npm-package
+#   access:                public | internal-nava
+#   credentials_required:  true | false
+#   license:               SPDX license identifier or descriptive string
+#   domains:               List of corpus domains this source populates
+#                            (e.g. components, patterns, accessibility, content)
+#   notes:                 Free-text notes for maintainers (optional)
+#   pinned_version:        Pinned release tag or commit SHA (optional)
+#   last_synced:           ISO 8601 date of last corpus sync (optional)
+
+sources:
+  - name: "U.S. Web Design System (USWDS) v3"
+    url: "https://designsystem.digital.gov"
+    github: "uswds/uswds"
+    type: github-repo
+    access: public
+    credentials_required: false
+    license: CC0-1.0
+    domains:
+      - components
+      - patterns
+      - accessibility
+    notes: >
+      Primary federal design system maintained by GSA / TTS.
+      Component guidance, accessibility requirements, and usage examples
+      are sourced from the official documentation site and GitHub repo.
+
+  - name: "GOV.UK Design System"
+    url: "https://design-system.service.gov.uk"
+    github: "alphagov/govuk-design-system"
+    type: github-repo
+    access: public
+    credentials_required: false
+    license: OGL-v3
+    domains:
+      - components
+      - patterns
+      - content
+    notes: >
+      UK Government Digital Service design system. Patterns and components
+      here often complement USWDS; particularly strong on content and
+      transactional service patterns. OGL v3 requires attribution.
+
+  - name: "VA.gov Design System"
+    url: "https://design.va.gov"
+    github: "department-of-veterans-affairs/component-library"
+    type: github-repo
+    access: public
+    credentials_required: false
+    license: CC0-1.0
+    domains:
+      - components
+      - patterns
+      - accessibility
+    notes: >
+      Design system for VA.gov digital services. Built on top of USWDS
+      with VA-specific extensions and accessibility guidance tailored to
+      veteran-facing applications.
+
+  - name: "18F / digital.gov guidance"
+    url: "https://digital.gov"
+    github: "GSA/digitalgov.gov"
+    type: github-repo
+    access: public
+    credentials_required: false
+    license: public-domain
+    domains:
+      - patterns
+      - content
+    notes: >
+      GSA's digital.gov and 18F guidance articles. Covers plain language,
+      content strategy, and service design patterns. Source material is
+      U.S. government work (public domain).
+
+  - name: "Nava PBC Design Standards (internal)"
+    url: "https://navapbc.atlassian.net/wiki/spaces/DESIGN"
+    type: confluence-page
+    access: internal-nava
+    credentials_required: true
+    license: proprietary
+    domains:
+      - components
+      - patterns
+      - content
+    notes: >
+      Internal Nava design standards hosted in Confluence. Requires Nava
+      Atlassian credentials. Content should NOT be committed verbatim to
+      public repos; reference by URL only.
