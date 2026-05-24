@@ -175,10 +175,16 @@ This check is NON-BLOCKING (advisory only). If Rulesets aren't configured, warn 
 ```bash
 # Create long-lived draft PR (ci-pr mode only) — substrate for GitHubPRDefenseStore
 if [[ "${SPRINT_MODE:-}" == "ci-pr" ]]; then
+    # Capture stdout only; the script emits the PR URL on stdout and errors on stderr.
+    # Capturing 2>&1 lands stderr in DRAFT_PR_URL on failure, making the prior `-z`
+    # test pass when it should halt (bug d92e-5168). Check exit code AND require an
+    # https:// URL — defense in depth against either the script silently emitting
+    # empty stdout, or future error paths writing diagnostics to stdout.
     DRAFT_PR_URL=$(SESSION_BRANCH="${_BRANCH}" PRIMARY_TICKET_ID="${primary_ticket_id}" EPIC_TITLE="${_EPIC_TITLE:-}" \
-        bash "$(git rev-parse --show-toplevel)/.claude/scripts/dso create-sprint-draft-pr.sh" 2>&1)
-    if [[ -z "$DRAFT_PR_URL" ]]; then
-        echo "ERROR: Phase A draft PR creation failed — halting before Phase E dispatch" >&2
+        bash "$(git rev-parse --show-toplevel)/.claude/scripts/dso create-sprint-draft-pr.sh")
+    _draft_rc=$?
+    if [[ $_draft_rc -ne 0 || "$DRAFT_PR_URL" != https://* ]]; then
+        echo "ERROR: Phase A draft PR creation failed (rc=$_draft_rc) — halting before Phase E dispatch" >&2
         exit 1
     fi
     echo "Draft PR: $DRAFT_PR_URL"
