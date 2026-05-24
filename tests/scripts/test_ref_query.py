@@ -415,3 +415,52 @@ def _run_ref_query(  # type: ignore[no-redef]  # noqa: F811
         text=True,
         timeout=timeout,
     )
+
+
+# ---------------------------------------------------------------------------
+# Test 8: Manifest integrity — all _index.yaml file_path entries resolve
+# ---------------------------------------------------------------------------
+
+REAL_CORPUS_DIR = REPO_ROOT / "plugins" / "dso" / "data" / "ui-reference"
+REAL_INDEX_PATH = REAL_CORPUS_DIR / "_index.yaml"
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_manifest_integrity_all_index_entries_resolve() -> None:
+    """GIVEN the real _index.yaml for the UI reference corpus,
+    WHEN each file_path entry is resolved relative to the corpus directory,
+    THEN all paths must point to existing files — no broken references.
+
+    This is a manifest integrity test: it catches corpus files that were
+    added or renamed without updating _index.yaml.
+    """
+    if not REAL_INDEX_PATH.exists():
+        pytest.skip(f"_index.yaml not found at {REAL_INDEX_PATH}")
+
+    with REAL_INDEX_PATH.open() as fh:
+        index = yaml.safe_load(fh)
+
+    assert isinstance(index, dict), (
+        f"_index.yaml must be a YAML mapping, got {type(index).__name__}"
+    )
+    entries = index.get("entries", [])
+    assert isinstance(entries, list), "_index.yaml 'entries' key must be a list"
+    assert entries, "_index.yaml must contain at least one entry"
+
+    missing: list[str] = []
+    for entry in entries:
+        assert isinstance(entry, dict), (
+            f"Each entry must be a dict, got {type(entry).__name__}"
+        )
+        # Support both 'file_path' (new structured format) and 'path' (old format)
+        rel_path = entry.get("file_path") or entry.get("path")
+        assert rel_path, f"Entry missing 'file_path' or 'path' field: {entry}"
+        resolved = REAL_CORPUS_DIR / rel_path
+        if not resolved.exists():
+            missing.append(str(rel_path))
+
+    assert not missing, (
+        "The following _index.yaml entries point to non-existent files:\n"
+        + "\n".join(f"  - {p}" for p in missing)
+    )

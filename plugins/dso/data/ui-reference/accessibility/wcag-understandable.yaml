@@ -8,6 +8,7 @@
 #   "WCAG 2.2 keyboard navigation" -> must return compliance: [wcag-2.2-aaa] AND action: [keyboard-nav]
 
 rule_id: wcag-understandable
+id: wcag-understandable
 title: "WCAG 2.2 Understandable: Information and Operation Must Be Understandable"
 prior_art: https://www.w3.org/TR/WCAG22/#understandable
 precedence: 1

@@ -9,6 +9,7 @@
 #   "WCAG 2.2 keyboard navigation" → must return compliance: [wcag-2.2-aaa] AND action: [keyboard-nav]
 
 rule_id: wcag-keyboard-navigation
+id: wcag-keyboard-navigation
 title: "WCAG 2.2 Keyboard Navigation: Complete Keyboard Accessibility Patterns for Government Services"
 prior_art: https://www.w3.org/TR/WCAG22/#keyboard-accessible
 precedence: 1

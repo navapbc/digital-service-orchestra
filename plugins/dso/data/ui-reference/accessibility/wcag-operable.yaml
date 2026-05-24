@@ -9,6 +9,7 @@
 #   "WCAG 2.2 keyboard navigation" -> must return compliance: [wcag-2.2-aaa] AND action: [keyboard-nav]
 
 rule_id: wcag-operable
+id: wcag-operable
 title: "WCAG 2.2 Operable: User Interface Components and Navigation Must Be Operable"
 prior_art: https://www.w3.org/TR/WCAG22/#operable
 precedence: 1

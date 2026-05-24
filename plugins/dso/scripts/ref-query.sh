@@ -23,7 +23,7 @@ set -euo pipefail
 # ── Argument parsing ──────────────────────────────────────────────────────────
 
 QUERY=""
-TOP_N=5
+TOP_N=8
 TIER="summary"
 SESSION_HASH=""
 
@@ -268,11 +268,25 @@ if not top_results:
     print(f'[ref-query: no results for query: "{raw_query}"]', file=sys.stderr)
     sys.exit(0)
 
+MAX_OUTPUT_LINES = 500
+
 sep = "─" * 60
+output_parts: list[str] = []
 for i, entry in enumerate(top_results):
     if i > 0:
-        print(sep)
-    print(render_entry(entry, tier))
+        output_parts.append(sep)
+    output_parts.append(render_entry(entry, tier))
+
+output = "\n".join(output_parts)
+output_lines = output.splitlines()
+if len(output_lines) > MAX_OUTPUT_LINES:
+    print("\n".join(output_lines[:MAX_OUTPUT_LINES]))
+    print(
+        f"ref-query: output truncated at {MAX_OUTPUT_LINES} lines",
+        file=sys.stderr,
+    )
+else:
+    print(output)
 
 sys.exit(0)
 PYTHON_EOF

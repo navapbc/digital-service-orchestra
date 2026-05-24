@@ -7,6 +7,7 @@
 #   "WCAG 2.2 keyboard navigation" -> must return compliance: [wcag-2.2-aaa] AND action: [keyboard-nav]
 
 rule_id: wcag-robust
+id: wcag-robust
 title: "WCAG 2.2 Robust: Content Must Be Robust Enough for Interpretation by Assistive Technologies"
 prior_art: https://www.w3.org/TR/WCAG22/#robust
 precedence: 1

@@ -29,6 +29,8 @@ sources:
       - components
       - patterns
       - accessibility
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
     notes: >
       Primary federal design system maintained by GSA / TTS.
       Component guidance, accessibility requirements, and usage examples
@@ -45,6 +47,8 @@ sources:
       - components
       - patterns
       - content
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
     notes: >
       UK Government Digital Service design system. Patterns and components
       here often complement USWDS; particularly strong on content and
@@ -61,6 +65,8 @@ sources:
       - components
       - patterns
       - accessibility
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
     notes: >
       Design system for VA.gov digital services. Built on top of USWDS
       with VA-specific extensions and accessibility guidance tailored to
@@ -76,6 +82,8 @@ sources:
     domains:
       - patterns
       - content
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
     notes: >
       GSA's digital.gov and 18F guidance articles. Covers plain language,
       content strategy, and service design patterns. Source material is
@@ -91,6 +99,8 @@ sources:
       - components
       - patterns
       - content
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
     notes: >
       Internal Nava design standards hosted in Confluence. Requires Nava
       Atlassian credentials. Content should NOT be committed verbatim to
@@ -104,13 +114,14 @@ sources:
     license: public-domain
     domains:
       - patterns
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
     notes: >
       Harry Brignull's canonical dark pattern taxonomy, hosted at
       deceptive.design. Corpus entries use paraphrase with attribution
       per public-domain / fair-use terms. Covers 13 named dark pattern
       classes including trick questions, roach motel, privacy zuckering,
       confirmshaming, and visual interference.
-    last_synced: "2026-05-24"
 
   - name: "AidUI — Government Benefits Dark Pattern Taxonomy"
     url: "https://github.com/SageSELab/AidUI"
@@ -121,13 +132,14 @@ sources:
     license: MIT
     domains:
       - patterns
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
     notes: >
       Research-derived taxonomy of 27 dark pattern classes observed in
       government benefits and aid-related digital services (unemployment
       insurance, SNAP, Medicaid, Social Security). Published by SageSELab.
       MIT licensed. Extends general dark pattern catalogs with patterns
       unique to high-stakes, vulnerable-population services.
-    last_synced: "2026-05-24"
 
   - name: "principles.design Community Catalog"
     url: "https://principles.design"
@@ -138,13 +150,14 @@ sources:
     license: MIT
     domains:
       - patterns
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
     notes: >
       Community-maintained catalog of 100+ design principle sets. MIT licensed.
       Corpus file contains a representative subset covering principles most
       relevant to government digital service design: Dieter Rams, GOV.UK,
       Inclusive Design, and WebAIM cognitive accessibility principles.
       Attribution required per MIT terms.
-    last_synced: "2026-05-24"
 
   - name: "Nielsen Norman Group — 10 Usability Heuristics"
     url: "https://www.nngroup.com/articles/ten-usability-heuristics/"
@@ -154,6 +167,8 @@ sources:
     license: CC BY 4.0 (paraphrased, not verbatim)
     domains:
       - principles
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
     notes: >
       Jakob Nielsen's 10 general principles for interaction design,
       originally published 1994, updated 2020. Corpus entries contain
@@ -168,6 +183,8 @@ sources:
     license: paraphrased-summary
     domains:
       - principles
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
     notes: >
       Foundational design principles from Don Norman's seminal book
       (1988, revised 2013). Corpus entries are paraphrased summaries
@@ -182,6 +199,8 @@ sources:
     license: OGL-v3
     domains:
       - principles
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
     notes: >
       10 principles published by the UK Government Digital Service under
       the Open Government Licence v3. OGL v3 requires attribution and
@@ -197,6 +216,8 @@ sources:
     license: CC0-1.0
     domains:
       - principles
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
     notes: >
       Comprehensive UX guide published by 18F (GSA) under Creative Commons
       Zero (public domain dedication). Covers research methods, design
@@ -211,6 +232,8 @@ sources:
     license: public-domain
     domains:
       - principles
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
     notes: >
       Digital.gov aggregates federal UX requirements, including the 21st
       Century IDEA Act, OMB M-23-22 customer experience memo, and
@@ -225,6 +248,8 @@ sources:
     license: CC BY-ND 4.0 (paraphrased summary)
     domains:
       - principles
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
     notes: >
       7 principles developed by the Paciello Group and contributors,
       published under CC BY-ND 4.0. Corpus entries contain paraphrased
