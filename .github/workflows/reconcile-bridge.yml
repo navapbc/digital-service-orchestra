@@ -141,6 +141,7 @@ jobs:
           JIRA_URL: ${{ vars.JIRA_URL }}
           JIRA_USER: ${{ vars.JIRA_USER }}
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          JIRA_PROJECT: ${{ vars.JIRA_PROJECT || 'DIG' }}
           BRIDGE_ENV_ID: ${{ vars.BRIDGE_ENV_ID }}
 
       - name: Commit reconciler events back to tickets branch
