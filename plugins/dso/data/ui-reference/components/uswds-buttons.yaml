@@ -1,0 +1,50 @@
+id: uswds-buttons
+title: "USWDS Buttons"
+domain:
+  - components
+component:
+  - uswds-v3
+action:
+  - design
+compliance:
+  - section-508
+severity: informational
+story_type:
+  - pattern
+coverage: summary
+source: uswds/uswds
+license: CC0-1.0
+summary: |
+  USWDS v3 provides a comprehensive button system with primary, secondary,
+  accent, base, outline, and unstyled variants. Buttons communicate actions
+  and must be distinguishable from links. Size variants (big, small) and
+  icon support are included. Minimum tap target size is 44x44px.
+detail: |
+  Button variants and classes:
+  - .usa-button: default primary button
+  - .usa-button--secondary: secondary action button
+  - .usa-button--accent-cool: accent cool color button
+  - .usa-button--accent-warm: accent warm color button
+  - .usa-button--base: neutral base button
+  - .usa-button--outline: outlined button with transparent background
+  - .usa-button--unstyled: removes button styling for links-as-buttons
+  - .usa-button--big: larger tap target
+  - .usa-button--small: compact button
+
+  Key design tokens:
+  - $theme-button-border-radius: border radius for buttons
+  - $theme-button-font-size: button font size
+  - $theme-button-padding-x: horizontal padding
+  - $theme-button-padding-y: vertical padding
+
+  Accessibility requirements:
+  - Minimum tap/click target 44x44px per WCAG 2.5.8
+  - Buttons that perform actions use button element; links that navigate use a element
+  - Disabled buttons use disabled attribute, not just visual styling
+  - Loading states must include aria-busy="true" and visible indicator
+  - Icon-only buttons require aria-label or visually hidden text
+
+  Common patterns:
+  - Group related actions in .usa-button-group
+  - Use .usa-button-group--segmented for toggle button groups
+  - Destructive actions (delete, clear) use secondary or base styling

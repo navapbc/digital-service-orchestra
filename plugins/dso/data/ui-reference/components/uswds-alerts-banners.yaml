@@ -1,0 +1,47 @@
+id: uswds-alerts-banners
+title: "USWDS Alerts and Banners"
+domain:
+  - components
+component:
+  - uswds-v3
+action:
+  - design
+compliance:
+  - section-508
+severity: informational
+story_type:
+  - pattern
+coverage: summary
+source: uswds/uswds
+license: CC0-1.0
+summary: |
+  USWDS v3 provides alert and banner components for system messages, status
+  notifications, and the official U.S. government site identifier banner.
+  Alerts communicate informational, success, warning, and error states.
+  The USA government banner is required on all federal public-facing sites.
+detail: |
+  Alert component variants:
+  - .usa-alert--info: informational message (blue)
+  - .usa-alert--success: success state (green)
+  - .usa-alert--warning: warning state (yellow/gold)
+  - .usa-alert--error: error state (red)
+  - .usa-alert--emergency: critical emergency alert (red, full-width)
+  - .usa-alert--slim: compact single-line alert
+  - .usa-alert--no-icon: removes the status icon
+
+  Banner classes:
+  - .usa-banner: official site banner appears above header
+  - .usa-banner__header: collapsed banner bar
+  - .usa-banner__content: expanded content explaining .gov and https
+
+  Accessibility requirements:
+  - Error alerts use role="alert" or aria-live="assertive"
+  - Informational alerts use role="status" or aria-live="polite"
+  - Alert icons use aria-hidden="true"
+  - Emergency alerts should be the first content after the skip nav link
+  - Dismissible alerts return focus to a logical element after dismissal
+
+  Government banner requirements:
+  - The .usa-banner must appear on ALL pages of federal public-facing sites
+  - "An official website of the United States government" is required text
+  - The expandable section explains .gov domains and HTTPS security

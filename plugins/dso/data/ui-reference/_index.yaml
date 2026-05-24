@@ -1,0 +1,104 @@
+# UI Reference Corpus Index
+# This file is the manifest for all corpus entries in the ui-reference/ directory.
+# Each entry maps a file path to its metadata for tooling (ref-query, schema checks).
+#
+# Format:
+#   path:     Relative path from this _index.yaml file
+#   id:       Unique entry ID (matches 'id' field in the YAML file)
+#   tags:     List of searchable tags
+#   summary:  One-line description for quick reference
+
+entries:
+  # ── components/uswds ────────────────────────────────────────────────────────
+
+  - path: components/uswds-form-components.yaml
+    id: uswds-form-components
+    tags:
+      - uswds-v3
+      - form
+      - components
+      - section-508
+    summary: "USWDS v3 form inputs, validation patterns, and accessibility guidance"
+
+  - path: components/uswds-buttons.yaml
+    id: uswds-buttons
+    tags:
+      - uswds-v3
+      - buttons
+      - components
+      - section-508
+    summary: "USWDS v3 button variants, sizes, states, and icon button patterns"
+
+  - path: components/uswds-navigation.yaml
+    id: uswds-navigation
+    tags:
+      - uswds-v3
+      - navigation
+      - header
+      - footer
+      - components
+      - section-508
+    summary: "USWDS v3 header, primary nav, side nav, breadcrumb, and pagination"
+
+  - path: components/uswds-alerts-banners.yaml
+    id: uswds-alerts-banners
+    tags:
+      - uswds-v3
+      - alerts
+      - banners
+      - components
+      - section-508
+    summary: "USWDS v3 alert variants (info/success/warning/error) and official gov banner"
+
+  - path: components/uswds-modals.yaml
+    id: uswds-modals
+    tags:
+      - uswds-v3
+      - modals
+      - dialog
+      - components
+      - section-508
+    summary: "USWDS v3 modal dialogs with accessible focus management and overlay"
+
+  - path: components/uswds-tables.yaml
+    id: uswds-tables
+    tags:
+      - uswds-v3
+      - tables
+      - sortable
+      - components
+      - section-508
+    summary: "USWDS v3 data tables with sorting, striping, and responsive scroll"
+
+  - path: components/uswds-typography-cards.yaml
+    id: uswds-typography-cards
+    tags:
+      - uswds-v3
+      - typography
+      - cards
+      - components
+      - section-508
+    summary: "USWDS v3 type scale, prose styles, and card layout component"
+
+  - path: components/uswds-color-tokens.yaml
+    id: uswds-color-tokens
+    tags:
+      - uswds-v3
+      - color
+      - tokens
+      - design-tokens
+      - components
+      - section-508
+    summary: "USWDS v3 system palette, theme color roles, and state color tokens"
+
+  - path: components/uswds-spacing-tokens.yaml
+    id: uswds-spacing-tokens
+    tags:
+      - uswds-v3
+      - spacing
+      - tokens
+      - layout
+      - design-tokens
+      - components
+      - section-508
+    summary: "USWDS v3 spacing scale, utility classes, and responsive spacing patterns"
