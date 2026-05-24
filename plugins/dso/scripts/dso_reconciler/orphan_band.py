@@ -111,30 +111,58 @@ def cmd_gate(args: argparse.Namespace, repo_root: Path) -> int:
 
 
 def _apply_one(anomaly: dict, repo_root: Path) -> dict:
-    """Apply a single orphan anomaly mutation.
+    """Apply a single orphan anomaly mutation by deleting the local ticket.
 
-    F7 fix: previously a placeholder that returned ``{"status": "ok"}``
-    without mutating anything, which silently passed the post-pass check
-    in test mode but in production caused the residual count to remain
-    high (acknowledged_residual defaults to 0) and fail every run after
-    falsely reporting success on the per-anomaly outcomes. The production
-    mutation strategy is not yet implemented; operators must remediate
-    orphans manually:
+    An orphan record has shape ``{ticket_id, jira_key, class_label='orphan',
+    side='local-only', proposed_remediation='delete orphan mapping', ...}``.
+    "local-only" means a SYNC event exists on the local ticket but no CREATE,
+    so the ticket has a Jira reference but is not a real local ticket. The
+    only durable remediation is to delete the local ticket via the
+    canonical CLI (`dso ticket delete <id> --user-approved`).
 
-        .claude/scripts/dso ticket transition <id> <current-status> deleted --user-approved
-
-    Tests mock this function via ``patch.object(orphan_band, "_apply_one", ...)``
-    so the NotImplementedError only fires in real apply mode, not in unit
-    tests. See bug TBD for the orphan-remediation mutation strategy
-    sequencer (per-side dispatch driven by anomaly["proposed_remediation"]
-    and anomaly["side"]).
+    Mirrors the local-only remediation pattern used by duplicates_band's
+    `_delete_local_ticket`. Returns the per-anomaly outcome dict including
+    the delete subprocess result.
     """
-    raise NotImplementedError(
-        "orphan-remediation mutation strategy not yet implemented; "
-        "operators must remediate orphans manually via "
-        "`dso ticket transition <id> <status> deleted --user-approved`. "
-        "See bug TBD for the orphan apply strategy sequencer."
-    )
+    ticket_id = anomaly.get("ticket_id", "")
+    if not ticket_id:
+        return {
+            "anomaly": anomaly,
+            "status": "skipped",
+            "reason": "anomaly missing ticket_id",
+        }
+
+    cli_shim = repo_root / ".claude" / "scripts" / "dso"
+    cli_cmd = str(cli_shim) if cli_shim.exists() else "dso"
+    try:
+        proc = subprocess.run(
+            [cli_cmd, "ticket", "delete", ticket_id, "--user-approved"],
+            capture_output=True,
+            text=True,
+            cwd=str(repo_root),
+            timeout=30,
+        )
+    except FileNotFoundError as exc:
+        return {
+            "anomaly": anomaly,
+            "status": "error",
+            "reason": f"ticket CLI not found: {exc}",
+        }
+    except subprocess.TimeoutExpired:
+        return {
+            "anomaly": anomaly,
+            "status": "error",
+            "reason": "ticket delete timed out after 30s",
+        }
+
+    if proc.returncode == 0:
+        return {"anomaly": anomaly, "status": "ok"}
+    return {
+        "anomaly": anomaly,
+        "status": "error",
+        "reason": (proc.stderr or proc.stdout or "non-zero exit").strip(),
+        "exit_code": proc.returncode,
+    }
 
 
 def cmd_apply(args: argparse.Namespace, repo_root: Path) -> int:

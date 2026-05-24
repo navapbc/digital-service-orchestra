@@ -16,8 +16,9 @@ This project should be:
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `JIRA_API_TOKEN` | Yes | Atlassian API token with project read/write access |
+| `JIRA_USER` | Yes | Atlassian account email used for Basic auth |
+| `JIRA_BASE_URL` | Yes | Base URL (e.g., `https://your-org.atlassian.net`) |
 | `DRIFT_TEST_PROJECT_KEY` | Yes | Jira project key (e.g., `DSOTEST`) |
-| `JIRA_BASE_URL` | No | Base URL (default: `https://your-org.atlassian.net`) |
 
 ## Per-Mode Invocation
 

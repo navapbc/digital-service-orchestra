@@ -21,7 +21,12 @@ fi
 THROWAWAY="$(mktemp -d /tmp/dryrun-rollback.XXXXXX)"
 git -C "$REPO_ROOT" worktree add "$THROWAWAY" HEAD
 
-trap 'git -C "$REPO_ROOT" worktree remove "$THROWAWAY" --force 2>/dev/null; rm -rf "$THROWAWAY"' EXIT
+# Clean up the throwaway worktree AND any sibling test-artifacts directory
+# that pre-commit-wrapper.sh / validate.sh / worktree-create.sh create using
+# the worktree basename as a prefix (pattern: /tmp/<basename>-test-artifacts-<basename>/).
+# Without this, dryrun runs leave stray empty artifacts directories behind.
+_THROWAWAY_BASENAME="$(basename "$THROWAWAY")"
+trap 'git -C "$REPO_ROOT" worktree remove "$THROWAWAY" --force 2>/dev/null; rm -rf "$THROWAWAY" "/tmp/${_THROWAWAY_BASENAME}-test-artifacts-${_THROWAWAY_BASENAME}"' EXIT
 
 # SKIP_PUSH=1 keeps the dryrun fully local — no real push to origin and no
 # gh run watch against the production branch.

@@ -249,23 +249,40 @@ def test_apply_blocks_when_post_pass_count_exceeds_residual(tmp_path, orphan_ban
     assert rc == 1
 
 
-def test_apply_one_raises_not_implemented_in_production(orphan_band, tmp_path):
-    """F7 regression: unmocked _apply_one must raise — no silent success in production.
+def test_apply_one_returns_error_when_ticket_cli_missing(orphan_band, tmp_path):
+    """_apply_one calls 'dso ticket delete <id> --user-approved' via subprocess
+    to remove the local-only orphan mapping. When the .claude/scripts/dso shim
+    is absent and bare 'dso' is not on PATH, the FileNotFoundError surfaces as
+    a structured error dict (not an uncaught exception) so cmd_apply's
+    per-anomaly outcome aggregation can record it cleanly.
 
-    Previously _apply_one returned ``{"status": "ok"}`` without mutating
-    anything, so cmd_apply reported success on every anomaly while the
-    post-pass count remained high and falsely tripped the residual gate.
-    The honest behaviour for an unimplemented mutation strategy is to
-    fail-loud at the first invocation so operators discover the gap
-    instead of trusting a no-op success.
+    Replaces the earlier NotImplementedError-stub test (the production
+    mutation strategy is now implemented as a subprocess delete).
     """
+    import os
+
     anomaly = {
-        "ticket_id": "tick-0001",
+        "ticket_id": "tick-orphan-1",
         "side": "local-only",
         "proposed_remediation": "delete orphan mapping",
     }
-    with pytest.raises(NotImplementedError, match="orphan-remediation"):
-        orphan_band._apply_one(anomaly, tmp_path)
+    saved_path = os.environ.get("PATH", "")
+    try:
+        os.environ["PATH"] = ""
+        result = orphan_band._apply_one(anomaly, tmp_path)
+    finally:
+        os.environ["PATH"] = saved_path
+
+    assert result["status"] == "error"
+    assert "ticket CLI not found" in result["reason"]
+
+
+def test_apply_one_skips_anomaly_missing_ticket_id(orphan_band, tmp_path):
+    """Malformed anomaly records (no ticket_id) are skipped, not crashed."""
+    anomaly = {"side": "local-only", "proposed_remediation": "delete orphan mapping"}
+    result = orphan_band._apply_one(anomaly, tmp_path)
+    assert result["status"] == "skipped"
+    assert "ticket_id" in result["reason"]
 
 
 def test_apply_succeeds_when_post_pass_within_residual(tmp_path, orphan_band):
