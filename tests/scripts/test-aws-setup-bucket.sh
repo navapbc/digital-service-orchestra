@@ -48,6 +48,21 @@ make_tmpdir() {
     echo "$d"
 }
 
+# ── Default isolated config file for test invocations ─────────────────────────
+# Several test functions in this file invoke `bash "$SCRIPT"` without setting
+# `DSO_CONFIG_FILE` in the subprocess env block. Before this default existed,
+# those invocations fell through to `$REPO_ROOT/.claude/dso-config.conf`
+# (the LIVE host config) and `write_config_key` overwrote real bucket / role
+# values with the test placeholder `123456789012`, polluting a developer's
+# real account configuration every time the suite ran.
+#
+# Export a temp default here; per-test invocations that explicitly pass
+# `DSO_CONFIG_FILE="$conf_file"` in their env block continue to win (the
+# subprocess env assignment shadows the export).
+_TEST_DEFAULT_CONFIG_FILE="$(make_tmpdir)/dso-config.conf"
+touch "$_TEST_DEFAULT_CONFIG_FILE"
+export DSO_CONFIG_FILE="$_TEST_DEFAULT_CONFIG_FILE"
+
 # ── Shared constants ──────────────────────────────────────────────────────────
 LAMBDA_ROLE_ARN="arn:aws:iam::123456789012:role/test-lambda-role"
 BUCKET_NAME_PREFIX="dso-telemetry"
