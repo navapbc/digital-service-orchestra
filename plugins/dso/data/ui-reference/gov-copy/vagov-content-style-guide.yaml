@@ -1,0 +1,103 @@
+id: vagov-content-style-guide
+title: "VA.gov Content Style Guide: Error Anatomy, Capitalization, and Writing for Veterans"
+domain:
+  - gov-copy
+component:
+  - content
+  - form
+  - feedback
+action:
+  - design
+  - apply
+compliance:
+  - plain-language
+  - 21st-Century-IDEA
+  - WCAG-2.1-AA
+  - Section-508
+severity:
+  - critical
+story_type:
+  - pattern
+coverage:
+  - summary
+  - detail
+license: CC0-1.0
+source: "VA.gov Design System — Content Style Guide"
+prior_art: "https://design.va.gov/content-style-guide/"
+summary: |
+  The VA.gov Content Style Guide defines writing standards for Veteran-facing
+  digital services. Core areas: error message anatomy (what went wrong + how to
+  fix it, without blame); sentence case capitalization (no ALL CAPS); plain
+  language principles tuned for Veterans who may have cognitive disabilities,
+  PTSD, or traumatic brain injuries; avoiding bureaucratic VA-internal jargon;
+  and punctuation standards that maximize readability on mobile devices.
+  Writing for Veterans requires extra care — many users are navigating
+  stressful situations and need clear, direct guidance with no ambiguity.
+detail: |
+  ### Error Message Anatomy
+
+  VA.gov error messages follow a two-part structure:
+  1. What went wrong — stated plainly without blame: "We couldn't find your
+     VA file number" not "Invalid VA file number"
+  2. How to fix it — specific and actionable: "Enter your 8 or 9-digit VA
+     file number. You can find this on your VA decision letter."
+
+  Additional error guidance:
+  - Never begin an error with "You" in an accusatory way: "You entered an
+    invalid date" → use "Enter a date in MM/DD/YYYY format" instead
+  - Include a contact path for errors the user cannot self-resolve:
+    "If this problem continues, call us at 800-827-1000"
+  - System errors must acknowledge VA's responsibility: "We're sorry. We
+    couldn't save your application. Please try again." (system errors are
+    the one exception where "sorry" is appropriate — for VA system failures,
+    not user input errors)
+
+  ### Capitalization
+
+  - Use sentence case throughout: "Your disability rating" not "Your Disability Rating"
+  - Capitalize VA program names and official titles: "GI Bill",
+    "Veterans Crisis Line", "MyHealtheVet", "VA.gov"
+  - Do NOT use ALL CAPS for emphasis — it reads as shouting and is harder
+    to read for users with dyslexia
+  - "Veteran" is capitalized when it refers to a specific group or person
+    who has served; lowercase when used as an adjective: "veteran-owned business"
+  - "VA" is always capitalized as an abbreviation for the Department of
+    Veterans Affairs
+
+  ### Plain Language for Veterans
+
+  - Write at a 6th-grade reading level for critical benefit instructions
+  - Avoid VA-internal acronyms: write "disability rating" not "CFI";
+    "decision review" not "NOD" (Notice of Disagreement) until after
+    spelling it out
+  - Avoid clinical or bureaucratic language: "you may be eligible" not
+    "you may meet the criteria for qualification"
+  - When a process has multiple steps, use a numbered list — do not
+    describe sequential steps in a paragraph
+  - Use "you" and "we" consistently; never "the Veteran" to refer to
+    the person reading the page
+  - Acknowledge that applying for benefits is often emotionally charged:
+    avoid language that feels dismissive of the effort involved
+
+  ### Writing for Cognitive Accessibility
+
+  - Keep sentences to 20 words or fewer for key instructions
+  - One idea per sentence; one topic per paragraph
+  - Use the same term for the same concept throughout: if you say
+    "claim" on page 1, do not switch to "application" on page 3
+  - Avoid double negatives: "You do not need to provide this if you have
+    not lived outside the U.S." → "Provide this only if you have lived
+    outside the U.S."
+  - Bold the most critical action the user needs to take — use bold
+    sparingly so it retains meaning
+
+  ### Punctuation Standards
+
+  - Use Oxford comma: "name, address, and date of birth"
+  - Do not use semicolons in user-facing copy — use two sentences or a
+    bulleted list instead
+  - Use em-dashes sparingly; prefer parentheses or a new sentence
+  - Phone numbers: XXX-XXX-XXXX format (hyphens, no periods, no parentheses)
+  - Dates in body copy: Month DD, YYYY — "June 12, 2025"
+  - Avoid exclamation points in informational content; acceptable only
+    in genuine success confirmations: "We received your application!"

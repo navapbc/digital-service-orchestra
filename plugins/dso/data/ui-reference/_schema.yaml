@@ -114,6 +114,7 @@ tag_vocabulary:
     - W3C-Document
     - internal-nava
     - public-domain
+    - OGL-v3
 
 # optional_fields: allowed in corpus entries without vocabulary constraints.
 # Values may be any string, number, or YAML structure.

@@ -2072,3 +2072,127 @@ those most relevant to DSO agents advising on government digital services.
       - pattern
     coverage:
       - detail
+  - file_path: gov-copy/uswds-forms-copy.yaml
+    id: "uswds-forms-copy"
+    title: "USWDS Forms Copy: Labels, Helper Text, Error Messages, and Button Labels"
+    source: "U.S. Web Design System (USWDS) v3"
+    license: "CC0-1.0"
+    prior_art: "https://designsystem.digital.gov/components/form/"
+    summary: "USWDS v3 form copy standards govern field labels, helper text, error
+messages, button labels, and placeholder text for U.S. federal digital
+services. Copy must be short, direct, and jargon-free. Error messages must
+be specific and actionable. Button labels must use active verbs.
+"
+    domain:
+      - gov-copy
+    component:
+      - form
+      - input
+      - button
+    action:
+      - design
+      - apply
+    compliance:
+      - plain-language
+      - 21st-Century-IDEA
+      - WCAG-2.1-AA
+      - Section-508
+    severity:
+      - critical
+    story_type:
+      - pattern
+    coverage:
+      - summary
+      - detail
+  - file_path: gov-copy/govuk-error-form-patterns.yaml
+    id: "govuk-error-form-patterns"
+    title: "GOV.UK Error Message and Form Patterns: Error Summary and Inline Error Copy"
+    source: "GOV.UK Design System"
+    license: "OGL-v3"
+    prior_art: "https://design-system.service.gov.uk/components/error-message/"
+    summary: "GOV.UK Design System error message patterns define how to write and position
+error copy in transactional government services. Errors appear in an error
+summary at the top of the page and inline adjacent to each failing field.
+Error copy uses plain, direct language and never says sorry.
+"
+    domain:
+      - gov-copy
+    component:
+      - form
+      - input
+      - feedback
+    action:
+      - design
+      - apply
+      - verify
+    compliance:
+      - plain-language
+      - WCAG-2.1-AA
+      - WCAG-3.3
+    severity:
+      - critical
+    story_type:
+      - pattern
+    coverage:
+      - summary
+      - detail
+  - file_path: gov-copy/govuk-service-manual-writing.yaml
+    id: "govuk-service-manual-writing"
+    title: "GOV.UK Service Manual: Writing for User Interfaces and Plain Language Standards"
+    source: "GOV.UK Service Manual — Writing for User Interfaces"
+    license: "OGL-v3"
+    prior_art: "https://www.gov.uk/service-manual/design/writing-for-user-interfaces"
+    summary: "GOV.UK Service Manual writing standards for government user interfaces.
+Core principles: use active voice; write for reading age 9; avoid jargon;
+address users as you and the service as we; capitalize only proper nouns;
+test content with real users before launch.
+"
+    domain:
+      - gov-copy
+    component:
+      - content
+    action:
+      - design
+      - apply
+    compliance:
+      - plain-language
+      - WCAG-3.1.5
+    severity:
+      - major
+    story_type:
+      - pattern
+    coverage:
+      - summary
+      - detail
+  - file_path: gov-copy/vagov-content-style-guide.yaml
+    id: "vagov-content-style-guide"
+    title: "VA.gov Content Style Guide: Error Anatomy, Capitalization, and Writing for Veterans"
+    source: "VA.gov Design System — Content Style Guide"
+    license: "CC0-1.0"
+    prior_art: "https://design.va.gov/content-style-guide/"
+    summary: "VA.gov Content Style Guide for Veteran-facing digital services. Covers
+error message anatomy (what went wrong plus how to fix it), sentence case
+capitalization, plain language for Veterans with cognitive disabilities,
+avoiding bureaucratic VA jargon, and punctuation standards.
+"
+    domain:
+      - gov-copy
+    component:
+      - content
+      - form
+      - feedback
+    action:
+      - design
+      - apply
+    compliance:
+      - plain-language
+      - 21st-Century-IDEA
+      - WCAG-2.1-AA
+      - Section-508
+    severity:
+      - critical
+    story_type:
+      - pattern
+    coverage:
+      - summary
+      - detail
