@@ -73,6 +73,16 @@ set -uo pipefail
 set -uo pipefail
 set -m  # Enable job control so background jobs get their own process group
 
+# Block live telemetry POSTs during test runs. The d2f9 emit wrapper honours
+# DSO_TELEMETRY_DISABLE=1 as a hard no-op switch; without this export, any
+# test that exercises the runner.py / arbiter_processor.py emit paths
+# spawns telemetry-emit.sh which POSTs to review_telemetry.endpoint_url.
+# When that endpoint is a working bypass (e.g. API Gateway HTTP API in
+# SCP-restricted accounts) every test run would pollute the central S3
+# bucket. Set here so the harness covers ALL test invocations regardless of
+# how the runner was reached (tests/run-all.sh, validate.sh, direct invocation).
+export DSO_TELEMETRY_DISABLE=1
+
 # ── Global start time (for tool-timeout-aware budget calculations) ────────────
 # Captured at script entry so runner drivers can account for startup overhead
 # when calculating their time budget relative to the Claude Code tool timeout.
