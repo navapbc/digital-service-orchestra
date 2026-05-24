@@ -45,6 +45,93 @@ _LOCAL_PRIORITY_TO_JIRA: dict[int, str] = {
     4: "Lowest",
 }
 
+# Jira hard limits we defend against (verified against Jira Cloud REST API 2026).
+# Note the deliberate off-by-one divergence between the two constants:
+#   - Summary: Jira's error is "Summary must be less than 255 characters"
+#     (strict less-than), so the INCLUSIVE max is 254. A 255-char title is
+#     REJECTED. Sources: Atlassian Community thread 989632 + GitHub
+#     tenable/integration-jira-cloud issue #322 + GitHub-prior-art audit
+#     (2026-05-24, run a52143da).
+#   - Label: Jira's error is "Labels can't have spaces or be more than 255
+#     characters" (not-more-than), so the INCLUSIVE max is 255. Source:
+#     Forge custom-field community thread 55277.
+_JIRA_SUMMARY_MAX_CHARS: int = 254
+_JIRA_LABEL_MAX_CHARS: int = 255
+
+
+class InvalidLabelError(ValueError):
+    """A label value would be rejected by Jira (whitespace, comma, empty, oversize)."""
+
+
+def _sanitize_label(label: str) -> str:
+    """Validate a Jira label, raising InvalidLabelError on rejection.
+
+    Jira labels are single tokens — no whitespace, no commas, non-empty, length
+    <= 255 chars. ACLI does not validate client-side; sending an invalid label
+    surfaces as a confusing server-side error or (worse) silently corrupts the
+    label set. We sanitize here so the reconciler fails fast with a clear
+    message instead of issuing a malformed mutation against live Jira.
+
+    Whitespace is stripped from the input before validation. A label that
+    contains internal whitespace (e.g., "with space") is REJECTED rather than
+    silently mangled — the reconciler should never invent a label name that
+    differs from what the caller asked for.
+    """
+    if not isinstance(label, str):
+        raise InvalidLabelError(
+            f"Label must be str, got {type(label).__name__}: {label!r}"
+        )
+    stripped = label.strip()
+    if not stripped:
+        raise InvalidLabelError(f"Label is empty after strip: {label!r}")
+    if any(c.isspace() for c in stripped):
+        raise InvalidLabelError(
+            f"Label contains internal whitespace (not allowed by Jira): {label!r}"
+        )
+    if "," in stripped:
+        raise InvalidLabelError(
+            f"Label contains comma (not allowed by Jira): {label!r}"
+        )
+    if len(stripped) > _JIRA_LABEL_MAX_CHARS:
+        raise InvalidLabelError(
+            f"Label exceeds Jira's {_JIRA_LABEL_MAX_CHARS}-char limit "
+            f"({len(stripped)} chars): {label!r}"
+        )
+    return stripped
+
+
+def _sanitize_summary(summary: str) -> str:
+    """Validate and truncate a Jira summary string.
+
+    Jira's REST API rejects summaries > 255 chars with a confusing error.
+    We truncate with a visible '... [truncated]' suffix so the reconciler
+    can complete the mutation rather than crashing the pass on a single
+    oversize ticket. Truncation is reversible (an operator can update the
+    ticket later); reconciler crashes are not.
+
+    A truncation warning is emitted so the operator can investigate.
+    """
+    if not isinstance(summary, str):
+        raise ValueError(
+            f"Summary must be str, got {type(summary).__name__}: {summary!r}"
+        )
+    stripped = summary.strip()
+    if not stripped:
+        raise ValueError(f"Summary is empty after strip: {summary!r}")
+    if len(stripped) <= _JIRA_SUMMARY_MAX_CHARS:
+        return stripped
+    suffix = " [truncated]"
+    keep = _JIRA_SUMMARY_MAX_CHARS - len(suffix)
+    truncated = stripped[:keep] + suffix
+    logger.warning(
+        "Summary exceeded Jira's %d-char limit (%d chars); truncated to %d chars",
+        _JIRA_SUMMARY_MAX_CHARS,
+        len(stripped),
+        len(truncated),
+    )
+    return truncated
+
+
 # Local status string → Jira workflow state name.
 # status.capitalize() produces "In_progress" for snake_case inputs; this mapping
 # ensures correct Jira state names are used in ACLI transition commands.
@@ -603,12 +690,15 @@ class AcliClient:
         """
         project = self.jira_project
         issue_type = ticket_data.get("ticket_type", "Task").capitalize()
-        summary = (ticket_data.get("title") or "").strip()
-        if not summary:
+        raw_summary = (ticket_data.get("title") or "").strip()
+        if not raw_summary:
             raise ValueError(
                 f"Cannot create Jira issue: title/summary is empty "
                 f"(ticket_data keys: {list(ticket_data.keys())})"
             )
+        # Defend against untrusted user input — truncate oversize titles
+        # rather than crashing the reconciler pass on Jira's 255-char limit.
+        summary = _sanitize_summary(raw_summary)
         optional_fields: dict[str, Any] = {}
         if ticket_data.get("description"):
             optional_fields["description"] = ticket_data["description"]
@@ -857,22 +947,88 @@ class AcliClient:
         return response["value"]
 
     def add_label(self, jira_key: str, label: str) -> None:
-        """Add a single label to a Jira issue via ACLI workitem edit.
+        # Sanitize before reaching ACLI so we fail fast on invalid labels rather
+        # than emitting a malformed mutation against live Jira.
+        label = _sanitize_label(label)
+        return self._add_label_impl(jira_key, label)
 
-        Uses ``jira workitem edit --key KEY --label LABEL`` to append a label
-        without overwriting existing labels. ACLI's ``--label`` flag performs
-        an additive set operation on the issue's label list.
+    def _add_label_impl(self, jira_key: str, label: str) -> None:
+        """Additively add a label to a Jira issue via ACLI workitem edit.
+
+        Uses ``acli jira workitem edit --from-json <file> --yes`` with payload
+        ``{"issues": ["<KEY>"], "labelsToAdd": ["<label>"]}``. The ``labelsToAdd``
+        operation is ADDITIVE — existing labels are preserved (verified live
+        against DIG-3802 2026-05-24 per bug c916-74a1-ed06-40e4).
+
+        Per ACLI v1.3.18:
+          - The singular ``--label`` flag DOES NOT EXIST and is rejected with
+            'unknown flag: --label'.
+          - The plural ``--labels`` flag is a SET-REPLACE — passing
+            ``--labels foo`` clobbers all existing labels, leaving only ``foo``.
+            That semantic is incompatible with the reconciler's conflict policy
+            ('additive content merged inbound: labels added') because it would
+            destroy Jira-only labels on every dso-id stamp.
+          - The ``--from-json`` payload schema (exposed via
+            ``acli jira workitem edit --generate-json``) includes
+            ``labelsToAdd`` and ``labelsToRemove`` as the documented additive
+            operations. This is the correct surface.
+          - ``--from-json`` writes require ``--yes`` to skip the interactive
+            'You're about to edit N work item(s). (y/N)' prompt.
+
+        The ``--from-json`` path is single-call (no read-then-write race) and
+        idempotent at the ACLI layer — calling with a label that already
+        exists on the issue succeeds silently.
         """
-        cmd = [
-            "jira",
-            "workitem",
-            "edit",
-            "--key",
-            jira_key,
-            "--label",
-            label,
-        ]
-        self._run(cmd)
+        payload = {"issues": [jira_key], "labelsToAdd": [label]}
+        fd, json_path = tempfile.mkstemp(suffix=".json", prefix="acli-edit-")
+        fd_owned = False
+        try:
+            with os.fdopen(fd, "w") as f:
+                fd_owned = True
+                json.dump(payload, f)
+        except Exception:
+            if not fd_owned:
+                os.close(fd)
+            raise
+        try:
+            cmd = ["jira", "workitem", "edit", "--from-json", json_path, "--yes"]
+            self._run(cmd)
+        finally:
+            os.unlink(json_path)
+
+    def remove_label(self, jira_key: str, label: str) -> None:
+        # Sanitize so we reject obviously-malformed label values before issuing
+        # the mutation. ACLI may accept invalid labels silently in remove mode.
+        label = _sanitize_label(label)
+        return self._remove_label_impl(jira_key, label)
+
+    def _remove_label_impl(self, jira_key: str, label: str) -> None:
+        """Additively remove a label from a Jira issue via ACLI workitem edit.
+
+        Counterpart to ``add_label``. Uses ``--from-json`` with the
+        ``labelsToRemove`` operation, which is target-specific — only the
+        named label is removed; all other labels are preserved. Verified
+        live against DIG-3802 2026-05-24 per bug c916-74a1-ed06-40e4.
+
+        Idempotent at the ACLI layer — calling with a label that does not
+        exist on the issue succeeds silently.
+        """
+        payload = {"issues": [jira_key], "labelsToRemove": [label]}
+        fd, json_path = tempfile.mkstemp(suffix=".json", prefix="acli-edit-")
+        fd_owned = False
+        try:
+            with os.fdopen(fd, "w") as f:
+                fd_owned = True
+                json.dump(payload, f)
+        except Exception:
+            if not fd_owned:
+                os.close(fd)
+            raise
+        try:
+            cmd = ["jira", "workitem", "edit", "--from-json", json_path, "--yes"]
+            self._run(cmd)
+        finally:
+            os.unlink(json_path)
 
     def set_entity_property(self, issue_key: str, prop_name: str, value: Any) -> None:
         """Alias for set_issue_property — sets a Jira entity property."""
