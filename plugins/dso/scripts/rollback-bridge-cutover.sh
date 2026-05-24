@@ -54,7 +54,15 @@ cd "$REPO_ROOT" || exit 1
 
 # ── Step 1: Revert the cutover commit ─────────────────────────────────────────
 echo "STEP 1: reverting cutover commit $CUTOVER_SHA"
-if ! git revert --no-commit "$CUTOVER_SHA" 2>&1; then
+# Detect merge commits — they require `-m 1` to specify the mainline parent.
+# Realistic deployment path lands the cutover via a PR merge, so the cutover
+# SHA on main is typically a merge commit.
+_revert_args=("--no-commit")
+if [[ $(git cat-file -p "$CUTOVER_SHA" | grep -c '^parent ') -gt 1 ]]; then
+    echo "STEP 1: detected merge commit; using --mainline 1 to revert against mainline parent"
+    _revert_args+=("--mainline" "1")
+fi
+if ! git revert "${_revert_args[@]}" "$CUTOVER_SHA" 2>&1; then
     echo "ERROR: git revert failed for $CUTOVER_SHA" >&2
     exit 1
 fi
