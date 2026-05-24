@@ -1,0 +1,43 @@
+---
+id: ap-focus-order-mismatch
+rule_id: ap-030
+title: "Anti-pattern: Focus Order Does Not Match Visual Order"
+domain:
+  - visual
+component: []
+action:
+  - avoid
+compliance:
+  - WCAG-2.4.3
+  - Section-508
+severity: major
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Tab order that jumps around the page instead of following the visual flow is disorienting for keyboard users and screen reader users, violating WCAG 2.4.3 (Focus Order).
+
+### Detail
+The DOM order determines tab order unless tabindex values are used. When CSS layouts position elements visually in an order different from their DOM order, keyboard users experience tab order that jumps around the page in an apparently random pattern. Government portals with complex multi-column layouts frequently have this problem.
+
+Why this is harmful:
+- Keyboard users experience confusing, unpredictable navigation
+- Screen reader users hear content in an order that doesn't match the visual layout
+- Violates WCAG 2.4.3 (Focus Order) which requires focus order to preserve meaning and operability
+- Makes forms harder to complete as focus may jump over fields or back to previously visited areas
+
+Real-world examples:
+- Benefits portals with tabbed interfaces where tab order skips between tabs and their content unexpectedly
+- Multi-column layouts where the right column content is in the DOM before the left column
+
+What to do instead:
+- Structure the DOM in the same order as the visual reading order
+- Avoid using tabindex with values > 0 (use natural DOM order instead)
+- Test tab order by pressing Tab repeatedly and verifying logical progression
+- Use CSS order property cautiously in flex/grid layouts — it changes visual order but not DOM order
+
+### Implementation
+Audit DOM order against visual order. Restructure HTML so DOM order matches visual reading order. Remove any positive tabindex values. For complex layouts, test with Tab key before each release. Use axe-core or WAVE to detect focus order issues.

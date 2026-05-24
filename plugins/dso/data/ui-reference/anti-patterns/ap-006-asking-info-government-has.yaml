@@ -1,0 +1,45 @@
+---
+id: ap-asking-info-government-has
+rule_id: ap-006
+title: "Anti-pattern: Asking for Information the Government Already Has"
+domain:
+  - forms
+component: []
+action:
+  - avoid
+compliance:
+  - PRA
+  - WCAG-3.3.7
+severity: major
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Requesting data (SSN, address, income) that the agency already holds in its databases creates unnecessary burden, violates the Paperwork Reduction Act, and signals poor system design to users.
+
+### Detail
+The federal government collects the same data repeatedly across agencies and programs. When an agency requests data it already possesses — either within its own systems or accessible via data-sharing agreements — it imposes unnecessary cognitive and logistical burden on applicants, particularly those with low literacy or disabilities.
+
+Why this is harmful:
+- Paperwork Reduction Act requires agencies to minimize information collection burden
+- WCAG 3.3.7 (Redundant Entry) prohibits requiring users to re-enter data already submitted
+- Re-entering sensitive data (SSN) increases risk of input errors and data exposure
+- Signals distrust and bureaucratic dysfunction to users already experiencing hardship
+- Creates confusion: "Didn't I already tell them this?"
+
+Real-world examples:
+- Medicaid applications requesting income data SSA already holds
+- SNAP recertification requiring address re-entry when address hasn't changed
+- Veterans benefits applications re-collecting military service dates already in DoD records
+
+What to do instead:
+- Pre-populate form fields with data the agency already has, clearly labeled as pre-filled
+- Implement data-sharing with other agencies (e.g., SSA↔HHS data corridors)
+- Only ask users to confirm pre-filled data rather than re-enter it
+- Use a "Nothing has changed" option for recertification flows
+
+### Implementation
+Implement pre-population of known fields from existing records. Display pre-populated values as editable but clearly marked as "from our records." Use the pattern: "We have [VALUE] on file — is this still correct?" rather than blank fields.

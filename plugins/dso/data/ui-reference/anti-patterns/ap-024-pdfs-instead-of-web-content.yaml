@@ -1,0 +1,44 @@
+---
+id: ap-pdfs-instead-of-web-content
+rule_id: ap-024
+title: "Anti-pattern: PDFs Instead of Web Content"
+domain:
+  - navigation
+component: []
+action:
+  - avoid
+compliance:
+  - Section-508
+  - WCAG-2.1
+severity: major
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Publishing government information as PDF documents instead of HTML web pages creates accessibility, mobile, and maintenance barriers that prevent many users from accessing official information.
+
+### Detail
+PDFs remain the default publication format for much government content because they preserve print formatting. However, PDFs are harder to make accessible, require additional software or plugins, don't adapt to mobile screens, and cannot be easily updated when policies change. The result is users finding outdated PDFs with no indication of currency.
+
+Why this is harmful:
+- PDFs are harder to make Section 508 compliant than well-authored HTML
+- PDFs don't reflow for mobile screens (violates WCAG 1.4.10)
+- Users on mobile or limited data plans face significant download burden
+- Outdated PDFs continue to circulate after policy changes — no canonical update mechanism
+- Search engines index PDF content less effectively than HTML
+
+Real-world examples:
+- Federal agency guidance documents published as PDFs that become outdated and continue circulating
+- State health department COVID guidance in PDF that couldn't be easily updated as guidance changed
+
+What to do instead:
+- Publish all web content as HTML pages
+- Use PDFs only for printable documents (forms, certificates, official notices that must be printed)
+- Implement a clear "Last updated" date on all pages and documents
+- When a PDF is necessary, ensure it's tagged and Section 508 compliant
+
+### Implementation
+Convert FAQ pages, policy summaries, and guidance documents to HTML. Reserve PDFs for content users need to print or sign. For any remaining PDFs, run through Adobe Acrobat Pro accessibility checker and fix all identified issues. Add Last Updated date to all content pages.

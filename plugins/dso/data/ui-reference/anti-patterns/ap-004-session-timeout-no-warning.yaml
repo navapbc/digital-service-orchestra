@@ -1,0 +1,45 @@
+---
+id: ap-session-timeout-no-warning
+rule_id: ap-004
+title: "Anti-pattern: Session Timeout Without Warning"
+domain:
+  - auth
+component: []
+action:
+  - avoid
+compliance:
+  - WCAG-2.2
+  - WCAG-2.1
+severity: major
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Sessions that expire without warning cause users to lose unsaved form data, which is especially harmful on lengthy government benefit applications that may take 30-60 minutes to complete.
+
+### Detail
+Government benefit applications frequently require extensive documentation and time to complete. Silent session expiration forces users to restart from the beginning, creating significant burden for users with disabilities, limited internet access, or complex life situations requiring multiple documents.
+
+Why this is harmful:
+- Users lose all entered data, requiring complete restart
+- Particularly harmful for users with cognitive disabilities who need more time
+- Discriminates against users with slow or intermittent internet connections
+- Violates WCAG 2.2.1 (Timing Adjustable) — minimum 20 minutes, with extension mechanism
+- Causes real-world harm: benefits denials due to missed application deadlines
+
+Real-world examples:
+- CA EDD unemployment insurance portal timing out after 20 minutes without warning during the COVID-19 surge
+- SNAP application portals expiring mid-upload of verification documents
+
+What to do instead:
+- Show a visible countdown warning at least 2 minutes before session expiry
+- Provide a one-click session extension mechanism
+- Auto-save form progress at regular intervals
+- Allow 20-minute minimum sessions per WCAG 2.2.1
+- For complex applications, offer save-and-resume functionality
+
+### Implementation
+Implement a session timeout modal with a countdown (e.g., "Your session expires in 5 minutes — click to continue"). Auto-save form state to localStorage or server-side session store at each step. Ensure the warning modal is accessible (focus managed, ARIA live region announcement).

@@ -1,0 +1,43 @@
+---
+id: ap-email-only-notifications
+rule_id: ap-044
+title: "Anti-pattern: Email-Only Notifications for Critical Updates"
+domain:
+  - forms
+component: []
+action:
+  - avoid
+compliance:
+  - EO-14058
+severity: major
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Notifying users only via email about benefit changes, expiration deadlines, or required actions excludes users without reliable email access and creates gaps that lead to lapsed benefits or missed compliance requirements.
+
+### Detail
+Many government service users — particularly those most economically vulnerable — have unreliable email access. Email accounts require maintenance, are subject to spam filtering, and depend on consistent internet access. Using email as the sole notification channel for time-sensitive benefit information (recertification deadlines, overpayment notices, required documents) causes real-world harm.
+
+Why this is harmful:
+- Homeless individuals may not have stable email accounts
+- Low-income users with limited data access may not check email regularly
+- Email spam filters may move critical notices to spam folders
+- Users may not realize they need to act until benefits are already lapsed
+- Executive Order 14058 directs agencies to transform customer experience, including proactive notification
+
+Real-world examples:
+- SNAP recertification notices sent only by email to users without reliable email access, resulting in benefit loss
+- Unemployment insurance recertification deadlines communicated only via email, causing benefit interruptions
+
+What to do instead:
+- Offer multi-channel notifications: email, SMS, in-app notification, and physical mail
+- Allow users to choose their preferred notification channel
+- For critical deadlines, send redundant notifications across channels
+- Send reminders well before deadlines, not just immediately before
+
+### Implementation
+Implement a notification preference center where users select preferred channels (email, SMS, postal mail). Use a multi-channel notification service. For critical deadlines, send notices at 30, 14, 7, and 3 days before the deadline across all preferred channels. Always include action instructions in the notification itself, not just a link.

@@ -1,0 +1,43 @@
+---
+id: ap-no-offline-degraded-mode
+rule_id: ap-042
+title: "Anti-pattern: No Offline or Degraded Mode for Critical Services"
+domain:
+  - visual
+component: []
+action:
+  - avoid
+compliance:
+  - progressive-enhancement
+severity: major
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Government forms and applications that fail completely without JavaScript or on slow connections violate progressive enhancement principles and fail users with the least reliable internet access.
+
+### Detail
+Progressive enhancement — building a functional baseline that works without JavaScript and enhancing it for more capable browsers — is a fundamental principle for government services. Benefit application portals that fail completely without JavaScript exclude users who disable JS for security reasons, users on corporate networks that block scripts, and users on degraded connections where script loading fails.
+
+Why this is harmful:
+- Corporate networks and school networks sometimes block JavaScript
+- Users concerned about privacy/tracking may disable JavaScript
+- Slow connections may time out script loading, causing blank pages
+- Screen magnifiers and some assistive technology configurations work better with HTML than JS
+- When disasters cause network degradation, critical emergency services must still function
+
+Real-world examples:
+- Emergency assistance portals that showed blank pages on slow connections during disaster response
+- Benefits applications using heavy JS frameworks that failed entirely when scripts timed out
+
+What to do instead:
+- Build an HTML-only baseline that performs core functionality without JavaScript
+- Use server-side rendering for initial page loads
+- Add JavaScript as an enhancement (better UX) not a requirement (core function)
+- Test with JavaScript disabled regularly
+
+### Implementation
+Use server-side rendering (SSR) for all critical form pages. Ensure form submission works as a native HTML POST without JavaScript. Add JavaScript for enhanced UX (inline validation, autosave) as a progressive layer. Test with Chrome DevTools Network throttling (Slow 3G) and with JavaScript disabled.

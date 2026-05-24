@@ -1,0 +1,44 @@
+---
+id: ap-acronyms-no-expansion
+rule_id: ap-023
+title: "Anti-pattern: Acronyms Without First-Use Expansion"
+domain:
+  - navigation
+component: []
+action:
+  - avoid
+compliance:
+  - WCAG-3.1.4
+  - plainlanguage.gov
+severity: minor
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Using government acronyms without expanding them on first use causes comprehension failures and disorientation for users unfamiliar with agency terminology, and causes screen reader mispronunciation errors.
+
+### Detail
+Government services are acronym-dense. SNAP, TANF, WIC, CHIP, FMLA, FICA, SSI, SSDI — each is a program many eligible users have heard of but whose acronym they may not recognize. Screen readers pronounce unexpanded acronyms as words (e.g., "snap," "tanf") rather than spelling them out, causing confusion.
+
+Why this is harmful:
+- Users don't recognize acronyms for programs they may be eligible for
+- Screen readers pronounce acronyms phonetically, causing confusion
+- WCAG 3.1.4 (Abbreviations) requires a mechanism to identify abbreviations
+- Undermines users' confidence in navigating the site
+- Creates comprehension barrier for users with cognitive disabilities
+
+Real-world examples:
+- Benefits.gov listing programs by acronym (TANF, SNAP, WIC) without plain-language descriptions
+- IRS materials referring to AGI, EITC, and MAGI without expansion
+
+What to do instead:
+- Always spell out acronyms on first use per page: "Supplemental Nutrition Assistance Program (SNAP)"
+- After first use, use the acronym with abbr element: <abbr title="Supplemental Nutrition Assistance Program">SNAP</abbr>
+- Use plain-language names in navigation and headings
+- Provide a glossary for programs and terms
+
+### Implementation
+Add `<abbr title="Full Name">ACRONYM</abbr>` markup to all acronym first uses. In navigation and headings, use plain language names instead of or alongside acronyms. Add a glossary page accessible from the footer.

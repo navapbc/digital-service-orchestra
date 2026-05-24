@@ -1,0 +1,43 @@
+---
+id: ap-missing-skip-navigation
+rule_id: ap-028
+title: "Anti-pattern: Missing Skip Navigation Link"
+domain:
+  - navigation
+component: []
+action:
+  - avoid
+compliance:
+  - WCAG-2.4.1
+  - Section-508
+severity: critical
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Government sites without a "Skip to main content" link force keyboard users and screen reader users to navigate through all header and navigation elements on every page, creating significant friction for users who visit multiple pages.
+
+### Detail
+Government websites typically have complex headers with multiple navigation levels, search bars, language selectors, and utility links. Keyboard users must Tab through every one of these elements before reaching the main content. On a site with 20 navigation items, that means 20+ Tab presses just to begin reading or interacting with the actual page content. WCAG 2.4.1 (Bypass Blocks) requires a mechanism to skip repeated content.
+
+Why this is harmful:
+- Keyboard-only users must Tab through 20-40+ navigation elements on every page
+- Screen reader users experience the same overhead for every page visit
+- Violates WCAG 2.4.1 (Bypass Blocks) — a Level A requirement (most critical tier)
+- Users with motor disabilities who use keyboard navigation face significant repetitive strain
+
+Real-world examples:
+- Federal agency sites with 30+ navigation items and no skip link
+- Benefits portals where users must tab through header, navigation, language selector, utility nav before reaching form content
+
+What to do instead:
+- Add a "Skip to main content" link as the first focusable element on every page
+- The link can be visually hidden but must be visible when focused (not display:none)
+- Use href="#main-content" targeting an element with id="main-content" or a landmark role
+- USWDS includes a skip navigation component
+
+### Implementation
+Add `<a class="usa-skipnav" href="#main-content">Skip to main content</a>` as the first element in the body. Use USWDS skipnav styles that show the link only on focus. Ensure the target element (`id="main-content"`) exists and is the main landmark. Test with keyboard-only navigation.

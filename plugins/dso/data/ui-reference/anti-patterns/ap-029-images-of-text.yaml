@@ -1,0 +1,44 @@
+---
+id: ap-images-of-text
+rule_id: ap-029
+title: "Anti-pattern: Images of Text"
+domain:
+  - visual
+component: []
+action:
+  - avoid
+compliance:
+  - WCAG-1.4.5
+  - Section-508
+severity: major
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Using images containing text instead of styled HTML text prevents text from being resized, recolored, or read by screen readers, violating WCAG 1.4.5 and creating significant accessibility barriers.
+
+### Detail
+Images of text appear in government services as banner graphics with important text, scanned documents, infographics, and legacy form elements. Unlike HTML text, text embedded in images cannot be enlarged by browser text-size settings, cannot be read by screen readers without explicit alt text, cannot be copied or searched, and cannot adapt to high-contrast mode or user color preferences.
+
+Why this is harmful:
+- Screen readers cannot read text in images without provided alt text
+- Alt text cannot convey all information in complex images (tables, charts, multi-line text)
+- Text cannot be resized to meet WCAG 1.4.4 (Resize Text) requirements when embedded in images
+- Images of text cannot adapt to user color preferences (high contrast mode, inverted colors)
+- WCAG 1.4.5 (Images of Text) requires using text, not images, except for logos and decorative images
+
+Real-world examples:
+- Government announcement banners as image files with important deadline information
+- Program brochures published as scanned image PDFs with no text layer
+
+What to do instead:
+- Use HTML text with CSS styling for all user-facing text content
+- For complex visual information, use SVG with embedded accessible text elements
+- For scanned documents, run OCR and provide the text layer
+- Use CSS for decorative text effects instead of images
+
+### Implementation
+Audit all images for embedded text content. Replace banner images with HTML/CSS equivalents. For informational images that must contain text (logos excepted), add comprehensive alt text. For complex infographics, provide an adjacent accessible data table or description.

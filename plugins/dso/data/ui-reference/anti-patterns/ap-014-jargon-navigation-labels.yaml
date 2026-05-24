@@ -1,0 +1,44 @@
+---
+id: ap-jargon-navigation-labels
+rule_id: ap-014
+title: "Anti-pattern: Jargon-Based Navigation Labels"
+domain:
+  - navigation
+component: []
+action:
+  - avoid
+compliance:
+  - plainlanguage.gov
+severity: major
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Using agency acronyms, internal program names, or bureaucratic terminology in navigation menus forces users to know your organization chart rather than find services based on what they need.
+
+### Detail
+Government agencies organize internally by program and funding stream. Navigation menus often reflect this internal structure rather than user mental models. A user seeking food assistance does not know whether to look under "SNAP," "FNS," "Supplemental Nutrition," or "Nutrition Programs." Jargon-based navigation dramatically increases task completion time and failure rates.
+
+Why this is harmful:
+- Users don't know agency acronyms or internal program names
+- Creates navigation barriers for users with cognitive disabilities and low literacy
+- Forces users to learn agency structure instead of finding needed services
+- Research consistently shows jargon-based labels reduce task success rates
+- Contradicts federal plain language guidelines (plainlanguage.gov)
+
+Real-world examples:
+- HHS navigation with "TANF," "CHIP," "Medicaid" labels instead of "Cash Assistance," "Children's Health Insurance," "Health Coverage for Low-Income Adults"
+- DOL portals using "UI" instead of "Unemployment Insurance" or "Unemployment Benefits"
+
+What to do instead:
+- Use plain language labels that describe what users can DO or GET
+- Conduct card sorting user research to discover user mental models
+- Use task-based labels: "Get food assistance," "Apply for health coverage"
+- Provide a search function as a complement to navigation
+- Follow plainlanguage.gov guidelines for all navigation text
+
+### Implementation
+Conduct card sorting with target users before finalizing navigation labels. Use descriptive, plain-language labels. Every navigation item should answer "What can I do here?" without requiring knowledge of agency structure. Test with actual users in target demographic.

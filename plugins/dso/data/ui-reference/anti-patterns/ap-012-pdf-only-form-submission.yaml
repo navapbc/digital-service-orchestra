@@ -1,0 +1,44 @@
+---
+id: ap-pdf-only-form-submission
+rule_id: ap-012
+title: "Anti-pattern: PDF-Only Form Submission"
+domain:
+  - forms
+component: []
+action:
+  - avoid
+compliance:
+  - Section-508
+  - WCAG-2.1
+severity: major
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Requiring users to download, print, sign, and mail or fax PDF forms excludes users without printers or scanners, violates accessibility requirements for untagged PDFs, and creates unnecessary administrative burden.
+
+### Detail
+PDF-based form submissions persist in government services because they were the digital replacement for paper, but they introduce new access barriers. Untagged PDFs are completely inaccessible to screen readers. Even tagged PDFs are more difficult to navigate than well-designed HTML forms. The print-sign-scan-mail workflow excludes users without home printers (more common in lower-income households) and scanners.
+
+Why this is harmful:
+- Untagged PDFs are completely inaccessible to screen readers and assistive technology
+- Print-sign-scan workflow requires equipment many government service users don't have
+- Mobile users cannot easily complete PDFs — government site traffic is 60%+ mobile
+- PDF form submissions can't provide inline validation or intelligent error messages
+- Updating PDF forms is slower and harder than updating HTML forms, leading to outdated forms in circulation
+
+Real-world examples:
+- FEMA disaster assistance requiring PDF submissions during disaster response when printing is unavailable
+- Immigration benefit forms only available as PDFs, inaccessible to some assistive technology users
+
+What to do instead:
+- Create HTML/web-based form equivalents for all PDF forms
+- If PDFs must remain, ensure they are tagged and Section 508 compliant
+- Allow electronic signatures instead of wet signatures
+- Provide digital upload alternatives to mail/fax submission
+
+### Implementation
+Convert PDF forms to USWDS-based HTML forms with proper field types, validation, and accessibility semantics. For legally required signatures, implement an e-signature solution (DocuSign, Login.gov-based electronic signature). If PDFs are maintained as an alternative, use Adobe Acrobat Pro to add tags, form fields, and accessibility metadata.

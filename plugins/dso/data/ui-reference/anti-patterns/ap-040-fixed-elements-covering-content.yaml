@@ -1,0 +1,44 @@
+---
+id: ap-fixed-elements-covering-content
+rule_id: ap-040
+title: "Anti-pattern: Fixed-Position Elements Covering Content"
+domain:
+  - visual
+component: []
+action:
+  - avoid
+compliance:
+  - WCAG-1.4.10
+  - WCAG-2.4.12
+severity: major
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Sticky headers, footers, chat widgets, and cookie banners that obscure page content on small screens — especially in landscape orientation — trap users and make content inaccessible.
+
+### Detail
+Fixed-position UI elements that consume a significant portion of the viewport on mobile, especially combined with required keyboard display (on mobile), leave insufficient space for content. Government sites with aggressive cookie consent banners, sticky navigation bars, and chat widget panels can cover 40-60% of mobile screen real estate, making form fields and content inaccessible.
+
+Why this is harmful:
+- Mobile keyboard + fixed header + fixed footer can leave only 30% of viewport for content
+- WCAG 1.4.10 requires content to reflow without loss of functionality at 320px
+- Users with low vision enlarging text find fixed elements take up even larger proportions
+- Form fields obscured by fixed elements cannot be scrolled into view in all browsers
+
+Real-world examples:
+- Benefits forms where sticky navigation covered the form submit button on mobile
+- Chat widget covering form fields on small screens during benefits application
+- Cookie consent banner requiring 3 scrolls to dismiss on mobile, obscuring critical content
+
+What to do instead:
+- Minimize the height of fixed headers on mobile
+- Use position: sticky with a max-height that reduces on small viewports
+- Dismiss chat widgets by default on mobile or make them minimizable
+- Test at 320x568px viewport (iPhone SE) with keyboard active
+
+### Implementation
+Use `@media (max-width: 640px)` to reduce fixed header height or switch to non-fixed positioning on mobile. Implement a collapsible/dismissible chat widget. Test with virtual keyboard active on iOS Safari to verify content remains accessible when keyboard is shown.

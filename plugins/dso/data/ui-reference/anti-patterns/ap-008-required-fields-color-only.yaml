@@ -1,0 +1,43 @@
+---
+id: ap-required-fields-color-only
+rule_id: ap-008
+title: "Anti-pattern: Required Fields Indicated by Color Only"
+domain:
+  - forms
+component: []
+action:
+  - avoid
+compliance:
+  - WCAG-1.4.1
+  - Section-508
+severity: major
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Marking required form fields using only a red asterisk or red color fails users with color vision deficiency and violates WCAG 1.4.1, which prohibits using color as the sole means of conveying information.
+
+### Detail
+The red asterisk (*) convention for required fields is ubiquitous but inaccessible when color is the only distinguishing characteristic. Approximately 8% of males have red-green color vision deficiency, and many more users view screens in environments where color distinction is unreliable (bright sunlight, low-quality screens, grayscale printing).
+
+Why this is harmful:
+- Users with red-green color blindness cannot distinguish required from optional fields
+- Screen readers read asterisks as "asterisk" without explaining what it means unless programmatically associated
+- Government forms with many required fields generate high error rates when color-only marking is used
+- Violates WCAG 1.4.1 (Use of Color) — color must not be the sole visual means of conveying information
+
+Real-world examples:
+- Benefits enrollment forms where users with deuteranopia submit incomplete applications
+- Tax filing forms where required fields are only color-distinguished, leading to rejected submissions
+
+What to do instead:
+- Use explicit text label: "(required)" next to required field labels
+- Use aria-required="true" for programmatic indication
+- If using an asterisk, include a visible legend: "* indicates required field" at the top of the form
+- Use both color AND a non-color indicator (text, icon with accessible name)
+
+### Implementation
+Add "(required)" as text to the label of all required fields. Use aria-required="true" on the input element. For inline validation errors, use a combination of red color, error icon, and descriptive error text — never color alone.

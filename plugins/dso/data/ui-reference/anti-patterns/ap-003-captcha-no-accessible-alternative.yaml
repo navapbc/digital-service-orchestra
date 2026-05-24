@@ -1,0 +1,43 @@
+---
+id: ap-captcha-no-accessible-alternative
+rule_id: ap-003
+title: "Anti-pattern: CAPTCHA Without Accessible Alternative"
+domain:
+  - auth
+component: []
+action:
+  - avoid
+compliance:
+  - WCAG-2.1
+  - Section-508
+severity: critical
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Visual and audio CAPTCHA challenges block screen reader users and users with cognitive or sensory disabilities, violating WCAG 3.3.8 and Section 508 requirements for government services.
+
+### Detail
+Traditional CAPTCHA implementations (distorted text, image selection, audio challenges) create insurmountable barriers for users who are blind, have low vision, are deaf, or have cognitive disabilities. Government services, which must be accessible to all citizens, cannot rely on CAPTCHA as a security control without fully accessible alternatives.
+
+Why this is harmful:
+- Screen reader users cannot complete visual CAPTCHA without a working audio alternative
+- Users with cognitive disabilities struggle with distorted text and complex image-recognition tasks
+- Audio CAPTCHA requires hearing and may be blocked by ambient noise in public settings
+- Violates WCAG 3.3.8 (Accessible Authentication), which prohibits cognitive function tests without alternatives
+
+Real-world examples:
+- Benefits enrollment forms where screen reader users reach an inaccessible CAPTCHA and cannot proceed
+- Job application portals on government contractor sites blocking assistive technology users
+
+What to do instead:
+- Use invisible/behavioral CAPTCHA (e.g., hCaptcha accessibility mode, Google reCAPTCHA v3)
+- Implement rate limiting and honeypot fields as bot detection alternatives
+- Offer email or phone verification as an alternative to CAPTCHA
+- Use session-based verification to reduce CAPTCHA frequency for returning users
+
+### Implementation
+Implement Google reCAPTCHA v3 (behavior-based, no challenge shown) or equivalent invisible verification. If a challenge is ever shown, always provide a non-cognitive alternative (phone call, email verification, human review queue).

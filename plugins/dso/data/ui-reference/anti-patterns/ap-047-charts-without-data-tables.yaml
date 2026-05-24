@@ -1,0 +1,43 @@
+---
+id: ap-charts-without-data-tables
+rule_id: ap-047
+title: "Anti-pattern: Charts Without Accessible Data Table Alternatives"
+domain:
+  - visual
+component: []
+action:
+  - avoid
+compliance:
+  - WCAG-1.1.1
+  - Section-508
+severity: major
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Data visualizations without accessible table or text alternatives are completely inaccessible to screen reader users and users with visual impairments, violating WCAG 1.1.1 requirements.
+
+### Detail
+Government dashboards and reports increasingly use charts and graphs to communicate program data, outcomes, and trends. However, a bar chart image or SVG chart without accompanying accessible text or data table is invisible to screen reader users — who receive only a generic image description or nothing at all. WCAG 1.1.1 requires text alternatives for all non-text content.
+
+Why this is harmful:
+- Screen reader users cannot access data in graphical charts without text alternatives
+- WCAG 1.1.1 (Non-text Content) is a Level A requirement — most critical tier
+- Users who prefer tabular data (e.g., users downloading data for analysis) cannot access chart data
+- Charts embedded as images are particularly problematic — alt text cannot convey complex data
+
+Real-world examples:
+- Government health dashboard showing COVID statistics in charts with no data table
+- Benefits utilization reports presented as image charts without downloadable data
+
+What to do instead:
+- Always provide an accessible data table adjacent to or linked from every chart
+- Use properly structured tables with appropriate headers and scope attributes
+- For complex infographics, provide a detailed text description
+- Consider whether the information could be presented as a well-formatted table instead of a chart
+
+### Implementation
+For every chart, implement either: (1) a visible data table below the chart showing the same data, or (2) a "View data table" toggle that reveals an accessible table. Use proper HTML table markup with `<th scope="col|row">` headers. Link data download (CSV) for complex datasets.

@@ -1,0 +1,45 @@
+---
+id: ap-reading-level-too-high
+rule_id: ap-020
+title: "Anti-pattern: Reading Level Above 8th Grade"
+domain:
+  - navigation
+component: []
+action:
+  - avoid
+compliance:
+  - plainlanguage.gov
+  - WCAG-3.1.5
+severity: major
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Government content written at a college reading level fails to serve the general public; federal plain language guidelines require writing accessible to anyone, and WCAG 3.1.5 addresses reading level requirements.
+
+### Detail
+The average US reading level is approximately 7th-8th grade. Many government service users, particularly those seeking benefits support, have lower literacy levels. Legal, regulatory, and technical language on government websites creates barriers for users who need to understand their rights and benefits.
+
+Why this is harmful:
+- Content at 12th grade+ reading level is inaccessible to ~50% of US adults
+- Users who don't understand content make incorrect decisions about their benefits
+- Complex language increases call center volume as confused users seek help
+- WCAG 3.1.5 requires supplemental content to support comprehension of complex content
+- Plain Language Act (2010) mandates clear, accessible government communication
+
+Real-world examples:
+- Medicaid eligibility notices written in legal language that recipients cannot understand
+- Privacy notices that explain data practices in impenetrable legalese
+
+What to do instead:
+- Write at an 8th grade reading level or lower for all public-facing content
+- Use short sentences (average 20 words or fewer)
+- Use active voice instead of passive
+- Define technical terms on first use or provide a glossary
+- Test readability with Flesch-Kincaid or equivalent tools
+
+### Implementation
+Run all content through a readability checker (Hemingway Editor, Flesch-Kincaid in Microsoft Word) before publication. Set a target of Flesch-Kincaid Grade Level ≤ 8. Have non-expert users review all new content for comprehension. Follow plainlanguage.gov guidelines.

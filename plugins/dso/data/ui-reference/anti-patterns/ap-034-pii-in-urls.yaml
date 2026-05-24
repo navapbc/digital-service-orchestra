@@ -1,0 +1,44 @@
+---
+id: ap-pii-in-urls
+rule_id: ap-034
+title: "Anti-pattern: Exposing PII in URLs"
+domain:
+  - auth
+component: []
+action:
+  - avoid
+compliance:
+  - FISMA
+  - NIST-800-53
+severity: critical
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Passing SSN, case numbers, date of birth, or other PII as URL query parameters exposes sensitive data in server logs, browser history, and referrer headers, creating a serious security and privacy risk.
+
+### Detail
+URL query parameters are visible in browser history, server access logs, intermediary proxy logs, analytics tools, and HTTP Referer headers sent to any third-party resources loaded on the page. Government applications that pass sensitive data via URL expose it to multiple parties and create audit and compliance failures.
+
+Why this is harmful:
+- Server access logs capture full URLs — creating PII logs that need special handling
+- Browser history exposing SSN/case numbers creates risk if device is shared
+- HTTP Referer header sends PII to any third-party resources (fonts, analytics) loaded on the destination page
+- Violates FISMA and NIST 800-53 requirements for data handling
+- Users who share a URL inadvertently share their PII
+
+Real-world examples:
+- Benefits case management systems passing case IDs via URL (though less sensitive than SSN, still PII)
+- Healthcare portals passing patient identifiers in query strings
+
+What to do instead:
+- Pass sensitive identifiers via HTTP POST body, not URL parameters
+- Use server-side session state to maintain user context across pages
+- If an identifier must be in the URL, use a one-time, non-guessable token that maps to the actual ID server-side
+- Implement URL sanitization to strip PII from logs
+
+### Implementation
+Audit all application URLs for PII content. Refactor to use POST requests or server-side session for sensitive identifiers. For any shareable links, generate a temporary, non-sensitive token that maps to the actual record server-side and expires after use.

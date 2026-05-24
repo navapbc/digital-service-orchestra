@@ -1,0 +1,43 @@
+---
+id: ap-unnecessary-gender-collection
+rule_id: ap-011
+title: "Anti-pattern: Asking for Gender or Sex Unnecessarily"
+domain:
+  - forms
+component: []
+action:
+  - avoid
+compliance:
+  - EO-13988
+severity: major
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Collecting gender or sex data when not required for service delivery, or limiting options to a binary male/female choice, excludes non-binary and transgender individuals and violates current federal guidance.
+
+### Detail
+Many government forms collect gender as a default field when it is not operationally necessary. When gender IS required (e.g., for medical services, legal identification), limiting options to a binary male/female choice excludes non-binary individuals and creates privacy and safety risks for transgender people whose gender marker may not match their legal documents.
+
+Why this is harmful:
+- Collects sensitive demographic data beyond what is needed (data minimization principle)
+- Binary options exclude an estimated 1.6 million non-binary Americans
+- Mismatched gender markers create barriers and potential discrimination for transgender applicants
+- Executive Order 13988 directs federal agencies to prevent discrimination based on gender identity
+- Creates hostile experience that may discourage LGBTQ+ individuals from applying
+
+Real-world examples:
+- Benefits portals requiring binary gender with no non-binary option
+- Health insurance enrollment forms using "Male/Female" with no alternative
+
+What to do instead:
+- Ask gender only when legally required for the service
+- When required, offer at minimum: Male, Female, Non-binary, Prefer not to say, Self-describe
+- Distinguish "sex assigned at birth" (for medical contexts) from "gender identity" (for social contexts)
+- Follow USWDS guidance on gender and sex fields
+
+### Implementation
+Audit whether gender/sex is legally required for the specific service. If not required, remove the field. If required, implement an inclusive set of options following current federal agency guidance. Never mark gender as required unless legally mandated.

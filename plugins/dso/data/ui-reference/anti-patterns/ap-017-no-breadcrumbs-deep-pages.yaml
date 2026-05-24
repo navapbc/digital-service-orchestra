@@ -1,0 +1,42 @@
+---
+id: ap-no-breadcrumbs-deep-pages
+rule_id: ap-017
+title: "Anti-pattern: No Breadcrumbs on Deep Pages"
+domain:
+  - navigation
+component: []
+action:
+  - avoid
+compliance:
+  - WCAG-2.4.8
+severity: minor
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Government sites with deep hierarchical content structures that lack breadcrumb navigation leave users disoriented about where they are in the site, particularly those arriving via search engine.
+
+### Detail
+Government websites are information-dense with deep content hierarchies (agency → program → topic → subtopic → specific guidance). Users landing on deep pages via search have no context for where the page fits in the broader structure. WCAG 2.4.8 (Location) requires indicating the user's location in a set of web pages.
+
+Why this is harmful:
+- Users arriving via search engine have no orientation to where they are on the site
+- Makes it harder to navigate to related content in the same section
+- Users with cognitive disabilities need clear context about page location
+- Violates WCAG 2.4.8 (Location) requirement for location indication in multi-page sites
+
+Real-world examples:
+- Federal Register pages accessible via search with no indication of regulatory context
+- Benefits.gov topic pages with no breadcrumb showing path from homepage
+
+What to do instead:
+- Implement breadcrumb navigation on all pages below the top level
+- Use the USWDS Breadcrumb component for consistent styling
+- Include structured data (BreadcrumbList schema) for SEO and accessibility
+- Ensure the breadcrumb hierarchy accurately represents the content structure
+
+### Implementation
+Add USWDS Breadcrumb component to all pages below the homepage. The breadcrumb should reflect the actual URL hierarchy. Mark the current page in the breadcrumb (aria-current="page"). Include breadcrumb schema.org structured data for search engine visibility.

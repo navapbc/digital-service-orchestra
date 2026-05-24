@@ -1,0 +1,42 @@
+---
+id: ap-date-format-ambiguity
+rule_id: ap-009
+title: "Anti-pattern: Date Format Ambiguity"
+domain:
+  - forms
+component: []
+action:
+  - avoid
+compliance:
+  - WCAG-3.3
+severity: minor
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Accepting date input without specifying the expected format leads to systematic errors in government records and application submissions, especially on forms serving international or multilingual populations.
+
+### Detail
+The US uses MM/DD/YYYY while most of the world uses DD/MM/YYYY. Without explicit format specification, a date entered as 03/05/2024 is interpreted as March 5 by US-trained users and May 3 by users from most other countries. Government applications processing benefit eligibility dates, citizenship dates, or document expiration dates cannot tolerate this ambiguity.
+
+Why this is harmful:
+- Applications can be incorrectly denied based on wrong date interpretations
+- Immigration applications with expiration dates in wrong format can have legal consequences
+- Benefits eligibility calculated from wrong birth dates affects payment amounts
+- Date ambiguity generates substantial call center volume and manual correction workload
+
+Real-world examples:
+- USCIS form submissions with ambiguous dates causing application rejections
+- Medicaid income verification date errors due to unclear date format expectations
+
+What to do instead:
+- Use separate labeled fields for month, day, and year (reduces format confusion entirely)
+- Use a date picker component with explicit format hint text: "MM/DD/YYYY"
+- Show format as placeholder and hint text: "For example: 01/15/2024"
+- Consider the USWDS date input component, which uses separate fields
+
+### Implementation
+Use USWDS Date Input component (three separate fields: Month, Day, Year) or a date picker that clearly labels month vs. day. Always include hint text showing an example date in the expected format. Validate on submit with a clear error message specifying the expected format.

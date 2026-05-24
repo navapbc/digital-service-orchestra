@@ -1,0 +1,42 @@
+---
+id: ap-external-links-no-warning
+rule_id: ap-018
+title: "Anti-pattern: Opening External Links Without Warning"
+domain:
+  - navigation
+component: []
+action:
+  - avoid
+compliance:
+  - WCAG-2.4
+severity: minor
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Links to non-government sites that open without indicating the user is leaving a .gov domain undermine trust and leave users without context about the source and credibility of the destination content.
+
+### Detail
+Government websites carry an implicit trust contract — users rely on .gov domains for authoritative, reliable information. When links silently take users to third-party sites, users may not realize they've left the trusted context and may act on less reliable information or be exposed to potentially harmful content.
+
+Why this is harmful:
+- Users may not realize they've left the .gov domain and trusted context
+- Critical for users with cognitive disabilities who rely on consistent environmental cues
+- Undermines trust in government digital services when linking to poor-quality third parties
+- WCAG 2.4.4 requires link purpose to be clear from context — destination domain is part of context
+
+Real-world examples:
+- Federal agency sites linking to state agency sites or third-party legal aid organizations without context
+- Benefits portals linking to external document verification services without warning
+
+What to do instead:
+- Display an exit disclaimer when linking to non-.gov sites
+- Use an external link icon with accessible name ("opens external site")
+- Add a visible interstitial page for links to non-government sites
+- Identify the destination organization in the link text: "Get legal help at [Organization Name]"
+
+### Implementation
+Add a visible external link indicator icon after all non-.gov links. Include an accessible name describing the link destination context. For high-stakes external links (financial services, legal aid), implement a brief disclaimer modal: "You are leaving a government website. This link opens [Site Name]."

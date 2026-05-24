@@ -1,0 +1,44 @@
+---
+id: ap-english-only-critical-services
+rule_id: ap-022
+title: "Anti-pattern: English-Only Critical Services"
+domain:
+  - navigation
+component: []
+action:
+  - avoid
+compliance:
+  - EO-13166
+  - Title-VI
+severity: critical
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Providing essential government services only in English violates Executive Order 13166 and Title VI, which require federal agencies to provide meaningful access to programs for Limited English Proficiency (LEP) individuals.
+
+### Detail
+Approximately 67 million US residents speak a language other than English at home, and about 25 million have limited English proficiency. Government benefit programs that serve economically vulnerable populations — SNAP, Medicaid, housing assistance — have high rates of LEP participants. English-only service delivery creates a discriminatory barrier with legal consequences.
+
+Why this is harmful:
+- Violates Executive Order 13166 (Improving Access to Services for Persons with Limited English Proficiency)
+- Violates Title VI of the Civil Rights Act (prohibits national origin discrimination by recipients of federal funding)
+- Causes documented harm: people don't receive benefits they're entitled to
+- Creates language barrier for time-sensitive applications (disaster relief, emergency assistance)
+
+Real-world examples:
+- State benefits portals with English-only online application despite high Spanish-speaking eligible populations
+- COVID-19 vaccine scheduling portals initially available only in English in regions with large Spanish/Chinese-speaking populations
+
+What to do instead:
+- Identify top languages spoken by eligible population for the specific service
+- Translate all critical pathways (eligibility check, application, document upload) into top languages
+- Use language selector prominently in header
+- Provide machine translation as a supplement (never sole option) with clear "machine translated" labeling
+- For emergency services, prioritize translation before launch
+
+### Implementation
+Implement a language selector in the site header that persists across the session. Translate critical user flows into the top 5 languages for the specific program's eligible population. Partner with professional translators who specialize in government/legal translation. Never use machine translation alone for legally significant content (rights, eligibility determinations).

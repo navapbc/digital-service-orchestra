@@ -1,0 +1,119 @@
+# _schema.yaml — Schema for the anti-patterns UI/UX corpus subdirectory.
+#
+# This schema defines the vocabulary for tag fields and the required fields
+# for all corpus entries in the anti-patterns/ directory.
+#
+# Domain values for anti-patterns are a subset of the anchored vocabulary
+# defined in the parent _schema.yaml, scoped to the four primary anti-pattern
+# concern areas: auth, forms, navigation, and visual.
+
+required_fields:
+  - id
+  - rule_id
+  - title
+  - domain
+  - action
+  - severity
+  - story_type
+
+tag_vocabulary:
+  domain:
+    - auth
+    - forms
+    - navigation
+    - visual
+  component:
+    - form
+    - navigation
+    - content
+    - layout
+    - feedback
+    - data-display
+    - input
+    - modal
+    - table
+    - button
+    - media
+    - link
+    - header
+    - chart
+    - map
+    - notification
+  action:
+    - avoid
+    - design
+    - apply
+    - verify
+    - implement
+  compliance:
+    - WCAG-1.1.1
+    - WCAG-1.4.1
+    - WCAG-1.4.2
+    - WCAG-1.4.4
+    - WCAG-1.4.5
+    - WCAG-1.4.10
+    - WCAG-2.1.1
+    - WCAG-2.2.1
+    - WCAG-2.2
+    - WCAG-2.3.3
+    - WCAG-2.4
+    - WCAG-2.4.1
+    - WCAG-2.4.3
+    - WCAG-2.4.4
+    - WCAG-2.4.5
+    - WCAG-2.4.8
+    - WCAG-2.4.12
+    - WCAG-2.5.8
+    - WCAG-3.1.1
+    - WCAG-3.1.4
+    - WCAG-3.1.5
+    - WCAG-3.2.2
+    - WCAG-3.3
+    - WCAG-3.3.7
+    - WCAG-3.3.8
+    - WCAG-2.1
+    - WCAG-2.2
+    - Section-508
+    - NIST-800-63B
+    - NIST-800-53
+    - FISMA
+    - FedRAMP
+    - OMB-M-10-22
+    - OMB-M-17-06
+    - OMB-A11-280
+    - EO-13166
+    - EO-13988
+    - EO-14058
+    - Title-VI
+    - PRA
+    - HSTS-Preloading
+    - OWASP
+    - plainlanguage.gov
+    - progressive-enhancement
+  severity:
+    - critical
+    - major
+    - minor
+    - informational
+  story_type:
+    - anti-pattern
+    - pattern
+    - compliance-check
+    - principle
+  coverage:
+    - summary
+    - detail
+    - implementation
+  source:
+    - navapbc/government-anti-patterns
+    - USWDS
+    - 18F-design-principles
+    - digital.gov
+    - Section-508
+  license:
+    - internal-nava
+    - CC0
+    - MIT
+    - Apache-2.0
+    - W3C-Document
+    - public-domain

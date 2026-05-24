@@ -1,0 +1,44 @@
+---
+id: ap-desktop-only-design
+rule_id: ap-037
+title: "Anti-pattern: Desktop-Only Design"
+domain:
+  - visual
+component: []
+action:
+  - avoid
+compliance:
+  - OMB-M-17-06
+  - WCAG-1.4.10
+severity: major
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Government sites that are not mobile-responsive exclude over 60% of government website traffic and disproportionately fail users who rely on smartphones as their primary or only internet device.
+
+### Detail
+Mobile-only internet access is more common among lower-income populations — exactly those most likely to be seeking government benefits. OMB M-17-06 requires federal agencies to support mobile devices. Desktop-only government portals create a digital divide that reinforces economic inequality.
+
+Why this is harmful:
+- Over 60% of government site traffic is on mobile devices
+- Low-income users are more likely to be "mobile-only" internet users
+- Desktop-only sites often display unusable small text and require horizontal scrolling on mobile
+- Violates WCAG 1.4.10 (Reflow) — content must be accessible at 320px viewport width
+- OMB M-17-06 requires federal digital services to be optimized for mobile
+
+Real-world examples:
+- State UI portal inaccessible on mobile during COVID-19 when users couldn't reach a computer
+- Benefits enrollment forms that were unusable on mobile, forcing users to find computer access
+
+What to do instead:
+- Design mobile-first — start with smallest viewport and expand up
+- Use USWDS responsive grid system and components
+- Test on real mobile devices, not just desktop browser emulation
+- Ensure all form fields, buttons, and navigation are usable on touch screens
+
+### Implementation
+Implement responsive design using USWDS grid system. Set viewport meta tag: `<meta name="viewport" content="width=device-width, initial-scale=1">`. Test all user flows on iOS Safari and Android Chrome. Ensure all touch targets are at least 44x44px. Run Lighthouse mobile audit.

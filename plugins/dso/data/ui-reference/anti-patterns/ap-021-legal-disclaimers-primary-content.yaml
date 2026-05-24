@@ -1,0 +1,43 @@
+---
+id: ap-legal-disclaimers-primary-content
+rule_id: ap-021
+title: "Anti-pattern: Legal Disclaimers as Primary Content"
+domain:
+  - navigation
+component: []
+action:
+  - avoid
+compliance:
+  - plainlanguage.gov
+severity: major
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Burying actionable user information under walls of legal text prioritizes agency legal protection over user comprehension, making it harder for users to complete tasks and understand their rights.
+
+### Detail
+Government web pages often begin with lengthy legal disclaimers, terms of use, or regulatory citations before reaching content users need to act on. This reflects an internal culture that prioritizes legal compliance and risk management over user service. Users typically stop reading dense text and miss the actionable information.
+
+Why this is harmful:
+- Users don't read wall-of-text disclaimers — they skip them, potentially missing important information
+- Critical eligibility information buried in legal text is effectively hidden from most users
+- Contradicts the service design principle of leading with what users need to do
+- Legal text at the top increases perceived complexity and discourages application attempts
+- Violates plain language principles
+
+Real-world examples:
+- Benefits applications beginning with 3 pages of legal terms before showing eligibility criteria
+- Privacy notices written as legal documents rather than plain-language summaries
+
+What to do instead:
+- Lead with what users need to know or do in plain language
+- Move legal notices to the bottom of the page or an expandable "Legal details" section
+- Provide a plain-language summary before any legal text
+- Work with agency counsel to agree on minimal legal language requirements
+
+### Implementation
+Restructure content so the first paragraph answers "What can I do here?" Place essential legal disclosures (consent, privacy notice) in collapsible sections or footnotes. Work with legal counsel to identify which disclosures are legally required vs. informational, and determine appropriate placement for each.
