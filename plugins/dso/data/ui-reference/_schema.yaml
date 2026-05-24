@@ -1,0 +1,64 @@
+# _schema.yaml — UI/UX reference corpus vocabulary schema.
+#
+# This file defines the vocabulary for tag fields and the list of required
+# fields for all corpus entries in this directory.
+#
+# Maintained by the DSO plugin. Do not edit without updating check-corpus-schema.py.
+
+required_fields:
+  - id
+  - title
+  - domain
+
+tag_vocabulary:
+  domain:
+    - gov-benefit-flows
+    - accessibility
+    - patterns
+    - anti-patterns
+    - principles
+    - components
+    - gov-copy
+  component:
+    - form
+    - navigation
+    - content
+    - layout
+    - feedback
+    - data-display
+    - input
+    - modal
+    - table
+    - button
+  action:
+    - design
+    - avoid
+    - apply
+    - verify
+    - implement
+  compliance:
+    - WCAG-2.1-AA
+    - WCAG-2.2-AA
+    - Section-508
+    - plain-language
+    - 21st-Century-IDEA
+  severity:
+    - critical
+    - major
+    - minor
+    - informational
+  story_type:
+    - pattern
+    - anti-pattern
+    - compliance-check
+  coverage:
+    - summary
+    - detail
+    - implementation
+  license:
+    - CC0
+    - MIT
+    - Apache-2.0
+    - W3C-Document
+    - internal-nava
+    - public-domain
