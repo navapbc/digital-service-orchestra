@@ -547,3 +547,4 @@ plugins/dso/scripts/dso_reconciler/orphan_band.py:tests/unit/dso_reconciler/test
 plugins/dso/scripts/dso_reconciler/stale_band.py:tests/unit/dso_reconciler/test_stale_band_apply.py,tests/unit/dso_reconciler/test_stale_band_gate.py,tests/unit/dso_reconciler/test_stale_band_plan.py
 plugins/dso/scripts/dso_reconciler/duplicates_band.py:tests/unit/dso_reconciler/test_duplicates_band_apply.py,tests/unit/dso_reconciler/test_duplicates_band_gate.py,tests/unit/dso_reconciler/test_duplicates_band_plan.py
 plugins/dso/scripts/dso_reconciler/open_count_skew_band.py:tests/unit/dso_reconciler/test_open_count_skew_band_apply.py,tests/unit/dso_reconciler/test_open_count_skew_band_gate.py,tests/unit/dso_reconciler/test_open_count_skew_band_plan.py
+plugins/dso/data/ui-reference/anti-patterns/: tests/scripts/test_corpus_anti_patterns.py [test_anti_patterns_directory_exists]
