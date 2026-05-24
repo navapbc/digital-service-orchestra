@@ -318,10 +318,28 @@ def _create_issue_from_json(
     directly to Jira REST API fields.  Priority requires
     ``{"name": "<Jira priority name>"}``.
     """
-    # Convert integer priority (0-4) to Jira priority name.
-    # If already a string name, use as-is.
+    # Convert priority to a Jira priority name.
+    # - Integer (0-4): map through _LOCAL_PRIORITY_TO_JIRA.
+    # - Jira REST-shape dict ({"name": ..., "id": ..., "iconUrl": ..., "self": ...}):
+    #   extract .name, falling back to a reverse-id lookup. The reconciler's
+    #   differ propagates Jira's snapshot priority dict verbatim (fetcher.py
+    #   → differ.py → applier.py → client.create_issue), so this branch is
+    #   load-bearing — without it, str(<dict>) produces a Python-repr that
+    #   ACLI rejects with "The priority selected is invalid"
+    #   (bug 5010-1c6a-9387-4b5b).
+    # - String: use as-is.
     if isinstance(priority, int):
         jira_priority_name = _LOCAL_PRIORITY_TO_JIRA.get(priority, "Medium")
+    elif isinstance(priority, dict):
+        _name = priority.get("name")
+        if _name:
+            jira_priority_name = str(_name)
+        else:
+            _id = priority.get("id")
+            try:
+                jira_priority_name = _LOCAL_PRIORITY_TO_JIRA[int(_id) - 1]
+            except (TypeError, ValueError, KeyError, IndexError):
+                jira_priority_name = "Medium"
     else:
         jira_priority_name = str(priority)
 
