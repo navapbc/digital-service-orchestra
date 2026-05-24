@@ -550,3 +550,4 @@ plugins/dso/scripts/dso_reconciler/open_count_skew_band.py:tests/unit/dso_reconc
 plugins/dso/data/ui-reference/principles/:tests/scripts/test_corpus_principles.py [test_principles_directory_contains_all_required_sources]
 plugins/dso/data/ui-reference/patterns/:tests/scripts/test_corpus_patterns_dark.py [test_brignull_dark_patterns_yaml_exists]
 plugins/dso/data/ui-reference/accessibility/:tests/scripts/test_corpus_accessibility_wcag.py [test_accessibility_directory_exists]
+plugins/dso/data/ui-reference/anti-patterns/: tests/scripts/test_corpus_anti_patterns.py [test_anti_patterns_directory_exists]
