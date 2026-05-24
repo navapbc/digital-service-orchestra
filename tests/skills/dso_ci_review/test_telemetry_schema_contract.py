@@ -22,6 +22,7 @@ ${CLAUDE_PLUGIN_ROOT}/scripts/telemetry/lambda-handler/schema.py
 
 from __future__ import annotations
 
+import os
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -112,6 +113,42 @@ SAMPLE_KWARGS: dict[str, dict[str, object]] = {
         "diff_hash": "abc123",
     },
 }
+
+
+def test_autouse_telemetry_disable_is_overridable_per_test(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression guard for the `_dso_disable_telemetry_during_tests` autouse
+    fixture's override contract.
+
+    The fixture in tests/conftest.py sets DSO_TELEMETRY_DISABLE=1 for every
+    test in the session to prevent live emits. Tests that intentionally
+    exercise the wrapper (the parametrised test below, plus the wrapper-
+    specific tests in test_telemetry_emit_wrapper.py) call
+    ``monkeypatch.delenv("DSO_TELEMETRY_DISABLE", raising=False)`` and rely
+    on the documented pytest fixture-application order — autouse first, then
+    per-test monkeypatch — for the delenv to actually take effect.
+
+    If pytest semantics ever change, or if a developer adds a session-scoped
+    monkeypatch that runs after the autouse fixture, the per-test override
+    would silently fail and the wrapper tests would pass while no longer
+    exercising the real emit path. This test fires in that case: it
+    explicitly observes the env var set by the autouse fixture, runs
+    delenv, and asserts the var is gone.
+    """
+    # When this test begins, the autouse fixture has already set the env var.
+    assert os.environ.get("DSO_TELEMETRY_DISABLE") == "1", (
+        "_dso_disable_telemetry_during_tests autouse fixture did not run "
+        "before this test — pytest fixture order may have changed."
+    )
+    # Per-test override must succeed.
+    monkeypatch.delenv("DSO_TELEMETRY_DISABLE", raising=False)
+    assert "DSO_TELEMETRY_DISABLE" not in os.environ, (
+        "monkeypatch.delenv() failed to remove DSO_TELEMETRY_DISABLE — "
+        "the autouse fixture's setenv is winning over per-test cleanup, "
+        "which would break every test in test_telemetry_emit_wrapper.py "
+        "that exercises the real emit path."
+    )
 
 
 def _argv_from_emit(event_type: str, **kwargs) -> list[str]:

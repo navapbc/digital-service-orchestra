@@ -241,7 +241,7 @@ DSO ships an optional review-telemetry pipeline: a Lambda function receives POST
 
 ### Setup Sequence (run in order)
 
-All four scripts must be run **in the order listed below** — each step writes config keys read by subsequent steps.
+Steps 1–4 are scripts that must run **in the order listed below** — each step writes config keys read by subsequent steps. Step 5 is an additional manual provisioning step required only in SCP-restricted accounts (see Prerequisites).
 
 #### 1. Provision the S3 bucket
 
@@ -309,39 +309,44 @@ aws apigatewayv2 create-api \
 
 Record the `ApiId` and `ApiEndpoint` from the response.
 
-**B. Grant API Gateway permission to invoke the Lambda** (a resource-based policy statement on the Lambda — scoped to this specific API by `SourceArn`):
+**B. Grant API Gateway permission to invoke the Lambda** (a resource-based policy statement on the Lambda — scoped to this specific API by `SourceArn`). Re-running this command will fail with `ResourceConflictException` if a statement with the same id already exists; remove it first via `aws lambda remove-permission --statement-id "apigateway-${API_ID}-invoke" --function-name <name>` or pick a unique statement-id. The `--source-arn` uses the region of the Lambda (derived from the Lambda ARN; if you replaced `us-east-1` during step 2 update the substitution below):
 
 ```bash
 API_ID="<from-step-A>"
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+REGION=$(aws lambda get-function \
+  --function-name "$(.claude/scripts/dso read-config.sh review_telemetry.lambda_function_name)" \
+  --query 'Configuration.FunctionArn' --output text | awk -F: '{print $4}')
 
 aws lambda add-permission \
   --function-name "$(.claude/scripts/dso read-config.sh review_telemetry.lambda_function_name)" \
   --statement-id "apigateway-${API_ID}-invoke" \
   --action lambda:InvokeFunction \
   --principal apigateway.amazonaws.com \
-  --source-arn "arn:aws:execute-api:us-east-1:${ACCOUNT_ID}:${API_ID}/*/*/*"
+  --source-arn "arn:aws:execute-api:${REGION}:${ACCOUNT_ID}:${API_ID}/*/*/*"
 ```
 
 **C. Anonymous POST → S3 end-to-end smoke test**:
 
 ```bash
-API_ENDPOINT="<from-step-A>"  # e.g. https://<id>.execute-api.us-east-1.amazonaws.com
+API_ENDPOINT="<from-step-A>"  # e.g. https://<id>.execute-api.<region>.amazonaws.com
 TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 EID="apigw-smoke-$(date -u +%H%M%S)"
+
+PAYLOAD=$(jq -nc \
+  --arg eid "$EID" \
+  --arg ts "$TS" \
+  '{schema_version:1, event_id:$eid, event_type:"tool_finding",
+    client_id:"dso-self", tool_id:"apigateway-smoke",
+    tool_version:"1.0.0", timestamp:$ts,
+    tool_name:"apigateway-smoke", tool_rule:"setup_verify",
+    tool_severity:"info", file:"",
+    message:"API Gateway anonymous submission smoke test"}')
 
 curl -sS -w '\n  HTTP %{http_code} in %{time_total}s\n' \
   -X POST "$API_ENDPOINT" \
   -H 'Content-Type: application/json' \
-  -d "$(jq -nc \
-        --arg eid \"$EID\" \
-        --arg ts \"$TS\" \
-        '{schema_version:1, event_id:\$eid, event_type:\"tool_finding\",
-          client_id:\"dso-self\", tool_id:\"apigateway-smoke\",
-          tool_version:\"1.0.0\", timestamp:\$ts,
-          tool_name:\"apigateway-smoke\", tool_rule:\"setup_verify\",
-          tool_severity:\"info\", file:\"\",
-          message:\"API Gateway anonymous submission smoke test\"}')"
+  -d "$PAYLOAD"
 
 # Expect HTTP 202 (Lambda accepted). Then confirm the S3 write:
 sleep 4
