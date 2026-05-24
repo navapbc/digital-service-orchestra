@@ -187,99 +187,167 @@ def test_emit_event_forwards_all_required_per_type_fields(
 
 
 # ---------------------------------------------------------------------------
-# Runner integration: review_finding and review_cycle emit shapes
+# Runner integration: review_finding, tool_finding, and review_cycle emit shapes
 # ---------------------------------------------------------------------------
+#
+# These tests call the production emit helpers directly (with an injected
+# emit_fn that captures kwargs) rather than replicating their bodies. A future
+# regression in the helper — e.g. dropping a required PER_TYPE_FIELD, or
+# changing an enum value off-schema — fires the assertion here because we are
+# exercising the same code path that runs in CI.
 
 
-def test_runner_review_finding_emit_includes_required_fields(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """When runner.py iterates findings and emits review_finding events, the
-    captured argv must include every required PER_TYPE_FIELD. Mocks the
-    wrapper-level _telemetry_emit symbol that runner.py imports, then invokes
-    a minimal slice of the runner's emit loop on a synthetic finding."""
+def test_runner_emit_finding_dispatches_review_finding_with_required_fields() -> None:
+    """_emit_finding_telemetry must emit a review_finding event for a real
+    LLM finding (type not in _TOOL_FINDING_TYPES) carrying every required
+    PER_TYPE_FIELD."""
     from dso_ci_review import runner
 
     captured: list[tuple[str, dict]] = []
-
-    def _capture(event_type: str, **kwargs) -> None:
-        captured.append((event_type, kwargs))
-
-    monkeypatch.setattr(runner, "_telemetry_emit", _capture)
-
-    # Synthetic findings shaped like the real review pipeline output.
-    findings = [
-        {
-            "type": "review_finding",
-            "finding_id": "f-001",
-            "severity": "important",
-            "category": "correctness",
-            "description": "missing None check",
-            "file": "foo.py",
-            "cited_lines": ["foo.py:42"],
-        },
-        {
-            "type": "specialist_error",
-            "severity": "minor",
-            "file": "",
-            "description": "specialist timeout",
-        },
-    ]
-
-    # Replicate the runner.py:2479+ emit loop verbatim against our captured
-    # emit. This is the live code that ships in the recovery PR; if the loop
-    # later regresses (drops a required field), this assertion fires.
-    _TOOL_FINDING_TYPES = frozenset(
-        {"specialist_error", "fallback_exhausted", "parse_error", "tool_finding"}
-    )
-    _TOOL_SEV_MAP = {
-        "critical": "error",
-        "important": "warning",
-        "minor": "info",
-        "suggestion": "info",
+    finding = {
+        "type": "review_finding",
+        "finding_id": "f-001",
+        "severity": "important",
+        "category": "correctness",
+        "description": "missing None check",
+        "file": "foo.py",
+        "cited_lines": ["foo.py:42"],
     }
-    cycle_number = 2
-    for _t_idx, _t_finding in enumerate(findings):
-        _t_type = _t_finding.get("type", "")
-        _t_file = _t_finding.get("file", "")
-        _t_lines = _t_finding.get("cited_lines", []) or []
-        _t_desc = _t_finding.get("description", "") or _t_finding.get("message", "")
-        if _t_type in _TOOL_FINDING_TYPES:
-            runner._telemetry_emit(
-                "tool_finding",
-                tool_name="dso-llm-review",
-                tool_rule=_t_type,
-                tool_severity=_TOOL_SEV_MAP.get(
-                    _t_finding.get("severity", "minor"), "info"
-                ),
-                file=_t_file,
-                message=_t_desc or _t_type,
-                cycle=cycle_number,
-            )
-        else:
-            _t_key = f"dso-llm:{cycle_number}:{_t_idx}"
-            runner._telemetry_emit(
-                "review_finding",
-                key=_t_key,
-                cycle=cycle_number,
-                finding_id=_t_finding.get("finding_id", f"unknown-{cycle_number}-{_t_idx}"),
-                severity=_t_finding.get("severity", "minor"),
-                category=_t_finding.get("category", "correctness"),
-                description=_t_desc,
-                file=_t_file,
-                cited_lines=_t_lines,
-            )
+    runner._emit_finding_telemetry(
+        finding,
+        finding_idx=0,
+        cycle_number=2,
+        emit_fn=lambda et, **kw: captured.append((et, kw)),
+    )
+    assert len(captured) == 1
+    et, kwargs = captured[0]
+    assert et == "review_finding"
+    missing = REQUIRED_PER_TYPE_FIELDS["review_finding"] - set(kwargs.keys())
+    assert not missing, f"review_finding emit dropped fields: {sorted(missing)}"
+    # Enum normalisation: severity / category must land on the canonical enum.
+    assert kwargs["severity"] in {"critical", "important", "minor", "suggestion"}
+    assert kwargs["category"] in {
+        "correctness",
+        "design",
+        "hygiene",
+        "maintainability",
+        "verification",
+    }
 
-    # Two findings → two emits (one tool_finding, one review_finding).
-    assert len(captured) == 2
 
-    rf_kwargs = next(kw for et, kw in captured if et == "review_finding")
-    rf_missing = REQUIRED_PER_TYPE_FIELDS["review_finding"] - set(rf_kwargs.keys())
-    assert not rf_missing, f"review_finding emit dropped fields: {sorted(rf_missing)}"
+def test_runner_emit_finding_dispatches_tool_finding_for_operational_types() -> None:
+    """_emit_finding_telemetry must emit a tool_finding event for operational
+    finding types (specialist_error / fallback_exhausted / parse_error /
+    tool_finding) carrying every required PER_TYPE_FIELD."""
+    from dso_ci_review import runner
 
-    tf_kwargs = next(kw for et, kw in captured if et == "tool_finding")
-    tf_missing = REQUIRED_PER_TYPE_FIELDS["tool_finding"] - set(tf_kwargs.keys())
-    assert not tf_missing, f"tool_finding emit dropped fields: {sorted(tf_missing)}"
+    captured: list[tuple[str, dict]] = []
+    finding = {
+        "type": "specialist_error",
+        "severity": "important",
+        "file": "",
+        "description": "specialist timeout",
+    }
+    runner._emit_finding_telemetry(
+        finding,
+        finding_idx=3,
+        cycle_number=1,
+        emit_fn=lambda et, **kw: captured.append((et, kw)),
+    )
+    assert len(captured) == 1
+    et, kwargs = captured[0]
+    assert et == "tool_finding"
+    missing = REQUIRED_PER_TYPE_FIELDS["tool_finding"] - set(kwargs.keys())
+    assert not missing, f"tool_finding emit dropped fields: {sorted(missing)}"
+    # tool_severity must land on the canonical 3-bucket enum.
+    assert kwargs["tool_severity"] in {"error", "warning", "info"}
+
+
+@pytest.mark.parametrize(
+    "raw_severity,expected",
+    [
+        ("critical", "critical"),
+        ("important", "important"),
+        ("minor", "minor"),
+        ("suggestion", "suggestion"),
+        ("high", "important"),  # alias
+        ("medium", "minor"),  # alias
+        ("UNKNOWN-LEVEL", "minor"),  # fallback
+        (None, "minor"),  # missing
+    ],
+)
+def test_runner_normalise_review_severity(raw_severity, expected) -> None:
+    """_normalise_review_severity must map raw values to the canonical enum,
+    with alias and fallback behaviour matching the documented contract."""
+    from dso_ci_review import runner
+
+    assert runner._normalise_review_severity(raw_severity) == expected
+
+
+def test_runner_emit_review_cycle_carries_all_required_fields() -> None:
+    """_emit_review_cycle_telemetry must populate every required
+    PER_TYPE_FIELD for the review_cycle event, plus correctly aggregate
+    counts and pass from the findings list."""
+    from dso_ci_review import runner
+
+    captured: list[tuple[str, dict]] = []
+    findings = [
+        {"severity": "critical"},
+        {"severity": "important"},
+        {"severity": "important"},
+        {"severity": "minor"},
+        {"severity": "suggestion"},
+    ]
+    runner._emit_review_cycle_telemetry(
+        findings,
+        cycle_number=3,
+        tier="deep",
+        reviewed_sha="abc123",
+        usage_input_tokens=10,
+        usage_output_tokens=20,
+        emit_fn=lambda et, **kw: captured.append((et, kw)),
+    )
+    assert len(captured) == 1
+    et, kwargs = captured[0]
+    assert et == "review_cycle"
+    missing = REQUIRED_PER_TYPE_FIELDS["review_cycle"] - set(kwargs.keys())
+    assert not missing, f"review_cycle emit dropped fields: {sorted(missing)}"
+
+    # Aggregate counts must be derived correctly from the findings list.
+    assert kwargs["finding_count"] == 5
+    assert kwargs["critical_count"] == 1
+    assert kwargs["important_count"] == 2
+    assert kwargs["minor_count"] == 2  # minor + suggestion
+    # pass=False because critical_count+important_count > 0
+    assert kwargs["pass"] is False
+    # resolution_attempts = cycle_number - 1
+    assert kwargs["resolution_attempts"] == 2
+    # tier enum
+    assert kwargs["tier"] in {"light", "standard", "deep"}
+    # additive-optional token fields propagated
+    assert kwargs["input_tokens"] == 10
+    assert kwargs["output_tokens"] == 20
+
+
+def test_runner_emit_review_cycle_pass_true_when_no_critical_important() -> None:
+    """review_cycle pass=True when there are no critical/important findings,
+    even if there are minor/suggestion findings."""
+    from dso_ci_review import runner
+
+    captured: list[tuple[str, dict]] = []
+    findings = [{"severity": "minor"}, {"severity": "suggestion"}]
+    runner._emit_review_cycle_telemetry(
+        findings,
+        cycle_number=1,
+        tier="standard",
+        reviewed_sha="def456",
+        emit_fn=lambda et, **kw: captured.append((et, kw)),
+    )
+    assert captured[0][1]["pass"] is True
+    assert captured[0][1]["resolution_attempts"] == 0
+    # additive-optional tokens absent when not passed
+    assert "input_tokens" not in captured[0][1]
+    assert "output_tokens" not in captured[0][1]
 
 
 # ---------------------------------------------------------------------------
@@ -287,60 +355,95 @@ def test_runner_review_finding_emit_includes_required_fields(
 # ---------------------------------------------------------------------------
 
 
-def test_arbiter_emit_shapes_include_required_fields(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """arbiter_processor.process_rulings emits arbiter_ruling for every ruling
-    and resolver_outcome for DEFER/DROP. Verify both emit shapes carry the
-    required PER_TYPE_FIELDS by mocking _telemetry_emit and replicating the
-    canonical ruling map on a synthetic case."""
+def test_arbiter_emit_ruling_includes_required_fields() -> None:
+    """_emit_arbiter_ruling_telemetry must populate every required
+    PER_TYPE_FIELD for arbiter_ruling and produce a schema-valid
+    arbiter_decision enum value."""
     from dso_ci_review import arbiter_processor
 
     captured: list[tuple[str, dict]] = []
-
-    def _capture(event_type: str, **kwargs) -> None:
-        captured.append((event_type, kwargs))
-
-    monkeypatch.setattr(arbiter_processor, "_telemetry_emit", _capture)
-
-    # Replicate the canonical mapping the processor uses internally; if the
-    # source mapping drifts away from this test's mapping, the assertions
-    # below will detect that drift before it reaches the Lambda validator.
-    _RULING_TO_DECISION = {"BLOCK": "uphold", "DEFER": "dismiss", "DROP": "dismiss"}
-    cycle_num = 3
+    ruling = {"finding_index": 0, "ruling": "BLOCK", "rationale": "test rationale"}
     finding = {"finding_id": "f-100"}
-    finding_idx = 0
-    ruling = {"finding_index": 0, "ruling": "BLOCK", "rationale": "test"}
-    ruling_type = ruling["ruling"]
-    _arbiter_decision = _RULING_TO_DECISION[ruling_type]
-    _finding_id = finding.get("finding_id", f"unknown-{cycle_num}-{finding_idx}")
-    _telem_key = f"dso-llm:{cycle_num}:{finding_idx}"
-    arbiter_processor._telemetry_emit(
-        "arbiter_ruling",
-        link=_telem_key,
-        finding_id=_finding_id,
-        prior_finding_id=_finding_id,
-        arbiter_decision=_arbiter_decision,
-        arbiter_rationale=ruling.get("rationale", f"ruling_type={ruling_type}"),
-        cycle=cycle_num,
+    arbiter_processor._emit_arbiter_ruling_telemetry(
+        ruling,
+        finding,
+        finding_idx=0,
+        cycle_num=3,
+        emit_fn=lambda et, **kw: captured.append((et, kw)),
     )
-    # Now DEFER path → resolver_outcome
-    arbiter_processor._telemetry_emit(
-        "resolver_outcome",
-        link=_telem_key,
-        finding_id=_finding_id,
-        resolution_action="defense",
-        resolution_cycle=cycle_num,
-        accepted=False,
-        cycle=cycle_num,
-    )
+    assert len(captured) == 1
+    et, kwargs = captured[0]
+    assert et == "arbiter_ruling"
+    missing = REQUIRED_PER_TYPE_FIELDS["arbiter_ruling"] - set(kwargs.keys())
+    assert not missing, f"arbiter_ruling emit dropped fields: {sorted(missing)}"
+    # arbiter_decision must land on canonical enum.
+    assert kwargs["arbiter_decision"] in {"uphold", "dismiss", "downgrade"}
+    # BLOCK → uphold per _RULING_TO_DECISION.
+    assert kwargs["arbiter_decision"] == "uphold"
 
-    ar_kwargs = next(kw for et, kw in captured if et == "arbiter_ruling")
-    ar_missing = REQUIRED_PER_TYPE_FIELDS["arbiter_ruling"] - set(ar_kwargs.keys())
-    assert not ar_missing, f"arbiter_ruling emit dropped fields: {sorted(ar_missing)}"
 
-    ro_kwargs = next(kw for et, kw in captured if et == "resolver_outcome")
-    ro_missing = REQUIRED_PER_TYPE_FIELDS["resolver_outcome"] - set(ro_kwargs.keys())
-    assert not ro_missing, (
-        f"resolver_outcome emit dropped fields: {sorted(ro_missing)}"
+@pytest.mark.parametrize(
+    "ruling_type,expected_decision",
+    [("BLOCK", "uphold"), ("DEFER", "dismiss"), ("DROP", "dismiss")],
+)
+def test_arbiter_ruling_type_to_decision_mapping(
+    ruling_type, expected_decision
+) -> None:
+    """The orchestrator ruling_type → arbiter_decision mapping must match
+    the canonical _RULING_TO_DECISION constant. A drift here would silently
+    emit wrong arbiter_decision values; this is the unit-level regression
+    guard."""
+    from dso_ci_review import arbiter_processor
+
+    assert arbiter_processor._RULING_TO_DECISION[ruling_type] == expected_decision
+
+
+def test_arbiter_emit_resolver_outcome_includes_required_fields() -> None:
+    """_emit_resolver_outcome_telemetry must populate every required
+    PER_TYPE_FIELD for resolver_outcome with a schema-valid resolution_action
+    enum value."""
+    from dso_ci_review import arbiter_processor
+
+    captured: list[tuple[str, dict]] = []
+    finding = {"finding_id": "f-200"}
+    arbiter_processor._emit_resolver_outcome_telemetry(
+        finding,
+        finding_idx=1,
+        cycle_num=4,
+        emit_fn=lambda et, **kw: captured.append((et, kw)),
     )
+    assert len(captured) == 1
+    et, kwargs = captured[0]
+    assert et == "resolver_outcome"
+    missing = REQUIRED_PER_TYPE_FIELDS["resolver_outcome"] - set(kwargs.keys())
+    assert not missing, (
+        f"resolver_outcome emit dropped fields: {sorted(missing)}"
+    )
+    assert kwargs["resolution_action"] in {"code_fix", "defense", "escalated"}
+    # accepted is a bool per schema.
+    assert isinstance(kwargs["accepted"], bool)
+
+
+def test_arbiter_prior_finding_id_uses_ruling_value_when_present() -> None:
+    """When the arbiter recorded a cross-cycle lineage via
+    ruling["prior_finding_id"], the emit must use that value rather than the
+    current finding's id."""
+    from dso_ci_review import arbiter_processor
+
+    captured: list[tuple[str, dict]] = []
+    ruling = {
+        "finding_index": 0,
+        "ruling": "BLOCK",
+        "rationale": "test",
+        "prior_finding_id": "prev-cycle-finding-id",
+    }
+    finding = {"finding_id": "f-300"}
+    arbiter_processor._emit_arbiter_ruling_telemetry(
+        ruling,
+        finding,
+        finding_idx=0,
+        cycle_num=2,
+        emit_fn=lambda et, **kw: captured.append((et, kw)),
+    )
+    assert captured[0][1]["prior_finding_id"] == "prev-cycle-finding-id"
+    assert captured[0][1]["finding_id"] == "f-300"

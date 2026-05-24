@@ -256,28 +256,17 @@ cmd_missing() {
         exit 1
     fi
 
-    # Build date list and per-date paths to detect gaps
+    # Build date list and per-date counts to detect gaps.
+    # Path layout must match s3_writer.py: {client_id}/{YYYY-MM-DD}/{event_id}.jsonl
+    # — i.e. client_id first, date second. The glob '*/${date_str}/*.jsonl' counts
+    # every event across every client_id partition for the given date.
     local date_list
     date_list="$(_build_date_list "$days")"
 
-    # Build a query that lists each expected date and its object count,
-    # filtering for dates with zero objects (gaps)
-    # We construct per-day paths and check each one individually
-    local date_cases=""
+    local union_parts=()
     local date_str
     while IFS= read -r date_str; do
-        date_cases="${date_cases}
-    SELECT '${date_str}' AS partition_date,
-           (SELECT COUNT(*) FROM read_json_auto(
-               ['s3://${BUCKET}/${date_str}/**/*.jsonl'],
-               ignore_errors=true
-           )) AS event_count,"
-    done <<< "$date_list"
-
-    # Simpler approach: use a UNION of per-day counts
-    local union_parts=()
-    while IFS= read -r date_str; do
-        union_parts+=("SELECT '${date_str}' AS partition_date, COUNT(*) AS event_count FROM read_json_auto(['s3://${BUCKET}/${date_str}/**/*.jsonl'], ignore_errors=true)")
+        union_parts+=("SELECT '${date_str}' AS partition_date, COUNT(*) AS event_count FROM read_json_auto(['s3://${BUCKET}/*/${date_str}/*.jsonl'], ignore_errors=true)")
     done <<< "$date_list"
 
     local IFS=$'\n'

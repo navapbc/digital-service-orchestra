@@ -67,6 +67,192 @@ from dso_ci_review.aggregator import (
 from dso_ci_review.telemetry_emit_wrapper import emit_event as _telemetry_emit
 
 
+# ── Telemetry schema enum normalisers ─────────────────────────────────────────
+# The canonical lambda-handler schema enforces per_type_field enums on every
+# review_finding / tool_finding emit. LLM reviewers occasionally produce
+# off-enum severity labels (e.g. "high", "medium") or off-enum categories
+# (e.g. "performance") that would otherwise be rejected at the Lambda
+# validator with HTTP 400. These normalisers map common variants to the
+# canonical enum and fall back to a safe default for unknown values so a
+# malformed reviewer payload still produces a valid telemetry envelope.
+_REVIEW_SEVERITY_ENUM = ("critical", "important", "minor", "suggestion")
+_REVIEW_SEVERITY_ALIASES = {
+    "high": "important",
+    "medium": "minor",
+    "low": "minor",
+    "info": "suggestion",
+    "informational": "suggestion",
+}
+_REVIEW_CATEGORY_ENUM = (
+    "correctness",
+    "design",
+    "hygiene",
+    "maintainability",
+    "verification",
+)
+_REVIEW_CATEGORY_ALIASES = {
+    "performance": "correctness",
+    "security": "correctness",
+    "style": "hygiene",
+    "documentation": "maintainability",
+    "test": "verification",
+    "tests": "verification",
+}
+_TOOL_SEVERITY_FROM_REVIEW = {
+    "critical": "error",
+    "important": "warning",
+    "minor": "info",
+    "suggestion": "info",
+}
+
+
+def _normalise_review_severity(raw: object) -> str:
+    """Map a finding's severity to the canonical review-finding enum.
+
+    Falls back to "minor" for unknown / missing values so an off-spec reviewer
+    payload still produces a schema-valid emit (the Lambda would otherwise
+    reject the event entirely).
+    """
+    if not isinstance(raw, str):
+        return "minor"
+    raw_lower = raw.lower().strip()
+    if raw_lower in _REVIEW_SEVERITY_ENUM:
+        return raw_lower
+    return _REVIEW_SEVERITY_ALIASES.get(raw_lower, "minor")
+
+
+def _normalise_review_category(raw: object) -> str:
+    """Map a finding's category to the canonical review-finding enum.
+
+    Falls back to "correctness" for unknown / missing values.
+    """
+    if not isinstance(raw, str):
+        return "correctness"
+    raw_lower = raw.lower().strip()
+    if raw_lower in _REVIEW_CATEGORY_ENUM:
+        return raw_lower
+    return _REVIEW_CATEGORY_ALIASES.get(raw_lower, "correctness")
+
+
+def _normalise_tool_severity(raw: object) -> str:
+    """Map a review-side severity to the tool_finding 3-bucket enum
+    (error / warning / info). Unknown inputs fall back to "info".
+    """
+    if not isinstance(raw, str):
+        return "info"
+    return _TOOL_SEVERITY_FROM_REVIEW.get(raw.lower().strip(), "info")
+
+
+# Finding `type` values that correspond to operational/tool emits rather than
+# real LLM review findings. Used by _emit_finding_telemetry below to route
+# each finding to the correct event_type.
+_TOOL_FINDING_TYPES = frozenset(
+    {"specialist_error", "fallback_exhausted", "parse_error", "tool_finding"}
+)
+
+
+def _emit_finding_telemetry(
+    finding: dict,
+    finding_idx: int,
+    cycle_number: int,
+    emit_fn=None,
+) -> None:
+    """Emit one telemetry event per review finding.
+
+    Dispatches to ``tool_finding`` for operational/specialist-meta finding
+    types (lint/type/syntax/infra/specialist-meta) and ``review_finding`` for
+    real LLM review findings. Severity / category values flow through the
+    canonical enum normalisers so an off-spec reviewer payload still produces
+    a schema-valid emit.
+
+    ``emit_fn`` is injectable for tests; defaults to the module-level
+    ``_telemetry_emit`` (which is ``telemetry_emit_wrapper.emit_event``).
+    """
+    if emit_fn is None:
+        emit_fn = _telemetry_emit
+    f_type = finding.get("type", "")
+    f_file = finding.get("file", "")
+    f_lines = finding.get("cited_lines", []) or []
+    f_desc = finding.get("description", "") or finding.get("message", "")
+    if f_type in _TOOL_FINDING_TYPES:
+        # tool_finding event — schema requires: tool_name, tool_rule,
+        # tool_severity, file, message.
+        emit_fn(
+            "tool_finding",
+            tool_name="dso-llm-review",
+            tool_rule=f_type,
+            tool_severity=_normalise_tool_severity(finding.get("severity")),
+            file=f_file,
+            message=f_desc or f_type,
+            cycle=cycle_number,
+        )
+    else:
+        # review_finding event — schema requires: finding_id, severity,
+        # category, description, file, cited_lines. Use the parent-generated
+        # key path so the event_id stays linkable from arbiter_ruling emits.
+        emit_fn(
+            "review_finding",
+            key=f"dso-llm:{cycle_number}:{finding_idx}",
+            cycle=cycle_number,
+            finding_id=finding.get(
+                "finding_id", f"unknown-{cycle_number}-{finding_idx}"
+            ),
+            severity=_normalise_review_severity(finding.get("severity")),
+            category=_normalise_review_category(finding.get("category")),
+            description=f_desc,
+            file=f_file,
+            cited_lines=f_lines,
+        )
+
+
+def _emit_review_cycle_telemetry(
+    findings: list[dict],
+    cycle_number: int,
+    tier: str,
+    reviewed_sha: str,
+    usage_input_tokens: int | None = None,
+    usage_output_tokens: int | None = None,
+    emit_fn=None,
+) -> None:
+    """Emit the per-cycle ``review_cycle`` aggregate event.
+
+    Schema requires: cycle_number, tier, finding_count, critical_count,
+    important_count, minor_count, pass, resolution_attempts, diff_hash.
+    Counts are derived from the verifier-filtered ``findings`` list; ``pass``
+    is True when no critical/important remain. ``input_tokens`` /
+    ``output_tokens`` are additive-optional and only added when usage data was
+    aggregated from review-cycle-usage.json. ``resolution_attempts`` = max(0,
+    cycle_number - 1) since each prior cycle counted as a resolution attempt.
+
+    ``emit_fn`` is injectable for tests; defaults to the module-level
+    ``_telemetry_emit``.
+    """
+    if emit_fn is None:
+        emit_fn = _telemetry_emit
+    critical_count = sum(1 for f in findings if f.get("severity") == "critical")
+    important_count = sum(1 for f in findings if f.get("severity") == "important")
+    minor_count = sum(
+        1 for f in findings if f.get("severity") in ("minor", "suggestion")
+    )
+    kwargs: dict = {
+        "cycle": cycle_number,
+        "cycle_number": cycle_number,
+        "tier": tier,
+        "finding_count": len(findings),
+        "critical_count": critical_count,
+        "important_count": important_count,
+        "minor_count": minor_count,
+        "pass": (critical_count == 0 and important_count == 0),
+        "resolution_attempts": max(0, cycle_number - 1),
+        "diff_hash": reviewed_sha,
+    }
+    if usage_input_tokens is not None:
+        kwargs["input_tokens"] = usage_input_tokens
+    if usage_output_tokens is not None:
+        kwargs["output_tokens"] = usage_output_tokens
+    emit_fn("review_cycle", **kwargs)
+
+
 class _SchemaValidationResult(NamedTuple):
     """Result of schema validation for merged review findings.
 
@@ -2473,56 +2659,8 @@ def main() -> int:
         # fire-and-forget via telemetry_emit_wrapper — any exception is
         # swallowed by the wrapper and never propagates here.
         _telemetry_findings = merged.get("findings") or []
-        _TOOL_FINDING_TYPES = frozenset(
-            {"specialist_error", "fallback_exhausted", "parse_error", "tool_finding"}
-        )
-        # Map LLM severity → tool severity enum (error/warning/info).
-        # tool_finding severity is a 3-bucket "operational" enum, distinct from
-        # the 4-bucket review severity (critical/important/minor/suggestion).
-        _TOOL_SEV_MAP = {
-            "critical": "error",
-            "important": "warning",
-            "minor": "info",
-            "suggestion": "info",
-        }
         for _t_idx, _t_finding in enumerate(_telemetry_findings):
-            _t_type = _t_finding.get("type", "")
-            _t_file = _t_finding.get("file", "")
-            _t_lines = _t_finding.get("cited_lines", []) or []
-            _t_desc = _t_finding.get("description", "") or _t_finding.get("message", "")
-            if _t_type in _TOOL_FINDING_TYPES:
-                # tool_finding event for lint/type/syntax/infra/specialist-meta findings.
-                # Schema requires: tool_name, tool_rule, tool_severity, file, message.
-                _telemetry_emit(
-                    "tool_finding",
-                    tool_name="dso-llm-review",
-                    tool_rule=_t_type,
-                    tool_severity=_TOOL_SEV_MAP.get(
-                        _t_finding.get("severity", "minor"), "info"
-                    ),
-                    file=_t_file,
-                    message=_t_desc or _t_type,
-                    cycle=cycle_number,
-                )
-            else:
-                # review_finding event for real LLM review findings.
-                # Schema requires: finding_id, severity, category, description,
-                # file, cited_lines. Use the parent-generated key path so the
-                # event_id stays linkable from arbiter_ruling emits.
-                _t_key = f"dso-llm:{cycle_number}:{_t_idx}"
-                _telemetry_emit(
-                    "review_finding",
-                    key=_t_key,
-                    cycle=cycle_number,
-                    finding_id=_t_finding.get(
-                        "finding_id", f"unknown-{cycle_number}-{_t_idx}"
-                    ),
-                    severity=_t_finding.get("severity", "minor"),
-                    category=_t_finding.get("category", "correctness"),
-                    description=_t_desc,
-                    file=_t_file,
-                    cited_lines=_t_lines,
-                )
+            _emit_finding_telemetry(_t_finding, _t_idx, cycle_number)
 
         # review_cycle event: aggregate usage from review-cycle-usage.json
         _usage_path = os.path.join(_artifacts_dir, "review-cycle-usage.json")
@@ -2547,44 +2685,14 @@ def main() -> int:
                 _usage_output_tokens = _out_total
         except (OSError, json.JSONDecodeError, TypeError):
             pass
-        # review_cycle event: required PER_TYPE_FIELDS are cycle_number, tier,
-        # finding_count, critical_count, important_count, minor_count, pass,
-        # resolution_attempts, diff_hash. Compute counts from the verifier-
-        # filtered findings list; derive pass=True when no critical/important
-        # remain. Use the reviewed HEAD sha as diff_hash (stable per-cycle
-        # identifier; compute-diff-hash.sh produces an equivalent value in
-        # CI but is not on PATH here). resolution_attempts = cycle_number - 1
-        # (each prior cycle counts as one resolution attempt against the same
-        # diff). input/output tokens are additive-optional and only added when
-        # review-cycle-usage.json contributed numbers.
-        _t_critical = sum(
-            1 for f in _telemetry_findings if f.get("severity") == "critical"
+        _emit_review_cycle_telemetry(
+            _telemetry_findings,
+            cycle_number,
+            tier,
+            reviewed_sha,
+            usage_input_tokens=_usage_input_tokens,
+            usage_output_tokens=_usage_output_tokens,
         )
-        _t_important = sum(
-            1 for f in _telemetry_findings if f.get("severity") == "important"
-        )
-        _t_minor = sum(
-            1
-            for f in _telemetry_findings
-            if f.get("severity") in ("minor", "suggestion")
-        )
-        _cycle_kwargs: dict = {
-            "cycle": cycle_number,
-            "cycle_number": cycle_number,
-            "tier": tier,
-            "finding_count": len(_telemetry_findings),
-            "critical_count": _t_critical,
-            "important_count": _t_important,
-            "minor_count": _t_minor,
-            "pass": (_t_critical == 0 and _t_important == 0),
-            "resolution_attempts": max(0, cycle_number - 1),
-            "diff_hash": reviewed_sha,
-        }
-        if _usage_input_tokens is not None:
-            _cycle_kwargs["input_tokens"] = _usage_input_tokens
-        if _usage_output_tokens is not None:
-            _cycle_kwargs["output_tokens"] = _usage_output_tokens
-        _telemetry_emit("review_cycle", **_cycle_kwargs)
 
         # Step 8: write output
         # Stamp the cycle number so the NEXT cycle's workflow can read it back

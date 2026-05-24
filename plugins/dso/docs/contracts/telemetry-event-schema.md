@@ -231,6 +231,10 @@ Emitted once per review cycle to summarize the aggregate outcome of that cycle. 
 | `pass` | boolean | required | — | `true` if the cycle ended with no unresolved `critical` or `important` findings; `false` otherwise. |
 | `resolution_attempts` | integer | required | `0` | Number of autonomous resolution attempts made during this cycle. |
 | `diff_hash` | string | required | — | SHA-256 hash of the diff reviewed in this cycle; used for integrity correlation. |
+| `input_tokens` | integer | additive-optional | omitted | Aggregate input-token count for the cycle, sourced from `review-cycle-usage.json` when available. Omitted when usage data is unavailable. |
+| `output_tokens` | integer | additive-optional | omitted | Aggregate output-token count for the cycle, sourced from `review-cycle-usage.json` when available. Omitted when usage data is unavailable. |
+
+Additive-optional fields are permitted in the envelope without a schema bump (consumers must ignore unknown fields). The Lambda validator allows additional keys beyond the declared per-type set.
 
 **Worked example**:
 

@@ -43,6 +43,87 @@ except ImportError:  # pragma: no cover — wrapper not yet present during boots
 ARBITER_SCHEMA_VERSION = "1.0.0"
 
 
+# Orchestrator-side ruling_type → canonical arbiter_decision enum.
+# Used by the telemetry emit path so the arbiter_ruling event carries the
+# Lambda-schema-valid decision string (uphold / dismiss / downgrade).
+#   BLOCK → uphold   (the finding stands; resolution required)
+#   DEFER → dismiss  (deferred to a follow-up ticket; not blocking this cycle)
+#   DROP  → dismiss  (dropped without a ticket; finding rejected)
+# Module-level so the constant is allocated once, not per-ruling inside the
+# process_rulings loop.
+_RULING_TO_DECISION = {
+    "BLOCK": "uphold",
+    "DEFER": "dismiss",
+    "DROP": "dismiss",
+}
+
+
+def _emit_arbiter_ruling_telemetry(
+    ruling: dict,
+    finding: dict,
+    finding_idx: int,
+    cycle_num: int,
+    emit_fn=None,
+) -> None:
+    """Emit a single ``arbiter_ruling`` telemetry event.
+
+    Schema requires: finding_id, prior_finding_id, arbiter_decision (enum:
+    uphold/dismiss/downgrade), arbiter_rationale. ``prior_finding_id`` is
+    sourced from ``ruling["prior_finding_id"]`` when the arbiter tracked
+    cross-cycle lineage; otherwise it falls back to the current finding's id
+    (first-cycle rulings legitimately have no prior).
+
+    ``emit_fn`` is injectable for tests; defaults to the module-level
+    ``_telemetry_emit``.
+    """
+    if emit_fn is None:
+        emit_fn = _telemetry_emit
+    ruling_type = ruling.get("ruling", "")
+    arbiter_decision = _RULING_TO_DECISION.get(ruling_type, "dismiss")
+    finding_id = finding.get("finding_id", f"unknown-{cycle_num}-{finding_idx}")
+    prior_finding_id = ruling.get("prior_finding_id") or finding_id
+    emit_fn(
+        "arbiter_ruling",
+        link=f"dso-llm:{cycle_num}:{finding_idx}",
+        finding_id=finding_id,
+        prior_finding_id=prior_finding_id,
+        arbiter_decision=arbiter_decision,
+        arbiter_rationale=ruling.get("rationale", f"ruling_type={ruling_type}"),
+        cycle=cycle_num,
+    )
+
+
+def _emit_resolver_outcome_telemetry(
+    finding: dict,
+    finding_idx: int,
+    cycle_num: int,
+    emit_fn=None,
+) -> None:
+    """Emit a ``resolver_outcome`` event for a DEFER or DROP ruling.
+
+    Both DEFER (filed a follow-up ticket) and DROP (dropped without ticket)
+    map to ``resolution_action="defense"`` with ``accepted=False`` — the
+    finding was not converted into a code fix this cycle. Schema requires:
+    finding_id, resolution_action (enum: code_fix/defense/escalated),
+    resolution_cycle, accepted.
+
+    ``emit_fn`` is injectable for tests; defaults to the module-level
+    ``_telemetry_emit``.
+    """
+    if emit_fn is None:
+        emit_fn = _telemetry_emit
+    finding_id = finding.get("finding_id", f"unknown-{cycle_num}-{finding_idx}")
+    emit_fn(
+        "resolver_outcome",
+        link=f"dso-llm:{cycle_num}:{finding_idx}",
+        finding_id=finding_id,
+        resolution_action="defense",
+        resolution_cycle=cycle_num,
+        accepted=False,
+        cycle=cycle_num,
+    )
+
+
 def _finding_hash_for_dedup(finding: dict) -> str:
     """Stable finding hash for dedup - uses file + line_range + category.
 
@@ -470,31 +551,7 @@ def process_rulings(
         finding_hash = _finding_hash_for_dedup(finding)
 
         # Telemetry: emit arbiter_ruling for every ruling (fire-and-forget).
-        # Link to the corresponding review_finding event via dso-llm:<cycle>:<idx>
-        # key. Map the orchestrator-side ruling_type (BLOCK/DEFER/DROP) to the
-        # canonical arbiter_decision enum (uphold/dismiss/downgrade):
-        #   BLOCK → uphold   (the finding stands; resolution required)
-        #   DEFER → dismiss  (deferred to a follow-up ticket; not blocking this cycle)
-        #   DROP  → dismiss  (dropped without a ticket; finding rejected)
-        # The arbiter_rationale field carries the orchestrator's ruling label so
-        # downstream consumers can still distinguish DEFER vs DROP.
-        _RULING_TO_DECISION = {
-            "BLOCK": "uphold",
-            "DEFER": "dismiss",
-            "DROP": "dismiss",
-        }
-        _arbiter_decision = _RULING_TO_DECISION.get(ruling_type, "dismiss")
-        _finding_id = finding.get("finding_id", f"unknown-{cycle_num}-{finding_idx}")
-        _telem_key = f"dso-llm:{cycle_num}:{finding_idx}"
-        _telemetry_emit(
-            "arbiter_ruling",
-            link=_telem_key,
-            finding_id=_finding_id,
-            prior_finding_id=_finding_id,
-            arbiter_decision=_arbiter_decision,
-            arbiter_rationale=ruling.get("rationale", f"ruling_type={ruling_type}"),
-            cycle=cycle_num,
-        )
+        _emit_arbiter_ruling_telemetry(ruling, finding, finding_idx, cycle_num)
 
         if ruling_type == "BLOCK":
             result["block"].append(
@@ -518,33 +575,14 @@ def process_rulings(
                 if new_id:
                     result["defer_ticket_ids"].append(new_id)
             # Telemetry: emit resolver_outcome for DEFER rulings.
-            # Schema: finding_id, resolution_action (enum: code_fix/defense/escalated),
-            # resolution_cycle, accepted. DEFER files a follow-up ticket → "defense".
-            _telemetry_emit(
-                "resolver_outcome",
-                link=_telem_key,
-                finding_id=_finding_id,
-                resolution_action="defense",
-                resolution_cycle=cycle_num,
-                accepted=False,
-                cycle=cycle_num,
-            )
+            _emit_resolver_outcome_telemetry(finding, finding_idx, cycle_num)
         elif ruling_type == "DROP":
             drop_result = _write_drop_defense(
                 ruling, finding_hash, cycle_num, pr_number, repo_root
             )
             result["drop_defense_records"].append(drop_result)
             # Telemetry: emit resolver_outcome for DROP rulings.
-            # DROP is a defense action; the finding was rejected, not accepted.
-            _telemetry_emit(
-                "resolver_outcome",
-                link=_telem_key,
-                finding_id=_finding_id,
-                resolution_action="defense",
-                resolution_cycle=cycle_num,
-                accepted=False,
-                cycle=cycle_num,
-            )
+            _emit_resolver_outcome_telemetry(finding, finding_idx, cycle_num)
 
     # Sidecar: detect legacy + overwrite atomically with deterministic content.
     sidecar_path = os.path.join(artifacts_dir, "arbiter-rulings.json")

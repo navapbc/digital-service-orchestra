@@ -53,15 +53,18 @@ def _resolve_shim_path() -> str:
 
     Resolution order:
       1. CLAUDE_PLUGIN_ROOT env var + scripts/telemetry/telemetry-emit.sh
-      2. Relative to this file: 4 levels up to plugin root, then
-         scripts/telemetry/telemetry-emit.sh
+      2. Relative to this file: 3 ``.parent`` traversals from the file reach
+         the plugin root, then ``scripts/telemetry/telemetry-emit.sh``.
     """
     plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT", "")
     if plugin_root:
         return os.path.join(plugin_root, "scripts", "telemetry", "telemetry-emit.sh")
     # Derive from __file__: this file is at
-    #   <repo>/${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/telemetry_emit_wrapper.py
-    # 3 dirname levels up from this file's directory reaches the plugin root
+    #   <plugin-root>/scripts/dso_ci_review/telemetry_emit_wrapper.py
+    # so three .parent traversals from the file reach the plugin root:
+    #   .parent       → scripts/dso_ci_review/
+    #   .parent.parent → scripts/
+    #   .parent.parent.parent → <plugin-root>
     here = Path(__file__).resolve()
     plugin_root_derived = here.parent.parent.parent
     return str(plugin_root_derived / "scripts" / "telemetry" / "telemetry-emit.sh")
