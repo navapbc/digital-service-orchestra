@@ -91,6 +91,16 @@ fi
 
 **Downstream effect**: CLI_user-tagged bugs skip the intent-search gate in `/dso:fix-bug` Phase B Step 1, since user-reported bugs have known intent. Missing the tag causes unnecessary intent-search dispatch on every user-reported bug.
 
+## Parent Linkage Policy
+
+**Default**: file bugs at the top level (no `--parent`). A bug is `--parent <epic-id>` only when its resolution is required for the epic's success criteria — i.e., the epic's `## Closure Checks` cannot be verified until the bug is fixed.
+
+**Anti-pattern to avoid (bug 7f23-1a14)**: when filing a bug discovered *during* a sprint, debug-everything, or fix-bug session, the active epic ID is the most salient identifier in context, and the reflexive instinct is to pass `--parent <epic-id>` so the bug is "easy to find later." This is wrong: epic-children are work that belongs to the epic, not discoveries made while working on the epic. Sprint-tooling bugs, plugin-infrastructure bugs, lint/test failures unrelated to the epic, and any cross-cutting concerns are **top-level tickets** — they pollute the epic's child list and confuse preplanning's reconciliation phase, completion-verifier's epic closure, and ticket-CLI consumers (`deps`, `next-batch`, `list-descendants`).
+
+**Decision rule**: pass `--parent <epic-id>` only if you can name the epic's success criterion that the bug blocks. If you cannot, file without `--parent`.
+
+**Recovery**: if a bug has already been mis-parented to an unrelated epic, detach it with `.claude/scripts/dso ticket edit <bug-id> --parent=null` — the literal string `null` is the detach sentinel. Empty values (`--parent=`) are rejected to prevent accidental detach from a shell mishap.
+
 ## detected_by Field
 
 Every bug ticket must carry a `detected_by:<channel>` tag that records how the bug was found. The allowed values (must match the `ALLOWED` array in `${CLAUDE_PLUGIN_ROOT}/scripts/infer-detected-by.sh`) are:

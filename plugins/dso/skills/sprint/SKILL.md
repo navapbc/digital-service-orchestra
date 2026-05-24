@@ -76,6 +76,8 @@ Flow: P1 (Init) → Preplanning Gate
   P6 → [score<5] P7 (Remediation) → P3
 ```
 
+> **Filing bugs discovered during the sprint**: tooling, infrastructure, or otherwise-unrelated bugs found while orchestrating an epic are **top-level tickets**, not children of the epic under sprint. Pass `--parent <epic-id>` only when the bug's resolution is required for one of the epic's Success Criteria. See `${CLAUDE_PLUGIN_ROOT}/skills/create-bug/SKILL.md` § "Parent Linkage Policy" (bug 7f23-1a14).
+
 ---
 
 ## Phase A: Initialization & Primary Ticket Selection (/dso:sprint)
@@ -2248,7 +2250,7 @@ See: `${CLAUDE_PLUGIN_ROOT}/skills/shared/workflows/remediation-loop-protocol.md
 After each cycle's re-dispatch and verifier run, atomically append a `cycles[]` entry to the verifier-cycle artifact using the writer:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/append_review_cycle.py \
+.claude/scripts/dso append_review_cycle.py \
   --artifact <path-to-verifier-cycle-artifact-for-story> \
   --n <cycle-number> \
   --draft-hash <sha256 of planner output> \

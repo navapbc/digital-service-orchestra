@@ -121,8 +121,16 @@ for _i in "${!_parsed_pairs[@]}"; do
         parent=*)
             _new_parent_id="${_pair#parent=}"
             if [ -z "$_new_parent_id" ]; then
-                echo "Error: --parent requires a non-empty value" >&2
+                echo "Error: --parent requires a non-empty value (use --parent=null to detach)" >&2
                 exit 1
+            fi
+            # Detach sentinel (bug 7f23-1a14): --parent=null clears parent_id.
+            # The snapshot rebuilder normalizes empty parent_id to null, so we
+            # write an empty string into the EDIT event and skip all validation
+            # checks below (no parent to verify, no cycle to walk).
+            if [ "$_new_parent_id" = "null" ]; then
+                _parsed_pairs[_i]="parent_id="
+                continue
             fi
             if ! _new_parent_id=$(TICKETS_TRACKER_DIR="$TRACKER_DIR" resolve_ticket_id "$_new_parent_id"); then
                 exit 1
@@ -178,7 +186,7 @@ for _i in "${!_parsed_pairs[@]}"; do
                 _walk_id="$_walk_parent"
                 _walk_count=$((_walk_count + 1))
             done
-            _parsed_pairs[$_i]="parent_id=$_new_parent_id"
+            _parsed_pairs[_i]="parent_id=$_new_parent_id"
             ;;
     esac
 done

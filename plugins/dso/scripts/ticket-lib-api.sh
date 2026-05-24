@@ -1747,8 +1747,17 @@ ticket_edit() {
                 parent=*)
                     _new_parent_id_input="${_pair#parent=}"
                     if [ -z "$_new_parent_id_input" ]; then
-                        echo "Error: --parent requires a non-empty value" >&2
+                        echo "Error: --parent requires a non-empty value (use --parent=null to detach)" >&2
                         return 1
+                    fi
+                    # Detach sentinel (bug 7f23-1a14): --parent=null clears
+                    # parent_id. The snapshot rebuilder's jq logic normalizes
+                    # an empty parent_id field to null, so we write "" into the
+                    # EDIT event and skip the validation cascade below (no
+                    # parent to resolve, no status check, no ancestor walk).
+                    if [ "$_new_parent_id_input" = "null" ]; then
+                        _parsed_pairs[_i]="parent_id="
+                        continue
                     fi
                     if ! _new_parent_id="$(_ticketlib_resolve_id "$_new_parent_id_input" "$TRACKER_DIR" 2>/dev/null)"; then
                         echo "Error: parent ticket '$_new_parent_id_input' does not exist" >&2
@@ -1799,7 +1808,7 @@ ticket_edit() {
                         _walk_id="$_walk_parent"
                         _walk_count=$((_walk_count + 1))
                     done
-                    _parsed_pairs[$_i]="parent_id=$_new_parent_id"
+                    _parsed_pairs[_i]="parent_id=$_new_parent_id"
                     ;;
             esac
         done
