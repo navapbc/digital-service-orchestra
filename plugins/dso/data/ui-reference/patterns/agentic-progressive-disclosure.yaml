@@ -1,0 +1,97 @@
+id: agentic-progressive-disclosure-pattern
+title: "Progressive Disclosure of AI Agent Capabilities in Government Service Interfaces"
+domain:
+  - patterns
+action:
+  - apply
+  - design
+compliance:
+  - plain-language
+  - 21st-Century-IDEA
+  - EO-14058
+severity: major
+story_type:
+  - pattern
+coverage: detail
+source: "Nielsen Norman Group: Progressive Disclosure; USWDS Design System; 18F UX Guide"
+license: public-domain
+summary: |
+  Progressive disclosure for AI agents means revealing capabilities, actions,
+  and complexity incrementally — showing only what the user needs at each step
+  and expanding detail on demand. In government caseworker tools, this prevents
+  cognitive overload when introducing AI assistance, builds user trust through
+  graduated exposure to agent capabilities, and ensures caseworkers are never
+  surprised by agent scope they did not expect.
+detail: |
+  ### Progressive Disclosure of AI Agent Capabilities
+
+  Government caseworkers and benefit applicants range from highly technical to
+  low digital-literacy. AI agents must not assume familiarity with agentic
+  concepts. Progressive disclosure structures the introduction and ongoing
+  presentation of AI capabilities to match user readiness.
+
+  #### Capability Introduction Sequence
+
+  When a user first encounters an AI agent feature, reveal capabilities in
+  stages:
+
+  **Stage 1 — Simple assistance** (first session)
+  Present the agent as a single-purpose helper with one clear action.
+  - "I can look up eligibility rules for you. Want me to check?"
+  - Show only the result, not the steps taken.
+  - Offer a "How did I get this?" link for users who want more detail.
+
+  **Do**: "Based on what you've entered, this household may qualify for SNAP.
+  [View eligibility details] [How did I determine this?]"
+  **Don't**: Lead with a full capability inventory: "I can query 12 databases,
+  run 4 rule engines, and generate 3 types of notices — what would you like?"
+
+  **Stage 2 — Multi-step assistance** (after user has built trust)
+  After the user has successfully used Stage 1 assistance, introduce
+  multi-step workflows.
+  - Announce the expanded capability: "I can now help you complete the full
+    eligibility determination — not just look up rules."
+  - Show a step preview before the agent starts: "I'll do 3 things:
+    1. Verify income, 2. Check household composition, 3. Calculate benefit
+    amount. You can stop me after any step."
+
+  **Do**: Show a step preview card the first time a multi-step flow is
+  initiated, with a "Proceed" button that requires explicit user confirmation.
+  **Don't**: Start a multi-step agent run without first showing the user what
+  steps will be taken.
+
+  **Stage 3 — Full agentic assistance** (power users / experienced caseworkers)
+  Experienced users can access advanced controls: custom step selection,
+  parallel task execution, background processing notifications.
+  - Gate advanced controls behind an "Advanced options" disclosure.
+  - Default to Stage 1 or Stage 2 behavior for all new sessions.
+
+  #### Detail Tiers in Agent Output
+
+  Every agent output should have three disclosure tiers:
+
+  **Summary** (default visible): One-sentence conclusion.
+  "This applicant appears eligible for $847/month in SNAP benefits."
+
+  **Explanation** (one click to expand): Key factors and sources.
+  "Based on: Household size 3, Monthly income $1,840, CA FY2026 thresholds."
+
+  **Full trace** (two clicks to expand): Complete agent reasoning and tool log.
+  "Step 1: Queried CA SNAP thresholds API — returned threshold $2,311/month
+  for household of 3. Step 2: Retrieved income from SSA record dated
+  2025-04-10 — $1,840/month. Step 3: Applied 7 CFR 273.10(e)(1) — eligible."
+
+  **Do**: Default to showing only the summary. Provide labeled disclosure
+  controls at each tier.
+  **Don't**: Show the full trace by default for all users, or collapse all
+  output so the summary is hidden until the user expands it.
+
+  #### Onboarding and Capability Discovery
+
+  When new agent capabilities become available:
+  - Surface a contextual callout (not a full-page takeover) at the relevant
+    workflow moment: "New: I can now draft the determination notice for you."
+  - Require one explicit user action to enable the new capability.
+  - Provide a plain-language description of what the capability does and does
+    not do.
+  - Never auto-enable new capabilities without user acknowledgment.

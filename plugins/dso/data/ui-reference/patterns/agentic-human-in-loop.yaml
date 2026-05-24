@@ -1,0 +1,93 @@
+id: agentic-human-in-loop-pattern
+title: "Human-in-the-Loop Interaction Patterns for AI Government Caseworker Tools"
+domain:
+  - patterns
+action:
+  - apply
+  - design
+compliance:
+  - plain-language
+  - 21st-Century-IDEA
+  - OMB-A11-280
+  - WCAG-2.1-AA
+severity: critical
+story_type:
+  - pattern
+coverage: detail
+source: "NIST AI RMF (NIST AI 100-1); Executive Order 14110 on Safe and Trustworthy AI; USDS AI Strategy 2023"
+license: public-domain
+summary: |
+  Human-in-the-loop (HITL) interaction patterns define when and how an AI
+  agent must pause its autonomous operation and request explicit human review
+  before proceeding. In government caseworker tools, HITL gates are mandatory
+  for high-stakes, irreversible, or low-confidence decisions. Clear handoff
+  UI prevents caseworkers from either over-trusting or under-utilizing AI
+  assistance, and ensures accountability remains with human decision-makers.
+detail: |
+  ### Human-in-the-Loop Interaction Pattern
+
+  Government AI caseworker tools must embed decision checkpoints where human
+  review is required before the agent takes consequential action. These
+  checkpoints prevent automated errors from propagating into benefit
+  determinations, legal filings, or communications to recipients.
+
+  #### When to Trigger a HITL Gate
+
+  The agent MUST pause and request human confirmation when:
+  - **Low confidence**: Agent confidence falls below the configured threshold
+    (e.g., < 80% match on identity verification)
+  - **High-stakes action**: The action is irreversible or has legal consequence
+    (e.g., denying a benefit, initiating a fraud referral, locking an account)
+  - **Conflicting data**: Two or more authoritative data sources disagree
+  - **Out-of-distribution input**: The request falls outside the agent's
+    trained scope or available tools
+  - **Explicit policy requirement**: Regulation requires human sign-off
+    (e.g., 7 CFR 273.15 requires caseworker signature on fair hearing notices)
+
+  #### HITL Gate UI Pattern
+
+  When a gate triggers, the agent must:
+  1. **Stop all autonomous action** — do not proceed speculatively
+  2. **Surface a review card** showing:
+     - What the agent was trying to do
+     - Why it paused (specific uncertainty or policy trigger)
+     - The data it has so far
+     - Two clear options: "Confirm and continue" / "Review and edit"
+  3. **Preserve state** — allow the caseworker to continue from the gate
+     without restarting the session
+
+  **Do**: Display a prominent review card: "I found two addresses for this
+  applicant and I'm not certain which is current. Please confirm before I
+  send the determination letter. [Show addresses] [Confirm: 123 Main St]
+  [Edit address]"
+  **Don't**: Silently pick one address and proceed, or display only a
+  generic error message without context.
+
+  #### Caseworker Review Interface Requirements
+
+  The HITL review card must:
+  - Show the full context of the decision (not just the uncertainty)
+  - Present the agent's recommendation with confidence score
+  - Allow the caseworker to override any field before confirming
+  - Log the caseworker's decision and timestamp in the audit trail
+  - Not time out or auto-confirm without explicit human input
+
+  **Do**: "The agent recommends approving this SNAP application. Confidence:
+  87%. Review the flagged field: Household income. [Override income value]
+  [Approve as-is] [Request more information]"
+  **Don't**: Auto-approve after a 60-second timeout if the caseworker does
+  not respond.
+
+  #### Graceful Escalation
+
+  When HITL gates are frequently triggered for the same scenario, the system
+  should surface a pattern alert to administrators: "This scenario triggered
+  17 human reviews this week — consider adding a rule or retraining the
+  agent." This prevents HITL fatigue from desensitizing reviewers.
+
+  #### Accessibility Considerations
+
+  - HITL gate cards must be focusable and keyboard-navigable
+  - Confirm/override buttons must have ARIA labels describing the consequence
+  - Time-sensitive HITL gates must not impose unreasonable time pressure
+    on caseworkers with disabilities

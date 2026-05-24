@@ -1,0 +1,87 @@
+id: agentic-transparency-pattern
+title: "Multi-Level Transparency for AI Agent Actions in Government Services"
+domain:
+  - patterns
+action:
+  - apply
+  - design
+compliance:
+  - plain-language
+  - 21st-Century-IDEA
+  - OMB-A11-280
+severity: critical
+story_type:
+  - pattern
+coverage: detail
+source: "USDS Digital Service Playbook; NIST AI RMF (NIST AI 100-1); GOV.UK AI Transparency Standards"
+license: public-domain
+summary: |
+  Multi-level transparency gives users clear, plain-language visibility into
+  what an AI agent is doing, why it is doing it, and how confident it is.
+  Government AI caseworker tools must communicate uncertainty and reasoning at
+  three tiers: status indicators (what is happening now), tool call logs (what
+  steps the agent took), and data source labels (which information was used).
+  Omitting transparency at any tier erodes trust and prevents error correction.
+detail: |
+  ### Multi-Level Transparency Pattern
+
+  AI agents in government caseworker tools operate across complex data sources
+  and multi-step reasoning chains. Users — including caseworkers and benefit
+  recipients — must understand agent actions to catch errors, maintain
+  accountability, and preserve trust in high-stakes decisions.
+
+  #### Tier 1: Status Indicators (Immediate Feedback)
+
+  Display a real-time status indicator while the agent is working. The
+  indicator must convey:
+  - **Action type**: "Retrieving eligibility rules", "Verifying identity",
+    "Calculating benefit amount"
+  - **Progress state**: active (spinner), paused (awaiting input), complete
+    (checkmark), or failed (warning icon)
+  - **Estimated duration**: "This usually takes 5–10 seconds"
+
+  **Do**: Show a labeled status message next to a spinner: "Checking SNAP
+  eligibility rules from CFR Title 7 — usually takes 8 seconds."
+  **Don't**: Show only a generic loading spinner with no context about what
+  the agent is doing.
+
+  #### Tier 2: Tool Call Log (Auditable Action Trail)
+
+  Provide a collapsible audit log showing each step the agent took. Log
+  entries must include:
+  - Tool or API called (e.g., "Queried benefits-rules-api v2")
+  - Input parameters in plain language (e.g., "Household size: 3, State: CA")
+  - Outcome (e.g., "Returned 4 eligibility thresholds")
+  - Timestamp
+
+  **Do**: Surface a "View agent steps" disclosure panel after the agent
+  completes, listing each tool call with plain-language labels.
+  **Don't**: Hide all tool calls inside system logs inaccessible to users
+  or caseworkers reviewing the decision.
+
+  #### Tier 3: Data Source Labels (Provenance)
+
+  Every data point surfaced by the agent must be labeled with its source:
+  - Regulation or policy reference (e.g., "Per 7 CFR 273.2(f)(1)(ii)")
+  - Database or API (e.g., "From SSA earnings record dated 2025-03-01")
+  - Confidence level (e.g., "High confidence — exact match in record")
+
+  **Do**: Display inline citations next to each fact: "Monthly income: $1,840
+  [SSA record, verified 2025-04-10]."
+  **Don't**: Present agent conclusions as unattributed facts with no source
+  reference.
+
+  #### Uncertainty Communication
+
+  When the agent is uncertain, surface that uncertainty explicitly:
+  - Use plain language: "I'm not certain about this — please verify with a
+    caseworker."
+  - Quantify where possible: "This matches 3 of 5 required criteria."
+  - Offer a fallback: "I couldn't confirm this automatically. Here's the
+    manual verification path."
+
+  #### Accessibility Considerations
+
+  - Status indicators must not rely on color alone (use icon + label)
+  - Audit logs must be keyboard-navigable and screen-reader-compatible
+  - Confidence language must be written at a 6th-grade reading level or below

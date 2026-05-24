@@ -1,0 +1,95 @@
+id: agentic-intervention-controls-pattern
+title: "Persistent Intervention Controls: User Overrides for AI Agent Behavior"
+domain:
+  - patterns
+action:
+  - apply
+  - design
+  - verify
+compliance:
+  - plain-language
+  - 21st-Century-IDEA
+  - EO-14058
+severity: critical
+story_type:
+  - pattern
+coverage: detail
+source: "Executive Order 14058 on Transforming Federal Customer Experience; USDS Digital Service Playbook; NIST AI RMF"
+license: public-domain
+summary: |
+  Persistent intervention controls give users and caseworkers the ability to
+  pause, override, or redirect an AI agent at any point during its operation.
+  These controls must be always-visible, clearly labeled, and immediately
+  effective — not buried in settings menus or disabled during agent runs.
+  Government AI tools without persistent intervention controls violate user
+  autonomy and create accountability gaps when agents make errors.
+detail: |
+  ### Persistent Intervention Controls Pattern
+
+  AI agents in government caseworker tools operate across extended workflows.
+  Users must be able to intervene at any moment — not just at predefined
+  checkpoints. Persistent controls must be available in the UI surface at all
+  times while an agent is active.
+
+  #### Required Control Surface
+
+  Every AI agent session must expose three persistent controls:
+
+  **1. Pause** — Halts agent operation and preserves current state.
+  - Button label: "Pause agent"
+  - Behavior: Agent stops at the next safe checkpoint; in-flight tool calls
+    complete but no new ones start
+  - State: All collected data is preserved; session can be resumed
+  - Use case: Caseworker needs to consult a supervisor before the agent
+    proceeds to the next step
+
+  **Do**: Show a "Pause agent" button in the persistent header or sidebar
+  throughout the session. Highlight it when the agent is actively running.
+  **Don't**: Hide the pause control in a hamburger menu or disable it while
+  an agent step is in progress.
+
+  **2. Override** — Allows the user to change an agent's output or decision
+  before it is acted upon.
+  - Inline edit controls adjacent to each agent output field
+  - "Override" clearly labeled (not buried as "Edit")
+  - Overrides logged in the audit trail with reason field
+  - Use case: Agent misidentified an income source; caseworker corrects it
+
+  **Do**: Display an "Override" link next to each agent-generated value:
+  "Household income: $1,840/month [Override]"
+  **Don't**: Lock agent outputs and require the caseworker to restart the
+  entire session to correct a single field.
+
+  **3. Stop and redirect** — Terminates the agent run and returns the user
+  to a manual workflow path.
+  - Button label: "Stop agent — do this manually"
+  - Behavior: Agent session ends; data collected so far is presented in an
+    editable form for manual completion
+  - Use case: Agent is not equipped to handle this edge case; caseworker
+    takes over
+
+  **Do**: Offer a "Stop agent" option that exports the collected data into
+  a standard case form so the caseworker doesn't lose the work.
+  **Don't**: Show only a "Cancel" button that discards all agent-collected
+  data with no export or recovery path.
+
+  #### Control Availability Rules
+
+  Persistent controls must:
+  - Be visible at all times while an agent session is active
+  - Not be disabled or grayed out during active agent operations
+  - Function correctly on mobile and tablet form factors
+  - Be accessible via keyboard shortcut (e.g., Escape key = pause)
+  - Remain available even when the agent is in a loading state
+
+  #### Audit and Accountability
+
+  All intervention events must be logged:
+  - Who triggered the intervention (caseworker ID)
+  - When (timestamp)
+  - What the agent was doing at the time
+  - What the user did (paused, overrode field X, stopped session)
+  - For overrides: original agent value and user-supplied replacement
+
+  This log is required for compliance audits and for detecting systematic
+  agent errors that require model retraining or rule updates.
