@@ -113,11 +113,21 @@ if ! find "$TRACKER_DIR/$ticket_id" -maxdepth 1 \( -name '*-CREATE.json' -o -nam
     exit 1
 fi
 
-# ── --parent validation (bug 3f93-1b3d) ──────────────────────────────────────
+# ── Field-level guards (bug 3f93-1b3d parent; bug e78f-9f79 description) ────
 # Mirror of the lib-api ticket_edit logic for the DSO_TICKET_LEGACY=1 path.
 for _i in "${!_parsed_pairs[@]}"; do
     _pair="${_parsed_pairs[$_i]}"
     case "$_pair" in
+        description=*)
+            # Reject empty --description= to prevent silent clobber of multi-KB
+            # structured descriptions when a heredoc/$(cat ...) substitution
+            # collapses to an empty string (bug e78f-9f79).
+            _new_desc="${_pair#description=}"
+            if [ -z "$_new_desc" ]; then
+                echo "Error: --description requires a non-empty value (empty values silently clobber prior content; bug e78f-9f79)" >&2
+                exit 1
+            fi
+            ;;
         parent=*)
             _new_parent_id="${_pair#parent=}"
             if [ -z "$_new_parent_id" ]; then

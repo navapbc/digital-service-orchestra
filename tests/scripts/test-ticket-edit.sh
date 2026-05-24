@@ -589,4 +589,66 @@ test_ticket_edit_parent_empty_still_rejects() {
 }
 test_ticket_edit_parent_empty_still_rejects
 
+# ── Test 17: ticket edit --description= (empty) rejects (bug e78f-9f79) ──────
+# Without this guard, `--description=$(cat empty-file)` silently overwrites a
+# multi-kilobyte structured description with an empty string. The CLI must
+# refuse empty values; clearing requires an explicit confirmation path.
+echo ""
+echo "Test 17: ticket edit --description= (empty) rejects (RED before e78f fix)"
+test_ticket_edit_description_empty_rejects() {
+    local repo
+    repo=$(_make_test_repo)
+
+    local tkt
+    tkt=$(_create_ticket "$repo" "empty-description reject test")
+    if [ -z "$tkt" ]; then
+        assert_eq "created ticket" "non-empty" "empty"
+        return
+    fi
+
+    # First, set a real description so we can verify it isn't clobbered
+    (cd "$repo" && bash "$TICKET_SCRIPT" edit "$tkt" --description="Original content that must be preserved" >/dev/null 2>&1) || true
+    local original_desc
+    original_desc=$(_get_ticket_field "$repo" "$tkt" "description")
+    if [ "$original_desc" != "Original content that must be preserved" ]; then
+        assert_eq "precondition: original description was set" "Original content that must be preserved" "$original_desc"
+        return
+    fi
+
+    # Attempt to set empty description
+    local exit_code=0
+    (cd "$repo" && bash "$TICKET_SCRIPT" edit "$tkt" --description= >/dev/null 2>&1) || exit_code=$?
+    assert_ne "ticket edit --description= (empty) exits nonzero" "0" "$exit_code"
+
+    # Verify the original description is intact (no silent clobber)
+    local after_desc
+    after_desc=$(_get_ticket_field "$repo" "$tkt" "description")
+    assert_eq "description preserved on rejected empty edit" "Original content that must be preserved" "$after_desc"
+}
+test_ticket_edit_description_empty_rejects
+
+# ── Test 18: ticket edit --description=<non-empty> still works ──────────────
+echo ""
+echo "Test 18: ticket edit --description=<non-empty> still works (regression guard)"
+test_ticket_edit_description_nonempty_still_works() {
+    local repo
+    repo=$(_make_test_repo)
+
+    local tkt
+    tkt=$(_create_ticket "$repo" "non-empty desc edit test")
+    if [ -z "$tkt" ]; then
+        assert_eq "created ticket" "non-empty" "empty"
+        return
+    fi
+
+    local exit_code=0
+    (cd "$repo" && bash "$TICKET_SCRIPT" edit "$tkt" --description="New description body" >/dev/null 2>&1) || exit_code=$?
+    assert_eq "ticket edit --description=<non-empty> exits 0" "0" "$exit_code"
+
+    local after
+    after=$(_get_ticket_field "$repo" "$tkt" "description")
+    assert_eq "description set correctly" "New description body" "$after"
+}
+test_ticket_edit_description_nonempty_still_works
+
 print_summary

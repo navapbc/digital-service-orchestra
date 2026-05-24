@@ -1734,16 +1734,28 @@ ticket_edit() {
             return 1
         fi
 
-        # --parent validation (bug 3f93-1b3d):
-        #   1. resolve new parent ID (accept short IDs / aliases)
-        #   2. verify new parent ticket exists
-        #   3. refuse self-parent
-        #   4. refuse ancestor cycles (would-be parent has ticket_id as ancestor)
+        # Field-level guards (bug 3f93-1b3d parent; bug e78f-9f79 description):
+        #   description: reject empty value to prevent silent clobber
+        #   parent:
+        #     1. resolve new parent ID (accept short IDs / aliases)
+        #     2. verify new parent ticket exists
+        #     3. refuse self-parent
+        #     4. refuse ancestor cycles (would-be parent has ticket_id as ancestor)
         # Replace the "parent=…" pair with "parent_id=<resolved>" before delegation.
-        local _i _pair _new_parent_id_input _new_parent_id
+        local _i _pair _new_parent_id_input _new_parent_id _new_desc
         for _i in "${!_parsed_pairs[@]}"; do
-            _pair="${_parsed_pairs[$_i]}"
+            _pair="${_parsed_pairs[_i]}"
             case "$_pair" in
+                description=*)
+                    # Reject empty --description= to prevent silent clobber of
+                    # multi-KB structured descriptions when a heredoc/$(cat ...)
+                    # substitution collapses to an empty string (bug e78f-9f79).
+                    _new_desc="${_pair#description=}"
+                    if [ -z "$_new_desc" ]; then
+                        echo "Error: --description requires a non-empty value (empty values silently clobber prior content; bug e78f-9f79)" >&2
+                        return 1
+                    fi
+                    ;;
                 parent=*)
                     _new_parent_id_input="${_pair#parent=}"
                     if [ -z "$_new_parent_id_input" ]; then
