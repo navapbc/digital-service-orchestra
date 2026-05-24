@@ -1,0 +1,49 @@
+# Canonical domain tag mapping for government UX anti-patterns:
+#   auth       — session/authentication patterns (login, MFA, session management)
+#   forms      — form-related patterns (validation, errors, input design)
+#   navigation — navigation and wayfinding patterns
+#   visual     — visual/display patterns (color, typography, layout)
+---
+id: ap-auto-advancing-form-steps
+rule_id: ap-013
+title: "Anti-pattern: Auto-Advancing Multi-Step Forms"
+domain:
+  - forms
+component: []
+action:
+  - avoid
+compliance:
+  - WCAG-3.2.2
+  - WCAG-2.1
+severity: major
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Forms that automatically advance to the next step without explicit user action disorient screen reader users and users with cognitive disabilities, violating WCAG 3.2.2 (On Input) which requires user control over page changes.
+
+### Detail
+Auto-advancing form patterns (common in onboarding flows and multi-step wizards) trigger unexpected page or context changes that confuse users who are navigating by keyboard or screen reader, or who are distracted or have cognitive disabilities. Government forms often contain critical data entry; unexpected advances can result in skipped fields or incorrect submissions.
+
+Why this is harmful:
+- Screen readers announce new context only when focus moves explicitly — auto-advance can cause confusion about where the user is in the form
+- Users with cognitive disabilities may not notice the transition and become lost
+- WCAG 3.2.2 prohibits context changes caused by input without explicit user initiation
+- Auto-advance removes user agency over their own pace through a complex form
+- Users may not notice they've moved to a new step and not realize they need to scroll up
+
+Real-world examples:
+- SSN entry forms that auto-advance after entering all digits, moving the user unexpectedly
+- Date entry fields that auto-advance from month to day to year field, skipping over errors
+
+What to do instead:
+- Always require an explicit user action (button click, Enter key) to advance
+- Provide clear "Next" and "Previous" buttons in a consistent location
+- Use a progress indicator showing current step
+- Allow users to navigate back to review and edit previous steps
+
+### Implementation
+Remove all auto-advance triggers from multi-step forms. Each step must end with an explicit "Continue" or "Next" button. Use USWDS Step Indicator component to show progress. Ensure focus is managed on step transitions — move focus to the top of the new step's content area or the step heading.

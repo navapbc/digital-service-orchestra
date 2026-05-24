@@ -1,0 +1,80 @@
+id: gov-benefit-flows-snap-lifecycle
+title: "SNAP Lifecycle Policy Context: Application, Verification, Eligibility, Recertification, and Reporting"
+domain:
+  - gov-benefit-flows
+action:
+  - design
+  - apply
+  - implement
+compliance:
+  - 21st-Century-IDEA
+  - plain-language
+  - EO-14058
+  - OMB-A11-280
+severity: major
+story_type:
+  - pattern
+coverage: summary
+source: "USDA FNS SNAP Policy (fns.usda.gov/snap); Benefits.gov; Center on Budget and Policy Priorities SNAP Guide"
+license: public-domain
+summary: |
+  The Supplemental Nutrition Assistance Program (SNAP) lifecycle consists of
+  five major stages that drive the digital service touchpoints: initial
+  application, identity and income verification, eligibility determination,
+  recertification at the end of the benefit period, and ongoing change
+  reporting. Digital services must support each stage with distinct flows
+  because the user's context, document requirements, and urgency differ
+  dramatically across stages. Applicants in acute food insecurity require
+  expedited processing flows (7-day statutory deadline).
+detail: |
+  ### Stage 1: Application
+
+  - Household composition and contact information
+  - Immigration status (gated questions; only ask what is required by law)
+  - Gross income from all sources (employment, self-employment, transfers)
+  - Allowable deductions (shelter, utilities, dependent care, medical for elderly/disabled)
+  - Application digital signature and fraud attestation
+  - Expedited service screening (gross income < $150/month or assets < $100, or
+    combined income and assets < monthly rent/mortgage — 7-day processing)
+
+  ### Stage 2: Verification
+
+  - Required documents: proof of identity, residency, income, household composition
+  - 30-day window to submit verifications (10-day expedited)
+  - Interview requirement (phone or in-person) for most states
+  - Good cause policy: delay clock if agency fails to schedule interview timely
+
+  ### Stage 3: Eligibility Determination
+
+  - Net income test: ≤ 100% FPL after deductions
+  - Gross income test: ≤ 130% FPL (with exceptions for elderly/disabled households)
+  - Asset test: varies by state (categorical eligibility waivers common)
+  - Benefit calculation: 30% of net income subtracted from maximum allotment
+  - Adverse action notice: 10 days before changes or denials
+
+  ### Stage 4: Recertification
+
+  - Certification periods: 6 months (most households), 12 months (elderly/disabled),
+    24 months (elderly/disabled with fixed income in some states)
+  - Notice due 30 days before expiration
+  - Simplified Reporting households: report changes only at recertification
+    (not during certification period, except when income exceeds gross limit)
+  - No break in benefits if recertification submitted and approved before expiration
+
+  ### Stage 5: Change Reporting
+
+  - Mandatory reports within 10 days: income exceeds gross limit, household
+    member leaves, address change
+  - Voluntary reports: other changes beneficial to household
+  - Change-reporting flow is a distinct shorter flow from the full application
+
+  ### Design Implications
+
+  - Distinguish application, recertification, and change-reporting as separate
+    entry points with appropriate context-setting introductions
+  - Pre-populate known household data at recertification to reduce re-entry burden
+  - Expedited service applicants need a fast path: screen early, surface the
+    expedited path prominently if the household qualifies
+rule_id: GOV-BENEFIT-009
+prior_art: "https://www.fns.usda.gov/snap/eligibility"
+precedence: 1

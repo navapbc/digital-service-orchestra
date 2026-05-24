@@ -1,0 +1,48 @@
+# Canonical domain tag mapping for government UX anti-patterns:
+#   auth       — session/authentication patterns (login, MFA, session management)
+#   forms      — form-related patterns (validation, errors, input design)
+#   navigation — navigation and wayfinding patterns
+#   visual     — visual/display patterns (color, typography, layout)
+---
+id: ap-color-only-status-indicators
+rule_id: ap-026
+title: "Anti-pattern: Color-Only Status Indicators"
+domain:
+  - visual
+component: []
+action:
+  - avoid
+compliance:
+  - WCAG-1.4.1
+  - Section-508
+severity: major
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Using only red/green color to indicate form validation errors, application status, or system state excludes users with color vision deficiency and fails WCAG 1.4.1 (Use of Color).
+
+### Detail
+Approximately 8% of males and 0.5% of females have color vision deficiency. For them, red and green — the standard colors for error/success states — are indistinguishable. Government forms and status dashboards that rely solely on color to communicate state create a barrier for these users and anyone in a poor visual environment.
+
+Why this is harmful:
+- Red-green colorblind users cannot distinguish error from success states
+- Creates application failures when required field errors are color-indicated only
+- Particularly harmful in benefits status dashboards where color encodes decision outcomes
+- Violates WCAG 1.4.1 (Use of Color) — color must not be the sole visual means of conveying information
+
+Real-world examples:
+- Benefits status portals using red/green dots to indicate application status without text labels
+- Form validation showing red borders only without text error messages
+
+What to do instead:
+- Always combine color with a second indicator: icon + color, text + color
+- Use descriptive error messages in text, not just colored borders
+- For status indicators, use text labels ("Approved," "Pending," "Denied") alongside any color coding
+- Test UI with color vision simulators (Chrome DevTools accessibility tab)
+
+### Implementation
+Add icon (checkmark for success, X or exclamation for error) alongside color indicators. Include descriptive text status in addition to any color coding. For form validation, always display an error message in text, not just a red border. Use USWDS Alert component which includes icon + color + text.

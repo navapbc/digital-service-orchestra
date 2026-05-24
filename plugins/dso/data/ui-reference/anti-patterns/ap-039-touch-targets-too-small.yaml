@@ -1,0 +1,48 @@
+# Canonical domain tag mapping for government UX anti-patterns:
+#   auth       — session/authentication patterns (login, MFA, session management)
+#   forms      — form-related patterns (validation, errors, input design)
+#   navigation — navigation and wayfinding patterns
+#   visual     — visual/display patterns (color, typography, layout)
+---
+id: ap-touch-targets-too-small
+rule_id: ap-039
+title: "Anti-pattern: Touch Targets Too Small"
+domain:
+  - visual
+component: []
+action:
+  - avoid
+compliance:
+  - WCAG-2.5.8
+  - Section-508
+severity: major
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Interactive elements smaller than 44x44px create significant barriers for users with motor impairments, older adults, and anyone using government services on mobile devices.
+
+### Detail
+Government services disproportionately serve older adults, people with disabilities, and users in stressful situations. All of these users benefit from larger touch targets. WCAG 2.5.8 requires a minimum target size of 24x24px (AA), while Apple and Google guidelines recommend 44x44px for optimal usability.
+
+Why this is harmful:
+- Users with tremors, arthritis, or motor disabilities miss small targets and trigger wrong elements
+- Older adults with reduced fine motor control struggle with small targets
+- On mobile, closely-spaced small targets result in frequent mis-taps
+- WCAG 2.5.8 requires 24x24px minimum (AA), USWDS recommends 44x44px for interactive elements
+
+Real-world examples:
+- Benefits portal navigation with small text links on mobile requiring pixel-perfect tapping
+- Form checkboxes sized to the 16x16px checkbox without adequate surrounding clickable area
+
+What to do instead:
+- Set minimum touch target size to 44x44px for all interactive elements
+- Use padding (not just width/height) to increase the clickable area beyond the visible element
+- For icon-only buttons, ensure the button element has adequate size even if the icon is smaller
+- Use USWDS components which meet touch target size requirements
+
+### Implementation
+Add `min-height: 44px; min-width: 44px` to all interactive elements. For inline links within text, consider increasing line-height and padding to improve tap accuracy. Test on a real mobile device. Add a CSS lint rule to flag interactive elements below 44px.

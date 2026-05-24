@@ -1,0 +1,47 @@
+# Canonical domain tag mapping for government UX anti-patterns:
+#   auth       — session/authentication patterns (login, MFA, session management)
+#   forms      — form-related patterns (validation, errors, input design)
+#   navigation — navigation and wayfinding patterns
+#   visual     — visual/display patterns (color, typography, layout)
+---
+id: ap-horizontal-scrolling-mobile
+rule_id: ap-038
+title: "Anti-pattern: Horizontal Scrolling on Mobile"
+domain:
+  - visual
+component: []
+action:
+  - avoid
+compliance:
+  - WCAG-1.4.10
+severity: major
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Content requiring horizontal scrolling on mobile viewports violates WCAG 1.4.10 (Reflow) and makes content effectively inaccessible on small screens or when text is enlarged by users with low vision.
+
+### Detail
+WCAG 1.4.10 (Reflow) requires content to be presentable without loss of information or functionality when scrolling is vertical only at a viewport width of 320px. Horizontal scrolling at any viewport size indicates layout has not been made responsive and is particularly harmful for users with low vision who increase browser text size.
+
+Why this is harmful:
+- Violates WCAG 1.4.10 (Reflow) which is a Level AA requirement
+- Users with low vision enlarging text create narrow effective viewports — content breaks
+- Mobile users must scroll in two directions, making content hard to read
+- Data tables, code blocks, and wide images are common offenders in government content
+
+Real-world examples:
+- Government data tables on mobile requiring horizontal scrolling to see key columns
+- Policy documents with fixed-width layouts that overflow mobile screens
+
+What to do instead:
+- Use max-width: 100% on all images and media
+- Use responsive tables (horizontal scroll wrapper with overflow-x: auto, or table restructuring for mobile)
+- Set overflow-x: hidden on the body to prevent accidental horizontal overflow
+- Test at 320px viewport width (WCAG reflow requirement)
+
+### Implementation
+Audit all pages at 320px viewport width. Add `overflow-x: hidden` to the body element. Use `max-width: 100%` on all images, videos, and embedded content. Wrap data tables in a horizontally-scrollable container. Test with browser text size increased to 200%.

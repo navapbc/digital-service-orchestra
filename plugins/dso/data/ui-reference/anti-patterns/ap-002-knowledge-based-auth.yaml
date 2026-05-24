@@ -1,0 +1,48 @@
+# Canonical domain tag mapping for government UX anti-patterns:
+#   auth       — session/authentication patterns (login, MFA, session management)
+#   forms      — form-related patterns (validation, errors, input design)
+#   navigation — navigation and wayfinding patterns
+#   visual     — visual/display patterns (color, typography, layout)
+---
+id: ap-knowledge-based-auth
+rule_id: ap-002
+title: "Anti-pattern: Knowledge-Based Verification as Primary Auth"
+domain:
+  - auth
+component: []
+action:
+  - avoid
+compliance:
+  - NIST-800-63B
+  - WCAG-2.1
+severity: critical
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Using security questions (mother's maiden name, first pet, favorite color) as primary authentication is both insecure and exclusionary, failing users with cognitive disabilities and those targeted by social engineering.
+
+### Detail
+Knowledge-based authentication (KBA) questions are socially engineerable — answers are often findable via social media, public records, or simple guessing. They also fail users with cognitive disabilities who may not reliably recall such answers, and create cultural bias (questions assume Western naming conventions, nuclear family structures, and typical childhood experiences).
+
+Why this is harmful:
+- Security answers are often guessable or available through public records
+- Users with memory impairments, dementia, or cognitive disabilities cannot reliably recall answers
+- Questions embed cultural assumptions that exclude immigrants, indigenous people, and non-traditional families
+- NIST 800-63B explicitly recommends against KBA for government authentication
+
+Real-world examples:
+- Legacy benefits portal requiring "mother's maiden name" — inaccessible to adoptees or those from cultures with different naming conventions
+- IRS identity verification questions that exposed millions of taxpayers when Social Security Administration data was compromised
+
+What to do instead:
+- Use phishing-resistant authenticators (FIDO2/WebAuthn)
+- Implement document-based identity verification
+- Use Login.gov with accessible fallback paths
+- For legacy systems, prefer email OTP over KBA
+
+### Implementation
+Replace KBA with possession-based or biometric factors per NIST 800-63B AAL2+ requirements. When KBA must be used (legacy system constraints), restrict it to account recovery only — never as primary authentication.

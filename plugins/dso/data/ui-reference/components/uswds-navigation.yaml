@@ -1,0 +1,48 @@
+# Component tag vocabulary: uswds-v3 (all USWDS v3 components)
+id: uswds-navigation
+title: "USWDS Navigation"
+domain:
+  - components
+component:
+  - uswds-v3
+action:
+  - design
+compliance:
+  - section-508
+severity: informational
+story_type:
+  - pattern
+coverage: summary
+source: uswds/uswds
+license: CC0-1.0
+summary: |
+  USWDS v3 navigation components include the header, primary navigation, in-page
+  navigation, side navigation, breadcrumb, pagination, and footer patterns. These
+  components follow federal navigation conventions and WCAG 2.1 AA standards for
+  keyboard and screen reader accessibility.
+detail: |
+  Navigation component classes:
+  - .usa-header: main site header wrapper
+  - .usa-header--basic: simplified single-level header
+  - .usa-header--extended: extended header with nav below logo
+  - .usa-nav: primary navigation container
+  - .usa-nav__primary: top-level nav items
+  - .usa-nav__submenu: dropdown submenu
+  - .usa-in-page-nav: anchor links to page sections
+  - .usa-sidenav: left sidebar navigation
+  - .usa-breadcrumb: breadcrumb trail
+  - .usa-pagination: page navigation controls
+  - .usa-footer: site footer
+
+  Accessibility requirements:
+  - Primary nav uses nav element with aria-label="Primary navigation"
+  - Keyboard navigation: Enter/Space to activate, Escape to close dropdowns
+  - Mobile menu toggle uses aria-expanded and aria-controls
+  - Skip navigation link is the first focusable element on the page
+  - Breadcrumbs use nav element with aria-label="Breadcrumb" and aria-current="page"
+  - Pagination uses nav element with aria-label="Pagination"
+
+  Mobile navigation:
+  - Hamburger menu button reveals full-screen overlay nav on mobile
+  - Focus is trapped within the open nav drawer
+  - Closing nav returns focus to the trigger button

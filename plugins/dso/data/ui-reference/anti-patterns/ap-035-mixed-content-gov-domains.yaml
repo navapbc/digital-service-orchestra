@@ -1,0 +1,48 @@
+# Canonical domain tag mapping for government UX anti-patterns:
+#   auth       — session/authentication patterns (login, MFA, session management)
+#   forms      — form-related patterns (validation, errors, input design)
+#   navigation — navigation and wayfinding patterns
+#   visual     — visual/display patterns (color, typography, layout)
+---
+id: ap-mixed-content-gov-domains
+rule_id: ap-035
+title: "Anti-pattern: Mixed Content on .gov Domains"
+domain:
+  - auth
+component: []
+action:
+  - avoid
+compliance:
+  - HSTS-Preloading
+  - FISMA
+severity: major
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Loading HTTP resources (scripts, images, fonts) on HTTPS .gov pages undermines the security of the connection and violates HSTS preloading requirements for .gov domains.
+
+### Detail
+All .gov domains are required to use HTTPS and are preloaded in browsers' HSTS (HTTP Strict Transport Security) lists. Loading any HTTP resource on an HTTPS page creates "mixed content" — which modern browsers block or downgrade. Even blocked mixed content indicates poor security hygiene and creates warnings that undermine user trust.
+
+Why this is harmful:
+- HTTP resources on HTTPS pages can be intercepted and modified by network attackers (MITM)
+- Modern browsers block or warn about mixed content, causing visual glitches and broken functionality
+- .gov HSTS preloading requirements are violated by HTTP subresources
+- Undermines the security model that makes .gov trustworthy
+
+Real-world examples:
+- State agency sites loading fonts or images from HTTP CDNs
+- Legacy government sites with HTTP embeds from older third-party services
+
+What to do instead:
+- Serve all resources over HTTPS
+- Use protocol-relative URLs (//example.com/asset.js) only as a temporary measure
+- Self-host all critical assets or use HTTPS-only CDN sources
+- Implement Content Security Policy to enforce HTTPS-only resource loading
+
+### Implementation
+Implement Content Security Policy header with `upgrade-insecure-requests` directive. Audit all external resource URLs for HTTP references and update to HTTPS equivalents. Configure web server to reject HTTP connections (not just redirect). Test with mixed-content blocking enabled in Chrome DevTools.

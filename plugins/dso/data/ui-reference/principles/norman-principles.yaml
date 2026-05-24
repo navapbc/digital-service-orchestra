@@ -1,0 +1,32 @@
+id: principles-norman-design
+title: "Norman's Core Design Principles"
+domain: principles
+action: apply
+severity: informational
+story_type: pattern
+coverage: detail
+license: public-domain
+summary: >
+  Don Norman's foundational principles from "The Design of Everyday Things"
+  (1988, revised 2013). These principles inform how government digital service
+  teams design interfaces that people can intuitively understand and use
+  without training. Norman's work introduced key vocabulary now standard in
+  UX practice worldwide.
+detail: >
+  Norman's key design principles include: affordances — properties of an
+  object that signal how it should be used (a button affords pressing, a
+  link affords clicking); signifiers — perceptible signals that communicate
+  where and how an action should be performed; feedback — sending back
+  information about what action was done and what result was achieved;
+  conceptual models — the user's mental model of how a system works should
+  match how it actually works (system image must bridge the design model and
+  the user model); constraints — physical, logical, semantic, or cultural
+  restrictions that guide the user toward the correct action and prevent
+  errors; mappings — the relationship between controls and their effects
+  should be natural and direct (spatial correspondence reduces learning
+  burden); and discoverability — it must be possible to determine what
+  actions are available and the current state of the system without
+  external documentation. In federal digital services, Norman's principles
+  are applied to form design, navigation hierarchies, and error handling
+  workflows to reduce cognitive burden on constituents interacting with
+  government systems online.

@@ -1,0 +1,49 @@
+# Component tag vocabulary: uswds-v3 (all USWDS v3 components)
+id: uswds-modals
+title: "USWDS Modals"
+domain:
+  - components
+component:
+  - uswds-v3
+action:
+  - design
+compliance:
+  - section-508
+severity: informational
+story_type:
+  - pattern
+coverage: summary
+source: uswds/uswds
+license: CC0-1.0
+summary: |
+  USWDS v3 modals interrupt the user workflow to present critical information,
+  confirmations, or focused tasks. The component provides accessible focus
+  management, scroll locking, and overlay backdrop. Use modals sparingly and
+  prefer inline patterns when possible.
+detail: |
+  Modal component structure:
+  - .usa-modal-wrapper: outer container managing visibility
+  - .usa-modal-overlay: semi-transparent backdrop
+  - .usa-modal: dialog panel
+  - .usa-modal__content: scrollable content area
+  - .usa-modal__main: primary content region
+  - .usa-modal__heading: modal title (h2 by default)
+  - .usa-modal__footer: action buttons area
+  - .usa-modal__close: X close button
+
+  Trigger and control:
+  - data-open-modal="[aria-controls value]": opens the modal
+  - data-close-modal: closes the modal from within
+
+  Accessibility requirements:
+  - Modal uses role="dialog" with aria-modal="true"
+  - aria-labelledby points to the modal heading element
+  - Focus moves to the first focusable element inside the modal on open
+  - Focus is trapped within the open modal (Tab cycles through modal only)
+  - Escape key closes the modal and returns focus to the trigger button
+  - Scroll is locked on the background page when modal is open
+
+  Usage guidance:
+  - Use modals for confirmations, critical alerts, focused form steps
+  - Avoid modals for simple informational content, navigation, long forms
+  - Large modal variant .usa-modal--lg for more complex content

@@ -1,0 +1,47 @@
+# Component tag vocabulary: uswds-v3 (all USWDS v3 components)
+id: uswds-tables
+title: "USWDS Tables"
+domain:
+  - components
+component:
+  - uswds-v3
+action:
+  - design
+compliance:
+  - section-508
+severity: informational
+story_type:
+  - pattern
+coverage: summary
+source: uswds/uswds
+license: CC0-1.0
+summary: |
+  USWDS v3 table components provide structured, accessible data tables with
+  sortable columns, scrollable wrappers, and responsive stacking for mobile
+  displays. All tables enforce semantic HTML structure for screen reader
+  accessibility and Section 508 compliance.
+detail: |
+  Table component variants:
+  - .usa-table: base table styles
+  - .usa-table--borderless: removes borders for simple data
+  - .usa-table--compact: reduced cell padding
+  - .usa-table--striped: alternating row background colors
+  - .usa-table--sticky-header: fixed header row during scroll
+  - .usa-table-container--scrollable: horizontal scroll wrapper
+
+  Sortable table:
+  - Add data-sortable to table element
+  - Add data-sortable attribute to individual th cells to enable sort
+  - aria-sort="ascending" or aria-sort="descending" on sorted column header
+
+  Accessibility requirements:
+  - Use th scope="col" for column headers
+  - Use th scope="row" for row header cells
+  - Complex tables use id/headers attribute relationship
+  - Summary for complex tables: use caption element
+  - Do not use tables for layout, only for tabular data
+  - Sortable controls are keyboard-accessible with Enter/Space
+
+  Responsive behavior:
+  - Use usa-table-container--scrollable for wide tables on mobile
+  - Consider paginating large datasets (over 50 rows) for usability

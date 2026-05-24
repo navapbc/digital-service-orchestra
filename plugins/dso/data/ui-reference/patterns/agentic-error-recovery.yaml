@@ -1,0 +1,108 @@
+id: agentic-error-recovery-pattern
+title: "Agentic Error Recovery: Communicating Failures and Enabling User Intervention"
+domain:
+  - patterns
+action:
+  - apply
+  - design
+compliance:
+  - plain-language
+  - WCAG-3.3
+  - 21st-Century-IDEA
+severity: major
+story_type:
+  - pattern
+coverage: detail
+source: "Nielsen Norman Group Agentic UX Research 2024; USWDS Error Handling Guidance; GOV.UK Error Messages Playbook"
+license: public-domain
+summary: |
+  Agentic error recovery patterns define how an AI agent communicates failures,
+  partial failures, and blocked states to users — and how users can intervene
+  to correct the situation. Government AI tools must treat every error as a
+  recoverable event with a clear user path forward, never as a dead end.
+  Error messages must use plain language, explain what happened and why,
+  and offer specific next steps the user can take.
+detail: |
+  ### Agentic Error Recovery Pattern
+
+  AI agents fail in ways that differ fundamentally from traditional software
+  errors. Agent failures include tool timeouts, ambiguous inputs, conflicting
+  data, out-of-scope requests, and partial completions. Each failure type
+  requires a distinct recovery pattern.
+
+  #### Failure Taxonomy and Recovery Patterns
+
+  **1. Tool or API timeout**
+  - What happened: The agent called an external service that did not respond
+    in time.
+  - User message: "I couldn't reach the [benefits eligibility database] right
+    now. I'll try again automatically, or you can continue manually."
+  - Recovery options: [Retry automatically] [Continue without this data]
+    [Come back later — save progress]
+  - **Do**: Tell the user which service failed and give them a manual path.
+  - **Don't**: Show a generic "An error occurred" message with no context.
+
+  **2. Ambiguous or incomplete input**
+  - What happened: The agent could not determine a required value from the
+    available data.
+  - User message: "I need more information to continue. Which address should
+    I use for this applicant? I found two in the record."
+  - Recovery options: Present each candidate with source label; let user
+    select or enter a new value.
+  - **Do**: Show the conflicting values and their sources so the user can
+    make an informed choice.
+  - **Don't**: Make an arbitrary selection silently and proceed.
+
+  **3. Out-of-scope request**
+  - What happened: The user asked the agent to do something it is not
+    authorized or equipped to do.
+  - User message: "I can't process immigration status verification — that
+    requires a separate system. Here's the link to the SAVE system."
+  - Recovery options: [Open SAVE system] [Contact a supervisor]
+  - **Do**: Explain the scope boundary in plain language and point to the
+    correct alternative.
+  - **Don't**: Attempt the task anyway or display a technical error code.
+
+  **4. Partial completion**
+  - What happened: The agent completed some steps but failed on one or more
+    steps in a multi-step workflow.
+  - User message: "I completed 4 of 5 steps. I couldn't verify income because
+    the SSA service is unavailable. Here's what I have so far."
+  - Recovery options: [Review completed steps] [Retry failed step]
+    [Complete the remaining step manually]
+  - **Do**: Show a clear progress summary with completed and failed steps
+    labeled, and allow selective retry.
+  - **Don't**: Discard all completed work and require the user to restart.
+
+  **5. Confidence below threshold**
+  - What happened: The agent produced a result but its confidence is too
+    low to act on without review.
+  - User message: "I'm not confident enough in this result to submit it
+    automatically. Please review before I proceed."
+  - Recovery options: [Review and approve] [Override with your own value]
+    [Get a second opinion — escalate to supervisor]
+  - **Do**: Present the low-confidence result with the specific reason for
+    uncertainty (e.g., "Name spelling differs between two records").
+  - **Don't**: Either auto-submit a low-confidence result or refuse to show
+    it to the user.
+
+  #### Error Message Writing Guidelines
+
+  All agent error messages must:
+  - Use active voice: "I couldn't reach..." not "The service was unavailable"
+  - Name the specific failure: not "An error occurred" but "The SSA income
+    verification service timed out after 30 seconds"
+  - Explain the consequence: "Without this, I can't calculate the exact
+    benefit amount"
+  - Offer at least one concrete recovery action
+  - Be written at a 6th-grade reading level
+
+  #### Dead End Prevention
+
+  An agent UI must never reach a state where the user has no path forward.
+  Every terminal error must offer at least one of:
+  - Retry the failed operation
+  - Continue without the failed component (with explicit caveat)
+  - Save progress and return later
+  - Escalate to a human caseworker or supervisor
+  - Export collected data for manual processing

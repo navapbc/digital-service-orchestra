@@ -1,0 +1,48 @@
+# Canonical domain tag mapping for government UX anti-patterns:
+#   auth       — session/authentication patterns (login, MFA, session management)
+#   forms      — form-related patterns (validation, errors, input design)
+#   navigation — navigation and wayfinding patterns
+#   visual     — visual/display patterns (color, typography, layout)
+---
+id: ap-decorative-images-with-alt-text
+rule_id: ap-032
+title: "Anti-pattern: Decorative Images With Non-Empty Alt Text"
+domain:
+  - visual
+component: []
+action:
+  - avoid
+compliance:
+  - WCAG-1.1.1
+  - Section-508
+severity: minor
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Adding descriptive alt text to purely decorative images causes screen readers to announce irrelevant descriptions, cluttering the auditory experience for screen reader users and obscuring meaningful content.
+
+### Detail
+This is the opposite of the "missing alt text" problem — over-describing images is equally problematic. Decorative images (dividers, background patterns, stock photos used for visual appeal) should have alt="" (empty alt) so screen readers skip them. Adding descriptive alt text to these images pollutes the screen reader experience with irrelevant announcements.
+
+Why this is harmful:
+- Screen readers announce every image with non-empty alt text, cluttering the audio experience
+- Decorative image descriptions interrupt the logical flow of content
+- Makes pages significantly harder to use for screen reader users when decorative images are numerous
+- WCAG 1.1.1 implementation guidance distinguishes informative from decorative images
+
+Real-world examples:
+- Government homepages with 5-10 decorative banner images, each announced with descriptive alt text
+- Benefits portals where stock photos of people have detailed descriptions interrupting application flows
+
+What to do instead:
+- Use alt="" (empty alt attribute, not missing) for purely decorative images
+- Use CSS background-image for purely decorative visual elements (no alt needed)
+- Reserve descriptive alt text for images that convey information not available in surrounding text
+- When in doubt, ask: "If this image were removed, would users lose information?" If no, use alt=""
+
+### Implementation
+Audit all images and classify as decorative vs. informative. Apply alt="" to decorative images. Ensure informative images have concise, descriptive alt text that conveys the image's meaning, not just its appearance. Add image accessibility checks to code review checklist.

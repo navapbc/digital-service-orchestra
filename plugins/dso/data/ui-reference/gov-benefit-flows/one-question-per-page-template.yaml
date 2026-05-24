@@ -1,0 +1,58 @@
+id: gov-benefit-flows-one-question-per-page
+title: "One Question Per Page: Core Template for Government Benefit Application Forms"
+domain:
+  - gov-benefit-flows
+action:
+  - design
+  - apply
+  - implement
+compliance:
+  - 21st-Century-IDEA
+  - plain-language
+  - WCAG-2.1-AA
+  - Section-508
+severity: critical
+story_type:
+  - pattern
+coverage: summary
+source: "GOV.UK Service Manual (service-manual.service.gov.uk/design); 18F Design Guides"
+license: public-domain
+summary: |
+  The one-question-per-page pattern presents a single question or decision
+  on each screen of a multi-step benefit application. This reduces cognitive
+  load, prevents intimidating all-in-one forms, and allows conditional routing
+  without exposing irrelevant fields. Government benefit applications using
+  this pattern show significantly higher completion rates among applicants
+  under stress, those with low digital literacy, and mobile device users.
+  Required fields: one primary label, hint text where needed, inline error
+  messages, and clear next/back navigation.
+detail: |
+  ### Core Structure
+
+  Each page of a benefit application flow MUST contain:
+  - **One question or decision** (never two top-level inputs on the same page)
+  - **Page title** that restates the question (h1)
+  - **Hint text** below the label when the question needs context
+  - **Inline error messages** adjacent to the input (not banner-only)
+  - **Back link** at the top allowing safe backward navigation
+  - **Continue button** at the bottom as the primary action
+
+  ### When to Break the Rule
+
+  Group tightly related inputs on one page ONLY when:
+  - Inputs are never asked independently (e.g., street address fields)
+  - All inputs are always required together (e.g., date of birth day/month/year)
+  - Separating them would create more confusion than grouping
+
+  ### Benefit Application Context
+
+  For SNAP, Medicaid, unemployment, and similar benefit flows:
+  - Applicants are often under extreme stress; each question on its own page
+    reduces abandonment.
+  - Progress indicators must be visible (e.g., "Step 3 of 7 — Your household").
+  - Save-and-resume capability is critical: applicants may need to gather
+    documents (pay stubs, ID) mid-application.
+  - Error handling must be forgiving: never lose form data on error.
+rule_id: GOV-BENEFIT-001
+prior_art: "https://design-system.service.gov.uk/patterns/question-pages/"
+precedence: 1

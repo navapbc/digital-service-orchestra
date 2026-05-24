@@ -1,0 +1,21 @@
+id: ui-ref-color-004
+title: Color Palette
+tier: token
+keywords:
+  - color
+  - palette
+  - design-token
+  - brand
+description: >
+  The design token color palette defines the canonical set of colors used
+  across the product. Use semantic color tokens (primary, secondary, danger,
+  success) rather than raw hex values. Tokens adapt automatically to light
+  and dark mode.
+example: |
+  /* Use semantic tokens */
+  color: var(--color-primary-600);
+  background: var(--color-surface-default);
+tags:
+  - design-token
+  - theme
+  - accessibility

@@ -1,0 +1,53 @@
+# Component tag vocabulary: uswds-v3 (all USWDS v3 components)
+id: uswds-spacing-tokens
+title: "USWDS Spacing Tokens"
+domain:
+  - components
+component:
+  - uswds-v3
+action:
+  - design
+compliance:
+  - section-508
+severity: informational
+story_type:
+  - pattern
+coverage: summary
+source: uswds/uswds
+license: CC0-1.0
+summary: |
+  USWDS v3 spacing tokens define a consistent scale for margins, padding, gaps,
+  and sizing throughout federal digital services. The system uses named sizes
+  (3xs through 3xl) plus numeric values, mapped to rem-based measurements for
+  accessibility and responsive layout support.
+detail: |
+  Spacing scale (key values):
+  - spacing(0): 0
+  - spacing('05'): 0.25rem (4px)
+  - spacing(1): 0.5rem (8px)
+  - spacing(2): 1rem (16px)
+  - spacing(3): 1.5rem (24px)
+  - spacing(4): 2rem (32px)
+  - spacing(5): 2.5rem (40px)
+  - spacing(6): 3rem (48px)
+  - spacing(8): 4rem (64px)
+  - spacing(10): 5rem (80px)
+
+  Named size aliases:
+  - 3xs = 2px, 2xs = 4px, xs = 8px
+  - sm = 12px, md = 16px, lg = 24px
+  - xl = 32px, 2xl = 40px, 3xl = 56px
+
+  Utility class pattern:
+  - Margin: .margin-{side}-{value} (e.g., .margin-top-2)
+  - Padding: .padding-{side}-{value} (e.g., .padding-x-3)
+  - Gap: .grid-gap-{value} (e.g., .grid-gap-4)
+
+  Responsive spacing:
+  - Append breakpoint: .tablet:margin-top-4
+  - Breakpoints: mobile-lg, tablet, tablet-lg, desktop, desktop-lg, widescreen
+
+  Accessibility requirements:
+  - Minimum touch target size 44x44px per WCAG 2.5.8
+  - Sufficient spacing between interactive elements prevents accidental activation
+  - Avoid fixed-height containers that clip content when text is enlarged 200%

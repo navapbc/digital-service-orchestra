@@ -1,0 +1,49 @@
+# Canonical domain tag mapping for government UX anti-patterns:
+#   auth       — session/authentication patterns (login, MFA, session management)
+#   forms      — form-related patterns (validation, errors, input design)
+#   navigation — navigation and wayfinding patterns
+#   visual     — visual/display patterns (color, typography, layout)
+---
+id: ap-third-party-tracking-no-consent
+rule_id: ap-033
+title: "Anti-pattern: Third-Party Tracking Without Consent"
+domain:
+  - auth
+component: []
+action:
+  - avoid
+compliance:
+  - OMB-M-10-22
+  - FISMA
+severity: critical
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Embedding Google Analytics, Facebook pixels, or other commercial tracking scripts on government sites without user consent violates OMB Memorandum M-10-22 and creates surveillance risks for vulnerable populations accessing sensitive government services.
+
+### Detail
+Third-party tracking on government sites is particularly harmful because users have no meaningful alternative — they cannot use a different government to access required services. People accessing domestic violence resources, substance abuse treatment, mental health services, immigration information, or benefits for stigmatized programs have legitimate privacy interests that commercial tracking violates.
+
+Why this is harmful:
+- Government users access sensitive services (immigration status, benefits, health, legal) with high privacy stakes
+- Third-party data can be sold, combined with other sources, and used to make decisions affecting these users
+- OMB M-10-22 restricts use of persistent tracking technologies on .gov sites
+- Users cannot opt out of accessing government services — no meaningful consent is possible
+- Creates chilling effect on accessing legitimate government services
+
+Real-world examples:
+- State social services portals with Google Analytics tracking users accessing domestic violence resources
+- Federal health sites transmitting user session data to Facebook via pixel
+
+What to do instead:
+- Use privacy-preserving analytics (privacy-first platforms, server-side analytics, no third-party sharing)
+- For any analytics, implement without cookies or fingerprinting (aggregate, anonymized only)
+- Remove all advertising pixels, social media trackers, and commercial analytics from .gov services
+- Use self-hosted analytics solutions (Matomo, DAVES for federal)
+
+### Implementation
+Audit all third-party scripts using browser developer tools. Remove all commercial tracking pixels. Replace Google Analytics with a privacy-first alternative (Digital Analytics Program for federal sites, self-hosted Matomo). Implement a Content Security Policy to prevent unauthorized script loading.

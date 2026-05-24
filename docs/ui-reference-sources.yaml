@@ -1,0 +1,368 @@
+# UI Reference Sources
+# This file documents the external sources used to populate the UI reference corpus.
+# Future maintainers can use this file to identify the origin URL and license for any
+# corpus entry, and to know where to look when refreshing or expanding the corpus.
+#
+# Schema:
+#   name:                  Human-readable source name
+#   url:                   Canonical URL for the source
+#   github:                GitHub repo in "owner/repo" format (optional)
+#   type:                  github-repo | github-repo-private | confluence-page | website | npm-package
+#   access:                public | internal-nava
+#   credentials_required:  true | false
+#   license:               SPDX license identifier or descriptive string
+#   domains:               List of corpus domains this source populates
+#                            (e.g. components, patterns, accessibility, content)
+#   notes:                 Free-text notes for maintainers (optional)
+#   pinned_version:        Pinned release tag or commit SHA (optional)
+#   last_synced:           ISO 8601 date of last corpus sync (optional)
+
+sources:
+  - name: "U.S. Web Design System (USWDS) v3"
+    url: "https://designsystem.digital.gov"
+    github: "uswds/uswds"
+    type: github-repo
+    access: public
+    credentials_required: false
+    license: CC0-1.0
+    domains:
+      - components
+      - patterns
+      - accessibility
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
+    notes: >
+      Primary federal design system maintained by GSA / TTS.
+      Component guidance, accessibility requirements, and usage examples
+      are sourced from the official documentation site and GitHub repo.
+
+  - name: "GOV.UK Design System"
+    url: "https://design-system.service.gov.uk"
+    github: "alphagov/govuk-design-system"
+    type: github-repo
+    access: public
+    credentials_required: false
+    license: OGL-v3
+    domains:
+      - components
+      - patterns
+      - content
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
+    notes: >
+      UK Government Digital Service design system. Patterns and components
+      here often complement USWDS; particularly strong on content and
+      transactional service patterns. OGL v3 requires attribution.
+
+  - name: "VA.gov Design System"
+    url: "https://design.va.gov"
+    github: "department-of-veterans-affairs/component-library"
+    type: github-repo
+    access: public
+    credentials_required: false
+    license: CC0-1.0
+    domains:
+      - components
+      - patterns
+      - accessibility
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
+    notes: >
+      Design system for VA.gov digital services. Built on top of USWDS
+      with VA-specific extensions and accessibility guidance tailored to
+      veteran-facing applications.
+
+  - name: "18F / digital.gov guidance"
+    url: "https://digital.gov"
+    github: "GSA/digitalgov.gov"
+    type: github-repo
+    access: public
+    credentials_required: false
+    license: public-domain
+    domains:
+      - patterns
+      - content
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
+    notes: >
+      GSA's digital.gov and 18F guidance articles. Covers plain language,
+      content strategy, and service design patterns. Source material is
+      U.S. government work (public domain).
+
+  - name: "Nava PBC Design Standards (internal)"
+    url: "https://navapbc.atlassian.net/wiki/spaces/DESIGN"
+    type: confluence-page
+    access: internal-nava
+    credentials_required: true
+    license: proprietary
+    domains:
+      - components
+      - patterns
+      - content
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
+    notes: >
+      Internal Nava design standards hosted in Confluence. Requires Nava
+      Atlassian credentials. Content should NOT be committed verbatim to
+      public repos; reference by URL only.
+
+  - name: "Brignull Dark Patterns (deceptive.design)"
+    url: "https://www.deceptive.design/types"
+    type: website
+    access: public
+    credentials_required: false
+    license: public-domain
+    domains:
+      - patterns
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
+    notes: >
+      Harry Brignull's canonical dark pattern taxonomy, hosted at
+      deceptive.design. Corpus entries use paraphrase with attribution
+      per public-domain / fair-use terms. Covers 13 named dark pattern
+      classes including trick questions, roach motel, privacy zuckering,
+      confirmshaming, and visual interference.
+
+  - name: "AidUI — Government Benefits Dark Pattern Taxonomy"
+    url: "https://github.com/SageSELab/AidUI"
+    github: "SageSELab/AidUI"
+    type: github-repo
+    access: public
+    credentials_required: false
+    license: MIT
+    domains:
+      - patterns
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
+    notes: >
+      Research-derived taxonomy of 27 dark pattern classes observed in
+      government benefits and aid-related digital services (unemployment
+      insurance, SNAP, Medicaid, Social Security). Published by SageSELab.
+      MIT licensed. Extends general dark pattern catalogs with patterns
+      unique to high-stakes, vulnerable-population services.
+
+  - name: "principles.design Community Catalog"
+    url: "https://principles.design"
+    github: "benbrignell/principles.design"
+    type: github-repo
+    access: public
+    credentials_required: false
+    license: MIT
+    domains:
+      - patterns
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
+    notes: >
+      Community-maintained catalog of 100+ design principle sets. MIT licensed.
+      Corpus file contains a representative subset covering principles most
+      relevant to government digital service design: Dieter Rams, GOV.UK,
+      Inclusive Design, and WebAIM cognitive accessibility principles.
+      Attribution required per MIT terms.
+
+  - name: "Nielsen Norman Group — 10 Usability Heuristics"
+    url: "https://www.nngroup.com/articles/ten-usability-heuristics/"
+    type: website
+    access: public
+    credentials_required: false
+    license: CC BY 4.0 (paraphrased, not verbatim)
+    domains:
+      - principles
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
+    notes: >
+      Jakob Nielsen's 10 general principles for interaction design,
+      originally published 1994, updated 2020. Corpus entries contain
+      paraphrased descriptions and government application context —
+      not verbatim text from the NNG website.
+
+  - name: "The Design of Everyday Things — Don Norman"
+    url: "https://www.basicbooks.com/titles/don-norman/the-design-of-everyday-things/9780465050659/"
+    type: website
+    access: public
+    credentials_required: false
+    license: paraphrased-summary
+    domains:
+      - principles
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
+    notes: >
+      Foundational design principles from Don Norman's seminal book
+      (1988, revised 2013). Corpus entries are paraphrased summaries
+      for practitioner reference — not reproduced book text.
+
+  - name: "GOV.UK Government Design Principles"
+    url: "https://www.gov.uk/guidance/government-design-principles"
+    github: "alphagov/government-design-principles"
+    type: github-repo
+    access: public
+    credentials_required: false
+    license: OGL-v3
+    domains:
+      - principles
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
+    notes: >
+      10 principles published by the UK Government Digital Service under
+      the Open Government Licence v3. OGL v3 requires attribution and
+      does not restrict use. Widely referenced by U.S. federal digital
+      service practitioners as a governance model.
+
+  - name: "18F UX Guide"
+    url: "https://ux-guide.18f.gov/"
+    github: "18F/ux-guide"
+    type: github-repo
+    access: public
+    credentials_required: false
+    license: CC0-1.0
+    domains:
+      - principles
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
+    notes: >
+      Comprehensive UX guide published by 18F (GSA) under Creative Commons
+      Zero (public domain dedication). Covers research methods, design
+      principles, and delivery practices for U.S. federal digital services.
+
+  - name: "Digital.gov — Federal UX Guidance"
+    url: "https://digital.gov/topics/user-experience/"
+    github: "GSA/digitalgov.gov"
+    type: github-repo
+    access: public
+    credentials_required: false
+    license: public-domain
+    domains:
+      - principles
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
+    notes: >
+      Digital.gov aggregates federal UX requirements, including the 21st
+      Century IDEA Act, OMB M-23-22 customer experience memo, and
+      Section 508 accessibility requirements. Content is U.S. government
+      work in the public domain.
+
+  - name: "Inclusive Design Principles"
+    url: "https://inclusivedesignprinciples.org/"
+    type: website
+    access: public
+    credentials_required: false
+    license: CC BY-ND 4.0 (paraphrased summary)
+    domains:
+      - principles
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
+    notes: >
+      7 principles developed by the Paciello Group and contributors,
+      published under CC BY-ND 4.0. Corpus entries contain paraphrased
+      descriptions and government service application context — not
+      verbatim reproductions of the licensed content.
+
+  - name: "Nava PBC Benefits Delivery System (internal)"
+    url: "https://github.com/navapbc/benefits-delivery-system"
+    github: "navapbc/benefits-delivery-system"
+    type: github-repo-private
+    access: internal-nava
+    credentials_required: true
+    license: internal-nava
+    domains:
+      - gov-benefit-flows
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
+    notes: >
+      Internal Nava PBC repository containing benefit delivery system
+      implementation patterns, research findings, and service design artifacts.
+      Requires Nava GitHub organization membership for access.
+      To request access: contact your Nava project lead or submit a request
+      via the #engineering-access Slack channel. Content must not be committed
+      verbatim to public repositories; reference by URL and paraphrase only.
+
+  - name: "GOV.UK Service Manual — Design Patterns"
+    url: "https://service-manual.service.gov.uk/design"
+    github: "alphagov/govuk-design-system"
+    type: github-repo
+    access: public
+    credentials_required: false
+    license: OGL-v3
+    domains:
+      - gov-benefit-flows
+      - patterns
+      - components
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
+    notes: >
+      GOV.UK Service Manual design patterns, including the one-question-per-page
+      pattern, task list pattern, check-answers pattern, and confirmation pages.
+      Published by the UK Government Digital Service under the Open Government
+      Licence v3. OGL v3 requires attribution; does not restrict use or
+      paraphrase. These patterns heavily influence U.S. federal benefit
+      application form design via 18F and USDS practitioners.
+
+  - name: "18F Guides — Forms and Service Patterns"
+    url: "https://guides.18f.gov/"
+    github: "18F/guides"
+    type: github-repo
+    access: public
+    credentials_required: false
+    license: CC0-1.0
+    domains:
+      - gov-benefit-flows
+      - patterns
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
+    notes: >
+      18F (GSA) delivery guides covering government service design, form
+      patterns, content, and engineering. Published under Creative Commons
+      Zero (public domain dedication). Covers accessibility, plain language,
+      and digital service delivery practices for U.S. federal agencies.
+
+  - name: "USDA Food and Nutrition Service — SNAP Policy"
+    url: "https://www.fns.usda.gov/snap/eligibility"
+    type: website
+    access: public
+    credentials_required: false
+    license: public-domain
+    domains:
+      - gov-benefit-flows
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
+    notes: >
+      Official USDA FNS SNAP policy documentation covering eligibility rules,
+      certification periods, verification requirements, change reporting, and
+      expedited service criteria. U.S. government work, public domain.
+      Corpus entries on SNAP lifecycle policy are derived from this source.
+
+  - name: "Federal Plain Language Guidelines (Plain Writing Act of 2010)"
+    url: "https://www.plainlanguage.gov/guidelines/"
+    type: website
+    access: public
+    credentials_required: false
+    license: public-domain
+    domains:
+      - gov-copy
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
+    notes: >
+      The Federal Plain Language Guidelines published at plainlanguage.gov document
+      mandatory plain writing standards for U.S. federal agencies under the Plain
+      Writing Act of 2010 (Pub. L. 111-274). Content is U.S. government work in
+      the public domain. Covers audience analysis, active voice, plain vocabulary,
+      document organization, tables and lists, and sentence/paragraph length
+      standards applicable to all federal digital services.
+
+  - name: "CDC Health Literacy — Plain Language for Public Health"
+    url: "https://www.cdc.gov/healthliteracy/developmaterials/plainlanguage.html"
+    type: website
+    access: public
+    credentials_required: false
+    license: public-domain
+    domains:
+      - gov-copy
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
+    notes: >
+      CDC (Centers for Disease Control and Prevention) plain language and health
+      literacy resources for public health communication. Content is U.S. government
+      work in the public domain. Covers reading level targets (6th grade), SMOG and
+      Flesch-Kincaid readability measurement, jargon avoidance, sentence length
+      standards, and user testing methodology for health materials. Authoritative
+      guidance for health communication and government benefit services serving
+      diverse audiences with varying health literacy levels.

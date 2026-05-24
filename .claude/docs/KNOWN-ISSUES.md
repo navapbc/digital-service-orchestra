@@ -61,3 +61,15 @@ Operational patterns discovered during development. Add entries when 3+ similar 
 - Routine PRs — this is an escape valve, not a default path.
 
 **Context**: `/dso:fp-recovery` skill at `${CLAUDE_PLUGIN_ROOT}/skills/fp-recovery/SKILL.md`; workflow at `${CLAUDE_PLUGIN_ROOT}/docs/workflows/FP-RECOVERY-WORKFLOW.md`. CLAUDE.md Rule 18 has a cross-reference. The skill is a temporary escape valve intended to bridge to the longer-term fixes (swap-maple-flyby arbiter wiring, side-pane-tithe metrics, future reviewer-prompt §C–§E improvements). When the rolling-30-day FP rate drops below ~10%, the skill can be retired or restricted to security-overlay-only escalation.
+
+---
+
+## INC-005: UI/UX Corpus Manifest Drift After Adding New Domain Files
+
+**Symptom**: After adding new YAML domain files to `plugins/dso/data/ui-reference/`, `ref-query.sh` does not return results from the new files. No error is emitted.
+
+**Cause**: `_index.yaml` in `plugins/dso/data/ui-reference/` is a static manifest that must be updated manually when new domain files are added. If the step is skipped, the new files are silently excluded from BM25 retrieval.
+
+**Fix**: After adding new corpus domain files, update `plugins/dso/data/ui-reference/_index.yaml` to include the new file entries, then commit both the domain file(s) and the updated `_index.yaml` together.
+
+**Context**: `plugins/dso/scripts/ref-query.sh`; enforced at schema level by `check-corpus-schema.sh` pre-commit hook (tag vocabulary only — manifest completeness is not automatically checked).

@@ -1,0 +1,63 @@
+id: gov-benefit-flows-multi-step-task-list
+title: "Multi-Step Task List Pattern for Long Government Benefit Applications"
+domain:
+  - gov-benefit-flows
+action:
+  - design
+  - apply
+  - implement
+compliance:
+  - 21st-Century-IDEA
+  - plain-language
+  - WCAG-2.1-AA
+  - Section-508
+severity: critical
+story_type:
+  - pattern
+coverage: summary
+source: "GOV.UK Design System task list component (design-system.service.gov.uk); VA.gov Veteran-Facing Services Pattern Library"
+license: public-domain
+summary: |
+  The multi-step task list presents a benefit application as a named list of
+  sections (tasks), each with an explicit status (Not started, In progress,
+  Completed, Cannot start yet). Applicants can complete sections in any order
+  (except when dependencies require sequencing), save and return at any time,
+  and see at a glance how much of the application remains. This pattern is
+  essential for long-form applications such as SNAP, SSI, Medicaid, and
+  unemployment insurance where applicants must gather documents before
+  answering certain sections.
+detail: |
+  ### Task List Structure
+
+  - **Application title** (h1): e.g., "Apply for SNAP benefits"
+  - **Status summary**: "You have completed 3 of 7 sections"
+  - **Section list**: grouped by logical phase (e.g., "About you", "Your household",
+    "Your income and assets", "Review and submit")
+  - **Status tags** per section:
+    - "Not started" — grey
+    - "In progress" — blue
+    - "Completed" — green
+    - "Cannot start yet" — grey with dependency label
+
+  ### Save and Return
+
+  - Issue a unique application reference number on first save
+  - Email confirmation of the reference number to the applicant
+  - Allow return via reference number + verification (DOB, SSN last 4, etc.)
+  - Never require account creation to save progress (barrier for vulnerable users)
+
+  ### Section Ordering
+
+  - Allow any order unless a hard dependency exists (e.g., household members
+    must be added before income sources per member)
+  - Show dependency reason: "Complete 'Your household' first"
+  - Prevent submission until all required sections are "Completed"
+
+  ### Accessibility
+
+  - Task status tags must have a text equivalent (not color-only indicators)
+  - Link text for each task must be unique and descriptive at screen reader level
+  - Focus management: after completing a section, return focus to the task list
+rule_id: GOV-BENEFIT-004
+prior_art: "https://design-system.service.gov.uk/patterns/task-list-pages/"
+precedence: 1

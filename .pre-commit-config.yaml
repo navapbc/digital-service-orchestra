@@ -118,6 +118,17 @@ repos:
         always_run: true
         stages: [pre-commit]
 
+      # Corpus schema check (timeout: 30s)
+      # Validates YAML frontmatter in corpus entries against _schema.yaml vocabulary.
+      # Runs on staged corpus YAML files under plugins/dso/data/ui-reference/.
+      - id: corpus-schema-check
+        name: Corpus Schema Check (30s timeout)
+        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh corpus-schema-check 30 "plugins/dso/scripts/check-corpus-schema.sh"
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^plugins/dso/data/ui-reference/.*\.yaml$
+
       # Plugin boundary check (timeout: 10s)
       # Blocks commits that add files to plugins/dso/ that are not enumerated in the allowlist.
       # Fail-open: missing allowlist exits 0 and prints a warning.

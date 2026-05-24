@@ -1,0 +1,63 @@
+id: gov-benefit-flows-review-page
+title: "Review Page Patterns: Check Your Answers Before Submitting a Benefit Application"
+domain:
+  - gov-benefit-flows
+action:
+  - design
+  - apply
+  - implement
+compliance:
+  - 21st-Century-IDEA
+  - plain-language
+  - WCAG-2.1-AA
+  - Section-508
+severity: critical
+story_type:
+  - pattern
+coverage: summary
+source: "GOV.UK Design System (design-system.service.gov.uk/patterns/check-answers); USWDS Form Patterns"
+license: public-domain
+summary: |
+  The review page presents all of the applicant's answers in a structured
+  summary before final submission, with inline change links for each answer.
+  For government benefit applications, this page serves as the last opportunity
+  to catch errors before a legal submission, reducing processing delays caused
+  by incorrect or incomplete information. The review page must display all
+  sections in a consistent format and confirm the applicant understands the
+  legal declaration attached to the submit action.
+detail: |
+  ### Review Page Structure
+
+  - **Page title**: "Review your application" (h1)
+  - **Section summaries**: one summary card per application section
+  - **Row format per answer**: question label | answer | Change link
+  - **Change links**: navigate back to the specific question page, preserving
+    all other answers; label must be descriptive: "Change date of birth"
+    (not just "Change")
+  - **Legal declaration**: display the penalty-for-fraud notice and any
+    certification statement above the submit button
+  - **Submit button**: labeled "Submit application" or "Send application"
+    (not "Continue" or "Next")
+
+  ### Multi-Household Review
+
+  For applications with repeatable sections (household members, income sources):
+  - Show a sub-table per entity (e.g., each household member in a separate card)
+  - Include change/remove links at the entity level
+  - Show a count: "2 household members"
+
+  ### Post-Submission
+
+  - Redirect to a confirmation page (not the review page) after submit
+  - Never show the review page again as if it were a new step
+  - Confirmation page must include: reference number, what happens next,
+    expected timeline, and contact information
+
+  ### Accessibility
+
+  - Change links must have unique accessible names (aria-label or visually-hidden text)
+  - Summary tables must use proper th/td markup with scope attributes
+  - Do not rely solely on position/layout to associate labels with values
+rule_id: GOV-BENEFIT-005
+prior_art: "https://design-system.service.gov.uk/patterns/check-answers/"
+precedence: 1

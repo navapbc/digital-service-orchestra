@@ -1,0 +1,56 @@
+# Component tag vocabulary: uswds-v3 (all USWDS v3 components)
+id: uswds-color-tokens
+title: "USWDS Color Tokens"
+domain:
+  - components
+component:
+  - uswds-v3
+action:
+  - design
+compliance:
+  - section-508
+severity: informational
+story_type:
+  - pattern
+coverage: summary
+source: uswds/uswds
+license: CC0-1.0
+summary: |
+  USWDS v3 uses a structured color token system with system palette grades (0-80),
+  theme color roles (primary, secondary, accent), and state color tokens. The
+  token system ensures consistent, accessible color usage across federal digital
+  services and supports custom theming without overriding CSS directly.
+detail: |
+  Color token structure:
+  - System palette: color-{family}-{grade} (e.g., color-blue-50)
+  - Grades run 0 (lightest) to 80 (darkest) in increments of 5
+  - Theme tokens map roles to system palette values
+
+  Core theme color roles:
+  - color-primary: primary brand color (default blue-60v)
+  - color-primary-dark: darker primary variant
+  - color-primary-lighter: lightest primary variant
+  - color-secondary: secondary brand color (default red-50v)
+  - color-accent-cool: cool accent (default cyan-30v)
+  - color-accent-warm: warm accent (default orange-30v)
+  - color-base: base/neutral color (default gray-90)
+  - color-ink: default text color
+  - color-white: white
+  - color-black: true black
+
+  State colors:
+  - color-success: green-50v
+  - color-warning: gold-20v
+  - color-error: red-60v
+  - color-info: cyan-30v
+  - color-disabled: gray-40
+
+  Accessibility requirements:
+  - Interactive elements must meet 4.5:1 contrast ratio for normal text
+  - Large text (18pt+ or 14pt bold) requires 3:1 contrast minimum
+  - Focus indicator must contrast 3:1 against adjacent colors per WCAG 1.4.11
+  - Do not rely on color alone to convey meaning per WCAG 1.4.1
+
+  Token usage:
+  - Reference tokens via color() function: color('primary')
+  - Never use hex values directly, always use tokens for maintainability

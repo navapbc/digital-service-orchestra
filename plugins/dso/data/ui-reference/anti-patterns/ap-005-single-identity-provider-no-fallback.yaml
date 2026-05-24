@@ -1,0 +1,47 @@
+# Canonical domain tag mapping for government UX anti-patterns:
+#   auth       — session/authentication patterns (login, MFA, session management)
+#   forms      — form-related patterns (validation, errors, input design)
+#   navigation — navigation and wayfinding patterns
+#   visual     — visual/display patterns (color, typography, layout)
+---
+id: ap-single-identity-provider-no-fallback
+rule_id: ap-005
+title: "Anti-pattern: Single Identity Provider Without Fallback"
+domain:
+  - auth
+component: []
+action:
+  - avoid
+compliance:
+  - NIST-800-63B
+severity: major
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Requiring a single identity provider (Login.gov, ID.me) with no alternative path excludes users who cannot complete digital identity proofing due to lack of documentation, connectivity, or technical ability.
+
+### Detail
+Federal identity providers like Login.gov and ID.me provide valuable identity assurance, but they require specific documents, a functional email address, and often a smartphone. Users who cannot complete identity proofing through a single digital path — due to expired documents, lack of documentation, homelessness, or technical barriers — are locked out of critical government services.
+
+Why this is harmful:
+- People experiencing homelessness may lack current government ID for identity proofing
+- Immigrants and non-citizens may have documents not accepted by automated proofing
+- Rural users may lack reliable internet for video identity verification
+- Technical failures in one IdP create a single point of failure for government access
+
+Real-world examples:
+- VA benefits requiring ID.me identity proofing, inaccessible to veterans without current ID
+- Stimulus payment portals requiring Login.gov accounts that some elderly beneficiaries could not create
+
+What to do instead:
+- Always provide an in-person or phone-based alternative identity verification path
+- Accept a broader range of government documents for identity proofing
+- Provide assisted enrollment options at government offices
+- Design IdP failure fallback paths (if Login.gov is down, route to alternative)
+
+### Implementation
+Implement an "I can't verify online" escape hatch that routes users to an in-person assistance option or mailed verification. Document the alternative path clearly on the identity verification screen.

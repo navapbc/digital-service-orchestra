@@ -1,0 +1,49 @@
+# Canonical domain tag mapping for government UX anti-patterns:
+#   auth       — session/authentication patterns (login, MFA, session management)
+#   forms      — form-related patterns (validation, errors, input design)
+#   navigation — navigation and wayfinding patterns
+#   visual     — visual/display patterns (color, typography, layout)
+---
+id: ap-no-status-tracking-submissions
+rule_id: ap-045
+title: "Anti-pattern: No Status Tracking for Submissions"
+domain:
+  - forms
+component: []
+action:
+  - avoid
+compliance:
+  - EO-14058
+  - OMB-A11-280
+severity: major
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Users who submit benefit applications with no way to check processing status experience anxiety, call centers become overloaded, and users miss opportunities to respond to requests for additional information.
+
+### Detail
+Government benefit processing can take days to months. Users who submit applications with no visibility into status — or who receive only a "We received your application" email and nothing further — are unable to plan their lives, don't know if their application was received, and cannot respond to requests for additional information. This drives call center volume as users call to check status.
+
+Why this is harmful:
+- Users in financial crisis need to know if and when benefits will start
+- No status tracking creates call center burden: users call to check manually
+- Users miss "request for information" actions because they're not checking a portal they never heard back from
+- Executive Order 14058 requires agencies to provide proactive status updates
+- OMB Circular A-11 Section 280 requires agencies to improve customer experience touchpoints
+
+Real-world examples:
+- SNAP applications with no online status portal, forcing applicants to call the county office
+- Immigration benefit applications with no status tracking beyond a 14-digit receipt number lookup
+
+What to do instead:
+- Provide a real-time or near-real-time status portal for all application types
+- Send proactive status update notifications at key milestones
+- Include estimated processing times in status displays
+- Display clearly when action is required from the applicant and what action to take
+
+### Implementation
+Build a status dashboard accessible after login, showing: application received, under review, action required, decision made. Send proactive notification when status changes. Include plain-language description of current status and expected next steps. Show estimated timeline based on current processing volumes.

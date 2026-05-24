@@ -1,0 +1,48 @@
+# Canonical domain tag mapping for government UX anti-patterns:
+#   auth       — session/authentication patterns (login, MFA, session management)
+#   forms      — form-related patterns (validation, errors, input design)
+#   navigation — navigation and wayfinding patterns
+#   visual     — visual/display patterns (color, typography, layout)
+---
+id: ap-breaking-back-button
+rule_id: ap-019
+title: "Anti-pattern: Breaking the Back Button"
+domain:
+  - navigation
+component: []
+action:
+  - avoid
+compliance:
+  - WCAG-2.4
+severity: major
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Single-page apps or form wizards that don't preserve browser history make the back button unpredictable, disorienting users — especially those with cognitive disabilities — who rely on back/forward navigation to review and correct information.
+
+### Detail
+The browser back button is one of the most fundamental navigation mechanisms for all users, including those with cognitive disabilities who need to retrace their steps. Government form wizards implemented as SPAs that use history.replaceState() instead of history.pushState(), or that reload the form on back navigation, violate user expectations and can result in lost form data.
+
+Why this is harmful:
+- Users expect the back button to return them to the previous form step to review or correct
+- Unexpected reloads that clear form data are particularly harmful in benefit applications
+- Users with cognitive disabilities rely heavily on back navigation to build confidence
+- Violates the principle of user control and predictability (WCAG principle: Understandable)
+- Lost progress from unexpected reloads generates call center burden
+
+Real-world examples:
+- Multi-step benefit application wizards that restart from step 1 when the back button is pressed
+- SPAs that replace history state, making the back button effectively non-functional
+
+What to do instead:
+- Use history.pushState() to add each form step to browser history
+- Implement in-form back navigation that preserves entered data
+- Test back/forward navigation explicitly during QA
+- Use URL-based routing for each form step (e.g., /apply/step-2)
+
+### Implementation
+Implement URL-based routing for each form step. Use history.pushState() on each step transition. When the user presses back, load the previous step's state from the saved form state. Never use replaceState() in multi-step form navigation. Test the back button in QA as a first-class scenario.

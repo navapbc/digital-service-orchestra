@@ -1,0 +1,21 @@
+id: ui-ref-modal-002
+title: Modal Dialog
+tier: pattern
+keywords:
+  - modal
+  - dialog
+  - overlay
+  - popup
+description: >
+  A modal dialog overlays the page to present critical information or require
+  user confirmation before proceeding. Use sparingly for destructive actions
+  or multi-step flows that require focus.
+example: |
+  <Modal isOpen={isOpen} onClose={handleClose} title="Confirm Action">
+    <p>Are you sure?</p>
+    <Button onClick={handleConfirm}>Confirm</Button>
+  </Modal>
+tags:
+  - ui
+  - overlay
+  - accessibility

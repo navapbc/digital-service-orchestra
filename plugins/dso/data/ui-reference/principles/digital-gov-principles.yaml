@@ -1,0 +1,32 @@
+id: principles-digitalgov-federal-ux
+title: "Digital.gov Federal UX Requirements and Principles"
+domain: principles
+action: apply
+severity: informational
+story_type: pattern
+coverage: detail
+license: public-domain
+summary: >
+  Digital.gov (maintained by GSA Technology Transformation Services) documents
+  federal UX requirements, principles, and best practices for U.S. government
+  digital services. Content is U.S. government work in the public domain.
+  The site aggregates requirements from OMB memos, the 21st Century IDEA Act,
+  and agency-specific guidance for federal digital service teams.
+detail: >
+  Federal digital UX requirements draw from multiple authorities including:
+  the 21st Century Integrated Digital Experience Act (IDEA Act) which mandates
+  accessible, mobile-friendly, and user-centered digital services;
+  OMB Circular A-11 Section 280 which requires agencies to measure customer
+  experience; OMB M-23-22 which directs agencies to implement customer
+  experience improvements. Core digital.gov UX principles include:
+  design with users not for them — conduct usability testing and incorporate
+  user feedback throughout; use plain language by default — comply with the
+  Plain Writing Act; ensure mobile-first responsive design; prioritize
+  accessibility at WCAG 2.1 AA minimum (Section 508 compliance);
+  measure task completion rates and satisfaction; design for equity —
+  consider users with disabilities, limited English proficiency, and low
+  digital literacy; respect user privacy by minimizing data collection;
+  provide consistent navigation and search; and reduce burden by simplifying
+  forms and processes. These requirements apply to all executive branch
+  agency public-facing digital services. Keywords: federal requirements,
+  digital.gov, UX requirements, government UX, IDEA Act.

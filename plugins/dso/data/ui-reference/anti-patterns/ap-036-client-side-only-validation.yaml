@@ -1,0 +1,49 @@
+# Canonical domain tag mapping for government UX anti-patterns:
+#   auth       — session/authentication patterns (login, MFA, session management)
+#   forms      — form-related patterns (validation, errors, input design)
+#   navigation — navigation and wayfinding patterns
+#   visual     — visual/display patterns (color, typography, layout)
+---
+id: ap-client-side-only-validation
+rule_id: ap-036
+title: "Anti-pattern: Client-Side-Only Input Validation"
+domain:
+  - forms
+component: []
+action:
+  - avoid
+compliance:
+  - OWASP
+  - FISMA
+severity: critical
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Validating form input only in JavaScript allows malicious or malformed data to be submitted if JavaScript is disabled or bypassed, creating security vulnerabilities and data integrity failures in government systems.
+
+### Detail
+Client-side validation (HTML5 required attributes, JavaScript validation) is easily bypassed by disabling JavaScript, using browser developer tools, or making direct HTTP requests. Government benefit systems that process legal determinations, financial transactions, and identity data must validate all input server-side. Client-side validation is a UX enhancement, not a security control.
+
+Why this is harmful:
+- Any attacker can bypass JavaScript validation by disabling JS or making direct API calls
+- Malformed data entered into government systems can cause cascading errors in downstream systems
+- SQL injection, XSS, and other injection attacks rely on insufficient server-side validation
+- Government systems are high-value targets — weak validation enables data manipulation attacks
+- OWASP classifies insufficient input validation as a top security risk
+
+Real-world examples:
+- Benefits determination systems that accepted invalid benefit dates due to client-only date validation
+- Government forms that allowed XSS through fields where only HTML5 pattern validation was applied
+
+What to do instead:
+- Always implement server-side validation as the authoritative control
+- Use client-side validation as a UX enhancement to provide faster feedback
+- Validate and sanitize all inputs on the server before processing or storing
+- Use parameterized queries to prevent injection attacks
+
+### Implementation
+Implement server-side validation in the API layer for all form inputs. Client-side validation should mirror server-side rules to provide fast feedback but must not be the sole validation. Use a validation library (Pydantic, Zod, etc.) for consistent validation rules. Server should return structured validation errors that the client can display.

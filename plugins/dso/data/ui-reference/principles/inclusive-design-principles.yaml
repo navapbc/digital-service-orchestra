@@ -1,0 +1,34 @@
+id: principles-inclusive-design
+title: "Inclusive Design Principles"
+domain: principles
+action: apply
+severity: informational
+story_type: pattern
+coverage: detail
+license: public-domain
+summary: >
+  The Inclusive Design Principles, developed by the Paciello Group and
+  contributors, provide guidance for designing digital experiences that
+  work for everyone regardless of ability, context, or circumstance.
+  They are widely adopted in government digital service contexts where
+  diverse populations — including people with disabilities, limited
+  English proficiency, and low digital literacy — must be served.
+detail: >
+  The Inclusive Design Principles include: provide comparable experience —
+  ensure everyone can accomplish tasks in a way that suits their needs
+  without undermining the quality of the experience (equivalent alternatives
+  for all users); consider situation — design for ambient light issues,
+  intermittent connectivity, one-handed use, and other real-world contexts;
+  be consistent — use familiar conventions and apply them consistently so
+  people can build on existing knowledge; give control — allow users to
+  adjust the interface to suit their needs and preferences rather than
+  suppressing user control; offer choice — provide different ways to
+  complete tasks, especially for complex or non-standard interactions;
+  prioritise content — help users focus on core tasks by prioritising
+  them in layout and information hierarchy; add value — consider how
+  features genuinely benefit users rather than adding complexity;
+  and use progressive disclosure — surface only what users need when
+  they need it to reduce cognitive load. In federal government applications,
+  these principles intersect with Section 508 accessibility requirements
+  and serve populations including veterans, seniors, people with low
+  digital literacy, and those with disabilities.

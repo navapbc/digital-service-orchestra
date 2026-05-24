@@ -1,0 +1,54 @@
+# Component tag vocabulary for Story-6 precision query contract:
+#   form     — USWDS form-related components (form inputs, validation, labels)
+#   uswds-v3 — All USWDS v3 components
+#
+# Precision query contract: "USWDS form validation" -> must return component: [form]
+id: uswds-form-components
+title: "USWDS Form Components"
+domain:
+  - components
+component:
+  - uswds-v3
+  - form
+action:
+  - design
+compliance:
+  - section-508
+severity: informational
+story_type:
+  - pattern
+coverage: summary
+source: uswds/uswds
+license: CC0-1.0
+summary: |
+  USWDS v3 form components provide accessible, standards-compliant input controls
+  for federal web applications. Core components include text input, textarea,
+  select, checkbox, radio button, date picker, file input, and form validation
+  patterns. All components implement Section 508 / WCAG 2.1 AA requirements by
+  default. Form validation should occur on blur and submit, never on keypress.
+detail: |
+  Key design tokens:
+  - $theme-input-border-color: border color for all form controls
+  - $theme-input-background-color: background for enabled inputs
+  - $theme-input-disabled-background-color: disabled state background
+  - $theme-form-group-margin: spacing between form groups
+
+  Accessibility requirements:
+  - Every input must have an associated label element (not placeholder-only)
+  - Error messages are associated via aria-describedby
+  - Required fields use both required attribute and visible indicator
+  - Focus indicators meet 3:1 contrast ratio minimum
+
+  Common usage patterns:
+  - Use .usa-form wrapper for consistent spacing and layout
+  - .usa-form-group groups label, input, and error message
+  - .usa-label applies to label elements
+  - .usa-input applies to input elements
+  - .usa-input--error applies error state styling
+  - Date picker uses usa-date-picker Web Component pattern
+
+  Form validation guidance:
+  - Validate on blur and on form submit, not on keypress
+  - Show inline error messages below the relevant input
+  - Use usa-alert--error for form-level errors at the top of the form
+  - Error text must be descriptive and actionable

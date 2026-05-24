@@ -1,0 +1,47 @@
+# Canonical domain tag mapping for government UX anti-patterns:
+#   auth       — session/authentication patterns (login, MFA, session management)
+#   forms      — form-related patterns (validation, errors, input design)
+#   navigation — navigation and wayfinding patterns
+#   visual     — visual/display patterns (color, typography, layout)
+---
+id: ap-smartphone-only-auth
+rule_id: ap-001
+title: "Anti-pattern: Smartphone-Only Authentication"
+domain:
+  - auth
+component: []
+action:
+  - avoid
+compliance:
+  - NIST-800-63B
+severity: critical
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Requiring a smartphone for multi-factor authentication excludes users without smartphones, which disproportionately impacts low-income and elderly government service users.
+
+### Detail
+Government services that mandate smartphone-based MFA (SMS codes, authenticator apps, push notifications) create a significant access barrier. Per NIST 800-63B, identity assurance must not exclude populations without smartphones. Approximately 15% of US adults do not own a smartphone, with higher rates among adults over 65, those with lower incomes, and rural populations — exactly the populations most likely to need government benefits.
+
+Why this is harmful:
+- Excludes users who cannot afford a smartphone or data plan
+- Discriminates against elderly users less likely to own smartphones
+- Violates the principle of equitable access to government services
+- May violate ADA and Rehabilitation Act requirements for accessible services
+
+Real-world examples:
+- SSA online services that require phone verification inaccessible to elderly applicants
+- Benefits portals requiring authenticator apps for users without data plans
+
+What to do instead:
+- Offer hardware token alternatives (e.g., YubiKey at service centers)
+- Provide phone call verification as an alternative to SMS
+- Allow in-person identity verification as a fallback
+- Support email-based OTP for users without phone access
+
+### Implementation
+Implement a multi-channel MFA strategy: smartphone app (primary), SMS (secondary), voice call (tertiary), hardware token (in-person alternative). NIST 800-63B Section 5.1.3 provides guidance on out-of-band authenticators with accessible fallbacks.

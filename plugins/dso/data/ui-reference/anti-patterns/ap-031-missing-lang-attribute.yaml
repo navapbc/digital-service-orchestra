@@ -1,0 +1,47 @@
+# Canonical domain tag mapping for government UX anti-patterns:
+#   auth       — session/authentication patterns (login, MFA, session management)
+#   forms      — form-related patterns (validation, errors, input design)
+#   navigation — navigation and wayfinding patterns
+#   visual     — visual/display patterns (color, typography, layout)
+---
+id: ap-missing-lang-attribute
+rule_id: ap-031
+title: "Anti-pattern: Missing HTML lang Attribute"
+domain:
+  - visual
+component: []
+action:
+  - avoid
+compliance:
+  - WCAG-3.1.1
+  - Section-508
+severity: critical
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+HTML pages without a lang attribute on the html element cause screen readers to default to the user's system language, mispronouncing all content if it doesn't match, violating WCAG 3.1.1.
+
+### Detail
+Screen readers use the lang attribute to determine which text-to-speech pronunciation rules to apply. Without it, they default to the user's configured language — which may be Spanish if the user is a native Spanish speaker, causing all English content to be pronounced with Spanish phonology, making it incomprehensible. For multilingual government sites, this is particularly critical.
+
+Why this is harmful:
+- Screen reader users hear incomprehensible mispronunciation when lang doesn't match content
+- WCAG 3.1.1 (Language of Page) is a Level A requirement — the most critical tier
+- All automated accessibility checkers flag missing lang attribute
+- Government sites serving multilingual populations need correct language markup for each language block
+
+Real-world examples:
+- Government sites whose English pages have no lang attribute, causing JAWS to read English with incorrect Spanish pronunciation for bilingual users
+- Multilingual pages without per-section lang attributes causing mispronunciation of content in secondary languages
+
+What to do instead:
+- Always add lang="en" (or appropriate language code) to the html element
+- Use lang attribute on inline elements when language changes within a page
+- For multilingual pages, mark each language section with its language code
+
+### Implementation
+Add `lang="en"` to the `<html>` element of every page template. For content blocks in other languages, add the appropriate lang attribute to the containing element: `<p lang="es">Contenido en español</p>`. Automated tools (axe-core, WAVE) will detect missing lang attributes in CI.

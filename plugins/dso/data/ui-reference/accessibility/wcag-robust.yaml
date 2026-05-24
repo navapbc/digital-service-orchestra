@@ -1,0 +1,117 @@
+# WCAG 2.2 Principle 4: Robust
+# Action tag vocabulary:
+#   verify             — compliance verification
+#   implement          — implementation guidance
+#
+# Precision query contract (Story-6):
+#   "WCAG 2.2 keyboard navigation" -> must return compliance: [wcag-2.2-aaa] AND action: [keyboard-nav]
+
+rule_id: wcag-robust
+id: wcag-robust
+title: "WCAG 2.2 Robust: Content Must Be Robust Enough for Interpretation by Assistive Technologies"
+prior_art: https://www.w3.org/TR/WCAG22/#robust
+precedence: 1
+domain: accessibility
+component: []
+action:
+  - verify
+  - implement
+compliance:
+  - wcag-2.2-aaa
+  - section-508
+severity: critical
+story_type:
+  - compliance-check
+coverage: detail
+source: w3c/wcag
+license: W3C-Document
+
+summary: |
+  WCAG 2.2 Principle 4 (Robust) requires that content be robust enough to be
+  reliably interpreted by a wide variety of user agents, including assistive
+  technologies such as screen readers (JAWS, NVDA, VoiceOver), voice control
+  software (Dragon NaturallySpeaking), and switch access devices.
+
+  Government digital services must use valid semantic HTML and ARIA to ensure
+  compatibility with the full range of assistive technologies used by the public,
+  including veterans, seniors, and people with disabilities who interact with
+  federal benefit portals.
+
+  Section 508 1194.22(d) requires sufficient information about UI elements for
+  assistive technology. OMB M-24-08 mandates testing with JAWS+Chrome, NVDA+Firefox,
+  and VoiceOver+Safari for all new agency web applications.
+
+detail: |
+  SC 4.1.1 Parsing (Level A - OBSOLETED in WCAG 2.2)
+  Note: SC 4.1.1 was removed from WCAG 2.2 (it is now always satisfied with
+  modern user agents). However, Section 508 incorporates WCAG 2.0, which still
+  includes SC 4.1.1. For Section 508 compliance:
+  - Validate HTML to eliminate duplicate ID attributes
+  - Use valid nesting (no block elements inside inline elements)
+  Government context: Tools: Nu HTML Checker (validator.w3.org), axe-core,
+  IBM Equal Access Checker
+
+  SC 4.1.2 Name, Role, Value (Level A)
+  Normative text: "For all user interface components, the name and role can be
+  programmatically determined; states, properties, and values that can be set
+  by the user can be programmatically determined; and notification of changes
+  to these items is available to user agents, including assistive technologies."
+  - Semantic HTML first: use button, a, input, select, textarea elements
+  - For custom widgets: ARIA roles, states, and properties (aria-expanded,
+    aria-selected, aria-checked, aria-disabled, aria-label, aria-labelledby)
+  - Live regions: aria-live="polite" for async status updates
+  Government context: Custom date pickers, comboboxes, autocomplete components on
+  benefits forms must expose name/role/value to screen readers
+  Section 508 1194.22(d)
+
+  SC 4.1.3 Status Messages (Level AA)
+  Normative text: "In content implemented using markup languages, status messages
+  can be programmatically determined through role or properties such that they can
+  be presented to the user by assistive technologies without receiving focus."
+  - Use role="status" or role="alert" for dynamic status messages
+  - aria-live="polite" for non-urgent updates (saved, loaded)
+  - aria-live="assertive" or role="alert" for errors and critical updates
+  Government context: Form submission confirmations, inline validation messages,
+  session warnings on government portals must be announced to screen reader users
+  without requiring focus shift. OMB M-24-08 Section 3.E status announcement req.
+
+  ARIA Pattern Implementation for Government Forms:
+
+  Form validation errors:
+    role="alert" aria-live="assertive" on error summary container
+
+  Async save confirmation:
+    role="status" aria-live="polite" on confirmation message container
+
+  Custom combobox with autocomplete:
+    role="combobox" aria-expanded="true" aria-autocomplete="list"
+    aria-controls="suggestions-list" aria-activedescendant="option-2"
+    role="listbox" on suggestions container; role="option" on each item
+
+  Progress indicator for multi-step form:
+    nav element with aria-label="Application progress"
+    ol/li with aria-current="step" on active step
+
+  Testing Requirements for Government Portals (OMB M-24-08 Appendix B):
+
+  Screen reader combinations required for testing:
+  1. JAWS 2023+ with Chrome (latest stable)
+  2. NVDA 2023+ with Firefox (latest stable)
+  3. VoiceOver with Safari on macOS (latest)
+  4. VoiceOver with Safari on iOS (latest)
+  5. TalkBack with Chrome on Android (latest)
+
+  Automated testing tools (must pass, not sufficient alone):
+  - axe-core (deque) -- integrates with Cypress/Playwright
+  - IBM Equal Access Checker
+  - Microsoft Accessibility Insights
+
+  Section 508 Cross-References:
+  - 36 CFR 1194.22(d): Sufficient information about UI elements
+  - 36 CFR 1194.22(e): Redundant text links for server-side image maps
+  - 36 CFR 1194.22(l): Scripts: accessible equivalent functionality
+
+  OMB M-24-08 Cross-References:
+  - Section 3.E: ARIA and live region requirements
+  - Section 4.B: Assistive technology testing matrix
+  - Appendix B: Required AT test combinations for federal web applications

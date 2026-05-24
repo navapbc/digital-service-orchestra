@@ -1,0 +1,49 @@
+# Canonical domain tag mapping for government UX anti-patterns:
+#   auth       — session/authentication patterns (login, MFA, session management)
+#   forms      — form-related patterns (validation, errors, input design)
+#   navigation — navigation and wayfinding patterns
+#   visual     — visual/display patterns (color, typography, layout)
+---
+id: ap-cdn-dependencies-critical-assets
+rule_id: ap-043
+title: "Anti-pattern: Third-Party CDN Dependencies for Critical Assets"
+domain:
+  - visual
+component: []
+action:
+  - avoid
+compliance:
+  - FISMA
+  - FedRAMP
+severity: major
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Loading fonts, frameworks, or icons from third-party CDNs creates a single point of failure: if the CDN goes down or is blocked, the government service breaks or becomes visually broken for all users.
+
+### Detail
+External CDN dependencies (Google Fonts, cdnjs.com, unpkg.com, Bootstrap CDN) are common in government web projects as convenience shortcuts. But they introduce reliability, security, and privacy risks. If the CDN has an outage, government forms may break. CDN requests expose user IP addresses and browsing patterns to third parties. FedRAMP-authorized systems must approve all data connections.
+
+Why this is harmful:
+- CDN outages directly cause government service outages
+- Third-party scripts can be compromised (supply chain attacks)
+- Cross-origin requests violate strict Content Security Policy implementations
+- FedRAMP systems must account for and approve all external data connections
+- Subresource Integrity (SRI) helps but doesn't eliminate the outage risk
+
+Real-world examples:
+- Government sites becoming partially functional during Cloudflare or Fastly CDN outages
+- Healthcare.gov early issues with third-party dependencies complicating outage diagnosis
+
+What to do instead:
+- Self-host all fonts, frameworks, and icons
+- Use npm/yarn to vendor dependencies during build
+- Implement Subresource Integrity (SRI) as a defense-in-depth measure if CDN is unavoidable
+- Document all external dependencies in system security plan
+
+### Implementation
+Audit all external CDN calls using browser developer tools Network panel. Move to self-hosted font files (use Google Fonts Helper to download and self-host). Use npm to vendor JavaScript dependencies. Implement a Content Security Policy that only allows approved external domains.

@@ -1,0 +1,48 @@
+# Canonical domain tag mapping for government UX anti-patterns:
+#   auth       — session/authentication patterns (login, MFA, session management)
+#   forms      — form-related patterns (validation, errors, input design)
+#   navigation — navigation and wayfinding patterns
+#   visual     — visual/display patterns (color, typography, layout)
+---
+id: ap-heavy-page-weight-broadband-assumed
+rule_id: ap-041
+title: "Anti-pattern: Heavy Page Weight Assuming Broadband"
+domain:
+  - visual
+component: []
+action:
+  - avoid
+compliance:
+  - OMB-M-17-06
+severity: major
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Pages with large images, videos, and unoptimized scripts that assume high-speed internet access exclude rural users, mobile data users, and users in areas with poor connectivity — exactly those needing government services most.
+
+### Detail
+Government benefit programs disproportionately serve populations in rural areas and low-income communities, where broadband penetration is lower and mobile data plans are often limited. A 3MB page that loads in 1 second on broadband takes 30+ seconds on a 3G mobile connection and may not load at all on satellite internet in a remote area.
+
+Why this is harmful:
+- Rural users on DSL or satellite connections face 30+ second load times for heavy pages
+- Mobile-only users on limited data plans incur charges for heavy government pages
+- Slow load times correlate with higher abandonment rates for benefit applications
+- Users in crisis (disaster relief) may have degraded connectivity precisely when they need services most
+
+Real-world examples:
+- FEMA disaster assistance site with 5MB+ home page during Hurricane Harvey when connectivity was degraded
+- State benefits portal with uncompressed images requiring 30+ second loads on mobile
+
+What to do instead:
+- Target total page weight under 500KB for critical service pages
+- Use modern image formats (WebP, AVIF) with responsive images
+- Lazy-load images below the fold
+- Use Lighthouse performance audits as a quality gate
+- Set performance budgets in CI pipeline
+
+### Implementation
+Run Lighthouse performance audit. Optimize images (compress, use WebP, implement srcset). Enable Gzip/Brotli compression on the server. Implement lazy loading for below-fold images. Set a performance budget: First Contentful Paint < 2s on simulated 3G. Add performance regression tests to CI.

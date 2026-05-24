@@ -1,0 +1,48 @@
+# Canonical domain tag mapping for government UX anti-patterns:
+#   auth       — session/authentication patterns (login, MFA, session management)
+#   forms      — form-related patterns (validation, errors, input design)
+#   navigation — navigation and wayfinding patterns
+#   visual     — visual/display patterns (color, typography, layout)
+---
+id: ap-search-only-discovery
+rule_id: ap-015
+title: "Anti-pattern: Search as the Only Discovery Path"
+domain:
+  - navigation
+component: []
+action:
+  - avoid
+compliance:
+  - WCAG-2.4
+severity: major
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Relying solely on search for content discovery without browsable navigation fails users with cognitive disabilities, low digital literacy, and those who don't know what search terms to use.
+
+### Detail
+Search requires users to already know what they're looking for and how to articulate it. Government service users, especially those in crisis, often don't know the name of the program or benefit they need. Browsable navigation with clear categories allows users to explore and discover available services. WCAG 2.4.5 requires multiple ways to locate content.
+
+Why this is harmful:
+- Users who don't know what they need can't formulate search queries
+- Search literacy correlates with education level — lowest among most vulnerable populations
+- Misspellings, non-English search terms, and colloquialisms produce poor search results
+- WCAG 2.4.5 requires multiple ways to locate content (not just search)
+- Eliminates serendipitous discovery of related programs and benefits
+
+Real-world examples:
+- Benefits portals where eligible users miss programs because they searched for the wrong term
+- Healthcare.gov at launch relied heavily on search, causing task failures for users unfamiliar with insurance terminology
+
+What to do instead:
+- Provide browsable navigation organized by user needs (not agency structure)
+- Supplement search with a "Browse by topic" or "I need help with..." browse path
+- Implement eligibility screeners that guide users through options
+- Use both search AND categorized navigation
+
+### Implementation
+Design navigation with both search and browse paths. The browse structure should be organized around user tasks and needs, not agency org chart. Implement an eligibility screener or "wizard" for users who aren't sure what they need. Search should autocomplete with plain-language suggestions.

@@ -1,0 +1,48 @@
+# Canonical domain tag mapping for government UX anti-patterns:
+#   auth       — session/authentication patterns (login, MFA, session management)
+#   forms      — form-related patterns (validation, errors, input design)
+#   navigation — navigation and wayfinding patterns
+#   visual     — visual/display patterns (color, typography, layout)
+---
+id: ap-multipage-form-no-save-resume
+rule_id: ap-007
+title: "Anti-pattern: Multi-Page Forms Without Save and Resume"
+domain:
+  - forms
+component: []
+action:
+  - avoid
+compliance:
+  - WCAG-2.2
+severity: major
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Long government forms that cannot be saved and resumed force users to complete them in a single session, creating hardship for users with disabilities, unreliable internet, or complex documentation needs.
+
+### Detail
+Government benefit applications can require 30-90 minutes to complete and may demand documents that users need time to locate. Without save-and-resume functionality, any interruption — browser crash, session timeout, caring for a child, emergency — means starting over. This is a significant equity issue for the populations most likely to be applying for government assistance.
+
+Why this is harmful:
+- Users with cognitive or physical disabilities may need multiple sessions to complete lengthy forms
+- Users in crisis (seeking emergency housing, food assistance) face compounded stress from lost progress
+- Rural users with intermittent internet lose progress to connectivity failures
+- Users gathering required documents (birth certificates, tax returns) cannot step away mid-form
+- Discourages completion — research shows abandonment rates spike without save functionality
+
+Real-world examples:
+- NJ unemployment insurance application losing data after browser crash during document upload
+- SNAP application requiring 45+ minutes without save, forcing elderly users to start over
+
+What to do instead:
+- Implement server-side save after each step in a multi-step form
+- Provide email/SMS link to resume a saved application
+- Store draft state client-side (localStorage) as backup for short interruptions
+- Send resume reminder emails for applications not completed within 48 hours
+
+### Implementation
+After each form page submission, persist state to a server-side session store keyed by a unique application token. Provide users with a "Save and come back later" option that emails a resume link. Never store sensitive data (SSN, financial) in localStorage.

@@ -1,0 +1,56 @@
+# Component tag vocabulary: uswds-v3 (all USWDS v3 components)
+id: uswds-typography-cards
+title: "USWDS Typography and Cards"
+domain:
+  - components
+component:
+  - uswds-v3
+action:
+  - design
+compliance:
+  - section-508
+severity: informational
+story_type:
+  - pattern
+coverage: summary
+source: uswds/uswds
+license: CC0-1.0
+summary: |
+  USWDS v3 typography defines the type scale, font families, and prose styles for
+  federal digital services. Cards are a layout component for grouping related
+  content into scannable, visually distinct panels. Both systems use a shared
+  token-based design approach supporting custom theming.
+detail: |
+  Typography type scale (rem values based on 16px root):
+  - font-size: 3xs = 0.75rem (12px)
+  - font-size: 2xs = 0.875rem (14px)
+  - font-size: xs = 1rem (16px)
+  - font-size: sm = 1.06rem (17px)
+  - font-size: md = 1.13rem (18px)
+  - font-size: lg = 1.25rem (20px)
+  - font-size: xl = 1.5rem (24px)
+  - font-size: 2xl = 1.75rem (28px)
+  - font-size: 3xl = 2.25rem (36px)
+
+  Prose and heading classes:
+  - .usa-prose: wrapper for styled body copy with heading hierarchy
+  - .usa-display: oversized display heading
+  - .usa-intro: introductory paragraph with larger type
+
+  Card component classes:
+  - .usa-card: base card wrapper
+  - .usa-card__container: card panel with border/shadow
+  - .usa-card__header: card heading area
+  - .usa-card__media: image/media container
+  - .usa-card__body: main text content
+  - .usa-card__footer: action area for buttons and links
+  - .usa-card--flag: horizontal media and content layout
+  - .usa-card-group: responsive grid of cards
+
+  Accessibility requirements:
+  - Heading hierarchy must be logically ordered (h1 through h6)
+  - Body text minimum contrast ratio 4.5:1 per WCAG 1.4.3
+  - Large text (18pt+) minimum contrast 3:1
+  - Line height for body text minimum 1.5 per WCAG 1.4.12
+  - Card links must have descriptive text, not "read more"
+  - Card images use meaningful alt text or empty alt for decorative images

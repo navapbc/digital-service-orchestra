@@ -1,0 +1,82 @@
+id: uswds-forms-copy
+title: "USWDS Forms Copy: Labels, Helper Text, Error Messages, and Button Labels"
+domain:
+  - gov-copy
+component:
+  - form
+  - input
+  - button
+action:
+  - design
+  - apply
+compliance:
+  - plain-language
+  - 21st-Century-IDEA
+  - WCAG-2.1-AA
+  - Section-508
+severity:
+  - critical
+story_type:
+  - pattern
+coverage:
+  - summary
+  - detail
+license: CC0-1.0
+source: "U.S. Web Design System (USWDS) v3"
+precedence: 1
+rule_id: COPY-001
+prior_art: "https://designsystem.digital.gov/components/form/"
+summary: |
+  USWDS v3 form copy standards govern field labels, helper text, error
+  messages, button labels, and placeholder text for U.S. federal digital
+  services. Copy must be short, direct, and jargon-free. Error messages must
+  be specific and actionable — telling users exactly what went wrong and how
+  to fix it. Placeholder text should never carry required information because
+  it disappears as soon as a user begins typing. Button labels must use active
+  verbs that describe the action taken.
+detail: |
+  ### Field Labels
+
+  - Use short, direct language: "Email address" not "Please enter your email address"
+  - Write in plain language at an 8th-grade reading level or lower
+  - Capitalize only the first word (sentence case): "Date of birth" not "Date Of Birth"
+  - Do not use colons after labels — the input element provides the visual relationship
+  - Mark required fields with "(required)" after the label text, not with an asterisk alone
+  - When nearly all fields are required, use "All fields required unless marked optional"
+
+  ### Helper Text
+
+  - Place helper text below the label, above the input
+  - Explain constraints the user needs to know before filling in the field:
+    "Enter your 9-digit employer identification number (EIN)"
+  - Do not repeat the label in helper text
+  - Keep helper text to one sentence; use a bulleted list only for multiple constraints
+
+  ### Error Messages
+
+  - Every error message must:
+    1. State exactly what went wrong: "Enter your date of birth" not "Required field"
+    2. Tell the user how to fix it: "Enter a date in MM/DD/YYYY format"
+    3. Avoid blaming the user: "Enter a valid email address" not "You entered an invalid email"
+    4. Avoid technical jargon: no "null", "undefined", "400", "validation failed"
+  - Do not use "sorry" in error messages — apologizing is not actionable
+  - Error messages appear both inline (below the field) and in an error summary at
+    the top of the page; the summary uses anchor links to each failing field
+
+  ### Button Labels
+
+  - Use active verbs: "Submit application", "Save and continue", "Upload document"
+  - Avoid vague labels: never use "Click here", "OK", "Submit", "Go" alone
+  - The primary action button label should match the form's purpose:
+    "Apply for benefits" on the first page, "Review and submit" before the final step
+  - Destructive actions (delete, cancel, withdraw) must be clearly labeled and
+    require a confirmation step with reversibility information
+
+  ### Placeholder Text
+
+  - Never use placeholder text to carry required instructions — it disappears when
+    the user begins typing and is not accessible to all screen readers
+  - Acceptable use: a brief format example that supplements label + helper text,
+    such as "MM/DD/YYYY" in a date field when the format is not obvious
+  - Placeholder text must meet 4.5:1 contrast ratio — most browser defaults fail;
+    use USWDS tokens and do not rely on browser placeholder styling

@@ -1,0 +1,48 @@
+# Canonical domain tag mapping for government UX anti-patterns:
+#   auth       — session/authentication patterns (login, MFA, session management)
+#   forms      — form-related patterns (validation, errors, input design)
+#   navigation — navigation and wayfinding patterns
+#   visual     — visual/display patterns (color, typography, layout)
+---
+id: ap-red-green-only-encoding
+rule_id: ap-048
+title: "Anti-pattern: Red/Green-Only Encoding in Maps and Charts"
+domain:
+  - visual
+component: []
+action:
+  - avoid
+compliance:
+  - WCAG-1.4.1
+  - Section-508
+severity: major
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Using red and green as the sole way to encode data categories in maps and charts excludes users with color vision deficiency — approximately 8% of males — who cannot distinguish between these colors.
+
+### Detail
+Red-green color encoding is ubiquitous in data visualization: red for bad/declining/failing, green for good/growing/passing. Approximately 8% of males have red-green color blindness (deuteranopia or protanopia) and cannot distinguish between these colors. Government health maps, status dashboards, and statistical charts that rely solely on red-green encoding exclude this population.
+
+Why this is harmful:
+- Red-green color blindness affects ~8% of males — a significant user population
+- Government health maps, economic indicators, and status boards commonly use red/green
+- Users cannot accurately interpret data that affects their decisions about programs and services
+- WCAG 1.4.1 (Use of Color) prohibits using color as the sole means of conveying information
+
+Real-world examples:
+- COVID-19 county-level risk maps using red/green that were uninterpretable for colorblind users
+- Benefits approval rate maps using a red-to-green gradient without labels
+
+What to do instead:
+- Use color palettes designed for color vision deficiency (ColorBrewer, Paul Tol palettes)
+- Combine color with pattern, shape, texture, or direct data labels
+- Use blue/orange or other colorblind-safe alternatives to red/green
+- Test visualizations with color vision simulators
+
+### Implementation
+Replace red/green color pairs with colorblind-safe alternatives: use orange/blue for binary encoding instead of red/green. Add direct data labels to chart elements. For geographic maps, add pattern fills or hatching to distinguish regions. Test all data visualizations using Coblis color blindness simulator or Chrome DevTools color vision deficiency simulation.

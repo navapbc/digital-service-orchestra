@@ -1,0 +1,127 @@
+# _schema.yaml — UI/UX reference corpus vocabulary schema.
+#
+# This file defines the vocabulary for tag fields and the list of required
+# fields for all corpus entries in this directory.
+#
+# optional_fields: fields that are allowed but not required, and whose values
+# are not constrained by a vocabulary (free-text or arbitrary structure).
+#
+# Maintained by the DSO plugin. Do not edit without updating check-corpus-schema.py.
+
+required_fields:
+  - id
+  - title
+  - domain
+
+tag_vocabulary:
+  domain:
+    - gov-benefit-flows
+    - accessibility
+    - patterns
+    - anti-patterns
+    - principles
+    - components
+    - gov-copy
+    - auth
+    - forms
+    - navigation
+    - visual
+  component:
+    - form
+    - navigation
+    - content
+    - layout
+    - feedback
+    - data-display
+    - input
+    - modal
+    - table
+    - button
+    - uswds-v3
+  action:
+    - design
+    - avoid
+    - apply
+    - verify
+    - implement
+    - keyboard-nav
+    - focus-management
+    - text-alternatives
+    - color-contrast
+  compliance:
+    - WCAG-2.1-AA
+    - WCAG-2.2-AA
+    - Section-508
+    - section-508
+    - plain-language
+    - 21st-Century-IDEA
+    - wcag-2.2-aaa
+    - NIST-800-63B
+    - NIST-800-53
+    - OWASP
+    - FISMA
+    - FedRAMP
+    - EO-13166
+    - EO-13988
+    - EO-14058
+    - OMB-A11-280
+    - OMB-M-10-22
+    - OMB-M-17-06
+    - PRA
+    - Title-VI
+    - HSTS-Preloading
+    - plainlanguage.gov
+    - progressive-enhancement
+    - WCAG-1.1.1
+    - WCAG-1.4.1
+    - WCAG-1.4.2
+    - WCAG-1.4.5
+    - WCAG-1.4.10
+    - WCAG-2.1
+    - WCAG-2.1.1
+    - WCAG-2.2
+    - WCAG-2.3.3
+    - WCAG-2.4
+    - WCAG-2.4.1
+    - WCAG-2.4.3
+    - WCAG-2.4.8
+    - WCAG-2.4.12
+    - WCAG-2.5.8
+    - WCAG-3.1.1
+    - WCAG-3.1.4
+    - WCAG-3.1.5
+    - WCAG-3.2.2
+    - WCAG-3.3
+    - WCAG-3.3.7
+  severity:
+    - critical
+    - major
+    - minor
+    - informational
+  story_type:
+    - pattern
+    - anti-pattern
+    - compliance-check
+  coverage:
+    - summary
+    - detail
+    - implementation
+  license:
+    - CC0
+    - CC0-1.0
+    - MIT
+    - Apache-2.0
+    - W3C-Document
+    - internal-nava
+    - public-domain
+    - OGL-v3
+
+# optional_fields: allowed in corpus entries without vocabulary constraints.
+# Values may be any string, number, or YAML structure.
+optional_fields:
+  - source
+  - summary
+  - detail
+  - rule_id
+  - prior_art
+  - precedence

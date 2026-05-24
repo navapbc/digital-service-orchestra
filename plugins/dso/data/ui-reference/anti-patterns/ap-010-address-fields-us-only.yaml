@@ -1,0 +1,49 @@
+# Canonical domain tag mapping for government UX anti-patterns:
+#   auth       — session/authentication patterns (login, MFA, session management)
+#   forms      — form-related patterns (validation, errors, input design)
+#   navigation — navigation and wayfinding patterns
+#   visual     — visual/display patterns (color, typography, layout)
+---
+id: ap-address-fields-us-only
+rule_id: ap-010
+title: "Anti-pattern: Address Fields Assuming US Continental Format"
+domain:
+  - forms
+component: []
+action:
+  - avoid
+compliance:
+  - EO-13166
+severity: major
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Rigid US-centric address forms that don't accommodate territories, military addresses, tribal nations, or non-standard addresses exclude millions of eligible government services recipients.
+
+### Detail
+Standard US address forms with fields for State, City, and 5-digit ZIP code break for residents of US territories (PR, GU, AS, VI, MP), military addresses (APO/FPO), tribal nation addresses with non-standard formats, and individuals experiencing homelessness. These populations disproportionately interact with government benefit programs.
+
+Why this is harmful:
+- Puerto Rico residents' applications fail when form requires a US state but not PR
+- Military families stationed overseas cannot enter APO/FPO addresses in civilian address fields
+- Tribal nation members may have rural route addresses not recognizable to validation algorithms
+- Homeless individuals who use shelter or P.O. Box addresses are blocked from applying
+- ZIP code validation that rejects legitimate territory ZIP codes causes application failures
+
+Real-world examples:
+- VA health enrollment forms rejecting Guam addresses
+- SNAP applications in some states requiring a home address, excluding homeless applicants
+
+What to do instead:
+- Include all US territories in State/Territory dropdown
+- Accept APO, FPO, DPO as valid city values with AA, AE, AP as valid "states"
+- Allow a P.O. Box or shelter address as a mailing address distinct from a residential address
+- Use flexible validation that accepts common non-standard address formats
+- Offer an "I don't have a fixed address" option with a mailing contact alternative
+
+### Implementation
+Use a comprehensive State/Territory list including DC, PR, GU, VI, AS, MP, AA, AE, AP. Validate ZIP codes against a list that includes territory ZIPs. Separate "mailing address" from "home address" fields, with mailing address being the required one for most government correspondence.

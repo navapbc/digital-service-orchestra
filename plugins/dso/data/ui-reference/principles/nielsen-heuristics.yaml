@@ -1,0 +1,36 @@
+id: principles-nielsen-heuristics
+title: "Nielsen's 10 Usability Heuristics"
+domain: principles
+action: apply
+severity: informational
+story_type: pattern
+coverage: detail
+license: public-domain
+summary: >
+  Jakob Nielsen's 10 general principles for interaction design, originally
+  published in 1994 and updated in 2020. These heuristics form the foundation
+  of usability evaluation in both commercial and government digital services,
+  including federal UX practice. They are used in expert reviews and heuristic
+  evaluations to identify usability problems.
+detail: >
+  The 10 design heuristics are: (1) visibility of system status — keep users
+  informed of what is happening through timely feedback; (2) match between
+  system and the real world — use familiar language, concepts, and conventions
+  rather than system-oriented terms; (3) user control and freedom — support
+  undo and redo so users can escape unwanted states; (4) consistency and
+  standards — follow platform conventions so users do not have to wonder
+  whether different words, situations, or actions mean the same thing;
+  (5) error prevention — design carefully to prevent problems before they
+  occur; (6) recognition rather than recall — minimize the user memory load
+  by making objects, actions, and options visible; (7) flexibility and
+  efficiency of use — provide accelerators for expert users while remaining
+  usable for novices; (8) aesthetic and minimalist design — avoid irrelevant
+  or rarely needed information; (9) help users recognize, diagnose, and
+  recover from errors — express error messages in plain language and
+  suggest a constructive solution; (10) help and documentation — even though
+  it is better if the system can be used without documentation, provide
+  easy-to-search support. In government applications, these heuristics are
+  applied alongside Section 508 accessibility requirements and plain language
+  standards to ensure services are understandable and usable by the public.
+  Keywords: design heuristics, usability heuristics, interaction design,
+  Nielsen, usability evaluation, heuristic evaluation.

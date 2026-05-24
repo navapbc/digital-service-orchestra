@@ -1,0 +1,81 @@
+id: patterns-cognitive-load-001
+rule_id: DARK-003
+title: "Cognitive Load Reduction Checklist"
+domain:
+  - patterns
+component: []
+action:
+  - apply
+compliance: []
+severity: informational
+story_type:
+  - pattern
+coverage: detail
+source: "Cognitive load theory (Sweller 1988); Plain Language Guidelines (plainlanguage.gov)"
+license: "public-domain"
+prior_art: "https://www.plainlanguage.gov/guidelines/"
+precedence: 1
+summary: |
+  Cognitive load is the total mental effort required to process information
+  and complete a task. Government digital services frequently impose excessive
+  cognitive load through long forms, jargon, inconsistent navigation, and
+  complex instructions. This checklist identifies checkpoints to reduce
+  extraneous load and improve task completion rates for all users, including
+  those under stress or with cognitive disabilities.
+detail: |
+  ### Intrinsic Load — Task Complexity Management
+
+  - [ ] Break multi-step tasks into clearly labelled wizard steps with a
+        visible progress indicator showing position and remaining steps.
+  - [ ] Present one primary decision or action per screen; avoid combining
+        personal data collection with eligibility confirmation on the same page.
+  - [ ] Provide default values where a safe, common default exists; do not
+        leave blank fields that require users to recall information from memory.
+  - [ ] Use progressive disclosure: show only the fields relevant to the
+        user's current context; reveal additional fields conditionally.
+  - [ ] Limit each screen to a maximum of 7 ± 2 discrete pieces of information
+        (Miller's Law) to respect working memory limits.
+
+  ### Extraneous Load — Presentation and Navigation
+
+  - [ ] Use plain language at or below a 6th-grade reading level for
+        instructions and error messages (Flesch-Kincaid grade ≤ 6).
+  - [ ] Spell out all acronyms on first use; link to a glossary for
+        technical or legal terms.
+  - [ ] Maintain consistent button labels, navigation placement, and
+        interaction patterns across all steps of a multi-page flow.
+  - [ ] Place error messages adjacent to the field in error, not only
+        at the top of the page.
+  - [ ] Use sufficient color contrast (WCAG AA minimum: 4.5:1 for normal text,
+        3:1 for large text) to reduce perceptual effort.
+  - [ ] Provide visible focus indicators for all keyboard-navigable elements.
+  - [ ] Avoid animation, parallax, or motion that is not user-initiated, as
+        these increase distraction and cognitive burden.
+  - [ ] Use chunking for long alphanumeric inputs (e.g., SSN as XXX-XX-XXXX,
+        phone as XXX-XXX-XXXX) to reduce recall and transcription errors.
+
+  ### Germane Load — Meaning-Making Support
+
+  - [ ] Show inline help text for unfamiliar concepts rather than linking to
+        an external FAQ; users lose context when they leave the form.
+  - [ ] Use examples and sample values in placeholder text or helper text
+        to anchor abstract fields (e.g., "e.g., 01/15/1980" for date fields).
+  - [ ] Provide a clear, jargon-free summary of what happens after submission:
+        expected timeline, who reviews it, and how to check status.
+  - [ ] At task completion, show a confirmation page with: the action taken,
+        a reference number, next steps, and a printable summary.
+  - [ ] For complex eligibility or calculation logic, show intermediate
+        results ("Based on your income, you may qualify for...") to reduce
+        anxiety about unknown outcomes.
+
+  ### Stress and Vulnerability Contexts
+
+  - [ ] Apply all checklist items with additional scrutiny for services
+        targeting users under economic stress, health crises, or disaster
+        recovery — these populations have reduced working memory capacity.
+  - [ ] Offer session save-and-resume for forms longer than 10 fields;
+        set session timeout to no less than 30 minutes with a visible warning.
+  - [ ] Do not use countdown timers or scarcity language on entitlement
+        programs; artificial urgency disproportionately harms stressed users.
+  - [ ] Support screen readers and assistive technology throughout; cognitive
+        load checklists and accessibility requirements reinforce each other.

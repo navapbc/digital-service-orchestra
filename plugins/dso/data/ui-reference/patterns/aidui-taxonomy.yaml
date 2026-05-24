@@ -1,0 +1,91 @@
+id: patterns-aidui-taxonomy-001
+rule_id: DARK-002
+title: "AidUI 27-Class Government Benefits Dark Pattern Taxonomy"
+domain:
+  - patterns
+component: []
+action:
+  - avoid
+compliance: []
+severity: major
+story_type:
+  - anti-pattern
+coverage: detail
+source: "https://github.com/SageSELab/AidUI"
+license: "MIT"
+prior_art: "https://github.com/SageSELab/AidUI"
+precedence: 1
+summary: |
+  AidUI is a 27-class taxonomy of dark patterns observed specifically in
+  government benefits and aid-related digital services (SageSELab, MIT license).
+  It extends general dark pattern catalogs with patterns unique to high-stakes,
+  vulnerable-population services such as unemployment insurance, SNAP, Medicaid,
+  and Social Security applications.
+detail: |
+  ### AidUI Taxonomy — 27 Pattern Classes
+
+  The AidUI taxonomy groups patterns into four meta-categories:
+
+  #### 1. Interface Interference
+  - Hidden Information: Required eligibility criteria hidden behind accordions or
+    small-print footnotes not visible on the primary form path.
+  - Visual Confusion: Color, layout, or typography that conflates mandatory and
+    optional fields, or makes error messages indistinguishable from labels.
+  - Distracting Content: Promotional or system-status banners placed directly
+    above primary form CTAs, diverting attention at critical decision points.
+  - Preselection: Default selections on benefits election screens that favor
+    agency cost savings over user benefit (e.g., generic vs. preferred provider).
+
+  #### 2. Nagging and Obstruction
+  - Repeated Interruption: Multi-screen pop-ups asking users to confirm opt-outs
+    they already confirmed.
+  - Intermediate Currency: Forcing users to create an account or provide an
+    email before revealing eligibility information.
+  - Dead End: Navigation paths that terminate without actionable next steps,
+    leaving users with no path to appeal or correction.
+  - Difficult Cancellation: Cancellation or withdrawal of an application
+    requires contacting a specific office with no online path.
+
+  #### 3. Covert Action
+  - Hidden Subscription: Auto-enrollment in notification or document-sharing
+    programs during an unrelated benefits update.
+  - Data Harvesting: Collection of optional personal data (race, household
+    composition) framed as required for eligibility determination.
+  - Third-Party Sharing: Disclosure of data-sharing with verification partners
+    buried in page 6 of a 12-page consent document.
+  - Shadow Profile: Retention of draft application data beyond the stated
+    session limit without user notification.
+
+  #### 4. Urgency and Pressure
+  - Artificial Deadline: Countdown timers or "seats remaining" language applied
+    to entitlement programs where no real scarcity exists.
+  - Guilt Tripping: Framing benefit participation in ways that imply community
+    harm or moral failure for accessing legally entitled programs.
+  - False Hierarchy: Visually elevating lower-benefit or cost-saving program
+    variants above higher-benefit options.
+  - Forced Action: Requiring acceptance of additional terms (e.g., debt
+    repayment plan, provider switch) before processing an unrelated update.
+
+  #### Additional AidUI-Specific Classes
+  - Language Lock: Application available only in English when service area has
+    >10% non-English-speaking population.
+  - Literacy Barrier: Form instructions written at a reading level above the
+    target population's median literacy.
+  - Device Lock: Critical application steps require desktop browser; mobile
+    experience terminates mid-flow.
+  - Digital Exclusion: Online-only completion path with no offline alternative
+    for populations without internet access.
+  - Session Expiry Trap: Short session timeouts (under 15 minutes) on long
+    forms with no auto-save, causing data loss and resubmission burden.
+  - Document Overload: Requiring 10+ supporting documents for an initial
+    eligibility determination that could use self-attestation.
+  - Jargon Overload: Form fields and error messages using agency-internal
+    acronyms or legal terminology without plain-language equivalents.
+  - Invisible Error: Validation errors displayed only at the top of a long
+    page, not adjacent to the relevant field.
+  - Inconsistent Navigation: Back/Continue button behavior varies across
+    application sections, causing disorientation.
+  - Opaque Status: Application status pages that show "Pending" without
+    estimated timeline, next steps, or contact path.
+  - Punitive Re-entry: Users who abandon and return must restart from the
+    beginning with no saved progress.

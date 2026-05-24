@@ -1,0 +1,49 @@
+# Canonical domain tag mapping for government UX anti-patterns:
+#   auth       — session/authentication patterns (login, MFA, session management)
+#   forms      — form-related patterns (validation, errors, input design)
+#   navigation — navigation and wayfinding patterns
+#   visual     — visual/display patterns (color, typography, layout)
+---
+id: ap-auto-playing-media
+rule_id: ap-027
+title: "Anti-pattern: Auto-Playing Video or Audio"
+domain:
+  - visual
+component: []
+action:
+  - avoid
+compliance:
+  - WCAG-1.4.2
+  - WCAG-2.3.3
+severity: major
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Media that plays automatically on government pages violates WCAG 1.4.2, triggers vestibular and sensory issues in users with disabilities, and is disruptive in public or shared computing environments.
+
+### Detail
+Auto-playing media is a known accessibility anti-pattern. For users with vestibular disorders (affecting balance and motion perception), unexpected motion can trigger nausea and vertigo. Screen reader users find auto-playing audio particularly disruptive as it conflicts with the screen reader's spoken output. In public settings (libraries, community centers), auto-playing audio creates disturbance.
+
+Why this is harmful:
+- Triggers vestibular responses in users with vestibular disorders
+- Interferes with screen reader audio, making the page unusable
+- WCAG 1.4.2 requires a mechanism to pause, stop, or mute audio that plays for more than 3 seconds
+- WCAG 2.3.3 (AAA) addresses animation from interactions — auto-play often violates this
+- Violates user agency and preference
+
+Real-world examples:
+- Government recruitment pages with auto-playing promotional videos
+- Agency homepage banners with moving carousels that cannot be paused
+
+What to do instead:
+- Never auto-play video or audio
+- Use poster images with visible play controls for video content
+- For background video/animation, respect prefers-reduced-motion media query
+- Provide a pause/stop button for any animation lasting more than 5 seconds
+
+### Implementation
+Set all video elements to muted and remove autoplay attribute. Implement prefers-reduced-motion media query to disable or pause all CSS animations and video autoplay for users who prefer reduced motion. Provide accessible play controls on all media.

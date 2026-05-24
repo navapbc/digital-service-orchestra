@@ -1,0 +1,72 @@
+# _schema.yaml — UI/UX reference corpus vocabulary schema for principles/ entries.
+#
+# This file mirrors the parent ui-reference/_schema.yaml vocabulary.
+# Maintained by the DSO plugin.
+#
+# See also: ${CLAUDE_PLUGIN_ROOT}/data/ui-reference/_schema.yaml (root schema)
+
+required_fields:
+  - id
+  - title
+  - domain
+
+# optional_fields: free-text fields allowed in entries but not validated for vocabulary.
+# These fields contain human-readable descriptions and are used by ref-query.sh for search.
+optional_fields:
+  - summary
+  - detail
+  - description
+  - keywords
+
+tag_vocabulary:
+  domain:
+    - gov-benefit-flows
+    - accessibility
+    - patterns
+    - anti-patterns
+    - principles
+    - components
+    - gov-copy
+  component:
+    - form
+    - navigation
+    - content
+    - layout
+    - feedback
+    - data-display
+    - input
+    - modal
+    - table
+    - button
+  action:
+    - design
+    - avoid
+    - apply
+    - verify
+    - implement
+  compliance:
+    - WCAG-2.1-AA
+    - WCAG-2.2-AA
+    - Section-508
+    - plain-language
+    - 21st-Century-IDEA
+  severity:
+    - critical
+    - major
+    - minor
+    - informational
+  story_type:
+    - pattern
+    - anti-pattern
+    - compliance-check
+  coverage:
+    - summary
+    - detail
+    - implementation
+  license:
+    - CC0
+    - MIT
+    - Apache-2.0
+    - W3C-Document
+    - internal-nava
+    - public-domain

@@ -1,0 +1,66 @@
+id: gov-benefit-flows-document-upload
+title: "Document Upload Patterns for Government Benefit Applications"
+domain:
+  - gov-benefit-flows
+action:
+  - design
+  - apply
+  - implement
+compliance:
+  - 21st-Century-IDEA
+  - plain-language
+  - WCAG-2.1-AA
+  - Section-508
+severity: major
+story_type:
+  - pattern
+coverage: summary
+source: "GOV.UK Design System file upload component; USWDS File Input; 18F Engineering Guides"
+license: public-domain
+summary: |
+  Document upload patterns for benefit applications must accommodate users
+  who are submitting proof-of-income, identity documents, rent receipts, and
+  other verification materials. The pattern must handle low-bandwidth
+  connections, mobile camera uploads, common file format restrictions, and
+  clear error states for oversized or unsupported files. Upload UX should
+  minimize friction while communicating accepted formats, size limits, and
+  confirmation of successful submission.
+detail: |
+  ### Upload Component Structure
+
+  - **Instruction text**: what document is needed and why, in plain language
+  - **Accepted formats**: explicit list: "PDF, JPG, PNG, or HEIC, up to 10MB"
+  - **File input**: USWDS file-input component with drag-and-drop target
+  - **Progress indicator**: progress bar or spinner while uploading
+  - **Success state**: file name, size, and "Remove" action after successful upload
+  - **Error state**: specific error message (file too large, wrong format, etc.)
+
+  ### Mobile Camera Upload
+
+  For users on mobile devices:
+  - Accept capture attribute to allow direct camera capture
+  - Accept HEIC format (iPhone default) and silently convert server-side
+  - Provide clear guidance: "You can take a photo with your phone camera"
+
+  ### Multi-Document Upload
+
+  When multiple documents are required:
+  - List required documents with status (Not uploaded / Uploaded)
+  - Allow uploading in any order
+  - Show a summary of all uploaded files before submission
+  - Allow removal and re-upload of individual files
+
+  ### Accessibility
+
+  - File input label must describe the document, not just say "Upload file"
+  - Progress and completion states must be announced to screen readers
+  - Error messages must be associated with the input via aria-describedby
+  - Do not use Flash or Java-based upload widgets
+
+  ### Late Document Submission
+
+  Allow document upload after initial application submission via the status page,
+  with a separate "Upload documents" action clearly linked from the status.
+rule_id: GOV-BENEFIT-008
+prior_art: "https://design-system.service.gov.uk/components/file-upload/"
+precedence: 2

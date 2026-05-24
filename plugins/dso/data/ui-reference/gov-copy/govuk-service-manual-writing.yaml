@@ -1,0 +1,94 @@
+id: govuk-service-manual-writing
+title: "GOV.UK Service Manual: Writing for User Interfaces and Plain Language Standards"
+domain:
+  - gov-copy
+component:
+  - content
+action:
+  - design
+  - apply
+compliance:
+  - plain-language
+  - WCAG-3.1.5
+severity:
+  - major
+story_type:
+  - pattern
+coverage:
+  - summary
+  - detail
+license: OGL-v3
+source: "GOV.UK Service Manual — Writing for User Interfaces"
+precedence: 2
+rule_id: COPY-003
+prior_art: "https://www.gov.uk/service-manual/design/writing-for-user-interfaces"
+summary: |
+  The GOV.UK Service Manual defines writing standards for government user
+  interfaces grounded in research with real users, including people with low
+  literacy, cognitive disabilities, and limited digital experience. Core
+  principles: use active voice; write for a reading age of 9; avoid jargon and
+  acronyms; address users as "you" and the service as "we"; write content for
+  the user's mental model, not the organization's structure; capitalize only
+  proper nouns. Content must be tested with real users before launch.
+detail: |
+  ### Active Voice
+
+  - Write in active voice: "Enter your name" not "Your name must be entered"
+  - Subject-verb-object structure: "[You] [do] [the thing]"
+  - Active voice reduces cognitive load and is clearer for users with lower
+    literacy or for whom English is a second language
+
+  ### Reading Level
+
+  - Target a reading age of 9 (equivalent to UK Year 4 / U.S. Grade 3–4)
+  - Use the Flesch-Kincaid or Hemingway Editor to measure reading level
+  - Short sentences (target 15–20 words maximum)
+  - Short paragraphs (target 2–3 sentences)
+  - Common words: "use" not "utilize", "help" not "assist", "find out" not "ascertain"
+
+  ### Jargon and Acronyms
+
+  - Avoid government and legal jargon; if unavoidable, explain it immediately
+  - Spell out acronyms on first use: "Universal Credit (UC)"
+  - Avoid Latin abbreviations: write "for example" not "e.g.", "that is" not "i.e."
+  - Never use: "leverage", "synergy", "best practice", "going forward",
+    "stakeholders", "deliverables" in user-facing copy
+
+  ### User's Mental Model
+
+  - Structure content around what the user is trying to do, not how the
+    organization is structured internally
+  - Navigation labels and headings must reflect user tasks: "Apply for a
+    bus pass" not "Bus pass applications"
+  - Do not use internal team names, department names, or system names in
+    user-facing copy unless the user already knows and uses that term
+
+  ### Pronouns
+
+  - Address users directly as "you": "You can apply if..." not "Applicants can apply if..."
+  - Refer to the service as "we": "We'll contact you within 5 days"
+  - Consistent pronoun use reduces ambiguity for users with cognitive disabilities
+
+  ### Capitalization
+
+  - Use sentence case for headings and labels: "Apply for a benefit" not
+    "Apply For A Benefit"
+  - Capitalize only: proper nouns, names of specific services, official acts
+    and legislation, and "government" when referring to a specific government
+  - Do NOT use ALL CAPS for emphasis — use bold sparingly instead
+
+  ### Numbers and Dates
+
+  - Write numbers as numerals from 1 upward (GOV.UK style): "3 weeks" not "three weeks"
+  - Dates: "12 June 2025" (day month year, no ordinal suffix, no comma)
+  - Times: "11am", "2:30pm" (no space before am/pm, no periods)
+  - Currency: "£1,250" or "$1,250" — always include the currency symbol
+
+  ### Content Testing
+
+  - All interface copy must be tested with real users before launch, including
+    users with low digital literacy, screen reader users, and non-native speakers
+  - Use cognitive walkthroughs to identify points where users misunderstand labels
+  - A/B test alternative phrasings for key calls-to-action on high-traffic services
+  - Error messages in particular require user testing — what seems clear to
+    authors is often confusing to users under stress

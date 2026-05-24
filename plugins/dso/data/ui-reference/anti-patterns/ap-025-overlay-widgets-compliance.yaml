@@ -1,0 +1,49 @@
+# Canonical domain tag mapping for government UX anti-patterns:
+#   auth       — session/authentication patterns (login, MFA, session management)
+#   forms      — form-related patterns (validation, errors, input design)
+#   navigation — navigation and wayfinding patterns
+#   visual     — visual/display patterns (color, typography, layout)
+---
+id: ap-overlay-widgets-compliance
+rule_id: ap-025
+title: "Anti-pattern: Accessibility Overlay Widgets as Compliance Solution"
+domain:
+  - visual
+component: []
+action:
+  - avoid
+compliance:
+  - Section-508
+  - WCAG-2.1
+severity: critical
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Using accessibility overlay tools (accessiBe, UserWay, AudioEye) instead of building accessible HTML is a false compliance shortcut that can actively harm the experience for users who rely on assistive technology.
+
+### Detail
+Accessibility overlay products promise automated compliance and are marketed heavily to government agencies as a quick fix. However, research by accessibility experts, disabled user advocacy groups, and the National Federation of the Blind demonstrates that overlays do not achieve compliance, frequently conflict with users' own assistive technology settings, and can make experiences worse for the users they claim to help.
+
+Why this is harmful:
+- Overlays conflict with screen readers and other AT, often making experiences worse
+- Do not achieve WCAG 2.1 AA compliance and cannot be used as a legal defense
+- Users with disabilities report overlays as actively disruptive to their preferred settings
+- Over 800 legal demand letters and complaints have been filed against companies using overlays
+- Government adoption of overlays signals poor accessibility culture rather than genuine commitment
+
+Real-world examples:
+- State agency websites deploying accessiBe that broke screen reader navigation for JAWS users
+- Federal contractor sites using UserWay that failed accessibility audits despite the overlay
+
+What to do instead:
+- Build accessible HTML/CSS/JavaScript from the start using USWDS components
+- Conduct regular manual accessibility audits with disabled users
+- Train development teams on WCAG, ARIA, and assistive technology
+- Use automated testing tools (axe-core, WAVE) as a supplement, not a replacement, for manual testing
+
+### Implementation
+Remove any overlay scripts from the codebase. Replace with native accessible implementations using USWDS components. Integrate axe-core into CI pipeline for automated accessibility regression testing. Schedule quarterly accessibility audits with real users of assistive technology.

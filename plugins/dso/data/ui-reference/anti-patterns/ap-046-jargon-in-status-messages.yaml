@@ -1,0 +1,48 @@
+# Canonical domain tag mapping for government UX anti-patterns:
+#   auth       — session/authentication patterns (login, MFA, session management)
+#   forms      — form-related patterns (validation, errors, input design)
+#   navigation — navigation and wayfinding patterns
+#   visual     — visual/display patterns (color, typography, layout)
+---
+id: ap-jargon-in-status-messages
+rule_id: ap-046
+title: "Anti-pattern: Jargon in Status Messages"
+domain:
+  - forms
+component: []
+action:
+  - avoid
+compliance:
+  - plainlanguage.gov
+severity: major
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Status updates using internal processing terms ("Your case is in adjudication," "Pending determination") instead of plain language ("We are reviewing your application") confuse applicants and undermine confidence in government services.
+
+### Detail
+Government benefit systems use internal workflow terminology in their status messages — terms meaningful to caseworkers but opaque to applicants. When a benefit applicant sees "Status: Adjudication" or "Disposition: Pending EOD review," they have no idea what it means or what they should do. This drives call center volume as confused applicants seek clarification.
+
+Why this is harmful:
+- Internal processing terms are meaningless to applicants
+- Creates anxiety when applicants can't understand what's happening with their benefits
+- Drives avoidable call center volume (applicants calling to understand status)
+- Undermines trust: opaque language reads as evasive or dismissive
+- Violates plain language principles
+
+Real-world examples:
+- SSI status showing "Pending initial determination" with no plain-language translation
+- Workers' comp portal showing "ADJ-PEND-MED-REVIEW" as a status code without description
+
+What to do instead:
+- Translate all internal status codes to plain language before displaying to users
+- Status should answer: "What is happening?" and "What do I need to do?"
+- Include next steps and estimated timeline alongside status
+- Use a translation layer that maps internal codes to plain-language descriptions
+
+### Implementation
+Create a status code translation table that maps all internal workflow states to plain-language descriptions. Display the plain-language description to users. Include action items when user action is required. Never expose internal system codes, case management terms, or workflow states directly to end users.

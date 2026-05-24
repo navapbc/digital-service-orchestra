@@ -1,0 +1,91 @@
+id: govuk-error-form-patterns
+title: "GOV.UK Error Message and Form Patterns: Error Summary and Inline Error Copy"
+domain:
+  - gov-copy
+component:
+  - form
+  - input
+  - feedback
+action:
+  - design
+  - apply
+  - verify
+compliance:
+  - plain-language
+  - WCAG-2.1-AA
+  - WCAG-3.3
+severity:
+  - critical
+story_type:
+  - pattern
+coverage:
+  - summary
+  - detail
+license: OGL-v3
+source: "GOV.UK Design System"
+precedence: 2
+rule_id: COPY-002
+prior_art: "https://design-system.service.gov.uk/components/error-message/"
+summary: |
+  GOV.UK Design System error message patterns define how to write and position
+  error copy in transactional government services. Errors appear in two places:
+  an error summary component at the top of the page and an inline error message
+  adjacent to each failing field. Error copy uses plain, direct language and
+  never says "sorry." Each message tells the user what to enter or select,
+  not that they did something wrong. Focus moves to the error summary on page
+  load so screen reader users encounter errors before the form fields.
+detail: |
+  ### Error Summary Component
+
+  - Display an error summary box at the top of the page whenever the form has
+    validation errors (before the page's main heading)
+  - Title the summary "There is a problem" — GOV.UK research shows this title
+    is clear, brief, and does not alarm users unnecessarily
+  - List every error in the summary as a link; each link anchor-jumps to the
+    relevant field so keyboard and screen reader users can navigate directly
+  - Move focus to the error summary box on page load (aria-labelledby or tabindex=-1
+    + programmatic focus); do not let users encounter the form before seeing errors
+
+  ### Inline Error Messages
+
+  - Place inline error messages directly below the label (and hint text if present),
+    above the input element
+  - Use the "govuk-error-message" component which prefixes the message with
+    a visually hidden "Error:" for screen reader users
+  - Every inline message must mirror the corresponding summary link text
+
+  ### Error Copy Standards
+
+  For text inputs:
+  - Required field: "Enter your [field name]" — e.g., "Enter your full name"
+  - Wrong format: "Enter [field name] in the correct format" — e.g.,
+    "Enter a date of birth in DD MM YYYY format"
+  - Out of range: "Enter a [field name] between [min] and [max]"
+
+  For checkboxes and radio buttons:
+  - Required selection: "Select if [condition]" — e.g., "Select if you have a
+    National Insurance number"
+  - Single required choice: "Select [option A] or [option B]"
+
+  For file uploads:
+  - "The selected file must be a [list of formats]"
+  - "The selected file must be smaller than [size]"
+  - "No file selected — select a [file type]"
+
+  ### Prohibited Patterns
+
+  - Do NOT use "sorry" in any error message — apology is not actionable
+  - Do NOT use generic messages like "Invalid input", "An error occurred",
+    "This field is required" without specifying what to enter or select
+  - Do NOT clear field values when errors are shown — preserve user input
+  - Do NOT use red text alone to indicate errors — pair color with an error
+    icon, a border change, and ARIA attributes (aria-describedby) for
+    color-blind users and screen readers
+
+  ### Form-Level Patterns
+
+  - Show all errors at once after a submit attempt — do not show errors one
+    at a time as users fix each field (called "whack-a-mole" in GOV.UK research)
+  - Inline validation (real-time) is only appropriate for fields where format
+    is complex (e.g., sort codes) — avoid it for simple text fields
+  - Never disable the submit button as a substitute for error messages

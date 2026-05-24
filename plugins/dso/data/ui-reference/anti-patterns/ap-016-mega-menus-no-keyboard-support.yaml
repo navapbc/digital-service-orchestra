@@ -1,0 +1,49 @@
+# Canonical domain tag mapping for government UX anti-patterns:
+#   auth       — session/authentication patterns (login, MFA, session management)
+#   forms      — form-related patterns (validation, errors, input design)
+#   navigation — navigation and wayfinding patterns
+#   visual     — visual/display patterns (color, typography, layout)
+---
+id: ap-mega-menus-no-keyboard-support
+rule_id: ap-016
+title: "Anti-pattern: Mega-Menus Without Keyboard Support"
+domain:
+  - navigation
+component: []
+action:
+  - avoid
+compliance:
+  - WCAG-2.1.1
+  - Section-508
+severity: critical
+story_type:
+  - anti-pattern
+coverage: detail
+source: navapbc/government-anti-patterns
+license: internal-nava
+---
+### Summary
+Complex dropdown or mega-menu navigation that is only operable with a mouse creates a complete barrier for keyboard-only users and many assistive technology users, violating WCAG 2.1.1.
+
+### Detail
+Government portal navigation frequently uses complex multi-column dropdown menus that appear on mouse hover. Without proper keyboard event handling, focus management, and ARIA implementation, these menus are completely inaccessible to users who cannot use a mouse — approximately 7% of internet users.
+
+Why this is harmful:
+- Keyboard-only users cannot access menu items that only appear on mouse hover
+- Screen reader users cannot discover or navigate hidden menu items
+- WCAG 2.1.1 (Keyboard) requires all functionality to be operable via keyboard
+- Breaks Section 508 compliance for all federal government services
+- Users with motor impairments relying on switch access, sip-and-puff, or keyboard emulators are completely blocked
+
+Real-world examples:
+- Federal agency sites with complex mega-menus where pressing Tab skips over all navigation
+- State benefits portals where mobile/touch users and keyboard users cannot access subnavigation
+
+What to do instead:
+- Use USWDS Navigation components which include full keyboard support
+- Implement ARIA Disclosure Navigation pattern or ARIA Menu Navigation pattern
+- Test all navigation with keyboard-only before release
+- Avoid hover-only triggers — use click or focus to open navigation
+
+### Implementation
+Implement navigation using USWDS Header or Navigation components. For custom navigation, use the ARIA Authoring Practices Guide (APG) Navigation Menu Button or Disclosure Navigation pattern. All items must be reachable by Tab/Enter, with arrow keys for submenus. Test with VoiceOver (macOS), NVDA (Windows), and keyboard-only navigation.

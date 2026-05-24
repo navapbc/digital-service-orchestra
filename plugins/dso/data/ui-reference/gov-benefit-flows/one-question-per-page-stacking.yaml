@@ -1,0 +1,50 @@
+id: gov-benefit-flows-stacking-looping
+title: "One Question Per Page: Stacking and Looping Sub-patterns for Conditional Benefit Flows"
+domain:
+  - gov-benefit-flows
+action:
+  - design
+  - apply
+compliance:
+  - 21st-Century-IDEA
+  - plain-language
+severity: major
+story_type:
+  - pattern
+coverage: summary
+source: "GOV.UK Service Manual; USDS Benefit Application Research (usds.gov); 18F Engineering Guides"
+license: public-domain
+summary: |
+  Stacking and looping are two structural sub-patterns that extend the
+  one-question-per-page template for complex government benefit flows.
+  Stacking presents dependent follow-up questions immediately after a
+  conditional answer within the same page sequence. Looping repeats a
+  page sequence for each item in a collection (e.g., each income source
+  per household member). Both patterns preserve the single-question-per-screen
+  discipline while handling the branching complexity of eligibility rules.
+detail: |
+  ### Stacking
+
+  When a Yes answer triggers one or more follow-up questions:
+  - Show follow-up questions as the NEXT page(s), not as revealed fields
+  - Use the same page template (h1 question, hint, input, continue/back)
+  - Do NOT reveal multiple follow-ups on the same page using JS show/hide
+  - Return to the main question sequence after the follow-up branch is done
+
+  ### Looping
+
+  When collecting the same set of questions for multiple items:
+  - Scope the h1 to the current item: "Income for Jane — Employment type"
+  - Show a loop counter: "Income source 2 of 3"
+  - Allow exit from the loop with "I don't have any more income sources"
+  - Present a summary table after the loop with change/remove per row
+
+  ### I Don't Know Option
+
+  For questions applicants may genuinely not know the answer to:
+  - Add "I don't know" or "I'm not sure" as an explicit answer option
+  - Route "I don't know" to a help page with document lookup guidance
+  - Never block progression: allow applicants to note uncertainty and continue
+rule_id: GOV-BENEFIT-003
+prior_art: "https://service-manual.nhs.uk/design-system/patterns/question-pages"
+precedence: 3
