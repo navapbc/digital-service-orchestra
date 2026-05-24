@@ -283,6 +283,14 @@ fi
 if ! command -v pre-commit >/dev/null 2>&1; then
     MISSING_DEPS+=("pre-commit")
 fi
+
+# Check flock — required for ticket-lib.sh + cycle-ledger concurrent-writer
+# coordination. macOS does not ship flock; install via Homebrew (`brew install
+# flock` for the discoteq portable build, or `brew install util-linux` for the
+# util-linux build). Linux util-linux usually provides it by default.
+if ! command -v flock >/dev/null 2>&1; then
+    MISSING_DEPS+=("flock (util-linux or discoteq/flock)")
+fi
 ```
 
 If `MISSING_DEPS` is non-empty, collect all items into a single install command and **pause for user confirmation before continuing**:
@@ -293,7 +301,7 @@ The following required tools are missing:
   - <item 2>
 
 Install them with:
-  brew install bash coreutils git pre-commit python uv
+  brew install bash coreutils git pre-commit python uv flock
 
 Would you like me to install them for you?
 

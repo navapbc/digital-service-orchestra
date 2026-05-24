@@ -57,6 +57,18 @@ detect_prerequisites() {
         exit 1
     fi
 
+    # Check for flock — ticket-lib.sh, preconditions-record.sh, and cycle-ledger
+    # require it for concurrent-writer serialization. macOS does not ship flock.
+    if ! command -v flock >/dev/null 2>&1; then
+        echo "ERROR: 'flock' is required but not found." >&2
+        if [[ "$platform" == "macOS" ]]; then
+            echo "  Install: brew install flock  (or: brew install util-linux)" >&2
+        else
+            echo "  Install: sudo apt-get install util-linux" >&2
+        fi
+        exit 1
+    fi
+
     # Check for pre-commit (warning only)
     if ! command -v pre-commit >/dev/null 2>&1; then
         echo "WARNING: 'pre-commit' not found. Git hooks will not run automatically." >&2

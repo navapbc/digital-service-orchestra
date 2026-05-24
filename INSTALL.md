@@ -16,6 +16,11 @@ All prerequisites below are **blocking** — they must be installed before runni
   ```
   brew install coreutils
   ```
+- **flock** (macOS): required by `ticket-lib.sh`, `preconditions-record.sh`, and the cycle-ledger for concurrent-writer serialization. macOS does not ship `flock`. Install with:
+  ```
+  brew install flock
+  ```
+  (Alternatively, `brew install util-linux` provides the util-linux build. On Linux, `util-linux` typically already provides `flock`; `sudo apt-get install util-linux` if missing.)
 
 ## Installation
 
