@@ -1,0 +1,32 @@
+id: principles-govuk-design-principles
+title: "GOV.UK Government Design Principles"
+domain: principles
+action: apply
+severity: informational
+story_type: pattern
+coverage: detail
+license: public-domain
+summary: >
+  The 10 UK Government Digital Service (GDS) design principles, published
+  under the Open Government Licence v3. These principles guide how government
+  digital services should be designed to be simple, clear, and fast for
+  all users. They are widely referenced in U.S. federal digital service
+  practice as a model governance framework for user-centered government services.
+detail: >
+  The 10 GOV.UK design principles are: (1) start with user needs — base
+  design decisions on research and evidence about real user needs, not
+  government assumptions; (2) do less — government should provide core
+  services and enable others to build around them; (3) design with data —
+  use analytics and research to make decisions and measure success;
+  (4) do the hard work to make it simple — simplifying complex processes
+  requires significant effort but benefits all users; (5) iterate then
+  iterate again — launch early, improve constantly based on evidence;
+  (6) this is for everyone — accessible design is good design, build for
+  users at the margins so all users benefit; (7) understand context —
+  design for people's whole life situation, not just a screen interaction;
+  (8) build digital services not websites — think about the entire service
+  journey from awareness to resolution; (9) be consistent not uniform —
+  use the same language and design patterns but be flexible where necessary
+  for the user's needs; (10) make things open because it makes things better
+  — share code, data, designs, and learning openly. These principles
+  complement U.S. federal digital service guidance and the USWDS design system.

@@ -1,0 +1,30 @@
+id: principles-18f-ux-guide
+title: "18F UX Guide Principles"
+domain: principles
+action: apply
+severity: informational
+story_type: pattern
+coverage: detail
+license: CC0
+summary: >
+  The 18F UX Guide codifies research-driven design principles for U.S. federal
+  digital services, developed by 18F (a digital consultancy within the General
+  Services Administration). The guide synthesizes user research methods, service
+  design practices, and iterative delivery principles for government teams.
+  Published under Creative Commons Zero (public domain dedication).
+detail: >
+  The 18F UX Guide core principles include: design for users not the government —
+  understand what users need rather than what agencies want to communicate;
+  work with not for — involve real users throughout the design process, not
+  just at the start; emphasize qualitative and quantitative research together —
+  combine analytics with direct user observation; build shared understanding —
+  cross-functional teams must align on user needs before building;
+  make research usable — present findings in formats that help teams make
+  decisions; design for the whole service — think beyond the digital touchpoint
+  to the full user journey from first contact to final resolution;
+  accessibility is not a feature — build accessibility in from the start,
+  not as a retrofit; test early and often — prototype, test, learn, repeat
+  without waiting for perfection; write for plain language — use the words
+  your users use rather than government jargon. These principles guide 18F
+  engagements with federal agencies and inform how civic technology teams
+  deliver human-centered government services.
