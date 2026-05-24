@@ -34,6 +34,11 @@ You are a **Senior Software Engineer at Google** brought in to restore a project
 
 **ci-pr mode** (when `dso.workflow=ci-pr`): `/dso:debug-everything` runs in ci-pr mode. Both Bug-Fix Mode and Diagnostic Mode commit fix batches to per-chunk sub-branches (`bug-batch/<session-id>/tier-<N>-batch-<K>` for Diagnostic Mode tiers 2–7; `bug-batch/<session-id>/bug-fix-batch-<K>` for Bug-Fix Mode tier-7-only), each opened as a PR against `SESSION_BRANCH` (not main) and merged to the session branch after review. The session's aggregate progress is tracked in a `Debug:` draft PR. Phase B Step 1 creates a `.debug-active` marker (schema v1) on the repo root; Phase K removes it. The draft PR is also created in Phase B Step 1.
 
+**Bug-Fix Mode invocation invariants** (parallel to Phase G — load-bearing for both modes):
+- `/dso:fix-bug` is invoked at the orchestrator level via `prompts/dispatch-fix-batch.md` (the shared loop). The orchestrator reads `prompts/dispatch-fix-batch.md` and follows it; the prompt Task-dispatches `/dso:fix-bug <bug-id>` per bug in each chunk with `isolation: "worktree"` when `DISPATCH_ISOLATION=true`. Fix-bug then reads `$PLUGIN_ROOT/skills/fix-bug/SKILL.md` inline in the sub-agent context and runs its own HARD-GATE.
+- The BUG_TAGS field of `ticket show` carries `CLI_user` for human-filed bugs. CLI_user tag handling is delegated entirely to fix-bug Phase B Step 1 (intent-search gate skip) — debug-everything does not extract or branch on `CLI_user` itself; the tag flows through unchanged via the bug ticket ID.
+- In ci-pr mode, changes are committed to the current sub-branch (one `bug-batch/<session-id>/bug-fix-batch-<K>` per chunk), not the session branch. In local mode (DEBUG_MODE=direct or absent), changes commit directly to the session branch.
+
 > **KNOWN GAP (tracked under upcoming remediation epic; post-mortem bug 576b-a6c7-3de3-4eef)**: in ci-pr mode, sub-branch PRs currently do NOT trigger internal LLM review. `.github/workflows/per-branch-review.yml` (which previously provided per-sub-PR review) was deleted by story 20d7-09d6-b831-4c3a. `ci.yml`'s `llm-review` job is gated to `base_ref == 'main'` and does not fire on sub-branch PRs. `/dso:review` is HARD-GATED to no-op under `dso.workflow=ci-pr`. External advisory reviewers (CodeRabbit, Gitar) may run but are not required checks. Internal review coverage currently fires only at the eventual session→main PR, on the cumulative diff. The remediation epic restores per-sub-PR internal review with a no-duplicate-checks invariant.
 
 **Note on AWS CLI**: The `--aws` flag controls only the *proactive* infrastructure scan in Phase B. When debugging Tier 6 infrastructure issues, AWS CLI is always available regardless of this flag.
@@ -378,6 +383,12 @@ Parser uses exact-prefix match: `'DEBUG_BRANCH_TRACKING: '` (note the trailing s
 </COMPACTION_RESUME>
 
 ### Bug-Fix Mode Execution
+
+**Invocation contract** — preserved across the consolidation with Phase G:
+- `/dso:fix-bug` is invoked at the orchestrator level via `prompts/dispatch-fix-batch.md` (the shared loop), with `isolation: "worktree"` Task dispatch when `DISPATCH_ISOLATION=true`. The orchestrator owns dispatch; fix-bug's investigation sub-agents do the work.
+- CLI_user-tagged bugs (extracted from the BUG_TAGS field of `ticket show`) are handled inside fix-bug Phase B Step 1 — no debug-everything-side check.
+- Per chunk: in ci-pr mode, changes are committed to the current sub-branch (not the session branch); each chunk has its own `bug-batch/<session-id>/bug-fix-batch-<K>` sub-branch and `DEBUG_BRANCH_TRACKING:` anchor. In local mode (DEBUG_MODE=direct or absent), changes commit directly to the session branch.
+
 
 <HARD-GATE>
 **No pre-committed scope reduction (guard d260-f307).** Before iterating the loop, the orchestrator MUST NOT pre-decide to truncate the batch based on context-budget reasoning. The following phrasings are PROHIBITED — observed in past sessions and codified here so they cannot be reframed:
