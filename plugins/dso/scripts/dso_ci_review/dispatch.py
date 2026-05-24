@@ -23,6 +23,7 @@ import pathlib
 import re
 import sys
 import threading
+import time
 from datetime import datetime, timezone
 from typing import Any
 
@@ -108,6 +109,13 @@ _USAGE_SCHEMA_VERSION = "1.0.0"
 _USAGE_FILE_NAME = "review-cycle-usage.json"
 _USAGE_LOCK_FILE_NAME = ".review-cycle-usage.lock"
 
+# Bounded non-blocking lock acquisition for _write_usage_entry. The outer
+# try/except in the function cannot rescue a hung blocking flock — adding a
+# retry budget ensures the function fails open instead of stalling the
+# review dispatch when a prior holder dies without releasing the lock.
+_USAGE_LOCK_MAX_RETRIES = 20
+_USAGE_LOCK_RETRY_DELAY_SEC = 0.05
+
 
 def _write_usage_entry(
     *,
@@ -122,9 +130,15 @@ def _write_usage_entry(
 ) -> None:
     """Append one usage entry to ``${ARTIFACTS_DIR}/review-cycle-usage.json``.
 
-    Uses ``fcntl.LOCK_EX`` read-modify-write for concurrent-write safety.
-    Silently no-ops on any exception so a usage-capture failure never
-    interrupts a review dispatch.
+    Uses ``fcntl.LOCK_EX | fcntl.LOCK_NB`` (non-blocking) with a bounded retry
+    loop for concurrent-write safety. Bounding the wait protects the review
+    dispatch from hanging if the lock holder process dies without releasing
+    the flock advisory lock — the outer ``try / except Exception: pass``
+    cannot rescue an indefinite block, so the function would otherwise stall
+    the entire review on a stale lock. After ``_USAGE_LOCK_MAX_RETRIES``
+    failed attempts spaced by ``_USAGE_LOCK_RETRY_DELAY_SEC`` the function
+    fails open via the outer suppression — losing one usage entry but
+    keeping the review pipeline moving.
 
     Usage fields are read from ``response.usage`` using the litellm
     OpenAI-shape (``prompt_tokens`` / ``completion_tokens``).  Cache fields
@@ -169,10 +183,21 @@ def _write_usage_entry(
         if exception_message is not None:
             entry["exception_message"] = exception_message
 
-        # fcntl.LOCK_EX read-modify-write
+        # fcntl.LOCK_EX read-modify-write with bounded non-blocking retry.
+        # A dead lock-holder cannot hang us: after
+        # _USAGE_LOCK_MAX_RETRIES * _USAGE_LOCK_RETRY_DELAY_SEC seconds we
+        # raise OSError which the outer try/except converts to a no-op
+        # (usage-capture is fail-open by design).
         lock_fd = open(lock_path, "w")  # noqa: WPS515 — intentional open without with
         try:
-            fcntl.flock(lock_fd, fcntl.LOCK_EX)
+            for _attempt in range(_USAGE_LOCK_MAX_RETRIES):
+                try:
+                    fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except (BlockingIOError, OSError):
+                    if _attempt + 1 >= _USAGE_LOCK_MAX_RETRIES:
+                        raise
+                    time.sleep(_USAGE_LOCK_RETRY_DELAY_SEC)
             # Read existing data
             if os.path.exists(usage_path):
                 try:
@@ -911,7 +936,7 @@ def dispatch_two_call_review(
     _litellm = getattr(_self_mod, "litellm", litellm)
 
     # Usage-capture: resolve cycle number from DSO_REVIEW_CYCLE env (default 1)
-    _two_call_usage_cycle = int(os.environ.get("DSO_REVIEW_CYCLE", "1") or "1")
+    _usage_cycle = int(os.environ.get("DSO_REVIEW_CYCLE", "1") or "1")
 
     # --- Call 1: pass only the stripped index (no defense_text) ---
     index_context = (
@@ -931,7 +956,7 @@ def dispatch_two_call_review(
     )
     _write_usage_entry(
         agent_id=agent_id,
-        cycle=_two_call_usage_cycle,
+        cycle=_usage_cycle,
         call_index=_next_call_index(),
         model=resolved_model,
         response=call1_response,
@@ -960,7 +985,7 @@ def dispatch_two_call_review(
     )
     _write_usage_entry(
         agent_id=agent_id,
-        cycle=_two_call_usage_cycle,
+        cycle=_usage_cycle,
         call_index=_next_call_index(),
         model=resolved_model,
         response=call2_response,
