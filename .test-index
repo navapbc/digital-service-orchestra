@@ -510,6 +510,7 @@ tests/skills/dso_ci_review/test_suppress_proximity_regression.py:tests/skills/ds
 plugins/dso/scripts/migrate-dso-workflow-config.sh:tests/scripts/test-legacy-cleanup-grep.sh
 plugins/dso/scripts/migrate-story-pr-bases.sh:tests/scripts/test-migrate-story-pr-bases.sh
 plugins/dso/scripts/migrate-ledger-v11-to-v12.sh:tests/scripts/test-migrate-ledger-v11-to-v12.sh
+plugins/dso/scripts/verify-duckdb.sh:tests/scripts/test-verify-duckdb.sh [test_red_verify_duckdb_present_binary]
 plugins/dso/scripts/verify-session-provenance.sh:tests/scripts/test-verify-session-provenance.sh,tests/scripts/test-bug-reproducer-cafb.sh,tests/scripts/test-verify-session-provenance-contract.sh,tests/scripts/test-verify-session-provenance-cases.sh
 plugins/dso/scripts/redistribute-session-commits.sh:tests/scripts/test-redistribute-session-commits.sh
 plugins/dso/scripts/write-cycle-ledger.sh:tests/scripts/test-write-cycle-ledger.sh,tests/scripts/test-write-cycle-ledger-integration.sh
@@ -556,3 +557,12 @@ plugins/dso/data/ui-reference/components/:tests/scripts/test_corpus_components_u
 
 plugins/dso/scripts/ref-query.sh:tests/scripts/test_corpus_principles.py,tests/scripts/test_corpus_anti_patterns.py [test_ref_query_script_exists,test_ref_query_returns_auth_result_for_session_timeout]
 plugins/dso/scripts/check-corpus-schema.py:tests/scripts/test_check_corpus_schema.py [test_valid_entry_with_all_required_fields_passes],tests/scripts/test_corpus_anti_patterns.py [test_check_corpus_schema_script_exists,test_check_corpus_schema_exits_zero_for_anti_patterns]
+plugins/dso/scripts/telemetry/telemetry_emit.py:tests/scripts/test-telemetry-emit.sh
+plugins/dso/scripts/telemetry/aws-setup-bucket.sh:tests/scripts/test-aws-setup-bucket.sh
+plugins/dso/scripts/telemetry/telemetry-emit.sh:tests/scripts/test-telemetry-emit.sh
+plugins/dso/scripts/telemetry/aws-setup-lambda.sh:tests/scripts/test-aws-setup-lambda.sh
+plugins/dso/scripts/telemetry/lambda-handler/s3_writer.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_s3_writer.py
+plugins/dso/scripts/telemetry/lambda-handler/privacy.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_privacy_truth_table.py
+plugins/dso/scripts/telemetry/lambda-handler/schema.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_schema.py
+plugins/dso/scripts/telemetry/lambda-handler/validator.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_validator.py
+plugins/dso/scripts/telemetry/lambda-handler/handler.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_handler.py

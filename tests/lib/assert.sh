@@ -35,8 +35,29 @@
 
 # assert_eq label expected actual
 # Increments PASS if expected == actual, FAIL otherwise.
+# Note: actual receives a NARROW normalization that triggers ONLY when it
+# matches the specific BSD `grep -c "..." || echo "0"` double-output pattern
+# — two identical lines of all-digits. BSD grep exits 1 for 0-count, causing
+# both grep ("0\n") and the fallback echo ("0\n") to fire, producing the
+# "0\n0" string. The narrow normalization recovers the correct count without
+# truncating legitimately multi-line actual values (e.g. comment bodies with
+# embedded newlines compared by ticket-platform-compat tests). The earlier
+# broad ``actual="${actual%%$'\n'*}"`` form silently truncated every
+# multi-line value and is the cause of test-ticket-platform-compat C4
+# regressing on the d2f9 recovery branch.
 assert_eq() {
     local label="$1" expected="$2" actual="$3"
+    # Narrow normalization: only collapse when actual looks like the BSD
+    # grep -c quirk (identical short digit lines). Arbitrary multi-line
+    # values pass through unchanged.
+    if [[ "$actual" == *$'\n'* ]]; then
+        local _aeq_first="${actual%%$'\n'*}"
+        local _aeq_rest="${actual#*$'\n'}"
+        if [[ "$_aeq_first" == "$_aeq_rest" ]] \
+            && [[ "$_aeq_first" =~ ^[0-9]+$ ]]; then
+            actual="$_aeq_first"
+        fi
+    fi
     if [[ "$expected" == "$actual" ]]; then
         (( ++PASS ))
     else
