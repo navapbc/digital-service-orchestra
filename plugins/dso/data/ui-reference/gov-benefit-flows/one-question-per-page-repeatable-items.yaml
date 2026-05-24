@@ -1,0 +1,45 @@
+id: gov-benefit-flows-repeatable-items
+title: "One Question Per Page: Repeatable Items Pattern for Household Members and Income Sources"
+domain:
+  - gov-benefit-flows
+action:
+  - design
+  - apply
+  - implement
+compliance:
+  - 21st-Century-IDEA
+  - plain-language
+  - WCAG-2.1-AA
+severity: major
+story_type:
+  - pattern
+coverage: summary
+source: "GOV.UK Service Manual (service-manual.service.gov.uk/design/lists); 18F Forms Guidance"
+license: public-domain
+summary: |
+  The repeatable items pattern enables applicants to add multiple entities
+  (household members, income sources, addresses) within a one-question-per-page
+  flow. Each entity is collected through its own mini-loop of screens before
+  returning to an add/remove list. This avoids table-based data entry and
+  handles dynamic household composition naturally for benefit applications
+  such as SNAP, Medicaid, and housing assistance.
+detail: |
+  ### Pattern Structure
+
+  1. **Trigger page**: "Do you have any household members to add?" (Yes/No)
+  2. **Collection loop**: one-question-per-page sequence for the entity
+     (e.g., name → relationship → date of birth → income)
+  3. **Summary list**: "You have added 2 household members" with
+     change/remove actions per row
+  4. **Add-more prompt**: "Do you need to add another household member?"
+  5. **Loop back** on Yes; continue to next section on No
+
+  ### Edge Cases
+
+  - Pre-populate known data (e.g., applicant's name for the primary person)
+  - Handle "someone else fills out this section" case with a clear handoff
+  - Confirm removal with a separate confirmation page, not a JS confirm dialog
+  - Prevent duplicate entries with a clear uniqueness error message
+rule_id: GOV-BENEFIT-002
+prior_art: "https://design-system.service.gov.uk/patterns/add-another/"
+precedence: 2

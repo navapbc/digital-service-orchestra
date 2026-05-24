@@ -1,0 +1,66 @@
+id: gov-benefit-flows-claim-status
+title: "Claim and Application Status Page Patterns for Government Benefit Services"
+domain:
+  - gov-benefit-flows
+action:
+  - design
+  - apply
+  - implement
+compliance:
+  - 21st-Century-IDEA
+  - plain-language
+  - WCAG-2.1-AA
+  - Section-508
+  - OMB-A11-280
+severity: major
+story_type:
+  - pattern
+coverage: summary
+source: "USWDS Benefit Status Patterns; VA.gov Claim Status Tool; 18F Service Design Guides"
+license: public-domain
+summary: |
+  Status pages show applicants the current state of their benefit application
+  or claim, what actions (if any) are required from them, and what to expect
+  next. Effective status pages reduce call center burden by proactively
+  surfacing the information applicants most commonly call to ask about:
+  current status, required documents, and expected decision dates. Status
+  pages must use plain-language status labels (not codes), actionable
+  next steps, and contact information when applicants need human help.
+detail: |
+  ### Status Page Structure
+
+  - **Application reference number** — prominently displayed
+  - **Status label** — plain language, e.g.:
+    - "We received your application" (received)
+    - "We need more information from you" (action required)
+    - "Your application is being reviewed" (in review)
+    - "You are approved for benefits" (approved)
+    - "Your application was not approved" (denied)
+    - "Your benefits have ended" (closed)
+  - **What happened** — 1-2 sentence explanation of the current state
+  - **What you need to do** — explicit action items with deadlines (if any)
+  - **What happens next** — expected timeline and next steps
+  - **Contact information** — phone number, office location, hours
+
+  ### Status Vocabulary
+
+  Never use internal processing codes on the status page (e.g., "Status: 3B").
+  Map all system codes to plain-language equivalents at the display layer.
+
+  ### Document Request Status
+
+  When additional documents are required:
+  - List exactly which documents are needed (not a generic "more information")
+  - Provide the deadline with a date (not "within 10 business days")
+  - Offer a document upload option directly from the status page
+  - Show document submission status per document: "Received", "Under review"
+
+  ### Denial Notices
+
+  Denial status pages MUST include:
+  - Reason for denial in plain language
+  - Appeal rights and deadlines
+  - Contact information for fair hearing requests
+rule_id: GOV-BENEFIT-007
+prior_art: "https://design.va.gov/patterns/help-users-to/check-answers"
+precedence: 1

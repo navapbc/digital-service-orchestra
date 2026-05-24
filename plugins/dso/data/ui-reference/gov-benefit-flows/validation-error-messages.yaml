@@ -1,0 +1,62 @@
+id: gov-benefit-flows-validation-errors
+title: "Validation and Error Messages for Government Benefit Application Forms"
+domain:
+  - gov-benefit-flows
+action:
+  - design
+  - apply
+  - verify
+compliance:
+  - 21st-Century-IDEA
+  - plain-language
+  - WCAG-2.1-AA
+  - WCAG-3.3
+  - Section-508
+severity: critical
+story_type:
+  - pattern
+coverage: summary
+source: "GOV.UK Design System error messages pattern; 18F Content Guide; USWDS Form Validation"
+license: public-domain
+summary: |
+  Validation and error message patterns for benefit application forms must
+  be forgiving, specific, and non-punitive. Applicants are often under
+  stress, have low digital literacy, or are using mobile devices. Error
+  messages must tell users exactly what went wrong and how to fix it,
+  preserve the data they entered, never clear fields on error, and position
+  messages adjacent to the failing field as well as in a summary at the
+  top of the page for screen reader accessibility.
+detail: |
+  ### Error Message Format
+
+  Each error message MUST:
+  1. Be placed in an error summary at the top of the page (with skip-to-error links)
+  2. Be placed inline, adjacent to the failing field
+  3. Use plain language: "Enter your date of birth" not "Field is required"
+  4. Be specific: "Enter a date of birth in DD/MM/YYYY format" not "Invalid date"
+  5. Never use technical jargon: no "null", "undefined", "400 Bad Request"
+  6. Never place blame on the user: "Enter a valid email address" not "Invalid input"
+
+  ### Field Preservation
+
+  - Never clear field values on validation error
+  - Preserve partial input so users can correct only the offending part
+  - For date fields: preserve day/month/year that were correct when only one part fails
+
+  ### Required Field Marking
+
+  - Mark required fields with "(required)" in the label — do NOT use asterisk alone
+  - For benefit forms where nearly all fields are required: "All fields are required
+    unless marked optional"
+  - Never mark all fields with (required) — it adds cognitive load without value
+
+  ### Common Benefit Form Error Patterns
+
+  - SSN: "Enter a 9-digit Social Security Number"
+  - Date of birth in future: "Date of birth must be in the past"
+  - Income amount: "Enter an amount in dollars, for example 1250.00"
+  - File upload: "The file must be a PDF, JPG, or PNG smaller than 10MB"
+  - Duplicate household member: "This person has already been added"
+rule_id: GOV-BENEFIT-006
+prior_art: "https://design-system.service.gov.uk/components/error-message/"
+precedence: 1

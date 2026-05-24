@@ -1,0 +1,61 @@
+id: gov-benefit-flows-confirmation-e-signature
+title: "Confirmation Page and E-Signature Patterns for Benefit Application Submission"
+domain:
+  - gov-benefit-flows
+action:
+  - design
+  - apply
+  - implement
+compliance:
+  - 21st-Century-IDEA
+  - plain-language
+  - WCAG-2.1-AA
+  - Section-508
+  - OMB-M-10-22
+severity: major
+story_type:
+  - pattern
+coverage: summary
+source: "GOV.UK Design System confirmation pages; USWDS; E-Sign Act (15 U.S.C. § 7001)"
+license: public-domain
+summary: |
+  The confirmation page and e-signature pattern closes the benefit application
+  flow with a clear legal signature mechanism and a confirmation page that
+  establishes trust and sets expectations. E-signature for government benefit
+  applications must meet the E-Sign Act (15 U.S.C. § 7001) and applicable
+  state law requirements. The confirmation page must provide the applicant's
+  reference number, a summary of what was submitted, what happens next,
+  and how to follow up if they do not hear back within the stated timeframe.
+detail: |
+  ### E-Signature Page Structure
+
+  Placed on the review page before the submit button:
+  - **Legal declaration text**: plain-language certification and penalty notice
+  - **Acknowledgment checkbox**: "I certify that the information is true and complete"
+    (do not use implicit agreement — explicit checkbox is required)
+  - **Full name field**: applicant types their full legal name as e-signature
+    (or click-to-sign; state law governs acceptable mechanism)
+  - **Date**: auto-populated system date, not editable
+  - **Submit button**: "Submit application" with loading state
+
+  ### Confirmation Page Structure
+
+  - **Green success banner** (USWDS alert--success): "Your application was submitted"
+  - **Reference number**: large, visually prominent, with copy-to-clipboard option
+  - **What you submitted**: brief summary (not full review; just section names + date)
+  - **What happens next**: numbered steps with expected timelines
+  - **Confirmation email**: note that a confirmation was sent to the email address provided
+  - **Document checklist**: if verifications are still needed, list them here
+  - **Contact information**: for follow-up if not contacted within stated timeline
+  - **Print / save option**: link to printable version of the confirmation
+
+  ### Post-Submission Accessibility
+
+  - Confirmation page must be the landing page after form submission (do not redirect
+    to a generic homepage)
+  - Page title must indicate success: "Application submitted — [Agency Name]"
+  - Confirmation page must be accessible without JavaScript
+  - Reference number must be readable by screen readers (avoid image-only display)
+rule_id: GOV-BENEFIT-010
+prior_art: "https://design-system.service.gov.uk/patterns/confirmation-pages/"
+precedence: 1

@@ -1,0 +1,65 @@
+id: gov-benefit-flows-draft-resume
+title: "Draft and Resume Application Patterns for Government Benefit Forms"
+domain:
+  - gov-benefit-flows
+action:
+  - design
+  - apply
+  - implement
+compliance:
+  - 21st-Century-IDEA
+  - plain-language
+  - WCAG-2.1-AA
+severity: major
+story_type:
+  - pattern
+coverage: summary
+source: "GOV.UK Service Manual; USDS Benefit Application Research; Nava PBC Benefits Delivery Research"
+license: public-domain
+summary: |
+  Draft and resume patterns allow applicants to save an incomplete benefit
+  application and return to complete it later, without requiring account
+  creation. This is critical for benefit applications because applicants
+  often need to gather documents (pay stubs, ID, rent receipts) mid-way
+  through the form. The save-and-return mechanism must be accessible to
+  users without email addresses, smartphones, or stable internet, and must
+  not expire the draft within a period shorter than what is reasonable for
+  document gathering.
+detail: |
+  ### Save Draft Mechanisms
+
+  Option A — Reference number (recommended for no-account flows):
+  - Issue a unique reference number when applicant first saves
+  - Email and/or SMS the reference number to the applicant
+  - Allow return via reference number + identity verification (DOB, last 4 SSN)
+  - Display the reference number prominently on every in-progress page
+
+  Option B — Account-based (for agencies with existing account infrastructure):
+  - Autosave to account; show "Last saved at [time]" status
+  - Send email reminder if draft is inactive for 5+ days
+  - Warn before draft expiration (7-day warning minimum)
+
+  ### Draft Expiration Policy
+
+  - Minimum draft lifetime: 30 days from creation
+  - Maximum recommended: 90 days (aligns with most eligibility period lookbacks)
+  - Expiration warning: send notification 7 days before expiry
+  - On expiry: inform applicant their draft expired and offer to start fresh
+    (do not silently discard or show a confusing error)
+
+  ### Return Flow
+
+  When an applicant returns to a draft:
+  - Show the task list with completed sections marked
+  - Display "Welcome back" or equivalent greeting
+  - Show the draft expiration date: "Your draft expires on June 15, 2026"
+  - Navigate directly to the first incomplete section on continue
+
+  ### Data Retention
+
+  - Inform applicants in the privacy notice how long their data is retained
+  - On submission: retain submitted data per agency record-retention policy
+  - On expiry without submission: delete PII per data minimization requirements
+rule_id: GOV-BENEFIT-011
+prior_art: "https://design-system.service.gov.uk/patterns/save-progress/"
+precedence: 2

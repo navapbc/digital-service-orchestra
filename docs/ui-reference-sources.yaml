@@ -255,3 +255,77 @@ sources:
       published under CC BY-ND 4.0. Corpus entries contain paraphrased
       descriptions and government service application context — not
       verbatim reproductions of the licensed content.
+
+  - name: "Nava PBC Benefits Delivery System (internal)"
+    url: "https://github.com/navapbc/benefits-delivery-system"
+    github: "navapbc/benefits-delivery-system"
+    type: github-repo-private
+    access: internal-nava
+    credentials_required: true
+    license: internal-nava
+    domains:
+      - gov-benefit-flows
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
+    notes: >
+      Internal Nava PBC repository containing benefit delivery system
+      implementation patterns, research findings, and service design artifacts.
+      Requires Nava GitHub organization membership for access.
+      To request access: contact your Nava project lead or submit a request
+      via the #engineering-access Slack channel. Content must not be committed
+      verbatim to public repositories; reference by URL and paraphrase only.
+
+  - name: "GOV.UK Service Manual — Design Patterns"
+    url: "https://service-manual.service.gov.uk/design"
+    github: "alphagov/govuk-design-system"
+    type: github-repo
+    access: public
+    credentials_required: false
+    license: OGL-v3
+    domains:
+      - gov-benefit-flows
+      - patterns
+      - components
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
+    notes: >
+      GOV.UK Service Manual design patterns, including the one-question-per-page
+      pattern, task list pattern, check-answers pattern, and confirmation pages.
+      Published by the UK Government Digital Service under the Open Government
+      Licence v3. OGL v3 requires attribution; does not restrict use or
+      paraphrase. These patterns heavily influence U.S. federal benefit
+      application form design via 18F and USDS practitioners.
+
+  - name: "18F Guides — Forms and Service Patterns"
+    url: "https://guides.18f.gov/"
+    github: "18F/guides"
+    type: github-repo
+    access: public
+    credentials_required: false
+    license: CC0-1.0
+    domains:
+      - gov-benefit-flows
+      - patterns
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
+    notes: >
+      18F (GSA) delivery guides covering government service design, form
+      patterns, content, and engineering. Published under Creative Commons
+      Zero (public domain dedication). Covers accessibility, plain language,
+      and digital service delivery practices for U.S. federal agencies.
+
+  - name: "USDA Food and Nutrition Service — SNAP Policy"
+    url: "https://www.fns.usda.gov/snap/eligibility"
+    type: website
+    access: public
+    credentials_required: false
+    license: public-domain
+    domains:
+      - gov-benefit-flows
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
+    notes: >
+      Official USDA FNS SNAP policy documentation covering eligibility rules,
+      certification periods, verification requirements, change reporting, and
+      expedited service criteria. U.S. government work, public domain.
+      Corpus entries on SNAP lifecycle policy are derived from this source.
