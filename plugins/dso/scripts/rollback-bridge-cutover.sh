@@ -29,6 +29,59 @@
 #
 # Usage:
 #   DSO_ROLLBACK_CUTOVER_SHA=<sha> rollback-bridge-cutover.sh
+#
+# ── Rollback-impossible-after-Nh: forward-fix path ───────────────────────────
+# This rollback playbook reverts the cutover commit and restores the legacy
+# edge-triggered bridges. It is safe to run for ~24-48h after cutover. After
+# that window — or whenever the conditions below hold — a clean rollback is
+# NOT possible, and operators MUST follow the forward-fix path documented
+# below rather than attempting rollback.
+#
+# Rollback becomes UNSAFE / IMPOSSIBLE when ANY of the following is true:
+#   (a) Tickets-branch compaction since cutover. The reconciler's mapping.json
+#       and bridge_state/health entries were committed and then compacted into
+#       a SNAPSHOT, so the legacy bridges cannot reconstruct their cursor state
+#       from event history. Indicator: `git log .tickets-tracker/` shows a  # tickets-boundary-ok
+#       SNAPSHOT commit AFTER the cutover SHA.
+#   (b) Irrecoverable Jira-side state. The reconciler has performed mutations
+#       (status transitions, label additions, property writes) on production
+#       Jira issues that the legacy bridges did not know about. Reverting the
+#       code does not un-mutate Jira; the legacy bridges will see "drifted"
+#       state and may attempt to re-do or contradict those mutations.
+#       Indicator: bridge-fsck reports orphan/duplicate counts BELOW the
+#       pre-cutover baseline (proves the reconciler has actively healed
+#       anomalies the legacy bridges would re-create).
+#   (c) Pre-cutover cursor snapshot absent or corrupt. STEP 2 of this script
+#       relies on bridge_state/bootstrap/cursor-snapshot.json. If that file
+#       is missing or its SHA fails verification, the legacy bridges would
+#       restart from HEAD and miss every event between cutover and rollback.
+#       Indicator: STEP 2 of this script emits "WARN: no cursor snapshot".
+#
+# Forward-fix path (use when rollback is impossible):
+#   1. Do NOT execute this script. The cutover stays in place.
+#   2. Identify the specific failure mode that prompted the rollback consideration
+#      (a band failure, a single problematic Jira issue, a payload-format defect,
+#      etc.). File a bug ticket via /dso:fix-bug and treat it as a normal
+#      production defect rather than a rollback condition.
+#   3. If a single Jira issue or class of issues is in a bad state, mutate
+#      them in-place via the reconciler bands (orphan_band, stale_band,
+#      duplicates_band, open_count_skew_band) using their `--user-approved`
+#      / per-band manifest attestation gates. Bands have safeguards (first-week
+#      mutation cap, manifest hash check, bot allowlist) that make targeted
+#      in-place healing safe even under operator pressure.
+#   4. If the failure is broader (e.g., reconciler crashes on every CREATE),
+#      patch the reconciler code via the standard /dso:fix-bug workflow and
+#      ship via PR. The reconciler is single-flight, so a broken pass blocks
+#      the next pass; once the fix lands the next scheduled tick recovers
+#      automatically.
+#   5. Disable the schedule temporarily via `gh workflow disable
+#      reconcile-bridge.yml` if the bug rate is high; re-enable via
+#      `gh workflow enable reconcile-bridge.yml` after the fix.
+#
+# This forward-fix path is intentionally documented HERE (in the script
+# operators reach for during an incident) rather than in a separate runbook,
+# so the choice between rollback and forward-fix is visible at the moment
+# of decision.
 
 set -euo pipefail
 
