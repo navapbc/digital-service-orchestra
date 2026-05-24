@@ -25,6 +25,33 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 @pytest.fixture(autouse=True)
+def _dso_disable_telemetry_during_tests(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Block live telemetry POSTs across the entire pytest session.
+
+    The d2f9 emit wrapper (telemetry_emit_wrapper.emit_event) honours
+    DSO_TELEMETRY_DISABLE=1 as a hard no-op switch. Until this fixture
+    existed, tests that imported runner.py / arbiter_processor.py and
+    reached the emit code paths would Popen the telemetry-emit.sh shim,
+    which POSTs to review_telemetry.endpoint_url. While that endpoint
+    was the SCP-blocked Lambda Function URL every POST silently 403'd,
+    masking the leak. Once endpoint_url was repointed to the API
+    Gateway (bypassing the SCP), every unguarded test run started
+    polluting s3://dso-telemetry-review-820258254566/<client_id>/<date>/
+    with synthetic records.
+
+    Tests that intentionally exercise the wrapper (e.g.
+    test_telemetry_emit_wrapper.py, test_telemetry_schema_contract.py)
+    already call ``monkeypatch.delenv("DSO_TELEMETRY_DISABLE", raising=
+    False)`` per-test; pytest applies the per-test monkeypatch AFTER
+    this autouse fixture, so those overrides continue to work
+    unchanged.
+    """
+    monkeypatch.setenv("DSO_TELEMETRY_DISABLE", "1")
+
+
+@pytest.fixture(autouse=True)
 def _no_repo_root_leaks() -> Iterator[None]:
     before = set(os.listdir(_REPO_ROOT))
     try:

@@ -1975,10 +1975,10 @@ Keys in the `review_telemetry.*` group are written automatically by the AWS setu
 
 | | |
 |---|---|
-| **Description** | Lambda Function URL that the review-emit shim POSTs telemetry events to. Written automatically by `aws-setup-lambda.sh` immediately after the Function URL is created. This is the public HTTPS endpoint returned by the Lambda Function URL config. |
-| **Accepted values** | HTTPS URL string (e.g., `https://<id>.lambda-url.us-east-1.on.aws/`) |
-| **Default** | Written by `aws-setup-lambda.sh` after `create-function-url-config` |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/telemetry/aws-setup-lambda.sh` (writes) | # shim-exempt: internal implementation reference in config documentation
+| **Description** | HTTPS endpoint the review-emit shim POSTs telemetry events to. Initially written by `aws-setup-lambda.sh` as the Lambda Function URL (`https://<id>.lambda-url.us-east-1.on.aws/`). In AWS Organizations where an SCP denies `lambda:InvokeFunctionUrl` for Principal `*` (bug `b3ac-1040-eca6-4b78`) anonymous POSTs to that URL 403; in those accounts the operator overwrites this key with the API Gateway HTTP API endpoint provisioned per INSTALL.md "Telemetry Infrastructure" step 5 (e.g. `https://<api-id>.execute-api.<region>.amazonaws.com`). API Gateway invokes the Lambda via `lambda:InvokeFunction`, which is not covered by the SCP, restoring the anonymous-submission contract. |
+| **Accepted values** | HTTPS URL string — either the Lambda Function URL or the API Gateway HTTP API endpoint |
+| **Default** | Written by `aws-setup-lambda.sh` after `create-function-url-config`; operator overwrites with the API Gateway endpoint when the SCP applies |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/telemetry/aws-setup-lambda.sh` (writes), `${CLAUDE_PLUGIN_ROOT}/scripts/telemetry/telemetry_emit.py` (reads via `telemetry.endpoint` → `review_telemetry.endpoint_url` fallback) | # shim-exempt: internal implementation reference in config documentation
 
 ---
 
@@ -1986,9 +1986,9 @@ Keys in the `review_telemetry.*` group are written automatically by the AWS setu
 
 | | |
 |---|---|
-| **Description** | Resolved Function URL read by `aws-verify-live.sh` for the end-to-end POST → S3 visibility check (Check 7). Distinct from `review_telemetry.endpoint_url` only in that this key is the config name used by the verifier; in practice both keys hold the same URL value. Must be set before running `aws-verify-live.sh`. |
+| **Description** | Resolved Lambda Function URL read by `aws-verify-live.sh` for diagnostic verification checks (existence, AuthType, IAM trust). **Intentionally distinct from `review_telemetry.endpoint_url` when an API Gateway bypass is configured** (the SCP `b3ac` case described in INSTALL.md): in that mode `endpoint_url` holds the API Gateway URL (where production emits actually flow), while `lambda_function_url` keeps the original Function URL so the verifier can still exercise the documented anonymous-POST path and report the BLOCKED-BY-ENV state. When no SCP bypass is needed, both keys legitimately hold the same value. Must be set before running `aws-verify-live.sh`. |
 | **Accepted values** | HTTPS URL string (e.g., `https://<id>.lambda-url.us-east-1.on.aws/`) |
-| **Default** | Set manually or copied from `review_telemetry.endpoint_url` after `aws-setup-lambda.sh` completes |
+| **Default** | Set manually or copied from `review_telemetry.endpoint_url` after `aws-setup-lambda.sh` completes (before any bypass-driven divergence) |
 | **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/telemetry/aws-verify-live.sh` | # shim-exempt: internal implementation reference in config documentation
 
 ---

@@ -237,11 +237,11 @@ DSO ships an optional review-telemetry pipeline: a Lambda function receives POST
 - **DuckDB CLI** installed — required for local `query-stats.sh` invocations. Verify with `plugins/dso/scripts/verify-duckdb.sh`.
 - **bash 4+** — DSO telemetry scripts require bash 4.0 or later (macOS ships 3.2; upgrade with `brew install bash`).
 - **jq** — required for `aws-status.sh` JSON output formatting. Install with `brew install jq` or `apt-get install jq`.
-- **AWS Organization SCP must allow public Lambda Function URLs** — the deployed endpoint uses `AuthType=NONE` (per the epic d2f9 design — telemetry endpoints accept POSTs without authentication). If the AWS account is a member of an Organization whose SCP denies `lambda:InvokeFunctionUrl` for Principal `*`, anonymous POSTs to the deployed Function URL will return `403 Forbidden` regardless of the resource-based policy `aws-setup-lambda.sh` attaches. The script will still exit successfully, and the function works via direct AWS SDK / signed invocation, but the "no-auth public POST" surface requires either (a) an SCP exception for the function ARN, or (b) deployment in an account outside the restrictive Organization. Filed as bug `b3ac-1040-eca6-4b78`.
+- **AWS Organization SCP and anonymous POST** — the Lambda Function URL is provisioned with `AuthType=NONE` (per the epic d2f9 design). In some AWS Organizations an SCP denies `lambda:InvokeFunctionUrl` for Principal `*`, causing anonymous POSTs straight to the Function URL to return `403 Forbidden` regardless of the resource-based policy `aws-setup-lambda.sh` attaches (bug `b3ac-1040-eca6-4b78`). For organisations where this SCP applies, **step 5 below provisions an API Gateway HTTP API that fronts the Lambda** — API Gateway invokes via `lambda:InvokeFunction` (a different IAM action not covered by the SCP), so anonymous client POSTs reach S3 as designed. In SCP-restricted accounts step 5 is required; otherwise it is optional.
 
 ### Setup Sequence (run in order)
 
-All four scripts must be run **in the order listed below** — each step writes config keys read by subsequent steps.
+Steps 1–4 are scripts that must run **in the order listed below** — each step writes config keys read by subsequent steps. Step 5 is an additional manual provisioning step required only in SCP-restricted accounts (see Prerequisites).
 
 #### 1. Provision the S3 bucket
 
@@ -284,6 +284,95 @@ plugins/dso/scripts/telemetry/aws-verify-live.sh
 - Runs 7 live checks: Lambda Function URL configured, IAM role trust policy, S3 bucket existence, S3 SSE, S3 lifecycle, IAM simulate-principal-policy for `s3:PutObject`, and end-to-end POST → S3 object visibility.
 - Requires `review_telemetry.bucket_name`, `review_telemetry.lambda_function_name`, `review_telemetry.iam_role_name`, and `review_telemetry.lambda_function_url` in `.claude/dso-config.conf`.
 - Success marker: all 7 lines print `<check_name>: ok`; exit code 0.
+
+#### 5. (Required for SCP-restricted accounts) Provision an API Gateway HTTP API in front of the Lambda
+
+The Function URL provisioned in step 2 uses `AuthType=NONE`, but if the AWS Organization SCP denies `lambda:InvokeFunctionUrl` for Principal `*` (the b3ac case described in the Prerequisites), anonymous client POSTs to that URL will 403. Fronting the Lambda with an API Gateway HTTP API restores anonymous submission because API Gateway invokes the Lambda via the `lambda:InvokeFunction` action (using its own service principal), which is not covered by the SCP.
+
+There is **no automation script** for this step — provisioning is manual. The following AWS CLI sequence creates the HTTP API, wires it to the Lambda, attaches the required invoke permission, and verifies anonymous POST → S3 end-to-end.
+
+**A. Create the HTTP API targeting the Lambda** (`--target` auto-creates the `$default` stage, an `AWS_PROXY` integration, and a `$default` route):
+
+```bash
+API_NAME="dso-telemetry-apigateway"  # pick a stable name
+LAMBDA_ARN=$(aws lambda get-function \
+  --function-name "$(.claude/scripts/dso read-config.sh review_telemetry.lambda_function_name)" \
+  --query 'Configuration.FunctionArn' --output text)
+
+aws apigatewayv2 create-api \
+  --name "$API_NAME" \
+  --protocol-type HTTP \
+  --target "$LAMBDA_ARN" \
+  --route-key 'POST /' \
+  --output json
+```
+
+Record the `ApiId` and `ApiEndpoint` from the response.
+
+**B. Grant API Gateway permission to invoke the Lambda** (a resource-based policy statement on the Lambda — scoped to this specific API by `SourceArn`). Re-running this command will fail with `ResourceConflictException` if a statement with the same id already exists; remove it first via `aws lambda remove-permission --statement-id "apigateway-${API_ID}-invoke" --function-name <name>` or pick a unique statement-id. The `--source-arn` uses the region of the Lambda (derived from the Lambda ARN; if you replaced `us-east-1` during step 2 update the substitution below):
+
+```bash
+API_ID="<from-step-A>"
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+REGION=$(aws lambda get-function \
+  --function-name "$(.claude/scripts/dso read-config.sh review_telemetry.lambda_function_name)" \
+  --query 'Configuration.FunctionArn' --output text | awk -F: '{print $4}')
+
+aws lambda add-permission \
+  --function-name "$(.claude/scripts/dso read-config.sh review_telemetry.lambda_function_name)" \
+  --statement-id "apigateway-${API_ID}-invoke" \
+  --action lambda:InvokeFunction \
+  --principal apigateway.amazonaws.com \
+  --source-arn "arn:aws:execute-api:${REGION}:${ACCOUNT_ID}:${API_ID}/*/*/*"
+```
+
+**C. Anonymous POST → S3 end-to-end smoke test**:
+
+```bash
+API_ENDPOINT="<from-step-A>"  # e.g. https://<id>.execute-api.<region>.amazonaws.com
+TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+EID="apigw-smoke-$(date -u +%H%M%S)"
+
+PAYLOAD=$(jq -nc \
+  --arg eid "$EID" \
+  --arg ts "$TS" \
+  '{schema_version:1, event_id:$eid, event_type:"tool_finding",
+    client_id:"dso-self", tool_id:"apigateway-smoke",
+    tool_version:"1.0.0", timestamp:$ts,
+    tool_name:"apigateway-smoke", tool_rule:"setup_verify",
+    tool_severity:"info", file:"",
+    message:"API Gateway anonymous submission smoke test"}')
+
+curl -sS -w '\n  HTTP %{http_code} in %{time_total}s\n' \
+  -X POST "$API_ENDPOINT" \
+  -H 'Content-Type: application/json' \
+  -d "$PAYLOAD"
+
+# Expect HTTP 202 (Lambda accepted). Then confirm the S3 write:
+sleep 4
+aws s3 ls "s3://$(.claude/scripts/dso read-config.sh review_telemetry.bucket_name)/dso-self/$(date -u +%Y-%m-%d)/"
+# Expect to see <EID>.jsonl in the listing.
+```
+
+**D. Wire the API Gateway URL into `dso-config.conf`** so the emitter (`telemetry_emit.py`) sends events through the bypass path:
+
+```bash
+.claude/scripts/dso read-config.sh review_telemetry.endpoint_url
+# was: https://<function-url-id>.lambda-url.us-east-1.on.aws/
+# update to the API Gateway endpoint from step A — manual edit of
+# .claude/dso-config.conf, or via your config-management tool of choice.
+```
+
+After step D, all subsequent emits from `telemetry_emit.py` will POST to API Gateway, which is not subject to the org SCP. The Function URL remains provisioned (it is still callable via signed SDK invoke / SigV4 if you prefer authenticated submission for some clients) but no longer the primary write path.
+
+**Teardown of the API Gateway** (when no longer needed):
+
+```bash
+aws apigatewayv2 delete-api --api-id "<API_ID>"
+aws lambda remove-permission \
+  --function-name "<lambda-name>" \
+  --statement-id "apigateway-<API_ID>-invoke"
+```
 
 ### Operations
 

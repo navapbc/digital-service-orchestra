@@ -40,6 +40,17 @@ REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null)"
 # Force-set to plugins/dso/ so dispatchers find hooks/lib/ at the right path.
 export CLAUDE_PLUGIN_ROOT="$REPO_ROOT/plugins/dso"
 
+# Block live telemetry POSTs during the test session. The d2f9 emit wrapper
+# (telemetry_emit_wrapper.emit_event) honours DSO_TELEMETRY_DISABLE=1 as a
+# hard no-op switch. Without this export, bash tests that invoke the dso
+# review pipeline (runner.py / arbiter_processor.py) would spawn the
+# telemetry-emit.sh shim, which POSTs to review_telemetry.endpoint_url.
+# Once endpoint_url is configured to a working endpoint (e.g. the API
+# Gateway bypass for SCP-restricted accounts) every test run would pollute
+# the central S3 bucket. The Python autouse fixture in tests/conftest.py
+# applies the same guard to pytest sessions.
+export DSO_TELEMETRY_DISABLE=1
+
 # --- Session-safe process cleanup (Fix 3) ---
 # Source the cleanup library and clear stale processes from prior runs
 # of the SAME session (worktree). Does NOT touch other sessions.
@@ -69,6 +80,7 @@ fi
 # Kill all child processes in this process group on exit so orphaned suite
 # runners (e.g., timed-out suites) do not linger after run-all.sh exits.
 # Appended AFTER any existing EXIT trap to avoid replacing it.
+# shellcheck disable=SC2329  # invoked indirectly via the EXIT trap below
 _kill_children() {
     # Kill direct child process group members; suppress errors for already-dead procs
     kill -- -$$ 2>/dev/null || true
@@ -252,6 +264,7 @@ else
 
     # Propagate signals to background suite runners so they don't orphan when
     # the parent is killed (by CI timeout, cancel-in-progress, or the 720s wrapper).
+    # shellcheck disable=SC2329  # invoked indirectly via the TERM/INT trap below
     _kill_suites() { kill "$_HOOKS_PID" "$_SCRIPTS_PID" "$_EVALS_PID" "$_PYTHON_PID" "$_SKILL_BASH_PID" "$_INTEGRATION_PID" 2>/dev/null || true; }
     trap '_kill_suites' TERM INT
 
@@ -300,12 +313,12 @@ echo "========================================"
 
 suite_pass() { [ "${1:-1}" -eq 0 ] && echo "PASS" || echo "FAIL"; }
 
-printf "  Evals:             %s\n" "$(suite_pass $EVALS_EXIT)"
-printf "  Hook Tests:        %s\n" "$(suite_pass $HOOKS_EXIT)"
-printf "  Script Tests:      %s\n" "$(suite_pass $SCRIPTS_EXIT)"
-printf "  Python Skill/Docs: %s\n" "$(suite_pass $PYTHON_EXIT)"
-printf "  Skill Bash Tests:  %s\n" "$(suite_pass $SKILL_BASH_EXIT)"
-printf "  Integration Tests: %s\n" "$(suite_pass $INTEGRATION_EXIT)"
+printf "  Evals:             %s\n" "$(suite_pass "$EVALS_EXIT")"
+printf "  Hook Tests:        %s\n" "$(suite_pass "$HOOKS_EXIT")"
+printf "  Script Tests:      %s\n" "$(suite_pass "$SCRIPTS_EXIT")"
+printf "  Python Skill/Docs: %s\n" "$(suite_pass "$PYTHON_EXIT")"
+printf "  Skill Bash Tests:  %s\n" "$(suite_pass "$SKILL_BASH_EXIT")"
+printf "  Integration Tests: %s\n" "$(suite_pass "$INTEGRATION_EXIT")"
 echo ""
 
 OVERALL_EXIT=0
