@@ -80,10 +80,10 @@ def test_dup_dso_local_ids_files_alert_and_bug(
 
     assert len(filed) == 1
     assert filed[0]["jira_key"] == "DIG-100"
-    assert filed[0]["dedup_key"] == "at-most-one:DIG-100"
+    assert filed[0]["dedup_key"] == "bridge-alert:at-most-one:DIG-100"
     mock_alert_store.append.assert_called_once()
     mock_alert_store.patch_bug_filed.assert_called_once_with(
-        "at-most-one:DIG-100", "abc1-def2-1234-5678", tmp_path
+        "bridge-alert:at-most-one:DIG-100", "abc1-def2-1234-5678", tmp_path
     )
 
 
@@ -178,7 +178,7 @@ def test_timeout_surfaces_warning_does_not_patch_bug(
 
     err = capsys.readouterr().err
     assert "WARN" in err
-    assert "at-most-one:DIG-100" in err
+    assert "bridge-alert:at-most-one:DIG-100" in err
     assert "timed out" in err
 
 
@@ -377,5 +377,5 @@ def test_valid_cli_output_extracts_id_and_patches_alert(
 
     assert len(filed) == 1
     mock_alert_store.patch_bug_filed.assert_called_once_with(
-        "at-most-one:DIG-100", canonical_id, tmp_path
+        "bridge-alert:at-most-one:DIG-100", canonical_id, tmp_path
     )

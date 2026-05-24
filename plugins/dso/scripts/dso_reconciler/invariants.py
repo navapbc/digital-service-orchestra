@@ -90,7 +90,11 @@ def check_at_most_one_dso_local_id(
             if len(violations_filed) >= _CAP_PER_PASS:
                 continue
 
-            dedup_key = f"at-most-one:{jira_key}"
+            # Dedup key uses the canonical "bridge-alert:" namespace prefix per
+            # the at-most-one-invariant ticket's Considerations section. Without
+            # the prefix, cross-invariant dedup scanners that filter by
+            # "bridge-alert:" prefix would miss these entries.
+            dedup_key = f"bridge-alert:at-most-one:{jira_key}"
             if alert_store.is_deduped(dedup_key, repo_root):
                 continue
 

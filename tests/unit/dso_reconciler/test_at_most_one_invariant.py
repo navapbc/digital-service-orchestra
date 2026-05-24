@@ -176,7 +176,7 @@ def test_b_single_violation(tmp_path, invariants):
 
 def test_c_dedup_window(tmp_path, invariants):
     """Second call for the same jira_key within 24h dedup window skips ticket-cli."""
-    dedup_key = "at-most-one:PROJ-100"
+    dedup_key = "bridge-alert:at-most-one:PROJ-100"
     snapshot = {
         "PROJ-100": {"dso_local_ids": ["local-aaa", "local-bbb"]},
     }

@@ -729,8 +729,9 @@ class AcliClient:
         """PUT JSON body to a Jira REST path verbatim (no wrapping).
 
         Used for endpoints that take their own JSON shape — e.g.
-        /rest/api/3/issue/{key} with ``{"update": {"labels": [...]}}``.
-        Issue-property writes should go through _direct_rest_put().
+        /rest/api/3/issue/{key} with ``{"update": {"labels": [...]}}``,
+        and issue-property writes (PUT /rest/api/3/issue/{key}/properties/{prop}
+        whose request body IS the property value verbatim).
         Raises urllib.error.HTTPError on non-2xx response.
         """
         url = f"{self.jira_url.rstrip('/')}{path}"
@@ -751,11 +752,20 @@ class AcliClient:
     def set_issue_property(self, jira_key: str, property_key: str, value: Any) -> None:
         """Set a Jira issue property via REST PUT.
 
-        Calls /rest/api/3/issue/{jira_key}/properties/{property_key} with value
-        wrapped in {"value": ...} per the Jira issue properties API contract.
+        Calls /rest/api/3/issue/{jira_key}/properties/{property_key} with the
+        value sent as the request body verbatim. Jira's issue-properties API
+        stores whatever JSON is PUT as the property's value (the docs are
+        explicit: "Request body: The value of the property. Must be valid
+        JSON"). The earlier wrapping path (`_direct_rest_put` adding a
+        `{"value": ...}` envelope) was incorrect — it caused the property to
+        be stored as the literal `{"value": uuid}` dict instead of the uuid
+        string. Bug 0b27-b785-dea8-49a0 surfaced this via the cfd6 live probe
+        (STEP_PROPERTY_READ returned `{'value': uuid}` instead of `uuid`).
+
+        Now uses `_direct_rest_put_raw` so the value is PUT exactly as-is.
         """
         path = f"/rest/api/3/issue/{jira_key}/properties/{property_key}"
-        self._direct_rest_put(path, value)
+        self._direct_rest_put_raw(path, value)
 
     def _direct_rest_get(self, path: str) -> Any:
         """GET JSON data from a Jira REST path using stored credentials.
@@ -955,12 +965,17 @@ class AcliClient:
             subprocess.CalledProcessError: On other ACLI failures (single attempt — no retry).
         """
         base = self._acli_cmd if self._acli_cmd is not None else _DEFAULT_ACLI_CMD
+        # `--yes` skips ACLI's interactive confirmation prompt. Without it,
+        # `acli jira workitem delete` waits on stdin for confirmation and
+        # exits non-zero in non-TTY contexts (bug 3256-f960-4ae6-4943
+        # surfaced by the live cfd6 capability probe run).
         full_cmd = base + [
             "jira",
             "workitem",
             "delete",
             "--key",
             jira_key,
+            "--yes",
         ]
         try:
             subprocess.run(
