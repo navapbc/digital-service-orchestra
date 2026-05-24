@@ -220,6 +220,10 @@ def render_entry(entry: dict[str, Any], tier: str) -> str:
     if isinstance(compliance, list) and compliance:
         lines.append(f"compliance: {compliance}")
 
+    action = entry.get("action", [])
+    if action:
+        lines.append(f"action: {action}")
+
     lines.append(f"license: {entry.get('license', '')}")
     lines.append(f"source: {entry.get('source', '')}")
     lines.append("")

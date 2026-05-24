@@ -131,7 +131,7 @@ test_c_manifest_integrity() {
     local checked_count=0
     local broken_entries=""
 
-    # Extract file paths from _index.yaml: lines matching "  path:" or "path:"
+    # Extract file paths from _index.yaml: lines matching "  file_path:" key
     while IFS= read -r path_value; do
         [[ -z "$path_value" ]] && continue
         checked_count=$(( checked_count + 1 ))
@@ -151,9 +151,9 @@ import sys
 try:
     with open(sys.argv[1]) as f:
         content = f.read()
-    # Extract path values: lines with "path:" key
+    # Extract file_path values: lines with "file_path:" key (YAML list items: "- file_path: ...")
     import re
-    for m in re.finditer(r'^\s+path:\s*(.+)$', content, re.MULTILINE):
+    for m in re.finditer(r'^[-\s]+file_path:\s*(.+)$', content, re.MULTILINE):
         val = m.group(1).strip().strip('"').strip("'")
         if val:
             print(val)
