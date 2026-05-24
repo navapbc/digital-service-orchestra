@@ -2004,6 +2004,17 @@ Keys in the `review_telemetry.*` group are written automatically by the AWS setu
 
 ---
 
+### `review_telemetry.client_id`
+
+| | |
+|---|---|
+| **Description** | Logical client identifier the telemetry emitter writes into every event envelope. Used as the first segment of the S3 key (`{client_id}/{YYYY-MM-DD}/{event_id}.jsonl`) so queries can partition by client. `telemetry_emit.py` reads `telemetry.client_id` first and falls back to `review_telemetry.client_id` so configs populated by `aws-setup-*.sh` continue to satisfy the emitter without a separate key. The reserved value `dso-self` opts a client into Layer A privacy exemption (cited excerpts are not stripped). |
+| **Accepted values** | Lowercase identifier suitable as an S3 path segment (e.g., `dso-self`, `dso-roundtrip-test`, customer slug). |
+| **Default** | Absent — emitter exits 1 with "client_id: required and must be non-empty" when neither this key nor `telemetry.client_id` is set. |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/telemetry/telemetry_emit.py` | # shim-exempt: internal implementation reference in config documentation
+
+---
+
 ### `telemetry.enabled`
 
 | | |

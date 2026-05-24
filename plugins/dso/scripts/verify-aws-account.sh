@@ -20,8 +20,9 @@ set -euo pipefail
 
 # ── Resolve script directory and repo root ────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# scripts/ lives three levels below repo root (${CLAUDE_PLUGIN_ROOT}/scripts/)
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+# Derive REPO_ROOT via git (preferred per test-plugin-scripts-no-relative-paths
+# policy). PROJECT_ROOT env override keeps tests / unusual contexts working.
+REPO_ROOT="${PROJECT_ROOT:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || echo "")}"
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 _READ_CONFIG_CMD="${DSO_READ_CONFIG_CMD:-"$REPO_ROOT/.claude/scripts/dso read-config"}"

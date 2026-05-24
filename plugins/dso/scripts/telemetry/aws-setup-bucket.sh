@@ -31,8 +31,9 @@ set -euo pipefail
 
 # ── Resolve paths ──────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# scripts/telemetry/ lives four levels below repo root
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+# Derive REPO_ROOT via git (preferred per test-plugin-scripts-no-relative-paths
+# policy). PROJECT_ROOT env override keeps tests / unusual contexts working.
+REPO_ROOT="${PROJECT_ROOT:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || echo "")}"
 
 # ── Overridable commands ───────────────────────────────────────────────────────
 _AWS_CMD="${DSO_AWS_CMD:-aws}"
