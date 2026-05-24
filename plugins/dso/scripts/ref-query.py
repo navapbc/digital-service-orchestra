@@ -33,6 +33,20 @@ from typing import Any
 import yaml
 
 # ---------------------------------------------------------------------------
+# Optional bm25s accelerator
+# ---------------------------------------------------------------------------
+
+try:
+    import bm25s
+
+    _BM25S_AVAILABLE = True
+except ImportError:
+    _BM25S_AVAILABLE = False
+
+# One-shot latch: emit the fallback notice at most once per process.
+_NOTICE_EMITTED = False
+
+# ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
@@ -202,6 +216,68 @@ def bm25_score(
 
 
 # ---------------------------------------------------------------------------
+# Ranking helpers (stdlib path and optional bm25s path)
+# ---------------------------------------------------------------------------
+
+
+def _rank_with_stdlib(
+    entries: list[dict[str, Any]],
+    query_tokens: list[str],
+    doc_token_lists: list[list[str]],
+) -> list[tuple[float, dict[str, Any]]]:
+    """Rank entries using the pure-stdlib BM25 implementation.
+
+    Emits a one-shot stderr notice the first time it is called in this process
+    to inform callers that the optional bm25s accelerator is absent.
+    """
+    global _NOTICE_EMITTED  # noqa: PLW0603
+    if not _NOTICE_EMITTED:
+        print(
+            "[ref-query] bm25s not available; using stdlib BM25 fallback",
+            file=sys.stderr,
+        )
+        _NOTICE_EMITTED = True
+
+    avg_doc_len = sum(len(t) for t in doc_token_lists) / max(len(doc_token_lists), 1)
+    n_docs = len(entries)
+    idf_map = {qt: compute_idf(qt, doc_token_lists, n_docs) for qt in set(query_tokens)}
+    scored: list[tuple[float, dict[str, Any]]] = []
+    for entry, doc_toks in zip(entries, doc_token_lists):
+        score = bm25_score(query_tokens, doc_toks, avg_doc_len, idf_map)
+        scored.append((score, entry))
+    return scored
+
+
+def _rank_with_bm25s(
+    entries: list[dict[str, Any]],
+    query_tokens: list[str],
+    doc_token_lists: list[list[str]],
+) -> list[tuple[float, dict[str, Any]]]:
+    """Rank entries using the bm25s library accelerator.
+
+    Falls back gracefully to _rank_with_stdlib if the bm25s API is
+    unavailable at runtime (e.g., version mismatch or partial install).
+    """
+    try:
+        retriever = bm25s.BM25()  # type: ignore[attr-defined]
+        retriever.index(bm25s.tokenize([" ".join(toks) for toks in doc_token_lists]))  # type: ignore[attr-defined]
+        query_str = " ".join(query_tokens)
+        _results, scores = retriever.retrieve(
+            bm25s.tokenize([query_str]),  # type: ignore[attr-defined]
+            corpus=list(range(len(entries))),
+            k=len(entries),
+        )
+        # scores shape: (1, k); results shape: (1, k) — corpus indices
+        scored: list[tuple[float, dict[str, Any]]] = []
+        for idx, score in zip(_results[0], scores[0]):
+            scored.append((float(score), entries[idx]))
+        return scored
+    except Exception:  # noqa: BLE001
+        # bm25s present but unusable — degrade to stdlib path transparently.
+        return _rank_with_stdlib(entries, query_tokens, doc_token_lists)
+
+
+# ---------------------------------------------------------------------------
 # Session cache (deduplication)
 # ---------------------------------------------------------------------------
 
@@ -318,16 +394,11 @@ def query(
 
     doc_texts = [entry_to_text(e) for e in entries]
     doc_token_lists = [tokenize(t) for t in doc_texts]
-    avg_doc_len = sum(len(t) for t in doc_token_lists) / max(len(doc_token_lists), 1)
-    n_docs = len(entries)
 
-    # Pre-compute IDF for each unique query token
-    idf_map = {qt: compute_idf(qt, doc_token_lists, n_docs) for qt in set(query_tokens)}
-
-    scored: list[tuple[float, dict[str, Any]]] = []
-    for entry, doc_toks in zip(entries, doc_token_lists):
-        score = bm25_score(query_tokens, doc_toks, avg_doc_len, idf_map)
-        scored.append((score, entry))
+    if _BM25S_AVAILABLE:
+        scored = _rank_with_bm25s(entries, query_tokens, doc_token_lists)
+    else:
+        scored = _rank_with_stdlib(entries, query_tokens, doc_token_lists)
 
     scored.sort(key=lambda x: x[0], reverse=True)
 

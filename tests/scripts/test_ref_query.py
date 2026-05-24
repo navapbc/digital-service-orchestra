@@ -464,3 +464,156 @@ def test_manifest_integrity_all_index_entries_resolve() -> None:
         "The following _index.yaml entries point to non-existent files:\n"
         + "\n".join(f"  - {p}" for p in missing)
     )
+
+
+# ---------------------------------------------------------------------------
+# UPDATE test 9: bm25s importable path — no fallback notice on stderr
+# ---------------------------------------------------------------------------
+
+
+def test_ref_query_uses_bm25s_when_importable() -> None:
+    """GIVEN bm25s is importable (stubbed via sys.modules),
+    WHEN ref_query module is reloaded with the stub in place,
+    THEN _BM25S_AVAILABLE is True and ref-query emits no [ref-query] fallback notice.
+
+    UPDATE-mode discipline: this test MUST FAIL until task e1ac-713e lands the
+    _BM25S_AVAILABLE sentinel in ref-query.py.
+    """
+    import importlib
+    import sys
+    import types
+
+    # Build a minimal bm25s stub so the guarded import succeeds.
+    stub = types.ModuleType("bm25s")
+    stub.__version__ = "0.0.0-stub"  # type: ignore[attr-defined]
+    old = sys.modules.get("bm25s", None)
+    sys.modules["bm25s"] = stub
+    try:
+        mod = importlib.util.module_from_spec(
+            importlib.util.spec_from_file_location("ref_query_bm25s_stub", SCRIPT_PATH)
+        )
+        importlib.util.spec_from_file_location(
+            "ref_query_bm25s_stub", SCRIPT_PATH
+        ).loader.exec_module(mod)  # type: ignore[union-attr]
+        assert getattr(mod, "_BM25S_AVAILABLE", False) is True, (
+            "_BM25S_AVAILABLE must be True when bm25s is importable; "
+            "this fails until e1ac-713e implementation lands"
+        )
+    finally:
+        if old is None:
+            sys.modules.pop("bm25s", None)
+        else:
+            sys.modules["bm25s"] = old
+
+    # Also verify subprocess: with bm25s stub absent (default env), the script
+    # does NOT emit a [ref-query] fallback notice when _BM25S_AVAILABLE would be
+    # True.  Because we cannot inject a stub into a subprocess, we assert the
+    # sentinel attribute alone above and leave the subprocess path for the
+    # fallback test below.
+
+
+# ---------------------------------------------------------------------------
+# UPDATE test 10: bm25s missing path — stdlib fallback + single stderr notice
+# ---------------------------------------------------------------------------
+
+
+def test_ref_query_falls_back_when_bm25s_missing(corpus: Path) -> None:
+    """GIVEN bm25s is NOT importable (blocked via sys.modules),
+    WHEN ref_query module is reloaded with bm25s blocked and a query is run,
+    THEN exit code is 0, stdout contains results, and stderr contains a
+    [ref-query] fallback notice mentioning 'bm25s'.
+
+    UPDATE-mode discipline: this test MUST FAIL until task e1ac-713e lands the
+    fallback notice in ref-query.py.
+    """
+    import importlib
+    import sys
+
+    # Block bm25s so the guarded import raises ImportError.
+    old = sys.modules.get("bm25s", None)
+    sys.modules["bm25s"] = None  # type: ignore[assignment]
+    try:
+        mod = importlib.util.module_from_spec(
+            importlib.util.spec_from_file_location("ref_query_no_bm25s", SCRIPT_PATH)
+        )
+        importlib.util.spec_from_file_location(
+            "ref_query_no_bm25s", SCRIPT_PATH
+        ).loader.exec_module(mod)  # type: ignore[union-attr]
+        assert getattr(mod, "_BM25S_AVAILABLE", True) is False, (
+            "_BM25S_AVAILABLE must be False when bm25s is blocked; "
+            "this fails until e1ac-713e implementation lands"
+        )
+    finally:
+        if old is None:
+            sys.modules.pop("bm25s", None)
+        else:
+            sys.modules["bm25s"] = old
+
+    # Subprocess path: run the script (bm25s genuinely absent in this env).
+    # The script must exit 0, return results, and emit exactly one [ref-query]
+    # notice on stderr mentioning bm25s.
+    result = _run_ref_query("button", corpus)
+    assert result.returncode == 0, (
+        f"Expected exit 0 from stdlib fallback path, got {result.returncode}.\n"
+        f"stderr: {result.stderr}"
+    )
+    assert result.stdout.strip(), (
+        "Expected non-empty stdout from stdlib fallback path; got empty output."
+    )
+    assert "[ref-query]" in result.stderr and "bm25s" in result.stderr, (
+        f"Expected a [ref-query] stderr notice mentioning bm25s on fallback path.\n"
+        f"Got stderr: {result.stderr!r}\n"
+        "This fails until e1ac-713e implementation lands."
+    )
+
+
+# ---------------------------------------------------------------------------
+# UPDATE test 11: fallback notice emitted exactly once per process
+# ---------------------------------------------------------------------------
+
+
+def test_ref_query_notice_emitted_once_per_process(corpus: Path) -> None:
+    """GIVEN bm25s is absent (default env) and the stdlib fallback is active,
+    WHEN the query() function is called twice in the same process,
+    THEN the [ref-query] stderr notice is emitted exactly once across both calls.
+
+    UPDATE-mode discipline: this test MUST FAIL until task e1ac-713e lands the
+    _NOTICE_EMITTED latch in ref-query.py.
+    """
+    import importlib
+    import io
+    import sys
+
+    # Block bm25s to force fallback.
+    old = sys.modules.get("bm25s", None)
+    sys.modules["bm25s"] = None  # type: ignore[assignment]
+    try:
+        mod = importlib.util.module_from_spec(
+            importlib.util.spec_from_file_location("ref_query_once", SCRIPT_PATH)
+        )
+        importlib.util.spec_from_file_location(
+            "ref_query_once", SCRIPT_PATH
+        ).loader.exec_module(mod)  # type: ignore[union-attr]
+    finally:
+        if old is None:
+            sys.modules.pop("bm25s", None)
+        else:
+            sys.modules["bm25s"] = old
+
+    # Capture stderr for both calls.
+    captured = io.StringIO()
+    old_stderr = sys.stderr
+    sys.stderr = captured
+    try:
+        mod.query(str(corpus), "button", top_n=2)
+        mod.query(str(corpus), "ui", top_n=2)
+    finally:
+        sys.stderr = old_stderr
+
+    output = captured.getvalue()
+    notice_count = output.count("[ref-query]")
+    assert notice_count == 1, (
+        f"Expected the [ref-query] fallback notice exactly once; "
+        f"got {notice_count} occurrence(s).\nCaptured stderr:\n{output}\n"
+        "This fails until e1ac-713e lands the _NOTICE_EMITTED latch."
+    )
