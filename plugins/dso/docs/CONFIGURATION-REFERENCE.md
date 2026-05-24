@@ -1912,6 +1912,132 @@ and [`model.deep`](#modeldeep) above.
 
 ---
 
+## Telemetry Infrastructure
+
+Keys in the `review_telemetry.*` group are written automatically by the AWS setup scripts and read by the verification and teardown scripts. Keys in the `telemetry.*` group are consumed by the `telemetry_emit.py` emitter shim.
+
+### `review_telemetry.bucket_name_prefix`
+
+| | |
+|---|---|
+| **Description** | S3 bucket name prefix used by `aws-setup-bucket.sh` to derive the final bucket name. The script appends the AWS account ID: `<prefix>-<account-id>`. Must be set in `dso-config.conf` before running `aws-setup-bucket.sh`. |
+| **Accepted values** | Lowercase string suitable as an S3 bucket name prefix (e.g., `dso-telemetry`) |
+| **Default** | No default — **required** before running `aws-setup-bucket.sh` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/telemetry/aws-setup-bucket.sh` | # shim-exempt: internal implementation reference in config documentation
+
+---
+
+### `review_telemetry.lambda_role_arn`
+
+| | |
+|---|---|
+| **Description** | ARN of the IAM role the Lambda function assumes. Required by `aws-setup-bucket.sh` to build the S3 bucket policy that allows only this role to call `s3:PutObject`. Must be set in `dso-config.conf` before running `aws-setup-bucket.sh` (or written there by `aws-setup-lambda.sh` when the role is created). |
+| **Accepted values** | IAM role ARN string (e.g., `arn:aws:iam::123456789012:role/dso-telemetry-lambda-role`) |
+| **Default** | No default — **required** before running `aws-setup-bucket.sh` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/telemetry/aws-setup-bucket.sh` | # shim-exempt: internal implementation reference in config documentation
+
+---
+
+### `review_telemetry.bucket_name`
+
+| | |
+|---|---|
+| **Description** | S3 bucket where the Lambda handler writes telemetry NDJSON. Written automatically by `aws-setup-bucket.sh` immediately after the bucket is created (partial-state recovery contract). Read by `aws-setup-lambda.sh`, `aws-deploy-handler.sh`, `aws-verify-live.sh`, `aws-status.sh`, `aws-teardown.sh`, and `query-stats.sh`. |
+| **Accepted values** | Globally unique S3 bucket name string |
+| **Default** | Written by `aws-setup-bucket.sh` as `<review_telemetry.bucket_name_prefix>-<account-id>` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/telemetry/aws-setup-bucket.sh` (writes), `aws-setup-lambda.sh`, `aws-deploy-handler.sh`, `aws-verify-live.sh`, `aws-status.sh`, `aws-teardown.sh` (reads) | # shim-exempt: internal implementation references in config documentation
+
+---
+
+### `review_telemetry.iam_role_name`
+
+| | |
+|---|---|
+| **Description** | IAM role name the Lambda function assumes. Written automatically by `aws-setup-lambda.sh` immediately after the role is created. Read by `aws-verify-live.sh`, `aws-status.sh`, and `aws-teardown.sh`. |
+| **Accepted values** | IAM role name string (e.g., `dso-telemetry-lambda-role`) |
+| **Default** | Written by `aws-setup-lambda.sh` as `dso-telemetry-lambda-role` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/telemetry/aws-setup-lambda.sh` (writes), `aws-verify-live.sh`, `aws-status.sh`, `aws-teardown.sh` (reads) | # shim-exempt: internal implementation references in config documentation
+
+---
+
+### `review_telemetry.lambda_function_name`
+
+| | |
+|---|---|
+| **Description** | Lambda function name used by `aws-deploy-handler.sh` (to target the update-function-code call) and `aws-teardown.sh` (to target the delete-function call). Written automatically by `aws-setup-lambda.sh` immediately after the function is created. |
+| **Accepted values** | Lambda function name string (e.g., `dso-telemetry-review`) |
+| **Default** | Written by `aws-setup-lambda.sh` as `dso-telemetry-review` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/telemetry/aws-setup-lambda.sh` (writes), `aws-deploy-handler.sh`, `aws-verify-live.sh`, `aws-status.sh`, `aws-teardown.sh` (reads) | # shim-exempt: internal implementation references in config documentation
+
+---
+
+### `review_telemetry.endpoint_url`
+
+| | |
+|---|---|
+| **Description** | Lambda Function URL that the review-emit shim POSTs telemetry events to. Written automatically by `aws-setup-lambda.sh` immediately after the Function URL is created. This is the public HTTPS endpoint returned by the Lambda Function URL config. |
+| **Accepted values** | HTTPS URL string (e.g., `https://<id>.lambda-url.us-east-1.on.aws/`) |
+| **Default** | Written by `aws-setup-lambda.sh` after `create-function-url-config` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/telemetry/aws-setup-lambda.sh` (writes) | # shim-exempt: internal implementation reference in config documentation
+
+---
+
+### `review_telemetry.lambda_function_url`
+
+| | |
+|---|---|
+| **Description** | Resolved Function URL read by `aws-verify-live.sh` for the end-to-end POST → S3 visibility check (Check 7). Distinct from `review_telemetry.endpoint_url` only in that this key is the config name used by the verifier; in practice both keys hold the same URL value. Must be set before running `aws-verify-live.sh`. |
+| **Accepted values** | HTTPS URL string (e.g., `https://<id>.lambda-url.us-east-1.on.aws/`) |
+| **Default** | Set manually or copied from `review_telemetry.endpoint_url` after `aws-setup-lambda.sh` completes |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/telemetry/aws-verify-live.sh` | # shim-exempt: internal implementation reference in config documentation
+
+---
+
+### `review_telemetry.aws_account_id`
+
+| | |
+|---|---|
+| **Description** | AWS account ID for telemetry resources. Used by `aws-setup-bucket.sh` as a fallback when `aws sts get-caller-identity` cannot parse the account ID from its JSON output. Not required when AWS credentials are valid — the script derives the account ID automatically. |
+| **Accepted values** | 12-digit AWS account ID string (e.g., `123456789012`) |
+| **Default** | Absent — derived automatically from `aws sts get-caller-identity` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/telemetry/aws-setup-bucket.sh` (fallback only) | # shim-exempt: internal implementation reference in config documentation
+
+---
+
+### `telemetry.enabled`
+
+| | |
+|---|---|
+| **Description** | Master switch for the `telemetry_emit.py` emitter. When `false`, the emitter short-circuits at startup and returns exit 0 without making any network calls. When `true` or absent, emission proceeds normally. |
+| **Type** | boolean |
+| **Accepted values** | `true`, `false`, `1`, `0`, `yes`, `no` |
+| **Default** | `true` (emission enabled when key is absent) |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/telemetry/telemetry_emit.py` | # shim-exempt: internal implementation reference in config documentation
+
+---
+
+### `telemetry.endpoint`
+
+| | |
+|---|---|
+| **Description** | Generic-channel endpoint URL that `telemetry_emit.py` POSTs events to. Overridable per-invocation via the `--endpoint` CLI flag (takes precedence over the config key). When neither the flag nor this key is set, no HTTP POST is made but the event is still recorded in the idempotency ledger. |
+| **Accepted values** | HTTPS URL string |
+| **Default** | Absent — no POST made when key and `--endpoint` flag are both absent |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/telemetry/telemetry_emit.py` | # shim-exempt: internal implementation reference in config documentation
+
+---
+
+### `telemetry.client_id`
+
+| | |
+|---|---|
+| **Description** | Client identifier included in every telemetry event envelope. Required when `telemetry.enabled` is true — `telemetry_emit.py` exits 1 with an error when this key is empty or absent and emission is enabled. Set to `dso-self` for DSO's own telemetry; use a project-specific string for host-project telemetry. |
+| **Accepted values** | Non-empty string |
+| **Default** | No default — **required** when `telemetry.enabled=true` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/telemetry/telemetry_emit.py` | # shim-exempt: internal implementation reference in config documentation
+
+---
+
 ## attribution
 
 | Key | Type | Default | Description |

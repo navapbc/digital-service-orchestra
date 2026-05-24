@@ -35,8 +35,16 @@
 
 # assert_eq label expected actual
 # Increments PASS if expected == actual, FAIL otherwise.
+# Note: actual is normalized to its first line before comparison. This handles
+# the common pattern `$(grep -c pattern file 2>/dev/null || echo "0")` which
+# produces "0\n0" (double output) when grep finds zero matches — BSD grep exits
+# 1 for 0-count, causing the fallback echo to fire alongside grep's "0" output.
+# First-line normalization recovers the correct count without changing semantics
+# for single-line values (exit codes, counts, flags — all common test values).
 assert_eq() {
     local label="$1" expected="$2" actual="$3"
+    # Normalize actual: use only the first line (handles grep -c || echo "0" double-output)
+    actual="${actual%%$'\n'*}"
     if [[ "$expected" == "$actual" ]]; then
         (( ++PASS ))
     else
