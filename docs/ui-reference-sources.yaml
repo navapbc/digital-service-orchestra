@@ -329,3 +329,40 @@ sources:
       certification periods, verification requirements, change reporting, and
       expedited service criteria. U.S. government work, public domain.
       Corpus entries on SNAP lifecycle policy are derived from this source.
+
+  - name: "Federal Plain Language Guidelines (Plain Writing Act of 2010)"
+    url: "https://www.plainlanguage.gov/guidelines/"
+    type: website
+    access: public
+    credentials_required: false
+    license: public-domain
+    domains:
+      - gov-copy
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
+    notes: >
+      The Federal Plain Language Guidelines published at plainlanguage.gov document
+      mandatory plain writing standards for U.S. federal agencies under the Plain
+      Writing Act of 2010 (Pub. L. 111-274). Content is U.S. government work in
+      the public domain. Covers audience analysis, active voice, plain vocabulary,
+      document organization, tables and lists, and sentence/paragraph length
+      standards applicable to all federal digital services.
+
+  - name: "CDC Health Literacy — Plain Language for Public Health"
+    url: "https://www.cdc.gov/healthliteracy/developmaterials/plainlanguage.html"
+    type: website
+    access: public
+    credentials_required: false
+    license: public-domain
+    domains:
+      - gov-copy
+    pinned_version: "N/A"
+    last_synced: "2026-05-24"
+    notes: >
+      CDC (Centers for Disease Control and Prevention) plain language and health
+      literacy resources for public health communication. Content is U.S. government
+      work in the public domain. Covers reading level targets (6th grade), SMOG and
+      Flesch-Kincaid readability measurement, jargon avoidance, sentence length
+      standards, and user testing methodology for health materials. Authoritative
+      guidance for health communication and government benefit services serving
+      diverse audiences with varying health literacy levels.

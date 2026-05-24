@@ -1,0 +1,81 @@
+id: 18f-plain-language
+title: "18F Plain Language Guide: Writing Clear, User-Centered Government Content"
+domain:
+  - gov-copy
+component:
+  - content
+action:
+  - design
+  - apply
+compliance:
+  - plain-language
+  - plainlanguage.gov
+severity:
+  - major
+story_type:
+  - pattern
+coverage:
+  - summary
+  - detail
+license: public-domain
+source: "18F Content Guide — plain language"
+precedence: 2
+prior_art: "https://content-guide.18f.gov/"
+summary: |
+  18F's plain language guide provides actionable writing standards for U.S.
+  federal digital services, grounded in research with real government users.
+  Core principles: write for the user, not the agency; use "you" for readers
+  and "we" for the service; use active voice throughout; keep sentences to
+  25 words or fewer; limit paragraphs to 5 sentences; cut jargon; test copy
+  with real users before launch.
+detail: |
+  ### Write for the User, Not the Agency
+
+  - Lead with what the user needs to know, not with agency context or background
+  - Answer the user's first question first: "Can I get this benefit?" before "How we process applications"
+  - Organize content around user tasks, not organizational structure
+  - Do not bury the action in a wall of policy text
+
+  ### Use "You" and "We"
+
+  - Address the reader directly as "you": "You can apply if..." not "Applicants may apply if..."
+  - Refer to the agency or service as "we": "We'll contact you within 5 business days"
+  - Consistent use of "you" and "we" creates a conversational tone that is clearer for all readers
+  - Avoid third-person constructions that distance the reader from the action
+
+  ### Active Voice
+
+  - Write in active voice: the subject performs the action
+  - Active: "Submit your application by December 31"
+  - Passive (avoid): "Applications must be submitted by December 31"
+  - Active voice is shorter, clearer, and places responsibility correctly
+
+  ### Sentence and Paragraph Length
+
+  - Target sentence length: 25 words or fewer
+  - One idea per sentence
+  - Paragraphs: no more than 5 sentences
+  - Use headers and lists to break up dense text blocks
+  - Short paragraphs reduce cognitive load for users with low literacy or limited time
+
+  ### Plain, Common Words
+
+  - Choose the most common word that conveys the meaning: "use" not "utilize", "help" not "assist"
+  - Avoid government and legal jargon unless it is the exact term users must know
+  - When a technical term is required, define it immediately in plain language
+  - Test words with real users: a term obvious to agency staff may confuse a first-time applicant
+
+  ### Cut Jargon and Abbreviations
+
+  - Avoid acronyms on first use: spell out the full term, then abbreviate in parentheses
+  - Do not use abbreviations that the user does not already know
+  - Never use Latin abbreviations in public-facing content: write "for example" not "e.g.", "that is" not "i.e."
+  - Eliminate filler phrases: "in order to" → "to", "at this point in time" → "now"
+
+  ### Test with Real Users
+
+  - All interface copy must be tested with real users before launch, including those
+    with low digital literacy, limited English proficiency, and cognitive disabilities
+  - Comprehension testing: ask users to explain back what they read
+  - Identify words or phrases users stumble on and replace them
+  - Error messages and form labels require the most testing — they are read under stress

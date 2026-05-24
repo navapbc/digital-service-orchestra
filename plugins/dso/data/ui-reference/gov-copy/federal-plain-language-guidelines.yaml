@@ -1,0 +1,102 @@
+id: federal-plain-language-guidelines
+title: "Federal Plain Language Guidelines: Plain Writing Act of 2010 Compliance Standards"
+domain:
+  - gov-copy
+component:
+  - content
+action:
+  - design
+  - apply
+  - verify
+compliance:
+  - plain-language
+  - plainlanguage.gov
+  - 21st-Century-IDEA
+severity:
+  - critical
+story_type:
+  - pattern
+coverage:
+  - summary
+  - detail
+license: public-domain
+source: "plainlanguage.gov — Federal Plain Language Guidelines"
+precedence: 1
+prior_art: "https://www.plainlanguage.gov/guidelines/"
+summary: |
+  The Federal Plain Language Guidelines define mandatory plain writing standards
+  for U.S. federal agencies under the Plain Writing Act of 2010 (Pub. L. 111-274).
+  All covered federal documents must be written in a clear, concise, well-organized
+  style. Core requirements: write for your audience; organize for the reader; use
+  "you" and "we"; use active voice; choose plain, familiar words; minimize
+  abbreviations; use tables and lists for complex information; write short
+  sentences and paragraphs.
+detail: |
+  ### Plain Writing Act of 2010 Requirements
+
+  - Covered agencies must use plain writing in every new or substantially revised
+    covered document, including federal websites and digital services
+  - The Act defines plain writing as "writing that is clear, concise, well-organized,
+    and follows other best practices appropriate to the subject or field and intended audience"
+  - OMB issued implementation guidance in 2011 requiring agencies to designate a
+    senior official for plain language and train employees
+
+  ### Write for Your Audience
+
+  - Identify who will read the document before writing it
+  - Write for the least-knowledgeable user in your audience, not for experts
+  - Use terms your audience already knows; define terms they must learn
+  - Do not assume knowledge of government processes, legal requirements, or acronyms
+
+  ### Organize for the Reader
+
+  - Put the most important information first: inverted-pyramid structure
+  - Answer the reader's primary question at the start, not the end
+  - Use headers to signpost sections and enable scanning
+  - Group related information together; separate distinct topics into separate sections
+  - Use a table of contents for long documents
+
+  ### Conversational Style: "You" and "We"
+
+  - Address the reader as "you": "You must file by April 15" not "Taxpayers must file by April 15"
+  - Refer to your agency as "we": "We will process your application within 30 days"
+  - Conversational pronouns reduce bureaucratic distance and improve comprehension
+  - This approach aligns with plain language research showing improved task completion
+
+  ### Active Voice
+
+  - Use active voice: subject → verb → object
+  - Active: "Congress enacted the Plain Writing Act in 2010"
+  - Passive (avoid): "The Plain Writing Act was enacted by Congress in 2010"
+  - Passive voice obscures who is responsible for an action — a critical failure in government communication
+
+  ### Plain, Familiar Words
+
+  - Choose short, common words over long, formal ones
+  - Prefer: "use" (not "utilize"), "help" (not "assist"), "buy" (not "purchase"), "end" (not "terminate")
+  - Avoid legalese: "notwithstanding", "heretofore", "pursuant to", "aforementioned"
+  - Use contractions where appropriate to maintain a conversational tone: "you'll", "we'll", "don't"
+  - Define unavoidable technical terms on first use in plain language
+
+  ### Minimize Abbreviations
+
+  - Spell out the full name on first use, followed by the abbreviation in parentheses
+  - Only use the abbreviation afterward if it appears three or more times in the document
+  - Do not use abbreviations as space-savers — if they confuse readers, they cost more than they save
+  - Write out common government acronyms that the public may not recognize
+
+  ### Use Tables and Lists
+
+  - Tables: use when comparing multiple attributes of multiple items
+  - Bulleted lists: use for non-sequential items with 3 or more elements
+  - Numbered lists: use for sequential steps or ranked items
+  - Lists reduce wall-of-text formatting and enable scanning
+  - Each list item should be parallel in structure (same grammatical form)
+
+  ### Short Sentences and Paragraphs
+
+  - Target sentence length: 20 words or fewer for maximum clarity
+  - One idea per sentence
+  - Short paragraphs: 4-5 sentences maximum, then start a new paragraph or use a list
+  - White space and short paragraphs improve comprehension for all reading levels
+  - Federal plain language research shows comprehension improves significantly at 20 words or fewer per sentence

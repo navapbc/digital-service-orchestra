@@ -1,0 +1,106 @@
+id: cdc-reading-level-guidance
+title: "CDC Reading Level and Health Literacy Guidance: Plain Language for Diverse Public Audiences"
+domain:
+  - gov-copy
+component:
+  - content
+action:
+  - design
+  - apply
+  - verify
+compliance:
+  - plain-language
+  - plainlanguage.gov
+  - WCAG-3.1.5
+severity:
+  - major
+story_type:
+  - pattern
+coverage:
+  - summary
+  - detail
+license: public-domain
+source: "CDC Health Literacy — Plain Language Resources"
+precedence: 2
+prior_art: "https://www.cdc.gov/healthliteracy/developmaterials/plainlanguage.html"
+summary: |
+  CDC health literacy guidance establishes reading level and plain language
+  standards for public health communication. Core requirements: write at a
+  6th-grade reading level (Flesch-Kincaid Grade Level ≤ 6 or SMOG ≤ 6);
+  avoid medical and government jargon; define technical terms on first use;
+  use active voice; keep sentences to 20 words or fewer; use bullet lists for
+  multi-step instructions; test all materials with representative members of
+  the target audience before distribution.
+detail: |
+  ### Reading Level Target: 6th Grade
+
+  - Target Flesch-Kincaid Grade Level of 6.0 or lower for all public-facing materials
+  - Use the SMOG (Simple Measure of Gobbledygook) readability formula as an alternative;
+    target SMOG grade ≤ 6
+  - The average U.S. adult reads at an 8th-grade level; nearly half read below 6th grade
+  - Government benefit recipients disproportionately include adults with lower literacy levels
+  - Writing at 6th grade benefits all readers — even highly educated readers process simpler text faster
+
+  ### Testing Readability
+
+  - Measure reading level using automated tools: Flesch-Kincaid (Microsoft Word, Hemingway Editor),
+    SMOG (CDC SMOG calculator), or Gunning-Fog index
+  - Readability scores are a proxy — human testing with the target audience remains essential
+  - Rewrite any sentence that scores above grade 8 on Flesch-Kincaid before launch
+  - If content must be complex (legal requirements, medical terms), use a plain language summary
+    at the top of the page or section
+
+  ### Avoid Medical and Government Jargon
+
+  - Replace medical terms with everyday equivalents: "high blood pressure" not "hypertension",
+    "heart attack" not "myocardial infarction", "shot" or "vaccine" not "immunization" in casual context
+  - Replace government jargon: "apply" not "submit an application", "end" not "terminate",
+    "contact us" not "initiate communication"
+  - Test every specialized term with 5 members of the target audience before including it
+
+  ### Define Technical Terms on First Use
+
+  - When a technical term is unavoidable (e.g., a legal benefit name), define it in plain language
+    immediately after its first use: "Medicaid (health coverage for people with lower incomes)"
+  - Use a glossary for documents with many technical terms
+  - Keep definitions short: one sentence or a brief parenthetical phrase
+
+  ### Active Voice
+
+  - Active voice is especially important for health instructions where responsibility must be clear
+  - Active: "Take this medicine every morning with food"
+  - Passive (avoid): "This medicine should be taken every morning with food"
+  - Active voice reduces misinterpretation and improves instruction compliance
+
+  ### Short Sentences
+
+  - Target 20 words or fewer per sentence for health communication
+  - Break complex instructions into separate sentences: one action per sentence
+  - Long sentences with multiple clauses increase cognitive load and error risk
+  - Short sentences are more accessible for people with cognitive disabilities, limited literacy,
+    and those reading in a second language
+
+  ### Bullet Lists for Multi-Step Instructions
+
+  - Use numbered lists for sequential steps (e.g., how to complete a form, how to take a medication)
+  - Use bullet lists for items without order (e.g., signs and symptoms, required documents)
+  - Each list item: one idea, parallel structure, active voice
+  - Lists improve comprehension and scanning; dense paragraphs hide critical steps
+  - For health instructions, use imperative verbs at the start of each step: "Call your doctor if..."
+
+  ### Test with the Target Audience
+
+  - Test all health materials with at least 5 representative members of the target audience
+    before distribution
+  - Include people with low literacy, limited English proficiency, and relevant health conditions
+  - Use the "teach-back" method: ask participants to explain what they will do after reading
+  - If fewer than 4 of 5 participants can correctly explain the key message, revise and retest
+  - Qualitative cognitive interviews reveal comprehension problems that readability scores miss
+
+  ### Visual Design and Plain Language Integration
+
+  - Use images, icons, and infographics to supplement text for low-literacy audiences
+  - Visuals must be tested alongside text — a confusing image undermines a clear sentence
+  - Use sufficient white space; avoid walls of text
+  - Font size: minimum 12pt for body text; 14pt or larger for older adult audiences
+  - High contrast: black text on white or light background for readability

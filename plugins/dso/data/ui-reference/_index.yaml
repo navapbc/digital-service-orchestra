@@ -2200,3 +2200,97 @@ avoiding bureaucratic VA jargon, and punctuation standards.
     coverage:
       - summary
       - detail
+  - file_path: gov-copy/18f-plain-language.yaml
+    id: "18f-plain-language"
+    title: "18F Plain Language Guide: Writing Clear, User-Centered Government Content"
+    source: "18F Content Guide — plain language"
+    precedence: 2
+    license: "public-domain"
+    prior_art: "https://content-guide.18f.gov/"
+    summary: "18F plain language standards for U.S. federal digital services: write for
+the user not the agency; use 'you' and 'we'; active voice throughout; sentences
+25 words or fewer; paragraphs 5 sentences maximum; cut jargon; test copy with
+real users before launch.
+"
+    rule_id: "18f-plain-language"
+    domain:
+      - gov-copy
+    component:
+      - content
+    action:
+      - design
+      - apply
+    compliance:
+      - plain-language
+      - plainlanguage.gov
+    severity:
+      - major
+    story_type:
+      - pattern
+    coverage:
+      - summary
+      - detail
+  - file_path: gov-copy/federal-plain-language-guidelines.yaml
+    id: "federal-plain-language-guidelines"
+    title: "Federal Plain Language Guidelines: Plain Writing Act of 2010 Compliance Standards"
+    source: "plainlanguage.gov — Federal Plain Language Guidelines"
+    precedence: 1
+    license: "public-domain"
+    prior_art: "https://www.plainlanguage.gov/guidelines/"
+    summary: "Mandatory plain writing standards for U.S. federal agencies under the Plain
+Writing Act of 2010. Write for your audience; organize for the reader; use 'you'
+and 'we'; use active voice; choose plain familiar words; minimize abbreviations;
+use tables and lists; write short sentences and paragraphs.
+"
+    rule_id: "federal-plain-language-guidelines"
+    domain:
+      - gov-copy
+    component:
+      - content
+    action:
+      - design
+      - apply
+      - verify
+    compliance:
+      - plain-language
+      - plainlanguage.gov
+      - 21st-Century-IDEA
+    severity:
+      - critical
+    story_type:
+      - pattern
+    coverage:
+      - summary
+      - detail
+  - file_path: gov-copy/cdc-reading-level-guidance.yaml
+    id: "cdc-reading-level-guidance"
+    title: "CDC Reading Level and Health Literacy Guidance: Plain Language for Diverse Public Audiences"
+    source: "CDC Health Literacy — Plain Language Resources"
+    precedence: 2
+    license: "public-domain"
+    prior_art: "https://www.cdc.gov/healthliteracy/developmaterials/plainlanguage.html"
+    summary: "CDC health literacy standards for public communication: write at 6th-grade
+reading level (Flesch-Kincaid ≤ 6 or SMOG ≤ 6); avoid jargon; define terms;
+active voice; sentences 20 words or fewer; bullet lists for multi-step
+instructions; test materials with the target audience before distribution.
+"
+    rule_id: "cdc-reading-level-guidance"
+    domain:
+      - gov-copy
+    component:
+      - content
+    action:
+      - design
+      - apply
+      - verify
+    compliance:
+      - plain-language
+      - plainlanguage.gov
+      - WCAG-3.1.5
+    severity:
+      - major
+    story_type:
+      - pattern
+    coverage:
+      - summary
+      - detail
