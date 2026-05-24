@@ -553,4 +553,4 @@ plugins/dso/data/ui-reference/accessibility/:tests/scripts/test_corpus_accessibi
 plugins/dso/data/ui-reference/anti-patterns/: tests/scripts/test_corpus_anti_patterns.py [test_anti_patterns_directory_exists]
 plugins/dso/scripts/ref-query.py:tests/scripts/test_ref_query.py [test_basic_query_returns_results]
 plugins/dso/data/ui-reference/components/:tests/scripts/test_corpus_components_uswds.py [test_components_directory_exists]
-plugins/dso/scripts/check-corpus-schema.py:tests/scripts/test_check_corpus_schema.py [test_valid_entry_with_all_required_fields_passes]
+plugins/dso/scripts/check-corpus-schema.sh:tests/scripts/test_check_corpus_schema.py [test_check_corpus_schema_script_exists]
