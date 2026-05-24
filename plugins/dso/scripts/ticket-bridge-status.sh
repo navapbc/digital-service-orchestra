@@ -10,10 +10,15 @@
 #   { "last_run_timestamp": int, "success": bool, "error": str|null, "unresolved_conflicts": int }
 #
 # Note: .bridge-status.json was historically written by the edge-triggered bridge
-# scripts; after the level-triggered reconciler cutover (epic 3a03), the equivalent
-# health signal is the reconciler's `bridge_state/health/*.json` artifacts and the
-# heartbeat canary (reconcile-bridge-canary.yml). This script remains for backwards
-# compatibility with operator runbooks that read .bridge-status.json directly.
+# scripts. After the level-triggered reconciler cutover (epic 3a03), no producer
+# writes this file — the reconciler emits health signals as
+# `bridge_state/health/*.json` artifacts and the heartbeat canary
+# (reconcile-bridge-canary.yml) covers liveness alerting. This script will
+# therefore exit 1 ("file missing") on post-cutover repos; that exit code is
+# correct for operator runbooks that rely on it ("no bridge has run yet").
+# Operators monitoring reconciler health post-cutover should use the canary
+# alert tag (`heartbeat-alert`) and inspect bridge_state/health/ on the tickets
+# branch rather than this script. Retained as-is for backwards compatibility.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

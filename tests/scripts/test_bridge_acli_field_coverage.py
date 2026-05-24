@@ -206,6 +206,63 @@ class TestAcliClientCreateFieldExtraction:
             f"when priority is a Jira-shape dict. Got: {priority_field!r}"
         )
 
+    def test_acli_create_priority_dict_id_only_falls_back_via_reverse_map(
+        self, acli_mod: Any, acli_capture: Any
+    ) -> None:
+        """When the priority dict lacks `name` but has `id`, fall back to the
+        reverse-id lookup against _LOCAL_PRIORITY_TO_JIRA. id="2" -> "High"."""
+        client, captured_cmds, fake_run_acli = acli_capture
+        ticket_data = {
+            "ticket_type": "bug",
+            "title": "Test id-only",
+            "priority": {"id": "2"},  # no 'name' key
+        }
+        dumped_payloads: list[Any] = []
+        original_dump = json.dump
+
+        def capturing_dump(obj: Any, fp: Any, **kw: Any) -> None:
+            dumped_payloads.append(obj)
+            original_dump(obj, fp, **kw)
+
+        with patch.object(acli_mod, "_run_acli", side_effect=fake_run_acli):
+            with patch.object(acli_mod.json, "dump", side_effect=capturing_dump):
+                client.create_issue(ticket_data)
+
+        payload = dumped_payloads[0]
+        assert payload["additionalAttributes"]["priority"] == {"name": "High"}, (
+            f"id='2' must map to 'High' via reverse-lookup. Got: "
+            f"{payload['additionalAttributes']['priority']!r}"
+        )
+
+    def test_acli_create_priority_malformed_dict_defaults_to_medium(
+        self, acli_mod: Any, acli_capture: Any
+    ) -> None:
+        """When the priority dict is malformed (no name, no usable id), the
+        fallback must default to 'Medium' rather than crashing or sending an
+        invalid priority to ACLI."""
+        client, captured_cmds, fake_run_acli = acli_capture
+        ticket_data = {
+            "ticket_type": "bug",
+            "title": "Test malformed",
+            "priority": {"unexpected_key": "garbage", "id": "not-a-number"},
+        }
+        dumped_payloads: list[Any] = []
+        original_dump = json.dump
+
+        def capturing_dump(obj: Any, fp: Any, **kw: Any) -> None:
+            dumped_payloads.append(obj)
+            original_dump(obj, fp, **kw)
+
+        with patch.object(acli_mod, "_run_acli", side_effect=fake_run_acli):
+            with patch.object(acli_mod.json, "dump", side_effect=capturing_dump):
+                client.create_issue(ticket_data)
+
+        payload = dumped_payloads[0]
+        assert payload["additionalAttributes"]["priority"] == {"name": "Medium"}, (
+            f"Malformed dict must default to Medium. Got: "
+            f"{payload['additionalAttributes']['priority']!r}"
+        )
+
     def test_acli_create_sends_assignee(self, acli_mod: Any, acli_capture: Any) -> None:
         """AcliClient.create_issue() should send the assignee to ACLI."""
         client, captured_cmds, fake_run_acli = acli_capture

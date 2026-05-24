@@ -68,7 +68,7 @@ alongside other event files.
 | `event_type` | string  | yes      | Always `"BRIDGE_ALERT"`. |
 | `timestamp`  | integer | yes      | UTC epoch seconds at the moment the alert was written. |
 | `uuid`       | string  | yes      | UUID4 unique event identifier (lowercase, hyphens preserved). |
-| `env_id`     | string  | yes      | UUID4 identifying the bridge environment (value of `.tickets-tracker/.env-id`). Empty string `""` is allowed when emitted in environments without a configured env-id; parsers must not reject it. | # tickets-boundary-ok
+| `env_id`     | string  | yes      | UUID4 identifying the bridge environment (value of `.tickets-tracker/.env-id`). Empty string `""` is allowed when emitted in environments without a configured env-id; parsers must not reject it. <!-- # tickets-boundary-ok -->
 | `ticket_id`  | string  | yes      | Local ticket ID (e.g., `"w21-5mr1"` or `"jira-dso-99"`). |
 | `data`       | object  | yes      | Event-specific payload. Must contain at least `"reason"` (see below). |
 

@@ -47,7 +47,7 @@ lists all fields, including base-schema fields, for completeness.
 | `event_type` | string | yes | Always `"REVERT"`. The parser must validate this value and reject other strings. |
 | `timestamp` | integer | yes | UTC epoch nanoseconds at the moment the event was written. |
 | `uuid` | string (UUID4) | yes | Unique event identifier; lowercase, hyphens preserved (e.g., `"3f2a1b4c-5e6d-7f8a-9b0c-1d2e3f4a5b6c"`). |
-| `env_id` | string (UUID4) | yes | Value of `.tickets-tracker/.env-id` at write time; identifies the environment that emitted the event. | # tickets-boundary-ok
+| `env_id` | string (UUID4) | yes | Value of `.tickets-tracker/.env-id` at write time; identifies the environment that emitted the event. <!-- # tickets-boundary-ok -->
 | `author` | string | yes | `git user.name` of the initiator. Informational only — `env_id` is the authoritative machine identity. |
 | `data.target_event_uuid` | string (UUID4) | yes | The `uuid` of the event being reverted. Must reference a non-REVERT event (see constraint). |
 | `data.target_event_type` | string | yes | The `event_type` of the event being reverted (e.g., `"STATUS"`, `"SYNC"`). Must not be `"REVERT"`. |

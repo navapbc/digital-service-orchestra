@@ -306,7 +306,7 @@ def _create_issue_from_json(
     project: str,
     issue_type: str,
     summary: str,
-    priority: str | int,
+    priority: str | int | dict[str, Any],
     *,
     acli_cmd: list[str] | None = None,
     **kwargs: Any,
@@ -315,8 +315,18 @@ def _create_issue_from_json(
 
     ACLI's ``workitem create`` does not have a ``--priority`` flag, but
     the ``--from-json`` path accepts ``additionalAttributes`` which maps
-    directly to Jira REST API fields.  Priority requires
-    ``{"name": "<Jira priority name>"}``.
+    directly to Jira REST API fields. Priority requires
+    ``{"name": "<Jira priority name>"}`` in the ACLI payload.
+
+    Accepted ``priority`` input shapes (all normalized to a name string before
+    payload assembly):
+      - ``int`` (0-4): mapped through ``_LOCAL_PRIORITY_TO_JIRA`` (e.g., 1 -> "High").
+      - ``dict``: Jira REST-shape priority object (the reconciler's differ
+        propagates this verbatim from fetcher snapshots). ``.get("name")`` is
+        preferred; if absent, falls back to ``.get("id")`` mapped through the
+        reverse of ``_LOCAL_PRIORITY_TO_JIRA``; if both absent, defaults to
+        ``"Medium"``. See bug 5010-1c6a-9387-4b5b.
+      - ``str``: passed through verbatim (caller-supplied Jira priority name).
     """
     # Convert priority to a Jira priority name.
     # - Integer (0-4): map through _LOCAL_PRIORITY_TO_JIRA.

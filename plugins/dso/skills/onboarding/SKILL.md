@@ -665,7 +665,7 @@ Display to user: "jira.project — records your Jira project key so DSO can sync
 
 If the user provides a Jira project key, write `jira.project=<KEY>` to `.claude/dso-config.conf` and then **mention the full Jira reconciler surface** so the operator knows what to set up before the reconciler runs in CI. Do NOT bury this in a tooltip — print the block below verbatim:
 
-```
+```text
 Jira reconciler configuration surface
 -------------------------------------
 Required environment variables (set in the GitHub repo and locally if you'll
@@ -702,9 +702,13 @@ Operational artifacts (written by the reconciler, audit only):
   - .tickets-tracker/<id>/*-BRIDGE_ALERT.json   per-ticket alerts (unbounded
                                                 replay prevented via dedup_key)
 
-Verification: after setting the env vars, run `python -m dso_reconciler --dry-run`
-(or trigger reconcile-bridge.yml via workflow_dispatch) to confirm ACLI
-authentication succeeds and the dry-run manifest is empty.
+Verification: after setting the env vars, run
+`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/ticket-bridge-fsck.py` (read-only
+audit; exits 0 when no anomalies, 1 otherwise — safe to run pre-bootstrap).
+For a live end-to-end check, trigger reconcile-bridge.yml via
+`gh workflow run reconcile-bridge.yml` and confirm the run exits 0 with
+ACLI authentication succeeding and the per-pass mutation count under
+the per-pass cap.
 
 Reference: the reconciler package ships under the dso plugin scripts dir —
 see the package docstring and each band module for behavior details.
