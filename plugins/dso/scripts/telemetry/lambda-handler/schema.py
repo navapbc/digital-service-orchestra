@@ -72,7 +72,3 @@ PER_TYPE_FIELDS = {
         "diff_hash":           {"type": str,  "required": True, "enum": None},
     },
 }
-
-# Back-compat alias for any callers still importing the legacy name.
-# Will be removed once all callers migrate to COMMON_FIELDS / PER_TYPE_FIELDS.
-SCHEMA_RULES = COMMON_FIELDS

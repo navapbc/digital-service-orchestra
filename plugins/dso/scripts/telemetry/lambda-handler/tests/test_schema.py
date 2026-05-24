@@ -6,7 +6,7 @@ Validates that COMMON_FIELDS contains the 11 canonical common fields and that
 PER_TYPE_FIELDS covers all 5 canonical event types.
 """
 
-from schema import COMMON_FIELDS, PER_TYPE_FIELDS, SCHEMA_RULES
+from schema import COMMON_FIELDS, PER_TYPE_FIELDS
 
 CANONICAL_COMMON_FIELDS = [
     "schema_version", "event_id", "event_type", "client_id",
@@ -66,6 +66,3 @@ def test_all_field_rules_have_well_formed_shape():
             )
 
 
-def test_back_compat_alias_present():
-    # SCHEMA_RULES is preserved as an alias of COMMON_FIELDS for legacy callers.
-    assert SCHEMA_RULES is COMMON_FIELDS
