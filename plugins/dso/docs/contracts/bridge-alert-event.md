@@ -12,7 +12,7 @@
 
 ## Purpose
 
-A `BRIDGE_ALERT` event file is written to a ticket's `.tickets-tracker/<ticket-id>/` directory
+A `BRIDGE_ALERT` event file is written to a ticket's `.tickets-tracker/<ticket-id>/` directory # tickets-boundary-ok
 whenever the Jira bridge detects a condition that requires operator attention and halts normal
 processing for that ticket. Conditions include:
 
@@ -42,8 +42,7 @@ Reducers and `.claude/scripts/dso ticket list` ignore them; operators must inspe
 
 | Emitter | Function | Trigger condition |
 |---------|----------|-------------------|
-| `scripts/bridge-outbound.py` # shim-exempt: internal implementation path | `write_bridge_alert()` | STATUS flap detected; LINK/UNLINK sync failure; link target not found |
-| `scripts/bridge-inbound.py` # shim-exempt: internal implementation path | `write_bridge_alert()` | Unmapped status, unmapped type, destructive change blocked, relationship rejection |
+| `scripts/dso_reconciler/` # shim-exempt: internal implementation path | `write_bridge_alert()` via invariants module | All BRIDGE_ALERT triggers post-cutover (orphan, duplicate, stale, open_count_skew anomalies, at-most-one violation). |
 
 ---
 
@@ -57,7 +56,7 @@ Files follow the standard ticket event naming convention defined in `ticket-even
 
 Example: `1742605200-3f2a1b4c-5e6d-7f8a-9b0c-1d2e3f4a5b6c-BRIDGE_ALERT.json`
 
-The file is written inside `.tickets-tracker/<ticket-id>/` and is committed to the tickets branch
+The file is written inside `.tickets-tracker/<ticket-id>/` and is committed to the tickets branch # tickets-boundary-ok
 alongside other event files.
 
 ---
@@ -69,7 +68,7 @@ alongside other event files.
 | `event_type` | string  | yes      | Always `"BRIDGE_ALERT"`. |
 | `timestamp`  | integer | yes      | UTC epoch seconds at the moment the alert was written. |
 | `uuid`       | string  | yes      | UUID4 unique event identifier (lowercase, hyphens preserved). |
-| `env_id`     | string  | yes      | UUID4 identifying the bridge environment (value of `.tickets-tracker/.env-id`). Empty string `""` is allowed when emitted in environments without a configured env-id; parsers must not reject it. |
+| `env_id`     | string  | yes      | UUID4 identifying the bridge environment (value of `.tickets-tracker/.env-id`). Empty string `""` is allowed when emitted in environments without a configured env-id; parsers must not reject it. <!-- # tickets-boundary-ok -->
 | `ticket_id`  | string  | yes      | Local ticket ID (e.g., `"w21-5mr1"` or `"jira-dso-99"`). |
 | `data`       | object  | yes      | Event-specific payload. Must contain at least `"reason"` (see below). |
 
@@ -119,13 +118,13 @@ The parser MUST match against:
 As of 2026-03-21, the two `write_bridge_alert()` implementations do not yet match this canonical
 schema. The divergences are:
 
-| Field | `bridge-outbound.py` | `bridge-inbound.py` | Canonical |
+| Field | dso_reconciler (post-cutover) | Notes | Canonical |
 |-------|----------------------|---------------------|-----------|
 | `uuid` | present | **absent** | required |
 | `ticket_id` | present | **absent** | required |
 | `data.reason` | `data: {"reason": ...}` | top-level `reason` field | `data: {"reason": ...}` |
 
-The `bridge-inbound.py` emitter must be updated to:
+Historical note: the legacy inbound-bridge emitter (the edge-triggered inbound bridge script, deleted in epic 3a03 cutover) required these updates to converge with the canonical schema:
 1. Add `uuid` (a new `uuid.uuid4()` generated at write time).
 2. Add `ticket_id` (passed through from the calling context).
 3. Move `reason` inside a `data` object (removing the top-level `reason` field).

@@ -1025,7 +1025,7 @@ Unresolved BRIDGE_ALERTs: 2
 
 **Behavior:**
 
-- Reads `.bridge-status.json` written by `bridge-inbound.py` / `bridge-outbound.py` at the end of each bridge run
+- .bridge-status.json was historically written by the edge-triggered bridge scripts; after epic 3a03 cutover the reconciler emits health signals via bridge_state/health/*.json and the heartbeat canary (reconcile-bridge-canary.yml).
 - Scans all ticket directories to count unresolved `BRIDGE_ALERT` events (those without a matching resolution event)
 - Exits non-zero if the status file does not exist (bridge has not run yet)
 

@@ -37,7 +37,6 @@ _ASSIGNEE_NOT_FOUND_ERROR: str = (
 )
 
 # Local priority integer (0-4) → Jira priority name.
-# Mirrors the mapping in bridge-outbound.py.
 _LOCAL_PRIORITY_TO_JIRA: dict[int, str] = {
     0: "Highest",
     1: "High",
@@ -307,7 +306,7 @@ def _create_issue_from_json(
     project: str,
     issue_type: str,
     summary: str,
-    priority: str | int,
+    priority: str | int | dict[str, Any],
     *,
     acli_cmd: list[str] | None = None,
     **kwargs: Any,
@@ -316,13 +315,41 @@ def _create_issue_from_json(
 
     ACLI's ``workitem create`` does not have a ``--priority`` flag, but
     the ``--from-json`` path accepts ``additionalAttributes`` which maps
-    directly to Jira REST API fields.  Priority requires
-    ``{"name": "<Jira priority name>"}``.
+    directly to Jira REST API fields. Priority requires
+    ``{"name": "<Jira priority name>"}`` in the ACLI payload.
+
+    Accepted ``priority`` input shapes (all normalized to a name string before
+    payload assembly):
+      - ``int`` (0-4): mapped through ``_LOCAL_PRIORITY_TO_JIRA`` (e.g., 1 -> "High").
+      - ``dict``: Jira REST-shape priority object (the reconciler's differ
+        propagates this verbatim from fetcher snapshots). ``.get("name")`` is
+        preferred; if absent, falls back to ``.get("id")`` mapped through the
+        reverse of ``_LOCAL_PRIORITY_TO_JIRA``; if both absent, defaults to
+        ``"Medium"``. See bug 5010-1c6a-9387-4b5b.
+      - ``str``: passed through verbatim (caller-supplied Jira priority name).
     """
-    # Convert integer priority (0-4) to Jira priority name.
-    # If already a string name, use as-is.
+    # Convert priority to a Jira priority name.
+    # - Integer (0-4): map through _LOCAL_PRIORITY_TO_JIRA.
+    # - Jira REST-shape dict ({"name": ..., "id": ..., "iconUrl": ..., "self": ...}):
+    #   extract .name, falling back to a reverse-id lookup. The reconciler's
+    #   differ propagates Jira's snapshot priority dict verbatim (fetcher.py
+    #   → differ.py → applier.py → client.create_issue), so this branch is
+    #   load-bearing — without it, str(<dict>) produces a Python-repr that
+    #   ACLI rejects with "The priority selected is invalid"
+    #   (bug 5010-1c6a-9387-4b5b).
+    # - String: use as-is.
     if isinstance(priority, int):
         jira_priority_name = _LOCAL_PRIORITY_TO_JIRA.get(priority, "Medium")
+    elif isinstance(priority, dict):
+        _name = priority.get("name")
+        if _name:
+            jira_priority_name = str(_name)
+        else:
+            _id = priority.get("id")
+            try:
+                jira_priority_name = _LOCAL_PRIORITY_TO_JIRA[int(_id) - 1]
+            except (TypeError, ValueError, KeyError, IndexError):
+                jira_priority_name = "Medium"
     else:
         jira_priority_name = str(priority)
 
@@ -523,15 +550,18 @@ def get_comments(
 
 
 # ---------------------------------------------------------------------------
-# AcliClient class — used by bridge-inbound.py and bridge-outbound.py
+# AcliClient class — used by the dso_reconciler bands (fetcher, applier,
+# stale_band, open_count_skew_band) and the capability / forward-compat probes.
 # ---------------------------------------------------------------------------
 
 
 class AcliClient:
     """Client wrapping ACLI Go binary for Jira operations.
 
-    Provides the method interface expected by bridge-inbound.py:
-    search_issues, get_myself, get_server_info, get_comments, set_relationship.
+    Provides the method interface consumed by the dso_reconciler:
+    create_issue, update_issue, delete_issue, get_issue, search_issues,
+    get_myself, get_server_info, get_comments, set_relationship, plus
+    per-issue property read/write helpers.
 
     Credentials are injected into the subprocess environment on each call
     so ACLI can authenticate without requiring prior ``acli auth`` setup.

@@ -6,7 +6,7 @@
 
 ## Purpose
 
-This document defines the emit/parse interface for the `REVERT` ticket event, which records that an earlier ticket event is being undone. The emitter (`ticket-revert.sh`) writes the event to the ticket's event log; parsers (`ticket-reducer.py` and `bridge-outbound.py`) read it to build compiled state and apply check-before-overwrite semantics when pushing the revert's outbound effect to Jira.
+This document defines the emit/parse interface for the `REVERT` ticket event, which records that an earlier ticket event is being undone. The emitter (`ticket-revert.sh`) writes the event to the ticket's event log; parsers (`ticket-reducer.py` and `dso_reconciler.applier`) read it to build compiled state and apply check-before-overwrite semantics when the reconciler band handling the corresponding event class pushes the revert's outbound effect to Jira.
 
 ---
 
@@ -21,7 +21,7 @@ This document defines the emit/parse interface for the `REVERT` ticket event, wh
 `ticket-revert.sh` (via `write_commit_event` in `ticket-lib.sh`)
 
 The `.claude/scripts/dso ticket revert` subcommand writes a REVERT event into the target ticket's
-`.tickets-tracker/<ticket-id>/` directory. The event records which earlier event is being
+`.tickets-tracker/<ticket-id>/` directory. The event records which earlier event is being # tickets-boundary-ok
 reverted and who initiated it. The emitter **must** validate that the target event is not itself a
 REVERT event before writing (see [REVERT-of-REVERT constraint](#revert-of-revert-constraint)
 below).
@@ -32,8 +32,8 @@ below).
 
 | Parser | Role |
 |---|---|
-| `ticket-reducer.py` | Reads REVERT events and appends entries to a `reverts` list in the compiled ticket state. The reducer does **not** automatically undo the target event's effect — undo logic is event-type-specific and is handled by `bridge-outbound.py`. |
-| `bridge-outbound.py` | When processing a REVERT whose `data.target_event_type` is `STATUS` or `SYNC`, fetches current Jira state before pushing the revert's outbound effect. Emits a `BRIDGE_ALERT` if Jira has diverged since the original bad action (check-before-overwrite). |
+| `ticket-reducer.py` | Reads REVERT events and appends entries to a `reverts` list in the compiled ticket state. The reducer does **not** automatically undo the target event's effect — undo logic is event-type-specific and is performed inside the reconciler band that handles the corresponding event class (`dso_reconciler.applier`). |
+| `dso_reconciler.applier` (post-cutover) | When processing a REVERT whose `data.target_event_type` is `STATUS` or `SYNC`, fetches current Jira state before pushing the revert's outbound effect. Emits a `BRIDGE_ALERT` if Jira has diverged since the original bad action (check-before-overwrite). REVERT handling for STATUS/SYNC/LINK/UNLINK targets is performed inside the reconciler band that handles the corresponding event class. |
 
 ---
 
@@ -47,7 +47,7 @@ lists all fields, including base-schema fields, for completeness.
 | `event_type` | string | yes | Always `"REVERT"`. The parser must validate this value and reject other strings. |
 | `timestamp` | integer | yes | UTC epoch nanoseconds at the moment the event was written. |
 | `uuid` | string (UUID4) | yes | Unique event identifier; lowercase, hyphens preserved (e.g., `"3f2a1b4c-5e6d-7f8a-9b0c-1d2e3f4a5b6c"`). |
-| `env_id` | string (UUID4) | yes | Value of `.tickets-tracker/.env-id` at write time; identifies the environment that emitted the event. |
+| `env_id` | string (UUID4) | yes | Value of `.tickets-tracker/.env-id` at write time; identifies the environment that emitted the event. <!-- # tickets-boundary-ok -->
 | `author` | string | yes | `git user.name` of the initiator. Informational only — `env_id` is the authoritative machine identity. |
 | `data.target_event_uuid` | string (UUID4) | yes | The `uuid` of the event being reverted. Must reference a non-REVERT event (see constraint). |
 | `data.target_event_type` | string | yes | The `event_type` of the event being reverted (e.g., `"STATUS"`, `"SYNC"`). Must not be `"REVERT"`. |
@@ -153,8 +153,8 @@ When `ticket-reducer.py` encounters a REVERT event during reduction:
 1. The event is appended to a `reverts` list in the compiled ticket state. Each entry records at
    minimum: `{ "uuid": "<revert-event-uuid>", "target_event_uuid": "...", "target_event_type": "...", "timestamp": ..., "author": "..." }`.
 2. The reducer does **not** automatically undo the target event's effect. Undo logic is
-   event-type-specific and is handled by `bridge-outbound.py` when it processes the REVERT for
-   outbound sync.
+   event-type-specific and is performed inside the reconciler band that handles the corresponding
+   event class (`dso_reconciler.applier`) when it processes the REVERT for outbound sync.
 3. The compiled state `reverts` list is ordered by the reducer's standard lexicographic filename
    sort (same as all events — see `ticket-event-format.md`).
 
@@ -178,7 +178,8 @@ When `ticket-reducer.py` encounters a REVERT event during reduction:
 
 ## Bridge-Outbound Semantics (Check-Before-Overwrite)
 
-When `bridge-outbound.py` processes a REVERT event whose `data.target_event_type` is `"STATUS"` or
+When `dso_reconciler.applier` (post-cutover; the reconciler band that handles the corresponding
+event class) processes a REVERT event whose `data.target_event_type` is `"STATUS"` or
 `"SYNC"`, it must:
 
 1. **Fetch current Jira state** for the affected Jira issue before pushing the revert's outbound
@@ -191,13 +192,13 @@ When `bridge-outbound.py` processes a REVERT event whose `data.target_event_type
    describing the divergence.
 4. **If Jira has not diverged**, push the revert's intended change to Jira.
 
-For REVERT events targeting `COMMENT`, `bridge-outbound.py` does not perform a Jira fetch (no Jira
+For REVERT events targeting `COMMENT`, `dso_reconciler.applier` does not perform a Jira fetch (no Jira
 deletion; orphaned comments are expected post-REVERT state as described below).
 
-For REVERT events targeting `LINK` or `UNLINK`, `bridge-outbound.py` pushes the corresponding
+For REVERT events targeting `LINK` or `UNLINK`, `dso_reconciler.applier` pushes the corresponding
 inverse operation to Jira (remove the link for a reverted LINK; re-add the link for a reverted
 UNLINK) without a pre-fetch check. If the Jira link operation fails (e.g., the link was already
-removed or the target issue is not found), the bridge emits a `BRIDGE_ALERT` instead of retrying.
+removed or the target issue is not found), the reconciler emits a `BRIDGE_ALERT` instead of retrying.
 
 ### Comment interaction
 
@@ -213,10 +214,10 @@ operators using `bridge-status` or `bridge-fsck` output.
 
 | Event Type | How REVERT interacts |
 |---|---|
-| `STATUS` | Primary REVERT target; bridge-outbound performs check-before-overwrite |
-| `SYNC` | Primary REVERT target; bridge-outbound performs check-before-overwrite |
+| `STATUS` | Primary REVERT target; reconciler applier performs check-before-overwrite |
+| `SYNC` | Primary REVERT target; reconciler applier performs check-before-overwrite |
 | `COMMENT` | Can be reverted (no Jira deletion; orphaned comments are expected post-REVERT state) |
-| `LINK` / `UNLINK` | Can be reverted; bridge-outbound pushes the inverse Jira link operation (no pre-fetch check); emits `BRIDGE_ALERT` on failure |
+| `LINK` / `UNLINK` | Can be reverted; reconciler applier pushes the inverse Jira link operation (no pre-fetch check); emits `BRIDGE_ALERT` on failure |
 | `CREATE` | Reverting a CREATE is not supported (use `ticket close` or `.claude/scripts/dso ticket fsck` for cleanup) |
 | `REVERT` | Cannot be reverted — REVERT-of-REVERT is rejected by the CLI |
 | `BRIDGE_ALERT` | Cannot be reverted — alerts are informational; use `bridge-fsck` for resolution |
@@ -225,6 +226,6 @@ operators using `bridge-status` or `bridge-fsck` output.
 
 ## Relationship to Ticket Event Base Schema
 
-REVERT is a full ticket event file (committed to `.tickets-tracker/<ticket-id>/` on the `tickets`
+REVERT is a full ticket event file (committed to `.tickets-tracker/<ticket-id>/` on the `tickets` # tickets-boundary-ok
 branch), not a bridge-layer signal like the SYNC event in `sync-event-format.md`. It conforms to
 the base schema (`ticket-event-format.md`) and uses the standard `data` wrapper.

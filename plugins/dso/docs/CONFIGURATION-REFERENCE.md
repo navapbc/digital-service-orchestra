@@ -72,8 +72,7 @@ Schema: `docs/workflow-config-schema.json`
 | **Description** | Upper bound on the number of sub-agents the orchestrator dispatches in a single batch. When unset, the cap is unlimited (subject to usage-tier overrides at 90/95/98% which force the effective cap to `1` or `0` per CLAUDE.md `rule:agent-cap`). Set this to a small positive integer to throttle parallelism on shared infrastructure or to enforce single-agent debugging. |
 | **Accepted values** | Positive integer, or unset (= unlimited) |
 | **Default** | Unset (unlimited) |
-| **Used by** | `scripts/agent-batch-lifecycle.sh`, `skills/validate-work/SKILL.md` | # shim-exempt: internal implementation references in config documentation
-
+| **Used by** | `scripts/agent-batch-lifecycle.sh`, `skills/validate-work/SKILL.md` <!-- # shim-exempt: internal implementation references in config documentation --> |
 ---
 
 ### `paths.app_dir`
@@ -83,8 +82,7 @@ Schema: `docs/workflow-config-schema.json`
 | **Description** | Application directory, relative to the repo root. Controls where hooks, scripts, and skills look for source code, tests, and virtual environments. |
 | **Accepted values** | Relative directory path (e.g., `app`, `.`, `backend`) |
 | **Default** | `app` |
-| **Used by** | `hooks/lib/config-paths.sh`, `scripts/validate.sh`, `scripts/agent-batch-lifecycle.sh`, `scripts/retro-gather.sh` | # shim-exempt: internal implementation references in config documentation
-
+| **Used by** | `hooks/lib/config-paths.sh`, `scripts/validate.sh`, `scripts/agent-batch-lifecycle.sh`, `scripts/retro-gather.sh` <!-- # shim-exempt: internal implementation references in config documentation --> |
 ---
 
 ### `paths.src_dir`
@@ -94,8 +92,7 @@ Schema: `docs/workflow-config-schema.json`
 | **Description** | Source code directory, relative to `paths.app_dir`. Used for file impact analysis and auto-format scope. |
 | **Accepted values** | Relative directory path (e.g., `src`, `lib`) |
 | **Default** | `src` |
-| **Used by** | `hooks/lib/config-paths.sh`, `scripts/ticket-next-batch.sh` | # shim-exempt: internal implementation references in config documentation
-
+| **Used by** | `hooks/lib/config-paths.sh`, `scripts/ticket-next-batch.sh` <!-- # shim-exempt: internal implementation references in config documentation --> |
 ---
 
 ### `paths.test_dir`
@@ -105,8 +102,7 @@ Schema: `docs/workflow-config-schema.json`
 | **Description** | Test directory, relative to `paths.app_dir`. Used for test file discovery, snapshot paths, and file impact analysis. |
 | **Accepted values** | Relative directory path (e.g., `tests`, `test`) |
 | **Default** | `tests` |
-| **Used by** | `hooks/lib/config-paths.sh`, `scripts/ticket-next-batch.sh` | # shim-exempt: internal implementation references in config documentation
-
+| **Used by** | `hooks/lib/config-paths.sh`, `scripts/ticket-next-batch.sh` <!-- # shim-exempt: internal implementation references in config documentation --> |
 ---
 
 ### `paths.test_unit_dir`
@@ -116,8 +112,7 @@ Schema: `docs/workflow-config-schema.json`
 | **Description** | Unit test directory, relative to `paths.app_dir`. Used for targeted test discovery when distinguishing unit from integration tests. |
 | **Accepted values** | Relative directory path (e.g., `tests/unit`) |
 | **Default** | Absent — falls back to `paths.test_dir` |
-| **Used by** | `scripts/ticket-next-batch.sh` | # shim-exempt: internal implementation reference in config documentation
-
+| **Used by** | `scripts/ticket-next-batch.sh` <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
 ### `interpreter.python_venv`
@@ -127,8 +122,7 @@ Schema: `docs/workflow-config-schema.json`
 | **Description** | Path to the Python virtual environment interpreter, relative to the repo root. Used to locate the correct Python binary for running scripts and tests. |
 | **Accepted values** | Relative file path (e.g., `app/.venv/bin/python3`, `.venv/bin/python3`) |
 | **Default** | `app/.venv/bin/python3` |
-| **Used by** | `hooks/lib/config-paths.sh`, `scripts/ticket-next-batch.sh` | # shim-exempt: internal implementation references in config documentation
-
+| **Used by** | `hooks/lib/config-paths.sh`, `scripts/ticket-next-batch.sh` <!-- # shim-exempt: internal implementation references in config documentation --> |
 ---
 
 ### `format.extensions`
@@ -249,11 +243,10 @@ Security, performance, and test-quality overlays are dispatched automatically wh
 
 | | |
 |---|---|
-| **Description** | Overrides the DSO plugin version used in CI LLM review. This is **Tier 2** of the 3-tier version resolution chain implemented by `${CLAUDE_PLUGIN_ROOT}/scripts/resolve-dso-version.sh`: **Tier 1** is `~/.claude/plugins/installed_plugins.json` (the Claude per-project plugin tracking file; key `dso@digital-service-orchestra`) — overridable via the `PLUGIN_TRACKING_FILE` env var; **Tier 2** is this config key in `.claude/dso-config.conf` (project-level override without editing the workflow) — overridable via the `DSO_CONFIG_FILE` env var; **Tier 3** is the `dso` (stable) channel in `.claude-plugin/marketplace.json` — overridable via the `MARKETPLACE_JSON` env var. The resolver does **not** fall back to the `dso-dev` channel; if Tier 3 is reached and the stable `dso` channel is absent or malformed, the resolver exits non-zero. When all three tiers fail, the workflow exits with a diagnostic indicating which tier(s) failed. | # shim-exempt: internal implementation references in config documentation
+| **Description** | Overrides the DSO plugin version used in CI LLM review. This is **Tier 2** of the 3-tier version resolution chain implemented by `${CLAUDE_PLUGIN_ROOT}/scripts/resolve-dso-version.sh`: **Tier 1** is `~/.claude/plugins/installed_plugins.json` (the Claude per-project plugin tracking file; key `dso@digital-service-orchestra`) — overridable via the `PLUGIN_TRACKING_FILE` env var; **Tier 2** is this config key in `.claude/dso-config.conf` (project-level override without editing the workflow) — overridable via the `DSO_CONFIG_FILE` env var; **Tier 3** is the `dso` (stable) channel in `.claude-plugin/marketplace.json` — overridable via the `MARKETPLACE_JSON` env var. The resolver does **not** fall back to the `dso-dev` channel; if Tier 3 is reached and the stable `dso` channel is absent or malformed, the resolver exits non-zero. When all three tiers fail, the workflow exits with a diagnostic indicating which tier(s) failed. <!-- # shim-exempt: internal implementation references in config documentation --> |
 | **Accepted values** | A version tag (e.g., `v1.13.0`) or a marketplace channel name resolvable in `marketplace.json` |
 | **Default** | Absent — Tier 1 (`installed_plugins.json`) or Tier 3 (`marketplace.json` `dso` channel) is used |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/resolve-dso-version.sh` (called by `ci-dso-fetch.sh` in the generated host-project CI workflow) | # shim-exempt: internal implementation references in config documentation
-
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/resolve-dso-version.sh` (called by `ci-dso-fetch.sh` in the generated host-project CI workflow) <!-- # shim-exempt: internal implementation references in config documentation --> |
 ---
 
 ### `DSO_ASSETS_DIR` (CI environment variable)
@@ -263,8 +256,7 @@ Security, performance, and test-quality overlays are dispatched automatically wh
 | **Description** | Required in host-project CI when running `ci-llm-review-runner.sh` (shim in S3+; delegates to `python3 -m dso_ci_review.runner`) outside the DSO source checkout. When the runner detects that the marker file `${CLAUDE_PLUGIN_ROOT}/.dso-source-of-truth` is absent (indicating it is NOT running from the DSO local source), it falls back to `DSO_ASSETS_DIR` as the plugin root. If the marker is absent AND `DSO_ASSETS_DIR` is unset, the runner exits 1 with an error to stderr. In local DSO development, this variable is not required — the marker file is present and the runner uses a BASH_SOURCE-relative plugin root. |
 | **Accepted values** | Absolute path to the fetched DSO plugin assets directory |
 | **Default** | Absent — only required in host-project CI |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/ci-llm-review-runner.sh` (shim in S3+; delegates to `python3 -m dso_ci_review.runner`) (auto-detect runner mode) | # shim-exempt: plugin path in config documentation, not an invocation
-
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/ci-llm-review-runner.sh` (shim in S3+; delegates to `python3 -m dso_ci_review.runner`) (auto-detect runner mode) <!-- # shim-exempt: plugin path in config documentation, not an invocation --> |
 ---
 
 ### `commands.test`
@@ -285,8 +277,7 @@ Security, performance, and test-quality overlays are dispatched automatically wh
 | **Description** | Colon-separated list of test directories. When set, `validate.sh` invokes `test-batched.sh` with `--runner=bash --test-dir=<dirs>` so each `test-*.sh` file runs as an individual resumable item. This enables incremental progress across `validate.sh` re-invocations for large test suites that exceed the 45s budget. When absent, `test-batched.sh` treats the entire suite as one atomic command (no sub-test resume). |
 | **Accepted values** | Colon-separated directory paths relative to repo root (e.g., `tests/hooks:tests/scripts:tests/skills:tests/integration`) |
 | **Default** | Empty (generic single-command runner) |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh` (`run_test_check`) | # shim-exempt: plugin path in config documentation, not an invocation
-
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh` (`run_test_check`) <!-- # shim-exempt: plugin path in config documentation, not an invocation --> |
 ---
 
 ### `commands.test_runner`
@@ -296,8 +287,7 @@ Security, performance, and test-quality overlays are dispatched automatically wh
 | **Description** | Test runner command used by `suite-engine.sh` for individual test file execution. Distinct from `commands.test` (full suite) — this command is invoked per-file by the test batching infrastructure. |
 | **Accepted values** | Any shell command string (e.g., `pytest`, `npx jest`, `bundle exec rspec`) |
 | **Default** | Stack-derived (see per-stack defaults table below) |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/suite-engine.sh`, `${CLAUDE_PLUGIN_ROOT}/scripts/test-batched.sh` | # shim-exempt: plugin paths in config documentation, not invocations
-
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/suite-engine.sh`, `${CLAUDE_PLUGIN_ROOT}/scripts/test-batched.sh` <!-- # shim-exempt: plugin paths in config documentation, not invocations --> |
 ---
 
 ### `commands.lint`
@@ -430,8 +420,7 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 | **Description** | Syntax check command run by `validate.sh` as a parallel lint step. When absent, `validate.sh` falls back to `make syntax-check`. Use `true` (no-op) to skip syntax checking on projects without a dedicated syntax step. |
 | **Accepted values** | Any shell command string (e.g., `make syntax-check`, `true`) |
 | **Default** | `make syntax-check` |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh` | # shim-exempt: plugin path in config documentation, not an invocation
-
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh` <!-- # shim-exempt: plugin path in config documentation, not an invocation --> |
 ---
 
 ### `commands.lint_ruff`
@@ -439,10 +428,9 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 | | |
 |---|---|
 | **Description** | Ruff linter command run by `validate.sh` as a parallel lint step. When absent, `validate.sh` falls back to `make lint-ruff`. Use this key to override the default ruff invocation (e.g., to restrict to specific paths or add `--select` flags). |
-| **Accepted values** | Any shell command string (e.g., `ruff check ${CLAUDE_PLUGIN_ROOT}/scripts/*.py tests/**/*.py`, `make lint-ruff`) | # shim-exempt: plugin path in config documentation example, not an invocation
+| **Accepted values** | Any shell command string (e.g., `ruff check ${CLAUDE_PLUGIN_ROOT}/scripts/*.py tests/**/*.py`, `make lint-ruff`) <!-- # shim-exempt: plugin path in config documentation example, not an invocation --> |
 | **Default** | `make lint-ruff` |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh` | # shim-exempt: plugin path in config documentation, not an invocation
-
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh` <!-- # shim-exempt: plugin path in config documentation, not an invocation --> |
 ---
 
 ### `commands.lint_mypy`
@@ -452,8 +440,7 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 | **Description** | MyPy type-check command run by `validate.sh` as a parallel lint step. When absent, `validate.sh` falls back to `make lint-mypy`. Use `true` (no-op) to skip MyPy on projects that do not use type annotations. |
 | **Accepted values** | Any shell command string (e.g., `mypy src/`, `make lint-mypy`, `true`) |
 | **Default** | `make lint-mypy` |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh` | # shim-exempt: plugin path in config documentation, not an invocation
-
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh` <!-- # shim-exempt: plugin path in config documentation, not an invocation --> |
 ---
 
 ### `jira.project`
@@ -463,8 +450,7 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 | **Description** | Jira project key used by `.claude/scripts/dso ticket sync`. The `JIRA_PROJECT` environment variable takes precedence over this value. |
 | **Accepted values** | Jira project key string (e.g., `DIG`, `MYPROJ`) |
 | **Default** | No default — required when using `.claude/scripts/dso ticket sync` |
-| **Used by** | `scripts/bridge-outbound.py`, `scripts/bridge-inbound.py`, `.claude/scripts/dso ticket sync`, `.claude/scripts/dso jira-reset-sync.sh`, `.claude/scripts/dso reset-tickets.sh` | # shim-exempt: internal implementation references in config documentation
-
+| **Used by** | `scripts/dso_reconciler/`, `.claude/scripts/dso ticket sync`, `.claude/scripts/dso jira-reset-sync.sh`, `.claude/scripts/dso reset-tickets.sh` <!-- # shim-exempt: internal implementation references in config documentation --> |
 ---
 
 ### `issue_tracker.search_cmd`
@@ -540,8 +526,7 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 | **Description** | Personal Access Token for Figma REST API. Used by `figma-auth.sh` to authenticate pull-back requests. Read from this config key; `FIGMA_PAT` environment variable takes precedence if set. Do not commit actual PAT values — use the `FIGMA_PAT` env var or a `.gitignore`-d local config override instead. |
 | **Accepted values** | Figma PAT string (typically prefixed `figd_`); optional when `FIGMA_PAT` env var is set |
 | **Default** | Absent — `FIGMA_PAT` env var is the fallback; missing PAT produces a clear error with configuration instructions |
-| **Used by** | `scripts/figma-auth.sh` | # shim-exempt: internal implementation reference in config documentation
-
+| **Used by** | `scripts/figma-auth.sh` <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
 ### `design.figma_collaboration`
@@ -716,8 +701,7 @@ project_closure_hooks = scripts/my-closure-validator.sh
 | **Description** | **Deprecated — use `worktree.orphan_patterns` instead.** Git branch naming pattern for worktree validation and cleanup. Precedence in `worktree-cleanup.sh`: (1) `worktree.orphan_patterns` list (canonical), (2) this key with a one-time deprecation warning to stderr, (3) hardcoded default patterns `worktree-*` and `story/*`. Replace with `worktree.orphan_patterns` to silence the warning and gain multi-pattern support. |
 | **Accepted values** | Branch name pattern (e.g., `worktree-*`) |
 | **Default** | Absent — cleanup uses the hardcoded defaults `worktree-*` and `story/*` |
-| **Used by** | `scripts/worktree-cleanup.sh` (legacy fallback only) | # shim-exempt: internal implementation reference in config documentation
-
+| **Used by** | `scripts/worktree-cleanup.sh` (legacy fallback only) <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
 ### `worktree.orphan_patterns`
@@ -727,8 +711,7 @@ project_closure_hooks = scripts/my-closure-validator.sh
 | **Description** | List of git branch-name patterns identifying worktree branches eligible for orphan cleanup. Supersedes the scalar `worktree.branch_pattern`. Each list entry is one pattern; matching uses `read-config.sh --list` semantics (multiple lines of `worktree.orphan_patterns=<pattern>` in `dso-config.conf`). Branches matching ANY listed pattern are considered cleanup candidates by `worktree-cleanup.sh`. |
 | **Accepted values** | One or more branch-name patterns (e.g., `worktree-*`, `feature/wt-*`); read as a list via `read-config.sh --list` |
 | **Default** | Absent — cleanup falls back to default heuristics when neither this key nor the deprecated `worktree.branch_pattern` is set |
-| **Used by** | `scripts/worktree-cleanup.sh` | # shim-exempt: internal implementation reference in config documentation
-
+| **Used by** | `scripts/worktree-cleanup.sh` <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
 ### `worktree.max_age_hours`
@@ -738,8 +721,7 @@ project_closure_hooks = scripts/my-closure-validator.sh
 | **Description** | Maximum age in hours for automatic worktree cleanup. Worktrees older than this threshold are candidates for removal. Overridden by `AGE_HOURS` env var. |
 | **Accepted values** | Positive integer |
 | **Default** | `12` |
-| **Used by** | `scripts/worktree-cleanup.sh` | # shim-exempt: internal implementation reference in config documentation
-
+| **Used by** | `scripts/worktree-cleanup.sh` <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
 ### `worktree.isolation_enabled`
@@ -881,8 +863,7 @@ project_closure_hooks = scripts/my-closure-validator.sh
 | **Description** | Docker Compose file specifically for database services. Used by worktree cleanup to tear down database containers. When absent but `infrastructure.compose_project` or `infrastructure.container_prefix` is set, a partial-config warning is emitted and Docker cleanup is skipped. |
 | **Accepted values** | Relative path to a Compose file (e.g., `docker-compose.db.yml`) |
 | **Default** | Absent — Docker DB cleanup skipped |
-| **Used by** | `scripts/worktree-cleanup.sh` | # shim-exempt: internal implementation reference in config documentation
-
+| **Used by** | `scripts/worktree-cleanup.sh` <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
 ### `session.usage_check_cmd`
@@ -925,8 +906,7 @@ project_closure_hooks = scripts/my-closure-validator.sh
 | **Description** | Number of tool-use events after which the suggestion gate may surface an "are you stuck?" prompt. Used by `hooks/lib/session-misc-functions.sh` to throttle proactive suggestions so they fire after sustained activity rather than on every tool call. Overridable per-process via the `DSO_SUGGESTION_TOOL_USE_THRESHOLD` environment variable, which takes precedence over the config value. |
 | **Accepted values** | Positive integer |
 | **Default** | Absent — falls back to a hardcoded `200` in `hooks/lib/session-misc-functions.sh` (suggestions trigger after 200 tool-use events). Set this key (or the `DSO_SUGGESTION_TOOL_USE_THRESHOLD` env var) to override; there is no documented way to disable the gate entirely short of editing the hook. |
-| **Used by** | `hooks/lib/session-misc-functions.sh` | # shim-exempt: internal implementation reference in config documentation
-
+| **Used by** | `hooks/lib/session-misc-functions.sh` <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
 ### `checks.script_write_scan_dir`
@@ -947,8 +927,7 @@ project_closure_hooks = scripts/my-closure-validator.sh
 | **Description** | GitHub check name for the PR-side LLM review CI job. Dual-consistency requirement: this value MUST match both (1) the `required_status_checks` value in the GitHub Ruleset for `session-*` branches, and (2) the expected check name asserted by Phase A preflight (`check-ruleset-preflight.sh`). When unset, `check-ruleset-preflight.sh` falls back to `Sprint Story Review`. Note: `per-branch-review.yml` was removed in story 20d7-09d6; `ci.yml`'s `llm-review` job is now the sole PR-side consumer. |
 | **Accepted values** | Non-empty string. Must match the literal check name produced by GitHub Actions (no shell-quoting, no leading/trailing whitespace). |
 | **Default** | `Sprint Story Review` |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/sprint/check-ruleset-preflight.sh` | # shim-exempt: internal implementation reference in config documentation
-
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/sprint/check-ruleset-preflight.sh` <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
 ### `review.schema_correction_max_attempts`
@@ -958,8 +937,7 @@ project_closure_hooks = scripts/my-closure-validator.sh
 | **Description** | Maximum number of LLM dispatch attempts the schema-correction retry loop makes when `_validate_findings_schema()` returns `schema_fail`. A value of `0` disables correction dispatch entirely — a synthetic `schema_error` finding is appended instead. Negative values are clamped to `0`. Values above the ceiling (`3`) are clamped to `3` with a warning emitted to stderr. Disambiguate from `review.max_cycles`, which controls the autonomous fix/defend loop in REVIEW-WORKFLOW.md — this key controls only the schema-correction sub-loop within runner.py. These loops are independent: schema-correction runs within a single review pass; resolution runs across review cycles. |
 | **Accepted values** | Non-negative integer (0 = disable, 1–3 = enabled; values > 3 are clamped to 3 at read time with a stderr warning — not rejected at parse time) |
 | **Default** | `1` |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/runner.py` (`get_schema_correction_max_attempts()`, `_clamp_schema_correction_attempts()`) | # shim-exempt: internal implementation reference in config documentation
-
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/runner.py` (`get_schema_correction_max_attempts()`, `_clamp_schema_correction_attempts()`) <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
 ### `review.max_cycles`
@@ -1013,8 +991,7 @@ project_closure_hooks = scripts/my-closure-validator.sh
 | **Description** | Controls whether the post-pass findings inspection block in REVIEW-WORKFLOW.md auto-files `minor` and `suggestion` severity findings as bug tickets. Default is fail-closed — minor findings are surfaced as PR comments only and do not become standalone tickets. Auto-filing without opt-in produced the deferred-nitpick treadmill: tickets that sit at pri=3/4 indefinitely and burn triage cost without ever being acted on (bugs 57b9, 9726, 5329). Set to `true` only when the project has process discipline to triage and close minor-finding tickets promptly. |
 | **Accepted values** | `true` \| `false` (any other value or absence is treated as `false`) |
 | **Default** | `false` |
-| **Used by** | `scripts/should-create-minor-finding-tickets.sh` (the gate consulted by `REVIEW-WORKFLOW.md` post-pass inspection) | # shim-exempt: internal implementation reference in config documentation
-
+| **Used by** | `scripts/should-create-minor-finding-tickets.sh` (the gate consulted by `REVIEW-WORKFLOW.md` post-pass inspection) <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
 ### `review.behavioral_patterns`
@@ -1024,8 +1001,7 @@ project_closure_hooks = scripts/my-closure-validator.sh
 | **Description** | Semicolon-delimited glob list of file patterns the review complexity classifier treats as behavioral (full scoring weight). Files matching these patterns receive higher blast_radius and critical_path scores, making them more likely to route to standard or deep review tiers. |
 | **Accepted values** | Semicolon-delimited glob patterns (e.g., `skills/**;hooks/**`) |
 | **Default** | Absent — classifier uses built-in heuristics only |
-| **Used by** | `scripts/review-complexity-classifier.sh` | # shim-exempt: internal implementation reference in config documentation
-
+| **Used by** | `scripts/review-complexity-classifier.sh` <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
 ### `review.size_upgrade_lines`
@@ -1035,8 +1011,7 @@ project_closure_hooks = scripts/my-closure-validator.sh
 | **Description** | Minimum number of scorable added lines in a diff that triggers a tier upgrade to deep review. When a non-merge diff meets or exceeds this threshold, the classifier sets `size_action=upgrade`, which causes ci-llm-review-runner.sh (shim in S3+; delegates to `python3 -m dso_ci_review.runner`) to route to the deep tier regardless of the score-based selected tier. This mirrors the local `/dso:review` Step 3b REVIEW_AGENT_OVERRIDE behavior. |
 | **Accepted values** | Positive integer. Values of `0` are valid (every diff triggers upgrade). Non-numeric values are ignored and the default applies. |
 | **Default** | `300` |
-| **Used by** | `scripts/review-complexity-classifier.sh`, `scripts/ci-llm-review-runner.sh` (shim in S3+; delegates to `python3 -m dso_ci_review.runner`) | # shim-exempt: internal implementation reference in config documentation
-
+| **Used by** | `scripts/review-complexity-classifier.sh`, `scripts/ci-llm-review-runner.sh` (shim in S3+; delegates to `python3 -m dso_ci_review.runner`) <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
 ### `review.region_split.loc_threshold`
@@ -1046,8 +1021,7 @@ project_closure_hooks = scripts/my-closure-validator.sh
 | **Description** | LOC threshold above which a multi-file diff is partitioned into per-directory clusters by the region-split fallback (Strategy E) in `dso_ci_review.region_split`. Below this threshold the diff is reviewed monolithically. The default targets ~7-10% of Sonnet 4.6's diff-content budget after system prompt + finding schema + PR metadata overhead, leaving ample headroom for prompt growth. Single-file diffs are NEVER region-split regardless of this value (file-atomicity invariant — bug 532e-6ab7). Projects on smaller-context models should lower this; projects on 1M-context Sonnet can safely raise it. |
 | **Accepted values** | Positive integer. Non-numeric values fall back to default. |
 | **Default** | `3000` |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/region_split.py` | # shim-exempt: internal implementation reference in config documentation
-
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/region_split.py` <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
 ### `review.region_split.file_count_threshold`
@@ -1057,8 +1031,7 @@ project_closure_hooks = scripts/my-closure-validator.sh
 | **Description** | File-count threshold above which a diff is region-split. Triggers when the diff touches more than this many files. Distinct from `loc_threshold` — captures the case of many small files (e.g., a repo-wide rename) where per-cluster parallelism beats one monolithic review. Single-file diffs are NEVER region-split regardless of this value. |
 | **Accepted values** | Positive integer. Non-numeric values fall back to default. |
 | **Default** | `40` |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/region_split.py` | # shim-exempt: internal implementation reference in config documentation
-
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/region_split.py` <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
 ### `review.region_split.max_clusters`
@@ -1068,8 +1041,7 @@ project_closure_hooks = scripts/my-closure-validator.sh
 | **Description** | Maximum number of clusters dispatched in parallel by region-split. When the directory count exceeds this value, smallest clusters beyond the top `max_clusters - 1` are merged into an "overflow" cluster. Bounds wall-clock cost of N specialist API calls — not a context-window concern. |
 | **Accepted values** | Positive integer ≥ 1. Non-numeric values fall back to default. |
 | **Default** | `5` |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/region_split.py` | # shim-exempt: internal implementation reference in config documentation
-
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/region_split.py` <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
 ### `review.size_warn_lines`
@@ -1079,8 +1051,7 @@ project_closure_hooks = scripts/my-closure-validator.sh
 | **Description** | Minimum number of scorable added lines in a diff that triggers a SIZE_WARNING log on stderr. When a non-merge diff meets or exceeds this threshold, the classifier sets `size_action=warn` and emits `SIZE_WARNING: <N>` to stderr. The runner does not upgrade the tier on `warn` — the warning is informational only. |
 | **Accepted values** | Positive integer. Must be greater than `review.size_upgrade_lines` for the thresholds to have distinct effects. Non-numeric values are ignored and the default applies. |
 | **Default** | `600` |
-| **Used by** | `scripts/review-complexity-classifier.sh` | # shim-exempt: internal implementation reference in config documentation
-
+| **Used by** | `scripts/review-complexity-classifier.sh` <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
 ### `review.huge_diff_file_threshold`
@@ -1100,7 +1071,7 @@ project_closure_hooks = scripts/my-closure-validator.sh
 | **Description** | Maximum number of files sent to LLM review across all cluster dispatches. Works as part of the hard upper bound: when the product `max_files × max_calls` is exceeded by the PR, the runner emits `OVER_BOUND` (exit 3) and bypasses LLM dispatch entirely. Setting this value to `0` emits a `UserWarning` — no files will be reviewed, which is likely a misconfiguration. When unset, no per-file cap is applied (the region-split cluster count acts as the effective bound). |
 | **Accepted values** | Non-negative integer. `0` is accepted but emits a warning. Non-numeric values are ignored and the key is treated as unset. |
 | **Default** | Unset (no cap) |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/file_filter.py` (`load_filter_config`) |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/file_filter.py` (`load_filter_config`) | <!-- # shim-exempt: internal implementation reference in config documentation -->
 
 ---
 
@@ -1111,7 +1082,7 @@ project_closure_hooks = scripts/my-closure-validator.sh
 | **Description** | Maximum number of LLM dispatch calls across all cluster dispatches. Works together with `review.file_filter.max_files` to define the hard upper bound (`max_files × max_calls`). The aggregation synthesis call counts as ONE call against this budget regardless of cluster count (DD4 single-ledger-entry invariant). Setting this value to `0` emits a `UserWarning` — no LLM calls will be dispatched. When unset, no per-call cap is applied. |
 | **Accepted values** | Non-negative integer. `0` is accepted but emits a warning. Non-numeric values are ignored and the key is treated as unset. |
 | **Default** | Unset (no cap) |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/file_filter.py` (`load_filter_config`) |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/file_filter.py` (`load_filter_config`) | <!-- # shim-exempt: internal implementation reference in config documentation -->
 
 ---
 
@@ -1122,7 +1093,7 @@ project_closure_hooks = scripts/my-closure-validator.sh
 | **Description** | Additional glob pattern (additive) for skipping files before LLM dispatch. Applied after the built-in default patterns (`**/package-lock.json`, `**/yarn.lock`, `**/poetry.lock`, `**/go.sum`) and after linguist-tag filtering from `.gitattributes`. Custom patterns are ADDITIVE — they extend, not replace, the defaults. Multiple patterns may be specified by repeating the key. Skipped files are reported in the `DSO-Review-Coverage:` visibility trailer with reason `ignore.glob:<pattern>`. |
 | **Accepted values** | Glob string. Patterns starting with `**/` match any path depth. |
 | **Default** | None (built-in defaults always apply: `**/package-lock.json`, `**/yarn.lock`, `**/poetry.lock`, `**/go.sum`) |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/file_filter.py` (`load_filter_config`, `filter_files`) |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/file_filter.py` (`load_filter_config`, `filter_files`) | <!-- # shim-exempt: internal implementation reference in config documentation -->
 
 ---
 
@@ -1133,7 +1104,7 @@ project_closure_hooks = scripts/my-closure-validator.sh
 | **Description** | Additional regex pattern (additive) for skipping files before LLM dispatch. Applied after glob filtering (Layer 3 in the filter pipeline). Multiple patterns may be specified by repeating the key. Malformed regex patterns are silently ignored. Skipped files are reported in the `DSO-Review-Coverage:` visibility trailer with reason `ignore.regex:<pattern>`. |
 | **Accepted values** | Python `re.search`-compatible regex string |
 | **Default** | None |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/file_filter.py` (`load_filter_config`, `filter_files`) |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/file_filter.py` (`load_filter_config`, `filter_files`) | <!-- # shim-exempt: internal implementation reference in config documentation -->
 
 ---
 
@@ -1144,8 +1115,7 @@ project_closure_hooks = scripts/my-closure-validator.sh
 | **Description** | Per-call soft cap on context-augmentation turns in the CI review dispatch loop. At this turn count the dispatcher issues a first nudge asking the reviewer to finalize findings; a second nudge fires at `soft_cap+3`; the loop fails-closed at `soft_cap+4` (single critical finding recorded). Applies to standard, deep, and overlay tiers only — light tier is always single-shot and ignores this key. Can be overridden per-call via the `soft_cap` parameter of `dispatch_review()`. |
 | **Accepted values** | Positive integer |
 | **Default** | `15` (module constant `CONTEXT_AUG_SOFT_CAP` in `scripts/dso_ci_review/dispatch.py`) |
-| **Used by** | `scripts/dso_ci_review/dispatch.py` (`dispatch_review()`) | # shim-exempt: internal implementation reference in config documentation
-
+| **Used by** | `scripts/dso_ci_review/dispatch.py` (`dispatch_review()`) <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
 ### `review.context_aug.max_file_bytes`
@@ -1155,8 +1125,7 @@ project_closure_hooks = scripts/my-closure-validator.sh
 | **Description** | Per-file size cap for the `read_files` context-request action. Files larger than this limit are read up to the cap and a truncation marker is appended to inform the reviewer that content is incomplete. Enforced by `execute_read_files()`. |
 | **Accepted values** | Positive integer (bytes) |
 | **Default** | `262144` (256 KB — hardcoded in `scripts/dso_ci_review/context_request.py`) |
-| **Used by** | `scripts/dso_ci_review/context_request.py` (`execute_read_files()`) | # shim-exempt: internal implementation reference in config documentation
-
+| **Used by** | `scripts/dso_ci_review/context_request.py` (`execute_read_files()`) <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
 ### `review.context_aug.grep_timeout_seconds`
@@ -1166,8 +1135,7 @@ project_closure_hooks = scripts/my-closure-validator.sh
 | **Description** | Wall-clock timeout for the `grep` context-request action. Prevents runaway pattern matching (ReDoS) from stalling the augmentation loop. On timeout the handler returns `timed_out: true` and the turn is treated as producing no output. |
 | **Accepted values** | Positive integer (seconds) |
 | **Default** | `5` (constant `_GREP_DEFAULT_TIMEOUT_SECONDS` in `scripts/dso_ci_review/context_request.py`) |
-| **Used by** | `scripts/dso_ci_review/context_request.py` (`execute_grep()`) | # shim-exempt: internal implementation reference in config documentation
-
+| **Used by** | `scripts/dso_ci_review/context_request.py` (`execute_grep()`) <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
 ### `review.context_aug.contract_version`
@@ -1177,8 +1145,7 @@ project_closure_hooks = scripts/my-closure-validator.sh
 | **Description** | Version of the CI Review Context-Request Contract implemented by the dispatcher. Unversioned requests default to version 1 for backward compatibility. Currently unversioned in `dso-config.conf` — this key is reserved for future use when a breaking schema change requires version negotiation. |
 | **Accepted values** | Positive integer (currently only `1` is defined) |
 | **Default** | `1` (see `${CLAUDE_PLUGIN_ROOT}/docs/contracts/ci-review-context-request.md` §Schema Evolution) |
-| **Used by** | `scripts/dso_ci_review/context_request.py` (parser; version 1 baseline) | # shim-exempt: internal implementation reference in config documentation
-
+| **Used by** | `scripts/dso_ci_review/context_request.py` (parser; version 1 baseline) <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
 ### `debug.max_fix_validate_cycles`
@@ -1381,8 +1348,7 @@ The following are CLI flags accepted by `${CLAUDE_PLUGIN_ROOT}/scripts/onboardin
 | **Description** | Bypass mode applied to the `bypass_actors` entry on the Ruleset. `always` allows admins to bypass at any time; `pull_request_only` restricts the bypass window to pull-request flows. Setting a non-default value requires an admin token (script exits 1 if `gh auth status` does not report admin scope). |
 | **Accepted values** | `always` \| `pull_request_only` |
 | **Default** | `always` |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh` | # shim-exempt: internal implementation references in config documentation
-
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh` <!-- # shim-exempt: internal implementation references in config documentation --> |
 **Example**: `provision-ruleset.sh --bypass-actor-policy=pull_request_only`
 
 ---
@@ -1394,8 +1360,7 @@ The following are CLI flags accepted by `${CLAUDE_PLUGIN_ROOT}/scripts/onboardin
 | **Description** | Maps to the `required_review_thread_resolution` parameter on the Ruleset's `pull_request` rule. When `true`, GitHub requires every PR review thread to be marked resolved before merge. |
 | **Accepted values** | `true` \| `false` (also `1`/`0`, `yes`/`no`) |
 | **Default** | `false` |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh` | # shim-exempt: internal implementation references in config documentation
-
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh` <!-- # shim-exempt: internal implementation references in config documentation --> |
 **Example**: `provision-ruleset.sh --require-conversation-resolution=true`
 
 ---
@@ -1407,8 +1372,7 @@ The following are CLI flags accepted by `${CLAUDE_PLUGIN_ROOT}/scripts/onboardin
 | **Description** | When `true`, the script records the preference in dry-run output and the success summary. GitHub does not currently expose Copilot code review configuration via the Rulesets API — the flag is a documented placeholder for future automation when API support lands. |
 | **Accepted values** | `true` \| `false` |
 | **Default** | `false` |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh` | # shim-exempt: internal implementation references in config documentation
-
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh` <!-- # shim-exempt: internal implementation references in config documentation --> |
 **Example**: `provision-ruleset.sh --request-copilot-review=true`
 
 ---
@@ -1420,8 +1384,7 @@ The following are CLI flags accepted by `${CLAUDE_PLUGIN_ROOT}/scripts/onboardin
 | **Description** | Maps to the `dismiss_stale_reviews_on_push` parameter on the Ruleset's `pull_request` rule. When `true`, GitHub dismisses prior approvals when new commits are pushed to the PR branch. |
 | **Accepted values** | `true` \| `false` |
 | **Default** | `false` |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh` | # shim-exempt: internal implementation references in config documentation
-
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh` <!-- # shim-exempt: internal implementation references in config documentation --> |
 **Example**: `provision-ruleset.sh --dismiss-stale-approvals-on-push=true`
 
 ---
@@ -1433,8 +1396,7 @@ The following are CLI flags accepted by `${CLAUDE_PLUGIN_ROOT}/scripts/onboardin
 | **Description** | Maps to the `required_approving_review_count` parameter on the Ruleset's `pull_request` rule. Sets the minimum number of approving reviews required before a PR can be merged. |
 | **Accepted values** | Non-negative integer |
 | **Default** | `1` |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh` | # shim-exempt: internal implementation references in config documentation
-
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh` <!-- # shim-exempt: internal implementation references in config documentation --> |
 **Example**: `provision-ruleset.sh --required-approvals=2`
 
 ---
@@ -1619,8 +1581,7 @@ The following are CLI flags accepted by `${CLAUDE_PLUGIN_ROOT}/scripts/onboardin
 | **Description** | Literal substring patterns (grep -F) for identifying persistence/data-layer source files. Used by the persistence coverage check to verify that data-layer code has corresponding integration tests. Repeatable key. |
 | **Accepted values** | File path substrings (e.g., `src/core/data_store.py`, `src/adapters/db/`) |
 | **Default** | Absent — persistence coverage check skipped |
-| **Used by** | `scripts/check-persistence-coverage.sh` | # shim-exempt: internal implementation reference in config documentation
-
+| **Used by** | `scripts/check-persistence-coverage.sh` <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
 ### `persistence.test_patterns`
@@ -1630,8 +1591,7 @@ The following are CLI flags accepted by `${CLAUDE_PLUGIN_ROOT}/scripts/onboardin
 | **Description** | Extended regex patterns (grep -E) for identifying persistence integration test files. Paired with `persistence.source_patterns` to validate coverage. Repeatable key. |
 | **Accepted values** | Extended regex patterns (e.g., `tests/integration/.*test_.*_db_roundtrip`) |
 | **Default** | Absent — persistence coverage check skipped |
-| **Used by** | `scripts/check-persistence-coverage.sh` | # shim-exempt: internal implementation reference in config documentation
-
+| **Used by** | `scripts/check-persistence-coverage.sh` <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
 ### `skills.playwright_debug_reference`
@@ -1652,8 +1612,7 @@ The following are CLI flags accepted by `${CLAUDE_PLUGIN_ROOT}/scripts/onboardin
 | **Description** | Ticket ID prefix used when generating new ticket IDs. When absent, the v3 ticket system derives the prefix from the project directory name. |
 | **Accepted values** | Short string without spaces (e.g., `dso`, `my-project`) |
 | **Default** | Derived from repo directory name |
-| **Used by** | `.claude/scripts/dso ticket` (v3 ticket dispatcher), `scripts/ticket-reducer.py` | # shim-exempt: internal implementation reference in config documentation
-
+| **Used by** | `.claude/scripts/dso ticket` (v3 ticket dispatcher), `scripts/ticket-reducer.py` <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
 ### `tickets.directory`
@@ -1663,8 +1622,7 @@ The following are CLI flags accepted by `${CLAUDE_PLUGIN_ROOT}/scripts/onboardin
 | **Description** | Directory where ticket markdown files are stored, relative to repo root. |
 | **Accepted values** | Relative directory path |
 | **Default** | `.tickets` |
-| **Used by** | `.claude/scripts/dso ticket` (v3 ticket dispatcher), `scripts/ticket-reducer.py`, `hooks/check-validation-failures.sh` | # shim-exempt: internal implementation references in config documentation
-
+| **Used by** | `.claude/scripts/dso ticket` (v3 ticket dispatcher), `scripts/ticket-reducer.py`, `hooks/check-validation-failures.sh` <!-- # shim-exempt: internal implementation references in config documentation --> |
 ---
 
 ### `tickets.sync.jira_project_key`
@@ -1674,8 +1632,7 @@ The following are CLI flags accepted by `${CLAUDE_PLUGIN_ROOT}/scripts/onboardin
 | **Description** | Jira project key for .claude/scripts/dso ticket sync. Only needed when using `.claude/scripts/dso ticket sync` with Jira. Superseded by `jira.project` — prefer `jira.project` for new configurations. |
 | **Accepted values** | Jira project key string (e.g., `DTL`, `MYPROJ`) |
 | **Default** | Absent |
-| **Used by** | `scripts/bridge-outbound.py`, `scripts/bridge-inbound.py`, `.claude/scripts/dso ticket sync` | # shim-exempt: internal implementation references in config documentation
-
+| **Used by** | `scripts/dso_reconciler/`, `.claude/scripts/dso ticket sync` <!-- # shim-exempt: internal implementation references in config documentation --> |
 ---
 
 ### `tickets.sync.bidirectional_comments`
@@ -1685,8 +1642,7 @@ The following are CLI flags accepted by `${CLAUDE_PLUGIN_ROOT}/scripts/onboardin
 | **Description** | Enable bidirectional comment sync between local tickets and Jira. When true, comments added locally are pushed to Jira and vice versa. |
 | **Accepted values** | `true`, `false` |
 | **Default** | `true` |
-| **Used by** | `scripts/bridge-outbound.py`, `scripts/bridge-inbound.py`, `.claude/scripts/dso ticket sync` | # shim-exempt: internal implementation references in config documentation
-
+| **Used by** | `scripts/dso_reconciler/`, `.claude/scripts/dso ticket sync` <!-- # shim-exempt: internal implementation references in config documentation --> |
 ---
 
 ### `ticket.display_mode`
@@ -1759,8 +1715,7 @@ ticket.display_mode=alias
 | **Description** | Minimum clarity score (integer) for a ticket to pass the heuristic clarity gate in `ticket-clarity-check.sh`. Tickets scoring below this value are flagged as unclear. Valid range: 1 or higher (the script enforces a minimum of 1). |
 | **Accepted values** | Positive integer (e.g., `5`) |
 | **Default** | `5` |
-| **Used by** | `scripts/ticket-clarity-check.sh` | # shim-exempt: internal implementation reference in config documentation
-
+| **Used by** | `scripts/ticket-clarity-check.sh` <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
 ### `implementation_plan.approach_resolution`
@@ -1781,8 +1736,7 @@ ticket.display_mode=alias
 | **Description** | Canonical model ID for the haiku agent tier. Used by `resolve-model-id.sh` to look up the model string passed to Agent/Task dispatches. Override to pin to a specific model version or substitute a different model for the haiku tier. |
 | **Accepted values** | Anthropic model ID string (e.g., `claude-haiku-4-5`) |
 | **Default** | No built-in default — **required** when any haiku-tier agent is dispatched |
-| **Used by** | `scripts/resolve-model-id.sh`, `scripts/enrich-file-impact.sh`, `scripts/semantic-conflict-check.py` | # shim-exempt: internal implementation references in config documentation
-
+| **Used by** | `scripts/resolve-model-id.sh`, `scripts/enrich-file-impact.sh`, `scripts/semantic-conflict-check.py` <!-- # shim-exempt: internal implementation references in config documentation --> |
 ---
 
 ### `model.sonnet`
@@ -1792,8 +1746,7 @@ ticket.display_mode=alias
 | **Description** | Canonical model ID for the sonnet agent tier. Used by `resolve-model-id.sh` to look up the model string passed to Agent/Task dispatches. Override to pin to a specific model version or substitute a different model for the sonnet tier. |
 | **Accepted values** | Anthropic model ID string (e.g., `claude-sonnet-4-6`) |
 | **Default** | No built-in default — **required** when any sonnet-tier agent is dispatched |
-| **Used by** | `scripts/resolve-model-id.sh` | # shim-exempt: internal implementation reference in config documentation
-
+| **Used by** | `scripts/resolve-model-id.sh` <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
 ### `model.opus`
@@ -1803,8 +1756,7 @@ ticket.display_mode=alias
 | **Description** | Canonical model ID for the opus agent tier. Used by `resolve-model-id.sh` to look up the model string passed to Agent/Task dispatches. Override to pin to a specific model version or substitute a different model for the opus tier. |
 | **Accepted values** | Anthropic model ID string (e.g., `claude-opus-4-7`) |
 | **Default** | No built-in default — **required** when any opus-tier agent is dispatched |
-| **Used by** | `scripts/resolve-model-id.sh` | # shim-exempt: internal implementation reference in config documentation
-
+| **Used by** | `scripts/resolve-model-id.sh` <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
 ### `model.provider`
@@ -1815,8 +1767,7 @@ ticket.display_mode=alias
 | **Accepted values** | `anthropic` \| `openai` |
 | **Default** | `anthropic` |
 | **Example** | `model.provider=anthropic` or `model.provider=openai` |
-| **Used by** | `python3 -m dso_ci_review.runner` (via `CI_REVIEW_PROVIDER` env var) | # shim-exempt: internal implementation reference in config documentation
-
+| **Used by** | `python3 -m dso_ci_review.runner` (via `CI_REVIEW_PROVIDER` env var) <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
 ### `model.light`
@@ -1826,8 +1777,7 @@ ticket.display_mode=alias
 | **Description** | Model ID used for light-tier CI review (when `dso_ci_review.runner` is invoked with `tier=light`). |
 | **Accepted values** | Provider model ID string |
 | **Default** | `claude-haiku-4-5` (Anthropic) / `gpt-5.4-nano` (OpenAI) |
-| **Used by** | `python3 -m dso_ci_review.runner` (via `DSO_CI_REVIEW_MODEL` env var) | # shim-exempt: internal implementation reference in config documentation
-
+| **Used by** | `python3 -m dso_ci_review.runner` (via `DSO_CI_REVIEW_MODEL` env var) <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
 ### `model.standard`
@@ -1837,8 +1787,7 @@ ticket.display_mode=alias
 | **Description** | Model ID used for standard-tier CI review (when `dso_ci_review.runner` is invoked with `tier=standard`). |
 | **Accepted values** | Provider model ID string |
 | **Default** | `claude-sonnet-4-6` (Anthropic) / `gpt-5.4` (OpenAI) |
-| **Used by** | `python3 -m dso_ci_review.runner` (via `DSO_CI_REVIEW_MODEL` env var) | # shim-exempt: internal implementation reference in config documentation
-
+| **Used by** | `python3 -m dso_ci_review.runner` (via `DSO_CI_REVIEW_MODEL` env var) <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
 ### `model.deep`
@@ -1848,8 +1797,7 @@ ticket.display_mode=alias
 | **Description** | Model ID used for deep-tier CI review (opus-class) (when `dso_ci_review.runner` is invoked with `tier=deep`). |
 | **Accepted values** | Provider model ID string |
 | **Default** | `claude-opus-4-7` (Anthropic) / `gpt-5.5` (OpenAI) |
-| **Used by** | `python3 -m dso_ci_review.runner` (via `DSO_CI_REVIEW_MODEL` env var) | # shim-exempt: internal implementation reference in config documentation
-
+| **Used by** | `python3 -m dso_ci_review.runner` (via `DSO_CI_REVIEW_MODEL` env var) <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
 ### `ci_review.provider`
@@ -1859,8 +1807,7 @@ ticket.display_mode=alias
 | **Description** | Primary LLM provider for the CI LLM review pipeline. Controls which provider is used when `CI_REVIEW_PROVIDER` env var is not set. Resolution order: `CI_REVIEW_PROVIDER` env var → `ci_review.provider` config key → `model.provider` config key → default `anthropic`. |
 | **Accepted values** | `anthropic`, `openai` |
 | **Default** | `anthropic` |
-| **Used by** | `python3 -m dso_ci_review.runner` (via `dso_ci_review.providers.config.get_provider`) | # shim-exempt: internal implementation reference in config documentation
-
+| **Used by** | `python3 -m dso_ci_review.runner` (via `dso_ci_review.providers.config.get_provider`) <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
 ### `ci_review.provider_chain`
@@ -1870,8 +1817,7 @@ ticket.display_mode=alias
 | **Description** | Comma-separated ordered list of provider names for the CI LLM review fallback chain. The first entry is the primary provider; subsequent entries are fallback targets on `RateLimitError`. Each name must be lowercase-canonical (`anthropic`, `openai`). |
 | **Accepted values** | Comma-separated provider names. Supported: `anthropic`, `openai` |
 | **Default** | `anthropic,openai` |
-| **Used by** | `python3 -m dso_ci_review.runner` (via `dso_ci_review.providers.config.parse_provider_chain`) | # shim-exempt: internal implementation reference in config documentation
-
+| **Used by** | `python3 -m dso_ci_review.runner` (via `dso_ci_review.providers.config.parse_provider_chain`) <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
 ### `DSO_LLM_MODEL` *(removed — ignored since Phase 2 provider abstraction)*
@@ -2008,10 +1954,9 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 
 | | |
 |---|---|
-| **Description** | Base URL of the Jira instance (e.g., `https://myorg.atlassian.net`). Used by `scripts/bridge-outbound.py` when adding remote links to Jira issues. | # shim-exempt: internal implementation reference
+| **Description** | Base URL of the Jira instance (e.g., `https://myorg.atlassian.net`). Used by `scripts/dso_reconciler/` when adding remote links to Jira issues. <!-- # shim-exempt: internal implementation reference --> |
 | **Required** | Required for `.claude/scripts/dso ticket sync` remote-link features |
-| **Usage context** | `scripts/bridge-outbound.py`, `scripts/bridge-inbound.py`, `.claude/scripts/dso ticket sync` (sync subcommand, remote link creation) | # shim-exempt: internal implementation references in config documentation
-
+| **Usage context** | `scripts/dso_reconciler/`, `.claude/scripts/dso ticket sync` (sync subcommand, remote link creation) <!-- # shim-exempt: internal implementation references in config documentation --> |
 ---
 
 ### `JIRA_USER`
@@ -2020,8 +1965,7 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 |---|---|
 | **Description** | Jira username (email address) for API authentication. Used with `JIRA_API_TOKEN` via HTTP Basic Auth. |
 | **Required** | Required for `.claude/scripts/dso ticket sync` remote-link features |
-| **Usage context** | `scripts/bridge-outbound.py`, `scripts/bridge-inbound.py`, `.claude/scripts/dso ticket sync` (sync subcommand) | # shim-exempt: internal implementation references in config documentation
-
+| **Usage context** | `scripts/dso_reconciler/`, `.claude/scripts/dso ticket sync` (sync subcommand) <!-- # shim-exempt: internal implementation references in config documentation --> |
 ---
 
 ### `JIRA_API_TOKEN`
@@ -2030,8 +1974,7 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 |---|---|
 | **Description** | Jira API token for authentication. Generate at https://id.atlassian.com/manage-profile/security/api-tokens. Used with `JIRA_USER` via HTTP Basic Auth. |
 | **Required** | Required for `.claude/scripts/dso ticket sync` remote-link features |
-| **Usage context** | `scripts/bridge-outbound.py`, `scripts/bridge-inbound.py`, `.claude/scripts/dso ticket sync` (sync subcommand) | # shim-exempt: internal implementation references in config documentation
-
+| **Usage context** | `scripts/dso_reconciler/`, `.claude/scripts/dso ticket sync` (sync subcommand) <!-- # shim-exempt: internal implementation references in config documentation --> |
 ---
 
 ### `JIRA_PROJECT`
@@ -2040,8 +1983,7 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 |---|---|
 | **Description** | Jira project key (e.g., `DIG`). Takes precedence over `jira.project` in `dso-config.conf`. Required by `.claude/scripts/dso ticket sync` unless `jira.project` is configured. |
 | **Required** | Required for `.claude/scripts/dso ticket sync` unless `jira.project` is set in config |
-| **Usage context** | `scripts/bridge-outbound.py`, `scripts/bridge-inbound.py`, `.claude/scripts/dso ticket sync`, `.claude/scripts/dso jira-reset-sync.sh`, `.claude/scripts/dso reset-tickets.sh` | # shim-exempt: internal implementation references in config documentation
-
+| **Usage context** | `scripts/dso_reconciler/`, `.claude/scripts/dso ticket sync`, `.claude/scripts/dso jira-reset-sync.sh`, `.claude/scripts/dso reset-tickets.sh` <!-- # shim-exempt: internal implementation references in config documentation --> |
 ---
 
 ### `BRIDGE_ENV_ID`
@@ -2052,8 +1994,7 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 | **Type** | GitHub repo variable (set via `gh variable set`) |
 | **Required** | Required — bridges will not start without it |
 | **Default** | None |
-| **Usage context** | `scripts/bridge/bridge-outbound.py`, `scripts/bridge/bridge-inbound.py` | # shim-exempt: internal implementation references in config documentation
-
+| **Usage context** | `scripts/dso_reconciler/` <!-- # shim-exempt: internal implementation references in config documentation --> |
 ---
 
 ### `BRIDGE_USER_MAP`
@@ -2064,8 +2005,7 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 | **Type** | Environment variable (JSON string) |
 | **Required** | Optional — defaults to `{}` (all contributors fall through to BRIDGE_ALERT + unassigned path) |
 | **Default** | `{}` |
-| **Usage context** | `scripts/bridge/bridge-outbound.py` | # shim-exempt: internal implementation reference in config documentation
-
+| **Usage context** | `scripts/dso_reconciler/` <!-- # shim-exempt: internal implementation reference in config documentation --> |
 ---
 
 ### `ARTIFACTS_DIR`
@@ -2220,8 +2160,7 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 |---|---|
 | **Description** | When set to `1`, suppresses the worktree push step during `.claude/scripts/dso ticket sync`. Used internally by `.claude/scripts/dso reset-tickets.sh` when doing a bulk sync to prevent duplicate push operations. |
 | **Required** | Internal — set and unset by `.claude/scripts/dso reset-tickets.sh` |
-| **Usage context** | `scripts/bridge-outbound.py`, `scripts/bridge-inbound.py`, `.claude/scripts/dso ticket sync` (sync subcommand), `.claude/scripts/dso reset-tickets.sh` | # shim-exempt: internal implementation references in config documentation
-
+| **Usage context** | `scripts/dso_reconciler/`, `.claude/scripts/dso ticket sync` (sync subcommand), `.claude/scripts/dso reset-tickets.sh` <!-- # shim-exempt: internal implementation references in config documentation --> |
 ---
 
 ### `JIRA_PROJECT_OVERRIDE`

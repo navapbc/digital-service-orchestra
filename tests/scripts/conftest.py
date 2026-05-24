@@ -23,20 +23,16 @@ _TESTS_SCRIPTS_DIR = str(Path(__file__).resolve().parent)
 if _TESTS_SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _TESTS_SCRIPTS_DIR)
 
-# Ensure the bridge package is importable via `from bridge._inbound_utils import ...`.
-_BRIDGE_SCRIPTS_DIR = str(
-    Path(__file__).resolve().parents[2] / "plugins" / "dso" / "scripts"
-)
-if _BRIDGE_SCRIPTS_DIR not in sys.path:
-    sys.path.insert(0, _BRIDGE_SCRIPTS_DIR)
+# Ensure dso plugin scripts are importable for tests that load modules by path.
+_SCRIPTS_DIR = str(Path(__file__).resolve().parents[2] / "plugins" / "dso" / "scripts")
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
 
 # ---------------------------------------------------------------------------
 # Module loading
 # ---------------------------------------------------------------------------
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-OUTBOUND_PATH = REPO_ROOT / "plugins" / "dso" / "scripts" / "bridge-outbound.py"
-INBOUND_PATH = REPO_ROOT / "plugins" / "dso" / "scripts" / "bridge-inbound.py"
 ACLI_PATH = REPO_ROOT / "plugins" / "dso" / "scripts" / "acli-integration.py"
 
 
@@ -46,20 +42,6 @@ def _load_module(name: str, path: Path) -> ModuleType:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)  # type: ignore[union-attr]
     return module
-
-
-@pytest.fixture(scope="module")
-def outbound() -> ModuleType:
-    if not OUTBOUND_PATH.exists():
-        pytest.fail(f"bridge-outbound.py not found at {OUTBOUND_PATH}")
-    return _load_module("bridge_outbound", OUTBOUND_PATH)
-
-
-@pytest.fixture(scope="module")
-def inbound() -> ModuleType:
-    if not INBOUND_PATH.exists():
-        pytest.fail(f"bridge-inbound.py not found at {INBOUND_PATH}")
-    return _load_module("bridge_inbound", INBOUND_PATH)
 
 
 @pytest.fixture(scope="module")
