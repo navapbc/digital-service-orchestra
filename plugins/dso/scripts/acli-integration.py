@@ -37,7 +37,6 @@ _ASSIGNEE_NOT_FOUND_ERROR: str = (
 )
 
 # Local priority integer (0-4) → Jira priority name.
-# Mirrors the mapping in bridge-outbound.py.
 _LOCAL_PRIORITY_TO_JIRA: dict[int, str] = {
     0: "Highest",
     1: "High",
@@ -523,15 +522,18 @@ def get_comments(
 
 
 # ---------------------------------------------------------------------------
-# AcliClient class — used by bridge-inbound.py and bridge-outbound.py
+# AcliClient class — used by the dso_reconciler bands (fetcher, applier,
+# stale_band, open_count_skew_band) and the capability / forward-compat probes.
 # ---------------------------------------------------------------------------
 
 
 class AcliClient:
     """Client wrapping ACLI Go binary for Jira operations.
 
-    Provides the method interface expected by bridge-inbound.py:
-    search_issues, get_myself, get_server_info, get_comments, set_relationship.
+    Provides the method interface consumed by the dso_reconciler:
+    create_issue, update_issue, delete_issue, get_issue, search_issues,
+    get_myself, get_server_info, get_comments, set_relationship, plus
+    per-issue property read/write helpers.
 
     Credentials are injected into the subprocess environment on each call
     so ACLI can authenticate without requiring prior ``acli auth`` setup.

@@ -6,7 +6,7 @@
 
 ## Purpose
 
-This document defines the SYNC event payload format used by the Jira bridge to signal that a local ticket change is ready to be pushed to Jira. The outbound bridge (`bridge-outbound.py`) emits this payload; the inbound bridge consumes it to apply the change idempotently using `jira_key`, `local_id`, and `run_id` for correlation.
+This document defines the SYNC event payload format used by the Jira bridge to signal that a local ticket change is ready to be pushed to Jira. Local SYNC events are emitted by ticket CLI sync operations and consumed by `dso_reconciler.applier` (which translates them into Jira mutations via the band system) to apply the change idempotently using `jira_key`, `local_id`, and `run_id` for correlation.
 
 ---
 
@@ -18,10 +18,10 @@ This document defines the SYNC event payload format used by the Jira bridge to s
 
 ## Emitter
 
-`scripts/bridge-outbound.py` # shim-exempt: internal implementation path reference
+`scripts/dso_reconciler/` # shim-exempt: internal implementation path reference (post-cutover consumer of SYNC events via `dso_reconciler.applier`)
 
-The outbound bridge emits a SYNC event payload when a local ticket change is ready to be pushed to
-Jira. Each SYNC event carries enough information for the inbound bridge to correlate the local
+A SYNC event payload is recorded when a local ticket change is ready to be pushed to
+Jira. Each SYNC event carries enough information for `dso_reconciler.applier` to correlate the local
 ticket with its Jira counterpart and apply the change idempotently.
 
 ---
@@ -30,7 +30,7 @@ ticket with its Jira counterpart and apply the change idempotently.
 
 Inbound bridge — story w21-gykt
 
-The inbound bridge consumes SYNC events emitted by `bridge-outbound.py`. It uses `jira_key` to
+`dso_reconciler.applier` consumes local SYNC events as the post-cutover outbound consumer (translating SYNC into Jira mutations via the band system). It uses `jira_key` to
 identify the target Jira issue, `local_id` to correlate with the local ticket store, and `run_id`
 for GHA traceability. The parser must treat all fields as required and reject payloads that are
 missing any field.
@@ -43,8 +43,8 @@ missing any field.
 |--------------|---------|----------|-------------------------------------------------------------------------------------------------|
 | `event_type` | string  | yes      | Always `"SYNC"`. The parser must validate this value and reject other strings.                  |
 | `jira_key`   | string  | yes      | The Jira issue key corresponding to the local ticket (e.g., `"DSO-42"`).                       |
-| `local_id`   | string  | yes      | The local ticket ID in the `.tickets-tracker/` store (e.g., `"w21-5mr1"`).                     |
-| `env_id`     | string  | yes      | UUID4 identifying the bridge environment (value of `.tickets-tracker/.env-id` at emit time).    |
+| `local_id`   | string  | yes      | The local ticket ID in the `.tickets-tracker/` store (e.g., `"w21-5mr1"`).                     | # tickets-boundary-ok
+| `env_id`     | string  | yes      | UUID4 identifying the bridge environment (value of `.tickets-tracker/.env-id` at emit time).    | # tickets-boundary-ok
 | `timestamp`  | integer | yes      | UTC epoch seconds at the moment the event was emitted.                                          |
 | `run_id`     | string  | yes      | GitHub Actions run ID for traceability (e.g., `"12345678901"`). Empty string `""` is allowed when emitted outside GHA context; parsers must not reject it. |
 
@@ -100,6 +100,6 @@ The parser MUST match against:
 
 The SYNC event payload defined here is a **bridge-layer signal**, not a ticket event file (see
 `ticket-event-format.md`). It is transmitted over the Jira bridge channel (e.g., GHA workflow
-artifacts or a message queue) rather than committed to the `.tickets-tracker/` git store. The
+artifacts or a message queue) rather than committed to the `.tickets-tracker/` git store. # tickets-boundary-ok The
 `timestamp` and `env_id` fields mirror the base schema for consistency, but there is no `uuid`,
 `author`, or `data` wrapper — the SYNC payload is flat.

@@ -663,18 +663,18 @@ Does this project use Jira for issue tracking? If so, what's the Jira project ke
 
 Display to user: "jira.project — records your Jira project key so DSO can sync tickets automatically."
 
-If the user provides a Jira project key, write `jira.project=<KEY>` to `.claude/dso-config.conf` and then **mention the full Jira bridge surface** so the operator knows what to set up before the bridge runs in CI. Do NOT bury this in a tooltip — print the block below verbatim:
+If the user provides a Jira project key, write `jira.project=<KEY>` to `.claude/dso-config.conf` and then **mention the full Jira reconciler surface** so the operator knows what to set up before the reconciler runs in CI. Do NOT bury this in a tooltip — print the block below verbatim:
 
 ```
-Jira bridge configuration surface
----------------------------------
+Jira reconciler configuration surface
+-------------------------------------
 Required environment variables (set in the GitHub repo and locally if you'll
-run the bridge from your workstation):
+run the reconciler from your workstation):
   - JIRA_URL                 Base URL of your Jira instance (https://...)
   - JIRA_USER                Service-account email for ACLI authentication
   - JIRA_API_TOKEN           Service-account ACLI API token (NEVER commit)
   - JIRA_PROJECT             Project key — same as jira.project in config
-  - BRIDGE_ENV_ID            UUID identifying this bridge environment;
+  - BRIDGE_ENV_ID            UUID identifying this reconciler environment;
                              MUST be set (empty value fails fast). One UUID
                              per logical project — generate via `uuidgen`.
   - BRIDGE_USER_MAP          JSON map: {"email@example.com": "<jiraAccountId>"}
@@ -682,43 +682,32 @@ run the bridge from your workstation):
                              key lookup is case-insensitive. Empty {} disables.
 
 Optional environment variables (defaults shown):
-  - BRIDGE_COMMIT_CAP        Max commits per bridge run (safety cap)
-  - BRIDGE_BOT_LOGIN         GitHub login of the bridge bot (used by workflow
-                             `if:` guard to suppress echo loops). Default:
-                             `dso-bridge[bot]`.
-  - BRIDGE_BOT_NAME          Author name used when committing SYNC events
-                             back to the tickets branch. Default matches
-                             BRIDGE_BOT_LOGIN.
-  - BRIDGE_BOT_EMAIL         Author email used when committing SYNC events
-                             back to the tickets branch. Default:
-                             `<bot-login>@users.noreply.github.com`.
+  - BRIDGE_BOT_NAME          Author name used when the reconciler commits
+                             events back to the tickets branch.
+                             Default: `dso-bridge[bot]`.
+  - BRIDGE_BOT_EMAIL         Author email used when the reconciler commits
+                             events back to the tickets branch.
+                             Default: `dso-bridge@users.noreply.github.com`.
   - GH_RUN_ID                CI run ID for traceability (auto-set in Actions)
-  - INBOUND_CHECKPOINT_PATH  Override path for .inbound-checkpoint.json
-  - INBOUND_OVERLAP_BUFFER_MINUTES  Window-overlap for missed-issue retry
-                                    (default: 15)
-  - INBOUND_BACKFILL         "true"|"1" or ISO-8601 timestamp — re-fetch
-                             pre-cursor history (recovery tool, not steady-state)
-  - INBOUND_STATUS_MAPPING   JSON: Jira status name → local status
-  - INBOUND_TYPE_MAPPING     JSON: Jira issuetype name → local type
 
 dso-config.conf keys for Jira sync:
   - jira.project=<KEY>       Jira project key (written from this prompt)
   - dso.workflow=<local|ci-pr>  ci-pr mode integrates with the CI llm-review
-                                workflow that the bridge job depends on
+                                workflow that the reconciler job depends on
 
-Operational artifacts (written by the bridge, audit only):
-  - .tickets-tracker/.inbound-checkpoint.json   last_pull_ts cursor
-  - .tickets-tracker/.outbound-checkpoint.json  last_processed_sha cursor
-  - .tickets-tracker/.inbound-deadletter.json   intentional permanent drops
+Operational artifacts (written by the reconciler, audit only):
+  - bridge_state/mapping.json                   local↔Jira identity mapping
+  - bridge_state/bootstrap/*.manifest.json      per-band reviewer attestations
+  - bridge_state/health/*.json                  per-pass health signals
   - .tickets-tracker/<id>/*-BRIDGE_ALERT.json   per-ticket alerts (unbounded
                                                 replay prevented via dedup_key)
 
-Verification: after setting the env vars, run `bridge-inbound.py --dry-run`
-and `bridge-outbound.py --dry-run` (or the CI workflows in dry-run mode)
-to confirm ACLI authentication succeeds before enabling on the main branch.
+Verification: after setting the env vars, run `python -m dso_reconciler --dry-run`
+(or trigger reconcile-bridge.yml via workflow_dispatch) to confirm ACLI
+authentication succeeds and the dry-run manifest is empty.
 
-Reference: the bridge operator's guide ships with the DSO plugin under
-scripts/bridge/README.md — read it before enabling the bridge in production.
+Reference: the reconciler package ships under the dso plugin scripts dir —
+see the package docstring and each band module for behavior details.
 ```
 
 Credentials (`JIRA_URL`, `JIRA_USER`, `JIRA_API_TOKEN`, and `BRIDGE_USER_MAP` for any internal email addresses) stay as environment variables — NEVER commit them. Only the project key goes in config.

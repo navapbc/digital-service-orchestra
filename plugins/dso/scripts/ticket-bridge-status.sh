@@ -9,10 +9,11 @@
 # Format:
 #   { "last_run_timestamp": int, "success": bool, "error": str|null, "unresolved_conflicts": int }
 #
-# Note: .bridge-status.json is written by bridge-inbound.py and bridge-outbound.py at the
-# end of each bridge run. If this file is absent, the bridge has not run yet or is running
-# a version that predates bridge-status writing. Writing .bridge-status.json from bridge
-# scripts is tracked separately and is optional until that story lands.
+# Note: .bridge-status.json was historically written by the edge-triggered bridge
+# scripts; after the level-triggered reconciler cutover (epic 3a03), the equivalent
+# health signal is the reconciler's `bridge_state/health/*.json` artifacts and the
+# heartbeat canary (reconcile-bridge-canary.yml). This script remains for backwards
+# compatibility with operator runbooks that read .bridge-status.json directly.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -463,7 +463,7 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 | **Description** | Jira project key used by `.claude/scripts/dso ticket sync`. The `JIRA_PROJECT` environment variable takes precedence over this value. |
 | **Accepted values** | Jira project key string (e.g., `DIG`, `MYPROJ`) |
 | **Default** | No default — required when using `.claude/scripts/dso ticket sync` |
-| **Used by** | `scripts/bridge-outbound.py`, `scripts/bridge-inbound.py`, `.claude/scripts/dso ticket sync`, `.claude/scripts/dso jira-reset-sync.sh`, `.claude/scripts/dso reset-tickets.sh` | # shim-exempt: internal implementation references in config documentation
+| **Used by** | `scripts/dso_reconciler/`, `.claude/scripts/dso ticket sync`, `.claude/scripts/dso jira-reset-sync.sh`, `.claude/scripts/dso reset-tickets.sh` | # shim-exempt: internal implementation references in config documentation
 
 ---
 
@@ -1100,7 +1100,7 @@ project_closure_hooks = scripts/my-closure-validator.sh
 | **Description** | Maximum number of files sent to LLM review across all cluster dispatches. Works as part of the hard upper bound: when the product `max_files × max_calls` is exceeded by the PR, the runner emits `OVER_BOUND` (exit 3) and bypasses LLM dispatch entirely. Setting this value to `0` emits a `UserWarning` — no files will be reviewed, which is likely a misconfiguration. When unset, no per-file cap is applied (the region-split cluster count acts as the effective bound). |
 | **Accepted values** | Non-negative integer. `0` is accepted but emits a warning. Non-numeric values are ignored and the key is treated as unset. |
 | **Default** | Unset (no cap) |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/file_filter.py` (`load_filter_config`) |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/file_filter.py` (`load_filter_config`) | <!-- shim-exempt: internal implementation reference in config documentation -->
 
 ---
 
@@ -1111,7 +1111,7 @@ project_closure_hooks = scripts/my-closure-validator.sh
 | **Description** | Maximum number of LLM dispatch calls across all cluster dispatches. Works together with `review.file_filter.max_files` to define the hard upper bound (`max_files × max_calls`). The aggregation synthesis call counts as ONE call against this budget regardless of cluster count (DD4 single-ledger-entry invariant). Setting this value to `0` emits a `UserWarning` — no LLM calls will be dispatched. When unset, no per-call cap is applied. |
 | **Accepted values** | Non-negative integer. `0` is accepted but emits a warning. Non-numeric values are ignored and the key is treated as unset. |
 | **Default** | Unset (no cap) |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/file_filter.py` (`load_filter_config`) |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/file_filter.py` (`load_filter_config`) | <!-- shim-exempt: internal implementation reference in config documentation -->
 
 ---
 
@@ -1122,7 +1122,7 @@ project_closure_hooks = scripts/my-closure-validator.sh
 | **Description** | Additional glob pattern (additive) for skipping files before LLM dispatch. Applied after the built-in default patterns (`**/package-lock.json`, `**/yarn.lock`, `**/poetry.lock`, `**/go.sum`) and after linguist-tag filtering from `.gitattributes`. Custom patterns are ADDITIVE — they extend, not replace, the defaults. Multiple patterns may be specified by repeating the key. Skipped files are reported in the `DSO-Review-Coverage:` visibility trailer with reason `ignore.glob:<pattern>`. |
 | **Accepted values** | Glob string. Patterns starting with `**/` match any path depth. |
 | **Default** | None (built-in defaults always apply: `**/package-lock.json`, `**/yarn.lock`, `**/poetry.lock`, `**/go.sum`) |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/file_filter.py` (`load_filter_config`, `filter_files`) |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/file_filter.py` (`load_filter_config`, `filter_files`) | <!-- shim-exempt: internal implementation reference in config documentation -->
 
 ---
 
@@ -1133,7 +1133,7 @@ project_closure_hooks = scripts/my-closure-validator.sh
 | **Description** | Additional regex pattern (additive) for skipping files before LLM dispatch. Applied after glob filtering (Layer 3 in the filter pipeline). Multiple patterns may be specified by repeating the key. Malformed regex patterns are silently ignored. Skipped files are reported in the `DSO-Review-Coverage:` visibility trailer with reason `ignore.regex:<pattern>`. |
 | **Accepted values** | Python `re.search`-compatible regex string |
 | **Default** | None |
-| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/file_filter.py` (`load_filter_config`, `filter_files`) |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/dso_ci_review/file_filter.py` (`load_filter_config`, `filter_files`) | <!-- shim-exempt: internal implementation reference in config documentation -->
 
 ---
 
@@ -1674,7 +1674,7 @@ The following are CLI flags accepted by `${CLAUDE_PLUGIN_ROOT}/scripts/onboardin
 | **Description** | Jira project key for .claude/scripts/dso ticket sync. Only needed when using `.claude/scripts/dso ticket sync` with Jira. Superseded by `jira.project` — prefer `jira.project` for new configurations. |
 | **Accepted values** | Jira project key string (e.g., `DTL`, `MYPROJ`) |
 | **Default** | Absent |
-| **Used by** | `scripts/bridge-outbound.py`, `scripts/bridge-inbound.py`, `.claude/scripts/dso ticket sync` | # shim-exempt: internal implementation references in config documentation
+| **Used by** | `scripts/dso_reconciler/`, `.claude/scripts/dso ticket sync` | # shim-exempt: internal implementation references in config documentation
 
 ---
 
@@ -1685,7 +1685,7 @@ The following are CLI flags accepted by `${CLAUDE_PLUGIN_ROOT}/scripts/onboardin
 | **Description** | Enable bidirectional comment sync between local tickets and Jira. When true, comments added locally are pushed to Jira and vice versa. |
 | **Accepted values** | `true`, `false` |
 | **Default** | `true` |
-| **Used by** | `scripts/bridge-outbound.py`, `scripts/bridge-inbound.py`, `.claude/scripts/dso ticket sync` | # shim-exempt: internal implementation references in config documentation
+| **Used by** | `scripts/dso_reconciler/`, `.claude/scripts/dso ticket sync` | # shim-exempt: internal implementation references in config documentation
 
 ---
 
@@ -2008,9 +2008,9 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 
 | | |
 |---|---|
-| **Description** | Base URL of the Jira instance (e.g., `https://myorg.atlassian.net`). Used by `scripts/bridge-outbound.py` when adding remote links to Jira issues. | # shim-exempt: internal implementation reference
+| **Description** | Base URL of the Jira instance (e.g., `https://myorg.atlassian.net`). Used by `scripts/dso_reconciler/` when adding remote links to Jira issues. | # shim-exempt: internal implementation reference
 | **Required** | Required for `.claude/scripts/dso ticket sync` remote-link features |
-| **Usage context** | `scripts/bridge-outbound.py`, `scripts/bridge-inbound.py`, `.claude/scripts/dso ticket sync` (sync subcommand, remote link creation) | # shim-exempt: internal implementation references in config documentation
+| **Usage context** | `scripts/dso_reconciler/`, `.claude/scripts/dso ticket sync` (sync subcommand, remote link creation) | # shim-exempt: internal implementation references in config documentation
 
 ---
 
@@ -2020,7 +2020,7 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 |---|---|
 | **Description** | Jira username (email address) for API authentication. Used with `JIRA_API_TOKEN` via HTTP Basic Auth. |
 | **Required** | Required for `.claude/scripts/dso ticket sync` remote-link features |
-| **Usage context** | `scripts/bridge-outbound.py`, `scripts/bridge-inbound.py`, `.claude/scripts/dso ticket sync` (sync subcommand) | # shim-exempt: internal implementation references in config documentation
+| **Usage context** | `scripts/dso_reconciler/`, `.claude/scripts/dso ticket sync` (sync subcommand) | # shim-exempt: internal implementation references in config documentation
 
 ---
 
@@ -2030,7 +2030,7 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 |---|---|
 | **Description** | Jira API token for authentication. Generate at https://id.atlassian.com/manage-profile/security/api-tokens. Used with `JIRA_USER` via HTTP Basic Auth. |
 | **Required** | Required for `.claude/scripts/dso ticket sync` remote-link features |
-| **Usage context** | `scripts/bridge-outbound.py`, `scripts/bridge-inbound.py`, `.claude/scripts/dso ticket sync` (sync subcommand) | # shim-exempt: internal implementation references in config documentation
+| **Usage context** | `scripts/dso_reconciler/`, `.claude/scripts/dso ticket sync` (sync subcommand) | # shim-exempt: internal implementation references in config documentation
 
 ---
 
@@ -2040,7 +2040,7 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 |---|---|
 | **Description** | Jira project key (e.g., `DIG`). Takes precedence over `jira.project` in `dso-config.conf`. Required by `.claude/scripts/dso ticket sync` unless `jira.project` is configured. |
 | **Required** | Required for `.claude/scripts/dso ticket sync` unless `jira.project` is set in config |
-| **Usage context** | `scripts/bridge-outbound.py`, `scripts/bridge-inbound.py`, `.claude/scripts/dso ticket sync`, `.claude/scripts/dso jira-reset-sync.sh`, `.claude/scripts/dso reset-tickets.sh` | # shim-exempt: internal implementation references in config documentation
+| **Usage context** | `scripts/dso_reconciler/`, `.claude/scripts/dso ticket sync`, `.claude/scripts/dso jira-reset-sync.sh`, `.claude/scripts/dso reset-tickets.sh` | # shim-exempt: internal implementation references in config documentation
 
 ---
 
@@ -2052,7 +2052,7 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 | **Type** | GitHub repo variable (set via `gh variable set`) |
 | **Required** | Required — bridges will not start without it |
 | **Default** | None |
-| **Usage context** | `scripts/bridge/bridge-outbound.py`, `scripts/bridge/bridge-inbound.py` | # shim-exempt: internal implementation references in config documentation
+| **Usage context** | `scripts/dso_reconciler/` | # shim-exempt: internal implementation references in config documentation
 
 ---
 
@@ -2064,7 +2064,7 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 | **Type** | Environment variable (JSON string) |
 | **Required** | Optional — defaults to `{}` (all contributors fall through to BRIDGE_ALERT + unassigned path) |
 | **Default** | `{}` |
-| **Usage context** | `scripts/bridge/bridge-outbound.py` | # shim-exempt: internal implementation reference in config documentation
+| **Usage context** | `scripts/dso_reconciler/` | # shim-exempt: internal implementation reference in config documentation
 
 ---
 
@@ -2220,7 +2220,7 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 |---|---|
 | **Description** | When set to `1`, suppresses the worktree push step during `.claude/scripts/dso ticket sync`. Used internally by `.claude/scripts/dso reset-tickets.sh` when doing a bulk sync to prevent duplicate push operations. |
 | **Required** | Internal — set and unset by `.claude/scripts/dso reset-tickets.sh` |
-| **Usage context** | `scripts/bridge-outbound.py`, `scripts/bridge-inbound.py`, `.claude/scripts/dso ticket sync` (sync subcommand), `.claude/scripts/dso reset-tickets.sh` | # shim-exempt: internal implementation references in config documentation
+| **Usage context** | `scripts/dso_reconciler/`, `.claude/scripts/dso ticket sync` (sync subcommand), `.claude/scripts/dso reset-tickets.sh` | # shim-exempt: internal implementation references in config documentation
 
 ---
 

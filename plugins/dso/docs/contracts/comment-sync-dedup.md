@@ -18,7 +18,7 @@ This document defines the dedup interface between the outbound Jira bridge (emit
 
 ## Emitter
 
-`scripts/bridge-outbound.py` # shim-exempt: internal implementation path reference
+`scripts/dso_reconciler/` # shim-exempt: internal implementation path reference
 
 The outbound bridge embeds a UUID marker in every Jira comment it creates so the inbound bridge can
 identify comments that originated locally and skip them during pull (echo prevention).
@@ -65,7 +65,7 @@ The parser MUST match against:
 
 ## Dedup State File
 
-**Path**: `.tickets-tracker/<ticket-id>/.jira-comment-map`
+**Path**: `.tickets-tracker/<ticket-id>/.jira-comment-map` # tickets-boundary-ok
 
 **Format**: JSON object with two keys:
 
@@ -113,7 +113,7 @@ additional confirmation that the comment was pushed by local outbound.
 
 Before writing a local COMMENT event on inbound pull, the inbound bridge MUST:
 
-1. Check `jira_id_to_uuid` in `.tickets-tracker/<ticket-id>/.jira-comment-map`.
+1. Check `jira_id_to_uuid` in `.tickets-tracker/<ticket-id>/.jira-comment-map`. # tickets-boundary-ok
 2. If the Jira comment ID is present as a key, **skip** — the comment was pushed by local outbound
    and must not be re-imported as a new local event.
 3. If the Jira comment ID is absent, proceed with importing the comment as a new local COMMENT event.
@@ -125,7 +125,7 @@ Before writing a local COMMENT event on inbound pull, the inbound bridge MUST:
 After the outbound bridge successfully pushes a local COMMENT event to Jira and receives a Jira
 comment ID in response:
 
-1. Read `.tickets-tracker/<ticket-id>/.jira-comment-map` (create empty structure if absent).
+1. Read `.tickets-tracker/<ticket-id>/.jira-comment-map` (create empty structure if absent). # tickets-boundary-ok
 2. Add `event_uuid → jira_comment_id` to `uuid_to_jira_id`.
 3. Add `jira_comment_id → event_uuid` to `jira_id_to_uuid`.
 4. Write the updated file atomically (write to temp file, rename).
