@@ -687,6 +687,16 @@ class TestAcliSanitizers:
         with pytest.raises(acli_mod.InvalidLabelError, match="255-char"):
             acli_mod._sanitize_label("a" * 256)
 
+    def test_sanitize_label_accepts_exact_max_length(self, acli_mod: Any) -> None:
+        """Jira's label max is inclusive 255 ('no more than 255 characters').
+
+        A 255-char label MUST be accepted (boundary-exact). This test catches
+        an off-by-one in _JIRA_LABEL_MAX_CHARS that would silently reject
+        a valid label.
+        """
+        max_label = "a" * 255
+        assert acli_mod._sanitize_label(max_label) == max_label
+
     def test_sanitize_label_accepts_unicode_word(self, acli_mod: Any) -> None:
         # Unicode word chars are fine — Jira accepts them.
         assert acli_mod._sanitize_label("café-tag") == "café-tag"
@@ -698,8 +708,37 @@ class TestAcliSanitizers:
     def test_sanitize_summary_truncates_oversize(self, acli_mod: Any) -> None:
         long_summary = "x" * 300
         result = acli_mod._sanitize_summary(long_summary)
-        assert len(result) <= 255
+        # Inclusive max is 254 (Jira's error is "less than 255").
+        assert len(result) <= 254
         assert result.endswith(" [truncated]")
+
+    def test_sanitize_summary_truncates_at_255_boundary(self, acli_mod: Any) -> None:
+        """Jira's summary error is 'must be less than 255' (strict less-than).
+
+        A 255-char summary MUST be rejected by Jira, so our sanitizer MUST
+        truncate it. This boundary-exact test catches the off-by-one that
+        the prior implementation had (_JIRA_SUMMARY_MAX_CHARS = 255 silently
+        passed 255-char titles through to Jira, which then rejected them
+        and crashed the reconciler pass). Source: Atlassian Community
+        thread 989632 + tenable/integration-jira-cloud#322.
+        """
+        summary_255 = "x" * 255
+        result = acli_mod._sanitize_summary(summary_255)
+        # MUST be truncated — passing 255 chars through is a Jira API rejection.
+        assert len(result) <= 254, (
+            f"255-char summary must be truncated to <=254 to satisfy Jira's "
+            f"'less than 255' rule. Got length {len(result)}: {result!r}"
+        )
+        assert result.endswith(" [truncated]")
+
+    def test_sanitize_summary_accepts_254_char_max(self, acli_mod: Any) -> None:
+        """Exactly 254 chars is the inclusive max — must be preserved verbatim."""
+        summary_254 = "y" * 254
+        result = acli_mod._sanitize_summary(summary_254)
+        assert result == summary_254, (
+            f"254-char summary (inclusive max) must pass through unchanged. "
+            f"Got length {len(result)}, expected 254."
+        )
 
     def test_sanitize_summary_preserves_short_input(self, acli_mod: Any) -> None:
         assert acli_mod._sanitize_summary("short title") == "short title"

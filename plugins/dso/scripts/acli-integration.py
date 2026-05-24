@@ -46,7 +46,16 @@ _LOCAL_PRIORITY_TO_JIRA: dict[int, str] = {
 }
 
 # Jira hard limits we defend against (verified against Jira Cloud REST API 2026).
-_JIRA_SUMMARY_MAX_CHARS: int = 255
+# Note the deliberate off-by-one divergence between the two constants:
+#   - Summary: Jira's error is "Summary must be less than 255 characters"
+#     (strict less-than), so the INCLUSIVE max is 254. A 255-char title is
+#     REJECTED. Sources: Atlassian Community thread 989632 + GitHub
+#     tenable/integration-jira-cloud issue #322 + GitHub-prior-art audit
+#     (2026-05-24, run a52143da).
+#   - Label: Jira's error is "Labels can't have spaces or be more than 255
+#     characters" (not-more-than), so the INCLUSIVE max is 255. Source:
+#     Forge custom-field community thread 55277.
+_JIRA_SUMMARY_MAX_CHARS: int = 254
 _JIRA_LABEL_MAX_CHARS: int = 255
 
 
