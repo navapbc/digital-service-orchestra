@@ -274,20 +274,61 @@ except Exception:
 }
 
 # ── Check 7: End-to-end POST → S3 object visible ─────────────────────────────
-# POST a test event to Lambda Function URL via curl, then poll S3 with exact
-# backoff schedule [1, 2, 4, 8, 15, 30] seconds until a new object appears.
+# Invoke the Lambda with a Function-URL-shaped event (schema-valid tool_finding
+# payload), then poll S3 with backoff schedule [1, 2, 4, 8, 15, 30] seconds
+# under the client_id/YYYY-MM-DD/ prefix that s3_writer.py uses, until a new
+# object appears.
+#
+# Why SDK invoke instead of anonymous curl: AWS Organization SCPs (e.g.
+# o-t5fn7az6cp on the dso-self deployment account) deny lambda:InvokeFunctionUrl
+# for Principal=* regardless of the resource-based policy, so the anonymous POST
+# path returns 403 by design in restricted accounts. Direct SDK invocation uses
+# the caller's IAM identity, which is the validated emission path per the
+# d2f9 epic evidence (bug b3ac). In permissive accounts the SCP block does not
+# apply and SDK invoke still works identically — there is no downside.
 check_e2e_post_visibility() {
-    local test_prefix="dso-roundtrip-test"
+    local test_client_id="dso-roundtrip-test"
+    local today
+    today="$(date -u +%Y-%m-%d)"
     local backoff_schedule=(1 2 4 8 15 30)
 
-    # POST to Lambda Function URL
-    curl --silent --max-time 5 \
-        --request POST \
-        --header "Content-Type: application/json" \
-        --data '{"source":"dso-verify-live","event":"roundtrip-test"}' \
-        "$FUNCTION_URL" >/dev/null 2>&1 || true
+    # Build a schema-valid tool_finding event. Required PER_TYPE_FIELDS:
+    # tool_name, tool_rule, tool_severity ∈ {error,warning,info}, file, message.
+    # Required COMMON_FIELDS the Lambda will accept: schema_version=1, event_id,
+    # event_type, client_id, tool_id, tool_version, timestamp.
+    local event_id timestamp
+    event_id="$(python3 -c 'import uuid; print(uuid.uuid4())')"
+    timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    local event_body
+    event_body="$(python3 -c "
+import json
+print(json.dumps({
+    'schema_version': 1,
+    'event_id': '${event_id}',
+    'event_type': 'tool_finding',
+    'client_id': '${test_client_id}',
+    'tool_id': 'aws-verify-live',
+    'tool_version': '1.0.0',
+    'timestamp': '${timestamp}',
+    'tool_name': 'dso-verify-live-roundtrip',
+    'tool_rule': 'roundtrip_smoke_test',
+    'tool_severity': 'info',
+    'file': '',
+    'message': 'aws-verify-live.sh check 7 smoke test',
+}))")"
+    local invoke_payload
+    invoke_payload="$(python3 -c "
+import json, sys
+print(json.dumps({'body': sys.argv[1]}))" "$event_body")"
 
-    # Poll with backoff until object appears or budget exhausted
+    # Direct SDK invocation — the d2f9 validated emission path.
+    timeout 10 "$_AWS_CMD" lambda invoke \
+        --function-name "$FUNCTION_NAME" \
+        --payload "$invoke_payload" \
+        --cli-binary-format raw-in-base64-out \
+        /dev/null >/dev/null 2>&1 || true
+
+    # Poll with backoff under the canonical {client_id}/{YYYY-MM-DD}/ prefix.
     local found=0
     local i
     for i in "${backoff_schedule[@]}"; do
@@ -295,7 +336,7 @@ check_e2e_post_visibility() {
         local list_json list_exit=0
         list_json="$(timeout 5 "$_AWS_CMD" s3api list-objects-v2 \
             --bucket "$BUCKET" \
-            --prefix "${test_prefix}/" \
+            --prefix "${test_client_id}/${today}/" \
             --output json 2>/dev/null)" || list_exit=$?
 
         if [[ $list_exit -eq 0 ]] && [[ -n "$list_json" ]]; then
@@ -319,7 +360,7 @@ except Exception:
         echo "check_e2e_post_visibility: ok"
         return 0
     else
-        echo "check_e2e_post_visibility: FAIL no object appeared in s3://${BUCKET}/${test_prefix}/ within poll budget"
+        echo "check_e2e_post_visibility: FAIL no object appeared in s3://${BUCKET}/${test_client_id}/${today}/ within poll budget"
         return 1
     fi
 }

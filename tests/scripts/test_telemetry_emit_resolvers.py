@@ -165,44 +165,6 @@ def test_resolve_client_id_raises_on_empty(mod: ModuleType) -> None:
 
 
 # ===========================================================================
-# 5. _resolve_tool_id
-# ===========================================================================
-
-
-def test_resolve_tool_id_returns_string(mod: ModuleType) -> None:
-    """_resolve_tool_id() returns the configured tool ID as a string."""
-    result = mod._resolve_tool_id("dso")
-    assert isinstance(result, str), f"Expected str, got {type(result).__name__}"
-    assert result == "dso", f"Expected 'dso', got '{result}'"
-
-
-def test_resolve_tool_id_returns_custom_value(mod: ModuleType) -> None:
-    """_resolve_tool_id() returns whatever tool ID is passed (config-driven)."""
-    result = mod._resolve_tool_id("my-custom-tool")
-    assert result == "my-custom-tool", (
-        f"_resolve_tool_id('my-custom-tool') returned '{result}'"
-    )
-
-
-# ===========================================================================
-# 6. _resolve_tool_version
-# ===========================================================================
-
-
-def test_resolve_tool_version_returns_semver_string(mod: ModuleType) -> None:
-    """_resolve_tool_version() returns the configured tool version as a string."""
-    result = mod._resolve_tool_version("1.17.11")
-    assert isinstance(result, str), f"Expected str, got {type(result).__name__}"
-    assert result == "1.17.11", f"Expected '1.17.11', got '{result}'"
-
-
-def test_resolve_tool_version_returns_custom_version(mod: ModuleType) -> None:
-    """_resolve_tool_version() returns whatever semver string is passed."""
-    result = mod._resolve_tool_version("2.0.0")
-    assert result == "2.0.0", f"_resolve_tool_version('2.0.0') returned '{result}'"
-
-
-# ===========================================================================
 # 7. _resolve_timestamp
 # ===========================================================================
 
@@ -309,23 +271,6 @@ def test_resolve_cycle_defaults_to_one(mod: ModuleType) -> None:
     assert result == 1, f"Expected default cycle=1, got {result}"
 
 
-# ===========================================================================
-# 11. _resolve_language
-# ===========================================================================
-
-
-def test_resolve_language_returns_explicit_value(mod: ModuleType) -> None:
-    """_resolve_language() returns the explicit string argument when provided."""
-    result = mod._resolve_language("python")
-    assert isinstance(result, str), f"Expected str, got {type(result).__name__}"
-    assert result == "python", f"Expected 'python', got '{result}'"
-
-
-def test_resolve_language_fallback_returns_str_or_none(mod: ModuleType) -> None:
-    """_resolve_language() returns a str (auto-detected) or None when no arg is provided."""
-    result = mod._resolve_language()
-    # Auto-detection may succeed or fail; both str and None are valid fallback outcomes.
-    # Per schema rule: optional field — omit (None) when not available.
-    assert result is None or isinstance(result, str), (
-        f"_resolve_language() returned {result!r}, expected str or None"
-    )
+# Note: _resolve_tool_id, _resolve_tool_version, and _resolve_language were
+# removed as tautological identity wrappers — their values pass through directly
+# from config / argv at the call site in main().

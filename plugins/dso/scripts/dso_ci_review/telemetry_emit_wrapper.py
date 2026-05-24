@@ -118,16 +118,20 @@ def _lookup_key(key: str) -> Optional[str]:
 
 
 def _atexit_reap_children() -> None:
-    """Poll all spawned children to reap completed processes.
+    """Poll all spawned children to reap completed processes; drop reaped entries.
 
     Called by atexit handler and exposed for tests. Never blocks (.poll() only).
+    After polling, rebuild _CHILDREN to retain only still-running entries so that
+    long-running review processes do not grow the list unboundedly.
     """
+    global _CHILDREN
     with _CHILDREN_LOCK:
         for proc in _CHILDREN:
             try:
                 proc.poll()
             except Exception:  # noqa: BLE001
                 pass
+        _CHILDREN = [p for p in _CHILDREN if p.poll() is None]
 
 
 # Register the atexit handler once at module load time.

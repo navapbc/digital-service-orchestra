@@ -50,10 +50,11 @@ if [[ "$_AWS_CMD" != "aws" ]] && ! command -v "$_AWS_CMD" >/dev/null 2>&1; then
 fi
 
 # ── Read expected account from config ─────────────────────────────────────────
-_DEFAULT_ACCOUNT="820258254566"
 EXPECTED_ACCOUNT="$($_READ_CONFIG_CMD review_telemetry.aws_account_id 2>/dev/null || true)"
 if [[ -z "$EXPECTED_ACCOUNT" ]]; then
-    EXPECTED_ACCOUNT="$_DEFAULT_ACCOUNT"
+    echo "ERROR: review_telemetry.aws_account_id is not set in .claude/dso-config.conf." >&2
+    echo "Set the key to your AWS account ID (e.g., review_telemetry.aws_account_id=123456789012) before running this script." >&2
+    exit 2
 fi
 
 # ── Invoke aws sts get-caller-identity ────────────────────────────────────────

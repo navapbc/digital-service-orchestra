@@ -87,16 +87,6 @@ def _resolve_client_id(client_id: str) -> str:
     return client_id
 
 
-def _resolve_tool_id(tool_id: str) -> str:
-    """Return the configured tool ID as-is."""
-    return tool_id
-
-
-def _resolve_tool_version(tool_version: str) -> str:
-    """Return the configured tool version string as-is."""
-    return tool_version
-
-
 def _resolve_timestamp() -> str:
     """Return an ISO 8601 UTC timestamp string (e.g. '2026-05-22T14:30:00.123456Z')."""
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
@@ -137,13 +127,6 @@ def _resolve_cycle(cycle: int | None = None) -> int:
     if cycle is None:
         return 1
     return int(cycle)
-
-
-def _resolve_language(language: str | None = None) -> str | None:
-    """Return explicit language string; None when not provided (omit field, per schema)."""
-    # Per gap-analysis AC amendment: language defaults to None (omit field) when no
-    # --language flag passed. Do NOT auto-derive from filesystem scanning.
-    return language if language is not None else None
 
 
 # ---------------------------------------------------------------------------
@@ -466,13 +449,15 @@ def main(argv: list[str] | None = None) -> int:
     # Resolve all fields
     # --event-id from CLI takes precedence over generated id (parent-generated in wrapper)
     event_id = args.event_id if args.event_id else _resolve_event_id()
-    tool_id = _resolve_tool_id(config.get("telemetry.tool_id", "dso"))
-    tool_version = _resolve_tool_version(config.get("telemetry.tool_version", ""))
+    tool_id = config.get("telemetry.tool_id", "dso")
+    tool_version = config.get("telemetry.tool_version", "")
     timestamp = _resolve_timestamp()
     pr_number = _resolve_pr_number()
     commit_sha = _resolve_commit_sha()
     cycle = _resolve_cycle(args.cycle)
-    language = _resolve_language(args.language)
+    # language: per gap-analysis AC, the field is omitted when --language is unset.
+    # No auto-derivation from filesystem scanning.
+    language = args.language
 
     # Determine endpoint — telemetry.endpoint then review_telemetry.endpoint_url
     # fallback (aws-setup-lambda.sh writes the latter).

@@ -55,29 +55,9 @@ _read_config() {
     $_READ_CONFIG_CMD "$1" 2>/dev/null || true
 }
 
-# ── write_config_key: atomic temp+rename; preserves all other keys ────────────
-write_config_key() {
-    local key="$1" value="$2"
-    local conf_file="$_CONFIG_FILE"
-    local tmp_file
-    tmp_file="$(mktemp "${conf_file}.XXXXXX")"
-
-    if [[ -f "$conf_file" ]]; then
-        if grep -q "^${key}=" "$conf_file" 2>/dev/null; then
-            # Replace existing line, preserve all others
-            grep -v "^${key}=" "$conf_file" > "$tmp_file" || true
-        else
-            # Copy existing content
-            cp "$conf_file" "$tmp_file"
-        fi
-    fi
-
-    # Append the key=value line
-    echo "${key}=${value}" >> "$tmp_file"
-
-    # Atomic rename
-    mv "$tmp_file" "$conf_file"
-}
+# ── write_config_key: sourced from telemetry-lib.sh (shared with aws-setup-lambda.sh)
+# shellcheck source=telemetry-lib.sh
+source "$(dirname "${BASH_SOURCE[0]}")/telemetry-lib.sh"
 
 # ── Preflight: verify credentials ─────────────────────────────────────────────
 preflight_credentials() {

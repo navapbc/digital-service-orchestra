@@ -84,13 +84,16 @@ _build_date_list() {
 }
 
 # ── Helper: build comma-separated S3 glob paths for DuckDB ───────────────────
-# e.g. 's3://bucket/2026-05-23/**/*.jsonl', 's3://bucket/2026-05-22/**/*.jsonl'
+# s3_writer.py writes objects under ${client_id}/${YYYY-MM-DD}/${event_id}.jsonl,
+# so the glob must place a client-id wildcard FIRST and the date second:
+# e.g. 's3://bucket/*/2026-05-23/*.jsonl', 's3://bucket/*/2026-05-22/*.jsonl'.
+# Using '*/${date}' captures every client_id partition for the given date.
 _build_s3_paths() {
     local days="$1"
     local paths=()
     local date_str
     while IFS= read -r date_str; do
-        paths+=("'s3://${BUCKET}/${date_str}/**/*.jsonl'")
+        paths+=("'s3://${BUCKET}/*/${date_str}/*.jsonl'")
     done < <(_build_date_list "$days")
 
     local IFS=','
@@ -107,11 +110,24 @@ cmd_roundtrip() {
         esac
     done
 
-    # Emit the test event
+    # Emit the test event.
+    # telemetry_emit.py uses argparse with --event-type / --payload-field flags
+    # (NOT positional KEY=VALUE). event_type must be one of the canonical enum
+    # values; "tool_finding" is the closest fit for a smoke-test event and
+    # carries the required tool_name / tool_rule / tool_severity / file /
+    # message PER_TYPE_FIELDS. Override client_id via --payload-field so the
+    # roundtrip event lands under the `dso-roundtrip-test/` S3 partition rather
+    # than polluting the operator's real client_id partition — this also keeps
+    # the S3 poll loop below scoped to a stable sentinel prefix.
     local emit_script="${CLAUDE_PLUGIN_ROOT}/scripts/telemetry/telemetry-emit.sh"
     bash "$emit_script" \
-        event_type=roundtrip_test \
-        client_id=dso-roundtrip-test \
+        --event-type tool_finding \
+        --payload-field 'client_id=dso-roundtrip-test' \
+        --payload-field 'tool_name=dso-query-stats-roundtrip' \
+        --payload-field 'tool_rule=roundtrip_smoke_test' \
+        --payload-field 'tool_severity=info' \
+        --payload-field 'file=' \
+        --payload-field 'message=cmd_roundtrip synthetic ping' \
         2>/dev/null || true
 
     # Backoff schedule: allow override for tests
@@ -218,7 +234,7 @@ cmd_recent() {
     local sql
     sql="SELECT *
 FROM read_json_auto([${s3_paths}], ignore_errors=true)
-ORDER BY created_at DESC
+ORDER BY timestamp DESC
 LIMIT ${limit};"
 
     _duckdb :memory: "$sql"

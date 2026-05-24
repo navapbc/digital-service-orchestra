@@ -470,12 +470,29 @@ def process_rulings(
         finding_hash = _finding_hash_for_dedup(finding)
 
         # Telemetry: emit arbiter_ruling for every ruling (fire-and-forget).
-        # Link to the corresponding review_finding event via dso-llm:<cycle>:<idx> key.
+        # Link to the corresponding review_finding event via dso-llm:<cycle>:<idx>
+        # key. Map the orchestrator-side ruling_type (BLOCK/DEFER/DROP) to the
+        # canonical arbiter_decision enum (uphold/dismiss/downgrade):
+        #   BLOCK → uphold   (the finding stands; resolution required)
+        #   DEFER → dismiss  (deferred to a follow-up ticket; not blocking this cycle)
+        #   DROP  → dismiss  (dropped without a ticket; finding rejected)
+        # The arbiter_rationale field carries the orchestrator's ruling label so
+        # downstream consumers can still distinguish DEFER vs DROP.
+        _RULING_TO_DECISION = {
+            "BLOCK": "uphold",
+            "DEFER": "dismiss",
+            "DROP": "dismiss",
+        }
+        _arbiter_decision = _RULING_TO_DECISION.get(ruling_type, "dismiss")
+        _finding_id = finding.get("finding_id", f"unknown-{cycle_num}-{finding_idx}")
         _telem_key = f"dso-llm:{cycle_num}:{finding_idx}"
         _telemetry_emit(
             "arbiter_ruling",
             link=_telem_key,
-            ruling_type=ruling_type,
+            finding_id=_finding_id,
+            prior_finding_id=_finding_id,
+            arbiter_decision=_arbiter_decision,
+            arbiter_rationale=ruling.get("rationale", f"ruling_type={ruling_type}"),
             cycle=cycle_num,
         )
 
@@ -501,10 +518,15 @@ def process_rulings(
                 if new_id:
                     result["defer_ticket_ids"].append(new_id)
             # Telemetry: emit resolver_outcome for DEFER rulings.
+            # Schema: finding_id, resolution_action (enum: code_fix/defense/escalated),
+            # resolution_cycle, accepted. DEFER files a follow-up ticket → "defense".
             _telemetry_emit(
                 "resolver_outcome",
                 link=_telem_key,
-                resolution="DEFER",
+                finding_id=_finding_id,
+                resolution_action="defense",
+                resolution_cycle=cycle_num,
+                accepted=False,
                 cycle=cycle_num,
             )
         elif ruling_type == "DROP":
@@ -513,10 +535,14 @@ def process_rulings(
             )
             result["drop_defense_records"].append(drop_result)
             # Telemetry: emit resolver_outcome for DROP rulings.
+            # DROP is a defense action; the finding was rejected, not accepted.
             _telemetry_emit(
                 "resolver_outcome",
                 link=_telem_key,
-                resolution="DROP",
+                finding_id=_finding_id,
+                resolution_action="defense",
+                resolution_cycle=cycle_num,
+                accepted=False,
                 cycle=cycle_num,
             )
 
