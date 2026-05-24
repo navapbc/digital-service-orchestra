@@ -1,3 +1,8 @@
+# Component tag vocabulary for Story-6 precision query contract:
+#   form     — USWDS form-related components (form inputs, validation, labels)
+#   uswds-v3 — All USWDS v3 components
+#
+# Precision query contract: "USWDS form validation" -> must return component: [form]
 id: uswds-form-components
 title: "USWDS Form Components"
 domain:

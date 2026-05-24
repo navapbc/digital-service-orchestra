@@ -1,3 +1,8 @@
+# Canonical domain tag mapping for government UX anti-patterns:
+#   auth       — session/authentication patterns (login, MFA, session management)
+#   forms      — form-related patterns (validation, errors, input design)
+#   navigation — navigation and wayfinding patterns
+#   visual     — visual/display patterns (color, typography, layout)
 ---
 id: ap-breaking-back-button
 rule_id: ap-019
