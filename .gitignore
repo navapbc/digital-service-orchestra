@@ -66,3 +66,6 @@ reviewer-findings.json
 
 # Closure-checks source-consumer audit artifacts (timestamped, never committed)
 plugins/dso/.audit-output/
+
+# ref-query session deduplication cache (runtime artifact, never committed)
+.ref-query-seen.json
