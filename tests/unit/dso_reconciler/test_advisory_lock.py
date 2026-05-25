@@ -319,6 +319,118 @@ def test_release_pass_lock_ownership_check(
     advisory_lock.release_pass_lock(pass_id_x, repo)
 
 
+def test_acquire_pass_lock_when_tickets_checked_out_in_sibling_worktree(
+    advisory_lock: ModuleType, tmp_git_repo_with_tickets: Path
+) -> None:
+    """acquire_pass_lock succeeds even when tickets branch is already checked out in a sibling worktree.
+
+    Reproduces the bug where `git worktree add <dir> tickets` fails with exit 128
+    ("fatal: 'tickets' is already used by worktree at ...") when a sibling worktree
+    has the tickets branch checked out (e.g. .tickets-tracker mounted by CI pre-flight).
+    The fix uses --detach so no branch-pointer conflict occurs.
+    """
+    repo = tmp_git_repo_with_tickets
+    pass_id = f"sibling-wt-acquire-{time.time_ns()}"
+
+    import shutil
+    import tempfile
+
+    # Simulate a sibling worktree with tickets branch checked out
+    sibling_wt_parent = Path(tempfile.mkdtemp(prefix="sibling-wt-"))
+    sibling_wt = sibling_wt_parent / "tickets-tracker"
+    try:
+        subprocess.run(
+            ["git", "-C", str(repo), "worktree", "add", str(sibling_wt), "tickets"],
+            check=True,
+            capture_output=True,
+        )
+
+        # Now acquire_pass_lock must succeed despite the tickets branch being
+        # checked out in the sibling worktree above.
+        advisory_lock.acquire_pass_lock(pass_id, repo)
+        assert advisory_lock.check_pass_lock(repo) is True, (
+            "acquire_pass_lock must succeed and lock must be visible even when "
+            "tickets branch is checked out in a sibling worktree"
+        )
+
+        # Cleanup: release the lock
+        advisory_lock.release_pass_lock(pass_id, repo)
+        assert advisory_lock.check_pass_lock(repo) is False
+    finally:
+        try:
+            subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(repo),
+                    "worktree",
+                    "remove",
+                    "--force",
+                    str(sibling_wt),
+                ],
+                check=False,
+                capture_output=True,
+            )
+        except Exception:
+            pass
+        shutil.rmtree(sibling_wt_parent, ignore_errors=True)
+
+
+def test_release_pass_lock_when_tickets_checked_out_in_sibling_worktree(
+    advisory_lock: ModuleType, tmp_git_repo_with_tickets: Path
+) -> None:
+    """release_pass_lock succeeds even when tickets branch is already checked out in a sibling worktree.
+
+    Mirrors test_acquire_pass_lock_when_tickets_checked_out_in_sibling_worktree but
+    for the release path: the `git worktree add <dir> tickets` inside
+    _delete_file_from_tickets_branch must not fail with exit 128.
+    """
+    repo = tmp_git_repo_with_tickets
+    pass_id = f"sibling-wt-release-{time.time_ns()}"
+
+    # Acquire the lock before setting up the sibling worktree
+    advisory_lock.acquire_pass_lock(pass_id, repo)
+    assert advisory_lock.check_pass_lock(repo) is True
+
+    import shutil
+    import tempfile
+
+    sibling_wt_parent = Path(tempfile.mkdtemp(prefix="sibling-wt-release-"))
+    sibling_wt = sibling_wt_parent / "tickets-tracker"
+    try:
+        subprocess.run(
+            ["git", "-C", str(repo), "worktree", "add", str(sibling_wt), "tickets"],
+            check=True,
+            capture_output=True,
+        )
+
+        # Now release_pass_lock must succeed despite the tickets branch being
+        # checked out in the sibling worktree above.
+        advisory_lock.release_pass_lock(pass_id, repo)
+        assert advisory_lock.check_pass_lock(repo) is False, (
+            "release_pass_lock must succeed and lock must be removed even when "
+            "tickets branch is checked out in a sibling worktree"
+        )
+    finally:
+        try:
+            subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(repo),
+                    "worktree",
+                    "remove",
+                    "--force",
+                    str(sibling_wt),
+                ],
+                check=False,
+                capture_output=True,
+            )
+        except Exception:
+            pass
+        shutil.rmtree(sibling_wt_parent, ignore_errors=True)
+
+
 def test_phase_gate_blocks_advancement(
     advisory_lock: ModuleType, mode_mod: ModuleType, tmp_git_repo_with_tickets: Path
 ) -> None:
