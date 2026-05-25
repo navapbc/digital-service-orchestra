@@ -95,6 +95,15 @@ def _load_errors_module():
     return mod
 
 
+# Re-export error classes so callers can import them from applier.py.
+# Internal uses still go through _load_errors_module() to preserve lazy-load
+# semantics; these module-level names exist for the public import surface.
+_errors_module = _load_errors_module()
+StatusMappingError = _errors_module.StatusMappingError
+DirectionMismatchError = _errors_module.DirectionMismatchError
+UnknownActionError = _errors_module.UnknownActionError
+
+
 def _direction_guard(mutation, expected_direction) -> None:
     """Defense-in-depth: assert mutation.direction matches the leaf's declared
     direction. In normal flow _LEAVES lookup already routes correctly; this
