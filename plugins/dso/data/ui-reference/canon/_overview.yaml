@@ -1,0 +1,81 @@
+# canon/_overview.yaml
+#
+# 4-Tier Precedence Ladder for Federal Style Canon
+#
+# This file is advisory/abstract metadata. It is NOT loaded as a corpus entry.
+# check-corpus-schema.py and ref-query.py both skip it via SKIP_NAMES.
+#
+# Conflict resolution: higher tier number wins absolutely. A canon-rule entry
+# with hard_constraint: true is immutable — no lower-tier guidance can override it.
+
+precedence:
+  - "canon-rule"
+  - "Copy Needs constraint"
+  - "Users archetype"
+  - "design-notes voice"
+
+tiers:
+  - tier: 1
+    name: "canon-rule"
+    scope: "Federal style mandates: error messages, validation patterns, legal disclosures, accessibility requirements, plain-language law"
+    source: "Corpus entries in ${CLAUDE_PLUGIN_ROOT}/data/ui-reference/canon/ (uswds-forms, govuk-errors-forms, vagov-error-anatomy, eighteen-f-content, federal-plain-language, cdc-reading-level)"
+    hard_constraint: true
+    notes: >
+      Entries marked hard_constraint: true are immutable. They represent legal obligations
+      (21st Century IDEA, Section 508, plain-language law) or design-system mandates that
+      cannot be overridden by any lower-tier guidance. Tier 1 wins absolutely in all conflicts.
+
+  - tier: 2
+    name: "Copy Needs constraint"
+    scope: "Epic- or project-specified copy requirements: character limits, field labels, CTA text, required disclosures scoped to a product"
+    source: "Epic/story tickets; product brief"
+    hard_constraint: false
+    notes: >
+      Copy Needs constraints are defined per epic or product initiative. They override
+      Users archetype preferences and design-notes voice, but yield to any Tier 1
+      canon-rule (especially those with hard_constraint: true).
+
+  - tier: 3
+    name: "Users archetype"
+    scope: "Project users/personas: reading level targets, domain vocabulary, literacy assumptions, trust signals"
+    source: "Project research; persona documents; users YAML entries in the corpus"
+    hard_constraint: false
+    notes: >
+      Users archetype guidance shapes vocabulary and register for the specific audience.
+      It overrides design-notes voice defaults but yields to both Tier 1 canon-rules and
+      Tier 2 Copy Needs constraints.
+
+  - tier: 4
+    name: "design-notes voice"
+    scope: "Project tone and brand voice: sentence length, formality level, contraction policy, personality"
+    source: "Design system documentation; brand voice guides; design-notes entries in the corpus"
+    hard_constraint: false
+    notes: >
+      design-notes voice is the lowest-precedence tier. It provides defaults for tone and
+      style when no higher-tier rule applies. All Tier 1–3 guidance supersedes it.
+
+conflict_resolution: >
+  When two tiers produce contradictory guidance for the same copy element, the higher-tier
+  rule wins absolutely. Specifically: a Tier 1 canon-rule with hard_constraint: true cannot
+  be softened, reworded, or omitted by any combination of lower-tier inputs. The resolution
+  algorithm is deterministic — no blending or averaging across tiers.
+
+corpus_references:
+  - file: uswds-forms.yaml
+    tier: 1
+    notes: "USWDS form error messages, validation patterns, helper text — hard_constraint: true throughout"
+  - file: govuk-errors-forms.yaml
+    tier: 1
+    notes: "GOV.UK error message two-part anatomy, prohibited patterns — hard_constraint: true for error rules"
+  - file: vagov-error-anatomy.yaml
+    tier: 1
+    notes: "VA.gov error anatomy, veteran-specific error copy — mixed hard_constraint"
+  - file: eighteen-f-content.yaml
+    tier: 1
+    notes: "18F content guide: plain language, audience-first, active voice — mixed hard_constraint"
+  - file: federal-plain-language.yaml
+    tier: 1
+    notes: "Federal plain language law mandate — hard_constraint: true for legal requirements"
+  - file: cdc-reading-level.yaml
+    tier: 1
+    notes: "CDC health literacy / reading level targets — hard_constraint: false (targets, not mandates)"
