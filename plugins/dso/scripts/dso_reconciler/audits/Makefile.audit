@@ -33,17 +33,26 @@ AUDIT_DIR ?= $(_MAKEFILE_DIR)
 # Optional epic ID for dd5 (may be left empty in non-bundler contexts)
 DD5_EPIC ?=
 
-.PHONY: audit-phase $(DD4_STEP) $(DD1_STEP) $(DD2_STEP) $(DD3_STEP) $(DD5_STEP) help _check-phase
+.PHONY: audit-phase audit-live $(DD4_STEP) $(DD1_STEP) $(DD2_STEP) $(DD3_STEP) $(DD5_STEP) help _check-phase
+
+# ── Bootstrap-throttle phase constant ─────────────────────────────────────────
+BOOTSTRAP_THROTTLE_PHASE := bootstrap-throttle
 
 # ── help ──────────────────────────────────────────────────────────────────────
 help:
 	@printf 'Usage: make -f Makefile.audit audit-phase PHASE=<phase-name>\n'
+	@printf '       make -f Makefile.audit audit-live\n'
 	@printf '\n'
 	@printf 'Targets:\n'
 	@printf '  audit-phase  Run all 5 audit scripts in dep order (requires PHASE=<n>)\n'
+	@printf '  audit-live   Alias for audit-phase PHASE=$(BOOTSTRAP_THROTTLE_PHASE)\n'
 	@printf '  help         Print this message\n'
 	@printf '\n'
 	@printf 'Step order: $(DD4_STEP) -> $(DD1_STEP) -> $(DD2_STEP) -> $(DD3_STEP) -> $(DD5_STEP)\n'
+
+# ── audit-live — bootstrap-throttle phase convenience wrapper ─────────────────
+audit-live:
+	$(MAKE) -f $(lastword $(MAKEFILE_LIST)) audit-phase PHASE=$(BOOTSTRAP_THROTTLE_PHASE)
 
 # ── audit-phase — mandatory PHASE guard + dep-ordered invocation ──────────────
 audit-phase: _check-phase $(DD4_STEP) $(DD1_STEP) $(DD2_STEP) $(DD3_STEP) $(DD5_STEP)
