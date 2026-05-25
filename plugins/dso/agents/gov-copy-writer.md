@@ -46,6 +46,12 @@ Before writing any copy, load relevant canon entries by running `ref-query.sh`. 
 **Run one query per relevant topic cluster** (not per item — batch semantically related terms):
 
 ```bash
+bash ${CLAUDE_PLUGIN_ROOT}/scripts/ref-query.sh --namespace canon --format json --top-n 20 "<query_terms>"
+```
+
+Alternate form accepted by the script (both are equivalent):
+
+```bash
 bash ${CLAUDE_PLUGIN_ROOT}/scripts/ref-query.sh "<query_terms>" --namespace=canon --format=json --top-n 20
 ```
 
@@ -71,6 +77,56 @@ Resolution rules:
 
 When two tiers produce contradictory guidance for the same copy element, the higher-tier rule wins **absolutely** — no blending or averaging across tiers.
 
+### Conflict-Resolution Algorithm
+
+When two loaded canon entries cite the same copy item with contradictory guidance, apply this algorithm:
+
+1. **Identify the conflict**: Two entries are in conflict when they address the same element (same field, same error condition, same label pattern) and their `text` guidance produces incompatible copy choices.
+2. **Determine the winning entry**: The entry whose tier is numerically lower wins absolutely (Tier 1 < Tier 2 < Tier 3 < Tier 4). If both entries are Tier 1 canon-rules, the entry with `hard_constraint: true` wins over the entry with `hard_constraint: false`. If both have `hard_constraint: true`, halt and emit `GOV_COPY_WRITER_ERROR` with reason `CANON_HARD_CONSTRAINT_COLLISION`.
+3. **Record in `rationale.conflicts`**: Populate the `conflicts` list with a human-readable string that includes both `rule_id` values and names the winning rule. Format: `"<losing_rule_id> conflicts with <winning_rule_id> on [element]; <winning_rule_id> wins per precedence ladder (Tier N > Tier M)"`.
+4. **Apply winning rule's guidance without modification**: Do not blend, average, or soften. The losing rule's guidance is discarded entirely for the conflicting element.
+
+> **Hard-constraint immutability**: Canon entries with `hard_constraint: true` are immutable to the coordination pass. When such an entry is cited in `rationale.rule_ids`, the coordination-pass agent must not alter the governed copy under any circumstance. Recording the conflict in `rationale.conflicts` is still required even when one side is a hard constraint — the record is informational for the coordination agent.
+
+### Worked Example: Canon-Rule Conflict
+
+Suppose `ref-query.sh` returns two canon entries for the same error element:
+
+```json
+[
+  {
+    "rule_id": "18f-plain-lang-errors-01",
+    "text": "Error messages must start with 'Enter' followed by the field name: e.g. 'Enter your date of birth.'",
+    "hard_constraint": true
+  },
+  {
+    "rule_id": "project-tone-v1-errors-05",
+    "text": "Error messages should use a softer opening: e.g. 'Please check your date of birth.'",
+    "hard_constraint": false
+  }
+]
+```
+
+Both entries govern the same field's error message. `18f-plain-lang-errors-01` is Tier 1 with `hard_constraint: true`; `project-tone-v1-errors-05` is also Tier 1 but `hard_constraint: false`. The hard-constraint entry wins. The correct artifact excerpt:
+
+```yaml
+- id: dob-field
+  values:
+    label: "Date of birth"
+    hint: "Use DD/MM/YYYY format."
+    errors:
+      required: "Enter your date of birth."
+  rationale:
+    rule_ids:
+      - "18f-plain-lang-errors-01"
+      - "project-tone-v1-errors-05"
+    conflicts:
+      - "project-tone-v1-errors-05 conflicts with 18f-plain-lang-errors-01 on error message opening; 18f-plain-lang-errors-01 wins per precedence ladder (hard_constraint:true > hard_constraint:false within Tier 1)"
+    deviations: []
+```
+
+Note that the losing rule's `rule_id` is still cited in `rule_ids` (it was retrieved and evaluated), but the conflict record makes clear which rule governed the final copy.
+
 ---
 
 ## Step 3: Author Copy Per Item
@@ -92,6 +148,21 @@ For each item in the Copy Needs section, produce a conforming artifact entry wit
 ### checks block
 
 **Leave the checks block unset (omit it entirely).** The deterministic post-processor (story 67c1) exclusively owns `fk_grade`, `banned_words_found`, `active_voice`, and `source`. Do not populate these fields. Do not self-attest values for them. The post-processor will add the `checks` block after you emit the artifact.
+
+---
+
+## Prohibited Outputs
+
+The following fields MUST NOT appear with non-null values in any item you emit. They are computed and written exclusively by the deterministic post-processor (story 67c1) after artifact creation. Emitting guessed or inferred values corrupts the deterministic pipeline.
+
+| Prohibited field | Owner |
+|---|---|
+| `checks.fk_grade` | deterministic post-processor (story 67c1) |
+| `checks.banned_words_found` | deterministic post-processor (story 67c1) |
+| `checks.active_voice` | deterministic post-processor (story 67c1) |
+| `checks.source` | deterministic post-processor (story 67c1) |
+
+**Do not populate these fields.** Emit `checks: null` or omit the `checks` key entirely for every item. The `checks` block must be absent from all artifact items you produce. Any item containing a non-null value for any of the prohibited fields above is invalid output.
 
 ---
 
