@@ -562,6 +562,7 @@ plugins/dso/scripts/telemetry/aws-setup-bucket.sh:tests/scripts/test-aws-setup-b
 plugins/dso/scripts/telemetry/telemetry-emit.sh:tests/scripts/test-telemetry-emit.sh
 plugins/dso/scripts/telemetry/aws-setup-lambda.sh:tests/scripts/test-aws-setup-lambda.sh
 plugins/dso/scripts/telemetry/lambda-handler/s3_writer.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_s3_writer.py
+plugins/dso/scripts/gov_copy_postprocess/readability.py:plugins/dso/tests/scripts/test_gov_copy_postprocess.py [test_compute_fk_grade_matches_textstat_reference]
 plugins/dso/scripts/telemetry/lambda-handler/privacy.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_privacy_truth_table.py
 plugins/dso/scripts/telemetry/lambda-handler/schema.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_schema.py
 plugins/dso/scripts/telemetry/lambda-handler/validator.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_validator.py
