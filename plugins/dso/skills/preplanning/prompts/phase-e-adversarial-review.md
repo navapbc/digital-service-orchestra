@@ -109,9 +109,9 @@ Case (a) skips Steps 2–4 entirely; case (b) only skips Step 4 (Step 3 still ru
    target_story_ids=$(jq -r '[.blue_team_accepted.findings[].target_story_id] | unique | join(",")' "$ARTIFACT_PATH")
    ```
 
-2. **Build the by-reference `remediation_context` payload**. The payload references reviewer artifacts by **absolute file path** (red-team artifact path + blue-team artifact path) plus the extracted `target_story_ids` list. The payload MUST NOT embed finding bodies — the producer (dso:story-decomposer in DELTA OUTPUT mode) re-reads the artifacts at the absolute paths and quotes evidence from each before emitting drafts (pre-generation Read gate, owned by sibling story a7c0-8e53-3502-4ddd).
+2. **Build the by-reference `remediation_context` payload**. The payload references reviewer artifacts by **absolute file path** (red-team artifact path + blue-team artifact path) plus the extracted `target_story_ids` list. The payload MUST NOT embed finding bodies — the producer (dso:story-decomposer in DELTA OUTPUT mode) re-reads the artifacts at the absolute paths and quotes evidence from each before emitting drafts (pre-generation Read gate).
 
-   The canonical payload shape is defined in `${CLAUDE_PLUGIN_ROOT}/docs/contracts/remediation-context-payload.md` — that document is the source of truth and is owned by sibling story ab28-87ea-8140-4452. Do NOT inline or duplicate the payload spec here; this prompt only references the contract by absolute path.
+   The canonical payload shape is defined in `${CLAUDE_PLUGIN_ROOT}/docs/contracts/remediation-context-payload.md` — that document is the source of truth. Do NOT inline or duplicate the payload spec here; this prompt only references the contract by absolute path.
 
    Skeleton (the linked spec is authoritative for the full shape):
    ```json

@@ -169,7 +169,7 @@ Branch on `verdict`:
   STATUS:complete TASKS:<closed_ids> STORY:<story-id>
   ```
   Do not proceed further.
-- **`replan_required`** (bug 95db-941d-04d8-41d1): all children closed/archived BUT the parent epic has an unresolved `REPLAN_TRIGGER:validation` comment mentioning this story — i.e., the completion-verifier reported a story-level FAIL after the original tasks closed, and no `REPLAN_RESOLVED:implementation-plan` has acknowledged it yet. Do NOT emit `STATUS:complete` (that would re-trigger the verifier ↔ impl-plan loop). Enter **diff-plan mode**: read the verifier's `remediation_tasks_created` payload from the parent epic's `REPLAN_TRIGGER:validation` comment, treat its uncovered DDs as the AC source, and produce NEW TDD task pairs (RED + GREEN) addressing each uncovered DD. Continue to Epic Type Detection with the new tasks in scope; on completion, emit a `REPLAN_RESOLVED: implementation-plan — Remediation tasks created for story <story-id>.` comment on the parent epic so the next re-invocation collapses back to `all_closed`.
+- **`replan_required`**: all children closed/archived BUT the parent epic has an unresolved `REPLAN_TRIGGER:validation` comment mentioning this story — i.e., the completion-verifier reported a story-level FAIL after the original tasks closed, and no `REPLAN_RESOLVED:implementation-plan` has acknowledged it yet. Do NOT emit `STATUS:complete` (that would re-trigger the verifier ↔ impl-plan loop). Enter **diff-plan mode**: read the verifier's `remediation_tasks_created` payload from the parent epic's `REPLAN_TRIGGER:validation` comment, treat its uncovered DDs as the AC source, and produce NEW TDD task pairs (RED + GREEN) addressing each uncovered DD. Continue to Epic Type Detection with the new tasks in scope; on completion, emit a `REPLAN_RESOLVED: implementation-plan — Remediation tasks created for story <story-id>.` comment on the parent epic so the next re-invocation collapses back to `all_closed`.
 - **`diff_plan`**: mixed open + closed children. Produce a diff plan covering only new tasks + revisions to open children — never touch closed children. Distinguish "new or reopened" tasks from unchanged ones in the output. Continue to Epic Type Detection with only the open/new tasks in scope.
 
 Log a one-liner: `Re-invocation guard: <closed_count> closed (read-only), <in_progress_count> in-progress (flagged), <open_count> open (candidates)`.
@@ -297,7 +297,7 @@ When escalating, annotate the Step 2 subject:
 "Architectural Pattern: {pattern name} [CROSS-CUTTING — {N} layers / {M} interfaces]"
 ```
 
-### Doc-Only Skip Gate (bug 578c-177c)
+### Doc-Only Skip Gate
 
 Before generating proposals, check whether the story exclusively touches documentation or instruction files (`.md` files in `skills/`, `agents/`, `prompts/`, `docs/`, `CLAUDE.md`, or any workflow/config file with no executable behavior). Apply behavioral-testing-standard.md Rule 5: instruction-file changes have only one meaningful implementation and carry no architectural decision. In that case:
 
@@ -1105,7 +1105,7 @@ Report:
 Review the complete task list for design gaps that compound during sub-agent execution.
 
 <HARD-GATE>
-**Anti-rationalization prohibition.** The TRIVIAL Skip Gate (below) is the ONLY authorized bypass for gap analysis. Skipping for any other reason — "session efficiency", "context pressure", "the plan reviewer already validated coverage", "the story is small enough", "we're running long", "I already see the gaps" — is a prohibited rationalization. The plan reviewer in Step 4 evaluates the plan's structural quality (task design, TDD, safety, dependencies, completeness); it does NOT substitute for gap analysis, which is specifically scoped to design gaps that compound during sub-agent execution after tasks are written. Bug 5749-127d documented exactly this drift: a COMPLEX story (provider chain + LiteLLM fallback, 6 behavioral scenarios, asyncio + atomic-write semantics) had gap analysis skipped with "session efficiency" rationale. The more COMPLEX the story, the more session pressure has accumulated to skip — and the higher the cost of doing so. If you find yourself reasoning toward a non-TRIVIAL skip, stop and run the gap-analysis sub-agent.
+The TRIVIAL Skip Gate (below) is the only authorized bypass for gap analysis. The plan reviewer in Step 4 evaluates the plan's structural quality (task design, TDD, safety, dependencies, completeness); it does NOT substitute for gap analysis, which is specifically scoped to design gaps that compound during sub-agent execution after tasks are written.
 </HARD-GATE>
 
 ### TRIVIAL Skip Gate

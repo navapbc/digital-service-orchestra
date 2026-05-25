@@ -37,6 +37,42 @@ PI Commit                     → via COMMIT-WORKFLOW.md; surface review finding
 
 ---
 
+## White elephants: phrasings to remove
+
+A **white elephant** in a skill file is a phrasing that is intended to enforce a rule but instead **creates the very temptation it forbids**. The phrase names a bypass shape (cost-pressure, urgency-pressure, perceptual judgment) and then tells the agent to ignore it. The naming makes the bypass salient. White elephants are the symmetric counterpart to the "Hard gates: compress, do not remove" rule below: hard gates are load-bearing enforcement that must be preserved (compress only); white elephants are bypass-narration that should be removed entirely (the rule's positive form already does the enforcement work).
+
+**Phrasing patterns to flag**:
+
+- **Perceptual hedges**: "regardless of how X it [seems|feels|appears]" where X is a perceptual judgment (simple, small, trivial, obvious, large, complex, fast). Naming "how simple it seems" makes simplicity-perception thinkable as a category.
+- **Bypass-rationale enumerations**: lists of named rationales the agent might offer for skipping ("save sub-agent budget", "user is moving fast", "interactions are obvious", "I know what to do", "small markdown edit", "sub-agent dispatch is overhead", "well-defined", "pre-thought", "epic has existing description"). Each enumerated shape becomes a category the agent now sees as named-and-thinkable.
+- **Cost-pressure references**: "Token cost is NOT a justified-complexity escape", "regardless of how large it feels", "the classifier is haiku-tier specifically to make this batching affordable at scale" framed as cost-anxiety mitigation. Factually-framed cost statements (`the dispatch produces ceil(N/5) haiku calls`) are FINE — they explain the cost shape neutrally. Reactive framings that narrate the agent's anticipated cost-aversion are NOT.
+- **Temptation narration**: "If you are tempted to X, treat that temptation as a signal to Y" — narrates the temptation pattern to the agent, both confirming it exists and creating a meta-reflex. The agent now thinks about the temptation when reading the gate.
+- **Hard-coded ticket-ID anchors**: `(bug X-Y)`, `per epic X-Y SC1`, `(see bug X-Y)`, `Bug X-Y: <rule text>`. Useful for traceability but expensive to keep in agent context; they belong in commit messages and PR descriptions, not in skill bodies. Bare-ID parentheticals in section headings (`### Title (bug X-Y-Z-W)`) are the worst offender — they put ticket-trace metadata at peak attention.
+
+**Survey procedure**:
+
+```bash
+# Phrasing scan
+grep -nrE "regardless of how|how (simple|small|trivial|obvious|large|complex|fast|easy) (it|the|this) (seems|feels|appears)|tempted|temptation|sub-agent budget|save (sub-agent|token|effort|time)|user is (moving fast|impatient|in a hurry)|too (many|few|long|short|expensive)|cost (concern|pressure|anxiety)|token cost|context (pressure|budget|exhaustion|bloat)|cut corners|bypass.*on grounds|skip.*rationale|justified.complexity escape|feel(s? |ing )large|how it feels|stop short" plugins/dso/skills/<name>/ 2>/dev/null
+
+# Ticket-ID scan
+grep -nrE "\b[0-9a-f]{4}-[0-9a-f]{4}(-[0-9a-f]{4}-[0-9a-f]{4})?\b" plugins/dso/skills/<name>/ 2>/dev/null
+```
+
+**Triage**:
+
+- **Perceptual hedges** — rephrase as a positive imperative. The negative form ("regardless of how X it seems") makes the perception salient; the positive form ("the rule applies in all cases" or just the bare imperative with no hedge) doesn't. Drop the hedge entirely.
+- **Bypass-rationale enumerations** — drop the enumeration. The positive rule above/below already does the enforcement work. The enumeration only adds value if the bypass shapes are not derivable from the rule, which is rarely the case.
+- **Cost-pressure references** — distinguish factual cost statements (`ceil(N/5) haiku calls`, `1-day time-box`) from reactive cost-anxiety framing (`regardless of how large it feels`, `token cost is NOT an escape`). Keep factual; drop reactive.
+- **Temptation narration** — drop entirely. If the rule is correct, the agent should follow it; narrating the anticipated temptation only confirms the temptation is a thing.
+- **Hard-coded ticket IDs** — strip parenthetical bug-IDs and inline `per epic X-Y` / `Bug X-Y:` / `(X-Y)` heading anchors. Git history, ticket comments, and PR descriptions are authoritative for "why this rule exists." The skill body should state the rule, not its provenance.
+
+**Anchor invariant**: white-elephant removal preserves the gate's enforcement strength. Imperatives stay imperative; documented permitted-exits stay enumerated positively. Only the negative-form bypass narration is removed. This is the symmetric companion to the rule below — gate enforcement is preserved; bypass-narration prose is what's dropped.
+
+**Output to the user (Phase A)**: a "White elephants" subsection in the critical-review report, listing each flagged phrasing with file:line and a proposed remediation (positive reframe, drop the enumeration, factual cost statement, strip the ticket ID).
+
+---
+
 ## Hard gates: compress, do not remove
 
 A **hard gate** is anything in a skill that enforces a contract or triggers a downstream check. Hard gates may be **compressed** (verbose prose collapsed to a one-liner) but must NOT be **removed** during refactor — even when they appear duplicated, restated, or "owned elsewhere." Removing a hard gate silently loosens the skill's safety surface; compressing it preserves the gate while reducing token cost.
@@ -78,8 +114,9 @@ Read the target SKILL.md in full. Identify, concretely:
 2. **Token cost**: load-on-demand candidates (CI templates, anti-pattern catalogs, per-stack tables already codified in sibling scripts), prose over-elaboration, extractable examples. Classify each as **gate** or **prose** per "Hard gates" above. **Extraction constraint**: only extract content that is (a) used in multiple locations, OR (b) needed only on a specific logical branch off the hot path. Hot-path content stays inline.
 3. **Deterministic-command extraction candidates**: agent-executed bash blocks that are mechanical enough to live in a dedicated script (emit JSON, detect artifacts, slug and write files).
 4. **Structural issues**: multiple approval gates for the same decision at different granularity, phases that exist solely to invoke `/dso:review` or similar one-liners, sub-agent guards repeated inline instead of shared.
+5. **White elephants**: phrasings that name a bypass shape (cost-pressure, urgency, perceptual judgment) and then tell the agent to ignore it; bypass-rationale enumerations; temptation narration; hard-coded ticket-ID anchors. Apply the survey in the "White elephants: phrasings to remove" section above.
 
-**Output to the user**: a critical-review report with four sections — *What's working*, *Problems that hurt reliability*, *Token-cost / extractability*, *Structural fixes*. Give concrete file references and estimated line reduction.
+**Output to the user**: a critical-review report with five sections — *What's working*, *Problems that hurt reliability*, *Token-cost / extractability*, *Structural fixes*, *White elephants*. Give concrete file references and estimated line reduction.
 
 Do not propose changes yet — this phase is diagnostic only.
 
