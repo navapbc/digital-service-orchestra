@@ -214,7 +214,7 @@ class TestD5c1WorktreeCreateCount:
         env["CLAUDE_PLUGIN_ROOT"] = str(REPO_ROOT / "plugins" / "dso")
         env["WORKTREE_DIR_OVERRIDE"] = str(tmp_path / "new")
         result = subprocess.run(
-            ["bash", str(CREATE_SCRIPT), "newbranch"],
+            ["bash", str(CREATE_SCRIPT), "--name=probe-new", "--skip-pull"],
             cwd=str(repo),
             env=env,
             capture_output=True,
@@ -228,6 +228,55 @@ class TestD5c1WorktreeCreateCount:
             "auto-cleanup must NOT trigger when only agent-* worktrees push the "
             "raw count over 10 — session-named worktrees alone (count=2) are below "
             "the threshold.\nstderr was:\n" + result.stderr
+        )
+
+    def test_ten_session_worktrees_do_trigger_auto_cleanup(
+        self, tmp_path: Path
+    ) -> None:
+        """Positive control: confirms the count discriminator is reachable in the
+        test environment and that the trigger DOES fire at the threshold.
+
+        Without this control, the negative test above could pass spuriously if
+        the script exited early on an unrelated condition (missing remote, etc.)
+        before reaching the count block. Setting up 10 session worktrees and
+        observing the trigger message proves the count check executes.
+        """
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-q", "-b", "main")
+        _git(repo, "config", "user.email", "t@t")
+        _git(repo, "config", "user.name", "t")
+        (repo / "README").write_text("init\n")
+        _git(repo, "add", "README")
+        _git(repo, "commit", "-q", "-m", "init")
+
+        for i in range(10):
+            _git(
+                repo,
+                "worktree",
+                "add",
+                "-b",
+                f"worktree-2026052{i}-100000",
+                str(tmp_path / f"s{i}"),
+            )
+
+        env = os.environ.copy()
+        env["CLAUDE_PLUGIN_ROOT"] = str(REPO_ROOT / "plugins" / "dso")
+        env["WORKTREE_DIR_OVERRIDE"] = str(tmp_path / "new")
+        result = subprocess.run(
+            ["bash", str(CREATE_SCRIPT), "--name=probe-new", "--skip-pull"],
+            cwd=str(repo),
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+        assert "Running automatic cleanup" in result.stderr, (
+            "positive control: with 10 session worktrees, auto-cleanup MUST fire.\n"
+            "If this assertion fails, the count block is unreachable in the test "
+            "environment and the negative test above is also untrustworthy.\n"
+            "stderr was:\n" + result.stderr
         )
 
 
