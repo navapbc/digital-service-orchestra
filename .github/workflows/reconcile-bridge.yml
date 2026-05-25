@@ -144,6 +144,23 @@ jobs:
             --email "$JIRA_USER" \
             --token
 
+      - name: Configure git identity for bridge bot
+        # Set at --global scope so every worktree (the main checkout, the
+        # pre-mounted .tickets-tracker, AND any temp worktrees the reconciler
+        # creates internally via _advisory_lock) inherits the identity. The
+        # later "Commit reconciler events back to tickets branch" step still
+        # re-asserts these values with --local inside .tickets-tracker, which
+        # is harmless once the --global config exists. Without this step,
+        # `git commit` inside the reconciler's temp worktree fails exit 128
+        # with "fatal: empty ident name" because CI runners have no global
+        # git identity by default (bug bbf0-3380-74ab-4200).
+        env:
+          BRIDGE_BOT_NAME: ${{ vars.BRIDGE_BOT_NAME || 'dso-reconciler[bot]' }}
+          BRIDGE_BOT_EMAIL: ${{ vars.BRIDGE_BOT_EMAIL || 'reconciler@users.noreply.github.com' }}
+        run: |
+          git config --global user.name "${BRIDGE_BOT_NAME}"
+          git config --global user.email "${BRIDGE_BOT_EMAIL}"
+
       - name: Run reconciler
         # When triggered via workflow_dispatch, honour the operator-selected
         # rollout-safety mode. On schedule and other event types,
