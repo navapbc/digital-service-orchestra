@@ -76,15 +76,25 @@ artifact_hits=$(grep -c -- '--artifact ' "$SKILL_MD" | grep -v '^5[0-9][0-9]:' |
 # Count only the --artifact occurrences NOT on lines 511 or 978 (sibling sites)
 artifact_hits=$(python3 - "$SKILL_MD" <<'PYEOF'
 import sys
+# Count --artifact references NOT in helper-script context (append_review_cycle.py, --artifact-file, --artifacts-dir)
+# After 511/978/1238 migrations, only helper-script flags should remain.
 count = 0
 with open(sys.argv[1]) as f:
-    for i, line in enumerate(f, 1):
-        if '--artifact ' in line and i not in (511, 978):
-            count += 1
+    lines = f.readlines()
+for i, line in enumerate(lines):
+    if '--artifact ' not in line:
+        continue
+    # Carve-out: helper-script flags
+    window_start = max(0, i - 3)
+    window_end = min(len(lines), i + 3)
+    context = ''.join(lines[window_start:window_end])
+    if any(kw in context for kw in ('append_review_cycle.py', '--artifact-file=', '--artifacts-dir', 'python3 ')):
+        continue
+    count += 1
 print(count)
 PYEOF
 )
-assert_eq "no --artifact outside sibling sites (511, 978)" "0" "$artifact_hits"
+assert_eq "no --artifact sub-agent-prompt handoffs (helper-script carve-out)" "0" "$artifact_hits"
 assert_pass_if_clean "Test 1: no --artifact sub-agent-prompt handoffs"
 
 # ══════════════════════════════════════════════════════════════════════════════
