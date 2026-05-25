@@ -21,4 +21,25 @@ echo "PASS: all 4 zones reported"
 echo "$OUT" | grep -q "TOTAL HITS:" || { echo "FAIL: missing total"; exit 1; }
 echo "PASS: total hits reported"
 
+# Test 5: strict mode exits 0 with CLAUDE_PLUGIN_ROOT unset
+if ( unset CLAUDE_PLUGIN_ROOT; "$SCRIPT" --strict >/dev/null 2>&1 ); then
+    echo "PASS: strict + CLAUDE_PLUGIN_ROOT unset -> exit 0"
+else
+    echo "FAIL: strict + CLAUDE_PLUGIN_ROOT unset"; exit 1
+fi
+
+# Test 6: strict mode exits 0 with CLAUDE_PLUGIN_ROOT pointing at an external
+# path (simulating the normal session env where CLAUDE_PLUGIN_ROOT points at
+# the main repo's plugin cache, outside the worktree). The script must derive
+# the reconciler zone from $0 (its own location), not from CLAUDE_PLUGIN_ROOT.
+FAKE_PLUGIN_ROOT=$(mktemp -d /tmp/fake-plugin-root-XXXXXX)
+trap 'rm -rf "$FAKE_PLUGIN_ROOT"' EXIT
+RC=0
+CLAUDE_PLUGIN_ROOT="$FAKE_PLUGIN_ROOT" "$SCRIPT" --strict >/dev/null 2>&1 || RC=$?
+if [[ "$RC" -eq 0 ]]; then
+    echo "PASS: strict + CLAUDE_PLUGIN_ROOT external -> exit 0"
+else
+    echo "FAIL: strict + CLAUDE_PLUGIN_ROOT external (got $RC)"; exit 1
+fi
+
 echo "All tests pass"
