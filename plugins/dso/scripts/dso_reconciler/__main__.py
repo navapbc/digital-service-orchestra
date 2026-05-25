@@ -59,9 +59,7 @@ def _try_load_step(name: str):
     module_path = here / f"{name}.py"
     if not module_path.exists():
         return None
-    spec = importlib.util.spec_from_file_location(
-        f"dso_reconciler.{name}", module_path
-    )
+    spec = importlib.util.spec_from_file_location(f"dso_reconciler.{name}", module_path)
     if spec is None or spec.loader is None:
         return None
     mod = importlib.util.module_from_spec(spec)
@@ -100,7 +98,9 @@ def run_pass(repo_root: Path | None = None, pass_id: str | None = None) -> int:
         pass_id = datetime.datetime.now(datetime.timezone.utc).strftime(
             "%Y-%m-%dT%H-%M-%S"
         )
-    reschedule_error_cls = getattr(applier, "RescheduleError", None) if applier else None
+    reschedule_error_cls = (
+        getattr(applier, "RescheduleError", None) if applier else None
+    )
     exit_reschedule = getattr(applier, "EXIT_RESCHEDULE", 75) if applier else 75
 
     try:
@@ -158,7 +158,13 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     args = parser.parse_args(argv)
-    repo_root = Path(args.repo_root) if args.repo_root else None
+    # Default to the project repo root when --repo-root is omitted. Mirrors
+    # run_pass()'s default at lines 84-85 so the four advisory_lock guard
+    # calls below (which declare repo_root: Path, not Optional) never see
+    # None and accidentally invoke `git -C None ...` (bug 5be7-d657-1dde-4237).
+    repo_root = (
+        Path(args.repo_root) if args.repo_root else Path(__file__).resolve().parents[4]
+    )
 
     # --dry-run-enumerate: list enumerable ticket directories and exit.
     # This path is intentionally placed before advisory-lock and mode checks so

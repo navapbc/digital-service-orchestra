@@ -200,12 +200,15 @@ def test_phase_gate_requires_removal_to_advance(main_mod, fetcher_sentinel, tmp_
     returns False.
     """
     # First: phase gate present → blocked
-    with patch(
-        f"{_ADVISORY_LOCK_KEY}.check_pass_lock",
-        return_value=False,
-    ), patch(
-        f"{_ADVISORY_LOCK_KEY}.check_phase_gate",
-        return_value=True,
+    with (
+        patch(
+            f"{_ADVISORY_LOCK_KEY}.check_pass_lock",
+            return_value=False,
+        ),
+        patch(
+            f"{_ADVISORY_LOCK_KEY}.check_phase_gate",
+            return_value=True,
+        ),
     ):
         rc_blocked = main_mod.main(
             ["--mode=bootstrap-throttle", "--repo-root", str(tmp_path)]
@@ -218,23 +221,31 @@ def test_phase_gate_requires_removal_to_advance(main_mod, fetcher_sentinel, tmp_
     # Second: phase gate absent + full pass mock → proceeds
     stub_reconcile = types.ModuleType("stub_reconcile_phase_gate")
     stub_reconcile.reconcile_once = MagicMock(
-        return_value={"pass_id": "p1", "mutation_count": 0, "manifest_path": "/tmp/m.json"}
+        return_value={
+            "pass_id": "p1",
+            "mutation_count": 0,
+            "manifest_path": "/tmp/m.json",
+        }
     )
 
-    with patch(
-        f"{_ADVISORY_LOCK_KEY}.check_pass_lock",
-        return_value=False,
-    ), patch(
-        f"{_ADVISORY_LOCK_KEY}.check_phase_gate",
-        return_value=False,
-    ), patch(
-        f"{_ADVISORY_LOCK_KEY}.acquire_pass_lock",
-        return_value=None,
-    ), patch(
-        f"{_ADVISORY_LOCK_KEY}.release_pass_lock",
-        return_value=None,
-    ), patch.object(
-        main_mod, "_try_load_step", return_value=stub_reconcile
+    with (
+        patch(
+            f"{_ADVISORY_LOCK_KEY}.check_pass_lock",
+            return_value=False,
+        ),
+        patch(
+            f"{_ADVISORY_LOCK_KEY}.check_phase_gate",
+            return_value=False,
+        ),
+        patch(
+            f"{_ADVISORY_LOCK_KEY}.acquire_pass_lock",
+            return_value=None,
+        ),
+        patch(
+            f"{_ADVISORY_LOCK_KEY}.release_pass_lock",
+            return_value=None,
+        ),
+        patch.object(main_mod, "_try_load_step", return_value=stub_reconcile),
     ):
         rc_open = main_mod.main(
             ["--mode=bootstrap-throttle", "--repo-root", str(tmp_path)]
@@ -252,20 +263,24 @@ def test_lock_released_on_exception(main_mod, tmp_path):
     stub_reconcile = types.ModuleType("stub_reconcile_exc")
     stub_reconcile.reconcile_once = MagicMock(side_effect=RuntimeError("boom"))
 
-    with patch(
-        f"{_ADVISORY_LOCK_KEY}.check_pass_lock",
-        return_value=False,
-    ), patch(
-        f"{_ADVISORY_LOCK_KEY}.check_phase_gate",
-        return_value=False,
-    ), patch(
-        f"{_ADVISORY_LOCK_KEY}.acquire_pass_lock",
-        return_value=None,
-    ), patch(
-        f"{_ADVISORY_LOCK_KEY}.release_pass_lock",
-        release_mock,
-    ), patch.object(
-        main_mod, "_try_load_step", return_value=stub_reconcile
+    with (
+        patch(
+            f"{_ADVISORY_LOCK_KEY}.check_pass_lock",
+            return_value=False,
+        ),
+        patch(
+            f"{_ADVISORY_LOCK_KEY}.check_phase_gate",
+            return_value=False,
+        ),
+        patch(
+            f"{_ADVISORY_LOCK_KEY}.acquire_pass_lock",
+            return_value=None,
+        ),
+        patch(
+            f"{_ADVISORY_LOCK_KEY}.release_pass_lock",
+            release_mock,
+        ),
+        patch.object(main_mod, "_try_load_step", return_value=stub_reconcile),
     ):
         rc = main_mod.main(["--mode=dry-run", "--repo-root", str(tmp_path)])
 
@@ -298,20 +313,24 @@ def test_lock_released_on_exception_variants(main_mod, tmp_path, exc_factory, ex
     stub_reconcile.reconcile_once = MagicMock(side_effect=exc_factory())
 
     raised: BaseException | None = None
-    with patch(
-        f"{_ADVISORY_LOCK_KEY}.check_pass_lock",
-        return_value=False,
-    ), patch(
-        f"{_ADVISORY_LOCK_KEY}.check_phase_gate",
-        return_value=False,
-    ), patch(
-        f"{_ADVISORY_LOCK_KEY}.acquire_pass_lock",
-        return_value=None,
-    ), patch(
-        f"{_ADVISORY_LOCK_KEY}.release_pass_lock",
-        release_mock,
-    ), patch.object(
-        main_mod, "_try_load_step", return_value=stub_reconcile
+    with (
+        patch(
+            f"{_ADVISORY_LOCK_KEY}.check_pass_lock",
+            return_value=False,
+        ),
+        patch(
+            f"{_ADVISORY_LOCK_KEY}.check_phase_gate",
+            return_value=False,
+        ),
+        patch(
+            f"{_ADVISORY_LOCK_KEY}.acquire_pass_lock",
+            return_value=None,
+        ),
+        patch(
+            f"{_ADVISORY_LOCK_KEY}.release_pass_lock",
+            release_mock,
+        ),
+        patch.object(main_mod, "_try_load_step", return_value=stub_reconcile),
     ):
         try:
             main_mod.main(["--mode=dry-run", "--repo-root", str(tmp_path)])
@@ -357,25 +376,162 @@ def test_no_mode_flag_defaults_to_live(main_mod, tmp_path):
     """main([]) with no --mode flag defaults to Mode.LIVE and proceeds normally."""
     stub_reconcile = types.ModuleType("stub_reconcile_live")
     stub_reconcile.reconcile_once = MagicMock(
-        return_value={"pass_id": "p-live", "mutation_count": 0, "manifest_path": "/tmp/m.json"}
+        return_value={
+            "pass_id": "p-live",
+            "mutation_count": 0,
+            "manifest_path": "/tmp/m.json",
+        }
     )
 
-    with patch(
-        f"{_ADVISORY_LOCK_KEY}.check_pass_lock",
-        return_value=False,
-    ), patch(
-        f"{_ADVISORY_LOCK_KEY}.check_phase_gate",
-        return_value=False,
-    ), patch(
-        f"{_ADVISORY_LOCK_KEY}.acquire_pass_lock",
-        return_value=None,
-    ), patch(
-        f"{_ADVISORY_LOCK_KEY}.release_pass_lock",
-        return_value=None,
-    ), patch.object(
-        main_mod, "_try_load_step", return_value=stub_reconcile
+    with (
+        patch(
+            f"{_ADVISORY_LOCK_KEY}.check_pass_lock",
+            return_value=False,
+        ),
+        patch(
+            f"{_ADVISORY_LOCK_KEY}.check_phase_gate",
+            return_value=False,
+        ),
+        patch(
+            f"{_ADVISORY_LOCK_KEY}.acquire_pass_lock",
+            return_value=None,
+        ),
+        patch(
+            f"{_ADVISORY_LOCK_KEY}.release_pass_lock",
+            return_value=None,
+        ),
+        patch.object(main_mod, "_try_load_step", return_value=stub_reconcile),
     ):
         rc = main_mod.main(["--repo-root", str(tmp_path)])
 
-    assert rc == 0, f"Expected 0 rc when no --mode flag given (defaults to live), got {rc}"
+    assert rc == 0, (
+        f"Expected 0 rc when no --mode flag given (defaults to live), got {rc}"
+    )
     stub_reconcile.reconcile_once.assert_called_once()
+
+
+def test_main_without_repo_root_does_not_pass_none_to_advisory(main_mod):
+    """main(['--mode=dry-run']) without --repo-root must NOT pass None to check_pass_lock.
+
+    Bug 5be7: __main__.py:151 left repo_root=None when --repo-root was omitted.
+    That None propagated into advisory.check_pass_lock(None) → _git_show_tickets_file
+    → subprocess.run(['git', '-C', 'None', 'show', ...]) → exit 128 → ReconcileLockError.
+
+    This test exercises the call-site contract: the first positional argument
+    received by check_pass_lock must be a Path instance, not None, and its
+    string representation must not be the literal 'None'.
+    """
+    check_pass_lock_mock = MagicMock(return_value=False)
+
+    with (
+        patch(
+            f"{_ADVISORY_LOCK_KEY}.check_pass_lock",
+            check_pass_lock_mock,
+        ),
+        patch(
+            f"{_ADVISORY_LOCK_KEY}.check_phase_gate",
+            return_value=False,
+        ),
+        patch(
+            f"{_ADVISORY_LOCK_KEY}.acquire_pass_lock",
+            return_value=None,
+        ),
+        patch(
+            f"{_ADVISORY_LOCK_KEY}.release_pass_lock",
+            return_value=None,
+        ),
+        patch.object(
+            main_mod,
+            "_try_load_step",
+            return_value=types.SimpleNamespace(
+                reconcile_once=MagicMock(
+                    return_value={
+                        "pass_id": "p-test",
+                        "mutation_count": 0,
+                        "manifest_path": "/tmp/m.json",
+                    }
+                )
+            ),
+        ),
+    ):
+        main_mod.main(["--mode=dry-run"])
+
+    assert check_pass_lock_mock.call_count >= 1, (
+        "check_pass_lock must be called when main() runs"
+    )
+    actual_repo_root_arg = check_pass_lock_mock.call_args[0][0]
+    assert isinstance(actual_repo_root_arg, Path), (
+        f"check_pass_lock must receive a Path, not {type(actual_repo_root_arg).__name__!r} "
+        f"(value: {actual_repo_root_arg!r}); bug 5be7 left repo_root=None when --repo-root omitted"
+    )
+    assert str(actual_repo_root_arg) != "None", (
+        "check_pass_lock received the literal string 'None' — repo_root was not resolved; "
+        "bug 5be7: Path(None) produces Path('None'), not a real directory path"
+    )
+
+
+def test_main_without_repo_root_passes_resolved_repo_root(main_mod):
+    """The Path passed to check_pass_lock when --repo-root is omitted must contain
+    the dso_reconciler package, confirming it resolves to the actual project root.
+
+    This pins the default-resolution path: Path(__file__).resolve().parents[4]
+    from __main__.py should reach the repo root, which contains
+    plugins/dso/scripts/dso_reconciler/__main__.py.
+    """
+    check_pass_lock_mock = MagicMock(return_value=False)
+
+    with (
+        patch(
+            f"{_ADVISORY_LOCK_KEY}.check_pass_lock",
+            check_pass_lock_mock,
+        ),
+        patch(
+            f"{_ADVISORY_LOCK_KEY}.check_phase_gate",
+            return_value=False,
+        ),
+        patch(
+            f"{_ADVISORY_LOCK_KEY}.acquire_pass_lock",
+            return_value=None,
+        ),
+        patch(
+            f"{_ADVISORY_LOCK_KEY}.release_pass_lock",
+            return_value=None,
+        ),
+        patch.object(
+            main_mod,
+            "_try_load_step",
+            return_value=types.SimpleNamespace(
+                reconcile_once=MagicMock(
+                    return_value={
+                        "pass_id": "p-test2",
+                        "mutation_count": 0,
+                        "manifest_path": "/tmp/m.json",
+                    }
+                )
+            ),
+        ),
+    ):
+        main_mod.main(["--mode=dry-run"])
+
+    assert check_pass_lock_mock.call_count >= 1, (
+        "check_pass_lock must be called when main() runs"
+    )
+    actual_repo_root_arg = check_pass_lock_mock.call_args[0][0]
+    assert isinstance(actual_repo_root_arg, Path), (
+        f"Expected a Path, got {type(actual_repo_root_arg).__name__!r}: {actual_repo_root_arg!r}"
+    )
+    # The resolved default must point at a directory containing the dso_reconciler package,
+    # confirming it is the actual project repo root (not an arbitrary or null path).
+    expected_marker = (
+        actual_repo_root_arg
+        / "plugins"
+        / "dso"
+        / "scripts"
+        / "dso_reconciler"
+        / "__main__.py"
+    )
+    assert expected_marker.exists(), (
+        f"Resolved repo_root {actual_repo_root_arg!r} does not contain "
+        f"plugins/dso/scripts/dso_reconciler/__main__.py — default root resolution is wrong; "
+        f"expected Path(__file__).resolve().parents[4] from __main__.py"
+    )
