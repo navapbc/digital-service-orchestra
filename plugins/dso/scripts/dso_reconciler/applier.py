@@ -21,7 +21,228 @@ import os
 import sys
 import tempfile
 import time
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, Callable
+
+# Typed-mutation dispatch layer.
+#
+# The applier was originally written as a single batch-style apply(mutations,
+# pass_id, ...) routine over dict-shaped mutations. The narrow-applier-matrix
+# story introduces a typed Mutation value object (mutation.Mutation with
+# MutationDirection / MutationAction enums) and a per-leaf dispatch registry
+# (_LEAVES) so callers can route a single Mutation through exactly one
+# direction/action handler.
+#
+# The two surfaces coexist:
+#   - apply(mutation: Mutation, *, client=None) -> ApplyResult
+#       Typed single-mutation dispatch via _LEAVES.
+#   - apply(mutations: list[dict], pass_id, repo_root=None) -> Path
+#       Legacy batch dispatch (manifest writer + HEAD-drift guard).
+#
+# Selection is by argument type at the top of apply().
+_MutationModule = None  # late-loaded mutation module
+_ErrorsModule = None    # late-loaded _errors module
+
+
+@dataclass(frozen=True, slots=True)
+class ApplyResult:
+    """Result of a typed-mutation apply() dispatch.
+
+    direction/action mirror the Mutation that was dispatched, so callers can
+    confirm which leaf executed without re-reading the input. payload carries
+    any leaf-specific return data (empty dict by default for the stub leaves).
+    """
+
+    direction: Any
+    action: Any
+    payload: dict[str, Any]
+
+
+def _load_mutation_module():
+    """Lazy-load the mutation module via importlib (same pattern as _load_acli)."""
+    global _MutationModule
+    if _MutationModule is not None:
+        return _MutationModule
+    mut_path = Path(__file__).parent / "mutation.py"
+    spec = importlib.util.spec_from_file_location(
+        "dso_reconciler_mutation", mut_path
+    )
+    if spec is None:
+        raise FileNotFoundError(f"mutation.py not found at {mut_path}")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules.setdefault("dso_reconciler_mutation", mod)
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    _MutationModule = mod
+    return mod
+
+
+def _load_errors_module():
+    """Lazy-load _errors module."""
+    global _ErrorsModule
+    if _ErrorsModule is not None:
+        return _ErrorsModule
+    err_path = Path(__file__).parent / "_errors.py"
+    spec = importlib.util.spec_from_file_location(
+        "dso_reconciler_errors", err_path
+    )
+    if spec is None:
+        raise FileNotFoundError(f"_errors.py not found at {err_path}")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules.setdefault("dso_reconciler_errors", mod)
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    _ErrorsModule = mod
+    return mod
+
+
+def _direction_guard(mutation, expected_direction) -> None:
+    """Defense-in-depth: assert mutation.direction matches the leaf's declared
+    direction. In normal flow _LEAVES lookup already routes correctly; this
+    raises DirectionMismatchError if a leaf is invoked directly with the wrong
+    direction (e.g. via the test harness bypassing _LEAVES).
+    """
+    if mutation.direction is not expected_direction:
+        errs = _load_errors_module()
+        raise errs.DirectionMismatchError(
+            f"leaf expects direction={expected_direction.value!s}, "
+            f"got direction={mutation.direction.value!s}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Per-leaf stub handlers.
+#
+# Each leaf:
+#   1. Calls _direction_guard() with its own declared direction (defense-in-depth).
+#   2. Performs the leaf-specific side effect (currently stubbed — real ACLI
+#      wiring lands in a follow-on task).
+#   3. Returns an ApplyResult.
+# ---------------------------------------------------------------------------
+
+
+def _apply_outbound_create(mutation, *, client=None) -> ApplyResult:
+    mut_mod = _load_mutation_module()
+    _direction_guard(mutation, mut_mod.MutationDirection.outbound)
+    return ApplyResult(mutation.direction, mutation.action, {})
+
+
+def _apply_outbound_update(mutation, *, client=None) -> ApplyResult:
+    mut_mod = _load_mutation_module()
+    _direction_guard(mutation, mut_mod.MutationDirection.outbound)
+    return ApplyResult(mutation.direction, mutation.action, {})
+
+
+def _apply_outbound_delete(mutation, *, client=None) -> ApplyResult:
+    mut_mod = _load_mutation_module()
+    _direction_guard(mutation, mut_mod.MutationDirection.outbound)
+    return ApplyResult(mutation.direction, mutation.action, {})
+
+
+def _apply_outbound_probe(mutation, *, client=None) -> ApplyResult:
+    mut_mod = _load_mutation_module()
+    _direction_guard(mutation, mut_mod.MutationDirection.outbound)
+    return ApplyResult(mutation.direction, mutation.action, {})
+
+
+def _apply_outbound_conflict(mutation, *, client=None) -> ApplyResult:
+    mut_mod = _load_mutation_module()
+    _direction_guard(mutation, mut_mod.MutationDirection.outbound)
+    return ApplyResult(mutation.direction, mutation.action, {})
+
+
+def _apply_inbound_create(mutation, *, client=None) -> ApplyResult:
+    mut_mod = _load_mutation_module()
+    _direction_guard(mutation, mut_mod.MutationDirection.inbound)
+    return ApplyResult(mutation.direction, mutation.action, {})
+
+
+def _apply_inbound_update(mutation, *, client=None) -> ApplyResult:
+    mut_mod = _load_mutation_module()
+    _direction_guard(mutation, mut_mod.MutationDirection.inbound)
+    return ApplyResult(mutation.direction, mutation.action, {})
+
+
+def _apply_inbound_delete(mutation, *, client=None) -> ApplyResult:
+    mut_mod = _load_mutation_module()
+    _direction_guard(mutation, mut_mod.MutationDirection.inbound)
+    return ApplyResult(mutation.direction, mutation.action, {})
+
+
+def _apply_inbound_probe(mutation, *, client=None) -> ApplyResult:
+    mut_mod = _load_mutation_module()
+    _direction_guard(mutation, mut_mod.MutationDirection.inbound)
+    return ApplyResult(mutation.direction, mutation.action, {})
+
+
+def _apply_inbound_clean_label(mutation, *, client=None) -> ApplyResult:
+    mut_mod = _load_mutation_module()
+    _direction_guard(mutation, mut_mod.MutationDirection.inbound)
+    return ApplyResult(mutation.direction, mutation.action, {})
+
+
+def _apply_inbound_repair_property(mutation, *, client=None) -> ApplyResult:
+    mut_mod = _load_mutation_module()
+    _direction_guard(mutation, mut_mod.MutationDirection.inbound)
+    return ApplyResult(mutation.direction, mutation.action, {})
+
+
+def _apply_inbound_conflict(mutation, *, client=None) -> ApplyResult:
+    mut_mod = _load_mutation_module()
+    _direction_guard(mutation, mut_mod.MutationDirection.inbound)
+    return ApplyResult(mutation.direction, mutation.action, {})
+
+
+def _build_leaves() -> dict[tuple[Any, Any], Callable[..., ApplyResult]]:
+    """Build the _LEAVES registry.
+
+    Built lazily-but-eagerly (at module import) by walking mutation._VALID_COMBINATIONS
+    and binding the leaf handler for each pair. Only pairs in _VALID_COMBINATIONS
+    are registered — invalid pairs (e.g. outbound + clean_label) are not present
+    by construction.
+    """
+    mut_mod = _load_mutation_module()
+    D = mut_mod.MutationDirection
+    A = mut_mod.MutationAction
+    handlers: dict[tuple[Any, Any], Callable[..., ApplyResult]] = {
+        (D.outbound, A.create): _apply_outbound_create,
+        (D.outbound, A.update): _apply_outbound_update,
+        (D.outbound, A.delete): _apply_outbound_delete,
+        (D.outbound, A.probe): _apply_outbound_probe,
+        (D.outbound, A.conflict): _apply_outbound_conflict,
+        (D.inbound, A.create): _apply_inbound_create,
+        (D.inbound, A.update): _apply_inbound_update,
+        (D.inbound, A.delete): _apply_inbound_delete,
+        (D.inbound, A.probe): _apply_inbound_probe,
+        (D.inbound, A.clean_label): _apply_inbound_clean_label,
+        (D.inbound, A.repair_property): _apply_inbound_repair_property,
+        (D.inbound, A.conflict): _apply_inbound_conflict,
+    }
+    # Filter to only valid combinations — single source of truth is mutation.py.
+    valid = mut_mod._VALID_COMBINATIONS
+    return {k: v for k, v in handlers.items() if k in valid}
+
+
+# The dispatch registry. Keys are (MutationDirection, MutationAction) tuples;
+# values are leaf handler callables of shape (mutation, *, client=None) -> ApplyResult.
+_LEAVES: dict[tuple[Any, Any], Callable[..., ApplyResult]] = _build_leaves()
+
+
+def _apply_typed(mutation, *, client=None) -> ApplyResult:
+    """Typed-mutation dispatch via _LEAVES.
+
+    Looks up (mutation.direction, mutation.action) in _LEAVES and invokes the
+    handler. Raises UnknownActionError with zero side-effects (no client calls,
+    no I/O) if the pair is not registered.
+    """
+    key = (mutation.direction, mutation.action)
+    handler = _LEAVES.get(key)
+    if handler is None:
+        errs = _load_errors_module()
+        raise errs.UnknownActionError(
+            f"unknown (direction={mutation.direction.value!s}, "
+            f"action={mutation.action.value!s})"
+        )
+    return handler(mutation, client=client)
 
 
 # Exit code signalling that the caller should reschedule this pass.
@@ -470,11 +691,52 @@ def _handle_failed_write_result(write_result, pass_id: str) -> None:
 
 
 def apply(
+    mutations=None,
+    pass_id: str | None = None,
+    repo_root: Path | None = None,
+    *,
+    client=None,
+):
+    """Polymorphic dispatch entry point.
+
+    Two call shapes:
+      1. Typed single-mutation:  apply(mutation, *, client=None) -> ApplyResult
+         When the first positional argument is a Mutation instance, dispatch
+         via _LEAVES. Raises UnknownActionError for unregistered pairs (with
+         zero side-effects) and DirectionMismatchError if a leaf is invoked
+         with a mismatched direction.
+      2. Legacy batch:            apply(mutations: list[dict], pass_id, ...) -> Path
+         Original manifest-writing batch dispatcher; behavior unchanged.
+
+    Selection is by argument type at the top of the function.
+    """
+    # Typed-mutation dispatch path: first arg is a Mutation instance.
+    # Duck-type rather than isinstance() because mutation.py may be loaded
+    # under different module names depending on how the importing test rig
+    # set up sys.modules — a strict isinstance() check would silently fall
+    # through to the legacy batch path and raise a confusing TypeError.
+    mut_mod = _load_mutation_module()
+    if isinstance(mutations, mut_mod.Mutation) or (
+        type(mutations).__name__ == "Mutation"
+        and hasattr(mutations, "direction")
+        and hasattr(mutations, "action")
+    ):
+        return _apply_typed(mutations, client=client)
+
+    # Legacy batch path requires pass_id.
+    if pass_id is None:
+        raise TypeError(
+            "apply() legacy batch form requires pass_id as the second argument"
+        )
+    return _apply_batch(mutations or [], pass_id, repo_root=repo_root)
+
+
+def _apply_batch(
     mutations: list[dict],
     pass_id: str,
     repo_root: Path | None = None,
 ) -> Path:
-    """Dispatch mutations to AcliClient and write a flat-JSON manifest.
+    """Legacy batch dispatch: write a flat-JSON manifest for a list of dict mutations.
 
     Performs HEAD-pin drift detection before each mutation: captures the
     tickets-branch HEAD SHA before the first mutation, then re-checks before

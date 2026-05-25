@@ -332,6 +332,133 @@ def test_apply_constructs_client_with_empty_strings_when_env_unset(
     }
 
 
+# ---------------------------------------------------------------------------
+# Typed-dispatch (_LEAVES) tests — narrow applier matrix
+# ---------------------------------------------------------------------------
+
+
+def _load_mutation_mod(applier_mod):
+    """Use the same mutation module instance that applier loads, so enum
+    members compare identical (avoids isinstance/`is`-comparison drift)."""
+    return applier_mod._load_mutation_module()
+
+
+def _load_errors_mod(applier_mod):
+    """Use the same _errors module instance that applier loads."""
+    return applier_mod._load_errors_module()
+
+
+def test_LEAVES_is_dict_keyed_by_direction_action_pairs(applier):
+    """_LEAVES is a dict whose keys are 2-tuples of (MutationDirection, MutationAction)
+    and whose values are callables. Only valid combinations from mutation._VALID_COMBINATIONS
+    are present; invalid pairs (outbound + inbound-only action) are not registered.
+    """
+    mut_mod = _load_mutation_mod(applier)
+
+    leaves = applier._LEAVES
+    assert isinstance(leaves, dict), f"_LEAVES must be a dict, got {type(leaves)!r}"
+    assert leaves, "_LEAVES must not be empty"
+
+    for key, value in leaves.items():
+        assert isinstance(key, tuple) and len(key) == 2, (
+            f"_LEAVES key must be a 2-tuple, got {key!r}"
+        )
+        direction, action = key
+        assert isinstance(direction, mut_mod.MutationDirection), (
+            f"_LEAVES key[0] must be MutationDirection, got {type(direction)!r}"
+        )
+        assert isinstance(action, mut_mod.MutationAction), (
+            f"_LEAVES key[1] must be MutationAction, got {type(action)!r}"
+        )
+        assert callable(value), f"_LEAVES[{key!r}] must be callable, got {value!r}"
+
+    # Every registered pair must be in _VALID_COMBINATIONS.
+    for key in leaves:
+        assert key in mut_mod._VALID_COMBINATIONS, (
+            f"_LEAVES key {key!r} is not in mutation._VALID_COMBINATIONS"
+        )
+
+    # Sanity: at least one outbound + one inbound leaf exists.
+    directions = {k[0] for k in leaves}
+    assert mut_mod.MutationDirection.outbound in directions
+    assert mut_mod.MutationDirection.inbound in directions
+
+
+def test_direction_mismatch_raises_per_leaf(applier):
+    """Calling a leaf directly with a Mutation whose direction does not match
+    the leaf's declared direction raises DirectionMismatchError.
+
+    We bypass Mutation.__post_init__'s _VALID_COMBINATIONS check by constructing
+    a valid Mutation first (inbound + clean_label) and then using object.__setattr__
+    to flip its direction to outbound — yielding an in-memory state that would
+    never pass __post_init__ but lets us exercise the leaf's own guard.
+    """
+    mut_mod = _load_mutation_mod(applier)
+    errs_mod = _load_errors_mod(applier)
+
+    # Construct a valid (inbound, clean_label) Mutation.
+    m = mut_mod.Mutation(
+        direction=mut_mod.MutationDirection.inbound,
+        action=mut_mod.MutationAction.clean_label,
+        target="DSO-1",
+        payload={},
+        provenance={},
+    )
+    # Flip direction to outbound, bypassing the frozen dataclass guard.
+    object.__setattr__(m, "direction", mut_mod.MutationDirection.outbound)
+
+    # Direct leaf invocation: the leaf must raise DirectionMismatchError.
+    leaf = applier._apply_inbound_clean_label
+    with pytest.raises(errs_mod.DirectionMismatchError):
+        leaf(m)
+
+
+def test_unknown_action_no_side_effects(applier):
+    """apply(mutation) with a (direction, action) pair not in _LEAVES raises
+    UnknownActionError with zero side-effects — no client calls, no I/O.
+
+    Approach: build a valid Mutation, then mutate its (direction, action) to
+    an unregistered pair via object.__setattr__ to bypass __post_init__'s
+    _VALID_COMBINATIONS guard. The mutated state would never pass Mutation's
+    own validation, so it can only reach apply() through this test bypass —
+    which is exactly the boundary _LEAVES.get() must defend.
+    """
+    mut_mod = _load_mutation_mod(applier)
+    errs_mod = _load_errors_mod(applier)
+
+    # Spy client — must NOT be touched on the unknown-action path.
+    client = MagicMock()
+
+    # Start from any valid combination so __post_init__ succeeds.
+    m = mut_mod.Mutation(
+        direction=mut_mod.MutationDirection.inbound,
+        action=mut_mod.MutationAction.create,
+        target="DSO-1",
+        payload={},
+        provenance={},
+    )
+
+    # Build a fake action enum member that will never appear in _LEAVES.
+    # The cheapest way is to monkey-patch (direction, action) to a pair we
+    # explicitly remove from _LEAVES for the duration of this test.
+    saved_leaves = dict(applier._LEAVES)
+    key_to_remove = (mut_mod.MutationDirection.inbound, mut_mod.MutationAction.create)
+    # Remove the entry so the (direction, action) lookup misses.
+    applier._LEAVES.pop(key_to_remove, None)
+    try:
+        with pytest.raises(errs_mod.UnknownActionError):
+            applier.apply(m, client=client)
+    finally:
+        # Restore _LEAVES so subsequent tests are unaffected.
+        applier._LEAVES.clear()
+        applier._LEAVES.update(saved_leaves)
+
+    # Spy must not have been called.
+    assert client.mock_calls == [], (
+        f"client must not be touched on unknown-action path; got calls: {client.mock_calls!r}"
+    )
+
+
 def test_update_one_unpacks_fields_as_kwargs(applier):
     """F3 regression: update_one must unpack fields into kwargs.
 
