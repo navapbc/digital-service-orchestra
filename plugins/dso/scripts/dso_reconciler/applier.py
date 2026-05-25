@@ -143,10 +143,79 @@ def _apply_outbound_create(mutation, *, client=None) -> ApplyResult:
     return ApplyResult(mutation.direction, mutation.action, {})
 
 
+# Allowlist of fields that can be pushed outbound via update_issue. Other
+# fields in the changed_fields set are silently dropped — pushing arbitrary
+# fields outbound is a higher-blast-radius change that lands in a follow-up
+# story. Status is governed separately by DSO_RECONCILER_STATUS_GATING.
+_OUTBOUND_UPDATE_ALLOWLIST = frozenset({"title", "description", "assignee", "priority"})
+
+
+def _route_status_via_draft5(mutation, *, client=None):
+    """Stub for status routing via draft5 protocol.
+
+    The final implementation of outbound status push (transition mapping,
+    workflow-state lookup, etc.) lands in a later epic. v1 just acknowledges
+    the dispatch so the gating contract is exercised end-to-end.
+    """
+    # Intentionally a no-op stub. Real impl arrives with the status-push story.
+    return None
+
+
 def _apply_outbound_update(mutation, *, client=None) -> ApplyResult:
+    """v1 outbound update — push allowlisted fields via update_issue.
+
+    Behavior:
+      - Reads ``mutation.payload['changed_fields']`` (falls back to
+        ``mutation.payload`` itself for callers that pass a flat dict).
+      - If ``status`` is present in changed_fields:
+          - When ``DSO_RECONCILER_STATUS_GATING != "1"``: raise
+            ``StatusMappingError`` with zero side-effects.
+          - When ``DSO_RECONCILER_STATUS_GATING == "1"``: delegate to
+            ``_route_status_via_draft5`` and strip ``status`` from the field
+            set before pushing the remaining allowlisted fields.
+      - Filters the field set to ``_OUTBOUND_UPDATE_ALLOWLIST``; non-allowlisted
+        fields are silently dropped (no side-effects on those fields).
+      - Pushes the allowlisted, non-status fields via ``client.update_issue``
+        using the F3-pinned ``update_issue(jira_key, **fields)`` signature,
+        routed through ``_call_with_retry``.
+    """
     mut_mod = _load_mutation_module()
     _direction_guard(mutation, mut_mod.MutationDirection.outbound)
-    return ApplyResult(mutation.direction, mutation.action, {})
+
+    if client is None:
+        # Stub path: preserved for tests that don't exercise the I/O leaf.
+        return ApplyResult(mutation.direction, mutation.action, {})
+
+    payload = dict(mutation.payload or {})
+    changed_fields = payload.get("changed_fields")
+    if changed_fields is None:
+        changed_fields = payload
+
+    # Status gating: status field is governed by DSO_RECONCILER_STATUS_GATING.
+    if "status" in changed_fields:
+        gating = os.environ.get("DSO_RECONCILER_STATUS_GATING", "0")
+        if gating != "1":
+            errs = _load_errors_module()
+            raise errs.StatusMappingError(
+                f"status field touched but DSO_RECONCILER_STATUS_GATING != 1 "
+                f"(got {gating!r}); zero side-effects — refusing to push status "
+                "without explicit operator gating"
+            )
+        # Gating ON — delegate to the draft5 stub. The caller is responsible
+        # for any status-specific routing semantics.
+        _route_status_via_draft5(mutation, client=client)
+        # Strip status before pushing remaining allowlisted fields.
+        changed_fields = {k: v for k, v in changed_fields.items() if k != "status"}
+
+    # Filter to allowlist. Non-allowlisted fields are silently dropped.
+    allowed = {k: v for k, v in changed_fields.items() if k in _OUTBOUND_UPDATE_ALLOWLIST}
+    if allowed:
+        _call_with_retry(client.update_issue, mutation.target, **allowed)
+    return ApplyResult(
+        mutation.direction,
+        mutation.action,
+        {"fields_pushed": sorted(allowed.keys())},
+    )
 
 
 def _apply_outbound_delete(mutation, *, client=None) -> ApplyResult:
