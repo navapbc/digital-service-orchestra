@@ -10,7 +10,33 @@ For multi-agent sprint batch flows, use `per-worktree-review-commit.md` instead.
 
 ---
 
-## Step 1 — Guard: Verify WORKTREE_PATH is distinct from the orchestrator's CWD
+## Step 1 — 907d post-return existence check (mandatory)
+
+Before the WORKTREE_PATH ↔ ORCHESTRATOR_ROOT comparison below, verify the worktree path returned by the sub-agent still exists on disk and its branch is still resolvable. The Claude Code harness reaps `isolation: "worktree"` worktrees under certain conditions (binary string evidence in versions 2.1.150+: `tengu_worktree_removed`, retention discriminators `worktree_kept_dirty / branch_mismatch / remove_failed`). A reaped worktree fails subsequent `cd` operations with `no such file or directory` — silent data loss if not caught here.
+
+```bash
+if [ ! -d "$WORKTREE_PATH" ]; then
+    echo "ERROR (907d): worktree path $WORKTREE_PATH does not exist after sub-agent return." >&2
+    echo "  Likely cause: sub-agent self-committed, leaving the working tree clean, triggering" >&2
+    echo "  Claude Code harness auto-cleanup before the orchestrator could harvest." >&2
+    echo "  All commits made in the worktree branch are lost (branch deleted; not pushed)." >&2
+    if [ -n "${BUG_TICKET_ID:-}" ]; then
+        .claude/scripts/dso ticket comment "$BUG_TICKET_ID" \
+            "ERROR (907d): worktree $WORKTREE_PATH reaped pre-harvest — sub-agent likely self-committed; work lost." 2>/dev/null || true
+    fi
+    exit 1
+fi
+if [ -n "${WORKTREE_BRANCH:-}" ] && ! git rev-parse --verify "$WORKTREE_BRANCH" >/dev/null 2>&1; then
+    echo "ERROR (907d): worktree branch $WORKTREE_BRANCH not resolvable after sub-agent return." >&2
+    exit 1
+fi
+```
+
+If the existence check passes, continue to the orchestrator-root guard below.
+
+---
+
+## Step 1b — Guard: Verify WORKTREE_PATH is distinct from the orchestrator's CWD
 
 `WORKTREE_PATH` is the path returned by the sub-agent. Per bug 9679-695c-6e11-4d95, the orchestrator's session-worktree absolute path is no longer injected into sub-agent prompts — but the orchestrator following this protocol still owns its own `ORCHESTRATOR_ROOT` variable, derived from its own context. Self-bootstrap it as the first action of integration:
 

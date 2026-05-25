@@ -33,7 +33,7 @@ must observe:
 
 ## Stale-baseline warning
 
-If the canon corpus (`plugins/dso/data/ui-reference/canon/`), banned-word list
+If the canon corpus (`${CLAUDE_PLUGIN_ROOT}/data/ui-reference/canon/`), banned-word list
 (`dso-config.conf` `[gov_copy]` `banned_words`), or `fk_max` threshold changes,
 the baseline measurements in this directory may no longer reflect current
 deterministic post-processor output. Re-run the post-processor on
