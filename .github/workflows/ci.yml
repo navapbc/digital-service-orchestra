@@ -359,7 +359,10 @@ jobs:
     needs: [changes, test-hooks, test-scripts, mirror-defenses-to-pr]
     if: github.event_name == 'pull_request' && github.base_ref == 'main'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # 45-minute ceiling accommodates full-diff fallback when per-story
+    # DSO-Story-Merge trailers are absent and the suppress-defenses step
+    # finds no per-story records (see bug db71-e078-ec99-4fbf).
+    timeout-minutes: 45
     env:
       # Single source of truth for the findings-artifact path. Both the
       # `Run LLM review` step (writer, via DSO_CI_REVIEW_OUTPUT_PATH) and

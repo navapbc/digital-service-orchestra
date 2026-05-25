@@ -1,0 +1,105 @@
+id: govuk
+title: "GOV.UK Error and Form Patterns: Error Summary, Inline Errors, and Prohibited Copy"
+domain: canon
+component:
+  - form
+  - input
+  - feedback
+action:
+  - design
+  - apply
+  - verify
+compliance:
+  - WCAG-2.1-AA
+  - WCAG-3.3
+  - plain-language
+severity: critical
+story_type: pattern
+coverage:
+  - summary
+  - detail
+license: OGL-v3
+source:
+  url: "https://design-system.service.gov.uk/components/error-message/"
+  retrieval_date: "2025-11-01"
+  license: OGL-v3
+  version_pin: "GOV.UK Design System v5"
+precedence: 2
+hard_constraint: true
+summary: |
+  GOV.UK Design System canonical error patterns require an error summary at the
+  top of every page with errors, inline error messages adjacent to each field,
+  and specific plain-English copy standards. "Sorry" is prohibited in error text.
+  Focus must move to the error summary on page load. All errors appear at once
+  after submit — never one-at-a-time sequential reveal.
+detail: |
+  ### Error Summary Rules (hard_constraint: true)
+
+  rule_id: govuk.error-summary-required
+  Display an error summary box before the page heading whenever the page has
+  validation errors. The summary lists all errors, each as an anchor link to
+  the failing field.
+
+  rule_id: govuk.error-summary-title
+  Title the error summary "There is a problem" — GOV.UK research shows this
+  phrasing is clear and does not alarm users unnecessarily.
+
+  rule_id: govuk.error-summary-focus
+  Move keyboard focus to the error summary container on page load (tabindex=-1
+  + programmatic focus or aria-labelledby). Screen reader users must encounter
+  errors before form fields.
+
+  ### Inline Error Rules (hard_constraint: true)
+
+  rule_id: govuk.error-inline-placement
+  Inline error messages appear directly below the label and hint text, above the
+  input. Use the govuk-error-message component which prefixes the message with
+  a visually hidden "Error:" for screen reader users.
+
+  rule_id: govuk.error-inline-mirror
+  Every inline error message must mirror the corresponding link text in the
+  error summary exactly. Divergent phrasing breaks screen reader navigation.
+
+  ### Error Copy Standards (hard_constraint: true)
+
+  rule_id: govuk.error-copy-text-input
+  For text inputs:
+  - Required: "Enter your [field name]" — e.g., "Enter your full name"
+  - Wrong format: "Enter [field name] in the correct format"
+  - Out of range: "Enter a [field name] between [min] and [max]"
+
+  rule_id: govuk.error-copy-radio-checkbox
+  For radio buttons and checkboxes:
+  - Required: "Select if [condition]"
+  - Single required choice: "Select [option A] or [option B]"
+
+  rule_id: govuk.error-copy-file-upload
+  For file uploads:
+  - "The selected file must be a [list of formats]"
+  - "The selected file must be smaller than [size]"
+  - "No file selected — select a [file type]"
+
+  ### Prohibited Patterns (hard_constraint: true)
+
+  rule_id: govuk.error-no-sorry
+  Do NOT use "sorry" in any error message. Apology language is not actionable.
+
+  rule_id: govuk.error-no-generic
+  Do NOT use generic messages like "Invalid input", "An error occurred", or
+  "This field is required" without specifying exactly what to enter or select.
+
+  rule_id: govuk.error-preserve-input
+  Do NOT clear field values when showing errors. Preserve all user input.
+
+  rule_id: govuk.error-not-color-only
+  Do NOT use red text alone to indicate errors. Pair color with an icon, border
+  change, and ARIA attributes (aria-describedby) for color-blind users.
+
+  ### Form-Level Patterns (hard_constraint: true)
+
+  rule_id: govuk.error-all-at-once
+  Show all errors at once after a submit attempt. Do not reveal errors one at a
+  time as the user fixes each field (GOV.UK calls this "whack-a-mole").
+
+  rule_id: govuk.error-no-disable-submit
+  Never disable the submit button as a substitute for error messages.

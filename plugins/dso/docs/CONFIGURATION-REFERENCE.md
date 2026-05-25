@@ -888,6 +888,31 @@ project_closure_hooks = scripts/my-closure-validator.sh
 
 ---
 
+### `copy.artifact_dir`
+
+| | |
+|---|---|
+| **Description** | Output directory for gov-copy-writer artifacts, relative to the project root. The resolved path (joined with the epic ID to form `<artifact_dir>/<epic_id>.yaml`) must remain strictly inside the project root after normalization — absolute paths, `..` traversal segments, and paths that escape the project root are all rejected at validation time. |
+| **Accepted values** | Relative directory path (e.g., `copy/`, `docs/copy-artifacts`). No absolute paths. No `..` segments. |
+| **Default** | `copy/` |
+| **Override** | Add `copy.artifact_dir=<value>` to `.claude/dso-config.conf` (flat dot-notation; INI section headers are NOT supported by `read-config.sh` and will be silently ignored). |
+| **Validation implementation** | `${CLAUDE_PLUGIN_ROOT}/scripts/copy_artifact_path.py` (`validate_artifact_path`, `resolve_artifact_path`) — exits 0 and prints the resolved path on success; exits 1 with a descriptive error to stderr on validation failure. |
+| **Used by** | `dso:gov-copy-writer` agent (artifact output path resolution) |
+
+**Validation rules (enforced by `copy_artifact_path.py`):**
+
+1. Must not be an absolute path — use a relative path such as `copy/`.
+2. Must not contain any `..` segments (checked before resolution to prevent crafted inputs that normalise differently per OS).
+3. The resolved path (after joining with the project root and the epic ID) must remain a descendant of the project root.
+
+**Example (flat dot-notation, the only format `read-config.sh` parses):**
+
+```
+copy.artifact_dir=copy/
+```
+
+---
+
 ### `debug.session_ttl_hours`
 
 | | |
@@ -2058,6 +2083,58 @@ Keys in the `review_telemetry.*` group are written automatically by the AWS setu
 **Notes:**
 - Setting `attribution.enabled=false` after enabling stops future writes to `attribution-contributors.jsonl` but does not purge existing entries; the file can be safely deleted manually.
 - Canonical query for attributed commits: `git log --format="%(trailers:key=DSO-Agent,valueonly)" -- <path>` returns agent names per commit.
+
+---
+
+## UI/UX Reference Corpus — `dso ref-query` CLI flags
+
+`dso ref-query` (shim for `${CLAUDE_PLUGIN_ROOT}/scripts/ref-query.sh`) searches the
+domain-partitioned YAML corpus at `${CLAUDE_PLUGIN_ROOT}/data/ui-reference/` using BM25.
+The flags below are query-time options, not `dso-config.conf` keys.
+
+### `--namespace=DOMAIN`
+
+| | |
+|---|---|
+| **Description** | Filters results to corpus entries whose `tags.domain` matches `DOMAIN`. Entries whose domain is a list are included when `DOMAIN` appears in that list. Without this flag, results span all corpus domains. |
+| **Accepted values** | Any domain value present in the corpus (e.g., `canon`, `components`, `gov-copy`). Use `canon` to restrict results to federal-style canon entries (see below). |
+| **Default** | Absent — all domains included |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/ref-query.sh`, `${CLAUDE_PLUGIN_ROOT}/scripts/ref-query.py` |
+
+**The `canon` namespace:** entries tagged `domain: canon` represent authoritative
+federal-style content standards sourced from USWDS, GOV.UK, VA.gov, 18F,
+Federal Plain Language Guidelines, and CDC reading-level guidance.  These entries
+occupy the top of the precedence ladder:
+
+```
+canon-rule > Copy Needs constraint > Users archetype > design-notes voice
+```
+
+Use `--namespace=canon` when you need rule-level authority (e.g., plain-language
+mandates, federal accessibility requirements, government error-message patterns)
+rather than general design guidance.
+
+---
+
+### `--format=json`
+
+| | |
+|---|---|
+| **Description** | Emits results as a JSON array instead of the default human-readable text format. Each array element conforms to the `ref-query-json-output` schema (see `${CLAUDE_PLUGIN_ROOT}/docs/contracts/ref-query-json-output.md`). |
+| **Accepted values** | `text` (default) \| `json` |
+| **Default** | `text` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/ref-query.sh`, `${CLAUDE_PLUGIN_ROOT}/scripts/ref-query.py`; downstream consumers such as the `dso:gov-copy-writer` agent |
+
+**JSON schema reference:** `${CLAUDE_PLUGIN_ROOT}/docs/contracts/ref-query-json-output.md`.
+Fields: `rule_id`, `tags` (includes `domain`), `score` (BM25 float), `body`,
+`source_file`.
+
+**Example:**
+
+```bash
+# Restrict to canon entries, emit JSON for programmatic consumption
+dso ref-query "error message required field" --namespace=canon --format=json
+```
 
 ---
 

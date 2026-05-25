@@ -1,0 +1,104 @@
+id: fpl
+title: "Federal Plain Language Guidelines: Plain Writing Act of 2010 Canonical Standards"
+domain: canon
+component:
+  - content
+action:
+  - design
+  - apply
+  - verify
+compliance:
+  - plain-language
+  - plainlanguage.gov
+  - 21st-Century-IDEA
+severity: critical
+story_type:
+  - pattern
+  - compliance-check
+coverage:
+  - summary
+  - detail
+license: public-domain
+source:
+  url: "https://www.plainlanguage.gov/guidelines/"
+  retrieval_date: "2025-11-01"
+  license: public-domain
+  version_pin: "Federal Plain Language Guidelines (2011, revised 2023)"
+precedence: 1
+hard_constraint: true
+summary: |
+  The Federal Plain Language Guidelines define mandatory plain writing standards
+  under the Plain Writing Act of 2010 (Pub. L. 111-274). All covered federal
+  agencies must use plain writing in every new or substantially revised document,
+  including federal websites and digital services. Core requirements: write for
+  your audience; organize for the reader; use "you" and "we"; use active voice;
+  choose plain familiar words; limit abbreviations; use tables and lists for
+  complex information; write short sentences and paragraphs.
+detail: |
+  ### Legal Mandate (hard_constraint: true)
+
+  rule_id: fpl.mandate
+  The Plain Writing Act of 2010 requires covered agencies to use plain writing
+  in every new or substantially revised covered document, including federal
+  websites. "Plain writing" means clear, concise, well-organized writing that
+  follows best practices appropriate to the subject and intended audience.
+  Non-compliance is a statutory violation.
+
+  rule_id: fpl.omb-guidance
+  OMB issued implementation guidance in 2011 requiring agencies to:
+  - Designate a senior official for plain language
+  - Train employees who write official documents
+  - Establish a feedback mechanism for the public to comment on document clarity
+
+  ### Audience-First Principle (hard_constraint: true)
+
+  rule_id: fpl.audience-first
+  Identify who will read the document before writing it. Write for the
+  least-knowledgeable user in your audience, not for subject-matter experts.
+
+  rule_id: fpl.inverted-pyramid
+  Put the most important information first (inverted-pyramid structure).
+  Answer the reader's primary question at the start, not the end.
+
+  ### Structure Requirements (hard_constraint: true)
+
+  rule_id: fpl.headers
+  Use headers to signpost sections and enable scanning. Group related
+  information together. Separate distinct topics into separate sections.
+
+  rule_id: fpl.lists-tables
+  Use bulleted lists for items that are parallel and non-sequential. Use
+  numbered lists for sequential steps. Use tables for complex multi-variable
+  comparisons. Never use dense prose to present information that is naturally
+  list-shaped.
+
+  ### Language Standards (hard_constraint: true)
+
+  rule_id: fpl.active-voice
+  Write in active voice. The subject performs the action. Passive voice is
+  permitted only when the actor is unknown or irrelevant.
+
+  rule_id: fpl.sentence-length
+  Write sentences of 20 words or fewer on average. No single sentence should
+  exceed 40 words.
+
+  rule_id: fpl.common-words
+  Choose the most common, plainest word that correctly conveys the meaning.
+  Avoid legal and bureaucratic language unless the exact term has legal effect.
+
+  rule_id: fpl.define-terms
+  When a technical or legal term is required, define it immediately in plain
+  language on first use. Place definitions near the first occurrence, not in a
+  separate glossary unless the document is long-form reference material.
+
+  rule_id: fpl.no-unnecessary-abbreviations
+  Do not introduce abbreviations the user does not already know. Spell out full
+  terms on first use. Abbreviate only when the abbreviation is well known to
+  the intended audience or when the full term would be repeated many times.
+
+  ### Conversational Pronouns (hard_constraint: false)
+
+  rule_id: fpl.pronouns-you-we
+  Use "you" for the reader and "we" or the agency name for the government.
+  This standard is a strong stylistic default; formal regulatory or legal
+  documents may use third-person constructions where required by convention.

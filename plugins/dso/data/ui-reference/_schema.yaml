@@ -26,6 +26,7 @@ tag_vocabulary:
     - forms
     - navigation
     - visual
+    - canon
   component:
     - form
     - navigation
@@ -125,3 +126,4 @@ optional_fields:
   - rule_id
   - prior_art
   - precedence
+  - hard_constraint

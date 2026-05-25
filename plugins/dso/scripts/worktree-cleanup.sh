@@ -306,11 +306,23 @@ is_old_enough() {
     [[ "$age_seconds" -ge "$threshold_seconds" ]]
 }
 
-# Check if a worktree has any stashes
+# Check if a worktree has any stashes attributable to its current branch.
+#
+# Bug d5c1: `git stash list` is repo-scoped (the same list is returned from
+# every worktree), so the prior `stash_count > 0` check pinned every worktree
+# whenever any stash existed anywhere in the repo. Scope to stashes whose
+# "WIP on <branch>" or "On <branch>" header matches the worktree's branch.
 has_stashes() {
     local wt_path="$1"
+    local wt_branch
+    wt_branch=$(git -C "$wt_path" rev-parse --abbrev-ref HEAD 2>/dev/null)
+    [[ -z "$wt_branch" || "$wt_branch" == "HEAD" ]] && return 1
+    # Use grep -F (fixed-string) over -E so regex metacharacters in branch names
+    # like `feature.v2` or `release/1.x` are matched literally.
     local stash_count
-    stash_count=$(git -C "$wt_path" stash list 2>/dev/null | wc -l | tr -d ' ')
+    stash_count=$(git -C "$wt_path" stash list 2>/dev/null \
+        | grep -cFe ": WIP on ${wt_branch}:" -e ": On ${wt_branch}:" 2>/dev/null || true)
+    stash_count=${stash_count:-0}
     [[ "$stash_count" -gt 0 ]]
 }
 
