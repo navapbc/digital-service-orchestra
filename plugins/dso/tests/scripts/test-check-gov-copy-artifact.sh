@@ -86,6 +86,45 @@ else
   pass "no-argument invocation exits non-zero"
 fi
 
+# Test 6: wrong-source rejection (LLM bypass attempt)
+# The validator enforces contract line 85: checks.source must equal the literal
+# "deterministic-post-processor". An LLM that bypasses the post-processor and
+# emits the checks block itself can satisfy a type-only check by writing any
+# string. This fixture exercises that rejection (round-3 verification finding).
+echo ""
+echo "--- test: wrong checks.source rejected ---"
+_WRONG_SRC_OUT=$(mktemp /tmp/wrong-src-out.XXXXXX)
+if "$VALIDATOR" "$_PLUGIN_ROOT/tests/scripts/fixtures/gov-copy-fail-wrong-source.yaml" >"$_WRONG_SRC_OUT" 2>&1; then
+  fail "validator should reject checks.source != 'deterministic-post-processor'"
+else
+  pass "validator rejects wrong checks.source value"
+  if grep -q 'deterministic-post-processor' "$_WRONG_SRC_OUT"; then
+    pass "rejection diagnostic names the required source value"
+  else
+    fail "rejection diagnostic missing required source value reference; stderr: $(cat "$_WRONG_SRC_OUT")"
+  fi
+fi
+rm -f "$_WRONG_SRC_OUT"
+
+# Test 7: nested-dict errors-value rejection
+# values.errors must be mapping of error key → STRING per contract. A nested
+# dict value would be str()-coerced by _get_item_text, feeding garbage into
+# readability/banned/voice scorers downstream. Validator must reject.
+echo ""
+echo "--- test: nested-dict errors value rejected ---"
+_NESTED_OUT=$(mktemp /tmp/nested-out.XXXXXX)
+if "$VALIDATOR" "$_PLUGIN_ROOT/tests/scripts/fixtures/gov-copy-fail-errors-nested-dict.yaml" >"$_NESTED_OUT" 2>&1; then
+  fail "validator should reject errors.<key> being a nested dict"
+else
+  pass "validator rejects nested-dict errors value"
+  if grep -q "errors" "$_NESTED_OUT"; then
+    pass "rejection diagnostic names the errors path"
+  else
+    fail "rejection diagnostic missing 'errors' reference; stderr: $(cat "$_NESTED_OUT")"
+  fi
+fi
+rm -f "$_NESTED_OUT"
+
 echo ""
 echo "TOTAL: $PASS passed, $FAIL failed"
 [[ $FAIL -eq 0 ]]

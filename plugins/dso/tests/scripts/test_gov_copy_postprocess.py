@@ -496,6 +496,64 @@ class TestMainPipelineLargeText:
         )
 
 
+@pytest.mark.unit
+class TestMainPipelineCrossFieldPassiveVoiceRegression:
+    """Regression test for the '. ' field-joiner fix in _get_item_text.
+
+    Before the fix, fields were joined with a single space, so a be-verb
+    at the end of one field could match a past-participle at the start
+    of the next field — a cross-field false-positive passive match.
+
+    The classic adversarial case: label='Form status is' + hint='updated
+    daily' joined to 'Form status is updated daily' would match the
+    passive regex \\b(am|is|...)\\b\\s+...ed\\b even though NEITHER field
+    is passive on its own.
+
+    The fix changed the joiner to '. ' (period+space) so the regex \\s+
+    bridge cannot cross the field boundary. This test pins that fix.
+    """
+
+    # [test_main_pipeline_no_cross_field_passive_false_positive]
+    def test_main_pipeline_no_cross_field_passive_false_positive(
+        self, tmp_path: Path
+    ) -> None:
+        """label+hint joining must not synthesize a cross-field passive match."""
+        # Adversarial item: each field is active-voice on its own, but
+        # concatenated with a single space they would form 'is updated'.
+        item = {
+            "id": "cross-field-adversarial",
+            "values": {
+                "label": "Form status is",
+                "hint": "updated daily",
+                "errors": {},
+            },
+            "rationale": {"rule_ids": [], "conflicts": [], "deviations": []},
+        }
+        artifact = _write_artifact(tmp_path, items=[item])
+        cfg = _write_config(tmp_path)
+        result = _run_pipeline(artifact, cfg)
+        assert result.returncode == 0, (
+            f"Pipeline should exit 0 for adversarial-but-passing item; "
+            f"got {result.returncode}.\n"
+            f"stdout={result.stdout!r}\nstderr={result.stderr!r}"
+        )
+        written = yaml.safe_load(artifact.read_text())
+        checks = written["items"][0]["checks"]
+        assert checks["active_voice"] is True, (
+            f"Cross-field false-positive regression: 'Form status is' + "
+            f"'updated daily' must NOT be detected as passive. "
+            f"Got active_voice={checks['active_voice']!r}. "
+            f"This likely means _get_item_text reverted to single-space "
+            f"joining and the regex bridged the field boundary."
+        )
+        # Also verify no spurious active_voice deviation was recorded
+        devs = written["items"][0]["rationale"]["deviations"]
+        active_voice_devs = [d for d in devs if d.get("rule_id") == "active_voice"]
+        assert not active_voice_devs, (
+            f"No active_voice deviation expected; got {active_voice_devs!r}"
+        )
+
+
 # ---------------------------------------------------------------------------
 # RED tests for __main__ pipeline — task 1211-d27b-cbd8-4532
 # Covers: LLM-overwrite, per-rule source attribution, summary/exit codes,
