@@ -521,6 +521,8 @@ jobs:
 
       - name: Union integration review scope
         if: needs.changes.outputs.code_changed == 'true'
+        env:
+          HEAD_REF: ${{ github.head_ref }}
         run: |
           set -euo pipefail
           ARTIFACT_DIR="${DSO_ARTIFACT_DIR:-$RUNNER_TEMP/dso-review}"
@@ -570,7 +572,7 @@ jobs:
             # commit (a single trivial change legitimately has no scope).
             NON_MERGE_COUNT=$(git log "origin/${{ github.base_ref }}..HEAD" --no-merges --oneline 2>/dev/null | wc -l | tr -d ' ')
             if [[ "${NON_MERGE_COUNT:-0}" -gt 1 ]]; then
-              echo "::warning::No per-story DSO-Story-Merge trailers found on ${{ github.head_ref }}; llm-review will run against the full diff. See bug db71-e078-ec99-4fbf."
+              echo "::warning::No per-story DSO-Story-Merge trailers found on ${HEAD_REF}; llm-review will run against the full diff. See bug db71-e078-ec99-4fbf."
             fi
           else
             echo "INTEGRATION_SCOPE_EMPTY=false" >> "$GITHUB_ENV"
