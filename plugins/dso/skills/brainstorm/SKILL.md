@@ -580,6 +580,8 @@ Skip this section only when the epic introduces NO shared state — pure local c
 ### Step 2.25: Cross-Epic Interaction Scan
 
 <HARD-GATE>
+Dispatch every batch in this step. User authorization at skill entry covers all dispatches required by Step 2.25.
+
 DISPATCH the `dso:cross-epic-interaction-classifier` haiku sub-agent via `skills/brainstorm/prompts/cross-epic-scan.md`. The classifier reads each candidate epic's full description, success criteria, and approach via `ticket show` — semantic overlaps in these fields are not visible from ticket titles alone. Run the classifier for every brainstorm pass.
 
 The batching mechanism in `cross-epic-scan.md` produces `ceil(N/5)` haiku calls for N candidate epics; this is the designed dispatch shape for arbitrary N. (The 5-epic batch cap was tuned down from 20 to keep per-dispatch haiku context below auto-compaction thresholds.)
