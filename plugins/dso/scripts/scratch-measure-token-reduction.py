@@ -10,6 +10,8 @@ Usage:
     python3 scratch-measure-token-reduction.py --config <path> [--check-config]
     python3 scratch-measure-token-reduction.py --config <path> --capture \\
         [--use-snapshots <dir>]
+    python3 scratch-measure-token-reduction.py --config <path> --report \\
+        [--use-snapshots <dir>] [--commit-to-epic]
 
 Tokenizer selection (via config `tokenizer` field):
     tiktoken:cl100k_base  — tiktoken with cl100k_base encoding (default, used
@@ -351,6 +353,163 @@ def run_capture(
 
 
 # ---------------------------------------------------------------------------
+# Aggregate gate + JSON report (task a9fa-6666-c87d-404f)
+# ---------------------------------------------------------------------------
+
+# Gate thresholds for aggregate token reduction.
+_PASS_THRESHOLD = 70.0
+_PARTIAL_THRESHOLD = 50.0
+
+
+def compute_aggregate(records: list[dict], cfg: dict) -> dict:
+    """Compute per-site reduction percentages and aggregate statistics.
+
+    Accepts the list of records returned by ``run_capture`` plus the loaded
+    config dict (for SHA and tokenizer metadata).
+
+    Returns a dict::
+
+        {
+          "per_site": [
+            {"site_id": str, "pre_tokens": int, "post_tokens": int,
+             "reduction_pct": float},
+            ...
+          ],
+          "aggregate_reduction_pct": float,
+          "pre_head_sha": str,
+          "post_head_sha": str,
+          "tokenizer_name": str,
+          "status": "pass" | "partial" | "fail",
+        }
+
+    Status thresholds:
+        pass    — aggregate_reduction_pct >= 70.0
+        partial — aggregate_reduction_pct >= 50.0 and < 70.0
+        fail    — aggregate_reduction_pct < 50.0
+    """
+    per_site = []
+    total_pre = 0
+    total_post = 0
+
+    for rec in records:
+        pre = rec["pre_tokens"]
+        post = rec["post_tokens"]
+        total_pre += pre
+        total_post += post
+        if pre > 0:
+            reduction_pct = (pre - post) / pre * 100.0
+        else:
+            reduction_pct = 0.0
+        per_site.append(
+            {
+                "site_id": rec["site_id"],
+                "pre_tokens": pre,
+                "post_tokens": post,
+                "reduction_pct": round(reduction_pct, 4),
+            }
+        )
+
+    if total_pre > 0:
+        aggregate_reduction_pct = (total_pre - total_post) / total_pre * 100.0
+    else:
+        aggregate_reduction_pct = 0.0
+
+    aggregate_reduction_pct = round(aggregate_reduction_pct, 4)
+
+    if aggregate_reduction_pct >= _PASS_THRESHOLD:
+        status = "pass"
+    elif aggregate_reduction_pct >= _PARTIAL_THRESHOLD:
+        status = "partial"
+    else:
+        status = "fail"
+
+    tokenizer = get_tokenizer(cfg)
+
+    return {
+        "per_site": per_site,
+        "aggregate_reduction_pct": aggregate_reduction_pct,
+        "pre_head_sha": cfg["pre_head_sha"],
+        "post_head_sha": cfg["post_head_sha"],
+        "tokenizer_name": tokenizer.name,
+        "status": status,
+    }
+
+
+def write_report(report: dict, output_path: str) -> None:
+    """Write *report* as JSON to *output_path*.
+
+    Creates parent directories if needed.  Exits non-zero on write failure.
+    """
+    path = Path(output_path)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(report, indent=2))
+    except OSError as exc:
+        print(
+            f"ERROR: scratch-measure-report: failed to write report to "
+            f"{output_path}: {exc}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+
+def commit_to_epic(
+    report_json: str,
+    epic_id: str,
+    repo_root: str,
+) -> None:
+    """Persist *report_json* to the epic scratch store via the ticket CLI.
+
+    Invokes::
+
+        bash .claude/scripts/dso ticket scratch set <epic_id> measurement:report <json>
+
+    Exits non-zero with a clear stderr message if the scratch CLI call fails.
+    """
+    import os
+
+    dso_cli = Path(repo_root) / ".claude" / "scripts" / "dso"
+    if not dso_cli.exists():
+        print(
+            f"ERROR: scratch-measure-report: dso CLI not found at {dso_cli}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    # Pin CLAUDE_PLUGIN_ROOT to the plugin directory that contains this script
+    # so the dso shim resolves the correct ticket dispatcher regardless of what
+    # the caller's environment points to.  This script lives at
+    # <plugin_root>/scripts/<name>.py so parent.parent is the plugin root.
+    env = dict(os.environ)
+    _plugin_root = str(Path(__file__).resolve().parent.parent)
+    env["CLAUDE_PLUGIN_ROOT"] = _plugin_root
+
+    result = subprocess.run(
+        [
+            "bash",
+            str(dso_cli),
+            "ticket",
+            "scratch",
+            "set",
+            epic_id,
+            "measurement:report",
+            report_json,
+        ],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    if result.returncode != 0:
+        print(
+            f"ERROR: scratch-measure-report: scratch CLI failed for epic "
+            f"'{epic_id}': {result.stderr.strip() or result.stdout.strip()}",
+            file=sys.stderr,
+        )
+        sys.exit(result.returncode)
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -382,7 +541,24 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Directory of pre-captured snapshot text files "
             "(<site_id>-pre.txt / <site_id>-post.txt).  "
-            "Used with --capture for offline / test mode."
+            "Used with --capture or --report for offline / test mode."
+        ),
+    )
+    parser.add_argument(
+        "--report",
+        action="store_true",
+        help=(
+            "Run 5-site capture, compute aggregate, write JSON report to "
+            "output_path from config.  Exit 0 on pass/partial; non-zero on fail."
+        ),
+    )
+    parser.add_argument(
+        "--commit-to-epic",
+        action="store_true",
+        help=(
+            "After writing the report (requires --report), persist the JSON "
+            "to the test_epic_id scratch store via the ticket CLI.  "
+            "Without this flag, no scratch write occurs."
         ),
     )
     return parser
@@ -410,10 +586,31 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(records, indent=2), file=sys.stderr)
         return 0
 
+    if args.report:
+        tokenizer = get_tokenizer(cfg)
+        records = run_capture(cfg, tokenizer, snapshot_dir=args.use_snapshots)
+        report = compute_aggregate(records, cfg)
+        report_json = json.dumps(report, indent=2)
+        write_report(report, cfg["output_path"])
+
+        if args.commit_to_epic:
+            commit_to_epic(report_json, cfg["test_epic_id"], repo_root)
+
+        # Exit 0 on pass/partial; non-zero on fail.
+        if report["status"] == "fail":
+            print(
+                f"ERROR: scratch-measure-report: aggregate reduction "
+                f"{report['aggregate_reduction_pct']:.2f}% is below the 50% "
+                f"threshold (status=fail)",
+                file=sys.stderr,
+            )
+            return 2
+        return 0
+
     # No action specified.
     print(
-        "ERROR: no action specified — pass --check-config, --capture, or wait for "
-        "sibling tasks to add measurement subcommands",
+        "ERROR: no action specified — pass --check-config, --capture, --report, "
+        "or see --help",
         file=sys.stderr,
     )
     return 1

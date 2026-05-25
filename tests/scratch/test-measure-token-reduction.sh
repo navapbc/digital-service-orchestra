@@ -6,6 +6,8 @@
 #   Task 98f0 — Config loader foundation
 #   Task 6998 — Named, pinned tokenizer with deterministic count()
 #   Task ef3d — 5-site return-block capture across pre and post HEAD SHAs
+#   Task a9fa — Aggregate gate + JSON report
+#   Task e05b — Commit report to epic scratch artifact via --commit-to-epic
 #
 # Test cases:
 #   1. (test_check_config_valid_epic)           --check-config with valid epic id → exit 0
@@ -18,6 +20,12 @@
 #   8. (test_five_sites_captured)               All 5 sites captured pre and post via snapshot mode
 #   9. (test_per_site_record_shas)              Per-site record carries both HEAD SHAs verbatim
 #  10. (test_missing_snapshot_nonzero_exit)     Missing snapshot → non-zero exit with clear error
+#  11. (test_aggregate_pass_threshold)          >=70% reduction → status=pass, exit 0
+#  12. (test_aggregate_partial_threshold)       50-70% reduction → status=partial, exit 0
+#  13. (test_aggregate_fail_threshold)          <50% reduction → status=fail, non-zero exit
+#  14. (test_report_has_required_fields)        JSON report contains all required fields
+#  15. (test_commit_to_epic_invokes_scratch)    --commit-to-epic invokes scratch CLI
+#  16. (test_no_commit_without_flag)            Without --commit-to-epic, no scratch write
 #
 # Usage: bash tests/scratch/test-measure-token-reduction.sh
 
@@ -328,6 +336,273 @@ print(sum(1 for r in data if r.get('post_sha') == '${post_sha}'))
     assert_eq "per-site SHAs: all 5 records carry post_sha verbatim" "5" "$record_count_with_post_sha"
 }
 
+# ── Helpers for aggregate / report tests ─────────────────────────────────────
+
+# make_snapshot_dir_with_ratio <dir> <pre_tokens_approx> <post_fraction>
+# Builds snapshot files such that post_tokens ≈ pre_tokens * post_fraction.
+# We use char4 tokenizer (len // 4), so token count ≈ char_count / 4.
+# Produces enough chars so char4 gives a predictable ratio.
+make_snapshot_dir_ratio() {
+    local dir="$1"
+    local pre_chars="${2:-400}"   # pre text length in chars
+    local post_chars="${3:-100}"  # post text length in chars
+    mkdir -p "$dir"
+    local sites=(
+        "impl-plan-511"
+        "impl-plan-978"
+        "impl-plan-1238"
+        "preplanning-513"
+        "sprint-2332"
+    )
+    # Generate filler strings of the specified character lengths.
+    local pre_text
+    local post_text
+    pre_text=$(python3 -c "print('x' * ${pre_chars}, end='')")
+    post_text=$(python3 -c "print('x' * ${post_chars}, end='')")
+    for site in "${sites[@]}"; do
+        printf '%s' "$pre_text"  > "$dir/${site}-pre.txt"
+        printf '%s' "$post_text" > "$dir/${site}-post.txt"
+    done
+}
+
+# ── Test 11: compute_aggregate >=70% → status=pass ───────────────────────────
+test_aggregate_pass_threshold() {
+    local cfg snap_dir output_file
+    cfg=$(mktemp /tmp/measure-config-test-XXXXXX)
+    snap_dir=$(mktemp -d /tmp/measure-snap-XXXXXX)
+    output_file=$(mktemp /tmp/measure-report-XXXXXX)
+    _CLEANUP_FILES+=("$cfg" "$output_file")
+    _CLEANUP_DIRS+=("$snap_dir")
+
+    # pre=400 chars → 100 tokens (char4), post=80 chars → 20 tokens → 80% reduction
+    make_snapshot_dir_ratio "$snap_dir" 400 80
+
+    cat > "$cfg" <<EOF
+test_epic_id: "98f0-54cf-8bad-467f"
+tokenizer: "char4"
+pre_head_sha: "aaa0000000000000000000000000000000000001"
+post_head_sha: "bbb1111111111111111111111111111111111112"
+output_path: "${output_file}"
+EOF
+
+    local exit_code=0
+    python3 "$HARNESS" --config "$cfg" --report --use-snapshots "$snap_dir" 2>/dev/null || exit_code=$?
+
+    assert_eq "aggregate pass: exit 0" "0" "$exit_code"
+
+    local status
+    status=$(python3 -c "import json,sys; d=json.load(open('${output_file}')); print(d['status'])" 2>/dev/null || echo "error")
+    assert_eq "aggregate pass: status=pass" "pass" "$status"
+}
+
+# ── Test 12: compute_aggregate 50-70% → status=partial ───────────────────────
+test_aggregate_partial_threshold() {
+    local cfg snap_dir output_file
+    cfg=$(mktemp /tmp/measure-config-test-XXXXXX)
+    snap_dir=$(mktemp -d /tmp/measure-snap-XXXXXX)
+    output_file=$(mktemp /tmp/measure-report-XXXXXX)
+    _CLEANUP_FILES+=("$cfg" "$output_file")
+    _CLEANUP_DIRS+=("$snap_dir")
+
+    # pre=400 chars → 100 tokens (char4), post=160 chars → 40 tokens → 60% reduction
+    make_snapshot_dir_ratio "$snap_dir" 400 160
+
+    cat > "$cfg" <<EOF
+test_epic_id: "98f0-54cf-8bad-467f"
+tokenizer: "char4"
+pre_head_sha: "aaa0000000000000000000000000000000000001"
+post_head_sha: "bbb1111111111111111111111111111111111112"
+output_path: "${output_file}"
+EOF
+
+    local exit_code=0
+    python3 "$HARNESS" --config "$cfg" --report --use-snapshots "$snap_dir" 2>/dev/null || exit_code=$?
+
+    assert_eq "aggregate partial: exit 0" "0" "$exit_code"
+
+    local status
+    status=$(python3 -c "import json,sys; d=json.load(open('${output_file}')); print(d['status'])" 2>/dev/null || echo "error")
+    assert_eq "aggregate partial: status=partial" "partial" "$status"
+}
+
+# ── Test 13: compute_aggregate <50% → status=fail, non-zero exit ─────────────
+test_aggregate_fail_threshold() {
+    local cfg snap_dir output_file
+    cfg=$(mktemp /tmp/measure-config-test-XXXXXX)
+    snap_dir=$(mktemp -d /tmp/measure-snap-XXXXXX)
+    output_file=$(mktemp /tmp/measure-report-XXXXXX)
+    _CLEANUP_FILES+=("$cfg" "$output_file")
+    _CLEANUP_DIRS+=("$snap_dir")
+
+    # pre=400 chars → 100 tokens (char4), post=240 chars → 60 tokens → 40% reduction
+    make_snapshot_dir_ratio "$snap_dir" 400 240
+
+    cat > "$cfg" <<EOF
+test_epic_id: "98f0-54cf-8bad-467f"
+tokenizer: "char4"
+pre_head_sha: "aaa0000000000000000000000000000000000001"
+post_head_sha: "bbb1111111111111111111111111111111111112"
+output_path: "${output_file}"
+EOF
+
+    local exit_code=0
+    python3 "$HARNESS" --config "$cfg" --report --use-snapshots "$snap_dir" 2>/dev/null || exit_code=$?
+
+    local non_zero=1
+    if [ "$exit_code" -ne 0 ]; then
+        non_zero=0
+    fi
+    assert_eq "aggregate fail: exit non-zero" "0" "$non_zero"
+
+    local status
+    status=$(python3 -c "import json,sys; d=json.load(open('${output_file}')); print(d['status'])" 2>/dev/null || echo "error")
+    assert_eq "aggregate fail: status=fail" "fail" "$status"
+}
+
+# ── Test 14: JSON report has all required fields ──────────────────────────────
+test_report_has_required_fields() {
+    local cfg snap_dir output_file
+    cfg=$(mktemp /tmp/measure-config-test-XXXXXX)
+    snap_dir=$(mktemp -d /tmp/measure-snap-XXXXXX)
+    output_file=$(mktemp /tmp/measure-report-XXXXXX)
+    _CLEANUP_FILES+=("$cfg" "$output_file")
+    _CLEANUP_DIRS+=("$snap_dir")
+
+    make_snapshot_dir_ratio "$snap_dir" 400 80
+
+    local pre_sha="aaa0000000000000000000000000000000000001"
+    local post_sha="bbb1111111111111111111111111111111111112"
+
+    cat > "$cfg" <<EOF
+test_epic_id: "98f0-54cf-8bad-467f"
+tokenizer: "char4"
+pre_head_sha: "${pre_sha}"
+post_head_sha: "${post_sha}"
+output_path: "${output_file}"
+EOF
+
+    python3 "$HARNESS" --config "$cfg" --report --use-snapshots "$snap_dir" 2>/dev/null
+
+    # Check all top-level fields exist.
+    local check_fields
+    check_fields=$(python3 - "${output_file}" <<'PYEOF'
+import json, sys
+d = json.load(open(sys.argv[1]))
+required = ["per_site", "aggregate_reduction_pct", "pre_head_sha",
+            "post_head_sha", "tokenizer_name", "status"]
+missing = [k for k in required if k not in d]
+print("missing:" + ",".join(missing) if missing else "ok")
+PYEOF
+    )
+    assert_eq "report fields: all top-level keys present" "ok" "$check_fields"
+
+    # Check per_site records have the required sub-fields.
+    local per_site_check
+    per_site_check=$(python3 - "${output_file}" <<'PYEOF'
+import json, sys
+d = json.load(open(sys.argv[1]))
+required = ["site_id", "pre_tokens", "post_tokens", "reduction_pct"]
+issues = []
+for i, rec in enumerate(d.get("per_site", [])):
+    for k in required:
+        if k not in rec:
+            issues.append(f"rec[{i}] missing {k}")
+print("issues:" + "; ".join(issues) if issues else "ok")
+PYEOF
+    )
+    assert_eq "report fields: per_site records complete" "ok" "$per_site_check"
+
+    # Check SHAs are verbatim from config.
+    local pre_sha_check post_sha_check
+    pre_sha_check=$(python3 -c "import json; d=json.load(open('${output_file}')); print(d['pre_head_sha'])" 2>/dev/null || echo "error")
+    post_sha_check=$(python3 -c "import json; d=json.load(open('${output_file}')); print(d['post_head_sha'])" 2>/dev/null || echo "error")
+    assert_eq "report fields: pre_head_sha verbatim" "${pre_sha}" "$pre_sha_check"
+    assert_eq "report fields: post_head_sha verbatim" "${post_sha}" "$post_sha_check"
+
+    # tokenizer_name must be "char4" (since we requested char4).
+    local tok_name
+    tok_name=$(python3 -c "import json; d=json.load(open('${output_file}')); print(d['tokenizer_name'])" 2>/dev/null || echo "error")
+    assert_eq "report fields: tokenizer_name=char4" "char4" "$tok_name"
+}
+
+# ── Test 15: --commit-to-epic invokes scratch CLI ─────────────────────────────
+test_commit_to_epic_invokes_scratch() {
+    local cfg snap_dir output_file scratch_base
+    cfg=$(mktemp /tmp/measure-config-test-XXXXXX)
+    snap_dir=$(mktemp -d /tmp/measure-snap-XXXXXX)
+    output_file=$(mktemp /tmp/measure-report-XXXXXX)
+    scratch_base=$(mktemp -d /tmp/measure-scratch-XXXXXX)
+    _CLEANUP_FILES+=("$cfg" "$output_file")
+    _CLEANUP_DIRS+=("$snap_dir" "$scratch_base")
+
+    make_snapshot_dir_ratio "$snap_dir" 400 80
+
+    cat > "$cfg" <<EOF
+test_epic_id: "98f0-54cf-8bad-467f"
+tokenizer: "char4"
+pre_head_sha: "aaa0000000000000000000000000000000000001"
+post_head_sha: "bbb1111111111111111111111111111111111112"
+output_path: "${output_file}"
+EOF
+
+    # Run --report --commit-to-epic with SCRATCH_BASE_DIR overridden so we can
+    # verify the scratch write without touching the real scratch store.
+    local exit_code=0
+    SCRATCH_BASE_DIR="$scratch_base" \
+        python3 "$HARNESS" --config "$cfg" --report \
+        --use-snapshots "$snap_dir" --commit-to-epic 2>/dev/null || exit_code=$?
+
+    assert_eq "commit-to-epic: exit 0" "0" "$exit_code"
+
+    # Verify the scratch file was written for the epic.
+    # The scratch CLI stores files as <base>/<ticket_id>/<key> (no .json suffix).
+    local epic_id="98f0-54cf-8bad-467f"
+    local scratch_file="$scratch_base/$epic_id/measurement:report"
+    local scratch_exists=1
+    if [ -f "$scratch_file" ]; then
+        scratch_exists=0
+    fi
+    assert_eq "commit-to-epic: scratch file written" "0" "$scratch_exists"
+}
+
+# ── Test 16: Without --commit-to-epic, no scratch write ──────────────────────
+test_no_commit_without_flag() {
+    local cfg snap_dir output_file scratch_base
+    cfg=$(mktemp /tmp/measure-config-test-XXXXXX)
+    snap_dir=$(mktemp -d /tmp/measure-snap-XXXXXX)
+    output_file=$(mktemp /tmp/measure-report-XXXXXX)
+    scratch_base=$(mktemp -d /tmp/measure-scratch-XXXXXX)
+    _CLEANUP_FILES+=("$cfg" "$output_file")
+    _CLEANUP_DIRS+=("$snap_dir" "$scratch_base")
+
+    make_snapshot_dir_ratio "$snap_dir" 400 80
+
+    cat > "$cfg" <<EOF
+test_epic_id: "98f0-54cf-8bad-467f"
+tokenizer: "char4"
+pre_head_sha: "aaa0000000000000000000000000000000000001"
+post_head_sha: "bbb1111111111111111111111111111111111112"
+output_path: "${output_file}"
+EOF
+
+    # Run --report WITHOUT --commit-to-epic.
+    local exit_code=0
+    SCRATCH_BASE_DIR="$scratch_base" \
+        python3 "$HARNESS" --config "$cfg" --report \
+        --use-snapshots "$snap_dir" 2>/dev/null || exit_code=$?
+
+    assert_eq "no-commit-without-flag: exit 0" "0" "$exit_code"
+
+    # Scratch directory for the epic must NOT exist.
+    local epic_id="98f0-54cf-8bad-467f"
+    local scratch_dir="$scratch_base/$epic_id"
+    local scratch_absent=0
+    if [ -d "$scratch_dir" ]; then
+        scratch_absent=1
+    fi
+    assert_eq "no-commit-without-flag: no scratch write" "0" "$scratch_absent"
+}
+
 # ── Test 10: Missing snapshot → non-zero exit with clear error ───────────────
 test_missing_snapshot_nonzero_exit() {
     local cfg snap_dir
@@ -363,5 +638,11 @@ test_tokenizer_name_matches_config
 test_five_sites_captured
 test_per_site_record_shas
 test_missing_snapshot_nonzero_exit
+test_aggregate_pass_threshold
+test_aggregate_partial_threshold
+test_aggregate_fail_threshold
+test_report_has_required_fields
+test_commit_to_epic_invokes_scratch
+test_no_commit_without_flag
 
 print_summary
