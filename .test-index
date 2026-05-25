@@ -563,7 +563,8 @@ plugins/dso/scripts/telemetry/telemetry-emit.sh:tests/scripts/test-telemetry-emi
 plugins/dso/scripts/telemetry/aws-setup-lambda.sh:tests/scripts/test-aws-setup-lambda.sh
 plugins/dso/scripts/telemetry/lambda-handler/s3_writer.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_s3_writer.py
 plugins/dso/scripts/gov_copy_postprocess/readability.py:plugins/dso/tests/scripts/test_gov_copy_postprocess.py
-plugins/dso/scripts/gov_copy_postprocess/banned.py:plugins/dso/tests/scripts/test_gov_copy_postprocess.py [test_find_banned_words_returns_matches_in_order]
+plugins/dso/scripts/gov_copy_postprocess/banned.py:plugins/dso/tests/scripts/test_gov_copy_postprocess.py
+plugins/dso/scripts/gov_copy_postprocess/voice.py:plugins/dso/tests/scripts/test_gov_copy_postprocess.py [test_is_active_voice_active_sentence]
 plugins/dso/scripts/telemetry/lambda-handler/privacy.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_privacy_truth_table.py
 plugins/dso/scripts/telemetry/lambda-handler/schema.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_schema.py
 plugins/dso/scripts/telemetry/lambda-handler/validator.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_validator.py
