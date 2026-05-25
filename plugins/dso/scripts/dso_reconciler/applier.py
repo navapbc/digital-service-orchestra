@@ -342,6 +342,57 @@ def _build_leaves() -> dict[tuple[Any, Any], Callable[..., ApplyResult]]:
 _LEAVES: dict[tuple[Any, Any], Callable[..., ApplyResult]] = _build_leaves()
 
 
+# ---------------------------------------------------------------------------
+# dso-id label write authorization contract
+# ---------------------------------------------------------------------------
+
+_AUTHORIZED_DSO_ID_LABEL_WRITERS_DOC: str = """
+dso-id label write authorization contract for applier.py
+=========================================================
+
+The applier dispatches mutations through exactly 9 leaf handlers, listed below
+with their authorization status for dso-id label mutations:
+
+  1. outbound_create       — AUTHORIZED for {create}: adds "dso-id:<local_id>"
+                             label when a new Jira issue is created outbound.
+  2. outbound_update       — UNAUTHORIZED for dso-id label mutations.
+  3. outbound_delete       — UNAUTHORIZED for dso-id label mutations.
+  4. outbound_probe        — UNAUTHORIZED for dso-id label mutations.
+  5. outbound_conflict     — UNAUTHORIZED for dso-id label mutations.
+  6. inbound_create        — UNAUTHORIZED for dso-id label mutations.
+  7. inbound_update        — UNAUTHORIZED for dso-id label mutations.
+  8. inbound_clean_label   — AUTHORIZED for {delete}: removes stale or
+                             duplicated "dso-id-*" labels from the Jira side.
+  9. inbound_repair_property — UNAUTHORIZED for dso-id label mutations.
+                              This leaf writes the dso_local_id entity PROPERTY
+                              FIELD via set_issue_property(), NOT the label.
+
+Only inbound_clean_label (delete) and outbound_create (create) may emit
+dso-id label mutations. Any other leaf that emits such a mutation is a bug
+and should raise DsoIdLabelWriteError from _errors.py.
+
+conflict_resolver per-element provenance MUST skip dso-id fields. The
+conflict_resolver must not write, modify, or emit dso-id label mutations;
+dso-id is the identity primitive and its provenance is governed solely by the
+two authorized leaves above, not by the per-field provenance resolution path.
+
+inbound_repair_property writes the dso_local_id property field (entity
+properties, not labels). It MUST NOT touch the label surface.
+"""
+
+_AUTHORIZED_DSO_ID_LABEL_WRITERS: frozenset[str] = frozenset(
+    {"inbound_clean_label", "outbound_create"}
+)
+"""Leaf names authorized to emit dso-id label mutations (see _AUTHORIZED_DSO_ID_LABEL_WRITERS_DOC)."""
+
+# Per-leaf authorized-action map: captures which label mutation action each
+# authorized leaf is permitted to perform.
+_AUTHORIZED_DSO_ID_LABEL_ACTIONS: dict[str, frozenset[str]] = {
+    "outbound_create": frozenset({"create"}),
+    "inbound_clean_label": frozenset({"delete"}),
+}
+
+
 def _apply_typed(mutation, *, client=None) -> ApplyResult:
     """Typed-mutation dispatch via _LEAVES.
 
