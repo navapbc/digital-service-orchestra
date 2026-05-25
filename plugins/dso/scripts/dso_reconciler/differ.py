@@ -85,9 +85,31 @@ def _derive_provenance(
     return {"source": "differ", "reason": reason, "local_id": local_id}
 
 
+def _emit(
+    mutation: Any,
+    *,
+    quarantine_set: set[str] | None,
+    mutations_out: list[Any],
+) -> None:
+    """Central emit gate for all Mutation appends in compute_mutations().
+
+    Suppresses any mutation whose ``target`` is in ``quarantine_set``. When
+    ``quarantine_set`` is None, every mutation is appended unconditionally.
+
+    All Mutation-emit sites in :func:`compute_mutations` MUST route through
+    this helper so the quarantine policy is enforced in exactly one place.
+    """
+    if quarantine_set is not None and mutation.target in quarantine_set:
+        return
+    mutations_out.append(mutation)
+
+
 def compute_mutations(
     local_state: dict[str, dict] | None = None,
     jira_state: dict[str, dict] | None = None,
+    *,
+    quarantine_set: set[str] | None = None,
+    seed_mutations: list[Any] | None = None,
 ) -> list[Any]:
     """Diff local against jira state and return a list of Mutation objects.
 
@@ -96,10 +118,21 @@ def compute_mutations(
             truth (e.g. the ticket tracker snapshot).
         jira_state: ``{key: {field: value, ...}}`` — the Jira working set
             recently fetched.
+        quarantine_set: Optional set of targets whose mutations must be
+            suppressed. Every emit point routes through :func:`_emit`,
+            which drops any mutation whose ``target`` is in this set. When
+            ``None`` (the default), no suppression is performed.
+        seed_mutations: Optional list of pre-built Mutations to prepend to
+            the result. Used by ``invariants.check_dual_identity_complete``
+            (story 7a75) to inject repair/inbound mutations that the differ
+            itself cannot derive from local/jira state alone. Seed
+            mutations are NOT filtered through ``quarantine_set``.
 
     Returns:
-        A list of ``Mutation`` objects, sorted by ``target`` for
-        determinism. Each Mutation carries a non-empty provenance Mapping.
+        A list of ``Mutation`` objects. Seed mutations (if any) appear
+        first, followed by differ-emitted mutations sorted by ``target``
+        for determinism. Each Mutation carries a non-empty provenance
+        Mapping.
 
     Semantics:
         - Key in ``local_state`` only AND its ``dso_local_id`` is not
@@ -160,7 +193,11 @@ def compute_mutations(
     # used to short-circuit dangling-jira-ref detection.
     local_dso_ids: set[str] = set(local_id_to_keys.keys())
 
-    mutations: list[Any] = []
+    # Seed mutations (if any) are prepended to the result list before the
+    # differ walks local/jira state. They are NOT filtered through
+    # quarantine_set — the caller (e.g. invariants.check_dual_identity_complete)
+    # has authority over what it injects.
+    mutations: list[Any] = list(seed_mutations) if seed_mutations else []
     all_keys = set(local_state) | set(jira_state)
 
     for key in sorted(all_keys):
@@ -183,7 +220,7 @@ def compute_mutations(
             # underlying state is unbindable as-is.
             if local_id_str and local_id_str in duplicate_local_ids:
                 colliding = sorted(local_id_to_keys[local_id_str])
-                mutations.append(
+                _emit(
                     Mutation(
                         direction=MutationDirection.inbound,
                         action=MutationAction.conflict,
@@ -195,7 +232,9 @@ def compute_mutations(
                             "local_id": local_id_str,
                             "colliding_keys": colliding,
                         },
-                    )
+                    ),
+                    quarantine_set=quarantine_set,
+                    mutations_out=mutations,
                 )
                 continue
 
@@ -226,7 +265,7 @@ def compute_mutations(
                     else None
                 )
                 if not sibling_local_id:
-                    mutations.append(
+                    _emit(
                         Mutation(
                             direction=MutationDirection.outbound,
                             action=MutationAction.probe,
@@ -238,7 +277,9 @@ def compute_mutations(
                                 "local_id": local_id_str,
                                 "jira_sibling_key": local_id_str,
                             },
-                        )
+                        ),
+                        quarantine_set=quarantine_set,
+                        mutations_out=mutations,
                     )
                     continue
 
@@ -250,7 +291,7 @@ def compute_mutations(
             if not payload:
                 # Only excluded fields → no useful create payload.
                 continue
-            mutations.append(
+            _emit(
                 Mutation(
                     direction=MutationDirection.outbound,
                     action=MutationAction.create,
@@ -262,7 +303,9 @@ def compute_mutations(
                         fallback_fields=None,
                         reason="unbound_local",
                     ),
-                )
+                ),
+                quarantine_set=quarantine_set,
+                mutations_out=mutations,
             )
         elif in_jira and not in_local:
             jira_fields = jira_state[key] or {}
@@ -279,7 +322,7 @@ def compute_mutations(
             # the local ticket, clear the Jira-side binding, or close the
             # Jira issue. Never silently drop.
             if jira_local_id_str and jira_local_id_str not in local_dso_ids:
-                mutations.append(
+                _emit(
                     Mutation(
                         direction=MutationDirection.inbound,
                         action=MutationAction.conflict,
@@ -292,7 +335,9 @@ def compute_mutations(
                             "reason": "dangling_jira_local_id",
                             "dangling_local_id": jira_local_id_str,
                         },
-                    )
+                    ),
+                    quarantine_set=quarantine_set,
+                    mutations_out=mutations,
                 )
                 continue
 
@@ -305,7 +350,7 @@ def compute_mutations(
             # (it announces a new Jira-side issue) — keep the Mutation even
             # if every field is excluded, because the target itself is the
             # signal.
-            mutations.append(
+            _emit(
                 Mutation(
                     direction=MutationDirection.inbound,
                     action=MutationAction.create,
@@ -317,7 +362,9 @@ def compute_mutations(
                         fallback_fields=None,
                         reason="jira_new",
                     ),
-                )
+                ),
+                quarantine_set=quarantine_set,
+                mutations_out=mutations,
             )
         else:
             # Present in both — diff non-excluded fields.
@@ -337,7 +384,7 @@ def compute_mutations(
                     else:
                         changed[field] = local_val
             if changed:
-                mutations.append(
+                _emit(
                     Mutation(
                         direction=MutationDirection.outbound,
                         action=MutationAction.update,
@@ -349,7 +396,9 @@ def compute_mutations(
                             fallback_fields=local_fields,
                             reason="field_drift",
                         ),
-                    )
+                    ),
+                    quarantine_set=quarantine_set,
+                    mutations_out=mutations,
                 )
 
     return mutations
