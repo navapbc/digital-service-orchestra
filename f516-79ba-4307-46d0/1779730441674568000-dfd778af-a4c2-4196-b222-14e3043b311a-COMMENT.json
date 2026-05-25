@@ -1,0 +1,1 @@
+{"author":"Test","data":{"body":"CHECKPOINT:batch-complete — 6/6 new tests passing, merged via merge-story-branch.sh. test_run_pass_returns_75_on_reschedule_error pre-existing failure (Py3.14 dataclasses) unchanged by this task."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1779730441674568000,"uuid":"dfd778af-a4c2-4196-b222-14e3043b311a"}
