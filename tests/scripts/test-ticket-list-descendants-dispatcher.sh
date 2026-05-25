@@ -158,15 +158,7 @@ test_list_descendants_routes_through_dispatcher() {
     _exit=0
     _output=$(TICKETS_TRACKER_DIR="$_tracker" "$DISPATCHER" list-descendants epic-root 2>&1) || _exit=$?
 
-    if echo "$_output" | python3 -c "
-import json, sys
-d = json.load(sys.stdin)
-required = ['epics', 'stories', 'tasks', 'bugs', 'parents_with_children']
-missing = [k for k in required if k not in d]
-if missing:
-    print('Missing keys: ' + ', '.join(missing), file=sys.stderr)
-    sys.exit(1)
-" 2>/dev/null; then
+    if printf '%s' "$_output" | jq -e 'has("epics") and has("stories") and has("tasks") and has("bugs") and has("parents_with_children")' >/dev/null 2>&1; then
         echo "  PASS: output is valid JSON with all required keys"
         (( PASS++ ))
     else
@@ -182,22 +174,7 @@ if missing:
     _exit=0
     _output=$(TICKETS_TRACKER_DIR="$_tracker" "$DISPATCHER" list-descendants epic-root 2>&1) || _exit=$?
 
-    if echo "$_output" | python3 -c "
-import json, sys
-d = json.load(sys.stdin)
-errors = []
-for tid in ['story-a', 'story-b']:
-    if tid not in d.get('stories', []):
-        errors.append(tid + ' not in stories')
-for tid in ['task-1', 'task-2']:
-    if tid not in d.get('tasks', []):
-        errors.append(tid + ' not in tasks')
-if 'bug-1' not in d.get('bugs', []):
-    errors.append('bug-1 not in bugs')
-if errors:
-    print('Errors: ' + '; '.join(errors), file=sys.stderr)
-    sys.exit(1)
-" 2>/dev/null; then
+    if printf '%s' "$_output" | jq -e '(.stories | index("story-a")) and (.stories | index("story-b")) and (.tasks | index("task-1")) and (.tasks | index("task-2")) and (.bugs | index("bug-1"))' >/dev/null 2>&1; then
         echo "  PASS: stories, tasks, and bugs arrays contain expected descendant IDs"
         (( PASS++ ))
     else
@@ -212,14 +189,7 @@ if errors:
     _exit=0
     _output=$(TICKETS_TRACKER_DIR="$_tracker" "$DISPATCHER" list-descendants epic-root 2>&1) || _exit=$?
 
-    if echo "$_output" | python3 -c "
-import json, sys
-d = json.load(sys.stdin)
-pwc = d.get('parents_with_children', [])
-if 'story-a' not in pwc:
-    print('story-a not in parents_with_children: ' + str(pwc), file=sys.stderr)
-    sys.exit(1)
-" 2>/dev/null; then
+    if printf '%s' "$_output" | jq -e '.parents_with_children | index("story-a")' >/dev/null 2>&1; then
         echo "  PASS: parents_with_children includes story-a"
         (( PASS++ ))
     else
@@ -249,20 +219,7 @@ if 'story-a' not in pwc:
     _exit=0
     _output=$(TICKETS_TRACKER_DIR="$_tracker" "$DISPATCHER" list-descendants unknown-id 2>&1) || _exit=$?
 
-    if echo "$_output" | python3 -c "
-import json, sys
-d = json.load(sys.stdin)
-required = ['epics', 'stories', 'tasks', 'bugs', 'parents_with_children']
-errors = []
-for k in required:
-    if k not in d:
-        errors.append('missing key: ' + k)
-    elif d[k] != []:
-        errors.append(k + ' is not empty: ' + str(d[k]))
-if errors:
-    print('; '.join(errors), file=sys.stderr)
-    sys.exit(1)
-" 2>/dev/null && [[ $_exit -eq 0 ]]; then
+    if printf '%s' "$_output" | jq -e '(.epics == []) and (.stories == []) and (.tasks == []) and (.bugs == []) and (.parents_with_children == [])' >/dev/null 2>&1 && [[ $_exit -eq 0 ]]; then
         echo "  PASS: unknown root ID returns empty JSON arrays with exit 0"
         (( PASS++ ))
     else

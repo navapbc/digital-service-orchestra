@@ -778,7 +778,7 @@ For each ready task from `.claude/scripts/dso ticket ready --epic=<epic-id>`:
 | MODERATE | any | Run `/dso:implementation-plan` via Skill tool (see Step 2) |
 | COMPLEX | any | Run `/dso:implementation-plan` via Skill tool (see Step 2) |
 
-**HARD PROHIBITION — never create tasks directly for stories without tasks.** When a story has zero children tasks, the orchestrator MUST follow this routing table. Creating tasks directly using `ticket create task` is ALWAYS prohibited — regardless of how much codebase context the orchestrator has accumulated, how "detailed" the story description is, or how "obvious" the implementation appears. The formal planning pipeline (complexity evaluator → `/dso:implementation-plan` Skill invocation → STATUS parse) is not optional. Bypassing it skips: proposal generation, distinctness gate, approach-decision-maker, and plan review. These gates exist precisely because "I know what to do" is not the same as "the planning gate has been satisfied." (bug e903-873d)
+**HARD PROHIBITION — never create tasks directly for stories without tasks.** When a story has zero children tasks, the orchestrator MUST follow this routing table. Creating tasks directly using `ticket create task` is ALWAYS prohibited. The planning gate is satisfied only when STATUS=READY is received from the formal planning pipeline (complexity evaluator → `/dso:implementation-plan` Skill invocation → STATUS parse). Bypassing the pipeline skips: proposal generation, distinctness gate, approach-decision-maker, and plan review.
 
 **Post-routing action for COMPLEX stories**: After routing a story to `/dso:implementation-plan`, tag it so Phase E can upgrade implementation task models:
 ```bash
@@ -1324,7 +1324,7 @@ fi
 ```
 
 <HARD-GATE>
-Do NOT implement any task directly using Edit, Write, or other file-modification tools. ALL implementation tasks must be dispatched to sub-agents via the Task tool — regardless of how small, simple, or obvious the change appears. "Small markdown edit", "single-line change", "user already approved", or "sub-agent dispatch is overhead" are not valid exceptions. Direct implementation by the orchestrator bypasses checkpoint protocol, code review, and acceptance criteria gates.
+Do NOT implement any task directly using Edit, Write, or other file-modification tools. ALL implementation tasks are dispatched to sub-agents via the Task tool. Direct implementation by the orchestrator bypasses checkpoint protocol, code review, and acceptance criteria gates.
 
 Do NOT improvise new patterns, variables, or approaches when a user rejects the approved plan. When the user rejects an approach mid-execution:
 1. **STOP** the current batch — do not apply ad-hoc substitutes.
@@ -1503,7 +1503,7 @@ The doc-writer agent enforces its CLAUDE.md Read-Only Guard. Do NOT edit CLAUDE.
 
 ### Documentation Story Dispatch
 
-When the doc-story title match triggers (9f13-655a): **do NOT implement documentation changes directly** — this gate is unconditional. Even if the required change seems trivial, the doc-writer agent enforces structural and bloat constraints that the orchestrator does not. Read `agents/doc-writer.md` inline and dispatch as `subagent_type: "general-purpose"` with `model: "sonnet"`. The doc-writer agent receives two named context fields:
+When the doc-story title match triggers: **do NOT implement documentation changes directly** — this gate is unconditional. The doc-writer agent enforces structural and bloat constraints that the orchestrator does not. Read `agents/doc-writer.md` inline and dispatch as `subagent_type: "general-purpose"` with `model: "sonnet"`. The doc-writer agent receives two named context fields:
 ```
 subagent_type: "general-purpose"
 model: "sonnet"
@@ -2284,7 +2284,7 @@ grep -n "\[.*\]" .test-index || true
 - `local` mode (default): direct local merge with `DSO-Story-Merge` trailer via `merge-story-branch.sh`
 
 <HARD-GATE>
-**ci-pr merge enforcement (bug c7d1-8025)**: When `SPRINT_MODE=ci-pr`, you MUST use `merge-to-main.sh` with `STORY_PR_BASE=$SESSION_BRANCH` for EVERY story merge. NEVER use `merge-story-branch.sh` in ci-pr mode — it produces local direct merges with `DSO-Story-Merge` trailers that bypass the GitHub PR flow. Execute the bash block below VERBATIM — do NOT substitute merge-story-branch.sh for merge-to-main.sh regardless of how simple the merge appears.
+**ci-pr merge enforcement**: When `SPRINT_MODE=ci-pr`, you MUST use `merge-to-main.sh` with `STORY_PR_BASE=$SESSION_BRANCH` for EVERY story merge. NEVER use `merge-story-branch.sh` in ci-pr mode — it produces local direct merges with `DSO-Story-Merge` trailers that bypass the GitHub PR flow. Execute the bash block below VERBATIM — do NOT substitute merge-story-branch.sh for merge-to-main.sh.
 </HARD-GATE>
 
 ```bash

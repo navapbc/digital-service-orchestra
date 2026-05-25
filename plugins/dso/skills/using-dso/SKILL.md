@@ -98,13 +98,7 @@ Process skills first (`/dso:brainstorm`, `/dso:fix-bug` for bug fixes) — then 
 
 **Follow skills and workflows exactly as written. Do not take shortcuts.**
 
-When a skill or workflow specifies steps, phases, gates, or procedures, execute every one in order. Do not:
-
-- Skip steps you consider "unnecessary" or "obvious"
-- Combine steps to "save time"
-- Substitute your own judgment for a documented gate or check
-- Omit a validation step because "the change is small"
-- Rationalize that "this particular case doesn't need" a required step
+When a skill or workflow specifies steps, phases, gates, or procedures, execute every one in order. Treat documented gates and validation checks as load-bearing.
 
 **If a skill step seems wrong or outdated**, flag it to the user — do not silently skip it. The correct response to a bad instruction is to raise it, not to ignore it.
 
