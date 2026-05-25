@@ -17,11 +17,622 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import logging
 import os
 import sys
 import tempfile
 import time
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, Callable
+
+logger = logging.getLogger(__name__)
+
+# Typed-mutation dispatch layer.
+#
+# The applier was originally written as a single batch-style apply(mutations,
+# pass_id, ...) routine over dict-shaped mutations. The narrow-applier-matrix
+# story introduces a typed Mutation value object (mutation.Mutation with
+# MutationDirection / MutationAction enums) and a per-leaf dispatch registry
+# (_LEAVES) so callers can route a single Mutation through exactly one
+# direction/action handler.
+#
+# The two surfaces coexist:
+#   - apply(mutation: Mutation, *, client=None) -> ApplyResult
+#       Typed single-mutation dispatch via _LEAVES.
+#   - apply(mutations: list[dict], pass_id, repo_root=None) -> Path
+#       Legacy batch dispatch (manifest writer + HEAD-drift guard).
+#
+# Selection is by argument type at the top of apply().
+_MutationModule = None  # late-loaded mutation module; written by _load_mutation_module()
+_ErrorsModule = None    # late-loaded _errors module; written by _load_errors_module()
+
+
+@dataclass(frozen=True, slots=True)
+class ApplyResult:
+    """Result of a typed-mutation apply() dispatch.
+
+    direction/action mirror the Mutation that was dispatched, so callers can
+    confirm which leaf executed without re-reading the input. payload carries
+    any leaf-specific return data (empty dict by default for the stub leaves).
+    """
+
+    direction: Any
+    action: Any
+    payload: dict[str, Any]
+
+
+_MUTATION_KEY = "plugins.dso.scripts.dso_reconciler.mutation"
+
+
+def _load_mutation_module():
+    """Lazy-load the mutation module under the canonical dotted sys.modules key.
+
+    Uses the SAME key (``plugins.dso.scripts.dso_reconciler.mutation``) as
+    invariants.py and differ.py so ``Mutation`` / ``MutationDirection`` /
+    ``MutationAction`` retain a single class identity across the reconciler.
+    Previously each caller loaded under its own private key, producing distinct
+    class objects per module — ``isinstance`` and ``is`` comparisons silently
+    crossed boundaries and routed mutations to the wrong leaf.
+    """
+    global _MutationModule
+    if _MutationModule is not None:
+        return _MutationModule
+    if _MUTATION_KEY in sys.modules:
+        _MutationModule = sys.modules[_MUTATION_KEY]
+        return _MutationModule
+    mut_path = Path(__file__).parent / "mutation.py"
+    spec = importlib.util.spec_from_file_location(_MUTATION_KEY, mut_path)
+    if spec is None:
+        raise FileNotFoundError(f"mutation.py not found at {mut_path}")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[_MUTATION_KEY] = mod
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    _MutationModule = mod
+    return mod
+
+
+def _load_errors_module():
+    """Lazy-load _errors module."""
+    global _ErrorsModule
+    if _ErrorsModule is not None:
+        return _ErrorsModule
+    err_path = Path(__file__).parent / "_errors.py"
+    spec = importlib.util.spec_from_file_location(
+        "dso_reconciler_errors", err_path
+    )
+    if spec is None:
+        raise FileNotFoundError(f"_errors.py not found at {err_path}")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules.setdefault("dso_reconciler_errors", mod)
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    _ErrorsModule = mod
+    return mod
+
+
+# Re-export error classes so callers can import them from applier.py.
+# Internal uses still go through _load_errors_module() to preserve lazy-load
+# semantics; these module-level names exist for the public import surface.
+_errors_module = _load_errors_module()
+StatusMappingError = _errors_module.StatusMappingError
+DirectionMismatchError = _errors_module.DirectionMismatchError
+UnknownActionError = _errors_module.UnknownActionError
+DsoIdLabelWriteError = _errors_module.DsoIdLabelWriteError
+
+
+def _direction_guard(mutation, expected_direction) -> None:
+    """Defense-in-depth: assert mutation.direction matches the leaf's declared
+    direction. In normal flow _LEAVES lookup already routes correctly; this
+    raises DirectionMismatchError if a leaf is invoked directly with the wrong
+    direction (e.g. via the test harness bypassing _LEAVES).
+    """
+    if mutation.direction is not expected_direction:
+        errs = _load_errors_module()
+        raise errs.DirectionMismatchError(
+            f"leaf expects direction={expected_direction.value!s}, "
+            f"got direction={mutation.direction.value!s}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Per-leaf stub handlers.
+#
+# Each leaf:
+#   1. Calls _direction_guard() with its own declared direction (defense-in-depth).
+#   2. Performs the leaf-specific side effect (currently stubbed — real ACLI
+#      wiring lands in a follow-on task).
+#   3. Returns an ApplyResult.
+# ---------------------------------------------------------------------------
+
+
+def _apply_outbound_create(mutation, *, client=None) -> ApplyResult:
+    mut_mod = _load_mutation_module()
+    _direction_guard(mutation, mut_mod.MutationDirection.outbound)
+    if client is None:
+        # Stub path: preserved for tests that don't exercise the I/O leaf.
+        return ApplyResult(mutation.direction, mutation.action, {})
+    payload = dict(mutation.payload)
+    try:
+        _call_with_retry(client.create_issue, payload)
+    except Exception:
+        # Rollback path: if a Jira issue was (likely) created before the failure
+        # surfaced, delete it via the same retry helper so transient delete
+        # failures are also retried. Swallow any rollback error so the ORIGINAL
+        # create exception is what re-raises to the caller.
+        key = payload.get("key_hint") or mutation.target
+        try:
+            _call_with_retry(client.delete_issue, key)
+        except Exception:  # noqa: BLE001
+            # Best-effort rollback: swallow delete errors so the original
+            # create exception propagates to the caller unchanged.
+            pass
+        raise
+    return ApplyResult(mutation.direction, mutation.action, {})
+
+
+# Allowlist of fields that can be pushed outbound via update_issue. Other
+# fields in the changed_fields set are silently dropped — pushing arbitrary
+# fields outbound is a higher-blast-radius change that lands in a follow-up
+# story. Status is governed separately by DSO_RECONCILER_STATUS_GATING.
+_OUTBOUND_UPDATE_ALLOWLIST = frozenset({"title", "description", "assignee", "priority"})
+
+
+def _route_status_via_draft5(mutation, *, client=None):
+    """Stub for status routing via draft5 protocol.
+
+    The final implementation of outbound status push (transition mapping,
+    workflow-state lookup, etc.) lands in a later epic. v1 just acknowledges
+    the dispatch so the gating contract is exercised end-to-end.
+    """
+    # Intentionally a no-op stub. Real impl arrives with the status-push story.
+    return None
+
+
+def _apply_outbound_update(mutation, *, client=None) -> ApplyResult:
+    """v1 outbound update — push allowlisted fields via update_issue.
+
+    Behavior:
+      - Reads ``mutation.payload['changed_fields']`` (falls back to
+        ``mutation.payload`` itself for callers that pass a flat dict).
+      - If ``status`` is present in changed_fields:
+          - When ``DSO_RECONCILER_STATUS_GATING != "1"``: raise
+            ``StatusMappingError`` with zero side-effects.
+          - When ``DSO_RECONCILER_STATUS_GATING == "1"``: delegate to
+            ``_route_status_via_draft5`` and strip ``status`` from the field
+            set before pushing the remaining allowlisted fields.
+      - Filters the field set to ``_OUTBOUND_UPDATE_ALLOWLIST``; non-allowlisted
+        fields are silently dropped (no side-effects on those fields).
+      - Pushes the allowlisted, non-status fields via ``client.update_issue``
+        using the F3-pinned ``update_issue(jira_key, **fields)`` signature,
+        routed through ``_call_with_retry``.
+    """
+    mut_mod = _load_mutation_module()
+    _direction_guard(mutation, mut_mod.MutationDirection.outbound)
+
+    if client is None:
+        # Stub path: preserved for tests that don't exercise the I/O leaf.
+        return ApplyResult(mutation.direction, mutation.action, {})
+
+    payload = dict(mutation.payload or {})
+    changed_fields = payload.get("changed_fields")
+    if changed_fields is None:
+        changed_fields = payload
+
+    # Status gating: status field is governed by DSO_RECONCILER_STATUS_GATING.
+    if "status" in changed_fields:
+        gating = os.environ.get("DSO_RECONCILER_STATUS_GATING", "0")
+        if gating != "1":
+            errs = _load_errors_module()
+            raise errs.StatusMappingError(
+                f"status field touched but DSO_RECONCILER_STATUS_GATING != 1 "
+                f"(got {gating!r}); zero side-effects — refusing to push status "
+                "without explicit operator gating"
+            )
+        # Gating ON — delegate to the draft5 stub. The caller is responsible
+        # for any status-specific routing semantics.
+        _route_status_via_draft5(mutation, client=client)
+        # Strip status before pushing remaining allowlisted fields.
+        changed_fields = {k: v for k, v in changed_fields.items() if k != "status"}
+
+    # Filter to allowlist. Non-allowlisted fields are silently dropped.
+    allowed = {k: v for k, v in changed_fields.items() if k in _OUTBOUND_UPDATE_ALLOWLIST}
+    if allowed:
+        _call_with_retry(client.update_issue, mutation.target, **allowed)
+    return ApplyResult(
+        mutation.direction,
+        mutation.action,
+        {"fields_pushed": sorted(allowed.keys())},
+    )
+
+
+def _apply_outbound_delete(mutation, *, client=None) -> ApplyResult:
+    mut_mod = _load_mutation_module()
+    _direction_guard(mutation, mut_mod.MutationDirection.outbound)
+    return ApplyResult(mutation.direction, mutation.action, {})
+
+
+def _apply_outbound_probe(mutation, *, client=None) -> ApplyResult:
+    mut_mod = _load_mutation_module()
+    _direction_guard(mutation, mut_mod.MutationDirection.outbound)
+    return ApplyResult(mutation.direction, mutation.action, {})
+
+
+def _apply_outbound_conflict(mutation, *, client=None) -> ApplyResult:
+    mut_mod = _load_mutation_module()
+    _direction_guard(mutation, mut_mod.MutationDirection.outbound)
+    return ApplyResult(mutation.direction, mutation.action, {})
+
+
+def _apply_inbound_create(mutation, *, client=None) -> ApplyResult:
+    mut_mod = _load_mutation_module()
+    _direction_guard(mutation, mut_mod.MutationDirection.inbound)
+    return ApplyResult(mutation.direction, mutation.action, {})
+
+
+def _apply_inbound_update(mutation, *, client=None) -> ApplyResult:
+    mut_mod = _load_mutation_module()
+    _direction_guard(mutation, mut_mod.MutationDirection.inbound)
+    return ApplyResult(mutation.direction, mutation.action, {})
+
+
+def _apply_inbound_delete(mutation, *, client=None) -> ApplyResult:
+    mut_mod = _load_mutation_module()
+    _direction_guard(mutation, mut_mod.MutationDirection.inbound)
+    return ApplyResult(mutation.direction, mutation.action, {})
+
+
+def _apply_inbound_probe(mutation, *, client=None) -> ApplyResult:
+    mut_mod = _load_mutation_module()
+    _direction_guard(mutation, mut_mod.MutationDirection.inbound)
+    return ApplyResult(mutation.direction, mutation.action, {})
+
+
+def _apply_inbound_clean_label(mutation, *, client=None) -> ApplyResult:
+    """Remove dso-id-* labels from a Jira issue.
+
+    Inbound-only leaf: invoked when the differ has detected stale or duplicated
+    `dso-id-*` labels on the Jira side that need to be removed. The mutation
+    payload carries the labels to remove under ``labels_to_remove``; only labels
+    that match the ``dso-id-*`` pattern are removed (defensive filter against a
+    misshapen payload). All client calls go through :func:`_call_with_retry`
+    so transient 5xx/429/timeout failures retry with backoff.
+    """
+    mut_mod = _load_mutation_module()
+    _direction_guard(mutation, mut_mod.MutationDirection.inbound)
+    if client is None:
+        # Stub path: preserved for tests that don't exercise the I/O leaf.
+        return ApplyResult(mutation.direction, mutation.action, {})
+    labels = mutation.payload.get("labels_to_remove") or []
+    removed: list[str] = []
+    for label in labels:
+        # Defensive: only remove labels matching the dso-id-* pattern.
+        if not isinstance(label, str) or not label.startswith("dso-id-"):
+            continue
+        _call_with_retry(client.remove_label, mutation.target, label)
+        removed.append(label)
+    return ApplyResult(mutation.direction, mutation.action, {"removed": removed})
+
+
+def _apply_inbound_repair_property(mutation, *, client=None) -> ApplyResult:
+    mut_mod = _load_mutation_module()
+    _direction_guard(mutation, mut_mod.MutationDirection.inbound)
+    return ApplyResult(mutation.direction, mutation.action, {})
+
+
+def _apply_inbound_conflict(mutation, *, client=None) -> ApplyResult:
+    mut_mod = _load_mutation_module()
+    _direction_guard(mutation, mut_mod.MutationDirection.inbound)
+    return ApplyResult(mutation.direction, mutation.action, {})
+
+
+def _build_leaves() -> dict[tuple[Any, Any], Callable[..., ApplyResult]]:
+    """Build the _LEAVES registry.
+
+    Built lazily-but-eagerly (at module import) by walking mutation._VALID_COMBINATIONS
+    and binding the leaf handler for each pair. Only pairs in _VALID_COMBINATIONS
+    are registered — invalid pairs (e.g. outbound + clean_label) are not present
+    by construction.
+    """
+    mut_mod = _load_mutation_module()
+    D = mut_mod.MutationDirection
+    A = mut_mod.MutationAction
+    handlers: dict[tuple[Any, Any], Callable[..., ApplyResult]] = {
+        (D.outbound, A.create): _apply_outbound_create,
+        (D.outbound, A.update): _apply_outbound_update,
+        (D.outbound, A.delete): _apply_outbound_delete,
+        (D.outbound, A.probe): _apply_outbound_probe,
+        (D.outbound, A.conflict): _apply_outbound_conflict,
+        (D.inbound, A.create): _apply_inbound_create,
+        (D.inbound, A.update): _apply_inbound_update,
+        (D.inbound, A.delete): _apply_inbound_delete,
+        (D.inbound, A.probe): _apply_inbound_probe,
+        (D.inbound, A.clean_label): _apply_inbound_clean_label,
+        (D.inbound, A.repair_property): _apply_inbound_repair_property,
+        (D.inbound, A.conflict): _apply_inbound_conflict,
+    }
+    # Filter to only valid combinations — single source of truth is mutation.py.
+    valid = mut_mod._VALID_COMBINATIONS
+    return {k: v for k, v in handlers.items() if k in valid}
+
+
+# The dispatch registry. Keys are (MutationDirection, MutationAction) tuples;
+# values are leaf handler callables of shape (mutation, *, client=None) -> ApplyResult.
+_LEAVES: dict[tuple[Any, Any], Callable[..., ApplyResult]] = _build_leaves()
+
+
+# ---------------------------------------------------------------------------
+# dso-id label write authorization contract
+# ---------------------------------------------------------------------------
+
+_AUTHORIZED_DSO_ID_LABEL_WRITERS_DOC: str = (
+    """
+dso-id label write authorization contract for applier.py
+=========================================================
+
+The applier dispatches mutations through exactly 9 leaf handlers, listed below
+with their authorization status for dso-id label mutations:
+
+  1. outbound_create       — AUTHORIZED for {create}: adds "dso-id:<local_id>"
+                             label when a new Jira issue is created outbound.
+  2. outbound_update       — UNAUTHORIZED for dso-id label mutations.
+  3. outbound_delete       — UNAUTHORIZED for dso-id label mutations.
+  4. outbound_probe        — UNAUTHORIZED for dso-id label mutations.
+  5. outbound_conflict     — UNAUTHORIZED for dso-id label mutations.
+  6. inbound_create        — UNAUTHORIZED for dso-id label mutations.
+  7. inbound_update        — UNAUTHORIZED for dso-id label mutations.
+  8. inbound_clean_label   — AUTHORIZED for {delete}: removes stale or
+                             duplicated "dso-id-*" labels from the Jira side.
+  9. inbound_repair_property — UNAUTHORIZED for dso-id label mutations.
+                              This leaf writes the dso_local_id entity PROPERTY
+                              FIELD via set_issue_property(), NOT the label.
+
+Only inbound_clean_label (delete) and outbound_create (create) may emit
+dso-id label mutations. Any other leaf that emits such a mutation is a bug
+and should raise DsoIdLabelWriteError from _errors.py.
+
+conflict_resolver per-element provenance MUST skip dso-id fields. The
+conflict_resolver must not write, modify, or emit dso-id label mutations;
+dso-id is the identity primitive and its provenance is governed solely by the
+two authorized leaves above, not by the per-field provenance resolution path.
+
+inbound_repair_property writes the dso_local_id property field (entity
+properties, not labels). It MUST NOT touch the label surface.
+"""
+)
+
+_AUTHORIZED_DSO_ID_LABEL_WRITERS: frozenset[str] = frozenset(
+    {"inbound_clean_label", "outbound_create"}
+)
+"""Leaf names authorized to emit dso-id label mutations (see _AUTHORIZED_DSO_ID_LABEL_WRITERS_DOC)."""
+
+# Per-leaf authorized-action map: enforced by _audit_dso_id_label_writes.
+# Each authorized leaf is permitted ONLY the action(s) listed here; any other
+# action on a dso-id-* label by the same leaf raises DsoIdLabelWriteError. The
+# pair set is the single source of truth referenced by
+# _AUTHORIZED_DSO_ID_LABEL_WRITERS_DOC above.
+_AUTHORIZED_DSO_ID_LABEL_ACTIONS: dict[str, frozenset[str]] = {
+    "outbound_create": frozenset({"create"}),
+    "inbound_clean_label": frozenset({"delete"}),
+}
+
+# ---------------------------------------------------------------------------
+# dso-id label write guard
+#
+# _audit_dso_id_label_writes is called after every leaf returns its mutation
+# list (or before dispatching the typed-mutation leaf) to ensure no unauthorized
+# leaf emits a dso-id-* label mutation.
+#
+# Guard mode is controlled by DSO_DSO_ID_GUARD_MODE (env) or dso_id_guard_mode
+# (dso-config.conf key). Precedence: env > config > default ('raise').
+# ---------------------------------------------------------------------------
+
+
+def _get_dso_id_guard_mode_from_config() -> str | None:
+    """Read dso_id_guard_mode from dso-config.conf, if present.
+
+    Returns the value string (e.g. 'raise', 'warn') or None when the key
+    is absent or the file cannot be read.
+
+    Resolution order for the guard mode (env wins):
+      1. os.environ['DSO_DSO_ID_GUARD_MODE']  — checked in _audit_dso_id_label_writes
+      2. This function (dso-config.conf fallback)
+      3. Default: 'raise'
+    """
+    try:
+        config_path = Path(__file__).parents[4] / ".claude" / "dso-config.conf"
+        if not config_path.exists():
+            return None
+        for line in config_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line.startswith("dso_id_guard_mode"):
+                parts = line.split("=", 1)
+                if len(parts) == 2:
+                    return parts[1].strip().strip('"').strip("'")
+    except OSError:
+        # Best-effort config read: filesystem-level failures (permission denied,
+        # missing parent dir on race, etc.) fall through to the default 'raise'
+        # guard mode. Programming errors (AttributeError, TypeError) intentionally
+        # propagate so they surface during test runs.
+        return None
+    return None
+
+
+def _is_dso_id_label_write_mutation(mutation) -> bool:
+    """Return True when *mutation* represents a dso-id-* label write.
+
+    Checks two shapes:
+    - String payload (direct audit call): mutation.target == 'label' AND
+      mutation.payload.startswith('dso-id-') AND action in {create,update,delete}.
+    - Dict payload (full Mutation from apply()): payload contains 'target'=='label'
+      AND 'label' value starts with 'dso-id-' AND action in {create,update,delete}.
+    """
+    action = str(getattr(mutation, "action", ""))
+    if action not in {"create", "update", "delete"}:
+        return False
+    payload = getattr(mutation, "payload", None)
+    if isinstance(payload, str):
+        # String payload: check target field and payload value
+        target = getattr(mutation, "target", "")
+        return target == "label" and payload.startswith("dso-id-")
+    elif isinstance(payload, dict):
+        # Dict payload: check embedded 'target'=='label' and 'label' value
+        embedded_target = payload.get("target", "")
+        label_val = payload.get("label", "")
+        if embedded_target == "label" and isinstance(label_val, str) and label_val.startswith("dso-id-"):
+            return True
+    return False
+
+
+def _audit_dso_id_label_writes(leaf_name: str, mutations: list) -> None:
+    """Guard: raise (or warn) when an unauthorized leaf emits a dso-id-* label mutation.
+
+    Called before leaf dispatch (`_apply_typed`) AND on each leaf invocation in
+    the legacy batch path (`_apply_batch`) to enforce the two-authorized-leaves
+    contract documented in `_AUTHORIZED_DSO_ID_LABEL_WRITERS_DOC`.
+
+    Per-action enforcement (wired via `_AUTHORIZED_DSO_ID_LABEL_ACTIONS`):
+      - When `leaf_name` is in `_AUTHORIZED_DSO_ID_LABEL_WRITERS` but emits an
+        action OUTSIDE its permitted action set (e.g., outbound_create
+        attempting a `delete` on a dso-id label), the guard still raises. The
+        contract is per-action; defeating it would leave a security gap by
+        allowing an authorized leaf to perform any action.
+
+    Guard mode (DSO_DSO_ID_GUARD_MODE env var, dso-config.conf key dso_id_guard_mode,
+    default 'raise'):
+      - 'raise': DsoIdLabelWriteError raised on violation (default, production-safe).
+      - 'warn': WARNING logged with tag DSO_ID_GUARD; no exception raised (staged rollout).
+
+    Precedence: env var > dso-config.conf key > default 'raise'.
+    """
+    is_authorized_leaf = leaf_name in _AUTHORIZED_DSO_ID_LABEL_WRITERS
+    allowed_actions = _AUTHORIZED_DSO_ID_LABEL_ACTIONS.get(leaf_name, frozenset())
+
+    offending = None
+    offending_payload = None
+    offending_action = None
+    for mutation in mutations:
+        if not _is_dso_id_label_write_mutation(mutation):
+            continue
+        action_str = str(getattr(mutation, "action", ""))
+        if is_authorized_leaf and action_str in allowed_actions:
+            # Permitted (leaf, action) pair — skip without raising.
+            continue
+        offending = mutation
+        offending_action = action_str
+        # Extract the label payload for the error message
+        payload = getattr(mutation, "payload", "")
+        if isinstance(payload, str):
+            offending_payload = payload
+        elif isinstance(payload, dict):
+            offending_payload = payload.get("label", str(payload))
+        else:
+            offending_payload = str(payload)
+        break
+
+    if offending is None:
+        return
+
+    # Determine guard mode: env > config > default 'raise'
+    guard_mode = os.environ.get("DSO_DSO_ID_GUARD_MODE")
+    if guard_mode is None:
+        guard_mode = _get_dso_id_guard_mode_from_config()
+    if guard_mode is None:
+        guard_mode = "raise"
+
+    msg = (
+        f"DSO_ID_GUARD: unauthorized dso-id label write from leaf '{leaf_name}' "
+        f"(action={offending_action!r}); offending payload: {offending_payload!r}"
+    )
+
+    if guard_mode == "warn":
+        logger.warning(msg)
+        return
+
+    errs = _load_errors_module()
+    raise errs.DsoIdLabelWriteError(msg)
+
+
+class _BatchAuditView:
+    """Adapter exposing a legacy dict-shaped batch mutation to the audit guard.
+
+    The audit (`_is_dso_id_label_write_mutation`) expects an object with
+    ``target``, ``payload`` (str OR dict), and ``action`` attributes. Legacy
+    batch mutations are dicts of shape ``{"action": ..., "key": ..., "fields":
+    {"labels": [...], ...}}`` — this view surfaces any dso-id-* label values
+    sitting under ``fields["labels"]`` as a synthetic label-write mutation so
+    the guard fires on unauthorized batch paths (e.g., an outbound_update
+    trying to push a dso-id-* label).
+
+    ``target`` is set to 'label' iff the batch mutation includes a dso-id-*
+    label in its fields; otherwise an empty string makes the audit pass-through.
+    """
+
+    __slots__ = ("target", "payload", "action")
+
+    def __init__(self, batch_mutation: dict) -> None:
+        self.action = batch_mutation.get("action", "")
+        fields = batch_mutation.get("fields") or {}
+        labels = fields.get("labels") if isinstance(fields, dict) else None
+        dso_label = None
+        if isinstance(labels, (list, tuple)):
+            for lbl in labels:
+                if isinstance(lbl, str) and lbl.startswith("dso-id-"):
+                    dso_label = lbl
+                    break
+        if dso_label is not None:
+            self.target = "label"
+            self.payload = dso_label
+        else:
+            # Synthesise an explicit non-label target so the guard's
+            # _is_dso_id_label_write_mutation returns False on benign batches.
+            self.target = ""
+            self.payload = ""
+
+
+# Mapping from (MutationDirection.value, MutationAction.value) → canonical leaf name.
+# Mirrors the _LEAVES dispatch table; used by _apply_typed to derive leaf_name for
+# the audit without needing to inspect function names.
+_LEAF_NAMES: dict[tuple[str, str], str] = {
+    ("outbound", "create"):           "outbound_create",
+    ("outbound", "update"):           "outbound_update",
+    ("outbound", "delete"):           "outbound_delete",
+    ("outbound", "probe"):            "outbound_probe",
+    ("outbound", "conflict"):         "outbound_conflict",
+    ("inbound",  "create"):           "inbound_create",
+    ("inbound",  "update"):           "inbound_update",
+    ("inbound",  "delete"):           "inbound_delete",
+    ("inbound",  "probe"):            "inbound_probe",
+    ("inbound",  "clean_label"):      "inbound_clean_label",
+    ("inbound",  "repair_property"):  "inbound_repair_property",
+    ("inbound",  "conflict"):         "inbound_conflict",
+}
+
+
+def _apply_typed(mutation, *, client=None) -> ApplyResult:
+    """Typed-mutation dispatch via _LEAVES.
+
+    Looks up (mutation.direction, mutation.action) in _LEAVES and invokes the
+    handler. Raises UnknownActionError with zero side-effects (no client calls,
+    no I/O) if the pair is not registered.
+
+    Calls _audit_dso_id_label_writes BEFORE invoking the leaf so that any
+    unauthorized dso-id label mutation is blocked prior to side-effects.
+    """
+    key = (mutation.direction, mutation.action)
+    handler = _LEAVES.get(key)
+    if handler is None:
+        errs = _load_errors_module()
+        raise errs.UnknownActionError(
+            f"unknown (direction={mutation.direction.value!s}, "
+            f"action={mutation.action.value!s})"
+        )
+    # Audit: derive leaf_name from the (direction, action) pair and run the
+    # dso-id label write guard before any leaf side-effect occurs.
+    leaf_name = _LEAF_NAMES.get(
+        (mutation.direction.value, mutation.action.value), ""
+    )
+    _audit_dso_id_label_writes(leaf_name, [mutation])
+    return handler(mutation, client=client)
 
 
 # Exit code signalling that the caller should reschedule this pass.
@@ -404,18 +1015,59 @@ def create_one(
     return result
 
 
-def update_one(mutation: dict, client) -> dict:
+def _is_illegal_transition_400(exc: Exception) -> bool:
+    """Detect a 400 illegal-transition response from update_issue.
+
+    Jira rejects status transitions that are not allowed from the current
+    workflow state with a 400 response whose body mentions 'illegal' or
+    'transition'. These are state errors (not transient), so they must not
+    be retried.
+    """
+    code = getattr(exc, "status_code", None) or getattr(exc, "code", None)
+    if code != 400:
+        return False
+    msg = str(exc).lower()
+    return "illegal" in msg or "transition" in msg
+
+
+def update_one(mutation: dict, client) -> dict | None:
     """Update an existing Jira issue from the mutation's key and fields.
 
     F3: AcliClient.update_issue's real signature is ``update_issue(jira_key, **kwargs)``;
     the field dict must be unpacked into keyword arguments rather than passed
     positionally as a single dict — otherwise Jira receives a TypeError on every
     real update call.
+
+    Comment-fallback on 400 illegal-transition: when Jira rejects a status
+    transition because it is not legal from the current workflow state, we do
+    NOT retry (zero update_issue retries on 400 — it is a state error, not a
+    transient). Instead we post a comment recording the local status change
+    so an operator can see the divergence in Jira, and emit a structured log
+    record to stderr.
     """
     fields = mutation.get("fields", {})
     if not isinstance(fields, dict):
         fields = {}
-    return _call_with_retry(client.update_issue, mutation.get("key"), **fields)
+    issue_key = mutation.get("key")
+    try:
+        return _call_with_retry(client.update_issue, issue_key, **fields)
+    except JiraAPIError as exc:
+        if not _is_illegal_transition_400(exc):
+            raise
+        new_status = fields.get("status")
+        comment = f"local status changed to {new_status}"
+        try:
+            client.add_comment(issue_key, comment)
+        except Exception:
+            pass  # secondary failure must not mask the comment-fallback path
+        log_entry = json.dumps({
+            "action": "comment_fallback",
+            "issue_key": issue_key,
+            "attempted_status": new_status,
+            "reason": "400_illegal_transition",
+        })
+        print(log_entry, file=sys.stderr)
+        return None
 
 
 def delete_one(mutation: dict, client) -> None:
@@ -438,6 +1090,63 @@ def delete_one(mutation: dict, client) -> None:
         if getattr(exc, "status_code", None) == 404:
             return  # already-gone is the goal of a delete mutation
         raise
+
+
+def inbound_repair_property(mutation, client) -> dict:
+    """Repair a missing entity property on a Jira issue.
+
+    Happy path: invokes ``client.set_issue_property(target, 'dso_local_id', local_id)``
+    and returns ``{'status': 'ok', 'key': target}``.
+
+    Failure path: when ``set_issue_property`` raises, attempts a follow-on cleanup
+    via ``client.remove_label(target, 'dso-id-<local_id>')`` (best-effort — a
+    ``remove_label`` exception is captured, NOT raised), and returns an outcome
+    dict with ``status='repair_property_failed'`` plus a top-level ``follow_on``
+    payload whose ``kind`` is ``'schema_drift_signal'``. The follow-on is the
+    signalling seam consumed by reconcile.py; this function MUST NOT import
+    invariants directly — preserving the invariants-as-upstream-phase contract
+    (see ticket 44e6-4916 AC: "applier.py does NOT import invariants").
+
+    The follow_on field sits at the TOP LEVEL of the outcome dict (not nested
+    under 'result'); manifest canonical-form serialization is expected to
+    EXCLUDE follow_on fields when computing the content-addressable hash
+    (per AC amendment G2 on ticket 44e6-4916).
+
+    Args:
+        mutation: Object exposing ``.target`` (Jira issue key) and ``.payload``
+                  (mapping with at least a ``'local_id'`` entry).
+        client:   AcliClient (or compatible test double) exposing
+                  ``set_issue_property`` and ``remove_label``.
+
+    Returns:
+        Outcome dict — see status taxonomy above.
+    """
+    target = mutation.target
+    payload = mutation.payload or {}
+    local_id = payload.get("local_id", "")
+
+    try:
+        client.set_issue_property(target, "dso_local_id", local_id)
+        return {"status": "ok", "key": target, "follow_on": None}
+    except Exception as exc:
+        label_remove_err: Exception | None = None
+        try:
+            client.remove_label(target, f"dso-id-{local_id}")
+        except Exception as e:
+            label_remove_err = e
+
+        return {
+            "status": "repair_property_failed",
+            "key": target,
+            "follow_on": {
+                "kind": "schema_drift_signal",
+                "issue_key": target,
+                "reason": f"repair_property_failed: {exc}",
+                "label_remove_error": (
+                    str(label_remove_err) if label_remove_err is not None else None
+                ),
+            },
+        }
 
 
 def _handle_failed_write_result(write_result, pass_id: str) -> None:
@@ -470,11 +1179,52 @@ def _handle_failed_write_result(write_result, pass_id: str) -> None:
 
 
 def apply(
+    mutations=None,
+    pass_id: str | None = None,
+    repo_root: Path | None = None,
+    *,
+    client=None,
+):
+    """Polymorphic dispatch entry point.
+
+    Two call shapes:
+      1. Typed single-mutation:  apply(mutation, *, client=None) -> ApplyResult
+         When the first positional argument is a Mutation instance, dispatch
+         via _LEAVES. Raises UnknownActionError for unregistered pairs (with
+         zero side-effects) and DirectionMismatchError if a leaf is invoked
+         with a mismatched direction.
+      2. Legacy batch:            apply(mutations: list[dict], pass_id, ...) -> Path
+         Original manifest-writing batch dispatcher; behavior unchanged.
+
+    Selection is by argument type at the top of the function.
+    """
+    # Typed-mutation dispatch path: first arg is a Mutation instance.
+    # Duck-type rather than isinstance() because mutation.py may be loaded
+    # under different module names depending on how the importing test rig
+    # set up sys.modules — a strict isinstance() check would silently fall
+    # through to the legacy batch path and raise a confusing TypeError.
+    mut_mod = _load_mutation_module()
+    if isinstance(mutations, mut_mod.Mutation) or (
+        type(mutations).__name__ == "Mutation"
+        and hasattr(mutations, "direction")
+        and hasattr(mutations, "action")
+    ):
+        return _apply_typed(mutations, client=client)
+
+    # Legacy batch path requires pass_id.
+    if pass_id is None:
+        raise TypeError(
+            "apply() legacy batch form requires pass_id as the second argument"
+        )
+    return _apply_batch(mutations or [], pass_id, repo_root=repo_root)
+
+
+def _apply_batch(
     mutations: list[dict],
     pass_id: str,
     repo_root: Path | None = None,
 ) -> Path:
-    """Dispatch mutations to AcliClient and write a flat-JSON manifest.
+    """Legacy batch dispatch: write a flat-JSON manifest for a list of dict mutations.
 
     Performs HEAD-pin drift detection before each mutation: captures the
     tickets-branch HEAD SHA before the first mutation, then re-checks before
@@ -509,9 +1259,8 @@ def apply(
     # on every real invocation. Read credentials from the standard
     # JIRA_URL / JIRA_USER / JIRA_API_TOKEN environment variables, defaulting
     # to "" so test/CI shims that monkey-patch _load_acli still work.
-    # jira_project defaults to "DIG" (matching stale_band.py, open_count_skew_band.py,
-    # and _attestation.py) because an empty projectKey is rejected by ACLI on
-    # every CREATE — bug 4fa9-0846-519e-4c30.
+    # jira_project defaults to "DIG" (matching _attestation.py) because an empty
+    # projectKey is rejected by ACLI on every CREATE — bug 4fa9-0846-519e-4c30.
     client = acli.AcliClient(
         jira_url=os.environ.get("JIRA_URL", ""),
         user=os.environ.get("JIRA_USER", ""),
@@ -559,6 +1308,14 @@ def apply(
 
             action = mutation.get("action", "")
             outcome = dict(mutation)
+
+            # Audit pass: extend the dso-id label write guard to the legacy
+            # batch dispatch path. create_one/update_one/delete_one all issue
+            # outbound Jira writes, so each batch mutation maps to an
+            # outbound_<action> leaf for guard-name purposes. Without this
+            # call, _audit_dso_id_label_writes was bypassed for every legacy
+            # dict-shaped mutation — only _apply_typed enforced the contract.
+            _audit_dso_id_label_writes(f"outbound_{action}", [_BatchAuditView(mutation)])
 
             if action == "create":
                 result = create_one(

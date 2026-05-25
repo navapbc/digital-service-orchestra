@@ -178,3 +178,147 @@ def check_at_most_one_dso_local_id(
             )
 
     return violations_filed
+
+
+# ---------------------------------------------------------------------------
+# Story 7a75: dual-identity completeness verifier + schema-drift reporter
+# ---------------------------------------------------------------------------
+
+# Cap on quarantine entries reported per pass for the dual-identity verifier.
+# Distinct from `_CAP_PER_PASS` above (which gates the at-most-one invariant);
+# kept separate so the two invariants tune independently.
+_DUAL_IDENTITY_CAP_PER_PASS = 50
+
+
+_MUTATION_KEY = "plugins.dso.scripts.dso_reconciler.mutation"
+
+
+def _load_mutation_module():
+    """Load mutation.py under the canonical dotted sys.modules key.
+
+    Reuses ``plugins.dso.scripts.dso_reconciler.mutation`` so that ``Mutation``,
+    ``MutationDirection``, and ``MutationAction`` share a single class identity
+    across the reconciler — invariants.py, applier.py, differ.py, and any other
+    callers compare against the SAME enum members. A previous version loaded
+    under a private key (``invariants_mutation``), producing two distinct
+    ``MutationDirection`` class objects so ``mutation.direction is X`` checks
+    silently failed cross-module.
+    """
+    if _MUTATION_KEY in sys.modules:
+        return sys.modules[_MUTATION_KEY]
+    spec = importlib.util.spec_from_file_location(
+        _MUTATION_KEY, Path(__file__).parent / "mutation.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[_MUTATION_KEY] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def check_dual_identity_complete(
+    local_state: dict, jira_state: dict
+) -> tuple[set[str], list]:
+    """Verify bidirectional binding between local tickets and Jira issues.
+
+    For each local entry with a ``dso_local_id``, find the Jira side whose
+    ``dso_local_id`` matches. Inconsistencies are classified as:
+
+    * **Missing back-pointer** (local has no ``jira_key``) -> seed an inbound
+      ``repair_property`` Mutation to write the back-pointer.
+    * **Conflicting back-pointer** (local's ``jira_key`` does not match the
+      matched peer) -> quarantine the local key.
+    * **Double-bind** (more than one Jira issue claims the same
+      ``dso_local_id``) -> quarantine the local key and every colliding Jira
+      key.
+
+    Returns:
+        (quarantine_keys, seed_repair_property_mutations)
+    """
+    mut_mod = _load_mutation_module()
+    quarantine: set[str] = set()
+    repairs: list = []
+
+    jira_local_id_index: dict[str, list[str]] = {}
+    for jk, jentry in jira_state.items():
+        jid = jentry.get("dso_local_id")
+        if not jid:
+            continue
+        jira_local_id_index.setdefault(jid, []).append(jk)
+
+    for local_key, local in local_state.items():
+        dso_id = local.get("dso_local_id")
+        if not dso_id:
+            continue
+        peer_keys = jira_local_id_index.get(dso_id, [])
+        if not peer_keys:
+            continue
+        if len(peer_keys) > 1:
+            quarantine.add(local_key)
+            for jk in peer_keys:
+                quarantine.add(jk)
+            if len(quarantine) >= _DUAL_IDENTITY_CAP_PER_PASS:
+                report_schema_drift(
+                    local_key,
+                    observed={},
+                    expected={"invariants-cap-hit": True},
+                )
+                break
+            continue
+        peer_key = peer_keys[0]
+        local_jira_pointer = local.get("jira_key")
+        if local_jira_pointer and local_jira_pointer != peer_key:
+            quarantine.add(local_key)
+            continue
+        if not local_jira_pointer:
+            # Align the seeded mutation with applier.inbound_repair_property's
+            # contract: target = JIRA issue key (peer_key), payload carries the
+            # local_id used to write the dso_local_id entity property. A prior
+            # version emitted target=local_key + payload={set_field, value},
+            # which did not match the leaf's expected schema and silently
+            # short-circuited dispatch. (coderabbit / contract-shape fix)
+            repairs.append(
+                mut_mod.Mutation(
+                    direction=mut_mod.MutationDirection.inbound,
+                    action=mut_mod.MutationAction.repair_property,
+                    target=peer_key,
+                    payload={"local_id": dso_id},
+                    provenance={
+                        "reason": "missing_back_pointer",
+                        "local_key": local_key,
+                        "peer": peer_key,
+                    },
+                )
+            )
+
+    return quarantine, repairs
+
+
+def report_schema_drift(issue_key: str, observed: dict, expected: dict) -> None:
+    """File a bug ticket for schema drift via the .claude/scripts/dso shim.
+
+    Uses a stable ``dedup_key`` of the form ``bridge-alert:schema-drift:<issue_key>``
+    so repeated drift on the same issue can be correlated.
+    Subprocess failures are swallowed (``check=False``) — drift reporting is
+    best-effort and must not abort the reconcile loop.
+
+    NOTE: The previous implementation used ``python -m reconciler_cli`` which
+    does not exist as a module in this repo.  This version uses the same
+    ``.claude/scripts/dso ticket create`` shim as the rest of invariants.py.
+    """
+    dedup_key = f"bridge-alert:schema-drift:{issue_key}"
+    repo_root = Path(__file__).resolve().parents[4]
+    ticket_cli = str(repo_root / _TICKET_CLI_RELPATH)
+    subprocess.run(
+        [
+            ticket_cli,
+            "ticket",
+            "create",
+            "bug",
+            f"schema drift: {issue_key}",
+            "--priority",
+            "2",
+            "--description",
+            f"dedup_key={dedup_key} observed={observed} expected={expected}",
+        ],
+        check=False,
+    )
