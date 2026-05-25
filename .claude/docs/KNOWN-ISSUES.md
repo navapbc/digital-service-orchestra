@@ -134,3 +134,162 @@ PYEOF
 Pass shell variables into the heredoc via env vars (`TRACKER_DIR="$dir" python3 - <<'PYEOF'`) — the single-quoted `'PYEOF'` delimiter prevents shell expansion inside the script, which is the bug-prone part of the unconsolidated `python3 -c "..."` form.
 
 **Context**: First observed on PR #343 with `test-ticket-list-has-tag.sh` (3 → 1 python3 calls per fixture, 1.3s → 0.9s) and `test-ticket-list-descendants-dispatcher.sh` (6 → 1, 1.6s → 0.9s). Fix landed in commit `2ecabb83a7`. The same pattern likely exists in other fixture-heavy tests — when investigating new flaky tests in `tests/scripts/`, run `grep -cE '^[[:space:]]*python3 -c' <file>` early.
+
+---
+
+## INC-008: Jira fetcher — JRACLOUD-94632 + 1000-result ceiling + SilentTruncationError
+
+**Symptom**: The dso_reconciler fetcher (`plugins/dso/scripts/dso_reconciler/fetcher.py`) raises `SilentTruncationError` and the reconciler pass aborts before emitting any mutations.
+
+**Background**: ACLI's paginated JQL fetch has a 1000-result hard ceiling (JRACLOUD-94632). Above this size, the Jira API silently truncates the working set without exposing a `total` or `isLast` signal that the client can use to detect the truncation. Worse: under the JRACLOUD-94632 bug, ACLI's `nextPageToken` cursor can return the same token twice in a row when the working set is at the ceiling — a "stuck cursor" that would loop forever without explicit detection.
+
+The fetcher mitigates both failure modes:
+
+1. **Hard-ceiling gate**: once cumulative fetched issues reach 1000 AND the most recent page is exactly `page_size` (suggesting more issues exist), the fetcher raises `SilentTruncationError` before yielding the violating page.
+2. **Same-token-twice fallback**: if `_iter_pages` observes two consecutive pages with an identical `nextPageToken` (or identical first key when token is unavailable), it raises `SilentTruncationError(reason='same-token-twice')`.
+
+The fetcher prefers `startAt` pagination over `nextPageToken` precisely because `startAt` is robust to JRACLOUD-94632 — but the same-token-twice gate exists as a defense-in-depth for whatever ACLI mode is in effect at runtime.
+
+**Why this design**: silent truncation is the load-bearing correctness issue from epic 3a03 — the prior reconciler architecture failed live verification because a truncated working set was indistinguishable from a "no-change" pass, leading to direction-inversion mutations.
+
+**First-check when SilentTruncationError fires**:
+1. Tighten the JQL scope. The current default `project = DIG AND (resolution = Unresolved OR updated >= -1h)` should keep the working set well under 1000 in steady state. If the working set has genuinely exceeded 1000 issues, the operator must triage the unfiltered backlog before resuming reconciler passes.
+2. Check `alert_store` contents for `fetcher-dedup-suppressed` records — these indicate per-issue dedup is firing on consecutive pages, which is correlated with same-token-twice cursor stalls.
+3. Verify `JRACLOUD-94632` has not been reverted/regressed in the ACLI version pinned by the reconciler's runtime environment.
+
+**Related epics**: 4047 (Derivable level-triggered Jira reconciler) successor to 3a03 (failed cumulative cutover).
+## INC-009: Inbound probe: 4-branch classifier + stdlib-urllib + GET-only invariant
+
+**Symptom**: Reconciler dispatches an (inbound, probe) Mutation for a jira_key that disappeared from the working set.
+
+**Contract**: `plugins/dso/scripts/dso_reconciler/inbound_probe.py` exposes a 4-branch classifier:
+- `PRESENT_RESOLVED` — issue exists with status in {Resolved, Done, Cancelled}
+- `PRESENT_FILTERED` — issue exists but no longer matches the JQL filter
+- `ARCHIVED_OR_MOVED` — 404/410/403
+- `UNREACHABLE` — 5xx/401/network/timeout
+
+**stdlib-urllib choice**: deliberately avoids adding a third-party HTTP client. stdlib `urllib.request` is sufficient for a single GET per probe and aligns with the no-risky-dep policy (CLAUDE.md `rule:risky-dep`).
+
+**GET-only invariant**: every Request constructed by the probe uses `get_method() == 'GET'`. POST/PUT/DELETE would be a contract violation — the probe is a pure observability primitive.
+
+**Routing in reconcile.py**: see `route_inbound_probe(mutation, probe_result)` for the 4-branch mapping. hard_delete (ARCHIVED_OR_MOVED) emits (inbound, delete). trash_restore (PRESENT_RESOLVED) and unreachable do not emit follow-ons (audit-log only).
+
+**Operator action when probe returns UNREACHABLE**: do NOT classify the issue as missing — UNREACHABLE means the probe could not determine state. Re-run the next pass; persistent UNREACHABLE across passes indicates a network/credential problem, not a workflow gap.
+
+## INC-010: Outbound status push — comment-fallback heuristic on 400 illegal-transition
+
+**Symptom**: A reconciler pass sees a Jira issue's status field rejected when applying an outbound update. The applier emits an `add_comment` to the issue containing `local status changed to <status>`.
+
+**Why this happens**: Jira's workflow engine forbids some status transitions (e.g., Open → Done directly when an intermediate step is required). When `update_issue(key, status=...)` returns HTTP 400 with an `illegal transition` body, the applier does NOT retry — the request is logically valid but workflow-rejected. Instead, the applier falls back to a comment so the human assignee can see the local intent without breaking the Jira workflow gate.
+
+**Comment shape**: `local status changed to <status>` substring (asserted by `test_400_illegal_transition_falls_back_to_comment`).
+
+**Structured log**: a JSON record with `{action: 'comment_fallback', issue_key, attempted_status, reason: '400_illegal_transition'}` is written to stderr for operator triage.
+
+**Retry semantics**: zero `update_issue` retries on 400 illegal-transition (call_count == 1). Workflow rejections are state errors, not transient — retrying would only re-fire the same rejection.
+
+**Operator action**: review the structured log periodically; if the same `issue_key` appears repeatedly, either the local workflow needs a missing intermediate step OR the Jira workflow needs an additional permitted transition.
+
+**Status gating**: comment-fallback fires regardless of `DSO_RECONCILER_STATUS_GATING`. The env gate controls whether status fields are even DISPATCHED (preflight scan + draft-5 routing); the comment fallback is the applier-side resilience layer for status writes that DO get through.
+
+## INC-011: Dual-identity invariant — quarantine + repair_property failure flows
+
+**Symptom**: `invariants.check_dual_identity_complete(local, jira)` returns a non-empty `quarantine_keys` set and/or a `seed_repair_property_mutations` list. The reconciler suppresses all mutations on quarantined keys and prepends the repair seeds before the differ pass.
+
+**Failure modes detected by `check_dual_identity_complete`**:
+1. **Missing back-pointer** — local ticket has `dso_local_id` set but no `jira_key`; the matched Jira issue points back via `dso_local_id`. Seeds an `(inbound, repair_property)` Mutation to write the missing back-pointer.
+2. **Conflicting back-pointer** — local's `jira_key` does not match the Jira issue whose `dso_local_id` equals the local's. Quarantines the local key.
+3. **Double-bind** — two or more Jira issues claim the same `dso_local_id`. Quarantines the local key AND every colliding Jira key.
+
+**Per-pass cap**: `_DUAL_IDENTITY_CAP_PER_PASS = 50`. Above that, the invariant emits a single `bridge-alert:invariants-cap-hit` and stops adding entries. Operators must triage the cap-hit before the next pass.
+
+**Repair_property failure flow** (task 44e6): when the applier dispatches an `(inbound, repair_property)` mutation and `client.set_issue_property` raises:
+- The applier calls `client.remove_label(target, 'dso-id-<local_id>')` as cleanup (best-effort; secondary errors suppressed).
+- Returns an outcome dict with `follow_on={'kind': 'schema_drift', ...}`.
+- The reconcile.py post-emit filter (52f3) scans for these and invokes `invariants.report_schema_drift(target, observed, expected)` which fires a BRIDGE_ALERT with dedup_key `bridge-alert:schema-drift:<issue_key>`.
+
+**Operator action when quarantine fires**: investigate the local→jira mapping table for the quarantined keys. Run `check_dual_identity_complete` ad-hoc to confirm the failure mode. For double-bind, decide which Jira issue is canonical and clear the `dso_local_id` field from the duplicates.
+
+**Why this matters**: dual-identity is the foundation of direction-tagged mutation safety (epic 4047, successor to the failed 3a03 cutover). A silently broken binding produces inversion bugs at scale.
+
+# INC-012: ProvenanceLedger — stateless content-hash echo-suppression invariant
+
+**Symptom**: A reconciler pass emits zero update mutations even when local and Jira states differ at the byte level for a given field.
+
+**Cause**: The differ's `ProvenanceLedger` integration suppresses any mutation whose target+payload `content_hash` matches the ledger's last recorded entry for that target. This is the "echo" case: the same value just came back from the other side and should NOT trigger a duplicate write.
+
+**Stateless content-hash invariant**: `is_echo(key, value)` compares `hash(value)` against the ledger's last entry — NOT the full write history. This is deliberate. The ledger is a sliding-window memory, not a persistent provenance log.
+
+**Why not persistent provenance**: persistent storage of per-element provenance was considered (story 26de-eb67-29d2-48ae) and REJECTED as a "fix" for echo suppression. Reasons:
+1. Hash equality is sufficient for the echo case — full history adds complexity without behavioral benefit.
+2. Persistent storage introduces a coordination hazard between reconciler passes (which pass owns the history? what happens on partial-pass failures?).
+3. The reconciler is designed to be stateless across pass boundaries — adding persistent provenance breaks the design contract that any single pass is sufficient to bring the bridge to a consistent state.
+
+**Operator warning**: do NOT extend ProvenanceLedger with persistent storage as a "fix" for surprising echo-suppression behavior. The right response to an unexpected suppression is: (a) verify the suppression actually was the right outcome (the values DO match), or (b) audit the upstream emission site to see what was recorded.
+
+**Related epic**: 4047 (Derivable Jira reconciler), story 26de-eb67-29d2-48ae (per-element provenance for conflict resolution).
+
+---
+
+## INC-013: Reconciler Orchestrator — Mode flag, pass-lock, phase-gate, 9-leaf dispatch
+
+**Story**: 9e3f-3208-af65-4b34 (orchestrator integration: mode + concurrency guards + dispatch table)
+
+### Mode flag
+
+`plugins/dso/scripts/dso_reconciler/mode.py` (task 0fb4) defines a strictly ordered `Mode` enum with 4 members:
+
+| Value | Meaning |
+|---|---|
+| `dry-run` | Read-only diff analysis; no writes emitted |
+| `bootstrap-strict` | Write-enabled, one mutation per pass; phase-gate required |
+| `bootstrap-throttle` | Write-enabled, throttled batch size; phase-gate removed |
+| `live` | Fully operational; no throttle |
+
+Ordering: `dry-run < bootstrap-strict < bootstrap-throttle < live`. There is **no `--force` override** that skips mode checks — the flag is a rollout-safety knob enforced in the main guard sequence (`plugins/dso/scripts/dso_reconciler/__main__.py`, task f516). `dry-run` is the fail-fast pre-fetcher mode: it runs the full fetch + diff pipeline but suppresses all applier calls.
+
+**Drift modes vs rollout modes**: `inject-and-heal.sh --mode=orphan|mislabel|missing-prop` is a shell-script `case` parameter for that script only. It is orthogonal to `reconcile.py`'s Mode enum — the two namespaces do not overlap.
+
+### Pass-lock (`.reconciler-pass-lock`)
+
+`.reconciler-pass-lock` is an **advisory** lock file stored on the `tickets` orphan branch. It complements — but does not replace — the GitHub Actions `concurrency: cancel-in-progress: false` setting at `.github/workflows/reconcile-bridge.yml` lines 21–23.
+
+**How it works** (implementation: `plugins/dso/scripts/dso_reconciler/_advisory_lock.py`, task a2ba):
+
+- The main guard sequence (`__main__.py`) acquires the lock at pass start via `git show tickets:.reconciler-pass-lock` to check for an existing holder.
+- A second invocation observes the lock file via `git show tickets:.reconciler-pass-lock` and exits non-zero in the pre-fetcher phase — before any fetch I/O occurs.
+- Acquire and release use the `_concurrency.rebase_retry` pattern to handle concurrent `tickets`-branch commits.
+
+**Why advisory**: the lock does not prevent concurrent execution at the OS level. The GHA `cancel-in-progress: false` ensures the workflow queue does not auto-cancel a running pass, and the advisory lock ensures a second invocation that races through the queue gate self-aborts without conflicting writes.
+
+**Operator action on stuck lock**: if `.reconciler-pass-lock` persists after a crashed pass, remove it manually: `git checkout tickets && git rm .reconciler-pass-lock && git commit -m 'release stuck pass-lock' && git checkout -`.
+
+### Phase-gate (`.reconciler-phase-gate`)
+
+`.reconciler-phase-gate` is a presence-based sentinel on the `tickets` orphan branch. Its presence signals that the reconciler is in `bootstrap-strict` mode. **Removing the file advances the rollout to `bootstrap-throttle`.**
+
+**Exact advance command** (operator-run; requires tickets-branch write access):
+
+```bash
+git checkout tickets && git rm .reconciler-phase-gate && git commit -m 'advance phase gate' && git checkout -
+```
+
+The main guard sequence (`__main__.py`) checks for the gate file at startup. If `Mode == bootstrap-strict` and the gate file is absent, the orchestrator treats the mode as `bootstrap-throttle` for the current pass. This is the designed advance path — do not edit `mode.py` or the CLI invocation to skip the gate.
+
+### 9-leaf dispatch table
+
+`plugins/dso/scripts/dso_reconciler/reconcile.py` (task 577c) builds a lazy `_DISPATCH_TABLE` keyed by `(direction, action)` pairs. The 9 primary dispatch leaves are:
+
+| Leaf key | Applier symbol |
+|---|---|
+| `inbound_create` | `_apply_inbound_create` |
+| `inbound_update` | `_apply_inbound_update` |
+| `inbound_delete` | `_apply_inbound_delete` |
+| `inbound_clean_label` | `_apply_inbound_clean_label` |
+| `inbound_repair_property` | `_apply_inbound_repair_property` |
+| `inbound_probe` | `_apply_inbound_probe` |
+| `outbound_create` | `_apply_outbound_create` |
+| `outbound_update` | `_apply_outbound_update` |
+| `outbound_delete` | `_apply_outbound_delete` |
+
+Each leaf maps one `(direction, action)` combination to a bound applier method. The table is built lazily on first dispatch call. An unknown `(direction, action)` key raises `UnknownDispatchLeaf` — it is never silently skipped.
