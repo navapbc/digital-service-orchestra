@@ -1,0 +1,1 @@
+{"author":"Test","data":{"body":"Classification: behavioral, Score: 3 (INTERMEDIATE) — severity=2 (live-verification blocker), complexity=0 (one-line cause), environment=1 (CI-path only), intermittent=0 (deterministic)"},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1779745092080700000,"uuid":"bbb9308b-d5e9-4024-9b20-cd7c3cb260dc"}
