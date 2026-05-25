@@ -6,7 +6,9 @@ by an explicit allowlist (`_VALID_COMBINATIONS`): clean_label and
 repair_property are inbound-only — they have no outbound semantics.
 """
 
-from collections.abc import Mapping
+import hashlib
+import json
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
@@ -69,3 +71,27 @@ class Mutation:
         # (direction, action, target) triple — payload/provenance are
         # descriptive metadata, not part of the identity.
         return hash((self.direction, self.action, self.target))
+
+
+def serialize_manifest(mutations: Iterable[Mutation]) -> tuple[str, str]:
+    """Serialize a list of Mutations to a canonical JSON manifest + sha256 hash.
+
+    Sort by (direction.value, action.value, target). Pure — no I/O, no time.
+    Returns (json_text, sha256_hash_hex).
+    """
+    sorted_muts = sorted(
+        mutations, key=lambda m: (m.direction.value, m.action.value, m.target)
+    )
+    items = [
+        {
+            "direction": m.direction.value,
+            "action": m.action.value,
+            "target": m.target,
+            "payload": dict(m.payload),
+            "provenance": dict(m.provenance),
+        }
+        for m in sorted_muts
+    ]
+    json_text = json.dumps(items, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    sha256_hash = hashlib.sha256(json_text.encode("utf-8")).hexdigest()
+    return json_text, sha256_hash

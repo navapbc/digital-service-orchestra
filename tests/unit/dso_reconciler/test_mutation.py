@@ -12,7 +12,9 @@ These tests are RED: mutation.py does not yet exist.
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
+import random
 from pathlib import Path
 from types import ModuleType
 
@@ -204,3 +206,118 @@ def test_payload_and_provenance_accept_empty_dicts(mut: ModuleType) -> None:
     )
     assert m.payload == {}
     assert m.provenance == {}
+
+
+# ---------------------------------------------------------------------------
+# serialize_manifest tests
+# ---------------------------------------------------------------------------
+
+
+def _build_six_mutations(mut: ModuleType) -> list:
+    """Build 6 distinct Mutations spanning multiple directions/actions/targets."""
+    return [
+        mut.Mutation(
+            direction=mut.MutationDirection.outbound,
+            action=mut.MutationAction.create,
+            target="issue-100",
+            payload={"title": "A"},
+            provenance={"src": "r1"},
+        ),
+        mut.Mutation(
+            direction=mut.MutationDirection.outbound,
+            action=mut.MutationAction.update,
+            target="issue-200",
+            payload={"field": "status"},
+            provenance={"src": "r2"},
+        ),
+        mut.Mutation(
+            direction=mut.MutationDirection.inbound,
+            action=mut.MutationAction.clean_label,
+            target="issue-300",
+            payload={},
+            provenance={"reason": "drift"},
+        ),
+        mut.Mutation(
+            direction=mut.MutationDirection.inbound,
+            action=mut.MutationAction.repair_property,
+            target="issue-400",
+            payload={"field": "x"},
+            provenance={},
+        ),
+        mut.Mutation(
+            direction=mut.MutationDirection.outbound,
+            action=mut.MutationAction.delete,
+            target="issue-500",
+            payload={},
+            provenance={"src": "r5"},
+        ),
+        mut.Mutation(
+            direction=mut.MutationDirection.inbound,
+            action=mut.MutationAction.probe,
+            target="issue-600",
+            payload={"probe": True},
+            provenance={},
+        ),
+    ]
+
+
+def test_serialize_manifest_stable_across_100_permutations(mut: ModuleType) -> None:
+    """serialize_manifest must produce identical (json_text, hash) across input orderings."""
+    base = _build_six_mutations(mut)
+    rng = random.Random(42)
+    expected_json, expected_hash = mut.serialize_manifest(base)
+    for _ in range(100):
+        permuted = base[:]
+        rng.shuffle(permuted)
+        json_text, sha_hash = mut.serialize_manifest(permuted)
+        assert json_text == expected_json
+        assert sha_hash == expected_hash
+
+
+def test_serialize_manifest_sort_key(mut: ModuleType) -> None:
+    """serialize_manifest items must be sorted by (direction.value, action.value, target)."""
+    import json as _json
+
+    scrambled = [
+        mut.Mutation(
+            direction=mut.MutationDirection.outbound,
+            action=mut.MutationAction.update,
+            target="zzz",
+            payload={},
+            provenance={},
+        ),
+        mut.Mutation(
+            direction=mut.MutationDirection.inbound,
+            action=mut.MutationAction.create,
+            target="aaa",
+            payload={},
+            provenance={},
+        ),
+        mut.Mutation(
+            direction=mut.MutationDirection.outbound,
+            action=mut.MutationAction.create,
+            target="mmm",
+            payload={},
+            provenance={},
+        ),
+    ]
+    json_text, _ = mut.serialize_manifest(scrambled)
+    items = _json.loads(json_text)
+    keys = [(it["direction"], it["action"], it["target"]) for it in items]
+    assert keys == sorted(keys)
+    # Explicit expected order
+    assert keys == [
+        ("inbound", "create", "aaa"),
+        ("outbound", "create", "mmm"),
+        ("outbound", "update", "zzz"),
+    ]
+
+
+def test_serialize_manifest_hash_is_sha256_of_text(mut: ModuleType) -> None:
+    """The returned hash must be the sha256 hex digest of the utf-8 encoded json_text."""
+    muts = _build_six_mutations(mut)
+    json_text, sha_hash = mut.serialize_manifest(muts)
+    expected = hashlib.sha256(json_text.encode("utf-8")).hexdigest()
+    assert sha_hash == expected
+    assert len(sha_hash) == 64
+    assert all(c in "0123456789abcdef" for c in sha_hash)
