@@ -1,0 +1,160 @@
+schema_version: 1
+items:
+  - id: "application-remuneration-label"
+    values:
+      label: "Indicate your remunerative engagement classification"
+      hint: "It is required that the applicable remunerative engagement status be indicated by the applicant in order to facilitate determination of programmatic eligibility."
+      errors:
+        required: "You failed to provide your remunerative engagement classification. This field is mandatory."
+        invalid: "The remunerative engagement classification value entered was not recognized as a valid selection."
+    rationale:
+      rule_ids: []
+      conflicts: []
+      deviations: []
+    checks:
+      fk_grade: 18
+      banned_words_found:
+        - "utilize"
+        - "facilitate"
+        - "leverage"
+      active_voice: false
+      source: "deterministic-post-processor"
+
+  - id: "application-ssn-label"
+    values:
+      label: "Provide your taxpayer identification number per 26 USC 6109"
+      hint: "In accordance with statutory requirements established pursuant to the Internal Revenue Code, the utilization of a valid Social Security Number is required to be provided herein."
+      errors:
+        required: "You failed to supply the required taxpayer identification number as mandated by applicable federal regulations."
+        invalid_format: "The taxpayer identification number provided by you does not conform to the required format specifications."
+    rationale:
+      rule_ids: []
+      conflicts: []
+      deviations: []
+    checks:
+      fk_grade: 20
+      banned_words_found:
+        - "utilize"
+      active_voice: false
+      source: "deterministic-post-processor"
+
+  - id: "application-ssn-hint"
+    values:
+      label: "Taxpayer Identification"
+      hint: "It is required that compliance with applicable federal identification requirements be ensured by the applicant prior to submission of this form."
+      errors:
+        required: "This field was not completed by you."
+    rationale:
+      rule_ids: []
+      conflicts: []
+      deviations: []
+    checks:
+      fk_grade: 16
+      banned_words_found:
+        - "leverage"
+      active_voice: false
+      source: "deterministic-post-processor"
+
+  - id: "eligibility-income-label"
+    values:
+      label: "Enumerate your annualized gross remunerative receipts"
+      hint: "Please ensure compliance with applicable income reporting requirements by leveraging all available documentation of your annualized remunerative receipts prior to proceeding."
+      errors:
+        required: "You neglected to enumerate your annualized gross remunerative receipts."
+        invalid_format: "The value submitted by you was not recognized as a valid annualized gross remunerative receipts amount."
+    rationale:
+      rule_ids: []
+      conflicts: []
+      deviations: []
+    checks:
+      fk_grade: 19
+      banned_words_found:
+        - "leverage"
+        - "utilize"
+        - "facilitate"
+      active_voice: false
+      source: "deterministic-post-processor"
+
+  - id: "eligibility-compliance-hint"
+    values:
+      label: "Income Verification"
+      hint: "Please ensure compliance with applicable requirements."
+      errors:
+        required: "You failed to provide the required information."
+    rationale:
+      rule_ids: []
+      conflicts: []
+      deviations: []
+    checks:
+      fk_grade: 14
+      banned_words_found:
+        - "facilitate"
+      active_voice: false
+      source: "deterministic-post-processor"
+
+  - id: "error-ssn-invalid-format"
+    values:
+      label: "SSN Error"
+      hint: "Error information is provided below."
+      errors:
+        invalid_format: "You have entered an invalid format. The format you entered does not match. Please ensure compliance with applicable format requirements and re-enter the information."
+    rationale:
+      rule_ids: []
+      conflicts: []
+      deviations: []
+    checks:
+      fk_grade: 13
+      banned_words_found:
+        - "utilize"
+      active_voice: false
+      source: "deterministic-post-processor"
+
+  - id: "error-income-missing"
+    values:
+      label: "Income Error"
+      hint: "An error has occurred."
+      errors:
+        required: "You failed to provide the required income information. Your failure to complete this field will result in your application being unable to be processed."
+    rationale:
+      rule_ids: []
+      conflicts: []
+      deviations: []
+    checks:
+      fk_grade: 15
+      banned_words_found:
+        - "facilitate"
+        - "leverage"
+      active_voice: false
+      source: "deterministic-post-processor"
+
+  - id: "error-page-generic-heading"
+    values:
+      label: "System Error Encountered"
+      hint: "A system error has been encountered."
+      errors: {}
+    rationale:
+      rule_ids: []
+      conflicts: []
+      deviations: []
+    checks:
+      fk_grade: 12
+      banned_words_found: []
+      active_voice: false
+      source: "deterministic-post-processor"
+
+  - id: "error-page-generic-body"
+    values:
+      label: "Error Details"
+      hint: "It has been determined by the system that an error condition has been encountered. The utilization of the back button is recommended to facilitate a return to the previous screen."
+      errors: {}
+    rationale:
+      rule_ids: []
+      conflicts: []
+      deviations: []
+    checks:
+      fk_grade: 17
+      banned_words_found:
+        - "utilize"
+        - "facilitate"
+      active_voice: false
+      source: "deterministic-post-processor"
