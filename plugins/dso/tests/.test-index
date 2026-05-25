@@ -28,3 +28,4 @@ docs/contracts/copy-needs-section.md:tests/test-brainstorm-phase-1-5-detector.sh
 agents/gov-copy-writer.md:tests/test-gov-copy-writer-agent.sh
 docs/contracts/gov-copy-artifact.md:tests/test-gov-copy-writer-agent.sh
 docs/contracts/copy-needs-section.md:tests/test-gov-copy-writer-agent.sh
+agents/gov-copy-writer.md:tests/test-gov-copy-writer-checks-isolation.sh

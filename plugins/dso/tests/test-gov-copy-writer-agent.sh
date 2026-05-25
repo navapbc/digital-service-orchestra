@@ -214,6 +214,53 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Test 14: Prohibited Outputs section exists and names all forbidden fields
+# ---------------------------------------------------------------------------
+echo ""
+echo "--- test 14: Prohibited Outputs section listing forbidden fields ---"
+if grep -q 'Prohibited Outputs' "$AGENT_FILE"; then
+  pass "Prompt has a 'Prohibited Outputs' section"
+else
+  fail "Prompt missing 'Prohibited Outputs' section"
+fi
+
+for field in fk_grade banned_words_found active_voice source; do
+  if grep -q "checks\.$field" "$AGENT_FILE"; then
+    pass "Prohibited Outputs section names forbidden field: checks.$field"
+  else
+    fail "Prohibited Outputs section missing forbidden field: checks.$field"
+  fi
+done
+
+# ---------------------------------------------------------------------------
+# Test 15: Agent explicitly says do not populate checks / post-processor owns it
+# ---------------------------------------------------------------------------
+echo ""
+echo "--- test 15: explicit 'do not populate checks' prohibition ---"
+if grep -qiE 'do not populate|Do not populate' "$AGENT_FILE"; then
+  pass "Prompt contains explicit 'do not populate' prohibition"
+else
+  fail "Prompt does not contain explicit 'do not populate' wording"
+fi
+
+if grep -qE 'deterministic post-processor.*(story 67c1|owns)|(story 67c1).*deterministic post-processor' "$AGENT_FILE"; then
+  pass "Prompt names deterministic post-processor (story 67c1) as checks owner"
+else
+  fail "Prompt does not name deterministic post-processor (story 67c1) as checks owner"
+fi
+
+# ---------------------------------------------------------------------------
+# Test 16: GOV_COPY_WRITER_RESULT example omits checks block
+# ---------------------------------------------------------------------------
+echo ""
+echo "--- test 16: artifact YAML example omits checks block ---"
+if grep -q 'checks block intentionally absent' "$AGENT_FILE"; then
+  pass "YAML example comments that checks block is intentionally absent"
+else
+  fail "YAML example does not note that checks block is intentionally absent"
+fi
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 echo ""
