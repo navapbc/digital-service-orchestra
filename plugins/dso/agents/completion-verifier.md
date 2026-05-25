@@ -226,7 +226,7 @@ This prevents the epic verifier from applying stricter criteria than the story v
 After evaluating all SC criteria but before running consumer smoke tests, apply the project closure hooks mechanism. Read the `project_closure_hooks` config key to determine whether project-specific hooks are registered. See `${CLAUDE_PLUGIN_ROOT}/docs/contracts/end-state-item-validator.md` for the full hook interface contract.
 
 ```bash
-_CLOSURE_HOOKS=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" project_closure_hooks 2>/dev/null || true)
+_CLOSURE_HOOKS=$(.claude/scripts/dso read-config.sh project_closure_hooks 2>/dev/null || true)
 ```
 
 **If `project_closure_hooks` is present and non-empty**: Dispatch each registered hook against the `## Closure Checks` items read in Step 2.5. **If the Closure Checks section is absent or empty, skip hook invocation entirely** — hooks are not called when there are no items to evaluate; `closure_checks_results` is an empty array in that case. For each hook invocation, pass inputs as environment variables (`ITEM_TEXT`, `ITEM_SOURCE_TICKET_ID`, `CLOSURE_TIMESTAMP`) and capture JSON from stdout. Apply the verdict rules from the `end-state-item-validator` contract: `valid: true` = PASS, `valid: false` + `severity: "block"` = FAIL (blocks closure), `valid: false` + `severity: "warn"` = WARN (advisory, does not block). Include hook results in `closure_checks_results` with the hook name as an annotation; only FAIL results (not WARN) should appear in `criteria_results`.
@@ -287,6 +287,25 @@ Include all three gate results (SC9, SC14, SC13) as separate entries in `criteri
 - `"SC14: FP rate gate — rolling FP rate for epic ticket"`
 - `"SC13: Restart-rate drop analysis — documented methodology"`
 
+### Step 3b: Manual Story Sentinel Check
+
+When a story has the tag `manual:awaiting_user`:
+
+1. Scan the story's ticket comments for a comment whose body starts with `MANUAL_PAUSE_SENTINEL: `.
+2. Parse the JSON payload after the prefix (see `${CLAUDE_PLUGIN_ROOT}/docs/contracts/manual-pause-sentinel.md` for schema).
+3. Apply verdict rules:
+
+   | Sentinel state | Verdict |
+   |---|---|
+   | **Absent** | `PENDING` — story may be mid-handshake; do not count as FAIL. Log: "Manual story `<id>` has no sentinel yet — story may be mid-handshake. Skipping done-definition evaluation." Mark all done definitions `PENDING`. `overall_verdict` for this story: `PENDING`; `P1`: `BLOCKED`. |
+   | Present, `handshake_outcome=done` or `done_with_story_id`, `verification_command_exit_code=0` | All done definitions `PASS`. |
+   | Present, `handshake_outcome=done` or `done_with_story_id`, `verification_command_exit_code=null`, `user_input` non-null | All done definitions `PASS` (confirmation token confirmed). |
+   | Present, `handshake_outcome=skip` | All done definitions `SKIPPED` (not FAIL — skip is a legitimate outcome). |
+   | Present, `handshake_outcome=done` or `done_with_story_id`, `verification_command_exit_code != 0` | Done definitions `FAIL`. |
+   | Present but JSON malformed | Treat as absent (`PENDING`). Log warning. |
+
+4. **Do NOT re-execute `verification_command`. Do NOT re-prompt the user. The sentinel is the authoritative record.**
+
 ### Step 3c: DSO-Story-Merge Trailer Provenance Check (Epic Only)
 
 **Applies only when `ticket_type == "epic"`.** Skip this step entirely for stories.
@@ -310,7 +329,7 @@ A child story that closed without a trailer indicates a Phase F bypass (the f360
    git log <base>..HEAD --grep="^DSO-Story-Merge: <story-id>$" --extended-regexp --format=%H | head -1
    ```
 
-   where `<base>` is the merge base of the session branch with the project's default branch (commonly `origin/main`). If the local environment lacks an `origin/HEAD` symbolic ref, fall back to `main`.
+   where `<base>` is the merge base of the session branch with the project's default branch. Resolve via `git symbolic-ref refs/remotes/origin/HEAD`; if absent (shallow CI checkout), fall back to whichever of `origin/main` or `origin/master` actually resolves locally. Do not hardcode a branch name. See `verify-story-merge-trailer.sh` for the canonical resolution logic.
 
 3. Apply the verdict rule:
 
@@ -332,25 +351,6 @@ A child story that closed without a trailer indicates a Phase F bypass (the f360
 4. **Severity rationale**: `block` (not `warn`) — missing trailers corrupt provenance for ALL downstream tooling, not just this epic. A missing trailer cannot be inferred from other signals.
 
 5. **Recovery guidance** (include in the verifier's narrative when a FAIL is emitted): the operator must either (a) re-run `merge-story-branch.sh story/<epic-id>/<story-id> <story-id>` locally to write a recovery trailer commit, or (b) re-dispatch the story PR with `BRANCH=story/<epic-id>/<story-id> STORY_PR_BASE=<session-branch> bash <plugin-scripts>/merge-to-main.sh` in ci-pr mode. See bug `db71-e078-ec99-4fbf` and `verify-story-merge-trailer.sh` for the canonical implementation of the trailer-presence assertion.
-
-### Step 3b: Manual Story Sentinel Check
-
-When a story has the tag `manual:awaiting_user`:
-
-1. Scan the story's ticket comments for a comment whose body starts with `MANUAL_PAUSE_SENTINEL: `.
-2. Parse the JSON payload after the prefix (see `${CLAUDE_PLUGIN_ROOT}/docs/contracts/manual-pause-sentinel.md` for schema).
-3. Apply verdict rules:
-
-   | Sentinel state | Verdict |
-   |---|---|
-   | **Absent** | `PENDING` — story may be mid-handshake; do not count as FAIL. Log: "Manual story `<id>` has no sentinel yet — story may be mid-handshake. Skipping done-definition evaluation." Mark all done definitions `PENDING`. `overall_verdict` for this story: `PENDING`; `P1`: `BLOCKED`. |
-   | Present, `handshake_outcome=done` or `done_with_story_id`, `verification_command_exit_code=0` | All done definitions `PASS`. |
-   | Present, `handshake_outcome=done` or `done_with_story_id`, `verification_command_exit_code=null`, `user_input` non-null | All done definitions `PASS` (confirmation token confirmed). |
-   | Present, `handshake_outcome=skip` | All done definitions `SKIPPED` (not FAIL — skip is a legitimate outcome). |
-   | Present, `handshake_outcome=done` or `done_with_story_id`, `verification_command_exit_code != 0` | Done definitions `FAIL`. |
-   | Present but JSON malformed | Treat as absent (`PENDING`). Log warning. |
-
-4. **Do NOT re-execute `verification_command`. Do NOT re-prompt the user. The sentinel is the authoritative record.**
 
 ### Step 4: Consumer Smoke Tests (Infrastructure Epics)
 
@@ -407,7 +407,7 @@ _dso_pv_exit_write "epic-closure" "${_UPSTREAM_EVENT_ID:-}" "${SPEC_HASH:-}" "${
 # Write the verifier JSON to a temp file, then render the narrative
 _VERIFIER_TMP=$(mktemp /tmp/verifier-output.XXXXXX)
 # <write the verifier JSON to $_VERIFIER_TMP>
-_NARRATIVE=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/render-closure-narrative.sh" "$_VERIFIER_TMP")
+_NARRATIVE=$(.claude/scripts/dso render-closure-narrative.sh "$_VERIFIER_TMP")
 # Use $_NARRATIVE as the "narrative" field value verbatim
 ```
 
@@ -417,7 +417,7 @@ Before finalizing output, check bypass log completeness if any gate overrides oc
 
 ```bash
 # If artifact bundle has gate_overrides, validate bypass logs
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/bypass-log-check.sh" --artifact-file="$_VERIFIER_TMP"
+.claude/scripts/dso bypass-log-check.sh --artifact-file="$_VERIFIER_TMP"
 ```
 
 If `bypass-log-check.sh` exits non-zero, set `P1: FAIL` and add a criterion result entry documenting the missing bypass log. Do NOT emit a PASS verdict when gate overrides lack required bypass log entries.

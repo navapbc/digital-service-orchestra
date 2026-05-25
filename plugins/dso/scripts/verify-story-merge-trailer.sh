@@ -25,7 +25,8 @@
 #   verify-story-merge-trailer.sh <story-id> [--base=<ref>]
 #   verify-story-merge-trailer.sh --help
 #
-# --base defaults to the remote default branch (origin/HEAD → main fallback).
+# --base defaults to the remote default branch (origin/HEAD → existing
+# origin/main or origin/master → exit 2 config error).
 
 set -uo pipefail
 
@@ -37,7 +38,9 @@ Asserts that <base>..HEAD contains a commit whose body carries the
 trailer 'DSO-Story-Merge: <story-id>'.
 
 Options:
-  --base=<ref>   Base ref to scan from (default: origin/HEAD → main).
+  --base=<ref>   Base ref to scan from (default: detect via origin/HEAD,
+                 falling back to whichever of origin/main or origin/master
+                 actually resolves).
   --help         Print this message and exit 0.
 
 Exit codes:
@@ -69,13 +72,27 @@ for arg in "$@"; do
     esac
 done
 
-# Resolve default base: try origin/HEAD symbolic ref, fall back to 'main'.
+# Resolve default base. Resolution order:
+#   1. origin/HEAD symbolic ref (set on most clones; missing on shallow CI
+#      checkouts).
+#   2. Whichever of origin/main or origin/master actually resolves
+#      locally — adapts to projects whose default branch is not 'main'
+#      without assuming a name.
+#   3. Exit with config error (code 2): caller must pass --base=<ref>.
+# Do NOT silently default to 'main' — that masks portability bugs in
+# projects whose default branch is named differently.
 if [[ -z "$_BASE" ]]; then
     if _ref=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null); then
         _BASE="${_ref#refs/remotes/origin/}"
         _BASE="origin/$_BASE"
+    elif git rev-parse --verify origin/main >/dev/null 2>&1; then
+        _BASE="origin/main"
+    elif git rev-parse --verify origin/master >/dev/null 2>&1; then
+        _BASE="origin/master"
     else
-        _BASE="main"
+        echo "ERROR: cannot resolve default base ref (no origin/HEAD, origin/main, or origin/master)" >&2
+        echo "       pass --base=<ref> explicitly" >&2
+        exit 2
     fi
 fi
 
