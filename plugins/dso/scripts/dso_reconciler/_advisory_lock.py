@@ -324,6 +324,8 @@ def _write_file_to_tickets_branch(
         try:
             _git_run(repo_root, ["worktree", "remove", "--force", str(worktree_dir)])
         except subprocess.CalledProcessError:
+            # Best-effort cleanup: if the worktree remove fails (e.g. already gone),
+            # ignore it — rmtree below will still clean up the temp directory.
             pass
         _shutil.rmtree(worktree_parent, ignore_errors=True)
 
@@ -351,6 +353,8 @@ def _delete_file_from_tickets_branch(
         try:
             _git_run(repo_root, ["worktree", "remove", "--force", str(worktree_dir)])
         except subprocess.CalledProcessError:
+            # Best-effort cleanup: if the worktree remove fails (e.g. already gone),
+            # ignore it — rmtree below will still clean up the temp directory.
             pass
         _shutil.rmtree(worktree_parent, ignore_errors=True)
 
