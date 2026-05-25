@@ -568,20 +568,14 @@ jobs:
             echo "Integration scope empty — Run LLM review will dispatch against the full PR diff (direct-PR path)"
             # bug db71-e078-ec99-4fbf: an empty integration scope on a
             # multi-commit session PR is a signal that DSO-Story-Merge
-            # trailers are missing — likely a Phase F bypass. Surface as
-            # a GitHub Actions warning so reviewers see it on the PR.
-            # Event guard: head_ref/base_ref are only populated on
-            # pull_request events; on push events they are empty, which
-            # would make the git log invocation reference an empty ref
-            # and the warning would never fire — masking the signal.
-            if [[ "${EVENT_NAME}" == "pull_request" && -n "${BASE_REF}" ]]; then
-              # Guard: only emit when the PR has more than one non-merge
-              # commit (a single trivial change legitimately has no scope).
-              NON_MERGE_COUNT=$(git log "origin/${BASE_REF}..HEAD" --no-merges --oneline 2>/dev/null | wc -l | tr -d ' ')
-              if [[ "${NON_MERGE_COUNT:-0}" -gt 1 ]]; then
-                echo "::warning::No per-story DSO-Story-Merge trailers found on ${HEAD_REF}; llm-review will run against the full diff. See bug db71-e078-ec99-4fbf."
-              fi
-            fi
+            # trailers are missing — likely a Phase F bypass. Delegate the
+            # warning emission to emit-missing-trailer-warning.sh so the
+            # behavior is exercised by a behavioral test (cycle-2 llm-review
+            # findings 2/4 and 3/4): the helper surfaces git failures
+            # explicitly rather than swallowing them via 2>/dev/null.
+            EVENT_NAME="${EVENT_NAME}" BASE_REF="${BASE_REF}" HEAD_REF="${HEAD_REF}" \
+              SCOPE_EMPTY=true \
+              bash plugins/dso/scripts/emit-missing-trailer-warning.sh
           else
             echo "INTEGRATION_SCOPE_EMPTY=false" >> "$GITHUB_ENV"
             echo "Integration scope populated — Run LLM review may narrow to integration-scope files via runner hints"
