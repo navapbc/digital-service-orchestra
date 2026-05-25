@@ -562,6 +562,16 @@ jobs:
             # the log line was misleading operators into believing review
             # was skipped when it now runs.
             echo "Integration scope empty — Run LLM review will dispatch against the full PR diff (direct-PR path)"
+            # bug db71-e078-ec99-4fbf: an empty integration scope on a
+            # multi-commit session PR is a signal that DSO-Story-Merge
+            # trailers are missing — likely a Phase F bypass. Surface as
+            # a GitHub Actions warning so reviewers see it on the PR.
+            # Guard: only emit when the PR has more than one non-merge
+            # commit (a single trivial change legitimately has no scope).
+            NON_MERGE_COUNT=$(git log "origin/${{ github.base_ref }}..HEAD" --no-merges --oneline 2>/dev/null | wc -l | tr -d ' ')
+            if [[ "${NON_MERGE_COUNT:-0}" -gt 1 ]]; then
+              echo "::warning::No per-story DSO-Story-Merge trailers found on ${{ github.head_ref }}; llm-review will run against the full diff. See bug db71-e078-ec99-4fbf."
+            fi
           else
             echo "INTEGRATION_SCOPE_EMPTY=false" >> "$GITHUB_ENV"
             echo "Integration scope populated — Run LLM review may narrow to integration-scope files via runner hints"
