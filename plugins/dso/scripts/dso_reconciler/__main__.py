@@ -147,8 +147,36 @@ def main(argv: list[str] | None = None) -> int:
             "(default: live)"
         ),
     )
+    parser.add_argument(
+        "--dry-run-enumerate",
+        action="store_true",
+        default=False,
+        help=(
+            "Print the list of ticket-tracker entries that the reconciler would enumerate "
+            "(after .scratch/ exclusion) and exit without running a pass. "
+            "Each entry is printed as an absolute path, one per line."
+        ),
+    )
     args = parser.parse_args(argv)
     repo_root = Path(args.repo_root) if args.repo_root else None
+
+    # --dry-run-enumerate: list enumerable ticket directories and exit.
+    # This path is intentionally placed before advisory-lock and mode checks so
+    # the flag is usable in test fixtures without a live Jira config or lock state.
+    if getattr(args, "dry_run_enumerate", False):
+        resolved_root = repo_root if repo_root is not None else Path(__file__).parents[4]
+        tickets_dir = resolved_root / ".tickets-tracker"
+        if not tickets_dir.is_dir():
+            # No tracker directory — emit nothing and exit cleanly.
+            return 0
+        for entry in sorted(tickets_dir.iterdir()):
+            if not entry.is_dir():
+                continue
+            # Apply the same .scratch/ exclusion used by health.py walkers.
+            if '.scratch' in entry.parts:
+                continue
+            print(entry)
+        return 0
 
     # -------------------------------------------------------------------------
     # Step 1: Mode validation (dd-2) — BEFORE any fetcher reference.
