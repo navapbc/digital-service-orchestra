@@ -223,7 +223,6 @@ class TestBuildDeviations:
 # RED tests for load_gov_copy_config — task e475-e682-5942-446a
 # ---------------------------------------------------------------------------
 
-import configparser  # noqa: E402
 from pathlib import Path  # noqa: E402
 
 from gov_copy_postprocess.config import load_gov_copy_config, ConfigError  # noqa: E402
@@ -762,7 +761,7 @@ class TestMainPipelineDeviationsOneRule:
         }
         artifact = _write_artifact(tmp_path, items=[item])
         cfg = _write_config(tmp_path, closing_ratio="0.95")
-        result = _run_pipeline(artifact, cfg)
+        _run_pipeline(artifact, cfg)
         written = yaml.safe_load(artifact.read_text())
         deviations = written["items"][0]["rationale"]["deviations"]
         rule_ids = [d.get("rule_id") for d in deviations]
@@ -798,7 +797,7 @@ class TestMainPipelineDeviationsOneRule:
         }
         artifact = _write_artifact(tmp_path, items=[item])
         cfg = _write_config(tmp_path, closing_ratio="0.95")
-        result = _run_pipeline(artifact, cfg)
+        _run_pipeline(artifact, cfg)
         written = yaml.safe_load(artifact.read_text())
         deviations = written["items"][0]["rationale"]["deviations"]
         rule_ids = [d.get("rule_id") for d in deviations]
