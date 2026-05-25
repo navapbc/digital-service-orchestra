@@ -25,3 +25,6 @@ data/ui-reference/canon/federal-plain-language.yaml:tests/test-ref-query-canon-e
 data/ui-reference/canon/cdc-reading-level.yaml:tests/test-ref-query-canon-e2e.sh
 skills/brainstorm/SKILL.md:tests/test-brainstorm-phase-1-5-detector.sh
 docs/contracts/copy-needs-section.md:tests/test-brainstorm-phase-1-5-detector.sh
+agents/gov-copy-writer.md:tests/test-gov-copy-writer-agent.sh
+docs/contracts/gov-copy-artifact.md:tests/test-gov-copy-writer-agent.sh
+docs/contracts/copy-needs-section.md:tests/test-gov-copy-writer-agent.sh
