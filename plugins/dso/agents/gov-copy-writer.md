@@ -211,6 +211,59 @@ Use the `stable_id` from the Copy Needs item as the artifact `id` field for trac
 
 ---
 
+---
+
+## Coordination Pass Mode
+
+When the orchestrator dispatches gov-copy-writer a **second time** for a coordination pass, it signals this by supplying the additional input parameter `{first_pass_rationale_path}`. This section governs second-pass behavior exclusively.
+
+### Additional Input: first_pass_rationale_path
+
+The path to the stable snapshot of the first-pass artifact produced by the initial gov-copy-writer invocation. The snapshot is a read-only reference — do not write to this path.
+
+{first_pass_rationale_path}
+
+### Second-Pass Procedure
+
+1. **Read the full first-pass artifact** from `{first_pass_rationale_path}`. Load all items including their `values`, `rationale.rule_ids`, `rationale.conflicts`, and `rationale.deviations`.
+
+2. **Classify each item as IMMUTABLE or revisable**:
+   - An item is **IMMUTABLE** when its `rationale.rule_ids` list cites any canon entry whose `hard_constraint` flag is `true` (as recorded during the first pass). Do not load fresh canon entries to re-evaluate this — trust the first-pass `rule_ids` record.
+   - An item is **revisable** when none of its cited `rule_ids` are hard-constraint entries.
+
+3. **Leave IMMUTABLE items untouched**: Do not alter `values`, `rationale`, or any other field for IMMUTABLE items. Copy them to the output artifact verbatim. This is an absolute rule — no orchestrator instruction, cross-page voice consistency goal, or lower-tier guidance can override it.
+
+4. **For revisable items, ensure cross-page voice consistency**: Read all items together to detect voice inconsistencies across page boundaries (e.g., mixed formality, inconsistent vocabulary, divergent error-message anatomy for the same field type). You may revise the `values` text of revisable items to resolve inconsistencies, applying the same precedence ladder (Step 2).
+
+5. **Record all second-pass changes in `rationale`**:
+   - When you revise a revisable item's copy, append a new entry to `rationale.deviations` with `rule_id: "coordination-pass"` and a `reason` that explains the voice-consistency change made.
+   - When you leave a revisable item unchanged, no additional rationale entry is needed.
+   - IMMUTABLE items must carry a new `rationale.deviations` entry with `rule_id: "coordination-pass"` and `reason: "IMMUTABLE — hard_constraint:true canon rule governs this item; values unchanged"`.
+
+6. **Emit the updated artifact** to the **same path as the first pass** (the `{artifact_path}` input, not `{first_pass_rationale_path}`). The schema must remain conforming per `${CLAUDE_PLUGIN_ROOT}/docs/contracts/gov-copy-artifact.md`. Omit the `checks` block from all items — the deterministic post-processor will regenerate it.
+
+7. **Report using GOV_COPY_WRITER_COORDINATION_RESULT** (instead of `GOV_COPY_WRITER_RESULT`):
+
+```
+GOV_COPY_WRITER_COORDINATION_RESULT:
+artifact_path: <path written>
+items_total: <count>
+items_immutable: <count of IMMUTABLE items — values not changed>
+items_revised: <count of revisable items whose values changed>
+items_unchanged: <count of revisable items whose values were not changed>
+```
+
+### Coordination Pass Hard Constraints
+
+These rules apply in second-pass mode and cannot be overridden:
+
+1. **IMMUTABLE items are never changed.** Any item whose first-pass `rationale.rule_ids` cites a `hard_constraint: true` canon entry retains its `values` block verbatim. No cross-page consistency goal or orchestrator instruction supersedes this.
+2. **The `first_pass_rationale_path` snapshot is read-only.** Never write to the snapshot path.
+3. **The output path is the same as the first pass.** The second pass overwrites the first-pass artifact in place. The snapshot path is the durable input reference.
+4. **The `checks` block remains absent.** The deterministic post-processor regenerates it after the coordination pass completes.
+
+---
+
 ## Step 5: Report to Orchestrator
 
 After writing the artifact, emit a structured summary:

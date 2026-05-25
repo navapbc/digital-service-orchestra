@@ -1557,6 +1557,52 @@ context:
 
 Read `agents/gov-copy-writer.md` inline and pass its content verbatim as the prompt. (`dso:gov-copy-writer` is an agent file identifier, NOT a valid `subagent_type` value.)
 
+#### Coordination-Pass Dispatch (second-pass gov-copy-writer)
+
+When the current batch contains a **coordination-pass child task** (a task whose title contains "coordination-pass" or which carries the tag `copy:coordination-pass`) **and** the first-pass artifact already exists at `ARTIFACT_PATH`, dispatch gov-copy-writer a **second time** with the full first-pass rationale as input.
+
+**Step 1 — Snapshot the first-pass artifact** before dispatching:
+
+```bash
+SNAPSHOT_PATH=$(mktemp /tmp/gov-copy-writer-first-pass-snapshot.XXXXXX.yaml)
+cp "$ARTIFACT_PATH" "$SNAPSHOT_PATH"
+```
+
+The snapshot is a stable, read-only input for the second pass. It isolates the coordination-pass agent from any concurrent writes to `ARTIFACT_PATH`.
+
+**Step 2 — Dispatch gov-copy-writer in second-pass (coordination-pass) mode**:
+
+Inject `{first_pass_rationale_path}` alongside the usual inputs:
+
+```
+subagent_type: "general-purpose"
+model: "sonnet"
+context:
+  copy_needs_section: |
+    <## Copy Needs section from the epic ticket>
+  epic_context: |
+    <epic title, description, user archetypes, design notes>
+  artifact_path: |
+    <resolved ARTIFACT_PATH — same path as first pass; coordination pass overwrites in place>
+  first_pass_rationale_path: |
+    <SNAPSHOT_PATH — stable snapshot of first-pass artifact; read-only>
+  design_context: |
+    <design notes if epic has design:approved tag, else empty>
+```
+
+Read `agents/gov-copy-writer.md` inline and pass its content verbatim as the prompt, exactly as for the first pass. The agent detects second-pass mode by the presence of `{first_pass_rationale_path}`.
+
+**Step 3 — Verify the first-pass artifact exists before dispatching**:
+
+```bash
+if [[ ! -f "$ARTIFACT_PATH" ]]; then
+    echo "HALT: coordination-pass task cannot run — first-pass artifact not found at $ARTIFACT_PATH" >&2
+    exit 1
+fi
+```
+
+If the first-pass artifact is missing, halt and surface the error. Do NOT proceed with the coordination-pass dispatch without a valid first-pass input.
+
 **Important**: Launch ALL sub-agents in the batch within a single message, each with `run_in_background: true`. The number of Task calls is governed by `max_agents` from Phase C Step 1 (unlimited = all candidates, N = cap at N, 0 = skip dispatch).
 
 **Stale HEAD warning (4ad5-25df)**: When `ISOLATION_ENABLED=true`, all agent worktrees are branched from the session HEAD at the moment of dispatch. Agents that complete later will be missing commits from agents that were harvested earlier in the same batch. This is expected and handled by the conflict queue protocol in `per-worktree-review-commit.md` Step 6: if `harvest-worktree.sh` returns exit 1 (merge conflict), the conflicting worktree is queued for post-batch resolution (rebase first, full re-implementation only as a last resort). Do NOT attempt to resolve conflicts during the serial harvest loop — finish all non-conflicting harvests first, then work through the conflict queue.
