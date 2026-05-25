@@ -1,0 +1,8 @@
+
+# _metadata: schema_version=1, format=source_path:test_path[,test_path]...
+# Plugin-local test index. Paths are relative to repo root.
+# Tests are runnable directly: bash <test_path>
+data/ui-reference/_schema.yaml:tests/test-corpus-schema-canon.sh
+scripts/check-corpus-schema.py:tests/test-corpus-schema-canon.sh
+scripts/ref-query.py:tests/test-corpus-schema-canon.sh
+scripts/check-gov-copy-artifact.sh:tests/scripts/test-check-gov-copy-artifact.sh

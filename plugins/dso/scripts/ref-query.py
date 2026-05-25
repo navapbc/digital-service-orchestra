@@ -50,7 +50,9 @@ _NOTICE_EMITTED = False
 # Constants
 # ---------------------------------------------------------------------------
 
-SKIP_NAMES = frozenset({"_index.yaml", "_schema.yaml", "_schema-anti-patterns.yaml"})
+SKIP_NAMES = frozenset(
+    {"_index.yaml", "_schema.yaml", "_schema-anti-patterns.yaml", "_overview.yaml"}
+)
 MAX_OUTPUT_LINES = 500
 _DEFAULT_CORPUS = Path(__file__).parent.parent / "data" / "ui-reference"
 
