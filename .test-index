@@ -567,3 +567,4 @@ plugins/dso/scripts/telemetry/lambda-handler/validator.py:plugins/dso/scripts/te
 plugins/dso/scripts/dso_reconciler/mutation.py:tests/unit/dso_reconciler/test_mutation.py
 plugins/dso/scripts/telemetry/lambda-handler/handler.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_handler.py
 plugins/dso/scripts/dso_reconciler/differ.py:tests/unit/dso_reconciler/test_differ.py,tests/unit/dso_reconciler/test_differ_conflict_resolution.py
+plugins/dso/scripts/dso_reconciler/fetcher.py:tests/unit/dso_reconciler/test_fetcher_snapshot.py [test_iter_pages_is_a_generator]

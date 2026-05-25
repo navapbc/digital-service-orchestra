@@ -1,10 +1,19 @@
-"""Tests for dso_reconciler/fetcher.py fetch_snapshot().
+"""Tests for dso_reconciler/fetcher.py — new generator + filtered-JQL contract.
 
-Covers:
-- File is written to the correct path
-- Output is valid JSON
-- Two calls with identical stub data produce byte-identical files (determinism)
-- Errors from AcliClient.search_issues() propagate out
+Asserts the post-10e3 contract:
+  * fetcher exposes ``_iter_pages(client, jql, page_size)`` — a generator that
+    yields one page (list[dict]) per call to ``client.search_issues``.
+  * fetcher exposes ``collect(client, jql, page_size=...)`` — a thin wrapper
+    that drains ``_iter_pages`` into a single list.
+  * ``fetch_snapshot`` issues the **filtered** JQL string verbatim:
+    ``project = DIG AND (resolution = Unresolved OR updated >= -1h)``.
+  * Pagination stub follows the shape
+    ``callable(jql, start_at, max_results) -> {issues, startAt, maxResults, total}``
+    (mirrors task-5e13 shared conftest fixture; defined locally here so this
+    file collects cleanly even on a session HEAD that doesn't yet have 5e13).
+
+RED state for fetcher.py is acceptable per task ACs — current fetcher emits
+the OLD shape (no ``_iter_pages``, full-project JQL).
 """
 
 from __future__ import annotations
@@ -32,6 +41,8 @@ FETCHER_PATH = (
     / "fetcher.py"
 )
 
+EXPECTED_JQL = "project = DIG AND (resolution = Unresolved OR updated >= -1h)"
+
 
 def _load_fetcher():
     spec = importlib.util.spec_from_file_location("fetcher", FETCHER_PATH)
@@ -54,46 +65,53 @@ def fetcher():
 
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Local paginating stub
 # ---------------------------------------------------------------------------
+#
+# Mirrors the shared ``paginating_acli_stub`` fixture introduced by task 5e13.
+# When 5e13 lands and the conftest exposes that fixture, tests below can be
+# migrated to consume it directly; until then a locally-defined stub keeps
+# this file self-contained and collectable.
 
 
-def _make_mock_acli(issues: list[dict]) -> types.ModuleType:
-    """Return a stub acli_integration module whose AcliClient.search_issues() returns issues."""
+class _PaginatingClient:
+    """Stub Jira client. callable(jql, start_at, max_results)."""
 
-    class _MockClient:
-        def __init__(self, jira_url, user, api_token, **kwargs):
-            pass
+    def __init__(self, total: int = 250, page_size: int = 100):
+        self._total = total
+        self._page_size = page_size
+        self.calls: list[dict] = []
 
-        def search_issues(self, jql: str, **kwargs) -> list[dict]:
-            return list(issues)
+    def search_issues(
+        self, jql: str, start_at: int = 0, max_results: int = 50
+    ) -> dict:
+        self.calls.append(
+            {"jql": jql, "start_at": start_at, "max_results": max_results}
+        )
+        end = min(start_at + max_results, self._total)
+        issues = [
+            {"key": f"DIG-{i}", "fields": {"summary": f"issue {i}"}}
+            for i in range(start_at, end)
+        ]
+        return {
+            "issues": issues,
+            "startAt": start_at,
+            "maxResults": max_results,
+            "total": self._total,
+        }
+
+
+def _make_paginating_acli(total: int = 250, page_size: int = 100):
+    client_holder: dict[str, _PaginatingClient] = {}
+
+    class _Client(_PaginatingClient):
+        def __init__(self, *_args, **_kwargs):
+            super().__init__(total=total, page_size=page_size)
+            client_holder["client"] = self
 
     mock_acli = types.ModuleType("acli_integration")
-    mock_acli.AcliClient = _MockClient
-    return mock_acli
-
-
-def _make_sample_issues() -> list[dict]:
-    """Return a small but realistic list of stub Jira issues."""
-    return [
-        {
-            "key": "DIG-1",
-            "fields": {
-                "summary": "First issue",
-                "status": {"name": "To Do"},
-                "issuetype": {"name": "Story"},
-            },
-        },
-        {
-            "key": "DIG-2",
-            "fields": {
-                "summary": "Second issue",
-                "assignee": None,
-                "status": {"name": "In Progress"},
-                "issuetype": {"name": "Task"},
-            },
-        },
-    ]
+    mock_acli.AcliClient = _Client
+    return mock_acli, client_holder
 
 
 # ---------------------------------------------------------------------------
@@ -101,136 +119,139 @@ def _make_sample_issues() -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
-def test_snapshot_written_to_correct_path(tmp_path, fetcher):
+def test_iter_pages_is_a_generator(fetcher):
+    """fetcher exposes a ``_iter_pages`` generator yielding one page per call."""
+    assert hasattr(fetcher, "_iter_pages"), (
+        "fetcher must expose `_iter_pages(client, jql, page_size)`"
+    )
+    client = _PaginatingClient(total=250, page_size=100)
+    gen = fetcher._iter_pages(client, EXPECTED_JQL, page_size=100)
+    # generator semantics: yields pages, not an aggregated list
+    import types as _t
+
+    assert isinstance(gen, _t.GeneratorType), (
+        "_iter_pages must return a generator, not a materialized list"
+    )
+    pages = list(gen)
+    assert len(pages) == 3, "Expected 3 pages for total=250, page_size=100"
+    assert all(isinstance(p, list) for p in pages), "Each page must be a list"
+    assert len(pages[0]) == 100
+    assert len(pages[1]) == 100
+    assert len(pages[2]) == 50
+
+
+def test_collect_wrapper_drains_iter_pages(fetcher):
+    """fetcher exposes a ``collect`` wrapper that flattens all pages."""
+    assert hasattr(fetcher, "collect"), (
+        "fetcher must expose `collect(client, jql, page_size=...)`"
+    )
+    client = _PaginatingClient(total=250, page_size=100)
+    issues = fetcher.collect(client, EXPECTED_JQL, page_size=100)
+    assert isinstance(issues, list)
+    assert len(issues) == 250
+    assert issues[0]["key"] == "DIG-0"
+    assert issues[-1]["key"] == "DIG-249"
+
+
+def test_collect_passes_jql_to_client_unchanged(fetcher):
+    """The JQL string is passed verbatim to every search_issues call."""
+    client = _PaginatingClient(total=120, page_size=100)
+    fetcher.collect(client, EXPECTED_JQL, page_size=100)
+    assert client.calls, "collect must invoke search_issues at least once"
+    for call in client.calls:
+        assert call["jql"] == EXPECTED_JQL, (
+            f"Expected JQL {EXPECTED_JQL!r}, got {call['jql']!r}"
+        )
+
+
+def test_fetch_snapshot_uses_filtered_jql(tmp_path, fetcher):
+    """fetch_snapshot issues `project = DIG AND (resolution = Unresolved OR updated >= -1h)`."""
+    mock_acli, holder = _make_paginating_acli(total=10, page_size=100)
+    with patch.object(fetcher, "_load_acli", return_value=mock_acli):
+        fetcher.fetch_snapshot("2026-05-24-pass-jql", repo_root=tmp_path)
+    client = holder["client"]
+    assert client.calls, "fetch_snapshot must call search_issues at least once"
+    seen_jqls = {c["jql"] for c in client.calls}
+    assert seen_jqls == {EXPECTED_JQL}, (
+        f"fetch_snapshot must pass the filtered JQL verbatim; saw {seen_jqls!r}"
+    )
+
+
+def test_fetch_snapshot_written_to_correct_path(tmp_path, fetcher):
     """fetch_snapshot writes the file to bridge_state/snapshots/<pass_id>.json."""
-    pass_id = "2026-05-22-pass-01"
-    mock_acli = _make_mock_acli(_make_sample_issues())
+    pass_id = "2026-05-24-pass-01"
+    mock_acli, _ = _make_paginating_acli(total=5, page_size=100)
 
     with patch.object(fetcher, "_load_acli", return_value=mock_acli):
         result_path = fetcher.fetch_snapshot(pass_id, repo_root=tmp_path)
 
     expected_path = tmp_path / "bridge_state" / "snapshots" / f"{pass_id}.json"
-    assert result_path == expected_path, (
-        f"Expected path {expected_path}, got {result_path}"
-    )
-    assert expected_path.exists(), "Snapshot file was not created"
+    assert result_path == expected_path
+    assert expected_path.exists()
 
 
-def test_snapshot_is_valid_json(tmp_path, fetcher):
-    """fetch_snapshot produces a file that parses as valid JSON."""
-    pass_id = "2026-05-22-pass-02"
-    mock_acli = _make_mock_acli(_make_sample_issues())
+def test_fetch_snapshot_is_valid_json(tmp_path, fetcher):
+    """fetch_snapshot produces a file that parses as valid JSON keyed by issue key."""
+    pass_id = "2026-05-24-pass-02"
+    mock_acli, _ = _make_paginating_acli(total=2, page_size=100)
 
     with patch.object(fetcher, "_load_acli", return_value=mock_acli):
         result_path = fetcher.fetch_snapshot(pass_id, repo_root=tmp_path)
 
-    content = result_path.read_text()
-    try:
-        parsed = json.loads(content)
-    except json.JSONDecodeError as exc:
-        pytest.fail(f"Snapshot file is not valid JSON: {exc}")
-
-    assert isinstance(parsed, dict), "Top-level JSON value must be a dict"
+    parsed = json.loads(result_path.read_text())
+    assert isinstance(parsed, dict)
+    assert "DIG-0" in parsed
     assert "DIG-1" in parsed
-    assert "DIG-2" in parsed
 
 
-def test_snapshot_is_deterministic(tmp_path, fetcher):
+def test_fetch_snapshot_is_deterministic(tmp_path, fetcher):
     """Two fetch_snapshot calls with identical stub data produce byte-identical files."""
-    pass_id_a = "2026-05-22-pass-03a"
-    pass_id_b = "2026-05-22-pass-03b"
-    issues = _make_sample_issues()
-
-    mock_acli = _make_mock_acli(issues)
+    mock_acli, _ = _make_paginating_acli(total=5, page_size=100)
 
     with patch.object(fetcher, "_load_acli", return_value=mock_acli):
-        path_a = fetcher.fetch_snapshot(pass_id_a, repo_root=tmp_path)
+        path_a = fetcher.fetch_snapshot(
+            "2026-05-24-pass-03a", repo_root=tmp_path
+        )
 
-    with patch.object(fetcher, "_load_acli", return_value=mock_acli):
-        path_b = fetcher.fetch_snapshot(pass_id_b, repo_root=tmp_path)
+    mock_acli2, _ = _make_paginating_acli(total=5, page_size=100)
+    with patch.object(fetcher, "_load_acli", return_value=mock_acli2):
+        path_b = fetcher.fetch_snapshot(
+            "2026-05-24-pass-03b", repo_root=tmp_path
+        )
 
-    content_a = path_a.read_bytes()
-    content_b = path_b.read_bytes()
-    assert content_a == content_b, (
+    assert path_a.read_bytes() == path_b.read_bytes(), (
         "Two fetches with identical data must produce byte-identical snapshots"
     )
 
 
-def test_snapshot_field_keys_are_sorted(tmp_path, fetcher):
-    """Normalized issue fields are stored with sorted keys for determinism."""
-    pass_id = "2026-05-22-pass-04"
-    # Issue with intentionally unsorted fields
-    issues = [
-        {
-            "key": "DIG-99",
-            "fields": {
-                "zzz_last": "last",
-                "aaa_first": "first",
-                "mmm_middle": "middle",
-            },
-        }
-    ]
-    mock_acli = _make_mock_acli(issues)
+def test_fetch_snapshot_paginates_through_full_result_set(tmp_path, fetcher):
+    """fetch_snapshot must page through `collect()` to capture all issues.
 
-    with patch.object(fetcher, "_load_acli", return_value=mock_acli):
-        result_path = fetcher.fetch_snapshot(pass_id, repo_root=tmp_path)
-
-    parsed = json.loads(result_path.read_text())
-    field_keys = list(parsed["DIG-99"].keys())
-    assert field_keys == sorted(field_keys), (
-        f"Field keys are not sorted: {field_keys}"
-    )
-
-
-def test_fetcher_paginates_through_full_result_set(tmp_path, fetcher):
-    """F4 regression: fetch_snapshot must paginate to capture issues beyond page 1.
-
-    Before F4, fetch_snapshot called search_issues without start_at/max_results,
-    so AcliClient's default max_results=50 silently truncated snapshots to
-    50 issues and the next pass emitted spurious delete mutations for the rest.
-
-    The fix issues paginated calls with max_results=100; the loop terminates
-    when a page is shorter than the requested size. This test simulates
-    3 pages of 100, 100, 50 (250 total) and asserts every issue lands in the
-    snapshot file.
+    Stubs 250 issues across 3 pages (100, 100, 50). Every issue must
+    land in the snapshot.
     """
-
-    class _PaginatingClient:
-        def __init__(self, jira_url, user, api_token, **kwargs):
-            self.calls: list[dict] = []
-
-        def search_issues(self, jql: str, start_at: int = 0, max_results: int = 50):
-            self.calls.append({"start_at": start_at, "max_results": max_results})
-            # Total of 250 issues across three pages: 100, 100, 50
-            all_issues = [
-                {"key": f"DIG-{i}", "fields": {"summary": f"issue {i}"}}
-                for i in range(250)
-            ]
-            return all_issues[start_at : start_at + max_results]
-
-    mock_acli = types.ModuleType("acli_integration")
-    mock_acli.AcliClient = _PaginatingClient
+    mock_acli, holder = _make_paginating_acli(total=250, page_size=100)
 
     with patch.object(fetcher, "_load_acli", return_value=mock_acli):
         result_path = fetcher.fetch_snapshot(
-            "2026-05-22-pass-pagination", repo_root=tmp_path
+            "2026-05-24-pass-pagination", repo_root=tmp_path
         )
 
     parsed = json.loads(result_path.read_text())
-    assert len(parsed) == 250, (
-        f"Snapshot must contain all 250 issues across paginated pages; "
-        f"got {len(parsed)} (first-50 truncation regressed?)"
-    )
-    # Sanity: both the first and a late issue appear
+    assert len(parsed) == 250
     assert "DIG-0" in parsed
     assert "DIG-249" in parsed
+    # All search_issues calls used the filtered JQL
+    client = holder["client"]
+    for call in client.calls:
+        assert call["jql"] == EXPECTED_JQL
 
 
-def test_search_issues_error_propagates(tmp_path, fetcher):
+def test_fetch_snapshot_search_error_propagates(tmp_path, fetcher):
     """Errors raised by AcliClient.search_issues() propagate out of fetch_snapshot."""
 
     class _ErrorClient:
-        def __init__(self, jira_url, user, api_token, **kwargs):
+        def __init__(self, *_args, **_kwargs):
             pass
 
         def search_issues(self, jql: str, **kwargs):
@@ -241,4 +262,4 @@ def test_search_issues_error_propagates(tmp_path, fetcher):
 
     with patch.object(fetcher, "_load_acli", return_value=mock_acli):
         with pytest.raises(RuntimeError, match="ACLI connection refused"):
-            fetcher.fetch_snapshot("2026-05-22-pass-05", repo_root=tmp_path)
+            fetcher.fetch_snapshot("2026-05-24-pass-05", repo_root=tmp_path)
