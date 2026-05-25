@@ -135,7 +135,13 @@ echo "" >&2
 
 # ── Auto-cleanup or nudge if many worktrees exist ────────────────────────────
 
-WORKTREE_COUNT=$(git worktree list 2>/dev/null | grep -c "worktree-" || true)
+# Bug d5c1: the prior `grep -c "worktree-"` matched both session worktrees
+# (worktree-YYYYMMDD-HHMMSS) AND agent-* worktrees (path component
+# `.claude/worktrees/agent-` plus branch `worktree-agent-*`). With many
+# agent-* worktrees in flight, the >=10 trigger fired on every session
+# start and then no-opped because of the has_stashes() bug above. Narrow
+# the match to the session-worktree naming convention only.
+WORKTREE_COUNT=$(git worktree list 2>/dev/null | grep -cE "worktree-[0-9]{8}-[0-9]{6}" || true)
 if [ "$WORKTREE_COUNT" -ge 10 ]; then
     echo "You have $WORKTREE_COUNT worktrees. Running automatic cleanup..." >&2
     echo "" >&2

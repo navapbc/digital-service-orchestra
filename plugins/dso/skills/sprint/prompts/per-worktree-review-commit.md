@@ -4,6 +4,27 @@
 
 For each worktree returned by implementation sub-agents (process in completion order — first-pass-first-merge):
 
+**Step 1 — 907d post-return existence check (mandatory)**: Before any `cd "$WORKTREE_PATH"`, verify the path still exists on disk and the worktree branch is still resolvable. The Claude Code harness reaps `isolation: "worktree"` worktrees under certain conditions (binary string evidence in versions 2.1.150+: `tengu_worktree_removed`, retention discriminators `worktree_kept_dirty / branch_mismatch / remove_failed`). A reaped worktree fails subsequent `cd` operations with `no such file or directory` — silent data loss if not caught here.
+
+```bash
+if [ ! -d "$WORKTREE_PATH" ]; then
+    echo "ERROR (907d): worktree path $WORKTREE_PATH does not exist after sub-agent return." >&2
+    echo "  Likely cause: sub-agent self-committed, leaving the working tree clean, triggering" >&2
+    echo "  Claude Code harness auto-cleanup before the orchestrator could harvest." >&2
+    echo "  All commits made in the worktree branch are lost (branch deleted; not pushed)." >&2
+    if [ -n "${TICKET_ID:-}" ]; then
+        .claude/scripts/dso ticket comment "$TICKET_ID" \
+            "ERROR (907d): worktree $WORKTREE_PATH reaped pre-harvest — sub-agent likely self-committed; work lost." 2>/dev/null || true
+    fi
+    # HALT — do not proceed to cd, do not silently skip; the orchestrator must surface this.
+    exit 1
+fi
+if [ -n "${WORKTREE_BRANCH:-}" ] && ! git rev-parse --verify "$WORKTREE_BRANCH" >/dev/null 2>&1; then
+    echo "ERROR (907d): worktree branch $WORKTREE_BRANCH not resolvable after sub-agent return." >&2
+    exit 1
+fi
+```
+
 **Step 1 — Enter worktree context**: Note the worktree path as `WORKTREE_PATH`. Compute the worktree's artifacts directory and record the base commit for empty-branch detection:
 
 ```bash
@@ -158,6 +179,6 @@ git branch -d <worktree-branch>
 
 Both commands run from the session branch directory (not inside the worktree). `<worktree-path>` is the `WORKTREE_PATH` from Step 1. `<worktree-branch>` is the branch name used in the worktree (visible in `git worktree list` or the Agent tool result). If `git branch -d` fails because the branch was not fully merged, use `git branch -D` — the harvest in Step 5 already integrated the changes.
 
-**Worktree Retention Protocol**: Do NOT remove a worktree until its harvest is complete. Worktrees with conflicts are retained for re-implementation (Step 6). Race condition guard: the worktree must be held open until harvest — Claude Code auto-cleanup is suppressed by the presence of uncommitted changes (or a sentinel file).
+**Worktree Retention Protocol**: Do NOT remove a worktree until its harvest is complete. Worktrees with conflicts are retained for re-implementation (Step 6). Race condition guard: the worktree must be held open until harvest. Claude Code's `isolation: "worktree"` cleanup uses an uncommitted-changes retention signal — empirically this is necessary but not sufficient (the harness exposes `worktree_kept_dirty / worktree_kept_branch_mismatch / worktree_kept_remove_failed` discriminators per binary inspection of v2.1.150). A sub-agent that self-commits leaves the working tree clean, falling through to harness removal before the orchestrator's harvest. **Defense: the 907d post-return existence check above must run before any `cd "$WORKTREE_PATH"`** — it converts the otherwise-silent data-loss failure into a loud halt. Agents dispatched under this protocol are bound by `worktree-dispatch.md`'s No-Commit Constraint to avoid the trigger entirely.
 
 **Important**: merge-to-main.sh runs ONCE at session end (Phase I), not per worktree merge. Each per-worktree harvest is worktree-branch → session-branch only.
