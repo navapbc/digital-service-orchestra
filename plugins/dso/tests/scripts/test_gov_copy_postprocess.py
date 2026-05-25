@@ -281,3 +281,202 @@ class TestLoadGovCopyConfig:
         )
         with pytest.raises(ConfigError):
             load_gov_copy_config(config_file)
+
+
+# ---------------------------------------------------------------------------
+# RED tests for __main__ pipeline — task 2e31-d874-7bd1-47fe
+# ---------------------------------------------------------------------------
+
+import subprocess  # noqa: E402
+import sys  # noqa: E402
+import yaml  # noqa: E402
+
+
+def _write_config(tmp_path: Path, **overrides) -> Path:
+    """Write a minimal [gov_copy] INI config file; overrides replace defaults."""
+    defaults = {
+        "banned_words": "utilize,leverage",
+        "fk_max": "12",
+        "closing_ratio": "0.80",
+    }
+    defaults.update(overrides)
+    cfg = tmp_path / "gov-copy.conf"
+    cfg.write_text(
+        "[gov_copy]\n"
+        f"banned_words = {defaults['banned_words']}\n"
+        f"fk_max = {defaults['fk_max']}\n"
+        f"closing_ratio = {defaults['closing_ratio']}\n"
+    )
+    return cfg
+
+
+def _write_artifact(tmp_path: Path, items: list, filename: str = "artifact.yaml") -> Path:
+    """Write a gov-copy artifact YAML with the given items list."""
+    artifact = tmp_path / filename
+    artifact.write_text(yaml.dump({"schema_version": 1, "items": items}))
+    return artifact
+
+
+def _run_pipeline(artifact_path: Path, config_path: Path) -> subprocess.CompletedProcess:
+    """Run the __main__ pipeline via subprocess; always returns (never raises)."""
+    repo_root = Path(__file__).resolve().parents[4]  # tests/scripts/ inside dso → 4 levels up
+    return subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "plugins.dso.scripts.gov_copy_postprocess",
+            str(artifact_path),
+            "--config-path",
+            str(config_path),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        cwd=str(repo_root),
+    )
+
+
+@pytest.mark.unit
+class TestMainPipelineEmptyItems:
+    """(a) Empty items[] artifact → exit 0, summary reports all-pass state."""
+
+    # [test_main_pipeline_empty_items_exits_zero]
+    def test_main_pipeline_empty_items_exits_zero(self, tmp_path: Path) -> None:
+        """Empty items[] artifact must exit 0 (no items to fail)."""
+        artifact = _write_artifact(tmp_path, items=[])
+        cfg = _write_config(tmp_path)
+        result = _run_pipeline(artifact, cfg)
+        assert result.returncode == 0, (
+            f"Expected exit 0 for empty items[]; got {result.returncode}.\n"
+            f"stdout={result.stdout!r}\nstderr={result.stderr!r}"
+        )
+
+    def test_main_pipeline_empty_items_stdout_all_pass(self, tmp_path: Path) -> None:
+        """Empty items[] artifact stdout must contain pass_ratio: 1.00 or pass_ratio: 0/0
+        and closing_threshold_met: true."""
+        artifact = _write_artifact(tmp_path, items=[])
+        cfg = _write_config(tmp_path)
+        result = _run_pipeline(artifact, cfg)
+        stdout = result.stdout.lower()
+        has_pass_ratio = "pass_ratio: 1.00" in stdout or "pass_ratio: 0/0" in stdout
+        assert has_pass_ratio, (
+            f"Expected stdout to contain 'pass_ratio: 1.00' or 'pass_ratio: 0/0'.\n"
+            f"stdout={result.stdout!r}"
+        )
+        assert "closing_threshold_met: true" in stdout, (
+            f"Expected stdout to contain 'closing_threshold_met: true'.\n"
+            f"stdout={result.stdout!r}"
+        )
+
+
+@pytest.mark.unit
+class TestMainPipelineEmptyText:
+    """(b) Item with empty text → no crash, banned_words_found==[], voice computed."""
+
+    # [test_main_pipeline_empty_text_no_crash]
+    def test_main_pipeline_empty_text_no_crash(self, tmp_path: Path) -> None:
+        """Item with empty-string text values must exit 0 and write a summary to stdout."""
+        items = [
+            {
+                "id": "empty-item",
+                "values": {
+                    "label": "",
+                    "hint": "",
+                    "errors": {},
+                },
+                "rationale": {
+                    "rule_ids": [],
+                    "conflicts": [],
+                    "deviations": [],
+                },
+                "checks": {
+                    "fk_grade": 0,
+                    "banned_words_found": [],
+                    "active_voice": True,
+                    "source": "deterministic-post-processor",
+                },
+            }
+        ]
+        artifact = _write_artifact(tmp_path, items=items)
+        cfg = _write_config(tmp_path)
+        result = _run_pipeline(artifact, cfg)
+        assert result.returncode == 0, (
+            f"Empty-text item must exit 0 (fk_grade=0 passes fk_max=12, no banned words); "
+            f"got returncode={result.returncode}.\n"
+            f"stdout={result.stdout!r}\nstderr={result.stderr!r}"
+        )
+        assert "traceback" not in result.stderr.lower(), (
+            f"Empty-text item must not raise an exception.\nstderr={result.stderr!r}"
+        )
+
+    def test_main_pipeline_empty_text_banned_words_empty(self, tmp_path: Path) -> None:
+        """Item with empty text → pipeline exits 0 and stdout contains no banned-word hits."""
+        items = [
+            {
+                "id": "empty-item",
+                "values": {"label": "", "hint": "", "errors": {}},
+                "rationale": {"rule_ids": [], "conflicts": [], "deviations": []},
+                "checks": {
+                    "fk_grade": 0,
+                    "banned_words_found": [],
+                    "active_voice": True,
+                    "source": "deterministic-post-processor",
+                },
+            }
+        ]
+        artifact = _write_artifact(tmp_path, items=items)
+        cfg = _write_config(tmp_path)
+        result = _run_pipeline(artifact, cfg)
+        # Pipeline must succeed (not crash) and produce a summary
+        assert result.returncode == 0, (
+            f"Empty-text item must exit 0; got {result.returncode}.\n"
+            f"stdout={result.stdout!r}\nstderr={result.stderr!r}"
+        )
+        # Stdout must contain a summary line (signals the pipeline ran)
+        assert "pass_ratio" in result.stdout.lower(), (
+            f"Expected stdout to contain 'pass_ratio' summary field.\n"
+            f"stdout={result.stdout!r}"
+        )
+        # Stdout must NOT report banned words found for an empty-text item
+        assert "utilize" not in result.stdout and "leverage" not in result.stdout, (
+            f"Empty-text item must not produce banned_words_found entries.\n"
+            f"stdout={result.stdout!r}"
+        )
+
+
+@pytest.mark.unit
+class TestMainPipelineLargeText:
+    """(c) Item with text >10k chars → completes within 30s without timeout."""
+
+    # [test_main_pipeline_large_text_completes_within_30s]
+    def test_main_pipeline_large_text_completes_within_30s(self, tmp_path: Path) -> None:
+        """Pipeline with a >10k character text item must complete within 30 seconds."""
+        large_text = "You can apply for benefits online. " * 300  # ~10 500 chars
+        assert len(large_text) > 10_000, "Precondition: text must exceed 10k chars"
+        items = [
+            {
+                "id": "large-text-item",
+                "values": {
+                    "label": large_text[:200],
+                    "hint": large_text,
+                    "errors": {},
+                },
+                "rationale": {"rule_ids": [], "conflicts": [], "deviations": []},
+                "checks": {
+                    "fk_grade": 5,
+                    "banned_words_found": [],
+                    "active_voice": True,
+                    "source": "deterministic-post-processor",
+                },
+            }
+        ]
+        artifact = _write_artifact(tmp_path, items=items)
+        cfg = _write_config(tmp_path)
+        # subprocess.run timeout=30 will raise subprocess.TimeoutExpired if exceeded
+        result = _run_pipeline(artifact, cfg)
+        # If we reach here the pipeline completed within 30s; verify it exited cleanly
+        assert result.returncode == 0, (
+            f"Large-text item pipeline must exit 0 (all checks pass for this item); "
+            f"got {result.returncode}.\n"
+            f"stdout={result.stdout!r}\nstderr={result.stderr!r}"
+        )
