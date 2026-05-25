@@ -58,3 +58,34 @@ def set_divergence():
         "remote": ["Y", "Z"],
         "expected_union": {"X", "Y", "Z"},
     }
+
+
+@pytest.fixture
+def paginating_acli_stub():
+    """Return a factory that produces a callable simulating ACLI paginated JQL fetch.
+
+    The factory accepts:
+      - pages: a list of issue-dicts (the full working set, in canonical order)
+      - max_results_cap: integer; the ACLI behaviour at boundaries (default 100)
+
+    Returns a callable stub(jql, start_at, max_results) -> dict with shape:
+        {
+          "issues": [...],          # the slice of `pages` between start_at and start_at+max_results
+          "startAt": start_at,
+          "maxResults": effective_max,  # min(max_results, max_results_cap)
+          "total": len(pages),
+        }
+    Slicing follows real ACLI: start_at out-of-range returns empty issues list with total=len(pages).
+    """
+    def _factory(pages, max_results_cap=100):
+        def _stub(jql, start_at=0, max_results=100):
+            effective_max = min(max_results, max_results_cap)
+            slice_ = pages[start_at : start_at + effective_max]
+            return {
+                "issues": slice_,
+                "startAt": start_at,
+                "maxResults": effective_max,
+                "total": len(pages),
+            }
+        return _stub
+    return _factory
