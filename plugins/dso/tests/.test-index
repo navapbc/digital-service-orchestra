@@ -40,3 +40,6 @@ data/ui-reference/canon/vagov-error-anatomy.yaml:tests/scripts/test-check-coordi
 data/ui-reference/canon/federal-plain-language.yaml:tests/scripts/test-check-coordination-pass-immutability.sh
 agents/story-decomposer.md:tests/test-story-decomposer-copy-needed.sh
 docs/contracts/copy-needs-section.md:tests/test-story-decomposer-copy-needed.sh
+skills/sprint/SKILL.md:tests/test-copy-story-integration.sh
+skills/implementation-plan/SKILL.md:tests/test-copy-story-integration.sh
+agents/story-decomposer.md:tests/test-copy-story-integration.sh
