@@ -4,13 +4,17 @@
 CLI usage:
     python3 ref-query.py <query> \\
         [--corpus PATH] [--top-n N] [--tier TIER] [--session-hash HASH]
+        [--namespace DOMAIN] [--format {text,json}]
 
 Importable API:
     from ref_query import query
 
-    results = query(corpus_dir, query_str, top_n=5, tier="summary", session_hash="")
+    results = query(corpus_dir, query_str, top_n=5, tier="summary", session_hash="",
+                    namespace="")
 
-Output format: newline-separated YAML documents (separated by '---').
+Output format (default, --format=text): newline-separated YAML documents (separated by '---').
+Output format (--format=json): JSON array of result objects per the ref-query-json-output
+contract (${CLAUDE_PLUGIN_ROOT}/docs/contracts/ref-query-json-output.md).
 Each document contains the corpus entry fields plus a 'score' field.
 
 Exit codes:
@@ -359,12 +363,67 @@ def render_entry_yaml(entry: dict[str, Any]) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _entry_domains(entry: dict[str, Any]) -> list[str]:
+    """Return the list of domain values for a corpus entry (normalised to list[str])."""
+    domain = entry.get("domain", [])
+    if isinstance(domain, list):
+        return [str(d) for d in domain]
+    if domain:
+        return [str(domain)]
+    return []
+
+
+def render_entry_json(entry: dict[str, Any]) -> dict[str, Any]:
+    """Render a corpus entry as a JSON-serialisable dict per the ref-query-json-output schema.
+
+    Schema fields (ref: ${CLAUDE_PLUGIN_ROOT}/docs/contracts/ref-query-json-output.md):
+      rule_id     — entry 'id' field (string)
+      tags        — dict carrying at minimum 'domain' key
+      score       — BM25 score (float, rounded to 4 decimal places)
+      body        — primary human-readable text (summary > description > title)
+      source_file — '_source_path' internal field (relative path when possible)
+    """
+    rule_id = entry.get("id", "")
+    score = round(entry.get("_score", 0.0), 4)
+
+    # Build tags dict from tag-like fields
+    tags: dict[str, Any] = {}
+    domain = entry.get("domain", [])
+    if domain:
+        tags["domain"] = domain
+    for field in ("component", "compliance", "action", "keywords", "tags"):
+        val = entry.get(field)
+        if val is not None:
+            tags[field] = val
+
+    # Primary body text: prefer summary/description, fall back to title
+    body = (
+        entry.get("summary")
+        or entry.get("description")
+        or entry.get("detail")
+        or entry.get("title")
+        or ""
+    )
+
+    # source_file: use relative path when possible
+    source_file = entry.get("_source_path", "")
+
+    return {
+        "rule_id": rule_id,
+        "tags": tags,
+        "score": score,
+        "body": str(body),
+        "source_file": source_file,
+    }
+
+
 def query(
     corpus_dir: str | Path,
     query_str: str,
     top_n: int = 5,
     tier: str = "",
     session_hash: str = "",
+    namespace: str = "",
 ) -> list[dict[str, Any]]:
     """Run a BM25 search over the corpus and return a list of result dicts.
 
@@ -374,6 +433,8 @@ def query(
         top_n: Maximum number of results to return.
         tier: If non-empty, filter results to entries matching this tier value.
         session_hash: If non-empty, deduplicate results against the session cache.
+        namespace: If non-empty, filter results to entries whose domain matches
+            this value (exact match; case-sensitive).
 
     Returns:
         List of result dicts (with BM25 score in '_score' key).
@@ -386,6 +447,12 @@ def query(
     # Tier filtering
     if tier:
         entries = [e for e in entries if e.get("tier") == tier]
+        if not entries:
+            return []
+
+    # Namespace (domain) filtering
+    if namespace:
+        entries = [e for e in entries if namespace in _entry_domains(e)]
         if not entries:
             return []
 
@@ -458,6 +525,25 @@ def main() -> None:
         dest="session_hash",
         help="Session hash for deduplication across calls",
     )
+    parser.add_argument(
+        "--namespace",
+        default="",
+        help=(
+            "Filter results to entries whose domain matches this value "
+            "(e.g. canon, components, gov-copy). "
+            "Without --namespace, results span all domains."
+        ),
+    )
+    parser.add_argument(
+        "--format",
+        default="text",
+        choices=["text", "json"],
+        dest="output_format",
+        help=(
+            "Output format: 'text' (default, YAML-like documents) or "
+            "'json' (JSON array per ref-query-json-output schema)."
+        ),
+    )
 
     args = parser.parse_args()
 
@@ -475,6 +561,7 @@ def main() -> None:
         top_n=args.top_n,
         tier=args.tier,
         session_hash=args.session_hash,
+        namespace=args.namespace,
     )
 
     if not results:
@@ -482,6 +569,11 @@ def main() -> None:
             f'[ref-query: no results for query: "{args.query_str}"]',
             file=sys.stderr,
         )
+        sys.exit(0)
+
+    if args.output_format == "json":
+        json_rows = [render_entry_json(entry) for entry in results]
+        print(json.dumps(json_rows, ensure_ascii=False, indent=2))
         sys.exit(0)
 
     # Render output as YAML documents separated by '---'

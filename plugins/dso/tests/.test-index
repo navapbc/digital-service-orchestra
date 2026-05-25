@@ -12,3 +12,6 @@ data/ui-reference/canon/vagov-error-anatomy.yaml:tests/test-canon-source-yamls.s
 data/ui-reference/canon/eighteen-f-content.yaml:tests/test-canon-source-yamls.sh
 data/ui-reference/canon/federal-plain-language.yaml:tests/test-canon-source-yamls.sh
 data/ui-reference/canon/cdc-reading-level.yaml:tests/test-canon-source-yamls.sh
+scripts/ref-query.sh:tests/test-ref-query-namespace.sh
+scripts/ref-query.py:tests/test-ref-query-namespace.sh
+docs/contracts/ref-query-json-output.md:tests/test-ref-query-namespace.sh
