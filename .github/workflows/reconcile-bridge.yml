@@ -17,6 +17,17 @@ on:
   schedule:
     - cron: '*/20 * * * *'
   workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Reconciler rollout-safety mode (dry-run | bootstrap-strict | bootstrap-throttle | live)'
+        required: false
+        default: 'live'
+        type: choice
+        options:
+          - dry-run
+          - bootstrap-strict
+          - bootstrap-throttle
+          - live
 
 concurrency:
   group: reconcile-bridge
@@ -134,7 +145,16 @@ jobs:
             --token
 
       - name: Run reconciler
-        run: python -m dso_reconciler
+        # When triggered via workflow_dispatch, honour the operator-selected
+        # rollout-safety mode. On schedule and other event types,
+        # github.event.inputs.mode is empty and the reconciler falls back to
+        # its own default (Mode.LIVE) — matching pre-input behaviour.
+        run: |
+          if [ -n "${{ github.event.inputs.mode }}" ]; then
+            python -m dso_reconciler --mode "${{ github.event.inputs.mode }}"
+          else
+            python -m dso_reconciler
+          fi
         working-directory: plugins/dso/scripts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
