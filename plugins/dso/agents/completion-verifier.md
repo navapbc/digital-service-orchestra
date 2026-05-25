@@ -287,6 +287,52 @@ Include all three gate results (SC9, SC14, SC13) as separate entries in `criteri
 - `"SC14: FP rate gate — rolling FP rate for epic ticket"`
 - `"SC13: Restart-rate drop analysis — documented methodology"`
 
+### Step 3c: DSO-Story-Merge Trailer Provenance Check (Epic Only)
+
+**Applies only when `ticket_type == "epic"`.** Skip this step entirely for stories.
+
+This check enforces the Phase F provenance pipeline invariant established by bug `db71-e078-ec99-4fbf`: every closed child story of this epic must have a `DSO-Story-Merge: <story-id>` trailer in the commit history reachable from the current HEAD.
+
+The trailer is the load-bearing attribution signal that downstream consumers depend on:
+- `merge-story-branch.sh` writes it on local merges (and on no-diff empty commits per F3)
+- `merge-to-main-pr.sh` / GitHub auto-merge writes it on ci-pr story PRs
+- CI's `INTEGRATION_SCOPE` detection in `.github/workflows/ci.yml` looks for it to scope per-story llm-review
+- Re-review attribution and `mirror-defenses-to-pr.sh` use it to correlate findings to stories
+
+A child story that closed without a trailer indicates a Phase F bypass (the f360-3a5b cross-contamination pattern). Treat such cases as a blocking gap.
+
+**Procedure**:
+
+1. Enumerate child stories that are currently `closed` (use `.claude/scripts/dso ticket list --type=story --parent=<epic-id> --status=closed`).
+2. For each closed child story `<story-id>`, run:
+
+   ```bash
+   git log <base>..HEAD --grep="^DSO-Story-Merge: <story-id>$" --extended-regexp --format=%H | head -1
+   ```
+
+   where `<base>` is the merge base of the session branch with the project's default branch (commonly `origin/main`). If the local environment lacks an `origin/HEAD` symbolic ref, fall back to `main`.
+
+3. Apply the verdict rule:
+
+   - **Output non-empty (trailer commit hash printed)**: the trailer is present; no entry added for this child.
+   - **Output empty**: the trailer is missing. Add a FAIL entry to `closure_checks_results`:
+
+     ```json
+     {
+       "item": "DSO-Story-Merge trailer for closed child story <story-id>",
+       "verdict": "FAIL",
+       "severity": "block",
+       "annotation": "trailer-provenance-check",
+       "evidence_found": "git log <base>..HEAD --grep=\"^DSO-Story-Merge: <story-id>$\" returned no commits"
+     }
+     ```
+
+     and mirror the FAIL into `criteria_results` so the epic-level `P1` gate blocks closure.
+
+4. **Severity rationale**: `block` (not `warn`) — missing trailers corrupt provenance for ALL downstream tooling, not just this epic. A missing trailer cannot be inferred from other signals.
+
+5. **Recovery guidance** (include in the verifier's narrative when a FAIL is emitted): the operator must either (a) re-run `merge-story-branch.sh story/<epic-id>/<story-id> <story-id>` locally to write a recovery trailer commit, or (b) re-dispatch the story PR with `BRANCH=story/<epic-id>/<story-id> STORY_PR_BASE=<session-branch> bash <plugin-scripts>/merge-to-main.sh` in ci-pr mode. See bug `db71-e078-ec99-4fbf` and `verify-story-merge-trailer.sh` for the canonical implementation of the trailer-presence assertion.
+
 ### Step 3b: Manual Story Sentinel Check
 
 When a story has the tag `manual:awaiting_user`:

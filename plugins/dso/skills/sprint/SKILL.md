@@ -2408,6 +2408,29 @@ else
 fi
 ```
 
+<HARD-GATE>
+**DSO-Story-Merge trailer-presence invariant (bug db71-e078-ec99-4fbf)**
+
+After the merge call above (whether `merge-story-branch.sh` in local mode or `merge-to-main.sh` in ci-pr mode) AND before the `ticket transition <story-id> ... closed` call below, you MUST invoke `verify-story-merge-trailer.sh` and abort the story-close path on non-zero exit.
+
+This is a **positive trailer-presence invariant**, NOT a verb ban on `git merge`. Other scripts in this repo (notably `merge-to-main-pr.sh`) legitimately use `git merge --no-edit` and `git merge --ff-only`; a verb-level check would false-positive against them. The gate asserts only what matters for downstream provenance — that a `DSO-Story-Merge: <story-id>` trailer exists somewhere in `<base>..HEAD`.
+
+Background: in worktree-isolation mode, the story branch tip equals the session tip at this point, and a naive `git merge --no-ff` no-ops with "Already up to date." (zero commit, zero trailer). F3 of bug db71 fixed `merge-story-branch.sh` to emit an empty trailer commit in that case; this gate is the load-bearing positive check that catches future regressions or bypasses.
+</HARD-GATE>
+
+```bash
+# Trailer-presence gate (bug db71-e078-ec99-4fbf): fail-fast before close.
+# In ci-pr mode the trailer lands when GitHub auto-merges the story PR;
+# the gate scans <base>..HEAD which includes the PR merge commit once it
+# has been pulled into the session branch. If the PR is still open at
+# this point the gate fails and the story transition is blocked until
+# the PR merges and the session re-pulls.
+bash "$PLUGIN_SCRIPTS/verify-story-merge-trailer.sh" "$STORY_ID" || { # shim-exempt: SKILL.md orchestrator instruction — sprint runs plugin scripts via $PLUGIN_SCRIPTS directly
+  echo "ERROR: trailer-presence gate failed for story $STORY_ID — see recovery guidance above (bug db71-e078-ec99-4fbf)" >&2
+  exit 1
+}
+```
+
 ### Leakage Detection
 
 After merging the story branch, run the leakage detector to catch any non-merge commits that bypassed `check-session-merge-only.sh` during this story's execution:
