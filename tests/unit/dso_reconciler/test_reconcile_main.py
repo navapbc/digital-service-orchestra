@@ -275,6 +275,58 @@ def test_lock_released_on_exception(main_mod, tmp_path):
     )
 
 
+@pytest.mark.parametrize(
+    "exc_factory,exc_id",
+    [
+        (lambda: RuntimeError("boom"), "RuntimeError"),
+        # SystemExit bypasses bare `except Exception:` blocks because it
+        # inherits from BaseException, not Exception. Only a try/finally
+        # (not try/except) will release the lock on this path.
+        (lambda: SystemExit(2), "SystemExit"),
+    ],
+)
+def test_lock_released_on_exception_variants(main_mod, tmp_path, exc_factory, exc_id):
+    """release_pass_lock is called in finally on RuntimeError AND on SystemExit.
+
+    SystemExit is the critical edge case: it inherits from BaseException, so
+    any `except Exception:` block would silently let it propagate WITHOUT
+    releasing the advisory lock. The finally block in main() is the only
+    safety net.
+    """
+    release_mock = MagicMock()
+    stub_reconcile = types.ModuleType(f"stub_reconcile_exc_{exc_id}")
+    stub_reconcile.reconcile_once = MagicMock(side_effect=exc_factory())
+
+    raised: BaseException | None = None
+    with patch(
+        f"{_ADVISORY_LOCK_KEY}.check_pass_lock",
+        return_value=False,
+    ), patch(
+        f"{_ADVISORY_LOCK_KEY}.check_phase_gate",
+        return_value=False,
+    ), patch(
+        f"{_ADVISORY_LOCK_KEY}.acquire_pass_lock",
+        return_value=None,
+    ), patch(
+        f"{_ADVISORY_LOCK_KEY}.release_pass_lock",
+        release_mock,
+    ), patch.object(
+        main_mod, "_try_load_step", return_value=stub_reconcile
+    ):
+        try:
+            main_mod.main(["--mode=dry-run", "--repo-root", str(tmp_path)])
+        except BaseException as e:
+            # SystemExit may propagate out of main() — that's an acceptable
+            # outcome; we only require that release_pass_lock ran.
+            raised = e
+
+    # The lock must be released regardless of exception class.
+    assert release_mock.call_count >= 1, (
+        f"release_pass_lock must be called in the finally block on {exc_id}; "
+        f"call_count={release_mock.call_count}, raised={raised!r}"
+    )
+
+
 def test_import_does_not_load_fetcher(_seed_sys_modules):
     """Importing the reconcile module does NOT pull fetcher into sys.modules.
 

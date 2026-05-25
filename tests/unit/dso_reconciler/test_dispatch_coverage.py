@@ -231,7 +231,19 @@ class TestEachLeafRoutesToDistinctApplier:
         first_a = list(A)[0].value
         try:
             reconcile_mod._dispatch_mutation(_make_mutation(first_d, first_a))
-        except (NotImplementedError, Exception):
+        except Exception:
+            # Intentionally broad: this call's ONLY purpose is to populate the
+            # lazy-built _DISPATCH_TABLE as a side effect. The first
+            # (direction, action) pair may legitimately raise any of:
+            #   - NotImplementedError (leaf is a stub)
+            #   - dso_reconciler_errors.DirectionMismatchError (guard fires
+            #     before the test mutation reaches a real handler)
+            #   - LookupError / AttributeError / TypeError (intentionally
+            #     minimal _make_mutation stub lacks production fields)
+            # All of these still cause _DISPATCH_TABLE to be populated, which
+            # is what the assertions below validate. Anything fatal at module
+            # import time (e.g., ImportError) propagates because it happens
+            # before _dispatch_mutation is entered.
             pass
 
         assert reconcile_mod._DISPATCH_TABLE is not None, (

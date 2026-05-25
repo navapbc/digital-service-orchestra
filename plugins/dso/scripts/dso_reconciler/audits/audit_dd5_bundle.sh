@@ -15,9 +15,12 @@
 #         dd1_pass, dd2_pass, dd3_pass, dd4_pass, overall_result
 #
 # Exit codes:
-#   0 — success; dd5.json written, epic comment posted
+#   0 — success; dd5.json written, epic comment posted, overall_result=true
 #   2 — phase gate not satisfied (propagated from check_phase_gate)
-#   6 — one or more prerequisite artifacts missing or empty JSON; no output
+#   6 — either (a) one or more prerequisite artifacts missing / empty / lacking
+#       a required field (no dd5.json written) OR (b) all artifacts present but
+#       overall_result=false; dd5.json IS written + comment posted, then exit 6
+#       so callers see the failure. Silent certification is never allowed.
 #
 # CLI: audit_dd5_bundle.sh <phase> --epic <epic-id>
 #
@@ -29,21 +32,12 @@
 
 set -uo pipefail
 
-# ── Source sibling phase-gate library ────────────────────────────────────────
+# ── Source sibling libraries (phase gate + shared helpers) ───────────────────
 _SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=audit_dd4_phase_gate.sh
 source "${_SELF_DIR}/audit_dd4_phase_gate.sh"
-
-# ── Resolve artifact root ─────────────────────────────────────────────────────
-_resolve_artifact_root() {
-    if [[ -n "${AUDIT_ARTIFACTS_DIR:-}" ]]; then
-        printf '%s' "$AUDIT_ARTIFACTS_DIR"
-        return
-    fi
-    local top
-    top="$(git rev-parse --show-toplevel 2>/dev/null)" || top="$(pwd)"
-    printf '%s' "${top}/.reconciler-audit-artifacts"
-}
+# shellcheck source=_audit_lib.sh
+source "${_SELF_DIR}/_audit_lib.sh"
 
 # ── Compute SHA256 of a file — stdout: hex digest ────────────────────────────
 _sha256_file() {
@@ -216,12 +210,34 @@ main() {
     done
 
     # ── Extract per-DD pass/fail fields ───────────────────────────────────────
-    local dd1_pass dd2_pass dd3_pass dd4_pass
-    dd1_pass="$(_extract_bool_field "$dd1_path" "sc8_pass" 2>/dev/null || _extract_bool_field "$dd1_path" "pass" 2>/dev/null || printf 'true')"
-    dd2_pass="$(_extract_bool_field "$dd2_path" "sc8_pass" 2>/dev/null || printf 'true')"
-    dd3_pass="$(_extract_bool_field "$dd3_path" "sc8_pass" 2>/dev/null || _extract_bool_field "$dd3_path" "pass" 2>/dev/null || printf 'true')"
+    # dd1.json is data-capture only — no boolean pass field is written by the
+    # producer. dd1_pass=true iff the prerequisite check above confirmed the
+    # file exists and is non-empty JSON containing label_only_orphan_count.
+    # We re-check the required field here so a corrupted dd1.json fails CLOSED.
+    local dd1_pass="true"
+    if ! grep -qE '"label_only_orphan_count"[[:space:]]*:[[:space:]]*[0-9]+' "$dd1_path"; then
+        printf 'ERROR: dd1.json missing required field label_only_orphan_count: %s\n' "$dd1_path" >&2
+        exit 6
+    fi
+
+    # dd2.json uses sc8_pass (the SC-8 verdict). Missing field → fail CLOSED.
+    local dd2_pass
+    if ! dd2_pass="$(_extract_bool_field "$dd2_path" "sc8_pass" 2>/dev/null)"; then
+        printf 'ERROR: dd2.json missing required boolean field sc8_pass: %s\n' "$dd2_path" >&2
+        exit 6
+    fi
+
+    # dd3.json uses overall_pass (per the cap-verifier contract). Missing field
+    # → fail CLOSED. Previously this fell through to literal 'true' for any
+    # unrecognised pass-field, silently certifying real failures.
+    local dd3_pass
+    if ! dd3_pass="$(_extract_bool_field "$dd3_path" "overall_pass" 2>/dev/null)"; then
+        printf 'ERROR: dd3.json missing required boolean field overall_pass: %s\n' "$dd3_path" >&2
+        exit 6
+    fi
+
     # dd4 is the phase gate — if we got here it passed
-    dd4_pass="true"
+    local dd4_pass="true"
 
     # overall_result = AND of all four
     local overall_result="true"
@@ -274,6 +290,16 @@ EOF
     fi
 
     printf 'epic comment posted: epic=%s artifact_dir=%s\n' "$epic_id" "$artifact_dir"
+
+    # ── Exit non-zero when any per-DD verdict failed ─────────────────────────
+    # The artifact is written and the comment is posted (operators need the
+    # evidence record) but a real audit failure MUST surface as a non-zero
+    # exit so callers (Make pipeline, CI) short-circuit.
+    if [[ "$overall_result" != "true" ]]; then
+        printf 'AUDIT FAIL: overall_result=false (dd1=%s dd2=%s dd3=%s dd4=%s)\n' \
+            "$dd1_pass" "$dd2_pass" "$dd3_pass" "$dd4_pass" >&2
+        exit 6
+    fi
 }
 
 main "$@"

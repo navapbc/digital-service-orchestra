@@ -466,3 +466,72 @@ def test_inbound_repair_property_must_not_write_dso_id_label(applier):
     # Should NOT raise — property-field mutations do not trigger the label-write guard
     applier._audit_dso_id_label_writes("inbound_repair_property", mutations)
     assert mutations == [property_mut], "audit must not mutate the input list"
+
+
+# ---------------------------------------------------------------------------
+# Per-action enforcement (Cluster B, item 4): authorized leaf + WRONG action
+# must still raise.
+# ---------------------------------------------------------------------------
+
+
+def test_outbound_create_attempting_delete_action_raises(applier):
+    """outbound_create is authorized for `create` ONLY; a `delete` on a dso-id
+    label from the same leaf is still UNAUTHORIZED and must raise.
+
+    Per-action enforcement closes the gap where _AUTHORIZED_DSO_ID_LABEL_ACTIONS
+    was previously a dead constant — the leaf-name check alone would have let
+    an authorized writer perform any action, defeating the per-action contract.
+    """
+    mut = _MockLabelMutation(payload="dso-id-mismatched-action", action="delete")
+    with pytest.raises(applier.DsoIdLabelWriteError) as exc_info:
+        applier._audit_dso_id_label_writes("outbound_create", [mut])
+    assert "outbound_create" in str(exc_info.value)
+    assert "delete" in str(exc_info.value)
+
+
+def test_inbound_clean_label_attempting_create_action_raises(applier):
+    """inbound_clean_label is authorized for `delete` ONLY; a `create` on a
+    dso-id label is UNAUTHORIZED and must raise."""
+    mut = _MockLabelMutation(payload="dso-id-wrong-action", action="create")
+    with pytest.raises(applier.DsoIdLabelWriteError) as exc_info:
+        applier._audit_dso_id_label_writes("inbound_clean_label", [mut])
+    assert "inbound_clean_label" in str(exc_info.value)
+    assert "create" in str(exc_info.value)
+
+
+# ---------------------------------------------------------------------------
+# Cluster B item 3: audit fires on the legacy batch dispatch path too.
+# ---------------------------------------------------------------------------
+
+
+def test_batch_audit_view_detects_dso_id_label_in_fields(applier):
+    """_BatchAuditView surfaces a dso-id-* label hidden in batch_mutation['fields']['labels']
+    so _audit_dso_id_label_writes can enforce the contract on the legacy path.
+    """
+    batch_mut = {
+        "action": "update",
+        "key": "PROJ-1",
+        "fields": {"labels": ["unrelated", "dso-id-sneaky"]},
+    }
+    view = applier._BatchAuditView(batch_mut)
+    assert view.target == "label"
+    assert view.payload == "dso-id-sneaky"
+    assert view.action == "update"
+
+    # And the audit must raise when handed this view under outbound_update.
+    with pytest.raises(applier.DsoIdLabelWriteError):
+        applier._audit_dso_id_label_writes("outbound_update", [view])
+
+
+def test_batch_audit_view_passes_clean_batch(applier):
+    """A batch mutation with no dso-id-* label in its fields must NOT raise the guard."""
+    batch_mut = {
+        "action": "update",
+        "key": "PROJ-2",
+        "fields": {"labels": ["regular", "another"], "title": "x"},
+    }
+    view = applier._BatchAuditView(batch_mut)
+    # Synthesised target empty → not a label write
+    assert view.target == ""
+    # Should not raise — no dso-id-* label in the batch
+    applier._audit_dso_id_label_writes("outbound_update", [view])

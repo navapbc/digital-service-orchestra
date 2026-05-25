@@ -190,13 +190,27 @@ def check_at_most_one_dso_local_id(
 _DUAL_IDENTITY_CAP_PER_PASS = 50
 
 
+_MUTATION_KEY = "plugins.dso.scripts.dso_reconciler.mutation"
+
+
 def _load_mutation_module():
-    """Load the sibling mutation.py module (same pattern as _load_alert_store)."""
+    """Load mutation.py under the canonical dotted sys.modules key.
+
+    Reuses ``plugins.dso.scripts.dso_reconciler.mutation`` so that ``Mutation``,
+    ``MutationDirection``, and ``MutationAction`` share a single class identity
+    across the reconciler — invariants.py, applier.py, differ.py, and any other
+    callers compare against the SAME enum members. A previous version loaded
+    under a private key (``invariants_mutation``), producing two distinct
+    ``MutationDirection`` class objects so ``mutation.direction is X`` checks
+    silently failed cross-module.
+    """
+    if _MUTATION_KEY in sys.modules:
+        return sys.modules[_MUTATION_KEY]
     spec = importlib.util.spec_from_file_location(
-        "invariants_mutation", Path(__file__).parent / "mutation.py"
+        _MUTATION_KEY, Path(__file__).parent / "mutation.py"
     )
     mod = importlib.util.module_from_spec(spec)
-    sys.modules.setdefault("invariants_mutation", mod)
+    sys.modules[_MUTATION_KEY] = mod
     spec.loader.exec_module(mod)
     return mod
 
@@ -256,14 +270,21 @@ def check_dual_identity_complete(
             quarantine.add(local_key)
             continue
         if not local_jira_pointer:
+            # Align the seeded mutation with applier.inbound_repair_property's
+            # contract: target = JIRA issue key (peer_key), payload carries the
+            # local_id used to write the dso_local_id entity property. A prior
+            # version emitted target=local_key + payload={set_field, value},
+            # which did not match the leaf's expected schema and silently
+            # short-circuited dispatch. (coderabbit / contract-shape fix)
             repairs.append(
                 mut_mod.Mutation(
                     direction=mut_mod.MutationDirection.inbound,
                     action=mut_mod.MutationAction.repair_property,
-                    target=local_key,
-                    payload={"set_field": "jira_key", "value": peer_key},
+                    target=peer_key,
+                    payload={"local_id": dso_id},
                     provenance={
                         "reason": "missing_back_pointer",
+                        "local_key": local_key,
                         "peer": peer_key,
                     },
                 )

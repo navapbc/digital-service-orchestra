@@ -41,6 +41,9 @@ _make_satisfied_gate_dir() {
 }
 
 # ── Helper: write locked-schema fixture dd1.json ─────────────────────────────
+# dd1.json contract matches the production audit_dd1_baseline.sh writer:
+# data capture only — NO boolean pass field. dd5 derives dd1_pass from the
+# presence of label_only_orphan_count.
 _write_dd1_fixture() {
     local dir="$1"
     local phase="${2:-bootstrap-throttle}"
@@ -50,8 +53,7 @@ _write_dd1_fixture() {
   "captured_at": "2026-05-25T00:00:00Z",
   "label_only_orphan_count": 197,
   "bridge_fsck_command": "bridge-fsck --count-only",
-  "git_sha": "abc123def456",
-  "sc8_pass": true
+  "git_sha": "abc123def456"
 }
 EOF
 }
@@ -72,14 +74,17 @@ EOF
 }
 
 # ── Helper: write locked-schema fixture dd3.json ─────────────────────────────
+# dd3.json contract matches the production audit_dd3_mutation_caps.py writer:
+# the verdict field is `overall_pass` (NOT sc8_pass / NOT pass).
 _write_dd3_fixture() {
     local dir="$1"
     local phase="${2:-bootstrap-throttle}"
+    local overall_pass="${3:-true}"
     cat > "${dir}/dd3.json" <<EOF
 {
   "phase": "${phase}",
-  "mutation_cap_ok": true,
-  "sc8_pass": true
+  "passes": [],
+  "overall_pass": ${overall_pass}
 }
 EOF
 }
@@ -297,9 +302,74 @@ test_epic_comment_posted() {
     assert_pass_if_clean "test_epic_comment_posted"
 }
 
+# ── Test 4: test_dd3_overall_pass_false_propagates ────────────────────────────
+# When dd3.json reports overall_pass=false, dd5 MUST:
+#   - emit dd3_pass=false in dd5.json
+#   - emit overall_result=false
+#   - exit non-zero (this is a real audit failure, not silent certification)
+# This is the regression test for the silent-certification fall-through bug
+# where a missing/unrecognised pass-field caused the script to default to true.
+test_dd3_overall_pass_false_propagates() {
+    _snapshot_fail
+
+    local phase="bootstrap-throttle"
+    local epic_id="test-epic-004"
+
+    local gate_dir artifact_root log_file stub_cli
+    gate_dir="$(_make_satisfied_gate_dir "$phase")"
+    artifact_root="$(mktemp -d)"
+    log_file="$(mktemp /tmp/ticket_stub_log.XXXXXX)"
+    stub_cli="$(_make_ticket_cli_stub "$log_file")"
+
+    trap 'rm -rf "$gate_dir" "$artifact_root" "$(dirname "$stub_cli")" "$log_file"' RETURN
+
+    # Write fixtures: dd1, dd2 healthy; dd3 reports a real failure.
+    local phase_dir="${artifact_root}/${phase}"
+    mkdir -p "$phase_dir"
+    _write_dd1_fixture "$phase_dir" "$phase"
+    _write_dd2_fixture "$phase_dir" "$phase"
+    _write_dd3_fixture "$phase_dir" "$phase" "false"   # overall_pass = false
+    _write_quarantine_fixture "$phase_dir"
+
+    local rc=99
+    RECONCILER_PHASE_GATE_DIR="$gate_dir" \
+    AUDIT_ARTIFACTS_DIR="$artifact_root" \
+    TICKET_CLI="$stub_cli" \
+        bash "$SCRIPT" "$phase" --epic "$epic_id" >/dev/null 2>&1
+    rc=$?
+
+    # Script writes dd5.json (the audit DID run); but does it record the
+    # failure correctly? Inspect the artifact before checking rc.
+    local dd5_path="${artifact_root}/${phase}/dd5.json"
+    local dd5_exists="no"
+    [[ -f "$dd5_path" ]] && dd5_exists="yes"
+    assert_eq "dd5.json written for failed audit" "yes" "$dd5_exists"
+
+    if [[ -f "$dd5_path" ]]; then
+        local content
+        content="$(cat "$dd5_path")"
+
+        # dd3_pass MUST be false (not silently true)
+        local has_dd3_false="no"
+        [[ "$content" == *'"dd3_pass": false'* ]] && has_dd3_false="yes"
+        assert_eq "dd3_pass is false in dd5.json"     "yes" "$has_dd3_false"
+
+        # overall_result MUST be false (AND of all four)
+        local has_overall_false="no"
+        [[ "$content" == *'"overall_result": false'* ]] && has_overall_false="yes"
+        assert_eq "overall_result is false"           "yes" "$has_overall_false"
+    fi
+
+    # Exit code MUST be 6 (real failure surfaced to callers)
+    assert_eq "exit code is 6 on dd3 overall_pass=false" "6" "$rc"
+
+    assert_pass_if_clean "test_dd3_overall_pass_false_propagates"
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 test_bundle_success
 test_missing_prereq_exits_6
 test_epic_comment_posted
+test_dd3_overall_pass_false_propagates
 
 print_summary

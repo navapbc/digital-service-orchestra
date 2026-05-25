@@ -14,6 +14,7 @@ The bootstrap modes are progressive warm-up phases before full live operation.
 
 from __future__ import annotations
 
+import functools
 from enum import Enum
 
 # Ordered list defines < / > semantics for check_phase_gate.
@@ -26,6 +27,7 @@ _ORDERED = [
 ]
 
 
+@functools.total_ordering
 class Mode(str, Enum):
     """Reconciler operation mode.
 
@@ -70,11 +72,23 @@ class Mode(str, Enum):
         Ordering: dry-run (0) < bootstrap-strict (1) < bootstrap-throttle (2)
         < live (3).
 
-        Used by check_phase_gate to evaluate ``target_mode > gated_mode``.
+        Backward-compat alias: the same ordering is now available natively via
+        ``<``/``>`` operators (see ``__lt__`` and ``@functools.total_ordering``).
+        New code should prefer the natural operators::
 
-        Example::
-
-            if target_mode.rank() > gated_mode.rank():
+            if target_mode > gated_mode:
                 raise PhaseGateError(...)
         """
         return _ORDERED.index(self.value)
+
+    def __lt__(self, other: object) -> bool:
+        """Order Modes by their position in ``_ORDERED``.
+
+        Combined with ``@functools.total_ordering`` this yields the full set
+        of comparison operators (``<``, ``<=``, ``>``, ``>=``) for free; ``==``
+        comes from the Enum base class. Comparison against a non-Mode returns
+        NotImplemented so Python can fall back to the reflected operator.
+        """
+        if not isinstance(other, Mode):
+            return NotImplemented
+        return _ORDERED.index(self.value) < _ORDERED.index(other.value)

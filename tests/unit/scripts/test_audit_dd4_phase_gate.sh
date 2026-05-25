@@ -246,6 +246,57 @@ test_script_is_executable() {
     assert_pass_if_clean "test_script_is_executable"
 }
 
+# ── Test 11: empty .reconciler-phase-gate file → exit 2 + diagnostic ──────────
+# Edge case: gate file exists but contains no phase string. After tr -d strips
+# whitespace, gate_content is the empty string, which cannot match any valid
+# requested phase. Resolution should fall through to the "gate_missing"
+# diagnostic and exit 2 — never silently accept an empty gate as a match.
+test_empty_gate_file_exits_2() {
+    _snapshot_fail
+
+    local gate_dir
+    gate_dir="$(_make_gate_dir)"
+    trap 'rm -rf "$gate_dir"' RETURN
+
+    # Empty gate file (no content, not even a newline)
+    : > "$gate_dir/.reconciler-phase-gate"
+
+    local stderr_out
+    stderr_out="$(RECONCILER_PHASE_GATE_DIR="$gate_dir" \
+        bash -c "source \"$SCRIPT\"; check_phase_gate live" 2>&1 >/dev/null)"
+    local rc=$?
+
+    assert_eq "empty gate file → exit 2" "2" "$rc"
+    assert_contains "diagnostic emitted on empty gate" "phase not advanced" "$stderr_out"
+
+    assert_pass_if_clean "test_empty_gate_file_exits_2"
+}
+
+# ── Test 12: unknown phase string in gate file → exit 2 + diagnostic ──────────
+# Edge case: gate file contains a typo (e.g. "typo-mode") that is not one of
+# the canonical phase names. Resolution must NOT accept it — it must compare
+# byte-for-byte against the requested phase, then fall through to the
+# "gate_missing" diagnostic and exit 2.
+test_unknown_phase_string_exits_2() {
+    _snapshot_fail
+
+    local gate_dir
+    gate_dir="$(_make_gate_dir)"
+    trap 'rm -rf "$gate_dir"' RETURN
+
+    printf 'typo-mode\n' > "$gate_dir/.reconciler-phase-gate"
+
+    local stderr_out
+    stderr_out="$(RECONCILER_PHASE_GATE_DIR="$gate_dir" \
+        bash -c "source \"$SCRIPT\"; check_phase_gate live" 2>&1 >/dev/null)"
+    local rc=$?
+
+    assert_eq "unknown phase string → exit 2" "2" "$rc"
+    assert_contains "diagnostic emitted on unknown phase" "phase not advanced" "$stderr_out"
+
+    assert_pass_if_clean "test_unknown_phase_string_exits_2"
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 test_missing_gate_exits_2
 test_present_gate_exits_0
@@ -257,5 +308,7 @@ test_malformed_ops_fails_closed
 test_cli_invocation_exit_2
 test_cli_invocation_exit_0
 test_script_is_executable
+test_empty_gate_file_exits_2
+test_unknown_phase_string_exits_2
 
 print_summary

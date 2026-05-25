@@ -32,6 +32,11 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DIFFER_PATH = REPO_ROOT / "plugins" / "dso" / "scripts" / "dso_reconciler" / "differ.py"
+CONFLICT_RESOLVER_PATH = (
+    REPO_ROOT / "plugins" / "dso" / "scripts" / "dso_reconciler" / "conflict_resolver.py"
+)
+APPLIER_PATH = REPO_ROOT / "plugins" / "dso" / "scripts" / "dso_reconciler" / "applier.py"
+MUTATION_PATH = REPO_ROOT / "plugins" / "dso" / "scripts" / "dso_reconciler" / "mutation.py"
 
 
 def _load(path: Path, name: str):
@@ -202,6 +207,64 @@ _DRAFT9_CASES = [
         id="label-create-edit-delete-bidirectional",
     ),
     pytest.param(
+        # (e2) label-divergent-dso-id-local-only: local carries DSO_ID_LABEL;
+        # Jira does NOT. The label sets differ → differ enters the labels-resolution
+        # branch and unions both sides. The contract requires that no resolved
+        # Mutation propose a write with a dso-id-* label in its payload.
+        # NOTE: per Agent B's notes, conflict_resolver does NOT itself filter
+        # dso-id labels — the contract is enforced end-to-end by the applier's
+        # _audit_dso_id_label_writes guard. This test documents the divergent
+        # input shape; the applier-guard tail check below
+        # (test_applier_guard_blocks_resolver_dso_id_label_writes) is the
+        # behavior that actually enforces the contract.
+        {
+            JIRA_KEY: {
+                "dso_local_id": LOCAL_ID,
+                "labels": [DSO_ID_LABEL, "feature"],
+            }
+        },
+        {
+            JIRA_KEY: {
+                "dso_local_id": LOCAL_ID,
+                "labels": ["feature"],
+            }
+        },
+        id="label-divergent-dso-id-local-only",
+        marks=pytest.mark.xfail(
+            reason=(
+                "conflict_resolver does not filter dso-id-* labels from the union "
+                "payload; the applier guard catches this post-resolution. See "
+                "test_applier_guard_blocks_resolver_dso_id_label_writes below."
+            ),
+            strict=True,
+        ),
+    ),
+    pytest.param(
+        # (e3) label-divergent-dso-id-jira-only: Jira carries DSO_ID_LABEL;
+        # local does NOT. Symmetric inbound counterpart of (e2).
+        {
+            JIRA_KEY: {
+                "dso_local_id": LOCAL_ID,
+                "labels": ["feature"],
+            }
+        },
+        {
+            JIRA_KEY: {
+                "dso_local_id": LOCAL_ID,
+                "labels": [DSO_ID_LABEL, "feature"],
+            }
+        },
+        id="label-divergent-dso-id-jira-only",
+        marks=pytest.mark.xfail(
+            reason=(
+                "conflict_resolver does not filter dso-id-* labels from the union "
+                "payload; the applier guard catches this post-resolution. See "
+                "test_applier_guard_blocks_resolver_dso_id_label_writes below."
+            ),
+            strict=True,
+        ),
+    ),
+    pytest.param(
         # (f) link-create-edit-delete-bidirectional:
         # Links diverge (jira has an extra 'relates' link); dso-id label
         # identical on both sides — no dso-id label write proposed.
@@ -242,3 +305,125 @@ def test_no_dso_id_label_writes_per_draft9_case(
     """
     mutations = differ.compute_mutations(local_state, jira_state)
     _assert_no_dso_id_label_writes(mutations, case_id=request.node.callid if hasattr(request.node, "callid") else request.node.name)
+
+
+# ---------------------------------------------------------------------------
+# Direct resolver + applier-guard tail check
+# ---------------------------------------------------------------------------
+#
+# The xfail cases above (e2, e3) confirm conflict_resolver does NOT itself
+# filter dso-id-* labels from the union payload — it unconditionally unions
+# both sides. The actual end-to-end contract is enforced by the applier's
+# _audit_dso_id_label_writes guard, which fires before any unauthorized leaf
+# dispatches a dso-id-* label write.
+#
+# The test below drives conflict_resolver.resolve_field DIRECTLY with divergent
+# inputs (bypassing the differ's no-diff short-circuit) and then asserts the
+# applier guard raises DsoIdLabelWriteError when an unauthorized leaf attempts
+# to write a Mutation containing the resolver's output.
+
+
+@pytest.fixture(scope="module")
+def conflict_resolver():
+    return _load(CONFLICT_RESOLVER_PATH, "conflict_resolver_no_dso_id_writes")
+
+
+@pytest.fixture(scope="module")
+def mutation_mod():
+    return _load(MUTATION_PATH, "mutation_no_dso_id_writes")
+
+
+@pytest.fixture(scope="module")
+def applier_mod():
+    # applier imports _errors via relative dotted lookup; seed the canonical
+    # package path so DsoIdLabelWriteError resolves at raise-time.
+    import types as _types
+    for _parent in (
+        "plugins",
+        "plugins.dso",
+        "plugins.dso.scripts",
+        "plugins.dso.scripts.dso_reconciler",
+    ):
+        if _parent not in sys.modules:
+            sys.modules[_parent] = _types.ModuleType(_parent)
+    errors_path = REPO_ROOT / "plugins" / "dso" / "scripts" / "dso_reconciler" / "_errors.py"
+    errors_key = "plugins.dso.scripts.dso_reconciler._errors"
+    if errors_key not in sys.modules:
+        _load(errors_path, errors_key)
+    return _load(APPLIER_PATH, "applier_no_dso_id_writes")
+
+
+def test_resolver_unions_dso_id_label_on_divergent_sides(conflict_resolver) -> None:
+    """resolve_field('labels', ...) returns the union including dso-id-* when
+    sides diverge — documents the current (unfiltered) resolver behavior.
+
+    This pins the contract boundary: the resolver does not filter dso-id-*
+    labels itself; the applier guard catches unauthorized writes downstream.
+    """
+    local_labels = [DSO_ID_LABEL, "feature"]
+    jira_labels = ["feature"]
+    resolved = conflict_resolver.resolve_field(
+        "labels", local_labels, jira_labels, provenance_record=None
+    )
+    assert isinstance(resolved, list)
+    # Current behavior: dso-id-* is unioned in. If the resolver gains an
+    # explicit filter for dso-id-* labels, this assertion will fail and the
+    # xfail markers on (e2)/(e3) above should be removed.
+    assert any(str(lbl).startswith("dso-id-") for lbl in resolved), (
+        "resolve_field('labels', ...) is expected to union all labels including "
+        "dso-id-* (no resolver-level filter). The applier guard "
+        "(_audit_dso_id_label_writes) is the contract enforcer."
+    )
+
+
+def test_applier_guard_blocks_resolver_dso_id_label_writes(
+    conflict_resolver, mutation_mod, applier_mod
+) -> None:
+    """When the resolver's union output is wrapped in a Mutation routed to an
+    unauthorized leaf (outbound_update), the applier guard raises
+    DsoIdLabelWriteError before any side-effect.
+
+    This is the load-bearing end-to-end contract check: the resolver may
+    union dso-id-* labels into its output, but the applier _audit_dso_id_label_writes
+    guard MUST block any unauthorized leaf from acting on that payload.
+    """
+    # 1. Resolver produces a union list that includes a dso-id-* label.
+    local_labels = [DSO_ID_LABEL, "feature"]
+    jira_labels = ["feature"]
+    resolved = conflict_resolver.resolve_field(
+        "labels", local_labels, jira_labels, provenance_record=None
+    )
+    assert any(str(lbl).startswith("dso-id-") for lbl in resolved)
+
+    # 2. Build a label-target Mutation carrying the offending dso-id label.
+    #    The applier's _is_dso_id_label_write_mutation matches mutations where
+    #    target == 'label' AND payload (string) starts with 'dso-id-'.
+    offending_label = next(
+        lbl for lbl in resolved if str(lbl).startswith("dso-id-")
+    )
+    mut = mutation_mod.Mutation(
+        direction=mutation_mod.MutationDirection.outbound,
+        action=mutation_mod.MutationAction.update,
+        target="label",
+        payload={"label": offending_label, "target": "label"},
+        provenance={"source": "test"},
+    )
+
+    # 3. Invoke the guard directly with an unauthorized leaf name.
+    #    outbound_update is NOT in _AUTHORIZED_DSO_ID_LABEL_WRITERS.
+    #    The applier loads its own _errors module under the canonical key
+    #    'dso_reconciler_errors' (see _load_errors_module); use the re-export.
+    error_cls = applier_mod.DsoIdLabelWriteError
+
+    # Ensure guard mode is 'raise' regardless of environment.
+    import os as _os
+    prev = _os.environ.get("DSO_DSO_ID_GUARD_MODE")
+    _os.environ["DSO_DSO_ID_GUARD_MODE"] = "raise"
+    try:
+        with pytest.raises(error_cls):
+            applier_mod._audit_dso_id_label_writes("outbound_update", [mut])
+    finally:
+        if prev is None:
+            _os.environ.pop("DSO_DSO_ID_GUARD_MODE", None)
+        else:
+            _os.environ["DSO_DSO_ID_GUARD_MODE"] = prev

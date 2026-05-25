@@ -18,6 +18,7 @@ import importlib.util
 import json
 import sys
 import types
+import types as _types  # alias retained for the namespace-stub fixture below
 from pathlib import Path
 from unittest.mock import patch
 
@@ -63,24 +64,68 @@ def _load_module(name: str, path: Path):
 # resolves at runtime — `plugins/` is a project directory, not a real Python
 # package on sys.path. Register alert_store under the canonical dotted name
 # so `from <pkg> import alert_store` walks the namespace stubs and finds it.
-import types as _types
+#
+# V2 fix (PR #345 remediation): lifted from module-import-time into a
+# module-scoped autouse fixture so the seeding has explicit lifecycle —
+# matching the idiom established by test_reconcile_main.py's
+# _seed_sys_modules fixture.
+#
+# Cleanup scope is intentionally minimal: the
+# `plugins.dso.scripts.dso_reconciler` namespace stub and its `alert_store`
+# attribute are NOT torn down here. Other tests in this directory
+# (test_fetcher_*.py, test_reconcile_once.py, test_e2e_dedup_pass.py) rely
+# on the seeded namespace + attribute being present at import time of
+# fetcher.py's `from plugins.dso.scripts.dso_reconciler import alert_store`.
+# Tearing them down regresses the suite baseline. The finalizer drops only
+# this module's per-test smoke aliases (`reconcile_smoke`, etc.) so they
+# don't masquerade as production modules for later tests.
 
-for _parent in (
-    "plugins",
-    "plugins.dso",
-    "plugins.dso.scripts",
-    "plugins.dso.scripts.dso_reconciler",
-):
-    if _parent not in sys.modules:
-        sys.modules[_parent] = _types.ModuleType(_parent)
-_alert_store_key = "plugins.dso.scripts.dso_reconciler.alert_store"
-if _alert_store_key not in sys.modules:
-    _spec = importlib.util.spec_from_file_location(_alert_store_key, ALERT_STORE_PATH)
-    assert _spec is not None and _spec.loader is not None
-    _mod = importlib.util.module_from_spec(_spec)
-    sys.modules[_alert_store_key] = _mod
-    _spec.loader.exec_module(_mod)  # type: ignore[union-attr]
-    sys.modules["plugins.dso.scripts.dso_reconciler"].alert_store = _mod
+
+@pytest.fixture(scope="module", autouse=True)
+def _seed_namespace_stubs(request):
+    """Seed sys.modules with namespace stubs + alert_store under dotted key.
+
+    See the comment above for cleanup-scope rationale.
+    """
+    for _parent in (
+        "plugins",
+        "plugins.dso",
+        "plugins.dso.scripts",
+        "plugins.dso.scripts.dso_reconciler",
+    ):
+        if _parent not in sys.modules:
+            sys.modules[_parent] = _types.ModuleType(_parent)
+
+    _alert_store_key = "plugins.dso.scripts.dso_reconciler.alert_store"
+    if _alert_store_key not in sys.modules:
+        _spec = importlib.util.spec_from_file_location(_alert_store_key, ALERT_STORE_PATH)
+        assert _spec is not None and _spec.loader is not None
+        _mod = importlib.util.module_from_spec(_spec)
+        sys.modules[_alert_store_key] = _mod
+        _spec.loader.exec_module(_mod)  # type: ignore[union-attr]
+
+    # Attach .alert_store onto the namespace stub so
+    # `from plugins.dso.scripts.dso_reconciler import alert_store` resolves.
+    pkg = sys.modules.get("plugins.dso.scripts.dso_reconciler")
+    if pkg is not None and not hasattr(pkg, "alert_store"):
+        pkg.alert_store = sys.modules[_alert_store_key]
+
+    # Smoke-alias sys.modules keys that this module's _load_module helper
+    # creates as side effects of fixture loading. Drop them in the finalizer
+    # so they don't masquerade as the production modules for later tests.
+    _smoke_keys = (
+        "reconcile_smoke",
+        "reconcile_fetcher_smoke",
+        "reconcile_applier_smoke",
+        "alert_store_smoke",
+        "reconcile_differ_smoke",
+    )
+
+    def _cleanup():
+        for key in _smoke_keys:
+            sys.modules.pop(key, None)
+
+    request.addfinalizer(_cleanup)
 
 
 @pytest.fixture(scope="module")
@@ -281,7 +326,10 @@ def test_alert_emitted_through_stateless_path(
             try:
                 all_records.append(json.loads(line))
             except json.JSONDecodeError:
-                pass
+                # Malformed JSONL line — alert_store may write partial records
+                # under load-shedding/truncation. Skip and continue accumulating
+                # the well-formed records so the assertion below has data to act on.
+                continue
 
     assert len(all_records) >= 1, (
         f"JSONL files exist but contain no parseable records: {jsonl_files}"

@@ -8,7 +8,10 @@ Each line represents a single reconciler pass and must include:
 
     {
         "phase": "<phase-name>",        // string — e.g. "bootstrap-strict"
-        "pass_index": <int>,            // 1-based pass number within the phase
+        "pass_index": <int>,            // GLOBAL 1-based pass sequence counter
+                                         // (1–8 across the full bootstrap rollout,
+                                         // NOT phase-relative). Cap rules below
+                                         // depend on this global ordering.
         "mutation_count": <int>,        // mutations applied during this pass
         "timestamp": "<ISO-8601>"       // e.g. "2026-05-24T10:00:00Z"
     }
