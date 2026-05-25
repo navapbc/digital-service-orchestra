@@ -538,7 +538,7 @@ tests/scripts/test-infer-detected-by.sh:tests/scripts/test-infer-detected-by.sh 
 tests/scripts/test-bootstrap-calibration-tickets.sh:tests/scripts/test-bootstrap-calibration-tickets.sh
 plugins/dso/scripts/lib/reachability.sh:tests/scripts/test-reachability-helper.sh
 tests/lib/protocol-conformance-harness.sh:tests/unit/shared/test-protocol-conformance-harness.sh
-plugins/dso/scripts/dso_reconciler/conflict_resolver.py:tests/unit/dso_reconciler/test_conflict_resolver.py,tests/unit/dso_reconciler/test_conflict_resolver_cap.py,tests/unit/dso_reconciler/test_conflict_resolver_divergence.py,tests/unit/dso_reconciler/test_conflict_resolver_fitness.py,tests/unit/dso_reconciler/test_differ_conflict_resolution.py,tests/unit/dso_reconciler/test_conflict_resolver_provenance_matrix.py [test_provenance_ledger_records_side_and_timestamp]
+plugins/dso/scripts/dso_reconciler/conflict_resolver.py:tests/unit/dso_reconciler/test_conflict_resolver.py,tests/unit/dso_reconciler/test_conflict_resolver_cap.py,tests/unit/dso_reconciler/test_conflict_resolver_divergence.py,tests/unit/dso_reconciler/test_conflict_resolver_fitness.py,tests/unit/dso_reconciler/test_differ_conflict_resolution.py,tests/unit/dso_reconciler/test_conflict_resolver_provenance_matrix.py
 plugins/dso/scripts/dso_reconciler/alert_store.py:tests/unit/dso_reconciler/test_alert_store_dedup.py
 plugins/dso/scripts/dso_reconciler/invariants.py:tests/unit/dso_reconciler/test_invariants.py
 plugins/dso/scripts/dso_reconciler/health.py:tests/unit/dso_reconciler/test_health.py,tests/unit/dso_reconciler/test_health_baseline.py,tests/unit/dso_reconciler/test_health_schema.py

@@ -6,10 +6,19 @@ Provides a FIELD_CLASSES registry and three resolution strategies:
   - resolve_set_valued: union of both sets
 
 resolve_field dispatches to the correct strategy based on FIELD_CLASSES.
+
+Also exposes ProvenanceLedger — per-element provenance keyed by `element_key`
+(typically `"<field_name>:<element_value>"` for collection elements, or just
+`<field_name>` for scalars). Companion to the differ-level provenance_ledger
+module; the resolver-level ledger uses element-level keys so collection
+elements can be echo-suppressed individually.
 """
 
 from __future__ import annotations
 
+import hashlib
+import json
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 # ---------------------------------------------------------------------------
@@ -195,3 +204,58 @@ def resolve_field(
     if ledger is not None:
         ledger.record(field_name, "local", resolved)
     return resolved
+
+
+# ---------------------------------------------------------------------------
+# ProvenanceLedger — element-level provenance for echo suppression
+# ---------------------------------------------------------------------------
+
+
+def _hash_value(value: Any) -> str:
+    """Stable sha256 of a JSON-serialized value."""
+    return hashlib.sha256(
+        json.dumps(value, sort_keys=True, default=str, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+
+
+class ProvenanceLedger:
+    """Element-level provenance ledger.
+
+    Records per-element writes keyed by `element_key` (typically
+    `"<field_name>:<element_value>"` for collection elements, or `<field_name>`
+    for scalars). Each record carries `side` ('local'|'jira'), an ISO 8601
+    UTC `timestamp`, and a `value_hash` for content-equality echo detection.
+
+    Companion to provenance_ledger.ProvenanceLedger (which uses target+payload
+    keys). The resolver-level ledger uses element-level keys so individual
+    collection elements can be echo-suppressed independently.
+    """
+
+    def __init__(self) -> None:
+        self._records: dict[str, list[dict[str, Any]]] = {}
+
+    def record(self, element_key: str, side: str = None, value: Any = None) -> None:
+        """Append an entry for `element_key`.
+
+        Accepts both positional (`record(key, side, value)`) and keyword
+        (`record(element_key=k, side=s, value=v)`) calling styles so existing
+        resolver call sites and the matrix tests both work.
+        `side` must be 'local' or 'jira'.
+        """
+        if side not in ("local", "jira"):
+            raise ValueError(f"side must be 'local' or 'jira', got {side!r}")
+        entry = {
+            "side": side,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "value_hash": _hash_value(value),
+        }
+        self._records.setdefault(element_key, []).append(entry)
+
+    def is_echo(self, element_key: str, value: Any) -> bool:
+        """True iff any record for `element_key` has a matching content hash."""
+        h = _hash_value(value)
+        return any(r["value_hash"] == h for r in self._records.get(element_key, []))
+
+    def serialize(self) -> dict[str, dict[str, Any]]:
+        """Return the most-recent record per element_key as a flat dict."""
+        return {k: entries[-1] for k, entries in self._records.items() if entries}

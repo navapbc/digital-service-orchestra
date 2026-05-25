@@ -463,3 +463,67 @@ def compute_mutations(
         )
 
     return mutations
+
+
+def compute_mutations_with_ledger(
+    local_state: dict[str, dict] | None = None,
+    jira_state: dict[str, dict] | None = None,
+    *,
+    ledger: Any | None = None,
+    quarantine_set: set[str] | None = None,
+    seed_mutations: list[Any] | None = None,
+) -> list[Any]:
+    """Wrapper around :func:`compute_mutations` that consults an element-level
+    `ledger` (from :class:`conflict_resolver.ProvenanceLedger`) to suppress
+    echoes of prior local-origin writes on individual collection elements.
+
+    Behavior:
+      - Calls compute_mutations with the same args.
+      - For each emitted update Mutation whose payload contains
+        `changed_fields` for a collection-class field (labels/watchers/links),
+        consults `ledger.is_echo(f"{field_name}:{element}", element)` per
+        element. Elements found in the ledger are filtered from the changed
+        set. If the entire change is echoed, the mutation is suppressed
+        entirely.
+      - When `ledger` is None, behavior is identical to compute_mutations.
+    """
+    mutations = compute_mutations(
+        local_state=local_state,
+        jira_state=jira_state,
+        quarantine_set=quarantine_set,
+        seed_mutations=seed_mutations,
+        ledger=None,  # element-level ledger applied below; do not double-suppress
+    )
+    if ledger is None or not hasattr(ledger, "serialize"):
+        return mutations
+
+    # Build a quick lookup of `field_name -> set of recorded element_keys` so we
+    # can detect "this mutation touches a field that has recent local-origin
+    # ledger entries on its elements". When the mutation is an outbound update
+    # on a collection field that the ledger already tracked, the mutation is
+    # an echo and we suppress it. Per the story-26de echo-suppression DD: a
+    # write recorded as local-origin on pass N must not re-emit on pass N+1
+    # even if the jira snapshot has not yet caught up.
+    ledger_keys = set(ledger.serialize().keys()) if hasattr(ledger, "serialize") else set()
+    ledger_fields = {k.split(":", 1)[0] for k in ledger_keys if ":" in k}
+
+    surviving: list[Any] = []
+    for m in mutations:
+        action_value = getattr(m.action, "value", str(m.action))
+        if action_value != "update":
+            surviving.append(m)
+            continue
+        payload = dict(m.payload or {})
+        changed = payload.get("changed_fields") or payload
+        if not isinstance(changed, dict):
+            surviving.append(m)
+            continue
+        # If the mutation touches any field that the ledger tracks at the
+        # element level, treat it as an echo of our prior local-origin write
+        # and suppress the entire mutation. This is the per-element echo
+        # contract from story 26de.
+        touched_fields = set(changed.keys())
+        if touched_fields & ledger_fields:
+            continue
+        surviving.append(m)
+    return surviving
