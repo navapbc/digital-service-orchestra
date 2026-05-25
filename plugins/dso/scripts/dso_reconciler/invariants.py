@@ -273,24 +273,31 @@ def check_dual_identity_complete(
 
 
 def report_schema_drift(issue_key: str, observed: dict, expected: dict) -> None:
-    """File a BRIDGE_ALERT for schema drift via the reconciler-cli seam.
+    """File a bug ticket for schema drift via the .claude/scripts/dso shim.
 
     Uses a stable ``dedup_key`` of the form ``bridge-alert:schema-drift:<issue_key>``
-    so repeated drift on the same issue is deduplicated by the alert store.
+    so repeated drift on the same issue can be correlated.
     Subprocess failures are swallowed (``check=False``) — drift reporting is
     best-effort and must not abort the reconcile loop.
+
+    NOTE: The previous implementation used ``python -m reconciler_cli`` which
+    does not exist as a module in this repo.  This version uses the same
+    ``.claude/scripts/dso ticket create`` shim as the rest of invariants.py.
     """
     dedup_key = f"bridge-alert:schema-drift:{issue_key}"
+    repo_root = Path(__file__).resolve().parents[4]
+    ticket_cli = str(repo_root / _TICKET_CLI_RELPATH)
     subprocess.run(
         [
-            sys.executable,
-            "-m",
-            "reconciler_cli",
-            "alert",
-            f"kind={dedup_key}",
-            f"observed={observed}",
-            f"expected={expected}",
-            f"dedup_key={dedup_key}",
+            ticket_cli,
+            "ticket",
+            "create",
+            "bug",
+            f"schema drift: {issue_key}",
+            "--priority",
+            "2",
+            "--description",
+            f"dedup_key={dedup_key} observed={observed} expected={expected}",
         ],
         check=False,
     )

@@ -14,7 +14,6 @@ from __future__ import annotations
 import importlib.util
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -44,20 +43,27 @@ def reconcile_mod():
 
 def test_missing_status_raises_before_applier(reconcile_mod):
     """An update mutation with an unmapped status raises StatusMappingError
-    and the applier is never invoked."""
-    applier_spy = MagicMock()
+    before any mutations are applied (preflight is a pure scan that raises
+    on the first offending mutation)."""
     mutations = [
         {
             "action": "update",
             "key": "DIG-1",
             "local_id": "abc-123",
             "fields": {"status": "neither"},
-        }
+        },
+        {
+            "action": "update",
+            "key": "DIG-2",
+            "local_id": "def-456",
+            "fields": {"status": "open"},
+        },
     ]
     with pytest.raises(reconcile_mod.StatusMappingError) as exc:
         reconcile_mod.preflight_status_mapping(mutations)
+    # Error must mention the offending status value and target key.
     assert "neither" in str(exc.value)
-    assert applier_spy.call_count == 0
+    assert "DIG-1" in str(exc.value)
 
 
 def test_present_status_does_not_raise(reconcile_mod):

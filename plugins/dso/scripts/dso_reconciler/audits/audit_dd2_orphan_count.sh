@@ -129,7 +129,8 @@ main() {
     # ── Run fsck for after_count ──────────────────────────────────────────────
     local fsck_cmd="${BRIDGE_FSCK_CMD:-bridge-fsck --count-only}"
     local fsck_output
-    if ! fsck_output="$(eval "$fsck_cmd" 2>&1)"; then
+    read -ra fsck_args <<< "$fsck_cmd"
+    if ! fsck_output="$("${fsck_args[@]}" 2>&1)"; then
         printf 'ERROR: fsck command exited non-zero: %s\n' "$fsck_cmd" >&2
         printf '%s\n' "$fsck_output" >&2
         exit 3
