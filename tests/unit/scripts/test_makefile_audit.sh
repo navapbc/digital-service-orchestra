@@ -70,6 +70,12 @@ if log_file:
 sys.exit(${exits[dd3]})
 PY
 
+    # ── pass-log fixture (satisfies the Makefile _check-pass-log gate) ───────
+    # The stubs don't actually consume this file, but the precondition target
+    # checks for its presence before invoking the dd3 step.
+    printf '{"phase":"test","pass_index":1,"mutation_count":0,"timestamp":"2026-05-25T00:00:00Z"}\n' \
+        > "${stub_dir}/pass-log.jsonl"
+
     printf '%s' "$stub_dir"
 }
 

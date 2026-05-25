@@ -29,21 +29,12 @@
 
 set -uo pipefail
 
-# ── Source sibling phase-gate library ────────────────────────────────────────
+# ── Source sibling libraries (phase gate + shared helpers) ───────────────────
 _SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=audit_dd4_phase_gate.sh
 source "${_SELF_DIR}/audit_dd4_phase_gate.sh"
-
-# ── Resolve artifact root ─────────────────────────────────────────────────────
-_resolve_artifact_root() {
-    if [[ -n "${AUDIT_ARTIFACTS_DIR:-}" ]]; then
-        printf '%s' "$AUDIT_ARTIFACTS_DIR"
-        return
-    fi
-    local top
-    top="$(git rev-parse --show-toplevel 2>/dev/null)" || top="$(pwd)"
-    printf '%s' "${top}/.reconciler-audit-artifacts"
-}
+# shellcheck source=_audit_lib.sh
+source "${_SELF_DIR}/_audit_lib.sh"
 
 # ── _parse_before_count <dd1_path> — prints integer to stdout; returns non-zero on failure ──
 # Note: called in main() directly (not via $(...)) so exit 3 propagates to the process.

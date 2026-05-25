@@ -72,6 +72,10 @@ if log_file:
 sys.exit(${exit_code})
 PY
 
+    # ── pass-log fixture (satisfies the Makefile _check-pass-log gate) ───────
+    printf '{"phase":"bootstrap-throttle","pass_index":1,"mutation_count":0,"timestamp":"2026-05-25T00:00:00Z"}\n' \
+        > "${stub_dir}/pass-log.jsonl"
+
     printf '%s' "$stub_dir"
 }
 

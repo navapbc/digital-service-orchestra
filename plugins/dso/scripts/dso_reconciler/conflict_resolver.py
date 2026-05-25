@@ -234,14 +234,20 @@ class ProvenanceLedger:
     def __init__(self) -> None:
         self._records: dict[str, list[dict[str, Any]]] = {}
 
-    def record(self, element_key: str, side: str = None, value: Any = None) -> None:
+    def record(self, element_key: str, side: Optional[str] = None, value: Any = None) -> None:
         """Append an entry for `element_key`.
 
         Accepts both positional (`record(key, side, value)`) and keyword
         (`record(element_key=k, side=s, value=v)`) calling styles so existing
         resolver call sites and the matrix tests both work.
-        `side` must be 'local' or 'jira'.
+        `side` must be 'local' or 'jira' — None is rejected with a clear
+        ValueError to flag callers that forgot to pass it.
         """
+        if side is None:
+            raise ValueError(
+                "side is required and must be 'local' or 'jira'; "
+                "passing None (or omitting the argument) is a caller bug"
+            )
         if side not in ("local", "jira"):
             raise ValueError(f"side must be 'local' or 'jira', got {side!r}")
         entry = {
@@ -252,9 +258,19 @@ class ProvenanceLedger:
         self._records.setdefault(element_key, []).append(entry)
 
     def is_echo(self, element_key: str, value: Any) -> bool:
-        """True iff any record for `element_key` has a matching content hash."""
-        h = _hash_value(value)
-        return any(r["value_hash"] == h for r in self._records.get(element_key, []))
+        """True iff the MOST RECENT record for `element_key` has a matching content hash.
+
+        Echo semantics are "the value just bounced back to its prior state" —
+        compare against the immediate predecessor only, not the entire history.
+        A prior version returned True if any historical record matched, which
+        treated long-ago values as live echoes and suppressed legitimate
+        round-trip mutations (e.g. A → B → C → A: the final A is NOT an echo
+        of C, even though A appears earlier in the ledger).
+        """
+        entries = self._records.get(element_key, [])
+        if not entries:
+            return False
+        return entries[-1]["value_hash"] == _hash_value(value)
 
     def serialize(self) -> dict[str, dict[str, Any]]:
         """Return the most-recent record per element_key as a flat dict."""

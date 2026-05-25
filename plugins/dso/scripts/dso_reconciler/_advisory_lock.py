@@ -227,26 +227,32 @@ def check_phase_gate(target_mode, repo_root: Path) -> bool:
     which advancement is permitted. If *target_mode* has a strictly higher rank
     than the gated mode, the gate blocks advancement.
 
-    Gate semantics (rank-based):
-        blocked iff target_mode.rank() > gated_mode.rank()
+    Gate semantics (operator-based, via Mode.__lt__ + @functools.total_ordering):
+        blocked iff target_mode > gated_mode
 
     Returns False (not blocked) when:
         - The gate file is absent on the tickets branch.
-        - target_mode.rank() <= gated_mode.rank() (within permitted range).
+        - target_mode <= gated_mode (within permitted range).
+
+    Raises:
+        ReconcileLockError — if the tickets branch is missing or an unrecognised
+            git error occurs (fail-CLOSED, matching :func:`check_pass_lock`).
 
     Example:
         Gate file contains 'bootstrap-strict' (rank 1).
         BOOTSTRAP_THROTTLE (rank 2) → blocked (2 > 1) → True.
         BOOTSTRAP_STRICT (rank 1)   → not blocked (1 == 1) → False.
 
-    The Mode enum and its rank() method are imported from mode.py at call time
-    so this module does not hard-code ordering.
+    The Mode enum is imported from mode.py at call time so this module does
+    not hard-code ordering.
     """
-    try:
-        contents = _git_show_tickets_file(repo_root, _GATE_FILE)
-    except ReconcileLockError:
-        # Missing tickets branch — treat as no gate (don't block)
-        return False
+    # Fail-CLOSED on missing tickets branch (alignment with check_pass_lock):
+    # if we cannot determine the gate state, refuse to proceed rather than
+    # silently disabling phase-gate protection. Bug from coderabbit review —
+    # previously this path returned False (fail-open) while check_pass_lock
+    # raised; the asymmetry let phase-gate violations slip past when the
+    # tickets branch was absent.
+    contents = _git_show_tickets_file(repo_root, _GATE_FILE)
 
     if contents is None:
         # Gate file absent — no block
@@ -256,16 +262,21 @@ def check_phase_gate(target_mode, repo_root: Path) -> bool:
     if not gated_mode_str:
         return False
 
-    # Import Mode from mode.py via path to avoid circular-import issues
-    mode_path = Path(__file__).parent / "mode.py"
-    mode_key = "dso_reconciler_mode_phase_gate"
-    if mode_key not in sys.modules:
+    # Load mode.py under the SAME canonical dotted key that __main__.py uses
+    # so tests (which pre-seed sys.modules under that key) and production code
+    # share a single Mode class object. Loading under a private key produced
+    # two distinct Mode class identities — isinstance checks across module
+    # boundaries silently mis-routed.
+    mode_key = "plugins.dso.scripts.dso_reconciler.mode"
+    if mode_key in sys.modules:
+        mode_mod = sys.modules[mode_key]
+    else:
+        mode_path = Path(__file__).parent / "mode.py"
         spec = importlib.util.spec_from_file_location(mode_key, mode_path)
         assert spec is not None and spec.loader is not None
-        mod = importlib.util.module_from_spec(spec)
-        sys.modules[mode_key] = mod
-        spec.loader.exec_module(mod)  # type: ignore[union-attr]
-    mode_mod = sys.modules[mode_key]
+        mode_mod = importlib.util.module_from_spec(spec)
+        sys.modules[mode_key] = mode_mod
+        spec.loader.exec_module(mode_mod)  # type: ignore[union-attr]
 
     try:
         gated_mode = mode_mod.Mode.from_str(gated_mode_str)
@@ -276,7 +287,8 @@ def check_phase_gate(target_mode, repo_root: Path) -> bool:
         )
         return False
 
-    return target_mode.rank() > gated_mode.rank()
+    # Natural < / > operators provided by @functools.total_ordering on Mode.
+    return target_mode > gated_mode
 
 
 # ---------------------------------------------------------------------------

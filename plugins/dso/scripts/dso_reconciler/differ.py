@@ -45,16 +45,36 @@ def _load_conflict_resolver() -> ModuleType:
     return _load_sibling("conflict_resolver", "conflict_resolver.py")
 
 
+_MUTATION_KEY = "plugins.dso.scripts.dso_reconciler.mutation"
+
+
 def _load_mutation() -> ModuleType:
     # Prefer an already-loaded mutation module to preserve class identity
-    # across callers (tests load mutation.py under the bare "mutation" key;
-    # producing a second class object under a different cache key would
-    # break isinstance() checks even though the source is identical).
-    for cache_key in ("mutation", "dso_reconciler.mutation", "dso_reconciler_mutation"):
+    # across callers. Test fixtures load mutation.py under the bare ``mutation``
+    # key (and historically under other private keys); production code loads
+    # under the canonical ``plugins.dso.scripts.dso_reconciler.mutation`` key.
+    # Check the test-friendly keys FIRST so a test rig that pre-seeded its own
+    # module wins identity ties — otherwise tests that compare against their
+    # own freshly loaded ``Mutation`` class fail with cross-identity errors.
+    #
+    # When no cache hit exists, load under the canonical key so future cross-
+    # module lookups (invariants.py, applier.py) share the SAME module object.
+    for cache_key in (
+        "mutation",
+        "dso_reconciler.mutation",
+        "dso_reconciler_mutation",
+        _MUTATION_KEY,
+    ):
         cached = sys.modules.get(cache_key)
         if cached is not None and hasattr(cached, "Mutation"):
             return cached
-    return _load_sibling("mutation", "mutation.py")
+    sibling_path = Path(__file__).parent / "mutation.py"
+    spec = importlib.util.spec_from_file_location(_MUTATION_KEY, sibling_path)
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[_MUTATION_KEY] = mod
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    return mod
 
 
 def _derive_provenance(
@@ -112,15 +132,18 @@ def _emit(
         try:
             if ledger.is_echo(mutation.target, mutation.payload):
                 return
-        except Exception:
-            # Ledger failures must not break diff emission; fall through.
+        except (AttributeError, TypeError, ValueError):
+            # Ledger failures (missing method, unhashable payload, bad side)
+            # must not break diff emission; fall through and continue.
             pass
         # Record the about-to-be-emitted mutation on the appropriate side.
         try:
             direction_val = getattr(mutation.direction, "value", mutation.direction)
             side = "local" if "outbound" in str(direction_val) else "jira"
             ledger.record(mutation.target, side, mutation.payload)
-        except Exception:
+        except (AttributeError, TypeError, ValueError):
+            # Same rationale as the is_echo() guard above — record() failure
+            # is non-fatal; the mutation still emits, just without provenance.
             pass
     mutations_out.append(mutation)
 

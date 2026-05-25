@@ -40,9 +40,19 @@ def test_returns_quarantine_and_seed_mutations(inv):
         "PROJ-3": {"dso_local_id": "id-DUP"},  # collision
     }
     quarantine, repairs = inv.check_dual_identity_complete(local, jira)
-    # LOCAL-A should yield a repair mutation
-    assert any(
-        m.target == "LOCAL-A" and m.action.value == "repair_property" for m in repairs
+    # LOCAL-A's missing back-pointer should yield a repair mutation directed at
+    # the JIRA peer (PROJ-1) — per applier.inbound_repair_property contract,
+    # target = jira_key and payload carries the local_id used to set the
+    # dso_local_id entity property.
+    repair_for_a = [
+        m for m in repairs
+        if m.action.value == "repair_property"
+        and m.target == "PROJ-1"
+        and m.payload.get("local_id") == "id-A"
+    ]
+    assert repair_for_a, (
+        f"expected a repair_property mutation with target=PROJ-1 and "
+        f"payload.local_id=id-A; got {[(m.target, dict(m.payload)) for m in repairs]!r}"
     )
     # LOCAL-B (and at least one of PROJ-2/PROJ-3) should be quarantined
     assert "LOCAL-B" in quarantine
@@ -65,12 +75,15 @@ def test_report_schema_drift_dedup_key(inv):
 
 def test_cap_per_pass_invariant(inv):
     """At most _DUAL_IDENTITY_CAP_PER_PASS quarantines per pass (best-effort bounded)."""
-    # Build 60 colliding local IDs across 60 local + 120 jira entries.
-    local = {f"L-{i}": {"dso_local_id": f"DUP-{i}"} for i in range(60)}
-    jira = {}
-    for i in range(60):
-        jira[f"J-{i}-a"] = {"dso_local_id": f"DUP-{i}"}
-        jira[f"J-{i}-b"] = {"dso_local_id": f"DUP-{i}"}
-    quarantine, _ = inv.check_dual_identity_complete(local, jira)
-    # Cap is best-effort — weak upper bound; strict cap enforcement is a follow-on.
-    assert len(quarantine) <= 200
+    # Patch subprocess so report_schema_drift does not shell out to the real
+    # ticket CLI and create live tickets as a unit-test side effect.
+    with patch.object(inv, "subprocess"):
+        # Build 60 colliding local IDs across 60 local + 120 jira entries.
+        local = {f"L-{i}": {"dso_local_id": f"DUP-{i}"} for i in range(60)}
+        jira = {}
+        for i in range(60):
+            jira[f"J-{i}-a"] = {"dso_local_id": f"DUP-{i}"}
+            jira[f"J-{i}-b"] = {"dso_local_id": f"DUP-{i}"}
+        quarantine, _ = inv.check_dual_identity_complete(local, jira)
+        # Cap is best-effort — weak upper bound; strict cap enforcement is a follow-on.
+        assert len(quarantine) <= 200

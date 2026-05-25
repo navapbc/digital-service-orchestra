@@ -62,19 +62,31 @@ class ApplyResult:
     payload: dict[str, Any]
 
 
+_MUTATION_KEY = "plugins.dso.scripts.dso_reconciler.mutation"
+
+
 def _load_mutation_module():
-    """Lazy-load the mutation module via importlib (same pattern as _load_acli)."""
+    """Lazy-load the mutation module under the canonical dotted sys.modules key.
+
+    Uses the SAME key (``plugins.dso.scripts.dso_reconciler.mutation``) as
+    invariants.py and differ.py so ``Mutation`` / ``MutationDirection`` /
+    ``MutationAction`` retain a single class identity across the reconciler.
+    Previously each caller loaded under its own private key, producing distinct
+    class objects per module — ``isinstance`` and ``is`` comparisons silently
+    crossed boundaries and routed mutations to the wrong leaf.
+    """
     global _MutationModule
     if _MutationModule is not None:
         return _MutationModule
+    if _MUTATION_KEY in sys.modules:
+        _MutationModule = sys.modules[_MUTATION_KEY]
+        return _MutationModule
     mut_path = Path(__file__).parent / "mutation.py"
-    spec = importlib.util.spec_from_file_location(
-        "dso_reconciler_mutation", mut_path
-    )
+    spec = importlib.util.spec_from_file_location(_MUTATION_KEY, mut_path)
     if spec is None:
         raise FileNotFoundError(f"mutation.py not found at {mut_path}")
     mod = importlib.util.module_from_spec(spec)
-    sys.modules.setdefault("dso_reconciler_mutation", mod)
+    sys.modules[_MUTATION_KEY] = mod
     spec.loader.exec_module(mod)  # type: ignore[union-attr]
     _MutationModule = mod
     return mod
@@ -352,7 +364,7 @@ _LEAVES: dict[tuple[Any, Any], Callable[..., ApplyResult]] = _build_leaves()
 # dso-id label write authorization contract
 # ---------------------------------------------------------------------------
 
-_AUTHORIZED_DSO_ID_LABEL_WRITERS_DOC: str = (  # noqa: F841  # read via getattr by test_authorized_writers_docstring_documents_full_contract
+_AUTHORIZED_DSO_ID_LABEL_WRITERS_DOC: str = (
     """
 dso-id label write authorization contract for applier.py
 =========================================================
@@ -393,10 +405,12 @@ _AUTHORIZED_DSO_ID_LABEL_WRITERS: frozenset[str] = frozenset(
 )
 """Leaf names authorized to emit dso-id label mutations (see _AUTHORIZED_DSO_ID_LABEL_WRITERS_DOC)."""
 
-# Per-leaf authorized-action map: captures which label mutation action each
-# authorized leaf is permitted to perform.  Referenced by _AUTHORIZED_DSO_ID_LABEL_WRITERS_DOC
-# and kept for future _audit_dso_id_label_writes per-action enforcement.
-_AUTHORIZED_DSO_ID_LABEL_ACTIONS: dict[str, frozenset[str]] = {  # noqa: F841
+# Per-leaf authorized-action map: enforced by _audit_dso_id_label_writes.
+# Each authorized leaf is permitted ONLY the action(s) listed here; any other
+# action on a dso-id-* label by the same leaf raises DsoIdLabelWriteError. The
+# pair set is the single source of truth referenced by
+# _AUTHORIZED_DSO_ID_LABEL_WRITERS_DOC above.
+_AUTHORIZED_DSO_ID_LABEL_ACTIONS: dict[str, frozenset[str]] = {
     "outbound_create": frozenset({"create"}),
     "inbound_clean_label": frozenset({"delete"}),
 }
@@ -434,8 +448,12 @@ def _get_dso_id_guard_mode_from_config() -> str | None:
                 parts = line.split("=", 1)
                 if len(parts) == 2:
                     return parts[1].strip().strip('"').strip("'")
-    except Exception:
-        pass
+    except OSError:
+        # Best-effort config read: filesystem-level failures (permission denied,
+        # missing parent dir on race, etc.) fall through to the default 'raise'
+        # guard mode. Programming errors (AttributeError, TypeError) intentionally
+        # propagate so they surface during test runs.
+        return None
     return None
 
 
@@ -468,9 +486,16 @@ def _is_dso_id_label_write_mutation(mutation) -> bool:
 def _audit_dso_id_label_writes(leaf_name: str, mutations: list) -> None:
     """Guard: raise (or warn) when an unauthorized leaf emits a dso-id-* label mutation.
 
-    Called after each leaf returns its mutation list (or before leaf dispatch in
-    _apply_typed) to enforce the two-authorized-leaves contract documented in
-    _AUTHORIZED_DSO_ID_LABEL_WRITERS_DOC.
+    Called before leaf dispatch (`_apply_typed`) AND on each leaf invocation in
+    the legacy batch path (`_apply_batch`) to enforce the two-authorized-leaves
+    contract documented in `_AUTHORIZED_DSO_ID_LABEL_WRITERS_DOC`.
+
+    Per-action enforcement (wired via `_AUTHORIZED_DSO_ID_LABEL_ACTIONS`):
+      - When `leaf_name` is in `_AUTHORIZED_DSO_ID_LABEL_WRITERS` but emits an
+        action OUTSIDE its permitted action set (e.g., outbound_create
+        attempting a `delete` on a dso-id label), the guard still raises. The
+        contract is per-action; defeating it would leave a security gap by
+        allowing an authorized leaf to perform any action.
 
     Guard mode (DSO_DSO_ID_GUARD_MODE env var, dso-config.conf key dso_id_guard_mode,
     default 'raise'):
@@ -479,23 +504,30 @@ def _audit_dso_id_label_writes(leaf_name: str, mutations: list) -> None:
 
     Precedence: env var > dso-config.conf key > default 'raise'.
     """
-    if leaf_name in _AUTHORIZED_DSO_ID_LABEL_WRITERS:
-        return
+    is_authorized_leaf = leaf_name in _AUTHORIZED_DSO_ID_LABEL_WRITERS
+    allowed_actions = _AUTHORIZED_DSO_ID_LABEL_ACTIONS.get(leaf_name, frozenset())
 
     offending = None
     offending_payload = None
+    offending_action = None
     for mutation in mutations:
-        if _is_dso_id_label_write_mutation(mutation):
-            offending = mutation
-            # Extract the label payload for the error message
-            payload = getattr(mutation, "payload", "")
-            if isinstance(payload, str):
-                offending_payload = payload
-            elif isinstance(payload, dict):
-                offending_payload = payload.get("label", str(payload))
-            else:
-                offending_payload = str(payload)
-            break
+        if not _is_dso_id_label_write_mutation(mutation):
+            continue
+        action_str = str(getattr(mutation, "action", ""))
+        if is_authorized_leaf and action_str in allowed_actions:
+            # Permitted (leaf, action) pair — skip without raising.
+            continue
+        offending = mutation
+        offending_action = action_str
+        # Extract the label payload for the error message
+        payload = getattr(mutation, "payload", "")
+        if isinstance(payload, str):
+            offending_payload = payload
+        elif isinstance(payload, dict):
+            offending_payload = payload.get("label", str(payload))
+        else:
+            offending_payload = str(payload)
+        break
 
     if offending is None:
         return
@@ -508,8 +540,8 @@ def _audit_dso_id_label_writes(leaf_name: str, mutations: list) -> None:
         guard_mode = "raise"
 
     msg = (
-        f"DSO_ID_GUARD: unauthorized dso-id label write from leaf '{leaf_name}'; "
-        f"offending payload: {offending_payload!r}"
+        f"DSO_ID_GUARD: unauthorized dso-id label write from leaf '{leaf_name}' "
+        f"(action={offending_action!r}); offending payload: {offending_payload!r}"
     )
 
     if guard_mode == "warn":
@@ -518,6 +550,43 @@ def _audit_dso_id_label_writes(leaf_name: str, mutations: list) -> None:
 
     errs = _load_errors_module()
     raise errs.DsoIdLabelWriteError(msg)
+
+
+class _BatchAuditView:
+    """Adapter exposing a legacy dict-shaped batch mutation to the audit guard.
+
+    The audit (`_is_dso_id_label_write_mutation`) expects an object with
+    ``target``, ``payload`` (str OR dict), and ``action`` attributes. Legacy
+    batch mutations are dicts of shape ``{"action": ..., "key": ..., "fields":
+    {"labels": [...], ...}}`` — this view surfaces any dso-id-* label values
+    sitting under ``fields["labels"]`` as a synthetic label-write mutation so
+    the guard fires on unauthorized batch paths (e.g., an outbound_update
+    trying to push a dso-id-* label).
+
+    ``target`` is set to 'label' iff the batch mutation includes a dso-id-*
+    label in its fields; otherwise an empty string makes the audit pass-through.
+    """
+
+    __slots__ = ("target", "payload", "action")
+
+    def __init__(self, batch_mutation: dict) -> None:
+        self.action = batch_mutation.get("action", "")
+        fields = batch_mutation.get("fields") or {}
+        labels = fields.get("labels") if isinstance(fields, dict) else None
+        dso_label = None
+        if isinstance(labels, (list, tuple)):
+            for lbl in labels:
+                if isinstance(lbl, str) and lbl.startswith("dso-id-"):
+                    dso_label = lbl
+                    break
+        if dso_label is not None:
+            self.target = "label"
+            self.payload = dso_label
+        else:
+            # Synthesise an explicit non-label target so the guard's
+            # _is_dso_id_label_write_mutation returns False on benign batches.
+            self.target = ""
+            self.payload = ""
 
 
 # Mapping from (MutationDirection.value, MutationAction.value) → canonical leaf name.
@@ -1239,6 +1308,14 @@ def _apply_batch(
 
             action = mutation.get("action", "")
             outcome = dict(mutation)
+
+            # Audit pass: extend the dso-id label write guard to the legacy
+            # batch dispatch path. create_one/update_one/delete_one all issue
+            # outbound Jira writes, so each batch mutation maps to an
+            # outbound_<action> leaf for guard-name purposes. Without this
+            # call, _audit_dso_id_label_writes was bypassed for every legacy
+            # dict-shaped mutation — only _apply_typed enforced the contract.
+            _audit_dso_id_label_writes(f"outbound_{action}", [_BatchAuditView(mutation)])
 
             if action == "create":
                 result = create_one(

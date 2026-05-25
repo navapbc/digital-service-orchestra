@@ -33,7 +33,7 @@ AUDIT_DIR ?= $(_MAKEFILE_DIR)
 # Optional epic ID for dd5 (may be left empty in non-bundler contexts)
 DD5_EPIC ?=
 
-.PHONY: audit-phase audit-live $(DD4_STEP) $(DD1_STEP) $(DD2_STEP) $(DD3_STEP) $(DD5_STEP) help _check-phase
+.PHONY: audit-phase audit-live $(DD4_STEP) $(DD1_STEP) $(DD2_STEP) $(DD3_STEP) $(DD5_STEP) help _check-phase _check-pass-log
 
 # ── Bootstrap-throttle phase constant ─────────────────────────────────────────
 BOOTSTRAP_THROTTLE_PHASE := bootstrap-throttle
@@ -75,8 +75,23 @@ $(DD2_STEP):
 	bash $(AUDIT_DIR)audit_dd2_orphan_count.sh "$(PHASE)"
 
 # ── dd3: mutation caps (Python) ───────────────────────────────────────────────
-$(DD3_STEP):
+# The pass-log is produced by the reconciler itself (per-pass mutation counts).
+# This Makefile does NOT generate it — the operator must ensure it exists at
+# $(AUDIT_DIR)pass-log.jsonl before invoking audit-phase / audit-live. See the
+# audit-live runbook for the manual capture step.
+$(DD3_STEP): _check-pass-log
 	python3 $(AUDIT_DIR)audit_dd3_mutation_caps.py --phase "$(PHASE)" --pass-log "$(AUDIT_DIR)pass-log.jsonl"
+
+# Fail with a clear message if the operator has not staged pass-log.jsonl.
+_check-pass-log:
+	@if [ ! -f "$(AUDIT_DIR)pass-log.jsonl" ]; then \
+		printf 'ERROR: pass-log.jsonl not found at %spass-log.jsonl\n' "$(AUDIT_DIR)" 1>&2; \
+		printf '       The reconciler must emit a per-pass JSON-Lines log before\n' 1>&2; \
+		printf '       running the dd3 mutation-cap audit. See the audit-live\n' 1>&2; \
+		printf '       runbook (docs/runbooks/audit-live-runbook.md) for the\n' 1>&2; \
+		printf '       manual capture step.\n' 1>&2; \
+		exit 1; \
+	fi
 
 # ── dd5: artifact bundler ─────────────────────────────────────────────────────
 $(DD5_STEP):

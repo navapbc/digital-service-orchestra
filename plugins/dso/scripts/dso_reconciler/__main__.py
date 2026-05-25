@@ -69,11 +69,17 @@ def _try_load_step(name: str):
     return mod
 
 
-def run_pass(repo_root: Path | None = None) -> int:
+def run_pass(repo_root: Path | None = None, pass_id: str | None = None) -> int:
     """Execute one steady-state reconciliation pass via reconcile.reconcile_once().
 
     Returns 0 on converged state, EXIT_RESCHEDULE (75) when applier signals a
     reschedule (rebase_retry exhausted), 1 on any other unrecoverable error.
+
+    When *pass_id* is None (legacy entry-point), one is generated here so the
+    helper remains usable in isolation. Production callers should pass the
+    pass_id from main() so the lock-holder and the recorded reconcile pass
+    share the same identifier — previously two distinct timestamps were
+    generated and a sub-second race could record mismatched pass_ids.
     """
     if repo_root is None:
         repo_root = Path(__file__).parents[4]
@@ -90,7 +96,10 @@ def run_pass(repo_root: Path | None = None) -> int:
     # reschedule signal from any scheduler that distinguishes 75 from 1.
     applier = _try_load_step("applier")
 
-    pass_id = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H-%M-%S")
+    if pass_id is None:
+        pass_id = datetime.datetime.now(datetime.timezone.utc).strftime(
+            "%Y-%m-%dT%H-%M-%S"
+        )
     reschedule_error_cls = getattr(applier, "RescheduleError", None) if applier else None
     exit_reschedule = getattr(applier, "EXIT_RESCHEDULE", 75) if applier else 75
 
@@ -179,11 +188,17 @@ def main(argv: list[str] | None = None) -> int:
 
     # -------------------------------------------------------------------------
     # Step 3: acquire lock, run pass, release in finally
+    #
+    # Generate pass_id ONCE here and thread it into both the lock-holder and
+    # run_pass(). Previously run_pass generated a second timestamp, so under
+    # any sub-second clock advance the recorded reconcile pass_id could
+    # diverge from the lock owner pass_id — silent operational hazard for
+    # post-mortems correlating locks to pass records.
     # -------------------------------------------------------------------------
     pass_id = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H-%M-%S")
     advisory.acquire_pass_lock(pass_id, repo_root)
     try:
-        return run_pass(repo_root=repo_root)
+        return run_pass(repo_root=repo_root, pass_id=pass_id)
     except Exception as exc:  # noqa: BLE001
         print(f"ERROR: run_pass raised: {exc}", file=sys.stderr)
         return 1
