@@ -567,4 +567,4 @@ plugins/dso/scripts/telemetry/lambda-handler/validator.py:plugins/dso/scripts/te
 plugins/dso/scripts/dso_reconciler/mutation.py:tests/unit/dso_reconciler/test_mutation.py
 plugins/dso/scripts/telemetry/lambda-handler/handler.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_handler.py
 plugins/dso/scripts/dso_reconciler/differ.py:tests/unit/dso_reconciler/test_differ.py,tests/unit/dso_reconciler/test_differ_conflict_resolution.py
-plugins/dso/scripts/dso_reconciler/fetcher.py:tests/unit/dso_reconciler/test_fetcher_snapshot.py [test_iter_pages_is_a_generator],tests/unit/dso_reconciler/test_fetcher_dedup_observable.py [test_dedup_suppression_emits_alert],tests/unit/dso_reconciler/test_fetcher_pagination_jql.py [test_fetcher_calls_acli_with_new_jql_verbatim],tests/unit/dso_reconciler/test_fetcher_truncation_gate.py [test_fetch_at_1000_issue_ceiling_raises_silent_truncation_error]
+plugins/dso/scripts/dso_reconciler/fetcher.py:tests/unit/dso_reconciler/test_fetcher_snapshot.py,tests/unit/dso_reconciler/test_fetcher_dedup_observable.py,tests/unit/dso_reconciler/test_fetcher_pagination_jql.py,tests/unit/dso_reconciler/test_fetcher_truncation_gate.py
