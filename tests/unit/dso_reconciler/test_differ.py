@@ -280,3 +280,97 @@ def test_every_mutation_carries_provenance(
         assert hasattr(m.provenance, "__getitem__"), (
             f"Mutation provenance is not a Mapping: {m.provenance!r}"
         )
+
+
+# ---------------------------------------------------------------------------
+# AC tests (task 0805-02a0): bind-aware suppression, purity, return type.
+# ---------------------------------------------------------------------------
+
+
+def test_no_outbound_create_for_already_bound_local_id(
+    differ: ModuleType, mutation_mod: ModuleType
+) -> None:
+    """dd-4: differ MUST NOT emit (outbound, create) for a local ticket whose
+    dso_local_id is already present in the fetched Jira working set."""
+    local = {
+        # Local ticket A is already bound: its dso_local_id appears in
+        # jira_state under a different key (the Jira-side issue key).
+        "loc-A": {"summary": "A", "dso_local_id": "uuid-A"},
+        # Local ticket B is unbound: no Jira entry carries dso_local_id "uuid-B".
+        "loc-B": {"summary": "B", "dso_local_id": "uuid-B"},
+    }
+    jira = {
+        "PROJ-1": {"summary": "A", "dso_local_id": "uuid-A"},
+    }
+
+    result = differ.compute_mutations(local_state=local, jira_state=jira)
+
+    outbound_creates = [
+        m
+        for m in result
+        if m.direction == mutation_mod.MutationDirection.outbound
+        and m.action == mutation_mod.MutationAction.create
+    ]
+    assert len(outbound_creates) == 1, (
+        f"expected exactly one outbound create (for loc-B); got {outbound_creates}"
+    )
+    assert outbound_creates[0].target == "loc-B"
+    # And zero outbound creates target loc-A (it is already bound).
+    assert not any(m.target == "loc-A" for m in outbound_creates)
+
+
+def test_diff_is_pure_across_n_invocations(
+    differ: ModuleType, mutation_mod: ModuleType
+) -> None:
+    """dd-1: same input → byte-identical canonical manifest across 10 invocations."""
+    # Import the canonical serializer used to derive the manifest hash.
+    from importlib.util import module_from_spec, spec_from_file_location
+
+    spec = spec_from_file_location("mutation_for_diff_purity", MUTATION_PATH)
+    assert spec is not None and spec.loader is not None
+    mut = module_from_spec(spec)
+    spec.loader.exec_module(mut)  # type: ignore[union-attr]
+    serialize_manifest = mut.serialize_manifest
+
+    local = {
+        "DSO-A": {"summary": "alpha", "status": "open"},
+        "DSO-B": {"summary": "beta", "priority": "high"},
+    }
+    jira = {
+        "DSO-A": {"summary": "alpha-old", "status": "open"},
+        "DSO-C": {"summary": "gamma"},
+    }
+
+    hashes: set[str] = set()
+    jsons: set[str] = set()
+    for _ in range(10):
+        result = differ.compute_mutations(
+            local_state=copy.deepcopy(local), jira_state=copy.deepcopy(jira)
+        )
+        json_text, sha256 = serialize_manifest(result)
+        hashes.add(sha256)
+        jsons.add(json_text)
+
+    assert len(hashes) == 1, f"non-deterministic manifest hashes across 10 runs: {hashes}"
+    assert len(jsons) == 1, "non-deterministic manifest JSON across 10 runs"
+
+
+def test_diff_returns_mutation_list(
+    differ: ModuleType, mutation_mod: ModuleType
+) -> None:
+    """compute_mutations returns a list of Mutation objects."""
+    local = {
+        "DSO-1": {"summary": "new", "status": "open"},
+        "DSO-2": {"summary": "added"},
+    }
+    jira = {
+        "DSO-1": {"summary": "old", "status": "open"},
+        "DSO-3": {"summary": "remote-only"},
+    }
+
+    result = differ.compute_mutations(local_state=local, jira_state=jira)
+
+    assert isinstance(result, list)
+    assert all(isinstance(m, mutation_mod.Mutation) for m in result), (
+        f"non-Mutation entries in result: {[type(m).__name__ for m in result]}"
+    )
