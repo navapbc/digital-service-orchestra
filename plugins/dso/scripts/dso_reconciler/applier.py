@@ -808,9 +808,8 @@ def _apply_batch(
     # on every real invocation. Read credentials from the standard
     # JIRA_URL / JIRA_USER / JIRA_API_TOKEN environment variables, defaulting
     # to "" so test/CI shims that monkey-patch _load_acli still work.
-    # jira_project defaults to "DIG" (matching stale_band.py, open_count_skew_band.py,
-    # and _attestation.py) because an empty projectKey is rejected by ACLI on
-    # every CREATE — bug 4fa9-0846-519e-4c30.
+    # jira_project defaults to "DIG" (matching _attestation.py) because an empty
+    # projectKey is rejected by ACLI on every CREATE — bug 4fa9-0846-519e-4c30.
     client = acli.AcliClient(
         jira_url=os.environ.get("JIRA_URL", ""),
         user=os.environ.get("JIRA_USER", ""),
