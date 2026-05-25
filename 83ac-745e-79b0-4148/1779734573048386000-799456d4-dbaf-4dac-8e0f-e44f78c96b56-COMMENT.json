@@ -1,0 +1,1 @@
+{"author":"Test","data":{"body":"VERIFIER_VERDICT P1=PASS — 5/5 DDs satisfied. Live-evidence (after_count=0 attach) deferred to rollout-time operator execution per runbook Step 5; deliverables (scripts, tests, runbook) complete."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1779734573048386000,"uuid":"799456d4-dbaf-4dac-8e0f-e44f78c96b56"}
