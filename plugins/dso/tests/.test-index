@@ -31,3 +31,5 @@ agents/gov-copy-writer.md:tests/test-gov-copy-writer-agent.sh
 docs/contracts/gov-copy-artifact.md:tests/test-gov-copy-writer-agent.sh
 docs/contracts/copy-needs-section.md:tests/test-gov-copy-writer-agent.sh
 agents/gov-copy-writer.md:tests/test-gov-copy-writer-checks-isolation.sh
+agents/story-decomposer.md:tests/test-story-decomposer-copy-needed.sh
+docs/contracts/copy-needs-section.md:tests/test-story-decomposer-copy-needed.sh

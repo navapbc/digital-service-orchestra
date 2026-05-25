@@ -45,6 +45,12 @@ The escalation policy selected in Phase A Step 2, applied to every story in this
 
 {escalation-policy}
 
+### Copy Needs (conditional — present only when epic carries the `copy-needed` tag)
+
+When the epic has the `copy-needed` tag, the orchestrator passes the parsed `## Copy Needs` section here. The section conforms to `${CLAUDE_PLUGIN_ROOT}/docs/contracts/copy-needs-section.md` (schema_version: 1). Each item has: `stable_id`, `type`, `location`, `page`, and `validation_rule`.
+
+{copy-needs-items}
+
 ### Remediation Context (optional)
 
 When the orchestrator is re-invoking this agent during a remediation cycle (e.g., after a scrutiny reviewer identified gaps), it may pass a `remediation_context` object:
@@ -103,6 +109,67 @@ Collect all `target_story_id` values from `remediation_context.findings`. Emit *
 **Strict ordering**: emit mode declaration → Read all artifacts → emit evidence quotes → emit story drafts. Never reorder.
 
 **Backward-compatible default**: when `remediation_context` is absent, skip the DELTA OUTPUT MODE block entirely. The output shape is unchanged from current behavior.
+
+## Copy-Needed Auto-Create Protocol
+
+**When the epic does NOT carry the `copy-needed` tag**: skip this section entirely. Produce no copy story. Proceed directly to the Decomposition Protocol.
+
+**When the epic carries the `copy-needed` tag**: execute the following steps before the Decomposition Protocol.
+
+### Copy Story Auto-Create: Step C1 — Idempotency Check
+
+Before drafting, inspect the Existing Story Set for a story that is already a copy story for this epic. A story is recognized as an existing copy story if any of the following is true:
+- Its title begins with `"Apply gov-copy to "` followed by the epic title (case-insensitive prefix match).
+- It carries a `copy-story` tag.
+- Its description references the phrase `gov-copy-writer` AND at least one of the epic's Copy Needs `stable_id` values.
+
+If a matching copy story already exists in the Existing Story Set: **do not produce a copy story draft**. Emit a note in `decomposition_notes` such as `"copy-needed: copy story already exists (<story id>) — idempotency guard triggered; no duplicate created."` and continue to the Decomposition Protocol.
+
+### Copy Story Auto-Create: Step C2 — Parse Copy Needs
+
+Parse every item from the `{copy-needs-items}` input. Each item has: `stable_id`, `type`, `location`, `page`, and `validation_rule`. If the section is missing `schema_version: 1`, halt and return:
+
+```json
+{"error": "copy_needs_schema_invalid", "reason": "MISSING_SCHEMA_VERSION"}
+```
+
+If any item is missing a required field (`stable_id`, `type`, `location`, `page`, or `validation_rule`), halt and return:
+
+```json
+{"error": "copy_needs_schema_invalid", "reason": "MISSING_REQUIRED_FIELD: <field>", "stable_id": "<item stable_id or unknown>"}
+```
+
+Collect all `stable_id` values into a list (`copy_stable_ids`). Collect the set of distinct `page` values into `distinct_pages`.
+
+### Copy Story Auto-Create: Step C3 — Draft the Copy Story
+
+Produce exactly one story draft with `temp_id: "draft-copy"` using the following template:
+
+- **title**: `"Apply gov-copy to <epic-title>"`
+- **priority**: 2 (copy work is enhancement tier; adjust to 1 only if the epic's walking-skeleton stories have priority 0 and copy is on the critical path)
+- **description**: Include:
+  - What: Invoke the gov-copy-writer agent to review and approve all user-visible copy items enumerated in the epic's `## Copy Needs` section.
+  - Why: Ensures copy quality gates are met before the epic closes.
+  - Scope — IN: gov-copy-writer dispatch for the following Copy Needs `stable_id` values: `<comma-separated copy_stable_ids>`. Artifact written to `<copy.artifact_dir>/<epic-id>.yaml` (where `copy.artifact_dir` is read from `dso-config.conf`, default `copy/`).
+  - Scope — OUT: UX design changes, content strategy decisions, changes to validation rules.
+- **done_definitions**: Must include ALL of the following:
+  1. `"gov-copy-writer is dispatched and produces a schema-conforming artifact at <copy.artifact_dir>/<epic-id>.yaml covering stable_ids: <copy_stable_ids> ← Satisfies: <sc-id for copy SC, or note 'copy-quality constraint'>"`
+  2. `"The artifact's approval field is true for every Copy Needs item listed in this story ← Satisfies: <same SC>"`
+  3. If `distinct(page) > 1` (coordination-pass condition): `"A coordination-pass review is completed across all <N> distinct pages (<page list>) to ensure copy consistency ← Satisfies: <same SC>"` — where N is the count of distinct page values and the page list enumerates them.
+- **considerations**: Include:
+  - `"[Idempotency] If the gov-copy-writer artifact already exists and is schema-conforming, re-running should validate rather than overwrite."`
+  - `"[Schema] If the Copy Needs section fails to parse, surface MISSING_REQUIRED_FIELD or MISSING_SCHEMA_VERSION rather than silently skipping."`
+  - If `distinct(page) > 1`: `"[Coordination] Copy spans <N> distinct pages; a coordination pass is required to verify cross-page consistency before artifact approval."`
+- **depends_on**: List the walking-skeleton story `temp_id` (or existing story id) if the copy story depends on a story that establishes the UI layer. If no clear dependency exists, use an empty array.
+- **split_candidate**: false
+- **escalation_policy**: Copy the `{escalation-policy}` value verbatim.
+- **tags**: `["copy-story"]` — this tag is used by the idempotency check in Step C1 on future re-runs.
+
+### Copy Story Auto-Create: Step C4 — Register in SC Coverage Plan
+
+If the epic Success Criteria includes an SC that explicitly names copy quality, UX copy, or copywriting, classify it in the `sc_coverage_plan` with `verdict: "uncovered"` or `"partial_coverage"` and `draft_ids: ["draft-copy"]`. If no explicit copy SC exists, add a `decomposition_notes` entry: `"copy-needed: no explicit copy-quality SC found in epic Success Criteria; copy story (draft-copy) is generated as an implicit requirement from the copy-needed tag."`.
+
+After completing Steps C1–C4, continue to the Decomposition Protocol. The copy story (draft-copy) is included in `story_drafts` alongside regular story drafts. Do NOT exclude it from the output.
 
 ## Decomposition Protocol
 
@@ -299,3 +366,6 @@ If every SC is `covered_by_existing` or `out_of_scope_for_stories`, return an em
 - Do NOT duplicate work already covered by the Existing Story Set or External Dependency Stories
 - Your output is **drafts only** — Phase H of preplanning writes them to the ticket tracker
 - Return ONLY the JSON object — no preamble, no commentary outside the JSON
+- **copy-needed tag**: When the epic carries the `copy-needed` tag, the Copy-Needed Auto-Create Protocol (Steps C1–C4) MUST run before the Decomposition Protocol. The copy story (draft-copy) appears in `story_drafts` alongside regular drafts.
+- **Idempotency**: Never produce a duplicate copy story. If the Existing Story Set already contains a copy story (detected by title prefix, `copy-story` tag, or stable_id reference in description), skip draft-copy and record the guard in `decomposition_notes`.
+- **Absent copy-needed tag**: If the epic does NOT carry `copy-needed`, do NOT produce a copy story under any circumstances.
