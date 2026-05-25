@@ -211,3 +211,20 @@ The fetcher prefers `startAt` pagination over `nextPageToken` precisely because 
 **Operator action when quarantine fires**: investigate the local→jira mapping table for the quarantined keys. Run `check_dual_identity_complete` ad-hoc to confirm the failure mode. For double-bind, decide which Jira issue is canonical and clear the `dso_local_id` field from the duplicates.
 
 **Why this matters**: dual-identity is the foundation of direction-tagged mutation safety (epic 4047, successor to the failed 3a03 cutover). A silently broken binding produces inversion bugs at scale.
+
+# INC-012: ProvenanceLedger — stateless content-hash echo-suppression invariant
+
+**Symptom**: A reconciler pass emits zero update mutations even when local and Jira states differ at the byte level for a given field.
+
+**Cause**: The differ's `ProvenanceLedger` integration suppresses any mutation whose target+payload `content_hash` matches the ledger's last recorded entry for that target. This is the "echo" case: the same value just came back from the other side and should NOT trigger a duplicate write.
+
+**Stateless content-hash invariant**: `is_echo(key, value)` compares `hash(value)` against the ledger's last entry — NOT the full write history. This is deliberate. The ledger is a sliding-window memory, not a persistent provenance log.
+
+**Why not persistent provenance**: persistent storage of per-element provenance was considered (story 26de-eb67-29d2-48ae) and REJECTED as a "fix" for echo suppression. Reasons:
+1. Hash equality is sufficient for the echo case — full history adds complexity without behavioral benefit.
+2. Persistent storage introduces a coordination hazard between reconciler passes (which pass owns the history? what happens on partial-pass failures?).
+3. The reconciler is designed to be stateless across pass boundaries — adding persistent provenance breaks the design contract that any single pass is sufficient to bring the bridge to a consistent state.
+
+**Operator warning**: do NOT extend ProvenanceLedger with persistent storage as a "fix" for surprising echo-suppression behavior. The right response to an unexpected suppression is: (a) verify the suppression actually was the right outcome (the values DO match), or (b) audit the upstream emission site to see what was recorded.
+
+**Related epic**: 4047 (Derivable Jira reconciler), story 26de-eb67-29d2-48ae (per-element provenance for conflict resolution).
