@@ -1362,24 +1362,84 @@ The upstream for implementation-plan Step 6 is `planner_supplied` (per the upstr
 
 See: `${CLAUDE_PLUGIN_ROOT}/skills/shared/workflows/remediation-loop-protocol.md`
 
-**Per-cycle artifact append (Step 6 — cycle recorder)**
+**Per-cycle scratch write (Step 6 — cycle recorder)**
 
-After each cycle's re-dispatch and review, atomically append a `cycles[]` entry to the gap-analysis artifact using the writer:
+After each cycle's re-dispatch and review, atomically write a cycle-recorder entry to the scratch store using the scratch CLI. The sub-agent writes the payload and returns ONLY a 3-field receipt — it must NOT embed the payload in its return block.
 
-```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/append_review_cycle.py \
-  --artifact <path-to-gap-analysis-artifact-for-step6> \
-  --n <cycle-number> \
-  --draft-hash <sha256 of DELTA OUTPUT block> \
-  --findings-count <int> \
-  --verdict <pass|fail|escalate>
-```
-
-After the append, emit exactly ONE ticket comment per cycle:
+**Namespacing constants (set once before the remediation loop; do NOT alter per-cycle):**
 
 ```bash
-.claude/scripts/dso ticket comment <ticket-id> "Remediation cycle <n> recorded at <artifact-path>"
+SCRATCH_TICKET_ID="<story_id>"   # SCRATCH_TICKET_ID — ticket namespace for scratch isolation
+SCRATCH_KEY="implementation-plan:step6:gap-analysis-draft"   # SCRATCH_KEY — authoritative key per ticket-scratch-cli.md
 ```
+
+**Sub-agent write (inside sub-agent prompt — cycle recorder):**
+
+The sub-agent constructs the cycle JSON payload and writes it via the scratch CLI:
+
+```bash
+# Sub-agent: write cycle entry to scratch store (do NOT return the payload inline)
+CYCLE_PAYLOAD=$(python3 -c "import json; print(json.dumps({
+  'n': <cycle-number>,
+  'draft_hash': '<sha256 of DELTA OUTPUT block>',
+  'findings_count': <int>,
+  'verdict': '<pass|fail|escalate>'
+}))")
+bash "$PLUGIN_SCRIPTS/ticket-scratch.sh" set "$SCRATCH_TICKET_ID" "$SCRATCH_KEY" "$CYCLE_PAYLOAD"
+```
+
+<output_contract>
+The sub-agent MUST return ONLY the following 3-field receipt JSON. No other content, no payload body, no cycle details. Embedding the cycle payload in the return block is a contract violation and will produce RECEIPT_PARSE_ERROR.
+
+```json
+{"ticket_id": "<SCRATCH_TICKET_ID>", "key": "<SCRATCH_KEY>", "byte_count": <N>}
+```
+
+Example (valid):
+```json
+{"ticket_id": "abcd-1234-efgh-5678", "key": "implementation-plan:step6:gap-analysis-draft", "byte_count": 142}
+```
+
+Example (INVALID — payload embedded, contract violation):
+```json
+{"ticket_id": "abcd-1234-efgh-5678", "key": "implementation-plan:step6:gap-analysis-draft", "byte_count": 142, "n": 1, "verdict": "fail"}
+```
+</output_contract>
+
+**Orchestrator-side: validate receipt, then read payload:**
+
+After the sub-agent returns, parse the receipt with `receipt-parse.sh` and halt on any contract violation:
+
+```bash
+# Validate receipt — halt on RECEIPT_PARSE_ERROR (exit 2)
+_parsed=$(echo "<sub_agent_output>" | bash "$PLUGIN_SCRIPTS/receipt-parse.sh" implementation-plan:step6 dso:task-decomposer) || {
+  echo "ERROR: RECEIPT_PARSE_ERROR from dso:task-decomposer at implementation-plan:step6 — halting workflow" >&2
+  exit 1
+}
+# _parsed = "<ticket_id> <key>" (space-separated) on success
+
+# Read cycle payload from scratch store (SCRATCH_MISS guard — co-located with get)
+_raw=$(bash "$PLUGIN_SCRIPTS/ticket-scratch.sh" get "$SCRATCH_TICKET_ID" "$SCRATCH_KEY")
+_status=$(echo "$_raw" | python3 -c "import json,sys; print(json.load(sys.stdin)['status'])")
+if [ "$_status" = "miss" ]; then
+  # SCRATCH_MISS: sub-agent did not write the key before returning receipt.
+  # Example of a miss (key absent): {"status":"miss","ticket_id":"abcd-1234-efgh-5678","key":"implementation-plan:step6:gap-analysis-draft"}
+  # This is NOT a valid input — treat as a contract violation and halt.  # precondition-emit-ok: negation, no degradation event
+  echo "ERROR: SCRATCH_MISS for $SCRATCH_TICKET_ID/$SCRATCH_KEY — sub-agent returned receipt but key not present; halting." >&2
+  # Inline cleanup: remove any partial scratch state before exit
+  bash "$PLUGIN_SCRIPTS/ticket-scratch.sh" clear "$SCRATCH_TICKET_ID" "$SCRATCH_KEY" 2>/dev/null || true
+  exit 1
+fi
+CYCLE_JSON=$(echo "$_raw" | python3 -c "import json,sys; print(json.load(sys.stdin)['value'])")
+```
+
+After reading `CYCLE_JSON`, emit exactly ONE ticket comment per cycle that references the scratch key (not a file path):
+
+```bash
+.claude/scripts/dso ticket comment <ticket-id> "Remediation cycle <n> recorded at scratch:$SCRATCH_TICKET_ID/$SCRATCH_KEY"
+```
+
+**Single-comment policy (SC5)**: The ticket comment references the scratch key and does NOT duplicate the cycle body — cycle entries live in the scratch store under `$SCRATCH_KEY`, not in ticket comments. One comment per cycle; no further detail in the comment body.
 
 ---
 
