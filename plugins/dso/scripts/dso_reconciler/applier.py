@@ -192,9 +192,29 @@ def _apply_inbound_probe(mutation, *, client=None) -> ApplyResult:
 
 
 def _apply_inbound_clean_label(mutation, *, client=None) -> ApplyResult:
+    """Remove dso-id-* labels from a Jira issue.
+
+    Inbound-only leaf: invoked when the differ has detected stale or duplicated
+    `dso-id-*` labels on the Jira side that need to be removed. The mutation
+    payload carries the labels to remove under ``labels_to_remove``; only labels
+    that match the ``dso-id-*`` pattern are removed (defensive filter against a
+    misshapen payload). All client calls go through :func:`_call_with_retry`
+    so transient 5xx/429/timeout failures retry with backoff.
+    """
     mut_mod = _load_mutation_module()
     _direction_guard(mutation, mut_mod.MutationDirection.inbound)
-    return ApplyResult(mutation.direction, mutation.action, {})
+    if client is None:
+        # Stub path: preserved for tests that don't exercise the I/O leaf.
+        return ApplyResult(mutation.direction, mutation.action, {})
+    labels = mutation.payload.get("labels_to_remove") or []
+    removed: list[str] = []
+    for label in labels:
+        # Defensive: only remove labels matching the dso-id-* pattern.
+        if not isinstance(label, str) or not label.startswith("dso-id-"):
+            continue
+        _call_with_retry(client.remove_label, mutation.target, label)
+        removed.append(label)
+    return ApplyResult(mutation.direction, mutation.action, {"removed": removed})
 
 
 def _apply_inbound_repair_property(mutation, *, client=None) -> ApplyResult:
