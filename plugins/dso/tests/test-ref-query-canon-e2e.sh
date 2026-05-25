@@ -22,7 +22,7 @@
 #       eighteen-f-content.yaml, federal-plain-language.yaml, cdc-reading-level.yaml)
 #   4. Negative case: --namespace=components does NOT return canon-domain rows
 
-set -uo pipefail
+set -euo pipefail
 
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _PLUGIN_ROOT="$(cd "$_SCRIPT_DIR/.." && pwd)"

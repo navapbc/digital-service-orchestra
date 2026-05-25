@@ -57,11 +57,19 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --tier)
-            TIER="${2:-}"
+            if [[ $# -lt 2 || -z "${2:-}" || "${2}" == -* ]]; then
+                echo "ref-query.sh: --tier requires a value (summary|detail|implementation)" >&2
+                exit 2
+            fi
+            TIER="$2"
             shift 2
             ;;
         --session-hash)
-            SESSION_HASH="${2:-}"
+            if [[ $# -lt 2 || -z "${2:-}" || "${2}" == -* ]]; then
+                echo "ref-query.sh: --session-hash requires a value" >&2
+                exit 2
+            fi
+            SESSION_HASH="$2"
             shift 2
             ;;
         --session-hash=*)
@@ -73,7 +81,11 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --namespace)
-            NAMESPACE="${2:-}"
+            if [[ $# -lt 2 || -z "${2:-}" || "${2}" == -* ]]; then
+                echo "ref-query.sh: --namespace requires a DOMAIN value" >&2
+                exit 2
+            fi
+            NAMESPACE="$2"
             shift 2
             ;;
         --format=*)
@@ -81,7 +93,11 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --format)
-            FORMAT="${2:-text}"
+            if [[ $# -lt 2 || -z "${2:-}" || "${2}" == -* ]]; then
+                echo "ref-query.sh: --format requires a value (text|json)" >&2
+                exit 2
+            fi
+            FORMAT="$2"
             shift 2
             ;;
         --help|-h)

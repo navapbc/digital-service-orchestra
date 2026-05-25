@@ -47,7 +47,7 @@ def _load_module() -> ModuleType:
 def cap() -> ModuleType:
     """Return the copy_artifact_path module, skipping all tests if absent."""
     if not SCRIPT_PATH.exists():
-        pytest.skip(f"Script not found: {SCRIPT_PATH}")
+        pytest.fail(f"Required script not found: {SCRIPT_PATH}")
     return _load_module()
 
 

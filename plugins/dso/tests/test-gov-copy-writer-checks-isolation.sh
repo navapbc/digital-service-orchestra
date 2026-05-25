@@ -26,7 +26,7 @@
 #   7. Agent clarifies that deviations.reason is LLM-authored (not post-processor)
 #   8. YAML example in artifact section shows checks block absent or null
 
-set -uo pipefail
+set -euo pipefail
 
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _PLUGIN_ROOT="$(cd "$_SCRIPT_DIR/.." && pwd)"

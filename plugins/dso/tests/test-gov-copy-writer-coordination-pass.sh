@@ -17,7 +17,7 @@
 #   7. gov-copy-writer.md coordination section defines GOV_COPY_WRITER_COORDINATION_RESULT
 #   8. sprint SKILL.md references snapshot to avoid first-pass artifact race condition
 
-set -uo pipefail
+set -euo pipefail
 
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _PLUGIN_ROOT="$(cd "$_SCRIPT_DIR/.." && pwd)"

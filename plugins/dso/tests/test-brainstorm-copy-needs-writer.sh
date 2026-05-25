@@ -21,7 +21,7 @@
 #   9. Mechanism: the _NEW_DESC variable or equivalent assembled before ticket edit call
 #  10. Mechanism: no --append-section flag (negative assertion)
 
-set -uo pipefail
+set -euo pipefail
 
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _PLUGIN_ROOT="$(cd "$_SCRIPT_DIR/.." && pwd)"
@@ -88,10 +88,10 @@ echo ""
 echo "--- Test 5: schema_version: 1 is at the top of the ## Copy Needs section block ---"
 # The schema_version line must appear as the first content line under ## Copy Needs,
 # not buried later. Check that schema_version appears near (within 5 lines of) ## Copy Needs.
-_SECTION_LINE=$(grep -n '^## Copy Needs' "$SKILL_FILE" | head -1 | cut -d: -f1)
+_SECTION_LINE=$(grep -n '^## Copy Needs' "$SKILL_FILE" | head -1 | cut -d: -f1 || true)
 if [[ -z "$_SECTION_LINE" ]]; then
     # Not a standalone section — check the code block definition
-    _SECTION_LINE=$(grep -n '"## Copy Needs' "$SKILL_FILE" | head -1 | cut -d: -f1)
+    _SECTION_LINE=$(grep -n '"## Copy Needs' "$SKILL_FILE" | head -1 | cut -d: -f1 || true)
 fi
 if [[ -n "$_SECTION_LINE" ]]; then
     # Check if schema_version: 1 appears within 10 lines of the ## Copy Needs occurrence

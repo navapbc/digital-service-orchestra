@@ -17,7 +17,7 @@
 #   7. rule_ids are namespaced per source prefix
 #   8. Full corpus validates via check-corpus-schema.py
 
-set -uo pipefail
+set -euo pipefail
 
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _PLUGIN_ROOT="$(cd "$_SCRIPT_DIR/.." && pwd)"

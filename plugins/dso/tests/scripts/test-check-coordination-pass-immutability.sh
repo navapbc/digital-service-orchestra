@@ -15,7 +15,7 @@
 #   2. FAIL: hard-constraint item values.label changed → exit 1 with diagnostic
 #   3. PASS: non-hard-constraint item changed → exit 0 (soft mutation accepted)
 
-set -uo pipefail
+set -euo pipefail
 
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _PLUGIN_ROOT="$(cd "$_SCRIPT_DIR/../.." && pwd)"

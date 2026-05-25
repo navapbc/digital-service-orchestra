@@ -27,7 +27,7 @@
 #   test_rules_idempotent — Rules section documents idempotency rule
 #   test_rules_no_tag    — Rules section documents no-copy-story when tag absent
 
-set -uo pipefail
+set -euo pipefail
 
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _PLUGIN_ROOT="$(cd "$_SCRIPT_DIR/.." && pwd)"

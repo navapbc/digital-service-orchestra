@@ -15,7 +15,7 @@
 #   4. Unknown field 'hard_constraint' in a schema WITHOUT the extension fails (RED gate)
 #   5. Unknown domain 'canon' in a schema WITHOUT the extension fails (RED gate)
 
-set -uo pipefail
+set -euo pipefail
 
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _PLUGIN_ROOT="$(cd "$_SCRIPT_DIR/.." && pwd)"

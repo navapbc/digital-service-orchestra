@@ -1545,7 +1545,7 @@ fi
 **Inject `{artifact_path}` into the agent's task arguments**:
 
 ```
-subagent_type: "general-purpose"
+subagent_type: "dso:gov-copy-writer"
 model: "sonnet"
 context:
   copy_needs_section: |
@@ -1558,27 +1558,31 @@ context:
     <design notes if epic has design:approved tag, else empty>
 ```
 
-Read `agents/gov-copy-writer.md` inline and pass its content verbatim as the prompt. (`dso:gov-copy-writer` is an agent file identifier, NOT a valid `subagent_type` value.)
+**Dispatch-target fallback** (only on "Unknown agent type" error): if the named `subagent_type: "dso:gov-copy-writer"` is not registered in the current Agent tool registry, fall back to `subagent_type: "general-purpose"` with `model: "sonnet"` and read `${CLAUDE_PLUGIN_ROOT}/agents/gov-copy-writer.md` inline, passing its content verbatim as the first element of the prompt before the context block. The agent still does the work — only the dispatch transport changes.  <!-- # precondition-emit-ok: transport-layer dispatch fallback, not graceful degradation -->
 
 #### Coordination-Pass Dispatch (second-pass gov-copy-writer)
 
 When the current batch contains a **coordination-pass child task** (a task whose title contains "coordination-pass" or which carries the tag `copy:coordination-pass`) **and** the first-pass artifact already exists at `ARTIFACT_PATH`, dispatch gov-copy-writer a **second time** with the full first-pass rationale as input.
 
-**Step 1 — Snapshot the first-pass artifact** before dispatching:
+**Step 1 — Verify the first-pass artifact exists, then snapshot it**:
 
 ```bash
+if [[ ! -f "$ARTIFACT_PATH" ]]; then
+    echo "HALT: coordination-pass task cannot run — first-pass artifact not found at $ARTIFACT_PATH" >&2
+    exit 1
+fi
 SNAPSHOT_PATH=$(mktemp /tmp/gov-copy-writer-first-pass-snapshot.XXXXXX.yaml)
 cp "$ARTIFACT_PATH" "$SNAPSHOT_PATH"
 ```
 
-The snapshot is a stable, read-only input for the second pass. It isolates the coordination-pass agent from any concurrent writes to `ARTIFACT_PATH`.
+The existence check comes BEFORE the `cp` so the HALT message fires when expected. With `set -e`, a `cp` of a missing source would fail first and bypass the diagnostic. The snapshot is a stable, read-only input for the second pass — it isolates the coordination-pass agent from any concurrent writes to `ARTIFACT_PATH`.
 
 **Step 2 — Dispatch gov-copy-writer in second-pass (coordination-pass) mode**:
 
 Inject `{first_pass_rationale_path}` alongside the usual inputs:
 
 ```
-subagent_type: "general-purpose"
+subagent_type: "dso:gov-copy-writer"
 model: "sonnet"
 context:
   copy_needs_section: |
@@ -1593,18 +1597,7 @@ context:
     <design notes if epic has design:approved tag, else empty>
 ```
 
-Read `agents/gov-copy-writer.md` inline and pass its content verbatim as the prompt, exactly as for the first pass. The agent detects second-pass mode by the presence of `{first_pass_rationale_path}`.
-
-**Step 3 — Verify the first-pass artifact exists before dispatching**:
-
-```bash
-if [[ ! -f "$ARTIFACT_PATH" ]]; then
-    echo "HALT: coordination-pass task cannot run — first-pass artifact not found at $ARTIFACT_PATH" >&2
-    exit 1
-fi
-```
-
-If the first-pass artifact is missing, halt and surface the error. Do NOT proceed with the coordination-pass dispatch without a valid first-pass input.
+**Dispatch-target fallback** (only on "Unknown agent type" error): if `dso:gov-copy-writer` is not registered, fall back to `subagent_type: "general-purpose"` with `model: "sonnet"`, and read `${CLAUDE_PLUGIN_ROOT}/agents/gov-copy-writer.md` inline, passing its content verbatim as the first element of the prompt before the context block. The agent detects second-pass mode by the presence of `{first_pass_rationale_path}`.  <!-- # precondition-emit-ok: transport-layer dispatch fallback, not graceful degradation -->
 
 **Important**: Launch ALL sub-agents in the batch within a single message, each with `run_in_background: true`. The number of Task calls is governed by `max_agents` from Phase C Step 1 (unlimited = all candidates, N = cap at N, 0 = skip dispatch).
 

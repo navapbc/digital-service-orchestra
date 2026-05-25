@@ -17,7 +17,7 @@
 #   7. ref-query.sh --help advertises --namespace and --format flags
 #   8. test_baseline_includes_non_canon: no-namespace query returns at least one non-canon row
 
-set -uo pipefail
+set -euo pipefail
 
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _PLUGIN_ROOT="$(cd "$_SCRIPT_DIR/.." && pwd)"
@@ -142,7 +142,10 @@ test_baseline_includes_non_canon() {
         pass "backward-compat: no-namespace query returns entries from multiple domains (non-canon found)"
     else
         # Also accept if corpus genuinely only has one domain
-        _all_domains=$(python3 -c "
+        # Fail loudly if domain extraction itself errors — silently swallowing the
+        # error and treating "no domains" as "single-domain corpus" produced a
+        # false-positive pass when extraction was actually broken.
+        if ! _all_domains=$(python3 -c "
 import sys, yaml
 from pathlib import Path
 corpus = Path('$CORPUS')
@@ -150,20 +153,20 @@ domains = set()
 for f in corpus.rglob('*.yaml'):
     if f.name.startswith('_'):
         continue
-    try:
-        content = f.read_text()
-        for doc in yaml.safe_load_all(content):
-            if doc and isinstance(doc, dict):
-                d = doc.get('domain', [])
-                if isinstance(d, list):
-                    domains.update(d)
-                elif d:
-                    domains.add(d)
-    except:
-        pass
+    content = f.read_text()
+    for doc in yaml.safe_load_all(content):
+        if doc and isinstance(doc, dict):
+            d = doc.get('domain', [])
+            if isinstance(d, list):
+                domains.update(d)
+            elif d:
+                domains.add(d)
 print(','.join(sorted(domains)))
-" 2>/dev/null || true)
-        if echo "$_all_domains" | grep -q ","; then
+" 2>&1); then
+            fail "backward-compat: domain-discovery script errored: $_all_domains"
+        elif [[ -z "$_all_domains" ]]; then
+            fail "backward-compat: domain-discovery returned empty result (corpus may be missing or empty)"
+        elif echo "$_all_domains" | grep -q ","; then
             fail "backward-compat: corpus has multiple domains but no-namespace query returned only canon"
         else
             pass "backward-compat: corpus has only one domain; single-domain result is acceptable"

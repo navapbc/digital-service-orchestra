@@ -21,7 +21,7 @@
 #   9. Negative: non-UI epic description does not contain copy-needed tag instruction
 #  10. Positive: Quick Reference table includes Phase 1.5 row
 
-set -uo pipefail
+set -euo pipefail
 
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _PLUGIN_ROOT="$(cd "$_SCRIPT_DIR/.." && pwd)"
