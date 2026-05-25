@@ -538,7 +538,7 @@ tests/scripts/test-infer-detected-by.sh:tests/scripts/test-infer-detected-by.sh 
 tests/scripts/test-bootstrap-calibration-tickets.sh:tests/scripts/test-bootstrap-calibration-tickets.sh
 plugins/dso/scripts/lib/reachability.sh:tests/scripts/test-reachability-helper.sh
 tests/lib/protocol-conformance-harness.sh:tests/unit/shared/test-protocol-conformance-harness.sh
-plugins/dso/scripts/dso_reconciler/conflict_resolver.py:tests/unit/dso_reconciler/test_conflict_resolver.py,tests/unit/dso_reconciler/test_conflict_resolver_cap.py,tests/unit/dso_reconciler/test_conflict_resolver_divergence.py,tests/unit/dso_reconciler/test_conflict_resolver_fitness.py
+plugins/dso/scripts/dso_reconciler/conflict_resolver.py:tests/unit/dso_reconciler/test_conflict_resolver.py,tests/unit/dso_reconciler/test_conflict_resolver_cap.py,tests/unit/dso_reconciler/test_conflict_resolver_divergence.py,tests/unit/dso_reconciler/test_conflict_resolver_fitness.py,tests/unit/dso_reconciler/test_differ_conflict_resolution.py [test_state_field_local_wins]
 plugins/dso/scripts/dso_reconciler/alert_store.py:tests/unit/dso_reconciler/test_alert_store_dedup.py
 plugins/dso/scripts/dso_reconciler/invariants.py:tests/unit/dso_reconciler/test_invariants.py
 plugins/dso/scripts/dso_reconciler/health.py:tests/unit/dso_reconciler/test_health.py,tests/unit/dso_reconciler/test_health_baseline.py,tests/unit/dso_reconciler/test_health_schema.py
@@ -554,7 +554,6 @@ plugins/dso/data/ui-reference/accessibility/:tests/scripts/test_corpus_accessibi
 plugins/dso/data/ui-reference/anti-patterns/:tests/scripts/test_corpus_anti_patterns.py [test_anti_patterns_directory_exists,test_anti_patterns_directory_has_at_least_48_yaml_files,test_all_entries_have_domain_tag,test_all_domain_tags_are_valid_vocabulary,test_all_entries_have_rule_id,test_all_rule_ids_have_ap_prefix,test_all_rule_ids_are_unique]
 plugins/dso/scripts/ref-query.py:tests/scripts/test_ref_query.py [test_basic_query_returns_results,test_ref_query_uses_bm25s_when_importable,test_ref_query_falls_back_when_bm25s_missing,test_ref_query_notice_emitted_once_per_process]
 plugins/dso/data/ui-reference/components/:tests/scripts/test_corpus_components_uswds.py [test_components_directory_exists]
-
 plugins/dso/scripts/ref-query.sh:tests/scripts/test_corpus_principles.py,tests/scripts/test_corpus_anti_patterns.py [test_ref_query_script_exists,test_ref_query_returns_auth_result_for_session_timeout]
 plugins/dso/scripts/check-corpus-schema.py:tests/scripts/test_check_corpus_schema.py [test_valid_entry_with_all_required_fields_passes],tests/scripts/test_corpus_anti_patterns.py [test_check_corpus_schema_script_exists,test_check_corpus_schema_exits_zero_for_anti_patterns]
 plugins/dso/scripts/telemetry/telemetry_emit.py:tests/scripts/test-telemetry-emit.sh
@@ -567,3 +566,4 @@ plugins/dso/scripts/telemetry/lambda-handler/schema.py:plugins/dso/scripts/telem
 plugins/dso/scripts/telemetry/lambda-handler/validator.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_validator.py
 plugins/dso/scripts/dso_reconciler/mutation.py:tests/unit/dso_reconciler/test_mutation.py
 plugins/dso/scripts/telemetry/lambda-handler/handler.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_handler.py
+plugins/dso/scripts/dso_reconciler/differ.py:tests/unit/dso_reconciler/test_differ.py [test_identical_states_produce_empty_list]
