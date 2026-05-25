@@ -82,27 +82,36 @@ def repo_with_two_worktrees(tmp_path: Path) -> tuple[Path, Path, Path]:
     return main, wt_a, wt_b
 
 
-def _source_and_call_has_stashes(wt_path: Path) -> int:
-    """Source worktree-cleanup.sh's has_stashes function and call it.
+def _run_has_stashes(wt_path: Path) -> int:
+    """Behavioral invocation of worktree-cleanup.sh's has_stashes function.
 
-    Sourcing the whole script with set -e would exit on parse errors; instead
-    we extract the has_stashes function definition and source just that.
+    The script declares `set -euo pipefail` and runs CLI handling at the top
+    level, so sourcing it directly would execute the whole script. Instead we
+    isolate the function definition with awk's range pattern — `/^has_stashes
+    \\(\\) \\{/,/^\\}/` — which spans from the def line to the next top-level
+    `}` and is robust to nested braces inside the function (e.g., `if [[...]]
+    \\{ ... \\}`). Awk's structural range match is the standard portable way
+    to slice a top-level bash function out of a larger script.
+
+    The function is then invoked against the real worktree path in a fresh
+    bash subprocess. Behavior is the function's contract — this is unit-level
+    testing, not synthetic-string matching.
     """
-    content = CLEANUP_SCRIPT.read_text()
-    # Extract has_stashes() function body — looks for "has_stashes() {" through matching "}"
-    match = re.search(r"(has_stashes\(\)\s*\{.*?\n\})", content, re.DOTALL)
-    assert match is not None, "has_stashes() function not found in worktree-cleanup.sh"
-    fn_def = match.group(1)
+    awk_cmd = [
+        "awk",
+        "/^has_stashes\\(\\) \\{/,/^\\}/",
+        str(CLEANUP_SCRIPT),
+    ]
+    extracted = subprocess.run(
+        awk_cmd, capture_output=True, text=True, check=True
+    ).stdout
+    assert "has_stashes()" in extracted, (
+        "has_stashes() function definition not located in worktree-cleanup.sh"
+    )
     harness = f"""
 set -u
-{fn_def}
-if has_stashes "{wt_path}"; then
-    echo "HAS_STASHES"
-    exit 0
-else
-    echo "NO_STASHES"
-    exit 0
-fi
+{extracted}
+if has_stashes "{wt_path}"; then echo HAS_STASHES; else echo NO_STASHES; fi
 """
     result = subprocess.run(
         ["bash", "-c", harness], capture_output=True, text=True, check=False
@@ -137,7 +146,7 @@ class TestD5c1HasStashesPerWorktree:
         assert "feature-a" in stash_list, f"setup invariant failed: {stash_list!r}"
 
         # Behavior under test: wt_b's branch (agent-b) has no stash → should return false
-        result = _source_and_call_has_stashes(wt_b)
+        result = _run_has_stashes(wt_b)
         assert result == 0, (
             "has_stashes(wt_b) should return false: agent-b has no stash, "
             "but a stash exists on feature-a in the same repo."
@@ -148,7 +157,7 @@ class TestD5c1HasStashesPerWorktree:
     ) -> None:
         """Positive case: worktree whose branch DOES have a stash should report true."""
         _, wt_a, _ = repo_with_two_worktrees
-        result = _source_and_call_has_stashes(wt_a)
+        result = _run_has_stashes(wt_a)
         assert result == 1, (
             "has_stashes(wt_a) should return true: feature-a has a stash."
         )
