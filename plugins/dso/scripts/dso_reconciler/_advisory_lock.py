@@ -309,15 +309,44 @@ def _write_file_to_tickets_branch(
     If the file already contains *contents* (idempotent retry path), the write
     is skipped and no commit is made — leaving HEAD unchanged so rebase_retry
     can detect no-drift and return ok=True on the retry pass.
+
+    Uses ``--detach`` when creating the temporary worktree so that the tickets
+    branch pointer is never exclusively locked to this worktree.  This allows
+    concurrent callers (e.g. a CI pre-flight step that has mounted tickets as
+    ``.tickets-tracker``) to coexist without a ``fatal: 'tickets' is already
+    used by worktree at ...`` exit-128 error.  After committing in the detached
+    worktree the tickets branch ref is advanced atomically via
+    ``git update-ref`` compare-and-swap.
     """
     import shutil as _shutil
     import tempfile as _tempfile
+
+    # Snapshot the tickets branch HEAD *before* the commit so the compare-and-swap
+    # old-sha argument matches rebase_retry's before-snapshot.
+    old_sha_result = subprocess.run(
+        ["git", "-C", str(repo_root), "rev-parse", "tickets"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if old_sha_result.returncode != 0:
+        raise subprocess.CalledProcessError(
+            old_sha_result.returncode,
+            old_sha_result.args,
+            old_sha_result.stdout,
+            old_sha_result.stderr,
+        )
+    old_sha = old_sha_result.stdout.strip()
 
     # git worktree add requires the target dir to not exist
     worktree_parent = Path(_tempfile.mkdtemp(prefix="advisory-lock-wt-parent-"))
     worktree_dir = worktree_parent / "wt"
     try:
-        _git_run(repo_root, ["worktree", "add", str(worktree_dir), "tickets"])
+        # --detach avoids "fatal: 'tickets' is already used by worktree at ..."
+        # when a sibling worktree (e.g. .tickets-tracker) has tickets checked out.
+        _git_run(
+            repo_root, ["worktree", "add", "--detach", str(worktree_dir), "tickets"]
+        )
         file_path = worktree_dir / filename
         file_path.write_text(contents)
         _git_run_in(worktree_dir, ["add", filename])
@@ -332,6 +361,20 @@ def _write_file_to_tickets_branch(
         if status.returncode != 0:
             # Non-zero means there ARE staged changes — commit them
             _git_run_in(worktree_dir, ["commit", "-m", commit_message])
+            # Capture new SHA and advance the tickets branch ref atomically
+            new_sha_result = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                capture_output=True,
+                text=True,
+                check=True,
+                cwd=str(worktree_dir),
+            )
+            new_sha = new_sha_result.stdout.strip()
+            # compare-and-swap: only advance if tickets still points to old_sha
+            _git_run(
+                repo_root,
+                ["update-ref", "refs/heads/tickets", new_sha, old_sha],
+            )
     finally:
         try:
             _git_run(repo_root, ["worktree", "remove", "--force", str(worktree_dir)])
@@ -349,18 +392,58 @@ def _delete_file_from_tickets_branch(
 
     Uses a temporary git worktree so the main branch pointer is unchanged.
     Idempotent: if the file is absent, does nothing.
+
+    Uses ``--detach`` when creating the temporary worktree so that the tickets
+    branch pointer is never exclusively locked to this worktree.  After
+    committing the deletion in the detached worktree the tickets branch ref is
+    advanced atomically via ``git update-ref`` compare-and-swap.
     """
     import shutil as _shutil
     import tempfile as _tempfile
 
+    # Snapshot the tickets branch HEAD *before* the commit so the compare-and-swap
+    # old-sha argument matches rebase_retry's before-snapshot.
+    old_sha_result = subprocess.run(
+        ["git", "-C", str(repo_root), "rev-parse", "tickets"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if old_sha_result.returncode != 0:
+        raise subprocess.CalledProcessError(
+            old_sha_result.returncode,
+            old_sha_result.args,
+            old_sha_result.stdout,
+            old_sha_result.stderr,
+        )
+    old_sha = old_sha_result.stdout.strip()
+
     worktree_parent = Path(_tempfile.mkdtemp(prefix="advisory-lock-wt-parent-"))
     worktree_dir = worktree_parent / "wt"
     try:
-        _git_run(repo_root, ["worktree", "add", str(worktree_dir), "tickets"])
+        # --detach avoids "fatal: 'tickets' is already used by worktree at ..."
+        # when a sibling worktree (e.g. .tickets-tracker) has tickets checked out.
+        _git_run(
+            repo_root, ["worktree", "add", "--detach", str(worktree_dir), "tickets"]
+        )
         file_path = worktree_dir / filename
         if file_path.exists():
             _git_run_in(worktree_dir, ["rm", "-f", filename])
             _git_run_in(worktree_dir, ["commit", "-m", commit_message])
+            # Capture new SHA and advance the tickets branch ref atomically
+            new_sha_result = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                capture_output=True,
+                text=True,
+                check=True,
+                cwd=str(worktree_dir),
+            )
+            new_sha = new_sha_result.stdout.strip()
+            # compare-and-swap: only advance if tickets still points to old_sha
+            _git_run(
+                repo_root,
+                ["update-ref", "refs/heads/tickets", new_sha, old_sha],
+            )
     finally:
         try:
             _git_run(repo_root, ["worktree", "remove", "--force", str(worktree_dir)])
