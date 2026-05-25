@@ -158,3 +158,20 @@ The fetcher prefers `startAt` pagination over `nextPageToken` precisely because 
 3. Verify `JRACLOUD-94632` has not been reverted/regressed in the ACLI version pinned by the reconciler's runtime environment.
 
 **Related epics**: 4047 (Derivable level-triggered Jira reconciler) successor to 3a03 (failed cumulative cutover).
+## INC-009: Inbound probe: 4-branch classifier + stdlib-urllib + GET-only invariant
+
+**Symptom**: Reconciler dispatches an (inbound, probe) Mutation for a jira_key that disappeared from the working set.
+
+**Contract**: `plugins/dso/scripts/dso_reconciler/inbound_probe.py` exposes a 4-branch classifier:
+- `PRESENT_RESOLVED` — issue exists with status in {Resolved, Done, Cancelled}
+- `PRESENT_FILTERED` — issue exists but no longer matches the JQL filter
+- `ARCHIVED_OR_MOVED` — 404/410/403
+- `UNREACHABLE` — 5xx/401/network/timeout
+
+**stdlib-urllib choice**: deliberately avoids adding a third-party HTTP client. stdlib `urllib.request` is sufficient for a single GET per probe and aligns with the no-risky-dep policy (CLAUDE.md `rule:risky-dep`).
+
+**GET-only invariant**: every Request constructed by the probe uses `get_method() == 'GET'`. POST/PUT/DELETE would be a contract violation — the probe is a pure observability primitive.
+
+**Routing in reconcile.py**: see `route_inbound_probe(mutation, probe_result)` for the 4-branch mapping. hard_delete (ARCHIVED_OR_MOVED) emits (inbound, delete). trash_restore (PRESENT_RESOLVED) and unreachable do not emit follow-ons (audit-log only).
+
+**Operator action when probe returns UNREACHABLE**: do NOT classify the issue as missing — UNREACHABLE means the probe could not determine state. Re-run the next pass; persistent UNREACHABLE across passes indicates a network/credential problem, not a workflow gap.
