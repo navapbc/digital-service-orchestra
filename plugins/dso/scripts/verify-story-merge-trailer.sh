@@ -97,8 +97,12 @@ if [[ -z "$_BASE" ]]; then
 fi
 
 # Pattern: anchored at line start of body. --extended-regexp + --grep is
-# applied across the full commit message (subject + body).
-_PATTERN="^DSO-Story-Merge: ${_STORY_ID}\$"
+# applied across the full commit message (subject + body). Use unescaped
+# `$` for the end-of-line anchor; bash does not expand `$"` at end of a
+# double-quoted string, so the literal `$` reaches git as the ERE anchor.
+# Avoid the prior `\$` form — it relied on implicit bash escape semantics
+# (cycle-2 llm-review finding 1/4).
+_PATTERN="^DSO-Story-Merge: ${_STORY_ID}$"
 
 # Verify the base ref resolves before invoking git log (else the user gets
 # a confusing "unknown revision" error instead of an actionable message).
