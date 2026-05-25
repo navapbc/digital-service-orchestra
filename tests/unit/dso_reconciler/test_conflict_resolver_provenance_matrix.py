@@ -65,22 +65,26 @@ def _make_snapshot(field: str, value):
     }
 
 
-def _apply_mutation_to_snapshot(snapshot: dict, mutation: dict) -> dict:
+def _apply_mutation_to_snapshot(snapshot: dict, mutation) -> dict:
     """Inline dict-merge state advance.
 
     Per AC comment: NO applier.apply() invocation. Manually merge the mutation's
-    ``fields`` into the snapshot's per-key dict for the given key. Returns a new
-    dict (does not mutate input).
+    ``payload`` into the snapshot's per-key dict for the given target. Returns a
+    new dict (does not mutate input). Accepts a Mutation dataclass instance.
     """
     result = {k: dict(v) for k, v in snapshot.items()}
-    key = mutation["key"]
-    action = mutation["action"]
+    target = mutation.target
+    action = mutation.action.value
+    payload = dict(mutation.payload or {})
     if action == "delete":
-        result.pop(key, None)
+        result.pop(target, None)
         return result
-    if key not in result:
-        result[key] = {"dso_local_id": mutation.get("local_id", key)}
-    result[key].update(mutation.get("fields", {}))
+    if action in ("create", "update"):
+        if target not in result:
+            result[target] = {"dso_local_id": payload.get("local_id", target)}
+        result[target].update(payload)
+        return result
+    # probe / conflict / clean_label / repair_property: no snapshot change.
     return result
 
 
@@ -140,7 +144,7 @@ def test_bidirectional_apply_once_then_idempotent(differ, field, old, new, origi
     # Passes 2, 3, 4: fresh state, fresh implicit ledger. Expect zero mutations.
     for pass_n in (2, 3, 4):
         muts = differ.compute_mutations(prev_after, next_after)
-        update_muts = [m for m in muts if m.get("action") == "update"]
+        update_muts = [m for m in muts if m.action.value == "update"]
         assert update_muts == [], (
             f"field={field} origin={origin} pass={pass_n}: "
             f"expected zero update mutations after apply-once, got {update_muts}"
@@ -235,7 +239,7 @@ def test_echo_suppression_uses_provenance(differ, resolver):
         "(story 26de echo-suppression test)"
     )
     muts = differ.compute_mutations_with_ledger(prev, next_, ledger=ledger)
-    update_muts = [m for m in muts if m.get("action") == "update"]
+    update_muts = [m for m in muts if m.action.value == "update"]
     assert update_muts == [], (
         f"echo not suppressed: prior local-origin write re-emitted as {update_muts}"
     )
@@ -273,7 +277,7 @@ def test_counter_edit_not_suppressed(differ, field, old, new):
     pass2 = differ.compute_mutations(prev_after, next_after)
     field_changes = [
         m for m in pass2
-        if m.get("action") == "update" and field in m.get("fields", {})
+        if m.action.value == "update" and field in dict(m.payload or {})
     ]
     assert field_changes, (
         f"counter-edit on {field}: pass 2 should emit a mutation reflecting "
