@@ -351,7 +351,7 @@ plugins/dso/scripts/ticket-purge-bridge.sh:tests/scripts/test-ticket-purge-bridg
 plugins/dso/scripts/ticket-ready.py:tests/scripts/test-ticket-ready-dispatcher.sh
 plugins/dso/scripts/ticket-ready.sh:tests/scripts/test-ticket-ready-dispatcher.sh
 plugins/dso/scripts/ticket-reducer.py:tests/scripts/test_ticket_reducer.py,tests/scripts/test_ticket_reducer_conflict.py,tests/scripts/test_ticket_reducer_edit.py,tests/scripts/test_ticket_reducer_strategy.py,tests/scripts/test-ticket-show.sh,tests/scripts/test-ticket-list.sh
-plugins/dso/scripts/ticket-init.sh:tests/scratch/test-scratch-gitignore.sh [test_scratch_gitignore_in_exclude]
+plugins/dso/scripts/ticket-init.sh:tests/scratch/test-scratch-gitignore.sh,tests/scratch/test-scratch-isolation.sh
 plugins/dso/scripts/ticket-revert.sh:tests/scripts/test_revert_event.py
 plugins/dso/scripts/ticket-scratch-clear.sh: tests/scratch/test-scratch-clear.sh
 plugins/dso/scripts/ticket-scratch-get.sh: tests/scratch/test-scratch-get.sh
