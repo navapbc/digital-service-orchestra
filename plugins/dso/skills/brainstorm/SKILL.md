@@ -48,6 +48,7 @@ This skill's logic is split across phase files to keep per-invocation context sm
 | `prompts/ui-keyword-trigger.md` | Step 1.5 UI Intent Detection — keyword scan, config override, classifier stub |
 | `prompts/ui-detection-classifier.md` | Step 1.5 UI Intent Detection — classifier dispatch prompt |
 | `prompts/ux-probe-set.md` | Step 1.5 UI Intent Detection — structured UX probe set |
+| `docs/contracts/copy-needs-section.md` | Phase 1.5 UI-Copy Detector — Copy Needs schema for section write |
 
 ## Migration Check
 
@@ -337,6 +338,141 @@ The affects_fields must include workflow_completion_checklist so the S3 tiered s
 3. **Release-infrastructure compatibility check (3dc2-ad99)**: Regardless of SC shape classification, if the epic introduces a new Python package (e.g., `litellm`, any `pip install` or `pyproject.toml` addition) or changes that will eventually be exercised at release time (new CI job, new validation step, changed plugin entry point), flag `scripts/release.sh` as a release-infrastructure dependency. Note in the epic description: "Release dependency: scripts/release.sh must be updated to account for [new package/change] before this epic can ship via the stable release channel." This dependency is NOT captured by the `external-outcome` shape classifier (it's an internal script, not an external service) — so it must be checked explicitly here.
 
 4. If no SC returns `external-outcome` and the release-infrastructure check is negative: skip block rendering.
+
+---
+
+## Phase 1.5: UI-Copy Detector
+
+**Goal**: Detect whether the epic involves user-visible copy that requires UX copywriting review. When detected and confirmed by the user, tag the epic `copy-needed` and write a conforming `## Copy Needs` section into the epic description.
+
+**When to run**: Immediately after Phase 1 is complete and the Understanding Summary has been confirmed (after Step 2.5 Completeness Attestation, before Phase 2 approach proposals).
+
+**Contract reference**: `${CLAUDE_PLUGIN_ROOT}/docs/contracts/copy-needs-section.md`
+
+### Step 1: UI-Copy Signal Scan
+
+Scan the confirmed Understanding Summary text (problem statement, scope, surface, success criteria) for any of the following signal heuristics. A single match is sufficient to trigger the detector:
+
+| Signal | Examples |
+|--------|----------|
+| Form fields or form validation | "form", "form field", "input field", "validation", "required field", "field label" |
+| Error messages or error states | "error message", "error state", "validation failure", "inline error", "error copy" |
+| Button labels or call-to-action text | "button", "button label", "CTA", "call to action", "submit button", "link text" |
+| Instructional or helper text | "hint text", "helper text", "instructional copy", "help text", "tooltip" |
+| Microcopy | "microcopy", "micro-copy", "placeholder text", "empty state copy" |
+| Accessibility copy | "alt text", "ARIA label", "aria-label", "screen reader", "accessible name" |
+| Plain-language or federal style requirements | "plain language", "plain-language", "reading level", "federal plain language", "FPLA" |
+| Confirmation or status strings | "confirmation message", "success message", "status label", "status string" |
+| User-visible text strings in acceptance criteria | any quoted string that would appear in a UI element (e.g., `"Submit application"`, `"File too large"`) |
+
+**Result values**:
+- `copy-detected` — one or more signal heuristics matched
+- `copy-not-detected` — no signal heuristics matched
+
+### Step 2: Idempotency Guard
+
+Before prompting the user, check whether the epic is already tagged `copy-needed`:
+
+```bash
+_EPIC_TAGS=$(.claude/scripts/dso ticket show "$_EPIC_ID" 2>/dev/null | python3 -c "import sys,json; t=json.load(sys.stdin); print(' '.join(t.get('tags',[])))")
+if echo "$_EPIC_TAGS" | grep -qw "copy-needed"; then
+    # Already tagged — check whether ## Copy Needs section is present in description
+    _COPY_NEEDS_PRESENT=$(.claude/scripts/dso ticket show "$_EPIC_ID" 2>/dev/null | python3 -c "import sys,json; t=json.load(sys.stdin); print('yes' if '## Copy Needs' in t.get('description','') else 'no')")
+    if [[ "$_COPY_NEEDS_PRESENT" == "yes" ]]; then
+        # Both tag and section present — Phase 1.5 is a no-op
+        echo "PHASE_1_5: copy-needed already tagged and ## Copy Needs section present — skipping"
+    else
+        # Tag present but section missing — write the section (re-run recovery)
+        echo "PHASE_1_5: copy-needed tagged but ## Copy Needs section missing — writing section"
+        # Proceed to Step 4 (section write) skipping user confirmation
+    fi
+fi
+```
+
+If the epic is already fully tagged and the section is present: **skip the remainder of Phase 1.5** and proceed directly to Phase 2.
+
+### Step 3: User Confirmation Dialogue (copy-detected path only)
+
+When `copy-detected`:
+
+Present the detected signals to the user:
+
+```
+I detected UI-copy signals in this epic:
+
+[List each matched signal with a brief excerpt from the Understanding Summary that triggered it]
+
+This suggests the epic involves user-visible strings (form labels, error messages, button text, helper copy, etc.) that should be tracked for UX copywriting review.
+
+Should I tag this epic `copy-needed` and write a `## Copy Needs` section? (yes / no / skip for now)
+```
+
+**Option mapping**:
+- **yes** — proceed to Step 4 (tag + section write)
+- **no** — do not tag; log a comment on the epic: `COPY_DETECTOR: user declined copy-needed tag`; proceed to Phase 2
+- **skip for now** — do not tag; do not log; proceed to Phase 2
+
+When `copy-not-detected`: **skip Steps 3 and 4** entirely and proceed directly to Phase 2. Do not mention the detector to the user — a negative result is silent.
+
+### Step 4: Tag Write + Copy Needs Section Write (on user confirmation)
+
+**Step 4a: Write the tag**
+
+```bash
+.claude/scripts/dso ticket tag "$_EPIC_ID" copy-needed
+```
+
+Idempotency: `.claude/scripts/dso ticket tag` is idempotent — duplicate tag writes are safe.
+
+**Step 4b: Draft initial `## Copy Needs` items**
+
+Based on the confirmed Understanding Summary, draft one entry per detected copy element. Each entry must conform to the schema at `${CLAUDE_PLUGIN_ROOT}/docs/contracts/copy-needs-section.md`:
+
+- `stable_id`: kebab-case identifier unique within this document (e.g., `upload-error-too-large`, `submit-button`)
+- `type`: one of `heading` | `label` | `button` | `error` | `helper_text` | `body` | `status` | `confirmation`
+- `location`: human-readable description of where the copy appears in the UI
+- `page`: a value from the controlled vocabulary in the contract (`application_form`, `eligibility_screen`, `document_upload`, `status_page`, `confirmation_page`, `login`, `signup`, `error_page`, `dashboard`, `review_screen`)
+- `validation_rule`: a non-empty rule string
+
+When the `page` cannot be determined from the Understanding Summary, use the closest controlled-vocabulary value and add a note in the `location` field. Do NOT invent page identifiers outside the controlled vocabulary — if none fit, use the closest match and flag it with `# NOTE: page vocabulary may need extension per contract §Vocabulary Extension Procedure`.
+
+**Step 4c: Append the section to the epic description**
+
+Retrieve the current epic description, append the new section, and update:
+
+```bash
+_CURRENT_DESC=$(.claude/scripts/dso ticket show "$_EPIC_ID" | python3 -c "import sys,json; print(json.load(sys.stdin).get('description',''))")
+
+_COPY_NEEDS_BLOCK="## Copy Needs
+
+schema_version: 1
+
+$(for each detected copy item:)
+- stable_id: <stable_id>
+  type: <type>
+  location: <location>
+  page: <page>
+  validation_rule: <validation_rule>
+$(end for)"
+
+_NEW_DESC="${_CURRENT_DESC}
+
+${_COPY_NEEDS_BLOCK}"
+
+.claude/scripts/dso ticket edit "$_EPIC_ID" --description "$_NEW_DESC"
+```
+
+**Idempotency**: Before appending, check that `## Copy Needs` does not already appear in `$_CURRENT_DESC`. If it does, do not append a second section — perform an in-place update of the existing section instead (add any newly detected items that are not already listed, identified by `stable_id`).
+
+**Step 4d: Confirm to the user**
+
+```
+Tagged this epic `copy-needed` and wrote a `## Copy Needs` section with [N] initial item(s).
+These will be carried forward into preplanning and implementation-plan for copywriting review.
+The copy needs section can be refined at any point — new items can be added; stable_ids must not change once set.
+```
+
+Proceed to Phase 2.
 
 ---
 
@@ -660,5 +796,6 @@ Do NOT invoke `/dso:preplanning`, `/dso:implementation-plan`, or any downstream 
 | Phase | Goal | Key Activities |
 |-------|------|---------------|
 | 1: Context + Dialogue | Understand the feature | Load PRD/design-notes, one question at a time, Tell-me-more loop; Phase 1 Gate (Understanding Summary → Intent Gap Analysis → Phase 2). Config-gated: External Dependencies shape heuristic + classification dialogue. |
+| 1.5: UI-Copy Detector | Detect and record copy needs | Signal scan against confirmed Understanding Summary; idempotency guard; user confirmation; tag `copy-needed`; write `## Copy Needs` section conforming to `docs/contracts/copy-needs-section.md`. Silent no-op when no signals detected. |
 | 2: Approach + Spec | Define how and what | Propose 2–3 options; draft spec with provenance tracking; apply `verifiable-sc-check.md` per SC; Step 2.25 cross-epic scan → `phases/cross-epic-handlers.md` on non-benign signals; scrutiny pipeline (2.5/2.6/2.75/3) → `phases/post-scrutiny-handlers.md`; Step 4 approval gate (`phases/approval-gate.md`). |
 | 3: Ticket Integration | Create epic; mark complete | Follow-on gate; create/update epic; set deps; validate; **3a** write PIL comment; **3b** preconditions + tag `brainstorm:complete`; **3c** sentinel; emit plain completion line. No downstream skill invoked; orchestrator may suggest `/dso:preplanning <epic-id>` in its own summary. Complexity classification and routing happen in `/dso:preplanning`. |

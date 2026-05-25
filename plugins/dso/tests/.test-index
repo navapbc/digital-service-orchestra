@@ -23,3 +23,5 @@ data/ui-reference/canon/vagov-error-anatomy.yaml:tests/test-ref-query-canon-e2e.
 data/ui-reference/canon/eighteen-f-content.yaml:tests/test-ref-query-canon-e2e.sh
 data/ui-reference/canon/federal-plain-language.yaml:tests/test-ref-query-canon-e2e.sh
 data/ui-reference/canon/cdc-reading-level.yaml:tests/test-ref-query-canon-e2e.sh
+skills/brainstorm/SKILL.md:tests/test-brainstorm-phase-1-5-detector.sh
+docs/contracts/copy-needs-section.md:tests/test-brainstorm-phase-1-5-detector.sh
