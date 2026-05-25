@@ -521,6 +521,10 @@ jobs:
 
       - name: Union integration review scope
         if: needs.changes.outputs.code_changed == 'true'
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          BASE_REF: ${{ github.base_ref }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
           ARTIFACT_DIR="${DSO_ARTIFACT_DIR:-$RUNNER_TEMP/dso-review}"
@@ -562,6 +566,16 @@ jobs:
             # the log line was misleading operators into believing review
             # was skipped when it now runs.
             echo "Integration scope empty — Run LLM review will dispatch against the full PR diff (direct-PR path)"
+            # bug db71-e078-ec99-4fbf: an empty integration scope on a
+            # multi-commit session PR is a signal that DSO-Story-Merge
+            # trailers are missing — likely a Phase F bypass. Delegate the
+            # warning emission to emit-missing-trailer-warning.sh so the
+            # behavior is exercised by a behavioral test (cycle-2 llm-review
+            # findings 2/4 and 3/4): the helper surfaces git failures
+            # explicitly rather than swallowing them via 2>/dev/null.
+            EVENT_NAME="${EVENT_NAME}" BASE_REF="${BASE_REF}" HEAD_REF="${HEAD_REF}" \
+              SCOPE_EMPTY=true \
+              bash plugins/dso/scripts/emit-missing-trailer-warning.sh
           else
             echo "INTEGRATION_SCOPE_EMPTY=false" >> "$GITHUB_ENV"
             echo "Integration scope populated — Run LLM review may narrow to integration-scope files via runner hints"

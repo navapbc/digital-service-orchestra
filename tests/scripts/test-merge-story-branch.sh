@@ -179,4 +179,54 @@ assert_pass_if_clean "test_missing_args_exits_nonzero"
 rm -rf "$_TEST_DIR"
 
 # =============================================================================
+# Test 5: test_no_diff_same_tip_emits_empty_trailer_commit
+# Given a story branch whose tip equals the session-branch tip (default
+# post-harvest worktree-isolation state — bug db71-e078-ec99-4fbf)
+# When merge-story-branch.sh is called
+# Then an empty commit carrying the DSO-Story-Merge trailer is written
+# rather than the silent 'Already up to date.' no-op.
+# =============================================================================
+echo ""
+echo "--- test_no_diff_same_tip_emits_empty_trailer_commit ---"
+_snapshot_fail
+
+_TEST_DIR=$(mktemp -d /tmp/test-merge-story-no-diff.XXXXXX)
+git init "$_TEST_DIR" --initial-branch=main --quiet 2>/dev/null \
+    || git init "$_TEST_DIR" --quiet 2>/dev/null
+(
+    cd "$_TEST_DIR"
+    git config user.email "test@test.com"
+    git config user.name "Test"
+    echo "init" > README.md
+    git add README.md
+    git commit -m "initial" --quiet
+    # Story branch shares the session tip (no-diff state).
+    git branch story/no-diff-epic/no-diff-story HEAD --quiet \
+        || git update-ref refs/heads/story/no-diff-epic/no-diff-story HEAD
+)
+
+_T5_HEAD_BEFORE=$(cd "$_TEST_DIR" && git rev-parse HEAD)
+_T5_RC=0
+_T5_STDERR=$(mktemp /tmp/test-merge-story-t5-stderr.XXXXXX)
+(
+    cd "$_TEST_DIR"
+    bash "$MERGE_STORY_SCRIPT" "story/no-diff-epic/no-diff-story" "no-diff-story" 2>"$_T5_STDERR"
+) || _T5_RC=$?
+
+assert_eq "test_no_diff_exits_0" "0" "$_T5_RC"
+
+_T5_HEAD_AFTER=$(cd "$_TEST_DIR" && git rev-parse HEAD)
+assert_ne "test_no_diff_creates_new_commit" "$_T5_HEAD_BEFORE" "$_T5_HEAD_AFTER"
+
+_T5_MSG=$(cd "$_TEST_DIR" && git log -1 --format=%B HEAD)
+assert_contains \
+    "test_no_diff_commit_has_trailer" \
+    "DSO-Story-Merge: no-diff-story" \
+    "$_T5_MSG"
+
+rm -f "$_T5_STDERR"
+assert_pass_if_clean "test_no_diff_same_tip_emits_empty_trailer_commit"
+rm -rf "$_TEST_DIR"
+
+# =============================================================================
 print_summary
