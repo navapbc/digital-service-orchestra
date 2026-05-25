@@ -943,7 +943,82 @@ The orchestrator-level dispatch operates in `mode: remediation` — i.e., the pr
 
 Delta-mode behavior: the agent will preserve-by-omission — tasks not named in any finding are absent from the delta output but preserved verbatim in the merged set. Only tasks explicitly named in `findings` (via the `target` field) appear in the delta output with the modifications the findings require.
 
-After receiving the revised task set, merge the delta with the prior cycle's tasks and re-enter Step 4 Plan Review with the updated plan. If the re-dispatched task-decomposer returns `model_requirement_unmet`, apply the same retry-once rule as in the Step 3 Dispatch section.
+Also pass the following scratch-handoff arguments to the sub-agent:
+
+- `SCRATCH_TICKET_ID`: The story ticket id (the `<story-id>` value for this implementation-plan run) — the sub-agent uses this to namespace the scratch write.
+- `SCRATCH_KEY`: The literal string `implementation-plan:step4:plan-review-draft` — the sub-agent uses this as the scratch key when writing its delta output.
+
+**Sub-agent output contract** (include verbatim in the dispatched prompt):
+
+```xml
+<output_contract>
+You MUST write your full JSON delta output (dd_partition_map, task_drafts, decomposition_notes) to
+the ticket scratch store before returning, using the SCRATCH_TICKET_ID and SCRATCH_KEY values
+provided:
+
+  bash "$PLUGIN_SCRIPTS/ticket-scratch.sh" set "$SCRATCH_TICKET_ID" "$SCRATCH_KEY" "<your-json-output>"
+
+After writing, return ONLY a 3-field receipt JSON — do NOT embed the draft body in your return block:
+
+  {"ticket_id": "<SCRATCH_TICKET_ID>", "key": "<SCRATCH_KEY>", "byte_count": <N>}
+
+where byte_count is the byte length of the JSON payload you wrote.
+
+NEGATIVE EXAMPLE (contract violation — do NOT do this):
+  {"ticket_id": "...", "key": "...", "byte_count": 4096, "task_drafts": [...]}
+  ^^^ Extra fields beyond the 3-field envelope are a contract violation and will
+      cause RECEIPT_PARSE_ERROR on the orchestrator side.
+
+NEGATIVE EXAMPLE (contract violation — do NOT do this):
+  Here are the revised tasks: dd_partition_map: {...}, task_drafts: [...]
+  ^^^ Returning the draft body inline (not via scratch) is a contract violation.
+      A SCRATCH_MISS on the orchestrator side is NOT a fallback signal to send
+      the payload inline — it is a hard error requiring the agent to be re-dispatched.
+</output_contract>
+```
+
+### Parse Output (Receipt-Only Contract)
+
+After the sub-agent returns, validate its receipt via `receipt-parse.sh` before reading any payload:
+
+```bash
+# Prompt Alignment Finding 1: receipt validation co-located with the read site
+PARSE_RESULT=$(printf '%s' "<sub-agent-return-block>" | \
+    bash "$PLUGIN_SCRIPTS/receipt-parse.sh" implementation-plan:step4 dso:task-decomposer)
+PARSE_EXIT=$?
+if [ "$PARSE_EXIT" -ne 0 ]; then
+    # RECEIPT_PARSE_ERROR — halt workflow; structured error already logged to stderr by receipt-parse.sh
+    # Inline cleanup: remove any partial scratch written before the failure
+    bash "$PLUGIN_SCRIPTS/ticket-scratch.sh" clear "$SCRATCH_TICKET_ID" "implementation-plan:step4:plan-review-draft" 2>/dev/null || true
+    echo "HALT: task-decomposer (Step 4 remediation) returned a malformed receipt — see RECEIPT_PARSE_ERROR above. Re-dispatch the sub-agent to fix the return contract before continuing." >&2
+    exit 1
+fi
+# Extract ticket_id and key from the validated receipt
+SCRATCH_TICKET_ID_OUT=$(echo "$PARSE_RESULT" | awk '{print $1}')
+SCRATCH_KEY_OUT=$(echo "$PARSE_RESULT" | awk '{print $2}')
+
+# Retrieve the payload from scratch
+SCRATCH_RESULT=$(bash "$PLUGIN_SCRIPTS/ticket-scratch.sh" get "$SCRATCH_TICKET_ID_OUT" "$SCRATCH_KEY_OUT")
+SCRATCH_STATUS=$(echo "$SCRATCH_RESULT" | python3 -c "import json,sys; print(json.load(sys.stdin)['status'])")
+
+# Prompt Alignment Finding 1: SCRATCH_MISS guard co-located with the get call
+if [ "$SCRATCH_STATUS" != "hit" ]; then
+    # SCRATCH_MISS — hard error; do NOT fall back to accepting inline payload  # precondition-emit-ok: negation, no degradation event
+    # Inline cleanup: no payload to remove, but clear any stale key
+    bash "$PLUGIN_SCRIPTS/ticket-scratch.sh" clear "$SCRATCH_TICKET_ID_OUT" "$SCRATCH_KEY_OUT" 2>/dev/null || true
+    echo "HALT: scratch key '$SCRATCH_KEY_OUT' not found for ticket '$SCRATCH_TICKET_ID_OUT' (status=$SCRATCH_STATUS). A SCRATCH_MISS is not a signal to accept an inline payload — re-dispatch the sub-agent." >&2
+    exit 1
+fi
+DELTA_JSON=$(echo "$SCRATCH_RESULT" | python3 -c "import json,sys; print(json.load(sys.stdin)['value'])")
+```
+
+The retrieved `DELTA_JSON` is a JSON object with `dd_partition_map`, `task_drafts`, and `decomposition_notes`. Merge the delta with the prior cycle's tasks. After merging, clear the scratch key:
+
+```bash
+bash "$PLUGIN_SCRIPTS/ticket-scratch.sh" clear "$SCRATCH_TICKET_ID" "implementation-plan:step4:plan-review-draft"
+```
+
+After receiving the revised task set, re-enter Step 4 Plan Review with the updated plan. If the re-dispatched task-decomposer returns `model_requirement_unmet`, apply the same retry-once rule as in the Step 3 Dispatch section.
 
 Record exactly one `.claude/scripts/dso ticket comment <id> "REMEDIATION_CYCLE:<N> task-decomposer re-dispatched after Step 4 plan-review findings"` per cycle per SC5 single-comment policy.
 
