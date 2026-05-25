@@ -4,7 +4,7 @@
 
 For each worktree returned by implementation sub-agents (process in completion order — first-pass-first-merge):
 
-**Step 1 — 907d post-return existence check (mandatory)**: Before any `cd "$WORKTREE_PATH"`, verify the path still exists on disk and the worktree branch is still resolvable. The Claude Code harness reaps `isolation: "worktree"` worktrees under certain conditions (binary string evidence in versions 2.1.150+: `tengu_worktree_removed`, retention discriminators `worktree_kept_dirty / branch_mismatch / remove_failed`). A reaped worktree fails subsequent `cd` operations with `no such file or directory` — silent data loss if not caught here.
+**Step 1a — 907d post-return existence check (mandatory)**: Before any `cd "$WORKTREE_PATH"`, verify the path still exists on disk and the worktree branch is still resolvable. The Claude Code harness reaps `isolation: "worktree"` worktrees under certain conditions (binary string evidence in versions 2.1.150+: `tengu_worktree_removed`, retention discriminators `worktree_kept_dirty / branch_mismatch / remove_failed`). A reaped worktree fails subsequent `cd` operations with `no such file or directory` — silent data loss if not caught here.
 
 ```bash
 if [ ! -d "$WORKTREE_PATH" ]; then
@@ -25,7 +25,7 @@ if [ -n "${WORKTREE_BRANCH:-}" ] && ! git rev-parse --verify "$WORKTREE_BRANCH" 
 fi
 ```
 
-**Step 1 — Enter worktree context**: Note the worktree path as `WORKTREE_PATH`. Compute the worktree's artifacts directory and record the base commit for empty-branch detection:
+**Step 1b — Enter worktree context**: Note the worktree path as `WORKTREE_PATH`. Compute the worktree's artifacts directory and record the base commit for empty-branch detection:
 
 ```bash
 WORKTREE_ARTIFACTS=$(cd "$WORKTREE_PATH" && source ${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh && get_artifacts_dir)

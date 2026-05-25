@@ -14,6 +14,7 @@ d5c1 defects (tested by execution):
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -155,44 +156,78 @@ class TestD5c1HasStashesPerWorktree:
 
 @pytest.mark.scripts
 class TestD5c1WorktreeCreateCount:
-    """worktree-create.sh auto-cleanup trigger must count only session worktrees."""
+    """worktree-create.sh auto-cleanup trigger must count only session worktrees.
 
-    def test_count_pattern_excludes_agent_worktrees(self) -> None:
-        """Bug d5c1: line counting `worktree-` matches agent-* paths too.
+    Behavioral test: build a real git repo with a known mix of session-named
+    and agent-* worktrees, then invoke `worktree-create.sh` in that repo and
+    observe whether the auto-cleanup trigger fires (it prints
+    "Running automatic cleanup..." to stderr when activated). We verify the
+    OBSERVABLE behavior — not the regex pattern — so the test survives any
+    equivalent refactor of the count discriminator.
+    """
 
-        Mimics the count logic in worktree-create.sh against a synthetic
-        `git worktree list` output containing both session worktrees and agent-*
-        worktrees. The fixed pattern must match session worktrees only.
+    def test_agent_worktrees_do_not_trigger_auto_cleanup(self, tmp_path: Path) -> None:
+        """Bug d5c1: pre-fix, `grep -c "worktree-"` matched agent-* worktree
+        paths and branches, so 11 agent-* worktrees would fire the >=10 trigger
+        even with zero session worktrees. Post-fix, only session worktrees
+        (worktree-YYYYMMDD-HHMMSS) count toward the threshold.
+
+        Setup: a real git repo with 2 session worktrees and 9 agent-* worktrees
+        (11 total — would have triggered pre-fix). Post-fix, session count is 2,
+        below the >=10 threshold, so cleanup must NOT trigger.
         """
-        sample = "\n".join(
-            [
-                "/repo  abc [main]",
-                "/repo/worktrees/worktree-20260525-082437  def [worktree-20260525-082437]",
-                "/repo/worktrees/worktree-20260524-135547  ghi [worktree-20260524-135547]",
-                "/repo/.claude/worktrees/agent-acdd4cdaf9be4045e  jkl [worktree-agent-acdd4cdaf9be4045e] locked",
-                "/repo/.claude/worktrees/agent-ab24bca38e3324876  mno [worktree-agent-ab24bca38e3324876] locked",
-            ]
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        _git(repo, "init", "-q", "-b", "main")
+        _git(repo, "config", "user.email", "t@t")
+        _git(repo, "config", "user.name", "t")
+        (repo / "README").write_text("init\n")
+        _git(repo, "add", "README")
+        _git(repo, "commit", "-q", "-m", "init")
+
+        # 2 session worktrees — use realistic worktree-YYYYMMDD-HHMMSS names.
+        for i, ts in enumerate(("20260520-100000", "20260521-100000")):
+            _git(
+                repo, "worktree", "add", "-b", f"worktree-{ts}", str(tmp_path / f"s{i}")
+            )
+        # 9 agent-* worktrees — branch names mirror real harness output.
+        for i in range(9):
+            _git(
+                repo,
+                "worktree",
+                "add",
+                "-b",
+                f"worktree-agent-{i:016x}",
+                str(tmp_path / f"a{i}"),
+            )
+
+        total = len(_git(repo, "worktree", "list").splitlines())
+        assert total == 12, (
+            f"setup invariant: expected 12 worktrees (main+2+9), got {total}"
         )
-        # Extract the count line from the actual script
-        content = CREATE_SCRIPT.read_text()
-        m = re.search(
-            r"WORKTREE_COUNT=\$\(git worktree list[^)]*\| (grep[^)]+)\)", content
-        )
-        assert m is not None, "WORKTREE_COUNT line not found in worktree-create.sh"
-        grep_cmd = m.group(1).strip()
-        # Run the grep against the synthetic sample, mimicking the script
+
+        # Invoke worktree-create.sh in this repo; we only care about whether the
+        # >=10 trigger fires. Use a name that the script can accept; the call
+        # may fail later for unrelated reasons (no origin remote, etc.) — we
+        # capture stderr and inspect for the trigger marker either way.
+        env = os.environ.copy()
+        env["CLAUDE_PLUGIN_ROOT"] = str(REPO_ROOT / "plugins" / "dso")
+        env["WORKTREE_DIR_OVERRIDE"] = str(tmp_path / "new")
         result = subprocess.run(
-            ["bash", "-c", f"echo '{sample}' | {grep_cmd}"],
+            ["bash", str(CREATE_SCRIPT), "newbranch"],
+            cwd=str(repo),
+            env=env,
             capture_output=True,
             text=True,
             check=False,
+            timeout=30,
         )
-        count = int(result.stdout.strip() or "0")
-        # 2 session worktrees + 2 agent-* worktrees in the sample.
-        # The fix narrows the match so agent-* is excluded — count should be 2, not 4.
-        assert count == 2, (
-            f"Expected session-only count of 2, got {count}. "
-            "agent-* worktrees should be excluded from the >=10 auto-cleanup trigger."
+        # The observable signal: the script prints "Running automatic cleanup..."
+        # to stderr when WORKTREE_COUNT >= 10.
+        assert "Running automatic cleanup" not in result.stderr, (
+            "auto-cleanup must NOT trigger when only agent-* worktrees push the "
+            "raw count over 10 — session-named worktrees alone (count=2) are below "
+            "the threshold.\nstderr was:\n" + result.stderr
         )
 
 

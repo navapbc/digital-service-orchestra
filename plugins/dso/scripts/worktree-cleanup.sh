@@ -317,9 +317,11 @@ has_stashes() {
     local wt_branch
     wt_branch=$(git -C "$wt_path" rev-parse --abbrev-ref HEAD 2>/dev/null)
     [[ -z "$wt_branch" || "$wt_branch" == "HEAD" ]] && return 1
+    # Use grep -F (fixed-string) over -E so regex metacharacters in branch names
+    # like `feature.v2` or `release/1.x` are matched literally.
     local stash_count
     stash_count=$(git -C "$wt_path" stash list 2>/dev/null \
-        | grep -cE ": (WIP on|On) ${wt_branch}:" 2>/dev/null || true)
+        | grep -cFe ": WIP on ${wt_branch}:" -e ": On ${wt_branch}:" 2>/dev/null || true)
     stash_count=${stash_count:-0}
     [[ "$stash_count" -gt 0 ]]
 }
