@@ -574,3 +574,4 @@ plugins/dso/scripts/telemetry/lambda-handler/validator.py:plugins/dso/scripts/te
 plugins/dso/scripts/telemetry/lambda-handler/handler.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_handler.py
 plugins/dso/scripts/check-copy-needs-schema.sh:tests/scripts/test-check-copy-needs-schema.sh [test_copy_needs_pass_fixture,test_copy_needs_fail_missing_field,test_copy_needs_fail_unknown_page]
 plugins/dso/scripts/dogfood-gov-copy.sh:plugins/dso/tests/test-dogfood-gov-copy.sh
+plugins/dso/scripts/verify-story-merge-trailer.sh:tests/scripts/test-verify-story-merge-trailer.sh

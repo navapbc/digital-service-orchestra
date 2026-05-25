@@ -226,7 +226,7 @@ This prevents the epic verifier from applying stricter criteria than the story v
 After evaluating all SC criteria but before running consumer smoke tests, apply the project closure hooks mechanism. Read the `project_closure_hooks` config key to determine whether project-specific hooks are registered. See `${CLAUDE_PLUGIN_ROOT}/docs/contracts/end-state-item-validator.md` for the full hook interface contract.
 
 ```bash
-_CLOSURE_HOOKS=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" project_closure_hooks 2>/dev/null || true)
+_CLOSURE_HOOKS=$(.claude/scripts/dso read-config.sh project_closure_hooks 2>/dev/null || true)
 ```
 
 **If `project_closure_hooks` is present and non-empty**: Dispatch each registered hook against the `## Closure Checks` items read in Step 2.5. **If the Closure Checks section is absent or empty, skip hook invocation entirely** — hooks are not called when there are no items to evaluate; `closure_checks_results` is an empty array in that case. For each hook invocation, pass inputs as environment variables (`ITEM_TEXT`, `ITEM_SOURCE_TICKET_ID`, `CLOSURE_TIMESTAMP`) and capture JSON from stdout. Apply the verdict rules from the `end-state-item-validator` contract: `valid: true` = PASS, `valid: false` + `severity: "block"` = FAIL (blocks closure), `valid: false` + `severity: "warn"` = WARN (advisory, does not block). Include hook results in `closure_checks_results` with the hook name as an annotation; only FAIL results (not WARN) should appear in `criteria_results`.
@@ -306,6 +306,52 @@ When a story has the tag `manual:awaiting_user`:
 
 4. **Do NOT re-execute `verification_command`. Do NOT re-prompt the user. The sentinel is the authoritative record.**
 
+### Step 3c: DSO-Story-Merge Trailer Provenance Check (Epic Only)
+
+**Applies only when `ticket_type == "epic"`.** Skip this step entirely for stories.
+
+This check enforces the Phase F provenance pipeline invariant established by bug `db71-e078-ec99-4fbf`: every closed child story of this epic must have a `DSO-Story-Merge: <story-id>` trailer in the commit history reachable from the current HEAD.
+
+The trailer is the load-bearing attribution signal that downstream consumers depend on:
+- `merge-story-branch.sh` writes it on local merges (and on no-diff empty commits per F3)
+- `merge-to-main-pr.sh` / GitHub auto-merge writes it on ci-pr story PRs
+- CI's `INTEGRATION_SCOPE` detection in `.github/workflows/ci.yml` looks for it to scope per-story llm-review
+- Re-review attribution and `mirror-defenses-to-pr.sh` use it to correlate findings to stories
+
+A child story that closed without a trailer indicates a Phase F bypass (the f360-3a5b cross-contamination pattern). Treat such cases as a blocking gap.
+
+**Procedure**:
+
+1. Enumerate child stories that are currently `closed` (use `.claude/scripts/dso ticket list --type=story --parent=<epic-id> --status=closed`).
+2. For each closed child story `<story-id>`, run:
+
+   ```bash
+   git log <base>..HEAD --grep="^DSO-Story-Merge: <story-id>$" --extended-regexp --format=%H | head -1
+   ```
+
+   where `<base>` is the merge base of the session branch with the project's default branch. Resolve via `git symbolic-ref refs/remotes/origin/HEAD`; if absent (shallow CI checkout), fall back to whichever of `origin/main` or `origin/master` actually resolves locally. Do not hardcode a branch name. See `verify-story-merge-trailer.sh` for the canonical resolution logic.
+
+3. Apply the verdict rule:
+
+   - **Output non-empty (trailer commit hash printed)**: the trailer is present; no entry added for this child.
+   - **Output empty**: the trailer is missing. Add a FAIL entry to `closure_checks_results`:
+
+     ```json
+     {
+       "item": "DSO-Story-Merge trailer for closed child story <story-id>",
+       "verdict": "FAIL",
+       "severity": "block",
+       "annotation": "trailer-provenance-check",
+       "evidence_found": "git log <base>..HEAD --grep=\"^DSO-Story-Merge: <story-id>$\" returned no commits"
+     }
+     ```
+
+     and mirror the FAIL into `criteria_results` so the epic-level `P1` gate blocks closure.
+
+4. **Severity rationale**: `block` (not `warn`) — missing trailers corrupt provenance for ALL downstream tooling, not just this epic. A missing trailer cannot be inferred from other signals.
+
+5. **Recovery guidance** (include in the verifier's narrative when a FAIL is emitted): the operator must either (a) re-run `merge-story-branch.sh story/<epic-id>/<story-id> <story-id>` locally to write a recovery trailer commit, or (b) re-dispatch the story PR with `BRANCH=story/<epic-id>/<story-id> STORY_PR_BASE=<session-branch> bash <plugin-scripts>/merge-to-main.sh` in ci-pr mode. See bug `db71-e078-ec99-4fbf` and `verify-story-merge-trailer.sh` for the canonical implementation of the trailer-presence assertion.
+
 ### Step 4: Consumer Smoke Tests (Infrastructure Epics)
 
 **Exception**: Stories tagged `manual:awaiting_user` skip consumer smoke tests — they are process steps, not code behaviors.
@@ -361,7 +407,7 @@ _dso_pv_exit_write "epic-closure" "${_UPSTREAM_EVENT_ID:-}" "${SPEC_HASH:-}" "${
 # Write the verifier JSON to a temp file, then render the narrative
 _VERIFIER_TMP=$(mktemp /tmp/verifier-output.XXXXXX)
 # <write the verifier JSON to $_VERIFIER_TMP>
-_NARRATIVE=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/render-closure-narrative.sh" "$_VERIFIER_TMP")
+_NARRATIVE=$(.claude/scripts/dso render-closure-narrative.sh "$_VERIFIER_TMP")
 # Use $_NARRATIVE as the "narrative" field value verbatim
 ```
 
@@ -371,7 +417,7 @@ Before finalizing output, check bypass log completeness if any gate overrides oc
 
 ```bash
 # If artifact bundle has gate_overrides, validate bypass logs
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/bypass-log-check.sh" --artifact-file="$_VERIFIER_TMP"
+.claude/scripts/dso bypass-log-check.sh --artifact-file="$_VERIFIER_TMP"
 ```
 
 If `bypass-log-check.sh` exits non-zero, set `P1: FAIL` and add a criterion result entry documenting the missing bypass log. Do NOT emit a PASS verdict when gate overrides lack required bypass log entries.

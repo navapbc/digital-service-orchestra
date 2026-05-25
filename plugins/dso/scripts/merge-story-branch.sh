@@ -21,4 +21,16 @@ if ! git rev-parse --verify "refs/heads/${_STORY_BRANCH}" >/dev/null 2>&1; then
 fi
 
 _MSG="$(printf 'Merge %s\n\nDSO-Story-Merge: %s' "${_STORY_BRANCH}" "${_STORY_ID}")"
-git merge --no-ff "${_STORY_BRANCH}" -m "${_MSG}"
+
+# Bug db71-e078-ec99-4fbf: in the default worktree-isolation post-harvest
+# state, the story branch tip equals the session tip — `git merge --no-ff`
+# reports "Already up to date." and silently writes NO commit and NO
+# trailer, breaking the provenance pipeline. Detect that case and write
+# an empty commit carrying the trailer instead, preserving the
+# Phase F Step 18 invariant that a DSO-Story-Merge trailer always lands
+# when this script returns 0.
+if git merge-base --is-ancestor "${_STORY_BRANCH}" HEAD 2>/dev/null; then
+    git commit --allow-empty -m "${_MSG}"
+else
+    git merge --no-ff "${_STORY_BRANCH}" -m "${_MSG}"
+fi
