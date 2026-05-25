@@ -191,3 +191,23 @@ The fetcher prefers `startAt` pagination over `nextPageToken` precisely because 
 **Operator action**: review the structured log periodically; if the same `issue_key` appears repeatedly, either the local workflow needs a missing intermediate step OR the Jira workflow needs an additional permitted transition.
 
 **Status gating**: comment-fallback fires regardless of `DSO_RECONCILER_STATUS_GATING`. The env gate controls whether status fields are even DISPATCHED (preflight scan + draft-5 routing); the comment fallback is the applier-side resilience layer for status writes that DO get through.
+
+## INC-011: Dual-identity invariant — quarantine + repair_property failure flows
+
+**Symptom**: `invariants.check_dual_identity_complete(local, jira)` returns a non-empty `quarantine_keys` set and/or a `seed_repair_property_mutations` list. The reconciler suppresses all mutations on quarantined keys and prepends the repair seeds before the differ pass.
+
+**Failure modes detected by `check_dual_identity_complete`**:
+1. **Missing back-pointer** — local ticket has `dso_local_id` set but no `jira_key`; the matched Jira issue points back via `dso_local_id`. Seeds an `(inbound, repair_property)` Mutation to write the missing back-pointer.
+2. **Conflicting back-pointer** — local's `jira_key` does not match the Jira issue whose `dso_local_id` equals the local's. Quarantines the local key.
+3. **Double-bind** — two or more Jira issues claim the same `dso_local_id`. Quarantines the local key AND every colliding Jira key.
+
+**Per-pass cap**: `_DUAL_IDENTITY_CAP_PER_PASS = 50`. Above that, the invariant emits a single `bridge-alert:invariants-cap-hit` and stops adding entries. Operators must triage the cap-hit before the next pass.
+
+**Repair_property failure flow** (task 44e6): when the applier dispatches an `(inbound, repair_property)` mutation and `client.set_issue_property` raises:
+- The applier calls `client.remove_label(target, 'dso-id-<local_id>')` as cleanup (best-effort; secondary errors suppressed).
+- Returns an outcome dict with `follow_on={'kind': 'schema_drift', ...}`.
+- The reconcile.py post-emit filter (52f3) scans for these and invokes `invariants.report_schema_drift(target, observed, expected)` which fires a BRIDGE_ALERT with dedup_key `bridge-alert:schema-drift:<issue_key>`.
+
+**Operator action when quarantine fires**: investigate the local→jira mapping table for the quarantined keys. Run `check_dual_identity_complete` ad-hoc to confirm the failure mode. For double-bind, decide which Jira issue is canonical and clear the `dso_local_id` field from the duplicates.
+
+**Why this matters**: dual-identity is the foundation of direction-tagged mutation safety (epic 4047, successor to the failed 3a03 cutover). A silently broken binding produces inversion bugs at scale.
