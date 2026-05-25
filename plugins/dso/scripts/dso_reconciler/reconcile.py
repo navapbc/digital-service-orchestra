@@ -13,6 +13,7 @@ import json
 import shutil
 import sys
 from pathlib import Path
+from typing import Any
 
 
 class StatusMappingError(Exception):
@@ -73,6 +74,85 @@ def _load(name: str, relpath: str):
     sys.modules[name] = mod
     spec.loader.exec_module(mod)  # type: ignore[union-attr]
     return mod
+
+
+def _audit_log_probe(branch_label: str, issue_key: str, detail: dict | None = None) -> None:
+    """Write a single audit-log entry to stderr for log-only probe branches.
+
+    Used by :func:`route_inbound_probe` for branches that produce no follow-on
+    mutation (``trash_restore`` / PRESENT_RESOLVED and ``unreachable`` /
+    UNREACHABLE) so that the probe outcome is still durably observable in
+    pass logs.
+    """
+    detail_str = "" if not detail else f" detail={detail!r}"
+    print(  # noqa: T201
+        f"inbound_probe: branch={branch_label} key={issue_key}{detail_str}"
+    )
+
+
+def route_inbound_probe(mutation: Any, probe_result: Any) -> list[Any] | None:
+    """Route an (inbound, probe) Mutation to a branch-specific follow-on.
+
+    Branches:
+      * ARCHIVED_OR_MOVED → ``hard_delete`` — emit ``(inbound, delete, target)``
+        follow-on targeting the local jira-<key> partner. Provenance records
+        the original probe target and the probe status_code.
+      * PRESENT_RESOLVED  → ``trash_restore`` — NO follow-on; write one audit
+        log entry with branch=``trash_restore`` and the issue key.
+      * PRESENT_FILTERED  → currently no emission. The basic 4-branch
+        classifier does not distinguish ``project_move`` from generic
+        ``trash_restore``-filtered; a future enhancement may inspect
+        ``probe_result.detail`` for a ``new_project_key`` signal and emit a
+        reparent follow-on. For now, log and emit no follow-on.
+      * UNREACHABLE       → NO follow-on; audit log entry with
+        branch=``unreachable``.
+
+    Args:
+        mutation:     The (inbound, probe) Mutation under inspection.
+        probe_result: An :class:`inbound_probe.ProbeResult`.
+
+    Returns:
+        A list of follow-on Mutations (possibly empty) for branches that
+        emit follow-ons, or ``None`` for log-only branches.
+    """
+    # Lazy-load probe + mutation modules to avoid import cycles at module top.
+    probe_mod = _load("inbound_probe", "inbound_probe.py")
+    mut_mod = _load("reconcile_mutation", "mutation.py")
+
+    branch = probe_result.branch
+    target = probe_result.issue_key
+
+    if branch == probe_mod.ProbeBranch.ARCHIVED_OR_MOVED:
+        follow_on = mut_mod.Mutation(
+            direction=mut_mod.MutationDirection.inbound,
+            action=mut_mod.MutationAction.delete,
+            target=target,
+            payload={"reason": "hard_delete", "probe_detail": dict(probe_result.detail)},
+            provenance={
+                "source": "inbound_probe_dispatch",
+                "branch": "hard_delete",
+                "origin_target": getattr(mutation, "target", target),
+            },
+        )
+        return [follow_on]
+
+    if branch == probe_mod.ProbeBranch.PRESENT_RESOLVED:
+        _audit_log_probe("trash_restore", target, dict(probe_result.detail))
+        return None
+
+    if branch == probe_mod.ProbeBranch.PRESENT_FILTERED:
+        # No follow-on for generic filtered branch under the 4-branch classifier.
+        # Future enhancement: detect project_move via probe_result.detail.
+        _audit_log_probe("present_filtered", target, dict(probe_result.detail))
+        return None
+
+    if branch == probe_mod.ProbeBranch.UNREACHABLE:
+        _audit_log_probe("unreachable", target, dict(probe_result.detail))
+        return None
+
+    # Defensive fallback for unknown branch values.
+    _audit_log_probe(f"unknown:{branch!r}", target, dict(probe_result.detail))
+    return None
 
 
 def reconcile_once(pass_id: str, repo_root: Path | None = None) -> dict:
@@ -157,6 +237,39 @@ def reconcile_once(pass_id: str, repo_root: Path | None = None) -> dict:
                 follow_on.get("observed"),
                 follow_on.get("expected"),
             )
+
+    # Inbound-probe dispatch: any (inbound, probe) Mutation emitted by the
+    # differ is routed through the live inbound_probe classifier, then
+    # converted into a branch-specific follow-on (or a log-only outcome) via
+    # route_inbound_probe. Follow-on mutations are appended in-place so the
+    # applier dispatches them in the same pass.
+    mut_mod = _load("reconcile_mutation", "mutation.py")
+    probe_mod = _load("inbound_probe", "inbound_probe.py")
+    probe_follow_ons: list = []
+    for _m in mutations:
+        # Only Mutation objects with the (inbound, probe) combo trigger a probe.
+        direction = getattr(_m, "direction", None)
+        action = getattr(_m, "action", None)
+        if direction is None or action is None:
+            continue
+        if direction != mut_mod.MutationDirection.inbound:
+            continue
+        if action != mut_mod.MutationAction.probe:
+            continue
+        try:
+            probe_result = probe_mod.probe(_m.target)
+        except probe_mod.ProbeConfigError as exc:
+            # Missing env → treat as unreachable; do not abort the pass.
+            print(  # noqa: T201
+                f"inbound_probe: skipped key={_m.target} reason=config_error err={exc}",
+                file=sys.stderr,
+            )
+            continue
+        follow_ons = route_inbound_probe(_m, probe_result)
+        if follow_ons:
+            probe_follow_ons.extend(follow_ons)
+    if probe_follow_ons:
+        mutations.extend(probe_follow_ons)
 
     # Preflight: abort the pass if any update mutation references a status
     # not present in config.local_to_jira_status. Runs exactly once per pass,
