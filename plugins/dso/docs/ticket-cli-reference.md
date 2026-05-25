@@ -1143,6 +1143,12 @@ The ticket system is append-only. All mutations write a new event JSON file. The
 
 ---
 
+## Scratch Storage
+
+`dso ticket scratch set|get|clear` provides an ephemeral key/value store attached to a ticket for stashing large handoff payloads between skill steps. See **[ticket-scratch-cli.md](ticket-scratch-cli.md)** for the full reference: command synopsis, JSON envelope shapes, key-namespace convention (`<skill>:<step>:<purpose>`), charset rules, byte ceiling, `--include-scratch` flag, and the 5 known migration sites.
+
+---
+
 ## Common Workflows
 
 **Create a bug and transition to in-progress:**
