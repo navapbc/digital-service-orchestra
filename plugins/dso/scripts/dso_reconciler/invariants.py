@@ -178,3 +178,119 @@ def check_at_most_one_dso_local_id(
             )
 
     return violations_filed
+
+
+# ---------------------------------------------------------------------------
+# Story 7a75: dual-identity completeness verifier + schema-drift reporter
+# ---------------------------------------------------------------------------
+
+# Cap on quarantine entries reported per pass for the dual-identity verifier.
+# Distinct from `_CAP_PER_PASS` above (which gates the at-most-one invariant);
+# kept separate so the two invariants tune independently.
+_DUAL_IDENTITY_CAP_PER_PASS = 50
+
+
+def _load_mutation_module():
+    """Load the sibling mutation.py module (same pattern as _load_alert_store)."""
+    spec = importlib.util.spec_from_file_location(
+        "invariants_mutation", Path(__file__).parent / "mutation.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules.setdefault("invariants_mutation", mod)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def check_dual_identity_complete(
+    local_state: dict, jira_state: dict
+) -> tuple[set[str], list]:
+    """Verify bidirectional binding between local tickets and Jira issues.
+
+    For each local entry with a ``dso_local_id``, find the Jira side whose
+    ``dso_local_id`` matches. Inconsistencies are classified as:
+
+    * **Missing back-pointer** (local has no ``jira_key``) -> seed an inbound
+      ``repair_property`` Mutation to write the back-pointer.
+    * **Conflicting back-pointer** (local's ``jira_key`` does not match the
+      matched peer) -> quarantine the local key.
+    * **Double-bind** (more than one Jira issue claims the same
+      ``dso_local_id``) -> quarantine the local key and every colliding Jira
+      key.
+
+    Returns:
+        (quarantine_keys, seed_repair_property_mutations)
+    """
+    mut_mod = _load_mutation_module()
+    quarantine: set[str] = set()
+    repairs: list = []
+
+    jira_local_id_index: dict[str, list[str]] = {}
+    for jk, jentry in jira_state.items():
+        jid = jentry.get("dso_local_id")
+        if not jid:
+            continue
+        jira_local_id_index.setdefault(jid, []).append(jk)
+
+    for local_key, local in local_state.items():
+        dso_id = local.get("dso_local_id")
+        if not dso_id:
+            continue
+        peer_keys = jira_local_id_index.get(dso_id, [])
+        if not peer_keys:
+            continue
+        if len(peer_keys) > 1:
+            quarantine.add(local_key)
+            for jk in peer_keys:
+                quarantine.add(jk)
+            if len(quarantine) >= _DUAL_IDENTITY_CAP_PER_PASS:
+                report_schema_drift(
+                    local_key,
+                    observed={},
+                    expected={"invariants-cap-hit": True},
+                )
+                break
+            continue
+        peer_key = peer_keys[0]
+        local_jira_pointer = local.get("jira_key")
+        if local_jira_pointer and local_jira_pointer != peer_key:
+            quarantine.add(local_key)
+            continue
+        if not local_jira_pointer:
+            repairs.append(
+                mut_mod.Mutation(
+                    direction=mut_mod.MutationDirection.inbound,
+                    action=mut_mod.MutationAction.repair_property,
+                    target=local_key,
+                    payload={"set_field": "jira_key", "value": peer_key},
+                    provenance={
+                        "reason": "missing_back_pointer",
+                        "peer": peer_key,
+                    },
+                )
+            )
+
+    return quarantine, repairs
+
+
+def report_schema_drift(issue_key: str, observed: dict, expected: dict) -> None:
+    """File a BRIDGE_ALERT for schema drift via the reconciler-cli seam.
+
+    Uses a stable ``dedup_key`` of the form ``bridge-alert:schema-drift:<issue_key>``
+    so repeated drift on the same issue is deduplicated by the alert store.
+    Subprocess failures are swallowed (``check=False``) — drift reporting is
+    best-effort and must not abort the reconcile loop.
+    """
+    dedup_key = f"bridge-alert:schema-drift:{issue_key}"
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "reconciler_cli",
+            "alert",
+            f"kind={dedup_key}",
+            f"observed={observed}",
+            f"expected={expected}",
+            f"dedup_key={dedup_key}",
+        ],
+        check=False,
+    )
