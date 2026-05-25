@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import logging
 import os
 import sys
 import tempfile
@@ -24,6 +25,8 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
+
+logger = logging.getLogger(__name__)
 
 # Typed-mutation dispatch layer.
 #
@@ -102,6 +105,7 @@ _errors_module = _load_errors_module()
 StatusMappingError = _errors_module.StatusMappingError
 DirectionMismatchError = _errors_module.DirectionMismatchError
 UnknownActionError = _errors_module.UnknownActionError
+DsoIdLabelWriteError = _errors_module.DsoIdLabelWriteError
 
 
 def _direction_guard(mutation, expected_direction) -> None:
@@ -392,6 +396,143 @@ _AUTHORIZED_DSO_ID_LABEL_ACTIONS: dict[str, frozenset[str]] = {
     "inbound_clean_label": frozenset({"delete"}),
 }
 
+# ---------------------------------------------------------------------------
+# dso-id label write guard
+#
+# _audit_dso_id_label_writes is called after every leaf returns its mutation
+# list (or before dispatching the typed-mutation leaf) to ensure no unauthorized
+# leaf emits a dso-id-* label mutation.
+#
+# Guard mode is controlled by DSO_DSO_ID_GUARD_MODE (env) or dso_id_guard_mode
+# (dso-config.conf key). Precedence: env > config > default ('raise').
+# ---------------------------------------------------------------------------
+
+
+def _get_dso_id_guard_mode_from_config() -> str | None:
+    """Read dso_id_guard_mode from dso-config.conf, if present.
+
+    Returns the value string (e.g. 'raise', 'warn') or None when the key
+    is absent or the file cannot be read.
+
+    Resolution order for the guard mode (env wins):
+      1. os.environ['DSO_DSO_ID_GUARD_MODE']  — checked in _audit_dso_id_label_writes
+      2. This function (dso-config.conf fallback)
+      3. Default: 'raise'
+    """
+    try:
+        config_path = Path(__file__).parents[4] / ".claude" / "dso-config.conf"
+        if not config_path.exists():
+            return None
+        for line in config_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line.startswith("dso_id_guard_mode"):
+                parts = line.split("=", 1)
+                if len(parts) == 2:
+                    return parts[1].strip().strip('"').strip("'")
+    except Exception:
+        pass
+    return None
+
+
+def _is_dso_id_label_write_mutation(mutation) -> bool:
+    """Return True when *mutation* represents a dso-id-* label write.
+
+    Checks two shapes:
+    - String payload (direct audit call): mutation.target == 'label' AND
+      mutation.payload.startswith('dso-id-') AND action in {create,update,delete}.
+    - Dict payload (full Mutation from apply()): payload contains 'target'=='label'
+      AND 'label' value starts with 'dso-id-' AND action in {create,update,delete}.
+    """
+    action = str(getattr(mutation, "action", ""))
+    if action not in {"create", "update", "delete"}:
+        return False
+    payload = getattr(mutation, "payload", None)
+    if isinstance(payload, str):
+        # String payload: check target field and payload value
+        target = getattr(mutation, "target", "")
+        return target == "label" and payload.startswith("dso-id-")
+    elif isinstance(payload, dict):
+        # Dict payload: check embedded 'target'=='label' and 'label' value
+        embedded_target = payload.get("target", "")
+        label_val = payload.get("label", "")
+        if embedded_target == "label" and isinstance(label_val, str) and label_val.startswith("dso-id-"):
+            return True
+    return False
+
+
+def _audit_dso_id_label_writes(leaf_name: str, mutations: list) -> None:
+    """Guard: raise (or warn) when an unauthorized leaf emits a dso-id-* label mutation.
+
+    Called after each leaf returns its mutation list (or before leaf dispatch in
+    _apply_typed) to enforce the two-authorized-leaves contract documented in
+    _AUTHORIZED_DSO_ID_LABEL_WRITERS_DOC.
+
+    Guard mode (DSO_DSO_ID_GUARD_MODE env var, dso-config.conf key dso_id_guard_mode,
+    default 'raise'):
+      - 'raise': DsoIdLabelWriteError raised on violation (default, production-safe).
+      - 'warn': WARNING logged with tag DSO_ID_GUARD; no exception raised (staged rollout).
+
+    Precedence: env var > dso-config.conf key > default 'raise'.
+    """
+    if leaf_name in _AUTHORIZED_DSO_ID_LABEL_WRITERS:
+        return
+
+    offending = None
+    offending_payload = None
+    for mutation in mutations:
+        if _is_dso_id_label_write_mutation(mutation):
+            offending = mutation
+            # Extract the label payload for the error message
+            payload = getattr(mutation, "payload", "")
+            if isinstance(payload, str):
+                offending_payload = payload
+            elif isinstance(payload, dict):
+                offending_payload = payload.get("label", str(payload))
+            else:
+                offending_payload = str(payload)
+            break
+
+    if offending is None:
+        return
+
+    # Determine guard mode: env > config > default 'raise'
+    guard_mode = os.environ.get("DSO_DSO_ID_GUARD_MODE")
+    if guard_mode is None:
+        guard_mode = _get_dso_id_guard_mode_from_config()
+    if guard_mode is None:
+        guard_mode = "raise"
+
+    msg = (
+        f"DSO_ID_GUARD: unauthorized dso-id label write from leaf '{leaf_name}'; "
+        f"offending payload: {offending_payload!r}"
+    )
+
+    if guard_mode == "warn":
+        logger.warning(msg)
+        return
+
+    errs = _load_errors_module()
+    raise errs.DsoIdLabelWriteError(msg)
+
+
+# Mapping from (MutationDirection.value, MutationAction.value) → canonical leaf name.
+# Mirrors the _LEAVES dispatch table; used by _apply_typed to derive leaf_name for
+# the audit without needing to inspect function names.
+_LEAF_NAMES: dict[tuple[str, str], str] = {
+    ("outbound", "create"):           "outbound_create",
+    ("outbound", "update"):           "outbound_update",
+    ("outbound", "delete"):           "outbound_delete",
+    ("outbound", "probe"):            "outbound_probe",
+    ("outbound", "conflict"):         "outbound_conflict",
+    ("inbound",  "create"):           "inbound_create",
+    ("inbound",  "update"):           "inbound_update",
+    ("inbound",  "delete"):           "inbound_delete",
+    ("inbound",  "probe"):            "inbound_probe",
+    ("inbound",  "clean_label"):      "inbound_clean_label",
+    ("inbound",  "repair_property"):  "inbound_repair_property",
+    ("inbound",  "conflict"):         "inbound_conflict",
+}
+
 
 def _apply_typed(mutation, *, client=None) -> ApplyResult:
     """Typed-mutation dispatch via _LEAVES.
@@ -399,6 +540,9 @@ def _apply_typed(mutation, *, client=None) -> ApplyResult:
     Looks up (mutation.direction, mutation.action) in _LEAVES and invokes the
     handler. Raises UnknownActionError with zero side-effects (no client calls,
     no I/O) if the pair is not registered.
+
+    Calls _audit_dso_id_label_writes BEFORE invoking the leaf so that any
+    unauthorized dso-id label mutation is blocked prior to side-effects.
     """
     key = (mutation.direction, mutation.action)
     handler = _LEAVES.get(key)
@@ -408,6 +552,12 @@ def _apply_typed(mutation, *, client=None) -> ApplyResult:
             f"unknown (direction={mutation.direction.value!s}, "
             f"action={mutation.action.value!s})"
         )
+    # Audit: derive leaf_name from the (direction, action) pair and run the
+    # dso-id label write guard before any leaf side-effect occurs.
+    leaf_name = _LEAF_NAMES.get(
+        (mutation.direction.value, mutation.action.value), ""
+    )
+    _audit_dso_id_label_writes(leaf_name, [mutation])
     return handler(mutation, client=client)
 
 
