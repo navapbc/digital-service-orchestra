@@ -123,6 +123,23 @@ def _direction_guard(mutation, expected_direction) -> None:
 def _apply_outbound_create(mutation, *, client=None) -> ApplyResult:
     mut_mod = _load_mutation_module()
     _direction_guard(mutation, mut_mod.MutationDirection.outbound)
+    if client is None:
+        # Stub path: preserved for tests that don't exercise the I/O leaf.
+        return ApplyResult(mutation.direction, mutation.action, {})
+    payload = dict(mutation.payload)
+    try:
+        _call_with_retry(client.create_issue, payload)
+    except Exception:
+        # Rollback path: if a Jira issue was (likely) created before the failure
+        # surfaced, delete it via the same retry helper so transient delete
+        # failures are also retried. Swallow any rollback error so the ORIGINAL
+        # create exception is what re-raises to the caller.
+        key = payload.get("key_hint") or mutation.target
+        try:
+            _call_with_retry(client.delete_issue, key)
+        except Exception:
+            pass
+        raise
     return ApplyResult(mutation.direction, mutation.action, {})
 
 
