@@ -126,7 +126,12 @@ def validate_file(entry_path: Path, schema: dict) -> list[str]:
     return errors
 
 
-_SKIP_NAMES = {"_schema.yaml", "_schema-anti-patterns.yaml", "_index.yaml"}
+_SKIP_NAMES = {
+    "_schema.yaml",
+    "_schema-anti-patterns.yaml",
+    "_index.yaml",
+    "_overview.yaml",
+}
 
 
 def validate_index(corpus_dir: Path, index_path: Path) -> list[str]:

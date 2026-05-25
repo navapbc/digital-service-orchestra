@@ -1,0 +1,88 @@
+id: vagov
+title: "VA.gov Error Anatomy: Two-Part Error Structure for Veteran-Facing Services"
+domain: canon
+component:
+  - form
+  - feedback
+  - content
+action:
+  - design
+  - apply
+  - verify
+compliance:
+  - WCAG-2.1-AA
+  - Section-508
+  - plain-language
+  - 21st-Century-IDEA
+severity: critical
+story_type: pattern
+coverage:
+  - summary
+  - detail
+license: CC0-1.0
+source:
+  url: "https://design.va.gov/content-style-guide/error-messages"
+  retrieval_date: "2025-11-01"
+  license: CC0-1.0
+  version_pin: "VA Design System 2025"
+precedence: 1
+hard_constraint: true
+summary: |
+  VA.gov error messages follow a mandatory two-part anatomy: (1) what went
+  wrong, stated without blame, and (2) how to fix it, stated specifically and
+  actionably. System errors acknowledge VA responsibility with a controlled use
+  of "sorry." User input errors never use "you" accusatorially. Veterans may
+  navigate under stress; clarity and non-blaming tone are safety requirements.
+detail: |
+  ### Two-Part Error Anatomy (hard_constraint: true)
+
+  rule_id: vagov.error-two-part
+  Every VA.gov error message must have exactly two components:
+  1. What went wrong — stated plainly without blame
+  2. How to fix it — specific and actionable
+
+  Example (validation error):
+  - Part 1: "We couldn't find your VA file number"
+  - Part 2: "Enter your 8 or 9-digit VA file number. You can find this on
+    your VA decision letter."
+
+  rule_id: vagov.error-no-accusatory-you
+  Error messages must not begin with "You" in an accusatory construction.
+  - Right: "Enter a date in MM/DD/YYYY format"
+  - Wrong: "You entered an invalid date"
+
+  ### System Error Rules (hard_constraint: true)
+
+  rule_id: vagov.error-system-sorry
+  System errors (VA technical failures, not user input errors) are the one
+  exception where "sorry" is appropriate. System errors must:
+  - Acknowledge VA's responsibility explicitly
+  - Provide a recovery path (retry or contact)
+  - Example: "We're sorry. We couldn't save your application. Please try again."
+
+  rule_id: vagov.error-system-contact
+  If an error cannot be self-resolved by the user, include a contact path:
+  "If this problem continues, call us at 800-827-1000."
+
+  ### User Input Error Rules (hard_constraint: true)
+
+  rule_id: vagov.error-input-no-sorry
+  User input validation errors must NEVER include "sorry." Only system errors
+  (VA-side failures) may use "sorry."
+
+  rule_id: vagov.error-input-actionable
+  Every user input error must tell the user exactly what to enter or do.
+  Vague instructions like "Check your input" are prohibited.
+
+  ### Veteran-Specific Considerations (hard_constraint: false)
+
+  rule_id: vagov.error-veteran-context
+  Veterans may be navigating under stress (disability claims, healthcare access,
+  appeals). Error messages must avoid language that creates urgency, alarm, or
+  a sense of failure beyond what the situation requires. Neutral, factual tone
+  is preferred over clinical or bureaucratic phrasing.
+
+  rule_id: vagov.error-cognitive-accessibility
+  Plain language in error messages must account for Veterans who may have
+  cognitive disabilities, PTSD, or traumatic brain injuries. Sentence length
+  for error messages: 15 words or fewer. One instruction per sentence.

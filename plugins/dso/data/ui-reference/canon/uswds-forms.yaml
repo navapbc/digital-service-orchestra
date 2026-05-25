@@ -1,0 +1,88 @@
+id: uswds-forms
+title: "USWDS Forms: Error Messages, Validation Patterns, and Helper Text"
+domain: canon
+component:
+  - form
+  - input
+  - feedback
+action:
+  - design
+  - apply
+  - verify
+compliance:
+  - WCAG-2.1-AA
+  - WCAG-3.3
+  - Section-508
+  - 21st-Century-IDEA
+  - plain-language
+severity: critical
+story_type: pattern
+coverage:
+  - summary
+  - detail
+license: CC0-1.0
+source:
+  url: "https://designsystem.digital.gov/components/form/"
+  retrieval_date: "2025-11-01"
+  license: CC0-1.0
+  version_pin: "USWDS v3.8"
+precedence: 1
+hard_constraint: true
+summary: |
+  USWDS v3 defines canonical error message, form validation, and helper-text
+  patterns for U.S. federal digital services. Error messages must be specific,
+  actionable, and non-blaming. Helper text appears below labels, above inputs.
+  Validation fires on blur and on submit, never on keypress. Every input requires
+  an associated label; placeholder text must not carry required information.
+detail: |
+  ### Error Message Rules (hard_constraint: true)
+
+  rule_id: uswds-forms.error-specific
+  Every error message must state exactly what went wrong and how to fix it.
+  - Right: "Enter your date of birth in MM/DD/YYYY format"
+  - Wrong: "Required field" / "Invalid input"
+
+  rule_id: uswds-forms.error-non-blaming
+  Error messages must not blame the user.
+  - Right: "Enter a valid email address"
+  - Wrong: "You entered an invalid email address"
+
+  rule_id: uswds-forms.error-placement
+  Inline error messages appear below the label (and helper text if present),
+  above the input element, associated via aria-describedby.
+
+  rule_id: uswds-forms.error-aria
+  Error inputs must include aria-invalid="true" and aria-describedby referencing
+  the error message element. Error message element must carry role or be linked.
+
+  ### Helper Text Rules (hard_constraint: true)
+
+  rule_id: uswds-forms.helper-placement
+  Helper text appears below the label, above the input. It explains constraints
+  the user needs BEFORE filling in the field.
+
+  rule_id: uswds-forms.helper-no-placeholder
+  Placeholder text must never carry required information — it disappears on input
+  start and is inaccessible to screen readers in some configurations.
+
+  ### Validation Timing Rules (hard_constraint: true)
+
+  rule_id: uswds-forms.validation-timing
+  Validation fires on blur (when field loses focus) and on form submit. Never
+  validate on keypress — real-time character-by-character validation is
+  disruptive and causes false positives.
+
+  ### Label Rules (hard_constraint: true)
+
+  rule_id: uswds-forms.label-required
+  Every input, select, and textarea must have an associated <label> element.
+  aria-label is a fallback only when a visible label is architecturally impossible.
+
+  rule_id: uswds-forms.label-required-marker
+  Required fields are marked with "(required)" after label text. When nearly all
+  fields are required, use "All fields required unless marked optional" at the
+  top of the form instead of marking each field individually.
+
+  rule_id: uswds-forms.label-sentence-case
+  Labels use sentence case: "Date of birth" not "Date Of Birth". No colons after
+  labels — the input element provides the visual relationship.

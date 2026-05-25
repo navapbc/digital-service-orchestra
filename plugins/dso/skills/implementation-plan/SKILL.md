@@ -106,6 +106,21 @@ The script returns one of: `OK`, `BLOCKED:scrutiny_pending`, `BLOCKED:interactio
 
 The `manual:awaiting_user` check is gated by `planning.external_dependency_block_enabled` — when the flag is absent or `false`, the script returns `OK` regardless of tags.
 
+### Copy Story Bypass
+
+Before continuing past the tag guards, detect whether this story is a **copy story** auto-created by `dso:story-decomposer` (Step C3 of the Copy-Needed Auto-Create Protocol). A story is a copy story when EITHER:
+
+- it carries the `copy-story` tag (canonical signal), OR
+- its title begins with the verbatim prefix `"Apply gov-copy to "` (case-insensitive fallback)
+
+These match the producer-side values written by `${CLAUDE_PLUGIN_ROOT}/agents/story-decomposer.md` Step C3. If either signal fires:
+
+1. **Do NOT decompose** — copy stories are dispatched to `dso:gov-copy-writer` by `/dso:sprint` Phase E (see sprint SKILL.md "Copy Story Dispatch" section), not by implementation-plan.
+2. Emit exactly: `STATUS:bypass REASON:copy_story STORY:<story-id>`
+3. Stop. Do not run Step 1 (Contextual Discovery) or any subsequent step.
+
+The bypass is the canonical handoff from `/dso:implementation-plan` to `/dso:sprint`'s gov-copy-writer dispatcher. Decomposing a copy story into ordinary tasks would silently bypass the federal-style canon, the deterministic post-processor, and the coordination-pass — defeating the gov-copy epic's entire pipeline.
+
 ### Manual Story Branching (only when `BLOCKED:manual_awaiting_user`)
 
 **Prep-work detection heuristic**: scan the story's done definitions for references to artifacts not yet in the codebase — a verification script path, a user-facing instructions document path, or a CLI wrapper that would need to be authored. Use Glob and `test -f` to confirm.
@@ -1277,6 +1292,14 @@ Each question object has two fields:
 - `"kind"`: `"blocking"` (cannot plan without this) or `"defaultable"` (safe assumption exists — include the assumption in the text)
 
 Rules: never include questions clearly answerable from the codebase or parent epic.
+
+### On copy-story bypass (story is dispatched by sprint to gov-copy-writer):
+
+```
+STATUS:bypass REASON:copy_story STORY:<story-id>
+```
+
+Emitted when the pre-flight detects `copy-story` tag OR title prefix `"Apply gov-copy to "` (case-insensitive). Terminal signal — do not emit STATUS:complete or STATUS:blocked after it. No tasks are created. The sprint orchestrator handles copy-story execution via the gov-copy-writer dispatch path (see sprint SKILL.md "Copy Story Dispatch" section).
 
 ### On unsatisfiable success criteria (story intent requires brainstorm-level re-evaluation):
 

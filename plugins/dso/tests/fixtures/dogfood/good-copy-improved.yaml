@@ -1,0 +1,146 @@
+schema_version: 1
+items:
+  - id: "application-remuneration-label"
+    values:
+      label: "Employment type"
+      hint: "Choose your job status."
+      errors:
+        required: "Select your employment type."
+        invalid: "Choose a valid option."
+    rationale:
+      rule_ids: []
+      conflicts: []
+      deviations: []
+    checks:
+      fk_grade: 4
+      banned_words_found: []
+      active_voice: true
+      source: "deterministic-post-processor"
+
+  - id: "application-ssn-label"
+    values:
+      label: "Social Security Number"
+      hint: "Enter your 9-digit SSN."
+      errors:
+        required: "Enter your SSN."
+        invalid_format: "Enter a valid 9-digit SSN."
+    rationale:
+      rule_ids: []
+      conflicts: []
+      deviations: []
+    checks:
+      fk_grade: 6
+      banned_words_found: []
+      active_voice: true
+      source: "deterministic-post-processor"
+
+  - id: "application-ssn-hint"
+    values:
+      label: "SSN"
+      hint: "We need your SSN to confirm who you are."
+      errors:
+        required: "Enter this field."
+    rationale:
+      rule_ids: []
+      conflicts: []
+      deviations: []
+    checks:
+      fk_grade: 5
+      banned_words_found: []
+      active_voice: true
+      source: "deterministic-post-processor"
+
+  - id: "eligibility-income-label"
+    values:
+      label: "Yearly income"
+      hint: "Enter last year income before taxes."
+      errors:
+        required: "Enter your income."
+        invalid_format: "Enter a dollar amount."
+    rationale:
+      rule_ids: []
+      conflicts: []
+      deviations: []
+    checks:
+      fk_grade: 7
+      banned_words_found: []
+      active_voice: true
+      source: "deterministic-post-processor"
+
+  - id: "eligibility-compliance-hint"
+    values:
+      label: "Income check"
+      hint: "Enter the required field."
+      errors:
+        required: "Enter this field."
+    rationale:
+      rule_ids: []
+      conflicts: []
+      deviations: []
+    checks:
+      fk_grade: 4
+      banned_words_found: []
+      active_voice: true
+      source: "deterministic-post-processor"
+
+  - id: "error-ssn-invalid-format"
+    values:
+      label: "SSN error"
+      hint: "Check your entry below."
+      errors:
+        invalid_format: "Use a valid SSN format. Try again."
+    rationale:
+      rule_ids: []
+      conflicts: []
+      deviations: []
+    checks:
+      fk_grade: 4
+      banned_words_found: []
+      active_voice: true
+      source: "deterministic-post-processor"
+
+  - id: "error-income-missing"
+    values:
+      label: "Income error"
+      hint: "An error occurred."
+      errors:
+        required: "Enter your income. We need it to process your form."
+    rationale:
+      rule_ids: []
+      conflicts: []
+      deviations: []
+    checks:
+      fk_grade: 4
+      banned_words_found: []
+      active_voice: true
+      source: "deterministic-post-processor"
+
+  - id: "error-page-generic-heading"
+    values:
+      label: "Something went wrong"
+      hint: "An error occurred."
+      errors: {}
+    rationale:
+      rule_ids: []
+      conflicts: []
+      deviations: []
+    checks:
+      fk_grade: 4
+      banned_words_found: []
+      active_voice: true
+      source: "deterministic-post-processor"
+
+  - id: "error-page-generic-body"
+    values:
+      label: "Error details"
+      hint: "Something went wrong. Use the back button to go back."
+      errors: {}
+    rationale:
+      rule_ids: []
+      conflicts: []
+      deviations: []
+    checks:
+      fk_grade: 3
+      banned_words_found: []
+      active_voice: true
+      source: "deterministic-post-processor"

@@ -2,10 +2,22 @@
 # ref-query.sh — BM25-style search across the UI reference corpus.
 #
 # Usage:
-#   ref-query.sh <query> [--top-n <N>] [--tier=<summary|detail|implementation>] [--session-hash <H>]
+#   ref-query.sh <query> [--top-n <N>] [--tier=<summary|detail|implementation>]
+#                        [--session-hash <H>] [--namespace=<DOMAIN>]
+#                        [--format=<text|json>]
 #
 # Outputs the top-N matching corpus entries to stdout, including frontmatter fields
-# and the requested content tier (summary by default).
+# and the requested content tier. When --tier is omitted, no tier filter is applied
+# (all entries match — the previous default of "summary" was removed because it
+# excluded the entire corpus, none of whose entries declare tier: summary).
+#
+# Options:
+#   --namespace=DOMAIN   Filter results to entries whose domain matches DOMAIN
+#                        (e.g. canon, components, gov-copy). Without this flag,
+#                        results span all domains.
+#   --format=FORMAT      Output format: 'text' (default, human-readable YAML-like
+#                        documents) or 'json' (JSON array per ref-query-json-output
+#                        schema at ${CLAUDE_PLUGIN_ROOT}/docs/contracts/ref-query-json-output.md).
 #
 # Exit codes:
 #   0 — query completed (zero results also exits 0; check stderr for [ref-query: no results] sentinel)
@@ -14,9 +26,10 @@
 # Zero-result sentinel (emitted to stderr):
 #   [ref-query: no results for query: "<query>"]
 #
-# Example:
+# Examples:
 #   ref-query.sh "USWDS form validation" --top-n 3
 #   ref-query.sh "keyboard navigation" --tier=detail --top-n 5
+#   ref-query.sh "error message" --namespace=canon --format=json
 
 set -euo pipefail
 
@@ -24,8 +37,10 @@ set -euo pipefail
 
 QUERY=""
 TOP_N=8
-TIER="summary"
+TIER=""
 SESSION_HASH=""
+NAMESPACE=""
+FORMAT="text"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -42,16 +57,63 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --tier)
-            TIER="${2:-summary}"
+            if [[ $# -lt 2 || -z "${2:-}" || "${2}" == -* ]]; then
+                echo "ref-query.sh: --tier requires a value (summary|detail|implementation)" >&2
+                exit 2
+            fi
+            TIER="$2"
             shift 2
             ;;
         --session-hash)
-            SESSION_HASH="${2:-}"
+            if [[ $# -lt 2 || -z "${2:-}" || "${2}" == -* ]]; then
+                echo "ref-query.sh: --session-hash requires a value" >&2
+                exit 2
+            fi
+            SESSION_HASH="$2"
             shift 2
             ;;
         --session-hash=*)
             SESSION_HASH="${1#--session-hash=}"
             shift
+            ;;
+        --namespace=*)
+            NAMESPACE="${1#--namespace=}"
+            shift
+            ;;
+        --namespace)
+            if [[ $# -lt 2 || -z "${2:-}" || "${2}" == -* ]]; then
+                echo "ref-query.sh: --namespace requires a DOMAIN value" >&2
+                exit 2
+            fi
+            NAMESPACE="$2"
+            shift 2
+            ;;
+        --format=*)
+            FORMAT="${1#--format=}"
+            shift
+            ;;
+        --format)
+            if [[ $# -lt 2 || -z "${2:-}" || "${2}" == -* ]]; then
+                echo "ref-query.sh: --format requires a value (text|json)" >&2
+                exit 2
+            fi
+            FORMAT="$2"
+            shift 2
+            ;;
+        --help|-h)
+            printf 'Usage: ref-query.sh <query> [OPTIONS]\n\n'
+            printf 'BM25 search across the UI reference corpus.\n\n'
+            printf 'Options:\n'
+            printf '  --top-n N                  Maximum number of results (default: 8)\n'
+            printf '  --tier=TIER                Filter by tier (summary|detail|implementation)\n'
+            printf '  --namespace=DOMAIN         Filter by domain (e.g. canon, components, gov-copy)\n'
+            printf '  --format=FORMAT            Output format: text (default) or json\n'
+            printf '  --session-hash HASH        Session hash for deduplication\n'
+            printf '  --help                     Show this help\n\n'
+            printf 'Examples:\n'
+            printf '  ref-query.sh "USWDS form validation" --top-n 3\n'
+            printf '  ref-query.sh "error message" --namespace=canon --format=json\n'
+            exit 0
             ;;
         -*)
             printf 'ref-query.sh: unknown option: %s\n' "$1" >&2
@@ -67,7 +129,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$QUERY" ]]; then
-    printf 'ref-query.sh: usage: ref-query.sh <query> [--top-n N] [--tier=summary|detail|implementation]\n' >&2
+    printf 'ref-query.sh: usage: ref-query.sh <query> [--top-n N] [--tier=summary|detail|implementation] [--namespace=DOMAIN] [--format=text|json]\n' >&2
     exit 1
 fi
 
@@ -85,261 +147,33 @@ fi
 
 # ── BM25-inspired search via Python ──────────────────────────────────────────
 
-python3 - "$CORPUS_ROOT" "$QUERY" "$TOP_N" "$TIER" <<'PYTHON_EOF'
-"""BM25-style corpus search for ref-query.sh."""
-from __future__ import annotations
+# Delegate to ref-query.py which provides the full implementation including
+# --namespace and --format=json support.
+REF_QUERY_PY="$SCRIPT_DIR/ref-query.py"
 
-import re
-import sys
-from pathlib import Path
-from typing import Any
+if [[ ! -f "$REF_QUERY_PY" ]]; then
+    printf 'ref-query.sh: ref-query.py not found at: %s\n' "$REF_QUERY_PY" >&2
+    exit 1
+fi
 
-import yaml
+# Build argument list for ref-query.py
+PY_ARGS=(
+    "$QUERY"
+    "--corpus=$CORPUS_ROOT"
+    "--top-n=$TOP_N"
+    "--format=$FORMAT"
+)
 
-try:
-    import bm25s as _bm25s_module
+if [[ -n "$TIER" ]]; then
+    PY_ARGS+=("--tier=$TIER")
+fi
 
-    _BM25S_AVAILABLE = True
-except ImportError:
-    _BM25S_AVAILABLE = False
+if [[ -n "$NAMESPACE" ]]; then
+    PY_ARGS+=("--namespace=$NAMESPACE")
+fi
 
-_NOTICE_EMITTED = False
+if [[ -n "$SESSION_HASH" ]]; then
+    PY_ARGS+=("--session-hash=$SESSION_HASH")
+fi
 
-corpus_root = Path(sys.argv[1])
-raw_query = sys.argv[2]
-top_n = int(sys.argv[3])
-tier = sys.argv[4]
-
-SKIP_NAMES = {"_index.yaml", "_schema.yaml"}
-
-
-# ---------------------------------------------------------------------------
-# Load all corpus entries
-# ---------------------------------------------------------------------------
-
-def load_entries_from_dir(directory: Path) -> list[dict[str, Any]]:
-    """Recursively load all YAML corpus entries from a directory."""
-    entries: list[dict[str, Any]] = []
-    for yaml_path in sorted(directory.rglob("*.yaml")):
-        if yaml_path.name in SKIP_NAMES:
-            continue
-        try:
-            content = yaml_path.read_text(encoding="utf-8")
-            for doc in yaml.safe_load_all(content):
-                if doc is None:
-                    continue
-                if isinstance(doc, list):
-                    for item in doc:
-                        if isinstance(item, dict):
-                            item["_source_path"] = str(yaml_path)
-                            entries.append(item)
-                elif isinstance(doc, dict):
-                    doc["_source_path"] = str(yaml_path)
-                    entries.append(doc)
-        except Exception:  # noqa: BLE001
-            pass
-    return entries
-
-
-# ---------------------------------------------------------------------------
-# BM25 scoring
-# ---------------------------------------------------------------------------
-
-def tokenize(text: str) -> list[str]:
-    """Lowercase and split text into word tokens."""
-    return re.findall(r"[a-z0-9]+", text.lower())
-
-
-def entry_to_text(entry: dict[str, Any]) -> str:
-    """Combine all searchable text fields from a corpus entry."""
-    parts: list[str] = []
-    for field in ("id", "title", "source"):
-        val = entry.get(field)
-        if val:
-            parts.append(str(val))
-    for field in ("domain", "component", "action", "compliance", "story_type"):
-        val = entry.get(field)
-        if isinstance(val, list):
-            parts.extend(str(v) for v in val)
-        elif val:
-            parts.append(str(val))
-    # Include all string content fields (summary, detail, description, etc.)
-    NON_TEXT_FIELDS = frozenset({
-        "id", "title", "source", "domain", "component", "action", "compliance",
-        "story_type", "coverage", "license", "severity", "tier", "tags",
-        "_source_path",
-    })
-    for key, val in entry.items():
-        if key.startswith("_") or key in NON_TEXT_FIELDS:
-            continue
-        if isinstance(val, str):
-            parts.append(val)
-        elif isinstance(val, list):
-            parts.extend(str(v) for v in val if isinstance(v, str))
-    return " ".join(parts)
-
-
-def bm25_score(
-    query_tokens: list[str],
-    doc_tokens: list[str],
-    avg_doc_len: float,
-    k1: float = 1.5,
-    b: float = 0.75,
-) -> float:
-    """Compute BM25 score for a single document."""
-    doc_len = len(doc_tokens)
-    freq: dict[str, int] = {}
-    for t in doc_tokens:
-        freq[t] = freq.get(t, 0) + 1
-
-    score = 0.0
-    for qt in query_tokens:
-        f = freq.get(qt, 0)
-        if f == 0:
-            continue
-        numerator = f * (k1 + 1)
-        denominator = f + k1 * (1 - b + b * doc_len / avg_doc_len)
-        score += numerator / denominator
-    return score
-
-
-# ---------------------------------------------------------------------------
-# Render a corpus entry
-# ---------------------------------------------------------------------------
-
-def render_entry(entry: dict[str, Any], tier: str) -> str:
-    """Render a corpus entry for display."""
-    lines: list[str] = []
-    lines.append(f"id: {entry.get('id', '<no-id>')}")
-    lines.append(f"title: {entry.get('title', '<no-title>')}")
-
-    domain = entry.get("domain", [])
-    if isinstance(domain, list):
-        lines.append(f"domain: {domain}")
-    elif domain:
-        lines.append(f"domain: [{domain}]")
-
-    component = entry.get("component", [])
-    if isinstance(component, list) and component:
-        lines.append(f"component: {component}")
-    elif component:
-        lines.append(f"component: [{component}]")
-
-    compliance = entry.get("compliance", [])
-    if isinstance(compliance, list) and compliance:
-        lines.append(f"compliance: {compliance}")
-
-    action = entry.get("action", [])
-    if action:
-        lines.append(f"action: {action}")
-
-    lines.append(f"license: {entry.get('license', '')}")
-    lines.append(f"source: {entry.get('source', '')}")
-    lines.append("")
-
-    # Render summary and detail fields (YAML block scalar fields)
-    summary_text = entry.get("summary") or entry.get("description") or ""
-    detail_text = entry.get("detail") or ""
-
-    if tier in ("summary", "detail", "implementation") and summary_text:
-        lines.append("### Summary")
-        lines.append(str(summary_text).strip())
-        lines.append("")
-
-    if tier in ("detail", "implementation") and detail_text:
-        lines.append("### Detail")
-        lines.append(str(detail_text).strip())
-        lines.append("")
-
-    return "\n".join(lines)
-
-
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
-
-def _rank_with_bm25s(
-    entries: list[dict[str, Any]],
-    query_tokens: list[str],
-    doc_token_lists: list[list[str]],
-) -> list[tuple[float, dict[str, Any]]]:
-    """Rank entries using the bm25s library accelerator; falls back to stdlib."""
-    try:
-        retriever = _bm25s_module.BM25()
-        retriever.index(_bm25s_module.tokenize([" ".join(t) for t in doc_token_lists]))
-        query_str = " ".join(query_tokens)
-        _results, scores = retriever.retrieve(
-            _bm25s_module.tokenize([query_str]),
-            corpus=list(range(len(entries))),
-            k=len(entries),
-        )
-        return [(float(s), entries[idx]) for idx, s in zip(_results[0], scores[0])]
-    except Exception:  # noqa: BLE001
-        return _rank_with_stdlib(entries, query_tokens, doc_token_lists)
-
-
-def _rank_with_stdlib(
-    entries: list[dict[str, Any]],
-    query_tokens: list[str],
-    doc_token_lists: list[list[str]],
-) -> list[tuple[float, dict[str, Any]]]:
-    """Rank entries using the stdlib BM25 implementation."""
-    global _NOTICE_EMITTED  # noqa: PLW0603
-    if not _NOTICE_EMITTED:
-        print(
-            "[ref-query] bm25s not available; using stdlib BM25 fallback",
-            file=sys.stderr,
-        )
-        _NOTICE_EMITTED = True
-    avg_doc_len = sum(len(t) for t in doc_token_lists) / max(len(doc_token_lists), 1)
-    scored: list[tuple[float, dict[str, Any]]] = []
-    for entry, doc_tokens in zip(entries, doc_token_lists):
-        score = bm25_score(query_tokens, doc_tokens, avg_doc_len)
-        scored.append((score, entry))
-    return scored
-
-
-entries = load_entries_from_dir(corpus_root)
-
-if not entries:
-    print(f'[ref-query: no results for query: "{raw_query}"]', file=sys.stderr)
-    sys.exit(0)
-
-query_tokens = tokenize(raw_query)
-doc_texts = [entry_to_text(e) for e in entries]
-doc_token_lists = [tokenize(t) for t in doc_texts]
-
-if _BM25S_AVAILABLE:
-    scored = _rank_with_bm25s(entries, query_tokens, doc_token_lists)
-else:
-    scored = _rank_with_stdlib(entries, query_tokens, doc_token_lists)
-
-scored.sort(key=lambda x: x[0], reverse=True)
-top_results = [entry for score, entry in scored[:top_n] if score > 0]
-
-if not top_results:
-    print(f'[ref-query: no results for query: "{raw_query}"]', file=sys.stderr)
-    sys.exit(0)
-
-MAX_OUTPUT_LINES = 500
-
-sep = "─" * 60
-output_parts: list[str] = []
-for i, entry in enumerate(top_results):
-    if i > 0:
-        output_parts.append(sep)
-    output_parts.append(render_entry(entry, tier))
-
-output = "\n".join(output_parts)
-output_lines = output.splitlines()
-if len(output_lines) > MAX_OUTPUT_LINES:
-    print("\n".join(output_lines[:MAX_OUTPUT_LINES]))
-    print(
-        f"ref-query: output truncated at {MAX_OUTPUT_LINES} lines",
-        file=sys.stderr,
-    )
-else:
-    print(output)
-
-sys.exit(0)
-PYTHON_EOF
+exec python3 "$REF_QUERY_PY" "${PY_ARGS[@]}"

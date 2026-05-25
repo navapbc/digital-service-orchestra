@@ -225,6 +225,7 @@ When ticket type is `story` or `task`:
 4. After the Skill tool returns, route on STATUS and continue to Phase C:
    - `STATUS:complete` → proceed to Phase C
    - `STATUS:blocked` → surface blocked questions to user, then proceed to Phase C once answered
+   - `STATUS:bypass REASON:copy_story` → the story is a copy story; skip implementation-plan decomposition and proceed directly to Phase C — Phase E "Copy Story Dispatch" routes it to `dso:gov-copy-writer`
    - `REPLAN_ESCALATE:` → route to d-replan-collect machinery
 
    Non-epics **skip** the Preplanning Gate and proceed directly to Phase C.
@@ -258,6 +259,7 @@ DRIFT_RESULT=$(.claude/scripts/dso sprint/sprint-drift-check.sh <epic-id>)
 5. For each affected story, re-invoke `/dso:implementation-plan <story-id>` via the Skill tool. When the Skill tool returns, parse the STATUS line immediately and continue to the next story — do not pause.
    - **On success (`STATUS:complete`)**: continue to the next story.
    - **On `STATUS:blocked`**: surface the story as blocked for user input (same handling as Phase B blocked-stories list).
+   - **On `STATUS:bypass REASON:copy_story`**: the story is a copy story; do NOT add tasks. The Phase E "Copy Story Dispatch" section handles dispatch via `dso:gov-copy-writer`. Continue to the next story.
    - **On `REPLAN_ESCALATE: brainstorm EXPLANATION:<text>`**: add the story and its explanation to the **replan-stories list** and route through the existing d-replan-collect cascade machinery (Phase B step d-replan-collect). The `replan_cycle_count` / `max_replan_cycles` initialized above are shared with Phase B — do not reinitialize them.
 6. After all re-invocations complete (and no REPLAN_ESCALATE is outstanding), record:
    ```bash
@@ -279,6 +281,7 @@ DRIFT_RESULT=$(.claude/scripts/dso sprint/sprint-drift-check.sh <epic-id>)
 5. For each affected story, re-invoke `/dso:implementation-plan <story-id>` via the Skill tool. When the Skill tool returns, parse the STATUS line immediately and continue to the next story — do not pause.
    - **On success (`STATUS:complete`)**: continue to the next story.
    - **On `STATUS:blocked`**: surface the story as blocked for user input (same handling as Phase B blocked-stories list).
+   - **On `STATUS:bypass REASON:copy_story`**: the story is a copy story; do NOT add tasks. The Phase E "Copy Story Dispatch" section handles dispatch via `dso:gov-copy-writer`. Continue to the next story.
    - **On `REPLAN_ESCALATE: brainstorm EXPLANATION:<text>`**: add the story and its explanation to the **replan-stories list** and route through the existing d-replan-collect cascade machinery (Phase B step d-replan-collect). The `replan_cycle_count` / `max_replan_cycles` initialized above are shared with Phase B — do not reinitialize them.
 6. After all re-invocations complete (and no REPLAN_ESCALATE is outstanding), record:
    ```bash
@@ -1520,6 +1523,81 @@ context:
 ```
 
 **Agent description**: 3-5 word summary from ticket title (e.g., Fix review gate hash).
+
+### Copy Story Dispatch (gov-copy-writer)
+
+A story is a **copy story** when EITHER (a) it carries the `copy-story` tag (set by `dso:story-decomposer` auto-create protocol Step C3), OR (b) its title begins with the verbatim prefix `"Apply gov-copy to "` (case-insensitive — the title pattern produced by the same protocol). These two signals are the canonical producer/consumer contract and MUST match the values story-decomposer writes (see `${CLAUDE_PLUGIN_ROOT}/agents/story-decomposer.md` Step C3). Copy stories are dispatched to `dso:gov-copy-writer` — not the generic task sub-agent. Copy stories are also exempt from `/dso:implementation-plan` decomposition (see implementation-plan SKILL.md copy-story bypass — `STATUS:bypass REASON:copy_story`).
+
+**Before dispatching `dso:gov-copy-writer`**, resolve the artifact output path:
+
+```bash
+ARTIFACT_PATH=$(bash "$PLUGIN_SCRIPTS/resolve-copy-artifact-path.sh" \
+    "$EPIC_ID" \
+    --project-root "$(git rev-parse --show-toplevel)")
+if [[ $? -ne 0 ]]; then
+    echo "HALT: resolve-copy-artifact-path.sh failed — check copy.artifact_dir in .claude/dso-config.conf" >&2
+    exit 1
+fi
+```
+
+`resolve-copy-artifact-path.sh` reads `copy.artifact_dir` from `dso-config.conf` (default: `"copy/"`) and invokes `copy_artifact_path.py` to validate and resolve the absolute artifact path. It exits non-zero when the configured path is absolute, contains `..` traversal, or resolves outside the project root.
+
+**Inject `{artifact_path}` into the agent's task arguments**:
+
+```
+subagent_type: "dso:gov-copy-writer"
+model: "sonnet"
+context:
+  copy_needs_section: |
+    <## Copy Needs section from the epic ticket>
+  epic_context: |
+    <epic title, description, user archetypes, design notes>
+  artifact_path: |
+    <resolved ARTIFACT_PATH from above>
+  design_context: |
+    <design notes if epic has design:approved tag, else empty>
+```
+
+**Dispatch-target fallback** (only on "Unknown agent type" error): if the named `subagent_type: "dso:gov-copy-writer"` is not registered in the current Agent tool registry, fall back to `subagent_type: "general-purpose"` with `model: "sonnet"` and read `${CLAUDE_PLUGIN_ROOT}/agents/gov-copy-writer.md` inline, passing its content verbatim as the first element of the prompt before the context block. The agent still does the work — only the dispatch transport changes.  <!-- # precondition-emit-ok: transport-layer dispatch fallback, not graceful degradation -->
+
+#### Coordination-Pass Dispatch (second-pass gov-copy-writer)
+
+When the current batch contains a **coordination-pass child task** (a task whose title contains "coordination-pass" or which carries the tag `copy:coordination-pass`) **and** the first-pass artifact already exists at `ARTIFACT_PATH`, dispatch gov-copy-writer a **second time** with the full first-pass rationale as input.
+
+**Step 1 — Verify the first-pass artifact exists, then snapshot it**:
+
+```bash
+if [[ ! -f "$ARTIFACT_PATH" ]]; then
+    echo "HALT: coordination-pass task cannot run — first-pass artifact not found at $ARTIFACT_PATH" >&2
+    exit 1
+fi
+SNAPSHOT_PATH=$(mktemp /tmp/gov-copy-writer-first-pass-snapshot.XXXXXX.yaml)
+cp "$ARTIFACT_PATH" "$SNAPSHOT_PATH"
+```
+
+The existence check comes BEFORE the `cp` so the HALT message fires when expected. With `set -e`, a `cp` of a missing source would fail first and bypass the diagnostic. The snapshot is a stable, read-only input for the second pass — it isolates the coordination-pass agent from any concurrent writes to `ARTIFACT_PATH`.
+
+**Step 2 — Dispatch gov-copy-writer in second-pass (coordination-pass) mode**:
+
+Inject `{first_pass_rationale_path}` alongside the usual inputs:
+
+```
+subagent_type: "dso:gov-copy-writer"
+model: "sonnet"
+context:
+  copy_needs_section: |
+    <## Copy Needs section from the epic ticket>
+  epic_context: |
+    <epic title, description, user archetypes, design notes>
+  artifact_path: |
+    <resolved ARTIFACT_PATH — same path as first pass; coordination pass overwrites in place>
+  first_pass_rationale_path: |
+    <SNAPSHOT_PATH — stable snapshot of first-pass artifact; read-only>
+  design_context: |
+    <design notes if epic has design:approved tag, else empty>
+```
+
+**Dispatch-target fallback** (only on "Unknown agent type" error): if `dso:gov-copy-writer` is not registered, fall back to `subagent_type: "general-purpose"` with `model: "sonnet"`, and read `${CLAUDE_PLUGIN_ROOT}/agents/gov-copy-writer.md` inline, passing its content verbatim as the first element of the prompt before the context block. The agent detects second-pass mode by the presence of `{first_pass_rationale_path}`.  <!-- # precondition-emit-ok: transport-layer dispatch fallback, not graceful degradation -->
 
 **Important**: Launch ALL sub-agents in the batch within a single message, each with `run_in_background: true`. The number of Task calls is governed by `max_agents` from Phase C Step 1 (unlimited = all candidates, N = cap at N, 0 = skip dispatch).
 
