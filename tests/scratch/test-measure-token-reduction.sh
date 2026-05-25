@@ -1,15 +1,23 @@
 #!/usr/bin/env bash
 # tests/scratch/test-measure-token-reduction.sh
-# Tests for plugins/dso/scripts/scratch-measure-token-reduction.py config loader.
+# Tests for plugins/dso/scripts/scratch-measure-token-reduction.py
 #
-# Testing Mode: RED → GREEN
-# Task: 98f0-54cf-8bad-467f (Harness config loader with fixed test epic id)
+# Covers:
+#   Task 98f0 — Config loader foundation
+#   Task 6998 — Named, pinned tokenizer with deterministic count()
+#   Task ef3d — 5-site return-block capture across pre and post HEAD SHAs
 #
 # Test cases:
-#   1. (test_check_config_valid_epic)      --check-config with valid epic id → exit 0
-#   2. (test_check_config_missing_epic)    --check-config with non-existent epic id → exit non-zero + clear error
-#   3. (test_harness_executable)           Harness script is executable
-#   4. (test_example_config_exists)        Example config exists at expected path
+#   1. (test_check_config_valid_epic)           --check-config with valid epic id → exit 0
+#   2. (test_check_config_missing_epic)         --check-config with non-existent epic id → exit non-zero + clear error
+#   3. (test_harness_executable)                Harness script is executable
+#   4. (test_example_config_exists)             Example config exists at expected path
+#   5. (test_tokenizer_count_deterministic)     Tokenizer.count is deterministic for same input
+#   6. (test_unknown_tokenizer_rejected)        Unknown tokenizer name → non-zero exit
+#   7. (test_tokenizer_name_matches_config)     Tokenizer name exposed and matches config value
+#   8. (test_five_sites_captured)               All 5 sites captured pre and post via snapshot mode
+#   9. (test_per_site_record_shas)              Per-site record carries both HEAD SHAs verbatim
+#  10. (test_missing_snapshot_nonzero_exit)     Missing snapshot → non-zero exit with clear error
 #
 # Usage: bash tests/scratch/test-measure-token-reduction.sh
 
@@ -23,16 +31,56 @@ source "$REPO_ROOT/tests/lib/assert.sh"
 HARNESS="$REPO_ROOT/plugins/dso/scripts/scratch-measure-token-reduction.py"
 EXAMPLE_CONFIG="$REPO_ROOT/plugins/dso/scripts/scratch-measure-config.example.yaml"
 
-echo "=== test-measure-token-reduction.sh: config loader ==="
+echo "=== test-measure-token-reduction.sh: config loader + tokenizer + capture ==="
 
 # ── Cleanup tracking ──────────────────────────────────────────────────────────
+_CLEANUP_DIRS=()
 _CLEANUP_FILES=()
 _cleanup() {
     for f in "${_CLEANUP_FILES[@]:-}"; do
         [ -n "$f" ] && rm -f "$f"
     done
+    for d in "${_CLEANUP_DIRS[@]:-}"; do
+        [ -n "$d" ] && rm -rf "$d"
+    done
 }
 trap _cleanup EXIT
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+# make_base_config <file> <tokenizer_name>
+# Write a minimal valid config to <file>.
+make_base_config() {
+    local file="$1" tok="${2:-tiktoken:cl100k_base}"
+    cat > "$file" <<EOF
+test_epic_id: "98f0-54cf-8bad-467f"
+tokenizer: "${tok}"
+pre_head_sha: "aaa0000000000000000000000000000000000001"
+post_head_sha: "bbb1111111111111111111111111111111111112"
+output_path: "/tmp/measure-test-output.json"
+EOF
+}
+
+# make_snapshot_dir <snapshot_dir> [text_pre] [text_post]
+# Populate <snapshot_dir> with all 5 site snapshot files.
+# Default text is short but non-empty so token counts are > 0.
+make_snapshot_dir() {
+    local dir="$1"
+    local pre_text="${2:-The quick brown fox jumps over the lazy dog. Pre-migration content here.}"
+    local post_text="${3:-The quick brown fox. Post-migration content shorter here.}"
+    mkdir -p "$dir"
+    local sites=(
+        "impl-plan-511"
+        "impl-plan-978"
+        "impl-plan-1238"
+        "preplanning-513"
+        "sprint-2332"
+    )
+    for site in "${sites[@]}"; do
+        printf '%s' "$pre_text" > "$dir/${site}-pre.txt"
+        printf '%s' "$post_text" > "$dir/${site}-post.txt"
+    done
+}
 
 # ── Test 1: --check-config with valid epic id → exit 0 ───────────────────────
 test_check_config_valid_epic() {
@@ -40,11 +88,11 @@ test_check_config_valid_epic() {
     cfg=$(mktemp /tmp/measure-config-test-XXXXXX)
     _CLEANUP_FILES+=("$cfg")
 
-    # 98f0-54cf-8bad-467f is the task ticket for this harness — guaranteed to
-    # exist while this test runs.
+    # 98f0-54cf-8bad-467f is the task ticket for the harness foundation —
+    # guaranteed to exist while this test runs.
     cat > "$cfg" <<EOF
 test_epic_id: "98f0-54cf-8bad-467f"
-tokenizer: "tiktoken-cl100k"
+tokenizer: "tiktoken:cl100k_base"
 pre_head_sha: "abc0000000000000000000000000000000000000"
 post_head_sha: "def1111111111111111111111111111111111111"
 output_path: "/tmp/measure-test-output.json"
@@ -67,7 +115,7 @@ test_check_config_missing_epic() {
     # Use a clearly bogus ticket id that will never exist.
     cat > "$cfg" <<EOF
 test_epic_id: "0000-0000-0000-0000"
-tokenizer: "tiktoken-cl100k"
+tokenizer: "tiktoken:cl100k_base"
 pre_head_sha: "abc0000000000000000000000000000000000000"
 post_head_sha: "def1111111111111111111111111111111111111"
 output_path: "/tmp/measure-test-output.json"
@@ -101,10 +149,219 @@ test_example_config_exists() {
     assert_eq "example config exists" "0" "$result"
 }
 
+# ── Test 5: Tokenizer.count is deterministic for same input ──────────────────
+test_tokenizer_count_deterministic() {
+    local cfg snap_dir
+    cfg=$(mktemp /tmp/measure-config-test-XXXXXX)
+    snap_dir=$(mktemp -d /tmp/measure-snap-XXXXXX)
+    _CLEANUP_FILES+=("$cfg")
+    _CLEANUP_DIRS+=("$snap_dir")
+
+    local test_text="Hello world, this is a determinism test with enough words to be meaningful."
+    make_base_config "$cfg" "char4"
+    make_snapshot_dir "$snap_dir" "$test_text" "$test_text"
+
+    # Run --capture twice, both with identical snapshot content.
+    local out1 out2
+    out1=$(python3 "$HARNESS" --config "$cfg" --capture \
+        --use-snapshots "$snap_dir" 2>&1 >/dev/null)
+    out2=$(python3 "$HARNESS" --config "$cfg" --capture \
+        --use-snapshots "$snap_dir" 2>&1 >/dev/null)
+
+    # Extract pre_tokens for first site from each run; must be identical.
+    local tok1 tok2
+    tok1=$(python3 -c "import sys,json; data=json.loads(sys.stdin.read()); print(data[0]['pre_tokens'])" <<< "$out1" 2>/dev/null || echo "parse_error")
+    tok2=$(python3 -c "import sys,json; data=json.loads(sys.stdin.read()); print(data[0]['pre_tokens'])" <<< "$out2" 2>/dev/null || echo "parse_error")
+
+    assert_eq "tokenizer count deterministic: run1 == run2" "$tok1" "$tok2"
+    assert_ne "tokenizer count deterministic: count is not parse_error" "parse_error" "$tok1"
+}
+
+# ── Test 6: Unknown tokenizer name rejected ───────────────────────────────────
+test_unknown_tokenizer_rejected() {
+    local cfg snap_dir
+    cfg=$(mktemp /tmp/measure-config-test-XXXXXX)
+    snap_dir=$(mktemp -d /tmp/measure-snap-XXXXXX)
+    _CLEANUP_FILES+=("$cfg")
+    _CLEANUP_DIRS+=("$snap_dir")
+
+    make_base_config "$cfg" "unknown:foo"
+    make_snapshot_dir "$snap_dir"
+
+    local stderr_out exit_code
+    stderr_out=$(python3 "$HARNESS" --config "$cfg" --capture \
+        --use-snapshots "$snap_dir" 2>&1 >/dev/null)
+    exit_code=$?
+
+    local non_zero=1
+    if [ "$exit_code" -ne 0 ]; then
+        non_zero=0
+    fi
+    assert_eq "unknown tokenizer: exit non-zero" "0" "$non_zero"
+    assert_contains "unknown tokenizer: error mentions name" "unknown:foo" "$stderr_out"
+}
+
+# ── Test 7: Tokenizer name exposed and matches config ────────────────────────
+test_tokenizer_name_matches_config() {
+    local cfg snap_dir
+    cfg=$(mktemp /tmp/measure-config-test-XXXXXX)
+    snap_dir=$(mktemp -d /tmp/measure-snap-XXXXXX)
+    _CLEANUP_FILES+=("$cfg")
+    _CLEANUP_DIRS+=("$snap_dir")
+
+    # Use char4 — always available without external packages.
+    make_base_config "$cfg" "char4"
+    make_snapshot_dir "$snap_dir"
+
+    # Invoke a quick inline Python check that builds a Tokenizer and inspects .name
+    local tok_name exit_code
+    tok_name=$(python3 - <<'PYEOF'
+import sys
+sys.path.insert(0, __import__('os').path.dirname(__import__('os').path.abspath(__file__ if '__file__' in dir() else '.')))
+PYEOF
+    # Use the harness module directly to test .name property
+    python3 - "$HARNESS" <<'PYEOF'
+import sys, importlib.util
+spec = importlib.util.spec_from_file_location("harness", sys.argv[1])
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+tok = mod.Tokenizer("char4")
+print(tok.name)
+PYEOF
+    )
+    exit_code=$?
+
+    assert_eq "tokenizer name: exit 0 when constructing char4" "0" "$exit_code"
+    assert_eq "tokenizer name: .name == char4" "char4" "$tok_name"
+
+    # Also verify tiktoken:cl100k_base name (falls back to char4 without tiktoken,
+    # but the active name should be either tiktoken:cl100k_base or char4).
+    local tok_name2
+    tok_name2=$(python3 - "$HARNESS" <<'PYEOF'
+import sys, importlib.util
+spec = importlib.util.spec_from_file_location("harness", sys.argv[1])
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+tok = mod.Tokenizer("tiktoken:cl100k_base")
+print(tok.name)
+PYEOF
+    )
+    # name must be either the requested tiktoken name OR the fallback char4
+    local name_ok=1
+    if [ "$tok_name2" = "tiktoken:cl100k_base" ] || [ "$tok_name2" = "char4" ]; then
+        name_ok=0
+    fi
+    assert_eq "tokenizer name: tiktoken name is tiktoken:cl100k_base or char4 fallback" "0" "$name_ok"
+}
+
+# ── Test 8: All 5 sites captured pre and post via snapshot mode ───────────────
+test_five_sites_captured() {
+    local cfg snap_dir
+    cfg=$(mktemp /tmp/measure-config-test-XXXXXX)
+    snap_dir=$(mktemp -d /tmp/measure-snap-XXXXXX)
+    _CLEANUP_FILES+=("$cfg")
+    _CLEANUP_DIRS+=("$snap_dir")
+
+    make_base_config "$cfg" "char4"
+    make_snapshot_dir "$snap_dir" \
+        "pre migration text with many words to produce tokens" \
+        "post migration shorter"
+
+    local json_out exit_code
+    json_out=$(python3 "$HARNESS" --config "$cfg" --capture \
+        --use-snapshots "$snap_dir" 2>&1 >/dev/null)
+    exit_code=$?
+
+    assert_eq "5-site capture: exit 0" "0" "$exit_code"
+
+    # Count records in JSON output — should be 5.
+    local record_count
+    record_count=$(python3 -c "import sys,json; data=json.loads(sys.stdin.read()); print(len(data))" <<< "$json_out" 2>/dev/null || echo "0")
+    assert_eq "5-site capture: 5 records" "5" "$record_count"
+
+    # Check all expected site IDs are present.
+    local expected_sites=("impl-plan-511" "impl-plan-978" "impl-plan-1238" "preplanning-513" "sprint-2332")
+    for site in "${expected_sites[@]}"; do
+        assert_contains "5-site capture: site_id ${site} present" "$site" "$json_out"
+    done
+
+    # Check pre_tokens and post_tokens are non-zero integers.
+    local pre_tok post_tok
+    pre_tok=$(python3 -c "import sys,json; data=json.loads(sys.stdin.read()); print(data[0]['pre_tokens'])" <<< "$json_out" 2>/dev/null || echo "0")
+    post_tok=$(python3 -c "import sys,json; data=json.loads(sys.stdin.read()); print(data[0]['post_tokens'])" <<< "$json_out" 2>/dev/null || echo "0")
+    assert_ne "5-site capture: pre_tokens non-zero" "0" "$pre_tok"
+    assert_ne "5-site capture: post_tokens non-zero" "0" "$post_tok"
+}
+
+# ── Test 9: Per-site record carries both HEAD SHAs verbatim ──────────────────
+test_per_site_record_shas() {
+    local cfg snap_dir
+    cfg=$(mktemp /tmp/measure-config-test-XXXXXX)
+    snap_dir=$(mktemp -d /tmp/measure-snap-XXXXXX)
+    _CLEANUP_FILES+=("$cfg")
+    _CLEANUP_DIRS+=("$snap_dir")
+
+    make_base_config "$cfg" "char4"
+    make_snapshot_dir "$snap_dir"
+
+    local pre_sha="aaa0000000000000000000000000000000000001"
+    local post_sha="bbb1111111111111111111111111111111111112"
+
+    local json_out
+    json_out=$(python3 "$HARNESS" --config "$cfg" --capture \
+        --use-snapshots "$snap_dir" 2>&1 >/dev/null)
+
+    # Verify all 5 records carry the exact SHAs from config.
+    local record_count_with_pre_sha record_count_with_post_sha
+    record_count_with_pre_sha=$(python3 -c "
+import sys,json
+data=json.loads(sys.stdin.read())
+print(sum(1 for r in data if r.get('pre_sha') == '${pre_sha}'))
+" <<< "$json_out" 2>/dev/null || echo "0")
+    record_count_with_post_sha=$(python3 -c "
+import sys,json
+data=json.loads(sys.stdin.read())
+print(sum(1 for r in data if r.get('post_sha') == '${post_sha}'))
+" <<< "$json_out" 2>/dev/null || echo "0")
+
+    assert_eq "per-site SHAs: all 5 records carry pre_sha verbatim" "5" "$record_count_with_pre_sha"
+    assert_eq "per-site SHAs: all 5 records carry post_sha verbatim" "5" "$record_count_with_post_sha"
+}
+
+# ── Test 10: Missing snapshot → non-zero exit with clear error ───────────────
+test_missing_snapshot_nonzero_exit() {
+    local cfg snap_dir
+    cfg=$(mktemp /tmp/measure-config-test-XXXXXX)
+    snap_dir=$(mktemp -d /tmp/measure-snap-XXXXXX)
+    _CLEANUP_FILES+=("$cfg")
+    _CLEANUP_DIRS+=("$snap_dir")
+
+    make_base_config "$cfg" "char4"
+    # Intentionally do NOT populate the snapshot dir — leave it empty.
+
+    local stderr_out exit_code
+    stderr_out=$(python3 "$HARNESS" --config "$cfg" --capture \
+        --use-snapshots "$snap_dir" 2>&1 >/dev/null)
+    exit_code=$?
+
+    local non_zero=1
+    if [ "$exit_code" -ne 0 ]; then
+        non_zero=0
+    fi
+    assert_eq "missing snapshot: exit non-zero" "0" "$non_zero"
+    assert_contains "missing snapshot: error mentions missing file" "missing snapshot" "$stderr_out"
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 test_harness_executable
 test_example_config_exists
 test_check_config_valid_epic
 test_check_config_missing_epic
+test_tokenizer_count_deterministic
+test_unknown_tokenizer_rejected
+test_tokenizer_name_matches_config
+test_five_sites_captured
+test_per_site_record_shas
+test_missing_snapshot_nonzero_exit
 
 print_summary
