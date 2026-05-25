@@ -147,6 +147,19 @@ def _validate_values(prefix: str, values: object) -> list[str]:
         errors.append(
             f"{p}.errors: must be a mapping, got {type(values['errors']).__name__}."
         )
+    else:
+        # Per contract gov-copy-artifact.md line 53: each errors entry is
+        # "error key → error message string". Validate every value is a
+        # string — a nested dict here would later be str()-coerced by the
+        # post-processor's _get_item_text and feed garbage (e.g. literal
+        # "{'message': 'x'}") into the readability + banned-word + voice
+        # detectors.
+        for err_key, err_val in values["errors"].items():
+            if not isinstance(err_val, str):
+                errors.append(
+                    f"{p}.errors[{err_key!r}]: must be a string, got "
+                    f"{type(err_val).__name__}."
+                )
 
     return errors
 
@@ -228,12 +241,22 @@ def _validate_checks(prefix: str, checks: object) -> list[str]:
             f"{p}.active_voice: must be a boolean, got {type(checks['active_voice']).__name__}."
         )
 
-    # source: string
+    # source: string — MUST equal "deterministic-post-processor" per contract
+    # (docs/contracts/gov-copy-artifact.md line 85). The literal-value check is
+    # load-bearing: an LLM that bypasses the post-processor and writes the
+    # checks block itself can satisfy a type-only check by emitting any string.
+    # Enforcing the exact value blocks that bypass.
+    _EXPECTED_SOURCE = "deterministic-post-processor"
     if "source" not in checks:
         errors.append(f"{p}: missing required field 'source'.")
     elif not isinstance(checks["source"], str):
         errors.append(
             f"{p}.source: must be a string, got {type(checks['source']).__name__}."
+        )
+    elif checks["source"] != _EXPECTED_SOURCE:
+        errors.append(
+            f"{p}.source: must be {_EXPECTED_SOURCE!r} (per contract; only the "
+            f"deterministic post-processor may populate checks), got {checks['source']!r}."
         )
 
     return errors

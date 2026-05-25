@@ -57,7 +57,7 @@ bash ${CLAUDE_PLUGIN_ROOT}/scripts/ref-query.sh "<query_terms>" --namespace=cano
 
 Cap: load **K ≤ 20 canon entries total** across all queries. If multiple queries would exceed K=20, deduplicate by `rule_id` and keep the highest-scored entries up to the cap. A large canon corpus must not blow the context budget.
 
-Parse the JSON output to extract each entry's `rule_id`, `text`, and `hard_constraint` flag.
+Parse the JSON output to extract each entry's `rule_id`, `body`, and `hard_constraint` flag.
 
 ---
 
@@ -81,7 +81,7 @@ When two tiers produce contradictory guidance for the same copy element, the hig
 
 When two loaded canon entries cite the same copy item with contradictory guidance, apply this algorithm:
 
-1. **Identify the conflict**: Two entries are in conflict when they address the same element (same field, same error condition, same label pattern) and their `text` guidance produces incompatible copy choices.
+1. **Identify the conflict**: Two entries are in conflict when they address the same element (same field, same error condition, same label pattern) and their `body` guidance produces incompatible copy choices.
 2. **Determine the winning entry**: The entry whose tier is numerically lower wins absolutely (Tier 1 < Tier 2 < Tier 3 < Tier 4). If both entries are Tier 1 canon-rules, the entry with `hard_constraint: true` wins over the entry with `hard_constraint: false`. If both have `hard_constraint: true`, halt and emit `GOV_COPY_WRITER_ERROR` with reason `CANON_HARD_CONSTRAINT_COLLISION`.
 3. **Record in `rationale.conflicts`**: Populate the `conflicts` list with a human-readable string that includes both `rule_id` values and names the winning rule. Format: `"<losing_rule_id> conflicts with <winning_rule_id> on [element]; <winning_rule_id> wins per precedence ladder (Tier N > Tier M)"`.
 4. **Apply winning rule's guidance without modification**: Do not blend, average, or soften. The losing rule's guidance is discarded entirely for the conflicting element.
@@ -96,12 +96,12 @@ Suppose `ref-query.sh` returns two canon entries for the same error element:
 [
   {
     "rule_id": "18f-plain-lang-errors-01",
-    "text": "Error messages must start with 'Enter' followed by the field name: e.g. 'Enter your date of birth.'",
+    "body": "Error messages must start with 'Enter' followed by the field name: e.g. 'Enter your date of birth.'",
     "hard_constraint": true
   },
   {
     "rule_id": "project-tone-v1-errors-05",
-    "text": "Error messages should use a softer opening: e.g. 'Please check your date of birth.'",
+    "body": "Error messages should use a softer opening: e.g. 'Please check your date of birth.'",
     "hard_constraint": false
   }
 ]

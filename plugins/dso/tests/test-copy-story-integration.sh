@@ -35,6 +35,15 @@ assert_grep() {
     fi
 }
 
+# --- Upstream producer/consumer: brainstorm -> story-decomposer 'copy-needed' tag ---
+# Brainstorm Phase 1.5 writes the 'copy-needed' epic tag when UI-copy signals
+# are detected; story-decomposer reads that tag in Step C1 to trigger the
+# Copy-Needed Auto-Create Protocol. Rename either side without renaming the
+# other silently breaks the auto-create path with no test failure elsewhere.
+BRAINSTORM="${_PLUGIN}/skills/brainstorm/SKILL.md"
+assert_grep "$BRAINSTORM" 'copy-needed' "brainstorm writes 'copy-needed' epic tag"
+assert_grep "$SD" 'copy-needed' "story-decomposer detects 'copy-needed' epic tag"
+
 # --- Producer side ---
 assert_grep "$SD" 'copy-story' "story-decomposer writes copy-story tag"
 assert_grep "$SD" 'Apply gov-copy to' "story-decomposer uses 'Apply gov-copy to' title prefix"

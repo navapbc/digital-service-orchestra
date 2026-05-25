@@ -92,7 +92,7 @@ else
   if [[ $exit_code -eq 1 ]]; then
     _pass "T2: harness exits 1 when fk_grade bar not met"
   else
-    _pass "T2: harness exits non-zero ($exit_code) when fk_grade bar not met"
+    _fail "T2: expected exit 1 when fk_grade bar not met (acceptance-bar failure), got $exit_code (likely a different error class — see harness exit-code taxonomy)"
   fi
 fi
 
@@ -123,7 +123,12 @@ YAML
 if bash "$HARNESS" --baseline "$BASELINE" --improved "$IMPROVED_BANNED" > /dev/null 2>&1; then
   _fail "T3: harness should exit 1 when banned_words not cleared"
 else
-  _pass "T3: harness exits non-zero when banned_words bar not met"
+  exit_code=$?
+  if [[ $exit_code -eq 1 ]]; then
+    _pass "T3: harness exits 1 when banned_words bar not met"
+  else
+    _fail "T3: expected exit 1 when banned_words bar not met (acceptance-bar failure), got $exit_code"
+  fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -152,7 +157,12 @@ YAML
 if bash "$HARNESS" --baseline "$BASELINE" --improved "$IMPROVED_PASSIVE" > /dev/null 2>&1; then
   _fail "T4: harness should exit 1 when active_voice rate does not improve by >= 20pp"
 else
-  _pass "T4: harness exits non-zero when active_voice bar not met"
+  exit_code=$?
+  if [[ $exit_code -eq 1 ]]; then
+    _pass "T4: harness exits 1 when active_voice bar not met"
+  else
+    _fail "T4: expected exit 1 when active_voice bar not met (acceptance-bar failure), got $exit_code"
+  fi
 fi
 
 # ---------------------------------------------------------------------------

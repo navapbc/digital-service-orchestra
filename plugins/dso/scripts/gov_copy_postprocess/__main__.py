@@ -10,7 +10,7 @@ import yaml
 
 from .banned import find_banned_words
 from .config import load_gov_copy_config, ConfigError
-from .deviations import build_deviations
+from .deviations import build_deviations, _OWNED_RULE_IDS
 from .readability import compute_fk_grade
 from .voice import is_active_voice
 
@@ -29,7 +29,14 @@ def _get_item_text(item: dict) -> str:
             parts.append(str(v))
     elif isinstance(errors, list):
         parts.extend(str(e) for e in errors)
-    return " ".join(parts)
+    # Separate fields with ". " so the passive-voice regex
+    # (\b(am|is|are|...)\b\s+(...)ed\b) cannot match across field boundaries
+    # — e.g. label='Form status is' + hint='updated daily' must NOT be detected
+    # as the passive 'is updated' because neither field is passive on its own.
+    # The period is a non-whitespace, non-word character that breaks the \s+
+    # bridge in the regex; readability/banned-word scans treat each field as
+    # its own sentence.
+    return ". ".join(parts)
 
 
 def process_item(item: dict, config) -> dict:
@@ -108,7 +115,7 @@ def main():
     for item in items:
         process_item(item, config)
         devs = item.get("rationale", {}).get("deviations", [])
-        owned_failures = [d for d in devs if d.get("rule_id") in ("fk_grade", "banned_words_found", "active_voice")]
+        owned_failures = [d for d in devs if d.get("rule_id") in _OWNED_RULE_IDS]
         deviations_count += len(owned_failures)
         if not owned_failures:
             passing += 1

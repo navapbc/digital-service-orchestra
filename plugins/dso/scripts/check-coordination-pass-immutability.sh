@@ -77,7 +77,6 @@ python3 - "$FIRST_PASS" "$SECOND_PASS" "$CANON_DIR" <<'PYEOF'
 from __future__ import annotations
 
 import sys
-import os
 from pathlib import Path
 from typing import Any
 
