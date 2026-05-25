@@ -1,0 +1,37 @@
+# dso-config.conf.example — Digital Service Orchestra plugin configuration
+#
+# Copy this file to .claude/dso-config.conf in your host project and
+# uncomment / set the keys that apply to your setup.
+#
+# Format: KEY=VALUE (dot-notation for nesting, repeated keys for lists)
+# Read by: read-config.sh via grep/cut (no Python required)
+#
+# Full reference: plugins/dso/docs/dso-config.example.conf
+
+# Required: config schema version.
+version=1.0.0
+
+# Workflow mode: ci-pr (PRs required) or local (direct merges).
+# dso.workflow=local
+
+# Commands — shell commands for each workflow step.
+# commands.test=make test
+# commands.lint=make lint
+# commands.format=make format
+# commands.format_check=make format-check
+
+# Review configuration.
+# review.max_cycles=4
+
+# Jira integration.
+# jira.project=MYPROJ
+
+# Tickets.
+# tickets.prefix=my-project
+# tickets.directory=.tickets
+
+# Copy artifact output configuration.
+# artifact_dir: relative path (from project root) where gov-copy-writer writes
+# epic governance artifacts.  Must be a relative path — absolute paths and '..'
+# traversal segments are rejected.  Directory is created lazily on first write.
+# copy.artifact_dir=copy/

@@ -1,0 +1,93 @@
+id: eighteen-f
+title: "18F Content Guide: Plain Language Voice and Writing Standards for Federal Digital Services"
+domain: canon
+component:
+  - content
+action:
+  - design
+  - apply
+compliance:
+  - plain-language
+  - plainlanguage.gov
+severity: major
+story_type: pattern
+coverage:
+  - summary
+  - detail
+license: public-domain
+source:
+  url: "https://content-guide.18f.gov/"
+  retrieval_date: "2025-11-01"
+  license: public-domain
+  version_pin: "18F Content Guide (2024 edition)"
+precedence: 2
+hard_constraint: false
+summary: |
+  18F Content Guide establishes plain language voice standards for U.S. federal
+  digital services. Core principles: write for the user, not the agency; address
+  readers as "you" and the service as "we"; use active voice; keep sentences
+  under 25 words; cut jargon; test copy with real users. These are strong
+  stylistic defaults, not immutable constraints — coordination passes may adjust
+  voice and phrasing for context-specific audiences.
+detail: |
+  ### Voice and Perspective (hard_constraint: false)
+
+  rule_id: eighteen-f.voice-you-we
+  Address the reader directly as "you." Refer to the agency or service as "we."
+  - Right: "You can apply if..." / "We'll contact you within 5 business days"
+  - Wrong: "Applicants may apply if..." / "The agency will contact you"
+
+  rule_id: eighteen-f.voice-active
+  Use active voice throughout. The subject performs the action.
+  - Active: "Submit your application by December 31"
+  - Passive (avoid): "Applications must be submitted by December 31"
+
+  rule_id: eighteen-f.voice-user-first
+  Lead with what the user needs to know, not with agency context or background.
+  Answer the user's primary question first, before explaining process or context.
+
+  ### Sentence and Paragraph Length (hard_constraint: false)
+
+  rule_id: eighteen-f.sentence-length
+  Target sentence length: 25 words or fewer. One idea per sentence.
+
+  rule_id: eighteen-f.paragraph-length
+  Paragraphs: no more than 5 sentences. Use headers and bullet lists to break
+  up dense text blocks.
+
+  ### Word Choice (hard_constraint: false)
+
+  rule_id: eighteen-f.plain-words
+  Choose the most common word that conveys the meaning:
+  - "use" not "utilize"
+  - "help" not "assist"
+  - "need" not "require"
+  - "about" not "regarding"
+
+  rule_id: eighteen-f.no-jargon
+  Avoid government and legal jargon unless it is the exact term the user must
+  know. When a technical term is required, define it immediately in plain
+  language on first use.
+
+  rule_id: eighteen-f.no-latin-abbrev
+  Never use Latin abbreviations in public-facing content:
+  - Write "for example" not "e.g."
+  - Write "that is" not "i.e."
+  - Write "and so on" not "etc."
+
+  rule_id: eighteen-f.spell-out-acronyms
+  Spell out the full term on first use, then abbreviate in parentheses.
+  Do not use abbreviations the user does not already know.
+
+  rule_id: eighteen-f.cut-filler
+  Eliminate filler phrases:
+  - "in order to" → "to"
+  - "at this point in time" → "now"
+  - "due to the fact that" → "because"
+
+  ### User Testing Requirement (hard_constraint: false)
+
+  rule_id: eighteen-f.user-test-copy
+  All interface copy must be tested with real users before launch, including
+  users with low digital literacy, limited English proficiency, and cognitive
+  disabilities. Comprehension testing: ask users to explain back what they read.

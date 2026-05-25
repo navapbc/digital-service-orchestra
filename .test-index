@@ -562,7 +562,15 @@ plugins/dso/scripts/telemetry/aws-setup-bucket.sh:tests/scripts/test-aws-setup-b
 plugins/dso/scripts/telemetry/telemetry-emit.sh:tests/scripts/test-telemetry-emit.sh
 plugins/dso/scripts/telemetry/aws-setup-lambda.sh:tests/scripts/test-aws-setup-lambda.sh
 plugins/dso/scripts/telemetry/lambda-handler/s3_writer.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_s3_writer.py
+plugins/dso/scripts/gov_copy_postprocess/readability.py:plugins/dso/tests/scripts/test_gov_copy_postprocess.py
+plugins/dso/scripts/gov_copy_postprocess/banned.py:plugins/dso/tests/scripts/test_gov_copy_postprocess.py
+plugins/dso/scripts/gov_copy_postprocess/voice.py:plugins/dso/tests/scripts/test_gov_copy_postprocess.py
+plugins/dso/scripts/gov_copy_postprocess/deviations.py:plugins/dso/tests/scripts/test_gov_copy_postprocess.py
+plugins/dso/scripts/gov_copy_postprocess/config.py:plugins/dso/tests/scripts/test_gov_copy_postprocess.py
+plugins/dso/scripts/gov_copy_postprocess/__main__.py:plugins/dso/tests/scripts/test_gov_copy_postprocess.py [test_main_pipeline_empty_items_exits_zero] [test_main_pipeline_overwrites_llm_fk_grade]
 plugins/dso/scripts/telemetry/lambda-handler/privacy.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_privacy_truth_table.py
 plugins/dso/scripts/telemetry/lambda-handler/schema.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_schema.py
 plugins/dso/scripts/telemetry/lambda-handler/validator.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_validator.py
 plugins/dso/scripts/telemetry/lambda-handler/handler.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_handler.py
+plugins/dso/scripts/check-copy-needs-schema.sh:tests/scripts/test-check-copy-needs-schema.sh [test_copy_needs_pass_fixture,test_copy_needs_fail_missing_field,test_copy_needs_fail_unknown_page]
+plugins/dso/scripts/dogfood-gov-copy.sh:plugins/dso/tests/test-dogfood-gov-copy.sh

@@ -1,0 +1,97 @@
+id: cdc
+title: "CDC Reading Level Guidance: Health Literacy Standards for Diverse Public Audiences"
+domain: canon
+component:
+  - content
+action:
+  - design
+  - apply
+  - verify
+compliance:
+  - plain-language
+  - plainlanguage.gov
+  - WCAG-3.1.5
+severity: major
+story_type: pattern
+coverage:
+  - summary
+  - detail
+license: public-domain
+source:
+  url: "https://www.cdc.gov/healthliteracy/developmaterials/plainlanguage.html"
+  retrieval_date: "2025-11-01"
+  license: public-domain
+  version_pin: "CDC Plain Language Resources (2023)"
+precedence: 3
+hard_constraint: false
+summary: |
+  CDC reading-level guidance targets public health communications at a 6th- to
+  8th-grade reading level for general public audiences, and no higher than 8th
+  grade for health-critical instructions. Active voice, short sentences, and
+  common words are preferred. These are strong evidence-based defaults based on
+  U.S. population literacy research; coordination passes may adjust level for
+  specialist or professional audiences.
+detail: |
+  ### Reading Level Targets (hard_constraint: false)
+
+  rule_id: cdc.reading-level-general
+  Target a 6th- to 8th-grade reading level for general public audiences.
+  Use the Flesch-Kincaid Grade Level or SMOG Index to measure. Most U.S.
+  adults read at a 6th- to 8th-grade level in practice, regardless of
+  formal educational attainment.
+
+  rule_id: cdc.reading-level-health-critical
+  Health-critical instructions (medication dosing, emergency procedures,
+  consent forms) must not exceed an 8th-grade reading level. High-stakes
+  decisions made under cognitive load require simpler language than general
+  informational content.
+
+  rule_id: cdc.reading-level-specialist
+  Content targeted exclusively at healthcare professionals or subject-matter
+  experts may exceed the 8th-grade ceiling, but must still avoid unnecessary
+  jargon and follow active-voice requirements.
+
+  ### Sentence Structure (hard_constraint: false)
+
+  rule_id: cdc.sentence-length
+  Limit sentences to 15 words or fewer for health-critical content. General
+  informational content: 20 words or fewer. One idea per sentence.
+
+  rule_id: cdc.active-voice
+  Use active voice. Passive constructions add cognitive load and obscure who
+  is responsible for an action.
+
+  ### Word Choice (hard_constraint: false)
+
+  rule_id: cdc.plain-words
+  Choose common, everyday words over medical or scientific terminology when
+  both are accurate:
+  - "use" not "utilize"
+  - "start" not "initiate"
+  - "end" not "terminate"
+  - "heart attack" not "myocardial infarction" (for public audiences)
+
+  rule_id: cdc.define-medical-terms
+  When a medical or scientific term cannot be replaced with a plain equivalent,
+  define it immediately in the same sentence or the following sentence.
+
+  rule_id: cdc.no-jargon
+  Avoid public-health jargon such as "morbidity," "etiology," "prophylaxis,"
+  or "vector" in public-facing content unless defined.
+
+  ### Visual Presentation (hard_constraint: false)
+
+  rule_id: cdc.chunk-information
+  Break content into small chunks. Use headers, bullet lists, and numbered
+  steps. Dense paragraphs increase reading difficulty regardless of word choice.
+
+  rule_id: cdc.white-space
+  Use adequate white space between sections. Cramped layouts increase perceived
+  reading difficulty.
+
+  ### Testing (hard_constraint: false)
+
+  rule_id: cdc.user-testing
+  Test all public-facing health communications with representative users,
+  including users with low health literacy. Use the Teach-Back method:
+  ask users to explain the content back in their own words.
