@@ -131,7 +131,7 @@ Note that the losing rule's `rule_id` is still cited in `rule_ids` (it was retri
 
 ## Step 3: Author Copy Per Item
 
-For each item in the Copy Needs section, produce a conforming artifact entry with three blocks: `values`, `rationale`, and `checks`.
+For each item in the Copy Needs section, produce an artifact entry with two blocks: `values` and `rationale`. The third block defined by the contract — `checks` — is intentionally omitted by the writer; it is regenerated downstream by the deterministic post-processor (see the "checks block" subsection below).
 
 ### values block
 

@@ -103,17 +103,36 @@ def build_hard_constraint_set(canon_dir: Path) -> set[str]:
         try:
             doc = load_yaml(canon_file)
         except Exception as exc:
+            # Fail CLOSED: a parse failure could hide a hard_constraint entry,
+            # which would let a coordination-pass mutation slip through against
+            # an immutable rule. We refuse to proceed rather than warn-and-continue.
             print(
-                f"WARNING: Could not parse canon file {canon_file.name}: {exc}",
+                f"ERROR: Could not parse canon file {canon_file.name}: {exc}",
                 file=sys.stderr,
             )
-            continue
+            print(
+                "ERROR: Refusing to enforce immutability with a partial canon corpus "
+                "(would risk false-pass on hard-constraint mutations).",
+                file=sys.stderr,
+            )
+            sys.exit(2)
         if not isinstance(doc, dict):
             continue
         canon_id = doc.get("id", "")
         hc = doc.get("hard_constraint", False)
         if hc is True and canon_id:
             hard_ids.add(canon_id)
+    if not hard_ids:
+        # Fail CLOSED on an empty hard-constraint set. If a real corpus has
+        # zero hard_constraint:true entries, the project should not be running
+        # this script at all — the empty case is far more likely caused by a
+        # mis-located CANON_DIR or systemic schema breakage than by intent.
+        print(
+            "ERROR: No hard-constraint canon entries found in CANON_DIR. "
+            "Refusing to silently approve all mutations.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
     return hard_ids
 
 

@@ -7,7 +7,9 @@
 #                        [--format=<text|json>]
 #
 # Outputs the top-N matching corpus entries to stdout, including frontmatter fields
-# and the requested content tier (summary by default).
+# and the requested content tier. When --tier is omitted, no tier filter is applied
+# (all entries match — the previous default of "summary" was removed because it
+# excluded the entire corpus, none of whose entries declare tier: summary).
 #
 # Options:
 #   --namespace=DOMAIN   Filter results to entries whose domain matches DOMAIN

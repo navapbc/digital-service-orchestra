@@ -77,8 +77,30 @@ def main():
         return 2
 
     with open(artifact_path) as f:
-        artifact = yaml.safe_load(f) or {}
-    items = artifact.get("items", []) or []
+        artifact = yaml.safe_load(f)
+    if artifact is None:
+        artifact = {}
+    if not isinstance(artifact, dict):
+        print(
+            f"error: artifact root must be a mapping, got {type(artifact).__name__}",
+            file=sys.stderr,
+        )
+        return 2
+    items = artifact.get("items") or []
+    if not isinstance(items, list):
+        print(
+            f"error: artifact.items must be a list, got {type(items).__name__}",
+            file=sys.stderr,
+        )
+        return 2
+    # Filter out any non-dict items; report rather than crashing on AttributeError.
+    bad_idx = [i for i, it in enumerate(items) if not isinstance(it, dict)]
+    if bad_idx:
+        print(
+            f"error: artifact.items contains non-dict entries at indices {bad_idx}",
+            file=sys.stderr,
+        )
+        return 2
 
     total = len(items)
     passing = 0
