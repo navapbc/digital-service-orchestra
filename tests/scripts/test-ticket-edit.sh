@@ -519,4 +519,136 @@ test_ticket_edit_parent_rejects_self() {
 }
 test_ticket_edit_parent_rejects_self
 
+# ── Test 15: ticket edit --parent=null detaches the parent (bug 7f23-1a14) ───
+# Sprint-discovered bugs sometimes get reflexively parented to the active epic.
+# `ticket edit <id> --parent=null` must be a first-class detach path so a mis-
+# parented bug can be recovered without deletion.
+echo ""
+echo "Test 15: ticket edit --parent=null detaches the parent (RED before 7f23 fix)"
+test_ticket_edit_parent_null_detaches() {
+    local repo
+    repo=$(_make_test_repo)
+
+    if [ ! -f "$TICKET_EDIT_SCRIPT" ]; then
+        assert_eq "ticket-edit.sh exists for detach test" "exists" "missing"
+        return
+    fi
+
+    local parent_id child_id
+    parent_id=$(_create_ticket "$repo" "parent for detach test")
+    child_id=$(_create_ticket "$repo" "child for detach test")
+    if [ -z "$parent_id" ] || [ -z "$child_id" ]; then
+        assert_eq "created parent and child tickets" "both non-empty" "missing"
+        return
+    fi
+
+    # Attach
+    (cd "$repo" && bash "$TICKET_SCRIPT" edit "$child_id" --parent="$parent_id" >/dev/null 2>&1) || true
+    local got_parent
+    got_parent=$(_get_ticket_field "$repo" "$child_id" "parent_id")
+    if [ "$got_parent" != "$parent_id" ]; then
+        assert_eq "precondition: child attached to parent" "$parent_id" "$got_parent"
+        return
+    fi
+
+    # Detach with --parent=null
+    local detach_exit=0
+    (cd "$repo" && bash "$TICKET_SCRIPT" edit "$child_id" --parent=null >/dev/null 2>&1) || detach_exit=$?
+    assert_eq "ticket edit --parent=null exits 0" "0" "$detach_exit"
+
+    # Confirm parent_id is now null/None (ticket-show normalizes null → "None" via python)
+    got_parent=$(_get_ticket_field "$repo" "$child_id" "parent_id")
+    if [ "$got_parent" = "None" ] || [ -z "$got_parent" ]; then
+        (( PASS++ ))
+    else
+        (( FAIL++ ))
+        echo "FAIL: parent_id should be null after --parent=null detach, got '$got_parent'" >&2
+    fi
+}
+test_ticket_edit_parent_null_detaches
+
+# ── Test 16: --parent= (empty, no `null` keyword) still rejects ──────────────
+# The detach sentinel is the literal string `null`, not an empty value.
+# Empty values remain rejected so accidental shell mishaps don't silently detach.
+echo ""
+echo "Test 16: ticket edit --parent= (empty) still rejects"
+test_ticket_edit_parent_empty_still_rejects() {
+    local repo
+    repo=$(_make_test_repo)
+
+    local tkt
+    tkt=$(_create_ticket "$repo" "empty-parent reject test")
+    if [ -z "$tkt" ]; then
+        assert_eq "created ticket" "non-empty" "empty"
+        return
+    fi
+
+    local exit_code=0
+    (cd "$repo" && bash "$TICKET_SCRIPT" edit "$tkt" --parent= >/dev/null 2>&1) || exit_code=$?
+    assert_ne "ticket edit --parent= (empty) exits nonzero" "0" "$exit_code"
+}
+test_ticket_edit_parent_empty_still_rejects
+
+# ── Test 17: ticket edit --description= (empty) rejects (bug e78f-9f79) ──────
+# Without this guard, `--description=$(cat empty-file)` silently overwrites a
+# multi-kilobyte structured description with an empty string. The CLI must
+# refuse empty values; clearing requires an explicit confirmation path.
+echo ""
+echo "Test 17: ticket edit --description= (empty) rejects (RED before e78f fix)"
+test_ticket_edit_description_empty_rejects() {
+    local repo
+    repo=$(_make_test_repo)
+
+    local tkt
+    tkt=$(_create_ticket "$repo" "empty-description reject test")
+    if [ -z "$tkt" ]; then
+        assert_eq "created ticket" "non-empty" "empty"
+        return
+    fi
+
+    # First, set a real description so we can verify it isn't clobbered
+    (cd "$repo" && bash "$TICKET_SCRIPT" edit "$tkt" --description="Original content that must be preserved" >/dev/null 2>&1) || true
+    local original_desc
+    original_desc=$(_get_ticket_field "$repo" "$tkt" "description")
+    if [ "$original_desc" != "Original content that must be preserved" ]; then
+        assert_eq "precondition: original description was set" "Original content that must be preserved" "$original_desc"
+        return
+    fi
+
+    # Attempt to set empty description
+    local exit_code=0
+    (cd "$repo" && bash "$TICKET_SCRIPT" edit "$tkt" --description= >/dev/null 2>&1) || exit_code=$?
+    assert_ne "ticket edit --description= (empty) exits nonzero" "0" "$exit_code"
+
+    # Verify the original description is intact (no silent clobber)
+    local after_desc
+    after_desc=$(_get_ticket_field "$repo" "$tkt" "description")
+    assert_eq "description preserved on rejected empty edit" "Original content that must be preserved" "$after_desc"
+}
+test_ticket_edit_description_empty_rejects
+
+# ── Test 18: ticket edit --description=<non-empty> still works ──────────────
+echo ""
+echo "Test 18: ticket edit --description=<non-empty> still works (regression guard)"
+test_ticket_edit_description_nonempty_still_works() {
+    local repo
+    repo=$(_make_test_repo)
+
+    local tkt
+    tkt=$(_create_ticket "$repo" "non-empty desc edit test")
+    if [ -z "$tkt" ]; then
+        assert_eq "created ticket" "non-empty" "empty"
+        return
+    fi
+
+    local exit_code=0
+    (cd "$repo" && bash "$TICKET_SCRIPT" edit "$tkt" --description="New description body" >/dev/null 2>&1) || exit_code=$?
+    assert_eq "ticket edit --description=<non-empty> exits 0" "0" "$exit_code"
+
+    local after
+    after=$(_get_ticket_field "$repo" "$tkt" "description")
+    assert_eq "description set correctly" "New description body" "$after"
+}
+test_ticket_edit_description_nonempty_still_works
+
 print_summary

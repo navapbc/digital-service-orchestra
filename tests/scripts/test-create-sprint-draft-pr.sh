@@ -127,11 +127,35 @@ build_gh_stub
 set_mode() { echo "$1" > "$_GH_MODE_FILE"; : > "$_GH_CALL_LOG"; }
 gh_was_called_with() { grep -qF "$1" "$_GH_CALL_LOG" 2>/dev/null; }
 
+# ── Shared temp repo for tests that don't care about git state ───────────────
+# The script-under-test now runs `git rev-list --count main..HEAD` to decide
+# whether to write a sentinel commit. If tests ran in the actual worktree the
+# sentinel logic would pollute it. Use a temp repo with 1 commit ahead of main
+# so the sentinel block stays inactive for the gh-interaction tests.
+_SHARED_REPO="$(mktemp -d /tmp/sprint-draft-pr-shared.XXXXXX)"
+(
+    cd "$_SHARED_REPO" || exit
+    git init --quiet --initial-branch=main
+    git config user.email "test@example.com"
+    git config user.name "Test"
+    git config commit.gpgsign false
+    echo "initial" > README.md
+    git add README.md
+    git -c commit.gpgsign=false commit --quiet -m "initial commit"
+    git checkout --quiet -b shared-session-branch
+    echo "work" > work.txt
+    git add work.txt
+    git -c commit.gpgsign=false commit --quiet -m "real change on shared session branch"
+)
+cleanup_shared() { rm -rf "$_SHARED_REPO" 2>/dev/null || true; }
+trap 'cleanup; cleanup_shared' EXIT
+
 # ── Test 1: No existing PR → creates draft PR → exit 0 ───────────────────────
 echo ""
 echo "--- Test 1: no existing PR → creates draft PR ---"
 set_mode "no_pr"
 t1_output="$(
+    cd "$_SHARED_REPO" && \
     SESSION_BRANCH="sprint-abc123" PRIMARY_TICKET_ID="epic-001" EPIC_TITLE="My Epic" \
     PATH="$_TMP_BIN:$PATH" \
     bash "$SCRIPT_UNDER_TEST" 2>&1
@@ -152,6 +176,7 @@ echo ""
 echo "--- Test 2: draft PR exists → idempotent (no new PR created) ---"
 set_mode "draft_pr"
 t2_output="$(
+    cd "$_SHARED_REPO" && \
     SESSION_BRANCH="sprint-abc123" PRIMARY_TICKET_ID="epic-001" EPIC_TITLE="My Epic" \
     PATH="$_TMP_BIN:$PATH" \
     bash "$SCRIPT_UNDER_TEST" 2>&1
@@ -172,6 +197,7 @@ echo ""
 echo "--- Test 3: non-draft open PR exists → exits 0, no new PR ---"
 set_mode "nondraft_pr"
 t3_output="$(
+    cd "$_SHARED_REPO" && \
     SESSION_BRANCH="sprint-abc123" PRIMARY_TICKET_ID="epic-001" EPIC_TITLE="My Epic" \
     PATH="$_TMP_BIN:$PATH" \
     bash "$SCRIPT_UNDER_TEST" 2>&1
@@ -190,6 +216,7 @@ echo ""
 echo "--- Test 4: gh pr create fails → exits non-zero ---"
 set_mode "create_fail"
 t4_output="$(
+    cd "$_SHARED_REPO" && \
     SESSION_BRANCH="sprint-abc123" PRIMARY_TICKET_ID="epic-001" EPIC_TITLE="My Epic" \
     PATH="$_TMP_BIN:$PATH" \
     bash "$SCRIPT_UNDER_TEST" 2>&1
@@ -204,6 +231,7 @@ echo ""
 echo "--- Test 5: SESSION_BRANCH missing → exits 1 ---"
 set_mode "no_pr"
 t5_output="$(
+    cd "$_SHARED_REPO" && \
     SESSION_BRANCH="" PRIMARY_TICKET_ID="epic-001" EPIC_TITLE="My Epic" \
     PATH="$_TMP_BIN:$PATH" \
     bash "$SCRIPT_UNDER_TEST" 2>&1
@@ -218,6 +246,7 @@ echo ""
 echo "--- Test 6: PRIMARY_TICKET_ID missing → exits 1 ---"
 set_mode "no_pr"
 t6_output="$(
+    cd "$_SHARED_REPO" && \
     SESSION_BRANCH="sprint-abc123" PRIMARY_TICKET_ID="" EPIC_TITLE="My Epic" \
     PATH="$_TMP_BIN:$PATH" \
     bash "$SCRIPT_UNDER_TEST" 2>&1
@@ -231,6 +260,7 @@ echo ""
 echo "--- Test 7: DRAFT_PR_TITLE_PREFIX=Debug: → title uses custom prefix ---"
 set_mode "no_pr"
 t7_output="$(
+    cd "$_SHARED_REPO" && \
     SESSION_BRANCH="sprint-abc123" PRIMARY_TICKET_ID="epic-001" EPIC_TITLE="My Epic" \
     DRAFT_PR_TITLE_PREFIX="Debug:" \
     PATH="$_TMP_BIN:$PATH" \
@@ -249,6 +279,7 @@ echo ""
 echo "--- Test 8: no DRAFT_PR_TITLE_PREFIX → default title contains Sprint: ---"
 set_mode "no_pr"
 t8_output="$(
+    cd "$_SHARED_REPO" && \
     SESSION_BRANCH="sprint-abc123" PRIMARY_TICKET_ID="epic-001" EPIC_TITLE="My Epic" \
     PATH="$_TMP_BIN:$PATH" \
     bash "$SCRIPT_UNDER_TEST" 2>&1
@@ -266,6 +297,7 @@ echo ""
 echo "--- Test 9: DRAFT_PR_BODY_TEMPLATE with placeholder → interpolated body ---"
 set_mode "no_pr"
 t9_output="$(
+    cd "$_SHARED_REPO" && \
     SESSION_BRANCH="sprint-abc123" PRIMARY_TICKET_ID="epic-001" EPIC_TITLE="My Epic" \
     DRAFT_PR_BODY_TEMPLATE="Debug session for {{PRIMARY_TICKET_ID}}" \
     PATH="$_TMP_BIN:$PATH" \
@@ -284,6 +316,7 @@ echo ""
 echo "--- Test 10: no DRAFT_PR_BODY_TEMPLATE → default body preserved ---"
 set_mode "no_pr"
 t10_output="$(
+    cd "$_SHARED_REPO" && \
     SESSION_BRANCH="sprint-abc123" PRIMARY_TICKET_ID="epic-001" EPIC_TITLE="My Epic" \
     PATH="$_TMP_BIN:$PATH" \
     bash "$SCRIPT_UNDER_TEST" 2>&1
@@ -301,6 +334,7 @@ echo ""
 echo "--- Test 11: DRAFT_PR_BODY_TEMPLATE without placeholder → used as-is ---"
 set_mode "no_pr"
 t11_output="$(
+    cd "$_SHARED_REPO" && \
     SESSION_BRANCH="sprint-abc123" PRIMARY_TICKET_ID="epic-001" EPIC_TITLE="My Epic" \
     DRAFT_PR_BODY_TEMPLATE="Custom body no placeholder" \
     PATH="$_TMP_BIN:$PATH" \
@@ -314,6 +348,112 @@ else
     (( FAIL++ ))
     echo "FAIL: test_create_sprint_draft_pr_body_no_placeholder: custom body not used as-is" >&2
 fi
+
+echo ""
+# ── Sentinel-commit tests (zero-divergence bootstrap) ────────────────────────
+# When the session branch has 0 commits ahead of main, `gh pr create` fails with
+# "No commits between main and <branch>". The script must create a `--allow-empty`
+# sentinel commit with a `DSO-Sentinel:` trailer + `[skip ci]` before opening the PR.
+# Tests use a real temp git repo (not just stubs) so we can observe the commit
+# the script writes to the branch.
+
+setup_temp_repo() {
+    # Creates a fresh git repo with `main` branch (one commit) and `session-branch`
+    # checked out. Returns the repo path on stdout. The caller is responsible for
+    # `cd`ing into it.
+    local repo_dir
+    repo_dir=$(mktemp -d /tmp/sprint-draft-pr-repo.XXXXXX)
+    (
+        cd "$repo_dir" || exit
+        git init --quiet --initial-branch=main
+        git config user.email "test@example.com"
+        git config user.name "Test"
+        git config commit.gpgsign false
+        echo "initial" > README.md
+        git add README.md
+        git -c commit.gpgsign=false commit --quiet -m "initial commit"
+        git checkout --quiet -b session-branch
+    )
+    echo "$repo_dir"
+}
+
+echo "--- Test 12: zero divergence from main → script creates a DSO-Sentinel: commit ---"
+set_mode "no_pr"
+T12_REPO=$(setup_temp_repo)
+(
+    cd "$T12_REPO" || exit
+    SESSION_BRANCH="session-branch" PRIMARY_TICKET_ID="epic-042" EPIC_TITLE="My Epic" \
+    PATH="$_TMP_BIN:$PATH" \
+    bash "$SCRIPT_UNDER_TEST" > /tmp/t12.out 2>&1
+)
+t12_exit=$?
+# Inspect the resulting commit on session-branch
+t12_div=$(git -C "$T12_REPO" rev-list --count main..session-branch 2>/dev/null || echo "?")
+t12_body=$(git -C "$T12_REPO" log -1 --format=%B session-branch 2>/dev/null || echo "")
+assert_eq "test_create_sprint_draft_pr_sentinel_exit_zero" "0" "$t12_exit"
+assert_eq "test_create_sprint_draft_pr_sentinel_one_commit_ahead" "1" "$t12_div"
+assert_contains "test_create_sprint_draft_pr_sentinel_trailer_present" \
+    "DSO-Sentinel:" "$t12_body"
+assert_contains "test_create_sprint_draft_pr_sentinel_skip_ci_present" \
+    "[skip ci]" "$t12_body"
+if gh_was_called_with "pr create"; then
+    (( PASS++ ))
+else
+    (( FAIL++ ))
+    echo "FAIL: test_create_sprint_draft_pr_sentinel_calls_gh_create: gh pr create not called after sentinel" >&2
+fi
+rm -rf "$T12_REPO" /tmp/t12.out 2>/dev/null || true
+
+echo ""
+echo "--- Test 13: nonzero divergence → no sentinel created (preserves existing behavior) ---"
+set_mode "no_pr"
+T13_REPO=$(setup_temp_repo)
+(
+    cd "$T13_REPO" || exit
+    echo "real work" > work.txt
+    git add work.txt
+    git -c commit.gpgsign=false commit --quiet -m "real change on session-branch"
+    SESSION_BRANCH="session-branch" PRIMARY_TICKET_ID="epic-042" EPIC_TITLE="My Epic" \
+    PATH="$_TMP_BIN:$PATH" \
+    bash "$SCRIPT_UNDER_TEST" > /tmp/t13.out 2>&1
+)
+t13_exit=$?
+t13_div=$(git -C "$T13_REPO" rev-list --count main..session-branch 2>/dev/null || echo "?")
+# Should be exactly 1 (the pre-existing real commit) — NOT 2, no sentinel added
+t13_body=$(git -C "$T13_REPO" log -1 --format=%B session-branch 2>/dev/null || echo "")
+assert_eq "test_create_sprint_draft_pr_sentinel_skipped_exit_zero" "0" "$t13_exit"
+assert_eq "test_create_sprint_draft_pr_sentinel_skipped_no_extra_commit" "1" "$t13_div"
+if echo "$t13_body" | grep -q "DSO-Sentinel:"; then
+    (( FAIL++ ))
+    echo "FAIL: test_create_sprint_draft_pr_sentinel_skipped_no_trailer: sentinel was added despite nonzero divergence" >&2
+else
+    (( PASS++ ))
+fi
+rm -rf "$T13_REPO" /tmp/t13.out 2>/dev/null || true
+
+echo ""
+echo "--- Test 14: sentinel already on HEAD → idempotent, no second sentinel ---"
+set_mode "no_pr"
+T14_REPO=$(setup_temp_repo)
+(
+    cd "$T14_REPO" || exit
+    # Pre-seed a sentinel commit so the script sees divergence==1 but it's a sentinel
+    git -c commit.gpgsign=false commit --quiet --allow-empty \
+        -m "chore(epic-042): open umbrella PR [skip ci]" \
+        -m "DSO-Sentinel: epic-bootstrap"
+    SESSION_BRANCH="session-branch" PRIMARY_TICKET_ID="epic-042" EPIC_TITLE="My Epic" \
+    PATH="$_TMP_BIN:$PATH" \
+    bash "$SCRIPT_UNDER_TEST" > /tmp/t14.out 2>&1
+)
+t14_exit=$?
+t14_div=$(git -C "$T14_REPO" rev-list --count main..session-branch 2>/dev/null || echo "?")
+# Should still be 1 — pre-existing sentinel, no new sentinel added
+t14_sentinel_count=$(git -C "$T14_REPO" log main..session-branch --format=%B 2>/dev/null \
+    | grep -c "^DSO-Sentinel:" || true)
+assert_eq "test_create_sprint_draft_pr_sentinel_idempotent_exit_zero" "0" "$t14_exit"
+assert_eq "test_create_sprint_draft_pr_sentinel_idempotent_one_commit" "1" "$t14_div"
+assert_eq "test_create_sprint_draft_pr_sentinel_idempotent_one_sentinel" "1" "$t14_sentinel_count"
+rm -rf "$T14_REPO" /tmp/t14.out 2>/dev/null || true
 
 echo ""
 print_summary
