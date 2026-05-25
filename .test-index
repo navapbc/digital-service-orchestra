@@ -566,3 +566,4 @@ plugins/dso/scripts/telemetry/lambda-handler/privacy.py:plugins/dso/scripts/tele
 plugins/dso/scripts/telemetry/lambda-handler/schema.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_schema.py
 plugins/dso/scripts/telemetry/lambda-handler/validator.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_validator.py
 plugins/dso/scripts/telemetry/lambda-handler/handler.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_handler.py
+plugins/dso/scripts/dogfood-gov-copy.sh:plugins/dso/tests/test-dogfood-gov-copy.sh
