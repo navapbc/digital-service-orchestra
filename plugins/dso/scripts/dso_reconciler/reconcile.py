@@ -15,6 +15,49 @@ import sys
 from pathlib import Path
 
 
+class StatusMappingError(Exception):
+    """Raised when a mutation references a local status absent from
+    ``config.local_to_jira_status``. The preflight scan raises this before the
+    applier dispatch loop runs so an unmapped status cannot be silently
+    forwarded to Jira."""
+
+
+def preflight_status_mapping(mutations) -> None:
+    """Raise :class:`StatusMappingError` if any update mutation references a
+    status absent from ``config.local_to_jira_status``.
+
+    An empty mapping disables the scan (kill-switch). Non-update mutations and
+    mutations whose ``fields`` payload does not include a ``status`` key are
+    ignored.
+    """
+    cfg = _load("reconcile_config", "config.py")
+    mapping = getattr(cfg, "local_to_jira_status", {}) or {}
+    if not mapping:
+        return  # kill-switch — empty mapping disables preflight
+    for m in mutations:
+        # Mutations may be plain dicts (current schema) or objects with an
+        # ``.action`` attribute (forward-compat). Normalise to a string action.
+        action_attr = getattr(m, "action", None)
+        if action_attr is not None:
+            action = getattr(action_attr, "value", action_attr)
+            fields = getattr(m, "fields", None) or getattr(m, "payload", None) or {}
+            target = getattr(m, "target", getattr(m, "key", None))
+        else:
+            action = m.get("action")
+            fields = m.get("fields") or m.get("payload") or {}
+            target = m.get("key") or m.get("local_id")
+        if action != "update":
+            continue
+        if not isinstance(fields, dict):
+            continue
+        status = fields.get("status")
+        if status and status not in mapping:
+            raise StatusMappingError(
+                f"local status {status!r} not in local_to_jira_status mapping "
+                f"(target={target})"
+            )
+
+
 def _load(name: str, relpath: str):
     """Load a sibling module by relative file path, registering it in sys.modules.
 
@@ -85,6 +128,11 @@ def reconcile_once(pass_id: str, repo_root: Path | None = None) -> dict:
 
     # Compute mutations (pure function, no I/O)
     mutations = differ.compute_mutations(prev_snapshot, curr_snapshot)
+
+    # Preflight: abort the pass if any update mutation references a status
+    # not present in config.local_to_jira_status. Runs exactly once per pass,
+    # before any applier dispatch, so unmapped statuses cannot reach Jira.
+    preflight_status_mapping(mutations)
 
     # F8: wrap apply in try/except/finally so health.record_pass STILL fires
     # on apply failure with degraded fields (local_mutation_count=0,
