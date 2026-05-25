@@ -2012,6 +2012,110 @@ except Exception:
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Scratch cleanup helper (invoked by ticket-transition.sh on close/delete)
+# ──────────────────────────────────────────────────────────────────────────────
+
+# _scratch_cleanup_for_ticket <ticket_id> [<base_dir>]
+#
+# Removes the per-ticket scratch directory for <ticket_id>.
+#
+# Args:
+#   ticket_id : ticket identifier (e.g., abcd-1234-efgh-5678)
+#   base_dir  : optional base directory that contains per-ticket scratch dirs
+#               (defaults to SCRATCH_BASE_DIR if set, else REPO_ROOT/.claude/scratch)
+#
+# Behavior:
+#   - If the scratch dir does not exist: logs INFO, returns 0 (idempotent).
+#   - If the scratch dir exists: removes it with rm -rf; logs INFO with
+#     ticket_id and path; returns 0.
+#   - On rm failure (e.g., permission denied): logs WARN to stderr with
+#     ticket_id and error; writes an orphan marker JSON to
+#     ${SCRATCH_ORPHANS_DIR:-<tracker>/.scratch-orphans}/<ticket_id>
+#     with keys {ticket_id, path, error, timestamp}; returns 0.
+#
+# This function ALWAYS returns 0 — cleanup failures are non-blocking.
+_scratch_cleanup_for_ticket() {
+    local ticket_id="${1:-}"
+    local base_dir="${2:-${SCRATCH_BASE_DIR:-}}"
+
+    # Validate ticket_id (reject empty, leading dot, path traversal, slashes,
+    # control characters — mirrors _scratch_resolve_and_validate).
+    if [ -z "$ticket_id" ]; then
+        echo "[WARN] scratch-cleanup ticket_id must not be empty" >&2
+        return 0
+    fi
+    case "$ticket_id" in
+        .*)
+            echo "[WARN] scratch-cleanup ticket_id must not start with a dot: $ticket_id" >&2
+            return 0
+            ;;
+        *..*)
+            echo "[WARN] scratch-cleanup ticket_id must not contain '..': $ticket_id" >&2
+            return 0
+            ;;
+        */*)
+            echo "[WARN] scratch-cleanup ticket_id must not contain '/': $ticket_id" >&2
+            return 0
+            ;;
+    esac
+
+    # Resolve base_dir
+    if [ -z "$base_dir" ]; then
+        local _rr
+        _rr="$(GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git rev-parse --show-toplevel 2>/dev/null)" || _rr=""
+        base_dir="${_rr}/.claude/scratch"
+    fi
+
+    local scratch_dir="${base_dir}/${ticket_id}"
+
+    # If absent: no-op
+    if [ ! -d "$scratch_dir" ]; then
+        echo "[INFO] scratch-cleanup ticket=${ticket_id} path=${scratch_dir} result=absent" >&2
+        return 0
+    fi
+
+    # Attempt rm -rf
+    local rm_err
+    rm_err=$(rm -rf -- "$scratch_dir" 2>&1)
+    local rm_exit=$?
+
+    if [ $rm_exit -eq 0 ]; then
+        echo "[INFO] scratch-cleanup ticket=${ticket_id} path=${scratch_dir} result=removed" >&2
+        return 0
+    fi
+
+    # rm failed — log WARN and write orphan marker
+    echo "[WARN] scratch-cleanup ticket=${ticket_id} path=${scratch_dir} error=${rm_err}" >&2
+
+    # Resolve orphan marker directory
+    local orphan_dir="${SCRATCH_ORPHANS_DIR:-}"
+    if [ -z "$orphan_dir" ]; then
+        # Default: .tickets-tracker/.scratch-orphans under repo root
+        local _rr2
+        _rr2="$(GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git rev-parse --show-toplevel 2>/dev/null)" || _rr2=""
+        orphan_dir="${_rr2}/.tickets-tracker/.scratch-orphans"
+    fi
+
+    # Write orphan marker JSON (non-blocking — ignore mkdir/write failures)
+    mkdir -p "$orphan_dir" 2>/dev/null || true
+    local orphan_file="${orphan_dir}/${ticket_id}"
+    local timestamp
+    timestamp=$(python3 -c "
+import datetime
+print(datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'))
+" 2>/dev/null || date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || echo "unknown")
+    python3 - "$ticket_id" "$scratch_dir" "$rm_err" "$timestamp" "$orphan_file" <<'PYEOF' 2>/dev/null || true
+import json, sys
+ticket_id, path, error, timestamp, orphan_file = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5]
+marker = {"ticket_id": ticket_id, "path": path, "error": error, "timestamp": timestamp}
+with open(orphan_file, 'w', encoding='utf-8') as f:
+    json.dump(marker, f, ensure_ascii=False)
+PYEOF
+
+    return 0
+}
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Scratch helpers (private API — consumed by ticket-scratch-*.sh commands)
 # ──────────────────────────────────────────────────────────────────────────────
 
