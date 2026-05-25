@@ -126,8 +126,37 @@ def reconcile_once(pass_id: str, repo_root: Path | None = None) -> dict:
         f"invariants: scanned={len(curr_snapshot)} filed={len(filed)} (cap=5)"
     )
 
-    # Compute mutations (pure function, no I/O)
-    mutations = differ.compute_mutations(prev_snapshot, curr_snapshot)
+    # Invariant phase: verify dual-identity round-trip on the post-fetch
+    # snapshot before diffing. Quarantine one-sided keys (skipped by the
+    # differ) and seed repair_property mutations for one-sided dso_local_id
+    # rows so the differ emits the repair in this same pass.
+    quarantine_keys, seed_repair_property_mutations = (
+        invariants_mod.check_dual_identity_complete(prev_snapshot, curr_snapshot)
+    )
+
+    # Compute mutations (pure function, no I/O). The invariant signals are
+    # passed through so the differ honors quarantine + seed mutations.
+    mutations = differ.compute_mutations(
+        prev_snapshot,
+        curr_snapshot,
+        quarantine_set=quarantine_keys,
+        seed_mutations=seed_repair_property_mutations,
+    )
+
+    # Post-emit filter: scan mutations for repair_property follow-ons that
+    # carry a schema_drift kind (raised by the 44e6 repair_property failure
+    # path). report_schema_drift surfaces each drift via stderr WARN so the
+    # signal is not swallowed.
+    for _m in mutations:
+        if _m.get("action") != "repair_property":
+            continue
+        follow_on = _m.get("follow_on")
+        if isinstance(follow_on, dict) and follow_on.get("kind") == "schema_drift":
+            invariants_mod.report_schema_drift(
+                follow_on.get("target"),
+                follow_on.get("observed"),
+                follow_on.get("expected"),
+            )
 
     # Preflight: abort the pass if any update mutation references a status
     # not present in config.local_to_jira_status. Runs exactly once per pass,

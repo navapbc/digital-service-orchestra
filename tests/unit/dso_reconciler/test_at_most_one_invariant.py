@@ -318,7 +318,7 @@ def _make_stub_fetcher(snapshot: dict, pass_id: str, tmp_path: Path) -> ModuleTy
 
 def _make_stub_differ() -> ModuleType:
     stub = types.ModuleType("reconcile_differ")
-    stub.compute_mutations = lambda prev, curr: []
+    stub.compute_mutations = lambda prev, curr, **kwargs: []
     return stub
 
 
@@ -370,6 +370,8 @@ def test_reconcile_once_invokes_invariant_after_fetch(tmp_path):
     stub_invariants = types.ModuleType("reconcile_invariants")
     invariants_mock = MagicMock(return_value=[])
     stub_invariants.check_at_most_one_dso_local_id = invariants_mock
+    stub_invariants.check_dual_identity_complete = lambda prev, curr: (set(), [])
+    stub_invariants.report_schema_drift = lambda *a, **kw: None
 
     # Pre-register all stubs BEFORE loading reconcile so reconcile._load() finds them
     for key in _RECONCILE_COLLAB_KEYS:
