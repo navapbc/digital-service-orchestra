@@ -134,3 +134,27 @@ PYEOF
 Pass shell variables into the heredoc via env vars (`TRACKER_DIR="$dir" python3 - <<'PYEOF'`) — the single-quoted `'PYEOF'` delimiter prevents shell expansion inside the script, which is the bug-prone part of the unconsolidated `python3 -c "..."` form.
 
 **Context**: First observed on PR #343 with `test-ticket-list-has-tag.sh` (3 → 1 python3 calls per fixture, 1.3s → 0.9s) and `test-ticket-list-descendants-dispatcher.sh` (6 → 1, 1.6s → 0.9s). Fix landed in commit `2ecabb83a7`. The same pattern likely exists in other fixture-heavy tests — when investigating new flaky tests in `tests/scripts/`, run `grep -cE '^[[:space:]]*python3 -c' <file>` early.
+
+---
+
+## INC-008: Jira fetcher — JRACLOUD-94632 + 1000-result ceiling + SilentTruncationError
+
+**Symptom**: The dso_reconciler fetcher (`plugins/dso/scripts/dso_reconciler/fetcher.py`) raises `SilentTruncationError` and the reconciler pass aborts before emitting any mutations.
+
+**Background**: ACLI's paginated JQL fetch has a 1000-result hard ceiling (JRACLOUD-94632). Above this size, the Jira API silently truncates the working set without exposing a `total` or `isLast` signal that the client can use to detect the truncation. Worse: under the JRACLOUD-94632 bug, ACLI's `nextPageToken` cursor can return the same token twice in a row when the working set is at the ceiling — a "stuck cursor" that would loop forever without explicit detection.
+
+The fetcher mitigates both failure modes:
+
+1. **Hard-ceiling gate**: once cumulative fetched issues reach 1000 AND the most recent page is exactly `page_size` (suggesting more issues exist), the fetcher raises `SilentTruncationError` before yielding the violating page.
+2. **Same-token-twice fallback**: if `_iter_pages` observes two consecutive pages with an identical `nextPageToken` (or identical first key when token is unavailable), it raises `SilentTruncationError(reason='same-token-twice')`.
+
+The fetcher prefers `startAt` pagination over `nextPageToken` precisely because `startAt` is robust to JRACLOUD-94632 — but the same-token-twice gate exists as a defense-in-depth for whatever ACLI mode is in effect at runtime.
+
+**Why this design**: silent truncation is the load-bearing correctness issue from epic 3a03 — the prior reconciler architecture failed live verification because a truncated working set was indistinguishable from a "no-change" pass, leading to direction-inversion mutations.
+
+**First-check when SilentTruncationError fires**:
+1. Tighten the JQL scope. The current default `project = DIG AND (resolution = Unresolved OR updated >= -1h)` should keep the working set well under 1000 in steady state. If the working set has genuinely exceeded 1000 issues, the operator must triage the unfiltered backlog before resuming reconciler passes.
+2. Check `alert_store` contents for `fetcher-dedup-suppressed` records — these indicate per-issue dedup is firing on consecutive pages, which is correlated with same-token-twice cursor stalls.
+3. Verify `JRACLOUD-94632` has not been reverted/regressed in the ACLI version pinned by the reconciler's runtime environment.
+
+**Related epics**: 4047 (Derivable level-triggered Jira reconciler) successor to 3a03 (failed cumulative cutover).
