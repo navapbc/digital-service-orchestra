@@ -36,10 +36,20 @@ IMPROVED="${_PLUGIN_ROOT}/tests/fixtures/dogfood/good-copy-improved.yaml"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --baseline)
+      if [[ $# -lt 2 || -z "${2:-}" ]]; then
+        echo "error: --baseline requires a PATH argument" >&2
+        echo "usage: $0 [--baseline PATH] [--improved PATH]" >&2
+        exit 2
+      fi
       BASELINE="$2"
       shift 2
       ;;
     --improved)
+      if [[ $# -lt 2 || -z "${2:-}" ]]; then
+        echo "error: --improved requires a PATH argument" >&2
+        echo "usage: $0 [--baseline PATH] [--improved PATH]" >&2
+        exit 2
+      fi
       IMPROVED="$2"
       shift 2
       ;;

@@ -33,24 +33,29 @@ def _get_item_text(item: dict) -> str:
 
 
 def process_item(item: dict, config) -> dict:
-    """Mutate item in place: overwrite checks, update rationale.deviations. Returns the item."""
+    """Mutate item in place: overwrite checks, update rationale.deviations. Returns the item.
+
+    The checks block conforms to ${CLAUDE_PLUGIN_ROOT}/docs/contracts/gov-copy-artifact.md:
+    flat fields (fk_grade int, banned_words_found list, active_voice bool) + a single
+    top-level source string. The validator (check-gov-copy-artifact.sh) enforces this shape.
+    """
     text = _get_item_text(item)
-    fk = compute_fk_grade(text) if text.strip() else 0.0
+    fk_raw = compute_fk_grade(text) if text.strip() else 0.0
+    fk = int(round(fk_raw))  # contract requires fk_grade as integer
     banned = find_banned_words(text, config.banned_words)
     active = is_active_voice(text) if text.strip() else True
-    # Overwrite checks block — per-rule source attribution
-    SOURCE = "deterministic-post-processing"
+    # Overwrite checks block — flat schema per contract gov-copy-artifact.md
     item["checks"] = {
-        "fk_grade": {"value": fk, "source": SOURCE},
-        "banned_words_found": {"value": banned, "source": SOURCE},
-        "active_voice": {"value": active, "source": SOURCE},
+        "fk_grade": fk,
+        "banned_words_found": banned,
+        "active_voice": active,
+        "source": "deterministic-post-processor",
     }
     # Build deviations using rationale.deviations[] semantics
     rationale = item.setdefault("rationale", {})
     existing_devs = rationale.get("deviations", [])
-    # Adapt: build_deviations reads checks.fk_grade as int, banned_words_found as list, active_voice as bool
-    legacy_view = {"checks": {"fk_grade": fk, "banned_words_found": banned, "active_voice": active}}
-    rationale["deviations"] = build_deviations(legacy_view, existing_devs, config.fk_max)
+    # build_deviations consumes the flat checks shape directly
+    rationale["deviations"] = build_deviations(item, existing_devs, config.fk_max)
     return item
 
 

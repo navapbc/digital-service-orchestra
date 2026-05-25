@@ -19,7 +19,7 @@ Skills that emit or consume this section must conform to this schema to ensure c
 schema_version: 1
 ```
 
-Each `## Copy Needs` section must begin with a `schema_version: 1` line (YAML comment or bare key) immediately following the heading, before any copy items are listed.
+Each `## Copy Needs` section must begin with the literal line `schema_version: 1` (bare key form, exact match, no leading `#` comment, no surrounding whitespace) as the first non-blank line after the heading, before any copy items are listed. The validator (`${CLAUDE_PLUGIN_ROOT}/scripts/check-copy-needs-schema.sh`) enforces this exact form.
 
 ---
 

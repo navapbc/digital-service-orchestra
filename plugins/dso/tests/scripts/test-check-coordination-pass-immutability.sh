@@ -336,7 +336,7 @@ bash "$DIFF_CHECK" >/dev/null 2>&1 || _EXIT_CODE=$?
 if [[ "$_EXIT_CODE" -eq 2 ]]; then
   pass "missing arguments exits with code 2"
 else
-  fail "missing arguments should exit 2 but exited $\_EXIT_CODE"
+  fail "missing arguments should exit 2 but exited $_EXIT_CODE"
 fi
 
 # ---------------------------------------------------------------------------

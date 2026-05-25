@@ -38,7 +38,7 @@ text format.  Each element represents one matched corpus entry.
 | `tags` | object | yes | Tag metadata dict. Always contains `domain` key. May also include `component`, `compliance`, `action`, `keywords`, `tags` when present in the source entry. |
 | `score` | number | yes | BM25 relevance score (float, rounded to 4 decimal places). Higher is more relevant. Always > 0 in returned results. |
 | `body` | string | yes | Primary human-readable content. Taken from `summary` > `description` > `detail` > `title` in priority order. |
-| `source_file` | string | yes | Filesystem path to the YAML file containing this entry. Absolute path on the local filesystem. |
+| `source_file` | string | yes | Filesystem path to the YAML file containing this entry. May be absolute OR relative to the corpus root — consumers MUST treat it as opaque text and not assume one or the other. When relative, it is rooted at the corpus directory passed to `ref-query.py`. (See [`${CLAUDE_PLUGIN_ROOT}/scripts/ref-query.py`](../../scripts/ref-query.py) `render_entry_json` for the resolution rule.) |
 
 ### `tags` object
 

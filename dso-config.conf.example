@@ -34,5 +34,4 @@ version=1.0.0
 # artifact_dir: relative path (from project root) where gov-copy-writer writes
 # epic governance artifacts.  Must be a relative path — absolute paths and '..'
 # traversal segments are rejected.  Directory is created lazily on first write.
-[copy]
-artifact_dir = copy/
+copy.artifact_dir=copy/

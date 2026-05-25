@@ -230,17 +230,20 @@ from gov_copy_postprocess.config import load_gov_copy_config, ConfigError  # noq
 
 @pytest.mark.unit
 class TestLoadGovCopyConfig:
-    """load_gov_copy_config reads [gov_copy] section from an INI config file."""
+    """load_gov_copy_config reads flat dot-notation gov_copy.* keys.
+
+    Matches the format parsed by read-config.sh — INI section headers are
+    deliberately NOT supported (silently ignored by read-config.sh).
+    """
 
     # [test_load_gov_copy_config_parses_valid_config]
     def test_load_gov_copy_config_parses_valid_config(self, tmp_path: Path) -> None:
-        """Valid [gov_copy] block returns object with correct banned_words, fk_max, closing_ratio."""
+        """Flat gov_copy.* keys return object with correct banned_words, fk_max, closing_ratio."""
         config_file = tmp_path / "gov-copy.conf"
         config_file.write_text(
-            "[gov_copy]\n"
-            "banned_words = utilize,leverage\n"
-            "fk_max = 8\n"
-            "closing_ratio = 0.95\n"
+            "gov_copy.banned_words=utilize,leverage\n"
+            "gov_copy.fk_max=8\n"
+            "gov_copy.closing_ratio=0.95\n"
         )
         result = load_gov_copy_config(config_file)
         assert result.banned_words == {"utilize", "leverage"}, (
@@ -259,24 +262,38 @@ class TestLoadGovCopyConfig:
         with pytest.raises(ConfigError):
             load_gov_copy_config(missing)
 
-    def test_load_gov_copy_config_raises_on_missing_section(self, tmp_path: Path) -> None:
-        """Config file without [gov_copy] section raises ConfigError."""
+    def test_load_gov_copy_config_raises_on_missing_keys(self, tmp_path: Path) -> None:
+        """Config file without gov_copy.* keys raises ConfigError listing the missing keys."""
         config_file = tmp_path / "other.conf"
         config_file.write_text(
-            "[other_section]\n"
-            "banned_words = utilize\n"
+            "other.banned_words=utilize\n"
         )
-        with pytest.raises(ConfigError):
+        with pytest.raises(ConfigError) as excinfo:
             load_gov_copy_config(config_file)
+        assert "gov_copy" in str(excinfo.value)
+
+    def test_load_gov_copy_config_ignores_ini_section_headers(self, tmp_path: Path) -> None:
+        """INI section headers are skipped; the parser still requires flat dot-notation keys."""
+        config_file = tmp_path / "ini.conf"
+        config_file.write_text(
+            "[gov_copy]\n"
+            "banned_words=utilize\n"
+            "fk_max=8\n"
+            "closing_ratio=0.95\n"
+        )
+        # Section header is ignored; the indented keys would still parse but the canonical
+        # gov_copy.* keys are absent, so this must fail with a "missing keys" ConfigError.
+        with pytest.raises(ConfigError) as excinfo:
+            load_gov_copy_config(config_file)
+        assert "missing" in str(excinfo.value).lower() or "gov_copy" in str(excinfo.value)
 
     def test_load_gov_copy_config_raises_on_unparseable_fk_max(self, tmp_path: Path) -> None:
         """fk_max value that cannot be parsed as int raises ConfigError."""
         config_file = tmp_path / "bad_fk.conf"
         config_file.write_text(
-            "[gov_copy]\n"
-            "banned_words = utilize\n"
-            "fk_max = abc\n"
-            "closing_ratio = 0.95\n"
+            "gov_copy.banned_words=utilize\n"
+            "gov_copy.fk_max=abc\n"
+            "gov_copy.closing_ratio=0.95\n"
         )
         with pytest.raises(ConfigError):
             load_gov_copy_config(config_file)
@@ -292,7 +309,7 @@ import yaml  # noqa: E402
 
 
 def _write_config(tmp_path: Path, **overrides) -> Path:
-    """Write a minimal [gov_copy] INI config file; overrides replace defaults."""
+    """Write a minimal flat dot-notation gov_copy.* config file; overrides replace defaults."""
     defaults = {
         "banned_words": "utilize,leverage",
         "fk_max": "12",
@@ -301,10 +318,9 @@ def _write_config(tmp_path: Path, **overrides) -> Path:
     defaults.update(overrides)
     cfg = tmp_path / "gov-copy.conf"
     cfg.write_text(
-        "[gov_copy]\n"
-        f"banned_words = {defaults['banned_words']}\n"
-        f"fk_max = {defaults['fk_max']}\n"
-        f"closing_ratio = {defaults['closing_ratio']}\n"
+        f"gov_copy.banned_words={defaults['banned_words']}\n"
+        f"gov_copy.fk_max={defaults['fk_max']}\n"
+        f"gov_copy.closing_ratio={defaults['closing_ratio']}\n"
     )
     return cfg
 
@@ -563,73 +579,19 @@ class TestMainPipelineOverwritesLLMFkGrade:
 # --- Test 2: Per-rule source fields (NOT a single top-level checks.source) ---
 
 @pytest.mark.unit
-class TestMainPipelinePerRuleSourceAttribution:
-    """Each rule in checks gets its own .source='deterministic-post-processing' field."""
+class TestMainPipelineSourceAttribution:
+    """Pipeline writes a single top-level checks.source='deterministic-post-processor'.
 
-    # [test_main_pipeline_per_rule_source_fk_grade]
-    def test_main_pipeline_per_rule_source_fk_grade(self, tmp_path: Path) -> None:
-        """checks.fk_grade must be a dict with source='deterministic-post-processing'."""
-        item = _make_passing_item("src-fk")
-        artifact = _write_artifact(tmp_path, items=[item])
-        cfg = _write_config(tmp_path)
-        result = _run_pipeline(artifact, cfg)
-        assert result.returncode == 0, (
-            f"Expected exit 0; got {result.returncode}.\n"
-            f"stderr={result.stderr!r}"
-        )
-        written = yaml.safe_load(artifact.read_text())
-        fk_block = written["items"][0]["checks"]["fk_grade"]
-        assert isinstance(fk_block, dict), (
-            f"checks.fk_grade must be a dict with a .source field; got {fk_block!r}"
-        )
-        assert fk_block.get("source") == "deterministic-post-processing", (
-            f"checks.fk_grade.source must be 'deterministic-post-processing'; "
-            f"got {fk_block.get('source')!r}"
-        )
+    This matches the gov-copy-artifact contract (flat checks shape with one
+    top-level source string). The earlier per-rule {value, source} shape was
+    rejected by the validator (check-gov-copy-artifact.sh) and contradicted
+    the contract spec at docs/contracts/gov-copy-artifact.md.
+    """
 
-    def test_main_pipeline_per_rule_source_banned(self, tmp_path: Path) -> None:
-        """checks.banned_words_found must be a dict with source='deterministic-post-processing'."""
-        item = _make_passing_item("src-banned")
-        artifact = _write_artifact(tmp_path, items=[item])
-        cfg = _write_config(tmp_path)
-        result = _run_pipeline(artifact, cfg)
-        assert result.returncode == 0, (
-            f"Expected exit 0; got {result.returncode}.\n"
-            f"stderr={result.stderr!r}"
-        )
-        written = yaml.safe_load(artifact.read_text())
-        banned_block = written["items"][0]["checks"]["banned_words_found"]
-        assert isinstance(banned_block, dict), (
-            f"checks.banned_words_found must be a dict with a .source field; got {banned_block!r}"
-        )
-        assert banned_block.get("source") == "deterministic-post-processing", (
-            f"checks.banned_words_found.source must be 'deterministic-post-processing'; "
-            f"got {banned_block.get('source')!r}"
-        )
-
-    def test_main_pipeline_per_rule_source_voice(self, tmp_path: Path) -> None:
-        """checks.active_voice must be a dict with source='deterministic-post-processing'."""
-        item = _make_passing_item("src-voice")
-        artifact = _write_artifact(tmp_path, items=[item])
-        cfg = _write_config(tmp_path)
-        result = _run_pipeline(artifact, cfg)
-        assert result.returncode == 0, (
-            f"Expected exit 0; got {result.returncode}.\n"
-            f"stderr={result.stderr!r}"
-        )
-        written = yaml.safe_load(artifact.read_text())
-        voice_block = written["items"][0]["checks"]["active_voice"]
-        assert isinstance(voice_block, dict), (
-            f"checks.active_voice must be a dict with a .source field; got {voice_block!r}"
-        )
-        assert voice_block.get("source") == "deterministic-post-processing", (
-            f"checks.active_voice.source must be 'deterministic-post-processing'; "
-            f"got {voice_block.get('source')!r}"
-        )
-
-    def test_main_pipeline_no_single_top_level_checks_source(self, tmp_path: Path) -> None:
-        """checks must NOT have a flat top-level 'source' key (per-rule, not aggregate)."""
-        item = _make_passing_item("src-no-top")
+    # [test_main_pipeline_source_is_post_processor]
+    def test_main_pipeline_source_is_post_processor(self, tmp_path: Path) -> None:
+        """checks.source must be exactly 'deterministic-post-processor' per contract."""
+        item = _make_passing_item("src-flat")
         artifact = _write_artifact(tmp_path, items=[item])
         cfg = _write_config(tmp_path)
         result = _run_pipeline(artifact, cfg)
@@ -638,9 +600,30 @@ class TestMainPipelinePerRuleSourceAttribution:
         )
         written = yaml.safe_load(artifact.read_text())
         checks = written["items"][0]["checks"]
-        assert "source" not in checks, (
-            f"checks must NOT have a flat top-level 'source' key; "
-            f"source must be per-rule only. Got checks keys: {list(checks.keys())!r}"
+        assert checks.get("source") == "deterministic-post-processor", (
+            f"checks.source must be 'deterministic-post-processor' (contract value); "
+            f"got {checks.get('source')!r}"
+        )
+
+    def test_main_pipeline_checks_are_flat_primitives(self, tmp_path: Path) -> None:
+        """checks.fk_grade, banned_words_found, active_voice are primitives, not dicts."""
+        item = _make_passing_item("src-primitives")
+        artifact = _write_artifact(tmp_path, items=[item])
+        cfg = _write_config(tmp_path)
+        result = _run_pipeline(artifact, cfg)
+        assert result.returncode == 0, (
+            f"Expected exit 0; got {result.returncode}.\nstderr={result.stderr!r}"
+        )
+        written = yaml.safe_load(artifact.read_text())
+        checks = written["items"][0]["checks"]
+        assert isinstance(checks["fk_grade"], int), (
+            f"checks.fk_grade must be int per contract; got {type(checks['fk_grade']).__name__}"
+        )
+        assert isinstance(checks["banned_words_found"], list), (
+            f"checks.banned_words_found must be list per contract; got {type(checks['banned_words_found']).__name__}"
+        )
+        assert isinstance(checks["active_voice"], bool), (
+            f"checks.active_voice must be bool per contract; got {type(checks['active_voice']).__name__}"
         )
 
 
