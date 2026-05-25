@@ -566,3 +566,4 @@ plugins/dso/scripts/telemetry/lambda-handler/privacy.py:plugins/dso/scripts/tele
 plugins/dso/scripts/telemetry/lambda-handler/schema.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_schema.py
 plugins/dso/scripts/telemetry/lambda-handler/validator.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_validator.py
 plugins/dso/scripts/telemetry/lambda-handler/handler.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_handler.py
+plugins/dso/scripts/check-copy-needs-schema.sh:tests/scripts/test-check-copy-needs-schema.sh [test_copy_needs_pass_fixture,test_copy_needs_fail_missing_field,test_copy_needs_fail_unknown_page]
