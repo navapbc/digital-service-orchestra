@@ -175,3 +175,19 @@ The fetcher prefers `startAt` pagination over `nextPageToken` precisely because 
 **Routing in reconcile.py**: see `route_inbound_probe(mutation, probe_result)` for the 4-branch mapping. hard_delete (ARCHIVED_OR_MOVED) emits (inbound, delete). trash_restore (PRESENT_RESOLVED) and unreachable do not emit follow-ons (audit-log only).
 
 **Operator action when probe returns UNREACHABLE**: do NOT classify the issue as missing — UNREACHABLE means the probe could not determine state. Re-run the next pass; persistent UNREACHABLE across passes indicates a network/credential problem, not a workflow gap.
+
+## INC-010: Outbound status push — comment-fallback heuristic on 400 illegal-transition
+
+**Symptom**: A reconciler pass sees a Jira issue's status field rejected when applying an outbound update. The applier emits an `add_comment` to the issue containing `local status changed to <status>`.
+
+**Why this happens**: Jira's workflow engine forbids some status transitions (e.g., Open → Done directly when an intermediate step is required). When `update_issue(key, status=...)` returns HTTP 400 with an `illegal transition` body, the applier does NOT retry — the request is logically valid but workflow-rejected. Instead, the applier falls back to a comment so the human assignee can see the local intent without breaking the Jira workflow gate.
+
+**Comment shape**: `local status changed to <status>` substring (asserted by `test_400_illegal_transition_falls_back_to_comment`).
+
+**Structured log**: a JSON record with `{action: 'comment_fallback', issue_key, attempted_status, reason: '400_illegal_transition'}` is written to stderr for operator triage.
+
+**Retry semantics**: zero `update_issue` retries on 400 illegal-transition (call_count == 1). Workflow rejections are state errors, not transient — retrying would only re-fire the same rejection.
+
+**Operator action**: review the structured log periodically; if the same `issue_key` appears repeatedly, either the local workflow needs a missing intermediate step OR the Jira workflow needs an additional permitted transition.
+
+**Status gating**: comment-fallback fires regardless of `DSO_RECONCILER_STATUS_GATING`. The env gate controls whether status fields are even DISPATCHED (preflight scan + draft-5 routing); the comment fallback is the applier-side resilience layer for status writes that DO get through.
