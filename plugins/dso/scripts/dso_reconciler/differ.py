@@ -401,4 +401,36 @@ def compute_mutations(
                     mutations_out=mutations,
                 )
 
+    # Symmetric inbound-probe pass: a local ticket may carry a bound
+    # ``jira_key`` pointing at a Jira issue that is ABSENT from the current
+    # jira_state working set. This is the inbound counterpart to the
+    # ambiguous_local_binding (outbound, probe) emission above — the local
+    # side believes a partner exists, but the Jira working set does not
+    # surface it. Emit (inbound, probe) so the applier can investigate
+    # (deleted? out of scope of working-set query? renamed?).
+    for local_key in sorted(local_state):
+        local_entry = local_state[local_key]
+        if not isinstance(local_entry, dict):
+            continue
+        bound_jira_key = local_entry.get("jira_key")
+        if not bound_jira_key:
+            continue
+        bound_jira_key_str = str(bound_jira_key)
+        if bound_jira_key_str in jira_state:
+            continue
+        _emit(
+            Mutation(
+                direction=MutationDirection.inbound,
+                action=MutationAction.probe,
+                target=bound_jira_key_str,
+                payload={"reason": "absent_partner"},
+                provenance={
+                    "source": "differ",
+                    "local_target": local_key,
+                },
+            ),
+            quarantine_set=quarantine_set,
+            mutations_out=mutations,
+        )
+
     return mutations
