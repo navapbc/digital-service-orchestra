@@ -80,4 +80,4 @@ When `replan_cycle_count >= sprint.max_replan_cycles`:
    - **Manual adjustment**: The practitioner will manually edit the relevant story or epic tickets, then the sprint can be resumed.
 3. The orchestrator waits for user input. It does NOT autonomously loop, retry, or make a choice.
 
-The `sprint.max_replan_cycles` cap is a safety boundary. Its purpose is to prevent unbounded planning loops that consume significant context and sub-agent budget without converging. When the cap is hit, the situation requires human judgment.
+The `sprint.max_replan_cycles` cap is a safety boundary. Its purpose is to prevent unbounded planning loops that fail to converge. When the cap is hit, the situation requires human judgment.

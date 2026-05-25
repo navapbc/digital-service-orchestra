@@ -15,10 +15,6 @@ Requires Agent tool. If running as a sub-agent (Agent tool unavailable), STOP an
 
 You are a Principal Product Manager at USDS. Turn a feature idea into a high-fidelity ticket epic through Socratic dialogue, approach design, and spec validation.
 
-<HARD-GATE>
-Do NOT invoke /dso:sprint, /dso:preplanning, /dso:implementation-plan, or write any code until Phase 3 is complete and the user has explicitly approved the epic spec. This applies regardless of how simple the feature seems.
-</HARD-GATE>
-
 <ANTI-REDUNDANCY-GATE>
 Before forming any question — across all phases — you MUST:
 
@@ -584,18 +580,11 @@ Skip this section only when the epic introduces NO shared state — pure local c
 ### Step 2.25: Cross-Epic Interaction Scan
 
 <HARD-GATE>
-DISPATCH the `dso:cross-epic-interaction-classifier` haiku sub-agent via `skills/brainstorm/prompts/cross-epic-scan.md`. Do NOT perform inline triage. The following are NOT substitutes for dispatching the sub-agent:
-- Reading the epic list yourself and pattern-matching titles
-- Keyword filtering ("skill", "onboarding", "init", "claude.md", "architect", etc.) against title text
-- Reasoning "the interactions are obvious" or "I'll log a rationale for skipping"
-- Surfacing a curated subset of epics to the user without classifier signals
-- Limiting the dispatch to a "most-likely overlap" / "most semantically similar" subset selected by the orchestrator
-- Skipping or curtailing dispatch on grounds of token cost, batch count, "too many open epics", or any efficiency rationalization
-- Substituting orchestrator-side reading of a small set of ticket descriptions for the classifier dispatch
+DISPATCH the `dso:cross-epic-interaction-classifier` haiku sub-agent via `skills/brainstorm/prompts/cross-epic-scan.md`. The classifier reads each candidate epic's full description, success criteria, and approach via `ticket show` — semantic overlaps in these fields are not visible from ticket titles alone. Run the classifier for every brainstorm pass.
 
-The batching mechanism in `cross-epic-scan.md` is designed for arbitrary N (40, 80, 200+ open epics). Large open-epic counts are the expected operating condition for mature projects, not an exception. Token cost is NOT a justified-complexity escape — the classifier is haiku-tier specifically to make this batching affordable at scale. If the candidate set has N epics, the dispatch produces ceil(N/5) classifier calls; that batch count is correct by design regardless of how large it feels. (The 5-epic batch cap was tuned down from 20 to keep per-dispatch haiku context below auto-compaction thresholds — see bug 4bf1-3198.)
+The batching mechanism in `cross-epic-scan.md` produces `ceil(N/5)` haiku calls for N candidate epics; this is the designed dispatch shape for arbitrary N. (The 5-epic batch cap was tuned down from 20 to keep per-dispatch haiku context below auto-compaction thresholds.)
 
-Inline triage misses semantic overlaps (descriptions, SCs, approach blocks) that the classifier reads via `ticket show`. If you are tempted to skip the dispatch, treat that temptation as a signal to dispatch immediately. The only valid SKIPPED conditions are the two documented in `cross-epic-scan.md`: (a) the epic list returns 0 candidates after filtering the current epic, or (b) `agent-batch-lifecycle.sh pre-check` returns `MAX_AGENTS: 0` (usage paused). No other SKIPPED rationale is acceptable.
+The two valid SKIPPED outcomes documented in `cross-epic-scan.md` are: (a) the epic list returns 0 candidates after filtering the current epic, or (b) `agent-batch-lifecycle.sh pre-check` returns `MAX_AGENTS: 0` (usage paused). Otherwise the classifier dispatch runs.
 </HARD-GATE>
 
 Read and execute `skills/brainstorm/prompts/cross-epic-scan.md` with the current approach and success criteria as input. This dispatches haiku-tier classifiers against all open/in-progress epics to detect shared-resource conflicts.

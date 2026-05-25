@@ -126,15 +126,7 @@ test_bug_with_detected_by_tag_appears() {
     assert_eq "test1: --has-tag exits 0" "0" "$exit_code"
 
     local found
-    found=$(python3 -c "
-import json, sys
-try:
-    tickets = json.loads(sys.argv[1])
-    ids = [t.get('ticket_id') for t in tickets if isinstance(t, dict)]
-    print('found' if 'bug-tag-001' in ids else 'missing')
-except Exception as e:
-    print(f'error:{e}')
-" "$output" 2>/dev/null || echo "error:parse")
+    found=$(printf '%s' "$output" | jq -r 'if (map(.ticket_id) | index("bug-tag-001")) then "found" else "missing" end' 2>/dev/null || echo "error:parse")
 
     assert_eq "test1: bug-tag-001 found in --has-tag=detected_by:tests output" "found" "$found"
 }
@@ -153,15 +145,7 @@ test_non_bug_excluded_from_detected_by_filter() {
     assert_eq "test2: --has-tag exits 0" "0" "$exit_code"
 
     local found
-    found=$(python3 -c "
-import json, sys
-try:
-    tickets = json.loads(sys.argv[1])
-    ids = [t.get('ticket_id') for t in tickets if isinstance(t, dict)]
-    print('present' if 'story-tag-001' in ids else 'absent')
-except Exception as e:
-    print(f'error:{e}')
-" "$output" 2>/dev/null || echo "error:parse")
+    found=$(printf '%s' "$output" | jq -r 'if (map(.ticket_id) | index("story-tag-001")) then "present" else "absent" end' 2>/dev/null || echo "error:parse")
 
     assert_eq "test2: story-tag-001 absent from --has-tag=detected_by:tests output (non-bug excluded)" "absent" "$found"
 }
@@ -180,25 +164,8 @@ test_non_bug_included_for_non_detected_by_tag() {
     assert_eq "test3: --has-tag=regression exits 0" "0" "$exit_code"
 
     local found_story found_bug
-    found_story=$(python3 -c "
-import json, sys
-try:
-    tickets = json.loads(sys.argv[1])
-    ids = [t.get('ticket_id') for t in tickets if isinstance(t, dict)]
-    print('found' if 'story-tag-002' in ids else 'missing')
-except Exception as e:
-    print(f'error:{e}')
-" "$output" 2>/dev/null || echo "error:parse")
-
-    found_bug=$(python3 -c "
-import json, sys
-try:
-    tickets = json.loads(sys.argv[1])
-    ids = [t.get('ticket_id') for t in tickets if isinstance(t, dict)]
-    print('found' if 'bug-tag-001' in ids else 'missing')
-except Exception as e:
-    print(f'error:{e}')
-" "$output" 2>/dev/null || echo "error:parse")
+    found_story=$(printf '%s' "$output" | jq -r 'if (map(.ticket_id) | index("story-tag-002")) then "found" else "missing" end' 2>/dev/null || echo "error:parse")
+    found_bug=$(printf '%s' "$output" | jq -r 'if (map(.ticket_id) | index("bug-tag-001")) then "found" else "missing" end' 2>/dev/null || echo "error:parse")
 
     assert_eq "test3: story-tag-002 found in --has-tag=regression output" "found" "$found_story"
     assert_eq "test3: bug-tag-001 also found in --has-tag=regression output (bug has regression tag too)" "found" "$found_bug"
@@ -218,14 +185,7 @@ test_no_matching_tickets_exits_0_empty() {
     assert_eq "test4: --has-tag=nonexistent exits 0" "0" "$exit_code"
 
     local ticket_count
-    ticket_count=$(python3 -c "
-import json, sys
-try:
-    tickets = json.loads(sys.argv[1])
-    print(len(tickets))
-except Exception as e:
-    print(f'error:{e}')
-" "$output" 2>/dev/null || echo "error:parse")
+    ticket_count=$(printf '%s' "$output" | jq 'length' 2>/dev/null || echo "error:parse")
 
     assert_eq "test4: result is empty array (0 tickets)" "0" "$ticket_count"
 }
@@ -247,15 +207,7 @@ test_inprocess_bug_with_detected_by_tag_appears() {
     assert_eq "test5: in-process --has-tag exits 0" "0" "$exit_code"
 
     local found
-    found=$(python3 -c "
-import json, sys
-try:
-    tickets = json.loads(sys.argv[1])
-    ids = [t.get('ticket_id') for t in tickets if isinstance(t, dict)]
-    print('found' if 'bug-tag-001' in ids else 'missing')
-except Exception as e:
-    print(f'error:{e}')
-" "$output" 2>/dev/null || echo "error:parse")
+    found=$(printf '%s' "$output" | jq -r 'if (map(.ticket_id) | index("bug-tag-001")) then "found" else "missing" end' 2>/dev/null || echo "error:parse")
 
     assert_eq "test5: bug-tag-001 found in in-process --has-tag=detected_by:tests output" "found" "$found"
 }
@@ -274,15 +226,7 @@ test_inprocess_non_bug_excluded_from_detected_by_filter() {
     assert_eq "test6: in-process --has-tag exits 0" "0" "$exit_code"
 
     local found
-    found=$(python3 -c "
-import json, sys
-try:
-    tickets = json.loads(sys.argv[1])
-    ids = [t.get('ticket_id') for t in tickets if isinstance(t, dict)]
-    print('present' if 'story-tag-001' in ids else 'absent')
-except Exception as e:
-    print(f'error:{e}')
-" "$output" 2>/dev/null || echo "error:parse")
+    found=$(printf '%s' "$output" | jq -r 'if (map(.ticket_id) | index("story-tag-001")) then "present" else "absent" end' 2>/dev/null || echo "error:parse")
 
     assert_eq "test6: story-tag-001 absent from in-process --has-tag=detected_by:tests output" "absent" "$found"
 }
