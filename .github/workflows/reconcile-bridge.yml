@@ -154,10 +154,16 @@ jobs:
         # `git commit` inside the reconciler's temp worktree fails exit 128
         # with "fatal: empty ident name" because CI runners have no global
         # git identity by default (bug bbf0-3380-74ab-4200).
+        #
+        # Defaults match the existing "Commit reconciler events back" step
+        # (dso-bridge[bot] / dso-bridge@users.noreply.github.com) so a single
+        # BRIDGE_BOT_NAME / BRIDGE_BOT_EMAIL repo variable controls both
+        # commit surfaces consistently.
         env:
-          BRIDGE_BOT_NAME: ${{ vars.BRIDGE_BOT_NAME || 'dso-reconciler[bot]' }}
-          BRIDGE_BOT_EMAIL: ${{ vars.BRIDGE_BOT_EMAIL || 'reconciler@users.noreply.github.com' }}
+          BRIDGE_BOT_NAME: ${{ vars.BRIDGE_BOT_NAME || 'dso-bridge[bot]' }}
+          BRIDGE_BOT_EMAIL: ${{ vars.BRIDGE_BOT_EMAIL || 'dso-bridge@users.noreply.github.com' }}
         run: |
+          set -euo pipefail
           git config --global user.name "${BRIDGE_BOT_NAME}"
           git config --global user.email "${BRIDGE_BOT_EMAIL}"
 
