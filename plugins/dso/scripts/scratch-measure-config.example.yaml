@@ -7,8 +7,8 @@
 # `.claude/scripts/dso ticket exists <test_epic_id>` and abort if missing.
 test_epic_id: "1234-abcd-ef56-7890"
 
-# Tokenizer to use for counting. Supported values: "tiktoken-cl100k"
-tokenizer: "tiktoken-cl100k"
+# Tokenizer to use for counting. Supported values: "tiktoken:cl100k_base" or "char4"
+tokenizer: "tiktoken:cl100k_base"
 
 # Git SHA of the commit BEFORE the changes being measured (baseline).
 pre_head_sha: "abc0000000000000000000000000000000000000"
