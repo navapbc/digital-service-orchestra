@@ -161,10 +161,44 @@ def test_run_pass_returns_75_on_reschedule_error(main_mod, tmp_path):
 
 
 def test_main_returns_0_when_reconcile_succeeds(main_mod, tmp_path):
-    """main() threads --repo-root through to run_pass and returns its exit code."""
+    """main() threads --repo-root through to run_pass and returns its exit code.
+
+    Advisory-lock guard calls are mocked out so this test remains a pure
+    unit test of the run_pass delegation path; lock integration is covered
+    by test_reconcile_main.py.
+    """
     stub = _make_stub_reconcile()
 
-    with patch.object(main_mod, "_try_load_step", return_value=stub):
+    # Mock _load_sibling_keyed so main() gets a stub advisory module that
+    # reports no lock and no phase gate, preventing real git calls on tmp_path.
+    advisory_stub = types.ModuleType("_advisory_lock_stub")
+    advisory_stub.check_pass_lock = MagicMock(return_value=False)
+    advisory_stub.check_phase_gate = MagicMock(return_value=False)
+    advisory_stub.acquire_pass_lock = MagicMock(return_value=None)
+    advisory_stub.release_pass_lock = MagicMock(return_value=None)
+
+    mode_stub = types.ModuleType("_mode_stub")
+    # Provide a real Mode-like object for LIVE
+    class _FakeMode:  # noqa: N801
+        value = "live"
+        @classmethod
+        def from_str(cls, v):
+            return cls()
+        def rank(self):
+            return 3
+        LIVE = None  # patched below
+    _FakeMode.LIVE = _FakeMode()
+    mode_stub.Mode = _FakeMode
+
+    def _fake_load_sibling(key, filename):
+        if "advisory" in filename:
+            return advisory_stub
+        if "mode" in filename:
+            return mode_stub
+        raise ImportError(f"Unexpected _load_sibling_keyed call: {filename}")
+
+    with patch.object(main_mod, "_try_load_step", return_value=stub), \
+         patch.object(main_mod, "_load_sibling_keyed", side_effect=_fake_load_sibling):
         rc = main_mod.main(["--repo-root", str(tmp_path)])
 
     assert rc == 0
