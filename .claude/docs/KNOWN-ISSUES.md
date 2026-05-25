@@ -228,3 +228,68 @@ The fetcher prefers `startAt` pagination over `nextPageToken` precisely because 
 **Operator warning**: do NOT extend ProvenanceLedger with persistent storage as a "fix" for surprising echo-suppression behavior. The right response to an unexpected suppression is: (a) verify the suppression actually was the right outcome (the values DO match), or (b) audit the upstream emission site to see what was recorded.
 
 **Related epic**: 4047 (Derivable Jira reconciler), story 26de-eb67-29d2-48ae (per-element provenance for conflict resolution).
+
+---
+
+## INC-013: Reconciler Orchestrator — Mode flag, pass-lock, phase-gate, 9-leaf dispatch
+
+**Story**: 9e3f-3208-af65-4b34 (orchestrator integration: mode + concurrency guards + dispatch table)
+
+### Mode flag
+
+`plugins/dso/scripts/dso_reconciler/mode.py` (task 0fb4) defines a strictly ordered `Mode` enum with 4 members:
+
+| Value | Meaning |
+|---|---|
+| `dry-run` | Read-only diff analysis; no writes emitted |
+| `bootstrap-strict` | Write-enabled, one mutation per pass; phase-gate required |
+| `bootstrap-throttle` | Write-enabled, throttled batch size; phase-gate removed |
+| `live` | Fully operational; no throttle |
+
+Ordering: `dry-run < bootstrap-strict < bootstrap-throttle < live`. There is **no `--force` override** that skips mode checks — the flag is a rollout-safety knob enforced in the main guard sequence (`plugins/dso/scripts/dso_reconciler/__main__.py`, task f516). `dry-run` is the fail-fast pre-fetcher mode: it runs the full fetch + diff pipeline but suppresses all applier calls.
+
+**Drift modes vs rollout modes**: `inject-and-heal.sh --mode=orphan|mislabel|missing-prop` is a shell-script `case` parameter for that script only. It is orthogonal to `reconcile.py`'s Mode enum — the two namespaces do not overlap.
+
+### Pass-lock (`.reconciler-pass-lock`)
+
+`.reconciler-pass-lock` is an **advisory** lock file stored on the `tickets` orphan branch. It complements — but does not replace — the GitHub Actions `concurrency: cancel-in-progress: false` setting at `.github/workflows/reconcile-bridge.yml` lines 21–23.
+
+**How it works** (implementation: `plugins/dso/scripts/dso_reconciler/_advisory_lock.py`, task a2ba):
+
+- The main guard sequence (`__main__.py`) acquires the lock at pass start via `git show tickets:.reconciler-pass-lock` to check for an existing holder.
+- A second invocation observes the lock file via `git show tickets:.reconciler-pass-lock` and exits non-zero in the pre-fetcher phase — before any fetch I/O occurs.
+- Acquire and release use the `_concurrency.rebase_retry` pattern to handle concurrent `tickets`-branch commits.
+
+**Why advisory**: the lock does not prevent concurrent execution at the OS level. The GHA `cancel-in-progress: false` ensures the workflow queue does not auto-cancel a running pass, and the advisory lock ensures a second invocation that races through the queue gate self-aborts without conflicting writes.
+
+**Operator action on stuck lock**: if `.reconciler-pass-lock` persists after a crashed pass, remove it manually: `git checkout tickets && git rm .reconciler-pass-lock && git commit -m 'release stuck pass-lock' && git checkout -`.
+
+### Phase-gate (`.reconciler-phase-gate`)
+
+`.reconciler-phase-gate` is a presence-based sentinel on the `tickets` orphan branch. Its presence signals that the reconciler is in `bootstrap-strict` mode. **Removing the file advances the rollout to `bootstrap-throttle`.**
+
+**Exact advance command** (operator-run; requires tickets-branch write access):
+
+```bash
+git checkout tickets && git rm .reconciler-phase-gate && git commit -m 'advance phase gate' && git checkout -
+```
+
+The main guard sequence (`__main__.py`) checks for the gate file at startup. If `Mode == bootstrap-strict` and the gate file is absent, the orchestrator treats the mode as `bootstrap-throttle` for the current pass. This is the designed advance path — do not edit `mode.py` or the CLI invocation to skip the gate.
+
+### 9-leaf dispatch table
+
+`plugins/dso/scripts/dso_reconciler/reconcile.py` (task 577c) builds a lazy `_DISPATCH_TABLE` keyed by `(direction, action)` pairs. The 9 primary dispatch leaves are:
+
+| Leaf key | Applier symbol |
+|---|---|
+| `inbound_create` | `_apply_inbound_create` |
+| `inbound_update` | `_apply_inbound_update` |
+| `inbound_delete` | `_apply_inbound_delete` |
+| `inbound_clean_label` | `_apply_inbound_clean_label` |
+| `inbound_repair_property` | `_apply_inbound_repair_property` |
+| `inbound_probe` | `_apply_inbound_probe` |
+| `outbound_create` | `_apply_outbound_create` |
+| `outbound_update` | `_apply_outbound_update` |
+| `outbound_delete` | `_apply_outbound_delete` |
+
+Each leaf maps one `(direction, action)` combination to a bound applier method. The table is built lazily on first dispatch call. An unknown `(direction, action)` key raises `UnknownDispatchLeaf` — it is never silently skipped.
