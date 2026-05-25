@@ -5,8 +5,9 @@
 # This file is advisory/abstract metadata. It is NOT loaded as a corpus entry.
 # check-corpus-schema.py and ref-query.py both skip it via SKIP_NAMES.
 #
-# Conflict resolution: higher tier number wins absolutely. A canon-rule entry
-# with hard_constraint: true is immutable — no lower-tier guidance can override it.
+# Conflict resolution: LOWER-numbered tier wins absolutely. Tier 1 (canon-rule)
+# is the highest authority and beats Tiers 2/3/4. A canon-rule entry with
+# hard_constraint: true is immutable — no other tier can override it.
 
 precedence:
   - "canon-rule"

@@ -122,9 +122,8 @@ def main():
         yaml.safe_dump(artifact, f, default_flow_style=False, sort_keys=False)
     tmp_path.replace(artifact_path)
 
-    # Summary output — print both pass_ratio and pass_rate so all test assertions match
+    # Summary output — single canonical field name (pass_ratio).
     print(f"pass_ratio: {pass_ratio:.2f}")
-    print(f"pass_rate: {pass_ratio:.2f}")
     print(f"total_items: {total}")
     print(f"deviations_count: {deviations_count}")
     print(f"closing_threshold_met: {str(threshold_met).lower()}")

@@ -187,13 +187,10 @@ def main() -> None:
         if isinstance(item, dict) and "id" in item:
             second_items[item["id"]] = item
 
-    # Build hard-constraint canon id set
+    # Build hard-constraint canon id set.
+    # build_hard_constraint_set() sys.exit(2)s on empty/parse-error corpus, so
+    # `hard_ids` is guaranteed non-empty past this point.
     hard_ids = build_hard_constraint_set(canon_dir)
-    if not hard_ids:
-        print(
-            "WARNING: No hard-constraint canon entries found in: " + str(canon_dir),
-            file=sys.stderr,
-        )
 
     # Check each first-pass item
     violations: list[str] = []

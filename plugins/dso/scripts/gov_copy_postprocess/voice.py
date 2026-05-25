@@ -13,7 +13,10 @@ import re
 # Irregulars: explicit list of forms frequently used in government UI copy.
 _PASSIVE_PATTERN = re.compile(
     r"\b(am|is|are|was|were|be|been|being)\b\s+"
-    r"(?:[a-z]{2,}ed|reviewed|submitted|done|seen|given|taken|made|written|broken|chosen|known|shown|paid|sent|kept|held|told|sold|brought|caught|found|left|lost|met|read|set|put|cut|hit|let|run)\b",
+    # Regular past: 2+ letters before 'ed' (avoids 'bed', 'red', 'ted' as nouns).
+    # Short-root regular past participles ('fed', 'wed', 'shed') are listed
+    # explicitly because the [a-z]{2,}ed pattern excludes them by design.
+    r"(?:[a-z]{2,}ed|fed|wed|shed|reviewed|submitted|done|seen|given|taken|made|written|broken|chosen|known|shown|paid|sent|kept|held|told|sold|brought|caught|found|left|lost|met|read|set|put|cut|hit|let|run)\b",
     re.IGNORECASE,
 )
 

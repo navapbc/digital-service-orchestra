@@ -367,15 +367,14 @@ class TestMainPipelineEmptyItems:
         )
 
     def test_main_pipeline_empty_items_stdout_all_pass(self, tmp_path: Path) -> None:
-        """Empty items[] artifact stdout must contain pass_ratio: 1.00 or pass_ratio: 0/0
+        """Empty items[] artifact stdout must contain pass_ratio: 1.00
         and closing_threshold_met: true."""
         artifact = _write_artifact(tmp_path, items=[])
         cfg = _write_config(tmp_path)
         result = _run_pipeline(artifact, cfg)
         stdout = result.stdout.lower()
-        has_pass_ratio = "pass_ratio: 1.00" in stdout or "pass_ratio: 0/0" in stdout
-        assert has_pass_ratio, (
-            f"Expected stdout to contain 'pass_ratio: 1.00' or 'pass_ratio: 0/0'.\n"
+        assert "pass_ratio: 1.00" in stdout, (
+            f"Expected stdout to contain 'pass_ratio: 1.00' for empty-items artifact.\n"
             f"stdout={result.stdout!r}"
         )
         assert "closing_threshold_met: true" in stdout, (
@@ -684,7 +683,7 @@ class TestMainPipelineBelowThresholdExit:
         cfg = _write_config(tmp_path, closing_ratio="0.95")
         result = _run_pipeline(artifact, cfg)
         assert result.returncode != 0, (
-            f"Artifact with pass_rate<0.95 must exit non-zero; got {result.returncode}.\n"
+            f"Artifact with pass_ratio<0.95 must exit non-zero; got {result.returncode}.\n"
             f"stdout={result.stdout!r}\nstderr={result.stderr!r}"
         )
 
@@ -708,7 +707,7 @@ class TestMainPipelineBelowThresholdExit:
         cfg = _write_config(tmp_path, closing_ratio="0.95")
         result = _run_pipeline(artifact, cfg)
         stdout_lower = result.stdout.lower()
-        for field in ("pass_rate:", "total_items:", "deviations_count:"):
+        for field in ("pass_ratio:", "total_items:", "deviations_count:"):
             assert field in stdout_lower, (
                 f"Expected '{field}' in stdout summary.\nstdout={result.stdout!r}"
             )
