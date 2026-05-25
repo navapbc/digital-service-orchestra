@@ -2,7 +2,7 @@
 # ticket-show.sh
 # Show compiled state for one or more tickets by invoking the event reducer.
 #
-# Usage: ticket show [--format=<fmt>] <ticket_id> [<ticket_id> ...]
+# Usage: ticket show [--format=<fmt>] [--include-scratch] <ticket_id> [<ticket_id> ...]
 #   ticket_id: ID(s) of the ticket(s) to show. Multiple IDs print one
 #              compiled state per ticket; default format outputs each as a
 #              standalone pretty-printed JSON document separated by blank
@@ -22,6 +22,13 @@
 #                   comments    → cm
 #                   deps        → dp
 #                   conflicts   → cf
+#   --include-scratch  Merge per-ticket scratch store entries into the output
+#                      as a top-level "scratch" object:
+#                        { "<key>": { "ts": "<iso8601>", "value": "<string>" }, ... }
+#                      When the scratch directory is absent or empty, emits
+#                      scratch: {} (empty object, not absent). When this flag
+#                      is omitted, no "scratch" key appears in the output
+#                      (backward-compatible default).
 #
 # Exit code: 0 if all requested tickets resolve and reduce successfully; 1 if
 # any one fails (the failure is reported and remaining tickets are still
@@ -48,7 +55,7 @@ fi
 
 # ── Usage ─────────────────────────────────────────────────────────────────────
 _usage() {
-    echo "Usage: ticket show [--format=llm] <ticket_id> [<ticket_id> ...]" >&2
+    echo "Usage: ticket show [--format=llm] [--include-scratch] <ticket_id> [<ticket_id> ...]" >&2
     exit 1
 }
 
@@ -56,6 +63,7 @@ _usage() {
 # Multi-ID support (bug jira-dig-2565): collect all positional args, not
 # just the first. Each ID is resolved and reduced independently below.
 format="default"
+include_scratch="false"
 ticket_ids=()
 
 for arg in "$@"; do
@@ -66,6 +74,9 @@ for arg in "$@"; do
         --format=*)
             echo "Error: unsupported format '${arg#--format=}'. Supported: llm" >&2
             exit 1
+            ;;
+        --include-scratch)
+            include_scratch="true"
             ;;
         -*)
             echo "Error: unknown option '$arg'" >&2
@@ -115,7 +126,10 @@ for _raw_id in "${ticket_ids[@]}"; do
     # multi-ID outer loop introduced for bug jira-dig-2565 runs this one
     # call per ID; the per-section count is unchanged.
     _TICKET_DIR="$TRACKER_DIR/$ticket_id" _TICKET_ID="$ticket_id" \
-    _FORMAT="$format" _SCRIPT_DIR="$SCRIPT_DIR" python3 -c "
+    _FORMAT="$format" _SCRIPT_DIR="$SCRIPT_DIR" \
+    _INCLUDE_SCRATCH="$include_scratch" \
+    _SCRATCH_BASE_DIR="${SCRATCH_BASE_DIR:-}" \
+    python3 -c "
 import sys, os, json
 sys.path.insert(0, os.environ['_SCRIPT_DIR'])
 from ticket_reducer import reduce_ticket
@@ -123,6 +137,7 @@ from ticket_reducer import reduce_ticket
 ticket_dir = os.environ['_TICKET_DIR']
 ticket_id = os.environ['_TICKET_ID']
 fmt = os.environ.get('_FORMAT', 'default')
+include_scratch = os.environ.get('_INCLUDE_SCRATCH', 'false') == 'true'
 
 state = reduce_ticket(ticket_dir)
 if state is None:
@@ -132,6 +147,37 @@ if state.get('status') in ('error', 'fsck_needed'):
     print(json.dumps(state, ensure_ascii=False))
     print(f'Error: ticket \"{ticket_id}\" has status \"{state[\"status\"]}\"', file=sys.stderr)
     sys.exit(1)
+
+if include_scratch:
+    # Resolve scratch base directory: prefer explicit env override, else
+    # fall back to <repo_root>/.claude/scratch/ relative to the tracker dir.
+    scratch_base = os.environ.get('_SCRATCH_BASE_DIR', '').strip()
+    if not scratch_base:
+        # Infer repo root as two levels above tracker dir
+        # (.tickets-tracker/ is at repo root, so parent of tracker_dir is repo root)
+        tracker_parent = os.path.dirname(ticket_dir)  # tracker dir itself
+        repo_root = os.path.dirname(tracker_parent)   # repo root
+        scratch_base = os.path.join(repo_root, '.claude', 'scratch')
+    scratch_ticket_dir = os.path.join(scratch_base, ticket_id)
+    scratch_data = {}
+    if os.path.isdir(scratch_ticket_dir):
+        for entry in sorted(os.listdir(scratch_ticket_dir)):
+            entry_path = os.path.join(scratch_ticket_dir, entry)
+            # Skip non-files (subdirs, hidden files, tmp artifacts)
+            if not os.path.isfile(entry_path):
+                continue
+            if entry.startswith('.') or '.tmp.' in entry:
+                continue
+            try:
+                with open(entry_path, 'r', encoding='utf-8') as f:
+                    envelope = json.load(f)
+                scratch_data[entry] = {
+                    'ts': envelope.get('ts', ''),
+                    'value': envelope.get('value', ''),
+                }
+            except (OSError, json.JSONDecodeError):
+                pass  # skip unreadable/corrupt entries silently
+    state['scratch'] = scratch_data
 
 if fmt == 'llm':
     print(json.dumps(__import__('ticket_reducer.llm_format', fromlist=['to_llm']).to_llm(state), ensure_ascii=False, separators=(',', ':')))
