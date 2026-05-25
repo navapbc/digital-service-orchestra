@@ -776,6 +776,63 @@ def delete_one(mutation: dict, client) -> None:
         raise
 
 
+def inbound_repair_property(mutation, client) -> dict:
+    """Repair a missing entity property on a Jira issue.
+
+    Happy path: invokes ``client.set_issue_property(target, 'dso_local_id', local_id)``
+    and returns ``{'status': 'ok', 'key': target}``.
+
+    Failure path: when ``set_issue_property`` raises, attempts a follow-on cleanup
+    via ``client.remove_label(target, 'dso-id-<local_id>')`` (best-effort — a
+    ``remove_label`` exception is captured, NOT raised), and returns an outcome
+    dict with ``status='repair_property_failed'`` plus a top-level ``follow_on``
+    payload whose ``kind`` is ``'schema_drift_signal'``. The follow-on is the
+    signalling seam consumed by reconcile.py; this function MUST NOT import
+    invariants directly — preserving the invariants-as-upstream-phase contract
+    (see ticket 44e6-4916 AC: "applier.py does NOT import invariants").
+
+    The follow_on field sits at the TOP LEVEL of the outcome dict (not nested
+    under 'result'); manifest canonical-form serialization is expected to
+    EXCLUDE follow_on fields when computing the content-addressable hash
+    (per AC amendment G2 on ticket 44e6-4916).
+
+    Args:
+        mutation: Object exposing ``.target`` (Jira issue key) and ``.payload``
+                  (mapping with at least a ``'local_id'`` entry).
+        client:   AcliClient (or compatible test double) exposing
+                  ``set_issue_property`` and ``remove_label``.
+
+    Returns:
+        Outcome dict — see status taxonomy above.
+    """
+    target = mutation.target
+    payload = mutation.payload or {}
+    local_id = payload.get("local_id", "")
+
+    try:
+        client.set_issue_property(target, "dso_local_id", local_id)
+        return {"status": "ok", "key": target, "follow_on": None}
+    except Exception as exc:
+        label_remove_err: Exception | None = None
+        try:
+            client.remove_label(target, f"dso-id-{local_id}")
+        except Exception as e:
+            label_remove_err = e
+
+        return {
+            "status": "repair_property_failed",
+            "key": target,
+            "follow_on": {
+                "kind": "schema_drift_signal",
+                "issue_key": target,
+                "reason": f"repair_property_failed: {exc}",
+                "label_remove_error": (
+                    str(label_remove_err) if label_remove_err is not None else None
+                ),
+            },
+        }
+
+
 def _handle_failed_write_result(write_result, pass_id: str) -> None:
     """Emit a health event to stderr and raise RescheduleError for a failed write.
 
