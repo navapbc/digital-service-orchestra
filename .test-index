@@ -566,4 +566,4 @@ plugins/dso/scripts/telemetry/lambda-handler/schema.py:plugins/dso/scripts/telem
 plugins/dso/scripts/telemetry/lambda-handler/validator.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_validator.py
 plugins/dso/scripts/dso_reconciler/mutation.py:tests/unit/dso_reconciler/test_mutation.py
 plugins/dso/scripts/telemetry/lambda-handler/handler.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_handler.py
-plugins/dso/scripts/dso_reconciler/differ.py:tests/unit/dso_reconciler/test_differ.py
+plugins/dso/scripts/dso_reconciler/differ.py:tests/unit/dso_reconciler/test_differ.py,tests/unit/dso_reconciler/test_differ_conflict_resolution.py

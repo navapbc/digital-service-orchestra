@@ -133,11 +133,32 @@ def compute_mutations(
     # An outbound create for a local ticket whose dso_local_id is already
     # bound in Jira would re-create an already-mirrored issue (dd-4 AC).
     bound_local_ids: set[str] = set()
-    for jira_entry in jira_state.values():
+    # Reverse map: dso_local_id -> jira_key, so we can detect dangling
+    # references where the Jira side claims a binding to a local ticket
+    # that no longer exists locally (dd-5).
+    jira_local_id_to_key: dict[str, str] = {}
+    for jira_key, jira_entry in jira_state.items():
         if isinstance(jira_entry, dict):
             cand = jira_entry.get("dso_local_id")
             if cand:
                 bound_local_ids.add(str(cand))
+                jira_local_id_to_key.setdefault(str(cand), jira_key)
+
+    # Build a map: dso_local_id -> [local_key, ...] from local_state, to
+    # detect duplicate dso_local_id collisions across local tickets (dd-5).
+    local_id_to_keys: dict[str, list[str]] = {}
+    for local_key, local_entry in local_state.items():
+        if isinstance(local_entry, dict):
+            cand = local_entry.get("dso_local_id")
+            if cand:
+                local_id_to_keys.setdefault(str(cand), []).append(local_key)
+    # The set of local dso_local_ids that have a collision (>1 owners).
+    duplicate_local_ids: set[str] = {
+        lid for lid, keys in local_id_to_keys.items() if len(keys) > 1
+    }
+    # The set of local dso_local_ids that are present in local_state at all,
+    # used to short-circuit dangling-jira-ref detection.
+    local_dso_ids: set[str] = set(local_id_to_keys.keys())
 
     mutations: list[Any] = []
     all_keys = set(local_state) | set(jira_state)
@@ -153,10 +174,74 @@ def compute_mutations(
                 if isinstance(local_fields, dict)
                 else None
             )
+            local_id_str = str(local_id_val) if local_id_val else None
+
+            # dd-5: duplicate dso_local_id collision across local tickets —
+            # surface each colliding owner as an (inbound, conflict) Mutation
+            # so the human or downstream tooling can disambiguate. Take
+            # precedence over the standard outbound-create path because the
+            # underlying state is unbindable as-is.
+            if local_id_str and local_id_str in duplicate_local_ids:
+                colliding = sorted(local_id_to_keys[local_id_str])
+                mutations.append(
+                    Mutation(
+                        direction=MutationDirection.inbound,
+                        action=MutationAction.conflict,
+                        target=key,
+                        payload={},
+                        provenance={
+                            "source": "differ",
+                            "reason": "duplicate_local_id",
+                            "local_id": local_id_str,
+                            "colliding_keys": colliding,
+                        },
+                    )
+                )
+                continue
+
             if local_id_val and str(local_id_val) in bound_local_ids:
                 # Already mirrored in Jira under a different key — do not
                 # emit a redundant outbound create. (dd-4)
                 continue
+
+            # dd-5: ambiguous local binding — local ticket carries a
+            # dso_local_id that matches the KEY of an unrelated Jira issue
+            # (an issue that exists in jira_state but does NOT carry a
+            # back-pointer dso_local_id binding). This suggests a possibly
+            # stale or conflated binding: the local_id may once have referred
+            # to that Jira issue, but the Jira side no longer agrees. Emit
+            # (outbound, probe) so the applier can disambiguate before
+            # blindly creating a duplicate Jira issue.
+            #
+            # Design choice: a bare unbound_local with dso_local_id and no
+            # jira-side signal is treated as a normal outbound create
+            # (preserving existing test_differ.py semantics) — the ambiguity
+            # signal is the presence of a jira_state entry under the same
+            # key as the local_id, without a reciprocal binding.
+            if local_id_str and local_id_str in jira_state:
+                jira_sibling = jira_state.get(local_id_str) or {}
+                sibling_local_id = (
+                    jira_sibling.get("dso_local_id")
+                    if isinstance(jira_sibling, dict)
+                    else None
+                )
+                if not sibling_local_id:
+                    mutations.append(
+                        Mutation(
+                            direction=MutationDirection.outbound,
+                            action=MutationAction.probe,
+                            target=key,
+                            payload={},
+                            provenance={
+                                "source": "differ",
+                                "reason": "ambiguous_local_binding",
+                                "local_id": local_id_str,
+                                "jira_sibling_key": local_id_str,
+                            },
+                        )
+                    )
+                    continue
+
             payload = {
                 f: v
                 for f, v in local_fields.items()
@@ -181,6 +266,36 @@ def compute_mutations(
             )
         elif in_jira and not in_local:
             jira_fields = jira_state[key] or {}
+            jira_local_id = (
+                jira_fields.get("dso_local_id")
+                if isinstance(jira_fields, dict)
+                else None
+            )
+            jira_local_id_str = str(jira_local_id) if jira_local_id else None
+
+            # dd-5: dangling jira ref — the Jira issue claims a binding to a
+            # dso_local_id that has no matching local ticket. Surface as
+            # (inbound, conflict) so the human can decide whether to recreate
+            # the local ticket, clear the Jira-side binding, or close the
+            # Jira issue. Never silently drop.
+            if jira_local_id_str and jira_local_id_str not in local_dso_ids:
+                mutations.append(
+                    Mutation(
+                        direction=MutationDirection.inbound,
+                        action=MutationAction.conflict,
+                        target=key,
+                        payload={
+                            "jira_field_snapshot": dict(jira_fields),
+                        },
+                        provenance={
+                            "source": "differ",
+                            "reason": "dangling_jira_local_id",
+                            "dangling_local_id": jira_local_id_str,
+                        },
+                    )
+                )
+                continue
+
             payload = {
                 f: v
                 for f, v in jira_fields.items()
