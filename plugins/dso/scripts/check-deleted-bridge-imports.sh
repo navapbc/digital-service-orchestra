@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 # check-deleted-bridge-imports.sh — scan for references to deleted legacy bridge modules.
-# Advisory mode (default): exit 0 regardless of hits.
-# --strict: exit 1 if any hits exist.
+# Strict mode (default, enforcing): exit 1 if any hits exist.
+# --advisory: exit 0 regardless of hits (legacy/local override for soft rollout).
+#
+# Matches only real module references (Python `from`/`import` statements or
+# `<module>.py` filename references), not the generic English word "bootstrap".
 
 set -euo pipefail
 
-MODE="advisory"
+MODE="strict"
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --strict) MODE="strict"; shift ;;
@@ -51,13 +54,18 @@ scan_zone() {
     local hits=""
     local alt
     alt=$(IFS='|'; echo "${MODULES[*]}")
+    # Match real module references only:
+    #   1. <module>.py — filename references (subprocess invocations, docstrings)
+    #   2. (from|import) ... <module> — Python import statements (incl. relative)
+    # This avoids matching the generic English word "bootstrap" used elsewhere.
+    local pattern="($alt)\\.py|(^|[^A-Za-z0-9_.])(from|import)[[:space:]]+(\\.+)?($alt)([[:space:]]|\$|,|\\.)"
     if command -v rg >/dev/null 2>&1; then
         if [[ -e "$zone_path" ]]; then
-            hits=$(rg --no-heading --line-number -w "($alt)" "$zone_path" 2>/dev/null || true)
+            hits=$(rg --no-heading --line-number -e "$pattern" "$zone_path" 2>/dev/null || true)
         fi
     else
         if [[ -e "$zone_path" ]]; then
-            hits=$(grep -rn -wE "($alt)" "$zone_path" 2>/dev/null || true)
+            hits=$(grep -rnE "$pattern" "$zone_path" 2>/dev/null || true)
         fi
     fi
     if [[ -n "$hits" ]]; then

@@ -543,11 +543,6 @@ plugins/dso/scripts/dso_reconciler/alert_store.py:tests/unit/dso_reconciler/test
 plugins/dso/scripts/dso_reconciler/invariants.py:tests/unit/dso_reconciler/test_invariants.py
 plugins/dso/scripts/dso_reconciler/health.py:tests/unit/dso_reconciler/test_health.py,tests/unit/dso_reconciler/test_health_baseline.py,tests/unit/dso_reconciler/test_health_schema.py
 plugins/dso/scripts/dso_reconciler/_attestation.py:tests/unit/dso_reconciler/test_attestation.py
-plugins/dso/scripts/dso_reconciler/bootstrap.py:tests/unit/dso_reconciler/test_bootstrap_baseline.py
-plugins/dso/scripts/dso_reconciler/orphan_band.py:tests/unit/dso_reconciler/test_orphan_band_apply.py,tests/unit/dso_reconciler/test_orphan_band_gate.py
-plugins/dso/scripts/dso_reconciler/stale_band.py:tests/unit/dso_reconciler/test_stale_band_apply.py,tests/unit/dso_reconciler/test_stale_band_gate.py,tests/unit/dso_reconciler/test_stale_band_plan.py
-plugins/dso/scripts/dso_reconciler/duplicates_band.py:tests/unit/dso_reconciler/test_duplicates_band_apply.py,tests/unit/dso_reconciler/test_duplicates_band_gate.py,tests/unit/dso_reconciler/test_duplicates_band_plan.py
-plugins/dso/scripts/dso_reconciler/open_count_skew_band.py:tests/unit/dso_reconciler/test_open_count_skew_band_apply.py,tests/unit/dso_reconciler/test_open_count_skew_band_gate.py,tests/unit/dso_reconciler/test_open_count_skew_band_plan.py
 plugins/dso/data/ui-reference/principles/:tests/scripts/test_corpus_principles.py [test_principles_directory_contains_all_required_sources]
 plugins/dso/data/ui-reference/patterns/:tests/scripts/test_corpus_patterns_dark.py [test_brignull_dark_patterns_yaml_exists]
 plugins/dso/data/ui-reference/accessibility/:tests/scripts/test_corpus_accessibility_wcag.py [test_accessibility_directory_exists]
