@@ -565,4 +565,5 @@ plugins/dso/scripts/telemetry/lambda-handler/s3_writer.py:plugins/dso/scripts/te
 plugins/dso/scripts/telemetry/lambda-handler/privacy.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_privacy_truth_table.py
 plugins/dso/scripts/telemetry/lambda-handler/schema.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_schema.py
 plugins/dso/scripts/telemetry/lambda-handler/validator.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_validator.py
+plugins/dso/scripts/dso_reconciler/mutation.py:tests/unit/dso_reconciler/test_mutation.py [test_outbound_clean_label_rejected]
 plugins/dso/scripts/telemetry/lambda-handler/handler.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_handler.py
