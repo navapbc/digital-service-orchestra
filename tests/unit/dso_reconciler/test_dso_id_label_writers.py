@@ -302,3 +302,167 @@ def test_guard_mode_precedence(applier, errors_mod, env_val, config_val, expecte
             os.environ["DSO_DSO_ID_GUARD_MODE"] = original_env
         else:
             os.environ.pop("DSO_DSO_ID_GUARD_MODE", None)
+
+
+# ---------------------------------------------------------------------------
+# Per-leaf test matrix (9 tests, one per applier leaf)
+#
+# Canonical leaf names come from applier._LEAF_NAMES:
+#   outbound_create, outbound_update, outbound_delete, outbound_probe,
+#   outbound_conflict, inbound_create, inbound_update, inbound_clean_label,
+#   inbound_repair_property
+#
+# Authorization:
+#   AUTHORIZED (no raise):
+#     - outbound_create  → create action permitted
+#     - inbound_clean_label → delete action permitted
+#   UNAUTHORIZED (raises DsoIdLabelWriteError):
+#     - all other 7 leaves when they produce a dso-id-* label mutation
+#
+# For inbound_repair_property: this leaf writes a PROPERTY FIELD (target='property'),
+# NOT a label. The test asserts that a property-field mutation does NOT trigger the
+# guard (target != 'label' so _is_dso_id_label_write_mutation returns False).
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Per-leaf test 1 — outbound_create (AUTHORIZED: create)
+# ---------------------------------------------------------------------------
+
+
+def test_outbound_create_may_write_dso_id_label(applier):
+    """outbound_create is the only authorized leaf for dso-id label CREATE.
+
+    Assertion: _audit_dso_id_label_writes does NOT raise, and the mutation list
+    passed in is exactly the one mutation (no implicit extra writes possible via
+    the audit itself).
+    """
+    mut = _MockLabelMutation(payload="dso-id-abc-outbound-create", action="create")
+    # Should not raise — outbound_create is authorized for create
+    applier._audit_dso_id_label_writes("outbound_create", [mut])
+    # AC amendment: confirm audit does not inject additional mutations
+    mutations = [mut]
+    applier._audit_dso_id_label_writes("outbound_create", mutations)
+    assert mutations == [mut], "audit must not mutate the input list"
+
+
+# ---------------------------------------------------------------------------
+# Per-leaf test 2 — inbound_clean_label (AUTHORIZED: delete)
+# ---------------------------------------------------------------------------
+
+
+def test_inbound_clean_label_may_delete_dso_id_label(applier):
+    """inbound_clean_label is the only authorized leaf for dso-id label DELETE.
+
+    Assertion: _audit_dso_id_label_writes does NOT raise for a delete mutation,
+    and the mutation list is unchanged (no implicit extra writes).
+    """
+    mut = _MockLabelMutation(payload="dso-id-stale-label", action="delete")
+    mutations = [mut]
+    # Should not raise — inbound_clean_label is authorized for delete
+    applier._audit_dso_id_label_writes("inbound_clean_label", mutations)
+    assert mutations == [mut], "audit must not mutate the input list"
+
+
+# ---------------------------------------------------------------------------
+# Per-leaf tests 3–9 — UNAUTHORIZED leaves (must raise DsoIdLabelWriteError)
+# ---------------------------------------------------------------------------
+
+
+def test_outbound_update_must_not_write_dso_id_label(applier):
+    """outbound_update is UNAUTHORIZED for dso-id label writes.
+
+    Passes a create mutation with a dso-id-* payload through
+    _audit_dso_id_label_writes; expects DsoIdLabelWriteError.
+    """
+    mut = _MockLabelMutation(payload="dso-id-should-not-write", action="create")
+    with pytest.raises(applier.DsoIdLabelWriteError) as exc_info:
+        applier._audit_dso_id_label_writes("outbound_update", [mut])
+    assert "outbound_update" in str(exc_info.value)
+
+
+def test_outbound_delete_must_not_write_dso_id_label(applier):
+    """outbound_delete is UNAUTHORIZED for dso-id label writes.
+
+    Passes a create mutation with a dso-id-* payload through
+    _audit_dso_id_label_writes; expects DsoIdLabelWriteError.
+    """
+    mut = _MockLabelMutation(payload="dso-id-forbidden-write", action="create")
+    with pytest.raises(applier.DsoIdLabelWriteError) as exc_info:
+        applier._audit_dso_id_label_writes("outbound_delete", [mut])
+    assert "outbound_delete" in str(exc_info.value)
+
+
+def test_outbound_probe_must_not_write_dso_id_label(applier):
+    """outbound_probe is UNAUTHORIZED for dso-id label writes.
+
+    Passes a create mutation with a dso-id-* payload through
+    _audit_dso_id_label_writes; expects DsoIdLabelWriteError.
+    """
+    mut = _MockLabelMutation(payload="dso-id-probe-forbidden", action="create")
+    with pytest.raises(applier.DsoIdLabelWriteError) as exc_info:
+        applier._audit_dso_id_label_writes("outbound_probe", [mut])
+    assert "outbound_probe" in str(exc_info.value)
+
+
+def test_outbound_conflict_must_not_write_dso_id_label(applier):
+    """outbound_conflict is UNAUTHORIZED for dso-id label writes.
+
+    Passes a create mutation with a dso-id-* payload through
+    _audit_dso_id_label_writes; expects DsoIdLabelWriteError.
+    """
+    mut = _MockLabelMutation(payload="dso-id-conflict-forbidden", action="create")
+    with pytest.raises(applier.DsoIdLabelWriteError) as exc_info:
+        applier._audit_dso_id_label_writes("outbound_conflict", [mut])
+    assert "outbound_conflict" in str(exc_info.value)
+
+
+def test_inbound_create_must_not_write_dso_id_label(applier):
+    """inbound_create is UNAUTHORIZED for dso-id label writes.
+
+    Passes a create mutation with a dso-id-* payload through
+    _audit_dso_id_label_writes; expects DsoIdLabelWriteError.
+    """
+    mut = _MockLabelMutation(payload="dso-id-inbound-create-forbidden", action="create")
+    with pytest.raises(applier.DsoIdLabelWriteError) as exc_info:
+        applier._audit_dso_id_label_writes("inbound_create", [mut])
+    assert "inbound_create" in str(exc_info.value)
+
+
+def test_inbound_update_must_not_write_dso_id_label(applier):
+    """inbound_update is UNAUTHORIZED for dso-id label writes.
+
+    Passes a create mutation with a dso-id-* payload through
+    _audit_dso_id_label_writes; expects DsoIdLabelWriteError.
+    """
+    mut = _MockLabelMutation(payload="dso-id-inbound-update-forbidden", action="create")
+    with pytest.raises(applier.DsoIdLabelWriteError) as exc_info:
+        applier._audit_dso_id_label_writes("inbound_update", [mut])
+    assert "inbound_update" in str(exc_info.value)
+
+
+def test_inbound_repair_property_must_not_write_dso_id_label(applier):
+    """inbound_repair_property writes a PROPERTY FIELD, NOT a label.
+
+    This leaf uses target='property' (not 'label'), so _is_dso_id_label_write_mutation
+    returns False and _audit_dso_id_label_writes does NOT raise — this is the expected
+    behavior (the leaf is neither authorized nor unauthorized for label writes; it simply
+    never produces label-surface mutations).
+
+    The test constructs a mutation with target='property' to reflect the actual
+    behavior of this leaf: it calls set_issue_property(), which operates on entity
+    properties, not labels. Even if payload starts with 'dso-id-', the non-label
+    target means the guard is not triggered.
+    """
+    # NOTE: inbound_repair_property writes to target='property', not target='label'.
+    # The guard only fires when target='label' AND payload starts with 'dso-id-'.
+    # A property-field mutation with a dso-id-* value is NOT a label write.
+    property_mut = _MockLabelMutation(
+        target="property",  # property surface, NOT label
+        payload="dso-id-local-ticket-id",
+        action="create",
+    )
+    mutations = [property_mut]
+    # Should NOT raise — property-field mutations do not trigger the label-write guard
+    applier._audit_dso_id_label_writes("inbound_repair_property", mutations)
+    assert mutations == [property_mut], "audit must not mutate the input list"
