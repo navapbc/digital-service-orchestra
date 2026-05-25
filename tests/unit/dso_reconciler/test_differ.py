@@ -374,3 +374,108 @@ def test_diff_returns_mutation_list(
     assert all(isinstance(m, mutation_mod.Mutation) for m in result), (
         f"non-Mutation entries in result: {[type(m).__name__ for m in result]}"
     )
+
+
+# ---------------------------------------------------------------------------
+# dd-1 stress tests: differ purity under repetition and input-key permutation.
+#
+# Intent: determinism stress, not exhaustive (direction, action) coverage.
+# differ.compute_mutations currently emits a subset of _VALID_COMBINATIONS
+# (outbound create/update/delete, inbound create/update/delete, conflict and
+# probe via the unbindable-state path). It does not directly emit
+# clean_label or repair_property — those are produced by downstream stages.
+# These fixtures therefore exercise the pairs the differ actually emits and
+# leave the rest to applier-level tests.
+# ---------------------------------------------------------------------------
+
+
+def _stress_fixture() -> tuple[dict, dict]:
+    """Moderate fixture (~10 tickets) producing a variety of mutation kinds.
+
+    Covers (in the subset compute_mutations actually emits):
+      - outbound create (local-only ticket, non-empty allowed payload)
+      - inbound create  (jira-only ticket)
+      - update          (changed allowed field on both sides)
+      - delete          (asymmetric one-sided absence with no bind)
+      - bind-aware suppression (local dso_local_id matches a jira entry)
+      - probe / conflict pathway (unbindable state — covered passively where
+        the differ's _VALID_COMBINATIONS gate allows it)
+    """
+    local = {
+        "loc-1": {"summary": "alpha", "status": "open"},
+        "loc-2": {"summary": "beta updated", "status": "open"},
+        "loc-3": {"summary": "gamma", "priority": "high"},
+        "loc-4": {"summary": "delta", "dso_local_id": "uuid-bound-4"},
+        "loc-5": {"summary": "epsilon", "status": "closed"},
+        "loc-6": {"summary": "zeta", "priority": "low"},
+        "loc-9": {"summary": "iota new"},
+    }
+    jira = {
+        "loc-1": {"summary": "alpha", "status": "open"},  # identical → no mutation
+        "loc-2": {"summary": "beta old", "status": "open"},  # update
+        "PROJ-4": {"summary": "delta", "dso_local_id": "uuid-bound-4"},  # bound
+        "loc-5": {"summary": "epsilon", "status": "open"},  # update (status)
+        "loc-7": {"summary": "eta remote"},  # inbound create
+        "loc-8": {"summary": "theta going"},  # delete (local removed)
+        "loc-10": {"summary": "kappa remote"},  # inbound create
+    }
+    return local, jira
+
+
+def test_differ_is_pure_across_100_invocations(
+    differ: ModuleType, mutation_mod: ModuleType
+) -> None:
+    """dd-1: 100 invocations on the same input produce byte-identical manifests."""
+    serialize_manifest = mutation_mod.serialize_manifest
+    local, jira = _stress_fixture()
+
+    hashes: set[str] = set()
+    jsons: set[str] = set()
+    for _ in range(100):
+        result = differ.compute_mutations(
+            local_state=copy.deepcopy(local), jira_state=copy.deepcopy(jira)
+        )
+        json_text, sha256 = serialize_manifest(result)
+        hashes.add(sha256)
+        jsons.add(json_text)
+
+    assert len(hashes) == 1, (
+        f"non-deterministic manifest hashes across 100 runs: {hashes}"
+    )
+    assert len(jsons) == 1, "non-deterministic manifest JSON across 100 runs"
+
+
+def test_differ_is_pure_across_input_permutations(
+    differ: ModuleType, mutation_mod: ModuleType
+) -> None:
+    """dd-1: 100 random key-order permutations produce byte-identical manifests.
+
+    Insertion order of a Python dict is preserved on iteration. If the differ
+    leaks input ordering into its output, permuting the (key, value) pairs of
+    local_state and jira_state before reconstruction will produce divergent
+    manifest hashes. A pure differ must collapse all 100 permutations to one
+    canonical manifest.
+    """
+    import random
+
+    serialize_manifest = mutation_mod.serialize_manifest
+    local_base, jira_base = _stress_fixture()
+    local_items = list(local_base.items())
+    jira_items = list(jira_base.items())
+    rng = random.Random(42)
+
+    hashes: set[str] = set()
+    for _ in range(100):
+        local_perm = local_items[:]
+        jira_perm = jira_items[:]
+        rng.shuffle(local_perm)
+        rng.shuffle(jira_perm)
+        local = {k: copy.deepcopy(v) for k, v in local_perm}
+        jira = {k: copy.deepcopy(v) for k, v in jira_perm}
+        result = differ.compute_mutations(local_state=local, jira_state=jira)
+        _json_text, sha256 = serialize_manifest(result)
+        hashes.add(sha256)
+
+    assert len(hashes) == 1, (
+        f"non-deterministic manifest hashes across 100 input permutations: {hashes}"
+    )
