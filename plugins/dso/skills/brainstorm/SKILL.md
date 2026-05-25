@@ -436,9 +436,9 @@ Based on the confirmed Understanding Summary, draft one entry per detected copy 
 
 When the `page` cannot be determined from the Understanding Summary, use the closest controlled-vocabulary value and add a note in the `location` field. Do NOT invent page identifiers outside the controlled vocabulary — if none fit, use the closest match and flag it with `# NOTE: page vocabulary may need extension per contract §Vocabulary Extension Procedure`.
 
-**Step 4c: Append the section to the epic description**
+**Step 4c: Write the `## Copy Needs` section into the epic description**
 
-Retrieve the current epic description, append the new section, and update:
+The ticket CLI has no native `--append-section` flag. The correct mechanism is a **read → append → write** workflow: retrieve the current description, build the new block, concatenate, and write back via `ticket edit --description`.
 
 ```bash
 _CURRENT_DESC=$(.claude/scripts/dso ticket show "$_EPIC_ID" | python3 -c "import sys,json; print(json.load(sys.stdin).get('description',''))")
@@ -462,7 +462,9 @@ ${_COPY_NEEDS_BLOCK}"
 .claude/scripts/dso ticket edit "$_EPIC_ID" --description "$_NEW_DESC"
 ```
 
-**Idempotency**: Before appending, check that `## Copy Needs` does not already appear in `$_CURRENT_DESC`. If it does, do not append a second section — perform an in-place update of the existing section instead (add any newly detected items that are not already listed, identified by `stable_id`).
+**Idempotency — header already present**: Before appending, check whether `## Copy Needs` already appears in `$_CURRENT_DESC`. If it does, **do not append a second header** — instead, replace the existing section body: locate the `## Copy Needs` line, extract everything before it (the pre-section text), build a fresh section block containing all current items plus any newly detected items not already present by `stable_id`, and write the combined text back via `ticket edit --description`. This ensures re-running brainstorm on the same epic replaces the section body rather than duplicating the header.
+
+**Idempotency — duplicate item guard**: When merging into an existing `## Copy Needs` section, identify already-listed items by their `stable_id`. Only add items whose `stable_id` does not appear in the current section; never re-add or rename an existing `stable_id`.
 
 **Step 4d: Confirm to the user**
 
