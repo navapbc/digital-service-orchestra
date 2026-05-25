@@ -888,6 +888,32 @@ project_closure_hooks = scripts/my-closure-validator.sh
 
 ---
 
+### `copy.artifact_dir`
+
+| | |
+|---|---|
+| **Description** | Output directory for gov-copy-writer artifacts, relative to the project root. The resolved path (joined with the epic ID to form `<artifact_dir>/<epic_id>.yaml`) must remain strictly inside the project root after normalization — absolute paths, `..` traversal segments, and paths that escape the project root are all rejected at validation time. |
+| **Accepted values** | Relative directory path (e.g., `copy/`, `docs/copy-artifacts`). No absolute paths. No `..` segments. |
+| **Default** | `copy/` |
+| **Override** | Edit `[copy] artifact_dir = <value>` in `.claude/dso-config.conf` |
+| **Validation implementation** | `${CLAUDE_PLUGIN_ROOT}/scripts/copy_artifact_path.py` (`validate_artifact_path`, `resolve_artifact_path`) — exits 0 and prints the resolved path on success; exits 1 with a descriptive error to stderr on validation failure. |
+| **Used by** | `dso:gov-copy-writer` agent (artifact output path resolution) |
+
+**Validation rules (enforced by `copy_artifact_path.py`):**
+
+1. Must not be an absolute path — use a relative path such as `copy/`.
+2. Must not contain any `..` segments (checked before resolution to prevent crafted inputs that normalise differently per OS).
+3. The resolved path (after joining with the project root and the epic ID) must remain a descendant of the project root.
+
+**Example:**
+
+```ini
+[copy]
+artifact_dir = copy/
+```
+
+---
+
 ### `debug.session_ttl_hours`
 
 | | |
