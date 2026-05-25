@@ -287,6 +287,88 @@ run_test_rules_no_tag() {
 }
 
 # ---------------------------------------------------------------------------
+# test_multi_page_coordination_task: multi-page → coordination-pass task child
+# Covers dd-1 (c5ef): coordination-pass task attached when distinct(page) > 1
+# ---------------------------------------------------------------------------
+run_test_multi_page_coordination_task() {
+  echo ""
+  echo "--- test_multi_page_coordination_task: multi-page → coordination-pass task present ---"
+
+  # Step C3 must instruct the agent to add a child_tasks entry when distinct(page) > 1
+  if grep -qE 'child_tasks' "$AGENT_FILE"; then
+    pass "Agent file documents child_tasks field for coordination-pass task"
+  else
+    fail "Agent file does NOT document child_tasks field for coordination-pass task"
+  fi
+
+  # The coordination-pass task DD must mention the artifact path contract
+  if grep -qE 'coordination-pass dispatch produces an updated artifact' "$AGENT_FILE"; then
+    pass "Agent file documents coordination-pass task DD: 'dispatch produces an updated artifact'"
+  else
+    fail "Agent file does NOT document coordination-pass task DD with artifact dispatch text"
+  fi
+
+  # The DD must mention hard-constraint immutability
+  if grep -qE 'hard-constraint items remain immutable' "$AGENT_FILE"; then
+    pass "Agent file documents hard-constraint immutability in coordination-pass task DD"
+  else
+    fail "Agent file does NOT document hard-constraint immutability in coordination-pass task DD"
+  fi
+
+  # The DD must mention cross-page voice consistency
+  if grep -qE 'cross-page voice is consistent' "$AGENT_FILE"; then
+    pass "Agent file documents cross-page voice consistency in coordination-pass task DD"
+  else
+    fail "Agent file does NOT document cross-page voice consistency in coordination-pass task DD"
+  fi
+
+  # When distinct(page) == 1, the child_tasks coordination-pass task must NOT be added
+  if grep -qE 'distinct.*page.*==.*1|single.page.*no coordination|distinct.*page.*1.*no.*child_task' "$AGENT_FILE"; then
+    pass "Agent file documents no coordination-pass child task when distinct(page) == 1"
+  else
+    fail "Agent file does NOT explicitly document single-page exclusion for coordination-pass child task"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# test_single_page_no_coordination_task: single-page → no coordination-pass task
+# Covers dd-2 (c5ef): no coordination-pass task when distinct(page) == 1
+# ---------------------------------------------------------------------------
+run_test_single_page_no_coordination_task() {
+  echo ""
+  echo "--- test_single_page_no_coordination_task: single-page → no coordination-pass task ---"
+
+  # Must explicitly state the single-page exclusion for the child task
+  if grep -qE 'distinct.*page.*==.*1.*no.*child_task|single.*page.*omit.*coordination|When distinct.*page.*==.*1.*no coordination-pass task' "$AGENT_FILE"; then
+    pass "Agent file explicitly excludes coordination-pass child task when distinct(page) == 1"
+  else
+    fail "Agent file does NOT explicitly exclude coordination-pass task for single-page case"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# test_hard_constraint_immutability: coordination-pass spec mentions hard-constraint
+# Covers: hard-constraint items remain immutable in the coordination-pass task DD
+# ---------------------------------------------------------------------------
+run_test_hard_constraint_immutability() {
+  echo ""
+  echo "--- test_hard_constraint_immutability: hard-constraint immutability in coordination-pass spec ---"
+
+  if grep -qE 'hard-constraint items remain immutable' "$AGENT_FILE"; then
+    pass "Agent file coordination-pass task DD includes hard-constraint immutability language"
+  else
+    fail "Agent file coordination-pass task DD does NOT include hard-constraint immutability language"
+  fi
+
+  # The artifact path pattern must be present in the coordination-pass task DD
+  if grep -qE 'copy\.artifact_dir.*epic-id.*yaml|<copy\.artifact_dir>/<epic-id>\.yaml' "$AGENT_FILE"; then
+    pass "Agent file coordination-pass task DD references artifact path <copy.artifact_dir>/<epic-id>.yaml"
+  else
+    fail "Agent file coordination-pass task DD does NOT reference correct artifact path"
+  fi
+}
+
+# ---------------------------------------------------------------------------
 # Dispatch
 # ---------------------------------------------------------------------------
 
@@ -311,6 +393,9 @@ case "$TARGET" in
   test_rules_copy)  run_test_rules_copy ;;
   test_rules_idempotent) run_test_rules_idempotent ;;
   test_rules_no_tag) run_test_rules_no_tag ;;
+  test_multi_page_coordination_task) run_test_multi_page_coordination_task ;;
+  test_single_page_no_coordination_task) run_test_single_page_no_coordination_task ;;
+  test_hard_constraint_immutability) run_test_hard_constraint_immutability ;;
   all)
     run_test_positive
     run_test_negative
@@ -323,10 +408,13 @@ case "$TARGET" in
     run_test_rules_copy
     run_test_rules_idempotent
     run_test_rules_no_tag
+    run_test_multi_page_coordination_task
+    run_test_single_page_no_coordination_task
+    run_test_hard_constraint_immutability
     ;;
   *)
     echo "Unknown test target: $TARGET"
-    echo "Valid targets: test_positive test_negative test_idempotent test_coordination test_stable_ids test_artifact_gate test_copy_story_tag test_schema_error test_rules_copy test_rules_idempotent test_rules_no_tag all"
+    echo "Valid targets: test_positive test_negative test_idempotent test_coordination test_stable_ids test_artifact_gate test_copy_story_tag test_schema_error test_rules_copy test_rules_idempotent test_rules_no_tag test_multi_page_coordination_task test_single_page_no_coordination_task test_hard_constraint_immutability all"
     exit 1
     ;;
 esac

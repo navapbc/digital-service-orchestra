@@ -160,6 +160,11 @@ Produce exactly one story draft with `temp_id: "draft-copy"` using the following
   - `"[Idempotency] If the gov-copy-writer artifact already exists and is schema-conforming, re-running should validate rather than overwrite."`
   - `"[Schema] If the Copy Needs section fails to parse, surface MISSING_REQUIRED_FIELD or MISSING_SCHEMA_VERSION rather than silently skipping."`
   - If `distinct(page) > 1`: `"[Coordination] Copy spans <N> distinct pages; a coordination pass is required to verify cross-page consistency before artifact approval."`
+- **child_tasks**: (conditional — include only when `distinct(page) > 1`; when distinct(page) == 1, no coordination-pass task is added — omit the `child_tasks` field entirely or set it to an empty array)
+  - When `distinct(page) > 1`, include exactly one child task:
+    - **title**: `"Coordination-pass for <epic-title> copy artifact"`
+    - **description**: `"gov-copy-writer coordination-pass dispatch produces an updated artifact at <copy.artifact_dir>/<epic-id>.yaml where hard-constraint items remain immutable and cross-page voice is consistent"`
+    - **done_definitions**: `["gov-copy-writer coordination-pass dispatch produces an updated artifact at <copy.artifact_dir>/<epic-id>.yaml where hard-constraint items remain immutable and cross-page voice is consistent ← Satisfies: coordination-pass contract"]`
 - **depends_on**: List the walking-skeleton story `temp_id` (or existing story id) if the copy story depends on a story that establishes the UI layer. If no clear dependency exists, use an empty array.
 - **split_candidate**: false
 - **escalation_policy**: Copy the `{escalation-policy}` value verbatim.
