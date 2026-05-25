@@ -480,3 +480,446 @@ class TestMainPipelineLargeText:
             f"got {result.returncode}.\n"
             f"stdout={result.stdout!r}\nstderr={result.stderr!r}"
         )
+
+
+# ---------------------------------------------------------------------------
+# RED tests for __main__ pipeline — task 1211-d27b-cbd8-4532
+# Covers: LLM-overwrite, per-rule source attribution, summary/exit codes,
+# deviations with rule_id, YAML write-back, atomic write, CLI contract.
+# ---------------------------------------------------------------------------
+
+
+def _make_passing_item(item_id: str = "p1") -> dict:
+    """Return a minimal item that passes all three rules (fk_grade ≤ 12, no banned, active)."""
+    return {
+        "id": item_id,
+        "values": {
+            "label": "You can apply online.",
+            "hint": "Submit your form today.",
+            "errors": {},
+        },
+        "rationale": {
+            "rule_ids": [],
+            "conflicts": [],
+            "deviations": [],
+        },
+        "checks": {
+            "fk_grade": 99,         # LLM-supplied; pipeline MUST overwrite with computed value
+            "banned_words_found": [],
+            "active_voice": True,
+            "source": "llm",        # LLM-supplied source; pipeline MUST replace per-rule
+        },
+    }
+
+
+def _make_failing_item(item_id: str = "f1") -> dict:
+    """Return an item that fails the active_voice rule (passive sentence) and passes the others."""
+    return {
+        "id": item_id,
+        "values": {
+            "label": "Applications are reviewed.",
+            "hint": "Applications are reviewed by staff.",
+            "errors": {},
+        },
+        "rationale": {
+            "rule_ids": [],
+            "conflicts": [],
+            "deviations": [],
+        },
+        "checks": {
+            "fk_grade": 5,
+            "banned_words_found": [],
+            "active_voice": True,   # LLM says True; pipeline MUST compute False (passive)
+            "source": "llm",
+        },
+    }
+
+
+# --- Test 1: LLM-supplied checks.fk_grade is OVERWRITTEN by deterministic value ---
+
+@pytest.mark.unit
+class TestMainPipelineOverwritesLLMFkGrade:
+    """LLM-supplied checks.fk_grade=99 is replaced by deterministic Flesch-Kincaid value."""
+
+    # [test_main_pipeline_overwrites_llm_fk_grade]
+    def test_main_pipeline_overwrites_llm_fk_grade(self, tmp_path: Path) -> None:
+        """Pipeline must overwrite LLM fk_grade=99 with deterministic computed value ≠ 99."""
+        item = _make_passing_item("item-fk-overwrite")
+        artifact = _write_artifact(tmp_path, items=[item])
+        cfg = _write_config(tmp_path)
+        result = _run_pipeline(artifact, cfg)
+        assert result.returncode == 0, (
+            f"Passing-text item must exit 0; got {result.returncode}.\n"
+            f"stdout={result.stdout!r}\nstderr={result.stderr!r}"
+        )
+        written = yaml.safe_load(artifact.read_text())
+        written_item = written["items"][0]
+        fk_grade = written_item["checks"]["fk_grade"]
+        assert fk_grade != 99, (
+            f"Pipeline must overwrite LLM fk_grade=99 with computed value; "
+            f"got fk_grade={fk_grade!r} in written artifact"
+        )
+
+
+# --- Test 2: Per-rule source fields (NOT a single top-level checks.source) ---
+
+@pytest.mark.unit
+class TestMainPipelinePerRuleSourceAttribution:
+    """Each rule in checks gets its own .source='deterministic-post-processing' field."""
+
+    # [test_main_pipeline_per_rule_source_fk_grade]
+    def test_main_pipeline_per_rule_source_fk_grade(self, tmp_path: Path) -> None:
+        """checks.fk_grade must be a dict with source='deterministic-post-processing'."""
+        item = _make_passing_item("src-fk")
+        artifact = _write_artifact(tmp_path, items=[item])
+        cfg = _write_config(tmp_path)
+        result = _run_pipeline(artifact, cfg)
+        assert result.returncode == 0, (
+            f"Expected exit 0; got {result.returncode}.\n"
+            f"stderr={result.stderr!r}"
+        )
+        written = yaml.safe_load(artifact.read_text())
+        fk_block = written["items"][0]["checks"]["fk_grade"]
+        assert isinstance(fk_block, dict), (
+            f"checks.fk_grade must be a dict with a .source field; got {fk_block!r}"
+        )
+        assert fk_block.get("source") == "deterministic-post-processing", (
+            f"checks.fk_grade.source must be 'deterministic-post-processing'; "
+            f"got {fk_block.get('source')!r}"
+        )
+
+    def test_main_pipeline_per_rule_source_banned(self, tmp_path: Path) -> None:
+        """checks.banned_words_found must be a dict with source='deterministic-post-processing'."""
+        item = _make_passing_item("src-banned")
+        artifact = _write_artifact(tmp_path, items=[item])
+        cfg = _write_config(tmp_path)
+        result = _run_pipeline(artifact, cfg)
+        assert result.returncode == 0, (
+            f"Expected exit 0; got {result.returncode}.\n"
+            f"stderr={result.stderr!r}"
+        )
+        written = yaml.safe_load(artifact.read_text())
+        banned_block = written["items"][0]["checks"]["banned_words_found"]
+        assert isinstance(banned_block, dict), (
+            f"checks.banned_words_found must be a dict with a .source field; got {banned_block!r}"
+        )
+        assert banned_block.get("source") == "deterministic-post-processing", (
+            f"checks.banned_words_found.source must be 'deterministic-post-processing'; "
+            f"got {banned_block.get('source')!r}"
+        )
+
+    def test_main_pipeline_per_rule_source_voice(self, tmp_path: Path) -> None:
+        """checks.active_voice must be a dict with source='deterministic-post-processing'."""
+        item = _make_passing_item("src-voice")
+        artifact = _write_artifact(tmp_path, items=[item])
+        cfg = _write_config(tmp_path)
+        result = _run_pipeline(artifact, cfg)
+        assert result.returncode == 0, (
+            f"Expected exit 0; got {result.returncode}.\n"
+            f"stderr={result.stderr!r}"
+        )
+        written = yaml.safe_load(artifact.read_text())
+        voice_block = written["items"][0]["checks"]["active_voice"]
+        assert isinstance(voice_block, dict), (
+            f"checks.active_voice must be a dict with a .source field; got {voice_block!r}"
+        )
+        assert voice_block.get("source") == "deterministic-post-processing", (
+            f"checks.active_voice.source must be 'deterministic-post-processing'; "
+            f"got {voice_block.get('source')!r}"
+        )
+
+    def test_main_pipeline_no_single_top_level_checks_source(self, tmp_path: Path) -> None:
+        """checks must NOT have a flat top-level 'source' key (per-rule, not aggregate)."""
+        item = _make_passing_item("src-no-top")
+        artifact = _write_artifact(tmp_path, items=[item])
+        cfg = _write_config(tmp_path)
+        result = _run_pipeline(artifact, cfg)
+        assert result.returncode == 0, (
+            f"Expected exit 0; got {result.returncode}.\nstderr={result.stderr!r}"
+        )
+        written = yaml.safe_load(artifact.read_text())
+        checks = written["items"][0]["checks"]
+        assert "source" not in checks, (
+            f"checks must NOT have a flat top-level 'source' key; "
+            f"source must be per-rule only. Got checks keys: {list(checks.keys())!r}"
+        )
+
+
+# --- Test 3: 100%-pass artifact → exit 0, closing_threshold_met: true ---
+
+@pytest.mark.unit
+class TestMainPipelineAllPassExit:
+    """All-passing artifact → exit 0 with closing_threshold_met: true in stdout."""
+
+    # [test_main_pipeline_all_pass_exit_zero]
+    def test_main_pipeline_all_pass_exit_zero(self, tmp_path: Path) -> None:
+        """100%-pass artifact must exit 0."""
+        items = [_make_passing_item(f"p{i}") for i in range(3)]
+        artifact = _write_artifact(tmp_path, items=items)
+        cfg = _write_config(tmp_path, closing_ratio="0.95")
+        result = _run_pipeline(artifact, cfg)
+        assert result.returncode == 0, (
+            f"100%-pass artifact must exit 0; got {result.returncode}.\n"
+            f"stdout={result.stdout!r}\nstderr={result.stderr!r}"
+        )
+
+    def test_main_pipeline_all_pass_closing_threshold_true(self, tmp_path: Path) -> None:
+        """100%-pass artifact stdout must contain 'closing_threshold_met: true'."""
+        items = [_make_passing_item(f"p{i}") for i in range(3)]
+        artifact = _write_artifact(tmp_path, items=items)
+        cfg = _write_config(tmp_path, closing_ratio="0.95")
+        result = _run_pipeline(artifact, cfg)
+        assert "closing_threshold_met: true" in result.stdout.lower(), (
+            f"Expected 'closing_threshold_met: true' in stdout.\n"
+            f"stdout={result.stdout!r}"
+        )
+
+    def test_main_pipeline_all_pass_pass_ratio_in_stdout(self, tmp_path: Path) -> None:
+        """100%-pass artifact stdout must contain 'pass_ratio:' field."""
+        items = [_make_passing_item(f"p{i}") for i in range(3)]
+        artifact = _write_artifact(tmp_path, items=items)
+        cfg = _write_config(tmp_path, closing_ratio="0.95")
+        result = _run_pipeline(artifact, cfg)
+        assert "pass_ratio:" in result.stdout.lower(), (
+            f"Expected 'pass_ratio:' in stdout.\nstdout={result.stdout!r}"
+        )
+
+
+# --- Test 4: <95%-pass artifact → exit non-zero, closing_threshold_met: false,
+#             summary includes pass_rate, total_items, deviations_count ---
+
+@pytest.mark.unit
+class TestMainPipelineBelowThresholdExit:
+    """Below-threshold artifact → exit non-zero with closing_threshold_met: false."""
+
+    # [test_main_pipeline_below_threshold_exit_nonzero]
+    def test_main_pipeline_below_threshold_exit_nonzero(self, tmp_path: Path) -> None:
+        """Artifact with pass_rate < 0.95 must exit non-zero."""
+        # 1 passing + 19 failing = 5% pass rate, well below 95%
+        passing = [_make_passing_item("p1")]
+        failing = [_make_failing_item(f"f{i}") for i in range(19)]
+        artifact = _write_artifact(tmp_path, items=passing + failing)
+        cfg = _write_config(tmp_path, closing_ratio="0.95")
+        result = _run_pipeline(artifact, cfg)
+        assert result.returncode != 0, (
+            f"Artifact with pass_rate<0.95 must exit non-zero; got {result.returncode}.\n"
+            f"stdout={result.stdout!r}\nstderr={result.stderr!r}"
+        )
+
+    def test_main_pipeline_below_threshold_closing_false(self, tmp_path: Path) -> None:
+        """Below-threshold stdout must contain 'closing_threshold_met: false'."""
+        passing = [_make_passing_item("p1")]
+        failing = [_make_failing_item(f"f{i}") for i in range(19)]
+        artifact = _write_artifact(tmp_path, items=passing + failing)
+        cfg = _write_config(tmp_path, closing_ratio="0.95")
+        result = _run_pipeline(artifact, cfg)
+        assert "closing_threshold_met: false" in result.stdout.lower(), (
+            f"Expected 'closing_threshold_met: false' in stdout.\n"
+            f"stdout={result.stdout!r}"
+        )
+
+    def test_main_pipeline_below_threshold_summary_fields(self, tmp_path: Path) -> None:
+        """Below-threshold stdout must contain pass_rate, total_items, and deviations_count."""
+        passing = [_make_passing_item("p1")]
+        failing = [_make_failing_item(f"f{i}") for i in range(19)]
+        artifact = _write_artifact(tmp_path, items=passing + failing)
+        cfg = _write_config(tmp_path, closing_ratio="0.95")
+        result = _run_pipeline(artifact, cfg)
+        stdout_lower = result.stdout.lower()
+        for field in ("pass_rate:", "total_items:", "deviations_count:"):
+            assert field in stdout_lower, (
+                f"Expected '{field}' in stdout summary.\nstdout={result.stdout!r}"
+            )
+
+
+# --- Test 5: Item failing ONE rule appears in rationale.deviations with rule_id + reason ---
+
+@pytest.mark.unit
+class TestMainPipelineDeviationsOneRule:
+    """Item failing one rule appears in rationale.deviations with rule_id and populated reason."""
+
+    # [test_main_pipeline_deviations_single_rule_failure]
+    def test_main_pipeline_deviations_single_rule_failure(self, tmp_path: Path) -> None:
+        """Item with banned_words_found non-empty (others passing) appears in deviations."""
+        item = {
+            "id": "banned-only",
+            "values": {
+                "label": "Please utilize the portal.",   # 'utilize' is banned
+                "hint": "Submit your form today.",
+                "errors": {},
+            },
+            "rationale": {
+                "rule_ids": [],
+                "conflicts": [],
+                "deviations": [],
+            },
+            "checks": {
+                "fk_grade": 5,
+                "banned_words_found": ["utilize"],
+                "active_voice": True,
+                "source": "llm",
+            },
+        }
+        artifact = _write_artifact(tmp_path, items=[item])
+        cfg = _write_config(tmp_path, closing_ratio="0.95")
+        result = _run_pipeline(artifact, cfg)
+        written = yaml.safe_load(artifact.read_text())
+        deviations = written["items"][0]["rationale"]["deviations"]
+        rule_ids = [d.get("rule_id") for d in deviations]
+        assert "banned_words_found" in rule_ids, (
+            f"Item with banned_words_found=['utilize'] must appear in deviations with "
+            f"rule_id='banned_words_found'; got deviations={deviations!r}"
+        )
+        banned_dev = next(d for d in deviations if d.get("rule_id") == "banned_words_found")
+        assert banned_dev.get("reason"), (
+            f"Deviation entry must have a non-empty reason; got {banned_dev!r}"
+        )
+
+    def test_main_pipeline_deviations_only_for_failing_rule(self, tmp_path: Path) -> None:
+        """Item failing banned_words_found only must NOT have active_voice or fk_grade deviations."""
+        item = {
+            "id": "banned-only-strict",
+            "values": {
+                "label": "Please utilize the portal.",
+                "hint": "Submit your form today.",
+                "errors": {},
+            },
+            "rationale": {
+                "rule_ids": [],
+                "conflicts": [],
+                "deviations": [],
+            },
+            "checks": {
+                "fk_grade": 5,
+                "banned_words_found": ["utilize"],
+                "active_voice": True,
+                "source": "llm",
+            },
+        }
+        artifact = _write_artifact(tmp_path, items=[item])
+        cfg = _write_config(tmp_path, closing_ratio="0.95")
+        result = _run_pipeline(artifact, cfg)
+        written = yaml.safe_load(artifact.read_text())
+        deviations = written["items"][0]["rationale"]["deviations"]
+        rule_ids = [d.get("rule_id") for d in deviations]
+        assert "fk_grade" not in rule_ids, (
+            f"fk_grade must NOT be in deviations when fk_grade passes; got {rule_ids!r}"
+        )
+        assert "active_voice" not in rule_ids, (
+            f"active_voice must NOT be in deviations when active_voice passes; got {rule_ids!r}"
+        )
+
+
+# --- Test 6: YAML write-back preserves non-touched sibling fields ---
+
+@pytest.mark.unit
+class TestMainPipelineYAMLWriteback:
+    """Artifact written back to disk in YAML; non-touched fields preserved."""
+
+    # [test_main_pipeline_yaml_writeback_preserves_sibling_keys]
+    def test_main_pipeline_yaml_writeback_preserves_sibling_keys(self, tmp_path: Path) -> None:
+        """Arbitrary sibling top-level keys and item.id are preserved after pipeline run."""
+        item = _make_passing_item("preserved-id")
+        artifact = tmp_path / "artifact.yaml"
+        artifact.write_text(yaml.dump({
+            "schema_version": 1,
+            "arbitrary_sibling_key": "must-be-preserved",
+            "items": [item],
+        }))
+        cfg = _write_config(tmp_path)
+        result = _run_pipeline(artifact, cfg)
+        assert result.returncode == 0, (
+            f"Expected exit 0; got {result.returncode}.\nstderr={result.stderr!r}"
+        )
+        written = yaml.safe_load(artifact.read_text())
+        assert written.get("arbitrary_sibling_key") == "must-be-preserved", (
+            f"Sibling key 'arbitrary_sibling_key' must be preserved in written artifact; "
+            f"got {written!r}"
+        )
+        assert written["items"][0]["id"] == "preserved-id", (
+            f"Item id must be preserved; got {written['items'][0]['id']!r}"
+        )
+
+    def test_main_pipeline_yaml_writeback_valid_yaml(self, tmp_path: Path) -> None:
+        """Artifact on disk must be valid YAML after pipeline run (atomic write)."""
+        item = _make_passing_item("yaml-valid")
+        artifact = _write_artifact(tmp_path, items=[item])
+        cfg = _write_config(tmp_path)
+        result = _run_pipeline(artifact, cfg)
+        assert result.returncode == 0, (
+            f"Expected exit 0; got {result.returncode}.\nstderr={result.stderr!r}"
+        )
+        content = artifact.read_text()
+        # Must parse without exception
+        parsed = yaml.safe_load(content)
+        assert isinstance(parsed, dict), (
+            f"Written artifact must be a valid YAML dict; got {type(parsed)!r}"
+        )
+        assert "items" in parsed, (
+            f"Written artifact must contain 'items' key; got keys={list(parsed.keys())!r}"
+        )
+
+
+# --- Test 7: CLI contract ---
+
+@pytest.mark.unit
+class TestMainPipelineCLIContract:
+    """CLI: --help exits 0; missing artifact_path → non-zero; missing --config-path → non-zero."""
+
+    # [test_main_pipeline_help_exits_zero]
+    def test_main_pipeline_help_exits_zero(self) -> None:
+        """--help must exit 0 and include usage text in output."""
+        repo_root = Path(__file__).resolve().parents[4]
+        result = subprocess.run(
+            [sys.executable, "-m", "plugins.dso.scripts.gov_copy_postprocess", "--help"],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            cwd=str(repo_root),
+        )
+        assert result.returncode == 0, (
+            f"--help must exit 0; got {result.returncode}.\n"
+            f"stdout={result.stdout!r}\nstderr={result.stderr!r}"
+        )
+        combined = (result.stdout + result.stderr).lower()
+        assert "usage" in combined or "artifact" in combined, (
+            f"--help output must include usage text; got:\n"
+            f"stdout={result.stdout!r}\nstderr={result.stderr!r}"
+        )
+
+    def test_main_pipeline_missing_artifact_path_exits_nonzero(self) -> None:
+        """No artifact_path argument → exit non-zero with clear error."""
+        repo_root = Path(__file__).resolve().parents[4]
+        result = subprocess.run(
+            [sys.executable, "-m", "plugins.dso.scripts.gov_copy_postprocess"],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            cwd=str(repo_root),
+        )
+        assert result.returncode != 0, (
+            f"Missing artifact_path must exit non-zero; got {result.returncode}.\n"
+            f"stdout={result.stdout!r}\nstderr={result.stderr!r}"
+        )
+
+    def test_main_pipeline_missing_config_path_exits_nonzero(self, tmp_path: Path) -> None:
+        """No --config-path argument → exit non-zero with clear error."""
+        artifact = _write_artifact(tmp_path, items=[_make_passing_item()])
+        repo_root = Path(__file__).resolve().parents[4]
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "plugins.dso.scripts.gov_copy_postprocess",
+                str(artifact),
+                # intentionally omit --config-path
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            cwd=str(repo_root),
+        )
+        assert result.returncode != 0, (
+            f"Missing --config-path must exit non-zero; got {result.returncode}.\n"
+            f"stdout={result.stdout!r}\nstderr={result.stderr!r}"
+        )
