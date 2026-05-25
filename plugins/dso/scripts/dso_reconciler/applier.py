@@ -740,18 +740,59 @@ def create_one(
     return result
 
 
-def update_one(mutation: dict, client) -> dict:
+def _is_illegal_transition_400(exc: Exception) -> bool:
+    """Detect a 400 illegal-transition response from update_issue.
+
+    Jira rejects status transitions that are not allowed from the current
+    workflow state with a 400 response whose body mentions 'illegal' or
+    'transition'. These are state errors (not transient), so they must not
+    be retried.
+    """
+    code = getattr(exc, "status_code", None) or getattr(exc, "code", None)
+    if code != 400:
+        return False
+    msg = str(exc).lower()
+    return "illegal" in msg or "transition" in msg
+
+
+def update_one(mutation: dict, client) -> dict | None:
     """Update an existing Jira issue from the mutation's key and fields.
 
     F3: AcliClient.update_issue's real signature is ``update_issue(jira_key, **kwargs)``;
     the field dict must be unpacked into keyword arguments rather than passed
     positionally as a single dict — otherwise Jira receives a TypeError on every
     real update call.
+
+    Comment-fallback on 400 illegal-transition: when Jira rejects a status
+    transition because it is not legal from the current workflow state, we do
+    NOT retry (zero update_issue retries on 400 — it is a state error, not a
+    transient). Instead we post a comment recording the local status change
+    so an operator can see the divergence in Jira, and emit a structured log
+    record to stderr.
     """
     fields = mutation.get("fields", {})
     if not isinstance(fields, dict):
         fields = {}
-    return _call_with_retry(client.update_issue, mutation.get("key"), **fields)
+    issue_key = mutation.get("key")
+    try:
+        return _call_with_retry(client.update_issue, issue_key, **fields)
+    except JiraAPIError as exc:
+        if not _is_illegal_transition_400(exc):
+            raise
+        new_status = fields.get("status")
+        comment = f"local status changed to {new_status}"
+        try:
+            client.add_comment(issue_key, comment)
+        except Exception:
+            pass  # secondary failure must not mask the comment-fallback path
+        log_entry = json.dumps({
+            "action": "comment_fallback",
+            "issue_key": issue_key,
+            "attempted_status": new_status,
+            "reason": "400_illegal_transition",
+        })
+        print(log_entry, file=sys.stderr)
+        return None
 
 
 def delete_one(mutation: dict, client) -> None:
