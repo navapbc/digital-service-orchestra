@@ -2010,3 +2010,206 @@ except Exception:
             ;;
     esac
 }
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Scratch helpers (private API — consumed by ticket-scratch-*.sh commands)
+# ──────────────────────────────────────────────────────────────────────────────
+
+# _scratch_resolve_and_validate <ticket_id> <key> [<base_dir>]
+#
+# Validates that <ticket_id> and <key> are safe filesystem components — no
+# path traversal (`.`/`..`), no slashes, no control characters (0x00-0x1F),
+# no null bytes, no leading dots — and resolves the target path.
+#
+# Args:
+#   ticket_id : per-ticket namespace (e.g., abcd-1234-efgh-5678)
+#   key       : scratch key name (arbitrary lowercase identifier)
+#   base_dir  : optional base directory override (defaults to
+#               $SCRATCH_BASE_DIR if set, else
+#               REPO_ROOT/.claude/scratch/)
+#
+# On valid inputs:
+#   Prints the resolved absolute path to stdout and exits 0.
+#
+# On invalid inputs:
+#   Prints a JSON error envelope to stdout:
+#     { "status": "error", "code": "invalid_id"|"invalid_key", "reason": "..." }
+#   Exits non-zero.
+_scratch_resolve_and_validate() {
+    local ticket_id="$1"
+    local key="$2"
+    local base_dir="${3:-${SCRATCH_BASE_DIR:-}}"
+
+    # Resolve base_dir when not explicitly provided
+    if [ -z "$base_dir" ]; then
+        local _rr
+        _rr="$(GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git rev-parse --show-toplevel 2>/dev/null)" || _rr=""
+        base_dir="${_rr}/.claude/scratch"
+    fi
+
+    # Delegate charset validation and path resolution to Python so the rules
+    # are expressed clearly, testably, and without bash quoting landmines.
+    python3 - "$ticket_id" "$key" "$base_dir" <<'PYEOF'
+import json, os, re, sys
+
+ticket_id = sys.argv[1]
+key       = sys.argv[2]
+base_dir  = sys.argv[3]
+
+def _validate_component(value, field_name, code):
+    """Reject empty, leading-dot, path-traversal, slash, or control-char values."""
+    if not value:
+        err = {"status": "error", "code": code,
+               "reason": f"{field_name} must not be empty"}
+        print(json.dumps(err))
+        sys.exit(1)
+    if value.startswith('.'):
+        err = {"status": "error", "code": code,
+               "reason": f"{field_name} must not start with a dot: {value!r}"}
+        print(json.dumps(err))
+        sys.exit(1)
+    if '..' in value:
+        err = {"status": "error", "code": code,
+               "reason": f"{field_name} must not contain '..': {value!r}"}
+        print(json.dumps(err))
+        sys.exit(1)
+    if '/' in value:
+        err = {"status": "error", "code": code,
+               "reason": f"{field_name} must not contain '/': {value!r}"}
+        print(json.dumps(err))
+        sys.exit(1)
+    # Control characters: 0x00-0x1F (includes null byte)
+    if re.search(r'[\x00-\x1f]', value):
+        err = {"status": "error", "code": code,
+               "reason": f"{field_name} must not contain control characters: {value!r}"}
+        print(json.dumps(err))
+        sys.exit(1)
+
+_validate_component(ticket_id, "ticket_id", "invalid_id")
+_validate_component(key, "key", "invalid_key")
+
+abs_path = os.path.join(base_dir, ticket_id, key)
+print(abs_path)
+sys.exit(0)
+PYEOF
+}
+
+# _scratch_atomic_write <abs_path> <payload> [<max_bytes>]
+#
+# Atomically writes <payload> to <abs_path> using a same-directory temporary
+# file + fsync(file) + rename + fsync(parent) pattern.
+#
+# Enforces a byte ceiling (default: 4096 bytes). On overflow, emits a
+# structured JSON error to stdout and returns non-zero WITHOUT writing any file.
+#
+# Args:
+#   abs_path  : absolute target file path
+#   payload   : string content to write
+#   max_bytes : optional override for the ceiling (default: 4096)
+#
+# On success:
+#   Writes the file atomically; exits 0; no *.tmp.* siblings remain.
+#
+# On overflow:
+#   Prints to stdout:
+#     { "status": "error", "code": "oversize", "limit": N, "actual": M }
+#   Exits non-zero; no file is created at abs_path.
+_scratch_atomic_write() {
+    local abs_path="$1"
+    local payload="$2"
+    local max_bytes="${3:-4096}"
+
+    python3 - "$abs_path" "$payload" "$max_bytes" <<'PYEOF'
+import json, os, sys, tempfile
+
+abs_path  = sys.argv[1]
+payload   = sys.argv[2]
+max_bytes = int(sys.argv[3])
+
+# Encode to bytes to get the true byte count
+payload_bytes = payload.encode('utf-8')
+actual = len(payload_bytes)
+
+if actual > max_bytes:
+    err = {"status": "error", "code": "oversize",
+           "limit": max_bytes, "actual": actual}
+    print(json.dumps(err))
+    sys.exit(1)
+
+# Ensure target directory exists
+target_dir = os.path.dirname(abs_path)
+os.makedirs(target_dir, exist_ok=True)
+
+# Write to a same-directory temp file so rename is atomic (same filesystem)
+fd, tmp_path = tempfile.mkstemp(
+    dir=target_dir,
+    prefix=os.path.basename(abs_path) + '.tmp.',
+    suffix='.scratch'
+)
+try:
+    os.write(fd, payload_bytes)
+    os.fsync(fd)
+    os.close(fd)
+    os.rename(tmp_path, abs_path)
+    # fsync the parent directory to flush the directory entry
+    dir_fd = os.open(target_dir, os.O_RDONLY)
+    try:
+        os.fsync(dir_fd)
+    except OSError:
+        pass  # some filesystems (e.g. FAT) don't support dir fsync
+    finally:
+        os.close(dir_fd)
+except Exception as e:
+    try:
+        os.close(fd)
+    except OSError:
+        pass
+    try:
+        os.unlink(tmp_path)
+    except OSError:
+        pass
+    print(f"Error: atomic write failed: {e}", file=sys.stderr)
+    sys.exit(2)
+
+sys.exit(0)
+PYEOF
+}
+
+# _scratch_read_envelope <abs_path>
+#
+# Reads the content of a scratch file and prints it to stdout.
+# Returns non-zero if the file does not exist or is empty.
+#
+# Args:
+#   abs_path : absolute path to the scratch file
+#
+# On success:
+#   Prints file contents to stdout; exits 0.
+#
+# On missing or empty file:
+#   Exits non-zero; nothing written to stdout.
+_scratch_read_envelope() {
+    local abs_path="$1"
+
+    python3 - "$abs_path" <<'PYEOF'
+import os, sys
+
+abs_path = sys.argv[1]
+
+if not os.path.isfile(abs_path):
+    sys.exit(1)
+
+try:
+    with open(abs_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+except OSError as e:
+    print(f"Error: could not read {abs_path}: {e}", file=sys.stderr)
+    sys.exit(1)
+
+if not content:
+    sys.exit(1)
+
+print(content, end='')
+sys.exit(0)
+PYEOF
+}
