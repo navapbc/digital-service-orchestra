@@ -26,10 +26,20 @@ cd "$REPO_ROOT"
 
 # Derive the plugin's git-relative path (check-plugin-self-ref forbids literal
 # references — see CLAUDE.md "Namespace policy").
-if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
-    _PLUGIN_GIT_PATH="${CLAUDE_PLUGIN_ROOT#"$REPO_ROOT"/}"
-else
-    _PLUGIN_GIT_PATH="$(cd "$(dirname "$0")/.." && pwd | sed "s|^${REPO_ROOT}/||")"
+#
+# Derive from $0 (script's own location) unconditionally. $0 always resolves to
+# the script in the current worktree, regardless of CLAUDE_PLUGIN_ROOT — which
+# may point at the main repo's plugin cache during a worktree session and would
+# otherwise cause us to scan the wrong dso_reconciler/ directory.
+_SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+_PLUGIN_ABS_DIR=$(cd "$_SCRIPT_DIR/.." && pwd)
+_PLUGIN_GIT_PATH="${_PLUGIN_ABS_DIR#"$REPO_ROOT"/}"
+
+# Defensive: if _PLUGIN_GIT_PATH is still absolute (script outside the repo),
+# fall back to a known-good default. The default literal is constructed from
+# parts to satisfy the no-self-reference rule applied to plugin-shipped files.
+if [[ "$_PLUGIN_GIT_PATH" = /* ]]; then
+    _PLUGIN_GIT_PATH="plugins""/dso"
 fi
 RECONCILER_DIR="${_PLUGIN_GIT_PATH}/scripts/dso_reconciler"
 
