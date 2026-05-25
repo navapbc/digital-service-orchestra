@@ -86,12 +86,13 @@ def test_emit_helper_centralizes_quarantine_check(
     real_emit = differ._emit
     seen: list[tuple[str, object, object]] = []
 
-    def spy_emit(mutation, *, quarantine_set, mutations_out):  # type: ignore[no-untyped-def]
+    def spy_emit(mutation, *, quarantine_set, mutations_out, **kwargs):  # type: ignore[no-untyped-def]
         seen.append((mutation.target, mutation.direction, mutation.action))
         real_emit(
             mutation,
             quarantine_set=quarantine_set,
             mutations_out=mutations_out,
+            **kwargs,
         )
 
     monkeypatch.setattr(differ, "_emit", spy_emit)

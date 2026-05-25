@@ -90,17 +90,38 @@ def _emit(
     *,
     quarantine_set: set[str] | None,
     mutations_out: list[Any],
+    ledger: Any | None = None,
 ) -> None:
     """Central emit gate for all Mutation appends in compute_mutations().
 
     Suppresses any mutation whose ``target`` is in ``quarantine_set``. When
     ``quarantine_set`` is None, every mutation is appended unconditionally.
 
+    When a ``ProvenanceLedger`` is provided, additionally suppresses any
+    mutation whose target+payload content-hash matches the ledger's last
+    recorded value for that target (echo suppression — the same value just
+    came back from the other side). Otherwise records the emitted mutation
+    so subsequent passes can detect echoes.
+
     All Mutation-emit sites in :func:`compute_mutations` MUST route through
-    this helper so the quarantine policy is enforced in exactly one place.
+    this helper so the suppression policies are enforced in exactly one place.
     """
     if quarantine_set is not None and mutation.target in quarantine_set:
         return
+    if ledger is not None:
+        try:
+            if ledger.is_echo(mutation.target, mutation.payload):
+                return
+        except Exception:
+            # Ledger failures must not break diff emission; fall through.
+            pass
+        # Record the about-to-be-emitted mutation on the appropriate side.
+        try:
+            direction_val = getattr(mutation.direction, "value", mutation.direction)
+            side = "local" if "outbound" in str(direction_val) else "jira"
+            ledger.record(mutation.target, side, mutation.payload)
+        except Exception:
+            pass
     mutations_out.append(mutation)
 
 
@@ -110,6 +131,7 @@ def compute_mutations(
     *,
     quarantine_set: set[str] | None = None,
     seed_mutations: list[Any] | None = None,
+    ledger: Any | None = None,
 ) -> list[Any]:
     """Diff local against jira state and return a list of Mutation objects.
 
@@ -235,6 +257,7 @@ def compute_mutations(
                     ),
                     quarantine_set=quarantine_set,
                     mutations_out=mutations,
+                    ledger=ledger,
                 )
                 continue
 
@@ -280,6 +303,7 @@ def compute_mutations(
                         ),
                         quarantine_set=quarantine_set,
                         mutations_out=mutations,
+                        ledger=ledger,
                     )
                     continue
 
@@ -306,6 +330,7 @@ def compute_mutations(
                 ),
                 quarantine_set=quarantine_set,
                 mutations_out=mutations,
+                ledger=ledger,
             )
         elif in_jira and not in_local:
             jira_fields = jira_state[key] or {}
@@ -338,6 +363,7 @@ def compute_mutations(
                     ),
                     quarantine_set=quarantine_set,
                     mutations_out=mutations,
+                    ledger=ledger,
                 )
                 continue
 
@@ -365,6 +391,7 @@ def compute_mutations(
                 ),
                 quarantine_set=quarantine_set,
                 mutations_out=mutations,
+                ledger=ledger,
             )
         else:
             # Present in both — diff non-excluded fields.
@@ -399,6 +426,7 @@ def compute_mutations(
                     ),
                     quarantine_set=quarantine_set,
                     mutations_out=mutations,
+                    ledger=ledger,
                 )
 
     # Symmetric inbound-probe pass: a local ticket may carry a bound
@@ -431,6 +459,7 @@ def compute_mutations(
             ),
             quarantine_set=quarantine_set,
             mutations_out=mutations,
+            ledger=ledger,
         )
 
     return mutations
