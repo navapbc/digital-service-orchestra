@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+# check-deleted-bridge-imports.sh — scan for references to deleted legacy bridge modules.
+# Advisory mode (default): exit 0 regardless of hits.
+# --strict: exit 1 if any hits exist.
+
+set -euo pipefail
+
+MODE="advisory"
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --strict) MODE="strict"; shift ;;
+        --advisory) MODE="advisory"; shift ;;
+        -h|--help)
+            echo "Usage: $0 [--strict|--advisory]"
+            exit 0
+            ;;
+        *) echo "Unknown option: $1" >&2; exit 2 ;;
+    esac
+done
+
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+cd "$REPO_ROOT"
+
+# Derive the plugin's git-relative path (check-plugin-self-ref forbids literal
+# references — see CLAUDE.md "Namespace policy").
+if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
+    _PLUGIN_GIT_PATH="${CLAUDE_PLUGIN_ROOT#"$REPO_ROOT"/}"
+else
+    _PLUGIN_GIT_PATH="$(cd "$(dirname "$0")/.." && pwd | sed "s|^${REPO_ROOT}/||")"
+fi
+RECONCILER_DIR="${_PLUGIN_GIT_PATH}/scripts/dso_reconciler"
+
+MODULES=(bootstrap orphan_band duplicates_band stale_band open_count_skew_band)
+
+# Zone -> path mapping
+declare -A ZONES=(
+    [reconciler]="$RECONCILER_DIR"
+    [workflows]=".github/workflows"
+    [tests]="tests"
+    [repo]="."
+)
+
+TOTAL_HITS=0
+TMPFILE=$(mktemp /tmp/bridge-scan.XXXXXX)
+trap 'rm -f "$TMPFILE"' EXIT
+
+scan_zone() {
+    local zone_name="$1"
+    local zone_path="$2"
+    local count=0
+    local hits=""
+    local alt
+    alt=$(IFS='|'; echo "${MODULES[*]}")
+    if command -v rg >/dev/null 2>&1; then
+        if [[ -e "$zone_path" ]]; then
+            hits=$(rg --no-heading --line-number -w "($alt)" "$zone_path" 2>/dev/null || true)
+        fi
+    else
+        if [[ -e "$zone_path" ]]; then
+            hits=$(grep -rn -wE "($alt)" "$zone_path" 2>/dev/null || true)
+        fi
+    fi
+    if [[ -n "$hits" ]]; then
+        count=$(echo "$hits" | wc -l | tr -d ' ')
+    fi
+    echo "Zone $zone_name: $count hits"
+    if [[ "$count" -gt 0 ]]; then
+        echo "$hits" | head -20
+    fi
+    TOTAL_HITS=$((TOTAL_HITS + count))
+}
+
+for zone in reconciler workflows tests repo; do
+    scan_zone "$zone" "${ZONES[$zone]}"
+done
+
+echo ""
+echo "TOTAL HITS: $TOTAL_HITS"
+echo "MODE: $MODE"
+
+if [[ "$MODE" == "strict" && "$TOTAL_HITS" -gt 0 ]]; then
+    exit 1
+fi
+exit 0
