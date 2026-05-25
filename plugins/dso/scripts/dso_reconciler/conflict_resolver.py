@@ -177,10 +177,10 @@ def resolve_field(
             # Lists → one record per element; non-list (string/None) → one record per call.
             if isinstance(resolved, list):
                 local_items = list(local_val) if isinstance(local_val, list) else []
-                local_keys = {str(item) for item in local_items}
+                local_keys = {_element_id(field_name, item) for item in local_items}
                 for item in resolved:
-                    side = "local" if str(item) in local_keys else "jira"
                     eid = _element_id(field_name, item)
+                    side = "local" if eid in local_keys else "jira"
                     ledger.record(f"{field_name}:{eid}", side, item)
             else:
                 # Scalar additive (e.g., description string) — local-first attribution.
@@ -192,10 +192,10 @@ def resolve_field(
         resolved = resolve_set_valued(local_val, remote_val, provenance_record)
         if ledger is not None:
             local_items = list(local_val) if local_val else []
-            local_keys = {str(item) for item in local_items}
+            local_keys = {_element_id(field_name, item) for item in local_items}
             for item in resolved:
-                side = "local" if str(item) in local_keys else "jira"
                 eid = _element_id(field_name, item)
+                side = "local" if eid in local_keys else "jira"
                 ledger.record(f"{field_name}:{eid}", side, item)
         return resolved
 

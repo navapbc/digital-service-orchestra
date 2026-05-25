@@ -54,8 +54,6 @@ declare -A ZONES=(
 )
 
 TOTAL_HITS=0
-TMPFILE=$(mktemp /tmp/bridge-scan.XXXXXX)
-trap 'rm -f "$TMPFILE"' EXIT
 
 scan_zone() {
     local zone_name="$1"

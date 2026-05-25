@@ -8,7 +8,7 @@ SCRIPT="$REPO_ROOT/plugins/dso/scripts/check-deleted-bridge-imports.sh"
 test -x "$SCRIPT" || { echo "FAIL: script not executable"; exit 1; }
 
 # Test 2: advisory mode always exits 0
-OUT=$("$SCRIPT" 2>&1) && echo "PASS: advisory exit 0"
+OUT=$("$SCRIPT" --advisory 2>&1) && echo "PASS: advisory exit 0"
 
 # Test 3: output mentions all 4 zones
 echo "$OUT" | grep -q "Zone reconciler:" || { echo "FAIL: missing reconciler zone"; exit 1; }
