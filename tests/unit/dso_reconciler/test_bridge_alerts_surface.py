@@ -58,6 +58,31 @@ def _load_module(name: str, path: Path):
     return mod
 
 
+# Seed sys.modules so production code's
+#   `from plugins.dso.scripts.dso_reconciler import alert_store`
+# resolves at runtime — `plugins/` is a project directory, not a real Python
+# package on sys.path. Register alert_store under the canonical dotted name
+# so `from <pkg> import alert_store` walks the namespace stubs and finds it.
+import types as _types
+
+for _parent in (
+    "plugins",
+    "plugins.dso",
+    "plugins.dso.scripts",
+    "plugins.dso.scripts.dso_reconciler",
+):
+    if _parent not in sys.modules:
+        sys.modules[_parent] = _types.ModuleType(_parent)
+_alert_store_key = "plugins.dso.scripts.dso_reconciler.alert_store"
+if _alert_store_key not in sys.modules:
+    _spec = importlib.util.spec_from_file_location(_alert_store_key, ALERT_STORE_PATH)
+    assert _spec is not None and _spec.loader is not None
+    _mod = importlib.util.module_from_spec(_spec)
+    sys.modules[_alert_store_key] = _mod
+    _spec.loader.exec_module(_mod)  # type: ignore[union-attr]
+    sys.modules["plugins.dso.scripts.dso_reconciler"].alert_store = _mod
+
+
 @pytest.fixture(scope="module")
 def reconcile_mod():
     """Load reconcile.py."""
