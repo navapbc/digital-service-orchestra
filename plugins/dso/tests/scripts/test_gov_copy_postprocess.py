@@ -217,3 +217,67 @@ class TestBuildDeviations:
         assert av_entry["reason"] == "unjustified", (
             f"Expected reason='unjustified' for new active_voice deviation; got {av_entry['reason']!r}"
         )
+
+
+# ---------------------------------------------------------------------------
+# RED tests for load_gov_copy_config — task e475-e682-5942-446a
+# ---------------------------------------------------------------------------
+
+import configparser  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+from gov_copy_postprocess.config import load_gov_copy_config, ConfigError  # noqa: E402
+
+
+@pytest.mark.unit
+class TestLoadGovCopyConfig:
+    """load_gov_copy_config reads [gov_copy] section from an INI config file."""
+
+    # [test_load_gov_copy_config_parses_valid_config]
+    def test_load_gov_copy_config_parses_valid_config(self, tmp_path: Path) -> None:
+        """Valid [gov_copy] block returns object with correct banned_words, fk_max, closing_ratio."""
+        config_file = tmp_path / "gov-copy.conf"
+        config_file.write_text(
+            "[gov_copy]\n"
+            "banned_words = utilize,leverage\n"
+            "fk_max = 8\n"
+            "closing_ratio = 0.95\n"
+        )
+        result = load_gov_copy_config(config_file)
+        assert result.banned_words == {"utilize", "leverage"}, (
+            f"Expected banned_words={{'utilize','leverage'}}; got {result.banned_words!r}"
+        )
+        assert result.fk_max == 8, (
+            f"Expected fk_max=8; got {result.fk_max!r}"
+        )
+        assert abs(result.closing_ratio - 0.95) < 1e-9, (
+            f"Expected closing_ratio=0.95; got {result.closing_ratio!r}"
+        )
+
+    def test_load_gov_copy_config_raises_on_missing_file(self, tmp_path: Path) -> None:
+        """Missing config file at path raises ConfigError."""
+        missing = tmp_path / "does_not_exist.conf"
+        with pytest.raises(ConfigError):
+            load_gov_copy_config(missing)
+
+    def test_load_gov_copy_config_raises_on_missing_section(self, tmp_path: Path) -> None:
+        """Config file without [gov_copy] section raises ConfigError."""
+        config_file = tmp_path / "other.conf"
+        config_file.write_text(
+            "[other_section]\n"
+            "banned_words = utilize\n"
+        )
+        with pytest.raises(ConfigError):
+            load_gov_copy_config(config_file)
+
+    def test_load_gov_copy_config_raises_on_unparseable_fk_max(self, tmp_path: Path) -> None:
+        """fk_max value that cannot be parsed as int raises ConfigError."""
+        config_file = tmp_path / "bad_fk.conf"
+        config_file.write_text(
+            "[gov_copy]\n"
+            "banned_words = utilize\n"
+            "fk_max = abc\n"
+            "closing_ratio = 0.95\n"
+        )
+        with pytest.raises(ConfigError):
+            load_gov_copy_config(config_file)
