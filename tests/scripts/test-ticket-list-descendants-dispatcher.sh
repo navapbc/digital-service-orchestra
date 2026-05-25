@@ -44,118 +44,49 @@ echo "=== test-ticket-list-descendants-dispatcher.sh ==="
 #       task-2       (ticket_type: task, parent: story-a)
 #     story-b        (ticket_type: story, parent: epic-root)
 #       bug-1        (ticket_type: bug, parent: story-b)
+# Performance + isolation notes (flakiness mitigation):
+#   - mktemp -d (no path prefix) honors $TMPDIR, which suite-engine.sh sets
+#     per-test for isolation. Matches the established pattern used by ~300
+#     other tests in tests/scripts/.
+#   - All six fixture tickets are built in ONE python3 invocation (was 6).
+#     Python cold-start is ~50–100ms per invocation; consolidating saves
+#     ~300–600ms per fixture build. With four hierarchy builds per test run,
+#     that compounds to ~1–2s saved — material under parallel CI load.
 make_hierarchy_fixture() {
     local tracker_dir
     tracker_dir=$(mktemp -d)
     _CLEANUP_DIRS+=("$tracker_dir")
 
-    # epic-root — no parent
-    mkdir -p "$tracker_dir/epic-root"
-    python3 -c "
-import json
-event = {
-    'event_type': 'CREATE',
-    'ticket_id': 'epic-root',
-    'timestamp': 1000,
-    'author': 'test',
-    'data': {
-        'ticket_type': 'epic',
-        'title': 'Root Epic',
-        'parent_id': None
-    }
-}
-json.dump(event, open('$tracker_dir/epic-root/001-CREATE.json', 'w'))
-"
+    mkdir -p "$tracker_dir/epic-root" "$tracker_dir/story-a" "$tracker_dir/task-1" \
+        "$tracker_dir/task-2" "$tracker_dir/story-b" "$tracker_dir/bug-1"
 
-    # story-a — child of epic-root
-    mkdir -p "$tracker_dir/story-a"
-    python3 -c "
-import json
-event = {
-    'event_type': 'CREATE',
-    'ticket_id': 'story-a',
-    'timestamp': 1001,
-    'author': 'test',
-    'data': {
-        'ticket_type': 'story',
-        'title': 'Story A',
-        'parent_id': 'epic-root'
+    TRACKER_DIR="$tracker_dir" python3 - <<'PYEOF'
+import json, os
+tracker = os.environ['TRACKER_DIR']
+tickets = [
+    ('epic-root', 1000, 'epic',  'Root Epic', None),
+    ('story-a',   1001, 'story', 'Story A',  'epic-root'),
+    ('task-1',    1002, 'task',  'Task 1',   'story-a'),
+    ('task-2',    1003, 'task',  'Task 2',   'story-a'),
+    ('story-b',   1004, 'story', 'Story B',  'epic-root'),
+    ('bug-1',     1005, 'bug',   'Bug 1',    'story-b'),
+]
+for ticket_id, ts, ttype, title, parent_id in tickets:
+    event = {
+        'event_type': 'CREATE',
+        'ticket_id': ticket_id,
+        'timestamp': ts,
+        'author': 'test',
+        'data': {
+            'ticket_type': ttype,
+            'title': title,
+            'parent_id': parent_id,
+        },
     }
-}
-json.dump(event, open('$tracker_dir/story-a/001-CREATE.json', 'w'))
-"
-
-    # task-1 — child of story-a
-    mkdir -p "$tracker_dir/task-1"
-    python3 -c "
-import json
-event = {
-    'event_type': 'CREATE',
-    'ticket_id': 'task-1',
-    'timestamp': 1002,
-    'author': 'test',
-    'data': {
-        'ticket_type': 'task',
-        'title': 'Task 1',
-        'parent_id': 'story-a'
-    }
-}
-json.dump(event, open('$tracker_dir/task-1/001-CREATE.json', 'w'))
-"
-
-    # task-2 — child of story-a
-    mkdir -p "$tracker_dir/task-2"
-    python3 -c "
-import json
-event = {
-    'event_type': 'CREATE',
-    'ticket_id': 'task-2',
-    'timestamp': 1003,
-    'author': 'test',
-    'data': {
-        'ticket_type': 'task',
-        'title': 'Task 2',
-        'parent_id': 'story-a'
-    }
-}
-json.dump(event, open('$tracker_dir/task-2/001-CREATE.json', 'w'))
-"
-
-    # story-b — child of epic-root
-    mkdir -p "$tracker_dir/story-b"
-    python3 -c "
-import json
-event = {
-    'event_type': 'CREATE',
-    'ticket_id': 'story-b',
-    'timestamp': 1004,
-    'author': 'test',
-    'data': {
-        'ticket_type': 'story',
-        'title': 'Story B',
-        'parent_id': 'epic-root'
-    }
-}
-json.dump(event, open('$tracker_dir/story-b/001-CREATE.json', 'w'))
-"
-
-    # bug-1 — child of story-b
-    mkdir -p "$tracker_dir/bug-1"
-    python3 -c "
-import json
-event = {
-    'event_type': 'CREATE',
-    'ticket_id': 'bug-1',
-    'timestamp': 1005,
-    'author': 'test',
-    'data': {
-        'ticket_type': 'bug',
-        'title': 'Bug 1',
-        'parent_id': 'story-b'
-    }
-}
-json.dump(event, open('$tracker_dir/bug-1/001-CREATE.json', 'w'))
-"
+    path = os.path.join(tracker, ticket_id, '001-CREATE.json')
+    with open(path, 'w') as f:
+        json.dump(event, f)
+PYEOF
 
     echo "$tracker_dir"
 }

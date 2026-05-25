@@ -54,91 +54,61 @@ trap _cleanup EXIT
 #   bug-tag-001   type=bug    tags=[detected_by:tests, regression]
 #   story-tag-001 type=story  tags=[detected_by:tests]
 #   story-tag-002 type=story  tags=[regression]
+# Performance + isolation notes (flakiness mitigation):
+#   - mktemp -d (no path prefix) honors $TMPDIR, which suite-engine.sh sets
+#     per-test for isolation. Matches the established pattern used by ~300
+#     other tests in tests/scripts/. Hardcoded `/tmp/<prefix>` paths bypass
+#     the per-test sandbox and cause cross-test contention under parallel
+#     CI load (MAX_PARALLEL=8) — a likely contributor to intermittent
+#     "failed test output ends mid-test" symptoms.
+#   - All three fixture tickets are built in ONE python3 invocation (was 3).
+#     Python cold-start is ~50–100ms per invocation; consolidating saves
+#     ~100–200ms per fixture build.
 _make_tracker() {
     local tracker_dir
-    tracker_dir=$(mktemp -d /tmp/test-ticket-list-has-tag.XXXXXX)
+    tracker_dir=$(mktemp -d)
     _CLEANUP_DIRS+=("$tracker_dir")
 
-    # ── Bug with detected_by:tests tag ────────────────────────────────────────
-    mkdir -p "$tracker_dir/bug-tag-001"
-    python3 -c "
-import json
-event = {
-    'event_type': 'CREATE',
-    'ticket_id': 'bug-tag-001',
-    'timestamp': 1700000000000000000,
-    'uuid': 'aaaaaaaa-0001-0001-0001-000000000001',
-    'env_id': 'test-env',
-    'author': 'Test',
-    'data': {
-        'ticket_id': 'bug-tag-001',
-        'title': 'Bug with detected_by:tests tag',
-        'ticket_type': 'bug',
-        'status': 'open',
-        'priority': 2,
-        'parent_id': None,
-        'tags': ['detected_by:tests', 'regression'],
-        'description': '',
-        'notes': '',
-    }
-}
-with open('$tracker_dir/bug-tag-001/001-CREATE.json', 'w') as f:
-    json.dump(event, f)
-"
+    mkdir -p "$tracker_dir/bug-tag-001" "$tracker_dir/story-tag-001" "$tracker_dir/story-tag-002"
 
-    # ── Story (non-bug) with detected_by:tests tag ────────────────────────────
-    mkdir -p "$tracker_dir/story-tag-001"
-    python3 -c "
-import json
-event = {
-    'event_type': 'CREATE',
-    'ticket_id': 'story-tag-001',
-    'timestamp': 1700000001000000000,
-    'uuid': 'bbbbbbbb-0001-0001-0001-000000000001',
-    'env_id': 'test-env',
-    'author': 'Test',
-    'data': {
-        'ticket_id': 'story-tag-001',
-        'title': 'Story with detected_by:tests tag',
-        'ticket_type': 'story',
-        'status': 'open',
-        'priority': 2,
-        'parent_id': None,
-        'tags': ['detected_by:tests'],
-        'description': '',
-        'notes': '',
+    TRACKER_DIR="$tracker_dir" python3 - <<'PYEOF'
+import json, os
+tracker = os.environ['TRACKER_DIR']
+tickets = [
+    ('bug-tag-001',   'aaaaaaaa-0001-0001-0001-000000000001', 1700000000000000000,
+     'Bug with detected_by:tests tag', 'bug',
+     ['detected_by:tests', 'regression']),
+    ('story-tag-001', 'bbbbbbbb-0001-0001-0001-000000000001', 1700000001000000000,
+     'Story with detected_by:tests tag', 'story',
+     ['detected_by:tests']),
+    ('story-tag-002', 'cccccccc-0001-0001-0001-000000000001', 1700000002000000000,
+     'Story with regression tag only', 'story',
+     ['regression']),
+]
+for ticket_id, uuid_, ts, title, ttype, tags in tickets:
+    event = {
+        'event_type': 'CREATE',
+        'ticket_id': ticket_id,
+        'timestamp': ts,
+        'uuid': uuid_,
+        'env_id': 'test-env',
+        'author': 'Test',
+        'data': {
+            'ticket_id': ticket_id,
+            'title': title,
+            'ticket_type': ttype,
+            'status': 'open',
+            'priority': 2,
+            'parent_id': None,
+            'tags': tags,
+            'description': '',
+            'notes': '',
+        },
     }
-}
-with open('$tracker_dir/story-tag-001/001-CREATE.json', 'w') as f:
-    json.dump(event, f)
-"
-
-    # ── Story with regression tag (no detected_by:tests) ─────────────────────
-    mkdir -p "$tracker_dir/story-tag-002"
-    python3 -c "
-import json
-event = {
-    'event_type': 'CREATE',
-    'ticket_id': 'story-tag-002',
-    'timestamp': 1700000002000000000,
-    'uuid': 'cccccccc-0001-0001-0001-000000000001',
-    'env_id': 'test-env',
-    'author': 'Test',
-    'data': {
-        'ticket_id': 'story-tag-002',
-        'title': 'Story with regression tag only',
-        'ticket_type': 'story',
-        'status': 'open',
-        'priority': 2,
-        'parent_id': None,
-        'tags': ['regression'],
-        'description': '',
-        'notes': '',
-    }
-}
-with open('$tracker_dir/story-tag-002/001-CREATE.json', 'w') as f:
-    json.dump(event, f)
-"
+    path = os.path.join(tracker, ticket_id, '001-CREATE.json')
+    with open(path, 'w') as f:
+        json.dump(event, f)
+PYEOF
 
     echo "$tracker_dir"
 }

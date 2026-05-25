@@ -72,6 +72,31 @@ if [[ -n "$existing_any_url" ]]; then
     exit 0
 fi
 
+# ── Sentinel-commit bootstrap (zero-divergence case) ─────────────────────────
+# `gh pr create` requires at least one commit between base and head. On a fresh
+# session worktree at the same SHA as main, we open the umbrella PR by writing
+# a single empty sentinel commit with a DSO-Sentinel: trailer + [skip ci]. The
+# trailer makes the commit greppable for later cleanup; [skip ci] prevents CI
+# runs on an epic with no real changes yet. Convergent pattern across Kubernetes
+# feature branches, git-flow release branches, and peter-evans/create-pull-request.
+_divergence="$(git rev-list --count "main..HEAD" 2>/dev/null || echo "0")"
+if [[ "$_divergence" == "0" ]]; then
+    # Bypass the session-merge-only pre-commit hook for this single commit.
+    # The hook accepts DSO_SPRINT_ACTIVE=0 + non-empty BYPASS_REASON; we use a
+    # reason string that is greppable in audit logs and tied to this purpose.
+    DSO_SPRINT_ACTIVE=0 \
+    DSO_SPRINT_ACTIVE_BYPASS_REASON="epic-bootstrap-sentinel" \
+    git commit --quiet --allow-empty \
+        -m "chore(${PRIMARY_TICKET_ID}): open umbrella PR [skip ci]" \
+        -m "DSO-Sentinel: epic-bootstrap" \
+    || {
+        echo "ERROR: sentinel commit failed — cannot open umbrella PR on a zero-divergence branch" >&2
+        exit 1
+    }
+    # Push the sentinel so `gh pr create --head` finds it on origin.
+    git push -u origin "$SESSION_BRANCH" --quiet 2>/dev/null || true
+fi
+
 # ── Create draft PR ──────────────────────────────────────────────────────────
 pr_title="${DRAFT_PR_TITLE_PREFIX} ${EPIC_TITLE} (${PRIMARY_TICKET_ID})"
 pr_body="${DRAFT_PR_BODY_TEMPLATE//\{\{PRIMARY_TICKET_ID\}\}/$PRIMARY_TICKET_ID}"

@@ -1734,21 +1734,42 @@ ticket_edit() {
             return 1
         fi
 
-        # --parent validation (bug 3f93-1b3d):
-        #   1. resolve new parent ID (accept short IDs / aliases)
-        #   2. verify new parent ticket exists
-        #   3. refuse self-parent
-        #   4. refuse ancestor cycles (would-be parent has ticket_id as ancestor)
+        # Field-level guards (bug 3f93-1b3d parent; bug e78f-9f79 description):
+        #   description: reject empty value to prevent silent clobber
+        #   parent:
+        #     1. resolve new parent ID (accept short IDs / aliases)
+        #     2. verify new parent ticket exists
+        #     3. refuse self-parent
+        #     4. refuse ancestor cycles (would-be parent has ticket_id as ancestor)
         # Replace the "parent=…" pair with "parent_id=<resolved>" before delegation.
-        local _i _pair _new_parent_id_input _new_parent_id
+        local _i _pair _new_parent_id_input _new_parent_id _new_desc
         for _i in "${!_parsed_pairs[@]}"; do
-            _pair="${_parsed_pairs[$_i]}"
+            _pair="${_parsed_pairs[_i]}"
             case "$_pair" in
+                description=*)
+                    # Reject empty --description= to prevent silent clobber of
+                    # multi-KB structured descriptions when a heredoc/$(cat ...)
+                    # substitution collapses to an empty string (bug e78f-9f79).
+                    _new_desc="${_pair#description=}"
+                    if [ -z "$_new_desc" ]; then
+                        echo "Error: --description requires a non-empty value (empty values silently clobber prior content; bug e78f-9f79)" >&2
+                        return 1
+                    fi
+                    ;;
                 parent=*)
                     _new_parent_id_input="${_pair#parent=}"
                     if [ -z "$_new_parent_id_input" ]; then
-                        echo "Error: --parent requires a non-empty value" >&2
+                        echo "Error: --parent requires a non-empty value (use --parent=null to detach)" >&2
                         return 1
+                    fi
+                    # Detach sentinel (bug 7f23-1a14): --parent=null clears
+                    # parent_id. The snapshot rebuilder's jq logic normalizes
+                    # an empty parent_id field to null, so we write "" into the
+                    # EDIT event and skip the validation cascade below (no
+                    # parent to resolve, no status check, no ancestor walk).
+                    if [ "$_new_parent_id_input" = "null" ]; then
+                        _parsed_pairs[_i]="parent_id="
+                        continue
                     fi
                     if ! _new_parent_id="$(_ticketlib_resolve_id "$_new_parent_id_input" "$TRACKER_DIR" 2>/dev/null)"; then
                         echo "Error: parent ticket '$_new_parent_id_input' does not exist" >&2
@@ -1799,7 +1820,7 @@ ticket_edit() {
                         _walk_id="$_walk_parent"
                         _walk_count=$((_walk_count + 1))
                     done
-                    _parsed_pairs[$_i]="parent_id=$_new_parent_id"
+                    _parsed_pairs[_i]="parent_id=$_new_parent_id"
                     ;;
             esac
         done
