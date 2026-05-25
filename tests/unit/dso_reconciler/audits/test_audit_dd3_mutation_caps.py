@@ -24,7 +24,6 @@ from __future__ import annotations
 import importlib.util
 import json
 import subprocess
-import types
 from pathlib import Path
 from types import ModuleType
 from unittest.mock import patch
@@ -111,7 +110,7 @@ def test_all_within_cap(mod: ModuleType, tmp_path: Path) -> None:
 
     gate_result = subprocess.CompletedProcess(args=[], returncode=0)
 
-    with patch.object(mod.subprocess, "run", return_value=gate_result) as mock_run:
+    with patch.object(mod.subprocess, "run", return_value=gate_result):
         # Override: only gate calls should be stubbed; git rev-parse for
         # artifacts default is not exercised when we pass --artifacts-dir.
         rc = mod.main([

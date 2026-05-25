@@ -42,7 +42,7 @@ _VALID_COMBINATIONS: frozenset[tuple[MutationDirection, MutationAction]] = froze
 )
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, eq=False)
 class Mutation:
     """An immutable description of a single reconciler-driven change."""
 
@@ -64,6 +64,19 @@ class Mutation:
                 f"invalid (direction={self.direction.value}, "
                 f"action={self.action.value}) combination"
             )
+
+    def __eq__(self, other: object) -> bool:
+        # Identity is the (direction, action, target) triple.  payload and
+        # provenance are descriptive metadata and are intentionally excluded
+        # so that __eq__ is consistent with __hash__ (payload/provenance are
+        # often dict-valued and therefore unhashable).
+        if not isinstance(other, Mutation):
+            return NotImplemented
+        return (
+            self.direction == other.direction
+            and self.action == other.action
+            and self.target == other.target
+        )
 
     def __hash__(self) -> int:
         # payload/provenance are Mapping (often dict, which is unhashable).

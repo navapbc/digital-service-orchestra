@@ -44,8 +44,8 @@ logger = logging.getLogger(__name__)
 #       Legacy batch dispatch (manifest writer + HEAD-drift guard).
 #
 # Selection is by argument type at the top of apply().
-_MutationModule = None  # late-loaded mutation module
-_ErrorsModule = None    # late-loaded _errors module
+_MutationModule = None  # late-loaded mutation module; written by _load_mutation_module()
+_ErrorsModule = None    # late-loaded _errors module; written by _load_errors_module()
 
 
 @dataclass(frozen=True, slots=True)
@@ -150,7 +150,9 @@ def _apply_outbound_create(mutation, *, client=None) -> ApplyResult:
         key = payload.get("key_hint") or mutation.target
         try:
             _call_with_retry(client.delete_issue, key)
-        except Exception:
+        except Exception:  # noqa: BLE001
+            # Best-effort rollback: swallow delete errors so the original
+            # create exception propagates to the caller unchanged.
             pass
         raise
     return ApplyResult(mutation.direction, mutation.action, {})
@@ -350,7 +352,8 @@ _LEAVES: dict[tuple[Any, Any], Callable[..., ApplyResult]] = _build_leaves()
 # dso-id label write authorization contract
 # ---------------------------------------------------------------------------
 
-_AUTHORIZED_DSO_ID_LABEL_WRITERS_DOC: str = """
+_AUTHORIZED_DSO_ID_LABEL_WRITERS_DOC: str = (  # noqa: F841  # read via getattr by test_authorized_writers_docstring_documents_full_contract
+    """
 dso-id label write authorization contract for applier.py
 =========================================================
 
@@ -383,6 +386,7 @@ two authorized leaves above, not by the per-field provenance resolution path.
 inbound_repair_property writes the dso_local_id property field (entity
 properties, not labels). It MUST NOT touch the label surface.
 """
+)
 
 _AUTHORIZED_DSO_ID_LABEL_WRITERS: frozenset[str] = frozenset(
     {"inbound_clean_label", "outbound_create"}
@@ -390,8 +394,9 @@ _AUTHORIZED_DSO_ID_LABEL_WRITERS: frozenset[str] = frozenset(
 """Leaf names authorized to emit dso-id label mutations (see _AUTHORIZED_DSO_ID_LABEL_WRITERS_DOC)."""
 
 # Per-leaf authorized-action map: captures which label mutation action each
-# authorized leaf is permitted to perform.
-_AUTHORIZED_DSO_ID_LABEL_ACTIONS: dict[str, frozenset[str]] = {
+# authorized leaf is permitted to perform.  Referenced by _AUTHORIZED_DSO_ID_LABEL_WRITERS_DOC
+# and kept for future _audit_dso_id_label_writes per-action enforcement.
+_AUTHORIZED_DSO_ID_LABEL_ACTIONS: dict[str, frozenset[str]] = {  # noqa: F841
     "outbound_create": frozenset({"create"}),
     "inbound_clean_label": frozenset({"delete"}),
 }

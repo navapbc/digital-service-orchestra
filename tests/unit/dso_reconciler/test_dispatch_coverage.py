@@ -38,7 +38,6 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 _PKG_DIR = REPO_ROOT / "plugins" / "dso" / "scripts" / "dso_reconciler"
 _MUTATION_PATH = _PKG_DIR / "mutation.py"
 _RECONCILE_PATH = _PKG_DIR / "reconcile.py"
-_APPLIER_PATH = _PKG_DIR / "applier.py"
 
 # Module-registry keys used internally by reconcile.py
 _MUTATION_KEY = "reconcile_mutation"
