@@ -539,16 +539,20 @@ tests/scripts/test-infer-detected-by.sh:tests/scripts/test-infer-detected-by.sh 
 tests/scripts/test-bootstrap-calibration-tickets.sh:tests/scripts/test-bootstrap-calibration-tickets.sh
 plugins/dso/scripts/lib/reachability.sh:tests/scripts/test-reachability-helper.sh
 tests/lib/protocol-conformance-harness.sh:tests/unit/shared/test-protocol-conformance-harness.sh
-plugins/dso/scripts/dso_reconciler/conflict_resolver.py:tests/unit/dso_reconciler/test_conflict_resolver.py,tests/unit/dso_reconciler/test_conflict_resolver_cap.py,tests/unit/dso_reconciler/test_conflict_resolver_divergence.py,tests/unit/dso_reconciler/test_conflict_resolver_fitness.py
+plugins/dso/scripts/dso_reconciler/conflict_resolver.py:tests/unit/dso_reconciler/test_conflict_resolver.py,tests/unit/dso_reconciler/test_conflict_resolver_cap.py,tests/unit/dso_reconciler/test_conflict_resolver_divergence.py,tests/unit/dso_reconciler/test_conflict_resolver_fitness.py,tests/unit/dso_reconciler/test_differ_conflict_resolution.py,tests/unit/dso_reconciler/test_conflict_resolver_provenance_matrix.py
 plugins/dso/scripts/dso_reconciler/alert_store.py:tests/unit/dso_reconciler/test_alert_store_dedup.py
 plugins/dso/scripts/dso_reconciler/invariants.py:tests/unit/dso_reconciler/test_invariants.py
 plugins/dso/scripts/dso_reconciler/health.py:tests/unit/dso_reconciler/test_health.py,tests/unit/dso_reconciler/test_health_baseline.py,tests/unit/dso_reconciler/test_health_schema.py
 plugins/dso/scripts/dso_reconciler/_attestation.py:tests/unit/dso_reconciler/test_attestation.py
-plugins/dso/scripts/dso_reconciler/bootstrap.py:tests/unit/dso_reconciler/test_bootstrap_baseline.py
-plugins/dso/scripts/dso_reconciler/orphan_band.py:tests/unit/dso_reconciler/test_orphan_band_apply.py,tests/unit/dso_reconciler/test_orphan_band_gate.py
-plugins/dso/scripts/dso_reconciler/stale_band.py:tests/unit/dso_reconciler/test_stale_band_apply.py,tests/unit/dso_reconciler/test_stale_band_gate.py,tests/unit/dso_reconciler/test_stale_band_plan.py
-plugins/dso/scripts/dso_reconciler/duplicates_band.py:tests/unit/dso_reconciler/test_duplicates_band_apply.py,tests/unit/dso_reconciler/test_duplicates_band_gate.py,tests/unit/dso_reconciler/test_duplicates_band_plan.py
-plugins/dso/scripts/dso_reconciler/open_count_skew_band.py:tests/unit/dso_reconciler/test_open_count_skew_band_apply.py,tests/unit/dso_reconciler/test_open_count_skew_band_gate.py,tests/unit/dso_reconciler/test_open_count_skew_band_plan.py
+plugins/dso/scripts/dso_reconciler/audits/audit_dd3_mutation_caps.py:tests/unit/dso_reconciler/audits/test_audit_dd3_mutation_caps.py
+plugins/dso/scripts/dso_reconciler/_advisory_lock.py:tests/unit/dso_reconciler/test_advisory_lock.py
+plugins/dso/scripts/dso_reconciler/mode.py:tests/unit/dso_reconciler/test_mode.py
+plugins/dso/scripts/dso_reconciler/inbound_probe.py:tests/unit/dso_reconciler/test_inbound_probe.py,tests/unit/dso_reconciler/test_inbound_probe_dispatch.py
+plugins/dso/scripts/dso_reconciler/_errors.py:tests/unit/dso_reconciler/test_errors.py
+plugins/dso/scripts/dso_reconciler/provenance_ledger.py:tests/unit/dso_reconciler/test_provenance_ledger.py,tests/unit/dso_reconciler/test_conflict_resolver_provenance_matrix.py
+plugins/dso/scripts/dso_reconciler/reconcile.py:tests/unit/dso_reconciler/test_reconcile_main.py,tests/unit/dso_reconciler/test_dispatch_coverage.py,tests/unit/dso_reconciler/test_reconcile_once.py
+plugins/dso/scripts/dso_reconciler/__main__.py:tests/unit/dso_reconciler/test_reconcile_main.py,tests/unit/dso_reconciler/test_main_entry.py
+plugins/dso/scripts/dso_reconciler/config.py:tests/unit/dso_reconciler/test_config.py
 plugins/dso/data/ui-reference/principles/:tests/scripts/test_corpus_principles.py [test_principles_directory_contains_all_required_sources]
 plugins/dso/data/ui-reference/patterns/:tests/scripts/test_corpus_patterns_dark.py [test_brignull_dark_patterns_yaml_exists]
 plugins/dso/data/ui-reference/accessibility/:tests/scripts/test_corpus_accessibility_wcag.py [test_accessibility_directory_exists]
@@ -571,7 +575,10 @@ plugins/dso/scripts/gov_copy_postprocess/__main__.py:plugins/dso/tests/scripts/t
 plugins/dso/scripts/telemetry/lambda-handler/privacy.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_privacy_truth_table.py
 plugins/dso/scripts/telemetry/lambda-handler/schema.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_schema.py
 plugins/dso/scripts/telemetry/lambda-handler/validator.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_validator.py
+plugins/dso/scripts/dso_reconciler/mutation.py:tests/unit/dso_reconciler/test_mutation.py
 plugins/dso/scripts/telemetry/lambda-handler/handler.py:plugins/dso/scripts/telemetry/lambda-handler/tests/test_handler.py
+plugins/dso/scripts/dso_reconciler/differ.py:tests/unit/dso_reconciler/test_differ.py,tests/unit/dso_reconciler/test_differ_conflict_resolution.py
+plugins/dso/scripts/dso_reconciler/fetcher.py:tests/unit/dso_reconciler/test_fetcher_snapshot.py,tests/unit/dso_reconciler/test_fetcher_dedup_observable.py,tests/unit/dso_reconciler/test_fetcher_pagination_jql.py,tests/unit/dso_reconciler/test_fetcher_truncation_gate.py
 plugins/dso/scripts/check-copy-needs-schema.sh:tests/scripts/test-check-copy-needs-schema.sh [test_copy_needs_pass_fixture,test_copy_needs_fail_missing_field,test_copy_needs_fail_unknown_page]
 plugins/dso/scripts/dogfood-gov-copy.sh:plugins/dso/tests/test-dogfood-gov-copy.sh
 plugins/dso/scripts/verify-story-merge-trailer.sh:tests/scripts/test-verify-story-merge-trailer.sh
