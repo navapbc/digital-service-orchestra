@@ -2127,7 +2127,7 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 
 | | |
 |---|---|
-| **Description** | Required non-empty UUID identifying this repo's bridge environment. Both the outbound and inbound bridges fail-fast on startup when this variable is empty or unset. Also drives BRIDGE_ALERT migration semantics: the first run after `BRIDGE_ENV_ID` transitions from empty emits a one-shot alert. Provision with: `gh variable set BRIDGE_ENV_ID --body "$(python3 -c 'import uuid; print(uuid.uuid4())')"` |
+| **Description** | Required non-empty UUID identifying this repo's bridge environment. Both the outbound and inbound bridges fail-fast on startup when this variable is empty or unset. Also drives BRIDGE_ALERT migration semantics: the first run after `BRIDGE_ENV_ID` transitions from empty emits a one-shot alert. **DEPRECATED (stateless reconciler — see epic 4047-3cb1-6cb4-46a1)** — the one-shot BRIDGE_ALERT migration path depended on `prev_snapshot` semantics from the edge-triggered bridge; the level-triggered Jira reconciler does not emit this alert. Provision with: `gh variable set BRIDGE_ENV_ID --body "$(python3 -c 'import uuid; print(uuid.uuid4())')"` |
 | **Type** | GitHub repo variable (set via `gh variable set`) |
 | **Required** | Required — bridges will not start without it |
 | **Default** | None |
