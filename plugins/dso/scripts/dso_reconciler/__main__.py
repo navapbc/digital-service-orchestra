@@ -21,6 +21,37 @@ import importlib.util
 import sys
 from pathlib import Path
 
+# Dotted-name keys used for sys.modules seeding so that both production code
+# and unit tests (which pre-seed sys.modules with these exact keys) share the
+# same module objects and patch() targets resolve correctly.
+_ADVISORY_LOCK_KEY = "plugins.dso.scripts.dso_reconciler._advisory_lock"
+_MODE_KEY = "plugins.dso.scripts.dso_reconciler.mode"
+
+
+def _load_sibling_keyed(dotted_key: str, filename: str):
+    """Load a sibling .py file under *dotted_key* in sys.modules.
+
+    If *dotted_key* is already present in sys.modules, returns the cached
+    module — this allows tests to pre-seed the module and have production code
+    reuse it, making patch() targets on *dotted_key* work correctly.
+
+    Unlike ``_try_load_step``, this helper raises ``ImportError`` when the
+    file is absent rather than returning None, since callers depend on it.
+    """
+    if dotted_key in sys.modules:
+        return sys.modules[dotted_key]
+    here = Path(__file__).parent
+    path = here / filename
+    if not path.exists():
+        raise ImportError(f"Required sibling module not found: {path}")
+    spec = importlib.util.spec_from_file_location(dotted_key, path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot create spec for {path}")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[dotted_key] = mod
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    return mod
+
 
 def _try_load_step(name: str):
     """Attempt to import a sibling module by name; return None if absent."""
@@ -80,16 +111,84 @@ def run_pass(repo_root: Path | None = None) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Entry point for ``python -m dso_reconciler``."""
+    """Entry point for ``python -m dso_reconciler``.
+
+    Guard sequence (execution order required — reordering breaks dd-2/dd-3/dd-4):
+      1. argparse           — parse --mode (default: live) and --repo-root
+      2. Mode.from_str      — validate mode string BEFORE any fetcher reference (dd-2)
+      3. check_pass_lock    — exit non-zero if another pass is in flight (dd-3)
+      4. check_phase_gate   — exit non-zero if gate file blocks this mode (dd-4)
+      5. acquire_pass_lock  — claim the lock for this pass
+      6. try/finally        — run_pass() with guaranteed release_pass_lock (dd-3)
+    """
     parser = argparse.ArgumentParser(prog="dso_reconciler")
     parser.add_argument(
         "--repo-root",
         default=None,
         help="Repository root (default: auto-detect from script location)",
     )
+    # --mode is NOT required; omitting it defaults to 'live' so that
+    # inject-and-heal.sh (which calls 'python3 -m dso_reconciler --repo-root ...'
+    # with no --mode flag) continues to work with the steady-state production mode.
+    parser.add_argument(
+        "--mode",
+        default=None,
+        help=(
+            "Rollout-safety mode: dry-run | bootstrap-strict | bootstrap-throttle | live "
+            "(default: live)"
+        ),
+    )
     args = parser.parse_args(argv)
     repo_root = Path(args.repo_root) if args.repo_root else None
-    return run_pass(repo_root=repo_root)
+
+    # -------------------------------------------------------------------------
+    # Step 1: Mode validation (dd-2) — BEFORE any fetcher reference.
+    # Load mode.py under the dotted key so tests can pre-seed sys.modules.
+    # -------------------------------------------------------------------------
+    mode_mod = _load_sibling_keyed(_MODE_KEY, "mode.py")
+    mode_str = args.mode if args.mode is not None else mode_mod.Mode.LIVE.value
+    try:
+        target_mode = mode_mod.Mode.from_str(mode_str)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+
+    # -------------------------------------------------------------------------
+    # Step 2: Advisory lock + phase-gate checks.
+    # Load _advisory_lock under the dotted key so tests can pre-seed sys.modules.
+    # -------------------------------------------------------------------------
+    advisory = _load_sibling_keyed(_ADVISORY_LOCK_KEY, "_advisory_lock.py")
+
+    # Step 2a: pass-lock check (dd-3)
+    if advisory.check_pass_lock(repo_root):
+        print(
+            "reconcile: .reconciler-pass-lock present on tickets branch "
+            "— another pass in flight",
+            file=sys.stderr,
+        )
+        return 3
+
+    # Step 2b: phase-gate check (dd-4)
+    if advisory.check_phase_gate(target_mode, repo_root):
+        print(
+            f"reconcile: .reconciler-phase-gate blocks advancement to "
+            f"{target_mode.value}; remove the file from tickets to advance",
+            file=sys.stderr,
+        )
+        return 4
+
+    # -------------------------------------------------------------------------
+    # Step 3: acquire lock, run pass, release in finally
+    # -------------------------------------------------------------------------
+    pass_id = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H-%M-%S")
+    advisory.acquire_pass_lock(pass_id, repo_root)
+    try:
+        return run_pass(repo_root=repo_root)
+    except Exception as exc:  # noqa: BLE001
+        print(f"ERROR: run_pass raised: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        advisory.release_pass_lock(pass_id, repo_root)
 
 
 if __name__ == "__main__":
