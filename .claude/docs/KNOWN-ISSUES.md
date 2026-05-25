@@ -73,3 +73,64 @@ Operational patterns discovered during development. Add entries when 3+ similar 
 **Fix**: After adding new corpus domain files, update `plugins/dso/data/ui-reference/_index.yaml` to include the new file entries, then commit both the domain file(s) and the updated `_index.yaml` together.
 
 **Context**: `plugins/dso/scripts/ref-query.sh`; enforced at schema level by `check-corpus-schema.sh` pre-commit hook (tag vocabulary only — manifest completeness is not automatically checked).
+
+---
+
+## INC-006: Flaky Tests from Hardcoded `/tmp/<prefix>` Bypassing the Per-Test TMPDIR Sandbox
+
+**Symptom**: A `tests/scripts/test-*.sh` test passes consistently locally (often 5/5 runs at ~1–2s each) but the Script Tests CI job intermittently reports it as failed with **truncated output** — test description echo lines appear but the per-test PASS/FAIL summary is missing. The failure does not reproduce on a re-run.
+
+**Cause**: `tests/lib/suite-engine.sh` sets a per-test `TMPDIR=<isolated-dir>` before invoking each test specifically so that `mktemp` calls inside the test land in an isolated sandbox. Tests that call `mktemp -d /tmp/<prefix>.XXXXXX` use an **absolute path** that bypasses `$TMPDIR`, dropping the fixture into the shared `/tmp` namespace. Under parallel CI execution (MAX_PARALLEL=8 by default) this causes cross-test contention on shared `/tmp` paths — directory enumeration races, inode-cache pressure, sometimes lock contention — that manifests as test runs getting truncated, killed, or mis-classified by the suite engine.
+
+**How to recognize this pattern**:
+- `grep -nE 'mktemp -d /tmp/' tests/scripts/test-*.sh` — list every test that bypasses the sandbox. ~62 such tests existed at the time of writing; ~300 use the correct pattern.
+- The failing test "passes locally, intermittently fails in CI under parallel load" combined with hardcoded `/tmp/<prefix>` usage is the diagnostic signal.
+
+**Fix**: Change `mktemp -d /tmp/<prefix>.XXXXXX` to plain `mktemp -d` — it honors `$TMPDIR` (suite-engine's sandbox) and matches the dominant convention used by ~300 tests in the suite.
+
+```bash
+# Before — bypasses suite-engine sandbox; contends under parallel CI
+tracker_dir=$(mktemp -d /tmp/test-my-thing.XXXXXX)
+
+# After — honors $TMPDIR; isolated per test
+tracker_dir=$(mktemp -d)
+```
+
+**Tension with CLAUDE.md `always:mktemp-tmp`**: that rule recommends `mktemp /tmp/<prefix>.XXXXXX` for **scripts** (where the issue is single-session-vs-multi-session conflict). Inside **tests** the suite-engine's per-test `$TMPDIR` sandbox is the stronger isolation contract — plain `mktemp -d` is correct in tests.
+
+**Context**: First observed on PR #343 with `test-ticket-list-has-tag.sh` and `test-ticket-list-descendants-dispatcher.sh`. Fix landed in commit `2ecabb83a7`. The suite-engine sandbox is defined in `tests/lib/suite-engine.sh` `_run_single_test` (search for `TMPDIR=`).
+
+---
+
+## INC-007: Flaky Tests from Multiple Python3 Cold-Starts in Fixture Builders
+
+**Symptom**: A bash test file that builds a few JSON / YAML fixtures takes longer under CI load than expected (1.5–3× local wall-clock). Combined with [[INC-006]], this can push a test across the truncation/timeout threshold and produce intermittent CI failures.
+
+**Cause**: Bash test fixture builders that spawn one `python3 -c "..."` per fixture file (a common pattern for writing structured JSON) incur the full Python interpreter cold-start cost — typically ~50–100ms per invocation — for each subprocess. A fixture with 6 tickets × 4 hierarchy builds per test run = ~24 cold starts = ~1.2–2.4s of cumulative startup overhead before any test logic runs. Under parallel CI load (MAX_PARALLEL=8) interpreter startup is even slower due to process contention.
+
+**How to recognize this pattern**:
+- `grep -cE '^[[:space:]]*python3 -c' tests/scripts/test-<name>.sh` — count Python invocations in a test file. More than 2–3 per fixture-builder function is suspicious.
+- Profile: `time bash tests/scripts/test-<name>.sh`. Files >1s of wall-clock that don't do any real I/O are candidates.
+
+**Fix**: Consolidate per-fixture python3 calls into a single heredoc'd invocation that loops over the fixture data in-process:
+
+```bash
+# Before — 6 cold starts per fixture build (~300–600ms wasted)
+python3 -c "import json; json.dump({'id': 'a', ...}, open('$dir/a.json', 'w'))"
+python3 -c "import json; json.dump({'id': 'b', ...}, open('$dir/b.json', 'w'))"
+# ... 4 more
+
+# After — 1 cold start per fixture build
+TRACKER_DIR="$dir" python3 - <<'PYEOF'
+import json, os
+tracker = os.environ['TRACKER_DIR']
+tickets = [('a', ...), ('b', ...), ('c', ...), ('d', ...), ('e', ...), ('f', ...)]
+for tid, ... in tickets:
+    with open(os.path.join(tracker, tid + '.json'), 'w') as f:
+        json.dump({...}, f)
+PYEOF
+```
+
+Pass shell variables into the heredoc via env vars (`TRACKER_DIR="$dir" python3 - <<'PYEOF'`) — the single-quoted `'PYEOF'` delimiter prevents shell expansion inside the script, which is the bug-prone part of the unconsolidated `python3 -c "..."` form.
+
+**Context**: First observed on PR #343 with `test-ticket-list-has-tag.sh` (3 → 1 python3 calls per fixture, 1.3s → 0.9s) and `test-ticket-list-descendants-dispatcher.sh` (6 → 1, 1.6s → 0.9s). Fix landed in commit `2ecabb83a7`. The same pattern likely exists in other fixture-heavy tests — when investigating new flaky tests in `tests/scripts/`, run `grep -cE '^[[:space:]]*python3 -c' <file>` early.
