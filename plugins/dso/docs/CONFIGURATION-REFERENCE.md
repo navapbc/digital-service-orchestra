@@ -2061,6 +2061,58 @@ Keys in the `review_telemetry.*` group are written automatically by the AWS setu
 
 ---
 
+## UI/UX Reference Corpus — `dso ref-query` CLI flags
+
+`dso ref-query` (shim for `${CLAUDE_PLUGIN_ROOT}/scripts/ref-query.sh`) searches the
+domain-partitioned YAML corpus at `${CLAUDE_PLUGIN_ROOT}/data/ui-reference/` using BM25.
+The flags below are query-time options, not `dso-config.conf` keys.
+
+### `--namespace=DOMAIN`
+
+| | |
+|---|---|
+| **Description** | Filters results to corpus entries whose `tags.domain` matches `DOMAIN`. Entries whose domain is a list are included when `DOMAIN` appears in that list. Without this flag, results span all corpus domains. |
+| **Accepted values** | Any domain value present in the corpus (e.g., `canon`, `components`, `gov-copy`). Use `canon` to restrict results to federal-style canon entries (see below). |
+| **Default** | Absent — all domains included |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/ref-query.sh`, `${CLAUDE_PLUGIN_ROOT}/scripts/ref-query.py` |
+
+**The `canon` namespace:** entries tagged `domain: canon` represent authoritative
+federal-style content standards sourced from USWDS, GOV.UK, VA.gov, 18F,
+Federal Plain Language Guidelines, and CDC reading-level guidance.  These entries
+occupy the top of the precedence ladder:
+
+```
+canon-rule > Copy Needs constraint > Users archetype > design-notes voice
+```
+
+Use `--namespace=canon` when you need rule-level authority (e.g., plain-language
+mandates, federal accessibility requirements, government error-message patterns)
+rather than general design guidance.
+
+---
+
+### `--format=json`
+
+| | |
+|---|---|
+| **Description** | Emits results as a JSON array instead of the default human-readable text format. Each array element conforms to the `ref-query-json-output` schema (see `${CLAUDE_PLUGIN_ROOT}/docs/contracts/ref-query-json-output.md`). |
+| **Accepted values** | `text` (default) \| `json` |
+| **Default** | `text` |
+| **Used by** | `${CLAUDE_PLUGIN_ROOT}/scripts/ref-query.sh`, `${CLAUDE_PLUGIN_ROOT}/scripts/ref-query.py`; downstream consumers such as the `dso:gov-copy-writer` agent |
+
+**JSON schema reference:** `${CLAUDE_PLUGIN_ROOT}/docs/contracts/ref-query-json-output.md`.
+Fields: `rule_id`, `tags` (includes `domain`), `score` (BM25 float), `body`,
+`source_file`.
+
+**Example:**
+
+```bash
+# Restrict to canon entries, emit JSON for programmatic consumption
+dso ref-query "error message required field" --namespace=canon --format=json
+```
+
+---
+
 ## Section 2 — Environment Variables
 
 These variables are consumed by DSO hooks, scripts, and skills at runtime. They supplement or override `dso-config.conf` values.
