@@ -79,8 +79,13 @@ fi
 rm -f "$STATE_FILE_1"
 
 # ── Test 2: SUITE_TEST_INDEX set with marker covering failure → TOLERATED ─
+# Tolerance is auto-disabled by the bash-runner when CI=true / GITHUB_ACTIONS=true.
+# This test verifies the LEGACY local-tolerance contract, so scrub the CI envs
+# via `env -u` to keep the assertion runnable inside CI workflows. Tests 4 and
+# 5 below cover the inverse (CI vars set → tolerance off).
 STATE_FILE_2=$(mktemp -u)
 out2=$(cd "$FIXTURE" && \
+    env -u CI -u GITHUB_ACTIONS \
     SUITE_TEST_INDEX="$FIXTURE/.test-index" \
     TEST_BATCHED_STATE_FILE="$STATE_FILE_2" \
     timeout 30 bash "$TEST_BATCHED" --timeout=20 --per-test-timeout=20 \
@@ -120,8 +125,13 @@ cat > "$FIXTURE/.test-index" <<EOF
 fixture-source.txt: tests/hooks/test-fixture.sh [test_good_pass]
 EOF
 
+# Same env scrub as Test 2 — this assertion needs tolerance ENABLED to verify
+# that the runner still produces a non-tolerated failure when the marker is
+# in the wrong place. Without scrubbing CI vars, the assertion couldn't
+# distinguish "wrong marker location" from "tolerance off entirely."
 STATE_FILE_3=$(mktemp -u)
 out3=$(cd "$FIXTURE" && \
+    env -u CI -u GITHUB_ACTIONS \
     SUITE_TEST_INDEX="$FIXTURE/.test-index" \
     TEST_BATCHED_STATE_FILE="$STATE_FILE_3" \
     timeout 30 bash "$TEST_BATCHED" --timeout=20 --per-test-timeout=20 \
