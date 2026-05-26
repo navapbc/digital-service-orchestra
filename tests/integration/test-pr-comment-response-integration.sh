@@ -1,13 +1,8 @@
 #!/usr/bin/env bash
 # tests/integration/test-pr-comment-response-integration.sh
 #
-# RED integration tests for the PR comment response pipeline:
+# Integration tests for the PR comment response pipeline:
 #   plugins/dso/scripts/pr-comment-response.sh
-#
-# The script under test does NOT exist yet. All behavioral tests fail in RED
-# state because pr-comment-response.sh is absent. Once the script is
-# implemented (stories 238c-d60a → 0fb0-e23a → 4949-c6a8 → 93cb-ef60),
-# these tests transition GREEN.
 #
 # Behavioral contracts tested:
 #   SC1 — fetch/normalize: produces JSON with required schema fields; resolves
@@ -163,7 +158,11 @@ case "${STUB_GH_SCENARIO:-default}" in
         fi
         ;;
     fetch_empty)
-        printf '{"comments":[],"skipped_count":0}\n'
+        # Mimic the real gh CLI: `gh api --paginate --jq '.[]'` emits one JSON
+        # object per line. Zero objects on an empty PR means: no output. Non-
+        # paginated probe calls (e.g. PR existence) get a minimal scalar payload.
+        for a in "$@"; do [[ "$a" == "--paginate" ]] && exit 0; done
+        printf '42\n'
         ;;
     api_error)
         echo "ERROR: simulated API failure" >&2

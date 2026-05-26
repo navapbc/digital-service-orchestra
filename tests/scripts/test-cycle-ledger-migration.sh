@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # tests/scripts/test-cycle-ledger-migration.sh
 #
-# RED test: cycle_ledger.py v1.2.0 grammar + v1.1.0->v1.2.0 sentinel migration contract
+# cycle_ledger.py v1.2.0 grammar + v1.1.0->v1.2.0 sentinel migration contract
 #
 # Tests four behavioral contracts that FAIL before cycle_ledger v1.2.0 is implemented:
 #
@@ -56,7 +56,7 @@ $1
 # (no pr_number field), reconstruct_from_pr_comments must set pr_number=0
 # as the sentinel to indicate "originated before v1.2.0 keying".
 #
-# RED: current code does not emit pr_number field at all on reconstructed entries.
+# current code does not emit pr_number field at all on reconstructed entries.
 # ---------------------------------------------------------------------------
 test_cycle_ledger_migration_v11_to_v12() {
     local tmpdir
@@ -126,7 +126,7 @@ print(entry.get('cycle_num','__MISSING__'))
 # the reconstructed ledger must return a single deduplicated entry using the
 # v1.2.0 data (pr_number=42, not sentinel pr_number=0).
 #
-# RED: current code has no _MARKER_RE_V12 and no deduplication/precedence logic.
+# current code has no _MARKER_RE_V12 and no deduplication/precedence logic.
 # ---------------------------------------------------------------------------
 test_cycle_ledger_mixed_format_v12_wins() {
     local tmpdir
@@ -180,7 +180,7 @@ print(entry.get('pr_number', '__MISSING__'))
 # Behavior: after T2 lands, the canonical empty ledger schema version must be
 # "1.2.0". read_ledger on a missing path must also return schema_version="1.2.0".
 #
-# RED: current _empty_ledger() returns "1.1.0".
+# current _empty_ledger() returns "1.1.0".
 # ---------------------------------------------------------------------------
 test_cycle_ledger_empty_ledger_schema_version_is_v12() {
     local actual
@@ -215,7 +215,7 @@ print(ledger['schema_version'])
 # Behavior: append_cycle must accept a pr_number parameter. After writing,
 # read_ledger must recover pr_number=42 from the stored entry.
 #
-# RED: current append_cycle has no pr_number parameter.
+# current append_cycle has no pr_number parameter.
 # ---------------------------------------------------------------------------
 test_cycle_ledger_append_cycle_pr_number_round_trip() {
     local tmpdir
@@ -262,7 +262,7 @@ print(entry.get('commit_sha','__MISSING__'))
 # ---------------------------------------------------------------------------
 # Each test wrapped with the _fail_snapshot + assert_pass_if_clean pattern so
 # the suite-engine's parse_failing_tests_from_output can extract function names
-# from "FAIL: <name>" lines and match against the .test-index RED marker.
+# from "FAIL: <name>" lines and match against the .test-index marker.
 _fail_snapshot=$FAIL
 test_cycle_ledger_migration_v11_to_v12
 assert_pass_if_clean "test_cycle_ledger_migration_v11_to_v12"

@@ -2,13 +2,13 @@
 # tests/scripts/test-provision-ruleset.sh
 # RED-phase behavioral tests for plugins/dso/scripts/onboarding/provision-ruleset.sh
 #
-# All tests that depend on provision-ruleset.sh will FAIL (RED) until
+
 # plugins/dso/scripts/onboarding/provision-ruleset.sh is created.
-# test_script_exists is the hard RED gate — it fails when the script is missing,
-# establishing RED state before implementation.
+
+# establishing failure state before implementation.
 #
 # Tests covered:
-#   1. test_script_exists                        — script missing → RED (hard gate)
+#   1. test_script_exists                        — script missing (hard gate)
 #   2. test_required_checks_file_exists          — .github/required-checks.txt exists with entries
 #   3. test_preflight_exits_nonzero_on_missing_gh — exits non-zero when gh not in PATH
 #   4. test_dry_run_outputs_payload              — DSO_DRY_RUN=1 outputs JSON with required_status_checks
@@ -31,7 +31,7 @@ echo "=== test-provision-ruleset.sh ==="
 
 # ── test_script_exists ────────────────────────────────────────────────────────
 # The provision-ruleset.sh script must exist and be executable.
-# This is the RED gate — fails until the script is created.
+# This is the hard prerequisite — fails until the script is created.
 _snapshot_fail
 if [[ -f "$PROVISION_SCRIPT" && -x "$PROVISION_SCRIPT" ]]; then
     actual_exists="exists"
@@ -65,7 +65,7 @@ assert_pass_if_clean "test_required_checks_file_exists"
 # Verifying both the exit code AND the diagnostic message ensures the test passes
 # for the right reason (gh-missing path), not due to an unrelated early failure
 # (e.g., missing git or jq) that happens to also exit non-zero.
-# This test fails RED until the script exists.
+
 #
 # PATH construction: we cannot use a fixed PATH like /usr/bin:/bin because on
 # Ubuntu CI, gh is installed at /usr/bin/gh — the same directory as git. Instead:

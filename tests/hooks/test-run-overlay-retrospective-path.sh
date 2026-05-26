@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tests/hooks/test-run-overlay-retrospective-path.sh
-# RED test: verifies run-overlay-retrospective.sh --help output does NOT advertise
+# verifies run-overlay-retrospective.sh --help output does NOT advertise
 # plugins/dso/ as the default output path (story c73a-1918, task 63c0-9471).
 #
 # The test runs the script with --help and asserts on stdout. It currently FAILS
@@ -20,7 +20,7 @@ source "$REPO_ROOT/tests/lib/assert.sh"
 # path does NOT reside under plugins/dso/.
 #
 # Observable surface: stdout from --help
-# RED condition: help text contains 'plugins/dso/' (current default path)
+# help text contains 'plugins/dso/' (current default path)
 # GREEN condition: help text does not contain 'plugins/dso/' (fixed default path)
 test_default_output_not_in_plugin_dir() {
     local help_output

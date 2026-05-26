@@ -17,8 +17,6 @@
 # 11. README.md does NOT contain a bare 'brew install ast-grep' block
 #     (or if it does, it points to INSTALL.md)
 #
-# This test FAILS (RED) before INSTALL.md is created.
-#
 # Usage: bash tests/test-install-doc-contract.sh
 # Returns: exit 0 if all assertions pass, exit 1 on first failure
 

@@ -3,7 +3,7 @@
 #
 # Usage:
 #   ref-query.sh <query> [--top-n <N>] [--tier=<summary|detail|implementation>]
-#                        [--session-hash <H>] [--namespace=<DOMAIN>]
+#                        [--session-hash <H>] [--namespace=<DOMAIN>|--domain=<DOMAIN>]
 #                        [--format=<text|json>]
 #
 # Outputs the top-N matching corpus entries to stdout, including frontmatter fields
@@ -15,6 +15,8 @@
 #   --namespace=DOMAIN   Filter results to entries whose domain matches DOMAIN
 #                        (e.g. canon, components, gov-copy). Without this flag,
 #                        results span all domains.
+#   --domain=DOMAIN      Alias for --namespace; matches the YAML field name
+#                        ('domain:') used in the corpus frontmatter.
 #   --format=FORMAT      Output format: 'text' (default, human-readable YAML-like
 #                        documents) or 'json' (JSON array per ref-query-json-output
 #                        schema at ${CLAUDE_PLUGIN_ROOT}/docs/contracts/ref-query-json-output.md).
@@ -76,13 +78,13 @@ while [[ $# -gt 0 ]]; do
             SESSION_HASH="${1#--session-hash=}"
             shift
             ;;
-        --namespace=*)
-            NAMESPACE="${1#--namespace=}"
+        --namespace=*|--domain=*)
+            NAMESPACE="${1#*=}"
             shift
             ;;
-        --namespace)
+        --namespace|--domain)
             if [[ $# -lt 2 || -z "${2:-}" || "${2}" == -* ]]; then
-                echo "ref-query.sh: --namespace requires a DOMAIN value" >&2
+                echo "ref-query.sh: $1 requires a DOMAIN value" >&2
                 exit 2
             fi
             NAMESPACE="$2"
@@ -107,6 +109,7 @@ while [[ $# -gt 0 ]]; do
             printf '  --top-n N                  Maximum number of results (default: 8)\n'
             printf '  --tier=TIER                Filter by tier (summary|detail|implementation)\n'
             printf '  --namespace=DOMAIN         Filter by domain (e.g. canon, components, gov-copy)\n'
+            printf '  --domain=DOMAIN            Alias for --namespace; matches the YAML field name\n'
             printf '  --format=FORMAT            Output format: text (default) or json\n'
             printf '  --session-hash HASH        Session hash for deduplication\n'
             printf '  --help                     Show this help\n\n'

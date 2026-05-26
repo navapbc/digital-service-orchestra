@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 # tests/workflows/test-review-workflow-size-thresholds.sh
-# RED tests for size-based model upgrade and rejection branching in REVIEW-WORKFLOW.md Step 3.
-#
-# These tests define the EXPECTED behavior of Step 3 size threshold handling.
-# They are RED until the implementation is added to REVIEW-WORKFLOW.md Step 3.
+# Tests for size-based model upgrade and rejection branching in REVIEW-WORKFLOW.md Step 3.
 #
 # Usage: bash tests/workflows/test-review-workflow-size-thresholds.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
@@ -143,7 +140,7 @@ _simulate_step3_dispatch() {
 }
 
 # ============================================================
-# Test functions (5 RED tests for Step 3 size-threshold behaviors)
+
 # ============================================================
 
 test_workflow_step3_upgrade_when_size_action_is_upgrade() {
@@ -159,21 +156,21 @@ test_workflow_step3_upgrade_when_size_action_is_upgrade() {
         "0" "$SIZE_REJECTION"
     assert_pass_if_clean "test_workflow_step3_upgrade_when_size_action_is_upgrade: helper logic"
 
-    # RED check: verify REVIEW-WORKFLOW.md Step 3 has the upgrade logic (fails until implemented)
     _snapshot_fail
     step3_has_upgrade_logic=0
     grep -qE 'size_action.*upgrade|upgrade.*opus|SIZE_ACTION.*upgrade' "$WORKFLOW_FILE" 2>/dev/null && step3_has_upgrade_logic=1
-    assert_eq "test_workflow_step3_upgrade_when_size_action_is_upgrade: REVIEW-WORKFLOW.md Step 3 contains upgrade logic (RED until implemented)" \
+    assert_eq "test_workflow_step3_upgrade_when_size_action_is_upgrade: REVIEW-WORKFLOW.md Step 3 contains upgrade logic" \
         "1" "$step3_has_upgrade_logic"
     assert_pass_if_clean "test_workflow_step3_upgrade_when_size_action_is_upgrade"
 }
 
 test_workflow_step3_reject_when_size_action_is_reject() {
-    # Regression guard: verify REVIEW-WORKFLOW.md Step 3b no longer contains reject logic.
-    # The reject path was removed in favor of warn (epic 97fc-b2ca).
+    # Regression guard: verify REVIEW-WORKFLOW.md Step 3b no longer contains active reject
+    # logic. Prose mentions of the historical behavior are allowed; only active code patterns
+    # (SIZE_REJECTION assignment or `case "reject")` branches) constitute reject logic.
     step3_has_reject_logic=0
-    grep -qE '"reject"|size_action.*reject|SIZE_REJECTION' "$WORKFLOW_FILE" 2>/dev/null && step3_has_reject_logic=1
-    assert_eq "test_workflow_step3_reject_when_size_action_is_reject: REVIEW-WORKFLOW.md Step 3b has no reject logic (removed in 97fc-b2ca)" \
+    grep -qE 'SIZE_REJECTION=1|case[[:space:]]+"?reject"?\)|size_action[[:space:]]*==[[:space:]]*"reject"' "$WORKFLOW_FILE" 2>/dev/null && step3_has_reject_logic=1
+    assert_eq "test_workflow_step3_reject_when_size_action_is_reject: REVIEW-WORKFLOW.md Step 3b has no active reject logic (removed in 97fc-b2ca)" \
         "0" "$step3_has_reject_logic"
 }
 
@@ -190,11 +187,10 @@ test_workflow_step3_warn_when_size_action_is_warn() {
         "" "$REVIEW_AGENT"
     assert_pass_if_clean "test_workflow_step3_warn_when_size_action_is_warn: helper logic"
 
-    # RED check: verify REVIEW-WORKFLOW.md Step 3b contains warn logic (fails until implemented)
     _snapshot_fail
     step3_has_warn_logic=0
     grep -qE 'SIZE_ACTION.*warn|size_action.*warn|warn.*size' "$WORKFLOW_FILE" 2>/dev/null && step3_has_warn_logic=1
-    assert_eq "test_workflow_step3_warn_when_size_action_is_warn: REVIEW-WORKFLOW.md Step 3b contains SIZE_ACTION.*warn (RED until implemented)" \
+    assert_eq "test_workflow_step3_warn_when_size_action_is_warn: REVIEW-WORKFLOW.md Step 3b contains SIZE_ACTION.*warn" \
         "1" "$step3_has_warn_logic"
     assert_pass_if_clean "test_workflow_step3_warn_when_size_action_is_warn"
 }
@@ -212,11 +208,10 @@ test_workflow_step3_no_size_limit_on_repass() {
         "" "$REVIEW_AGENT"
     assert_pass_if_clean "test_workflow_step3_no_size_limit_on_repass: helper logic"
 
-    # RED check: verify REVIEW-WORKFLOW.md Step 3 has the re-review bypass (fails until implemented)
     _snapshot_fail
     step3_has_repass_bypass=0
     grep -qE 'REVIEW_PASS_NUM|repass|re.review.*bypass|bypass.*re.review' "$WORKFLOW_FILE" 2>/dev/null && step3_has_repass_bypass=1
-    assert_eq "test_workflow_step3_no_size_limit_on_repass: REVIEW-WORKFLOW.md Step 3 contains re-review bypass (RED until implemented)" \
+    assert_eq "test_workflow_step3_no_size_limit_on_repass: REVIEW-WORKFLOW.md Step 3 contains re-review bypass" \
         "1" "$step3_has_repass_bypass"
     assert_pass_if_clean "test_workflow_step3_no_size_limit_on_repass"
 }
@@ -233,11 +228,10 @@ test_workflow_step3_merge_commit_bypass() {
         "" "$REVIEW_AGENT"
     assert_pass_if_clean "test_workflow_step3_merge_commit_bypass: helper logic"
 
-    # RED check: verify REVIEW-WORKFLOW.md Step 3 has merge commit bypass (fails until implemented)
     _snapshot_fail
     step3_has_merge_bypass=0
     grep -qE 'is_merge_commit|merge_commit.*bypass|bypass.*merge' "$WORKFLOW_FILE" 2>/dev/null && step3_has_merge_bypass=1
-    assert_eq "test_workflow_step3_merge_commit_bypass: REVIEW-WORKFLOW.md Step 3 contains merge commit bypass (RED until implemented)" \
+    assert_eq "test_workflow_step3_merge_commit_bypass: REVIEW-WORKFLOW.md Step 3 contains merge commit bypass" \
         "1" "$step3_has_merge_bypass"
     assert_pass_if_clean "test_workflow_step3_merge_commit_bypass"
 }
@@ -261,11 +255,10 @@ test_workflow_step3_no_change_when_size_action_none() {
         "dso:code-reviewer-standard" "$REVIEW_AGENT"
     assert_pass_if_clean "test_workflow_step3_no_change_when_size_action_none: helper logic"
 
-    # RED check: verify REVIEW-WORKFLOW.md Step 3 reads size_action field at all (fails until implemented)
     _snapshot_fail
     step3_reads_size_action=0
     grep -q 'size_action' "$WORKFLOW_FILE" 2>/dev/null && step3_reads_size_action=1
-    assert_eq "test_workflow_step3_no_change_when_size_action_none: REVIEW-WORKFLOW.md Step 3 reads size_action field (RED until implemented)" \
+    assert_eq "test_workflow_step3_no_change_when_size_action_none: REVIEW-WORKFLOW.md Step 3 reads size_action field" \
         "1" "$step3_reads_size_action"
     assert_pass_if_clean "test_workflow_step3_no_change_when_size_action_none"
 }

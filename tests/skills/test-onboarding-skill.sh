@@ -23,7 +23,7 @@
 #   test_no_rigid_multiple_choice: must NOT contain rigid (a)/(b)/(c) menu patterns
 #
 # These are metadata/schema validation tests per the Behavioral Test Requirement exemption.
-# All tests will FAIL (RED) until plugins/dso/skills/onboarding/SKILL.md is created.
+
 #
 # Usage: bash tests/skills/test-onboarding-skill.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
@@ -268,7 +268,7 @@ test_config_key_categories() {
     assert_pass_if_clean "test_config_key_categories"
 }
 
-# ── RED config tests (not yet implemented in SKILL.md) ───────────────────────
+# ── config tests ───────────────────────
 
 # test_ticket_prefix_derivation: SKILL.md must mention ticket prefix derivation from project name
 test_ticket_prefix_derivation() {
@@ -361,7 +361,7 @@ test_design_skip_non_ui() {
     assert_pass_if_clean "test_design_skip_non_ui"
 }
 
-# ── RED design tests (not yet implemented in SKILL.md) ───────────────────────
+# ── design tests ───────────────────────
 
 # test_design_areas_complete: SKILL.md must reference design areas
 # Must match at least 3 of: vision, archetypes, golden paths, visual language, accessibility
@@ -398,7 +398,7 @@ test_design_notes_output() {
     assert_pass_if_clean "test_design_notes_output"
 }
 
-# ── RED auto-detection / config / dialogue tests (new — fail until SKILL.md updated) ─────
+# ── auto-detection / config / dialogue tests ─────
 
 # test_auto_detection_before_asking: SKILL.md must instruct reading project files
 # (package.json, .husky/, .github/workflows/) BEFORE asking questions
@@ -545,7 +545,7 @@ test_no_rigid_multiple_choice() {
     assert_pass_if_clean "test_no_rigid_multiple_choice"
 }
 
-# ── RED infrastructure initialization tests (new — fail until SKILL.md updated) ─
+# ── infrastructure initialization tests ─
 
 # test_hook_installation_instructions: SKILL.md must instruct installing git pre-commit hooks
 # grep for 'pre-commit-test-gate' or 'pre-commit-review-gate' or 'hook.*install'
@@ -702,7 +702,7 @@ test_push_verification() {
     assert_pass_if_clean "test_push_verification"
 }
 
-# Run all 21 assertion functions — GREEN tests first, RED tests last
+# Run all 21 assertion functions — tests run in defined order
 test_skill_file_exists
 test_frontmatter_valid
 test_sub_agent_guard_present
@@ -722,10 +722,10 @@ test_ci_workflow_examples
 test_acli_auto_suggestion
 test_design_questions_conditional
 test_design_skip_non_ui
-# RED design tests below — these fail until design areas/notes are added to SKILL.md
+
 test_design_areas_complete
 test_design_notes_output
-# RED auto-detection/config/dialogue tests — these fail until SKILL.md is updated
+
 test_auto_detection_before_asking
 test_config_key_completeness
 test_absolute_path_requirement
@@ -735,7 +735,7 @@ test_ci_workflow_filename_confirmation
 test_config_merge_existing
 test_jira_bridge_project_key
 test_no_rigid_multiple_choice
-# RED infrastructure initialization tests — these fail until SKILL.md is updated
+
 test_hook_installation_instructions
 test_hook_manager_detection
 test_git_common_dir
@@ -773,7 +773,6 @@ test_diff_existing_files() {
     assert_pass_if_clean "test_diff_existing_files"
 }
 
-# RED artifact review tests — these fail until SKILL.md is updated
 test_artifact_review_before_writing
 test_diff_existing_files
 
@@ -835,7 +834,7 @@ test_jekyll_git_clone_path() {
 
 test_jekyll_git_clone_path
 
-# ── RED CI config key / workflow tests (7330-bf69) ───────────────────────────
+# ── CI config key / workflow tests ───────────────────────────
 
 # test_ci_config_key_coverage: SKILL.md must reference all 4 CI config keys:
 # ci.fast_gate_job, ci.fast_fail_job, ci.test_ceil_job, ci.integration_workflow
@@ -885,7 +884,7 @@ test_ci_workflow_confidence_gating() {
 test_ci_config_key_coverage
 test_ci_workflow_confidence_gating
 
-# ── RED merge.ci_workflow_name auto-migration tests (e9a7-39cd) ──────────────
+# ── merge.ci_workflow_name auto-migration tests (e9a7-39cd) ──────────────
 
 # test_ci_workflow_name_deprecation_migration: SKILL.md must contain auto-migration logic from
 # merge.ci_workflow_name to ci.workflow_name, with a conditional skip when ci.workflow_name exists
@@ -915,7 +914,7 @@ test_ci_workflow_name_deprecation_migration() {
 
 test_ci_workflow_name_deprecation_migration
 
-# ── RED key name mismatch tests (89aa-3b1f) ──────────────────────────────────
+# ── key name mismatch tests ──────────────────────────────────
 
 # test_key_name_jira_project: SKILL.md must reference "jira.project" but NOT "jira.project_key"
 test_key_name_jira_project() {
@@ -989,7 +988,7 @@ test_key_name_jira_project
 test_key_name_design_system_name
 test_design_tokens_path_audit
 
-# ── RED version.file_path and stack config tests (2e7c-d060) ─────────────────
+# ── version.file_path and stack config tests (2e7c-d060) ─────────────────
 
 # test_version_file_path_config: SKILL.md must reference version.file_path AND version_files
 # (the project-detect.sh output key), with numbered selection when multiple version files exist
@@ -1042,7 +1041,7 @@ test_stack_config_key() {
 test_version_file_path_config
 test_stack_config_key
 
-# ── RED orientation section test (b267-a3b9) ─────────────────────────────────
+# ── orientation section test (b267-a3b9) ─────────────────────────────────
 
 # test_orientation_section_present: ## Onboarding Overview section must exist before Phase 1
 test_orientation_section_present() {
@@ -1057,7 +1056,7 @@ test_orientation_section_present() {
 
 test_orientation_section_present
 
-# ── RED phase counter test (055c-8be7) ────────────────────────────────────────
+# ── phase counter test (055c-8be7) ────────────────────────────────────────
 
 # test_phase_counter_display: Phase counter (Phase N of Y) pattern must be present in SKILL.md
 test_phase_counter_display() {
@@ -1072,7 +1071,7 @@ test_phase_counter_display() {
 
 test_phase_counter_display
 
-# ── RED dependency check test (9f37-05ce) ─────────────────────────────────────
+# ── dependency check test (9f37-05ce) ─────────────────────────────────────
 
 # test_dependency_check_section_present: dep-check section must exist in Phase 1 of SKILL.md
 test_dependency_check_section_present() {
@@ -1087,7 +1086,7 @@ test_dependency_check_section_present() {
 
 test_dependency_check_section_present
 
-# ── RED integration questions test (fe9f-3f2b) ────────────────────────────────
+# ── integration questions test (fe9f-3f2b) ────────────────────────────────
 
 # test_integration_questions_present: Figma and Confluence sections must exist in Phase 2 of SKILL.md
 test_integration_questions_present() {
@@ -1107,7 +1106,7 @@ test_integration_questions_present() {
 
 test_integration_questions_present
 
-# ── RED preplanning natural language test (3395-994b) ─────────────────────────
+# ── preplanning natural language test (3395-994b) ─────────────────────────
 
 # test_preplanning_natural_language_prompt: clinical true/false prompt must be replaced with natural language
 test_preplanning_natural_language_prompt() {
@@ -1123,7 +1122,7 @@ test_preplanning_natural_language_prompt() {
 
 test_preplanning_natural_language_prompt
 
-# ── RED file explanation test (02b0-9629) ─────────────────────────────────────
+# ── file explanation test (02b0-9629) ─────────────────────────────────────
 
 # test_file_explanation_present: plain-language explanations must appear before infrastructure file writes
 test_file_explanation_present() {
@@ -1138,7 +1137,7 @@ test_file_explanation_present() {
 
 test_file_explanation_present
 
-# ── RED integration mandatory prompt test (4171-e497) ─────────────────────────
+# ── integration mandatory prompt test (4171-e497) ─────────────────────────
 
 # test_integration_mandatory_prompts: sections 8 (Jira) and 9 (Figma) must have
 # MANDATORY PROMPT directives so the model always asks — not pre-decides to skip.
@@ -1174,7 +1173,7 @@ test_integration_mandatory_prompts() {
 
 test_integration_mandatory_prompts
 
-# ── RED Phase 0 comfort assessment tests (95ca-2d8e) ─────────────────────────
+# ── Phase 0 comfort assessment tests (95ca-2d8e) ─────────────────────────
 
 # test_phase0_comfort_question_present: SKILL.md must contain a Phase 0 or Pre-flight section header
 test_phase0_comfort_question_present() {
@@ -1271,13 +1270,12 @@ test_seven_dimensions_present
 test_confidence_levels_documented
 test_contract_ref_present
 
-# ── RED pre-commit dep marker and bypass gate tests (cd7b-5b1a) ───────────────
+# ── pre-commit dep marker and bypass gate tests ───────────────
 
 # test_precommit_required_dep_present: Step 0 dep scan section must actively check
 # for pre-commit as a required dependency (command -v pre-commit), not merely
 # reference it in an install suggestion.
 # Scoped to the dep-scan section using awk range pattern.
-# RED until task 69a7-b0bd adds pre-commit to the required dep checks in SKILL.md.
 test_precommit_required_dep_present() {
     _snapshot_fail
     local precommit_dep_found
@@ -1294,7 +1292,6 @@ test_precommit_required_dep_present() {
 # explicit bypass instructions for the initial commit that installs hooks —
 # referencing --no-verify or bypass-review-gate or skip-gate language.
 # Scoped to the hook-install batch using awk range pattern.
-# RED until task e453-e46f adds bypass language to the hook-install batch in SKILL.md.
 # (PR #185 / bug 0bdc-8f0e renamed `## Batch Group N: <name>` headers to
 # `## Batch: <name>`. The awk range was updated to match the new header
 # syntax; the prior range `## Batch Group 5: hook-install` ..
@@ -1316,13 +1313,12 @@ test_hook_install_bypass_gates_present() {
 test_precommit_required_dep_present
 test_hook_install_bypass_gates_present
 
-# ── RED Phase 0.5 doc-folder scan tests (5e33-60aa) ──────────────────────────
+# ── Phase 0.5 doc-folder scan tests (5e33-60aa) ──────────────────────────
 
 # test_phase0_5_doc_folder_scan_present: SKILL.md must contain a Phase 0.5 section header
 # (## Phase 0.5 or ### Phase 0.5) dedicated to doc-folder scanning. The section must
 # exist as a named phase — an incidental mention of "doc folder scan" in passing text
 # does not satisfy this requirement.
-# RED until Phase 0.5 is added to SKILL.md as a dedicated section.
 test_phase0_5_doc_folder_scan_present() {
     _snapshot_fail
     local has_phase="no"
@@ -1364,11 +1360,10 @@ test_doc_folder_confidence_elevation_present() {
 test_phase0_5_doc_folder_scan_present
 test_doc_folder_confidence_elevation_present
 
-# ── RED Phase 2 confidence routing tests (d875-4466) ──────────────────────────
+# ── Phase 2 confidence routing tests (d875-4466) ──────────────────────────
 
 # test_phase2_confidence_routing_table_present: Phase 2 must contain a confidence routing
 # table (or equivalent section) with all 3 tiers: high=skip, medium=confirm, low=ask.
-# RED until Phase 2 confidence routing is added to SKILL.md.
 test_phase2_confidence_routing_table_present() {
     local skill_file="${SKILL_MD}"
     local has_routing
@@ -1440,11 +1435,10 @@ test_phase2_medium_confidence_prefill_confirm_present
 test_phase2_nontechnical_path_present
 test_phase2_all_seven_dimensions_routed
 
-# ── RED Step 2b format_check config key and per-stack defaults tests (aaed-b41e) ─
+# ── Step 2b format_check config key and per-stack defaults tests (aaed-b41e) ─
 
 # test_step2b_has_commands_format_check_key: SKILL.md must reference 'commands.format_check'
 # as a config key in Step 2b dso-config.conf generation.
-# RED until Step 2b is updated to include the commands.format_check key.
 test_step2b_has_commands_format_check_key() {
     _snapshot_fail
     local found="missing"
@@ -1457,7 +1451,6 @@ test_step2b_has_commands_format_check_key() {
 
 # test_step2b_ruby_defaults_present: SKILL.md must contain Ruby per-stack format defaults
 # including 'bundle exec rubocop' for the commands.format_check config key.
-# RED until Step 2b per-stack Ruby defaults are added to SKILL.md.
 test_step2b_ruby_defaults_present() {
     _snapshot_fail
     local found="missing"
@@ -1470,7 +1463,6 @@ test_step2b_ruby_defaults_present() {
 
 # test_step2b_nodejs_defaults_present: SKILL.md must contain Node.js per-stack format defaults
 # including 'npx eslint' or 'npx prettier' for the commands.format_check config key.
-# RED until Step 2b per-stack Node.js defaults are added to SKILL.md.
 test_step2b_nodejs_defaults_present() {
     _snapshot_fail
     local found="missing"
@@ -1483,7 +1475,6 @@ test_step2b_nodejs_defaults_present() {
 
 # test_step2b_key_presence_skip_signal: SKILL.md must document [DSO INFO] skip signal
 # when a config key is already set, preventing overwrites during merge.
-# RED until Step 2b key-presence skip rule is added to SKILL.md.
 test_step2b_key_presence_skip_signal() {
     _snapshot_fail
     local has_dso_info="missing"
@@ -1501,7 +1492,6 @@ test_step2b_key_presence_skip_signal() {
 
 # test_step2b_empty_string_treated_as_not_set: SKILL.md must clarify that an empty
 # string value is treated as not-set and triggers the per-stack default.
-# RED until Step 2b documents empty-string = not-set behavior.
 test_step2b_empty_string_treated_as_not_set() {
     _snapshot_fail
     local found="missing"
@@ -1519,7 +1509,7 @@ test_step2b_nodejs_defaults_present
 test_step2b_key_presence_skip_signal
 test_step2b_empty_string_treated_as_not_set
 
-# ── RED merge strategy selection test (ffc2-03b3) ────────────────────────────
+# ── merge strategy selection test (ffc2-03b3) ────────────────────────────
 
 # test_onboarding_skill_has_merge_strategy_question: SKILL.md Phase 3 / Step 2b section
 # must contain merge strategy selection with direct/pr options, provision-ruleset trigger,

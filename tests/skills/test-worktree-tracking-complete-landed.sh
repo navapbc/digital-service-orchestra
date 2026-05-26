@@ -2,10 +2,7 @@
 # tests/skills/test-worktree-tracking-complete-landed.sh
 # Structural boundary tests for WORKTREE_TRACKING :complete/:landed instruction files.
 #
-# Story: d2ef-92cc (WORKTREE_TRACKING :complete/:landed instruction files)
-# Task:  4055-f8d4 (RED test phase)
-#
-# Tests (all RED until feature is implemented):
+# Tests:
 #   1. test_per_worktree_review_commit_has_complete_section
 #      — per-worktree-review-commit.md must contain 'WORKTREE_TRACKING:complete'
 #   2. test_per_worktree_review_commit_complete_in_failure_path
@@ -39,7 +36,6 @@ echo "=== test-worktree-tracking-complete-landed.sh ==="
 # per-worktree-review-commit.md must contain 'WORKTREE_TRACKING:complete' so
 # the orchestrator emits a machine-readable signal when a worktree is fully
 # processed (reviewed, committed, and harvested).
-# RED: file does not yet contain this signal.
 # ---------------------------------------------------------------------------
 _snapshot_fail
 if grep -q 'WORKTREE_TRACKING:complete' "$PER_WORKTREE_MD" 2>/dev/null; then
@@ -55,7 +51,6 @@ assert_pass_if_clean "test_per_worktree_review_commit_has_complete_section"
 # ':complete' must appear in the context of failure/conflict handling (Step 6
 # or near 'failure'/'conflict' keywords), ensuring the signal covers non-happy
 # paths too (e.g. gate failure or harvest conflict paths).
-# RED: ':complete' not yet present in the file at all.
 # ---------------------------------------------------------------------------
 _snapshot_fail
 # Extract content around Step 6 / failure / conflict sections
@@ -72,7 +67,6 @@ assert_pass_if_clean "test_per_worktree_review_commit_complete_in_failure_path"
 # test_end_session_has_landed_section
 # end-session/SKILL.md must contain 'WORKTREE_TRACKING:landed' so the skill
 # emits a machine-readable signal after a worktree branch is merged to main.
-# RED: file does not yet contain this signal.
 # ---------------------------------------------------------------------------
 _snapshot_fail
 if grep -q 'WORKTREE_TRACKING:landed' "$END_SESSION_SKILL" 2>/dev/null; then
@@ -88,7 +82,6 @@ assert_pass_if_clean "test_end_session_has_landed_section"
 # ':landed' must appear in the context of the merge-to-main step (Step 4 or
 # near 'merge-to-main' references), ensuring the signal is emitted after the
 # branch is permanently merged — not before.
-# RED: ':landed' not yet present in the file at all.
 # ---------------------------------------------------------------------------
 _snapshot_fail
 # Extract content around merge-to-main / Step 4 sections

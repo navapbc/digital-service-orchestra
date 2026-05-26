@@ -24,7 +24,7 @@
 set -euo pipefail
 
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-_PLUGIN_ROOT="$(cd "$_SCRIPT_DIR/.." && pwd)"
+_PLUGIN_ROOT="$(cd "$_SCRIPT_DIR/../../plugins/dso" && pwd)"
 
 SKILL_FILE="$_PLUGIN_ROOT/skills/brainstorm/SKILL.md"
 CONTRACT_FILE="$_PLUGIN_ROOT/docs/contracts/copy-needs-section.md"

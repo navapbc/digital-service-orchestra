@@ -10,7 +10,7 @@
 #   WITHOUT markers (slow path), then asserts the fast path is at least
 #   --threshold percent faster than the slow path.
 #
-# This is a RED test: it will fail before the fast-skip optimization is
+
 # implemented in reduce_all_tickets(), and pass after.
 #
 # Usage:

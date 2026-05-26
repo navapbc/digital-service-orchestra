@@ -62,8 +62,7 @@ class TestFindBannedWords:
         banned: set[str] = {"utilize"}
         result = find_banned_words(text, banned)
         assert result == [], (
-            f"find_banned_words({text!r}, {banned!r}) returned {result!r}; "
-            f"expected []"
+            f"find_banned_words({text!r}, {banned!r}) returned {result!r}; expected []"
         )
 
     def test_find_banned_words_case_insensitive(self) -> None:
@@ -135,7 +134,9 @@ def _make_item(
     return {
         "checks": {
             "fk_grade": fk_grade,
-            "banned_words_found": banned_words_found if banned_words_found is not None else [],
+            "banned_words_found": banned_words_found
+            if banned_words_found is not None
+            else [],
             "active_voice": active_voice,
         },
         "rationale": {
@@ -178,7 +179,9 @@ class TestBuildDeviations:
         existing = [{"rule_id": "banned_words_found", "reason": ""}]
         item = _make_item(banned_words_found=["utilize"], deviations=existing)
         result = build_deviations(item, existing_deviations=existing, fk_max=12)
-        bw_entry = next((d for d in result if d["rule_id"] == "banned_words_found"), None)
+        bw_entry = next(
+            (d for d in result if d["rule_id"] == "banned_words_found"), None
+        )
         assert bw_entry is not None, "Expected 'banned_words_found' entry in result"
         assert bw_entry["reason"] == "unjustified", (
             f"Expected reason='unjustified' for empty-reason deviation; got {bw_entry['reason']!r}"
@@ -186,7 +189,9 @@ class TestBuildDeviations:
 
     def test_build_deviations_passing_item_produces_no_deviation(self) -> None:
         """Passing item (all checks in bounds) → no deviations emitted for owned rule_ids."""
-        item = _make_item(fk_grade=8.0, banned_words_found=[], active_voice=True, deviations=[])
+        item = _make_item(
+            fk_grade=8.0, banned_words_found=[], active_voice=True, deviations=[]
+        )
         result = build_deviations(item, existing_deviations=[], fk_max=12)
         owned_rule_ids = {"fk_grade", "banned_words_found", "active_voice"}
         emitted = {d["rule_id"] for d in result if d["rule_id"] in owned_rule_ids}
@@ -249,9 +254,7 @@ class TestLoadGovCopyConfig:
         assert result.banned_words == {"utilize", "leverage"}, (
             f"Expected banned_words={{'utilize','leverage'}}; got {result.banned_words!r}"
         )
-        assert result.fk_max == 8, (
-            f"Expected fk_max=8; got {result.fk_max!r}"
-        )
+        assert result.fk_max == 8, f"Expected fk_max=8; got {result.fk_max!r}"
         assert abs(result.closing_ratio - 0.95) < 1e-9, (
             f"Expected closing_ratio=0.95; got {result.closing_ratio!r}"
         )
@@ -265,29 +268,30 @@ class TestLoadGovCopyConfig:
     def test_load_gov_copy_config_raises_on_missing_keys(self, tmp_path: Path) -> None:
         """Config file without gov_copy.* keys raises ConfigError listing the missing keys."""
         config_file = tmp_path / "other.conf"
-        config_file.write_text(
-            "other.banned_words=utilize\n"
-        )
+        config_file.write_text("other.banned_words=utilize\n")
         with pytest.raises(ConfigError) as excinfo:
             load_gov_copy_config(config_file)
         assert "gov_copy" in str(excinfo.value)
 
-    def test_load_gov_copy_config_ignores_ini_section_headers(self, tmp_path: Path) -> None:
+    def test_load_gov_copy_config_ignores_ini_section_headers(
+        self, tmp_path: Path
+    ) -> None:
         """INI section headers are skipped; the parser still requires flat dot-notation keys."""
         config_file = tmp_path / "ini.conf"
         config_file.write_text(
-            "[gov_copy]\n"
-            "banned_words=utilize\n"
-            "fk_max=8\n"
-            "closing_ratio=0.95\n"
+            "[gov_copy]\nbanned_words=utilize\nfk_max=8\nclosing_ratio=0.95\n"
         )
         # Section header is ignored; the indented keys would still parse but the canonical
         # gov_copy.* keys are absent, so this must fail with a "missing keys" ConfigError.
         with pytest.raises(ConfigError) as excinfo:
             load_gov_copy_config(config_file)
-        assert "missing" in str(excinfo.value).lower() or "gov_copy" in str(excinfo.value)
+        assert "missing" in str(excinfo.value).lower() or "gov_copy" in str(
+            excinfo.value
+        )
 
-    def test_load_gov_copy_config_raises_on_unparseable_fk_max(self, tmp_path: Path) -> None:
+    def test_load_gov_copy_config_raises_on_unparseable_fk_max(
+        self, tmp_path: Path
+    ) -> None:
         """fk_max value that cannot be parsed as int raises ConfigError."""
         config_file = tmp_path / "bad_fk.conf"
         config_file.write_text(
@@ -325,16 +329,20 @@ def _write_config(tmp_path: Path, **overrides) -> Path:
     return cfg
 
 
-def _write_artifact(tmp_path: Path, items: list, filename: str = "artifact.yaml") -> Path:
+def _write_artifact(
+    tmp_path: Path, items: list, filename: str = "artifact.yaml"
+) -> Path:
     """Write a gov-copy artifact YAML with the given items list."""
     artifact = tmp_path / filename
     artifact.write_text(yaml.dump({"schema_version": 1, "items": items}))
     return artifact
 
 
-def _run_pipeline(artifact_path: Path, config_path: Path) -> subprocess.CompletedProcess:
+def _run_pipeline(
+    artifact_path: Path, config_path: Path
+) -> subprocess.CompletedProcess:
     """Run the __main__ pipeline via subprocess; always returns (never raises)."""
-    repo_root = Path(__file__).resolve().parents[4]  # tests/scripts/ inside dso → 4 levels up
+    repo_root = Path(__file__).resolve().parents[2]
     return subprocess.run(
         [
             sys.executable,
@@ -463,7 +471,9 @@ class TestMainPipelineLargeText:
     """(c) Item with text >10k chars → completes within 30s without timeout."""
 
     # [test_main_pipeline_large_text_completes_within_30s]
-    def test_main_pipeline_large_text_completes_within_30s(self, tmp_path: Path) -> None:
+    def test_main_pipeline_large_text_completes_within_30s(
+        self, tmp_path: Path
+    ) -> None:
         """Pipeline with a >10k character text item must complete within 30 seconds."""
         large_text = "You can apply for benefits online. " * 300  # ~10 500 chars
         assert len(large_text) > 10_000, "Precondition: text must exceed 10k chars"
@@ -576,10 +586,10 @@ def _make_passing_item(item_id: str = "p1") -> dict:
             "deviations": [],
         },
         "checks": {
-            "fk_grade": 99,         # LLM-supplied; pipeline MUST overwrite with computed value
+            "fk_grade": 99,  # LLM-supplied; pipeline MUST overwrite with computed value
             "banned_words_found": [],
             "active_voice": True,
-            "source": "llm",        # LLM-supplied source; pipeline MUST replace per-rule
+            "source": "llm",  # LLM-supplied source; pipeline MUST replace per-rule
         },
     }
 
@@ -601,13 +611,14 @@ def _make_failing_item(item_id: str = "f1") -> dict:
         "checks": {
             "fk_grade": 5,
             "banned_words_found": [],
-            "active_voice": True,   # LLM says True; pipeline MUST compute False (passive)
+            "active_voice": True,  # LLM says True; pipeline MUST compute False (passive)
             "source": "llm",
         },
     }
 
 
 # --- Test 1: LLM-supplied checks.fk_grade is OVERWRITTEN by deterministic value ---
+
 
 @pytest.mark.unit
 class TestMainPipelineOverwritesLLMFkGrade:
@@ -634,6 +645,7 @@ class TestMainPipelineOverwritesLLMFkGrade:
 
 
 # --- Test 2: Per-rule source fields (NOT a single top-level checks.source) ---
+
 
 @pytest.mark.unit
 class TestMainPipelineSourceAttribution:
@@ -686,6 +698,7 @@ class TestMainPipelineSourceAttribution:
 
 # --- Test 3: 100%-pass artifact → exit 0, closing_threshold_met: true ---
 
+
 @pytest.mark.unit
 class TestMainPipelineAllPassExit:
     """All-passing artifact → exit 0 with closing_threshold_met: true in stdout."""
@@ -702,7 +715,9 @@ class TestMainPipelineAllPassExit:
             f"stdout={result.stdout!r}\nstderr={result.stderr!r}"
         )
 
-    def test_main_pipeline_all_pass_closing_threshold_true(self, tmp_path: Path) -> None:
+    def test_main_pipeline_all_pass_closing_threshold_true(
+        self, tmp_path: Path
+    ) -> None:
         """100%-pass artifact stdout must contain 'closing_threshold_met: true'."""
         items = [_make_passing_item(f"p{i}") for i in range(3)]
         artifact = _write_artifact(tmp_path, items=items)
@@ -726,6 +741,7 @@ class TestMainPipelineAllPassExit:
 
 # --- Test 4: <95%-pass artifact → exit non-zero, closing_threshold_met: false,
 #             summary includes pass_rate, total_items, deviations_count ---
+
 
 @pytest.mark.unit
 class TestMainPipelineBelowThresholdExit:
@@ -773,6 +789,7 @@ class TestMainPipelineBelowThresholdExit:
 
 # --- Test 5: Item failing ONE rule appears in rationale.deviations with rule_id + reason ---
 
+
 @pytest.mark.unit
 class TestMainPipelineDeviationsOneRule:
     """Item failing one rule appears in rationale.deviations with rule_id and populated reason."""
@@ -783,7 +800,7 @@ class TestMainPipelineDeviationsOneRule:
         item = {
             "id": "banned-only",
             "values": {
-                "label": "Please utilize the portal.",   # 'utilize' is banned
+                "label": "Please utilize the portal.",  # 'utilize' is banned
                 "hint": "Submit your form today.",
                 "errors": {},
             },
@@ -809,12 +826,16 @@ class TestMainPipelineDeviationsOneRule:
             f"Item with banned_words_found=['utilize'] must appear in deviations with "
             f"rule_id='banned_words_found'; got deviations={deviations!r}"
         )
-        banned_dev = next(d for d in deviations if d.get("rule_id") == "banned_words_found")
+        banned_dev = next(
+            d for d in deviations if d.get("rule_id") == "banned_words_found"
+        )
         assert banned_dev.get("reason"), (
             f"Deviation entry must have a non-empty reason; got {banned_dev!r}"
         )
 
-    def test_main_pipeline_deviations_only_for_failing_rule(self, tmp_path: Path) -> None:
+    def test_main_pipeline_deviations_only_for_failing_rule(
+        self, tmp_path: Path
+    ) -> None:
         """Item failing banned_words_found only must NOT have active_voice or fk_grade deviations."""
         item = {
             "id": "banned-only-strict",
@@ -851,20 +872,27 @@ class TestMainPipelineDeviationsOneRule:
 
 # --- Test 6: YAML write-back preserves non-touched sibling fields ---
 
+
 @pytest.mark.unit
 class TestMainPipelineYAMLWriteback:
     """Artifact written back to disk in YAML; non-touched fields preserved."""
 
     # [test_main_pipeline_yaml_writeback_preserves_sibling_keys]
-    def test_main_pipeline_yaml_writeback_preserves_sibling_keys(self, tmp_path: Path) -> None:
+    def test_main_pipeline_yaml_writeback_preserves_sibling_keys(
+        self, tmp_path: Path
+    ) -> None:
         """Arbitrary sibling top-level keys and item.id are preserved after pipeline run."""
         item = _make_passing_item("preserved-id")
         artifact = tmp_path / "artifact.yaml"
-        artifact.write_text(yaml.dump({
-            "schema_version": 1,
-            "arbitrary_sibling_key": "must-be-preserved",
-            "items": [item],
-        }))
+        artifact.write_text(
+            yaml.dump(
+                {
+                    "schema_version": 1,
+                    "arbitrary_sibling_key": "must-be-preserved",
+                    "items": [item],
+                }
+            )
+        )
         cfg = _write_config(tmp_path)
         result = _run_pipeline(artifact, cfg)
         assert result.returncode == 0, (
@@ -901,6 +929,7 @@ class TestMainPipelineYAMLWriteback:
 
 # --- Test 7: CLI contract ---
 
+
 @pytest.mark.unit
 class TestMainPipelineCLIContract:
     """CLI: --help exits 0; missing artifact_path → non-zero; missing --config-path → non-zero."""
@@ -908,9 +937,14 @@ class TestMainPipelineCLIContract:
     # [test_main_pipeline_help_exits_zero]
     def test_main_pipeline_help_exits_zero(self) -> None:
         """--help must exit 0 and include usage text in output."""
-        repo_root = Path(__file__).resolve().parents[4]
+        repo_root = Path(__file__).resolve().parents[2]
         result = subprocess.run(
-            [sys.executable, "-m", "plugins.dso.scripts.gov_copy_postprocess", "--help"],
+            [
+                sys.executable,
+                "-m",
+                "plugins.dso.scripts.gov_copy_postprocess",
+                "--help",
+            ],
             capture_output=True,
             text=True,
             timeout=15,
@@ -928,7 +962,7 @@ class TestMainPipelineCLIContract:
 
     def test_main_pipeline_missing_artifact_path_exits_nonzero(self) -> None:
         """No artifact_path argument → exit non-zero with clear error."""
-        repo_root = Path(__file__).resolve().parents[4]
+        repo_root = Path(__file__).resolve().parents[2]
         result = subprocess.run(
             [sys.executable, "-m", "plugins.dso.scripts.gov_copy_postprocess"],
             capture_output=True,
@@ -941,10 +975,12 @@ class TestMainPipelineCLIContract:
             f"stdout={result.stdout!r}\nstderr={result.stderr!r}"
         )
 
-    def test_main_pipeline_missing_config_path_exits_nonzero(self, tmp_path: Path) -> None:
+    def test_main_pipeline_missing_config_path_exits_nonzero(
+        self, tmp_path: Path
+    ) -> None:
         """No --config-path argument → exit non-zero with clear error."""
         artifact = _write_artifact(tmp_path, items=[_make_passing_item()])
-        repo_root = Path(__file__).resolve().parents[4]
+        repo_root = Path(__file__).resolve().parents[2]
         result = subprocess.run(
             [
                 sys.executable,

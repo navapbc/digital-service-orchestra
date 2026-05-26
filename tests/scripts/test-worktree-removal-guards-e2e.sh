@@ -43,9 +43,9 @@ source "$ASSERT_LIB"
 
 echo "=== test-worktree-removal-guards-e2e.sh ==="
 
-# ── Preflight: guards library must exist (expected RED until S6.T2 lands) ────
+# ── Preflight: guards library must exist (expected behavior until S6.T2 lands) ────
 if [ ! -f "$GUARDS_LIB" ]; then
-    echo "FATAL: guards library not found: $GUARDS_LIB (expected RED until S6.T2 lands)" >&2
+    echo "FATAL: guards library not found: $GUARDS_LIB (expected behavior until S6.T2 lands)" >&2
     echo "FAIL: test_claude_safe_multiple_sub_prs" >&2
     (( FAIL += 10 ))
     print_summary

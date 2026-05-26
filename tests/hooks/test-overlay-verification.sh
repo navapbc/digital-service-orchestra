@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tests/hooks/test-overlay-verification.sh
-# RED tests for overlay-specific artifact verification in pre-commit-compliance-verifier.sh
+
 #
 # Task ccf9-1f1a-1b64-46cc: overlay verification in pre-commit-compliance-verifier.sh
 #
@@ -8,7 +8,6 @@
 #   (test format lint classifier-dispatch reviewer-record)
 # It does NOT yet check overlay-specific findings files.
 #
-# Tests 2, 4, 5 (overlay-flagged → missing findings → exits 1) are RED until
 # the GREEN task adds overlay verification to the verifier.
 # Test 1 (no overlays → exits 0) and Test 3 (security overlay + present findings → exits 0)
 # may already pass.
@@ -66,7 +65,7 @@ assert_eq "test_no_overlays_no_check" "0" "$EXIT_CODE"
 # classifier-dispatch.result has "overlays": ["security"].
 # security-redteam-findings.json is ABSENT from ARTIFACTS_DIR.
 # Verifier should exit 1 (blocked).
-# Currently RED: verifier does not check overlay findings yet → exits 0.
+
 # ---------------------------------------------------------------------------
 ARTIFACTS_DIR_2=$(mktemp -d "${TMPDIR:-/tmp}/test-overlay-sec-miss-XXXXXX")
 trap 'rm -rf "$ARTIFACTS_DIR_2"' EXIT
@@ -106,7 +105,7 @@ assert_eq "test_security_overlay_flagged_present" "0" "$EXIT_CODE"
 # classifier-dispatch.result has "overlays": ["performance"].
 # Registry maps "performance" → "performance-findings.json".
 # performance-findings.json is ABSENT → verifier should exit 1.
-# Currently RED: verifier does not check overlay findings yet → exits 0.
+
 # ---------------------------------------------------------------------------
 ARTIFACTS_DIR_4=$(mktemp -d "${TMPDIR:-/tmp}/test-overlay-perf-XXXXXX")
 trap 'rm -rf "$ARTIFACTS_DIR_4"' EXIT
@@ -127,7 +126,7 @@ assert_eq "test_registry_driven" "1" "$EXIT_CODE"
 # Simulate: classifier-dispatch.result flags overlays: ["security"].
 # No security-redteam-findings.json present.
 # Confirm verifier exits 1 and blocks commit.
-# Currently RED: verifier does not check overlay findings yet → exits 0.
+
 # ---------------------------------------------------------------------------
 ARTIFACTS_DIR_5=$(mktemp -d "${TMPDIR:-/tmp}/test-overlay-regression-XXXXXX")
 trap 'rm -rf "$ARTIFACTS_DIR_5"' EXIT

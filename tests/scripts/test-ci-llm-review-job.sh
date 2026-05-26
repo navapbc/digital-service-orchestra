@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # tests/scripts/test-ci-llm-review-job.sh
-# RED-phase structural tests for the llm-review job in
+
 # plugins/dso/templates/ci-dso-staged.yml.
 #
 # Tests covered:
-#   1. test_llm_review_uses_classifier_runner      — run: step invokes ci-llm-review-runner.sh (RED)
+#   1. test_llm_review_uses_classifier_runner      — run: step invokes ci-llm-review-runner.sh
 #   2. test_llm_review_timeout_minutes_set         — timeout-minutes field present (PASS — already in placeholder)
-#   3. test_llm_review_exposes_anthropic_api_key   — run: step env contains ANTHROPIC_API_KEY (RED)
-#   4. test_llm_review_uses_gh_pr_diff             — run: step invokes `gh pr diff |` (RED)
-#   5. test_llm_review_github_token_in_env         — run: step env contains GITHUB_TOKEN (RED)
+#   3. test_llm_review_exposes_anthropic_api_key   — run: step env contains ANTHROPIC_API_KEY
+#   4. test_llm_review_uses_gh_pr_diff             — run: step invokes `gh pr diff |`
+#   5. test_llm_review_github_token_in_env         — run: step env contains GITHUB_TOKEN
 #
 # Usage: bash tests/scripts/test-ci-llm-review-job.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
@@ -28,7 +28,6 @@ echo "=== test-ci-llm-review-job.sh ==="
 # ── test_llm_review_uses_classifier_runner ────────────────────────────────────
 # The llm-review job must have at least one step whose run: field invokes
 # ci-llm-review-runner.sh (the classifier-driven runner script).
-# RED until the claude-code-action step is replaced with the runner script step.
 _snapshot_fail
 classifier_runner_exit=0
 classifier_runner_output=""
@@ -79,7 +78,6 @@ assert_pass_if_clean "test_llm_review_timeout_minutes_set"
 # ── test_llm_review_exposes_anthropic_api_key ─────────────────────────────────
 # The llm-review job must have a run: step whose env: block contains
 # ANTHROPIC_API_KEY (so the runner script can authenticate to the Anthropic API).
-# RED until the classifier-driven runner step is added with ANTHROPIC_API_KEY in env.
 _snapshot_fail
 api_key_env_exit=0
 api_key_env_output=""
@@ -205,7 +203,6 @@ assert_pass_if_clean "test_llm_review_no_claude_code_action_ref"
 # ── test_llm_review_github_token_in_env ───────────────────────────────────────
 # The llm-review job must have a run: step whose env: block contains GITHUB_TOKEN
 # so the runner script can call `gh pr diff` and post review comments.
-# RED until the classifier-driven runner step is added with GITHUB_TOKEN in env.
 _snapshot_fail
 github_token_exit=0
 github_token_output=""

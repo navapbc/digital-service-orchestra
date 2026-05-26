@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # tests/scripts/test-sprint-list-epics-without-tag.sh
-# RED test: behavioral test for sprint-list-epics.sh --without-tag=<tag> filter (not yet implemented).
+
 #
 # Given two epics — one tagged brainstorm:complete, one untagged —
 # --without-tag=brainstorm:complete must return only the untagged epic.
 #
-# This test FAILS RED because the --without-tag flag is not yet parsed by the script.
+# This test fails because the --without-tag flag is not yet parsed by the script.
 
 set -uo pipefail
 
@@ -66,7 +66,7 @@ test_without_tag_excludes_tagged_epic() {
     # Untagged epic must appear in output
     [[ "$out" == *epic-untagged* ]] || return 1
 
-    # Tagged epic must NOT appear — this assertion FAILS RED because the flag is unrecognized
+    # Tagged epic must NOT appear — this assertion fails because the flag is unrecognized
     ! [[ "$out" == *epic-tagged* ]] || return 1
 }
 if test_without_tag_excludes_tagged_epic; then
@@ -131,7 +131,7 @@ test_without_tag_all_filtered_exits_1() {
     TICKETS_TRACKER_DIR="$TDIR4" SPRINT_MAX_RETRIES=0 \
         bash "$SCRIPT" --without-tag=brainstorm:complete >/dev/null 2>&1 || exit_code=$?
 
-    # Must exit 1 (no open epics after filtering) — FAILS RED because flag is not parsed
+    # Must exit 1 (no open epics after filtering) — fails because flag is not parsed
     [ "$exit_code" -eq 1 ] || return 1
 }
 if test_without_tag_all_filtered_exits_1; then

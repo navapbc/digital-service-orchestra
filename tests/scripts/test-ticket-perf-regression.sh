@@ -5,7 +5,6 @@
 # These tests exercise the _compare_perf comparison function with fixture inputs —
 # no live hyperfine runs. All tests complete in <10 seconds.
 #
-# RED state: test_compare_perf_reads_baseline_file fails until
 #   tests/perf/a0-baseline.json is created (task 51f0-a97a).
 #
 # GREEN-phase tests (always runnable once _compare_perf is defined):
@@ -98,8 +97,7 @@ test_compare_perf_improvement_pass() {
     assert_contains "improvement: output contains PASS" "PASS" "$output"
 }
 
-# ── RED test: parse a0-baseline.json and verify a real op comparison ─────────
-# This test is RED until tests/perf/a0-baseline.json is created (task 51f0-a97a).
+# ── test: parse a0-baseline.json and verify a real op comparison ─────────
 # Once the baseline exists, it reads the "show" median and asserts PASS for a
 # measured value equal to the baseline — exercising the full comparison pipeline.
 _parse_baseline_ms() {

@@ -35,7 +35,6 @@ MUTATION_PATH = (
     REPO_ROOT / "plugins" / "dso" / "scripts" / "dso_reconciler" / "mutation.py"
 )
 
-
 def _load_module(name: str, path: Path) -> ModuleType:
     spec = importlib.util.spec_from_file_location(name, path)
     assert spec is not None and spec.loader is not None
@@ -44,24 +43,20 @@ def _load_module(name: str, path: Path) -> ModuleType:
     spec.loader.exec_module(mod)  # type: ignore[union-attr]
     return mod
 
-
 @pytest.fixture(scope="module")
 def mutation_mod() -> ModuleType:
     """Loads dso_reconciler.mutation (Mutation, MutationAction, MutationDirection)."""
     return _load_module("mutation", MUTATION_PATH)
-
 
 @pytest.fixture(scope="module")
 def differ(mutation_mod: ModuleType) -> ModuleType:
     # Ensure mutation module is loaded first (differ imports it).
     return _load_module("differ", DIFFER_PATH)
 
-
 # ---------------------------------------------------------------------------
 # Tests — same scenarios as the snapshot-diff version, rewritten against
 # the new Mutation-based contract.
 # ---------------------------------------------------------------------------
-
 
 def test_identical_states_produce_empty_list(
     differ: ModuleType, mutation_mod: ModuleType
@@ -72,13 +67,11 @@ def test_identical_states_produce_empty_list(
     )
     assert result == []
 
-
 def test_empty_states_produce_empty_list(
     differ: ModuleType, mutation_mod: ModuleType
 ) -> None:
     result = differ.compute_mutations(local_state={}, jira_state={})
     assert result == []
-
 
 def test_excluded_fields_only_change_produces_no_mutations(
     differ: ModuleType, mutation_mod: ModuleType
@@ -88,7 +81,6 @@ def test_excluded_fields_only_change_produces_no_mutations(
     local = {"DSO-1": {"dso_local_id": "new-local", "dso-id": "new-id"}}
     result = differ.compute_mutations(local_state=local, jira_state=jira)
     assert result == []
-
 
 def test_new_key_in_local_produces_outbound_create_mutation(
     differ: ModuleType, mutation_mod: ModuleType
@@ -105,7 +97,6 @@ def test_new_key_in_local_produces_outbound_create_mutation(
     assert m.target == "DSO-42"
     assert m.payload == {"summary": "new issue", "priority": "high"}
 
-
 def test_new_key_in_jira_produces_inbound_create_mutation(
     differ: ModuleType, mutation_mod: ModuleType
 ) -> None:
@@ -118,7 +109,6 @@ def test_new_key_in_jira_produces_inbound_create_mutation(
     assert m.action == mutation_mod.MutationAction.create
     assert m.direction == mutation_mod.MutationDirection.inbound
     assert m.target == "DSO-43"
-
 
 def test_removed_key_produces_delete_mutation(
     differ: ModuleType, mutation_mod: ModuleType
@@ -140,7 +130,6 @@ def test_removed_key_produces_delete_mutation(
     )
     assert m.target == "DSO-7"
 
-
 def test_changed_field_produces_update_mutation(
     differ: ModuleType, mutation_mod: ModuleType
 ) -> None:
@@ -158,7 +147,6 @@ def test_changed_field_produces_update_mutation(
     )
     assert m.payload.get("summary") == "new summary"
 
-
 def test_update_contains_only_changed_fields(
     differ: ModuleType, mutation_mod: ModuleType
 ) -> None:
@@ -170,7 +158,6 @@ def test_update_contains_only_changed_fields(
     assert payload.get("status") == "closed"
     assert "summary" not in payload
     assert "priority" not in payload
-
 
 def test_excluded_field_not_in_update_payload(
     differ: ModuleType, mutation_mod: ModuleType
@@ -189,7 +176,6 @@ def test_excluded_field_not_in_update_payload(
     assert "dso-id" not in m.payload
     assert m.payload == {"summary": "after"}
 
-
 def test_create_excludes_excluded_fields(
     differ: ModuleType, mutation_mod: ModuleType
 ) -> None:
@@ -198,7 +184,6 @@ def test_create_excludes_excluded_fields(
     jira: dict = {}
     result = differ.compute_mutations(local_state=local, jira_state=jira)
     assert result == []
-
 
 def test_create_with_mixed_fields_excludes_excluded_only(
     differ: ModuleType, mutation_mod: ModuleType
@@ -211,7 +196,6 @@ def test_create_with_mixed_fields_excludes_excluded_only(
     assert m.action == mutation_mod.MutationAction.create
     assert m.payload == {"summary": "keep me"}
     assert "dso_local_id" not in m.payload
-
 
 def test_pure_function_invariant(
     differ: ModuleType, mutation_mod: ModuleType
@@ -229,7 +213,6 @@ def test_pure_function_invariant(
     )
     assert a == b
 
-
 def test_mutations_are_sorted_by_target(
     differ: ModuleType, mutation_mod: ModuleType
 ) -> None:
@@ -243,7 +226,6 @@ def test_mutations_are_sorted_by_target(
     result = differ.compute_mutations(local_state=local, jira_state=jira)
     targets = [m.target for m in result]
     assert targets == sorted(targets)
-
 
 def test_every_mutation_carries_provenance(
     differ: ModuleType, mutation_mod: ModuleType
@@ -281,11 +263,9 @@ def test_every_mutation_carries_provenance(
             f"Mutation provenance is not a Mapping: {m.provenance!r}"
         )
 
-
 # ---------------------------------------------------------------------------
 # AC tests (task 0805-02a0): bind-aware suppression, purity, return type.
 # ---------------------------------------------------------------------------
-
 
 def test_no_outbound_create_for_already_bound_local_id(
     differ: ModuleType, mutation_mod: ModuleType
@@ -317,7 +297,6 @@ def test_no_outbound_create_for_already_bound_local_id(
     assert outbound_creates[0].target == "loc-B"
     # And zero outbound creates target loc-A (it is already bound).
     assert not any(m.target == "loc-A" for m in outbound_creates)
-
 
 def test_diff_is_pure_across_n_invocations(
     differ: ModuleType, mutation_mod: ModuleType
@@ -354,7 +333,6 @@ def test_diff_is_pure_across_n_invocations(
     assert len(hashes) == 1, f"non-deterministic manifest hashes across 10 runs: {hashes}"
     assert len(jsons) == 1, "non-deterministic manifest JSON across 10 runs"
 
-
 def test_diff_returns_mutation_list(
     differ: ModuleType, mutation_mod: ModuleType
 ) -> None:
@@ -375,7 +353,6 @@ def test_diff_returns_mutation_list(
         f"non-Mutation entries in result: {[type(m).__name__ for m in result]}"
     )
 
-
 # ---------------------------------------------------------------------------
 # dd-1 stress tests: differ purity under repetition and input-key permutation.
 #
@@ -387,7 +364,6 @@ def test_diff_returns_mutation_list(
 # These fixtures therefore exercise the pairs the differ actually emits and
 # leave the rest to applier-level tests.
 # ---------------------------------------------------------------------------
-
 
 def _stress_fixture() -> tuple[dict, dict]:
     """Moderate fixture (~10 tickets) producing a variety of mutation kinds.
@@ -421,7 +397,6 @@ def _stress_fixture() -> tuple[dict, dict]:
     }
     return local, jira
 
-
 def test_differ_is_pure_across_100_invocations(
     differ: ModuleType, mutation_mod: ModuleType
 ) -> None:
@@ -443,7 +418,6 @@ def test_differ_is_pure_across_100_invocations(
         f"non-deterministic manifest hashes across 100 runs: {hashes}"
     )
     assert len(jsons) == 1, "non-deterministic manifest JSON across 100 runs"
-
 
 def test_differ_is_pure_across_input_permutations(
     differ: ModuleType, mutation_mod: ModuleType

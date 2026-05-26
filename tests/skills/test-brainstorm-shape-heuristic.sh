@@ -7,7 +7,6 @@
 # visible results) or "pure-code" (test coverage, API contracts, internal
 # assertions) by printing the shape label to stdout and exiting 0.
 #
-# ALL tests are RED until plugins/dso/scripts/classify-sc-shape.sh is created
 # (task 1a43-a73f). This is intentional — tests must fail before implementation.
 #
 # Usage: bash tests/skills/test-brainstorm-shape-heuristic.sh

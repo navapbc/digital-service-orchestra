@@ -23,8 +23,6 @@
 # 15. Prior content: ## Optional Dependencies
 # 16. Prior content: /dso:onboarding
 #
-# This test FAILS (RED) before the Integration Setup section is added to INSTALL.md.
-#
 # Usage: bash tests/test-install-integration-setup.sh
 # Returns: exit 0 if all assertions pass, exit 1 on first failure
 

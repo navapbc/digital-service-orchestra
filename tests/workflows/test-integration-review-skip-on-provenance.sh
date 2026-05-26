@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # tests/workflows/test-integration-review-skip-on-provenance.sh
-# RED E2E test: 6000+ line all-provenanced PR completes without LLM dispatch.
+# E2E test: 6000+ line all-provenanced PR completes without LLM dispatch.
 #
 # Story: 7382-791d-4cfb-4ad7 (S3 — Provenance-aware CI review dispatch)
 # Task:  329c-cecb-152d-4cee (S3.T4 — RED E2E test)
 # DD4:   Synthetic test fixture exercises a 6000+ line all-provenanced
 #        session→main PR; completes without LLM dispatch.
 #
-# RED marker: [test_integration_review_skip_on_provenance]
+
 # Target:     plugins/dso/scripts/llm-review-dispatch-or-skip.sh
 #
 # Scenario:
@@ -20,7 +20,6 @@
 #          the output contains 'Covered by sub-PR reviews:' followed by
 #          the covering story / PR identifiers.
 #
-# RED state: the 'Covered by sub-PR reviews:' assertion (with colon + PR list)
 # fails against the current wrapper output, which emits the informal prose
 # "All commits covered by sub-PR reviews (provenance verified)." and does not
 # format the sub-PR list.  The test will turn GREEN after S3.T2/T3 update the
@@ -166,7 +165,7 @@ test_verifier_exits_0_for_large_all_provenanced_diff() {
 # ═════════════════════════════════════════════════════════════════════════════
 # Test 2 — E2E: wrapper skips LLM dispatch (runner NEVER invoked)
 # ═════════════════════════════════════════════════════════════════════════════
-# RED assertion: ci-llm-review-runner.sh must NEVER be invoked when
+# ci-llm-review-runner.sh must NEVER be invoked when
 # verify-session-provenance.sh exits 0. This is the load-bearing DD4 assertion.
 # grep check required by AC: grep -qE 'NEVER.*ci-llm-review-runner|assert.*not.invoked'
 test_e2e_large_provenanced_pr_runner_never_invoked() {
@@ -297,10 +296,10 @@ MOCKEOF
 # ═════════════════════════════════════════════════════════════════════════════
 # Test 4 — E2E: output contains 'Covered by sub-PR reviews:' with story refs
 # ═════════════════════════════════════════════════════════════════════════════
-# RED: Current wrapper emits "All commits covered by sub-PR reviews (provenance
+# Current wrapper emits "All commits covered by sub-PR reviews (provenance
 # verified)." which does NOT include 'Covered by sub-PR reviews:' with a colon
 # followed by a structured list of covering PR/story identifiers.
-# This assertion fails (RED) until S3.T2/T3 update the skip-path output format.
+# This assertion fails until S3.T2/T3 update the skip-path output format.
 test_e2e_output_contains_covered_by_sub_pr_reviews_with_list() {
     _snapshot_fail
 
@@ -346,7 +345,7 @@ MOCKEOF
             bash "$WRAPPER" 2>&1
     ) || true
 
-    # RED assertion: wrapper must emit 'Covered by sub-PR reviews:' (with colon)
+    # wrapper must emit 'Covered by sub-PR reviews:' (with colon)
     # followed by at least one story/PR identifier.  This fails against the current
     # implementation which emits prose without the structured colon+list format.
     local has_structured_coverage_line="no"
@@ -354,7 +353,7 @@ MOCKEOF
         has_structured_coverage_line="yes"
     fi
     assert_eq \
-        "test_e2e_output_contains_covered_by_sub_pr_reviews_with_list: output contains 'Covered by sub-PR reviews:' followed by identifier list (RED until S3.T2/T3)" \
+        "test_e2e_output_contains_covered_by_sub_pr_reviews_with_list: output contains 'Covered by sub-PR reviews:' followed by identifier list" \
         "yes" "$has_structured_coverage_line"
 
     assert_pass_if_clean "test_e2e_output_contains_covered_by_sub_pr_reviews_with_list"

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # tests/scripts/test-check-ruleset-preflight.sh
-# TDD RED phase: tests for check-ruleset-preflight.sh
+
 #
 # Tests cover 3 GitHub Ruleset validation conditions:
 #   1. A Ruleset exists with session-* branch pattern
 #   2. Sprint Story Review (or check_name from dso-config.conf) is in required_status_checks
 #   3. No required_linear_history rule (would block sprint merge strategy)
 #
-# All tests are intentionally RED until plugins/dso/scripts/sprint/check-ruleset-preflight.sh
+
 # is implemented.
 #
 # Usage: bash tests/scripts/test-check-ruleset-preflight.sh
@@ -72,7 +72,7 @@ _run_script() {
 }
 
 # ── test_script_exists ────────────────────────────────────────────────────────
-# RED: script does not yet exist — this test fails until it is created.
+
 echo ""
 echo "--- test_script_exists ---"
 _snapshot_fail
@@ -85,8 +85,8 @@ else
 fi
 
 # ── test_no_ruleset_exits_with_message ────────────────────────────────────────
-# RED: script doesn't exist, so this will fail with "not found" rather than
-# the expected message — confirming RED state.
+# script doesn't exist, so this will fail with "not found" rather than
+
 echo ""
 echo "--- test_no_ruleset_exits_with_message ---"
 _snapshot_fail
@@ -105,7 +105,7 @@ assert_contains "test_no_ruleset_exits_with_message: output mentions session-* r
 assert_pass_if_clean "test_no_ruleset_exits_with_message"
 
 # ── test_check_name_missing_exits_with_message ────────────────────────────────
-# RED: script doesn't exist yet.
+# script doesn't exist yet.
 echo ""
 echo "--- test_check_name_missing_exits_with_message ---"
 _snapshot_fail
@@ -125,7 +125,7 @@ assert_contains "test_check_name_missing_exits_with_message: output mentions Spr
 assert_pass_if_clean "test_check_name_missing_exits_with_message"
 
 # ── test_fully_configured_exits_zero ─────────────────────────────────────────
-# RED: script doesn't exist yet.
+# script doesn't exist yet.
 echo ""
 echo "--- test_fully_configured_exits_zero ---"
 _snapshot_fail
@@ -145,7 +145,7 @@ assert_contains "test_fully_configured_exits_zero: output contains success messa
 assert_pass_if_clean "test_fully_configured_exits_zero"
 
 # ── test_reads_check_name_from_config ────────────────────────────────────────
-# RED: script doesn't exist yet.
+# script doesn't exist yet.
 echo ""
 echo "--- test_reads_check_name_from_config ---"
 _snapshot_fail

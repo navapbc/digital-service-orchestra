@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 # tests/scripts/test-818-coverage-harness.sh
-# RED tests for plugins/dso/scripts/preconditions-coverage-harness.sh
-# These tests fail RED until preconditions-coverage-harness.sh is implemented.
 
 set -uo pipefail
 
@@ -13,7 +11,6 @@ DEFAULT_CORPUS="$REPO_ROOT/tests/fixtures/818-corpus/sample-bugs.json"
 source "$REPO_ROOT/tests/lib/assert.sh"
 
 test_coverage_harness_counts_preventions() {
-    # RED: preconditions-coverage-harness.sh does not exist yet
     if [[ ! -f "$HARNESS" ]]; then
         (( ++FAIL ))
         printf "FAIL: %s\n  expected: preconditions-coverage-harness.sh to exist at %s\n  actual:   file not found\n" \
@@ -63,7 +60,6 @@ print('valid' if isinstance(pc, int) and pc >= 0 else f'invalid:{pc}')
 }
 
 test_coverage_result_meets_threshold() {
-    # RED: preconditions-coverage-harness.sh does not exist yet
     if [[ ! -f "$HARNESS" ]]; then
         (( ++FAIL ))
         printf "FAIL: %s\n  expected: preconditions-coverage-harness.sh to exist at %s\n  actual:   file not found\n" \

@@ -177,7 +177,6 @@ test_heuristic_table_structure() {
 
 # ── test_consumers_table_updated ─────────────────────────────────────────────
 # 6. gate-signal-schema.md Consumers table must have scope_drift row
-# NOTE: This test will be RED until Task C updates gate-signal-schema.md
 test_consumers_table_updated() {
     _snapshot_fail
     local _schema_content

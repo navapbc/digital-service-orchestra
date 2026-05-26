@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tests/scripts/test-flock-busybox-compat.sh
-# RED test: ticket_create must succeed when the only flock in PATH is a
+# ticket_create must succeed when the only flock in PATH is a
 # BusyBox-style (non-util-linux) flock binary.
 #
 # Motivation: On Alpine 3.19, `command -v flock` resolves to BusyBox flock.
@@ -9,7 +9,7 @@
 # FD-based form (flock -x -w N FD) that BusyBox flock does not reliably
 # support in the subshell-redirect context.
 #
-# RED: before the util-linux probe, ticket_create returns empty when only
+# before the util-linux probe, ticket_create returns empty when only
 #      a non-util-linux flock is in PATH (mock flock used → FD form attempted
 #      → lock times out / fails → subshell exits before `echo "$ticket_id"`).
 # GREEN: after fix, the probe rejects non-util-linux flock; mkdir fallback

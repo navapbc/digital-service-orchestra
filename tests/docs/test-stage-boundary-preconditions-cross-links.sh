@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# RED test: cross-links from skill/agent files to stage-boundary-preconditions docs
+# cross-links from skill/agent files to stage-boundary-preconditions docs
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"

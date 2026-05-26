@@ -62,11 +62,11 @@ _get_ticket_status() {
         | python3 -c "import json,sys; d=json.loads(sys.stdin.read()); print(d.get('status',''))" 2>/dev/null || true
 }
 
-# ── Test 1 (RED): reducer subprocess invocations bounded by children_count ─────
-# RED because: current code invokes reducer for EVERY ticket in tracker_dir
+# ── Test 1: reducer subprocess invocations bounded by children_count ─────
+# current code invokes reducer for EVERY ticket in tracker_dir
 # that lacks a snapshot — O(N) invocations. Fix: O(children_count) invocations.
 echo ""
-echo "--- Test 1 (RED): reducer invocations during close are O(children_count), not O(total_tickets) ---"
+echo "--- Test 1: reducer invocations during close are O(children_count), not O(total_tickets) ---"
 test_open_children_check_bounded_by_children() {
     _snapshot_fail
 
@@ -128,7 +128,6 @@ PYEOF
     # otherwise count via a different method.
     # Strategy: patch the inline python in ticket-transition.sh to use our wrapper
     # by setting an environment variable DSO_REDUCER_SCRIPT.
-    # Note: the current inline python3 heredoc uses $REDUCER directly (from bash),
     # so we temporarily create a counting wrapper at the same path.
     # Alternative: use time-based check instead.
     local exit_code=0
@@ -165,12 +164,12 @@ PYEOF
 }
 test_open_children_check_bounded_by_children
 
-# ── Test 2 (RED): open-children check does NOT use os.scandir over all tickets ─
-# RED: current code uses os.scandir(tracker_dir) which iterates ALL ticket dirs.
+# ── Test 2: open-children check does NOT use os.scandir over all tickets ─
+# current code uses os.scandir(tracker_dir) which iterates ALL ticket dirs.
 # Fix: must use a targeted lookup (snapshot parent_id check first, CREATE event
 # check second) that avoids invoking reducer for tickets without the correct parent_id.
 echo ""
-echo "--- Test 2 (RED): open-children check uses targeted parent_id lookup, not full scandir ---"
+echo "--- Test 2: open-children check uses targeted parent_id lookup, not full scandir ---"
 test_open_children_check_uses_targeted_lookup() {
     _snapshot_fail
 
@@ -257,7 +256,6 @@ SPYEOF
     chmod +x "$spy_reducer"
 
     # Run the transition with the spy reducer injected via DSO_REDUCER env var.
-    # Note: ticket-transition.sh currently uses REDUCER="$SCRIPT_DIR/ticket-reducer.py"
     # hardcoded. To spy on it, we need a way to override.
     #
     # Current code passes $REDUCER to the inline python as sys.argv[3] in Step 1b.
@@ -270,13 +268,12 @@ SPYEOF
     # The fix should skip reducer calls for all N unrelated tickets (0 matches).
 
     # Count reducer subprocess calls by temporarily replacing the reducer
-    # Note: since ticket-transition.sh resolves REDUCER from $SCRIPT_DIR, we
     # use DSO_REDUCER_SCRIPT if supported, otherwise check structural fix.
 
     # Structural check: verify the inline python does NOT call read_state_via_reducer
     # for all tickets — it should check parent_id from snapshot/CREATE first.
     #
-    # RED test: verify that after the fix, the inline python exits early for tickets
+    # verify that after the fix, the inline python exits early for tickets
     # whose snapshot or CREATE event shows parent_id != target_id.
     #
     # Implementation check: look for the optimization pattern in the source.
@@ -314,7 +311,7 @@ has_parent_id_precheck = bool(
 )
 
 # Check that the fast path (snapshot read) is followed by a parent_id check
-# BEFORE the slow path (reducer subprocess)
+# BEFORE the slow path
 # This is the key structural invariant of the fix
 has_fast_path_parent_check = bool(
     re.search(
@@ -334,7 +331,7 @@ PYEOF
         has_targeted_check=1
     fi
 
-    # Assert: the fix is present (RED: currently 0, GREEN: 1 after fix)
+    # Assert: the fix is present
     assert_eq \
         "targeted-check: open-children scan checks parent_id before invoking reducer" \
         "1" \
@@ -344,7 +341,7 @@ PYEOF
 }
 test_open_children_check_uses_targeted_lookup
 
-# ── Test 3 (RED): leaf ticket close does not spawn reducer for unrelated tickets ─
+# ── Test 3: leaf ticket close does not spawn reducer for unrelated tickets ─
 # Integration test: create N=20 tickets without snapshots (by not compacting),
 # none of which are children of the target. Verify that closing the target
 # completes before a 10-second timeout (O(N) at 35ms each = 700ms; this
@@ -392,7 +389,6 @@ test_leaf_close_does_not_scan_all_tickets() {
     # With the fix (targeted lookup), elapsed_ms should be << 700ms for N=20.
     # We use a 5000ms threshold to avoid flaky failures on slow CI runners,
     # while still catching catastrophically slow O(N) behavior.
-    # Note: This is a SOFT timing test. Test 2 is the structural RED test.
     if [ "$elapsed_ms" -lt 5000 ]; then
         assert_eq "leaf-close: timing within 5s budget (N=20 unrelated tickets)" "within-budget" "within-budget"
     else

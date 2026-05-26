@@ -672,7 +672,7 @@ fi
 rm -rf "$_tmp_repo_wcfe"
 rm -f "$_wcfe_override_file"
 
-# ── dso.workflow shim tests (RED — implementation in read-config.sh not yet added) ─
+# ── dso.workflow shim tests ─
 # These tests specify the dso.workflow virtual key behavior. They must FAIL against
 # the current unmodified read-config.sh because the shim logic does not yet exist.
 
@@ -879,7 +879,7 @@ if [[ "$FAIL" -eq "$_fail_before_dwsd" ]]; then
 fi
 rm -f "$_tmp_dwsd"
 
-# ── Sentinel lockout tests (RED — implementation in read-config.sh not yet added) ──
+# ── Sentinel lockout tests ──
 # These tests specify the sentinel lockout behavior: when .claude/.dso-config-v2-migrated
 # exists in the git root, reading legacy keys (merge.strategy, enforcement.strategy)
 # must exit non-zero and emit a recovery hint. dso.workflow and pre-migration reads
