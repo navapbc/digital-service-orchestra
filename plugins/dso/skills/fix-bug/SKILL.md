@@ -512,7 +512,18 @@ Feature-Request Gate failure must never block a legitimate bug investigation.
 SCRATCH_INV=$(.claude/scripts/dso ticket scratch get "$BUG_TICKET_ID" fix-bug:investigation 2>/dev/null)
 ```
 
-If `$SCRATCH_INV` parses as `{"value": <Investigation RESULT envelope>}`, treat the embedded RESULT as the output of Step 1 — SKIP Step 1 dispatch entirely — and proceed directly to Step 2 (Hypothesis Validation Gate). The orchestrator has already paid the investigation cost in a prior parallel batch.
+If the response is `status:"hit"`, the `value` field is a JSON envelope conforming to `fix-bug:investigation/v1`. Inspect it:
+
+- **Normal projection** — `summary` + `proposed_fix` + `affected_files` + routing flags present, no `scratch_overflow` flag. Treat the projection as the output of Step 1 (the orchestrator confirmed the full RESULT lives in `discovery_file` if richer detail is needed). SKIP Step 1 dispatch and proceed to Step 2.
+- **Oversize fallback** — envelope contains `"scratch_overflow": true` and `"discovery_file": "<path>"`. Read the full Investigation RESULT envelope from the discovery file:
+  ```bash
+  DISCOVERY_FILE=$(echo "$SCRATCH_INV" | python3 -c 'import sys,json; print(json.loads(sys.stdin.read())["value"]["discovery_file"] if isinstance(json.loads(sys.stdin.read()).get("value"),dict) else "")')
+  # or parse it however your runtime supports
+  cat "$DISCOVERY_FILE"
+  ```
+  Use the discovery-file contents as the Step 1 RESULT and proceed to Step 2.
+
+If the response is `status:"miss"` or the projection is malformed (no `bug_id` match, no `complexity`, etc.), fall through to Path B/C — do NOT silently dispatch a fresh investigation, surface this as a pipeline contract violation in your sub-agent output before falling through.  <!-- # precondition-emit-ok — contract-violation surfacing, not graceful degradation -->
 
 **Path B — `MODE: investigation-only` (TERMINATE AT END OF PHASE D).** If the orchestrator dispatch prompt contains the literal token `MODE: investigation-only`, you are running the **investigation half** of the parallel pipeline. Two constraints apply:
 
@@ -786,36 +797,72 @@ Proceed to the corresponding Phase E Step 1 branch below.
 
 This step runs **only when Phase C Step 0 selected Path B**. In every other case, skip directly to Phase E.
 
-Assemble the investigation envelope and write it to ticket scratch under the `fix-bug:investigation` key, so the fix-application sub-agent dispatched in the next pipeline phase can fast-forward past Phase C:
+**Size constraint.** `ticket scratch set` rejects payloads exceeding 4096 bytes (`{status:"error",code:"oversize"}` — see `ticket-cli-reference.md`). The full Investigation RESULT envelope at INTERMEDIATE/ADVANCED tier easily exceeds this ceiling (root_cause_candidates × ≥2, alternative_fixes × ≥2, evidence arrays, fishbone categories). The scratch entry therefore stores a **compact projection** sufficient for the Phase 2 fix-application sub-agent; the full RESULT envelope is written to a side-car discovery file whose path is referenced in the scratch projection.
+
+Step 4a — write the full Investigation RESULT envelope to a discovery file (no size ceiling):
 
 ```bash
-INVESTIGATION_JSON=$(cat <<'EOF'
+DISCOVERY_FILE="/tmp/fix-bug-discovery-${BUG_TICKET_ID}.json"
+cat > "$DISCOVERY_FILE" <<EOF
+<Investigation RESULT envelope from inline investigation — root_cause_candidates, alternative_fixes, hypothesis_tests, fishbone_categories, tradeoffs_considered, recommendation>
+EOF
+```
+
+Step 4b — assemble the compact projection and write it to ticket scratch under the `fix-bug:investigation` key. This is the binding handoff to Phase 2. Keep it under 4 KB:
+
+```bash
+INVESTIGATION_JSON=$(cat <<EOF
 {
   "schema": "fix-bug:investigation/v1",
-  "bug_id": "<BUG_TICKET_ID>",
-  "investigation_result": <Investigation RESULT envelope from inline investigation>,
+  "bug_id": "${BUG_TICKET_ID}",
+  "summary": "<1-2 sentence root cause summary>",
+  "proposed_fix": "<one-paragraph fix description (recommendation only — not the full alternative_fixes list)>",
+  "affected_files": ["<path>", "..."],
   "complexity": "<TRIVIAL|MODERATE|COMPLEX>",
   "fixable": <true|false>,
   "manual_approval_needed": <true|false>,
   "complex_escalation": <true|false>,
-  "proposed_fix": "<one-paragraph fix summary>"
+  "discovery_file": "${DISCOVERY_FILE}"
 }
 EOF
 )
 
-.claude/scripts/dso ticket scratch set "$BUG_TICKET_ID" fix-bug:investigation "$INVESTIGATION_JSON"
+SCRATCH_RC_OUT=$(.claude/scripts/dso ticket scratch set "$BUG_TICKET_ID" fix-bug:investigation "$INVESTIGATION_JSON" 2>&1)
+SCRATCH_RC=$?
+
+if [ "$SCRATCH_RC" -ne 0 ] || echo "$SCRATCH_RC_OUT" | grep -q '"code":"oversize"'; then
+    # Oversize fallback: the projection is still too large. Emit a minimal pointer
+    # to the discovery file and signal scratch_overflow=true so the orchestrator
+    # knows to route Phase 2 via the discovery-file path instead of scratch.
+    FALLBACK_JSON=$(cat <<EOF
+{
+  "schema": "fix-bug:investigation/v1",
+  "bug_id": "${BUG_TICKET_ID}",
+  "scratch_overflow": true,
+  "discovery_file": "${DISCOVERY_FILE}",
+  "complexity": "<TRIVIAL|MODERATE|COMPLEX>",
+  "fixable": <true|false>,
+  "manual_approval_needed": <true|false>,
+  "complex_escalation": <true|false>
+}
+EOF
+)
+    .claude/scripts/dso ticket scratch set "$BUG_TICKET_ID" fix-bug:investigation "$FALLBACK_JSON" || true
+fi
 ```
 
-Then emit the compact summary on the FINAL line of your sub-agent output (the orchestrator parses this verbatim):
+Step 4c — emit the compact summary on the FINAL line of your sub-agent output. The orchestrator parses this verbatim and uses it for Phase 2 routing decisions. **All five routing tokens are required** so the orchestrator does not need to re-open the scratch entry to decide routing:
 
 ```
 INVESTIGATION_COMPLETE: <bug-id>
 COMPLEXITY: <TRIVIAL|MODERATE|COMPLEX>
 FIXABLE: <true|false>
+MANUAL_APPROVAL_NEEDED: <true|false>
+COMPLEX_ESCALATION: <true|false>
 SCRATCH_KEY: fix-bug:investigation
 ```
 
-**TERMINATE NOW.** Do not proceed to Phase E. The orchestrator's fix-application phase will dispatch a new sub-agent that loads this scratch entry and runs Phases E–I.
+**TERMINATE NOW.** Do not proceed to Phase E. The orchestrator's fix-application phase will dispatch a new sub-agent that loads this scratch entry (or the discovery file if `scratch_overflow=true`) and runs Phases E–I.
 
 ## Phase E: TDD Fix Loop
 

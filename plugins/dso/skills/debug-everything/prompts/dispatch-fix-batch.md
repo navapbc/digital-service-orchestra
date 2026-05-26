@@ -113,21 +113,18 @@ Environment: <CI failure | staging | local — from triage report>
 {file_ownership_context}
 ```
 
-After all investigation sub-agents return, read each bug's scratch entry:
+After all investigation sub-agents return, classify routing eligibility for Phase 2 directly from the **compact summary** in each sub-agent's stdout. The compact summary carries all five routing tokens (`INVESTIGATION_COMPLETE`, `COMPLEXITY`, `FIXABLE`, `MANUAL_APPROVAL_NEEDED`, `COMPLEX_ESCALATION`, `SCRATCH_KEY`) so the orchestrator does not need to re-open the scratch entry to decide routing:
 
-```bash
-for bug_id in $CHUNK_BUGS; do
-    .claude/scripts/dso ticket scratch get "$bug_id" fix-bug:investigation
-done
-```
+- `COMPLEX_ESCALATION: true` → record `COMPLEX_ESCALATION: <bug-id>` in the tracking comment; do NOT auto-dispatch — the orchestrator handles via `/dso:brainstorm`; exclude from Phase 2
+- `MANUAL_APPROVAL_NEEDED: true` → record `MANUAL_APPROVAL_QUEUED: <bug-id>` in the tracking comment; defer to user; exclude from Phase 2
+- `FIXABLE: true` (and neither flag above) → include in Phase 2 fix batch
+- `FIXABLE: false` (and neither flag above) → record `INVESTIGATION_FIXABLE_FALSE: <bug-id>` in the tracking comment; exclude from Phase 2
 
-Parse the compact summary from each sub-agent's stdout (`INVESTIGATION_COMPLETE: …`) to classify dispatch eligibility for Phase 2:
+Token precedence: `COMPLEX_ESCALATION` > `MANUAL_APPROVAL_NEEDED` > `FIXABLE` (a single bug may carry multiple flags; the most-restrictive classification wins).
 
-- `FIXABLE: true` → include in Phase 2 fix batch
-- `FIXABLE: false` AND `manual_approval_needed: true` → record `MANUAL_APPROVAL_QUEUED: <bug-id>` in the tracking comment; defer to user; exclude from Phase 2
-- `complex_escalation: true` → record `COMPLEX_ESCALATION: <bug-id>` in the tracking comment; do NOT auto-dispatch — the orchestrator handles via `/dso:brainstorm`; exclude from Phase 2
+If any sub-agent fails to emit `INVESTIGATION_COMPLETE` on its final line, treat that bug as **investigation-failed**; do NOT include in Phase 2; record `INVESTIGATION_FAILED: <bug-id>` in the tracking comment and move on. Investigation failures do not block other bugs in the batch.
 
-If any sub-agent fails to return a compact summary or fails to write scratch, treat that bug as **investigation-failed**; do NOT include in Phase 2; record `INVESTIGATION_FAILED: <bug-id>` in the tracking comment and move on. Investigation failures do not block other bugs in the batch.
+The scratch entry itself is consumed by the Phase 2 fix-application sub-agent, not by this orchestrator step. Each fixable bug's scratch entry MUST contain either the compact projection (under the 4 KB scratch ceiling) or the oversize-fallback envelope with `scratch_overflow=true` + `discovery_file=<path>`. The Phase 2 sub-agent transparently follows either path (see Path A in fix-bug Phase C Step 0).
 
 ## 6. Conflict-aware Phase 2 grouping
 

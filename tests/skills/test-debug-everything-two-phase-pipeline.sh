@@ -177,4 +177,75 @@ echo "--- test_debug_everything_references_two_phase_pipeline ---"
 test_debug_everything_references_two_phase_pipeline
 echo ""
 
+# ─────────────────────────────────────────────────────────────────────────
+# test_compact_summary_covers_all_routing_branches
+#
+# Contract: every classification branch in dispatch-fix-batch.md must have a
+# corresponding emitted token in fix-bug Phase D Step 4's compact-summary
+# block. Without this binding, the orchestrator's routing rules cannot fire
+# from stdout parsing (bug surfaced in PR #378 manual review).
+#
+# Required tokens per dispatch-fix-batch.md:
+#   - INVESTIGATION_COMPLETE
+#   - COMPLEXITY
+#   - FIXABLE
+#   - MANUAL_APPROVAL_NEEDED
+#   - COMPLEX_ESCALATION
+#   - SCRATCH_KEY
+#
+# Each MUST appear in both files (so emission and parsing are in sync).
+# ─────────────────────────────────────────────────────────────────────────
+test_compact_summary_covers_all_routing_branches() {
+  local tok
+  for tok in INVESTIGATION_COMPLETE COMPLEXITY FIXABLE MANUAL_APPROVAL_NEEDED COMPLEX_ESCALATION SCRATCH_KEY; do
+    local _in_fix_bug _in_dispatch
+    _in_fix_bug=$(grep -c "^.*${tok}.*:" "$FIX_BUG_FILE" 2>/dev/null || echo 0)
+    _in_dispatch=$(grep -c "${tok}" "$DISPATCH_FILE" 2>/dev/null || echo 0)
+
+    assert_eq \
+      "test_compact_summary_covers_all_routing_branches: token ${tok} must appear in fix-bug/SKILL.md compact-summary block" \
+      "1" "$([ "$_in_fix_bug" -ge 1 ] && echo 1 || echo 0)"
+
+    assert_eq \
+      "test_compact_summary_covers_all_routing_branches: token ${tok} must appear in dispatch-fix-batch.md routing block" \
+      "1" "$([ "$_in_dispatch" -ge 1 ] && echo 1 || echo 0)"
+  done
+}
+
+echo "--- test_compact_summary_covers_all_routing_branches ---"
+test_compact_summary_covers_all_routing_branches
+echo ""
+
+# ─────────────────────────────────────────────────────────────────────────
+# test_fix_bug_handles_scratch_oversize_fallback
+#
+# Contract: fix-bug Phase D Step 4 must guard against the 4096-byte
+# ticket-scratch ceiling either by (a) writing a compact projection only,
+# (b) detecting oversize errors and falling back to a discovery file, or
+# (c) both. Path A in Step 0 must transparently consume either form.
+# Surfaced by the PR #378 manual review.
+# ─────────────────────────────────────────────────────────────────────────
+test_fix_bug_handles_scratch_oversize_fallback() {
+  local _oversize_check _discovery_file _scratch_overflow
+  _oversize_check=$(grep -c -E "oversize|4096|4 ?KB|scratch_overflow" "$FIX_BUG_FILE" 2>/dev/null || echo 0)
+  _discovery_file=$(grep -c "discovery_file" "$FIX_BUG_FILE" 2>/dev/null || echo 0)
+  _scratch_overflow=$(grep -c "scratch_overflow" "$FIX_BUG_FILE" 2>/dev/null || echo 0)
+
+  assert_eq \
+    "test_fix_bug_handles_scratch_oversize_fallback: SKILL.md must reference the scratch oversize ceiling or fallback mechanism" \
+    "1" "$([ "$_oversize_check" -ge 1 ] && echo 1 || echo 0)"
+
+  assert_eq \
+    "test_fix_bug_handles_scratch_oversize_fallback: SKILL.md must reference discovery_file as oversize fallback" \
+    "1" "$([ "$_discovery_file" -ge 1 ] && echo 1 || echo 0)"
+
+  assert_eq \
+    "test_fix_bug_handles_scratch_oversize_fallback: SKILL.md must reference scratch_overflow flag" \
+    "1" "$([ "$_scratch_overflow" -ge 1 ] && echo 1 || echo 0)"
+}
+
+echo "--- test_fix_bug_handles_scratch_oversize_fallback ---"
+test_fix_bug_handles_scratch_oversize_fallback
+echo ""
+
 print_summary
