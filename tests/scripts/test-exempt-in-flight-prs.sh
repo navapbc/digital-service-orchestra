@@ -17,8 +17,8 @@
 # Usage: bash tests/scripts/test-exempt-in-flight-prs.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 #
-# RED MARKER: test_labels_all_in_flight_prs
-# (script does not exist yet — all tests fail RED until T7 IMPL task is complete)
+
+# (script does not exist yet — all tests fail until T7 IMPL task is complete)
 
 set -uo pipefail
 

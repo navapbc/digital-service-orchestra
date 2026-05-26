@@ -35,7 +35,7 @@
 #   test_idempotency: SKILL.md must include idempotency guarantee for re-runs
 #
 # These are metadata/schema validation tests per the Behavioral Test Requirement exemption.
-# First 7 tests PASS with current SKILL.md; last 22 tests are RED until SKILL.md is updated.
+# First 7 tests PASS with current SKILL.md; last 22 tests remain failing until SKILL.md is updated.
 #
 # Usage: bash tests/skills/test-architect-foundation-skill.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail

@@ -3,11 +3,9 @@
 # Behavioral tests for plugins/dso/scripts/review-defense-store.sh —
 # --pr-number key support and sentinel readback (v1.2.0 grammar).
 #
-# RED until review-defense-store.sh supports --pr-number on write and
 # defense_store_list_by_pr for keyed readback.
 #
 # Usage: bash tests/scripts/test-review-defense-store-pr-keyed.sh
-# Returns: exit 1 (RED) until implementation is present.
 
 # NOTE: -e intentionally omitted — test functions return non-zero by design.
 set -uo pipefail

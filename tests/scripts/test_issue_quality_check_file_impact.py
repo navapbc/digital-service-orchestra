@@ -533,7 +533,7 @@ class TestEnrichFileImpactScript:
         """In v3 mode (TICKETS_TRACKER_DIR set), enrich-file-impact.sh must NOT try to
         write to .tickets/<id>.md. It must route through the ticket CLI comment command.
 
-        This is a v3 compatibility RED test: it fails on the old code that calls
+        v3 compatibility test: it fails on the old code that calls
         `printf ... >> .tickets/<id>.md` and passes after the fix.
         """
         import stat
@@ -616,7 +616,7 @@ class TestCheckAcceptanceCriteriaV3:
         In v3, .tickets/*.md files do not exist. The error message must be updated
         to guide users to the correct workflow.
 
-        This is a v3 compatibility RED test: it fails on the old code that embeds
+        v3 compatibility test: it fails on the old code that embeds
         '.tickets/$ID.md' in the error message and passes after the fix.
         """
         with open(self.SCRIPT_PATH) as f:

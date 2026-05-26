@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # tests/scripts/test-ci-dso-staged-template.sh
-# RED-phase structural tests for plugins/dso/templates/ci-dso-staged.yml
+
 #
-# All tests that depend on the template file will FAIL (RED) until
+
 # plugins/dso/templates/ci-dso-staged.yml is created.
-# test_template_file_exists is the hard RED gate — it fails when the file is missing,
+
 # causing the suite to exit non-zero before any further assertions run.
 #
 # Tests covered:
-#   1. test_template_file_exists           — file missing → RED
+#   1. test_template_file_exists           — file missing
 #   2. test_yaml_is_parseable              — python3 yaml.safe_load succeeds
 #   3. test_four_required_jobs             — lint-format, tests, llm-review, validate-ci present
 #   4. test_tests_job_needs_lint_format    — jobs.tests.needs contains "lint-format"
@@ -18,7 +18,7 @@
 #   8. test_no_dso_plugin_refs             — no read-config.sh or CLAUDE_PLUGIN_ROOT refs
 #   9. test_lint_format_uses_github_variables — lint-format run: references ${{ vars. pattern
 #  10. test_validate_ci_runs_validate_sh   — validate-ci step run: uses ${{ vars. pattern
-#  11. test_pipefail_strict_job_exists     — jobs['tests-pipefail-strict'] present → RED until added
+#  11. test_pipefail_strict_job_exists     — jobs['tests-pipefail-strict'] present until added
 #  12. test_pipefail_strict_runs_on_linux  — tests-pipefail-strict runs-on ubuntu-latest
 #  13. test_pipefail_strict_exports_bash_opts — tests-pipefail-strict env.BASH_OPTS contains -eo pipefail
 #  14. test_pipefail_strict_needs_lint_format — tests-pipefail-strict needs contains lint-format
@@ -40,8 +40,8 @@ source "$PLUGIN_ROOT/tests/lib/assert.sh"
 echo "=== test-ci-dso-staged-template.sh ==="
 
 # ── test_template_file_exists ─────────────────────────────────────────────────
-# The template must exist — this is the RED gate. When the file is missing,
-# this test fails and the suite exits non-zero, establishing RED state.
+# The template must exist — this is the hard prerequisite. When the file is missing,
+# this test fails and the suite exits non-zero, establishing failure state.
 _snapshot_fail
 if [[ -f "$TEMPLATE" ]]; then
     actual_exists="exists"
@@ -243,8 +243,6 @@ assert_eq "test_validate_ci_runs_validate_sh: exit 0" "0" "$valci_sh_exit"
 assert_eq "test_validate_ci_runs_validate_sh: \${{ vars. pattern in validate-ci steps" "OK" "$valci_sh_output"
 assert_pass_if_clean "test_validate_ci_runs_validate_sh"
 
-# ── test_pipefail_strict_job_exists ──────────────────────────────────────────
-# jobs['tests-pipefail-strict'] must exist. RED until the job is added to the template.
 _snapshot_fail
 pfs_exists_exit=0
 pfs_exists_output=""

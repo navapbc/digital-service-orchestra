@@ -11,7 +11,7 @@
 set -euo pipefail
 
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-_PLUGIN_ROOT="$(cd "$_SCRIPT_DIR/../.." && pwd)"
+_PLUGIN_ROOT="$(cd "$_SCRIPT_DIR/../../plugins/dso" && pwd)"
 
 VALIDATOR="$_PLUGIN_ROOT/scripts/check-gov-copy-artifact.sh"
 FIXTURE_DIR="$_SCRIPT_DIR/fixtures"
@@ -94,7 +94,7 @@ fi
 echo ""
 echo "--- test: wrong checks.source rejected ---"
 _WRONG_SRC_OUT=$(mktemp /tmp/wrong-src-out.XXXXXX)
-if "$VALIDATOR" "$_PLUGIN_ROOT/tests/scripts/fixtures/gov-copy-fail-wrong-source.yaml" >"$_WRONG_SRC_OUT" 2>&1; then
+if "$VALIDATOR" "$FIXTURE_DIR/gov-copy-fail-wrong-source.yaml" >"$_WRONG_SRC_OUT" 2>&1; then
   fail "validator should reject checks.source != 'deterministic-post-processor'"
 else
   pass "validator rejects wrong checks.source value"
@@ -113,7 +113,7 @@ rm -f "$_WRONG_SRC_OUT"
 echo ""
 echo "--- test: nested-dict errors value rejected ---"
 _NESTED_OUT=$(mktemp /tmp/nested-out.XXXXXX)
-if "$VALIDATOR" "$_PLUGIN_ROOT/tests/scripts/fixtures/gov-copy-fail-errors-nested-dict.yaml" >"$_NESTED_OUT" 2>&1; then
+if "$VALIDATOR" "$FIXTURE_DIR/gov-copy-fail-errors-nested-dict.yaml" >"$_NESTED_OUT" 2>&1; then
   fail "validator should reject errors.<key> being a nested dict"
 else
   pass "validator rejects nested-dict errors value"

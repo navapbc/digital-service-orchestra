@@ -44,7 +44,7 @@ test_huge_workflow_record_review_has_required_flags() {
     "grep -qE -- '--expected-hash|--reviewer-hash' \"$REPO_ROOT/plugins/dso/docs/workflows/REVIEW-WORKFLOW-HUGE.md\""
 }
 
-# ── Fallback agent tests (RED until cf76-7091 T2/T3 complete) ────────────────
+# ── Fallback agent tests ────────────────
 
 test_huge_fallback_emits_model_override() {
     _snapshot_fail
@@ -100,7 +100,7 @@ test_standard_fallback_agent_model_is_opus() {
     assert_pass_if_clean "test_standard_fallback_agent_model_is_opus"
 }
 
-# ── Confirmed-refactor / batch-groups / anomaly tests (RED until efe7-7f1d T4/T5) ──
+# ── Confirmed-refactor / batch-groups / anomaly tests ──
 
 test_huge_confirmed_haiku_batch_references_batch_groups() {
     _snapshot_fail

@@ -3,7 +3,7 @@
 # RED-phase tests for plugins/dso/scripts/write-cycle-ledger.sh
 #
 # Test set A (S0): current --artifacts-dir/--payload interface
-# Test set B (S2): new --epic-id/--cycle-num/--findings-hash interface (RED until task 15dc)
+# Test set B (S2): new --epic-id/--cycle-num/--findings-hash interface
 #
 # Behaviors under test:
 #   A1. test_write_cycle_ledger_creates_file              — happy-path write: correct JSON schema
@@ -209,7 +209,7 @@ test_write_cycle_ledger_invalid_json_fails() {
 test_write_cycle_ledger_invalid_json_fails
 
 # ── Test set B: new --epic-id/--cycle-num/--findings-hash interface ───────────
-# (RED until write-cycle-ledger.sh updated in S2 task 15dc)
+#
 
 # ---------------------------------------------------------------------------
 # B1: Normal write creates ledger with epic_id, cycles[], timestamp_utc

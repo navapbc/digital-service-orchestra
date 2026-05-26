@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tests/unit/scripts/test-ticket-tag.sh
-# RED tests for _tag_add/_tag_remove helpers in ticket-lib.sh and
+
 # the ticket tag / ticket untag CLI subcommands (ticket-tag.sh, ticket-untag.sh).
 #
 # All 7 tests MUST FAIL until the implementation exists:
@@ -10,7 +10,6 @@
 #   - plugins/dso/scripts/ticket: tag/untag routing entries
 #
 # Usage: bash tests/unit/scripts/test-ticket-tag.sh
-# Returns: exit 1 (RED) until implementation is present.
 
 # NOTE: -e intentionally omitted — test functions return non-zero by design
 # (they assert against unimplemented features). -e would abort the runner on
@@ -165,7 +164,7 @@ test_tag_add_idempotent() {
     fi
 
     # When: _tag_add called twice with the same tag.
-    # RED gate: _tag_add must exist (function defined in ticket-lib.sh).
+    # _tag_add must exist (function defined in ticket-lib.sh).
     # If absent, the subshell exits non-zero from set -e or command-not-found;
     # we detect this and force a RED assertion.
     local add_exit=0
@@ -457,7 +456,7 @@ test_ticket_untag_cli_removes_tag() {
 test_ticket_untag_cli_removes_tag
 
 # ── PIL detection and _tag_add_checked guard (Story 2: c095-26fe) ─────────────
-# RED tests for _ticket_has_pil and _tag_add_checked (task 4d04-b152).
+
 # These MUST FAIL until ticket-lib.sh implements _ticket_has_pil and
 # _tag_add_checked, and ticket-tag.sh dispatches through _tag_add_checked.
 #
@@ -567,7 +566,7 @@ brainstorm complete, see attached notes" 2>/dev/null) || {
 test_ticket_has_pil_finds_pil_in_comment_body
 
 # ── Test 11: _ticket_has_pil — returns exit 1 when PIL absent ────────────────
-# Uses assert_eq "1" to fail RED (function missing → exit 127) but pass GREEN
+# Uses assert_eq "1" to fail (function missing → exit 127) but pass GREEN
 # (function implemented → exit 1 for absent PIL).
 echo ""
 echo "--- test_ticket_has_pil_returns_nonzero_when_absent ---"
@@ -616,7 +615,7 @@ test_tag_add_checked_bypasses_check_for_non_brainstorm_tags() {
 test_tag_add_checked_bypasses_check_for_non_brainstorm_tags
 
 # ── Test 13: _tag_add_checked — rejects brainstorm:complete without PIL ───────
-# Uses assert_eq "1" to fail RED (function missing → exit 127) but pass GREEN
+# Uses assert_eq "1" to fail (function missing → exit 127) but pass GREEN
 # (function implemented → exit 1 for rejected tag).
 echo ""
 echo "--- test_tag_add_checked_rejects_brainstorm_complete_without_pil ---"
@@ -669,7 +668,7 @@ brainstorm done" 2>/dev/null | tail -1)
 
 test_tag_add_checked_allows_brainstorm_complete_with_pil
 
-# ── Test 15: Round-trip via _tag_add_checked lib call (fails RED until Task 2) ──
+# ── Test 15: Round-trip via _tag_add_checked lib call (fails until Task 2) ──
 echo ""
 echo "--- test_ticket_tag_pil_round_trip ---"
 
@@ -689,7 +688,7 @@ all checks done" 2>/dev/null | tail -1)
 
     [[ -z "$ticket_id" ]] && { (( ++FAIL )); echo "FAIL: test_ticket_tag_pil_round_trip: could not create ticket" >&2; return; }
 
-    # Call _tag_add_checked directly (fails RED until lib implements it)
+    # Call _tag_add_checked directly (fails until lib implements it)
     local _exit=0
     (cd "$repo" && source "$TICKET_LIB" && _tag_add_checked "$ticket_id" "brainstorm:complete") 2>/dev/null || _exit=$?
 
@@ -760,7 +759,7 @@ test_tag_add_checked_rejects_plan_review_substitute_comment() {
     # Simulate what /dso:plan-review (substitute path) writes: a plan-review verdict
     # comment WITHOUT the "### Planning Intelligence Log" canonical marker.
     # This is the exact scenario from bug 0122-54c9: scrutiny ran via plan-review
-    # (red-team-reviewer + blue-team-filter), which produces a verdict comment but
+    #, which produces a verdict comment but
     # does NOT emit the PIL marker that the canonical pipeline writes.
     (cd "$repo" && bash "$TICKET_SCRIPT" comment "$ticket_id" \
         "## Plan Review Verdict

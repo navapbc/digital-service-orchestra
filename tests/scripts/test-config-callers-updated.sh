@@ -131,7 +131,6 @@ assert_pass_if_clean "test_sprint_next_batch_uses_dot_claude_config"
 # Excluded scripts with legitimate use of the filename:
 #   read-config.sh     — handles format detection / path resolution
 #   validate-config.sh — handles legacy config validation
-# RED until dso-2vwl updates all runtime scripts.
 _snapshot_fail
 SCRIPTS_DIR2="$DSO_PLUGIN_DIR/scripts"
 

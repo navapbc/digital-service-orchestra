@@ -213,7 +213,19 @@ def main() -> int:
         )
         return 1
 
-    schema_path: Path = args.schema if args.schema else corpus_dir / "_schema.yaml"
+    if args.schema:
+        schema_path: Path = args.schema
+    else:
+        schema_path = corpus_dir / "_schema.yaml"
+        if not schema_path.exists():
+            # Per-corpus override first (e.g. anti-patterns), then parent default.
+            for cand in (
+                corpus_dir.parent / f"_schema-{corpus_dir.name}.yaml",
+                corpus_dir.parent / "_schema.yaml",
+            ):
+                if cand.exists():
+                    schema_path = cand
+                    break
     schema = load_schema(schema_path)
 
     # Collect all .yaml files recursively, skipping schema and index files

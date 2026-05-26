@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # tests/integration/test-github-defense-store.sh
 #
-# RED integration tests for the GitHubPRDefenseStore bash script:
+
 #   plugins/dso/scripts/review-github-defense-store.sh
 #
 # The file under test does NOT exist yet. All tests fail pre-implementation
-# (RED state). Once the script is implemented these tests transition GREEN.
+
 #
 # Behavioral contracts tested:
 #   github_defense_store_write(record_json, pr_number, repo):
@@ -17,7 +17,6 @@
 #
 # Usage:
 #   bash tests/integration/test-github-defense-store.sh
-# Exit: 0 if all tests pass (GREEN once implemented), non-zero otherwise (RED).
 
 set -uo pipefail
 
@@ -116,13 +115,13 @@ test_write_posts_pr_comment_with_defense_record_prefix() {
     _snapshot_fail
     _setup_test
 
-    # Source the script; function is missing until implemented (RED expected).
+    # Source the script; function is missing until implemented.
     # shellcheck disable=SC1090
     source "$DEFENSE_STORE_SCRIPT" 2>/dev/null || true
 
     if ! type github_defense_store_write >/dev/null 2>&1; then
         (( ++FAIL ))
-        echo "FAIL: test_write_posts_pr_comment_with_defense_record_prefix — github_defense_store_write not defined (RED until implemented)" >&2
+        echo "FAIL: test_write_posts_pr_comment_with_defense_record_prefix — github_defense_store_write not defined" >&2
         _teardown_test
         assert_pass_if_clean "test_write_posts_pr_comment_with_defense_record_prefix"
         return
@@ -172,7 +171,7 @@ test_write_noop_on_fork_pr() {
 
     if ! type github_defense_store_write >/dev/null 2>&1; then
         (( ++FAIL ))
-        echo "FAIL: test_write_noop_on_fork_pr — github_defense_store_write not defined (RED until implemented)" >&2
+        echo "FAIL: test_write_noop_on_fork_pr — github_defense_store_write not defined" >&2
         _teardown_test
         assert_pass_if_clean "test_write_noop_on_fork_pr"
         return
@@ -211,7 +210,7 @@ test_write_rejects_unbound_ticket_id() {
 
     if ! type github_defense_store_write >/dev/null 2>&1; then
         (( ++FAIL ))
-        echo "FAIL: test_write_rejects_unbound_ticket_id — github_defense_store_write not defined (RED until implemented)" >&2
+        echo "FAIL: test_write_rejects_unbound_ticket_id — github_defense_store_write not defined" >&2
         _teardown_test
         assert_pass_if_clean "test_write_rejects_unbound_ticket_id"
         return
@@ -255,7 +254,7 @@ test_write_rejects_oversized_defense_text() {
 
     if ! type github_defense_store_write >/dev/null 2>&1; then
         (( ++FAIL ))
-        echo "FAIL: test_write_rejects_oversized_defense_text — github_defense_store_write not defined (RED until implemented)" >&2
+        echo "FAIL: test_write_rejects_oversized_defense_text — github_defense_store_write not defined" >&2
         _teardown_test
         assert_pass_if_clean "test_write_rejects_oversized_defense_text"
         return
@@ -341,5 +340,4 @@ test_write_rejects_unbound_ticket_id
 test_write_rejects_oversized_defense_text
 test_github_defense_store_preserves_sha_fields
 
-# Print summary and exit non-zero on any failure (RED state expected pre-implementation).
 print_summary

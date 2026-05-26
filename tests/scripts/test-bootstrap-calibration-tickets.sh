@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tests/scripts/test-bootstrap-calibration-tickets.sh
-# test_script_is_executable is intentionally RED until implementation task lands — expected TDD RED state
+
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -97,7 +97,7 @@ test_partial_idempotent() {
 
 # test_script_is_executable
 # Assert bootstrap script file exists and is executable.
-# Intentionally RED until implementation task lands.
+
 test_script_is_executable() {
   test -x "$BOOTSTRAP_SCRIPT"
 }
@@ -144,7 +144,7 @@ test_create_failure_aborts() {
 # Stub: ticket list-epics --has-tag=<alias> returns a tab-separated line (all 3 exist).
 #   ticket exists always returns 1 (real behavior for text aliases).
 # Assert: 0 "ticket create" calls — bootstrap must skip all 3.
-# RED on current impl: calls `ticket exists <alias>` (exit 1) → tries to create all 3.
+
 test_uses_list_epics_for_idempotency() {
   local tmp_dir; tmp_dir="$(mktemp -d /tmp/dso-stub.XXXXXX)"
   # shellcheck disable=SC2064
@@ -172,7 +172,7 @@ STUB
 # test_creates_epic_type_without_alias_flag
 # Stub: list-epics returns empty (no tab), ticket create epic succeeds.
 # Assert: 3 "ticket create epic" calls AND no "--alias=" in any call.
-# RED on current impl: uses `ticket create story --alias=`.
+
 test_creates_epic_type_without_alias_flag() {
   local tmp_dir; tmp_dir="$(mktemp -d /tmp/dso-stub.XXXXXX)"
   # shellcheck disable=SC2064

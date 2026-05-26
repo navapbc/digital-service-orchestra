@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 # tests/scripts/test-fp-rate-tracker.sh
-# RED tests for plugins/dso/scripts/fp-rate-tracker.sh
-# These tests fail RED until fp-rate-tracker.sh is implemented.
 
 set -uo pipefail
 
@@ -12,7 +10,6 @@ FP_TRACKER="$REPO_ROOT/plugins/dso/scripts/fp-rate-tracker.sh"
 source "$REPO_ROOT/tests/lib/assert.sh"
 
 test_fp_rate_tracker_engages_fallback() {
-    # RED: fp-rate-tracker.sh does not exist yet
     if [[ ! -f "$FP_TRACKER" ]]; then
         (( ++FAIL ))
         printf "FAIL: %s\n  expected: fp-rate-tracker.sh to exist at %s\n  actual:   file not found\n" \
@@ -59,7 +56,6 @@ EOF
 }
 
 test_fallback_does_not_truncate_existing_events() {
-    # RED: fp-rate-tracker.sh does not exist yet
     if [[ ! -f "$FP_TRACKER" ]]; then
         (( ++FAIL ))
         printf "FAIL: %s\n  expected: fp-rate-tracker.sh to exist at %s\n  actual:   file not found\n" \

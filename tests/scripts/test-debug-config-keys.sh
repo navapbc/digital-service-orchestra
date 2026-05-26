@@ -7,7 +7,7 @@
 #   2. The key has default value 3
 #
 # Test status:
-#   Both tests are RED until config task 9caf-454f adds the key.
+
 #
 # Exemption: structural metadata validation of config file — not executable code.
 #
@@ -26,7 +26,7 @@ echo "=== test-debug-config-keys.sh ==="
 # test_max_fix_validate_cycles_key_exists
 # .claude/dso-config.conf must contain the key
 # debug.max_fix_validate_cycles.
-# RED: key not present until config task 9caf-454f runs.
+# key not present until config task 9caf-454f runs.
 # ============================================================
 test_max_fix_validate_cycles_key_exists() {
     local key_found="missing"
@@ -42,7 +42,7 @@ test_max_fix_validate_cycles_key_exists() {
 # test_max_fix_validate_cycles_default_value
 # The debug.max_fix_validate_cycles key must have value 3
 # (the documented default for maximum fix→validate cycles).
-# RED: key not present until config task 9caf-454f runs.
+# key not present until config task 9caf-454f runs.
 # ============================================================
 test_max_fix_validate_cycles_default_value() {
     local actual_value=""

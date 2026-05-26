@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tests/scripts/test-infer-detected-by.sh
-# test_script_is_executable is intentionally RED until implementation task lands — expected TDD RED state
+
 set -uo pipefail
 
 PASS=0; FAIL=0

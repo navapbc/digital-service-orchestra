@@ -1,4 +1,4 @@
-"""RED test — runner.py _init_cycle_ledger must scope cycle_number by (pr_number, sha).
+"""runner.py _init_cycle_ledger must scope cycle_number by (pr_number, sha).
 
 Task: 8eb2-a13b-d58f-4a94  (S2.T3)
 
@@ -16,7 +16,7 @@ Expected behaviour after the fix:
   Then derive cycle_number from the filtered list.
 
 All tests in this file MUST FAIL on current runner.py because the filtering is
-absent — that is the RED assertion.
+This is the contract under test.
 """
 
 from __future__ import annotations
@@ -25,14 +25,12 @@ import json
 import pathlib
 import sys
 
-
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 _SCRIPTS_DIR = str(_REPO_ROOT / "plugins" / "dso" / "scripts")
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
 
 import dso_ci_review.runner as runner_mod  # noqa: E402
-
 
 # ---------------------------------------------------------------------------
 # Fixture helpers
@@ -84,12 +82,12 @@ def test_cycle_number_for_pr42_ignores_pr99_entry(tmp_path: pathlib.Path) -> Non
           NOT 2 (which happens to be the same here) — but to expose the collision
           we use a fixture where PR 99 is ahead of PR 42.
 
-    RED: _init_cycle_ledger uses cycles[-1]['cycle_num'] + 1 = 2 — this accidentally
+    Without the fix: _init_cycle_ledger uses cycles[-1]['cycle_num'] + 1 = 2 — this accidentally
          passes for this fixture because both PRs are on cycle 1. See test 2 for
          the fixture that reliably catches the bug.
     """
     # NOTE: This test is a control case (single entry per PR, same cycle level).
-    # The decisive RED case is test 2 below. Keep this as a sanity check.
+    # The decisive case is test 2 below. Keep this as a sanity check.
     cycles = [
         _make_entry(cycle_num=1, commit_sha="abc123", pr_number=42),
         _make_entry(cycle_num=1, commit_sha="abc123", pr_number=99),
@@ -112,8 +110,7 @@ def test_cycle_number_for_pr42_ignores_pr99_entry(tmp_path: pathlib.Path) -> Non
 # Test 2: PR 99 is on cycle 2; PR 42 is still on cycle 1.
 #         Requesting cycle_number for PR 42 must return 2, NOT 3.
 #
-# This is the decisive RED test:
-#   bare-sha derivation: cycles[-1]['cycle_num'] + 1 = 2 + 1 = 3   ← WRONG
+# Decisive test: #   bare-sha derivation: cycles[-1]['cycle_num'] + 1 = 2 + 1 = 3   ← WRONG
 #   pr-scoped derivation: max(cycles where pr=42)['cycle_num'] + 1 = 1 + 1 = 2 ← CORRECT
 # ---------------------------------------------------------------------------
 
@@ -129,7 +126,7 @@ def test_cycle_number_for_pr42_with_pr99_ahead(tmp_path: pathlib.Path) -> None:
     Then: returned cycle_number == 2  (PR 42's next cycle)
           NOT 3 (cycles[-1]['cycle_num'] + 1 = 2 + 1 = 3 — the bare-sha bug)
 
-    RED: current runner.py line 166 returns cycles[-1]['cycle_num'] + 1 = 3, not 2.
+    Without the fix: current runner.py line 166 returns cycles[-1]['cycle_num'] + 1 = 3, not 2.
     """
     cycles = [
         _make_entry(cycle_num=1, commit_sha="abc123", pr_number=42),
@@ -166,7 +163,7 @@ def test_cycle_number_for_pr99_returns_three(tmp_path: pathlib.Path) -> None:
     When: _init_cycle_ledger is called with pr_number="99"
     Then: returned cycle_number == 3 (PR 99's next cycle — it has 2 prior cycles)
 
-    RED: current bare-sha derivation accidentally returns cycles[-1]['cycle_num'] + 1 = 3
+    Without the fix: current bare-sha derivation accidentally returns cycles[-1]['cycle_num'] + 1 = 3
          which is numerically correct for PR 99 — but ONLY by accident (it reads the
          last entry which happens to belong to PR 99). After the fix, this test must
          still pass because the scoped result is also 3 for PR 99. If the fix
@@ -208,7 +205,7 @@ def test_cycle_number_for_new_pr_returns_one(tmp_path: pathlib.Path) -> None:
     When: _init_cycle_ledger is called with pr_number="7" (no prior cycles for PR 7)
     Then: returned cycle_number == 1
 
-    RED: bare-sha derivation returns cycles[-1]['cycle_num'] + 1 = 3, not 1.
+    Without the fix: bare-sha derivation returns cycles[-1]['cycle_num'] + 1 = 3, not 1.
     """
     cycles = [
         _make_entry(cycle_num=1, commit_sha="abc123", pr_number=42),
@@ -246,13 +243,13 @@ def test_sentinel_pr_number_zero_counts_for_all_prs(tmp_path: pathlib.Path) -> N
     Then: returned cycle_number == 2
           (sentinel-0 is treated as belonging to all PRs for backward-compat)
 
-    RED: after the fix adds pr-scoped filtering, it must NOT exclude sentinel-0
+    Without the fix: after the fix adds pr-scoped filtering, it must NOT exclude sentinel-0
     entries. If the fix naively filters to pr_number==42 only, this test would
     return 1 (wrong). The test asserts the correct sentinel-0 inclusion.
 
-    NOTE: This test may also fail RED currently because: with no pr_number
+    Note: with no pr_number
     filtering at all, cycles[-1]['cycle_num'] + 1 = 2, which is accidentally
-    correct. But the RED failure surface is test 2 and test 4 above.
+    correct. But the failing case is test 2 and test 4 above.
     This test guards against a naive "only exact pr_number match" fix that
     would break backward-compat by ignoring sentinel-0 entries.
     """

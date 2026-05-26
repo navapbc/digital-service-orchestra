@@ -5,7 +5,6 @@
 # all required sections (commands, output patterns, session naming, pre-flight,
 # CI considerations).
 #
-# All tests are RED until:
 #   - PLAYWRIGHT-MCP-GUIDE.md is deleted
 #   - PLAYWRIGHT-CLI-GUIDE.md is created with required sections
 #   - playwright-debug SKILL.md legacy MCP guide reference is removed

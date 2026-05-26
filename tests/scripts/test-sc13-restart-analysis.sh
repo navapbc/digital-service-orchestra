@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 # tests/scripts/test-sc13-restart-analysis.sh
-# RED tests for plugins/dso/scripts/sc13-restart-analysis.sh
-# These tests fail RED until sc13-restart-analysis.sh is implemented.
 
 set -uo pipefail
 
@@ -12,7 +10,6 @@ SC13="$REPO_ROOT/plugins/dso/scripts/sc13-restart-analysis.sh"
 source "$REPO_ROOT/tests/lib/assert.sh"
 
 test_sc13_analysis_computes_drop() {
-    # RED: sc13-restart-analysis.sh does not exist yet
     if [[ ! -f "$SC13" ]]; then
         (( ++FAIL ))
         printf "FAIL: %s\n  expected: sc13-restart-analysis.sh to exist at %s\n  actual:   file not found\n" \
@@ -46,7 +43,6 @@ except:
 }
 
 test_sc13_outputs_methodology_json() {
-    # RED: sc13-restart-analysis.sh does not exist yet
     if [[ ! -f "$SC13" ]]; then
         (( ++FAIL ))
         printf "FAIL: %s\n  expected: sc13-restart-analysis.sh to exist at %s\n  actual:   file not found\n" \

@@ -76,13 +76,13 @@ while [[ $# -gt 0 ]]; do
             SESSION_HASH="${1#--session-hash=}"
             shift
             ;;
-        --namespace=*)
-            NAMESPACE="${1#--namespace=}"
+        --namespace=*|--domain=*)
+            NAMESPACE="${1#*=}"
             shift
             ;;
-        --namespace)
+        --namespace|--domain)
             if [[ $# -lt 2 || -z "${2:-}" || "${2}" == -* ]]; then
-                echo "ref-query.sh: --namespace requires a DOMAIN value" >&2
+                echo "ref-query.sh: $1 requires a DOMAIN value" >&2
                 exit 2
             fi
             NAMESPACE="$2"

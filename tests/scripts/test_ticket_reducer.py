@@ -1,6 +1,5 @@
-"""RED tests for ticket-reducer.py.
+"""Tests for ticket-reducer.py.
 
-These tests are RED — they test functionality that does not yet exist.
 All test functions must FAIL before ticket-reducer.py is implemented.
 
 The reducer is expected to expose a single callable:
@@ -49,11 +48,11 @@ def _load_module() -> ModuleType:
 
 @pytest.fixture(scope="module")
 def reducer() -> ModuleType:
-    """Return the ticket-reducer module, failing all tests if absent (RED)."""
+    """Return the ticket-reducer module, failing all tests if absent."""
     if not SCRIPT_PATH.exists():
         pytest.fail(
             f"ticket-reducer.py not found at {SCRIPT_PATH} — "
-            "this is expected RED state; implement the script to make tests pass."
+            "this is expected behavior state; implement the script to make tests pass."
         )
     return _load_module()
 
@@ -709,7 +708,7 @@ def test_reducer_flags_corrupt_create_as_fsck_needed(
 def test_cache_hit_returns_cached_state(tmp_path: Path, reducer: ModuleType) -> None:
     """Calling reduce_ticket twice with no file changes must serve from cache.
 
-    RED: ticket-reducer.py does not yet implement caching. The assert on
+    Without the fix: ticket-reducer.py does not yet implement caching. The assert on
     .cache.json existing will fail because the current implementation never
     writes a cache file.
 
@@ -718,7 +717,7 @@ def test_cache_hit_returns_cached_state(tmp_path: Path, reducer: ModuleType) -> 
     modifying any files.
 
     Asserts:
-      - .cache.json exists in the ticket directory after the first call (RED)
+      - .cache.json exists in the ticket directory after the first call
       - Second call returns the same state as first (cache hit — same dir_hash)
     """
     ticket_dir = tmp_path / "tkt-cache-hit"
@@ -740,11 +739,11 @@ def test_cache_hit_returns_cached_state(tmp_path: Path, reducer: ModuleType) -> 
     # First call — expected to warm cache and write .cache.json
     state1 = reducer.reduce_ticket(ticket_dir)
 
-    # Cache file must exist after first call (RED: not written yet)
+    # Cache file must exist after first call
     cache_file = ticket_dir / ".cache.json"
     assert cache_file.exists(), (
         ".cache.json must be written by reduce_ticket() after first call; "
-        "caching is not yet implemented (expected RED)"
+        "caching is not yet implemented"
     )
 
     # Second call — no files changed; must return same state (cache hit)
@@ -769,7 +768,7 @@ def test_cache_miss_on_directory_listing_change(
 ) -> None:
     """Adding an event file between calls must invalidate the cache.
 
-    RED: without caching, the test structure is valid but the cache-miss
+    Without the fix: without caching, the test structure is valid but the cache-miss
     detection mechanism doesn't exist. Once caching is implemented, a new
     file changes the dir_hash → cache miss → recompute.
 
@@ -778,7 +777,7 @@ def test_cache_miss_on_directory_listing_change(
 
     Asserts:
       - Second call returns updated state reflecting the STATUS event
-      - .cache.json exists (written after first call — RED until implemented)
+      - .cache.json exists (written after first call — after first call)
     """
     ticket_dir = tmp_path / "tkt-cache-miss"
     ticket_dir.mkdir()
@@ -799,11 +798,11 @@ def test_cache_miss_on_directory_listing_change(
     # First call — warms cache
     state1 = reducer.reduce_ticket(ticket_dir)
 
-    # Cache file must exist after first call (RED: not written yet)
+    # Cache file must exist after first call
     cache_file = ticket_dir / ".cache.json"
     assert cache_file.exists(), (
         ".cache.json must be written by reduce_ticket() after first call; "
-        "caching is not yet implemented (expected RED)"
+        "caching is not yet implemented"
     )
 
     # Add a STATUS event — changes directory listing → cache miss
@@ -838,7 +837,7 @@ def test_cache_invalidated_on_file_deletion(
 ) -> None:
     """Deleting an event file between calls must invalidate the cache.
 
-    RED: without caching, the second call already sees 0 comments because
+    Without the fix: without caching, the second call already sees 0 comments because
     the file is gone. However, the assertion that .cache.json is UPDATED
     after the recompute will fail since no cache file is ever written.
 
@@ -850,7 +849,7 @@ def test_cache_invalidated_on_file_deletion(
 
     Asserts:
       - Second call returns state with 0 comments (deletion detected, recomputed)
-      - .cache.json exists after first call (RED: not written yet)
+      - .cache.json exists after first call
       - .cache.json is updated after second call (recompute after cache miss)
     """
     ticket_dir = tmp_path / "tkt-cache-delete"
@@ -891,11 +890,11 @@ def test_cache_invalidated_on_file_deletion(
     assert state1 is not None
     assert len(state1["comments"]) == 1, "Setup: first call must see the COMMENT event"
 
-    # Cache file must exist after first call (RED: not written yet)
+    # Cache file must exist after first call
     cache_file = ticket_dir / ".cache.json"
     assert cache_file.exists(), (
         ".cache.json must be written by reduce_ticket() after first call; "
-        "caching is not yet implemented (expected RED)"
+        "caching is not yet implemented"
     )
 
     # Capture mtime of cache file before deletion-triggered recompute
@@ -1116,7 +1115,7 @@ def test_snapshot_event_restores_compiled_state(
 ) -> None:
     """A SNAPSHOT event with compiled_state in data must restore that state directly.
 
-    RED: ticket-reducer.py does not yet handle SNAPSHOT events. The reducer
+    Without the fix: ticket-reducer.py does not yet handle SNAPSHOT events. The reducer
     will either ignore the event or raise, causing this test to fail.
     """
     ticket_dir = tmp_path / "tkt-snapshot-basic"
@@ -1167,7 +1166,7 @@ def test_snapshot_plus_post_snapshot_events_applied(
 ) -> None:
     """A STATUS event after a SNAPSHOT (not in source_event_uuids) must be applied.
 
-    RED: SNAPSHOT handling not yet implemented.
+    Without the fix: SNAPSHOT handling not yet implemented.
     """
     ticket_dir = tmp_path / "tkt-snapshot-post"
     ticket_dir.mkdir()
@@ -1224,7 +1223,7 @@ def test_snapshot_deduplicates_events_in_source_event_uuids(
 ) -> None:
     """An event whose uuid is listed in source_event_uuids must be skipped.
 
-    RED: SNAPSHOT handling and deduplication not yet implemented.
+    Without the fix: SNAPSHOT handling and deduplication not yet implemented.
     """
     ticket_dir = tmp_path / "tkt-snapshot-dedup"
     ticket_dir.mkdir()
@@ -1286,7 +1285,7 @@ def test_snapshot_only_ticket_returns_compiled_state(
 ) -> None:
     """A ticket with only a SNAPSHOT event (no CREATE) must return the compiled_state.
 
-    RED: SNAPSHOT handling not yet implemented; reducer currently returns None
+    Without the fix: SNAPSHOT handling not yet implemented; reducer currently returns None
     when no CREATE event is found.
     """
     ticket_dir = tmp_path / "tkt-snapshot-only"
@@ -1339,7 +1338,7 @@ def test_cache_invalidation_after_compaction_file_deletion(
     then delete those 4 files and write a SNAPSHOT event (simulating compaction).
     Call reduce_ticket() again and assert the result matches the SNAPSHOT state.
 
-    RED: SNAPSHOT handling not yet implemented. Even if cache invalidation works
+    Without the fix: SNAPSHOT handling not yet implemented. Even if cache invalidation works
     (file count change triggers cache miss), the reducer will fail on the
     SNAPSHOT event type.
     """
@@ -1731,7 +1730,7 @@ def test_reducer_all_events_corrupt_returns_error_dict(
 
 
 # ---------------------------------------------------------------------------
-# RED tests: LINK / UNLINK event handling (dso-vwoo)
+# Tests: LINK / UNLINK event handling (dso-vwoo)
 # These tests MUST FAIL until ticket-reducer.py is extended to handle LINK/UNLINK.
 # ---------------------------------------------------------------------------
 
@@ -1877,7 +1876,7 @@ def test_reducer_unlink_event_removes_dep_entry(
 
     We verify using two ticket dirs: one with LINK only (must show 1 dep) and one
     with LINK + UNLINK (must show 0 deps). This ensures the test cannot pass unless
-    LINK events are actually processed (RED state when LINK/UNLINK is not implemented).
+    LINK events are actually processed.
     """
     # Dir A: LINK only — must produce 1 dep (proves LINK is processed)
     dir_link_only = tmp_path / "tkt-unlink-removes-link-only"
@@ -2126,7 +2125,7 @@ def test_reducer_deps_in_snapshot_not_duplicated(
 
 
 # ---------------------------------------------------------------------------
-# RED test: same-second LINK + UNLINK sort order (dso-jwan)
+# same-second LINK + UNLINK sort order (dso-jwan)
 # LINK must always replay before UNLINK at the same Unix-second timestamp,
 # even when the UNLINK filename UUID sorts alphabetically before the LINK UUID.
 # ---------------------------------------------------------------------------
@@ -2197,7 +2196,7 @@ def test_same_second_link_unlink_sort_order(
 
 
 # ---------------------------------------------------------------------------
-# RED tests: priority and assignee fields in reducer output
+# Tests: priority and assignee fields in reducer output
 # ---------------------------------------------------------------------------
 
 _UUID4 = "11111111-2222-3333-4444-555555555555"
@@ -2337,7 +2336,7 @@ def test_reduce_ticket_trailing_slash_produces_correct_ticket_id(
 
 
 # ---------------------------------------------------------------------------
-# Test (RED): CREATE event with tags field populates state.tags
+# Test: CREATE event with tags field populates state.tags
 # ---------------------------------------------------------------------------
 
 
@@ -2346,7 +2345,7 @@ def test_reduce_ticket_trailing_slash_produces_correct_ticket_id(
 def test_create_event_with_tags(tmp_path: Path, reducer: ModuleType) -> None:
     """Given a CREATE event with tags in data, reducer must populate state['tags'].
 
-    RED: ticket-reducer.py currently ignores tags in CREATE events.
+    Without the fix: ticket-reducer.py currently ignores tags in CREATE events.
     This test will FAIL until the reducer is updated to read tags from event data.
     """
     ticket_dir = tmp_path / "tkt-tags"
@@ -2412,7 +2411,7 @@ def test_create_event_without_tags(tmp_path: Path, reducer: ModuleType) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Test (RED — b108-f088): COMMENT handler must coerce ADF dict body to string
+# Test: COMMENT handler must coerce ADF dict body to string
 # When Jira sync writes a COMMENT event with an ADF dict as the body field,
 # the reducer must store it as a string so downstream consumers don't receive a dict.
 # ---------------------------------------------------------------------------
@@ -2425,7 +2424,7 @@ def test_comment_adf_dict_body_coerced_to_string(
 ) -> None:
     """COMMENT event with ADF dict body must store body as string, not dict.
 
-    RED: currently fails because reducer stores data.get('body', '') verbatim,
+    Without the fix: currently fails because reducer stores data.get('body', '') verbatim,
     passing through the ADF dict without coercion.
     """
     ticket_dir = tmp_path / "tkt-adf-comment"
@@ -2465,7 +2464,7 @@ def test_comment_adf_dict_body_coerced_to_string(
 
 
 # ---------------------------------------------------------------------------
-# Test (RED — 6831-8a22): COMMENT handler round-trips embedded JSON in body
+# Test: COMMENT handler round-trips embedded JSON in body
 # When a comment body contains a JSON-serialized string (e.g. a CHECKPOINT log),
 # the round-trip through reduce_ticket must preserve the body as-is.
 # ---------------------------------------------------------------------------
@@ -2516,7 +2515,7 @@ def test_comment_body_with_embedded_json_survives_round_trip(
 
 
 # ---------------------------------------------------------------------------
-# Test (RED — 6bc8-91bc): COMMENT handler must coerce falsy non-string bodies
+# Test: COMMENT handler must coerce falsy non-string bodies
 # The old guard used `if _raw_body else ""` which treats {} as falsy and
 # silently converts it to "" instead of json.dumps({}) = "{}".
 # Fix: use explicit `is None` check to distinguish None from other falsy values.
@@ -2530,7 +2529,7 @@ def test_comment_empty_dict_body_coerced_to_json_string(
 ) -> None:
     """COMMENT event with empty dict body {} must be coerced to '{}', not ''.
 
-    RED: current code uses `if _raw_body else ""` which treats {} as falsy
+    Without the fix: current code uses `if _raw_body else ""` which treats {} as falsy
     and returns '' instead of json.dumps({}) = '{}'. This imprecision loses
     the structural indicator that a non-null body was present (6bc8-91bc).
     Fix: replace `if _raw_body else ""` with explicit `is None` guard.
@@ -2575,7 +2574,7 @@ def test_comment_empty_dict_body_coerced_to_json_string(
 #     (crash-injection scenario) + exclude_archived=False → reduce_ticket() IS
 #     called and returns correct archived=True state.
 #
-# RED: both tests fail until reduce_all_tickets() is updated to check for a
+# both tests fail until reduce_all_tickets() is updated to check for a
 # .archived marker file before calling reduce_ticket() (fast-skip path).
 # ---------------------------------------------------------------------------
 
@@ -2588,7 +2587,7 @@ def test_reduce_all_tickets_skips_dir_with_archived_marker(
     """reduce_all_tickets(exclude_archived=True) must NOT call reduce_ticket()
     for a ticket directory that has a .archived marker file.
 
-    RED: current implementation calls reduce_ticket() on every directory and
+    Without the fix: current implementation calls reduce_ticket() on every directory and
     filters archived tickets only AFTER reduce_ticket() returns.  Once the
     fast-skip path is implemented, the .archived marker is detected before
     reduce_ticket() is called, so the archived ticket never appears in the
@@ -2751,7 +2750,6 @@ def test_reduce_all_tickets_fallback_without_marker_correct_state(
 # These tests import compute_dir_hash directly and test the hashing contract.
 # compute_dir_hash() includes marker:present/marker:absent in its hash input.
 # ---------------------------------------------------------------------------
-
 
 _SCRIPTS_DIR = str(REPO_ROOT / "plugins" / "dso" / "scripts")
 if _SCRIPTS_DIR not in sys.path:
@@ -3138,7 +3136,7 @@ def test_reverted_archived_marker_is_orphan(
     When: reduce_all_tickets(tracker_dir, exclude_archived=True) is called.
     Then:
       - The stale .archived marker is removed by the self-heal logic.
-      - The slow path runs (reduce_ticket() is called on the ticket).
+      - The slow path runs is called on the ticket).
     """
     tracker_dir = tmp_path / "tracker"
     tracker_dir.mkdir()
@@ -3187,7 +3185,7 @@ def test_reverted_archived_marker_is_orphan(
 
 
 # ---------------------------------------------------------------------------
-# RED tests: FILE_IMPACT event type (story 2985-f04d, task a0a3-09d7)
+# Tests: FILE_IMPACT event type (story 2985-f04d, task a0a3-09d7)
 # These tests MUST FAIL until _state.py, _processors.py, and the reducer
 # are updated to handle the FILE_IMPACT event type.
 # ---------------------------------------------------------------------------
@@ -3207,7 +3205,7 @@ def test_file_impact_event_compiles_to_state(
 ) -> None:
     """Given a CREATE + FILE_IMPACT event, state['file_impact'] equals the list.
 
-    RED: _processors.py has no process_file_impact() handler, so the
+    Without the fix: _processors.py has no process_file_impact() handler, so the
     FILE_IMPACT event is silently ignored and state['file_impact'] is either
     absent or [] rather than the expected list.
     """
@@ -3234,7 +3232,7 @@ def test_file_impact_event_compiles_to_state(
 
     assert state is not None, "reduce_ticket must return state for CREATE + FILE_IMPACT"
     assert "file_impact" in state, (
-        "state must contain 'file_impact' key after FILE_IMPACT event (RED: key absent)"
+        "state must contain 'file_impact' key after FILE_IMPACT event"
     )
     assert state["file_impact"] == [{"path": "src/foo.py", "reason": "modified"}], (
         f"state['file_impact'] must equal the list from the event; "
@@ -3247,7 +3245,7 @@ def test_file_impact_event_compiles_to_state(
 def test_file_impact_latest_wins_semantics(tmp_path: Path, reducer: ModuleType) -> None:
     """Given two FILE_IMPACT events, state reflects the second (latest) list.
 
-    RED: FILE_IMPACT events are not processed yet; even if partially handled,
+    Without the fix: FILE_IMPACT events are not processed yet; even if partially handled,
     last-write-wins semantics are not yet implemented.
     """
     ticket_dir = tmp_path / "tkt-fi-002"
@@ -3293,7 +3291,7 @@ def test_file_impact_missing_key_returns_empty_list(
 ) -> None:
     """Given FILE_IMPACT event with no file_impact key, state['file_impact'] == [].
 
-    RED: FILE_IMPACT events not yet processed; state key is absent.
+    Without the fix: FILE_IMPACT events not yet processed; state key is absent.
     """
     ticket_dir = tmp_path / "tkt-fi-003"
     ticket_dir.mkdir()
@@ -3331,7 +3329,7 @@ def test_file_impact_null_value_returns_empty_list(
 ) -> None:
     """Given FILE_IMPACT event with file_impact: null, state['file_impact'] == [].
 
-    RED: FILE_IMPACT events not yet processed; state key is absent.
+    Without the fix: FILE_IMPACT events not yet processed; state key is absent.
     """
     ticket_dir = tmp_path / "tkt-fi-004"
     ticket_dir.mkdir()
@@ -3367,12 +3365,10 @@ def test_file_impact_null_value_returns_empty_list(
 def test_file_impact_field_in_initial_state() -> None:
     """make_initial_state() returns dict with 'file_impact' key == [].
 
-    RED: make_initial_state() does not yet include the 'file_impact' key.
+    Without the fix: make_initial_state() does not yet include the 'file_impact' key.
     """
     state = _make_initial_state()
-    assert "file_impact" in state, (
-        "make_initial_state() must include 'file_impact' key (RED: key absent)"
-    )
+    assert "file_impact" in state, "make_initial_state() must include 'file_impact' key"
     assert state["file_impact"] == [], (
         f"make_initial_state() must set file_impact=[], got {state.get('file_impact')!r}"
     )
@@ -3383,12 +3379,10 @@ def test_file_impact_field_in_initial_state() -> None:
 def test_file_impact_field_in_error_dict() -> None:
     """make_error_dict() returns dict with 'file_impact' key == [].
 
-    RED: make_error_dict() does not yet include the 'file_impact' key.
+    Without the fix: make_error_dict() does not yet include the 'file_impact' key.
     """
     err = _make_error_dict("tkt-999", "error", "test error")
-    assert "file_impact" in err, (
-        "make_error_dict() must include 'file_impact' key (RED: key absent)"
-    )
+    assert "file_impact" in err, "make_error_dict() must include 'file_impact' key"
     assert err["file_impact"] == [], (
         f"make_error_dict() must set file_impact=[], got {err.get('file_impact')!r}"
     )

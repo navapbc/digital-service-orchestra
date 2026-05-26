@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # tests/scripts/test-review-github-defense-store-pr-keyed.sh
 #
-# RED test: GitHubPRDefenseStore (review-github-defense-store.sh) accepts pr_number key
+# GitHubPRDefenseStore (review-github-defense-store.sh) accepts pr_number key
 #
 # Testing Mode: RED
 #
@@ -111,7 +111,7 @@ GHEOF
 # ---------------------------------------------------------------------------
 # Test 1: github_defense_store_write embeds pr_number=42 in the PR comment body
 #
-# RED: current github_defense_store_write does not accept a --pr-number argument
+# current github_defense_store_write does not accept a --pr-number argument
 # and does not embed pr_number in the DEFENSE_RECORD JSON it posts.
 # ---------------------------------------------------------------------------
 echo ""
@@ -128,7 +128,7 @@ test_github_defense_store_write_embeds_pr_number() {
 
     local output exit_code=0
     # Pass --pr-number 42 as additional key argument to github_defense_store_write.
-    # RED: the current function signature is:
+    # the current function signature is:
     #   github_defense_store_write record_json pr_number repo
     # and does NOT embed pr_number=42 in the DEFENSE_RECORD JSON body.
     output=$(
@@ -168,7 +168,7 @@ assert_pass_if_clean "test_github_defense_store_write_embeds_pr_number"
 # When:  github_defense_store_list --pr-number 42 is called
 # Then:  the PR-42 defense record is emitted on stdout
 #
-# RED: the current script has no github_defense_store_list function at all.
+# the current script has no github_defense_store_list function at all.
 # ---------------------------------------------------------------------------
 echo ""
 echo "--- test_github_defense_store_list_pr42_returns_pr42_record ---"
@@ -215,7 +215,7 @@ assert_pass_if_clean "test_github_defense_store_list_pr42_returns_pr42_record"
 # When:  github_defense_store_list --pr-number 99 is called
 # Then:  the PR-42 defense is NOT emitted (no cross-PR leakage)
 #
-# RED: the current script has no github_defense_store_list / pr_number filtering.
+# the current script has no github_defense_store_list / pr_number filtering.
 # ---------------------------------------------------------------------------
 echo ""
 echo "--- test_github_defense_store_list_pr99_excludes_pr42_record ---"
@@ -263,7 +263,7 @@ assert_pass_if_clean "test_github_defense_store_list_pr99_excludes_pr42_record"
 # Then:  the sentinel/legacy record IS returned (sentinel matches any pr query)
 #        but the PR-42 record is NOT returned
 #
-# RED: the current script has no github_defense_store_list / sentinel logic.
+# the current script has no github_defense_store_list / sentinel logic.
 # ---------------------------------------------------------------------------
 echo ""
 echo "--- test_github_defense_store_list_pr99_returns_sentinel_record ---"

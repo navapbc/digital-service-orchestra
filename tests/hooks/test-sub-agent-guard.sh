@@ -7,8 +7,7 @@
 #   User-interaction dependent (4): guard block must reference "running as a sub-agent"
 #     (the orchestrator signal phrase used to detect sub-agent context)
 #
-# TDD RED phase: only the 9 skills from Task 3611-298a will pass initially.
-# The remaining 9 skills are RED until Story 3459-7246 adds their guards.
+
 #
 # Usage:
 #   bash tests/hooks/test-sub-agent-guard.sh
@@ -92,7 +91,7 @@ check_guard_agent_tool "design-review"
 check_guard_agent_tool "roadmap"
 check_guard_agent_tool "plan-review"
 
-# --- Story 3459-7246 (6 remaining sub-agent dependent — RED until that story) ---
+# --- Story 3459-7246 (6 remaining, pending Story 3459-7246) ---
 check_guard_agent_tool "architect-foundation"
 check_guard_agent_tool "review-protocol"
 check_guard_agent_tool "resolve-conflicts"
@@ -105,7 +104,6 @@ check_guard_agent_tool "update-docs"
 # ===========================================================================
 # Group 2: User-interaction dependent skills (4)
 # Guard type: SUB-AGENT-GUARD block with orchestrator signal phrase check
-# RED until Story 3459-7246 adds their guards
 # ===========================================================================
 check_guard_orchestrator_signal "end-session"
 # project-setup: deleted — skill removed (use /dso:onboarding)
@@ -118,11 +116,6 @@ check_guard_orchestrator_signal "onboarding"
 # hook_worktree_isolation_guard function and auth marker pattern are dead code.
 # ===========================================================================
 
-# ---------------------------------------------------------------------------
-# test_worktree_isolation_guard_removed
-# hook_worktree_isolation_guard must NOT be defined in session-misc-functions.sh
-# — the platform prevents sub-agents from dispatching Agent calls, making the
-# guard redundant. RED until the function is removed.
 # ---------------------------------------------------------------------------
 _SESSION_MISC="$DSO_PLUGIN_DIR/hooks/lib/session-misc-functions.sh"
 if grep -q "^hook_worktree_isolation_guard" "$_SESSION_MISC" 2>/dev/null; then

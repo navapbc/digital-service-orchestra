@@ -14,7 +14,7 @@
 # Usage: bash tests/scripts/test-verify-session-provenance-contract.sh
 # Returns: exit 0 if all contract tests pass, exit 1 if any fail
 #
-# RED marker: [test_verify_session_provenance_contract]
+
 # Target:     plugins/dso/scripts/verify-session-provenance.sh
 
 set -uo pipefail
@@ -368,7 +368,7 @@ test_empty_range_exits_0() {
 # This is a future contract (S7.T11 implements the OVER_BOUND marker);
 # the test is RED until S7.T11 adds the OVER_BOUND recognition logic.
 #
-# RED-gate: verify-session-provenance.sh does NOT yet recognize OVER_BOUND
+
 # markers — exit 3 support is added in S7.T11.
 test_over_bound_marker_exits_3() {
     _snapshot_fail

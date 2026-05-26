@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # tests/hooks/test-tickets-tracker-guard.sh
-# RED tests for hook_tickets_tracker_guard (Edit/Write blocking for .tickets-tracker/).
+
 #
-# hook_tickets_tracker_guard does not exist yet — these tests MUST FAIL (RED state).
+# hook_tickets_tracker_guard does not exist yet — these tests MUST FAIL .
 # Task dso-4cb7 implements the function; tests go GREEN after that task completes.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -12,14 +12,14 @@ DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # Source pre-edit-write-functions.sh to load all Edit/Write hook functions.
-# hook_tickets_tracker_guard is expected there (will fail RED until implemented).
+# hook_tickets_tracker_guard is expected there (will fail after first call).
 source "$DSO_PLUGIN_DIR/hooks/lib/pre-edit-write-functions.sh"
 
-# Guard: if hook_tickets_tracker_guard is not yet defined, emit a clear RED signal
+# Guard: if hook_tickets_tracker_guard is not yet defined, emit a clear signal
 # and exit non-zero so the test fails visibly rather than aborting silently on
 # the first run_guard call with "command not found".
 if ! declare -f hook_tickets_tracker_guard >/dev/null 2>&1; then
-    echo "FAIL: hook_tickets_tracker_guard not defined in pre-edit-write-functions.sh (expected RED — implement in task dso-4cb7)" >&2
+    echo "FAIL: hook_tickets_tracker_guard not defined in pre-edit-write-functions.sh" >&2
     exit 1
 fi
 
@@ -78,18 +78,18 @@ assert_eq_verbose "test_empty_input_allows" "0" "$EXIT_CODE"
 # commands targeting .tickets-tracker/ event files.
 #
 # hook_tickets_tracker_bash_guard does not exist yet — these tests MUST FAIL
-# (RED state). Task dso-hzwm implements the function; tests go GREEN after
+
 # that task completes.
 
 # Source pre-bash-functions.sh to load all Bash hook functions.
-# hook_tickets_tracker_bash_guard is expected there (will fail RED until implemented).
+# hook_tickets_tracker_bash_guard is expected there (will fail after first call).
 source "$DSO_PLUGIN_DIR/hooks/lib/pre-bash-functions.sh"
 
-# Guard: if hook_tickets_tracker_bash_guard is not yet defined, emit a clear RED
+# Guard: if hook_tickets_tracker_bash_guard is not yet defined, emit a clear signal
 # signal and exit non-zero so the test fails visibly rather than aborting silently.
 # Print partial results first so Edit/Write test PASS lines are already emitted.
 if ! declare -f hook_tickets_tracker_bash_guard >/dev/null 2>&1; then
-    echo "FAIL: hook_tickets_tracker_bash_guard not defined in pre-bash-functions.sh (expected RED — implement in task dso-hzwm)" >&2
+    echo "FAIL: hook_tickets_tracker_bash_guard not defined in pre-bash-functions.sh" >&2
     exit 1
 fi
 

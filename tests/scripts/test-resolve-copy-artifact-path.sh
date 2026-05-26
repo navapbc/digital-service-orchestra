@@ -12,7 +12,7 @@
 set -euo pipefail
 
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-_PLUGIN_ROOT="$(cd "$_SCRIPT_DIR/../.." && pwd)"
+_PLUGIN_ROOT="$(cd "$_SCRIPT_DIR/../../plugins/dso" && pwd)"
 
 RESOLVER="$_PLUGIN_ROOT/scripts/resolve-copy-artifact-path.sh"
 
