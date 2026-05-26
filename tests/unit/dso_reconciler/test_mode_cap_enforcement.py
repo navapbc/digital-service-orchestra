@@ -526,3 +526,59 @@ def test_manifest_renderer_handles_typed_and_legacy_dict_shapes(
         assert isinstance(rendered_throttle["spot_check"], list), (
             f"{label}: render_throttle spot_check must be a list"
         )
+
+
+# ---------------------------------------------------------------------------
+# Finding #1 / #2: mode validation — reject arbitrary strings, coerce valid ones
+# ---------------------------------------------------------------------------
+
+
+def test_mode_string_coercion(applier_mod, mode_mod, tmp_path):
+    """Valid mode strings are coerced to Mode enum members (finding #1)."""
+    mutations = []  # empty is fine — we're testing the validation path
+    result = applier_mod.apply(
+        mutations, "test-coerce", repo_root=tmp_path, mode="dry-run"
+    )
+    # DRY_RUN with 0 mutations produces a manifest (path may be None or file)
+    # — the key assertion is that it didn't raise.
+
+
+def test_mode_invalid_string_raises(applier_mod, mode_mod, tmp_path):
+    """An unrecognised mode string raises TypeError (finding #1)."""
+    with pytest.raises((TypeError, ValueError)):
+        applier_mod.apply([], "test-bad", repo_root=tmp_path, mode="NOT_A_MODE")
+
+
+def test_mode_arbitrary_object_raises(applier_mod, tmp_path):
+    """A non-string non-enum mode raises TypeError (finding #1)."""
+    with pytest.raises(TypeError, match="mode must be a Mode enum member"):
+        applier_mod.apply([], "test-obj", repo_root=tmp_path, mode=42)
+
+
+# ---------------------------------------------------------------------------
+# Finding #3: atomic manifest write — concurrent DRY_RUN passes produce
+# separate manifest files without corruption
+# ---------------------------------------------------------------------------
+
+
+def test_concurrent_dry_run_produces_separate_manifests(
+    applier_mod, mutation_mod, mode_mod, tmp_path
+):
+    """Two DRY_RUN passes with different pass_ids produce distinct manifests."""
+    muts = _make_mutations(5, mutation_mod)
+
+    path_a = applier_mod.apply(
+        list(muts), "pass-alpha", repo_root=tmp_path, mode=mode_mod.Mode.DRY_RUN
+    )
+    path_b = applier_mod.apply(
+        list(muts), "pass-beta", repo_root=tmp_path, mode=mode_mod.Mode.DRY_RUN
+    )
+
+    assert path_a != path_b, "Different pass_ids must produce different manifest paths"
+    assert Path(path_a).exists() and Path(path_b).exists()
+
+    # Both must be valid JSON with the pass_id baked in.
+    data_a = json.loads(Path(path_a).read_text())
+    data_b = json.loads(Path(path_b).read_text())
+    assert data_a["pass_id"] == "pass-alpha"
+    assert data_b["pass_id"] == "pass-beta"

@@ -15,6 +15,7 @@ a follow-up bug ticket before the next applier-touching change.
 
 from __future__ import annotations
 
+import contextlib
 import importlib.util
 import json
 import logging
@@ -1832,6 +1833,16 @@ def apply(
     # module ever ends up loaded under multiple sys.modules keys mid-call.
     mode_mod = _load_mode_module() if mode is not None else None
     if mode is not None:
+        # Validate / coerce mode to a Mode enum member (findings #1/#2).
+        # Accepting raw strings would let MODE_CAPS.get() return None for
+        # unrecognised values, silently triggering the uncapped LIVE path.
+        if isinstance(mode, str):
+            mode = mode_mod.Mode.from_str(mode)
+        if not isinstance(mode, mode_mod.Mode):
+            raise TypeError(
+                f"mode must be a Mode enum member or a recognised mode string, "
+                f"got {type(mode).__name__}: {mode!r}"
+            )
         cap = mode_mod.MODE_CAPS.get(mode)
         # Sort deterministically before applying the cap so the applied /
         # deferred partition is reproducible across passes.
@@ -2035,7 +2046,24 @@ def apply(
             snapshots_dir = repo_root_resolved / "bridge_state" / "snapshots"
             snapshots_dir.mkdir(parents=True, exist_ok=True)
             manifest_path = snapshots_dir / f"{pass_id}.manifest.json"
-        Path(manifest_path).write_text(json.dumps(rendered_with_meta, indent=2))
+        # Atomic write via tempfile + os.replace to avoid race conditions
+        # when concurrent DRY_RUN passes share the same pass_id (finding #3).
+        manifest_dir = Path(manifest_path).parent
+        manifest_dir.mkdir(parents=True, exist_ok=True)
+        fd, tmp_path = tempfile.mkstemp(
+            dir=manifest_dir,
+            prefix=f"{pass_id}.",
+            suffix=".json.tmp",
+        )
+        try:
+            with os.fdopen(fd, "w") as tmp_f:
+                json.dump(rendered_with_meta, tmp_f, indent=2)
+            os.replace(tmp_path, str(manifest_path))
+        except BaseException:
+            # Clean up the temp file on any failure.
+            with contextlib.suppress(OSError):
+                os.unlink(tmp_path)
+            raise
 
     return manifest_path
 
