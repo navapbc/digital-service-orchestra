@@ -79,8 +79,13 @@ fi
 rm -f "$STATE_FILE_1"
 
 # ── Test 2: SUITE_TEST_INDEX set with marker covering failure → TOLERATED ─
+# Tolerance is auto-disabled by the bash-runner when CI=true / GITHUB_ACTIONS=true.
+# This test verifies the LEGACY local-tolerance contract, so scrub the CI envs
+# via `env -u` to keep the assertion runnable inside CI workflows. Tests 4 and
+# 5 below cover the inverse (CI vars set → tolerance off).
 STATE_FILE_2=$(mktemp -u)
 out2=$(cd "$FIXTURE" && \
+    env -u CI -u GITHUB_ACTIONS \
     SUITE_TEST_INDEX="$FIXTURE/.test-index" \
     TEST_BATCHED_STATE_FILE="$STATE_FILE_2" \
     timeout 30 bash "$TEST_BATCHED" --timeout=20 --per-test-timeout=20 \
@@ -120,8 +125,13 @@ cat > "$FIXTURE/.test-index" <<EOF
 fixture-source.txt: tests/hooks/test-fixture.sh [test_good_pass]
 EOF
 
+# Same env scrub as Test 2 — this assertion needs tolerance ENABLED to verify
+# that the runner still produces a non-tolerated failure when the marker is
+# in the wrong place. Without scrubbing CI vars, the assertion couldn't
+# distinguish "wrong marker location" from "tolerance off entirely."
 STATE_FILE_3=$(mktemp -u)
 out3=$(cd "$FIXTURE" && \
+    env -u CI -u GITHUB_ACTIONS \
     SUITE_TEST_INDEX="$FIXTURE/.test-index" \
     TEST_BATCHED_STATE_FILE="$STATE_FILE_3" \
     timeout 30 bash "$TEST_BATCHED" --timeout=20 --per-test-timeout=20 \
@@ -138,6 +148,68 @@ else
     fail_msg "Test 3: untolerated failure should produce non-zero exit (got $rc3)"
 fi
 rm -f "$STATE_FILE_3"
+
+# ── Test 4: CI=true overrides SUITE_TEST_INDEX → marker NOT honored ──────
+# RED markers are a development-time TDD aid. When CI=true or GITHUB_ACTIONS=true,
+# the runner must skip marker setup so every failing test fails the suite. Recreate
+# the Test 2 fixture (marker covers the failure) but invoke the runner with CI=true.
+cat > "$FIXTURE/tests/hooks/test-fixture.sh" <<'TESTSH'
+#!/usr/bin/env bash
+test_good_pass() {
+    echo "test_good_pass ... PASS"
+}
+test_bad_fail() {
+    echo "FAIL: test_bad_fail"
+    exit 1
+}
+test_good_pass
+test_bad_fail
+TESTSH
+chmod +x "$FIXTURE/tests/hooks/test-fixture.sh"
+cat > "$FIXTURE/.test-index" <<EOF
+fixture-source.txt: tests/hooks/test-fixture.sh [test_bad_fail]
+EOF
+
+STATE_FILE_4=$(mktemp -u)
+out4=$(cd "$FIXTURE" && \
+    CI=true \
+    SUITE_TEST_INDEX="$FIXTURE/.test-index" \
+    TEST_BATCHED_STATE_FILE="$STATE_FILE_4" \
+    timeout 30 bash "$TEST_BATCHED" --timeout=20 --per-test-timeout=20 \
+    --runner=bash --test-dir=tests/hooks "x" 2>&1)
+rc4=$?
+if echo "$out4" | grep -qE "TOLERATED.*red-zone"; then
+    fail_msg "Test 4: CI=true must disable RED-zone tolerance. Output: $out4"
+else
+    pass_msg
+fi
+if [ "$rc4" != "0" ]; then
+    pass_msg
+else
+    fail_msg "Test 4: CI=true with covered failure should produce non-zero exit (got $rc4)"
+fi
+rm -f "$STATE_FILE_4"
+
+# ── Test 5: GITHUB_ACTIONS=true also disables tolerance ──────────────────
+STATE_FILE_5=$(mktemp -u)
+out5=$(cd "$FIXTURE" && \
+    GITHUB_ACTIONS=true \
+    SUITE_TEST_INDEX="$FIXTURE/.test-index" \
+    TEST_BATCHED_STATE_FILE="$STATE_FILE_5" \
+    timeout 30 bash "$TEST_BATCHED" --timeout=20 --per-test-timeout=20 \
+    --runner=bash --test-dir=tests/hooks "x" 2>&1)
+rc5=$?
+if echo "$out5" | grep -qE "TOLERATED.*red-zone"; then
+    fail_msg "Test 5: GITHUB_ACTIONS=true must disable RED-zone tolerance. Output: $out5"
+else
+    pass_msg
+fi
+if [ "$rc5" != "0" ]; then
+    pass_msg
+else
+    fail_msg "Test 5: GITHUB_ACTIONS=true with covered failure should produce non-zero exit (got $rc5)"
+fi
+rm -f "$STATE_FILE_5"
 
 echo ""
 echo "PASSED: $PASS  FAILED: $FAIL"

@@ -30,12 +30,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 FETCHER_PATH = (
-    REPO_ROOT
-    / "plugins"
-    / "dso"
-    / "scripts"
-    / "dso_reconciler"
-    / "fetcher.py"
+    REPO_ROOT / "plugins" / "dso" / "scripts" / "dso_reconciler" / "fetcher.py"
 )
 
 
@@ -70,16 +65,27 @@ class _DuplicatingPaginatingClient:
     def __init__(self) -> None:
         self.calls: list[dict] = []
         self._page1 = [
-            {"key": f"DIG-{i}", "fields": {"summary": f"issue {i}", "updated": "2026-05-24T10:00:00Z"}}
+            {
+                "key": f"DIG-{i}",
+                "fields": {"summary": f"issue {i}", "updated": "2026-05-24T10:00:00Z"},
+            }
             for i in range(1, 101)
         ]
         self._page2 = [
-            {"key": "DIG-100", "fields": {"summary": "issue 100", "updated": "2026-05-24T10:05:00Z"}},
-            {"key": "DIG-101", "fields": {"summary": "issue 101", "updated": "2026-05-24T10:01:00Z"}},
+            {
+                "key": "DIG-100",
+                "fields": {"summary": "issue 100", "updated": "2026-05-24T10:05:00Z"},
+            },
+            {
+                "key": "DIG-101",
+                "fields": {"summary": "issue 101", "updated": "2026-05-24T10:01:00Z"},
+            },
         ]
 
     def search_issues(self, jql: str, start_at: int = 0, max_results: int = 50):
-        self.calls.append({"jql": jql, "start_at": start_at, "max_results": max_results})
+        self.calls.append(
+            {"jql": jql, "start_at": start_at, "max_results": max_results}
+        )
         if start_at == 0:
             return list(self._page1)
         if start_at == 100:
@@ -116,8 +122,10 @@ def test_dedup_suppression_emits_alert(tmp_path, fetcher):
     def _capture_append(record, repo_root):
         captured.append(record)
 
-    with patch.object(fetcher, "_load_acli", return_value=mock_acli), \
-         patch.object(alert_store, "append", side_effect=_capture_append):
+    with (
+        patch.object(fetcher, "_load_acli", return_value=mock_acli),
+        patch.object(alert_store, "append", side_effect=_capture_append),
+    ):
         snapshot_path = fetcher.fetch_snapshot(
             "2026-05-24-dedup-pass", repo_root=tmp_path
         )
@@ -125,6 +133,7 @@ def test_dedup_suppression_emits_alert(tmp_path, fetcher):
     # 1. The snapshot file must exist and contain exactly one DIG-100 record.
     assert snapshot_path.exists()
     import json
+
     snapshot = json.loads(snapshot_path.read_text())
     assert "DIG-100" in snapshot
     dig100_count = sum(1 for k in snapshot if k == "DIG-100")
@@ -134,8 +143,7 @@ def test_dedup_suppression_emits_alert(tmp_path, fetcher):
 
     # 2. An observable alert MUST have been emitted via alert_store.append.
     dedup_alerts = [
-        rec for rec in captured
-        if rec.get("kind") == "fetcher-dedup-suppressed"
+        rec for rec in captured if rec.get("kind") == "fetcher-dedup-suppressed"
     ]
     assert dedup_alerts, (
         "Expected at least one BRIDGE_ALERT with kind='fetcher-dedup-suppressed' "

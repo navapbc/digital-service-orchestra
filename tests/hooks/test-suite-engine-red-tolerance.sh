@@ -171,7 +171,13 @@ _test_index=$(make_test_index \
     "$_red_toleratable" \
     "test_red_not_yet_implemented")
 
+# Tolerance is auto-disabled by suite-engine.sh when CI=true / GITHUB_ACTIONS=true.
+# These assertions verify the LEGACY local-tolerance contract, so we scrub the
+# CI envs (via `env -u`) before invoking the engine — without this, running
+# this test inside a CI workflow would trip the CI override and the tolerance
+# contract could never be exercised.
 _suite_output_tolerated=$(
+    env -u CI -u GITHUB_ACTIONS \
     MAX_PARALLEL=1 TEST_TIMEOUT=10 MAX_CONSECUTIVE_FAILS=10 \
     SUITE_TEST_INDEX="$_test_index" \
     bash "$LIB_DIR/suite-engine.sh" "$_passing" "$_red_toleratable" 2>&1
@@ -187,6 +193,7 @@ assert_contains "tolerated_summary_present" \
 
 _exit_code_tolerated=0
 (
+    env -u CI -u GITHUB_ACTIONS \
     MAX_PARALLEL=1 TEST_TIMEOUT=10 MAX_CONSECUTIVE_FAILS=10 \
     SUITE_TEST_INDEX="$_test_index" \
     bash "$LIB_DIR/suite-engine.sh" "$_passing" "$_red_toleratable" >/dev/null 2>&1
