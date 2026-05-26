@@ -527,7 +527,7 @@ A story qualifies for integration research if it references any of:
 
 ### Research Process
 
-Follow the shared research procedure in `prompts/research-process.md` (single authoritative source — covers researchFindings dedup, the WebSearch-and-verify steps, REPLAN_ESCALATE emission, and graceful degradation). This phase is the pre-slicing trigger for that procedure.
+Follow the shared research procedure in `prompts/research-process.md` (single authoritative source — covers researchFindings dedup, the WebSearch-and-verify steps, per-command contract check for CLI tools, REPLAN_ESCALATE emission, and graceful degradation). This phase is the pre-slicing trigger for that procedure. Track `feasibility_cycle_count` (state variable exposed for planning-intelligence log consumption) per the shared procedure. # precondition-emit-ok
 
 ### Skip Condition
 

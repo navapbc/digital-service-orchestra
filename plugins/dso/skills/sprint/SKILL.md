@@ -877,6 +877,15 @@ c. For each skill result, **parse STATUS:**
    - On `STATUS:complete TASKS:<ids> STORY:<id>`:
      - Extract the comma-separated task IDs from the `TASKS` field
      - Extract the story ID from the `STORY` field
+     - **Audit marker check (bug 2c4d-cac7-40a4-40e2)**: Verify both audit tags are present on the story ticket before accepting the STATUS:complete signal:
+       ```bash
+       _tags=$(.claude/scripts/dso ticket show "<story-id>" 2>/dev/null | python3 -c "import json,sys; print(' '.join(json.load(sys.stdin).get('tags', [])))")
+       _has_plan_review=$(echo "$_tags" | grep -c "plan_review:pass" || true)
+       _has_gap_analysis=$(echo "$_tags" | grep -c "gap_analysis:complete" || true)
+       ```
+       - If `plan_review:pass` tag is absent: log `"WARNING: story <id> STATUS:complete received but plan_review:pass tag missing — Step 4 may have been skipped"` and treat as `STATUS:blocked REASON:missing_plan_review_audit_marker`; add story to blocked-stories list.
+       - If `gap_analysis:complete` tag is absent: log `"WARNING: story <id> STATUS:complete received but gap_analysis:complete tag missing — Step 6 may have been skipped"` and treat as `STATUS:blocked REASON:missing_gap_analysis_audit_marker`; add story to blocked-stories list.
+       - If both tags present: proceed normally.
      - Log: `"Implementation planning complete for story <story-id> — created tasks: <task-ids>"`
      - Proceed to post-dispatch validation (step e)
    - On `STATUS:blocked QUESTIONS:<json-array>`:
