@@ -230,8 +230,10 @@ jobs:
     needs: [changes, shellcheck, lint-python]
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    env:
-      SUITE_TEST_INDEX: ${{ github.workspace }}/.test-index
+    # RED-zone marker tolerance is intentionally NOT enabled in CI: tolerance
+    # is a development-time TDD aid and must not mask failures in PRs targeting
+    # main. Runners auto-disable on CI=true / GITHUB_ACTIONS=true (defense in
+    # depth) regardless of SUITE_TEST_INDEX. See plugins/dso/docs/HOOKS-REFERENCE.md.
     steps:
       - uses: actions/checkout@v4
 
@@ -262,8 +264,10 @@ jobs:
     needs: [changes, shellcheck, lint-python]
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      SUITE_TEST_INDEX: ${{ github.workspace }}/.test-index
+    # RED-zone marker tolerance is intentionally NOT enabled in CI: tolerance
+    # is a development-time TDD aid and must not mask failures in PRs targeting
+    # main. Runners auto-disable on CI=true / GITHUB_ACTIONS=true (defense in
+    # depth) regardless of SUITE_TEST_INDEX. See plugins/dso/docs/HOOKS-REFERENCE.md.
     steps:
       - uses: actions/checkout@v4
 

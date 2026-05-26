@@ -159,6 +159,16 @@ A dedicated CI job in `ci.yml` that provides a **stable required-check name** fo
 
 **DEFERRED exemptions**: a `# DEFERRED: <path>:<test_name> reason=<text> ticket=<id>` line in `.test-index` exempts matching RED markers from blocking. Unmatched RED markers still fail the step.
 
+#### CI auto-disable of RED-zone marker tolerance
+
+`SUITE_TEST_INDEX` enables RED-zone tolerance in the bash/pytest runners (failing tests at/after a `.test-index [marker]` are reclassified as passing — useful during TDD red phase). Tolerance is **unconditionally disabled** when `CI=true` or `GITHUB_ACTIONS=true` is set, regardless of whether `SUITE_TEST_INDEX` is exported. Defense-in-depth ensures a stale env var in a new workflow cannot let a RED-tolerated failure reach main.
+
+Implementation: `tests/lib/suite-engine.sh` and `${CLAUDE_PLUGIN_ROOT}/scripts/runners/bash-runner.sh` short-circuit the marker-map build when the CI envs are set. Regression test: `tests/scripts/test-bash-runner-red-zone.sh` (Tests 4 and 5).
+
+Together with the `red-test-blocker` step above, this gives two enforcement layers against RED tests reaching main:
+1. **`scan-red-markers.sh`** blocks PRs where the merged `.test-index` still has `[marker]` brackets (TDD intent leaking into integration).
+2. **Runner CI-override** ensures that even if a marker slipped through, the underlying test failure surfaces — never silently tolerated in CI.
+
 ### `llm-review-dispatch-or-skip.sh` — provenance-aware dispatch wrapper
 
 `${CLAUDE_PLUGIN_ROOT}/scripts/llm-review-dispatch-or-skip.sh` wraps `ci-llm-review-runner.sh` for the integration (session→main) review. Calls `verify-session-provenance.sh` first and routes:

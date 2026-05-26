@@ -149,10 +149,15 @@ _bash_runner_run() {
     fi
 
     # ── RED zone tolerance setup (mirrors tests/lib/suite-engine.sh) ─────────
+    # CI override: tolerance is a development-time aid; it MUST NOT mask failures
+    # in CI runs targeting main. When CI=true or GITHUB_ACTIONS=true, skip
+    # marker setup entirely so every test must pass on its own merits to merge.
     local _RED_ZONE_ENABLED=false
     declare -A _RED_MARKER_MAP=()
     local _red_zone_tolerated_count=0
-    if [[ -n "${SUITE_TEST_INDEX:-}" ]] && [[ -f "${SUITE_TEST_INDEX}" ]]; then
+    if [[ "${CI:-}" == "true" ]] || [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
+        : # tolerance disabled in CI — see comment above
+    elif [[ -n "${SUITE_TEST_INDEX:-}" ]] && [[ -f "${SUITE_TEST_INDEX}" ]]; then
         # Locate red-zone.sh — sibling to test-batched.sh's hooks/lib (this
         # script lives at $_PLUGIN_ROOT/scripts/runners/, so ../../../hooks/lib).
         local _br_dir _red_zone_sh="" _br_plugin_root
