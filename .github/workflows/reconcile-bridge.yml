@@ -19,7 +19,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'Reconciler rollout-safety mode (dry-run | bootstrap-strict | bootstrap-throttle | live)'
+        description: 'Reconciler rollout-safety mode (dry-run | bootstrap-strict | bootstrap-throttle | live | probe)'
         required: false
         default: 'live'
         type: choice
@@ -28,6 +28,7 @@ on:
           - bootstrap-strict
           - bootstrap-throttle
           - live
+          - probe
 
 concurrency:
   group: reconcile-bridge
@@ -167,7 +168,76 @@ jobs:
           git config --global user.name "${BRIDGE_BOT_NAME}"
           git config --global user.email "${BRIDGE_BOT_EMAIL}"
 
+      - name: ACLI discovery probe (mode=probe)
+        if: github.event.inputs.mode == 'probe'
+        env:
+          JIRA_URL: ${{ vars.JIRA_URL }}
+          JIRA_USER: ${{ vars.JIRA_USER }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          JIRA_PROJECT: ${{ vars.JIRA_PROJECT || 'DIG' }}
+        run: |
+          set -uo pipefail
+          PROJ="${JIRA_PROJECT:-DIG}"
+          echo "=== Probe 1: distinct statuses in project ${PROJ} ==="
+          acli jira workitem search --jql "project = ${PROJ}" --paginate --json \
+            | python3 -c "
+          import json, sys, collections
+          data = json.load(sys.stdin)
+          issues = data if isinstance(data, list) else data.get('issues', [])
+          print(f'total issues fetched: {len(issues)}')
+          statuses = collections.Counter()
+          for i in issues:
+              # Search every plausible status field location until ACLI surface clarified
+              status_name = None
+              fields = i.get('fields', {}) if isinstance(i.get('fields'), dict) else {}
+              status_obj = fields.get('status') or i.get('status')
+              if isinstance(status_obj, dict):
+                  status_name = status_obj.get('name') or status_obj.get('value')
+              elif isinstance(status_obj, str):
+                  status_name = status_obj
+              statuses[status_name or '<missing>'] += 1
+          print('status counts:')
+          for s, n in statuses.most_common():
+              print(f'  {n:6d}  {s}')
+          "
+          echo
+          echo "=== Probe 2: confirm 'updated' is a valid orderable JQL field ==="
+          # ACLI 'updated' should be valid in ORDER BY — verify by running a small query
+          acli jira workitem search --jql "project = ${PROJ} ORDER BY updated DESC" --limit 3 --json 2>&1 | head -50 || true
+          echo
+          echo "=== Probe 3: top 5 issues by 'updated DESC' (verify field name in output) ==="
+          acli jira workitem search --jql "project = ${PROJ} ORDER BY updated DESC" --limit 5 --json \
+            | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          issues = data if isinstance(data, list) else data.get('issues', [])
+          for i in issues[:5]:
+              key = i.get('key')
+              fields = i.get('fields', {}) if isinstance(i.get('fields'), dict) else {}
+              upd = fields.get('updated') or i.get('updated')
+              print(f'  {key:12s}  updated={upd}')
+          "
+          echo
+          echo "=== Probe 4: sample issue shape (first issue from project) ==="
+          acli jira workitem search --jql "project = ${PROJ}" --limit 1 --json \
+            | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          issues = data if isinstance(data, list) else data.get('issues', [])
+          if issues:
+              i = issues[0]
+              print('top-level keys:', sorted(i.keys()))
+              fields = i.get('fields', {})
+              if isinstance(fields, dict):
+                  print('fields keys:', sorted(fields.keys())[:30])
+                  status = fields.get('status') or i.get('status')
+                  print('status object shape:', type(status).__name__, '|', repr(status)[:200])
+          "
+          echo "=== Probe complete — exiting (not running reconciler in probe mode) ==="
+          exit 0
+
       - name: Run reconciler
+        if: github.event.inputs.mode != 'probe'
         # When triggered via workflow_dispatch, honour the operator-selected
         # rollout-safety mode. On schedule and other event types,
         # github.event.inputs.mode is empty and the reconciler falls back to
