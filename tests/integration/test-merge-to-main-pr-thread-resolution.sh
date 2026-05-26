@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # tests/integration/test-merge-to-main-pr-thread-resolution.sh
 #
-# RED integration tests for the PR review-thread resolution loop in
+
 # merge-to-main-pr.sh and the supporting helpers in hooks/lib/merge-helpers.sh.
 #
 # These tests drive (not-yet-built) helpers:
@@ -24,10 +24,9 @@
 #                                                  when a code push triggers
 #                                                  dismiss_stale_approvals_on_push.
 #
-# RED state: these functions DO NOT EXIST yet. Each test sources the libs,
 # verifies the function is missing (via `type`), and asserts on observable
 # behavior the helpers MUST produce once T3/T4 land. A FAIL here is the
-# expected RED outcome — the test gate accepts it via .test-index markers.
+# expected behavior outcome — the test gate accepts it via .test-index markers.
 #
 # Stubbing: a per-test temp dir is prepended to PATH. The dir contains
 #   * `gh` — bash shim that records argv and stdin to $STUB_GH_LOG, then
@@ -43,7 +42,7 @@
 #
 # Usage:
 #   bash tests/integration/test-merge-to-main-pr-thread-resolution.sh
-# Exit: 0 if all tests pass (GREEN once T3/T4 land), non-zero otherwise (RED).
+# Exit: 0 if all tests pass (GREEN once T3/T4 land), non-zero otherwise.
 
 set -uo pipefail
 
@@ -274,13 +273,13 @@ test_review_threads_query_parses_unresolved_thread_ids() {
     export STUB_GH_SCENARIO=threads_mixed
     export STUB_GH_THREADS_FIXTURE="$fixture"
 
-    # Source the merge-helpers library; helper must be defined here (RED until T3).
+    # Source the merge-helpers library; helper must be defined here.
     # shellcheck disable=SC1090
     source "$MERGE_HELPERS_LIB" 2>/dev/null || true
 
     if ! type _pr_fetch_unresolved_threads >/dev/null 2>&1; then
         (( ++FAIL ))
-        echo "FAIL: test_review_threads_query_parses_unresolved_thread_ids — _pr_fetch_unresolved_threads not defined (RED until T3)" >&2
+        echo "FAIL: test_review_threads_query_parses_unresolved_thread_ids — _pr_fetch_unresolved_threads not defined" >&2
         _teardown_test
         return
     fi
@@ -315,7 +314,7 @@ test_resolve_thread_calls_mutation_only_when_unresolved() {
 
     if ! type _pr_resolve_thread >/dev/null 2>&1; then
         (( ++FAIL ))
-        echo "FAIL: test_resolve_thread_calls_mutation_only_when_unresolved — _pr_resolve_thread not defined (RED until T3)" >&2
+        echo "FAIL: test_resolve_thread_calls_mutation_only_when_unresolved — _pr_resolve_thread not defined" >&2
         _teardown_test
         return
     fi
@@ -400,13 +399,13 @@ test_dispatch_count_cap_triggers_escalation() {
 
     # Source merge-helpers.sh + define _phase_resolve_threads by sourcing
     # merge-to-main-pr.sh in library mode if/when it supports that. Until T4
-    # lands, the function is missing → RED.
+    # lands, the function is missing
     # shellcheck disable=SC1090
     source "$MERGE_HELPERS_LIB" 2>/dev/null || true
 
     # Run the loop call in a subshell so an exit/abort cannot kill the test
     # runner. T4 currently has NOT landed: _phase_resolve_threads is missing
-    # and the subshell will exit non-zero. That is the RED outcome we record.
+    # and the subshell will exit non-zero. That is the failure we record.
     local stderr_capture rc=0
     stderr_capture=$(
         # shellcheck disable=SC1090
@@ -426,7 +425,7 @@ test_dispatch_count_cap_triggers_escalation() {
 
     if [[ "$rc" == "99" ]] || [[ "$stderr_capture" == *"MISSING_FUNCTION:_phase_resolve_threads"* ]]; then
         (( ++FAIL ))
-        echo "FAIL: test_dispatch_count_cap_triggers_escalation — _phase_resolve_threads not defined (RED until T4)" >&2
+        echo "FAIL: test_dispatch_count_cap_triggers_escalation — _phase_resolve_threads not defined" >&2
         _teardown_test
         return
     fi
@@ -481,7 +480,7 @@ test_wall_clock_cap_triggers_escalation() {
 
     if [[ "$rc" == "99" ]] || [[ "$stderr_capture" == *"MISSING_FUNCTION:_phase_resolve_threads"* ]]; then
         (( ++FAIL ))
-        echo "FAIL: test_wall_clock_cap_triggers_escalation — _phase_resolve_threads not defined (RED until T4)" >&2
+        echo "FAIL: test_wall_clock_cap_triggers_escalation — _phase_resolve_threads not defined" >&2
         _teardown_test
         return
     fi
@@ -549,7 +548,7 @@ test_push_induced_dismissal_resets_poll_window() {
 
     if [[ "$rc" == "99" ]] || [[ "$combined" == *"MISSING_FUNCTION:_phase_resolve_threads"* ]]; then
         (( ++FAIL ))
-        echo "FAIL: test_push_induced_dismissal_resets_poll_window — _phase_resolve_threads not defined (RED until T4)" >&2
+        echo "FAIL: test_push_induced_dismissal_resets_poll_window — _phase_resolve_threads not defined" >&2
         _teardown_test
         return
     fi
@@ -762,7 +761,6 @@ test_pr_dispatch_unresolved_batch_routes_reply_action() {
         "1" "$(echo "$_result" | grep -c 'dispatches=1')"
     assert_pass_if_clean "test_pr_dispatch_unresolved_batch_routes_reply_action"
 }
-
 
 # ===========================================================================
 # Test: _phase_resolve_threads must fail loud (non-zero + ESCALATE: on stderr)
@@ -1063,5 +1061,4 @@ test_dispatch_resolve_conflicts_fails_loud_when_llm_dispatch_unset
 test_dispatch_fix_agent_fails_loud_when_llm_dispatch_unset
 test_phase_conflict_resolution_propagates_escalate_when_llm_unset
 
-# Print summary and exit non-zero on any failure (RED state expected pre-T3/T4).
 print_summary

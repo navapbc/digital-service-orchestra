@@ -5,7 +5,6 @@
 # Tests verify exit-code semantics for the planning.external_dependency_block_enabled
 # config flag: true → exit 0, false → exit 1, absent → exit 1 (default false).
 #
-# All tests are RED until plugins/dso/hooks/lib/planning-config.sh is created
 # (task d5f0-9633). This is intentional — tests must fail before implementation.
 #
 # Usage: bash tests/hooks/test-planning-config.sh

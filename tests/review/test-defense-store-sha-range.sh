@@ -8,16 +8,14 @@
 # (not stripped) in the enriched record — and that write rejects a record where
 # those fields are present but malformed (not 40-char hex).
 #
-# RED rationale: defense_store_write currently has no validation or active
+
 # preservation logic for sha fields — they pass through incidentally but are
 # not validated. test_defense_store_write_rejects_malformed_sha_fields asserts
 # rejection of a non-hex sha, which is not implemented yet.
 #
 # Tests 1 and 2 (pass-through and legacy) may already be GREEN.
-# Test 3 (malformed sha rejection) is RED until validation is added.
 #
 # Usage: bash tests/review/test-defense-store-sha-range.sh
-# Returns: exit 1 (RED) until implementation is present.
 
 # NOTE: -e intentionally omitted — test functions return non-zero by design.
 set -uo pipefail
@@ -188,7 +186,7 @@ test_defense_store_write_legacy_no_sha_injection
 # When: written output is captured via TICKET_CMD=echo
 # Then: output JSON (grep for story_branch_tip_sha) contains the sha field
 #
-# RED: fails because defense_store_write has no active sha-field validation;
+# fails because defense_store_write has no active sha-field validation;
 # the test specifically asserts that BOTH sha fields are required together —
 # write must reject a record where only one sha field is present (partial sha range).
 # =============================================================================
@@ -245,7 +243,7 @@ print(json.dumps({
         "1" "$base_present"
 
     # Sub-test B: only tip sha present (partial range) → write must reject with error
-    # RED: defense_store_write currently does NOT enforce that both sha fields must
+    # defense_store_write currently does NOT enforce that both sha fields must
     # appear together — partial sha range is silently accepted. This assertion fails
     # until validation is added.
     local partial_exit_code=0

@@ -8,7 +8,6 @@
 #   3. The verification_command execution clause
 #   4. The confirmation-token audit path
 #
-# This test is RED until story 9e66-3e5d implements the handshake documentation.
 #
 # Usage: bash tests/skills/test-external-dep-sc5-sprint.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail

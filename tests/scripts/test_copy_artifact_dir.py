@@ -29,10 +29,8 @@ import pytest
 # Module loading — filename has hyphens-adjacent naming; load via importlib
 # ---------------------------------------------------------------------------
 
-REPO_ROOT = Path(__file__).resolve().parents[4]
-SCRIPT_PATH = (
-    REPO_ROOT / "plugins" / "dso" / "scripts" / "copy_artifact_path.py"
-)
+REPO_ROOT = Path(__file__).resolve().parents[2]
+SCRIPT_PATH = REPO_ROOT / "plugins" / "dso" / "scripts" / "copy_artifact_path.py"
 
 
 def _load_module() -> ModuleType:
@@ -62,9 +60,7 @@ class TestValidateArtifactPath:
     """validate_artifact_path enforces safe path rules for copy artifact output."""
 
     # [test_good_relative_path_accepted]
-    def test_good_relative_path_accepted(
-        self, tmp_path: Path, cap: ModuleType
-    ) -> None:
+    def test_good_relative_path_accepted(self, tmp_path: Path, cap: ModuleType) -> None:
         """A clean relative path under the project root must be accepted (exit 0 / no exception)."""
         result = cap.validate_artifact_path("copy/abc123.yaml", project_root=tmp_path)
         # validate_artifact_path returns the resolved Path on success
@@ -106,9 +102,7 @@ class TestValidateArtifactPath:
         # but we also test that the resolution guard fires for traversal via symlink.
         # Here we test the plain traversal case since symlinks require setup:
         with pytest.raises(ValueError):
-            cap.validate_artifact_path(
-                "copy/../../outside.yaml", project_root=tmp_path
-            )
+            cap.validate_artifact_path("copy/../../outside.yaml", project_root=tmp_path)
 
     def test_nested_relative_path_accepted(
         self, tmp_path: Path, cap: ModuleType

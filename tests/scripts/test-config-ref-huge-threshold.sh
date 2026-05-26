@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 # test-config-ref-huge-threshold.sh — structural boundary tests for threshold documentation
-# All 4 tests RED until CONFIGURATION-REFERENCE.md and dso-config.example.conf are updated
 
 PASS=0; FAIL=0
 

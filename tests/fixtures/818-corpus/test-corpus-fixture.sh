@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 # tests/fixtures/818-corpus/test-corpus-fixture.sh
-# RED tests for tests/fixtures/818-corpus/generate-corpus-fixture.sh
-# These tests fail RED until generate-corpus-fixture.sh is implemented.
 
 set -uo pipefail
 
@@ -12,7 +10,6 @@ GENERATOR="$REPO_ROOT/tests/fixtures/818-corpus/generate-corpus-fixture.sh"
 source "$REPO_ROOT/tests/lib/assert.sh"
 
 test_corpus_fixture_generates_valid_json() {
-    # RED: generate-corpus-fixture.sh does not exist yet
     if [[ ! -f "$GENERATOR" ]]; then
         (( ++FAIL ))
         printf "FAIL: %s\n  expected: generate-corpus-fixture.sh to exist at %s\n  actual:   file not found\n" \
@@ -44,7 +41,6 @@ test_corpus_fixture_generates_valid_json() {
 }
 
 test_corpus_has_required_bug_fields() {
-    # RED: generate-corpus-fixture.sh does not exist yet
     if [[ ! -f "$GENERATOR" ]]; then
         (( ++FAIL ))
         printf "FAIL: %s\n  expected: generate-corpus-fixture.sh to exist at %s\n  actual:   file not found\n" \

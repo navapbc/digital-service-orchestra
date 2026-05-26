@@ -371,7 +371,7 @@ else
 fi
 
 # ── Test 14: v3 event-sourced tickets — descendants BFS uses tracker, not .md ─
-# RED test: when .tickets/ directory exists but has NO .md files (v3 migration),
+# when .tickets/ directory exists but has NO .md files (v3 migration),
 # the script must still correctly identify descendants via .tickets-tracker/
 # and read ticket body content from the reducer (not .tickets/<id>.md).
 #
@@ -725,7 +725,7 @@ else
 fi
 
 # ── Test 17: No v2 elif TICKETS_DIR branch ───────────────────────────────────
-# RED test: assert the v2 `elif [ -d "$TICKETS_DIR" ]` block is removed.
+# assert the v2 `elif [ -d "$TICKETS_DIR" ]` block is removed.
 # Currently FAILS because the v2 branch still exists in the script.
 echo "Test 17: No v2 elif TICKETS_DIR branch in plugin script"
 test_sprint_next_batch_no_v2_elif_branch() {
@@ -741,7 +741,7 @@ test_sprint_next_batch_no_v2_elif_branch() {
 test_sprint_next_batch_no_v2_elif_branch
 
 # ── Test 18: No standalone TICKETS_DIR= assignment ───────────────────────────
-# RED test: assert the v2 standalone `TICKETS_DIR=` assignment is removed.
+# assert the v2 standalone `TICKETS_DIR=` assignment is removed.
 # Currently FAILS because line 196 still has TICKETS_DIR="${TICKETS_DIR:-...}".
 echo "Test 18: No standalone TICKETS_DIR= variable assignment in plugin script"
 test_sprint_next_batch_no_TICKETS_DIR_variable() {
@@ -756,7 +756,7 @@ test_sprint_next_batch_no_TICKETS_DIR_variable() {
 test_sprint_next_batch_no_TICKETS_DIR_variable
 
 # ── Test 19: No v2 ticket body fallback (.tickets/$ticket_id) ────────────────
-# RED test: assert the v2 _load_ticket_body fallback reading .tickets/<id>.md
+# assert the v2 _load_ticket_body fallback reading .tickets/<id>.md
 # is removed. Pattern matches a literal bash-variable reference to .tickets/.
 echo "Test 19: No v2 ticket body fallback (.tickets/\$ticket_id) in plugin script"
 test_sprint_next_batch_no_v2_ticket_body_fallback() {

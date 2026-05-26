@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tests/scripts/test-sprint-next-batch-design-filter.sh
-# RED tests: verify sprint-next-batch.sh filters tasks whose parent story
+# Tests: verify sprint-next-batch.sh filters tasks whose parent story
 # has the design:awaiting_import tag (SKIPPED_DESIGN_AWAITING output).
 #
 # These tests MUST FAIL until sprint-next-batch.sh implements tag-based
@@ -151,7 +151,7 @@ fi
 # ── Tests below verify sprint-next-batch.sh tag-based design filter ──
 
 # ── Test DA-1: Task under design:awaiting_import story is SKIPPED_DESIGN_AWAITING ──
-# This is a RED test: sprint-next-batch.sh does not yet filter by tag.
+
 # Expected: the task appears as SKIPPED_DESIGN_AWAITING in text output
 # (batch_size=0, skipped_design_awaiting=1).
 test_da1_design_awaiting_skipped_text() {
@@ -186,7 +186,7 @@ DA1_TICKET
     local _output
     _output=$(cd "$_repo" && TICKET_CMD="$_repo/scripts/ticket" bash "$_repo/scripts/sprint-next-batch.sh" "da1-epic" 2>/dev/null) || _exit=$?
 
-    # RED assertion: SKIPPED_DESIGN_AWAITING must appear in text output.
+    # SKIPPED_DESIGN_AWAITING must appear in text output.
     [ "$_exit" -eq 0 ] && grep -q "SKIPPED_DESIGN_AWAITING" <<< "$_output"
 }
 echo "Test DA-1: Task under design:awaiting_import story appears as SKIPPED_DESIGN_AWAITING"
@@ -236,7 +236,7 @@ DA2_TICKET
     _skipped=$(echo "$_output" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d.get('skipped_design_awaiting',[])))" 2>/dev/null || echo "0")
     _batch=$(echo "$_output" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('batch_size',0))" 2>/dev/null || echo "-1")
 
-    # RED: skipped_design_awaiting key must exist with 1 entry, batch_size=0
+    # skipped_design_awaiting key must exist with 1 entry, batch_size=0
     [ "$_exit" -eq 0 ] && [ "$_skipped" -eq 1 ] && [ "$_batch" -eq 0 ]
 }
 echo "Test DA-2: design:awaiting_import task appears in JSON skipped_design_awaiting list"
@@ -250,7 +250,7 @@ fi
 
 # ── Test DA-5: SKIPPED_DESIGN_AWAITING output line format ────────────────────
 # Validates the exact output line format: "SKIPPED_DESIGN_AWAITING: <id>  <reason>"
-# RED test: currently FAILS because the script emits no such line.
+# currently FAILS because the script emits no such line.
 test_da5_design_awaiting_line_format() {
     local _repo
     _repo=$(mktemp -d)

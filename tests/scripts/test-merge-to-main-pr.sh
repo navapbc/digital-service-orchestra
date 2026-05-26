@@ -3,7 +3,7 @@
 # tests/scripts/test-merge-to-main-pr.sh
 # Tests for merge-to-main-pr.sh PR-creation + auto-merge phase (DD1, DD6).
 #
-# Tests (all start RED, turn GREEN once Task 4746 _phase_merge is implemented):
+
 #   1. t_pr_create_invocation             — gh invoked with `pr create --base main --head <branch>`
 #   2. t_pr_auto_merge_queued             — gh invoked with `pr merge <num> --auto --merge`
 #   3. t_pr_state_file_persists_pr_url    — state file gains pr_url + pr_number keys
@@ -1184,10 +1184,10 @@ GIT_EOF
 t_per_thread_resolve_failure_emits_warn
 
 # ===========================================================================
-# T3: CI Remediation Loop — RED tests (story c742-dc83-fd8e-4c89)
+# T3: CI Remediation Loop (story c742-dc83-fd8e-4c89)
 #
 # These 9 tests cover _state_record_failed_run_id, _dispatch_fix_agent, and
-# _phase_remediate. All 9 FAIL in RED phase because the implementation
+# _phase_remediate. all initially fail because the implementation
 # functions don't exist yet. They turn GREEN when T4a/T4b/T4c are applied.
 # ===========================================================================
 
@@ -1195,7 +1195,7 @@ t_per_thread_resolve_failure_emits_warn
 # t_state_record_failed_run_id_writes_to_state
 # After calling _state_init + _state_record_failed_run_id "RUN123",
 # the state file must contain a "failed_run_id" key with value "RUN123".
-# RED reason: _state_record_failed_run_id not defined in merge-helpers.sh.
+
 # ---------------------------------------------------------------------------
 t_state_record_failed_run_id_writes_to_state() {
     local _branch_safe _state_file _result
@@ -1227,7 +1227,7 @@ t_state_record_failed_run_id_writes_to_state
 # When _phase_poll encounters a CI FAILURE conclusion, it must call
 # gh run list and write the run ID to the state file via
 # _state_record_failed_run_id.
-# RED reason: T4c hasn't wired gh run list + _state_record_failed_run_id
+
 #             into _phase_poll's CI failure branch yet.
 # ---------------------------------------------------------------------------
 t_phase_poll_records_failed_run_id_on_ci_failure() {
@@ -1454,7 +1454,7 @@ t_phase_remediate_redownloads_artifacts_when_run_id_changes
 # t_dispatch_fix_agent_invokes_llm_with_correct_args
 # _dispatch_fix_agent must invoke the LLM stub with the review-fix-dispatch
 # prompt and the findings path as arguments.
-# RED reason: _dispatch_fix_agent not defined.
+
 # ---------------------------------------------------------------------------
 t_dispatch_fix_agent_invokes_llm_with_correct_args() {
     local _T _branch_safe _has_dispatch _has_findings
@@ -1506,7 +1506,7 @@ t_dispatch_fix_agent_invokes_llm_with_correct_args
 # t_phase_remediate_wires_poll_failure_to_fix_push_repoll
 # Full happy-path: state has failed_run_id → download artifacts → normalize →
 # dispatch fix agent (FIXES_APPLIED) → git push → re-poll succeeds → exit 0.
-# RED reason: _phase_remediate not defined.
+
 # ---------------------------------------------------------------------------
 t_phase_remediate_wires_poll_failure_to_fix_push_repoll() {
     local _T _branch_safe _state_file _ec _push_called
@@ -1660,7 +1660,7 @@ t_phase_remediate_wires_poll_failure_to_fix_push_repoll
 # t_phase_remediate_on_fix_agent_fail_returns_nonzero
 # When _dispatch_fix_agent returns a non-FIXES_APPLIED result, _phase_remediate
 # must still call the LLM but must NOT push and must return non-zero.
-# RED reason: _phase_remediate not defined → LLM never called.
+
 # ---------------------------------------------------------------------------
 t_phase_remediate_on_fix_agent_fail_returns_nonzero() {
     local _T _branch_safe _state_file _ec _llm_called _push_called
@@ -1760,7 +1760,7 @@ t_phase_remediate_on_fix_agent_fail_returns_nonzero
 # t_phase_remediate_on_artifact_missing_returns_nonzero
 # When gh run download fails (artifacts unavailable), _phase_remediate must
 # call gh run download and then return non-zero.
-# RED reason: _phase_remediate not defined → gh shim never called.
+
 # ---------------------------------------------------------------------------
 t_phase_remediate_on_artifact_missing_returns_nonzero() {
     local _T _branch_safe _state_file _ec _gh_called
@@ -1836,7 +1836,7 @@ t_phase_remediate_on_artifact_missing_returns_nonzero
 # t_phase_remediate_failure_exits_exactly_2
 # When _dispatch_fix_agent returns a non-FIXES_APPLIED result, _phase_remediate
 # must return exactly exit code 2.
-# RED reason: _phase_remediate not defined → exit code 127 ≠ 2.
+
 # ---------------------------------------------------------------------------
 t_phase_remediate_failure_exits_exactly_2() {
     local _T _branch_safe _state_file _ec _push_called
@@ -1935,7 +1935,7 @@ t_phase_remediate_failure_exits_exactly_2
 # When the re-poll after fix+push still fails CI, _phase_remediate must:
 # - still call git push (fix was applied)
 # - return non-zero (re-poll failed)
-# RED reason: _phase_remediate not defined → exit 127 (non-zero, OK) but
+
 #             push sentinel doesn't exist → assertion 2 fails.
 # ---------------------------------------------------------------------------
 t_phase_remediate_on_repoll_failure_returns_nonzero() {
@@ -2072,7 +2072,7 @@ t_phase_remediate_on_repoll_failure_returns_nonzero
 # ---------------------------------------------------------------------------
 # t_main_flow_skips_remediate_on_poll_success
 # Asserts that _phase_remediate is defined in merge-to-main-pr.sh.
-# RED reason: _phase_remediate not yet added to the script.
+
 # ---------------------------------------------------------------------------
 t_main_flow_skips_remediate_on_poll_success() {
     local _T _branch_safe _func_defined _fix_agent_called
@@ -2081,7 +2081,7 @@ t_main_flow_skips_remediate_on_poll_success() {
     trap "rm -rf '$_T'" RETURN
     _branch_safe="test-main-skip-$$"
 
-    # Primary RED assertion: _phase_remediate must be defined as a function
+    # Primary assertion: _phase_remediate must be defined as a function
     _func_defined="$(
         PR_LIB_MODE=1 CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" MERGE_STRATEGY="pr" \
         bash -c 'source "$0" 2>/dev/null; declare -f _phase_remediate | grep -c _phase_remediate' \
@@ -2167,7 +2167,7 @@ t_main_flow_skips_remediate_on_poll_success
 # Tests for _phase_conflict_resolution (task 9b44-ac2a-ceb0-45a1)
 #
 # _phase_conflict_resolution(pr_number, pr_url) is NOT YET IMPLEMENTED.
-# All 4 tests below FAIL (RED) before the function is added.
+# All 4 tests below FAIL before the function is added.
 # ===========================================================================
 
 # ---------------------------------------------------------------------------
@@ -2176,7 +2176,7 @@ t_main_flow_skips_remediate_on_poll_success
 # and CLEAN on second call, _phase_conflict_resolution must:
 #   - call _dispatch_resolve_conflicts exactly once
 #   - return 0
-# RED reason: _phase_conflict_resolution not defined.
+
 # ---------------------------------------------------------------------------
 t_phase_conflict_resolution_dispatches_when_conflicting() {
     local _T _branch_safe _dispatch_called _ec
@@ -2238,7 +2238,7 @@ t_phase_conflict_resolution_dispatches_when_conflicting
 # When gh pr view --json mergeStateStatus returns CLEAN (not CONFLICTING),
 # _phase_conflict_resolution must return 0 WITHOUT calling
 # _dispatch_resolve_conflicts.
-# RED reason: _phase_conflict_resolution not defined.
+
 # ---------------------------------------------------------------------------
 t_phase_conflict_resolution_noop_when_not_conflicting() {
     local _T _branch_safe _dispatch_called _ec
@@ -2290,7 +2290,7 @@ t_phase_conflict_resolution_noop_when_not_conflicting
 # When gh pr view --json mergeStateStatus always returns CONFLICTING (even
 # after _dispatch_resolve_conflicts runs), _phase_conflict_resolution must
 # emit ESCALATION_REASON on stderr and return non-zero.
-# RED reason: _phase_conflict_resolution not defined.
+
 # ---------------------------------------------------------------------------
 t_phase_conflict_resolution_fails_when_conflicts_remain() {
     local _T _branch_safe _stderr _ec _exits_nonzero _has_escalation
@@ -2361,7 +2361,7 @@ t_phase_remediate_not_called_when_conflict_resolution_fails
 
 # ---------------------------------------------------------------------------
 #
-# RED phase: _phase_remediate 4-tier loop does not yet exist. All three tests
+
 # will fail because the function does not attempt tier2/3/4 normalizers.
 # GREEN phase: once the 4-tier loop is implemented, call-tracking and
 # exit-code assertions will pass.
@@ -2431,7 +2431,7 @@ t_phase_remediate_tries_tier2_when_tier1_artifact_missing
 # t_phase_remediate_returns_2_when_all_tiers_artifact_missing
 #
 # When all four tier normalizers return exit 3 (ARTIFACT_MISSING), _phase_remediate
-# must try each one and return 2 (all tiers exhausted). The RED condition is that
+# must try each one and return 2 (all tiers exhausted). The condition is that
 # tier2 WAS called — current code never reaches tier2.
 # ---------------------------------------------------------------------------
 t_phase_remediate_returns_2_when_all_tiers_artifact_missing() {
@@ -2494,7 +2494,7 @@ t_phase_remediate_returns_2_when_all_tiers_artifact_missing
 #
 # When tier1 normalization and fix dispatch succeed but the subsequent poll
 # returns 1 (CI still failing), _phase_remediate must proceed to tier2.
-# RED: current code doesn't have this fallthrough.
+# current code doesn't have this fallthrough.
 # ---------------------------------------------------------------------------
 t_phase_remediate_continues_to_tier2_after_tier1_fix_fails_repoll() {
     local _T branch _ec
@@ -2569,7 +2569,7 @@ t_phase_remediate_continues_to_tier2_after_tier1_fix_fails_repoll
 # Tests for bounded-retry support in _phase_remediate
 # (story 4786-614e-8467-4bba, task 0a02-a133-f925-43b7)
 #
-# All tests below FAIL (RED) because:
+# All tests below FAIL because:
 #   - _remediate_counter_increment is not yet defined in merge-to-main-pr.sh
 #   - _remediate_emit_escalation is not yet defined in merge-to-main-pr.sh
 #   - _state_write_remediation_state / _state_read_remediation_state are not yet
@@ -2586,7 +2586,7 @@ t_phase_remediate_continues_to_tier2_after_tier1_fix_fails_repoll
 
 # t_remediate_counter_increment_stops_at_tier_ceiling
 # When tier=1 and t1_count has just hit its ceiling (5), the function must
-# emit "TIER_CEILING" on stdout. RED: function doesn't exist yet.
+# emit "TIER_CEILING" on stdout.
 # ---------------------------------------------------------------------------
 t_remediate_counter_increment_stops_at_tier_ceiling() {
     local _out
@@ -2611,7 +2611,7 @@ t_remediate_counter_increment_stops_at_tier_ceiling
 # ---------------------------------------------------------------------------
 # t_remediate_counter_increment_stops_at_global_ceiling
 # When global=15 (at or above the global ceiling), the function must emit
-# "GLOBAL_CEILING" on stdout. RED: function doesn't exist yet.
+# "GLOBAL_CEILING" on stdout.
 # ---------------------------------------------------------------------------
 t_remediate_counter_increment_stops_at_global_ceiling() {
     local _out
@@ -2636,7 +2636,7 @@ t_remediate_counter_increment_stops_at_global_ceiling
 # ---------------------------------------------------------------------------
 # t_remediate_counter_increment_returns_empty_under_ceiling
 # When counts are well under all ceilings, the function must produce no
-# stop-signal on stdout. RED: function doesn't exist yet.
+# stop-signal on stdout.
 # ---------------------------------------------------------------------------
 t_remediate_counter_increment_returns_empty_under_ceiling() {
     local _out _ec
@@ -2661,7 +2661,7 @@ t_remediate_counter_increment_returns_empty_under_ceiling
 
 # t_remediate_emit_escalation_outputs_valid_json
 # The function must emit valid JSON on stdout that includes the required fields.
-# RED: function doesn't exist yet.
+# function doesn't exist yet.
 # ---------------------------------------------------------------------------
 t_remediate_emit_escalation_outputs_valid_json() {
     local _out _valid _stop_reason _has_required_fields
@@ -2698,7 +2698,7 @@ t_remediate_emit_escalation_outputs_valid_json
 # ---------------------------------------------------------------------------
 # t_remediate_emit_escalation_global_ceiling_stop_reason
 # When called with stop_reason="GLOBAL_CEILING", JSON stop_reason must be
-# "GLOBAL_CEILING". RED: function doesn't exist yet.
+# "GLOBAL_CEILING".
 # ---------------------------------------------------------------------------
 t_remediate_emit_escalation_global_ceiling_stop_reason() {
     local _out _stop_reason
@@ -2849,7 +2849,7 @@ t_remediate_emit_escalation_artifact_missing_stop_reason
 # t_state_write_read_remediation_state_round_trip
 # After _state_init + _state_write_remediation_state, _state_read_remediation_state
 # must return output containing the written phase and global attempt count.
-# RED: neither function exists in merge-helpers.sh yet.
+# neither function exists in merge-helpers.sh yet.
 # ---------------------------------------------------------------------------
 t_state_write_read_remediation_state_round_trip() {
     local _branch_safe _state_file _output
@@ -2947,7 +2947,7 @@ t_dispatch_fix_agent_injects_budget_pressure_at_attempt_4
 # t_dispatch_fix_agent_no_budget_pressure_at_attempt_1
 # When called with attempt_num=1 (first attempt), the prompt must NOT contain
 # "attempt 4 of 5" budget-pressure text.
-# RED: _dispatch_fix_agent doesn't accept a second argument yet.
+# _dispatch_fix_agent doesn't accept a second argument yet.
 # ---------------------------------------------------------------------------
 t_dispatch_fix_agent_no_budget_pressure_at_attempt_1() {
     local _T _branch_safe _captured_output
@@ -2999,7 +2999,7 @@ t_dispatch_fix_agent_no_budget_pressure_at_attempt_1
 # Tests for _phase_remediate bounded-retry loop integration
 # (story 4786-614e-8467-4bba, task c28e-4d62-fe45-4b73 — T3 RED phase)
 #
-# All 8 tests below FAIL (RED) because _phase_remediate does not yet call
+# All 8 tests below FAIL because _phase_remediate does not yet call
 # _remediate_counter_increment, _remediate_emit_escalation,
 # _state_write_remediation_state, or check throttle state before dispatch.
 # Tests turn GREEN once the T4 implementation adds the bounded retry loop.
@@ -3397,7 +3397,7 @@ t_phase_remediate_emits_artifact_missing_when_all_tiers_fail
 # t_phase_remediate_emits_throttle_pause_when_usage_check_paused
 # When the usage check returns 2 (paused), _phase_remediate must exit 2 and
 # emit output containing THROTTLE_PAUSE without calling _dispatch_fix_agent.
-# RED: _phase_remediate has no usage-check gate before dispatch.
+# _phase_remediate has no usage-check gate before dispatch.
 # ---------------------------------------------------------------------------
 t_phase_remediate_emits_throttle_pause_when_usage_check_paused() {
     local _T _branch_safe _state_file _ec _out _dispatch_called_file
@@ -3740,7 +3740,7 @@ t_state_write_read_auto_merge_disabled_round_trip() {
 t_state_write_read_auto_merge_disabled_round_trip
 
 # ---------------------------------------------------------------------------
-# t_pr_squash_merge_fallback_exits_zero (RED test for 110f-9772)
+# t_pr_squash_merge_fallback_exits_zero
 # Given: gh returns a source-branch SHA for mergeCommit (API limitation for
 #        squash merges) that is NOT on origin/main, but origin/main's HEAD IS
 #        the actual squash commit.
@@ -4416,7 +4416,7 @@ t_pr_auto_merge_queued_after_thread_resolution
 # This test asserts that the review_comments expression in the script does NOT
 # use the dead-arm pattern (first arm without createdAt) and that running the
 # script's jq filter produces objects that all have createdAt.
-# RED:   old expression had dead arm → review_comments had body-only objects.
+# old expression had dead arm → review_comments had body-only objects.
 # GREEN: after dead arm removal → every element has createdAt.
 # ---------------------------------------------------------------------------
 t_review_comments_jq_always_has_createdAt() {
@@ -4461,7 +4461,7 @@ t_review_comments_jq_always_has_createdAt
 #   - No open PR at all → allowed (exit 0)
 #   - gh failure / malformed JSON → best-effort pass-through (exit 0)
 #
-# Tests FAIL RED until T2 amends gh pr list to:
+# Tests fail until T2 amends gh pr list to:
 #   --json number,url,isDraft ... | jq 'map(select(.isDraft == false)) | .[0].url // empty'
 #
 # The current implementation uses --jq '.[0].url' which ignores isDraft,
@@ -4496,7 +4496,7 @@ _build_check_dup_pr_fixture() {
     # (--json number,url --jq '.[0].url') and the amended implementation
     # (--json number,url,isDraft piped to external jq).  For 'draft' and
     # 'non_draft' modes the shim emits a JSON array so:
-    #   - Old code: captures the array string (non-empty) → blocks ALL PRs → RED for draft
+    #   - Old code: captures the array string (non-empty) → blocks ALL PRs for draft
     #   - New code: pipes to jq map(select(.isDraft==false)) → correct filtering → GREEN
     # For 'empty' mode the shim emits nothing (matching real gh behavior when
     # --jq '.[0].url' on an empty list suppresses null output):
@@ -4615,7 +4615,6 @@ WRAPPER_EOF
 # When: _check_duplicate_pr runs
 # Then: exit 0 — draft PRs (long-lived sprint PRs) must not block new merges
 #
-# RED until T2: current --jq '.[0].url' returns the URL unconditionally,
 # causing exit 1 when a draft PR exists.
 # ---------------------------------------------------------------------------
 t_draft_pr_from_active_sprint_allowed() {
@@ -4639,7 +4638,6 @@ t_draft_pr_from_active_sprint_allowed
 # When: _check_duplicate_pr runs
 # Then: exit 0 — all draft PRs are allowed regardless of age
 #
-# RED until T2: same root cause as t_draft_pr_from_active_sprint_allowed.
 # ---------------------------------------------------------------------------
 t_stale_draft_pr_allowed() {
     local _T _ec
@@ -4735,7 +4733,6 @@ t_check_duplicate_pr_gh_failure_passes_through
 # When: _check_duplicate_pr runs
 # Then: exit 0 — best-effort: malformed output must not block the merge
 #
-# RED until T2: current --jq '.[0].url' applied to non-JSON output causes jq
 # to error; the `|| true` makes gh pr list produce empty string → exits 0.
 # After T2, jq processes the malformed JSON and produces empty → exits 0.
 # Both old and new code should pass this test.
@@ -4762,7 +4759,6 @@ t_check_duplicate_pr_malformed_json_passes_through
 # Then: the jq expression must produce empty string (not the literal "null")
 #       so the [[ -n "$_existing" ]] guard correctly allows the merge.
 #
-# RED until T2: current code extracts url from .[0] unconditionally, returning
 # the draft PR's URL. With T2, map(select(.isDraft == false)) | .[0].url // empty
 # must produce "" (empty), not "null", when all PRs are drafts.
 # ---------------------------------------------------------------------------
@@ -5141,7 +5137,7 @@ t_pr_version_bump_main_repo_not_on_main
 # t_phase_poll_behind_calls_update_branch
 # When gh pr checks returns SUCCESS and mergeStateStatus returns BEHIND, the
 # poll loop must call `gh pr update-branch <pr_number>` at least once.
-# RED reason: _phase_poll does not read mergeStateStatus; update-branch is never called.
+
 # ---------------------------------------------------------------------------
 t_phase_poll_behind_calls_update_branch() {
     local _T _update_branch_called _ec
@@ -5253,7 +5249,7 @@ t_phase_poll_behind_calls_update_branch
 # When mergeStateStatus transitions BEHIND→CLEAN after update-branch, and the
 # PR state transitions to MERGED on the following poll iteration, _phase_poll
 # must return 0.
-# RED reason: _phase_poll never updates the branch, so state stays OPEN → timeout.
+
 # ---------------------------------------------------------------------------
 t_phase_poll_behind_clean_returns_zero() {
     local _T _ec
@@ -5334,7 +5330,7 @@ t_phase_poll_behind_clean_returns_zero
 # t_phase_poll_behind_exhausts_update_cap_exits_nonzero
 # When mergeStateStatus stays BEHIND for more than _BRANCH_UPDATE_MAX_ATTEMPTS
 # iterations, _phase_poll must return non-zero rather than looping until timeout.
-# RED reason: _phase_poll has no update-branch logic or attempt cap; it loops to timeout.
+
 # ---------------------------------------------------------------------------
 t_phase_poll_behind_exhausts_update_cap_exits_nonzero() {
     local _T _ec _update_branch_count _exits_nonzero
@@ -5419,7 +5415,7 @@ t_phase_poll_behind_exhausts_update_cap_exits_nonzero
 # t_draft_pr_promoted_on_resume (bug 2e68-046a)
 # When merge-to-main-pr.sh runs with --resume and the state file already
 # records a draft PR, gh pr ready must still be called.
-# RED: fails before fix (promotion only in _phase_merge, which is skipped on resume).
+# fails before fix (promotion only in _phase_merge, which is skipped on resume).
 # GREEN: passes after top-level promotion block is added outside _phase_merge.
 # ===========================================================================
 t_draft_pr_promoted_on_resume() {
@@ -5544,7 +5540,7 @@ t_draft_pr_promoted_on_resume
 # ===========================================================================
 # t_draft_pr_promoted_to_ready (bug 075f-ec40)
 # _phase_merge must call `gh pr ready <num>` when the existing PR is draft.
-# RED: passes before fix (gh pr ready not called → assertion fails).
+# passes before fix (gh pr ready not called → assertion fails).
 # GREEN: passes after _phase_merge adds the gh pr ready promotion block.
 # ===========================================================================
 t_draft_pr_promoted_to_ready() {
@@ -5732,7 +5728,7 @@ t_merge_strategy_derived_from_config_when_unset
 # must detect the bump is already on the merged commit's history and become a
 # no-op (no double-bump).
 #
-# RED reason: _phase_source_branch_version_bump does not exist yet in
+
 # merge-to-main-pr.sh. Sourcing the script in PR_LIB_MODE=1 and calling the
 # function will fail with "command not found", causing the test to assert on
 # "PHASE_NOT_FOUND" vs the expected "EXISTS".
@@ -5820,7 +5816,7 @@ EOF
     # imported. Then call _phase_source_branch_version_bump from the session
     # worktree CWD, passing the story-id as argument.
     #
-    # RED: _phase_source_branch_version_bump does not exist → the function-
+    # _phase_source_branch_version_bump does not exist → the function-
     # presence probe ("type -t") returns "PHASE_NOT_FOUND"; assert_eq fails.
     local _phase_exists
     _phase_exists="$(

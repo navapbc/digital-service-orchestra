@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tests/scripts/test-merge-to-main-session-push.sh
-# RED test: merge-to-main.sh must push the session branch to origin when
+# merge-to-main.sh must push the session branch to origin when
 # running from a session worktree (.git is a file, not a directory).
 #
 # Background: CI's per-story review job fetches origin/${SPRINT_SESSION_ID}
@@ -24,7 +24,7 @@ _write_config() {
 
 # ---------------------------------------------------------------------------
 # test_session_worktree_pushes_session_branch
-# RED: merge-to-main.sh does not yet push the session branch to origin.
+
 # ---------------------------------------------------------------------------
 test_session_worktree_pushes_session_branch() {
     local _T _push_log

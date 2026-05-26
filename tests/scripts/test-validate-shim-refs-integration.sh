@@ -56,10 +56,8 @@ test_validate_references_check_shim_refs() {
 # check-shim-refs.sh does not exist. The exit code must NOT be 127 (command not
 # found) — it may be 0, 1, or 2, but must not be an unhandled missing-command crash.
 #
-# This test FAILS (RED) because validate.sh does not yet reference check-shim-refs.sh
-# at all — the assertion about exit code 127 cannot be verified against non-existent
-# integration, so the first test must pass before this one is meaningful. Once the
-# first test passes, this test ensures the implementation has a proper guard.
+# Ensures validate.sh handles a missing check-shim-refs.sh gracefully — exit code
+# may be 0, 1, or 2, but must not be 127 (unhandled command-not-found).
 test_validate_shim_refs_absent_no_crash() {
     _snapshot_fail
 

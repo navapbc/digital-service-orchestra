@@ -13,7 +13,6 @@
 #   7. .pre-commit-config.yaml contains an entry referencing "check-plugin-boundary"
 #   8. This test file itself is executable
 #
-# NOTE: Assertions 1, 2, 4, 5, 6, 7 will be RED until the hook is created.
 #
 # Design note (staged-file simulation):
 #   The hook reads staged additions via `git diff --cached --name-only --diff-filter=A`.

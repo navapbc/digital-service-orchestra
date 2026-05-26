@@ -20,7 +20,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-SPRINT_SKILL="$REPO_ROOT/plugins/dso/skills/sprint/SKILL.md"
+SPRINT_SKILL="$REPO_ROOT/plugins/dso/skills/sprint/prompts/auto-resume.md"
 FIXBUG_SKILL="$REPO_ROOT/plugins/dso/skills/fix-bug/SKILL.md"
 
 source "$REPO_ROOT/tests/lib/assert.sh"

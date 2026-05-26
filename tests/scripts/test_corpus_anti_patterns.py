@@ -43,22 +43,16 @@ def _yaml_files_in_dir(directory: Path) -> list[Path]:
 
 
 def _load_frontmatter(path: Path) -> dict:
-    """Parse YAML frontmatter from a Markdown file.
+    """Return the first non-empty mapping document in *path*.
 
-    Frontmatter is delimited by --- on its own line.
-    If the file starts with ---, parse up to the closing ---.
-    Otherwise fall back to full-file YAML parse.
+    Tolerates a leading comment block before the frontmatter ``---`` delimiter
+    (e.g. the canonical-domain header in the anti-patterns corpus).
     """
-    text = path.read_text(encoding="utf-8")
-    if text.startswith("---"):
-        # Strip the opening ---
-        rest = text[3:]
-        end_idx = rest.find("\n---")
-        if end_idx != -1:
-            frontmatter_text = rest[:end_idx]
-            return yaml.safe_load(frontmatter_text) or {}
-    # Pure YAML file (no Markdown body)
-    return yaml.safe_load(text) or {}
+    with path.open(encoding="utf-8") as fh:
+        for doc in yaml.safe_load_all(fh):
+            if isinstance(doc, dict) and doc:
+                return doc
+    return {}
 
 
 # ---------------------------------------------------------------------------
@@ -72,13 +66,13 @@ class TestAntiPatternsDirectoryAndCount:
     """The anti-patterns directory must exist and contain at least 48 YAML files."""
 
     def test_anti_patterns_directory_exists(self) -> None:
-        """FAILS (RED): plugins/dso/data/ui-reference/anti-patterns/ does not exist yet."""
+        """The anti-patterns corpus directory exists."""
         assert os.path.exists(ANTI_PATTERNS_DIR), (
             f"Directory does not exist: {ANTI_PATTERNS_DIR}"
         )
 
     def test_anti_patterns_directory_has_at_least_48_yaml_files(self) -> None:
-        """FAILS (RED): directory missing, so 0 files found instead of >=48."""
+        """The corpus contains at least 48 anti-pattern YAML entries."""
         yaml_files = _yaml_files_in_dir(ANTI_PATTERNS_DIR)
         assert len(yaml_files) >= 48, (
             f"Expected >= 48 YAML files in {ANTI_PATTERNS_DIR}, found {len(yaml_files)}"
@@ -96,7 +90,7 @@ class TestAntiPatternsYamlFrontmatterDomain:
     """Every entry must carry a valid domain tag from the anchored vocabulary."""
 
     def test_all_entries_have_domain_tag(self) -> None:
-        """FAILS (RED): no files exist, so none pass the domain check."""
+        """Every anti-pattern entry declares a domain tag."""
         yaml_files = _yaml_files_in_dir(ANTI_PATTERNS_DIR)
         assert len(yaml_files) >= 48, (
             f"Expected >= 48 YAML files — found {len(yaml_files)}. "
@@ -110,7 +104,7 @@ class TestAntiPatternsYamlFrontmatterDomain:
         assert missing_domain == [], f"Entries missing 'domain' tag: {missing_domain}"
 
     def test_all_domain_tags_are_valid_vocabulary(self) -> None:
-        """FAILS (RED): no files exist, so the vocabulary check cannot pass."""
+        """Every domain tag belongs to the controlled vocabulary."""
         yaml_files = _yaml_files_in_dir(ANTI_PATTERNS_DIR)
         assert len(yaml_files) >= 48, (
             f"Expected >= 48 YAML files — found {len(yaml_files)}. "
@@ -141,7 +135,7 @@ class TestAntiPatternsRuleId:
     """Every entry must have a unique rule_id beginning with 'ap-'."""
 
     def test_all_entries_have_rule_id(self) -> None:
-        """FAILS (RED): no files exist."""
+        """Every anti-pattern entry declares a rule_id."""
         yaml_files = _yaml_files_in_dir(ANTI_PATTERNS_DIR)
         assert len(yaml_files) >= 48, (
             f"Expected >= 48 YAML files — found {len(yaml_files)}."
@@ -154,7 +148,7 @@ class TestAntiPatternsRuleId:
         assert missing_ids == [], f"Entries missing 'rule_id': {missing_ids}"
 
     def test_all_rule_ids_have_ap_prefix(self) -> None:
-        """FAILS (RED): no files exist."""
+        """Every rule_id starts with the 'ap-' prefix."""
         yaml_files = _yaml_files_in_dir(ANTI_PATTERNS_DIR)
         assert len(yaml_files) >= 48, (
             f"Expected >= 48 YAML files — found {len(yaml_files)}."
@@ -170,7 +164,7 @@ class TestAntiPatternsRuleId:
         )
 
     def test_all_rule_ids_are_unique(self) -> None:
-        """FAILS (RED): no files exist."""
+        """No two anti-pattern entries share a rule_id."""
         yaml_files = _yaml_files_in_dir(ANTI_PATTERNS_DIR)
         assert len(yaml_files) >= 48, (
             f"Expected >= 48 YAML files — found {len(yaml_files)}."
@@ -198,13 +192,13 @@ class TestCheckCorpusSchemaPasses:
     """check-corpus-schema.sh must exit 0 for the anti-patterns/ directory."""
 
     def test_check_corpus_schema_script_exists(self) -> None:
-        """FAILS (RED): script does not exist yet."""
+        """check-corpus-schema.sh exists at the expected plugin path."""
         assert CHECK_CORPUS_SCHEMA_SH.exists(), (
             f"check-corpus-schema.sh not found at {CHECK_CORPUS_SCHEMA_SH}"
         )
 
     def test_check_corpus_schema_exits_zero_for_anti_patterns(self) -> None:
-        """FAILS (RED): script absent and directory absent — subprocess exits non-zero."""
+        """check-corpus-schema.sh exits 0 when validating the anti-patterns/ directory."""
         assert CHECK_CORPUS_SCHEMA_SH.exists(), (
             "check-corpus-schema.sh not found — cannot run schema validation"
         )
@@ -231,11 +225,11 @@ class TestRefQueryAntiPatterns:
     """ref-query must return >= 1 result for 'session timeout' with domain filter auth."""
 
     def test_ref_query_script_exists(self) -> None:
-        """FAILS (RED): script does not exist yet."""
+        """ref-query.sh exists at the expected plugin path."""
         assert REF_QUERY_SH.exists(), f"ref-query.sh not found at {REF_QUERY_SH}"
 
     def test_ref_query_returns_auth_result_for_session_timeout(self) -> None:
-        """FAILS (RED): script absent and corpus absent — no results returned."""
+        """ref-query.sh returns at least one result for 'session timeout' filtered to domain=auth."""
         assert REF_QUERY_SH.exists(), (
             "ref-query.sh not found — cannot run retrieval check"
         )

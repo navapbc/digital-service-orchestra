@@ -44,8 +44,10 @@ logger = logging.getLogger(__name__)
 #       Legacy batch dispatch (manifest writer + HEAD-drift guard).
 #
 # Selection is by argument type at the top of apply().
-_MutationModule = None  # late-loaded mutation module; written by _load_mutation_module()
-_ErrorsModule = None    # late-loaded _errors module; written by _load_errors_module()
+_MutationModule = (
+    None  # late-loaded mutation module; written by _load_mutation_module()
+)
+_ErrorsModule = None  # late-loaded _errors module; written by _load_errors_module()
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,9 +100,7 @@ def _load_errors_module():
     if _ErrorsModule is not None:
         return _ErrorsModule
     err_path = Path(__file__).parent / "_errors.py"
-    spec = importlib.util.spec_from_file_location(
-        "dso_reconciler_errors", err_path
-    )
+    spec = importlib.util.spec_from_file_location("dso_reconciler_errors", err_path)
     if spec is None:
         raise FileNotFoundError(f"_errors.py not found at {err_path}")
     mod = importlib.util.module_from_spec(spec)
@@ -235,7 +235,9 @@ def _apply_outbound_update(mutation, *, client=None) -> ApplyResult:
         changed_fields = {k: v for k, v in changed_fields.items() if k != "status"}
 
     # Filter to allowlist. Non-allowlisted fields are silently dropped.
-    allowed = {k: v for k, v in changed_fields.items() if k in _OUTBOUND_UPDATE_ALLOWLIST}
+    allowed = {
+        k: v for k, v in changed_fields.items() if k in _OUTBOUND_UPDATE_ALLOWLIST
+    }
     if allowed:
         _call_with_retry(client.update_issue, mutation.target, **allowed)
     return ApplyResult(
@@ -364,8 +366,11 @@ _LEAVES: dict[tuple[Any, Any], Callable[..., ApplyResult]] = _build_leaves()
 # dso-id label write authorization contract
 # ---------------------------------------------------------------------------
 
-_AUTHORIZED_DSO_ID_LABEL_WRITERS_DOC: str = (
-    """
+# Justification for the F841 suppression below: this constant is read by
+# tests/unit/dso_reconciler/test_errors.py::test_authorized_writers_docstring
+# _documents_full_contract via getattr — static analyzers cannot trace the
+# usage. Do NOT remove; it is the contract artifact for story 4496 dd-1.
+_AUTHORIZED_DSO_ID_LABEL_WRITERS_DOC: str = """  # noqa: F841
 dso-id label write authorization contract for applier.py
 =========================================================
 
@@ -398,7 +403,6 @@ two authorized leaves above, not by the per-field provenance resolution path.
 inbound_repair_property writes the dso_local_id property field (entity
 properties, not labels). It MUST NOT touch the label surface.
 """
-)
 
 _AUTHORIZED_DSO_ID_LABEL_WRITERS: frozenset[str] = frozenset(
     {"inbound_clean_label", "outbound_create"}
@@ -478,7 +482,11 @@ def _is_dso_id_label_write_mutation(mutation) -> bool:
         # Dict payload: check embedded 'target'=='label' and 'label' value
         embedded_target = payload.get("target", "")
         label_val = payload.get("label", "")
-        if embedded_target == "label" and isinstance(label_val, str) and label_val.startswith("dso-id-"):
+        if (
+            embedded_target == "label"
+            and isinstance(label_val, str)
+            and label_val.startswith("dso-id-")
+        ):
             return True
     return False
 
@@ -593,18 +601,18 @@ class _BatchAuditView:
 # Mirrors the _LEAVES dispatch table; used by _apply_typed to derive leaf_name for
 # the audit without needing to inspect function names.
 _LEAF_NAMES: dict[tuple[str, str], str] = {
-    ("outbound", "create"):           "outbound_create",
-    ("outbound", "update"):           "outbound_update",
-    ("outbound", "delete"):           "outbound_delete",
-    ("outbound", "probe"):            "outbound_probe",
-    ("outbound", "conflict"):         "outbound_conflict",
-    ("inbound",  "create"):           "inbound_create",
-    ("inbound",  "update"):           "inbound_update",
-    ("inbound",  "delete"):           "inbound_delete",
-    ("inbound",  "probe"):            "inbound_probe",
-    ("inbound",  "clean_label"):      "inbound_clean_label",
-    ("inbound",  "repair_property"):  "inbound_repair_property",
-    ("inbound",  "conflict"):         "inbound_conflict",
+    ("outbound", "create"): "outbound_create",
+    ("outbound", "update"): "outbound_update",
+    ("outbound", "delete"): "outbound_delete",
+    ("outbound", "probe"): "outbound_probe",
+    ("outbound", "conflict"): "outbound_conflict",
+    ("inbound", "create"): "inbound_create",
+    ("inbound", "update"): "inbound_update",
+    ("inbound", "delete"): "inbound_delete",
+    ("inbound", "probe"): "inbound_probe",
+    ("inbound", "clean_label"): "inbound_clean_label",
+    ("inbound", "repair_property"): "inbound_repair_property",
+    ("inbound", "conflict"): "inbound_conflict",
 }
 
 
@@ -628,9 +636,7 @@ def _apply_typed(mutation, *, client=None) -> ApplyResult:
         )
     # Audit: derive leaf_name from the (direction, action) pair and run the
     # dso-id label write guard before any leaf side-effect occurs.
-    leaf_name = _LEAF_NAMES.get(
-        (mutation.direction.value, mutation.action.value), ""
-    )
+    leaf_name = _LEAF_NAMES.get((mutation.direction.value, mutation.action.value), "")
     _audit_dso_id_label_writes(leaf_name, [mutation])
     return handler(mutation, client=client)
 
@@ -986,7 +992,10 @@ def create_one(
                 import uuid as _uuid
                 import time as _time
                 import json as _json
-                _alert_root = (repo_root or Path(__file__).parents[4]) / ".tickets-tracker"
+
+                _alert_root = (
+                    repo_root or Path(__file__).parents[4]
+                ) / ".tickets-tracker"
                 # F7: defensive guard — if local_id is falsy the alert directory
                 # would resolve to .tickets-tracker root and pollute it. Prefer
                 # the jira_key, falling back to a uuid so the alert always lands
@@ -997,17 +1006,21 @@ def create_one(
                 _ts = _time.time_ns()
                 _alert_uuid = str(_uuid.uuid4())
                 _alert_path = _ticket_dir / f"{_ts}-{_alert_uuid}-BRIDGE_ALERT.json"
-                _alert_path.write_text(_json.dumps({
-                    "event_type": "BRIDGE_ALERT",
-                    "timestamp": _ts,
-                    "uuid": _alert_uuid,
-                    "ticket_id": local_id,
-                    "jira_key": jira_key,
-                    "data": {
-                        "reason": "identity-write failed after create; Jira issue deleted",
-                        "tag": "create-identity-write-failed",
-                    },
-                }))
+                _alert_path.write_text(
+                    _json.dumps(
+                        {
+                            "event_type": "BRIDGE_ALERT",
+                            "timestamp": _ts,
+                            "uuid": _alert_uuid,
+                            "ticket_id": local_id,
+                            "jira_key": jira_key,
+                            "data": {
+                                "reason": "identity-write failed after create; Jira issue deleted",
+                                "tag": "create-identity-write-failed",
+                            },
+                        }
+                    )
+                )
             except Exception:
                 pass  # alert write failure must not mask original error
             raise write_err
@@ -1060,12 +1073,14 @@ def update_one(mutation: dict, client) -> dict | None:
             client.add_comment(issue_key, comment)
         except Exception:
             pass  # secondary failure must not mask the comment-fallback path
-        log_entry = json.dumps({
-            "action": "comment_fallback",
-            "issue_key": issue_key,
-            "attempted_status": new_status,
-            "reason": "400_illegal_transition",
-        })
+        log_entry = json.dumps(
+            {
+                "action": "comment_fallback",
+                "issue_key": issue_key,
+                "attempted_status": new_status,
+                "reason": "400_illegal_transition",
+            }
+        )
         print(log_entry, file=sys.stderr)
         return None
 
@@ -1216,7 +1231,87 @@ def apply(
         raise TypeError(
             "apply() legacy batch form requires pass_id as the second argument"
         )
-    return _apply_batch(mutations or [], pass_id, repo_root=repo_root)
+
+    # Normalise list-of-Mutation → list-of-dict before the legacy batch path.
+    # The differ in reconcile.py emits Mutation dataclass instances (canonical
+    # contract from epic 4047 / cde1) but _apply_batch was written against the
+    # pre-epic dict shape and calls `.get(...)` on each element. Producer
+    # (differ) and consumer (_apply_batch) are on different sides of the
+    # canonical-Mutation migration. Without this normalisation production
+    # crashes with "'Mutation' object has no attribute 'get'".
+    #
+    # Fail-closed guard: _apply_batch's leaf functions (create_one /
+    # update_one / delete_one) are outbound-only — they call client.create_issue
+    # / update_issue / transition_issue against Jira. Routing an INBOUND typed
+    # Mutation through this path would execute outbound code against the
+    # wrong subsystem. Until the legacy batch path is direction-aware (tracked
+    # by meta-bug 5f2a-9a9f-2b4a-4aab), raise rather than silently route.
+    mutations_list = list(mutations or [])
+    typed_inbound = [
+        m
+        for m in mutations_list
+        if hasattr(m, "direction")
+        and str(
+            getattr(getattr(m, "direction", None), "value", getattr(m, "direction", ""))
+        )
+        == "inbound"
+    ]
+    if typed_inbound:
+        raise TypeError(
+            f"apply() list-of-Mutation legacy batch path currently supports "
+            f"outbound mutations only; got {len(typed_inbound)} inbound "
+            f"Mutation(s). Inbound dispatch should route through "
+            f"reconcile._dispatch_mutation / _apply_typed per-mutation. "
+            f"Tracked by meta-bug 5f2a-9a9f-2b4a-4aab."
+        )
+    # Use one predicate (_looks_like_mutation) for both detection and
+    # conversion so the two passes can never disagree on element class.
+    # The earlier code used isinstance+type(name) for detection but bare
+    # hasattr("direction") for conversion — coderabbit flagged this as
+    # "asymmetric and fragile" on PR #364.
+    def _looks_like_mutation(m) -> bool:
+        if isinstance(m, mut_mod.Mutation):
+            return True
+        return (
+            type(m).__name__ == "Mutation"
+            and hasattr(m, "direction")
+            and hasattr(m, "action")
+        )
+
+    if mutations_list and any(_looks_like_mutation(m) for m in mutations_list):
+        mutations_list = [
+            _mutation_to_batch_dict(m) if _looks_like_mutation(m) else m
+            for m in mutations_list
+        ]
+    return _apply_batch(mutations_list, pass_id, repo_root=repo_root)
+
+
+def _mutation_to_batch_dict(mutation) -> dict:
+    """Convert a Mutation dataclass instance to the legacy batch-dict shape.
+
+    The legacy batch consumer (_apply_batch) expects a dict with keys:
+    action, fields, key, local_id, follow_on, direction. Map the Mutation
+    attributes accordingly so the batch path can iterate without crashing.
+
+    Note: this dict is later passed through `json.dumps` when the manifest
+    is written. Every value here MUST be JSON-serializable. Do NOT store
+    the original Mutation object as a back-reference — non-serializable.
+    """
+    payload = dict(mutation.payload) if mutation.payload else {}
+    action_value = getattr(mutation.action, "value", str(mutation.action))
+    direction_value = getattr(mutation.direction, "value", str(mutation.direction))
+    # Use payload.get("fields", payload) — NOT `or payload` — so an
+    # intentionally-empty `fields: {}` doesn't truthy-fall-through to the
+    # whole payload (which would leak local_id / follow_on / etc. into
+    # batch fields). coderabbit-flagged on PR #364.
+    return {
+        "action": action_value,
+        "direction": direction_value,
+        "key": mutation.target,
+        "fields": payload.get("fields", payload),
+        "local_id": payload.get("local_id", ""),
+        "follow_on": payload.get("follow_on"),
+    }
 
 
 def _apply_batch(
@@ -1315,7 +1410,9 @@ def _apply_batch(
             # outbound_<action> leaf for guard-name purposes. Without this
             # call, _audit_dso_id_label_writes was bypassed for every legacy
             # dict-shaped mutation — only _apply_typed enforced the contract.
-            _audit_dso_id_label_writes(f"outbound_{action}", [_BatchAuditView(mutation)])
+            _audit_dso_id_label_writes(
+                f"outbound_{action}", [_BatchAuditView(mutation)]
+            )
 
             if action == "create":
                 result = create_one(
@@ -1342,9 +1439,7 @@ def _apply_batch(
                     conflict_resolver = _load_conflict_resolver()
                     mapping_path = repo_root / "bridge_state" / "mapping.json"
                     for field_name, field_value in mutation.get("fields", {}).items():
-                        if (
-                            conflict_resolver.FIELD_CLASSES.get(field_name) == "set"
-                        ):
+                        if conflict_resolver.FIELD_CLASSES.get(field_name) == "set":
                             _persist_field_provenance(
                                 mapping_path, jira_key, field_name, field_value
                             )

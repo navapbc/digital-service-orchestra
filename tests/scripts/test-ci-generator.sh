@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # tests/scripts/test-ci-generator.sh
-# RED-phase TDD tests for plugins/dso/scripts/onboarding/ci-generator.sh
+
 #
-# The generator script does not yet exist — all tests should FAIL (RED).
+# The generator script does not yet exist — all tests should FAIL.
 #
 # Tests covered:
 #   1. test_generates_ci_yml_for_fast_suites
@@ -55,7 +55,7 @@ run_generator() {
 
 # ── test_ci_generator_script_exists ──────────────────────────────────────────
 # The generator script must exist and be executable before any other test runs.
-# (This test will also be RED until the script is created.)
+
 _snapshot_fail
 if [[ -f "$SCRIPT" ]]; then
     actual_exists="exists"
@@ -220,7 +220,7 @@ assert_pass_if_clean "test_mixed_suites_split_correctly"
 #
 # The current sanitize_command strips the semicolon but retains the text after
 # it ('rm -rf /'), so the YAML run field ends up as 'make test rm -rf /'.
-# This test fails RED until dso-cwyt implements truncation-at-first-metachar
+
 # or a stricter rejection policy.
 _snapshot_fail
 METACHAR_SUITES='[{"name":"unit","command":"make test; rm -rf /","speed_class":"fast","runner":"make"}]'
@@ -465,7 +465,6 @@ assert_pass_if_clean "test_no_validator_available_succeeds"
 #            (grep -B5 'validate-required-checks' <file> | grep -q 'run:'
 #             looks for run: in the 5 lines BEFORE the bash command).
 #
-# This test is RED until Task 2b implements --mode=pr-protected.
 _snapshot_fail
 PR_PROTECTED_SUITES='[{"name":"unit","command":"make test-unit","speed_class":"fast","runner":"make"}]'
 PR_PROTECTED_DIR="$TMPDIR_OUTPUT/pr_protected"

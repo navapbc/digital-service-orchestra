@@ -11,7 +11,7 @@
 set -euo pipefail
 
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-_PLUGIN_ROOT="$(cd "$_SCRIPT_DIR/../.." && pwd)"
+_PLUGIN_ROOT="$(cd "$_SCRIPT_DIR/../../plugins/dso" && pwd)"
 
 VALIDATOR="$_PLUGIN_ROOT/scripts/check-copy-needs-schema.sh"
 FIXTURE_DIR="$_SCRIPT_DIR/fixtures"

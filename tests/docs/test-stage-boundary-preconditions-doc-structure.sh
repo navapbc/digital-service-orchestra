@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# RED test: structural boundary for docs/designs/stage-boundary-preconditions/
+# structural boundary for docs/designs/stage-boundary-preconditions/
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"

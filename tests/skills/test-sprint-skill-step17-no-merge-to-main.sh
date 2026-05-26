@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # plugins/dso/tests/test-sprint-skill-step17-no-merge-to-main.sh
-# RED test: assert desired post-change state of plugins/dso/skills/sprint/SKILL.md
+# assert desired post-change state of plugins/dso/skills/sprint/SKILL.md
 #
 # Asserts:
 #   1. merge-to-main.sh is NOT referenced in Step 17 (### Step 17: Commit & Push)

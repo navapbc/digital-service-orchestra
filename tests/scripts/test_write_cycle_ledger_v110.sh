@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# RED test: write-cycle-ledger.sh emits v1.1.0 schema with findings + commit_sha
+# write-cycle-ledger.sh emits v1.1.0 schema with findings + commit_sha
 #
 # Verifies the v1.1.0 contract changes:
 #   - schema_version bumped 1.0.0 -> 1.1.0

@@ -218,9 +218,6 @@ test_scope_filtering_out_of_scope() {
 # Strategy: read validate.sh source and assert it references "check-shim-refs"
 # (the check name that appears in run_check / report_check calls). This test
 # passes only once validate.sh is updated to include the shim-refs check.
-#
-# This test FAILS (RED) until validate.sh is updated to include the shim-refs
-# wiring in its --ci pipeline.
 test_validate_runs_shim_refs_check() {
     _snapshot_fail
     local _validate_sh _has_ref
@@ -241,9 +238,6 @@ test_validate_runs_shim_refs_check() {
 # Pre-commit wiring check (SC4): .pre-commit-config.yaml must contain an entry
 # that invokes check-shim-refs.sh as a pre-commit hook. This is a static
 # contract test — it verifies the hook is wired into the pre-commit pipeline.
-#
-# This test FAILS (RED) until .pre-commit-config.yaml is updated to wire
-# check-shim-refs.sh as a pre-commit hook for plugins/dso/ files.
 test_precommit_blocks_shim_violation() {
     _snapshot_fail
     local _precommit_config _has_entry

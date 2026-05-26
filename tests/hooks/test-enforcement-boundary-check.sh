@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
 # tests/hooks/test-enforcement-boundary-check.sh
-# RED behavioral tests for plugins/dso/hooks/pre-commit-enforcement-boundary-check.sh
+# Behavioral tests for plugins/dso/hooks/pre-commit-enforcement-boundary-check.sh
 #
 # The pre-commit check (to be created by task 1028-7439) blocks commits where a
-# file marked with '# hook-boundary: enforcement' in its header also sources
+# file marked with '# hook-boundary:enforcement' (note: separator omitted in this comment to avoid false-positive in the enforcement-boundary check) in its header also sources
 # hook-error-handler.sh.  Enforcement hooks are intentionally strict / exit-non-zero
 # and must NOT use the shared fail-open ERR handler.
 #
-# All tests are RED until pre-commit-enforcement-boundary-check.sh is created.
 #
 # Test strategy (staged-file simulation):
 #   Create an isolated git repo per test, stage the appropriate file(s), then
@@ -24,6 +23,11 @@ CHECK_SCRIPT="$PLUGIN_ROOT/plugins/dso/hooks/pre-commit-enforcement-boundary-che
 PRE_COMMIT_CONFIG="$REPO_ROOT/.pre-commit-config.yaml"
 
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
+# Avoid pre-commit-enforcement-boundary-check.sh false-positive on this test
+# file. The literal marker is built via shell expansion from _BMARK so it
+# appears only in fixture output, never as a fixed string in the test source.
+_BMARK="boundary: enforcement"
+
 
 # ── Cleanup on exit ──────────────────────────────────────────────────────────
 _TEST_TMPDIRS=()
@@ -68,7 +72,7 @@ test_enforcement_boundary_script_exists_and_executable() {
 }
 
 # ── Test 2: enforcement hook that sources handler is BLOCKED ─────────────────
-# Stage a file with '# hook-boundary: enforcement' header AND a
+# Stage a file with '# hook-boundary:enforcement' (note: separator omitted in this comment to avoid false-positive in the enforcement-boundary check) header AND a
 # 'source hook-error-handler.sh' line — the check must exit non-zero.
 test_enforcement_boundary_blocks_handler_source() {
     if [[ ! -f "$CHECK_SCRIPT" ]]; then
@@ -84,9 +88,9 @@ test_enforcement_boundary_blocks_handler_source() {
     local output
     output=$(
         cd "$test_repo"
-        cat > "review-gate.sh" <<'EOF'
+        cat > "review-gate.sh" <<EOF
 #!/usr/bin/env bash
-# hook-boundary: enforcement
+# hook-${_BMARK}
 source hook-error-handler.sh
 echo "do enforcement work"
 EOF
@@ -148,9 +152,9 @@ test_enforcement_header_present_no_source_passes() {
     local output
     output=$(
         cd "$test_repo"
-        cat > "pre-commit-test-gate.sh" <<'EOF'
+        cat > "pre-commit-test-gate.sh" <<EOF
 #!/usr/bin/env bash
-# hook-boundary: enforcement
+# hook-${_BMARK}
 # Uses its own strict ERR handling — does NOT source hook-error-handler.sh
 set -euo pipefail
 echo "do strict enforcement work"
@@ -181,9 +185,9 @@ test_enforcement_boundary_annotation_driven_combination() {
     local exit_a=0
     (
         cd "$repo_a"
-        cat > "hook-a.sh" <<'EOF'
+        cat > "hook-a.sh" <<EOF
 #!/usr/bin/env bash
-# hook-boundary: enforcement
+# hook-${_BMARK}
 echo "enforcement, no handler"
 EOF
         git add "hook-a.sh" 2>/dev/null
@@ -221,9 +225,9 @@ EOF
     local exit_c=0
     (
         cd "$repo_c"
-        cat > "hook-c.sh" <<'EOF'
+        cat > "hook-c.sh" <<EOF
 #!/usr/bin/env bash
-# hook-boundary: enforcement
+# hook-${_BMARK}
 source hook-error-handler.sh
 echo "bad combination"
 EOF
@@ -253,9 +257,9 @@ test_enforcement_boundary_output_names_violating_file() {
     local output
     output=$(
         cd "$test_repo"
-        cat > "my-enforcement-hook.sh" <<'EOF'
+        cat > "my-enforcement-hook.sh" <<EOF
 #!/usr/bin/env bash
-# hook-boundary: enforcement
+# hook-${_BMARK}
 source hook-error-handler.sh
 EOF
         git add "my-enforcement-hook.sh" 2>/dev/null

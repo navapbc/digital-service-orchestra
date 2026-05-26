@@ -12,13 +12,12 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# This file lives at <plugin_root>/tests/test-dogfood-gov-copy.sh.
-# Derive _PLUGIN_ROOT via SCRIPT_DIR, which is always correct for the current worktree.
-_PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+_REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+_PLUGIN_ROOT="$_REPO_ROOT/plugins/dso"
 
 HARNESS="${_PLUGIN_ROOT}/scripts/dogfood-gov-copy.sh"
-BASELINE="${_PLUGIN_ROOT}/tests/fixtures/dogfood/bad-copy-baseline.yaml"
-IMPROVED="${_PLUGIN_ROOT}/tests/fixtures/dogfood/good-copy-improved.yaml"
+BASELINE="${_REPO_ROOT}/tests/fixtures/dogfood/bad-copy-baseline.yaml"
+IMPROVED="${_REPO_ROOT}/tests/fixtures/dogfood/good-copy-improved.yaml"
 
 PASS=0
 FAIL=0

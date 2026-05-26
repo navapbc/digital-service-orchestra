@@ -3,7 +3,6 @@
 # Integration tests for plugins/dso/scripts/resolve-abandoned-worktrees.sh
 #
 # Tests use real git repos in temp dirs.
-# These tests are RED until resolve-abandoned-worktrees.sh is implemented.
 #
 # Usage: bash tests/scripts/test-worktree-resume-integration.sh
 #

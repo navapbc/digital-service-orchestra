@@ -10,10 +10,6 @@
 # 3. DEPENDENCY-GUIDANCE.md contains an audit tools section with entries for
 #    pip-audit --strict, npm audit --audit-level=moderate, bundle-audit check --update.
 #
-# This test FAILS (RED) on the current codebase because REVIEW-WORKFLOW.md still
-# contains 'make lint-ruff'/'make lint-mypy' and DEPENDENCY-GUIDANCE.md has no
-# audit tools section.
-#
 # Usage: bash tests/docs/test-doc-polyglot-compliance.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 

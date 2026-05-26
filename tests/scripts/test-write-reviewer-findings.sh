@@ -8,14 +8,14 @@
 #   - Invalid JSON is rejected (exit 1, no file written)
 #   - Empty input is rejected (exit 2)
 #   - Script sources deps.sh for get_artifacts_dir()
-#   - cited_lines missing in finding is rejected (gate not yet active = RED)
-#   - cited_lines empty array is rejected (gate not yet active = RED)
+#   - cited_lines missing in finding is rejected
+#   - cited_lines empty array is rejected
 #   - cited_lines valid "path:line" format is accepted
 #   - cited_lines valid "~path:line" tilde prefix is accepted
-#   - cited_lines "~" alone (no path/line) is rejected (gate not yet active = RED)
-#   - cited_lines entry with no line number is rejected (gate not yet active = RED)
-#   - cited_lines empty string entry is rejected (gate not yet active = RED)
-#   - cited_lines "unknown" literal is rejected (gate not yet active = RED)
+#   - cited_lines "~" alone (no path/line) is rejected
+#   - cited_lines entry with no line number is rejected
+#   - cited_lines empty string entry is rejected
+#   - cited_lines "unknown" literal is rejected
 
 set -uo pipefail
 
@@ -169,8 +169,7 @@ new_hash_output=$(echo "$NEW_DIM_JSON" | "$SCRIPT" 2>/dev/null) && new_exit_code
 assert_eq "test_write_new_dimension_names_accepted" "0" "$new_exit_code"
 
 # ---------------------------------------------------------------------------
-# --review-tier flag tests (RED: write-reviewer-findings.sh does not support
-# --review-tier yet; these tests document the expected behaviour)
+# --review-tier flag tests
 # ---------------------------------------------------------------------------
 # validate-review-output.sh accepts 2-key schema {findings, summary} and optionally
 # review_tier / selected_tier injected by write-reviewer-findings.sh flags.
@@ -342,7 +341,7 @@ assert_eq "test_write_old_dimension_names_deprecated: exits 0 (scores tolerated 
 # ---------------------------------------------------------------------------
 # test_write_reviewer_two_key_schema_succeeds
 # Piping a 2-key schema {findings:[...], summary:"..."} should exit 0 and output a hash.
-# RED: fails until write-reviewer-findings.sh is updated to accept 2-key schema.
+# fails until write-reviewer-findings.sh is updated to accept 2-key schema.
 # ---------------------------------------------------------------------------
 echo "=== test_write_reviewer_two_key_schema_succeeds ==="
 TMPDIR_TEST=$(mktemp -d "${TMPDIR:-/tmp}/test-write-reviewer-XXXXXX")
@@ -385,12 +384,12 @@ VALID_JSON_WITH_CITED_LINES='{
 }'
 
 # ---------------------------------------------------------------------------
-# cited_lines validation tests (RED — fail until cited_lines gate activated in T7)
+# cited_lines validation tests
 # ---------------------------------------------------------------------------
 echo "=== cited_lines validation tests ==="
 
 # GREEN acceptance tests come first — must not fall inside the RED zone.
-# (RED zone boundary starts at test_cited_lines_missing_rejected below.)
+#
 
 # test_cited_lines_valid_path_colon_line
 rm -f "$ARTIFACTS_DIR/reviewer-findings.json"

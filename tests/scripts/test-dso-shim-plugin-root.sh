@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # tests/scripts/test-dso-shim-plugin-root.sh
-# TDD RED-phase test: shim must preserve CLAUDE_PLUGIN_ROOT when pre-set by caller.
+# The .claude/scripts/dso shim must preserve CLAUDE_PLUGIN_ROOT when pre-set by caller.
 #
 # Verifies that the .claude/scripts/dso shim does NOT overwrite CLAUDE_PLUGIN_ROOT
 # when it is already set by the caller (e.g. by Claude Code's auto-set mechanism).
 #
-# RED PHASE (dso-taha): This test is expected to FAIL against the current shim
+
 # implementation (lines 32-36 unconditionally re-export CLAUDE_PLUGIN_ROOT from
 # DSO_ROOT, even when CLAUDE_PLUGIN_ROOT was already set correctly).
 #
@@ -56,7 +56,7 @@ echo "=== test-dso-shim-plugin-root.sh ==="
 # However, the current shim unconditionally re-exports CLAUDE_PLUGIN_ROOT = DSO_ROOT
 # at lines 32-36. This test asserts the pre-set value is preserved.
 #
-# RED: With the current shim, the re-export fires unconditionally. When sourced in a
+# With the current shim, the re-export fires unconditionally. When sourced in a
 # subshell where we unset CLAUDE_PLUGIN_ROOT first (simulating the config-fallback
 # code path), the shim exports CLAUDE_PLUGIN_ROOT to the config path — overwriting
 # the caller's intended value. We simulate this by:
@@ -100,7 +100,7 @@ test_shim_preserves_claude_plugin_root_when_preset() {
     #   • With CLAUDE_PLUGIN_ROOT preset → DSO_ROOT = preset_value → CLAUDE_PLUGIN_ROOT = preset_value
     #
     # In both cases, the current shim leaves CLAUDE_PLUGIN_ROOT equal to DSO_ROOT.
-    # The RED failure is demonstrated by sourcing the shim with the config path
+    # The failure is demonstrated by sourcing the shim with the config path
     # and asserting that CLAUDE_PLUGIN_ROOT remains the caller's preset_value —
     # which requires the guard that dso-ilna will add.
 
@@ -146,7 +146,7 @@ test_shim_preserves_claude_plugin_root_when_preset() {
     # then export CLAUDE_PLUGIN_ROOT = preset_value.  The value is preserved, but
     # the export still fires unconditionally.
     #
-    # The definitive RED assertion: the shim must not export CLAUDE_PLUGIN_ROOT
+    # The definitive assertion: the shim must not export CLAUDE_PLUGIN_ROOT
     # when it was already set.  We detect the unconditional re-export by checking
     # whether a NON-EXPORTED variable gets promoted to exported status.
     local was_exported
@@ -170,17 +170,17 @@ test_shim_preserves_claude_plugin_root_when_preset() {
     assert_eq "test_shim_preserves_claude_plugin_root_when_preset (clean env preserved)" \
         "$preset_value" "$was_exported"
 
-    # The true RED assertion: when CLAUDE_PLUGIN_ROOT is set and the shim is
+    # The true assertion: when CLAUDE_PLUGIN_ROOT is set and the shim is
     # sourced in a context where the config has a DIFFERENT path, after the shim
     # runs the caller's CLAUDE_PLUGIN_ROOT must not have been changed to config_path.
     #
     # This assertion currently PASSES (because DSO_ROOT = env var, not config),
-    # but the test as a whole is RED because it documents the unconditional re-export
+    # but the test fails because it documents the unconditional re-export
     # that dso-ilna will fix. Once dso-ilna adds the guard, the shim correctly skips
     # the re-export, making the mechanism explicit rather than relying on env var
     # resolution order coincidentally producing the correct value.
     #
-    # The definitive RED failure comes from the config-fallback + overwrite scenario:
+    # The definitive failure comes from the config-fallback + overwrite scenario:
     local overwrite_check
     overwrite_check=$(
         cd "$fake_repo" || exit 1
@@ -200,7 +200,7 @@ test_shim_preserves_claude_plugin_root_when_preset() {
             "
     )
     # The caller's preset_value must survive the second shim source.
-    # CURRENT CODE (RED): DSO_ROOT = preset_value (env var), export CLAUDE_PLUGIN_ROOT = preset_value.
+    # CURRENT CODE: DSO_ROOT = preset_value (env var), export CLAUDE_PLUGIN_ROOT = preset_value.
     #   Value is preserved BY COINCIDENCE (env var resolution order).
     # FIXED CODE (GREEN): Guard skips re-export when CLAUDE_PLUGIN_ROOT is already set.
     #   Value is preserved BY DESIGN (explicit guard prevents any re-export).
@@ -212,7 +212,7 @@ test_shim_preserves_claude_plugin_root_when_preset() {
 # The shim must not overwrite a pre-set CLAUDE_PLUGIN_ROOT with the value from
 # .claude/dso-config.conf when the config path DIFFERS from the env var value.
 #
-# RED: This test specifically constructs a scenario where the unconditional
+# This test specifically constructs a scenario where the unconditional
 # re-export at lines 32-36 would overwrite the caller's value. It does this by:
 #   1. Running the shim once without CLAUDE_PLUGIN_ROOT (so shim resolves from config)
 #   2. Then running again with CLAUDE_PLUGIN_ROOT set to a different value
@@ -240,11 +240,11 @@ test_shim_does_not_clobber_preset_with_config_value() {
     #   - Line 35: export CLAUDE_PLUGIN_ROOT = preset_value (re-export, same value)
     # Result: CLAUDE_PLUGIN_ROOT = preset_value (preserved, but by accident)
     #
-    # The RED condition is that the shim unconditionally re-executes the export.
+    # The condition is that the shim unconditionally re-executes the export.
     # After the dso-ilna fix, the export is conditionally skipped when CLAUDE_PLUGIN_ROOT
     # is already set — making preservation explicit and reliable.
     #
-    # To create a genuine RED (failing) assertion, we verify the following contract:
+    # To create a failing assertion, we verify the following contract:
     # "If CLAUDE_PLUGIN_ROOT is pre-set, the shim in --lib mode must not modify it."
     # We enforce this by checking the value in an env -i context where we control
     # exactly what the shim sees.
@@ -284,7 +284,7 @@ test_shim_does_not_clobber_preset_with_config_value() {
 }
 
 # ── test_shim_unconditional_reexport_detection ────────────────────────────────
-# Direct RED test: the current shim unconditionally executes
+
 #   export CLAUDE_PLUGIN_ROOT="$DSO_ROOT"
 # at lines 32-36, even when CLAUDE_PLUGIN_ROOT was already set by the caller.
 #
@@ -295,7 +295,7 @@ test_shim_does_not_clobber_preset_with_config_value() {
 #   if [ -z "${CLAUDE_PLUGIN_ROOT:-}" ]; then ...
 # this structural check will detect the guard and the test will pass.
 #
-# RED: The current code has NO guard — lines 34-36 are a bare `if [ -n "$DSO_ROOT" ]`
+# The current code has NO guard — lines 34-36 are a bare `if [ -n "$DSO_ROOT" ]`
 # with no check for whether CLAUDE_PLUGIN_ROOT was already set.
 test_shim_unconditional_reexport_detection() {
     if [[ ! -f "$SHIM" ]]; then
@@ -329,21 +329,20 @@ test_shim_unconditional_reexport_detection() {
         fi
     fi
 
-    # RED assertion: the guard does NOT exist yet (current code is unconditional).
     # This assertion FAILS after dso-ilna adds the guard.
     assert_eq "test_shim_unconditional_reexport_detection (has preservation guard)" \
         "true" "$has_guard"
 }
 
 # ── test_shim_reads_plugin_root_from_dot_claude_dso_config ───────────────────
-# RED phase (dso-jfy3): The shim must read dso.plugin_root from
+
 # .claude/dso-config.conf when CLAUDE_PLUGIN_ROOT is not set.
 #
 # Setup: create a temp git repo with .claude/dso-config.conf containing
 #   dso.plugin_root=<path>
 # The shim must resolve DSO_ROOT to that path.
 #
-# RED: The current shim reads from dso-config.conf at the git root (step 2).
+# The current shim reads from dso-config.conf at the git root (step 2).
 # It does NOT look at .claude/dso-config.conf. This test fails until the shim is
 # updated (dso-tuz0) to check .claude/dso-config.conf first (or instead).
 test_shim_reads_plugin_root_from_dot_claude_dso_config() {
@@ -376,14 +375,13 @@ test_shim_reads_plugin_root_from_dot_claude_dso_config() {
             "
     )
 
-    # RED: The shim does not yet read .claude/dso-config.conf, so DSO_ROOT will
     # be empty/UNSET (or fail entirely). This assertion fails until dso-tuz0 lands.
     assert_eq "test_shim_reads_plugin_root_from_dot_claude_dso_config" \
         "$expected_path" "$actual_dso_root"
 }
 
 # ── test_shim_no_fallback_to_workflow_config_conf ─────────────────────────────
-# RED phase (dso-jfy3): When a repo has ONLY dso-config.conf at the root
+
 # (the old location), the shim must NOT use it to resolve DSO_ROOT.
 # After the migration (dso-tuz0), only .claude/dso-config.conf is a valid
 # config source — the root-level dso-config.conf must be ignored.
@@ -392,7 +390,7 @@ test_shim_reads_plugin_root_from_dot_claude_dso_config() {
 #   dso.plugin_root=<path>
 # The shim must exit non-zero or leave DSO_ROOT empty.
 #
-# RED: The current shim DOES read from dso-config.conf at root. This test
+# The current shim DOES read from dso-config.conf at root. This test
 # fails until the shim is updated (dso-tuz0) to stop reading from that location.
 test_shim_no_fallback_to_workflow_config_conf() {
     if [[ ! -f "$SHIM" ]]; then
@@ -429,7 +427,7 @@ test_shim_no_fallback_to_workflow_config_conf() {
 
     # After migration, DSO_ROOT must be UNSET (shim exits non-zero or returns empty).
     # We verify either: exit non-zero OR DSO_ROOT is not set to the old config path.
-    # RED: The current shim sets DSO_ROOT = old_config_path (reads from dso-config.conf).
+    # The current shim sets DSO_ROOT = old_config_path (reads from dso-config.conf).
     # The test fails until the shim stops reading from the root-level dso-config.conf.
     if [[ "$actual_exit_code" -ne 0 ]]; then
         # Shim exited non-zero — DSO_ROOT was not found. This is the desired post-migration behavior.
@@ -444,11 +442,11 @@ test_shim_no_fallback_to_workflow_config_conf() {
 }
 
 # ── test_shim_self_detects_via_sentinel ──────────────────────────────────────
-# RED phase (6d45-c859): When no CLAUDE_PLUGIN_ROOT env var is set and no
+
 # .claude/dso-config.conf is present, but plugins/dso/.claude-plugin/plugin.json
 # exists in the git repo, the shim must resolve DSO_ROOT to REPO_ROOT/plugins/dso.
 #
-# RED: The current shim has no sentinel step. DSO_ROOT will be UNSET (the shim
+
 # exits non-zero or leaves DSO_ROOT empty). This test fails until the sentinel
 # step is added to the shim.
 test_shim_self_detects_via_sentinel() {
@@ -486,17 +484,16 @@ test_shim_self_detects_via_sentinel() {
             "
     ) || true
 
-    # RED: DSO_ROOT will be UNSET because the shim has no sentinel step yet.
     assert_eq "test_shim_self_detects_via_sentinel (DSO_ROOT equals sentinel path)" \
         "$expected_dso_root" "$actual_dso_root"
 }
 
 # ── test_shim_sentinel_requires_plugin_json ───────────────────────────────────
-# RED phase (6d45-c859): The sentinel fallback must NOT activate when
+
 # plugins/dso/ exists but plugins/dso/.claude-plugin/plugin.json is absent.
 # The shim must exit non-zero or leave DSO_ROOT unset in this case.
 #
-# RED: The current shim has no sentinel step at all, so DSO_ROOT is always
+# The current shim has no sentinel step at all, so DSO_ROOT is always
 # UNSET when neither env var nor config is present. After the sentinel step is
 # added, this test ensures it requires the plugin.json file specifically.
 test_shim_sentinel_requires_plugin_json() {
@@ -542,10 +539,10 @@ test_shim_sentinel_requires_plugin_json() {
 }
 
 # ── test_shim_sentinel_exports_claude_plugin_root ─────────────────────────────
-# RED phase (6d45-c859): When the sentinel resolves DSO_ROOT, the shim must
+
 # also export CLAUDE_PLUGIN_ROOT = DSO_ROOT so downstream scripts can rely on it.
 #
-# RED: No sentinel step exists yet; CLAUDE_PLUGIN_ROOT remains unset. This test
+# No sentinel step exists yet; CLAUDE_PLUGIN_ROOT remains unset. This test
 # fails until the sentinel step is added and the existing CLAUDE_PLUGIN_ROOT
 # export guard is reached with the sentinel-resolved DSO_ROOT value.
 test_shim_sentinel_exports_claude_plugin_root() {
@@ -582,17 +579,16 @@ test_shim_sentinel_exports_claude_plugin_root() {
             "
     ) || true
 
-    # RED: CLAUDE_PLUGIN_ROOT will be UNSET because the shim has no sentinel step.
     assert_eq "test_shim_sentinel_exports_claude_plugin_root (CLAUDE_PLUGIN_ROOT equals sentinel path)" \
         "$expected_value" "$actual_plugin_root"
 }
 
 # ── test_discover_agents_resolves_routing_via_sentinel ────────────────────────
-# RED phase (6d45-c859): End-to-end test: after the shim resolves DSO_ROOT via
+
 # the sentinel, discover-agents.sh (which reads CLAUDE_PLUGIN_ROOT for its
 # default routing path) must exit 0 when a minimal agent-routing.conf is present.
 #
-# RED: No sentinel step exists; CLAUDE_PLUGIN_ROOT is unset; discover-agents.sh
+# No sentinel step exists; CLAUDE_PLUGIN_ROOT is unset; discover-agents.sh
 # exits 1 (missing routing conf). This test fails until the sentinel step lands.
 test_discover_agents_resolves_routing_via_sentinel() {
     if [[ ! -f "$SHIM" ]]; then
@@ -640,7 +636,6 @@ test_discover_agents_resolves_routing_via_sentinel() {
                 --settings /dev/null 2>/dev/null
         " && actual_exit=0 || true
 
-    # RED: discover-agents.sh exits non-zero because CLAUDE_PLUGIN_ROOT is unset
     # (no sentinel step), so the routing conf path is empty and the file is not found.
     assert_eq "test_discover_agents_resolves_routing_via_sentinel (exit 0 after sentinel resolution)" \
         "0" "$actual_exit"
@@ -651,7 +646,7 @@ test_discover_agents_resolves_routing_via_sentinel() {
 # exists (sentinel: .claude-plugin/plugin.json) and no config key is set,
 # the shim must resolve DSO_ROOT to that home-cache path.
 #
-# RED: current shim has no step (2.5) for home-cache autodetect between config
+# current shim has no step (2.5) for home-cache autodetect between config
 # resolution (step 2) and repo-local sentinel (step 3). This test fails before the fix.
 test_shim_autodetects_home_cache_plugin_root() {
     if [[ ! -f "$SHIM" ]]; then

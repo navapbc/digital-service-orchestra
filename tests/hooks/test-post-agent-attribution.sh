@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # tests/hooks/test-post-agent-attribution.sh
-# RED test: post-agent.sh dispatcher must call hook_record_agent_attribution.
+# post-agent.sh dispatcher must call hook_record_agent_attribution.
 #
 # Tests:
 #   test_post_agent_dispatcher_writes_attribution_jsonl_entry
 #
-# This test is RED because post-agent.sh does not yet call
+
 # hook_record_agent_attribution — so no JSONL entry is written.
 #
 # Usage: bash tests/hooks/test-post-agent-attribution.sh
@@ -40,7 +40,7 @@ POST_AGENT_DISPATCHER="$DSO_PLUGIN_DIR/hooks/dispatchers/post-agent.sh"
 # entry containing "subagent_type":"dso:red-test-writer" to
 # $ARTIFACTS_DIR/attribution-contributors.jsonl.
 #
-# This test is RED because post-agent.sh does not call
+
 # hook_record_agent_attribution yet — so no JSONL entry is written.
 # ============================================================
 echo "--- test_post_agent_dispatcher_writes_attribution_jsonl_entry ---"

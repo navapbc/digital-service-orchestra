@@ -20,7 +20,7 @@
 set -euo pipefail
 
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-_PLUGIN_ROOT="$(cd "$_SCRIPT_DIR/.." && pwd)"
+_PLUGIN_ROOT="$(cd "$_SCRIPT_DIR/../../plugins/dso" && pwd)"
 
 REF_QUERY="$_PLUGIN_ROOT/scripts/ref-query.sh"
 CORPUS="$_PLUGIN_ROOT/data/ui-reference"

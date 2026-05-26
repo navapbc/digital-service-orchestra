@@ -2,7 +2,7 @@
 DD4 — post-migration duration artifact tests.
 
 Verifies that the post-migration timing fixture and capture script are
-present and structurally correct.  All three tests are RED until the
+present and structurally correct.  All three tests remain failing until the
 implementation creates the required artifacts.
 """
 
@@ -15,14 +15,13 @@ CAPTURE_SCRIPT_PATH = (
     REPO_ROOT / "plugins" / "dso" / "scripts" / "capture_ci_review_post_migration.py"
 )
 
-
 def test_post_migration_fixture_exists():
     """
     Given: the post-migration timing baseline has been captured
     When:  the fixture file path is checked
     Then:  tests/fixtures/ci-review-post-migration.json exists and is non-empty
 
-    RED: file does not exist yet (implementation must create it).
+    Without the fix: file does not exist yet (implementation must create it).
     """
     assert FIXTURE_PATH.exists(), (
         f"Post-migration fixture not found at {FIXTURE_PATH}. "
@@ -32,14 +31,13 @@ def test_post_migration_fixture_exists():
         f"Post-migration fixture at {FIXTURE_PATH} is empty."
     )
 
-
 def test_post_migration_fixture_has_required_keys():
     """
     Given: tests/fixtures/ci-review-post-migration.json exists
     When:  the file is loaded as JSON
     Then:  the parsed dict contains 'p50_seconds', 'p95_seconds', and 'run_count' keys
 
-    RED: file does not exist yet; json.loads() will never be reached until it does.
+    Without the fix: file does not exist yet; json.loads() will never be reached until it does.
     """
     assert FIXTURE_PATH.exists(), (
         f"Post-migration fixture not found at {FIXTURE_PATH}. "
@@ -60,14 +58,13 @@ def test_post_migration_fixture_has_required_keys():
         f"Present keys: {sorted(data.keys())}"
     )
 
-
 def test_capture_script_exists():
     """
     Given: the DD4 capture script has been written
     When:  the script path is checked
     Then:  plugins/dso/scripts/capture_ci_review_post_migration.py exists
 
-    RED: script does not exist yet (implementation must create it).
+    Without the fix: script does not exist yet (implementation must create it).
     """
     assert CAPTURE_SCRIPT_PATH.exists(), (
         f"Capture script not found at {CAPTURE_SCRIPT_PATH}. "

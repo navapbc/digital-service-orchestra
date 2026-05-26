@@ -165,12 +165,12 @@ bash "$SCRIPT" --checks-file "$CHECKS_FILE5" --workflows-dir "$WORKFLOWS_DIR5" 2
 assert_eq "test_empty_workflows_dir_with_checks_exits_nonzero exit" "1" "$rc5"
 assert_pass_if_clean "test_empty_workflows_dir_with_checks_exits_nonzero"
 
-# ── RED MARKER BOUNDARY ──────────────────────────────────────────────────────
-# The four tests below are RED until update-required-checks-manifest.sh is
+# ── MARKER BOUNDARY ──────────────────────────────────────────────────────
+# The four tests below remain failing until update-required-checks-manifest.sh is
 # created (T4) and validate-required-checks.sh gains duplicate/malformed-entry
 # rejection (T4). They MUST fail before T4 is implemented.
 #
-# RED MARKER:
+
 # tests/scripts/test-validate-required-checks.sh [test_update_manifest_adds_review_sub_pr]
 
 UPDATE_SCRIPT="$REPO_ROOT/plugins/dso/scripts/update-required-checks-manifest.sh"
@@ -188,7 +188,7 @@ ShellCheck
 Lint Python (ruff)
 EOF
 
-# Script doesn't exist yet — this will exit non-zero (RED).
+# Script doesn't exist yet — this will exit non-zero.
 rc6=0
 bash "$UPDATE_SCRIPT" --checks-file "$MANIFEST6" 2>/dev/null || rc6=$?
 assert_eq "test_update_manifest_adds_review_sub_pr exit" "0" "$rc6"

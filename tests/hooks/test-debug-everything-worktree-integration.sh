@@ -4,7 +4,7 @@
 #
 # This test verifies that debug-everything Bug-Fix Mode correctly references
 # the single-agent-integrate workflow when DISPATCH_ISOLATION=true. These
-# assertions are RED until task T8 adds the single-agent-integrate.md
+
 # integration to debug-everything/SKILL.md.
 #
 # What we test (structural boundary):
