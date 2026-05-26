@@ -5950,5 +5950,57 @@ test_merge_to_main_pr_source_branch_bump
 assert_pass_if_clean "test_merge_to_main_pr_source_branch_bump"
 
 # ---------------------------------------------------------------------------
+# Test: t_pr_body_contains_commit_subjects
+# Asserts that `gh pr create` is invoked with --body containing a markdown
+# bullet list of branch-local non-merge commit subjects (the work the branch
+# contributes), rather than the legacy "Auto-generated PR for branch ..."
+# placeholder. The fixture builder creates one commit "feature work" on the
+# branch, so the body must include that subject as a bullet.
+# ---------------------------------------------------------------------------
+t_pr_body_contains_commit_subjects() {
+    local _T branch _argv _body_line
+    _T="$(mktemp -d /tmp/dso-pr-test.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+
+    branch="feature-pr-body"
+    _build_pr_fixture "$_T" "$branch" "ok" "ok"
+
+    (
+        cd "$_T" || exit 1
+        PATH="$_T/bin:$PATH" \
+        CLAUDE_PLUGIN_ROOT="$DSO_PLUGIN_DIR" \
+        MERGE_STRATEGY="pr" \
+        PR_THREAD_LOOP_START_OVERRIDE_SECONDS=200 \
+        PR_THREAD_LOOP_INTERVAL=0 \
+        bash "$PR_SCRIPT" >/dev/null 2>&1
+    ) || true
+
+    _argv="$(cat "$_T/gh-argv.log" 2>/dev/null || echo '')"
+
+    # The gh stub records argv with newlines preserved (the --body value may
+    # contain newlines), so search the FULL argv text rather than a single line.
+    # Confirm the recorded argv includes a `pr create` invocation and that the
+    # body lists the branch-local commit subject "feature work" as a bullet.
+    if ! echo "$_argv" | grep -qE "^pr create "; then
+        assert_eq "t_pr_body_argv_contains_pr_create" "true" "false"
+        return
+    fi
+    if echo "$_argv" | grep -qF -- "- feature work"; then
+        assert_eq "t_pr_body_lists_branch_commit_subjects" "true" "true"
+    else
+        assert_eq "t_pr_body_lists_branch_commit_subjects" "true" "false"
+    fi
+
+    # Negative assertion: the legacy placeholder must NOT appear in the argv.
+    if echo "$_argv" | grep -qF "Auto-generated PR for branch"; then
+        assert_eq "t_pr_body_does_not_use_legacy_placeholder" "false" "true"
+    else
+        assert_eq "t_pr_body_does_not_use_legacy_placeholder" "false" "false"
+    fi
+}
+t_pr_body_contains_commit_subjects
+
+# ---------------------------------------------------------------------------
 # end of file
 print_summary
