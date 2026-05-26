@@ -607,3 +607,4 @@ plugins/dso/scripts/emit-story-merge-env.sh: tests/scripts/test-emit-story-merge
 plugins/dso/scripts/compute-cross-branch-from-api.sh:tests/scripts/test-compute-cross-branch-from-api.sh
 plugins/dso/config/visual-evaluator-params.yaml:tests/plugin/test_visual_evaluator_params.py
 docs/findings/visual-evaluator-spike.md:tests/plugin/test_visual_evaluator_params.py
+plugins/dso/docs/visual-evaluator-schema.json:tests/plugin/test_visual_evaluator_agent.py
