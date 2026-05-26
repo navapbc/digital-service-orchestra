@@ -107,22 +107,30 @@ def test_both_split_jqls_issued_in_order_active_then_done(tmp_path, fetcher):
     assert client.calls[0]["jql"] == fetcher.JQL_ACTIVE, (
         f"Expected first call to use active JQL; got {client.calls[0]['jql']!r}"
     )
-    # Find the transition point.
     seen_jqls_in_order = [c["jql"] for c in client.calls]
-    active_calls = [c for c in seen_jqls_in_order if c == fetcher.JQL_ACTIVE]
-    done_calls = [c for c in seen_jqls_in_order if c == fetcher.JQL_DONE_RECENT]
-    # All active calls precede all done calls (no interleaving).
-    last_active_idx = max(
+    active_indices = [
         i for i, j in enumerate(seen_jqls_in_order) if j == fetcher.JQL_ACTIVE
-    )
-    first_done_idx = min(
+    ]
+    done_indices = [
         i for i, j in enumerate(seen_jqls_in_order) if j == fetcher.JQL_DONE_RECENT
+    ]
+    # Both queries reached — guard before calling max/min on indices.
+    # (Without these guards the assertion below would crash with ValueError
+    # instead of a diagnostic assertion failure if a regression caused Q1
+    # to raise before Q2 began.)
+    assert active_indices, (
+        f"Active JQL never reached search_issues. JQL sequence: "
+        f"{seen_jqls_in_order!r}"
     )
-    assert last_active_idx < first_done_idx, (
+    assert done_indices, (
+        f"Done-recent JQL never reached search_issues — Q1 likely raised "
+        f"before Q2 began. JQL sequence: {seen_jqls_in_order!r}"
+    )
+    # All active calls precede all done calls (no interleaving).
+    assert max(active_indices) < min(done_indices), (
         "Active and Done queries interleaved; expected all active calls before "
         f"any Done call. JQL sequence: {seen_jqls_in_order!r}"
     )
-    assert len(active_calls) >= 1 and len(done_calls) >= 1
 
 
 def test_done_query_capped_at_done_recent_cap(tmp_path, fetcher):
