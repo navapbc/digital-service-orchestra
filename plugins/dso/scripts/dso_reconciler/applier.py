@@ -1232,43 +1232,23 @@ def apply(
             "apply() legacy batch form requires pass_id as the second argument"
         )
 
-    # Normalise list-of-Mutation → list-of-dict before the legacy batch path.
-    # The differ in reconcile.py emits Mutation dataclass instances (canonical
-    # contract from epic 4047 / cde1) but _apply_batch was written against the
-    # pre-epic dict shape and calls `.get(...)` on each element. Producer
-    # (differ) and consumer (_apply_batch) are on different sides of the
-    # canonical-Mutation migration. Without this normalisation production
-    # crashes with "'Mutation' object has no attribute 'get'".
+    # Direction-aware dispatch (defect #8): partition typed Mutations by
+    # direction. Inbound Mutations route through _apply_typed per-mutation
+    # (so each one fires the inbound leaf from _LEAVES against the local
+    # tracker). Outbound Mutations are normalized to dicts and pass through
+    # _apply_batch (legacy manifest-writing path). Untyped dict entries
+    # default to the outbound batch path — that is the legacy contract.
     #
-    # Fail-closed guard: _apply_batch's leaf functions (create_one /
-    # update_one / delete_one) are outbound-only — they call client.create_issue
-    # / update_issue / transition_issue against Jira. Routing an INBOUND typed
-    # Mutation through this path would execute outbound code against the
-    # wrong subsystem. Until the legacy batch path is direction-aware (tracked
-    # by meta-bug 5f2a-9a9f-2b4a-4aab), raise rather than silently route.
+    # Previously this code path raised TypeError as a fail-closed guard
+    # against inbound traffic. The guard was correct in intent — routing
+    # inbound through _apply_batch would execute Jira-side outbound
+    # handlers — but the production path produces overwhelmingly inbound
+    # Mutations on first run (empty local mirror), so the guard blocked
+    # every pass. The actual fix is to route inbound through the existing
+    # _apply_typed handler (which already covers all (inbound, *) pairs in
+    # _LEAVES).
     mutations_list = list(mutations or [])
-    typed_inbound = [
-        m
-        for m in mutations_list
-        if hasattr(m, "direction")
-        and str(
-            getattr(getattr(m, "direction", None), "value", getattr(m, "direction", ""))
-        )
-        == "inbound"
-    ]
-    if typed_inbound:
-        raise TypeError(
-            f"apply() list-of-Mutation legacy batch path currently supports "
-            f"outbound mutations only; got {len(typed_inbound)} inbound "
-            f"Mutation(s). Inbound dispatch should route through "
-            f"reconcile._dispatch_mutation / _apply_typed per-mutation. "
-            f"Tracked by meta-bug 5f2a-9a9f-2b4a-4aab."
-        )
-    # Use one predicate (_looks_like_mutation) for both detection and
-    # conversion so the two passes can never disagree on element class.
-    # The earlier code used isinstance+type(name) for detection but bare
-    # hasattr("direction") for conversion — coderabbit flagged this as
-    # "asymmetric and fragile" on PR #364.
+
     def _looks_like_mutation(m) -> bool:
         if isinstance(m, mut_mod.Mutation):
             return True
@@ -1278,12 +1258,32 @@ def apply(
             and hasattr(m, "action")
         )
 
-    if mutations_list and any(_looks_like_mutation(m) for m in mutations_list):
-        mutations_list = [
-            _mutation_to_batch_dict(m) if _looks_like_mutation(m) else m
-            for m in mutations_list
-        ]
-    return _apply_batch(mutations_list, pass_id, repo_root=repo_root)
+    def _direction_of(m) -> str:
+        d = getattr(m, "direction", None)
+        return str(getattr(d, "value", d) or "")
+
+    inbound_typed: list = []
+    outbound_or_untyped: list = []
+    for m in mutations_list:
+        if _looks_like_mutation(m) and _direction_of(m) == "inbound":
+            inbound_typed.append(m)
+        else:
+            outbound_or_untyped.append(m)
+
+    # Inbound: per-mutation dispatch via _apply_typed. Order preserved from
+    # the source list so observable behaviour is deterministic.
+    for mut in inbound_typed:
+        _apply_typed(mut, client=client)
+
+    # Outbound (or untyped dict): normalize typed Mutations to dicts so
+    # _apply_batch can iterate, then route through the legacy batch path.
+    # _apply_batch handles an empty list cleanly (writes an empty manifest)
+    # so the all-inbound case still produces a manifest path for the caller.
+    outbound_list = [
+        _mutation_to_batch_dict(m) if _looks_like_mutation(m) else m
+        for m in outbound_or_untyped
+    ]
+    return _apply_batch(outbound_list, pass_id, repo_root=repo_root)
 
 
 def _mutation_to_batch_dict(mutation) -> dict:

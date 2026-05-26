@@ -154,26 +154,110 @@ def test_empty_fields_does_not_fall_through_to_full_payload(
     assert passed_list[0]["follow_on"] == {"kind": "x"}
 
 
-def test_inbound_mutation_raises_typeerror_not_silent_outbound_routing(
+def _make_inbound_create(mut_mod, target="local-abc"):
+    return mut_mod.Mutation(
+        direction=mut_mod.MutationDirection.inbound,
+        action=mut_mod.MutationAction.create,
+        target=target,
+        payload={"fields": {"summary": "in"}, "local_id": target},
+        provenance={"source": "test"},
+    )
+
+
+def test_inbound_mutations_dispatched_per_mutation_via_apply_typed(
     applier_and_mutation, tmp_path
 ):
-    """Fail-closed guard: passing an inbound typed Mutation to the legacy
-    batch path must RAISE TypeError, not silently route through outbound
-    handlers. Inbound dispatch is per-mutation via reconcile._dispatch_mutation.
+    """`apply(list[Mutation], pass_id, repo_root)` with inbound Mutations
+    routes each one through `_apply_typed` (per-mutation dispatch via the
+    _LEAVES registry) rather than the outbound batch path. Defect #8 — the
+    previous fail-closed guard correctly identified this gap; this test pins
+    the actual routing.
     """
     applier, mut_mod = applier_and_mutation
-    inbound_mutations = [
-        mut_mod.Mutation(
-            direction=mut_mod.MutationDirection.inbound,
-            action=mut_mod.MutationAction.create,
-            target="local-abc",
-            payload={"fields": {}, "local_id": "local-abc"},
-            provenance={"source": "test"},
-        ),
+    inbound = [_make_inbound_create(mut_mod, target=f"local-{i}") for i in range(3)]
+
+    with (
+        patch.object(applier, "_apply_typed") as at,
+        patch.object(applier, "_apply_batch", return_value=tmp_path / "m.json") as ab,
+    ):
+        applier.apply(inbound, "pass-inbound", repo_root=tmp_path)
+
+    # Each inbound Mutation reached _apply_typed exactly once, in order.
+    assert at.call_count == len(inbound), (
+        f"Expected {len(inbound)} per-mutation _apply_typed dispatches; "
+        f"got {at.call_count}"
+    )
+    dispatched_targets = [c.args[0].target for c in at.call_args_list]
+    assert dispatched_targets == [m.target for m in inbound]
+    # No inbound mutation leaked into the outbound batch path — _apply_batch
+    # was called with an empty list (or not called at all if the impl skips
+    # the empty-batch invocation; both are acceptable as long as no inbound
+    # Mutation reaches it).
+    if ab.call_count > 0:
+        passed = ab.call_args[0][0]
+        assert all(
+            not (
+                hasattr(m, "direction")
+                and str(getattr(m.direction, "value", m.direction)) == "inbound"
+            )
+            for m in passed
+        ), f"Inbound Mutation leaked into _apply_batch: {passed!r}"
+
+
+def test_mixed_inbound_and_outbound_partitioned_correctly(
+    applier_and_mutation, tmp_path
+):
+    """When `mutations` mixes inbound + outbound, the inbound ones go
+    through `_apply_typed` (per-mutation) and the outbound ones go through
+    `_apply_batch` (normalized to dicts). No mutation crosses paths."""
+    applier, mut_mod = applier_and_mutation
+    mutations = [
+        _make_outbound_create(mut_mod, target="DIG-1"),
+        _make_inbound_create(mut_mod, target="local-1"),
+        _make_outbound_create(mut_mod, target="DIG-2"),
+        _make_inbound_create(mut_mod, target="local-2"),
     ]
 
-    with patch.object(applier, "_apply_batch") as ab:
-        with pytest.raises(TypeError, match="inbound"):
-            applier.apply(inbound_mutations, "pass-4", repo_root=tmp_path)
-        # _apply_batch was NEVER called — guard fired before normalisation
-        assert ab.call_count == 0
+    with (
+        patch.object(applier, "_apply_typed") as at,
+        patch.object(applier, "_apply_batch", return_value=tmp_path / "m.json") as ab,
+    ):
+        applier.apply(mutations, "pass-mixed", repo_root=tmp_path)
+
+    # Inbound: per-mutation dispatch via _apply_typed (2 of them).
+    assert at.call_count == 2
+    dispatched_inbound = [c.args[0].target for c in at.call_args_list]
+    assert set(dispatched_inbound) == {"local-1", "local-2"}
+
+    # Outbound: batch dispatch via _apply_batch (1 call with 2 dicts).
+    assert ab.call_count == 1
+    batch_arg = ab.call_args[0][0]
+    assert len(batch_arg) == 2, (
+        f"Expected 2 outbound dicts; got {len(batch_arg)}: {batch_arg!r}"
+    )
+    assert all(isinstance(m, dict) for m in batch_arg), (
+        f"Outbound items were not normalized to dicts: "
+        f"{[type(m).__name__ for m in batch_arg]}"
+    )
+    batch_keys = {m["key"] for m in batch_arg}
+    assert batch_keys == {"DIG-1", "DIG-2"}
+
+
+def test_all_inbound_does_not_crash_when_outbound_batch_is_empty(
+    applier_and_mutation, tmp_path
+):
+    """When `mutations` is entirely inbound, the outbound batch path
+    receives an empty list (or is skipped). Either way, `apply()` does
+    not raise — defect #8 production scenario (empty local mirror,
+    every Jira issue is an inbound 'create-locally')."""
+    applier, mut_mod = applier_and_mutation
+    inbound = [_make_inbound_create(mut_mod, target=f"local-{i}") for i in range(5)]
+
+    with (
+        patch.object(applier, "_apply_typed") as at,
+        patch.object(applier, "_apply_batch", return_value=tmp_path / "m.json"),
+    ):
+        # Should NOT raise.
+        applier.apply(inbound, "pass-all-inbound", repo_root=tmp_path)
+
+    assert at.call_count == 5
