@@ -608,3 +608,4 @@ plugins/dso/scripts/compute-cross-branch-from-api.sh:tests/scripts/test-compute-
 plugins/dso/config/visual-evaluator-params.yaml:tests/plugin/test_visual_evaluator_params.py
 docs/findings/visual-evaluator-spike.md:tests/plugin/test_visual_evaluator_params.py
 plugins/dso/docs/visual-evaluator-schema.json:tests/plugin/test_visual_evaluator_agent.py
+plugins/dso/agents/visual-evaluator.md:tests/plugin/test_visual_evaluator_agent_structure.py
