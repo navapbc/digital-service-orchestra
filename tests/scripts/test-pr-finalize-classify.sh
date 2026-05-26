@@ -202,6 +202,24 @@ assert_contains "checks_failed_payload_has_failing" "ci/build" "$_PAYLOAD_RAW"
 rm -rf "$_MD"
 
 # ---------------------------------------------------------------------------
+# Test: CHECKS_FAILED — check with bucket=cancel (CANCELLED) classifies as CHECKS_FAILED
+# Regression for abd1-72a6-5209-4d62: cancelled checks were silently dropped by
+# the bucket=='fail' filter and the script fell through to BLOCKED_BY_REVIEW.
+# ---------------------------------------------------------------------------
+_MD=$(mktemp -d)
+_PV=$(pr_view_json "OPEN" "MERGEABLE" "BLOCKED" "NONE")
+_CHECKS_CANCEL='[{"name":"llm-review","state":"CANCELLED","bucket":"cancel","link":"https://ci.example.com/4"}]'
+write_scenario_mock "$_MD" "$_PV" "$_CHECKS_CANCEL" "$EMPTY_THREADS"
+
+_OUT=$(PR_FINALIZE_SKIP_BRANCH_CHECK=1 PATH="$_MD:$PATH" bash "$CLASSIFIER" "42" 2>/dev/null)
+_RC=$?
+assert_eq "checks_cancelled_exit_0" "0" "$_RC"
+assert_eq "checks_cancelled_status" "CHECKS_FAILED" "$(json_field status "$_OUT")"
+_PAYLOAD_RAW=$(python3 -c "import json,sys; d=json.loads(sys.stdin.read()); print(json.dumps(d.get('payload',{})))" <<< "$_OUT" 2>/dev/null)
+assert_contains "checks_cancelled_payload_has_failing" "llm-review" "$_PAYLOAD_RAW"
+rm -rf "$_MD"
+
+# ---------------------------------------------------------------------------
 # Test: THREADS_UNRESOLVED — unresolved thread exists, checks pass
 # ---------------------------------------------------------------------------
 _MD=$(mktemp -d)
