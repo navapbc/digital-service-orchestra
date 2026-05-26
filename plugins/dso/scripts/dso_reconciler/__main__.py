@@ -54,15 +54,33 @@ def _load_sibling_keyed(dotted_key: str, filename: str):
 
 
 def _try_load_step(name: str):
-    """Attempt to import a sibling module by name; return None if absent."""
+    """Attempt to import a sibling module by name; return None if absent.
+
+    Registers the loaded module in ``sys.modules`` under its dotted spec name
+    (``dso_reconciler.<name>``) BEFORE exec_module runs. This is load-bearing
+    on Python 3.14 because the new dataclass type-resolution helper
+    (``dataclasses._is_type`` -> ``sys.modules.get(cls.__module__).__dict__``)
+    requires that any module containing a ``@dataclass`` be discoverable via
+    the same key the class's ``__module__`` attribute points at. If
+    ``sys.modules.get(cls.__module__)`` returns None (because we loaded the
+    module via importlib.util but never put it in sys.modules), dataclass
+    instantiation fails with ``AttributeError: 'NoneType' object has no
+    attribute '__dict__'`` (bug 5be7 chain — defect #4 / chain item 4).
+
+    Registration must happen BEFORE ``exec_module`` so that any decorator
+    that runs during module body execution (e.g. ``@dataclass``) sees the
+    module already in sys.modules.
+    """
     here = Path(__file__).parent
     module_path = here / f"{name}.py"
     if not module_path.exists():
         return None
-    spec = importlib.util.spec_from_file_location(f"dso_reconciler.{name}", module_path)
+    dotted_name = f"dso_reconciler.{name}"
+    spec = importlib.util.spec_from_file_location(dotted_name, module_path)
     if spec is None or spec.loader is None:
         return None
     mod = importlib.util.module_from_spec(spec)
+    sys.modules[dotted_name] = mod
     spec.loader.exec_module(mod)  # type: ignore[union-attr]
     return mod
 
