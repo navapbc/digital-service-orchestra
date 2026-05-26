@@ -1,0 +1,234 @@
+#!/usr/bin/env bash
+# tests/fixtures/ci-pr-auto-merge/bin/gh
+#
+# PATH-shadow stub for the `gh` CLI used in compute-cross-branch-from-api.sh tests.
+#
+# Dispatches on $DSO_GH_STUB_MODE (unset = normal canned responses):
+#   unset                   — serve canned fixture responses
+#   error_403_once          — return 403 on FIRST call to pulls/{N}/files, succeed on retry
+#   error_403_exhausted     — return 403 on ALL calls to pulls/{N}/files (retry also fails)
+#   error_404_pr_5          — return 404 for PR #5 files endpoint
+#   error_500_first_call    — return 500 on the first gh api call
+#
+# DSO_GH_CALL_COUNT (exported int) tracks the number of api calls made so
+# the stub can implement "first-call" vs "retry" behavior.
+
+set -uo pipefail
+
+# Locate fixture dir relative to this stub's location
+FIXTURE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Initialize call counter if not set
+: "${DSO_GH_CALL_COUNT:=0}"
+DSO_GH_CALL_COUNT=$(( DSO_GH_CALL_COUNT + 1 ))
+export DSO_GH_CALL_COUNT
+
+# ---------------------------------------------------------------------------
+# _gh_api: dispatch on API path
+# ---------------------------------------------------------------------------
+_gh_api() {
+    local path=""
+    local jq_filter=""
+    local argjson_name=""
+    local argjson_value=""
+    local paginate=false
+
+    # Parse flags
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --paginate)
+                paginate=true
+                shift
+                ;;
+            --jq)
+                jq_filter="$2"
+                shift 2
+                ;;
+            --argjson)
+                argjson_name="$2"
+                argjson_value="$3"
+                shift 3
+                ;;
+            -*)
+                shift
+                ;;
+            *)
+                path="$1"
+                shift
+                ;;
+        esac
+    done
+
+    # Remove leading slash if present
+    path="${path#/}"
+
+    local mode="${DSO_GH_STUB_MODE:-}"
+
+    # ---- 500 on first call ----
+    if [[ "$mode" == "error_500_first_call" && "$DSO_GH_CALL_COUNT" -le 1 ]]; then
+        echo '{"message":"Internal Server Error","status":"500"}' >&2
+        exit 1
+    fi
+
+    # ---- PR list: repos/.../pulls?state=closed&base=... ----
+    if [[ "$path" == *"/pulls?"* ]] || [[ "$path" == *"/pulls?state=closed"* ]]; then
+        _serve_pr_list "$jq_filter" "$argjson_name" "$argjson_value"
+        return $?
+    fi
+
+    # ---- check-runs: repos/.../commits/<sha>/check-runs ----
+    if [[ "$path" == *"/commits/"*"/check-runs"* ]]; then
+        _serve_check_runs "$path" "$jq_filter"
+        return $?
+    fi
+
+    # ---- PR files: repos/.../pulls/<N>/files ----
+    if [[ "$path" == *"/pulls/"*"/files"* ]]; then
+        _serve_pr_files "$path" "$jq_filter" "$mode"
+        return $?
+    fi
+
+    echo "gh stub: unrecognized api path '$path'" >&2
+    exit 1
+}
+
+# ---------------------------------------------------------------------------
+# _serve_pr_list: return pr-list.json, filtered by jq if provided
+# ---------------------------------------------------------------------------
+_serve_pr_list() {
+    local jq_filter="$1"
+    local argjson_name="$2"
+    local argjson_value="$3"
+
+    local data
+    data="$(cat "$FIXTURE_DIR/pr-list.json")"
+
+    if [[ -n "$jq_filter" && -n "$argjson_name" ]]; then
+        echo "$data" | jq --argjson "$argjson_name" "$argjson_value" "$jq_filter"
+    elif [[ -n "$jq_filter" ]]; then
+        echo "$data" | jq "$jq_filter"
+    else
+        echo "$data"
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# _serve_check_runs: return check-runs-N.json matched by SHA
+# ---------------------------------------------------------------------------
+_serve_check_runs() {
+    local path="$1"
+    local jq_filter="$2"
+
+    # Map commit SHAs to PR numbers
+    local pr_num=0
+    case "$path" in
+        *aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa*) pr_num=1 ;;
+        *bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb*) pr_num=2 ;;
+        *cccccccccccccccccccccccccccccccccccccccc*) pr_num=3 ;;
+        *dddddddddddddddddddddddddddddddddddddddd*) pr_num=4 ;;
+        *eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee*) pr_num=5 ;;
+        *ffffffffffffffffffffffffffffffffffffffff*) pr_num=6 ;;
+        *)
+            # Fallback: strip leading zeros from SHA path to extract PR num
+            local sha trailing
+            sha=$(echo "$path" | grep -oE '/commits/[0-9a-fA-F]+' | sed -E 's|^/commits/||' | head -1)
+            trailing=$(echo "$sha" | sed -E 's/^0+//')
+            if [[ -n "$trailing" && -f "$FIXTURE_DIR/check-runs-${trailing}.json" ]]; then
+                pr_num="$trailing"
+            else
+                # Unknown SHA — return empty check runs
+                local empty='{"check_runs":[]}'
+                if [[ -n "$jq_filter" ]]; then
+                    echo "$empty" | jq -r "$jq_filter"
+                else
+                    echo "$empty"
+                fi
+                return 0
+            fi
+            ;;
+    esac
+
+    local data
+    data="$(cat "$FIXTURE_DIR/check-runs-${pr_num}.json")"
+
+    if [[ -n "$jq_filter" ]]; then
+        echo "$data" | jq -r "$jq_filter"
+    else
+        echo "$data"
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# _serve_pr_files: return pr-files-N.json, with error injection support
+# ---------------------------------------------------------------------------
+_serve_pr_files() {
+    local path="$1"
+    local jq_filter="$2"
+    local mode="$3"
+
+    # Extract PR number from path like repos/test/repo/pulls/5/files
+    local pr_num
+    pr_num="$(echo "$path" | grep -oE '/pulls/[0-9]+' | grep -oE '[0-9]+')"
+
+    # ---- 404 on PR 5 files ----
+    if [[ "$mode" == "error_404_pr_5" && "$pr_num" == "5" ]]; then
+        echo '{"message":"Not Found","status":"404"}' >&2
+        exit 1
+    fi
+
+    # ---- 403 first call (succeed on retry) ----
+    # File-based counter so the gate persists across separate `gh` invocations
+    # (env vars exported by child processes do not propagate to siblings).
+    # The counter tracks calls to pulls/{N}/files specifically — the first
+    # such call returns 403, the second succeeds.
+    if [[ "$mode" == "error_403_once" ]]; then
+        local counter_file="${DSO_GH_403_COUNTER_FILE:-/tmp/dso-gh-403-counter}"
+        local files_calls
+        files_calls=$(cat "$counter_file" 2>/dev/null || echo "0")
+        files_calls=$(( files_calls + 1 ))
+        echo "$files_calls" > "$counter_file"
+        if [[ "$files_calls" -le 1 ]]; then
+            printf 'HTTP 403: secondary rate limit\nRetry-After: 1\n' >&2
+            exit 1
+        fi
+    fi
+
+    # ---- 403 exhausted (retry also fails) ----
+    if [[ "$mode" == "error_403_exhausted" ]]; then
+        printf 'HTTP 403: secondary rate limit\nRetry-After: 1\n' >&2
+        exit 1
+    fi
+
+    local fixture="$FIXTURE_DIR/pr-files-${pr_num}.json"
+    if [[ ! -f "$fixture" ]]; then
+        # Empty array fallback — unknown PR
+        echo '[]'
+        return 0
+    fi
+
+    local data
+    data="$(cat "$fixture")"
+
+    if [[ -n "$jq_filter" ]]; then
+        echo "$data" | jq -r "$jq_filter"
+    else
+        echo "$data"
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# Dispatch on subcommand (defined AFTER helper functions to avoid
+# forward-reference errors when the case body resolves _gh_api).
+# ---------------------------------------------------------------------------
+SUBCMD="${1:-}"
+
+case "$SUBCMD" in
+    api)
+        shift
+        _gh_api "$@"
+        ;;
+    *)
+        echo "gh stub: unknown subcommand '$SUBCMD'" >&2
+        exit 1
+        ;;
+esac

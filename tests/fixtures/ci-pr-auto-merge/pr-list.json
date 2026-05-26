@@ -1,0 +1,50 @@
+[
+  {
+    "number": 1,
+    "title": "Merge pull request story/1d8b/s1",
+    "head": { "ref": "story/1d8b/s1" },
+    "base": { "ref": "worktree-test" },
+    "merged_at": "2026-05-01T10:00:00Z",
+    "merge_commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  {
+    "number": 2,
+    "title": "Merge pull request story/1d8b/s2",
+    "head": { "ref": "story/1d8b/s2" },
+    "base": { "ref": "worktree-test" },
+    "merged_at": "2026-05-02T10:00:00Z",
+    "merge_commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  {
+    "number": 3,
+    "title": "Merge pull request story/1d8b/s3",
+    "head": { "ref": "story/1d8b/s3" },
+    "base": { "ref": "worktree-test" },
+    "merged_at": "2026-05-03T10:00:00Z",
+    "merge_commit_sha": "cccccccccccccccccccccccccccccccccccccccc"
+  },
+  {
+    "number": 4,
+    "title": "Merge pull request story/1d8b/s4",
+    "head": { "ref": "story/1d8b/s4" },
+    "base": { "ref": "worktree-test" },
+    "merged_at": "2026-05-04T10:00:00Z",
+    "merge_commit_sha": "dddddddddddddddddddddddddddddddddddddddd"
+  },
+  {
+    "number": 5,
+    "title": "Merge pull request story/1d8b/s5 (skipped review)",
+    "head": { "ref": "story/1d8b/s5" },
+    "base": { "ref": "worktree-test" },
+    "merged_at": "2026-05-05T10:00:00Z",
+    "merge_commit_sha": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+  },
+  {
+    "number": 6,
+    "title": "Closed-not-merged PR story/1d8b/s6",
+    "head": { "ref": "story/1d8b/s6" },
+    "base": { "ref": "worktree-test" },
+    "merged_at": null,
+    "merge_commit_sha": null
+  }
+]

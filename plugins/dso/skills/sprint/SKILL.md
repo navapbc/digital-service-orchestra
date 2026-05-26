@@ -2456,18 +2456,33 @@ if [[ "${SPRINT_MODE:-local}" == "ci-pr" ]]; then
   }
   # Open story/* PR against session branch (not main) via STORY_PR_BASE env var.
   # merge-to-main-pr.sh reads STORY_PR_BASE and passes it as --base to gh pr create.
-  # Note: in ci-pr mode, the DSO-Story-Merge trailer is NOT added locally — GitHub
-  # creates the merge commit when it auto-merges the story→session PR. The S5
-  # provenance verifier uses GitHub API signals as the primary provenance source
-  # in ci-pr mode (not the trailer). The trailer is emitted by merge-story-branch.sh
-  # only in local mode.
+  #
+  # Trailer-injection in ci-pr mode (bug e349-6b4e-13c5-4e23):
+  # Before queueing gh pr merge --auto, merge-to-main-pr.sh's inject_trailer
+  # function uses an ephemeral git worktree to amend (or empty-commit) the
+  # DSO-Story-Merge trailer onto the story branch's last commit, then
+  # force-push --force-with-lease. The ephemeral worktree has no .sprint-active
+  # marker, so the check-session-merge-only.sh hook does not fire. The trailer
+  # survives squash/rebase/merge modes. STORY_EPIC_ID + STORY_ID are sourced
+  # from emit-story-merge-env.sh; merge-to-main-pr.sh reads both via env.
+  #
+  # Defense in depth: ci.yml's compute-cross-branch-from-api.sh provides a
+  # GitHub API fallback for trailer-less merges (pre-Fix-D sessions or
+  # DSO_TRAILER_INJECTION_MODE=disabled). Per-PR review-sub-pr check-run
+  # conclusion is verified before subtracting files from INTEGRATION_SCOPE;
+  # non-success conclusions cause files to be re-included for full review
+  # at integration tier (load-bearing llm-review coverage guarantee).
+  source "${CLAUDE_PLUGIN_ROOT}/scripts/emit-story-merge-env.sh" "$STORY_ID" || {
+    echo "ERROR: emit-story-merge-env.sh failed for story $STORY_ID — aborting" >&2
+    exit 1
+  }
   export BRANCH="$STORY_BRANCH"
   export STORY_PR_BASE="$SESSION_BRANCH"
   bash "$PLUGIN_SCRIPTS/merge-to-main.sh" || { # shim-exempt: SKILL.md orchestrator instruction — sprint runs plugin scripts via $PLUGIN_SCRIPTS directly
     echo "ERROR: merge-to-main.sh failed in ci-pr mode — aborting story merge" >&2
     exit 1
   }
-  unset STORY_PR_BASE BRANCH
+  unset STORY_PR_BASE BRANCH STORY_EPIC_ID
 else
   # local mode: direct local merge with DSO-Story-Merge trailer
   bash "$PLUGIN_SCRIPTS/merge-story-branch.sh" "$STORY_BRANCH" "$STORY_ID" || { # shim-exempt: SKILL.md orchestrator instruction — sprint runs plugin scripts via $PLUGIN_SCRIPTS directly

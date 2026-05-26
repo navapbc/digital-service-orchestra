@@ -86,7 +86,7 @@ count = 0
 for i, line in enumerate(lines):
     if '--artifact ' not in line:
         continue
-    window = '\n'.join(lines[max(0,i-3):i+4])
+    window = '\n'.join(lines[max(0,i-5):i+6])
     if any(k in window for k in ('append_review_cycle.py', '--artifact-file=', '--artifacts-dir', 'python3 ')):
         continue
     count += 1

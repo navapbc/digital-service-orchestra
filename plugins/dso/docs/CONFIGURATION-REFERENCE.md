@@ -2423,3 +2423,54 @@ These variables are consumed by DSO hooks, scripts, and skills at runtime. They 
 
 > **Note**: The PRECONDITIONS degradation channel and ack mechanism (`check-unacked-degradations.sh`, `validate-ack-rationale.sh`, `preconditions-ack.sh`, `check-precondition-emit.sh`) introduce no new configuration keys; behavior is configured via `TICKETS_TRACKER_DIR` env var (existing) and `DSO_TICKETS_TRACKER_DIR` env var (existing override pattern).
 
+---
+
+## ci-pr Trailer Injection
+
+### `DSO_TRAILER_INJECTION_MODE`
+
+| Property | Value |
+|----------|-------|
+| **Type** | string env var |
+| **Allowed values** | `enabled` (default), `disabled`, `dry-run` |
+| **Required** | Optional — when absent or empty, behavior is `enabled` |
+| **Read by** | `${CLAUDE_PLUGIN_ROOT}/scripts/merge-to-main-pr.sh` (`inject_and_enable_automerge` function) |
+| **Affects** | ci-pr sprint Phase F Step 18 story→session PR merge mechanism |
+
+Controls whether `merge-to-main-pr.sh` injects a `DSO-Story-Merge: <story-id>` trailer onto the story branch's last commit before queueing `gh pr merge --auto`. The trailer enables `.github/workflows/ci.yml`'s "Compute cross-branch file set from DSO-Story-Merge trailers" step to derive INTEGRATION_SCOPE — the cross-story integration surface — for the session→main llm-review job.
+
+#### `enabled` (default)
+
+Inject the trailer via an ephemeral git worktree:
+
+1. `git worktree add` an ephemeral worktree on the story branch
+2. If story tip == session HEAD: `git commit --allow-empty -m "..." --trailer "DSO-Story-Merge: <story-id>"`
+3. Else: `git commit --amend --no-edit --trailer "DSO-Story-Merge: <story-id>"`
+4. `git push --force-with-lease origin story/<epic>/<story>`
+5. `gh pr merge --auto --merge <pr-num>`
+6. Remove the ephemeral worktree
+
+The ephemeral worktree has no `.sprint-active` marker, so `check-session-merge-only.sh` does not fire. The trailer survives squash/rebase/merge modes (git's `--grep` walks parent commit bodies).
+
+#### `disabled` (Emergency rollback only)
+
+**Use ONLY as a temporary workaround when trailer injection has a regression that blocks all sprint merges.** Skipping trailer injection causes the session→main llm-review job to **silently degrade to full-PR-diff review** (no scope reduction). The compute-cross-branch-from-api.sh fallback in ci.yml provides partial recovery by deriving cross-branch file sets via the GitHub API, but the load-bearing INTEGRATION_SCOPE reduction is lost.
+
+When set, `merge-to-main-pr.sh` emits `::warning::DSO_TRAILER_INJECTION_MODE=disabled — skipping trailer injection` and proceeds directly to `gh pr merge --auto` without amending the story branch.
+
+#### `dry-run`
+
+Logs the trailer-injection plan without amending. Useful for verifying the mechanism in CI without modifying the story branch. The merge step still proceeds via `gh pr merge --auto`, so the PR closes normally — the trailer is simply absent.
+
+#### Idempotent resume semantics
+
+`inject_and_enable_automerge` detects existing auto-merge + trailer state via `gh pr view --json autoMergeRequest` + `gh api .../commits | grep -c '^DSO-Story-Merge:'` and routes:
+
+- **No auto-merge, no trailer**: inject → enable auto-merge (first-attempt path)
+- **Auto-merge enabled, no trailer**: disable auto-merge → inject → re-enable (recover from half-failed prior attempt)
+- **Auto-merge enabled, trailer present**: no-op (idempotent resume; e.g., `merge-to-main.sh --resume` after restart)
+
+#### Force-push protection
+
+Before `inject_trailer` runs, `check_force_push_allowed` probes the story branch's protection rule via `gh api repos/{repo}/branches/{url-encoded-branch}/protection`. If `allow_force_pushes.enabled=false`, the script emits `::error::story branch ... is force-push-protected; trailer injection requires force-push` and exits 1. 404 (no protection rule) is treated as proceed.
+
