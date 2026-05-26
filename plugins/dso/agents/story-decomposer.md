@@ -27,6 +27,16 @@ The orchestrator extracts the bullet items from the epic's `## Success Criteria`
 
 {epic-success-criteria}
 
+### Epic Closure Checks
+
+The orchestrator extracts the bullet items from the epic's `## Closure Checks` section and lists them here with stable identifiers (`cc-1`, `cc-2`, ...). Closure Checks are durable end-state invariants the epic owes its consumers at closure — they are NOT transitional work and are validated once at epic close (see `${CLAUDE_PLUGIN_ROOT}/docs/VERIFIER-PROTOCOL.md`).
+
+Stories MAY reference Closure Checks in Done Definitions using the alternate traceability form `← Validates Closure Check: "<verbatim CC text>"` (in addition to or instead of `← Satisfies: sc-N`). This form is accepted alongside `← Satisfies:` — both are structurally correct.
+
+If the epic has no `## Closure Checks` section, the orchestrator passes `(none — epic has no Closure Checks section)`; treat this as zero CCs, omit `cc_coverage_plan` entries, and do not synthesize CCs.
+
+{epic-closure-checks}
+
 ### Existing Story Set
 
 Stories already attached to the epic that will remain after reconciliation — either kept as-is or modified per Phase A. Each entry includes the story id, title, description, and current Done Definitions/considerations. Your drafts must NOT duplicate work already covered by these stories; instead, identify the gaps.
@@ -182,7 +192,7 @@ Execute these steps in order. Do NOT shortcut.
 
 ### Step 1: Coverage Map
 
-For every SC in the Epic Success Criteria list, determine whether the Existing Story Set + External Dependency Stories already cover it.
+For every SC in the Epic Success Criteria list AND every CC in the Epic Closure Checks list, determine whether the Existing Story Set + External Dependency Stories already cover it. The coverage analysis is symmetric across SCs and CCs — CCs use the same verdict buckets and are recorded in `cc_coverage_plan` parallel to `sc_coverage_plan`. A DD covers a CC when its evidence demonstrates the durable invariant the CC names.
 
 For each SC, classify into exactly one bucket:
 
@@ -290,6 +300,16 @@ Return a JSON object with exactly these top-level keys. The orchestrator will no
       "gap_summary": "Availability is an epic-level constraint, not a story-level deliverable."
     }
   ],
+  "cc_coverage_plan": [
+    {
+      "cc_id": "cc-1",
+      "cc_text": "The reviewer registry rejects duplicate registrations at startup.",
+      "verdict": "uncovered",
+      "covering_story_ids": [],
+      "draft_ids": ["draft-2"],
+      "gap_summary": "No existing story exercises the registry rejection path; draft-2 adds the behavior and the validating test."
+    }
+  ],
   "story_drafts": [
     {
       "temp_id": "draft-1",
@@ -343,6 +363,19 @@ Return a JSON object with exactly these top-level keys. The orchestrator will no
 | `covering_story_ids` | array of string | Yes | Existing story ids that contribute (empty for `uncovered` / `out_of_scope_for_stories`) |
 | `draft_ids` | array of string | Yes | `temp_id` values from `story_drafts` that contribute (empty for `covered_by_existing` / `out_of_scope_for_stories`) |
 | `gap_summary` | string | Required when verdict ∈ {`partial_coverage`, `uncovered`, `out_of_scope_for_stories`}; omit otherwise (i.e., for `covered_by_existing`) | Concise description of the gap, the missing outcome, or the rationale for out-of-scope classification — symmetric with the red-team agent's `sc_coverage_summary` so downstream consumers reading both artifacts get consistent fields |
+
+`cc_coverage_plan` entries (parallel to `sc_coverage_plan`; one entry per Closure Check in the epic):
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `cc_id` | string | Yes | Matches the `cc_id` from Epic Closure Checks (`cc-1`, `cc-2`, ...) |
+| `cc_text` | string | Yes | CC text verbatim |
+| `verdict` | `"covered_by_existing"` \| `"partial_coverage"` \| `"uncovered"` \| `"out_of_scope_for_stories"` | Yes | Same buckets as SC verdicts |
+| `covering_story_ids` | array of string | Yes | Existing story ids whose DDs reference the CC via `← Validates Closure Check:` |
+| `draft_ids` | array of string | Yes | `temp_id` values from `story_drafts` that contribute |
+| `gap_summary` | string | Required when verdict ∈ {`partial_coverage`, `uncovered`, `out_of_scope_for_stories`}; omit otherwise | Concise description of the gap |
+
+`cc_coverage_plan` is omitted (or `[]`) when the epic has no `## Closure Checks` section. When CCs are present, every CC MUST appear in `cc_coverage_plan` — gaps in coverage are surfaced via the verdict bucket, never by omission.
 
 `story_drafts` entries:
 

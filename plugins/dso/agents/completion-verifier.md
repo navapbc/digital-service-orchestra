@@ -384,6 +384,54 @@ Define verification commands based on what the consumer actually does — prefer
 
 Record the exit code and relevant output lines for each consumer verification command.
 
+### Step 4.5: Deferred-Evidence Obligation Tickets (Story Only)
+
+**Applies only when `ticket_type == "story"`.** Skip this step for epics.
+
+After evaluating Done Definitions but before remediation recommendations, scan
+each DD's evidence text for phrasing that defers validation to a future
+post-merge moment ("rollout-time operator execution", "deferred to operator",
+etc.). The precise trigger regex is:
+
+```
+\b(deferred|defer)\s+to\s+(operator|rollout|post.?merge|operator.?execution)\b
+```
+
+Case-insensitive. A match means the DD owes a future verification act that
+cannot be performed pre-merge — and therefore cannot be satisfied at story
+closure on the basis of pre-merge evidence alone. The verifier MUST create an
+**obligation ticket** (one per matching DD) parented to the story being
+verified, per the schema in `${CLAUDE_PLUGIN_ROOT}/docs/contracts/obligation-ticket-schema.md`.
+
+**Procedure:**
+
+1. For each DD whose evidence matches the regex, extract the verbatim
+   validation command implied by the DD (best-effort — fall back to a
+   description-only obligation if no command is parseable).
+2. Compute a deadline = creation date + 30 days (ISO-8601 YYYY-MM-DD).
+3. Create the obligation ticket:
+
+   ```bash
+   .claude/scripts/dso ticket create task \
+     "Obligation: rollout-time validation for story <story-id>" \
+     --parent <story-id> \
+     --priority 2 \
+     --tags "obligation:rollout,<parent-epic-id>" \
+     --description "<schema-conforming body — see obligation-ticket-schema.md>"
+   ```
+
+4. Record the created ticket id in the `obligations_created` output field.
+5. **P1 gating rule** — `P1 = PASS` is permitted iff every required obligation
+   was created successfully. If `ticket create` exits non-zero for any
+   required obligation, the verifier MUST set `P1: FAIL` and add a
+   `criteria_results` entry whose `evidence_found` reads
+   `obligation_creation_failed: <reason>` and whose `failure_category` is
+   `internal_architecture_gap`.
+
+This step is the structural fix for bug `1761-21ca-cb74-44a6` — without it,
+"deferred to operator" effectively meant "skipped" because the operator role
+does not run pre-merge.
+
 ### Step 5: Remediation Recommendations
 
 For each failed criterion or failed consumer smoke test, include a remediation recommendation in the `remediation_tasks_created` array of the output JSON. Each entry must include:
@@ -469,6 +517,9 @@ Return a structured JSON block matching the output schema below. After the JSON 
       "description": "<what was missing or broken, with evidence>",
       "criterion": "<which SC or DD was not met>"
     }
+  ],
+  "obligations_created": [
+    "<ticket-id of obligation:rollout task created in Step 4.5>"
   ]
 }
 ```
@@ -485,6 +536,7 @@ Return a structured JSON block matching the output schema below. After the JSON 
 - `closure_checks_results` is an empty array `[]` when the ticket body has no `## Closure Checks` section or when `project_closure_hooks` is absent/empty (backward-compat: absent section = no items = pass). `WARN` verdicts appear in `closure_checks_results` but do NOT block closure and are NOT added to `criteria_results`.
 - `failure_category` is REQUIRED for `verdict: FAIL` entries, OMITTED for `PASS`/`SKIPPED`/`PENDING`. Values: `external_blocker`, `internal_architecture_gap`, `evidence_pending`.
 - `remediation_tasks_created` is an empty array `[]` when `P1` is `PASS`.
+- `obligations_created` is an empty array `[]` when no DD evidence text matches the deferred-evidence regex (Step 4.5). When any required obligation ticket creation fails, `P1` MUST be `FAIL` and `obligations_created` lists only the successfully-created ids (failed ones are surfaced via `criteria_results` with `evidence_found: "obligation_creation_failed: ..."`). See `${CLAUDE_PLUGIN_ROOT}/docs/contracts/obligation-ticket-schema.md`.
 - Do NOT fabricate evidence — if you cannot find evidence for a criterion, record what you searched and mark `FAIL`.
 - Do NOT close the parent ticket — closure decision belongs to the caller.
 

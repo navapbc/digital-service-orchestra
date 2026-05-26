@@ -44,6 +44,33 @@ Design reference: `docs/designs/closure-checks/README.md`.
 
 Fallback (technical failure only — timeout or unparseable JSON): log the error, escalate to user, do NOT close the ticket.
 
+## Deferred-evidence obligations (Step 4.5, story only)
+
+When a story DD's evidence text defers validation to a future post-merge act,
+the verifier MUST create a rollout obligation ticket per
+`docs/contracts/obligation-ticket-schema.md` and only emit `P1=PASS` when
+ticket creation succeeds.
+
+**Trigger regex** (case-insensitive):
+
+```
+\b(deferred|defer)\s+to\s+(operator|rollout|post.?merge|operator.?execution)\b
+```
+
+The verifier output gains an `obligations_created` array of created ticket
+ids. If `ticket create` fails for any required obligation, `P1=FAIL` is
+emitted with `criteria_results.evidence_found` set to
+`obligation_creation_failed: <reason>`.
+
+Background: bug `1761-21ca-cb74-44a6` — epic 4047 closed `P1=PASS` with four
+DDs marked "deferred to operator execution per runbook", but the operator
+role does not run pre-merge, so deferral was effectively skip. This protocol
+makes deferral structurally trackable instead of silently lost.
+
+A separate auditor — `${CLAUDE_PLUGIN_ROOT}/scripts/dso_reconciler/check-obligations.sh`
+— iterates open obligations and files a P1 bug parented to the obligation's
+parent story when the deadline passes.
+
 ## Rules summary
 
 - Never read `overall_verdict` as the pass/fail gate — use `P1`.
