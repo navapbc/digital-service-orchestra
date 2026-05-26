@@ -233,6 +233,81 @@ jobs:
                   status = fields.get('status') or i.get('status')
                   print('status object shape:', type(status).__name__, '|', repr(status)[:200])
           "
+          echo
+          echo "=== Probe 5: ACLI 'workitem search' help — find projection flag ==="
+          acli jira workitem search --help 2>&1 | head -80 || true
+          echo
+          echo "=== Probe 6: try ACLI flags that may expand fields projection ==="
+          for FLAG_TRY in '--fields=updated,status,summary' '--fields updated,status,summary' '--expand=fields' '--all'; do
+              echo "--- trying: ${FLAG_TRY} ---"
+              acli jira workitem search --jql "project = ${PROJ}" --limit 1 ${FLAG_TRY} --json 2>&1 \
+                | python3 -c "
+          import json, sys
+          try:
+              data = json.load(sys.stdin)
+              issues = data if isinstance(data, list) else data.get('issues', [])
+              if issues:
+                  fields = issues[0].get('fields', {}) or {}
+                  print(f'  fields keys ({len(fields)}):', sorted(fields.keys())[:30])
+                  print(f'  updated value: {fields.get(\"updated\")!r}')
+          except Exception as e:
+              print(f'  PARSE ERROR: {e}')
+          " 2>&1 | head -5
+          done
+          echo
+          echo "=== Probe 7: empirical count — Query 1 (status != Done) ==="
+          Q1='project = '${PROJ}' AND status != "Done"'
+          echo "JQL: ${Q1}"
+          acli jira workitem search --jql "${Q1}" --paginate --json \
+            | python3 -c "
+          import json, sys, collections
+          data = json.load(sys.stdin)
+          issues = data if isinstance(data, list) else data.get('issues', [])
+          statuses = collections.Counter()
+          for i in issues:
+              fields = i.get('fields', {}) or {}
+              s_obj = fields.get('status') or i.get('status')
+              s = s_obj.get('name') if isinstance(s_obj, dict) else s_obj
+              statuses[s or '<missing>'] += 1
+          print(f'Query 1 returned {len(issues)} issues')
+          print('  status breakdown:')
+          for s, n in statuses.most_common():
+              print(f'    {n:6d}  {s}')
+          print(f'  under proposed 1200 ceiling: {\"YES\" if len(issues) < 1200 else \"NO — STILL OVER\"}')
+          "
+          echo
+          echo "=== Probe 8: empirical Query 2 (status = Done, ORDER BY updated DESC, limit 1000) ==="
+          Q2='project = '${PROJ}' AND status = "Done" ORDER BY updated DESC'
+          echo "JQL: ${Q2}"
+          acli jira workitem search --jql "${Q2}" --limit 1000 --json \
+            | python3 -c "
+          import json, sys, collections
+          data = json.load(sys.stdin)
+          issues = data if isinstance(data, list) else data.get('issues', [])
+          statuses = collections.Counter()
+          for i in issues:
+              fields = i.get('fields', {}) or {}
+              s_obj = fields.get('status') or i.get('status')
+              s = s_obj.get('name') if isinstance(s_obj, dict) else s_obj
+              statuses[s or '<missing>'] += 1
+          print(f'Query 2 returned {len(issues)} issues (cap=1000)')
+          print('  status breakdown:')
+          for s, n in statuses.most_common():
+              print(f'    {n:6d}  {s}')
+          # Confirm ORDER BY updated DESC took effect — first/last keys should differ
+          if issues:
+              print(f'  first key: {issues[0].get(\"key\")}, last key: {issues[-1].get(\"key\")}')
+          "
+          echo
+          echo "=== Probe 9: empirical total under split plan (Q1 + Q2 cap-1000) ==="
+          Q1_COUNT=$(acli jira workitem search --jql "${Q1}" --paginate --json | python3 -c "import json,sys; d=json.load(sys.stdin); issues=d if isinstance(d,list) else d.get('issues',[]); print(len(issues))")
+          Q2_COUNT=$(acli jira workitem search --jql "${Q2}" --limit 1000 --json | python3 -c "import json,sys; d=json.load(sys.stdin); issues=d if isinstance(d,list) else d.get('issues',[]); print(len(issues))")
+          echo "  Query 1 (active): ${Q1_COUNT}"
+          echo "  Query 2 (Done, cap 1000): ${Q2_COUNT}"
+          echo "  Plan ceiling per query: 1200"
+          echo "  Q1 under 1200: $([ "${Q1_COUNT}" -lt 1200 ] && echo YES || echo NO)"
+          echo "  Q2 under 1200: $([ "${Q2_COUNT}" -lt 1200 ] && echo YES || echo NO)"
+          echo
           echo "=== Probe complete — exiting (not running reconciler in probe mode) ==="
           exit 0
 
