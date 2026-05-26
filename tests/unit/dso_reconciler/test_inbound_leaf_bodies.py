@@ -57,8 +57,14 @@ def applier():
 
 
 @pytest.fixture
-def fixture_repo(tmp_path):
-    """A minimal repo layout with an initialised .tickets-tracker dir."""
+def fixture_repo(tmp_path, monkeypatch):
+    """A minimal repo layout with an initialised .tickets-tracker dir.
+
+    Removes TICKETS_TRACKER_DIR from the environment so a developer-set
+    override in the host shell cannot leak into the test and steer writes
+    away from the tmp tracker dir (PR #375 review thread 3306949620).
+    """
+    monkeypatch.delenv("TICKETS_TRACKER_DIR", raising=False)
     tracker = tmp_path / ".tickets-tracker"
     tracker.mkdir()
     (tracker / ".env-id").write_text("test-env-id", encoding="utf-8")
@@ -164,6 +170,60 @@ def test_inbound_update_writes_edit_event(applier, mut_mod, fixture_repo):
     assert edits, "expected at least one EDIT event"
     assert edits[-1]["data"]["fields"]["title"] == "Y"
     assert result.payload["local_id"] == "jira-dig-123"
+
+
+def test_inbound_update_status_event_uses_previous_status_not_new(
+    applier, mut_mod, fixture_repo
+):
+    """STATUS event's current_status must be the PREVIOUS state, not the new
+    one (PR #375 review thread 3306949587). The reducer compares
+    data['current_status'] against state['status'] to detect forks — setting
+    current_status to the NEW state guarantees a false-positive fork mismatch
+    whenever the ticket isn't already in that state.
+    """
+    # Seed via inbound create (no status -> stays at reducer default 'open').
+    create_mut = _make_mutation(
+        mut_mod,
+        direction=mut_mod.MutationDirection.inbound,
+        action=mut_mod.MutationAction.create,
+        target="DIG-321",
+        payload={"fields": {"summary": "S", "issuetype": "Task"}},
+    )
+    applier._apply_typed(create_mut, repo_root=fixture_repo)
+
+    # Now inbound update transitions the Jira status to 'In Progress' ->
+    # 'in_progress' locally (assuming config maps it; if config lacks the
+    # entry, _jira_status_to_local returns 'open' and we still assert the
+    # invariant: current_status != status when they differ).
+    update_mut = _make_mutation(
+        mut_mod,
+        direction=mut_mod.MutationDirection.inbound,
+        action=mut_mod.MutationAction.update,
+        target="jira-dig-321",
+        payload={"fields": {"status": "In Progress"}},
+    )
+    applier._apply_typed(update_mut, repo_root=fixture_repo)
+
+    tracker = fixture_repo / ".tickets-tracker"
+    status_events = [
+        json.loads(p.read_text())
+        for p in _event_files(tracker, "jira-dig-321")
+        if "STATUS" in p.name
+    ]
+    assert status_events, "expected a STATUS event from inbound update"
+    latest = status_events[-1]["data"]
+    # current_status must be the PREVIOUS state ('open' — seeded default),
+    # NOT the new target. If new == previous (degenerate self-transition),
+    # the two can coincide, but in this fixture they must differ.
+    new_status = latest["status"]
+    prev_status = latest["current_status"]
+    assert prev_status == "open", (
+        f"expected current_status='open' (prior state), got {prev_status!r}"
+    )
+    if new_status != "open":
+        assert new_status != prev_status, (
+            "current_status (previous state) must differ from status (new state)"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -317,3 +377,54 @@ def test_apply_honours_suppress_pair_drops_subsequent_inbound(
     titles = [e["data"]["fields"].get("title", "") for e in edits]
     assert "STOMP-1" not in titles
     assert "STOMP-2" not in titles
+
+
+def test_apply_honours_suppress_pair_drops_subsequent_inbound_via_computed_form(
+    applier, mut_mod, fixture_repo, monkeypatch
+):
+    """Computed-form suppression contract (PR #375 review thread 3306949607):
+    a suppress_pair on jira_key='DIG-7' must also drop later mutations whose
+    target is the LOCAL-ID form of that key ('jira-dig-7'). Without the
+    third match-arm, the later inbound update sneaks past.
+    """
+    monkeypatch.setattr(applier, "_file_conflict_bug_ticket", lambda *a, **k: "bug-1")
+
+    # Seed the ticket dir so an EDIT could otherwise be written.
+    create = _make_mutation(
+        mut_mod,
+        direction=mut_mod.MutationDirection.inbound,
+        action=mut_mod.MutationAction.create,
+        target="DIG-7",
+        payload={"fields": {"summary": "seed", "issuetype": "Task"}},
+    )
+    applier._apply_typed(create, repo_root=fixture_repo)
+
+    # Conflict mutation targets the JIRA-key form...
+    conflict = _make_mutation(
+        mut_mod,
+        direction=mut_mod.MutationDirection.inbound,
+        action=mut_mod.MutationAction.conflict,
+        target="DIG-7",
+        payload={"local_id": "", "reason": "test"},
+    )
+    # ...and the follow_on records local_id='' so only the jira_key arm
+    # ('DIG-7') and its computed local-id form ('jira-dig-7') drive
+    # suppression. The later mutation uses the computed-form target.
+    later = _make_mutation(
+        mut_mod,
+        direction=mut_mod.MutationDirection.inbound,
+        action=mut_mod.MutationAction.update,
+        target="jira-dig-7",
+        payload={"fields": {"summary": "SHOULD-BE-DROPPED"}},
+    )
+
+    applier.apply([conflict, later], pass_id="test-pass", repo_root=fixture_repo)
+
+    tracker = fixture_repo / ".tickets-tracker"
+    edits = [
+        json.loads(p.read_text())
+        for p in _event_files(tracker, "jira-dig-7")
+        if "EDIT" in p.name
+    ]
+    titles = [e["data"]["fields"].get("title", "") for e in edits]
+    assert "SHOULD-BE-DROPPED" not in titles

@@ -398,6 +398,37 @@ def _resolve_tracker_dir(repo_root: Path | None) -> Path:
     return Path(repo_root) / ".tickets-tracker"  # tickets-boundary-ok
 
 
+def _read_latest_status(tracker_dir: Path, ticket_id: str) -> str:
+    """Return the latest status recorded for ``ticket_id`` (default ``"open"``).
+
+    Mirrors the reducer's STATUS-processing semantics (see
+    ticket_reducer/_processors.py:process_status):
+    the reducer initialises ``state["status"]`` to ``"open"`` and advances it
+    only when a STATUS event arrives whose own ``current_status`` field
+    matches the current state. Reading the latest written ``data["status"]``
+    here gives the inbound leaf the value that the reducer would have in
+    state right before our new STATUS event lands, so the new event's
+    ``current_status`` is the PREVIOUS state (not the new one).
+
+    Tolerant of missing tickets and unreadable event files — returns
+    ``"open"`` in either case, matching the reducer's initial state.
+    """
+    ticket_dir = tracker_dir / ticket_id
+    if not ticket_dir.is_dir():
+        return "open"
+    latest_status = "open"
+    for ef in sorted(ticket_dir.glob("*.json")):
+        try:
+            event = json.loads(ef.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            continue
+        if not isinstance(event, dict):
+            continue
+        if event.get("event_type") == "STATUS":
+            latest_status = event.get("data", {}).get("status", "") or latest_status
+    return latest_status
+
+
 def _write_event_file(
     tracker_dir: Path, ticket_id: str, event_type: str, data: dict[str, Any]
 ) -> Path:
@@ -510,11 +541,16 @@ def _apply_inbound_update(mutation, *, client=None, repo_root=None) -> ApplyResu
 
     if "status" in fields:
         local_status = _jira_status_to_local(fields["status"])
+        # current_status is the PREVIOUS state (matched against state["status"]
+        # by the reducer for fork detection — see
+        # ticket_reducer/_processors.py:process_status).
+        # Read the latest STATUS event from the ticket dir to obtain it.
+        previous_status = _read_latest_status(tracker_dir, local_id)
         path = _write_event_file(
             tracker_dir,
             local_id,
             "STATUS",
-            {"status": local_status, "current_status": local_status},
+            {"status": local_status, "current_status": previous_status},
         )
         written.append(str(path))
 
@@ -1089,11 +1125,29 @@ def _apply_typed(mutation, *, client=None, repo_root=None) -> ApplyResult:
     _audit_dso_id_label_writes(leaf_name, [mutation])
     # All inbound leaves accept repo_root; outbound leaves now do too. Pass it
     # uniformly so the leaves can write to the local tracker when applicable.
+    # Inspect the handler signature once to decide whether to pass repo_root,
+    # rather than catching a broad TypeError (which would silently swallow
+    # genuine TypeErrors raised from inside the leaf body — bug surfaced in
+    # PR #375 review thread 3306949603).
+    import inspect as _inspect
+
     try:
+        sig = _inspect.signature(handler)
+        accepts_repo_root = (
+            "repo_root" in sig.parameters
+            or any(
+                p.kind is _inspect.Parameter.VAR_KEYWORD
+                for p in sig.parameters.values()
+            )
+        )
+    except (TypeError, ValueError):
+        # Builtins / C-extensions don't expose signatures: fall back to passing
+        # repo_root (legacy behaviour).
+        accepts_repo_root = True
+
+    if accepts_repo_root:
         return handler(mutation, client=client, repo_root=repo_root)
-    except TypeError:
-        # Back-compat: any legacy handler that does not accept repo_root.
-        return handler(mutation, client=client)
+    return handler(mutation, client=client)
 
 
 # Exit code signalling that the caller should reschedule this pass.
@@ -1734,15 +1788,30 @@ def apply(
     # targeting either X or Y AND all outbound batch entries targeting Y are
     # dropped from this pass so the conflict signal is not stomped by stale
     # follow-up mutations.
-    suppressed_pairs: list[tuple[str, str]] = []
+    # Suppress-pair index: O(1) lookup. We maintain two sets of canonical
+    # identifiers (jira-keys-as-given and local_ids) plus a set of computed
+    # local-id forms (jira_key → _jira_key_to_local_id) so the third match-
+    # arm (computed-form: target=='DIG-7' suppresses subsequent
+    # target=='jira-dig-7') is also O(1). Replaces the prior O(n²) list
+    # scan flagged in PR #375 review thread 3306949610.
+    suppressed_targets: set[str] = set()
+    suppressed_pairs: set[tuple[str, str]] = set()
 
     def _is_suppressed(target: str) -> bool:
-        for local_id, jira_key in suppressed_pairs:
-            if target == jira_key or target == local_id:
-                return True
-            if local_id and target == _jira_key_to_local_id(jira_key):
-                return True
-        return False
+        if not target:
+            return False
+        return target in suppressed_targets
+
+    def _record_suppression(local_id: str, jira_key: str) -> None:
+        suppressed_pairs.add((local_id, jira_key))
+        if jira_key:
+            suppressed_targets.add(jira_key)
+            # Computed-form: a later mutation targeting the local-id form of
+            # this jira_key (e.g. 'jira-dig-7' after suppressing 'DIG-7')
+            # must also be dropped.
+            suppressed_targets.add(_jira_key_to_local_id(jira_key))
+        if local_id:
+            suppressed_targets.add(local_id)
 
     for mut in inbound_typed:
         if _is_suppressed(getattr(mut, "target", "")):
@@ -1754,8 +1823,8 @@ def apply(
             else None
         )
         if isinstance(follow_on, dict) and follow_on.get("kind") == "suppress_pair":
-            suppressed_pairs.append(
-                (follow_on.get("local_id", ""), follow_on.get("jira_key", ""))
+            _record_suppression(
+                follow_on.get("local_id", ""), follow_on.get("jira_key", "")
             )
 
     # Outbound (or untyped dict): normalize typed Mutations to dicts so
