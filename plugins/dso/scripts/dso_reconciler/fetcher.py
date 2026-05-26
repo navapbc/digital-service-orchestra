@@ -52,6 +52,53 @@ def _load_acli():
     return mod
 
 
+# Canonical dotted key matching the codebase convention used by __main__'s
+# _ADVISORY_LOCK_KEY / _MODE_KEY and applier's _MUTATION_KEY. Tests that
+# patch `plugins.dso.scripts.dso_reconciler.alert_store.append` (e.g.
+# test_fetcher_dedup_observable.py) target this key, so we MUST register
+# the loaded module here so production and tests share a single module
+# object. Choosing any other key would create a dual-load (Cluster A
+# pattern), defeat existing patches, and reintroduce the bug class that
+# bug ec9a-be6b-f50a-47b4 was filed to close.
+_ALERT_STORE_KEY = "plugins.dso.scripts.dso_reconciler.alert_store"
+
+
+def _load_alert_store():
+    """Lazy-load alert_store under its canonical sys.modules key.
+
+    Production callers (fetcher.fetch_snapshot dedup-alert path) need
+    alert_store at runtime but cannot use `from plugins.dso.scripts...
+    import alert_store` because `plugins` is not importable as a package
+    in the production CI runner. This helper performs an importlib-based
+    sibling load and registers under the canonical dotted key so any
+    other loader / test patch sees the same module object.
+
+    On exec_module failure, the partially-initialised module is removed
+    from sys.modules before re-raising so a subsequent call retries
+    cleanly rather than reusing a broken module (copilot review finding
+    on PR #363).
+    """
+    if _ALERT_STORE_KEY in sys.modules:
+        return sys.modules[_ALERT_STORE_KEY]
+    alert_store_path = Path(__file__).parent / "alert_store.py"
+    spec = importlib.util.spec_from_file_location(_ALERT_STORE_KEY, alert_store_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(
+            f"Cannot load alert_store from {alert_store_path} — "
+            f"spec_from_file_location returned spec={spec!r}"
+        )
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[_ALERT_STORE_KEY] = mod
+    try:
+        spec.loader.exec_module(mod)
+    except Exception:
+        # Cleanup: don't leave a half-initialised module in sys.modules
+        # for the next caller to reuse. Mirrors pre_cutover._load_step.
+        sys.modules.pop(_ALERT_STORE_KEY, None)
+        raise
+    return mod
+
+
 def _extract_issues(result) -> list[dict]:
     """Normalize a search_issues result to a list of issue dicts.
 
@@ -156,8 +203,8 @@ def fetch_snapshot(
         api_token=os.environ.get("JIRA_API_TOKEN", ""),
     )
 
-    # Local import — avoid a circular at module load (alert_store is leaf).
-    from plugins.dso.scripts.dso_reconciler import alert_store
+    # Lazy load to avoid a circular at module-load time (alert_store is leaf).
+    alert_store = _load_alert_store()
 
     seen_keys: set[str] = set()
     snapshot: dict[str, dict] = {}
