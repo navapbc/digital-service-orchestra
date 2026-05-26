@@ -16,7 +16,9 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-FETCHER_PATH = REPO_ROOT / "plugins" / "dso" / "scripts" / "dso_reconciler" / "fetcher.py"
+FETCHER_PATH = (
+    REPO_ROOT / "plugins" / "dso" / "scripts" / "dso_reconciler" / "fetcher.py"
+)
 
 
 def test_alert_store_loads_via_importlib_pattern_with_no_plugins_seeded(tmp_path):
