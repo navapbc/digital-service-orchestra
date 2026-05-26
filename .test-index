@@ -613,3 +613,4 @@ plugins/dso/agents/visual-evaluator.md:tests/plugin/test_visual_evaluator_agent_
 plugins/dso/scripts/label_visual_corpus.py:tests/visual_eval/test_corpus_schema.py
 plugins/dso/skills/visual-evaluator/SKILL.md:tests/skills/test-visual-evaluator-skill.sh
 plugins/dso/scripts/compute_kappa.py:tests/visual_eval/test_kappa_computation.py
+plugins/dso/scripts/visual_eval_gates.py:tests/visual_eval/test_visual_eval_gates.py
