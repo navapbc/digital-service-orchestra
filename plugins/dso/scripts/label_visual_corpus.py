@@ -125,8 +125,8 @@ def label_fixture(
     return label
 
 
-def label_all(corpus_dir: str | Path, *, stub_mode: bool = True) -> dict:
-    """Label every fixture with 2 LLM agent runs and write corpus_metadata.json."""
+def label_all(corpus_dir: str | Path, *, stub_mode: bool = True, runs: int = 3) -> dict:
+    """Label every fixture with N LLM agent runs and write corpus_metadata.json."""
     from compute_kappa import compute_kappa
 
     root = Path(corpus_dir)
@@ -135,12 +135,20 @@ def label_all(corpus_dir: str | Path, *, stub_mode: bool = True) -> dict:
     )
 
     labeled_count = 0
+    temperatures = [0.0] + [round(0.3 + 0.2 * i, 1) for i in range(runs - 1)]
+    temperatures = temperatures[:runs]
+
     for fixture in fixtures:
         ok, errors = validate_fixture(fixture)
         if not ok:
             continue
-        label_fixture(fixture, run_id=1, temperature=0.0, stub_mode=stub_mode)
-        label_fixture(fixture, run_id=2, temperature=0.5, stub_mode=stub_mode)
+        for run_id in range(1, runs + 1):
+            label_fixture(
+                fixture,
+                run_id=run_id,
+                temperature=temperatures[run_id - 1],
+                stub_mode=stub_mode,
+            )
         labeled_count += 1
 
     # Compute kappa
@@ -152,7 +160,9 @@ def label_all(corpus_dir: str | Path, *, stub_mode: bool = True) -> dict:
     metadata = {
         "cohens_kappa": kappa,
         "fixture_count": labeled_count,
-        "labeler_ids": ["llm_agent_run_1", "llm_agent_run_2"],
+        "labeler_ids": [f"llm_agent_run_{i}" for i in range(1, runs + 1)],
+        "runs_per_fixture": runs,
+        "temperatures": temperatures,
         "labeled_at": _dt.datetime.now(_dt.timezone.utc)
         .isoformat()
         .replace("+00:00", "Z"),

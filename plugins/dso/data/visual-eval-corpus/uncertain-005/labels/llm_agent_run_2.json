@@ -3,6 +3,6 @@
   "provenance": "llm_agent",
   "attribution_class": "uncertain",
   "attribution_confidence": "medium",
-  "temperature": 0.5,
-  "labeled_at": "2026-05-26T21:09:59.282329Z"
+  "temperature": 0.3,
+  "labeled_at": "2026-05-26T21:35:28.335419Z"
 }

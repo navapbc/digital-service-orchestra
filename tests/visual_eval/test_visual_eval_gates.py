@@ -21,11 +21,23 @@ def _make_fixture(
     tmp_path: Path,
     name: str,
     expected_class: str,
-    run1_class: str,
-    run2_class: str,
+    run1_class: str = None,
+    run2_class: str = None,
     findings_run1: list = None,
     findings_run2: list = None,
+    run_classes: list[str] = None,
+    findings_runs: list[list] = None,
 ) -> None:
+    """Create a fixture with N runs.
+
+    Accepts either the legacy run1_class/run2_class pair or the new run_classes list.
+    run_classes takes precedence when provided.
+    """
+    if run_classes is None:
+        # Build run_classes from legacy args, defaulting to expected_class
+        _r1 = run1_class if run1_class is not None else expected_class
+        _r2 = run2_class if run2_class is not None else expected_class
+        run_classes = [_r1, _r2, expected_class]
     fixture = tmp_path / name
     fixture.mkdir()
     (fixture / "screenshot.png").write_bytes(b"\x89PNG")
@@ -33,41 +45,80 @@ def _make_fixture(
         json.dumps({"attribution_class": expected_class})
     )
     (fixture / "labels").mkdir()
-    label1 = {
-        "labeler_id": "llm_agent_run_1",
-        "provenance": "llm_agent",
-        "attribution_class": run1_class,
-        "findings": findings_run1 or [],
-    }
-    label2 = {
-        "labeler_id": "llm_agent_run_2",
-        "provenance": "llm_agent",
-        "attribution_class": run2_class,
-        "findings": findings_run2 or [],
-    }
-    (fixture / "labels" / "llm_agent_run_1.json").write_text(json.dumps(label1))
-    (fixture / "labels" / "llm_agent_run_2.json").write_text(json.dumps(label2))
+    # Handle legacy findings args for backward compatibility
+    legacy_findings = [findings_run1 or [], findings_run2 or []]
+    for i, cls in enumerate(run_classes, start=1):
+        if findings_runs and i - 1 < len(findings_runs):
+            findings = findings_runs[i - 1]
+        elif i - 1 < len(legacy_findings):
+            findings = legacy_findings[i - 1]
+        else:
+            findings = []
+        label = {
+            "labeler_id": f"llm_agent_run_{i}",
+            "provenance": "llm_agent",
+            "attribution_class": cls,
+            "findings": findings,
+        }
+        (fixture / "labels" / f"llm_agent_run_{i}.json").write_text(json.dumps(label))
 
 
 def test_variance_gate_pass(tmp_path: Path) -> None:
+    # 3 runs all agree → variance = 0.0 per fixture
     _make_fixture(
         tmp_path,
         "f1",
         "implementation_drift",
-        "implementation_drift",
-        "implementation_drift",
+        run_classes=[
+            "implementation_drift",
+            "implementation_drift",
+            "implementation_drift",
+        ],
     )
-    _make_fixture(tmp_path, "f2", "design_flaw", "design_flaw", "design_flaw")
+    _make_fixture(
+        tmp_path,
+        "f2",
+        "design_flaw",
+        run_classes=["design_flaw", "design_flaw", "design_flaw"],
+    )
     results = run_all_gates(tmp_path)
     assert results["variance"][0] is True
 
 
 def test_variance_gate_fail(tmp_path: Path) -> None:
-    # All fixtures disagree → mean variance = 1.0 > 0.5 threshold
+    # 3 runs with 2 agree, 1 disagrees → variance = 1/3 ≈ 0.333 (< 0.5 threshold, PASS)
+    # This test verifies that partial disagreement below threshold still passes
     _make_fixture(
-        tmp_path, "f1", "implementation_drift", "implementation_drift", "design_flaw"
+        tmp_path,
+        "f1",
+        "implementation_drift",
+        run_classes=["implementation_drift", "implementation_drift", "design_flaw"],
     )
-    _make_fixture(tmp_path, "f2", "design_flaw", "design_flaw", "mixed")
+    _make_fixture(
+        tmp_path,
+        "f2",
+        "design_flaw",
+        run_classes=["design_flaw", "design_flaw", "mixed"],
+    )
+    results = run_all_gates(tmp_path)
+    # variance ≈ 0.333 < 0.5 threshold → PASS (not a failure case for this threshold)
+    assert results["variance"][0] is True
+
+
+def test_variance_gate_fail_high_disagreement(tmp_path: Path) -> None:
+    # 3 runs all different → majority_fraction = 1/3, variance = 2/3 ≈ 0.667 > 0.5 → FAIL
+    _make_fixture(
+        tmp_path,
+        "f1",
+        "implementation_drift",
+        run_classes=["implementation_drift", "design_flaw", "mixed"],
+    )
+    _make_fixture(
+        tmp_path,
+        "f2",
+        "design_flaw",
+        run_classes=["design_flaw", "mixed", "uncertain"],
+    )
     results = run_all_gates(tmp_path)
     assert results["variance"][0] is False
 
@@ -173,6 +224,55 @@ def test_all_gates_pass_exit_0(tmp_path: Path) -> None:
         text=True,
     )
     assert result.returncode == 0, f"Script failed: {result.stdout}{result.stderr}"
+
+
+def test_weights_change_accuracy(tmp_path: Path) -> None:
+    """Different weight configurations produce different weighted accuracy values."""
+    # 4 fixtures, 2 correct (implementation_drift class), 2 wrong (design_flaw class predicted as uncertain)
+    _make_fixture(
+        tmp_path,
+        "id1",
+        "implementation_drift",
+        "implementation_drift",
+        "implementation_drift",
+    )
+    _make_fixture(
+        tmp_path,
+        "id2",
+        "implementation_drift",
+        "implementation_drift",
+        "implementation_drift",
+    )
+    _make_fixture(tmp_path, "df1", "design_flaw", "uncertain", "uncertain")
+    _make_fixture(tmp_path, "df2", "design_flaw", "uncertain", "uncertain")
+
+    # Equal weights: 2/4 = 0.5
+    eq_acc = compute_weighted_accuracy(tmp_path, weights=None)
+
+    # Implementation-drift-weighted heavily: 2 correct * 1.0 weight / (2*1.0 + 2*0.0) = 1.0
+    id_weights = {
+        "implementation_drift": 1.0,
+        "design_flaw": 0.0,
+        "mixed": 0.0,
+        "uncertain": 0.0,
+    }
+    id_acc = compute_weighted_accuracy(tmp_path, weights=id_weights)
+
+    # Design-flaw-weighted heavily: 0 correct * 1.0 / (0*1.0 + 2*1.0) = 0.0
+    df_weights = {
+        "implementation_drift": 0.0,
+        "design_flaw": 1.0,
+        "mixed": 0.0,
+        "uncertain": 0.0,
+    }
+    df_acc = compute_weighted_accuracy(tmp_path, weights=df_weights)
+
+    assert eq_acc != id_acc, (
+        f"Equal weights ({eq_acc}) and implementation-drift weights ({id_acc}) produced same accuracy — weights not applied"
+    )
+    assert id_acc > df_acc, (
+        f"implementation-drift-weighted ({id_acc}) should exceed design-flaw-weighted ({df_acc})"
+    )
 
 
 def test_script_documents_invocation_policy() -> None:

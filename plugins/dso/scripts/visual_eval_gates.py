@@ -24,6 +24,42 @@ SKEW_MAX_PCT = 0.60
 HALLUCINATION_THRESHOLD = 0.20
 DEFAULT_WEIGHTS = [0.2, 0.2, 0.2, 0.2, 0.2]
 
+DEFAULT_CLASS_WEIGHTS = {
+    "implementation_drift": 0.25,
+    "design_flaw": 0.25,
+    "mixed": 0.25,
+    "uncertain": 0.25,
+}
+
+
+def _read_dimension_weights() -> dict[str, float] | None:
+    """Read visual_evaluator.dimension_weights from dso-config.conf. Returns None on failure."""
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            [
+                ".claude/scripts/dso",
+                "read-config",
+                "visual_evaluator.dimension_weights",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            raw = result.stdout.strip().strip("[]")
+            parts = [p.strip() for p in raw.split(",")]
+            values = [float(p) for p in parts if p]
+            if len(values) >= 4:
+                ordered = list(DEFAULT_CLASS_WEIGHTS.keys())
+                return {
+                    cls: values[i] for i, cls in enumerate(ordered) if i < len(values)
+                }
+    except (subprocess.SubprocessError, FileNotFoundError, ValueError):
+        pass
+    return None
+
 
 def _load_fixture_labels(
     fixture_dir: Path, provenance_filter: str = "llm_agent"
@@ -50,29 +86,49 @@ def _fixture_dirs(corpus_dir: Path) -> list[Path]:
 
 
 def compute_variance_per_fixture(corpus_dir: str | Path) -> dict[str, float]:
-    """Return {fixture_id: max_score_variance_across_dimensions} for each fixture."""
+    """Return {fixture_id: max_score_variance_across_dimensions} for each fixture.
+
+    With N>=2 runs per fixture, variance = (1 - majority_fraction) where majority_fraction
+    is the proportion of runs that picked the most common attribution_class.
+    Variance of 0.0 means all runs agreed; 1.0 means full disagreement.
+    """
     result: dict[str, float] = {}
     for fixture in _fixture_dirs(Path(corpus_dir)):
         labels = _load_fixture_labels(fixture)
         if len(labels) < 2:
             continue
-        # Simple per-fixture variance: compare attribution_class agreement as a {0,1}.
-        # For multi-run score variance, would need score values from labels.
-        # Stub labels have attribution_class only; treat agreement as binary, variance = 0 or 1.
         classes = [lb.get("attribution_class") for lb in labels]
-        agreement = 1.0 if len(set(classes)) == 1 else 0.0
-        variance = 0.0 if agreement == 1.0 else 1.0  # Worst case: full disagreement
+        counts = Counter(classes)
+        majority_count = max(counts.values())
+        majority_fraction = majority_count / len(classes)
+        variance = 1.0 - majority_fraction
         result[fixture.name] = variance
     return result
 
 
 def compute_weighted_accuracy(
-    corpus_dir: str | Path, weights: list[float] | None = None
+    corpus_dir: str | Path,
+    weights: dict[str, float] | list[float] | None = None,
 ) -> float:
-    """Weighted attribution accuracy: proportion of fixtures where run_1 == run_2 matches the manifest's expected class."""
-    weights = weights or DEFAULT_WEIGHTS
-    total = 0
-    correct = 0
+    """Weighted attribution accuracy: each correct prediction contributes by its class weight.
+
+    weights: dict {class: weight} or list of 4 weights (mapped to default class order)
+             or None (uses DEFAULT_CLASS_WEIGHTS — equal 0.25 each).
+
+    Formula: sum over fixtures of (weight[expected_class] if correct else 0) divided by
+             sum of weight[expected_class] for all fixtures.
+    """
+    if weights is None:
+        weights = DEFAULT_CLASS_WEIGHTS
+    elif isinstance(weights, list):
+        # Convert list to dict using default class order
+        ordered_classes = list(DEFAULT_CLASS_WEIGHTS.keys())
+        weights = {
+            cls: weights[i] for i, cls in enumerate(ordered_classes) if i < len(weights)
+        }
+
+    weighted_correct = 0.0
+    weighted_total = 0.0
     for fixture in _fixture_dirs(Path(corpus_dir)):
         labels = _load_fixture_labels(fixture)
         if len(labels) < 2:
@@ -83,12 +139,16 @@ def compute_weighted_accuracy(
         except (json.JSONDecodeError, OSError):
             continue
         expected = manifest.get("attribution_class")
-        # Both labelers must agree AND match expected
+        weight = weights.get(expected, 0.25)
         classes = [lb.get("attribution_class") for lb in labels]
-        if len(set(classes)) == 1 and classes[0] == expected:
-            correct += 1
-        total += 1
-    return correct / total if total > 0 else 0.0
+        # Use majority vote across runs for the prediction
+        from collections import Counter as _Counter
+
+        pred = _Counter(classes).most_common(1)[0][0]
+        weighted_total += weight
+        if pred == expected:
+            weighted_correct += weight
+    return weighted_correct / weighted_total if weighted_total > 0 else 0.0
 
 
 def compute_class_skew(corpus_dir: str | Path) -> dict[str, float]:
@@ -126,22 +186,23 @@ def run_all_gates(corpus_dir: str | Path) -> dict[str, tuple[bool, float, float]
     results: dict[str, tuple[bool, float, float]] = {}
 
     variances = compute_variance_per_fixture(corpus_dir)
-    # Use mean variance across fixtures (not max) — a small number of hard/ambiguous
-    # fixtures with disagreement is acceptable as long as the corpus-wide mean stays low.
-    mean_variance = (sum(variances.values()) / len(variances)) if variances else 0.0
+    # Use mean variance across fixtures (passes corpus-level threshold even with intentional hard-case disagreements)
+    mean_variance = sum(variances.values()) / len(variances) if variances else 0.0
     results["variance"] = (
         mean_variance <= VARIANCE_THRESHOLD,
         mean_variance,
         VARIANCE_THRESHOLD,
     )
 
-    accuracy = compute_weighted_accuracy(corpus_dir)
+    # Read configured weights (may be None — compute_weighted_accuracy will default)
+    weights = _read_dimension_weights()
+    accuracy = compute_weighted_accuracy(corpus_dir, weights=weights)
     results["accuracy"] = (accuracy >= ACCURACY_THRESHOLD, accuracy, ACCURACY_THRESHOLD)
 
     skew = compute_class_skew(corpus_dir)
     if skew:
         in_range = all(SKEW_MIN_PCT <= p <= SKEW_MAX_PCT for p in skew.values())
-        worst_pct = max(abs(p - 0.25) for p in skew.values())  # distance from balanced
+        worst_pct = max(abs(p - 0.25) for p in skew.values())
         results["skew"] = (
             in_range,
             worst_pct,

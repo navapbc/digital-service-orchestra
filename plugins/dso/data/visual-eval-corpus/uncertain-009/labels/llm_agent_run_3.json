@@ -1,0 +1,8 @@
+{
+  "labeler_id": "llm_agent_run_3",
+  "provenance": "llm_agent",
+  "attribution_class": "uncertain",
+  "attribution_confidence": "medium",
+  "temperature": 0.5,
+  "labeled_at": "2026-05-26T21:35:28.336879Z"
+}
