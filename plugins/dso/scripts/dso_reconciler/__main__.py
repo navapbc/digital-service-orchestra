@@ -85,7 +85,11 @@ def _try_load_step(name: str):
     return mod
 
 
-def run_pass(repo_root: Path | None = None, pass_id: str | None = None) -> int:
+def run_pass(
+    repo_root: Path | None = None,
+    pass_id: str | None = None,
+    target_mode=None,
+) -> int:
     """Execute one steady-state reconciliation pass via reconcile.reconcile_once().
 
     Returns 0 on converged state, EXIT_RESCHEDULE (75) when applier signals a
@@ -122,7 +126,9 @@ def run_pass(repo_root: Path | None = None, pass_id: str | None = None) -> int:
     exit_reschedule = getattr(applier, "EXIT_RESCHEDULE", 75) if applier else 75
 
     try:
-        result = reconcile.reconcile_once(pass_id, repo_root=repo_root)
+        result = reconcile.reconcile_once(
+            pass_id, repo_root=repo_root, target_mode=target_mode
+        )
     except Exception as exc:  # noqa: BLE001
         if reschedule_error_cls is not None and isinstance(exc, reschedule_error_cls):
             print(
@@ -188,7 +194,9 @@ def main(argv: list[str] | None = None) -> int:
     # This path is intentionally placed before advisory-lock and mode checks so
     # the flag is usable in test fixtures without a live Jira config or lock state.
     if getattr(args, "dry_run_enumerate", False):
-        resolved_root = repo_root if repo_root is not None else Path(__file__).parents[4]
+        resolved_root = (
+            repo_root if repo_root is not None else Path(__file__).parents[4]
+        )
         tickets_dir = resolved_root / ".tickets-tracker"
         if not tickets_dir.is_dir():
             # No tracker directory — emit nothing and exit cleanly.
@@ -197,7 +205,7 @@ def main(argv: list[str] | None = None) -> int:
             if not entry.is_dir():
                 continue
             # Apply the same .scratch/ exclusion used by health.py walkers.
-            if '.scratch' in entry.parts:
+            if ".scratch" in entry.parts:
                 continue
             print(entry)
         return 0
@@ -250,7 +258,7 @@ def main(argv: list[str] | None = None) -> int:
     pass_id = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H-%M-%S")
     advisory.acquire_pass_lock(pass_id, repo_root)
     try:
-        return run_pass(repo_root=repo_root, pass_id=pass_id)
+        return run_pass(repo_root=repo_root, pass_id=pass_id, target_mode=target_mode)
     except Exception as exc:  # noqa: BLE001
         print(f"ERROR: run_pass raised: {exc}", file=sys.stderr)
         return 1

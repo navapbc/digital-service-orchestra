@@ -92,3 +92,17 @@ class Mode(str, Enum):
         if not isinstance(other, Mode):
             return NotImplemented
         return _ORDERED.index(self.value) < _ORDERED.index(other.value)
+
+
+# Per-mode mutation cap. None means uncapped (LIVE). 0 means "apply nothing"
+# (DRY_RUN: all mutations are deferred, no leaf invoked). Finite positive caps
+# (BOOTSTRAP_STRICT=10, BOOTSTRAP_THROTTLE=100) bound the blast radius of a
+# single pass during the rollout phases. Used by applier.apply() to partition
+# mutations into applied + deferred, in deterministic (direction, action, target)
+# order.
+MODE_CAPS: dict[Mode, int | None] = {
+    Mode.DRY_RUN: 0,
+    Mode.BOOTSTRAP_STRICT: 10,
+    Mode.BOOTSTRAP_THROTTLE: 100,
+    Mode.LIVE: None,
+}

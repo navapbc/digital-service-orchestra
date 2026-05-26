@@ -1709,12 +1709,64 @@ def _handle_failed_write_result(write_result, pass_id: str) -> None:
     raise RescheduleError(attempt_count=attempt_count, last_error=last_error)
 
 
+def _load_mode_module():
+    """Lazy-load mode.py under a stable key so MODE_CAPS / Mode are accessible.
+
+    Uses the SAME dotted key as __main__._MODE_KEY so a single module object
+    is shared with the entry-point loader; tests that pre-seed sys.modules
+    under that key see their stub here too.
+    """
+    key = "plugins.dso.scripts.dso_reconciler.mode"
+    if key in sys.modules:
+        return sys.modules[key]
+    mode_path = Path(__file__).parent / "mode.py"
+    spec = importlib.util.spec_from_file_location(key, mode_path)
+    if spec is None or spec.loader is None:
+        raise FileNotFoundError(f"mode.py not found at {mode_path}")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[key] = mod
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    return mod
+
+
+def _load_manifest_renderer():
+    """Lazy-load manifest_renderer.py."""
+    key = "plugins.dso.scripts.dso_reconciler.manifest_renderer"
+    if key in sys.modules:
+        return sys.modules[key]
+    path = Path(__file__).parent / "manifest_renderer.py"
+    spec = importlib.util.spec_from_file_location(key, path)
+    if spec is None or spec.loader is None:
+        raise FileNotFoundError(f"manifest_renderer.py not found at {path}")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[key] = mod
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    return mod
+
+
+def _mode_sort_key(m) -> tuple[str, str, str]:
+    """Deterministic ordering key: (direction, action, target)."""
+    d = getattr(m, "direction", None)
+    a = getattr(m, "action", None)
+    t = getattr(m, "target", None)
+    if isinstance(m, dict):
+        d = d if d is not None else m.get("direction", "")
+        a = a if a is not None else m.get("action", "")
+        t = t if t is not None else (m.get("key", "") or m.get("target", ""))
+    return (
+        str(getattr(d, "value", d) or ""),
+        str(getattr(a, "value", a) or ""),
+        str(t or ""),
+    )
+
+
 def apply(
     mutations=None,
     pass_id: str | None = None,
     repo_root: Path | None = None,
     *,
     client=None,
+    mode=None,
 ):
     """Polymorphic dispatch entry point.
 
@@ -1748,6 +1800,50 @@ def apply(
             "apply() legacy batch form requires pass_id as the second argument"
         )
 
+    # -------------------------------------------------------------------------
+    # Mode-cap enforcement (story 286b).
+    #
+    # When *mode* is provided, look up the per-mode cap in MODE_CAPS and
+    # partition the incoming mutations into (applied, deferred). The applied
+    # list is what the direction-aware dispatch loop below actually executes;
+    # the deferred list is reported via the mode-specific manifest renderer.
+    #
+    # Cap semantics:
+    #   - cap is None    → uncapped (LIVE): apply all; manifest renderer is
+    #                      NOT invoked (LIVE writes no manifest file).
+    #   - cap == 0       → DRY_RUN: apply NOTHING (no leaf invoked, no batch
+    #                      iteration); manifest still written listing every
+    #                      mutation as deferred.
+    #   - cap > 0        → BOOTSTRAP_STRICT (10) / BOOTSTRAP_THROTTLE (100):
+    #                      sort by (direction, action, target), apply first
+    #                      `cap`, defer the rest.
+    #
+    # When *mode* is None (the call shape used by legacy callers that have not
+    # yet been migrated), behaviour is unchanged from before: apply everything,
+    # write the legacy flat manifest. This preserves the contract for the wide
+    # surface of existing tests under tests/unit/dso_reconciler/.
+    # -------------------------------------------------------------------------
+    mutations_input = list(mutations or [])
+    deferred_for_manifest: list = []
+    if mode is not None:
+        mode_mod = _load_mode_module()
+        cap = mode_mod.MODE_CAPS.get(mode)
+        # Sort deterministically before applying the cap so the applied /
+        # deferred partition is reproducible across passes.
+        ordered = sorted(mutations_input, key=_mode_sort_key)
+        if cap is None:
+            # LIVE: uncapped — proceed with all mutations through the normal
+            # dispatch path below. Manifest renderer is skipped post-apply.
+            mutations_input = ordered
+        elif cap == 0:
+            # DRY_RUN: skip the apply loop entirely. Every mutation is deferred.
+            deferred_for_manifest = ordered
+            mutations_input = []
+        else:
+            # BOOTSTRAP_STRICT / BOOTSTRAP_THROTTLE: cap then defer remainder.
+            mutations_input = ordered[:cap]
+            deferred_for_manifest = ordered[cap:]
+
     # Direction-aware dispatch (defect #8): partition typed Mutations by
     # direction. Inbound Mutations route through _apply_typed per-mutation
     # (so each one fires the inbound leaf from _LEAVES against the local
@@ -1763,7 +1859,7 @@ def apply(
     # every pass. The actual fix is to route inbound through the existing
     # _apply_typed handler (which already covers all (inbound, *) pairs in
     # _LEAVES).
-    mutations_list = list(mutations or [])
+    mutations_list = list(mutations_input)
 
     def _looks_like_mutation(m) -> bool:
         if isinstance(m, mut_mod.Mutation):
@@ -1847,7 +1943,101 @@ def apply(
         outbound_list = [
             d for d in outbound_list if not _is_suppressed(d.get("key", ""))
         ]
-    return _apply_batch(outbound_list, pass_id, repo_root=repo_root)
+    # In DRY_RUN, skip the legacy batch dispatcher entirely so the test
+    # contract ("neither _apply_typed nor _apply_batch is invoked") holds.
+    # The renderer block below writes the asymmetric manifest from scratch.
+    if mode is not None:
+        mode_mod_for_dryskip = _load_mode_module()
+        if mode == mode_mod_for_dryskip.Mode.DRY_RUN:
+            manifest_path = None
+        else:
+            manifest_path = _apply_batch(outbound_list, pass_id, repo_root=repo_root)
+    else:
+        manifest_path = _apply_batch(outbound_list, pass_id, repo_root=repo_root)
+
+    # -------------------------------------------------------------------------
+    # Mode-specific manifest emission (story 286b).
+    #
+    # When *mode* is provided, replace the flat legacy manifest with the
+    # asymmetric shape dispatched by manifest_renderer:
+    #
+    #   - DRY_RUN / BOOTSTRAP_STRICT  → render_dry_run_or_strict
+    #   - BOOTSTRAP_THROTTLE          → render_throttle
+    #   - LIVE                        → no manifest file; remove the legacy
+    #                                    write and return None
+    #
+    # The legacy manifest written by _apply_batch is left in place when
+    # mode is None (legacy callers depend on it). Otherwise we overwrite or
+    # remove it as required by the mode contract.
+    # -------------------------------------------------------------------------
+    if mode is not None:
+        mode_mod = _load_mode_module()
+        renderer_mod = _load_manifest_renderer()
+        applied_for_manifest = list(mutations_list)
+
+        if mode == mode_mod.Mode.LIVE:
+            # LIVE: no manifest file per contract. Remove the legacy manifest
+            # written by _apply_batch.
+            try:
+                if manifest_path is not None and Path(manifest_path).exists():
+                    Path(manifest_path).unlink()
+            except OSError:
+                pass
+            return None
+
+        if mode == mode_mod.Mode.BOOTSTRAP_THROTTLE:
+            rendered = renderer_mod.render_throttle(
+                applied_for_manifest, deferred_for_manifest
+            )
+        else:
+            # DRY_RUN and BOOTSTRAP_STRICT share the same renderer.
+            rendered = renderer_mod.render_dry_run_or_strict(
+                applied_for_manifest, deferred_for_manifest
+            )
+
+        rendered_with_meta = {
+            "pass_id": pass_id,
+            "mode": getattr(mode, "value", str(mode)),
+            "applied_count": rendered.get("applied_count", len(applied_for_manifest)),
+            "deferred_count": rendered.get(
+                "deferred_count", len(deferred_for_manifest)
+            ),
+            "outbound": rendered.get("outbound"),
+            "inbound": rendered.get("inbound"),
+        }
+        if "spot_check" in rendered:
+            rendered_with_meta["spot_check"] = rendered["spot_check"]
+        # Also expose the deferred mutations list (sorted) so tests and
+        # operators can audit exactly what was held back.
+        rendered_with_meta["deferred"] = [
+            {
+                "direction": str(
+                    getattr(getattr(m, "direction", ""), "value", "")
+                    or (m.get("direction", "") if isinstance(m, dict) else "")
+                ),
+                "action": str(
+                    getattr(getattr(m, "action", ""), "value", "")
+                    or (m.get("action", "") if isinstance(m, dict) else "")
+                ),
+                "target": _mode_sort_key(m)[2],
+            }
+            for m in deferred_for_manifest
+        ]
+
+        # DRY_RUN may have skipped _apply_batch entirely (when mutations_input
+        # was empty) — _apply_batch still wrote an empty manifest. Either way,
+        # the manifest_path is valid; overwrite with the asymmetric shape.
+        if manifest_path is None:
+            if repo_root is None:
+                repo_root_resolved = Path(__file__).parents[4]
+            else:
+                repo_root_resolved = repo_root
+            snapshots_dir = repo_root_resolved / "bridge_state" / "snapshots"
+            snapshots_dir.mkdir(parents=True, exist_ok=True)
+            manifest_path = snapshots_dir / f"{pass_id}.manifest.json"
+        Path(manifest_path).write_text(json.dumps(rendered_with_meta, indent=2))
+
+    return manifest_path
 
 
 def _mutation_to_batch_dict(mutation) -> dict:
