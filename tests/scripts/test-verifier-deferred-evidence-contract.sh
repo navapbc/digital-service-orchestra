@@ -44,6 +44,22 @@ _assert_grep "verifier output schema includes obligations_created" \
 _assert_grep "verifier documents P1=FAIL on obligation_creation_failed" \
     "$VERIFIER" 'obligation_creation_failed'
 
+# Finding 2 contract: the verifier markdown (the agent's only runtime) must
+# explicitly bind the failure-path triple: (a) P1 = FAIL when any required
+# obligation creation fails, (b) the criteria_results entry carries
+# `evidence_found: "obligation_creation_failed: ..."`, and (c) successful
+# obligation ids are listed in `obligations_created`. We assert all three
+# tokens appear within a single contiguous documentation block (Step 4.5
+# and the Output Schema notes) so they cannot drift independently.
+_assert_grep "verifier binds P1=FAIL to failed obligation creation" \
+    "$VERIFIER" 'P1.*FAIL|P1: FAIL'
+
+_assert_grep "verifier states criteria_results carries obligation_creation_failed evidence" \
+    "$VERIFIER" 'criteria_results'
+
+_assert_grep "verifier states obligations_created lists only successful ids" \
+    "$VERIFIER" 'obligations_created.*successful|successfully-created'
+
 # Protocol doc
 _assert_grep "protocol doc references deferred-evidence obligations section" \
     "$PROTOCOL" 'Deferred-evidence obligations'

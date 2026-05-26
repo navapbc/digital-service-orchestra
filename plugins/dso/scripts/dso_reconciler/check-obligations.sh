@@ -68,6 +68,9 @@ for t in items:
 OVERDUE_FILED=0
 for obligation_id in $IDS; do
     SHOW_JSON=$("$TICKET_CLI" ticket show "$obligation_id" 2>/dev/null) || continue
+    # Extract fields. Validation command is JSON-encoded by the parser so
+    # newlines, backslashes, and other shell metacharacters in the ticket
+    # description cannot corrupt the bug body when interpolated below.
     parsed=$(printf '%s' "$SHOW_JSON" | python3 -c "
 import json, re, sys
 try:
@@ -77,16 +80,24 @@ except Exception:
 desc = t.get('description','') or ''
 parent = t.get('parent_id','') or ''
 m_dl = re.search(r'Deadline:\s*(\d{4}-\d{2}-\d{2})', desc)
-m_cmd = re.search(r'Validation command:\s*(.+)', desc)
+# Validation command: take only up to first newline to bound the field; the
+# raw value is then JSON-encoded so downstream shell interpolation is safe
+# regardless of metacharacters in the captured text.
+m_cmd = re.search(r'Validation command:\s*([^\n\r]*)', desc)
 deadline = m_dl.group(1) if m_dl else ''
 cmd = m_cmd.group(1).strip() if m_cmd else ''
 print(deadline)
 print(parent)
-print(cmd)
+# JSON-encoded (always single line, always shell-quote-safe at the
+# interpolation site since we wrap in double quotes below).
+print(json.dumps(cmd))
 " 2>/dev/null)
     deadline=$(printf '%s' "$parsed" | sed -n '1p')
     parent_story=$(printf '%s' "$parsed" | sed -n '2p')
-    val_cmd=$(printf '%s' "$parsed" | sed -n '3p')
+    val_cmd_json=$(printf '%s' "$parsed" | sed -n '3p')
+    # Decode for the human-readable bug body (single-line guaranteed by the
+    # parser regex above; JSON round-trip strips control characters).
+    val_cmd=$(printf '%s' "$val_cmd_json" | python3 -c "import json,sys; raw=sys.stdin.read().strip(); print(json.loads(raw) if raw else '')" 2>/dev/null)
 
     [[ -z "$deadline" ]] && continue
     deadline_days=$(_epoch_days "$deadline")
