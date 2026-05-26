@@ -573,7 +573,18 @@ ARCH_REVIEW_JSON=$(echo "$SCRATCH_RESULT" | python3 -c "import json,sys; print(j
 bash "$PLUGIN_SCRIPTS/ticket-scratch.sh" clear "$SCRATCH_TICKET_ID_OUT" "$SCRATCH_KEY_OUT" 2>/dev/null || true
 ```
 
-After retrieving the arch-review payload, emit exactly ONE ticket comment per cycle:
+After retrieving the arch-review payload, record the cycle artifact via the recorder:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/append_review_cycle.py \
+  --artifact <path-to-architectural-review-artifact-for-step2> \
+  --n <cycle-number> \
+  --draft-hash <sha256 of DELTA OUTPUT block> \
+  --findings-count <int> \
+  --verdict <pass|fail|escalate>
+```
+
+After the append, emit exactly ONE ticket comment per cycle:
 
 ```bash
 .claude/scripts/dso ticket comment <ticket-id> "Remediation cycle <n> recorded; arch-review draft stored under implementation-plan:step2:arch-review-draft"
@@ -1433,7 +1444,18 @@ fi
 CYCLE_JSON=$(echo "$_raw" | python3 -c "import json,sys; print(json.load(sys.stdin)['value'])")
 ```
 
-After reading `CYCLE_JSON`, emit exactly ONE ticket comment per cycle that references the scratch key (not a file path):
+After reading `CYCLE_JSON`, record the cycle artifact via the recorder:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/append_review_cycle.py \
+  --artifact <path-to-gap-analysis-artifact-for-step6> \
+  --n <cycle-number> \
+  --draft-hash <sha256 of DELTA OUTPUT block> \
+  --findings-count <int> \
+  --verdict <pass|fail|escalate>
+```
+
+After the append, emit exactly ONE ticket comment per cycle that references the scratch key (not a file path):
 
 ```bash
 .claude/scripts/dso ticket comment <ticket-id> "Remediation cycle <n> recorded at scratch:$SCRATCH_TICKET_ID/$SCRATCH_KEY"

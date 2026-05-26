@@ -2394,7 +2394,18 @@ fi
 CYCLE_JSON=$(echo "$_raw" | python3 -c "import json,sys; print(json.load(sys.stdin)['value'])")
 ```
 
-After reading `CYCLE_JSON`, emit exactly ONE ticket comment per cycle that references the scratch key (not a file path):
+After reading `CYCLE_JSON`, record the cycle artifact via the recorder:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/append_review_cycle.py \
+  --artifact <path-to-verifier-cycle-artifact-for-story> \
+  --n <cycle-number> \
+  --draft-hash <sha256 of planner output> \
+  --findings-count <int> \
+  --verdict <pass|fail|escalate>
+```
+
+After the append, emit exactly ONE ticket comment per cycle that references the scratch key (not a file path):
 
 ```bash
 .claude/scripts/dso ticket comment <ticket-id> "Remediation cycle <n> recorded at scratch:$SCRATCH_TICKET_ID/$SCRATCH_KEY"
