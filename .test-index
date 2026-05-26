@@ -605,3 +605,5 @@ plugins/dso/scripts/check-coordination-pass-immutability.sh:tests/scripts/test-c
 plugins/dso/scripts/dso_reconciler/applier.py:tests/unit/dso_reconciler/test_dso_id_label_writers.py,tests/unit/dso_reconciler/test_apply_list_of_mutations.py
 plugins/dso/scripts/emit-story-merge-env.sh: tests/scripts/test-emit-story-merge-env.sh
 plugins/dso/scripts/compute-cross-branch-from-api.sh:tests/scripts/test-compute-cross-branch-from-api.sh
+plugins/dso/config/visual-evaluator-params.yaml:tests/plugin/test_visual_evaluator_params.py
+docs/findings/visual-evaluator-spike.md:tests/plugin/test_visual_evaluator_params.py
