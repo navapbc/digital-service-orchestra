@@ -517,11 +517,18 @@ If the response is `status:"hit"`, the `value` field is a JSON envelope conformi
 - **Normal projection** — `summary` + `proposed_fix` + `affected_files` + routing flags present, no `scratch_overflow` flag. Treat the projection as the output of Step 1 (the orchestrator confirmed the full RESULT lives in `discovery_file` if richer detail is needed). SKIP Step 1 dispatch and proceed to Step 2.
 - **Oversize fallback** — envelope contains `"scratch_overflow": true` and `"discovery_file": "<path>"`. Read the full Investigation RESULT envelope from the discovery file:
   ```bash
-  DISCOVERY_FILE=$(echo "$SCRATCH_INV" | python3 -c 'import sys,json; print(json.loads(sys.stdin.read())["value"]["discovery_file"] if isinstance(json.loads(sys.stdin.read()).get("value"),dict) else "")')
-  # or parse it however your runtime supports
+  DISCOVERY_FILE=$(echo "$SCRATCH_INV" | python3 -c '
+  import sys, json
+  envelope = json.loads(sys.stdin.read())
+  value = envelope.get("value")
+  if isinstance(value, str):
+      # ticket scratch wraps the stored JSON string; parse it.
+      value = json.loads(value)
+  print(value.get("discovery_file", "") if isinstance(value, dict) else "")
+  ')
   cat "$DISCOVERY_FILE"
   ```
-  Use the discovery-file contents as the Step 1 RESULT and proceed to Step 2.
+  Read `sys.stdin` exactly once — re-reading it returns the empty string and `json.loads('')` raises. Use the discovery-file contents as the Step 1 RESULT and proceed to Step 2.
 
 If the response is `status:"miss"` or the projection is malformed (no `bug_id` match, no `complexity`, etc.), fall through to Path B/C — do NOT silently dispatch a fresh investigation, surface this as a pipeline contract violation in your sub-agent output before falling through.  <!-- # precondition-emit-ok — contract-violation surfacing, not graceful degradation -->
 
@@ -851,7 +858,7 @@ EOF
 fi
 ```
 
-Step 4c — emit the compact summary on the FINAL line of your sub-agent output. The orchestrator parses this verbatim and uses it for Phase 2 routing decisions. **All five routing tokens are required** so the orchestrator does not need to re-open the scratch entry to decide routing:
+Step 4c — emit the compact summary on the FINAL line of your sub-agent output. The orchestrator parses this verbatim and uses it for Phase 2 routing decisions. **All six routing tokens are required** so the orchestrator does not need to re-open the scratch entry to decide routing:
 
 ```
 INVESTIGATION_COMPLETE: <bug-id>

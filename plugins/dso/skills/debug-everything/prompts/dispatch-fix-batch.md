@@ -113,7 +113,7 @@ Environment: <CI failure | staging | local — from triage report>
 {file_ownership_context}
 ```
 
-After all investigation sub-agents return, classify routing eligibility for Phase 2 directly from the **compact summary** in each sub-agent's stdout. The compact summary carries all five routing tokens (`INVESTIGATION_COMPLETE`, `COMPLEXITY`, `FIXABLE`, `MANUAL_APPROVAL_NEEDED`, `COMPLEX_ESCALATION`, `SCRATCH_KEY`) so the orchestrator does not need to re-open the scratch entry to decide routing:
+After all investigation sub-agents return, classify routing eligibility for Phase 2 directly from the **compact summary** in each sub-agent's stdout. The compact summary carries all six routing tokens (`INVESTIGATION_COMPLETE`, `COMPLEXITY`, `FIXABLE`, `MANUAL_APPROVAL_NEEDED`, `COMPLEX_ESCALATION`, `SCRATCH_KEY`) so the orchestrator does not need to re-open the scratch entry to decide routing:
 
 - `COMPLEX_ESCALATION: true` → record `COMPLEX_ESCALATION: <bug-id>` in the tracking comment; do NOT auto-dispatch — the orchestrator handles via `/dso:brainstorm`; exclude from Phase 2
 - `MANUAL_APPROVAL_NEEDED: true` → record `MANUAL_APPROVAL_QUEUED: <bug-id>` in the tracking comment; defer to user; exclude from Phase 2
