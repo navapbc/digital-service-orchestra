@@ -21,6 +21,7 @@ REPO_ROOT = Path(__file__).parents[3]
 SCRIPTS_DIR = REPO_ROOT / "plugins" / "dso" / "scripts"
 FIXTURE_DIR = REPO_ROOT / "tests" / "fixtures" / "ci-review-corpus"
 
+
 def test_runner_produces_findings_json(fixture_diff_path, tmp_path):
     """
     Given: a fixture diff file and DSO_CI_REVIEW_OUTPUT_PATH set to a temp file
@@ -63,6 +64,7 @@ def test_runner_produces_findings_json(fixture_diff_path, tmp_path):
     assert isinstance(parsed["findings"], list), (
         f"'findings' must be a list, got {type(parsed['findings'])}"
     )
+
 
 def test_runner_writes_atomically(fixture_diff_path, tmp_path):
     """
@@ -119,6 +121,7 @@ def test_runner_writes_atomically(fixture_diff_path, tmp_path):
         ) from exc
     assert "findings" in parsed, f"'findings' key missing from output: {parsed}"
 
+
 def test_runner_output_goes_to_file_not_stdout(fixture_diff_path, tmp_path):
     """
     Given: DSO_CI_REVIEW_OUTPUT_PATH is set
@@ -153,6 +156,7 @@ def test_runner_output_goes_to_file_not_stdout(fixture_diff_path, tmp_path):
         f"got: {result.stdout!r}"
     )
 
+
 def test_runner_config_error_exits_1(fixture_diff_path, tmp_path):
     """
     Given: no CI_REVIEW_PROVIDER configured and no DSO_CI_REVIEW_DRY_RUN
@@ -186,6 +190,7 @@ def test_runner_config_error_exits_1(fixture_diff_path, tmp_path):
     assert "ERROR: provider" in result.stderr, (
         f"Expected 'ERROR: provider ...' in stderr, got: {result.stderr!r}"
     )
+
 
 def test_runner_auth_error_exits_1(fixture_diff_path, tmp_path):
     """
@@ -222,6 +227,7 @@ def test_runner_auth_error_exits_1(fixture_diff_path, tmp_path):
         f"Expected 'ERROR: provider auth:' in stderr, got: {result.stderr!r}"
     )
 
+
 # ---------------------------------------------------------------------------
 # Pipeline tests — mock classify_tier and async_dispatch_specialists
 # ---------------------------------------------------------------------------
@@ -229,6 +235,7 @@ def test_runner_auth_error_exits_1(fixture_diff_path, tmp_path):
 import sys as _sys  # noqa: E402 — import used for PYTHONPATH manipulation in module scope
 
 _sys.path.insert(0, str(SCRIPTS_DIR))
+
 
 def test_runner_pipeline_standard_tier(tmp_path):
     """
@@ -343,6 +350,7 @@ def test_runner_pipeline_standard_tier(tmp_path):
     assert "findings" in parsed
     assert len(parsed["findings"]) == 1
     assert parsed["findings"][0]["severity"] == "important"
+
 
 def test_runner_pipeline_deep_tier_dispatches_three_agents(tmp_path):
     """
@@ -482,6 +490,7 @@ def test_runner_pipeline_deep_tier_dispatches_three_agents(tmp_path):
     assert parsed["scores"]["verification"] == 3
     assert parsed["scores"]["hygiene"] == 2
 
+
 def test_runner_exits_1_when_all_specialists_fail(tmp_path):
     """
     Given: all specialists return specialist_error findings (e.g. ModuleNotFoundError)
@@ -571,9 +580,11 @@ def test_runner_exits_1_when_all_specialists_fail(tmp_path):
         f"Expected a message about specialist failures in stderr, got: {stderr_text!r}"
     )
 
+
 # ---------------------------------------------------------------------------
 # Tier model config tests — Fix C (c86e-e177)
 # ---------------------------------------------------------------------------
+
 
 def test_build_agents_for_tier_reads_standard_model_from_config(tmp_path):
     """
@@ -603,6 +614,7 @@ def test_build_agents_for_tier_reads_standard_model_from_config(tmp_path):
         f"and read model.standard from it (c86e-e177 Fix C)."
     )
 
+
 def test_build_agents_for_tier_reads_light_model_from_config(tmp_path):
     """
     Given: dso-config.conf sets model.light=claude-haiku-4-5
@@ -624,6 +636,7 @@ def test_build_agents_for_tier_reads_light_model_from_config(tmp_path):
     )
     assert len(agents) == 1
     assert agents[0]["model"] == "claude-haiku-4-5"
+
 
 def test_build_agents_for_tier_reads_deep_model_from_config(tmp_path):
     """
@@ -651,6 +664,7 @@ def test_build_agents_for_tier_reads_deep_model_from_config(tmp_path):
             f"got {agent['model']!r}"
         )
 
+
 def test_build_agents_for_tier_falls_back_to_tier_defaults_when_config_absent(tmp_path):
     """
     Given: a config file that does NOT set model.standard
@@ -675,6 +689,7 @@ def test_build_agents_for_tier_falls_back_to_tier_defaults_when_config_absent(tm
         f"got {agents[0]['model']!r}. Standard tier must default to sonnet "
         f"to match local review tiers (c86e-e177 Fix C)."
     )
+
 
 def test_runner_warns_on_all_synthetic_findings(tmp_path, capsys):
     """
@@ -758,6 +773,7 @@ def test_runner_warns_on_all_synthetic_findings(tmp_path, capsys):
     assert "ERROR" in stderr_text and "synthetic" in stderr_text.lower(), (
         f"Expected ERROR about synthetic findings in stderr, got: {stderr_text!r}"
     )
+
 
 def test_runner_exits_1_when_all_agents_hit_context_window(tmp_path, capsys):
     """
@@ -863,6 +879,7 @@ def test_runner_exits_1_when_all_agents_hit_context_window(tmp_path, capsys):
         f"Expected ERROR about synthetic findings in stderr, got: {stderr_text!r}"
     )
 
+
 # ---------------------------------------------------------------------------
 # Severity gate + PR comment posting tests — bug f2c7-257e
 # ---------------------------------------------------------------------------
@@ -881,6 +898,7 @@ def test_runner_exits_1_when_all_agents_hit_context_window(tmp_path, capsys):
 #   tests/skills/dso_ci_review/test_runner_smoke.py [test_runner_posts_pr_review_when_findings]
 #   tests/skills/dso_ci_review/test_runner_smoke.py [test_runner_skips_pr_post_on_push_event]
 
+
 def _make_findings_dispatch(findings_list):
     """Build a mock async_dispatch_specialists return value from a list of findings dicts."""
 
@@ -888,6 +906,7 @@ def _make_findings_dispatch(findings_list):
         return [{"findings": findings_list}]
 
     return _mock
+
 
 def _standard_tier_classification():
     return {
@@ -907,6 +926,7 @@ def _standard_tier_classification():
         "computed_total": 1,
         "is_merge_commit": False,
     }
+
 
 def _run_main_with(diff_path, output_path, dispatch_findings, env_extra=None):
     """Run runner.main() with a mocked dispatch returning the given findings.
@@ -984,6 +1004,7 @@ def _run_main_with(diff_path, output_path, dispatch_findings, env_extra=None):
         exit_code = runner_mod.main()
     return exit_code, stderr_capture.getvalue()
 
+
 def test_runner_exits_1_on_important_finding(tmp_path):
     """Important findings MUST block — exit 1, matching local record-review.sh enforcement."""
     diff_file = tmp_path / "input.diff"
@@ -1001,6 +1022,7 @@ def test_runner_exits_1_on_important_finding(tmp_path):
     assert exit_code == 1, (
         f"important finding must block (exit 1); got {exit_code}. stderr={stderr!r}"
     )
+
 
 def test_runner_exits_1_on_fragile_finding(tmp_path):
     """Fragile is treated as important per CLAUDE.md rule 11 / reviewer-base.md."""
@@ -1020,6 +1042,7 @@ def test_runner_exits_1_on_fragile_finding(tmp_path):
         f"fragile finding must block (exit 1); got {exit_code}. stderr={stderr!r}"
     )
 
+
 def test_runner_exits_1_on_critical_finding(tmp_path):
     diff_file = tmp_path / "input.diff"
     diff_file.write_text("diff --git a/foo b/foo\n+x\n")
@@ -1036,6 +1059,7 @@ def test_runner_exits_1_on_critical_finding(tmp_path):
     assert exit_code == 1, (
         f"critical finding must block; got {exit_code}. stderr={stderr!r}"
     )
+
 
 def test_runner_exits_0_on_minor_only(tmp_path):
     """Minor findings alone should NOT block — match local reviewer behavior."""
@@ -1055,12 +1079,14 @@ def test_runner_exits_0_on_minor_only(tmp_path):
         f"minor-only findings must not block; got {exit_code}. stderr={stderr!r}"
     )
 
+
 def test_runner_exits_0_on_no_findings(tmp_path):
     diff_file = tmp_path / "input.diff"
     diff_file.write_text("diff --git a/foo b/foo\n+x\n")
     out = tmp_path / "out.json"
     exit_code, _ = _run_main_with(diff_file, out, [])
     assert exit_code == 0, f"empty findings must not block; got {exit_code}"
+
 
 def test_runner_skips_blocking_for_specialist_errors(tmp_path):
     """specialist_error / fallback_exhausted are infra issues — handled by existing
@@ -1090,6 +1116,7 @@ def test_runner_skips_blocking_for_specialist_errors(tmp_path):
         f"synthetic important findings must not block (only real ones do); "
         f"got {exit_code}. stderr={stderr!r}"
     )
+
 
 def test_runner_posts_pr_review_when_findings(tmp_path):
     """Blocking findings must be posted via the GitHub Pulls Reviews API as resolvable threads.
@@ -1197,6 +1224,7 @@ def test_runner_posts_pr_review_when_findings(tmp_path):
             f"Comment {i} body missing the finding-index marker; got: {comment.get('body')!r:.200}"
         )
 
+
 def test_runner_partial_post_failure_continues_remaining_findings(tmp_path):
     """When the Reviews API call fails, the runner falls back and posts all findings as issue comments.
 
@@ -1288,6 +1316,7 @@ def test_runner_partial_post_failure_continues_remaining_findings(tmp_path):
         f"Expected 3 fallback issue comment posts after Reviews API failure; "
         f"got {len(issue_comment_calls)}: {issue_comment_calls!r}"
     )
+
 
 def test_post_pr_review_uses_reviews_api_for_anchored_findings(tmp_path):
     """Findings with cited_lines must be posted via the GitHub Pulls Reviews API, not issue comments.
@@ -1399,6 +1428,7 @@ def test_post_pr_review_uses_reviews_api_for_anchored_findings(tmp_path):
             f"comment[{i}] body missing finding index marker: {comment.get('body')!r:.200}"
         )
 
+
 def test_post_pr_review_falls_back_to_issue_comment_for_unanchorable(tmp_path):
     """Findings with no cited_lines anchor fall back to issue comments; anchored ones use Reviews API.
 
@@ -1474,6 +1504,7 @@ def test_post_pr_review_falls_back_to_issue_comment_for_unanchorable(tmp_path):
         f"Expected 1 issue comment call for unanchored finding; got {issue_comment_calls!r}"
     )
 
+
 def test_post_pr_review_falls_back_when_head_sha_unresolvable(tmp_path):
     """When GITHUB_SHA is absent and gh pr view headRefOid returns empty, all findings fall back to issue comments.
 
@@ -1548,6 +1579,7 @@ def test_post_pr_review_falls_back_when_head_sha_unresolvable(tmp_path):
         f"Expected 2 issue comment fallback calls; got {len(issue_comment_calls)}: {issue_comment_calls!r}"
     )
 
+
 def test_post_pr_review_handles_range_cited_lines(tmp_path):
     """A cited_lines range like 'path:10-25' must anchor to the start line (10).
 
@@ -1613,6 +1645,7 @@ def test_post_pr_review_handles_range_cited_lines(tmp_path):
         f"Expected start line 10 for range 10-25; got {comment['line']}"
     )
 
+
 def test_runner_skips_pr_post_on_push_event(tmp_path):
     """When GITHUB_EVENT_NAME != pull_request, runner must NOT attempt to post a PR review."""
     import dso_ci_review.runner as runner_mod
@@ -1652,6 +1685,7 @@ def test_runner_skips_pr_post_on_push_event(tmp_path):
     assert not gh_calls, (
         f"runner must NOT post PR review on push events; captured gh calls: {gh_calls!r}"
     )
+
 
 def test_runner_calls_dispatch_verifier(tmp_path) -> None:
     """dispatch_verifier must be called once per review run with the merged findings."""
@@ -1710,6 +1744,7 @@ def test_runner_calls_dispatch_verifier(tmp_path) -> None:
 
     mock_verifier.assert_called_once()
 
+
 def test_build_agents_for_tier_includes_tier_in_agent_dicts(tmp_path):
     """_build_agents_for_tier must set 'tier' on every agent dict it returns.
 
@@ -1736,6 +1771,7 @@ def test_build_agents_for_tier_includes_tier_in_agent_dicts(tmp_path):
             assert agent["tier"] == tier, (
                 f"Agent dict 'tier' value mismatch for {tier!r}: expected {tier!r}, got {agent['tier']!r}"
             )
+
 
 def test_call_single_agent_passes_tier_to_dispatch_review():
     """_call_single_agent must forward its tier param to dispatch_review.
@@ -1775,6 +1811,7 @@ def test_call_single_agent_passes_tier_to_dispatch_review():
         f"got tier={captured_kwargs[0].get('tier')!r}. "
         "Light-tier augmentation loop skip depends on this propagation."
     )
+
 
 def test_read_tier_model_resolves_repo_root_config(tmp_path, monkeypatch):
     """
@@ -1825,6 +1862,7 @@ def test_read_tier_model_resolves_repo_root_config(tmp_path, monkeypatch):
         "5-level dirname chain resolves the live config (0e2a-77b0)"
     )
 
+
 # ---------------------------------------------------------------------------
 # Bash classifier migration tests — classify_tier → _classify_tier_via_bash
 # ---------------------------------------------------------------------------
@@ -1834,6 +1872,7 @@ def test_read_tier_model_resolves_repo_root_config(tmp_path, monkeypatch):
 #
 # Task 6430-6a72: assert runner.py calls _classify_tier_via_bash helper
 # (the bash subprocess wrapper) instead of the Python classify_tier function.
+
 
 def test_runner_uses_bash_classifier(tmp_path):
     """
@@ -1906,6 +1945,7 @@ def test_runner_uses_bash_classifier(tmp_path):
     # Task B must replace classify_tier() with _classify_tier_via_bash() in runner.py.
     mock_bash_classify.assert_called_once_with(diff_text)
 
+
 # ---------------------------------------------------------------------------
 # Overlay agent dispatch tests — tasks 3c18-91b8, a643-4a2a, d189-d70f
 # ---------------------------------------------------------------------------
@@ -1914,6 +1954,7 @@ def test_runner_uses_bash_classifier(tmp_path):
 #   tests/skills/dso_ci_review/test_runner_smoke.py [test_overlay_agents_dispatched_in_parallel_when_flagged_by_classifier]
 #   tests/skills/dso_ci_review/test_runner_smoke.py [test_overlay_warranted_fallback_dispatched_serially]
 #   tests/skills/dso_ci_review/test_runner_smoke.py [test_deep_tier_runs_arch_synthesis_after_specialists]
+
 
 def test_overlay_agents_dispatched_in_parallel_when_flagged_by_classifier(tmp_path):
     """
@@ -1999,6 +2040,7 @@ def test_overlay_agents_dispatched_in_parallel_when_flagged_by_classifier(tmp_pa
         f"Standard specialist must still be dispatched alongside the overlay; "
         f"captured agent_ids: {agent_ids!r}"
     )
+
 
 def test_overlay_warranted_fallback_dispatched_serially(tmp_path):
     """
@@ -2106,6 +2148,7 @@ def test_overlay_warranted_fallback_dispatched_serially(tmp_path):
         f"Second-pass agent_ids: {second_pass_ids!r}. "
         "Implement _overlay_agents_from_findings in runner.py (task a643-4a2a)."
     )
+
 
 def test_deep_tier_runs_arch_synthesis_after_specialists(tmp_path):
     """
@@ -2247,6 +2290,7 @@ def test_deep_tier_runs_arch_synthesis_after_specialists(tmp_path):
         "for deep tier (task d189-d70f)."
     )
 
+
 # ---------------------------------------------------------------------------
 # Cycle-2 dismissal-memory tests — bug c59e-a197
 # ---------------------------------------------------------------------------
@@ -2258,6 +2302,7 @@ def test_deep_tier_runs_arch_synthesis_after_specialists(tmp_path):
 #   3. runner.main() on cycle 2 with defenses: dispatches two-call path and
 #      applies the suppression filter
 #   4. runner.main() on cycle 1 (no defenses): standard path unchanged
+
 
 def test_fetch_pr_defenses_parses_defense_records():
     """_fetch_pr_defenses must parse DEFENSE_RECORD: lines from gh pr view output.
@@ -2297,6 +2342,7 @@ def test_fetch_pr_defenses_parses_defense_records():
     assert result[0]["severity"] == "critical"
     assert result[1]["description"] == "ticket_reducer NameError"
 
+
 def test_fetch_pr_defenses_returns_empty_without_token():
     """_fetch_pr_defenses must return [] when GITHUB_TOKEN is absent (no gh call)."""
     import dso_ci_review.runner as runner_mod
@@ -2309,6 +2355,7 @@ def test_fetch_pr_defenses_returns_empty_without_token():
 
     assert result == [], f"Expected [] without GITHUB_TOKEN; got {result!r}"
     assert not called, "gh must NOT be called when GITHUB_TOKEN is absent"
+
 
 def test_suppress_defended_findings_downgrades_matching_findings():
     """_suppress_defended_findings must downgrade findings that match prior defenses.
@@ -2350,6 +2397,7 @@ def test_suppress_defended_findings_downgrades_matching_findings():
         f"Unmatched finding must be unchanged; got {result[1]['severity']!r}"
     )
 
+
 def test_suppress_defended_findings_noop_when_no_defenses():
     """_suppress_defended_findings must return findings unchanged when defenses is empty."""
     import dso_ci_review.runner as runner_mod
@@ -2359,6 +2407,7 @@ def test_suppress_defended_findings_noop_when_no_defenses():
     ]
     result = runner_mod._suppress_defended_findings(findings, [])
     assert result == findings, f"No-op with empty defenses; got {result!r}"
+
 
 def test_runner_cycle2_with_defenses_suppresses_reemitted_findings(tmp_path):
     """On cycle 2, a finding that matches a prior defense must be downgraded to 'suggestion'.
@@ -2458,6 +2507,7 @@ def test_runner_cycle2_with_defenses_suppresses_reemitted_findings(tmp_path):
         f"Re-emitted defended finding must be downgraded to 'suggestion'; "
         f"got severity={findings[0]['severity']!r}"
     )
+
 
 def test_runner_cycle2_deep_tier_partial_failure_with_defenses(tmp_path):
     """Cycle-2 + deep-tier: one specialist fallback_exhausted does NOT skip arch synthesis.
@@ -2663,6 +2713,7 @@ def test_runner_cycle2_deep_tier_partial_failure_with_defenses(tmp_path):
         "If this fails, _suppress_defended_findings is broken, bypassed, or not matching the defense key."
     )
 
+
 def test_runner_cycle1_no_defenses_unaffected(tmp_path):
     """On cycle 1 (default), the standard path is used — no defense fetching, no suppression.
 
@@ -2737,9 +2788,11 @@ def test_runner_cycle1_no_defenses_unaffected(tmp_path):
         f"_fetch_pr_defenses must NOT be called on cycle 1; was called with: {gh_called!r}"
     )
 
+
 # ---------------------------------------------------------------------------
 # Region-split routing tests (Strategy E, bed6-3871-f13c-4160)
 # ---------------------------------------------------------------------------
+
 
 def _make_large_diff(loc: int = 3500, files: int = 2) -> str:
     """Return a synthetic diff exceeding the region-split LOC threshold.
@@ -2759,11 +2812,13 @@ def _make_large_diff(loc: int = 3500, files: int = 2) -> str:
         parts.extend(f"+line {i}\n" for i in range(per_file))
     return "".join(parts)
 
+
 def _make_small_diff(loc: int = 5) -> str:
     """Return a synthetic diff with only ``loc`` changed lines."""
     header = "diff --git a/small.py b/small.py\n--- a/small.py\n+++ b/small.py\n@@ -1 +1 @@\n"
     body = "".join(f"+line {i}\n" for i in range(loc))
     return header + body
+
 
 def test_runner_calls_run_region_split_for_large_diff(tmp_path):
     """
@@ -2868,6 +2923,7 @@ def test_runner_calls_run_region_split_for_large_diff(tmp_path):
         "to synthesize per-cluster results into a unified payload"
     )
 
+
 def test_runner_skips_run_region_split_for_small_diff(tmp_path):
     """
     Given: a diff below the region-split LOC threshold (default 3000 per bug 532e-6ab7)
@@ -2946,6 +3002,7 @@ def test_runner_skips_run_region_split_for_small_diff(tmp_path):
         "async_dispatch_specialists must be called for small diffs (standard tier path)"
     )
 
+
 # ---------------------------------------------------------------------------
 # Schema validation hook tests — story 4425-a483-9cfe-466a
 # ---------------------------------------------------------------------------
@@ -2994,6 +3051,7 @@ _INVALID_FINDINGS_DICT = {
     "summary": "One invalid finding.",
 }
 
+
 def test_validate_findings_schema_pass_returns_pass_status():
     """
     Given: a findings dict with a valid finding containing all required fields
@@ -3021,6 +3079,7 @@ def test_validate_findings_schema_pass_returns_pass_status():
     assert result.errors == [], (
         f"Expected empty errors list on schema_pass; got {result.errors!r}"
     )
+
 
 def test_validate_findings_schema_pass_no_tmpfile_remains(tmp_path):
     """
@@ -3050,6 +3109,7 @@ def test_validate_findings_schema_pass_no_tmpfile_remains(tmp_path):
         "Tmpfiles must be cleaned up in all exit paths (AC amendment)."
     )
 
+
 def test_validate_findings_schema_missing_cited_excerpt_returns_schema_fail():
     """
     Given: a findings dict with a real finding that is missing cited_excerpt
@@ -3078,6 +3138,7 @@ def test_validate_findings_schema_missing_cited_excerpt_returns_schema_fail():
         f"Expected non-empty errors list on schema_fail; got {result.errors!r}"
     )
 
+
 def test_validate_findings_schema_missing_cited_excerpt_no_tmpfile_remains():
     """
     Given: an invalid findings dict and _validate_findings_schema is called
@@ -3104,6 +3165,7 @@ def test_validate_findings_schema_missing_cited_excerpt_no_tmpfile_remains():
         "Tmpfiles must be cleaned up in the schema_fail path (AC amendment)."
     )
 
+
 def test_validate_findings_schema_validator_not_found_returns_validator_error(tmp_path):
     """
     Given: _validate_findings_schema is patched to use a nonexistent validator path
@@ -3129,6 +3191,7 @@ def test_validate_findings_schema_validator_not_found_returns_validator_error(tm
     assert result.errors, (
         f"Expected non-empty errors list on validator_error; got {result.errors!r}"
     )
+
 
 def test_validate_findings_schema_validator_not_found_no_tmpfile_remains(tmp_path):
     """
@@ -3161,6 +3224,7 @@ def test_validate_findings_schema_validator_not_found_no_tmpfile_remains(tmp_pat
         "Tmpfiles must be cleaned up in the validator_error path (AC amendment)."
     )
 
+
 def test_validate_findings_schema_validator_timeout_returns_validator_error():
     """
     Given: subprocess is patched to raise subprocess.TimeoutExpired
@@ -3188,6 +3252,7 @@ def test_validate_findings_schema_validator_timeout_returns_validator_error():
         f"Expected non-empty errors list on TimeoutExpired; got {result.errors!r}"
     )
 
+
 def test_validate_findings_schema_unknown_exit_code_returns_validator_error():
     """
     Given: subprocess is patched to return exit code 42 (unrecognized)
@@ -3214,6 +3279,7 @@ def test_validate_findings_schema_unknown_exit_code_returns_validator_error():
     assert result.errors, (
         f"Expected non-empty errors list for unknown exit code; got {result.errors!r}"
     )
+
 
 def test_main_validator_error_exits_nonzero_with_stderr_diagnostic(tmp_path):
     """
@@ -3281,6 +3347,7 @@ def test_main_validator_error_exits_nonzero_with_stderr_diagnostic(tmp_path):
         f"Expected 'CRITICAL:' in stderr for validator_error path; got: {stderr_text!r}. "
         "The validator_error path must emit a CRITICAL diagnostic so CI log is visible."
     )
+
 
 def test_main_schema_fail_returns_schema_fail_signal(tmp_path):
     """
@@ -3373,6 +3440,7 @@ def test_main_schema_fail_returns_schema_fail_signal(tmp_path):
         "Only validator_error (infrastructure) should produce non-zero exit from this hook."
     )
 
+
 # ---------------------------------------------------------------------------
 # Schema-correction integration tests — story 394e-d81b-fba4-4161 (S-B)
 # ---------------------------------------------------------------------------
@@ -3385,6 +3453,7 @@ def test_main_schema_fail_returns_schema_fail_signal(tmp_path):
 #   tests/skills/dso_ci_review/test_runner_smoke.py [test_runner_calls_schema_correction_on_schema_fail]
 #   tests/skills/dso_ci_review/test_runner_smoke.py [test_runner_schema_correction_max_attempts_zero_skips_dispatch]
 #   tests/skills/dso_ci_review/test_runner_smoke.py [test_runner_schema_correction_result_written]
+
 
 def test_runner_calls_schema_correction_on_schema_fail(tmp_path):
     """
@@ -3495,6 +3564,7 @@ def test_runner_calls_schema_correction_on_schema_fail(tmp_path):
         "runner.main() must replace merged findings with correction result before write."
     )
 
+
 def test_runner_schema_correction_max_attempts_zero_skips_dispatch(tmp_path):
     """
     Given: _validate_findings_schema signals schema_fail
@@ -3578,6 +3648,7 @@ def test_runner_schema_correction_max_attempts_zero_skips_dispatch(tmp_path):
         f"got {exit_code}. "
         "Schema correction exhausted (max_attempts=0) must cause CI to fail, not silently pass."
     )
+
 
 def test_runner_schema_correction_result_written(tmp_path):
     """
@@ -3675,6 +3746,7 @@ def test_runner_schema_correction_result_written(tmp_path):
         f"Expected exit code 0 with corrected suggestion-only findings; got {exit_code}. "
         f"stderr={stderr_capture.getvalue()!r}"
     )
+
 
 def test_runner_schema_correction_exhausted_retries_returns_nonzero(tmp_path):
     """
@@ -3783,6 +3855,7 @@ def test_runner_schema_correction_exhausted_retries_returns_nonzero(tmp_path):
         "can correctly compute DSO_REVIEW_CYCLE"
     )
 
+
 def test_validate_review_schema_hash_matches_script():
     """
     Assert that _VALIDATE_REVIEW_SCHEMA_HASH in runner.py matches the
@@ -3818,6 +3891,7 @@ def test_validate_review_schema_hash_matches_script():
         "Update _VALIDATE_REVIEW_SCHEMA_HASH in runner.py to match."
     )
 
+
 # ---------------------------------------------------------------------------
 # _read_config_int and _clamp_schema_correction_attempts tests
 # Task efab-ac00-d1a8-4cee (functions do not exist yet in runner.py)
@@ -3830,6 +3904,7 @@ def test_validate_review_schema_hash_matches_script():
 #   tests/skills/dso_ci_review/test_runner_smoke.py [test_clamp_schema_correction_attempts_honors_zero]
 #   tests/skills/dso_ci_review/test_runner_smoke.py [test_clamp_schema_correction_attempts_honors_within_ceiling]
 #   tests/skills/dso_ci_review/test_runner_smoke.py [test_clamp_schema_correction_attempts_clamps_above_ceiling_with_warning]
+
 
 def test_read_config_int_returns_default_when_key_absent(tmp_path):
     """
@@ -3851,6 +3926,7 @@ def test_read_config_int_returns_default_when_key_absent(tmp_path):
         f"got {result!r}"
     )
 
+
 def test_read_config_int_returns_value_when_key_present(tmp_path):
     """
     Given: dso-config.conf contains "review.schema_correction_max_attempts=2"
@@ -3870,6 +3946,7 @@ def test_read_config_int_returns_value_when_key_present(tmp_path):
         f"_read_config_int must return 2 when the config contains "
         f"'review.schema_correction_max_attempts=2'; got {result!r}"
     )
+
 
 def test_read_config_int_returns_default_on_invalid_value(tmp_path):
     """
@@ -3893,6 +3970,7 @@ def test_read_config_int_returns_default_on_invalid_value(tmp_path):
         f"non-integer ('foo'); got {result!r}. Must not raise."
     )
 
+
 def test_read_config_int_handles_whitespace_around_equals(tmp_path):
     """
     Given: dso-config.conf contains 'review.schema_correction_max_attempts = 2'
@@ -3914,6 +3992,7 @@ def test_read_config_int_handles_whitespace_around_equals(tmp_path):
         "Some editors produce 'key = value' in config files."
     )
 
+
 def test_read_config_int_returns_default_when_file_absent(tmp_path):
     """
     Given: config_path points to a non-existent file
@@ -3930,6 +4009,7 @@ def test_read_config_int_returns_default_when_file_absent(tmp_path):
         f"_read_config_int must return the default when config file does not exist; "
         f"got {result!r}"
     )
+
 
 def test_read_config_int_returns_default_on_oserror(tmp_path):
     """
@@ -3951,6 +4031,7 @@ def test_read_config_int_returns_default_on_oserror(tmp_path):
         f"_read_config_int must return the default when OSError is raised on open; "
         f"got {result!r}"
     )
+
 
 def test_read_config_int_returns_default_on_unicode_decode_error(tmp_path):
     """
@@ -3976,6 +4057,7 @@ def test_read_config_int_returns_default_on_unicode_decode_error(tmp_path):
         f"got {result!r}. Non-UTF-8 config files must not crash the reader."
     )
 
+
 def test_clamp_schema_correction_attempts_honors_zero():
     """
     Given: max_attempts=0
@@ -3990,6 +4072,7 @@ def test_clamp_schema_correction_attempts_honors_zero():
         f"_clamp_schema_correction_attempts(0) must return 0 (disable sentinel); "
         f"got {result!r}"
     )
+
 
 def test_clamp_schema_correction_attempts_honors_within_ceiling():
     """
@@ -4017,6 +4100,7 @@ def test_clamp_schema_correction_attempts_honors_within_ceiling():
             f"(value is within ceiling); got stderr: {stderr_text!r}"
         )
 
+
 def test_clamp_schema_correction_attempts_clamps_above_ceiling_with_warning(capsys):
     """
     Given: max_attempts=10
@@ -4040,6 +4124,7 @@ def test_clamp_schema_correction_attempts_clamps_above_ceiling_with_warning(caps
     assert "clamp" in captured.err.lower(), (
         f"Warning must mention 'clamped' (or 'clamp'); got stderr: {captured.err!r}"
     )
+
 
 def test_clamp_schema_correction_attempts_rejects_negative(capsys):
     """
@@ -4065,6 +4150,7 @@ def test_clamp_schema_correction_attempts_rejects_negative(capsys):
         f"Warning must mention 'negative'; got stderr: {captured.err!r}"
     )
 
+
 def test_get_schema_correction_max_attempts_end_to_end(tmp_path):
     """
     Given: dso-config.conf contains 'review.schema_correction_max_attempts=2'
@@ -4085,6 +4171,7 @@ def test_get_schema_correction_max_attempts_end_to_end(tmp_path):
         f"review.schema_correction_max_attempts=2; got {result!r}"
     )
 
+
 def test_get_schema_correction_max_attempts_clamps_negative(tmp_path, capsys):
     """
     Given: dso-config.conf contains 'review.schema_correction_max_attempts=-1'
@@ -4101,6 +4188,7 @@ def test_get_schema_correction_max_attempts_clamps_negative(tmp_path, capsys):
     assert result == 0, (
         f"get_schema_correction_max_attempts must clamp -1 to 0; got {result!r}"
     )
+
 
 def test_get_schema_correction_max_attempts_clamps_above_ceiling(tmp_path, capsys):
     """
@@ -4124,4 +4212,108 @@ def test_get_schema_correction_max_attempts_clamps_above_ceiling(tmp_path, capsy
     assert "schema_correction_max_attempts" in captured.err, (
         f"Warning must mention 'schema_correction_max_attempts'; "
         f"got stderr: {captured.err!r}"
+    )
+
+
+def test_strategy_f_oversized_single_file_skips_llm_dispatch(tmp_path):
+    """
+    Given: Strategy F returns a spec with oversized_single_file=True
+    When: runner.main() processes that cluster in the Strategy F dispatch loop
+    Then: async_dispatch_specialists is NOT called for that cluster
+          AND the pipeline completes without dispatching the oversized diff to the LLM
+          AND stderr contains an informational skip message for the oversized cluster
+
+    Root cause (bug 0768-337d-f6fa-43f0): runner.py Step 4 ignores the
+    oversized_single_file flag from region_split.py. When a single file's diff
+    exceeds the loc_threshold, the runner dispatches it to the LLM unchanged,
+    causing a 134KB non-JSON response and fallback_exhausted on claude-opus-4-7.
+    """
+    import io
+    from contextlib import redirect_stderr
+
+    import dso_ci_review.runner as runner_mod
+
+    diff_text = _make_large_diff(loc=3500, files=2)
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text(diff_text)
+    output_file = tmp_path / "out.json"
+
+    # Strategy F returns one normal cluster and one oversized_single_file cluster
+    strategy_f_specs = [
+        {
+            "cluster_dir": ".",
+            "files": ["bigfile_0.py"],
+            "diff": diff_text[:100],  # small cluster — dispatched normally
+            "oversized_single_file": False,
+        },
+        {
+            "cluster_dir": ".",
+            "files": ["bigfile_1.py"],
+            "diff": diff_text,  # oversized — must NOT be dispatched to LLM
+            "oversized_single_file": True,
+        },
+    ]
+
+    dispatch_calls: list[list] = []
+
+    async def mock_dispatch(agents):
+        dispatch_calls.append(list(agents))
+        return [{"findings": []}]
+
+    stderr_capture = io.StringIO()
+    with (
+        patch.dict(
+            "os.environ",
+            {
+                "DSO_CI_REVIEW_DIFF_PATH": str(diff_file),
+                "DSO_CI_REVIEW_OUTPUT_PATH": str(output_file),
+                "CI_REVIEW_PROVIDER": "anthropic",
+                "ANTHROPIC_API_KEY": "test-key",
+                "GITHUB_EVENT_NAME": "",
+                "GITHUB_REF": "",
+                "GITHUB_TOKEN": "",
+                "PR_NUMBER": "",
+            },
+        ),
+        patch(
+            "dso_ci_review.runner._classify_tier_via_bash",
+            return_value=_standard_tier_classification(),
+        ),
+        patch(
+            "dso_ci_review.runner._validate_findings_schema",
+            return_value=runner_mod._SchemaValidationResult("schema_pass", []),
+        ),
+        patch(
+            "dso_ci_review.runner.run_region_split_strategy_f",
+            return_value=strategy_f_specs,
+        ),
+        patch(
+            "dso_ci_review.runner._aggregate_cluster_findings",
+            return_value={
+                "findings": [],
+                "visibility_trailer": "",
+                "aggregation_status": "ok",
+            },
+        ),
+        patch(
+            "dso_ci_review.runner.async_dispatch_specialists",
+            side_effect=mock_dispatch,
+        ),
+        redirect_stderr(stderr_capture),
+    ):
+        runner_mod.main()
+
+    # The LLM must NOT be called for the oversized cluster
+    # (only the normal cluster should be dispatched)
+    assert len(dispatch_calls) == 1, (
+        f"Expected exactly 1 LLM dispatch (the non-oversized cluster); "
+        f"got {len(dispatch_calls)} dispatch(es). "
+        f"The oversized_single_file=True cluster must NOT be dispatched to the LLM "
+        f"(bug 0768-337d-f6fa-43f0: oversized file diffs cause non-JSON LLM responses)."
+    )
+
+    stderr_output = stderr_capture.getvalue()
+    assert "oversized" in stderr_output.lower() or "skip" in stderr_output.lower(), (
+        f"stderr must contain an informational message about skipping the oversized "
+        f"cluster; got stderr={stderr_output!r}"
     )

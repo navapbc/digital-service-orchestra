@@ -2309,6 +2309,30 @@ def main() -> int:
                 _cluster_diff = _spec.get("diff", diff_text)
                 _cluster_files = _spec.get("files", [])
                 _cluster_dir = _spec.get("cluster_dir", ".")
+                _oversized_single_file = _spec.get("oversized_single_file", False)
+
+                # Bug 0768-337d-f6fa-43f0: skip LLM dispatch for oversized single-file
+                # clusters. When region_split sets oversized_single_file=True, the file's
+                # diff exceeds the loc_threshold and sending it to the LLM causes token
+                # budget exhaustion, resulting in a 134KB non-JSON response and
+                # fallback_exhausted. Emit an informational skip instead.
+                if _oversized_single_file:
+                    _skip_file = _cluster_files[0] if _cluster_files else _cluster_dir
+                    print(
+                        f"INFO: skipping oversized single-file cluster {_skip_file!r} "
+                        f"(diff exceeds loc_threshold — LLM dispatch skipped to prevent "
+                        f"non-JSON response; file will appear in skipped list)",
+                        file=sys.stderr,
+                    )
+                    _cluster_results.append(
+                        {
+                            "cluster_id": _cluster_dir,
+                            "file_paths": _cluster_files,
+                            "findings": [],
+                            "status": "oversized_skip",
+                        }
+                    )
+                    continue
 
                 # Build cluster-scoped agents (reuse tier_agents model chain).
                 _cluster_agents = []
