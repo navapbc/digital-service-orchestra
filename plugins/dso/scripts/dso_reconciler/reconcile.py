@@ -417,10 +417,35 @@ def reconcile_once(pass_id: str, repo_root: Path | None = None) -> dict:
     # on apply failure with degraded fields (local_mutation_count=0,
     # failure_kind set). Without this wrapping, failed passes were invisible
     # to monitoring.
+    #
+    # Direction-aware dispatch (meta-bug 5f2a-9a9f-2b4a-4aab partial fix):
+    # The differ now emits typed Mutation objects for all directions
+    # (inbound and outbound). The legacy applier.apply() batch path only
+    # handles outbound dict-shaped mutations and raises TypeError on inbound
+    # typed Mutations. Split the list:
+    #   - Typed Mutation objects (have both .direction and .action) → dispatch
+    #     per-mutation via _dispatch_mutation (direction-aware).
+    #   - Legacy dict-shaped mutations → route through applier.apply()
+    #     (legacy batch path, outbound only).
+    # After all typed mutations are dispatched, call applier.apply() with
+    # the remaining legacy dicts (or an empty list) to write the manifest
+    # file that reconcile_once returns via manifest_path.
+    def _is_typed_mutation(m: Any) -> bool:
+        return hasattr(m, "direction") and hasattr(m, "action")
+
+    typed_mutations = [m for m in mutations if _is_typed_mutation(m)]
+    legacy_mutations = [m for m in mutations if not _is_typed_mutation(m)]
+
     manifest_path = None
     apply_exc: BaseException | None = None
     try:
-        manifest_path = applier.apply(mutations, pass_id, repo_root)
+        # Dispatch typed Mutations per-mutation via the direction-aware table.
+        for _typed_mut in typed_mutations:
+            _dispatch_mutation(_typed_mut)
+        # Route remaining legacy dicts through the batch path (also writes
+        # the manifest file). Pass an empty list when all mutations were
+        # typed so the manifest is still written for downstream consumers.
+        manifest_path = applier.apply(legacy_mutations, pass_id, repo_root)
     except BaseException as exc:  # noqa: BLE001 — must re-raise after recording
         apply_exc = exc
         raise

@@ -107,11 +107,13 @@ Stop when you reach a code defect — not a symptom of another defect.
 
 ### Empirical Validation
 
-Before proposing any fix, empirically validate your assumptions:
+Before proposing any fix, empirically validate your assumptions. Apply `skills/shared/prompts/empirical-validation.md` — classify each hypothesis as **empirical-static** (about artifact content) or **empirical-dynamic** (about runtime behavior) before testing it.
 
-1. **Run actual commands** — when the bug involves a CLI tool, API, or external system, run `--help`, discovery commands, or test invocations. Do not rely on documentation alone.
-2. **Label evidence** — explicitly note whether each key assumption is "stated in docs" or "tested and confirmed". Only "tested and confirmed" supports a high-confidence fix.
-3. **Test the fix approach in isolation** — before proposing a fix, test the core assumption (run the command with the proposed flag, make a throwaway API call) to confirm it works.
+1. **Classify each hypothesis** — static (file exists, config value is X, string present) vs. dynamic (workflow fires, cleanup runs, script triggers at lifecycle event). Record the classification in each hypothesis_test entry.
+2. **Run actual commands** — for any hypothesis about a CLI tool, API, external system, or internal workflow/script behavior, execute the actual code path. Do not rely on documentation or source-code reading alone.
+3. **Static tools (`grep`, `cat`, `Read`, `head`, `wc`) are NOT valid for dynamic hypotheses** — they observe source text, not runtime behavior. A grep that finds code suggesting behavior X does not confirm that behavior occurs at runtime. Record static observations as "stated in source code" with verdict `inconclusive` when the hypothesis is dynamic (about what code does when it runs).
+4. **Label evidence** — explicitly note whether each key assumption is "stated in docs/source" or "tested and confirmed by execution". Only "tested and confirmed by execution" supports a high-confidence fix.
+5. **Test the fix approach in isolation** — before proposing a fix, test the core assumption (run the command with the proposed flag, execute the relevant script with test inputs, make a throwaway API call) to confirm it works.
 
 Record each empirical test in the `hypothesis_tests` section of RESULT.
 

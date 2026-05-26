@@ -282,6 +282,7 @@ plugins/dso/scripts/read-overlay-flags.sh:tests/scripts/test-read-overlay-flags.
 plugins/dso/scripts/recipe-adapters/ts-morph-add-parameter.mjs:tests/scripts/test-ts-morph-add-parameter.sh
 plugins/dso/scripts/recipe-adapters/ts-morph-normalize-imports.mjs:tests/scripts/test-ts-morph-normalize-imports.sh
 plugins/dso/scripts/resolve-abandoned-worktrees.sh:tests/scripts/test-worktree-resume-integration.sh
+plugins/dso/scripts/resolve-per-branch-review-base.sh:tests/scripts/test-resolve-per-branch-review-base.sh
 plugins/dso/scripts/resolve-session-branch.sh:tests/scripts/test-resolve-session-branch.sh
 plugins/dso/scripts/review-batch-groups.sh:tests/scripts/test-review-batch-groups.sh
 plugins/dso/scripts/review-complexity-classifier.sh:tests/hooks/test-review-complexity-classifier.sh

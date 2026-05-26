@@ -76,6 +76,17 @@ This pre-classification is what distinguishes Rule 1 (in-story implementation ga
 - The criterion requires a new endpoint, command, or UI element not mentioned in the story scope
 - The verifier notes the feature "does not exist" in any form
 
+**remediation_approach classification (Rule 2 only):** Before emitting, examine the verifier's `remediation_tasks_created[]` array and the failing tests' framing to determine which remediation approach the `remediation_summary` should recommend:
+
+- **`implement_feature`**: The failing tests assert a feature that was explicitly deferred (e.g., RED-marked with a `# DEFERRED` comment, or the verifier's `remediation_tasks_created` description includes language like "implement X to make tests green" or "export Y to enable Z"). Prefer this approach when: (a) the implementation surface is small (a re-export, a wrapper, a stub — estimated ≤ 20 lines based on the verifier's description), AND (b) the verifier text explicitly names the implementation as an option. The `remediation_summary` MUST describe implementing the feature, not adding a legitimizing marker.
+- **`legitimize_marker`**: The failing criterion is a test that was shipped with a RED marker but the marker was never registered in `.test-index`, or the marker configuration is incomplete. Use this approach ONLY when the feature implementation is genuinely out of scope for the story or when the verifier does not suggest implementation as an option.
+
+When `remediation_tasks_created` contains both an implementation option and a marker-registration option, **prefer `implement_feature`** — implementing the feature resolves both the failing test AND eliminates the need for marker administration.
+
+Include the approach in `remediation_summary` so the orchestrator can act without re-examining the verifier output:
+- `implement_feature`: "Implement [X] to make [test names] GREEN. Estimated surface: [description from verifier]."
+- `legitimize_marker`: "Register RED marker for [test names] in .test-index."
+
 **Emit:** `scope: "new_tasks_in_story"`, `escalation_upstream: "planner_supplied"`
 
 ### Rule 3: `new_story_in_epic`

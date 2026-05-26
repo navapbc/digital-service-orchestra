@@ -155,6 +155,8 @@ for each classified comment:
         --classify-as "<comment_id>:<action>"
 ```
 
+**CRITICAL — Sequential processing required for defer actions**: Do NOT use `run_in_background: true` or parallel Bash tool calls for `defer`-classified comments. The defer handler uses a consolidation lookup (checking for an existing `pr-<N>-deferred` tagged ticket before creating a new one) that only works correctly when calls are sequential. Parallel defer calls all query the ticket list before any ticket is created, causing each to create a new ticket instead of consolidating into one. Process all comments one at a time in a sequential loop — even when the CLAUDE.md "parallelize independent tool calls" rule would otherwise apply, the shared `$NORMALIZED_JSON` output file and the ticket-system consolidation invariant make these calls non-independent.
+
 **For defend-classified comments only**: Before dispatching, write the `defense_argument` text from the classification step into the normalized JSON so that `_handle_defend` can read it. Update the `body` field of the matching comment entry in the JSON with the defense argument text — the defend handler reads `body` as the defense text to post.
 
 If an action handler exits non-zero, record the error in the summary table (action: `ERROR`) and continue with remaining comments.

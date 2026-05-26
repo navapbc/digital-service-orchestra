@@ -101,7 +101,7 @@ test_sweep_disabled_when_flag_false() {
 }
 
 # ── test_sweep_enabled_when_flag_true ────────────────────────────────────────
-# When monitoring.tool_errors=true and counter file has TOOL_USE_BLOCKED >= 50,
+# When monitoring.tool_errors=true and counter file has TOOL_USE_BLOCKED >= 500,
 # sweep_tool_errors should trigger ticket creation via the ticket CLI.
 test_sweep_enabled_when_flag_true() {
     local tmpdir; tmpdir=$(mktemp -d)
@@ -112,8 +112,8 @@ test_sweep_enabled_when_flag_true() {
     # Config with monitoring.tool_errors=true
     echo "monitoring.tool_errors=true" > "$tmpconf"
 
-    # Counter file with TOOL_USE_BLOCKED at threshold (50), no errors array entries
-    echo '{"index":{"TOOL_USE_BLOCKED":50},"errors":[]}' > "$tmp_home/.claude/tool-error-counter.json"
+    # Counter file with TOOL_USE_BLOCKED at threshold (500), no errors array entries
+    echo '{"index":{"TOOL_USE_BLOCKED":500},"errors":[]}' > "$tmp_home/.claude/tool-error-counter.json"
 
     # Mock ticket CLI to track calls — list returns empty JSON array (no existing open bugs);
     # create logs its args and returns a fake ticket ID.
@@ -185,6 +185,108 @@ test_error_sweep_uses_ticket_cli() {
     assert_eq "test_error_sweep_uses_ticket_cli: error-sweep.sh uses ticket list or ticket create" "0" "$exit_code"
 }
 
+# ── test_sweep_no_ticket_below_500_threshold ─────────────────────────────────
+# Bug cf57: THRESHOLD=50 was too low, generating noise tickets for routine
+# tool errors. Threshold raised to 500.
+# Given:  monitoring.tool_errors=true and a count of 99 (below 500, above old 50)
+# When:   sweep_tool_errors runs
+# Then:   NO ticket is created (99 < 500 threshold)
+# RED: currently THRESHOLD=50, so 99 >= 50 → ticket IS created → assert fails.
+test_sweep_no_ticket_below_500_threshold() {
+    _snapshot_fail
+    echo ""
+    echo "=== test_sweep_no_ticket_below_500_threshold ==="
+
+    local tmpdir; tmpdir=$(mktemp -d)
+    local tmpconf="$tmpdir/dso-config.conf"
+    local tmp_home="$tmpdir/home"
+    mkdir -p "$tmp_home/.claude"
+
+    echo "monitoring.tool_errors=true" > "$tmpconf"
+
+    # Counter file with test_failure at 99 occurrences (below new 500 threshold)
+    echo '{"index":{"test_failure":99},"errors":[]}' > "$tmp_home/.claude/tool-error-counter.json"
+
+    local mock_bin="$tmpdir/bin"
+    mkdir -p "$mock_bin"
+    local ticket_log="$tmpdir/ticket.log"
+    cat > "$mock_bin/ticket-mock" <<'MOCK'
+#!/usr/bin/env bash
+echo "$@" >> "${TICKET_LOG_FILE}"
+if [[ "${1:-}" == "list" ]]; then
+    echo "[]"
+elif [[ "${1:-}" == "create" ]]; then
+    echo "mock-9999"
+fi
+MOCK
+    chmod +x "$mock_bin/ticket-mock"
+
+    TICKET_LOG_FILE="$ticket_log" TICKET_CMD="$mock_bin/ticket-mock" WORKFLOW_CONFIG_FILE="$tmpconf" HOME="$tmp_home" bash -c '
+        source "'"$SWEEP_SCRIPT"'"
+        sweep_tool_errors
+    ' 2>/dev/null
+
+    local ticket_created="no"
+    [[ -f "$ticket_log" ]] && grep -q "create" "$ticket_log" && ticket_created="yes"
+
+    rm -rf "$tmpdir"
+
+    # After fix (THRESHOLD=500): no ticket for count of 99.
+    # Before fix (THRESHOLD=50): ticket IS created → assert fails (RED state).
+    assert_eq "test_sweep_no_ticket_below_500_threshold: no ticket for count 99" "no" "$ticket_created"
+
+    assert_pass_if_clean "test_sweep_no_ticket_below_500_threshold"
+}
+
+# ── test_sweep_creates_ticket_at_500_threshold ───────────────────────────────
+# After threshold raise: a count of exactly 500 still triggers ticket creation.
+# Given:  monitoring.tool_errors=true and a count of 500
+# When:   sweep_tool_errors runs
+# Then:   ticket IS created (500 >= 500 threshold)
+test_sweep_creates_ticket_at_500_threshold() {
+    _snapshot_fail
+    echo ""
+    echo "=== test_sweep_creates_ticket_at_500_threshold ==="
+
+    local tmpdir; tmpdir=$(mktemp -d)
+    local tmpconf="$tmpdir/dso-config.conf"
+    local tmp_home="$tmpdir/home"
+    mkdir -p "$tmp_home/.claude"
+
+    echo "monitoring.tool_errors=true" > "$tmpconf"
+
+    # Counter file with test_failure at exactly 500 occurrences
+    echo '{"index":{"test_failure":500},"errors":[]}' > "$tmp_home/.claude/tool-error-counter.json"
+
+    local mock_bin="$tmpdir/bin"
+    mkdir -p "$mock_bin"
+    local ticket_log="$tmpdir/ticket.log"
+    cat > "$mock_bin/ticket-mock" <<'MOCK'
+#!/usr/bin/env bash
+echo "$@" >> "${TICKET_LOG_FILE}"
+if [[ "${1:-}" == "list" ]]; then
+    echo "[]"
+elif [[ "${1:-}" == "create" ]]; then
+    echo "mock-5000"
+fi
+MOCK
+    chmod +x "$mock_bin/ticket-mock"
+
+    TICKET_LOG_FILE="$ticket_log" TICKET_CMD="$mock_bin/ticket-mock" WORKFLOW_CONFIG_FILE="$tmpconf" HOME="$tmp_home" bash -c '
+        source "'"$SWEEP_SCRIPT"'"
+        sweep_tool_errors
+    ' 2>/dev/null
+
+    local ticket_created="no"
+    [[ -f "$ticket_log" ]] && grep -q "create" "$ticket_log" && ticket_created="yes"
+
+    rm -rf "$tmpdir"
+
+    assert_eq "test_sweep_creates_ticket_at_500_threshold: ticket created at count 500" "yes" "$ticket_created"
+
+    assert_pass_if_clean "test_sweep_creates_ticket_at_500_threshold"
+}
+
 # Run all tests
 test_sweep_disabled_when_flag_absent
 test_sweep_disabled_when_flag_false
@@ -192,5 +294,7 @@ test_sweep_enabled_when_flag_true
 test_error_sweep_no_tk_list_call
 test_error_sweep_no_tk_create_call
 test_error_sweep_uses_ticket_cli
+test_sweep_no_ticket_below_500_threshold
+test_sweep_creates_ticket_at_500_threshold
 
 print_summary
