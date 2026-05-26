@@ -758,9 +758,9 @@ test_tag_add_checked_rejects_plan_review_substitute_comment() {
 
     # Simulate what /dso:plan-review (substitute path) writes: a plan-review verdict
     # comment WITHOUT the "### Planning Intelligence Log" canonical marker.
-    # This is the exact scenario from bug 0122-54c9: scrutiny ran via plan-review
-    #, which produces a verdict comment but
-    # does NOT emit the PIL marker that the canonical pipeline writes.
+    # This is the exact scenario from bug 0122-54c9: scrutiny ran via plan-review,
+    # which produces a verdict comment but does NOT emit the PIL marker that the
+    # canonical pipeline writes.
     (cd "$repo" && bash "$TICKET_SCRIPT" comment "$ticket_id" \
         "## Plan Review Verdict
 

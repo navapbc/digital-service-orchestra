@@ -3136,7 +3136,7 @@ def test_reverted_archived_marker_is_orphan(
     When: reduce_all_tickets(tracker_dir, exclude_archived=True) is called.
     Then:
       - The stale .archived marker is removed by the self-heal logic.
-      - The slow path runs is called on the ticket).
+      - The slow path runs (reduce_ticket() is called on the ticket).
     """
     tracker_dir = tmp_path / "tracker"
     tracker_dir.mkdir()

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tests/scripts/test-dso-shim-plugin-root.sh
-shim must preserve CLAUDE_PLUGIN_ROOT when pre-set by caller.
+# The .claude/scripts/dso shim must preserve CLAUDE_PLUGIN_ROOT when pre-set by caller.
 #
 # Verifies that the .claude/scripts/dso shim does NOT overwrite CLAUDE_PLUGIN_ROOT
 # when it is already set by the caller (e.g. by Claude Code's auto-set mechanism).
