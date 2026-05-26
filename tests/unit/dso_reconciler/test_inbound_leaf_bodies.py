@@ -63,8 +63,16 @@ def fixture_repo(tmp_path, monkeypatch):
     Removes TICKETS_TRACKER_DIR from the environment so a developer-set
     override in the host shell cannot leak into the test and steer writes
     away from the tmp tracker dir (PR #375 review thread 3306949620).
+
+    Also removes DSO_ENV_ID and DSO_AUTHOR — both are read by
+    ``applier._event_meta()`` and written into every event file. If
+    developer-shell values leak into the test the assertions still pass
+    locally but the event-file ``env_id``/``author`` diverge between local
+    and CI runs (PR #375 review thread 3307104056).
     """
     monkeypatch.delenv("TICKETS_TRACKER_DIR", raising=False)
+    monkeypatch.delenv("DSO_ENV_ID", raising=False)
+    monkeypatch.delenv("DSO_AUTHOR", raising=False)
     tracker = tmp_path / ".tickets-tracker"
     tracker.mkdir()
     (tracker / ".env-id").write_text("test-env-id", encoding="utf-8")
@@ -269,6 +277,45 @@ def test_inbound_delete_branches(applier, mut_mod, fixture_repo, outcome):
         # Comment-only branches: ticket dir still exists with a new COMMENT.
         events = _event_files(tracker, "jira-dig-123")
         assert any("COMMENT" in p.name for p in events)
+
+
+def test_inbound_delete_redirect_raises_when_destination_exists(
+    applier, mut_mod, fixture_repo
+):
+    """Redirect branch must NOT silently skip the rename when both src and
+    dst already exist on disk (PR #375 review thread 3307104042). Silent
+    skip leaves both directories present — an inconsistent state that
+    propagates to later passes. Expect FileExistsError.
+    """
+    # Seed the source ticket dir (the one being redirected away).
+    create_src = _make_mutation(
+        mut_mod,
+        direction=mut_mod.MutationDirection.inbound,
+        action=mut_mod.MutationAction.create,
+        target="DIG-123",
+        payload={"fields": {"summary": "src", "issuetype": "Task"}},
+    )
+    applier._apply_typed(create_src, repo_root=fixture_repo)
+
+    # Pre-create the destination directory (simulates a prior failed pass
+    # or collision with an already-imported ticket of the new key).
+    tracker = fixture_repo / ".tickets-tracker"
+    (tracker / "jira-dig-999").mkdir()
+
+    delete_mut = _make_mutation(
+        mut_mod,
+        direction=mut_mod.MutationDirection.inbound,
+        action=mut_mod.MutationAction.delete,
+        target="jira-dig-123",
+        payload={"probe_outcome": "redirect", "new_jira_key": "DIG-999"},
+    )
+    with pytest.raises(FileExistsError):
+        applier._apply_typed(delete_mut, repo_root=fixture_repo)
+
+    # Both directories must still exist — the leaf must not have partially
+    # mutated state before raising.
+    assert (tracker / "jira-dig-123").is_dir()
+    assert (tracker / "jira-dig-999").is_dir()
 
 
 # ---------------------------------------------------------------------------

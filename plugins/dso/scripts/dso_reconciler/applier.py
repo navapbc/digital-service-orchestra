@@ -613,6 +613,17 @@ def _apply_inbound_delete(mutation, *, client=None, repo_root=None) -> ApplyResu
         )
         src = tracker_dir / local_id
         dst = tracker_dir / new_local_id
+        # Collision protection (PR #375 review thread 3307104042): when both
+        # src and dst already exist on disk (prior failed pass, or the
+        # destination key was imported by another path) we cannot silently
+        # skip the rename — that leaves the tracker holding two ticket dirs
+        # for the same logical ticket. Raise so the operator can reconcile.
+        if src.exists() and dst.exists():
+            raise FileExistsError(
+                f"inbound delete redirect: refusing to rename {src} -> {dst} "
+                f"because destination already exists (target={target}, "
+                f"new_jira_key={new_key!r})"
+            )
         if src.exists() and not dst.exists():
             src.rename(dst)
         # Write a comment noting the redirect on the destination directory.
@@ -1133,12 +1144,8 @@ def _apply_typed(mutation, *, client=None, repo_root=None) -> ApplyResult:
 
     try:
         sig = _inspect.signature(handler)
-        accepts_repo_root = (
-            "repo_root" in sig.parameters
-            or any(
-                p.kind is _inspect.Parameter.VAR_KEYWORD
-                for p in sig.parameters.values()
-            )
+        accepts_repo_root = "repo_root" in sig.parameters or any(
+            p.kind is _inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()
         )
     except (TypeError, ValueError):
         # Builtins / C-extensions don't expose signatures: fall back to passing
