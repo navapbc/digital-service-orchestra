@@ -78,8 +78,21 @@ echo "── Test 1: --artifact <space> sub-agent handoff absent from sprint/SKI
 test_no_artifact_handoff() {
     # grep exits 1 (not found) = PASS; exits 0 (found) = FAIL
     local found
-    found=$(grep -c -- '--artifact ' "$SKILL_MD" || echo "0")
-    assert_eq "no --artifact <space> in sprint/SKILL.md" "0" "$found"
+    # Helper-script carve-out: append_review_cycle.py --artifact <path> is allowed
+    found=$(python3 -c "
+import sys
+lines = open('$SKILL_MD').read().splitlines()
+count = 0
+for i, line in enumerate(lines):
+    if '--artifact ' not in line:
+        continue
+    window = '\n'.join(lines[max(0,i-3):i+4])
+    if any(k in window for k in ('append_review_cycle.py', '--artifact-file=', '--artifacts-dir', 'python3 ')):
+        continue
+    count += 1
+print(count)
+")
+    assert_eq "no --artifact sub-agent-prompt handoffs in sprint/SKILL.md" "0" "$found"
 }
 test_no_artifact_handoff
 

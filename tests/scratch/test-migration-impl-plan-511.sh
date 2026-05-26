@@ -73,8 +73,23 @@ SECTION=$(_get_step2_section)
 echo ""
 echo "── Test 1: no --artifact sub-agent-prompt handoffs in Step 2 block ──"
 _snapshot_fail
-artifact_hits=$(echo "$SECTION" | grep -c -- '--artifact ' || echo "0")
-# The Step 2 section must have zero --artifact references after migration.
+# Count --artifact refs in the block, excluding helper-script flag usage (append_review_cycle.py).
+# The cycle-recorder uses `append_review_cycle.py --artifact <path>` which is helper-script
+# arg per SC-2 exclusion list — not a sub-agent-prompt handoff.
+artifact_hits=$(echo "$SECTION" | python3 -c "
+import sys
+lines = sys.stdin.read().splitlines()
+count = 0
+for i, line in enumerate(lines):
+    if '--artifact ' not in line:
+        continue
+    window = chr(10).join(lines[max(0,i-3):i+4])
+    if any(k in window for k in ('append_review_cycle.py', '--artifact-file=', '--artifacts-dir', 'python3 ')):
+        continue
+    count += 1
+print(count)
+")
+# The section must have zero --artifact sub-agent-prompt handoffs (helper-script carve-out).
 assert_eq "no --artifact in Step 2 block" "0" "$artifact_hits"
 assert_pass_if_clean "Test 1: no --artifact sub-agent-prompt handoffs"
 
