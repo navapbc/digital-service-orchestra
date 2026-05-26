@@ -193,33 +193,16 @@ def test_active_query_uncapped_consumes_everything_under_ceiling(tmp_path, fetch
     )
 
 
-def test_per_query_ceiling_raised_to_1200(fetcher):
-    """Regression guard: bug f6cc raised the per-query ceiling from 1000
-    → 1200. Lowering it back to 1000 would break the production DIG
-    project (1050 active issues + 1120 Done issues empirically observed
-    on 2026-05-26)."""
-    assert fetcher._ACLI_CEILING == 1200, (
-        f"Per-query ACLI ceiling regressed: expected 1200, got "
-        f"{fetcher._ACLI_CEILING}. Bug f6cc raised this from 1000 to 1200; "
-        f"reverting would re-trigger SilentTruncationError on the live "
-        f"DIG project."
-    )
-
-
-def test_done_recent_cap_is_1000(fetcher):
-    """Regression guard: the Done-recent cap is the documented threshold
-    for keeping the Done snapshot bounded while DIG continues to grow."""
-    assert fetcher._DONE_RECENT_CAP == 1000, (
-        f"_DONE_RECENT_CAP regressed: expected 1000, got "
-        f"{fetcher._DONE_RECENT_CAP}. Changing this changes which Done "
-        f"items the bridge sees; revisit before adjusting."
-    )
-
-
-def test_jqls_tuple_orders_active_then_done(fetcher):
-    """The public JQLS tuple must put the active query first so that any
-    consumer iterating it preserves the active→Done ordering."""
-    assert fetcher.JQLS == (
-        fetcher.JQL_ACTIVE,
-        fetcher.JQL_DONE_RECENT,
-    ), f"JQLS ordering regressed: expected (ACTIVE, DONE_RECENT); got {fetcher.JQLS!r}"
+# Behavioral coverage for the three constants (_ACLI_CEILING, _DONE_RECENT_CAP,
+# JQLS) is provided by the tests above and by test_fetcher_truncation_gate.py:
+#   * _ACLI_CEILING enforcement:
+#       test_fetch_at_1200_issue_ceiling_raises_silent_truncation_error
+#       (test_fetcher_truncation_gate.py)
+#   * _DONE_RECENT_CAP enforcement:
+#       test_done_query_capped_at_done_recent_cap (above)
+#   * JQLS / query ordering:
+#       test_both_split_jqls_issued_in_order_active_then_done (above)
+# Per the behavioral testing standard, separate "constant-equals-N"
+# regression-guard tests are change-detector tests and were intentionally
+# omitted: they break on safe refactorings and add no observable-behavior
+# assurance beyond what the behavioral tests already give.
