@@ -1,0 +1,4 @@
+[
+  { "filename": "plugins/dso/scripts/skipped-review-file.sh", "status": "added" },
+  { "filename": "plugins/dso/scripts/another-skipped-file.py", "status": "added" }
+]

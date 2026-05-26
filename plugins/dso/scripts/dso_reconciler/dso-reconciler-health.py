@@ -59,6 +59,9 @@ def _count_by_walking_dir(tickets_dir: Path) -> dict:
     for ticket_dir in tickets_dir.iterdir():
         if not ticket_dir.is_dir():
             continue
+        # Skip .scratch/ — scratch-space entries are not ticket directories.
+        if '.scratch' in ticket_dir.parts:
+            continue
         event_files = sorted(ticket_dir.glob("*.json"))
         ticket_type: str | None = None
         latest_status: str = "open"

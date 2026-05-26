@@ -2458,6 +2458,9 @@ write_marker(sys.argv[1])
 
         echo "Deleted ticket '$ticket_id'"
 
+        # Scratch cleanup: remove per-ticket scratch dir (non-blocking; always returns 0)
+        _scratch_cleanup_for_ticket "$ticket_id" 2>/dev/null || true
+
         # ── Emit UNBLOCKED signals ──────────────────────────────────────────────
         # Mirror ticket-transition.sh: detect tickets newly unblocked by this deletion.
         local _batch_close_json

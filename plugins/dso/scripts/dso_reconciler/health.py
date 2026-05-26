@@ -104,6 +104,11 @@ def count_open_by_type(repo_root: Path | None = None) -> dict:
     for ticket_dir in tickets_dir.iterdir():
         if not ticket_dir.is_dir():
             continue
+        # Skip .scratch/ — it is a scratch-space for agent scratch data, not a
+        # ticket directory.  Including it would cause key errors when the health
+        # reader tries to parse scratch JSON envelopes as ticket events.
+        if '.scratch' in ticket_dir.parts:
+            continue
         event_files = sorted(ticket_dir.glob("*.json"))
         ticket_type: str | None = None
         # Default to "open" so tickets with only a CREATE event (no explicit
@@ -166,6 +171,9 @@ def capture_baseline(pass_id: str, repo_root: Path | None = None) -> Path:
     if tickets_dir.is_dir():
         for ticket_dir in tickets_dir.iterdir():
             if not ticket_dir.is_dir():
+                continue
+            # Skip .scratch/ — scratch-space entries are not ticket directories.
+            if '.scratch' in ticket_dir.parts:
                 continue
             # Walk all events. Tickets with only a CREATE (no STATUS yet)
             # default to "open" to match the canonical reducer initial state

@@ -356,10 +356,74 @@ Pass the following as task arguments:
 - `{existing-stories}`: The kept-or-modified children from Phase A reconciliation. For each, include id, title, description, current Done Definitions, and considerations. Format as a Markdown list with one entry per story.
 - `{external-dep-stories}`: The `manual:awaiting_user` stories created in Phase B. Same format as `{existing-stories}`. If Phase B was skipped (flag off or no entries), pass `(none)`.
 - `{escalation-policy}`: Both the `{escalation_policy_label}` from Phase A Step 2 and its full text, so the agent can write the label verbatim into every draft's `escalation_policy` field for Phase H.
+- `SCRATCH_TICKET_ID`: The epic ticket id (the `<epic-id>` value for this preplanning run) — the sub-agent uses this to namespace the scratch write.
+- `SCRATCH_KEY`: The literal string `preplanning:step4:story-decomp-draft` — the sub-agent uses this as the scratch key when writing its output.
 
-### Parse Output
+**Sub-agent output contract** (include verbatim in the dispatched prompt):
 
-The agent returns a JSON object with `sc_coverage_plan`, `story_drafts`, and `decomposition_notes`. Validate:
+```xml
+<output_contract>
+You MUST write your full JSON output (sc_coverage_plan, story_drafts, decomposition_notes) to
+the ticket scratch store before returning, using the SCRATCH_TICKET_ID and SCRATCH_KEY values
+provided:
+
+  bash "$PLUGIN_SCRIPTS/ticket-scratch.sh" set "$SCRATCH_TICKET_ID" "$SCRATCH_KEY" "<your-json-output>"
+
+After writing, return ONLY a 3-field receipt JSON — do NOT embed the draft body in your return block:
+
+  {"ticket_id": "<SCRATCH_TICKET_ID>", "key": "<SCRATCH_KEY>", "byte_count": <N>}
+
+where byte_count is the byte length of the JSON payload you wrote.
+
+NEGATIVE EXAMPLE (contract violation — do NOT do this):
+  {"ticket_id": "...", "key": "...", "byte_count": 4096, "story_drafts": [...]}
+  ^^^ Extra fields beyond the 3-field envelope are a contract violation and will
+      cause RECEIPT_PARSE_ERROR on the orchestrator side.
+
+NEGATIVE EXAMPLE (contract violation — do NOT do this):
+  Here are the story drafts: sc_coverage_plan: [...], story_drafts: [...]
+  ^^^ Returning the draft body inline (not via scratch) is a contract violation.
+      A SCRATCH_MISS on the orchestrator side is NOT a fallback signal to send
+      the payload inline — it is a hard error requiring the agent to be re-dispatched.
+</output_contract>
+```
+
+### Parse Output (Receipt-Only Contract)
+
+After the sub-agent returns, validate its receipt via `receipt-parse.sh` before reading any payload:
+
+```bash
+# Prompt Alignment Finding 1: receipt validation co-located with the read site
+PARSE_RESULT=$(printf '%s' "<sub-agent-return-block>" | \
+    bash "$PLUGIN_SCRIPTS/receipt-parse.sh" preplanning:step4 dso:story-decomposer)
+PARSE_EXIT=$?
+if [ "$PARSE_EXIT" -ne 0 ]; then
+    # RECEIPT_PARSE_ERROR — halt workflow; structured error already logged to stderr by receipt-parse.sh
+    # Inline cleanup: remove any partial scratch written before the failure
+    bash "$PLUGIN_SCRIPTS/ticket-scratch.sh" clear "$SCRATCH_TICKET_ID" "preplanning:step4:story-decomp-draft" 2>/dev/null || true
+    echo "HALT: story decomposer returned a malformed receipt — see RECEIPT_PARSE_ERROR above. Re-dispatch the sub-agent to fix the return contract before continuing." >&2
+    exit 1
+fi
+# Extract ticket_id and key from the validated receipt
+SCRATCH_TICKET_ID_OUT=$(echo "$PARSE_RESULT" | awk '{print $1}')
+SCRATCH_KEY_OUT=$(echo "$PARSE_RESULT" | awk '{print $2}')
+
+# Retrieve the payload from scratch
+SCRATCH_RESULT=$(bash "$PLUGIN_SCRIPTS/ticket-scratch.sh" get "$SCRATCH_TICKET_ID_OUT" "$SCRATCH_KEY_OUT")
+SCRATCH_STATUS=$(echo "$SCRATCH_RESULT" | python3 -c "import json,sys; print(json.load(sys.stdin)['status'])")
+
+# Prompt Alignment Finding 1: SCRATCH_MISS guard co-located with the get call
+if [ "$SCRATCH_STATUS" != "hit" ]; then
+    # SCRATCH_MISS — hard error; do NOT fall back to accepting inline payload  # precondition-emit-ok: negation, no degradation event
+    # Inline cleanup: no payload to remove, but clear any stale key
+    bash "$PLUGIN_SCRIPTS/ticket-scratch.sh" clear "$SCRATCH_TICKET_ID_OUT" "$SCRATCH_KEY_OUT" 2>/dev/null || true
+    echo "HALT: scratch key '$SCRATCH_KEY_OUT' not found for ticket '$SCRATCH_TICKET_ID_OUT' (status=$SCRATCH_STATUS). A SCRATCH_MISS is not a signal to accept an inline payload — re-dispatch the sub-agent." >&2
+    exit 1
+fi
+DECOMP_JSON=$(echo "$SCRATCH_RESULT" | python3 -c "import json,sys; print(json.load(sys.stdin)['value'])")
+```
+
+The retrieved `DECOMP_JSON` is a JSON object with `sc_coverage_plan`, `story_drafts`, and `decomposition_notes`. Validate:
 
 1. `sc_coverage_plan` is an array with one entry per SC passed in. Every entry has `sc_id`, `sc_text`, `verdict`, `covering_story_ids`, `draft_ids` fields; `gap_summary` is present when `verdict` ∈ {`partial_coverage`, `uncovered`, `out_of_scope_for_stories`} — must match the agent's field-table condition so a regression that drops `gap_summary` on `uncovered` SCs is caught at validation time.
 2. `story_drafts` is an array. Each draft has `temp_id` (matching the pattern `draft-N`), `title` (user-story-shaped), `priority` (integer 0–4), `description`, `done_definitions` (each ending with `← Satisfies: sc-N`), `depends_on`, `split_candidate`, and `escalation_policy`.
@@ -367,7 +431,7 @@ The agent returns a JSON object with `sc_coverage_plan`, `story_drafts`, and `de
 4. Every draft's `depends_on` references either an existing story id or another `temp_id` in this same response — no dangling references.
 
 <!-- EMIT-PRECONDITIONS: gate_name=preplanning_story_decomposer_model_retry degradation_type=inferred_decision -->
-**On `model_requirement_unmet`**: If the agent returns `{"story_drafts": [], "sc_coverage_plan": [], "error": "model_requirement_unmet"}`, log `"Story decomposer model requirement unmet — re-dispatching with explicit model: opus"` and retry once via the fallback path (`general-purpose` + `model: "opus"` + inline prompt). If the retry also returns `model_requirement_unmet`, HALT preplanning with diagnostic: `"Story decomposition requires opus; configure the environment to allow opus dispatch and re-run /dso:preplanning."` Do NOT fall back to inline drafting.
+**On `model_requirement_unmet`**: If the scratch payload carries `{"story_drafts": [], "sc_coverage_plan": [], "error": "model_requirement_unmet"}`, log `"Story decomposer model requirement unmet — re-dispatching with explicit model: opus"` and retry once via the fallback path (`general-purpose` + `model: "opus"` + inline prompt). If the retry also returns `model_requirement_unmet`, HALT preplanning with diagnostic: `"Story decomposition requires opus; configure the environment to allow opus dispatch and re-run /dso:preplanning."` Do NOT fall back to inline drafting. <!-- precondition-emit-ok: negation, HALT not degradation -->
 
 **On schema validation failure**: HALT preplanning with diagnostic: `"Story decomposer returned malformed output; cannot proceed without verified drafts."` Do NOT fall back to inline drafting — inline drafting is the failure mode this phase exists to prevent.  <!-- precondition-emit-ok: negation — HALT, no degradation event -->
 <!-- EMIT-PRECONDITIONS landmark above also covers this section per the within-10-lines rule. -->
@@ -376,27 +440,24 @@ The agent returns a JSON object with `sc_coverage_plan`, `story_drafts`, and `de
 
 ### Persist the Decomposition Artifact
 
-Write the agent's full output to the artifacts directory so it remains available for Phase E (which consumes the SC list), Phase F (which consumes the `split_candidate` flags), and post-mortem analysis:
+The full decomposition JSON is already stored in scratch under key `preplanning:step4:story-decomp-draft`. Post a one-line ticket comment on the epic for visibility:
 
 ```bash
-source "${CLAUDE_PLUGIN_ROOT}/hooks/lib/deps.sh"
-ARTIFACTS_DIR=$(get_artifacts_dir)
-ARTIFACT_PATH="$ARTIFACTS_DIR/story-decomposition-<epic-id>.json"
-# Write the full agent output JSON to ARTIFACT_PATH
+.claude/scripts/dso ticket comment <epic-id> "Story decomposition: <N> drafts produced. Coverage: <fully> existing / <new_drafts> new / <oos> out-of-scope. Payload stored in scratch key preplanning:step4:story-decomp-draft."
 ```
 
-Then post a one-line ticket comment on the epic for visibility:
+After Phase H creates the story tickets from the drafts, clear the scratch key:
 
 ```bash
-.claude/scripts/dso ticket comment <epic-id> "Story decomposition: <N> drafts produced. Coverage: <fully> existing / <new_drafts> new / <oos> out-of-scope. Full artifact: $ARTIFACT_PATH"
+bash "$PLUGIN_SCRIPTS/ticket-scratch.sh" clear "$SCRATCH_TICKET_ID" "preplanning:step4:story-decomp-draft"
 ```
 
 ### Feed Downstream Phases
 
-- Phase C scans the union of (existing stories from Phase A) + (external-dep stories from Phase B) + (drafts from this phase). Drafts identified as `split_candidate: true` here are pre-flagged; Phase C may add more.
-- Phase E's red-team receives the same draft set and re-audits SC coverage at the cross-story level; the two audits are intentionally redundant — decomposition is the constructive step, the red team is the adversarial check.
-- Phase F's Walking Skeleton step uses the `priority` ordering produced here as its starting point.
-- Phase H Step 1 creates tickets from the drafts via `.claude/scripts/dso ticket create`, copying `title`, `description`, `done_definitions`, `considerations`, `depends_on`, `priority`, and `escalation_policy` into the ticket body.
+- Phase C scans the union of (existing stories from Phase A) + (external-dep stories from Phase B) + (drafts from this phase). Drafts identified as `split_candidate: true` here are pre-flagged; Phase C may add more. Read drafts from `DECOMP_JSON` (already retrieved from scratch above).
+- Phase E's red-team receives the same draft set and re-audits SC coverage at the cross-story level; the two audits are intentionally redundant — decomposition is the constructive step, the red team is the adversarial check. Pass `DECOMP_JSON` directly — do not re-read from scratch.
+- Phase F's Walking Skeleton step uses the `priority` ordering produced here as its starting point. Read from `DECOMP_JSON`.
+- Phase H Step 1 creates tickets from the drafts via `.claude/scripts/dso ticket create`, copying `title`, `description`, `done_definitions`, `considerations`, `depends_on`, `priority`, and `escalation_policy` into the ticket body. Read from `DECOMP_JSON`; clear scratch after all tickets are written.
 
 ---
 
