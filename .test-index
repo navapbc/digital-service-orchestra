@@ -614,3 +614,7 @@ plugins/dso/scripts/label_visual_corpus.py:tests/visual_eval/test_corpus_schema.
 plugins/dso/skills/visual-evaluator/SKILL.md:tests/skills/test-visual-evaluator-skill.sh
 plugins/dso/scripts/compute_kappa.py:tests/visual_eval/test_kappa_computation.py
 plugins/dso/scripts/visual_eval_gates.py:tests/visual_eval/test_visual_eval_gates.py
+plugins/dso/scripts/dogfood_visual_evaluator.py:tests/visual_eval/test_dogfood_harness.py
+plugins/dso/skills/ui-designer/docs/reviewers/visual-spatial-evaluator.md:tests/skills/test-ui-designer-5-reviewer.sh
+plugins/dso/skills/ui-designer/docs/reviewers/design-systems-lead.md:tests/skills/test-ui-designer-5-reviewer.sh
+plugins/dso/skills/ui-designer/docs/arbitration.md:tests/skills/test-ui-designer-5-reviewer.sh
