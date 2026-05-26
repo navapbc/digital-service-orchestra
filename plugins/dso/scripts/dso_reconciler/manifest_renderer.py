@@ -9,7 +9,8 @@ profile:
   (touching the local tracker) is the dangerous side, so operators need
   per-ticket evidence; outbound counts suffice.
 * ``bootstrap-throttle``: both directions summarized to totals, plus a
-  10% deterministic ``spot_check`` sample selected by ``hash(target) % 10 == 0``.
+  10% deterministic ``spot_check`` sample selected by a stable SHA-256 hash
+  of the target (Python's built-in ``hash()`` is randomized per-process).
 * ``live``: no manifest file (GHA log only); the dispatch in ``applier.apply``
   is the caller's responsibility — this module does NOT emit a renderer for
   LIVE.
@@ -27,6 +28,7 @@ Contract: ``${CLAUDE_PLUGIN_ROOT}/docs/contracts/asymmetric-manifest.md``.
 
 from __future__ import annotations
 
+import hashlib
 from typing import Any, Iterable
 
 
@@ -124,18 +126,30 @@ def render_dry_run_or_strict(
     }
 
 
+def _stable_bucket(target: str) -> int:
+    """Map *target* to a stable bucket in [0, 10) using SHA-256.
+
+    Python's built-in ``hash()`` is randomized per-process (unless
+    ``PYTHONHASHSEED`` is pinned), which breaks the renderer's "Stable across
+    runs" contract. SHA-256 is deterministic across processes and platforms.
+    """
+    digest = hashlib.sha256(target.encode("utf-8")).hexdigest()
+    return int(digest, 16) % 10
+
+
 def _spot_check_sample(mutations: Iterable[Any]) -> list[dict]:
     """Select a deterministic 10% sample of *mutations* keyed by target hash.
 
-    Uses ``hash(target) % 10 == 0`` so the sample is stable across runs as
-    long as the target identifier is stable. Each sampled mutation is
-    rendered with the same shape as ``_enumerate_inbound`` so spot-check
-    consumers have full field detail.
+    Uses a SHA-256-derived bucket (``_stable_bucket(target) == 0``) so the
+    sample is stable across runs and processes as long as the target
+    identifier is stable. Each sampled mutation is rendered with the same
+    shape as ``_enumerate_inbound`` so spot-check consumers have full field
+    detail.
     """
     sample: list[dict] = []
     for m in mutations:
         target = _target_of(m)
-        if hash(target) % 10 == 0:
+        if _stable_bucket(target) == 0:
             sample.append(
                 {
                     "key": target,

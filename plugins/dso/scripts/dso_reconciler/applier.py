@@ -1825,8 +1825,13 @@ def apply(
     # -------------------------------------------------------------------------
     mutations_input = list(mutations or [])
     deferred_for_manifest: list = []
+    # Hoist the mode module load to a single call per apply() invocation.
+    # Previously _load_mode_module() was called at three sites (cap lookup,
+    # DRY_RUN dispatch skip, manifest renderer dispatch); collapsing to one
+    # avoids redundant importlib work and a class-identity hazard if the
+    # module ever ends up loaded under multiple sys.modules keys mid-call.
+    mode_mod = _load_mode_module() if mode is not None else None
     if mode is not None:
-        mode_mod = _load_mode_module()
         cap = mode_mod.MODE_CAPS.get(mode)
         # Sort deterministically before applying the cap so the applied /
         # deferred partition is reproducible across passes.
@@ -1946,12 +1951,8 @@ def apply(
     # In DRY_RUN, skip the legacy batch dispatcher entirely so the test
     # contract ("neither _apply_typed nor _apply_batch is invoked") holds.
     # The renderer block below writes the asymmetric manifest from scratch.
-    if mode is not None:
-        mode_mod_for_dryskip = _load_mode_module()
-        if mode == mode_mod_for_dryskip.Mode.DRY_RUN:
-            manifest_path = None
-        else:
-            manifest_path = _apply_batch(outbound_list, pass_id, repo_root=repo_root)
+    if mode_mod is not None and mode == mode_mod.Mode.DRY_RUN:
+        manifest_path = None
     else:
         manifest_path = _apply_batch(outbound_list, pass_id, repo_root=repo_root)
 
@@ -1970,8 +1971,7 @@ def apply(
     # mode is None (legacy callers depend on it). Otherwise we overwrite or
     # remove it as required by the mode contract.
     # -------------------------------------------------------------------------
-    if mode is not None:
-        mode_mod = _load_mode_module()
+    if mode_mod is not None:
         renderer_mod = _load_manifest_renderer()
         applied_for_manifest = list(mutations_list)
 
