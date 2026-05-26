@@ -94,9 +94,17 @@ _verify_protected_files() {
 
 # --- RED zone tolerance (optional, enabled when SUITE_TEST_INDEX is set) ---
 # Source red-zone.sh for parse_failing_tests_from_output helper
+#
+# CI override: RED-zone marker tolerance is a development-time aid (TDD red phase).
+# It MUST NOT mask test failures in CI runs targeting main. When CI=true or
+# GITHUB_ACTIONS=true (both set by GitHub Actions and most other runners),
+# disable tolerance unconditionally — every test must pass on its own merits
+# to merge.
 _RED_ZONE_ENABLED=false
 declare -A _RED_MARKER_MAP=()
-if [[ -n "${SUITE_TEST_INDEX:-}" ]] && [[ -f "${SUITE_TEST_INDEX}" ]]; then
+if [[ "${CI:-}" == "true" ]] || [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
+    : # tolerance disabled in CI environments — see comment above
+elif [[ -n "${SUITE_TEST_INDEX:-}" ]] && [[ -f "${SUITE_TEST_INDEX}" ]]; then
     _RED_ZONE_ENABLED=true
     # Source red-zone.sh (located next to this file or in the hooks lib dir)
     _SE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
