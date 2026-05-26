@@ -93,10 +93,10 @@ export PATH="$FAKE_GH_BIN:$PATH"
 
 # ─── Defense records to round-trip ────────────────────────────────────────────
 # Baseline test: plain-ASCII defense_text values. Exotic-byte stress
-# (backticks, pipe chars, code fences, embedded quotes) is intentionally
-# deferred — during test development those bytes leaked through the mirror
-# script in 1 of 3 records, indicating a real fragility worth tracking as
-# a separate follow-up rather than blocking this initial round-trip test.
+# (backticks, pipe chars, code fences, embedded quotes, multibyte UTF-8) is
+# covered by test_round_trip_handles_exotic_bytes below — the fix in
+# acff-b6eb-a6b7-4828 switched github_defense_store_write from --body argv
+# interpolation to --body-file (mktemp-backed) precisely to make this safe.
 _make_defense_record() {
     local idx="$1"
     local tricky="$2"
@@ -177,5 +177,70 @@ PYEOF
     assert_pass_if_clean "test_round_trip_preserves_json_content"
 }
 test_round_trip_preserves_json_content
+
+# ─── Test 2 — exotic-byte defense_text survives round-trip (acff-b6eb fix) ───
+echo ""
+echo "--- test_round_trip_handles_exotic_bytes ---"
+
+test_round_trip_handles_exotic_bytes() {
+    _snapshot_fail
+
+    # Reset the fake GH state.
+    rm -rf "$FAKE_GH_STATE_DIR/pr-comments"
+    mkdir -p "$FAKE_GH_STATE_DIR/pr-comments"
+
+    local input="$TEST_TMPDIR/defenses-exotic-input.jsonl"
+    : > "$input"
+
+    # Three representative exotic-byte payloads:
+    #   1. backtick-rich markdown payload (code fences + inline backticks)
+    #   2. double-quote-rich JSON-in-text payload (embedded quotes)
+    #   3. multibyte-UTF-8 payload (em-dashes, smart quotes, non-ASCII)
+    # shellcheck disable=SC2016  # literal backticks intentional for stress test
+    local payload1='```bash rm -rf / # `do not run` ```'
+    local payload2='He said "hello" and {"key":"val with \"escaped\" quotes"}'
+    local payload3='résumé — “smart quotes” • ✓ é → ∞ 日本語'
+
+    printf 'DEFENSE_RECORD: %s\n' "$(_make_defense_record 1 "$payload1")" >> "$input"
+    printf 'DEFENSE_RECORD: %s\n' "$(_make_defense_record 2 "$payload2")" >> "$input"
+    printf 'DEFENSE_RECORD: %s\n' "$(_make_defense_record 3 "$payload3")" >> "$input"
+
+    PR_NUMBER=1 REPO_SLUG=test/round-trip bash "$MIRROR" 1 test/round-trip < "$input" >/dev/null 2>&1 || true
+
+    local fetched
+    fetched=$("$FAKE_GH_BIN/gh" pr view 1 --json comments 2>/dev/null)
+
+    local matched
+    matched=$(python3 - "$fetched" "$payload1" "$payload2" "$payload3" <<'PYEOF'
+import json, re, sys
+data = json.loads(sys.argv[1])
+expected = {
+    f"Round-trip test #1: {sys.argv[2]}",
+    f"Round-trip test #2: {sys.argv[3]}",
+    f"Round-trip test #3: {sys.argv[4]}",
+}
+matched = 0
+seen = set()
+for c in data.get("comments", []):
+    body = c.get("body", "")
+    m = re.search(r"DEFENSE_RECORD:\s*(\{.*\})", body, flags=re.DOTALL)
+    if not m:
+        continue
+    try:
+        rec = json.loads(m.group(1))
+    except Exception:
+        continue
+    dt = rec.get("defense_text")
+    if dt in expected and dt not in seen:
+        seen.add(dt)
+        matched += 1
+print(matched)
+PYEOF
+)
+    assert_eq "round-trip preserves 3 exotic-byte defense records" "3" "$matched"
+
+    assert_pass_if_clean "test_round_trip_handles_exotic_bytes"
+}
+test_round_trip_handles_exotic_bytes
 
 print_summary

@@ -140,6 +140,10 @@ cleanup_env() {
     local env_dir="$1"
     git -C "$env_dir/main-clone" worktree remove --force "$env_dir/worktree" 2>/dev/null || true
     rm -rf "$env_dir"
+    # Subtests share the branch name 'feature-branch' and therefore share
+    # /tmp/merge-to-main-state-feature-branch.json + the init marker. Remove
+    # them so state does not leak across subtests (CI flakiness root cause).
+    rm -f /tmp/merge-to-main-state-feature-branch.json /tmp/merge-state-init-marker-feature-branch
 }
 
 # =============================================================================

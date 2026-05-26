@@ -122,7 +122,16 @@ print(json.dumps(record))
     fi
 
     # Post PR comment: body = DEFENSE_RECORD: $enriched_json
-    _gh_with_backoff 3 pr comment "$pr_number" --repo "$repo" --body "DEFENSE_RECORD: $enriched_json"
+    # Use --body-file (mktemp-backed) instead of --body to avoid argv-interpolation
+    # hazards (argv length limits, shell quoting, exotic-byte handling) when
+    # defense_text contains markdown fences, embedded quotes, or multibyte UTF-8.
+    local body_file
+    body_file=$(mktemp /tmp/dso-defense.XXXXXX)
+    printf '%s' "DEFENSE_RECORD: $enriched_json" > "$body_file"
+    _gh_with_backoff 3 pr comment "$pr_number" --repo "$repo" --body-file "$body_file"
+    local rc=$?
+    rm -f "$body_file"
+    return $rc
 }
 
 # ---------------------------------------------------------------------------

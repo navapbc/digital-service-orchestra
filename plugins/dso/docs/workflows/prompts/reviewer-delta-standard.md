@@ -242,6 +242,7 @@ method below. Unverifiable references indicate hallucination risk and must be fl
 - If the reference is not found in the repo: flag as `fragile` under `correctness` (high
   confidence it does not exist or is misspelled)
 - If found but the signature differs from usage: flag as `important` under `correctness`
+- **MANDATORY pre-check before any "undefined symbol" finding on a Python/JS/TS symbol** (bug c558-2f5b): the diff window is a partial view — a symbol used inside the diff may be defined in the same file or in a normally-imported module outside the diff window. Before flagging any identifier as undefined, Grep the containing file (`grep -nE '^(def|class|async def)\s+<name>\b|^\s*<name>\s*=' <file>`) AND every module imported via `from X import <name>` / `import X`. A finding asserting a symbol is undefined without this grep evidence is a false positive (see reviewer-base.md Verify-Before-Assert rule 7; this rule caught the `_load_alert_store` FP on PRs #372/#378).
 
 **Bash `source`/`.` directives — MANDATORY pre-check before any "undefined function" finding** (bug 3365-75c4):
 - When reviewing a bash or `.sh` file that calls functions not defined inline, FIRST read every

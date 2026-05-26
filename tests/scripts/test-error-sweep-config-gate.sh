@@ -204,8 +204,9 @@ test_sweep_no_ticket_below_500_threshold() {
 
     echo "monitoring.tool_errors=true" > "$tmpconf"
 
-    # Counter file with test_failure at 99 occurrences (below new 500 threshold)
-    echo '{"index":{"test_failure":99},"errors":[]}' > "$tmp_home/.claude/tool-error-counter.json"
+    # Counter file with a non-noise category at 99 occurrences (below new 500 threshold)
+    # Use TOOL_USE_BLOCKED (not in NOISE_CATEGORIES) — test_failure is now noise after bug 4cba
+    echo '{"index":{"TOOL_USE_BLOCKED":99},"errors":[]}' > "$tmp_home/.claude/tool-error-counter.json"
 
     local mock_bin="$tmpdir/bin"
     mkdir -p "$mock_bin"
@@ -255,8 +256,9 @@ test_sweep_creates_ticket_at_500_threshold() {
 
     echo "monitoring.tool_errors=true" > "$tmpconf"
 
-    # Counter file with test_failure at exactly 500 occurrences
-    echo '{"index":{"test_failure":500},"errors":[]}' > "$tmp_home/.claude/tool-error-counter.json"
+    # Counter file with a non-noise category at exactly 500 occurrences
+    # Use TOOL_USE_BLOCKED (not in NOISE_CATEGORIES) — test_failure is now noise after bug 4cba
+    echo '{"index":{"TOOL_USE_BLOCKED":500},"errors":[]}' > "$tmp_home/.claude/tool-error-counter.json"
 
     local mock_bin="$tmpdir/bin"
     mkdir -p "$mock_bin"

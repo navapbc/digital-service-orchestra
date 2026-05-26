@@ -502,9 +502,46 @@ Feature-Request Gate failure must never block a legitimate bug investigation.
 
 ## Phase C: Investigation
 
+### Step 0: Parallel-Pipeline Integration (`fix-bug:investigation` scratch key)
+
+`/dso:debug-everything` Bug-Fix Mode dispatches this skill via a **two-phase parallel pipeline** (`skills/debug-everything/prompts/dispatch-fix-batch.md`). Before Step 1, check the per-ticket scratch for a pre-computed investigation, and check the dispatch prompt for an investigation-only mode hint. Three paths follow:
+
+**Path A — Pre-loaded findings (FAST FORWARD).** Read `fix-bug:investigation` from ticket scratch:
+
+```bash
+SCRATCH_INV=$(.claude/scripts/dso ticket scratch get "$BUG_TICKET_ID" fix-bug:investigation 2>/dev/null)
+```
+
+If the response is `status:"hit"`, the `value` field is a JSON envelope conforming to `fix-bug:investigation/v1`. Inspect it:
+
+- **Normal projection** — `summary` + `proposed_fix` + `affected_files` + routing flags present, no `scratch_overflow` flag. Treat the projection as the output of Step 1 (the orchestrator confirmed the full RESULT lives in `discovery_file` if richer detail is needed). SKIP Step 1 dispatch and proceed to Step 2.
+- **Oversize fallback** — envelope contains `"scratch_overflow": true` and `"discovery_file": "<path>"`. Read the full Investigation RESULT envelope from the discovery file:
+  ```bash
+  DISCOVERY_FILE=$(echo "$SCRATCH_INV" | python3 -c '
+  import sys, json
+  envelope = json.loads(sys.stdin.read())
+  value = envelope.get("value")
+  if isinstance(value, str):
+      # ticket scratch wraps the stored JSON string; parse it.
+      value = json.loads(value)
+  print(value.get("discovery_file", "") if isinstance(value, dict) else "")
+  ')
+  cat "$DISCOVERY_FILE"
+  ```
+  Read `sys.stdin` exactly once — re-reading it returns the empty string and `json.loads('')` raises. Use the discovery-file contents as the Step 1 RESULT and proceed to Step 2.
+
+If the response is `status:"miss"` or the projection is malformed (no `bug_id` match, no `complexity`, etc.), fall through to Path B/C — do NOT silently dispatch a fresh investigation, surface this as a pipeline contract violation in your sub-agent output before falling through.  <!-- # precondition-emit-ok — contract-violation surfacing, not graceful degradation -->
+
+**Path B — `MODE: investigation-only` (TERMINATE AT END OF PHASE D).** If the orchestrator dispatch prompt contains the literal token `MODE: investigation-only`, you are running the **investigation half** of the parallel pipeline. Two constraints apply:
+
+1. **Investigate inline — do NOT dispatch investigator sub-agents.** Sub-agents launched via the Agent tool cannot dispatch their own sub-agents (hard architectural constraint of Claude Code). Read source, grep callers, check git history, run hypothesis commands — execute the five-whys / hypothesis-generation / empirical-validation logic *yourself* using Read / Grep / Bash. The investigator agent definitions remain the canonical specification of the investigation rubric; in this mode you apply that rubric inline.
+2. **Terminate at the end of Phase D Step 4 (scratch-write).** Do NOT proceed to Phase E. The orchestrator will dispatch a separate sub-agent in the fix-application phase, which will take Path A above and execute Phases E–I from the scratch-loaded findings.
+
+**Path C — Normal mode.** No scratch entry and no `MODE: investigation-only` token: proceed to Step 1 below as usual (dispatch investigator sub-agent per the normal contract).
+
 ### Step 1: Investigation Sub-Agent Dispatch (/dso:fix-bug)
 
-**You MUST dispatch the investigation sub-agent described below.** Do NOT investigate inline — reading source code, grepping for patterns, running hypothesis commands, or analyzing the bug yourself does not satisfy this step. The sub-agent follows a rigorous investigation template (five whys, hypothesis generation, empirical validation) that prevents confirmation bias. Dispatch the sub-agent, await its RESULT report, then proceed to Phase C Step 2. Do not skip this step even if you have already conducted your own investigation.
+**You MUST dispatch the investigation sub-agent described below** *unless Path A or Path B from Step 0 applies*. Do NOT investigate inline — reading source code, grepping for patterns, running hypothesis commands, or analyzing the bug yourself does not satisfy this step. The sub-agent follows a rigorous investigation template (five whys, hypothesis generation, empirical validation) that prevents confirmation bias. Dispatch the sub-agent, await its RESULT report, then proceed to Phase C Step 2. Do not skip this step even if you have already conducted your own investigation.
 
 **Worktree isolation** (applies to all sub-agent dispatches in this skill): Read and apply `skills/shared/prompts/worktree-dispatch.md`. Worktree isolation is always enabled — add `isolation: "worktree"` to each Agent dispatch and inject `SESSION_BRANCH` / `SESSION_HEAD` into each sub-agent prompt so the sub-agent can sync to session HEAD. Do NOT inject the orchestrator's session-worktree absolute path (per bug 9679-695c-6e11-4d95). After the sub-agent returns, compute `ORCHESTRATOR_ROOT=$(git rev-parse --show-toplevel)` in your own bash context and follow `skills/shared/prompts/single-agent-integrate.md` (which self-bootstraps `ORCHESTRATOR_ROOT` and uses it for the WORKTREE_PATH != ORCHESTRATOR_ROOT guard, harvest, and cleanup).
 
@@ -738,6 +775,10 @@ Note for the re-dispatched agent (not actionable in the current dispatch): when 
 
 Before dispatching a RED test or modifying existing tests, classify the fix into one of three testing modes. This determines which Phase E Step 1 path to follow.
 
+#### Path-B termination check (parallel-pipeline integration)
+
+If Phase C Step 0 selected **Path B (`MODE: investigation-only`)**, proceed to Phase D Step 4 below and terminate after the scratch-write. Do not classify testing mode in investigation-only mode — that decision belongs to the fix-application sub-agent which the orchestrator will dispatch next.
+
 **Examine the investigation RESULT root cause and the approved fix description from Phase D Step 1.**
 
 **Classification rules:**
@@ -758,6 +799,84 @@ testing_mode=<GREEN|UPDATE|RED>
 ```
 
 Proceed to the corresponding Phase E Step 1 branch below.
+
+### Step 4: Investigation-Only Scratch Write & Terminate (`MODE: investigation-only` only)
+
+This step runs **only when Phase C Step 0 selected Path B**. In every other case, skip directly to Phase E.
+
+**Size constraint.** `ticket scratch set` rejects payloads exceeding 4096 bytes (`{status:"error",code:"oversize"}` — see `ticket-cli-reference.md`). The full Investigation RESULT envelope at INTERMEDIATE/ADVANCED tier easily exceeds this ceiling (root_cause_candidates × ≥2, alternative_fixes × ≥2, evidence arrays, fishbone categories). The scratch entry therefore stores a **compact projection** sufficient for the Phase 2 fix-application sub-agent; the full RESULT envelope is written to a side-car discovery file whose path is referenced in the scratch projection.
+
+Step 4a — write the full Investigation RESULT envelope to a discovery file (no size ceiling):
+
+```bash
+DISCOVERY_FILE=$(mktemp /tmp/fix-bug-discovery-XXXXXX.json)
+if [ -z "$DISCOVERY_FILE" ] || [ ! -w "$DISCOVERY_FILE" ]; then
+    # mktemp failure: revert to deterministic path. # precondition-emit-ok local error recovery
+    # Phase 2 sub-agent reads the same deterministic path on retry. # precondition-emit-ok
+    # If even this write fails, Path A surfaces it as a contract violation.
+    DISCOVERY_FILE="/tmp/fix-bug-discovery-${BUG_TICKET_ID}.json"
+    printf 'WARNING: mktemp failed; falling back to deterministic discovery file path %s\n' "$DISCOVERY_FILE" >&2
+fi
+cat > "$DISCOVERY_FILE" <<EOF
+<Investigation RESULT envelope from inline investigation — root_cause_candidates, alternative_fixes, hypothesis_tests, fishbone_categories, tradeoffs_considered, recommendation>
+EOF
+```
+
+Step 4b — assemble the compact projection and write it to ticket scratch under the `fix-bug:investigation` key. This is the binding handoff to Phase 2. Keep it under 4 KB:
+
+```bash
+INVESTIGATION_JSON=$(cat <<EOF
+{
+  "schema": "fix-bug:investigation/v1",
+  "bug_id": "${BUG_TICKET_ID}",
+  "summary": "<1-2 sentence root cause summary>",
+  "proposed_fix": "<one-paragraph fix description (recommendation only — not the full alternative_fixes list)>",
+  "affected_files": ["<path>", "..."],
+  "complexity": "<TRIVIAL|MODERATE|COMPLEX>",
+  "fixable": <true|false>,
+  "manual_approval_needed": <true|false>,
+  "complex_escalation": <true|false>,
+  "discovery_file": "${DISCOVERY_FILE}"
+}
+EOF
+)
+
+SCRATCH_RC_OUT=$(.claude/scripts/dso ticket scratch set "$BUG_TICKET_ID" fix-bug:investigation "$INVESTIGATION_JSON" 2>&1)
+SCRATCH_RC=$?
+
+if [ "$SCRATCH_RC" -ne 0 ] || echo "$SCRATCH_RC_OUT" | grep -q '"code":"oversize"'; then
+    # Oversize fallback: the projection is still too large. Emit a minimal pointer
+    # to the discovery file and signal scratch_overflow=true so the orchestrator
+    # knows to route Phase 2 via the discovery-file path instead of scratch.
+    FALLBACK_JSON=$(cat <<EOF
+{
+  "schema": "fix-bug:investigation/v1",
+  "bug_id": "${BUG_TICKET_ID}",
+  "scratch_overflow": true,
+  "discovery_file": "${DISCOVERY_FILE}",
+  "complexity": "<TRIVIAL|MODERATE|COMPLEX>",
+  "fixable": <true|false>,
+  "manual_approval_needed": <true|false>,
+  "complex_escalation": <true|false>
+}
+EOF
+)
+    .claude/scripts/dso ticket scratch set "$BUG_TICKET_ID" fix-bug:investigation "$FALLBACK_JSON" || true
+fi
+```
+
+Step 4c — emit the compact summary on the FINAL line of your sub-agent output. The orchestrator parses this verbatim and uses it for Phase 2 routing decisions. **All six routing tokens are required** so the orchestrator does not need to re-open the scratch entry to decide routing:
+
+```
+INVESTIGATION_COMPLETE: <bug-id>
+COMPLEXITY: <TRIVIAL|MODERATE|COMPLEX>
+FIXABLE: <true|false>
+MANUAL_APPROVAL_NEEDED: <true|false>
+COMPLEX_ESCALATION: <true|false>
+SCRATCH_KEY: fix-bug:investigation
+```
+
+**TERMINATE NOW.** Do not proceed to Phase E. The orchestrator's fix-application phase will dispatch a new sub-agent that loads this scratch entry (or the discovery file if `scratch_overflow=true`) and runs Phases E–I.
 
 ## Phase E: TDD Fix Loop
 

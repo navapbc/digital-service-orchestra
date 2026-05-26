@@ -69,7 +69,7 @@ CATEGORY=""
 INPUT_SUMMARY=""
 
 ERROR_LOWER=$(echo "$ERROR_MSG" | tr '[:upper:]' '[:lower:]')
-if echo "$ERROR_LOWER" | grep -qE "file not found|no such file"; then
+if echo "$ERROR_LOWER" | grep -qE "file not found|no such file|file does not exist"; then
     CATEGORY="file_not_found"
 elif echo "$ERROR_LOWER" | grep -q "permission denied"; then
     CATEGORY="permission_denied"
@@ -137,7 +137,7 @@ print(json.dumps(data))
 echo "$COUNTER_DATA" > "$COUNTER_FILE"
 
 # Categories that are normal operational noise — track counts but suppress notifications
-NOISE_CATEGORIES="file_not_found command_exit_nonzero"
+NOISE_CATEGORIES="file_not_found command_exit_nonzero read_file_does_not"
 IS_NOISE=false
 for nc in $NOISE_CATEGORIES; do
     if [[ "$CATEGORY" == "$nc" ]]; then IS_NOISE=true; break; fi
