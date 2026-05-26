@@ -584,7 +584,7 @@ plugins/dso/scripts/telemetry/lambda-handler/validator.py:tests/unit/telemetry_l
 plugins/dso/scripts/dso_reconciler/mutation.py:tests/unit/dso_reconciler/test_mutation.py
 plugins/dso/scripts/telemetry/lambda-handler/handler.py:tests/unit/telemetry_lambda_handler/test_handler.py
 plugins/dso/scripts/dso_reconciler/differ.py:tests/unit/dso_reconciler/test_differ.py,tests/unit/dso_reconciler/test_differ_conflict_resolution.py
-plugins/dso/scripts/dso_reconciler/fetcher.py:tests/unit/dso_reconciler/test_fetcher_snapshot.py,tests/unit/dso_reconciler/test_fetcher_dedup_observable.py,tests/unit/dso_reconciler/test_fetcher_pagination_jql.py,tests/unit/dso_reconciler/test_fetcher_truncation_gate.py,tests/unit/dso_reconciler/test_fetcher_alert_store_import.py
+plugins/dso/scripts/dso_reconciler/fetcher.py:tests/unit/dso_reconciler/test_fetcher_snapshot.py,tests/unit/dso_reconciler/test_fetcher_dedup_observable.py,tests/unit/dso_reconciler/test_fetcher_pagination_jql.py,tests/unit/dso_reconciler/test_fetcher_truncation_gate.py,tests/unit/dso_reconciler/test_fetcher_alert_store_import.py,tests/unit/dso_reconciler/test_fetcher_split_jql_queries.py
 plugins/dso/scripts/check-copy-needs-schema.sh:tests/scripts/test-check-copy-needs-schema.sh
 plugins/dso/scripts/dogfood-gov-copy.sh:tests/skills/test-dogfood-gov-copy.sh
 plugins/dso/scripts/verify-story-merge-trailer.sh:tests/scripts/test-verify-story-merge-trailer.sh
@@ -607,3 +607,5 @@ plugins/dso/scripts/emit-story-merge-env.sh: tests/scripts/test-emit-story-merge
 plugins/dso/scripts/compute-cross-branch-from-api.sh:tests/scripts/test-compute-cross-branch-from-api.sh
 plugins/dso/config/visual-evaluator-params.yaml:tests/plugin/test_visual_evaluator_params.py
 docs/findings/visual-evaluator-spike.md:tests/plugin/test_visual_evaluator_params.py
+plugins/dso/docs/visual-evaluator-schema.json:tests/plugin/test_visual_evaluator_agent.py
+plugins/dso/agents/visual-evaluator.md:tests/plugin/test_visual_evaluator_agent_structure.py
