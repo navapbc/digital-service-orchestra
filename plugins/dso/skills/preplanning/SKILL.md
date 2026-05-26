@@ -353,6 +353,12 @@ Pass the following as task arguments:
   - sc-3: An admin can audit who approved each rule.
   ```
   If the epic has no `## Success Criteria` section, pass `(none — epic has no Success Criteria section)` so the agent records the absence in `decomposition_notes` and returns empty drafts rather than fabricating SCs.
+- `{epic-closure-checks}`: Bullet items from the epic's `## Closure Checks` section parsed from the ticket text (do NOT rely on session memory). Number them with stable identifiers `cc-1, cc-2, ...` analogously to SCs:
+  ```
+  - cc-1: The reviewer registry rejects duplicate registrations at startup.
+  - cc-2: All closed child stories have a DSO-Story-Merge trailer reachable from HEAD.
+  ```
+  If the epic has no `## Closure Checks` section, pass `(none — epic has no Closure Checks section)`. The agent will return an empty (or omitted) `cc_coverage_plan` in that case. Stories that validate a CC use the `← Validates Closure Check: "<verbatim CC text>"` DD annotation form (in addition to or instead of `← Satisfies: sc-N`).
 - `{existing-stories}`: The kept-or-modified children from Phase A reconciliation. For each, include id, title, description, current Done Definitions, and considerations. Format as a Markdown list with one entry per story.
 - `{external-dep-stories}`: The `manual:awaiting_user` stories created in Phase B. Same format as `{existing-stories}`. If Phase B was skipped (flag off or no entries), pass `(none)`.
 - `{escalation-policy}`: Both the `{escalation_policy_label}` from Phase A Step 2 and its full text, so the agent can write the label verbatim into every draft's `escalation_policy` field for Phase H.
