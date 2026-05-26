@@ -1540,7 +1540,7 @@ A story is a **copy story** when EITHER (a) it carries the `copy-story` tag (set
 **Before dispatching `dso:gov-copy-writer`**, resolve the artifact output path:
 
 ```bash
-ARTIFACT_PATH=$(bash "$PLUGIN_SCRIPTS/resolve-copy-artifact-path.sh" \
+ARTIFACT_PATH=$(bash "$PLUGIN_SCRIPTS/resolve-copy-artifact-path.sh" \  # shim-exempt: internal orchestration script
     "$EPIC_ID" \
     --project-root "$(git rev-parse --show-toplevel)")
 if [[ $? -ne 0 ]]; then
@@ -2290,9 +2290,21 @@ PLANNER_TARGET=$(python3 -c "import json,sys; print(json.load(open('$PLANNER_JSO
   | `scope` | Decomposer dispatch | Notes |
   |---------|---------------------|-------|
   | `replan_story` | `/dso:implementation-plan <story-id>` via Skill tool, with `decomposer_context` from `$PLANNER_JSON_PATH` | Re-plans the current story. `escalation_upstream: preplanning`. |
-  | `new_tasks_in_story` | Orchestrator creates tasks directly under `<story-id>` per `decomposer_context.remediation_summary` (planner-supplied tasks) | `escalation_upstream: planner_supplied`. No re-planning skill needed. |
+  | `new_tasks_in_story` | Orchestrator creates tasks directly under `<story-id>` per `decomposer_context.remediation_summary` (planner-supplied tasks) — see **Implement-vs-marker discipline** below before creating tasks | `escalation_upstream: planner_supplied`. No re-planning skill needed. |
   | `new_story_in_epic` | `/dso:preplanning <epic-id>` via Skill tool, with `decomposer_context` | Adds a new story under the same epic. `escalation_upstream: preplanning`. |
   | `replan_epic` | `/dso:brainstorm <epic-id>` via Skill tool, with `decomposer_context` | Re-examines epic scope. `escalation_upstream: brainstorm`. |
+
+  **Implement-vs-marker discipline (applies when `PLANNER_SCOPE == "new_tasks_in_story"`):**
+
+  Before creating remediation tasks, read `decomposer_context.remediation_summary` from `$PLANNER_JSON_PATH`. The planner encodes the recommended approach in the summary — act on it directly:
+
+  - **If the summary recommends implementing the feature** (`remediation_approach: implement_feature`, or the summary text says "Implement [X] to make tests GREEN"): create a task whose `title` describes implementing the feature (e.g., "Implement ProvenanceLedger re-export and compute_mutations_with_ledger wrapper"), NOT a marker-registration task. This is the correct path when the planner identified that implementing the feature is smaller and resolves the failing tests directly.
+  - **If the summary recommends marker registration** (`remediation_approach: legitimize_marker`, or the summary text says "Register RED marker for [tests] in .test-index"): create a marker-registration task.
+
+  **Cycle-aware blockage detection (applies on remediation cycle ≥ 2):** Before creating any `new_tasks_in_story` task, check the story's ticket comments for previous `REPLAN_RESOLVED: planner — scope=new_tasks_in_story` entries. If ≥ 2 such entries exist AND none of the prior cycle's remediation tasks produced a P1=PASS result, the marker-registration path is structurally blocked — the same approach has failed repeatedly. In this case:
+  1. Log: `"IMPLEMENT_INSTEAD: marker-registration path blocked after N cycles — creating implementation task instead."`
+  2. Create an implementation task regardless of the planner's summary (the planner's earlier recommendation was based on the same incomplete context that produced the loop).
+  3. Record on the story ticket: `.claude/scripts/dso ticket comment <story-id> "IMPLEMENT_INSTEAD: switched from legitimize_marker to implement_feature after N blocked cycles"`.
 
   Record a REPLAN_TRIGGER comment on the epic BEFORE invoking the chosen decomposer (audit trail) — this is the FIRST ticket-CLI mutation permitted after the planner returns:
 
@@ -2355,7 +2367,7 @@ CYCLE_PAYLOAD=$(python3 -c "import json; print(json.dumps({
   'findings_count': <int>,
   'verdict': '<pass|fail|escalate>'
 }))")
-bash "$PLUGIN_SCRIPTS/ticket-scratch.sh" set "$SCRATCH_TICKET_ID" "$SCRATCH_KEY" "$CYCLE_PAYLOAD"
+bash "$PLUGIN_SCRIPTS/ticket-scratch.sh" set "$SCRATCH_TICKET_ID" "$SCRATCH_KEY" "$CYCLE_PAYLOAD"  # shim-exempt: internal orchestration script
 ```
 
 <output_contract>
@@ -2382,14 +2394,14 @@ After the sub-agent returns, parse the receipt with `receipt-parse.sh` and halt 
 
 ```bash
 # Validate receipt — halt on RECEIPT_PARSE_ERROR (exit 2)
-_parsed=$(echo "<sub_agent_output>" | bash "$PLUGIN_SCRIPTS/receipt-parse.sh" sprint:step18 dso:verification-remediation-planner) || {
+_parsed=$(echo "<sub_agent_output>" | bash "$PLUGIN_SCRIPTS/receipt-parse.sh" sprint:step18 dso:verification-remediation-planner) || {  # shim-exempt: internal orchestration script
   echo "ERROR: RECEIPT_PARSE_ERROR from dso:verification-remediation-planner at sprint:step18 — halting workflow" >&2
   exit 1
 }
 # _parsed = "<ticket_id> <key>" (space-separated) on success
 
 # Read cycle payload from scratch store (SCRATCH_MISS guard — co-located with get)
-_raw=$(bash "$PLUGIN_SCRIPTS/ticket-scratch.sh" get "$SCRATCH_TICKET_ID" "$SCRATCH_KEY")
+_raw=$(bash "$PLUGIN_SCRIPTS/ticket-scratch.sh" get "$SCRATCH_TICKET_ID" "$SCRATCH_KEY")  # shim-exempt: internal orchestration script
 _status=$(echo "$_raw" | python3 -c "import json,sys; print(json.load(sys.stdin)['status'])")
 if [ "$_status" = "miss" ]; then
   # SCRATCH_MISS: sub-agent did not write the key before returning receipt.
@@ -2397,7 +2409,7 @@ if [ "$_status" = "miss" ]; then
   # This is NOT a valid input — treat as a contract violation and halt.
   echo "ERROR: SCRATCH_MISS for $SCRATCH_TICKET_ID/$SCRATCH_KEY — sub-agent returned receipt but key not present; halting." >&2
   # Inline cleanup: remove any partial scratch state before exit
-  bash "$PLUGIN_SCRIPTS/ticket-scratch.sh" clear "$SCRATCH_TICKET_ID" "$SCRATCH_KEY" 2>/dev/null || true
+  bash "$PLUGIN_SCRIPTS/ticket-scratch.sh" clear "$SCRATCH_TICKET_ID" "$SCRATCH_KEY" 2>/dev/null || true  # shim-exempt: internal orchestration script
   exit 1
 fi
 CYCLE_JSON=$(echo "$_raw" | python3 -c "import json,sys; print(json.load(sys.stdin)['value'])")
@@ -2406,7 +2418,7 @@ CYCLE_JSON=$(echo "$_raw" | python3 -c "import json,sys; print(json.load(sys.std
 After reading `CYCLE_JSON`, record the cycle artifact via the recorder:
 
 ```bash
-python3 ${CLAUDE_PLUGIN_ROOT}/scripts/append_review_cycle.py \
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/append_review_cycle.py \  # shim-exempt: internal orchestration script
   --artifact <path-to-verifier-cycle-artifact-for-story> \
   --n <cycle-number> \
   --draft-hash <sha256 of planner output> \
@@ -2481,7 +2493,7 @@ if [[ "${SPRINT_MODE:-local}" == "ci-pr" ]]; then
   # conclusion is verified before subtracting files from INTEGRATION_SCOPE;
   # non-success conclusions cause files to be re-included for full review
   # at integration tier (load-bearing llm-review coverage guarantee).
-  source "${CLAUDE_PLUGIN_ROOT}/scripts/emit-story-merge-env.sh" "$STORY_ID" || {
+  source "${CLAUDE_PLUGIN_ROOT}/scripts/emit-story-merge-env.sh" "$STORY_ID" || {  # shim-exempt: internal orchestration script
     echo "ERROR: emit-story-merge-env.sh failed for story $STORY_ID — aborting" >&2
     exit 1
   }
@@ -2652,6 +2664,16 @@ If `batch_out_of_scope_findings` is empty, proceed to the standard continuation 
 
 #### Standard Continuation Decision
 
+<HARD-GATE>
+Do NOT present any AskUserQuestion that proposes narrowing sprint scope between batches — no scope-reduction menus, no "how far do you want to take this session?" prompts, no multi-option menus asking the user to select the next story or next batch. The user's invocation of `/dso:sprint <epic-id>` is the scope decision; mid-sprint scope-narrowing prompts are an anti-pattern (bug 15a4-5150-91dd-4737).
+
+If context pressure is the motivation for pausing: compute usage as a percentage of the announced session context window (e.g., 250,000 / 1,000,000 = 25%). If usage_pct < 70%, proceed to the next batch WITHOUT compacting and WITHOUT asking the user. If usage_pct >= 70%, the ONLY valid action is Phase F Step 19 (Context Compaction Check — run `/compact`), not a user prompt. Context anxiety at < 70% usage is not a legitimate reason to pause.
+
+AskUserQuestion between batches is ONLY permitted for:
+- Documented user escalation gates (cascade replan cap exhausted, conflict resolution, Phase F Step 19 involuntary compaction detected)
+- Explicit blocking conditions defined in this SKILL (all tasks blocked/failed with no resolution path)
+</HARD-GATE>
+
 ```
 Decision: Involuntary compaction detected? → Yes: P8 (Graceful Shutdown)
           → No: More ready tasks? → Yes: Return to P3
@@ -2776,7 +2798,7 @@ PLANNER_TARGET=$(python3 -c "import json,sys; print(json.load(open('$PLANNER_JSO
   | `scope` | Decomposer dispatch | Notes |
   |---------|---------------------|-------|
   | `replan_story` | `/dso:implementation-plan <target_id>` via Skill tool (target is a story under this epic) | `escalation_upstream: preplanning`. |
-  | `new_tasks_in_story` | Orchestrator creates tasks directly under `<target_id>` per `decomposer_context.remediation_summary` | `escalation_upstream: planner_supplied`. |
+  | `new_tasks_in_story` | Orchestrator creates tasks directly under `<target_id>` per `decomposer_context.remediation_summary` — see **Implement-vs-marker discipline** (Phase F Step 18, `new_tasks_in_story` branch) before creating tasks | `escalation_upstream: planner_supplied`. |
   | `new_story_in_epic` | `/dso:preplanning <epic-id>` via Skill tool, with `decomposer_context` | Adds a new story to this epic. `escalation_upstream: preplanning`. |
   | `replan_epic` | `/dso:brainstorm <epic-id>` via Skill tool, with `decomposer_context` | Re-examines epic scope. `escalation_upstream: brainstorm`. |
 
