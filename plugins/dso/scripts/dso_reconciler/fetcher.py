@@ -173,12 +173,18 @@ def fetch_snapshot(
     if _ALERT_STORE_KEY in _sys.modules:
         alert_store = _sys.modules[_ALERT_STORE_KEY]
     else:
+        _alert_store_path = _Path(__file__).parent / "alert_store.py"
         _spec = _importlib_util.spec_from_file_location(
-            _ALERT_STORE_KEY, _Path(__file__).parent / "alert_store.py"
+            _ALERT_STORE_KEY, _alert_store_path
         )
+        if _spec is None or _spec.loader is None:
+            raise ImportError(
+                f"Cannot load alert_store from {_alert_store_path} — "
+                f"spec_from_file_location returned spec={_spec!r}"
+            )
         alert_store = _importlib_util.module_from_spec(_spec)
         _sys.modules[_ALERT_STORE_KEY] = alert_store
-        _spec.loader.exec_module(alert_store)  # type: ignore[union-attr]
+        _spec.loader.exec_module(alert_store)
 
     seen_keys: set[str] = set()
     snapshot: dict[str, dict] = {}
