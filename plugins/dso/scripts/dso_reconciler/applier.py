@@ -366,7 +366,11 @@ _LEAVES: dict[tuple[Any, Any], Callable[..., ApplyResult]] = _build_leaves()
 # dso-id label write authorization contract
 # ---------------------------------------------------------------------------
 
-_AUTHORIZED_DSO_ID_LABEL_WRITERS_DOC: str = """
+# Justification for the F841 suppression below: this constant is read by
+# tests/unit/dso_reconciler/test_errors.py::test_authorized_writers_docstring
+# _documents_full_contract via getattr — static analyzers cannot trace the
+# usage. Do NOT remove; it is the contract artifact for story 4496 dd-1.
+_AUTHORIZED_DSO_ID_LABEL_WRITERS_DOC: str = """  # noqa: F841
 dso-id label write authorization contract for applier.py
 =========================================================
 
@@ -1235,7 +1239,31 @@ def apply(
     # (differ) and consumer (_apply_batch) are on different sides of the
     # canonical-Mutation migration. Without this normalisation production
     # crashes with "'Mutation' object has no attribute 'get'".
+    #
+    # Fail-closed guard: _apply_batch's leaf functions (create_one /
+    # update_one / delete_one) are outbound-only — they call client.create_issue
+    # / update_issue / transition_issue against Jira. Routing an INBOUND typed
+    # Mutation through this path would execute outbound code against the
+    # wrong subsystem. Until the legacy batch path is direction-aware (tracked
+    # by meta-bug 5f2a-9a9f-2b4a-4aab), raise rather than silently route.
     mutations_list = list(mutations or [])
+    typed_inbound = [
+        m
+        for m in mutations_list
+        if hasattr(m, "direction")
+        and str(
+            getattr(getattr(m, "direction", None), "value", getattr(m, "direction", ""))
+        )
+        == "inbound"
+    ]
+    if typed_inbound:
+        raise TypeError(
+            f"apply() list-of-Mutation legacy batch path currently supports "
+            f"outbound mutations only; got {len(typed_inbound)} inbound "
+            f"Mutation(s). Inbound dispatch should route through "
+            f"reconcile._dispatch_mutation / _apply_typed per-mutation. "
+            f"Tracked by meta-bug 5f2a-9a9f-2b4a-4aab."
+        )
     if mutations_list and any(
         isinstance(m, mut_mod.Mutation)
         or (
@@ -1258,19 +1286,25 @@ def _mutation_to_batch_dict(mutation) -> dict:
     The legacy batch consumer (_apply_batch) expects a dict with keys:
     action, fields, key, local_id, follow_on, direction. Map the Mutation
     attributes accordingly so the batch path can iterate without crashing.
+
+    Note: this dict is later passed through `json.dumps` when the manifest
+    is written. Every value here MUST be JSON-serializable. Do NOT store
+    the original Mutation object as a back-reference — non-serializable.
     """
     payload = dict(mutation.payload) if mutation.payload else {}
     action_value = getattr(mutation.action, "value", str(mutation.action))
     direction_value = getattr(mutation.direction, "value", str(mutation.direction))
+    # Use payload.get("fields", payload) — NOT `or payload` — so an
+    # intentionally-empty `fields: {}` doesn't truthy-fall-through to the
+    # whole payload (which would leak local_id / follow_on / etc. into
+    # batch fields). coderabbit-flagged on PR #364.
     return {
         "action": action_value,
         "direction": direction_value,
         "key": mutation.target,
-        "fields": payload.get("fields") or payload,
+        "fields": payload.get("fields", payload),
         "local_id": payload.get("local_id", ""),
         "follow_on": payload.get("follow_on"),
-        # Preserve the original typed mutation for code paths that prefer it.
-        "_typed_mutation": mutation,
     }
 
 

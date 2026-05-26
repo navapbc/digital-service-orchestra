@@ -334,9 +334,16 @@ def reconcile_once(pass_id: str, repo_root: Path | None = None) -> dict:
     )
 
     # Post-emit filter: scan mutations for repair_property follow-ons that
-    # carry a schema_drift kind (raised by the 44e6 repair_property failure
-    # path). report_schema_drift surfaces each drift via stderr WARN so the
-    # signal is not swallowed.
+    # carry a schema_drift kind. report_schema_drift surfaces each drift via
+    # stderr WARN so the signal is not swallowed.
+    #
+    # CONTRACT NOTE: applier.inbound_repair_property emits follow-ons with
+    # kind="schema_drift_signal" (see applier.py:1142), but this loop matches
+    # kind=="schema_drift". The naming mismatch means follow-ons produced
+    # from the in-pass repair_property failure path are NOT picked up here.
+    # The current consumers of this filter are the differ + test fixtures
+    # that emit kind="schema_drift" directly. Aligning these is tracked
+    # separately under meta-bug 5f2a-9a9f-2b4a-4aab.
     #
     # Mutations may be plain dicts (legacy schema) or Mutation dataclass
     # instances (canonical contract from epic 4047 / cde1). Normalise on
