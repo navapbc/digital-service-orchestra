@@ -17,6 +17,11 @@
 # Usage: merge-to-main-pr.sh [--resume|--help]
 # Exit codes: 0=success, 1=error
 set -euo pipefail
+# In library mode (sourced by tests), relax set -e so that callers can inspect
+# non-zero return codes from individual functions without the shell aborting.
+if [[ "${PR_LIB_MODE:-0}" == "1" ]]; then
+    set +e
+fi
 
 # Require bash 4.3+ for nameref support (local -n used in helper functions)
 if [[ "${BASH_VERSINFO[0]}" -lt 4 ]] || { [[ "${BASH_VERSINFO[0]}" -eq 4 ]] && [[ "${BASH_VERSINFO[1]}" -lt 3 ]]; }; then
@@ -900,6 +905,14 @@ except Exception:
 # 1 on unrecoverable error.
 _phase_queue_auto_merge() {
     local _pr_number="$1"
+
+    # ci-pr / story-PR mode: when STORY_PR_BASE is set, route through the
+    # trailer-injection pipeline so the auto-merge enable carries the
+    # DSO-Story-Merge trailer (ticket e349-6b4e-13c5-4e23).
+    if [[ -n "${STORY_PR_BASE:-}" ]]; then
+        inject_and_enable_automerge "$_pr_number" "${STORY_EPIC_ID:-unknown}" "${STORY_ID:-unknown}" || true
+        return 0
+    fi
 
     local _merge_out _merge_rc=0
     _merge_out=$(gh pr merge "$_pr_number" --auto --merge 2>&1) || _merge_rc=$?
@@ -2252,6 +2265,203 @@ _phase_comment_response() {
     if type _state_mark_complete >/dev/null 2>&1; then
         _state_mark_complete "comment_response" 2>/dev/null || true
     fi
+    return 0
+}
+
+# =============================================================================
+# Trailer injection (ticket e349-6b4e-13c5-4e23): v7 spec
+#
+# DSO_TRAILER_INJECTION_MODE controls trailer-injection behavior for ci-pr mode:
+#   enabled  (default) — inject DSO-Story-Merge trailer via ephemeral worktree
+#   disabled (emergency rollback) — skip trailer; silent degradation to API fallback
+#   dry-run  — log trailer injection plan without amending; merge proceeds
+# =============================================================================
+DSO_TRAILER_INJECTION_MODE="${DSO_TRAILER_INJECTION_MODE:-enabled}"
+
+# Pre-merge force-push protection probe.
+# Bails fast if story branch is protected against force-push (trailer-amend needs it).
+# Args: <branch-name>
+# Returns: 0 = proceed (no protection or force-push allowed); 1 = blocked
+check_force_push_allowed() {
+    local branch="$1"
+    local encoded
+    encoded=$(printf '%s' "$branch" | jq -sRr @uri 2>/dev/null || printf '%s' "$branch")
+    local repo_full="${GITHUB_REPOSITORY:-x/y}"
+    local owner="${repo_full%%/*}" repo="${repo_full##*/}"
+    local protection allow_force
+    # 404 = no protection rule = proceed (treat as OK).
+    # gh api exit-nonzero on 404 is the expected "no protection" signal.
+    if protection=$(gh api "repos/${owner}/${repo}/branches/${encoded}/protection" 2>&1); then
+        allow_force=$(printf '%s' "$protection" | jq -r '.allow_force_pushes.enabled // false' 2>/dev/null || echo "false")
+        if [[ "$allow_force" != "true" ]]; then
+            echo "::error::story branch ${branch} is force-push-protected; trailer injection requires force-push. Aborting." >&2
+            return 1
+        fi
+    fi
+    return 0
+}
+
+# inject_trailer: amend (or empty-commit) the trailer on a story branch.
+# Args: <epic_id> <story_id>
+# Env (optional): SESSION_BRANCH (orchestrator-side export from sprint Phase F);
+#                 defaults to "main" when unset.
+# Returns:
+#   0 — trailer injected + pushed (or no-op when force-push blocked? no: returns 1)
+#   1 — force-push protection blocks OR git worktree add failed
+#   2 — git commit (amend or allow-empty) failed
+#   3 — git push --force-with-lease failed (concurrent push)
+inject_trailer() {
+    local epic="$1" story="$2"
+    local story_branch="story/${epic}/${story}"
+
+    # Force-push protection probe — block early if branch is force-push-protected.
+    if ! check_force_push_allowed "$story_branch"; then
+        return 1
+    fi
+
+    local tmp_wt="${TMPDIR:-/tmp}/dso-trailer-$$-${story}"
+    local rc=0
+
+    # Trap to guarantee cleanup on EXIT/INT/TERM. Use single-quoted body so the
+    # variable expansion happens at trap-execution time (path is stable here, but
+    # safer pattern).
+    # shellcheck disable=SC2064
+    trap "git worktree remove --force '$tmp_wt' 2>/dev/null || true; rm -rf '$tmp_wt' 2>/dev/null || true" EXIT INT TERM
+
+    # Use --detach + origin/<branch> so we don't conflict with the same branch
+    # being checked out in the main worktree (real-world scenario where the
+    # session has the story branch checked out, and tests that mirror that
+    # state). After commit, force-push HEAD to refs/heads/<branch>.
+    git fetch --quiet origin "$story_branch" 2>/dev/null || true
+    if ! git worktree add --detach --quiet "$tmp_wt" "origin/${story_branch}" 2>/dev/null; then
+        # Fallback: try without origin/ prefix (covers shim-only environments).
+        if ! git worktree add --detach --quiet "$tmp_wt" "$story_branch" 2>/dev/null; then
+            trap - EXIT INT TERM
+            git worktree remove --force "$tmp_wt" 2>/dev/null || true
+            rm -rf "$tmp_wt" 2>/dev/null || true
+            return 1
+        fi
+    fi
+
+    local base_ref="${SESSION_BRANCH:-main}"
+    local commit_count="0"
+    commit_count=$(cd "$tmp_wt" && git rev-list --count "origin/${base_ref}..HEAD" 2>/dev/null) || commit_count="0"
+    [[ -z "$commit_count" ]] && commit_count="0"
+
+    if [[ "$commit_count" == "0" ]]; then
+        if ! (cd "$tmp_wt" && git commit --allow-empty -m "story/${epic}/${story} trailer" --trailer "DSO-Story-Merge: ${story}" >/dev/null 2>&1); then
+            rc=2
+        fi
+    else
+        if ! (cd "$tmp_wt" && git commit --amend --no-edit --trailer "DSO-Story-Merge: ${story}" >/dev/null 2>&1); then
+            rc=2
+        fi
+    fi
+
+    if [[ "$rc" -eq 0 ]]; then
+        if ! (cd "$tmp_wt" && git push --force-with-lease "origin" "HEAD:refs/heads/${story_branch}" >/dev/null 2>&1); then
+            rc=3
+        fi
+    fi
+
+    trap - EXIT INT TERM
+    git worktree remove --force "$tmp_wt" 2>/dev/null || true
+    rm -rf "$tmp_wt" 2>/dev/null || true
+    return "$rc"
+}
+
+# _do_inject_or_dry: dispatch inject_trailer based on DSO_TRAILER_INJECTION_MODE.
+_do_inject_or_dry() {
+    local epic="$1" story="$2" pr_num="$3"
+    if [[ "${DSO_TRAILER_INJECTION_MODE}" == "dry-run" ]]; then
+        echo "::notice::DRY-RUN: would inject DSO-Story-Merge: ${story} trailer onto story/${epic}/${story} for PR #${pr_num}" >&2
+        return 0
+    fi
+    inject_trailer "$epic" "$story"
+    local rc=$?
+    case "$rc" in
+        0) return 0 ;;
+        1)
+            echo "::error::worktree add failed for story/${epic}/${story} during trailer injection (or force-push protection blocks)" >&2
+            return 1
+            ;;
+        2)
+            echo "::error::trailer injection commit failed for story/${epic}/${story}" >&2
+            return 1
+            ;;
+        3)
+            echo "::warning::concurrent push to story/${epic}/${story} detected; trailer absent — API fallback will handle scoping" >&2
+            return 0
+            ;;
+        *)
+            echo "::error::inject_trailer returned unexpected rc=${rc}" >&2
+            return 1
+            ;;
+    esac
+}
+
+# inject_and_enable_automerge: idempotent trailer injection + auto-merge enable.
+# Args: <pr_num> <epic_id> <story_id>
+# Reads DSO_TRAILER_INJECTION_MODE (enabled/disabled/dry-run)
+# Returns: 0 on success or successful no-op (idempotent resume).
+# Exits 1 (NOT returns 1) on force-push protection block — this terminates the
+# entire script unconditionally and intentionally bypasses any caller's `|| true`,
+# because a force-push-protected story branch cannot be auto-merged via trailer
+# injection and must halt the sprint loudly for operator investigation.
+# Round-3 finding e349 (bug e349-6b4e-13c5-4e23): the docstring previously
+# claimed "Returns: 0 always" which was misleading — the exit-1 path was added
+# in remediation but the docstring was not updated. The `|| true` on the caller
+# at line 882 (intentionally preserved for the dry-run / disabled / 0-return
+# happy paths) cannot suppress the exit-1, by design.
+inject_and_enable_automerge() {
+    local pr_num="$1" epic="$2" story="$3"
+    local story_branch="story/${epic}/${story}"
+    local repo_full="${GITHUB_REPOSITORY:-x/y}"
+
+    # DSO_TRAILER_INJECTION_MODE=disabled — emergency rollback path.
+    if [[ "${DSO_TRAILER_INJECTION_MODE}" == "disabled" ]]; then
+        echo "::warning::DSO_TRAILER_INJECTION_MODE=disabled — skipping trailer injection for PR #${pr_num}; ci-pr fallback will scope llm-review via API" >&2
+        gh pr merge --auto --merge "$pr_num" >/dev/null 2>&1 || true
+        return 0
+    fi
+
+    # Force-push protection probe — always run except in disabled mode.
+    # When blocked, abort the merge entirely: returning 0 silently would leave
+    # the story PR OPEN forever without auto-merge queued, and the sprint would
+    # advance unaware. Halt so the operator can investigate.
+    if ! check_force_push_allowed "$story_branch"; then
+        echo "::error::trailer injection blocked by force-push protection on $story_branch; aborting merge of PR #${pr_num}" >&2
+        exit 1
+    fi
+
+    # Detect existing auto-merge + trailer state for idempotent resume.
+    local auto_merge_state="" existing_trailer_count="0"
+    # Pipe through jq locally so test stubs that emit raw JSON without
+    # honoring --jq still resolve null → empty correctly.
+    auto_merge_state=$(gh pr view "$pr_num" --json autoMergeRequest 2>/dev/null | jq -r '.autoMergeRequest // empty' 2>/dev/null) || auto_merge_state=""
+    # Pipe gh-output through jq locally so stubs that emit raw JSON (without
+    # honoring gh's own --jq) still produce parseable messages.
+    existing_trailer_count=$(gh api --paginate "repos/${repo_full}/pulls/${pr_num}/commits" 2>/dev/null | jq -r '.[].commit.message' 2>/dev/null | grep -c '^DSO-Story-Merge:' 2>/dev/null) || existing_trailer_count="0"
+    [[ -z "$existing_trailer_count" ]] && existing_trailer_count="0"
+
+    local state_key="${auto_merge_state:+enabled},${existing_trailer_count}"
+    case "$state_key" in
+        enabled,0)
+            # Auto-merge queued without trailer — disable, inject, re-enable.
+            gh pr merge --disable-auto "$pr_num" >/dev/null 2>&1 || true
+            _do_inject_or_dry "$epic" "$story" "$pr_num" || true
+            gh pr merge --auto --merge "$pr_num" >/dev/null 2>&1 || true
+            ;;
+        enabled,*)
+            # Trailer present + auto-merge — no-op (idempotent resume).
+            echo "::notice::PR #${pr_num} already has trailer + auto-merge; skipping inject" >&2
+            ;;
+        ,*)
+            # No auto-merge — inject then enable.
+            _do_inject_or_dry "$epic" "$story" "$pr_num" || true
+            gh pr merge --auto --merge "$pr_num" >/dev/null 2>&1 || true
+            ;;
+    esac
     return 0
 }
 

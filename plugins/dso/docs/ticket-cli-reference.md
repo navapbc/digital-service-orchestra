@@ -1143,6 +1143,27 @@ The ticket system is append-only. All mutations write a new event JSON file. The
 
 ---
 
+## Scratch Storage
+
+`dso ticket scratch` provides an ephemeral key/value store attached to a ticket for stashing large handoff payloads between skill steps.
+
+**Commands:**
+
+- `dso ticket scratch set <ticket_id> <key> <value>` — writes a JSON envelope `{ts, value}` to the per-ticket scratch file using atomic write (same-dir tempfile + fsync + rename).
+- `dso ticket scratch get <ticket_id> <key>` — reads the envelope and emits one of two shapes:
+  - hit: `{"status":"hit","ts":<iso8601>,"value":<value>}` — **exit 0**
+  - miss: `{"status":"miss","ticket_id":<id>,"key":<key>}` — **exit 0** (NOT non-zero; callers parse the `status` field, not the exit code).
+- `dso ticket scratch clear <ticket_id> [<key>]` — removes one key, or (when key omitted) the whole per-ticket scratch directory. Idempotent.
+- `dso ticket show <ticket_id> --include-scratch` — adds a `scratch` object to the show JSON enumerating present keys + values.
+
+**Charset and limits:** invalid ticket_id / key chars (path traversal `..`, slash, control chars, null bytes, leading dot) are rejected with a structured error envelope and non-zero exit. Writes exceeding the 4096-byte ceiling are rejected with `{status:"error",code:"oversize",limit,actual}`.
+
+**Key-namespace convention:** `<skill>:<step>:<purpose>` — see **[ticket-scratch-cli.md](ticket-scratch-cli.md)** for the full reference, including the authoritative keys for the 5 migrated sub-agent-prompt handoff sites and the migration playbook.
+
+**Cleanup:** the per-ticket scratch directory is removed automatically on `ticket transition <id> closed` and on archive/delete.
+
+---
+
 ## Common Workflows
 
 **Create a bug and transition to in-progress:**

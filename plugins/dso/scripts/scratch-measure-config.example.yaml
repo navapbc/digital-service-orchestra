@@ -1,0 +1,20 @@
+# scratch-measure-config.example.yaml
+# Example configuration for scratch-measure-token-reduction.py
+#
+# Copy this file and fill in your values before running the harness.
+
+# A valid ticket ID for the epic under measurement. The harness will call
+# `.claude/scripts/dso ticket exists <test_epic_id>` and abort if missing.
+test_epic_id: "1234-abcd-ef56-7890"
+
+# Tokenizer to use for counting. Supported values: "tiktoken:cl100k_base" or "char4"
+tokenizer: "tiktoken:cl100k_base"
+
+# Git SHA of the commit BEFORE the changes being measured (baseline).
+pre_head_sha: "abc0000000000000000000000000000000000000"
+
+# Git SHA of the commit AFTER the changes being measured (post-change).
+post_head_sha: "def1111111111111111111111111111111111111"
+
+# Path where the harness will write its output results (JSON or CSV).
+output_path: "scratch-measure-output.json"

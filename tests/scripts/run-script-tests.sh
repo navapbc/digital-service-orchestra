@@ -47,9 +47,11 @@ source "$LIB_DIR/suite-engine.sh"
 echo "=== Script Tests ==="
 echo ""
 
-# Collect test files from scripts/ and plugin/
+# Collect test files from scripts/, plugin/, and scratch/
+# scratch/ tests cover the ticket-scratch CLI surface and the 5-site migration.
+SCRATCH_DIR="$(cd "$SCRIPT_DIR/../scratch" 2>/dev/null && pwd || echo "")"
 test_files=()
-for f in "$SCRIPT_DIR"/test-*.sh "$PLUGIN_DIR"/test-*.sh; do
+for f in "$SCRIPT_DIR"/test-*.sh "$PLUGIN_DIR"/test-*.sh ${SCRATCH_DIR:+"$SCRATCH_DIR"/test-*.sh}; do
     [ -f "$f" ] || continue
     test_files+=("$f")
 done

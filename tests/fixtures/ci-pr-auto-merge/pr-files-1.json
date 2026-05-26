@@ -1,0 +1,4 @@
+[
+  { "filename": "plugins/dso/scripts/foo.sh", "status": "modified" },
+  { "filename": "tests/scripts/test-foo.sh", "status": "modified" }
+]

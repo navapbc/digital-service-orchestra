@@ -2323,12 +2323,81 @@ The `<escalation_upstream>` value MUST be sourced dynamically from the planner's
 
 See: `${CLAUDE_PLUGIN_ROOT}/skills/shared/workflows/remediation-loop-protocol.md`
 
-**Per-cycle artifact append (9a9a/21f3 block — cycle recorder)**
+**Per-cycle scratch write (9a9a/21f3 block — cycle recorder)**
 
-After each cycle's re-dispatch and verifier run, atomically append a `cycles[]` entry to the verifier-cycle artifact using the writer:
+After each cycle's re-dispatch and verifier run, atomically write a cycle-recorder entry to the scratch store using the scratch CLI. The sub-agent writes the payload and returns ONLY a 3-field receipt — it must NOT embed the payload in its return block.
+
+**Namespacing constants (set once before the remediation loop; do NOT alter per-cycle):**
 
 ```bash
-.claude/scripts/dso append_review_cycle.py \
+SCRATCH_TICKET_ID="<story_id>"   # SCRATCH_TICKET_ID — ticket namespace for scratch isolation
+SCRATCH_KEY="sprint:step18:batch-plan"   # SCRATCH_KEY — authoritative key per ticket-scratch-cli.md
+```
+
+**Sub-agent write (inside sub-agent prompt — cycle recorder):**
+
+The sub-agent constructs the cycle JSON payload and writes it via the scratch CLI:
+
+```bash
+# Sub-agent: write cycle entry to scratch store (do NOT return the payload inline)
+CYCLE_PAYLOAD=$(python3 -c "import json; print(json.dumps({
+  'n': <cycle-number>,
+  'draft_hash': '<sha256 of planner output>',
+  'findings_count': <int>,
+  'verdict': '<pass|fail|escalate>'
+}))")
+bash "$PLUGIN_SCRIPTS/ticket-scratch.sh" set "$SCRATCH_TICKET_ID" "$SCRATCH_KEY" "$CYCLE_PAYLOAD"
+```
+
+<output_contract>
+The sub-agent MUST return ONLY the following 3-field receipt JSON. No other content, no payload body, no cycle details. Embedding the cycle payload in the return block is a contract violation and will produce RECEIPT_PARSE_ERROR.
+
+```json
+{"ticket_id": "<SCRATCH_TICKET_ID>", "key": "<SCRATCH_KEY>", "byte_count": <N>}
+```
+
+Example (valid):
+```json
+{"ticket_id": "abcd-1234-efgh-5678", "key": "sprint:step18:batch-plan", "byte_count": 142}
+```
+
+Example (INVALID — payload embedded, contract violation):
+```json
+{"ticket_id": "abcd-1234-efgh-5678", "key": "sprint:step18:batch-plan", "byte_count": 142, "n": 1, "verdict": "fail"}
+```
+</output_contract>
+
+**Orchestrator-side: validate receipt, then read payload:**
+
+After the sub-agent returns, parse the receipt with `receipt-parse.sh` and halt on any contract violation:
+
+```bash
+# Validate receipt — halt on RECEIPT_PARSE_ERROR (exit 2)
+_parsed=$(echo "<sub_agent_output>" | bash "$PLUGIN_SCRIPTS/receipt-parse.sh" sprint:step18 dso:verification-remediation-planner) || {
+  echo "ERROR: RECEIPT_PARSE_ERROR from dso:verification-remediation-planner at sprint:step18 — halting workflow" >&2
+  exit 1
+}
+# _parsed = "<ticket_id> <key>" (space-separated) on success
+
+# Read cycle payload from scratch store (SCRATCH_MISS guard — co-located with get)
+_raw=$(bash "$PLUGIN_SCRIPTS/ticket-scratch.sh" get "$SCRATCH_TICKET_ID" "$SCRATCH_KEY")
+_status=$(echo "$_raw" | python3 -c "import json,sys; print(json.load(sys.stdin)['status'])")
+if [ "$_status" = "miss" ]; then
+  # SCRATCH_MISS: sub-agent did not write the key before returning receipt.
+  # Example of a miss (key absent): {"status":"miss","ticket_id":"abcd-1234-efgh-5678","key":"sprint:step18:batch-plan"}
+  # This is NOT a valid input — treat as a contract violation and halt.
+  echo "ERROR: SCRATCH_MISS for $SCRATCH_TICKET_ID/$SCRATCH_KEY — sub-agent returned receipt but key not present; halting." >&2
+  # Inline cleanup: remove any partial scratch state before exit
+  bash "$PLUGIN_SCRIPTS/ticket-scratch.sh" clear "$SCRATCH_TICKET_ID" "$SCRATCH_KEY" 2>/dev/null || true
+  exit 1
+fi
+CYCLE_JSON=$(echo "$_raw" | python3 -c "import json,sys; print(json.load(sys.stdin)['value'])")
+```
+
+After reading `CYCLE_JSON`, record the cycle artifact via the recorder:
+
+```bash
+python3 ${CLAUDE_PLUGIN_ROOT}/scripts/append_review_cycle.py \
   --artifact <path-to-verifier-cycle-artifact-for-story> \
   --n <cycle-number> \
   --draft-hash <sha256 of planner output> \
@@ -2336,13 +2405,13 @@ After each cycle's re-dispatch and verifier run, atomically append a `cycles[]` 
   --verdict <pass|fail|escalate>
 ```
 
-After the append, emit exactly ONE ticket comment per cycle that references the artifact path:
+After the append, emit exactly ONE ticket comment per cycle that references the scratch key (not a file path):
 
 ```bash
-.claude/scripts/dso ticket comment <ticket-id> "Remediation cycle <n> recorded at <artifact-path>"
+.claude/scripts/dso ticket comment <ticket-id> "Remediation cycle <n> recorded at scratch:$SCRATCH_TICKET_ID/$SCRATCH_KEY"
 ```
 
-**Single-comment policy (SC6)**: The ticket comment references the artifact path and does NOT duplicate the cycle body — cycle entries live in the artifact's `cycles[]` array, not in ticket comments. One comment per cycle; no further detail in the comment body.
+**Single-comment policy (SC6)**: The ticket comment references the scratch key and does NOT duplicate the cycle body — cycle entries live in the scratch store under `$SCRATCH_KEY`, not in ticket comments. One comment per cycle; no further detail in the comment body.
 
 Do NOT rationalize around a non-PASS P1 verdict. The verifier's verdict is final — scope-scoping arguments ("pre-existing failures," "out-of-scope tests," "RED marker tolerance," "already tracked as a separate bug") do not override the planner-gate → Phase C path. The orchestrator's judgment about whether the verdict "really applies" is exactly the bias the verifier+planner pair was designed to counteract. Only `P1: PASS` or technical failure (timeout/unparseable JSON) permits proceeding past this step.
 </HARD-GATE>
@@ -2387,18 +2456,33 @@ if [[ "${SPRINT_MODE:-local}" == "ci-pr" ]]; then
   }
   # Open story/* PR against session branch (not main) via STORY_PR_BASE env var.
   # merge-to-main-pr.sh reads STORY_PR_BASE and passes it as --base to gh pr create.
-  # Note: in ci-pr mode, the DSO-Story-Merge trailer is NOT added locally — GitHub
-  # creates the merge commit when it auto-merges the story→session PR. The S5
-  # provenance verifier uses GitHub API signals as the primary provenance source
-  # in ci-pr mode (not the trailer). The trailer is emitted by merge-story-branch.sh
-  # only in local mode.
+  #
+  # Trailer-injection in ci-pr mode (bug e349-6b4e-13c5-4e23):
+  # Before queueing gh pr merge --auto, merge-to-main-pr.sh's inject_trailer
+  # function uses an ephemeral git worktree to amend (or empty-commit) the
+  # DSO-Story-Merge trailer onto the story branch's last commit, then
+  # force-push --force-with-lease. The ephemeral worktree has no .sprint-active
+  # marker, so the check-session-merge-only.sh hook does not fire. The trailer
+  # survives squash/rebase/merge modes. STORY_EPIC_ID + STORY_ID are sourced
+  # from emit-story-merge-env.sh; merge-to-main-pr.sh reads both via env.
+  #
+  # Defense in depth: ci.yml's compute-cross-branch-from-api.sh provides a
+  # GitHub API fallback for trailer-less merges (pre-Fix-D sessions or
+  # DSO_TRAILER_INJECTION_MODE=disabled). Per-PR review-sub-pr check-run
+  # conclusion is verified before subtracting files from INTEGRATION_SCOPE;
+  # non-success conclusions cause files to be re-included for full review
+  # at integration tier (load-bearing llm-review coverage guarantee).
+  source "${CLAUDE_PLUGIN_ROOT}/scripts/emit-story-merge-env.sh" "$STORY_ID" || {
+    echo "ERROR: emit-story-merge-env.sh failed for story $STORY_ID — aborting" >&2
+    exit 1
+  }
   export BRANCH="$STORY_BRANCH"
   export STORY_PR_BASE="$SESSION_BRANCH"
   bash "$PLUGIN_SCRIPTS/merge-to-main.sh" || { # shim-exempt: SKILL.md orchestrator instruction — sprint runs plugin scripts via $PLUGIN_SCRIPTS directly
     echo "ERROR: merge-to-main.sh failed in ci-pr mode — aborting story merge" >&2
     exit 1
   }
-  unset STORY_PR_BASE BRANCH
+  unset STORY_PR_BASE BRANCH STORY_EPIC_ID
 else
   # local mode: direct local merge with DSO-Story-Merge trailer
   bash "$PLUGIN_SCRIPTS/merge-story-branch.sh" "$STORY_BRANCH" "$STORY_ID" || { # shim-exempt: SKILL.md orchestrator instruction — sprint runs plugin scripts via $PLUGIN_SCRIPTS directly

@@ -272,3 +272,40 @@ Orchestrators recover interrupted sub-agents via checkpoint notes:
 - CHECKPOINT 5/6 or 6/6 → fast-close (spot-check files, close task)
 - CHECKPOINT 3/6 or 4/6 → re-dispatch with resume context
 - CHECKPOINT 1/6 or 2/6 or missing → revert to open, full re-execution
+
+---
+
+## Scratch Handoff: Receipt-Only Return Contract
+
+When a sub-agent writes a large payload (story decomposition draft, plan-review draft, gap-analysis draft, verifier-cycle plan, etc.) for the orchestrator or a sibling step to consume, it MUST stash the payload via `dso ticket scratch set` and return ONLY a 3-field receipt — never the payload body itself. The receipt-only contract keeps orchestrator context lean by moving multi-KB drafts out of the transcript.
+
+### The receipt envelope
+
+```json
+{
+  "ticket_id": "<id>",
+  "key":       "<scratch key>",
+  "byte_count": <integer>
+}
+```
+
+Exactly 3 fields. Any extra field — most commonly `draft_body` (a sub-agent leaking the payload back into the return block) — is a contract violation.
+
+### Orchestrator-side validation: `RECEIPT_PARSE_ERROR`
+
+Orchestrators MUST validate each sub-agent return via `${CLAUDE_PLUGIN_ROOT}/scripts/receipt-parse.sh <site_id> <sub_agent_name>` (reads payload from stdin). On any malformed return — missing required field, extra field, non-JSON, wrong key count — `receipt-parse.sh` emits a structured stderr log:
+
+```
+RECEIPT_PARSE_ERROR site=<site_id> sub_agent=<name> reason=<text> byte_count=<actual_size>
+```
+
+…and exits non-zero. The orchestrator MUST:
+
+- **Halt the workflow immediately.** Do NOT silently retry, fall back, or forward the suspect key to the next sub-agent.
+- **Surface to the human session** so the structural violation is visible (validate.sh / CI logs pick up the structured stderr).
+
+### Cross-reference
+
+The full contract — schema, valid/invalid payload examples, anti-retry/anti-forward enumeration, CI observability semantics — lives at `${CLAUDE_PLUGIN_ROOT}/docs/contracts/scratch-receipt-contract.md`. Skill authors writing new sub-agent dispatches that produce handoff drafts MUST follow that contract.
+
+The five canonical migration sites (`implementation-plan/SKILL.md:511, :978, :1238`; `preplanning/SKILL.md:513`; `sprint/SKILL.md:2332`) are the reference implementations of the pattern; see `${CLAUDE_PLUGIN_ROOT}/docs/ticket-scratch-cli.md` for the authoritative key-namespace registry.

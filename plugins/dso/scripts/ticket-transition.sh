@@ -511,6 +511,9 @@ print((state or {}).get('ticket_type', ''))
     if [ "$ticket_type_on_close" = "epic" ]; then
         echo "REMINDER: Epic closed — run /dso:end-session to complete the sprint cleanly."
     fi
+
+    # Scratch cleanup: remove per-ticket scratch dir (non-blocking; always returns 0)
+    _scratch_cleanup_for_ticket "$ticket_id" 2>/dev/null || true
 fi
 
 exit 0

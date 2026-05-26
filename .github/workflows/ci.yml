@@ -384,6 +384,13 @@ jobs:
       # via ANTHROPIC_API_KEY (direct API key auth) and does not need OIDC.
     steps:
       - uses: actions/checkout@v4
+        with:
+          # bug e349-6b4e-13c5-4e23: full history needed for git log
+          # `origin/${{ github.base_ref }}..HEAD` traversal in cross-branch
+          # trailer-grep AND in compute-cross-branch-from-api.sh fallback.
+          # The defensive bootstrap in compute-cross-branch-from-api.sh
+          # provides defense-in-depth; this is the primary fix.
+          fetch-depth: 0
 
       - name: Install litellm
         if: needs.changes.outputs.code_changed == 'true'
@@ -522,6 +529,32 @@ jobs:
             fi
           done
           echo "Cross-branch files written to $CROSS_BRANCH_FILE"
+
+      - name: Compute cross-branch file set via GitHub API (ci-pr fallback)
+        # bug e349-6b4e-13c5-4e23: when DSO-Story-Merge trailers are absent
+        # (ci-pr mode pre-Fix-D, or DSO_TRAILER_INJECTION_MODE=disabled),
+        # derive the cross-branch file set from auto-merged story PRs via
+        # the GitHub API. Verifies each PR's review-sub-pr check-run
+        # conclusion is success before subtracting its files; otherwise
+        # re-includes them in INTEGRATION_SCOPE for full review at integration tier.
+        # Runs UNCONDITIONALLY alongside the trailer-grep step; the downstream
+        # Union step dedups via sort -u.
+        if: needs.changes.outputs.code_changed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          HEAD_REF: ${{ github.head_ref }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          # Only run in ci-pr context (session→main PR with worktree-* head_ref).
+          if [[ ! "$HEAD_REF" =~ ^worktree- ]]; then
+            echo "Skipping API fallback: HEAD_REF=$HEAD_REF is not a session branch"
+            exit 0
+          fi
+          CROSS_BRANCH_FILE="${DSO_ARTIFACT_DIR:-$RUNNER_TEMP/dso-review}/cross-branch-files.txt"
+          export CROSS_BRANCH_FILE
+          bash plugins/dso/scripts/compute-cross-branch-from-api.sh
 
       - name: Union integration review scope
         if: needs.changes.outputs.code_changed == 'true'

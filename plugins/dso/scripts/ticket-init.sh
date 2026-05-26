@@ -202,7 +202,7 @@ if [ -d "$TRACKER_DIR" ] && ! git -C "$TRACKER_DIR" rev-parse --is-inside-work-t
     rm -rf "$TRACKER_DIR"
 fi
 
-# ── Add .tickets-tracker to .git/info/exclude ─────────────────────────────────
+# ── Add .tickets-tracker and .scratch/ to .git/info/exclude ──────────────────
 _git_dir="$REPO_ROOT/.git"
 # In a worktree, .git is a file pointing to the real git dir
 if [ -f "$_git_dir" ]; then
@@ -214,6 +214,10 @@ if [ ! -f "$_exclude_file" ]; then
     echo ".tickets-tracker" > "$_exclude_file"
 elif ! grep -q '\.tickets-tracker' "$_exclude_file"; then
     echo ".tickets-tracker" >> "$_exclude_file"
+fi
+# Add .scratch/ exclusion to the main repo exclude (idempotent)
+if ! grep -qFx '.scratch/' "$_exclude_file" 2>/dev/null; then
+    echo ".scratch/" >> "$_exclude_file"
 fi
 
 # ── Acquire exclusive lock (30s timeout) ──────────────────────────────────────
@@ -322,9 +326,52 @@ if ! git -C "$TRACKER_DIR" show tickets:.gitignore &>/dev/null 2>&1; then
     cat > "$TRACKER_DIR/.gitignore" <<'GITIGNORE'
 .env-id
 .state-cache
+.scratch/
 GITIGNORE
     git -C "$TRACKER_DIR" add .gitignore
-    git -C "$TRACKER_DIR" commit -q --no-verify -m "chore: add .gitignore for env-id and state-cache"
+    git -C "$TRACKER_DIR" commit -q --no-verify -m "chore: add .gitignore for env-id, state-cache, and scratch"
+else
+    # Pre-upgrade path: .gitignore exists but may be missing .scratch/ entry.
+    # Append .scratch/ to the committed .gitignore if absent.
+    _gitignore_content=$(git -C "$TRACKER_DIR" show tickets:.gitignore 2>/dev/null || echo "")
+    if ! echo "$_gitignore_content" | grep -qFx '.scratch/' 2>/dev/null; then
+        git -C "$TRACKER_DIR" show tickets:.gitignore > "$TRACKER_DIR/.gitignore"
+        echo ".scratch/" >> "$TRACKER_DIR/.gitignore"
+        git -C "$TRACKER_DIR" add .gitignore
+        git -C "$TRACKER_DIR" commit -q --no-verify -m "chore: add .scratch/ to .gitignore"
+    fi
+fi
+
+# ── Add .scratch/ to tickets-tracker worktree's .git/info/exclude ────────────
+# The tickets-tracker is a linked worktree: its .git is a file containing
+# "gitdir: <path>" pointing to .git/worktrees/<name>/. We write to that
+# worktree-specific exclude file so .scratch/ is isolated at the worktree
+# level and git check-ignore confirms it.
+#
+# Note: `git rev-parse --git-path info/exclude` returns the shared
+# .git/info/exclude for linked worktrees, not the worktree-specific path.
+# We resolve the worktree-specific path via the .git file instead, using
+# the same technique git rev-parse --git-path info/exclude would use
+# internally if it returned the worktree gitdir path.
+_tracker_git_file="$TRACKER_DIR/.git"
+_tracker_git_dir=""
+if [ -f "$_tracker_git_file" ]; then
+    # Read the worktree-specific git dir from the .git pointer file
+    _tracker_git_dir=$(sed -n 's/^gitdir: //p' "$_tracker_git_file")
+    # Resolve relative path (git may emit a relative path)
+    if [ -n "$_tracker_git_dir" ] && [[ "$_tracker_git_dir" != /* ]]; then
+        _tracker_git_dir="$TRACKER_DIR/$_tracker_git_dir"
+    fi
+fi
+if [ -z "$_tracker_git_dir" ]; then
+    # Fallback: non-worktree case — use git rev-parse --git-path info/exclude
+    _tracker_git_dir=$(git -C "$TRACKER_DIR" rev-parse --git-path info/exclude 2>/dev/null | xargs dirname 2>/dev/null || echo "$TRACKER_DIR/.git/info")
+    _tracker_git_dir=$(dirname "$_tracker_git_dir")
+fi
+_tracker_exclude_file="$_tracker_git_dir/info/exclude"
+mkdir -p "$(dirname "$_tracker_exclude_file")"
+if ! grep -qFx '.scratch/' "$_tracker_exclude_file" 2>/dev/null; then
+    echo ".scratch/" >> "$_tracker_exclude_file"
 fi
 
 # ── Commit no-op .pre-commit-config.yaml on the tickets branch ───────────────
