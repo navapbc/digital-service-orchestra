@@ -69,11 +69,13 @@ Only split when the evidence is clear that two or more separate defects exist. W
 
 ### Step 4: Empirical Validation
 
-Before proposing any fix, empirically validate your assumptions about tool, API, or system behavior:
+Before proposing any fix, empirically validate your assumptions about tool, API, or system behavior. Classify each hypothesis as **empirical-static** (about artifact content) or **empirical-dynamic** (about runtime behavior).
 
-1. **Run actual commands** — if the bug involves a CLI tool, API, or external system, run `--help`, discovery commands, or a test invocation to confirm what actually works. Do not rely on documentation alone.
-2. **Label your evidence** — for each key assumption, explicitly note whether it is "stated in docs" or "tested and confirmed". Only "tested and confirmed" evidence supports a high-confidence fix proposal.
-3. **Test the fix approach in isolation** — before proposing a fix, test the core assumption (e.g., run the command with the proposed flag, make a throwaway API call) to confirm it works as expected.
+1. **Classify each hypothesis** — static (file exists, config value is X, string present in file) vs. dynamic (workflow fires, cleanup runs, script triggers, code executes a path). Record the classification in each hypothesis_test entry.
+2. **Run actual commands** — for any hypothesis about a CLI tool, API, external system, or internal workflow/script behavior, execute the actual code path to confirm what actually happens. Do not rely on documentation or source-code reading alone.
+3. **`grep`, `cat`, `Read`, `head`, and `wc` are NOT empirical validation for behavioral hypotheses** — they observe source text, not runtime behavior. Reading source files or grepping for a pattern that "looks like" the behavior does NOT confirm the behavior occurs at runtime. Record static observations as "stated in source code" with verdict `inconclusive` when the hypothesis is dynamic.
+4. **Label your evidence** — for each key assumption, explicitly note whether it is "stated in docs/source" or "tested and confirmed by execution". Only "tested and confirmed by execution" evidence supports a high-confidence fix proposal.
+5. **Test the fix approach in isolation** — before proposing a fix, test the core assumption (e.g., run the command with the proposed flag, execute the relevant script, make a throwaway API call) to confirm it works as expected.
 
 Record each empirical test in the `hypothesis_tests` section of your RESULT.
 

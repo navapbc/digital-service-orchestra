@@ -192,6 +192,18 @@ generic architectural integrity checks below.
 - [ ] Is the diff consistent with the architecture described in CLAUDE.md and any
   relevant design documents? Use Read to check if referenced patterns actually exist.
 
+### Pre-Existing Test Failures in VALIDATION-CLASS Epics (bug 5f2a-9a9f)
+
+**MANDATORY check when reviewing a diff tagged as part of an epic with LIVE-VERIFIED or VALIDATION-CLASS Success Criteria.**
+
+When the current review cycle is for an epic whose Success Criteria include evidence labels such as "LIVE VERIFIED", "verified via dry-run", "runs in CI", "post-merge validation", or "first production invocation", apply the following additional check:
+
+- [ ] **Pre-existing test failures are NOT safe to ship**: If the Sonnet A, B, or C specialists note test failures that predate the diff ("pre-existing baseline failure"), verify whether those failures are in code paths that the epic's LIVE-VERIFIED SCs depend on. A pre-existing failure in a load-bearing module (e.g., the module that performs the live operation claimed by the SC) is a **blocking finding** for THIS epic — it is NOT acceptable to defer because the failure predates the diff. The framing "pre-existing, therefore not caused by this PR" is incorrect when the defect prevents the epic's live-evidence claim from being realizable. Flag as `important` under `verification`.
+
+- [ ] **Module symmetry audit**: If Sonnet A or B flags a defect class in one function/method of a module (e.g., missing `sys.modules` registration, missing identity config, incorrect return code handling), check whether sibling functions/methods in the same module share the same pattern. A defect class is rarely isolated to a single helper — modules written by the same agent at the same time tend to have systematic gaps. Use Grep to enumerate all functions in the module that share the same architectural pattern as the flagged one and verify each one. Flag partial consolidation as `important` under `verification` when sibling functions are not audited.
+
+**Rationale**: The deep-tier reviewer on PR #345 (epic 4047) correctly identified that 5 tests were failing pre-merge and correctly identified that those failures predate the diff. The reviewer then accepted the epic as shippable on that basis. The "pre-existing failure" framing treats test failures as belonging to the work that introduced them, not to the system that ships them. When pre-existing failures are in load-bearing code paths for a VALIDATION-CLASS epic, they ARE the epic's blocking defect (bug 5f2a-9a9f).
+
 ## AI Blindspot Annotations
 
 These annotations cover failure modes that AI-generated code is statistically prone to but

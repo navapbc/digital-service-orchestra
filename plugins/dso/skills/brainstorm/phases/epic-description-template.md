@@ -46,6 +46,8 @@ Examples of acceptable Closure Check items:
 
 ### Planning Intelligence Log
 
+- **Gap analysis (Step 1)**: [artifacts checked — N missing | all covered | skipped — no user-named artifacts]
+  - Parts executed: [Part A artifact check | Part B technical self-review | Part C shared artifact impact | all parts]
 - **Web research (Step 2.6)**: [not triggered | triggered | re-triggered via gate]
   - Bright-line conditions that fired: [list conditions, or "none"]
 - **Scenario analysis (Step 2.75)**: [not triggered | triggered | re-triggered via gate]

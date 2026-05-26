@@ -83,10 +83,10 @@ echo "true"
 EOF
     chmod +x "$fake_read_config"
 
-    # Counter file with one category above THRESHOLD (50)
+    # Counter file with one category above THRESHOLD (500)
     mkdir -p "$tmpdir/.claude"
     cat > "$tmpdir/.claude/tool-error-counter.json" <<'EOF'
-{"index": {"subprocess_test_category": 99}, "errors": []}
+{"index": {"subprocess_test_category": 500}, "errors": []}
 EOF
 
     # Invoke the script as a subprocess with the new CLI subcommand.
@@ -163,7 +163,7 @@ test_sweep_tool_errors_works_under_zsh_emulate_sh() {
 
     mkdir -p "$tmpdir/.claude"
     cat > "$tmpdir/.claude/tool-error-counter.json" <<'EOF'
-{"index": {"zsh_test_category": 99}, "errors": []}
+{"index": {"zsh_test_category": 500}, "errors": []}
 EOF
 
     # zsh --emulate sh wraps the subprocess bash call exactly as the orchestrator does.

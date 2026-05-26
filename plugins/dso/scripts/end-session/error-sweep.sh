@@ -3,7 +3,7 @@
 # Library providing sweep_tool_errors() and sweep_validation_failures() for the /dso:end-session skill (Step 8 — Sweep Error Counters).
 #
 # Reads ~/.claude/tool-error-counter.json, iterates categories in .index where
-# count >= 50, and creates a deduplicated bug ticket via `ticket create` for each.
+# count >= 500, and creates a deduplicated bug ticket via `ticket create` for each.
 # Uses `ticket list` to deduplicate against existing open bugs.
 # Includes error details in the ticket description (added via ticket comment) and
 # removes processed entries from the counter file to prevent re-creation.
@@ -14,7 +14,7 @@
 #   source "${CLAUDE_PLUGIN_ROOT}/scripts/end-session/error-sweep.sh"
 #   sweep_tool_errors
 
-THRESHOLD=50
+THRESHOLD=500
 
 # Resolve ticket CLI path (v3 event-sourced system).
 # Override via TICKET_CMD env var for testing.
