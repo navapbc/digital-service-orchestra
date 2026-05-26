@@ -89,6 +89,15 @@ When you cannot verify a claim without requesting context: either issue a contex
 
 6. **Cross-module function disambiguation** — When asserting a signature mismatch or behavioral discrepancy for a function name that could be defined in multiple modules, you MUST grep ALL definitions of that function name across the codebase and verify which module the consumer actually imports from before emitting the finding. Two functions with the same name in different modules are distinct; confusing them produces a false positive. Use Grep (`grep -r "def <function_name>"`) and trace the consumer's import path to the correct definition before asserting a mismatch.
 
+7. **Same-file / normally-imported symbol resolution** — Before asserting any identifier (function, class, constant, variable) is undefined or missing from the diff, you MUST Grep for its definition in the containing file AND in every module normally imported by that file. Run:
+   ```
+   grep -nE '^(def|class|async def)\s+<name>\b|^\s*<name>\s*=' <containing-file>
+   grep -rnE 'def <name>\b|class <name>\b' <containing-package>/
+   ```
+   Resolve each `from X import <name>` / `import X` to its file path and Grep there as well. A symbol used inside the diff whose definition lies OUTSIDE the diff window — same file, sibling module in the same package, or normally-imported module — is NOT undefined; the diff window is a presentation artifact, not the language scope. Only flag if the search confirms no definition exists in any plausible location, and cite the grep command and its (no-output) result in `verification_evidence`.
+
+   Anti-pattern: emitting a finding such as `Missing <symbol> function definition. The new code calls <symbol> at line N, but this function is not defined in the visible diff or imported from anywhere.` without an accompanying grep that returned zero results across the file and its imported modules is a false positive. This anti-pattern produced the `_load_alert_store` critical FP on PRs #372 and #378 — the function was defined at `${CLAUDE_PLUGIN_ROOT}/scripts/dso_reconciler/invariants.py:47` (and `fetcher.py:100`) but only the call sites appeared in the diff window, so the reviewer flagged it as missing (bug c558-2f5b).
+
 ---
 
 ## Procedure
