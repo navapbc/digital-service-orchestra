@@ -597,3 +597,4 @@ plugins/dso/docs/contracts/copy-needs-section.md:tests/skills/test-brainstorm-ph
 plugins/dso/agents/gov-copy-writer.md:tests/agents/test-gov-copy-writer-agent.sh,tests/agents/test-gov-copy-writer-checks-isolation.sh,tests/agents/test-gov-copy-writer-coordination-pass.sh
 plugins/dso/docs/contracts/gov-copy-artifact.md:tests/agents/test-gov-copy-writer-agent.sh
 plugins/dso/scripts/check-coordination-pass-immutability.sh:tests/scripts/test-check-coordination-pass-immutability.sh
+plugins/dso/scripts/dso_reconciler/applier.py:tests/unit/dso_reconciler/test_dso_id_label_writers.py,tests/unit/dso_reconciler/test_apply_list_of_mutations.py
