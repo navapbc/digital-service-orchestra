@@ -809,7 +809,14 @@ This step runs **only when Phase C Step 0 selected Path B**. In every other case
 Step 4a — write the full Investigation RESULT envelope to a discovery file (no size ceiling):
 
 ```bash
-DISCOVERY_FILE="/tmp/fix-bug-discovery-${BUG_TICKET_ID}.json"
+DISCOVERY_FILE=$(mktemp /tmp/fix-bug-discovery-XXXXXX.json)
+if [ -z "$DISCOVERY_FILE" ] || [ ! -w "$DISCOVERY_FILE" ]; then
+    # mktemp failure: revert to deterministic path. # precondition-emit-ok local error recovery
+    # Phase 2 sub-agent reads the same deterministic path on retry. # precondition-emit-ok
+    # If even this write fails, Path A surfaces it as a contract violation.
+    DISCOVERY_FILE="/tmp/fix-bug-discovery-${BUG_TICKET_ID}.json"
+    printf 'WARNING: mktemp failed; falling back to deterministic discovery file path %s\n' "$DISCOVERY_FILE" >&2
+fi
 cat > "$DISCOVERY_FILE" <<EOF
 <Investigation RESULT envelope from inline investigation — root_cause_candidates, alternative_fixes, hypothesis_tests, fishbone_categories, tradeoffs_considered, recommendation>
 EOF
