@@ -1,0 +1,14 @@
+{
+  "fixture_id": "implementation-drift-012",
+  "attribution_class": "implementation_drift",
+  "attribution_confidence": "medium",
+  "description": "Fixture 12 for implementation_drift classification",
+  "scores": {
+    "whitespace_balance": 3,
+    "element_density": 3,
+    "visual_hierarchy_legibility": 3,
+    "alignment_grid_adherence": 3,
+    "intent_match": 3
+  },
+  "provenance": "generated"
+}

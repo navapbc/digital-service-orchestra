@@ -293,3 +293,13 @@ The main guard sequence (`__main__.py`) checks for the gate file at startup. If 
 | `outbound_delete` | `_apply_outbound_delete` |
 
 Each leaf maps one `(direction, action)` combination to a bound applier method. The table is built lazily on first dispatch call. An unknown `(direction, action)` key raises `UnknownDispatchLeaf` — it is never silently skipped.
+
+---
+
+## INC-014: Noisy auto-bug creation — telemetry tickets and duplicate defer tickets (cf57)
+
+**Pattern A — Recurring tool error tickets**: `end-session/error-sweep.sh` creates bug tickets for error categories that reach THRESHOLD. With the old threshold of 50, routine tool errors produced noise tickets with no actionable defect. Fixed by raising THRESHOLD to 500.
+
+**Pattern B — Duplicate defer tickets**: `/dso:respond-to-pr-comments` Step 4 processes each deferred comment by calling `pr-comment-response.sh --classify-as <id>:defer` in a loop. If the LLM parallelizes these calls (Bash tool `run_in_background`), the defer handler's consolidation lookup races — all calls query `ticket list` before any ticket is created, so each creates a separate ticket instead of consolidating into one. Fixed by adding an explicit **CRITICAL — Sequential processing required for defer actions** note in Step 4 of the SKILL.md.
+
+**Prevention**: When adding new ticket auto-creation paths, enforce deduplication at the creation site and ensure the guidance explicitly prohibits parallel dispatch when shared state (ticket list, shared JSON file) is involved.

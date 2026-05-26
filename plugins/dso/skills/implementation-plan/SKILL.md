@@ -965,6 +965,18 @@ When upstream `dso:complexity-evaluator` output specifies `pattern_familiarity: 
 
 ## Step 4: Implementation Plan Review
 
+<HARD-GATE>
+Step 4 (Plan Review) is mandatory for every non-TRIVIAL story. There is NO skip path. Do NOT skip or abbreviate plan review for any of the following reasons — each is an explicitly prohibited rationalization:
+- "session efficiency" or "we're running long"
+- "context pressure" or "token budget concerns"
+- "the task-decomposer already validated the plan"
+- "the story is small enough" or "the plan is obvious"
+- "I already see the gaps" or "plan review is redundant"
+- "user authorized 'push through'"
+
+The plan review protocol (REVIEW-PROTOCOL-WORKFLOW.md) is the only authorized mechanism for closing Step 4. After Step 4 completes, tag the story ticket: `.claude/scripts/dso ticket tag <story-id> plan_review:pass` before proceeding to Step 5.
+</HARD-GATE>
+
 Read [docs/review-criteria.md](docs/review-criteria.md) for the full reviewer table, launch instructions, score aggregation rules, and conflict detection guidance.
 
 Read and execute `${CLAUDE_PLUGIN_ROOT}/docs/workflows/REVIEW-PROTOCOL-WORKFLOW.md` inline:
@@ -1264,7 +1276,19 @@ Report:
 Review the complete task list for design gaps that compound during sub-agent execution.
 
 <HARD-GATE>
-The TRIVIAL Skip Gate (below) is the only authorized bypass for gap analysis. The plan reviewer in Step 4 evaluates the plan's structural quality (task design, TDD, safety, dependencies, completeness); it does NOT substitute for gap analysis, which is specifically scoped to design gaps that compound during sub-agent execution after tasks are written.
+The TRIVIAL Skip Gate (below) is the ONLY authorized bypass for gap analysis. The plan reviewer in Step 4 evaluates the plan's structural quality (task design, TDD, safety, dependencies, completeness); it does NOT substitute for gap analysis, which is specifically scoped to design gaps that compound during sub-agent execution after tasks are written.
+
+**Anti-rationalization prohibition (bug 2c4d-cac7-40a4-40e2; prior instance: bug 5749-127d).** The following rationales are explicitly prohibited for skipping gap analysis — each has been observed in practice and each is wrong:
+- "session efficiency" or "we're running long"
+- "context pressure" or "token budget concerns"
+- "the plan reviewer already validated coverage"
+- "the story is small enough" or "the tasks are obvious"
+- "I already see the gaps" — gap analysis is a structured opus sub-agent dispatch, not an inline check
+- "user authorized 'push through'"
+
+The more COMPLEX the story, the more session pressure has accumulated to skip — and the higher the cost of doing so. A COMPLEX story with skipped gap analysis is the highest-risk combination in the planning pipeline.
+
+After Step 6 completes (or TRIVIAL skip is confirmed), tag the story ticket: `.claude/scripts/dso ticket tag <story-id> gap_analysis:complete` before emitting STATUS:complete.
 </HARD-GATE>
 
 ### TRIVIAL Skip Gate
@@ -1272,7 +1296,7 @@ The TRIVIAL Skip Gate (below) is the only authorized bypass for gap analysis. Th
 Check the story's complexity classification. When invoked from `/dso:sprint`, the parent story may carry a `COMPLEXITY_CLASSIFICATION: COMPLEX` comment (written by sprint's evaluator). Check via `.claude/scripts/dso ticket show <story-id>` and grep for `COMPLEXITY_CLASSIFICATION`:
 
 <!-- EMIT-PRECONDITIONS: gate_name=implementation_plan_gap_analysis degradation_type=unresolved_question -->
-- **`TRIVIAL`** (or clearly simple from context): skip gap analysis entirely. Log: `"Skipping gap analysis — story classified as TRIVIAL"`. Proceed to final summary.
+- **`TRIVIAL`** (or clearly simple from context): skip gap analysis entirely. Log: `"Skipping gap analysis — story classified as TRIVIAL"`. Tag: `.claude/scripts/dso ticket tag <story-id> gap_analysis:complete`. Proceed to final summary.
 - **`COMPLEX`** or **no classification found** (standalone): run gap analysis. The cost of an unnecessary analysis is low; the cost of a missed gap is high.
 
 ### Dispatch Opus Sub-Agent
@@ -1491,6 +1515,12 @@ _dso_pv_exit_write "implementation-plan" "${_UPSTREAM_EVENT_ID:-}" "${SPEC_HASH:
 When invoked via Skill tool from `/dso:sprint`, output one of these STATUS lines as the final output so the sprint orchestrator can parse the result:
 
 ### On success (all tasks created, dependencies added, plan approved, gap analysis complete):
+
+Before emitting STATUS:complete, confirm that both audit marker tags were applied to the story ticket in their respective steps:
+- `plan_review:pass` — set in Step 4 after plan review passes
+- `gap_analysis:complete` — set in Step 6 after gap analysis completes (or TRIVIAL skip is confirmed)
+
+If either tag is absent, the corresponding step was skipped. Return and complete the missing step before emitting STATUS:complete.
 
 ```
 STATUS:complete TASKS:<comma-separated-task-ids> STORY:<story-or-epic-id>

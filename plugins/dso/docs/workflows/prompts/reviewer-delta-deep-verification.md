@@ -119,6 +119,19 @@ When the diff adds new tests for not-yet-implemented features:
   inter-service call), flag if there is no integration test or contract test exercising
   it end-to-end, even if unit tests exist
 
+### Test Environment Divergence (bug 5f2a-9a9f)
+
+Check whether tests in the diff assume host-environment state that a clean CI runner does not provide. This is a **separate check from fixture isolation** (Rule 3 / tmp_path) — it asks whether the test would fail on a machine that has NO developer configuration, not just whether the test has isolated its own side effects.
+
+For each new or modified test in the diff, apply this checklist:
+
+- [ ] **Git identity assumption**: does the test create git commits or git tags without explicitly setting `user.name` / `user.email` (either in the test's own git config call, via `GIT_AUTHOR_NAME` / `GIT_COMMITTER_EMAIL` env vars, or via `monkeypatch.setenv`)? If yes: the test will fail on a CI runner with no global git config. Flag as `important` under `verification`.
+- [ ] **Worktree assumption**: does the test call `git worktree add` or test code that does? If yes: does the test ensure that no pre-existing worktree for the target branch is mounted (either by running in an isolated repo or by explicitly removing existing worktrees)? A developer's machine may have a worktree checked out; CI does not. Flag as `important` under `verification` when not isolated.
+- [ ] **Ambient env var assumption**: does the test invoke a subprocess or module that reads env vars (`HOME`, `GIT_CONFIG_GLOBAL`, `GITHUB_TOKEN`, `AWS_PROFILE`, `PATH` extension directories) without either (a) explicitly setting those vars or (b) running with a sanitized env? Tests that inherit the developer's environment will silently pass where CI fails. Flag as `important` under `verification`.
+- [ ] **HOME isolation**: does the test execute git operations without setting `HOME` to an isolated directory? Git reads `~/.gitconfig` by default; a developer's `~/.gitconfig` may satisfy constraints that a CI runner's empty HOME does not. Flag as `important` under `verification`.
+
+**Severity guidance**: Flag environment-divergence findings as `important` (not `minor`) when the production code path that the test covers IS the same path exercised by CI. "The test passes locally but will fail in CI" is a concrete, actionable defect — not a speculative edge case. The standard `minor` ceiling for "no test for edge case X without a concrete failure path" does NOT apply here because the failure path is the CI run itself (which we know occurs, per the defect class documented in bug 5f2a-9a9f).
+
 ## Overlay Classification
 
 Always evaluate these two items and include the results in your summary field text:

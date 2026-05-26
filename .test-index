@@ -282,6 +282,7 @@ plugins/dso/scripts/read-overlay-flags.sh:tests/scripts/test-read-overlay-flags.
 plugins/dso/scripts/recipe-adapters/ts-morph-add-parameter.mjs:tests/scripts/test-ts-morph-add-parameter.sh
 plugins/dso/scripts/recipe-adapters/ts-morph-normalize-imports.mjs:tests/scripts/test-ts-morph-normalize-imports.sh
 plugins/dso/scripts/resolve-abandoned-worktrees.sh:tests/scripts/test-worktree-resume-integration.sh
+plugins/dso/scripts/resolve-per-branch-review-base.sh:tests/scripts/test-resolve-per-branch-review-base.sh
 plugins/dso/scripts/resolve-session-branch.sh:tests/scripts/test-resolve-session-branch.sh
 plugins/dso/scripts/review-batch-groups.sh:tests/scripts/test-review-batch-groups.sh
 plugins/dso/scripts/review-complexity-classifier.sh:tests/hooks/test-review-complexity-classifier.sh
@@ -609,3 +610,6 @@ plugins/dso/config/visual-evaluator-params.yaml:tests/plugin/test_visual_evaluat
 docs/findings/visual-evaluator-spike.md:tests/plugin/test_visual_evaluator_params.py
 plugins/dso/docs/visual-evaluator-schema.json:tests/plugin/test_visual_evaluator_agent.py
 plugins/dso/agents/visual-evaluator.md:tests/plugin/test_visual_evaluator_agent_structure.py
+plugins/dso/scripts/label_visual_corpus.py:tests/visual_eval/test_corpus_schema.py
+plugins/dso/skills/visual-evaluator/SKILL.md:tests/skills/test-visual-evaluator-skill.sh
+plugins/dso/scripts/compute_kappa.py:tests/visual_eval/test_kappa_computation.py
