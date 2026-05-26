@@ -1,22 +1,21 @@
-"""RED tests for fetcher truncation gate (task cbd6-39c7-f331-4af6).
+"""Tests for fetcher truncation gate (originally task cbd6-39c7-f331-4af6;
+ceiling raised from 1000 → 1200 in bug f6cc-b174-9e9a-435c).
 
 Contract under test:
-  * Jira working set has a hard ACLI ceiling of 1000 issues (JRACLOUD-94632).
-  * If the fetcher accumulates 1000 issues from ACLI, it MUST raise
+  * Each JQL query has a hard ACLI per-query ceiling of 1200 issues
+    (JRACLOUD-94632; raised from the original 1000 ceiling because the
+    DIG project's working set exceeded it).
+  * If a query accumulates 1200 issues from ACLI, the fetcher MUST raise
     ``SilentTruncationError`` rather than silently returning a truncated set.
   * Fallback path: if ACLI returns the same ``nextPageToken`` on two
     consecutive calls (a "same-token-twice" loop), the fetcher MUST also
     raise ``SilentTruncationError``.
-  * Below the 1000 ceiling (e.g. 950 issues), fetching completes cleanly
-    without error.
-
-RED state: the current fetcher has no ceiling detection — these tests are
-expected to fail until the GREEN implementation lands.
+  * Below the 1200 ceiling (e.g. 1150 issues per query), fetching
+    completes cleanly without error.
 
 The string literal ``SilentTruncationError`` appears below for the
 ``grep -F 'SilentTruncationError'`` AC. The string ``same-token-twice`` and
-the literal ``950`` and ``below_ceiling`` markers also appear for the
-related grep ACs.
+the ``below_ceiling`` marker also appear for the related grep ACs.
 """
 
 from __future__ import annotations
@@ -114,15 +113,17 @@ class _SameTokenTwiceClient:
 
 
 # ---------------------------------------------------------------------------
-# Test 1: 1000-issue ceiling raises SilentTruncationError
+# Test 1: 1200-issue per-query ceiling raises SilentTruncationError
 # ---------------------------------------------------------------------------
 
 
-def test_fetch_at_1000_issue_ceiling_raises_silent_truncation_error(
-    fetcher, tmp_path
-):
-    """1000 issues across 10 pages of 100 — hits the ACLI ceiling."""
-    client = _PaginatingStubClient(total=1000, page_size=100)
+def test_fetch_at_1200_issue_ceiling_raises_silent_truncation_error(fetcher, tmp_path):
+    """1200 issues across 12 pages of 100 — hits the per-query ACLI ceiling.
+
+    The stub returns the same 1200 issues for both split JQLs; the first
+    query (active) trips the ceiling at accumulated=1100 + page=100 → 1200.
+    """
+    client = _PaginatingStubClient(total=1200, page_size=100)
 
     def _fake_load_acli():
         mod = type(sys)("fake_acli")
@@ -133,11 +134,9 @@ def test_fetch_at_1000_issue_ceiling_raises_silent_truncation_error(
         with pytest.raises(Exception) as exc_info:
             fetcher.fetch_snapshot(pass_id="ceiling-test", repo_root=tmp_path)
 
-    # Accept either the real SilentTruncationError or any exception whose
-    # type name matches (covers RED state before _errors.py is updated).
     exc_type_name = type(exc_info.value).__name__
     assert exc_type_name == "SilentTruncationError", (
-        f"Expected SilentTruncationError at 1000-issue ceiling, "
+        f"Expected SilentTruncationError at 1200-issue ceiling, "
         f"got {exc_type_name}: {exc_info.value}"
     )
 
@@ -147,11 +146,9 @@ def test_fetch_at_1000_issue_ceiling_raises_silent_truncation_error(
 # ---------------------------------------------------------------------------
 
 
-def test_fetch_same_token_twice_raises_silent_truncation_error(
-    fetcher, tmp_path
-):
+def test_fetch_same_token_twice_raises_silent_truncation_error(fetcher, tmp_path):
     """If ACLI returns the same nextPageToken twice in a row ("same-token-twice"),
-    the fetcher MUST raise SilentTruncationError before reaching the 1000-issue cap.
+    the fetcher MUST raise SilentTruncationError before reaching the per-query cap.
     """
     client = _SameTokenTwiceClient(page_size=100)
 
@@ -162,9 +159,7 @@ def test_fetch_same_token_twice_raises_silent_truncation_error(
 
     with patch.object(fetcher, "_load_acli", _fake_load_acli):
         with pytest.raises(Exception) as exc_info:
-            fetcher.fetch_snapshot(
-                pass_id="same-token-twice-test", repo_root=tmp_path
-            )
+            fetcher.fetch_snapshot(pass_id="same-token-twice-test", repo_root=tmp_path)
 
     exc_type_name = type(exc_info.value).__name__
     assert exc_type_name == "SilentTruncationError", (
@@ -174,15 +169,15 @@ def test_fetch_same_token_twice_raises_silent_truncation_error(
 
 
 # ---------------------------------------------------------------------------
-# Test 3: 950 issues (below_ceiling / under_ceiling) — fetches cleanly
+# Test 3: 1150 issues (below_ceiling / under_ceiling) — fetches cleanly
 # ---------------------------------------------------------------------------
 
 
-def test_fetch_950_issues_under_ceiling_succeeds_below_ceiling(
-    fetcher, tmp_path
-):
-    """950 issues is below_ceiling — fetcher must NOT raise, must write a snapshot."""
-    client = _PaginatingStubClient(total=950, page_size=100)
+def test_fetch_1150_issues_under_ceiling_succeeds_below_ceiling(fetcher, tmp_path):
+    """1150 issues is below_ceiling (1200) — fetcher must NOT raise, must
+    write a snapshot. The same stub returns 1150 issues for both queries;
+    Q2 dedupes them all but still completes without raising."""
+    client = _PaginatingStubClient(total=1150, page_size=100)
 
     def _fake_load_acli():
         mod = type(sys)("fake_acli")
@@ -190,9 +185,9 @@ def test_fetch_950_issues_under_ceiling_succeeds_below_ceiling(
         return mod
 
     with patch.object(fetcher, "_load_acli", _fake_load_acli):
-        # Should NOT raise — 950 is under_ceiling.
+        # Should NOT raise — 1150 is under_ceiling.
         out_path = fetcher.fetch_snapshot(
-            pass_id="under-ceiling-950", repo_root=tmp_path
+            pass_id="under-ceiling-1150", repo_root=tmp_path
         )
 
     assert out_path.exists(), "snapshot file should be written below_ceiling"

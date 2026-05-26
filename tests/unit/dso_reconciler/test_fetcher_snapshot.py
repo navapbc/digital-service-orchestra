@@ -33,15 +33,18 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 FETCHER_PATH = (
-    REPO_ROOT
-    / "plugins"
-    / "dso"
-    / "scripts"
-    / "dso_reconciler"
-    / "fetcher.py"
+    REPO_ROOT / "plugins" / "dso" / "scripts" / "dso_reconciler" / "fetcher.py"
 )
 
-EXPECTED_JQL = "project = DIG AND (resolution = Unresolved OR updated >= -1h)"
+# Split-JQL contract (bug f6cc-b174-9e9a-435c). fetch_snapshot now issues
+# TWO queries (active first, then Done-recent). Both must reach
+# search_issues verbatim.
+EXPECTED_JQL_ACTIVE = 'project = DIG AND status != "Done"'
+EXPECTED_JQL_DONE_RECENT = 'project = DIG AND status = "Done" ORDER BY updated DESC'
+EXPECTED_JQLS = {EXPECTED_JQL_ACTIVE, EXPECTED_JQL_DONE_RECENT}
+# Neutral JQL for direct _iter_pages / collect calls — those helpers
+# accept any JQL string; the JQL contract is on fetch_snapshot, not them.
+ANY_JQL = EXPECTED_JQL_ACTIVE
 
 
 def _load_fetcher():
@@ -82,9 +85,7 @@ class _PaginatingClient:
         self._page_size = page_size
         self.calls: list[dict] = []
 
-    def search_issues(
-        self, jql: str, start_at: int = 0, max_results: int = 50
-    ) -> dict:
+    def search_issues(self, jql: str, start_at: int = 0, max_results: int = 50) -> dict:
         self.calls.append(
             {"jql": jql, "start_at": start_at, "max_results": max_results}
         )
@@ -125,7 +126,7 @@ def test_iter_pages_is_a_generator(fetcher):
         "fetcher must expose `_iter_pages(client, jql, page_size)`"
     )
     client = _PaginatingClient(total=250, page_size=100)
-    gen = fetcher._iter_pages(client, EXPECTED_JQL, page_size=100)
+    gen = fetcher._iter_pages(client, ANY_JQL, page_size=100)
     # generator semantics: yields pages, not an aggregated list
     import types as _t
 
@@ -146,7 +147,7 @@ def test_collect_wrapper_drains_iter_pages(fetcher):
         "fetcher must expose `collect(client, jql, page_size=...)`"
     )
     client = _PaginatingClient(total=250, page_size=100)
-    issues = fetcher.collect(client, EXPECTED_JQL, page_size=100)
+    issues = fetcher.collect(client, ANY_JQL, page_size=100)
     assert isinstance(issues, list)
     assert len(issues) == 250
     assert issues[0]["key"] == "DIG-0"
@@ -154,26 +155,31 @@ def test_collect_wrapper_drains_iter_pages(fetcher):
 
 
 def test_collect_passes_jql_to_client_unchanged(fetcher):
-    """The JQL string is passed verbatim to every search_issues call."""
+    """The JQL string passed to ``collect`` reaches every search_issues call
+    verbatim (collect is jql-string-agnostic — fetch_snapshot owns the
+    split-JQL contract; see test_fetch_snapshot_uses_split_jqls below).
+    """
     client = _PaginatingClient(total=120, page_size=100)
-    fetcher.collect(client, EXPECTED_JQL, page_size=100)
+    fetcher.collect(client, ANY_JQL, page_size=100)
     assert client.calls, "collect must invoke search_issues at least once"
     for call in client.calls:
-        assert call["jql"] == EXPECTED_JQL, (
-            f"Expected JQL {EXPECTED_JQL!r}, got {call['jql']!r}"
-        )
+        assert call["jql"] == ANY_JQL, f"Expected JQL {ANY_JQL!r}, got {call['jql']!r}"
 
 
-def test_fetch_snapshot_uses_filtered_jql(tmp_path, fetcher):
-    """fetch_snapshot issues `project = DIG AND (resolution = Unresolved OR updated >= -1h)`."""
+def test_fetch_snapshot_uses_split_jqls(tmp_path, fetcher):
+    """fetch_snapshot issues both split JQLs verbatim:
+    * ``project = DIG AND status != "Done"``
+    * ``project = DIG AND status = "Done" ORDER BY updated DESC``
+    """
     mock_acli, holder = _make_paginating_acli(total=10, page_size=100)
     with patch.object(fetcher, "_load_acli", return_value=mock_acli):
         fetcher.fetch_snapshot("2026-05-24-pass-jql", repo_root=tmp_path)
     client = holder["client"]
     assert client.calls, "fetch_snapshot must call search_issues at least once"
     seen_jqls = {c["jql"] for c in client.calls}
-    assert seen_jqls == {EXPECTED_JQL}, (
-        f"fetch_snapshot must pass the filtered JQL verbatim; saw {seen_jqls!r}"
+    assert seen_jqls == EXPECTED_JQLS, (
+        f"fetch_snapshot must pass both split JQLs verbatim; "
+        f"expected {EXPECTED_JQLS!r}, saw {seen_jqls!r}"
     )
 
 
@@ -209,15 +215,11 @@ def test_fetch_snapshot_is_deterministic(tmp_path, fetcher):
     mock_acli, _ = _make_paginating_acli(total=5, page_size=100)
 
     with patch.object(fetcher, "_load_acli", return_value=mock_acli):
-        path_a = fetcher.fetch_snapshot(
-            "2026-05-24-pass-03a", repo_root=tmp_path
-        )
+        path_a = fetcher.fetch_snapshot("2026-05-24-pass-03a", repo_root=tmp_path)
 
     mock_acli2, _ = _make_paginating_acli(total=5, page_size=100)
     with patch.object(fetcher, "_load_acli", return_value=mock_acli2):
-        path_b = fetcher.fetch_snapshot(
-            "2026-05-24-pass-03b", repo_root=tmp_path
-        )
+        path_b = fetcher.fetch_snapshot("2026-05-24-pass-03b", repo_root=tmp_path)
 
     assert path_a.read_bytes() == path_b.read_bytes(), (
         "Two fetches with identical data must produce byte-identical snapshots"
@@ -241,10 +243,12 @@ def test_fetch_snapshot_paginates_through_full_result_set(tmp_path, fetcher):
     assert len(parsed) == 250
     assert "DIG-0" in parsed
     assert "DIG-249" in parsed
-    # All search_issues calls used the filtered JQL
+    # Every search_issues call carried one of the two split JQLs.
     client = holder["client"]
     for call in client.calls:
-        assert call["jql"] == EXPECTED_JQL
+        assert call["jql"] in EXPECTED_JQLS, (
+            f"Expected JQL in {EXPECTED_JQLS!r}; got {call['jql']!r}"
+        )
 
 
 def test_fetch_snapshot_search_error_propagates(tmp_path, fetcher):

@@ -18,12 +18,46 @@ import os
 import sys
 from pathlib import Path
 
-# Filtered JQL — only unresolved issues or issues updated in the last hour.
-# AC literal: `project = DIG AND (resolution = Unresolved OR updated >= -1h)`
-JQL = "project = DIG AND (resolution = Unresolved OR updated >= -1h)"
+# Split-JQL contract (bug f6cc-b174-9e9a-435c — single JQL hit 1000-issue
+# ACLI ceiling because DIG has > 1000 issues across active + Done):
+#
+#   Query 1 (active working set): `project = <PROJ> AND status != "Done"`
+#       The reconciler's primary scope — every issue we actively reconcile.
+#       Empirically 1,050 issues on 2026-05-26 (probe run 26430555890),
+#       headroom for moderate growth before the 1,200 ceiling triggers.
+#
+#   Query 2 (recent Done): `project = <PROJ> AND status = "Done" ORDER BY updated DESC`
+#       Server-side sort + client-side cap at _DONE_RECENT_CAP. We capture
+#       the most-recently-updated 1,000 Done issues; older Done items are
+#       intentionally NOT in the snapshot. They remain in Jira but are
+#       outside the bridge's reconciliation window.
+#
+# "Done" is the only Done-equivalent status in the DIG workflow (probe
+# confirmed: To Do, In Progress, Done — no Closed / Resolved). If the
+# DIG workflow adds a second closed-equivalent status, this list must
+# extend OR the queries must move to `statusCategory != "Done"`.
+JQL_ACTIVE = 'project = DIG AND status != "Done"'
+JQL_DONE_RECENT = 'project = DIG AND status = "Done" ORDER BY updated DESC'
 
-# Hard ACLI ceiling per JRACLOUD-94632.
-_ACLI_CEILING = 1000
+# Public JQL list (ordered: active first, then Done-recent). Exposed for
+# observability tests that want to assert "the fetcher emitted these JQL
+# strings". DO NOT export the single legacy `JQL` constant any more —
+# bug f6cc replaced the single-query design.
+JQLS: tuple[str, ...] = (JQL_ACTIVE, JQL_DONE_RECENT)
+
+# Hard ACLI per-query ceiling. Raised from 1,000 to 1,200 in bug f6cc
+# after empirical confirmation that the DIG working set has 1,050 active
+# issues + 1,120 Done issues (probe 2026-05-26). 1,200 covers active
+# with ~150-issue headroom and bounds the Done query under its 1,000-
+# issue cap (see _DONE_RECENT_CAP). If either query exceeds this ceiling
+# again, raise SilentTruncationError rather than silently truncating.
+_ACLI_CEILING = 1200
+
+# Cap on the Done snapshot — keep the N most-recently-updated Done issues
+# only. ORDER BY updated DESC in JQL_DONE_RECENT ensures the cap selects
+# the most-recently-updated items; older Done items are dropped at the
+# fetch boundary (a documented trade-off in bug f6cc).
+_DONE_RECENT_CAP = 1000
 
 
 class SilentTruncationError(Exception):
@@ -113,15 +147,21 @@ def _extract_issues(result) -> list[dict]:
     return []
 
 
-def _iter_pages(client, jql: str, page_size: int = 100):
+def _iter_pages(client, jql: str, page_size: int = 100, cap: int | None = None):
     """Generator yielding one page (list[dict]) per ACLI call.
 
     Termination:
       * Page is empty or shorter than ``page_size`` (natural end).
-      * Accumulated issue count would meet/exceed the 1000-issue ACLI ceiling
-        — raises ``SilentTruncationError`` before yielding the violating page.
+      * Accumulated issue count would meet/exceed the per-query ACLI
+        ceiling — raises ``SilentTruncationError`` before yielding the
+        violating page.
+      * Caller-supplied ``cap`` is reached — stops cleanly (does NOT
+        raise; the cap is an intentional client-side truncation, not a
+        silent ACLI truncation). When set, the final yielded page is
+        sliced so total yielded items never exceed ``cap``.
       * ACLI returns the same ``next_page_token`` on two consecutive calls
-        ("same-token-twice") — raises ``SilentTruncationError(reason='same-token-twice')``.
+        ("same-token-twice") — raises
+        ``SilentTruncationError(reason='same-token-twice')``.
     """
     start_at = 0
     accumulated = 0
@@ -153,7 +193,7 @@ def _iter_pages(client, jql: str, page_size: int = 100):
         if not page:
             return
 
-        # 1000-issue ACLI ceiling: if adding this page would reach or exceed
+        # Per-query ACLI ceiling: if adding this page would reach or exceed
         # the ceiling, raise rather than yield a silently-truncated set.
         if accumulated + len(page) >= _ACLI_CEILING:
             raise SilentTruncationError(
@@ -162,18 +202,30 @@ def _iter_pages(client, jql: str, page_size: int = 100):
                 reason="ceiling",
             )
 
+        # Client-side cap: yield a clipped final page if we'd exceed `cap`.
+        if cap is not None and accumulated + len(page) > cap:
+            remaining = cap - accumulated
+            if remaining > 0:
+                yield page[:remaining]
+            return
+
         yield page
         accumulated += len(page)
+
+        if cap is not None and accumulated >= cap:
+            return
 
         if len(page) < page_size:
             return
         start_at += page_size
 
 
-def collect(client, jql: str, page_size: int = 100) -> list[dict]:
+def collect(
+    client, jql: str, page_size: int = 100, cap: int | None = None
+) -> list[dict]:
     """Drain ``_iter_pages`` into a single flat list of issues."""
     issues: list[dict] = []
-    for page in _iter_pages(client, jql, page_size=page_size):
+    for page in _iter_pages(client, jql, page_size=page_size, cap=cap):
         issues.extend(page)
     return issues
 
@@ -182,15 +234,26 @@ def fetch_snapshot(
     pass_id: str,
     repo_root: Path | None = None,
 ) -> Path:
-    """Fetch all matching DIG issues and write a normalized snapshot JSON.
+    """Fetch all matching DIG issues across the two-JQL split and write a
+    normalized snapshot JSON.
 
-    Paginates via ``_iter_pages``, dedups cross-page key collisions (emitting
-    a ``fetcher-dedup-suppressed`` alert via ``alert_store.append``), and
-    writes a deterministically-ordered JSON snapshot to
+    Issues two queries in order (see ``JQLS``):
+
+      1. ``JQL_ACTIVE``  — active working set (``status != "Done"``).
+      2. ``JQL_DONE_RECENT`` — Done issues, ``ORDER BY updated DESC``,
+         capped at ``_DONE_RECENT_CAP``.
+
+    Each query paginates via ``_iter_pages``. Results are merged into a
+    single snapshot dict; cross-query duplicates (which should not occur —
+    status partitions the set — but are tolerated for robustness) are
+    deduped via ``seen_keys`` and emit a ``fetcher-dedup-suppressed`` alert.
+
+    Writes a deterministically-ordered JSON snapshot to
     ``bridge_state/snapshots/<pass_id>.json``.
 
     Raises:
-        SilentTruncationError: ACLI ceiling hit or same-token-twice stall.
+        SilentTruncationError: Per-query ACLI ceiling hit, or same-token-
+            twice cursor stall on either query.
         Any exception raised by ``AcliClient.search_issues()`` propagates out.
     """
     if repo_root is None:
@@ -209,27 +272,38 @@ def fetch_snapshot(
     seen_keys: set[str] = set()
     snapshot: dict[str, dict] = {}
 
-    for page in _iter_pages(client, JQL, page_size=100):
-        for issue in page:
-            key = issue.get("key", "")
-            if not key:
-                continue
-            if key in seen_keys:
-                # Cross-page duplicate — dedup AND emit observable alert.
-                alert_store.append(
-                    {
-                        "kind": "fetcher-dedup-suppressed",
-                        "key": key,
-                        "pass_id": pass_id,
-                    },
-                    repo_root=repo_root,
-                )
-                continue
-            seen_keys.add(key)
-            fields = issue.get("fields", {})
-            if not isinstance(fields, dict):
-                fields = {}
-            snapshot[key] = {k: fields[k] for k in sorted(fields.keys())}
+    # Per-query caps: active is uncapped (the ACLI ceiling is its only
+    # bound); Done is intentionally capped to the most-recently-updated
+    # _DONE_RECENT_CAP issues. Stored as a tuple of (jql, cap) so the
+    # iteration is straightforward and observable.
+    queries: tuple[tuple[str, int | None], ...] = (
+        (JQL_ACTIVE, None),
+        (JQL_DONE_RECENT, _DONE_RECENT_CAP),
+    )
+
+    for jql, cap in queries:
+        for page in _iter_pages(client, jql, page_size=100, cap=cap):
+            for issue in page:
+                key = issue.get("key", "")
+                if not key:
+                    continue
+                if key in seen_keys:
+                    # Cross-page (or cross-query) duplicate — dedup AND
+                    # emit observable alert.
+                    alert_store.append(
+                        {
+                            "kind": "fetcher-dedup-suppressed",
+                            "key": key,
+                            "pass_id": pass_id,
+                        },
+                        repo_root=repo_root,
+                    )
+                    continue
+                seen_keys.add(key)
+                fields = issue.get("fields", {})
+                if not isinstance(fields, dict):
+                    fields = {}
+                snapshot[key] = {k: fields[k] for k in sorted(fields.keys())}
 
     output_dir = repo_root / "bridge_state" / "snapshots"
     output_dir.mkdir(parents=True, exist_ok=True)
