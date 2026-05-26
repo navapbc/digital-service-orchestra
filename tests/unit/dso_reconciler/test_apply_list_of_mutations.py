@@ -177,3 +177,68 @@ def test_inbound_mutation_raises_typeerror_not_silent_outbound_routing(
             applier.apply(inbound_mutations, "pass-4", repo_root=tmp_path)
         # _apply_batch was NEVER called — guard fired before normalisation
         assert ab.call_count == 0
+
+
+# ---------------------------------------------------------------------------
+# Coverage gaps flagged by PR #364 cycle 3 llm-review (rolled into follow-on)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("empty_value", [[], None])
+def test_apply_with_empty_or_none_mutations_passes_empty_list(
+    applier_and_mutation, tmp_path, empty_value
+):
+    """`apply(None | [], pass_id, repo_root)` reaches _apply_batch with an
+    empty list — not a crash or a None. Line 1236 normalizes via
+    `list(mutations or [])`; both inputs must produce []."""
+    applier, _ = applier_and_mutation
+    with patch.object(applier, "_apply_batch", return_value=tmp_path / "m.json") as ab:
+        applier.apply(empty_value, "pass-empty", repo_root=tmp_path)
+    assert ab.call_count == 1
+    assert ab.call_args[0][0] == [], (
+        f"empty/None mutations did not normalize to []: {ab.call_args[0][0]!r}"
+    )
+
+
+def test_apply_with_all_dict_legacy_format_skips_normalization(
+    applier_and_mutation, tmp_path
+):
+    """When mutations is entirely legacy-format dicts (no Mutation objects),
+    the any(_looks_like_mutation) guard evaluates False and dicts pass
+    directly to _apply_batch unchanged. This is the documented contract path
+    pre-dating the Mutation epic."""
+    applier, _ = applier_and_mutation
+    legacy_dicts = [
+        {"action": "create", "key": "DIG-1", "fields": {"summary": "a"}},
+        {"action": "update", "key": "DIG-2", "fields": {"summary": "b"}},
+    ]
+    with patch.object(applier, "_apply_batch", return_value=tmp_path / "m.json") as ab:
+        applier.apply(legacy_dicts, "pass-legacy", repo_root=tmp_path)
+    passed_list = ab.call_args[0][0]
+    # Each element is the SAME object as the input — no normalization ran.
+    assert passed_list[0] is legacy_dicts[0], "legacy dict was unexpectedly transformed"
+    assert passed_list[1] is legacy_dicts[1], "legacy dict was unexpectedly transformed"
+
+
+def test_mutation_to_batch_dict_handles_empty_payload(applier_and_mutation, tmp_path):
+    """`_mutation_to_batch_dict` with an empty-but-non-None payload must not
+    crash. The Mutation contract (mutation.py:__post_init__) rejects None
+    payloads, so the `if mutation.payload else {}` branch in
+    _mutation_to_batch_dict is defense-in-depth for falsy mappings ({}),
+    not for None — this test pins the empty-dict path."""
+    applier, mut_mod = applier_and_mutation
+    mutation_empty_payload = mut_mod.Mutation(
+        direction=mut_mod.MutationDirection.outbound,
+        action=mut_mod.MutationAction.create,
+        target="DIG-999",
+        payload={},
+        provenance={"source": "test"},
+    )
+    with patch.object(applier, "_apply_batch", return_value=tmp_path / "m.json") as ab:
+        applier.apply([mutation_empty_payload], "pass-empty-payload", repo_root=tmp_path)
+    passed = ab.call_args[0][0][0]
+    assert passed["fields"] == {}
+    assert passed["key"] == "DIG-999"
+    assert passed["action"] == "create"
+    assert passed["local_id"] == ""
+    assert passed["follow_on"] is None
