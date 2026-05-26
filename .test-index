@@ -583,3 +583,4 @@ plugins/dso/scripts/check-copy-needs-schema.sh:tests/scripts/test-check-copy-nee
 plugins/dso/scripts/dogfood-gov-copy.sh:plugins/dso/tests/test-dogfood-gov-copy.sh
 plugins/dso/scripts/verify-story-merge-trailer.sh:tests/scripts/test-verify-story-merge-trailer.sh
 plugins/dso/scripts/emit-missing-trailer-warning.sh:tests/scripts/test-emit-missing-trailer-warning.sh
+plugins/dso/scripts/dso_reconciler/applier.py:tests/unit/dso_reconciler/test_dso_id_label_writers.py,tests/unit/dso_reconciler/test_apply_list_of_mutations.py
