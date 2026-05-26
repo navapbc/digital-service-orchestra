@@ -1264,17 +1264,23 @@ def apply(
             f"reconcile._dispatch_mutation / _apply_typed per-mutation. "
             f"Tracked by meta-bug 5f2a-9a9f-2b4a-4aab."
         )
-    if mutations_list and any(
-        isinstance(m, mut_mod.Mutation)
-        or (
+    # Use one predicate (_looks_like_mutation) for both detection and
+    # conversion so the two passes can never disagree on element class.
+    # The earlier code used isinstance+type(name) for detection but bare
+    # hasattr("direction") for conversion — coderabbit flagged this as
+    # "asymmetric and fragile" on PR #364.
+    def _looks_like_mutation(m) -> bool:
+        if isinstance(m, mut_mod.Mutation):
+            return True
+        return (
             type(m).__name__ == "Mutation"
             and hasattr(m, "direction")
             and hasattr(m, "action")
         )
-        for m in mutations_list
-    ):
+
+    if mutations_list and any(_looks_like_mutation(m) for m in mutations_list):
         mutations_list = [
-            _mutation_to_batch_dict(m) if hasattr(m, "direction") else m
+            _mutation_to_batch_dict(m) if _looks_like_mutation(m) else m
             for m in mutations_list
         ]
     return _apply_batch(mutations_list, pass_id, repo_root=repo_root)
