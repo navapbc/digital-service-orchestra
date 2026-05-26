@@ -4,7 +4,7 @@ Drive a PR opened by `merge-to-main.sh` through to merge in a **local session** 
 
 ## When to read this doc
 
-Read and execute this workflow whenever `merge-to-main.sh` has opened a PR but exits before the PR is merged — i.e., the script emitted `ESCALATE:` for any of: thread resolution, CI remediation, conflict resolution, or simply returned after the push/open-PR phase in PR-merge-strategy mode. Also read it when the user explicitly asks to "finish merging the PR" or "drive PR #N to merge."
+Read and execute this workflow whenever `merge-to-main.sh` has opened a PR but exits before the PR is merged — i.e., the script emitted a structured local escalation (`_dso_emit_local_escalation`) for any of: `comments_since_push`, `resolve_threads`, `conflict_resolution`, `remediate`, or simply returned after the push/open-PR phase in PR-merge-strategy mode. Also read it when the user explicitly asks to "finish merging the PR" or "drive PR #N to merge." Do not re-run `merge-to-main.sh` to drive the PR forward — the PR-finalize loop (this workflow + `pr-finalize-classify.sh`) is the canonical local driver. (Bug 9e06-e198-fb6f-4c39.)
 
 ## Prerequisites
 

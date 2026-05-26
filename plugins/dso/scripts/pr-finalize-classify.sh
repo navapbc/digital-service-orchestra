@@ -198,7 +198,7 @@ if not isinstance(cs, list):
     cs = []
 out = []
 for c in cs:
-    if (c.get('bucket') or '').lower() == 'fail':
+    if (c.get('bucket') or '').lower() in ('fail', 'cancel'):
         out.append({'name': c.get('name'), 'state': c.get('state',''), 'run_url': c.get('link','')})
 print(json.dumps(out))
 ") || _failing='[]'

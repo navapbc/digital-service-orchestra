@@ -6117,5 +6117,81 @@ t_pr_body_falls_back_to_origin_base() {
 t_pr_body_falls_back_to_origin_base
 
 # ---------------------------------------------------------------------------
+# Bug 9e06-e198-fb6f-4c39: every _dso_emit_local_escalation call site must
+# direct the session agent to PR-FINALIZE-WORKFLOW.md (the canonical loop
+# driver), not "re-run merge-to-main.sh". Otherwise the script bails on the
+# first blocker and the agent re-escalates at the same phase.
+# ---------------------------------------------------------------------------
+
+# t_all_escalation_sites_reference_pr_finalize_workflow
+# Static check: every `_dso_emit_local_escalation` block in merge-to-main-pr.sh
+# must mention PR-FINALIZE-WORKFLOW.md within the call's argument range, and
+# no block may instruct the agent to re-run merge-to-main.sh.
+t_all_escalation_sites_reference_pr_finalize_workflow() {
+    local _missing _bad_rerun
+    # Extract each call's source range (call line + next 3 lines covers the
+    # multi-line continuation of the typical 3-arg invocation). Then assert
+    # each range contains the workflow reference and lacks "re-run merge-to-main.sh".
+    # Match only actual call sites: lines starting with whitespace then
+    # `_dso_emit_local_escalation "<phase>"` — excludes the function definition
+    # (`_dso_emit_local_escalation()`) and any comments mentioning the name.
+    _missing=$(awk '
+        /^[[:space:]]+_dso_emit_local_escalation[[:space:]]+"/ {
+            # Collect this line plus the next 3 (covers 3-arg multi-line call).
+            block = $0
+            for (i = 1; i <= 3; i++) { getline next_line; block = block "\n" next_line }
+            if (index(block, "PR-FINALIZE-WORKFLOW.md") == 0) {
+                print "site_missing_workflow_ref_near_line_" NR
+            }
+        }
+    ' "$PR_SCRIPT")
+    _bad_rerun=$(awk '
+        /^[[:space:]]+_dso_emit_local_escalation[[:space:]]+"/ {
+            block = $0
+            for (i = 1; i <= 3; i++) { getline next_line; block = block "\n" next_line }
+            # The fix introduced "Do not re-run merge-to-main.sh." as an explicit
+            # negation; only flag affirmative "re-run merge-to-main" imperatives.
+            if (block ~ /and re-run merge-to-main\.sh/ ||
+                block ~ /before re-running merge-to-main\.sh/) {
+                print "site_tells_agent_to_rerun_near_line_" NR
+            }
+        }
+    ' "$PR_SCRIPT")
+
+    if [[ -z "$_missing" && -z "$_bad_rerun" ]]; then
+        assert_eq "t_all_escalation_sites_reference_pr_finalize_workflow" "ok" "ok"
+    else
+        assert_eq "t_all_escalation_sites_reference_pr_finalize_workflow" \
+            "ok" "missing=[$_missing] bad_rerun=[$_bad_rerun]"
+    fi
+}
+t_all_escalation_sites_reference_pr_finalize_workflow
+
+# t_emit_local_escalation_includes_next_action
+# Direct unit test: _dso_emit_local_escalation emits a structured next_action
+# field containing the workflow doc + loop driver paths, so a calling harness
+# can detect the handoff target without parsing the free-form 'instructions'
+# prose.
+t_emit_local_escalation_includes_next_action() {
+    local _stdout
+    _stdout=$(
+        PR_LIB_MODE="1" \
+        bash -c '
+            source "$0" 2>/dev/null
+            _dso_emit_local_escalation "remediate" "test reason" "test instr"
+        ' "$PR_SCRIPT" 2>/dev/null
+    )
+    if echo "$_stdout" | grep -q '"next_action"' \
+        && echo "$_stdout" | grep -q "PR-FINALIZE-WORKFLOW.md" \
+        && echo "$_stdout" | grep -q "pr-finalize-classify.sh"; then
+        assert_eq "t_emit_local_escalation_includes_next_action" "ok" "ok"
+    else
+        assert_eq "t_emit_local_escalation_includes_next_action" \
+            "ok" "missing next_action handoff in stdout: $_stdout"
+    fi
+}
+t_emit_local_escalation_includes_next_action
+
+# ---------------------------------------------------------------------------
 # end of file
 print_summary

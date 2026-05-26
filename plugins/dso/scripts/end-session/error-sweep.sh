@@ -23,7 +23,7 @@ TICKET_CMD="${TICKET_CMD:-${_ERROR_SWEEP_SCRIPT_DIR%/*}/ticket}"
 
 # Categories that are normal operational noise — counts are tracked but no ticket is created.
 # Source of truth: hooks/track-tool-errors.sh (NOISE_CATEGORIES variable).
-NOISE_CATEGORIES="file_not_found command_exit_nonzero"
+NOISE_CATEGORIES="file_not_found command_exit_nonzero test_failure read_file_does_not"
 
 # _extract_category_details: extract deduplicated error details for a category as markdown
 # Args: $1=counter_file $2=category

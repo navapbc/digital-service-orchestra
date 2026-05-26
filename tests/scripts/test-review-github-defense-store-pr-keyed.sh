@@ -86,6 +86,21 @@ LOG="${GH_CALL_LOG:-/dev/null}"
     printf 'CALL'
     for a in "$@"; do printf '\t%s' "$a"; done
     printf '\n'
+    # bug acff: github_defense_store_write switched from `--body <text>` to
+    # `--body-file <path>`. Capture body-file contents into the call log so
+    # tests that previously asserted against the argv-embedded body can keep
+    # the same `grep <substring> "$calllog"` assertion shape against
+    # body-file content. Body-file is mktemp'd and deleted by the caller —
+    # we have to read it before that.
+    _prev=""
+    for a in "$@"; do
+        if [[ "$_prev" == "--body-file" && -n "$a" && -r "$a" ]]; then
+            printf 'BODY-FILE-CONTENTS<<\n'
+            cat "$a" 2>/dev/null || true
+            printf '\n>>BODY-FILE-CONTENTS\n'
+        fi
+        _prev="$a"
+    done
 } >> "$LOG" 2>/dev/null || true
 
 exit_code="${GH_EXIT_CODE:-0}"
@@ -147,12 +162,14 @@ test_github_defense_store_write_embeds_pr_number() {
     fi
     assert_eq "gh pr comment was called (exit $exit_code)" "1" "$posted"
 
-    # The posted comment body must contain pr_number=42 inside the DEFENSE_RECORD JSON
-    local comment_body=""
-    comment_body=$(grep 'pr	comment' "$calllog" 2>/dev/null || true)
+    # The posted comment body must contain pr_number=42 inside the DEFENSE_RECORD JSON.
+    # After bug acff (commit aba6542873), github_defense_store_write posts via
+    # `--body-file` instead of `--body`, so the body content lives in the
+    # `BODY-FILE-CONTENTS<<...>>BODY-FILE-CONTENTS` block the fake gh stub
+    # captures, not directly on the `pr	comment` argv line.
     local has_pr_number=0
-    if echo "$comment_body" | grep -qF '"pr_number": 42' 2>/dev/null || \
-       echo "$comment_body" | grep -qF '"pr_number":42' 2>/dev/null; then
+    if grep -qF '"pr_number": 42' "$calllog" 2>/dev/null || \
+       grep -qF '"pr_number":42' "$calllog" 2>/dev/null; then
         has_pr_number=1
     fi
     assert_eq "DEFENSE_RECORD body embeds pr_number=42" "1" "$has_pr_number"

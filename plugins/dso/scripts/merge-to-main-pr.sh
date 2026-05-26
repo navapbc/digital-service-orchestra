@@ -121,10 +121,17 @@ _dso_is_ci_environment() {
 }
 
 # --- _dso_emit_local_escalation: structured exit when LLM dispatch is requested locally ---
-# Args: $1=phase (resolve_threads|conflict_resolution|remediate),
+# Args: $1=phase (comments_since_push|resolve_threads|conflict_resolution|remediate),
 #       $2=reason (one-line),
 #       $3=instructions (what the session agent should do)
 # Emits a JSON object to stdout describing the escalation. Caller chooses exit code.
+#
+# All escalations from this function direct the session agent to the canonical
+# PR-finalize loop driver (PR-FINALIZE-WORKFLOW.md + pr-finalize-classify.sh).
+# The 'instructions' field carries phase-specific context for the CURRENT iteration;
+# 'next_action' is a stable structured handoff that does not vary by phase so a
+# calling harness can detect the loop-driver target programmatically without
+# parsing prose. Bug 9e06-e198-fb6f-4c39.
 _dso_emit_local_escalation() {
     local _phase="${1:-unknown}"
     local _reason="${2:-LLM dispatch requested in local environment (disallowed)}"
@@ -136,11 +143,16 @@ if sys.version_info >= (3, 2):
 else:
     ts = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
 print(json.dumps({
-    'schema_version': 1,
+    'schema_version': 2,
     'escalation': 'local_no_llm_dispatch',
     'phase': os.environ.get('PHASE', ''),
     'reason': os.environ.get('REASON', ''),
     'instructions': os.environ.get('INSTR', ''),
+    'next_action': {
+        'workflow_doc': '\${CLAUDE_PLUGIN_ROOT}/docs/workflows/PR-FINALIZE-WORKFLOW.md',
+        'loop_driver': '.claude/scripts/dso pr-finalize-classify.sh',
+        'description': 'Read PR-FINALIZE-WORKFLOW.md and drive the PR to merge via pr-finalize-classify.sh. Do not re-run merge-to-main.sh.',
+    },
     'timestamp': ts,
 }))
 " 2>/dev/null || true
@@ -211,7 +223,7 @@ print(n)
     if [[ "$_new_count" -gt 0 ]]; then
         _dso_emit_local_escalation "comments_since_push" \
             "PR #${_pr_number} has ${_new_count} new comment(s) since the last push (head=${_head_sha:0:8}, since=${_last_push_ts}; PR: ${_pr_url})" \
-            "Session agent must read each new PR comment, address the feedback (push fixes or reply), and re-run merge-to-main.sh."
+            "Session agent must read each new PR comment and address the feedback (push fixes or reply), then drive the PR to merge via \${CLAUDE_PLUGIN_ROOT}/docs/workflows/PR-FINALIZE-WORKFLOW.md using pr-finalize-classify.sh. Do not re-run merge-to-main.sh."
         return 1
     fi
     return 0
@@ -1102,7 +1114,7 @@ _pr_dispatch_unresolved_batch() {
         _pdb_unresolved_ids="${_pdb_unresolved_ids%,}"
         _dso_emit_local_escalation "resolve_threads" \
             "PR #${_pdb_pr_number} has unresolved review threads; LLM-driven thread resolution is CI-only (PR: ${_pdb_pr_url}; threads: ${_pdb_unresolved_ids})" \
-            "Session agent must address the open PR review threads (resolve, comment, or push fixes) before re-running merge-to-main.sh."
+            "Session agent must address the open PR review threads (resolve, comment, or push fixes), then drive the PR to merge via \${CLAUDE_PLUGIN_ROOT}/docs/workflows/PR-FINALIZE-WORKFLOW.md using pr-finalize-classify.sh. Do not re-run merge-to-main.sh."
         return 2
     fi
 
@@ -1500,7 +1512,7 @@ _phase_resolve_threads() {
             if ! _dso_is_ci_environment; then
                 _dso_emit_local_escalation "resolve_threads" \
                     "_LLM_DISPATCH_CMD not set; cannot dispatch LLM thread resolution locally (PR: ${_pr_url}; unresolved: ${_unresolved_ids})" \
-                    "Session agent must resolve the open PR review threads manually. Read \${CLAUDE_PLUGIN_ROOT}/docs/workflows/PR-FINALIZE-WORKFLOW.md and drive the loop via pr-finalize-classify.sh, then re-run merge-to-main.sh."
+                    "Session agent must resolve the open PR review threads manually, then drive the PR to merge via \${CLAUDE_PLUGIN_ROOT}/docs/workflows/PR-FINALIZE-WORKFLOW.md using pr-finalize-classify.sh. Do not re-run merge-to-main.sh."
                 return 1
             fi
             echo "ESCALATE: _LLM_DISPATCH_CMD not set in CI; configure a compat-shim. UNRESOLVED:${_unresolved_ids} PR:${_pr_url}" >&2
@@ -1754,7 +1766,7 @@ _dispatch_resolve_conflicts() {
     if ! _dso_is_ci_environment; then
         _dso_emit_local_escalation "conflict_resolution" \
             "PR #${_pr_number} is CONFLICTING; LLM-driven conflict resolution is CI-only (PR: ${_pr_url})" \
-            "Session agent must run /dso:resolve-conflicts (or rebase manually), push, and re-run merge-to-main.sh."
+            "Session agent must run /dso:resolve-conflicts (or rebase manually) and push, then drive the PR to merge via \${CLAUDE_PLUGIN_ROOT}/docs/workflows/PR-FINALIZE-WORKFLOW.md using pr-finalize-classify.sh. Do not re-run merge-to-main.sh."
         return 2
     fi
     # compat-shim: LLM helper was deleted in S3; _RESOLVE_CONFLICTS_LLM_CMD must be set.
@@ -1902,7 +1914,7 @@ _dispatch_fix_agent() {
     if ! _dso_is_ci_environment; then
         _dso_emit_local_escalation "remediate" \
             "CI failed; LLM-driven fix dispatch is CI-only (findings: ${_findings_path})" \
-            "Session agent must invoke /dso:fix-bug on the failing CI run, push the fix, and re-run merge-to-main.sh."
+            "Session agent must invoke /dso:fix-bug on the failing CI run and push the fix, then drive the PR to merge via \${CLAUDE_PLUGIN_ROOT}/docs/workflows/PR-FINALIZE-WORKFLOW.md using pr-finalize-classify.sh. Do not re-run merge-to-main.sh."
         return 2
     fi
     # compat-shim: LLM helper was deleted in S3; _REMEDIATE_LLM_CMD must be set.
