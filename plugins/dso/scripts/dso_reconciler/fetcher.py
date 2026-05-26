@@ -157,7 +157,28 @@ def fetch_snapshot(
     )
 
     # Local import — avoid a circular at module load (alert_store is leaf).
-    from plugins.dso.scripts.dso_reconciler import alert_store
+    # Use importlib + sys.modules registration rather than
+    # `from plugins.dso.scripts.dso_reconciler import alert_store` — the
+    # dotted-package form only resolves when `plugins` is importable as a
+    # Python package, which it is NOT in the production CI runner (no
+    # __init__.py, not on sys.path). The test suite makes the package form
+    # work by pre-seeding sys.modules with namespace stubs (Cluster A
+    # remediation), but production code cannot rely on test-side seeding.
+    # Bug ec9a-be6b-f50a-47b4.
+    import importlib.util as _importlib_util
+    import sys as _sys
+    from pathlib import Path as _Path
+
+    _ALERT_STORE_KEY = "dso_reconciler.alert_store"
+    if _ALERT_STORE_KEY in _sys.modules:
+        alert_store = _sys.modules[_ALERT_STORE_KEY]
+    else:
+        _spec = _importlib_util.spec_from_file_location(
+            _ALERT_STORE_KEY, _Path(__file__).parent / "alert_store.py"
+        )
+        alert_store = _importlib_util.module_from_spec(_spec)
+        _sys.modules[_ALERT_STORE_KEY] = alert_store
+        _spec.loader.exec_module(alert_store)  # type: ignore[union-attr]
 
     seen_keys: set[str] = set()
     snapshot: dict[str, dict] = {}
