@@ -68,10 +68,22 @@ for t in items:
 OVERDUE_FILED=0
 for obligation_id in $IDS; do
     SHOW_JSON=$("$TICKET_CLI" ticket show "$obligation_id" 2>/dev/null) || continue
-    # Extract fields. Validation command is JSON-encoded by the parser so
-    # newlines, backslashes, and other shell metacharacters in the ticket
-    # description cannot corrupt the bug body when interpolated below.
-    parsed=$(printf '%s' "$SHOW_JSON" | python3 -c "
+    # Extract fields. NUL-delimited output between fields keeps the
+    # validation command intact even if it contains double-quotes,
+    # backslashes, or other characters that would confuse newline-based
+    # parsing or shell re-evaluation. Parent is read from the tracker's
+    # structured `parent_id` field — NOT from the obligation description —
+    # so an actor with edit access to the description cannot re-parent
+    # the overdue bug. (Tracker write access is, in this threat model,
+    # already equivalent to direct bug-filing rights — see Finding 3
+    # defense — but reading the structured field eliminates the parsing
+    # surface entirely.)
+    # Write NUL-delimited parser output to a temp file, then read each
+    # field via `read -d ''`. We avoid `$(...)` capture because bash
+    # command substitution silently strips NUL bytes, which would
+    # destroy our field separator.
+    parsed_file=$(mktemp /tmp/check-obl-parsed.XXXXXX)
+    printf '%s' "$SHOW_JSON" | python3 -c "
 import json, re, sys
 try:
     t = json.load(sys.stdin)
@@ -80,24 +92,29 @@ except Exception:
 desc = t.get('description','') or ''
 parent = t.get('parent_id','') or ''
 m_dl = re.search(r'Deadline:\s*(\d{4}-\d{2}-\d{2})', desc)
-# Validation command: take only up to first newline to bound the field; the
-# raw value is then JSON-encoded so downstream shell interpolation is safe
-# regardless of metacharacters in the captured text.
+# Validation command bounded at first newline so multi-line descriptions
+# cannot inject extra log lines or smuggle in shell-control sequences.
 m_cmd = re.search(r'Validation command:\s*([^\n\r]*)', desc)
 deadline = m_dl.group(1) if m_dl else ''
 cmd = m_cmd.group(1).strip() if m_cmd else ''
-print(deadline)
-print(parent)
-# JSON-encoded (always single line, always shell-quote-safe at the
-# interpolation site since we wrap in double quotes below).
-print(json.dumps(cmd))
-" 2>/dev/null)
-    deadline=$(printf '%s' "$parsed" | sed -n '1p')
-    parent_story=$(printf '%s' "$parsed" | sed -n '2p')
-    val_cmd_json=$(printf '%s' "$parsed" | sed -n '3p')
-    # Decode for the human-readable bug body (single-line guaranteed by the
-    # parser regex above; JSON round-trip strips control characters).
-    val_cmd=$(printf '%s' "$val_cmd_json" | python3 -c "import json,sys; raw=sys.stdin.read().strip(); print(json.loads(raw) if raw else '')" 2>/dev/null)
+# NUL-delimited so the bash consumer can split unambiguously even when
+# cmd contains double-quotes or other shell metacharacters.
+sys.stdout.buffer.write(('\0'.join([deadline, parent, cmd]) + '\0').encode('utf-8'))
+" > "$parsed_file" 2>/dev/null
+    deadline=""; parent_story=""; val_cmd=""
+    {
+        IFS= read -r -d '' deadline || true
+        IFS= read -r -d '' parent_story || true
+        IFS= read -r -d '' val_cmd || true
+    } < "$parsed_file"
+    rm -f "$parsed_file"
+
+    # Belt-and-suspenders: validate parent_story looks like a tracker ID
+    # (alphanumeric, dash, underscore only). Defense in depth against any
+    # future regression that might let untrusted text reach this variable.
+    if [[ -n "$parent_story" && ! "$parent_story" =~ ^[A-Za-z0-9_-]+$ ]]; then
+        parent_story=""
+    fi
 
     [[ -z "$deadline" ]] && continue
     deadline_days=$(_epoch_days "$deadline")
@@ -105,6 +122,11 @@ print(json.dumps(cmd))
 
     if (( deadline_days < TODAY_DAYS )); then
         days_overdue=$(( TODAY_DAYS - deadline_days ))
+        # Bash variable expansion inside double quotes does NOT re-parse the
+        # value, so embedded double-quotes / metacharacters in $val_cmd are
+        # preserved verbatim and reach `ticket create --description` as a
+        # single argv element. No shell-quoting transformation is applied
+        # (and none is needed): the value is passed through argv, not eval.
         body="OBLIGATION OVERDUE: $obligation_id, validation command: ${val_cmd:-<unspecified>}, days overdue: $days_overdue"
         title="Overdue obligation: $obligation_id (${days_overdue}d past deadline)"
         create_args=(ticket create bug "$title" --description "$body" --priority 1)

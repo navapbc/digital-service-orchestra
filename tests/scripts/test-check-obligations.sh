@@ -178,11 +178,89 @@ test_ticket_create_failure_does_not_inflate_count() {
     rm -rf "$tmp"
 }
 
+test_validation_command_with_bare_double_quotes_is_literal() {
+    # Findings 1 & 2: a validation command containing bare double-quotes
+    # (e.g. `echo "hello world"`) must reach the bug --description argv
+    # literally, NOT word-split, NOT shell-interpreted, NOT JSON-escaped.
+    local tmp; tmp=$(mktemp -d /tmp/check-obl-dquote.XXXXXX)
+    _setup_fixture "$tmp" "2020-01-01" 'echo "hello world"'
+    DSO_TICKET_CLI="$tmp/dso" DSO_TODAY="2026-05-26" bash "$MONITOR" 2>/dev/null
+    local count
+    count=$(grep -c '^CREATE ' "$tmp/create-calls.log" 2>/dev/null || echo 0)
+    _assert_eq "double-quoted validation command files exactly 1 bug" "1" "$count"
+    # Parse the NUL-delimited record. The --description argument must equal
+    # the body string with the literal validation command embedded — bare
+    # double-quotes preserved, NOT escaped to \" or stripped.
+    local expected_body='OBLIGATION OVERDUE: obl-0001, validation command: echo "hello world", days overdue: '
+    # Walk the binary record. Each argv element is NUL-terminated.
+    local found="no"
+    if python3 - "$tmp/create-calls.bin" "$expected_body" <<'PY' >/dev/null 2>&1
+import sys
+path = sys.argv[1]
+needle = sys.argv[2]
+with open(path, 'rb') as f:
+    data = f.read()
+args = [a.decode('utf-8', errors='replace') for a in data.split(b'\0')]
+# Find --description and its successor.
+for i, a in enumerate(args):
+    if a == '--description' and i+1 < len(args):
+        if args[i+1].startswith(needle):
+            sys.exit(0)
+sys.exit(1)
+PY
+    then
+        found="yes"
+    fi
+    _assert_eq "bug body contains literal echo \"hello world\"" "yes" "$found"
+    rm -rf "$tmp"
+}
+
+test_parent_story_with_invalid_id_is_dropped() {
+    # Finding 3 (defense-in-depth): even if parent_id reaches the script
+    # with a value containing shell-unsafe characters, it must not be
+    # passed as --parent. The regex gate drops malformed IDs.
+    local tmp; tmp=$(mktemp -d /tmp/check-obl-badparent.XXXXXX)
+    _setup_fixture "$tmp" "2020-01-01"
+    # Override the stub to emit a malformed parent_id.
+    cat > "$tmp/dso" <<'EOF'
+#!/usr/bin/env bash
+set -uo pipefail
+TMP_DIR_SELF="$(dirname "$0")"
+if [[ "$1" == "ticket" && "$2" == "list" ]]; then
+    printf '%s' '[{"ticket_id":"obl-0001"}]'
+    exit 0
+fi
+if [[ "$1" == "ticket" && "$2" == "show" ]]; then
+    printf '%s' '{"ticket_id":"obl-0001","parent_id":"story-83ac; rm -rf /","description":"Deadline: 2020-01-01\nValidation command: ok\n"}'
+    exit 0
+fi
+if [[ "$1" == "ticket" && "$2" == "create" ]]; then
+    printf 'CREATE %s\n' "$*" >> "$TMP_DIR_SELF/create-calls.log"
+    exit 0
+fi
+exit 0
+EOF
+    chmod +x "$tmp/dso"
+    DSO_TICKET_CLI="$tmp/dso" DSO_TODAY="2026-05-26" bash "$MONITOR" 2>/dev/null
+    if grep -q -- '--parent' "$tmp/create-calls.log"; then
+        _assert_eq "malformed parent_id is NOT forwarded to --parent" "yes" "no"
+    else
+        _assert_eq "malformed parent_id is NOT forwarded to --parent" "yes" "yes"
+    fi
+    # And the bug must still be filed (without --parent).
+    local count
+    count=$(grep -c '^CREATE ' "$tmp/create-calls.log" 2>/dev/null || echo 0)
+    _assert_eq "bug still filed when parent_id is dropped" "1" "$count"
+    rm -rf "$tmp"
+}
+
 test_past_deadline_files_one_bug
 test_future_deadline_files_no_bug
 test_monitor_always_exits_zero
 test_missing_deadline_skips_silently
 test_validation_command_with_metachars_is_sanitized
+test_validation_command_with_bare_double_quotes_is_literal
+test_parent_story_with_invalid_id_is_dropped
 test_ticket_create_failure_does_not_inflate_count
 
 printf "check-obligations: PASS=%d FAIL=%d\n" "$PASS" "$FAIL"
