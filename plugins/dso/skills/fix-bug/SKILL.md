@@ -502,9 +502,28 @@ Feature-Request Gate failure must never block a legitimate bug investigation.
 
 ## Phase C: Investigation
 
+### Step 0: Parallel-Pipeline Integration (`fix-bug:investigation` scratch key)
+
+`/dso:debug-everything` Bug-Fix Mode dispatches this skill via a **two-phase parallel pipeline** (`skills/debug-everything/prompts/dispatch-fix-batch.md`). Before Step 1, check the per-ticket scratch for a pre-computed investigation, and check the dispatch prompt for an investigation-only mode hint. Three paths follow:
+
+**Path A — Pre-loaded findings (FAST FORWARD).** Read `fix-bug:investigation` from ticket scratch:
+
+```bash
+SCRATCH_INV=$(.claude/scripts/dso ticket scratch get "$BUG_TICKET_ID" fix-bug:investigation 2>/dev/null)
+```
+
+If `$SCRATCH_INV` parses as `{"value": <Investigation RESULT envelope>}`, treat the embedded RESULT as the output of Step 1 — SKIP Step 1 dispatch entirely — and proceed directly to Step 2 (Hypothesis Validation Gate). The orchestrator has already paid the investigation cost in a prior parallel batch.
+
+**Path B — `MODE: investigation-only` (TERMINATE AT END OF PHASE D).** If the orchestrator dispatch prompt contains the literal token `MODE: investigation-only`, you are running the **investigation half** of the parallel pipeline. Two constraints apply:
+
+1. **Investigate inline — do NOT dispatch investigator sub-agents.** Sub-agents launched via the Agent tool cannot dispatch their own sub-agents (hard architectural constraint of Claude Code). Read source, grep callers, check git history, run hypothesis commands — execute the five-whys / hypothesis-generation / empirical-validation logic *yourself* using Read / Grep / Bash. The investigator agent definitions remain the canonical specification of the investigation rubric; in this mode you apply that rubric inline.
+2. **Terminate at the end of Phase D Step 4 (scratch-write).** Do NOT proceed to Phase E. The orchestrator will dispatch a separate sub-agent in the fix-application phase, which will take Path A above and execute Phases E–I from the scratch-loaded findings.
+
+**Path C — Normal mode.** No scratch entry and no `MODE: investigation-only` token: proceed to Step 1 below as usual (dispatch investigator sub-agent per the normal contract).
+
 ### Step 1: Investigation Sub-Agent Dispatch (/dso:fix-bug)
 
-**You MUST dispatch the investigation sub-agent described below.** Do NOT investigate inline — reading source code, grepping for patterns, running hypothesis commands, or analyzing the bug yourself does not satisfy this step. The sub-agent follows a rigorous investigation template (five whys, hypothesis generation, empirical validation) that prevents confirmation bias. Dispatch the sub-agent, await its RESULT report, then proceed to Phase C Step 2. Do not skip this step even if you have already conducted your own investigation.
+**You MUST dispatch the investigation sub-agent described below** *unless Path A or Path B from Step 0 applies*. Do NOT investigate inline — reading source code, grepping for patterns, running hypothesis commands, or analyzing the bug yourself does not satisfy this step. The sub-agent follows a rigorous investigation template (five whys, hypothesis generation, empirical validation) that prevents confirmation bias. Dispatch the sub-agent, await its RESULT report, then proceed to Phase C Step 2. Do not skip this step even if you have already conducted your own investigation.
 
 **Worktree isolation** (applies to all sub-agent dispatches in this skill): Read and apply `skills/shared/prompts/worktree-dispatch.md`. Worktree isolation is always enabled — add `isolation: "worktree"` to each Agent dispatch and inject `SESSION_BRANCH` / `SESSION_HEAD` into each sub-agent prompt so the sub-agent can sync to session HEAD. Do NOT inject the orchestrator's session-worktree absolute path (per bug 9679-695c-6e11-4d95). After the sub-agent returns, compute `ORCHESTRATOR_ROOT=$(git rev-parse --show-toplevel)` in your own bash context and follow `skills/shared/prompts/single-agent-integrate.md` (which self-bootstraps `ORCHESTRATOR_ROOT` and uses it for the WORKTREE_PATH != ORCHESTRATOR_ROOT guard, harvest, and cleanup).
 
@@ -738,6 +757,10 @@ Note for the re-dispatched agent (not actionable in the current dispatch): when 
 
 Before dispatching a RED test or modifying existing tests, classify the fix into one of three testing modes. This determines which Phase E Step 1 path to follow.
 
+#### Path-B termination check (parallel-pipeline integration)
+
+If Phase C Step 0 selected **Path B (`MODE: investigation-only`)**, proceed to Phase D Step 4 below and terminate after the scratch-write. Do not classify testing mode in investigation-only mode — that decision belongs to the fix-application sub-agent which the orchestrator will dispatch next.
+
 **Examine the investigation RESULT root cause and the approved fix description from Phase D Step 1.**
 
 **Classification rules:**
@@ -758,6 +781,41 @@ testing_mode=<GREEN|UPDATE|RED>
 ```
 
 Proceed to the corresponding Phase E Step 1 branch below.
+
+### Step 4: Investigation-Only Scratch Write & Terminate (`MODE: investigation-only` only)
+
+This step runs **only when Phase C Step 0 selected Path B**. In every other case, skip directly to Phase E.
+
+Assemble the investigation envelope and write it to ticket scratch under the `fix-bug:investigation` key, so the fix-application sub-agent dispatched in the next pipeline phase can fast-forward past Phase C:
+
+```bash
+INVESTIGATION_JSON=$(cat <<'EOF'
+{
+  "schema": "fix-bug:investigation/v1",
+  "bug_id": "<BUG_TICKET_ID>",
+  "investigation_result": <Investigation RESULT envelope from inline investigation>,
+  "complexity": "<TRIVIAL|MODERATE|COMPLEX>",
+  "fixable": <true|false>,
+  "manual_approval_needed": <true|false>,
+  "complex_escalation": <true|false>,
+  "proposed_fix": "<one-paragraph fix summary>"
+}
+EOF
+)
+
+.claude/scripts/dso ticket scratch set "$BUG_TICKET_ID" fix-bug:investigation "$INVESTIGATION_JSON"
+```
+
+Then emit the compact summary on the FINAL line of your sub-agent output (the orchestrator parses this verbatim):
+
+```
+INVESTIGATION_COMPLETE: <bug-id>
+COMPLEXITY: <TRIVIAL|MODERATE|COMPLEX>
+FIXABLE: <true|false>
+SCRATCH_KEY: fix-bug:investigation
+```
+
+**TERMINATE NOW.** Do not proceed to Phase E. The orchestrator's fix-application phase will dispatch a new sub-agent that loads this scratch entry and runs Phases E–I.
 
 ## Phase E: TDD Fix Loop
 

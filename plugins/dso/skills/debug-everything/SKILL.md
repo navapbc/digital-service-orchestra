@@ -51,7 +51,7 @@ Two entry modes that share the same bug-resolution loop (`prompts/dispatch-fix-b
 
 Both modes converge at Phase J (Full Validation). The outer loop (Phase B-J, max 5 cycles) and inner validation loop (Bug-Fix Mode, max `debug.max_fix_validate_cycles`) are independent and must not nest multiplicatively. **The only structural difference between the two modes is that Diagnostic Mode does more to discover new bugs before entering the resolution loop**; the loop itself is shared.
 
-**Bug-Fix Mode note**: `/dso:fix-bug` is invoked at the orchestrator level (via `prompts/dispatch-fix-batch.md` Task dispatch with `isolation: "worktree"` when `DISPATCH_ISOLATION=true`) — preserving Agent tool access for fix-bug's investigation sub-agents.
+**Bug-Fix Mode note**: `/dso:fix-bug` runs as a **two-phase parallel pipeline** (`prompts/dispatch-fix-batch.md`): Phase 1 dispatches investigation-only sub-agents in parallel (each investigates inline and writes findings to ticket scratch under `fix-bug:investigation`); Phase 2 dispatches fix-application sub-agents in parallel (each loads scratch and runs Phases D–I). This split exists because sub-agents launched via the Agent tool cannot dispatch their own sub-agents — investigation must be inline within the sub-agent. The orchestrator's context sees only compact summaries; bulk investigation findings live in scratch. Conflict-aware grouping in Phase 2 prevents overlapping-file fixes from racing.
 
 ---
 
