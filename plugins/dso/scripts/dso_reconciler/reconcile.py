@@ -13,6 +13,7 @@ import json
 import shutil
 import sys
 from pathlib import Path
+from collections.abc import Mapping
 from typing import Any
 
 
@@ -63,18 +64,20 @@ def _build_dispatch_table() -> dict[tuple[str, str], object]:
     applier = _load("reconcile_applier", "applier.py")
 
     return {
-        ("inbound", "create"):           getattr(applier, "_apply_inbound_create"),
-        ("inbound", "update"):           getattr(applier, "_apply_inbound_update"),
-        ("inbound", "delete"):           getattr(applier, "_apply_inbound_delete"),
-        ("inbound", "probe"):            getattr(applier, "_apply_inbound_probe"),
-        ("inbound", "clean_label"):      getattr(applier, "_apply_inbound_clean_label"),
-        ("inbound", "repair_property"):  getattr(applier, "_apply_inbound_repair_property"),
-        ("inbound", "conflict"):         getattr(applier, "_apply_inbound_conflict"),
-        ("outbound", "create"):          getattr(applier, "_apply_outbound_create"),
-        ("outbound", "update"):          getattr(applier, "_apply_outbound_update"),
-        ("outbound", "delete"):          getattr(applier, "_apply_outbound_delete"),
-        ("outbound", "probe"):           getattr(applier, "_apply_outbound_probe"),
-        ("outbound", "conflict"):        getattr(applier, "_apply_outbound_conflict"),
+        ("inbound", "create"): getattr(applier, "_apply_inbound_create"),
+        ("inbound", "update"): getattr(applier, "_apply_inbound_update"),
+        ("inbound", "delete"): getattr(applier, "_apply_inbound_delete"),
+        ("inbound", "probe"): getattr(applier, "_apply_inbound_probe"),
+        ("inbound", "clean_label"): getattr(applier, "_apply_inbound_clean_label"),
+        ("inbound", "repair_property"): getattr(
+            applier, "_apply_inbound_repair_property"
+        ),
+        ("inbound", "conflict"): getattr(applier, "_apply_inbound_conflict"),
+        ("outbound", "create"): getattr(applier, "_apply_outbound_create"),
+        ("outbound", "update"): getattr(applier, "_apply_outbound_update"),
+        ("outbound", "delete"): getattr(applier, "_apply_outbound_delete"),
+        ("outbound", "probe"): getattr(applier, "_apply_outbound_probe"),
+        ("outbound", "conflict"): getattr(applier, "_apply_outbound_conflict"),
     }
 
 
@@ -176,7 +179,9 @@ def _load(name: str, relpath: str):
     return mod
 
 
-def _audit_log_probe(branch_label: str, issue_key: str, detail: dict | None = None) -> None:
+def _audit_log_probe(
+    branch_label: str, issue_key: str, detail: dict | None = None
+) -> None:
     """Write a single audit-log entry to stderr for log-only probe branches.
 
     Used by :func:`route_inbound_probe` for branches that produce no follow-on
@@ -227,7 +232,10 @@ def route_inbound_probe(mutation: Any, probe_result: Any) -> list[Any] | None:
             direction=mut_mod.MutationDirection.inbound,
             action=mut_mod.MutationAction.delete,
             target=target,
-            payload={"reason": "hard_delete", "probe_detail": dict(probe_result.detail)},
+            payload={
+                "reason": "hard_delete",
+                "probe_detail": dict(probe_result.detail),
+            },
             provenance={
                 "source": "inbound_probe_dispatch",
                 "branch": "hard_delete",
@@ -288,7 +296,9 @@ def reconcile_once(pass_id: str, repo_root: Path | None = None) -> dict:
 
     # Read previous snapshot (empty dict on first pass); stable name ensures level-triggered convergence
     prev_path = snapshots_dir / "prev.json"
-    prev_snapshot: dict = json.loads(prev_path.read_text()) if prev_path.exists() else {}
+    prev_snapshot: dict = (
+        json.loads(prev_path.read_text()) if prev_path.exists() else {}
+    )
 
     # Fetch current remote state
     curr_path = fetcher.fetch_snapshot(pass_id, repo_root)
@@ -327,11 +337,31 @@ def reconcile_once(pass_id: str, repo_root: Path | None = None) -> dict:
     # carry a schema_drift kind (raised by the 44e6 repair_property failure
     # path). report_schema_drift surfaces each drift via stderr WARN so the
     # signal is not swallowed.
+    #
+    # Mutations may be plain dicts (legacy schema) or Mutation dataclass
+    # instances (canonical contract from epic 4047 / cde1). Normalise on
+    # access — mirrors the same dual-shape pattern in
+    # preflight_status_mapping below. Pre-fix this loop used
+    # `_m.get("action")` which crashed with "'Mutation' object has no
+    # attribute 'get'" once the reconciler reached this code path in
+    # production with typed Mutations.
+    mut_mod_for_action = _load("reconcile_mutation", "mutation.py")
     for _m in mutations:
-        if _m.get("action") != "repair_property":
+        action_attr = getattr(_m, "action", None)
+        if action_attr is not None:
+            # Typed Mutation shape. Normalise enum/string for comparison.
+            action_str = getattr(action_attr, "value", action_attr)
+            payload = getattr(_m, "payload", None) or {}
+            follow_on = (
+                payload.get("follow_on") if isinstance(payload, Mapping) else None
+            )
+        else:
+            # Legacy dict shape.
+            action_str = _m.get("action")
+            follow_on = _m.get("follow_on")
+        if action_str != mut_mod_for_action.MutationAction.repair_property.value:
             continue
-        follow_on = _m.get("follow_on")
-        if isinstance(follow_on, dict) and follow_on.get("kind") == "schema_drift":
+        if isinstance(follow_on, Mapping) and follow_on.get("kind") == "schema_drift":
             invariants_mod.report_schema_drift(
                 follow_on.get("target"),
                 follow_on.get("observed"),
