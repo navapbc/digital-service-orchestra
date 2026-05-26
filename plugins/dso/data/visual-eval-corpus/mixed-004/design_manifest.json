@@ -1,0 +1,14 @@
+{
+  "fixture_id": "mixed-004",
+  "attribution_class": "mixed",
+  "attribution_confidence": "medium",
+  "description": "Fixture 4 for mixed classification",
+  "scores": {
+    "whitespace_balance": 3,
+    "element_density": 3,
+    "visual_hierarchy_legibility": 3,
+    "alignment_grid_adherence": 3,
+    "intent_match": 3
+  },
+  "provenance": "generated"
+}
