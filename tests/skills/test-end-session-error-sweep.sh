@@ -197,29 +197,30 @@ trap - EXIT
 _teardown_test
 
 # ---------------------------------------------------------------------------
-# test_threshold_50_creates_ticket
-# Counter permission_denied=50, mock ticket list returns empty. Assert ticket create called.
+# test_threshold_500_creates_ticket
+# Counter permission_denied=500, mock ticket list returns empty. Assert ticket create called.
+# Threshold raised from 50 to 500 (bug cf57: low threshold generated noise tickets).
 # ---------------------------------------------------------------------------
 _snapshot_fail
 _setup_test
 trap '_teardown_test' EXIT
-_write_counter "permission_denied" 50
+_write_counter "permission_denied" 500
 _mock_ticket_list_empty
 _run_sweep
 create_calls=$(_count_tk_create_calls)
-assert_eq "test_threshold_50_creates_ticket" "1" "$create_calls"
-assert_pass_if_clean "test_threshold_50_creates_ticket"
+assert_eq "test_threshold_500_creates_ticket" "1" "$create_calls"
+assert_pass_if_clean "test_threshold_500_creates_ticket"
 trap - EXIT
 _teardown_test
 
 # ---------------------------------------------------------------------------
 # test_dedup_existing_ticket_skips
-# Counter=50, mock ticket list returns matching ticket line. Assert ticket create NOT called.
+# Counter=500, mock ticket list returns matching ticket line. Assert ticket create NOT called.
 # ---------------------------------------------------------------------------
 _snapshot_fail
 _setup_test
 trap '_teardown_test' EXIT
-_write_counter "permission_denied" 50
+_write_counter "permission_denied" 500
 _mock_ticket_list_with_match "permission_denied"
 _run_sweep
 create_calls=$(_count_tk_create_calls)
@@ -230,13 +231,13 @@ _teardown_test
 
 # ---------------------------------------------------------------------------
 # test_idempotent_double_sweep
-# Counter=50, mock ticket list empty first, returns ticket second. Sweep twice.
+# Counter=500, mock ticket list empty first, returns ticket second. Sweep twice.
 # Assert ticket create called exactly once.
 # ---------------------------------------------------------------------------
 _snapshot_fail
 _setup_test
 trap '_teardown_test' EXIT
-_write_counter "permission_denied" 50
+_write_counter "permission_denied" 500
 _mock_ticket_list_smart "permission_denied"
 # First sweep: list is empty → creates ticket
 (
@@ -256,16 +257,16 @@ _teardown_test
 
 # ---------------------------------------------------------------------------
 # test_multiple_categories_independent
-# Counter permission_denied=50, timeout=30. Assert ticket created only for permission_denied.
+# Counter permission_denied=500, timeout=30. Assert ticket created only for permission_denied.
 # ---------------------------------------------------------------------------
 _snapshot_fail
 _setup_test
 trap '_teardown_test' EXIT
-_write_counter "permission_denied" 50 "timeout" 30
+_write_counter "permission_denied" 500 "timeout" 30
 _mock_ticket_list_empty
 _run_sweep
 create_calls=$(_count_tk_create_calls)
-# Only permission_denied >= 50; timeout < 50 → only 1 create call
+# Only permission_denied >= 500; timeout < 500 → only 1 create call
 assert_eq "test_multiple_categories_independent" "1" "$create_calls"
 # Verify the created ticket mentions permission_denied
 if [[ -f "$TK_LOG" ]]; then
@@ -331,13 +332,13 @@ _teardown_test
 
 # ---------------------------------------------------------------------------
 # test_noise_mixed_with_real_category
-# Counter file_not_found=100 (noise) + permission_denied=50 (real).
+# Counter file_not_found=100 (noise) + permission_denied=500 (real).
 # Assert only 1 ticket created (for permission_denied, not file_not_found).
 # ---------------------------------------------------------------------------
 _snapshot_fail
 _setup_test
 trap '_teardown_test' EXIT
-_write_counter "file_not_found" 100 "command_exit_nonzero" 75 "permission_denied" 50
+_write_counter "file_not_found" 100 "command_exit_nonzero" 75 "permission_denied" 500
 _mock_ticket_list_empty
 _run_sweep
 create_calls=$(_count_tk_create_calls)
@@ -359,7 +360,7 @@ _teardown_test
 _snapshot_fail
 _setup_test
 trap '_teardown_test' EXIT
-_write_counter_with_errors '{"index":{"permission_denied":50},"errors":[{"category":"permission_denied","timestamp":"2026-03-15T10:00:00Z","tool_name":"Bash","input_summary":"Bash: rm /protected","error_message":"permission denied","session_id":"s1"}]}'
+_write_counter_with_errors '{"index":{"permission_denied":500},"errors":[{"category":"permission_denied","timestamp":"2026-03-15T10:00:00Z","tool_name":"Bash","input_summary":"Bash: rm /protected","error_message":"permission denied","session_id":"s1"}]}'
 _mock_ticket_list_empty
 _run_sweep
 create_calls=$(_count_tk_create_calls)
@@ -380,7 +381,7 @@ _teardown_test
 _snapshot_fail
 _setup_test
 trap '_teardown_test' EXIT
-_write_counter_with_errors '{"index":{"permission_denied":50,"timeout":10},"errors":[{"category":"permission_denied","timestamp":"2026-03-15T10:00:00Z","tool_name":"Bash","input_summary":"Bash: cmd","error_message":"permission denied","session_id":"s1"},{"category":"timeout","timestamp":"2026-03-15T10:01:00Z","tool_name":"Bash","input_summary":"Bash: slow","error_message":"timed out","session_id":"s2"}]}'
+_write_counter_with_errors '{"index":{"permission_denied":500,"timeout":10},"errors":[{"category":"permission_denied","timestamp":"2026-03-15T10:00:00Z","tool_name":"Bash","input_summary":"Bash: cmd","error_message":"permission denied","session_id":"s1"},{"category":"timeout","timestamp":"2026-03-15T10:01:00Z","tool_name":"Bash","input_summary":"Bash: slow","error_message":"timed out","session_id":"s2"}]}'
 _mock_ticket_list_empty
 _run_sweep
 # permission_denied (>=50) should be removed from counter
@@ -388,7 +389,7 @@ pd_count=$(_get_counter_index_count "permission_denied")
 assert_eq "test_counter_cleaned_pd_index" "0" "$pd_count"
 pd_errors=$(_get_counter_error_count "permission_denied")
 assert_eq "test_counter_cleaned_pd_errors" "0" "$pd_errors"
-# timeout (<50) should still be in counter
+# timeout (<500) should still be in counter
 to_count=$(_get_counter_index_count "timeout")
 assert_eq "test_counter_cleaned_timeout_preserved" "10" "$to_count"
 to_errors=$(_get_counter_error_count "timeout")
@@ -404,7 +405,7 @@ _teardown_test
 _snapshot_fail
 _setup_test
 trap '_teardown_test' EXIT
-_write_counter_with_errors '{"index":{"file_not_found":100,"command_exit_nonzero":200},"errors":[{"category":"file_not_found","timestamp":"2026-03-15T10:00:00Z","tool_name":"Read","input_summary":"Read: missing.py","error_message":"file not found","session_id":"s1"},{"category":"command_exit_nonzero","timestamp":"2026-03-15T10:01:00Z","tool_name":"Bash","input_summary":"Bash: false","error_message":"exit code 1","session_id":"s2"}]}'
+_write_counter_with_errors '{"index":{"file_not_found":500,"command_exit_nonzero":600},"errors":[{"category":"file_not_found","timestamp":"2026-03-15T10:00:00Z","tool_name":"Read","input_summary":"Read: missing.py","error_message":"file not found","session_id":"s1"},{"category":"command_exit_nonzero","timestamp":"2026-03-15T10:01:00Z","tool_name":"Bash","input_summary":"Bash: false","error_message":"exit code 1","session_id":"s2"}]}'
 _mock_ticket_list_empty
 _run_sweep
 create_calls=$(_count_tk_create_calls)
@@ -424,7 +425,7 @@ _teardown_test
 _snapshot_fail
 _setup_test
 trap '_teardown_test' EXIT
-_write_counter_with_errors '{"index":{"permission_denied":60},"errors":[{"category":"permission_denied","timestamp":"2026-03-15T10:00:00Z","tool_name":"Bash","input_summary":"Bash: cmd","error_message":"permission denied","session_id":"s1"}]}'
+_write_counter_with_errors '{"index":{"permission_denied":500},"errors":[{"category":"permission_denied","timestamp":"2026-03-15T10:00:00Z","tool_name":"Bash","input_summary":"Bash: cmd","error_message":"permission denied","session_id":"s1"}]}'
 _mock_ticket_list_with_match "permission_denied"
 _run_sweep
 create_calls=$(_count_tk_create_calls)
@@ -645,28 +646,28 @@ _teardown_test
 
 # ---------------------------------------------------------------------------
 # test_ticket_deduplicates_error_details
-# Counter with 50 errors, mostly duplicates. Assert ticket description contains
+# Counter with 500 errors, mostly duplicates. Assert ticket description contains
 # deduplicated entries (unique by tool_name + error_message), not raw duplicates.
 # ---------------------------------------------------------------------------
 _snapshot_fail
 _setup_test
 trap '_teardown_test' EXIT
-# Build counter with 50 permission_denied errors: 45 identical + 3 different + 2 more identical
+# Build counter with 500 permission_denied errors: 495 identical + 3 different + 2 more identical
 _DEDUP_ERRORS='[]'
 _DEDUP_ERRORS=$(python3 -c "
 import json
 errors = []
-# 45 identical errors
-for i in range(45):
-    errors.append({'category':'permission_denied','timestamp':f'2026-03-15T10:{i:02d}:00Z','tool_name':'Bash','input_summary':'Bash: rm /protected/file.txt','error_message':'permission denied: /protected/file.txt','session_id':f's{i}'})
+# 495 identical errors
+for i in range(495):
+    errors.append({'category':'permission_denied','timestamp':f'2026-03-15T10:{i % 60:02d}:00Z','tool_name':'Bash','input_summary':'Bash: rm /protected/file.txt','error_message':'permission denied: /protected/file.txt','session_id':f's{i}'})
 # 3 different errors
-errors.append({'category':'permission_denied','timestamp':'2026-03-15T11:00:00Z','tool_name':'Read','input_summary':'Read: /etc/shadow','error_message':'permission denied: /etc/shadow','session_id':'s45'})
-errors.append({'category':'permission_denied','timestamp':'2026-03-15T11:01:00Z','tool_name':'Bash','input_summary':'Bash: chmod 777 /root','error_message':'permission denied: /root','session_id':'s46'})
-errors.append({'category':'permission_denied','timestamp':'2026-03-15T11:02:00Z','tool_name':'Write','input_summary':'Write: /usr/bin/test','error_message':'permission denied: /usr/bin/test','session_id':'s47'})
+errors.append({'category':'permission_denied','timestamp':'2026-03-15T11:00:00Z','tool_name':'Read','input_summary':'Read: /etc/shadow','error_message':'permission denied: /etc/shadow','session_id':'s495'})
+errors.append({'category':'permission_denied','timestamp':'2026-03-15T11:01:00Z','tool_name':'Bash','input_summary':'Bash: chmod 777 /root','error_message':'permission denied: /root','session_id':'s496'})
+errors.append({'category':'permission_denied','timestamp':'2026-03-15T11:02:00Z','tool_name':'Write','input_summary':'Write: /usr/bin/test','error_message':'permission denied: /usr/bin/test','session_id':'s497'})
 # 2 more duplicates of the first pattern
 for i in range(2):
-    errors.append({'category':'permission_denied','timestamp':f'2026-03-15T12:{i:02d}:00Z','tool_name':'Bash','input_summary':'Bash: rm /protected/file.txt','error_message':'permission denied: /protected/file.txt','session_id':f's{48+i}'})
-print(json.dumps({'index':{'permission_denied':50},'errors':errors}))
+    errors.append({'category':'permission_denied','timestamp':f'2026-03-15T12:{i:02d}:00Z','tool_name':'Bash','input_summary':'Bash: rm /protected/file.txt','error_message':'permission denied: /protected/file.txt','session_id':f's{498+i}'})
+print(json.dumps({'index':{'permission_denied':500},'errors':errors}))
 ")
 _write_counter_with_errors "$_DEDUP_ERRORS"
 _mock_ticket_list_empty
@@ -681,8 +682,8 @@ assert_contains "test_ticket_dedup_has_protected_file" "/protected/file.txt" "$t
 assert_contains "test_ticket_dedup_has_etc_shadow" "/etc/shadow" "$tk_log_content"
 assert_contains "test_ticket_dedup_has_root" "/root" "$tk_log_content"
 assert_contains "test_ticket_dedup_has_usr_bin" "/usr/bin/test" "$tk_log_content"
-# Should show occurrence counts — the 47 identical errors should show count
-assert_contains "test_ticket_dedup_has_occurrence_count" "47" "$tk_log_content"
+# Should show occurrence counts — the 497 identical errors should show count
+assert_contains "test_ticket_dedup_has_occurrence_count" "497" "$tk_log_content"
 # Should NOT have 20 rows of the same error — check that "Bash" tool appears
 # a reasonable number of times (deduplicated, not raw). In raw mode, "Bash" would
 # appear 20 times in the table. Deduplicated, it should appear much fewer times.

@@ -477,6 +477,7 @@ test_ticket_has_pil_finds_pil_in_create_description() {
     local ticket_id
     ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "PIL epic" \
         --description "### Planning Intelligence Log
+- **Gap analysis (Step 1)**: artifacts checked — all covered
 - **Web research (Step 2.6)**: not triggered
 - **Scenario analysis (Step 2.75)**: not triggered
 - **LLM-instruction signal (Step 5)**: not triggered
@@ -511,6 +512,7 @@ test_ticket_has_pil_finds_pil_in_edit_fields_description() {
     # Edit the ticket to add PIL marker in description
     (cd "$repo" && bash "$TICKET_SCRIPT" edit "$ticket_id" \
         --description "### Planning Intelligence Log
+- **Gap analysis (Step 1)**: artifacts checked — all covered
 - **Web research (Step 2.6)**: not triggered
 - **Scenario analysis (Step 2.75)**: not triggered
 - **LLM-instruction signal (Step 5)**: not triggered
@@ -546,6 +548,7 @@ test_ticket_has_pil_finds_pil_in_comment_body() {
 
     (cd "$repo" && bash "$TICKET_SCRIPT" comment "$ticket_id" \
         "### Planning Intelligence Log
+- **Gap analysis (Step 1)**: artifacts checked — all covered
 - **Web research (Step 2.6)**: not triggered
 - **Scenario analysis (Step 2.75)**: not triggered
 - **LLM-instruction signal (Step 5)**: not triggered
@@ -651,6 +654,7 @@ test_tag_add_checked_allows_brainstorm_complete_with_pil() {
     local ticket_id
     ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "PIL present epic" \
         --description "### Planning Intelligence Log
+- **Gap analysis (Step 1)**: artifacts checked — all covered
 - **Web research (Step 2.6)**: not triggered
 - **Scenario analysis (Step 2.75)**: not triggered
 - **LLM-instruction signal (Step 5)**: not triggered
@@ -680,6 +684,7 @@ test_ticket_tag_pil_round_trip() {
     local ticket_id
     ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "Round-trip PIL epic" \
         --description "### Planning Intelligence Log
+- **Gap analysis (Step 1)**: artifacts checked — all covered
 - **Web research (Step 2.6)**: not triggered
 - **Scenario analysis (Step 2.75)**: not triggered
 - **LLM-instruction signal (Step 5)**: not triggered
@@ -1016,6 +1021,45 @@ print(names.count('brainstorm_complete'))
 }
 
 test_compact_preconditions_deduplicates_represented_gate_names
+
+# ── Test 22: _ticket_has_pil — rejects PIL missing Gap analysis (Step 1) field ─
+# RED test for bug 1cf0-50ed-5546-42dd: orchestrator can write a PIL with only
+# the old 3 fields (web research, scenario analysis, LLM-instruction) without
+# executing the canonical pipeline's Step 1 (gap analysis). The validator MUST
+# reject such stub PILs. This test fails until ticket-lib.sh adds
+# '**Gap analysis (Step 1)**:' to REQUIRED_FIELDS.
+echo ""
+echo "--- test_ticket_has_pil_rejects_pil_missing_gap_analysis_field ---"
+
+test_ticket_has_pil_rejects_pil_missing_gap_analysis_field() {
+    _snapshot_fail
+    local repo
+    repo=$(_make_test_repo)
+
+    # Create an epic with a PIL that has ONLY the old 3 fields — missing
+    # the new '**Gap analysis (Step 1)**:' required field. This simulates
+    # the orchestrator writing a PIL stub without running Step 1.
+    local ticket_id
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create epic "Stub PIL epic — old 3 fields only" \
+        --description "### Planning Intelligence Log
+- **Web research (Step 2.6)**: not triggered
+- **Scenario analysis (Step 2.75)**: not triggered
+- **LLM-instruction signal (Step 5)**: not triggered
+
+stub — gap analysis was NOT run" 2>/dev/null | tail -1)
+
+    [[ -z "$ticket_id" ]] && { (( ++FAIL )); echo "FAIL: test_ticket_has_pil_rejects_pil_missing_gap_analysis_field: could not create ticket" >&2; return; }
+
+    local _exit=0
+    (cd "$repo" && source "$TICKET_LIB" && _ticket_has_pil "$ticket_id") 2>/dev/null || _exit=$?
+
+    # Before fix: exits 0 (bug — stub PIL accepted)
+    # After fix: exits 1 (PIL rejected — Gap analysis (Step 1) field missing)
+    assert_eq "test_ticket_has_pil_rejects_pil_missing_gap_analysis_field: exit 1 when Gap analysis field absent" "1" "$_exit"
+    assert_pass_if_clean "test_ticket_has_pil_rejects_pil_missing_gap_analysis_field"
+}
+
+test_ticket_has_pil_rejects_pil_missing_gap_analysis_field
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary

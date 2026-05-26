@@ -11,6 +11,18 @@ Before issuing any WebSearch call for a qualifying story's capability, check the
 - `unverified` or `contradicted` → run full WebSearch verification as described below.
 - Empty array (no prior findings) → run full WebSearch verification for every qualifying capability.
 
+**Per-command contract check (CLI tools only)**: When a qualifying story references a CLI tool integration signal AND the story's Done Definition mentions a specific CLI subcommand (create, edit, transition, delete, comment, label-add, etc.), additionally check whether the matching `researchFindings` entry contains a non-null `command_surface` field with a `MATCH` or `MISMATCH` verdict for that subcommand. If `command_surface` is null or absent for the relevant subcommand:
+
+1. Log: `"Per-command contract gap: <tool> <subcommand> has no verified command_surface entry in researchFindings."`
+2. Run `<tool> <subcommand> --help` (or equivalent) empirically to observe the actual flag surface. Record the observed flags, payload shape, and idempotency semantics.
+3. Append a `command_surface` update to the story's Considerations as a **Verified Constraint**:
+   ```
+   - [Integration] Per-command contract: <tool> <subcommand> — flags: <observed flags>; payload: <shape>; idempotency: <behavior>; verdict: MATCH|MISMATCH
+   ```
+4. If the verdict is MISMATCH (the story's assumed invocation does not match what `--help` reports), flag the story as **HIGH-RISK** and surface the exact mismatch to the user before proceeding to story slicing. Do not silently proceed — a MISMATCH at this stage means implementation will fail at runtime.
+
+This per-command contract check prevents the class of bugs described in bug 0dee-a535-45dd-4bc4, where integration-level verification ("ACLI authenticates") was captured but command-surface mismatches (`--label` vs `--labels`, priority dict shape) were not caught until runtime.
+
 After research, append new entries (or upgrade existing entries) to `researchFindings` with the latest `status`, `source`, `skill_name: "preplanning"`, and current `timestamp` so downstream consumers benefit from the same dedup.
 
 ## Procedure

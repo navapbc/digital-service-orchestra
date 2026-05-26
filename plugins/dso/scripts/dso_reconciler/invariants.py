@@ -297,7 +297,12 @@ def report_schema_drift(issue_key: str, observed: dict, expected: dict) -> None:
     """File a bug ticket for schema drift via the .claude/scripts/dso shim.
 
     Uses a stable ``dedup_key`` of the form ``bridge-alert:schema-drift:<issue_key>``
-    so repeated drift on the same issue can be correlated.
+    so repeated drift on the same issue can be correlated.  The alert_store
+    dedup check prevents duplicate tickets across reconciler passes — without
+    it, every pass that hits the cap fires a new ticket for the same key
+    (root cause of bug 1c59-90ca-3391-46ac: 12+ duplicate "schema drift: L-16"
+    tickets created by repeated cap-hit signals).
+
     Subprocess failures are swallowed (``check=False``) — drift reporting is
     best-effort and must not abort the reconcile loop.
 
@@ -307,6 +312,24 @@ def report_schema_drift(issue_key: str, observed: dict, expected: dict) -> None:
     """
     dedup_key = f"bridge-alert:schema-drift:{issue_key}"
     repo_root = Path(__file__).resolve().parents[4]
+
+    alert_store = _load_alert_store()
+    if alert_store.is_deduped(dedup_key, repo_root):
+        return
+
+    # Persist the alert record before filing the ticket so subsequent passes
+    # hit is_deduped() and skip, mirroring the pattern in
+    # check_at_most_one_dso_local_id().
+    alert_store.append(
+        {
+            "key": dedup_key,
+            "issue_key": issue_key,
+            "timestamp_ns": time.time_ns(),
+            "reason": f"schema-drift observed={observed} expected={expected}",
+        },
+        repo_root,
+    )
+
     ticket_cli = str(repo_root / _TICKET_CLI_RELPATH)
     subprocess.run(
         [

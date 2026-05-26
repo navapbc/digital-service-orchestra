@@ -1050,9 +1050,15 @@ except (json.JSONDecodeError, ValueError):
 marker = '### Planning Intelligence Log'
 
 # Mandatory field markers — every canonical PIL written by
-# epic-scrutiny-pipeline.md populates these three fields. Absence of any one
+# epic-scrutiny-pipeline.md populates these four fields. Absence of any one
 # of them indicates a stub PIL that bypassed the pipeline.
+# WHY FOUR FIELDS (bug ecc2-e508-b2a8-4b7f): Adding Gap analysis (Step 1) as
+# a required field prevents orchestrators from writing a compliant-looking PIL
+# manually (with only the old 3 fields) while bypassing the canonical scrutiny
+# pipeline. Step 1 gap analysis runs at the start of the pipeline; its
+# presence in the PIL proves the pipeline entry point was reached.
 REQUIRED_FIELDS = (
+    '**Gap analysis (Step 1)**:',
     '**Web research (Step 2.6)**:',
     '**Scenario analysis (Step 2.75)**:',
     '**LLM-instruction signal (Step 5)**:',

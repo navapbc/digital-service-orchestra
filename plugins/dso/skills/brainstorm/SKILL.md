@@ -599,6 +599,8 @@ Route signals by severity:
 ### Steps 2.5, 2.6, 2.75, Step 3: Epic Scrutiny Pipeline
 
 <HARD-GATE>
+Execute the scrutiny pipeline now. User authorization at skill entry covers all pipeline dispatches in Steps 2.5–3.
+
 SUBSTITUTIONS PROHIBITED. The canonical scrutiny pipeline (epic-scrutiny-pipeline.md) is the ONLY valid path for scrutiny. The following are NOT substitutes and MUST NOT be used in place of the pipeline:
 - /dso:plan-review (dispatches red-team-reviewer + blue-team-filter + plan-review — does NOT write the Planning Intelligence Log marker that the brainstorm:complete tag validator requires)
 - Inline reviewer reasoning by the orchestrator
@@ -606,22 +608,25 @@ SUBSTITUTIONS PROHIBITED. The canonical scrutiny pipeline (epic-scrutiny-pipelin
 
 When /dso:plan-review or any non-canonical substitute was used, the brainstorm:complete tag will be REJECTED by the validator because no "### Planning Intelligence Log" event will be present. The only remedy is to run the canonical pipeline from the beginning. There is no bypass, annotation, or override — the PIL marker must be written by the canonical pipeline.
 
-USER-FACING SKIP PROHIBITED (bug 1dbc-3717-bef5-4d72). The scrutiny
-pipeline is also non-optional from the user's perspective. NEVER present
-the user with a choice that includes skipping, deferring, abbreviating,
-or "running scrutiny later" as an option — regardless of token budget,
-time pressure, or context constraints. Offering a skip as a user-facing
-choice is itself a HARD-GATE violation, because the option text creates
-permission the gate is supposed to deny. The only valid scrutiny-skip is
-the placeholder-epic exception documented later in this skill
-(`scrutiny:pending` stub epics that defer scrutiny until they are
-expanded into real epics).
+The pipeline runs to completion without presenting skip, defer, or pause options to the user. The only valid scrutiny-skip is the placeholder-epic exception (`scrutiny:pending` stub epics that defer scrutiny until they are expanded into real epics).
 </HARD-GATE>
 
 Read and execute `skills/shared/workflows/epic-scrutiny-pipeline.md`. Pass the current epic spec as input, with:
 
 - `{caller_name}` = `brainstorm`
 - `{caller_prompts_dir}` = `skills/brainstorm/prompts`
+
+**Pipeline execution checklist** (all five steps are mandatory; check each off as it completes):
+
+- [ ] Step 1 Part A: Artifact Contradiction Detection — cross-reference user-named artifacts against SCs
+- [ ] Step 1 Part B: Technical Approach Self-Review + Inference-Signal Scan
+- [ ] Step 1 Part C: Shared Artifact Impact Analysis + Relates_to extension
+- [ ] Step 2: Web Research Phase — check bright-line trigger conditions; dispatch sub-agent when triggered
+- [ ] Step 3: Scenario Analysis — dispatch scenario-red-team + scenario-blue-team sub-agents (when ≥3 SCs)
+- [ ] Step 4: Fidelity Review — dispatch Agent Clarity + Scope + Value as 3 parallel Agent calls; dispatch dso:feasibility-reviewer as 4th when integration signals present
+- [ ] Step 5: Prompt Alignment — check LLM-instruction signals; dispatch dso:bot-psychologist when triggered
+
+**NOTE**: Dispatching the Step 4 fidelity reviewers (Agent Clarity, Scope, Value, feasibility) does NOT satisfy Steps 1/2/3/5. The Step 4 HARD-GATE below lists the reviewers that "must have run" as a gate guard for approval — that list is NOT a substitute for the full pipeline. All seven checklist items above MUST complete before proceeding to the approval gate.
 
 #### Step 2.5 Supplement: Gap Analysis + ast-grep Discovery
 
@@ -653,6 +658,8 @@ After the pipeline returns, read `phases/post-scrutiny-handlers.md` and execute 
 ### Step 4: Approval Gate
 
 <HARD-GATE>
+Dispatch all required fidelity reviewers now. User authorization at skill entry covers all reviewer dispatches in Step 4.
+
 Before reading approval-gate.md: Red Team, Blue Team, and all three fidelity reviewers — **Agent Clarity** (`skills/shared/docs/reviewers/agent-clarity.md`), **Scope** (`skills/shared/docs/reviewers/scope.md`), and **Value** (`skills/shared/docs/reviewers/value.md`) — must have run as dispatched sub-agent calls. Valid exemptions: ≤2 SCs (scenario skipped), no integration signals (feasibility skipped). Inline reasoning does not count as dispatch. Dispatch any missing agents now.
 
 SUBSTITUTIONS PROHIBITED for fidelity reviewers (bug ae9a-7074-af10-4d52). The three fidelity reviewers listed above are the ONLY valid path for fidelity dispatch. `/dso:plan-review` is NOT a substitute for any of them — it dispatches red-team-reviewer + blue-team-filter + plan-review, which cover scrutiny but do NOT exercise the Agent Clarity / Scope / Value rubrics. Substituting `/dso:plan-review` for fidelity is the same class of bypass as substituting it for scrutiny (see the earlier HARD-GATE on `SUBSTITUTIONS PROHIBITED`).
