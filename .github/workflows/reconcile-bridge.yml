@@ -170,6 +170,10 @@ jobs:
 
       - name: ACLI discovery probe (mode=probe)
         if: github.event.inputs.mode == 'probe'
+        # Disable `set -e` (the runner's default `bash -e`) so a single failed
+        # ACLI invocation in one of the exploratory probes does not abort the
+        # rest. Each probe is independent and we want to see all results.
+        shell: 'bash {0}'
         env:
           JIRA_URL: ${{ vars.JIRA_URL }}
           JIRA_USER: ${{ vars.JIRA_USER }}
@@ -237,23 +241,29 @@ jobs:
           echo "=== Probe 5: ACLI 'workitem search' help — find projection flag ==="
           acli jira workitem search --help 2>&1 | head -80 || true
           echo
-          echo "=== Probe 6: try ACLI flags that may expand fields projection ==="
-          for FLAG_TRY in '--fields=updated,status,summary' '--fields updated,status,summary' '--expand=fields' '--all'; do
-              echo "--- trying: ${FLAG_TRY} ---"
-              acli jira workitem search --jql "project = ${PROJ}" --limit 1 ${FLAG_TRY} --json 2>&1 \
-                | python3 -c "
+          echo "=== Probe 6: confirm --fields adds 'updated' to projection ==="
+          echo "--- using -f \"updated,key,status,summary,issuetype,priority,assignee\" ---"
+          acli jira workitem search --jql "project = ${PROJ}" --limit 1 \
+              -f "updated,key,status,summary,issuetype,priority,assignee" --json 2>&1 \
+            | python3 -c "
           import json, sys
           try:
               data = json.load(sys.stdin)
               issues = data if isinstance(data, list) else data.get('issues', [])
               if issues:
                   fields = issues[0].get('fields', {}) or {}
-                  print(f'  fields keys ({len(fields)}):', sorted(fields.keys())[:30])
+                  print(f'  fields keys ({len(fields)}):', sorted(fields.keys()))
                   print(f'  updated value: {fields.get(\"updated\")!r}')
+                  status = fields.get('status') or issues[0].get('status')
+                  s_name = status.get('name') if isinstance(status, dict) else status
+                  print(f'  status.name: {s_name!r}')
+              else:
+                  print('  no issues returned')
           except Exception as e:
+              import sys as _s
+              _s.stdin.seek(0) if hasattr(_s.stdin,'seek') else None
               print(f'  PARSE ERROR: {e}')
-          " 2>&1 | head -5
-          done
+          "
           echo
           echo "=== Probe 7: empirical count — Query 1 (status != Done) ==="
           Q1='project = '${PROJ}' AND status != "Done"'
