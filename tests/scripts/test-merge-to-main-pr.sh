@@ -6002,5 +6002,120 @@ t_pr_body_contains_commit_subjects() {
 t_pr_body_contains_commit_subjects
 
 # ---------------------------------------------------------------------------
+# Unit tests for _derive_pr_body — exercise the three branch-coverage paths
+# that the end-to-end test (t_pr_body_contains_commit_subjects) cannot cover:
+#   A) Pure-cleanup branch: both <base>..HEAD AND origin/<base>..HEAD empty →
+#      fall back to the legacy "Auto-generated PR for branch" placeholder.
+#   B) --no-merges filter: branch has both a regular commit and a merge commit
+#      → only the non-merge commit appears as a bullet.
+#   C) origin/<base> fallback: local <base> missing but origin/<base> present
+#      → commits from the origin range still appear.
+#
+# Implementation: source just the _derive_pr_body function from merge-to-main-pr.sh
+# (extracted via awk so we don't trigger the script's main control flow), then
+# invoke it inside per-test git fixtures.
+# ---------------------------------------------------------------------------
+_PR_BODY_FN_SRC=$(awk '/^_derive_pr_body\(\)/,/^}/' "$PR_SCRIPT")
+if [[ -z "$_PR_BODY_FN_SRC" ]]; then
+    echo "FAIL: t_pr_body_unit_tests_setup: could not extract _derive_pr_body from $PR_SCRIPT" >&2
+    FAIL=$((FAIL + 1))
+fi
+eval "$_PR_BODY_FN_SRC"
+
+t_pr_body_pure_cleanup_branch_falls_back() {
+    local _T body
+    _T="$(mktemp -d /tmp/dso-pr-body-cleanup.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+    (
+        cd "$_T" || exit 1
+        git init -q -b main
+        git config user.email t@t.local
+        git config user.name t
+        echo seed > seed.txt && git add seed.txt && git commit -q -m seed
+        git checkout -q -b cleanup-branch
+        # No commits on cleanup-branch; both main..HEAD and origin/main..HEAD will be empty.
+    )
+    body=$(cd "$_T" && _derive_pr_body "cleanup-branch" "main")
+    if echo "$body" | grep -qF "Auto-generated PR for branch \`cleanup-branch\`"; then
+        assert_eq "t_pr_body_pure_cleanup_falls_back_to_legacy_placeholder" "true" "true"
+    else
+        assert_eq "t_pr_body_pure_cleanup_falls_back_to_legacy_placeholder" "true" "false (body was: $body)"
+    fi
+}
+t_pr_body_pure_cleanup_branch_falls_back
+
+t_pr_body_excludes_merge_commits() {
+    local _T body
+    _T="$(mktemp -d /tmp/dso-pr-body-no-merges.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+    (
+        cd "$_T" || exit 1
+        git init -q -b main
+        git config user.email t@t.local
+        git config user.name t
+        echo seed > seed.txt && git add seed.txt && git commit -q -m seed
+        git checkout -q -b feature
+        echo feat > feat.txt && git add feat.txt && git commit -q -m "feat: real work"
+        # Create a sibling branch and a merge commit on feature
+        git checkout -q -b sidebranch main
+        echo side > side.txt && git add side.txt && git commit -q -m "side: irrelevant"
+        git checkout -q feature
+        git merge --no-ff -q -m "Merge remote-tracking branch 'sidebranch' into feature" sidebranch >/dev/null 2>&1
+    )
+    body=$(cd "$_T" && _derive_pr_body "feature" "main")
+    # Must include the real-work bullet
+    if echo "$body" | grep -qF -- "- feat: real work"; then
+        assert_eq "t_pr_body_includes_non_merge_commit" "true" "true"
+    else
+        assert_eq "t_pr_body_includes_non_merge_commit" "true" "false (body was: $body)"
+    fi
+    # Must NOT include the merge commit subject
+    if echo "$body" | grep -qF "Merge remote-tracking branch"; then
+        assert_eq "t_pr_body_excludes_merge_commit_subject" "false" "true"
+    else
+        assert_eq "t_pr_body_excludes_merge_commit_subject" "false" "false"
+    fi
+}
+t_pr_body_excludes_merge_commits
+
+t_pr_body_falls_back_to_origin_base() {
+    local _T body
+    _T="$(mktemp -d /tmp/dso-pr-body-origin-fallback.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$_T'" RETURN
+    (
+        cd "$_T" || exit 1
+        # Set up a bare "remote" with the base branch + a feature branch ahead of it.
+        git init -q --bare remote.git
+        git init -q -b main local
+        cd local || exit 1
+        git config user.email t@t.local
+        git config user.name t
+        echo seed > seed.txt && git add seed.txt && git commit -q -m seed
+        git remote add origin ../remote.git
+        git push -q origin main
+        git checkout -q -b feature-origin-fallback
+        echo work > work.txt && git add work.txt && git commit -q -m "feat: origin-fallback path"
+        # DELETE local main so <base>..HEAD fails; origin/main remains.
+        git branch -q -D main
+    )
+    body=$(cd "$_T/local" && _derive_pr_body "feature-origin-fallback" "main")
+    if echo "$body" | grep -qF -- "- feat: origin-fallback path"; then
+        assert_eq "t_pr_body_origin_base_fallback_lists_commits" "true" "true"
+    else
+        assert_eq "t_pr_body_origin_base_fallback_lists_commits" "true" "false (body was: $body)"
+    fi
+    # Should NOT fall through to the legacy placeholder — origin/main..HEAD found commits.
+    if echo "$body" | grep -qF "Auto-generated PR for branch"; then
+        assert_eq "t_pr_body_origin_fallback_does_not_use_placeholder" "false" "true"
+    else
+        assert_eq "t_pr_body_origin_fallback_does_not_use_placeholder" "false" "false"
+    fi
+}
+t_pr_body_falls_back_to_origin_base
+
+# ---------------------------------------------------------------------------
 # end of file
 print_summary
