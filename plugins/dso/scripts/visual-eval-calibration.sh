@@ -14,7 +14,7 @@
 
 set -euo pipefail
 
-CORPUS_DIR="$(dirname "$0")/../data/visual-eval-corpus"
+CORPUS_DIR=""  # set in main below
 RUN_EVALUATE=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -32,6 +32,15 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# Resolve CORPUS_DIR if not provided via --corpus-dir
+if [[ -z "$CORPUS_DIR" ]]; then
+    _REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+    if [[ -z "$_REPO_ROOT" ]]; then echo "ERROR: must run from within a git repo" >&2; exit 1; fi
+    # shellcheck disable=SC2016
+    _PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"  # CLAUDE_PLUGIN_ROOT fallback
+    CORPUS_DIR="${_PLUGIN_ROOT}/data/visual-eval-corpus"
+fi
 
 if [[ ! -d "$CORPUS_DIR" ]]; then
     echo "ERROR: corpus directory not found: $CORPUS_DIR" >&2
@@ -51,5 +60,5 @@ print(f'Labeled {result[\"fixture_count\"]} fixtures with {result[\"runs_per_fix
 "
 fi
 
-PYTHONPATH="$(dirname "$0"):${PYTHONPATH:-}" \
-    python3 "$(dirname "$0")/visual_eval_gates.py" "$CORPUS_DIR"
+PYTHONPATH="$(cd "$(dirname "$0")" && pwd):${PYTHONPATH:-}" \
+    python3 "$(cd "$(dirname "$0")" && pwd)/visual_eval_gates.py" "$CORPUS_DIR"

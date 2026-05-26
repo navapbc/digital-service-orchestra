@@ -56,7 +56,8 @@
     "./agents/story-decomposer.md",
     "./agents/task-decomposer.md",
     "./agents/ui-designer.md",
-    "./agents/verification-remediation-planner.md"
+    "./agents/verification-remediation-planner.md",
+    "./agents/visual-evaluator.md"
   ],
   "hooks": {
     "SessionStart": [
