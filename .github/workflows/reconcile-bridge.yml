@@ -243,27 +243,33 @@ jobs:
           echo
           echo "=== Probe 6: confirm --fields adds 'updated' to projection ==="
           echo "--- using -f \"updated,key,status,summary,issuetype,priority,assignee\" ---"
+          # Write ACLI stdout to a file so stderr noise doesn't poison the JSON parse
+          PROBE6_OUT=$(mktemp /tmp/probe6.XXXXXX.json)
+          PROBE6_ERR=$(mktemp /tmp/probe6.XXXXXX.err)
           acli jira workitem search --jql "project = ${PROJ}" --limit 1 \
-              -f "updated,key,status,summary,issuetype,priority,assignee" --json 2>&1 \
-            | python3 -c "
-          import json, sys
-          try:
-              data = json.load(sys.stdin)
-              issues = data if isinstance(data, list) else data.get('issues', [])
-              if issues:
-                  fields = issues[0].get('fields', {}) or {}
-                  print(f'  fields keys ({len(fields)}):', sorted(fields.keys()))
-                  print(f'  updated value: {fields.get(\"updated\")!r}')
-                  status = fields.get('status') or issues[0].get('status')
-                  s_name = status.get('name') if isinstance(status, dict) else status
-                  print(f'  status.name: {s_name!r}')
-              else:
-                  print('  no issues returned')
-          except Exception as e:
-              import sys as _s
-              _s.stdin.seek(0) if hasattr(_s.stdin,'seek') else None
-              print(f'  PARSE ERROR: {e}')
-          "
+              -f "updated,key,status,summary,issuetype,priority,assignee" --json \
+              >"$PROBE6_OUT" 2>"$PROBE6_ERR"
+          echo "--- acli stderr (if any) ---"
+          head -5 "$PROBE6_ERR" || true
+          echo "--- acli stdout (first 500 chars) ---"
+          head -c 500 "$PROBE6_OUT"; echo
+          echo "--- parsed shape ---"
+          python3 -c "
+          import json
+          with open('$PROBE6_OUT') as f:
+              data = json.load(f)
+          issues = data if isinstance(data, list) else data.get('issues', [])
+          if issues:
+              fields = issues[0].get('fields', {}) or {}
+              print(f'  fields keys ({len(fields)}):', sorted(fields.keys()))
+              print(f'  updated value: {fields.get(\"updated\")!r}')
+              status = fields.get('status') or issues[0].get('status')
+              s_name = status.get('name') if isinstance(status, dict) else status
+              print(f'  status.name: {s_name!r}')
+          else:
+              print('  no issues returned')
+          " || echo "  (python parse failed — see raw output above)"
+          rm -f "$PROBE6_OUT" "$PROBE6_ERR"
           echo
           echo "=== Probe 7: empirical count — Query 1 (status != Done) ==="
           Q1='project = '${PROJ}' AND status != "Done"'
