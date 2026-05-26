@@ -1,1 +1,0 @@
-{"author":"Test","data":{"body":"CHECKPOINT: Bug-Fix Mode — fix-bug stream watchdog timeout (600s). Agent stalled during commit workflow (ci-pr skip markers). Resume from: re-attempt fix-bug, investigation was complete."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1779810548537326000,"uuid":"3e2c808f-5332-48c6-9e28-57d356c6a5f8"}
