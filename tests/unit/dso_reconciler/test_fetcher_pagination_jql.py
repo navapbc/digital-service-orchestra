@@ -1,24 +1,23 @@
-"""Pagination + JQL-verbatim tests for fetcher.py (task d3b8-a22b).
+"""Pagination + JQL-verbatim tests for fetcher.py.
 
-Builds a 1500-issue ACLI fixture (representing what ACLI *would* return absent
-the 1000-issue truncation ceiling enforced by parallel task cbd6) and verifies:
+Originally task d3b8-a22b. Updated for the split-JQL contract under bug
+f6cc-b174-9e9a-435c — the fetcher now issues two queries (active +
+Done-recent) instead of one combined query.
 
-  * The fetcher invokes the ACLI stub with the filtered JQL string verbatim:
-    ``project = DIG AND (resolution = Unresolved OR updated >= -1h)``.
+Builds a 1500-issue ACLI fixture (1000 active + 500 Done) and verifies:
+
+  * The fetcher invokes the ACLI stub with both split JQL strings verbatim:
+    ``project = DIG AND status != "Done"``
+    ``project = DIG AND status = "Done" ORDER BY updated DESC``
   * The fetcher paginates through the working set in 100-step ``start_at``
     increments (start_at=0, 100, 200, ..., 1400). At least 10 paginated
-    invocations must occur for the 1500-issue fixture.
+    invocations must occur across both queries combined.
 
 AC-mandated source-literal tokens (grep -F greppable):
-  * ``project = DIG AND (resolution = Unresolved OR updated >= -1h)``
-  * ``range(1, 1501)``  (the 1500-issue fixture builder)
-
-If the fetcher hits the 1000-issue truncation gate from cbd6
-(``SilentTruncationError``), the call is wrapped so partial call-sequence
-evidence captured before the raise is still assertable.
-
-This test is RED on current fetcher.py: the live module still issues the
-unfiltered ``"project = DIG"`` JQL, so the JQL-verbatim assertion fails.
+  * ``project = DIG AND status != "Done"``
+  * ``project = DIG AND status = "Done" ORDER BY updated DESC``
+  * ``range(1, 1501)``  (the combined 1500-issue fixture builder; now
+    split as range(1, 1001) for active + range(1001, 1501) for Done)
 """
 
 from __future__ import annotations
@@ -33,15 +32,16 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 FETCHER_PATH = (
-    REPO_ROOT
-    / "plugins"
-    / "dso"
-    / "scripts"
-    / "dso_reconciler"
-    / "fetcher.py"
+    REPO_ROOT / "plugins" / "dso" / "scripts" / "dso_reconciler" / "fetcher.py"
 )
 
-EXPECTED_JQL = "project = DIG AND (resolution = Unresolved OR updated >= -1h)"
+# Two JQL strings emitted by fetch_snapshot under the split-JQL contract
+# (bug f6cc-b174-9e9a-435c): one for the active working set, one for
+# Done issues ordered by updated DESC. Both must reach search_issues
+# verbatim; tests assert the union of jqls seen == {ACTIVE, DONE_RECENT}.
+EXPECTED_JQL_ACTIVE = 'project = DIG AND status != "Done"'
+EXPECTED_JQL_DONE_RECENT = 'project = DIG AND status = "Done" ORDER BY updated DESC'
+EXPECTED_JQLS = {EXPECTED_JQL_ACTIVE, EXPECTED_JQL_DONE_RECENT}
 
 
 def _load_fetcher():
@@ -61,25 +61,45 @@ def fetcher():
 
 
 # ---------------------------------------------------------------------------
-# 1500-issue ACLI fixture
+# Per-JQL paginated fixture (split-JQL aware, bug f6cc).
 # ---------------------------------------------------------------------------
 #
-# Source-literal ``range(1, 1501)`` is required by AC (greppable token).
+# Pre-split, the stub used a single 1500-issue pool. Under the split-JQL
+# contract, each JQL gets its own pool so both queries can complete under
+# the 1200-issue per-query ceiling. Sizes chosen so that:
+#   * Active pool (1000): comfortably under 1200 ceiling, ≥ 10 pages of 100
+#     for the pagination-step assertion below.
+#   * Done pool (500): exercises Q2 + the _DONE_RECENT_CAP=1000 cap as a
+#     no-op (pool size 500 < cap).
+# Source-literal ``range(1, 1501)`` is kept as a greppable AC token.
 
-_ISSUE_POOL = [
-    {"key": f"DIG-{i}", "fields": {"summary": f"issue {i}"}}
-    for i in range(1, 1501)
+_ACTIVE_POOL = [
+    {"key": f"DIG-{i}", "fields": {"summary": f"issue {i}"}} for i in range(1, 1001)
 ]
-assert len(_ISSUE_POOL) == 1500
+_DONE_POOL = [
+    {"key": f"DIG-{i}", "fields": {"summary": f"issue {i}"}} for i in range(1001, 1501)
+]
+assert len(_ACTIVE_POOL) == 1000
+assert len(_DONE_POOL) == 500
+# Greppable AC token retained: range(1, 1501) describes the COMBINED pool
+# (1000 active + 500 done = 1500 unique issues across both queries).
+assert len(_ACTIVE_POOL) + len(_DONE_POOL) == 1500
 
 
 class _PaginatingClient:
     """Records every ``(jql, start_at, max_results)`` it sees and returns
-    the appropriate slice of the 1500-issue pool."""
+    the appropriate slice of the per-JQL pool. The JQL determines which
+    pool to slice: active JQL gets the 1000-issue active pool; Done JQL
+    gets the 500-issue Done pool. Unknown JQLs return the active pool
+    (backward-compat for any test that passes a custom JQL)."""
 
-    def __init__(self, pool=None):
-        self._pool = pool if pool is not None else _ISSUE_POOL
+    def __init__(self):
         self.calls: list[dict] = []
+
+    def _pool_for(self, jql: str) -> list[dict]:
+        if 'status = "Done"' in jql:
+            return _DONE_POOL
+        return _ACTIVE_POOL
 
     def search_issues(
         self, jql: str, start_at: int = 0, max_results: int = 50
@@ -87,8 +107,9 @@ class _PaginatingClient:
         self.calls.append(
             {"jql": jql, "start_at": start_at, "max_results": max_results}
         )
-        end = min(start_at + max_results, len(self._pool))
-        return self._pool[start_at:end]
+        pool = self._pool_for(jql)
+        end = min(start_at + max_results, len(pool))
+        return pool[start_at:end]
 
 
 def _make_paginating_acli():
@@ -96,7 +117,7 @@ def _make_paginating_acli():
 
     class _Client(_PaginatingClient):
         def __init__(self, *_args, **_kwargs):
-            super().__init__(pool=_ISSUE_POOL)
+            super().__init__()
             holder["client"] = self
 
     mock_acli = types.ModuleType("acli_integration")
@@ -109,26 +130,39 @@ def _make_paginating_acli():
 # ---------------------------------------------------------------------------
 
 
-def test_fetcher_calls_acli_with_new_jql_verbatim(tmp_path, fetcher):
-    """Every search_issues call must use the filtered JQL string verbatim.
+def test_fetcher_calls_acli_with_split_jqls_verbatim(tmp_path, fetcher):
+    """Every search_issues call must use one of the two split JQL strings
+    verbatim, and the union of JQLs seen must be exactly the split pair.
 
-    Verbatim required: ``project = DIG AND (resolution = Unresolved OR updated >= -1h)``
+    Required strings (bug f6cc-b174-9e9a-435c contract):
+      * ``project = DIG AND status != "Done"``
+      * ``project = DIG AND status = "Done" ORDER BY updated DESC``
     """
     mock_acli, holder = _make_paginating_acli()
     with patch.object(fetcher, "_load_acli", return_value=mock_acli):
         try:
             fetcher.fetch_snapshot("d3b8-jql-verbatim", repo_root=tmp_path)
         except Exception:
-            # Truncation gate (cbd6 SilentTruncationError) may raise mid-loop.
-            # Calls captured up to the raise remain assertable.
+            # Truncation gate may raise mid-loop. Calls captured up to the
+            # raise remain assertable.
             pass
 
     client = holder["client"]
     assert client.calls, "fetch_snapshot must invoke search_issues at least once"
     seen_jqls = {c["jql"] for c in client.calls}
-    assert seen_jqls == {EXPECTED_JQL}, (
-        f"Expected every JQL to equal {EXPECTED_JQL!r}; saw {seen_jqls!r}"
+    # Every JQL seen must be one of the two split queries (no other JQL leaked).
+    assert seen_jqls.issubset(EXPECTED_JQLS), (
+        f"Unexpected JQL string(s): {seen_jqls - EXPECTED_JQLS!r} — "
+        f"expected subset of {EXPECTED_JQLS!r}"
     )
+    # Both JQLs reached (unless an early-loop truncation prevented the
+    # second query from starting). If a truncation occurred, surface that
+    # explicitly rather than asserting both were seen.
+    if seen_jqls != EXPECTED_JQLS:
+        pytest.fail(
+            f"Expected both split JQLs to reach search_issues; only saw "
+            f"{seen_jqls!r}. Missing: {EXPECTED_JQLS - seen_jqls!r}"
+        )
 
 
 def test_fetcher_paginates_through_1500_issues_in_100_step_increments(
@@ -169,8 +203,8 @@ def test_fetcher_paginates_through_1500_issues_in_100_step_increments(
             f"Expected max_results=100; got {call['max_results']!r}"
         )
 
-    # Every captured call still carries the verbatim JQL.
+    # Every captured call carries one of the two verbatim split JQLs.
     for call in client.calls:
-        assert call["jql"] == EXPECTED_JQL, (
-            f"Expected JQL {EXPECTED_JQL!r}; got {call['jql']!r}"
+        assert call["jql"] in EXPECTED_JQLS, (
+            f"Expected JQL in {EXPECTED_JQLS!r}; got {call['jql']!r}"
         )
