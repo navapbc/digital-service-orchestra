@@ -116,3 +116,21 @@ def test_discover_seed_prs_returns_list() -> None:
 
     result = discover_seed_prs(merged_since_days=90, min_ui_files=1)
     assert isinstance(result, list)
+
+
+def test_dogfood_execution_trace_exists() -> None:
+    """Dogfood execution trace exists with >=3 qualifying PRs (dd-3 evidence)."""
+    import json as _json
+
+    trace_path = REPO_ROOT / "plugins" / "dso" / "data" / "dogfood-execution-trace.json"
+    assert trace_path.exists(), f"Trace not found at {trace_path}"
+    trace = _json.loads(trace_path.read_text())
+    assert trace["status"] == "ok", f"Expected status=ok, got {trace['status']}"
+    assert len(trace["qualifying_prs"]) >= 3, (
+        f"Expected >=3 qualifying PRs, got {len(trace['qualifying_prs'])}"
+    )
+    for r in trace["details"]:
+        if r["pr_number"] in trace["qualifying_prs"]:
+            assert len(r["missed_findings"]) >= 1, (
+                f"PR {r['pr_number']} in qualifying_prs but has no missed_findings"
+            )
