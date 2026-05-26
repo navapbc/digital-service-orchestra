@@ -223,6 +223,22 @@ For each story, write 2–5 measurable Done Definitions. Every DD must:
 
 DDs that do not trace to an SC are a smell — either the DD is unnecessary (drop it) or the SC list is incomplete (note this in `decomposition_notes`).
 
+**LIVE-VERIFIED SC → environment-isolated integration test DD (bug 5f2a-9a9f)**:
+
+When the epic has any SC that is LIVE-VERIFIED (the SC asserts runtime behavior in a deployed, CI, or production-equivalent environment — e.g., "runs in CI", "verified via dry-run against the live environment", "first post-merge execution succeeds"), at least one story in the set MUST include a Done Definition of the form:
+
+> "An integration test exercises `<the capability>` in a configuration-isolated environment (HOME set to an empty directory, no pre-existing worktrees, no global git config, no environment variables pre-set from the developer's machine) and the test passes ← Satisfies: sc-N"
+
+This rule exists because unit tests on developer machines silently satisfy constraints that CI runners do not: global git identity, pre-mounted worktrees, ambient environment variables, pre-existing files. A LIVE-VERIFIED SC cannot be satisfied by a test that inherits the developer's runtime environment — it must be explicitly validated in an environment-isolated context.
+
+Detection heuristics for LIVE-VERIFIED SCs — classify as LIVE-VERIFIED when the SC text contains any of:
+- "verified via dry-run", "dry-run against", "live environment", "CI run", "post-merge"
+- "production", "deployed", "runs in CI", "first invocation", "real git", "real repository"
+- "live Jira", "live GitHub", "live API", "real credentials", "actual environment"
+- The SC is labeled VALIDATION-CLASS (i.e., its evidence type requires an execution trace, not just code inspection)
+
+When in doubt, classify the SC as LIVE-VERIFIED — the cost of an unnecessary integration test DD is lower than the cost of shipping production-only defects that pass all tests on developer machines.
+
 ### Step 6: Identify Dependencies
 
 For each draft, list any dependencies on:

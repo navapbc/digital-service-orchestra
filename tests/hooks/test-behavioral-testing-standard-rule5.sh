@@ -46,13 +46,15 @@ else
 fi
 
 # ===========================================================================
-# test_preamble_references_five_rules
-# The preamble (first 20 lines) must reference "5-rule" to reflect that the
-# standard now has 5 rules. Structural: the preamble's rule count is a scope
-# declaration consumed by agents to understand the standard's coverage.
+# test_preamble_references_five_or_more_rules
+# The preamble (first 20 lines) must reference "5-rule" or "6-rule" (or higher)
+# to reflect that the standard has at least 5 rules. Structural: the preamble's
+# rule count is a scope declaration consumed by agents to understand the
+# standard's coverage. Updated to match N-rule when new rules are added
+# (e.g., Rule 6 added by bug 5f2a-9a9f).
 # ===========================================================================
 echo "--- test_preamble_references_five_rules ---"
-if head -20 "$STANDARD_FILE" 2>/dev/null | grep -qE "5-rule|five.rule|five rules"; then
+if head -20 "$STANDARD_FILE" 2>/dev/null | grep -qE "[5-9]-rule|[1-9][0-9]+-rule|five.rule|six.rule|five rules|six rules"; then
     assert_eq "test_preamble_references_five_rules: 5-rule preamble updated" "present" "present"
 else
     assert_eq "test_preamble_references_five_rules: 5-rule preamble updated" "present" "missing"
@@ -110,10 +112,10 @@ fi
 # ===========================================================================
 echo "--- test_rule_count_matches_headings ---"
 _heading_count=$(grep -c "^## Rule [0-9]" "$STANDARD_FILE" 2>/dev/null || echo 0)
-if [[ "$_heading_count" -ge 5 ]]; then
-    assert_eq "test_rule_count_matches_headings: at least 5 rule headings" "pass" "pass"
+if [[ "$_heading_count" -ge 6 ]]; then
+    assert_eq "test_rule_count_matches_headings: at least 6 rule headings" "pass" "pass"
 else
-    assert_eq "test_rule_count_matches_headings: at least 5 rule headings" "pass" "fail (found $_heading_count)"
+    assert_eq "test_rule_count_matches_headings: at least 6 rule headings" "pass" "fail (found $_heading_count)"
 fi
 
 print_summary

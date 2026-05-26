@@ -44,6 +44,7 @@ After the feasibility-reviewer sub-agent returns (regardless of FEASIBILITY_GAP 
    - `source` (string): the URL or reference the reviewer cited (use `"reviewer:internal"` when the reviewer relied solely on codebase evidence)
    - `skill_name` (string): always `"brainstorm"`
    - `timestamp` (string): ISO 8601 UTC timestamp (`date -u +%Y-%m-%dT%H:%M:%SZ`)
+   - `command_surface` (object | null): **required for CLI tool signals; null for non-CLI signals.** When the feasibility-reviewer produced a `### Command Surface` section (Step 1b output), extract the per-command observed contract and record it here. Each key is the full subcommand string (e.g., `"acli jira workitem edit"`); each value is an object with: `flags_observed` (string), `payload_shape` (string), `error_responses` (string), `idempotency` (string), `verdict` (enum: `MATCH | MISMATCH | UNVERIFIED`). When `command_surface` is absent or empty for a CLI tool signal, downstream agents (preplanning, sprint) treat the capability as `partially_verified` at best — the integration-existence check passed but the command-surface contract has not been captured.
 
 2. Assemble the entries into a single JSON array.
 
@@ -56,8 +57,9 @@ After the feasibility-reviewer sub-agent returns (regardless of FEASIBILITY_GAP 
    Example payload:
    ```json
    [
-     {"capability": "Figma REST API node export", "status": "verified", "source": "https://www.figma.com/developers/api#get-files-endpoint", "skill_name": "brainstorm", "timestamp": "2026-04-19T18:30:00Z"},
-     {"capability": "Concurrent worktree merge safety", "status": "partially_verified", "source": "reviewer:internal", "skill_name": "brainstorm", "timestamp": "2026-04-19T18:30:00Z"}
+     {"capability": "Figma REST API node export", "status": "verified", "source": "https://www.figma.com/developers/api#get-files-endpoint", "skill_name": "brainstorm", "timestamp": "2026-04-19T18:30:00Z", "command_surface": null},
+     {"capability": "Concurrent worktree merge safety", "status": "partially_verified", "source": "reviewer:internal", "skill_name": "brainstorm", "timestamp": "2026-04-19T18:30:00Z", "command_surface": null},
+     {"capability": "acli jira workitem CRUD", "status": "verified", "source": "https://acli.docs.example/jira", "skill_name": "brainstorm", "timestamp": "2026-04-19T18:30:00Z", "command_surface": {"acli jira workitem edit": {"flags_observed": "--key KEY --labels LABELS (set-replace, not additive)", "payload_shape": "{labelsToAdd: [str]} via --from-json for additive label writes", "error_responses": "unknown flag: --label (singular not accepted)", "idempotency": "set-replace", "verdict": "MISMATCH"}}}
    ]
    ```
 

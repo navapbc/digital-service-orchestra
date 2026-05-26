@@ -1,6 +1,6 @@
 # Shared Behavioral Testing Standard
 
-Standalone prompt fragment for test-writing agents. Applies to all test creation and review tasks across any skill that writes or evaluates tests. This is a 5-rule standard (with a Rule 5 addendum covering remote-runtime declarative configuration artifacts) grounded in four research references:
+Standalone prompt fragment for test-writing agents. Applies to all test creation and review tasks across any skill that writes or evaluates tests. This is a 6-rule standard (with a Rule 5 addendum covering remote-runtime declarative configuration artifacts) grounded in four research references:
 
 - **Google's "unchanging test" principle** — a test should only change when the behavior it describes changes.
 - **Khorikov's "resistance to refactoring" pillar** — tests must survive implementation-preserving refactoring without modification.
@@ -199,6 +199,55 @@ A passing validator certifies parseability and schema validity — not runtime b
 
 ---
 
+## Rule 6 — Environment-State-Absent Coverage
+
+When the code under test consumes **runtime environment state** — git configuration, mounted worktrees, environment variables, file or directory presence outside the test's own `tmp_path` — the test suite MUST include at least one case where that state is explicitly **absent**, and the code's expected behavior under that absence is documented in the test name or comment.
+
+**What counts as runtime environment state:**
+- Git user identity (`user.name`, `user.email`) from global or system config
+- Pre-existing git worktrees, branches, or refs outside the test's own repository
+- Environment variables that may be set on a developer's machine but not in a clean CI runner (e.g., `HOME`, `GIT_AUTHOR_NAME`, `GIT_COMMITTER_EMAIL`, `GITHUB_TOKEN`, `AWS_PROFILE`)
+- Files or directories that exist by default on a developer machine but not in a fresh container or minimal CI image
+
+**Required test pattern when Rule 6 applies:**
+
+```python
+# Python — isolate HOME and git identity
+def test_command_works_without_global_git_config(tmp_path, monkeypatch):
+    # Given an isolated HOME with no git config
+    fake_home = tmp_path / "fake-home"
+    fake_home.mkdir()
+    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    # When the command runs
+    result = run_command(["git", "commit", "--allow-empty", "-m", "test"], cwd=str(tmp_path))
+    # Then it must either succeed (if it sets identity) or fail with a clear error (not a cryptic exit 128)
+    assert result.returncode in (0, 128)  # document the expected behavior
+```
+
+```bash
+# Bash — isolate HOME and git identity
+test_advisory_lock_no_global_git_config() {
+    local fake_home
+    fake_home=$(mktemp -d)
+    HOME="$fake_home" GIT_CONFIG_NOSYSTEM=1 \
+        bash "${LOCK_SCRIPT}" --repo-root "${TEST_REPO}" || true
+    # assert expected behavior with clean environment
+}
+```
+
+**Detection heuristic for test-writing agents** — Rule 6 applies when the function, module, or script under test calls any of:
+- `git config` (reads identity, remote, or local settings)
+- `git worktree add` / `git worktree list` / `git worktree remove`
+- `subprocess.run(["git", ...])` without setting `env=` or without a config-isolated `HOME`
+- Any external command whose behavior differs between a configured developer machine and a minimal CI image
+
+**Interaction with Rule 3** — Rule 6 extends Rule 3's "mock only external boundaries" guidance: the developer's ambient environment IS an external boundary. Tests that inherit `HOME`, `GIT_AUTHOR_NAME`, or pre-existing worktrees are importing uncontrolled state from the host machine, equivalent to making a real network call. Isolate it the same way you would isolate a network call.
+
+**Rationale:** Three production-only defects in epic 4047 (5be7, 96c5, bbf0) passed all developer tests because the test fixtures inherited the developer's global git config and pre-existing worktrees. None of these conditions exist on CI runners. The fix cost was three separate PRs + CI cycle each. The Rule 6 test would have caught all three at unit-test time.
+
+---
+
 ## Usage by Test-Writing Agents
 
 When dispatched to write tests for a story or task:
@@ -209,7 +258,8 @@ When dispatched to write tests for a story or task:
 4. Verify each test follows Rule 3 (execute, don't inspect; mock only external boundaries).
 5. Apply Rule 4 litmus test to every assertion before submitting.
 6. If the artifact under test is a non-executable instruction file (skill, prompt, agent definition, hook behavioral logic), apply Rule 5: test only the structural boundary (contract schema, referential integrity, shim compliance, syntax checks, deployment prerequisites). Do NOT write content assertions or existence-only checks.
-7. Include in your output a `behavioral_testing_compliance` block:
+7. Apply Rule 6: if the code under test consumes runtime environment state (git config, mounted worktrees, env vars, file/directory presence outside tmp_path), include at least one test case where that state is explicitly absent.
+8. Include in your output a `behavioral_testing_compliance` block:
 
 ```json
 {
@@ -223,7 +273,10 @@ When dispatched to write tests for a story or task:
     "change_detectors_rewritten": 0,
     "rule5_applied": true,
     "rule5_artifact_type": "executable | non-executable-instruction",
-    "rule5_structural_boundary_only": true
+    "rule5_structural_boundary_only": true,
+    "rule6_applied": true,
+    "rule6_env_state_consumed": "git_config | worktrees | env_vars | none",
+    "rule6_absent_state_test_written": true
   }
 }
 ```

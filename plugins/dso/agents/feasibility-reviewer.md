@@ -49,6 +49,23 @@ For each signal, note:
 
 If no integration signals are found, set `integration_risk` to 5 (no risk) and `technical_feasibility` to 5 (verified) and note that no external integrations were detected.
 
+### Step 1b: CLI Tool Subcommand Inventory (CLI tools only)
+
+**This step is mandatory for every Third-party CLI tool integration signal.** Skip for non-CLI signals (REST APIs, CI/CD, infrastructure, auth).
+
+For each CLI tool integration signal, enumerate every subcommand (operation) the epic's implementation will call. Do NOT verify at the integration level alone ("tool authenticates and works") — verify at the command surface level.
+
+1. **List every subcommand the implementation will issue.** Read the epic spec, stories, and approach description carefully. For each operation the reconciler/implementation will perform (create, edit, update, delete, transition, comment, label-add, search, view, etc.), write one entry:
+   - `subcommand`: the exact CLI subcommand (e.g., `acli jira workitem edit`)
+   - `assumed_flags`: the flags/options the epic assumes will work (e.g., `--key KEY --label LABEL`)
+   - `assumed_payload_shape`: the payload or argument structure the epic assumes (e.g., `{priority: {name: "High"}}`)
+
+2. **Per-command empirical depth is required.** For each CLI tool, run `<tool> <subcommand> --help` (or equivalent) to observe the actual available flags, required arguments, and accepted payload shapes. Do NOT infer flag names from documentation or prior tool versions — observe them empirically. Record what `--help` actually shows.
+
+3. **Flag any mismatch** between what the epic assumes and what `--help` reports as a **critical capability gap** — even if the mismatch is small (e.g., `--label` vs `--labels`, `name: str` vs `{name: str}`). These mismatches are exactly the class of bugs that cause silent runtime failures after implementation ships.
+
+4. **Record the observed command surface** in your output under `command_surface` (see Step 5). This durable record prevents implementation from inheriting assumptions that were never empirically confirmed.
+
 ### Step 2: Verify Each Integration Signal
 
 For each integration signal, perform the following research steps in order:
@@ -154,6 +171,21 @@ After the JSON block, include a **Technical Feasibility** section with:
 - A bulleted list of each integration signal identified, its classification (verified / partially verified / unverified / contradicted), and the key evidence found or not found
 - Any high-risk flags with the specific capability gap and recommended spike task description
 - A one-sentence overall feasibility verdict
+
+**CLI tool command surface (mandatory for CLI signals)**: After the Technical Feasibility section, include a `### Command Surface` section listing the per-command observed contract for every CLI subcommand enumerated in Step 1b. Use this format for each entry:
+
+```
+#### <tool> <subcommand>
+- **flags observed** (from `--help`): <exact flags and their types>
+- **payload shape**: <accepted payload structure, e.g., `{priority: {name: str}}`>
+- **error responses**: <key error messages observed or documented>
+- **idempotency**: <set-replace / additive / non-idempotent / unknown>
+- **assumed in epic**: <what the epic assumed>
+- **verdict**: MATCH | MISMATCH | UNVERIFIED
+  - If MISMATCH: describe exact gap (e.g., "epic assumes `--label LABEL` but flag is `--labels` which is set-replace, not additive")
+```
+
+The `command_surface` record is consumed by brainstorm's Research Findings Persistence step (post-scrutiny-handlers.md) and by preplanning's research-process.md to determine whether per-command contract has been captured before implementation stories proceed. A missing or empty `command_surface` for a CLI tool signal is treated the same as `status: unverified` for the integration as a whole.
 
 ---
 
