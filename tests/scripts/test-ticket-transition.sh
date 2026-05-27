@@ -1063,7 +1063,7 @@ test_epic_close_emits_end_session_reminder() {
 
     # Close the epic — output must contain the REMINDER line
     local epic_out
-    epic_out=$(cd "$repo" && bash "$TICKET_SCRIPT" transition "$epic_id" open closed 2>/dev/null) || true
+    epic_out=$(cd "$repo" && bash "$TICKET_SCRIPT" transition "$epic_id" open closed --force-close="test: epic-close reminder test" 2>/dev/null) || true
     assert_contains \
         "epic-close: REMINDER line present" \
         "REMINDER:" \
@@ -1424,7 +1424,7 @@ test_force_close_skips_open_children_guard() {
     # With --force the close must succeed
     local force_exit=0
     local force_stderr
-    force_stderr=$(cd "$repo" && bash "$TICKET_SCRIPT" transition "$parent_id" in_progress closed --force 2>&1 >/dev/null) \
+    force_stderr=$(cd "$repo" && bash "$TICKET_SCRIPT" transition "$parent_id" in_progress closed --force --force-close="test: open-children guard test" 2>&1 >/dev/null) \
         || force_exit=$?
     assert_eq "force-close: with --force exits 0" "0" "$force_exit"
 
