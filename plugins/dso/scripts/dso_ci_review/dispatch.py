@@ -1117,13 +1117,18 @@ def dispatch_schema_correction(
         if _schema_errors
         else ""
     )
+    _CORRECTION_DIFF_CHAR_LIMIT = 50_000
+    _diff_section = (
+        "\n\n## Diff\n\n" + diff_text
+        if len(diff_text) <= _CORRECTION_DIFF_CHAR_LIMIT
+        else "\n\n## Diff\n\n(omitted — diff exceeds correction prompt size limit)\n"
+    )
     correction_prompt = (
         prompt_fragment
         + schema_errors_text
         + "\n\n## Original findings\n\n"
         + original_findings_json
-        + "\n\n## Diff\n\n"
-        + diff_text
+        + _diff_section
     )
 
     def _make_synthetic_error(error_details: str) -> dict[str, Any]:
