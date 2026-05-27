@@ -114,6 +114,12 @@ case "$provenance_exit" in
     echo "CONCLUSION: skipped"
     echo "OVER_BOUND: acknowledged non-provenanced commits present."
     echo "Routed to admin/FP-recovery for review."
+
+    # Write stub findings.json so ci.yml liveness assertion passes (bug afc7-44b5).
+    _output_path="${DSO_CI_REVIEW_OUTPUT_PATH:-${ARTIFACT_DIR}/findings.json}"
+    mkdir -p "$(dirname "$_output_path")" 2>/dev/null || true
+    printf '{"findings": [], "skip_reason": "over_bound"}\n' > "$_output_path" 2>/dev/null || true
+
     exit 0
     ;;
   1|2)

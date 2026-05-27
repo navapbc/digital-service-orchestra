@@ -335,3 +335,17 @@ def test_cycle_number_resets_on_sha_change(tmp_path):
         f"The SHA-reset should have fired because HEAD ({new_sha[:12]}) "
         f"differs from last ledger cycle SHA ({old_sha[:12]})."
     )
+
+
+def test_pr_number_stored_as_int_in_ledger(tmp_path):
+    """_resolve_pr_number returns int, ensuring cycle ledger matching works
+    across cycles (bug bc6b-2e8d)."""
+    from unittest.mock import patch as _patch
+
+    with _patch.dict("os.environ", {"PR_NUMBER": "42"}):
+        pr_num = runner_mod._resolve_pr_number()
+
+    assert isinstance(pr_num, int), (
+        f"_resolve_pr_number should return int, got {type(pr_num).__name__}"
+    )
+    assert pr_num == 42

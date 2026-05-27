@@ -781,7 +781,9 @@ jobs:
             startsWith(github.head_ref, 'session/') ||
             startsWith(github.head_ref, 'session-') ||
             startsWith(github.head_ref, 'session_') ||
-            startsWith(github.head_ref, 'bug-batch/')
+            startsWith(github.head_ref, 'bug-batch/') ||
+            startsWith(github.head_ref, 'worktree-') ||
+            startsWith(github.head_ref, 'fix-')
           )
         run: |
           set -euo pipefail
