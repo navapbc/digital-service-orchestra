@@ -20,6 +20,7 @@ from enum import Enum
 # Ordered list defines < / > semantics for check_phase_gate.
 # Index position IS the rank; do not reorder without updating tests.
 _ORDERED = [
+    "reconcile-check",
     "dry-run",
     "bootstrap-strict",
     "bootstrap-throttle",
@@ -32,12 +33,14 @@ class Mode(str, Enum):
     """Reconciler operation mode.
 
     Members (rollout-safety set only):
+        RECONCILE_CHECK   -- read-only discrepancy report; no writes
         DRY_RUN           -- read-only analysis; no Jira or ticket writes
         BOOTSTRAP_STRICT  -- conservative warm-up; writes only on high-confidence deltas
         BOOTSTRAP_THROTTLE -- permissive warm-up; writes on most deltas with rate-limiting
         LIVE              -- full production operation; no artificial throttling
     """
 
+    RECONCILE_CHECK = "reconcile-check"
     DRY_RUN = "dry-run"
     BOOTSTRAP_STRICT = "bootstrap-strict"
     BOOTSTRAP_THROTTLE = "bootstrap-throttle"
@@ -101,6 +104,7 @@ class Mode(str, Enum):
 # mutations into applied + deferred, in deterministic (direction, action, target)
 # order.
 MODE_CAPS: dict[Mode, int | None] = {
+    Mode.RECONCILE_CHECK: 0,
     Mode.DRY_RUN: 0,
     Mode.BOOTSTRAP_STRICT: 10,
     Mode.BOOTSTRAP_THROTTLE: 100,

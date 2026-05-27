@@ -35,9 +35,10 @@ def test_from_str_rejects_unknown_and_names_allowed_set():
         )
 
 
-def test_mode_has_exactly_four_members():
-    """Mode enum must contain exactly the four rollout-safety modes."""
+def test_mode_has_exactly_five_members():
+    """Mode enum must contain exactly the five rollout-safety modes."""
     assert {m.value for m in Mode} == {
+        "reconcile-check",
         "dry-run",
         "bootstrap-strict",
         "bootstrap-throttle",
