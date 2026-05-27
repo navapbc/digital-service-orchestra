@@ -251,6 +251,67 @@ the old Phase 5 that was removed from the agent.
 
 ---
 
+## 4b. Design MD Additions Surfacing
+
+After the Review Loop (Section 4) completes, check whether the `UI_DESIGNER_PAYLOAD`
+contains a non-null `design_md_additions` field.
+
+**Check**:
+```
+if payload.design_md_additions is null → skip this section, proceed to Section 5
+```
+
+**If `design_md_additions` is non-null**:
+
+Branch on `PREPLANNING_INTERACTIVE`:
+
+### PREPLANNING_INTERACTIVE=true (interactive mode)
+
+Present the additions to the user via `AskUserQuestion`:
+
+> "The UI designer produced additions to `.claude/design-notes.md` for story
+> `<story-id>`. These additions will be appended to your project-level design
+> notes file.
+>
+> Proposed additions:
+> ```
+> <design_md_additions content>
+> ```
+>
+> Options:
+> A. Approve — write these additions to .claude/design-notes.md
+> B. Decline — skip and tag design:tokens_pending"
+
+**On approval (A)**:
+
+Invoke `write-design-md-additions.sh` to persist the additions:
+```bash
+.claude/scripts/dso write-design-md-additions.sh "<story-id>" "<design_md_additions escaped content>"
+```
+Log: `"Design MD additions written for story <story-id>."`
+
+**On decline (B)**:
+
+Tag the story `design:tokens_pending` and skip the write:
+```bash
+.claude/scripts/dso ticket tag <story-id> design:tokens_pending
+```
+Log: `"Design MD additions declined for story <story-id>. Tagged design:tokens_pending."`
+
+### PREPLANNING_INTERACTIVE=false (non-interactive mode)
+
+Emit an `INTERACTIVITY_DEFERRED` comment on the epic ticket and tag the story
+`design:tokens_pending`:
+```bash
+.claude/scripts/dso ticket comment <epic-id> "INTERACTIVITY_DEFERRED: design_md_additions for story <story-id> — user approval required before writing to .claude/design-notes.md. Re-run preplanning in interactive mode or manually invoke write-design-md-additions.sh after review."
+.claude/scripts/dso ticket tag <story-id> design:tokens_pending
+```
+Log: `"INTERACTIVITY_DEFERRED: design_md_additions surfacing deferred for story <story-id>. Tagged design:tokens_pending."`
+
+After handling (write, decline, or defer), proceed to Section 5.
+
+---
+
 ## 5. Scope-Split Handling
 
 ### splitRole Guard (precedence check — evaluate FIRST)
