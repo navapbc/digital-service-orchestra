@@ -75,7 +75,43 @@ fi
 #   unprovenanced-shas.txt non-empty → exit 1 (dispatch runner)
 #   over-bound-shas.txt non-empty → exit 3 (OVER_BOUND skip path)
 #   both empty (and marker present) → exit 0 (all provenanced skip path)
-if [[ -s "$UNPROVENANCED_FILE" ]]; then
+# Bug 69f2: sub-agent worktree branches have session provenance (authored in
+# a Claude Code session) but have NEVER passed llm-review. The provenance
+# verifier classifies them as "covered" because it conflates "known authorship"
+# with "already reviewed." Force dispatch for sub-agent branches so their code
+# gets independent LLM review.
+#
+# Detection: sub-agent worktree branches follow the naming convention
+# "worktree-agent-*" or "feat-*" or "story-*" created by isolation:worktree
+# dispatch. The PR's head branch name is available via GITHUB_HEAD_REF.
+_HEAD_BRANCH="${GITHUB_HEAD_REF:-$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '')}"
+_FORCE_REVIEW=false
+if [[ "$_HEAD_BRANCH" =~ ^worktree-agent- ]] || \
+   [[ "$_HEAD_BRANCH" =~ ^feat- ]] || \
+   [[ "$_HEAD_BRANCH" =~ ^story- ]] || \
+   [[ "$_HEAD_BRANCH" =~ ^fix- ]]; then
+    # Check if this PR has PREVIOUSLY passed llm-review (not just provenance).
+    # If the PR has no prior llm-review pass, force dispatch regardless of
+    # provenance status.
+    _prior_review_pass="false"
+    if [[ -n "${PR_NUMBER:-}" ]]; then
+        _prior_review_pass=$(gh pr checks "$PR_NUMBER" 2>/dev/null \
+            | grep "llm-review" \
+            | grep -c "pass" || echo "0")
+    fi
+    if [[ "$_prior_review_pass" == "0" ]]; then
+        _FORCE_REVIEW=true
+        echo "  FORCE_REVIEW:     YES — branch '$_HEAD_BRANCH' has no prior llm-review pass"
+        echo "  REASON:           sub-agent/feature branch with session provenance but no prior review (bug 69f2)"
+    else
+        echo "  FORCE_REVIEW:     NO — branch '$_HEAD_BRANCH' already passed llm-review"
+    fi
+fi
+
+if [[ "$_FORCE_REVIEW" == "true" ]]; then
+    provenance_exit=1
+    echo "  DECISION:         DISPATCH (forced) — sub-agent code requires independent LLM review"
+elif [[ -s "$UNPROVENANCED_FILE" ]]; then
     provenance_exit=1
     echo "  DECISION:         DISPATCH — $(wc -l < "$UNPROVENANCED_FILE" | tr -d ' ') unprovenanced SHAs require LLM review"
 elif [[ -s "$OVERBOUND_FILE" ]]; then
@@ -83,8 +119,7 @@ elif [[ -s "$OVERBOUND_FILE" ]]; then
     echo "  DECISION:         SKIP (OVER_BOUND) — non-provenanced commits acknowledged"
 else
     provenance_exit=0
-    echo "  DECISION:         SKIP (all provenanced) — all commits covered by sub-PR reviews"
-    echo "  ⚠️  LLM WILL NOT BE INVOKED — code was not independently reviewed by LLM"
+    echo "  DECISION:         SKIP (all provenanced) — all commits covered by sub-PR reviews that passed llm-review"
 fi
 echo "================================================================="
 
