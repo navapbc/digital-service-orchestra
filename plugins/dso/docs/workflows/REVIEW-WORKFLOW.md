@@ -224,11 +224,11 @@ When `cycle_number >= 2`, orchestrators should supply `prior_findings_index` (st
 
 ## Step 4: Dispatch Code Review Sub-Agent (MANDATORY)
 
-**Prerequisite**: You MUST have `CLASSIFIER_OUTPUT` set from Step 3. If it is unset or empty, STOP — go back and run the Step 3 classifier shell command. There are no exceptions. Do NOT mentally substitute a tier based on diff size.
+**Prerequisite**: You MUST have run the Step 3 classifier block (which sets `REVIEW_TIER`). If `REVIEW_TIER` is unset or empty, STOP — go back and run the Step 3 classifier shell command. There are no exceptions. Do NOT mentally substitute a tier based on diff size.
 
 ```bash
-if [[ -z "${CLASSIFIER_OUTPUT:-}" ]]; then
-    echo "ERROR: CLASSIFIER_OUTPUT is unset — Step 3 classifier was not run. Return to Step 3." >&2
+if [[ -z "${REVIEW_TIER:-}" ]]; then
+    echo "ERROR: REVIEW_TIER is unset — Step 3 classifier was not run. Return to Step 3." >&2
     exit 1
 fi
 ```

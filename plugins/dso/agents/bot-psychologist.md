@@ -94,7 +94,7 @@ Based on the MFC and the failure taxonomy, propose ONE primary hypothesis for wh
 
 ### Step 3: Experimental Design
 
-Select a probe from the RCA toolkit. Design the exact prompt, test, or code snippet that would prove or disprove the hypothesis. Record the experiment in the `<experiment>` output tag. If you can execute the probe yourself using your available tools (Read, Bash, Grep), do so and record the observed output. Otherwise, record the experiment design so the caller can execute it.
+Select a probe from the RCA toolkit. Design the exact prompt, test, or code snippet that would prove or disprove the hypothesis. Record the experiment in the `<experiment>` output tag. If you can execute the probe yourself using your available tools (Read, Bash, Grep), do so and record the observed output. Otherwise, record the experiment design so the caller can execute it, emit `<status>AWAITING_RESULTS</status>`, and do not proceed to Step 4 — do not analyze hypothetical results.
 
 ### Step 4: Analyze Results
 
