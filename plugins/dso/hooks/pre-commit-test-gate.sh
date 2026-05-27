@@ -48,21 +48,13 @@ set -uo pipefail
 # ── Locate hook and plugin directories ──────────────────────────────────────
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# ── Fail-CLOSED on timeout (F-02 Tier A flip) ────────────────────────────────
-# pre-commit sends SIGTERM after the configured timeout (default 10s), which
-# results in exit 124. Claude Code's tool timeout sends SIGURG (exit 144).
-#
-# Previously this gate failed OPEN on timeout (exit 0) under the rationale that
-# "blocking commits when the hook mechanism itself fails is a bad state agents
-# can't recover from." That rationale has been retracted: a silent fail-open at
-# this gate means the test verdict is missing while the workflow continues as
-# if it passed. F-02 reclassifies this as a Tier A safety-critical gate.
-#
-# On timeout: emit a GATE_UNAVAILABLE audit record and exit 2 (block) unless
-# the operator has explicitly opted into a bypass via the paired env vars:
+# ── Tier A: fail-CLOSED on timeout ────────────────────────────────────────────
+# pre-commit sends SIGTERM (exit 124) after its configured timeout; Claude Code's
+# tool timeout sends SIGURG (exit 144). On either signal: emit a GATE_UNAVAILABLE
+# audit record and exit 2 (block). Operators may bypass via the paired env vars:
 #   DSO_GATE_BYPASS_TEST_GATE=1
 #   DSO_GATE_BYPASS_TEST_GATE_REASON='<one-line justification>'
-# The bypass writes its own audit record so it's discoverable in retrospectives.
+# Bypass activation writes its own audit record (discoverable in retrospectives).
 # shellcheck source=lib/gate-unavailable.sh
 source "$HOOK_DIR/lib/gate-unavailable.sh"
 

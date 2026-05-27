@@ -139,6 +139,58 @@ test_config_empty_value_falls_through() {
     _teardown
 }
 
+# ── Cache invalidation (F-05 contract) ───────────────────────────────────────
+# The resolver writes its value to .git/dso-default-branch only via callers
+# (merge-to-main-pr.sh / merge-to-main-direct.sh). merge-to-main.sh's dispatcher
+# is responsible for INVALIDATING the cache at the start of each merge run, so
+# upstream default-branch renames are picked up between separate invocations.
+# These tests cover the contract end-to-end without invoking the full merge
+# pipeline.
+
+test_cache_invalidation_in_dispatcher() {
+    # Simulate the dispatcher's cache-deletion block end-to-end: pre-populate
+    # the cache, then run the snippet from merge-to-main.sh:24-34 against
+    # this worktree and assert the cache file is gone.
+    _setup
+    # Pre-populate a stale cache value
+    local _git_dir
+    _git_dir=$(git rev-parse --git-dir 2>/dev/null)
+    echo "stale-branch-value" > "${_git_dir}/dso-default-branch"
+    assert_eq "stale cache pre-populated" "1" "$([[ -f "${_git_dir}/dso-default-branch" ]] && echo 1 || echo 0)"
+
+    # Run the dispatcher's cache-deletion snippet (mirroring merge-to-main.sh).
+    # If this snippet is ever removed or its path changes, this test fails.
+    local _GIT_DIR_FOR_CACHE
+    _GIT_DIR_FOR_CACHE="$(git rev-parse --git-dir 2>/dev/null || true)"
+    if [[ -n "$_GIT_DIR_FOR_CACHE" ]]; then
+        case "$_GIT_DIR_FOR_CACHE" in
+            /*) ;;
+            *) _GIT_DIR_FOR_CACHE="$TMPDIR_TEST/$_GIT_DIR_FOR_CACHE" ;;
+        esac
+        rm -f "$_GIT_DIR_FOR_CACHE/dso-default-branch" 2>/dev/null || true
+    fi
+
+    assert_eq "cache deleted by dispatcher snippet" "0" "$([[ -f "${_git_dir}/dso-default-branch" ]] && echo 1 || echo 0)"
+    cd "$REPO_ROOT"
+    _teardown
+}
+
+test_cache_deletion_present_in_dispatcher_source() {
+    # Source-level guard: the dispatcher (merge-to-main.sh) MUST contain a
+    # `rm -f ...dso-default-branch` line. A regression that removes this line
+    # would let stale caches survive across merge runs and reintroduce the
+    # exact failure mode F-05 closes. This static check complements the
+    # behavioral test above by catching the deletion-removed-but-test-still-
+    # passes scenario where the test snippet drifts from the production snippet.
+    local _dispatcher="$REPO_ROOT/plugins/dso/scripts/merge-to-main.sh"
+    if grep -qE 'rm -f.*dso-default-branch' "$_dispatcher"; then
+        PASS=$((PASS + 1))
+    else
+        FAIL=$((FAIL + 1))
+        echo "FAIL: merge-to-main.sh dispatcher missing cache-deletion line" >&2
+    fi
+}
+
 # ── Run all ──────────────────────────────────────────────────────────────────
 test_config_takes_precedence_over_symbolic_ref
 test_symbolic_ref_used_when_config_absent
@@ -149,5 +201,7 @@ test_warning_emitted_on_fallback
 test_no_warn_suppresses_warning
 test_always_exits_zero
 test_config_empty_value_falls_through
+test_cache_invalidation_in_dispatcher
+test_cache_deletion_present_in_dispatcher_source
 
 print_summary

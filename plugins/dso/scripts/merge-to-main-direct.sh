@@ -408,17 +408,17 @@ _phase_sync() {
     # Reading the resolver chain here would let a misconfigured config
     # (which the same file might contain) silently authorize merges into the
     # wrong branch — opt-in keeps the assertion strong for default users.
-    _EXPECTED_MAIN_BRANCH="main"
+    _EXPECTED_DEFAULT_BRANCH="main"
     _OPT_IN_DEFAULT_BRANCH=$(bash "$_SCRIPT_DIR/read-config.sh" dso.default_branch 2>/dev/null || true)
     if [[ -n "$_OPT_IN_DEFAULT_BRANCH" ]]; then
-        _EXPECTED_MAIN_BRANCH="$_OPT_IN_DEFAULT_BRANCH"
+        _EXPECTED_DEFAULT_BRANCH="$_OPT_IN_DEFAULT_BRANCH"
     fi
 
     MAIN_BRANCH=$(git branch --show-current)
-    if [ "$MAIN_BRANCH" != "$_EXPECTED_MAIN_BRANCH" ]; then
+    if [ "$MAIN_BRANCH" != "$_EXPECTED_DEFAULT_BRANCH" ]; then
         # Help operators on non-"main" default-branch repos: if the actual
         # branch matches origin/HEAD's symbolic-ref, suggest the opt-in.
-        if [[ "$_EXPECTED_MAIN_BRANCH" == "main" ]]; then
+        if [[ "$_EXPECTED_DEFAULT_BRANCH" == "main" ]]; then
             _LIKELY_DEFAULT=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||' || true)
             if [[ -n "$_LIKELY_DEFAULT" ]] && [[ "$_LIKELY_DEFAULT" == "$MAIN_BRANCH" ]] && [[ "$_LIKELY_DEFAULT" != "main" ]]; then
                 echo "ERROR: Direct merge refused — main repo is on '$MAIN_BRANCH'." >&2
@@ -431,7 +431,7 @@ _phase_sync() {
                 exit 1
             fi
         fi
-        echo "ERROR: Main repo is on '$MAIN_BRANCH', expected '$_EXPECTED_MAIN_BRANCH'."
+        echo "ERROR: Main repo is on '$MAIN_BRANCH', expected '$_EXPECTED_DEFAULT_BRANCH'."
         exit 1
     fi
 
@@ -460,12 +460,12 @@ _phase_sync() {
         #     Hard-reset to origin/main to restore a clean base (35eb-1824).
         _AHEAD_COUNT=$(git rev-list --count "origin/$_DEFAULT_BRANCH..HEAD" 2>/dev/null || echo "0")
         if [ "$_AHEAD_COUNT" -gt 0 ]; then
-            echo "INFO: Local main is ${_AHEAD_COUNT} commit(s) ahead of origin/main (stale) — resetting to origin/main."
+            echo "INFO: Local ${_DEFAULT_BRANCH} is ${_AHEAD_COUNT} commit(s) ahead of origin/${_DEFAULT_BRANCH} (stale) — resetting to origin/${_DEFAULT_BRANCH}."
             git reset --hard "origin/$_DEFAULT_BRANCH" -q 2>&1 || {
-                echo "WARNING: Could not reset local main to origin/main — _phase_merge may encounter false conflicts."
+                echo "WARNING: Could not reset local ${_DEFAULT_BRANCH} to origin/${_DEFAULT_BRANCH} — _phase_merge may encounter false conflicts."
             }
         else
-            echo "OK: origin/main is already an ancestor of main — skipping pull."
+            echo "OK: origin/${_DEFAULT_BRANCH} is already an ancestor of ${_DEFAULT_BRANCH} — skipping pull."
         fi
     else
         # main and origin have diverged. First check if the divergence is just
@@ -486,7 +486,7 @@ _phase_sync() {
         fi
         _abort_stale_rebase
         if git merge "origin/$_DEFAULT_BRANCH" --no-edit -q 2>&1; then
-            echo "OK: Merged origin/main into main."
+            echo "OK: Merged origin/${_DEFAULT_BRANCH} into ${_DEFAULT_BRANCH}."
         else
             # Merge failed — check if all conflicts are ticket-data files.
             local _merge_conflicts
@@ -509,13 +509,13 @@ _phase_sync() {
                     git add "$_f" 2>/dev/null || true
                 done <<< "$_merge_conflicts"
                 git commit --no-edit -q 2>/dev/null || true
-                echo "OK: Ticket-data conflicts auto-resolved during origin/main merge."
+                echo "OK: Ticket-data conflicts auto-resolved during origin/${_DEFAULT_BRANCH} merge."
             else
                 # Non-ticket conflicts present. Abort the merge and rely on the
                 # worktree branch (which already has origin/main merged) to bring
                 # origin/main content into main during _phase_merge.
                 git merge --abort 2>/dev/null || true
-                echo "WARNING: Could not merge origin/main into main (non-ticket conflicts). Continuing — worktree branch carries origin/main content."
+                echo "WARNING: Could not merge origin/${_DEFAULT_BRANCH} into ${_DEFAULT_BRANCH} (non-ticket conflicts). Continuing — worktree branch carries origin/${_DEFAULT_BRANCH} content."
             fi
         fi
         if $STASHED; then
@@ -559,9 +559,9 @@ _phase_merge() {
     if git merge-base --is-ancestor "origin/$_DEFAULT_BRANCH" HEAD 2>/dev/null; then
         _MERGE_PHASE_AHEAD=$(git rev-list --count "origin/$_DEFAULT_BRANCH..HEAD" 2>/dev/null || echo "0")
         if [ "$_MERGE_PHASE_AHEAD" -gt 0 ]; then
-            echo "INFO: _phase_merge: local main is ${_MERGE_PHASE_AHEAD} commit(s) ahead of origin/main (stale version bump?) — resetting to origin/main."
+            echo "INFO: _phase_merge: local ${_DEFAULT_BRANCH} is ${_MERGE_PHASE_AHEAD} commit(s) ahead of origin/${_DEFAULT_BRANCH} (stale version bump?) — resetting to origin/${_DEFAULT_BRANCH}."
             git reset --hard "origin/$_DEFAULT_BRANCH" -q 2>/dev/null || {
-                echo "WARNING: _phase_merge: Could not reset to origin/main — merge may encounter false conflicts."
+                echo "WARNING: _phase_merge: Could not reset to origin/${_DEFAULT_BRANCH} — merge may encounter false conflicts."
             }
         fi
     else
@@ -641,7 +641,7 @@ _phase_merge() {
                 # `git diff --diff-filter=U` lookup in _emit_conflict_data sees
                 # the unmerged paths from the failed retry merge in $_MERGE_SAVED_DIR
                 # (fix for important finding 2026-05-01).
-                _emit_conflict_data "$BRANCH" "main" "git-merge-no-ff"
+                _emit_conflict_data "$BRANCH" "$_DEFAULT_BRANCH" "git-merge-no-ff"
                 git merge --abort 2>/dev/null || true
                 _restore_pre_merge_stash
                 _state_increment_retry
@@ -660,7 +660,7 @@ _phase_merge() {
             # well-defined location), not the recovery worktree (fix for
             # important finding 2026-05-02 — reviewer's hardening request).
             cd "$_MERGE_SAVED_DIR"
-            _emit_conflict_data "$BRANCH" "main" "git-merge-no-ff"
+            _emit_conflict_data "$BRANCH" "$_DEFAULT_BRANCH" "git-merge-no-ff"
             _restore_pre_merge_stash
             _state_increment_retry
             echo "ERROR: Squash-rebase recovery failed. Cannot resolve automatically."
@@ -867,9 +867,9 @@ _phase_push() {
     # git push must run from MAIN_REPO. (Fixes resume-from-push gap.)
     cd "$MAIN_REPO"
 
-    echo "Pushing main..."
+    echo "Pushing ${_DEFAULT_BRANCH}..."
     if ! _check_push_needed; then
-        echo "INFO: Push skipped - already on origin/main."
+        echo "INFO: Push skipped - already on origin/${_DEFAULT_BRANCH}."
     else
         # Self-healing push (bug cb31-3552): when origin/main has advanced
         # between local merge and push (e.g., squash-merge of the just-merged
@@ -930,7 +930,7 @@ _phase_push() {
                 # commits. Prevents dispatch storms when multiple merge-to-main
                 # runs push an already-up-to-date tickets branch (71fa-c068).
                 if [ "$_LOCAL_SHA" != "$_REMOTE_SHA_BEFORE" ] && command -v gh &>/dev/null; then
-                    gh workflow run "Outbound Bridge" --ref main 2>/dev/null && \
+                    gh workflow run "Outbound Bridge" --ref "$_DEFAULT_BRANCH" 2>/dev/null && \
                         echo "OK: Outbound Bridge triggered." || \
                         echo "WARNING: Could not trigger Outbound Bridge workflow."
                 elif [ "$_LOCAL_SHA" = "$_REMOTE_SHA_BEFORE" ]; then
@@ -992,7 +992,7 @@ _phase_ci_trigger() {
         if echo "$HEAD_MSG" | grep -q '\[skip ci\]' && [ -n "$CODE_CHANGES" ]; then
             echo "INFO: HEAD has [skip ci] but merge contained code changes — triggering CI workflow..."
             if command -v gh >/dev/null 2>&1; then
-                if gh workflow run "$CI_WORKFLOW_NAME" --ref main 2>&1; then
+                if gh workflow run "$CI_WORKFLOW_NAME" --ref "$_DEFAULT_BRANCH" 2>&1; then
                     echo "OK: CI workflow triggered on main."
                 else
                     echo "WARNING: Could not trigger CI workflow (gh workflow run failed). Trigger manually or check GitHub Actions."
@@ -1132,7 +1132,7 @@ except Exception:
                 # Check whether origin advanced past the recorded SHA (recorded is
                 # an ancestor of current). If so, reset post-sync phases.
                 if git merge-base --is-ancestor "$_RECORDED_ORIGIN_SHA" "$_CURRENT_ORIGIN_SHA" 2>/dev/null; then
-                    echo "INFO: --resume: origin/main has advanced since this state file was created"
+                    echo "INFO: --resume: origin/${_DEFAULT_BRANCH} has advanced since this state file was created"
                     echo "      (recorded=${_RECORDED_ORIGIN_SHA:0:8}, current=${_CURRENT_ORIGIN_SHA:0:8})."
                     echo "      Resetting post-sync phases (sync, merge, version_bump, push) to re-run against fresh tip."
                     _DSO_SF="$_sf" _DSO_CURRENT_SHA="$_CURRENT_ORIGIN_SHA" python3 -c "
@@ -1215,7 +1215,7 @@ os.replace(sf + '.tmp', sf)
     if git fetch origin "$_DEFAULT_BRANCH" --quiet 2>/dev/null; then
         _ORIGIN_AHEAD_RESUME=$(git log "origin/$_DEFAULT_BRANCH..HEAD" --oneline 2>/dev/null || true)
         if [[ -z "$_ORIGIN_AHEAD_RESUME" ]]; then
-            echo "INFO: --resume: origin/main already contains local HEAD — push was already done."
+            echo "INFO: --resume: origin/${_DEFAULT_BRANCH} already contains local HEAD — push was already done."
             echo "INFO: Pre-marking phases through push as complete to prevent duplicate merge."
             # Ensure state file exists so _state_mark_complete can write
             if [[ ! -f "$_sf" ]]; then

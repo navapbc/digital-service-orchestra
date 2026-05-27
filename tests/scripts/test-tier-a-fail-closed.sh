@@ -87,6 +87,65 @@ test_test_gate_no_silent_fail_open_on_timeout() {
     PASS=$((PASS + 1))
 }
 
+# Helper: extract a named function body from a shell script. Returns the lines
+# between `<fn>() {` and the matching close brace at column 1. Used by the
+# block-extraction tests below to verify properties of specific handlers
+# without depending on file-wide grep matches that could pick up unrelated
+# code.
+_extract_function_body() {
+    local _file="$1"
+    local _fn="$2"
+    awk -v fn="$_fn" '
+        $0 ~ "^"fn"\\(\\)" { in_fn=1; next }
+        in_fn && /^}/      { in_fn=0; exit }
+        in_fn              { print }
+    ' "$_file"
+}
+
+test_test_gate_handler_calls_bypass_then_exit_2() {
+    # The _handle_timeout function MUST:
+    #   1. Call _dso_gate_bypass_active before the audit-and-block path
+    #   2. Contain `exit 2` (not `exit 0`) in the fail-closed branch
+    # A regression that drops either property silently restores fail-open or
+    # bypass-blind behavior. Static-assert both on the extracted function body.
+    local _body
+    _body=$(_extract_function_body "$TEST_GATE" "_handle_timeout")
+
+    if ! echo "$_body" | grep -q "_dso_gate_bypass_active test_gate"; then
+        FAIL=$((FAIL + 1))
+        echo "FAIL: _handle_timeout missing _dso_gate_bypass_active call" >&2
+        return 1
+    fi
+    if ! echo "$_body" | grep -q "exit 2"; then
+        FAIL=$((FAIL + 1))
+        echo "FAIL: _handle_timeout missing 'exit 2' fail-closed path" >&2
+        return 1
+    fi
+    PASS=$((PASS + 1))
+}
+
+test_test_gate_handler_bypass_precedes_exit_2() {
+    # Lexical order constraint: the bypass-check line must appear BEFORE the
+    # exit-2 line in _handle_timeout. If exit 2 fired unconditionally before
+    # the bypass check, the bypass envelope would be ineffective.
+    local _body _bypass_line _exit_line
+    _body=$(_extract_function_body "$TEST_GATE" "_handle_timeout")
+    _bypass_line=$(printf '%s\n' "$_body" | grep -n "_dso_gate_bypass_active test_gate" | head -1 | cut -d: -f1)
+    _exit_line=$(printf '%s\n' "$_body" | grep -n "^[[:space:]]*exit 2" | head -1 | cut -d: -f1)
+    if [[ -z "$_bypass_line" ]] || [[ -z "$_exit_line" ]]; then
+        FAIL=$((FAIL + 1))
+        echo "FAIL: could not locate bypass or exit-2 line in _handle_timeout" >&2
+        return 1
+    fi
+    if (( _bypass_line < _exit_line )); then
+        PASS=$((PASS + 1))
+    else
+        FAIL=$((FAIL + 1))
+        echo "FAIL: bypass check (line $_bypass_line) does not precede exit 2 (line $_exit_line)" >&2
+        return 1
+    fi
+}
+
 # ── pre-commit-review-gate.sh Tier A flip ────────────────────────────────────
 
 test_review_gate_declares_tier_a() {
@@ -136,6 +195,8 @@ test_test_gate_sources_helper
 test_test_gate_calls_helper_on_timeout
 test_test_gate_traps_term_and_urg
 test_test_gate_no_silent_fail_open_on_timeout
+test_test_gate_handler_calls_bypass_then_exit_2
+test_test_gate_handler_bypass_precedes_exit_2
 test_review_gate_declares_tier_a
 test_review_gate_sources_helper
 test_review_gate_calls_helper_on_hash_failure

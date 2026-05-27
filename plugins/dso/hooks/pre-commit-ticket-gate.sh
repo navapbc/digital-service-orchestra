@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# DSO-GATE-TIER: A
+# DSO-GATE-TIER: B
+# INTENT: A (timeout currently fail-open at _fail_open_on_timeout; flip to Tier A
+#   via _dso_gate_unavailable + exit 2 is the follow-up to F-02)
 # hook-boundary: enforcement
 # hooks/pre-commit-ticket-gate.sh
 # git commit-msg hook: blocks commits lacking a valid v3 ticket ID in the message.

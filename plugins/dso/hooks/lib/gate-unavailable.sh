@@ -62,6 +62,34 @@ _dso_gate_resolve_ticket_id() {
     fi
 }
 
+# ── Internal helper: JSON-escape a string value ──────────────────────────────
+# Escapes the five characters that produce invalid JSON if left raw inside a
+# string value: backslash, double-quote, newline, carriage return, tab.
+# Other control characters (NUL, vertical tab, form feed, etc.) are not handled
+# explicitly — they should not appear in any documented caller's reason text.
+# Stdout: the escaped string. Always succeeds.
+_dso_gate_json_escape() {
+    local _s="${1-}"
+    _s="${_s//\\/\\\\}"          # backslash first (so we don't double-escape our own escapes)
+    _s="${_s//\"/\\\"}"          # double-quote
+    _s="${_s//$'\n'/\\n}"        # newline
+    _s="${_s//$'\r'/\\r}"        # carriage return
+    _s="${_s//$'\t'/\\t}"        # tab
+    printf '%s' "$_s"
+}
+
+# ── Internal helper: validate a gate name ────────────────────────────────────
+# Gate names are used both as JSON values and as the suffix of bypass env vars
+# (DSO_GATE_BYPASS_<UPPER_GATE_NAME>). Bash env-var names must match
+# [A-Za-z_][A-Za-z0-9_]* — hyphens, dots, and other punctuation produce invalid
+# identifiers that `${!var}` cannot read, silently breaking the bypass. Enforce
+# the constraint at the helper boundary so future callers get a clear error
+# instead of a silent contract violation. Returns 0 on valid; 1 on invalid.
+_dso_gate_name_valid() {
+    local _name="${1-}"
+    [[ "$_name" =~ ^[a-z_][a-z0-9_]*$ ]]
+}
+
 # ── Public: _dso_gate_unavailable ────────────────────────────────────────────
 _dso_gate_unavailable() {
     local _gate_name="${1:-unknown_gate}"
@@ -75,12 +103,19 @@ _dso_gate_unavailable() {
     _ticket=$(_dso_gate_resolve_ticket_id)
     _actor="${USER:-unknown}"
 
-    # JSON-encode reason (limited: escape backslash and double-quote).
-    local _reason_escaped="${_reason//\\/\\\\}"
-    _reason_escaped="${_reason_escaped//\"/\\\"}"
+    # JSON-escape every field that could contain caller-provided text.
+    # gate_name is validated at the bypass boundary; the unavailable path also
+    # accepts arbitrary callers, so we escape here defensively rather than
+    # assuming validation upstream.
+    local _gate_escaped _reason_escaped _session_escaped _ticket_escaped _actor_escaped
+    _gate_escaped=$(_dso_gate_json_escape "$_gate_name")
+    _reason_escaped=$(_dso_gate_json_escape "$_reason")
+    _session_escaped=$(_dso_gate_json_escape "$_session")
+    _ticket_escaped=$(_dso_gate_json_escape "$_ticket")
+    _actor_escaped=$(_dso_gate_json_escape "$_actor")
 
     _line=$(printf '{"timestamp":"%s","gate_name":"%s","reason":"%s","session_id":"%s","ticket_id":"%s","actor":"%s"}' \
-        "$_ts" "$_gate_name" "$_reason_escaped" "$_session" "$_ticket" "$_actor")
+        "$_ts" "$_gate_escaped" "$_reason_escaped" "$_session_escaped" "$_ticket_escaped" "$_actor_escaped")
 
     # Best-effort write — never block the gate on log-write failure.
     mkdir -p "$_log_dir" 2>/dev/null || true
@@ -96,6 +131,18 @@ _dso_gate_unavailable() {
 # ── Public: _dso_gate_bypass_active ──────────────────────────────────────────
 _dso_gate_bypass_active() {
     local _gate_name="${1:-unknown_gate}"
+
+    # Validate gate name. The bypass mechanism uses DSO_GATE_BYPASS_<UPPER_NAME>
+    # as a bash env var; names with hyphens, dots, or other non-identifier
+    # characters produce an invalid env-var name that the indirect lookup
+    # cannot read, silently breaking the bypass. Fail loudly at the contract
+    # boundary instead.
+    if ! _dso_gate_name_valid "$_gate_name"; then
+        printf 'BYPASS_REJECTED: gate name %q is not a valid bash identifier (must match [a-z_][a-z0-9_]*).\n' \
+            "$_gate_name" >&2
+        return 1
+    fi
+
     # Upper-case the gate name for env-var lookup (DSO_GATE_BYPASS_<UPPER>).
     local _upper
     _upper=$(printf '%s' "$_gate_name" | tr '[:lower:]' '[:upper:]')
@@ -125,11 +172,16 @@ _dso_gate_bypass_active() {
     _session=$(_dso_gate_resolve_session_id)
     _ticket=$(_dso_gate_resolve_ticket_id)
     _actor="${USER:-unknown}"
-    local _reason_escaped="${_reason//\\/\\\\}"
-    _reason_escaped="${_reason_escaped//\"/\\\"}"
+
+    local _gate_escaped _reason_escaped _session_escaped _ticket_escaped _actor_escaped
+    _gate_escaped=$(_dso_gate_json_escape "$_gate_name")
+    _reason_escaped=$(_dso_gate_json_escape "$_reason")
+    _session_escaped=$(_dso_gate_json_escape "$_session")
+    _ticket_escaped=$(_dso_gate_json_escape "$_ticket")
+    _actor_escaped=$(_dso_gate_json_escape "$_actor")
 
     _line=$(printf '{"timestamp":"%s","event":"bypass_active","gate_name":"%s","reason":"%s","session_id":"%s","ticket_id":"%s","actor":"%s"}' \
-        "$_ts" "$_gate_name" "$_reason_escaped" "$_session" "$_ticket" "$_actor")
+        "$_ts" "$_gate_escaped" "$_reason_escaped" "$_session_escaped" "$_ticket_escaped" "$_actor_escaped")
     mkdir -p "$_log_dir" 2>/dev/null || true
     printf '%s\n' "$_line" >> "$_log_file" 2>/dev/null || true
 
