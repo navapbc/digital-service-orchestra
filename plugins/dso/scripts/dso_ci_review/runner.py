@@ -2136,6 +2136,27 @@ def main() -> int:
             )
         ).strip()
 
+        # SHA-reset: when HEAD changed since the last ledger cycle, reset
+        # cycle_number to 1 — mirrors cycle_dispatcher.next_action lines 236-257.
+        # Without this, _init_cycle_ledger returns stale cycle counts after
+        # force-pushes, causing defense-loading and two-call dispatch gates to
+        # use incorrect cycle context (bug 3fb2-23be).
+        _last_cycles = ledger.get("cycles", [])
+        _last_cycle = _last_cycles[-1] if _last_cycles else None
+        if (
+            _last_cycle
+            and _last_cycle.get("commit_sha")
+            and _last_cycle["commit_sha"] != reviewed_sha
+            and cycle_number > 1
+        ):
+            print(
+                f"INFO: commit_sha changed ({_last_cycle['commit_sha'][:12]} → "
+                f"{reviewed_sha[:12]}); resetting cycle_number from "
+                f"{cycle_number} to 1",
+                file=sys.stderr,
+            )
+            cycle_number = 1
+
         # Pre-review SHORT_CIRCUIT check: when HEAD SHA matches last cycle AND
         # arbiter-rulings.json exists, skip dispatch and return early.
         # Pass pr_number/repo so the durable PR-comment fallback fires when
