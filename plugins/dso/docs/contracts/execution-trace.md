@@ -59,8 +59,14 @@ Commands invoking a known test runner get `confidence: high`:
 - `curl` / `httpie`
 - `./validate.sh`
 
-All other commands get `confidence: normal`. Informational only — does not block execution or
-affect the verifier's verdict.
+All other commands get `confidence: normal`. The verifier applies extra scrutiny to `normal`-confidence
+traces — checking that the test file actually tests the DD's subject (Phase 3 fidelity check).
+
+Additionally, if a command's `confidence` is `high` but the DD text's subject nouns are absent from
+the command (Phase 3 subject-noun fidelity check), confidence is downgraded to `normal`.
+
+Confidence does not block execution or change the verifier's pass/fail verdict — it is an advisory
+signal for the verifier to allocate more inspection effort.
 
 ## Timeout and Retry
 

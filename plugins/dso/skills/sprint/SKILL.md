@@ -2216,6 +2216,26 @@ Pass `VERIFY_TRACE_PATH=$VERIFY_TRACE` in the completion-verifier prompt.
 If VERIFY_TRACE is empty or the script exits non-zero, log the error and pass
 `VERIFY_TRACE_PATH=""` to the verifier (backward-compat path). Do NOT skip the
 verifier dispatch because the trace script failed.
+
+**Simplified remediation for clear errors (intent-fidelity-pipeline Phase 4):**
+
+After `pre-verifier-execute.sh` produces the trace and BEFORE dispatching the completion-verifier, check the trace for FAIL outcomes with clear-error patterns. If found, attempt a direct fix to avoid the full planner dispatch chain.
+
+Read the trace file at `$VERIFY_TRACE`. For each result with `outcome: FAIL`, check whether `stderr_tail` matches any of these exact patterns:
+- `NotImplementedError` or `raise NotImplementedError`
+- `# stub` or `# TODO`
+- `pass  # placeholder`
+- `AttributeError: module .* has no attribute`
+- `ImportError: cannot import name`
+
+If a match is found AND this is the first simplified remediation for this story (check ticket comments for prior `SIMPLIFIED_REMEDIATION:` entries):
+1. Dispatch a single fix sub-agent with the failing DD description and AC as context. Do NOT pass the Verify command's expected output.
+2. After the fix sub-agent returns, re-run `pre-verifier-execute.sh` for ALL DDs.
+3. If ALL DDs now PASS → update `$VERIFY_TRACE` with the new trace and proceed to verifier dispatch.
+4. If ANY DD still fails → abandon this path, proceed to verifier dispatch with the original trace (the verifier + planner will handle it).
+5. Record: `.claude/scripts/dso ticket comment <story-id> "SIMPLIFIED_REMEDIATION: clear error (<pattern>) — dispatched direct fix sub-agent"`
+
+If no clear-error match or this is not the first remediation attempt → skip this block and proceed to verifier dispatch.
 </HARD-GATE>
 
 **Manual story sentinel path (Step 18)**: When the story has the `manual:awaiting_user` tag, `dso:completion-verifier` reads the `MANUAL_PAUSE_SENTINEL` comment written by `sprint-manual-drain.sh` to determine the verdict (see `completion-verifier.md` Step 9). The orchestrator takes no special action — dispatch the verifier normally and let it apply the sentinel verdict rules automatically.
@@ -2289,6 +2309,14 @@ When the verifier returns `P1: EVIDENCE_PENDING`:
    Action needed: fix the timeout, add a Verify command, or approve closure without trace.
    ```
 4. Do NOT attempt autonomous remediation of EVIDENCE_PENDING. It signals infrastructure problems (slow tests, missing fixtures, absent commands), not code defects.
+
+**Verify command mutability (intent-fidelity-pipeline Phase 4):**
+
+When a sub-agent's implementation diverges from the plan (approach changes, test files move, module restructured), the sub-agent SHOULD update the Verify command via `set-verify-commands` as part of its task completion report. Updated commands must pass the same negative-constraint validation as originals (no grep/find/ls/stat/test -f). A `VERIFY_COMMAND_UPDATED` ticket comment records the change for audit trail:
+
+```bash
+.claude/scripts/dso ticket comment <story-id> "VERIFY_COMMAND_UPDATED: dd-N command changed from '<old>' to '<new>'"
+```
 
 **Re-dispatch rule (d039-ac65)**: If the completion-verifier returned a non-PASS `P1` on ANY prior run during this story's lifecycle AND a fix was subsequently applied (remediation tasks completed, Phase C re-entry executed), you MUST re-dispatch the completion-verifier before closing the story — even when confidence is high that the fix addressed the failing criterion. High confidence is NOT a valid bypass. The verifier must confirm the fix did not introduce regressions on other criteria. Only technical failure (timeout, unparseable JSON) permits proceeding without re-verification. "I fixed the exact criterion that failed" is NOT a substitute for re-dispatch. **The Planner-dispatch HARD-GATE below applies to the re-dispatched verdict as well** — every P1 != PASS verdict, including those returned on a re-dispatch invocation under this rule, MUST route through `dso:verification-remediation-planner` before any remediation ticket creation. The re-dispatch site does NOT bypass the planner gate; the third dispatch path (re-dispatch) is held to the same invariant as the first.
 
