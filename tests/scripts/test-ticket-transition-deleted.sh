@@ -24,10 +24,17 @@ TICKET_TRANSITION_SCRIPT="$REPO_ROOT/plugins/dso/scripts/ticket-transition.sh"
 TICKET_UNBLOCK_SCRIPT="$REPO_ROOT/plugins/dso/scripts/ticket-unblock.py"
 TICKET_NEXT_BATCH_SCRIPT="$REPO_ROOT/plugins/dso/scripts/ticket-next-batch.sh"
 
+HASH_SCRIPT="$REPO_ROOT/plugins/dso/scripts/compute-verdict-hash.sh"
+
 source "$REPO_ROOT/tests/lib/assert.sh"
 source "$REPO_ROOT/tests/lib/git-fixtures.sh"
 
 echo "=== test-ticket-transition-deleted.sh ==="
+
+_verdict_hash() {
+    local repo="$1" ticket_id="$2"
+    (cd "$repo" && PROJECT_ROOT="$repo" bash "$HASH_SCRIPT" "$ticket_id" PASS 2>/dev/null)
+}
 
 # ── Helper: create a fresh temp git repo with ticket system initialized ────────
 _make_test_repo() {
@@ -190,7 +197,7 @@ test_closed_statuses_includes_deleted_in_transition_sh() {
     # (one deleted, one closed). Fails RED if CLOSED_STATUSES doesn't include 'deleted'.
     local parent_close_output parent_close_exit
     parent_close_exit=0
-    parent_close_output=$(cd "$repo" && bash "$TICKET_SCRIPT" transition "$parent_id" open closed 2>&1) || parent_close_exit=$?
+    parent_close_output=$(cd "$repo" && bash "$TICKET_SCRIPT" transition "$parent_id" open closed --verdict-hash="$(_verdict_hash "$repo" "$parent_id")" 2>&1) || parent_close_exit=$?
 
     # Assert: parent transition exits 0 (both children are in terminal state)
     assert_eq "parent can be closed when all children are in terminal state (deleted or closed)" \
@@ -472,7 +479,7 @@ test_closed_statuses_parent_with_only_deleted_children_closeable() {
 
     # Assert: parent can be closed when all children are deleted
     local parent_exit=0
-    cd "$repo" && bash "$TICKET_SCRIPT" transition "$parent_id" open closed 2>/dev/null || parent_exit=$?
+    cd "$repo" && bash "$TICKET_SCRIPT" transition "$parent_id" open closed --verdict-hash="$(_verdict_hash "$repo" "$parent_id")" 2>/dev/null || parent_exit=$?
 
     assert_eq "parent closeable with all-deleted children" "0" "$parent_exit"
 

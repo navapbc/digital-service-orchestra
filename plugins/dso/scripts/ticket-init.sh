@@ -325,20 +325,31 @@ fi
 if ! git -C "$TRACKER_DIR" show tickets:.gitignore &>/dev/null 2>&1; then
     cat > "$TRACKER_DIR/.gitignore" <<'GITIGNORE'
 .env-id
+.closure-key
 .state-cache
 .scratch/
 GITIGNORE
     git -C "$TRACKER_DIR" add .gitignore
     git -C "$TRACKER_DIR" commit -q --no-verify -m "chore: add .gitignore for env-id, state-cache, and scratch"
 else
-    # Pre-upgrade path: .gitignore exists but may be missing .scratch/ entry.
-    # Append .scratch/ to the committed .gitignore if absent.
+    # Pre-upgrade path: .gitignore exists but may be missing entries.
     _gitignore_content=$(git -C "$TRACKER_DIR" show tickets:.gitignore 2>/dev/null || echo "")
+    _gitignore_updated=false
     if ! echo "$_gitignore_content" | grep -qFx '.scratch/' 2>/dev/null; then
         git -C "$TRACKER_DIR" show tickets:.gitignore > "$TRACKER_DIR/.gitignore"
         echo ".scratch/" >> "$TRACKER_DIR/.gitignore"
+        _gitignore_updated=true
+    fi
+    if ! echo "$_gitignore_content" | grep -qFx '.closure-key' 2>/dev/null; then
+        if [ "$_gitignore_updated" = false ]; then
+            git -C "$TRACKER_DIR" show tickets:.gitignore > "$TRACKER_DIR/.gitignore"
+        fi
+        echo ".closure-key" >> "$TRACKER_DIR/.gitignore"
+        _gitignore_updated=true
+    fi
+    if [ "$_gitignore_updated" = true ]; then
         git -C "$TRACKER_DIR" add .gitignore
-        git -C "$TRACKER_DIR" commit -q --no-verify -m "chore: add .scratch/ to .gitignore"
+        git -C "$TRACKER_DIR" commit -q --no-verify -m "chore: update .gitignore (closure-key, scratch)"
     fi
 fi
 
@@ -398,6 +409,13 @@ fi
 # ── Generate env-id ───────────────────────────────────────────────────────────
 if [ ! -f "$TRACKER_DIR/.env-id" ]; then
     python3 -c "import uuid; print(uuid.uuid4())" > "$TRACKER_DIR/.env-id"
+fi
+
+# ── Generate closure-key (verdict hash gate) ─────────────────────────────────
+# Used by compute-verdict-hash.sh and ticket-transition.sh to produce/verify
+# HMAC-based verdict hashes for story/epic closure. Gitignored and local.
+if [ ! -f "$TRACKER_DIR/.closure-key" ]; then
+    python3 -c "import uuid; print(uuid.uuid4())" > "$TRACKER_DIR/.closure-key"
 fi
 
 # ── Set gc.auto=0 on the tickets worktree ─────────────────────────────────────

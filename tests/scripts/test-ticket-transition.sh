@@ -18,11 +18,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 TICKET_SCRIPT="$REPO_ROOT/plugins/dso/scripts/ticket"
 TICKET_TRANSITION_SCRIPT="$REPO_ROOT/plugins/dso/scripts/ticket-transition.sh"
+HASH_SCRIPT="$REPO_ROOT/plugins/dso/scripts/compute-verdict-hash.sh"
 
 source "$REPO_ROOT/tests/lib/assert.sh"
 source "$REPO_ROOT/tests/lib/git-fixtures.sh"
 
 echo "=== test-ticket-transition.sh ==="
+
+_verdict_hash() {
+    local repo="$1" ticket_id="$2"
+    (cd "$repo" && PROJECT_ROOT="$repo" bash "$HASH_SCRIPT" "$ticket_id" PASS 2>/dev/null)
+}
 
 # ── Helper: create a fresh temp git repo with ticket system initialized ────────
 _make_test_repo() {
@@ -1063,7 +1069,7 @@ test_epic_close_emits_end_session_reminder() {
 
     # Close the epic — output must contain the REMINDER line
     local epic_out
-    epic_out=$(cd "$repo" && bash "$TICKET_SCRIPT" transition "$epic_id" open closed 2>/dev/null) || true
+    epic_out=$(cd "$repo" && bash "$TICKET_SCRIPT" transition "$epic_id" open closed --verdict-hash="$(_verdict_hash "$repo" "$epic_id")" 2>/dev/null) || true
     assert_contains \
         "epic-close: REMINDER line present" \
         "REMINDER:" \
@@ -1424,7 +1430,7 @@ test_force_close_skips_open_children_guard() {
     # With --force the close must succeed
     local force_exit=0
     local force_stderr
-    force_stderr=$(cd "$repo" && bash "$TICKET_SCRIPT" transition "$parent_id" in_progress closed --force 2>&1 >/dev/null) \
+    force_stderr=$(cd "$repo" && bash "$TICKET_SCRIPT" transition "$parent_id" in_progress closed --force --verdict-hash="$(_verdict_hash "$repo" "$parent_id")" 2>&1 >/dev/null) \
         || force_exit=$?
     assert_eq "force-close: with --force exits 0" "0" "$force_exit"
 

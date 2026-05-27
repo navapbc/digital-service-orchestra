@@ -108,6 +108,7 @@ _pre_bash_dispatch() {
         hook_worktree_bash_guard \
         hook_worktree_edit_guard \
         hook_review_integrity_guard \
+        hook_force_close_guard \
         hook_blocked_test_command \
         hook_tickets_tracker_bash_guard \
         hook_no_force_merge

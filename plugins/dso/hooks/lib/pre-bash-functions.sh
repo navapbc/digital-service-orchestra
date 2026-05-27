@@ -642,6 +642,40 @@ hook_review_integrity_guard() {
 }
 
 # ---------------------------------------------------------------------------
+# hook_force_close_guard
+# ---------------------------------------------------------------------------
+# PreToolUse hook: intercept --force-close on ticket transition commands.
+# Forces the command through Claude Code's user permission prompt so the user
+# explicitly approves every verdict-hash bypass. The LLM cannot suppress this.
+hook_force_close_guard() {
+    local INPUT="$1"
+    local HOOK_ERROR_LOG="$HOME/.claude/logs/dso-hook-errors.jsonl"
+    trap 'printf "{\"ts\":\"%s\",\"hook\":\"force-close-guard\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; return 0' ERR
+
+    local COMMAND
+    COMMAND=$(parse_json_field "$INPUT" '.tool_input.command')
+    if [[ -z "$COMMAND" ]]; then
+        return 0
+    fi
+
+    if [[ "$COMMAND" == *"--force-close"* ]] && [[ "$COMMAND" == *"ticket"* ]] && [[ "$COMMAND" == *"transition"* || "$COMMAND" == *"closed"* ]]; then
+        local _reason
+        _reason=$(echo "$COMMAND" | grep -oP '(?<=--force-close[= ]")[^"]*' 2>/dev/null || echo "$COMMAND" | grep -oP '(?<=--force-close=)\S+' 2>/dev/null || echo "unknown")
+        echo "" >&2
+        echo "BLOCKED: --force-close on story/epic requires user approval." >&2
+        echo "" >&2
+        echo "  This closes a ticket WITHOUT a verified completion verdict." >&2
+        echo "  Reason given: \"$_reason\"" >&2
+        echo "" >&2
+        echo "  Approve this command to proceed, or deny to block." >&2
+        echo "" >&2
+        trap - ERR; return 2
+    fi
+
+    return 0
+}
+
+# ---------------------------------------------------------------------------
 # hook_blocked_test_command
 # ---------------------------------------------------------------------------
 # PreToolUse hook: block broad test commands and redirect to validate.sh.
