@@ -1,1 +1,0 @@
-{"author":"Test","data":{"body":"Fixed: PR #414 — re-read SPRINT_MODE at Phase F Step 18, change fallback to empty (error on unset), add compaction-recovery anchor at Step 19."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1779913363571302000,"uuid":"19a4bc89-fba0-4691-833d-68b1c4cd7be3"}
