@@ -67,7 +67,7 @@ If the item describes a durable property the system will continue to satisfy (in
 
 ## Verify-Intent Requirement (intent-fidelity-pipeline Phase 2)
 
-Every SC must carry a `Verify-intent:` clause — a plain-language statement describing the observable outcome that constitutes proof the SC is satisfied. The Verify-intent is NOT a command; it does not reference test file paths (which don't exist at brainstorm time). It describes what a downstream agent will resolve into a concrete executable command.
+Every non-`DEFERRED_MEASUREMENT` SC must carry a `Verify-intent:` clause — a plain-language statement describing the observable outcome that constitutes proof the SC is satisfied. The Verify-intent is NOT a command; it does not reference test file paths (which don't exist at brainstorm time). It describes what a downstream agent will resolve into a concrete executable command.
 
 **Format**: Append `Verify-intent:` on the line after the SC text:
 ```
@@ -85,8 +85,6 @@ Reject intents missing any element:
 - "The login endpoint accepts valid credentials and returns a 200 with a session token" — ACCEPTED (subject: login endpoint, action: accepts valid credentials, observable: returns 200 with session token)
 
 **Timing**: Verify-intents are drafted in a batch step AFTER all SCs are written, not during the Socratic dialogue. This avoids dialogue friction.
-
-**DEFERRED_MEASUREMENT SCs**: SCs tagged as `DEFERRED_MEASUREMENT` do not require a Verify-intent (their measurement is deferred by definition).
 
 ### Brainstorm refusal copy
 

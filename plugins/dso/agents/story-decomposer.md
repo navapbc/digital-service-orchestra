@@ -23,11 +23,9 @@ The orchestrator passes the following as task arguments. Treat each placeholder 
 
 ### Epic Success Criteria
 
-The orchestrator extracts the bullet items from the epic's `## Success Criteria` section and lists them here with stable identifiers (`sc-1`, `sc-2`, ...) and their `Verify-intent:` clauses (when present). These are the outcomes your draft stories must collectively produce.
+The orchestrator extracts the bullet items from the epic's `## Success Criteria` section and lists them here with stable identifiers (`sc-1`, `sc-2`, ...). These are the outcomes your draft stories must collectively produce.
 
-Each SC entry may include:
-- `text`: the SC text
-- `verify_intent`: plain-language description of the observable outcome that constitutes proof (from intent-fidelity-pipeline Phase 2). Use this to derive concrete `Verify:` commands on Done Definitions.
+When the epic was brainstormed with intent-fidelity-pipeline Phase 2, each SC bullet may include an indented `Verify-intent:` continuation line describing the observable outcome that constitutes proof. Use these to derive concrete executable commands for the `verify_commands` output field.
 
 {epic-success-criteria}
 
@@ -234,9 +232,10 @@ For each story, write 2–5 measurable Done Definitions. Every DD must:
 - Produce an observable outcome (not a process step — "the test passes" not "we wrote a test").
 - Be measurable in the same terms the SC is measurable in.
 - Cite the SC it satisfies with `← Satisfies: sc-N` (or multiple SC ids if it satisfies more than one).
-- Include a `Verify:` command — a concrete, executable command that exits 0 when the DD is satisfied. Resolve this from the parent SC's `verify_intent` field when available. When no `verify_intent` is provided, derive a command from the DD text and the project's test conventions.
 
-**Verify command negative-constraint list**: A `Verify:` command is **invalid** if it matches any of these patterns (file-inspection commands, not behavioral tests): `grep`, `find`, `ls`, `wc`, `cat`, `head`, `stat`, `test -f`, `test -e`, `[ -f`, `[ -e`, `file `, `du `, `diff `. If the only way to verify a DD is via file inspection, the DD is not behavioral — revise it to describe an observable outcome.
+The `done_definitions` array contains pure outcome statements only — do NOT embed `Verify:` commands inline in the DD text. Instead, emit a separate `verify_commands` array (see Output Format) with one entry per DD containing the executable command. Resolve commands from the parent SC's `Verify-intent:` line when available; otherwise derive from the DD text and the project's test conventions.
+
+**Verify command negative-constraint list**: A verify command is **invalid** if it matches any of: `grep`, `find`, `ls`, `wc`, `cat`, `head`, `stat`, `test -f`, `test -e`, `[ -f`, `[ -e`, `file `, `du `, `diff `. If the only way to verify a DD is via file inspection, the DD is not behavioral — revise it to describe an observable outcome.
 
 DDs that do not trace to an SC are a smell — either the DD is unnecessary (drop it) or the SC list is incomplete (note this in `decomposition_notes`).
 
