@@ -447,3 +447,133 @@ def test_novelty_gate_skipped_when_suppress_prior_defenses(tmp_path):
         f"DSO_SUPPRESS_PRIOR_DEFENSES=true, but got severities: {severity_values}. "
         f"This indicates the novelty gate ran when it should have been skipped."
     )
+
+
+# ---------------------------------------------------------------------------
+# Test 11: finding_id generation for findings missing the field (bug 33c8)
+# ---------------------------------------------------------------------------
+def test_finding_id_generated_when_missing(tmp_path):
+    """runner.main() assigns a content-derived finding_id to findings that
+    lack one, using the f-<hex8> format."""
+    import contextlib
+    import json
+    import sys
+
+    from unittest.mock import patch as _patch
+
+    _REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
+    _SCRIPTS_DIR = str(_REPO_ROOT / "plugins" / "dso" / "scripts")
+    if _SCRIPTS_DIR not in sys.path:
+        sys.path.insert(0, _SCRIPTS_DIR)
+
+    import dso_ci_review.runner as runner_mod
+    from dso_ci_review.dispatch import _FINDING_ID_RE
+
+    specialist_findings = [
+        {
+            "findings": [
+                {
+                    "severity": "important",
+                    "description": "Missing null check",
+                    "cited_lines": ["src/handler.py:42"],
+                    "category": "correctness",
+                }
+            ],
+            "scores": {},
+            "summary": "finding without finding_id",
+        }
+    ]
+
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text("diff --git a/src/handler.py b/src/handler.py\n+added\n")
+    output_file = tmp_path / "findings.json"
+
+    env = {
+        "DSO_CI_REVIEW_DIFF_PATH": str(diff_file),
+        "DSO_CI_REVIEW_OUTPUT_PATH": str(output_file),
+        "CI_REVIEW_PROVIDER": "anthropic",
+        "ANTHROPIC_API_KEY": "test-key",
+        "DSO_REVIEW_CYCLE": "1",
+    }
+
+    _TIER_RESULT = {
+        "selected_tier": "light",
+        "size_action": "none",
+        "security_overlay": False,
+        "performance_overlay": False,
+        "test_quality_overlay": False,
+        "diff_size_lines": 1,
+        "blast_radius": 1,
+        "critical_path": 0,
+        "anti_shortcut": 0,
+        "staleness": 0,
+        "cross_cutting": 0,
+        "diff_lines": 1,
+        "change_volume": 0,
+        "computed_total": 1,
+        "is_merge_commit": False,
+    }
+
+    async def mock_dispatch(agents):
+        return specialist_findings
+
+    dispatch_next = {
+        "action": "DISPATCH_NEXT",
+        "reason": "cycle 1",
+        "cycle_num": 1,
+    }
+
+    empty_ledger = {"schema_version": "1.1.0", "epic_id": "", "cycles": []}
+
+    stack = contextlib.ExitStack()
+    stack.enter_context(_patch.dict("os.environ", env))
+    stack.enter_context(
+        _patch("dso_ci_review.runner._classify_tier_via_bash", return_value=_TIER_RESULT)
+    )
+    stack.enter_context(
+        _patch(
+            "dso_ci_review.runner._validate_findings_schema",
+            return_value=runner_mod._SchemaValidationResult("schema_pass", []),
+        )
+    )
+    stack.enter_context(
+        _patch("dso_ci_review.runner.async_dispatch_specialists", side_effect=mock_dispatch)
+    )
+    stack.enter_context(
+        _patch(
+            "dso_ci_review.verifier.dispatch_verifier",
+            side_effect=lambda findings, reviewed_sha=None: findings,
+        )
+    )
+    stack.enter_context(
+        _patch("dso_ci_review.runner.cycle_next_action", return_value=dispatch_next)
+    )
+    stack.enter_context(
+        _patch("dso_ci_review.runner._resolve_artifacts_dir", return_value=str(tmp_path))
+    )
+    stack.enter_context(
+        _patch("dso_ci_review.runner._init_cycle_ledger", return_value=(empty_ledger, 1))
+    )
+    stack.enter_context(_patch("dso_ci_review.runner._resolve_max_cycles", return_value=3))
+    stack.enter_context(_patch("dso_ci_review.runner._resolve_pr_number", return_value=None))
+    stack.enter_context(_patch("dso_ci_review.runner._resolve_repo", return_value=None))
+    stack.enter_context(_patch("dso_ci_review.runner._append_cycle"))
+    stack.enter_context(_patch("dso_ci_review.runner._post_cycle_marker_comment"))
+    stack.enter_context(
+        _patch("dso_ci_review.runner.subprocess.check_output", return_value="abc123\n")
+    )
+
+    with stack:
+        runner_mod.main()
+
+    assert output_file.exists()
+    output_data = json.loads(output_file.read_text())
+    findings = output_data.get("findings", [])
+    assert len(findings) >= 1
+
+    for f in findings:
+        fid = f.get("finding_id", "")
+        assert fid, f"Finding should have a finding_id, got empty: {f}"
+        assert _FINDING_ID_RE.match(fid), (
+            f"Finding ID '{fid}' should match f-<hex8> format"
+        )

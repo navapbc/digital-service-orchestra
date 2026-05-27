@@ -31,6 +31,7 @@ import tempfile
 from typing import Literal, NamedTuple
 
 from dso_ci_review.dispatch import (
+    _FINDING_ID_RE,
     async_dispatch_specialists,
     _validate_agent_files,
     dispatch_arch_synthesis,
@@ -2682,6 +2683,21 @@ def main() -> int:
         )
         merged = dict(merged)
         merged["findings"] = _verifier_findings
+
+        # Step 7c.5: generate finding_id for findings that lack one.
+        # Agent prompts do not require the LLM to generate finding_id, and
+        # no prior pipeline step assigns them. Use a content-derived hash
+        # so identical findings produce stable IDs across cycles.
+        for _f in merged.get("findings") or []:
+            if not _f.get("finding_id") or not _FINDING_ID_RE.match(
+                str(_f.get("finding_id", ""))
+            ):
+                _id_source = (
+                    _f.get("file", "")
+                    + str(_f.get("cited_lines", ""))
+                    + _f.get("description", "")
+                )
+                _f["finding_id"] = f"f-{hashlib.sha256(_id_source.encode()).hexdigest()[:8]}"
 
         # Step 7d: telemetry emission (fire-and-forget, fail-open).
         # Emit one event per finding (review_finding or tool_finding), then
