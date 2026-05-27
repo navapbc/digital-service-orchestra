@@ -502,8 +502,8 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 | | |
 |---|---|
 | **Description** | Path to the project's North Star design document, relative to repo root. |
-| **Accepted values** | Relative file path (e.g., `.claude/design-notes.md`, `docs/design-notes.md`) |
-| **Default** | `.claude/design-notes.md` |
+| **Accepted values** | Relative file path (e.g., `DESIGN.md`, `docs/DESIGN.md`) |
+| **Default** | `DESIGN.md` |
 | **Used by** | Skills: `/dso:design-review`, `/dso:onboarding` |
 
 ---
@@ -548,6 +548,17 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 | **Accepted values** | Positive integer (number of days) |
 | **Default** | `7` |
 | **Used by** | `/dso:sprint` (story dashboard display, Phase B) |
+
+---
+
+### `design.lint_enabled`
+
+| | |
+|---|---|
+| **Description** | Controls whether `design-md-lint.sh` runs the lint check on the project design document. When `auto`, the check runs only when the configured `design.design_notes_path` file (default: `DESIGN.md`) is present. When `always`, the check runs unconditionally (fails if the file is missing). When `never`, the check is skipped entirely. |
+| **Accepted values** | `auto` \| `always` \| `never` |
+| **Default** | `auto` |
+| **Used by** | `design-md-lint.sh` |
 
 ---
 
@@ -2107,7 +2118,7 @@ Federal Plain Language Guidelines, and CDC reading-level guidance.  These entrie
 occupy the top of the precedence ladder:
 
 ```
-canon-rule > Copy Needs constraint > Users archetype > design-notes voice
+canon-rule > Copy Needs constraint > Users archetype > DESIGN.md voice
 ```
 
 Use `--namespace=canon` when you need rule-level authority (e.g., plain-language

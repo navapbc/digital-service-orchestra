@@ -86,7 +86,7 @@ Store as `VISION_SUMMARY`. Show it to the user as context — do NOT ask for app
 Dispatch ONE sub-agent (sonnet) using the prompt in `prompts/vision-gap.md`. Pass:
 
 - The `VISION_SUMMARY` from Step 3.
-- A quick snapshot of current project state: top-level repo layout (`ls`), the most recently modified directories, and any README/PRD/design-notes files the sub-agent can find.
+- A quick snapshot of current project state: top-level repo layout (`ls`), the most recently modified directories, and any README/PRD/DESIGN.md files the sub-agent can find.
 
 The sub-agent returns:
 

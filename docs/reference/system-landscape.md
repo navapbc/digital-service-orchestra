@@ -1,5 +1,5 @@
 ---
-last_synced_commit: f46104dc4e5b724d9e79d01681b734e482fa8e4b
+last_synced_commit: ee6adfc026bed4d643b9ba362a3460b7037afb8c
 ---
 
 # System Landscape Reference
@@ -153,6 +153,37 @@ Dev-team artifacts belong in project-local directories and are never shipped as 
 **Graceful degradation**: When `test_quality.tool=semgrep` and Semgrep is not installed, the gate logs a warning and exits 0. It does not fall back to `bash-grep` automatically — set `test_quality.tool=bash-grep` explicitly for zero-dependency detection.
 
 **Hook registration**: `.pre-commit-config.yaml` entry `pre-commit-test-quality-gate`. Runs at `pre-commit` stage on files matching `^tests/`.
+
+## DESIGN.md Linter (design-md-lint.sh / design-lint.sh)
+
+The DSO plugin enforces design-system constraints (color tokens, spacing scale, typography scale) via the `@google/design.md` CLI (pinned at `0.2.0`). The project's canonical design-system artifact is `DESIGN.md` at the repo root.
+
+**Two enforcement modes**:
+
+| Mode | Script | Scope | Invocation |
+|------|--------|-------|-----------|
+| Pre-commit (diff-scoped) | `plugins/dso/scripts/design-md-lint.sh` | Diff-touched lines only | Registered as `pre-commit-design-md-lint.sh` hook in `.pre-commit-config.yaml` |
+| Audit (full-file) | `plugins/dso/scripts/design-lint.sh` | Entire `DESIGN.md` | `dso design-lint [--report]` |
+
+**Three-state config gate** (`design.lint_enabled` in `.claude/dso-config.conf`):
+
+| Value | Behavior |
+|-------|----------|
+| `auto` (default) | Enabled when a UI stack is detected via `detect-ui-files.sh` |
+| `always` | Enabled unconditionally (fails if DESIGN.md is absent) |
+| `never` | Disabled (exits 0 immediately) |
+
+**Fail-open conditions** (exit 0, skip lint): `npx` unavailable; DESIGN.md absent; no staged files; no diff-touched lines in scope-eligible extensions (`.py`, `.js`, `.ts`, `.tsx`, `.jsx`, `.sh`, `.html`, `.css`, `.scss`).
+
+**Sprint integration**: Sprint Phase F runs `design-md-lint.sh` against each batch's touched files before commit. Violations block the batch until fixed.
+
+**FP-recovery integration**: DESIGN.md lint findings are eligible false-positive candidates in `/dso:fp-recovery`.
+
+**Migration**: `.claude/design-notes.md` was migrated to `DESIGN.md` via `plugins/dso/scripts/migrate-design-notes-to-design-md.sh`.
+
+**Reference doc**: `plugins/dso/docs/DESIGN-MD-REFERENCE.md` (pinned CLI version, audit command usage, Node.js compatibility, known limitations).
+
+ADR: `docs/adr/0018-design-md-linter-governance.md`
 
 ## Stack-Aware Config Pre-Fill (prefill-config.sh)
 
