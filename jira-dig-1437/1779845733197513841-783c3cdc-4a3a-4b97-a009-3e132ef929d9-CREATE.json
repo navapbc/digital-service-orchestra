@@ -1,1 +1,0 @@
-{"timestamp": 1779845733197513841, "uuid": "783c3cdc-4a3a-4b97-a009-3e132ef929d9", "event_type": "CREATE", "env_id": "reconciler", "author": "reconciler", "data": {"id": "jira-dig-1437", "ticket_type": "epic", "title": "Retro skill should include an overall visual review", "description": "", "parent_id": "", "tags": ["imported:reconciler-bootstrap"], "priority": "Lowest"}}
