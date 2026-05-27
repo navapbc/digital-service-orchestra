@@ -211,6 +211,7 @@ plugins/dso/scripts/create-dso-app.sh:tests/scripts/test-create-dso-app.sh
 plugins/dso/scripts/create-story-branch.sh:tests/scripts/test-create-story-branch.sh
 plugins/dso/scripts/create-sprint-draft-pr.sh:tests/scripts/test-create-sprint-draft-pr.sh
 plugins/dso/scripts/design-approve.sh:tests/scripts/test-design-approve.sh
+plugins/dso/scripts/design-md-lint.sh:tests/scripts/test-design-md-fixtures.sh
 plugins/dso/scripts/ci-review-corpus-delta.sh:tests/skills/dso_ci_review/test-ci-review-corpus-delta.sh
 plugins/dso/scripts/dso_ci_review/context_request.py:tests/skills/dso_ci_review/test_context_augmentation.py
 plugins/dso/scripts/dso_ci_review/cycle_ledger.py:tests/skills/dso_ci_review/test_cycle_ledger.py,tests/scripts/test-cycle-ledger-migration.sh,tests/perf/test-cycle-ledger-perf.py
