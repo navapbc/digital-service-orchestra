@@ -1,266 +1,257 @@
 #!/usr/bin/env bash
 # tests/scripts/test-migrate-design-notes.sh
-# RED-phase behavioral tests for plugins/dso/scripts/migrate-design-notes-to-design-md.sh
+# Behavioral tests for scripts/migrate-design-notes-to-design-md.sh
 #
-# Testing Mode: RED — tests FAIL until migrate-design-notes-to-design-md.sh is implemented.
-#
-# Behavior under test:
-#   migrate-design-notes-to-design-md.sh migrates .claude/design-notes.md to DESIGN.md:
-#     - Happy path: sections mapped, YAML front-matter prepended, design-notes.md → tombstone
-#     - Greenfield guard: no design-notes.md exists → exit 0, no DESIGN.md created
-#     - Idempotency: DESIGN.md already exists with migration marker → exit 0, no changes
-#     - Tombstone content: design-notes.md contains deprecation marker after migration
-#     - YAML front-matter: DESIGN.md starts with --- delimiters after migration
+# Tests covered:
+#   1. test_happy_path_migration         — migrates design-notes.md to DESIGN.md with YAML front-matter
+#   2. test_greenfield_guard             — exits 0 without writing DESIGN.md when design-notes.md absent
+#   3. test_idempotency                  — re-run is safe; no double-migration
+#   4. test_tombstone_content            — design-notes.md becomes deprecation tombstone with marker
+#   5. test_yaml_front_matter_structure  — DESIGN.md has --- name: ... --- front-matter
+#   6. test_section_mapping              — Vision/User Archetypes/Visual Language → Overview; Anti-Patterns → Dos and Donts
 #
 # Usage: bash tests/scripts/test-migrate-design-notes.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
 
-# NOTE: -e intentionally omitted — test functions may return non-zero by design.
+# NOTE: -e intentionally omitted — test functions return non-zero on skip.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+MIGRATE__PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/plugins/dso}"
+SCRIPT="$_PLUGIN_ROOT/scripts/migrate-design-notes-to-design-md.sh"
 
 source "$REPO_ROOT/tests/lib/assert.sh"
 
-MIGRATE_SCRIPT="$REPO_ROOT/plugins/dso/scripts/migrate-design-notes-to-design-md.sh"
-
 echo "=== test-migrate-design-notes.sh ==="
 
-# ── Suite-runner guard (RED phase) ────────────────────────────────────────────
-# When run-all.sh invokes this suite and the script is not yet implemented,
-# skip gracefully so the overall suite stays green.
+# ── Suite-runner guard: skip when script does not exist ──────────────────────
 if [ "${_RUN_ALL_ACTIVE:-0}" = "1" ] && [ ! -f "$MIGRATE_SCRIPT" ]; then
-    echo 'SKIP: migrate-design-notes-to-design-md.sh not yet implemented (RED) — tests deferred'
-    printf 'PASSED: 0  FAILED: 0\n'
+    echo "SKIP: migrate-design-notes-to-design-md.sh not yet implemented — tests deferred"
+    echo ""
+    printf "PASSED: 0  FAILED: 0\n"
     exit 0
 fi
 
-# ── Shared temp dir registry — all cleaned up on EXIT ─────────────────────────
-_TMP_DIRS=()
-trap 'rm -rf "${_TMP_DIRS[@]:-}"' EXIT
+# ── Cleanup registry ──────────────────────────────────────────────────────────
+_CLEANUP_DIRS=()
+_cleanup() {
+    for _d in "${_CLEANUP_DIRS[@]}"; do
+        rm -rf "$_d"
+    done
+}
+trap _cleanup EXIT
 
-# ── Helper: create a minimal project fixture directory ────────────────────────
-# Returns the fixture root directory path via stdout.
-_make_fixture() {
-    local tmpdir
-    tmpdir="$(mktemp -d /tmp/test-migrate-design-notes.XXXXXX)"
-    _TMP_DIRS+=("$tmpdir")
-    mkdir -p "$tmpdir/.claude"
-    echo "$tmpdir"
+# ── Helper: create a temp project dir with .claude/ structure ─────────────────
+_make_target() {
+    local tmp
+    tmp=$(mktemp -d /tmp/test-migrate-design-notes.XXXXXX)
+    _CLEANUP_DIRS+=("$tmp")
+    mkdir -p "$tmp/.claude"
+    echo "$tmp"
 }
 
-# ── Helper: write a sample design-notes.md with known sections ───────────────
-# Usage: _write_design_notes <project_root>
+# ── Helper: write a sample design-notes.md ────────────────────────────────────
 _write_design_notes() {
-    local project_root="$1"
-    cat > "$project_root/.claude/design-notes.md" <<'EOF'
-# Design Notes
+    local target="$1"
+    cat > "$target/.claude/design-notes.md" <<'EOF'
+# Acme Design System
+
+## Vision
+
+Create a modern, accessible design system for government services.
+
+## User Archetypes
+
+- The First-Time Applicant: needs clear guidance
+- The Power User: needs efficiency
+
+## Visual Language
+
+Clean, high-contrast, USWDS-aligned.
+
+## Anti-Patterns
+
+- Never use red for decorative purposes
+- Avoid nested modals
+- Do not rely on color alone to convey meaning
 
 ## Color Palette
-- Primary: #0070F3
-- Secondary: #7928CA
-- Background: #FFFFFF
+
+Primary: #005ea2
+Secondary: #d83933
 
 ## Typography
-- Heading font: Inter, sans-serif
-- Body font: Inter, sans-serif
-- Base size: 16px
 
-## Spacing
-- Base unit: 4px
-- Grid: 8-column
-
-## Component Library
-- Button: filled, outlined, ghost variants
-- Card: shadow-sm elevation
+Font: Public Sans, system-ui
 EOF
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Test 1: Script exists and is executable
+# Test 1: migrate-design-notes-to-design-md.sh exists and is executable
 # ═══════════════════════════════════════════════════════════════════════════════
-echo "Test 1: migrate-design-notes-to-design-md.sh exists and is executable"
+echo ""
+echo "Test 1: script exists and is executable"
 _snapshot_fail
 if [ -f "$MIGRATE_SCRIPT" ]; then
-    assert_eq "script exists" "exists" "exists"
+    assert_eq "migrate-design-notes-to-design-md.sh exists" "exists" "exists"
+    if [ -x "$MIGRATE_SCRIPT" ]; then
+        assert_eq "migrate-design-notes-to-design-md.sh is executable" "executable" "executable"
+    else
+        assert_eq "migrate-design-notes-to-design-md.sh is executable" "executable" "not-executable"
+    fi
 else
-    assert_eq "script exists" "exists" "missing"
-fi
-if [ -x "$MIGRATE_SCRIPT" ]; then
-    assert_eq "script is executable" "executable" "executable"
-else
-    assert_eq "script is executable" "executable" "not-executable"
+    assert_eq "migrate-design-notes-to-design-md.sh exists" "exists" "missing"
 fi
 assert_pass_if_clean "test_script_exists_and_executable"
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Test 2: Happy path — migration creates DESIGN.md with mapped sections
-# Given design-notes.md with sections, migration creates DESIGN.md with
-# YAML front-matter and mapped sections, design-notes.md becomes tombstone.
+# Test 2: greenfield guard — exits 0 without creating DESIGN.md when no design-notes.md
 # ═══════════════════════════════════════════════════════════════════════════════
-echo "Test 2: happy path — DESIGN.md created with mapped sections"
+echo ""
+echo "Test 2: greenfield guard"
 _snapshot_fail
-
 if [ ! -f "$MIGRATE_SCRIPT" ]; then
-    assert_eq "migrate script exists (prereq)" "exists" "missing"
+    echo "test_greenfield_guard ... SKIP (script missing)"
 else
-    fixture="$(_make_fixture)"
-    _write_design_notes "$fixture"
-
+    _target=$(_make_target)
+    # No design-notes.md in this target
     exit_code=0
-    bash "$MIGRATE_SCRIPT" "$fixture" >/dev/null 2>&1 || exit_code=$?
-
-    assert_eq "happy path: exits 0" "0" "$exit_code"
-
-    # DESIGN.md must exist
-    if [ -f "$fixture/DESIGN.md" ]; then
-        assert_eq "DESIGN.md created" "present" "present"
-    else
-        assert_eq "DESIGN.md created" "present" "missing"
-    fi
-
-    # DESIGN.md must contain at least one recognized section keyword
-    if [ -f "$fixture/DESIGN.md" ]; then
-        section_found=0
-        if grep -qiE "(color|typography|spacing|component)" "$fixture/DESIGN.md" 2>/dev/null; then
-            section_found=1
-        fi
-        assert_eq "DESIGN.md contains mapped section content" "1" "$section_found"
-    fi
+    bash "$MIGRATE_SCRIPT" --target "$_target" 2>&1 || exit_code=$?
+    assert_eq "greenfield guard: exits 0" "0" "$exit_code"
+    design_md_exists="no"
+    [ -f "$_target/DESIGN.md" ] && design_md_exists="yes"
+    assert_eq "greenfield guard: DESIGN.md not created" "no" "$design_md_exists"
 fi
-
-assert_pass_if_clean "test_happy_path_creates_design_md"
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Test 3: Greenfield guard — no design-notes.md → exit 0, no DESIGN.md created
-# ═══════════════════════════════════════════════════════════════════════════════
-echo "Test 3: greenfield guard — no design-notes.md → exit 0, no DESIGN.md"
-_snapshot_fail
-
-if [ ! -f "$MIGRATE_SCRIPT" ]; then
-    assert_eq "migrate script exists (prereq)" "exists" "missing"
-else
-    fixture="$(_make_fixture)"
-    # No design-notes.md written — greenfield project
-
-    exit_code=0
-    bash "$MIGRATE_SCRIPT" "$fixture" >/dev/null 2>&1 || exit_code=$?
-
-    assert_eq "greenfield: exits 0" "0" "$exit_code"
-
-    if [ -f "$fixture/DESIGN.md" ]; then
-        assert_eq "greenfield: no DESIGN.md created" "absent" "present"
-    else
-        assert_eq "greenfield: no DESIGN.md created" "absent" "absent"
-    fi
-fi
-
 assert_pass_if_clean "test_greenfield_guard"
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Test 4: Idempotency — DESIGN.md already exists with migration marker → exit 0, no changes
+# Test 3: happy path — DESIGN.md is created from design-notes.md
 # ═══════════════════════════════════════════════════════════════════════════════
-echo "Test 4: idempotency — DESIGN.md with migration marker → exit 0, no changes"
+echo ""
+echo "Test 3: happy path migration"
 _snapshot_fail
-
 if [ ! -f "$MIGRATE_SCRIPT" ]; then
-    assert_eq "migrate script exists (prereq)" "exists" "missing"
+    echo "test_happy_path_migration ... SKIP (script missing)"
 else
-    fixture="$(_make_fixture)"
-    _write_design_notes "$fixture"
-
-    # Create a DESIGN.md that already has a migration marker
-    cat > "$fixture/DESIGN.md" <<'EOF'
----
-migrated_from: design-notes.md
-migration_marker: migrate-design-notes-to-design-md-v1
----
-
-# Design
-
-## Color Palette
-- Primary: #0070F3
-EOF
-
-    # Record content fingerprint before second run
-    design_md_before="$(cat "$fixture/DESIGN.md")"
-
+    _target=$(_make_target)
+    _write_design_notes "$_target"
     exit_code=0
-    bash "$MIGRATE_SCRIPT" "$fixture" >/dev/null 2>&1 || exit_code=$?
-
-    assert_eq "idempotent: exits 0" "0" "$exit_code"
-
-    design_md_after="$(cat "$fixture/DESIGN.md")"
-    assert_eq "idempotent: DESIGN.md unchanged after re-run" "$design_md_before" "$design_md_after"
+    bash "$MIGRATE_SCRIPT" --target "$_target" 2>&1 || exit_code=$?
+    assert_eq "happy path: exits 0" "0" "$exit_code"
+    design_md_exists="no"
+    [ -f "$_target/DESIGN.md" ] && design_md_exists="yes"
+    assert_eq "happy path: DESIGN.md created" "yes" "$design_md_exists"
 fi
-
-assert_pass_if_clean "test_idempotency"
+assert_pass_if_clean "test_happy_path_migration"
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Test 5: Tombstone content — design-notes.md contains deprecation marker after migration
+# Test 4: tombstone content — design-notes.md contains migration marker after migration
 # ═══════════════════════════════════════════════════════════════════════════════
-echo "Test 5: tombstone — design-notes.md contains deprecation marker after migration"
+echo ""
+echo "Test 4: tombstone content"
 _snapshot_fail
-
 if [ ! -f "$MIGRATE_SCRIPT" ]; then
-    assert_eq "migrate script exists (prereq)" "exists" "missing"
+    echo "test_tombstone_content ... SKIP (script missing)"
 else
-    fixture="$(_make_fixture)"
-    _write_design_notes "$fixture"
-
-    bash "$MIGRATE_SCRIPT" "$fixture" >/dev/null 2>&1 || true
-
-    # design-notes.md must still exist as a tombstone
-    if [ -f "$fixture/.claude/design-notes.md" ]; then
-        assert_eq "tombstone: design-notes.md still present" "present" "present"
-    else
-        assert_eq "tombstone: design-notes.md still present" "present" "absent"
-    fi
-
-    # Tombstone must contain a deprecation marker (not original content only)
-    if [ -f "$fixture/.claude/design-notes.md" ]; then
-        tombstone_has_marker=0
-        if grep -qiE "(deprecated|migrated|tombstone|DESIGN\.md)" "$fixture/.claude/design-notes.md" 2>/dev/null; then
-            tombstone_has_marker=1
-        fi
-        assert_eq "tombstone: design-notes.md contains deprecation marker" "1" "$tombstone_has_marker"
-    fi
+    _target=$(_make_target)
+    _write_design_notes "$_target"
+    bash "$MIGRATE_SCRIPT" --target "$_target" >/dev/null 2>&1 || true
+    marker_count=0
+    marker_count=$(grep -c "dso-migrate-design-notes-to-design-md:v1" "$_target/.claude/design-notes.md" 2>/dev/null || true)
+    assert_eq "tombstone: migration marker present in design-notes.md" "1" "$marker_count"
+    deprecated_count=0
+    deprecated_count=$(grep -c "DEPRECATED\|migrated\|DESIGN.md" "$_target/.claude/design-notes.md" 2>/dev/null || true)
+    assert_ne "tombstone: deprecation notice present" "0" "$deprecated_count"
 fi
-
 assert_pass_if_clean "test_tombstone_content"
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Test 6: YAML front-matter — DESIGN.md starts with --- delimiters after migration
+# Test 5: idempotency — re-running does not alter tombstone or DESIGN.md
 # ═══════════════════════════════════════════════════════════════════════════════
-echo "Test 6: YAML front-matter — DESIGN.md starts with --- delimiters"
+echo ""
+echo "Test 5: idempotency"
 _snapshot_fail
-
 if [ ! -f "$MIGRATE_SCRIPT" ]; then
-    assert_eq "migrate script exists (prereq)" "exists" "missing"
+    echo "test_idempotency ... SKIP (script missing)"
 else
-    fixture="$(_make_fixture)"
-    _write_design_notes "$fixture"
-
-    bash "$MIGRATE_SCRIPT" "$fixture" >/dev/null 2>&1 || true
-
-    if [ ! -f "$fixture/DESIGN.md" ]; then
-        assert_eq "DESIGN.md exists for front-matter check" "present" "absent"
-    else
-        # First line must be ---
-        first_line="$(head -1 "$fixture/DESIGN.md")"
-        assert_eq "DESIGN.md first line is ---" "---" "$first_line"
-
-        # Must have a closing --- for the front-matter block
-        closing_found=0
-        if awk 'NR>1 && /^---$/ {found=1; exit} END {exit !found}' "$fixture/DESIGN.md" 2>/dev/null; then
-            closing_found=1
-        fi
-        assert_eq "DESIGN.md has closing --- for front-matter" "1" "$closing_found"
-    fi
+    _target=$(_make_target)
+    _write_design_notes "$_target"
+    # First run
+    bash "$MIGRATE_SCRIPT" --target "$_target" >/dev/null 2>&1 || true
+    _design_md_after_first="$(cat "$_target/DESIGN.md" 2>/dev/null || echo "")"
+    _tombstone_after_first="$(cat "$_target/.claude/design-notes.md" 2>/dev/null || echo "")"
+    # Second run
+    exit_code2=0
+    bash "$MIGRATE_SCRIPT" --target "$_target" 2>&1 || exit_code2=$?
+    assert_eq "idempotency: second run exits 0" "0" "$exit_code2"
+    _design_md_after_second="$(cat "$_target/DESIGN.md" 2>/dev/null || echo "")"
+    _tombstone_after_second="$(cat "$_target/.claude/design-notes.md" 2>/dev/null || echo "")"
+    assert_eq "idempotency: DESIGN.md unchanged on re-run" "$_design_md_after_first" "$_design_md_after_second"
+    assert_eq "idempotency: tombstone unchanged on re-run" "$_tombstone_after_first" "$_tombstone_after_second"
 fi
-
-assert_pass_if_clean "test_yaml_front_matter"
+assert_pass_if_clean "test_idempotency"
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Test 6: YAML front-matter structure — DESIGN.md starts with ---\nname: ...\n---
+# ═══════════════════════════════════════════════════════════════════════════════
+echo ""
+echo "Test 6: YAML front-matter structure"
+_snapshot_fail
+if [ ! -f "$MIGRATE_SCRIPT" ]; then
+    echo "test_yaml_front_matter_structure ... SKIP (script missing)"
+else
+    _target=$(_make_target)
+    _write_design_notes "$_target"
+    bash "$MIGRATE_SCRIPT" --target "$_target" >/dev/null 2>&1 || true
+    # Check first line is ---
+    _first_line="$(head -1 "$_target/DESIGN.md" 2>/dev/null || echo "")"
+    assert_eq "yaml front-matter: first line is ---" "---" "$_first_line"
+    # Check name: field is present
+    _name_count=0
+    _name_count=$(grep -c "^name:" "$_target/DESIGN.md" 2>/dev/null || true)
+    assert_ne "yaml front-matter: name: field present" "0" "$_name_count"
+    # Check closing --- is present on line 3
+    _third_line="$(sed -n '3p' "$_target/DESIGN.md" 2>/dev/null || echo "")"
+    assert_eq "yaml front-matter: third line is ---" "---" "$_third_line"
+fi
+assert_pass_if_clean "test_yaml_front_matter_structure"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Test 7: section mapping — Vision/User Archetypes/Visual Language → Overview;
+#         Anti-Patterns → Dos and Donts
+# ═══════════════════════════════════════════════════════════════════════════════
+echo ""
+echo "Test 7: section mapping"
+_snapshot_fail
+if [ ! -f "$MIGRATE_SCRIPT" ]; then
+    echo "test_section_mapping ... SKIP (script missing)"
+else
+    _target=$(_make_target)
+    _write_design_notes "$_target"
+    bash "$MIGRATE_SCRIPT" --target "$_target" >/dev/null 2>&1 || true
+    _design_content="$(cat "$_target/DESIGN.md" 2>/dev/null || echo "")"
+    # Overview section should be present (mapped from Vision/User Archetypes/Visual Language)
+    _overview_count=0
+    _overview_count=$(echo "$_design_content" | grep -c "^## Overview" 2>/dev/null || true)
+    assert_ne "section mapping: ## Overview present" "0" "$_overview_count"
+    # Dos and Donts section should be present (mapped from Anti-Patterns)
+    _dos_donts_count=0
+    _dos_donts_count=$(echo "$_design_content" | grep -c "^## Dos and Donts" 2>/dev/null || true)
+    assert_ne "section mapping: ## Dos and Donts present" "0" "$_dos_donts_count"
+    # Vision heading should NOT appear as its own ## section in DESIGN.md
+    _vision_as_section=0
+    _vision_as_section=$(echo "$_design_content" | grep -c "^## Vision" 2>/dev/null || true)
+    assert_eq "section mapping: ## Vision not a standalone section" "0" "$_vision_as_section"
+    # Anti-Patterns heading should NOT appear as its own ## section in DESIGN.md
+    _anti_patterns_as_section=0
+    _anti_patterns_as_section=$(echo "$_design_content" | grep -c "^## Anti-Patterns" 2>/dev/null || true)
+    assert_eq "section mapping: ## Anti-Patterns not a standalone section" "0" "$_anti_patterns_as_section"
+    # Other sections (Color Palette, Typography) should still be present
+    _color_count=0
+    _color_count=$(echo "$_design_content" | grep -c "^## Color Palette" 2>/dev/null || true)
+    assert_ne "section mapping: ## Color Palette passthrough present" "0" "$_color_count"
+fi
+assert_pass_if_clean "test_section_mapping"
+
 print_summary
