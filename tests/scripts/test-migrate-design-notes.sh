@@ -18,8 +18,8 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-MIGRATE__PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/plugins/dso}"
-SCRIPT="$_PLUGIN_ROOT/scripts/migrate-design-notes-to-design-md.sh"
+_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$REPO_ROOT/plugins/dso}"
+MIGRATE_SCRIPT="$_PLUGIN_ROOT/scripts/migrate-design-notes-to-design-md.sh"
 
 source "$REPO_ROOT/tests/lib/assert.sh"
 
