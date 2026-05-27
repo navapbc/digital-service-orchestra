@@ -551,7 +551,8 @@ UI_DESIGNER_PAYLOAD:
   "cache_status": "CACHE_VALID",
   "scope_split_proposals": null,
   "track": "lite",
-  "error": null
+  "error": null,
+  "design_md_additions": null
 }
 ```
 ```
@@ -586,3 +587,36 @@ UI_DESIGNER_PAYLOAD:
 - `track`: `"lite"` or `"full"`, or `null` on early error return.
 - `error`: `null` on success, or a human-readable error string describing why
   the agent could not complete design work.
+- `design_md_additions`: `null` when no additions are needed, or an array of
+  structured content blocks when new design tokens are introduced. See
+  `docs/contracts/design-md-additions-payload.md` for the full field schema. # shim-exempt: internal implementation path reference
+
+  **When to populate `design_md_additions`:** Populate this field (non-null)
+  whenever the design introduces one or more design tokens that are not already
+  documented in `.claude/design-notes.md`. Each token constraint, accessibility
+  rule, or implementation guidance that implementors need at development time
+  should be emitted as a separate content block. If the design only reuses
+  existing tokens and components with no new guidance, emit `null`.
+
+  **Format:** Each array item must conform to the schema in
+  `docs/contracts/design-md-additions-payload.md`: # shim-exempt: internal implementation path reference
+  ```json
+  {
+    "section_heading": "<heading text without ## prefix>",
+    "content_lines": ["<line 1>", "<line 2>"],
+    "rationale": "<optional: why this section was included>"
+  }
+  ```
+
+  **Examples of content warranting `design_md_additions`:**
+  - New design tokens introduced in `tokens.md` that implementors must not
+    override (emit a "Token Constraints" section).
+  - WCAG contrast requirements specific to the story's new color pairings
+    (emit an "Accessibility Notes" section).
+  - State-machine rules for new interactive components (emit an "Interaction
+    Rules" section).
+
+  **Examples of content NOT warranting `design_md_additions`** (emit `null`):
+  - All tokens used already exist in `design-notes.md`.
+  - Lite track design that only modifies spacing on an existing component.
+  - Early-return payloads (CACHE_MISSING or error non-null).
