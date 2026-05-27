@@ -44,9 +44,15 @@ import pytest
 # ---------------------------------------------------------------------------
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-APPLIER_PATH = REPO_ROOT / "plugins" / "dso" / "scripts" / "dso_reconciler" / "applier.py"
-MUTATION_PATH = REPO_ROOT / "plugins" / "dso" / "scripts" / "dso_reconciler" / "mutation.py"
-ERRORS_PATH = REPO_ROOT / "plugins" / "dso" / "scripts" / "dso_reconciler" / "_errors.py"
+APPLIER_PATH = (
+    REPO_ROOT / "plugins" / "dso" / "scripts" / "dso_reconciler" / "applier.py"
+)
+MUTATION_PATH = (
+    REPO_ROOT / "plugins" / "dso" / "scripts" / "dso_reconciler" / "mutation.py"
+)
+ERRORS_PATH = (
+    REPO_ROOT / "plugins" / "dso" / "scripts" / "dso_reconciler" / "_errors.py"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -178,7 +184,9 @@ def _make_inbound_update_mutation_with_dso_label(mut_mod):
     )
 
 
-def test_apply_raises_for_unauthorized_dso_id_label_mutation(applier, mut_mod, errors_mod):
+def test_apply_raises_for_unauthorized_dso_id_label_mutation(
+    applier, mut_mod, errors_mod
+):
     """BEHAVIORAL GREEN: apply() with inbound_update + dso-id-* label mutation raises DsoIdLabelWriteError.
 
     After wiring _audit_dso_id_label_writes into apply(), this call must raise.
@@ -233,9 +241,15 @@ def test_warn_mode_logs_and_does_not_raise(applier, errors_mod, caplog):
     warning_records = [r for r in caplog.records if r.levelno >= logging.WARNING]
     assert warning_records, "Expected at least one WARNING log record in warn mode"
     log_text = " ".join(r.getMessage() for r in warning_records)
-    assert "DSO_ID_GUARD" in log_text, f"Expected 'DSO_ID_GUARD' in warning; got: {log_text!r}"
-    assert "inbound_update" in log_text, f"Expected leaf name in warning; got: {log_text!r}"
-    assert "dso-id-warn-test" in log_text, f"Expected payload in warning; got: {log_text!r}"
+    assert "DSO_ID_GUARD" in log_text, (
+        f"Expected 'DSO_ID_GUARD' in warning; got: {log_text!r}"
+    )
+    assert "inbound_update" in log_text, (
+        f"Expected leaf name in warning; got: {log_text!r}"
+    )
+    assert "dso-id-warn-test" in log_text, (
+        f"Expected payload in warning; got: {log_text!r}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -262,7 +276,9 @@ def test_warn_mode_logs_and_does_not_raise(applier, errors_mod, caplog):
         "default_raise_when_both_unset",
     ],
 )
-def test_guard_mode_precedence(applier, errors_mod, env_val, config_val, expected_raises):
+def test_guard_mode_precedence(
+    applier, errors_mod, env_val, config_val, expected_raises
+):
     """env var DSO_DSO_ID_GUARD_MODE takes precedence over dso-config.conf key."""
     assert hasattr(applier, "_audit_dso_id_label_writes"), (
         "_audit_dso_id_label_writes not found in applier"
@@ -417,13 +433,24 @@ def test_outbound_conflict_must_not_write_dso_id_label(applier):
     assert "outbound_conflict" in str(exc_info.value)
 
 
-def test_inbound_create_must_not_write_dso_id_label(applier):
-    """inbound_create is UNAUTHORIZED for dso-id label writes.
+def test_inbound_create_authorized_for_create_action(applier):
+    """inbound_create is AUTHORIZED for dso-id label create (dedup write-back).
 
     Passes a create mutation with a dso-id-* payload through
-    _audit_dso_id_label_writes; expects DsoIdLabelWriteError.
+    _audit_dso_id_label_writes; expects NO error (authorized).
     """
-    mut = _MockLabelMutation(payload="dso-id-inbound-create-forbidden", action="create")
+    mut = _MockLabelMutation(payload="dso-id-inbound-create-allowed", action="create")
+    # Should NOT raise -- inbound_create is authorized for create action.
+    applier._audit_dso_id_label_writes("inbound_create", [mut])
+
+
+def test_inbound_create_unauthorized_for_delete_action(applier):
+    """inbound_create is UNAUTHORIZED for dso-id label delete.
+
+    Even though inbound_create is authorized for create, it must not
+    be allowed to delete dso-id labels.
+    """
+    mut = _MockLabelMutation(payload="dso-id-inbound-create-forbidden", action="delete")
     with pytest.raises(applier.DsoIdLabelWriteError) as exc_info:
         applier._audit_dso_id_label_writes("inbound_create", [mut])
     assert "inbound_create" in str(exc_info.value)

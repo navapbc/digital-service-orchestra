@@ -475,3 +475,203 @@ def test_apply_honours_suppress_pair_drops_subsequent_inbound_via_computed_form(
     ]
     titles = [e["data"]["fields"].get("title", "") for e in edits]
     assert "SHOULD-BE-DROPPED" not in titles
+
+
+# ---------------------------------------------------------------------------
+# 6. Payload shape tolerance (Defect 1)
+# ---------------------------------------------------------------------------
+
+
+def test_inbound_create_accepts_flat_payload(applier, mut_mod, fixture_repo):
+    """Differ emits top-level field keys (no nested 'fields' wrapper).
+    _apply_inbound_create must accept both shapes.
+    """
+    mutation = _make_mutation(
+        mut_mod,
+        direction=mut_mod.MutationDirection.inbound,
+        action=mut_mod.MutationAction.create,
+        target="DIG-500",
+        payload={
+            "summary": "Flat payload title",
+            "issuetype": "Task",
+            "priority": 3,
+            "status": "To Do",
+        },
+    )
+    result = applier._apply_typed(mutation, repo_root=fixture_repo)
+    tracker = fixture_repo / ".tickets-tracker"
+    local_id = "jira-dig-500"
+    create_ev = _read_create(tracker, local_id)
+    assert create_ev["data"]["title"] == "Flat payload title"
+    assert create_ev["data"]["ticket_type"] == "task"
+    assert create_ev["data"]["priority"] == 3
+    assert result.payload["local_id"] == local_id
+
+
+def test_inbound_create_accepts_nested_fields_payload(applier, mut_mod, fixture_repo):
+    """Batch-dict shape with nested 'fields' key must still work."""
+    mutation = _make_mutation(
+        mut_mod,
+        direction=mut_mod.MutationDirection.inbound,
+        action=mut_mod.MutationAction.create,
+        target="DIG-501",
+        payload={
+            "fields": {
+                "summary": "Nested payload title",
+                "issuetype": "Bug",
+                "priority": 1,
+            },
+        },
+    )
+    applier._apply_typed(mutation, repo_root=fixture_repo)
+    tracker = fixture_repo / ".tickets-tracker"
+    local_id = "jira-dig-501"
+    create_ev = _read_create(tracker, local_id)
+    assert create_ev["data"]["title"] == "Nested payload title"
+    assert create_ev["data"]["ticket_type"] == "bug"
+
+
+def test_inbound_update_accepts_flat_payload(applier, mut_mod, fixture_repo):
+    """Differ emits top-level field keys for updates too."""
+    # Seed ticket.
+    create_mut = _make_mutation(
+        mut_mod,
+        direction=mut_mod.MutationDirection.inbound,
+        action=mut_mod.MutationAction.create,
+        target="DIG-502",
+        payload={"fields": {"summary": "seed", "issuetype": "Task"}},
+    )
+    applier._apply_typed(create_mut, repo_root=fixture_repo)
+
+    update_mut = _make_mutation(
+        mut_mod,
+        direction=mut_mod.MutationDirection.inbound,
+        action=mut_mod.MutationAction.update,
+        target="jira-dig-502",
+        payload={"summary": "Updated flat"},
+    )
+    applier._apply_typed(update_mut, repo_root=fixture_repo)
+    tracker = fixture_repo / ".tickets-tracker"
+    edits = [
+        json.loads(p.read_text())
+        for p in _event_files(tracker, "jira-dig-502")
+        if "EDIT" in p.name
+    ]
+    assert edits
+    assert edits[-1]["data"]["fields"]["title"] == "Updated flat"
+
+
+# ---------------------------------------------------------------------------
+# 7. Complex object extraction (Defect 2)
+# ---------------------------------------------------------------------------
+
+
+def test_inbound_create_extracts_nested_jira_objects(applier, mut_mod, fixture_repo):
+    """Jira REST API returns issuetype/status/priority/assignee as nested dicts."""
+    mutation = _make_mutation(
+        mut_mod,
+        direction=mut_mod.MutationDirection.inbound,
+        action=mut_mod.MutationAction.create,
+        target="DIG-600",
+        payload={
+            "summary": "Complex objects",
+            "issuetype": {"name": "Bug", "id": "10002"},
+            "status": {"name": "Done", "id": "10001"},
+            "priority": {"name": "High", "id": "2"},
+            "assignee": {"displayName": "Joe", "accountId": "abc123"},
+        },
+    )
+    applier._apply_typed(mutation, repo_root=fixture_repo)
+    tracker = fixture_repo / ".tickets-tracker"
+    local_id = "jira-dig-600"
+    create_ev = _read_create(tracker, local_id)
+    data = create_ev["data"]
+    assert data["ticket_type"] == "bug"
+    assert data["title"] == "Complex objects"
+    assert data["assignee"] == "Joe"
+    # Priority name "High" is passed through as-is (string, not dict).
+    assert data["priority"] == "High"
+
+
+def test_inbound_update_extracts_nested_jira_objects(applier, mut_mod, fixture_repo):
+    """Same complex-object extraction must work for updates."""
+    # Seed ticket.
+    create_mut = _make_mutation(
+        mut_mod,
+        direction=mut_mod.MutationDirection.inbound,
+        action=mut_mod.MutationAction.create,
+        target="DIG-601",
+        payload={"fields": {"summary": "seed", "issuetype": "Task"}},
+    )
+    applier._apply_typed(create_mut, repo_root=fixture_repo)
+
+    update_mut = _make_mutation(
+        mut_mod,
+        direction=mut_mod.MutationDirection.inbound,
+        action=mut_mod.MutationAction.update,
+        target="jira-dig-601",
+        payload={
+            "summary": "Updated complex",
+            "priority": {"name": "Low", "id": "4"},
+            "assignee": {"displayName": "Alice"},
+        },
+    )
+    applier._apply_typed(update_mut, repo_root=fixture_repo)
+    tracker = fixture_repo / ".tickets-tracker"
+    edits = [
+        json.loads(p.read_text())
+        for p in _event_files(tracker, "jira-dig-601")
+        if "EDIT" in p.name
+    ]
+    assert edits
+    fields = edits[-1]["data"]["fields"]
+    assert fields["title"] == "Updated complex"
+    assert fields["priority"] == "Low"
+    assert fields["assignee"] == "Alice"
+
+
+# ---------------------------------------------------------------------------
+# 8. Jira-side dedup write-back (Defect 3)
+# ---------------------------------------------------------------------------
+
+
+def test_inbound_create_writes_back_jira_dedup_markers(applier, mut_mod, fixture_repo):
+    """After creating the local ticket, inbound_create must write dso-id label
+    and dso_local_id property back to Jira so the differ recognizes the issue
+    as mirrored on subsequent passes.
+    """
+    client = MagicMock()
+    mutation = _make_mutation(
+        mut_mod,
+        direction=mut_mod.MutationDirection.inbound,
+        action=mut_mod.MutationAction.create,
+        target="DIG-700",
+        payload={
+            "summary": "Write-back test",
+            "issuetype": "Task",
+        },
+    )
+    result = applier._apply_typed(mutation, client=client, repo_root=fixture_repo)
+    local_id = "jira-dig-700"
+    assert result.payload["local_id"] == local_id
+    client.add_label.assert_called_once_with("DIG-700", f"dso-id:{local_id}")
+    client.set_entity_property.assert_called_once_with(
+        "DIG-700", "dso_local_id", local_id
+    )
+
+
+def test_inbound_create_no_writeback_without_client(applier, mut_mod, fixture_repo):
+    """When client is None, no Jira write-back calls are attempted."""
+    mutation = _make_mutation(
+        mut_mod,
+        direction=mut_mod.MutationDirection.inbound,
+        action=mut_mod.MutationAction.create,
+        target="DIG-701",
+        payload={
+            "summary": "No client test",
+            "issuetype": "Task",
+        },
+    )
+    # Should not raise -- no client calls attempted.
+    result = applier._apply_typed(mutation, client=None, repo_root=fixture_repo)
+    assert result.payload["local_id"] == "jira-dig-701"
