@@ -19,7 +19,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'Reconciler rollout-safety mode (dry-run | bootstrap-strict | bootstrap-throttle | live)'
+        description: 'Reconciler rollout-safety mode (dry-run | bootstrap-strict | bootstrap-throttle | live | validate)'
         required: false
         default: 'live'
         type: choice
@@ -28,6 +28,7 @@ on:
           - bootstrap-strict
           - bootstrap-throttle
           - live
+          - validate
 
 concurrency:
   group: reconcile-bridge
@@ -167,11 +168,27 @@ jobs:
           git config --global user.name "${BRIDGE_BOT_NAME}"
           git config --global user.email "${BRIDGE_BOT_EMAIL}"
 
+      - name: E2E sync validation (mode=validate)
+        if: github.event.inputs.mode == 'validate'
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          JIRA_URL: ${{ vars.JIRA_URL }}
+          JIRA_USER: ${{ vars.JIRA_USER }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          JIRA_PROJECT: ${{ vars.JIRA_PROJECT || 'DIG' }}
+          BRIDGE_ENV_ID: ${{ vars.BRIDGE_ENV_ID }}
+        run: |
+          bash plugins/dso/scripts/dso_reconciler/e2e_validation_probe.sh
+
       - name: Run reconciler
         # When triggered via workflow_dispatch, honour the operator-selected
         # rollout-safety mode. On schedule and other event types,
         # github.event.inputs.mode is empty and the reconciler falls back to
         # its own default (Mode.LIVE) — matching pre-input behaviour.
+        # Skip when mode=validate — the E2E validation probe step above
+        # handles the full pipeline exercise and cleanup independently.
+        if: github.event.inputs.mode != 'validate'
         run: |
           if [ -n "${{ github.event.inputs.mode }}" ]; then
             python -m dso_reconciler --mode "${{ github.event.inputs.mode }}"
@@ -188,6 +205,7 @@ jobs:
           BRIDGE_ENV_ID: ${{ vars.BRIDGE_ENV_ID }}
 
       - name: Commit reconciler events back to tickets branch
+        if: github.event.inputs.mode != 'validate'
         run: |
           cd .tickets-tracker  # tickets-boundary-ok
           # Check for any changes (staged, unstaged, or untracked)

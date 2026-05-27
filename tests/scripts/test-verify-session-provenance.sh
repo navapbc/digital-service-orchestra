@@ -551,6 +551,144 @@ test_verify_session_provenance_version_bump_trailer() {
 }
 ## end S5 version-bump trailer fixtures
 
+# ── Test G3: covering PR with failed review-sub-pr → unprovenanced ───────────
+# A covering merged PR whose review-sub-pr check FAILED must NOT count as
+# valid provenance. The commit must be classified as unprovenanced.
+test_covering_pr_failed_review_is_unprovenanced() {
+    if [[ ! -f "$SCRIPT" ]]; then
+        assert_eq "test_covering_pr_failed_review_is_unprovenanced: script must exist" \
+            "script_exists" "script_missing"
+        return
+    fi
+
+    local repo
+    repo="$(setup_git_repo)"
+
+    make_commit "$repo" "Initial commit" > /dev/null
+    local base_sha
+    base_sha="$(git -C "$repo" rev-parse HEAD)"
+
+    # Direct commit — no trailer, so it hits the API path
+    local bad_sha
+    bad_sha="$(make_commit "$repo" "Direct commit to check G3")"
+    local session_head="$bad_sha"
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+
+    # Mock gh: /commits/{sha}/pulls returns a merged covering PR #50,
+    # /commits/{sha}/check-runs returns review-sub-pr with conclusion=failure
+    cat > "$MOCK_BIN/gh" << 'MOCKEOF'
+#!/usr/bin/env bash
+# Route based on the API path
+for arg in "$@"; do
+    if [[ "$arg" == *"/pulls" ]]; then
+        # Return a merged covering PR
+        cat << 'JSONEOF'
+[{"number":50,"state":"closed","merged_at":"2026-05-01T00:00:00Z","head":{"sha":"coveringheadsha123"},"merge_commit_sha":"coveringmergesha456"}]
+JSONEOF
+        exit 0
+    fi
+    if [[ "$arg" == *"/check-runs" ]]; then
+        # Return review-sub-pr with failure conclusion
+        cat << 'JSONEOF'
+{"check_runs":[{"name":"review-sub-pr","conclusion":"failure"}]}
+JSONEOF
+        exit 0
+    fi
+done
+echo '[]'
+exit 0
+MOCKEOF
+    chmod +x "$MOCK_BIN/gh"
+
+    local exit_code=0
+    PATH="$MOCK_BIN:$PATH" \
+    DSO_REPO_PATH="$repo" \
+    DSO_BASE_SHA="$base_sha" \
+    DSO_SESSION_HEAD="$session_head" \
+    DSO_ARTIFACT_DIR="$artifact_dir" \
+    DSO_GH_REPO="test/repo" \
+    PR_NUMBER=999 \
+        bash "$SCRIPT" 2>/dev/null || exit_code=$?
+
+    assert_ne "test_covering_pr_failed_review_is_unprovenanced: exits non-zero when covering PR failed review" \
+        "0" "$exit_code"
+
+    # The commit SHA should appear in the unprovenanced file
+    local unprov_content=""
+    if [[ -f "${artifact_dir}/unprovenanced-shas.txt" ]]; then
+        unprov_content="$(cat "${artifact_dir}/unprovenanced-shas.txt")"
+    fi
+    assert_contains "test_covering_pr_failed_review_is_unprovenanced: bad SHA in unprovenanced file" \
+        "$bad_sha" "$unprov_content"
+
+    rm -rf "$repo" "$artifact_dir"
+}
+
+# ── Test G3b: covering PR with passed review-sub-pr → provenanced ────────────
+# A covering merged PR whose review-sub-pr check PASSED should count as
+# valid provenance. The commit must be classified as provenanced.
+test_covering_pr_passed_review_is_provenanced() {
+    if [[ ! -f "$SCRIPT" ]]; then
+        assert_eq "test_covering_pr_passed_review_is_provenanced: script must exist" \
+            "script_exists" "script_missing"
+        return
+    fi
+
+    local repo
+    repo="$(setup_git_repo)"
+
+    make_commit "$repo" "Initial commit" > /dev/null
+    local base_sha
+    base_sha="$(git -C "$repo" rev-parse HEAD)"
+
+    local good_sha
+    good_sha="$(make_commit "$repo" "Direct commit covered by reviewed PR")"
+    local session_head="$good_sha"
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+
+    # Mock gh: /commits/{sha}/pulls returns a merged covering PR #50,
+    # /commits/{sha}/check-runs returns review-sub-pr with conclusion=success
+    cat > "$MOCK_BIN/gh" << 'MOCKEOF'
+#!/usr/bin/env bash
+for arg in "$@"; do
+    if [[ "$arg" == *"/pulls" ]]; then
+        cat << 'JSONEOF'
+[{"number":50,"state":"closed","merged_at":"2026-05-01T00:00:00Z","head":{"sha":"coveringheadsha123"},"merge_commit_sha":"coveringmergesha456"}]
+JSONEOF
+        exit 0
+    fi
+    if [[ "$arg" == *"/check-runs" ]]; then
+        cat << 'JSONEOF'
+{"check_runs":[{"name":"review-sub-pr","conclusion":"success"}]}
+JSONEOF
+        exit 0
+    fi
+done
+echo '[]'
+exit 0
+MOCKEOF
+    chmod +x "$MOCK_BIN/gh"
+
+    local exit_code=0
+    PATH="$MOCK_BIN:$PATH" \
+    DSO_REPO_PATH="$repo" \
+    DSO_BASE_SHA="$base_sha" \
+    DSO_SESSION_HEAD="$session_head" \
+    DSO_ARTIFACT_DIR="$artifact_dir" \
+    DSO_GH_REPO="test/repo" \
+    PR_NUMBER=999 \
+        bash "$SCRIPT" 2>/dev/null || exit_code=$?
+
+    assert_eq "test_covering_pr_passed_review_is_provenanced: exits 0 when covering PR passed review" \
+        "0" "$exit_code"
+
+    rm -rf "$repo" "$artifact_dir"
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 test_script_exists
 test_all_provenanced_exits_zero
@@ -562,5 +700,7 @@ test_backoff_on_429
 test_unprovenanced_sha_written_to_scope_file
 test_verify_session_provenance_accepts_both_trailers
 test_verify_session_provenance_version_bump_trailer
+test_covering_pr_failed_review_is_unprovenanced
+test_covering_pr_passed_review_is_provenanced
 
 print_summary
