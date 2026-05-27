@@ -1,1 +1,0 @@
-{"timestamp": 1779843011866925094, "uuid": "eb18648e-a97d-4fc8-abce-ef10cb5622af", "event_type": "CREATE", "env_id": "reconciler", "author": "reconciler", "data": {"id": "jira-dig-3784", "ticket_type": "task", "title": "DIG-3784", "description": "", "parent_id": "", "tags": ["imported:reconciler-bootstrap"]}}

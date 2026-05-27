@@ -1,1 +1,0 @@
-{"event_type": "BRIDGE_ALERT", "timestamp": 1778686519266493114, "uuid": "0d28aef8-f58e-47d0-9d63-bb8f606a2c7d", "env_id": "87bd1065-0264-4126-94b7-ae8c71b8d506", "ticket_id": "jira-dig-1673", "data": {"reason": "get_comments failed for DIG-1673: 'str' object has no attribute 'get'"}}
