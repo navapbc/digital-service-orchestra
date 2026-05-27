@@ -580,6 +580,17 @@ Each cell names the **specific skill, script, or hook** that performs the action
 
 Skip this section only when the epic introduces NO shared state — pure local changes inside a single skill or library that are read and written only by that module. The litmus test: if any code outside the files this epic edits reads the variable, RETIRE must be answered.
 
+### Step 2.15: Draft Verify-Intents (intent-fidelity-pipeline Phase 2)
+
+After all SCs are drafted in Step 2, draft a `Verify-intent:` clause for each SC. Apply the Verify-Intent Requirement from `shared/prompts/verifiable-sc-check.md`.
+
+For each SC (except `DEFERRED_MEASUREMENT` items):
+1. Draft the `Verify-intent:` clause with subject + action + observable
+2. Self-check: does the intent contain all three elements? If not, revise.
+3. Append the `Verify-intent:` line directly below the SC text in the epic spec
+
+This step runs as a batch AFTER all SCs are written — do NOT interleave Verify-intent drafting with the Socratic dialogue or SC drafting. The user does NOT need to approve each Verify-intent individually; they review the full spec (with Verify-intents) at the approval gate.
+
 ### Step 2.25: Cross-Epic Interaction Scan
 
 <HARD-GATE>

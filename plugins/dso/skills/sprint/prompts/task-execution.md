@@ -118,6 +118,12 @@ _TS=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "unknown")
    - Only write if you have genuine discoveries — do not write an empty file
    - Use atomic write (write `.tmp`, then `mv`) to avoid partial reads
    - If writing fails, continue — discovery writing is non-fatal and must not block task completion
+8b. **Stage all changes for worktree retention** (isolation:worktree mode only):
+   ```bash
+   git add -A
+   git status --short
+   ```
+   The Claude Code platform auto-cleans worktrees with no staged or committed changes. Staging ensures the platform preserves this worktree so the orchestrator can review, commit, and harvest the changes. Do NOT commit — the orchestrator handles commits via per-worktree-review-commit.md.
 9. Report output:
    STATUS: pass|fail
    FILES_MODIFIED: path1, path2

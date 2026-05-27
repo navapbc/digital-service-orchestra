@@ -25,6 +25,8 @@ The orchestrator passes the following as task arguments. Treat each placeholder 
 
 The orchestrator extracts the bullet items from the epic's `## Success Criteria` section and lists them here with stable identifiers (`sc-1`, `sc-2`, ...). These are the outcomes your draft stories must collectively produce.
 
+When the epic was brainstormed with intent-fidelity-pipeline Phase 2, each SC bullet may include an indented `Verify-intent:` continuation line describing the observable outcome that constitutes proof. Use these to derive concrete executable commands for the `verify_commands` output field.
+
 {epic-success-criteria}
 
 ### Epic Closure Checks
@@ -231,6 +233,10 @@ For each story, write 2–5 measurable Done Definitions. Every DD must:
 - Be measurable in the same terms the SC is measurable in.
 - Cite the SC it satisfies with `← Satisfies: sc-N` (or multiple SC ids if it satisfies more than one).
 
+The `done_definitions` array contains pure outcome statements only — do NOT embed `Verify:` commands inline in the DD text. Instead, emit a separate `verify_commands` array (see Output Format) with one entry per DD containing the executable command. Resolve commands from the parent SC's `Verify-intent:` line when available; otherwise derive from the DD text and the project's test conventions.
+
+**Verify command negative-constraint list**: A verify command is **invalid** if it matches any of: `grep`, `find`, `ls`, `wc`, `cat`, `head`, `stat`, `test -f`, `test -e`, `[ -f`, `[ -e`, `file `, `du `, `diff `. If the only way to verify a DD is via file inspection, the DD is not behavioral — revise it to describe an observable outcome.
+
 DDs that do not trace to an SC are a smell — either the DD is unnecessary (drop it) or the SC list is incomplete (note this in `decomposition_notes`).
 
 **LIVE-VERIFIED SC → environment-isolated integration test DD (bug 5f2a-9a9f)**:
@@ -260,6 +266,13 @@ Do NOT invent dependencies on stories that do not exist. Do NOT add dependencies
 ### Step 7: Self-Verify Coverage
 
 Re-read your `sc_coverage_plan`. Confirm that for every SC classified `uncovered` or `partial_coverage`, at least one of your drafts has a DD citing that SC id. If a gap remains, add a draft or extend an existing draft's DDs. The audit trail must show every actionable SC has at least one covering draft.
+
+**Verify command coverage check (intent-fidelity-pipeline Phase 2)**: For every DD in every draft, confirm:
+1. A `verify_commands` entry exists with a non-empty `command` field
+2. The command does NOT match the negative-constraint list (`grep`, `find`, `ls`, `wc`, `cat`, `head`, `stat`, `test -f`, `test -e`, `[ -f`, `[ -e`, `file `, `du `, `diff `)
+3. If the parent SC has a `verify_intent`, the command is a reasonable resolution of that intent
+
+If any DD fails checks 1 or 2, revise the `verify_commands` entry before returning.
 
 ## Output Format
 
@@ -386,6 +399,7 @@ Return a JSON object with exactly these top-level keys. The orchestrator will no
 | `priority` | integer 0–4 | Yes | 0 highest, 4 lowest; walking-skeleton stories get the lowest priority numbers |
 | `description` | string | Yes | What/Why/Scope; do NOT include implementation choices unless they are epic-level constraints |
 | `done_definitions` | array of string | Yes | 2–5 measurable DDs; each MUST end with `← Satisfies: sc-N` (or multiple SC ids) |
+| `verify_commands` | array of object | Yes | One entry per DD: `{"dd_id": "dd-N", "dd_text": "<DD text>", "command": "<executable command>"}`. The command must pass the negative-constraint list (no grep/find/ls/stat/test -f). |
 | `considerations` | array of string | No | Risk/Security/Performance/etc. notes prefixed with `[Area]` |
 | `depends_on` | array of string | Yes | List of `temp_id`s (this batch) or existing story ids; empty if independent |
 | `split_candidate` | boolean | Yes | `true` if the story has a Foundation/Enhancement split opportunity (Phase F will evaluate) |

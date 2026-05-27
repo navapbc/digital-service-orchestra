@@ -85,6 +85,72 @@ def _try_load_step(name: str):
     return mod
 
 
+def _run_reconcile_check(repo_root: Path) -> int:
+    """Execute a read-only reconciliation check and report discrepancies.
+
+    Returns 0 on success, 1 on error.
+    """
+    rc_mod = _try_load_step("reconcile_check")
+    if rc_mod is None:
+        print("ERROR: reconcile_check.py not found", file=sys.stderr)
+        return 1
+
+    fetcher = _try_load_step("fetcher")
+    if fetcher is None:
+        print(
+            "ERROR: fetcher.py not found — cannot load Jira snapshot", file=sys.stderr
+        )
+        return 1
+
+    try:
+        # Fetch current Jira snapshot
+        pass_id = datetime.datetime.now(datetime.timezone.utc).strftime(
+            "%Y-%m-%dT%H-%M-%S"
+        )
+        curr_path = fetcher.fetch_snapshot(pass_id, repo_root)
+        import json as _json
+
+        jira_snapshot = _json.loads(curr_path.read_text())
+
+        # Load local tickets from .tickets-tracker
+        tracker_dir = repo_root / ".tickets-tracker"  # tickets-boundary-ok
+        local_tickets: list[dict] = []
+        if tracker_dir.is_dir():
+            for entry in sorted(tracker_dir.iterdir()):
+                if not entry.is_dir() or ".scratch" in entry.parts:
+                    continue
+                meta_path = entry / "ticket.json"
+                if meta_path.exists():
+                    ticket = _json.loads(meta_path.read_text())
+                    if "id" not in ticket:
+                        ticket["id"] = entry.name
+                    local_tickets.append(ticket)
+
+        # Load binding store. The applier module exposes BindingStore.
+        applier = _try_load_step("applier")
+        if applier is None or not hasattr(applier, "BindingStore"):
+            # Minimal stub: no bindings
+            class _EmptyBindings:
+                def all_bindings(self) -> list:
+                    return []
+
+            binding_store = _EmptyBindings()
+        else:
+            binding_store = applier.BindingStore(repo_root)
+
+        report = rc_mod.reconcile_check(local_tickets, jira_snapshot, binding_store)
+        print(rc_mod.format_report(report))
+
+        # Write JSON report
+        output_path = repo_root / "bridge_state" / "reconcile-check.json"
+        rc_mod.write_report_json(report, output_path)
+        print(f"\nFull report written to {output_path}")
+        return 0
+    except Exception as exc:  # noqa: BLE001
+        print(f"ERROR: reconcile-check failed: {exc}", file=sys.stderr)
+        return 1
+
+
 def run_pass(
     repo_root: Path | None = None,
     pass_id: str | None = None,
@@ -167,8 +233,8 @@ def main(argv: list[str] | None = None) -> int:
         "--mode",
         default=None,
         help=(
-            "Rollout-safety mode: dry-run | bootstrap-strict | bootstrap-throttle | live "
-            "(default: live)"
+            "Rollout-safety mode: reconcile-check | dry-run | bootstrap-strict "
+            "| bootstrap-throttle | live (default: live)"
         ),
     )
     parser.add_argument(
@@ -221,6 +287,12 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 2
+
+    # -------------------------------------------------------------------------
+    # Step 1b: reconcile-check mode — read-only diagnostic, no lock needed.
+    # -------------------------------------------------------------------------
+    if target_mode == mode_mod.Mode.RECONCILE_CHECK:
+        return _run_reconcile_check(repo_root)
 
     # -------------------------------------------------------------------------
     # Step 2: Advisory lock + phase-gate checks.
