@@ -65,6 +65,17 @@ This skill transforms epics into implementable stories:
 
 ---
 
+## Migration Check
+
+Idempotently apply plugin-shipped ticket migrations (marker-gated; no-op once migrated, never blocks the skill):
+
+```bash
+PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
+bash "$PLUGIN_SCRIPTS/migrate-design-notes-to-design-md.sh" 2>/dev/null || true  # shim-exempt: internal orchestration script
+```
+
+---
+
 ## Scrutiny Gate
 
 Before proceeding, check if the epic has a `scrutiny:pending` tag:

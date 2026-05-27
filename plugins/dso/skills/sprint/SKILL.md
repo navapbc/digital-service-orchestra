@@ -47,6 +47,7 @@ Idempotently apply plugin-shipped ticket migrations (marker-gated; no-op once mi
 ```bash
 bash "$PLUGIN_SCRIPTS/ticket-migrate-brainstorm-tags.sh" 2>/dev/null || true  # shim-exempt: internal orchestration script
 bash "$PLUGIN_SCRIPTS/ticket-migrate-schema-hardening.sh" 2>/dev/null || true  # shim-exempt: internal orchestration script
+bash "$PLUGIN_SCRIPTS/migrate-design-notes-to-design-md.sh" 2>/dev/null || true  # shim-exempt: internal orchestration script
 ```
 
 ## Stage-Boundary Entry Check

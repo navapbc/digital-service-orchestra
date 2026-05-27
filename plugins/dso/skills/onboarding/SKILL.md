@@ -18,6 +18,17 @@ Role: **Senior Engineering Lead** conducting a structured onboarding dialogue to
 
 ---
 
+## Migration Check
+
+Idempotently apply plugin-shipped ticket migrations (marker-gated; no-op once migrated, never blocks the skill):
+
+```bash
+PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
+bash "$PLUGIN_SCRIPTS/migrate-design-notes-to-design-md.sh" 2>/dev/null || true  # shim-exempt: internal orchestration script
+```
+
+---
+
 ## Usage
 
 ```
