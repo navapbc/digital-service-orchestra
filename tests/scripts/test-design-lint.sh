@@ -54,24 +54,24 @@ trap _cleanup EXIT
 
 # ── DL-1: --help flag exits 0 and emits usage line ───────────────────────────
 echo ""
-echo "--- DL-1: --help exits 0 and emits usage ---"
+echo "--- DL-1: test_help_exits_0 ---"
 _help_output=""
 _help_exit=0
 _help_output=$(bash "$DESIGN_LINT" --help 2>&1) || _help_exit=$?
-assert_eq "DL-1: --help exit code is 0" "0" "$_help_exit"
+assert_eq "test_help_exits_0: --help exit code is 0" "0" "$_help_exit"
 # Usage line must be present on stdout (non-human consumer: AC verify command checks head -1)
 if echo "$_help_output" | grep -qi "usage\|design-lint\|design\.md"; then
-    echo "PASS: DL-1: --help output contains usage/design reference"
+    echo "PASS: test_help_exits_0: --help output contains usage/design reference"
     (( PASS++ )) || true
 else
-    echo "FAIL: DL-1: --help output did not contain usage/design reference"
+    echo "FAIL: test_help_exits_0: --help output did not contain usage/design reference"
     echo "  Got: $_help_output"
     (( FAIL++ )) || true
 fi
 
 # ── DL-2: --report with no DESIGN.md exits non-zero ─────────────────────────
 echo ""
-echo "--- DL-2: --report with absent DESIGN.md is fail-informative ---"
+echo "--- DL-2: test_report_absent_design_md ---"
 _tmpdir2=$(mktemp -d)
 _CLEANUP_DIRS+=("$_tmpdir2")
 
@@ -82,17 +82,17 @@ _report_out=$(DESIGN_MD_NOTES_PATH="$_tmpdir2/nonexistent-DESIGN.md" bash "$DESI
 # When file is absent, script should exit 0 (fail-open) or non-zero with a message
 # Either is acceptable — what matters is an informative message goes to stderr/stdout
 if echo "$_report_out" | grep -qi "not found\|absent\|missing\|no design\|skipping"; then
-    echo "PASS: DL-2: absent DESIGN.md produces informative output"
+    echo "PASS: test_report_absent_design_md: absent DESIGN.md produces informative output"
     (( PASS++ )) || true
 else
-    echo "FAIL: DL-2: absent DESIGN.md did not produce informative output"
+    echo "FAIL: test_report_absent_design_md: absent DESIGN.md did not produce informative output"
     echo "  Exit: $_report_exit  Output: $_report_out"
     (( FAIL++ )) || true
 fi
 
 # ── DL-3: --report with DESIGN.md present: emits per-violation-class count ───
 echo ""
-echo "--- DL-3: --report with DESIGN.md emits per-violation-class count lines ---"
+echo "--- DL-3: test_report_emits_violation_counts ---"
 _tmpdir3=$(mktemp -d)
 _CLEANUP_DIRS+=("$_tmpdir3")
 
@@ -116,17 +116,17 @@ _report3_out=$(DESIGN_MD_NOTES_PATH="$_tmpdir3/DESIGN.md" bash "$DESIGN_LINT" --
 # The key behavior: output must contain count information (e.g., "errors: N", "warnings: N")
 # OR an informative no-findings message
 if echo "$_report3_out" | grep -qiE "errors?[[:space:]]*:[[:space:]]*[0-9]|warnings?[[:space:]]*:[[:space:]]*[0-9]|findings?[[:space:]]*:[[:space:]]*[0-9]|no findings|no violations|0 (errors|violations)|clean|passed"; then
-    echo "PASS: DL-3: --report emits per-violation-class count or clean message"
+    echo "PASS: test_report_emits_violation_counts: --report emits per-violation-class count or clean message"
     (( PASS++ )) || true
 else
-    echo "FAIL: DL-3: --report output did not contain violation counts or clean message"
+    echo "FAIL: test_report_emits_violation_counts: --report output did not contain violation counts or clean message"
     echo "  Exit: $_report3_exit  Output: $_report3_out"
     (( FAIL++ )) || true
 fi
 
 # ── DL-4: No flags (passthrough) runs on configured file ──────────────────────
 echo ""
-echo "--- DL-4: no flags — passthrough to underlying linter ---"
+echo "--- DL-4: test_passthrough_valid_design_md ---"
 _tmpdir4=$(mktemp -d)
 _CLEANUP_DIRS+=("$_tmpdir4")
 
@@ -148,17 +148,17 @@ _passthrough_out=$(DESIGN_MD_NOTES_PATH="$_tmpdir4/DESIGN.md" bash "$DESIGN_LINT
 
 # Acceptable outcomes: exit 0 (npx ran successfully or fail-open), or JSON output from linter
 if [[ "$_passthrough_exit" -eq 0 ]]; then
-    echo "PASS: DL-4: passthrough exits 0 with valid DESIGN.md"
+    echo "PASS: test_passthrough_valid_design_md: passthrough exits 0 with valid DESIGN.md"
     (( PASS++ )) || true
 else
-    echo "FAIL: DL-4: passthrough exited non-zero ($_passthrough_exit) with valid DESIGN.md"
+    echo "FAIL: test_passthrough_valid_design_md: passthrough exited non-zero ($_passthrough_exit) with valid DESIGN.md"
     echo "  Output: $_passthrough_out"
     (( FAIL++ )) || true
 fi
 
 # ── DL-5: DESIGN_MD_NOTES_PATH override is respected ─────────────────────────
 echo ""
-echo "--- DL-5: DESIGN_MD_NOTES_PATH env override respected ---"
+echo "--- DL-5: test_env_override_respected ---"
 _tmpdir5=$(mktemp -d)
 _CLEANUP_DIRS+=("$_tmpdir5")
 
@@ -181,18 +181,18 @@ _override_out=$(DESIGN_MD_NOTES_PATH="$_nonexistent_path" bash "$DESIGN_LINT" 2>
 # The output should reference the overridden path (not a default .claude/design-notes.md path)
 # The key behavior: env override is used when resolving the design file
 if echo "$_override_out" | grep -q "no-such-file\|nonexistent\|not found\|absent\|missing\|skipping"; then
-    echo "PASS: DL-5: DESIGN_MD_NOTES_PATH override used for file resolution"
+    echo "PASS: test_env_override_respected: DESIGN_MD_NOTES_PATH override used for file resolution"
     (( PASS++ )) || true
 elif [[ "$_override_exit" -eq 0 ]] && echo "$_override_out" | grep -qi "skipping\|fail-open\|not found"; then
-    echo "PASS: DL-5: DESIGN_MD_NOTES_PATH override used (fail-open with message)"
+    echo "PASS: test_env_override_respected: DESIGN_MD_NOTES_PATH override used (fail-open with message)"
     (( PASS++ )) || true
 else
     # Check that it did NOT try to read from the default .claude/design-notes.md path
     if [[ "$_override_exit" -eq 0 ]]; then
-        echo "PASS: DL-5: script exited 0 with custom DESIGN_MD_NOTES_PATH override (fail-open)"
+        echo "PASS: test_env_override_respected: script exited 0 with custom DESIGN_MD_NOTES_PATH override (fail-open)"
         (( PASS++ )) || true
     else
-        echo "FAIL: DL-5: DESIGN_MD_NOTES_PATH override behavior unclear"
+        echo "FAIL: test_env_override_respected: DESIGN_MD_NOTES_PATH override behavior unclear"
         echo "  Exit: $_override_exit  Output: $_override_out"
         (( FAIL++ )) || true
     fi
@@ -200,7 +200,7 @@ fi
 
 # ── DL-6: Missing npx exits 0 (fail-open) ─────────────────────────────────────
 echo ""
-echo "--- DL-6: missing npx exits 0 (fail-open) ---"
+echo "--- DL-6: test_missing_npx_failopen ---"
 _tmpdir6=$(mktemp -d)
 _CLEANUP_DIRS+=("$_tmpdir6")
 
@@ -231,12 +231,12 @@ _failopen_exit=0
 _failopen_out=""
 _failopen_out=$(PATH="$_no_npx_path" bash "$DESIGN_LINT" 2>&1) || _failopen_exit=$?
 
-assert_eq "DL-6: missing npx exits 0 (fail-open)" "0" "$_failopen_exit"
+assert_eq "test_missing_npx_failopen: missing npx exits 0 (fail-open)" "0" "$_failopen_exit"
 if echo "$_failopen_out" | grep -qi "npx\|not available\|skipping\|fail-open"; then
-    echo "PASS: DL-6: missing npx produces informative fail-open message"
+    echo "PASS: test_missing_npx_failopen: missing npx produces informative fail-open message"
     (( PASS++ )) || true
 else
-    echo "FAIL: DL-6: missing npx did not produce informative fail-open message"
+    echo "FAIL: test_missing_npx_failopen: missing npx did not produce informative fail-open message"
     echo "  Output: $_failopen_out"
     (( FAIL++ )) || true
 fi
