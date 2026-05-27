@@ -589,8 +589,8 @@ def test_inbound_create_extracts_nested_jira_objects(applier, mut_mod, fixture_r
     assert data["ticket_type"] == "bug"
     assert data["title"] == "Complex objects"
     assert data["assignee"] == "Joe"
-    # Priority name "High" is passed through as-is (string, not dict).
-    assert data["priority"] == "High"
+    # Priority name "High" is mapped to integer 1 via _JIRA_PRIORITY_MAP.
+    assert data["priority"] == 1
 
 
 def test_inbound_update_extracts_nested_jira_objects(applier, mut_mod, fixture_repo):
@@ -626,7 +626,7 @@ def test_inbound_update_extracts_nested_jira_objects(applier, mut_mod, fixture_r
     assert edits
     fields = edits[-1]["data"]["fields"]
     assert fields["title"] == "Updated complex"
-    assert fields["priority"] == "Low"
+    assert fields["priority"] == 3
     assert fields["assignee"] == "Alice"
 
 
