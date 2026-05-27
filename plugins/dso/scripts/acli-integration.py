@@ -22,6 +22,8 @@ import urllib.error
 import urllib.request
 from typing import Any
 
+from dso_reconciler.adf import text_to_adf as _text_to_adf  # canonical location
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -148,21 +150,7 @@ _LOCAL_STATUS_TO_JIRA: dict[str, str] = {
 # ---------------------------------------------------------------------------
 
 
-def _text_to_adf(text: str) -> dict[str, Any]:
-    """Convert a plain text string to Atlassian Document Format (ADF).
-
-    Jira REST API v3 (used by ACLI Go v1.3+) requires the ``description``
-    field to be an ADF object, not a plain string.
-    """
-    paragraphs = []
-    for line in text.split("\n"):
-        if line:
-            paragraphs.append(
-                {"type": "paragraph", "content": [{"type": "text", "text": line}]}
-            )
-        else:
-            paragraphs.append({"type": "paragraph", "content": []})
-    return {"type": "doc", "version": 1, "content": paragraphs}
+# _text_to_adf is imported from dso_reconciler.adf (canonical location)
 
 
 # ---------------------------------------------------------------------------
