@@ -2009,6 +2009,30 @@ If the check fails:
    b. If the persistence change was made by the orchestrator, write the missing test directly.
 3. After adding the test, re-run the check and proceed only when it passes.
 
+### Step 11a: Design-MD Lint Gate (/dso:sprint)
+
+Filter the batch's touched files for scope-eligible extensions (`.py`, `.js`, `.ts`, `.tsx`, `.jsx`, `.sh`, `.html`, `.css`, `.scss`):
+
+```bash
+TOUCHED_FILES=$(git diff --name-only HEAD)
+ELIGIBLE_FILES=$(echo "$TOUCHED_FILES" | grep -E '\.(py|js|ts|tsx|jsx|sh|html|css|scss)$' || true)
+```
+
+If `ELIGIBLE_FILES` is non-empty, run the design-md-lint check:
+
+```bash
+bash "$PLUGIN_SCRIPTS/design-md-lint.sh" $ELIGIBLE_FILES  # shim-exempt: internal orchestration script
+LINT_EXIT=$?
+```
+
+If `LINT_EXIT` is non-zero:
+1. Log: `"design-md-lint.sh failed — design documentation violations detected in batch files."`
+2. **Do not commit.** Block the batch and surface the lint output to the orchestrator.
+3. Fix all violations reported by the linter (update or add the required design-doc references in the affected files).
+4. Re-run the lint check and proceed only when it exits 0.
+
+If `ELIGIBLE_FILES` is empty, skip this step.
+
 ### Step 12: Visual Verification (UI tasks only) (/dso:sprint)
 
 If any task in the batch modified templates, CSS, or frontend code:
