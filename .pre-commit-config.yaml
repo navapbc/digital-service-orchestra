@@ -41,6 +41,14 @@ repos:
         stages: [pre-commit]
         files: ^plugins/dso/
 
+      - id: stale-terms-check
+        name: Stale Terms Check (5s timeout)
+        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh stale-terms-check 5 "plugins/dso/scripts/check-stale-terms.sh"
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^plugins/dso/(scripts|hooks)/.*\.(sh|py)$
+
       - id: rule-anchors-check
         name: Rule Anchors Check (5s timeout)
         entry: ./plugins/dso/scripts/pre-commit-wrapper.sh rule-anchors-check 5 "plugins/dso/scripts/check-rule-anchors.sh"

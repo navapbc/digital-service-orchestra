@@ -1,18 +1,22 @@
 #!/usr/bin/env bash
-# merge-to-main-pr.sh — PR merge mode (skeleton).
+# merge-to-main-pr.sh — PR merge mode for the merge-to-main pipeline.
 #
-# Skeleton implementation that satisfies:
+# Creates a GitHub pull request from the current branch into main, waits
+# for CI mergeability checks, and queues GitHub auto-merge. Used when
+# dso.workflow=ci-pr (the canonical workflow knob, replacing the
+# deprecated merge.strategy=pr value). Direct merge mode lives in
+# merge-to-main-direct.sh; merge-to-main.sh dispatches between the two.
+#
+# Responsibilities:
 #   * gh CLI version gate (requires >= 2.0.0 for GraphQL features used by
-#     downstream PR-create logic in Task 3 — DD7).
-#   * Duplicate-PR guard: refuse to run when an open PR already exists for
-#     the current branch (DD4).
-#   * CONFLICT_DATA contract parity with merge-to-main-direct.sh: when the
-#     (placeholder) merge phase fails, emit the same JSON line via the
-#     shared _emit_conflict_data helper in merge-helpers.sh (DD6 — PR side).
-#
-# Full PR-creation flow (gh pr create, auto-merge enable, status polling)
-# lands in Task 3. This skeleton makes the T1 dispatcher routing and PR
-# CONFLICT_DATA tests turn GREEN without committing to that flow yet.
+#     PR-create and review-thread queries — DD7).
+#   * Duplicate-PR guard: refuse to run when an open PR already exists
+#     for the current branch (DD4).
+#   * Full PR lifecycle: sync, push, gh pr create, mergeability polling,
+#     auto-merge sequencing, review-thread resolution, trailer injection.
+#   * CONFLICT_DATA contract parity with merge-to-main-direct.sh: emit
+#     the same JSON conflict envelope via the shared _emit_conflict_data
+#     helper in merge-helpers.sh (DD6 — PR side).
 #
 # Usage: merge-to-main-pr.sh [--resume|--help]
 # Exit codes: 0=success, 1=error

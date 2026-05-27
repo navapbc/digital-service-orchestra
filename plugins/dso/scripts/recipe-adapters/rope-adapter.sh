@@ -54,8 +54,8 @@ PYEOF
 # ── Engine availability check ─────────────────────────────────────────────────
 # binary via write_mock_rope() in tests/scripts/test-rope-adapter.sh. The contract interface
 # (RECIPE_PARAM_*, JSON output, exit codes) is validated via mock. The actual rope invocation
-# mechanism (python3 -c 'import rope; ...') is scoped to the follow-on implementation story.
-# This adapter correctly implements the contract interface for the walking skeleton phase.
+# mechanism (python3 -c 'import rope; ...') is the next layer; this adapter is responsible
+# only for the contract surface (env-var → JSON envelope translation).
 
 if ! command -v rope >/dev/null 2>&1; then
     emit_degraded "rope not found: install via 'pip install rope>=1.7.0'"
