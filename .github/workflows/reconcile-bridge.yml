@@ -240,6 +240,42 @@ jobs:
               print(f'               | summary={summary[:100]}')
           "
           echo
+          echo "=== Probe 0c: Unassign Jessica Westbrook issues ==="
+          JW_KEYS=$(acli jira workitem search --jql "project = ${PROJ} AND assignee = '712020:6d8ef732-ff63-45db-a1e2-05635e957b77'" --paginate --json \
+            | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          issues = data if isinstance(data, list) else data.get('issues', [])
+          for i in issues:
+              k = i.get('key', '')
+              if k: print(k)
+          ")
+          JW_COUNT=$(echo "$JW_KEYS" | grep -c "DIG-" || true)
+          echo "Issues to unassign: $JW_COUNT"
+          UNASSIGNED=0
+          FAILED=0
+          for key in $JW_KEYS; do
+              if [ -z "$key" ]; then continue; fi
+              if acli jira workitem edit --key "$key" --assignee "" --yes 2>/dev/null; then
+                  echo "  UNASSIGNED: $key"
+                  UNASSIGNED=$((UNASSIGNED + 1))
+              else
+                  echo "  FAILED: $key (trying --from-json fallback)"
+                  # Fallback: use --from-json to clear assignee
+                  TMP_JSON=$(mktemp /tmp/unassign.XXXXXX.json)
+                  echo "{\"fields\":{\"assignee\":null}}" > "$TMP_JSON"
+                  if acli jira workitem edit --key "$key" --from-json "$TMP_JSON" --yes 2>/dev/null; then
+                      echo "  UNASSIGNED (fallback): $key"
+                      UNASSIGNED=$((UNASSIGNED + 1))
+                      FAILED=$((FAILED - 1))
+                  else
+                      echo "  FAILED (both methods): $key"
+                  fi
+                  rm -f "$TMP_JSON"
+              fi
+          done
+          echo "Unassignment complete: $UNASSIGNED success, $FAILED failed"
+          echo
           echo "=== Probe 1: distinct statuses in project ${PROJ} ==="
           acli jira workitem search --jql "project = ${PROJ}" --paginate --json \
             | python3 -c "
