@@ -89,7 +89,7 @@ if [[ "$sv_int" -ge 2 ]]; then
         PASS)
             exit 0
             ;;
-        FAIL|BLOCKED|INCONCLUSIVE)
+        FAIL|BLOCKED|INCONCLUSIVE|EVIDENCE_PENDING)
             exit 1
             ;;
         "")

@@ -31,7 +31,7 @@ Sprint orchestrator and any machine-readable consumer that processes completion-
 
 ## P1 Enum
 
-The `P1` field is a string typed to one of four values:
+The `P1` field is a string typed to one of five values:
 
 | Value | Semantics |
 |---|---|
@@ -39,6 +39,7 @@ The `P1` field is a string typed to one of four values:
 | `FAIL` | One or more success criteria not met; closure is blocked pending remediation. |
 | `BLOCKED` | Verification could not proceed due to a dependency or external blocker (e.g., a required artifact is unavailable). |
 | `INCONCLUSIVE` | Verification ran but produced insufficient evidence to render a PASS or FAIL verdict (e.g., test output missing, environment error, partial run). |
+| `EVIDENCE_PENDING` | Execution traces are present but one or more DDs have TIMEOUT outcomes, missing Verify commands, or are absent from the trace manifest. The story cannot close. The orchestrator re-runs `pre-verifier-execute.sh` once; if still `EVIDENCE_PENDING`, escalates to user. Added by intent-fidelity-pipeline Phase 1. |
 
 **Not valid in `P1`**: `PENDING`, `SKIPPED` — these are legacy `overall_verdict` values. They MUST NOT appear in the `P1` field.
 
@@ -200,7 +201,7 @@ The script `check-verifier-verdict.sh` reads a verifier JSON payload and exits w
 | Exit code | Condition |
 |---|---|
 | `0` | `P1 == "PASS"` |
-| `1` | `P1 == "FAIL"`, `"BLOCKED"`, `"INCONCLUSIVE"`, or any other (unrecognized) `P1` value (per safe-default gate-block; emits a warning to stderr) |
+| `1` | `P1 == "FAIL"`, `"BLOCKED"`, `"INCONCLUSIVE"`, `"EVIDENCE_PENDING"`, or any other (unrecognized) `P1` value (per safe-default gate-block; emits a warning to stderr) |
 | `2` | `P1` field absent on a `schema_version=2` payload, JSON malformed, or no input provided |
 
 Usage: `echo '{"P1":"PASS"}' | check-verifier-verdict.sh` or `check-verifier-verdict.sh path/to/output.json`

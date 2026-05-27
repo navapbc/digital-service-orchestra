@@ -939,6 +939,53 @@ Retrieve the current file impact list for a ticket.
 
 ---
 
+### `set-verify-commands`
+
+Store DD-level verify commands on a ticket as a VERIFY_COMMANDS event. Follows the `set-file-impact` pattern: last-write-wins semantics.
+
+```
+.claude/scripts/dso ticket set-verify-commands <ticket_id> <json-array>
+```
+
+`<json-array>` must be a JSON array of objects with `dd_id` (required), `dd_text` (required), and `command` (required) fields:
+
+```json
+[
+  {"dd_id": "dd-1", "dd_text": "The reconciler creates local tickets...", "command": "pytest tests/integration/test_inbound_create.py -k test_creates_ticket"},
+  {"dd_id": "dd-2", "dd_text": "Invalid mode exits non-zero...", "command": "bash tests/test-mode-validation.sh"}
+]
+```
+
+The compiled state field is `verify_commands`. Consumed by `pre-verifier-execute.sh` to produce execution traces for the completion verifier.
+
+**Exit codes:**
+
+| Code | Meaning |
+|---|---|
+| `0` | VERIFY_COMMANDS event written |
+| `1` | Invalid JSON, not an array, or missing ticket |
+
+---
+
+### `get-verify-commands`
+
+Retrieve the current verify commands array for a ticket.
+
+```
+.claude/scripts/dso ticket get-verify-commands <ticket_id>
+```
+
+**Output:** JSON array of `{dd_id, dd_text, command}` objects, or `[]` if no VERIFY_COMMANDS event has been written.
+
+**Exit codes:**
+
+| Code | Meaning |
+|---|---|
+| `0` | Output written (may be `[]`) |
+| `1` | Ticket not found |
+
+---
+
 ### `summary`
 
 Produce a one-line summary per ticket including status and blocking information.
@@ -1140,6 +1187,7 @@ The ticket system is append-only. All mutations write a new event JSON file. The
 | `SYNC` | bridge scripts | Records a Jira synchronization mapping (`jira_key`) |
 | `BRIDGE_ALERT` | bridge scripts | Records a bridge anomaly; may include a resolution event |
 | `FILE_IMPACT` | `.claude/scripts/dso ticket set-file-impact` | Stores a structured list of files likely to be modified; last-write-wins; compiled into `file_impact` field |
+| `VERIFY_COMMANDS` | `.claude/scripts/dso ticket set-verify-commands` | Stores DD-level verify commands; last-write-wins; compiled into `verify_commands` field |
 
 ---
 

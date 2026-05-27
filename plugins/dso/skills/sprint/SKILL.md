@@ -2191,7 +2191,26 @@ If OPEN_CHILDREN > 0:
 - Add a comment: `.claude/scripts/dso ticket comment <story-id> "Step 18 blocked: <N> child tasks still open: <list IDs>. Complete them before closure."`
 - Resume Phase C to close the remaining tasks
 
-Only when OPEN_CHILDREN == 0, proceed to dispatch dso:completion-verifier.
+Only when OPEN_CHILDREN == 0, proceed to the pre-verifier execution step below.
+
+**Pre-verifier execution (Step 18 prerequisite — intent-fidelity-pipeline Phase 1):**
+
+<HARD-GATE>
+Before dispatching dso:completion-verifier, run the pre-verifier execution script.
+This is NOT optional. "All tests pass" and "all tasks closed" do not substitute
+for DD-level verification. The script executes each DD's Verify command and
+produces a structured execution trace.
+
+```bash
+VERIFY_TRACE=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/pre-verifier-execute.sh" <story-id>)
+```
+
+Pass `VERIFY_TRACE_PATH=$VERIFY_TRACE` in the completion-verifier prompt.
+
+If VERIFY_TRACE is empty or the script exits non-zero, log the error and pass
+`VERIFY_TRACE_PATH=""` to the verifier (backward-compat path). Do NOT skip the
+verifier dispatch because the trace script failed.
+</HARD-GATE>
 
 **Manual story sentinel path (Step 18)**: When the story has the `manual:awaiting_user` tag, `dso:completion-verifier` reads the `MANUAL_PAUSE_SENTINEL` comment written by `sprint-manual-drain.sh` to determine the verdict (see `completion-verifier.md` Step 9). The orchestrator takes no special action — dispatch the verifier normally and let it apply the sentinel verdict rules automatically.
 
@@ -2220,7 +2239,7 @@ The ONLY two valid dispatch forms are:
      description: "Verify story <story-id> completion",
      subagent_type: "dso:completion-verifier",
      model: "sonnet",
-     prompt: "<story-id> + any additional context the verifier needs"
+     prompt: "<story-id>\nVERIFY_TRACE_PATH=$VERIFY_TRACE\n+ any additional context the verifier needs"
    })
    ```
 
@@ -2230,7 +2249,7 @@ The ONLY two valid dispatch forms are:
      description: "Verify story <story-id> completion (fallback)",
      subagent_type: "general-purpose",
      model: "sonnet",
-     prompt: "<verbatim contents of ${CLAUDE_PLUGIN_ROOT}/agents/completion-verifier.md>\n\n---\n\nStory ID: <story-id>"
+     prompt: "<verbatim contents of ${CLAUDE_PLUGIN_ROOT}/agents/completion-verifier.md>\n\n---\n\nStory ID: <story-id>\nVERIFY_TRACE_PATH=$VERIFY_TRACE"
    })
    ```
 
@@ -2243,8 +2262,27 @@ What is NOT acceptable (all of these are CLAUDE.md `rule:dispatch-verifier` viol
 If neither form is achievable (e.g., Agent tool unavailable), STOP and surface to the user — do not synthesize a verifier prompt yourself.
 </HARD-GATE>
 - `P1: PASS` → proceed with closure
+- `P1: EVIDENCE_PENDING` → see **EVIDENCE_PENDING escalation protocol** below.
 - `P1: FAIL` / `P1: BLOCKED` / `P1: INCONCLUSIVE` → see **Planner-dispatch HARD-GATE** below; do NOT create any ticket until the planner returns.
 - **Fallback (technical failure only)**: On timeout/unparseable JSON (`check-verifier-verdict.sh` exit 2), log warning and proceed with closure.
+
+**EVIDENCE_PENDING escalation protocol (intent-fidelity-pipeline Phase 1):**
+
+When the verifier returns `P1: EVIDENCE_PENDING`:
+
+1. Re-run `pre-verifier-execute.sh` once (transient timeout may have resolved):
+   ```bash
+   VERIFY_TRACE=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/pre-verifier-execute.sh" <story-id>)
+   ```
+2. Re-dispatch the completion-verifier with the new trace.
+3. If `P1` is still `EVIDENCE_PENDING` after retry, **escalate to user**:
+   ```
+   HALT_FOR_USER: Story <story-id> has EVIDENCE_PENDING verification.
+   DDs pending:
+   - <dd-id>: <outcome> (<reason>)
+   Action needed: fix the timeout, add a Verify command, or approve closure without trace.
+   ```
+4. Do NOT attempt autonomous remediation of EVIDENCE_PENDING. It signals infrastructure problems (slow tests, missing fixtures, absent commands), not code defects.
 
 **Re-dispatch rule (d039-ac65)**: If the completion-verifier returned a non-PASS `P1` on ANY prior run during this story's lifecycle AND a fix was subsequently applied (remediation tasks completed, Phase C re-entry executed), you MUST re-dispatch the completion-verifier before closing the story — even when confidence is high that the fix addressed the failing criterion. High confidence is NOT a valid bypass. The verifier must confirm the fix did not introduce regressions on other criteria. Only technical failure (timeout, unparseable JSON) permits proceeding without re-verification. "I fixed the exact criterion that failed" is NOT a substitute for re-dispatch. **The Planner-dispatch HARD-GATE below applies to the re-dispatched verdict as well** — every P1 != PASS verdict, including those returned on a re-dispatch invocation under this rule, MUST route through `dso:verification-remediation-planner` before any remediation ticket creation. The re-dispatch site does NOT bypass the planner gate; the third dispatch path (re-dispatch) is held to the same invariant as the first.
 

@@ -453,6 +453,8 @@ def apply_event(ev):
     )
   elif ev.event_type == "FILE_IMPACT" then
     .file_impact = (ev.data.file_impact // [])
+  elif ev.event_type == "VERIFY_COMMANDS" then
+    .verify_commands = (ev.data.verify_commands // [])
   else .
   end;
 
@@ -1491,6 +1493,8 @@ def apply_event(ev):
     )
   elif ev.event_type == "FILE_IMPACT" then
     .file_impact = (ev.data.file_impact // [])
+  elif ev.event_type == "VERIFY_COMMANDS" then
+    .verify_commands = (ev.data.verify_commands // [])
   else .
   end;
 
@@ -1521,6 +1525,161 @@ reduce $_events[] as $ev (initial_state($TID); apply_event($ev))
         rm -f "$_valid_tmp"
 
         echo "$fi_out"
+    )
+}
+
+# ── ticket_set_verify_commands ─────────────────────────────────────────────────
+# Write a VERIFY_COMMANDS event recording DD-level verify commands for a ticket.
+# Follows the set-file-impact pattern: last-write-wins, compiled into verify_commands field.
+ticket_set_verify_commands() {
+    if [ "${DSO_TICKET_LEGACY:-0}" = "1" ]; then
+        echo "Error: ticket set-verify-commands not available in legacy mode" >&2
+        return 1
+    fi
+
+    (
+        set -euo pipefail
+
+        unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR 2>/dev/null || true
+
+        # shellcheck source=/dev/null
+        source "$_TICKETLIB_DIR/ticket-lib.sh"
+
+        local TRACKER_DIR
+        if [ -n "${TICKETS_TRACKER_DIR:-}" ]; then
+            TRACKER_DIR="$TICKETS_TRACKER_DIR"
+        else
+            local REPO_ROOT
+            REPO_ROOT="${PROJECT_ROOT:-$(GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git rev-parse --show-toplevel 2>/dev/null)}"
+            TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
+        fi
+
+        if [ $# -lt 2 ]; then
+            echo "Usage: ticket set-verify-commands <ticket_id> <json_array>" >&2
+            return 1
+        fi
+
+        local ticket_id="$1"
+        local json_array="$2"
+
+        if [ -z "$ticket_id" ]; then
+            echo "Error: ticket_id must be non-empty" >&2
+            return 1
+        fi
+
+        if ! printf '%s' "$json_array" | jq -e . >/dev/null 2>&1; then
+            echo "Error: verify_commands argument is not valid JSON" >&2
+            return 1
+        fi
+
+        local json_type
+        json_type=$(printf '%s' "$json_array" | jq -r 'type' 2>/dev/null) || json_type="unknown"
+        if [ "$json_type" != "array" ]; then
+            echo "Error: verify_commands argument must be a JSON array, got '$json_type'" >&2
+            return 1
+        fi
+
+        if ! ticket_id="$(_ticketlib_resolve_id "$ticket_id" "$TRACKER_DIR")"; then
+            return 1
+        fi
+
+        if ! find "$TRACKER_DIR/$ticket_id" -maxdepth 1 \( -name '*-CREATE.json' -o -name '*-SNAPSHOT.json' \) ! -name '.*' 2>/dev/null | grep -q .; then
+            echo "Error: ticket $ticket_id has no CREATE or SNAPSHOT event" >&2
+            return 1
+        fi
+
+        local env_id
+        env_id=$(cat "$TRACKER_DIR/.env-id")
+        local author
+        author=$(git config user.name 2>/dev/null || echo "Unknown")
+
+        local temp_event array_file
+        temp_event=$(mktemp "$TRACKER_DIR/.tmp-verify-cmds-XXXXXX")
+        array_file=$(mktemp "$TRACKER_DIR/.tmp-vc-array-XXXXXX")
+        # shellcheck disable=SC2064
+        trap "rm -f '$temp_event' '$array_file'" EXIT
+        printf '%s' "$json_array" > "$array_file"
+
+        python3 -c "
+import json, sys, time, uuid
+
+with open(sys.argv[3], 'r', encoding='utf-8') as af:
+    verify_commands = json.load(af)
+
+event = {
+    'timestamp': time.time_ns(),
+    'uuid': str(uuid.uuid4()),
+    'event_type': 'VERIFY_COMMANDS',
+    'env_id': sys.argv[1],
+    'author': sys.argv[2],
+    'data': {
+        'verify_commands': verify_commands
+    }
+}
+
+with open(sys.argv[4], 'w', encoding='utf-8') as f:
+    json.dump(event, f, ensure_ascii=False)
+" "$env_id" "$author" "$array_file" "$temp_event" || {
+            rm -f "$temp_event" "$array_file"
+            echo "Error: failed to build VERIFY_COMMANDS event JSON" >&2
+            return 1
+        }
+        rm -f "$array_file"
+
+        write_commit_event "$ticket_id" "$temp_event" || {
+            rm -f "$temp_event"
+            echo "Error: failed to write and commit VERIFY_COMMANDS event" >&2
+            return 1
+        }
+
+        rm -f "$temp_event"
+    )
+}
+
+# ── ticket_get_verify_commands ────────────────────────────────────────────────
+# Read the compiled verify_commands array for a ticket.
+ticket_get_verify_commands() {
+    if [ "${DSO_TICKET_LEGACY:-0}" = "1" ]; then
+        echo "Error: ticket get-verify-commands not available in legacy mode" >&2
+        return 1
+    fi
+
+    (
+        set -euo pipefail
+
+        unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR 2>/dev/null || true
+
+        # shellcheck source=/dev/null
+        source "$_TICKETLIB_DIR/ticket-lib.sh"
+
+        local TRACKER_DIR
+        if [ -n "${TICKETS_TRACKER_DIR:-}" ]; then
+            TRACKER_DIR="$TICKETS_TRACKER_DIR"
+        else
+            local REPO_ROOT
+            REPO_ROOT="${PROJECT_ROOT:-$(GIT_DISCOVERY_ACROSS_FILESYSTEM=1 git rev-parse --show-toplevel 2>/dev/null)}"
+            TRACKER_DIR="$REPO_ROOT/.tickets-tracker"
+        fi
+
+        if [ $# -lt 1 ]; then
+            echo "Usage: ticket get-verify-commands <ticket_id>" >&2
+            return 1
+        fi
+
+        local ticket_id="$1"
+
+        if [ -z "$ticket_id" ]; then
+            echo "Error: ticket_id must be non-empty" >&2
+            return 1
+        fi
+
+        if ! ticket_id="$(_ticketlib_resolve_id "$ticket_id" "$TRACKER_DIR")"; then
+            return 1
+        fi
+
+        local vc_out
+        vc_out=$(ticket_show "$ticket_id" | jq -c '.verify_commands // []')
+        echo "$vc_out"
     )
 }
 
