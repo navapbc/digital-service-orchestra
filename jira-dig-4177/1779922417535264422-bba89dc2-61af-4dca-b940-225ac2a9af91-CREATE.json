@@ -1,0 +1,1 @@
+{"timestamp": 1779922417535264422, "uuid": "bba89dc2-61af-4dca-b940-225ac2a9af91", "event_type": "CREATE", "env_id": "reconciler", "author": "reconciler", "data": {"id": "jira-dig-4177", "ticket_type": "epic", "title": "Docker-based E2E Workflow Tests", "description": "", "parent_id": "", "tags": ["imported:reconciler-bootstrap"], "priority": 4}}

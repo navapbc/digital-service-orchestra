@@ -428,5 +428,2846 @@
       }
     },
     "summary": "Wire design_md_additions surfacing into preplanning dispatch protocol"
+  },
+  "DIG-4174": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## Testing Mode",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "GREEN",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Story DD Coverage",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- dd-2: Preplanning orchestrator surfaces the payload for approval when non-null",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- dd-4: On decline, skips write, tags design:tokens_pending, continues",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- dd-5: In PREPLANNING_INTERACTIVE=false mode, emits INTERACTIVITY_DEFERRED",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Implementation",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "1. Edit plugins/dso/skills/preplanning/prompts/ui-designer-dispatch-protocol.md: insert Section 4b after Review Loop. Logic: check design_md_additions non-null \u2192 interactive: AskUserQuestion approve/decline \u2192 approve: invoke write-design-md-additions.sh \u2192 decline: tag design:tokens_pending \u2192 non-interactive: INTERACTIVITY_DEFERRED comment.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "2. Edit plugins/dso/skills/preplanning/SKILL.md: reference new Section 4b in Phase H Step 7.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Acceptance Criteria",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Unit tests pass \u2014 Verify: bash tests/run-all.sh",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Dispatch protocol references write-design-md-additions.sh \u2014 Verify: grep -q 'write-design-md-additions.sh' plugins/dso/skills/preplanning/prompts/ui-designer-dispatch-protocol.md",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Handles INTERACTIVITY_DEFERRED \u2014 Verify: grep -q 'INTERACTIVITY_DEFERRED.*design_md_additions' plugins/dso/skills/preplanning/prompts/ui-designer-dispatch-protocol.md",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [ ] Handles decline with design:tokens_pending tag \u2014 Verify: grep -q 'design:tokens_pending' plugins/dso/skills/preplanning/prompts/ui-designer-dispatch-protocol.md",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Retry Budget",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "MAX_ATTEMPTS: 3 (sonnet model)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive sonnet failures: escalate to opus",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "On 3 consecutive opus failures (6 total): escalate to user",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10318,
+      "description": "A small, distinct piece of work.",
+      "entityId": "e9187a54-6eb5-43a7-bd6b-47d246587167",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10318?size=medium",
+      "id": "17010",
+      "name": "Task",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17010",
+      "subtask": false
+    },
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "Wire design_md_additions surfacing into preplanning dispatch protocol"
+  },
+  "DIG-4175": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## Story S8: Orchestrator invocation contract in COMMIT-WORKFLOW.md + Value validation canary",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### Description",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "**What**: Document the orchestrator's invocation contract for the new primitive in COMMIT-WORKFLOW.md: invoke `start` via `Bash(run_in_background: true)` \u2192 `bash_id`, drain progress via `BashOutput(bash_id)` for streaming only, poll `<state_dir>/done` for completion, read `<state_dir>/exit-code` as the authoritative result. Include an explicit \"do not treat BashOutput return-empty as completion\" note. Separately, execute the Value validation SC: on a canary worktree, run one representative test-gate cycle under both the legacy `test-batched` path and the new primitive on the same commit, record tool-call counts and total tokens consumed in the epic closure comment, assert the new path uses \u22643 tool calls and reduces tokens by \u226550%. INSTALL.md is also updated here with a pointer to the new test-run primitive.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "**Why**: The orchestrator contract is the agent-facing API of the new primitive. Without clear documentation, every caller risks misusing `BashOutput` as a completion signal (one of the critical scenarios from brainstorm). The Value validation canary is the SC that gates epic closure on measured improvement.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "**Scope**:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- IN: COMMIT-WORKFLOW.md contract section, INSTALL.md pointer, canary measurement script + fixture, closure comment with numbers",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- OUT: CLAUDE.md full architecture update (S9 doc refresh)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### Done Definitions",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- When this story is complete, COMMIT-WORKFLOW.md includes an \"Orchestrator invocation contract\" section describing `run_in_background` dispatch, `BashOutput` for progress-only, `done` marker polling, and `exit-code` read, with an explicit \"do not treat BashOutput return-empty as completion\" note",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  \u2190 Satisfies: \"Orchestrator invocation contract \u2014 documented in COMMIT-WORKFLOW.md: the orchestrator invokes test-run start via Bash(run_in_background: true) ... Explicit 'do not treat BashOutput return-empty as completion' note\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- When this story is complete, a canary worktree runs one representative test-gate cycle under (a) the legacy path and (b) the new primitive on the same commit; both tool-call count and total tokens from dispatch to verdict are recorded in the epic closure comment",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  \u2190 Satisfies: \"before closing the epic, a canary worktree runs one representative test-gate cycle under (a) the legacy test-batched path and (b) the new background primitive, on the same commit. The epic closure comment records both tool-call counts and total tokens consumed\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- When this story is complete, the closure comment documents that the new path completed in \u22643 tool calls AND reduced tokens by \u226550% vs the legacy path on the same suite",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  \u2190 Satisfies: \"Acceptance: the new path completes in \u22643 tool calls (1 dispatch + \u22642 drains) and reduces tokens by \u226550% vs the legacy path on the same suite. Failure to meet either threshold blocks epic closure pending approach revision\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- When this story is complete, unit tests written and passing for all new or modified logic",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### Considerations",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [Testing] The specific canary workload (suite or file-edit trigger) must be pinned and recorded alongside the numbers so future regression tests are comparable \u2014 reviewer-flagged minor refinement from brainstorm",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [Reliability] This is the SC that can block epic closure; run it before S9 docs update so docs reflect measured outcomes",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Escalation Policy",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "**Escalation policy**: Proceed unless a significant assumption is required to continue \u2014 one that could send the implementation in the wrong direction. Escalate only when genuinely blocked without a reasonable inference. Document all assumptions made without escalating.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Closure Checks",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10315,
+      "description": "Stories track functionality or features expressed as user goals.",
+      "entityId": "ad9ba8b9-3a98-4313-b7bf-a6ba067d7d37",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10315?size=medium",
+      "id": "17290",
+      "name": "Story",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17290",
+      "subtask": false
+    },
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "As a DSO maintainer, orchestrator contract is documented and value validation canary proves token + tool-call improvements"
+  },
+  "DIG-4176": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## Context",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "The existing kudos system (Epics 3e9b-afee and 71df-5bd8) includes 5 triggers that silently skip on non-Python stacks. T7 uses Python ast.NodeVisitor. T9 uses ruff (Python-only). T12 uses Python-anchored regexes. T13 and T4 use Python ast.dump() subtree hashing. Ruby and JavaScript developers receive zero kudos from these 5 triggers. This epic replaces them with polyglot equivalents so kudos fires across all supported stacks.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Success Criteria",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- T7 uses lizard -ENS instead of Python ast.NodeVisitor; supports Python, JS/TS, Ruby, Java; 30s timeout; --exclude for test dirs; when lizard absent: TRIGGER_SKIPPED signal",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- T9 reads commands.lint (from Epic B); when absent: TRIGGER_SKIPPED; when present, fires on zero-violation result",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- T12 uses line-start-anchored regexes covering Python, JS/TS, Ruby, Java syntax for commented-out code detection",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- T13 and T4 use jscpd (JSON reporter to temp dir, 30s timeout, exit code parsing); when jscpd absent: TRIGGER_SKIPPED",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- All five triggers emit machine-readable TRIGGER_SKIPPED signal conforming to the signal format established by Kudos Epic 2 (71df-5bd8); no shared library imported from Kudos Epic 2",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Closure Checks",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Operational Constraints (Architecture-vs-Evidence Audit Remediation, 2026-05-18)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### State Lifecycle Owner Block (Probe-3 remediation)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "| Variable | CREATE | UPDATE | CONSUME | RETIRE |",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "|---|---|---|---|---|",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "| `commands.lint` (dso-config.conf, written by Epic B / 3818-310d) | `/dso:onboarding` writes per detected stack at project setup | Operator edit; re-onboarding APPENDS new stacks, never overwrites existing | T9 trigger reads at evaluation time | N/A \u2014 persistent per-stack config; key removed only if stack itself is removed from project |",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "| `TRIGGER_SKIPPED` signal format (shared with Kudos Epic 2) | Each polyglot trigger emits this format when its tool is absent (per the spec) | Format is versioned via `schema_version` field; breaking changes bump version + migration | Kudos Epic 2's aggregator consumes and surfaces in retro | N/A \u2014 wire-format protocol; retired only via formal schema version bump with consumer migration |",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Verification (in-session, at sprint Phase I):",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- `grep -E '^commands\\.lint=' .claude/dso-config.conf` shows the key with a sensible default OR an empty value that's documented as \"stack-specific, set by /dso:onboarding\".",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- `grep -nE 'TRIGGER_SKIPPED|schema_version' <plugin-kudos-trigger-scripts>` confirms the signal format is emitted with explicit version field.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Validation: sprint acceptance test environment has lizard and jscpd installed; test matrix covers all 5 triggers before/after on non-Python files; before: no kudos for Ruby file; after: kudos fires for quality improvement; Kudos Epic 1 must be present in CI or dispatch_kudos_trigger() mocked",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Dependencies",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Epic B (3818-310d): T9 reads commands.lint; without Epic B, T9 always emits TRIGGER_SKIPPED",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Kudos Epic 1 (3e9b-afee): T13 and T7 call the kudos dispatch function delivered by Kudos Epic 1; runtime blocking dependency (blocks relationship in ticket system)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Kudos Epic 2 (71df-5bd8): runtime consumer dependency \u2014 Epic C conforms to TRIGGER_SKIPPED signal format so the existing event emitter can handle it",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Approach",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Replace each of the 5 Python-specific trigger implementations with polyglot equivalents: lizard for AST-based nesting analysis (T7), jscpd for duplicate block detection (T13/T4), language-neutral regexes for commented-out code (T12), and commands.lint config key for lint-clean detection (T9). All triggers emit TRIGGER_SKIPPED when required tooling or config is absent.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Research Findings",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- External integration (lizard): -ENS flags emit nesting/size metrics; supports Python, JS/TS, Ruby, Java, C/C++; `command -v lizard` absence detection; 30s subprocess timeout required",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- External integration (jscpd): JSON reporter to temp dir (`--reporters json --output <dir>`); exit code 0 = no duplicates, 1 = duplicates found; parse via `cat <dir>/jscpd-report.json` (file-based, not stdout); 30s subprocess timeout required",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Dependency (commands.lint from Epic B 3818-310d): polyglot lint config key; absent \u2192 TRIGGER_SKIPPED; present \u2192 fires on zero-violation exit",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Signal format (TRIGGER_SKIPPED): conforms to Kudos Epic 2 (71df-5bd8) signal format independently \u2014 schema duplicated, not imported, to preserve epic independence",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Scenario Analysis",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- lizard binary absent in CI (high, deployment): T7 voids awards; TRIGGER_SKIPPED signal emitted per Kudos Epic 2 schema; document or accept skip as designed",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- jscpd binary absent in CI (high, deployment): T13/T4 void awards; TRIGGER_SKIPPED signal emitted per Kudos Epic 2 schema; document or accept skip as designed",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- commands.lint key absent from dso-config.conf (high, configuration): T9 always emits TRIGGER_SKIPPED; onboarding/architect-foundation must populate this key per detected stack",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- lizard/jscpd subprocess exceeds 30s timeout (medium, runtime): kill and treat as TRIGGER_SKIPPED; explicit timeout handling required with SIGKILL after grace period",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- TRIGGER_SKIPPED signal format drift from Kudos Epic 2 schema (high, integration): format validated independently per epic; schema change in Epic 2 silently breaks Epic C signals \u2014 add schema conformance test in this epic",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- T12 regex false-positive on language-specific block comments (medium, correctness): Python `\"\"\"`, Ruby `=begin/=end`, JS `/** */` need language-aware anchors beyond simple line-start matching",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Risk Register (from preplanning)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Testing (03d4-062a, 988f-933e): External binaries need subprocess mocking",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Maintainability (all story): TRIGGER_SKIPPED signal format must conform to Kudos Epic 2 schema independently",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Reliability (a1f9-2e8b): dispatch_kudos_trigger() from Kudos Epic 1 must be present or mocked in acceptance env",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### Planning Intelligence Log",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- **Web research (Step 2.6)**: triggered",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  - Bright-line conditions that fired: external integration (lizard, jscpd CLIs), dependency on another epic (Epic B commands.lint key, Kudos Epic 2 signal schema)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- **Scenario analysis (Step 2.75)**: triggered",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  - Scenarios surviving blue team filter: 6",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- **Practitioner-requested additional cycles**: none",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- **Follow-on scrutiny (Step 0)**: not triggered",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- **Feasibility resolution (Step 2.5)**: not triggered",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- **LLM-instruction signal (Step 5)**: not triggered",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- **Scale context (Step 0)**: small scale (default) \u2014 per-commit polyglot triggers; not volume-sensitive",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10307,
+      "description": "Workstreams track a set of related work and activities that work towards a larger deliverable.",
+      "entityId": "ac43421d-383b-4d08-ba0e-cc35239fdb4d",
+      "hierarchyLevel": 1,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10307?size=medium",
+      "id": "17009",
+      "name": "Epic",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17009",
+      "subtask": false
+    },
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/lowest_new.svg",
+      "id": "5",
+      "name": "Lowest",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/5"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "Polyglot Kudos Triggers: language-agnostic T7/T9/T12/T13/T4 replacements"
+  },
+  "DIG-4177": {
+    "assignee": null,
+    "description": null,
+    "issuetype": {
+      "avatarId": 10307,
+      "description": "Workstreams track a set of related work and activities that work towards a larger deliverable.",
+      "entityId": "ac43421d-383b-4d08-ba0e-cc35239fdb4d",
+      "hierarchyLevel": 1,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10307?size=medium",
+      "id": "17009",
+      "name": "Epic",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17009",
+      "subtask": false
+    },
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/lowest_new.svg",
+      "id": "5",
+      "name": "Lowest",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/5"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "Docker-based E2E Workflow Tests"
+  },
+  "DIG-4178": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## Description",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "**What**: Implement plugins/dso/skills/onboarding/prompts/strata/posture-dialog.md (dialog). One Socratic turn presenting STRATA_DETECTION_SOURCE, detected template(s), _commit pin(s), _src_path(s), and the upgrade hint as the dialog's pre-filled default. Four responses: yes / edit / not Strata / [I no longer use Strata]. `not Strata` cleanup removes Strata tags from in-memory stack array; comment in project-understanding.md notes \\\"User declined Strata configuration on YYYY-MM-DD\\\". Non-interactive context (no TTY): default to `yes` with audit log; documented in README.md. Strata-removal 4th response removes Posture section + footguns + Strata commands.* values.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "**Why**: Single-turn UX = one yes/edit/no click for non-tech user.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "**Scope**:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- IN: Dialog content; 4 response paths; not-Strata cleanup logic; non-interactive auto-yes with audit log; strata-removal logic (4th path) reverses prior writes.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- OUT: Multi-turn refinement (single-turn requirement); multi-template disambiguation (A0 handles natively).",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Done Definitions",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- When complete, dialog turn count = 1 across all detected variants \u2190 Satisfies: SC2",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- When complete, `yes` response completes phase with no content changes when fresh-from-A1 \u2190 Satisfies: SC2",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- When complete, `not Strata` removes Strata tags from in-memory stack array and logs the decline date \u2190 Satisfies: SC4",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- When complete, no-TTY context auto-yes path executes and emits audit log \u2190 Satisfies: SC4",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- When complete, 4th response (`[I no longer use Strata]`) reverses commands.* writes, removes footgun markers, removes Posture section \u2190 Satisfies: SC4",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- When complete, unit tests written and passing for each response path",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Considerations",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [Reliability] Pre-filled defaults reduce user effort to a single confirmation",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [Reliability] Audit log records auto-yes path for traceability",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Escalation Policy",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "**Escalation policy**: Proceed unless a significant assumption is required to continue \u2014 one that could send the implementation in the wrong direction. Escalate only when genuinely blocked without a reasonable inference. Document all assumptions made without escalating.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10315,
+      "description": "Stories track functionality or features expressed as user goals.",
+      "entityId": "ad9ba8b9-3a98-4313-b7bf-a6ba067d7d37",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10315?size=medium",
+      "id": "17290",
+      "name": "Story",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17290",
+      "subtask": false
+    },
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/high_new.svg",
+      "id": "2",
+      "name": "High",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/2"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "As a non-technical user, posture-dialog.md presents one Socratic turn with four pre-filled responses"
+  },
+  "DIG-4179": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## Story C: Test-gate recording scripts consume `commands.test_runner` (replace hardcoded pytest)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### Description",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "**What**: Update the test-gate recording script (hardcoded `python3 -m pytest`) and the test-gate exemption script (hardcoded `python3 -m pytest \"$NODE_ID\"`) to read `commands.test_runner` and invoke it with the target test path. This is the behavioral payoff \u2014 Ruby and JS projects get real test-gate signal from this story.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "**Why**: Today `.rb` and `.js`/`.ts` files produce no test-gate signal because the recording script skips the hardcoded pytest call for non-Python files. Ruby and JS projects appear to pass the gate while their tests are never actually run.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "**Scope**:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- IN: both hardcoded pytest call sites replaced with config-key reads, exit-code propagation preserved (0=pass, non-zero=fail), centrality-aware tier mapping unchanged",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- OUT: per-file gate (Story E), reinstall-hooks.sh precondition change (Story D), config-absent warning path (covered by library helper if needed)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### Done Definitions",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- When this story is complete, neither script contains a hardcoded `python3 -m pytest` invocation",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  \u2190 Satisfies: \"record-test-status.sh routes .rb, .js, .ts files to commands.test_runner instead of hardcoded python3/pytest\" + \"record-test-exemption.sh uses commands.test_runner instead of hardcoded python3 -m pytest\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- When this story is complete, recording on a `.rb` source file in a Ruby-detected project invokes `$commands.test_runner` and captures its exit code as the test result",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  \u2190 Satisfies: \"record-test-status.sh routes .rb, .js, .ts files to commands.test_runner\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- When this story is complete, the recording script emits an actionable `[DSO WARN]` when `commands.test_runner` is missing at gate execution time and skips (does not silently pass)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  \u2190 Satisfies: epic Scenario Analysis \"commands.test_runner absent at gate execution time\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### Considerations",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [Testing] Mock `commands.test_runner` in unit tests; do NOT invoke real pytest/rspec/jest",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [Reliability] Exit code 0/non-zero contract identical across pytest/RSpec/Jest (confirmed in epic Research Findings); no per-runner special-casing required",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [Testing] Unit tests written and passing for all new or modified logic",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Escalation Policy",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "**Escalation policy**: Proceed unless a significant assumption is required to continue \u2014 one that could send the implementation in the wrong direction. Escalate only when genuinely blocked without a reasonable inference. Document all assumptions made without escalating.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10315,
+      "description": "Stories track functionality or features expressed as user goals.",
+      "entityId": "ad9ba8b9-3a98-4313-b7bf-a6ba067d7d37",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10315?size=medium",
+      "id": "17290",
+      "name": "Story",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17290",
+      "subtask": false
+    },
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "As a Ruby or JS developer, my test-gate recording runs via commands.test_runner (not hardcoded pytest)"
+  },
+  "DIG-4180": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## Description",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "**What**: Replace the Python-specific ast.NodeVisitor implementation of T7 with a lizard-based approach using `lizard -ENS` to measure cognitive complexity (nesting depth) across all supported stacks. Emit TRIGGER_SKIPPED when lizard is not on PATH.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "**Why**: T7 today can only measure nesting depth in Python files. Ruby and JavaScript developers who reduce deeply-nested code receive zero kudos. Lizard supports Python, JS/TS, Ruby, and Java, making it the natural polyglot replacement.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "**Scope**:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- IN: `lizard -ENS` subprocess with 30s timeout; `--exclude` flag for test directories; compare before/after nesting depth from git diff; TRIGGER_SKIPPED when `lizard` not on PATH; TRIGGER_SKIPPED on non-zero lizard exit; award kudos when nesting depth decreases",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- OUT: Installing lizard in CI (covered by SC6 / Story E); T9, T12, T13, T4",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Done Definitions",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- When this story is complete, T7 fires and awards kudos on a JS/TS file where nesting depth decreased (measured by lizard), and does NOT fire on a file where nesting depth increased or stayed flat",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  \u2190 Satisfies: \"T7 uses lizard -ENS instead of Python ast.NodeVisitor; supports Python, JS/TS, Ruby, Java\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- When this story is complete, T7 emits a machine-readable TRIGGER_SKIPPED signal (not an exception) when `lizard` is not found on PATH",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  \u2190 Satisfies: \"when lizard absent: TRIGGER_SKIPPED signal\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- When this story is complete, T7 does not hang \u2014 subprocess call enforces 30s timeout; timeout \u2192 TRIGGER_SKIPPED",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  \u2190 Satisfies: \"30s timeout\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- When this story is complete, test directories are excluded from lizard analysis (`--exclude` passed for dirs matching test/spec patterns)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  \u2190 Satisfies: \"--exclude for test dirs\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- When this story is complete, the TRIGGER_SKIPPED signal fields conform to Kudos Epic 2 (71df-5bd8) schema; no shared library imported from Kudos Epic 2",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  \u2190 Satisfies: \"All five triggers emit machine-readable TRIGGER_SKIPPED signal\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- When this story is complete, unit tests written and passing for: PATH-absent case (TRIGGER_SKIPPED), timeout case (TRIGGER_SKIPPED), nesting-decrease case (award), nesting-flat/increase case (no award)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Considerations",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [Testing] Mock `subprocess.run` (or equivalent) to avoid requiring lizard binary in test environment; test PATH-absent, timeout, zero-exit-code-with-no-decrease, and award-path cases",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [Maintainability] TRIGGER_SKIPPED signal format: reference Kudos Epic 2 (71df-5bd8) for the required field schema; implement independently (no import from Kudos Epic 2 modules)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [Reliability] dispatch_kudos_trigger() from Kudos Epic 1 (3e9b-afee) must be mocked in unit tests",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [Reliability] Timeout handling: subprocess timeout=30 must be caught and converted to TRIGGER_SKIPPED, not propagated as an exception",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "## Escalation Policy",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "**Escalation policy**: Proceed unless a significant assumption is required to continue \u2014 one that could send the implementation in the wrong direction. Escalate only when genuinely blocked without a reasonable inference. Document all assumptions made without escalating.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10315,
+      "description": "Stories track functionality or features expressed as user goals.",
+      "entityId": "ad9ba8b9-3a98-4313-b7bf-a6ba067d7d37",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10315?size=medium",
+      "id": "17290",
+      "name": "Story",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17290",
+      "subtask": false
+    },
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "As a developer, T7 kudos trigger fires for nesting-depth reduction in Python, JS/TS, Ruby, and Java projects"
+  },
+  "DIG-4181": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "As a DSO maintainer closing a sprint that includes this epic, I can trust a validation signal that confirms ref-library-loader actually surfaces new references compared to the baseline plan.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Done definitions:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Sprint closure gate checks for ref-library-loader activation in current epic",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Selects 3 representative implementation-plan tasks from epic's task list (deterministic selection \u2014 first 3 by creation order)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Runs implementation-plan twice per selected task: baseline (loader disabled) + treatment (loader enabled)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- String-compares citation lines (grep prefix `> Reference:`) between baseline and treatment outputs",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- PASS threshold: all 3 treatment tasks cite at least 1 source absent from corresponding baseline",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Any failure blocks sprint closure with diagnostic showing both outputs",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- Integration test validates pass + fail paths",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Considerations:",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [Testing] Deterministic task selection (first 3 by creation order) minimizes flakiness",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [Reliability] Loader disable/enable must be stateless (env var toggle or config flag)",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "- [Integration] Gate must short-circuit (PASS with note) when loader is globally disabled (flag-off mode); distinct from per-epic activation check \u2014 prevents false-fail when epic's tickets are in scope but loader is globally off for the sprint",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10315,
+      "description": "Stories track functionality or features expressed as user goals.",
+      "entityId": "ad9ba8b9-3a98-4313-b7bf-a6ba067d7d37",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10315?size=medium",
+      "id": "17290",
+      "name": "Story",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17290",
+      "subtask": false
+    },
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "Sprint-closure validation-signal gate: before/after comparison on 3 tasks"
+  },
+  "DIG-4182": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "## Deferred PR Comment",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### PR",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "[",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  {",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"comment_id\": \"comment-100\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"in_reply_to_id\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"body\": \"Please rename variable foo to bar for clarity.\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"author\": \"engineer-alice\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"is_inline\": true,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"path\": \"plugins/dso/scripts/some-script.sh\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"position\": 42,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"url\": \"https://github.com/org/repo/pull/42#discussion_r100\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  },",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  {",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"comment_id\": \"comment-200\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"in_reply_to_id\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"body\": \"Why did you choose this approach over using jq directly?\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"author\": \"engineer-bob\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"is_inline\": false,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"path\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"position\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"url\": \"https://github.com/org/repo/pull/42#issuecomment-200\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  },",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  {",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"comment_id\": \"comment-300\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"in_reply_to_id\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"body\": \"This feature seems out of scope for this PR.\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"author\": \"engineer-carol\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"is_inline\": false,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"path\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"position\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"url\": \"https://github.com/org/repo/pull/42#issuecomment-300\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  },",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  {",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"comment_id\": \"comment-301\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"in_reply_to_id\": \"comment-300\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"body\": \"Agreed, we should track this separately.\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"author\": \"engineer-carol\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"is_inline\": false,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"path\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"position\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"url\": \"https://github.com/org/repo/pull/42#issuecomment-301\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  }",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "]",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### Comment",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "[",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  {",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"comment_id\": \"comment-100\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"in_reply_to_id\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"body\": \"Please rename variable foo to bar for clarity.\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"author\": \"engineer-alice\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"is_inline\": true,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"path\": \"plugins/dso/scripts/some-script.sh\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"position\": 42,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"url\": \"https://github.com/org/repo/pull/42#discussion_r100\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  },",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  {",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"comment_id\": \"comment-200\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"in_reply_to_id\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"body\": \"Why did you choose this approach over using jq directly?\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"author\": \"engineer-bob\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"is_inline\": false,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"path\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"position\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"url\": \"https://github.com/org/repo/pull/42#issuecomment-200\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  },",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  {",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"comment_id\": \"comment-300\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"in_reply_to_id\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"body\": \"This feature seems out of scope for this PR.\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"author\": \"engineer-carol\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"is_inline\": false,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"path\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"position\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"url\": \"https://github.com/org/repo/pull/42#issuecomment-300\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  },",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  {",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"comment_id\": \"comment-301\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"in_reply_to_id\": \"comment-300\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"body\": \"Agreed, we should track this separately.\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"author\": \"engineer-carol\",",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"is_inline\": false,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"path\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"position\": null,",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "    \"url\": \"https://github.com/org/repo/pull/42#issuecomment-301\"",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "  }",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "]#discussion_rcomment-301",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "### Original Body",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        },
+        {
+          "content": [
+            {
+              "text": "Agreed, we should track this separately.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10318,
+      "description": "A small, distinct piece of work.",
+      "entityId": "e9187a54-6eb5-43a7-bd6b-47d246587167",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10318?size=medium",
+      "id": "17010",
+      "name": "Task",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17010",
+      "subtask": false
+    },
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/low_new.svg",
+      "id": "4",
+      "name": "Low",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/4"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "[PR #42] Deferred review comment: Agreed, we should track this separately."
+  },
+  "DIG-4183": {
+    "assignee": null,
+    "description": {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "Implementation work for the SDET audit (docs/findings/test-suite-audit-2026-05-19.md). Implements all APPROVED + MODIFIED items from the verification verdict table across logical commits. Used as session ticket for defense-store binding.",
+              "type": "text"
+            }
+          ],
+          "type": "paragraph"
+        }
+      ],
+      "type": "doc",
+      "version": 1
+    },
+    "issuetype": {
+      "avatarId": 10318,
+      "description": "A small, distinct piece of work.",
+      "entityId": "e9187a54-6eb5-43a7-bd6b-47d246587167",
+      "hierarchyLevel": 0,
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/2/universal_avatar/view/type/issuetype/avatar/10318?size=medium",
+      "id": "17010",
+      "name": "Task",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/issuetype/17010",
+      "subtask": false
+    },
+    "priority": {
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/images/icons/priorities/medium_new.svg",
+      "id": "3",
+      "name": "Medium",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/priority/3"
+    },
+    "status": {
+      "description": "",
+      "iconUrl": "https://jira-prod-us-51-as-2.prod.atl-paas.net/",
+      "id": "21057",
+      "name": "To Do",
+      "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/status/21057",
+      "statusCategory": {
+        "colorName": "blue-gray",
+        "id": 2,
+        "key": "new",
+        "name": "To Do",
+        "self": "https://jira-prod-us-51-as-2.prod.atl-paas.net/rest/api/3/statuscategory/2"
+      }
+    },
+    "summary": "Implement SDET audit P0-P5 recommendations"
   }
 }
