@@ -26,11 +26,17 @@ REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 TICKET_SCRIPT="$REPO_ROOT/plugins/dso/scripts/ticket"
 TICKET_TRANSITION_SCRIPT="$REPO_ROOT/plugins/dso/scripts/ticket-transition.sh"
 REDUCER_SCRIPT="$REPO_ROOT/plugins/dso/scripts/ticket-reducer.py"
+HASH_SCRIPT="$REPO_ROOT/plugins/dso/scripts/compute-verdict-hash.sh"
 
 source "$REPO_ROOT/tests/lib/assert.sh"
 source "$REPO_ROOT/tests/lib/git-fixtures.sh"
 
 echo "=== test-ticket-transition-open-children-perf.sh ==="
+
+_verdict_hash() {
+    local repo="$1" ticket_id="$2"
+    (cd "$repo" && PROJECT_ROOT="$repo" bash "$HASH_SCRIPT" "$ticket_id" PASS 2>/dev/null)
+}
 
 # ── Helper: create a fresh temp git repo with ticket system initialized ────────
 _make_test_repo() {
@@ -142,7 +148,7 @@ PYEOF
     local t_start t_end elapsed_ms
     t_start=$(python3 -c "import time; print(int(time.monotonic() * 1000))" 2>/dev/null || echo "0")
 
-    (cd "$repo" && bash "$TICKET_SCRIPT" transition "$target_id" open closed 2>/dev/null) || exit_code=$?
+    (cd "$repo" && bash "$TICKET_SCRIPT" transition "$target_id" open closed --verdict-hash="$(_verdict_hash "$repo" "$target_id")" 2>/dev/null) || exit_code=$?
 
     t_end=$(python3 -c "import time; print(int(time.monotonic() * 1000))" 2>/dev/null || echo "0")
     elapsed_ms=$(( t_end - t_start ))
@@ -375,7 +381,7 @@ test_leaf_close_does_not_scan_all_tickets() {
     local t_start t_end elapsed_ms
     t_start=$(python3 -c "import time; print(int(time.monotonic() * 1000))")
     local exit_code=0
-    (cd "$repo" && bash "$TICKET_SCRIPT" transition "$target_id" open closed 2>/dev/null) || exit_code=$?
+    (cd "$repo" && bash "$TICKET_SCRIPT" transition "$target_id" open closed --verdict-hash="$(_verdict_hash "$repo" "$target_id")" 2>/dev/null) || exit_code=$?
     t_end=$(python3 -c "import time; print(int(time.monotonic() * 1000))")
     elapsed_ms=$(( t_end - t_start ))
 
@@ -505,7 +511,7 @@ test_closed_children_allow_parent_close() {
     # Now close the parent — should succeed (all children closed)
     local exit_code=0
     local stderr_out
-    stderr_out=$(cd "$repo" && bash "$TICKET_SCRIPT" transition "$parent_id" open closed 2>&1) || exit_code=$?
+    stderr_out=$(cd "$repo" && bash "$TICKET_SCRIPT" transition "$parent_id" open closed --verdict-hash="$(_verdict_hash "$repo" "$parent_id")" 2>&1) || exit_code=$?
 
     # Assert: exits 0
     assert_eq "closed-children: parent close exits 0" "0" "$exit_code"
@@ -548,7 +554,7 @@ test_corrupt_create_event_skipped() {
     # Close the parent — should succeed without crashing on the corrupt fake ticket
     local exit_code=0
     local stderr_out
-    stderr_out=$(cd "$repo" && bash "$TICKET_SCRIPT" transition "$parent_id" open closed 2>&1) || exit_code=$?
+    stderr_out=$(cd "$repo" && bash "$TICKET_SCRIPT" transition "$parent_id" open closed --verdict-hash="$(_verdict_hash "$repo" "$parent_id")" 2>&1) || exit_code=$?
 
     # Assert: exits 0 (corrupt ticket is safely skipped)
     assert_eq "corrupt-create: parent close exits 0" "0" "$exit_code"

@@ -17,11 +17,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 TICKET_SCRIPT="$REPO_ROOT/plugins/dso/scripts/ticket"
 TICKET_CREATE_SCRIPT="$REPO_ROOT/plugins/dso/scripts/ticket-create.sh"
+HASH_SCRIPT="$REPO_ROOT/plugins/dso/scripts/compute-verdict-hash.sh"
 
 source "$REPO_ROOT/tests/lib/assert.sh"
 source "$REPO_ROOT/tests/lib/git-fixtures.sh"
 
 echo "=== test-ticket-create.sh ==="
+
+_verdict_hash() {
+    local repo="$1" ticket_id="$2"
+    (cd "$repo" && PROJECT_ROOT="$repo" bash "$HASH_SCRIPT" "$ticket_id" PASS 2>/dev/null)
+}
 
 # Helper: extract a JSON field from an event file with diagnostic error capture.
 # Usage: _extract_event_field <event_file> <field_name> [--repr]
@@ -426,7 +432,7 @@ test_create_with_closed_parent_blocked() {
     fi
 
     # Close the parent (transition open → closed)
-    (cd "$repo" && bash "$TICKET_SCRIPT" transition "$parent_id" open closed 2>/dev/null) || true
+    (cd "$repo" && bash "$TICKET_SCRIPT" transition "$parent_id" open closed --verdict-hash="$(_verdict_hash "$repo" "$parent_id")" 2>/dev/null) || true
 
     # Verify the parent is actually closed before proceeding
     local parent_status

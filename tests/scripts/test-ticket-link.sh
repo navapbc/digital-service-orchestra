@@ -26,11 +26,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 TICKET_SCRIPT="$REPO_ROOT/plugins/dso/scripts/ticket"
 TICKET_LINK_SCRIPT="$REPO_ROOT/plugins/dso/scripts/ticket-link.sh"
+HASH_SCRIPT="$REPO_ROOT/plugins/dso/scripts/compute-verdict-hash.sh"
 
 source "$REPO_ROOT/tests/lib/assert.sh"
 source "$REPO_ROOT/tests/lib/git-fixtures.sh"
 
 echo "=== test-ticket-link.sh ==="
+
+_verdict_hash() {
+    local repo="$1" ticket_id="$2"
+    (cd "$repo" && PROJECT_ROOT="$repo" bash "$HASH_SCRIPT" "$ticket_id" PASS 2>/dev/null)
+}
 
 # ── Helper: create a fresh temp git repo with ticket system initialized ────────
 _make_test_repo() {
@@ -964,8 +970,8 @@ test_link_blocks_from_closed_source_blocked() {
         return
     fi
 
-    # Close the source ticket
-    (cd "$repo" && bash "$TICKET_SCRIPT" transition "$source_id" open closed 2>/dev/null) || true
+    # Close the source ticket (story — requires verdict hash)
+    (cd "$repo" && bash "$TICKET_SCRIPT" transition "$source_id" open closed --verdict-hash="$(_verdict_hash "$repo" "$source_id")" 2>/dev/null) || true
 
     # Verify source is actually closed
     local source_status
