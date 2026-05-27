@@ -1,14 +1,18 @@
 #!/usr/bin/env bash
-# review-workflow.sh — thin shell shim for the dso_ci_review.local_workflow module.
+# DEPRECATED: review-workflow.sh is deprecated. The local review path is
+# REVIEW-WORKFLOW.md executed inline by the LLM orchestrator (via
+# commit-workflow-validation.md Step 6). This script delegates to
+# local_workflow.py which lacks tier classification, overlays, deep-tier
+# dispatch, and defense handling that REVIEW-WORKFLOW.md provides.
 #
-# Resolves the plugin root, sets PYTHONPATH, and delegates to the Python
-# local_workflow entry point. All arguments are forwarded; exit code is
-# propagated verbatim.
+# This shim is retained for backward compatibility with any test or script
+# that references it directly. New code should not call this script.
 #
-# Usage:
-#   review-workflow.sh [args...]
+# Original purpose: thin shell shim for dso_ci_review.local_workflow module.
 
 set -euo pipefail
+
+echo "WARNING: review-workflow.sh is deprecated — use REVIEW-WORKFLOW.md via the LLM orchestrator" >&2
 
 # Resolve plugin root: the directory containing this script's parent (scripts/).
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

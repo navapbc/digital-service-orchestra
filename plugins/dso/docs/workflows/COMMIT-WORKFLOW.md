@@ -129,14 +129,13 @@ echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-3-load-enforcement-profile dso.workflo
 if [ "$DSO_WORKFLOW" = "ci-pr" ]; then echo "dso.workflow=ci-pr — skipping local validation"; else echo "dso.workflow=${DSO_WORKFLOW:-absent} — loading commit-workflow-validation.md"; fi
 ```
 
-**If `DSO_WORKFLOW=ci-pr`**: skip all of `commit-workflow-validation.md` — including its Step 5 (Record Test Status) and Step 6 (Review Gate). Proceed to Step 4, then Step 5 (Stage), then Step 6 (Commit). **CRITICAL: Do NOT dispatch `/dso:review`, invoke REVIEW-WORKFLOW.md, invoke `review-workflow.sh`, or run `python3 -m dso_ci_review.local_workflow` when `dso.workflow=ci-pr`.** CI runs the parity-uplifted `llm-review` job on push; a local review dispatch is redundant, consumes sub-agent budget for results that are not consulted at commit time, and will be re-computed by CI regardless. The pre-commit review gate and Layer 2 hook both emit `HOOK_GATE: skipped reason=dso.workflow=ci-pr` — the orchestrator MUST match this behavior and also skip the local review dispatch. To verify the strategy before any review dispatch:
+**If `DSO_WORKFLOW=ci-pr`**: skip all of `commit-workflow-validation.md` — including its Step 5 (Record Test Status) and Step 6 (Review Gate). Proceed to Step 4, then Step 5 (Stage), then Step 6 (Commit). **CRITICAL: Do NOT dispatch `/dso:review` or invoke REVIEW-WORKFLOW.md when `dso.workflow=ci-pr`.** CI runs the parity-uplifted `llm-review` job on push; a local review dispatch is redundant, consumes sub-agent budget for results that are not consulted at commit time, and will be re-computed by CI regardless. The pre-commit review gate and Layer 2 hook both emit `HOOK_GATE: skipped reason=dso.workflow=ci-pr` — the orchestrator MUST match this behavior and also skip the local review dispatch. To verify the strategy before any review dispatch:
 
 ```bash
 DSO_WORKFLOW=$(".claude/scripts/dso" read-config.sh dso.workflow 2>/dev/null || echo "local")
 if [[ "$DSO_WORKFLOW" == "ci-pr" ]]; then
     echo "dso.workflow=ci-pr — skipping local /dso:review (CI runs llm-review on push)"
-    # Do NOT invoke /dso:review, REVIEW-WORKFLOW.md, review-workflow.sh, or
-    # python3 -m dso_ci_review.local_workflow — proceed to commit
+    # Do NOT invoke /dso:review or REVIEW-WORKFLOW.md — proceed to commit
 
     # Emit .skipped markers so the compliance verifier does not block the commit.
     # The verifier requires exactly these 5 artifacts (as .result or .skipped).
@@ -185,7 +184,7 @@ echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) step-5-stage" >> "$ARTIFACTS_DIR/commit-bre
 ```
 
 <!-- Steps 5 and 6 of commit-workflow-validation.md (Record Test Status, Review Gate) are gated by Step 3 (enforcement-strategy gate). When `enforcement.strategy=local`, execute the corresponding sections in [commit-workflow-validation.md](commit-workflow-validation.md) before continuing to Step 6. When `enforcement.strategy=ci`, skip directly to Step 6. -->
-<!-- Review Gate (commit-workflow-validation.md Step 6): The orchestrator no longer calls /dso:review directly for commit-time review — it invokes review-workflow.sh. review-workflow.sh runs N cycles internally (capped at `review.max_cycles`) and dispatches the cycle-end arbiter at halt conditions. Output: `arbiter-rulings.json` sidecar consumed by pre-commit-review-gate.sh. -->
+<!-- Review Gate (commit-workflow-validation.md Step 6): The orchestrator reads and executes REVIEW-WORKFLOW.md inline — dispatching named code-reviewer sub-agents via the Agent tool. Do NOT invoke review-workflow.sh or python3 -m dso_ci_review.local_workflow — those are deprecated (see deprecation note in review-workflow.sh). The local review path is REVIEW-WORKFLOW.md executed by the LLM orchestrator. -->
 
 ## Step 6: Commit
 
