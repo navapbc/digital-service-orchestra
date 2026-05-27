@@ -263,6 +263,46 @@ def route_inbound_probe(mutation: Any, probe_result: Any) -> list[Any] | None:
     return None
 
 
+def _read_local_tickets(repo_root: Path) -> list[dict]:
+    """Read local tickets from the ticket CLI, falling back to empty list.
+
+    In production the ticket CLI is at ``.claude/scripts/dso ticket list``.
+    If the CLI is unavailable (unit tests, minimal environments), return an
+    empty list with a warning on stderr.
+    """
+    import subprocess as _sp  # local import to avoid top-level dep
+
+    cli = repo_root / ".claude" / "scripts" / "dso"
+    if not cli.exists():
+        print(  # noqa: T201
+            "reconcile: ticket CLI not found — local_tickets=[]",
+            file=sys.stderr,
+        )
+        return []
+    try:
+        result = _sp.run(
+            [str(cli), "ticket", "list"],
+            capture_output=True,
+            text=True,
+            cwd=str(repo_root),
+            timeout=60,
+        )
+        if result.returncode != 0:
+            print(  # noqa: T201
+                f"reconcile: ticket CLI exited {result.returncode} — "
+                f"local_tickets=[]",
+                file=sys.stderr,
+            )
+            return []
+        return json.loads(result.stdout)
+    except Exception as exc:  # noqa: BLE001
+        print(  # noqa: T201
+            f"reconcile: ticket CLI failed ({exc}) — local_tickets=[]",
+            file=sys.stderr,
+        )
+        return []
+
+
 def reconcile_once(
     pass_id: str, repo_root: Path | None = None, target_mode=None
 ) -> dict:
@@ -272,6 +312,13 @@ def reconcile_once(
     ``bridge_state/snapshots/<pass_id>.prev.json``, fetches the current
     remote state, computes mutations, applies them, then advances the prev
     snapshot file so the next call is idempotent against an unchanged remote.
+
+    The pass now includes bidirectional sync:
+      1. Legacy inbound path (snapshot diff → typed Mutations)
+      2. Outbound path (local→Jira via outbound_differ + binding_store)
+      3. New inbound path (Jira→local via inbound_differ for bound tickets)
+      4. Sync logger for structured audit trail
+      5. Binding store persistence at pass end
 
     Args:
         pass_id:   Unique identifier for this reconciliation pass.
@@ -291,10 +338,35 @@ def reconcile_once(
     applier = _load("reconcile_applier", "applier.py")
     health_mod = _load("reconcile_health", "health.py")
     invariants_mod = _load("reconcile_invariants", "invariants.py")
+    binding_store_mod = _load("reconcile_binding_store", "binding_store.py")
+    outbound_differ_mod = _load("reconcile_outbound_differ", "outbound_differ.py")
+    inbound_differ_mod = _load("reconcile_inbound_differ", "inbound_differ.py")
+    sync_logger_mod = _load("reconcile_sync_logger", "sync_logger.py")
+
+    # -----------------------------------------------------------------------
+    # Sync logger: create at pass start, close at pass end (finally block).
+    # -----------------------------------------------------------------------
+    log_path = repo_root / "bridge_state" / f"sync-log-{pass_id}.jsonl"
+    sync_logger = sync_logger_mod.SyncLogger(log_path)
+    sync_logger.log(
+        "sync_pass_start",
+        pass_id=pass_id,
+        mode=target_mode.value if target_mode else "live",
+    )
 
     # Ensure snapshots directory exists
     snapshots_dir = repo_root / "bridge_state" / "snapshots"
     snapshots_dir.mkdir(parents=True, exist_ok=True)
+
+    # -----------------------------------------------------------------------
+    # Read local tickets from the ticket CLI.
+    # -----------------------------------------------------------------------
+    local_tickets = _read_local_tickets(repo_root)
+
+    # -----------------------------------------------------------------------
+    # Load and recover binding store.
+    # -----------------------------------------------------------------------
+    binding_store = binding_store_mod.load_binding_store(repo_root)
 
     # Read previous snapshot from the tickets-tracker directory (persisted  # tickets-boundary-ok
     # between GHA runs via the commit-back step). The earlier approach wrote
@@ -420,6 +492,116 @@ def reconcile_once(
     if probe_follow_ons:
         mutations.extend(probe_follow_ons)
 
+    # -------------------------------------------------------------------
+    # Outbound differ: local → Jira mutations via binding store.
+    #
+    # Recover any pending bindings from prior failed passes, then compute
+    # outbound mutations from local tickets vs. Jira snapshot. Each
+    # OutboundMutation is converted to a typed Mutation so it flows through
+    # the unified applier.apply() dispatch (cap enforcement, direction-aware
+    # routing).
+    # -------------------------------------------------------------------
+    try:
+        binding_store.recover_pending_bindings(applier)
+    except Exception as exc:  # noqa: BLE001
+        # Recovery failure is non-fatal — log and continue.
+        print(  # noqa: T201
+            f"reconcile: binding recovery failed ({exc}), continuing",
+            file=sys.stderr,
+        )
+
+    outbound_raw = outbound_differ_mod.compute_outbound_mutations(
+        local_tickets,
+        curr_snapshot,
+        binding_store,
+        excluded_statuses={"archived", "deleted"},
+    )
+    sync_logger.log(
+        "outbound_differ_complete",
+        count=len(outbound_raw),
+    )
+
+    # Convert OutboundMutation → typed Mutation for unified dispatch.
+    for om in outbound_raw:
+        if om.action == "create":
+            typed = mut_mod.Mutation(
+                direction=mut_mod.MutationDirection.outbound,
+                action=mut_mod.MutationAction.create,
+                target=om.local_id,
+                payload={
+                    **om.fields,
+                    "comments": om.comments,
+                    "labels": om.labels,
+                },
+                provenance={"source": "outbound_differ", "local_id": om.local_id},
+            )
+        elif om.action == "update":
+            typed = mut_mod.Mutation(
+                direction=mut_mod.MutationDirection.outbound,
+                action=mut_mod.MutationAction.update,
+                target=om.jira_key or om.local_id,
+                payload={
+                    "changed_fields": om.fields,
+                    "comments": om.comments,
+                    "labels": om.labels,
+                },
+                provenance={
+                    "source": "outbound_differ",
+                    "local_id": om.local_id,
+                    "jira_key": om.jira_key,
+                },
+            )
+        elif om.action == "delete":
+            typed = mut_mod.Mutation(
+                direction=mut_mod.MutationDirection.outbound,
+                action=mut_mod.MutationAction.delete,
+                target=om.jira_key or om.local_id,
+                payload={},
+                provenance={
+                    "source": "outbound_differ",
+                    "local_id": om.local_id,
+                    "jira_key": om.jira_key,
+                },
+            )
+        else:
+            continue  # unknown action — skip
+        mutations.append(typed)
+
+    # -------------------------------------------------------------------
+    # Inbound differ (binding-aware): Jira → local for bound tickets.
+    #
+    # This coexists with the legacy snapshot-diff inbound path above. The
+    # legacy path handles unbound Jira issues (create/delete/probe); this
+    # path handles field-level updates for already-bound tickets.
+    # -------------------------------------------------------------------
+    local_by_id = {t.get("ticket_id", t.get("id", "")): t for t in local_tickets}
+    inbound_new = inbound_differ_mod.compute_inbound_mutations(
+        curr_snapshot, binding_store, local_by_id,
+    )
+    sync_logger.log(
+        "inbound_differ_complete",
+        count=len(inbound_new),
+    )
+
+    # Convert InboundMutation → typed Mutation for unified dispatch.
+    for im in inbound_new:
+        typed = mut_mod.Mutation(
+            direction=mut_mod.MutationDirection.inbound,
+            action=mut_mod.MutationAction.update,
+            target=im.jira_key,
+            payload={
+                "local_id": im.local_id,
+                "changed_fields": im.fields,
+                "labels": im.labels,
+            },
+            provenance={
+                "source": "inbound_differ",
+                "jira_key": im.jira_key,
+                "local_id": im.local_id,
+            },
+        )
+        mutations.append(typed)
+
     # Preflight: abort the pass if any update mutation references a status
     # not present in config.local_to_jira_status. Runs exactly once per pass,
     # before any applier dispatch, so unmapped statuses cannot reach Jira.
@@ -484,8 +666,27 @@ def reconcile_once(
                 failure_kind=failure_kind,
             )
 
+    # -------------------------------------------------------------------
+    # Post-apply: save binding store, advance snapshot, close sync logger.
+    # -------------------------------------------------------------------
+    try:
+        binding_store.save()
+    except Exception as exc:  # noqa: BLE001
+        print(  # noqa: T201
+            f"reconcile: binding store save failed ({exc})",
+            file=sys.stderr,
+        )
+
     # Advance prev snapshot so the next call converges to zero mutations
     shutil.copy2(curr_path, prev_path)
+
+    sync_logger.log(
+        "sync_pass_end",
+        pass_id=pass_id,
+        mutations_computed=len(mutations),
+        mutations_applied=len(mutations),
+    )
+    sync_logger.close()
 
     return {
         "pass_id": pass_id,

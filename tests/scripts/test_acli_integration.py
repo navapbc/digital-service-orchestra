@@ -1219,3 +1219,43 @@ def test_create_from_json_payload_returns_none_on_user_not_found_for_email(
         f"'User not found for email:' errors must not trigger backoff sleep; "
         f"got {mock_sleep.call_count} sleep call(s)"
     )
+
+
+# ---------------------------------------------------------------------------
+# Test 24: _call_with_backoff retries on HTTP 503 Service Unavailable
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.scripts
+def test_call_with_backoff_retries_on_503(acli: ModuleType) -> None:
+    """_call_with_backoff must retry on HTTP 503, not just 429.
+
+    Given: fn raises urllib.error.HTTPError(503) on the first call, then succeeds
+    When:  _call_with_backoff(fn) is called
+    Then:  fn is called twice (initial fail + one retry) and the result is returned.
+    """
+    import urllib.error
+
+    call_count = 0
+
+    def flaky_fn() -> str:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise urllib.error.HTTPError(
+                "https://example.com",
+                503,
+                "Service Unavailable",
+                {},
+                None,  # type: ignore[arg-type]
+            )
+        return "ok"
+
+    with patch("time.sleep"):
+        result = acli._call_with_backoff(flaky_fn, max_retries=3)
+
+    assert result == "ok", f"Expected 'ok' after retry, got {result!r}"
+    assert call_count == 2, (
+        f"Expected 2 calls (initial 503 + successful retry), got {call_count}"
+    )

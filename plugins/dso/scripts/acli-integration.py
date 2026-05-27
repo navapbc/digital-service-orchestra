@@ -165,7 +165,11 @@ def _build_env() -> dict[str, str]:
 
 
 class RetryExhaustedError(RuntimeError):
-    """All retry attempts exhausted after HTTP 429 rate-limit responses."""
+    """All retry attempts exhausted after transient HTTP/network errors."""
+
+
+# HTTP status codes eligible for automatic retry with backoff.
+_RETRYABLE_HTTP_CODES: frozenset[int] = frozenset({429, 502, 503})
 
 
 def _call_with_backoff(
@@ -174,29 +178,35 @@ def _call_with_backoff(
     max_retries: int = 5,
     **kwargs: Any,
 ) -> Any:
-    """Call fn with exponential backoff on HTTP 429 responses.
+    """Call fn with exponential backoff on transient HTTP/network errors.
 
-    Retries up to *max_retries* times when ``fn`` raises
-    ``urllib.error.HTTPError`` with status 429. Each retry waits with
-    exponential backoff (2s base, capped at 60s) plus random jitter (0-1s).
-    If a ``Retry-After`` header is present on the 429 response, that value
-    is used instead of the computed delay.
+    Retries up to *max_retries* times when ``fn`` raises:
+    - ``urllib.error.HTTPError`` with status 429, 502, or 503
+    - ``urllib.error.URLError`` (connection refused, DNS failure, timeout)
+
+    Each retry waits with exponential backoff (2s base, capped at 60s) plus
+    random jitter (0-1s).  If a ``Retry-After`` header is present on a 429
+    response, that value is used instead of the computed delay.
 
     Raises RetryExhaustedError after all retries are exhausted.
     """
-    last_error: urllib.error.HTTPError | None = None
+    last_error: urllib.error.HTTPError | urllib.error.URLError | None = None
     for attempt in range(max_retries + 1):  # initial + max_retries
         try:
             return fn(*args, **kwargs)
         except urllib.error.HTTPError as exc:
-            if exc.code != 429:
+            if exc.code not in _RETRYABLE_HTTP_CODES:
                 raise
             last_error = exc
             if attempt >= max_retries:
                 break
             # Compute delay: exponential backoff capped at 60s, with jitter
             base_delay = min(2 ** (attempt + 1), 60)
-            retry_after = exc.headers.get("Retry-After") if exc.headers else None
+            retry_after = (
+                exc.headers.get("Retry-After")
+                if exc.code == 429 and exc.headers
+                else None
+            )
             if retry_after is not None:
                 try:
                     delay = float(retry_after)
@@ -206,10 +216,18 @@ def _call_with_backoff(
                 delay = base_delay
             delay += random.random()  # 0-1s jitter  # noqa: S311
             time.sleep(delay)
+        except urllib.error.URLError as exc:
+            # Transient network error — connection refused, DNS failure, timeout
+            last_error = exc
+            if attempt >= max_retries:
+                break
+            base_delay = min(2 ** (attempt + 1), 60)
+            delay = base_delay + random.random()  # noqa: S311
+            time.sleep(delay)
 
     assert last_error is not None
     raise RetryExhaustedError(
-        f"All {max_retries} retries exhausted after HTTP 429"
+        f"All {max_retries} retries exhausted after transient errors"
     ) from last_error
 
 

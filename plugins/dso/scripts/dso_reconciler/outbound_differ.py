@@ -171,7 +171,7 @@ def _diff_comments(
 # Label diff
 # ---------------------------------------------------------------------------
 
-_EXCLUDED_PREFIXES: tuple[str, ...] = ("dso-id", "imported:")
+_EXCLUDED_PREFIXES: tuple[str, ...] = ("dso-id-", "imported:")
 
 
 def _diff_labels(
