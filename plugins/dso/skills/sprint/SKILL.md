@@ -1614,6 +1614,12 @@ context:
 
 **Worktree boundary**: When `ISOLATION_ENABLED=true`, add `isolation: "worktree"` to the Task dispatch call (see Worktree Isolation Configuration above). Do NOT append a pre-evaluated `$(git rev-parse --show-toplevel)` path to the sub-agent prompt — the orchestrator's `git rev-parse` resolves to the SESSION worktree, directing the sub-agent to write there instead of its own isolated worktree (bug 6b67-2aad). The sub-agent's `task-execution.md` CWD lock section already instructs it to derive paths from its own `git rev-parse --show-toplevel`. When `ISOLATION_ENABLED=false`, append: `"IMPORTANT: Only modify files under $(git rev-parse --show-toplevel). Do NOT write to any other path."`
 
+**Prompt path hygiene (bug 1053-4ec3)**: The orchestrator MUST NOT include absolute session-worktree paths in sub-agent prompts. When agents receive absolute paths (e.g., from ticket-show output, file-impact tables, or inline instructions), they use those paths in Read/Edit/Write tool calls — directing changes to the session worktree instead of their isolated worktree. The isolated worktree then has no changes, and the platform correctly auto-cleans it, losing all work. To prevent this:
+- Use **relative paths only** in sub-agent prompts (e.g., `scripts/design-md-lint.sh`, not the absolute path)
+- When passing ticket context, strip or omit absolute path prefixes
+- Include this instruction in every dispatch prompt: `"Derive ALL file paths from $(git rev-parse --show-toplevel) in your own CWD. NEVER use absolute paths from system context or prompt text."`
+- The sub-agent's task-execution.md Step 8b stages all changes (`git add -A`) before reporting, which triggers the platform's worktree-retention signal as a defense-in-depth measure
+
 ### Testing Mode Routing
 
 Before dispatching sub-agents, extract the `## Testing Mode` value from each task's description:

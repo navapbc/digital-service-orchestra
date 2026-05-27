@@ -9,12 +9,17 @@ For each worktree returned by implementation sub-agents (process in completion o
 ```bash
 if [ ! -d "$WORKTREE_PATH" ]; then
     echo "ERROR (907d): worktree path $WORKTREE_PATH does not exist after sub-agent return." >&2
-    echo "  Likely cause: sub-agent self-committed, leaving the working tree clean, triggering" >&2
-    echo "  Claude Code harness auto-cleanup before the orchestrator could harvest." >&2
-    echo "  All commits made in the worktree branch are lost (branch deleted; not pushed)." >&2
+    echo "  Likely cause: sub-agent wrote to the session worktree instead of its isolated" >&2
+    echo "  worktree (prompt path leak — bug 1053-4ec3), or sub-agent self-committed," >&2
+    echo "  leaving the working tree clean and triggering platform auto-cleanup." >&2
     if [ -n "${TICKET_ID:-}" ]; then
         .claude/scripts/dso ticket comment "$TICKET_ID" \
-            "ERROR (907d): worktree $WORKTREE_PATH reaped pre-harvest — sub-agent likely self-committed; work lost." 2>/dev/null || true
+            "ERROR (907d): worktree $WORKTREE_PATH reaped pre-harvest. Check session worktree for stray uncommitted changes (git status --short)." 2>/dev/null || true
+    fi
+    # Clean up orphaned branch ref (worktree is gone but branch may linger)
+    _WORKTREE_BRANCH="${WORKTREE_BRANCH:-}"
+    if [ -n "$_WORKTREE_BRANCH" ]; then
+        git branch -D "$_WORKTREE_BRANCH" 2>/dev/null || true
     fi
     # HALT — do not proceed to cd, do not silently skip; the orchestrator must surface this.
     exit 1
@@ -175,7 +180,7 @@ The `.test-index` file uses a `merge=union` driver (configured in `.gitattribute
      ```
      (Only when TICKET_ID is available from the sprint context. Skip silently if not set.)
 
-- **Empty branch** (exit 3): Branch tip equals the recorded base commit — the agent's `git commit` was blocked by a pre-commit gate (e.g., TIER IMMUTABILITY VIOLATION). The post-commit verification in Step 4 should have caught this first; if harvest returns exit 3, something bypassed that check. Do NOT destroy the worktree. Add a CHECKPOINT comment, surface the gate error, and re-investigate the commit failure before re-attempting.
+- **Empty branch** (exit 3): Branch tip equals the recorded base commit — the agent's `git commit` was blocked by a pre-commit gate (e.g., TIER IMMUTABILITY VIOLATION), or the agent staged changes (`git add -A` per task-execution.md Step 8b) but the orchestrator's Step 4 commit was blocked. No data is at risk — the branch has no commits beyond the base, so nothing is lost by cleanup. Add a CHECKPOINT comment surfacing the gate error, then proceed to Step 7 (cleanup). The task is reverted to open by the sprint orchestrator (Phase F Step 16) and re-dispatched in the next batch with a fresh worktree.
 
 **Conflict queue — resolution protocol** (after all non-conflicting worktrees are merged):
 
@@ -189,14 +194,22 @@ For each worktree in the conflict queue, serialized one at a time against the la
 3. **Full re-implementation** (only when rebase is structurally incompatible): Re-dispatch the original task in the conflicting worktree context. Each re-implementation targets the post-merge session branch (so it incorporates all previously merged worktrees). After successful re-implementation: follow the full Steps 2–7 flow.
 4. If re-implementation also conflicts: escalate to the user — do not re-queue indefinitely.
 
-**Step 7 — Worktree cleanup**: Only after successful harvest (exit 0), remove the worktree directory and delete the per-agent branch:
+**Step 7 — Worktree cleanup**: Run after harvest exit 0 (success / already-merged) OR exit 3 (empty branch). Both are safe-to-clean: exit 0 means changes are integrated; exit 3 means no commits exist beyond the base (nothing to lose). Do NOT run after exit 1 (conflict — retained for resolution) or exit 2 (gate failure — retained for re-investigation).
 
 ```bash
 git worktree remove --force <worktree-path>
-git branch -d <worktree-branch>
+git branch -D <worktree-branch>
 ```
 
-Both commands run from the session branch directory (not inside the worktree). `<worktree-path>` is the `WORKTREE_PATH` from Step 1. `<worktree-branch>` is the branch name used in the worktree (visible in `git worktree list` or the Agent tool result). If `git branch -d` fails because the branch was not fully merged, use `git branch -D` — the harvest in Step 5 already integrated the changes.
+Both commands run from the session branch directory (not inside the worktree). `<worktree-path>` is the `WORKTREE_PATH` from Step 1. `<worktree-branch>` is the branch name used in the worktree (visible in `git worktree list` or the Agent tool result). Use `git branch -D` (force delete) unconditionally — exit 0 already integrated the changes, and exit 3 has no unique commits to preserve.
+
+**907d cleanup**: When the 907d check in Step 1a detects a reaped worktree (directory gone), the worktree branch may still exist as a dangling ref. After logging the 907d error, delete the orphaned branch:
+
+```bash
+git branch -D <worktree-branch> 2>/dev/null || true
+```
+
+This prevents accumulation of orphaned branches from reaped worktrees across sprint batches.
 
 **Worktree Retention Protocol**: Do NOT remove a worktree until its harvest is complete. Worktrees with conflicts are retained for re-implementation (Step 6). Race condition guard: the worktree must be held open until harvest. Claude Code's `isolation: "worktree"` cleanup uses an uncommitted-changes retention signal — empirically this is necessary but not sufficient (the harness exposes `worktree_kept_dirty / worktree_kept_branch_mismatch / worktree_kept_remove_failed` discriminators per binary inspection of v2.1.150). A sub-agent that self-commits leaves the working tree clean, falling through to harness removal before the orchestrator's harvest. **Defense: the 907d post-return existence check above must run before any `cd "$WORKTREE_PATH"`** — it converts the otherwise-silent data-loss failure into a loud halt. Agents dispatched under this protocol are bound by `worktree-dispatch.md`'s No-Commit Constraint to avoid the trigger entirely.
 
