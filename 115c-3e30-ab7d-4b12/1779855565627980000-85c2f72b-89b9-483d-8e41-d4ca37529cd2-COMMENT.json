@@ -1,1 +1,0 @@
-{"author":"Test","data":{"body":"SC coverage audit (red team): 5 fully covered, 2 partial, 0 uncovered, 0 out-of-scope. Adversarial review: 11 findings, 9 accepted. Full exchange in adversarial-review-115c-3e30-ab7d-4b12.json"},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1779855565627980000,"uuid":"85c2f72b-89b9-483d-8e41-d4ca37529cd2"}
