@@ -117,6 +117,29 @@ For each success criterion or done definition, gather evidence from the codebase
 
 Do not assume — verify each criterion explicitly.
 
+### Step 2.7: Load Execution Traces (intent-fidelity-pipeline Phase 1)
+
+When `VERIFY_TRACE_PATH` is present and non-empty in your prompt:
+
+1. Read the trace file at the given path.
+2. Parse the JSON per the schema at `${CLAUDE_PLUGIN_ROOT}/docs/contracts/execution-trace.md`.
+3. For each done definition being evaluated in Step 3, look up the corresponding trace result by `dd_id`.
+
+**Evaluation rules when traces are present** (applied in Step 3 per DD):
+
+| Trace Outcome | Verifier Behavior |
+|--------------|-------------------|
+| `PASS` | Primary evidence for PASS verdict. Aspirational-implementation detection (Step 3) still runs as secondary check — a PASS trace with countervailing aspirational signals produces a finding, not an automatic PASS. |
+| `FAIL` | Definitive FAIL. No code-inspection override. Evidence is the `stderr_tail` and `stdout_tail` from the trace. |
+| `TIMEOUT` | `EVIDENCE_PENDING`. Code inspection is supplementary evidence but CANNOT produce PASS alone. Include finding: "Verify command timed out after {duration_ms}ms. Manual verification required." |
+| `SKIP` | Existing code-inspection behavior applies. No change from pre-trace behavior. |
+| DD in manifest with `verify_command: null` | `EVIDENCE_PENDING`. Include finding: "DD has no Verify command. Verification gap." |
+| DD missing from manifest entirely | `EVIDENCE_PENDING`. Include finding: "DD not found in execution trace manifest." |
+
+When `VERIFY_TRACE_PATH` is absent or empty: skip this step entirely and proceed with existing behavior (full backward compatibility). No trace file means no regression from pre-trace behavior.
+
+**`EVIDENCE_PENDING`** is a P1-level signal. When ANY criterion produces `EVIDENCE_PENDING`, set `P1: "EVIDENCE_PENDING"` in the output. The story cannot close. Remediation: the orchestrator re-runs the trace script or escalates to user.
+
 ### Step 2.5: Read `## Closure Checks` Section
 
 After loading implementation evidence, read the `## Closure Checks` section from the ticket body separately from `## Success Criteria`. This section contains one-shot end-state acceptance criteria that are evaluated at closure time and are not persistent tracked items.

@@ -202,7 +202,7 @@ case "$_final_kind" in
 esac
 
 # Find dangling commits whose subject matches the ticket commit message pattern
-# Pattern: "ticket: <EVENT> <id>" where EVENT in {CREATE,STATUS,COMMENT,LINK,UNLINK,EDIT,FILE_IMPACT,ARCHIVED,SYNC,SNAPSHOT,REVERT,COMPACT,DELETE,TAG,UNTAG}
+# Pattern: "ticket: <EVENT> <id>" where EVENT in {CREATE,STATUS,COMMENT,LINK,UNLINK,EDIT,FILE_IMPACT,VERIFY_COMMANDS,ARCHIVED,SYNC,SNAPSHOT,REVERT,COMPACT,DELETE,TAG,UNTAG}
 echo "Scanning for dangling ticket commits to cherry-pick"
 _fsck_output=$(git -C "$TRACKER_DIR" fsck --no-reflogs 2>/dev/null || true)
 _dangling_shas=()
@@ -211,7 +211,7 @@ while IFS= read -r line; do
         "dangling commit "*)
             _sha="${line#dangling commit }"
             _subject=$(git -C "$TRACKER_DIR" log -1 --format='%s' "$_sha" 2>/dev/null || true)
-            if echo "$_subject" | grep -qE '^ticket: (CREATE|STATUS|COMMENT|LINK|UNLINK|EDIT|FILE_IMPACT|ARCHIVED|SYNC|SNAPSHOT|REVERT|COMPACT|DELETE|TAG|UNTAG)'; then
+            if echo "$_subject" | grep -qE '^ticket: (CREATE|STATUS|COMMENT|LINK|UNLINK|EDIT|FILE_IMPACT|VERIFY_COMMANDS|ARCHIVED|SYNC|SNAPSHOT|REVERT|COMPACT|DELETE|TAG|UNTAG)'; then
                 _dangling_shas+=("$_sha")
             fi
             ;;
