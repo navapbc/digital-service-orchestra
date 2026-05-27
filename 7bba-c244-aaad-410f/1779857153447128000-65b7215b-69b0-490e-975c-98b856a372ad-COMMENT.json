@@ -1,0 +1,1 @@
+{"author":"Test","data":{"body":"AC amendment (gap analysis): Read the DESIGN.md path via a configurable key (design.design_notes_path or a new key) rather than hardcoding. Follow the existing pattern in design-review SKILL.md."},"env_id":"c3d2c46e-df9e-40c4-8014-5e8c9fdf3cc1","event_type":"COMMENT","timestamp":1779857153447128000,"uuid":"65b7215b-69b0-490e-975c-98b856a372ad"}
