@@ -42,6 +42,7 @@ The agent returns a single JSON object with the following top-level fields.
 | `scope_split_proposals` | array \| null | yes | List of story split proposals when the pragmatic scope splitter triggered. Null when no scope split was triggered. |
 | `track` | string (enum) | yes | Design track used for this run: `"lite"` or `"full"`. |
 | `error` | string \| null | yes | Null on success. Human-readable error message on failure (e.g., story not found, Playwright unavailable). When non-null, `design_artifacts` MUST be null. |
+| `design_md_additions` | array \| null | yes | Structured content blocks to append to the story's design notes in `CLAUDE.md`. Null when no additions are warranted. See `design-md-additions-payload.md` for the full field schema and consumer behavior rules. |
 
 ### design_artifacts object
 
@@ -110,7 +111,8 @@ UI_DESIGNER_PAYLOAD:
   "cache_status": "CACHE_VALID",
   "scope_split_proposals": null,
   "track": "full",
-  "error": null
+  "error": null,
+  "design_md_additions": null
 }
 ```
 ```
@@ -130,6 +132,7 @@ UI_DESIGNER_PAYLOAD:
     "brief": "designs/f9e8d7c6-b5a4-3210-fedc-ba9876543210/brief.md"
   },
   "cache_status": "CACHE_STALE",
+  "design_md_additions": null,
   "scope_split_proposals": [
     {
       "title": "Display user notification preferences panel",
@@ -143,7 +146,8 @@ UI_DESIGNER_PAYLOAD:
     }
   ],
   "track": "lite",
-  "error": null
+  "error": null,
+  "design_md_additions": null
 }
 ```
 ```
@@ -158,7 +162,8 @@ UI_DESIGNER_PAYLOAD:
   "cache_status": "CACHE_MISSING",
   "scope_split_proposals": null,
   "track": "lite",
-  "error": "UI discovery cache is absent. Run /dso:ui-discover to populate the cache before invoking the ui-designer agent."
+  "error": "UI discovery cache is absent. Run /dso:ui-discover to populate the cache before invoking the ui-designer agent.",
+  "design_md_additions": null
 }
 ```
 ```
@@ -173,7 +178,8 @@ UI_DESIGNER_PAYLOAD:
   "cache_status": "CACHE_VALID",
   "scope_split_proposals": null,
   "track": "lite",
-  "error": "Story 2932-51a6 not found in the ticket system. Verify the story ID and try again."
+  "error": "Story 2932-51a6 not found in the ticket system. Verify the story ID and try again.",
+  "design_md_additions": null
 }
 ```
 ```
@@ -214,3 +220,4 @@ This contract is versioned. Breaking changes (field removal, type changes, enum 
 ### Change Log
 
 - **2026-04-08**: Initial version — defines ui-designer-payload return schema for dso:ui-designer agent → preplanning skill. Establishes design_artifacts object, cache_status enum (CACHE_MISSING/CACHE_VALID/CACHE_STALE), scope_split_proposals array, track enum, error field, and failure contract.
+- **2026-05-27**: Additive — adds `design_md_additions` as a nullable top-level field (array | null). Full field schema in `design-md-additions-payload.md`. Backward-compatible: existing consumers that omit this field see null.
