@@ -392,7 +392,8 @@ while IFS=' ' read -r sha subject; do
     # covering_count=0 → treated as unprovenanced. The status code from
     # _call_gh_with_backoff is the load-bearing signal; a successful HTTP
     # 200 with an object body means the parser falls through to 0.
-    covering_count="$(echo "$pr_result" | PR_UNDER_REVIEW="${PR_NUMBER:-0}" SHA_UNDER_REVIEW="$sha" python3 -c "
+    # Extract covering PR numbers (not just count) so G3 can verify review status.
+    covering_prs="$(echo "$pr_result" | PR_UNDER_REVIEW="${PR_NUMBER:-0}" SHA_UNDER_REVIEW="$sha" python3 -c "
 import sys, json, os
 pr_under_review_str = os.environ.get('PR_UNDER_REVIEW', '0')
 try:
@@ -403,20 +404,13 @@ sha_under_review = os.environ.get('SHA_UNDER_REVIEW', '')
 try:
     data = json.load(sys.stdin)
 except Exception:
-    print(0)
     sys.exit(0)
 if isinstance(data, dict) and 'items' in data:
     pr_list = data['items']
 elif isinstance(data, list):
     pr_list = data
 else:
-    # Non-array, non-items shape (rate-limit error object, etc.) — treat as
-    # zero covering PRs. The exit status from _call_gh_with_backoff would
-    # have caught the typical error path; if we reached here with an object
-    # body, the safe default is 'no covering evidence'.
-    print(0)
     sys.exit(0)
-count = 0
 for pr in pr_list:
     if not isinstance(pr, dict):
         continue
@@ -435,13 +429,102 @@ for pr in pr_list:
     # A1: exclude the PR being reviewed (self-exclusion via env var)
     if pr_under_review > 0 and pr.get('number') == pr_under_review:
         continue
-    count += 1
-print(count)
-" 2>/dev/null)" || covering_count=0
+    print(pr.get('number', ''))
+" 2>/dev/null)" || covering_prs=""
+
+    # G3 fix: verify that each covering PR's review-sub-pr check actually
+    # passed. A covering merged PR that failed or skipped review does not
+    # constitute valid provenance. Without this, admin-merged PRs that
+    # failed review would incorrectly count as "covered."
+    _verified_covering=0
+    if [[ -n "$covering_prs" ]]; then
+        while IFS= read -r _cov_pr; do
+            [[ -z "$_cov_pr" ]] && continue
+            if (( _api_call_count >= GH_BUDGET )); then
+                echo "BUDGET_EXHAUSTED during G3 review-check verification" >&2
+                _budget_exhausted=1
+                break
+            fi
+            _api_call_count=$(( _api_call_count + 1 ))
+            # Query check-runs for the covering PR's head SHA to find review-sub-pr status.
+            # Use the commits/{sha}/check-runs endpoint filtered to the review check name.
+            _cov_head_sha=""
+            _cov_head_sha="$(echo "$pr_result" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+if isinstance(data, dict) and 'items' in data:
+    pr_list = data['items']
+elif isinstance(data, list):
+    pr_list = data
+else:
+    sys.exit(0)
+target = int(sys.argv[1])
+for pr in pr_list:
+    if isinstance(pr, dict) and pr.get('number') == target:
+        print((pr.get('head') or {}).get('sha', ''))
+        break
+" "$_cov_pr" 2>/dev/null)" || _cov_head_sha=""
+            if [[ -z "$_cov_head_sha" ]]; then
+                echo "WARNING: could not resolve head SHA for covering PR #${_cov_pr}; treating as unverified" >&2
+                continue
+            fi
+            # Check if review-sub-pr passed on the covering PR
+            if [[ -n "${GH_REPO:-}" ]]; then
+                _checks_path="repos/${GH_REPO}/commits/${_cov_head_sha}/check-runs"
+            else
+                _checks_path="repos/{owner}/{repo}/commits/${_cov_head_sha}/check-runs"
+            fi
+            _check_result="$(_call_gh_with_backoff api "$_checks_path" 2>&1)" || {
+                echo "WARNING: check-runs API failed for covering PR #${_cov_pr} (${_cov_head_sha:0:8}); treating as unverified" >&2
+                continue
+            }
+            _review_passed="$(echo "$_check_result" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    print('unknown')
+    sys.exit(0)
+runs = data.get('check_runs', []) if isinstance(data, dict) else []
+for run in runs:
+    name = run.get('name', '')
+    if 'review-sub-pr' in name or 'llm-review' in name:
+        conclusion = run.get('conclusion', '')
+        if conclusion == 'success':
+            print('passed')
+            sys.exit(0)
+        elif conclusion in ('failure', 'cancelled', 'timed_out', 'action_required'):
+            print('failed')
+            sys.exit(0)
+print('not_found')
+" 2>/dev/null)" || _review_passed="unknown"
+            case "$_review_passed" in
+                passed)
+                    _verified_covering=$(( _verified_covering + 1 ))
+                    echo "commit $sha covering-PR #${_cov_pr} review-check=PASSED"
+                    ;;
+                failed)
+                    echo "commit $sha covering-PR #${_cov_pr} review-check=FAILED (not counting as covered)"
+                    ;;
+                not_found)
+                    # No review check found — could be a direct PR without llm-review.
+                    # Conservative: count as covered (review may not have been required).
+                    _verified_covering=$(( _verified_covering + 1 ))
+                    echo "commit $sha covering-PR #${_cov_pr} review-check=NOT_FOUND (counting as covered — review may not apply)"
+                    ;;
+                *)
+                    echo "WARNING: commit $sha covering-PR #${_cov_pr} review-check=UNKNOWN; treating as unverified" >&2
+                    ;;
+            esac
+        done <<< "$covering_prs"
+    fi
 
     # `|| true` per the documented "bypass cache for this run" semantics —
     # see commentary on the trailer-cache call site above.
-    if (( covering_count > 0 )); then
+    if (( _verified_covering > 0 )); then
         _covered_shas+=("$sha")   # bug 8a77 v2 MF2 site (c): API-covered (BEFORE cache_set)
         _cache_set "$sha" "provenanced" || true
     else
