@@ -13,6 +13,21 @@ Shallow entry point for the FP-recovery workflow. Loads and executes `${CLAUDE_P
 
 CI `llm-review` (ci.yml) has reported `failure` AND the engineer believes the blocking finding is a false positive. All other required checks must pass (or be filed as known intermittent bugs). See FP-RECOVERY-WORKFLOW.md "When to invoke" for the full precondition list.
 
+**Eligible finding types** — FP-recovery may be invoked for findings of any of these types when the engineer believes the finding is a false positive:
+- Code-level findings (logic, security, correctness, style)
+- DESIGN.md lint findings — violations flagged by the `check-design-lint.sh` hook or equivalent design-doc linter (e.g., missing required sections, disallowed heading format, broken cross-references to ticket IDs). These are eligible when the engineer can demonstrate the design document is structurally correct and the linter rule is misapplied for the specific context.
+
+**Common false-positive patterns for DESIGN.md lint findings:**
+- The linter flags a missing required section that is intentionally omitted because it is not applicable to the change type (e.g., no "Data Model" section for a UI-only change).
+- A ticket ID cross-reference is flagged as broken, but the ticket exists and the ID format is correct (linter regex mismatch).
+- The linter rejects a heading because of an extra trailing space or Unicode em-dash that is visually indistinguishable from a standard ASCII hyphen.
+- A newly added DESIGN.md section is flagged as unknown because the linter's allowed-section list has not been updated.
+
+**Finding format for DESIGN.md lint findings** — when invoking FP-recovery for a DESIGN.md lint finding, the engineer must supply:
+1. The exact linter rule name or error message (copy from CI log).
+2. The specific line(s) in `DESIGN.md` that triggered the finding.
+3. A concise rationale explaining why the finding is a false positive (not just "it looks fine").
+
 **OVER_BOUND PRs are not eligible for FP-recovery.** If the PR's CI output contains an `OVER_BOUND:` marker (emitted when the PR exceeds the `max_files × max_calls` hard upper bound), reject immediately with:
 `OVER_BOUND PRs are not eligible for FP-recovery — these require admin attention (chunking budget exceeded, not a false-positive).`
 The CI reviewer never ran on an OVER_BOUND PR; there is no LLM finding to adjudicate. These PRs require admin review or must be split into smaller chunks. Use `${CLAUDE_PLUGIN_ROOT}/scripts/check-fp-recovery-eligibility.sh` (env: `DSO_CI_LOG=<path>`) to perform this gate programmatically.
