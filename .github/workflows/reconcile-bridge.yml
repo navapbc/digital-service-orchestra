@@ -265,6 +265,23 @@ jobs:
           echo "--- Initial state of $TEST_KEY ---"
           INIT_SUMMARY=$(_get_field "$TEST_KEY" "summary")
           INIT_DESC=$(_get_field "$TEST_KEY" "description")
+          # RAW DUMP: diagnose view --json output format
+          echo "  === RAW view --json output (first 1000 chars) ==="
+          RAW_VIEW=$(acli jira workitem view --key "$TEST_KEY" --json 2>/dev/null)
+          echo "$RAW_VIEW" | head -c 1000
+          echo
+          echo "  === RAW view top-level keys ==="
+          echo "$RAW_VIEW" | python3 -c "
+          import json,sys
+          try:
+            d=json.load(sys.stdin)
+            print(f'type={type(d).__name__}')
+            if isinstance(d,dict): print(f'keys={sorted(d.keys())[:20]}')
+            elif isinstance(d,list): print(f'len={len(d)}, first_keys={sorted(d[0].keys())[:20] if d else []}')
+          except Exception as e: print(f'PARSE_ERROR: {e}')
+          " 2>/dev/null
+          echo "  ==="
+
           INIT_STATUS=$(_get_field "$TEST_KEY" "status")
           INIT_PRIORITY=$(_get_field "$TEST_KEY" "priority")
           INIT_TYPE=$(_get_field "$TEST_KEY" "issuetype")
@@ -610,16 +627,22 @@ jobs:
 
             echo "Test 9b: Read links"
             LINK_DATA=$(acli jira workitem link list --key "$TEST_KEY" --json 2>/dev/null)
+            echo "  === RAW link list output (first 500 chars) ==="
+            echo "$LINK_DATA" | head -c 500
+            echo
             LINK_COUNT=$(echo "$LINK_DATA" | python3 -c "
           import json,sys
           try:
             d=json.load(sys.stdin)
-            links=d if isinstance(d,list) else d.get('issuelinks',[])
-            print(len(links))
-          except: print(0)
+            if isinstance(d,list): print(len(d))
+            elif isinstance(d,dict):
+              links=d.get('issuelinks') or d.get('links') or d.get('results',[])
+              print(len(links))
+            else: print(f'UNEXPECTED:{type(d).__name__}')
+          except Exception as e: print(f'PARSE:{e}')
           " 2>/dev/null)
             echo "  link count: $LINK_COUNT"
-            [[ "$LINK_COUNT" -ge 1 ]] && _pass "create + read link" || _fail "link: count=$LINK_COUNT"
+            [[ "$LINK_COUNT" -ge 1 ]] && _pass "create + read link (Blocks)" || _fail "link: count=$LINK_COUNT"
 
             echo "Test 9c: Delete link"
             LINK_ID=$(echo "$LINK_DATA" | python3 -c "
