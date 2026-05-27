@@ -120,6 +120,7 @@ Hook wrappers that don't fit the categories above — primarily lifecycle / infr
 | `pre-commit-ticket-gate.sh` | Pre-commit gate — enforces ticket-tracker boundary rules; complements `check-tickets-boundary.sh` |
 | `pre-push-merged-pr-check.sh` | Pre-push hook — blocks force-pushes that would overwrite a merged PR's content |
 | `prepare-commit-msg-override-audit.sh` | prepare-commit-msg hook — audits commits that use override tokens |
+| `pre-commit-design-md-lint.sh` | Pre-commit gate — thin wrapper that resolves plugin root and delegates to `design-md-lint.sh`; blocks commits with design.md violations in diff-touched lines; fail-open when `design-md-lint.sh` is absent or on timeout |
 | `record-review.sh` | Single-writer for review status — invoked by named code-reviewer agents only (`` `rule:fabrication` ``); reads from `reviewer-findings.json` and writes the review-status sidecar |
 | `record-test-exemption.sh` | Records intentional test exemptions (RED markers, xfail rationale) for the test gate's tolerance logic |
 

@@ -175,6 +175,17 @@ repos:
         files: ^tests/
 
 
+      # Design-md lint gate (timeout: 30s)
+      # Delegates to design-md-lint.sh which checks diff-touched lines against
+      # the @google/design.md ruleset. Scoped to staged UI files; exits 0 when
+      # design.lint_enabled=never or when npx / DESIGN.md is absent (fail-open).
+      - id: pre-commit-design-md-lint
+        name: Design-md Lint Gate (30s timeout)
+        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh pre-commit-design-md-lint 30 "./plugins/dso/hooks/pre-commit-design-md-lint.sh"
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
       # Enforcement boundary check (timeout: 10s)
       # Blocks commits where a file annotated with '# hook-boundary: enforcement'
       # also sources hook-error-handler.sh. Annotation-driven (no hardcoded list).
