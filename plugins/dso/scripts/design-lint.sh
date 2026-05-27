@@ -54,7 +54,7 @@ Without flags: passes through to the underlying @google/design.md lint CLI,
 outputting raw JSON from the linter to stdout.
 
 Configuration:
-  design.design_notes_path — path to DESIGN.md (default: .claude/design-notes.md)
+  design.design_notes_path — path to DESIGN.md (default: DESIGN.md)
   DESIGN_MD_NOTES_PATH     — env override for the design file path
   DESIGN_MD_VERSION        — env override for the @google/design.md version (default: 0.2.0)
 
@@ -92,9 +92,9 @@ if [[ -n "${DESIGN_MD_NOTES_PATH:-}" ]]; then
     DESIGN_NOTES_PATH="$DESIGN_MD_NOTES_PATH"
 elif [[ -n "${CONFIG_FILE:-}" && -f "${CONFIG_FILE:-}" ]]; then
     _cfg_path=$(bash "$SCRIPT_DIR/read-config.sh" design.design_notes_path "$CONFIG_FILE" 2>/dev/null || true)
-    DESIGN_NOTES_PATH="${_cfg_path:-.claude/design-notes.md}"
+    DESIGN_NOTES_PATH="${_cfg_path:-DESIGN.md}"
 else
-    DESIGN_NOTES_PATH=".claude/design-notes.md"
+    DESIGN_NOTES_PATH="DESIGN.md"
 fi
 
 # Resolve to absolute path (relative to repo root)

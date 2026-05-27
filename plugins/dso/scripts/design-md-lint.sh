@@ -76,9 +76,9 @@ if [[ -n "${DESIGN_MD_NOTES_PATH:-}" ]]; then
     DESIGN_NOTES_PATH="$DESIGN_MD_NOTES_PATH"
 elif [[ -f "$CONFIG_FILE" ]]; then
     _cfg_path=$(bash "$SCRIPT_DIR/read-config.sh" design.design_notes_path "$CONFIG_FILE" 2>/dev/null || true)
-    DESIGN_NOTES_PATH="${_cfg_path:-.claude/design-notes.md}"
+    DESIGN_NOTES_PATH="${_cfg_path:-DESIGN.md}"
 else
-    DESIGN_NOTES_PATH=".claude/design-notes.md"
+    DESIGN_NOTES_PATH="DESIGN.md"
 fi
 
 # Resolve to absolute path (relative to repo root)

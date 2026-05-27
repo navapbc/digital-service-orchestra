@@ -77,7 +77,7 @@ The design file path is resolved from:
 
 1. `DESIGN_MD_NOTES_PATH` environment variable (highest priority — useful for testing)
 2. `design.design_notes_path` key in `.claude/dso-config.conf` (via `read-config.sh`)
-3. Default: `.claude/design-notes.md`
+3. Default: `DESIGN.md`
 
 Example `.claude/dso-config.conf` entry:
 ```

@@ -106,7 +106,7 @@ assert_pass_if_clean "test_validate_config_accepts_new_path"
 # the target state after full retargeting is complete.
 _snapshot_fail
 design_notes_path_count=0
-design_notes_path_count=$(grep -rln 'design-notes' \
+design_notes_path_count=$(grep -rn 'design-notes' \
     "$DSO_PLUGIN_DIR" \
     2>/dev/null \
     | grep -v 'migrate' \
