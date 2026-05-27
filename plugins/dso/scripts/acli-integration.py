@@ -14,6 +14,7 @@ import base64
 import json
 import logging
 import os
+import random
 import subprocess
 import sys
 import tempfile
@@ -173,6 +174,55 @@ def _text_to_adf(text: str) -> dict[str, Any]:
 def _build_env() -> dict[str, str]:
     """Build subprocess environment for ACLI."""
     return os.environ.copy()
+
+
+class RetryExhaustedError(RuntimeError):
+    """All retry attempts exhausted after HTTP 429 rate-limit responses."""
+
+
+def _call_with_backoff(
+    fn: Any,
+    *args: Any,
+    max_retries: int = 5,
+    **kwargs: Any,
+) -> Any:
+    """Call fn with exponential backoff on HTTP 429 responses.
+
+    Retries up to *max_retries* times when ``fn`` raises
+    ``urllib.error.HTTPError`` with status 429. Each retry waits with
+    exponential backoff (2s base, capped at 60s) plus random jitter (0-1s).
+    If a ``Retry-After`` header is present on the 429 response, that value
+    is used instead of the computed delay.
+
+    Raises RetryExhaustedError after all retries are exhausted.
+    """
+    last_error: urllib.error.HTTPError | None = None
+    for attempt in range(max_retries + 1):  # initial + max_retries
+        try:
+            return fn(*args, **kwargs)
+        except urllib.error.HTTPError as exc:
+            if exc.code != 429:
+                raise
+            last_error = exc
+            if attempt >= max_retries:
+                break
+            # Compute delay: exponential backoff capped at 60s, with jitter
+            base_delay = min(2 ** (attempt + 1), 60)
+            retry_after = exc.headers.get("Retry-After") if exc.headers else None
+            if retry_after is not None:
+                try:
+                    delay = float(retry_after)
+                except (ValueError, TypeError):
+                    delay = base_delay
+            else:
+                delay = base_delay
+            delay += random.random()  # 0-1s jitter  # noqa: S311
+            time.sleep(delay)
+
+    assert last_error is not None
+    raise RetryExhaustedError(
+        f"All {max_retries} retries exhausted after HTTP 429"
+    ) from last_error
 
 
 def _run_acli(
@@ -513,20 +563,21 @@ def update_issue(
     (Jira status changes require transitions, not field edits).
     Remaining fields are sent via ``workitem edit``.
 
-    **Priority**: ACLI does not support editing priority (neither via
-    ``--priority`` flag nor ``--from-json additionalAttributes``).
-    Priority in kwargs is logged as a warning and skipped.
-    See epic 392d-8080 for the full solution.
+    **Priority**: ACLI does not support editing priority via CLI flags.
+    Priority updates are routed to ``update_priority()`` which uses the
+    REST API directly (PUT /rest/api/3/issue/{key}).
     """
     status = kwargs.pop("status", None)
     priority = kwargs.pop("priority", None)
     if priority is not None:
-        logger.warning(
-            "Cannot update priority on %s via ACLI (not supported). "
-            "Priority '%s' will be skipped. See epic 392d-8080.",
-            jira_key,
-            priority,
-        )
+        # Resolve priority to a Jira name string, then update via REST.
+        if isinstance(priority, int):
+            priority_name = _LOCAL_PRIORITY_TO_JIRA.get(priority, "Medium")
+        elif isinstance(priority, dict):
+            priority_name = priority.get("name") or "Medium"
+        else:
+            priority_name = str(priority)
+        update_priority(jira_key, priority_name, acli_cmd=acli_cmd)
 
     if status is not None:
         transition_issue(jira_key, status, acli_cmd=acli_cmd)
@@ -557,21 +608,76 @@ def update_issue(
     return json.loads(result.stdout)
 
 
+def update_priority(
+    jira_key: str,
+    priority_name: str,
+    *,
+    acli_cmd: list[str] | None = None,
+) -> None:
+    """Update priority on a Jira issue via REST PUT.
+
+    ACLI does not support priority edit — uses direct REST API:
+    PUT /rest/api/3/issue/{key} with {"fields":{"priority":{"name":"..."}}}
+    Probe-validated: returns 204 on success.
+    """
+    # This function needs credentials. When called from the module-level
+    # update_issue (which has no client instance), we read from env vars.
+    jira_url = os.environ.get("JIRA_URL", "")
+    user = os.environ.get("JIRA_USER", "")
+    api_token = os.environ.get("JIRA_API_TOKEN", "")
+    if not all([jira_url, user, api_token]):
+        logger.warning(
+            "Cannot update priority on %s via REST (missing JIRA_URL/JIRA_USER/"
+            "JIRA_API_TOKEN env vars). Priority '%s' skipped.",
+            jira_key,
+            priority_name,
+        )
+        return
+    url = f"{jira_url.rstrip('/')}/rest/api/3/issue/{jira_key}"
+    creds = base64.b64encode(f"{user}:{api_token}".encode()).decode()
+    data = json.dumps(
+        {"fields": {"priority": {"name": priority_name}}}, ensure_ascii=False
+    ).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=data,
+        method="PUT",
+        headers={
+            "Authorization": f"Basic {creds}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+    )
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        resp.read()
+
+
 def get_issue(
     jira_key: str,
     *,
     acli_cmd: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Get a Jira issue via ACLI."""
+    """Get a Jira issue via ACLI search (single-key JQL).
+
+    Note: ``acli workitem view --json`` produces empty stdout (probe-confirmed
+    broken). We use ``search --jql "key = KEY"`` as the reliable alternative.
+    """
     cmd = [
         "jira",
         "workitem",
-        "view",
-        jira_key,
+        "search",
+        "--jql",
+        f"key = {jira_key}",
+        "-f",
+        "key,summary,description,status,priority,issuetype,assignee,labels",
         "--json",
     ]
     result = _run_acli(cmd, acli_cmd=acli_cmd)
-    return json.loads(result.stdout)
+    parsed = json.loads(result.stdout)
+    issues = parsed if isinstance(parsed, list) else parsed.get("issues", [])
+    if not issues:
+        raise RuntimeError(f"Issue {jira_key} not found")
+    return issues[0]
 
 
 def add_comment(
@@ -866,6 +972,7 @@ class AcliClient:
             headers={
                 "Authorization": f"Basic {creds}",
                 "Content-Type": "application/json",
+                "Accept": "application/json",
             },
         )
         with urllib.request.urlopen(req, timeout=10) as resp:
@@ -1083,6 +1190,81 @@ class AcliClient:
         ]
         result = self._run(cmd)
         return _parse_acli_comments(json.loads(result.stdout))
+
+    def update_priority(self, jira_key: str, priority_name: str) -> None:
+        """Update priority on a Jira issue via REST PUT.
+
+        ACLI does not support priority edit. Uses direct REST API:
+        PUT /rest/api/3/issue/{key} with {"fields":{"priority":{"name":"..."}}}
+        Probe-validated: returns 204 on success.
+        """
+        self._direct_rest_put_raw(
+            f"/rest/api/3/issue/{jira_key}",
+            {"fields": {"priority": {"name": priority_name}}},
+        )
+
+    def update_issuetype(self, jira_key: str, type_name: str) -> None:
+        """Update issue type on a Jira issue via REST PUT.
+
+        ACLI does not support issuetype edit. Uses direct REST API:
+        PUT /rest/api/3/issue/{key} with {"fields":{"issuetype":{"name":"..."}}}
+        Probe-validated: returns 204 on success.
+        """
+        self._direct_rest_put_raw(
+            f"/rest/api/3/issue/{jira_key}",
+            {"fields": {"issuetype": {"name": type_name}}},
+        )
+
+    def update_comment(
+        self, jira_key: str, comment_id: str, body: str
+    ) -> dict[str, Any]:
+        """Update an existing comment on a Jira issue via ACLI.
+
+        Probe-validated: ``acli jira workitem comment update`` works correctly.
+        """
+        cmd = [
+            "jira",
+            "workitem",
+            "comment",
+            "update",
+            "--key",
+            jira_key,
+            "--id",
+            str(comment_id),
+            "--body",
+            body,
+            "--json",
+        ]
+        result = self._run(cmd)
+        return json.loads(result.stdout) if result.stdout.strip() else {}
+
+    def delete_comment(self, jira_key: str, comment_id: str) -> None:
+        """Delete a comment from a Jira issue via REST DELETE.
+
+        ACLI has no comment delete subcommand. Uses direct REST API:
+        DELETE /rest/api/3/issue/{key}/comment/{id}
+        Probe-validated: returns 204 on success.
+        """
+        path = f"/rest/api/3/issue/{jira_key}/comment/{comment_id}"
+        self._direct_rest_delete(path)
+
+    def _direct_rest_delete(self, path: str) -> None:
+        """DELETE a Jira REST resource using stored credentials.
+
+        Raises urllib.error.HTTPError on non-2xx response.
+        """
+        url = f"{self.jira_url.rstrip('/')}{path}"
+        creds = base64.b64encode(f"{self.user}:{self.api_token}".encode()).decode()
+        req = urllib.request.Request(
+            url,
+            method="DELETE",
+            headers={
+                "Authorization": f"Basic {creds}",
+                "Accept": "application/json",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            resp.read()
 
     def set_relationship(
         self,

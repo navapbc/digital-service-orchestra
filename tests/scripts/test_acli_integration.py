@@ -74,7 +74,7 @@ def test_create_issue_calls_acli_subprocess(acli: ModuleType) -> None:
         {"key": "PROJ-42", "summary": "Add bridge", "status": "To Do"}
     )
     get_response = json.dumps(
-        {"key": "PROJ-42", "summary": "Add bridge", "status": "To Do"}
+        [{"key": "PROJ-42", "summary": "Add bridge", "status": "To Do"}]
     )
 
     mock_create = MagicMock(returncode=0, stdout=created_response, stderr="")
@@ -136,14 +136,20 @@ def test_update_issue_calls_acli_with_jira_key(acli: ModuleType) -> None:
 @pytest.mark.unit
 @pytest.mark.scripts
 def test_get_issue_returns_parsed_json_output(acli: ModuleType) -> None:
-    """get_issue must parse ACLI JSON output and return a dict with key/summary/status."""
+    """get_issue must parse ACLI JSON output and return a dict with key/summary/status.
+
+    Note: get_issue uses 'search --jql' (not 'view') because ACLI's
+    view --json produces empty stdout. Search returns a list of issues.
+    """
     raw_output = json.dumps(
-        {
-            "key": "PROJ-7",
-            "summary": "Implement outbound bridge",
-            "status": "In Progress",
-            "assignee": "dev@example.com",
-        }
+        [
+            {
+                "key": "PROJ-7",
+                "summary": "Implement outbound bridge",
+                "status": "In Progress",
+                "assignee": "dev@example.com",
+            }
+        ]
     )
     mock_proc = MagicMock(returncode=0, stdout=raw_output, stderr="")
 
@@ -203,7 +209,7 @@ def test_verify_after_create_calls_get_issue(acli: ModuleType) -> None:
     """create_issue must call get_issue after creation to verify the new issue."""
     created_response = json.dumps({"key": "PROJ-55", "summary": "Verify me"})
     verified_response = json.dumps(
-        {"key": "PROJ-55", "summary": "Verify me", "status": "To Do"}
+        [{"key": "PROJ-55", "summary": "Verify me", "status": "To Do"}]
     )
 
     mock_create = MagicMock(returncode=0, stdout=created_response, stderr="")
@@ -295,7 +301,7 @@ def test_acli_client_create_issue_uses_ticket_data(acli: ModuleType) -> None:
     dict and use the client's jira_project for the project parameter."""
     created_response = json.dumps({"key": "DSO-42", "summary": "Test ticket"})
     verified_response = json.dumps(
-        {"key": "DSO-42", "summary": "Test ticket", "status": "To Do"}
+        [{"key": "DSO-42", "summary": "Test ticket", "status": "To Do"}]
     )
     mock_create = MagicMock(returncode=0, stdout=created_response, stderr="")
     mock_verify = MagicMock(returncode=0, stdout=verified_response, stderr="")
@@ -362,8 +368,8 @@ def test_acli_client_update_issue_delegates(acli: ModuleType) -> None:
 @pytest.mark.unit
 @pytest.mark.scripts
 def test_acli_client_get_issue_delegates(acli: ModuleType) -> None:
-    """AcliClient.get_issue(jira_key) must call ACLI view and return parsed JSON."""
-    view_response = json.dumps({"key": "DSO-42", "status": "Open"})
+    """AcliClient.get_issue(jira_key) must call ACLI search and return parsed JSON."""
+    view_response = json.dumps([{"key": "DSO-42", "status": "Open"}])
     mock_proc = MagicMock(returncode=0, stdout=view_response, stderr="")
 
     client = acli.AcliClient(
@@ -421,7 +427,7 @@ def test_create_issue_from_json_forwards_summary(acli: ModuleType) -> None:
     and include the summary field in the JSON payload written to disk."""
     created_response = json.dumps({"key": "PROJ-99", "summary": "My summary"})
     verified_response = json.dumps(
-        {"key": "PROJ-99", "summary": "My summary", "status": "To Do"}
+        [{"key": "PROJ-99", "summary": "My summary", "status": "To Do"}]
     )
 
     captured_payloads: list[dict] = []
@@ -435,7 +441,7 @@ def test_create_issue_from_json_forwards_summary(acli: ModuleType) -> None:
             with open(json_path) as f:
                 captured_payloads.append(json.load(f))
             return MagicMock(returncode=0, stdout=created_response, stderr="")
-        # The verify-after-create call (get_issue)
+        # The verify-after-create call (get_issue via search)
         return MagicMock(returncode=0, stdout=verified_response, stderr="")
 
     with patch("subprocess.run", side_effect=capturing_run):
@@ -518,7 +524,7 @@ def test_create_issue_from_json_sends_description_as_adf(acli: ModuleType) -> No
     object (not a plain string) into the JSON payload's 'description' field."""
     created_response = json.dumps({"key": "PROJ-77", "summary": "ADF test"})
     verified_response = json.dumps(
-        {"key": "PROJ-77", "summary": "ADF test", "status": "To Do"}
+        [{"key": "PROJ-77", "summary": "ADF test", "status": "To Do"}]
     )
 
     captured_payloads: list[dict] = []
@@ -689,7 +695,7 @@ def test_create_issue_retries_without_assignee_on_permission_error(
     'cannot be assigned issues', and the second attempt must succeed."""
     created_response = json.dumps({"key": "PROJ-42", "summary": "Retry test"})
     verified_response = json.dumps(
-        {"key": "PROJ-42", "summary": "Retry test", "status": "To Do"}
+        [{"key": "PROJ-42", "summary": "Retry test", "status": "To Do"}]
     )
 
     captured_payloads: list[dict] = []
@@ -712,7 +718,7 @@ def test_create_issue_retries_without_assignee_on_permission_error(
                 )
             # Attempt without assignee: succeed
             return MagicMock(returncode=0, stdout=created_response, stderr="")
-        # get_issue verification call
+        # get_issue verification call (search returns list)
         return MagicMock(returncode=0, stdout=verified_response, stderr="")
 
     with (
@@ -769,7 +775,7 @@ def test_create_issue_no_priority_retries_without_assignee_on_permission_error(
     reports 'cannot be assigned issues', and the second attempt must succeed."""
     created_response = json.dumps({"key": "PROJ-50", "summary": "No-priority retry"})
     verified_response = json.dumps(
-        {"key": "PROJ-50", "summary": "No-priority retry", "status": "To Do"}
+        [{"key": "PROJ-50", "summary": "No-priority retry", "status": "To Do"}]
     )
 
     create_cmds: list[list[str]] = []

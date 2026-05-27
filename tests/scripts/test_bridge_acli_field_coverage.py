@@ -304,40 +304,31 @@ class TestAcliClientCreateFieldExtraction:
 class TestAcliClientUpdateFieldExtraction:
     """Test which fields AcliClient.update_issue() sends for non-status field updates."""
 
-    def test_acli_update_skips_priority_with_warning(
-        self, acli_mod: Any, acli_capture: Any, caplog: Any
+    def test_acli_update_routes_priority_to_rest(
+        self, acli_mod: Any, acli_capture: Any
     ) -> None:
-        """AcliClient.update_issue() should skip priority (ACLI doesn't support it).
+        """AcliClient.update_issue() routes priority to update_priority (REST PUT).
 
-        ACLI workitem edit does not support --priority or additionalAttributes.
-        Priority in kwargs is logged as a warning and skipped.
-        See bug 4232-ffd0 / epic 392d-8080.
+        ACLI workitem edit does not support --priority. Priority updates are
+        now handled via direct REST API (PUT /rest/api/3/issue/{key}).
         """
-        import logging
-
         client, captured_cmds, fake_run_acli = acli_capture
 
-        with patch.object(acli_mod, "_run_acli", side_effect=fake_run_acli):
-            with caplog.at_level(logging.WARNING, logger="acli_integration"):
-                result = client.update_issue("TEST-1", priority="High")
+        with (
+            patch.object(acli_mod, "_run_acli", side_effect=fake_run_acli),
+            patch.object(acli_mod, "update_priority") as mock_priority,
+        ):
+            result = client.update_issue("TEST-1", priority="High")
 
         # No ACLI edit command should be issued for priority-only updates
-        # (the function returns early after popping status and priority)
         assert len(captured_cmds) == 0, (
             f"No ACLI command should be issued for priority-only update. Got: {captured_cmds}"
         )
         assert result == {"key": "TEST-1"}
 
-        # The warning must be emitted with the jira key and priority value
-        warning_messages = [
-            r.message for r in caplog.records if r.levelno == logging.WARNING
-        ]
-        assert any("TEST-1" in str(m) for m in warning_messages), (
-            f"Expected warning mentioning 'TEST-1' but got: {warning_messages}"
-        )
-        assert any("High" in str(m) for m in warning_messages), (
-            f"Expected warning mentioning 'High' but got: {warning_messages}"
-        )
+        # Priority must be routed to update_priority via REST.
+        # acli_cmd comes from the fixture's AcliClient (acli_cmd=["echo"])
+        mock_priority.assert_called_once_with("TEST-1", "High", acli_cmd=["echo"])
 
     def test_acli_update_sends_description(
         self, acli_mod: Any, acli_capture: Any
