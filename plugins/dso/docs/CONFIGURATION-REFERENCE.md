@@ -551,6 +551,17 @@ When a `commands.*` key is absent from `dso-config.conf`, DSO falls back to stac
 
 ---
 
+### `design.lint_enabled`
+
+| | |
+|---|---|
+| **Description** | Controls whether `design-md-lint.sh` runs the design-notes lint check. When `auto`, the check runs only when `.claude/design-notes.md` is present. When `always`, the check runs unconditionally (fails if the file is missing). When `never`, the check is skipped entirely. |
+| **Accepted values** | `auto` \| `always` \| `never` |
+| **Default** | `auto` |
+| **Used by** | `design-md-lint.sh` |
+
+---
+
 ## Planning
 
 ### `planning.external_dependency_block_enabled`
