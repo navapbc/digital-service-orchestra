@@ -1498,7 +1498,7 @@ When launching each Task tool call, set `subagent_type` and `model` from the TAS
 
 **Doc-story detection heuristics (apply ALL of these — not just title match):**
 A story is a documentation story if ANY of the following are true:
-1. Story title contains "doc", "document", "update", "add to", "CLAUDE.md", "KNOWN-ISSUES", "design-notes", "README"
+1. Story title contains "doc", "document", "update", "add to", "CLAUDE.md", "KNOWN-ISSUES", "DESIGN.md", "README"
 2. Story title starts with "As a" AND acceptance criteria mention documentation files
 3. Any child task references a `.md` file in `.claude/docs/`, `docs/`, or the repo root
 

@@ -21,7 +21,7 @@ Scores follow the shared 1–5 scale defined in `skills/shared/reviewers/SCORING
 ## Input Sections
 
 You will receive:
-- **Design Notes**: The project's .claude/design-notes.md — pay close attention to any
+- **Design Notes**: The project's `DESIGN.md` (path configurable via `design.design_notes_path`) — pay close attention to any
   form-related patterns or standards defined in the System Architecture section
 - **Proposed Design**: The code snippet, wireframe description, or diff being
   reviewed — evaluate form structure, validation approach, and user flow

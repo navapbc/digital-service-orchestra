@@ -22,7 +22,7 @@ Scores follow the shared 1–5 scale defined in `skills/shared/reviewers/SCORING
 ## Input Sections
 
 You will receive:
-- **Design Notes**: The project's .claude/design-notes.md — pay close attention to the
+- **Design Notes**: The project's `DESIGN.md` (path configurable via `design.design_notes_path`) — pay close attention to the
   Tech Stack/Library and System Architecture sections for available components
 - **Proposed Design**: The code snippet, wireframe description, or diff being
   reviewed — evaluate component choices and reuse opportunities
