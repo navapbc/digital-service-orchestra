@@ -2032,7 +2032,7 @@ def main() -> int:
         # "Assert review liveness" invariant downstream can detect the
         # condition.
         _pr_for_context = _resolve_pr_number()
-        if _pr_for_context and _pr_for_context.isdigit() and int(_pr_for_context) > 0:
+        if _pr_for_context and _pr_for_context > 0:
             print(
                 f"WARNING: empty diff received in PR context (PR #{_pr_for_context}) — "
                 "likely caller missing `gh pr diff` pipe or DSO_CI_REVIEW_DIFF_PATH env. "
@@ -2396,9 +2396,7 @@ def main() -> int:
 
             # Step 5: aggregate via aggregate_cluster_findings (cross-file synthesis
             # + visibility trailer + single ledger entry).
-            _pr_num_int = (
-                int(pr_number) if pr_number and str(pr_number).isdigit() else None
-            )
+            _pr_num_int = pr_number if isinstance(pr_number, int) else None
             _ledger_path_for_agg = os.path.join(artifacts_dir, "cycle-ledger.json")
             _agg_result = _aggregate_cluster_findings(
                 cluster_results=_cluster_results,
