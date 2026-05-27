@@ -35,8 +35,10 @@ Out of scope (tracked separately): F-01 (ci-pr enforcement), F-03
 `plugins/dso/scripts/merge-to-main-pr.sh:2,10,13–15,666` calls itself a
 "skeleton implementation" / "placeholder" while containing 2,756 lines of
 production PR-mode logic. The same vocabulary appears in
-`plugins/dso/scripts/recipe-executor.sh:130,166` and in at least one
-Python file (`figma_node_mapper.py:86`). Agents read source comments as
+`plugins/dso/scripts/recipe-executor.sh:130,166` and in
+`plugins/dso/scripts/dso_reconciler/__main__.py:8,109–110`
+(self-describes as "walking-skeleton" with a production print
+`OK: walking-skeleton no-op`). Agents read source comments as
 execution guidance.
 
 ### Steps
@@ -85,14 +87,27 @@ None. Comment-only edits plus a new lint.
 
 ### Steps
 1. Replace each literal with `${_CFG_TKDIR}/` (quoted as appropriate).
-2. Audit the rest of the merge surface for drift:
+2. Audit the rest of the merge and reconciler surfaces for drift:
    - `plugins/dso/scripts/merge-to-main-pr.sh`
    - `plugins/dso/scripts/merge-to-main.sh`
    - `plugins/dso/scripts/create-sprint-draft-pr.sh`
-   - Any helper sourced by the above.
+   - `plugins/dso/scripts/dso_reconciler/**/*.py` — verified literals
+     at `__main__.py:200`, `health.py:21`,
+     `dso-reconciler-health.py:42,122`. Decide per-site: replace with
+     a config read, or keep hard-coded and annotate with
+     `# tickets-boundary-ok` (the convention already exists at
+     `reconcile.py:307`) with a rationale comment.
+   - `.github/workflows/reconcile-bridge-canary.yml`,
+     `portability-smoke.yml`, `ticket-lifecycle.yml`,
+     `weekly-bridge-fsck.yml` — these reference the literal in CI
+     contexts. Most likely belong on the annotated-allowlist side
+     (CI workflows can't easily read host config), but verify each.
+   - Any other helper sourced by the above.
 3. Add an annotation-driven literal guard analogous to F-08's:
-   - **In-scope paths:** `plugins/dso/scripts/**`,
-     `plugins/dso/hooks/**`.
+   - **In-scope paths:** `plugins/dso/scripts/**/*.sh`,
+     `plugins/dso/hooks/**/*.sh`,
+     `plugins/dso/scripts/**/*.py`,
+     `.github/workflows/**/*.yml`.
    - **Excluded paths:** `tests/**`, `docs/**`, `**/fixtures/**`,
      `**/CHANGELOG*`.
    - **Excluded lines:** any line ending with `# tickets-boundary-ok`
@@ -281,11 +296,30 @@ emission so the verdict is machine-readable downstream.
    - `pre-commit-test-gate.sh` — replace `_fail_open_on_timeout`
      (lines 47–60) with `_dso_gate_unavailable test_gate "timeout
      sig=$1"` followed by `exit 2`, unless
-     `_dso_gate_bypass_active test_gate`.
+     `_dso_gate_bypass_active test_gate`. **Also rewrite the comment
+     block at lines 50–51** — its current rationale ("blocking
+     commits when the hook mechanism itself fails is a bad state
+     that agents can't recover from") directly contradicts the new
+     fail-closed behavior and must be replaced in the same commit
+     with a comment describing the bypass envelope. Leaving the old
+     rationale in place creates the same stale-doc hazard F-08
+     addresses.
    - `pre-commit-review-gate.sh` — at the two empty/missing-hash
      branches (~L469–474 and ~L489–491), call
      `_dso_gate_unavailable review_gate "hash_compute_failed"` and
      `exit 2` unless bypass active.
+
+**Scope note:** other pre-commit hooks under `plugins/dso/hooks/`
+also use the `_fail_open_on_timeout` pattern — verified at
+`pre-commit-ticket-gate.sh:39–43`, `pre-commit-test-quality-gate.sh:38–42`,
+and `pre-commit-compliance-verifier.sh:50,58,68,86`. These are
+**intentionally out of scope** for F-02 to keep the change
+mechanically bounded; their verdicts route execution but with
+narrower blast radius than the test/review gates. A follow-up
+finding should audit them against the same doctrine once F-02
+lands and the helpers (`gate-unavailable.sh`, paired bypass) are
+proven in production. The drift-detection lint in Step 6 will
+catch any new fail-open hooks added without a tier declaration.
 3. **Refactor Tier C SC gates:**
    - At each of the three SC gate fail-open paths in `sprint/SKILL.md`,
      add an `EMIT-PRECONDITIONS`-style event emission (use the existing
@@ -309,6 +343,14 @@ emission so the verdict is machine-readable downstream.
      surface a precise message naming the tier and the three reason
      strings; suggest re-running with the existing bypass envelope
      once the underlying parse issue is fixed.
+   - **Cross-tier informational warning:** on the second
+     `GATE_UNAVAILABLE` event across DIFFERENT SC tiers within the
+     same epic (with no aggregate halt), emit
+     `SC_CROSS_TIER_DEGRADED` to stderr naming the affected tiers
+     and reason strings. The warning is informational only — its
+     purpose is to give the operator a single aggregate signal of a
+     multi-tier outage (e.g., an Anthropic API blip degrading
+     haiku+sonnet simultaneously) without escalating to a halt.
    - **Rationale for per-tier scoping:** a partial Anthropic API
      outage (a real failure mode worth designing for) could degrade
      all three tiers simultaneously. An aggregated three-strikes
@@ -352,8 +394,14 @@ emission so the verdict is machine-readable downstream.
 - **Cross-tier outage test:** inject malformed JSON in haiku stub,
   then in sonnet stub, then in opus stub (all within the same epic,
   no successful intervening verdicts) → orchestrator does NOT halt
-  (failures are not aggregated across tiers); but the operator-
-  visible event log surfaces three `GATE_UNAVAILABLE` entries.
+  (failures are not aggregated across tiers); event log surfaces
+  three `GATE_UNAVAILABLE` entries AND Phase B Step 1 emits a
+  `SC_CROSS_TIER_DEGRADED` warning to stderr on the second cross-
+  tier failure within an epic, naming the affected tiers and
+  reason strings. The warning is informational (does not halt) —
+  its purpose is to give the operator a single aggregate signal
+  rather than requiring them to grep the event log to notice a
+  multi-tier outage.
 - Bypass test per Tier A site: with both env vars set, gate is
   bypassed with audit; without the reason, bypass is rejected.
 
