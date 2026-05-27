@@ -24,8 +24,9 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 TICKET_CLI="${REPO_ROOT}/.claude/scripts/dso"
 # Derive plugin paths dynamically (enforced by check-plugin-self-ref hook).
 _SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-# _SCRIPT_DIR is .../dso_reconciler; parent is the scripts dir.
-RECONCILER_DIR="$(dirname "$_SCRIPT_DIR")"
+# _SCRIPT_DIR is .../dso_reconciler; parent is the plugin scripts dir.
+_SCRIPTS_DIR="$(dirname "$_SCRIPT_DIR")"
+RECONCILER_DIR="$_SCRIPTS_DIR"
 JIRA_PROJECT="${JIRA_PROJECT:-DIG}"
 PROBE_TS="$(date +%s)"
 PROBE_TAG="probe-test"
@@ -78,7 +79,7 @@ get_jira_field() {
     cd "$RECONCILER_DIR"
     python3 -c "
 import importlib.util, sys, json
-spec = importlib.util.spec_from_file_location('acli', '${RECONCILER_DIR}/../acli-integration.py')
+spec = importlib.util.spec_from_file_location('acli', '${_SCRIPTS_DIR}/acli-integration.py')
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 issue = mod.get_issue('${key}')
@@ -105,7 +106,7 @@ get_jira_comments() {
     cd "$RECONCILER_DIR"
     python3 -c "
 import importlib.util, json
-spec = importlib.util.spec_from_file_location('acli', '${RECONCILER_DIR}/../acli-integration.py')
+spec = importlib.util.spec_from_file_location('acli', '${_SCRIPTS_DIR}/acli-integration.py')
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 comments = mod.get_comments('${key}')
@@ -349,7 +350,7 @@ echo ""
 cd "$RECONCILER_DIR"
 if python3 -c "
 import importlib.util
-spec = importlib.util.spec_from_file_location('acli', '${RECONCILER_DIR}/../acli-integration.py')
+spec = importlib.util.spec_from_file_location('acli', '${_SCRIPTS_DIR}/acli-integration.py')
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 mod.update_issue('${JIRA_KEY}', summary='E2E-PROBE: JIRA-EDITED ${PROBE_TS}')
@@ -362,7 +363,7 @@ fi
 # Step 11: Add Jira comment via ACLI.
 if python3 -c "
 import importlib.util
-spec = importlib.util.spec_from_file_location('acli', '${RECONCILER_DIR}/../acli-integration.py')
+spec = importlib.util.spec_from_file_location('acli', '${_SCRIPTS_DIR}/acli-integration.py')
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 mod.add_comment('${JIRA_KEY}', 'Probe comment from Jira')
@@ -451,7 +452,7 @@ echo ""
 cd "$RECONCILER_DIR"
 if python3 -c "
 import importlib.util, os
-spec = importlib.util.spec_from_file_location('acli', '${RECONCILER_DIR}/../acli-integration.py')
+spec = importlib.util.spec_from_file_location('acli', '${_SCRIPTS_DIR}/acli-integration.py')
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 client = mod.AcliClient(
