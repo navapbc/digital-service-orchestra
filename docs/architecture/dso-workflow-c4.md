@@ -1,0 +1,1016 @@
+# DSO Plugin Workflow: C4 Architecture Diagrams
+
+This document maps the agentic software-development workflow implemented by the
+Digital Service Orchestra (DSO) plugin, using the [C4 model](https://c4model.com/).
+
+The core workflow is a four-stage pipeline:
+
+```
+/dso:brainstorm  →  /dso:preplanning  →  /dso:implementation-plan  →  /dso:sprint
+```
+
+Each stage refines the previous stage's output: a feature idea becomes an epic,
+the epic decomposes into stories, each story decomposes into TDD tasks, and
+those tasks are executed under multi-agent orchestration.
+
+Diagrams progress from highest-level context (Level 1) to per-skill internals
+(Level 3). Mermaid C4 directives are used for Levels 1–2; Level 3 uses
+flowcharts because per-skill flow has more shape than C4 component diagrams
+can represent cleanly.
+
+---
+
+## Level 1 — System Context
+
+Shows the DSO plugin in its environment: who uses it and which external
+systems it talks to.
+
+```mermaid
+C4Context
+  title System Context — DSO Plugin
+
+  Person(dev, "Developer / Operator", "Invokes /dso:* skills via Claude Code; reviews diagrams, plans, PRs.")
+
+  System_Boundary(harness, "Claude Code Harness") {
+    System(dso, "DSO Plugin", "Skills, agents, hooks, scripts that orchestrate the four-stage workflow.")
+  }
+
+  System_Ext(llm, "Anthropic LLM API", "Backs orchestrator and all sub-agents (haiku / sonnet / opus tiers).")
+  System_Ext(fs, "Repository Filesystem", "Source code, tests, designs, configs; edited by sub-agents.")
+  System_Ext(tickets, "Ticket Store", "Event-sourced log on orphan 'tickets' branch under .tickets-tracker/.")  %% # tickets-boundary-ok
+  System_Ext(git, "Git / GitHub", "Worktrees, branches, PRs, required-checks.")
+  System_Ext(actions, "GitHub Actions", "12 workflows: CI gates, llm-review orchestration, Jira reconciler trio, calibration rollups, ticket lifecycle.")
+  System_Ext(jira, "Jira (optional)", "Bidirectional sync via the reconciler bridge (DIG project).")
+
+  Rel(dev, dso, "Invokes skills, answers Socratic questions, approves plans")
+  Rel(dso, llm, "Dispatches sub-agents per tier; receives JSON / structured output")
+  Rel(dso, fs, "Reads code, runs validate.sh, writes edits")
+  Rel(dso, tickets, "Creates epics / stories / tasks; reads dependency graph")
+  Rel(dso, git, "Creates worktrees, opens PRs, merges to main")
+  Rel(git, actions, "Triggers workflows on push / PR / schedule")
+  Rel(actions, llm, "ci.yml + review-sub-pr.yml dispatch code-reviewer agents")
+  Rel(actions, tickets, "reconcile-bridge.yml + ticket-lifecycle.yml mutate ticket store")
+  Rel(actions, jira, "reconcile-bridge.yml syncs tickets bidirectionally")
+  Rel(dso, jira, "Local tickets staged by reconciler", "Optional")
+```
+
+Key contracts at this boundary:
+
+| Surface             | Read                                    | Written by DSO                                                  |
+|---------------------|-----------------------------------------|-----------------------------------------------------------------|
+| Ticket Store        | `dso ticket show / list / deps`         | `ticket create / transition / tag / comment / link`             |
+| Git / GitHub        | branch state, PR diffs, required-checks | new branches, sprint draft PR, merges via `merge-to-main.sh`    |
+| Filesystem          | code, configs, design docs              | edits via sub-agent Bash/Edit/Write tools                       |
+| LLM API             | model availability                      | structured prompts, JSON envelopes (receipt-only contracts)     |
+
+---
+
+## Level 2 — Container
+
+Shows the major subsystems inside the DSO plugin.
+
+```mermaid
+C4Container
+  title Container — Inside the DSO Plugin
+
+  Person(dev, "Developer")
+
+  System_Boundary(dso, "DSO Plugin") {
+    Container(core, "Core Workflow Skills", "Skill files (Markdown)", "brainstorm, preplanning, implementation-plan, sprint — the four-stage pipeline.")
+    Container(support, "Supporting Skills", "Skill files (Markdown)", "review, commit, fix-bug, end-session, oscillation-check, validate-work, plan-review, fp-recovery, retro, ...")
+    Container(agents, "Named Sub-Agent Pool", "Agent definition files", "~53 dso:* agents — code-reviewer-*, completion-verifier, story-decomposer, task-decomposer, approach-proposer, red-team-reviewer, ui-designer, ...")
+    Container(workflows, "Shared Workflows", "Markdown protocols", "epic-scrutiny-pipeline, remediation-loop-protocol, REVIEW-WORKFLOW, COMMIT-WORKFLOW, REVIEW-PROTOCOL-WORKFLOW, FP-RECOVERY-WORKFLOW.")
+    Container(prompts, "Shared Prompts", "Markdown prompt fragments", "behavioral-testing-standard, complexity-gate, scale-inference, verifiable-sc-check, exploration-decomposition, prior-art-search, ...")
+    Container(scripts, "Scripts", "Bash / Python", "plugins/dso/scripts/ — dso ticket CLI, validate-issues, merge-to-main, agent-batch-lifecycle, append_review_cycle, classify-epic-class, run-architectural-probe, ...")
+    Container(hooks, "Hooks", "Bash", "pre-commit (review gate, test gate, branch invariants), PostToolUse (format), PreToolUse (skill routing).")
+    ContainerDb(tickdb, "Ticket Event Log", "Append-only YAML/JSON", "Orphan 'tickets' branch — events for epic / story / task / bug, scratch store, decisions log.")
+    ContainerDb(artifacts, "Artifact Store", "Local files", ".claude/artifacts/ — scrutiny outputs, review findings, scratch payloads, sentinels, PRECONDITIONS log.")
+  }
+
+  System_Boundary(ghaboundary, "GitHub Actions") {
+    Container(ci, "ci.yml", "GHA Workflow", "Primary CI gate: lint, hooks/scripts tests, llm-review orchestration, merge-pipeline-checks (required check).")
+    Container(subpr, "review-sub-pr.yml", "GHA Workflow", "Per-story PR review (session/**, bug-batch/**, worktree-**).")
+    Container(recon, "reconcile-bridge trio", "GHA Workflows", "reconcile-bridge.yml (20-min), reconcile-bridge-canary.yml (hourly), weekly-bridge-fsck.yml (Mon 06:00).")
+    Container(maint, "Maintenance workflows", "GHA Workflows", "ticket-lifecycle (daily), calibration-rollup (monthly/quarterly), template-real-url-e2e (daily + tag).")
+    Container(plat, "Platform CI", "GHA Workflows", "ci-python-skills, ticket-platform-matrix, ticket-perf-regression, portability-smoke.")
+  }
+
+  System_Ext(llm, "LLM API")
+  System_Ext(git, "Git / GitHub")
+  System_Ext(jira, "Jira")
+
+  Rel(dev, core, "/dso:brainstorm, /dso:preplanning, ...")
+  Rel(core, support, "Invokes via Skill tool: /dso:review, /dso:oscillation-check, /dso:commit, /dso:fix-bug")
+  Rel(core, agents, "Dispatches via Agent tool (subagent_type)")
+  Rel(support, agents, "Dispatches code reviewers, investigators")
+  Rel(core, workflows, "Reads inline; executes phases")
+  Rel(support, workflows, "Reads inline (REVIEW, COMMIT, FP-RECOVERY)")
+  Rel(core, prompts, "Reads shared prompts on demand")
+  Rel(agents, prompts, "Reads behavioral standards, exploration patterns")
+  Rel(core, scripts, "Executes dso ticket CLI, validators, agent-batch-lifecycle")
+  Rel(scripts, tickdb, "Reads / appends events")
+  Rel(scripts, git, "Operates worktrees, branches, PRs")
+  Rel(hooks, scripts, "Run safety / gate scripts on tool calls")
+  Rel(agents, llm, "Per-tier model dispatch")
+  Rel(core, artifacts, "Writes scrutiny outputs, scratch payloads")
+  Rel(scripts, jira, "reconcile-bridge workflow (optional)")
+  Rel(scripts, git, "merge-to-main.sh opens PRs, triggers GHA")
+  Rel(git, ci, "PR / push triggers")
+  Rel(git, subpr, "Sub-PR triggers (session/**, etc.)")
+  Rel(ci, agents, "Dispatches code-reviewer agents via runner.py")
+  Rel(subpr, agents, "Dispatches code-reviewer agents on sub-PR diff")
+  Rel(recon, scripts, "Invokes dso_reconciler Python module")
+  Rel(recon, jira, "Bidirectional sync via ACLI")
+  Rel(recon, tickdb, "Mounts tickets branch, commits SYNC events")
+  Rel(maint, scripts, "ticket-lifecycle.sh, calibration-report.sh")
+  Rel(plat, scripts, "Cross-platform ticket-lib-api tests")
+```
+
+Key cross-container conventions:
+
+- **Sub-agent dispatch**: orchestrator skills use the Agent tool with named
+  `subagent_type` values (e.g., `dso:story-decomposer`). Each named agent has
+  a fallback path to `subagent_type: "general-purpose"` with the agent file
+  read inline.
+- **Scratch + receipt contracts**: large sub-agent outputs are written to the
+  ticket scratch store and only a 3-field receipt is returned, keeping
+  orchestrator context small (`receipt-parse.sh`, `ticket-scratch.sh`).
+- **PRECONDITIONS gate**: each stage records its completion via
+  `preconditions-record.sh`; the next stage validates via
+  `preconditions-validator.sh`. The four-stage pipeline is welded together
+  through these gates plus tags (`brainstorm:complete`, `scrutiny:pending`,
+  `ui_probes:deferred`, `interaction:deferred`).
+
+---
+
+## Level 3 — Pipeline Components (Cross-Skill Flow)
+
+Shows how the four core skills hand off through the ticket system.
+
+```mermaid
+flowchart LR
+  user([Developer]):::actor
+
+  subgraph brainstorm["/dso:brainstorm"]
+    direction TB
+    bs1[Phase 1<br/>Socratic Dialogue]
+    bs2[Phase 1.5<br/>UI-Copy Detector]
+    bs3[Phase 2<br/>Approach + Scrutiny]
+    bs4[Phase 3<br/>Epic Ticket Write]
+    bs1 --> bs2 --> bs3 --> bs4
+  end
+
+  subgraph preplanning["/dso:preplanning"]
+    direction TB
+    pp1[Phase A<br/>Reconciliation +<br/>Complexity Route]
+    pp2[Phase B<br/>External Deps]
+    pp3[Story Decomposition]
+    pp4[Phase C-D<br/>Risk + Integration]
+    pp5[Phase E<br/>Adversarial Review]
+    pp6[Phase F-G<br/>Slicing + Research]
+    pp7[Phase H<br/>Write Stories]
+    pp1 --> pp2 --> pp3 --> pp4 --> pp5 --> pp6 --> pp7
+  end
+
+  subgraph implplan["/dso:implementation-plan"]
+    direction TB
+    ip1[Step 1<br/>Contextual Discovery]
+    ip2[Step 2<br/>Architectural Review]
+    ip3[Step 3<br/>Task Drafting]
+    ip4[Step 4<br/>Plan Review]
+    ip5[Step 5<br/>Task Create]
+    ip6[Step 6<br/>Gap Analysis]
+    ip1 --> ip2 --> ip3 --> ip4 --> ip5 --> ip6
+  end
+
+  subgraph sprint["/dso:sprint"]
+    direction TB
+    sp1[Phase A-B<br/>Init + Planning]
+    sp2[Phase C-D<br/>Batch Prep + Manual Pause]
+    sp3[Phase E<br/>Sub-Agent Launch]
+    sp4[Phase F<br/>Story Validation]
+    sp5[Phase G<br/>Epic Validation]
+    sp6[Phase H-I<br/>Remediation + Closure]
+    sp1 --> sp2 --> sp3 --> sp4 --> sp5 --> sp6
+  end
+
+  user -->|"feature idea"| brainstorm
+  brainstorm -->|"epic ticket<br/>brainstorm:complete"| preplanning
+  preplanning -->|"story tickets<br/>+ done definitions"| implplan
+  implplan -->|"task tickets<br/>+ TDD specs"| sprint
+  sprint -->|"PR merged<br/>epic closed"| user
+
+  classDef actor fill:#fef3c7,stroke:#92400e,color:#000
+  classDef skill fill:#dbeafe,stroke:#1e40af,color:#000
+  class brainstorm,preplanning,implplan,sprint skill
+```
+
+### Handoff artifacts
+
+| From → To              | Artifact                                                                         | Stored where                              |
+|------------------------|----------------------------------------------------------------------------------|-------------------------------------------|
+| brainstorm → next      | Epic ticket; `brainstorm:complete` tag; `### Planning Intelligence Log` comment | Ticket store                              |
+| brainstorm → next      | PRECONDITIONS baseline record (`brainstorm_complete` gate)                       | Ticket events                             |
+| brainstorm → next      | `brainstorm-sentinel` file                                                       | Artifact store                            |
+| preplanning → impl-plan | Child stories with `## Done Definitions` (each `← Satisfies: sc-N`)            | Ticket store (story tickets)              |
+| preplanning → impl-plan | `PREPLANNING_CONTEXT:` comment on epic (schema_version 2)                        | Epic ticket comment                       |
+| preplanning → impl-plan | `verify_commands` per DD (from story-decomposer)                                 | Ticket events on each story               |
+| impl-plan → sprint     | Task tickets with `## Story DD Coverage` + TDD `testing_mode` + AC               | Ticket store (task tickets)               |
+| sprint → user          | Closed epic, merged PR, completion-verifier P1=PASS                              | Ticket store + Git                        |
+
+---
+
+## Level 3 — `/dso:brainstorm` Internals
+
+```mermaid
+flowchart TB
+  start([Invocation:<br/>/dso:brainstorm or<br/>/dso:brainstorm epic-id]):::start
+
+  start --> typegate{Type Detection<br/>Gate}
+  typegate -->|epic| p1
+  typegate -->|story/task/bug<br/>convert| convert[phases/convert-to-epic.md]
+  typegate -->|story/task/bug<br/>enrich| enrich[phases/enrich-in-place.md]
+  convert --> p1
+  enrich --> done
+
+  subgraph p1["Phase 1 — Context + Dialogue"]
+    p1a[Scale Inference Protocol] --> p1b[Codebase Investigation]
+    p1b --> p1c[Tell-Me-More Loop<br/>one question at a time]
+    p1c --> p1d[Phase 1 Gate:<br/>Understanding Summary →<br/>Intent Gap Analysis]
+  end
+
+  p1 --> ui15{UI Intent<br/>Detection?}
+  ui15 -->|clear-ui| probes[UX Probe Set<br/>3 probes]
+  ui15 -->|clear-non-ui| skipui[skip probes]
+  ui15 -->|ambiguous| haiku1[haiku UI classifier<br/>prompt: ui-detection-classifier.md]
+  haiku1 --> ui15decide{result}
+  ui15decide -->|ui| probes
+  ui15decide -->|non-ui| skipui
+  probes --> p15
+  skipui --> p15
+
+  subgraph p15["Phase 1.5 — UI-Copy Detector"]
+    p15a[Signal scan]
+    p15b[Idempotency guard]
+    p15c[Tag copy-needed<br/>+ ## Copy Needs section]
+    p15a --> p15b --> p15c
+  end
+
+  p15 --> ecls[classify-epic-class.sh<br/>→ EPIC_CLASS]
+  ecls --> probe{architectural?}
+  probe -->|yes| archprobe[run-architectural-probe.sh<br/>dso:architectural-probe]
+  probe -->|no| p2
+  archprobe --> p2
+
+  subgraph p2["Phase 2 — Approach + Spec"]
+    p2a[Propose 2-3 approaches<br/>complexity-gate.md]
+    p2b[Draft Epic Spec<br/>SCs + Closure Checks<br/>verifiable-sc-check.md]
+    p2c[Step 2.15<br/>Verify-intents]
+    p2d[Step 2.25<br/>Cross-Epic Scan]
+    p2e[Scrutiny Pipeline]
+    p2f[Step 4<br/>Approval Gate]
+    p2a --> p2b --> p2c --> p2d --> p2e --> p2f
+  end
+
+  p2d -->|haiku| cei[dso:cross-epic-<br/>interaction-classifier]
+  p2e -->|sub-agents| scrut[shared/workflows/<br/>epic-scrutiny-pipeline.md<br/>→ red-team-reviewer<br/>→ blue-team-filter<br/>→ feasibility-reviewer<br/>→ bot-psychologist]
+
+  p2 --> p3
+
+  subgraph p3["Phase 3 — Ticket Integration"]
+    p3a[Follow-on Gate]
+    p3b[ticket create epic]
+    p3c[ticket link depends_on]
+    p3d[validate-issues.sh]
+    p3e[Write PIL comment<br/>+ emit brainstorm-fidelity result]
+    p3f[preconditions-record.sh<br/>+ tag brainstorm:complete]
+    p3g[Write brainstorm-sentinel]
+    p3a --> p3b --> p3c --> p3d --> p3e --> p3f --> p3g
+  end
+
+  p3 --> done([Brainstorm complete])
+
+  classDef start fill:#fef3c7,stroke:#92400e
+  classDef phase fill:#dbeafe,stroke:#1e40af
+  class p1,p15,p2,p3 phase
+```
+
+**Sub-agents dispatched** (all via Agent tool):
+
+| Agent                                          | Tier   | Where                       | Purpose                                                       |
+|-----------------------------------------------|--------|-----------------------------|---------------------------------------------------------------|
+| haiku UI classifier (prompt-only, no named agent) | haiku  | Phase 1.5                   | Ambiguous UI/non-UI classification — `general-purpose` + `prompts/ui-detection-classifier.md` |
+| `dso:cross-epic-interaction-classifier`        | haiku  | Step 2.25                   | Detect overlaps with open epics (batched ceil(N/5))           |
+| `dso:architectural-probe`                      | opus   | Conditional (architectural) | E2E test scaffold for architectural epics before scrutiny     |
+| `dso:red-team-reviewer`                        | opus   | Scrutiny pipeline           | Adversarial epic audit (8-category taxonomy)                  |
+| `dso:blue-team-filter`                         | sonnet | Scrutiny pipeline           | Triage red-team findings                                      |
+| `dso:feasibility-reviewer`                     | sonnet | Scrutiny pipeline (conditional) | Verify external tool integration feasibility               |
+| `dso:bot-psychologist`                         | opus   | Scrutiny Step 5 (conditional)   | Debug LLM-instruction signals                              |
+| Agent Clarity / Scope / Value reviewers        | sonnet | Scrutiny Step 4             | Three-axis fidelity review (general-purpose dispatch)         |
+| `dso:bug-classifier-haiku`                     | haiku  | Bug-close bookkeeping       | Classify bug ticket slug                                      |
+
+---
+
+## Level 3 — `/dso:preplanning` Internals
+
+```mermaid
+flowchart TB
+  start([/dso:preplanning epic-id]):::start
+
+  start --> gates[Gates:<br/>scrutiny:pending<br/>interaction:deferred<br/>ui_probes:deferred<br/>brainstorm preconditions]
+
+  gates --> a1[Phase A.1 Select<br/>+ Load Epic]
+  a1 --> a15[A.1.5<br/>Complexity Classifier<br/>dso:complexity-evaluator]
+  a15 --> route{Tier?}
+  route -->|SIMPLE| impl[Invoke<br/>/dso:implementation-plan]
+  route -->|MODERATE| lightweight[Lightweight Mode<br/>enrich epic only]
+  route -->|COMPLEX| a2
+
+  a2[A.2 Escalation Policy<br/>autonomous /<br/>escalate-when-blocked /<br/>escalate-unless-confident]
+  a2 --> a3[A.3-5 Reconcile<br/>existing children]
+  a3 --> b[Phase B<br/>External Deps Reading]
+
+  b -->|claude_auto| bauto[Story: Verify and integrate X]
+  b -->|user_manual| bman[Story tagged<br/>manual:awaiting_user]
+
+  bauto --> sd
+  bman --> sd
+
+  subgraph sd["Story Decomposition"]
+    sd1[Dispatch<br/>dso:story-decomposer<br/>opus<br/>via scratch + receipt]
+    sd2[Validate<br/>sc_coverage_plan<br/>+ story_drafts<br/>+ verify_commands]
+    sd1 --> sd2
+  end
+
+  sd --> c[Phase C<br/>Risk & Scope Scan<br/>6 reviewer areas]
+  c --> d{external<br/>integration?}
+  d -->|yes| dres[Phase D<br/>Integration Research<br/>WebSearch + verify]
+  d -->|no| e
+  dres --> e
+
+  e{≥3 stories?}
+  e -->|yes| eadv[Phase E<br/>Adversarial Review]
+  e -->|no| refusal
+
+  subgraph eadv["Phase E Adversarial Review"]
+    e1[dso:red-team-reviewer<br/>opus<br/>mode story_review]
+    e2[dso:blue-team-filter<br/>sonnet]
+    e3{findings?}
+    e4[Remediation Loop<br/>max_cycles<br/>+ /dso:oscillation-check<br/>at N≥2]
+    e1 --> e2 --> e3 -->|non-empty| e4
+    e4 --> e1
+    e3 -->|empty| eDone[exit]
+  end
+
+  eadv --> refusal
+  refusal[Refusal Gate:<br/>External Deps coverage<br/>for externally-shaped SCs]
+  refusal --> f[Phase F<br/>Walking Skeleton<br/>+ Foundation/Enhancement<br/>+ INVEST]
+  f --> g[Phase G<br/>Story-Level Research]
+
+  g --> h
+
+  subgraph h["Phase H — Verification + Traceability"]
+    h1[Create story tickets<br/>via ticket create story]
+    h2[set-verify-commands<br/>per DD]
+    h3{UI story?}
+    h4[Dispatch<br/>dso:ui-designer]
+    h5[validate-issues.sh]
+    h6[Write<br/>PREPLANNING_CONTEXT<br/>comment on epic]
+    h1 --> h2 --> h3
+    h3 -->|yes| h4 --> h5
+    h3 -->|no| h5
+    h5 --> h6
+  end
+
+  h --> done([Preplanning complete])
+  lightweight --> done
+  impl --> done
+
+  classDef start fill:#fef3c7,stroke:#92400e
+  classDef phase fill:#dbeafe,stroke:#1e40af
+  class eadv,sd,h phase
+```
+
+**Sub-agents dispatched**:
+
+| Agent                            | Tier   | Where               | Purpose                                                  |
+|----------------------------------|--------|---------------------|----------------------------------------------------------|
+| `dso:complexity-evaluator`       | haiku  | A.1.5               | Classify SIMPLE / MODERATE / COMPLEX                     |
+| `dso:story-decomposer`           | opus   | Story Decomposition | Draft vertical-slice stories covering every SC           |
+| `dso:red-team-reviewer`          | opus   | Phase E             | Cross-story blind spots + 8-category taxonomy            |
+| `dso:blue-team-filter`           | sonnet | Phase E             | Triage red-team findings                                 |
+| `dso:ui-designer`                | varies | Phase H             | Wireframe / design manifest per UI story                 |
+
+Scripts used: `ticket-scratch.sh`, `receipt-parse.sh`, `append_review_cycle.py`,
+`preconditions-validator.sh`, `validate-issues.sh`, `planning-config.sh`,
+`classify-sc-shape.sh`, `consult-recipe-registry.sh`.
+
+---
+
+## Level 3 — `/dso:implementation-plan` Internals
+
+```mermaid
+flowchart TB
+  start([/dso:implementation-plan<br/>story-id or epic-id]):::start
+
+  start --> guard[SUB-AGENT-GUARD:<br/>orchestrator-level only]
+  guard --> preflt[Pre-flight Tag Guards<br/>check-tag-guards.sh<br/>scrutiny_pending /<br/>interaction_deferred /<br/>manual_awaiting_user]
+  preflt --> copybypass{copy-story<br/>tag?}
+  copybypass -->|yes| bypass([STATUS:bypass<br/>handoff to sprint])
+  copybypass -->|no| s1
+
+  subgraph s1["Step 1 — Contextual Discovery"]
+    s1a[Re-invocation guard<br/>check-reinvocation.sh]
+    s1b[Epic Type Detection]
+    s1c[Architectural Alignment<br/>+ ADR scan]
+    s1d[Recipe Consultation<br/>consult-recipe-registry.sh]
+    s1e[Ambiguity Scan +<br/>Unsatisfiable Criteria]
+    s1f[Cross-Cutting Detection<br/>≥3 layers / ≥5 interfaces]
+    s1a --> s1b --> s1c --> s1d --> s1e --> s1f
+  end
+
+  s1 --> doconly{doc-only<br/>story?}
+  doconly -->|yes| s3
+  doconly -->|no| prop
+
+  subgraph prop["Proposal Generation"]
+    prop1[Dispatch<br/>dso:approach-proposer<br/>opus]
+    prop2[Validate<br/>≥3 distinct proposals<br/>4 structural axes<br/>complexity gates]
+    prop1 --> prop2
+  end
+
+  prop --> rloop
+
+  subgraph rloop["Resolution Loop"]
+    rl1[Dispatch<br/>dso:approach-decision-maker<br/>opus]
+    rl2{mode?}
+    rl3[counter_proposal<br/>NEW_COUNT++<br/>retry ≤2]
+    rl1 --> rl2
+    rl2 -->|selection| rlSel[Selected proposal]
+    rl2 -->|counter_proposal| rl3
+    rl3 --> prop
+  end
+
+  rloop --> s2{new<br/>pattern?}
+  s2 -->|yes| s2rev[Step 2:<br/>REVIEW-PROTOCOL-WORKFLOW<br/>+ 3 architectural reviewers<br/>best-practices /<br/>project-alignment /<br/>justification]
+  s2 -->|no| s3
+  s2rev --> s3
+
+  subgraph s3["Step 3 — Task Drafting"]
+    s3a[File Impact Enumeration<br/>+ Consumer Detection]
+    s3b[Testing Mode Classification<br/>RED / GREEN / UPDATE / recipe]
+    s3c[Dispatch<br/>dso:task-decomposer<br/>opus<br/>via scratch + receipt]
+    s3d[Validate<br/>dd_partition_map<br/>+ task_drafts<br/>+ AC library<br/>+ Story DD Coverage]
+    s3a --> s3b --> s3c --> s3d
+  end
+
+  s3 --> s4
+
+  subgraph s4["Step 4 — Plan Review"]
+    s4a[REVIEW-PROTOCOL-WORKFLOW<br/>pass_threshold 5<br/>5 reviewers]
+    s4b{pass?}
+    s4c[Remediation:<br/>re-dispatch task-decomposer<br/>+ /dso:oscillation-check at N≥2]
+    s4a --> s4b
+    s4b -->|fail| s4c --> s4a
+    s4b -->|pass| s4done
+  end
+
+  s4done --> s5
+
+  s5[Step 5 — Task Create<br/>ticket create task<br/>--parent story-id<br/>+ AC + verify commands]
+  s5 --> s5b[Step 5b<br/>Behavioral Coverage<br/>Cross-Check<br/>haiku]
+  s5b --> s6{TRIVIAL?}
+  s6 -->|no| s6gap
+
+  subgraph s6gap["Step 6 — Gap Analysis"]
+    s6a[Dispatch opus<br/>prompt: gap-analysis.md]
+    s6b{gaps?}
+    s6c[Re-dispatch<br/>dso:task-decomposer<br/>+ oscillation-check<br/>at N≥2]
+    s6a --> s6b
+    s6b -->|gaps| s6c --> s6a
+    s6b -->|clean| done
+  end
+
+  s6 -->|yes| done
+  s6gap --> done([Plan complete])
+  bypass --> done
+
+  classDef start fill:#fef3c7,stroke:#92400e
+  classDef phase fill:#dbeafe,stroke:#1e40af
+  class s1,prop,rloop,s3,s4,s6gap phase
+```
+
+**Sub-agents dispatched**:
+
+| Agent                          | Tier | Where     | Purpose                                              |
+|--------------------------------|------|-----------|------------------------------------------------------|
+| `dso:approach-proposer`        | opus | Proposal Generation; Step 2 remediation | ≥3 distinct proposals with complexity gates |
+| `dso:approach-decision-maker`  | opus | Resolution Loop | Selection / counter-proposal ADR rationale     |
+| `dso:task-decomposer`          | opus | Step 3; Step 4 / 6 remediation | Atomic TDD task drafts with AC                |
+| opus gap-analysis (prompt-only, no named agent) | opus | Step 6    | Detect Done Definition coverage gaps — `general-purpose` + `prompts/gap-analysis.md` |
+| 3 architectural reviewers      | varies | Step 2 (conditional) | best-practices, project-alignment, justification |
+| 5 plan reviewers               | varies | Step 4    | task-design, tdd, safety, dependencies, completeness |
+| haiku behavioral cross-check   | haiku  | Step 5b   | Validate behavioral DDs have behavioral verify commands |
+
+Skills invoked: `/dso:oscillation-check` (Step 4 and Step 6 cycle ≥2).
+Workflows: `REVIEW-PROTOCOL-WORKFLOW.md`, `remediation-loop-protocol.md`.
+
+---
+
+## Level 3 — `/dso:sprint` Internals
+
+```mermaid
+flowchart TB
+  start([/dso:sprint epic-id]):::start
+
+  subgraph a["Phase A — Init + Ticket Selection"]
+    a1[Resolve primary ticket<br/>list-epics --has-tag=brainstorm:complete]
+    a2{ticket type?}
+    a3[Validate status open/in_progress]
+    a4[Bug routing →<br/>/dso:fix-bug]
+    a5[Drift Detection<br/>sprint-drift-check.sh]
+    a6[SC Coverage Gate<br/>haiku → sonnet → opus]
+    a7[Preplanning Gate<br/>epic-complexity-evaluator<br/>haiku]
+    a8{tier?}
+    a9[Invoke /dso:preplanning<br/>lightweight or full]
+    a10[Create draft PR<br/>ci-pr mode]
+    a1 --> a2 -->|bug| a4
+    a2 -->|epic/story| a3 --> a5 --> a6 --> a7 --> a8
+    a8 -->|MODERATE/COMPLEX| a9 --> a10
+    a8 -->|SIMPLE| a10
+  end
+
+  a --> b
+
+  subgraph b["Phase B — Task Analysis"]
+    b1[Filter design-blocked<br/>+ manual:awaiting_user]
+    b2[Per-story complexity<br/>dso:complexity-evaluator<br/>haiku]
+    b3[Dispatch<br/>/dso:implementation-plan<br/>per story]
+    b4{REPLAN_ESCALATE?}
+    b5[d-replan-collect<br/>cascade to<br/>/dso:brainstorm or<br/>/dso:preplanning<br/>cycle-capped]
+    b1 --> b2 --> b3 --> b4
+    b4 -->|yes| b5 --> b1
+    b4 -->|no| bDone
+  end
+
+  b --> c
+
+  subgraph c["Phase C — Batch Prep"]
+    c1[agent-batch-lifecycle.sh<br/>pre-check<br/>usage-aware cap]
+    c2[check-recipe-engines.sh]
+    c3[ticket next-batch<br/>--epic=ID]
+    c4[Claim tasks<br/>transition open in_progress]
+    c5[Pull latest main]
+    c1 --> c2 --> c3 --> c4 --> c5
+  end
+
+  c --> d{manual:<br/>awaiting_user?}
+  d -->|yes| dpause[Phase D<br/>Manual-Pause Handshake]
+  d -->|no| e
+  dpause --> e
+
+  subgraph e["Phase E — Sub-Agent Launch"]
+    e1[Compose batch<br/>per-task subagent_type<br/>+ model selection]
+    e2[Doc story?<br/>dso:doc-writer]
+    e3[Copy story?<br/>dso:gov-copy-writer]
+    e4[Code task?<br/>task-execution.md<br/>haiku/sonnet/opus]
+    e5[RED test?<br/>dso:red-test-writer<br/>+ dso:red-test-evaluator]
+    e1 --> e2
+    e1 --> e3
+    e1 --> e4
+    e1 --> e5
+  end
+
+  e --> f
+
+  subgraph f["Phase F — Post-Batch Processing<br/>(story validation)"]
+    f1[Test Gate / Lint Gate /<br/>AC Gate]
+    f2[Per-worktree review<br/>→ /dso:review<br/>→ dso:code-reviewer-*]
+    f3[Story-level dispatch<br/>dso:completion-verifier]
+    f4{P1 verdict?}
+    f5[Dispatch<br/>dso:verification-<br/>remediation-planner]
+    f6[Close story<br/>transition closed]
+    f1 --> f2 --> f3 --> f4
+    f4 -->|non-PASS| f5 --> fRemed[Remediation]
+    f4 -->|PASS| f6
+  end
+
+  f --> ctx{more tasks<br/>or context<br/>≥70%?}
+  ctx -->|more tasks| c
+  ctx -->|context| compact[/compact]
+  compact --> c
+  ctx -->|done| g
+
+  subgraph g["Phase G — Post-Primary Ticket Validation<br/>(epic-level)"]
+    g1[Integration + E2E gates<br/>epic-ci-and-e2e-gates.md]
+    g2[Epic-level dispatch<br/>dso:completion-verifier]
+    g3{P1 verdict?}
+    g4[planner-dispatch:<br/>dso:verification-<br/>remediation-planner]
+    g5[/dso:validate-work]
+    g6[Epic-specific<br/>validation agent<br/>UI vs backend]
+    g1 --> g2 --> g3
+    g3 -->|non-PASS| g4 --> gRemed[Remediation]
+    g3 -->|PASS| g5 --> g6
+  end
+
+  g --> h{remediation<br/>needed?}
+  h -->|yes| hloop[Phase H<br/>remediation-loop.md<br/>+ gap-classification<br/>+ bounded attempts<br/>+ oscillation check]
+  h -->|no| i
+  hloop --> b
+
+  subgraph i["Phase I — Closure"]
+    i1[Remove .sprint-active]
+    i2[Verify merged to main]
+    i3[Close epic]
+    i4[/dso:end-session<br/>--bump minor]
+    i1 --> i2 --> i3 --> i4
+  end
+
+  i --> done([Sprint complete])
+
+  classDef start fill:#fef3c7,stroke:#92400e
+  classDef phase fill:#dbeafe,stroke:#1e40af
+  class a,b,c,e,f,g,i phase
+```
+
+**Sub-agents dispatched** (selected — sprint dispatches many):
+
+| Agent                                    | Tier         | Where                       | Purpose                                                    |
+|------------------------------------------|--------------|-----------------------------|------------------------------------------------------------|
+| `dso:complexity-evaluator`               | haiku        | Phase A.7, Phase B          | Epic and per-story tier classification                     |
+| SC-coverage classifier set                | haiku→sonnet→opus | Phase A.3-A.5         | SC traceability gate (escalating tiers)                    |
+| `dso:doc-writer`                         | sonnet       | Phase E                     | Doc stories                                                |
+| `dso:gov-copy-writer`                    | sonnet       | Phase E                     | Copy / rewrite stories (federal style canon)               |
+| `dso:red-test-writer`                    | sonnet       | Phase E (RED tasks)         | Write failing tests for TDD                                |
+| `dso:red-test-evaluator`                 | sonnet       | Phase E (RED tasks)         | Triage red-test results                                    |
+| `dso:code-reviewer-{light,standard,deep}` | varies      | Phase F per commit          | Code review via tier classifier                            |
+| `dso:completion-verifier`                | sonnet       | Phase F (story), Phase G (epic) | Verify done definitions + success criteria              |
+| `dso:verification-remediation-planner`   | opus         | Phase F, G                  | Classify verifier failures, route remediation              |
+| Task-execution sub-agents                 | haiku/sonnet/opus | Phase E              | Implement individual tasks                                 |
+| `dso:plan-review`                        | sonnet       | Pre-presentation (via /dso:plan-review) | Plan quality gate                                |
+
+Skills invoked: `/dso:implementation-plan` (Phase B), `/dso:preplanning` (Phase A
+Preplanning Gate), `/dso:brainstorm` (cascade), `/dso:fix-bug` (bug routing),
+`/dso:validate-work` (Phase G), `/dso:end-session` (Phase I), `/dso:review`
+(per-commit), `/dso:oscillation-check` (Phase H).
+
+Workflows: `remediation-loop.md`, `remediation-loop-protocol.md`,
+`REVIEW-WORKFLOW.md`, `COMMIT-WORKFLOW.md`, `TEST-FAILURE-DISPATCH.md`,
+`epic-ci-and-e2e-gates.md`.
+
+---
+
+## Cross-Cutting Concerns
+
+The diagrams above intentionally don't repeat patterns that apply throughout the
+plugin. The most important cross-cutting mechanisms:
+
+```mermaid
+flowchart LR
+  subgraph cross["Cross-Cutting Mechanisms"]
+    direction TB
+    prec[PRECONDITIONS<br/>gate chain]
+    scratch[Scratch + Receipt<br/>contract]
+    remed[Remediation Loop<br/>+ Oscillation Check]
+    hooks[Pre-commit Hooks<br/>review gate /<br/>test gate /<br/>branch invariant]
+    review[REVIEW-WORKFLOW<br/>tier classifier]
+  end
+
+  brainstorm["/dso:brainstorm"] --> prec
+  preplanning["/dso:preplanning"] --> prec
+  implplan["/dso:implementation-plan"] --> prec
+  sprint["/dso:sprint"] --> prec
+
+  preplanning --> scratch
+  implplan --> scratch
+
+  brainstorm --> remed
+  preplanning --> remed
+  implplan --> remed
+  sprint --> remed
+
+  sprint --> hooks
+  sprint --> review
+
+  classDef skill fill:#dbeafe,stroke:#1e40af
+  classDef cross fill:#fce7f3,stroke:#9d174d
+  class brainstorm,preplanning,implplan,sprint skill
+  class prec,scratch,remed,hooks,review cross
+```
+
+| Mechanism                              | Purpose                                                                                  |
+|----------------------------------------|------------------------------------------------------------------------------------------|
+| PRECONDITIONS gate chain               | Each stage records a baseline; the next validates it before starting                     |
+| Scratch + receipt contract             | Sub-agents write large payloads to scratch and return only a 3-field receipt             |
+| Remediation Loop + Oscillation Check   | Bounded-cycle protocol with hard gate at N ≥ 2 to prevent revert-flip-flop               |
+| Pre-commit hooks                       | Block raw commits, enforce review gate, test gate, story-branch invariant                |
+| REVIEW-WORKFLOW tier classifier        | Deterministic light / standard / deep / opus selection from diff complexity              |
+
+---
+
+## Level 3 — GitHub Actions Workflow Catalog
+
+The DSO plugin is supported by 12 GitHub Actions workflows that fall into four
+roles. Together they enforce the CI gate, sync with Jira, advance ticket
+lifecycle, and produce telemetry rollups.
+
+```mermaid
+flowchart TB
+  trigger([Trigger]):::actor
+
+  subgraph cigate["CI Gates (PR-blocking)"]
+    ci[ci.yml<br/>main CI orchestrator<br/>+ llm-review<br/>+ merge-pipeline-checks]
+    subpr[review-sub-pr.yml<br/>per-story PR review]
+    plat1[ci-python-skills.yml]
+    plat2[ticket-platform-matrix.yml]
+    plat3[ticket-perf-regression.yml]
+    plat4[portability-smoke.yml]
+  end
+
+  subgraph jira["Jira Reconciliation"]
+    rb[reconcile-bridge.yml<br/>every 20 min<br/>+ workflow_dispatch]
+    rbc[reconcile-bridge-canary.yml<br/>hourly heartbeat]
+    fsck[weekly-bridge-fsck.yml<br/>Mon 06:00 UTC]
+  end
+
+  subgraph maint["Maintenance / Telemetry"]
+    tl[ticket-lifecycle.yml<br/>daily 03:00 UTC]
+    cal[calibration-rollup.yml<br/>monthly + quarterly]
+    e2e[template-real-url-e2e.yml<br/>daily + tag push]
+  end
+
+  trigger -->|push / PR| cigate
+  trigger -->|cron| jira
+  trigger -->|cron| maint
+  trigger -->|workflow_dispatch| rb
+  trigger -->|workflow_dispatch| tl
+  trigger -->|workflow_dispatch| e2e
+  trigger -->|tag v*| e2e
+
+  ci -->|gates merge of<br/>session/main PRs| out([Required<br/>checks pass])
+  subpr -->|gates merge of<br/>story PRs| out
+  plat1 --> out
+  plat2 --> out
+  plat3 --> out
+  plat4 --> out
+
+  classDef actor fill:#fef3c7,stroke:#92400e,color:#000
+  classDef gate fill:#dbeafe,stroke:#1e40af,color:#000
+  classDef bridge fill:#fce7f3,stroke:#9d174d,color:#000
+  classDef maint fill:#dcfce7,stroke:#166534,color:#000
+  class cigate gate
+  class jira bridge
+  class maint maint
+```
+
+### Workflow catalog (authoritative)
+
+| Workflow                          | Trigger                                                          | Purpose                                                                                                                  | Required check?    |
+|-----------------------------------|------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------|--------------------|
+| `ci.yml`                          | push (main, feature/**, etc.), PR (all), workflow_dispatch       | Lint + hooks/scripts tests + llm-review orchestration + `merge-pipeline-checks` umbrella                                  | yes (umbrella)     |
+| `review-sub-pr.yml`               | PR on `session/**`, `bug-batch/**`, `worktree-**`                | LLM code review on sub-PR diff; writes `findings.json`                                                                    | yes (per-story)    |
+| `ci-python-skills.yml`            | push main / feature/* / bugfix/* / epic/* / exp/* / PR / dispatch | pytest of Python skills + Sphinx docs build                                                                              | yes                |
+| `ticket-platform-matrix.yml`      | push main (ticket-lib-api.sh paths), PR, dispatch                 | Cross-platform ticket lib tests: bash4/Ubuntu, bash3/macOS, busybox/Alpine                                               | yes                |
+| `ticket-perf-regression.yml`      | push main (ticket-lib-api.sh paths), PR (same paths)              | hyperfine benchmarks of `ticket-lib-api.sh` + sprint workflow                                                            | yes                |
+| `portability-smoke.yml`           | push main, PR                                                    | dso shim self-detection in fresh Ubuntu                                                                                   | yes                |
+| `reconcile-bridge.yml`            | every 20 min cron + dispatch (modes: dry-run / bootstrap-strict / bootstrap-throttle / live) | Bidirectional Jira ↔ ticket-store reconciler via ACLI + `dso_reconciler` Python module                                   | no (background)    |
+| `reconcile-bridge-canary.yml`     | hourly cron + dispatch                                           | Heartbeat: if last successful reconcile-bridge run > 2 h, file/continue/close a heartbeat-alert bug ticket               | no (alerting)      |
+| `weekly-bridge-fsck.yml`          | Mon 06:00 UTC cron + dispatch                                    | Audit ticket store for orphan jira_key mappings, duplicate Jira mappings, stale SYNC events, unresolved BRIDGE_ALERTs    | no (audit)         |
+| `ticket-lifecycle.yml`            | daily 03:00 UTC cron + dispatch                                  | Advance ticket state machine (auto-close stale tickets, process lifecycle events)                                        | no                 |
+| `calibration-rollup.yml`          | push main + monthly cron + quarterly cron                        | Append mutation + churn calibration records on merge; generate monthly/quarterly rollup reports                          | no                 |
+| `template-real-url-e2e.yml`       | daily 06:00 UTC cron + tag push `v*` + dispatch                  | E2E real-clone validation of the NextJS template repo against the contract spec                                          | release-gate       |
+
+---
+
+## Level 3 — `ci.yml` Internals (the llm-review orchestrator)
+
+The primary CI workflow runs both static gates and a multi-step LLM review
+orchestration. Below shows the job graph and the llm-review pipeline.
+
+```mermaid
+flowchart TB
+  start([push or pull_request]):::start
+
+  start --> changes[changes job<br/>skip-review-check.sh<br/>→ code_changed flag]
+
+  changes -->|code_changed| static
+  changes -->|always| vcheck
+
+  subgraph static["Static + Test Gates"]
+    al[actionlint]
+    sc[shellcheck]
+    lp[lint-python<br/>ruff]
+    th[test-hooks]
+    ts[test-scripts]
+    al --> th
+    sc --> th
+    lp --> th
+    sc --> ts
+    lp --> ts
+  end
+
+  vcheck[validate-required-checks<br/>check-context names<br/>vs required-checks.txt]
+
+  static --> mirror[mirror-defenses-to-pr<br/>TrackerDefenseStore<br/>→ PR comments]
+
+  mirror --> llmreview
+
+  subgraph llmreview["llm-review job (PR + main only)"]
+    direction TB
+    lr1[Step 1-3<br/>Cycle tracking<br/>DSO_REVIEW_CYCLE env]
+    lr2[Step 4-8<br/>Provenance narrowing<br/>verify-session-provenance.sh<br/>+ DSO-Story-Merge trailer scan]
+    lr3[Step 9<br/>Dispatch gate<br/>llm-review-dispatch-or-skip.sh]
+    lr4{exit code?}
+    lr5[Skip:<br/>all provenanced<br/>or OVER_BOUND]
+    lr6[Step 10<br/>ci-llm-review-runner.sh<br/>→ runner.py<br/>+ context-augmentation loop]
+    lr7[review-complexity-classifier.sh<br/>→ light / standard / deep]
+    lr8[Named code-reviewer agents<br/>dso:code-reviewer-light<br/>dso:code-reviewer-standard<br/>dso:code-reviewer-deep-*]
+    lr9[Step 11<br/>Liveness gate<br/>findings.json non-empty]
+    lr1 --> lr2 --> lr3 --> lr4
+    lr4 -->|0 or 3| lr5
+    lr4 -->|1 or 2| lr6
+    lr6 --> lr7 --> lr8 --> lr9
+  end
+
+  llmreview --> mpc[merge-pipeline-checks<br/>umbrella + RED-marker scan<br/>required check]
+
+  mpc --> done([PR mergeable])
+
+  classDef start fill:#fef3c7,stroke:#92400e
+  classDef gate fill:#dbeafe,stroke:#1e40af
+  classDef llm fill:#fce7f3,stroke:#9d174d
+  class static gate
+  class llmreview llm
+```
+
+**Key contracts**:
+
+| Contract               | Description                                                                                                                       |
+|------------------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| `DSO_REVIEW_CYCLE`     | Cycle counter from prior `## DSO llm-review — finding N` headers; consumed by `runner.py` for two-call architecture on cycle ≥ 2  |
+| Provenance narrowing   | Classifies commits as provenanced (traced to a story PR via `DSO-Story-Merge:` trailer) vs unprovenanced                          |
+| OVER_BOUND (exit 3)    | Provenance check signal: high-complexity integration, skip review (escape valve)                                                  |
+| `findings.json`        | Reviewer output written by sub-agent; liveness-gated in Step 11 (catches silent exit-0)                                           |
+| `TrackerDefenseStore`  | Prior defenses stored on `tickets` orphan branch; mirrored to PR via `mirror-defenses-to-pr` job                                  |
+| Tier classifier        | `review-complexity-classifier.sh` — deterministic light/standard/deep selection (no LLM call); FP-recovery escape opens opus tier |
+
+**Integration with the four core skills**:
+
+- `/dso:sprint` Phase A creates a draft PR (`create-sprint-draft-pr.sh`) which
+  starts the CI clock. Per-story merges into the session branch trigger
+  `review-sub-pr.yml`, each writing a `DSO-Story-Merge:` trailer.
+- `/dso:commit` and `/dso:review` write `reviewer-findings.json` locally; CI
+  re-runs `ci-llm-review-runner.sh` on the integration diff and compares.
+- `/dso:fp-recovery <pr-number>` is the escape valve when CI llm-review blocks
+  on a suspected false positive — runs `dso:code-reviewer-standard` at opus
+  tier on the PR diff.
+- `merge-to-main.sh` (invoked by `/dso:sprint` Phase I or `/dso:end-session`)
+  waits for `merge-pipeline-checks` to clear before merging.
+
+---
+
+## Level 3 — Jira Reconciliation Trio
+
+```mermaid
+flowchart TB
+  cronA[(cron */20 min)]:::cron
+  cronB[(cron hourly)]:::cron
+  cronC[(cron Mon 06:00 UTC)]:::cron
+  disp[(workflow_dispatch:<br/>dry-run / bootstrap / live)]:::dispatch
+
+  subgraph rb["reconcile-bridge.yml"]
+    rb1[Pre-flight: BRIDGE_ENV_ID<br/>+ __main__.py exists]
+    rb2[Mount tickets worktree]
+    rb3[Install requirements.lock<br/>+ download ACLI<br/>SHA256 verify]
+    rb4[acli jira auth login]
+    rb5[Set bridge bot git identity]
+    rb6[python -m dso_reconciler<br/>--mode MODE]
+    rb7[Commit + fetch-rebase-push<br/>5-retry exponential backoff]
+    rb8[Failure alert →<br/>chronic-failure ticket]
+    rb1 --> rb2 --> rb3 --> rb4 --> rb5 --> rb6 --> rb7
+    rb6 -.->|on failure| rb8
+  end
+
+  subgraph rbc["reconcile-bridge-canary.yml"]
+    rbc1[GitHub API: last<br/>successful rb run]
+    rbc2{stale<br/>>2h?}
+    rbc3[Open / continue<br/>heartbeat-alert ticket]
+    rbc4[Close ticket on recovery]
+    rbc5[Exit 1 on stale<br/>→ GHA failure UI]
+    rbc1 --> rbc2
+    rbc2 -->|stale| rbc3 --> rbc5
+    rbc2 -->|healthy + ticket open| rbc4
+  end
+
+  subgraph fsck["weekly-bridge-fsck.yml"]
+    f1[Mount tickets worktree]
+    f2[python ticket-bridge-fsck.py]
+    f3[Detect orphan jira_keys<br/>+ duplicate mappings<br/>+ stale SYNC events<br/>+ unresolved alerts]
+    f4[Exit 1 on anomalies<br/>→ on-call investigates]
+    f1 --> f2 --> f3 --> f4
+  end
+
+  cronA --> rb
+  disp --> rb
+  cronB --> rbc
+  cronC --> fsck
+
+  rb -.->|writes SYNC events| store[(tickets branch<br/>.tickets-tracker)]  %% # tickets-boundary-ok
+  rbc -.->|reads run history| ghapi[(GitHub Actions API)]
+  rbc -.->|opens / closes tickets| store
+  fsck -.->|reads events| store
+
+  rb -.->|bidirectional<br/>via ACLI| jira[(Jira / DIG project)]
+
+  classDef cron fill:#fef3c7,stroke:#92400e,color:#000
+  classDef dispatch fill:#fef3c7,stroke:#92400e,color:#000
+  classDef workflow fill:#fce7f3,stroke:#9d174d,color:#000
+  class rb,rbc,fsck workflow
+```
+
+**Relationships**: `reconcile-bridge.yml` is the **active healer** (writes
+events both ways); `reconcile-bridge-canary.yml` is a **passive monitor**
+(opens a heartbeat-alert ticket if the active healer goes silent for >2 h);
+`weekly-bridge-fsck.yml` is a **passive auditor** (surfaces ledger anomalies
+weekly for human investigation). The canary is NOT a staging tier — modes for
+gradual rollout / rollback are operator-selected via `workflow_dispatch` on
+the main reconciler.
+
+---
+
+## DSO ↔ CI Integration Sequence
+
+This sequence shows how `/dso:sprint` interacts with GitHub Actions across a
+full epic execution.
+
+```mermaid
+sequenceDiagram
+  participant Dev as Developer
+  participant Sprint as /dso:sprint
+  participant Git as Local Git
+  participant GH as GitHub
+  participant CI as ci.yml
+  participant SubPR as review-sub-pr.yml
+  participant Merge as merge-to-main.sh
+
+  Dev->>Sprint: /dso:sprint <epic-id>
+  Sprint->>Git: create session branch
+  Sprint->>GH: create-sprint-draft-pr.sh<br/>(ci-pr mode)
+  GH->>CI: trigger (PR opened)
+  CI-->>GH: changes / static gates running
+
+  loop per story
+    Sprint->>Git: story/<epic>/<story> branch
+    Sprint->>Sprint: Phases E-F<br/>tasks + per-task review
+    Sprint->>Git: merge story branch<br/>(DSO-Story-Merge trailer)
+    Sprint->>GH: push story PR
+    GH->>SubPR: trigger (session/** PR)
+    SubPR->>SubPR: llm-review on story diff
+    SubPR-->>GH: findings.json + required check
+    GH-->>Sprint: required check passed
+  end
+
+  Sprint->>Sprint: Phase G epic validation<br/>completion-verifier
+  Sprint->>Merge: invoke merge-to-main.sh
+  Merge->>GH: mark PR ready for review
+  GH->>CI: re-trigger (session PR updated)
+  CI->>CI: llm-review on integration diff<br/>(provenance-aware narrowing)
+  CI-->>GH: merge-pipeline-checks pass
+  Merge->>GH: gh pr merge
+  GH-->>Dev: PR merged to main
+
+  GH->>CI: post-merge (push main)
+  CI->>CI: calibration-rollup<br/>mutation + churn append
+
+  Note over GH: every 20 min<br/>(out of band)
+  GH->>GH: reconcile-bridge.yml<br/>syncs tickets ↔ Jira
+```
+
+**Workflow → Skill triggers (table)**:
+
+| Workflow / Action                       | Triggered by                                  | Affects DSO skill                                       |
+|----------------------------------------|-----------------------------------------------|---------------------------------------------------------|
+| `ci.yml` (PR)                          | `/dso:sprint` Phase A draft PR creation       | Findings feed `/dso:review` autonomous resolution loop  |
+| `review-sub-pr.yml`                    | Per-story PR merge during `/dso:sprint`       | Required-check for story PR merge                        |
+| `ci.yml` (post-merge)                  | `merge-to-main.sh` final merge                | Adds calibration telemetry                              |
+| `reconcile-bridge.yml`                 | cron / dispatch (out of band)                 | Adds Jira-mirror events visible to all skills           |
+| `ticket-lifecycle.yml`                 | daily cron                                    | Auto-closes stale tickets; affects `/dso:retro` outputs |
+| `template-real-url-e2e.yml`            | tag `v*` (release)                            | Gates release artifact for downstream consumers         |
+
+---
+
+## Reading Guide
+
+- **For a quick mental model**: read Level 1 + the pipeline flowchart in Level 3.
+- **For operating the plugin**: read each per-skill Level 3 diagram; trace
+  which sub-agents fire and what each phase produces.
+- **For modifying the plugin**: also consult the underlying SKILL.md files
+  (`plugins/dso/skills/{brainstorm,preplanning,implementation-plan,sprint}/SKILL.md`),
+  agent definitions (`plugins/dso/agents/*.md`), and workflow files
+  (`plugins/dso/docs/workflows/`, `plugins/dso/skills/shared/workflows/`).
+- **For sub-agent details**: the named agent table in `plugins/dso/docs/AGENTS.md`
+  is the authoritative reference for tier, scope, and authority.
+- **For CI / GitHub Actions**: read the Workflow Catalog section and the
+  `ci.yml` internals diagram; for Jira sync, the reconciler trio diagram.
+  The DSO ↔ CI sequence shows how `/dso:sprint` and CI interact across an
+  epic execution.

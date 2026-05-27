@@ -1,16 +1,15 @@
 #!/usr/bin/env bash
 # tests/scripts/test-design-notes-migration.sh
-# Verifies that DESIGN_NOTES.md references have been migrated to .claude/design-notes.md.
+# Verifies that design-notes references have been migrated to DESIGN.md.
 #
 # Tests covered:
 #   1. test_no_old_design_notes_refs — no bare DESIGN_NOTES.md refs remain in plugins/dso/
-#   2. test_schema_default_updated   — workflow-config-schema.json default is .claude/design-notes.md
-#   3. test_validate_config_accepts_new_path — validate-config.sh accepts .claude/design-notes.md
+#   2. test_schema_default_updated   — workflow-config-schema.json default is DESIGN.md
+#   3. test_validate_config_accepts_new_path — validate-config.sh accepts DESIGN.md path
+#   4. test_no_design_notes_path_refs — no .claude/design-notes refs remain in non-migrate scripts
 #
 # Usage: bash tests/scripts/test-design-notes-migration.sh
 # Returns: exit 0 if all tests pass, exit 1 if any fail
-#
-# RED state: tests 1 and 2 FAIL until the DESIGN_NOTES.md migration is complete.
 
 set -uo pipefail
 
@@ -44,8 +43,8 @@ assert_eq "test_no_old_design_notes_refs" "0" "$count"
 assert_pass_if_clean "test_no_old_design_notes_refs"
 
 # ── test_schema_default_updated ───────────────────────────────────────────────
-# workflow-config-schema.json must use ".claude/design-notes.md" as the default
-# value for design_notes_path, not the legacy "DESIGN_NOTES.md".
+# workflow-config-schema.json must use "DESIGN.md" as the default
+# value for design_notes_path (migrated from legacy ".claude/design-notes.md").
 _snapshot_fail
 if [[ ! -f "$SCHEMA_FILE" ]]; then
     assert_eq "test_schema_default_updated (schema file exists)" "present" "missing"
@@ -73,24 +72,48 @@ def find_default(obj, key):
 result = find_default(d, 'design_notes_path')
 print(result if result is not None else '')
 " 2>/dev/null || true)
-    assert_eq "test_schema_default_updated" ".claude/design-notes.md" "$schema_default"
+    assert_eq "test_schema_default_updated" "DESIGN.md" "$schema_default"
 fi
 assert_pass_if_clean "test_schema_default_updated"
 
 # ── test_validate_config_accepts_new_path ─────────────────────────────────────
 # validate-config.sh must accept a config with design.design_notes_path set to
-# .claude/design-notes.md (i.e., recognize it as a known key without errors).
+# DESIGN.md (i.e., recognize it as a known key without errors).
 _snapshot_fail
 if [[ ! -f "$VALIDATE_CONFIG_SCRIPT" ]]; then
     echo "test_validate_config_accepts_new_path ... SKIP (validate-config.sh not found)"
 else
     tmpconf=$(mktemp)
     trap 'rm -f "$tmpconf"' EXIT
-    echo "design.design_notes_path=.claude/design-notes.md" > "$tmpconf"
+    echo "design.design_notes_path=DESIGN.md" > "$tmpconf"
     validate_exit=0
     bash "$VALIDATE_CONFIG_SCRIPT" "$tmpconf" >/dev/null 2>&1 || validate_exit=$?
     assert_eq "test_validate_config_accepts_new_path" "0" "$validate_exit"
 fi
 assert_pass_if_clean "test_validate_config_accepts_new_path"
+
+# ── test_no_design_notes_path_refs ───────────────────────────────────────────
+# After migration, no non-migrate file in plugins/dso/ should reference the
+# legacy path pattern '.claude/design-notes' (e.g., as a default path fallback).
+# The new canonical path is DESIGN.md (at project root).
+#
+# Exclusions (| grep -v):
+#   - files whose basename contains 'migrate' (migration scripts themselves)
+#   - this test file (necessarily references the pattern for documentation)
+#
+# RED test: currently fails because design-lint.sh and design-md-lint.sh still
+# use '.claude/design-notes.md' as the fallback default. This test documents
+# the target state after full retargeting is complete.
+_snapshot_fail
+design_notes_path_count=0
+design_notes_path_count=$(grep -rn 'design-notes' \
+    "$DSO_PLUGIN_DIR" \
+    2>/dev/null \
+    | grep -v 'migrate' \
+    | grep -v "$(basename "${BASH_SOURCE[0]}")" \
+    | wc -l \
+    | tr -d ' ')
+assert_eq "test_no_design_notes_path_refs" "0" "$design_notes_path_count"
+assert_pass_if_clean "test_no_design_notes_path_refs"
 
 print_summary

@@ -15,6 +15,7 @@
 #   6. hook_review_integrity_guard
 #   7. hook_blocked_test_command (block broad test commands, redirect to validate.sh)
 #   8. hook_tickets_tracker_bash_guard — block Bash commands referencing tickets-tracker dir
+#   9. hook_no_force_merge — block `gh pr merge --admin` outside /dso:fp-recovery
 # Removed (ce62-624e): hook_record_test_status_guard — non-load-bearing speed-bump;
 #   diff_hash check in pre-commit-test-gate.sh is the load-bearing defense.
 #
@@ -109,7 +110,8 @@ _pre_bash_dispatch() {
         hook_review_integrity_guard \
         hook_force_close_guard \
         hook_blocked_test_command \
-        hook_tickets_tracker_bash_guard
+        hook_tickets_tracker_bash_guard \
+        hook_no_force_merge
     do
         local _fn_exit=0
         _run_hook_fn "$_HOOK_FN" "$INPUT" || _fn_exit=$?

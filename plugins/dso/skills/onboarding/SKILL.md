@@ -18,6 +18,17 @@ Role: **Senior Engineering Lead** conducting a structured onboarding dialogue to
 
 ---
 
+## Migration Check
+
+Idempotently apply plugin-shipped ticket migrations (marker-gated; no-op once migrated, never blocks the skill):
+
+```bash
+PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
+bash "$PLUGIN_SCRIPTS/migrate-design-notes-to-design-md.sh" 2>/dev/null || true  # shim-exempt: internal orchestration script
+```
+
+---
+
 ## Usage
 
 ```
@@ -967,7 +978,7 @@ Write `.claude/project-understanding.md` using this template:
 
 Populate each field from the scratchpad. Use the appropriate `(detected)` or `(user-stated)` tag for each entry. Leave fields as "not specified" or "N/A" where the conversation produced no answer — do not fabricate.
 
-### Step 2a: Write .claude/design-notes.md (branch — UI projects only)
+### Step 2a: Write DESIGN.md (branch — UI projects only)
 
 **Trigger**: The design-area conversation in Phase 2 confirmed a UI/frontend layer. Skip for CLI tools, libraries, infrastructure, or backend-only projects.
 
@@ -1616,4 +1627,4 @@ Skill tool:
 | 1.6b: Jekyll Git Clone | Install Jekyll USWDS template | Clone via git, non-empty dir check, captive portal detection, error fallback to manual flow |
 | 1.7: Post-Install Re-Detection | Re-detect after template install; partial Phase 2 skip | Re-run detect-stack.sh + project-detect.sh; verify registry framework_type match (warn on mismatch, do not crash); record post-install detection in scratchpad; write `## Phase 2 Status` marking registry-answerable sections (stack, commands, architecture, CI, enforcement) as pre-answered; do NOT remove Phase 2 from PHASE_PLAN — Phase 2 still runs for design questions (section 6); proceed to Phase 2 at section 6 only |
 | 2: Socratic Dialogue | Fill gaps in 7 areas | One question at a time, confirmation-based (not rigid menus), skip confirmed areas |
-| 3: Completion | Finalize and hand off | Present summary, write .claude/project-understanding.md (detected/user-stated tags), write .claude/design-notes.md (UI projects only: vision, archetypes, golden paths, visual language, accessibility), generate dso-config.conf (ticket prefix, CI workflow examples, ACLI_VERSION), infrastructure init (hook install with Husky/pre-commit framework/.git/hooks manager detection, git-common-dir for worktree support, ticket system orphan branch + .tickets-tracker/ + push verification + smoke test, generate-test-index.sh, CLAUDE.md with ticket commands, KNOWN-ISSUES template, CI trigger strategy), offer /dso:architect-foundation |
+| 3: Completion | Finalize and hand off | Present summary, write .claude/project-understanding.md (detected/user-stated tags), write DESIGN.md (UI projects only: vision, archetypes, golden paths, visual language, accessibility; path configurable via design.design_notes_path, default DESIGN.md), generate dso-config.conf (ticket prefix, CI workflow examples, ACLI_VERSION), infrastructure init (hook install with Husky/pre-commit framework/.git/hooks manager detection, git-common-dir for worktree support, ticket system orphan branch + .tickets-tracker/ + push verification + smoke test, generate-test-index.sh, CLAUDE.md with ticket commands, KNOWN-ISSUES template, CI trigger strategy), offer /dso:architect-foundation |

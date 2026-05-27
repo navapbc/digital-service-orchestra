@@ -13,7 +13,7 @@ precedence:
   - "canon-rule"
   - "Copy Needs constraint"
   - "Users archetype"
-  - "design-notes voice"
+  - "DESIGN.md voice"
 
 tiers:
   - tier: 1
@@ -33,7 +33,7 @@ tiers:
     hard_constraint: false
     notes: >
       Copy Needs constraints are defined per epic or product initiative. They override
-      Users archetype preferences and design-notes voice, but yield to any Tier 1
+      Users archetype preferences and DESIGN.md voice, but yield to any Tier 1
       canon-rule (especially those with hard_constraint: true).
 
   - tier: 3
@@ -43,16 +43,16 @@ tiers:
     hard_constraint: false
     notes: >
       Users archetype guidance shapes vocabulary and register for the specific audience.
-      It overrides design-notes voice defaults but yields to both Tier 1 canon-rules and
+      It overrides DESIGN.md voice defaults but yields to both Tier 1 canon-rules and
       Tier 2 Copy Needs constraints.
 
   - tier: 4
-    name: "design-notes voice"
+    name: "DESIGN.md voice"
     scope: "Project tone and brand voice: sentence length, formality level, contraction policy, personality"
-    source: "Design system documentation; brand voice guides; design-notes entries in the corpus"
+    source: "Design system documentation; brand voice guides; DESIGN.md entries in the corpus"
     hard_constraint: false
     notes: >
-      design-notes voice is the lowest-precedence tier. It provides defaults for tone and
+      DESIGN.md voice is the lowest-precedence tier. It provides defaults for tone and
       style when no higher-tier rule applies. All Tier 1–3 guidance supersedes it.
 
 conflict_resolution: >

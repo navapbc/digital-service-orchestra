@@ -65,6 +65,17 @@ This skill transforms epics into implementable stories:
 
 ---
 
+## Migration Check
+
+Idempotently apply plugin-shipped ticket migrations (marker-gated; no-op once migrated, never blocks the skill):
+
+```bash
+PLUGIN_SCRIPTS="${CLAUDE_PLUGIN_ROOT}/scripts"
+bash "$PLUGIN_SCRIPTS/migrate-design-notes-to-design-md.sh" 2>/dev/null || true  # shim-exempt: internal orchestration script
+```
+
+---
+
 ## Scrutiny Gate
 
 Before proceeding, check if the epic has a `scrutiny:pending` tag:
@@ -1222,6 +1233,10 @@ Stories that are purely backend, infrastructure, testing-only, or documentation 
    REVIEW_FAIL → re-dispatch ui-designer with feedback; at max cycles:
    interactive → ask user; non-interactive → emit INTERACTIVITY_DEFERRED,
    tag `design:pending_review`, and proceed)
+4b. Design MD additions surfacing (check `design_md_additions` in payload; if
+    non-null: interactive → `AskUserQuestion` approve/decline → approve invokes
+    `write-design-md-additions.sh`, decline tags `design:tokens_pending`;
+    non-interactive → emit INTERACTIVITY_DEFERRED, tag `design:tokens_pending`)
 5. Scope-split handling (interactive or INTERACTIVITY_DEFERRED)
 6. Session file updates (`processedStories` and `siblingDesigns`)
 

@@ -289,8 +289,7 @@ def _read_local_tickets(repo_root: Path) -> list[dict]:
         )
         if result.returncode != 0:
             print(  # noqa: T201
-                f"reconcile: ticket CLI exited {result.returncode} — "
-                f"local_tickets=[]",
+                f"reconcile: ticket CLI exited {result.returncode} — local_tickets=[]",
                 file=sys.stderr,
             )
             return []
@@ -532,6 +531,7 @@ def reconcile_once(
                     **om.fields,
                     "comments": om.comments,
                     "labels": om.labels,
+                    "local_id": om.local_id,
                 },
                 provenance={"source": "outbound_differ", "local_id": om.local_id},
             )
@@ -576,7 +576,9 @@ def reconcile_once(
     # -------------------------------------------------------------------
     local_by_id = {t.get("ticket_id", t.get("id", "")): t for t in local_tickets}
     inbound_new = inbound_differ_mod.compute_inbound_mutations(
-        curr_snapshot, binding_store, local_by_id,
+        curr_snapshot,
+        binding_store,
+        local_by_id,
     )
     sync_logger.log(
         "inbound_differ_complete",

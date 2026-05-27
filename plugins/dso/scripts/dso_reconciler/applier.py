@@ -1795,7 +1795,13 @@ def _load_manifest_renderer():
 
 
 def _mode_sort_key(m) -> tuple[str, str, str]:
-    """Deterministic ordering key: (direction, action, target)."""
+    """Deterministic ordering key for cap enforcement.
+
+    Outbound creates sort first (priority "0") so they land within the
+    bootstrap-strict cap window. Without this, 'inbound' < 'outbound'
+    lexicographically causes all cap slots to go to inbound mutations,
+    deferring outbound creates indefinitely (bug d5a2-3fc8).
+    """
     d = getattr(m, "direction", None)
     a = getattr(m, "action", None)
     t = getattr(m, "target", None)
@@ -1803,11 +1809,11 @@ def _mode_sort_key(m) -> tuple[str, str, str]:
         d = d if d is not None else m.get("direction", "")
         a = a if a is not None else m.get("action", "")
         t = t if t is not None else (m.get("key", "") or m.get("target", ""))
-    return (
-        str(getattr(d, "value", d) or ""),
-        str(getattr(a, "value", a) or ""),
-        str(t or ""),
-    )
+    d_str = str(getattr(d, "value", d) or "")
+    a_str = str(getattr(a, "value", a) or "")
+    if d_str == "outbound" and a_str == "create":
+        d_str = "0_outbound_create"
+    return (d_str, a_str, str(t or ""))
 
 
 def apply(

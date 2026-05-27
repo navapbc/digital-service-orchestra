@@ -47,6 +47,7 @@ Idempotently apply plugin-shipped ticket migrations (marker-gated; no-op once mi
 ```bash
 bash "$PLUGIN_SCRIPTS/ticket-migrate-brainstorm-tags.sh" 2>/dev/null || true  # shim-exempt: internal orchestration script
 bash "$PLUGIN_SCRIPTS/ticket-migrate-schema-hardening.sh" 2>/dev/null || true  # shim-exempt: internal orchestration script
+bash "$PLUGIN_SCRIPTS/migrate-design-notes-to-design-md.sh" 2>/dev/null || true  # shim-exempt: internal orchestration script
 ```
 
 ## Stage-Boundary Entry Check
@@ -1497,7 +1498,7 @@ When launching each Task tool call, set `subagent_type` and `model` from the TAS
 
 **Doc-story detection heuristics (apply ALL of these — not just title match):**
 A story is a documentation story if ANY of the following are true:
-1. Story title contains "doc", "document", "update", "add to", "CLAUDE.md", "KNOWN-ISSUES", "design-notes", "README"
+1. Story title contains "doc", "document", "update", "add to", "CLAUDE.md", "KNOWN-ISSUES", "DESIGN.md", "README"
 2. Story title starts with "As a" AND acceptance criteria mention documentation files
 3. Any child task references a `.md` file in `.claude/docs/`, `docs/`, or the repo root
 
@@ -2008,6 +2009,30 @@ If the check fails:
       requiring a persistence test (DB round-trip or cross-worker test).
    b. If the persistence change was made by the orchestrator, write the missing test directly.
 3. After adding the test, re-run the check and proceed only when it passes.
+
+### Step 11a: Design-MD Lint Gate (/dso:sprint)
+
+Filter the batch's touched files for scope-eligible extensions. This list MUST match `per-worktree-review-commit.md` Step 3.6 to ensure consistent enforcement across shared-directory and worktree-isolation modes:
+
+```bash
+TOUCHED_FILES=$(git diff --name-only HEAD)
+ELIGIBLE_FILES=$(echo "$TOUCHED_FILES" | grep -E '\.(css|scss|tsx|jsx|vue|svelte|html|ejs|erb|pug|hbs|j2|jinja2|twig)$' || true)
+```
+
+If `ELIGIBLE_FILES` is non-empty, run the design-md-lint check:
+
+```bash
+bash "$PLUGIN_SCRIPTS/design-md-lint.sh" $ELIGIBLE_FILES  # shim-exempt: internal orchestration script
+LINT_EXIT=$?
+```
+
+If `LINT_EXIT` is non-zero:
+1. Log: `"design-md-lint.sh failed — design documentation violations detected in batch files."`
+2. **Do not commit.** Block the batch and surface the lint output to the orchestrator.
+3. Fix all violations reported by the linter (update or add the required design-doc references in the affected files).
+4. Re-run the lint check and proceed only when it exits 0.
+
+If `ELIGIBLE_FILES` is empty, skip this step.
 
 ### Step 12: Visual Verification (UI tasks only) (/dso:sprint)
 
@@ -2539,6 +2564,13 @@ grep -n "\[.*\]" .test-index || true
 - `ci-pr` mode: route through `merge-to-main.sh` to create a GitHub PR — do NOT perform a direct local merge
 - `local` mode (default): direct local merge with `DSO-Story-Merge` trailer via `merge-story-branch.sh`
 
+**SPRINT_MODE re-read (bug 570a-b3b9)**: Re-resolve `SPRINT_MODE` from config before routing. `SPRINT_MODE` is set once at Phase A activation and held only in LLM context — after context compaction, the value is lost and the routing condition silently falls through to local mode. Re-reading here mirrors the pattern in `per-worktree-review-commit.md` (line 51) which reads `dso.workflow` fresh on every invocation.
+
+```bash
+# Re-read SPRINT_MODE from config (bug 570a-b3b9: value lost after compaction)
+SPRINT_MODE=$(bash "$PLUGIN_SCRIPTS/mode-detect.sh")  # shim-exempt: SPRINT_MODE must be re-resolved before story-merge routing
+```
+
 <HARD-GATE>
 **ci-pr merge enforcement**: When `SPRINT_MODE=ci-pr`, you MUST use `merge-to-main.sh` with `STORY_PR_BASE=$SESSION_BRANCH` for EVERY story merge. NEVER use `merge-story-branch.sh` in ci-pr mode — it produces local direct merges with `DSO-Story-Merge` trailers that bypass the GitHub PR flow. Execute the bash block below VERBATIM — do NOT substitute merge-story-branch.sh for merge-to-main.sh.
 </HARD-GATE>
@@ -2549,7 +2581,11 @@ if [[ ${#CONFLICT_QUEUE[@]} -gt 0 ]]; then
   echo 'ERROR: conflict queue non-empty — resolve conflicts before merging story branch' >&2
   exit 1
 fi
-if [[ "${SPRINT_MODE:-local}" == "ci-pr" ]]; then
+if [[ -z "${SPRINT_MODE:-}" ]]; then
+  echo "ERROR: SPRINT_MODE is unset — re-read from config failed. Cannot route story merge." >&2
+  exit 1
+fi
+if [[ "${SPRINT_MODE}" == "ci-pr" ]]; then
   # ci-pr mode: merge via GitHub PR — do NOT perform a local direct merge.
   # Resolve session branch via 3-step fallback — fail-fast, never silently
   # default to main. Per-story LLM review is provided by review-sub-pr.yml
@@ -2684,7 +2720,8 @@ $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh context-check || context_exit=$?  # shi
    ```
    /compact
    ```
-5. After compaction, check for `${TMPDIR:-/tmp}/sprint-compact-intent-<epic-id>`. **Continue directly to Phase C.** Do NOT go to Phase I.
+5. After compaction, check for `${TMPDIR:-/tmp}/sprint-compact-intent-<epic-id>`. **Continue directly to Phase C** after re-resolving session variables (step 5a below). Do NOT go to Phase I.
+5a. **Re-resolve session-scoped variables (bug 570a-b3b9)**: Context compaction drops all LLM-held session variables set during Phase A Config Resolution. Before proceeding to Phase C, re-execute the Config Resolution block from the top of this skill file (the block that sets `TEST_CMD`, `LINT_CMD`, `VISUAL_CMD`, `E2E_CMD`, and `SPRINT_MODE` via `read-config.sh` and `mode-detect.sh`). Log: `"Post-compaction: re-resolved SPRINT_MODE=<value>, TEST_CMD, LINT_CMD."` This prevents the class of bugs where session variables lost during compaction cause silent fallback to default values (e.g., `${SPRINT_MODE:-local}` routing to the wrong merge path).
 6. **Agent-count after compact**: No special action needed — Phase C Step 2's pre-check re-evaluates `MAX_AGENTS` (may return `unlimited`, `N`, or `0`) automatically.
 
 ---
@@ -2795,7 +2832,7 @@ Read and execute `prompts/epic-ci-and-e2e-gates.md` for the integration test gat
 
 <!-- DD4: self-application validation deferred to S11 (684d-ed77-c6ce-442b) -->
 
-**MANDATORY**: Dispatch the completion-verifier using the same shape defined in Phase F Step 18's "Verifier dispatch shape" HARD-GATE — primary form uses `subagent_type: "dso:completion-verifier"` with `model: "sonnet"`; fallback form reads `agents/completion-verifier.md` verbatim and passes its full contents under `subagent_type: "general-purpose"`. Hand-written paraphrases of the agent file are CLAUDE.md `rule:dispatch-verifier` violations (bug c716-952a). Pass the epic ID instead of a story ID.
+**MANDATORY**: Dispatch the completion-verifier using the same shape defined in Phase F Step 18's "Verifier dispatch shape" HARD-GATE — primary form uses `subagent_type: "dso:completion-verifier"` with `model: "opus"` (epic-level verification requires deeper judgment than story-level); fallback form reads `agents/completion-verifier.md` verbatim and passes its full contents under `subagent_type: "general-purpose"` with `model: "opus"`. Hand-written paraphrases of the agent file are CLAUDE.md `rule:dispatch-verifier` violations (bug c716-952a). Pass the epic ID instead of a story ID.
 
 After receiving the verifier JSON output, render the closure narrative FIRST, then run the gate checks:
 
