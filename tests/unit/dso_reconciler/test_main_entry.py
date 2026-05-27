@@ -187,6 +187,7 @@ def test_main_returns_0_when_reconcile_succeeds(main_mod, tmp_path):
         def rank(self):
             return 3
         LIVE = None  # patched below
+        RECONCILE_CHECK = "reconcile-check-sentinel"  # sentinel; never == _FakeMode()
     _FakeMode.LIVE = _FakeMode()
     mode_stub.Mode = _FakeMode
 
