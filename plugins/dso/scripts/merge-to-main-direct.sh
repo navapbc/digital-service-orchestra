@@ -202,16 +202,18 @@ if [ -n "$DIRTY" ] || [ -n "$DIRTY_CACHED" ] || [ -n "$DIRTY_UNTRACKED" ]; then
 fi
 
 # --- Auto-commit dirty ticket-tracker files on the worktree ---
-# ticket commands write .tickets-tracker/ files without staging them.
+# ticket commands write tickets-tracker files without staging them.
 # These files must be committed before merging so they appear in the merge on
 # main and don't leave the worktree dirty for post-merge cleanup checks.
-TRACKER_DIRTY=$(git diff --name-only -- .tickets-tracker/ 2>/dev/null || true)
-TRACKER_UNTRACKED=$(git ls-files --others --exclude-standard -- .tickets-tracker/ 2>/dev/null || true)
+# Use $_CFG_TKDIR (resolved above from tickets.directory config) so non-default
+# ticket directories work end-to-end (bug fix F-06).
+TRACKER_DIRTY=$(git diff --name-only -- "${_CFG_TKDIR}/" 2>/dev/null || true)
+TRACKER_UNTRACKED=$(git ls-files --others --exclude-standard -- "${_CFG_TKDIR}/" 2>/dev/null || true)
 if [ -n "$TRACKER_DIRTY" ] || [ -n "$TRACKER_UNTRACKED" ]; then
-    echo "Auto-committing uncommitted .tickets-tracker/ changes on worktree..."
-    git add .tickets-tracker/ 2>/dev/null || true
+    echo "Auto-committing uncommitted ${_CFG_TKDIR}/ changes on worktree..."
+    git add "${_CFG_TKDIR}/" 2>/dev/null || true
     git commit -q -m "chore: auto-commit ticket changes before merge"
-    echo "OK: Committed .tickets-tracker/ changes."
+    echo "OK: Committed ${_CFG_TKDIR}/ changes."
 fi
 
 # --- Initialize state file and register SIGURG trap ---
@@ -439,7 +441,8 @@ _phase_sync() {
             while IFS= read -r _f; do
                 [[ -z "$_f" ]] && continue
                 case "$_f" in
-                    .tickets-tracker/*/*.json | .tickets-tracker/*.json) ;;
+                    # Match the configured ticket directory (F-06).
+                    "${_CFG_TKDIR}"/*/*.json | "${_CFG_TKDIR}"/*.json) ;;
                     *) _non_ticket=$(( _non_ticket + 1 )) ;;
                 esac
             done <<< "$_merge_conflicts"
@@ -779,7 +782,8 @@ _phase_validate() {
     # Auto-stage ticket-tracker changes — CI failure tracking pushes ticket
     # commits directly to main, and the merge can leave ticket-tracker data files dirty.
     # These are data files, not code, so auto-staging into the merge commit is safe.
-    git add .tickets-tracker/ 2>/dev/null || true
+    # Use $_CFG_TKDIR for non-default ticket directory support (F-06).
+    git add "${_CFG_TKDIR}/" 2>/dev/null || true
 
     # Check for dirty tracked files (modified but not staged)
     REMAINING_DIRTY=$(git diff --name-only 2>/dev/null || true)
@@ -833,7 +837,7 @@ _phase_push() {
     # The ticket CLI commits events to the local tickets branch but never pushes.
     # Push here so the outbound bridge workflow picks up local ticket changes.
     # Pull first (with rebase) to incorporate inbound bridge changes from CI.
-    _TRACKER_DIR="$MAIN_REPO/.tickets-tracker"
+    _TRACKER_DIR="$MAIN_REPO/${_CFG_TKDIR}"
     if [ -d "$_TRACKER_DIR" ] && git -C "$_TRACKER_DIR" rev-parse --verify tickets &>/dev/null; then
         echo "Syncing tickets branch..."
         # Commit any uncommitted ticket changes before syncing.
@@ -901,9 +905,9 @@ _phase_archive() {
         # shellcheck source=/dev/null
         source "$_ticket_lib" 2>/dev/null || true
         if declare -f _read_latest_preconditions >/dev/null 2>&1; then
-            local _tkdir="$_CFG_TKDIR"
-            # If no tickets directory is configured, use the default
-            [[ -z "$_tkdir" ]] && _tkdir="${REPO_ROOT}/.tickets-tracker"
+            # _CFG_TKDIR is set at top-level (line 192) and propagated by the
+            # caller in library mode; the :- fallback is defensive paranoia.
+            local _tkdir="${_CFG_TKDIR:-${REPO_ROOT}/.tickets-tracker}"
             local _epic_id="${BRANCH_NAME:-unknown}"
             local _ticket_dir="$_tkdir/$_epic_id"
             local _preconditions_json=""

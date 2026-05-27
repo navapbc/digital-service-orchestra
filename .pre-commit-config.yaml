@@ -49,6 +49,14 @@ repos:
         stages: [pre-commit]
         files: ^plugins/dso/(scripts|hooks)/.*\.(sh|py)$
 
+      - id: merge-tickets-dir-check
+        name: Merge Scripts Tickets Directory Literal Guard (5s timeout)
+        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh merge-tickets-dir-check 5 "plugins/dso/scripts/check-merge-tickets-dir.sh"
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^plugins/dso/scripts/(merge-to-main(-direct|-pr)?\.sh|create-sprint-draft-pr\.sh)$
+
       - id: rule-anchors-check
         name: Rule Anchors Check (5s timeout)
         entry: ./plugins/dso/scripts/pre-commit-wrapper.sh rule-anchors-check 5 "plugins/dso/scripts/check-rule-anchors.sh"
