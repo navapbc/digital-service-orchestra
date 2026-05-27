@@ -1,0 +1,1 @@
+{"event_type": "BRIDGE_ALERT", "timestamp": 1779514086035795000, "uuid": "f6482ace-352b-43fe-8df5-83b21b1440b9", "ticket_id": "tick-rb02", "jira_key": "DIG-999", "data": {"reason": "identity-write failed after create; Jira issue deleted", "tag": "create-identity-write-failed"}}
