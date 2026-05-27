@@ -124,13 +124,26 @@ for vc in verify_cmds_raw:
             'skip_reason': None if cmd else 'no verify command'
         })
 
-# Classify confidence
-def classify_confidence(cmd):
+# Classify confidence (includes intent-fidelity Phase 3 subject-noun fidelity check)
+def classify_confidence(cmd, dd_text=''):
     if re.search(known_runners, cmd):
-        return 'high'
-    if re.search(r'test-[^ ]*\.sh', cmd):
-        return 'high'
-    return 'normal'
+        base = 'high'
+    elif re.search(r'test-[^ ]*\.sh', cmd):
+        base = 'high'
+    else:
+        base = 'normal'
+    # Phase 3 fidelity check: extract key nouns from DD text and confirm
+    # at least one appears in the command or its test file path
+    if dd_text and base == 'high':
+        words = set(re.findall(r'[a-z_]{4,}', dd_text.lower()))
+        cmd_lower = cmd.lower()
+        stopwords = {'when', 'this', 'that', 'with', 'from', 'into', 'each',
+                     'have', 'been', 'will', 'does', 'must', 'should', 'story',
+                     'complete', 'correctly', 'successfully', 'properly'}
+        subject_words = words - stopwords
+        if subject_words and not any(w in cmd_lower for w in subject_words):
+            base = 'normal'
+    return base
 
 # Execute commands
 results = []
@@ -154,7 +167,7 @@ for entry in manifest:
     summary['executed'] += 1
 
     cmd = entry['verify_command']
-    confidence = classify_confidence(cmd)
+    confidence = classify_confidence(cmd, entry.get('dd_text', ''))
 
     for attempt in (1, 2):
         start_ms = int(time.time() * 1000)
