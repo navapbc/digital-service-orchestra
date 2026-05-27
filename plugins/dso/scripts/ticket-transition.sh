@@ -21,15 +21,17 @@ REDUCER="$SCRIPT_DIR/ticket-reducer.py"
 
 # ── Usage ─────────────────────────────────────────────────────────────────────
 _usage() {
-    echo "Usage: ticket transition <ticket_id> <current_status> <target_status> [--reason=<text>] [--force]" >&2
-    echo "       ticket transition <ticket_id> <target_status> [--reason=<text>] [--force]  (auto-detects current status)" >&2
+    echo "Usage: ticket transition <ticket_id> <current_status> <target_status> [--reason=<text>] [--force] [--verdict-hash=<hash>] [--force-close=<reason>]" >&2
+    echo "       ticket transition <ticket_id> <target_status> [--reason=<text>] [--force] [--verdict-hash=<hash>] [--force-close=<reason>]  (auto-detects current status)" >&2
     echo "  current_status / target_status: open | in_progress | closed | blocked" >&2
-    echo "  --reason=<text>  Required when closing bug tickets. Must start with 'Fixed:' or 'Escalated to user:'." >&2
-    echo "  --force          Skip the open-children guard when closing. Open children remain open." >&2
+    echo "  --reason=<text>          Required when closing bug tickets. Must start with 'Fixed:' or 'Escalated to user:'." >&2
+    echo "  --force                  Skip the open-children guard when closing. Open children remain open." >&2
+    echo "  --verdict-hash=<hash>    Required when closing story/epic tickets. HMAC from compute-verdict-hash.sh." >&2
+    echo "  --force-close=<reason>   Bypass verdict-hash requirement for story/epic (requires user approval via hook)." >&2
     echo "  Examples:" >&2
     echo "    ticket transition abc1 open closed --reason=\"Fixed: patched null check in foo.sh\"" >&2
-    echo "    ticket transition abc1 closed --reason=\"Fixed: patched null check in foo.sh\"" >&2
-    echo "    ticket transition epic1 in_progress closed --force  # close epic with open children" >&2
+    echo "    ticket transition abc1 closed --verdict-hash=abc123...  # close story with verified verdict" >&2
+    echo "    ticket transition abc1 closed --force-close=\"verifier timed out\"  # bypass with reason" >&2
     exit 1
 }
 
@@ -53,9 +55,11 @@ else
     shift 3
 fi
 
-# Parse optional --reason=<text> or --reason <text> and --force from remaining args
+# Parse optional flags from remaining args
 close_reason=""
 force_close=false
+verdict_hash=""
+force_close_reason=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --reason=*)
@@ -73,6 +77,30 @@ while [ $# -gt 0 ]; do
         --force)
             force_close=true
             shift
+            ;;
+        --verdict-hash=*)
+            verdict_hash="${1#--verdict-hash=}"
+            shift
+            ;;
+        --verdict-hash)
+            if [ $# -lt 2 ]; then
+                echo "Error: --verdict-hash requires a value" >&2
+                exit 1
+            fi
+            verdict_hash="$2"
+            shift 2
+            ;;
+        --force-close=*)
+            force_close_reason="${1#--force-close=}"
+            shift
+            ;;
+        --force-close)
+            if [ $# -lt 2 ]; then
+                echo "Error: --force-close requires a reason" >&2
+                exit 1
+            fi
+            force_close_reason="$2"
+            shift 2
             ;;
         *)
             shift
@@ -327,6 +355,8 @@ env_id_val = sys.argv[6]
 author_val = sys.argv[7]
 reducer_path = sys.argv[8]
 close_reason = sys.argv[9] if len(sys.argv) > 9 else ''
+verdict_hash_arg = sys.argv[10] if len(sys.argv) > 10 else ''
+force_close_reason_arg = sys.argv[11] if len(sys.argv) > 11 else ''
 
 # Import reduce_ticket directly (single-process: eliminates subprocess for state read)
 sys.path.insert(0, os.path.dirname(os.path.abspath(reducer_path)))
@@ -380,6 +410,63 @@ try:
             # and case-insensitive escalat prefix (covers Escalated to user: variants).
             if not (close_reason.startswith('Fixed') or close_reason.lower().startswith('escalat')):
                 print('Error: --reason must start with \"Fixed:\" or \"Escalated to user:\"', file=sys.stderr)
+                os.close(fd)
+                sys.exit(1)
+
+    # ── Verdict hash gate (story/epic closure) ────────────────────────────
+    # Stories and epics require a verified completion verdict to close.
+    # The verdict hash is an HMAC that encodes: this ticket received PASS at this git state.
+    # compute-verdict-hash.sh and this gate compute the same HMAC independently.
+    if target_status == 'closed' and ticket_type in ('story', 'epic'):
+        # Check config: verify.require_verdict_for_close (default: true)
+        require_verdict = True
+        try:
+            config_path = os.path.join(os.environ.get('PROJECT_ROOT', tracker_dir.rsplit('/', 1)[0]), '.claude', 'dso-config.conf')
+            if os.path.isfile(config_path):
+                with open(config_path) as _cf:
+                    for _line in _cf:
+                        if _line.strip().startswith('verify.require_verdict_for_close='):
+                            val = _line.strip().split('=', 1)[1].strip().lower()
+                            if val in ('false', '0', 'no'):
+                                require_verdict = False
+        except Exception:
+            pass
+
+        if require_verdict:
+            if force_close_reason_arg:
+                # Force-close with reason — write audit comment
+                print(f'Warning: closing {ticket_type} {ticket_id} via --force-close (verdict hash bypassed)', file=sys.stderr)
+                print(f'  Reason: {force_close_reason_arg}', file=sys.stderr)
+                # The STATUS event data will include the force_close_reason for audit
+            elif verdict_hash_arg:
+                # Verify the hash by independently computing the expected HMAC
+                import hmac, hashlib
+                key_file = os.path.join(tracker_dir, '.closure-key')
+                if not os.path.isfile(key_file):
+                    import uuid as _uuid
+                    with open(key_file, 'w') as _kw:
+                        _kw.write(str(_uuid.uuid4()))
+                with open(key_file, 'r') as _kf:
+                    key = _kf.read().strip().encode()
+                try:
+                    head_sha = subprocess.run(['git', 'rev-parse', 'HEAD'], capture_output=True, text=True, timeout=5).stdout.strip()
+                except Exception:
+                    head_sha = 'unknown'
+                expected_data = f'{ticket_id}|PASS|{head_sha}'.encode()
+                expected_hash = hmac.new(key, expected_data, hashlib.sha256).hexdigest()
+                if not hmac.compare_digest(verdict_hash_arg, expected_hash):
+                    print(f'Error: verdict hash mismatch for {ticket_type} {ticket_id}.', file=sys.stderr)
+                    print(f'  This means the completion verifier did not produce a PASS verdict at the current HEAD.', file=sys.stderr)
+                    print(f'  Recovery: dispatch dso:completion-verifier, then run compute-verdict-hash.sh.', file=sys.stderr)
+                    print(f'  Override: use --force-close=\"<reason>\" to bypass (requires user approval).', file=sys.stderr)
+                    os.close(fd)
+                    sys.exit(1)
+            else:
+                print(f'Error: closing a {ticket_type} requires --verdict-hash (from compute-verdict-hash.sh after completion verifier PASS).', file=sys.stderr)
+                print(f'  Recovery: dispatch dso:completion-verifier, then:', file=sys.stderr)
+                print(f'    bash compute-verdict-hash.sh {ticket_id} PASS  # produces the hash', file=sys.stderr)
+                print(f'    ticket transition {ticket_id} closed --verdict-hash=<hash-from-above>', file=sys.stderr)
+                print(f'  Override: use --force-close=\"<reason>\" to bypass (requires user approval).', file=sys.stderr)
                 os.close(fd)
                 sys.exit(1)
 
@@ -464,13 +551,19 @@ except Exception as e:
 # Release lock
 os.close(fd)
 sys.exit(0)
-" "$lock_file" "$TRACKER_DIR" "$ticket_id" "$current_status" "$target_status" "$env_id" "$author" "$REDUCER" "$close_reason" || flock_exit=$?
+" "$lock_file" "$TRACKER_DIR" "$ticket_id" "$current_status" "$target_status" "$env_id" "$author" "$REDUCER" "$close_reason" "$verdict_hash" "$force_close_reason" || flock_exit=$?
 
 if [ "$flock_exit" -eq 10 ]; then
     # Optimistic concurrency rejection
     exit 1
 elif [ "$flock_exit" -ne 0 ]; then
     exit 1
+fi
+
+# ── Step 3b: Write force-close audit comment (if applicable) ─────────────────
+if [ "$target_status" = "closed" ] && [ -n "$force_close_reason" ]; then
+    _FC_COMMENT="FORCE_CLOSE: verdict hash bypassed by user approval. Reason: \"$force_close_reason\". Session: ${SESSION_ID:-$(git rev-parse --short HEAD 2>/dev/null || echo unknown)}."
+    bash "$SCRIPT_DIR/ticket-comment.sh" "$ticket_id" "$_FC_COMMENT" 2>/dev/null || true
 fi
 
 # ── Step 4: Detect newly unblocked tickets (only on close) ───────────────────

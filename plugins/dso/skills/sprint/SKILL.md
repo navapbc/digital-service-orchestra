@@ -2287,7 +2287,11 @@ What is NOT acceptable (all of these are CLAUDE.md `rule:dispatch-verifier` viol
 
 If neither form is achievable (e.g., Agent tool unavailable), STOP and surface to the user — do not synthesize a verifier prompt yourself.
 </HARD-GATE>
-- `P1: PASS` → proceed with closure
+- `P1: PASS` → compute verdict hash and proceed with closure:
+  ```bash
+  VERDICT_HASH=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/compute-verdict-hash.sh" <story-id> PASS)
+  ```
+  Pass `--verdict-hash=$VERDICT_HASH` to the `ticket transition ... closed` command.
 - `P1: EVIDENCE_PENDING` → see **EVIDENCE_PENDING escalation protocol** below.
 - `P1: FAIL` / `P1: BLOCKED` / `P1: INCONCLUSIVE` → see **Planner-dispatch HARD-GATE** below; do NOT create any ticket until the planner returns.
 - **Fallback (technical failure only)**: On timeout/unparseable JSON (`check-verifier-verdict.sh` exit 2), log warning and proceed with closure.

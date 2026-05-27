@@ -343,7 +343,7 @@ $ .claude/scripts/dso ticket list --format=llm
 Transition a ticket's status with optimistic concurrency control.
 
 ```
-.claude/scripts/dso ticket transition <ticket_id> <current_status> <target_status> [--reason <text>] [--force]
+.claude/scripts/dso ticket transition <ticket_id> <current_status> <target_status> [--reason <text>] [--force] [--verdict-hash <hash>] [--force-close <reason>]
 ```
 
 **Arguments:**
@@ -355,6 +355,8 @@ Transition a ticket's status with optimistic concurrency control.
 | `target_status` | Yes | Status to move the ticket to |
 | `--reason <text>` | Conditional | Required when closing a bug ticket. Must start with `Fixed:` or `Escalated to user:`. |
 | `--force` | No | Skip the open-children guard when closing. Open children remain open (not reparented). Use when bug tickets filed under an epic scope-shifted out and should not block epic closure. |
+| `--verdict-hash <hash>` | Conditional | Required when closing a story or epic (unless `--force-close` is used). HMAC from `compute-verdict-hash.sh` proving the completion verifier issued a PASS verdict at the current HEAD. |
+| `--force-close <reason>` | No | Bypass the verdict-hash requirement for story/epic closure. Requires user approval via PreToolUse hook. Writes a `FORCE_CLOSE` audit comment on the ticket. |
 
 **Allowed status values:** `open`, `in_progress`, `closed`, `blocked`
 
@@ -364,6 +366,7 @@ Transition a ticket's status with optimistic concurrency control.
 - Idempotent: if `current_status == target_status`, exits 0 immediately with "No transition needed".
 - Ghost-prevention: verifies the ticket directory and CREATE event exist before acquiring the lock.
 - Bug-close guard: when `target_status=closed` and the ticket type is `bug`, `--reason` is required and must begin with `Fixed:` or `Escalated to user:`. Exits non-zero if missing or malformed.
+- **Verdict-hash gate**: when `target_status=closed` and the ticket type is `story` or `epic`, `--verdict-hash` is required. The transition command independently computes the expected HMAC from the closure key, the ticket ID, "PASS", and the current HEAD SHA, then compares. Mismatch or missing hash blocks closure. Config-gated via `verify.require_verdict_for_close` (default: true). Override: `--force-close <reason>` bypasses the hash check (intercepted by PreToolUse hook requiring user approval; writes audit comment). <!-- tickets-boundary-ok -->
 - Open-children guard: when `target_status=closed`, checks for open (non-closed) child tickets. Exits non-zero listing the open children (and suggesting `--force`) if any are found. When `--force` is passed, the guard is skipped and the parent closes with children remaining open; a warning lists the orphaned-open children on stderr.
 - On close (`target_status=closed`): runs `ticket-unblock.py` to detect newly unblocked tickets and prints `UNBLOCKED: <ids>` (or `UNBLOCKED: none`) to stdout.
 
