@@ -2535,6 +2535,13 @@ grep -n "\[.*\]" .test-index || true
 - `ci-pr` mode: route through `merge-to-main.sh` to create a GitHub PR — do NOT perform a direct local merge
 - `local` mode (default): direct local merge with `DSO-Story-Merge` trailer via `merge-story-branch.sh`
 
+**SPRINT_MODE re-read (bug 570a-b3b9)**: Re-resolve `SPRINT_MODE` from config before routing. `SPRINT_MODE` is set once at Phase A activation and held only in LLM context — after context compaction, the value is lost and the routing condition silently falls through to local mode. Re-reading here mirrors the pattern in `per-worktree-review-commit.md` (line 51) which reads `dso.workflow` fresh on every invocation.
+
+```bash
+# Re-read SPRINT_MODE from config (bug 570a-b3b9: value lost after compaction)
+SPRINT_MODE=$(bash "$PLUGIN_SCRIPTS/mode-detect.sh")  # shim-exempt: SPRINT_MODE must be re-resolved before story-merge routing
+```
+
 <HARD-GATE>
 **ci-pr merge enforcement**: When `SPRINT_MODE=ci-pr`, you MUST use `merge-to-main.sh` with `STORY_PR_BASE=$SESSION_BRANCH` for EVERY story merge. NEVER use `merge-story-branch.sh` in ci-pr mode — it produces local direct merges with `DSO-Story-Merge` trailers that bypass the GitHub PR flow. Execute the bash block below VERBATIM — do NOT substitute merge-story-branch.sh for merge-to-main.sh.
 </HARD-GATE>
@@ -2545,7 +2552,11 @@ if [[ ${#CONFLICT_QUEUE[@]} -gt 0 ]]; then
   echo 'ERROR: conflict queue non-empty — resolve conflicts before merging story branch' >&2
   exit 1
 fi
-if [[ "${SPRINT_MODE:-local}" == "ci-pr" ]]; then
+if [[ -z "${SPRINT_MODE:-}" ]]; then
+  echo "ERROR: SPRINT_MODE is unset — re-read from config failed. Cannot route story merge." >&2
+  exit 1
+fi
+if [[ "${SPRINT_MODE}" == "ci-pr" ]]; then
   # ci-pr mode: merge via GitHub PR — do NOT perform a local direct merge.
   # Resolve session branch via 3-step fallback — fail-fast, never silently
   # default to main. Per-story LLM review is provided by review-sub-pr.yml
@@ -2680,7 +2691,8 @@ $PLUGIN_SCRIPTS/agent-batch-lifecycle.sh context-check || context_exit=$?  # shi
    ```
    /compact
    ```
-5. After compaction, check for `${TMPDIR:-/tmp}/sprint-compact-intent-<epic-id>`. **Continue directly to Phase C.** Do NOT go to Phase I.
+5. After compaction, check for `${TMPDIR:-/tmp}/sprint-compact-intent-<epic-id>`. **Continue directly to Phase C** after re-resolving session variables (step 5a below). Do NOT go to Phase I.
+5a. **Re-resolve session-scoped variables (bug 570a-b3b9)**: Context compaction drops all LLM-held session variables set during Phase A Config Resolution. Before proceeding to Phase C, re-execute the Config Resolution block from the top of this skill file (the block that sets `TEST_CMD`, `LINT_CMD`, `VISUAL_CMD`, `E2E_CMD`, and `SPRINT_MODE` via `read-config.sh` and `mode-detect.sh`). Log: `"Post-compaction: re-resolved SPRINT_MODE=<value>, TEST_CMD, LINT_CMD."` This prevents the class of bugs where session variables lost during compaction cause silent fallback to default values (e.g., `${SPRINT_MODE:-local}` routing to the wrong merge path).
 6. **Agent-count after compact**: No special action needed — Phase C Step 2's pre-check re-evaluates `MAX_AGENTS` (may return `unlimited`, `N`, or `0`) automatically.
 
 ---
