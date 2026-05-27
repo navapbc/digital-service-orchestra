@@ -91,7 +91,7 @@ LOCK_FILE="${DESIGN_MD}.lock"
     flock -x 9
 
     # Re-check idempotency inside the lock (race-condition safe)
-    if grep -qF "## ${section_heading}" "$DESIGN_MD" 2>/dev/null; then
+    if grep -qxF "## ${section_heading}" "$DESIGN_MD" 2>/dev/null; then
         # Section already present — nothing to do
         exit 0
     fi

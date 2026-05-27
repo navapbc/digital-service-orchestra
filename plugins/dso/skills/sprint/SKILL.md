@@ -2012,11 +2012,11 @@ If the check fails:
 
 ### Step 11a: Design-MD Lint Gate (/dso:sprint)
 
-Filter the batch's touched files for scope-eligible extensions (`.py`, `.js`, `.ts`, `.tsx`, `.jsx`, `.sh`, `.html`, `.css`, `.scss`):
+Filter the batch's touched files for scope-eligible extensions. This list MUST match `per-worktree-review-commit.md` Step 3.6 to ensure consistent enforcement across shared-directory and worktree-isolation modes:
 
 ```bash
 TOUCHED_FILES=$(git diff --name-only HEAD)
-ELIGIBLE_FILES=$(echo "$TOUCHED_FILES" | grep -E '\.(py|js|ts|tsx|jsx|sh|html|css|scss)$' || true)
+ELIGIBLE_FILES=$(echo "$TOUCHED_FILES" | grep -E '\.(css|scss|tsx|jsx|vue|svelte|html|ejs|erb|pug|hbs|j2|jinja2|twig)$' || true)
 ```
 
 If `ELIGIBLE_FILES` is non-empty, run the design-md-lint check:

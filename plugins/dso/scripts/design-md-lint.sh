@@ -114,31 +114,37 @@ parse_errors_from_json() {
     printf '%d' "$count"
 }
 
-# ── File mode: lint a specific file (not diff-scoped) ────────────────────────
-# When a positional argument is provided, lint that file directly and exit.
+# ── File mode: lint specific files (not diff-scoped) ─────────────────────────
+# When positional arguments are provided, lint each file directly and exit.
 if [[ $# -ge 1 && -n "${1:-}" ]]; then
-    _FILE_TARGET="$1"
-    if [[ ! -f "$_FILE_TARGET" ]]; then
-        echo "ERROR: file not found: $_FILE_TARGET" >&2
-        exit 2
-    fi
-    _file_output=""
-    _file_output=$(
-        npx --yes "@google/design.md@${DESIGN_MD_VERSION}" lint \
-            --format json \
-            --config "$DESIGN_NOTES_PATH" \
-            "$_FILE_TARGET" 2>/dev/null
-    ) || {
-        echo "WARNING: npx invocation failed for $_FILE_TARGET — fail-open." >&2
-        exit 0
-    }
-    if [[ -z "$_file_output" ]]; then
-        exit 0
-    fi
-    _file_errors=$(parse_errors_from_json "$_file_output")
-    if [[ "$_file_errors" -gt 0 ]]; then
-        echo "FAIL: design.md lint found $_file_errors error(s) in $_FILE_TARGET" >&2
-        echo "$_file_output" >&2
+    _FILE_MODE_ERRORS=0
+    for _FILE_TARGET in "$@"; do
+        if [[ ! -f "$_FILE_TARGET" ]]; then
+            echo "ERROR: file not found: $_FILE_TARGET" >&2
+            _FILE_MODE_ERRORS=$(( _FILE_MODE_ERRORS + 1 ))
+            continue
+        fi
+        _file_output=""
+        _file_output=$(
+            npx --yes "@google/design.md@${DESIGN_MD_VERSION}" lint \
+                --format json \
+                --config "$DESIGN_NOTES_PATH" \
+                "$_FILE_TARGET" 2>/dev/null
+        ) || {
+            echo "WARNING: npx invocation failed for $_FILE_TARGET — fail-open." >&2
+            continue
+        }
+        if [[ -z "$_file_output" ]]; then
+            continue
+        fi
+        _file_errors=$(parse_errors_from_json "$_file_output")
+        if [[ "$_file_errors" -gt 0 ]]; then
+            echo "FAIL: design.md lint found $_file_errors error(s) in $_FILE_TARGET" >&2
+            echo "$_file_output" >&2
+            _FILE_MODE_ERRORS=$(( _FILE_MODE_ERRORS + _file_errors ))
+        fi
+    done
+    if [[ "$_FILE_MODE_ERRORS" -gt 0 ]]; then
         exit 1
     fi
     exit 0
