@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -uo pipefail
 # scripts/check-gate-tier-headers.sh
-# F-02 drift detection: every hook under plugins/dso/hooks/ must declare its
+# F-02 drift detection: every hook under $PLUGIN_DIR/hooks/ must declare its
 # tier via a "# DSO-GATE-TIER: A|B|C" header comment near the top of the file.
 #
 # The tier governs how the hook behaves on infrastructure failure — see
-# plugins/dso/docs/HOOKS-REFERENCE.md "Gate-tier doctrine" for the contract.
+# HOOKS-REFERENCE.md (in the plugin docs dir) "Gate-tier doctrine" for the contract.
 #
 # Scope:
 #   Hooks annotated with "# hook-boundary: enforcement" — these are the
@@ -38,7 +38,7 @@ _PATTERN='^\s*#\s*DSO-GATE-TIER:\s*(A|B|C|N/A)\b'
 # ── Determine target files ────────────────────────────────────────────────────
 # When called with explicit files (e.g., from pre-commit with staged files),
 # only check files that are themselves enforcement hooks. When called with no
-# args, find all enforcement-annotated hooks under plugins/dso/hooks/.
+# args, find all enforcement-annotated hooks under $PLUGIN_DIR/hooks/.
 _files=()
 if [[ $# -gt 0 ]]; then
     # Filter explicit args to enforcement-annotated hooks only.
@@ -76,9 +76,9 @@ if [[ "$_missing" -gt 0 ]]; then
         echo "  $_f" >&2
     done
     echo "" >&2
-    echo "Each hook under plugins/dso/hooks/ must declare its tier in the file" >&2
+    echo "Each hook under \$PLUGIN_DIR/hooks/ must declare its tier in the file" >&2
     echo "header via a '# DSO-GATE-TIER: A|B|C' (or 'N/A' for non-hook libraries)" >&2
-    echo "comment within the first 20 lines. See plugins/dso/docs/HOOKS-REFERENCE.md" >&2
+    echo "comment within the first 20 lines. See HOOKS-REFERENCE.md (plugin docs)" >&2
     echo "'Gate-tier doctrine' section." >&2
     exit 1
 fi

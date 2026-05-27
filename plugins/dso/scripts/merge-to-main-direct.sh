@@ -258,6 +258,11 @@ fi
 PRE_MERGE_SHA=$(git -C "$MAIN_REPO" rev-parse HEAD 2>/dev/null || echo "")
 fi  # end MERGE_TO_MAIN_DIRECT_LIB guard (block 3)
 
+# Ensure _CFG_TKDIR and _DEFAULT_BRANCH are available to functions even when
+# sourced in library mode (the top-level initialization is inside the guard).
+: "${_CFG_TKDIR:=.tickets-tracker}"  # tickets-boundary-ok
+: "${_DEFAULT_BRANCH:=main}"
+
 # =============================================================================
 # Helpers
 # =============================================================================

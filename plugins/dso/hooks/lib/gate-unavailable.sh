@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2317  # exit 0 fallback for non-sourced invocation is intentional
 # hooks/lib/gate-unavailable.sh
 # F-02: shared helper for the gate-tier doctrine.
 #
 # Provides two functions for safety-critical (Tier A) and advisory (Tier C)
 # gates to signal infrastructure failure to the rest of the workflow without
-# silently passing. See plugins/dso/docs/HOOKS-REFERENCE.md for the tier
+# silently passing. See HOOKS-REFERENCE.md (in the plugin docs dir) for the tier
 # classification and the paired-env-var bypass envelope.
 #
 # Functions:

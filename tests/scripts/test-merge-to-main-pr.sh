@@ -162,6 +162,10 @@ case "\$1" in
     # gh repo view --json nameWithOwner — _pr_repo helper. Return a placeholder
     # slug consistent with the PR URL above.
     if [[ "\$2" == "view" ]]; then
+      if [[ "\$*" == *"defaultBranchRef"* ]]; then
+        echo "main"
+        exit 0
+      fi
       echo "x/y"
       exit 0
     fi
@@ -561,6 +565,10 @@ case "\$1" in
   repo)
     # _pr_repo helper.
     if [[ "\$2" == "view" ]]; then
+      if [[ "\$*" == *"defaultBranchRef"* ]]; then
+        echo "main"
+        exit 0
+      fi
       echo "x/y"
       exit 0
     fi
@@ -940,6 +948,10 @@ case "\$1" in
   repo)
     # _pr_repo helper.
     if [[ "\$2" == "view" ]]; then
+      if [[ "\$*" == *"defaultBranchRef"* ]]; then
+        echo "main"
+        exit 0
+      fi
       echo "x/y"
       exit 0
     fi
@@ -3858,7 +3870,7 @@ case "\$1" in
     fi
     exit 0 ;;
   repo)
-    if [[ "\$2" == "view" ]]; then echo "x/y"; exit 0; fi
+    if [[ "\$2" == "view" ]]; then if [[ "\$*" == *"defaultBranchRef"* ]]; then echo "main"; exit 0; fi; echo "x/y"; exit 0; fi
     exit 0 ;;
   workflow) exit 0 ;;
   *) exit 0 ;;
@@ -5467,7 +5479,7 @@ case "\$1" in
     exit 0
     ;;
   repo)
-    if [[ "\$2" == "view" ]]; then echo "x/y"; exit 0; fi
+    if [[ "\$2" == "view" ]]; then if [[ "\$*" == *"defaultBranchRef"* ]]; then echo "main"; exit 0; fi; echo "x/y"; exit 0; fi
     exit 0
     ;;
   *) exit 0 ;;
@@ -5603,7 +5615,7 @@ case "\$1" in
     exit 0
     ;;
   repo)
-    if [[ "\$2" == "view" ]]; then echo "x/y"; exit 0; fi
+    if [[ "\$2" == "view" ]]; then if [[ "\$*" == *"defaultBranchRef"* ]]; then echo "main"; exit 0; fi; echo "x/y"; exit 0; fi
     exit 0
     ;;
   *) exit 0 ;;

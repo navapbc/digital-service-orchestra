@@ -196,6 +196,8 @@ WORKTREE_DIR='$worktree_dir'
 MSG_EXCLUSION_PATTERN=''
 MAX_MERGE_RETRIES=5
 _CURRENT_PHASE=''
+_DEFAULT_BRANCH='main'
+_CFG_TKDIR='.tickets-tracker'
 
 $_state_helpers
 

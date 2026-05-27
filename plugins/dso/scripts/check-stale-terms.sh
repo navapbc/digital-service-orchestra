@@ -21,7 +21,7 @@ set -uo pipefail
 #   - "this skeleton" / "this is a skeleton" (self-reference)
 #   - "(skeleton)" as a parenthetical descriptor
 #
-# In-scope file types under plugins/dso/scripts/ and plugins/dso/hooks/:
+# In-scope file types under $PLUGIN_DIR/scripts/ and $PLUGIN_DIR/hooks/:
 #   *.sh, *.py
 #
 # Excluded paths (anywhere under these):
@@ -40,7 +40,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-REPO_ROOT="$(cd "$PLUGIN_DIR/../.." && pwd)"
+REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 # ── Parse arguments ──────────────────────────────────────────────────────────
 _scan_dir=""
@@ -87,7 +87,7 @@ elif [[ -n "$_scan_dir" ]]; then
         find "$_scan_dir" -type f \( -name '*.sh' -o -name '*.py' \) -print0
     )
 else
-    # Default: scan plugins/dso/scripts and plugins/dso/hooks
+    # Default: scan $PLUGIN_DIR/scripts and $PLUGIN_DIR/hooks
     for _root in "$PLUGIN_DIR/scripts" "$PLUGIN_DIR/hooks"; do
         [[ -d "$_root" ]] || continue
         while IFS= read -r -d '' _f; do _files+=("$_f"); done < <(

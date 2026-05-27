@@ -57,7 +57,7 @@ setup_pull_conflict_env() {
     git -C "$ENV/seed" config user.name "Test"
     echo "init" > "$ENV/seed/README.md"
     mkdir -p "$ENV/seed/.claude"
-    echo "tickets.directory=.tickets" > "$ENV/seed/.claude/dso-config.conf"
+    echo "tickets.directory=.tickets-tracker" > "$ENV/seed/.claude/dso-config.conf"
     git -C "$ENV/seed" add -A
     git -C "$ENV/seed" commit -q -m "init"
 
@@ -205,7 +205,7 @@ setup_ancestor_skip_env() {
     git -C "$ENV/seed" config user.name "Test"
     echo "init" > "$ENV/seed/README.md"
     mkdir -p "$ENV/seed/.claude"
-    echo "tickets.directory=.tickets" > "$ENV/seed/.claude/dso-config.conf"
+    echo "tickets.directory=.tickets-tracker" > "$ENV/seed/.claude/dso-config.conf"
     git -C "$ENV/seed" add -A
     git -C "$ENV/seed" commit -q -m "init"
 
@@ -282,7 +282,7 @@ setup_diverged_pull_env() {
     echo "init" > "$ENV/seed/README.md"
     echo "base content" > "$ENV/seed/shared.txt"
     mkdir -p "$ENV/seed/.claude"
-    echo "tickets.directory=.tickets" > "$ENV/seed/.claude/dso-config.conf"
+    echo "tickets.directory=.tickets-tracker" > "$ENV/seed/.claude/dso-config.conf"
     git -C "$ENV/seed" add -A
     git -C "$ENV/seed" commit -q -m "init"
 

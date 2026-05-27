@@ -5,7 +5,7 @@ set -uo pipefail
 #
 # F-06 fixed a config-drift bug where merge-to-main-direct.sh read
 # tickets.directory into _CFG_TKDIR but then ignored the variable at
-# several later sites, hard-coding ".tickets-tracker/". This lint prevents
+# several later sites, hard-coding ".tickets-tracker/". This lint prevents  # tickets-boundary-ok
 # the bug class from reappearing in the merge/PR script surface.
 #
 # Scope is intentionally narrow: only the four merge/PR scripts where
@@ -14,13 +14,13 @@ set -uo pipefail
 # the default path; annotating all of them would be a much larger change
 # and is left as a follow-up audit (see remediation plan F-06 Step 2).
 #
-# In-scope files:
-#   plugins/dso/scripts/merge-to-main.sh
-#   plugins/dso/scripts/merge-to-main-direct.sh
-#   plugins/dso/scripts/merge-to-main-pr.sh
-#   plugins/dso/scripts/create-sprint-draft-pr.sh
+# In-scope files (under $PLUGIN_DIR/scripts/):
+#   merge-to-main.sh
+#   merge-to-main-direct.sh
+#   merge-to-main-pr.sh
+#   create-sprint-draft-pr.sh
 #
-# Pattern: \.tickets-tracker\b
+# Pattern: \.tickets-tracker\b  # tickets-boundary-ok
 #
 # Per-line exemptions (any of these on the line suppresses the match):
 #   # tickets-boundary-ok   — explicit per-line escape (existing convention)
@@ -76,26 +76,26 @@ for _f in "${_files[@]}"; do
 
         # Skip lines containing bash default-value fallback operator (:-)
         # combined with the literal — these are canonical fallback assignments.
-        if [[ "$_content" == *":-"*".tickets-tracker"* ]]; then
+        if [[ "$_content" == *":-"*".tickets-tracker"* ]]; then  # tickets-boundary-ok
             continue
         fi
 
         printf '%s:%s: %s\n' "$_f" "$_lineno" "$_content"
         _violations=$((_violations + 1))
-    done < <(grep -nE '\.tickets-tracker' "$_f" 2>/dev/null || true)
+    done < <(grep -nE '\.tickets-tracker' "$_f" 2>/dev/null || true)  # tickets-boundary-ok
 done
 
 # ── Report ───────────────────────────────────────────────────────────────────
 if [[ "$_violations" -gt 0 ]]; then
     echo "" >&2
-    echo "check-merge-tickets-dir: $_violations literal .tickets-tracker reference(s) found." >&2
+    echo "check-merge-tickets-dir: $_violations literal .tickets-tracker reference(s) found." >&2  # tickets-boundary-ok
     echo "" >&2
     echo "Merge/PR scripts must read tickets.directory from config (via" >&2
     echo "read-config.sh) and use the resolved variable, NOT the literal path." >&2
     echo "" >&2
     echo "To resolve each violation:" >&2
     echo "  (a) Replace the literal with the canonical \$_CFG_TKDIR variable, or" >&2
-    echo "  (b) Convert to a fallback assignment using \${VAR:-.tickets-tracker}, or" >&2
+    echo "  (b) Convert to a fallback assignment using \${VAR:-.tickets-tracker}, or" >&2  # tickets-boundary-ok
     echo "  (c) Append '# tickets-boundary-ok' if the literal is intentional" >&2
     echo "      (e.g., a documentation reference or canonical-name string)." >&2
     exit 1

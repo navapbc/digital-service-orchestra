@@ -4,7 +4,7 @@
 # Creates a GitHub pull request from the current branch into main, waits
 # for CI mergeability checks, and queues GitHub auto-merge. Used when
 # dso.workflow=ci-pr (the canonical workflow knob, replacing the
-# deprecated merge.strategy=pr value). Direct merge mode lives in
+# deprecated dso.workflow value). Direct merge mode lives in
 # merge-to-main-direct.sh; merge-to-main.sh dispatches between the two.
 #
 # Responsibilities:
