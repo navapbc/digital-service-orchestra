@@ -182,6 +182,451 @@ jobs:
         run: |
           set -uo pipefail
           PROJ="${JIRA_PROJECT:-DIG}"
+          PASS=0; FAIL=0; SKIP=0
+          _pass() { echo "  ✅ PASS: $1"; PASS=$((PASS+1)); }
+          _fail() { echo "  ❌ FAIL: $1"; FAIL=$((FAIL+1)); }
+          _skip() { echo "  ⏭️  SKIP: $1"; SKIP=$((SKIP+1)); }
+
+          # Helper: read a single field from a Jira issue via ACLI get
+          _get_field() {
+            local key="$1" field="$2"
+            acli jira workitem view --key "$key" --json 2>/dev/null | python3 -c "
+          import json,sys
+          d=json.load(sys.stdin)
+          f=d.get('fields',{}) if isinstance(d.get('fields'),dict) else {}
+          val=f.get('$field') or d.get('$field')
+          if isinstance(val,dict): print(val.get('name') or val.get('displayName') or json.dumps(val))
+          elif isinstance(val,list): print(json.dumps(val))
+          elif val is None: print('<null>')
+          else: print(val)
+          " 2>/dev/null
+          }
+
+          # Helper: get full issue JSON
+          _get_issue() {
+            acli jira workitem view --key "$1" --json 2>/dev/null
+          }
+
+          # =====================================================================
+          echo "=== PHASE 1: CREATE a throwaway test issue ==="
+          # =====================================================================
+          CREATE_OUT=$(acli jira workitem create \
+            --project "$PROJ" \
+            --type "Task" \
+            --summary "DSO-PROBE-$(date +%s): field sync validation" \
+            --description "Initial description for probe test" \
+            --json 2>&1)
+          TEST_KEY=$(echo "$CREATE_OUT" | python3 -c "
+          import json,sys
+          try:
+            d=json.load(sys.stdin)
+            print(d.get('key',''))
+          except: print('')
+          " 2>/dev/null)
+          if [ -z "$TEST_KEY" ]; then
+            echo "FATAL: could not create test issue"
+            echo "ACLI output: $CREATE_OUT"
+            exit 1
+          fi
+          echo "Created test issue: $TEST_KEY"
+          echo
+
+          # Verify initial state
+          echo "--- Initial state of $TEST_KEY ---"
+          INIT_SUMMARY=$(_get_field "$TEST_KEY" "summary")
+          INIT_DESC=$(_get_field "$TEST_KEY" "description")
+          INIT_STATUS=$(_get_field "$TEST_KEY" "status")
+          INIT_PRIORITY=$(_get_field "$TEST_KEY" "priority")
+          INIT_TYPE=$(_get_field "$TEST_KEY" "issuetype")
+          INIT_ASSIGNEE=$(_get_field "$TEST_KEY" "assignee")
+          echo "  summary: $INIT_SUMMARY"
+          echo "  description: $INIT_DESC"
+          echo "  status: $INIT_STATUS"
+          echo "  priority: $INIT_PRIORITY"
+          echo "  issuetype: $INIT_TYPE"
+          echo "  assignee: $INIT_ASSIGNEE"
+          echo
+
+          # Create a SECOND throwaway for link tests
+          CREATE2_OUT=$(acli jira workitem create \
+            --project "$PROJ" \
+            --type "Task" \
+            --summary "DSO-PROBE-LINK-TARGET-$(date +%s)" \
+            --json 2>&1)
+          LINK_KEY=$(echo "$CREATE2_OUT" | python3 -c "
+          import json,sys
+          try: d=json.load(sys.stdin); print(d.get('key',''))
+          except: print('')
+          " 2>/dev/null)
+          echo "Created link target: $LINK_KEY"
+          echo
+
+          # =====================================================================
+          echo "=== PHASE 2: DESCRIPTION — read, edit, verify ==="
+          # =====================================================================
+
+          # Test 2a: Read description via search -f
+          echo "Test 2a: ACLI search -f includes description"
+          SEARCH_DESC=$(acli jira workitem search \
+            --jql "key = $TEST_KEY" \
+            -f "key,summary,description" \
+            --json 2>&1 | python3 -c "
+          import json,sys
+          try:
+            d=json.load(sys.stdin)
+            issues=d if isinstance(d,list) else d.get('issues',[])
+            if issues:
+              f=issues[0].get('fields',{}) or {}
+              desc=f.get('description')
+              if desc is None: print('NOT_IN_PROJECTION')
+              elif isinstance(desc,dict): print('ADF:' + desc.get('type','?'))
+              else: print(str(desc)[:100])
+            else: print('NO_ISSUES')
+          except Exception as e: print(f'ERROR:{e}')
+          " 2>/dev/null)
+          echo "  search -f description result: $SEARCH_DESC"
+          if [[ "$SEARCH_DESC" == ADF:doc ]]; then _pass "search -f description returns ADF"
+          elif [[ "$SEARCH_DESC" == NOT_IN_PROJECTION ]]; then _fail "description not in search projection"
+          elif [[ "$SEARCH_DESC" == ERROR:* ]]; then _fail "search -f description: $SEARCH_DESC"
+          else _pass "search -f description returns: $SEARCH_DESC"; fi
+
+          # Test 2b: Read description via get_issue
+          echo "Test 2b: ACLI view includes description"
+          VIEW_DESC=$(_get_issue "$TEST_KEY" | python3 -c "
+          import json,sys
+          d=json.load(sys.stdin)
+          f=d.get('fields',{}) or {}
+          desc=f.get('description')
+          if desc is None: print('NULL')
+          elif isinstance(desc,dict): print('ADF:' + desc.get('type','?'))
+          else: print(str(desc)[:100])
+          " 2>/dev/null)
+          echo "  view description result: $VIEW_DESC"
+          if [[ "$VIEW_DESC" == ADF:doc ]]; then _pass "view returns description as ADF"
+          else _fail "view description: $VIEW_DESC"; fi
+
+          # Test 2c: Edit description via ACLI
+          echo "Test 2c: Edit description via ACLI"
+          acli jira workitem edit --key "$TEST_KEY" --description "Updated description via ACLI probe" --yes 2>/dev/null
+          EDIT_RC=$?
+          AFTER_DESC=$(_get_issue "$TEST_KEY" | python3 -c "
+          import json,sys
+          d=json.load(sys.stdin)
+          f=d.get('fields',{}) or {}
+          desc=f.get('description',{})
+          if isinstance(desc,dict):
+            # Walk ADF to extract text
+            def walk(node):
+              if isinstance(node,dict):
+                if node.get('type')=='text': return node.get('text','')
+                return ''.join(walk(c) for c in node.get('content',[]))
+              if isinstance(node,list): return ''.join(walk(c) for c in node)
+              return ''
+            print(walk(desc))
+          else: print(str(desc)[:200])
+          " 2>/dev/null)
+          echo "  edit rc=$EDIT_RC, description after: '$AFTER_DESC'"
+          if [ "$EDIT_RC" -eq 0 ] && [[ "$AFTER_DESC" == *"Updated description via ACLI probe"* ]]; then
+            _pass "edit description via ACLI"
+          else _fail "edit description: rc=$EDIT_RC, got '$AFTER_DESC'"; fi
+
+          # =====================================================================
+          echo; echo "=== PHASE 3: PRIORITY — read, edit ==="
+          # =====================================================================
+
+          echo "Test 3a: Read priority"
+          PRI_BEFORE=$(_get_field "$TEST_KEY" "priority")
+          echo "  priority before: $PRI_BEFORE"
+          [[ -n "$PRI_BEFORE" && "$PRI_BEFORE" != "<null>" ]] && _pass "read priority" || _fail "read priority: $PRI_BEFORE"
+
+          echo "Test 3b: Edit priority via ACLI (expect failure)"
+          acli jira workitem edit --key "$TEST_KEY" --priority "High" --yes 2>/dev/null
+          ACLI_PRI_RC=$?
+          PRI_AFTER_ACLI=$(_get_field "$TEST_KEY" "priority")
+          echo "  ACLI edit rc=$ACLI_PRI_RC, priority after: $PRI_AFTER_ACLI"
+
+          echo "Test 3c: Edit priority via REST API"
+          python3 -c "
+          import urllib.request, urllib.error, json, base64, os
+          url=os.environ['JIRA_URL'].rstrip('/')+'/rest/api/3/issue/$TEST_KEY'
+          creds=base64.b64encode(f\"{os.environ['JIRA_USER']}:{os.environ['JIRA_API_TOKEN']}\".encode()).decode()
+          data=json.dumps({'fields':{'priority':{'name':'Highest'}}}).encode()
+          req=urllib.request.Request(url,data=data,method='PUT',headers={'Authorization':f'Basic {creds}','Content-Type':'application/json','Accept':'application/json'})
+          try:
+            with urllib.request.urlopen(req,timeout=10) as r: print(f'OK:{r.status}')
+          except urllib.error.HTTPError as e: print(f'ERROR:{e.code}:{e.read().decode()[:200]}')
+          except Exception as e: print(f'EXCEPTION:{e}')
+          "
+          REST_PRI_RC=$?
+          PRI_AFTER_REST=$(_get_field "$TEST_KEY" "priority")
+          echo "  REST edit result, priority after: $PRI_AFTER_REST"
+          [[ "$PRI_AFTER_REST" == "Highest" ]] && _pass "edit priority via REST" || _fail "edit priority via REST: got $PRI_AFTER_REST"
+
+          # =====================================================================
+          echo; echo "=== PHASE 4: ISSUETYPE — read, edit ==="
+          # =====================================================================
+
+          echo "Test 4a: Read issuetype"
+          TYPE_BEFORE=$(_get_field "$TEST_KEY" "issuetype")
+          echo "  issuetype before: $TYPE_BEFORE"
+
+          echo "Test 4b: Edit issuetype via REST API (Task -> Story)"
+          python3 -c "
+          import urllib.request, urllib.error, json, base64, os
+          url=os.environ['JIRA_URL'].rstrip('/')+'/rest/api/3/issue/$TEST_KEY'
+          creds=base64.b64encode(f\"{os.environ['JIRA_USER']}:{os.environ['JIRA_API_TOKEN']}\".encode()).decode()
+          data=json.dumps({'fields':{'issuetype':{'name':'Story'}}}).encode()
+          req=urllib.request.Request(url,data=data,method='PUT',headers={'Authorization':f'Basic {creds}','Content-Type':'application/json','Accept':'application/json'})
+          try:
+            with urllib.request.urlopen(req,timeout=10) as r: print(f'OK:{r.status}')
+          except urllib.error.HTTPError as e: print(f'ERROR:{e.code}:{e.read().decode()[:200]}')
+          except Exception as e: print(f'EXCEPTION:{e}')
+          "
+          TYPE_AFTER=$(_get_field "$TEST_KEY" "issuetype")
+          echo "  issuetype after: $TYPE_AFTER"
+          [[ "$TYPE_AFTER" == "Story" ]] && _pass "edit issuetype via REST" || _fail "edit issuetype via REST: got $TYPE_AFTER"
+
+          # =====================================================================
+          echo; echo "=== PHASE 5: STATUS — read, transition ==="
+          # =====================================================================
+
+          echo "Test 5a: Read status"
+          STATUS_BEFORE=$(_get_field "$TEST_KEY" "status")
+          echo "  status before: $STATUS_BEFORE"
+
+          echo "Test 5b: Transition status (To Do -> Done)"
+          acli jira workitem transition --key "$TEST_KEY" --status "Done" 2>/dev/null
+          TRANS_RC=$?
+          STATUS_AFTER=$(_get_field "$TEST_KEY" "status")
+          echo "  transition rc=$TRANS_RC, status after: $STATUS_AFTER"
+          [[ "$STATUS_AFTER" == "Done" ]] && _pass "transition status" || _fail "transition status: got $STATUS_AFTER"
+
+          echo "Test 5c: Transition back (Done -> To Do)"
+          acli jira workitem transition --key "$TEST_KEY" --status "To Do" 2>/dev/null
+          STATUS_BACK=$(_get_field "$TEST_KEY" "status")
+          echo "  status after back: $STATUS_BACK"
+          [[ "$STATUS_BACK" == "To Do" ]] && _pass "transition back" || _fail "transition back: got $STATUS_BACK"
+
+          # =====================================================================
+          echo; echo "=== PHASE 6: ASSIGNEE — read, set, clear ==="
+          # =====================================================================
+
+          echo "Test 6a: Set assignee"
+          acli jira workitem edit --key "$TEST_KEY" --assignee "$JIRA_USER" --yes 2>/dev/null
+          ASSIGNEE_AFTER=$(_get_field "$TEST_KEY" "assignee")
+          echo "  assignee after set: $ASSIGNEE_AFTER"
+          [[ -n "$ASSIGNEE_AFTER" && "$ASSIGNEE_AFTER" != "<null>" ]] && _pass "set assignee" || _fail "set assignee: $ASSIGNEE_AFTER"
+
+          echo "Test 6b: Clear assignee"
+          acli jira workitem edit --key "$TEST_KEY" --assignee "" --yes 2>/dev/null
+          ASSIGNEE_CLEARED=$(_get_field "$TEST_KEY" "assignee")
+          echo "  assignee after clear: $ASSIGNEE_CLEARED"
+          [[ "$ASSIGNEE_CLEARED" == "<null>" ]] && _pass "clear assignee" || _fail "clear assignee: $ASSIGNEE_CLEARED"
+
+          # =====================================================================
+          echo; echo "=== PHASE 7: COMMENTS — add, list, edit, delete ==="
+          # =====================================================================
+
+          echo "Test 7a: Add comment via ACLI"
+          ADD_CMT=$(acli jira workitem comment create --key "$TEST_KEY" --body "Probe comment 1" --json 2>&1)
+          CMT_ID=$(echo "$ADD_CMT" | python3 -c "
+          import json,sys
+          try: d=json.load(sys.stdin); print(d.get('id',''))
+          except: print('')
+          " 2>/dev/null)
+          echo "  comment created, id=$CMT_ID"
+          [[ -n "$CMT_ID" ]] && _pass "add comment" || _fail "add comment: $ADD_CMT"
+
+          echo "Test 7b: List comments"
+          CMT_COUNT=$(acli jira workitem comment list --key "$TEST_KEY" --json 2>/dev/null | python3 -c "
+          import json,sys
+          try:
+            d=json.load(sys.stdin)
+            cmts=d if isinstance(d,list) else d.get('comments',[])
+            print(len(cmts))
+          except: print(0)
+          " 2>/dev/null)
+          echo "  comment count: $CMT_COUNT"
+          [[ "$CMT_COUNT" -ge 1 ]] && _pass "list comments ($CMT_COUNT)" || _fail "list comments: $CMT_COUNT"
+
+          echo "Test 7c: Edit comment via ACLI"
+          if [ -n "$CMT_ID" ]; then
+            acli jira workitem comment update --key "$TEST_KEY" --id "$CMT_ID" --body "Probe comment 1 EDITED" 2>/dev/null
+            EDIT_CMT_RC=$?
+            # Verify edit
+            EDITED_BODY=$(acli jira workitem comment list --key "$TEST_KEY" --json 2>/dev/null | python3 -c "
+          import json,sys
+          try:
+            d=json.load(sys.stdin)
+            cmts=d if isinstance(d,list) else d.get('comments',[])
+            for c in cmts:
+              if str(c.get('id',''))=='$CMT_ID':
+                body=c.get('body','')
+                if isinstance(body,dict):
+                  def walk(n):
+                    if isinstance(n,dict):
+                      if n.get('type')=='text': return n.get('text','')
+                      return ''.join(walk(x) for x in n.get('content',[]))
+                    if isinstance(n,list): return ''.join(walk(x) for x in n)
+                    return ''
+                  print(walk(body))
+                else: print(str(body)[:100])
+                break
+          except Exception as e: print(f'ERROR:{e}')
+          " 2>/dev/null)
+            echo "  edit rc=$EDIT_CMT_RC, body after: '$EDITED_BODY'"
+            if [[ "$EDITED_BODY" == *"EDITED"* ]]; then _pass "edit comment via ACLI"
+            else _fail "edit comment: rc=$EDIT_CMT_RC, got '$EDITED_BODY'"; fi
+          else _skip "edit comment (no comment ID)"; fi
+
+          echo "Test 7d: Delete comment via REST"
+          if [ -n "$CMT_ID" ]; then
+            python3 -c "
+          import urllib.request, urllib.error, base64, os
+          url=os.environ['JIRA_URL'].rstrip('/')+'/rest/api/3/issue/$TEST_KEY/comment/$CMT_ID'
+          creds=base64.b64encode(f\"{os.environ['JIRA_USER']}:{os.environ['JIRA_API_TOKEN']}\".encode()).decode()
+          req=urllib.request.Request(url,method='DELETE',headers={'Authorization':f'Basic {creds}','Accept':'application/json'})
+          try:
+            with urllib.request.urlopen(req,timeout=10) as r: print(f'OK:{r.status}')
+          except urllib.error.HTTPError as e: print(f'ERROR:{e.code}:{e.read().decode()[:100]}')
+          "
+            DEL_CMT_COUNT=$(acli jira workitem comment list --key "$TEST_KEY" --json 2>/dev/null | python3 -c "
+          import json,sys
+          try: d=json.load(sys.stdin); cmts=d if isinstance(d,list) else d.get('comments',[]); print(len(cmts))
+          except: print('?')
+          " 2>/dev/null)
+            echo "  comments after delete: $DEL_CMT_COUNT"
+            [[ "$DEL_CMT_COUNT" == "0" ]] && _pass "delete comment via REST" || _fail "delete comment: $DEL_CMT_COUNT remain"
+          else _skip "delete comment (no comment ID)"; fi
+
+          # =====================================================================
+          echo; echo "=== PHASE 8: LABELS — add, read, remove ==="
+          # =====================================================================
+
+          echo "Test 8a: Add label"
+          LABEL_TMP=$(mktemp /tmp/label.XXXXXX.json)
+          echo "{\"issues\":[\"$TEST_KEY\"],\"labelsToAdd\":[\"probe-test-label\"]}" > "$LABEL_TMP"
+          acli jira workitem edit --from-json "$LABEL_TMP" --yes 2>/dev/null
+          rm -f "$LABEL_TMP"
+          LABELS_AFTER=$(_get_issue "$TEST_KEY" | python3 -c "
+          import json,sys
+          d=json.load(sys.stdin)
+          f=d.get('fields',{}) or {}
+          print(json.dumps(f.get('labels',[])))
+          " 2>/dev/null)
+          echo "  labels after add: $LABELS_AFTER"
+          [[ "$LABELS_AFTER" == *"probe-test-label"* ]] && _pass "add label" || _fail "add label: $LABELS_AFTER"
+
+          echo "Test 8b: Remove label"
+          LABEL_RM=$(mktemp /tmp/label-rm.XXXXXX.json)
+          echo "{\"issues\":[\"$TEST_KEY\"],\"labelsToRemove\":[\"probe-test-label\"]}" > "$LABEL_RM"
+          acli jira workitem edit --from-json "$LABEL_RM" --yes 2>/dev/null
+          rm -f "$LABEL_RM"
+          LABELS_REMOVED=$(_get_issue "$TEST_KEY" | python3 -c "
+          import json,sys
+          d=json.load(sys.stdin)
+          f=d.get('fields',{}) or {}
+          print(json.dumps(f.get('labels',[])))
+          " 2>/dev/null)
+          echo "  labels after remove: $LABELS_REMOVED"
+          [[ "$LABELS_REMOVED" == "[]" ]] && _pass "remove label" || _fail "remove label: $LABELS_REMOVED"
+
+          # =====================================================================
+          echo; echo "=== PHASE 9: LINKS — create, read, delete ==="
+          # =====================================================================
+
+          if [ -n "$LINK_KEY" ]; then
+            echo "Test 9a: Create link ($TEST_KEY blocks $LINK_KEY)"
+            acli jira workitem link create --out "$TEST_KEY" --in "$LINK_KEY" --type "Blocks" 2>/dev/null
+            LINK_RC=$?
+            echo "  link create rc=$LINK_RC"
+
+            echo "Test 9b: Read links"
+            LINK_DATA=$(acli jira workitem link list --key "$TEST_KEY" --json 2>/dev/null)
+            LINK_COUNT=$(echo "$LINK_DATA" | python3 -c "
+          import json,sys
+          try:
+            d=json.load(sys.stdin)
+            links=d if isinstance(d,list) else d.get('issuelinks',[])
+            print(len(links))
+          except: print(0)
+          " 2>/dev/null)
+            echo "  link count: $LINK_COUNT"
+            [[ "$LINK_COUNT" -ge 1 ]] && _pass "create + read link" || _fail "link: count=$LINK_COUNT"
+
+            echo "Test 9c: Delete link"
+            LINK_ID=$(echo "$LINK_DATA" | python3 -c "
+          import json,sys
+          try:
+            d=json.load(sys.stdin)
+            links=d if isinstance(d,list) else d.get('issuelinks',[])
+            if links: print(links[0].get('id',''))
+          except: pass
+          " 2>/dev/null)
+            if [ -n "$LINK_ID" ]; then
+              acli jira workitem link delete --id "$LINK_ID" 2>/dev/null
+              LINKS_AFTER=$(acli jira workitem link list --key "$TEST_KEY" --json 2>/dev/null | python3 -c "
+          import json,sys
+          try: d=json.load(sys.stdin); links=d if isinstance(d,list) else d.get('issuelinks',[]); print(len(links))
+          except: print('?')
+          " 2>/dev/null)
+              echo "  links after delete: $LINKS_AFTER"
+              [[ "$LINKS_AFTER" == "0" ]] && _pass "delete link" || _fail "delete link: $LINKS_AFTER remain"
+            else _skip "delete link (no link ID)"; fi
+          else _skip "link tests (no LINK_KEY)"; fi
+
+          # =====================================================================
+          echo; echo "=== PHASE 10: SEARCH PROJECTION — bulk field inclusion ==="
+          # =====================================================================
+
+          echo "Test 10a: Search with ALL sync fields in -f"
+          PROJ_TEST=$(acli jira workitem search \
+            --jql "key = $TEST_KEY" \
+            -f "key,summary,description,status,priority,issuetype,assignee,labels" \
+            --json 2>&1 | python3 -c "
+          import json,sys
+          try:
+            d=json.load(sys.stdin)
+            issues=d if isinstance(d,list) else d.get('issues',[])
+            if issues:
+              f=issues[0].get('fields',{}) or {}
+              present=[k for k in ['summary','description','status','priority','issuetype','assignee','labels'] if k in f]
+              missing=[k for k in ['summary','description','status','priority','issuetype','assignee','labels'] if k not in f]
+              print(f'present={len(present)}:{present} missing={len(missing)}:{missing}')
+            else: print('NO_ISSUES')
+          except Exception as e: print(f'ERROR:{e}')
+          " 2>/dev/null)
+          echo "  projection result: $PROJ_TEST"
+          if [[ "$PROJ_TEST" == present=7:* && "$PROJ_TEST" != *"missing="*[a-z]* ]]; then
+            _pass "all 7 sync fields in search projection"
+          elif [[ "$PROJ_TEST" == ERROR:* ]]; then
+            _fail "search projection: $PROJ_TEST"
+          else
+            echo "  (partial — checking which fields work)"
+            _fail "search projection incomplete: $PROJ_TEST"
+          fi
+
+          # =====================================================================
+          echo; echo "=== CLEANUP: Delete throwaway issues ==="
+          # =====================================================================
+
+          acli jira workitem delete --key "$TEST_KEY" --yes 2>/dev/null
+          DEL1_RC=$?
+          echo "  deleted $TEST_KEY: rc=$DEL1_RC"
+          if [ -n "$LINK_KEY" ]; then
+            acli jira workitem delete --key "$LINK_KEY" --yes 2>/dev/null
+            echo "  deleted $LINK_KEY: rc=$?"
+          fi
+
+          # =====================================================================
+          echo; echo "=========================================="
+          echo "PROBE SUMMARY: $PASS passed, $FAIL failed, $SKIP skipped"
+          echo "=========================================="
+          [ "$FAIL" -gt 0 ] && echo "::warning::$FAIL probe(s) failed — review details above"
+          echo "=== Probe complete — exiting (not running reconciler in probe mode) ==="
+          exit 0
+          # Skip all legacy probes below
+          exit 0
           echo "=== Probe 0: ALL assignees in project ${PROJ} ==="
           acli jira workitem search --jql "project = ${PROJ}" --paginate --json \
             | python3 -c "
