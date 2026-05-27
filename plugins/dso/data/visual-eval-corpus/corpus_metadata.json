@@ -1,5 +1,5 @@
 {
-  "cohens_kappa": 1.0,
+  "cohens_kappa": 0.8888888888888888,
   "fixture_count": 48,
   "labeler_ids": [
     "llm_agent_run_1",
@@ -12,6 +12,6 @@
     0.3,
     0.5
   ],
-  "labeled_at": "2026-05-26T21:35:28.341845Z",
+  "labeled_at": "2026-05-27T00:31:19.746991Z",
   "stub_mode": true
 }

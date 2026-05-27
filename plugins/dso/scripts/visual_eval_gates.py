@@ -32,8 +32,14 @@ DEFAULT_CLASS_WEIGHTS = {
 }
 
 
-def _read_dimension_weights() -> dict[str, float] | None:
-    """Read visual_evaluator.dimension_weights from dso-config.conf. Returns None on failure."""
+def _read_class_weights() -> dict[str, float] | None:
+    """Read visual_evaluator.class_weights from dso-config.conf. Returns None on failure.
+
+    Note: visual_evaluator.dimension_weights (5-element list for scoring dimensions)
+    is a DIFFERENT config key used by the calibration script's per-dimension scoring.
+    This function reads per-attribution-CLASS weights for accuracy computation.
+    When no class_weights config exists, DEFAULT_CLASS_WEIGHTS (equal 0.25 each) is used.
+    """
     import subprocess
 
     try:
@@ -41,7 +47,7 @@ def _read_dimension_weights() -> dict[str, float] | None:
             [
                 ".claude/scripts/dso",
                 "read-config",
-                "visual_evaluator.dimension_weights",
+                "visual_evaluator.class_weights",
             ],
             capture_output=True,
             text=True,
@@ -195,7 +201,7 @@ def run_all_gates(corpus_dir: str | Path) -> dict[str, tuple[bool, float, float]
     )
 
     # Read configured weights (may be None — compute_weighted_accuracy will default)
-    weights = _read_dimension_weights()
+    weights = _read_class_weights()
     accuracy = compute_weighted_accuracy(corpus_dir, weights=weights)
     results["accuracy"] = (accuracy >= ACCURACY_THRESHOLD, accuracy, ACCURACY_THRESHOLD)
 

@@ -91,8 +91,8 @@ def label_fixture(
         # Deterministic stub: returns the manifest's attribution_class,
         # optionally perturbed by temperature for variance.
         true_class = manifest.get("attribution_class", "uncertain")
-        if temperature > 0.3 and run_id == 2:
-            # Slight perturbation: 1 in 10 fixtures gets a different label
+        if temperature >= 0.3 and run_id >= 2:
+            # Perturbation: 1 in 10 fixtures gets a different label for variance
             fixture_idx = (
                 int(fixture_path.name.rsplit("-", 1)[-1])
                 if "-" in fixture_path.name
