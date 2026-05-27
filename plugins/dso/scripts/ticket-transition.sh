@@ -443,9 +443,9 @@ try:
                 import hmac, hashlib
                 key_file = os.path.join(tracker_dir, '.closure-key')
                 if not os.path.isfile(key_file):
-                    import uuid as _uuid
-                    with open(key_file, 'w') as _kw:
-                        _kw.write(str(_uuid.uuid4()))
+                    print(f'Error: .closure-key not found. Run ticket init to generate it.', file=sys.stderr)
+                    os.close(fd)
+                    sys.exit(1)
                 with open(key_file, 'r') as _kf:
                     key = _kf.read().strip().encode()
                 try:

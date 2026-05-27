@@ -26,6 +26,14 @@ fi
 TICKET_ID="$1"
 VERDICT="$2"
 
+case "$VERDICT" in
+    PASS|FAIL|BLOCKED|INCONCLUSIVE|EVIDENCE_PENDING) ;;
+    *)
+        echo "Error: invalid verdict '$VERDICT'. Must be one of: PASS, FAIL, BLOCKED, INCONCLUSIVE, EVIDENCE_PENDING" >&2
+        exit 1
+        ;;
+esac
+
 REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null)}"
 TRACKER_DIR="$REPO_ROOT/.tickets-tracker"  # tickets-boundary-ok: reads .closure-key for HMAC
 
