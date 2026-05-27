@@ -57,6 +57,8 @@ _usage() {
     echo "  archive       Archive an open ticket (excludes from default list; idempotent)"
     echo "  set-file-impact  Record file impact for a ticket (JSON array of {path,reason} objects)"
     echo "  get-file-impact  Get the current file impact array for a ticket (JSON)"
+    echo "  set-verify-commands  Record DD-level verify commands (JSON array of {dd_id,dd_text,command})"
+    echo "  get-verify-commands  Get the current verify commands array for a ticket (JSON)"
     echo "  scratch          Manage per-ticket scratch values (set/get/clear)"
     exit 1
 }
@@ -457,6 +459,20 @@ case "$subcommand" in
         # shellcheck source=/dev/null
         source "$SCRIPT_DIR/ticket-lib-api.sh"
         _ticketlib_dispatch ticket_get_file_impact "$@"
+        exit $?
+        ;;
+    set-verify-commands)
+        _ensure_initialized
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_set_verify_commands "$@"
+        exit $?
+        ;;
+    get-verify-commands)
+        _ensure_initialized
+        # shellcheck source=/dev/null
+        source "$SCRIPT_DIR/ticket-lib-api.sh"
+        _ticketlib_dispatch ticket_get_verify_commands "$@"
         exit $?
         ;;
     resolve)

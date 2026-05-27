@@ -7,10 +7,12 @@ Reference doc for the typed-enum P1 gate, deterministic narrative renderer, and 
 `dso:completion-verifier` emits a JSON object. The machine-readable gate field is:
 
 ```
-P1: "PASS" | "FAIL" | "DEGRADED"
+P1: "PASS" | "FAIL" | "DEGRADED" | "EVIDENCE_PENDING"
 ```
 
 `overall_verdict` is a summary field for human display only — orchestrators MUST read `P1`, not `overall_verdict`. Halt story/epic closure if `P1 ≠ PASS`.
+
+`EVIDENCE_PENDING` (added by intent-fidelity-pipeline Phase 1): emitted when execution traces are present but one or more DDs have `TIMEOUT` outcomes or missing Verify commands. The story cannot close. The orchestrator re-runs `pre-verifier-execute.sh` once; if still `EVIDENCE_PENDING`, escalates to user.
 
 ## Scripts
 
