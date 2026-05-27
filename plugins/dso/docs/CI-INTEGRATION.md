@@ -169,7 +169,7 @@ This script is called by Phase F during story PR creation to set `STORY_PR_BASE`
 
 "Integration scope" is intentionally narrow: only files that appear in commits from two or more distinct story branches, plus any commits that bypassed per-branch review. Commits that touch only one story's files are intended to be excluded from integration-level LLM review (their review would be recorded by the per-sub-branch review job when present).
 
-> **NOTE**: The integration-scope narrowing logic in `ci.yml` was disabled by bug 1624-5fb9 (reverted to full-diff fallback). Currently, the session→main `llm-review` runs against the FULL cumulative diff, not the narrowed integration scope. Re-enabling incremental scope is in the remediation epic.
+> **NOTE**: Integration-scope narrowing was re-enabled in the G1 fix (bug 1624-5fb9 remediation). When `INTEGRATION_SCOPE_FILE` is non-empty, `llm-review-dispatch-or-skip.sh` filters the PR diff to only files in the integration scope before passing to the runner. When the scope file is empty or absent, the full PR diff is reviewed as a fallback.
 
 ## merge-pipeline-checks umbrella job
 

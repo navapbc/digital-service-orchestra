@@ -328,16 +328,16 @@ test_exit2_invokes_runner() {
     assert_pass_if_clean "test_exit2_invokes_runner"
 }
 
-# ── Test 7: exit 3 → wrapper skips dispatch (OVER_BOUND path) ────────────────
+# ── Test 7: exit 3 → wrapper blocks CI (OVER_BOUND path, G2 fix) ────────────
 # When verify-session-provenance.sh exits 3 (OVER_BOUND — non-provenanced
-# commits acknowledged and routed to admin/FP-recovery), the wrapper must NOT
-# call ci-llm-review-runner.sh.
-test_exit3_skips_runner() {
+# commits exceed review bounds), the wrapper must NOT call ci-llm-review-runner.sh
+# AND must exit non-zero to block CI (G2 fix).
+test_exit3_blocks_ci() {
     _snapshot_fail
     if [[ ! -f "$WRAPPER" ]]; then
-        assert_eq "test_exit3_skips_runner: wrapper must exist to test routing" \
+        assert_eq "test_exit3_blocks_ci: wrapper must exist to test routing" \
             "wrapper_exists" "wrapper_missing"
-        assert_pass_if_clean "test_exit3_skips_runner"
+        assert_pass_if_clean "test_exit3_blocks_ci"
         return
     fi
 
@@ -350,20 +350,25 @@ test_exit3_skips_runner() {
     artifact_dir="$(mktemp -d)"
     _seed_artifacts "$artifact_dir" "overbound"
 
+    local exit_code=0
     DSO_VERIFIER_PATH="$MOCK_BIN/verify-session-provenance.sh" \
     DSO_RUNNER_PATH="$MOCK_BIN/ci-llm-review-runner.sh" \
     DSO_ARTIFACT_DIR="$artifact_dir" \
-        bash "$WRAPPER" 2>/dev/null || true
+        bash "$WRAPPER" 2>/dev/null
+    exit_code=$?
 
     local runner_called="no"
     if [[ -f "$call_log" ]] && grep -q "runner-called" "$call_log" 2>/dev/null; then
         runner_called="yes"
     fi
-    assert_eq "test_exit3_skips_runner: runner NOT called when verifier exits 3 (OVER_BOUND)" \
+    assert_eq "test_exit3_blocks_ci: runner NOT called when verifier exits 3 (OVER_BOUND)" \
         "no" "$runner_called"
 
+    assert_eq "test_exit3_blocks_ci: OVER_BOUND exits non-zero (G2 — blocks CI)" \
+        "1" "$exit_code"
+
     rm -rf "$artifact_dir"
-    assert_pass_if_clean "test_exit3_skips_runner"
+    assert_pass_if_clean "test_exit3_blocks_ci"
 }
 
 # ── Test 8: exit 3 → wrapper emits 'skipped' conclusion + OVER_BOUND message ─
@@ -393,20 +398,20 @@ test_exit3_emits_over_bound_summary() {
             bash "$WRAPPER" 2>&1
     ) || true
 
-    assert_contains "test_exit3_emits_over_bound_summary: output contains 'skipped'" \
-        "skipped" "$output"
+    assert_contains "test_exit3_emits_over_bound_summary: output contains 'blocked'" \
+        "blocked" "$output"
 
     assert_contains "test_exit3_emits_over_bound_summary: output contains 'OVER_BOUND'" \
         "OVER_BOUND" "$output"
 
-    # Check for FP-recovery / admin routing reference
+    # Check for FP-recovery routing reference (G2: now a hard block)
     local has_routing
-    if echo "$output" | grep -qiE "admin|fp-recovery|FP_recovery"; then
+    if echo "$output" | grep -qiE "fp-recovery|FP_recovery"; then
         has_routing="yes"
     else
         has_routing="no"
     fi
-    assert_eq "test_exit3_emits_over_bound_summary: output references admin/FP-recovery routing" \
+    assert_eq "test_exit3_emits_over_bound_summary: output references FP-recovery routing" \
         "yes" "$has_routing"
 
     rm -rf "$artifact_dir"
@@ -514,8 +519,8 @@ test_dispatcher_overbound_routes_correctly() {
             bash "$WRAPPER" 2>&1
     ) || true
 
-    assert_contains "test_dispatcher_overbound_routes_correctly: output contains 'CONCLUSION: skipped'" \
-        "CONCLUSION: skipped" "$output"
+    assert_contains "test_dispatcher_overbound_routes_correctly: output contains 'CONCLUSION: blocked'" \
+        "CONCLUSION: blocked" "$output"
     assert_contains "test_dispatcher_overbound_routes_correctly: output contains 'OVER_BOUND'" \
         "OVER_BOUND" "$output"
 
@@ -700,6 +705,135 @@ MOCKGHEOF
     assert_pass_if_clean "test_dispatcher_supplies_diff_to_runner"
 }
 
+# ── Test 15 (G1): integration-scope narrowing filters diff ────────────────────
+# When INTEGRATION_SCOPE_FILE is set and non-empty, the dispatcher must filter
+# the PR diff to only files in the scope before passing to the runner.
+test_dispatcher_scope_narrowing() {
+    _snapshot_fail
+    if [[ ! -f "$WRAPPER" ]]; then
+        assert_eq "test_dispatcher_scope_narrowing: wrapper must exist" \
+            "wrapper_exists" "wrapper_missing"
+        assert_pass_if_clean "test_dispatcher_scope_narrowing"
+        return
+    fi
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+    _seed_artifacts "$artifact_dir" "unprovenanced" "deadbeef"
+
+    # Create a scope file listing only "b.py" (not "a.py")
+    local scope_file="${artifact_dir}/integration-scope-files.txt"
+    printf 'b.py\n' > "$scope_file"
+
+    # Mock gh to return a multi-file diff
+    mkdir -p "$MOCK_BIN"
+    cat > "$MOCK_BIN/gh" << 'MOCKGHEOF'
+#!/usr/bin/env bash
+if [[ "$1" == "pr" && "$2" == "diff" ]]; then
+    cat << 'DIFFEOF'
+diff --git a/a.py b/a.py
+--- a/a.py
++++ b/a.py
+@@ -1 +1,2 @@
++# not in scope
+diff --git a/b.py b/b.py
+--- a/b.py
++++ b/b.py
+@@ -1 +1,2 @@
++# in scope
+DIFFEOF
+    exit 0
+fi
+echo "MOCK gh: unhandled args: $*" >&2
+exit 1
+MOCKGHEOF
+    chmod +x "$MOCK_BIN/gh"
+
+    # Mock runner: capture the diff content it receives
+    local diff_log
+    diff_log="$(mktemp "$TMPDIR_TEST/runner-diff-log.XXXXXX")"
+    cat > "$MOCK_BIN/ci-llm-review-runner.sh" << MOCKEOF
+#!/usr/bin/env bash
+if [[ -n "\${DSO_CI_REVIEW_DIFF_PATH:-}" && -f "\${DSO_CI_REVIEW_DIFF_PATH}" ]]; then
+    cat "\${DSO_CI_REVIEW_DIFF_PATH}" > "$diff_log"
+fi
+exit 0
+MOCKEOF
+    chmod +x "$MOCK_BIN/ci-llm-review-runner.sh"
+
+    PATH="$MOCK_BIN:$PATH" \
+    PR_NUMBER=99 \
+    DSO_RUNNER_PATH="$MOCK_BIN/ci-llm-review-runner.sh" \
+    DSO_ARTIFACT_DIR="$artifact_dir" \
+    INTEGRATION_SCOPE_FILE="$scope_file" \
+        bash "$WRAPPER" > /dev/null 2>/dev/null || true
+
+    # The diff the runner received should contain b.py but NOT a.py
+    local diff_content
+    diff_content="$(cat "$diff_log" 2>/dev/null || echo '')"
+    local has_b="no" has_a="no"
+    if echo "$diff_content" | grep -q 'b.py'; then has_b="yes"; fi
+    if echo "$diff_content" | grep -q 'a.py'; then has_a="yes"; fi
+    assert_eq "test_dispatcher_scope_narrowing: diff contains in-scope file b.py" \
+        "yes" "$has_b"
+    assert_eq "test_dispatcher_scope_narrowing: diff excludes out-of-scope file a.py" \
+        "no" "$has_a"
+
+    rm -rf "$artifact_dir" "$diff_log"
+    assert_pass_if_clean "test_dispatcher_scope_narrowing"
+}
+
+# ── Test 16 (G1): empty scope file falls back to full diff ───────────────────
+test_dispatcher_empty_scope_uses_full_diff() {
+    _snapshot_fail
+    if [[ ! -f "$WRAPPER" ]]; then
+        assert_eq "test_dispatcher_empty_scope_uses_full_diff: wrapper must exist" \
+            "wrapper_exists" "wrapper_missing"
+        assert_pass_if_clean "test_dispatcher_empty_scope_uses_full_diff"
+        return
+    fi
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+    _seed_artifacts "$artifact_dir" "unprovenanced" "deadbeef"
+
+    # Create an empty scope file
+    local scope_file="${artifact_dir}/integration-scope-files.txt"
+    : > "$scope_file"
+
+    _make_mock_gh
+
+    # Mock runner: capture the diff files it receives
+    local diff_log
+    diff_log="$(mktemp "$TMPDIR_TEST/runner-diff-log-empty.XXXXXX")"
+    cat > "$MOCK_BIN/ci-llm-review-runner.sh" << MOCKEOF
+#!/usr/bin/env bash
+if [[ -n "\${DSO_CI_REVIEW_DIFF_PATH:-}" && -f "\${DSO_CI_REVIEW_DIFF_PATH}" ]]; then
+    grep -c '^diff --git' "\${DSO_CI_REVIEW_DIFF_PATH}" > "$diff_log" 2>/dev/null || echo "0" > "$diff_log"
+fi
+exit 0
+MOCKEOF
+    chmod +x "$MOCK_BIN/ci-llm-review-runner.sh"
+
+    PATH="$MOCK_BIN:$PATH" \
+    PR_NUMBER=99 \
+    DSO_RUNNER_PATH="$MOCK_BIN/ci-llm-review-runner.sh" \
+    DSO_ARTIFACT_DIR="$artifact_dir" \
+    INTEGRATION_SCOPE_FILE="$scope_file" \
+        bash "$WRAPPER" > /dev/null 2>/dev/null || true
+
+    # With empty scope, the full diff (from mock gh: 1 file) should pass through
+    local file_count
+    file_count="$(cat "$diff_log" 2>/dev/null || echo '0')"
+    local has_files="no"
+    if [[ "$file_count" -gt 0 ]] 2>/dev/null; then has_files="yes"; fi
+    assert_eq "test_dispatcher_empty_scope_uses_full_diff: full diff passes through when scope is empty" \
+        "yes" "$has_files"
+
+    rm -rf "$artifact_dir" "$diff_log"
+    assert_pass_if_clean "test_dispatcher_empty_scope_uses_full_diff"
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 test_wrapper_exists
 test_exit0_skips_runner
@@ -707,7 +841,7 @@ test_exit0_emits_skipped_conclusion
 test_exit0_liveness_assertion_in_summary
 test_exit1_invokes_runner
 test_exit2_invokes_runner
-test_exit3_skips_runner
+test_exit3_blocks_ci
 test_exit3_emits_over_bound_summary
 test_dispatcher_no_marker_exits_1
 test_dispatcher_marker_only_skipped
@@ -715,5 +849,7 @@ test_dispatcher_overbound_routes_correctly
 test_dispatcher_unprovenanced_dispatches_runner
 test_dispatcher_covered_list_from_artifact
 test_dispatcher_supplies_diff_to_runner
+test_dispatcher_scope_narrowing
+test_dispatcher_empty_scope_uses_full_diff
 
 print_summary
