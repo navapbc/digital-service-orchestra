@@ -618,3 +618,4 @@ plugins/dso/scripts/dogfood_visual_evaluator.py:tests/visual_eval/test_dogfood_h
 plugins/dso/skills/ui-designer/docs/reviewers/visual-spatial-evaluator.md:tests/skills/test-ui-designer-5-reviewer.sh
 plugins/dso/skills/ui-designer/docs/reviewers/design-systems-lead.md:tests/skills/test-ui-designer-5-reviewer.sh
 plugins/dso/skills/ui-designer/docs/arbitration.md:tests/skills/test-ui-designer-5-reviewer.sh
+plugins/dso/scripts/write-design-md-additions.sh:tests/unit/scripts/test-write-design-md-additions.sh
