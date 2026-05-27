@@ -187,20 +187,20 @@ jobs:
           _fail() { echo "  ❌ FAIL: $1"; FAIL=$((FAIL+1)); }
           _skip() { echo "  ⏭️  SKIP: $1"; SKIP=$((SKIP+1)); }
 
-          # Helper: read a single field from a Jira issue via ACLI get
-          # ACLI `view --json` returns FLAT dict {"key":"...","status":"To Do",...}
-          # NOT nested {"fields":{"status":...}} like `search` does.
+          # Helper: read a single field from a Jira issue via ACLI SEARCH
+          # CRITICAL: `acli workitem view --json` produces EMPTY stdout.
+          # Must use `search --jql "key=KEY" -f "..." --json` instead.
           _get_field() {
             local key="$1" field="$2"
-            acli jira workitem view --key "$key" --json 2>/dev/null | python3 -c "
+            acli jira workitem search --jql "key = $key" \
+              -f "key,summary,description,status,priority,issuetype,assignee,labels" \
+              --json 2>/dev/null | python3 -c "
           import json,sys
           d=json.load(sys.stdin)
-          # ACLI view returns flat dict; search returns nested fields.
-          # Try both: first top-level, then nested fields.
-          val=d.get('$field')
-          if val is None:
-            f=d.get('fields',{}) if isinstance(d.get('fields'),dict) else {}
-            val=f.get('$field')
+          issues=d if isinstance(d,list) else d.get('issues',[])
+          if not issues: print('<no-issue>'); sys.exit()
+          f=issues[0].get('fields',{}) or {}
+          val=f.get('$field') or issues[0].get('$field')
           if isinstance(val,dict): print(val.get('name') or val.get('displayName') or json.dumps(val))
           elif isinstance(val,list): print(json.dumps(val))
           elif val is None: print('<null>')
@@ -208,9 +208,17 @@ jobs:
           " 2>/dev/null
           }
 
-          # Helper: get full issue JSON (for complex field reads)
+          # Helper: get full issue JSON via search (view --json is broken)
           _get_issue() {
-            acli jira workitem view --key "$1" --json 2>/dev/null
+            acli jira workitem search --jql "key = $1" \
+              -f "key,summary,description,status,priority,issuetype,assignee,labels" \
+              --json 2>/dev/null | python3 -c "
+          import json,sys
+          d=json.load(sys.stdin)
+          issues=d if isinstance(d,list) else d.get('issues',[])
+          if issues: json.dump(issues[0],sys.stdout)
+          else: json.dump({},sys.stdout)
+          " 2>/dev/null
           }
 
           # Helper: extract text from ADF (for description/comment body reads)
@@ -313,8 +321,8 @@ jobs:
           # =====================================================================
 
           # Wait for Jira to index the new issue (search can lag behind create)
-          echo "  (waiting 5s for Jira index to catch up...)"
-          sleep 5
+          echo "  (waiting 15s for Jira index to catch up...)"
+          sleep 15
 
           # Test 2a: Read description via search -f
           echo "Test 2a: ACLI search -f includes description"
@@ -636,7 +644,7 @@ jobs:
             d=json.load(sys.stdin)
             if isinstance(d,list): print(len(d))
             elif isinstance(d,dict):
-              links=d.get('issuelinks') or d.get('links') or d.get('results',[])
+              links=d.get('issueLinks') or d.get('issuelinks') or d.get('links') or d.get('results',[])
               print(len(links))
             else: print(f'UNEXPECTED:{type(d).__name__}')
           except Exception as e: print(f'PARSE:{e}')
@@ -649,7 +657,7 @@ jobs:
           import json,sys
           try:
             d=json.load(sys.stdin)
-            links=d if isinstance(d,list) else d.get('issuelinks',[])
+            links=d if isinstance(d,list) else d.get('issueLinks') or d.get('issuelinks') or d.get('links',[])
             if links: print(links[0].get('id',''))
           except: pass
           " 2>/dev/null)
@@ -657,7 +665,7 @@ jobs:
               acli jira workitem link delete --id "$LINK_ID" 2>/dev/null
               LINKS_AFTER=$(acli jira workitem link list --key "$TEST_KEY" --json 2>/dev/null | python3 -c "
           import json,sys
-          try: d=json.load(sys.stdin); links=d if isinstance(d,list) else d.get('issuelinks',[]); print(len(links))
+          try: d=json.load(sys.stdin); links=d if isinstance(d,list) else d.get('issueLinks') or d.get('issuelinks') or d.get('links',[]); print(len(links))
           except: print('?')
           " 2>/dev/null)
               echo "  links after delete: $LINKS_AFTER"
@@ -673,7 +681,7 @@ jobs:
           import json,sys
           try:
             d=json.load(sys.stdin)
-            links=d if isinstance(d,list) else d.get('issuelinks',[])
+            links=d if isinstance(d,list) else d.get('issueLinks') or d.get('issuelinks') or d.get('links',[])
             relates=[l for l in links if isinstance(l,dict) and l.get('type',{}).get('name','')=='Relates']
             print(len(relates))
           except: print(0)
@@ -700,7 +708,7 @@ jobs:
           import json,sys
           try:
             d=json.load(sys.stdin)
-            links=d if isinstance(d,list) else d.get('issuelinks',[])
+            links=d if isinstance(d,list) else d.get('issueLinks') or d.get('issuelinks') or d.get('links',[])
             for l in links:
               if isinstance(l,dict) and l.get('type',{}).get('name','')=='Relates':
                 print(l.get('id','')); break
