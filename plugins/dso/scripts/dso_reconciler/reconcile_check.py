@@ -183,9 +183,9 @@ def _compare_pair(
                 }
             )
 
-    # Labels
+    # Labels — local tickets use "tags"; Jira issues use "labels"
     for ld in _compare_labels(
-        local_ticket.get("labels"),
+        local_ticket.get("tags"),
         jira_issue.get("labels"),
     ):
         discs.append({"local_id": local_id, "jira_key": jira_key, **ld})
@@ -210,8 +210,8 @@ def reconcile_check(
             field used to match binding_store entries).
         jira_snapshot: ``{jira_key: {field: value, ...}}`` — the Jira
             working-set snapshot.
-        binding_store: An object with ``.all_bindings() -> list[tuple[str, str]]``
-            returning ``(local_id, jira_key)`` pairs.
+        binding_store: An object with ``.all_bindings() -> dict[str, dict]``
+            returning ``{local_id: {"jira_key": ..., ...}}`` entries.
 
     Returns:
         A report dict with keys: ``total_bindings``, ``checked``,
@@ -221,18 +221,19 @@ def reconcile_check(
     # Build lookup maps
     local_by_id: dict[str, dict[str, Any]] = {}
     for ticket in local_tickets:
-        tid = ticket.get("id", "")
+        tid = ticket.get("ticket_id") or ticket.get("id", "")
         if tid:
             local_by_id[tid] = ticket
 
-    bindings: list[tuple[str, str]] = binding_store.all_bindings()
+    bindings: dict[str, dict] = binding_store.all_bindings()
     bound_local_ids: set[str] = set()
     bound_jira_keys: set[str] = set()
     discrepancies: list[dict[str, Any]] = []
     orphaned_bindings: list[str] = []
     checked = 0
 
-    for local_id, jira_key in bindings:
+    for local_id, entry in bindings.items():
+        jira_key = entry.get("jira_key", "")
         bound_local_ids.add(local_id)
         bound_jira_keys.add(jira_key)
 
@@ -265,7 +266,9 @@ def reconcile_check(
 
     # Unbound counts
     unbound_local = sum(
-        1 for t in local_tickets if t.get("id", "") not in bound_local_ids
+        1
+        for t in local_tickets
+        if (t.get("ticket_id") or t.get("id", "")) not in bound_local_ids
     )
     unbound_jira = sum(
         1

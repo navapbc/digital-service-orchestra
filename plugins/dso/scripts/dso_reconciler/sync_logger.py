@@ -45,6 +45,14 @@ class SyncLogger:
         self._f.write(json.dumps(entry, default=str) + "\n")
         self._f.flush()
 
+    # -- context manager protocol ---------------------------------------------
+
+    def __enter__(self) -> SyncLogger:
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        self.close()
+
     def close(self) -> None:
         """Flush and close the underlying file handle."""
         self._f.close()
