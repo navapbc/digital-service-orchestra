@@ -182,6 +182,39 @@ jobs:
         run: |
           set -uo pipefail
           PROJ="${JIRA_PROJECT:-DIG}"
+          echo "=== Probe 0: ALL assignees in project ${PROJ} ==="
+          acli jira workitem search --jql "project = ${PROJ}" --paginate --json \
+            | python3 -c "
+          import json, sys, collections
+          data = json.load(sys.stdin)
+          issues = data if isinstance(data, list) else data.get('issues', [])
+          print(f'total issues fetched: {len(issues)}')
+          assignees = collections.Counter()
+          assigned_keys = collections.defaultdict(list)
+          for i in issues:
+              fields = i.get('fields', {}) if isinstance(i.get('fields'), dict) else {}
+              assignee_obj = fields.get('assignee') or i.get('assignee')
+              key = i.get('key', '?')
+              if assignee_obj is None:
+                  assignees['<unassigned>'] += 1
+              elif isinstance(assignee_obj, dict):
+                  name = assignee_obj.get('displayName') or assignee_obj.get('name') or assignee_obj.get('emailAddress') or '<unknown-dict>'
+                  acct_id = assignee_obj.get('accountId', '?')
+                  label = f'{name} (id:{acct_id})'
+                  assignees[label] += 1
+                  assigned_keys[label].append(key)
+              elif isinstance(assignee_obj, str):
+                  assignees[assignee_obj] += 1
+                  assigned_keys[assignee_obj].append(key)
+              else:
+                  assignees['<other>'] += 1
+          print('assignee counts:')
+          for a, n in assignees.most_common():
+              sample = ', '.join(assigned_keys[a][:5])
+              extra = f' ... +{len(assigned_keys[a])-5} more' if len(assigned_keys[a]) > 5 else ''
+              print(f'  {n:6d}  {a}  [sample: {sample}{extra}]')
+          "
+          echo
           echo "=== Probe 1: distinct statuses in project ${PROJ} ==="
           acli jira workitem search --jql "project = ${PROJ}" --paginate --json \
             | python3 -c "
