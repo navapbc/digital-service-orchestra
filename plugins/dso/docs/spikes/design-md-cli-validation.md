@@ -117,6 +117,23 @@ USAGE design.md diff [OPTIONS] <BEFORE> <AFTER>
 
 **Recommendation**: Use the `diff` subcommand with `git show HEAD~1:DESIGN.md` as `BEFORE` and the working-copy as `AFTER` to detect regressions introduced by the current diff. This is the closest available approximation to diff-touched-line scoping.
 
+### Behavior Under Prettier (Whitespace-Normalizing Auto-Formatter)
+
+**Tested with**: Prettier 3.8.3 (via `npx --yes prettier --write DESIGN.md`)
+
+Prettier normalizes irregular whitespace in markdown prose (collapsing multiple spaces to single spaces) but preserves YAML front-matter structure and markdown headings. Test results:
+
+| Metric | Before Prettier | After Prettier |
+|--------|----------------|----------------|
+| Lint errors | 0 | 0 |
+| Lint warnings | 0 | 0 |
+| Lint exit code | 0 | 0 |
+| `diff` regression | — | `false` (exit 0) |
+
+**Observation**: Prettier's whitespace normalization does not introduce or remove `@google/design.md` lint findings. The `diff` subcommand correctly reports `regression: false` when the only changes are Prettier-driven whitespace normalization. This means a pre-commit hook chain where Prettier runs before `design-md-lint.sh` will not produce false-positive regressions from auto-formatting alone.
+
+**Implication for the lint wrapper**: The lint wrapper (`design-md-lint.sh`) can safely run after Prettier in a pre-commit hook chain without worrying about Prettier-introduced whitespace changes triggering false violations.
+
 ## Additional Findings
 
 - **`spec` subcommand is broken** in the 0.2.0 npx bundle: `ERROR  Failed to load spec.md.` — the spec.md file was not bundled into `dist/`. This is a packaging bug in the upstream package; it does not affect lint or diff functionality.
