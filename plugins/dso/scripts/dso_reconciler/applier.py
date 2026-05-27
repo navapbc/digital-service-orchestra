@@ -451,6 +451,18 @@ def _write_event_file(
     return out
 
 
+def _extract_name(val, default=""):
+    """Extract .name or .displayName from a nested Jira field object.
+
+    Jira REST API returns many fields as nested objects (e.g.
+    ``{"name": "Bug", "id": "10002"}``). This helper extracts the human-readable
+    name, falling back to the raw value when it is already a string.
+    """
+    if isinstance(val, dict):
+        return val.get("name") or val.get("displayName") or default
+    return val or default
+
+
 def _apply_inbound_create(mutation, *, client=None, repo_root=None) -> ApplyResult:
     """Materialise a remote Jira issue as a local jira-* ticket.
 
@@ -463,10 +475,12 @@ def _apply_inbound_create(mutation, *, client=None, repo_root=None) -> ApplyResu
     _direction_guard(mutation, mut_mod.MutationDirection.inbound)
 
     payload = dict(mutation.payload or {})
-    fields = payload.get("fields", {}) or {}
+    # Accept both shapes: payload with nested "fields" key (batch-dict shape)
+    # and payload with top-level field keys (differ Mutation shape).
+    fields = payload.get("fields") or payload
     jira_key = mutation.target
     local_id = _jira_key_to_local_id(jira_key)
-    issuetype = fields.get("issuetype", "Task")
+    issuetype = _extract_name(fields.get("issuetype"), "Task")
     ticket_type = _JIRA_TYPE_MAP.get(issuetype, "task")
 
     tracker_dir = _resolve_tracker_dir(repo_root)
@@ -482,14 +496,14 @@ def _apply_inbound_create(mutation, *, client=None, repo_root=None) -> ApplyResu
         "tags": tags,
     }
     if "priority" in fields:
-        create_data["priority"] = fields["priority"]
+        create_data["priority"] = _extract_name(fields["priority"])
     if fields.get("assignee"):
-        create_data["assignee"] = fields["assignee"]
+        create_data["assignee"] = _extract_name(fields["assignee"])
     create_path = _write_event_file(tracker_dir, local_id, "CREATE", create_data)
 
     # Status: write a STATUS event when the Jira status reverse-maps to
     # something other than the reducer default ('open').
-    jira_status = fields.get("status")
+    jira_status = _extract_name(fields.get("status"))
     if jira_status:
         local_status = _jira_status_to_local(jira_status)
         if local_status and local_status != "open":
@@ -499,6 +513,12 @@ def _apply_inbound_create(mutation, *, client=None, repo_root=None) -> ApplyResu
                 "STATUS",
                 {"status": local_status, "current_status": "open"},
             )
+
+    # Write dso-id label + dso_local_id entity property back to Jira so the
+    # differ recognizes this issue as mirrored on subsequent passes (dedup).
+    if client is not None:
+        _call_with_retry(client.add_label, jira_key, f"dso-id:{local_id}")
+        _call_with_retry(client.set_entity_property, jira_key, "dso_local_id", local_id)
 
     return ApplyResult(
         mutation.direction,
@@ -519,21 +539,24 @@ def _apply_inbound_update(mutation, *, client=None, repo_root=None) -> ApplyResu
     _direction_guard(mutation, mut_mod.MutationDirection.inbound)
 
     payload = dict(mutation.payload or {})
-    fields = payload.get("fields", {}) or {}
+    # Accept both shapes: payload with nested "fields" key (batch-dict shape)
+    # and payload with top-level field keys (differ Mutation shape).
+    fields = payload.get("fields") or payload
     target = mutation.target
     local_id = target if target.startswith("jira-") else _jira_key_to_local_id(target)
     tracker_dir = _resolve_tracker_dir(repo_root)
 
     # Map Jira-flavoured field names to local reducer field names.
+    # Extract .name/.displayName from nested Jira objects.
     edit_fields: dict[str, Any] = {}
     if "summary" in fields:
         edit_fields["title"] = fields["summary"]
     if "description" in fields:
         edit_fields["description"] = fields["description"]
     if "priority" in fields:
-        edit_fields["priority"] = fields["priority"]
+        edit_fields["priority"] = _extract_name(fields["priority"])
     if "assignee" in fields:
-        edit_fields["assignee"] = fields["assignee"]
+        edit_fields["assignee"] = _extract_name(fields["assignee"])
 
     written: list[str] = []
     if edit_fields:
@@ -541,7 +564,7 @@ def _apply_inbound_update(mutation, *, client=None, repo_root=None) -> ApplyResu
         written.append(str(path))
 
     if "status" in fields:
-        local_status = _jira_status_to_local(fields["status"])
+        local_status = _jira_status_to_local(_extract_name(fields["status"]))
         # current_status is the PREVIOUS state (matched against state["status"]
         # by the reducer for fork detection — see
         # ticket_reducer/_processors.py:process_status).
@@ -880,7 +903,10 @@ with their authorization status for dso-id label mutations:
   3. outbound_delete       — UNAUTHORIZED for dso-id label mutations.
   4. outbound_probe        — UNAUTHORIZED for dso-id label mutations.
   5. outbound_conflict     — UNAUTHORIZED for dso-id label mutations.
-  6. inbound_create        — UNAUTHORIZED for dso-id label mutations.
+  6. inbound_create        — AUTHORIZED for {create}: adds "dso-id:<local_id>"
+                             label when a new local ticket is created inbound
+                             (dedup write-back so the differ recognizes the
+                             issue as mirrored on subsequent passes).
   7. inbound_update        — UNAUTHORIZED for dso-id label mutations.
   8. inbound_clean_label   — AUTHORIZED for {delete}: removes stale or
                              duplicated "dso-id-*" labels from the Jira side.
@@ -888,8 +914,8 @@ with their authorization status for dso-id label mutations:
                               This leaf writes the dso_local_id entity PROPERTY
                               FIELD via set_issue_property(), NOT the label.
 
-Only inbound_clean_label (delete) and outbound_create (create) may emit
-dso-id label mutations. Any other leaf that emits such a mutation is a bug
+Only inbound_clean_label (delete), outbound_create (create), and
+inbound_create (create) may emit dso-id label mutations. Any other leaf that emits such a mutation is a bug
 and should raise DsoIdLabelWriteError from _errors.py.
 
 conflict_resolver per-element provenance MUST skip dso-id fields. The
@@ -902,7 +928,7 @@ properties, not labels). It MUST NOT touch the label surface.
 """
 
 _AUTHORIZED_DSO_ID_LABEL_WRITERS: frozenset[str] = frozenset(
-    {"inbound_clean_label", "outbound_create"}
+    {"inbound_clean_label", "outbound_create", "inbound_create"}
 )
 """Leaf names authorized to emit dso-id label mutations (see _AUTHORIZED_DSO_ID_LABEL_WRITERS_DOC)."""
 
@@ -913,6 +939,7 @@ _AUTHORIZED_DSO_ID_LABEL_WRITERS: frozenset[str] = frozenset(
 # _AUTHORIZED_DSO_ID_LABEL_WRITERS_DOC above.
 _AUTHORIZED_DSO_ID_LABEL_ACTIONS: dict[str, frozenset[str]] = {
     "outbound_create": frozenset({"create"}),
+    "inbound_create": frozenset({"create"}),
     "inbound_clean_label": frozenset({"delete"}),
 }
 

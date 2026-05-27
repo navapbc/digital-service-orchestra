@@ -1,4 +1,5 @@
 """Tests for dso_reconciler._errors."""
+
 import importlib.util
 import sys
 from pathlib import Path
@@ -6,24 +7,30 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-ERRORS_PATH = REPO_ROOT / "plugins" / "dso" / "scripts" / "dso_reconciler" / "_errors.py"
-APPLIER_PATH = REPO_ROOT / "plugins" / "dso" / "scripts" / "dso_reconciler" / "applier.py"
+ERRORS_PATH = (
+    REPO_ROOT / "plugins" / "dso" / "scripts" / "dso_reconciler" / "_errors.py"
+)
+APPLIER_PATH = (
+    REPO_ROOT / "plugins" / "dso" / "scripts" / "dso_reconciler" / "applier.py"
+)
 
 # The 9 canonical applier leaf names as of draft-2/draft-6.
 # This set is the single source of truth for drift detection — if a leaf is
 # added, renamed, or removed, this set and the docstring contract MUST be
 # updated together.
-_CANONICAL_9_LEAVES = frozenset({
-    "outbound_create",
-    "outbound_update",
-    "outbound_delete",
-    "outbound_probe",
-    "outbound_conflict",
-    "inbound_create",
-    "inbound_update",
-    "inbound_clean_label",
-    "inbound_repair_property",
-})
+_CANONICAL_9_LEAVES = frozenset(
+    {
+        "outbound_create",
+        "outbound_update",
+        "outbound_delete",
+        "outbound_probe",
+        "outbound_conflict",
+        "inbound_create",
+        "inbound_update",
+        "inbound_clean_label",
+        "inbound_repair_property",
+    }
+)
 
 
 def _load_errors():
@@ -57,14 +64,21 @@ def applier():
 def test_direction_mismatch_is_exception_subclass(errs):
     assert issubclass(errs.DirectionMismatchError, Exception)
 
+
 def test_unknown_action_is_exception_subclass(errs):
     assert issubclass(errs.UnknownActionError, Exception)
+
 
 def test_status_mapping_is_exception_subclass(errs):
     assert issubclass(errs.StatusMappingError, Exception)
 
+
 def test_str_preserves_message(errs):
-    for cls in (errs.DirectionMismatchError, errs.UnknownActionError, errs.StatusMappingError):
+    for cls in (
+        errs.DirectionMismatchError,
+        errs.UnknownActionError,
+        errs.StatusMappingError,
+    ):
         e = cls("boom")
         assert str(e) == "boom"
 
@@ -72,6 +86,7 @@ def test_str_preserves_message(errs):
 # ---------------------------------------------------------------------------
 # New tests for DsoIdLabelWriteError and _AUTHORIZED_DSO_ID_LABEL_WRITERS
 # ---------------------------------------------------------------------------
+
 
 def test_dso_id_label_write_error_is_exception_subclass(errs):
     """DsoIdLabelWriteError must be importable from _errors and subclass Exception."""
@@ -85,9 +100,9 @@ def test_dso_id_label_write_error_str_preserves_message(errs):
 
 
 def test_authorized_writers_frozenset_value(applier):
-    """_AUTHORIZED_DSO_ID_LABEL_WRITERS must equal exactly the two authorized leaves."""
+    """_AUTHORIZED_DSO_ID_LABEL_WRITERS must equal exactly the three authorized leaves."""
     assert applier._AUTHORIZED_DSO_ID_LABEL_WRITERS == frozenset(
-        {"inbound_clean_label", "outbound_create"}
+        {"inbound_clean_label", "outbound_create", "inbound_create"}
     )
 
 
@@ -126,7 +141,10 @@ def test_authorized_writers_docstring_documents_full_contract(applier):
 
     full_text = "\n".join(candidates)
 
-    required_names = _CANONICAL_9_LEAVES | {"conflict_resolver", "inbound_repair_property"}
+    required_names = _CANONICAL_9_LEAVES | {
+        "conflict_resolver",
+        "inbound_repair_property",
+    }
     missing = [name for name in sorted(required_names) if name not in full_text]
     assert not missing, (
         f"Contract docstring is missing these names: {missing}\n"
