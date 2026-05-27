@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DSO-GATE-TIER: A
 # hook-boundary: enforcement
 # hooks/pre-commit-ticket-gate.sh
 # git commit-msg hook: blocks commits lacking a valid v3 ticket ID in the message.

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DSO-GATE-TIER: A
 # hook-boundary: enforcement
 # hooks/pre-commit-test-quality-gate.sh
 # git pre-commit hook: scans staged test files for anti-patterns and blocks

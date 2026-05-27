@@ -57,6 +57,14 @@ repos:
         stages: [pre-commit]
         files: ^plugins/dso/scripts/(merge-to-main(-direct|-pr)?\.sh|create-sprint-draft-pr\.sh)$
 
+      - id: gate-tier-headers-check
+        name: Gate Tier Header Declaration Check (5s timeout)
+        entry: ./plugins/dso/scripts/pre-commit-wrapper.sh gate-tier-headers-check 5 "plugins/dso/scripts/check-gate-tier-headers.sh"
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        files: ^plugins/dso/hooks/.*\.sh$
+
       - id: rule-anchors-check
         name: Rule Anchors Check (5s timeout)
         entry: ./plugins/dso/scripts/pre-commit-wrapper.sh rule-anchors-check 5 "plugins/dso/scripts/check-rule-anchors.sh"
