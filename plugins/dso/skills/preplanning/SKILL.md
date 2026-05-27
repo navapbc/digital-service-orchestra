@@ -775,6 +775,20 @@ For stories to delete:
 .claude/scripts/dso ticket transition <id> open closed
 ```
 
+### Step 1b: Write Verify Commands (intent-fidelity-pipeline Phase 2)
+
+After creating each story ticket in Step 1, write the DD-level verify commands from the story-decomposer's `verify_commands` output:
+
+```bash
+.claude/scripts/dso ticket set-verify-commands "$STORY_ID" '<verify_commands_json_array>'
+```
+
+Where `<verify_commands_json_array>` is the `verify_commands` array from the decomposer's draft for this story. Each entry has `{"dd_id": "dd-N", "dd_text": "<DD text>", "command": "<executable command>"}`.
+
+This writes a structured `VERIFY_COMMANDS` event on the ticket, consumed by `pre-verifier-execute.sh` during sprint Phase F to produce execution traces for the completion verifier.
+
+If the decomposer's output does not include `verify_commands` for a story (backward compatibility with pre-Phase-2 decompositions), skip this step for that story — `pre-verifier-execute.sh` handles missing verify commands gracefully.
+
 ### Step 2: Story Structure Requirements (/dso:preplanning)
 
 Each story must contain:

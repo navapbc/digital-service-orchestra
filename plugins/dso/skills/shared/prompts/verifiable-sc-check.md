@@ -65,6 +65,29 @@ If the item describes a durable property the system will continue to satisfy (in
 - "OAuth has been migrated" — describes a transition, not a durable property. The system either supports OAuth or doesn't; "has been migrated" is the act of this sprint, not a persistent invariant.
 - "legacy adapter has been removed" — describes the removal event, not the durable absence. Reframe as "the legacy adapter is absent from imports" to make it a valid SC, or route the removal step to Closure Checks.
 
+## Verify-Intent Requirement (intent-fidelity-pipeline Phase 2)
+
+Every SC must carry a `Verify-intent:` clause — a plain-language statement describing the observable outcome that constitutes proof the SC is satisfied. The Verify-intent is NOT a command; it does not reference test file paths (which don't exist at brainstorm time). It describes what a downstream agent will resolve into a concrete executable command.
+
+**Format**: Append `Verify-intent:` on the line after the SC text:
+```
+- The reconciler processes inbound create mutations and creates local tickets
+  Verify-intent: Run the reconciler against a fixture with inbound create mutations; confirm local tickets are created with correct field mapping
+```
+
+**Minimum structure requirement**: Every Verify-intent must contain three elements:
+1. **Subject** — what component or feature (e.g., "the reconciler")
+2. **Action** — what operation to perform (e.g., "run against a fixture with inbound create mutations")
+3. **Observable** — what measurable outcome to check (e.g., "confirm local tickets are created with correct field mapping")
+
+Reject intents missing any element:
+- "The feature works correctly" — REJECTED (no subject specificity, no action, no observable)
+- "The login endpoint accepts valid credentials and returns a 200 with a session token" — ACCEPTED (subject: login endpoint, action: accepts valid credentials, observable: returns 200 with session token)
+
+**Timing**: Verify-intents are drafted in a batch step AFTER all SCs are written, not during the Socratic dialogue. This avoids dialogue friction.
+
+**DEFERRED_MEASUREMENT SCs**: SCs tagged as `DEFERRED_MEASUREMENT` do not require a Verify-intent (their measurement is deferred by definition).
+
 ### Brainstorm refusal copy
 
 When a participant proposes an SC that fails this litmus test, surface the following refusal:

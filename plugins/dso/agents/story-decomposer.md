@@ -23,7 +23,11 @@ The orchestrator passes the following as task arguments. Treat each placeholder 
 
 ### Epic Success Criteria
 
-The orchestrator extracts the bullet items from the epic's `## Success Criteria` section and lists them here with stable identifiers (`sc-1`, `sc-2`, ...). These are the outcomes your draft stories must collectively produce.
+The orchestrator extracts the bullet items from the epic's `## Success Criteria` section and lists them here with stable identifiers (`sc-1`, `sc-2`, ...) and their `Verify-intent:` clauses (when present). These are the outcomes your draft stories must collectively produce.
+
+Each SC entry may include:
+- `text`: the SC text
+- `verify_intent`: plain-language description of the observable outcome that constitutes proof (from intent-fidelity-pipeline Phase 2). Use this to derive concrete `Verify:` commands on Done Definitions.
 
 {epic-success-criteria}
 
@@ -230,6 +234,9 @@ For each story, write 2–5 measurable Done Definitions. Every DD must:
 - Produce an observable outcome (not a process step — "the test passes" not "we wrote a test").
 - Be measurable in the same terms the SC is measurable in.
 - Cite the SC it satisfies with `← Satisfies: sc-N` (or multiple SC ids if it satisfies more than one).
+- Include a `Verify:` command — a concrete, executable command that exits 0 when the DD is satisfied. Resolve this from the parent SC's `verify_intent` field when available. When no `verify_intent` is provided, derive a command from the DD text and the project's test conventions.
+
+**Verify command negative-constraint list**: A `Verify:` command is **invalid** if it matches any of these patterns (file-inspection commands, not behavioral tests): `grep`, `find`, `ls`, `wc`, `cat`, `head`, `stat`, `test -f`, `test -e`, `[ -f`, `[ -e`, `file `, `du `, `diff `. If the only way to verify a DD is via file inspection, the DD is not behavioral — revise it to describe an observable outcome.
 
 DDs that do not trace to an SC are a smell — either the DD is unnecessary (drop it) or the SC list is incomplete (note this in `decomposition_notes`).
 
@@ -260,6 +267,13 @@ Do NOT invent dependencies on stories that do not exist. Do NOT add dependencies
 ### Step 7: Self-Verify Coverage
 
 Re-read your `sc_coverage_plan`. Confirm that for every SC classified `uncovered` or `partial_coverage`, at least one of your drafts has a DD citing that SC id. If a gap remains, add a draft or extend an existing draft's DDs. The audit trail must show every actionable SC has at least one covering draft.
+
+**Verify command coverage check (intent-fidelity-pipeline Phase 2)**: For every DD in every draft, confirm:
+1. A `verify_commands` entry exists with a non-empty `command` field
+2. The command does NOT match the negative-constraint list (`grep`, `find`, `ls`, `wc`, `cat`, `head`, `stat`, `test -f`, `test -e`, `[ -f`, `[ -e`, `file `, `du `, `diff `)
+3. If the parent SC has a `verify_intent`, the command is a reasonable resolution of that intent
+
+If any DD fails checks 1 or 2, revise the `verify_commands` entry before returning.
 
 ## Output Format
 
@@ -386,6 +400,7 @@ Return a JSON object with exactly these top-level keys. The orchestrator will no
 | `priority` | integer 0–4 | Yes | 0 highest, 4 lowest; walking-skeleton stories get the lowest priority numbers |
 | `description` | string | Yes | What/Why/Scope; do NOT include implementation choices unless they are epic-level constraints |
 | `done_definitions` | array of string | Yes | 2–5 measurable DDs; each MUST end with `← Satisfies: sc-N` (or multiple SC ids) |
+| `verify_commands` | array of object | Yes | One entry per DD: `{"dd_id": "dd-N", "dd_text": "<DD text>", "command": "<executable command>"}`. The command must pass the negative-constraint list (no grep/find/ls/stat/test -f). |
 | `considerations` | array of string | No | Risk/Security/Performance/etc. notes prefixed with `[Area]` |
 | `depends_on` | array of string | Yes | List of `temp_id`s (this batch) or existing story ids; empty if independent |
 | `split_candidate` | boolean | Yes | `true` if the story has a Foundation/Enhancement split opportunity (Phase F will evaluate) |
