@@ -133,6 +133,37 @@ def test_mutation_to_batch_dict_preserves_local_id(applier_mod, mutation_mod):
     assert batch_dict["local_id"] == "probe-5678"
 
 
+def test_create_one_populates_binding_store(applier_mod):
+    """create_one must call binding_store.bind_confirm after successful
+    create so the BindingStore is populated for subsequent passes."""
+    from unittest.mock import MagicMock
+
+    mock_client = MagicMock()
+    mock_client.search_issues.return_value = []
+    mock_client.create_issue.return_value = {"key": "DIG-9999"}
+    mock_client.add_label.return_value = None
+    mock_client.set_entity_property.return_value = None
+
+    mock_binding_store = MagicMock()
+
+    mutation = {
+        "local_id": "test-bind-1234",
+        "fields": {"summary": "Test", "issuetype": "Task"},
+    }
+
+    result = applier_mod.create_one(
+        mutation,
+        mock_client,
+        repo_root=Path("/tmp"),
+        binding_store=mock_binding_store,
+    )
+
+    assert result is not None
+    mock_binding_store.bind_confirm.assert_called_once_with(
+        "test-bind-1234", "DIG-9999"
+    )
+
+
 def test_cap_sort_prioritizes_outbound_creates(applier_mod, mutation_mod):
     """Outbound creates must sort before inbound mutations under cap
     enforcement so they land within the bootstrap-strict cap window."""
