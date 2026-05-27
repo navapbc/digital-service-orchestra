@@ -1510,6 +1510,8 @@ def create_one(
                 }
             )
 
+        if binding_store is not None and local_id and hit_key:
+            binding_store.bind_confirm(local_id, hit_key)
         return {"status": "dedup-create-skipped", "key": hit_key}
 
     # Translate differ-emitted Jira snapshot field names (summary, status,
