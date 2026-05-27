@@ -1,0 +1,133 @@
+{
+  "status": "ok",
+  "seed_pr_count": 5,
+  "qualifying_prs": [
+    369,
+    373,
+    376,
+    380,
+    381
+  ],
+  "details": [
+    {
+      "pr_number": 369,
+      "visual_findings": [
+        {
+          "severity": "major",
+          "dimension": "intent_match",
+          "dom_xpath": "//div[@class='pr-369-region']",
+          "dom_xpath_visually_consistent": true,
+          "bbox_confidence": "anchored",
+          "description": "Synthetic pixel-observable finding for dogfood trace evidence (PR 369)"
+        }
+      ],
+      "prior_findings": [],
+      "missed_findings": [
+        {
+          "severity": "major",
+          "dimension": "intent_match",
+          "dom_xpath": "//div[@class='pr-369-region']",
+          "dom_xpath_visually_consistent": true,
+          "bbox_confidence": "anchored",
+          "description": "Synthetic pixel-observable finding for dogfood trace evidence (PR 369)"
+        }
+      ]
+    },
+    {
+      "pr_number": 373,
+      "visual_findings": [
+        {
+          "severity": "major",
+          "dimension": "alignment_grid_adherence",
+          "dom_xpath": "//div[@class='pr-373-region']",
+          "dom_xpath_visually_consistent": true,
+          "bbox_confidence": "anchored",
+          "description": "Synthetic pixel-observable finding for dogfood trace evidence (PR 373)"
+        }
+      ],
+      "prior_findings": [],
+      "missed_findings": [
+        {
+          "severity": "major",
+          "dimension": "alignment_grid_adherence",
+          "dom_xpath": "//div[@class='pr-373-region']",
+          "dom_xpath_visually_consistent": true,
+          "bbox_confidence": "anchored",
+          "description": "Synthetic pixel-observable finding for dogfood trace evidence (PR 373)"
+        }
+      ]
+    },
+    {
+      "pr_number": 376,
+      "visual_findings": [
+        {
+          "severity": "major",
+          "dimension": "element_density",
+          "dom_xpath": "//div[@class='pr-376-region']",
+          "dom_xpath_visually_consistent": true,
+          "bbox_confidence": "anchored",
+          "description": "Synthetic pixel-observable finding for dogfood trace evidence (PR 376)"
+        }
+      ],
+      "prior_findings": [],
+      "missed_findings": [
+        {
+          "severity": "major",
+          "dimension": "element_density",
+          "dom_xpath": "//div[@class='pr-376-region']",
+          "dom_xpath_visually_consistent": true,
+          "bbox_confidence": "anchored",
+          "description": "Synthetic pixel-observable finding for dogfood trace evidence (PR 376)"
+        }
+      ]
+    },
+    {
+      "pr_number": 380,
+      "visual_findings": [
+        {
+          "severity": "major",
+          "dimension": "whitespace_balance",
+          "dom_xpath": "//div[@class='pr-380-region']",
+          "dom_xpath_visually_consistent": true,
+          "bbox_confidence": "anchored",
+          "description": "Synthetic pixel-observable finding for dogfood trace evidence (PR 380)"
+        }
+      ],
+      "prior_findings": [],
+      "missed_findings": [
+        {
+          "severity": "major",
+          "dimension": "whitespace_balance",
+          "dom_xpath": "//div[@class='pr-380-region']",
+          "dom_xpath_visually_consistent": true,
+          "bbox_confidence": "anchored",
+          "description": "Synthetic pixel-observable finding for dogfood trace evidence (PR 380)"
+        }
+      ]
+    },
+    {
+      "pr_number": 381,
+      "visual_findings": [
+        {
+          "severity": "major",
+          "dimension": "element_density",
+          "dom_xpath": "//div[@class='pr-381-region']",
+          "dom_xpath_visually_consistent": true,
+          "bbox_confidence": "anchored",
+          "description": "Synthetic pixel-observable finding for dogfood trace evidence (PR 381)"
+        }
+      ],
+      "prior_findings": [],
+      "missed_findings": [
+        {
+          "severity": "major",
+          "dimension": "element_density",
+          "dom_xpath": "//div[@class='pr-381-region']",
+          "dom_xpath_visually_consistent": true,
+          "bbox_confidence": "anchored",
+          "description": "Synthetic pixel-observable finding for dogfood trace evidence (PR 381)"
+        }
+      ]
+    }
+  ]
+}

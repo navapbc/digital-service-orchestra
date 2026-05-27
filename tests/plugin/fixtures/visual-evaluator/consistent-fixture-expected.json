@@ -1,0 +1,21 @@
+{
+  "scores": {
+    "whitespace_balance": 4,
+    "element_density": 4,
+    "visual_hierarchy_legibility": 4,
+    "alignment_grid_adherence": 4,
+    "intent_match": 5
+  },
+  "findings": [
+    {
+      "bounding_box": {"x": 0, "y": 0, "width": 1280, "height": 64},
+      "dom_xpath": "//header[@class='site-header']",
+      "dom_xpath_visually_consistent": true,
+      "dimension": "whitespace_balance",
+      "severity": "low",
+      "bbox_confidence": "anchored"
+    }
+  ],
+  "attribution_class": "design_flaw",
+  "attribution_confidence": "low"
+}

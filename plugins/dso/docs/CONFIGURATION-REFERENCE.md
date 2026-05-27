@@ -2474,3 +2474,33 @@ Logs the trailer-injection plan without amending. Useful for verifying the mecha
 
 Before `inject_trailer` runs, `check_force_push_allowed` probes the story branch's protection rule via `gh api repos/{repo}/branches/{url-encoded-branch}/protection`. If `allow_force_pushes.enabled=false`, the script emits `::error::story branch ... is force-push-protected; trailer injection requires force-push` and exits 1. 404 (no protection rule) is treated as proceed.
 
+---
+
+## visual_evaluator.*
+
+Configuration keys for the visual-evaluator skill and calibration pipeline.
+
+| Key | Default | Description |
+|---|---|---|
+| `visual_evaluator.route_map_max_age_hours` | `24` | Maximum age of `.ui-discovery-cache/route-map.json` before precondition gate 4 fails with `route_map_stale`. **Re-run `/dso:ui-discover` when this gate fires.** |
+| `visual_evaluator.iteration_cap` | `2` | Maximum self-correction iterations per task in Sprint Integration A |
+| `visual_evaluator.iteration_threshold` | `3` | Minimum `intent_match` score (1–5) below which task closure is blocked |
+| `visual_evaluator.post_batch_token_budget` | `50000` | Soft-warn token budget for Integration B Opus post-batch dispatch |
+| `visual_evaluator.post_batch_token_hard_stop_multiplier` | `3` | Hard-stop multiplier: skip post-batch dispatch when projected tokens exceed `post_batch_token_budget × multiplier` |
+| `visual_evaluator.dimension_weights` | `[0.2,0.2,0.2,0.2,0.2]` | Calibration script per-dimension scoring weights (equal-weight default) |
+| `visual_evaluator.cache_max_entries` | `1000` | LRU cache size for evaluation results |
+
+### Inapplicability Reason Codes
+
+The visual-evaluator skill writes `visual_eval_inapplicable:<reason>` tags to the ticket and surfaces them to the integration gate. All reasons require explicit handling — never silent soft-pass.
+
+| Reason Code | Trigger | Remediation |
+|---|---|---|
+| `visual_eval_inapplicable:not_web_project` | `project.type` ≠ `web` in dso-config.conf | Change `project.type=web` or accept evaluation as not applicable |
+| `visual_eval_inapplicable:playwright_unavailable` | `npx playwright --version` fails | Install Node.js and run `npm install playwright` |
+| `visual_eval_inapplicable:local_env_check_failed` | `check-local-env.sh` returns non-zero | Run `check-local-env.sh` directly to diagnose |
+| `visual_eval_inapplicable:route_map_missing` | `.ui-discovery-cache/route-map.json` absent | Run `/dso:ui-discover` to generate the route map |
+| `visual_eval_inapplicable:route_map_stale` | route-map.json older than `route_map_max_age_hours` (default 24h) | **Re-run `/dso:ui-discover` prominently** — surface this error visibly to users, do not bury in logs |
+
+See also: `${CLAUDE_PLUGIN_ROOT}/skills/visual-evaluator/SKILL.md`
+

@@ -13,10 +13,16 @@ Scores follow the shared 1–5 scale defined in `skills/shared/reviewers/SCORING
 | Dimension | What "4 or 5" looks like | What "below 4" looks like |
 |-----------|--------------------------|---------------------------|
 | component_reuse | Maximizes existing components; NEW components genuinely needed | Creates new components when existing ones could serve; duplicates patterns |
-| visual_hierarchy | Information hierarchy is clear, intentional, and guides the eye | Competing visual weights; unclear what to read or act on first |
+| visual_hierarchy_intent | Information hierarchy intent is clear and intentional; design rationale guides the eye as designed | Hierarchy intent is ambiguous or absent in design rationale; unclear what the designer intended to emphasize |
 | design_system_compliance | Uses established tokens, patterns, and spacing consistently | Deviates from tokens without justification; inconsistent spacing or typography |
 | new_component_justification | New components are well-specified with clear API, justified need | New components are vague, overlap with existing ones, or lack specification |
 | cross_story_consistency | Reuses components introduced in sibling story designs; shared elements look and behave identically across stories | Redefines components already designed in sibling stories; inconsistent props, tokens, or variants for the same element. Score null if story has no parent epic or no sibling designs exist. |
+
+> **Dimension split note**: The legacy `visual_hierarchy` dimension was split in task 498b-740a-3364-4a44.
+> This reviewer now emits `visual_hierarchy_intent` (intent-based / text-mediated assessment).
+> Pixel-observable hierarchy legibility is owned by the `visual-spatial-evaluator` reviewer
+> as `visual_hierarchy_legibility`. The legacy `visual_hierarchy` field is no longer emitted.
+> See `${CLAUDE_PLUGIN_ROOT}/skills/ui-designer/docs/arbitration.md` for tie-break rules.
 
 ## Input Sections
 
@@ -37,6 +43,10 @@ Evaluate the design on all five dimensions. For each, assign an integer score of
 components are proposed. For `cross_story_consistency`, score `null` if the story
 has no parent epic or no sibling designs exist yet.
 
+For `visual_hierarchy_intent`: assess the **designer's intent** as expressed in rationale,
+component mapping, and layout description — not pixel-observable contrast or weight. Pixel
+legibility is evaluated separately by the `visual-spatial-evaluator` reviewer.
+
 For any score below 4, you MUST provide a finding with specific, actionable
 feedback. When suggesting alternatives, reference existing components by name.
 
@@ -46,7 +56,7 @@ label `"Design Systems"` and these dimensions:
 ```json
 "dimensions": {
   "component_reuse": "<integer 1-5 | null>",
-  "visual_hierarchy": "<integer 1-5 | null>",
+  "visual_hierarchy_intent": "<integer 1-5 | null>",
   "design_system_compliance": "<integer 1-5 | null>",
   "new_component_justification": "<integer 1-5 | null>",
   "cross_story_consistency": "<integer 1-5 | null>"

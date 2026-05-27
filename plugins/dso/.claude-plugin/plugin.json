@@ -1,6 +1,6 @@
 {
   "name": "dso",
-  "version": "1.17.68",
+  "version": "1.17.77",
   "description": "Workflow infrastructure plugin for Claude Code projects",
   "commands": "./commands/",
   "skills": "./skills/",
@@ -56,7 +56,8 @@
     "./agents/story-decomposer.md",
     "./agents/task-decomposer.md",
     "./agents/ui-designer.md",
-    "./agents/verification-remediation-planner.md"
+    "./agents/verification-remediation-planner.md",
+    "./agents/visual-evaluator.md"
   ],
   "hooks": {
     "SessionStart": [

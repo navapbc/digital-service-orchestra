@@ -15,6 +15,7 @@ a follow-up bug ticket before the next applier-touching change.
 
 from __future__ import annotations
 
+import contextlib
 import importlib.util
 import json
 import logging
@@ -145,7 +146,7 @@ def _direction_guard(mutation, expected_direction) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _apply_outbound_create(mutation, *, client=None) -> ApplyResult:
+def _apply_outbound_create(mutation, *, client=None, repo_root=None) -> ApplyResult:
     mut_mod = _load_mutation_module()
     _direction_guard(mutation, mut_mod.MutationDirection.outbound)
     if client is None:
@@ -188,7 +189,7 @@ def _route_status_via_draft5(mutation, *, client=None):
     return None
 
 
-def _apply_outbound_update(mutation, *, client=None) -> ApplyResult:
+def _apply_outbound_update(mutation, *, client=None, repo_root=None) -> ApplyResult:
     """v1 outbound update — push allowlisted fields via update_issue.
 
     Behavior:
@@ -247,49 +248,456 @@ def _apply_outbound_update(mutation, *, client=None) -> ApplyResult:
     )
 
 
-def _apply_outbound_delete(mutation, *, client=None) -> ApplyResult:
+def _apply_outbound_delete(mutation, *, client=None, repo_root=None) -> ApplyResult:
+    """Outbound delete: route through the legacy batch path's delete_one()
+    when a client is supplied. Typed-mutation callers can also drive a direct
+    delete via this leaf.
+    """
     mut_mod = _load_mutation_module()
     _direction_guard(mutation, mut_mod.MutationDirection.outbound)
-    return ApplyResult(mutation.direction, mutation.action, {})
+    if client is None:
+        # Stub path: preserved for tests that don't exercise the I/O leaf.
+        return ApplyResult(mutation.direction, mutation.action, {})
+    try:
+        _call_with_retry(client.delete_issue, mutation.target)
+    except JiraAPIError as exc:
+        if getattr(exc, "status_code", None) == 404:
+            # Already-gone is the post-state we want — treat as success.
+            return ApplyResult(
+                mutation.direction, mutation.action, {"already_gone": True}
+            )
+        raise
+    return ApplyResult(
+        mutation.direction, mutation.action, {"deleted": mutation.target}
+    )
 
 
-def _apply_outbound_probe(mutation, *, client=None) -> ApplyResult:
+def _apply_outbound_probe(mutation, *, client=None, repo_root=None) -> ApplyResult:
+    """Outbound probe: read-only sanity check via client.get_issue when supplied.
+
+    Returns the probe outcome (key + present flag) in the result payload so
+    upstream callers can branch on the live Jira state.
+    """
     mut_mod = _load_mutation_module()
     _direction_guard(mutation, mut_mod.MutationDirection.outbound)
-    return ApplyResult(mutation.direction, mutation.action, {})
+    if client is None or not hasattr(client, "get_issue"):
+        return ApplyResult(mutation.direction, mutation.action, {})
+    try:
+        info = _call_with_retry(client.get_issue, mutation.target)
+        return ApplyResult(
+            mutation.direction,
+            mutation.action,
+            {"present": True, "issue": info if isinstance(info, dict) else {}},
+        )
+    except JiraAPIError as exc:
+        if getattr(exc, "status_code", None) in (404, 410, 403):
+            return ApplyResult(mutation.direction, mutation.action, {"present": False})
+        raise
 
 
-def _apply_outbound_conflict(mutation, *, client=None) -> ApplyResult:
+def _apply_outbound_conflict(mutation, *, client=None, repo_root=None) -> ApplyResult:
+    """Outbound conflict: emit a structured conflict-marker comment on the Jira
+    issue when a client is supplied. Conflicts are durable signals — the
+    follow-on is consumed by reconcile_once via the standard suppress_pair
+    channel so the same pair is not retried mid-pass.
+    """
     mut_mod = _load_mutation_module()
     _direction_guard(mutation, mut_mod.MutationDirection.outbound)
-    return ApplyResult(mutation.direction, mutation.action, {})
+    payload = dict(mutation.payload or {})
+    if client is not None and hasattr(client, "add_comment"):
+        try:
+            _call_with_retry(
+                client.add_comment,
+                mutation.target,
+                f"reconciler conflict detected: {payload.get('reason', 'unspecified')}",
+            )
+        except Exception:
+            # Best-effort comment; do not propagate — the suppress_pair
+            # follow-on still informs reconcile_once to drop further work.
+            pass
+    follow_on = {
+        "kind": "suppress_pair",
+        "local_id": payload.get("local_id", ""),
+        "jira_key": mutation.target,
+    }
+    return ApplyResult(mutation.direction, mutation.action, {"follow_on": follow_on})
 
 
-def _apply_inbound_create(mutation, *, client=None) -> ApplyResult:
+# ---------------------------------------------------------------------------
+# Inbound leaf-body helpers (story bd19-d744-b8c7-4079)
+#
+# Inbound leaves write local ticket-tracker events directly because the local
+# CLI is the authoritative reader and we want deterministic file-shape control.
+# Event files follow the format documented at
+# ${CLAUDE_PLUGIN_ROOT}/docs/ticket-system-v3-architecture.md and mirrored
+# throughout the tracker dir as <ticket_id>/<ts>-<uuid>-<EVENT>.json.
+# ---------------------------------------------------------------------------
+
+# Map Jira issuetype -> local ticket_type. Anything else falls through to 'task'.
+_JIRA_TYPE_MAP: dict[str, str] = {
+    "Bug": "bug",
+    "Story": "story",
+    "Task": "task",
+    "Epic": "epic",
+    "Sub-task": "task",
+}
+
+
+def _jira_key_to_local_id(jira_key: str) -> str:
+    """DIG-123 -> jira-dig-123. Idempotent for already-prefixed local ids."""
+    if jira_key.startswith("jira-"):
+        return jira_key
+    return "jira-" + jira_key.lower()
+
+
+def _jira_status_to_local(jira_status: str) -> str:
+    """Reverse-map a Jira status to a local status using config.local_to_jira_status.
+
+    Ambiguous reverse mappings (multiple local statuses → same Jira status) are
+    resolved by lexicographic ordering of the local key, documented in
+    Implementation Notes of story bd19.
+    """
+    if not jira_status:
+        return "open"
+    try:
+        # Late-load config without polluting module namespace.
+        config_path = Path(__file__).parent / "config.py"
+        spec = importlib.util.spec_from_file_location(
+            "dso_reconciler_config", config_path
+        )
+        if spec is None or spec.loader is None:
+            return "open"
+        cfg_mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cfg_mod)  # type: ignore[union-attr]
+        mapping = getattr(cfg_mod, "local_to_jira_status", {}) or {}
+    except Exception:
+        return "open"
+    candidates = sorted(local for local, jira in mapping.items() if jira == jira_status)
+    return candidates[0] if candidates else "open"
+
+
+def _event_meta() -> tuple[int, str, str, str]:
+    """Return (timestamp_ns, uuid4_str, env_id, author) for a new event."""
+    import time as _time
+    import uuid as _uuid
+
+    return (
+        _time.time_ns(),
+        str(_uuid.uuid4()),
+        os.environ.get("DSO_ENV_ID", "reconciler"),
+        os.environ.get("DSO_AUTHOR", "reconciler"),
+    )
+
+
+def _resolve_tracker_dir(repo_root: Path | None) -> Path:
+    """Resolve the .tickets-tracker directory. Honours TICKETS_TRACKER_DIR env."""
+    override = os.environ.get("TICKETS_TRACKER_DIR")
+    if override:
+        return Path(override)
+    if repo_root is None:
+        repo_root = Path(__file__).parents[4]
+    return Path(repo_root) / ".tickets-tracker"  # tickets-boundary-ok
+
+
+def _read_latest_status(tracker_dir: Path, ticket_id: str) -> str:
+    """Return the latest status recorded for ``ticket_id`` (default ``"open"``).
+
+    Mirrors the reducer's STATUS-processing semantics (see
+    ticket_reducer/_processors.py:process_status):
+    the reducer initialises ``state["status"]`` to ``"open"`` and advances it
+    only when a STATUS event arrives whose own ``current_status`` field
+    matches the current state. Reading the latest written ``data["status"]``
+    here gives the inbound leaf the value that the reducer would have in
+    state right before our new STATUS event lands, so the new event's
+    ``current_status`` is the PREVIOUS state (not the new one).
+
+    Tolerant of missing tickets and unreadable event files — returns
+    ``"open"`` in either case, matching the reducer's initial state.
+    """
+    ticket_dir = tracker_dir / ticket_id
+    if not ticket_dir.is_dir():
+        return "open"
+    latest_status = "open"
+    for ef in sorted(ticket_dir.glob("*.json")):
+        try:
+            event = json.loads(ef.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            continue
+        if not isinstance(event, dict):
+            continue
+        if event.get("event_type") == "STATUS":
+            latest_status = event.get("data", {}).get("status", "") or latest_status
+    return latest_status
+
+
+def _write_event_file(
+    tracker_dir: Path, ticket_id: str, event_type: str, data: dict[str, Any]
+) -> Path:
+    """Write a single ticket event JSON file. Returns the path written."""
+    ts, uuid_str, env_id, author = _event_meta()
+    event = {
+        "timestamp": ts,
+        "uuid": uuid_str,
+        "event_type": event_type,
+        "env_id": env_id,
+        "author": author,
+        "data": data,
+    }
+    ticket_dir = tracker_dir / ticket_id
+    ticket_dir.mkdir(parents=True, exist_ok=True)
+    fname = f"{ts}-{uuid_str}-{event_type}.json"
+    out = ticket_dir / fname
+    out.write_text(json.dumps(event, ensure_ascii=False), encoding="utf-8")
+    return out
+
+
+def _apply_inbound_create(mutation, *, client=None, repo_root=None) -> ApplyResult:
+    """Materialise a remote Jira issue as a local jira-* ticket.
+
+    Writes a CREATE event (title, ticket_type, priority, description, tags
+    including ``imported:reconciler-bootstrap``) and, when the payload carries
+    a non-default status, a follow-up STATUS event reverse-mapped via
+    config.local_to_jira_status.
+    """
     mut_mod = _load_mutation_module()
     _direction_guard(mutation, mut_mod.MutationDirection.inbound)
-    return ApplyResult(mutation.direction, mutation.action, {})
+
+    payload = dict(mutation.payload or {})
+    fields = payload.get("fields", {}) or {}
+    jira_key = mutation.target
+    local_id = _jira_key_to_local_id(jira_key)
+    issuetype = fields.get("issuetype", "Task")
+    ticket_type = _JIRA_TYPE_MAP.get(issuetype, "task")
+
+    tracker_dir = _resolve_tracker_dir(repo_root)
+    tags = list(payload.get("labels", []) or [])
+    if "imported:reconciler-bootstrap" not in tags:
+        tags.append("imported:reconciler-bootstrap")
+    create_data: dict[str, Any] = {
+        "id": local_id,
+        "ticket_type": ticket_type,
+        "title": fields.get("summary", "") or jira_key,
+        "description": fields.get("description", "") or "",
+        "parent_id": "",
+        "tags": tags,
+    }
+    if "priority" in fields:
+        create_data["priority"] = fields["priority"]
+    if fields.get("assignee"):
+        create_data["assignee"] = fields["assignee"]
+    create_path = _write_event_file(tracker_dir, local_id, "CREATE", create_data)
+
+    # Status: write a STATUS event when the Jira status reverse-maps to
+    # something other than the reducer default ('open').
+    jira_status = fields.get("status")
+    if jira_status:
+        local_status = _jira_status_to_local(jira_status)
+        if local_status and local_status != "open":
+            _write_event_file(
+                tracker_dir,
+                local_id,
+                "STATUS",
+                {"status": local_status, "current_status": "open"},
+            )
+
+    return ApplyResult(
+        mutation.direction,
+        mutation.action,
+        {"local_id": local_id, "create_event": str(create_path)},
+    )
 
 
-def _apply_inbound_update(mutation, *, client=None) -> ApplyResult:
+def _apply_inbound_update(mutation, *, client=None, repo_root=None) -> ApplyResult:
+    """Apply a remote-side update to an existing local jira-* ticket.
+
+    Writes one EDIT event with the changed fields, plus an additional STATUS
+    event when the payload includes a Jira status change. Unknown ticket
+    directories are tolerated (the EDIT is still written; the reducer will
+    surface fsck on the next read).
+    """
     mut_mod = _load_mutation_module()
     _direction_guard(mutation, mut_mod.MutationDirection.inbound)
-    return ApplyResult(mutation.direction, mutation.action, {})
+
+    payload = dict(mutation.payload or {})
+    fields = payload.get("fields", {}) or {}
+    target = mutation.target
+    local_id = target if target.startswith("jira-") else _jira_key_to_local_id(target)
+    tracker_dir = _resolve_tracker_dir(repo_root)
+
+    # Map Jira-flavoured field names to local reducer field names.
+    edit_fields: dict[str, Any] = {}
+    if "summary" in fields:
+        edit_fields["title"] = fields["summary"]
+    if "description" in fields:
+        edit_fields["description"] = fields["description"]
+    if "priority" in fields:
+        edit_fields["priority"] = fields["priority"]
+    if "assignee" in fields:
+        edit_fields["assignee"] = fields["assignee"]
+
+    written: list[str] = []
+    if edit_fields:
+        path = _write_event_file(tracker_dir, local_id, "EDIT", {"fields": edit_fields})
+        written.append(str(path))
+
+    if "status" in fields:
+        local_status = _jira_status_to_local(fields["status"])
+        # current_status is the PREVIOUS state (matched against state["status"]
+        # by the reducer for fork detection — see
+        # ticket_reducer/_processors.py:process_status).
+        # Read the latest STATUS event from the ticket dir to obtain it.
+        previous_status = _read_latest_status(tracker_dir, local_id)
+        path = _write_event_file(
+            tracker_dir,
+            local_id,
+            "STATUS",
+            {"status": local_status, "current_status": previous_status},
+        )
+        written.append(str(path))
+
+    return ApplyResult(
+        mutation.direction,
+        mutation.action,
+        {"local_id": local_id, "events": written},
+    )
 
 
-def _apply_inbound_delete(mutation, *, client=None) -> ApplyResult:
+def _apply_inbound_delete(mutation, *, client=None, repo_root=None) -> ApplyResult:
+    """Handle one of four probe-outcome branches when a Jira issue has
+    disappeared from the working set.
+
+    Branches (selected via ``mutation.payload['probe_outcome']``):
+      * ``hard_delete``  — preserve the local content + emit a follow-on
+        ``(outbound, create_after_hard_delete)`` mutation so reconcile_once
+        re-creates the Jira side on the next applier pass.
+      * ``redirect``     — rename the local jira-dig-NNN ticket directory to
+        the new key supplied under ``new_jira_key``.
+      * ``out_of_window``— write a COMMENT event noting the Jira issue is
+        closed and aged out of the working set (no local mutation otherwise).
+      * ``trash``        — write a COMMENT event noting recoverable trash state.
+    """
     mut_mod = _load_mutation_module()
     _direction_guard(mutation, mut_mod.MutationDirection.inbound)
-    return ApplyResult(mutation.direction, mutation.action, {})
+
+    payload = dict(mutation.payload or {})
+    branch = payload.get("probe_outcome", "out_of_window")
+    target = mutation.target
+    local_id = target if target.startswith("jira-") else _jira_key_to_local_id(target)
+    tracker_dir = _resolve_tracker_dir(repo_root)
+    result_payload: dict[str, Any] = {"branch": branch, "local_id": local_id}
+
+    if branch == "hard_delete":
+        _write_event_file(
+            tracker_dir,
+            local_id,
+            "COMMENT",
+            {
+                "comment": (
+                    f"reconciler: Jira issue {target} hard-deleted; local "
+                    "content preserved. Outbound re-create follow-on emitted."
+                )
+            },
+        )
+        follow_on = {
+            "direction": "outbound",
+            "action": "create_after_hard_delete",
+            "target": target,
+            "local_id": local_id,
+        }
+        result_payload["follow_on"] = follow_on
+        # TODO(epic-3e36): wire the follow-on mutation into reconcile_once so
+        # the outbound re-create runs in the same pass. Tracked separately.
+    elif branch == "redirect":
+        new_key = payload.get("new_jira_key", "")
+        new_local_id = (
+            _jira_key_to_local_id(new_key) if new_key else local_id + "-redirected"
+        )
+        src = tracker_dir / local_id
+        dst = tracker_dir / new_local_id
+        # Collision protection (PR #375 review thread 3307104042): when both
+        # src and dst already exist on disk (prior failed pass, or the
+        # destination key was imported by another path) we cannot silently
+        # skip the rename — that leaves the tracker holding two ticket dirs
+        # for the same logical ticket. Raise so the operator can reconcile.
+        if src.exists() and dst.exists():
+            raise FileExistsError(
+                f"inbound delete redirect: refusing to rename {src} -> {dst} "
+                f"because destination already exists (target={target}, "
+                f"new_jira_key={new_key!r})"
+            )
+        if src.exists() and not dst.exists():
+            src.rename(dst)
+        # Write a comment noting the redirect on the destination directory.
+        _write_event_file(
+            tracker_dir,
+            new_local_id,
+            "COMMENT",
+            {"comment": f"reconciler: redirected from {target} -> {new_key}"},
+        )
+        result_payload["new_local_id"] = new_local_id
+    elif branch == "out_of_window":
+        _write_event_file(
+            tracker_dir,
+            local_id,
+            "COMMENT",
+            {
+                "comment": (
+                    f"reconciler: Jira issue {target} is closed and has aged "
+                    "out of the working window."
+                )
+            },
+        )
+    elif branch == "trash":
+        _write_event_file(
+            tracker_dir,
+            local_id,
+            "COMMENT",
+            {
+                "comment": (
+                    f"reconciler: Jira issue {target} entered recoverable trash state."
+                )
+            },
+        )
+    else:
+        # Unknown branch: record observable evidence; do not raise so the pass
+        # converges. The structural test enforces real-body coverage.
+        _write_event_file(
+            tracker_dir,
+            local_id,
+            "COMMENT",
+            {"comment": f"reconciler: unknown probe_outcome={branch!r}"},
+        )
+
+    return ApplyResult(mutation.direction, mutation.action, result_payload)
 
 
-def _apply_inbound_probe(mutation, *, client=None) -> ApplyResult:
+def _apply_inbound_probe(mutation, *, client=None, repo_root=None) -> ApplyResult:
+    """Inbound probe leaf: probe execution lives in reconcile.route_inbound_probe.
+
+    The leaf itself is a marker — the probe classification and follow-on
+    generation happen upstream of applier dispatch. We still write an audit
+    comment so the dispatch path is observable in the local tracker when a
+    probe leaf is invoked directly.
+    """
     mut_mod = _load_mutation_module()
     _direction_guard(mutation, mut_mod.MutationDirection.inbound)
-    return ApplyResult(mutation.direction, mutation.action, {})
+    target = mutation.target
+    local_id = target if target.startswith("jira-") else _jira_key_to_local_id(target)
+    tracker_dir = _resolve_tracker_dir(repo_root)
+    ticket_dir = tracker_dir / local_id
+    if ticket_dir.exists():
+        _write_event_file(
+            tracker_dir,
+            local_id,
+            "COMMENT",
+            {"comment": f"reconciler: inbound probe acknowledged for {target}"},
+        )
+    return ApplyResult(
+        mutation.direction, mutation.action, {"local_id": local_id, "probed": target}
+    )
 
 
-def _apply_inbound_clean_label(mutation, *, client=None) -> ApplyResult:
+def _apply_inbound_clean_label(mutation, *, client=None, repo_root=None) -> ApplyResult:
     """Remove dso-id-* labels from a Jira issue.
 
     Inbound-only leaf: invoked when the differ has detected stale or duplicated
@@ -315,16 +723,105 @@ def _apply_inbound_clean_label(mutation, *, client=None) -> ApplyResult:
     return ApplyResult(mutation.direction, mutation.action, {"removed": removed})
 
 
-def _apply_inbound_repair_property(mutation, *, client=None) -> ApplyResult:
+def _apply_inbound_repair_property(
+    mutation, *, client=None, repo_root=None
+) -> ApplyResult:
+    """Repair a missing ``dso_local_id`` entity property on a Jira issue.
+
+    Delegates to the existing :func:`inbound_repair_property` implementation
+    (kept under its legacy name for back-compat with existing tests). Wraps
+    the outcome dict into an ``ApplyResult`` so it routes cleanly through the
+    typed-mutation dispatch table.
+    """
     mut_mod = _load_mutation_module()
     _direction_guard(mutation, mut_mod.MutationDirection.inbound)
-    return ApplyResult(mutation.direction, mutation.action, {})
+    if client is None:
+        # Stub path: preserved for tests that don't exercise the I/O leaf.
+        return ApplyResult(mutation.direction, mutation.action, {})
+    outcome = inbound_repair_property(mutation, client)
+    return ApplyResult(mutation.direction, mutation.action, outcome)
 
 
-def _apply_inbound_conflict(mutation, *, client=None) -> ApplyResult:
+def _file_conflict_bug_ticket(
+    cli_path: Path, title: str, description: str, parent_id: str
+) -> str:
+    """Spawn the ticket CLI as a subprocess to file a bug ticket.
+
+    Returns the canonical bug id on success, '' otherwise. Isolated as its
+    own function so tests can monkeypatch this single seam without touching
+    the broader subprocess module (which is used by _concurrency).
+    """
+    import subprocess
+
+    if not cli_path.exists():
+        return ""
+    cmd: list[str] = [
+        str(cli_path),
+        "ticket",
+        "create",
+        "bug",
+        title,
+        "-d",
+        description,
+    ]
+    if parent_id:
+        cmd.extend(["--parent", parent_id])
+    try:
+        res = subprocess.run(
+            cmd, capture_output=True, text=True, check=False, timeout=30
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    if res.returncode != 0:
+        return ""
+    lines = [ln for ln in res.stdout.splitlines() if ln.strip()]
+    return lines[-1] if lines else ""
+
+
+def _apply_inbound_conflict(mutation, *, client=None, repo_root=None) -> ApplyResult:
+    """File a bug ticket for an unresolved (local, Jira) conflict and emit a
+    ``suppress_pair`` follow-on so reconcile_once drops further mutations for
+    the same pair in this pass.
+
+    Filing uses the local ``.claude/scripts/dso ticket create bug`` shim via
+    subprocess to avoid a hard import dependency on the ticket-CLI Python
+    package. When the CLI is unavailable (e.g. inside a fixture worktree),
+    the follow-on is still emitted so suppression works.
+    """
     mut_mod = _load_mutation_module()
     _direction_guard(mutation, mut_mod.MutationDirection.inbound)
-    return ApplyResult(mutation.direction, mutation.action, {})
+
+    payload = dict(mutation.payload or {})
+    jira_key = mutation.target
+    local_id = payload.get("local_id", "")
+    reason = payload.get("reason", "unspecified")
+    parent_id = payload.get("parent_id") or os.environ.get(
+        "DSO_RECONCILER_CONFLICT_PARENT_ID", ""
+    )
+    title = f"[Reconciler conflict]: pair ({local_id!r}, {jira_key!r}) -> {reason}"
+    description = (
+        f"Reconciler detected a conflict on (local_id={local_id!r}, "
+        f"jira_key={jira_key!r}).\n\n"
+        f"Reason: {reason}\n\n"
+        "## Expected Behavior\n"
+        "Conflict is resolved or suppressed before the next reconciler pass.\n\n"
+        "## Actual Behavior\n"
+        f"Conflict surfaced during applier dispatch with reason={reason!r}."
+    )
+
+    cli_path = Path(__file__).parents[4] / ".claude" / "scripts" / "dso"
+    bug_id = _file_conflict_bug_ticket(cli_path, title, description, parent_id)
+
+    follow_on = {
+        "kind": "suppress_pair",
+        "local_id": local_id,
+        "jira_key": jira_key,
+    }
+    return ApplyResult(
+        mutation.direction,
+        mutation.action,
+        {"bug_id": bug_id, "follow_on": follow_on},
+    )
 
 
 def _build_leaves() -> dict[tuple[Any, Any], Callable[..., ApplyResult]]:
@@ -616,7 +1113,7 @@ _LEAF_NAMES: dict[tuple[str, str], str] = {
 }
 
 
-def _apply_typed(mutation, *, client=None) -> ApplyResult:
+def _apply_typed(mutation, *, client=None, repo_root=None) -> ApplyResult:
     """Typed-mutation dispatch via _LEAVES.
 
     Looks up (mutation.direction, mutation.action) in _LEAVES and invokes the
@@ -638,6 +1135,26 @@ def _apply_typed(mutation, *, client=None) -> ApplyResult:
     # dso-id label write guard before any leaf side-effect occurs.
     leaf_name = _LEAF_NAMES.get((mutation.direction.value, mutation.action.value), "")
     _audit_dso_id_label_writes(leaf_name, [mutation])
+    # All inbound leaves accept repo_root; outbound leaves now do too. Pass it
+    # uniformly so the leaves can write to the local tracker when applicable.
+    # Inspect the handler signature once to decide whether to pass repo_root,
+    # rather than catching a broad TypeError (which would silently swallow
+    # genuine TypeErrors raised from inside the leaf body — bug surfaced in
+    # PR #375 review thread 3306949603).
+    import inspect as _inspect
+
+    try:
+        sig = _inspect.signature(handler)
+        accepts_repo_root = "repo_root" in sig.parameters or any(
+            p.kind is _inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()
+        )
+    except (TypeError, ValueError):
+        # Builtins / C-extensions don't expose signatures: fall back to passing
+        # repo_root (legacy behaviour).
+        accepts_repo_root = True
+
+    if accepts_repo_root:
+        return handler(mutation, client=client, repo_root=repo_root)
     return handler(mutation, client=client)
 
 
@@ -1193,12 +1710,64 @@ def _handle_failed_write_result(write_result, pass_id: str) -> None:
     raise RescheduleError(attempt_count=attempt_count, last_error=last_error)
 
 
+def _load_mode_module():
+    """Lazy-load mode.py under a stable key so MODE_CAPS / Mode are accessible.
+
+    Uses the SAME dotted key as __main__._MODE_KEY so a single module object
+    is shared with the entry-point loader; tests that pre-seed sys.modules
+    under that key see their stub here too.
+    """
+    key = "plugins.dso.scripts.dso_reconciler.mode"
+    if key in sys.modules:
+        return sys.modules[key]
+    mode_path = Path(__file__).parent / "mode.py"
+    spec = importlib.util.spec_from_file_location(key, mode_path)
+    if spec is None or spec.loader is None:
+        raise FileNotFoundError(f"mode.py not found at {mode_path}")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[key] = mod
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    return mod
+
+
+def _load_manifest_renderer():
+    """Lazy-load manifest_renderer.py."""
+    key = "plugins.dso.scripts.dso_reconciler.manifest_renderer"
+    if key in sys.modules:
+        return sys.modules[key]
+    path = Path(__file__).parent / "manifest_renderer.py"
+    spec = importlib.util.spec_from_file_location(key, path)
+    if spec is None or spec.loader is None:
+        raise FileNotFoundError(f"manifest_renderer.py not found at {path}")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[key] = mod
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    return mod
+
+
+def _mode_sort_key(m) -> tuple[str, str, str]:
+    """Deterministic ordering key: (direction, action, target)."""
+    d = getattr(m, "direction", None)
+    a = getattr(m, "action", None)
+    t = getattr(m, "target", None)
+    if isinstance(m, dict):
+        d = d if d is not None else m.get("direction", "")
+        a = a if a is not None else m.get("action", "")
+        t = t if t is not None else (m.get("key", "") or m.get("target", ""))
+    return (
+        str(getattr(d, "value", d) or ""),
+        str(getattr(a, "value", a) or ""),
+        str(t or ""),
+    )
+
+
 def apply(
     mutations=None,
     pass_id: str | None = None,
     repo_root: Path | None = None,
     *,
     client=None,
+    mode=None,
 ):
     """Polymorphic dispatch entry point.
 
@@ -1224,13 +1793,72 @@ def apply(
         and hasattr(mutations, "direction")
         and hasattr(mutations, "action")
     ):
-        return _apply_typed(mutations, client=client)
+        return _apply_typed(mutations, client=client, repo_root=repo_root)
 
     # Legacy batch path requires pass_id.
     if pass_id is None:
         raise TypeError(
             "apply() legacy batch form requires pass_id as the second argument"
         )
+
+    # -------------------------------------------------------------------------
+    # Mode-cap enforcement (story 286b).
+    #
+    # When *mode* is provided, look up the per-mode cap in MODE_CAPS and
+    # partition the incoming mutations into (applied, deferred). The applied
+    # list is what the direction-aware dispatch loop below actually executes;
+    # the deferred list is reported via the mode-specific manifest renderer.
+    #
+    # Cap semantics:
+    #   - cap is None    → uncapped (LIVE): apply all; manifest renderer is
+    #                      NOT invoked (LIVE writes no manifest file).
+    #   - cap == 0       → DRY_RUN: apply NOTHING (no leaf invoked, no batch
+    #                      iteration); manifest still written listing every
+    #                      mutation as deferred.
+    #   - cap > 0        → BOOTSTRAP_STRICT (10) / BOOTSTRAP_THROTTLE (100):
+    #                      sort by (direction, action, target), apply first
+    #                      `cap`, defer the rest.
+    #
+    # When *mode* is None (the call shape used by legacy callers that have not
+    # yet been migrated), behaviour is unchanged from before: apply everything,
+    # write the legacy flat manifest. This preserves the contract for the wide
+    # surface of existing tests under tests/unit/dso_reconciler/.
+    # -------------------------------------------------------------------------
+    mutations_input = list(mutations or [])
+    deferred_for_manifest: list = []
+    # Hoist the mode module load to a single call per apply() invocation.
+    # Previously _load_mode_module() was called at three sites (cap lookup,
+    # DRY_RUN dispatch skip, manifest renderer dispatch); collapsing to one
+    # avoids redundant importlib work and a class-identity hazard if the
+    # module ever ends up loaded under multiple sys.modules keys mid-call.
+    mode_mod = _load_mode_module() if mode is not None else None
+    if mode is not None:
+        # Validate / coerce mode to a Mode enum member (findings #1/#2).
+        # Accepting raw strings would let MODE_CAPS.get() return None for
+        # unrecognised values, silently triggering the uncapped LIVE path.
+        if isinstance(mode, str):
+            mode = mode_mod.Mode.from_str(mode)
+        if not isinstance(mode, mode_mod.Mode):
+            raise TypeError(
+                f"mode must be a Mode enum member or a recognised mode string, "
+                f"got {type(mode).__name__}: {mode!r}"
+            )
+        cap = mode_mod.MODE_CAPS.get(mode)
+        # Sort deterministically before applying the cap so the applied /
+        # deferred partition is reproducible across passes.
+        ordered = sorted(mutations_input, key=_mode_sort_key)
+        if cap is None:
+            # LIVE: uncapped — proceed with all mutations through the normal
+            # dispatch path below. Manifest renderer is skipped post-apply.
+            mutations_input = ordered
+        elif cap == 0:
+            # DRY_RUN: skip the apply loop entirely. Every mutation is deferred.
+            deferred_for_manifest = ordered
+            mutations_input = []
+        else:
+            # BOOTSTRAP_STRICT / BOOTSTRAP_THROTTLE: cap then defer remainder.
+            mutations_input = ordered[:cap]
+            deferred_for_manifest = ordered[cap:]
 
     # Direction-aware dispatch (defect #8): partition typed Mutations by
     # direction. Inbound Mutations route through _apply_typed per-mutation
@@ -1247,7 +1875,7 @@ def apply(
     # every pass. The actual fix is to route inbound through the existing
     # _apply_typed handler (which already covers all (inbound, *) pairs in
     # _LEAVES).
-    mutations_list = list(mutations or [])
+    mutations_list = list(mutations_input)
 
     def _looks_like_mutation(m) -> bool:
         if isinstance(m, mut_mod.Mutation):
@@ -1272,8 +1900,51 @@ def apply(
 
     # Inbound: per-mutation dispatch via _apply_typed. Order preserved from
     # the source list so observable behaviour is deterministic.
+    #
+    # suppress_pair follow-on contract (story bd19-d744-b8c7-4079): when a
+    # leaf returns a payload with follow_on={'kind': 'suppress_pair',
+    # 'local_id': X, 'jira_key': Y}, all subsequent inbound mutations
+    # targeting either X or Y AND all outbound batch entries targeting Y are
+    # dropped from this pass so the conflict signal is not stomped by stale
+    # follow-up mutations.
+    # Suppress-pair index: O(1) lookup. We maintain two sets of canonical
+    # identifiers (jira-keys-as-given and local_ids) plus a set of computed
+    # local-id forms (jira_key → _jira_key_to_local_id) so the third match-
+    # arm (computed-form: target=='DIG-7' suppresses subsequent
+    # target=='jira-dig-7') is also O(1). Replaces the prior O(n²) list
+    # scan flagged in PR #375 review thread 3306949610.
+    suppressed_targets: set[str] = set()
+    suppressed_pairs: set[tuple[str, str]] = set()
+
+    def _is_suppressed(target: str) -> bool:
+        if not target:
+            return False
+        return target in suppressed_targets
+
+    def _record_suppression(local_id: str, jira_key: str) -> None:
+        suppressed_pairs.add((local_id, jira_key))
+        if jira_key:
+            suppressed_targets.add(jira_key)
+            # Computed-form: a later mutation targeting the local-id form of
+            # this jira_key (e.g. 'jira-dig-7' after suppressing 'DIG-7')
+            # must also be dropped.
+            suppressed_targets.add(_jira_key_to_local_id(jira_key))
+        if local_id:
+            suppressed_targets.add(local_id)
+
     for mut in inbound_typed:
-        _apply_typed(mut, client=client)
+        if _is_suppressed(getattr(mut, "target", "")):
+            continue
+        result = _apply_typed(mut, client=client, repo_root=repo_root)
+        follow_on = (
+            result.payload.get("follow_on")
+            if isinstance(getattr(result, "payload", None), dict)
+            else None
+        )
+        if isinstance(follow_on, dict) and follow_on.get("kind") == "suppress_pair":
+            _record_suppression(
+                follow_on.get("local_id", ""), follow_on.get("jira_key", "")
+            )
 
     # Outbound (or untyped dict): normalize typed Mutations to dicts so
     # _apply_batch can iterate, then route through the legacy batch path.
@@ -1283,7 +1954,118 @@ def apply(
         _mutation_to_batch_dict(m) if _looks_like_mutation(m) else m
         for m in outbound_or_untyped
     ]
-    return _apply_batch(outbound_list, pass_id, repo_root=repo_root)
+    # Drop any outbound entries whose key matches a suppressed pair.
+    if suppressed_pairs:
+        outbound_list = [
+            d for d in outbound_list if not _is_suppressed(d.get("key", ""))
+        ]
+    # In DRY_RUN, skip the legacy batch dispatcher entirely so the test
+    # contract ("neither _apply_typed nor _apply_batch is invoked") holds.
+    # The renderer block below writes the asymmetric manifest from scratch.
+    if mode_mod is not None and mode == mode_mod.Mode.DRY_RUN:
+        manifest_path = None
+    else:
+        manifest_path = _apply_batch(outbound_list, pass_id, repo_root=repo_root)
+
+    # -------------------------------------------------------------------------
+    # Mode-specific manifest emission (story 286b).
+    #
+    # When *mode* is provided, replace the flat legacy manifest with the
+    # asymmetric shape dispatched by manifest_renderer:
+    #
+    #   - DRY_RUN / BOOTSTRAP_STRICT  → render_dry_run_or_strict
+    #   - BOOTSTRAP_THROTTLE          → render_throttle
+    #   - LIVE                        → no manifest file; remove the legacy
+    #                                    write and return None
+    #
+    # The legacy manifest written by _apply_batch is left in place when
+    # mode is None (legacy callers depend on it). Otherwise we overwrite or
+    # remove it as required by the mode contract.
+    # -------------------------------------------------------------------------
+    if mode_mod is not None:
+        renderer_mod = _load_manifest_renderer()
+        applied_for_manifest = list(mutations_list)
+
+        if mode == mode_mod.Mode.LIVE:
+            # LIVE: no manifest file per contract. Remove the legacy manifest
+            # written by _apply_batch.
+            try:
+                if manifest_path is not None and Path(manifest_path).exists():
+                    Path(manifest_path).unlink()
+            except OSError:
+                pass
+            return None
+
+        if mode == mode_mod.Mode.BOOTSTRAP_THROTTLE:
+            rendered = renderer_mod.render_throttle(
+                applied_for_manifest, deferred_for_manifest
+            )
+        else:
+            # DRY_RUN and BOOTSTRAP_STRICT share the same renderer.
+            rendered = renderer_mod.render_dry_run_or_strict(
+                applied_for_manifest, deferred_for_manifest
+            )
+
+        rendered_with_meta = {
+            "pass_id": pass_id,
+            "mode": getattr(mode, "value", str(mode)),
+            "applied_count": rendered.get("applied_count", len(applied_for_manifest)),
+            "deferred_count": rendered.get(
+                "deferred_count", len(deferred_for_manifest)
+            ),
+            "outbound": rendered.get("outbound"),
+            "inbound": rendered.get("inbound"),
+        }
+        if "spot_check" in rendered:
+            rendered_with_meta["spot_check"] = rendered["spot_check"]
+        # Also expose the deferred mutations list (sorted) so tests and
+        # operators can audit exactly what was held back.
+        rendered_with_meta["deferred"] = [
+            {
+                "direction": str(
+                    getattr(getattr(m, "direction", ""), "value", "")
+                    or (m.get("direction", "") if isinstance(m, dict) else "")
+                ),
+                "action": str(
+                    getattr(getattr(m, "action", ""), "value", "")
+                    or (m.get("action", "") if isinstance(m, dict) else "")
+                ),
+                "target": _mode_sort_key(m)[2],
+            }
+            for m in deferred_for_manifest
+        ]
+
+        # DRY_RUN may have skipped _apply_batch entirely (when mutations_input
+        # was empty) — _apply_batch still wrote an empty manifest. Either way,
+        # the manifest_path is valid; overwrite with the asymmetric shape.
+        if manifest_path is None:
+            if repo_root is None:
+                repo_root_resolved = Path(__file__).parents[4]
+            else:
+                repo_root_resolved = repo_root
+            snapshots_dir = repo_root_resolved / "bridge_state" / "snapshots"
+            snapshots_dir.mkdir(parents=True, exist_ok=True)
+            manifest_path = snapshots_dir / f"{pass_id}.manifest.json"
+        # Atomic write via tempfile + os.replace to avoid race conditions
+        # when concurrent DRY_RUN passes share the same pass_id (finding #3).
+        manifest_dir = Path(manifest_path).parent
+        manifest_dir.mkdir(parents=True, exist_ok=True)
+        fd, tmp_path = tempfile.mkstemp(
+            dir=manifest_dir,
+            prefix=f"{pass_id}.",
+            suffix=".json.tmp",
+        )
+        try:
+            with os.fdopen(fd, "w") as tmp_f:
+                json.dump(rendered_with_meta, tmp_f, indent=2)
+            os.replace(tmp_path, str(manifest_path))
+        except BaseException:
+            # Clean up the temp file on any failure.
+            with contextlib.suppress(OSError):
+                os.unlink(tmp_path)
+            raise
+
+    return manifest_path
 
 
 def _mutation_to_batch_dict(mutation) -> dict:

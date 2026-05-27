@@ -3036,3 +3036,43 @@ Before closing the epic, confirm that dso:completion-verifier was dispatched at 
 
 ---
 
+## Visual Evaluator Integration (Integration B — Post-Batch)
+
+After `VISUAL_CMD` (or `make test-visual`) completes in Phase F validation, the sprint orchestrator dispatches the visual-evaluator agent at **Opus 4.7** for a post-batch review pass over all UI files modified in the batch. This is **Integration B** — the post-batch dispatch with token-budget guard.
+
+### Activation Gate
+
+Activates when:
+- `dso.workflow=ci-pr` mode is in use, AND
+- At least one task in the completed batch modified UI files, AND
+- The visual-evaluator skill's preconditions pass (see `${CLAUDE_PLUGIN_ROOT}/skills/visual-evaluator/SKILL.md`)
+
+### Token-Budget Guard
+
+Two-tier budget (soft-warn + hard-stop) prevents runaway Opus 4.7 spend:
+
+| Config Key | Default | Behavior |
+|---|---|---|
+| `visual_evaluator.post_batch_token_budget` | `50000` | Soft-warn threshold |
+| `visual_evaluator.post_batch_token_hard_stop_multiplier` | `3` | Hard-stop = soft × multiplier (default 150000) |
+
+**Soft-warn path**: When projected dispatch tokens exceed `post_batch_token_budget`, emit `degradation_type=visual_eval_post_batch_nearing_budget` to the integration gate. **Dispatch proceeds** — this is informational only.
+
+**Hard-stop path**: When projected tokens exceed `post_batch_token_budget × multiplier`, SKIP the dispatch entirely. Emit `degradation_type=visual_eval_post_batch_skipped_budget_exceeded`. Annotate the epic ticket with `visual_eval_inapplicable:post_batch_budget`. **The 5th committee reviewer (visual-spatial-evaluator) is not invoked**; arbitration falls back to the 4-reviewer committee per `${CLAUDE_PLUGIN_ROOT}/skills/ui-designer/docs/arbitration.md`.
+
+### Degradation Types
+
+| Token Range | degradation_type | Dispatch | 5th Reviewer |
+|---|---|---|---|
+| ≤ `post_batch_token_budget` | (none) | YES | YES |
+| ∈ (budget, budget × multiplier] | `visual_eval_post_batch_nearing_budget` | YES | YES |
+| > budget × multiplier | `visual_eval_post_batch_skipped_budget_exceeded` | NO | NO (4-reviewer fallback) |
+
+### Regression Tests
+
+See `tests/skills/test-sprint-post-batch-visual-eval.sh` for the three required test cases:
+
+1. `test_soft_warn_below_threshold`: projected 47000 tokens → no warning logged, dispatch proceeds
+2. `test_soft_warn_above_threshold`: projected 60000 tokens (between 50000 and 150000) → `visual_eval_post_batch_nearing_budget` logged, dispatch proceeds
+3. `test_hard_stop_above_3x`: projected 160000 tokens (>150000) → dispatch SKIPPED, `visual_eval_post_batch_skipped_budget_exceeded` logged, 4-reviewer fallback path activated
+
