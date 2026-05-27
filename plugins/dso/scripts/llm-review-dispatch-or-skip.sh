@@ -167,17 +167,21 @@ case "$provenance_exit" in
     exit 0
     ;;
   3)
-    # OVER_BOUND — non-provenanced commits acknowledged; skip LLM dispatch
-    echo "CONCLUSION: skipped"
+    # OVER_BOUND — non-provenanced commits exceed review bounds.
+    # G2 fix: exit 1 (fail CI) so unreviewed code cannot merge. Previously
+    # this exited 0, allowing OVER_BOUND PRs to pass without review.
+    echo "CONCLUSION: blocked"
     echo "OVER_BOUND: acknowledged non-provenanced commits present."
-    echo "Routed to admin/FP-recovery for review."
+    echo "This PR exceeds the LLM review diff-size bound."
+    echo "ACTION REQUIRED: use /dso:fp-recovery or admin override to unblock."
 
-    # Write stub findings.json so ci.yml liveness assertion passes (bug afc7-44b5).
+    # Write stub findings.json so ci.yml liveness assertion can distinguish
+    # OVER_BOUND (blocked) from "runner never ran" (crash).
     _output_path="${DSO_CI_REVIEW_OUTPUT_PATH:-${ARTIFACT_DIR}/findings.json}"
     mkdir -p "$(dirname "$_output_path")" 2>/dev/null || true
-    printf '{"findings": [], "skip_reason": "over_bound"}\n' > "$_output_path" 2>/dev/null || true
+    printf '{"findings": [], "skip_reason": "over_bound", "blocked": true}\n' > "$_output_path" 2>/dev/null || true
 
-    exit 0
+    exit 1
     ;;
   1|2)
     # Unprovenanced or budget-exhausted — invoke full-diff LLM review.
@@ -202,6 +206,40 @@ case "$provenance_exit" in
         echo "ERROR: gh pr diff $PR_NUMBER failed:" >&2
         cat "$_GH_STDERR" >&2
         exit 1
+    fi
+
+    # G1 fix: when INTEGRATION_SCOPE_FILE is set and non-empty, filter the
+    # full PR diff down to only files in the integration scope. This narrows
+    # the LLM review to unprovenanced + cross-branch files instead of
+    # re-reviewing the entire session diff. (Bug 1624-5fb9 remediation.)
+    _SCOPE_FILE="${INTEGRATION_SCOPE_FILE:-}"
+    if [[ -n "$_SCOPE_FILE" && -s "$_SCOPE_FILE" ]]; then
+        _FILTERED_DIFF=$(mktemp /tmp/dso-pr-diff-filtered.XXXXXX)
+        trap 'rm -f "$_DIFF_PATH" "$_GH_STDERR" "$_FILTERED_DIFF"' EXIT
+        python3 -c "
+import sys
+scope_files = set()
+with open(sys.argv[1]) as f:
+    for line in f:
+        scope_files.add(line.strip())
+current_file = None
+include = False
+for line in sys.stdin:
+    if line.startswith('diff --git '):
+        parts = line.split()
+        path = parts[-1]
+        current_file = path[2:] if path.startswith('b/') else path
+        include = current_file in scope_files
+    if include:
+        sys.stdout.write(line)
+" "$_SCOPE_FILE" < "$_DIFF_PATH" > "$_FILTERED_DIFF"
+        _scope_count=$(wc -l < "$_SCOPE_FILE" | tr -d ' ')
+        _orig_files=$(grep -c '^diff --git' "$_DIFF_PATH" || echo 0)
+        _filtered_files=$(grep -c '^diff --git' "$_FILTERED_DIFF" || echo 0)
+        echo "INFO: integration-scope narrowing applied — ${_filtered_files}/${_orig_files} files in scope (${_scope_count} scope entries)"
+        _DIFF_PATH="$_FILTERED_DIFF"
+    else
+        echo "INFO: no integration-scope file or scope is empty — reviewing full PR diff"
     fi
 
     # Diagnostic: diff size so the log shows what the LLM is reviewing
