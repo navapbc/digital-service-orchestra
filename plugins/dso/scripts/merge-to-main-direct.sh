@@ -201,6 +201,27 @@ if [ -n "$DIRTY" ] || [ -n "$DIRTY_CACHED" ] || [ -n "$DIRTY_UNTRACKED" ]; then
     exit 1
 fi
 
+# --- Resolve default branch (F-05) ---
+# Use the resolver chain to pick up the host repository's actual default
+# branch (master/develop/trunk/main). This is independent of the direct-
+# merge assertion's "main" fast-path: ops like `git fetch origin <default>`
+# should target whatever the host's default is, but the safety assertion
+# above stays strict unless explicitly opted in.
+_RESOLVE_DEFAULT_BRANCH_SH="$_SCRIPT_DIR/resolve-default-branch.sh"
+if [[ -x "$_RESOLVE_DEFAULT_BRANCH_SH" ]]; then
+    _GIT_DIR=$(git rev-parse --git-dir 2>/dev/null || true)
+    _DEFAULT_BRANCH_CACHE="${_GIT_DIR:+$_GIT_DIR/dso-default-branch}"
+    if [[ -n "$_DEFAULT_BRANCH_CACHE" ]] && [[ -s "$_DEFAULT_BRANCH_CACHE" ]]; then
+        _DEFAULT_BRANCH=$(cat "$_DEFAULT_BRANCH_CACHE")
+    else
+        _DEFAULT_BRANCH=$(bash "$_RESOLVE_DEFAULT_BRANCH_SH" --no-warn 2>/dev/null || echo "main")
+        [[ -n "$_DEFAULT_BRANCH_CACHE" ]] && printf '%s' "$_DEFAULT_BRANCH" > "$_DEFAULT_BRANCH_CACHE" 2>/dev/null || true
+    fi
+else
+    _DEFAULT_BRANCH="main"
+fi
+: "${_DEFAULT_BRANCH:=main}"
+
 # --- Auto-commit dirty ticket-tracker files on the worktree ---
 # ticket commands write tickets-tracker files without staging them.
 # These files must be committed before merging so they appear in the merge on
@@ -258,20 +279,22 @@ _try_reset_stale_version_bump() {
     local _vf="${VERSION_FILE_PATH:-}"
     [ -z "$_vf" ] && return 1
 
-    git fetch origin main --quiet 2>/dev/null || true
+    # F-05: use resolved default branch.
+    local _db="${_DEFAULT_BRANCH:-main}"
+    git fetch origin "$_db" --quiet 2>/dev/null || true
 
     # No divergence → nothing to do
-    if [ "$(git rev-list --count origin/main..HEAD 2>/dev/null || echo 0)" = "0" ]; then
+    if [ "$(git rev-list --count "origin/${_db}..HEAD" 2>/dev/null || echo 0)" = "0" ]; then
         return 1
     fi
 
     local _diff_files
-    _diff_files=$(git diff --name-only origin/main..HEAD 2>/dev/null || true)
+    _diff_files=$(git diff --name-only "origin/${_db}..HEAD" 2>/dev/null || true)
     # Single-file diff and that file matches the configured version file path
     if [ "$_diff_files" = "$_vf" ]; then
-        echo "INFO: Local main diverges from origin/main only by a stale version bump in ${_vf} — resetting to origin/main (version_bump phase will reapply correctly)."
-        if ! git reset --hard origin/main -q 2>/dev/null; then
-            echo "WARNING: Could not reset local main to origin/main."
+        echo "INFO: Local ${_db} diverges from origin/${_db} only by a stale version bump in ${_vf} — resetting to origin/${_db} (version_bump phase will reapply correctly)."
+        if ! git reset --hard "origin/${_db}" -q 2>/dev/null; then
+            echo "WARNING: Could not reset local ${_db} to origin/${_db}."
             return 1
         fi
         return 0
@@ -289,24 +312,26 @@ _phase_push_self_healing() {
     local _attempt=0
     local _max_attempts=4
     local _delay=2
+    # F-05: use resolved default branch.
+    local _db="${_DEFAULT_BRANCH:-main}"
     while true; do
         if git push 2>&1; then
             return 0
         fi
         if [[ $_attempt -ge $_max_attempts ]]; then
             echo "ERROR: Push failed after $_max_attempts self-healing attempts." >&2
-            echo "       Manual recovery: git fetch origin && git rebase origin/main && git push" >&2
+            echo "       Manual recovery: git fetch origin && git rebase origin/${_db} && git push" >&2
             return 1
         fi
         _attempt=$((_attempt + 1))
-        echo "INFO: Push rejected (attempt $_attempt/$_max_attempts) — fetching and rebasing onto origin/main..." >&2
-        if ! git fetch origin main --quiet 2>&1; then
-            echo "WARNING: git fetch origin main failed — retrying push without rebase." >&2
+        echo "INFO: Push rejected (attempt $_attempt/$_max_attempts) — fetching and rebasing onto origin/${_db}..." >&2
+        if ! git fetch origin "$_db" --quiet 2>&1; then
+            echo "WARNING: git fetch origin ${_db} failed — retrying push without rebase." >&2
         else
-            if ! git rebase origin/main 2>&1; then
-                echo "ERROR: Rebase onto origin/main hit a conflict (likely concurrent version bump)." >&2
+            if ! git rebase "origin/${_db}" 2>&1; then
+                echo "ERROR: Rebase onto origin/${_db} hit a conflict (likely concurrent version bump)." >&2
                 git rebase --abort 2>/dev/null || true
-                echo "       Manual recovery: git fetch origin && git rebase origin/main, resolve conflicts, then re-run merge-to-main.sh --resume" >&2
+                echo "       Manual recovery: git fetch origin && git rebase origin/${_db}, resolve conflicts, then re-run merge-to-main.sh --resume" >&2
                 return 1
             fi
         fi
@@ -324,28 +349,31 @@ _phase_sync() {
     _CURRENT_PHASE="sync"
     _state_write_phase "sync"
 
-    # Fetch and merge origin/main into the worktree branch.
+    # Fetch and merge origin/<default> into the worktree branch.
     # This surfaces merge conflicts here (where /dso:resolve-conflicts can operate)
     # rather than discovering them during the main-repo merge.
-    echo "Syncing worktree with main..."
-    git fetch origin main 2>&1 || {
-        echo "WARNING: git fetch origin main failed — continuing with local state."
+    # F-05: use resolved default branch.
+    _db_sync="${_DEFAULT_BRANCH:-main}"
+    echo "Syncing worktree with ${_db_sync}..."
+    git fetch origin "$_db_sync" 2>&1 || {
+        echo "WARNING: git fetch origin ${_db_sync} failed — continuing with local state."
     }
-    if ! git merge origin/main --no-edit -q 2>&1; then
-        echo "ERROR: Syncing worktree with main failed. Resolve conflicts, then re-run."
+    if ! git merge "origin/${_db_sync}" --no-edit -q 2>&1; then
+        echo "ERROR: Syncing worktree with ${_db_sync} failed. Resolve conflicts, then re-run."
         exit 1
     fi
-    echo "OK: Worktree synced with main."
+    echo "OK: Worktree synced with ${_db_sync}."
     # Clear any files restaged by pre-commit hooks during the merge commit,
     # to prevent dirty-check failures on resume (2613-a2eb).
     git reset HEAD --quiet || true
 
     # --- Check visual baseline intent ---
-    # Use merge-base against origin/main (not local main) to detect only branch-originated
-    # snapshot changes. After the sync merge above, local main hasn't been fast-forwarded
-    # yet, so diffing HEAD vs local main would incorrectly flag CI baseline updates pulled
-    # in from origin/main as branch-originated changes (false positive).
-    MERGE_BASE_ORIGIN=$(git merge-base HEAD origin/main 2>/dev/null || git rev-parse HEAD)
+    # Use merge-base against origin/<default> (not local <default>) to detect
+    # only branch-originated snapshot changes. After the sync merge above,
+    # local <default> hasn't been fast-forwarded yet, so diffing HEAD vs local
+    # <default> would incorrectly flag CI baseline updates pulled in from
+    # origin/<default> as branch-originated changes (false positive).
+    MERGE_BASE_ORIGIN=$(git merge-base HEAD "origin/${_db_sync}" 2>/dev/null || git rev-parse HEAD)
     if [ -n "$VISUAL_BASELINE_PATH" ]; then
         BASELINE_DIFF=$(git diff --name-only "$MERGE_BASE_ORIGIN" HEAD -- "$VISUAL_BASELINE_PATH" 2>/dev/null | grep '\.png$' || true)
         if [ -n "$BASELINE_DIFF" ]; then
@@ -374,10 +402,36 @@ _phase_sync() {
     LOCK_FILE="/tmp/merge-to-main-lock-$(echo -n "$MAIN_REPO" | shasum 2>/dev/null | cut -c1-8 || echo "default")"
     _cleanup_stale_git_state "$MAIN_REPO"
 
-    # Verify main is checked out
+    # Verify the integration branch is checked out
+    # F-05: literal-"main" fast-path is preserved as the safe default; only
+    # relax when the operator explicitly opts in via dso.default_branch.
+    # Reading the resolver chain here would let a misconfigured config
+    # (which the same file might contain) silently authorize merges into the
+    # wrong branch — opt-in keeps the assertion strong for default users.
+    _EXPECTED_MAIN_BRANCH="main"
+    _OPT_IN_DEFAULT_BRANCH=$(bash "$_SCRIPT_DIR/read-config.sh" dso.default_branch 2>/dev/null || true)
+    if [[ -n "$_OPT_IN_DEFAULT_BRANCH" ]]; then
+        _EXPECTED_MAIN_BRANCH="$_OPT_IN_DEFAULT_BRANCH"
+    fi
+
     MAIN_BRANCH=$(git branch --show-current)
-    if [ "$MAIN_BRANCH" != "main" ]; then
-        echo "ERROR: Main repo is on '$MAIN_BRANCH', expected 'main'."
+    if [ "$MAIN_BRANCH" != "$_EXPECTED_MAIN_BRANCH" ]; then
+        # Help operators on non-"main" default-branch repos: if the actual
+        # branch matches origin/HEAD's symbolic-ref, suggest the opt-in.
+        if [[ "$_EXPECTED_MAIN_BRANCH" == "main" ]]; then
+            _LIKELY_DEFAULT=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||' || true)
+            if [[ -n "$_LIKELY_DEFAULT" ]] && [[ "$_LIKELY_DEFAULT" == "$MAIN_BRANCH" ]] && [[ "$_LIKELY_DEFAULT" != "main" ]]; then
+                echo "ERROR: Direct merge refused — main repo is on '$MAIN_BRANCH'." >&2
+                echo "       Detected default branch: '$_LIKELY_DEFAULT'." >&2
+                echo "       dso.default_branch is not set, so the safe default ('main') is enforced." >&2
+                echo "" >&2
+                echo "       To authorize direct merges into '$_LIKELY_DEFAULT', add to .claude/dso-config.conf:" >&2
+                echo "         dso.default_branch=$_LIKELY_DEFAULT" >&2
+                echo "       Or use ci-pr workflow mode (dso.workflow=ci-pr)." >&2
+                exit 1
+            fi
+        fi
+        echo "ERROR: Main repo is on '$MAIN_BRANCH', expected '$_EXPECTED_MAIN_BRANCH'."
         exit 1
     fi
 
@@ -395,19 +449,19 @@ _phase_sync() {
     # The pull here is an optimization to reduce merge conflicts in _phase_merge,
     # but must not become a blocker when main and origin have diverged.
     echo "Pulling remote changes..."
-    git fetch origin main 2>&1 || {
-        echo "WARNING: git fetch origin main failed in main repo — continuing with local state."
+    git fetch origin "$_DEFAULT_BRANCH" 2>&1 || {
+        echo "WARNING: git fetch origin $_DEFAULT_BRANCH failed in main repo — continuing with local state."
     }
-    if git merge-base --is-ancestor origin/main HEAD 2>/dev/null; then
+    if git merge-base --is-ancestor "origin/$_DEFAULT_BRANCH" HEAD 2>/dev/null; then
         # origin/main is an ancestor of main. Distinguish two sub-cases:
         # (a) equal (HEAD == origin/main): local is up-to-date, skip pull.
         # (b) ahead (HEAD has commits not on origin): stale squash commits from a prior
         #     worktree session create false plugin.json conflicts in _phase_merge.
         #     Hard-reset to origin/main to restore a clean base (35eb-1824).
-        _AHEAD_COUNT=$(git rev-list --count origin/main..HEAD 2>/dev/null || echo "0")
+        _AHEAD_COUNT=$(git rev-list --count "origin/$_DEFAULT_BRANCH..HEAD" 2>/dev/null || echo "0")
         if [ "$_AHEAD_COUNT" -gt 0 ]; then
             echo "INFO: Local main is ${_AHEAD_COUNT} commit(s) ahead of origin/main (stale) — resetting to origin/main."
-            git reset --hard origin/main -q 2>&1 || {
+            git reset --hard "origin/$_DEFAULT_BRANCH" -q 2>&1 || {
                 echo "WARNING: Could not reset local main to origin/main — _phase_merge may encounter false conflicts."
             }
         else
@@ -431,7 +485,7 @@ _phase_sync() {
             STASHED=true
         fi
         _abort_stale_rebase
-        if git merge origin/main --no-edit -q 2>&1; then
+        if git merge "origin/$_DEFAULT_BRANCH" --no-edit -q 2>&1; then
             echo "OK: Merged origin/main into main."
         else
             # Merge failed — check if all conflicts are ticket-data files.
@@ -501,12 +555,12 @@ _phase_merge() {
     # _phase_sync and enter _phase_merge directly with local main still ahead of
     # origin/main (e.g., after an interrupted version_bump), causing a
     # plugin.json conflict on the merge retry.
-    git fetch origin main --quiet 2>/dev/null || true
-    if git merge-base --is-ancestor origin/main HEAD 2>/dev/null; then
-        _MERGE_PHASE_AHEAD=$(git rev-list --count origin/main..HEAD 2>/dev/null || echo "0")
+    git fetch origin "$_DEFAULT_BRANCH" --quiet 2>/dev/null || true
+    if git merge-base --is-ancestor "origin/$_DEFAULT_BRANCH" HEAD 2>/dev/null; then
+        _MERGE_PHASE_AHEAD=$(git rev-list --count "origin/$_DEFAULT_BRANCH..HEAD" 2>/dev/null || echo "0")
         if [ "$_MERGE_PHASE_AHEAD" -gt 0 ]; then
             echo "INFO: _phase_merge: local main is ${_MERGE_PHASE_AHEAD} commit(s) ahead of origin/main (stale version bump?) — resetting to origin/main."
-            git reset --hard origin/main -q 2>/dev/null || {
+            git reset --hard "origin/$_DEFAULT_BRANCH" -q 2>/dev/null || {
                 echo "WARNING: _phase_merge: Could not reset to origin/main — merge may encounter false conflicts."
             }
         fi
@@ -932,7 +986,7 @@ _phase_ci_trigger() {
     # though the merge contained real changes.
     # Mitigation: if the merge introduced changes AND the current HEAD
     # on origin carries [skip ci], explicitly dispatch the CI workflow so it runs.
-    HEAD_MSG=$(git log -1 --format='%s' origin/main 2>/dev/null || git log -1 --format='%s' 2>/dev/null || true)
+    HEAD_MSG=$(git log -1 --format='%s' "origin/$_DEFAULT_BRANCH" 2>/dev/null || git log -1 --format='%s' 2>/dev/null || true)
     CODE_CHANGES=$(git diff --name-only "$PRE_MERGE_SHA" HEAD 2>/dev/null | head -1 || true)
     if [ -n "${CI_WORKFLOW_NAME:-}" ]; then
         if echo "$HEAD_MSG" | grep -q '\[skip ci\]' && [ -n "$CODE_CHANGES" ]; then
@@ -1072,8 +1126,8 @@ except Exception:
 " 2>/dev/null || echo "")
         if [[ -n "$_RECORDED_ORIGIN_SHA" ]]; then
             # Best-effort fetch; tolerate failure (offline / transient network)
-            git fetch origin main --quiet 2>/dev/null || true
-            _CURRENT_ORIGIN_SHA=$(git rev-parse origin/main 2>/dev/null || echo "")
+            git fetch origin "$_DEFAULT_BRANCH" --quiet 2>/dev/null || true
+            _CURRENT_ORIGIN_SHA=$(git rev-parse "origin/$_DEFAULT_BRANCH" 2>/dev/null || echo "")
             if [[ -n "$_CURRENT_ORIGIN_SHA" && "$_CURRENT_ORIGIN_SHA" != "$_RECORDED_ORIGIN_SHA" ]]; then
                 # Check whether origin advanced past the recorded SHA (recorded is
                 # an ancestor of current). If so, reset post-sync phases.
@@ -1158,8 +1212,8 @@ os.replace(sf + '.tmp', sf)
     # _state_mark_complete "push", or the state file expired/was lost).
     # Pre-mark all phases through push as complete so the resume loop skips them
     # and never re-runs _phase_merge (which would create a duplicate merge commit).
-    if git fetch origin main --quiet 2>/dev/null; then
-        _ORIGIN_AHEAD_RESUME=$(git log origin/main..HEAD --oneline 2>/dev/null || true)
+    if git fetch origin "$_DEFAULT_BRANCH" --quiet 2>/dev/null; then
+        _ORIGIN_AHEAD_RESUME=$(git log "origin/$_DEFAULT_BRANCH..HEAD" --oneline 2>/dev/null || true)
         if [[ -z "$_ORIGIN_AHEAD_RESUME" ]]; then
             echo "INFO: --resume: origin/main already contains local HEAD — push was already done."
             echo "INFO: Pre-marking phases through push as complete to prevent duplicate merge."

@@ -103,6 +103,26 @@ if [[ -f "$_MERGE_HELPERS_LIB" ]]; then
     source "$_MERGE_HELPERS_LIB"
 fi
 
+# --- Resolve default branch via resolver (F-05) ---
+# Cached per merge-to-main run in $GIT_DIR/dso-default-branch — written here so
+# subsequent invocations within the same run reuse the resolved value without
+# re-running the precedence chain. Cache is per-clone (under .git/) and is not
+# committed; deleted on each new merge-to-main invocation by merge-to-main.sh.
+_RESOLVE_DEFAULT_BRANCH_SH="$(dirname "${BASH_SOURCE[0]}")/resolve-default-branch.sh"
+if [[ -x "$_RESOLVE_DEFAULT_BRANCH_SH" ]]; then
+    _GIT_DIR=$(git rev-parse --git-dir 2>/dev/null || true)
+    _DEFAULT_BRANCH_CACHE="${_GIT_DIR:+$_GIT_DIR/dso-default-branch}"
+    if [[ -n "$_DEFAULT_BRANCH_CACHE" ]] && [[ -s "$_DEFAULT_BRANCH_CACHE" ]]; then
+        _DEFAULT_BRANCH=$(cat "$_DEFAULT_BRANCH_CACHE")
+    else
+        _DEFAULT_BRANCH=$(bash "$_RESOLVE_DEFAULT_BRANCH_SH" --no-warn 2>/dev/null || echo "main")
+        [[ -n "$_DEFAULT_BRANCH_CACHE" ]] && printf '%s' "$_DEFAULT_BRANCH" > "$_DEFAULT_BRANCH_CACHE" 2>/dev/null || true
+    fi
+else
+    _DEFAULT_BRANCH="main"
+fi
+: "${_DEFAULT_BRANCH:=main}"
+
 # --- Load CI findings normalization library ---
 # shellcheck source=${CLAUDE_PLUGIN_ROOT}/scripts/lib/ci-findings-normalize.sh
 _FINDINGS_NORMALIZE_LIB="${CLAUDE_PLUGIN_ROOT}/scripts/lib/ci-findings-normalize.sh"
@@ -429,9 +449,12 @@ _derive_pr_title() {
     # Drop the rangeless fallback — leaving _subject empty falls through to
     # the priority-4 `[<branch>] <merge-subject>` path below, which is the
     # documented behavior for pure-cleanup branches.
-    _subject=$(git log --no-merges -1 --pretty=%s main..HEAD 2>/dev/null || true)
+    # F-05: use resolved default branch (_DEFAULT_BRANCH) instead of literal "main"
+    # so commit ranges work on host repos using master/develop/trunk.
+    local _db="${_DEFAULT_BRANCH:-main}"
+    _subject=$(git log --no-merges -1 --pretty=%s "${_db}..HEAD" 2>/dev/null || true)
     if [[ -z "$_subject" ]]; then
-        _subject=$(git log --no-merges -1 --pretty=%s origin/main..HEAD 2>/dev/null || true)
+        _subject=$(git log --no-merges -1 --pretty=%s "origin/${_db}..HEAD" 2>/dev/null || true)
     fi
 
     # 2. Already prefixed → return as-is.
@@ -446,9 +469,9 @@ _derive_pr_title() {
     # pure-cleanup branch and can extract an unrelated DSO-Story id from a
     # main commit, producing a misleading PR-title prefix (PR #171 retro-
     # review finding).
-    _scan=$(git log --pretty=format:%B main..HEAD 2>/dev/null || true)
+    _scan=$(git log --pretty=format:%B "${_db}..HEAD" 2>/dev/null || true)
     if [[ -z "$_scan" ]]; then
-        _scan=$(git log --pretty=format:%B origin/main..HEAD 2>/dev/null || true)
+        _scan=$(git log --pretty=format:%B "origin/${_db}..HEAD" 2>/dev/null || true)
     fi
     _trailer_id=$(printf '%s\n' "$_scan" \
         | grep -Eiom1 '^[[:space:]]*DSO-(Story|Task):[[:space:]]*[A-Za-z0-9._/-]+' \
@@ -457,15 +480,16 @@ _derive_pr_title() {
 
     # 3b. If no trailer, look for an earlier commit subject with leading [id].
     if [[ -z "$_trailer_id" ]]; then
-        _bracket_id=$(git log --pretty=format:%s main..HEAD 2>/dev/null \
+        _bracket_id=$(git log --pretty=format:%s "${_db}..HEAD" 2>/dev/null \
             | grep -Eom1 '^\[[A-Za-z0-9._/-]+\]' \
             | sed -E 's/^\[(.+)\]$/\1/' \
             || true)
         if [[ -z "$_bracket_id" ]]; then
-            # Scope to origin/main..HEAD as the second-priority range, not the
-            # rangeless `git log -n 50` form which would scan main's history
-            # on a pure-cleanup branch (same root cause as the _scan fix above).
-            _bracket_id=$(git log --pretty=format:%s origin/main..HEAD 2>/dev/null \
+            # Scope to origin/<default>..HEAD as the second-priority range, not the
+            # rangeless `git log -n 50` form which would scan the integration
+            # branch's history on a pure-cleanup branch (same root cause as the
+            # _scan fix above).
+            _bracket_id=$(git log --pretty=format:%s "origin/${_db}..HEAD" 2>/dev/null \
                 | grep -Eom1 '^\[[A-Za-z0-9._/-]+\]' \
                 | sed -E 's/^\[(.+)\]$/\1/' \
                 || true)
@@ -510,7 +534,7 @@ _derive_pr_title() {
 # no branch-local commits are found (pure-cleanup branches).
 _derive_pr_body() {
     local _branch="${1:-unknown}"
-    local _base="${2:-main}"
+    local _base="${2:-${_DEFAULT_BRANCH:-main}}"
     local _subjects=""
 
     _subjects=$(git log --no-merges --reverse --format="- %s" "${_base}..HEAD" 2>/dev/null || true)
@@ -688,37 +712,37 @@ _phase_merge() {
         _state_write_phase "merge" 2>/dev/null || true
     fi
 
-    # --- 1. Sync against origin/main before push (a456-c689) ---
-    # Ensure the branch incorporates the current origin/main tip so CI runs on
-    # the same base that will be used at merge time. Without this, a PR created
-    # after a prior PR merged to main would be immediately out-of-date and the
-    # subsequent merge-queue sync would invalidate the just-completed CI run.
-    if git fetch origin "main:refs/remotes/origin/main" --quiet 2>/dev/null || \
-       git fetch origin main --quiet 2>/dev/null; then
-        if ! git merge-base --is-ancestor origin/main HEAD 2>/dev/null; then
+    # --- 1. Sync against the default branch before push (a456-c689) ---
+    # F-05: use resolved $_DEFAULT_BRANCH (master/develop/trunk-aware) instead
+    # of literal "main". Ensures the branch incorporates the current default-
+    # branch tip so CI runs on the same base used at merge time.
+    local _db="${_DEFAULT_BRANCH:-main}"
+    if git fetch origin "${_db}:refs/remotes/origin/${_db}" --quiet 2>/dev/null || \
+       git fetch origin "$_db" --quiet 2>/dev/null; then
+        if ! git merge-base --is-ancestor "origin/${_db}" HEAD 2>/dev/null; then
             # Only attempt the merge when a common ancestor exists. Unrelated
             # histories (no common ancestor) means the worktree was initialised
-            # independently of origin/main and forcing a merge would be wrong.
+            # independently of the default branch and forcing a merge would be wrong.
             local _common_ancestor
-            _common_ancestor=$(git merge-base HEAD origin/main 2>/dev/null || true)
+            _common_ancestor=$(git merge-base HEAD "origin/${_db}" 2>/dev/null || true)
             if [[ -n "$_common_ancestor" ]]; then
-                echo "INFO: Branch is behind origin/main — merging before push to avoid stale CI." >&2
+                echo "INFO: Branch is behind origin/${_db} — merging before push to avoid stale CI." >&2
                 local _merge_main_out _merge_main_rc=0
-                _merge_main_out=$(git merge --no-edit origin/main 2>&1) || _merge_main_rc=$?
+                _merge_main_out=$(git merge --no-edit "origin/${_db}" 2>&1) || _merge_main_rc=$?
                 if [[ "$_merge_main_rc" -ne 0 ]]; then
                     git merge --abort 2>/dev/null || true
                     local _merge_hint="(merge failed)"
                     if echo "$_merge_main_out" | grep -qiE "CONFLICT|merge conflict"; then
                         _merge_hint="(merge conflicts — run /dso:resolve-conflicts)"
                     fi
-                    echo "ERROR: git merge origin/main failed $_merge_hint" >&2
+                    echo "ERROR: git merge origin/${_db} failed $_merge_hint" >&2
                     return 1
                 fi
             fi
-            # No common ancestor → skip sync; branch and main are unrelated histories.
+            # No common ancestor → skip sync; branch and default branch are unrelated histories.
         fi
     else
-        echo "WARNING: git fetch origin main failed — skipping origin/main sync; proceeding with current HEAD." >&2
+        echo "WARNING: git fetch origin ${_db} failed — skipping origin/${_db} sync; proceeding with current HEAD." >&2
     fi
 
     # --- 1a. Source-branch version bump (b6e3-e771 + bbba-123d) ---
@@ -732,12 +756,12 @@ _phase_merge() {
     # bump commit carries a DSO-Story trailer so verify-session-provenance.sh
     # accepts it on the session branch (S1.T5 grammar).
     local _bump_story_id=""
-    _bump_story_id=$(git log --pretty=format:%B main..HEAD 2>/dev/null \
+    _bump_story_id=$(git log --pretty=format:%B "${_db}..HEAD" 2>/dev/null \
         | grep -Eiom1 '^[[:space:]]*DSO-Story:[[:space:]]*[A-Za-z0-9._/-]+' \
         | sed -E 's/^[[:space:]]*DSO-Story:[[:space:]]*//I' \
         || true)
     if [[ -z "$_bump_story_id" ]]; then
-        _bump_story_id=$(git log --pretty=format:%B origin/main..HEAD 2>/dev/null \
+        _bump_story_id=$(git log --pretty=format:%B "origin/${_db}..HEAD" 2>/dev/null \
             | grep -Eiom1 '^[[:space:]]*DSO-Story:[[:space:]]*[A-Za-z0-9._/-]+' \
             | sed -E 's/^[[:space:]]*DSO-Story:[[:space:]]*//I' \
             || true)
@@ -804,8 +828,10 @@ _phase_merge() {
     # "a pull request already exists" for both draft and non-draft PRs, so we
     # must detect and reuse any existing draft before calling `gh pr create`.
     local _pr_base
-    _pr_base="${STORY_PR_BASE:-main}"
-    [[ -z "$_pr_base" ]] && _pr_base="main"
+    # F-05: prefer the resolved default branch over the hard-coded "main"
+    # so host repositories on master/develop/trunk work end-to-end.
+    _pr_base="${STORY_PR_BASE:-${_DEFAULT_BRANCH:-main}}"
+    [[ -z "$_pr_base" ]] && _pr_base="${_DEFAULT_BRANCH:-main}"
 
     local _body
     _body=$(_derive_pr_body "$BRANCH" "$_pr_base")
@@ -2642,13 +2668,15 @@ fi
 # phases that direct.sh runs (version_bump → archive → ci_trigger).
 # =============================================================================
 
-# --- Step 1: fetch latest origin/main so we have the merge commit locally ---
-# Use explicit refspec to ensure refs/remotes/origin/main is populated.
-# `git fetch origin main` without refspec may only update FETCH_HEAD on some git
-# versions (notably Ubuntu git 2.43+) without creating the tracking ref.
-git fetch origin "main:refs/remotes/origin/main" --quiet 2>/dev/null || \
-    git fetch origin main --quiet 2>/dev/null || {
-        echo "WARNING: git fetch origin main failed — merge SHA verification may be stale." >&2
+# --- Step 1: fetch latest default branch so we have the merge commit locally ---
+# F-05: use resolved $_DEFAULT_BRANCH instead of literal "main".
+# Use explicit refspec to ensure refs/remotes/origin/<default> is populated.
+# `git fetch origin <default>` without refspec may only update FETCH_HEAD on
+# some git versions (notably Ubuntu git 2.43+) without creating the tracking ref.
+_DB_FOR_VERIFY="${_DEFAULT_BRANCH:-main}"
+git fetch origin "${_DB_FOR_VERIFY}:refs/remotes/origin/${_DB_FOR_VERIFY}" --quiet 2>/dev/null || \
+    git fetch origin "$_DB_FOR_VERIFY" --quiet 2>/dev/null || {
+        echo "WARNING: git fetch origin ${_DB_FOR_VERIFY} failed — merge SHA verification may be stale." >&2
     }
 
 # --- Step 2: get the merge commit SHA from the PR ---
@@ -2658,22 +2686,22 @@ if [[ -z "$MERGE_SHA" ]]; then
     exit 1
 fi
 
-# --- Step 3: verify it appears on origin/main ---
+# --- Step 3: verify it appears on origin/<default> ---
 # For squash merges, GitHub's mergeCommit.oid returns the source-branch HEAD SHA
-# rather than the new squash commit on main. Fall back to git rev-parse origin/main
-# (the actual tip after the merge) when the API SHA is absent from origin/main.
-if ! git log origin/main --pretty=%H -n 50 2>/dev/null | grep -q "^${MERGE_SHA}$"; then
-    _fallback_sha=$(git rev-parse origin/main 2>/dev/null || true)
+# rather than the new squash commit on the default branch. Fall back to
+# git rev-parse origin/<default> when the API SHA is absent.
+if ! git log "origin/${_DB_FOR_VERIFY}" --pretty=%H -n 50 2>/dev/null | grep -q "^${MERGE_SHA}$"; then
+    _fallback_sha=$(git rev-parse "origin/${_DB_FOR_VERIFY}" 2>/dev/null || true)
     if [[ "$_fallback_sha" =~ ^[0-9a-f]{40}$ ]]; then
-        echo "INFO: mergeCommit.oid (${MERGE_SHA}) not on origin/main — squash-merge fallback: using git rev-parse origin/main (${_fallback_sha})" >&2
+        echo "INFO: mergeCommit.oid (${MERGE_SHA}) not on origin/${_DB_FOR_VERIFY} — squash-merge fallback: using git rev-parse origin/${_DB_FOR_VERIFY} (${_fallback_sha})" >&2
         MERGE_SHA="$_fallback_sha"
     else
-        echo "ERROR: PR reported merged but merge commit ${MERGE_SHA} not found on origin/main (PR: ${_PR_URL})" >&2
+        echo "ERROR: PR reported merged but merge commit ${MERGE_SHA} not found on origin/${_DB_FOR_VERIFY} (PR: ${_PR_URL})" >&2
         exit 1
     fi
 fi
 
-echo "INFO: Merge commit ${MERGE_SHA} verified on origin/main."
+echo "INFO: Merge commit ${MERGE_SHA} verified on origin/${_DB_FOR_VERIFY}."
 
 # --- Step 4: persist merge SHA into state file ---
 if type _state_record_merge_sha >/dev/null 2>&1; then
@@ -2740,9 +2768,11 @@ fi
 if [[ -d "$MAIN_REPO/.git" ]] || [[ -f "$MAIN_REPO/.git" ]]; then
     (
         cd "$MAIN_REPO" 2>/dev/null || exit 0
-        git fetch origin main --quiet 2>/dev/null || true
-        if [[ "$(git branch --show-current 2>/dev/null)" == "main" ]]; then
-            git merge --ff-only origin/main --quiet 2>/dev/null || true
+        # F-05: use resolved default branch.
+        _DB_LOCAL_SYNC="${_DEFAULT_BRANCH:-main}"
+        git fetch origin "$_DB_LOCAL_SYNC" --quiet 2>/dev/null || true
+        if [[ "$(git branch --show-current 2>/dev/null)" == "$_DB_LOCAL_SYNC" ]]; then
+            git merge --ff-only "origin/${_DB_LOCAL_SYNC}" --quiet 2>/dev/null || true
         fi
     )
 fi
