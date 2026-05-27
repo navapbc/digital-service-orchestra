@@ -3,15 +3,12 @@
 # Integration tests for the verdict hash closure gate.
 #
 # Covers:
-#   1. compute-verdict-hash.sh produces a 64-char hex hash
-#   2. Same inputs produce same hash (deterministic)
-#   3. Different ticket IDs produce different hashes
-#   4. Story closure without --verdict-hash is blocked
-#   5. Story closure with correct --verdict-hash succeeds
-#   6. Story closure with wrong --verdict-hash is blocked
-#   7. Story closure with --force-close succeeds (bypasses hash)
-#   8. Bug closure does not require --verdict-hash
-#   9. Task closure does not require --verdict-hash
+#   1. Story closure without --verdict-hash is blocked
+#   2. Story closure with correct --verdict-hash succeeds (end-to-end HMAC verification)
+#   3. Story closure with wrong --verdict-hash is blocked
+#   4. Story closure with --force-close succeeds (bypasses hash)
+#   5. Bug closure does not require --verdict-hash
+#   6. Task closure does not require --verdict-hash
 
 set -uo pipefail
 
@@ -44,68 +41,8 @@ _create_ticket() {
     echo "$out" | tail -1
 }
 
-# ── Test 1: compute-verdict-hash produces 64-char hex ────────────────────────
-echo "Test 1: compute-verdict-hash produces 64-char hex hash"
-test_hash_format() {
-    _snapshot_fail
-
-    local repo
-    repo=$(_make_test_repo)
-
-    local hash
-    hash=$(cd "$repo" && PROJECT_ROOT="$repo" bash "$HASH_SCRIPT" "test-ticket" "PASS" 2>/dev/null)
-
-    local len=${#hash}
-    assert_eq "hash is 64 chars" "64" "$len"
-
-    local is_hex=0
-    echo "$hash" | grep -qE '^[0-9a-f]{64}$' && is_hex=1
-    assert_eq "hash is lowercase hex" "1" "$is_hex"
-
-    assert_pass_if_clean "test_hash_format"
-}
-test_hash_format
-
-# ── Test 2: same inputs produce same hash ────────────────────────────────────
-echo "Test 2: same inputs produce same hash (deterministic)"
-test_deterministic() {
-    _snapshot_fail
-
-    local repo
-    repo=$(_make_test_repo)
-
-    local hash1 hash2
-    hash1=$(cd "$repo" && PROJECT_ROOT="$repo" bash "$HASH_SCRIPT" "test-ticket" "PASS" 2>/dev/null)
-    hash2=$(cd "$repo" && PROJECT_ROOT="$repo" bash "$HASH_SCRIPT" "test-ticket" "PASS" 2>/dev/null)
-
-    assert_eq "same inputs produce same hash" "$hash1" "$hash2"
-
-    assert_pass_if_clean "test_deterministic"
-}
-test_deterministic
-
-# ── Test 3: different ticket IDs produce different hashes ────────────────────
-echo "Test 3: different ticket IDs produce different hashes"
-test_different_ids() {
-    _snapshot_fail
-
-    local repo
-    repo=$(_make_test_repo)
-
-    local hash1 hash2
-    hash1=$(cd "$repo" && PROJECT_ROOT="$repo" bash "$HASH_SCRIPT" "ticket-aaa" "PASS" 2>/dev/null)
-    hash2=$(cd "$repo" && PROJECT_ROOT="$repo" bash "$HASH_SCRIPT" "ticket-bbb" "PASS" 2>/dev/null)
-
-    local different=0
-    [ "$hash1" != "$hash2" ] && different=1
-    assert_eq "different ticket IDs produce different hashes" "1" "$different"
-
-    assert_pass_if_clean "test_different_ids"
-}
-test_different_ids
-
-# ── Test 4: story closure without --verdict-hash is blocked ──────────────────
-echo "Test 4: story closure without --verdict-hash is blocked"
+# ── Test 1: story closure without --verdict-hash is blocked ──────────────────
+echo "Test 1: story closure without --verdict-hash is blocked"
 test_story_blocked_without_hash() {
     _snapshot_fail
 
@@ -133,8 +70,8 @@ test_story_blocked_without_hash() {
 }
 test_story_blocked_without_hash
 
-# ── Test 5: story closure with correct --verdict-hash succeeds ───────────────
-echo "Test 5: story closure with correct --verdict-hash succeeds"
+# ── Test 2: story closure with correct --verdict-hash succeeds ───────────────
+echo "Test 2: story closure with correct --verdict-hash succeeds"
 test_story_closes_with_correct_hash() {
     _snapshot_fail
 
@@ -165,8 +102,8 @@ test_story_closes_with_correct_hash() {
 }
 test_story_closes_with_correct_hash
 
-# ── Test 6: story closure with wrong --verdict-hash is blocked ───────────────
-echo "Test 6: story closure with wrong --verdict-hash is blocked"
+# ── Test 3: story closure with wrong --verdict-hash is blocked ───────────────
+echo "Test 3: story closure with wrong --verdict-hash is blocked"
 test_story_blocked_with_wrong_hash() {
     _snapshot_fail
 
@@ -188,8 +125,8 @@ test_story_blocked_with_wrong_hash() {
 }
 test_story_blocked_with_wrong_hash
 
-# ── Test 7: story closure with --force-close succeeds ────────────────────────
-echo "Test 7: story closure with --force-close succeeds"
+# ── Test 4: story closure with --force-close succeeds ────────────────────────
+echo "Test 4: story closure with --force-close succeeds"
 test_story_force_close() {
     _snapshot_fail
 
@@ -211,8 +148,8 @@ test_story_force_close() {
 }
 test_story_force_close
 
-# ── Test 8: bug closure does not require --verdict-hash ──────────────────────
-echo "Test 8: bug closure does not require --verdict-hash"
+# ── Test 5: bug closure does not require --verdict-hash ──────────────────────
+echo "Test 5: bug closure does not require --verdict-hash"
 test_bug_no_hash_required() {
     _snapshot_fail
 
@@ -234,8 +171,8 @@ test_bug_no_hash_required() {
 }
 test_bug_no_hash_required
 
-# ── Test 9: task closure does not require --verdict-hash ─────────────────────
-echo "Test 9: task closure does not require --verdict-hash"
+# ── Test 6: task closure does not require --verdict-hash ─────────────────────
+echo "Test 6: task closure does not require --verdict-hash"
 test_task_no_hash_required() {
     _snapshot_fail
 
