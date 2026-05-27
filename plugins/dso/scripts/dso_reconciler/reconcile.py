@@ -296,8 +296,18 @@ def reconcile_once(
     snapshots_dir = repo_root / "bridge_state" / "snapshots"
     snapshots_dir.mkdir(parents=True, exist_ok=True)
 
-    # Read previous snapshot (empty dict on first pass); stable name ensures level-triggered convergence
-    prev_path = snapshots_dir / "prev.json"
+    # Read previous snapshot from the tickets-tracker directory (persisted  # tickets-boundary-ok
+    # between GHA runs via the commit-back step). The earlier approach wrote
+    # prev.json to bridge_state/snapshots/ on the main-branch worktree, but
+    # that filesystem is ephemeral — every GHA run starts fresh, so
+    # prev_snapshot was always {} and the differ re-derived all 2050+
+    # inbound_create mutations on every pass. Writing to the tracker dir  # tickets-boundary-ok
+    # ensures the snapshot survives between runs because the workflow's
+    # commit-back step commits everything under that directory.  # tickets-boundary-ok
+    tracker_dir = repo_root / ".tickets-tracker"  # tickets-boundary-ok
+    prev_dir = tracker_dir / ".bridge_state"
+    prev_dir.mkdir(parents=True, exist_ok=True)
+    prev_path = prev_dir / "prev_snapshot.json"
     prev_snapshot: dict = (
         json.loads(prev_path.read_text()) if prev_path.exists() else {}
     )
