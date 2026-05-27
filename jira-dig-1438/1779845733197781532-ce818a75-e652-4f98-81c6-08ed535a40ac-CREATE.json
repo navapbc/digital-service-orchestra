@@ -1,0 +1,1 @@
+{"timestamp": 1779845733197781532, "uuid": "ce818a75-e652-4f98-81c6-08ed535a40ac", "event_type": "CREATE", "env_id": "reconciler", "author": "reconciler", "data": {"id": "jira-dig-1438", "ticket_type": "epic", "title": "Prevent the explosion of documentation created by LLMs", "description": "", "parent_id": "", "tags": ["imported:reconciler-bootstrap"], "priority": "Medium"}}
