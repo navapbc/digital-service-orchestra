@@ -2520,7 +2520,7 @@ def main() -> int:
             # new commits. That is correct: novelty-gate requires a prior-cycle context; on a
             # fresh SHA there is no prior cycle, so all findings are genuinely NEW_INTRODUCED
             # and should not be downgraded. No behavioral change needed here.
-            if cycle_number >= 2:
+            if cycle_number >= 2 and not _suppress_prior_defenses:
                 _gated_findings, _novelty_stats = _apply_novelty_gate(
                     merged.get("findings") or [],
                     prior_defenses,

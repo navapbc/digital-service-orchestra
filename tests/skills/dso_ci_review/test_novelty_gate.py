@@ -274,3 +274,176 @@ def test_pr102_new_file_findings_all_downgraded():
     assert len(downgraded) == len(findings), (
         f"Expected 100% downgraded, got {len(downgraded)}/{len(findings)}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Test 10 (RED): novelty gate is skipped when DSO_SUPPRESS_PRIOR_DEFENSES=true
+# Bug 10ea-645f-d11e-4160: the caller-level guard at runner.py line 2523
+# runs unconditionally on cycle_number >= 2, even when suppress is true.
+# This causes NEW_INTRODUCED findings to be downgraded to "suggestion"
+# during integration review when they should retain original severity.
+# ---------------------------------------------------------------------------
+def test_novelty_gate_skipped_when_suppress_prior_defenses(tmp_path):
+    """When DSO_SUPPRESS_PRIOR_DEFENSES=true and cycle_number >= 2, the novelty
+    gate must NOT run, so findings retain their original severity.
+
+    This exercises runner.main() end-to-end (with mocked LLM dispatch) to
+    verify the caller-level guard, not just _apply_novelty_gate in isolation.
+    """
+    import contextlib
+    import json
+    import sys
+
+    from unittest.mock import patch as _patch
+
+    _REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
+    _SCRIPTS_DIR = str(_REPO_ROOT / "plugins" / "dso" / "scripts")
+    if _SCRIPTS_DIR not in sys.path:
+        sys.path.insert(0, _SCRIPTS_DIR)
+
+    import dso_ci_review.runner as runner_mod
+
+    # Specialist findings: one NEW_INTRODUCED with "important" severity.
+    # If the novelty gate runs with empty defenses, this gets downgraded to
+    # "suggestion". If the guard correctly skips the gate, it stays "important".
+    specialist_findings = [
+        {
+            "findings": [
+                {
+                    "severity": "important",
+                    "description": "Missing null check in integration path",
+                    "cited_lines": ["src/handler.py:42"],
+                    "category": "correctness",
+                    "relation": "NEW_INTRODUCED",
+                }
+            ],
+            "scores": {},
+            "summary": "important issue",
+        }
+    ]
+
+    _TIER_RESULT = {
+        "selected_tier": "standard",
+        "size_action": "none",
+        "security_overlay": False,
+        "performance_overlay": False,
+        "test_quality_overlay": False,
+        "diff_size_lines": 1,
+        "blast_radius": 1,
+        "critical_path": 0,
+        "anti_shortcut": 0,
+        "staleness": 0,
+        "cross_cutting": 0,
+        "diff_lines": 1,
+        "change_volume": 0,
+        "computed_total": 1,
+        "is_merge_commit": False,
+    }
+
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text("diff --git a/src/handler.py b/src/handler.py\n+added line\n")
+    output_file = tmp_path / "findings.json"
+
+    env = {
+        "DSO_CI_REVIEW_DIFF_PATH": str(diff_file),
+        "DSO_CI_REVIEW_OUTPUT_PATH": str(output_file),
+        "CI_REVIEW_PROVIDER": "anthropic",
+        "ANTHROPIC_API_KEY": "test-key",
+        "DSO_REVIEW_CYCLE": "2",
+        "DSO_SUPPRESS_PRIOR_DEFENSES": "true",
+    }
+
+    empty_ledger = {"schema_version": "1.1.0", "epic_id": "", "cycles": []}
+
+    async def mock_dispatch(agents):
+        return specialist_findings
+
+    dispatch_next = {
+        "action": "DISPATCH_NEXT",
+        "reason": "cycle 2 in progress",
+        "cycle_num": 2,
+    }
+
+    stack = contextlib.ExitStack()
+    stack.enter_context(_patch.dict("os.environ", env))
+    stack.enter_context(
+        _patch(
+            "dso_ci_review.runner._classify_tier_via_bash",
+            return_value=_TIER_RESULT,
+        )
+    )
+    stack.enter_context(
+        _patch(
+            "dso_ci_review.runner._validate_findings_schema",
+            return_value=runner_mod._SchemaValidationResult("schema_pass", []),
+        )
+    )
+    stack.enter_context(
+        _patch(
+            "dso_ci_review.runner.async_dispatch_specialists",
+            side_effect=mock_dispatch,
+        )
+    )
+    stack.enter_context(
+        _patch(
+            "dso_ci_review.verifier.dispatch_verifier",
+            side_effect=lambda findings, reviewed_sha=None: findings,
+        )
+    )
+    stack.enter_context(
+        _patch(
+            "dso_ci_review.runner.cycle_next_action",
+            return_value=dispatch_next,
+        )
+    )
+    stack.enter_context(
+        _patch(
+            "dso_ci_review.runner._resolve_artifacts_dir",
+            return_value=str(tmp_path),
+        )
+    )
+    # Return cycle_number=2 from ledger init to trigger the novelty gate path
+    stack.enter_context(
+        _patch(
+            "dso_ci_review.runner._init_cycle_ledger",
+            return_value=(empty_ledger, 2),
+        )
+    )
+    stack.enter_context(
+        _patch("dso_ci_review.runner._resolve_max_cycles", return_value=3)
+    )
+    stack.enter_context(
+        _patch("dso_ci_review.runner._resolve_pr_number", return_value=None)
+    )
+    stack.enter_context(
+        _patch("dso_ci_review.runner._resolve_repo", return_value=None)
+    )
+    stack.enter_context(_patch("dso_ci_review.runner._append_cycle"))
+    stack.enter_context(_patch("dso_ci_review.runner._post_cycle_marker_comment"))
+    stack.enter_context(
+        _patch(
+            "dso_ci_review.runner.subprocess.check_output",
+            return_value="abc123\n",
+        )
+    )
+
+    with stack:
+        runner_mod.main()
+
+    # Read the output findings and check severity was NOT downgraded
+    assert output_file.exists(), "runner.main() did not write output file"
+    output_data = json.loads(output_file.read_text())
+    findings = output_data.get("findings", [])
+
+    # The finding must exist and retain its original "important" severity.
+    # BUG (RED): the novelty gate runs unconditionally on cycle >= 2,
+    # downgrades the NEW_INTRODUCED finding to "suggestion" because
+    # defenses are empty (suppressed). After the fix, the guard at line 2523
+    # will check _suppress_prior_defenses and skip the gate.
+    assert len(findings) >= 1, f"Expected at least 1 finding, got {len(findings)}"
+    severity_values = [f.get("severity") for f in findings]
+    assert "important" in severity_values, (
+        f"Expected finding to retain 'important' severity when "
+        f"DSO_SUPPRESS_PRIOR_DEFENSES=true, but got severities: {severity_values}. "
+        f"This indicates the novelty gate ran when it should have been skipped."
+    )
