@@ -1,0 +1,8 @@
+{
+  "labeler_id": "llm_agent_run_2",
+  "provenance": "llm_agent",
+  "attribution_class": "implementation_drift",
+  "attribution_confidence": "medium",
+  "temperature": 0.3,
+  "labeled_at": "2026-05-27T00:31:19.730218Z"
+}

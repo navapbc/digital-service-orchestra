@@ -181,3 +181,52 @@ If the above section is populated, respect these boundaries:
 - Only modify files listed under "You own"
 - Do NOT modify files listed under "Other agents own" — if you need changes there, note the dependency in your report
 - If you discover you need to modify a file outside your ownership, report it in CONCERNS instead of modifying it
+
+## Visual Evaluator Integration (Integration A)
+
+When a task touches UI files (`.css`, `.js`, `.ts`, `.tsx`, `.html`, `.jinja2`, or component files), the sprint orchestrator invokes the visual-evaluator skill after sub-agent implementation completes. This is **Integration A** — the inline per-task iteration loop with attribution routing.
+
+### Activation Gate
+
+Activates only when all visual-evaluator preconditions pass (see `${CLAUDE_PLUGIN_ROOT}/skills/visual-evaluator/SKILL.md`). When any precondition fails, the skill emits `visual_eval_inapplicable:<reason>` and Integration A is skipped for the task (gate reports `not-applicable`, not soft-pass).
+
+**Surface route_map_stale prominently**: when the skill emits `visual_eval_inapplicable:route_map_stale`, the sprint orchestrator must surface this to the user with explicit instruction to run `/dso:ui-discover` and retry. Do NOT bury in logs.
+
+### Attribution Routing
+
+After the visual-evaluator returns its JSON findings, route by `attribution_class` × `attribution_confidence`:
+
+| attribution_class | confidence | Action |
+|---|---|---|
+| `implementation_drift` | high or medium | Re-prompt the implementing sub-agent with the finding evidence |
+| `design_flaw` | high or medium | Re-dispatch `/dso:ui-designer` with the finding evidence |
+| `mixed`, `uncertain`, or any class with `low` confidence | (any) | User dialog with bounding-box evidence (or `INTERACTIVITY_DEFERRED` annotation in non-interactive mode); cap at 2 user-dialog escalations per task with auto-defer beyond |
+
+### Iteration Cap and Threshold
+
+| Config Key | Default | Behavior |
+|---|---|---|
+| `visual_evaluator.iteration_cap` | `2` | Max self-correction iterations per task |
+| `visual_evaluator.iteration_threshold` | `3` | Minimum `intent_match` score (1-5) to allow task closure |
+
+**Failure modes** (conditional):
+
+- **intent_match < threshold**: blocks task closure. After `iteration_cap` exhausted with sustained intent_match drift, the task is FAILED and reverted to open with a checkpoint comment.
+- **Quality-dim shortfall** (intent_match ≥ threshold, but `whitespace_balance` / `element_density` / `visual_hierarchy_legibility` / `alignment_grid_adherence` < threshold): closure proceeds with ticket annotation `visual_debt:<dimension>` recorded via `.claude/scripts/dso ticket tag`.
+
+### Independence from review.max_cycles
+
+**`visual_evaluator.iteration_cap` is independent of `review.max_cycles`.** They track separate counters:
+
+- `iteration_cap` (default 2) governs visual self-correction (Integration A inline loop)
+- `review.max_cycles` (default 4) governs text-review autonomous-resolution (the code-reviewer loop)
+
+When both fire on the same task: visual iteration runs first (post-implementation, pre-review). If visual iteration cap is exhausted, task FAILS; if visual passes (or visual_debt is annotated), the code review loop proceeds independently with its own counter.
+
+### Regression Tests
+
+See `tests/skills/test-sprint-task-execution-visual-eval.sh` for the three required test cases:
+
+1. `test_sustained_intent_match_drift_fails_closure`: fixture task with intent_match<3 across 2 iterations → task FAILED, reverted to open
+2. `test_quality_dim_shortfall_visual_debt_annotated`: intent_match≥3 but another dimension <3 → closure proceeds, `visual_debt:<dimension>` ticket tag applied
+3. `test_mixed_uncertain_findings_auto_defer`: 3 mixed/uncertain findings → auto-defer after 2nd user-dialog escalation

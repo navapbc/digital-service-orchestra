@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "visual-evaluator-schema",
+  "title": "VisualEvaluatorOutput",
+  "description": "Output schema for the DSO visual-evaluator agent",
+  "type": "object",
+  "required": ["scores", "findings", "attribution_class", "attribution_confidence"],
+  "additionalProperties": false,
+  "properties": {
+    "scores": {
+      "type": "object",
+      "required": ["whitespace_balance", "element_density", "visual_hierarchy_legibility", "alignment_grid_adherence", "intent_match"],
+      "additionalProperties": false,
+      "properties": {
+        "whitespace_balance": {"type": "integer", "minimum": 1, "maximum": 5},
+        "element_density": {"type": "integer", "minimum": 1, "maximum": 5},
+        "visual_hierarchy_legibility": {"type": "integer", "minimum": 1, "maximum": 5},
+        "alignment_grid_adherence": {"type": "integer", "minimum": 1, "maximum": 5},
+        "intent_match": {"type": "integer", "minimum": 1, "maximum": 5}
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["bounding_box", "dom_xpath", "dom_xpath_visually_consistent", "dimension", "severity", "bbox_confidence"],
+        "additionalProperties": false,
+        "properties": {
+          "bounding_box": {"type": "object"},
+          "dom_xpath": {"type": ["string", "null"], "description": "XPath selector for the element; null when bbox_confidence is inferred"},
+          "dom_xpath_visually_consistent": {
+            "type": "boolean",
+            "description": "VLM judgment (not a live DOM query) — true when the rendered element matches its XPath-located DOM position, false when bbox and xpath appear misaligned visually"
+          },
+          "dimension": {"type": "string"},
+          "severity": {"type": "string", "enum": ["critical", "major", "minor", "low"]},
+          "bbox_confidence": {"type": "string", "enum": ["anchored", "inferred"]}
+        }
+      }
+    },
+    "attribution_class": {
+      "type": "string",
+      "enum": ["implementation_drift", "design_flaw", "mixed", "uncertain"]
+    },
+    "attribution_confidence": {
+      "type": "string",
+      "enum": ["high", "medium", "low"]
+    }
+  }
+}

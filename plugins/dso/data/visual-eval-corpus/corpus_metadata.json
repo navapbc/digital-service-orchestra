@@ -1,0 +1,17 @@
+{
+  "cohens_kappa": 0.8888888888888888,
+  "fixture_count": 48,
+  "labeler_ids": [
+    "llm_agent_run_1",
+    "llm_agent_run_2",
+    "llm_agent_run_3"
+  ],
+  "runs_per_fixture": 3,
+  "temperatures": [
+    0.0,
+    0.3,
+    0.5
+  ],
+  "labeled_at": "2026-05-27T00:31:19.746991Z",
+  "stub_mode": true
+}

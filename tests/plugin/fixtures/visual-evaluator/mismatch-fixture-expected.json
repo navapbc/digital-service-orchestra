@@ -1,0 +1,29 @@
+{
+  "scores": {
+    "whitespace_balance": 3,
+    "element_density": 3,
+    "visual_hierarchy_legibility": 3,
+    "alignment_grid_adherence": 2,
+    "intent_match": 2
+  },
+  "findings": [
+    {
+      "bounding_box": {"x": 400, "y": 10, "width": 200, "height": 80},
+      "dom_xpath": "//nav[@id='main-nav']",
+      "dom_xpath_visually_consistent": false,
+      "dimension": "alignment_grid_adherence",
+      "severity": "major",
+      "bbox_confidence": "inferred"
+    },
+    {
+      "bounding_box": {"x": 0, "y": 200, "width": 1280, "height": 60},
+      "dom_xpath": "//footer",
+      "dom_xpath_visually_consistent": false,
+      "dimension": "intent_match",
+      "severity": "major",
+      "bbox_confidence": "inferred"
+    }
+  ],
+  "attribution_class": "implementation_drift",
+  "attribution_confidence": "medium"
+}
