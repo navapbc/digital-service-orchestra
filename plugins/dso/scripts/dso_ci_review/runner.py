@@ -773,10 +773,10 @@ def _post_arbiter_comment(
         pass
 
 
-def _resolve_pr_number() -> str | None:
+def _resolve_pr_number() -> int | None:
     """Resolve the current PR number from GitHub Actions env vars.
 
-    Returns the PR number as a string when a PR context is detectable, else None.
+    Returns the PR number as an int when a PR context is detectable, else None.
     Sources checked, in order:
       1. PR_NUMBER env var (explicit override — works for push-triggered workflows
          where the caller resolves the PR number via gh pr list and sets this var)
@@ -785,7 +785,7 @@ def _resolve_pr_number() -> str | None:
     # Check PR_NUMBER first — works for both push and pull_request events.
     pr_num = os.environ.get("PR_NUMBER", "")
     if pr_num.isdigit():
-        return pr_num
+        return int(pr_num)
     # Fallback: GITHUB_REF on pull_request events is "refs/pull/<N>/merge"
     if os.environ.get("GITHUB_EVENT_NAME", "") == "pull_request":
         ref = os.environ.get("GITHUB_REF", "")
@@ -793,7 +793,7 @@ def _resolve_pr_number() -> str | None:
             rest = ref[len("refs/pull/") :]
             num = rest.split("/", 1)[0]
             if num.isdigit():
-                return num
+                return int(num)
     return None
 
 
@@ -865,7 +865,7 @@ def _format_finding_comment(idx: int, total: int, finding: dict) -> str:
     )
 
 
-def _resolve_pr_head_sha(pr_number: str) -> str | None:
+def _resolve_pr_head_sha(pr_number: int | str) -> str | None:
     """Resolve the HEAD SHA of the PR branch.
 
     Checks GITHUB_SHA env var first (set by Actions on both push and
@@ -881,7 +881,7 @@ def _resolve_pr_head_sha(pr_number: str) -> str | None:
                 "gh",
                 "pr",
                 "view",
-                pr_number,
+                str(pr_number),
                 "--json",
                 "headRefOid",
                 "--jq",
@@ -929,7 +929,7 @@ def _post_issue_comments(blocking: list[dict], pr_number: str, total: int) -> in
         body = _format_finding_comment(idx, total, finding)
         try:
             subprocess.run(
-                ["gh", "pr", "comment", pr_number, "--body", body],
+                ["gh", "pr", "comment", str(pr_number), "--body", body],
                 check=True,
                 capture_output=True,
                 text=True,
@@ -1020,7 +1020,7 @@ def _post_pr_review(findings: list[dict]) -> tuple[int, int]:
     if unanchored:
         try:
             _diff_proc = subprocess.run(
-                ["gh", "pr", "diff", pr_number, "--patch"],
+                ["gh", "pr", "diff", str(pr_number), "--patch"],
                 capture_output=True,
                 text=True,
                 timeout=30,
@@ -1116,7 +1116,7 @@ def _post_pr_review(findings: list[dict]) -> tuple[int, int]:
         body = _format_finding_comment(idx, total, finding)
         try:
             subprocess.run(
-                ["gh", "pr", "comment", pr_number, "--body", body],
+                ["gh", "pr", "comment", str(pr_number), "--body", body],
                 check=True,
                 capture_output=True,
                 text=True,
@@ -1221,7 +1221,7 @@ def init_cycle_ledger(
     return cycle_num
 
 
-def _fetch_pr_defenses(pr_number: str) -> list[dict]:
+def _fetch_pr_defenses(pr_number: int | str) -> list[dict]:
     """Fetch DEFENSE_RECORD entries from GitHub PR comments via gh CLI.
 
     Reads all PR comments, extracts lines starting with "DEFENSE_RECORD: ",
@@ -2032,7 +2032,7 @@ def main() -> int:
         # "Assert review liveness" invariant downstream can detect the
         # condition.
         _pr_for_context = _resolve_pr_number()
-        if _pr_for_context and _pr_for_context.isdigit() and int(_pr_for_context) > 0:
+        if _pr_for_context and _pr_for_context > 0:
             print(
                 f"WARNING: empty diff received in PR context (PR #{_pr_for_context}) — "
                 "likely caller missing `gh pr diff` pipe or DSO_CI_REVIEW_DIFF_PATH env. "
@@ -2135,6 +2135,27 @@ def main() -> int:
                 stderr=subprocess.DEVNULL,
             )
         ).strip()
+
+        # SHA-reset: when HEAD changed since the last ledger cycle, reset
+        # cycle_number to 1 — mirrors cycle_dispatcher.next_action lines 236-257.
+        # Without this, _init_cycle_ledger returns stale cycle counts after
+        # force-pushes, causing defense-loading and two-call dispatch gates to
+        # use incorrect cycle context (bug 3fb2-23be).
+        _last_cycles = ledger.get("cycles", [])
+        _last_cycle = _last_cycles[-1] if _last_cycles else None
+        if (
+            _last_cycle
+            and _last_cycle.get("commit_sha")
+            and _last_cycle["commit_sha"] != reviewed_sha
+            and cycle_number > 1
+        ):
+            print(
+                f"INFO: commit_sha changed ({_last_cycle['commit_sha'][:12]} → "
+                f"{reviewed_sha[:12]}); resetting cycle_number from "
+                f"{cycle_number} to 1",
+                file=sys.stderr,
+            )
+            cycle_number = 1
 
         # Pre-review SHORT_CIRCUIT check: when HEAD SHA matches last cycle AND
         # arbiter-rulings.json exists, skip dispatch and return early.
@@ -2375,9 +2396,7 @@ def main() -> int:
 
             # Step 5: aggregate via aggregate_cluster_findings (cross-file synthesis
             # + visibility trailer + single ledger entry).
-            _pr_num_int = (
-                int(pr_number) if pr_number and str(pr_number).isdigit() else None
-            )
+            _pr_num_int = pr_number if isinstance(pr_number, int) else None
             _ledger_path_for_agg = os.path.join(artifacts_dir, "cycle-ledger.json")
             _agg_result = _aggregate_cluster_findings(
                 cluster_results=_cluster_results,

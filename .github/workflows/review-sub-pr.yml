@@ -39,7 +39,10 @@ jobs:
           DSO_CI_REVIEW_OUTPUT_PATH: ${{ env.DSO_CI_REVIEW_FINDINGS_PATH }}
         shell: bash -eo pipefail {0}
         run: |
-          gh pr diff "$PR_NUMBER" | bash plugins/dso/scripts/ci-llm-review-runner.sh
+          _DIFF_PATH=$(mktemp /tmp/dso-sub-pr-diff.XXXXXX)
+          trap 'rm -f "$_DIFF_PATH"' EXIT
+          gh pr diff "$PR_NUMBER" > "$_DIFF_PATH"
+          DSO_CI_REVIEW_DIFF_PATH="$_DIFF_PATH" bash plugins/dso/scripts/ci-llm-review-runner.sh
 
       - name: Assert review liveness
         # c131-0f34: end-to-end liveness invariant. Fails the job if the
