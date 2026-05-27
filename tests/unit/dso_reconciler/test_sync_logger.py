@@ -155,6 +155,23 @@ def test_append_mode(sl_mod: ModuleType, tmp_path: Path) -> None:
     assert json.loads(lines[1])["pass_id"] == "p2"
 
 
+def test_context_manager_closes_on_exit(sl_mod: ModuleType, tmp_path: Path) -> None:
+    """SyncLogger supports the context manager protocol and closes the file on exit."""
+    log_file = tmp_path / "ctx.jsonl"
+    with sl_mod.SyncLogger(log_file) as logger:
+        logger.log("sync_pass_start", pass_id="p1", mode="live")
+
+    # After exiting the with-block, the file handle should be closed
+    lines = log_file.read_text().strip().splitlines()
+    assert len(lines) == 1
+    parsed = json.loads(lines[0])
+    assert parsed["event"] == "sync_pass_start"
+
+    # Writing after context exit should raise
+    with pytest.raises((ValueError, OSError)):
+        logger.log("should_fail")
+
+
 def test_non_serializable_values(sl_mod: ModuleType, tmp_path: Path) -> None:
     """Non-serializable values are converted via default=str."""
     log_file = tmp_path / "nonser.jsonl"

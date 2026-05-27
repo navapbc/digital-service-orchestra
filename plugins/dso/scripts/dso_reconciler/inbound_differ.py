@@ -150,7 +150,7 @@ def _diff_jira_vs_local(
 # Label diff helpers
 # ---------------------------------------------------------------------------
 
-_EXCLUDED_PREFIXES: tuple[str, ...] = ("dso-id", "imported:")
+_EXCLUDED_PREFIXES: tuple[str, ...] = ("dso-id-", "imported:")
 
 
 def _diff_labels_inbound(

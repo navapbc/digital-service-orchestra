@@ -43,13 +43,21 @@ def rc_mod() -> ModuleType:
 
 
 class StubBindingStore:
-    """In-memory binding store for tests."""
+    """In-memory binding store for tests.
+
+    Mirrors the real ``BindingStore.all_bindings()`` return type:
+    ``dict[str, dict]`` where each value has at least a ``"jira_key"`` field.
+    Accepts ``(local_id, jira_key)`` tuples for convenience and converts them.
+    """
 
     def __init__(self, bindings: list[tuple[str, str]]) -> None:
-        self._bindings = bindings
+        self._bindings: dict[str, dict] = {
+            local_id: {"jira_key": jira_key, "state": "confirmed"}
+            for local_id, jira_key in bindings
+        }
 
-    def all_bindings(self) -> list[tuple[str, str]]:
-        return list(self._bindings)
+    def all_bindings(self) -> dict[str, dict]:
+        return dict(self._bindings)
 
 
 # ---------------------------------------------------------------------------
@@ -177,7 +185,7 @@ def test_labels_exclude_dso_id(rc_mod: ModuleType) -> None:
             "id": "abc-1",
             "title": "T",
             "status": "open",
-            "labels": ["team:backend", "dso-id-abc-1"],
+            "tags": ["team:backend", "dso-id-abc-1"],
         },
     ]
     jira_snapshot = {
