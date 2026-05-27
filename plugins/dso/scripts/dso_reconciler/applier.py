@@ -350,6 +350,20 @@ _JIRA_PRIORITY_MAP: dict[str, int] = {
     "Lowest": 4,
 }
 
+_VALID_PRIORITY_RANGE = range(0, 5)  # 0-4 inclusive
+
+
+def _resolve_priority(raw_pri: Any) -> int:
+    """Convert a Jira priority (name-string or int) to a local 0-4 integer.
+
+    Integers outside 0-4 are clamped to the default (2 / Medium).
+    Unrecognised name strings also fall back to 2.
+    """
+    if isinstance(raw_pri, int):
+        return raw_pri if raw_pri in _VALID_PRIORITY_RANGE else 2
+    pri_name = _extract_name(raw_pri)
+    return _JIRA_PRIORITY_MAP.get(pri_name, 2)
+
 
 def _jira_key_to_local_id(jira_key: str) -> str:
     """DIG-123 -> jira-dig-123. Idempotent for already-prefixed local ids."""
@@ -504,12 +518,7 @@ def _apply_inbound_create(mutation, *, client=None, repo_root=None) -> ApplyResu
         "tags": tags,
     }
     if "priority" in fields:
-        raw_pri = fields["priority"]
-        if isinstance(raw_pri, int):
-            create_data["priority"] = raw_pri
-        else:
-            pri_name = _extract_name(raw_pri)
-            create_data["priority"] = _JIRA_PRIORITY_MAP.get(pri_name, 2)
+        create_data["priority"] = _resolve_priority(fields["priority"])
     if fields.get("assignee"):
         create_data["assignee"] = _extract_name(fields["assignee"])
     create_path = _write_event_file(tracker_dir, local_id, "CREATE", create_data)
@@ -567,12 +576,7 @@ def _apply_inbound_update(mutation, *, client=None, repo_root=None) -> ApplyResu
     if "description" in fields:
         edit_fields["description"] = fields["description"]
     if "priority" in fields:
-        raw_pri = fields["priority"]
-        if isinstance(raw_pri, int):
-            edit_fields["priority"] = raw_pri
-        else:
-            pri_name = _extract_name(raw_pri)
-            edit_fields["priority"] = _JIRA_PRIORITY_MAP.get(pri_name, 2)
+        edit_fields["priority"] = _resolve_priority(fields["priority"])
     if "assignee" in fields:
         edit_fields["assignee"] = _extract_name(fields["assignee"])
 
