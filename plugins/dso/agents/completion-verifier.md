@@ -206,6 +206,20 @@ A criterion **FAILS** when:
 - The described behavior is absent, incomplete, or reframed without implementation
 - A verification command exits non-zero
 - A consumer smoke test fails (see Step 4)
+- The implementation is **aspirational/scaffolding** (see Aspirational Implementation Detection below)
+
+### Aspirational Implementation Detection
+
+An aspirational implementation is code that was committed as a placeholder or scaffold but was never wired into the actual execution path, operationally validated, or brought to functional completeness. These are a high-risk class of false PASS — the code exists (grep finds it), but it doesn't work.
+
+**Detection signals** (any TWO or more signals → classify as aspirational, verdict FAIL):
+1. **RED test stubs**: associated tests contain `exit 0` stubs, `skip`/`xfail` markers, or comments like "RED — expected before GREEN" without corresponding GREEN implementations
+2. **No callers in the live path**: the implementation file exists but is not imported/sourced/invoked by any production code path (only referenced in tests, docs, or HTML comments)
+3. **Competing implementation**: another file or workflow implements the same capability and IS wired into the live path — the aspirational code is a parallel, unused alternative
+4. **Documentation contradictions**: docs reference the implementation aspirationally ("will invoke", "planned", future tense) or contain HTML comments that describe an intent that was never executed
+5. **Missing integration artifacts**: the implementation should produce observable side effects (state files, API calls, log entries) but no evidence of these artifacts exists in CI logs, test output, or the codebase
+
+**When aspirational signals are detected**: verdict is FAIL with `failure_category: "aspirational_implementation"`. Evidence must cite which signals were found and why the implementation is not operationally live. The remediation is to either complete the implementation or remove the dead code.
 
 **Parent_id walk scope (enumeration only)**: The parent_id walk enumerates SUCCESS CRITERIA TEXT only. It identifies which SC items are listed in the ticket body. It does NOT discover which remediation tasks relate to a criterion — that belongs to `relates_to` edges, not the parent_id walk. Remediation tasks are excluded from the parent_id walk.
 
