@@ -296,8 +296,8 @@ def _verify_created_issue(
 ) -> dict[str, Any]:
     """Parse ACLI create output, verify the issue exists, and return it.
 
-    Shared by both the JSON and non-JSON create paths to avoid duplicating
-    the post-create verification logic.
+    Uses direct REST GET (immediately consistent) instead of JQL search,
+    which is subject to Jira Cloud's eventual-consistency index lag.
     """
     created = json.loads(stdout)
     jira_key = created.get("key", "")
@@ -305,11 +305,31 @@ def _verify_created_issue(
         msg = f"ACLI create returned no key: {created}"
         raise RuntimeError(msg)
 
+    jira_url = os.environ.get("JIRA_URL", "")
+    jira_user = os.environ.get("JIRA_USER", "")
+    jira_token = os.environ.get("JIRA_API_TOKEN", "")
+    if jira_url and jira_user and jira_token:
+        path = f"/rest/api/3/issue/{jira_key}"
+        url = f"{jira_url.rstrip('/')}{path}"
+        creds = base64.b64encode(f"{jira_user}:{jira_token}".encode()).decode()
+        req = urllib.request.Request(
+            url,
+            method="GET",
+            headers={
+                "Authorization": f"Basic {creds}",
+                "Accept": "application/json",
+            },
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except (urllib.error.HTTPError, urllib.error.URLError, OSError):
+            pass  # REST GET failed: fall through to JQL path
+
     verified = get_issue(jira_key=jira_key, acli_cmd=acli_cmd)
     if not verified:
         msg = f"Verify-after-create failed: issue {jira_key} not found"
         raise RuntimeError(msg)
-
     return verified
 
 
@@ -829,6 +849,16 @@ class AcliClient:
     def get_issue(self, jira_key: str) -> dict[str, Any]:
         """Get a Jira issue via ACLI."""
         return get_issue(jira_key, acli_cmd=self._acli_cmd)
+
+    def get_issue_by_rest(self, jira_key: str) -> dict[str, Any]:
+        """Get a Jira issue via direct REST GET (immediately consistent).
+
+        Unlike get_issue (which uses ACLI's JQL search internally), this
+        hits GET /rest/api/3/issue/{key} which reads from the primary store
+        and is not subject to Jira Cloud's search index lag.
+        """
+        path = f"/rest/api/3/issue/{jira_key}"
+        return self._direct_rest_get(path)
 
     def add_comment(self, jira_key: str, body: str) -> dict[str, Any]:
         """Add a comment to a Jira issue via ACLI."""
