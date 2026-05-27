@@ -206,3 +206,132 @@ def test_short_circuit_pre_check_same_sha_with_arbiter_rulings(tmp_path):
         f"async_dispatch_specialists must NOT be called when SHORT_CIRCUIT triggers. "
         f"Was called {len(dispatch_called)} time(s)."
     )
+
+
+def test_cycle_number_resets_on_sha_change(tmp_path):
+    """When HEAD SHA differs from the last ledger cycle's commit_sha,
+    cycle_number resets to 1 — preventing stale defense loading and
+    incorrect two-call dispatch after force-pushes (bug 3fb2-23be)."""
+    import contextlib
+    from unittest.mock import patch as _patch
+
+    old_sha = "aaa1111111111111111111111111111111111111"
+    new_sha = "bbb2222222222222222222222222222222222222"
+
+    ledger_with_old_sha = {
+        "schema_version": "1.1.0",
+        "epic_id": "",
+        "cycles": [
+            {"cycle_num": 2, "commit_sha": old_sha, "pr_number": 0},
+        ],
+    }
+
+    specialist_findings = [
+        {
+            "findings": [
+                {
+                    "severity": "important",
+                    "description": "Test finding for SHA-reset",
+                    "cited_lines": ["src/foo.py:1"],
+                    "category": "correctness",
+                    "relation": "NEW_INTRODUCED",
+                }
+            ],
+            "scores": {},
+            "summary": "finding",
+        }
+    ]
+
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text("diff --git a/src/foo.py b/src/foo.py\n+line\n")
+    output_file = tmp_path / "findings.json"
+
+    env = {
+        "DSO_CI_REVIEW_DIFF_PATH": str(diff_file),
+        "DSO_CI_REVIEW_OUTPUT_PATH": str(output_file),
+        "CI_REVIEW_PROVIDER": "anthropic",
+        "ANTHROPIC_API_KEY": "test-key",
+        "DSO_REVIEW_CYCLE": "3",
+    }
+
+    _TIER_RESULT = {
+        "selected_tier": "light",
+        "size_action": "none",
+        "security_overlay": False,
+        "performance_overlay": False,
+        "test_quality_overlay": False,
+        "diff_size_lines": 1,
+        "blast_radius": 1,
+        "critical_path": 0,
+        "anti_shortcut": 0,
+        "staleness": 0,
+        "cross_cutting": 0,
+        "diff_lines": 1,
+        "change_volume": 0,
+        "computed_total": 1,
+        "is_merge_commit": False,
+    }
+
+    dispatch_next = {
+        "action": "DISPATCH_NEXT",
+        "reason": "SHA changed, reset to cycle 1",
+        "cycle_num": 1,
+    }
+
+    async def mock_dispatch(agents):
+        return specialist_findings
+
+    stack = contextlib.ExitStack()
+    stack.enter_context(_patch.dict("os.environ", env))
+    stack.enter_context(
+        _patch("dso_ci_review.runner._classify_tier_via_bash", return_value=_TIER_RESULT)
+    )
+    stack.enter_context(
+        _patch(
+            "dso_ci_review.runner._validate_findings_schema",
+            return_value=runner_mod._SchemaValidationResult("schema_pass", []),
+        )
+    )
+    stack.enter_context(
+        _patch("dso_ci_review.runner.async_dispatch_specialists", side_effect=mock_dispatch)
+    )
+    stack.enter_context(
+        _patch(
+            "dso_ci_review.verifier.dispatch_verifier",
+            side_effect=lambda findings, reviewed_sha=None: findings,
+        )
+    )
+    stack.enter_context(
+        _patch("dso_ci_review.runner.cycle_next_action", return_value=dispatch_next)
+    )
+    stack.enter_context(
+        _patch("dso_ci_review.runner._resolve_artifacts_dir", return_value=str(tmp_path))
+    )
+    stack.enter_context(
+        _patch(
+            "dso_ci_review.runner._init_cycle_ledger",
+            return_value=(ledger_with_old_sha, 3),
+        )
+    )
+    stack.enter_context(_patch("dso_ci_review.runner._resolve_max_cycles", return_value=5))
+    stack.enter_context(_patch("dso_ci_review.runner._resolve_pr_number", return_value=None))
+    stack.enter_context(_patch("dso_ci_review.runner._resolve_repo", return_value=None))
+    stack.enter_context(_patch("dso_ci_review.runner._append_cycle"))
+    stack.enter_context(_patch("dso_ci_review.runner._post_cycle_marker_comment"))
+    stack.enter_context(
+        _patch("dso_ci_review.runner.subprocess.check_output", return_value=new_sha + "\n")
+    )
+
+    with stack:
+        runner_mod.main()
+
+    assert output_file.exists()
+    output_data = json.loads(output_file.read_text())
+
+    # The cycle_number in the output should be 1 (reset), not 3 (stale)
+    output_cycle = output_data.get("cycle_number")
+    assert output_cycle == 1, (
+        f"Expected cycle_number=1 after SHA change, got {output_cycle}. "
+        f"The SHA-reset should have fired because HEAD ({new_sha[:12]}) "
+        f"differs from last ledger cycle SHA ({old_sha[:12]})."
+    )

@@ -477,17 +477,23 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     fi
 
     # ── SC-4: JSONL file presence guard ───────────────────────────────────────
-    # Exit 0 (no-op) if the attribution JSONL file is absent or empty.
+    # When the JSONL file is absent or empty, skip JSONL-derived trailers but
+    # still apply scalar trailers (DSO-Story, DSO-Task, DSO-Epic) so that the
+    # provenance verifier can classify commits as provenanced (bug 3c3b-fa44).
+    _JSONL_AVAILABLE=1
     if [[ ! -f "$_JSONL_FILE" ]] || [[ ! -s "$_JSONL_FILE" ]]; then
-        exit 0
+        _JSONL_AVAILABLE=0
     fi
 
     # ── SC-7: git version guard ───────────────────────────────────────────────
     # Exit 0 (graceful skip) if git is too old to support interpret-trailers.
     check_git_version || { printf 'TRAILER_SKIPPED: git < 2.6\n' >&2; exit 0; }
 
-    # Read unique contributions
-    _unique_lines="$(read_and_deduplicate "$_JSONL_FILE")"
+    # Read unique contributions (skip if JSONL absent)
+    _unique_lines=""
+    if [[ "$_JSONL_AVAILABLE" -eq 1 ]]; then
+        _unique_lines="$(read_and_deduplicate "$_JSONL_FILE")"
+    fi
 
     if [[ "$_DRY_RUN" -eq 1 ]]; then
         printf "DRY-RUN: would apply trailers from %s to %s\n" "$_JSONL_FILE" "${_COMMIT_MSG_FILE:-<stdout>}"
