@@ -156,6 +156,7 @@ plugins/dso/recipes/recipe-registry.yaml:tests/scripts/test-recipe-registry.sh
 plugins/dso/recipes/templates/flask/route.py.tmpl:tests/scripts/test_gate_escalation_router.py
 plugins/dso/resources/ticket-wordlist.txt:tests/scripts/test-ticket-create.sh
 plugins/dso/scripts/*.sh:tests/hooks/test-no-plugin-comment-refs.sh
+plugins/dso/scripts/design-md-lint.sh:[test_design_md_lint_diff_scoping] tests/hooks/test-design-md-lint.sh
 plugins/dso/scripts/acli-integration.py:tests/scripts/test_acli_integration.py,tests/scripts/test_acli_integration_comments.py,tests/scripts/test_acli_integration_set_issue_property.py,tests/scripts/test_bridge_delete_issue.py,tests/scripts/test_acli_entity_property.py,tests/scripts/test_acli_integration_get_issue_property.py
 plugins/dso/scripts/jira-capability-probe.py:tests/scripts/test_jira_capability_probe.py
 plugins/dso/scripts/dso_reconciler/pre_cutover.py:tests/scripts/test_pre_cutover.py
