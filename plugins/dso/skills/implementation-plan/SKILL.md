@@ -1271,6 +1271,28 @@ Report:
 
 ---
 
+## Step 5b: Behavioral Coverage Cross-Check (intent-fidelity-pipeline Phase 3)
+
+After task creation (Step 5), dispatch a **haiku-tier cross-check sub-agent** to validate that behavioral DDs have behavioral Verify commands — not file-inspection commands masquerading as behavioral tests.
+
+For each DD in the story that has a `verify_commands` entry, the cross-check agent evaluates: does the Verify command invoke the code under test, or does it only check file/string existence?
+
+```
+Agent({
+  description: "Behavioral coverage cross-check for <story-id>",
+  subagent_type: "general-purpose",
+  model: "haiku",
+  prompt: "You are a behavioral coverage validator. For each DD below, determine whether the Verify command invokes the code under test (PASS) or only checks file/string existence (FAIL).\n\nA command FAILS if it matches any of: grep, find, ls, wc, cat, head, stat, test -f, test -e, [ -f, [ -e, file, du, diff.\nA command PASSES if it invokes a test runner (pytest, make test, npm test, bash test-*.sh, curl) or directly executes the code.\n\nFor each DD, output exactly: dd-N: PASS or dd-N: FAIL\n\n<dd_list_with_verify_commands>"
+})
+```
+
+**Routing**:
+- All DDs PASS → proceed to Step 6
+- Any DD FAIL → revise the failing task's Verify command (update via `set-verify-commands`) before Step 6
+- Cross-check dispatch fails (haiku unavailable, MAX_AGENTS=0) → log degradation, proceed to Step 6
+
+This step is skipped when the story has no `verify_commands` entries (backward compatibility with pre-Phase-2 stories).
+
 ## Step 6: Gap Analysis
 
 Review the complete task list for design gaps that compound during sub-agent execution.
