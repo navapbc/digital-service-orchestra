@@ -7,8 +7,6 @@
 #   dd-3: design-md-lint.sh blocks on each violation file and passes on each clean file
 #   dd-4: Cold-start and warm-cache latency recorded; cold-start >30s emits advisory
 #
-# RED markers: test_design_md_fixtures
-# These tests are RED until design-md-lint.sh is implemented (task d9de-371f-17b5-4756).
 #
 # Usage: bash tests/scripts/test-design-md-fixtures.sh
 # Returns: exit 0 always (advisory, not failure, on latency; failures on coverage)

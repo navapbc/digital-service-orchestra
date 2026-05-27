@@ -346,7 +346,7 @@ plugins/dso/scripts/apply-bucket-recipes.sh:tests/scripts/test-apply-bucket-reci
 plugins/dso/scripts/coherence-walk.sh:tests/scripts/test-coherence-walk.sh
 plugins/dso/scripts/ticket-migrate-closure-checks-v1.sh:tests/scripts/test-ticket-migrate-closure-checks-v1.sh
 plugins/dso/scripts/migrate-closure-checks.sh:tests/scripts/test-migrate-closure-checks.sh,tests/scripts/test-closure-checks-classifier-pass.sh
-plugins/dso/scripts/migrate-design-notes-to-design-md.sh:tests/scripts/test-migrate-design-notes.sh [test_migrate_design_notes]
+plugins/dso/scripts/migrate-design-notes-to-design-md.sh:tests/scripts/test-migrate-design-notes.sh
 plugins/dso/scripts/closure-checks-classifier-pass.sh:tests/scripts/test-closure-checks-classifier-pass.sh
 plugins/dso/scripts/closure-checks-migration-preview.sh:tests/scripts/test-closure-checks-migration-preview.sh
 plugins/dso/scripts/coherence-walkthrough.sh:tests/scripts/test-coherence-walkthrough.sh

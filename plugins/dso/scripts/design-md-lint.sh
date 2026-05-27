@@ -22,8 +22,13 @@
 #   - No diff-touched lines in scope-eligible files
 #
 # Usage:
-#   bash scripts/design-md-lint.sh
+#   bash scripts/design-md-lint.sh              # diff-scoped (pre-commit)
+#   bash scripts/design-md-lint.sh <file>       # file-mode (fixture testing, audit)
 #   DSO_CONFIG_PATH=/path/to/dso-config.conf bash scripts/design-md-lint.sh
+#
+# File mode: when a positional argument is provided, lint that specific file
+# (full-file, not diff-scoped). Exits non-zero when errors are found.
+# Used by the dogfooding fixture test (test-design-md-fixtures.sh).
 #
 # Environment overrides (for testing):
 #   DSO_CONFIG_PATH        — path to dso-config.conf
@@ -95,6 +100,50 @@ fi
 # ── Resolve pinned version ────────────────────────────────────────────────────
 DESIGN_MD_VERSION="${DESIGN_MD_VERSION:-0.2.0}"
 
+# ── Parse error count from JSON lint output ───────────────────────────────────
+# CRITICAL: @google/design.md lint exits 0 regardless of findings.
+# We MUST parse JSON output for summary.errors.
+parse_errors_from_json() {
+    local json_output="$1"
+    local count=0
+    if echo "$json_output" | grep -q '"summary"'; then
+        local _raw
+        _raw=$(echo "$json_output" | grep -o '"errors"[[:space:]]*:[[:space:]]*[0-9]*' | grep -o '[0-9]*$' | head -1)
+        count="${_raw:-0}"
+    fi
+    printf '%d' "$count"
+}
+
+# ── File mode: lint a specific file (not diff-scoped) ────────────────────────
+# When a positional argument is provided, lint that file directly and exit.
+if [[ $# -ge 1 && -n "${1:-}" ]]; then
+    _FILE_TARGET="$1"
+    if [[ ! -f "$_FILE_TARGET" ]]; then
+        echo "ERROR: file not found: $_FILE_TARGET" >&2
+        exit 2
+    fi
+    _file_output=""
+    _file_output=$(
+        npx --yes "@google/design.md@${DESIGN_MD_VERSION}" lint \
+            --format json \
+            --config "$DESIGN_NOTES_PATH" \
+            "$_FILE_TARGET" 2>/dev/null
+    ) || {
+        echo "WARNING: npx invocation failed for $_FILE_TARGET — fail-open." >&2
+        exit 0
+    }
+    if [[ -z "$_file_output" ]]; then
+        exit 0
+    fi
+    _file_errors=$(parse_errors_from_json "$_file_output")
+    if [[ "$_file_errors" -gt 0 ]]; then
+        echo "FAIL: design.md lint found $_file_errors error(s) in $_FILE_TARGET" >&2
+        echo "$_file_output" >&2
+        exit 1
+    fi
+    exit 0
+fi
+
 # ── Get staged files ──────────────────────────────────────────────────────────
 STAGED_FILES=$(git diff --cached --name-only 2>/dev/null || true)
 
@@ -144,20 +193,6 @@ if [[ ! -s "$_ranges_tmp" ]]; then
     echo "INFO: No diff-touched line ranges found in staged changes — skipping design.md lint." >&2
     exit 0
 fi
-
-# ── Parse error count from JSON lint output ───────────────────────────────────
-# CRITICAL: @google/design.md lint exits 0 regardless of findings.
-# We MUST parse JSON output for summary.errors.
-parse_errors_from_json() {
-    local json_output="$1"
-    local count=0
-    if echo "$json_output" | grep -q '"summary"'; then
-        local _raw
-        _raw=$(echo "$json_output" | grep -o '"errors"[[:space:]]*:[[:space:]]*[0-9]*' | grep -o '[0-9]*$' | head -1)
-        count="${_raw:-0}"
-    fi
-    printf '%d' "$count"
-}
 
 # ── Run @google/design.md lint on each changed file's diff ranges ─────────────
 TOTAL_ERRORS=0
