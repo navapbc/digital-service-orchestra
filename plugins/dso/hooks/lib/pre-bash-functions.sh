@@ -936,6 +936,66 @@ hook_tickets_tracker_bash_guard() {
     trap - ERR; return 2
 }
 
+# ---------------------------------------------------------------------------
+# hook_no_force_merge
+# ---------------------------------------------------------------------------
+# PreToolUse hook: block `gh pr merge --admin` outside /dso:fp-recovery.
+#
+# The --admin flag overrides ALL branch protection rules (required status
+# checks, required reviews, merge restrictions). Using it as a convenience
+# shortcut when checks are slow or pending defeats the CI safety net.
+# The ONLY authorized path is /dso:fp-recovery (FP-RECOVERY-WORKFLOW.md
+# Step 5), which requires a completed manual opus-tier review.
+#
+# Bug 7131-34ca: orchestrator used --admin to merge PR #413 while
+# "Mirror Tracker Defenses to PR" check was still pending.
+hook_no_force_merge() {
+    local INPUT="$1"
+    local HOOK_ERROR_LOG="$HOME/.claude/logs/dso-hook-errors.jsonl"
+    trap 'printf "{\"ts\":\"%s\",\"hook\":\"no-force-merge\",\"line\":%s}\n" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$LINENO" >> "$HOOK_ERROR_LOG" 2>/dev/null; return 0' ERR
+
+    # Fast early-exit: skip unless INPUT contains "merge" or "admin"
+    if [[ "$INPUT" != *"merge"* && "$INPUT" != *"admin"* ]]; then
+        return 0
+    fi
+
+    local TOOL_NAME
+    TOOL_NAME=$(parse_json_field "$INPUT" '.tool_name')
+    if [[ "$TOOL_NAME" != "Bash" ]]; then
+        return 0
+    fi
+
+    local COMMAND
+    COMMAND=$(parse_json_field "$INPUT" '.tool_input.command')
+    if [[ -z "$COMMAND" ]]; then
+        return 0
+    fi
+
+    # Detect: gh pr merge ... --admin (in any position)
+    if [[ "$COMMAND" == *"gh pr merge"*"--admin"* ]] || [[ "$COMMAND" == *"gh pr merge"*"--admin" ]]; then
+        # Check for FP-recovery bypass env var
+        if [[ "${DSO_FP_RECOVERY_ACTIVE:-}" == "1" ]]; then
+            return 0
+        fi
+        echo "BLOCKED: \`gh pr merge --admin\` is not allowed outside /dso:fp-recovery." >&2
+        echo "" >&2
+        echo "The --admin flag overrides ALL branch protection rules including required" >&2
+        echo "status checks. Using it when checks are pending or failing defeats the CI" >&2
+        echo "safety net (bug 7131-34ca)." >&2
+        echo "" >&2
+        echo "AUTHORIZED PATHS:" >&2
+        echo "  1. Wait for checks: .claude/scripts/dso wait-for-pr.sh <pr>" >&2
+        echo "  2. Auto-merge when ready: gh pr merge <pr> --auto --merge" >&2
+        echo "  3. FP-recovery (when CI review is a false positive): /dso:fp-recovery <pr>" >&2
+        echo "" >&2
+        echo "To use FP-recovery: set DSO_FP_RECOVERY_ACTIVE=1 (set automatically" >&2
+        echo "by the /dso:fp-recovery workflow — do not set manually)." >&2
+        trap - ERR; return 2
+    fi
+
+    return 0
+}
+
 # hook_record_test_status_guard removed (ce62-624e).
 #
 # WHY IT WAS ADDED (a2e0-3ae8 lineage):
