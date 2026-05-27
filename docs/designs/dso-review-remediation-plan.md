@@ -1,6 +1,6 @@
-# DSO Review Remediation Plan — F-01, F-05, F-06, F-08
+# DSO Review Remediation Plan — F-01, F-02, F-05, F-06, F-08
 
-Plan to implement four findings from the static review of the DSO agentic
+Plan to implement five findings from the static review of the DSO agentic
 workflow plugin. Findings are ordered by ascending blast-radius / effort so
 that the trivial wins land first and the load-bearing change (F-01) lands on
 a clean baseline.
@@ -12,11 +12,11 @@ a clean baseline.
 | F-08 | Stale "skeleton/future task" header in `merge-to-main-pr.sh`         | Low-Medium   | ~30 min     |
 | F-06 | `tickets.directory` honored only partially in merge logic            | Medium       | 1–2 hr      |
 | F-05 | Hard-coded `main` across merge/PR scripts                            | Medium       | ½–1 day     |
+| F-02 | Safety-critical content gates fail open on parse/timeout/hash error  | High         | 1.5–2 days  |
 | F-01 | `ci-pr` mode skips local gates while session-branch CI check missing | **Critical** | 1–3 days    |
 
-Out of scope for this plan (tracked separately): F-02 (fail-open
-classification), F-03 (`SPRINT_SESSION_ID` singleton), F-04 (orchestration
-typing), F-07 (telemetry auth).
+Out of scope for this plan (tracked separately): F-03 (`SPRINT_SESSION_ID`
+singleton), F-04 (orchestration typing), F-07 (telemetry auth).
 
 ---
 
@@ -179,6 +179,150 @@ Medium. The merge scripts are load-bearing for release. Mitigations:
 
 ---
 
+## F-02 — Classify gates; safety-critical ones fail closed
+
+### Problem
+Eight load-bearing fail-open sites were verified. The reviewer's framing
+correctly notes that several are *deliberate developer-experience choices*
+(a broken hook should never brick an editor session). The genuine
+correctness risk is in the **content gates** that carry the workflow's
+safety claims — review hash failure, sprint scope-certainty (SC) coverage
+gate, test-gate timeout when the gate is supposed to actually evaluate, and
+Ruleset preflight (overlaps with F-01).
+
+The hazard is not "fail-open exists" but "fail-open silently in places
+where the orchestrator's later phases treat the gate as having passed."
+Local logs are invisible to downstream agent decisions.
+
+### Doctrine (the deliverable, not just the code change)
+Classify every gate into one of three tiers and document the doctrine in
+`plugins/dso/docs/HOOKS-REFERENCE.md`:
+
+- **Tier A — safety-critical.** Review, tests, provenance, branch/merge
+  invariants, scope-coverage gates whose verdicts route execution. Must
+  fail **closed** on infrastructure failure (timeout, parse error, missing
+  dependency). Override requires an explicit, audited bypass env var
+  modeled on `DSO_ALLOW_EDIT_ON_MAIN` (paired var + non-empty reason
+  string), and the bypass writes a JSONL audit record.
+- **Tier B — developer-experience.** Hook wrapper, dispatcher non-2
+  exits, error handler, post-tool formatting hints. Fail open is
+  correct; keep as-is.
+- **Tier C — advisory model checks.** Heuristic coverage/clarity
+  classifiers whose verdict is not load-bearing. May degrade, but the
+  degraded state must be **explicit and machine-readable** (emit a
+  `GATE_UNAVAILABLE` event the orchestrator can read), never silent.
+
+### Steps
+
+#### Phase 1 — classify
+1. **Inventory** every fail-open site under `plugins/dso/hooks/` and
+   `plugins/dso/scripts/`. Use the eight verified sites as the seed set:
+   - `plugins/dso/scripts/pre-commit-wrapper.sh` (wrapper) — **B**
+   - `plugins/dso/hooks/lib/dispatcher.sh:55–62` (non-2 exits) — **B**
+   - `plugins/dso/hooks/lib/hook-error-handler.sh:131` (always exit 0) —
+     **B**
+   - `plugins/dso/hooks/pre-commit-test-gate.sh:47–60` (timeout
+     `_fail_open_on_timeout`) — **A** (test verdict is load-bearing)
+   - `plugins/dso/hooks/pre-commit-review-gate.sh:84–88` (diff-hash
+     compute failure) — **A** (review verdict is load-bearing)
+   - `plugins/dso/skills/sprint/SKILL.md:458–461` (haiku SC gate) —
+     **A or C** depending on whether the verdict gates Phase B entry;
+     classify per Phase B's existing routing logic
+   - `plugins/dso/skills/sprint/SKILL.md:518` (sonnet SC gate) — same
+   - `plugins/dso/skills/sprint/SKILL.md:576` (opus SC gate) — same
+2. **Document the classification** in `HOOKS-REFERENCE.md` with the
+   tier letter inline next to each gate description. This is the
+   contract; future hooks must declare a tier in their header comment.
+
+#### Phase 2 — implement the Tier A pattern
+3. **Add a shared helper** `plugins/dso/hooks/lib/gate-unavailable.sh`
+   exporting:
+   - `_dso_gate_unavailable <gate_name> <reason>` — writes a structured
+     JSONL audit record to `$HOME/.claude/logs/dso-gate-unavailable.jsonl`
+     and to the event log (via the existing event-log helper), then
+     returns exit code 2 (the dispatcher's "block" code).
+   - `_dso_gate_bypass_active <gate_name>` — returns 0 only when both
+     `DSO_GATE_BYPASS_${gate_name^^}=1` and a non-empty
+     `DSO_GATE_BYPASS_${gate_name^^}_REASON` are set; emits an audit
+     record when active.
+4. **Refactor Tier A sites** to use the helper:
+   - `pre-commit-test-gate.sh` — on timeout (existing
+     `_fail_open_on_timeout` trap on TERM/URG), call
+     `_dso_gate_unavailable test_gate "timeout sig=$1"` and exit 2
+     unless `_dso_gate_bypass_active test_gate`. Preserve the
+     existing comment rationale, but invert the default.
+   - `pre-commit-review-gate.sh` — on diff-hash compute failure, same
+     pattern: `_dso_gate_unavailable review_gate "hash_compute_failed"`.
+5. **Refactor SC coverage gates** in `sprint/SKILL.md`:
+   - Lines 458–461, 518, 576: replace "fail-open — log a warning and
+     proceed" with "emit `GATE_UNAVAILABLE` event; orchestrator halts
+     Phase B entry pending operator decision."
+   - The orchestrator gets a new check at the top of Phase B Step 1
+     that reads the event log for any `GATE_UNAVAILABLE` for SC gates
+     and halts with a precise message if found. The halt produces a
+     ticket comment with the gate name and the underlying parse error,
+     mirroring the existing precondition fallthrough pattern.
+
+#### Phase 3 — extend the doctrine to the dispatcher
+6. **Keep dispatcher behavior unchanged** (`dispatcher.sh:55–62`): non-2
+   exits remain fail-open by design — that's the Tier B contract. The
+   change is documentation, not code: add a comment block at the top of
+   `dispatcher.sh` that names the contract and points to the Tier A
+   helper for hooks that need fail-closed behavior.
+7. **Pre-commit lint**: add a grep guard that flags new hook scripts
+   missing a tier declaration in their header. Allowlist the eight
+   pre-existing sites until they're refactored.
+
+#### Phase 4 — tests
+8. **Unit tests** for `_dso_gate_unavailable` and
+   `_dso_gate_bypass_active`: verifies JSONL shape, audit record fields
+   (timestamp, gate name, reason, bypass actor), exit codes, and that
+   the bypass requires both env vars present.
+9. **Integration tests** (one per Tier A site):
+   - Test gate timeout: simulate SIGTERM during a real test invocation;
+     assert commit is blocked, audit record written, ticket comment
+     surfaced.
+   - Review gate hash failure: poison `compute-diff-hash.sh` (test
+     fixture); assert commit blocked with `review_gate` audit entry.
+   - SC gate parse failure: inject malformed JSON in the haiku stub;
+     assert Phase B halts and Phase E is never dispatched.
+10. **Bypass test** for each Tier A site: with `DSO_GATE_BYPASS_<name>=1`
+    and a non-empty reason, the gate is bypassed and the bypass is
+    audited. Without the reason, the bypass is rejected.
+
+### Acceptance
+- `HOOKS-REFERENCE.md` lists every gate with its tier letter; new hooks
+  fail the pre-commit lint if they omit the declaration.
+- All three Tier A sites (test gate, review gate, SC coverage) block
+  rather than silently passing on infrastructure failure.
+- Each Tier A site has working audit records and a documented bypass
+  env-var pair.
+- Tier B sites (wrapper, dispatcher non-2, error handler) are
+  **unchanged**; the wrapper still fails open on a broken hook script
+  (correct behavior).
+- New unit + integration tests pass; existing test suite is green.
+
+### Risk
+Medium-high. Inverting "silently allow" to "block" can surface
+infrastructure-flake commits as failures that previously slipped
+through. Mitigations:
+- Stage rollout: Tier A flag (`hooks.tier_a_fail_closed`, default
+  false during the first release cycle) so the new behavior can be
+  reverted independently.
+- Each bypass env var is per-gate; operators can keep specific gates
+  permissive while tightening the rest.
+- Audit records make the silent-failure case discoverable retroactively
+  even before fail-closed flips on.
+
+### Doctrine note
+This is *not* a recommendation to remove fail-open behavior wholesale.
+The hook wrapper's fail-open on broken hook scripts is correct design
+— a syntax error in one hook must not brick every editor session. The
+remediation narrows the change to gates whose verdicts route subsequent
+agent decisions, which is the actual safety case.
+
+---
+
 ## F-01 — Close the `ci-pr` enforcement gap (Critical)
 
 ### Problem
@@ -302,16 +446,26 @@ the workflow mode this repository itself uses. Mitigations:
    test + literal guard.
 3. **F-05** (½–1 day) — `resolve-default-branch.sh` + replace literals +
    trunk-fixture test.
-4. **F-01** (1–3 days) — widen CI trigger, promote preflight to
+4. **F-02** (1.5–2 days) — gate-tier doctrine + `_dso_gate_unavailable`
+   helper + refactor three Tier A sites + Tier A integration tests.
+5. **F-01** (1–3 days) — widen CI trigger, promote preflight to
    blocking, end-to-end smoke test, wire orchestrator gate, update docs.
 
-F-05 must land before F-01 because the review-range computation in
-`llm-review` needs the resolver to work on non-`main` defaults.
+Ordering constraints:
+- **F-05 before F-01** — the widened `llm-review` job's review-range
+  computation needs the resolver to work on non-`main` defaults.
+- **F-02 before F-01** — F-02 establishes the gate-tier doctrine and the
+  `_dso_gate_unavailable` / paired-bypass pattern. F-01's preflight
+  tightening (Phase A Ruleset preflight → blocking) is the first
+  application of that pattern outside `plugins/dso/hooks/`. Landing F-02
+  first means F-01 inherits a proven helper instead of inventing a
+  parallel mechanism.
 
 ## Tracking
 
 Create one ticket per finding under the existing review-evaluation epic;
-link via `--parent`. Use the standard story type for F-01 and F-05 (each
-has multiple tasks); use task type for F-06 and F-08 (single deliverable
-each). Verify via `.claude/scripts/dso ticket list --status=in_progress`
-on session resume.
+link via `--parent`. Use the standard story type for F-01, F-02, and
+F-05 (each has multiple tasks); use task type for F-06 and F-08 (single
+deliverable each). Verify via
+`.claude/scripts/dso ticket list --status=in_progress` on session
+resume.
