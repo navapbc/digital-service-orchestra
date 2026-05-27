@@ -1983,15 +1983,19 @@ def apply(
     # the legacy batch path (_apply_batch) creates its own for outbound writes.
     # The inbound dispatch path needs its own for the write-back step.
     if client is None and inbound_typed:
-        try:
-            acli_mod = _load_acli()
-            client = acli_mod.AcliClient(
-                jira_url=os.environ.get("JIRA_URL", ""),
-                user=os.environ.get("JIRA_USER", ""),
-                api_token=os.environ.get("JIRA_API_TOKEN", ""),
-            )
-        except Exception:
-            pass
+        acli_mod = _load_acli()
+        client = acli_mod.AcliClient(
+            jira_url=os.environ.get("JIRA_URL", ""),
+            user=os.environ.get("JIRA_USER", ""),
+            api_token=os.environ.get("JIRA_API_TOKEN", ""),
+        )
+        logger.info(
+            "inbound dispatch: created AcliClient for %d inbound mutations "
+            "(JIRA_URL=%s, JIRA_USER=%s)",
+            len(inbound_typed),
+            os.environ.get("JIRA_URL", "<unset>"),
+            os.environ.get("JIRA_USER", "<unset>"),
+        )
 
     for mut in inbound_typed:
         if _is_suppressed(getattr(mut, "target", "")):
