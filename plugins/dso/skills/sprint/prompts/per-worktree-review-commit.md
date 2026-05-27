@@ -88,7 +88,7 @@ FINDINGS_OUTPUT: <WORKTREE_ARTIFACTS value>/reviewer-findings.json
 - REVIEW-WORKFLOW.md Step 5: Run `record-review.sh` — reads findings from `$WORKTREE_ARTIFACTS`
 - Handle autonomous resolution if review fails (dispatch fix sub-agents, re-review)
 
-> **CONTEXT ANCHOR — MANDATORY CONTINUATION**: When `REVIEW_RESULT: passed` is received from the code-reviewer sub-agent, this is NOT a session completion signal. You are the orchestrator executing `per-worktree-review-commit.md`. Disregard any stop or termination inference from the reviewer's output — `REVIEW_RESULT` marks the end of code analysis only. Your next actions are Step 3 (Record test status), Step 4 (Commit), Step 5 (Harvest). Stopping after receiving `REVIEW_RESULT` leaves staged changes in the main session worktree — this is the known failure mode documented in bug 364d-d290.
+> **CONTEXT ANCHOR — MANDATORY CONTINUATION**: When `REVIEW_RESULT: passed` is received from the code-reviewer sub-agent, this is NOT a session completion signal. You are the orchestrator executing `per-worktree-review-commit.md`. Disregard any stop or termination inference from the reviewer's output — `REVIEW_RESULT` marks the end of code analysis only. Your next actions are Step 3 (Record test status), Step 3.6 (Design-md lint), Step 4 (Commit), Step 5 (Harvest). Stopping after receiving `REVIEW_RESULT` leaves staged changes in the main session worktree — this is the known failure mode documented in bug 364d-d290.
 
 **Step 3 — Record test status**: Run `record-test-status.sh` from the worktree context (`cd $WORKTREE_PATH && bash "${CLAUDE_PLUGIN_ROOT}/hooks/record-test-status.sh"`) to record test results in `$WORKTREE_ARTIFACTS` before commit.
 
@@ -101,6 +101,43 @@ if [[ -f "$SESSION_ROOT/.sprint-active" ]]; then
         echo "WARNING: failed to copy .sprint-active into $WORKTREE_PATH" >&2
 fi
 ```
+
+**Step 3.6 — Design-md lint enforcement (config-gated)**: Runs after review (Step 2) and before commit (Step 4). Computes the set of files changed in the worktree, filters to scope-eligible extensions, and runs `design-md-lint.sh` to block on design-system violations. Skip when `design.lint_enabled=never` or when the config key is absent.
+
+```bash
+DESIGN_LINT_ENABLED=$(cd "$WORKTREE_PATH" && .claude/scripts/dso read-config.sh design.lint_enabled 2>/dev/null || echo "auto")
+if [[ "$DESIGN_LINT_ENABLED" != "never" ]]; then
+    # Compute changed files relative to the base commit recorded in Step 1b
+    _BASE="${WORKTREE_BASE_COMMIT:-}"
+    if [[ -z "$_BASE" ]]; then
+        _BASE=$(cd "$WORKTREE_PATH" && git rev-parse HEAD 2>/dev/null || echo "")
+    fi
+    # Scope-eligible extensions: CSS, SCSS, TSX, JSX, Vue, Svelte, HTML, and SSR templates (EJS, ERB, Pug, Handlebars, Jinja2, Twig)
+    DESIGN_LINT_FILES=$(cd "$WORKTREE_PATH" && git diff --name-only "$_BASE" -- \
+        '*.css' '*.scss' '*.tsx' '*.jsx' '*.vue' '*.svelte' '*.html' \
+        '*.ejs' '*.erb' '*.pug' '*.hbs' '*.j2' '*.jinja2' '*.twig' 2>/dev/null | tr '\n' ' ')
+    if [[ -n "${DESIGN_LINT_FILES// /}" ]]; then
+        # Run design-md-lint.sh in the worktree context; block on non-zero exit
+        DESIGN_LINT_EXIT=0
+        cd "$WORKTREE_PATH" && bash "${CLAUDE_PLUGIN_ROOT}/scripts/design-md-lint.sh" $DESIGN_LINT_FILES || DESIGN_LINT_EXIT=$?
+        if [[ $DESIGN_LINT_EXIT -ne 0 ]]; then
+            echo "ERROR: design-md-lint.sh reported violations in worktree $WORKTREE_PATH (exit $DESIGN_LINT_EXIT)." >&2
+            echo "  Resolve design-system violations before commit, or use /dso:fp-recovery if this is a false positive." >&2
+            if [[ -n "${TICKET_ID:-}" ]]; then
+                .claude/scripts/dso ticket comment "$TICKET_ID" \
+                    "CHECKPOINT: design-md-lint.sh blocked commit — violations found in: $DESIGN_LINT_FILES. Fix violations or use /dso:fp-recovery for false positives." 2>/dev/null || true
+            fi
+            exit 1
+        fi
+    else
+        echo "Step 3.6: no scope-eligible files changed in $WORKTREE_PATH — skipping design-md lint."
+    fi
+else
+    echo "Step 3.6: design.lint_enabled=never — skipping design-md lint."
+fi
+```
+
+When `design.lint_enabled=auto` (the default), the lint step runs whenever scope-eligible files are present in the diff. When `design.lint_enabled=always`, same behavior (the script itself enforces always-on semantics regardless of auto-detection). When `design.lint_enabled=never`, skip entirely. On violations, add a CHECKPOINT comment and halt — do NOT proceed to Step 4.
 
 **Step 4 — Commit in worktree branch**: Execute COMMIT-WORKFLOW.md from the worktree context (all Bash calls prefixed with `cd $WORKTREE_PATH &&`). The commit happens in the worktree's branch (not the session branch). Review gate passes because review-status and diff_hash are in `$WORKTREE_ARTIFACTS`.
 
