@@ -342,6 +342,28 @@ _JIRA_TYPE_MAP: dict[str, str] = {
     "Sub-task": "task",
 }
 
+_JIRA_PRIORITY_MAP: dict[str, int] = {
+    "Highest": 0,
+    "High": 1,
+    "Medium": 2,
+    "Low": 3,
+    "Lowest": 4,
+}
+
+_VALID_PRIORITY_RANGE = range(0, 5)  # 0-4 inclusive
+
+
+def _resolve_priority(raw_pri: Any) -> int:
+    """Convert a Jira priority (name-string or int) to a local 0-4 integer.
+
+    Integers outside 0-4 are clamped to the default (2 / Medium).
+    Unrecognised name strings also fall back to 2.
+    """
+    if isinstance(raw_pri, int):
+        return raw_pri if raw_pri in _VALID_PRIORITY_RANGE else 2
+    pri_name = _extract_name(raw_pri)
+    return _JIRA_PRIORITY_MAP.get(pri_name, 2)
+
 
 def _jira_key_to_local_id(jira_key: str) -> str:
     """DIG-123 -> jira-dig-123. Idempotent for already-prefixed local ids."""
@@ -496,7 +518,7 @@ def _apply_inbound_create(mutation, *, client=None, repo_root=None) -> ApplyResu
         "tags": tags,
     }
     if "priority" in fields:
-        create_data["priority"] = _extract_name(fields["priority"])
+        create_data["priority"] = _resolve_priority(fields["priority"])
     if fields.get("assignee"):
         create_data["assignee"] = _extract_name(fields["assignee"])
     create_path = _write_event_file(tracker_dir, local_id, "CREATE", create_data)
@@ -554,7 +576,7 @@ def _apply_inbound_update(mutation, *, client=None, repo_root=None) -> ApplyResu
     if "description" in fields:
         edit_fields["description"] = fields["description"]
     if "priority" in fields:
-        edit_fields["priority"] = _extract_name(fields["priority"])
+        edit_fields["priority"] = _resolve_priority(fields["priority"])
     if "assignee" in fields:
         edit_fields["assignee"] = _extract_name(fields["assignee"])
 
@@ -1958,6 +1980,26 @@ def apply(
             suppressed_targets.add(_jira_key_to_local_id(jira_key))
         if local_id:
             suppressed_targets.add(local_id)
+
+    # Create an AcliClient for inbound leaves that need to write back to
+    # Jira (dso-id label + dso_local_id property). The caller (reconcile_once)
+    # does not pass a client — the fetcher creates its own for reading, and
+    # the legacy batch path (_apply_batch) creates its own for outbound writes.
+    # The inbound dispatch path needs its own for the write-back step.
+    if client is None and inbound_typed:
+        acli_mod = _load_acli()
+        client = acli_mod.AcliClient(
+            jira_url=os.environ.get("JIRA_URL", ""),
+            user=os.environ.get("JIRA_USER", ""),
+            api_token=os.environ.get("JIRA_API_TOKEN", ""),
+        )
+        logger.info(
+            "inbound dispatch: created AcliClient for %d inbound mutations "
+            "(JIRA_URL=%s, JIRA_USER=%s)",
+            len(inbound_typed),
+            os.environ.get("JIRA_URL", "<unset>"),
+            os.environ.get("JIRA_USER", "<unset>"),
+        )
 
     for mut in inbound_typed:
         if _is_suppressed(getattr(mut, "target", "")):

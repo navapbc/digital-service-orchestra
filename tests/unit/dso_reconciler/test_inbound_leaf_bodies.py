@@ -589,8 +589,8 @@ def test_inbound_create_extracts_nested_jira_objects(applier, mut_mod, fixture_r
     assert data["ticket_type"] == "bug"
     assert data["title"] == "Complex objects"
     assert data["assignee"] == "Joe"
-    # Priority name "High" is passed through as-is (string, not dict).
-    assert data["priority"] == "High"
+    # Priority name "High" is mapped to integer 1 via _JIRA_PRIORITY_MAP.
+    assert data["priority"] == 1
 
 
 def test_inbound_update_extracts_nested_jira_objects(applier, mut_mod, fixture_repo):
@@ -626,7 +626,7 @@ def test_inbound_update_extracts_nested_jira_objects(applier, mut_mod, fixture_r
     assert edits
     fields = edits[-1]["data"]["fields"]
     assert fields["title"] == "Updated complex"
-    assert fields["priority"] == "Low"
+    assert fields["priority"] == 3
     assert fields["assignee"] == "Alice"
 
 
@@ -658,6 +658,38 @@ def test_inbound_create_writes_back_jira_dedup_markers(applier, mut_mod, fixture
     client.set_entity_property.assert_called_once_with(
         "DIG-700", "dso_local_id", local_id
     )
+
+
+@pytest.mark.parametrize(
+    "raw_pri, expected",
+    [
+        (0, 0),
+        (4, 4),
+        (99, 2),    # out-of-range clamps to default
+        (-1, 2),    # negative clamps to default
+    ],
+)
+def test_inbound_create_clamps_out_of_range_integer_priority(
+    applier, mut_mod, fixture_repo, raw_pri, expected
+):
+    """Integer priorities outside 0-4 must clamp to 2 (Medium)."""
+    seq = 800 + raw_pri + 100  # unique per parametrize
+    mutation = _make_mutation(
+        mut_mod,
+        direction=mut_mod.MutationDirection.inbound,
+        action=mut_mod.MutationAction.create,
+        target=f"DIG-{seq}",
+        payload={
+            "summary": f"Priority clamp {raw_pri}",
+            "issuetype": "Task",
+            "priority": raw_pri,
+        },
+    )
+    applier._apply_typed(mutation, repo_root=fixture_repo)
+    local_id = f"jira-dig-{seq}"
+    tracker = fixture_repo / ".tickets-tracker"
+    create_ev = _read_create(tracker, local_id)
+    assert create_ev["data"]["priority"] == expected
 
 
 def test_inbound_create_no_writeback_without_client(applier, mut_mod, fixture_repo):

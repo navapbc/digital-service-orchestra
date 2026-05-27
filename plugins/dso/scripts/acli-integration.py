@@ -773,6 +773,8 @@ class AcliClient:
                 "search",
                 "--jql",
                 jql,
+                "-f",
+                "issuetype,key,assignee,priority,status,summary,description",
                 "--paginate",
                 "--json",
             ]
