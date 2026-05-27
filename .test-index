@@ -140,6 +140,7 @@ plugins/dso/hooks/lib/test-index.sh:tests/hooks/test-record-test-status-part1.sh
 plugins/dso/hooks/lib/test-result-processor.sh:tests/hooks/test-record-test-status-eagain.sh,tests/hooks/test-record-test-status-red-zone-merge.sh,tests/hooks/test-record-test-status-part1.sh
 plugins/dso/hooks/lib/validate-check-runners.sh:tests/scripts/test-validate-test-batched-integration.sh
 plugins/dso/hooks/lib/validate-helpers.sh:tests/scripts/test-validate-test-batched-integration.sh
+plugins/dso/hooks/pre-commit-design-md-lint.sh:tests/hooks/test-design-md-lint.sh [test_design_md_lint_hook]
 plugins/dso/hooks/pre-commit-enforcement-boundary-check.sh:tests/hooks/test-enforcement-boundary-check.sh
 plugins/dso/hooks/pre-commit-review-gate.sh:tests/hooks/test-enforcement-gate.sh
 plugins/dso/hooks/pre-commit-test-gate.sh:tests/hooks/test-enforcement-gate.sh
