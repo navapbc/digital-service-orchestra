@@ -94,7 +94,11 @@ def acli_capture(
     def fake_run_acli(cmd: list[str], *, acli_cmd: list[str] | None = None) -> Any:
         captured_cmds.append(cmd)
         result = MagicMock()
-        result.stdout = json.dumps({"key": "TEST-1"})
+        # get_issue uses "search --jql" (not "view"), which returns a list
+        if "search" in cmd:
+            result.stdout = json.dumps([{"key": "TEST-1"}])
+        else:
+            result.stdout = json.dumps({"key": "TEST-1"})
         return result
 
     client = acli_mod.AcliClient(

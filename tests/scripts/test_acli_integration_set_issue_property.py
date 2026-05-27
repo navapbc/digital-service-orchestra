@@ -114,7 +114,12 @@ def test_set_issue_property_injects_authorization_header(acli: ModuleType) -> No
 
 @pytest.mark.scripts
 def test_set_issue_property_sends_correct_json_body(acli: ModuleType) -> None:
-    """set_issue_property sends a JSON body with key 'value' containing the passed value."""
+    """set_issue_property sends the value verbatim as the JSON body (no wrapper).
+
+    Bug 0b27-b785-dea8-49a0: the old ``_direct_rest_put`` wrapper added a
+    ``{"value": ...}`` envelope that corrupted the stored property. The fix
+    switched to ``_direct_rest_put_raw`` which sends the value as-is.
+    """
     client = acli.AcliClient(
         jira_url="https://jira.example.com",
         user="u",
@@ -135,10 +140,10 @@ def test_set_issue_property_sends_correct_json_body(acli: ModuleType) -> None:
     body = request_obj.data
     assert body is not None, "Request body (data) is None — expected JSON bytes"
     parsed = json.loads(body.decode("utf-8") if isinstance(body, bytes) else body)
-    assert "value" in parsed, (
-        f"Expected key 'value' in request body, got keys: {list(parsed.keys())}"
+    # Body is sent verbatim (no {"value": ...} wrapper) per bug 0b27 fix
+    assert parsed == value, (
+        f"Expected body to be the raw value {value!r}, got: {parsed!r}"
     )
-    assert parsed["value"] == value
 
 
 @pytest.mark.scripts
