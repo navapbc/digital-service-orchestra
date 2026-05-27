@@ -1488,3 +1488,46 @@ def test_interleaved_real_and_synthetic_zip_alignment(monkeypatch) -> None:
         not in {"fallback_exhausted", "specialist_error", "parse_error"}
     ]
     assert len(real_findings) == 1, f"Expected 1 real finding; got {len(real_findings)}"
+
+
+# ---------------------------------------------------------------------------
+# Test: large diff stripped from schema correction prompt (bug a5a0-c80e)
+# ---------------------------------------------------------------------------
+def test_large_diff_stripped_from_correction_prompt():
+    """When diff_text exceeds the correction char limit, the diff section is
+    replaced with a placeholder so Haiku can produce valid JSON."""
+    from unittest.mock import patch as _patch
+
+    corrected = _schema_valid_corrected_findings([_FINDING_A])
+    calls_captured: list[str] = []
+
+    def _fake_dispatch(*, diff_text, **kwargs):
+        calls_captured.append(diff_text)
+        return {"findings": corrected, "summary": "ok"}
+
+    large_diff = "x" * 60_000
+
+    with _patch.object(_dispatch_mod, "dispatch_review", side_effect=_fake_dispatch):
+        with _patch.object(
+            _runner_mod,
+            "_validate_findings_schema",
+            return_value=_runner_mod._SchemaValidationResult("schema_pass", []),
+        ):
+            _dispatch_mod.dispatch_schema_correction(
+                original_findings=[_FINDING_A],
+                schema_errors=["missing reachability"],
+                diff_text=large_diff,
+                provider_chain=["anthropic"],
+                environ={"ANTHROPIC_API_KEY": "test-key"},
+                max_attempts=1,
+                agent_id="schema-correction",
+            )
+
+    assert len(calls_captured) == 1
+    prompt_sent = calls_captured[0]
+    assert large_diff not in prompt_sent, (
+        "Large diff should be stripped from the correction prompt"
+    )
+    assert "omitted" in prompt_sent.lower(), (
+        "Correction prompt should contain an omission notice for the stripped diff"
+    )
