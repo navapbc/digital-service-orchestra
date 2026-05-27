@@ -184,11 +184,13 @@ If the above section is populated, respect these boundaries:
 
 ## Visual Evaluator Integration (Integration A)
 
-When a task touches UI files (`.css`, `.js`, `.ts`, `.tsx`, `.html`, `.jinja2`, or component files), the sprint orchestrator invokes the visual-evaluator skill after sub-agent implementation completes. This is **Integration A** — the inline per-task iteration loop with attribution routing.
+When a task touches UI files (detected by `${CLAUDE_PLUGIN_ROOT}/scripts/detect-ui-files.sh`), the sprint orchestrator runs visual evaluation after commit and before harvest. This is **Integration A** — the inline per-task iteration loop with attribution routing.
+
+Implementation: `${CLAUDE_PLUGIN_ROOT}/scripts/sprint/visual-eval-inline.sh` (called at per-worktree Step 4a).
 
 ### Activation Gate
 
-Activates only when all visual-evaluator preconditions pass (see `${CLAUDE_PLUGIN_ROOT}/skills/visual-evaluator/SKILL.md`). When any precondition fails, the skill emits `visual_eval_inapplicable:<reason>` and Integration A is skipped for the task (gate reports `not-applicable`, not soft-pass).
+Requires both `visual_evaluator.enabled=true` AND `visual_evaluator.integration_a_enabled=true` (both default false). Shared preconditions are checked via `visual-eval-preconditions.sh --route-map-required`. When any gate fails, the script emits `visual_eval_inapplicable:<reason>` and exits 0 (never blocks). <!-- # precondition-emit-ok: preconditions checked in external script -->
 
 **Surface route_map_stale prominently**: when the skill emits `visual_eval_inapplicable:route_map_stale`, the sprint orchestrator must surface this to the user with explicit instruction to run `/dso:ui-discover` and retry. Do NOT bury in logs.
 

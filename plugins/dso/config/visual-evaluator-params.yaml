@@ -12,3 +12,4 @@ image_resolution:
   max_mp: 3.0
   primary_mp: 1.024
   secondary_mp: 1.296
+api_timeout: 60

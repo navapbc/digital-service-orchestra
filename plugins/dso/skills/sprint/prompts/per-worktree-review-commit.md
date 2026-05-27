@@ -115,6 +115,25 @@ fi
 
 If this check fails: do NOT call harvest-worktree.sh. Leave the worktree intact, add a CHECKPOINT comment to the ticket, and surface the commit gate error to the orchestrator for investigation.
 
+**Step 4a — Visual Evaluator Inline — Integration A (config-gated)**: Runs only when `visual_evaluator.enabled=true` AND `visual_evaluator.integration_a_enabled=true` (both default false). Evaluates committed, reviewed code before harvest.
+
+```bash
+TASK_FILE_LIST=$(cd "$WORKTREE_PATH" && git diff --name-only "$WORKTREE_BASE_COMMIT"..HEAD)
+if [[ -n "$TASK_FILE_LIST" ]]; then
+  cd "$WORKTREE_PATH" && bash "${CLAUDE_PLUGIN_ROOT}/scripts/sprint/visual-eval-inline.sh" "$TASK_FILE_LIST" "$TICKET_ID"  # shim-exempt: internal orchestration script
+  VISUAL_EVAL_EXIT=$?
+  if [[ $VISUAL_EVAL_EXIT -ne 0 ]]; then
+    # intent_match below threshold — do NOT harvest; revert task to open
+    echo "Visual eval failed for $TICKET_ID — intent_match below threshold after iteration cap." >&2
+    .claude/scripts/dso ticket transition "$TICKET_ID" in_progress open 2>/dev/null || true
+    .claude/scripts/dso ticket comment "$TICKET_ID" "CHECKPOINT: Visual evaluation failed — intent_match below iteration_threshold after iteration_cap exhausted. Task reverted to open." 2>/dev/null || true
+    continue  # skip to next worktree
+  fi
+fi
+```
+
+When `visual_evaluator.enabled` or `integration_a_enabled` is false, `visual-eval-inline.sh` exits 0 immediately — zero overhead. Check stderr for `visual_eval_routing:<class>:<confidence>` annotations and `visual_debt:<dimension>` tags.
+
 **Step 5 — Harvest worktree into session branch**: From the session branch directory, run `harvest-worktree.sh` to merge the worktree branch, attest gate results, and commit in a single invocation:
 
 ```bash

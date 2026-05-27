@@ -2016,6 +2016,18 @@ cd $REPO_ROOT/app && make test-visual 2>&1
 - **Fail** → Use `/dso:playwright-debug` Tier 2. If still failing, revert task to open.
 - **No baselines** → Use `/dso:playwright-debug` full 3-tier. Verify local env: `$PLUGIN_SCRIPTS/check-local-env.sh`.  # shim-exempt: internal orchestration script
 
+### Step 12a: Visual Evaluator Post-Batch — Integration B (/dso:sprint)
+
+Runs when `visual_evaluator.enabled=true` and at least one task in the batch modified UI files. Gated by shared preconditions and token budget. Never blocks the sprint — all failure paths exit 0. <!-- # precondition-emit-ok: preconditions are checked in visual-eval-preconditions.sh, not inline -->
+
+```bash
+RESULTS_DIR=$(bash "$PLUGIN_SCRIPTS/sprint/visual-eval-post-batch.sh" $BATCH_FILE_LIST 2>/dev/null) || true  # shim-exempt: internal orchestration script
+```
+
+- **`RESULTS_DIR` non-empty** → Feed `$RESULTS_DIR/*.json` to the 5th committee reviewer (visual-spatial-evaluator) per `${CLAUDE_PLUGIN_ROOT}/skills/ui-designer/docs/arbitration.md`. Clean up `$RESULTS_DIR` after consumption.
+- **`RESULTS_DIR` empty or exit 0 with no stdout** → Degraded path; proceed to Step 13. Check stderr for `visual_eval_inapplicable:<reason>` annotations.
+- **`visual_evaluator.enabled` absent or false** → Script exits 0 immediately via shared preconditions. <!-- # precondition-emit-ok -->
+
 ### Step 13: Formal Code Review (/dso:sprint) — Shared-Directory Mode Only
 
 **This step applies only in shared-directory mode (isolation disabled).** When worktree isolation is enabled (default), review is handled per-worktree via `per-worktree-review-commit.md` (see Worktree Isolation Mode section at the top of Phase F). Skip this step in worktree isolation mode.
@@ -3043,9 +3055,11 @@ After `VISUAL_CMD` (or `make test-visual`) completes in Phase F validation, the 
 ### Activation Gate
 
 Activates when:
-- `dso.workflow=ci-pr` mode is in use, AND
-- At least one task in the completed batch modified UI files, AND
-- The visual-evaluator skill's preconditions pass (see `${CLAUDE_PLUGIN_ROOT}/skills/visual-evaluator/SKILL.md`)
+- `visual_evaluator.enabled=true` (default false — opt-in via `.claude/dso-config.conf`), AND
+- At least one task in the completed batch modified UI files (via `detect-ui-files.sh`), AND
+- The shared preconditions pass (via `visual-eval-preconditions.sh --route-map-required`) <!-- # precondition-emit-ok -->
+
+Implementation: `${CLAUDE_PLUGIN_ROOT}/scripts/sprint/visual-eval-post-batch.sh` (called at Phase F Step 12a).
 
 ### Token-Budget Guard
 
