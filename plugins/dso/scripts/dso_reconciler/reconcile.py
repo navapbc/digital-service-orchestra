@@ -263,7 +263,9 @@ def route_inbound_probe(mutation: Any, probe_result: Any) -> list[Any] | None:
     return None
 
 
-def reconcile_once(pass_id: str, repo_root: Path | None = None) -> dict:
+def reconcile_once(
+    pass_id: str, repo_root: Path | None = None, target_mode=None
+) -> dict:
     """Run one reconciler pass: fetch → diff → apply.
 
     Reads the previous snapshot (written at the end of the prior pass) from
@@ -418,34 +420,29 @@ def reconcile_once(pass_id: str, repo_root: Path | None = None) -> dict:
     # failure_kind set). Without this wrapping, failed passes were invisible
     # to monitoring.
     #
-    # Direction-aware dispatch (meta-bug 5f2a-9a9f-2b4a-4aab partial fix):
-    # The differ now emits typed Mutation objects for all directions
-    # (inbound and outbound). The legacy applier.apply() batch path only
-    # handles outbound dict-shaped mutations and raises TypeError on inbound
-    # typed Mutations. Split the list:
-    #   - Typed Mutation objects (have both .direction and .action) → dispatch
-    #     per-mutation via _dispatch_mutation (direction-aware).
-    #   - Legacy dict-shaped mutations → route through applier.apply()
-    #     (legacy batch path, outbound only).
-    # After all typed mutations are dispatched, call applier.apply() with
-    # the remaining legacy dicts (or an empty list) to write the manifest
-    # file that reconcile_once returns via manifest_path.
-    def _is_typed_mutation(m: Any) -> bool:
-        return hasattr(m, "direction") and hasattr(m, "action")
-
-    typed_mutations = [m for m in mutations if _is_typed_mutation(m)]
-    legacy_mutations = [m for m in mutations if not _is_typed_mutation(m)]
-
+    # Direction-aware dispatch lives inside applier.apply (PR #371 / defect
+    # #8): the applier partitions typed Mutations by direction internally and
+    # routes inbound via _apply_typed per-mutation, outbound via the batch
+    # path. The previous reconcile_once-level typed/legacy split (commit
+    # cb858e468d) was a parallel workaround for the same gap; with cap
+    # enforcement landing in applier.apply (story 286b), all mutations must
+    # flow through that single entry point so caps apply uniformly across
+    # both directions. `_dispatch_mutation` is preserved as a public seam
+    # for tests/test_dispatch_coverage.py — it is no longer called from
+    # reconcile_once.
     manifest_path = None
     apply_exc: BaseException | None = None
     try:
-        # Dispatch typed Mutations per-mutation via the direction-aware table.
-        for _typed_mut in typed_mutations:
-            _dispatch_mutation(_typed_mut)
-        # Route remaining legacy dicts through the batch path (also writes
-        # the manifest file). Pass an empty list when all mutations were
-        # typed so the manifest is still written for downstream consumers.
-        manifest_path = applier.apply(legacy_mutations, pass_id, repo_root)
+        # Backward compatibility: tests stub applier.apply with a signature
+        # that does not accept the `mode` kwarg. Only pass it when caller
+        # actually supplied a target_mode (i.e., when cap enforcement is
+        # requested).
+        if target_mode is None:
+            manifest_path = applier.apply(mutations, pass_id, repo_root)
+        else:
+            manifest_path = applier.apply(
+                mutations, pass_id, repo_root, mode=target_mode
+            )
     except BaseException as exc:  # noqa: BLE001 — must re-raise after recording
         apply_exc = exc
         raise
