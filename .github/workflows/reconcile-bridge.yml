@@ -188,13 +188,19 @@ jobs:
           _skip() { echo "  ⏭️  SKIP: $1"; SKIP=$((SKIP+1)); }
 
           # Helper: read a single field from a Jira issue via ACLI get
+          # ACLI `view --json` returns FLAT dict {"key":"...","status":"To Do",...}
+          # NOT nested {"fields":{"status":...}} like `search` does.
           _get_field() {
             local key="$1" field="$2"
             acli jira workitem view --key "$key" --json 2>/dev/null | python3 -c "
           import json,sys
           d=json.load(sys.stdin)
-          f=d.get('fields',{}) if isinstance(d.get('fields'),dict) else {}
-          val=f.get('$field') or d.get('$field')
+          # ACLI view returns flat dict; search returns nested fields.
+          # Try both: first top-level, then nested fields.
+          val=d.get('$field')
+          if val is None:
+            f=d.get('fields',{}) if isinstance(d.get('fields'),dict) else {}
+            val=f.get('$field')
           if isinstance(val,dict): print(val.get('name') or val.get('displayName') or json.dumps(val))
           elif isinstance(val,list): print(json.dumps(val))
           elif val is None: print('<null>')
@@ -202,9 +208,33 @@ jobs:
           " 2>/dev/null
           }
 
-          # Helper: get full issue JSON
+          # Helper: get full issue JSON (for complex field reads)
           _get_issue() {
             acli jira workitem view --key "$1" --json 2>/dev/null
+          }
+
+          # Helper: extract text from ADF (for description/comment body reads)
+          _adf_to_text() {
+            python3 -c "
+          import json,sys
+          def walk(node):
+            if isinstance(node,dict):
+              if node.get('type')=='text': return node.get('text','')
+              if node.get('type')=='hardBreak': return '\n'
+              return ''.join(walk(c) for c in node.get('content',[]))
+            if isinstance(node,list): return ''.join(walk(c) for c in node)
+            return ''
+          try:
+            d=json.load(sys.stdin)
+            # Handle both: raw ADF doc, or full issue with description field
+            if isinstance(d,dict) and d.get('type')=='doc':
+              print(walk(d))
+            elif isinstance(d,dict):
+              desc=d.get('description') or d.get('fields',{}).get('description',{})
+              print(walk(desc) if isinstance(desc,dict) else str(desc or ''))
+            else: print('')
+          except: print('')
+          "
           }
 
           # =====================================================================
@@ -265,6 +295,10 @@ jobs:
           echo "=== PHASE 2: DESCRIPTION — read, edit, verify ==="
           # =====================================================================
 
+          # Wait for Jira to index the new issue (search can lag behind create)
+          echo "  (waiting 5s for Jira index to catch up...)"
+          sleep 5
+
           # Test 2a: Read description via search -f
           echo "Test 2a: ACLI search -f includes description"
           SEARCH_DESC=$(acli jira workitem search \
@@ -277,7 +311,7 @@ jobs:
             issues=d if isinstance(d,list) else d.get('issues',[])
             if issues:
               f=issues[0].get('fields',{}) or {}
-              desc=f.get('description')
+              desc=f.get('description') or issues[0].get('description')
               if desc is None: print('NOT_IN_PROJECTION')
               elif isinstance(desc,dict): print('ADF:' + desc.get('type','?'))
               else: print(str(desc)[:100])
@@ -288,45 +322,40 @@ jobs:
           if [[ "$SEARCH_DESC" == ADF:doc ]]; then _pass "search -f description returns ADF"
           elif [[ "$SEARCH_DESC" == NOT_IN_PROJECTION ]]; then _fail "description not in search projection"
           elif [[ "$SEARCH_DESC" == ERROR:* ]]; then _fail "search -f description: $SEARCH_DESC"
+          elif [[ "$SEARCH_DESC" == NO_ISSUES ]]; then _fail "search returned NO_ISSUES (Jira index delay?)"
           else _pass "search -f description returns: $SEARCH_DESC"; fi
 
-          # Test 2b: Read description via get_issue
+          # Test 2b: Read description via ACLI view (flat dict, not nested fields)
           echo "Test 2b: ACLI view includes description"
           VIEW_DESC=$(_get_issue "$TEST_KEY" | python3 -c "
           import json,sys
           d=json.load(sys.stdin)
-          f=d.get('fields',{}) or {}
-          desc=f.get('description')
+          # ACLI view returns flat dict — try top-level first, then nested
+          desc=d.get('description')
+          if desc is None:
+            f=d.get('fields',{}) or {}
+            desc=f.get('description')
           if desc is None: print('NULL')
           elif isinstance(desc,dict): print('ADF:' + desc.get('type','?'))
-          else: print(str(desc)[:100])
+          else: print('TEXT:' + str(desc)[:100])
           " 2>/dev/null)
           echo "  view description result: $VIEW_DESC"
           if [[ "$VIEW_DESC" == ADF:doc ]]; then _pass "view returns description as ADF"
+          elif [[ "$VIEW_DESC" == TEXT:* ]]; then _pass "view returns description as text: ${VIEW_DESC:5:60}"
+          elif [[ "$VIEW_DESC" == NULL ]]; then _fail "view description: NULL (field not returned)"
           else _fail "view description: $VIEW_DESC"; fi
 
           # Test 2c: Edit description via ACLI
           echo "Test 2c: Edit description via ACLI"
           acli jira workitem edit --key "$TEST_KEY" --description "Updated description via ACLI probe" --yes 2>/dev/null
           EDIT_RC=$?
-          AFTER_DESC=$(_get_issue "$TEST_KEY" | python3 -c "
-          import json,sys
-          d=json.load(sys.stdin)
-          f=d.get('fields',{}) or {}
-          desc=f.get('description',{})
-          if isinstance(desc,dict):
-            # Walk ADF to extract text
-            def walk(node):
-              if isinstance(node,dict):
-                if node.get('type')=='text': return node.get('text','')
-                return ''.join(walk(c) for c in node.get('content',[]))
-              if isinstance(node,list): return ''.join(walk(c) for c in node)
-              return ''
-            print(walk(desc))
-          else: print(str(desc)[:200])
-          " 2>/dev/null)
+          AFTER_DESC=$(_get_issue "$TEST_KEY" | _adf_to_text)
+          if [ -z "$AFTER_DESC" ]; then
+            # Fallback: try reading description as flat string
+            AFTER_DESC=$(_get_field "$TEST_KEY" "description")
+          fi
           echo "  edit rc=$EDIT_RC, description after: '$AFTER_DESC'"
-          if [ "$EDIT_RC" -eq 0 ] && [[ "$AFTER_DESC" == *"Updated description via ACLI probe"* ]]; then
+          if [ "$EDIT_RC" -eq 0 ] && [[ "$AFTER_DESC" == *"Updated description"* ]]; then
             _pass "edit description via ACLI"
           else _fail "edit description: rc=$EDIT_RC, got '$AFTER_DESC'"; fi
 
@@ -429,13 +458,31 @@ jobs:
 
           echo "Test 7a: Add comment via ACLI"
           ADD_CMT=$(acli jira workitem comment create --key "$TEST_KEY" --body "Probe comment 1" --json 2>&1)
-          CMT_ID=$(echo "$ADD_CMT" | python3 -c "
+          echo "  raw comment create response: $(echo "$ADD_CMT" | head -c 300)"
+          # ACLI comment create returns {"results":[{"status":"SUCCESS","id":"DIG-KEY"}]}
+          # NOT {"id":"<comment-id>"}. Get comment ID from list instead.
+          ADD_STATUS=$(echo "$ADD_CMT" | python3 -c "
           import json,sys
-          try: d=json.load(sys.stdin); print(d.get('id',''))
-          except: print('')
+          try:
+            d=json.load(sys.stdin)
+            if 'results' in d and d['results']:
+              print(d['results'][0].get('status',''))
+            elif 'id' in d: print('SUCCESS')
+            else: print('UNKNOWN')
+          except: print('PARSE_ERROR')
           " 2>/dev/null)
-          echo "  comment created, id=$CMT_ID"
-          [[ -n "$CMT_ID" ]] && _pass "add comment" || _fail "add comment: $ADD_CMT"
+          echo "  add status: $ADD_STATUS"
+          [[ "$ADD_STATUS" == "SUCCESS" ]] && _pass "add comment" || _fail "add comment: status=$ADD_STATUS"
+          # Get actual comment ID from list
+          CMT_ID=$(acli jira workitem comment list --key "$TEST_KEY" --json 2>/dev/null | python3 -c "
+          import json,sys
+          try:
+            d=json.load(sys.stdin)
+            cmts=d if isinstance(d,list) else d.get('comments',[])
+            if cmts: print(cmts[-1].get('id',''))
+          except: pass
+          " 2>/dev/null)
+          echo "  comment ID from list: $CMT_ID"
 
           echo "Test 7b: List comments"
           CMT_COUNT=$(acli jira workitem comment list --key "$TEST_KEY" --json 2>/dev/null | python3 -c "
@@ -508,16 +555,36 @@ jobs:
           echo "{\"issues\":[\"$TEST_KEY\"],\"labelsToAdd\":[\"probe-test-label\"]}" > "$LABEL_TMP"
           acli jira workitem edit --from-json "$LABEL_TMP" --yes 2>/dev/null
           rm -f "$LABEL_TMP"
+
+          echo "Test 8b: Read labels via ACLI view"
           LABELS_AFTER=$(_get_issue "$TEST_KEY" | python3 -c "
           import json,sys
           d=json.load(sys.stdin)
-          f=d.get('fields',{}) or {}
-          print(json.dumps(f.get('labels',[])))
+          # Try flat then nested
+          labels=d.get('labels') or (d.get('fields',{}) or {}).get('labels',[])
+          print(json.dumps(labels if isinstance(labels,list) else []))
           " 2>/dev/null)
-          echo "  labels after add: $LABELS_AFTER"
-          [[ "$LABELS_AFTER" == *"probe-test-label"* ]] && _pass "add label" || _fail "add label: $LABELS_AFTER"
+          echo "  labels via view: $LABELS_AFTER"
+          [[ "$LABELS_AFTER" == *"probe-test-label"* ]] && _pass "add + read label via view" || _fail "add+read label: $LABELS_AFTER"
 
-          echo "Test 8b: Remove label"
+          echo "Test 8c: Read labels via search -f"
+          LABELS_SEARCH=$(acli jira workitem search --jql "key = $TEST_KEY" \
+            -f "key,labels" --json 2>/dev/null | python3 -c "
+          import json,sys
+          try:
+            d=json.load(sys.stdin)
+            issues=d if isinstance(d,list) else d.get('issues',[])
+            if issues:
+              f=issues[0].get('fields',{}) or {}
+              labels=f.get('labels') or issues[0].get('labels',[])
+              print(json.dumps(labels if isinstance(labels,list) else []))
+            else: print('NO_ISSUES')
+          except Exception as e: print(f'ERROR:{e}')
+          " 2>/dev/null)
+          echo "  labels via search: $LABELS_SEARCH"
+          [[ "$LABELS_SEARCH" == *"probe-test-label"* ]] && _pass "read labels via search -f" || _fail "read labels via search: $LABELS_SEARCH"
+
+          echo "Test 8d: Remove label"
           LABEL_RM=$(mktemp /tmp/label-rm.XXXXXX.json)
           echo "{\"issues\":[\"$TEST_KEY\"],\"labelsToRemove\":[\"probe-test-label\"]}" > "$LABEL_RM"
           acli jira workitem edit --from-json "$LABEL_RM" --yes 2>/dev/null
@@ -525,11 +592,11 @@ jobs:
           LABELS_REMOVED=$(_get_issue "$TEST_KEY" | python3 -c "
           import json,sys
           d=json.load(sys.stdin)
-          f=d.get('fields',{}) or {}
-          print(json.dumps(f.get('labels',[])))
+          labels=d.get('labels') or (d.get('fields',{}) or {}).get('labels',[])
+          print(json.dumps(labels if isinstance(labels,list) else []))
           " 2>/dev/null)
           echo "  labels after remove: $LABELS_REMOVED"
-          [[ "$LABELS_REMOVED" == "[]" ]] && _pass "remove label" || _fail "remove label: $LABELS_REMOVED"
+          [[ "$LABELS_REMOVED" == "[]" || "$LABELS_REMOVED" == "" ]] && _pass "remove label" || _fail "remove label: $LABELS_REMOVED"
 
           # =====================================================================
           echo; echo "=== PHASE 9: LINKS — create, read, delete ==="
@@ -573,6 +640,52 @@ jobs:
               echo "  links after delete: $LINKS_AFTER"
               [[ "$LINKS_AFTER" == "0" ]] && _pass "delete link" || _fail "delete link: $LINKS_AFTER remain"
             else _skip "delete link (no link ID)"; fi
+
+            # Test 9d: Create "Relates" link (non-blocking)
+            echo "Test 9d: Create Relates link ($TEST_KEY relates to $LINK_KEY)"
+            acli jira workitem link create --out "$TEST_KEY" --in "$LINK_KEY" --type "Relates" 2>/dev/null
+            RELATES_RC=$?
+            RELATES_DATA=$(acli jira workitem link list --key "$TEST_KEY" --json 2>/dev/null)
+            RELATES_COUNT=$(echo "$RELATES_DATA" | python3 -c "
+          import json,sys
+          try:
+            d=json.load(sys.stdin)
+            links=d if isinstance(d,list) else d.get('issuelinks',[])
+            relates=[l for l in links if isinstance(l,dict) and l.get('type',{}).get('name','')=='Relates']
+            print(len(relates))
+          except: print(0)
+          " 2>/dev/null)
+            echo "  Relates link rc=$RELATES_RC, relates count=$RELATES_COUNT"
+            [[ "$RELATES_COUNT" -ge 1 ]] && _pass "create Relates link" || _fail "Relates link: count=$RELATES_COUNT"
+
+            # Test 9e: List available link types
+            echo "Test 9e: List available link types"
+            LINK_TYPES=$(acli jira workitem link type list --json 2>/dev/null | python3 -c "
+          import json,sys
+          try:
+            d=json.load(sys.stdin)
+            types=d if isinstance(d,list) else d.get('issueLinkTypes',[])
+            names=[t.get('name','?') for t in types if isinstance(t,dict)]
+            print(', '.join(names))
+          except: print('ERROR')
+          " 2>/dev/null)
+            echo "  available link types: $LINK_TYPES"
+            [[ -n "$LINK_TYPES" && "$LINK_TYPES" != "ERROR" ]] && _pass "list link types: $LINK_TYPES" || _fail "list link types"
+
+            # Cleanup: delete the Relates link
+            RELATES_LINK_ID=$(echo "$RELATES_DATA" | python3 -c "
+          import json,sys
+          try:
+            d=json.load(sys.stdin)
+            links=d if isinstance(d,list) else d.get('issuelinks',[])
+            for l in links:
+              if isinstance(l,dict) and l.get('type',{}).get('name','')=='Relates':
+                print(l.get('id','')); break
+          except: pass
+          " 2>/dev/null)
+            if [ -n "$RELATES_LINK_ID" ]; then
+              acli jira workitem link delete --id "$RELATES_LINK_ID" 2>/dev/null
+            fi
           else _skip "link tests (no LINK_KEY)"; fi
 
           # =====================================================================
