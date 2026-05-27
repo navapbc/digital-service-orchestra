@@ -37,7 +37,7 @@ dispatching (matching the canonical lifecycle in preplanning SKILL.md lines
    **If `.claude/design-notes.md` exists** (content captured in step 1):
    ```json
    {
-     "version": 1,
+     "version": 2,
      "epicId": "<epic-id>",
      "createdAt": "<ISO-8601 timestamp>",
      "designNotes": {
@@ -52,7 +52,7 @@ dispatching (matching the canonical lifecycle in preplanning SKILL.md lines
    **If `.claude/design-notes.md` is missing**:
    ```json
    {
-     "version": 1,
+     "version": 2,
      "epicId": "<epic-id>",
      "createdAt": "<ISO-8601 timestamp>",
      "designNotes": {

@@ -93,7 +93,7 @@ if [[ ! -f "$DESIGN_NOTES_PATH" ]]; then
 fi
 
 # ── Resolve pinned version ────────────────────────────────────────────────────
-DESIGN_MD_VERSION="${DESIGN_MD_VERSION:-0.0.38}"
+DESIGN_MD_VERSION="${DESIGN_MD_VERSION:-0.2.0}"
 
 # ── Get staged files ──────────────────────────────────────────────────────────
 STAGED_FILES=$(git diff --cached --name-only 2>/dev/null || true)
