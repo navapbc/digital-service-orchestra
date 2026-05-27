@@ -215,6 +215,31 @@ jobs:
               print(f'  {n:6d}  {a}  [sample: {sample}{extra}]')
           "
           echo
+          echo "=== Probe 0b: FULL detail on non-standard assignees ==="
+          acli jira workitem search --jql "project = ${PROJ} AND assignee IS NOT EMPTY AND assignee NOT IN ('712020:6471376f-4e5e-4ed2-8c05-330827bc387e')" --paginate --json \
+            | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          issues = data if isinstance(data, list) else data.get('issues', [])
+          print(f'non-standard assignee issues: {len(issues)}')
+          for i in issues:
+              key = i.get('key', '?')
+              fields = i.get('fields', {}) if isinstance(i.get('fields'), dict) else {}
+              summary = fields.get('summary') or '?'
+              status_obj = fields.get('status') or {}
+              status = status_obj.get('name') if isinstance(status_obj, dict) else status_obj
+              issuetype_obj = fields.get('issuetype') or {}
+              issuetype = issuetype_obj.get('name') if isinstance(issuetype_obj, dict) else issuetype_obj
+              priority_obj = fields.get('priority') or {}
+              priority = priority_obj.get('name') if isinstance(priority_obj, dict) else priority_obj
+              assignee_obj = fields.get('assignee') or {}
+              a_name = assignee_obj.get('displayName', '?') if isinstance(assignee_obj, dict) else assignee_obj
+              a_id = assignee_obj.get('accountId', '?') if isinstance(assignee_obj, dict) else '?'
+              a_email = assignee_obj.get('emailAddress', '?') if isinstance(assignee_obj, dict) else '?'
+              print(f'  {key:12s} | type={issuetype} | status={status} | pri={priority} | assignee={a_name} (id:{a_id}, email:{a_email})')
+              print(f'               | summary={summary[:100]}')
+          "
+          echo
           echo "=== Probe 1: distinct statuses in project ${PROJ} ==="
           acli jira workitem search --jql "project = ${PROJ}" --paginate --json \
             | python3 -c "
