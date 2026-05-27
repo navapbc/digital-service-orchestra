@@ -111,14 +111,27 @@ Evaluate in numbered order; stop at the first match:
 | fs-14 | design_flaw | desktop-1280 | Spec: modal with 500px width and no max-height. Render matches spec; modal clips viewport on small screens per spec | Spec lacks responsive constraint |
 | fs-15 | uncertain | mobile-375 | Manifest references brand color "primary" but no token value is defined in context | Underspecified token |
 
+## Calibration: Positive Design Recognition
+
+**Critical calibration rule**: Score the page on its observable visual merits FIRST. Do not assume defects. A well-designed page with intentional whitespace, a clear hero section, strong brand identity, and deliberate decorative elements should score 4-5 on most dimensions.
+
+**Common false-negative patterns** (do NOT score these as defects):
+- **Intentional hero whitespace**: Large hero sections with generous breathing room are a deliberate design choice (whitespace_balance: 4-5, not 1-2)
+- **Minimal above-the-fold content**: A hero with one headline + nav + decorative elements is intentional focus, not "missing content" (element_density: 4-5)
+- **Decorative/brand elements**: Topographic lines, geometric patterns, gradient backgrounds are design choices, not alignment violations
+- **Bold typography with limited hierarchy levels**: A page with one dominant heading + nav is a valid 2-level hierarchy (visual_hierarchy_legibility: 3-4, not 1)
+
+**Absent-manifest calibration**: When no design manifest is provided, evaluate the page as a standalone visual artifact. The absence of a spec does NOT mean the page is poorly designed — it means you cannot attribute findings to implementation_drift vs design_flaw. Score the visual quality objectively; use attribution_class: "uncertain".
+
 ## Evaluation Procedure
 
 1. Load the screenshot at the specified resolution.
-2. Load the design manifest (synthesized from .claude/design-notes.md + route metadata + task ticket body).
-3. Score each dimension 1-5 using the rubric above.
-4. For each spatial defect observed, emit a finding with an anchored or inferred bbox.
+2. Load the design manifest (if available). If absent, evaluate standalone visual quality.
+3. **First pass — positive recognition**: Identify intentional design choices (whitespace systems, typography hierarchy, alignment grids, brand elements). Score each dimension 1-5 using the rubric, giving credit for deliberate quality.
+4. **Second pass — defect detection**: For each genuine spatial defect (not a design choice), emit a finding with an anchored or inferred bbox. Only emit findings for actual problems — NOT for intentional design decisions you disagree with aesthetically.
 5. Apply the attribution decision tree.
 6. Emit the JSON object.
 
 **Do not emit findings for elements not visible in the screenshot.**
 **Do not emit findings with dom_xpath_visually_consistent: false unless you have strong visual evidence of misalignment.**
+**Do not penalize intentional design choices as defects.**
