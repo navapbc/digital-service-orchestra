@@ -23,7 +23,7 @@ Scores follow the shared 1–5 scale defined in `skills/shared/reviewers/SCORING
 ## Input Sections
 
 You will receive:
-- **Design Notes**: The project's .claude/design-notes.md — pay close attention to
+- **Design Notes**: The project's `DESIGN.md` (path configurable via `design.design_notes_path`) — pay close attention to
   the User Archetypes, Anti-Patterns, Visual Tokens, Interaction Patterns,
   and Terminology/Vocabulary sections
 - **Story**: ID, title, description, and acceptance criteria — use this to
