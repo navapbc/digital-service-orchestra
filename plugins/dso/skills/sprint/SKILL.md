@@ -2816,7 +2816,7 @@ Read and execute `prompts/epic-ci-and-e2e-gates.md` for the integration test gat
 
 <!-- DD4: self-application validation deferred to S11 (684d-ed77-c6ce-442b) -->
 
-**MANDATORY**: Dispatch the completion-verifier using the same shape defined in Phase F Step 18's "Verifier dispatch shape" HARD-GATE — primary form uses `subagent_type: "dso:completion-verifier"` with `model: "sonnet"`; fallback form reads `agents/completion-verifier.md` verbatim and passes its full contents under `subagent_type: "general-purpose"`. Hand-written paraphrases of the agent file are CLAUDE.md `rule:dispatch-verifier` violations (bug c716-952a). Pass the epic ID instead of a story ID.
+**MANDATORY**: Dispatch the completion-verifier using the same shape defined in Phase F Step 18's "Verifier dispatch shape" HARD-GATE — primary form uses `subagent_type: "dso:completion-verifier"` with `model: "opus"` (epic-level verification requires deeper judgment than story-level); fallback form reads `agents/completion-verifier.md` verbatim and passes its full contents under `subagent_type: "general-purpose"` with `model: "opus"`. Hand-written paraphrases of the agent file are CLAUDE.md `rule:dispatch-verifier` violations (bug c716-952a). Pass the epic ID instead of a story ID.
 
 After receiving the verifier JSON output, render the closure narrative FIRST, then run the gate checks:
 
