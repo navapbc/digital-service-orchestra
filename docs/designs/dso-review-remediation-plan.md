@@ -1,55 +1,18 @@
-# DSO Review Remediation Plan — F-01, F-02, F-05, F-06, F-08
+# DSO Review Remediation Plan — F-02, F-05, F-06, F-08
 
-Plan to implement five findings from the static review of the DSO agentic
-workflow plugin. **Revised** to reflect ground-truth understanding of the
-actual sprint branch hierarchy, opus-subagent review feedback, and
-duplication/gap analysis of the multi-PR review topology.
+Plan to implement four findings from the static review of the DSO agentic
+workflow plugin. **F-01 (ci-pr enforcement) has been dropped from this
+plan** — the live two-grain review topology (`review-sub-pr.yml` for
+sub-branch PRs + `ci.yml`'s `llm-review` for session→main) plus the in-
+flight sub-pr-cutover migration framework
+(`docs/migration-exemptions/sub-pr-cutover.jsonl`, `migration-grace`
+label, `promote-ruleset-required.sh`) make F-01 too complex to specify
+correctly without a workflow-architect-in-the-loop. Repeated review
+passes surfaced repeated misreadings of the live behavior. F-01 work
+should be planned by a human with full context of the cutover migration.
 
-## Ground truth: the actual ci-pr branch topology
-
-Verified by reading `plugins/dso/scripts/worktree-create.sh:124`,
-`plugins/dso/scripts/create-sprint-draft-pr.sh`,
-`plugins/dso/skills/sprint/SKILL.md:1750–1761,2498–2552`,
-`plugins/dso/scripts/check-ruleset-preflight.sh`, and the actual merge
-history on `main`.
-
-```
-worktree-agent-<task-id>          per-task sub-agent worktree branch
-     │
-     └→ PR base=worktree-YYYYMMDD-HHMMSS  (Phase F Step 5 harvest, ci-pr mode)
-                ▼
-worktree-YYYYMMDD-HHMMSS          THE session branch (default name)
-     │
-     ├→ story/<epic>/<story>     Phase E logical container; in worktree-
-     │                            isolation mode the Phase F Step 18 PR is
-     │                            no-diff (file movement happened in Step 5)
-     │
-     └→ long-lived draft PR base=main  (Phase A)
-                ▼
-              main
-```
-
-Three naming mismatches in the current infrastructure:
-
-1. `INSTALL.md:136` documents the Ruleset pattern as `session-*`;
-   `INSTALL.md:159` documents it as `refs/heads/session/*`. The two
-   patterns differ (`-` vs `/`).
-2. The Ruleset preflight (`check-ruleset-preflight.sh:142–146`) accepts
-   `session-*`, `session/*`, and the `refs/heads/` variants — but
-   **none** of these match the actual session branch name pattern
-   `worktree-YYYYMMDD-HHMMSS` produced by `worktree-create.sh:124`.
-3. `ci.yml:362–364` gates `llm-review` on `base_ref == 'main'`. The
-   per-task harvest PR (head=`worktree-agent-*`, base=`worktree-*`)
-   does not trigger this job; the session→main PR (head=`worktree-*`,
-   base=`main`) does.
-
-**Implication for the safety case:** every commit that reaches `main`
-does so via the Phase A long-lived draft PR (head=`worktree-*`,
-base=`main`). That PR triggers `llm-review` today. The KNOWN GAP cited
-in `INSTALL.md:141` is real, but it describes the absence of *per-sub-
-branch* review, not a path by which code reaches `main` without review.
-The plan's prior framing of F-01 as "code-to-main without review"
-overstated this.
+The four remaining findings are mechanically bounded, do not touch the
+sprint orchestrator's complex routing, and are independently testable.
 
 ## Scope
 
@@ -59,19 +22,19 @@ overstated this.
 | F-06 | `tickets.directory` honored only partially in merge logic              | Medium       | 1–2 hr       |
 | F-05 | Hard-coded `main` across merge/PR scripts                              | Medium       | ½–1 day      |
 | F-02 | Safety-critical content gates fail open on parse/timeout/hash error    | High         | 1.5–2 days   |
-| F-01 | ci-pr enforcement design vs. actual branch naming                      | High (was Critical) | 2–4 days |
 
-Out of scope (tracked separately): F-03 (`SPRINT_SESSION_ID` singleton),
-F-04 (orchestration typing), F-07 (telemetry auth).
+Out of scope (tracked separately): F-01 (ci-pr enforcement), F-03
+(`SPRINT_SESSION_ID` singleton), F-04 (orchestration typing), F-07
+(telemetry auth).
 
 ---
 
 ## F-08 — Remove stale "skeleton" headers; add stale-term lint
 
 ### Problem
-`plugins/dso/scripts/merge-to-main-pr.sh:2,10,13–15,14,666` calls itself
-a "skeleton implementation" / "placeholder" while containing 2,756 lines
-of production PR-mode logic. The same vocabulary appears in
+`plugins/dso/scripts/merge-to-main-pr.sh:2,10,13–15,666` calls itself a
+"skeleton implementation" / "placeholder" while containing 2,756 lines of
+production PR-mode logic. The same vocabulary appears in
 `plugins/dso/scripts/recipe-executor.sh:130,166` and in at least one
 Python file (`figma_node_mapper.py:86`). Agents read source comments as
 execution guidance.
@@ -175,43 +138,56 @@ merge/PR scripts only.
 
 ### Steps
 1. **Create resolver** `plugins/dso/scripts/resolve-default-branch.sh`
-   with this precedence (corrected from the prior draft per opus review):
+   with this precedence:
    1. Config: `dso.default_branch` (if explicitly set).
    2. **`git symbolic-ref --short refs/remotes/origin/HEAD`** (local,
       no network, no auth — preferred over remote calls).
    3. `gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`
       (remote, only if `gh` is authenticated).
    4. Final fallback `main` with a stderr warning.
-   - Cache the resolved value in `.git/dso-default-branch` (process-
-     local within a worktree); skip resolution on subsequent calls
-     within the same merge run.
+   - **Cache invalidation rule:** cache the resolved value in
+     `.git/dso-default-branch`, but invalidate at the start of each
+     `merge-to-main.sh` invocation (write a fresh value during the
+     dispatcher's setup phase). Do NOT cache across separate
+     merge-to-main runs — the default branch could be renamed
+     upstream between sprint phases.
    - Document the config key in `CONFIGURATION-REFERENCE.md`.
 2. **Replace literals** in `create-sprint-draft-pr.sh`,
    `merge-to-main-pr.sh`, `merge-to-main-direct.sh`,
    `merge-to-main.sh`, and helpers. Each script sources the resolver
    once at the top and substitutes the captured variable (e.g.,
    `_DEFAULT_BRANCH`). Replace both `main` and `origin/main`.
-3. **Direct-merge assertion safety (corrected from prior draft per opus
-   blocking #4):** keep the literal-`main` fast path in
-   `merge-to-main-direct.sh:376–380`. Only consult the resolver when
-   the host has explicitly opted in by setting `dso.default_branch` to a
-   non-default value. Rationale: the direct-merge assertion is a safety
-   invariant guarding against accidentally merging into a feature
-   branch. Tying it to a resolver whose precedence reads from the same
-   config file that a compromised host could write to weakens that
-   invariant. The opt-in keeps the safety strong for the common case
-   (host on `main`) and adds explicit responsibility for non-`main`
-   hosts.
-4. **Tests:**
+3. **Direct-merge assertion safety:** keep the literal-`main`
+   fast-path in `merge-to-main-direct.sh:376–380`. Only consult the
+   resolver when the host has explicitly opted in by setting
+   `dso.default_branch` to a non-default value. Rationale: the
+   direct-merge assertion is a safety invariant guarding against
+   accidentally merging into a feature branch. Tying it to a resolver
+   whose precedence reads from the same config file that a
+   compromised host could write to weakens that invariant. The
+   opt-in keeps the safety strong for the common case (host on `main`)
+   and adds explicit responsibility for non-`main` hosts.
+4. **Failure-mode message:** when `dso.default_branch` is unset AND
+   the resolver returns something other than `main`, the direct-merge
+   path must emit a clear actionable error:
+   `Direct merge refused: detected default branch '<X>' but
+   dso.default_branch is not set. Set dso.default_branch=<X> in
+   .claude/dso-config.conf to authorize merges into this branch, or
+   use ci-pr mode.` This prevents a silent halt on non-`main` hosts
+   without weakening the safety invariant.
+5. **Tests:**
    - Unit test for the resolver covering all four precedence steps
      (fake `gh`, fake symbolic-ref, fake config).
+   - Cache-invalidation test: pre-populate `.git/dso-default-branch`
+     with a stale value; assert the next `merge-to-main.sh` invocation
+     overwrites it.
    - Integration test on a fixture repo whose default branch is
      `trunk`: with `dso.default_branch=trunk` set, run a dry-run
      `merge-to-main-pr.sh` and assert PR base is `trunk` and revision
      range is `trunk..HEAD`.
    - Negative test: with `dso.default_branch` **unset** and the
      repository's default branch resolving to `trunk`, the direct-
-     merge assertion still requires `main` (the safe fast-path) — the
+     merge assertion still refuses with the message in Step 4 — the
      resolver does not weaken the assertion silently.
 
 ### Acceptance
@@ -219,11 +195,16 @@ merge/PR scripts only.
   plugins/dso/scripts/create-sprint-draft-pr.sh` returns matches only
   in comments and in the literal-string fallback in the resolver.
 - Both trunk-fixture tests pass.
+- Cache-invalidation test passes.
 - Existing test suite is green.
 
 ### Risk
-Medium. Mitigated by the opt-in for the direct-merge assertion and by
-the cached fast-path on subsequent calls.
+Medium. Mitigated by:
+- The opt-in for the direct-merge assertion (no silent regression
+  for `main`-default hosts).
+- The cache-invalidation rule (no stale-default-branch class of bugs).
+- The explicit failure message (operators on non-`main` hosts get a
+  clear action, not a silent halt).
 
 ---
 
@@ -262,25 +243,21 @@ Document in `plugins/dso/docs/HOOKS-REFERENCE.md`:
 | `plugins/dso/hooks/lib/dispatcher.sh:55–62` | non-2 exits → allow | **B** unchanged |
 | `plugins/dso/hooks/lib/hook-error-handler.sh:131` | always exit 0 after logging | **B** unchanged |
 | `plugins/dso/hooks/pre-commit-test-gate.sh:47–60` | timeout (SIGTERM/SIGURG) → exit 0 | **A** flip to fail-closed |
-| `plugins/dso/hooks/pre-commit-review-gate.sh:~469–474` (line corrected per opus review) | empty `CURRENT_HASH` → exit 0 | **A** flip to fail-closed |
-| `plugins/dso/hooks/pre-commit-review-gate.sh:~489–491` (added per opus review) | self-heal rehash failure → exit 0 | **A** flip to fail-closed |
+| `plugins/dso/hooks/pre-commit-review-gate.sh:~469–474` | empty `CURRENT_HASH` → exit 0 | **A** flip to fail-closed |
+| `plugins/dso/hooks/pre-commit-review-gate.sh:~489–491` | self-heal rehash failure → exit 0 | **A** flip to fail-closed |
 | `plugins/dso/skills/sprint/SKILL.md:458–461` (haiku SC gate) | parse failure → log + proceed | **C** with `GATE_UNAVAILABLE` emission |
 | `plugins/dso/skills/sprint/SKILL.md:518` (sonnet SC gate) | parse failure → escalate to opus | **C** with `GATE_UNAVAILABLE` emission |
 | `plugins/dso/skills/sprint/SKILL.md:576` (opus SC gate) | parse failure → treat ALL as MISSING | **C** with `GATE_UNAVAILABLE` emission |
 
-**SC coverage gates resolved as Tier C (corrected from prior draft per
-opus blocking #3):** the three SC gates implement deliberate
-asymmetric fall-through (haiku → skip-to-sonnet, sonnet →
-escalate-to-opus, opus → conservative-MISSING). The design note at
-`sprint/SKILL.md:578` documents this as intentional graceful
-degradation, not as an oversight. Promoting them to Tier A blocking
-would halt Phase B entry on transient parse flakes — a high-cost
-regression in a model-driven pipeline. The correct remediation is
-**preserve the existing asymmetric fall-through** but add explicit
-`GATE_UNAVAILABLE` emission so the verdict is machine-readable
-downstream. The orchestrator may choose to act on accumulated
-`GATE_UNAVAILABLE` events (e.g., three in a row → halt and surface to
-operator).
+**SC coverage gates are Tier C, not Tier A.** The three SC gates
+implement deliberate asymmetric fall-through (haiku → skip-to-sonnet,
+sonnet → escalate-to-opus, opus → conservative-MISSING). The design
+note at `sprint/SKILL.md:578` documents this as intentional graceful
+degradation. Promoting them to Tier A blocking would halt Phase B
+entry on transient parse flakes — a high-cost regression in a model-
+driven pipeline. The correct remediation is **preserve the existing
+asymmetric fall-through** but add explicit `GATE_UNAVAILABLE`
+emission so the verdict is machine-readable downstream.
 
 ### Steps
 
@@ -289,8 +266,9 @@ operator).
      audit record to `$HOME/.claude/logs/dso-gate-unavailable.jsonl`
      AND an event-log entry. Audit record fields:
      `timestamp`, `gate_name`, `reason`, `session_id`,
-     `ticket_id`, `actor`. Returns exit code 2 for Tier A callers; for
-     Tier C callers, returns 0 (the event-log entry is the signal).
+     `ticket_id`, `actor`. Returns exit code 2 for Tier A callers;
+     for Tier C callers, returns 0 (the event-log entry is the
+     signal).
    - `_dso_gate_bypass_active <gate_name>` — returns 0 only when both
      `DSO_GATE_BYPASS_<NAME>=1` and a non-empty
      `DSO_GATE_BYPASS_<NAME>_REASON` are set; emits an audit record
@@ -316,16 +294,31 @@ operator).
    - **Preserve** the asymmetric fall-through (haiku→sonnet,
      sonnet→opus, opus→treat-as-MISSING). The event emission is
      additive, not a behavior change.
-   - In Phase B Step 1, add a check for accumulated
-     `GATE_UNAVAILABLE` events for SC gates within the current epic.
-     If three or more are present without an intervening successful
-     SC verdict, halt and surface to operator. This is the
-     orchestrator-level brake; per-gate behavior remains the existing
-     graceful degradation.
-4. **Dispatcher and wrapper unchanged.** Add a header comment to each
+4. **Orchestrator-level three-strikes brake (scoped per opus review):**
+   - In Phase B Step 1, before reading SC verdicts, scan the event
+     log for `GATE_UNAVAILABLE` events scoped to the current epic.
+   - **Counter scope:** per-gate-tier, NOT aggregated across the
+     three tiers. So three consecutive haiku failures could trigger
+     a halt; three failures spread across haiku/sonnet/opus would not.
+   - **Reset on success:** the counter for a tier resets when ANY
+     successful verdict from that tier is recorded in the event log
+     for the current epic. The brake does not accumulate stale
+     counts across re-runs of the same gate within an epic.
+   - **Halt condition:** three consecutive failures of the same tier
+     within the current epic, with no intervening success. On halt,
+     surface a precise message naming the tier and the three reason
+     strings; suggest re-running with the existing bypass envelope
+     once the underlying parse issue is fixed.
+   - **Rationale for per-tier scoping:** a partial Anthropic API
+     outage (a real failure mode worth designing for) could degrade
+     all three tiers simultaneously. An aggregated three-strikes
+     counter would halt on a single API outage. Per-tier scoping
+     means the halt only fires when a specific tier is persistently
+     broken, not when there's a transient cross-tier blip.
+5. **Dispatcher and wrapper unchanged.** Add a header comment to each
    Tier B file naming the contract and pointing to
    `gate-unavailable.sh` for hooks that need Tier A behavior.
-5. **Drift detection (added per opus significant #9):**
+6. **Drift detection:**
    - Each hook script declares its tier in the header:
      `# DSO-GATE-TIER: A|B|C`.
    - A pre-commit lint asserts every script in `plugins/dso/hooks/**`
@@ -334,12 +327,12 @@ operator).
      header-declared Tier A site contains at least one call to
      `_dso_gate_unavailable` in an error path — detected by structural
      scan, not regex (use `bash -n` parse + walk).
-6. **No staging flag (corrected from prior draft per opus significant
-   #6).** Drop the `hooks.tier_a_fail_closed` default-false flag idea —
-   shipping a doctrine document with disabled code is the failure mode
-   the brief warned against. Each Tier A site is converted in a single
-   commit with the bypass env vars available from day one. Operators
-   needing to keep a specific gate permissive use the per-gate bypass.
+7. **No staging flag.** Drop the `hooks.tier_a_fail_closed`
+   default-false flag idea — shipping a doctrine document with
+   disabled code is the failure mode the brief warned against. Each
+   Tier A site is converted in a single commit with the bypass env
+   vars available from day one. Operators needing to keep a specific
+   gate permissive use the per-gate bypass.
 
 ### Tests
 - Unit tests for `_dso_gate_unavailable` and
@@ -353,8 +346,14 @@ operator).
     → commit blocked, audit + event written.
 - Tier C SC gate test: inject malformed JSON in haiku stub → existing
   fall-through behavior preserved AND `GATE_UNAVAILABLE` event is
-  emitted; Phase B continues to sonnet; third consecutive event in
-  the epic halts the orchestrator.
+  emitted; Phase B continues to sonnet; third consecutive haiku event
+  in the same epic halts the orchestrator with a precise message;
+  a successful haiku verdict between failures resets the counter.
+- **Cross-tier outage test:** inject malformed JSON in haiku stub,
+  then in sonnet stub, then in opus stub (all within the same epic,
+  no successful intervening verdicts) → orchestrator does NOT halt
+  (failures are not aggregated across tiers); but the operator-
+  visible event log surfaces three `GATE_UNAVAILABLE` entries.
 - Bypass test per Tier A site: with both env vars set, gate is
   bypassed with audit; without the reason, bypass is rejected.
 
@@ -366,264 +365,19 @@ operator).
 - Tier B sites are unchanged.
 - Drift-detection tests pass and would fail if a Tier A site reverted
   to silent fail-open.
+- Three-strikes brake is per-gate-tier, resets on success, does not
+  fire on cross-tier API outages.
 
 ### Risk
-Medium. Mitigated by per-gate bypass env vars and by Tier C SC gates
-preserving the existing degradation behavior (no Phase B halt
-regression).
+Medium. Mitigated by:
+- Per-gate bypass env vars for Tier A sites.
+- Tier C SC gates preserving existing degradation behavior (no Phase B
+  halt regression on transient flakes).
+- Per-tier three-strikes scoping (no API-outage halt regression).
 
 ---
 
-## F-01 — ci-pr enforcement: resolve the naming mismatch, then close real gaps
-
-### Problem (revised based on ground truth)
-
-The original review framed F-01 as "code can reach main without
-review." Verified topology shows that is **not** the failure mode
-today: every commit on `main` arrives via the Phase A long-lived
-session→main PR (head=`worktree-*`, base=`main`), which triggers
-`ci.yml`'s `llm-review` job. The actual situation is two adjacent
-problems:
-
-- **(P1) Documentation-vs-implementation naming drift.** The
-  documented session-branch protection mechanism is configured for
-  `session-*`/`session/*` patterns (`INSTALL.md:136,159`,
-  `check-ruleset-preflight.sh:142–146`), but the actual session
-  branches are `worktree-YYYYMMDD-HHMMSS`
-  (`worktree-create.sh:124`). The Ruleset, when created per
-  `INSTALL.md`, is **inert** — it matches no actual branches. The
-  preflight reports OK even though no enforcement is active.
-- **(P2) Per-sub-branch PR review absent.** Per-task harvest PRs
-  (head=`worktree-agent-*`, base=`worktree-*`) and any non-no-diff
-  story PRs (head=`story/*`, base=`worktree-*`) do not currently
-  trigger `llm-review` (`ci.yml:362`: `base_ref == 'main'`).
-  Aggregate review at session→main does fire, so this is a
-  granularity gap, not a main-safety gap.
-
-The plan must resolve P1 before claiming to fix anything in P2.
-Otherwise widening the `ci.yml` trigger to `session-*` adds a check
-context on PRs that don't exist (still `worktree-*`), and the inert
-Ruleset stays inert.
-
-### Step 1 — resolve the naming inconsistency (P1, foundational)
-
-Decide between two paths and execute one:
-
-**Path A — align infrastructure to actual branches.** Update
-`INSTALL.md:136`, `INSTALL.md:159`, and
-`check-ruleset-preflight.sh:142–146` to use `worktree-*` (and/or
-`worktree-agent-*`) patterns. This is the lower-cost path because the
-branch naming is already established and stable across the codebase.
-
-**Path B — align actual branches to documented names.** Rename
-`worktree-YYYYMMDD-HHMMSS` to `session-YYYYMMDD-HHMMSS` (and
-`worktree-agent-*` to `session-agent-*` if per-task PRs are kept).
-Requires updating `worktree-create.sh:124`, the `worktree-` regex in
-several scripts (e.g., `review-defense-store.sh:664–669`,
-`harvest-worktree.sh`), and the related test fixtures. Higher cost
-but achieves nominal alignment with "session" terminology.
-
-**Recommendation: Path A** because (a) `worktree-` is the established
-identifier across helper scripts and tests; (b) renaming the live
-worktree convention is a broad-blast-radius change that touches
-session resolution, leakage detection, attribution paths, and several
-fixture trees; (c) the `session-` documentation is the artifact that
-hasn't kept pace with implementation reality.
-
-Implementation:
-1. Update `INSTALL.md:111–142` (UI Ruleset section) to specify
-   pattern `worktree-*`. Add a parallel example for
-   `worktree-agent-*` if Step 3 decides per-task review is desired.
-2. Update `INSTALL.md:159` (gh CLI Ruleset spec) to use
-   `refs/heads/worktree-*`.
-3. Update `check-ruleset-preflight.sh:142–146` `fixed` set to
-   `{"refs/heads/worktree-*", "worktree-*",
-   "refs/heads/worktree/*", "worktree/*"}`. Update
-   `_matches_session` helper name and contents accordingly.
-4. Update `CONFIGURATION-REFERENCE.md` for `dso.review.check_name`
-   (line 954) to reference `worktree-*` Rulesets, not `session-*`.
-5. Update the KNOWN GAP wording at `INSTALL.md:141` to reflect the
-   real state (per-sub-branch review is absent; main safety is
-   intact).
-
-### Step 2 — close the check-name mismatch (opus blocking #2)
-
-`ci.yml:362` names the job `llm-review`.
-`CONFIGURATION-REFERENCE.md:949–954` documents
-`dso.review.check_name` defaulting to `Sprint Story Review`. If the
-operator keeps the default and configures the Ruleset to require
-`Sprint Story Review`, the actual check context produced by the job
-(`llm-review`) does not satisfy the requirement — the required-check
-context succeeds vacuously even after the job runs.
-
-Decide between three paths and execute one:
-
-**Path A — rename the job.** Change the job name from `llm-review` to
-`Sprint Story Review` in `.github/workflows/ci.yml:362`. Update any
-downstream references to the job name. Lowest implementation cost;
-the check context published by GitHub Actions is the job name by
-default.
-
-**Path B — add an explicit status post step.** Keep the job named
-`llm-review` and add a final step that posts a commit status under
-the configured `dso.review.check_name` name via `gh api`.
-Higher cost; gives operators a config-driven check name.
-
-**Path C — remove the config knob.** Change
-`CONFIGURATION-REFERENCE.md` to remove the `dso.review.check_name`
-config key (or document it as informational only); adopt `llm-review`
-as the canonical name. Update `check-ruleset-preflight.sh` default
-accordingly.
-
-**Recommendation: Path A** (rename job to `Sprint Story Review`).
-The config knob exists today but its only sensible value is the one
-the job already publishes. Path A makes the documented default
-actually work without adding a status-post layer.
-
-### Step 3 — decide on per-sub-branch review (P2)
-
-Two sub-decisions:
-
-**3a — Are per-task harvest PRs (`worktree-agent-* → worktree-*`)
-required to be reviewed?**
-
-The aggregate session→main review fires today and reviews everything
-that lands on main. Adding per-task review would:
-- Multiply llm-review runs by N (one per task). Deep-tier opus runs
-  are expensive.
-- Create verdict-divergence risk: a hunk flagged at story-grain may
-  be unflagged at session-grain (the per-task reviewer has narrower
-  context). If the per-task verdict is "needs changes" and the
-  session-grain verdict is "approved," is the hunk approved or not?
-  Today's single-grain review has no such question.
-
-**Recommendation: do NOT widen `ci.yml:362` to include
-`base_ref == 'worktree-*'` for the standard `llm-review` job.** The
-main-safety case is already covered by the session→main PR review.
-If per-task review is desired (e.g., for early-warning), add it as a
-**separate** lightweight job (light-tier classifier only) so cost
-remains bounded and verdict divergence is impossible — the per-task
-job is advisory, the session→main job is authoritative.
-
-**3b — Does session-branch protection need to be active?**
-
-Today the `session-*` Ruleset is inert. Two desirable behaviors:
-- Block direct pushes to `worktree-*` branches (already enforced by
-  the `check-session-merge-only.sh` pre-commit hook locally; Ruleset
-  would extend this to non-DSO clients pushing).
-- Require a check on PRs into `worktree-*` (only meaningful if we
-  decide per-task review is required per 3a).
-
-**Recommendation:** keep the Ruleset, but rename pattern to
-`worktree-*` (Step 1) and configure it for `non_fast_forward` only,
-**not** for `required_status_checks`, unless 3a yields a positive
-answer. This makes the documented "protect session branches" intent
-real (blocks errant direct pushes) without coupling to per-task
-review.
-
-### Step 4 — promote Ruleset preflight to blocking when ci-pr
-
-After Steps 1–3 land, the preflight checks something that meaningfully
-maps to enforcement. Promote it to blocking:
-
-1. Update `sprint/SKILL.md:158–169`: when `SPRINT_MODE=ci-pr`,
-   preflight failure halts sprint execution.
-2. Replace `2>/dev/null` suppression with structured exit-code
-   handling. `check-ruleset-preflight.sh` already emits distinct
-   results (`OK`, `NO_SESSION_PATTERN`, `MISSING_CHECK`, `HAS_LINEAR`).
-   Surface the result token in the halt message with the operator-
-   actionable remediation.
-3. Provide a **scoped** bypass: per opus blocking-comment, the bypass
-   must not weaken main-branch protection. Implement as two separate
-   env-var pairs:
-   - `DSO_GATE_BYPASS_RULESET_PREFLIGHT_SESSION=1` +
-     `DSO_GATE_BYPASS_RULESET_PREFLIGHT_SESSION_REASON` — bypasses
-     only the session-branch ruleset check.
-   - `DSO_GATE_BYPASS_RULESET_PREFLIGHT_MAIN=1` +
-     `DSO_GATE_BYPASS_RULESET_PREFLIGHT_MAIN_REASON` — bypasses only
-     the main-branch ruleset check.
-   - Bypassing only the session side is acceptable for degraded
-     environments. Bypassing the main side requires explicit operator
-     reason because main is the actual safety boundary.
-4. Both bypass paths write JSONL audit records to
-   `$HOME/.claude/logs/dso-preflight-bypass.jsonl` AND an event-log
-   entry against the current epic.
-
-### Step 5 — close the orchestrator-level loop
-
-1. Phase E dispatch refuses to start when `dso.workflow=ci-pr` and
-   the Phase A preflight verdict was not recorded as PASS or
-   explicitly bypassed via the audit-trail env vars above.
-2. The preflight verdict is written to the event log in Phase A and
-   read in Phase E (the existing event-log channel survives
-   compaction).
-3. Update `INSTALL.md:111–142` and `CI-INTEGRATION.md` to describe
-   the resolved naming, the promoted-blocking preflight, the bypass
-   semantics, and the deliberate decision (per 3a) not to require
-   per-task review.
-
-### Duplication / gap analysis after F-01
-
-**Duplication (multiple llm-review runs against the same code):**
-- Within a single PR: mitigated by existing `ci.yml:47–49`
-  concurrency control with `cancel-in-progress: true`.
-- Across PRs at different grains:
-  - Today: only session→main reviews fire. No duplication.
-  - After this plan (Step 3 recommendation): unchanged. Session→main
-    review remains the single authoritative grain.
-  - If Step 3 is overridden later to add per-task review:
-    duplication becomes real and the verdict-authority question
-    must be resolved (recommend: per-task = advisory light-tier;
-    session→main = authoritative).
-
-**Gap (code reaching main without llm-review):**
-- Today: closed via session→main PR + `ci.yml` `base_ref == 'main'`
-  trigger.
-- After Step 1 (naming alignment): unchanged. Step 1 fixes
-  documentation, not enforcement granularity.
-- After Step 2 (check-name resolution): **strictly tightened**. Today
-  branch protection on main may not actually enforce the check
-  because of the name mismatch. After Step 2, the check name
-  published by the job equals the documented default required-checks
-  context.
-- After Step 4 (preflight blocking) with main-side bypass set: this
-  is the one new "to main without review" path the plan introduces.
-  Mitigated by the audit-record requirement and the separate env-var
-  pair specifically for the main side. The bypass exists to allow
-  fork repositories or initial setup to proceed; it is an explicit
-  operator decision, not a silent fall-through.
-- Direct-merge in `dso.workflow=local`: unchanged by this plan.
-  Local mode has no PR and thus no llm-review by design; the local
-  enforcement gates (per F-02) are the safety case for that mode.
-
-### Acceptance
-- `check-ruleset-preflight.sh` accepts `worktree-*` patterns and the
-  Ruleset documented in `INSTALL.md` actually matches the branches
-  the sprint workflow creates.
-- The `llm-review` job's check context matches the documented
-  `dso.review.check_name` default — verified by a CI smoke test that
-  opens a session→main PR and asserts the configured context name
-  appears.
-- Phase A preflight in ci-pr mode halts sprint execution on
-  `MISSING_CHECK`, `NO_SESSION_PATTERN`, or `HAS_LINEAR`; halts
-  message names the result token and a remediation command.
-- Two-env-var bypass works for each side independently and writes
-  audit records.
-- Phase E refuses to dispatch when ci-pr and the preflight verdict
-  is missing or non-PASS without a recorded bypass.
-
-### Risk
-High blast radius. Mitigated by:
-- Sequencing Step 1 (documentation) and Step 2 (job name) ahead of
-  Step 4 (blocking). Steps 1–2 are independently safe; the blocking
-  promotion only lands once the preflight checks something real.
-- The bypass envelope keeps degraded environments unblocked.
-- The non-recommendation against widening the trigger (Step 3a)
-  avoids the largest blast-radius change in the original plan.
-
----
-
-## Sequencing summary (revised)
+## Sequencing summary
 
 1. **F-08** (~1 hr) — header rewrites in `merge-to-main-pr.sh`,
    `recipe-executor.sh`, and any other audit-discovered file; add
@@ -631,50 +385,74 @@ High blast radius. Mitigated by:
 2. **F-06** (1–2 hr) — honor `tickets.directory` everywhere;
    annotation-driven literal guard; regression test.
 3. **F-05** (½–1 day) — `resolve-default-branch.sh` with
-   symbolic-ref-first precedence; literal-`main` fast-path retained
-   for direct-merge assertion; replace literals in merge scripts.
-4. **F-02** (1.5–2 days) — gate-tier doctrine; Tier A flip for two
-   gate sites (test-gate, review-gate hash); Tier C
-   `GATE_UNAVAILABLE` emission preserving SC gate fall-through;
-   drift-detection lint; no staging flag.
-5. **F-01** (2–4 days) — Step 1 naming alignment; Step 2 job rename;
-   Step 3 documented decision (no per-task widening); Step 4
-   blocking preflight with scoped bypasses; Step 5 orchestrator
-   gate.
+   symbolic-ref-first precedence and per-merge-run cache invalidation;
+   literal-`main` fast-path retained for direct-merge assertion;
+   explicit failure message on non-`main` hosts without
+   `dso.default_branch`.
+4. **F-02** (1.5–2 days) — gate-tier doctrine; Tier A flip for three
+   gate sites (test-gate, review-gate hash, review-gate rehash);
+   Tier C `GATE_UNAVAILABLE` emission preserving SC gate fall-through;
+   per-gate-tier three-strikes orchestrator brake; drift-detection
+   lint; no staging flag.
 
 Ordering constraints:
-- **F-05 must land before F-01** — Step 4's preflight messages will
-  reference the default branch when describing main-side rules.
-- **F-02 must land before F-01 Step 4** — F-01 Step 4's bypass
-  env-var pattern reuses the `_dso_gate_unavailable` helper and
-  paired-bypass convention. Landing F-02 first means F-01 inherits
-  a proven helper instead of inventing a parallel mechanism.
+- **F-05 may land before F-02** — they touch independent surfaces.
 - **F-06 and F-08 may land in parallel** — no shared code path.
+- All four findings are independent of any future F-01 work; each
+  can land before the F-01 plan is even drafted.
+
+## Why F-01 was dropped
+
+The live ci-pr enforcement topology is two-grain (`review-sub-pr.yml`
+on sub-branch PRs + `ci.yml`'s `llm-review` on session→main PRs) with
+an in-flight migration framework
+(`docs/migration-exemptions/sub-pr-cutover.jsonl`, `migration-grace`
+label, `promote-ruleset-required.sh`,
+`validate-required-checks.sh`). Reasoning correctly about this surface
+requires understanding:
+
+- Which workflow publishes which check name to what branch-protection
+  ruleset.
+- The current state of the sub-pr-cutover migration (staged →
+  required → enforced).
+- The interaction between `check-session-merge-only.sh` (local
+  hook), the `worktree-*` branch convention, and the documented
+  `session-*` ruleset pattern.
+- The `bug-batch/**` and `session/**` legacy patterns in
+  `review-sub-pr.yml:5–7` and whether they're live or vestigial.
+- The verdict-authority rule between per-sub-branch review (advisory
+  or authoritative?) and session→main review.
+
+Three review passes have produced three different mental models of
+this surface, each later shown to be incomplete. The risk of
+specifying a fix against a wrong mental model — committing
+documentation rewrites, ruleset reconfigurations, or workflow
+trigger changes that contradict the live migration's next phase —
+outweighs the value of including F-01 in this autonomous plan. F-01
+work should be planned by a human with concurrent context of the
+sub-pr-cutover migration's current phase.
 
 ## Cross-cutting changes versus the prior plan
 
 | Section | Prior plan | Revised plan | Reason |
 |---------|------------|--------------|--------|
-| F-01 severity | Critical | High | Verified: no current "to main without review" path |
-| F-01 Step 1 trigger widening to `session-*` | Yes | **No** | Branches are `worktree-*`; widening would not match reality |
-| F-01 check-name resolution | Vague | Path A — rename job | Opus blocking #2 |
-| F-01 preflight bypass | Single env-var pair | Two scoped pairs (session, main) | Opus question on bypass-weakens-main |
-| F-02 review-gate site line | 84–88 | 469–474 + 489–491 | Opus blocking #1 (corrected) |
-| F-02 SC gates | Promote to Tier A | Tier C with `GATE_UNAVAILABLE` | Opus blocking #3 + design note `sprint/SKILL.md:578` |
-| F-02 staging flag | Default-false | Removed | Opus significant #6 |
-| F-02 audit fields | timestamp/gate/reason | + session_id/ticket_id | Opus minor #12 |
-| F-05 resolver order | config → gh → symbolic-ref → main | config → symbolic-ref → gh → main | Opus significant #7 |
-| F-05 direct-merge assertion | Resolver-driven | Literal-`main` fast path; resolver only on opt-in | Opus blocking #4 |
-| F-06 literal guard | Hard regex | Annotation-driven (`# tickets-boundary-ok`) | Opus significant #5 |
-| F-08 lint exclusions | tests/ only | + docs/designs/, docs/adr/, CHANGELOG | Opus minor #10 |
-| Drift detection | Not addressed | Tier A header + call-site structural scan | Opus significant #9 |
-| Rollback procedure | Not addressed | Each Step 1–5 lands as a separate PR | Opus minor #11 |
+| F-01 | Critical-severity step with naming alignment + check-name rename + preflight blocking | **Dropped** | Live two-grain topology + sub-pr-cutover migration framework make autonomous F-01 specification unsafe |
+| F-02 review-gate site line | 84–88 | 469–474 + 489–491 | Opus blocking #1 (verified) |
+| F-02 SC gates | Promote to Tier A | Tier C with `GATE_UNAVAILABLE` | Preserves intentional asymmetric fall-through at `sprint/SKILL.md:578` |
+| F-02 three-strikes counter | Unspecified scope | Per-gate-tier, reset on success | Second opus review — prevents API-outage halt regression |
+| F-02 staging flag | Default-false | Removed | Avoids "doctrine ships but code disabled" failure mode |
+| F-02 audit fields | timestamp/gate/reason | + session_id/ticket_id | Audit must be retrievable per epic |
+| F-05 resolver order | config → gh → symbolic-ref → main | config → symbolic-ref → gh → main | Local-first; avoids `gh` auth exposure on hot path |
+| F-05 cache | Process-local only | `.git/dso-default-branch`, invalidated per merge-to-main run | Prevents stale-default-branch across separate runs |
+| F-05 direct-merge assertion | Resolver-driven | Literal-`main` fast path; resolver only on opt-in; explicit failure message | Safety invariant preservation + actionable non-`main` host path |
+| F-06 literal guard | Hard regex | Annotation-driven (`# tickets-boundary-ok`) | Avoids 165+ false positives in fixtures/docs |
+| F-08 lint exclusions | tests/ only | + docs/designs/, docs/adr/, CHANGELOG | Prevents false-positives on plan/design files |
+| Drift detection | Not addressed | Tier A header + call-site structural scan | Detects regression of Tier A → silent fail-open |
 
 ## Tracking
 
 Create one ticket per finding under the existing review-evaluation
-epic; link via `--parent`. Use the standard story type for F-01,
-F-02, and F-05 (multi-task); task type for F-06 and F-08 (single
-deliverable). Verify via
-`.claude/scripts/dso ticket list --status=in_progress` on session
-resume.
+epic; link via `--parent`. Use the standard story type for F-02 and
+F-05 (multi-task); task type for F-06 and F-08 (single deliverable).
+Verify via `.claude/scripts/dso ticket list --status=in_progress` on
+session resume.
