@@ -160,7 +160,8 @@ else
         *)        REVIEW_TIER="standard"; REVIEW_AGENT="dso:code-reviewer-standard" ;;
     esac
 fi
-echo "REVIEW_TIER=$REVIEW_TIER REVIEW_AGENT=$REVIEW_AGENT"
+# MANDATORY breadcrumb — do not omit; signals that Step 3 classifier ran
+echo "CLASSIFIER_RAN: REVIEW_TIER=$REVIEW_TIER REVIEW_AGENT=$REVIEW_AGENT"
 ```
 
 **Classifier failure invariant**: When the classifier exits non-zero or produces invalid JSON, `REVIEW_TIER` MUST be `standard` and `REVIEW_AGENT` MUST be `dso:code-reviewer-standard`. Do not downgrade to light tier. Do not rationalize that a small diff warrants a lighter review — a classifier failure means the diff could not be scored, not that it is simple. This invariant is mandatory regardless of perceived diff size, file types, or change scope.
@@ -223,6 +224,15 @@ When `cycle_number >= 2`, orchestrators should supply `prior_findings_index` (st
 
 ## Step 4: Dispatch Code Review Sub-Agent (MANDATORY)
 
+**Prerequisite**: You MUST have `CLASSIFIER_OUTPUT` set from Step 3. If it is unset or empty, STOP — go back and run the Step 3 classifier shell command. There are no exceptions. Do NOT mentally substitute a tier based on diff size.
+
+```bash
+if [[ -z "${CLASSIFIER_OUTPUT:-}" ]]; then
+    echo "ERROR: CLASSIFIER_OUTPUT is unset — Step 3 classifier was not run. Return to Step 3." >&2
+    exit 1
+fi
+```
+
 **NO RE-CONFIRMATION AFTER USER SELECTED FULL REVIEW WORKFLOW.** When the user has already selected "full review workflow" at any point in the current session, the classifier's tier verdict and overlay set are routing inputs — NOT a reason to pause and re-confirm. "Full review workflow" means: run whatever the classifier prescribes, including deep tier + all three overlays (up to ~7 sub-agents). The orchestrator MUST dispatch immediately. Emitting a confirmation prompt such as "Classifier returned deep tier + 3 overlays — that's ~7 sub-agents, confirming before kicking off" after the user selected full review workflow is a violation of this rule (bug 3a87-43b3). Agent count and sub-agent composition are not valid triggers for a second confirmation when the user already authorized the workflow. If no prior user selection exists (i.e., the review workflow was invoked non-interactively or without a tier preference), dispatch per the classifier's verdict without confirmation — it is authoritative.
 
 **Single parallel batch: tier reviewer + every overlay flagged true in Step 3.** Before writing the dispatch prompt(s), read overlay flags from the classifier output captured in Step 3 and add the corresponding overlay agents to this Step 4 dispatch — they MUST launch in the same parallel Agent tool batch as the tier reviewer, never as a follow-up step. The `record-review.sh` gate enforces this: when the classifier flagged an overlay true, a corresponding `reviewer-findings-<dim>.json` MUST exist or the gate fails with `OVERLAY_MISSING`.
@@ -278,6 +288,8 @@ AGENT_MODEL=$(grep '^model:' "$AGENT_FILE" | awk '{print $2}')  # e.g. "sonnet"
 | `light` | `dso:code-reviewer-light` | haiku |
 | `standard` | `dso:code-reviewer-standard` | sonnet |
 | `deep` | 3 parallel sonnet agents (see Deep Tier below) | sonnet |
+
+> `REVIEW_AGENT` values above are shell variable assignments — they are NOT `subagent_type` values. The dispatch template below uses `subagent_type: "general-purpose"` unconditionally.
 
 **Model is non-negotiable**: The `model:` field in each named agent's definition is authoritative. Do NOT override it at dispatch time (e.g., dispatching `dso:code-reviewer-light` with `model: sonnet`). If Sonnet capability is needed, the correct action is to increase the tier — re-run the classifier or manually escalate to `dso:code-reviewer-standard`. Pairing a lighter checklist with a heavier model defeats the tier system without improving review quality.
 
