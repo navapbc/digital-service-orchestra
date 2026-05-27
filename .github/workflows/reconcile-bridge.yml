@@ -471,11 +471,21 @@ jobs:
           echo "  assignee after set: $ASSIGNEE_AFTER"
           [[ -n "$ASSIGNEE_AFTER" && "$ASSIGNEE_AFTER" != "<null>" ]] && _pass "set assignee" || _fail "set assignee: $ASSIGNEE_AFTER"
 
-          echo "Test 6b: Clear assignee"
-          acli jira workitem edit --key "$TEST_KEY" --assignee "" --yes 2>/dev/null
+          echo "Test 6b: Clear assignee via REST (ACLI --assignee '' doesn't work)"
+          python3 -c "
+          import urllib.request, urllib.error, json, base64, os
+          url=os.environ['JIRA_URL'].rstrip('/')+'/rest/api/3/issue/$TEST_KEY/assignee'
+          creds=base64.b64encode(f\"{os.environ['JIRA_USER']}:{os.environ['JIRA_API_TOKEN']}\".encode()).decode()
+          data=json.dumps({'accountId':None}).encode()
+          req=urllib.request.Request(url,data=data,method='PUT',headers={'Authorization':f'Basic {creds}','Content-Type':'application/json','Accept':'application/json'})
+          try:
+            with urllib.request.urlopen(req,timeout=10) as r: print(f'OK:{r.status}')
+          except urllib.error.HTTPError as e: print(f'ERROR:{e.code}:{e.read().decode()[:200]}')
+          except Exception as e: print(f'EXCEPTION:{e}')
+          "
           ASSIGNEE_CLEARED=$(_get_field "$TEST_KEY" "assignee")
           echo "  assignee after clear: $ASSIGNEE_CLEARED"
-          [[ "$ASSIGNEE_CLEARED" == "<null>" ]] && _pass "clear assignee" || _fail "clear assignee: $ASSIGNEE_CLEARED"
+          [[ "$ASSIGNEE_CLEARED" == "<null>" ]] && _pass "clear assignee via REST" || _fail "clear assignee: $ASSIGNEE_CLEARED"
 
           # =====================================================================
           echo; echo "=== PHASE 7: COMMENTS — add, list, edit, delete ==="
@@ -662,7 +672,7 @@ jobs:
           except: pass
           " 2>/dev/null)
             if [ -n "$LINK_ID" ]; then
-              acli jira workitem link delete --id "$LINK_ID" 2>/dev/null
+              acli jira workitem link delete --id "$LINK_ID" --yes 2>/dev/null
               LINKS_AFTER=$(acli jira workitem link list --key "$TEST_KEY" --json 2>/dev/null | python3 -c "
           import json,sys
           try: d=json.load(sys.stdin); links=d if isinstance(d,list) else d.get('issueLinks') or d.get('issuelinks') or d.get('links',[]); print(len(links))
@@ -682,7 +692,7 @@ jobs:
           try:
             d=json.load(sys.stdin)
             links=d if isinstance(d,list) else d.get('issueLinks') or d.get('issuelinks') or d.get('links',[])
-            relates=[l for l in links if isinstance(l,dict) and l.get('type',{}).get('name','')=='Relates']
+            relates=[l for l in links if isinstance(l,dict) and (l.get('typeName','') or l.get('type',{}).get('name',''))=='Relates']
             print(len(relates))
           except: print(0)
           " 2>/dev/null)
@@ -710,12 +720,12 @@ jobs:
             d=json.load(sys.stdin)
             links=d if isinstance(d,list) else d.get('issueLinks') or d.get('issuelinks') or d.get('links',[])
             for l in links:
-              if isinstance(l,dict) and l.get('type',{}).get('name','')=='Relates':
+              if isinstance(l,dict) and (l.get('typeName','') or l.get('type',{}).get('name',''))=='Relates':
                 print(l.get('id','')); break
           except: pass
           " 2>/dev/null)
             if [ -n "$RELATES_LINK_ID" ]; then
-              acli jira workitem link delete --id "$RELATES_LINK_ID" 2>/dev/null
+              acli jira workitem link delete --id "$RELATES_LINK_ID" --yes 2>/dev/null
             fi
           else _skip "link tests (no LINK_KEY)"; fi
 
