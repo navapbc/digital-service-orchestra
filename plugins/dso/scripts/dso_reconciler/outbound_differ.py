@@ -87,14 +87,25 @@ _LOCAL_TO_JIRA_STATUS: dict[str, str] = {
 
 
 def _map_local_to_jira_fields(ticket: dict[str, Any]) -> dict[str, Any]:
-    """Map local ticket fields to Jira field names/values."""
+    """Map local ticket fields to Jira field names/values.
+
+    Use ``.get(key) or default`` (not ``.get(key, default)``) for string
+    fields so an explicit ``None`` value normalises to the empty-string
+    default. ``.get(key, default)`` only falls back when the key is
+    MISSING — if the key exists with value ``None`` (e.g. unassigned
+    tickets where the ticket reducer initialises ``assignee: None``),
+    .get returns None, not the default. None then propagates through
+    ``_diff_fields`` and becomes the literal string ``"None"`` after
+    str() conversion at the ACLI boundary, causing ACLI to reject the
+    edit with exit 1.
+    """
     return {
-        "summary": ticket.get("title", ""),
-        "description": ticket.get("description", ""),
+        "summary": ticket.get("title") or "",
+        "description": ticket.get("description") or "",
         "issuetype": _LOCAL_TO_JIRA_TYPE.get(ticket.get("ticket_type", "task"), "Task"),
         "priority": _LOCAL_TO_JIRA_PRIORITY.get(ticket.get("priority", 2), "Medium"),
         "status": _LOCAL_TO_JIRA_STATUS.get(ticket.get("status", "open"), "To Do"),
-        "assignee": ticket.get("assignee", ""),
+        "assignee": ticket.get("assignee") or "",
     }
 
 

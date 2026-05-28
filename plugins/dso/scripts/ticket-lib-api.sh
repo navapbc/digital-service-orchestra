@@ -913,10 +913,12 @@ ticket_create() {
             esac
         done
 
-        # Default assignee to git user.name if not provided
-        if [ -z "$assignee" ]; then
-            assignee=$(git config user.name 2>/dev/null || echo "")
-        fi
+        # Assignee defaults to empty (unassigned) when not provided. The
+        # `author` field already records the creator (from `git config
+        # user.name`); the `assignee` field is for designated ownership,
+        # which is rarely the creator. Defaulting to git user.name
+        # conflated the two and caused bridge-side ACLI rejections when
+        # the local git user.name doesn't match a valid Jira user.
 
         # Validate ticket_type
         case "$ticket_type" in

@@ -121,6 +121,62 @@ UnknownActionError = _errors_module.UnknownActionError
 DsoIdLabelWriteError = _errors_module.DsoIdLabelWriteError
 
 
+# Subject prefixes considered "benign" for HEAD-drift tolerance — i.e.,
+# external writers that don't conflict with in-flight outbound mutations.
+# Bug f058: parallel Claude sessions running `dso ticket transition` /
+# `dso ticket create` / etc. emit `ticket: <VERB>` commits to the tickets
+# branch during a reconciler pass. The suggestion subsystem emits
+# `suggestion: RECORD`. Other reconciler passes emit `acquire lock` /
+# `release lock`. Competing outbound writes emit `pass_record: <pass_id>`
+# — the original concern the drift detector was built for — and remain
+# non-benign.
+_BENIGN_DRIFT_PREFIXES: tuple[str, ...] = (
+    "ticket:",
+    "suggestion:",
+    "acquire lock",
+    "release lock",
+)
+
+
+def _drift_is_benign(subject: str) -> bool:
+    """Return True if a commit subject indicates a benign external writer.
+
+    Used by ``_apply_batch``'s drift detector to distinguish ticket-CLI
+    auto-commits and pass-lock metadata from competing reconciler outbound
+    writes. Benign drift refreshes ``head_pin`` and continues; non-benign
+    drift raises HeadDriftError as before.
+    """
+    if not subject:
+        return False
+    return any(subject.startswith(p) for p in _BENIGN_DRIFT_PREFIXES)
+
+
+def _get_commit_subject(repo_root, commit_sha: str) -> str:
+    """Return the subject line of *commit_sha* in repo_root, or "" on error.
+
+    Failures here are non-fatal — when we can't read the subject, the
+    caller treats the drift as non-benign (fail-closed) and raises
+    HeadDriftError as the strict detector originally did.
+    """
+    import subprocess as _sp
+
+    if not commit_sha:
+        return ""
+    try:
+        result = _sp.run(
+            ["git", "-C", str(repo_root), "log", "-1", commit_sha, "--format=%s"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+    except (OSError, _sp.SubprocessError):
+        return ""
+    if result.returncode != 0:
+        return ""
+    return result.stdout.strip()
+
+
 def _direction_guard(mutation, expected_direction) -> None:
     """Defense-in-depth: assert mutation.direction matches the leaf's declared
     direction. In normal flow _LEAVES lookup already routes correctly; this
@@ -1656,8 +1712,9 @@ def update_one(mutation: dict, client) -> dict | None:
     if not isinstance(fields, dict):
         fields = {}
     issue_key = mutation.get("key")
+    result: dict | None
     try:
-        return _call_with_retry(client.update_issue, issue_key, **fields)
+        result = _call_with_retry(client.update_issue, issue_key, **fields)
     except JiraAPIError as exc:
         if not _is_illegal_transition_400(exc):
             raise
@@ -1676,7 +1733,52 @@ def update_one(mutation: dict, client) -> dict | None:
             }
         )
         print(log_entry, file=sys.stderr)
-        return None
+        result = None
+
+    # Bug 87e4: propagate label add/remove and comment additions from the
+    # mutation payload. The outbound differ emits these alongside changed
+    # scalar fields; update_issue can't carry them (Jira's edit endpoint
+    # doesn't accept label or comment kwargs), so they need separate
+    # add_label / remove_label / add_comment calls. Failures here are
+    # logged but non-fatal — the scalar update already succeeded.
+    labels = mutation.get("labels", []) or []
+    if isinstance(labels, list):
+        for entry in labels:
+            if not isinstance(entry, dict):
+                continue
+            action = entry.get("action")
+            label_name = entry.get("label", "")
+            if not label_name:
+                continue
+            try:
+                if action == "add":
+                    _call_with_retry(client.add_label, issue_key, label_name)
+                elif action == "remove":
+                    _call_with_retry(client.remove_label, issue_key, label_name)
+            except Exception as exc:  # noqa: BLE001
+                print(  # noqa: T201
+                    f"update_one: label {action} failed for {issue_key} "
+                    f"label={label_name!r}: {exc!r}",
+                    file=sys.stderr,
+                )
+
+    comments = mutation.get("comments", []) or []
+    if isinstance(comments, list):
+        for entry in comments:
+            if not isinstance(entry, dict):
+                continue
+            body = entry.get("body", "")
+            if not body:
+                continue
+            try:
+                _call_with_retry(client.add_comment, issue_key, body)
+            except Exception as exc:  # noqa: BLE001
+                print(  # noqa: T201
+                    f"update_one: add_comment failed for {issue_key}: {exc!r}",
+                    file=sys.stderr,
+                )
+
+    return result
 
 
 def delete_one(mutation: dict, client) -> None:
@@ -2245,17 +2347,61 @@ def _mutation_to_batch_dict(mutation) -> dict:
     payload = dict(mutation.payload) if mutation.payload else {}
     action_value = getattr(mutation.action, "value", str(mutation.action))
     direction_value = getattr(mutation.direction, "value", str(mutation.direction))
-    # Use payload.get("fields", payload) — NOT `or payload` — so an
-    # intentionally-empty `fields: {}` doesn't truthy-fall-through to the
-    # whole payload (which would leak local_id / follow_on / etc. into
-    # batch fields). coderabbit-flagged on PR #364.
+    # Bug 87e4: outbound mutations from reconcile.py have two different
+    # payload shapes depending on action:
+    #
+    #   - CREATE: payload has create fields at the TOP LEVEL (summary,
+    #     description, priority, issuetype, assignee, ...) alongside
+    #     bookkeeping keys (local_id, comments, labels). create_one needs
+    #     the full set of fields.
+    #
+    #   - UPDATE: payload has changed fields under "changed_fields", with
+    #     "comments" and "labels" as separate top-level keys. update_one
+    #     needs ONLY the scalar field changes — passing the whole payload
+    #     would unpack bogus `changed_fields=`, `comments=`, `labels=`
+    #     kwargs to client.update_issue (the original bug symptom).
+    #
+    # Distinguish by action and read the appropriate shape.
+    _BOOKKEEPING_KEYS = {
+        "changed_fields",
+        "comments",
+        "labels",
+        "local_id",
+        "follow_on",
+    }
+    if action_value == "update":
+        fields = payload.get("changed_fields")
+        if fields is None:
+            fields = payload.get("fields", {})
+    elif action_value == "create":
+        # Two CREATE payload shapes coexist:
+        #   - Legacy (test fixtures + older callers): payload has a nested
+        #     "fields" key.  Honor it explicitly (including the
+        #     intentionally-empty {} case — the original "fields=={}
+        #     must NOT fall through to full payload" contract).
+        #   - New (reconcile.py:524-535): payload spreads create fields
+        #     at the TOP LEVEL via `**om.fields`, alongside bookkeeping
+        #     keys.  Strip bookkeeping; everything else is a field.
+        if "fields" in payload:
+            fields = payload.get("fields", {})
+        else:
+            fields = {
+                k: v for k, v in payload.items() if k not in _BOOKKEEPING_KEYS
+            }
+    else:
+        # Other actions (delete, probe, etc.) don't carry field maps.
+        fields = payload.get("fields", {})
     return {
         "action": action_value,
         "direction": direction_value,
         "key": mutation.target,
-        "fields": payload.get("fields", payload),
+        "fields": fields,
         "local_id": payload.get("local_id", ""),
         "follow_on": payload.get("follow_on"),
+        # Surface comments and labels so update_one can dispatch them via
+        # add_comment / add_label / remove_label respectively (bug 87e4).
+        "comments": payload.get("comments", []),
+        "labels": payload.get("labels", []),
     }
 
 
@@ -2342,10 +2488,38 @@ def _apply_batch(
 
     try:
         for mutation in mutations:
-            # Re-check HEAD at the start of each iteration
+            # Re-check HEAD at the start of each iteration.
+            #
+            # Bug f058: the tickets orphan branch is shared with the ticket
+            # CLI (auto-commits via dso ticket create / transition / etc.)
+            # and the suggestion subsystem. A parallel Claude session
+            # running `dso ticket transition <id> closed` triggers
+            # auto-compact, which commits `ticket: COMPACT <id>` to
+            # tickets — that doesn't conflict with the in-flight
+            # outbound mutations, but the strict-equality drift check
+            # aborts the pass. Resolution: inspect the intervening
+            # commit's subject. If it matches a benign external pattern
+            # (ticket-CLI, suggestion, pass-lock), refresh head_pin and
+            # continue. Only raise HeadDriftError when the subject
+            # indicates a competing reconciler outbound write — the
+            # original intent of the detector.
             current_head = concurrency.snapshot_head(repo_root)
             if current_head != head_pin:
-                raise HeadDriftError(f"drift: {head_pin[:8]}→{current_head[:8]}")
+                drift_subject = _get_commit_subject(repo_root, current_head)
+                if _drift_is_benign(drift_subject):
+                    # Benign external writer — accept the new HEAD and
+                    # continue. Log so operators can see the writer.
+                    print(  # noqa: T201
+                        f"tolerated_drift: {head_pin[:8]}→{current_head[:8]} "
+                        f"subject={drift_subject!r}",
+                        file=sys.stderr,
+                    )
+                    head_pin = current_head
+                else:
+                    raise HeadDriftError(
+                        f"drift: {head_pin[:8]}→{current_head[:8]} "
+                        f"subject={drift_subject!r}"
+                    )
 
             action = mutation.get("action", "")
             outcome = dict(mutation)
