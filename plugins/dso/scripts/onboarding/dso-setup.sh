@@ -134,6 +134,48 @@ _SCRIPT_PLUGIN_DIR="$PLUGIN_ROOT"
 # shellcheck source=artifact-merge-lib.sh
 source "$_SCRIPT_PLUGIN_DIR/scripts/artifact-merge-lib.sh"
 
+# ── _validate_onboarding_enum: validate a value against a known enum set ──────
+# Usage: _validate_onboarding_enum <key> <value>
+# Returns: 0 if value is valid for the given key, 1 otherwise.
+#
+# Lands as a library function for the bug 5d92 epic. NOT called yet — the
+# per-defect dispatcher PRs (defects A/C/D/E/F) will wire it in. Landing the
+# helper first avoids a flag-day commit where six dispatchers + validator all
+# arrive together; reviewers can audit the validator in isolation.
+#
+# Behavior on invalid value (when callers integrate): callers should print a
+# WARN to stderr naming the invalid value and the key, then substitute "skip"
+# for the runtime value. Onboarding must remain bootstrap-safe — a typo in
+# dso-config.conf must never error out the script.
+_validate_onboarding_enum() {
+    local key="$1" value="$2"
+    local valid_values v
+    case "$key" in
+        onboarding.hooks)
+            valid_values="precommit husky lefthook simple-git-hooks native none skip"
+            ;;
+        onboarding.ci)
+            valid_values="github gitlab circleci jenkins buildkite azure bitbucket gitea none skip"
+            ;;
+        onboarding.tracker)
+            valid_values="jira linear github-issues asana native skip"
+            ;;
+        onboarding.host)
+            valid_values="github gitlab bitbucket gitea none skip"
+            ;;
+        onboarding.claude_md|onboarding.known_issues)
+            valid_values="install skip"
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+    for v in $valid_values; do
+        [[ "$value" == "$v" ]] && return 0
+    done
+    return 1
+}
+
 # ── Read plugin version (used for artifact stamps) ────────────────────────────
 # Prefer jq when available (POSIX-portable); fall back to python3, then to awk.
 # Pure-shell paths avoid silent "unknown" stamps on hosts without python3.
