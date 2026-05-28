@@ -157,6 +157,7 @@ def run_pass(
     repo_root: Path | None = None,
     pass_id: str | None = None,
     target_mode=None,
+    filter_local_ids: set[str] | None = None,
 ) -> int:
     """Execute one steady-state reconciliation pass via reconcile.reconcile_once().
 
@@ -196,7 +197,10 @@ def run_pass(
 
     try:
         result = reconcile.reconcile_once(
-            pass_id, repo_root=repo_root, target_mode=target_mode
+            pass_id,
+            repo_root=repo_root,
+            target_mode=target_mode,
+            filter_local_ids=filter_local_ids,
         )
     except Exception as exc:  # noqa: BLE001
         if reschedule_error_cls is not None and isinstance(exc, reschedule_error_cls):
@@ -248,6 +252,16 @@ def main(argv: list[str] | None = None) -> int:
             "Print the list of ticket-tracker entries that the reconciler would enumerate "
             "(after .scratch/ exclusion) and exit without running a pass. "
             "Each entry is printed as an absolute path, one per line."
+        ),
+    )
+    parser.add_argument(
+        "--filter-local-ids",
+        default=None,
+        help=(
+            "Comma-separated list of local ticket IDs.  When set, all three "
+            "differs run on their full unfiltered inputs (same code paths as "
+            "production) but only mutations targeting these IDs (or their "
+            "bound Jira keys) reach the applier.  For validation use only."
         ),
     )
     args = parser.parse_args(argv)
@@ -333,7 +347,25 @@ def main(argv: list[str] | None = None) -> int:
     pass_id = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H-%M-%S")
     advisory.acquire_pass_lock(pass_id, repo_root)
     try:
-        return run_pass(repo_root=repo_root, pass_id=pass_id, target_mode=target_mode)
+        filter_local_ids: set[str] | None = None
+        if args.filter_local_ids is not None:
+            parsed = {
+                s.strip() for s in args.filter_local_ids.split(",") if s.strip()
+            }
+            if not parsed:
+                print(
+                    "ERROR: --filter-local-ids must contain at least one "
+                    "non-empty ID",
+                    file=sys.stderr,
+                )
+                return 2
+            filter_local_ids = parsed
+        return run_pass(
+            repo_root=repo_root,
+            pass_id=pass_id,
+            target_mode=target_mode,
+            filter_local_ids=filter_local_ids,
+        )
     except Exception as exc:  # noqa: BLE001
         print(f"ERROR: run_pass raised: {exc}", file=sys.stderr)
         return 1

@@ -1751,6 +1751,7 @@ def _build_agents_for_tier(
                 "model": base_model,
                 "provider_chain": provider_chain,
                 "tier": tier,
+                "review_context": "ci",
             },
             {
                 "agent_id": "code-reviewer-deep-verification",
@@ -1758,6 +1759,7 @@ def _build_agents_for_tier(
                 "model": base_model,
                 "provider_chain": provider_chain,
                 "tier": tier,
+                "review_context": "ci",
             },
             {
                 "agent_id": "code-reviewer-deep-hygiene",
@@ -1765,6 +1767,7 @@ def _build_agents_for_tier(
                 "model": base_model,
                 "provider_chain": provider_chain,
                 "tier": tier,
+                "review_context": "ci",
             },
         ]
     else:
@@ -1776,6 +1779,7 @@ def _build_agents_for_tier(
                 "model": base_model,
                 "provider_chain": provider_chain,
                 "tier": tier,
+                "review_context": "ci",
             }
         ]
 
@@ -1813,6 +1817,7 @@ def _build_overlay_agents(
                     "agent_id": _OVERLAY_AGENT_IDS[dimension],
                     "diff_text": diff_text,
                     "config_path": config_path,
+                    "review_context": "ci",
                 }
             )
     return agents
@@ -1867,6 +1872,7 @@ def _overlay_agents_from_findings(
             "agent_id": _OVERLAY_AGENT_IDS[dim],
             "diff_text": diff_text,
             "config_path": config_path,
+            "review_context": "ci",
         }
         for dim in warranted
     ]
@@ -2452,6 +2458,7 @@ def main() -> int:
                     provider_chain=provider_chain,
                     agent_id=primary_agent["agent_id"],
                     primary_model=primary_agent["model"],
+                    review_context="ci",
                 )
                 first_pass_findings = [two_call_result]
             else:
