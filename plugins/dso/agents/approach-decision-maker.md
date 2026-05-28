@@ -122,6 +122,7 @@ Before making a selection, scan each proposal for the following anti-patterns. F
 | **Resume-driven development** | Proposal introduces trendy technology or architectural patterns that add complexity without solving a stated requirement |
 | **Premature optimization** | Proposal optimizes for performance or scale before evidence that the current approach is insufficient |
 | **Not-invented-here (NIH)** | Proposal rebuilds functionality that already exists in the codebase or in a dependency already imported |
+| **Config-surface proliferation** | Proposal mints a new `dso-config.conf` key (or extends `read-config.sh` consumers) when an existing key could capture the behavior. Detection: search `${CLAUDE_PLUGIN_ROOT}/config/dso-config.reference.conf` (and `read-config.sh` usage sites) for keys that correlate 1:1 with the proposed toggle. A new key is justified only when (a) it captures a behavior orthogonal to all existing keys AND (b) the proposal explicitly names the surveyed keys it considered and rejected. Bug 70fe-1c39 documented months of compounding config proliferation that produced contradictory derived modes and silent misconfigurations. |
 
 When an anti-pattern is detected, include it in the decision rationale. A single anti-pattern does not automatically disqualify a proposal, but it must be weighed against the 5 dimensions.
 
