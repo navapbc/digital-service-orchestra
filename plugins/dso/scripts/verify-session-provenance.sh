@@ -187,6 +187,7 @@ _unprovenanced_shas=()
 _over_bound_shas=()
 _covered_shas=()        # bug 8a77 v2 MF3: SHAs classified as provenanced (trailer/cache/API)
 _budget_exhausted=0
+_post_budget_unprovenanced=0
 
 _cache_init
 
@@ -324,8 +325,11 @@ while IFS=' ' read -r sha subject; do
 
     # Step 3: Check budget before making API call
     if (( _api_call_count >= GH_BUDGET )); then
-        echo "BUDGET_EXHAUSTED: API call budget of ${GH_BUDGET} reached before all commits were checked."
-        _budget_exhausted=1
+        if (( _budget_exhausted == 0 )); then
+            echo "BUDGET_EXHAUSTED: API call budget of ${GH_BUDGET} reached before all commits were checked."
+            _budget_exhausted=1
+        fi
+        _post_budget_unprovenanced=$(( _post_budget_unprovenanced + 1 ))
         _unprovenanced_shas+=("$sha")
         continue
     fi
@@ -344,8 +348,11 @@ while IFS=' ' read -r sha subject; do
     pr_result="$(_call_gh_with_backoff api "$_gh_api_path" 2>&1)" || {
         # Check if gh itself signaled budget exhaustion
         if echo "$pr_result" | grep -q "BUDGET_EXHAUSTED"; then
-            echo "BUDGET_EXHAUSTED"
-            _budget_exhausted=1
+            if (( _budget_exhausted == 0 )); then
+                echo "BUDGET_EXHAUSTED"
+                _budget_exhausted=1
+            fi
+            _post_budget_unprovenanced=$(( _post_budget_unprovenanced + 1 ))
             _unprovenanced_shas+=("$sha")
             continue
         fi
@@ -362,8 +369,11 @@ while IFS=' ' read -r sha subject; do
 
     # Check if gh output contains BUDGET_EXHAUSTED signal
     if echo "$pr_result" | grep -q "BUDGET_EXHAUSTED"; then
-        echo "BUDGET_EXHAUSTED"
-        _budget_exhausted=1
+        if (( _budget_exhausted == 0 )); then
+            echo "BUDGET_EXHAUSTED"
+            _budget_exhausted=1
+        fi
+        _post_budget_unprovenanced=$(( _post_budget_unprovenanced + 1 ))
         _unprovenanced_shas+=("$sha")
         continue
     fi
@@ -447,8 +457,10 @@ for pr in pr_list:
         while IFS= read -r _cov_pr; do
             [[ -z "$_cov_pr" ]] && continue
             if (( _api_call_count >= GH_BUDGET )); then
-                echo "BUDGET_EXHAUSTED during G3 review-check verification" >&2
-                _budget_exhausted=1
+                if (( _budget_exhausted == 0 )); then
+                    echo "BUDGET_EXHAUSTED during G3 review-check verification" >&2
+                    _budget_exhausted=1
+                fi
                 break
             fi
             _api_call_count=$(( _api_call_count + 1 ))
@@ -584,6 +596,7 @@ date -u +%Y-%m-%dT%H:%M:%SZ > "$_MARKER"
 
 # ── Exit with appropriate code ────────────────────────────────────────────────
 if (( _budget_exhausted )); then
+    echo "BUDGET_EXHAUSTED summary: ${_api_call_count} API call(s) made (budget=${GH_BUDGET}); ${_post_budget_unprovenanced} commit(s) marked unprovenanced post-exhaustion; ${#_covered_shas[@]} provenanced via trailer/cache."
     exit 2
 elif (( ${#_unprovenanced_shas[@]} > 0 )); then
     exit 1

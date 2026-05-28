@@ -1429,6 +1429,83 @@ def test_post_pr_review_uses_reviews_api_for_anchored_findings(tmp_path):
         )
 
 
+def test_post_pr_review_surfaces_gh_stderr_when_reviews_api_fails(tmp_path):
+    """When the Reviews API call fails, the warning MUST include gh's stderr
+    so operators can diagnose the underlying cause (e.g. 422 'Commit SHA is
+    not in the pull request' from a mid-cycle push superseding head_sha).
+    Earlier behavior only emitted `type(exc).__name__` — the GitHub API
+    rejection text was discarded with the exception, leaving operators with
+    "Reviews API failed" and no path to root cause.
+    """
+    import subprocess as _real_subprocess
+
+    import dso_ci_review.runner as runner_mod
+
+    gh_stderr_payload = (
+        '{"message":"Validation Failed","errors":[{"resource":"PullRequestReview",'
+        '"code":"custom","message":"Commit SHA is not in the pull request"}],'
+        '"documentation_url":"https://docs.github.com/rest/pulls/reviews"}'
+    )
+
+    findings = [
+        {
+            "severity": "important",
+            "category": "correctness",
+            "description": "fix A",
+            "cited_lines": ["foo.py:1"],
+        }
+    ]
+
+    issue_comment_call_count = {"n": 0}
+
+    def _fake_run(cmd, *args, **kwargs):
+        if "api" in cmd and "/reviews" in " ".join(str(x) for x in cmd):
+            raise _real_subprocess.CalledProcessError(
+                returncode=1, cmd=cmd, output="", stderr=gh_stderr_payload
+            )
+        if "pr" in cmd and "comment" in cmd:
+            issue_comment_call_count["n"] += 1
+        return _real_subprocess.CompletedProcess(
+            args=cmd, returncode=0, stdout="", stderr=""
+        )
+
+    env_extra = {
+        "GITHUB_EVENT_NAME": "pull_request",
+        "GITHUB_REF": "refs/pull/123/merge",
+        "GITHUB_TOKEN": "token-stub",
+        "GITHUB_REPOSITORY": "owner/repo",
+        "GITHUB_SHA": "abc123headsha",
+    }
+
+    diff_file = tmp_path / "input.diff"
+    diff_file.write_text("diff --git a/foo.py b/foo.py\n+x\n")
+    out = tmp_path / "out.json"
+
+    with patch.object(runner_mod, "subprocess", create=True) as mock_subprocess:
+        mock_subprocess.run.side_effect = _fake_run
+        mock_subprocess.CalledProcessError = _real_subprocess.CalledProcessError
+        mock_subprocess.TimeoutExpired = _real_subprocess.TimeoutExpired
+        _, stderr_text = _run_main_with(
+            diff_file, out, findings, env_extra=env_extra
+        )
+
+    assert "Reviews API failed" in stderr_text, (
+        f"Expected fallback warning. Got:\n{stderr_text}"
+    )
+    assert "gh stderr:" in stderr_text, (
+        "Warning must include 'gh stderr:' prefix so operators can grep for "
+        f"diagnostic context. Got:\n{stderr_text}"
+    )
+    assert "Commit SHA is not in the pull request" in stderr_text, (
+        "The actual gh stderr payload (containing the GitHub error message) "
+        f"must appear in the warning text. Got:\n{stderr_text}"
+    )
+    assert issue_comment_call_count["n"] >= 1, (
+        "Anchored finding must be re-routed to issue comment after Reviews "
+        "API failure; got 0 fallback gh pr comment calls."
+    )
+
+
 def test_post_pr_review_falls_back_to_issue_comment_for_unanchorable(tmp_path):
     """Findings with no cited_lines anchor fall back to issue comments; anchored ones use Reviews API.
 

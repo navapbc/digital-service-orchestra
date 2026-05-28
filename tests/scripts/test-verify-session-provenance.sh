@@ -190,6 +190,72 @@ MOCKEOF
     rm -rf "$repo" "$artifact_dir"
 }
 
+# ── Test: budget-exhausted message prints exactly once + summary at exit ─────
+# Regression guard: prior behavior printed "BUDGET_EXHAUSTED: ..." on every
+# commit past the budget — N un-trailered commits with budget=1 produced N
+# copies of the message, which operators read as an infinite loop. After the
+# fix the per-commit body prints the message exactly once and an end-of-run
+# summary line tells operators how many commits were marked unprovenanced
+# post-exhaustion.
+test_budget_exhaustion_prints_once_with_summary() {
+    local repo
+    repo="$(setup_git_repo)"
+
+    make_commit "$repo" "Initial commit" > /dev/null
+    local base_sha
+    base_sha="$(git -C "$repo" rev-parse HEAD)"
+
+    # 8 un-trailered commits with budget=1 → 7 commits should fall through to
+    # the budget-exhausted branch. Pre-fix would print 7 BUDGET_EXHAUSTED lines.
+    local i
+    for i in 1 2 3 4 5 6 7 8; do
+        make_commit "$repo" "Direct commit $i" > /dev/null
+    done
+    local session_head
+    session_head="$(git -C "$repo" rev-parse HEAD)"
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+
+    # gh stub: succeeds with an empty PR list (commit has no covering PR).
+    # Each call counts against the budget; after the 1st, subsequent commits
+    # fall through to the budget-exhausted branch in the script.
+    cat > "$MOCK_BIN/gh" << 'MOCKEOF'
+#!/usr/bin/env bash
+echo "[]"
+MOCKEOF
+    chmod +x "$MOCK_BIN/gh"
+
+    local exit_code=0
+    local output
+    output=$(
+        PATH="$MOCK_BIN:$PATH" \
+        DSO_REPO_PATH="$repo" \
+        DSO_BASE_SHA="$base_sha" \
+        DSO_SESSION_HEAD="$session_head" \
+        DSO_ARTIFACT_DIR="$artifact_dir" \
+        DSO_GH_BUDGET="1" \
+            bash "$SCRIPT" 2>&1
+    ) || exit_code=$?
+
+    local budget_msg_count
+    budget_msg_count="$(grep -c "BUDGET_EXHAUSTED: API call budget" <<< "$output" || true)"
+
+    assert_eq "test_budget_exhaustion_prints_once_with_summary: per-commit message prints exactly once" \
+        "1" "$budget_msg_count"
+
+    assert_contains "test_budget_exhaustion_prints_once_with_summary: summary line emitted at exit" \
+        "BUDGET_EXHAUSTED summary:" "$output"
+
+    assert_contains "test_budget_exhaustion_prints_once_with_summary: summary reports post-exhaustion count" \
+        "7 commit(s) marked unprovenanced post-exhaustion" "$output"
+
+    assert_eq "test_budget_exhaustion_prints_once_with_summary: exit code 2 (BUDGET_EXHAUSTED)" \
+        "2" "$exit_code"
+
+    rm -rf "$repo" "$artifact_dir"
+}
+
 # ── Test 5: cache prevents re-query for already-seen SHAs ────────────────────
 # On second invocation with the same SHAs and same cache dir, gh api is NOT
 # called again for those SHAs (call counter stays the same between runs).
@@ -953,6 +1019,7 @@ test_script_exists
 test_all_provenanced_exits_zero
 test_direct_commit_exits_nonzero
 test_budget_exhaustion_exits_nonzero
+test_budget_exhaustion_prints_once_with_summary
 test_cache_prevents_requery
 test_squash_merge_dso_story_merge_trailer_accepted
 test_backoff_on_429

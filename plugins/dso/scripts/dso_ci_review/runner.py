@@ -1103,9 +1103,16 @@ def _post_pr_review(findings: list[dict]) -> tuple[int, int]:
             subprocess.TimeoutExpired,
             FileNotFoundError,
         ) as exc:
+            # Surface gh stderr so failures are diagnosable: the Reviews API's
+            # 422/403/etc. responses (e.g., "Commit SHA is not in the pull
+            # request" when head_sha has been superseded by a mid-cycle push)
+            # only appear in gh's stderr. Without this, the warning tells
+            # operators a fallback happened but not why.
+            _stderr = (getattr(exc, "stderr", "") or "")[:500].strip()
             print(
                 f"WARNING: Reviews API failed ({type(exc).__name__}); "
-                "re-routing anchored findings to issue comments",
+                f"re-routing anchored findings to issue comments. "
+                f"gh stderr: {_stderr!r}",
                 file=sys.stderr,
             )
             # Fall back: add anchored findings to the issue comment queue
