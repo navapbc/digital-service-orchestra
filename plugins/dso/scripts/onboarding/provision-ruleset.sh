@@ -340,16 +340,34 @@ _PROVISION_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Two levels up: scripts/onboarding → scripts → <plugin-root>. Use
 # CLAUDE_PLUGIN_ROOT-honoring pattern so the no-relative-paths lint excludes
 # the literal "../.." used to derive the plugin root from this script's dir.
-_PR_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_PROVISION_SCRIPT_DIR/../.." && pwd)}"
+_PR_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_PROVISION_SCRIPT_DIR/../.." 2>/dev/null && pwd || echo '')}"
 _PATTERNS_FILE="${_PR_PLUGIN_ROOT}/config/sub-pr-branch-patterns.txt"
 if [[ ! -f "$_PATTERNS_FILE" ]]; then
     echo "ERROR: branch-patterns source-of-truth file not found at $_PATTERNS_FILE" >&2
     exit 1
 fi
 
+# Count active (non-comment, non-blank) patterns. An empty file would produce
+# an empty JSON array, which would silently disable sub-PR review enforcement
+# (the ruleset's include filter would match no branches). Fail-closed instead.
+# `set +e ... set -e` brackets the grep so a zero-match (grep exit 1) under
+# `set -o pipefail` doesn't terminate the script before we can emit the
+# diagnostic. `|| true` alone wouldn't work because pipefail propagates the
+# inner exit code through the pipe.
+set +e
+_PATTERN_COUNT=$(grep -vE '^[[:space:]]*#|^[[:space:]]*$' "$_PATTERNS_FILE" 2>/dev/null | wc -l | tr -d ' ')
+set -e
+_PATTERN_COUNT="${_PATTERN_COUNT:-0}"
+if (( _PATTERN_COUNT == 0 )); then
+    echo "ERROR: branch-patterns source-of-truth file contains zero active patterns: $_PATTERNS_FILE" >&2
+    echo "ERROR: refusing to provision a ruleset with empty include array — this would silently disable" >&2
+    echo "ERROR: sub-PR review enforcement (empty include matches no branches)" >&2
+    exit 1
+fi
+
 # Build the JSON include array from patterns file (one "refs/heads/<pattern>" per non-comment line).
 SUB_PR_INCLUDE_JSON=$(
-    grep -v '^[[:space:]]*#\|^[[:space:]]*$' "$_PATTERNS_FILE" \
+    grep -vE '^[[:space:]]*#|^[[:space:]]*$' "$_PATTERNS_FILE" \
         | jq -R '"refs/heads/" + .' \
         | jq -s .
 )

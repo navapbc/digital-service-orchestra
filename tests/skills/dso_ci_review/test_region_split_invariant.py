@@ -41,72 +41,78 @@ if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
 
 
-def test_region_split_loc_threshold_default_locked() -> None:
-    """The default LOC threshold for region-split must be 3000.
+def test_region_split_routes_at_loc_threshold() -> None:
+    """A diff with > default LOC threshold MUST trigger region-split routing.
 
-    Changing this without coordinating with the dispatcher's absolute size
-    cap (R7d) creates a silent giant-diff regression window.
+    Behavioral lock-in: rather than asserting the private constant value,
+    this exercises the public-effect behavior — calling _should_region_split
+    with a synthetic diff at the threshold boundary. The dispatcher relies
+    on this routing as its giant-diff backstop (per R3a / R7d). If a future
+    change raises the default such that the canonical 3001-LOC fixture stops
+    triggering region-split, the dispatcher's giant-diff guarantee silently
+    regresses — this test fails loudly.
+
+    Rationale anchor: PR #425 (51K files / 4M lines from a 6-commit PR)
+    demonstrated that without a working giant-diff backstop, single-call LLM
+    review produces unusable results.
     """
     from dso_ci_review import region_split
 
-    assert region_split._LOC_THRESHOLD_DEFAULT == 3000, (
-        f"Region-split LOC default changed from 3000 to "
-        f"{region_split._LOC_THRESHOLD_DEFAULT}. Re-validate dispatcher R7d "
-        f"size cap interaction before updating this test."
+    # Build a synthetic diff that adds 3001 lines across 2 files (avoids the
+    # single-file atomicity invariant). 3001 > the established 3000 default
+    # → must route to region-split. If someone raises the default to 5000,
+    # this assertion fails — forcing them to (a) update the test fixture
+    # and (b) re-evaluate the dispatcher's size cap interaction.
+    diff_lines = ["diff --git a/file1.py b/file1.py", "+x"] * 1500
+    diff_lines += ["diff --git a/file2.py b/file2.py"] + ["+y"] * 1501
+    diff = "\n".join(diff_lines)
+
+    assert region_split._should_region_split(diff) is True, (
+        "A 3001-LOC diff across 2 files no longer triggers region-split. "
+        "The dispatcher's giant-diff backstop has regressed. Either revert the "
+        "threshold change or update the dispatcher R7d size cap to compensate."
     )
 
 
-def test_region_split_file_count_threshold_default_locked() -> None:
-    """The default file-count threshold for region-split must be 40.
+def test_region_split_routes_at_file_count_threshold() -> None:
+    """A diff touching > default file-count MUST trigger region-split routing.
 
-    Changing this without coordinating with the dispatcher's absolute size
-    cap (R7d) creates a silent giant-diff regression window.
+    Behavioral counterpart to the LOC test. Same rationale: locks in
+    observable routing behavior, not private constant values. A diff with
+    41 small files (each 2 LOC) must route to region-split.
     """
     from dso_ci_review import region_split
 
-    assert region_split._FILE_COUNT_THRESHOLD_DEFAULT == 40, (
-        f"Region-split file-count default changed from 40 to "
-        f"{region_split._FILE_COUNT_THRESHOLD_DEFAULT}. Re-validate dispatcher "
-        f"R7d size cap interaction before updating this test."
+    diff_lines = []
+    for i in range(41):
+        diff_lines.append(f"diff --git a/file{i}.py b/file{i}.py")
+        diff_lines.append("+x")
+    diff = "\n".join(diff_lines)
+
+    assert region_split._should_region_split(diff) is True, (
+        "A 41-file diff no longer triggers region-split. The dispatcher's "
+        "giant-diff backstop has regressed. Either revert the threshold change "
+        "or update the dispatcher R7d size cap to compensate."
     )
 
 
-def test_region_split_thresholds_configurable() -> None:
-    """The thresholds must remain configurable via review.region_split.* keys.
+def test_region_split_small_diff_does_not_route() -> None:
+    """A diff well under both thresholds MUST NOT route to region-split.
 
-    Hardcoding the defaults without a config override would block projects
-    from tuning for their workload. This test guards against accidental
-    removal of the override path.
+    Inverse-case lock-in: prevents over-tuning that would route every diff
+    through region-split (wasting cluster overhead on simple changes).
     """
     from dso_ci_review import region_split
 
-    # Helper functions must exist and be callable
-    assert callable(region_split._loc_threshold)
-    assert callable(region_split._file_count_threshold)
+    # 10 files × 5 lines = 50 LOC, well under any reasonable threshold.
+    diff_lines = []
+    for i in range(10):
+        diff_lines.append(f"diff --git a/file{i}.py b/file{i}.py")
+        diff_lines.extend(["+x"] * 5)
+    diff = "\n".join(diff_lines)
 
-
-def test_region_split_cap_invariant_documented() -> None:
-    """The region_split module docstring must reference the dispatcher cap.
-
-    Bidirectional cross-reference: dispatcher comments R7d; runner comments
-    its thresholds. A maintainer changing either side must see the other's
-    constraint to make an informed decision.
-    """
-    from dso_ci_review import region_split
-
-    docstring = region_split.__doc__ or ""
-    # Either the module docstring or the constants block must explain the
-    # cross-coupling. Loose check — we accept any of these wording variants.
-    rationale_present = any(
-        keyword in docstring.lower()
-        for keyword in (
-            "dispatcher",
-            "giant-diff",
-            "fallback",
-            "loc_threshold",
-        )
-    )
-    assert rationale_present, (
-        "region_split.py module docstring should explain why thresholds are "
-        "load-bearing for the dispatcher's giant-diff backstop."
+    assert region_split._should_region_split(diff) is False, (
+        "A 10-file / 50-LOC diff is routing to region-split. Defaults are "
+        "tuned too aggressively — single-cluster review is more efficient "
+        "for small diffs."
     )

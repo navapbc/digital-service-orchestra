@@ -104,12 +104,49 @@ assert_pass_if_clean "test_dryrun_payload_contains_all_patterns"
 # Extract patterns from the sub-PR ruleset's include array in the dry-run
 # output, then verify each is in the source-of-truth file.
 #
-# Approach: find the "DSO Sub-PR Review Enforcement" section and extract
-# refs/heads/<pattern> entries.
+# Approach: parse JSON payloads from the dry-run output via jq. The dry-run
+# emits two JSON ruleset payloads; the second one is the sub-PR ruleset. We
+# isolate JSON blocks and find the one named "DSO Sub-PR Review Enforcement",
+# then extract its include array. This avoids the previous awk-based section
+# matching which would silently yield zero patterns (false pass) if the
+# section header text changed.
 _snapshot_fail
-# Pull just the sub-PR payload portion (between "Session-branch ruleset" header
-# and the next "--- " line).
-subpr_section=$(echo "$dryrun_output" | awk '/Session-branch ruleset/,/^---/')
+# Extract every well-formed JSON object from the dry-run output via Python
+# (more robust than awk text matching). Find the one with the sub-PR ruleset
+# name, then return its include array members.
+sub_pr_patterns=$(echo "$dryrun_output" | python3 -c '
+import sys, json, re
+text = sys.stdin.read()
+# Find all top-level JSON object start positions (lines starting with "{").
+# For each candidate "{", attempt incremental JSON parse to find a complete object.
+start_positions = [i for i, line in enumerate(text.split("\n")) if line.strip() == "{"]
+lines = text.split("\n")
+patterns = []
+for start in start_positions:
+    # Find matching closing brace by counting depth
+    depth = 0
+    for j in range(start, len(lines)):
+        for ch in lines[j]:
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    candidate = "\n".join(lines[start:j+1])
+                    try:
+                        obj = json.loads(candidate)
+                        if isinstance(obj, dict) and obj.get("name") == "DSO Sub-PR Review Enforcement":
+                            inc = obj.get("conditions", {}).get("ref_name", {}).get("include", [])
+                            patterns.extend(p.replace("refs/heads/", "") for p in inc if isinstance(p, str))
+                            print("\n".join(patterns))
+                            sys.exit(0)
+                    except json.JSONDecodeError:
+                        pass
+                    break
+        if depth == 0 and j > start:
+            break
+' 2>/dev/null)
+
 unexpected_patterns=""
 while IFS= read -r _candidate; do
     [[ -z "$_candidate" ]] && continue
@@ -123,7 +160,17 @@ while IFS= read -r _candidate; do
     if [[ "$_found" == "no" ]]; then
         unexpected_patterns="${unexpected_patterns}${_candidate} "
     fi
-done < <(echo "$subpr_section" | grep -oE 'refs/heads/[^"]+' | sed 's|refs/heads/||' | sort -u)
+done <<< "$sub_pr_patterns"
+
+# Drift-check robustness guard: extraction returned non-empty content (proving
+# we actually parsed the sub-PR ruleset, not silently matching nothing).
+extraction_worked="yes"
+if [[ -z "$sub_pr_patterns" ]]; then
+    extraction_worked="no"
+    echo "ERROR: failed to extract sub-PR ruleset patterns from dry-run output" >&2
+fi
+assert_eq "test_no_drift_extraction_worked: sub-PR payload extracted from dry-run JSON" \
+    "yes" "$extraction_worked"
 
 drift_check="yes"
 if [[ -n "$unexpected_patterns" ]]; then
@@ -160,5 +207,33 @@ fi
 assert_eq "test_workflow_trigger_covers_all_patterns: every source-of-truth pattern in workflow trigger" \
     "yes" "$workflow_covers_all"
 assert_pass_if_clean "test_workflow_trigger_covers_all_patterns"
+
+# ── Test 7: empty patterns file fails closed (critical finding regression) ────
+# Caught by the llm-review on PR #432: an empty (or comments-only) patterns
+# file would cause the provisioner to emit an empty include array, silently
+# disabling sub-PR review enforcement (an empty include matches no branches).
+# The provisioner must fail closed when zero active patterns are present.
+_snapshot_fail
+ephemeral_patterns_dir=$(mktemp -d)
+cat > "$ephemeral_patterns_dir/sub-pr-branch-patterns.txt" <<'EOF'
+# Only comments — zero active patterns
+# This file must trigger the provisioner's empty-patterns guard
+EOF
+# Override the plugin root path via env (provisioner honors CLAUDE_PLUGIN_ROOT).
+# Build a fake plugin root that has the comments-only patterns file at the
+# expected path.
+fake_plugin_root=$(mktemp -d)
+mkdir -p "$fake_plugin_root/config"
+cp "$ephemeral_patterns_dir/sub-pr-branch-patterns.txt" "$fake_plugin_root/config/sub-pr-branch-patterns.txt"
+empty_run_exit=0
+empty_run_output=$(CLAUDE_PLUGIN_ROOT="$fake_plugin_root" DSO_DRY_RUN=1 bash "$PROVISIONER" 2>&1) || empty_run_exit=$?
+fail_closed="no"
+if [[ "$empty_run_exit" -ne 0 ]] && echo "$empty_run_output" | grep -qE "zero active patterns|empty include"; then
+    fail_closed="yes"
+fi
+assert_eq "test_empty_patterns_file_fails_closed: empty/comments-only file triggers provisioner error" \
+    "yes" "$fail_closed"
+rm -rf "$ephemeral_patterns_dir" "$fake_plugin_root"
+assert_pass_if_clean "test_empty_patterns_file_fails_closed"
 
 print_summary
