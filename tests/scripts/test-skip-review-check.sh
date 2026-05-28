@@ -203,18 +203,33 @@ assert_eq "test_skip_review_check_allowlist_behavioral_equivalence: all reviewab
 assert_pass_if_clean "test_skip_review_check_allowlist_behavioral_equivalence"
 
 # ── test_skip_review_check_strategy_ci_bypasses_classification ───────────────
-# When dso.workflow=ci-pr, the script must short-circuit to SKIP=true
-# (exit 0) regardless of file classification — local review is redundant
-# under CI-as-source-of-truth (CLAUDE.md rule 18). Without DSO_FORCE_LOCAL_REVIEW,
-# even reviewable files (code, safeguard) should produce exit 0 on this repo
-# (whose .claude/dso-config.conf has dso.workflow=ci-pr). (ab7b-785f)
+# When dso.workflow=ci-pr AND not in CI, the script must short-circuit to
+# SKIP=true (exit 0) regardless of file classification — local review is
+# redundant under CI-as-source-of-truth (CLAUDE.md rule 18). Must also unset
+# CI and GITHUB_ACTIONS so the CI-detection guard (F6 hardening) does not
+# prevent the short-circuit from firing.
 _snapshot_fail
 unset DSO_FORCE_LOCAL_REVIEW
+unset CI
+unset GITHUB_ACTIONS
 strategy_ci_skip=0
 { printf 'app/src/main.py\n' | bash "$CANONICAL_SCRIPT" 2>/dev/null; test $? -eq 0; } && strategy_ci_skip=1
 # Re-enable the override for any subsequent tests that may run after this one.
 export DSO_FORCE_LOCAL_REVIEW=1
 assert_eq "test_skip_review_check_strategy_ci_bypasses_classification: exits 0 on code file under dso.workflow=ci-pr" "1" "$strategy_ci_skip"
 assert_pass_if_clean "test_skip_review_check_strategy_ci_bypasses_classification"
+
+# ── test_ci_env_prevents_cipr_short_circuit ──────────────────────────────────
+# When CI=true (GitHub Actions), the ci-pr short-circuit must NOT fire — CI
+# needs file classification to decide which jobs to run. (F6 hardening)
+_snapshot_fail
+unset DSO_FORCE_LOCAL_REVIEW
+export CI=true
+strategy_ci_in_ci=0
+{ printf 'app/src/main.py\n' | bash "$CANONICAL_SCRIPT" 2>/dev/null; test $? -eq 0; } && strategy_ci_in_ci=1
+export DSO_FORCE_LOCAL_REVIEW=1
+unset CI
+assert_eq "test_ci_env_prevents_cipr_short_circuit: exits 1 (reviewable) even with dso.workflow=ci-pr when CI=true" "0" "$strategy_ci_in_ci"
+assert_pass_if_clean "test_ci_env_prevents_cipr_short_circuit"
 
 print_summary

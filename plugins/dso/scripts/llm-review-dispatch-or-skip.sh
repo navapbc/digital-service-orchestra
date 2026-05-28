@@ -184,39 +184,55 @@ case "$provenance_exit" in
     exit 1
     ;;
   1|2)
-    # Unprovenanced or budget-exhausted — invoke full-diff LLM review.
-    # Bug 9788 regression fix: the runner expects the PR diff on stdin OR via
-    # DSO_CI_REVIEW_DIFF_PATH. Pre-S3.T3 ci.yml piped `gh pr diff "$PR_NUMBER"`
-    # to ci-llm-review-runner.sh; S3.T3 replaced that with the dispatcher
-    # wrapper but dropped the diff input. Without a diff, runner.py:_read_diff()
-    # returns empty and the runner short-circuits before reaching the
-    # cycle-marker post call (runner.py:1730-1732 → line 2352), causing
-    # DISPATCH_ARBITER to be unreachable on live PRs.
+    # Unprovenanced or budget-exhausted — invoke LLM review.
+    # F3 mitigation: when unprovenanced SHAs are known, generate a commit-scoped
+    # diff containing only those commits' changes (not the full PR diff). This
+    # avoids re-reviewing previously-reviewed code from story PRs.
+    # Fallback: full PR diff when no unprovenanced SHAs or commit-scoped is empty.
     if [[ -z "${PR_NUMBER:-}" ]]; then
         echo "ERROR: PR_NUMBER not set — cannot fetch PR diff for runner" >&2
         exit 1
     fi
     _DIFF_PATH=$(mktemp /tmp/dso-pr-diff.XXXXXX)
-    _GH_STDERR=$(mktemp /tmp/dso-pr-diff-stderr.XXXXXX)
-    # Separate stderr from stdout so the diff file holds only the diff content;
-    # gh diagnostics (warnings, auth notices) on success path would otherwise
-    # contaminate the diff body and break runner.py's _read_diff() parsing.
-    trap 'rm -f "$_DIFF_PATH" "$_GH_STDERR"' EXIT
-    if ! gh pr diff "$PR_NUMBER" > "$_DIFF_PATH" 2> "$_GH_STDERR"; then
-        echo "ERROR: gh pr diff $PR_NUMBER failed:" >&2
-        cat "$_GH_STDERR" >&2
-        exit 1
+    trap 'rm -f "$_DIFF_PATH"' EXIT
+    _COMMIT_SCOPED=false
+
+    if [[ -s "$UNPROVENANCED_FILE" ]]; then
+        _COMMIT_SCOPED=true
+        : > "$_DIFF_PATH"
+        while IFS= read -r _sha; do
+            [[ -z "$_sha" ]] && continue
+            git show --format= --diff-merges=first-parent "$_sha" >> "$_DIFF_PATH" 2>/dev/null || true
+        done < "$UNPROVENANCED_FILE"
+        _unprov_count=$(wc -l < "$UNPROVENANCED_FILE" | tr -d ' ')
+        if [[ ! -s "$_DIFF_PATH" ]]; then
+            echo "WARNING: commit-scoped diff is empty for ${_unprov_count} unprovenanced SHA(s); falling back to full PR diff"
+            _COMMIT_SCOPED=false
+        else
+            echo "INFO: commit-scoped diff generated from ${_unprov_count} unprovenanced SHA(s)"
+        fi
     fi
 
-    # G1 fix: when INTEGRATION_SCOPE_FILE is set and non-empty, filter the
-    # full PR diff down to only files in the integration scope. This narrows
-    # the LLM review to unprovenanced + cross-branch files instead of
-    # re-reviewing the entire session diff. (Bug 1624-5fb9 remediation.)
-    _SCOPE_FILE="${INTEGRATION_SCOPE_FILE:-}"
-    if [[ -n "$_SCOPE_FILE" && -s "$_SCOPE_FILE" ]]; then
-        _FILTERED_DIFF=$(mktemp /tmp/dso-pr-diff-filtered.XXXXXX)
-        trap 'rm -f "$_DIFF_PATH" "$_GH_STDERR" "$_FILTERED_DIFF"' EXIT
-        python3 -c "
+    # Fallback: full PR diff (when no UNPROVENANCED_FILE, commit-scoped was
+    # empty, or _FORCE_REVIEW without specific SHAs)
+    if [[ "$_COMMIT_SCOPED" != "true" ]]; then
+        _GH_STDERR=$(mktemp /tmp/dso-pr-diff-stderr.XXXXXX)
+        trap 'rm -f "$_DIFF_PATH" "$_GH_STDERR"' EXIT
+        if ! gh pr diff "$PR_NUMBER" > "$_DIFF_PATH" 2> "$_GH_STDERR"; then
+            echo "ERROR: gh pr diff $PR_NUMBER failed:" >&2
+            cat "$_GH_STDERR" >&2
+            exit 1
+        fi
+    fi
+
+    # G1 scope narrowing: only apply to full-PR diffs. Commit-scoped diffs
+    # are already narrowed by construction.
+    if [[ "$_COMMIT_SCOPED" != "true" ]]; then
+        _SCOPE_FILE="${INTEGRATION_SCOPE_FILE:-}"
+        if [[ -n "$_SCOPE_FILE" && -s "$_SCOPE_FILE" ]]; then
+            _FILTERED_DIFF=$(mktemp /tmp/dso-pr-diff-filtered.XXXXXX)
+            trap 'rm -f "$_DIFF_PATH" "$_GH_STDERR" "$_FILTERED_DIFF"' EXIT
+            python3 -c "
 import sys
 scope_files = set()
 with open(sys.argv[1]) as f:
@@ -233,13 +249,14 @@ for line in sys.stdin:
     if include:
         sys.stdout.write(line)
 " "$_SCOPE_FILE" < "$_DIFF_PATH" > "$_FILTERED_DIFF"
-        _scope_count=$(wc -l < "$_SCOPE_FILE" | tr -d ' ')
-        _orig_files=$(grep -c '^diff --git' "$_DIFF_PATH" || echo 0)
-        _filtered_files=$(grep -c '^diff --git' "$_FILTERED_DIFF" || echo 0)
-        echo "INFO: integration-scope narrowing applied — ${_filtered_files}/${_orig_files} files in scope (${_scope_count} scope entries)"
-        _DIFF_PATH="$_FILTERED_DIFF"
-    else
-        echo "INFO: no integration-scope file or scope is empty — reviewing full PR diff"
+            _scope_count=$(wc -l < "$_SCOPE_FILE" | tr -d ' ')
+            _orig_files=$(grep -c '^diff --git' "$_DIFF_PATH" || echo 0)
+            _filtered_files=$(grep -c '^diff --git' "$_FILTERED_DIFF" || echo 0)
+            echo "INFO: integration-scope narrowing applied — ${_filtered_files}/${_orig_files} files in scope (${_scope_count} scope entries)"
+            _DIFF_PATH="$_FILTERED_DIFF"
+        else
+            echo "INFO: no integration-scope file or scope is empty — reviewing full PR diff"
+        fi
     fi
 
     # Diagnostic: diff size so the log shows what the LLM is reviewing

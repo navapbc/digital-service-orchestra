@@ -43,7 +43,10 @@ STAGED_CHECKS=(
     "merge-pipeline-checks"
 )
 
-RULESET_NAME="DSO CI Enforcement"
+RULESET_NAMES=(
+    "DSO CI Enforcement"
+    "DSO Sub-PR Review Enforcement"
+)
 
 # Resolve repo root (git root relative to script location or cwd)
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null \
@@ -138,11 +141,12 @@ if [[ -z "$REPO" ]]; then
     fi
 fi
 
-# ── Helper: find the DSO CI Enforcement ruleset ID ───────────────────────────
+# ── Helper: find a ruleset ID by name ─────────────────────────────────────────
 _find_ruleset_id() {
     local repo="$1"
+    local name="${2:-${RULESET_NAMES[0]}}"
     gh api "/repos/${repo}/rulesets" 2>/dev/null \
-        | jq -r --arg name "$RULESET_NAME" '.[] | select(.name == $name) | .id' \
+        | jq -r --arg name "$name" '.[] | select(.name == $name) | .id' \
         | head -1
 }
 
@@ -169,31 +173,33 @@ _dry_run_header() {
 # ── Subcommand: list-status ───────────────────────────────────────────────────
 if [[ "$SUBCOMMAND" == "list-status" ]]; then
     echo "Repository: $REPO"
-    echo "Ruleset:    $RULESET_NAME"
     echo ""
 
-    RULESET_ID="$(_find_ruleset_id "$REPO")"
-    if [[ -z "$RULESET_ID" ]]; then
-        echo "STATUS: Ruleset '$RULESET_NAME' not found on $REPO."
-        echo "        Run provision-ruleset.sh first, then re-run this script."
-        exit 0
-    fi
-
-    RULESET_JSON="$(_fetch_ruleset "$REPO" "$RULESET_ID")"
-    echo "Ruleset ID: $RULESET_ID"
-    echo ""
-    echo "Check-context status:"
-
-    for check in "${STAGED_CHECKS[@]}"; do
-        # A check is in the ruleset if it appears in required_status_checks
-        if echo "$RULESET_JSON" | jq -e --arg ctx "$check" '
-            .rules[]? | select(.type == "required_status_checks")
-            | .parameters.required_status_checks[]? | select(.context == $ctx)' \
-            >/dev/null 2>&1; then
-            echo "  [PRESENT] $check"
-        else
-            echo "  [ABSENT]  $check"
+    for _rs_name in "${RULESET_NAMES[@]}"; do
+        echo "Ruleset: $_rs_name"
+        _RS_ID="$(_find_ruleset_id "$REPO" "$_rs_name")"
+        if [[ -z "$_RS_ID" ]]; then
+            echo "  STATUS: Not found on $REPO."
+            echo "          Run provision-ruleset.sh first, then re-run this script."
+            echo ""
+            continue
         fi
+
+        _RS_JSON="$(_fetch_ruleset "$REPO" "$_RS_ID")"
+        echo "  Ruleset ID: $_RS_ID"
+        echo "  Check-context status:"
+
+        for check in "${STAGED_CHECKS[@]}"; do
+            if echo "$_RS_JSON" | jq -e --arg ctx "$check" '
+                .rules[]? | select(.type == "required_status_checks")
+                | .parameters.required_status_checks[]? | select(.context == $ctx)' \
+                >/dev/null 2>&1; then
+                echo "    [PRESENT] $check"
+            else
+                echo "    [ABSENT]  $check"
+            fi
+        done
+        echo ""
     done
 
     echo ""
@@ -304,105 +310,100 @@ if [[ "$SUBCOMMAND" == "stage-as-non-required" ]]; then
 fi
 
 # ── Subcommand: promote-to-required ──────────────────────────────────────────
-# Merges STAGED_CHECKS into the primary 'DSO CI Enforcement' ruleset
-# (enforcement=active), making them blocking-required.
+# Merges STAGED_CHECKS into each DSO ruleset (main + session-branch),
+# making them blocking-required.
 if [[ "$SUBCOMMAND" == "promote-to-required" ]]; then
-    # Retrieve the primary enforcement ruleset
-    echo "Fetching ruleset '$RULESET_NAME' from $REPO ..."
-    RULESET_ID="$(_find_ruleset_id "$REPO")"
+    for _rs_name in "${RULESET_NAMES[@]}"; do
+        echo "Fetching ruleset '$_rs_name' from $REPO ..."
+        RULESET_ID="$(_find_ruleset_id "$REPO" "$_rs_name")"
 
-    if [[ -z "$RULESET_ID" ]]; then
-        echo "ERROR: Ruleset '$RULESET_NAME' not found on $REPO." >&2
-        echo "       Run the onboarding provision-ruleset.sh script first." >&2
-        exit 1
-    fi
+        if [[ -z "$RULESET_ID" ]]; then
+            echo "WARNING: Ruleset '$_rs_name' not found on $REPO — skipping." >&2
+            continue
+        fi
 
-    echo "Ruleset ID: $RULESET_ID"
-    RULESET_JSON="$(_fetch_ruleset "$REPO" "$RULESET_ID")"
+        echo "Ruleset ID: $RULESET_ID"
+        RULESET_JSON="$(_fetch_ruleset "$REPO" "$RULESET_ID")"
 
-    # Build the merged required_status_checks list (idempotent: unique_by deduplicates)
-    EXISTING_CHECKS_JSON="$(echo "$RULESET_JSON" | jq '
-        [.rules[]? | select(.type == "required_status_checks")
-         | .parameters.required_status_checks[]? | {context: .context}]')"
+        EXISTING_CHECKS_JSON="$(echo "$RULESET_JSON" | jq '
+            [.rules[]? | select(.type == "required_status_checks")
+             | .parameters.required_status_checks[]? | {context: .context}]')"
 
-    MERGED_CHECKS_JSON="$(printf '%s\n%s\n' "$EXISTING_CHECKS_JSON" "$STAGED_JSON" \
-        | jq -s 'add | unique_by(.context)')"
+        MERGED_CHECKS_JSON="$(printf '%s\n%s\n' "$EXISTING_CHECKS_JSON" "$STAGED_JSON" \
+            | jq -s 'add | unique_by(.context)')"
 
-    # Rebuild rules with the merged checks
-    UPDATED_RULES="$(echo "$RULESET_JSON" | jq \
-        --argjson merged "$MERGED_CHECKS_JSON" '
-        .rules |= map(
-            if .type == "required_status_checks"
-            then .parameters.required_status_checks = $merged
-            else .
-            end
-        ) |
-        # If no required_status_checks rule existed, append one
-        if (.rules | map(select(.type == "required_status_checks")) | length) == 0
-        then .rules + [{
-            "type": "required_status_checks",
-            "parameters": {
-                "strict_required_status_checks_policy": false,
-                "required_status_checks": $merged
-            }
-        }]
-        else .rules
-        end')"
+        UPDATED_RULES="$(echo "$RULESET_JSON" | jq \
+            --argjson merged "$MERGED_CHECKS_JSON" '
+            .rules |= map(
+                if .type == "required_status_checks"
+                then .parameters.required_status_checks = $merged
+                else .
+                end
+            ) |
+            if (.rules | map(select(.type == "required_status_checks")) | length) == 0
+            then .rules + [{
+                "type": "required_status_checks",
+                "parameters": {
+                    "strict_required_status_checks_policy": false,
+                    "required_status_checks": $merged
+                }
+            }]
+            else .rules
+            end')"
 
-    # Build PATCH payload (only the fields the API accepts on update)
-    PATCH_PAYLOAD="$(echo "$RULESET_JSON" | jq \
-        --argjson updated_rules "$UPDATED_RULES" '{
-            "name": .name,
-            "target": .target,
-            "enforcement": .enforcement,
-            "conditions": .conditions,
-            "bypass_actors": (.bypass_actors // []),
-            "rules": $updated_rules
-        }')"
+        PATCH_PAYLOAD="$(echo "$RULESET_JSON" | jq \
+            --argjson updated_rules "$UPDATED_RULES" '{
+                "name": .name,
+                "target": .target,
+                "enforcement": .enforcement,
+                "conditions": .conditions,
+                "bypass_actors": (.bypass_actors // []),
+                "rules": $updated_rules
+            }')"
 
-    if [[ "$DRY_RUN" == "1" ]]; then
-        _dry_run_header
-        echo "Subcommand: promote-to-required"
+        if [[ "$DRY_RUN" == "1" ]]; then
+            _dry_run_header
+            echo "Subcommand: promote-to-required (ruleset: $_rs_name)"
+            echo ""
+            echo "--- PATCH payload for ruleset $RULESET_ID ---"
+            echo "$PATCH_PAYLOAD"
+            echo ""
+            echo "--- gh api invocation (not executed) ---"
+            echo "gh api --method PUT /repos/${REPO}/rulesets/${RULESET_ID} --input <(echo '\$patch_payload')"
+            echo ""
+            continue
+        fi
+
+        if [[ "$NON_INTERACTIVE" -ne 1 ]]; then
+            echo "About to promote checks to REQUIRED in '$_rs_name' (ID: $RULESET_ID) on $REPO:"
+            printf '  %s\n' "${STAGED_CHECKS[@]}"
+            echo "WARNING: after this operation, PRs without passing these checks cannot merge."
+            printf "Proceed? [y/N] "
+            read -r _confirm
+            case "$_confirm" in
+                y|Y|yes|YES) ;;
+                *)
+                    echo "Aborted." >&2
+                    exit 1
+                    ;;
+            esac
+        fi
+
+        TMPFILE="$(mktemp /tmp/promote-ruleset-patch.XXXXXX)"
+        echo "$PATCH_PAYLOAD" > "$TMPFILE"
+
+        echo "Updating ruleset '$_rs_name' (ID: $RULESET_ID) ..."
+        gh api --method PUT "/repos/${REPO}/rulesets/${RULESET_ID}" --input "$TMPFILE"
+        rm -f "$TMPFILE"
+
         echo ""
-        echo "Checks to promote to required:"
+        echo "=== Promote-to-required complete for '$_rs_name' ==="
+        echo "Repository:    $REPO"
+        echo "Ruleset:       $_rs_name (ID: $RULESET_ID)"
+        echo "Promoted at:   $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+        echo "Required checks now enforced:"
         printf '  %s\n' "${STAGED_CHECKS[@]}"
         echo ""
-        echo "--- PATCH payload for ruleset $RULESET_ID ---"
-        echo "$PATCH_PAYLOAD"
-        echo ""
-        echo "--- gh api invocation (not executed) ---"
-        echo "gh api --method PUT /repos/${REPO}/rulesets/${RULESET_ID} --input <(echo '\$patch_payload')"
-        exit 0
-    fi
-
-    if [[ "$NON_INTERACTIVE" -ne 1 ]]; then
-        echo "About to promote checks to REQUIRED in '$RULESET_NAME' (ID: $RULESET_ID) on $REPO:"
-        printf '  %s\n' "${STAGED_CHECKS[@]}"
-        echo "WARNING: after this operation, PRs without passing these checks cannot merge."
-        printf "Proceed? [y/N] "
-        read -r _confirm
-        case "$_confirm" in
-            y|Y|yes|YES) ;;
-            *)
-                echo "Aborted." >&2
-                exit 1
-                ;;
-        esac
-    fi
-
-    TMPFILE="$(mktemp /tmp/promote-ruleset-patch.XXXXXX)"
-    trap 'rm -f "$TMPFILE"' EXIT
-    echo "$PATCH_PAYLOAD" > "$TMPFILE"
-
-    echo "Updating ruleset '$RULESET_NAME' (ID: $RULESET_ID) ..."
-    gh api --method PUT "/repos/${REPO}/rulesets/${RULESET_ID}" --input "$TMPFILE"
-
-    echo ""
-    echo "=== Promote-to-required complete ==="
-    echo "Repository:    $REPO"
-    echo "Ruleset:       $RULESET_NAME (ID: $RULESET_ID)"
-    echo "Promoted at:   $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-    echo "Required checks now enforced:"
-    printf '  %s\n' "${STAGED_CHECKS[@]}"
+    done
     exit 0
 fi
