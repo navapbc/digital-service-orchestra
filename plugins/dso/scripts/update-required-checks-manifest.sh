@@ -16,9 +16,15 @@ set -uo pipefail
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 CHECKS_FILE="$REPO_ROOT/.github/required-checks.txt"
 
-# Entries that this script is responsible for ensuring are present
+# Entries that this script is responsible for ensuring are present in the
+# main-branch manifest (.github/required-checks.txt).
+#
+# review-sub-pr is intentionally NOT in this list: it fires only on PRs whose
+# base targets a sub-PR branch pattern, so requiring it on the main-branch
+# ruleset would deadlock every PR to main. Enforcement of review-sub-pr lives
+# on the sub-PR ruleset (16961402), populated by provision-ruleset.sh from
+# the sub-PR branch-patterns source-of-truth file (config/sub-pr-branch-patterns.txt).
 REQUIRED_ENTRIES=(
-    "review-sub-pr"
     "merge-pipeline-checks"
 )
 

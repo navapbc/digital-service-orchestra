@@ -171,12 +171,14 @@ assert_pass_if_clean "test_empty_workflows_dir_with_checks_exits_nonzero"
 # rejection (T4). They MUST fail before T4 is implemented.
 #
 
-# tests/scripts/test-validate-required-checks.sh [test_update_manifest_adds_review_sub_pr]
-
 UPDATE_SCRIPT="$REPO_ROOT/plugins/dso/scripts/update-required-checks-manifest.sh"
 
-# -- test_update_manifest_adds_review_sub_pr ----------------------------------
-# update-required-checks-manifest.sh adds 'review-sub-pr' when it is missing.
+# -- test_update_manifest_adds_merge_pipeline_checks --------------------------
+# update-required-checks-manifest.sh adds 'merge-pipeline-checks' to the
+# main-branch manifest when it is missing. review-sub-pr is intentionally NOT
+# in REQUIRED_ENTRIES — see the rationale comment in
+# update-required-checks-manifest.sh (it fires only on PRs targeting sub-PR
+# branches and would deadlock every PR to main if required there).
 _snapshot_fail
 TMP_DIR6="$(mktemp -d)"
 _TMP_DIRS+=("$TMP_DIR6")
@@ -188,16 +190,22 @@ ShellCheck
 Lint Python (ruff)
 EOF
 
-# Script doesn't exist yet — this will exit non-zero.
 rc6=0
 bash "$UPDATE_SCRIPT" --checks-file "$MANIFEST6" 2>/dev/null || rc6=$?
-assert_eq "test_update_manifest_adds_review_sub_pr exit" "0" "$rc6"
+assert_eq "test_update_manifest_adds_merge_pipeline_checks exit" "0" "$rc6"
 
-# Verify 'review-sub-pr' was added to the manifest.
+# Verify 'merge-pipeline-checks' was added to the manifest.
 added6=false
-grep -q 'review-sub-pr' "$MANIFEST6" 2>/dev/null && added6=true
-assert_eq "test_update_manifest_adds_review_sub_pr entry-present" "true" "$added6"
-assert_pass_if_clean "test_update_manifest_adds_review_sub_pr"
+grep -q 'merge-pipeline-checks' "$MANIFEST6" 2>/dev/null && added6=true
+assert_eq "test_update_manifest_adds_merge_pipeline_checks entry-present" "true" "$added6"
+
+# Negative assertion: review-sub-pr must NOT be added by this script — it
+# belongs on the sub-PR ruleset, not the main-branch manifest.
+not_added6=true
+grep -q '^review-sub-pr$' "$MANIFEST6" 2>/dev/null && not_added6=false
+assert_eq "test_update_manifest_adds_merge_pipeline_checks review-sub-pr absent" "true" "$not_added6"
+
+assert_pass_if_clean "test_update_manifest_adds_merge_pipeline_checks"
 
 # -- test_update_manifest_idempotent ------------------------------------------
 # update-required-checks-manifest.sh is a no-op when both entries already

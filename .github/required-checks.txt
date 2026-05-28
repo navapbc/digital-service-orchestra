@@ -33,4 +33,8 @@ Ticket tests (linux-bash4)
 Ticket tests (macos-bash3)
 Ticket tests (alpine-busybox)
 
-review-sub-pr
+# NOTE: review-sub-pr is intentionally NOT listed here. That check fires only on
+# PRs whose base targets a sub-PR branch pattern (see plugins/dso/config/sub-pr-branch-patterns.txt
+# and .github/workflows/review-sub-pr.yml). On a session→main PR, the context never
+# reports, so requiring it on the main-branch ruleset would deadlock every PR to main.
+# Enforcement for review-sub-pr lives on the session/worktree-branch ruleset 16961402.
