@@ -2819,25 +2819,46 @@ When sub-agents commit directly to the session branch under the `DSO_SPRINT_ACTI
 ```bash
 WORKFLOW=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" dso.workflow 2>/dev/null || echo "local")  # shim-exempt: internal orchestration script
 if [[ "$WORKFLOW" == "ci-pr" ]]; then
-    # Count direct (non-merge) commits on the session branch carrying a DSO-Story trailer.
-    # These are commits authored directly under DSO_SPRINT_ACTIVE=0 — not commits that
-    # arrived via per-story PR merges (which appear as merge commits, excluded by --no-merges).
-    _DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
-    _bypass_count=$(git log --no-merges --pretty='%H %(trailers:key=DSO-Story,valueonly=true)' "origin/${_DEFAULT_BRANCH}..HEAD" 2>/dev/null \
+    # Resolve default branch — ci-pr projects don't all use "main" (master/trunk/develop
+    # are valid). Mirror redistribute-session-commits.sh's MAIN_REF pattern: prefer
+    # symbolic-ref of origin/HEAD, then env var, then literal "main". This is a
+    # local resolution chain (read-only), not a graceful-degradation gate that
+    # bypasses an action — no PRECONDITIONS landmark needed. # precondition-emit-ok
+    _DEFAULT_BRANCH=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
+    [[ -z "$_DEFAULT_BRANCH" ]] && _DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
+
+    # Count direct (non-merge) commits on the session branch's FIRST-PARENT history
+    # carrying a DSO-Story trailer. The --first-parent flag is critical: without it,
+    # `git log --no-merges` walks both parents of merge commits and exposes the
+    # per-story-branch commits (which DO carry DSO-Story trailers injected by
+    # merge-to-main-pr.sh) as if they were direct-to-session commits. With
+    # --first-parent, the walk follows only the session branch's mainline history,
+    # so only commits authored directly to the session branch under
+    # DSO_SPRINT_ACTIVE=0 are counted. Per-story PR merges appear as merge commits
+    # on the first-parent line and are excluded by --no-merges.
+    _bypass_count=$(git log --no-merges --first-parent --pretty='%H %(trailers:key=DSO-Story,valueonly=true)' "origin/${_DEFAULT_BRANCH}..HEAD" 2>/dev/null \
         | awk 'NF>1 {c++} END {print c+0}')
     if [[ "$_bypass_count" -gt 0 ]]; then
+        _epic_id="${EPIC_ID:-<epic-id>}"
         echo "REDISTRIBUTE-RECOMMENDED: detected ${_bypass_count} direct-to-session commit(s) with DSO-Story trailers (sprint bypass via DSO_SPRINT_ACTIVE=0)."
         echo "  In ci-pr workflow these produce a monolithic LLM review on the full sprint diff (bug 85f3)."
         echo "  Recommended action:"
-        echo "    bash \${CLAUDE_PLUGIN_ROOT}/scripts/redistribute-session-commits.sh --epic <epic-id> --dry-run"
+        echo "    bash \${CLAUDE_PLUGIN_ROOT}/scripts/redistribute-session-commits.sh --epic ${_epic_id} --dry-run"
         echo "  Run with --dry-run first to preview the per-story PR split, then re-run without --dry-run to publish."
-        echo "  Proceeding to Phase G in 5s (Ctrl-C to abort and redistribute now)."
-        sleep 5 2>/dev/null || true
+        # Pause for interactive abort only when running attached to a TTY. In
+        # nested-orchestrator / sub-agent contexts (no terminal), the Ctrl-C
+        # guidance is meaningless — skip the sleep to avoid dead time per epic.
+        if [[ -t 0 ]]; then
+            echo "  Proceeding to Phase G in 5s (Ctrl-C to abort and redistribute now)."
+            sleep 5 2>/dev/null || true
+        else
+            echo "  Non-interactive context — proceeding to Phase G immediately. Orchestrator may parse REDISTRIBUTE-RECOMMENDED to act."
+        fi
     fi
 fi
 ```
 
-This is a recommendation, not a hard gate. The `DSO_SPRINT_ACTIVE=0` bypass is a documented escape hatch in CLAUDE.md — accepting a monolithic review is sometimes a legitimate tradeoff (small sprint, single-author session, intentional bypass). The recommendation surfaces the bug 85f3 failure mode without forcing redistribution; users who want per-story scoped reviews abort the 5-second pause and run the redistribute script before Phase G runs.
+This is a recommendation, not a hard gate. The `DSO_SPRINT_ACTIVE=0` bypass is a documented escape hatch in CLAUDE.md — accepting a monolithic review is sometimes a legitimate tradeoff (small sprint, single-author session, intentional bypass). The recommendation surfaces the bug 85f3 failure mode without forcing redistribution; users who want per-story scoped reviews abort the 5-second pause and run the redistribute script before Phase G runs. Re-entry via `--resume` re-runs the detection idempotently (the check is a read-only git query).
 
 ---
 
