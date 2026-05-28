@@ -135,7 +135,17 @@ _SCRIPT_PLUGIN_DIR="$PLUGIN_ROOT"
 source "$_SCRIPT_PLUGIN_DIR/scripts/artifact-merge-lib.sh"
 
 # ── Read plugin version (used for artifact stamps) ────────────────────────────
-_PLUGIN_VERSION=$(python3 -c "import json; print(json.load(open('$_SCRIPT_PLUGIN_DIR/.claude-plugin/plugin.json'))['version'])" 2>/dev/null || echo "unknown")
+# Prefer jq when available (POSIX-portable); fall back to python3, then to awk.
+# Pure-shell paths avoid silent "unknown" stamps on hosts without python3.
+_PLUGIN_JSON="$_SCRIPT_PLUGIN_DIR/.claude-plugin/plugin.json"
+if command -v jq >/dev/null 2>&1; then
+    _PLUGIN_VERSION=$(jq -r '.version' "$_PLUGIN_JSON" 2>/dev/null || echo "unknown")
+elif command -v python3 >/dev/null 2>&1; then
+    _PLUGIN_VERSION=$(python3 -c "import json; print(json.load(open('$_PLUGIN_JSON'))['version'])" 2>/dev/null || echo "unknown")
+else
+    _PLUGIN_VERSION=$(awk -F'"' '/"version"/ {print $4; exit}' "$_PLUGIN_JSON" 2>/dev/null || echo "unknown")
+fi
+[[ -z "$_PLUGIN_VERSION" ]] && _PLUGIN_VERSION="unknown"
 # DIST_ROOT: the repository root containing shared assets (templates/, docs/examples/)
 # that live outside the plugin subdir. Falls back to PLUGIN_ROOT for backward
 # compatibility when this script is called with the repo root as PLUGIN_ROOT.
@@ -537,9 +547,14 @@ with open(file_path, 'w') as f:
     f.write(stamp_line + '\n' + content)
 PYEOF
             else
-                # Fallback: sed prepend
+                # Fallback: sed prepend. Escape backslash, slash, and ampersand
+                # in stamp_line so sed substitution metacharacters don't break
+                # when the stamp ever contains a path or "&" (currently dormant
+                # because stamp format is "x-dso-version: <semver>", but the
+                # template isn't pinned — guard against future expansion).
+                _escaped_stamp=$(printf '%s' "$stamp_line" | sed 's/[\\/&]/\\&/g')
                 sed -i.bak "1i\\
-$stamp_line" "$file_path" && rm -f "${file_path}.bak"
+$_escaped_stamp" "$file_path" && rm -f "${file_path}.bak"
             fi
         fi
     fi
@@ -704,8 +719,10 @@ fi
 if ! command -v acli >/dev/null 2>&1; then
     echo '[optional] acli not found. Install: brew install acli (enables Jira integration in DSO)'
 fi
+# PyYAML is only needed for the legacy YAML config path; if python3 is missing
+# entirely, skip the check (the legacy path isn't reachable without python3).
 if command -v python3 >/dev/null 2>&1 && ! python3 -c 'import yaml' >/dev/null 2>&1; then
-    echo '[optional] PyYAML not found. Install: pip3 install pyyaml (enables legacy YAML config path)'
+    echo '[advisory] PyYAML not installed (optional; only used by the legacy YAML config path). To enable: pip3 install pyyaml'
 fi
 
 # ── Environment variable guidance ─────────────────────────────────────────────
