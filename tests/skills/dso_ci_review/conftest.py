@@ -87,6 +87,7 @@ def _ensure_plugin_package() -> None:
     _load_from_plugin("providers")
     _load_from_plugin("providers.config")
     _load_from_plugin("context_request")
+    _load_from_plugin("dispatch_ratelimit")
     _load_from_plugin("dispatch")
     _load_from_plugin("classifier")
     _load_from_plugin("findings")

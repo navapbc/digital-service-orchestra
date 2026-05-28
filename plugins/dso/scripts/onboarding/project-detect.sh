@@ -33,6 +33,24 @@ set -uo pipefail
 #   ports_confidence=confirmed           — read directly from config file
 #   version_files=<comma-separated>      — files that carry a version field
 #   version_files_confidence=confirmed   — checked with test -f and content parsing
+#   ci_provider=<value>                  — detected CI provider (bug 5d92 prep):
+#                                          github|gitlab|circleci|jenkins|buildkite|
+#                                          azure|bitbucket|gitea|none|ambiguous|unknown
+#   ci_provider_confidence=high|low      — high if exactly one provider marker present
+#                                          and non-empty; low if bare/empty/multi-match
+#   ci_provider_candidates=<comma-sep>   — when ci_provider=ambiguous, the matched
+#                                          providers (empty otherwise)
+#   hook_manager=<value>                 — detected git hook manager (bug 5d92 prep):
+#                                          precommit|husky|lefthook|simple-git-hooks|
+#                                          native|none|ambiguous|unknown
+#   hook_manager_confidence=high|low     — high if exactly one manager + content check
+#                                          passes; low if bare presence or multi-match
+#   hook_manager_candidates=<comma-sep>  — when hook_manager=ambiguous, matched managers
+#   repo_host=<value>                    — detected git repo host (bug 5d92 prep):
+#                                          github|gitlab|bitbucket|gitea|none|unknown
+#   repo_host_confidence=high|low|none   — high if remote URL matches a known pattern;
+#                                          none if no remote configured (modal onboarding
+#                                          case for fresh repos); low for unknown patterns
 #
 # --suites mode: Output (stdout) is a JSON array of test suite objects. The script
 # exits immediately after emitting the array; key=value output is not produced.
@@ -781,3 +799,150 @@ fi
 
 echo "version_files=${version_files}"
 echo "version_files_confidence=confirmed"
+
+# ── Category 11: CI provider detection (bug 5d92 prep) ────────────────────────
+# Pure-additive detection: emits ci_provider + ci_provider_confidence (+
+# ci_provider_candidates when ambiguous). Not consumed by any caller yet; the
+# defect-C dispatcher in a follow-up PR will branch on this value.
+#
+# Confidence rule: high iff exactly one provider's marker file is present and
+# non-empty (>=1 non-comment line). Multiple matches => ambiguous (low). Bare
+# presence with empty/stub content => low. No matches => none (high — explicit
+# absence is a known state, not unknown).
+_ci_provider_match() {
+    # Args: $1=marker file/glob, $2=provider name
+    # Echoes provider name if the marker exists and is non-empty (≥1 non-blank,
+    # non-comment line). Returns 1 on no match.
+    local marker="$1" provider="$2"
+    local file
+    for file in $marker; do
+        if [[ -f "$file" ]]; then
+            # Non-empty = at least one line that is not blank and not a comment
+            if grep -qE '^[[:space:]]*[^#[:space:]]' "$file" 2>/dev/null; then
+                echo "$provider"
+                return 0
+            fi
+        fi
+    done
+    return 1
+}
+ci_provider="none"
+ci_provider_confidence="high"
+ci_provider_candidates=""
+_ci_matched=()
+# Each provider's signature is the file (or first-file-of-glob) that confirms it
+[[ -d "$PROJECT_DIR/.github/workflows" ]] && _gh_files=("$PROJECT_DIR/.github/workflows"/*.yml "$PROJECT_DIR/.github/workflows"/*.yaml) || _gh_files=()
+for _f in "${_gh_files[@]}"; do [[ -f "$_f" ]] && { _m=$(_ci_provider_match "$_f" github) && _ci_matched+=("$_m") && break; }; done
+_m=$(_ci_provider_match "$PROJECT_DIR/.gitlab-ci.yml" gitlab) && _ci_matched+=("$_m")
+_m=$(_ci_provider_match "$PROJECT_DIR/.circleci/config.yml" circleci) && _ci_matched+=("$_m")
+_m=$(_ci_provider_match "$PROJECT_DIR/Jenkinsfile" jenkins) && _ci_matched+=("$_m")
+[[ -d "$PROJECT_DIR/.buildkite" ]] && {
+    for _f in "$PROJECT_DIR/.buildkite/pipeline.yml" "$PROJECT_DIR/.buildkite/pipeline.yaml"; do
+        [[ -f "$_f" ]] && { _m=$(_ci_provider_match "$_f" buildkite) && _ci_matched+=("$_m") && break; }
+    done
+}
+_m=$(_ci_provider_match "$PROJECT_DIR/azure-pipelines.yml" azure) && _ci_matched+=("$_m")
+_m=$(_ci_provider_match "$PROJECT_DIR/bitbucket-pipelines.yml" bitbucket) && _ci_matched+=("$_m")
+# Dedup and decide
+if [[ ${#_ci_matched[@]} -eq 1 ]]; then
+    ci_provider="${_ci_matched[0]}"
+    ci_provider_confidence="high"
+elif [[ ${#_ci_matched[@]} -gt 1 ]]; then
+    ci_provider="ambiguous"
+    ci_provider_confidence="low"
+    # Comma-separated unique candidate list
+    ci_provider_candidates=$(printf '%s\n' "${_ci_matched[@]}" | sort -u | paste -sd, -)
+fi
+echo "ci_provider=${ci_provider}"
+echo "ci_provider_confidence=${ci_provider_confidence}"
+echo "ci_provider_candidates=${ci_provider_candidates}"
+
+# ── Category 12: Git hook manager detection (bug 5d92 prep) ───────────────────
+# Pure-additive. Emits hook_manager + hook_manager_confidence (+ candidates).
+# Detection signatures:
+#   precommit       : .pre-commit-config.yaml AND has `^- repo:` entry (S3 from review)
+#   husky           : .husky/ directory with at least one executable hook file
+#                     (excludes _/ subdirectory which is husky's internal helper dir)
+#   lefthook        : lefthook.yml or lefthook.yaml (non-empty)
+#   simple-git-hooks: package.json with `simple-git-hooks` key
+#   native          : .git/hooks/ contains non-sample (non-`.sample`) executable files
+#   none            : no signatures match
+#   ambiguous       : multiple signatures match (treated as low confidence)
+hook_manager="none"
+hook_manager_confidence="high"
+hook_manager_candidates=""
+_hm_matched=()
+# precommit: file present + has `- repo:` entry (content check S3)
+if [[ -f "$PROJECT_DIR/.pre-commit-config.yaml" ]] && grep -qE '^[[:space:]]*-[[:space:]]+repo:' "$PROJECT_DIR/.pre-commit-config.yaml" 2>/dev/null; then
+    _hm_matched+=(precommit)
+fi
+# husky: .husky/ dir with at least one executable hook file (not _ subdir)
+if [[ -d "$PROJECT_DIR/.husky" ]]; then
+    if find "$PROJECT_DIR/.husky" -maxdepth 1 -type f -perm -u+x 2>/dev/null | grep -q .; then
+        _hm_matched+=(husky)
+    fi
+fi
+# lefthook: lefthook.{yml,yaml} non-empty
+for _f in "$PROJECT_DIR/lefthook.yml" "$PROJECT_DIR/lefthook.yaml"; do
+    if [[ -f "$_f" ]] && grep -qE '^[[:space:]]*[^#[:space:]]' "$_f" 2>/dev/null; then
+        _hm_matched+=(lefthook); break
+    fi
+done
+# simple-git-hooks: package.json contains the key
+if [[ -f "$PROJECT_DIR/package.json" ]] && grep -q '"simple-git-hooks"' "$PROJECT_DIR/package.json" 2>/dev/null; then
+    _hm_matched+=(simple-git-hooks)
+fi
+# native: .git/hooks/ with non-sample executable files
+if [[ -d "$PROJECT_DIR/.git/hooks" ]]; then
+    if find "$PROJECT_DIR/.git/hooks" -maxdepth 1 -type f ! -name '*.sample' -perm -u+x 2>/dev/null | grep -q .; then
+        _hm_matched+=(native)
+    fi
+fi
+if [[ ${#_hm_matched[@]} -eq 1 ]]; then
+    hook_manager="${_hm_matched[0]}"
+    hook_manager_confidence="high"
+elif [[ ${#_hm_matched[@]} -gt 1 ]]; then
+    hook_manager="ambiguous"
+    hook_manager_confidence="low"
+    hook_manager_candidates=$(printf '%s\n' "${_hm_matched[@]}" | sort -u | paste -sd, -)
+fi
+echo "hook_manager=${hook_manager}"
+echo "hook_manager_confidence=${hook_manager_confidence}"
+echo "hook_manager_candidates=${hook_manager_candidates}"
+
+# ── Category 13: Git repo host detection (bug 5d92 prep) ──────────────────────
+# Pure-additive. Emits repo_host + repo_host_confidence.
+# Parses `git remote get-url origin` and matches against known host patterns.
+# repo_host_confidence values:
+#   none — no remote configured (modal case for fresh onboarding)
+#   high — URL matches exactly one known host pattern
+#   low  — URL doesn't match a known pattern (self-hosted unknown / custom domain)
+repo_host="unknown"
+repo_host_confidence="low"
+_origin_url=""
+if [[ -d "$PROJECT_DIR/.git" ]] || git -C "$PROJECT_DIR" rev-parse --git-dir >/dev/null 2>&1; then
+    _origin_url=$(git -C "$PROJECT_DIR" remote get-url origin 2>/dev/null || true)
+fi
+if [[ -z "$_origin_url" ]]; then
+    repo_host="none"
+    repo_host_confidence="none"
+elif [[ "$_origin_url" == *github.com* || "$_origin_url" == git@github* ]]; then
+    repo_host="github"
+    repo_host_confidence="high"
+elif [[ "$_origin_url" == *gitlab.com* || "$_origin_url" == git@gitlab* || "$_origin_url" == *gitlab* ]]; then
+    repo_host="gitlab"
+    # gitlab.com is high; *gitlab* in URL (self-hosted pattern) is low
+    if [[ "$_origin_url" == *gitlab.com* || "$_origin_url" == git@gitlab.com* ]]; then
+        repo_host_confidence="high"
+    else
+        repo_host_confidence="low"
+    fi
+elif [[ "$_origin_url" == *bitbucket.org* || "$_origin_url" == git@bitbucket* ]]; then
+    repo_host="bitbucket"
+    repo_host_confidence="high"
+elif [[ "$_origin_url" == *gitea* ]]; then
+    repo_host="gitea"
+    repo_host_confidence="low"
+fi
+echo "repo_host=${repo_host}"
+echo "repo_host_confidence=${repo_host_confidence}"

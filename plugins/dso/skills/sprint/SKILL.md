@@ -2810,7 +2810,60 @@ Decision: Involuntary compaction detected? → Yes: P8 (Graceful Shutdown)
 - If **involuntary** context compaction has occurred (no intent file) → Phase I (graceful shutdown)
 - If more ready tasks exist (`.claude/scripts/dso ticket ready --epic=<epic-id>`) → return to Phase C
 - If no more ready tasks and some tasks are still blocked → report blocking chain, Phase I
-- If all tasks are closed → **Phase G is MANDATORY** — proceed to Phase G (validation). Phase G has a HARD-GATE requiring completion-verifier dispatch (Phase G Step 2) before any other Phase G step executes. Do NOT skip the Phase G HARD-GATE.
+- If all tasks are closed → **run the sprint-bypass redistribute check below, then proceed to Phase G**. Phase G has a HARD-GATE requiring completion-verifier dispatch (Phase G Step 2) before any other Phase G step executes. Do NOT skip the Phase G HARD-GATE.
+
+#### Sprint-bypass redistribute check (bug 85f3) — runs after the batch loop terminates, before Phase G
+
+When sub-agents commit directly to the session branch under the `DSO_SPRINT_ACTIVE=0` escape hatch (instead of dispatching into per-story sub-branches), the resulting session→main PR receives a single monolithic LLM review on the full sprint diff. This is the failure mode reported in bug 85f3 (PR #140 hit a 1095-line diff with 4/4 critical false positives). The `${CLAUDE_PLUGIN_ROOT}/scripts/redistribute-session-commits.sh` script splits such commits into per-story branches so each gets a scoped review. This check detects the condition at the natural choke point: after all batches have processed, before validation begins.
+
+**Orchestrator substitution**: before executing the block below, substitute `<epic-id>` with the primary-ticket ID currently being processed. This mirrors the convention used elsewhere in this skill (e.g., `ticket ready --epic=<epic-id>` at line 2811) — placeholders in literal angle-brackets are LLM-substituted at execution time, not bash-expanded.
+
+```bash
+<!-- # precondition-emit-ok: the resolve-default-branch call below is a read-only resolution, not a graceful-degradation gate. -->
+WORKFLOW=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" dso.workflow 2>/dev/null || echo "local")  # shim-exempt: internal orchestration script
+if [[ "$WORKFLOW" == "ci-pr" ]]; then
+    # Resolve default branch via the canonical resolver, which handles all four
+    # tiers (dso.default_branch config → git symbolic-ref → gh repo view → "main"
+    # fallback). Re-implementing the precedence chain here would diverge from
+    # the resolver used by every DSO merge script and silently skip detection
+    # on projects whose default branch is master/develop/trunk when origin/HEAD
+    # isn't configured.
+    _default_branch=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/resolve-default-branch.sh" --no-warn 2>/dev/null)
+    [[ -z "$_default_branch" ]] && _default_branch="main"
+
+    # Count direct (non-merge) commits on the session branch's FIRST-PARENT history
+    # carrying a DSO-Story trailer. The --first-parent flag is critical: without it,
+    # `git log --no-merges` walks both parents of merge commits and exposes the
+    # per-story-branch commits (which DO carry DSO-Story trailers injected by
+    # merge-to-main-pr.sh) as if they were direct-to-session commits. With
+    # --first-parent, the walk follows only the session branch's mainline history,
+    # so only commits authored directly to the session branch under
+    # DSO_SPRINT_ACTIVE=0 are counted. Per-story PR merges appear as merge commits
+    # on the first-parent line and are excluded by --no-merges. This assumes the
+    # established DSO merge mode (`gh pr merge --merge`, true merge commit — see
+    # merge-to-main-pr.sh). Squash-merge mode would invert the semantics.
+    _bypass_count=$(git log --no-merges --first-parent --pretty='%H %(trailers:key=DSO-Story,valueonly=true)' "origin/${_default_branch}..HEAD" 2>/dev/null \
+        | awk 'NF>1 {c++} END {print c+0}')
+    if [[ "$_bypass_count" -gt 0 ]]; then
+        echo "REDISTRIBUTE-RECOMMENDED: detected ${_bypass_count} direct-to-session commit(s) with DSO-Story trailers (sprint bypass via DSO_SPRINT_ACTIVE=0)."
+        echo "  In ci-pr workflow these produce a monolithic LLM review on the full sprint diff (bug 85f3)."
+        echo "  Recommended action (run BEFORE Phase G's completion-verifier dispatches, to avoid attesting against soon-rewritten SHAs):"
+        echo "    bash \${CLAUDE_PLUGIN_ROOT}/scripts/redistribute-session-commits.sh --epic <epic-id> --dry-run"
+        echo "  Run with --dry-run first to preview the per-story PR split, then re-run without --dry-run to publish."
+        # Pause for interactive abort only when running attached to a TTY. In
+        # nested-orchestrator / sub-agent contexts (no terminal), the Ctrl-C
+        # guidance is meaningless — skip the sleep to avoid dead time per epic.
+        if [[ -t 0 ]]; then
+            echo "  Proceeding to Phase G in 5s (Ctrl-C to abort and redistribute now)."
+            sleep 5 2>/dev/null || true
+        else
+            echo "  Non-interactive context — proceeding to Phase G immediately. Orchestrator may parse REDISTRIBUTE-RECOMMENDED to act."
+        fi
+    fi
+fi
+```
+
+This is a recommendation, not a hard gate. The `DSO_SPRINT_ACTIVE=0` bypass is a documented escape hatch in CLAUDE.md — accepting a monolithic review is sometimes a legitimate tradeoff (small sprint, single-author session, intentional bypass). The recommendation surfaces the bug 85f3 failure mode without forcing redistribution; users who want per-story scoped reviews abort the 5-second pause and run the redistribute script before Phase G runs. Re-entry via `--resume` re-runs the detection idempotently (the check is a read-only git query).
 
 ---
 

@@ -49,7 +49,12 @@ from dso_ci_review.cycle_ledger import (
 from dso_ci_review.findings import merge_findings, _parse_line_range
 from dso_ci_review.providers.config import AuthError, ConfigError, get_provider
 from dso_ci_review.proximity import compute_proximity_overlap, validate_escape_rationale
-from dso_ci_review.region_split import _should_region_split, run_region_split_strategy_f
+from dso_ci_review.dispatch_ratelimit import DispatchContext
+from dso_ci_review.region_split import (
+    _cluster_concurrency,
+    _should_region_split,
+    run_region_split_strategy_f,
+)
 from dso_ci_review import cycle_ledger
 from dso_ci_review.arbiter import dispatch_cycle_end_arbiter
 from dso_ci_review.arbiter_processor import process_rulings
@@ -2025,8 +2030,137 @@ def _post_cycle_marker_comment(
         )
 
 
+_CYCLE_1_STAGGER_S: float = 0.4
+
+
+async def _gather_clusters(
+    *,
+    specs: list[dict],
+    tier_agents: list[dict],
+    sem: asyncio.Semaphore,
+    dispatch_ctx: DispatchContext,
+    cycle_number: int,
+    diff_text_fallback: str,
+) -> list[dict]:
+    """Gather all clusters' _run_cluster coroutines under a shared
+    DispatchContext. Extracted to module scope so the test suite can exercise
+    it directly and so the strategy_f block in main() stays small.
+    """
+    return await asyncio.gather(
+        *[
+            _run_cluster(
+                spec=spec,
+                tier_agents=tier_agents,
+                sem=sem,
+                dispatch_ctx=dispatch_ctx,
+                cluster_index=idx,
+                cycle_number=cycle_number,
+                diff_text_fallback=diff_text_fallback,
+            )
+            for idx, spec in enumerate(specs)
+        ],
+        return_exceptions=True,
+    )
+
+
+async def _run_cluster(
+    spec: dict,
+    tier_agents: list[dict],
+    sem: asyncio.Semaphore,
+    dispatch_ctx: DispatchContext,
+    cluster_index: int,
+    cycle_number: int,
+    diff_text_fallback: str,
+) -> dict:
+    """Dispatch one cluster's specialists. Returns a result dict; never raises.
+
+    On cycle 1 only, staggers cluster_index > 0 starts by 0.4s × index so
+    cluster 0's response writes the system-prompt cache before clusters 1..N
+    fire, avoiding N× cache-creation cost on cold start. Cycle 2+ skips the
+    stagger because the cache is warm.
+
+    Concurrency is gated by ``sem``; the caller picks the limit from
+    ``review.region_split.cluster_concurrency`` (default 2, capped at
+    min(max_clusters, 3) — see region_split._cluster_concurrency).
+
+    Any escape (RateLimitError, network error, unexpected) is caught and
+    converted to a dispatch_error result so gather(return_exceptions=True)
+    never yields a bare Exception to the aggregator.
+    """
+    cluster_diff = spec.get("diff", diff_text_fallback)
+    cluster_files = spec.get("files", [])
+    cluster_dir = spec.get("cluster_dir", ".")
+    oversized_single_file = spec.get("oversized_single_file", False)
+
+    if oversized_single_file:
+        skip_file = cluster_files[0] if cluster_files else cluster_dir
+        print(
+            f"INFO: skipping oversized single-file cluster {skip_file!r} "
+            f"(diff exceeds loc_threshold — LLM dispatch skipped to prevent "
+            f"non-JSON response; file will appear in skipped list)",
+            file=sys.stderr,
+        )
+        return {
+            "cluster_id": cluster_dir,
+            "file_paths": cluster_files,
+            "findings": [],
+            "status": "oversized_skip",
+        }
+
+    if cycle_number == 1 and cluster_index > 0:
+        await asyncio.sleep(_CYCLE_1_STAGGER_S * cluster_index)
+
+    async with sem:
+        cluster_agents = [
+            {**agent, "diff_text": cluster_diff} for agent in tier_agents
+        ]
+        try:
+            dispatch_results = await async_dispatch_specialists(
+                cluster_agents, dispatch_context=dispatch_ctx
+            )
+            findings: list[dict] = []
+            for dr in dispatch_results:
+                if isinstance(dr, dict):
+                    findings.extend(dr.get("findings", []))
+            return {
+                "cluster_id": cluster_dir,
+                "file_paths": cluster_files,
+                "findings": findings,
+                "status": "ok",
+            }
+        except Exception as exc:  # noqa: BLE001
+            print(
+                f"WARNING: cluster dispatch failed for {cluster_dir}: "
+                f"{type(exc).__name__}: {exc}",
+                file=sys.stderr,
+            )
+            return {
+                "cluster_id": cluster_dir,
+                "file_paths": cluster_files,
+                "findings": [],
+                "status": "dispatch_error",
+            }
+
+
 def main() -> int:
-    """Run the CI review and return an exit code."""
+    """Run the CI review and return an exit code.
+
+    CLI-only entry point. The four asyncio.run() invocations inside this
+    function (and inside region_split.review_oversized_clusters) assume no
+    host event loop is already running. Importing and calling main() from a
+    context with a running loop will trip the assertion below — see
+    tests/skills/dso_ci_review/litellm_contract_spikes/spike_05_nested_loop_assertion.py
+    """
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        pass
+    else:
+        raise RuntimeError(
+            "runner.main() is CLI-only and cannot be invoked from a context "
+            "with a running event loop. Run as a subprocess instead."
+        )
+
     dry_run = os.environ.get("DSO_CI_REVIEW_DRY_RUN") == "1"
 
     if dry_run:
@@ -2344,70 +2478,53 @@ def main() -> int:
                 )
                 return 1
 
-            # Step 4: dispatch each cluster using existing primary→fallback model chain.
+            # Step 4: dispatch clusters in parallel via asyncio.gather, bounded
+            # by review.region_split.cluster_concurrency (default 2). Each
+            # cluster's specialists fan out under async_dispatch_specialists
+            # using a shared DispatchContext so cooldowns coordinate across
+            # clusters within this single asyncio.run.
+            _dispatch_ctx = DispatchContext.create()
+            _max_in_flight = _cluster_concurrency()
+            _cluster_sem = asyncio.Semaphore(_max_in_flight)
+            print(
+                f"INFO: dispatching {len(_filtered_specs)} cluster(s) with "
+                f"cluster_concurrency={_max_in_flight}",
+                file=sys.stderr,
+            )
+
+            try:
+                _raw_results = asyncio.run(
+                    _gather_clusters(
+                        specs=_filtered_specs,
+                        tier_agents=tier_agents,
+                        sem=_cluster_sem,
+                        dispatch_ctx=_dispatch_ctx,
+                        cycle_number=cycle_number,
+                        diff_text_fallback=diff_text,
+                    )
+                )
+            finally:
+                _dispatch_ctx.cleanup()
+
             _cluster_results: list[dict] = []
-            for _spec in _filtered_specs:
-                _cluster_diff = _spec.get("diff", diff_text)
-                _cluster_files = _spec.get("files", [])
-                _cluster_dir = _spec.get("cluster_dir", ".")
-                _oversized_single_file = _spec.get("oversized_single_file", False)
-
-                # Bug 0768-337d-f6fa-43f0: skip LLM dispatch for oversized single-file
-                # clusters. When region_split sets oversized_single_file=True, the file's
-                # diff exceeds the loc_threshold and sending it to the LLM causes token
-                # budget exhaustion, resulting in a 134KB non-JSON response and
-                # fallback_exhausted. Emit an informational skip instead.
-                if _oversized_single_file:
-                    _skip_file = _cluster_files[0] if _cluster_files else _cluster_dir
+            for _idx, _result in enumerate(_raw_results):
+                if isinstance(_result, dict):
+                    _cluster_results.append(_result)
+                else:
+                    # _run_cluster guards every escape, so this branch is a
+                    # belt-and-suspenders fallback for genuinely unexpected
+                    # exceptions (e.g. asyncio internal errors).
+                    _spec = _filtered_specs[_idx]
                     print(
-                        f"INFO: skipping oversized single-file cluster {_skip_file!r} "
-                        f"(diff exceeds loc_threshold — LLM dispatch skipped to prevent "
-                        f"non-JSON response; file will appear in skipped list)",
+                        f"WARNING: cluster {_spec.get('cluster_dir', '.')!r} "
+                        f"escaped _run_cluster guard: "
+                        f"{type(_result).__name__}: {_result}",
                         file=sys.stderr,
                     )
                     _cluster_results.append(
                         {
-                            "cluster_id": _cluster_dir,
-                            "file_paths": _cluster_files,
-                            "findings": [],
-                            "status": "oversized_skip",
-                        }
-                    )
-                    continue
-
-                # Build cluster-scoped agents (reuse tier_agents model chain).
-                _cluster_agents = []
-                for _agent in tier_agents:
-                    _cluster_agent = dict(_agent)
-                    _cluster_agent["diff_text"] = _cluster_diff
-                    _cluster_agents.append(_cluster_agent)
-
-                try:
-                    _cluster_dispatch_results = asyncio.run(
-                        async_dispatch_specialists(_cluster_agents)
-                    )
-                    _cluster_findings: list[dict] = []
-                    for _dr in _cluster_dispatch_results:
-                        if isinstance(_dr, dict):
-                            _cluster_findings.extend(_dr.get("findings", []))
-                    _cluster_results.append(
-                        {
-                            "cluster_id": _cluster_dir,
-                            "file_paths": _cluster_files,
-                            "findings": _cluster_findings,
-                            "status": "ok",
-                        }
-                    )
-                except Exception as _disp_exc:  # noqa: BLE001
-                    print(
-                        f"WARNING: cluster dispatch failed for {_cluster_dir}: "
-                        f"{type(_disp_exc).__name__}: {_disp_exc}",
-                        file=sys.stderr,
-                    )
-                    _cluster_results.append(
-                        {
-                            "cluster_id": _cluster_dir,
-                            "file_paths": _cluster_files,
+                            "cluster_id": _spec.get("cluster_dir", "."),
+                            "file_paths": _spec.get("files", []),
                             "findings": [],
                             "status": "dispatch_error",
                         }
