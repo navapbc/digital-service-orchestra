@@ -834,6 +834,93 @@ MOCKEOF
     assert_pass_if_clean "test_dispatcher_empty_scope_uses_full_diff"
 }
 
+# ── Test 17 (F3): commit-scoped diff for unprovenanced SHAs ──────────────────
+# When unprovenanced-shas.txt contains real SHAs, the dispatcher must generate
+# a commit-scoped diff (via git show) instead of fetching the full PR diff.
+# Only the unprovenanced commit's changes should appear in the diff.
+test_dispatcher_commit_scoped_diff() {
+    _snapshot_fail
+    if [[ ! -f "$WRAPPER" ]]; then
+        assert_eq "test_dispatcher_commit_scoped_diff: wrapper must exist" \
+            "wrapper_exists" "wrapper_missing"
+        assert_pass_if_clean "test_dispatcher_commit_scoped_diff"
+        return
+    fi
+
+    # Create a real git repo with two commits: one provenanced, one not
+    local repo
+    repo="$(mktemp -d)"
+    git -C "$repo" init -b main > /dev/null 2>&1
+    git -C "$repo" config user.name "Test" > /dev/null 2>&1
+    git -C "$repo" config user.email "test@test.com" > /dev/null 2>&1
+
+    printf 'line1\n' > "$repo/reviewed.py"
+    git -C "$repo" add reviewed.py > /dev/null 2>&1
+    git -C "$repo" commit -m "Reviewed commit" > /dev/null 2>&1
+
+    printf 'unreviewed change\n' > "$repo/unreviewed.py"
+    git -C "$repo" add unreviewed.py > /dev/null 2>&1
+    git -C "$repo" commit -m "Unreviewed commit" > /dev/null 2>&1
+    local unprov_sha
+    unprov_sha="$(git -C "$repo" rev-parse HEAD)"
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+    # Seed with the real unprovenanced SHA
+    date -u +%Y-%m-%dT%H:%M:%SZ > "$artifact_dir/provenance-complete.marker"
+    printf '%s\n' "$unprov_sha" > "$artifact_dir/unprovenanced-shas.txt"
+
+    # Mock gh: should NOT be called for diff (commit-scoped path skips gh pr diff)
+    mkdir -p "$MOCK_BIN"
+    cat > "$MOCK_BIN/gh" << 'MOCKGHEOF'
+#!/usr/bin/env bash
+if [[ "$1" == "pr" && "$2" == "diff" ]]; then
+    echo "ERROR: gh pr diff should not be called in commit-scoped path" >&2
+    printf 'diff --git a/should_not_appear.py b/should_not_appear.py\n+FAIL\n'
+    exit 0
+fi
+echo "MOCK gh: unhandled args: $*" >&2
+exit 1
+MOCKGHEOF
+    chmod +x "$MOCK_BIN/gh"
+
+    # Mock runner: capture the diff content it receives
+    local diff_log
+    diff_log="$(mktemp "$TMPDIR_TEST/runner-diff-commit-scoped.XXXXXX")"
+    cat > "$MOCK_BIN/ci-llm-review-runner.sh" << MOCKEOF
+#!/usr/bin/env bash
+if [[ -n "\${DSO_CI_REVIEW_DIFF_PATH:-}" && -f "\${DSO_CI_REVIEW_DIFF_PATH}" ]]; then
+    cat "\${DSO_CI_REVIEW_DIFF_PATH}" > "$diff_log"
+fi
+exit 0
+MOCKEOF
+    chmod +x "$MOCK_BIN/ci-llm-review-runner.sh"
+
+    # Run the dispatcher from INSIDE the repo so git show can resolve the SHA
+    (
+        cd "$repo" || exit 1
+        PATH="$MOCK_BIN:$PATH" \
+        PR_NUMBER=99 \
+        DSO_RUNNER_PATH="$MOCK_BIN/ci-llm-review-runner.sh" \
+        DSO_ARTIFACT_DIR="$artifact_dir" \
+            bash "$WRAPPER" > /dev/null 2>/dev/null || true
+    )
+
+    local diff_content
+    diff_content="$(cat "$diff_log" 2>/dev/null || echo '')"
+    local has_unreviewed="no" has_should_not="no"
+    if echo "$diff_content" | grep -q 'unreviewed.py'; then has_unreviewed="yes"; fi
+    if echo "$diff_content" | grep -q 'should_not_appear'; then has_should_not="yes"; fi
+
+    assert_eq "test_dispatcher_commit_scoped_diff: diff contains unprovenanced commit's file" \
+        "yes" "$has_unreviewed"
+    assert_eq "test_dispatcher_commit_scoped_diff: diff does NOT contain gh pr diff output" \
+        "no" "$has_should_not"
+
+    rm -rf "$repo" "$artifact_dir" "$diff_log"
+    assert_pass_if_clean "test_dispatcher_commit_scoped_diff"
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 test_wrapper_exists
 test_exit0_skips_runner
@@ -851,5 +938,6 @@ test_dispatcher_covered_list_from_artifact
 test_dispatcher_supplies_diff_to_runner
 test_dispatcher_scope_narrowing
 test_dispatcher_empty_scope_uses_full_diff
+test_dispatcher_commit_scoped_diff
 
 print_summary

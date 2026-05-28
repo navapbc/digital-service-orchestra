@@ -689,6 +689,78 @@ MOCKEOF
     rm -rf "$repo" "$artifact_dir"
 }
 
+# ── Test G3c: covering PR with no review check → unprovenanced ───────────────
+# A covering merged PR with NO review-sub-pr or llm-review check run must NOT
+# count as valid provenance. The commit must be classified as unprovenanced.
+# (F2 mitigation: not_found is no longer treated as covered.)
+test_covering_pr_no_review_check_is_unprovenanced() {
+    if [[ ! -f "$SCRIPT" ]]; then
+        assert_eq "test_covering_pr_no_review_check_is_unprovenanced: script must exist" \
+            "script_exists" "script_missing"
+        return
+    fi
+
+    local repo
+    repo="$(setup_git_repo)"
+
+    make_commit "$repo" "Initial commit" > /dev/null
+    local base_sha
+    base_sha="$(git -C "$repo" rev-parse HEAD)"
+
+    local bad_sha
+    bad_sha="$(make_commit "$repo" "Direct commit covered by unreviewed PR")"
+    local session_head="$bad_sha"
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+
+    # Mock gh: /commits/{sha}/pulls returns a merged covering PR #50,
+    # /commits/{sha}/check-runs returns NO review-related checks
+    cat > "$MOCK_BIN/gh" << 'MOCKEOF'
+#!/usr/bin/env bash
+for arg in "$@"; do
+    if [[ "$arg" == *"/pulls" ]]; then
+        cat << 'JSONEOF'
+[{"number":50,"state":"closed","merged_at":"2026-05-01T00:00:00Z","head":{"sha":"coveringheadsha123"},"merge_commit_sha":"coveringmergesha456"}]
+JSONEOF
+        exit 0
+    fi
+    if [[ "$arg" == *"/check-runs" ]]; then
+        # Return check runs with NO review-sub-pr or llm-review
+        cat << 'JSONEOF'
+{"check_runs":[{"name":"ShellCheck","conclusion":"success"},{"name":"Hook Tests","conclusion":"success"}]}
+JSONEOF
+        exit 0
+    fi
+done
+echo '[]'
+exit 0
+MOCKEOF
+    chmod +x "$MOCK_BIN/gh"
+
+    local exit_code=0
+    PATH="$MOCK_BIN:$PATH" \
+    DSO_REPO_PATH="$repo" \
+    DSO_BASE_SHA="$base_sha" \
+    DSO_SESSION_HEAD="$session_head" \
+    DSO_ARTIFACT_DIR="$artifact_dir" \
+    DSO_GH_REPO="test/repo" \
+    PR_NUMBER=999 \
+        bash "$SCRIPT" 2>/dev/null || exit_code=$?
+
+    assert_ne "test_covering_pr_no_review_check_is_unprovenanced: exits non-zero when no review check found" \
+        "0" "$exit_code"
+
+    local unprov_content=""
+    if [[ -f "${artifact_dir}/unprovenanced-shas.txt" ]]; then
+        unprov_content="$(cat "${artifact_dir}/unprovenanced-shas.txt")"
+    fi
+    assert_contains "test_covering_pr_no_review_check_is_unprovenanced: SHA in unprovenanced file" \
+        "$bad_sha" "$unprov_content"
+
+    rm -rf "$repo" "$artifact_dir"
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 test_script_exists
 test_all_provenanced_exits_zero
@@ -702,5 +774,6 @@ test_verify_session_provenance_accepts_both_trailers
 test_verify_session_provenance_version_bump_trailer
 test_covering_pr_failed_review_is_unprovenanced
 test_covering_pr_passed_review_is_provenanced
+test_covering_pr_no_review_check_is_unprovenanced
 
 print_summary

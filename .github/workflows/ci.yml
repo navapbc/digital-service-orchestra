@@ -119,8 +119,9 @@ jobs:
           # Run the same classifier the local review gate uses.
           # exit 0 → all files allowlisted (tests can skip)
           # exit 1 → at least one reviewable file (tests MUST run)
-          # DSO_FORCE_LOCAL_REVIEW=1 disables the dso.workflow=ci-pr
-          # short-circuit (we ARE the CI; that short-circuit would no-op us).
+          # DSO_FORCE_LOCAL_REVIEW=1 is defense-in-depth: skip-review-check.sh
+          # now auto-detects CI via CI/GITHUB_ACTIONS env vars, but we keep
+          # the explicit override as belt-and-suspenders (F6 hardening).
           set +e
           echo "$CHANGED" | DSO_FORCE_LOCAL_REVIEW=1 bash "$SKIP_SCRIPT"
           SKIP_RC=$?

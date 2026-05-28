@@ -315,6 +315,47 @@ PAYLOAD_JSON=$(cat <<EOF
 EOF
 )
 
+# ── Build session-branch ruleset JSON payload (F1 mitigation) ────────────────
+# Second ruleset requiring review-sub-pr to pass on session/worktree branches.
+# Branch patterns match review-sub-pr.yml's pull_request trigger branches.
+SUB_PR_STATUS_JSON='[{"context": "review-sub-pr"}]'
+SUB_PR_PAYLOAD_JSON=$(cat <<EOF
+{
+  "name": "DSO Sub-PR Review Enforcement",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "include": [
+        "refs/heads/session/**",
+        "refs/heads/session-**",
+        "refs/heads/session_**",
+        "refs/heads/worktree-**",
+        "refs/heads/bug-batch/**"
+      ],
+      "exclude": []
+    }
+  },
+  "bypass_actors": [
+    {
+      "actor_id": 5,
+      "actor_type": "RepositoryRole",
+      "bypass_mode": "${BYPASS_ACTOR_POLICY}"
+    }
+  ],
+  "rules": [
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": false,
+        "required_status_checks": ${SUB_PR_STATUS_JSON}
+      }
+    }
+  ]
+}
+EOF
+)
+
 # ── Copilot-review annotation ────────────────────────────────────────────────
 # GitHub does not currently expose a Ruleset rule for "request Copilot review";
 # Copilot review is a repo-level (or PR-time UI) setting. When the user opts in,
@@ -330,8 +371,11 @@ fi
 if [[ "$DRY_RUN" == "1" ]]; then
   echo "=== DSO_DRY_RUN=1: No API calls will be made ==="
   echo ""
-  echo "--- Ruleset JSON payload ---"
+  echo "--- Main branch ruleset JSON payload ---"
   echo "$PAYLOAD_JSON"
+  echo ""
+  echo "--- Session-branch ruleset JSON payload (F1) ---"
+  echo "$SUB_PR_PAYLOAD_JSON"
   echo ""
   if [[ -n "$_COPILOT_ANNOTATION" ]]; then
     echo "--- Copilot review annotation ---"
@@ -339,14 +383,16 @@ if [[ "$DRY_RUN" == "1" ]]; then
     echo ""
   fi
   if [[ -n "$REPO" ]]; then
-    echo "--- gh api invocation (not executed) ---"
-    echo "gh api --method POST /repos/${REPO}/rulesets --input <(echo '\$payload_json')"
+    echo "--- gh api invocations (not executed) ---"
+    echo "gh api --method POST /repos/${REPO}/rulesets --input <(echo '\$main_payload')"
+    echo "gh api --method POST /repos/${REPO}/rulesets --input <(echo '\$sub_pr_payload')"
     echo ""
     echo "--- gh repo edit invocation (not executed) ---"
     echo "gh repo edit ${REPO} --enable-auto-merge"
   else
-    echo "--- gh api invocation (not executed) ---"
-    echo "gh api --method POST /repos/{owner}/{repo}/rulesets --input <(echo '\$payload_json')"
+    echo "--- gh api invocations (not executed) ---"
+    echo "gh api --method POST /repos/{owner}/{repo}/rulesets --input <(echo '\$main_payload')"
+    echo "gh api --method POST /repos/{owner}/{repo}/rulesets --input <(echo '\$sub_pr_payload')"
     echo ""
     echo "--- gh repo edit invocation (not executed) ---"
     echo "gh repo edit --enable-auto-merge"
@@ -372,8 +418,9 @@ fi
 
 # ── Interactive confirmation ──────────────────────────────────────────────────
 if [[ "$NON_INTERACTIVE" -ne 1 ]]; then
-  echo "About to provision ruleset 'DSO CI Enforcement' on repo: $REPO"
-  echo "Target branch: $DEFAULT_BRANCH"
+  echo "About to provision two rulesets on repo: $REPO"
+  echo "  1. 'DSO CI Enforcement' — target: $DEFAULT_BRANCH"
+  echo "  2. 'DSO Sub-PR Review Enforcement' — target: session/worktree branches"
   printf "Proceed? [y/N] "
   read -r confirmation
   case "$confirmation" in
@@ -395,17 +442,28 @@ echo "Creating ruleset on $REPO ..."
 RULESET_RESPONSE=$(gh api --method POST "/repos/${REPO}/rulesets" --input "$TMPFILE")
 RULESET_ID=$(echo "$RULESET_RESPONSE" | jq -r '.id')
 
+# ── Create session-branch ruleset (F1 mitigation) ────────────────────────────
+SUB_PR_TMPFILE=$(mktemp /tmp/provision-sub-pr-ruleset-payload.XXXXXX)
+trap 'rm -f "$TMPFILE" "$SUB_PR_TMPFILE"' EXIT
+
+echo "$SUB_PR_PAYLOAD_JSON" > "$SUB_PR_TMPFILE"
+
+echo "Creating session-branch ruleset on $REPO ..."
+SUB_PR_RESPONSE=$(gh api --method POST "/repos/${REPO}/rulesets" --input "$SUB_PR_TMPFILE")
+SUB_PR_RULESET_ID=$(echo "$SUB_PR_RESPONSE" | jq -r '.id')
+
 # ── Enable auto-merge ─────────────────────────────────────────────────────────
 echo "Enabling auto-merge on $REPO ..."
 gh repo edit "$REPO" --enable-auto-merge
 
 # ── Success summary ───────────────────────────────────────────────────────────
 echo ""
-echo "=== DSO CI Enforcement Ruleset Provisioned ==="
-echo "Repository:  $REPO"
-echo "Branch:      $DEFAULT_BRANCH"
-echo "Ruleset ID:  ${RULESET_ID:-unknown}"
-echo "Auto-merge:  enabled"
+echo "=== DSO CI Enforcement Rulesets Provisioned ==="
+echo "Repository:          $REPO"
+echo "Main branch:         $DEFAULT_BRANCH"
+echo "Main ruleset ID:     ${RULESET_ID:-unknown}"
+echo "Sub-PR ruleset ID:   ${SUB_PR_RULESET_ID:-unknown}"
+echo "Auto-merge:          enabled"
 if [[ -n "$_COPILOT_ANNOTATION" ]]; then
-  echo "Note:        $_COPILOT_ANNOTATION"
+  echo "Note:                $_COPILOT_ANNOTATION"
 fi

@@ -89,10 +89,14 @@ _matches_allowlist() {
 # SKIP=true here lets COMMIT-WORKFLOW.md Step 0.5 bypass Steps 1.5-3a + 5
 # entirely, saving sub-agent budget per commit.
 #
-# DSO_FORCE_LOCAL_REVIEW=1 disables the short-circuit (useful for tests that
-# need to exercise the path-classification logic regardless of project config).
+# The short-circuit is suppressed in CI environments (CI=true or
+# GITHUB_ACTIONS=true) because CI itself needs the file classification to
+# decide which jobs to run. Without this guard, dso.workflow=ci-pr would
+# cause CI to classify all changes as non-reviewable, skipping all validation.
+#
+# DSO_FORCE_LOCAL_REVIEW=1 is a legacy override kept as defense-in-depth.
 _WF=""
-if [ "${DSO_FORCE_LOCAL_REVIEW:-0}" != "1" ]; then
+if [ "${DSO_FORCE_LOCAL_REVIEW:-0}" != "1" ] && [ "${CI:-}" != "true" ] && [ "${GITHUB_ACTIONS:-}" != "true" ]; then
     if [ -x "${_PLUGIN_ROOT}/scripts/read-config.sh" ]; then
         _WF="$("${_PLUGIN_ROOT}/scripts/read-config.sh" dso.workflow 2>/dev/null || echo "local")"
     fi
