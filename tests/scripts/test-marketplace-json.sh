@@ -153,6 +153,13 @@ SETUP_SCRIPT="$DSO_PLUGIN_DIR/scripts/onboarding/dso-setup.sh"
 _STAMP_TMPDIR=$(mktemp -d)
 trap 'rm -rf "$_STAMP_TMPDIR"' EXIT
 
+# Bug 5d92 defect B: dso-setup.sh no longer falls back to python-poetry
+# templates when stack is unknown — ci.yml and .pre-commit-config.yaml are
+# not installed without an explicit stack. Seed stack=python-poetry so the
+# install path is exercised and all 4 stamped artifacts are produced.
+mkdir -p "$_STAMP_TMPDIR/.claude"
+echo "stack=python-poetry" > "$_STAMP_TMPDIR/.claude/dso-config.conf"
+
 _snapshot_fail
 bash "$SETUP_SCRIPT" "$_STAMP_TMPDIR" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
