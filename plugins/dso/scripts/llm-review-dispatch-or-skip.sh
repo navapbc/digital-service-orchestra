@@ -81,23 +81,74 @@ fi
 # with "already reviewed." Force dispatch for sub-agent branches so their code
 # gets independent LLM review.
 #
-# Detection: sub-agent worktree branches follow the naming convention
-# "worktree-agent-*" or "feat-*" or "story-*" created by isolation:worktree
-# dispatch. The PR's head branch name is available via GITHUB_HEAD_REF.
+# Detection: sub-agent worktree branches follow naming conventions defined in
+# the source-of-truth file ${CLAUDE_PLUGIN_ROOT}/config/sub-pr-branch-patterns.txt.
+# Branch patterns are consumed by:
+#   - this dispatcher (to identify force-review-eligible branches)
+#   - provision-ruleset.sh (to set the sub-PR ruleset's include patterns)
+# Validation: tests/scripts/test-branch-pattern-alignment.sh ensures both
+# consumers stay in sync.
+#
+# BRANCH-NAMING CROSS-REFERENCE (R8/R11): see source-of-truth file at
+# ${CLAUDE_PLUGIN_ROOT}/config/sub-pr-branch-patterns.txt. Any branch pattern
+# that should trigger force-review here MUST also be in that file (and
+# therefore the sub-PR ruleset). The alignment test enforces this invariant.
 _HEAD_BRANCH="${GITHUB_HEAD_REF:-$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '')}"
+
+# Build regex from source-of-truth file. Patterns like "feat-**" map to a
+# regex prefix "feat-"; "feat/**" maps to "feat/"; "session/**" maps to
+# "session/". The union of prefixes forms the dispatcher's force-review match.
+_PATTERNS_FILE="${PLUGIN_ROOT}/config/sub-pr-branch-patterns.txt"
+_FORCE_REVIEW_REGEX=""
+if [[ -f "$_PATTERNS_FILE" ]]; then
+    while IFS= read -r _line; do
+        [[ -z "$_line" || "$_line" == \#* ]] && continue
+        # Strip trailing /** or -** or _** glob suffix; keep the literal prefix
+        _prefix="${_line%/\*\*}"
+        _prefix="${_prefix%-\*\*}"
+        _prefix="${_prefix%_\*\*}"
+        # Append to regex
+        if [[ -z "$_FORCE_REVIEW_REGEX" ]]; then
+            _FORCE_REVIEW_REGEX="$_prefix"
+        else
+            _FORCE_REVIEW_REGEX="${_FORCE_REVIEW_REGEX}|${_prefix}"
+        fi
+    done < "$_PATTERNS_FILE"
+fi
+
 _FORCE_REVIEW=false
-if [[ "$_HEAD_BRANCH" =~ ^worktree-agent- ]] || \
-   [[ "$_HEAD_BRANCH" =~ ^feat- ]] || \
-   [[ "$_HEAD_BRANCH" =~ ^story- ]] || \
-   [[ "$_HEAD_BRANCH" =~ ^fix- ]]; then
-    # Check if this PR has PREVIOUSLY passed llm-review (not just provenance).
-    # If the PR has no prior llm-review pass, force dispatch regardless of
-    # provenance status.
-    _prior_review_pass="false"
-    if [[ -n "${PR_NUMBER:-}" ]]; then
-        _prior_review_pass=$(gh pr checks "$PR_NUMBER" 2>/dev/null \
-            | grep "llm-review" \
-            | grep -c "pass" || echo "0")
+# Force-review is a PR-context feature — only enable when we have both
+# PR_NUMBER and GITHUB_REPOSITORY (i.e., we're running on a real PR in CI).
+# In non-PR contexts (local dispatcher runs, unit tests without explicit PR
+# context), force-review cannot resolve check-run history and would
+# spuriously trigger on every matching branch name. Gating on PR-context
+# availability prevents that.
+# Match patterns: each entry ends with the separator that was stripped from
+# the glob (- / or _) so "feat" matches feat- and feat/ but not "feature".
+if [[ -n "${PR_NUMBER:-}" ]] && [[ -n "${GITHUB_REPOSITORY:-}" ]] \
+    && [[ -n "$_FORCE_REVIEW_REGEX" ]] \
+    && [[ "$_HEAD_BRANCH" =~ ^(${_FORCE_REVIEW_REGEX})([-/_]|$) ]]; then
+    # Check if this branch's HEAD SHA has previously PASSED llm-review.
+    # Use poison-on-failure semantics consistent with R2 (verify-session-provenance.sh):
+    # any failure in the check-run history of llm-review-named runs on this SHA
+    # counts as "no prior pass" regardless of later successes.
+    # Semantic: tri-state (0 = no prior pass, 1 = prior pass, "" = unknown / API
+    # failed). DO NOT revert to count-based substring matching — `gh pr checks`
+    # output column shapes are fragile and the original `grep -c pass` matched
+    # stale rerun records.
+    # API-failure handling: if we cannot resolve the PR head SHA via the API
+    # (gh not available, auth failure, mock gh in tests), _prior_review_pass
+    # stays "" (unknown) and we do NOT force-review — defer to the normal
+    # provenance flow. Force-review fires only when we have positive evidence
+    # of a missing/failed prior pass.
+    _prior_review_pass=""
+    _pr_head_sha=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.head.sha' 2>/dev/null || echo "")
+    if [[ -n "$_pr_head_sha" ]]; then
+        _prior_review_pass=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${_pr_head_sha}/check-runs" \
+            --jq '[.check_runs[] | select(.name=="llm-review")] |
+                  if any(.conclusion=="failure" or .conclusion=="cancelled" or .conclusion=="timed_out") then "0"
+                  elif any(.conclusion=="success") then "1"
+                  else "0" end' 2>/dev/null || echo "")
     fi
     if [[ "$_prior_review_pass" == "0" ]]; then
         _FORCE_REVIEW=true
@@ -108,10 +159,45 @@ if [[ "$_HEAD_BRANCH" =~ ^worktree-agent- ]] || \
     fi
 fi
 
+# _DISPATCH_SCOPE_FILE is the canonical routing channel — points to either:
+#   (a) UNPROVENANCED_FILE (commits whose covering PRs failed review or are absent), OR
+#   (b) a force-scope file (sub-agent branch with insufficient prior review)
+# Setting this triggers the commit-scoped diff path. Empty/unset → either
+# all-provenanced (skip) or OVER_BOUND, depending on other artifact files.
+_DISPATCH_SCOPE_FILE=""
+_FORCE_SCOPE_FILE=""  # tracks the temp file for cleanup
+
 if [[ "$_FORCE_REVIEW" == "true" ]]; then
-    provenance_exit=1
-    echo "  DECISION:         DISPATCH (forced) — sub-agent code requires independent LLM review"
+    # R10: force-review must NOT route to full-PR-diff fallback (duplicate-
+    # review failure mode). Build a force-scope file listing PR commits whose
+    # individual review-sub-pr / llm-review check-runs lack a passing record.
+    # Reuses the _DISPATCH_SCOPE_FILE routing channel so the existing commit-
+    # scoped diff path picks it up without forking diff-generation logic.
+    _commit_count=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/commits" --jq 'length' 2>/dev/null || echo 0)
+    _max_commits="${DSO_FORCE_REVIEW_MAX_COMMITS:-50}"
+    if (( _commit_count > _max_commits )); then
+        provenance_exit=3
+        echo "  DECISION:         SKIP (OVER_BOUND) — force-review PR has ${_commit_count} commits (cap=${_max_commits})"
+    else
+        _FORCE_SCOPE_FILE=$(mktemp /tmp/dso-force-scope.XXXXXX)
+        while IFS= read -r _commit; do
+            [[ -z "$_commit" ]] && continue
+            _commit_status=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${_commit}/check-runs" \
+                --jq '[.check_runs[] | select(.name=="review-sub-pr" or .name=="llm-review")] |
+                      if any(.conclusion=="failure" or .conclusion=="cancelled" or .conclusion=="timed_out") then "unreviewed"
+                      elif any(.conclusion=="success") then "reviewed"
+                      else "unreviewed" end' 2>/dev/null || echo "unreviewed")
+            if [[ "$_commit_status" == "unreviewed" ]]; then
+                echo "$_commit" >> "$_FORCE_SCOPE_FILE"
+            fi
+        done < <(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/commits" --jq '.[].sha')
+        _DISPATCH_SCOPE_FILE="$_FORCE_SCOPE_FILE"
+        provenance_exit=1
+        _scope_count=$(wc -l < "$_FORCE_SCOPE_FILE" | tr -d ' ')
+        echo "  DECISION:         DISPATCH (forced) — ${_scope_count} unreviewed commit(s) on sub-agent branch"
+    fi
 elif [[ -s "$UNPROVENANCED_FILE" ]]; then
+    _DISPATCH_SCOPE_FILE="$UNPROVENANCED_FILE"
     provenance_exit=1
     echo "  DECISION:         DISPATCH — $(wc -l < "$UNPROVENANCED_FILE" | tr -d ' ') unprovenanced SHAs require LLM review"
 elif [[ -s "$OVERBOUND_FILE" ]]; then
@@ -194,30 +280,164 @@ case "$provenance_exit" in
         exit 1
     fi
     _DIFF_PATH=$(mktemp /tmp/dso-pr-diff.XXXXXX)
-    trap 'rm -f "$_DIFF_PATH"' EXIT
+    # Trap cleans all temp files created in this case arm — including the
+    # force-scope file set earlier (if any). Set early; expanded later if
+    # additional files are created.
+    trap 'rm -f "$_DIFF_PATH" "${_FORCE_SCOPE_FILE:-}"' EXIT
     _COMMIT_SCOPED=false
 
-    if [[ -s "$UNPROVENANCED_FILE" ]]; then
+    if [[ -n "$_DISPATCH_SCOPE_FILE" && -s "$_DISPATCH_SCOPE_FILE" ]]; then
+        # R3a v4.1: Filter out SHAs already reachable from origin/main BEFORE
+        # generating the commit-scoped diff. The provenance verifier walks
+        # BASE_SHA..SESSION_HEAD and may classify commits as "unprovenanced"
+        # even when they are already on main (e.g. squash-merged PRs leave the
+        # original SHAs uncovered by the new squash commit). Iterating those
+        # already-shipped SHAs is wasteful at best and explosive at worst:
+        # 6000+ stale unprovenanced entries can produce a 4M-line diff payload
+        # by concatenating every historical commit's full diff.
+        #
+        # Failure-mode policy (post-review hardening — bug PR #425):
+        #   - ${_MAIN_REF} unresolvable → FAIL-CLOSED (exit 1). Falling through
+        #     unfiltered reintroduces the original explosion.
+        #   - Shallow clone (rev-list returns truncated history) → FAIL-CLOSED
+        #     with deepen instruction.
+        #   - comm or sort fails (internal tooling error) → FAIL-CLOSED. Silent
+        #     route-to-SKIP would be an 8a77-class silent-skip-without-review
+        #     hole (CLAUDE.md rule:agent-success-check).
+        _MAIN_REF="origin/${GITHUB_BASE_REF:-main}"
+        if ! git rev-parse --verify --quiet "$_MAIN_REF" >/dev/null 2>&1; then
+            echo "ERROR: ${_MAIN_REF} not resolvable — cannot filter already-merged SHAs" >&2
+            echo "ERROR: refusing to dispatch unfiltered scope — would re-review thousands of already-shipped commits if provenance cache is stale (bug PR #425)" >&2
+            echo "ERROR: ensure the workflow checks out the base ref. For PR contexts, the base ref must be fetched via actions/checkout's fetch-depth: 0." >&2
+            exit 1
+        fi
+        # Shallow-clone handling: a shallow rev-list of origin/main returns
+        # truncated history, leaving the filter unable to identify many
+        # already-merged SHAs. Attempt self-healing via `git fetch --unshallow`
+        # before fail-closing — actions/checkout@v4 with fetch-depth: 0 should
+        # produce a non-shallow repo, but some CI configurations still mark
+        # the repo shallow after PR-merge-ref checkout.
+        if [[ "$(git rev-parse --is-shallow-repository 2>/dev/null)" == "true" ]]; then
+            echo "INFO: repository is shallow — attempting git fetch --unshallow to enable reliable filtering"
+            # Capture exit code explicitly. `git fetch --unshallow | tail -3`
+            # would mask fetch's exit code with tail's (~always 0) and report
+            # network failures as success. The downstream is-shallow re-check
+            # would still catch state-level failures, but masked exit codes
+            # produce misleading logs that obscure future CI debugging.
+            # The `set +e ... set -e` wrap prevents set -e from exiting on
+            # the failed-fetch command substitution before _UNSHALLOW_RC is
+            # captured.
+            set +e
+            _UNSHALLOW_OUT=$(git fetch --unshallow 2>&1)
+            _UNSHALLOW_RC=$?
+            set -e
+            echo "$_UNSHALLOW_OUT" | tail -3
+            if [[ "$_UNSHALLOW_RC" -eq 0 ]]; then
+                if [[ "$(git rev-parse --is-shallow-repository 2>/dev/null)" == "true" ]]; then
+                    echo "ERROR: repository still shallow after fetch --unshallow" >&2
+                    echo "ERROR: already-merged SHA filter cannot operate reliably on shallow clones" >&2
+                    echo "ERROR: remediation: set actions/checkout fetch-depth to 0" >&2
+                    exit 1
+                fi
+                echo "INFO: unshallow succeeded — proceeding with filter"
+            else
+                echo "ERROR: git fetch --unshallow failed (rc=${_UNSHALLOW_RC}); cannot proceed with reliable filtering" >&2
+                echo "ERROR: remediation: set actions/checkout fetch-depth to 0 in the workflow" >&2
+                exit 1
+            fi
+        fi
+
+        _FILTERED_SCOPE_FILE=$(mktemp /tmp/dso-filtered-scope.XXXXXX)
+        _COMM_STDERR=$(mktemp /tmp/dso-comm-stderr.XXXXXX)
+        _SCOPE_SORTED=$(mktemp /tmp/dso-scope-sorted.XXXXXX)
+        _MAIN_SORTED=$(mktemp /tmp/dso-main-sorted.XXXXXX)
+        # Update trap to clean up all temp files
+        trap 'rm -f "$_DIFF_PATH" "${_FORCE_SCOPE_FILE:-}" "${_FILTERED_SCOPE_FILE:-}" "${_COMM_STDERR:-}" "${_SCOPE_SORTED:-}" "${_MAIN_SORTED:-}"' EXIT
+
+        # Sort+comm subtract: O(n log n) instead of O(n*m) for per-SHA
+        # ancestor checks. _DISPATCH_SCOPE_FILE may contain thousands of
+        # SHAs; per-SHA `git merge-base --is-ancestor` would take minutes.
+        # Sort outputs into named files (not process substitution) so we can
+        # capture per-step exit codes — silent failures inside <( ) are an
+        # 8a77-class silent-skip risk.
+        if ! sort -u "$_DISPATCH_SCOPE_FILE" > "$_SCOPE_SORTED" 2>"$_COMM_STDERR"; then
+            echo "ERROR: failed to sort scope file: $(cat "$_COMM_STDERR")" >&2
+            exit 1
+        fi
+        if ! git rev-list "$_MAIN_REF" 2>>"$_COMM_STDERR" | sort -u > "$_MAIN_SORTED" 2>>"$_COMM_STDERR"; then
+            echo "ERROR: failed to enumerate ${_MAIN_REF} commits: $(cat "$_COMM_STDERR")" >&2
+            exit 1
+        fi
+        if [[ ! -s "$_MAIN_SORTED" ]]; then
+            # Empty rev-list output means either the ref is empty (shallow
+            # check above should catch this) or a hidden failure. Either way,
+            # we cannot reliably filter. Fail-closed.
+            echo "ERROR: git rev-list ${_MAIN_REF} returned no commits — filter would be a no-op" >&2
+            echo "ERROR: refusing to dispatch potentially-explosive unfiltered scope" >&2
+            exit 1
+        fi
+        if ! comm -23 "$_SCOPE_SORTED" "$_MAIN_SORTED" > "$_FILTERED_SCOPE_FILE" 2>"$_COMM_STDERR"; then
+            echo "ERROR: comm failed to compute scope-minus-main: $(cat "$_COMM_STDERR")" >&2
+            exit 1
+        fi
+        _pre_filter=$(wc -l < "$_DISPATCH_SCOPE_FILE" | tr -d ' ')
+        _post_filter=$(wc -l < "$_FILTERED_SCOPE_FILE" | tr -d ' ')
+        _filtered_out=$(( _pre_filter - _post_filter ))
+        if (( _filtered_out > 0 )); then
+            echo "INFO: filtered ${_filtered_out} already-merged SHA(s) from scope (${_pre_filter} → ${_post_filter})"
+        fi
+        _DISPATCH_SCOPE_FILE="$_FILTERED_SCOPE_FILE"
+
+        # If filter removed all SHAs, every commit in scope was already on main.
+        # That's the "all-provenanced via squash-merge" case — exit 0 SKIP with
+        # a clear log so operators see what happened. WARNING-level (not INFO)
+        # because this is an audit-relevant skip.
+        if [[ ! -s "$_DISPATCH_SCOPE_FILE" ]]; then
+            echo "CONCLUSION: skipped"
+            echo "WARNING: all ${_pre_filter} unprovenanced commits were already reachable from ${_MAIN_REF}" >&2
+            echo "WARNING: skipping review — code is already shipped to main" >&2
+            echo "AUDIT: decision_record=skip reason=all_scope_already_merged scope_size=${_pre_filter} main_ref=${_MAIN_REF}"
+            _output_path="${DSO_CI_REVIEW_OUTPUT_PATH:-${ARTIFACT_DIR}/findings.json}"
+            mkdir -p "$(dirname "$_output_path")" 2>/dev/null || true
+            printf '{"findings": [], "skip_reason": "all_scope_already_merged", "scope_size": %s, "main_ref": "%s"}\n' \
+                "$_pre_filter" "$_MAIN_REF" > "$_output_path" 2>/dev/null || true
+            exit 0
+        fi
+
         _COMMIT_SCOPED=true
         : > "$_DIFF_PATH"
         while IFS= read -r _sha; do
             [[ -z "$_sha" ]] && continue
             git show --format= --diff-merges=first-parent "$_sha" >> "$_DIFF_PATH" 2>/dev/null || true
-        done < "$UNPROVENANCED_FILE"
-        _unprov_count=$(wc -l < "$UNPROVENANCED_FILE" | tr -d ' ')
+        done < "$_DISPATCH_SCOPE_FILE"
+        _scope_count=$(wc -l < "$_DISPATCH_SCOPE_FILE" | tr -d ' ')
         if [[ ! -s "$_DIFF_PATH" ]]; then
-            echo "WARNING: commit-scoped diff is empty for ${_unprov_count} unprovenanced SHA(s); falling back to full PR diff"
-            _COMMIT_SCOPED=false
-        else
-            echo "INFO: commit-scoped diff generated from ${_unprov_count} unprovenanced SHA(s)"
+            # R3a v4: fail-closed on empty commit-scoped diff. Previously this
+            # fell back to the full PR diff, which silently re-entered the
+            # giant-diff regime AND re-reviewed previously-approved code.
+            # Failure modes the fail-closed catches:
+            #   1) shallow clone — increase fetch-depth on actions/checkout
+            #   2) all SHAs are merge-only with empty first-parent diff
+            #   3) SHAs missing from local history — verify --depth=0 fetch
+            echo "ERROR: commit-scoped diff is empty for ${_scope_count} SHA(s)" >&2
+            echo "ERROR: refusing to fall back to full PR diff — would re-review previously-approved code at giant-diff scale" >&2
+            echo "ERROR: investigation paths:" >&2
+            echo "  (1) shallow clone — increase fetch-depth on actions/checkout" >&2
+            echo "  (2) all SHAs are merge-only with empty first-parent diff" >&2
+            echo "  (3) SHAs missing from local history — verify --depth=0 fetch" >&2
+            exit 1
         fi
+        echo "INFO: commit-scoped diff generated from ${_scope_count} SHA(s)"
     fi
 
-    # Fallback: full PR diff (when no UNPROVENANCED_FILE, commit-scoped was
-    # empty, or _FORCE_REVIEW without specific SHAs)
+    # Fallback: full PR diff (only when no _DISPATCH_SCOPE_FILE was set).
+    # In v4 this branch is reachable ONLY for the budget-exhausted path
+    # (provenance_exit=2 without unprovenanced SHAs) — a rare CI condition.
+    # The empty-commit-scoped case fails closed above instead of falling
+    # through to the full PR diff.
     if [[ "$_COMMIT_SCOPED" != "true" ]]; then
         _GH_STDERR=$(mktemp /tmp/dso-pr-diff-stderr.XXXXXX)
-        trap 'rm -f "$_DIFF_PATH" "$_GH_STDERR"' EXIT
+        trap 'rm -f "$_DIFF_PATH" "$_GH_STDERR" "${_FORCE_SCOPE_FILE:-}"' EXIT
         if ! gh pr diff "$PR_NUMBER" > "$_DIFF_PATH" 2> "$_GH_STDERR"; then
             echo "ERROR: gh pr diff $PR_NUMBER failed:" >&2
             cat "$_GH_STDERR" >&2
@@ -264,7 +484,26 @@ for line in sys.stdin:
     _diff_files=$(grep -c '^diff --git' "$_DIFF_PATH" || echo 0)
     _diff_adds=$(grep -c '^+[^+]' "$_DIFF_PATH" || echo 0)
     _diff_dels=$(grep -c '^-[^-]' "$_DIFF_PATH" || echo 0)
-    echo "INFO: dispatching LLM review — diff: ${_diff_files} files, ${_diff_lines} lines (${_diff_adds}+ ${_diff_dels}-)"
+    _diff_bytes=$(wc -c < "$_DIFF_PATH" | tr -d ' ')
+    echo "INFO: dispatching LLM review — diff: ${_diff_files} files, ${_diff_lines} lines (${_diff_adds}+ ${_diff_dels}-), ${_diff_bytes} bytes"
+
+    # R7d (v4): dispatcher-side absolute size cap. Defense-in-depth — the
+    # runner's region-split fallback (Strategy E at 400 LOC / 15 files) is the
+    # primary mechanism, but a runaway commit-scoped or full PR diff should
+    # route to OVER_BOUND rather than rely solely on runner-side handling.
+    # Caps are env-overridable for incident response.
+    _DSO_DISPATCH_BYTES_CAP="${DSO_DISPATCH_BYTES_CAP:-5242880}"  # 5 MB default
+    _DSO_DISPATCH_FILES_CAP="${DSO_DISPATCH_FILES_CAP:-100}"
+    if (( _diff_bytes > _DSO_DISPATCH_BYTES_CAP )) || (( _diff_files > _DSO_DISPATCH_FILES_CAP )); then
+        echo "OVER_BOUND: dispatch diff exceeds cap (${_diff_files} files, ${_diff_bytes} bytes; caps ${_DSO_DISPATCH_FILES_CAP}/${_DSO_DISPATCH_BYTES_CAP})" >&2
+        echo "OVER_BOUND: routing to admin review (set DSO_DISPATCH_BYTES_CAP / DSO_DISPATCH_FILES_CAP env vars to override)" >&2
+        # Write stub findings so ci.yml liveness assertion can distinguish
+        # OVER_BOUND from "runner never ran"
+        _output_path="${DSO_CI_REVIEW_OUTPUT_PATH:-${ARTIFACT_DIR}/findings.json}"
+        mkdir -p "$(dirname "$_output_path")" 2>/dev/null || true
+        printf '{"findings": [], "skip_reason": "dispatch_size_cap_exceeded", "blocked": true}\n' > "$_output_path" 2>/dev/null || true
+        exit 3
+    fi
 
     DSO_CI_REVIEW_DIFF_PATH="$_DIFF_PATH" bash "$_RUNNER" "$@"
     _runner_rc=$?

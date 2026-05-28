@@ -761,6 +761,193 @@ MOCKEOF
     rm -rf "$repo" "$artifact_dir"
 }
 
+# ── Test R2a: failure-then-rerun-success → unprovenanced (poison-on-failure) ──
+# A covering PR with a HISTORICAL failure check-run record on its head SHA
+# must NOT count as covered, even if a later re-run succeeded. The poison-on-
+# failure semantic prevents an admin from masking a real failure by re-running
+# the check until it passes. (R2 v4 hardening)
+test_covering_pr_failure_then_rerun_success_is_unprovenanced() {
+    if [[ ! -f "$SCRIPT" ]]; then
+        assert_eq "test_covering_pr_failure_then_rerun_success: script must exist" \
+            "script_exists" "script_missing"
+        return
+    fi
+
+    local repo
+    repo="$(setup_git_repo)"
+    make_commit "$repo" "Initial commit" > /dev/null
+    local base_sha
+    base_sha="$(git -C "$repo" rev-parse HEAD)"
+    local bad_sha
+    bad_sha="$(make_commit "$repo" "Direct commit covered by failure-then-rerun PR")"
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+
+    # Mock gh: /pulls returns a merged covering PR #50,
+    # /check-runs returns TWO records — earlier failure + later success.
+    cat > "$MOCK_BIN/gh" << 'MOCKEOF'
+#!/usr/bin/env bash
+for arg in "$@"; do
+    if [[ "$arg" == *"/pulls" ]]; then
+        cat << 'JSONEOF'
+[{"number":50,"state":"closed","merged_at":"2026-05-01T00:00:00Z","head":{"sha":"coveringheadsha123"},"merge_commit_sha":"coveringmergesha456"}]
+JSONEOF
+        exit 0
+    fi
+    if [[ "$arg" == *"/check-runs" ]]; then
+        # Historical: one failure record + one later success record
+        cat << 'JSONEOF'
+{"check_runs":[{"name":"review-sub-pr","conclusion":"success"},{"name":"review-sub-pr","conclusion":"failure"}]}
+JSONEOF
+        exit 0
+    fi
+done
+echo '[]'
+exit 0
+MOCKEOF
+    chmod +x "$MOCK_BIN/gh"
+
+    local exit_code=0
+    PATH="$MOCK_BIN:$PATH" \
+    DSO_REPO_PATH="$repo" \
+    DSO_BASE_SHA="$base_sha" \
+    DSO_SESSION_HEAD="$bad_sha" \
+    DSO_ARTIFACT_DIR="$artifact_dir" \
+    DSO_GH_REPO="test/repo" \
+    PR_NUMBER=999 \
+        bash "$SCRIPT" 2>/dev/null || exit_code=$?
+
+    assert_ne "test_covering_pr_failure_then_rerun_success: failure poisons SHA despite later success" \
+        "0" "$exit_code"
+    local unprov_content=""
+    if [[ -f "${artifact_dir}/unprovenanced-shas.txt" ]]; then
+        unprov_content="$(cat "${artifact_dir}/unprovenanced-shas.txt")"
+    fi
+    assert_contains "test_covering_pr_failure_then_rerun_success: SHA in unprovenanced file" \
+        "$bad_sha" "$unprov_content"
+
+    rm -rf "$repo" "$artifact_dir"
+}
+
+# ── Test R2b: unrelated check-runs do NOT affect classification (name-filter) ──
+# Failures on check-runs NOT named review-sub-pr or llm-review (e.g. Hook Tests)
+# must NOT poison the SHA. The name filter ensures only review-related failures
+# count.
+test_unrelated_check_runs_do_not_affect_classification() {
+    if [[ ! -f "$SCRIPT" ]]; then
+        assert_eq "test_unrelated_check_runs: script must exist" \
+            "script_exists" "script_missing"
+        return
+    fi
+
+    local repo
+    repo="$(setup_git_repo)"
+    make_commit "$repo" "Initial commit" > /dev/null
+    local base_sha
+    base_sha="$(git -C "$repo" rev-parse HEAD)"
+    local good_sha
+    good_sha="$(make_commit "$repo" "Direct commit covered by passing review with unrelated failures")"
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+
+    cat > "$MOCK_BIN/gh" << 'MOCKEOF'
+#!/usr/bin/env bash
+for arg in "$@"; do
+    if [[ "$arg" == *"/pulls" ]]; then
+        cat << 'JSONEOF'
+[{"number":50,"state":"closed","merged_at":"2026-05-01T00:00:00Z","head":{"sha":"coveringheadsha123"},"merge_commit_sha":"coveringmergesha456"}]
+JSONEOF
+        exit 0
+    fi
+    if [[ "$arg" == *"/check-runs" ]]; then
+        # Hook Tests FAILED, but review-sub-pr PASSED — only the review counts
+        cat << 'JSONEOF'
+{"check_runs":[{"name":"Hook Tests","conclusion":"failure"},{"name":"review-sub-pr","conclusion":"success"}]}
+JSONEOF
+        exit 0
+    fi
+done
+echo '[]'
+exit 0
+MOCKEOF
+    chmod +x "$MOCK_BIN/gh"
+
+    local exit_code=0
+    PATH="$MOCK_BIN:$PATH" \
+    DSO_REPO_PATH="$repo" \
+    DSO_BASE_SHA="$base_sha" \
+    DSO_SESSION_HEAD="$good_sha" \
+    DSO_ARTIFACT_DIR="$artifact_dir" \
+    DSO_GH_REPO="test/repo" \
+    PR_NUMBER=999 \
+        bash "$SCRIPT" 2>/dev/null || exit_code=$?
+
+    assert_eq "test_unrelated_check_runs: Hook Tests failure does NOT poison SHA" \
+        "0" "$exit_code"
+
+    rm -rf "$repo" "$artifact_dir"
+}
+
+# ── Test R2c: cache_version mismatch entries are discarded on read ────────────
+# A pre-existing cache file with cache_version != 3 must be treated as empty
+# (entries discarded) so v2 cached "provenanced" verdicts that may have masked
+# failures are re-evaluated under v3 semantics.
+test_cache_version_mismatch_entries_discarded() {
+    if [[ ! -f "$SCRIPT" ]]; then
+        assert_eq "test_cache_version_mismatch: script must exist" \
+            "script_exists" "script_missing"
+        return
+    fi
+
+    local repo
+    repo="$(setup_git_repo)"
+    make_commit "$repo" "Initial commit" > /dev/null
+    local base_sha
+    base_sha="$(git -C "$repo" rev-parse HEAD)"
+    local sha
+    sha="$(make_commit "$repo" "Test commit")"
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+
+    # Pre-seed a v2 cache file with a stale "provenanced" entry for this SHA.
+    # Under v3 with no API mock providing covering PRs, the SHA should be
+    # re-evaluated and classified as unprovenanced (no covering PRs found).
+    cat > "$artifact_dir/session-provenance-cache.json" <<EOF
+{
+  "cache_version": 2,
+  "entries": {
+    "${sha}.pr999": "provenanced"
+  }
+}
+EOF
+
+    # Mock gh that returns empty PR list — without cache, SHA is unprovenanced.
+    cat > "$MOCK_BIN/gh" << 'MOCKEOF'
+#!/usr/bin/env bash
+echo '[]'
+exit 0
+MOCKEOF
+    chmod +x "$MOCK_BIN/gh"
+
+    local exit_code=0
+    PATH="$MOCK_BIN:$PATH" \
+    DSO_REPO_PATH="$repo" \
+    DSO_BASE_SHA="$base_sha" \
+    DSO_SESSION_HEAD="$sha" \
+    DSO_ARTIFACT_DIR="$artifact_dir" \
+    DSO_GH_REPO="test/repo" \
+    PR_NUMBER=999 \
+        bash "$SCRIPT" 2>/dev/null || exit_code=$?
+
+    # Without the v3 invalidation, the stale "provenanced" entry would let
+    # exit_code=0 (false-pass). With invalidation, SHA is re-evaluated and
+    # classified as unprovenanced → exit_code != 0.
+    assert_ne "test_cache_version_mismatch: v2 cache entries discarded → SHA re-evaluated" \
+        "0" "$exit_code"
+
+    rm -rf "$repo" "$artifact_dir"
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 test_script_exists
 test_all_provenanced_exits_zero
@@ -775,5 +962,8 @@ test_verify_session_provenance_version_bump_trailer
 test_covering_pr_failed_review_is_unprovenanced
 test_covering_pr_passed_review_is_provenanced
 test_covering_pr_no_review_check_is_unprovenanced
+test_covering_pr_failure_then_rerun_success_is_unprovenanced
+test_unrelated_check_runs_do_not_affect_classification
+test_cache_version_mismatch_entries_discarded
 
 print_summary

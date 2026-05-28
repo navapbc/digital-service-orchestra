@@ -1,0 +1,29 @@
+# Source of truth for branches subject to sub-PR review enforcement.
+#
+# Consumed by:
+#   - ${CLAUDE_PLUGIN_ROOT}/scripts/onboarding/provision-ruleset.sh — emits
+#     these patterns (prefixed with "refs/heads/") into the
+#     "DSO Sub-PR Review Enforcement" ruleset's conditions.ref_name.include array
+#   - ${CLAUDE_PLUGIN_ROOT}/scripts/llm-review-dispatch-or-skip.sh — builds
+#     the _FORCE_REVIEW branch-detection regex from these patterns
+#
+# Validation: tests/scripts/test-branch-pattern-alignment.sh ensures both
+# consumers stay in sync with this file. If you add a pattern here, the test
+# verifies the dispatcher and provisioner pick it up; otherwise the test fails.
+#
+# Format: one branch glob per line. GitHub Ruleset fnmatch semantics:
+#   *  matches any character except /
+#   ** matches across path separators (gitignore extension)
+# Lines starting with # and blank lines are ignored.
+session/**
+session-**
+session_**
+worktree-**
+worktree-agent-**
+bug-batch/**
+feat-**
+feat/**
+story-**
+story/**
+fix-**
+fix/**
