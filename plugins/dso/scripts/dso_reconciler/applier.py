@@ -1456,6 +1456,7 @@ def create_one(
     deferred_creates: list | None = None,
     events_list: list | None = None,
     repo_root: Path | None = None,
+    binding_store=None,
 ) -> dict | None:
     """Create a Jira issue from the mutation's fields, with budget guard and JQL dedup.
 
@@ -1509,6 +1510,8 @@ def create_one(
                 }
             )
 
+        if binding_store is not None and local_id and hit_key:
+            binding_store.bind_confirm(local_id, hit_key)
         return {"status": "dedup-create-skipped", "key": hit_key}
 
     # Translate differ-emitted Jira snapshot field names (summary, status,
@@ -1547,6 +1550,8 @@ def create_one(
             _call_with_retry(
                 client.set_entity_property, jira_key, "dso_local_id", local_id
             )
+            if binding_store is not None and local_id:
+                binding_store.bind_confirm(local_id, jira_key)
         except Exception as write_err:
             try:
                 client.delete_issue(jira_key)
@@ -1823,6 +1828,7 @@ def apply(
     *,
     client=None,
     mode=None,
+    binding_store=None,
 ):
     """Polymorphic dispatch entry point.
 
@@ -2040,7 +2046,9 @@ def apply(
     if mode_mod is not None and mode == mode_mod.Mode.DRY_RUN:
         manifest_path = None
     else:
-        manifest_path = _apply_batch(outbound_list, pass_id, repo_root=repo_root)
+        manifest_path = _apply_batch(
+            outbound_list, pass_id, repo_root=repo_root, binding_store=binding_store
+        )
 
     # -------------------------------------------------------------------------
     # Mode-specific manifest emission (story 286b).
@@ -2175,6 +2183,7 @@ def _apply_batch(
     mutations: list[dict],
     pass_id: str,
     repo_root: Path | None = None,
+    binding_store=None,
 ) -> Path:
     """Legacy batch dispatch: write a flat-JSON manifest for a list of dict mutations.
 
@@ -2279,6 +2288,7 @@ def _apply_batch(
                     deferred_creates=deferred_creates,
                     events_list=events_list,
                     repo_root=repo_root,
+                    binding_store=binding_store,
                 )
                 # Only count REST call on actual create (not dedup-skipped, not deferred)
                 if (

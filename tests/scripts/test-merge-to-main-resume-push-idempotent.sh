@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2016  # single-quoted patterns intentionally match literal $ in source
 # tests/scripts/test-merge-to-main-resume-push-idempotent.sh
 # Structural tests for f9e7-2c50:
 #   --resume re-runs _phase_merge after SIGURG interrupted push, creating a
@@ -59,7 +60,7 @@ _RESUME_BLOCK=$(awk '
 # ============================================================
 test_resume_block_has_origin_main_ahead_check() {
     local found=0
-    grep -q 'origin/main\.\.HEAD' <<< "$_RESUME_BLOCK" 2>/dev/null && found=1 || true
+    grep -qE 'origin/(main|\$_DEFAULT_BRANCH|\$\{_DEFAULT_BRANCH).*\.\.HEAD' <<< "$_RESUME_BLOCK" 2>/dev/null && found=1 || true
     assert_eq "resume block checks origin/main..HEAD before iterating phases (f9e7-2c50)" "1" "$found"
 }
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DSO-GATE-TIER: A
 # hook-boundary: enforcement
 _PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/..}"
 # shellcheck disable=SC2295  # Pre-existing: inner $(…) in pattern expansion — safe here
@@ -52,6 +53,10 @@ source "$HOOK_DIR/lib/deps.sh"
 
 # Source shared merge/rebase state library (provides ms_filter_to_worktree_only, etc.)
 source "$HOOK_DIR/lib/merge-state.sh"
+
+# Source gate-unavailable helper (F-02 Tier A doctrine).
+# shellcheck source=lib/gate-unavailable.sh
+source "$HOOK_DIR/lib/gate-unavailable.sh"
 
 # ── Telemetry state (updated as the hook progresses) ─────────────────────────
 # These flags track what the hook discovered so log_decision records accurate
@@ -468,9 +473,23 @@ fi
 # This produces the same hash as record-review.sh did when recording the review.
 CURRENT_HASH=$(bash "$HOOK_DIR/compute-diff-hash.sh" 2>/dev/null || echo "")
 if [[ -z "$CURRENT_HASH" ]]; then
-    # Hash computation failed — fail open (allow) to avoid blocking on infrastructure issues
-    log_decision "pass"
-    exit 0
+    # F-02 Tier A: hash computation failure used to fail OPEN (exit 0). That
+    # meant the review-gate could not verify the recorded review matched the
+    # current staged diff, so the gate was effectively bypassed on hash error.
+    # Reclassified as Tier A: emit GATE_UNAVAILABLE and block unless the
+    # operator has opted into a bypass via DSO_GATE_BYPASS_REVIEW_GATE=1 +
+    # DSO_GATE_BYPASS_REVIEW_GATE_REASON='<one-line justification>'.
+    if _dso_gate_bypass_active review_gate 2>/dev/null; then
+        echo "pre-commit-review-gate: WARNING: hash compute failed — bypass active, commit allowed" >&2
+        log_decision "pass"
+        exit 0
+    fi
+    _dso_gate_unavailable review_gate "hash_compute_failed"
+    log_decision "block"
+    echo "pre-commit-review-gate: BLOCKED — compute-diff-hash.sh returned empty." >&2
+    echo "  To override (review of current diff cannot be verified)," >&2
+    echo "  set DSO_GATE_BYPASS_REVIEW_GATE=1 and DSO_GATE_BYPASS_REVIEW_GATE_REASON='<reason>'." >&2
+    exit 2
 fi
 
 if [[ "$RECORDED_HASH" != "$CURRENT_HASH" ]]; then

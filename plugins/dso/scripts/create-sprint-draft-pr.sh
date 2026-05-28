@@ -79,7 +79,15 @@ fi
 # trailer makes the commit greppable for later cleanup; [skip ci] prevents CI
 # runs on an epic with no real changes yet. Convergent pattern across Kubernetes
 # feature branches, git-flow release branches, and peter-evans/create-pull-request.
-_divergence="$(git rev-list --count "main..HEAD" 2>/dev/null || echo "0")"
+# F-05: resolve default branch (master/develop/trunk-aware).
+_SCRIPT_DIR_FOR_RESOLVER="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -x "$_SCRIPT_DIR_FOR_RESOLVER/resolve-default-branch.sh" ]]; then
+    _DEFAULT_BRANCH=$(bash "$_SCRIPT_DIR_FOR_RESOLVER/resolve-default-branch.sh" --no-warn 2>/dev/null || echo "main")
+else
+    _DEFAULT_BRANCH="main"
+fi
+: "${_DEFAULT_BRANCH:=main}"
+_divergence="$(git rev-list --count "${_DEFAULT_BRANCH}..HEAD" 2>/dev/null || echo "0")"
 if [[ "$_divergence" == "0" ]]; then
     # Bypass the session-merge-only pre-commit hook for this single commit.
     # The hook accepts DSO_SPRINT_ACTIVE=0 + non-empty BYPASS_REASON; we use a
@@ -104,7 +112,7 @@ pr_body="${DRAFT_PR_BODY_TEMPLATE//\{\{PRIMARY_TICKET_ID\}\}/$PRIMARY_TICKET_ID}
 pr_url="$(
     gh pr create \
         --draft \
-        --base main \
+        --base "$_DEFAULT_BRANCH" \
         --head "$SESSION_BRANCH" \
         --title "$pr_title" \
         --body "$pr_body" \

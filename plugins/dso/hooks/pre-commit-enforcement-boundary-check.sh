@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DSO-GATE-TIER: A
 # hook-boundary: enforcement
 # hooks/pre-commit-enforcement-boundary-check.sh
 # git pre-commit hook: annotation-driven enforcement boundary check.

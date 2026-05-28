@@ -18,6 +18,22 @@ done
 # -- Resolve REPO_ROOT --
 REPO_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel)}"
 
+# -- F-05: invalidate default-branch cache at the start of each merge-to-main run --
+# resolve-default-branch.sh caches its resolved value in .git/dso-default-branch
+# to avoid re-running the precedence chain inside a single merge run. The cache
+# is invalidated here so each new merge-to-main invocation re-runs the resolver
+# (default branch could be renamed upstream between runs).
+_GIT_DIR_FOR_CACHE="$(git -C "$REPO_ROOT" rev-parse --git-dir 2>/dev/null || true)"
+if [[ -n "$_GIT_DIR_FOR_CACHE" ]]; then
+    # Use absolute path: rev-parse --git-dir may return a relative path
+    case "$_GIT_DIR_FOR_CACHE" in
+        /*) ;;
+        *) _GIT_DIR_FOR_CACHE="$REPO_ROOT/$_GIT_DIR_FOR_CACHE" ;;
+    esac
+    rm -f "$_GIT_DIR_FOR_CACHE/dso-default-branch" 2>/dev/null || true
+fi
+unset _GIT_DIR_FOR_CACHE
+
 # -- Validate CLAUDE_PLUGIN_ROOT --
 if [[ -z "${CLAUDE_PLUGIN_ROOT:-}" ]]; then
     _cfg="$REPO_ROOT/.claude/dso-config.conf"

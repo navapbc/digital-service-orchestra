@@ -632,10 +632,16 @@ def reconcile_once(
         # actually supplied a target_mode (i.e., when cap enforcement is
         # requested).
         if target_mode is None:
-            manifest_path = applier.apply(mutations, pass_id, repo_root)
+            manifest_path = applier.apply(
+                mutations, pass_id, repo_root, binding_store=binding_store
+            )
         else:
             manifest_path = applier.apply(
-                mutations, pass_id, repo_root, mode=target_mode
+                mutations,
+                pass_id,
+                repo_root,
+                mode=target_mode,
+                binding_store=binding_store,
             )
     except BaseException as exc:  # noqa: BLE001 — must re-raise after recording
         apply_exc = exc

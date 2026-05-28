@@ -1722,6 +1722,17 @@ ticket.display_mode=alias
 
 ---
 
+### `dso.default_branch`
+
+| | |
+|---|---|
+| **Description** | Override the default integration branch name. Affects merge/PR scripts (`merge-to-main-direct.sh`, `merge-to-main-pr.sh`, `create-sprint-draft-pr.sh`) — they resolve the default branch via `resolve-default-branch.sh` (precedence: this config key → `git symbolic-ref refs/remotes/origin/HEAD` → `gh repo view defaultBranchRef` → `main`). Also opts in the direct-merge safety assertion to a non-`main` branch (without this key, direct-merge refuses to merge into anything other than `main` and surfaces a precise error). |
+| **Accepted values** | Branch name (e.g., `master`, `develop`, `trunk`, `main`) |
+| **Default** | Auto-resolved (typically `main`); empty value falls through to the resolver chain. |
+| **Used by** | `resolve-default-branch.sh`, `merge-to-main-direct.sh`, `merge-to-main-pr.sh`, `create-sprint-draft-pr.sh` |
+
+---
+
 ### `dso.plugin_root`
 
 | | |
