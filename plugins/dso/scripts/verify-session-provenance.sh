@@ -467,28 +467,39 @@ for pr in pr_list:
             # Query check-runs for the covering PR's head SHA to find review-sub-pr status.
             # Use the commits/{sha}/check-runs endpoint filtered to the review check name.
             _cov_head_sha=""
+            _cov_stderr_file="$(mktemp)"
             _cov_head_sha="$(echo "$pr_result" | python3 -c "
 import sys, json
 try:
     data = json.load(sys.stdin)
-except Exception:
+except Exception as exc:
+    print(f'JSON parse: {type(exc).__name__}: {exc}', file=sys.stderr)
     sys.exit(0)
 if isinstance(data, dict) and 'items' in data:
     pr_list = data['items']
 elif isinstance(data, list):
     pr_list = data
 else:
+    print(f'unexpected response shape: {type(data).__name__}', file=sys.stderr)
     sys.exit(0)
 target = int(sys.argv[1])
 for pr in pr_list:
     if isinstance(pr, dict) and pr.get('number') == target:
-        print((pr.get('head') or {}).get('sha', ''))
+        head_sha = (pr.get('head') or {}).get('sha', '')
+        if not head_sha:
+            print(f'PR #{target} present but missing head.sha', file=sys.stderr)
+        print(head_sha)
         break
-" "$_cov_pr" 2>/dev/null)" || _cov_head_sha=""
+else:
+    print(f'PR #{target} not found in {len(pr_list)} listed PRs', file=sys.stderr)
+" "$_cov_pr" 2>"$_cov_stderr_file")" || _cov_head_sha=""
             if [[ -z "$_cov_head_sha" ]]; then
-                echo "WARNING: could not resolve head SHA for covering PR #${_cov_pr}; treating as unverified" >&2
+                _cov_parse_err="$(head -c 200 "$_cov_stderr_file" 2>/dev/null | tr '\n' ' ')"
+                rm -f "$_cov_stderr_file"
+                echo "WARNING: could not resolve head SHA for covering PR #${_cov_pr}; treating as unverified (parse: ${_cov_parse_err:-no-stderr})" >&2
                 continue
             fi
+            rm -f "$_cov_stderr_file"
             # Check if review-sub-pr passed on the covering PR
             if [[ -n "${GH_REPO:-}" ]]; then
                 _checks_path="repos/${GH_REPO}/commits/${_cov_head_sha}/check-runs"
@@ -496,7 +507,8 @@ for pr in pr_list:
                 _checks_path="repos/{owner}/{repo}/commits/${_cov_head_sha}/check-runs"
             fi
             _check_result="$(_call_gh_with_backoff api "$_checks_path" 2>&1)" || {
-                echo "WARNING: check-runs API failed for covering PR #${_cov_pr} (${_cov_head_sha:0:8}); treating as unverified" >&2
+                _check_err_snippet="$(printf '%s' "${_check_result:-(no output)}" | head -c 200 | tr '\n' ' ')"
+                echo "WARNING: check-runs API failed for covering PR #${_cov_pr} (${_cov_head_sha:0:8}); treating as unverified. gh output: ${_check_err_snippet}" >&2
                 continue
             }
             # R2 (v4): poison-on-failure semantics. The GitHub check-runs API

@@ -1135,9 +1135,15 @@ def _post_pr_review(findings: list[dict]) -> tuple[int, int]:
             subprocess.TimeoutExpired,
             FileNotFoundError,
         ) as exc:
+            # Surface gh stderr — same rationale as the Reviews API failure
+            # branch above. Under systemic problems (read-only token, missing
+            # pull-requests:write scope, rate-limit) this loop fires once per
+            # finding, so without the underlying gh message operators get N
+            # opaque warnings with no diagnostic path.
+            _stderr = (getattr(exc, "stderr", "") or "")[:500].strip()
             print(
                 f"WARNING: failed to post PR comment for finding {idx}/{total} "
-                f"({type(exc).__name__})",
+                f"({type(exc).__name__}). gh stderr: {_stderr!r}",
                 file=sys.stderr,
             )
     return (posted, total)
