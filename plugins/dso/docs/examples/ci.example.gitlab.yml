@@ -26,10 +26,15 @@ variables:
 default:
   interruptible: true
 
+# Job commands are invoked via `sh -lc "$VAR"` rather than `eval "$VAR"`
+# so the command runs in a fresh shell (predictable quoting, no implicit
+# parent-shell variable capture). For simple commands users can also
+# replace these with the literal command and drop the variable indirection.
+
 lint:
   stage: lint
   script:
-    - eval "$LINT_COMMAND"
+    - sh -lc "$LINT_COMMAND"
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -37,7 +42,7 @@ lint:
 format-check:
   stage: lint
   script:
-    - eval "$FORMAT_CHECK_COMMAND"
+    - sh -lc "$FORMAT_CHECK_COMMAND"
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -45,7 +50,7 @@ format-check:
 test:
   stage: test
   script:
-    - eval "$TEST_COMMAND"
+    - sh -lc "$TEST_COMMAND"
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

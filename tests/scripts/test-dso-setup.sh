@@ -2093,6 +2093,29 @@ test_validate_onboarding_enum_rejects_unknown_values() {
 }
 test_validate_onboarding_enum_rejects_unknown_values
 
+# ── test_validate_onboarding_enum_tolerates_missing_args ──────────────────────
+# Bootstrap-safety: dso-setup.sh runs with `set -u`, so a future caller that
+# accidentally invokes the helper with a missing argument would abort the
+# whole script. The helper must return 1 on missing/empty input, not crash.
+test_validate_onboarding_enum_tolerates_missing_args() {
+    local helper_src
+    helper_src=$(awk '/^_validate_onboarding_enum\(\) \{/,/^\}/' "$SETUP_SCRIPT")
+    eval "$helper_src"
+
+    # Simulate strict-mode invocation: enable nounset around the call.
+    local rc
+    set -u
+    _validate_onboarding_enum; rc=$?
+    set +u
+    assert_eq "validate enum: no args under set -u returns 1, does not crash" "1" "$rc"
+
+    set -u
+    _validate_onboarding_enum onboarding.hooks; rc=$?
+    set +u
+    assert_eq "validate enum: missing value under set -u returns 1" "1" "$rc"
+}
+test_validate_onboarding_enum_tolerates_missing_args
+
 # ── test_gitlab_ci_template_exists_and_has_stamp ──────────────────────────────
 # Bug 5d92 defect-C prep: the GitLab CI template ships in this PR as data
 # only — no dso-setup.sh code path consumes it yet. Verify the file exists at

@@ -148,7 +148,13 @@ source "$_SCRIPT_PLUGIN_DIR/scripts/artifact-merge-lib.sh"
 # for the runtime value. Onboarding must remain bootstrap-safe — a typo in
 # dso-config.conf must never error out the script.
 _validate_onboarding_enum() {
-    local key="$1" value="$2"
+    # Tolerate missing/empty args under `set -u`: dso-setup.sh may run with
+    # `set -u` and a future caller that forgets to pass a value would otherwise
+    # abort the whole script. Bootstrap-safety requires this helper to never
+    # crash on bad input — instead, return 1 so callers treat the result as
+    # "invalid value, fall back to skip with a WARN".
+    local key="${1:-}" value="${2:-}"
+    [[ -z "$key" ]] && return 1
     local valid_values v
     case "$key" in
         onboarding.hooks)
