@@ -303,9 +303,9 @@ MOCK_DIR=$(_make_mock_gh "[]")
 PATH="$MOCK_DIR:$PATH" DSO_REPO_PATH="$REPO" DSO_BASE_SHA="$BASE" DSO_SESSION_HEAD="$FEAT" \
     DSO_ARTIFACT_DIR="$ARTIFACT_DIR_T11" DSO_GH_REPO="navapbc/test-repo" PR_NUMBER="253" GH_RETRY_MAX=1 \
     bash "$SCRIPT" > /dev/null 2>&1 || true
-# After run, cache file should have version=2 and entries dict
+# After run, cache file should have version=3 and entries dict (R2 v4: cache bumped v2 → v3)
 cache_version=$(python3 -c "import json; print(json.load(open('$ARTIFACT_DIR_T11/session-provenance-cache.json')).get('cache_version'))" 2>/dev/null)
-_expect "t11 cache reinitialized to v2 on schema mismatch" "[[ '$cache_version' == '2' ]]"
+_expect "t11 cache reinitialized to v3 on schema mismatch" "[[ '$cache_version' == '3' ]]"
 rm -rf "$MOCK_DIR" "$ARTIFACT_DIR_T11" "$REPO"
 
 # ─── t13: cache HIT — pre-populated v2 cache returns verdict without API call ─
@@ -314,9 +314,9 @@ echo "=== t13: cache hit on v2 cache skips API call ==="
 ARTIFACT_DIR_T13=$(mktemp -d)
 read -r BASE FEAT REPO < <(_make_fake_repo)
 # Pre-populate cache with the feature SHA + PR_NUMBER=253 → "provenanced".
-# Format must match the v2 schema and the _cache_key derivation: ${sha}.pr${pr}.
+# Format must match the v3 schema (R2 v4) and the _cache_key derivation: ${sha}.pr${pr}.
 cat > "$ARTIFACT_DIR_T13/session-provenance-cache.json" <<EOF
-{"cache_version": 2, "entries": {"$FEAT.pr253": "provenanced"}}
+{"cache_version": 3, "entries": {"$FEAT.pr253": "provenanced"}}
 EOF
 # Mock gh is fail-loud — should never be called because cache hit short-circuits.
 FAIL_LOUD_MOCK=$(mktemp -d)

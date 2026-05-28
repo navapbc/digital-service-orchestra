@@ -94,9 +94,9 @@ else
 fi
 
 # ── Cache schema and key format (bug 8a77 v3 hardening, folds Bug E) ──────────
-# Cache file shape (v2):
+# Cache file shape (v3):
 #   {
-#     "cache_version": 2,
+#     "cache_version": 3,
 #     "entries": {
 #       "<sha>.pr<N>": "provenanced" | "unprovenanced",
 #       ...
@@ -113,10 +113,16 @@ fi
 # "unknown-due-to-error" which is NOT persisted — the next CI run will
 # re-evaluate that SHA rather than reading a stale failure verdict.
 #
-# Migration: on load, ledgers missing `cache_version` OR with version != 2
-# are silently ignored (treated as empty cache). Avoids the per-key
-# migration headache; first write seeds the new shape.
-CACHE_VERSION=2
+# Migration: on load, ledgers with version != 3 are silently ignored (treated
+# as empty cache). Avoids the per-key migration headache; first write seeds
+# the new shape.
+#
+# Cache version history:
+#   v2 → v3: R2 poison-on-failure semantics. v2 used short-circuit-on-first-
+#     success classification; v3 uses collect-all-then-classify with failure
+#     poisoning the SHA. v2 cached verdicts may have masked failures, so they
+#     are invalidated on first read under v3.
+CACHE_VERSION=3
 
 # ── Initialize cache ──────────────────────────────────────────────────────────
 _cache_init() {
@@ -481,6 +487,17 @@ for pr in pr_list:
                 echo "WARNING: check-runs API failed for covering PR #${_cov_pr} (${_cov_head_sha:0:8}); treating as unverified" >&2
                 continue
             }
+            # R2 (v4): poison-on-failure semantics. The GitHub check-runs API
+            # returns ALL historical runs for a SHA, not just the latest. The
+            # prior implementation short-circuited on first conclusion=success,
+            # which let "fail → admin rerun → success" sequences silently mask
+            # the original failure. Now: any failure-class conclusion in the
+            # history of the covering check-run name poisons the SHA, regardless
+            # of later successes. Cancelled/timeout/action_required are treated
+            # as failures because they all mean "no completed review evidence."
+            # The `name` filter preserves the original substring matching so
+            # unrelated check-runs (e.g. Hook Tests failure) do NOT poison the
+            # review verdict.
             _review_passed="$(echo "$_check_result" | python3 -c "
 import sys, json
 try:
@@ -489,17 +506,18 @@ except Exception:
     print('unknown')
     sys.exit(0)
 runs = data.get('check_runs', []) if isinstance(data, dict) else []
-for run in runs:
-    name = run.get('name', '')
-    if 'review-sub-pr' in name or 'llm-review' in name:
-        conclusion = run.get('conclusion', '')
-        if conclusion == 'success':
-            print('passed')
-            sys.exit(0)
-        elif conclusion in ('failure', 'cancelled', 'timed_out', 'action_required'):
-            print('failed')
-            sys.exit(0)
-print('not_found')
+matching = [r for r in runs
+            if 'review-sub-pr' in r.get('name', '')
+            or 'llm-review' in r.get('name', '')]
+failures = [r for r in matching
+            if r.get('conclusion') in ('failure', 'cancelled', 'timed_out', 'action_required')]
+successes = [r for r in matching if r.get('conclusion') == 'success']
+if failures:
+    print('failed')
+elif successes:
+    print('passed')
+else:
+    print('not_found')
 " 2>/dev/null)" || _review_passed="unknown"
             case "$_review_passed" in
                 passed)

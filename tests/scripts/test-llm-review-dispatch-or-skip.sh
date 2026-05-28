@@ -63,8 +63,17 @@ MOCKEOF
 # Usage: _seed_artifacts <dir> <outcome> [<sha-list>]
 #   outcome: all_provenanced | unprovenanced | overbound | no_marker
 #   sha-list: optional newline-separated SHAs to seed into the relevant file
+#
+# v4 note: when `unprovenanced` or `overbound` outcome is requested without
+# explicit SHA list, defaults to a REAL SHA from the test repo's history
+# (HEAD~1). This is required because R3a fails closed when commit-scoped
+# `git show` produces an empty diff — fake SHAs like "deadbeef" previously
+# worked because the dispatcher fell back to full PR diff. v4 removes that
+# fallback to prevent the giant-diff failure mode, so SHAs must resolve.
 _seed_artifacts() {
     local dir="$1" outcome="$2" shalist="${3:-}"
+    local real_sha
+    real_sha=$(git rev-parse HEAD~1 2>/dev/null || echo "deadbeef")
     case "$outcome" in
         all_provenanced)
             date -u +%Y-%m-%dT%H:%M:%SZ > "$dir/provenance-complete.marker"
@@ -76,11 +85,11 @@ _seed_artifacts() {
             ;;
         unprovenanced)
             date -u +%Y-%m-%dT%H:%M:%SZ > "$dir/provenance-complete.marker"
-            printf '%s\n' "${shalist:-deadbeef}" > "$dir/unprovenanced-shas.txt"
+            printf '%s\n' "${shalist:-$real_sha}" > "$dir/unprovenanced-shas.txt"
             ;;
         overbound)
             date -u +%Y-%m-%dT%H:%M:%SZ > "$dir/provenance-complete.marker"
-            printf '%s\n' "${shalist:-cafef00d}" > "$dir/over-bound-shas.txt"
+            printf '%s\n' "${shalist:-$real_sha}" > "$dir/over-bound-shas.txt"
             ;;
         no_marker)
             : # leave artifact dir empty
@@ -547,7 +556,7 @@ test_dispatcher_unprovenanced_dispatches_runner() {
 
     local artifact_dir
     artifact_dir="$(mktemp -d)"
-    _seed_artifacts "$artifact_dir" "unprovenanced" "deadbeef"
+    _seed_artifacts "$artifact_dir" "unprovenanced"
 
     local call_log
     call_log="$(mktemp "$TMPDIR_TEST/runner-calls-unprov.XXXXXX")"
@@ -639,7 +648,7 @@ test_dispatcher_supplies_diff_to_runner() {
 
     local artifact_dir
     artifact_dir="$(mktemp -d)"
-    _seed_artifacts "$artifact_dir" "unprovenanced" "deadbeef"
+    _seed_artifacts "$artifact_dir" "unprovenanced"
 
     # Mock runner: capture DSO_CI_REVIEW_DIFF_PATH env var + (if set) its
     # content into a log file the test can inspect after dispatch.
@@ -705,134 +714,12 @@ MOCKGHEOF
     assert_pass_if_clean "test_dispatcher_supplies_diff_to_runner"
 }
 
-# ── Test 15 (G1): integration-scope narrowing filters diff ────────────────────
-# When INTEGRATION_SCOPE_FILE is set and non-empty, the dispatcher must filter
-# the PR diff to only files in the scope before passing to the runner.
-test_dispatcher_scope_narrowing() {
-    _snapshot_fail
-    if [[ ! -f "$WRAPPER" ]]; then
-        assert_eq "test_dispatcher_scope_narrowing: wrapper must exist" \
-            "wrapper_exists" "wrapper_missing"
-        assert_pass_if_clean "test_dispatcher_scope_narrowing"
-        return
-    fi
-
-    local artifact_dir
-    artifact_dir="$(mktemp -d)"
-    _seed_artifacts "$artifact_dir" "unprovenanced" "deadbeef"
-
-    # Create a scope file listing only "b.py" (not "a.py")
-    local scope_file="${artifact_dir}/integration-scope-files.txt"
-    printf 'b.py\n' > "$scope_file"
-
-    # Mock gh to return a multi-file diff
-    mkdir -p "$MOCK_BIN"
-    cat > "$MOCK_BIN/gh" << 'MOCKGHEOF'
-#!/usr/bin/env bash
-if [[ "$1" == "pr" && "$2" == "diff" ]]; then
-    cat << 'DIFFEOF'
-diff --git a/a.py b/a.py
---- a/a.py
-+++ b/a.py
-@@ -1 +1,2 @@
-+# not in scope
-diff --git a/b.py b/b.py
---- a/b.py
-+++ b/b.py
-@@ -1 +1,2 @@
-+# in scope
-DIFFEOF
-    exit 0
-fi
-echo "MOCK gh: unhandled args: $*" >&2
-exit 1
-MOCKGHEOF
-    chmod +x "$MOCK_BIN/gh"
-
-    # Mock runner: capture the diff content it receives
-    local diff_log
-    diff_log="$(mktemp "$TMPDIR_TEST/runner-diff-log.XXXXXX")"
-    cat > "$MOCK_BIN/ci-llm-review-runner.sh" << MOCKEOF
-#!/usr/bin/env bash
-if [[ -n "\${DSO_CI_REVIEW_DIFF_PATH:-}" && -f "\${DSO_CI_REVIEW_DIFF_PATH}" ]]; then
-    cat "\${DSO_CI_REVIEW_DIFF_PATH}" > "$diff_log"
-fi
-exit 0
-MOCKEOF
-    chmod +x "$MOCK_BIN/ci-llm-review-runner.sh"
-
-    PATH="$MOCK_BIN:$PATH" \
-    PR_NUMBER=99 \
-    DSO_RUNNER_PATH="$MOCK_BIN/ci-llm-review-runner.sh" \
-    DSO_ARTIFACT_DIR="$artifact_dir" \
-    INTEGRATION_SCOPE_FILE="$scope_file" \
-        bash "$WRAPPER" > /dev/null 2>/dev/null || true
-
-    # The diff the runner received should contain b.py but NOT a.py
-    local diff_content
-    diff_content="$(cat "$diff_log" 2>/dev/null || echo '')"
-    local has_b="no" has_a="no"
-    if echo "$diff_content" | grep -q 'b.py'; then has_b="yes"; fi
-    if echo "$diff_content" | grep -q 'a.py'; then has_a="yes"; fi
-    assert_eq "test_dispatcher_scope_narrowing: diff contains in-scope file b.py" \
-        "yes" "$has_b"
-    assert_eq "test_dispatcher_scope_narrowing: diff excludes out-of-scope file a.py" \
-        "no" "$has_a"
-
-    rm -rf "$artifact_dir" "$diff_log"
-    assert_pass_if_clean "test_dispatcher_scope_narrowing"
-}
-
-# ── Test 16 (G1): empty scope file falls back to full diff ───────────────────
-test_dispatcher_empty_scope_uses_full_diff() {
-    _snapshot_fail
-    if [[ ! -f "$WRAPPER" ]]; then
-        assert_eq "test_dispatcher_empty_scope_uses_full_diff: wrapper must exist" \
-            "wrapper_exists" "wrapper_missing"
-        assert_pass_if_clean "test_dispatcher_empty_scope_uses_full_diff"
-        return
-    fi
-
-    local artifact_dir
-    artifact_dir="$(mktemp -d)"
-    _seed_artifacts "$artifact_dir" "unprovenanced" "deadbeef"
-
-    # Create an empty scope file
-    local scope_file="${artifact_dir}/integration-scope-files.txt"
-    : > "$scope_file"
-
-    _make_mock_gh
-
-    # Mock runner: capture the diff files it receives
-    local diff_log
-    diff_log="$(mktemp "$TMPDIR_TEST/runner-diff-log-empty.XXXXXX")"
-    cat > "$MOCK_BIN/ci-llm-review-runner.sh" << MOCKEOF
-#!/usr/bin/env bash
-if [[ -n "\${DSO_CI_REVIEW_DIFF_PATH:-}" && -f "\${DSO_CI_REVIEW_DIFF_PATH}" ]]; then
-    grep -c '^diff --git' "\${DSO_CI_REVIEW_DIFF_PATH}" > "$diff_log" 2>/dev/null || echo "0" > "$diff_log"
-fi
-exit 0
-MOCKEOF
-    chmod +x "$MOCK_BIN/ci-llm-review-runner.sh"
-
-    PATH="$MOCK_BIN:$PATH" \
-    PR_NUMBER=99 \
-    DSO_RUNNER_PATH="$MOCK_BIN/ci-llm-review-runner.sh" \
-    DSO_ARTIFACT_DIR="$artifact_dir" \
-    INTEGRATION_SCOPE_FILE="$scope_file" \
-        bash "$WRAPPER" > /dev/null 2>/dev/null || true
-
-    # With empty scope, the full diff (from mock gh: 1 file) should pass through
-    local file_count
-    file_count="$(cat "$diff_log" 2>/dev/null || echo '0')"
-    local has_files="no"
-    if [[ "$file_count" -gt 0 ]] 2>/dev/null; then has_files="yes"; fi
-    assert_eq "test_dispatcher_empty_scope_uses_full_diff: full diff passes through when scope is empty" \
-        "yes" "$has_files"
-
-    rm -rf "$artifact_dir" "$diff_log"
-    assert_pass_if_clean "test_dispatcher_empty_scope_uses_full_diff"
-}
+# ── Tests 15 + 16 (G1 scope narrowing) deleted in v4 ─────────────────────────
+# The G1 file-filter fallback path is unreachable in v4: when provenance_exit=1
+# the dispatcher always has a populated _DISPATCH_SCOPE_FILE (either UNPROVENANCED_FILE
+# or a force-scope file). The commit-scoped diff is narrowed by commit selection,
+# not by file filter on the full PR diff. Coverage now provided by
+# test_dispatcher_commit_scoped_diff and test_dispatcher_commit_scoped_diff_empty_fails_closed.
 
 # ── Test 17 (F3): commit-scoped diff for unprovenanced SHAs ──────────────────
 # When unprovenanced-shas.txt contains real SHAs, the dispatcher must generate
@@ -921,6 +808,121 @@ MOCKEOF
     assert_pass_if_clean "test_dispatcher_commit_scoped_diff"
 }
 
+# ── Test R3a (v4): commit-scoped diff empty fails closed ─────────────────────
+# When unprovenanced-shas.txt contains SHAs that don't resolve in the local
+# repo (shallow clone, missing object, etc.), commit-scoped diff is empty.
+# v4 fails closed rather than falling back to full PR diff (which would
+# re-review previously-approved code at giant-diff scale).
+test_dispatcher_commit_scoped_diff_empty_fails_closed() {
+    _snapshot_fail
+    if [[ ! -f "$WRAPPER" ]]; then
+        assert_eq "test_dispatcher_commit_scoped_diff_empty_fails_closed: wrapper must exist" \
+            "wrapper_exists" "wrapper_missing"
+        assert_pass_if_clean "test_dispatcher_commit_scoped_diff_empty_fails_closed"
+        return
+    fi
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+    # Seed with a SHA that doesn't resolve in any git repo
+    _seed_artifacts "$artifact_dir" "unprovenanced" "0000000000000000000000000000000000000000"
+
+    _make_mock_gh
+
+    # Mock runner should NOT be called — dispatcher exits 1 before runner
+    local call_log
+    call_log="$(mktemp "$TMPDIR_TEST/runner-no-call.XXXXXX")"
+    _make_mock_runner "$call_log"
+
+    local exit_code=0
+    PATH="$MOCK_BIN:$PATH" \
+    PR_NUMBER=99 \
+    DSO_RUNNER_PATH="$MOCK_BIN/ci-llm-review-runner.sh" \
+    DSO_ARTIFACT_DIR="$artifact_dir" \
+        bash "$WRAPPER" > /dev/null 2>/dev/null || exit_code=$?
+
+    assert_eq "test_dispatcher_commit_scoped_diff_empty_fails_closed: exits non-zero on empty commit-scoped diff" \
+        "1" "$exit_code"
+    local runner_called="no"
+    if [[ -f "$call_log" ]] && grep -q "runner-called" "$call_log" 2>/dev/null; then
+        runner_called="yes"
+    fi
+    assert_eq "test_dispatcher_commit_scoped_diff_empty_fails_closed: runner NOT called (no fall-through to full PR diff)" \
+        "no" "$runner_called"
+
+    rm -rf "$artifact_dir" "$call_log"
+    assert_pass_if_clean "test_dispatcher_commit_scoped_diff_empty_fails_closed"
+}
+
+# ── Test R7d (v4): dispatcher-side size cap routes to OVER_BOUND ──────────────
+# When the commit-scoped diff exceeds the dispatcher's byte or file cap, the
+# dispatcher routes to OVER_BOUND (exit 3) rather than dispatching to the
+# runner. Caps are env-overridable; this test uses tiny override caps to
+# trigger the gate deterministically.
+test_dispatcher_size_cap_triggers_overbound() {
+    _snapshot_fail
+    if [[ ! -f "$WRAPPER" ]]; then
+        assert_eq "test_dispatcher_size_cap_triggers_overbound: wrapper must exist" \
+            "wrapper_exists" "wrapper_missing"
+        assert_pass_if_clean "test_dispatcher_size_cap_triggers_overbound"
+        return
+    fi
+
+    # Create a real git repo with a sizeable commit
+    local repo
+    repo="$(mktemp -d)"
+    git -C "$repo" init -b main > /dev/null 2>&1
+    git -C "$repo" config user.name "Test" > /dev/null 2>&1
+    git -C "$repo" config user.email "test@test.com" > /dev/null 2>&1
+    printf 'initial\n' > "$repo/init.txt"
+    git -C "$repo" add init.txt > /dev/null 2>&1
+    git -C "$repo" commit -m "initial" > /dev/null 2>&1
+
+    # Add a commit with a substantial diff
+    for i in 1 2 3 4 5; do
+        printf 'line %s\n%s\n' "$i" "$(printf 'padding %.0s' {1..100})" > "$repo/file${i}.txt"
+        git -C "$repo" add "file${i}.txt" > /dev/null 2>&1
+    done
+    git -C "$repo" commit -m "big commit" > /dev/null 2>&1
+    local big_sha
+    big_sha="$(git -C "$repo" rev-parse HEAD)"
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+    date -u +%Y-%m-%dT%H:%M:%SZ > "$artifact_dir/provenance-complete.marker"
+    printf '%s\n' "$big_sha" > "$artifact_dir/unprovenanced-shas.txt"
+
+    _make_mock_gh
+    local call_log
+    call_log="$(mktemp "$TMPDIR_TEST/runner-no-call.XXXXXX")"
+    _make_mock_runner "$call_log"
+
+    # Override caps to tiny values to trigger OVER_BOUND on the 5-file commit
+    local exit_code=0
+    (
+        cd "$repo" || exit 1
+        PATH="$MOCK_BIN:$PATH" \
+        PR_NUMBER=99 \
+        DSO_RUNNER_PATH="$MOCK_BIN/ci-llm-review-runner.sh" \
+        DSO_ARTIFACT_DIR="$artifact_dir" \
+        DSO_DISPATCH_FILES_CAP=2 \
+            bash "$WRAPPER" > /dev/null 2>/dev/null
+    ) || exit_code=$?
+
+    # OVER_BOUND exits 3 → CI surfaces as failure (blocked)
+    assert_eq "test_dispatcher_size_cap_triggers_overbound: exits 3 on cap exceedance" \
+        "3" "$exit_code"
+    local runner_called="no"
+    if [[ -f "$call_log" ]] && grep -q "runner-called" "$call_log" 2>/dev/null; then
+        runner_called="yes"
+    fi
+    assert_eq "test_dispatcher_size_cap_triggers_overbound: runner NOT called on cap exceedance" \
+        "no" "$runner_called"
+
+    rm -rf "$repo" "$artifact_dir" "$call_log"
+    assert_pass_if_clean "test_dispatcher_size_cap_triggers_overbound"
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 test_wrapper_exists
 test_exit0_skips_runner
@@ -936,8 +938,8 @@ test_dispatcher_overbound_routes_correctly
 test_dispatcher_unprovenanced_dispatches_runner
 test_dispatcher_covered_list_from_artifact
 test_dispatcher_supplies_diff_to_runner
-test_dispatcher_scope_narrowing
-test_dispatcher_empty_scope_uses_full_diff
 test_dispatcher_commit_scoped_diff
+test_dispatcher_commit_scoped_diff_empty_fails_closed
+test_dispatcher_size_cap_triggers_overbound
 
 print_summary
