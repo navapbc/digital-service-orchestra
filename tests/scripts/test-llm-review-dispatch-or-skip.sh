@@ -73,17 +73,48 @@ MOCKEOF
 #   sha-list: optional newline-separated SHAs to seed into the relevant file
 #
 # v4 note: when `unprovenanced` or `overbound` outcome is requested without
-# explicit SHA list, defaults to a REAL SHA from the test repo's history
-# (HEAD~1). This is required because R3a fails closed when commit-scoped
-# `git show` produces an empty diff — fake SHAs like "deadbeef" previously
-# worked because the dispatcher fell back to full PR diff. v4 removes that
+# explicit SHA list, defaults to a REAL SHA from the test repo's history.
+# This is required because R3a fails closed when commit-scoped `git show`
+# produces an empty diff — fake SHAs like "deadbeef" previously worked
+# because the dispatcher fell back to full PR diff. v4 removes that
 # fallback to prevent the giant-diff failure mode, so SHAs must resolve.
+#
+# v4.1 update (PR-2 era): the SHA must ALSO be unreachable from origin/main,
+# otherwise R3a's already-merged filter removes it from scope (correct
+# behavior) and the dispatcher skips with "all_scope_already_merged" instead
+# of invoking the runner. We use `git commit-tree` to create an ephemeral
+# commit object that's not on any ref — git can resolve it (so `git show`
+# works) but it's not in any rev-list output (so the filter keeps it).
 _seed_artifacts() {
     local dir="$1" outcome="$2" shalist="${3:-}"
-    # Use the most recent NON-merge commit. Merge commits with no first-parent
-    # diff produce empty `git show` output and trip R3a's fail-closed gate.
+    # Create an ephemeral commit unreachable from any ref AND with a SMALL
+    # non-empty tree diff against HEAD. Strategy: take HEAD's tree entries
+    # via `git ls-tree HEAD`, append one new blob entry, then mktree the
+    # combined list. This produces a tree identical to HEAD's plus one new
+    # file → `git show` emits a 1-line addition diff. Guarantees:
+    #   1. SHA is NOT on origin/main (no ref points to it)
+    #   2. `git show <SHA>` produces a small non-empty diff (just the new file)
+    #   3. Diff fits within R7d's size cap (5MB / 100 files) — far from cap
+    # If any step fails, fall back to "deadbeef" — tests for that SHA exercise
+    # the fail-closed path correctly.
     local real_sha
-    real_sha=$(git log --no-merges --format=%H -n 1 2>/dev/null || echo "deadbeef")
+    local _ephemeral_blob _ephemeral_tree _ephemeral_name
+    _ephemeral_name="test-ephemeral-$$-${RANDOM}.txt"
+    _ephemeral_blob=$(echo "test-ephemeral-content-$$-$RANDOM" | git hash-object -w --stdin 2>/dev/null || echo "")
+    if [[ -n "$_ephemeral_blob" ]]; then
+        _ephemeral_tree=$(
+            { git ls-tree HEAD 2>/dev/null;
+              printf '100644 blob %s\t%s\n' "$_ephemeral_blob" "$_ephemeral_name";
+            } | git mktree 2>/dev/null || echo ""
+        )
+        if [[ -n "$_ephemeral_tree" ]]; then
+            real_sha=$(git commit-tree "$_ephemeral_tree" -p HEAD -m "test-ephemeral-$$-$RANDOM" 2>/dev/null || echo "deadbeef")
+        else
+            real_sha="deadbeef"
+        fi
+    else
+        real_sha="deadbeef"
+    fi
     case "$outcome" in
         all_provenanced)
             date -u +%Y-%m-%dT%H:%M:%SZ > "$dir/provenance-complete.marker"

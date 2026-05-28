@@ -458,12 +458,18 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$DSO_ARTIFACT_DIR"
-          # Ensure the base ref is fetched before computing the provenance range.
-          # The pull_request checkout is shallow and does not guarantee
-          # origin/${base_ref} is locally available; without an explicit fetch,
-          # the script's range-collapse error gets suppressed and unprovenanced
-          # commits are silently missed (Copilot/CodeRabbit finding 2026-05-16).
-          git fetch --no-tags --depth=1 origin "${{ github.base_ref }}" 2>/dev/null || true
+          # Ensure the base ref is fetched with FULL ancestor history before
+          # computing the provenance range. PR-2 follow-up: the previous
+          # --depth=1 fetch made origin/<base_ref> a shallow ref locally,
+          # which broke two things:
+          #   1. The new already-merged filter (^origin/<base_ref>) — only the
+          #      tip excluded, not the thousands of ancestor commits.
+          #   2. The existing BASE_SHA..SESSION_HEAD range — git can't compute
+          #      "reachable from BASE_SHA" for ancestors not in the object DB,
+          #      so historically-merged commits incorrectly fell into the range.
+          # Both issues drove the verifier into BUDGET_EXHAUSTED on PRs based
+          # on older main snapshots. Full fetch fixes both.
+          git fetch --no-tags origin "${{ github.base_ref }}" 2>/dev/null || true
           # Retro-review of PR #168 found that passing DSO_BASE_SHA as the
           # symbolic ref string "origin/<base>" silently false-passes when the
           # fetch above fails: the ref is unresolvable, `git log

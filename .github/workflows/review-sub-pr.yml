@@ -1,4 +1,11 @@
 name: review-sub-pr
+# Branch trigger patterns MUST mirror plugins/dso/config/sub-pr-branch-patterns.txt
+# (the source-of-truth file consumed by the dispatcher and provisioner).
+# GitHub Actions YAML does NOT support dynamic includes; this list must be
+# updated by hand whenever the patterns file changes. The alignment test
+# tests/scripts/test-branch-pattern-alignment.sh enforces this invariant —
+# adding a pattern to the file but forgetting this trigger creates a merge
+# deadlock (sub-PR ruleset requires review-sub-pr, but workflow never fires).
 "on":
   pull_request:
     branches:
@@ -7,6 +14,24 @@ name: review-sub-pr
       - 'session_**'
       - 'bug-batch/**'
       - 'worktree-**'
+      - 'worktree-agent-**'
+      - 'feat-**'
+      - 'feat/**'
+      - 'story-**'
+      - 'story/**'
+      - 'fix-**'
+      - 'fix/**'
+
+# R5 (PR-2): concurrency group prevents overlapping runs on rapid force-pushes.
+# cancel-in-progress is appropriate for review workflows — a stale review
+# against a superseded commit is wasteful. Note: cancelled runs report
+# conclusion=cancelled, which R2 (verify-session-provenance.sh) treats as
+# unreviewed → SHA marked unprovenanced at session→main. Correct behavior:
+# cancelled = no review evidence.
+concurrency:
+  group: review-sub-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   llm-review-sub-pr:
     name: review-sub-pr
@@ -42,6 +67,15 @@ jobs:
           _DIFF_PATH=$(mktemp /tmp/dso-sub-pr-diff.XXXXXX)
           trap 'rm -f "$_DIFF_PATH"' EXIT
           gh pr diff "$PR_NUMBER" > "$_DIFF_PATH"
+          # R4 (PR-2): workflow-level empty-diff guard. The runner has an
+          # empty-diff guard (`runner.py:_read_diff`) but a workflow-level
+          # check makes the failure mode visible before the runner is
+          # invoked, resilient to runner-side regressions.
+          if [[ ! -s "$_DIFF_PATH" ]]; then
+              echo "ERROR: gh pr diff produced empty output for PR #$PR_NUMBER" >&2
+              echo "ERROR: refusing to dispatch reviewer with empty diff (force-push race, rebased PR, or closed state)" >&2
+              exit 1
+          fi
           DSO_CI_REVIEW_DIFF_PATH="$_DIFF_PATH" bash plugins/dso/scripts/ci-llm-review-runner.sh
 
       - name: Assert review liveness

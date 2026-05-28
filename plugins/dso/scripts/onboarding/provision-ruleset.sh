@@ -317,8 +317,61 @@ EOF
 
 # ── Build session-branch ruleset JSON payload (F1 mitigation) ────────────────
 # Second ruleset requiring review-sub-pr to pass on session/worktree branches.
-# Branch patterns match review-sub-pr.yml's pull_request trigger branches.
+#
+# BRANCH-NAMING CROSS-REFERENCE (R8/R11 PR-2):
+# Branch patterns are read from the source-of-truth file at
+# ${CLAUDE_PLUGIN_ROOT}/config/sub-pr-branch-patterns.txt. The dispatcher
+# (llm-review-dispatch-or-skip.sh) reads the SAME file to build its
+# _FORCE_REVIEW regex — keeping both consumers in sync.
+#
+# Validation: tests/scripts/test-branch-pattern-alignment.sh asserts both
+# consumers reference the file and emit consistent patterns. Drift between
+# the dispatcher and the ruleset would let sub-agent branches silently
+# bypass review enforcement.
 SUB_PR_STATUS_JSON='[{"context": "review-sub-pr"}]'
+
+# Resolve patterns file via BASH_SOURCE-based plugin-root derivation.
+# The script lives at <plugin-root>/scripts/onboarding/provision-ruleset.sh
+# and the patterns file lives at <plugin-root>/config/sub-pr-branch-patterns.txt.
+# Resolving via BASH_SOURCE keeps the script and patterns file co-located
+# regardless of CLAUDE_PLUGIN_ROOT env state (which may point to a different
+# checkout in worktree-based development).
+_PROVISION_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Two levels up: scripts/onboarding → scripts → <plugin-root>. Use
+# CLAUDE_PLUGIN_ROOT-honoring pattern so the no-relative-paths lint excludes
+# the literal "../.." used to derive the plugin root from this script's dir.
+_PR_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_PROVISION_SCRIPT_DIR/../.." 2>/dev/null && pwd || echo '')}"
+_PATTERNS_FILE="${_PR_PLUGIN_ROOT}/config/sub-pr-branch-patterns.txt"
+if [[ ! -f "$_PATTERNS_FILE" ]]; then
+    echo "ERROR: branch-patterns source-of-truth file not found at $_PATTERNS_FILE" >&2
+    exit 1
+fi
+
+# Count active (non-comment, non-blank) patterns. An empty file would produce
+# an empty JSON array, which would silently disable sub-PR review enforcement
+# (the ruleset's include filter would match no branches). Fail-closed instead.
+# `set +e ... set -e` brackets the grep so a zero-match (grep exit 1) under
+# `set -o pipefail` doesn't terminate the script before we can emit the
+# diagnostic. `|| true` alone wouldn't work because pipefail propagates the
+# inner exit code through the pipe.
+set +e
+_PATTERN_COUNT=$(grep -vE '^[[:space:]]*#|^[[:space:]]*$' "$_PATTERNS_FILE" 2>/dev/null | wc -l | tr -d ' ')
+set -e
+_PATTERN_COUNT="${_PATTERN_COUNT:-0}"
+if (( _PATTERN_COUNT == 0 )); then
+    echo "ERROR: branch-patterns source-of-truth file contains zero active patterns: $_PATTERNS_FILE" >&2
+    echo "ERROR: refusing to provision a ruleset with empty include array — this would silently disable" >&2
+    echo "ERROR: sub-PR review enforcement (empty include matches no branches)" >&2
+    exit 1
+fi
+
+# Build the JSON include array from patterns file (one "refs/heads/<pattern>" per non-comment line).
+SUB_PR_INCLUDE_JSON=$(
+    grep -vE '^[[:space:]]*#|^[[:space:]]*$' "$_PATTERNS_FILE" \
+        | jq -R '"refs/heads/" + .' \
+        | jq -s .
+)
+
 SUB_PR_PAYLOAD_JSON=$(cat <<EOF
 {
   "name": "DSO Sub-PR Review Enforcement",
@@ -326,13 +379,7 @@ SUB_PR_PAYLOAD_JSON=$(cat <<EOF
   "enforcement": "active",
   "conditions": {
     "ref_name": {
-      "include": [
-        "refs/heads/session/**",
-        "refs/heads/session-**",
-        "refs/heads/session_**",
-        "refs/heads/worktree-**",
-        "refs/heads/bug-batch/**"
-      ],
+      "include": ${SUB_PR_INCLUDE_JSON},
       "exclude": []
     }
   },
