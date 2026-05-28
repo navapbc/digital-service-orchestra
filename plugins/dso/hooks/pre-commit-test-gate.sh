@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DSO-GATE-TIER: A
 # hook-boundary: enforcement
 # hooks/pre-commit-test-gate.sh
 # git pre-commit hook: fuzzy-match-based test gate for staged source files.
@@ -44,23 +45,33 @@
 
 set -uo pipefail
 
-# ── Fail-open on timeout ─────────────────────────────────────────────────────
-# pre-commit sends SIGTERM after the configured timeout (default 10s), which
-# results in exit 124. Claude Code's tool timeout sends SIGURG (exit 144).
-# A gate timeout is an infrastructure failure, not a test failure — blocking
-# commits when the hook mechanism itself fails is a bad state that agents can't
-# recover from. Trap both signals and exit 0 (fail-open) with a warning so the
-# commit proceeds. This is consistent with the existing fail-open behavior on
-# hash computation errors (compute-diff-hash.sh failure).
-# shellcheck disable=SC2329  # false positive: called via trap below
-_fail_open_on_timeout() {
-    echo "pre-commit-test-gate: WARNING: timed out — failing open (commit allowed)" >&2
-    exit 0
-}
-trap _fail_open_on_timeout TERM URG
-
 # ── Locate hook and plugin directories ──────────────────────────────────────
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# ── Tier A: fail-CLOSED on timeout ────────────────────────────────────────────
+# pre-commit sends SIGTERM (exit 124) after its configured timeout; Claude Code's
+# tool timeout sends SIGURG (exit 144). On either signal: emit a GATE_UNAVAILABLE
+# audit record and exit 2 (block). Operators may bypass via the paired env vars:
+#   DSO_GATE_BYPASS_TEST_GATE=1
+#   DSO_GATE_BYPASS_TEST_GATE_REASON='<one-line justification>'
+# Bypass activation writes its own audit record (discoverable in retrospectives).
+# shellcheck source=lib/gate-unavailable.sh
+source "$HOOK_DIR/lib/gate-unavailable.sh"
+
+# shellcheck disable=SC2329  # called via trap below
+_handle_timeout() {
+    local _sig="${1:-?}"
+    if _dso_gate_bypass_active test_gate 2>/dev/null; then
+        echo "pre-commit-test-gate: WARNING: timed out (sig=$_sig) — bypass active, commit allowed" >&2
+        exit 0
+    fi
+    _dso_gate_unavailable test_gate "timeout sig=$_sig"
+    echo "pre-commit-test-gate: BLOCKED — gate timed out (sig=$_sig). To override," >&2
+    echo "  set DSO_GATE_BYPASS_TEST_GATE=1 and DSO_GATE_BYPASS_TEST_GATE_REASON='<reason>'." >&2
+    exit 2
+}
+trap '_handle_timeout TERM' TERM
+trap '_handle_timeout URG' URG
 
 # ── Enforcement strategy gate ────────────────────────────────────────────────
 # Read dso.workflow from dso-config.conf and short-circuit when ci-pr mode.

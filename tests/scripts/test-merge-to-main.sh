@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2046,SC2329  # word-splitting intentional; function invoked via eval
+# shellcheck disable=SC2016,SC2046,SC2329  # SC2016: literal $ in grep patterns; word-splitting intentional; function invoked via eval
 # tests/scripts/test-merge-to-main.sh
 # Tests for merge-to-main.sh post-merge validation parallelization.
 #
@@ -754,7 +754,7 @@ assert_pass_if_clean "test_snapshot_cleanup_before_tickets_pull"
 echo "--- test_sync_phase_resets_stale_ahead_local_main ---"
 _sync_body_ahead=$(sed -n '/_phase_sync()/,/^}/p' "$MERGE_SCRIPT" 2>/dev/null || true)
 _has_ahead_reset=0
-if grep -qE "rev-list.*count.*origin/main.*HEAD|reset.*hard.*origin/main" <<< "$_sync_body_ahead"; then
+if grep -qE 'rev-list.*count.*origin/(main|\$|"\$|\$\{).*HEAD|reset.*hard.*origin/(main|\$|"\$|\$\{)' <<< "$_sync_body_ahead"; then
     _has_ahead_reset=1
 fi
 assert_eq "test_sync_phase_resets_stale_ahead_local_main: _phase_sync must detect stale-ahead local main and hard-reset to origin/main (35eb-1824)" \
@@ -771,7 +771,7 @@ echo "--- test_merge_phase_resets_stale_ahead_local_main ---"
 # --resume re-enters with local main still ahead of origin/main.
 _merge_body_drift=$(sed -n '/_phase_merge()/,/^}/p' "$MERGE_SCRIPT" 2>/dev/null || true)
 _has_merge_drift_reset=0
-if grep -qE "reset[[:space:]]+--hard[[:space:]]+origin/main" <<< "$_merge_body_drift"; then
+if grep -qE 'reset[[:space:]]+--hard[[:space:]]+"?origin/(main|\$_DEFAULT_BRANCH|\$\{_DEFAULT_BRANCH)' <<< "$_merge_body_drift"; then
     _has_merge_drift_reset=1
 fi
 assert_eq "test_merge_phase_resets_stale_ahead_local_main: _phase_merge must reset stale-ahead local main to origin/main (f6c6-362c)" \

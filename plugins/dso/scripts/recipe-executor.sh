@@ -126,9 +126,9 @@ fi
 
 # ── Build env var list for adapter ───────────────────────────────────────────
 # Each --param key=value becomes RECIPE_PARAM_key=value (key preserved as-is).
-# asserts params.get('function_name') — lowercase. The test spec defines lowercase key
-# preservation as the required behavior for this walking skeleton. Contract uppercase
-# normalization (RECIPE_PARAM_FUNCTION_NAME) will be aligned with test spec in a follow-on story.
+# asserts params.get('function_name') — lowercase. The contract preserves the
+# caller-provided key case verbatim; uppercase normalization
+# (RECIPE_PARAM_FUNCTION_NAME) is intentionally not applied at this layer.
 ENV_ARGS=()
 for param_kv in "${PARAMS_LIST[@]}"; do
     param_key="${param_kv%%=*}"
@@ -163,9 +163,9 @@ cd "$REPO_ROOT"
 
 # REVIEW-DEFENSE (stderr): Tests capture executor output via `2>&1`; echoing adapter stderr
 # to executor's stderr would mix adapter JSON diagnostics into the test's stdout capture,
-# breaking JSON parsing. The 2>/dev/null suppression is intentional for the walking skeleton.
-# In a production implementation, adapter stderr would be redirected to a structured log file
-# (not the executor's stderr) to preserve JSON-clean output while retaining diagnostics.
+# breaking JSON parsing. The 2>/dev/null suppression preserves JSON-clean stdout for
+# downstream parsers. Adapter diagnostics intended for operators should be written to a
+# structured log file, not adapter stderr.
 adapter_exit=0
 adapter_stdout=$(env "${ENV_ARGS[@]}" bash "$ADAPTER_PATH" 2>/dev/null) || adapter_exit=$?
 

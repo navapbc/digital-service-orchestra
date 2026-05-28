@@ -130,6 +130,35 @@ Hook wrappers that don't fit the categories above — primarily lifecycle / infr
 
 Enforcement hooks (annotated `# hook-boundary: enforcement`) MUST NOT source this library — `pre-commit-enforcement-boundary-check.sh` enforces this boundary at commit time.
 
+## Gate-tier doctrine (F-02)
+
+Every hook under `$PLUGIN_DIR/hooks/` declares its tier in the file header via a `# DSO-GATE-TIER: A|B|C` comment. The tier governs how the hook behaves on infrastructure failure (timeout, parse error, missing dependency):
+
+- **Tier A — safety-critical.** Verdict routes execution. Must fail **closed** on infrastructure failure. Override requires a paired env-var bypass (`DSO_GATE_BYPASS_<UPPER_NAME>=1` AND non-empty `DSO_GATE_BYPASS_<UPPER_NAME>_REASON`), modeled on the `DSO_ALLOW_EDIT_ON_MAIN` pattern at `hooks/lib/pre-bash-functions.sh:546–551`. Each bypass writes a JSONL audit record to `~/.claude/logs/dso-gate-unavailable.jsonl` and an event-log entry.
+- **Tier B — developer-experience.** Hook wrapper, dispatcher non-2 exits, error handler, formatting-hint hooks. Fail open is correct — a broken hook script must not brick an editor session.
+- **Tier C — advisory model checks.** Heuristic verdicts that are routing hints, not gates. May degrade, but the degraded state must emit a `GATE_UNAVAILABLE` event the orchestrator can read (via the existing event-log channel).
+
+### Shared helper: `gate-unavailable.sh`
+
+`${CLAUDE_PLUGIN_ROOT}/hooks/lib/gate-unavailable.sh` provides:
+
+- `_dso_gate_unavailable <gate_name> <reason>` — writes a JSONL audit record + stderr signal. Returns 0; Tier A callers should `return 2` afterward to block. Tier C callers proceed with their existing degradation path.
+- `_dso_gate_bypass_active <gate_name>` — returns 0 only when both env vars are present. Emits an audit record when active.
+
+### Current tier assignment
+
+| Hook | Tier | Notes |
+|------|------|-------|
+| `hooks/pre-commit-test-gate.sh` | **A** | Timeout (SIGTERM/SIGURG) emits `GATE_UNAVAILABLE` and exits 2 unless `DSO_GATE_BYPASS_TEST_GATE` set. |
+| `hooks/pre-commit-review-gate.sh` | **A** | Empty `CURRENT_HASH` (`compute-diff-hash.sh` failure) emits `GATE_UNAVAILABLE` and exits 2 unless `DSO_GATE_BYPASS_REVIEW_GATE` set. |
+| `scripts/pre-commit-wrapper.sh` | **B** | Wrapper fail-open on missing/broken hook is correct — broken hook must not brick session. |
+| `hooks/lib/dispatcher.sh` | **B** | Non-2 exits → allow (Tier B contract). |
+| `hooks/lib/hook-error-handler.sh` | **B** | Always-exit-0 after logging is correct. |
+
+### Drift detection
+
+`check-gate-tier-headers.sh` verifies every hook in `$PLUGIN_DIR/hooks/` declares a tier via the `# DSO-GATE-TIER:` header. Wired as the `gate-tier-headers-check` pre-commit hook.
+
 ## Stack-agnostic gate pipeline
 
 `validate.sh`, `gate-2b`, `gate-2d`, and `auto-format.sh` read `commands.lint`, `commands.format`, and `commands.format_check` from config — replacing hardcoded Python/ruff calls. When a key is absent, each script emits `[DSO WARN]` and falls back gracefully (ruff for `.py`; skip for other extensions). Per-stack defaults: see `CONFIGURATION-REFERENCE.md`.

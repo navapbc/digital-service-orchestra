@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DSO-GATE-TIER: A
 # hook-boundary: enforcement
 # check-tickets-boundary.sh
 # Pre-commit hook: enforce the tickets boundary.

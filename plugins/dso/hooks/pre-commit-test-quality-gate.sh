@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# DSO-GATE-TIER: B
+# INTENT: A (timeout currently fail-open at _fail_open_on_timeout; flip to Tier A
+#   via _dso_gate_unavailable + exit 2 is the follow-up to F-02)
 # hook-boundary: enforcement
 # hooks/pre-commit-test-quality-gate.sh
 # git pre-commit hook: scans staged test files for anti-patterns and blocks

@@ -5,7 +5,9 @@ Invoked as ``python -m dso_reconciler`` by the GHA reconcile-bridge workflow.
 Orchestrates one steady-state pass calling the pipeline modules in sequence:
   fetcher → differ → applier → mapping → manifest → health
 
-Modules that do not exist yet are skipped gracefully (walking-skeleton pattern).
+Pipeline modules are loaded on demand via ``_try_load_step``; modules that
+are not present in this deployment are skipped (graceful no-op), allowing
+the orchestrator to be deployed alongside partial module rollouts.
 
 Exit codes:
   0 — all present modules converged successfully
@@ -172,8 +174,9 @@ def run_pass(
 
     reconcile = _try_load_step("reconcile")
     if reconcile is None:
-        # Walking-skeleton path: no pipeline modules implemented yet — exit cleanly.
-        print("OK: walking-skeleton no-op (reconcile.py not present)")
+        # Graceful no-op when reconcile.py is absent in the current deployment
+        # (e.g., orchestrator deployed ahead of the reconcile module).
+        print("OK: no-op (reconcile.py not present in this deployment)")
         return 0
 
     # F6: load the applier module so RescheduleError + EXIT_RESCHEDULE are

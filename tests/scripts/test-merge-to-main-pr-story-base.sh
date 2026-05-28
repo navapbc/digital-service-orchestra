@@ -107,6 +107,10 @@ case "\$1" in
     ;;
   repo)
     if [[ "\$2" == "view" ]]; then
+      if [[ "\$*" == *"defaultBranchRef"* ]]; then
+        echo "main"
+        exit 0
+      fi
       echo "x/y"
       exit 0
     fi

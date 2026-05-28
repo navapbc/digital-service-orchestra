@@ -1477,7 +1477,7 @@ test_gate_fails_open_on_sigterm() {
             "present" "present"
     else
         # Gate exited before SIGTERM arrived — verify the trap exists in the script
-        if grep -q '_fail_open_on_timeout' "$GATE_HOOK" && grep -q 'trap.*TERM.*URG' "$GATE_HOOK"; then
+        if grep -q '_handle_timeout\|_fail_open_on_timeout' "$GATE_HOOK" && grep -q 'trap.*TERM' "$GATE_HOOK" && grep -q 'trap.*URG' "$GATE_HOOK"; then
             assert_eq "test_gate_fails_open_on_sigterm: trap registered for TERM and URG" \
                 "present" "present"
         else
