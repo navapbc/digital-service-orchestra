@@ -321,9 +321,16 @@ _PROVIDER_DEFAULT_MODEL: dict[str, str] = {
 
 
 def _build_messages(
-    diff_text: str, agent_id: str = "unknown", provider: str = "unknown"
+    diff_text: str,
+    agent_id: str = "unknown",
+    provider: str = "unknown",
+    review_context: str | None = None,
 ) -> list[dict[str, Any]]:
     system_prompt = _load_agent_prompt(agent_id)
+    context_prefix = (
+        f"REVIEW_CONTEXT: {review_context}\n\n" if review_context else ""
+    )
+    user_text = f"{context_prefix}Review this diff:\n\n{diff_text}"
     if provider == "anthropic":
         # SC3: place cache_control breakpoints at system-prompt and diff boundaries
         # derived from the rendered message structure (not hardcoded by index).
@@ -343,7 +350,7 @@ def _build_messages(
                 "content": [
                     {
                         "type": "text",
-                        "text": f"Review this diff:\n\n{diff_text}",
+                        "text": user_text,
                         "cache_control": {"type": "ephemeral"},
                     }
                 ],
@@ -351,7 +358,7 @@ def _build_messages(
         ]
     return [
         {"role": "system", "content": system_prompt},
-        {"role": "user", "content": f"Review this diff:\n\n{diff_text}"},
+        {"role": "user", "content": user_text},
     ]
 
 
@@ -455,6 +462,7 @@ def dispatch_review(
     repo_root: str | None = None,
     tier: str = "standard",
     soft_cap: int | None = None,
+    review_context: str | None = None,
 ) -> dict[str, Any]:
     """Dispatch a code review using LiteLLM with manual context-window escalation.
 
@@ -506,7 +514,10 @@ def dispatch_review(
     # Determine the primary provider early — needed for cache_control placement.
     first_provider = provider_chain[0]
 
-    messages = _build_messages(diff_text, agent_id=agent_id, provider=first_provider)
+    messages = _build_messages(
+        diff_text, agent_id=agent_id, provider=first_provider,
+        review_context=review_context,
+    )
     resolved_primary_model = primary_model or _PROVIDER_DEFAULT_MODEL.get(
         first_provider, first_provider
     )
@@ -884,6 +895,7 @@ def dispatch_two_call_review(
     environ: dict[str, str] | None = None,
     agent_id: str = "unknown",
     primary_model: str | None = None,
+    review_context: str | None = None,
 ) -> dict[str, Any]:
     """Two-call review architecture for re-review cycles (DSO_REVIEW_CYCLE >= 2).
 
@@ -945,7 +957,8 @@ def dispatch_two_call_review(
     )
     call1_diff = diff_text + index_context
     call1_messages = _build_messages(
-        call1_diff, agent_id=agent_id, provider=first_provider
+        call1_diff, agent_id=agent_id, provider=first_provider,
+        review_context=review_context,
     )
 
     call1_response = _litellm.completion(
@@ -974,7 +987,8 @@ def dispatch_two_call_review(
     )
     call2_diff = diff_text + call2_context
     call2_messages = _build_messages(
-        call2_diff, agent_id=agent_id, provider=first_provider
+        call2_diff, agent_id=agent_id, provider=first_provider,
+        review_context=review_context,
     )
 
     call2_response = _litellm.completion(
@@ -1001,6 +1015,7 @@ async def _call_single_agent(
     model: str,
     provider_chain: list[str] | None = None,
     tier: str = "standard",
+    review_context: str | None = None,
 ) -> dict:
     """Dispatch one reviewer agent. Returns findings dict or error entry on any exception."""
     try:
@@ -1010,6 +1025,7 @@ async def _call_single_agent(
             primary_model=model,
             provider_chain=provider_chain or ["anthropic"],
             tier=tier,
+            review_context=review_context,
         )
         return result
     except Exception as exc:  # noqa: BLE001
@@ -1545,6 +1561,7 @@ async def async_dispatch_specialists(
             model=a["model"],
             provider_chain=a.get("provider_chain"),
             tier=a.get("tier", "standard"),
+            review_context=a.get("review_context"),
         )
         for a in agents
     ]
