@@ -311,13 +311,40 @@ case "$provenance_exit" in
             echo "ERROR: ensure the workflow checks out the base ref. For PR contexts, the base ref must be fetched via actions/checkout's fetch-depth: 0." >&2
             exit 1
         fi
-        # Shallow-clone detection: rev-list on a depth-1 clone returns ~1 SHA;
-        # filter becomes a no-op and the original explosion recurs.
+        # Shallow-clone handling: a shallow rev-list of origin/main returns
+        # truncated history, leaving the filter unable to identify many
+        # already-merged SHAs. Attempt self-healing via `git fetch --unshallow`
+        # before fail-closing — actions/checkout@v4 with fetch-depth: 0 should
+        # produce a non-shallow repo, but some CI configurations still mark
+        # the repo shallow after PR-merge-ref checkout.
         if [[ "$(git rev-parse --is-shallow-repository 2>/dev/null)" == "true" ]]; then
-            echo "ERROR: repository is shallow — git rev-list ${_MAIN_REF} would return truncated history" >&2
-            echo "ERROR: already-merged SHA filter cannot operate reliably on shallow clones" >&2
-            echo "ERROR: remediation: set actions/checkout fetch-depth to 0, OR run \`git fetch --unshallow\` before dispatch" >&2
-            exit 1
+            echo "INFO: repository is shallow — attempting git fetch --unshallow to enable reliable filtering"
+            # Capture exit code explicitly. `git fetch --unshallow | tail -3`
+            # would mask fetch's exit code with tail's (~always 0) and report
+            # network failures as success. The downstream is-shallow re-check
+            # would still catch state-level failures, but masked exit codes
+            # produce misleading logs that obscure future CI debugging.
+            # The `set +e ... set -e` wrap prevents set -e from exiting on
+            # the failed-fetch command substitution before _UNSHALLOW_RC is
+            # captured.
+            set +e
+            _UNSHALLOW_OUT=$(git fetch --unshallow 2>&1)
+            _UNSHALLOW_RC=$?
+            set -e
+            echo "$_UNSHALLOW_OUT" | tail -3
+            if [[ "$_UNSHALLOW_RC" -eq 0 ]]; then
+                if [[ "$(git rev-parse --is-shallow-repository 2>/dev/null)" == "true" ]]; then
+                    echo "ERROR: repository still shallow after fetch --unshallow" >&2
+                    echo "ERROR: already-merged SHA filter cannot operate reliably on shallow clones" >&2
+                    echo "ERROR: remediation: set actions/checkout fetch-depth to 0" >&2
+                    exit 1
+                fi
+                echo "INFO: unshallow succeeded — proceeding with filter"
+            else
+                echo "ERROR: git fetch --unshallow failed (rc=${_UNSHALLOW_RC}); cannot proceed with reliable filtering" >&2
+                echo "ERROR: remediation: set actions/checkout fetch-depth to 0 in the workflow" >&2
+                exit 1
+            fi
         fi
 
         _FILTERED_SCOPE_FILE=$(mktemp /tmp/dso-filtered-scope.XXXXXX)

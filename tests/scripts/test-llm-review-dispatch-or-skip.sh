@@ -1080,10 +1080,11 @@ test_dispatcher_unresolvable_main_fails_closed() {
     assert_pass_if_clean "test_dispatcher_unresolvable_main_fails_closed"
 }
 
-# ── Test R3a v4.1: shallow clone fails closed ────────────────────────────────
-# A shallow clone of origin/main only has a few commits in its rev-list.
-# The filter would be a no-op and the original PR #425 explosion would
-# recur. Dispatcher must detect this and fail closed.
+# ── Test R3a v4.1: shallow clone with unfixable remote fails closed ──────────
+# When the dispatcher detects a shallow clone, it attempts self-healing via
+# `git fetch --unshallow`. If that succeeds, filtering proceeds normally. If
+# the remote is unreachable, dispatcher must fail closed rather than proceed
+# with truncated rev-list (which would defeat the filter).
 test_dispatcher_shallow_clone_fails_closed() {
     _snapshot_fail
     if [[ ! -f "$WRAPPER" ]]; then
@@ -1093,37 +1094,24 @@ test_dispatcher_shallow_clone_fails_closed() {
         return
     fi
 
-    # Create an origin with multiple commits, then shallow-clone it
-    local origin
-    origin="$(mktemp -d)"
-    git -C "$origin" init --bare > /dev/null 2>&1
-
-    local seed
-    seed="$(mktemp -d)"
-    git -C "$seed" init -b main > /dev/null 2>&1
-    git -C "$seed" config user.name "Test" > /dev/null 2>&1
-    git -C "$seed" config user.email "test@test.com" > /dev/null 2>&1
-    for i in 1 2 3; do
-        printf 'commit %s\n' "$i" > "$seed/file${i}.txt"
-        git -C "$seed" add "file${i}.txt" > /dev/null 2>&1
-        git -C "$seed" commit -m "C${i}" > /dev/null 2>&1
-    done
-    git -C "$seed" remote add origin "$origin" > /dev/null 2>&1
-    git -C "$seed" push origin main > /dev/null 2>&1
-    rm -rf "$seed"
-
-    # Shallow clone — `git clone --depth=1` from a local bare repo may NOT
-    # actually create a shallow state (local clones hardlink by default).
-    # Force-shallow by writing the .git/shallow marker file directly.
+    # Build a repo with a shallow marker BUT a bogus origin URL so
+    # `git fetch --unshallow` can't succeed.
     local repo
     repo="$(mktemp -d)"
-    git clone --no-local --depth=1 "file://$origin" "$repo" > /dev/null 2>&1
+    git -C "$repo" init -b main > /dev/null 2>&1
     git -C "$repo" config user.name "Test" > /dev/null 2>&1
     git -C "$repo" config user.email "test@test.com" > /dev/null 2>&1
-    # Ensure shallow state — write the marker if clone didn't (some git versions)
-    if [[ "$(git -C "$repo" rev-parse --is-shallow-repository)" != "true" ]]; then
-        git -C "$repo" rev-parse HEAD > "$repo/.git/shallow"
-    fi
+    printf 'commit A\n' > "$repo/a.txt"
+    git -C "$repo" add a.txt > /dev/null 2>&1
+    git -C "$repo" commit -m "A" > /dev/null 2>&1
+    # Set up bogus origin and a fake origin/main ref so the "main resolvable"
+    # check passes but "unshallow" fails.
+    git -C "$repo" remote add origin "file:///nonexistent-bogus-path-${RANDOM}" > /dev/null 2>&1
+    # Mirror HEAD as origin/main so rev-parse origin/main succeeds locally
+    git -C "$repo" update-ref refs/remotes/origin/main HEAD > /dev/null 2>&1
+    # Write shallow marker so dispatcher detects shallow state
+    git -C "$repo" rev-parse HEAD > "$repo/.git/shallow"
+
     local sha
     sha="$(git -C "$repo" rev-parse HEAD)"
 
@@ -1143,22 +1131,20 @@ test_dispatcher_shallow_clone_fails_closed() {
             bash "$WRAPPER" 2>&1
     ) || exit_code=$?
 
-    assert_eq "test_dispatcher_shallow_clone_fails_closed: exits 1 on shallow repo" \
+    assert_eq "test_dispatcher_shallow_clone_fails_closed: exits 1 when shallow+unfixable" \
         "1" "$exit_code"
-    # Accept either fail-closed path:
-    #   (a) shallow check fires: "shallow" in output
-    #   (b) origin/main resolution fails on the clone: "not resolvable" in output
-    # Both are valid safety responses to a degraded filter precondition. Linux
-    # local-bare clones sometimes don't honor --depth=1, producing a non-shallow
-    # repo where origin/main may also fail to resolve due to setup quirks.
+    # Accept any fail-closed message that names the precondition:
+    #   (a) "fetch --unshallow failed" (self-heal attempted, remote unreachable)
+    #   (b) "still shallow" (self-heal ran but didn't change state)
+    #   (c) "not resolvable" (origin/main missing — depends on test setup)
     local fail_msg="no"
-    if echo "$output" | grep -qE "shallow|not resolvable"; then
+    if echo "$output" | grep -qE "shallow|unshallow|not resolvable"; then
         fail_msg="yes"
     fi
-    assert_eq "test_dispatcher_shallow_clone_fails_closed: error names a precondition (shallow or unresolvable)" \
+    assert_eq "test_dispatcher_shallow_clone_fails_closed: error names a precondition" \
         "yes" "$fail_msg"
 
-    rm -rf "$repo" "$origin" "$artifact_dir"
+    rm -rf "$repo" "$artifact_dir"
     assert_pass_if_clean "test_dispatcher_shallow_clone_fails_closed"
 }
 
