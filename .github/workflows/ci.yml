@@ -237,6 +237,10 @@ jobs:
     # depth) regardless of SUITE_TEST_INDEX. See plugins/dso/docs/HOOKS-REFERENCE.md.
     steps:
       - uses: actions/checkout@v4
+        with:
+          # fetch-depth: 0 — consistent with test-scripts job. Hook tests may
+          # also dispatch the llm-review wrapper which fail-closes on shallow.
+          fetch-depth: 0
 
       - name: Run hook tests
         if: needs.changes.outputs.code_changed == 'true'
@@ -271,6 +275,13 @@ jobs:
     # depth) regardless of SUITE_TEST_INDEX. See plugins/dso/docs/HOOKS-REFERENCE.md.
     steps:
       - uses: actions/checkout@v4
+        with:
+          # fetch-depth: 0 required for tests that exercise the llm-review
+          # dispatcher's shallow-repository fail-closed gate (R3a v4.1).
+          # Tests inherit the runner's git context as the dispatcher CWD;
+          # default shallow checkout (depth=1) trips the fail-closed gate
+          # before tests can exercise their intended scenarios.
+          fetch-depth: 0
 
       - name: Set up Python
         if: needs.changes.outputs.code_changed == 'true'

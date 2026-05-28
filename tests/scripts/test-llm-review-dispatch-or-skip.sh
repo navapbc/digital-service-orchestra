@@ -40,6 +40,14 @@ trap 'rm -rf "$TMPDIR_TEST"' EXIT
 MOCK_BIN="$TMPDIR_TEST/bin"
 mkdir -p "$MOCK_BIN"
 
+# In CI (GITHUB_ACTIONS=true), real gh + GITHUB_REPOSITORY are set, which
+# would trigger the dispatcher's _FORCE_REVIEW branch-pattern matching on
+# every test running in a sub-agent-named worktree (e.g. worktree-*, feat-*).
+# Force GITHUB_HEAD_REF=main so the dispatcher's _HEAD_BRANCH detection
+# resolves to a non-force-review-eligible name. Tests that explicitly want
+# to exercise force-review override this in their own scope.
+export GITHUB_HEAD_REF="${DSO_TEST_HEAD_REF:-main}"
+
 # ── Helper: create a mock verifier that exits with a given code ───────────────
 _make_mock_verifier() {
     local exit_code="$1"
@@ -63,8 +71,19 @@ MOCKEOF
 # Usage: _seed_artifacts <dir> <outcome> [<sha-list>]
 #   outcome: all_provenanced | unprovenanced | overbound | no_marker
 #   sha-list: optional newline-separated SHAs to seed into the relevant file
+#
+# v4 note: when `unprovenanced` or `overbound` outcome is requested without
+# explicit SHA list, defaults to a REAL SHA from the test repo's history
+# (HEAD~1). This is required because R3a fails closed when commit-scoped
+# `git show` produces an empty diff — fake SHAs like "deadbeef" previously
+# worked because the dispatcher fell back to full PR diff. v4 removes that
+# fallback to prevent the giant-diff failure mode, so SHAs must resolve.
 _seed_artifacts() {
     local dir="$1" outcome="$2" shalist="${3:-}"
+    # Use the most recent NON-merge commit. Merge commits with no first-parent
+    # diff produce empty `git show` output and trip R3a's fail-closed gate.
+    local real_sha
+    real_sha=$(git log --no-merges --format=%H -n 1 2>/dev/null || echo "deadbeef")
     case "$outcome" in
         all_provenanced)
             date -u +%Y-%m-%dT%H:%M:%SZ > "$dir/provenance-complete.marker"
@@ -76,11 +95,11 @@ _seed_artifacts() {
             ;;
         unprovenanced)
             date -u +%Y-%m-%dT%H:%M:%SZ > "$dir/provenance-complete.marker"
-            printf '%s\n' "${shalist:-deadbeef}" > "$dir/unprovenanced-shas.txt"
+            printf '%s\n' "${shalist:-$real_sha}" > "$dir/unprovenanced-shas.txt"
             ;;
         overbound)
             date -u +%Y-%m-%dT%H:%M:%SZ > "$dir/provenance-complete.marker"
-            printf '%s\n' "${shalist:-cafef00d}" > "$dir/over-bound-shas.txt"
+            printf '%s\n' "${shalist:-$real_sha}" > "$dir/over-bound-shas.txt"
             ;;
         no_marker)
             : # leave artifact dir empty
@@ -547,7 +566,7 @@ test_dispatcher_unprovenanced_dispatches_runner() {
 
     local artifact_dir
     artifact_dir="$(mktemp -d)"
-    _seed_artifacts "$artifact_dir" "unprovenanced" "deadbeef"
+    _seed_artifacts "$artifact_dir" "unprovenanced"
 
     local call_log
     call_log="$(mktemp "$TMPDIR_TEST/runner-calls-unprov.XXXXXX")"
@@ -639,7 +658,7 @@ test_dispatcher_supplies_diff_to_runner() {
 
     local artifact_dir
     artifact_dir="$(mktemp -d)"
-    _seed_artifacts "$artifact_dir" "unprovenanced" "deadbeef"
+    _seed_artifacts "$artifact_dir" "unprovenanced"
 
     # Mock runner: capture DSO_CI_REVIEW_DIFF_PATH env var + (if set) its
     # content into a log file the test can inspect after dispatch.
@@ -705,134 +724,12 @@ MOCKGHEOF
     assert_pass_if_clean "test_dispatcher_supplies_diff_to_runner"
 }
 
-# ── Test 15 (G1): integration-scope narrowing filters diff ────────────────────
-# When INTEGRATION_SCOPE_FILE is set and non-empty, the dispatcher must filter
-# the PR diff to only files in the scope before passing to the runner.
-test_dispatcher_scope_narrowing() {
-    _snapshot_fail
-    if [[ ! -f "$WRAPPER" ]]; then
-        assert_eq "test_dispatcher_scope_narrowing: wrapper must exist" \
-            "wrapper_exists" "wrapper_missing"
-        assert_pass_if_clean "test_dispatcher_scope_narrowing"
-        return
-    fi
-
-    local artifact_dir
-    artifact_dir="$(mktemp -d)"
-    _seed_artifacts "$artifact_dir" "unprovenanced" "deadbeef"
-
-    # Create a scope file listing only "b.py" (not "a.py")
-    local scope_file="${artifact_dir}/integration-scope-files.txt"
-    printf 'b.py\n' > "$scope_file"
-
-    # Mock gh to return a multi-file diff
-    mkdir -p "$MOCK_BIN"
-    cat > "$MOCK_BIN/gh" << 'MOCKGHEOF'
-#!/usr/bin/env bash
-if [[ "$1" == "pr" && "$2" == "diff" ]]; then
-    cat << 'DIFFEOF'
-diff --git a/a.py b/a.py
---- a/a.py
-+++ b/a.py
-@@ -1 +1,2 @@
-+# not in scope
-diff --git a/b.py b/b.py
---- a/b.py
-+++ b/b.py
-@@ -1 +1,2 @@
-+# in scope
-DIFFEOF
-    exit 0
-fi
-echo "MOCK gh: unhandled args: $*" >&2
-exit 1
-MOCKGHEOF
-    chmod +x "$MOCK_BIN/gh"
-
-    # Mock runner: capture the diff content it receives
-    local diff_log
-    diff_log="$(mktemp "$TMPDIR_TEST/runner-diff-log.XXXXXX")"
-    cat > "$MOCK_BIN/ci-llm-review-runner.sh" << MOCKEOF
-#!/usr/bin/env bash
-if [[ -n "\${DSO_CI_REVIEW_DIFF_PATH:-}" && -f "\${DSO_CI_REVIEW_DIFF_PATH}" ]]; then
-    cat "\${DSO_CI_REVIEW_DIFF_PATH}" > "$diff_log"
-fi
-exit 0
-MOCKEOF
-    chmod +x "$MOCK_BIN/ci-llm-review-runner.sh"
-
-    PATH="$MOCK_BIN:$PATH" \
-    PR_NUMBER=99 \
-    DSO_RUNNER_PATH="$MOCK_BIN/ci-llm-review-runner.sh" \
-    DSO_ARTIFACT_DIR="$artifact_dir" \
-    INTEGRATION_SCOPE_FILE="$scope_file" \
-        bash "$WRAPPER" > /dev/null 2>/dev/null || true
-
-    # The diff the runner received should contain b.py but NOT a.py
-    local diff_content
-    diff_content="$(cat "$diff_log" 2>/dev/null || echo '')"
-    local has_b="no" has_a="no"
-    if echo "$diff_content" | grep -q 'b.py'; then has_b="yes"; fi
-    if echo "$diff_content" | grep -q 'a.py'; then has_a="yes"; fi
-    assert_eq "test_dispatcher_scope_narrowing: diff contains in-scope file b.py" \
-        "yes" "$has_b"
-    assert_eq "test_dispatcher_scope_narrowing: diff excludes out-of-scope file a.py" \
-        "no" "$has_a"
-
-    rm -rf "$artifact_dir" "$diff_log"
-    assert_pass_if_clean "test_dispatcher_scope_narrowing"
-}
-
-# ── Test 16 (G1): empty scope file falls back to full diff ───────────────────
-test_dispatcher_empty_scope_uses_full_diff() {
-    _snapshot_fail
-    if [[ ! -f "$WRAPPER" ]]; then
-        assert_eq "test_dispatcher_empty_scope_uses_full_diff: wrapper must exist" \
-            "wrapper_exists" "wrapper_missing"
-        assert_pass_if_clean "test_dispatcher_empty_scope_uses_full_diff"
-        return
-    fi
-
-    local artifact_dir
-    artifact_dir="$(mktemp -d)"
-    _seed_artifacts "$artifact_dir" "unprovenanced" "deadbeef"
-
-    # Create an empty scope file
-    local scope_file="${artifact_dir}/integration-scope-files.txt"
-    : > "$scope_file"
-
-    _make_mock_gh
-
-    # Mock runner: capture the diff files it receives
-    local diff_log
-    diff_log="$(mktemp "$TMPDIR_TEST/runner-diff-log-empty.XXXXXX")"
-    cat > "$MOCK_BIN/ci-llm-review-runner.sh" << MOCKEOF
-#!/usr/bin/env bash
-if [[ -n "\${DSO_CI_REVIEW_DIFF_PATH:-}" && -f "\${DSO_CI_REVIEW_DIFF_PATH}" ]]; then
-    grep -c '^diff --git' "\${DSO_CI_REVIEW_DIFF_PATH}" > "$diff_log" 2>/dev/null || echo "0" > "$diff_log"
-fi
-exit 0
-MOCKEOF
-    chmod +x "$MOCK_BIN/ci-llm-review-runner.sh"
-
-    PATH="$MOCK_BIN:$PATH" \
-    PR_NUMBER=99 \
-    DSO_RUNNER_PATH="$MOCK_BIN/ci-llm-review-runner.sh" \
-    DSO_ARTIFACT_DIR="$artifact_dir" \
-    INTEGRATION_SCOPE_FILE="$scope_file" \
-        bash "$WRAPPER" > /dev/null 2>/dev/null || true
-
-    # With empty scope, the full diff (from mock gh: 1 file) should pass through
-    local file_count
-    file_count="$(cat "$diff_log" 2>/dev/null || echo '0')"
-    local has_files="no"
-    if [[ "$file_count" -gt 0 ]] 2>/dev/null; then has_files="yes"; fi
-    assert_eq "test_dispatcher_empty_scope_uses_full_diff: full diff passes through when scope is empty" \
-        "yes" "$has_files"
-
-    rm -rf "$artifact_dir" "$diff_log"
-    assert_pass_if_clean "test_dispatcher_empty_scope_uses_full_diff"
-}
+# ── Tests 15 + 16 (G1 scope narrowing) deleted in v4 ─────────────────────────
+# The G1 file-filter fallback path is unreachable in v4: when provenance_exit=1
+# the dispatcher always has a populated _DISPATCH_SCOPE_FILE (either UNPROVENANCED_FILE
+# or a force-scope file). The commit-scoped diff is narrowed by commit selection,
+# not by file filter on the full PR diff. Coverage now provided by
+# test_dispatcher_commit_scoped_diff and test_dispatcher_commit_scoped_diff_empty_fails_closed.
 
 # ── Test 17 (F3): commit-scoped diff for unprovenanced SHAs ──────────────────
 # When unprovenanced-shas.txt contains real SHAs, the dispatcher must generate
@@ -857,6 +754,12 @@ test_dispatcher_commit_scoped_diff() {
     printf 'line1\n' > "$repo/reviewed.py"
     git -C "$repo" add reviewed.py > /dev/null 2>&1
     git -C "$repo" commit -m "Reviewed commit" > /dev/null 2>&1
+
+    # Set up origin/main BEFORE creating the unreviewed commit so the filter
+    # can resolve origin/main but the unreviewed SHA is NOT yet on it (R3a v4.1).
+    git -C "$repo" init --bare "$repo/origin.git" > /dev/null 2>&1
+    git -C "$repo" remote add origin "$repo/origin.git" > /dev/null 2>&1
+    git -C "$repo" push origin main > /dev/null 2>&1
 
     printf 'unreviewed change\n' > "$repo/unreviewed.py"
     git -C "$repo" add unreviewed.py > /dev/null 2>&1
@@ -921,6 +824,487 @@ MOCKEOF
     assert_pass_if_clean "test_dispatcher_commit_scoped_diff"
 }
 
+# ── Test R3a (v4): commit-scoped diff empty fails closed ─────────────────────
+# When unprovenanced-shas.txt contains SHAs that don't resolve in the local
+# repo (shallow clone, missing object, etc.), commit-scoped diff is empty.
+# v4 fails closed rather than falling back to full PR diff (which would
+# re-review previously-approved code at giant-diff scale).
+test_dispatcher_commit_scoped_diff_empty_fails_closed() {
+    _snapshot_fail
+    if [[ ! -f "$WRAPPER" ]]; then
+        assert_eq "test_dispatcher_commit_scoped_diff_empty_fails_closed: wrapper must exist" \
+            "wrapper_exists" "wrapper_missing"
+        assert_pass_if_clean "test_dispatcher_commit_scoped_diff_empty_fails_closed"
+        return
+    fi
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+    # Seed with a SHA that doesn't resolve in any git repo
+    _seed_artifacts "$artifact_dir" "unprovenanced" "0000000000000000000000000000000000000000"
+
+    _make_mock_gh
+
+    # Mock runner should NOT be called — dispatcher exits 1 before runner
+    local call_log
+    call_log="$(mktemp "$TMPDIR_TEST/runner-no-call.XXXXXX")"
+    _make_mock_runner "$call_log"
+
+    local exit_code=0
+    PATH="$MOCK_BIN:$PATH" \
+    PR_NUMBER=99 \
+    DSO_RUNNER_PATH="$MOCK_BIN/ci-llm-review-runner.sh" \
+    DSO_ARTIFACT_DIR="$artifact_dir" \
+        bash "$WRAPPER" > /dev/null 2>/dev/null || exit_code=$?
+
+    assert_eq "test_dispatcher_commit_scoped_diff_empty_fails_closed: exits non-zero on empty commit-scoped diff" \
+        "1" "$exit_code"
+    local runner_called="no"
+    if [[ -f "$call_log" ]] && grep -q "runner-called" "$call_log" 2>/dev/null; then
+        runner_called="yes"
+    fi
+    assert_eq "test_dispatcher_commit_scoped_diff_empty_fails_closed: runner NOT called (no fall-through to full PR diff)" \
+        "no" "$runner_called"
+
+    rm -rf "$artifact_dir" "$call_log"
+    assert_pass_if_clean "test_dispatcher_commit_scoped_diff_empty_fails_closed"
+}
+
+# ── Test R7d (v4): dispatcher-side size cap routes to OVER_BOUND ──────────────
+# When the commit-scoped diff exceeds the dispatcher's byte or file cap, the
+# dispatcher routes to OVER_BOUND (exit 3) rather than dispatching to the
+# runner. Caps are env-overridable; this test uses tiny override caps to
+# trigger the gate deterministically.
+test_dispatcher_size_cap_triggers_overbound() {
+    _snapshot_fail
+    if [[ ! -f "$WRAPPER" ]]; then
+        assert_eq "test_dispatcher_size_cap_triggers_overbound: wrapper must exist" \
+            "wrapper_exists" "wrapper_missing"
+        assert_pass_if_clean "test_dispatcher_size_cap_triggers_overbound"
+        return
+    fi
+
+    # Create a real git repo with a sizeable commit
+    local repo
+    repo="$(mktemp -d)"
+    git -C "$repo" init -b main > /dev/null 2>&1
+    git -C "$repo" config user.name "Test" > /dev/null 2>&1
+    git -C "$repo" config user.email "test@test.com" > /dev/null 2>&1
+    printf 'initial\n' > "$repo/init.txt"
+    git -C "$repo" add init.txt > /dev/null 2>&1
+    git -C "$repo" commit -m "initial" > /dev/null 2>&1
+
+    # Set up origin/main BEFORE the big commit so filter can resolve origin/main
+    # but the big commit is NOT yet on it (R3a v4.1 dependency).
+    git -C "$repo" init --bare "$repo/origin.git" > /dev/null 2>&1
+    git -C "$repo" remote add origin "$repo/origin.git" > /dev/null 2>&1
+    git -C "$repo" push origin main > /dev/null 2>&1
+
+    # Add a commit with a substantial diff
+    for i in 1 2 3 4 5; do
+        printf 'line %s\n%s\n' "$i" "$(printf 'padding %.0s' {1..100})" > "$repo/file${i}.txt"
+        git -C "$repo" add "file${i}.txt" > /dev/null 2>&1
+    done
+    git -C "$repo" commit -m "big commit" > /dev/null 2>&1
+    local big_sha
+    big_sha="$(git -C "$repo" rev-parse HEAD)"
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+    date -u +%Y-%m-%dT%H:%M:%SZ > "$artifact_dir/provenance-complete.marker"
+    printf '%s\n' "$big_sha" > "$artifact_dir/unprovenanced-shas.txt"
+
+    _make_mock_gh
+    local call_log
+    call_log="$(mktemp "$TMPDIR_TEST/runner-no-call.XXXXXX")"
+    _make_mock_runner "$call_log"
+
+    # Override caps to tiny values to trigger OVER_BOUND on the 5-file commit
+    local exit_code=0
+    (
+        cd "$repo" || exit 1
+        PATH="$MOCK_BIN:$PATH" \
+        PR_NUMBER=99 \
+        DSO_RUNNER_PATH="$MOCK_BIN/ci-llm-review-runner.sh" \
+        DSO_ARTIFACT_DIR="$artifact_dir" \
+        DSO_DISPATCH_FILES_CAP=2 \
+            bash "$WRAPPER" > /dev/null 2>/dev/null
+    ) || exit_code=$?
+
+    # OVER_BOUND exits 3 → CI surfaces as failure (blocked)
+    assert_eq "test_dispatcher_size_cap_triggers_overbound: exits 3 on cap exceedance" \
+        "3" "$exit_code"
+    local runner_called="no"
+    if [[ -f "$call_log" ]] && grep -q "runner-called" "$call_log" 2>/dev/null; then
+        runner_called="yes"
+    fi
+    assert_eq "test_dispatcher_size_cap_triggers_overbound: runner NOT called on cap exceedance" \
+        "no" "$runner_called"
+
+    rm -rf "$repo" "$artifact_dir" "$call_log"
+    assert_pass_if_clean "test_dispatcher_size_cap_triggers_overbound"
+}
+
+# ── Test R3a v4.1: already-merged SHAs filtered from commit-scoped diff ──────
+# When _DISPATCH_SCOPE_FILE contains SHAs already reachable from origin/main
+# (e.g. squash-merged PR commits), they must be filtered out before the
+# commit-scoped diff is generated. Otherwise the diff payload includes
+# already-shipped code, potentially exploding to thousands of files.
+test_dispatcher_filters_already_merged_shas() {
+    _snapshot_fail
+    if [[ ! -f "$WRAPPER" ]]; then
+        assert_eq "test_dispatcher_filters_already_merged_shas: wrapper must exist" \
+            "wrapper_exists" "wrapper_missing"
+        assert_pass_if_clean "test_dispatcher_filters_already_merged_shas"
+        return
+    fi
+
+    # Build a repo with: main has commits A→B; branch has commits A→B→C.
+    # Mark BOTH B and C as "unprovenanced" — the filter should remove B
+    # (reachable from main) and only review C.
+    local repo
+    repo="$(mktemp -d)"
+    git -C "$repo" init -b main > /dev/null 2>&1
+    git -C "$repo" config user.name "Test" > /dev/null 2>&1
+    git -C "$repo" config user.email "test@test.com" > /dev/null 2>&1
+    printf 'A\n' > "$repo/a.txt"
+    git -C "$repo" add a.txt > /dev/null 2>&1
+    git -C "$repo" commit -m "A" > /dev/null 2>&1
+    printf 'B\n' > "$repo/b.txt"
+    git -C "$repo" add b.txt > /dev/null 2>&1
+    git -C "$repo" commit -m "B (on main and branch)" > /dev/null 2>&1
+    local merged_sha
+    merged_sha="$(git -C "$repo" rev-parse HEAD)"
+
+    # Create an origin remote so origin/main is resolvable
+    git -C "$repo" init --bare "$repo/origin.git" > /dev/null 2>&1 || true
+    (cd "$repo" && git remote add origin "$repo/origin.git" 2>/dev/null && git push origin main > /dev/null 2>&1) || true
+
+    # Add C on branch (not on main)
+    git -C "$repo" checkout -b branch > /dev/null 2>&1
+    printf 'C\n' > "$repo/c.txt"
+    git -C "$repo" add c.txt > /dev/null 2>&1
+    git -C "$repo" commit -m "C (branch only)" > /dev/null 2>&1
+    local unmerged_sha
+    unmerged_sha="$(git -C "$repo" rev-parse HEAD)"
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+    date -u +%Y-%m-%dT%H:%M:%SZ > "$artifact_dir/provenance-complete.marker"
+    # Seed with BOTH SHAs — filter should remove merged_sha
+    printf '%s\n%s\n' "$merged_sha" "$unmerged_sha" > "$artifact_dir/unprovenanced-shas.txt"
+
+    _make_mock_gh
+    local diff_log
+    diff_log="$(mktemp "$TMPDIR_TEST/runner-filtered-diff.XXXXXX")"
+    cat > "$MOCK_BIN/ci-llm-review-runner.sh" << MOCKEOF
+#!/usr/bin/env bash
+if [[ -n "\${DSO_CI_REVIEW_DIFF_PATH:-}" && -f "\${DSO_CI_REVIEW_DIFF_PATH}" ]]; then
+    cat "\${DSO_CI_REVIEW_DIFF_PATH}" > "$diff_log"
+fi
+exit 0
+MOCKEOF
+    chmod +x "$MOCK_BIN/ci-llm-review-runner.sh"
+
+    (
+        cd "$repo" || exit 1
+        PATH="$MOCK_BIN:$PATH" \
+        PR_NUMBER=99 \
+        DSO_RUNNER_PATH="$MOCK_BIN/ci-llm-review-runner.sh" \
+        DSO_ARTIFACT_DIR="$artifact_dir" \
+            bash "$WRAPPER" > /dev/null 2>/dev/null || true
+    )
+
+    local diff_content
+    diff_content="$(cat "$diff_log" 2>/dev/null || echo '')"
+    # b.txt (already merged) should NOT appear; c.txt (unmerged) should appear
+    local has_b="no" has_c="no"
+    if echo "$diff_content" | grep -q 'b.txt'; then has_b="yes"; fi
+    if echo "$diff_content" | grep -q 'c.txt'; then has_c="yes"; fi
+
+    assert_eq "test_dispatcher_filters_already_merged_shas: c.txt (unmerged) in diff" \
+        "yes" "$has_c"
+    assert_eq "test_dispatcher_filters_already_merged_shas: b.txt (already merged) NOT in diff" \
+        "no" "$has_b"
+
+    rm -rf "$repo" "$artifact_dir" "$diff_log"
+    assert_pass_if_clean "test_dispatcher_filters_already_merged_shas"
+}
+
+# ── Test R3a v4.1: unresolvable main ref fails closed (not unfiltered) ───────
+# When origin/main can't be resolved (no remote, fresh clone), the dispatcher
+# MUST fail closed rather than fall through to unfiltered explosive iteration.
+test_dispatcher_unresolvable_main_fails_closed() {
+    _snapshot_fail
+    if [[ ! -f "$WRAPPER" ]]; then
+        assert_eq "test_dispatcher_unresolvable_main_fails_closed: wrapper must exist" \
+            "wrapper_exists" "wrapper_missing"
+        assert_pass_if_clean "test_dispatcher_unresolvable_main_fails_closed"
+        return
+    fi
+
+    # Build a repo with NO origin remote
+    local repo
+    repo="$(mktemp -d)"
+    git -C "$repo" init -b main > /dev/null 2>&1
+    git -C "$repo" config user.name "Test" > /dev/null 2>&1
+    git -C "$repo" config user.email "test@test.com" > /dev/null 2>&1
+    printf 'A\n' > "$repo/a.txt"
+    git -C "$repo" add a.txt > /dev/null 2>&1
+    git -C "$repo" commit -m "A" > /dev/null 2>&1
+    local sha
+    sha="$(git -C "$repo" rev-parse HEAD)"
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+    date -u +%Y-%m-%dT%H:%M:%SZ > "$artifact_dir/provenance-complete.marker"
+    printf '%s\n' "$sha" > "$artifact_dir/unprovenanced-shas.txt"
+
+    _make_mock_gh
+    local exit_code=0
+    local output
+    output=$(
+        cd "$repo" || exit 1
+        PATH="$MOCK_BIN:$PATH" \
+        PR_NUMBER=99 \
+        DSO_ARTIFACT_DIR="$artifact_dir" \
+            bash "$WRAPPER" 2>&1
+    ) || exit_code=$?
+
+    assert_eq "test_dispatcher_unresolvable_main_fails_closed: exits 1 (not 0/3) when origin/main unresolvable" \
+        "1" "$exit_code"
+    assert_contains "test_dispatcher_unresolvable_main_fails_closed: error mentions remediation" \
+        "not resolvable" "$output"
+
+    rm -rf "$repo" "$artifact_dir"
+    assert_pass_if_clean "test_dispatcher_unresolvable_main_fails_closed"
+}
+
+# ── Test R3a v4.1: shallow clone with unfixable remote fails closed ──────────
+# When the dispatcher detects a shallow clone, it attempts self-healing via
+# `git fetch --unshallow`. If that succeeds, filtering proceeds normally. If
+# the remote is unreachable, dispatcher must fail closed rather than proceed
+# with truncated rev-list (which would defeat the filter).
+test_dispatcher_shallow_clone_fails_closed() {
+    _snapshot_fail
+    if [[ ! -f "$WRAPPER" ]]; then
+        assert_eq "test_dispatcher_shallow_clone_fails_closed: wrapper must exist" \
+            "wrapper_exists" "wrapper_missing"
+        assert_pass_if_clean "test_dispatcher_shallow_clone_fails_closed"
+        return
+    fi
+
+    # Build a repo with a shallow marker BUT a bogus origin URL so
+    # `git fetch --unshallow` can't succeed.
+    local repo
+    repo="$(mktemp -d)"
+    git -C "$repo" init -b main > /dev/null 2>&1
+    git -C "$repo" config user.name "Test" > /dev/null 2>&1
+    git -C "$repo" config user.email "test@test.com" > /dev/null 2>&1
+    printf 'commit A\n' > "$repo/a.txt"
+    git -C "$repo" add a.txt > /dev/null 2>&1
+    git -C "$repo" commit -m "A" > /dev/null 2>&1
+    # Set up bogus origin and a fake origin/main ref so the "main resolvable"
+    # check passes but "unshallow" fails.
+    git -C "$repo" remote add origin "file:///nonexistent-bogus-path-${RANDOM}" > /dev/null 2>&1
+    # Mirror HEAD as origin/main so rev-parse origin/main succeeds locally
+    git -C "$repo" update-ref refs/remotes/origin/main HEAD > /dev/null 2>&1
+    # Write shallow marker so dispatcher detects shallow state
+    git -C "$repo" rev-parse HEAD > "$repo/.git/shallow"
+
+    local sha
+    sha="$(git -C "$repo" rev-parse HEAD)"
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+    date -u +%Y-%m-%dT%H:%M:%SZ > "$artifact_dir/provenance-complete.marker"
+    printf '%s\n' "$sha" > "$artifact_dir/unprovenanced-shas.txt"
+
+    _make_mock_gh
+    local exit_code=0
+    local output
+    output=$(
+        cd "$repo" || exit 1
+        PATH="$MOCK_BIN:$PATH" \
+        PR_NUMBER=99 \
+        DSO_ARTIFACT_DIR="$artifact_dir" \
+            bash "$WRAPPER" 2>&1
+    ) || exit_code=$?
+
+    assert_eq "test_dispatcher_shallow_clone_fails_closed: exits 1 when shallow+unfixable" \
+        "1" "$exit_code"
+    # Accept any fail-closed message that names the precondition:
+    #   (a) "fetch --unshallow failed" (self-heal attempted, remote unreachable)
+    #   (b) "still shallow" (self-heal ran but didn't change state)
+    #   (c) "not resolvable" (origin/main missing — depends on test setup)
+    local fail_msg="no"
+    if echo "$output" | grep -qE "shallow|unshallow|not resolvable"; then
+        fail_msg="yes"
+    fi
+    assert_eq "test_dispatcher_shallow_clone_fails_closed: error names a precondition" \
+        "yes" "$fail_msg"
+
+    rm -rf "$repo" "$artifact_dir"
+    assert_pass_if_clean "test_dispatcher_shallow_clone_fails_closed"
+}
+
+# ── Test R3a v4.1: PR #425 regression — many merged + few unmerged ────────────
+# Direct anchor against the bug being fixed. Seed scope with 50 already-merged
+# SHAs + 2 unmerged SHAs; dispatched diff must contain only the 2 unmerged
+# commits' changes, NOT all 52.
+test_dispatcher_regression_pr425_giant_diff() {
+    _snapshot_fail
+    if [[ ! -f "$WRAPPER" ]]; then
+        assert_eq "test_dispatcher_regression_pr425_giant_diff: wrapper must exist" \
+            "wrapper_exists" "wrapper_missing"
+        assert_pass_if_clean "test_dispatcher_regression_pr425_giant_diff"
+        return
+    fi
+
+    local repo
+    repo="$(mktemp -d)"
+    git -C "$repo" init -b main > /dev/null 2>&1
+    git -C "$repo" config user.name "Test" > /dev/null 2>&1
+    git -C "$repo" config user.email "test@test.com" > /dev/null 2>&1
+    printf 'init\n' > "$repo/init.txt"
+    git -C "$repo" add init.txt > /dev/null 2>&1
+    git -C "$repo" commit -m "init" > /dev/null 2>&1
+
+    # Create 50 commits on main, capture all SHAs
+    local merged_shas=()
+    for i in $(seq 1 50); do
+        printf 'main commit %s\n' "$i" > "$repo/main_file_${i}.txt"
+        git -C "$repo" add "main_file_${i}.txt" > /dev/null 2>&1
+        git -C "$repo" commit -m "M${i}" > /dev/null 2>&1
+        merged_shas+=("$(git -C "$repo" rev-parse HEAD)")
+    done
+
+    # Set up origin
+    git -C "$repo" init --bare "$repo/origin.git" > /dev/null 2>&1
+    git -C "$repo" remote add origin "$repo/origin.git" > /dev/null 2>&1
+    git -C "$repo" push origin main > /dev/null 2>&1
+
+    # Now add 2 commits on a branch (NOT on main)
+    git -C "$repo" checkout -b feature > /dev/null 2>&1
+    printf 'unmerged 1\n' > "$repo/unmerged_1.txt"
+    git -C "$repo" add unmerged_1.txt > /dev/null 2>&1
+    git -C "$repo" commit -m "U1" > /dev/null 2>&1
+    local unmerged_sha_1
+    unmerged_sha_1="$(git -C "$repo" rev-parse HEAD)"
+    printf 'unmerged 2\n' > "$repo/unmerged_2.txt"
+    git -C "$repo" add unmerged_2.txt > /dev/null 2>&1
+    git -C "$repo" commit -m "U2" > /dev/null 2>&1
+    local unmerged_sha_2
+    unmerged_sha_2="$(git -C "$repo" rev-parse HEAD)"
+
+    # Seed unprovenanced with ALL 52 SHAs — filter should reduce to 2
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+    date -u +%Y-%m-%dT%H:%M:%SZ > "$artifact_dir/provenance-complete.marker"
+    {
+        printf '%s\n' "${merged_shas[@]}"
+        printf '%s\n' "$unmerged_sha_1"
+        printf '%s\n' "$unmerged_sha_2"
+    } > "$artifact_dir/unprovenanced-shas.txt"
+
+    _make_mock_gh
+    local diff_log
+    diff_log="$(mktemp "$TMPDIR_TEST/runner-regression-diff.XXXXXX")"
+    cat > "$MOCK_BIN/ci-llm-review-runner.sh" << MOCKEOF
+#!/usr/bin/env bash
+if [[ -n "\${DSO_CI_REVIEW_DIFF_PATH:-}" && -f "\${DSO_CI_REVIEW_DIFF_PATH}" ]]; then
+    cat "\${DSO_CI_REVIEW_DIFF_PATH}" > "$diff_log"
+fi
+exit 0
+MOCKEOF
+    chmod +x "$MOCK_BIN/ci-llm-review-runner.sh"
+
+    (
+        cd "$repo" || exit 1
+        PATH="$MOCK_BIN:$PATH" \
+        PR_NUMBER=99 \
+        DSO_RUNNER_PATH="$MOCK_BIN/ci-llm-review-runner.sh" \
+        DSO_ARTIFACT_DIR="$artifact_dir" \
+            bash "$WRAPPER" > /dev/null 2>/dev/null || true
+    )
+
+    # Dispatched diff must contain unmerged files but NOT any merged files
+    local diff_content
+    diff_content="$(cat "$diff_log" 2>/dev/null || echo '')"
+    local has_unmerged_1="no" has_unmerged_2="no"
+    if echo "$diff_content" | grep -q 'unmerged_1.txt'; then has_unmerged_1="yes"; fi
+    if echo "$diff_content" | grep -q 'unmerged_2.txt'; then has_unmerged_2="yes"; fi
+
+    # Count merged files that appear (must be 0)
+    local merged_file_count
+    merged_file_count="$(echo "$diff_content" | grep -c 'main_file_' || echo 0)"
+
+    assert_eq "test_dispatcher_regression_pr425_giant_diff: unmerged_1 in diff" \
+        "yes" "$has_unmerged_1"
+    assert_eq "test_dispatcher_regression_pr425_giant_diff: unmerged_2 in diff" \
+        "yes" "$has_unmerged_2"
+    assert_eq "test_dispatcher_regression_pr425_giant_diff: ZERO merged files in diff" \
+        "0" "$merged_file_count"
+
+    rm -rf "$repo" "$artifact_dir" "$diff_log"
+    assert_pass_if_clean "test_dispatcher_regression_pr425_giant_diff"
+}
+
+# ── Test R3a v4.1: all-merged scope skips review with clear conclusion ────────
+# When all unprovenanced SHAs are reachable from origin/main, the filter
+# removes everything; dispatcher emits skipped conclusion (don't fail-closed,
+# don't re-review already-shipped code).
+test_dispatcher_all_scope_merged_skips() {
+    _snapshot_fail
+    if [[ ! -f "$WRAPPER" ]]; then
+        assert_eq "test_dispatcher_all_scope_merged_skips: wrapper must exist" \
+            "wrapper_exists" "wrapper_missing"
+        assert_pass_if_clean "test_dispatcher_all_scope_merged_skips"
+        return
+    fi
+
+    local repo
+    repo="$(mktemp -d)"
+    git -C "$repo" init -b main > /dev/null 2>&1
+    git -C "$repo" config user.name "Test" > /dev/null 2>&1
+    git -C "$repo" config user.email "test@test.com" > /dev/null 2>&1
+    printf 'A\n' > "$repo/a.txt"
+    git -C "$repo" add a.txt > /dev/null 2>&1
+    git -C "$repo" commit -m "A" > /dev/null 2>&1
+    local merged_sha
+    merged_sha="$(git -C "$repo" rev-parse HEAD)"
+
+    git -C "$repo" init --bare "$repo/origin.git" > /dev/null 2>&1 || true
+    (cd "$repo" && git remote add origin "$repo/origin.git" 2>/dev/null && git push origin main > /dev/null 2>&1) || true
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+    date -u +%Y-%m-%dT%H:%M:%SZ > "$artifact_dir/provenance-complete.marker"
+    # Seed with ONLY the already-merged SHA
+    printf '%s\n' "$merged_sha" > "$artifact_dir/unprovenanced-shas.txt"
+
+    _make_mock_gh
+    local output
+    local exit_code=0
+    output=$(
+        cd "$repo" || exit 1
+        PATH="$MOCK_BIN:$PATH" \
+        PR_NUMBER=99 \
+        DSO_ARTIFACT_DIR="$artifact_dir" \
+            bash "$WRAPPER" 2>&1
+    ) || exit_code=$?
+
+    assert_eq "test_dispatcher_all_scope_merged_skips: exits 0 when all scope already merged" \
+        "0" "$exit_code"
+    assert_contains "test_dispatcher_all_scope_merged_skips: output contains CONCLUSION skipped" \
+        "CONCLUSION: skipped" "$output"
+    assert_contains "test_dispatcher_all_scope_merged_skips: output explains all-merged reason" \
+        "already reachable from" "$output"
+
+    rm -rf "$repo" "$artifact_dir"
+    assert_pass_if_clean "test_dispatcher_all_scope_merged_skips"
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 test_wrapper_exists
 test_exit0_skips_runner
@@ -936,8 +1320,13 @@ test_dispatcher_overbound_routes_correctly
 test_dispatcher_unprovenanced_dispatches_runner
 test_dispatcher_covered_list_from_artifact
 test_dispatcher_supplies_diff_to_runner
-test_dispatcher_scope_narrowing
-test_dispatcher_empty_scope_uses_full_diff
 test_dispatcher_commit_scoped_diff
+test_dispatcher_commit_scoped_diff_empty_fails_closed
+test_dispatcher_size_cap_triggers_overbound
+test_dispatcher_filters_already_merged_shas
+test_dispatcher_unresolvable_main_fails_closed
+test_dispatcher_shallow_clone_fails_closed
+test_dispatcher_regression_pr425_giant_diff
+test_dispatcher_all_scope_merged_skips
 
 print_summary

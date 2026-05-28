@@ -126,12 +126,22 @@ def _direction_guard(mutation, expected_direction) -> None:
     direction. In normal flow _LEAVES lookup already routes correctly; this
     raises DirectionMismatchError if a leaf is invoked directly with the wrong
     direction (e.g. via the test harness bypassing _LEAVES).
+
+    Compare by string value rather than identity. The reconciler loads
+    mutation.py multiple times via importlib (once per importing module), and
+    each load creates a distinct MutationDirection enum class. Two enum
+    members with the same value but from different class instances are NOT
+    identity-equal, so ``is not`` would fire spuriously on filtered passes
+    where a Mutation built under one module load reaches a leaf imported
+    under another.
     """
-    if mutation.direction is not expected_direction:
+    expected_val = expected_direction.value
+    actual_val = getattr(mutation.direction, "value", mutation.direction)
+    if expected_val != actual_val:
         errs = _load_errors_module()
         raise errs.DirectionMismatchError(
-            f"leaf expects direction={expected_direction.value!s}, "
-            f"got direction={mutation.direction.value!s}"
+            f"leaf expects direction={expected_val!s}, "
+            f"got direction={actual_val!s}"
         )
 
 
@@ -824,14 +834,20 @@ def _file_conflict_bug_ticket(
 
 
 def _apply_inbound_conflict(mutation, *, client=None, repo_root=None) -> ApplyResult:
-    """File a bug ticket for an unresolved (local, Jira) conflict and emit a
-    ``suppress_pair`` follow-on so reconcile_once drops further mutations for
-    the same pair in this pass.
+    """Emit a ``suppress_pair`` follow-on and a ``pending_bug_ticket`` directive
+    for an unresolved (local, Jira) conflict.
 
-    Filing uses the local ``.claude/scripts/dso ticket create bug`` shim via
-    subprocess to avoid a hard import dependency on the ticket-CLI Python
-    package. When the CLI is unavailable (e.g. inside a fixture worktree),
-    the follow-on is still emitted so suppression works.
+    Bug filing is DEFERRED out of the apply loop because the
+    ``.claude/scripts/dso ticket create bug`` CLI commits to the ``tickets``
+    orphan branch, which would advance HEAD inside ``_apply_batch``'s
+    drift-guarded loop and raise a spurious ``HeadDriftError`` (bug d822).
+    The caller (``apply``) collects pending_bug_ticket directives during the
+    inbound dispatch loop and files them after ``_apply_batch`` returns —
+    outside the drift guard's scope.
+
+    The follow_on still emits during the leaf so reconcile_once can drop
+    subsequent mutations for the same pair in the same pass; suppression
+    semantics are unchanged.
     """
     mut_mod = _load_mutation_module()
     _direction_guard(mutation, mut_mod.MutationDirection.inbound)
@@ -854,18 +870,25 @@ def _apply_inbound_conflict(mutation, *, client=None, repo_root=None) -> ApplyRe
         f"Conflict surfaced during applier dispatch with reason={reason!r}."
     )
 
-    cli_path = Path(__file__).parents[4] / ".claude" / "scripts" / "dso"
-    bug_id = _file_conflict_bug_ticket(cli_path, title, description, parent_id)
-
     follow_on = {
         "kind": "suppress_pair",
+        "local_id": local_id,
+        "jira_key": jira_key,
+    }
+    pending_bug_ticket = {
+        "title": title,
+        "description": description,
+        "parent_id": parent_id,
         "local_id": local_id,
         "jira_key": jira_key,
     }
     return ApplyResult(
         mutation.direction,
         mutation.action,
-        {"bug_id": bug_id, "follow_on": follow_on},
+        {
+            "follow_on": follow_on,
+            "pending_bug_ticket": pending_bug_ticket,
+        },
     )
 
 
@@ -2013,19 +2036,36 @@ def apply(
             os.environ.get("JIRA_USER", "<unset>"),
         )
 
+    # Collect deferred bug-filing directives from inbound conflict leaves.
+    # These are processed AFTER _apply_batch returns to keep the apply path
+    # commit-free (bug d822 — the bug-filing CLI commits to the tickets
+    # branch, which would advance HEAD inside _apply_batch's drift-guarded
+    # loop and raise spurious HeadDriftError).
+    pending_bug_tickets: list[dict] = []
+
     for mut in inbound_typed:
         if _is_suppressed(getattr(mut, "target", "")):
             continue
         result = _apply_typed(mut, client=client, repo_root=repo_root)
+        result_payload = (
+            getattr(result, "payload", None) if result is not None else None
+        )
         follow_on = (
-            result.payload.get("follow_on")
-            if isinstance(getattr(result, "payload", None), dict)
+            result_payload.get("follow_on")
+            if isinstance(result_payload, dict)
             else None
         )
         if isinstance(follow_on, dict) and follow_on.get("kind") == "suppress_pair":
             _record_suppression(
                 follow_on.get("local_id", ""), follow_on.get("jira_key", "")
             )
+        pending = (
+            result_payload.get("pending_bug_ticket")
+            if isinstance(result_payload, dict)
+            else None
+        )
+        if isinstance(pending, dict):
+            pending_bug_tickets.append(pending)
 
     # Outbound (or untyped dict): normalize typed Mutations to dicts so
     # _apply_batch can iterate, then route through the legacy batch path.
@@ -2043,12 +2083,52 @@ def apply(
     # In DRY_RUN, skip the legacy batch dispatcher entirely so the test
     # contract ("neither _apply_typed nor _apply_batch is invoked") holds.
     # The renderer block below writes the asymmetric manifest from scratch.
-    if mode_mod is not None and mode == mode_mod.Mode.DRY_RUN:
-        manifest_path = None
-    else:
-        manifest_path = _apply_batch(
-            outbound_list, pass_id, repo_root=repo_root, binding_store=binding_store
-        )
+    #
+    # Wrap _apply_batch in try/finally so deferred bug-filing runs even when
+    # _apply_batch raises (HeadDriftError, RescheduleError, etc.). Without
+    # this guarantee, an apply-batch exception unwinds apply() and the
+    # collected pending_bug_ticket directives are silently dropped — losing
+    # the operator's audit trail for conflicts that were already suppressed
+    # by the leaf's follow_on emission. The deferred-filing block runs
+    # outside the drift-guarded loop so its own commits cannot re-trigger
+    # the drift detector.
+    is_dry_run = mode_mod is not None and mode == mode_mod.Mode.DRY_RUN
+    manifest_path = None
+    try:
+        if not is_dry_run:
+            manifest_path = _apply_batch(
+                outbound_list,
+                pass_id,
+                repo_root=repo_root,
+                binding_store=binding_store,
+            )
+    finally:
+        # Deferred bug-filing for inbound conflicts (bug d822). Skipped in
+        # DRY_RUN — that mode must not produce any side effects, and
+        # pending_bug_tickets is always empty there (inbound dispatch loop
+        # runs over an empty list under DRY_RUN). The is_dry_run guard is
+        # defense-in-depth.
+        if pending_bug_tickets and not is_dry_run:
+            cli_path = Path(__file__).parents[4] / ".claude" / "scripts" / "dso"
+            for pending in pending_bug_tickets:
+                try:
+                    _file_conflict_bug_ticket(
+                        cli_path,
+                        pending.get("title", ""),
+                        pending.get("description", ""),
+                        pending.get("parent_id", ""),
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    # Bug-filing failure is non-fatal — the conflict is
+                    # still suppressed via the follow_on; only the audit
+                    # ticket is lost. Per-iteration except prevents one
+                    # failed filing from blocking the others.
+                    print(  # noqa: T201
+                        f"deferred_bug_filing_failed: "
+                        f"local_id={pending.get('local_id')!r} "
+                        f"jira_key={pending.get('jira_key')!r} err={exc!r}",
+                        file=sys.stderr,
+                    )
 
     # -------------------------------------------------------------------------
     # Mode-specific manifest emission (story 286b).

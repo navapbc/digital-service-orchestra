@@ -37,6 +37,22 @@ export PATH="$_STUB_BIN:$PATH"
 
 echo "=== test-dso-setup.sh ==="
 
+# ── _seed_python_poetry_stack: helper for tests that need stack-specific install ─
+# Bug 5d92 defect B removed the python-poetry default fallback in
+# _resolve_stack_{ci,precommit}_example. Tests that previously relied on that
+# fallback (to get ci.yml / .pre-commit-config.yaml installed in a fixture
+# with no explicit stack) must now declare stack=python-poetry explicitly.
+# This helper writes the stack key to a fixture's dso-config.conf.
+_seed_python_poetry_stack() {
+    local target="$1"
+    mkdir -p "$target/.claude"
+    if [[ -f "$target/.claude/dso-config.conf" ]]; then
+        grep -q '^stack=' "$target/.claude/dso-config.conf" || echo "stack=python-poetry" >> "$target/.claude/dso-config.conf"
+    else
+        echo "stack=python-poetry" > "$target/.claude/dso-config.conf"
+    fi
+}
+
 # ── test_setup_creates_shim ───────────────────────────────────────────────────
 # Running dso-setup.sh must create .claude/scripts/dso in the target directory.
 test_setup_creates_shim() {
@@ -346,6 +362,7 @@ test_setup_copies_ci_yml() {
     T=$(mktemp -d)
     TMPDIRS+=("$T")
     git -C "$T" init -q
+    _seed_python_poetry_stack "$T"  # bug 5d92 defect B: explicit stack now required for ci.yml install
 
     bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
@@ -996,6 +1013,7 @@ test_ci_guard_lint_present_no_offer() {
     T=$(mktemp -d)
     TMPDIRS+=("$T")
     git -C "$T" init -q
+    _seed_python_poetry_stack "$T"  # bug 5d92 defect B: explicit stack required for CI scaffolding
 
     # Existing workflow with lint already present
     mkdir -p "$T/.github/workflows"
@@ -1044,6 +1062,7 @@ test_ci_guard_missing_test_guard_detected() {
     T=$(mktemp -d)
     TMPDIRS+=("$T")
     git -C "$T" init -q
+    _seed_python_poetry_stack "$T"  # bug 5d92 defect B: explicit stack required for CI scaffolding
 
     # Existing workflow WITHOUT a test step
     mkdir -p "$T/.github/workflows"
@@ -1085,6 +1104,7 @@ test_ci_guard_consumes_detection_output_not_yaml() {
     T=$(mktemp -d)
     TMPDIRS+=("$T")
     git -C "$T" init -q
+    _seed_python_poetry_stack "$T"  # bug 5d92 defect B: explicit stack required for CI scaffolding
 
     # Existing workflow WITH a test step (YAML would say guarded)
     mkdir -p "$T/.github/workflows"
@@ -1129,6 +1149,7 @@ test_ci_guard_dryrun_shows_analysis_no_changes() {
     T=$(mktemp -d)
     TMPDIRS+=("$T")
     git -C "$T" init -q
+    _seed_python_poetry_stack "$T"  # bug 5d92 defect B: explicit stack required for CI scaffolding
 
     # Existing workflow WITHOUT test or format guards
     mkdir -p "$T/.github/workflows"
@@ -1179,6 +1200,7 @@ test_ci_guard_no_workflow_still_copies_example() {
     T=$(mktemp -d)
     TMPDIRS+=("$T")
     git -C "$T" init -q
+    _seed_python_poetry_stack "$T"  # bug 5d92 defect B: explicit stack required for CI scaffolding
 
     # No existing workflow, no detection output
     bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
@@ -1198,6 +1220,7 @@ test_ci_guard_missing_format_guard_detected() {
     T=$(mktemp -d)
     TMPDIRS+=("$T")
     git -C "$T" init -q
+    _seed_python_poetry_stack "$T"  # bug 5d92 defect B: explicit stack required for CI scaffolding
 
     # Existing workflow without format step
     mkdir -p "$T/.github/workflows"
@@ -1501,6 +1524,7 @@ test_stamp_in_ci_yaml() {
     local T
     T=$(mktemp -d)
     TMPDIRS+=("$T")
+    _seed_python_poetry_stack "$T"  # bug 5d92 defect B: explicit stack required for ci.yml install
 
     bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
@@ -1662,6 +1686,7 @@ test_install_merges_ci_workflow() {
     T=$(mktemp -d)
     TMPDIRS+=("$T")
     git -C "$T" init -q
+    _seed_python_poetry_stack "$T"  # bug 5d92 defect B: explicit stack required for CI scaffolding
 
     # Create a minimal existing CI workflow (no DSO jobs)
     mkdir -p "$T/.github/workflows"
@@ -1855,6 +1880,7 @@ test_setup_default_installs_all_artifacts() {
     local T
     T=$(mktemp -d)
     TMPDIRS+=("$T")
+    _seed_python_poetry_stack "$T"  # bug 5d92 defect B: explicit stack required for ci.yml install
 
     bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
 
@@ -1928,5 +1954,193 @@ $_escaped_stamp" "$target" && rm -f "$target.bak"
     assert_eq "sed escape preserves slash and ampersand in stamp" "x-dso-version: 1.0/foo&bar" "$first_line"
 }
 test_sed_stamp_escapes_metacharacters
+
+# ── test_unknown_stack_skips_ci_workflow_install ──────────────────────────────
+# Bug 5d92 (Defect B): when stack was unknown AND skeleton generation failed,
+# dso-setup.sh fell back to ci.example.python-poetry.yml, installing a
+# Python/Poetry GitHub Actions workflow into non-Python projects. The fix
+# returns empty from _resolve_stack_ci_example and the caller skips the
+# install with a [skip] log line.
+test_unknown_stack_skips_ci_workflow_install() {
+    local T
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+
+    # Pre-populate dso-config.conf with NO stack key and NO commands.* keys
+    # so that (a) stack lookup returns empty and (b) skeleton generation has
+    # no commands to derive from, forcing the resolver to return empty.
+    mkdir -p "$T/.claude"
+    cat > "$T/.claude/dso-config.conf" <<'EOF'
+# Test fixture: no stack, no commands — should skip CI install entirely
+EOF
+
+    local output
+    output=$(bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" 2>&1 || true)
+
+    local ci_installed="absent" skip_logged="absent" is_python_poetry="no"
+    if [[ -f "$T/.github/workflows/ci.yml" ]]; then
+        ci_installed="present"
+        if grep -q 'poetry' "$T/.github/workflows/ci.yml" 2>/dev/null; then
+            is_python_poetry="yes"
+        fi
+    fi
+    if echo "$output" | grep -q 'No CI example resolved for target stack'; then
+        skip_logged="present"
+    fi
+
+    assert_eq "unknown stack: ci.yml NOT installed" "absent" "$ci_installed"
+    assert_eq "unknown stack: skip reason logged" "present" "$skip_logged"
+    assert_eq "unknown stack: no python-poetry workflow leaked" "no" "$is_python_poetry"
+}
+test_unknown_stack_skips_ci_workflow_install
+
+# ── test_unknown_stack_uses_generic_precommit ─────────────────────────────────
+# Bug 5d92 (Defect B): when stack was empty, the precommit resolver fell
+# through to pre-commit-config.example.yaml (python-poetry legacy), installing
+# Python tooling hooks into non-Python projects. The fix uses
+# pre-commit-config.example.generic.yaml for any non-matched stack including
+# empty/unknown.
+test_unknown_stack_uses_generic_precommit() {
+    local T
+    T=$(mktemp -d)
+    TMPDIRS+=("$T")
+
+    mkdir -p "$T/.claude"
+    cat > "$T/.claude/dso-config.conf" <<'EOF'
+# Test fixture: no stack — should use generic pre-commit template
+EOF
+
+    bash "$SETUP_SCRIPT" "$T" "$DSO_PLUGIN_DIR" >/dev/null 2>&1 || true
+
+    local installed_status="absent" has_poetry_signature="no"
+    if [[ -f "$T/.pre-commit-config.yaml" ]]; then
+        installed_status="present"
+        # python-poetry legacy template has unique hook IDs like
+        # `poetry-lock-check`; the generic template does not. Match the
+        # specific hook ID rather than the string "poetry" (which appears
+        # in template docstrings cross-referencing the other variant).
+        if grep -qE 'id:[[:space:]]*poetry-lock-check' "$T/.pre-commit-config.yaml" 2>/dev/null; then
+            has_poetry_signature="yes"
+        fi
+    fi
+
+    assert_eq "unknown stack: pre-commit config installed (generic)" "present" "$installed_status"
+    assert_eq "unknown stack: no python-poetry hooks leaked into pre-commit" "no" "$has_poetry_signature"
+}
+test_unknown_stack_uses_generic_precommit
+
+# ── test_validate_onboarding_enum_accepts_known_values ────────────────────────
+# Bug 5d92 epic prep: _validate_onboarding_enum is the validator helper for
+# the four onboarding.* enum config keys (hooks, ci, tracker, host) plus the
+# two install/skip keys (claude_md, known_issues). The function is not called
+# yet — the per-defect dispatchers in follow-up PRs will integrate it. Testing
+# the validator in isolation lets reviewers audit the enum vocabulary without
+# the noise of seven dispatcher changes.
+test_validate_onboarding_enum_accepts_known_values() {
+    # Source the helper from dso-setup.sh by extracting and eval'ing it.
+    # We don't run the full script (which has top-level side effects).
+    local helper_src
+    helper_src=$(awk '/^_validate_onboarding_enum\(\) \{/,/^\}/' "$SETUP_SCRIPT")
+    eval "$helper_src"
+
+    # Spot-check one value per key — full enum coverage would be brittle.
+    local rc
+    _validate_onboarding_enum onboarding.hooks precommit; rc=$?
+    assert_eq "validate enum: onboarding.hooks=precommit accepted" "0" "$rc"
+
+    _validate_onboarding_enum onboarding.ci gitlab; rc=$?
+    assert_eq "validate enum: onboarding.ci=gitlab accepted" "0" "$rc"
+
+    _validate_onboarding_enum onboarding.tracker linear; rc=$?
+    assert_eq "validate enum: onboarding.tracker=linear accepted" "0" "$rc"
+
+    _validate_onboarding_enum onboarding.host github; rc=$?
+    assert_eq "validate enum: onboarding.host=github accepted" "0" "$rc"
+
+    _validate_onboarding_enum onboarding.claude_md install; rc=$?
+    assert_eq "validate enum: onboarding.claude_md=install accepted" "0" "$rc"
+
+    # All keys accept "skip"
+    _validate_onboarding_enum onboarding.hooks skip; rc=$?
+    assert_eq "validate enum: skip is accepted for hooks" "0" "$rc"
+}
+test_validate_onboarding_enum_accepts_known_values
+
+# ── test_validate_onboarding_enum_rejects_unknown_values ──────────────────────
+# Typo detection: dispatchers will treat invalid values as "skip" with a WARN.
+# This test pins the rejection contract.
+test_validate_onboarding_enum_rejects_unknown_values() {
+    local helper_src
+    helper_src=$(awk '/^_validate_onboarding_enum\(\) \{/,/^\}/' "$SETUP_SCRIPT")
+    eval "$helper_src"
+
+    local rc
+    # Typo in enum value
+    _validate_onboarding_enum onboarding.ci githhub; rc=$?
+    assert_eq "validate enum: rejects typo (onboarding.ci=githhub)" "1" "$rc"
+
+    # Valid value for wrong key
+    _validate_onboarding_enum onboarding.hooks gitlab; rc=$?
+    assert_eq "validate enum: rejects cross-key value" "1" "$rc"
+
+    # Unknown key
+    _validate_onboarding_enum onboarding.nonexistent skip; rc=$?
+    assert_eq "validate enum: rejects unknown key" "1" "$rc"
+
+    # Empty value
+    _validate_onboarding_enum onboarding.hooks ""; rc=$?
+    assert_eq "validate enum: rejects empty value" "1" "$rc"
+}
+test_validate_onboarding_enum_rejects_unknown_values
+
+# ── test_validate_onboarding_enum_tolerates_missing_args ──────────────────────
+# Bootstrap-safety: dso-setup.sh runs with `set -u`, so a future caller that
+# accidentally invokes the helper with a missing argument would abort the
+# whole script. The helper must return 1 on missing/empty input, not crash.
+test_validate_onboarding_enum_tolerates_missing_args() {
+    local helper_src
+    helper_src=$(awk '/^_validate_onboarding_enum\(\) \{/,/^\}/' "$SETUP_SCRIPT")
+    eval "$helper_src"
+
+    # Simulate strict-mode invocation: enable nounset around the call.
+    local rc
+    set -u
+    _validate_onboarding_enum; rc=$?
+    set +u
+    assert_eq "validate enum: no args under set -u returns 1, does not crash" "1" "$rc"
+
+    set -u
+    _validate_onboarding_enum onboarding.hooks; rc=$?
+    set +u
+    assert_eq "validate enum: missing value under set -u returns 1" "1" "$rc"
+}
+test_validate_onboarding_enum_tolerates_missing_args
+
+# ── test_gitlab_ci_template_exists_and_has_stamp ──────────────────────────────
+# Bug 5d92 defect-C prep: the GitLab CI template ships in this PR as data
+# only — no dso-setup.sh code path consumes it yet. Verify the file exists at
+# the expected location and carries an x-dso-version stamp so the
+# update-shim flow can detect drift when the defect-C dispatcher lands.
+test_gitlab_ci_template_exists_and_has_stamp() {
+    local template="$DSO_PLUGIN_DIR/docs/examples/ci.example.gitlab.yml"
+
+    local exists_status="missing" stamp_status="missing" has_gitlab_marker="missing"
+    if [[ -f "$template" ]]; then
+        exists_status="present"
+        if grep -q '^# x-dso-version:' "$template" 2>/dev/null; then
+            stamp_status="present"
+        fi
+        # Distinguishing GitLab marker: top-level `stages:` key. GitHub Actions
+        # uses `jobs:`; GitLab uses `stages:` + per-job `stage:`.
+        if grep -qE '^stages:' "$template" 2>/dev/null; then
+            has_gitlab_marker="present"
+        fi
+    fi
+
+    assert_eq "ci.example.gitlab.yml: exists" "present" "$exists_status"
+    assert_eq "ci.example.gitlab.yml: x-dso-version stamp present" "present" "$stamp_status"
+    assert_eq "ci.example.gitlab.yml: GitLab-format marker (stages:) present" "present" "$has_gitlab_marker"
+}
+test_gitlab_ci_template_exists_and_has_stamp
 
 print_summary

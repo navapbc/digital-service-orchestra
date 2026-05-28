@@ -330,10 +330,13 @@ class TestReconcileCheckMode:
             "DIG-1": {"summary": "Test", "status": "To Do"},
         }
 
-        # Minimal binding store stub
+        # Minimal binding store stub.
+        # all_bindings() returns dict[local_id, entry] per the BindingStore
+        # protocol — reconcile_check.reconcile_check iterates it via .items()
+        # (bug 0776 — list shape would crash with AttributeError).
         class FakeBindings:
             def all_bindings(self):
-                return [("abc-1", "DIG-1")]
+                return {"abc-1": {"jira_key": "DIG-1", "state": "confirmed"}}
 
         report = reconcile_check_mod.reconcile_check(
             local_tickets, jira_snapshot, FakeBindings(),
