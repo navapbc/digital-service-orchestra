@@ -2816,13 +2816,17 @@ Decision: Involuntary compaction detected? → Yes: P8 (Graceful Shutdown)
 
 When sub-agents commit directly to the session branch under the `DSO_SPRINT_ACTIVE=0` escape hatch (instead of dispatching into per-story sub-branches), the resulting session→main PR receives a single monolithic LLM review on the full sprint diff. This is the failure mode reported in bug 85f3 (PR #140 hit a 1095-line diff with 4/4 critical false positives). The `${CLAUDE_PLUGIN_ROOT}/scripts/redistribute-session-commits.sh` script splits such commits into per-story branches so each gets a scoped review. This check detects the condition at the natural choke point: after all batches have processed, before validation begins.
 
+**Orchestrator substitution**: before executing the block below, substitute `<epic-id>` with the primary-ticket ID currently being processed. This mirrors the convention used elsewhere in this skill (e.g., `ticket ready --epic=<epic-id>` at line 2811) — placeholders in literal angle-brackets are LLM-substituted at execution time, not bash-expanded.
+
 ```bash
 WORKFLOW=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" dso.workflow 2>/dev/null || echo "local")  # shim-exempt: internal orchestration script
 if [[ "$WORKFLOW" == "ci-pr" ]]; then
     # Resolve default branch — ci-pr projects don't all use "main" (master/trunk/develop
-    # are valid). Mirror redistribute-session-commits.sh's MAIN_REF pattern: prefer
-    # symbolic-ref of origin/HEAD, then env var, then literal "main". This is a
-    # local resolution chain (read-only), not a graceful-degradation gate that
+    # are valid). Prefer symbolic-ref of origin/HEAD, then env var, then literal "main".
+    # Note: redistribute-session-commits.sh's MAIN_REF logic hardcodes "main" with an
+    # origin/main fallback (no symbolic-ref consultation) — this block is intentionally
+    # more robust because it runs in projects where the default branch may not be "main".
+    # This is a read-only resolution chain, not a graceful-degradation gate that
     # bypasses an action — no PRECONDITIONS landmark needed. # precondition-emit-ok
     _DEFAULT_BRANCH=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
     [[ -z "$_DEFAULT_BRANCH" ]] && _DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
@@ -2835,15 +2839,16 @@ if [[ "$WORKFLOW" == "ci-pr" ]]; then
     # --first-parent, the walk follows only the session branch's mainline history,
     # so only commits authored directly to the session branch under
     # DSO_SPRINT_ACTIVE=0 are counted. Per-story PR merges appear as merge commits
-    # on the first-parent line and are excluded by --no-merges.
+    # on the first-parent line and are excluded by --no-merges. This assumes the
+    # established DSO merge mode (`gh pr merge --merge`, true merge commit — see
+    # merge-to-main-pr.sh). Squash-merge mode would invert the semantics.
     _bypass_count=$(git log --no-merges --first-parent --pretty='%H %(trailers:key=DSO-Story,valueonly=true)' "origin/${_DEFAULT_BRANCH}..HEAD" 2>/dev/null \
         | awk 'NF>1 {c++} END {print c+0}')
     if [[ "$_bypass_count" -gt 0 ]]; then
-        _epic_id="${EPIC_ID:-<epic-id>}"
         echo "REDISTRIBUTE-RECOMMENDED: detected ${_bypass_count} direct-to-session commit(s) with DSO-Story trailers (sprint bypass via DSO_SPRINT_ACTIVE=0)."
         echo "  In ci-pr workflow these produce a monolithic LLM review on the full sprint diff (bug 85f3)."
-        echo "  Recommended action:"
-        echo "    bash \${CLAUDE_PLUGIN_ROOT}/scripts/redistribute-session-commits.sh --epic ${_epic_id} --dry-run"
+        echo "  Recommended action (run BEFORE Phase G's completion-verifier dispatches, to avoid attesting against soon-rewritten SHAs):"
+        echo "    bash \${CLAUDE_PLUGIN_ROOT}/scripts/redistribute-session-commits.sh --epic <epic-id> --dry-run"
         echo "  Run with --dry-run first to preview the per-story PR split, then re-run without --dry-run to publish."
         # Pause for interactive abort only when running attached to a TTY. In
         # nested-orchestrator / sub-agent contexts (no terminal), the Ctrl-C
