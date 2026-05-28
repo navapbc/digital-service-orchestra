@@ -134,4 +134,31 @@ assert_eq "test_no_drift_in_dryrun_payload: every ruleset pattern is also in sou
     "yes" "$drift_check"
 assert_pass_if_clean "test_no_drift_in_dryrun_payload"
 
+# ── Test 6: workflow trigger covers every source-of-truth pattern ─────────────
+# GAP-1 hardening: the review-sub-pr.yml workflow's pull_request.branches
+# trigger MUST include every pattern in the source-of-truth file. Otherwise
+# PRs targeting branches matching only the file would never trigger
+# review-sub-pr — but the GitHub ruleset (also derived from the file) would
+# require the check to pass. Result: merge deadlock.
+#
+# Caught by the llm-review on PR #432 — adding this assertion prevents
+# future regressions of this exact drift class.
+_snapshot_fail
+workflow_file="$REPO_ROOT/.github/workflows/review-sub-pr.yml"
+workflow_covers_all="yes"
+missing_from_workflow=""
+for p in "${patterns[@]}"; do
+    # Check for "'<pattern>'" with single quotes (YAML list item style)
+    if ! grep -qF "'$p'" "$workflow_file"; then
+        workflow_covers_all="no"
+        missing_from_workflow="${missing_from_workflow}${p} "
+    fi
+done
+if [[ "$workflow_covers_all" == "no" ]]; then
+    echo "MISSING from review-sub-pr.yml workflow trigger: $missing_from_workflow" >&2
+fi
+assert_eq "test_workflow_trigger_covers_all_patterns: every source-of-truth pattern in workflow trigger" \
+    "yes" "$workflow_covers_all"
+assert_pass_if_clean "test_workflow_trigger_covers_all_patterns"
+
 print_summary
