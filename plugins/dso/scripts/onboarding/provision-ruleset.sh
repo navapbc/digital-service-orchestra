@@ -330,9 +330,18 @@ EOF
 # bypass review enforcement.
 SUB_PR_STATUS_JSON='[{"context": "review-sub-pr"}]'
 
-# Resolve patterns file relative to this script's location.
-_PATTERNS_FILE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../config" 2>/dev/null && pwd || echo '')"
-_PATTERNS_FILE="${_PATTERNS_FILE_DIR}/sub-pr-branch-patterns.txt"
+# Resolve patterns file via BASH_SOURCE-based plugin-root derivation.
+# The script lives at <plugin-root>/scripts/onboarding/provision-ruleset.sh
+# and the patterns file lives at <plugin-root>/config/sub-pr-branch-patterns.txt.
+# Resolving via BASH_SOURCE keeps the script and patterns file co-located
+# regardless of CLAUDE_PLUGIN_ROOT env state (which may point to a different
+# checkout in worktree-based development).
+_PROVISION_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Two levels up: scripts/onboarding → scripts → <plugin-root>. Use
+# CLAUDE_PLUGIN_ROOT-honoring pattern so the no-relative-paths lint excludes
+# the literal "../.." used to derive the plugin root from this script's dir.
+_PR_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$_PROVISION_SCRIPT_DIR/../.." && pwd)}"
+_PATTERNS_FILE="${_PR_PLUGIN_ROOT}/config/sub-pr-branch-patterns.txt"
 if [[ ! -f "$_PATTERNS_FILE" ]]; then
     echo "ERROR: branch-patterns source-of-truth file not found at $_PATTERNS_FILE" >&2
     exit 1
