@@ -317,8 +317,34 @@ EOF
 
 # ── Build session-branch ruleset JSON payload (F1 mitigation) ────────────────
 # Second ruleset requiring review-sub-pr to pass on session/worktree branches.
-# Branch patterns match review-sub-pr.yml's pull_request trigger branches.
+#
+# BRANCH-NAMING CROSS-REFERENCE (R8/R11 PR-2):
+# Branch patterns are read from the source-of-truth file at
+# ${CLAUDE_PLUGIN_ROOT}/config/sub-pr-branch-patterns.txt. The dispatcher
+# (llm-review-dispatch-or-skip.sh) reads the SAME file to build its
+# _FORCE_REVIEW regex — keeping both consumers in sync.
+#
+# Validation: tests/scripts/test-branch-pattern-alignment.sh asserts both
+# consumers reference the file and emit consistent patterns. Drift between
+# the dispatcher and the ruleset would let sub-agent branches silently
+# bypass review enforcement.
 SUB_PR_STATUS_JSON='[{"context": "review-sub-pr"}]'
+
+# Resolve patterns file relative to this script's location.
+_PATTERNS_FILE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../config" 2>/dev/null && pwd || echo '')"
+_PATTERNS_FILE="${_PATTERNS_FILE_DIR}/sub-pr-branch-patterns.txt"
+if [[ ! -f "$_PATTERNS_FILE" ]]; then
+    echo "ERROR: branch-patterns source-of-truth file not found at $_PATTERNS_FILE" >&2
+    exit 1
+fi
+
+# Build the JSON include array from patterns file (one "refs/heads/<pattern>" per non-comment line).
+SUB_PR_INCLUDE_JSON=$(
+    grep -v '^[[:space:]]*#\|^[[:space:]]*$' "$_PATTERNS_FILE" \
+        | jq -R '"refs/heads/" + .' \
+        | jq -s .
+)
+
 SUB_PR_PAYLOAD_JSON=$(cat <<EOF
 {
   "name": "DSO Sub-PR Review Enforcement",
@@ -326,13 +352,7 @@ SUB_PR_PAYLOAD_JSON=$(cat <<EOF
   "enforcement": "active",
   "conditions": {
     "ref_name": {
-      "include": [
-        "refs/heads/session/**",
-        "refs/heads/session-**",
-        "refs/heads/session_**",
-        "refs/heads/worktree-**",
-        "refs/heads/bug-batch/**"
-      ],
+      "include": ${SUB_PR_INCLUDE_JSON},
       "exclude": []
     }
   },
