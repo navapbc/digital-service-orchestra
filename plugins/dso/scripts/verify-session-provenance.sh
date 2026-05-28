@@ -510,10 +510,7 @@ print('not_found')
                     echo "commit $sha covering-PR #${_cov_pr} review-check=FAILED (not counting as covered)"
                     ;;
                 not_found)
-                    # No review check found — could be a direct PR without llm-review.
-                    # Conservative: count as covered (review may not have been required).
-                    _verified_covering=$(( _verified_covering + 1 ))
-                    echo "commit $sha covering-PR #${_cov_pr} review-check=NOT_FOUND (counting as covered — review may not apply)"
+                    echo "commit $sha covering-PR #${_cov_pr} review-check=NOT_FOUND (not counting as covered — no review evidence)"
                     ;;
                 *)
                     echo "WARNING: commit $sha covering-PR #${_cov_pr} review-check=UNKNOWN; treating as unverified" >&2

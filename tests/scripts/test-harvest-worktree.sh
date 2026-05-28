@@ -1258,7 +1258,11 @@ EOF
 # Intentionally do NOT write review-status — this is the dso.workflow=ci-pr path
 
 exit_code26=0
+# Unset CI/GITHUB_ACTIONS so skip-review-check.sh's ci-pr short-circuit fires
+# (F6 hardening added CI-env detection that would prevent the short-circuit
+# inside GitHub Actions runners; this test exercises the local ci-pr path).
 output26=$(cd "$SESSION_REPO26" && \
+    CI='' GITHUB_ACTIONS='' \
     WORKFLOW_CONFIG_FILE="$SESSION_REPO26/.claude/dso-config.conf" \
     bash "$HARVEST_SCRIPT" \
     "$WORKTREE_BRANCH26" \

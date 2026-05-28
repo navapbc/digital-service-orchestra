@@ -110,11 +110,13 @@ In `ci-pr` mode (`dso.workflow=ci-pr`), the sprint uses a unified per-branch rev
 - **session→main is the sole merge path** for sprint and debug-everything in ci-pr mode. Sub-branch story PRs merge into the session branch; the session branch PR merges into main. No direct sub-branch → main merges are allowed.
 - Sub-branches (`story/<epic-id>/<story-id>`) merge into the session branch after CI test/lint jobs pass.
 
-> **KNOWN GAP (tracked under remediation epic; post-mortem bug 576b-a6c7-3de3-4eef)**: Sub-branch internal LLM review is currently NOT enforced. `.github/workflows/per-branch-review.yml` (which previously gated sub-branch PRs with per-story LLM review) was deleted by story 20d7-09d6 to enforce a no-duplicate-checks-per-SHA invariant required by epic b575's cycle-ledger machinery. `ci.yml`'s `llm-review` job is gated to `base_ref == 'main'` and does NOT fire on sub-branch PRs. `/dso:review` is HARD-GATED to no-op under `dso.workflow=ci-pr`. External advisory reviewers (CodeRabbit, Gitar) may run but are NOT required checks. Internal LLM review currently fires only at the cumulative session→main PR. The remediation epic restores per-sub-branch internal review with ledger keying (`(pr_number, sha)` instead of `sha` alone) so per-sub-PR and session→main reviews can coexist without double-counting.
+### Per-sub-branch LLM review enforcement (F1 mitigation)
 
-### `ci.yml` — sole PR-side LLM-review entry point (story 20d7-09d6) — gated to base=main
+Sub-branch story PRs are reviewed by `.github/workflows/review-sub-pr.yml`, which fires on PRs targeting `session/**`, `session-**`, `session_**`, `bug-batch/**`, and `worktree-**` branches. The `review-sub-pr` check is enforced as a required status check via the "DSO Sub-PR Review Enforcement" GitHub Ruleset (provisioned by `provision-ruleset.sh`). Story PRs cannot merge into the session branch without passing LLM review.
 
-`ci.yml`'s `llm-review` job is currently the sole CI workflow that runs LLM review. It is gated to `base_ref == 'main'` (see ci.yml:314), so it fires ONLY on the session→main PR. It does NOT fire on sub-branch PRs (`story/*` and `bug-batch/*` targeting the session branch). Responsibilities (when it fires):
+### `ci.yml` — session→main LLM-review entry point — gated to base=main
+
+`ci.yml`'s `llm-review` job runs LLM review on session→main PRs. It is gated to `base_ref == 'main'`, so it fires ONLY on the session→main PR. It does NOT fire on sub-branch PRs (those are covered by `review-sub-pr.yml` above). Responsibilities (when it fires):
 
 - Resolves the review base via a resolver script. The resolver consults the `SPRINT_SESSION_ID` repo variable (set by sprint Phase A) as one input, but the actual base resolution may also consider the branch's PR target, the most recent `story/<epic-id>/...` parent on the session branch, and other signals. The resolver is the source of truth — the repo variable is not consulted directly by the workflow.
 - Computes the integration review scope (see "Integration review scope definition" below).

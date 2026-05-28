@@ -199,5 +199,25 @@ fi
 assert_eq "test_idempotent_note_present: idempotency mechanism" "present" "$_idem_result"
 assert_pass_if_clean "test_idempotent_note_present"
 
+# ── test_ruleset_names_includes_sub_pr (F1) ─────────────────────────────────
+# RULESET_NAMES array must include both the main-branch and session-branch rulesets.
+_snapshot_fail
+_has_main="absent"
+_has_sub_pr="absent"
+if grep -qF 'DSO CI Enforcement' "$SCRIPT" 2>/dev/null; then _has_main="present"; fi
+if grep -qF 'DSO Sub-PR Review Enforcement' "$SCRIPT" 2>/dev/null; then _has_sub_pr="present"; fi
+assert_eq "test_ruleset_names_includes_sub_pr: main ruleset in RULESET_NAMES" "present" "$_has_main"
+assert_eq "test_ruleset_names_includes_sub_pr: sub-PR ruleset in RULESET_NAMES" "present" "$_has_sub_pr"
+assert_pass_if_clean "test_ruleset_names_includes_sub_pr"
+
+# ── test_find_ruleset_id_accepts_name_param (F1) ────────────────────────────
+# _find_ruleset_id must accept a second parameter for the ruleset name so
+# the promote loop can look up each ruleset independently.
+_snapshot_fail
+_find_accepts_name="no"
+if grep -qE '_find_ruleset_id' "$SCRIPT" 2>/dev/null && grep -qE '\$\{2:-' "$SCRIPT" 2>/dev/null; then _find_accepts_name="yes"; fi
+assert_eq "test_find_ruleset_id_accepts_name_param: _find_ruleset_id accepts name param" "yes" "$_find_accepts_name"
+assert_pass_if_clean "test_find_ruleset_id_accepts_name_param"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary

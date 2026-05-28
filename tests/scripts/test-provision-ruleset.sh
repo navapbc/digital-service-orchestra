@@ -275,5 +275,62 @@ assert_eq "test_bypass_actor_policy_requires_admin_token: exits non-zero" "nonze
 assert_eq "test_bypass_actor_policy_requires_admin_token: error message" "present" "$actual_admin_msg"
 assert_pass_if_clean "test_bypass_actor_policy_requires_admin_token"
 
+# ── test_dry_run_includes_session_branch_ruleset (F1) ────────────────────────
+# The dry-run output must include the session-branch ruleset payload with
+# review-sub-pr as required check and the correct branch patterns.
+_snapshot_fail
+sub_pr_output=""
+sub_pr_output=$(DSO_DRY_RUN=1 bash "$PROVISION_SCRIPT" 2>/dev/null) || true
+
+sub_pr_has_name="missing"
+sub_pr_has_check="missing"
+sub_pr_has_session="missing"
+sub_pr_has_worktree="missing"
+if echo "$sub_pr_output" | grep -q 'DSO Sub-PR Review Enforcement'; then
+    sub_pr_has_name="present"
+fi
+if echo "$sub_pr_output" | grep -q 'review-sub-pr'; then
+    sub_pr_has_check="present"
+fi
+if echo "$sub_pr_output" | grep -q 'refs/heads/session/'; then
+    sub_pr_has_session="present"
+fi
+if echo "$sub_pr_output" | grep -q 'refs/heads/worktree-'; then
+    sub_pr_has_worktree="present"
+fi
+
+assert_eq "test_dry_run_includes_session_branch_ruleset: ruleset name present" "present" "$sub_pr_has_name"
+assert_eq "test_dry_run_includes_session_branch_ruleset: review-sub-pr check present" "present" "$sub_pr_has_check"
+assert_eq "test_dry_run_includes_session_branch_ruleset: session branch pattern present" "present" "$sub_pr_has_session"
+assert_eq "test_dry_run_includes_session_branch_ruleset: worktree branch pattern present" "present" "$sub_pr_has_worktree"
+assert_pass_if_clean "test_dry_run_includes_session_branch_ruleset"
+
+# ── test_session_branch_patterns_match_workflow_triggers (F1) ────────────────
+# The branch patterns in the session-branch ruleset must cover the same
+# namespace as review-sub-pr.yml's pull_request trigger branches.
+_snapshot_fail
+workflow_file="$REPO_ROOT/.github/workflows/review-sub-pr.yml"
+workflow_patterns_ok="yes"
+
+if [[ -f "$workflow_file" ]]; then
+    # Extract trigger branch patterns from the workflow file
+    for pattern in "session/**" "session-**" "session_**" "bug-batch/**" "worktree-**"; do
+        if ! grep -Fq "$pattern" "$workflow_file"; then
+            workflow_patterns_ok="no"
+            break
+        fi
+        refs_pattern="refs/heads/${pattern}"
+        if ! grep -Fq "$refs_pattern" "$PROVISION_SCRIPT"; then
+            workflow_patterns_ok="no"
+            break
+        fi
+    done
+else
+    workflow_patterns_ok="no"
+fi
+
+assert_eq "test_session_branch_patterns_match_workflow_triggers: all patterns aligned" "yes" "$workflow_patterns_ok"
+assert_pass_if_clean "test_session_branch_patterns_match_workflow_triggers"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 print_summary
