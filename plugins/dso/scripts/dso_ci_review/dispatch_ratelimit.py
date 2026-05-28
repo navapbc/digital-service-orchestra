@@ -256,6 +256,9 @@ class DispatchContext:
 
     cooldown_event: asyncio.Event = field(default_factory=asyncio.Event)
     _timer_handle: asyncio.TimerHandle | None = field(default=None, init=False, repr=False)
+    # Active cooldown deadline as an asyncio loop.time() monotonic value (NOT
+    # wall-clock time.time()). signal_cooldown compares against this to honor
+    # the longest-wins invariant; None when no cooldown is active.
     _cooldown_deadline: float | None = field(default=None, init=False, repr=False)
     _cooldown_count: int = field(default=0, init=False, repr=False)
 

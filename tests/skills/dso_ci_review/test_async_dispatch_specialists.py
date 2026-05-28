@@ -144,6 +144,52 @@ def test_non_rate_limit_error_does_not_signal_cooldown():
     assert cooldown_count == 0
 
 
+def test_cooldown_gate_actually_delays_dispatch():
+    """The cooldown_event.wait() gate at the top of _call_single_agent must
+    actually block dispatch when the cooldown is engaged. Cycle-2 verification
+    review correctly noted that prior tests used N=1 agent — the gate was a
+    no-op (event set at create()) and a regression removing the await line
+    would go undetected. This test engages cooldown via the context, then
+    dispatches via async_dispatch_specialists and asserts wall-clock delay.
+    """
+    from dso_ci_review.dispatch import _call_single_agent
+
+    dispatch_invoked_at: dict[str, float] = {}
+
+    def _capture_dispatch_review(**kwargs):
+        dispatch_invoked_at["t"] = time.monotonic()
+        return {"findings": []}
+
+    async def _flow() -> tuple[float, float]:
+        ctx = DispatchContext.create()
+        ctx.signal_cooldown(0.3)
+        t_start = time.monotonic()
+        try:
+            with patch(
+                "dso_ci_review.dispatch.dispatch_review",
+                side_effect=_capture_dispatch_review,
+            ):
+                await _call_single_agent(
+                    agent_id="gated",
+                    diff_text="d",
+                    model="m",
+                    tier="light",
+                    dispatch_context=ctx,
+                )
+        finally:
+            ctx.cleanup()
+        return t_start, dispatch_invoked_at["t"]
+
+    t_start, t_dispatched = asyncio.run(_flow())
+    delay = t_dispatched - t_start
+    assert delay >= 0.28, (
+        f"Cooldown gate did not delay dispatch: dispatch_review was invoked "
+        f"{delay:.3f}s after _call_single_agent entry (expected ≥ 0.30s). "
+        f"The `await dispatch_context.cooldown_event.wait()` line at the top "
+        f"of _call_single_agent may have regressed."
+    )
+
+
 def test_no_dispatch_context_kwarg_back_compat():
     """Calling without dispatch_context (the existing call sites in runner.py
     and region_split.py) still works — an internal context is created."""
