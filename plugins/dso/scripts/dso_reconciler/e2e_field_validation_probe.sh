@@ -194,21 +194,14 @@ else:
 "
 }
 
-edit_ticket_json() {
+edit_ticket_field() {
+    # Edit a single ticket field via the ticket CLI's edit subcommand.
+    # The local ticket store is event-sourced — no ticket.json to mutate —
+    # so writes must go through the CLI which emits an EDIT event.
     local ticket_id="$1"
     local field="$2"
     local value="$3"
-    local ticket_dir="${TRACKER_DIR}/${ticket_id}"
-    python3 -c "
-import json
-path = '${ticket_dir}/ticket.json'
-with open(path) as f:
-    data = json.load(f)
-data['${field}'] = ${value}
-with open(path, 'w') as f:
-    json.dump(data, f, indent=2)
-    f.write('\n')
-"
+    "$TICKET_CLI" ticket edit "$ticket_id" "--${field}=${value}" 2>&1 | tail -1
 }
 
 jira_update_issue() {
@@ -495,7 +488,7 @@ fi
 
 # Set assignee on ticket 5 via direct JSON edit
 if [ "$ASSIGNEE_SKIP" = false ]; then
-    edit_ticket_json "${LOCAL_IDS[4]}" "assignee" "\"${PROBE_USER}\""
+    edit_ticket_field "${LOCAL_IDS[4]}" "assignee" "${PROBE_USER}"
     pass_test "Phase1.set-assignee-ticket-5"
 fi
 
@@ -509,9 +502,27 @@ echo "Running reconciler (bootstrap-throttle, filtered to ${#LOCAL_IDS[@]} IDs).
 reconciler_output=$(run_filtered_reconciler "$FILTER_IDS")
 echo "$reconciler_output" | grep -E "^(FILTERED|filter:|OK:|ERROR:)" || true
 
-# Verify bindings and extract Jira keys
+# Verify bindings and extract Jira keys.  The reconciler saves the binding
+# store at the end of a pass — if the pass partially failed (e.g. HeadDrift
+# or DirectionMismatch), the save may be skipped.  As a workaround, retry
+# the binding check up to 3 times with a short delay; if still unbound,
+# fall back to a tag-based Jira lookup so the cleanup phase still has keys.
+check_binding_with_retry() {
+    local local_id="$1"
+    local state
+    for _ in 1 2 3; do
+        state=$(check_binding "$local_id")
+        if [[ "$state" == confirmed:* ]]; then
+            echo "$state"
+            return
+        fi
+        sleep 2
+    done
+    echo "$state"
+}
+
 for i in $(seq 0 9); do
-    binding_state=$(check_binding "${LOCAL_IDS[$i]}")
+    binding_state=$(check_binding_with_retry "${LOCAL_IDS[$i]}")
     if [[ "$binding_state" == confirmed:* ]]; then
         JIRA_KEYS+=("${binding_state#confirmed:}")
         pass_test "Phase1.binding-${i} (${LOCAL_IDS[$i]} → ${JIRA_KEYS[$i]})"
@@ -635,20 +646,20 @@ echo "=== PHASE 2: Edit locally and sync outbound ==="
 echo ""
 
 # Ticket 1: change title
-edit_ticket_json "${LOCAL_IDS[0]}" "title" "\"FIELD-PROBE-1: UPDATED title ${PROBE_TS}\""
+edit_ticket_field "${LOCAL_IDS[0]}" "title" "FIELD-PROBE-1: UPDATED title ${PROBE_TS}"
 pass_test "Phase2.edit-title"
 
 # Ticket 1: change description
-edit_ticket_json "${LOCAL_IDS[0]}" "description" "\"Updated description\""
+edit_ticket_field "${LOCAL_IDS[0]}" "description" "Updated description"
 pass_test "Phase2.edit-description"
 
 # Ticket 2: change priority from 0 to 3 (Highest → Low)
-edit_ticket_json "${LOCAL_IDS[1]}" "priority" "3"
+edit_ticket_field "${LOCAL_IDS[1]}" "priority" "3"
 pass_test "Phase2.edit-priority"
 
 # Ticket 5: unassign (set assignee to "")
 if [ "$ASSIGNEE_SKIP" = false ]; then
-    edit_ticket_json "${LOCAL_IDS[4]}" "assignee" "\"\""
+    edit_ticket_field "${LOCAL_IDS[4]}" "assignee" ""
     pass_test "Phase2.edit-assignee-unassign"
 fi
 
@@ -658,7 +669,7 @@ fi
 pass_test "Phase2.edit-labels"
 
 # Ticket 7: change ticket_type from task to bug (asymmetry test)
-edit_ticket_json "${LOCAL_IDS[6]}" "ticket_type" "\"bug\""
+edit_ticket_field "${LOCAL_IDS[6]}" "ticket_type" "bug"
 pass_test "Phase2.edit-issuetype-local"
 
 # Ticket 8: add second comment
@@ -1020,7 +1031,10 @@ for i in 1 2 3; do
     echo "Idempotency pass ${i}..."
     reconciler_output=$(run_filtered_reconciler "$FILTER_IDS_9")
     # Extract filtered mutation count from the filter: log line
-    filtered_count=$(echo "$reconciler_output" | grep -oP 'filter: \d+ mutations computed, \K\d+' || echo "-1")
+    # awk is portable; grep -P / -oP are GNU-only and break on macOS BSD grep.
+    # Line format: "filter: N mutations computed, M match filter (...)"
+    filtered_count=$(echo "$reconciler_output" | awk '/^filter: [0-9]+ mutations computed, [0-9]+ match filter/ {print $5; exit}')
+    filtered_count="${filtered_count:--1}"
     if [ "$filtered_count" = "0" ]; then
         pass_test "Phase6.idempotency-pass-${i} (0 filtered mutations)"
     else
@@ -1086,10 +1100,11 @@ done
 
 # Snapshot is restored by the EXIT trap.
 
-if [ "$cleanup_failed" = true ]; then
-    echo "Some cleanup failed — running fallback cleanup..."
-    fallback_cleanup
-fi
+# Always run tag-based fallback cleanup — covers the case where bindings
+# were never confirmed (JIRA_KEYS[i] empty), so the indexed loop above
+# couldn't delete the Jira issues that DID get created by the reconciler.
+echo "Running tag-based fallback cleanup to catch any orphaned Jira issues..."
+fallback_cleanup
 
 # ===========================================================================
 # Report

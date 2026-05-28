@@ -128,17 +128,25 @@ def _run_reconcile_check(repo_root: Path) -> int:
                         ticket["id"] = entry.name
                     local_tickets.append(ticket)
 
-        # Load binding store. The applier module exposes BindingStore.
-        applier = _try_load_step("applier")
-        if applier is None or not hasattr(applier, "BindingStore"):
-            # Minimal stub: no bindings
+        # Load binding store. BindingStore lives in binding_store.py — not in
+        # applier.py (the previous lookup `hasattr(applier, "BindingStore")`
+        # always failed because applier.py never exported the class, falling
+        # through to a list-returning stub that crashed reconcile_check's
+        # `.items()` call). Bug 0776: load binding_store.py directly via the
+        # same factory reconcile.py uses.
+        binding_store_mod = _try_load_step("binding_store")
+        if binding_store_mod is None or not hasattr(
+            binding_store_mod, "load_binding_store"
+        ):
+            # Minimal stub: no bindings. all_bindings() returns a dict to
+            # match the protocol reconcile_check expects.
             class _EmptyBindings:
-                def all_bindings(self) -> list:
-                    return []
+                def all_bindings(self) -> dict:
+                    return {}
 
             binding_store = _EmptyBindings()
         else:
-            binding_store = applier.BindingStore(repo_root)
+            binding_store = binding_store_mod.load_binding_store(repo_root)
 
         report = rc_mod.reconcile_check(local_tickets, jira_snapshot, binding_store)
         print(rc_mod.format_report(report))
