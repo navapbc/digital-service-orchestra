@@ -1656,8 +1656,9 @@ def update_one(mutation: dict, client) -> dict | None:
     if not isinstance(fields, dict):
         fields = {}
     issue_key = mutation.get("key")
+    result: dict | None
     try:
-        return _call_with_retry(client.update_issue, issue_key, **fields)
+        result = _call_with_retry(client.update_issue, issue_key, **fields)
     except JiraAPIError as exc:
         if not _is_illegal_transition_400(exc):
             raise
@@ -1676,7 +1677,52 @@ def update_one(mutation: dict, client) -> dict | None:
             }
         )
         print(log_entry, file=sys.stderr)
-        return None
+        result = None
+
+    # Bug 87e4: propagate label add/remove and comment additions from the
+    # mutation payload. The outbound differ emits these alongside changed
+    # scalar fields; update_issue can't carry them (Jira's edit endpoint
+    # doesn't accept label or comment kwargs), so they need separate
+    # add_label / remove_label / add_comment calls. Failures here are
+    # logged but non-fatal — the scalar update already succeeded.
+    labels = mutation.get("labels", []) or []
+    if isinstance(labels, list):
+        for entry in labels:
+            if not isinstance(entry, dict):
+                continue
+            action = entry.get("action")
+            label_name = entry.get("label", "")
+            if not label_name:
+                continue
+            try:
+                if action == "add":
+                    _call_with_retry(client.add_label, issue_key, label_name)
+                elif action == "remove":
+                    _call_with_retry(client.remove_label, issue_key, label_name)
+            except Exception as exc:  # noqa: BLE001
+                print(  # noqa: T201
+                    f"update_one: label {action} failed for {issue_key} "
+                    f"label={label_name!r}: {exc!r}",
+                    file=sys.stderr,
+                )
+
+    comments = mutation.get("comments", []) or []
+    if isinstance(comments, list):
+        for entry in comments:
+            if not isinstance(entry, dict):
+                continue
+            body = entry.get("body", "")
+            if not body:
+                continue
+            try:
+                _call_with_retry(client.add_comment, issue_key, body)
+            except Exception as exc:  # noqa: BLE001
+                print(  # noqa: T201
+                    f"update_one: add_comment failed for {issue_key}: {exc!r}",
+                    file=sys.stderr,
+                )
+
+    return result
 
 
 def delete_one(mutation: dict, client) -> None:
@@ -2245,17 +2291,34 @@ def _mutation_to_batch_dict(mutation) -> dict:
     payload = dict(mutation.payload) if mutation.payload else {}
     action_value = getattr(mutation.action, "value", str(mutation.action))
     direction_value = getattr(mutation.direction, "value", str(mutation.direction))
-    # Use payload.get("fields", payload) — NOT `or payload` — so an
-    # intentionally-empty `fields: {}` doesn't truthy-fall-through to the
-    # whole payload (which would leak local_id / follow_on / etc. into
-    # batch fields). coderabbit-flagged on PR #364.
+    # Bug 87e4: outbound update mutations from reconcile.py carry changed
+    # fields under "changed_fields" (with companion "comments" and "labels"
+    # arrays). Read changed_fields first, fall back to "fields" for legacy
+    # callers, and default to {} (never the whole payload — see below).
+    #
+    # Historical note: the previous implementation read
+    # ``payload.get("fields", payload)`` to avoid truthy-falling-through on
+    # an intentionally-empty ``fields: {}``. But the fallback to ``payload``
+    # itself was wrong — for outbound update mutations it leaked
+    # ``changed_fields=``, ``comments=``, ``labels=`` keys into the batch
+    # dict's "fields" entry, which ``update_one`` then unpacked as bogus
+    # kwargs to ``client.update_issue``. Jira silently ignored those kwargs
+    # and applied nothing. Empty-dict default preserves the original
+    # coderabbit-flagged contract without the leakage.
+    fields = payload.get("changed_fields")
+    if fields is None:
+        fields = payload.get("fields", {})
     return {
         "action": action_value,
         "direction": direction_value,
         "key": mutation.target,
-        "fields": payload.get("fields", payload),
+        "fields": fields,
         "local_id": payload.get("local_id", ""),
         "follow_on": payload.get("follow_on"),
+        # Surface comments and labels so update_one can dispatch them via
+        # add_comment / add_label / remove_label respectively (bug 87e4).
+        "comments": payload.get("comments", []),
+        "labels": payload.get("labels", []),
     }
 
 
