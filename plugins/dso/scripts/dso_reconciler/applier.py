@@ -126,12 +126,22 @@ def _direction_guard(mutation, expected_direction) -> None:
     direction. In normal flow _LEAVES lookup already routes correctly; this
     raises DirectionMismatchError if a leaf is invoked directly with the wrong
     direction (e.g. via the test harness bypassing _LEAVES).
+
+    Compare by string value rather than identity. The reconciler loads
+    mutation.py multiple times via importlib (once per importing module), and
+    each load creates a distinct MutationDirection enum class. Two enum
+    members with the same value but from different class instances are NOT
+    identity-equal, so ``is not`` would fire spuriously on filtered passes
+    where a Mutation built under one module load reaches a leaf imported
+    under another.
     """
-    if mutation.direction is not expected_direction:
+    expected_val = expected_direction.value
+    actual_val = getattr(mutation.direction, "value", mutation.direction)
+    if expected_val != actual_val:
         errs = _load_errors_module()
         raise errs.DirectionMismatchError(
-            f"leaf expects direction={expected_direction.value!s}, "
-            f"got direction={mutation.direction.value!s}"
+            f"leaf expects direction={expected_val!s}, "
+            f"got direction={actual_val!s}"
         )
 
 
