@@ -40,6 +40,14 @@ trap 'rm -rf "$TMPDIR_TEST"' EXIT
 MOCK_BIN="$TMPDIR_TEST/bin"
 mkdir -p "$MOCK_BIN"
 
+# In CI (GITHUB_ACTIONS=true), real gh + GITHUB_REPOSITORY are set, which
+# would trigger the dispatcher's _FORCE_REVIEW branch-pattern matching on
+# every test running in a sub-agent-named worktree (e.g. worktree-*, feat-*).
+# Force GITHUB_HEAD_REF=main so the dispatcher's _HEAD_BRANCH detection
+# resolves to a non-force-review-eligible name. Tests that explicitly want
+# to exercise force-review override this in their own scope.
+export GITHUB_HEAD_REF="${DSO_TEST_HEAD_REF:-main}"
+
 # ── Helper: create a mock verifier that exits with a given code ───────────────
 _make_mock_verifier() {
     local exit_code="$1"
@@ -72,8 +80,10 @@ MOCKEOF
 # fallback to prevent the giant-diff failure mode, so SHAs must resolve.
 _seed_artifacts() {
     local dir="$1" outcome="$2" shalist="${3:-}"
+    # Use the most recent NON-merge commit. Merge commits with no first-parent
+    # diff produce empty `git show` output and trip R3a's fail-closed gate.
     local real_sha
-    real_sha=$(git rev-parse HEAD~1 2>/dev/null || echo "deadbeef")
+    real_sha=$(git log --no-merges --format=%H -n 1 2>/dev/null || echo "deadbeef")
     case "$outcome" in
         all_provenanced)
             date -u +%Y-%m-%dT%H:%M:%SZ > "$dir/provenance-complete.marker"

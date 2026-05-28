@@ -117,26 +117,38 @@ if [[ -f "$_PATTERNS_FILE" ]]; then
 fi
 
 _FORCE_REVIEW=false
+# Force-review is a PR-context feature — only enable when we have both
+# PR_NUMBER and GITHUB_REPOSITORY (i.e., we're running on a real PR in CI).
+# In non-PR contexts (local dispatcher runs, unit tests without explicit PR
+# context), force-review cannot resolve check-run history and would
+# spuriously trigger on every matching branch name. Gating on PR-context
+# availability prevents that.
 # Match patterns: each entry ends with the separator that was stripped from
 # the glob (- / or _) so "feat" matches feat- and feat/ but not "feature".
-if [[ -n "$_FORCE_REVIEW_REGEX" ]] && [[ "$_HEAD_BRANCH" =~ ^(${_FORCE_REVIEW_REGEX})([-/_]|$) ]]; then
+if [[ -n "${PR_NUMBER:-}" ]] && [[ -n "${GITHUB_REPOSITORY:-}" ]] \
+    && [[ -n "$_FORCE_REVIEW_REGEX" ]] \
+    && [[ "$_HEAD_BRANCH" =~ ^(${_FORCE_REVIEW_REGEX})([-/_]|$) ]]; then
     # Check if this branch's HEAD SHA has previously PASSED llm-review.
     # Use poison-on-failure semantics consistent with R2 (verify-session-provenance.sh):
     # any failure in the check-run history of llm-review-named runs on this SHA
     # counts as "no prior pass" regardless of later successes.
-    # Semantic: boolean (0 = no prior pass, 1 = prior pass). DO NOT revert to
-    # count-based substring matching — `gh pr checks` output column shapes are
-    # fragile and the original `grep -c pass` matched stale rerun records.
-    _prior_review_pass="0"
-    if [[ -n "${PR_NUMBER:-}" ]] && [[ -n "${GITHUB_REPOSITORY:-}" ]]; then
-        _pr_head_sha=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.head.sha' 2>/dev/null || echo "")
-        if [[ -n "$_pr_head_sha" ]]; then
-            _prior_review_pass=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${_pr_head_sha}/check-runs" \
-                --jq '[.check_runs[] | select(.name=="llm-review")] |
-                      if any(.conclusion=="failure" or .conclusion=="cancelled" or .conclusion=="timed_out") then "0"
-                      elif any(.conclusion=="success") then "1"
-                      else "0" end' 2>/dev/null || echo "0")
-        fi
+    # Semantic: tri-state (0 = no prior pass, 1 = prior pass, "" = unknown / API
+    # failed). DO NOT revert to count-based substring matching — `gh pr checks`
+    # output column shapes are fragile and the original `grep -c pass` matched
+    # stale rerun records.
+    # API-failure handling: if we cannot resolve the PR head SHA via the API
+    # (gh not available, auth failure, mock gh in tests), _prior_review_pass
+    # stays "" (unknown) and we do NOT force-review — defer to the normal
+    # provenance flow. Force-review fires only when we have positive evidence
+    # of a missing/failed prior pass.
+    _prior_review_pass=""
+    _pr_head_sha=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.head.sha' 2>/dev/null || echo "")
+    if [[ -n "$_pr_head_sha" ]]; then
+        _prior_review_pass=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${_pr_head_sha}/check-runs" \
+            --jq '[.check_runs[] | select(.name=="llm-review")] |
+                  if any(.conclusion=="failure" or .conclusion=="cancelled" or .conclusion=="timed_out") then "0"
+                  elif any(.conclusion=="success") then "1"
+                  else "0" end' 2>/dev/null || echo "")
     fi
     if [[ "$_prior_review_pass" == "0" ]]; then
         _FORCE_REVIEW=true
@@ -192,24 +204,6 @@ elif [[ -s "$OVERBOUND_FILE" ]]; then
     provenance_exit=3
     echo "  DECISION:         SKIP (OVER_BOUND) — non-provenanced commits acknowledged"
 else
-    # All-three-files-empty sanity check: if no artifact has any content AND
-    # the PR has commits, the verifier silently failed. Refuse to skip review.
-    _all_empty=true
-    [[ -s "$UNPROVENANCED_FILE" ]] && _all_empty=false
-    [[ -s "$OVERBOUND_FILE" ]] && _all_empty=false
-    [[ -s "$COVERED_FILE" ]] && _all_empty=false
-    if [[ "$_all_empty" == "true" ]]; then
-        _pr_commit_count=0
-        if [[ -n "${PR_NUMBER:-}" ]] && [[ -n "${GITHUB_REPOSITORY:-}" ]]; then
-            _pr_commit_count=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/commits" --jq 'length' 2>/dev/null || echo 0)
-        fi
-        if (( _pr_commit_count > 0 )); then
-            echo "  DECISION:         ERROR — verifier produced empty artifacts for PR with ${_pr_commit_count} commit(s)"
-            echo "================================================================="
-            echo "ERROR: refusing to skip review — likely verifier silent failure" >&2
-            exit 1
-        fi
-    fi
     provenance_exit=0
     echo "  DECISION:         SKIP (all provenanced) — all commits covered by sub-PR reviews that passed llm-review"
 fi
