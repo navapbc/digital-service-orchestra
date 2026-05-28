@@ -1,0 +1,56 @@
+# DSO CI example — GitLab CI/CD (provider-neutral skeleton)
+#
+# Tagged with x-dso-version so the DSO plugin's update-shim flow can detect drift.
+# x-dso-version: 1.0.0
+#
+# Copy to your project root as .gitlab-ci.yml and customize the `test`, `lint`,
+# and `format-check` job commands for your stack.
+#
+# This file ships as part of bug 5d92 defect-C preparation: dso-setup.sh's
+# CI install path currently hard-codes GitHub Actions. The defect-C fix (in a
+# follow-up PR) adds an `onboarding.ci=gitlab` branch that copies this file to
+# .gitlab-ci.yml when the user's project uses GitLab. Until that branch lands,
+# this template is data-only — no dso-setup.sh code path consumes it yet.
+
+stages:
+  - lint
+  - test
+
+variables:
+  # Override these in your project's .gitlab-ci.yml or via GitLab CI/CD variables
+  # to match your stack:
+  TEST_COMMAND: "echo 'configure TEST_COMMAND'"
+  LINT_COMMAND: "echo 'configure LINT_COMMAND'"
+  FORMAT_CHECK_COMMAND: "echo 'configure FORMAT_CHECK_COMMAND'"
+
+default:
+  interruptible: true
+
+# Job commands are invoked via `sh -lc "$VAR"` rather than `eval "$VAR"`
+# so the command runs in a fresh shell (predictable quoting, no implicit
+# parent-shell variable capture). For simple commands users can also
+# replace these with the literal command and drop the variable indirection.
+
+lint:
+  stage: lint
+  script:
+    - sh -lc "$LINT_COMMAND"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+format-check:
+  stage: lint
+  script:
+    - sh -lc "$FORMAT_CHECK_COMMAND"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+test:
+  stage: test
+  script:
+    - sh -lc "$TEST_COMMAND"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

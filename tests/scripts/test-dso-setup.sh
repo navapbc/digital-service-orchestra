@@ -2029,4 +2029,118 @@ EOF
 }
 test_unknown_stack_uses_generic_precommit
 
+# ── test_validate_onboarding_enum_accepts_known_values ────────────────────────
+# Bug 5d92 epic prep: _validate_onboarding_enum is the validator helper for
+# the four onboarding.* enum config keys (hooks, ci, tracker, host) plus the
+# two install/skip keys (claude_md, known_issues). The function is not called
+# yet — the per-defect dispatchers in follow-up PRs will integrate it. Testing
+# the validator in isolation lets reviewers audit the enum vocabulary without
+# the noise of seven dispatcher changes.
+test_validate_onboarding_enum_accepts_known_values() {
+    # Source the helper from dso-setup.sh by extracting and eval'ing it.
+    # We don't run the full script (which has top-level side effects).
+    local helper_src
+    helper_src=$(awk '/^_validate_onboarding_enum\(\) \{/,/^\}/' "$SETUP_SCRIPT")
+    eval "$helper_src"
+
+    # Spot-check one value per key — full enum coverage would be brittle.
+    local rc
+    _validate_onboarding_enum onboarding.hooks precommit; rc=$?
+    assert_eq "validate enum: onboarding.hooks=precommit accepted" "0" "$rc"
+
+    _validate_onboarding_enum onboarding.ci gitlab; rc=$?
+    assert_eq "validate enum: onboarding.ci=gitlab accepted" "0" "$rc"
+
+    _validate_onboarding_enum onboarding.tracker linear; rc=$?
+    assert_eq "validate enum: onboarding.tracker=linear accepted" "0" "$rc"
+
+    _validate_onboarding_enum onboarding.host github; rc=$?
+    assert_eq "validate enum: onboarding.host=github accepted" "0" "$rc"
+
+    _validate_onboarding_enum onboarding.claude_md install; rc=$?
+    assert_eq "validate enum: onboarding.claude_md=install accepted" "0" "$rc"
+
+    # All keys accept "skip"
+    _validate_onboarding_enum onboarding.hooks skip; rc=$?
+    assert_eq "validate enum: skip is accepted for hooks" "0" "$rc"
+}
+test_validate_onboarding_enum_accepts_known_values
+
+# ── test_validate_onboarding_enum_rejects_unknown_values ──────────────────────
+# Typo detection: dispatchers will treat invalid values as "skip" with a WARN.
+# This test pins the rejection contract.
+test_validate_onboarding_enum_rejects_unknown_values() {
+    local helper_src
+    helper_src=$(awk '/^_validate_onboarding_enum\(\) \{/,/^\}/' "$SETUP_SCRIPT")
+    eval "$helper_src"
+
+    local rc
+    # Typo in enum value
+    _validate_onboarding_enum onboarding.ci githhub; rc=$?
+    assert_eq "validate enum: rejects typo (onboarding.ci=githhub)" "1" "$rc"
+
+    # Valid value for wrong key
+    _validate_onboarding_enum onboarding.hooks gitlab; rc=$?
+    assert_eq "validate enum: rejects cross-key value" "1" "$rc"
+
+    # Unknown key
+    _validate_onboarding_enum onboarding.nonexistent skip; rc=$?
+    assert_eq "validate enum: rejects unknown key" "1" "$rc"
+
+    # Empty value
+    _validate_onboarding_enum onboarding.hooks ""; rc=$?
+    assert_eq "validate enum: rejects empty value" "1" "$rc"
+}
+test_validate_onboarding_enum_rejects_unknown_values
+
+# ── test_validate_onboarding_enum_tolerates_missing_args ──────────────────────
+# Bootstrap-safety: dso-setup.sh runs with `set -u`, so a future caller that
+# accidentally invokes the helper with a missing argument would abort the
+# whole script. The helper must return 1 on missing/empty input, not crash.
+test_validate_onboarding_enum_tolerates_missing_args() {
+    local helper_src
+    helper_src=$(awk '/^_validate_onboarding_enum\(\) \{/,/^\}/' "$SETUP_SCRIPT")
+    eval "$helper_src"
+
+    # Simulate strict-mode invocation: enable nounset around the call.
+    local rc
+    set -u
+    _validate_onboarding_enum; rc=$?
+    set +u
+    assert_eq "validate enum: no args under set -u returns 1, does not crash" "1" "$rc"
+
+    set -u
+    _validate_onboarding_enum onboarding.hooks; rc=$?
+    set +u
+    assert_eq "validate enum: missing value under set -u returns 1" "1" "$rc"
+}
+test_validate_onboarding_enum_tolerates_missing_args
+
+# ── test_gitlab_ci_template_exists_and_has_stamp ──────────────────────────────
+# Bug 5d92 defect-C prep: the GitLab CI template ships in this PR as data
+# only — no dso-setup.sh code path consumes it yet. Verify the file exists at
+# the expected location and carries an x-dso-version stamp so the
+# update-shim flow can detect drift when the defect-C dispatcher lands.
+test_gitlab_ci_template_exists_and_has_stamp() {
+    local template="$DSO_PLUGIN_DIR/docs/examples/ci.example.gitlab.yml"
+
+    local exists_status="missing" stamp_status="missing" has_gitlab_marker="missing"
+    if [[ -f "$template" ]]; then
+        exists_status="present"
+        if grep -q '^# x-dso-version:' "$template" 2>/dev/null; then
+            stamp_status="present"
+        fi
+        # Distinguishing GitLab marker: top-level `stages:` key. GitHub Actions
+        # uses `jobs:`; GitLab uses `stages:` + per-job `stage:`.
+        if grep -qE '^stages:' "$template" 2>/dev/null; then
+            has_gitlab_marker="present"
+        fi
+    fi
+
+    assert_eq "ci.example.gitlab.yml: exists" "present" "$exists_status"
+    assert_eq "ci.example.gitlab.yml: x-dso-version stamp present" "present" "$stamp_status"
+    assert_eq "ci.example.gitlab.yml: GitLab-format marker (stages:) present" "present" "$has_gitlab_marker"
+}
+test_gitlab_ci_template_exists_and_has_stamp
+
 print_summary
