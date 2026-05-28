@@ -384,7 +384,7 @@ T12_REPO=$(setup_temp_repo)
     cd "$T12_REPO" || exit
     SESSION_BRANCH="session-branch" PRIMARY_TICKET_ID="epic-042" EPIC_TITLE="My Epic" \
     PATH="$_TMP_BIN:$PATH" \
-    bash "$SCRIPT_UNDER_TEST" > /tmp/t12.out 2>&1
+    bash "$SCRIPT_UNDER_TEST" > "${TMPDIR:-/tmp}/t12.out" 2>&1
 )
 t12_exit=$?
 # Inspect the resulting commit on session-branch
@@ -402,7 +402,7 @@ else
     (( FAIL++ ))
     echo "FAIL: test_create_sprint_draft_pr_sentinel_calls_gh_create: gh pr create not called after sentinel" >&2
 fi
-rm -rf "$T12_REPO" /tmp/t12.out 2>/dev/null || true
+rm -rf "$T12_REPO" "${TMPDIR:-/tmp}/t12.out" 2>/dev/null || true
 
 echo ""
 echo "--- Test 13: nonzero divergence → no sentinel created (preserves existing behavior) ---"
@@ -415,7 +415,7 @@ T13_REPO=$(setup_temp_repo)
     git -c commit.gpgsign=false commit --quiet -m "real change on session-branch"
     SESSION_BRANCH="session-branch" PRIMARY_TICKET_ID="epic-042" EPIC_TITLE="My Epic" \
     PATH="$_TMP_BIN:$PATH" \
-    bash "$SCRIPT_UNDER_TEST" > /tmp/t13.out 2>&1
+    bash "$SCRIPT_UNDER_TEST" > "${TMPDIR:-/tmp}/t13.out" 2>&1
 )
 t13_exit=$?
 t13_div=$(git -C "$T13_REPO" rev-list --count main..session-branch 2>/dev/null || echo "?")
@@ -429,7 +429,7 @@ if echo "$t13_body" | grep -q "DSO-Sentinel:"; then
 else
     (( PASS++ ))
 fi
-rm -rf "$T13_REPO" /tmp/t13.out 2>/dev/null || true
+rm -rf "$T13_REPO" "${TMPDIR:-/tmp}/t13.out" 2>/dev/null || true
 
 echo ""
 echo "--- Test 14: sentinel already on HEAD → idempotent, no second sentinel ---"
@@ -443,7 +443,7 @@ T14_REPO=$(setup_temp_repo)
         -m "DSO-Sentinel: epic-bootstrap"
     SESSION_BRANCH="session-branch" PRIMARY_TICKET_ID="epic-042" EPIC_TITLE="My Epic" \
     PATH="$_TMP_BIN:$PATH" \
-    bash "$SCRIPT_UNDER_TEST" > /tmp/t14.out 2>&1
+    bash "$SCRIPT_UNDER_TEST" > "${TMPDIR:-/tmp}/t14.out" 2>&1
 )
 t14_exit=$?
 t14_div=$(git -C "$T14_REPO" rev-list --count main..session-branch 2>/dev/null || echo "?")
@@ -453,7 +453,7 @@ t14_sentinel_count=$(git -C "$T14_REPO" log main..session-branch --format=%B 2>/
 assert_eq "test_create_sprint_draft_pr_sentinel_idempotent_exit_zero" "0" "$t14_exit"
 assert_eq "test_create_sprint_draft_pr_sentinel_idempotent_one_commit" "1" "$t14_div"
 assert_eq "test_create_sprint_draft_pr_sentinel_idempotent_one_sentinel" "1" "$t14_sentinel_count"
-rm -rf "$T14_REPO" /tmp/t14.out 2>/dev/null || true
+rm -rf "$T14_REPO" "${TMPDIR:-/tmp}/t14.out" 2>/dev/null || true
 
 echo ""
 print_summary

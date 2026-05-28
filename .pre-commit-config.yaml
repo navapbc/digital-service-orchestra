@@ -29,7 +29,7 @@ repos:
         language: system
         pass_filenames: true
         stages: [pre-commit]
-        files: ^tests/.*/test-.*\.sh$
+        files: ^tests/(.*/)?test-[^/]*\.sh$
 
       # Note (3aaa-0238 boundary): check-precondition-emit.sh only scans staged diff;
       # no interaction with CI gate manifest or pre-commit-wrapper.sh timeout mechanism.

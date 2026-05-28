@@ -23,7 +23,7 @@
 # Exit codes:
 #   0 — no violations
 #   1 — violations found (printed to stderr)
-set -uo pipefail
+set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || REPO_ROOT="."
 cd "$REPO_ROOT" || { echo "ERROR: cannot cd to $REPO_ROOT" >&2; exit 2; }
@@ -31,22 +31,23 @@ cd "$REPO_ROOT" || { echo "ERROR: cannot cd to $REPO_ROOT" >&2; exit 2; }
 if [[ $# -gt 0 ]]; then
     files=("$@")
 else
-    # Default scope: every test-*.sh under tests/
+    # Default scope: every test-*.sh under tests/ at any depth.
     mapfile -t files < <(find tests -name 'test-*.sh' -type f 2>/dev/null)
 fi
 
-# Filter to only existing test-*.sh files (callers may pass non-test files)
+# Filter to only existing test-*.sh files at any depth under tests/.
+# (Callers may pass non-test files; production scripts may legitimately use /tmp/.)
+# The case pattern `tests/**/test-*.sh` with `extglob` doesn't fire on plain
+# bash globs, so use a regex test against the path instead.
+shopt -s extglob 2>/dev/null || true
 in_scope=()
 for f in "${files[@]}"; do
     [[ -f "$f" ]] || continue
-    # Only enforce on test files. Production scripts may legitimately use /tmp/.
-    case "$f" in
-        tests/*/test-*.sh) in_scope+=("$f") ;;
-        *)
-            # Allow non-test files through silently (the rule only applies to tests).
-            continue
-            ;;
-    esac
+    # Match `tests/test-*.sh` (root level) OR `tests/<any-depth>/test-*.sh`.
+    if [[ "$f" =~ ^tests/(.*/)?test-[^/]+\.sh$ ]]; then
+        in_scope+=("$f")
+    fi
+    # Non-test paths fall through silently — the rule only applies to tests.
 done
 
 if [[ ${#in_scope[@]} -eq 0 ]]; then
@@ -55,9 +56,11 @@ fi
 
 # Pattern matches: `mktemp` optionally followed by `-d`, then whitespace,
 # then optional quote, then literal `/tmp/`. Captures the anti-pattern.
+# Use POSIX `[[:space:]]` (portable on macOS BSD grep + GNU grep) instead of
+# `\s` which is a GNU extension and silently no-matches on BSD `grep -E`.
 violations=0
 for f in "${in_scope[@]}"; do
-    matches=$(grep -nE 'mktemp(\s+-d)?\s+["'"'"']?/tmp/' "$f" 2>/dev/null || true)
+    matches=$(grep -nE 'mktemp([[:space:]]+-d)?[[:space:]]+["'"'"']?/tmp/' "$f" 2>/dev/null || true)
     if [[ -n "$matches" ]]; then
         if [[ $violations -eq 0 ]]; then
             echo "ERROR: mktemp /tmp/ anti-pattern detected in test files." >&2
