@@ -32,6 +32,7 @@ from dso_ci_review.dispatch_ratelimit import (
     calculate_backoff,
     extract_anthropic_ratelimit_headers,
     parse_retry_after,
+    should_retry,
 )
 
 logger = logging.getLogger(__name__)
@@ -1060,11 +1061,18 @@ async def _call_single_agent(
         )
         return result
     except Exception as exc:  # noqa: BLE001
-        if dispatch_context is not None and _is_rate_limit_error(exc):
+        if dispatch_context is not None and should_retry(exc):
             headers = getattr(exc, "litellm_response_headers", None)
             retry_after = parse_retry_after(headers) if headers is not None else None
             delay = calculate_backoff(0, retry_after)
             dispatch_context.signal_cooldown(delay)
+            _write_cooldown_event(
+                agent_id=agent_id,
+                delay_s=delay,
+                retry_after_header=retry_after,
+                cooldown_index=dispatch_context.cooldown_count,
+                exception_class=type(exc).__name__,
+            )
         return {
             "findings": [
                 {
@@ -1079,16 +1087,66 @@ async def _call_single_agent(
         }
 
 
-def _is_rate_limit_error(exc: BaseException) -> bool:
-    if type(exc).__name__ == "RateLimitError":
-        return True
-    status = getattr(exc, "status_code", None) or getattr(exc, "code", None)
-    if isinstance(status, str):
+def _write_cooldown_event(
+    *,
+    agent_id: str,
+    delay_s: float,
+    retry_after_header: float | None,
+    cooldown_index: int,
+    exception_class: str,
+) -> None:
+    """Append a cooldown_engaged record to the usage JSONL alongside per-call
+    entries. Captures cross-cluster cooldown coordination events that
+    logger.warning emits but doesn't structure — needed for post-mortem
+    analysis of 429 storms under Phase 2 shared-context dispatch.
+    """
+    try:
+        from dso_ci_review.cycle_ledger import _resolve_artifacts_dir  # noqa: PLC0415
+
+        artifacts_dir = _resolve_artifacts_dir()
+        usage_path = os.path.join(artifacts_dir, _USAGE_FILE_NAME)
+        lock_path = os.path.join(artifacts_dir, _USAGE_LOCK_FILE_NAME)
+        entry = {
+            "event": "cooldown_engaged",
+            "agent_id": agent_id,
+            "cycle": int(os.environ.get("DSO_REVIEW_CYCLE", "1") or "1"),
+            "delay_s": delay_s,
+            "retry_after_header": retry_after_header,
+            "cooldown_index": cooldown_index,
+            "exception_class": exception_class,
+            "timestamp_iso": datetime.now(timezone.utc).isoformat(),
+        }
+        lock_fd = open(lock_path, "w")  # noqa: WPS515
         try:
-            status = int(status)
-        except ValueError:
-            status = None
-    return status == 429
+            for _attempt in range(_USAGE_LOCK_MAX_RETRIES):
+                try:
+                    fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except (BlockingIOError, OSError):
+                    if _attempt + 1 >= _USAGE_LOCK_MAX_RETRIES:
+                        raise
+                    time.sleep(_USAGE_LOCK_RETRY_DELAY_SEC)
+            if os.path.exists(usage_path):
+                try:
+                    with open(usage_path, encoding="utf-8") as _f:
+                        data = json.load(_f)
+                except (json.JSONDecodeError, OSError):
+                    data = {"schema_version": _USAGE_SCHEMA_VERSION, "cycles": []}
+            else:
+                data = {"schema_version": _USAGE_SCHEMA_VERSION, "cycles": []}
+            if not isinstance(data.get("cycles"), list):
+                data["cycles"] = []
+            data["cycles"].append(entry)
+            with open(usage_path, "w", encoding="utf-8") as _f:
+                json.dump(data, _f)
+        finally:
+            try:
+                fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            except OSError:
+                pass
+            lock_fd.close()
+    except Exception:  # noqa: BLE001
+        pass  # fail-open: observability event is best-effort
 
 
 def dispatch_arch_synthesis(

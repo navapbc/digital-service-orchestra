@@ -21,25 +21,55 @@ def _make_cluster(cluster_id: str, files: list[str], findings: list[dict]) -> di
     }
 
 
+def _make_finding(severity: str, desc: str, cited: list[str]) -> dict:
+    return {
+        "severity": severity,
+        "category": "correctness",
+        "description": desc,
+        "file": cited[0].split(":")[0],
+        "cited_lines": cited,
+    }
+
+
 def test_aggregate_sorts_by_cluster_id():
-    """Input out-of-order; output preserved cluster ordering should be sorted."""
+    """Out-of-order clusters must be reordered before findings reach the
+    synthesis LLM, so the prompt is byte-identical across runs.
+
+    Earlier version checked result['cluster_results'] which is only populated
+    on the F4a aggregation-failure path — making the test vacuously pass on
+    the success path (it exited early via `if preserved is None: return`).
+    Now we capture _synthesize_via_llm's actual input directly.
+    """
+    captured: dict[str, list[dict] | None] = {"all_findings": None}
+
+    def _capture(all_findings, *args, **kwargs):
+        captured["all_findings"] = list(all_findings)
+        return None  # signals F4a fallback, but assertion runs first
+
     out_of_order = [
-        _make_cluster("cluster-c", ["c.py"], []),
-        _make_cluster("cluster-a", ["a.py"], []),
-        _make_cluster("cluster-b", ["b.py"], []),
+        _make_cluster(
+            "cluster-c", ["c.py"], [_make_finding("minor", "C-finding", ["c.py:1"])]
+        ),
+        _make_cluster(
+            "cluster-a", ["a.py"], [_make_finding("minor", "A-finding", ["a.py:1"])]
+        ),
+        _make_cluster(
+            "cluster-b", ["b.py"], [_make_finding("minor", "B-finding", ["b.py:1"])]
+        ),
     ]
 
     with patch(
-        "dso_ci_review.aggregator._synthesize_via_llm",
-        return_value=({"findings": []}, "ok"),
+        "dso_ci_review.aggregator._synthesize_via_llm", side_effect=_capture
     ):
-        result = aggregate_cluster_findings(cluster_results=out_of_order)
+        aggregate_cluster_findings(cluster_results=out_of_order)
 
-    preserved = result.get("cluster_results")
-    if preserved is None:
-        return
-    ids = [c["cluster_id"] for c in preserved]
-    assert ids == ["cluster-a", "cluster-b", "cluster-c"]
+    assert captured["all_findings"] is not None, (
+        "synthesis was not invoked — test cannot verify sort"
+    )
+    descriptions = [f["description"] for f in captured["all_findings"]]
+    assert descriptions == ["A-finding", "B-finding", "C-finding"], (
+        f"Findings reached synthesis in wrong order: {descriptions}"
+    )
 
 
 def test_aggregate_visibility_trailer_deterministic_across_orderings():

@@ -191,17 +191,16 @@ def should_retry(exc: BaseException) -> bool:
       - Explicit x-should-retry: true → retry, x-should-retry: false → no retry
       - Auth/validation 4xx (400, 401, 403, 404) → no retry
 
-    Also matches litellm.RateLimitError class directly so callers don't need
-    to import the litellm exception hierarchy.
+    Recognizes litellm exception class names (RateLimitError, APIError,
+    ServiceUnavailableError, Timeout) when the exception lacks the expected
+    headers/status_code attributes.
     """
     name = type(exc).__name__
-    if name in ("RateLimitError", "APIError", "ServiceUnavailableError", "Timeout"):
-        if name == "RateLimitError":
-            return True
-    headers = getattr(exc, "response", None)
     response_headers: dict[str, str] | None = None
-    if headers is not None:
-        rh = getattr(headers, "headers", None)
+
+    headers_obj = getattr(exc, "response", None)
+    if headers_obj is not None:
+        rh = getattr(headers_obj, "headers", None)
         if rh is not None:
             try:
                 response_headers = {
@@ -210,7 +209,7 @@ def should_retry(exc: BaseException) -> bool:
             except Exception:  # noqa: BLE001
                 response_headers = None
     if response_headers is None:
-        rh = getattr(exc, "headers", None)
+        rh = getattr(exc, "headers", None) or getattr(exc, "litellm_response_headers", None)
         if rh is not None and hasattr(rh, "items"):
             response_headers = {k.lower(): v for k, v in rh.items()}
 
@@ -222,9 +221,7 @@ def should_retry(exc: BaseException) -> bool:
             if x_should_retry.lower() == "false":
                 return False
 
-    status_code = getattr(exc, "status_code", None)
-    if status_code is None:
-        status_code = getattr(exc, "code", None)
+    status_code = getattr(exc, "status_code", None) or getattr(exc, "code", None)
     if isinstance(status_code, str):
         try:
             status_code = int(status_code)
@@ -233,7 +230,7 @@ def should_retry(exc: BaseException) -> bool:
     if isinstance(status_code, int):
         return status_code in _RETRYABLE_STATUS_CODES
 
-    return name == "RateLimitError"
+    return name in ("RateLimitError", "APIError", "ServiceUnavailableError", "Timeout")
 
 
 @dataclass
@@ -258,8 +255,9 @@ class DispatchContext:
     """
 
     cooldown_event: asyncio.Event = field(default_factory=asyncio.Event)
-    _timer_handle: asyncio.TimerHandle | None = None
-    _cooldown_count: int = 0
+    _timer_handle: asyncio.TimerHandle | None = field(default=None, init=False, repr=False)
+    _cooldown_deadline: float | None = field(default=None, init=False, repr=False)
+    _cooldown_count: int = field(default=0, init=False, repr=False)
 
     @classmethod
     def create(cls) -> "DispatchContext":
@@ -270,23 +268,40 @@ class DispatchContext:
     def signal_cooldown(self, delay_s: float) -> None:
         """Clear the cooldown_event and schedule it to re-arm after delay_s.
 
-        Safe to call multiple times — replaces any pending timer with the new
-        delay. The longest pending cooldown wins (we never shorten an active
-        cooldown by accident).
+        Safe to call multiple times. Longest-wins semantics: if an active
+        cooldown's deadline is later than (now + delay_s), the existing timer
+        is preserved — a shorter follow-on call cannot shrink an active longer
+        cooldown. This matters under Phase 2 shared-context dispatch: when one
+        cluster's 429 carries a 60s server Retry-After and a sibling cluster's
+        near-simultaneous 429 has no header (~0.4s exponential), the 60s
+        coordinated cooldown must survive the 0.4s call.
         """
         if delay_s <= 0:
             return
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
+        now = loop.time()
+        new_deadline = now + delay_s
+        if (
+            self._timer_handle is not None
+            and self._cooldown_deadline is not None
+            and self._cooldown_deadline >= new_deadline
+        ):
+            return
         if self._timer_handle is not None:
             self._timer_handle.cancel()
         self.cooldown_event.clear()
-        self._timer_handle = loop.call_later(delay_s, self.cooldown_event.set)
+        self._cooldown_deadline = new_deadline
+        self._timer_handle = loop.call_later(delay_s, self._fire_cooldown)
         self._cooldown_count += 1
         logger.warning(
             "Cooldown engaged: %.2fs (cooldown #%d this run)",
             delay_s,
             self._cooldown_count,
         )
+
+    def _fire_cooldown(self) -> None:
+        self._cooldown_deadline = None
+        self.cooldown_event.set()
 
     def cleanup(self) -> None:
         """Cancel any pending TimerHandle. Call in a finally block to avoid
@@ -296,6 +311,7 @@ class DispatchContext:
         if self._timer_handle is not None:
             self._timer_handle.cancel()
             self._timer_handle = None
+        self._cooldown_deadline = None
         if not self.cooldown_event.is_set():
             self.cooldown_event.set()
 

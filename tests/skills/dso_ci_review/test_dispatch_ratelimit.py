@@ -189,34 +189,69 @@ class TestDispatchContext:
 
         asyncio.run(_flow())
 
-    def test_replacing_cooldown_cancels_prior_timer(self) -> None:
+    def test_short_then_long_replaces_timer(self) -> None:
+        """0.05s → 0.5s direction: shorter active timer is replaced by longer one
+        (longest-wins is satisfied vacuously when the newer call is longer)."""
         async def _flow():
             ctx = DispatchContext.create()
             ctx.signal_cooldown(0.05)
             ctx.signal_cooldown(0.5)
             assert ctx.cooldown_count == 2
             assert not ctx.cooldown_event.is_set()
-            await asyncio.sleep(0.10)
+            await asyncio.sleep(0.15)
             assert not ctx.cooldown_event.is_set()
             ctx.cleanup()
 
         asyncio.run(_flow())
 
-    def test_cleanup_before_fire_emits_no_pending_warning(self) -> None:
-        """Must-fix 3: TimerHandle.cancel() in finally before the timer fires."""
+    def test_long_then_short_keeps_longer_timer(self) -> None:
+        """Longest-wins invariant: an active 5s cooldown must NOT be shortened
+        by a follow-on 0.05s call. This is the bug class that under Phase 2
+        shared-context dispatch would let a sibling's exponential 0.4s
+        backoff silently shrink a peer's 60s server-supplied Retry-After.
+        """
+        async def _flow():
+            ctx = DispatchContext.create()
+            ctx.signal_cooldown(5.0)
+            first_handle = ctx._timer_handle
+            assert first_handle is not None
+            assert ctx.cooldown_count == 1
+            ctx.signal_cooldown(0.05)
+            assert ctx._timer_handle is first_handle, (
+                "follow-on shorter signal must NOT replace the active timer"
+            )
+            assert ctx.cooldown_count == 1, (
+                "follow-on shorter signal must NOT increment cooldown_count"
+            )
+            assert not first_handle.cancelled()
+            await asyncio.sleep(0.15)
+            assert not ctx.cooldown_event.is_set(), (
+                "0.05s elapsed but the 5s cooldown should still hold"
+            )
+            ctx.cleanup()
+
+        asyncio.run(_flow())
+
+    def test_cleanup_cancels_active_timer_handle(self) -> None:
+        """cleanup() must cancel any pending TimerHandle so the call_later
+        callback does not fire on a destroyed/closed loop. The earlier
+        warnings.catch_warnings approach was vacuous — asyncio does not emit
+        Python warnings.warn() entries for uncancelled call_later handles;
+        verify TimerHandle.cancelled() directly.
+        """
         async def _flow():
             ctx = DispatchContext.create()
             ctx.signal_cooldown(10.0)
+            handle = ctx._timer_handle
+            assert handle is not None
+            assert not handle.cancelled()
             ctx.cleanup()
+            assert handle.cancelled(), "cleanup() failed to cancel the TimerHandle"
+            assert ctx._timer_handle is None
             assert ctx.cooldown_event.is_set()
+            assert ctx._cooldown_deadline is None
 
-        with warnings.catch_warnings(record=True) as captured:
-            warnings.simplefilter("always")
-            asyncio.run(_flow())
-            relevant = [
-                w for w in captured if "pending" in str(w.message).lower()
-            ]
-            assert relevant == [], [str(w.message) for w in relevant]
+        asyncio.run(_flow())
 
     def test_per_run_lifetime_separate_instances(self) -> None:
         """Must-fix 1: each asyncio.run gets its own context, not a module singleton."""

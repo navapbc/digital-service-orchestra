@@ -2020,6 +2020,36 @@ def _post_cycle_marker_comment(
 _CYCLE_1_STAGGER_S: float = 0.4
 
 
+async def _gather_clusters(
+    *,
+    specs: list[dict],
+    tier_agents: list[dict],
+    sem: asyncio.Semaphore,
+    dispatch_ctx: DispatchContext,
+    cycle_number: int,
+    diff_text_fallback: str,
+) -> list[dict]:
+    """Gather all clusters' _run_cluster coroutines under a shared
+    DispatchContext. Extracted to module scope so the test suite can exercise
+    it directly and so the strategy_f block in main() stays small.
+    """
+    return await asyncio.gather(
+        *[
+            _run_cluster(
+                spec=spec,
+                tier_agents=tier_agents,
+                sem=sem,
+                dispatch_ctx=dispatch_ctx,
+                cluster_index=idx,
+                cycle_number=cycle_number,
+                diff_text_fallback=diff_text_fallback,
+            )
+            for idx, spec in enumerate(specs)
+        ],
+        return_exceptions=True,
+    )
+
+
 async def _run_cluster(
     spec: dict,
     tier_agents: list[dict],
@@ -2449,25 +2479,17 @@ def main() -> int:
                 file=sys.stderr,
             )
 
-            async def _gather_clusters() -> list[dict]:
-                return await asyncio.gather(
-                    *[
-                        _run_cluster(
-                            spec=_spec,
-                            tier_agents=tier_agents,
-                            sem=_cluster_sem,
-                            dispatch_ctx=_dispatch_ctx,
-                            cluster_index=_idx,
-                            cycle_number=cycle_number,
-                            diff_text_fallback=diff_text,
-                        )
-                        for _idx, _spec in enumerate(_filtered_specs)
-                    ],
-                    return_exceptions=True,
-                )
-
             try:
-                _raw_results = asyncio.run(_gather_clusters())
+                _raw_results = asyncio.run(
+                    _gather_clusters(
+                        specs=_filtered_specs,
+                        tier_agents=tier_agents,
+                        sem=_cluster_sem,
+                        dispatch_ctx=_dispatch_ctx,
+                        cycle_number=cycle_number,
+                        diff_text_fallback=diff_text,
+                    )
+                )
             finally:
                 _dispatch_ctx.cleanup()
 
