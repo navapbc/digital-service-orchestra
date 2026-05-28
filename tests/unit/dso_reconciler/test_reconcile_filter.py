@@ -14,9 +14,7 @@ import json
 import sys
 import types
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
-import pytest
 
 # ---------------------------------------------------------------------------
 # Load reconcile.py via importlib (same pattern as test_reconcile_main.py)

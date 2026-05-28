@@ -43,7 +43,7 @@ declare -A MATRIX=()
 
 TRACKER_DIR="${REPO_ROOT}/.tickets-tracker"  # tickets-boundary-ok
 PREV_SNAPSHOT="${TRACKER_DIR}/.bridge_state/prev_snapshot.json"
-PREV_SNAPSHOT_BACKUP="${TRACKER_DIR}/.bridge_state/prev_snapshot.json.probe-backup"
+PREV_SNAPSHOT_BACKUP=""
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -76,7 +76,7 @@ matrix_set() {
 
 # shellcheck disable=SC2329 # invoked via trap
 restore_snapshot() {
-    if [ -f "$PREV_SNAPSHOT_BACKUP" ]; then
+    if [ -n "$PREV_SNAPSHOT_BACKUP" ] && [ -f "$PREV_SNAPSHOT_BACKUP" ]; then
         cp "$PREV_SNAPSHOT_BACKUP" "$PREV_SNAPSHOT"
         rm -f "$PREV_SNAPSHOT_BACKUP"
         echo "Restored prev_snapshot.json from backup."
@@ -204,12 +204,23 @@ jira_update_issue() {
     local key="$1"
     shift
     cd "$RECONCILER_DIR"
+    local kwargs_json
+    kwargs_json=$(python3 -c "
+import json, sys
+kwargs = {}
+for arg in sys.argv[1:]:
+    k, v = arg.split('=', 1)
+    kwargs[k] = v
+print(json.dumps(kwargs))
+" "$@")
     python3 -c "
-import importlib.util, os
+import importlib.util, os, json, sys
 spec = importlib.util.spec_from_file_location('acli', '${_SCRIPTS_DIR}/acli-integration.py')
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
-mod.update_issue('${key}', $*)"
+kwargs = json.loads(sys.argv[1])
+mod.update_issue('${key}', **kwargs)
+" "$kwargs_json"
 }
 
 jira_update_priority() {
@@ -403,8 +414,9 @@ else
     pass_test "Phase0.get-myself (${PROBE_USER})"
 fi
 
-# Save snapshot
+# Save snapshot (unique temp file to avoid collisions with concurrent probes)
 if [ -f "$PREV_SNAPSHOT" ]; then
+    PREV_SNAPSHOT_BACKUP=$(mktemp "${TRACKER_DIR}/.bridge_state/prev_snapshot.json.probe-backup.XXXXXX")
     cp "$PREV_SNAPSHOT" "$PREV_SNAPSHOT_BACKUP"
     pass_test "Phase0.snapshot-backup"
 else
@@ -758,13 +770,13 @@ echo ""
 
 # Ticket 1: edit summary in Jira
 if [ -n "${JIRA_KEYS[0]}" ]; then
-    jira_update_issue "${JIRA_KEYS[0]}" "summary='FIELD-PROBE-1: JIRA-EDITED ${PROBE_TS}'" 2>&1 || true
+    jira_update_issue "${JIRA_KEYS[0]}" "summary=FIELD-PROBE-1: JIRA-EDITED ${PROBE_TS}" 2>&1 || true
     pass_test "Phase3.jira-edit-summary"
 fi
 
 # Ticket 1: edit description in Jira
 if [ -n "${JIRA_KEYS[0]}" ]; then
-    jira_update_issue "${JIRA_KEYS[0]}" "description='Jira-edited description'" 2>&1 || true
+    jira_update_issue "${JIRA_KEYS[0]}" "description=Jira-edited description" 2>&1 || true
     pass_test "Phase3.jira-edit-description"
 fi
 
@@ -776,7 +788,7 @@ fi
 
 # Ticket 5: re-assign from Jira side
 if [ "$ASSIGNEE_SKIP" = false ] && [ -n "${JIRA_KEYS[4]}" ]; then
-    jira_update_issue "${JIRA_KEYS[4]}" "assignee='${PROBE_USER}'" 2>&1 || true
+    jira_update_issue "${JIRA_KEYS[4]}" "assignee=${PROBE_USER}" 2>&1 || true
     pass_test "Phase3.jira-edit-assignee"
 fi
 

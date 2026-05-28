@@ -444,7 +444,6 @@ def reconcile_once(
     # Filtered passes skip invariant bug-filing to avoid side effects on
     # pre-existing violations outside the test scope.
     if filter_local_ids:
-        filed = []
         print(  # noqa: T201
             f"invariants: skipped (filtered pass, {len(curr_snapshot)} issues in snapshot)"
         )

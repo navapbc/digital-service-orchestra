@@ -348,10 +348,18 @@ def main(argv: list[str] | None = None) -> int:
     advisory.acquire_pass_lock(pass_id, repo_root)
     try:
         filter_local_ids: set[str] | None = None
-        if args.filter_local_ids:
-            filter_local_ids = {
+        if args.filter_local_ids is not None:
+            parsed = {
                 s.strip() for s in args.filter_local_ids.split(",") if s.strip()
             }
+            if not parsed:
+                print(
+                    "ERROR: --filter-local-ids must contain at least one "
+                    "non-empty ID",
+                    file=sys.stderr,
+                )
+                return 2
+            filter_local_ids = parsed
         return run_pass(
             repo_root=repo_root,
             pass_id=pass_id,
