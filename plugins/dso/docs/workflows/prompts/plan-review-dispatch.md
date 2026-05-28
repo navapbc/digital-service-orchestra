@@ -26,6 +26,7 @@ Is the plan doing too much?
 - Are there unnecessary abstractions or premature generalizations?
 - Could anything be simplified without losing value?
 - Are there features or capabilities that weren't asked for?
+- **Config-surface check** (bug 70fe-1c39): does the plan introduce a new `dso-config.conf` key? If so, has the plan surveyed existing keys in `${CLAUDE_PLUGIN_ROOT}/config/dso-config.reference.conf` and explained why none can be extended or reinterpreted? Flag plans that mint new keys without an explicit consolidation rationale — config proliferation produces contradictory derived modes and silent misconfigurations.
 
 ### 4. Codebase Alignment
 Does the plan match how this project actually works?
