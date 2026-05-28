@@ -755,6 +755,12 @@ test_dispatcher_commit_scoped_diff() {
     git -C "$repo" add reviewed.py > /dev/null 2>&1
     git -C "$repo" commit -m "Reviewed commit" > /dev/null 2>&1
 
+    # Set up origin/main BEFORE creating the unreviewed commit so the filter
+    # can resolve origin/main but the unreviewed SHA is NOT yet on it (R3a v4.1).
+    git -C "$repo" init --bare "$repo/origin.git" > /dev/null 2>&1
+    git -C "$repo" remote add origin "$repo/origin.git" > /dev/null 2>&1
+    git -C "$repo" push origin main > /dev/null 2>&1
+
     printf 'unreviewed change\n' > "$repo/unreviewed.py"
     git -C "$repo" add unreviewed.py > /dev/null 2>&1
     git -C "$repo" commit -m "Unreviewed commit" > /dev/null 2>&1
@@ -888,6 +894,12 @@ test_dispatcher_size_cap_triggers_overbound() {
     git -C "$repo" add init.txt > /dev/null 2>&1
     git -C "$repo" commit -m "initial" > /dev/null 2>&1
 
+    # Set up origin/main BEFORE the big commit so filter can resolve origin/main
+    # but the big commit is NOT yet on it (R3a v4.1 dependency).
+    git -C "$repo" init --bare "$repo/origin.git" > /dev/null 2>&1
+    git -C "$repo" remote add origin "$repo/origin.git" > /dev/null 2>&1
+    git -C "$repo" push origin main > /dev/null 2>&1
+
     # Add a commit with a substantial diff
     for i in 1 2 3 4 5; do
         printf 'line %s\n%s\n' "$i" "$(printf 'padding %.0s' {1..100})" > "$repo/file${i}.txt"
@@ -933,6 +945,370 @@ test_dispatcher_size_cap_triggers_overbound() {
     assert_pass_if_clean "test_dispatcher_size_cap_triggers_overbound"
 }
 
+# ── Test R3a v4.1: already-merged SHAs filtered from commit-scoped diff ──────
+# When _DISPATCH_SCOPE_FILE contains SHAs already reachable from origin/main
+# (e.g. squash-merged PR commits), they must be filtered out before the
+# commit-scoped diff is generated. Otherwise the diff payload includes
+# already-shipped code, potentially exploding to thousands of files.
+test_dispatcher_filters_already_merged_shas() {
+    _snapshot_fail
+    if [[ ! -f "$WRAPPER" ]]; then
+        assert_eq "test_dispatcher_filters_already_merged_shas: wrapper must exist" \
+            "wrapper_exists" "wrapper_missing"
+        assert_pass_if_clean "test_dispatcher_filters_already_merged_shas"
+        return
+    fi
+
+    # Build a repo with: main has commits A→B; branch has commits A→B→C.
+    # Mark BOTH B and C as "unprovenanced" — the filter should remove B
+    # (reachable from main) and only review C.
+    local repo
+    repo="$(mktemp -d)"
+    git -C "$repo" init -b main > /dev/null 2>&1
+    git -C "$repo" config user.name "Test" > /dev/null 2>&1
+    git -C "$repo" config user.email "test@test.com" > /dev/null 2>&1
+    printf 'A\n' > "$repo/a.txt"
+    git -C "$repo" add a.txt > /dev/null 2>&1
+    git -C "$repo" commit -m "A" > /dev/null 2>&1
+    printf 'B\n' > "$repo/b.txt"
+    git -C "$repo" add b.txt > /dev/null 2>&1
+    git -C "$repo" commit -m "B (on main and branch)" > /dev/null 2>&1
+    local merged_sha
+    merged_sha="$(git -C "$repo" rev-parse HEAD)"
+
+    # Create an origin remote so origin/main is resolvable
+    git -C "$repo" init --bare "$repo/origin.git" > /dev/null 2>&1 || true
+    (cd "$repo" && git remote add origin "$repo/origin.git" 2>/dev/null && git push origin main > /dev/null 2>&1) || true
+
+    # Add C on branch (not on main)
+    git -C "$repo" checkout -b branch > /dev/null 2>&1
+    printf 'C\n' > "$repo/c.txt"
+    git -C "$repo" add c.txt > /dev/null 2>&1
+    git -C "$repo" commit -m "C (branch only)" > /dev/null 2>&1
+    local unmerged_sha
+    unmerged_sha="$(git -C "$repo" rev-parse HEAD)"
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+    date -u +%Y-%m-%dT%H:%M:%SZ > "$artifact_dir/provenance-complete.marker"
+    # Seed with BOTH SHAs — filter should remove merged_sha
+    printf '%s\n%s\n' "$merged_sha" "$unmerged_sha" > "$artifact_dir/unprovenanced-shas.txt"
+
+    _make_mock_gh
+    local diff_log
+    diff_log="$(mktemp "$TMPDIR_TEST/runner-filtered-diff.XXXXXX")"
+    cat > "$MOCK_BIN/ci-llm-review-runner.sh" << MOCKEOF
+#!/usr/bin/env bash
+if [[ -n "\${DSO_CI_REVIEW_DIFF_PATH:-}" && -f "\${DSO_CI_REVIEW_DIFF_PATH}" ]]; then
+    cat "\${DSO_CI_REVIEW_DIFF_PATH}" > "$diff_log"
+fi
+exit 0
+MOCKEOF
+    chmod +x "$MOCK_BIN/ci-llm-review-runner.sh"
+
+    (
+        cd "$repo" || exit 1
+        PATH="$MOCK_BIN:$PATH" \
+        PR_NUMBER=99 \
+        DSO_RUNNER_PATH="$MOCK_BIN/ci-llm-review-runner.sh" \
+        DSO_ARTIFACT_DIR="$artifact_dir" \
+            bash "$WRAPPER" > /dev/null 2>/dev/null || true
+    )
+
+    local diff_content
+    diff_content="$(cat "$diff_log" 2>/dev/null || echo '')"
+    # b.txt (already merged) should NOT appear; c.txt (unmerged) should appear
+    local has_b="no" has_c="no"
+    if echo "$diff_content" | grep -q 'b.txt'; then has_b="yes"; fi
+    if echo "$diff_content" | grep -q 'c.txt'; then has_c="yes"; fi
+
+    assert_eq "test_dispatcher_filters_already_merged_shas: c.txt (unmerged) in diff" \
+        "yes" "$has_c"
+    assert_eq "test_dispatcher_filters_already_merged_shas: b.txt (already merged) NOT in diff" \
+        "no" "$has_b"
+
+    rm -rf "$repo" "$artifact_dir" "$diff_log"
+    assert_pass_if_clean "test_dispatcher_filters_already_merged_shas"
+}
+
+# ── Test R3a v4.1: unresolvable main ref fails closed (not unfiltered) ───────
+# When origin/main can't be resolved (no remote, fresh clone), the dispatcher
+# MUST fail closed rather than fall through to unfiltered explosive iteration.
+test_dispatcher_unresolvable_main_fails_closed() {
+    _snapshot_fail
+    if [[ ! -f "$WRAPPER" ]]; then
+        assert_eq "test_dispatcher_unresolvable_main_fails_closed: wrapper must exist" \
+            "wrapper_exists" "wrapper_missing"
+        assert_pass_if_clean "test_dispatcher_unresolvable_main_fails_closed"
+        return
+    fi
+
+    # Build a repo with NO origin remote
+    local repo
+    repo="$(mktemp -d)"
+    git -C "$repo" init -b main > /dev/null 2>&1
+    git -C "$repo" config user.name "Test" > /dev/null 2>&1
+    git -C "$repo" config user.email "test@test.com" > /dev/null 2>&1
+    printf 'A\n' > "$repo/a.txt"
+    git -C "$repo" add a.txt > /dev/null 2>&1
+    git -C "$repo" commit -m "A" > /dev/null 2>&1
+    local sha
+    sha="$(git -C "$repo" rev-parse HEAD)"
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+    date -u +%Y-%m-%dT%H:%M:%SZ > "$artifact_dir/provenance-complete.marker"
+    printf '%s\n' "$sha" > "$artifact_dir/unprovenanced-shas.txt"
+
+    _make_mock_gh
+    local exit_code=0
+    local output
+    output=$(
+        cd "$repo" || exit 1
+        PATH="$MOCK_BIN:$PATH" \
+        PR_NUMBER=99 \
+        DSO_ARTIFACT_DIR="$artifact_dir" \
+            bash "$WRAPPER" 2>&1
+    ) || exit_code=$?
+
+    assert_eq "test_dispatcher_unresolvable_main_fails_closed: exits 1 (not 0/3) when origin/main unresolvable" \
+        "1" "$exit_code"
+    assert_contains "test_dispatcher_unresolvable_main_fails_closed: error mentions remediation" \
+        "not resolvable" "$output"
+
+    rm -rf "$repo" "$artifact_dir"
+    assert_pass_if_clean "test_dispatcher_unresolvable_main_fails_closed"
+}
+
+# ── Test R3a v4.1: shallow clone fails closed ────────────────────────────────
+# A shallow clone of origin/main only has a few commits in its rev-list.
+# The filter would be a no-op and the original PR #425 explosion would
+# recur. Dispatcher must detect this and fail closed.
+test_dispatcher_shallow_clone_fails_closed() {
+    _snapshot_fail
+    if [[ ! -f "$WRAPPER" ]]; then
+        assert_eq "test_dispatcher_shallow_clone_fails_closed: wrapper must exist" \
+            "wrapper_exists" "wrapper_missing"
+        assert_pass_if_clean "test_dispatcher_shallow_clone_fails_closed"
+        return
+    fi
+
+    # Create an origin with multiple commits, then shallow-clone it
+    local origin
+    origin="$(mktemp -d)"
+    git -C "$origin" init --bare > /dev/null 2>&1
+
+    local seed
+    seed="$(mktemp -d)"
+    git -C "$seed" init -b main > /dev/null 2>&1
+    git -C "$seed" config user.name "Test" > /dev/null 2>&1
+    git -C "$seed" config user.email "test@test.com" > /dev/null 2>&1
+    for i in 1 2 3; do
+        printf 'commit %s\n' "$i" > "$seed/file${i}.txt"
+        git -C "$seed" add "file${i}.txt" > /dev/null 2>&1
+        git -C "$seed" commit -m "C${i}" > /dev/null 2>&1
+    done
+    git -C "$seed" remote add origin "$origin" > /dev/null 2>&1
+    git -C "$seed" push origin main > /dev/null 2>&1
+    rm -rf "$seed"
+
+    # Shallow clone — `git clone --depth=1` from a local bare repo may NOT
+    # actually create a shallow state (local clones hardlink by default).
+    # Force-shallow by writing the .git/shallow marker file directly.
+    local repo
+    repo="$(mktemp -d)"
+    git clone --no-local --depth=1 "file://$origin" "$repo" > /dev/null 2>&1
+    git -C "$repo" config user.name "Test" > /dev/null 2>&1
+    git -C "$repo" config user.email "test@test.com" > /dev/null 2>&1
+    # Ensure shallow state — write the marker if clone didn't (some git versions)
+    if [[ "$(git -C "$repo" rev-parse --is-shallow-repository)" != "true" ]]; then
+        git -C "$repo" rev-parse HEAD > "$repo/.git/shallow"
+    fi
+    local sha
+    sha="$(git -C "$repo" rev-parse HEAD)"
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+    date -u +%Y-%m-%dT%H:%M:%SZ > "$artifact_dir/provenance-complete.marker"
+    printf '%s\n' "$sha" > "$artifact_dir/unprovenanced-shas.txt"
+
+    _make_mock_gh
+    local exit_code=0
+    local output
+    output=$(
+        cd "$repo" || exit 1
+        PATH="$MOCK_BIN:$PATH" \
+        PR_NUMBER=99 \
+        DSO_ARTIFACT_DIR="$artifact_dir" \
+            bash "$WRAPPER" 2>&1
+    ) || exit_code=$?
+
+    assert_eq "test_dispatcher_shallow_clone_fails_closed: exits 1 on shallow repo" \
+        "1" "$exit_code"
+    assert_contains "test_dispatcher_shallow_clone_fails_closed: error mentions shallow + remediation" \
+        "shallow" "$output"
+
+    rm -rf "$repo" "$origin" "$artifact_dir"
+    assert_pass_if_clean "test_dispatcher_shallow_clone_fails_closed"
+}
+
+# ── Test R3a v4.1: PR #425 regression — many merged + few unmerged ────────────
+# Direct anchor against the bug being fixed. Seed scope with 50 already-merged
+# SHAs + 2 unmerged SHAs; dispatched diff must contain only the 2 unmerged
+# commits' changes, NOT all 52.
+test_dispatcher_regression_pr425_giant_diff() {
+    _snapshot_fail
+    if [[ ! -f "$WRAPPER" ]]; then
+        assert_eq "test_dispatcher_regression_pr425_giant_diff: wrapper must exist" \
+            "wrapper_exists" "wrapper_missing"
+        assert_pass_if_clean "test_dispatcher_regression_pr425_giant_diff"
+        return
+    fi
+
+    local repo
+    repo="$(mktemp -d)"
+    git -C "$repo" init -b main > /dev/null 2>&1
+    git -C "$repo" config user.name "Test" > /dev/null 2>&1
+    git -C "$repo" config user.email "test@test.com" > /dev/null 2>&1
+    printf 'init\n' > "$repo/init.txt"
+    git -C "$repo" add init.txt > /dev/null 2>&1
+    git -C "$repo" commit -m "init" > /dev/null 2>&1
+
+    # Create 50 commits on main, capture all SHAs
+    local merged_shas=()
+    for i in $(seq 1 50); do
+        printf 'main commit %s\n' "$i" > "$repo/main_file_${i}.txt"
+        git -C "$repo" add "main_file_${i}.txt" > /dev/null 2>&1
+        git -C "$repo" commit -m "M${i}" > /dev/null 2>&1
+        merged_shas+=("$(git -C "$repo" rev-parse HEAD)")
+    done
+
+    # Set up origin
+    git -C "$repo" init --bare "$repo/origin.git" > /dev/null 2>&1
+    git -C "$repo" remote add origin "$repo/origin.git" > /dev/null 2>&1
+    git -C "$repo" push origin main > /dev/null 2>&1
+
+    # Now add 2 commits on a branch (NOT on main)
+    git -C "$repo" checkout -b feature > /dev/null 2>&1
+    printf 'unmerged 1\n' > "$repo/unmerged_1.txt"
+    git -C "$repo" add unmerged_1.txt > /dev/null 2>&1
+    git -C "$repo" commit -m "U1" > /dev/null 2>&1
+    local unmerged_sha_1
+    unmerged_sha_1="$(git -C "$repo" rev-parse HEAD)"
+    printf 'unmerged 2\n' > "$repo/unmerged_2.txt"
+    git -C "$repo" add unmerged_2.txt > /dev/null 2>&1
+    git -C "$repo" commit -m "U2" > /dev/null 2>&1
+    local unmerged_sha_2
+    unmerged_sha_2="$(git -C "$repo" rev-parse HEAD)"
+
+    # Seed unprovenanced with ALL 52 SHAs — filter should reduce to 2
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+    date -u +%Y-%m-%dT%H:%M:%SZ > "$artifact_dir/provenance-complete.marker"
+    {
+        printf '%s\n' "${merged_shas[@]}"
+        printf '%s\n' "$unmerged_sha_1"
+        printf '%s\n' "$unmerged_sha_2"
+    } > "$artifact_dir/unprovenanced-shas.txt"
+
+    _make_mock_gh
+    local diff_log
+    diff_log="$(mktemp "$TMPDIR_TEST/runner-regression-diff.XXXXXX")"
+    cat > "$MOCK_BIN/ci-llm-review-runner.sh" << MOCKEOF
+#!/usr/bin/env bash
+if [[ -n "\${DSO_CI_REVIEW_DIFF_PATH:-}" && -f "\${DSO_CI_REVIEW_DIFF_PATH}" ]]; then
+    cat "\${DSO_CI_REVIEW_DIFF_PATH}" > "$diff_log"
+fi
+exit 0
+MOCKEOF
+    chmod +x "$MOCK_BIN/ci-llm-review-runner.sh"
+
+    (
+        cd "$repo" || exit 1
+        PATH="$MOCK_BIN:$PATH" \
+        PR_NUMBER=99 \
+        DSO_RUNNER_PATH="$MOCK_BIN/ci-llm-review-runner.sh" \
+        DSO_ARTIFACT_DIR="$artifact_dir" \
+            bash "$WRAPPER" > /dev/null 2>/dev/null || true
+    )
+
+    # Dispatched diff must contain unmerged files but NOT any merged files
+    local diff_content
+    diff_content="$(cat "$diff_log" 2>/dev/null || echo '')"
+    local has_unmerged_1="no" has_unmerged_2="no"
+    if echo "$diff_content" | grep -q 'unmerged_1.txt'; then has_unmerged_1="yes"; fi
+    if echo "$diff_content" | grep -q 'unmerged_2.txt'; then has_unmerged_2="yes"; fi
+
+    # Count merged files that appear (must be 0)
+    local merged_file_count
+    merged_file_count="$(echo "$diff_content" | grep -c 'main_file_' || echo 0)"
+
+    assert_eq "test_dispatcher_regression_pr425_giant_diff: unmerged_1 in diff" \
+        "yes" "$has_unmerged_1"
+    assert_eq "test_dispatcher_regression_pr425_giant_diff: unmerged_2 in diff" \
+        "yes" "$has_unmerged_2"
+    assert_eq "test_dispatcher_regression_pr425_giant_diff: ZERO merged files in diff" \
+        "0" "$merged_file_count"
+
+    rm -rf "$repo" "$artifact_dir" "$diff_log"
+    assert_pass_if_clean "test_dispatcher_regression_pr425_giant_diff"
+}
+
+# ── Test R3a v4.1: all-merged scope skips review with clear conclusion ────────
+# When all unprovenanced SHAs are reachable from origin/main, the filter
+# removes everything; dispatcher emits skipped conclusion (don't fail-closed,
+# don't re-review already-shipped code).
+test_dispatcher_all_scope_merged_skips() {
+    _snapshot_fail
+    if [[ ! -f "$WRAPPER" ]]; then
+        assert_eq "test_dispatcher_all_scope_merged_skips: wrapper must exist" \
+            "wrapper_exists" "wrapper_missing"
+        assert_pass_if_clean "test_dispatcher_all_scope_merged_skips"
+        return
+    fi
+
+    local repo
+    repo="$(mktemp -d)"
+    git -C "$repo" init -b main > /dev/null 2>&1
+    git -C "$repo" config user.name "Test" > /dev/null 2>&1
+    git -C "$repo" config user.email "test@test.com" > /dev/null 2>&1
+    printf 'A\n' > "$repo/a.txt"
+    git -C "$repo" add a.txt > /dev/null 2>&1
+    git -C "$repo" commit -m "A" > /dev/null 2>&1
+    local merged_sha
+    merged_sha="$(git -C "$repo" rev-parse HEAD)"
+
+    git -C "$repo" init --bare "$repo/origin.git" > /dev/null 2>&1 || true
+    (cd "$repo" && git remote add origin "$repo/origin.git" 2>/dev/null && git push origin main > /dev/null 2>&1) || true
+
+    local artifact_dir
+    artifact_dir="$(mktemp -d)"
+    date -u +%Y-%m-%dT%H:%M:%SZ > "$artifact_dir/provenance-complete.marker"
+    # Seed with ONLY the already-merged SHA
+    printf '%s\n' "$merged_sha" > "$artifact_dir/unprovenanced-shas.txt"
+
+    _make_mock_gh
+    local output
+    local exit_code=0
+    output=$(
+        cd "$repo" || exit 1
+        PATH="$MOCK_BIN:$PATH" \
+        PR_NUMBER=99 \
+        DSO_ARTIFACT_DIR="$artifact_dir" \
+            bash "$WRAPPER" 2>&1
+    ) || exit_code=$?
+
+    assert_eq "test_dispatcher_all_scope_merged_skips: exits 0 when all scope already merged" \
+        "0" "$exit_code"
+    assert_contains "test_dispatcher_all_scope_merged_skips: output contains CONCLUSION skipped" \
+        "CONCLUSION: skipped" "$output"
+    assert_contains "test_dispatcher_all_scope_merged_skips: output explains all-merged reason" \
+        "already reachable from" "$output"
+
+    rm -rf "$repo" "$artifact_dir"
+    assert_pass_if_clean "test_dispatcher_all_scope_merged_skips"
+}
+
 # ── Run all tests ─────────────────────────────────────────────────────────────
 test_wrapper_exists
 test_exit0_skips_runner
@@ -951,5 +1327,10 @@ test_dispatcher_supplies_diff_to_runner
 test_dispatcher_commit_scoped_diff
 test_dispatcher_commit_scoped_diff_empty_fails_closed
 test_dispatcher_size_cap_triggers_overbound
+test_dispatcher_filters_already_merged_shas
+test_dispatcher_unresolvable_main_fails_closed
+test_dispatcher_shallow_clone_fails_closed
+test_dispatcher_regression_pr425_giant_diff
+test_dispatcher_all_scope_merged_skips
 
 print_summary

@@ -287,6 +287,96 @@ case "$provenance_exit" in
     _COMMIT_SCOPED=false
 
     if [[ -n "$_DISPATCH_SCOPE_FILE" && -s "$_DISPATCH_SCOPE_FILE" ]]; then
+        # R3a v4.1: Filter out SHAs already reachable from origin/main BEFORE
+        # generating the commit-scoped diff. The provenance verifier walks
+        # BASE_SHA..SESSION_HEAD and may classify commits as "unprovenanced"
+        # even when they are already on main (e.g. squash-merged PRs leave the
+        # original SHAs uncovered by the new squash commit). Iterating those
+        # already-shipped SHAs is wasteful at best and explosive at worst:
+        # 6000+ stale unprovenanced entries can produce a 4M-line diff payload
+        # by concatenating every historical commit's full diff.
+        #
+        # Failure-mode policy (post-review hardening — bug PR #425):
+        #   - ${_MAIN_REF} unresolvable → FAIL-CLOSED (exit 1). Falling through
+        #     unfiltered reintroduces the original explosion.
+        #   - Shallow clone (rev-list returns truncated history) → FAIL-CLOSED
+        #     with deepen instruction.
+        #   - comm or sort fails (internal tooling error) → FAIL-CLOSED. Silent
+        #     route-to-SKIP would be an 8a77-class silent-skip-without-review
+        #     hole (CLAUDE.md rule:agent-success-check).
+        _MAIN_REF="origin/${GITHUB_BASE_REF:-main}"
+        if ! git rev-parse --verify --quiet "$_MAIN_REF" >/dev/null 2>&1; then
+            echo "ERROR: ${_MAIN_REF} not resolvable — cannot filter already-merged SHAs" >&2
+            echo "ERROR: refusing to dispatch unfiltered scope — would re-review thousands of already-shipped commits if provenance cache is stale (bug PR #425)" >&2
+            echo "ERROR: ensure the workflow checks out the base ref. For PR contexts, the base ref must be fetched via actions/checkout's fetch-depth: 0." >&2
+            exit 1
+        fi
+        # Shallow-clone detection: rev-list on a depth-1 clone returns ~1 SHA;
+        # filter becomes a no-op and the original explosion recurs.
+        if [[ "$(git rev-parse --is-shallow-repository 2>/dev/null)" == "true" ]]; then
+            echo "ERROR: repository is shallow — git rev-list ${_MAIN_REF} would return truncated history" >&2
+            echo "ERROR: already-merged SHA filter cannot operate reliably on shallow clones" >&2
+            echo "ERROR: remediation: set actions/checkout fetch-depth to 0, OR run \`git fetch --unshallow\` before dispatch" >&2
+            exit 1
+        fi
+
+        _FILTERED_SCOPE_FILE=$(mktemp /tmp/dso-filtered-scope.XXXXXX)
+        _COMM_STDERR=$(mktemp /tmp/dso-comm-stderr.XXXXXX)
+        _SCOPE_SORTED=$(mktemp /tmp/dso-scope-sorted.XXXXXX)
+        _MAIN_SORTED=$(mktemp /tmp/dso-main-sorted.XXXXXX)
+        # Update trap to clean up all temp files
+        trap 'rm -f "$_DIFF_PATH" "${_FORCE_SCOPE_FILE:-}" "${_FILTERED_SCOPE_FILE:-}" "${_COMM_STDERR:-}" "${_SCOPE_SORTED:-}" "${_MAIN_SORTED:-}"' EXIT
+
+        # Sort+comm subtract: O(n log n) instead of O(n*m) for per-SHA
+        # ancestor checks. _DISPATCH_SCOPE_FILE may contain thousands of
+        # SHAs; per-SHA `git merge-base --is-ancestor` would take minutes.
+        # Sort outputs into named files (not process substitution) so we can
+        # capture per-step exit codes — silent failures inside <( ) are an
+        # 8a77-class silent-skip risk.
+        if ! sort -u "$_DISPATCH_SCOPE_FILE" > "$_SCOPE_SORTED" 2>"$_COMM_STDERR"; then
+            echo "ERROR: failed to sort scope file: $(cat "$_COMM_STDERR")" >&2
+            exit 1
+        fi
+        if ! git rev-list "$_MAIN_REF" 2>>"$_COMM_STDERR" | sort -u > "$_MAIN_SORTED" 2>>"$_COMM_STDERR"; then
+            echo "ERROR: failed to enumerate ${_MAIN_REF} commits: $(cat "$_COMM_STDERR")" >&2
+            exit 1
+        fi
+        if [[ ! -s "$_MAIN_SORTED" ]]; then
+            # Empty rev-list output means either the ref is empty (shallow
+            # check above should catch this) or a hidden failure. Either way,
+            # we cannot reliably filter. Fail-closed.
+            echo "ERROR: git rev-list ${_MAIN_REF} returned no commits — filter would be a no-op" >&2
+            echo "ERROR: refusing to dispatch potentially-explosive unfiltered scope" >&2
+            exit 1
+        fi
+        if ! comm -23 "$_SCOPE_SORTED" "$_MAIN_SORTED" > "$_FILTERED_SCOPE_FILE" 2>"$_COMM_STDERR"; then
+            echo "ERROR: comm failed to compute scope-minus-main: $(cat "$_COMM_STDERR")" >&2
+            exit 1
+        fi
+        _pre_filter=$(wc -l < "$_DISPATCH_SCOPE_FILE" | tr -d ' ')
+        _post_filter=$(wc -l < "$_FILTERED_SCOPE_FILE" | tr -d ' ')
+        _filtered_out=$(( _pre_filter - _post_filter ))
+        if (( _filtered_out > 0 )); then
+            echo "INFO: filtered ${_filtered_out} already-merged SHA(s) from scope (${_pre_filter} → ${_post_filter})"
+        fi
+        _DISPATCH_SCOPE_FILE="$_FILTERED_SCOPE_FILE"
+
+        # If filter removed all SHAs, every commit in scope was already on main.
+        # That's the "all-provenanced via squash-merge" case — exit 0 SKIP with
+        # a clear log so operators see what happened. WARNING-level (not INFO)
+        # because this is an audit-relevant skip.
+        if [[ ! -s "$_DISPATCH_SCOPE_FILE" ]]; then
+            echo "CONCLUSION: skipped"
+            echo "WARNING: all ${_pre_filter} unprovenanced commits were already reachable from ${_MAIN_REF}" >&2
+            echo "WARNING: skipping review — code is already shipped to main" >&2
+            echo "AUDIT: decision_record=skip reason=all_scope_already_merged scope_size=${_pre_filter} main_ref=${_MAIN_REF}"
+            _output_path="${DSO_CI_REVIEW_OUTPUT_PATH:-${ARTIFACT_DIR}/findings.json}"
+            mkdir -p "$(dirname "$_output_path")" 2>/dev/null || true
+            printf '{"findings": [], "skip_reason": "all_scope_already_merged", "scope_size": %s, "main_ref": "%s"}\n' \
+                "$_pre_filter" "$_MAIN_REF" > "$_output_path" 2>/dev/null || true
+            exit 0
+        fi
+
         _COMMIT_SCOPED=true
         : > "$_DIFF_PATH"
         while IFS= read -r _sha; do
