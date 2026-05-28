@@ -291,7 +291,7 @@ def test_runner_pipeline_standard_tier(tmp_path):
 
     captured_agents: list = []
 
-    async def mock_dispatch(agents):
+    async def mock_dispatch(agents, **kwargs):
         captured_agents.extend(agents)
         return specialist_findings
 
@@ -415,7 +415,7 @@ def test_runner_pipeline_deep_tier_dispatches_three_agents(tmp_path):
 
     captured_agents: list = []
 
-    async def mock_dispatch(agents):
+    async def mock_dispatch(agents, **kwargs):
         captured_agents.extend(agents)
         return [correctness_findings, verification_findings, hygiene_findings]
 
@@ -547,7 +547,7 @@ def test_runner_exits_1_when_all_specialists_fail(tmp_path):
         }
     ]
 
-    async def mock_dispatch(agents):
+    async def mock_dispatch(agents, **kwargs):
         return all_error_findings
 
     stderr_capture = io.StringIO()
@@ -740,7 +740,7 @@ def test_runner_warns_on_all_synthetic_findings(tmp_path, capsys):
         }
     ]
 
-    async def mock_dispatch(agents):
+    async def mock_dispatch(agents, **kwargs):
         return synthetic_findings
 
     import io
@@ -839,7 +839,7 @@ def test_runner_exits_1_when_all_agents_hit_context_window(tmp_path, capsys):
         {"findings": [_exhausted_entry("code-reviewer-deep-arch")]},
     ]
 
-    async def mock_dispatch(agents):
+    async def mock_dispatch(agents, **kwargs):
         return all_exhausted_findings
 
     # Arch synthesis also returns exhausted — no non-synthetic fallback possible.
@@ -1911,7 +1911,7 @@ def test_runner_uses_bash_classifier(tmp_path):
         "size_action": "none",
     }
 
-    async def mock_dispatch(agents):
+    async def mock_dispatch(agents, **kwargs):
         return [{"findings": [], "scores": {}, "summary": "ok"}]
 
     stderr_capture = io.StringIO()
@@ -1997,7 +1997,7 @@ def test_overlay_agents_dispatched_in_parallel_when_flagged_by_classifier(tmp_pa
 
     captured_agents: list = []
 
-    async def mock_dispatch(agents):
+    async def mock_dispatch(agents, **kwargs):
         captured_agents.extend(agents)
         return [{"findings": [], "scores": {}, "summary": "ok"}]
 
@@ -2101,7 +2101,7 @@ def test_overlay_warranted_fallback_dispatched_serially(tmp_path):
     dispatch_call_count = {"n": 0}
     second_pass_agents: list = []
 
-    async def mock_dispatch(agents):
+    async def mock_dispatch(agents, **kwargs):
         dispatch_call_count["n"] += 1
         if dispatch_call_count["n"] == 2:
             # Record what was dispatched in the second (serial) pass
@@ -2233,7 +2233,7 @@ def test_deep_tier_runs_arch_synthesis_after_specialists(tmp_path):
 
     captured_synthesis_calls: list = []
 
-    async def mock_dispatch(agents):
+    async def mock_dispatch(agents, **kwargs):
         return specialist_results
 
     def mock_arch_synthesis(merged_findings_json, **kwargs):
@@ -2612,7 +2612,7 @@ def test_runner_cycle2_deep_tier_partial_failure_with_defenses(tmp_path):
 
     captured_synthesis_calls: list[str] = []
 
-    async def mock_dispatch(agents):
+    async def mock_dispatch(agents, **kwargs):
         return specialist_results
 
     def mock_arch_synthesis(merged_findings_json, **kwargs):
@@ -2744,7 +2744,7 @@ def test_runner_cycle1_no_defenses_unaffected(tmp_path):
         }
     ]
 
-    async def mock_dispatch(agents):
+    async def mock_dispatch(agents, **kwargs):
         return [{"findings": findings}]
 
     gh_called = []
@@ -2867,7 +2867,7 @@ def test_runner_calls_run_region_split_for_large_diff(tmp_path):
 
     dispatch_called: list = []
 
-    async def mock_dispatch(agents):
+    async def mock_dispatch(agents, **kwargs):
         dispatch_called.extend(agents)
         return [{"findings": []}]
 
@@ -2951,7 +2951,7 @@ def test_runner_skips_run_region_split_for_small_diff(tmp_path):
 
     dispatch_called: list = []
 
-    async def mock_dispatch(agents):
+    async def mock_dispatch(agents, **kwargs):
         dispatch_called.extend(agents)
         return [{"findings": []}]
 
@@ -4256,7 +4256,7 @@ def test_strategy_f_oversized_single_file_skips_llm_dispatch(tmp_path):
 
     dispatch_calls: list[list] = []
 
-    async def mock_dispatch(agents):
+    async def mock_dispatch(agents, **kwargs):
         dispatch_calls.append(list(agents))
         return [{"findings": []}]
 

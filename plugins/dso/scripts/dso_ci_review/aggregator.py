@@ -206,6 +206,14 @@ def aggregate_cluster_findings(
         skipped_files = []
     schema_exhausted_files: list[str] = []
 
+    # Phase 2 parallelization: cluster dispatch via asyncio.gather has
+    # nondeterministic completion order. Sort here so the synthesis LLM
+    # prompt and the visibility trailer's reviewed-file list are stable
+    # across runs and across sequential vs parallel implementations.
+    cluster_results = sorted(
+        cluster_results, key=lambda c: c.get("cluster_id", "")
+    )
+
     # F4b: .gitattributes — fail-open if absent or unreadable.
     if gitattributes_path is not None:
         try:
