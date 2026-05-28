@@ -29,7 +29,7 @@ APPLY_SCRIPT="$REPO_ROOT/plugins/dso/scripts/apply-bucket-recipes.sh"
 
 # Side-channel for the recipe-applier subprocess's exit code. Mirrors the
 # pattern in test-audit-source-consumers.sh.
-_APPLY_EXIT_FILE="$(mktemp "/tmp/test-apply-bucket-recipes-exit.XXXXXX")"
+_APPLY_EXIT_FILE="$(mktemp "${TMPDIR:-/tmp}/test-apply-bucket-recipes-exit.XXXXXX")"
 _APPLY_EXIT=0
 trap 'rm -f "$_APPLY_EXIT_FILE"' EXIT
 
@@ -51,7 +51,7 @@ fi
 _make_tempdir() {
     local prefix="$1"
     local tmp
-    tmp=$(mktemp -d "/tmp/test-apply-bucket-recipes-${prefix}.XXXXXX")
+    tmp=$(mktemp -d "${TMPDIR:-/tmp}/test-apply-bucket-recipes-${prefix}.XXXXXX")
     _CLEANUP_DIRS+=("$tmp")
     echo "$tmp"
 }

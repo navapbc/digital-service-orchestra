@@ -72,7 +72,7 @@ fi
 # Write a minimal CREATE event for the deleted ticket so resolve_ticket_id works.
 _make_tracker_with_deleted() {
     local tracker_dir
-    tracker_dir=$(mktemp -d /tmp/test-fastpath.XXXXXX)
+    tracker_dir=$(mktemp -d "${TMPDIR:-/tmp}/test-fastpath.XXXXXX")
     _CLEANUP_DIRS+=("$tracker_dir")
 
     # Initialize as a git repo so the resolver works

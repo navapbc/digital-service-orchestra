@@ -38,7 +38,7 @@ trap _cleanup EXIT
 
 _snapshot_fail
 {
-    _py_diff_file="$(mktemp /tmp/test-detect-cleanup-python-diff.XXXXXX)"
+    _py_diff_file="$(mktemp "${TMPDIR:-/tmp}/test-detect-cleanup-python-diff.XXXXXX")"
     _CLEANUP_FILES+=("$_py_diff_file")
     cat > "$_py_diff_file" <<'DIFF'
 diff --git a/src/api.py b/src/api.py
@@ -78,7 +78,7 @@ assert_pass_if_clean "test_python_diff_outputs_normalize_imports_python"
 
 _snapshot_fail
 {
-    _go_diff_file="$(mktemp /tmp/test-detect-cleanup-go-diff.XXXXXX)"
+    _go_diff_file="$(mktemp "${TMPDIR:-/tmp}/test-detect-cleanup-go-diff.XXXXXX")"
     _CLEANUP_FILES+=("$_go_diff_file")
     cat > "$_go_diff_file" <<'DIFF'
 diff --git a/main.go b/main.go
@@ -117,7 +117,7 @@ assert_pass_if_clean "test_no_py_ts_rb_diff_outputs_nothing"
 
 _snapshot_fail
 {
-    _ts_diff_file="$(mktemp /tmp/test-detect-cleanup-ts-diff.XXXXXX)"
+    _ts_diff_file="$(mktemp "${TMPDIR:-/tmp}/test-detect-cleanup-ts-diff.XXXXXX")"
     _CLEANUP_FILES+=("$_ts_diff_file")
     cat > "$_ts_diff_file" <<'DIFF'
 diff --git a/src/components/Button.tsx b/src/components/Button.tsx
@@ -160,7 +160,7 @@ assert_pass_if_clean "test_ts_diff_outputs_normalize_imports_typescript"
 
 _snapshot_fail
 {
-    _json_diff_file="$(mktemp /tmp/test-detect-cleanup-json-diff.XXXXXX)"
+    _json_diff_file="$(mktemp "${TMPDIR:-/tmp}/test-detect-cleanup-json-diff.XXXXXX")"
     _CLEANUP_FILES+=("$_json_diff_file")
     cat > "$_json_diff_file" <<'DIFF'
 diff --git a/src/models.py b/src/models.py
@@ -212,7 +212,7 @@ assert_pass_if_clean "test_format_json_outputs_json_array"
 
 _snapshot_fail
 {
-    _empty_diff_file="$(mktemp /tmp/test-detect-cleanup-empty-diff.XXXXXX)"
+    _empty_diff_file="$(mktemp "${TMPDIR:-/tmp}/test-detect-cleanup-empty-diff.XXXXXX")"
     _CLEANUP_FILES+=("$_empty_diff_file")
     # Empty file — no diff content
 

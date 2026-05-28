@@ -390,7 +390,7 @@ test_run_hook_syntax_error_writes_new_canonical_path() {
     local BROKEN_HOOK
     # Audit P4-3: `mktemp -t` has divergent BSD vs GNU semantics. Use the
     # portable explicit-template form (CLAUDE.md rule #15).
-    BROKEN_HOOK=$(mktemp /tmp/test-broken-hook.XXXXXX)
+    BROKEN_HOOK=$(mktemp "${TMPDIR:-/tmp}/test-broken-hook.XXXXXX")
     _TEST_TMPDIRS+=("$BROKEN_HOOK")
     printf '#!/usr/bin/env bash\nif then fi\n' > "$BROKEN_HOOK"
     chmod +x "$BROKEN_HOOK"

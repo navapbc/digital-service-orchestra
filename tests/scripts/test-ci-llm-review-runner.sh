@@ -44,7 +44,7 @@ assert_pass_if_clean "test_runner_exits_one_for_unknown_flag"
 # Given: a mock python3 that prints PYTHONPATH then exits 0
 # Then:  PYTHONPATH contains the scripts directory
 _snapshot_fail
-_mock_dir=$(mktemp -d /tmp/test-ci-shim-pythonpath.XXXXXX)
+_mock_dir=$(mktemp -d "${TMPDIR:-/tmp}/test-ci-shim-pythonpath.XXXXXX")
 _TEST_TMPDIRS+=("$_mock_dir")
 
 # Mock python3 that prints PYTHONPATH and exits 0
@@ -72,7 +72,7 @@ assert_pass_if_clean "test_shim_sets_pythonpath"
 # When:  shim is invoked with no flags
 # Then:  python3 is called with -m dso_ci_review.runner
 _snapshot_fail
-_mock_dir2=$(mktemp -d /tmp/test-ci-shim-delegate.XXXXXX)
+_mock_dir2=$(mktemp -d "${TMPDIR:-/tmp}/test-ci-shim-delegate.XXXXXX")
 _TEST_TMPDIRS+=("$_mock_dir2")
 
 # Mock python3 that captures args and exits 0
@@ -101,7 +101,7 @@ assert_pass_if_clean "test_shim_delegates_to_python_module"
 # When:  shim is invoked with --overlay-security
 # Then:  DSO_CI_REVIEW_OVERLAY_SECURITY=1 appears in the environment
 _snapshot_fail
-_mock_dir3=$(mktemp -d /tmp/test-shim-XXXXXX)
+_mock_dir3=$(mktemp -d "${TMPDIR:-/tmp}/test-shim-XXXXXX")
 _TEST_TMPDIRS+=("$_mock_dir3")
 
 cat > "$_mock_dir3/python3" <<'PYEOF'
@@ -126,7 +126,7 @@ assert_pass_if_clean "test_overlay_security_flag_exported"
 # When:  shim is invoked with --overlay-performance
 # Then:  DSO_CI_REVIEW_OVERLAY_PERFORMANCE=1 appears in the environment
 _snapshot_fail
-_mock_dir4=$(mktemp -d /tmp/test-shim-XXXXXX)
+_mock_dir4=$(mktemp -d "${TMPDIR:-/tmp}/test-shim-XXXXXX")
 _TEST_TMPDIRS+=("$_mock_dir4")
 
 cat > "$_mock_dir4/python3" <<'PYEOF'
@@ -151,7 +151,7 @@ assert_pass_if_clean "test_overlay_performance_flag_exported"
 # When:  shim is invoked with --overlay-test-quality
 # Then:  DSO_CI_REVIEW_OVERLAY_TEST_QUALITY=1 appears in the environment
 _snapshot_fail
-_mock_dir5=$(mktemp -d /tmp/test-shim-XXXXXX)
+_mock_dir5=$(mktemp -d "${TMPDIR:-/tmp}/test-shim-XXXXXX")
 _TEST_TMPDIRS+=("$_mock_dir5")
 
 cat > "$_mock_dir5/python3" <<'PYEOF'

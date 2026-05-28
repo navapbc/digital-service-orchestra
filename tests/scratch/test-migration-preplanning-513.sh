@@ -192,7 +192,7 @@ test_receipt_roundtrip() {
     payload='{"ticket_id":"abcd-1234-efgh-5678","key":"preplanning:step4:story-decomp-draft","byte_count":2048}'
 
     local stdout stderr exit_code=0
-    _tmpfile=$(mktemp /tmp/receipt-parse-test-XXXXXX.txt)
+    _tmpfile=$(mktemp "${TMPDIR:-/tmp}/receipt-parse-test-XXXXXX".txt)
     stdout=$(printf '%s' "$payload" | bash "$RECEIPT_PARSE" "preplanning:step4" "dso:story-decomposer" 2>"$_tmpfile") \
         || exit_code=$?
     stderr=$(cat "$_tmpfile")
@@ -217,7 +217,7 @@ test_extra_field_rejected() {
     payload='{"ticket_id":"abcd-1234-efgh-5678","key":"preplanning:step4:story-decomp-draft","byte_count":2048,"story_drafts":[]}'
 
     local stderr exit_code=0
-    _tmpfile=$(mktemp /tmp/receipt-parse-test-XXXXXX.txt)
+    _tmpfile=$(mktemp "${TMPDIR:-/tmp}/receipt-parse-test-XXXXXX".txt)
     printf '%s' "$payload" | bash "$RECEIPT_PARSE" "preplanning:step4" "dso:story-decomposer" >/dev/null 2>"$_tmpfile" \
         || exit_code=$?
     stderr=$(cat "$_tmpfile")

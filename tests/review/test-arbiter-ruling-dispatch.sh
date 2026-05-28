@@ -35,11 +35,11 @@ test_defer_ruling_creates_orphan_ticket() {
     _snapshot_fail
 
     local captured_cmd_file
-    captured_cmd_file=$(mktemp /tmp/test-defer.XXXXXX)
+    captured_cmd_file=$(mktemp "${TMPDIR:-/tmp}/test-defer.XXXXXX")
 
     # Mock TICKET_CMD that captures every call and returns a fake ticket ID.
     local mock_ticket
-    mock_ticket=$(mktemp /tmp/mock-ticket.XXXXXX.sh)
+    mock_ticket=$(mktemp "${TMPDIR:-/tmp}/mock-ticket.XXXXXX".sh)
     # shellcheck disable=SC2016
     printf '#!/usr/bin/env bash\nprintf "TICKET_CMD called: %%s\\n" "$*" >> "%s"\necho "t-defer-test-01"\n' \
         "$captured_cmd_file" > "$mock_ticket"

@@ -106,8 +106,8 @@ fi
 #        that quietly weaken the check (e.g., dropping `if-no-files-found`
 #        or replacing the jq guard with a non-failing alternative). ---
 
-_ASSERT_SCRIPT=$(mktemp /tmp/liveness-assert.XXXXXX.sh)
-_FIND_FIXTURE=$(mktemp /tmp/liveness-fixture.XXXXXX.json)
+_ASSERT_SCRIPT=$(mktemp "${TMPDIR:-/tmp}/liveness-assert.XXXXXX".sh)
+_FIND_FIXTURE=$(mktemp "${TMPDIR:-/tmp}/liveness-fixture.XXXXXX".json)
 trap 'rm -f "$_ASSERT_SCRIPT" "$_FIND_FIXTURE"' EXIT
 
 cat > "$_ASSERT_SCRIPT" <<EOF

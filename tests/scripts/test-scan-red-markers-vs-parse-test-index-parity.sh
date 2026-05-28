@@ -39,7 +39,7 @@ echo "=== test-scan-red-markers-grammar-parity.sh ==="
 _TEST_TMPDIRS=()
 make_tmpdir() {
     local d
-    d="$(mktemp -d /tmp/test-parity-XXXXXX)"
+    d="$(mktemp -d "${TMPDIR:-/tmp}/test-parity-XXXXXX")"
     _TEST_TMPDIRS+=("$d")
     echo "$d"
 }

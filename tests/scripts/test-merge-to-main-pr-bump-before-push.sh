@@ -67,7 +67,7 @@ _real_git="$(command -v git)"
 # function returns success (exit 0).
 # -----------------------------------------------------------------------------
 echo "--- test_source_branch_bump_idempotent_when_head_is_bump_commit ---"
-_T="$(mktemp -d /tmp/dso-bump-idempotent.XXXXXX)"
+_T="$(mktemp -d "${TMPDIR:-/tmp}/dso-bump-idempotent.XXXXXX")"
 _TMPDIRS+=("$_T")
 
 "$_real_git" init -q -b main "$_T/repo" >/dev/null 2>&1
@@ -123,7 +123,7 @@ assert_eq "test_source_branch_bump_idempotent_when_head_is_bump_commit:exit_zero
 # visible (rather than passing on coincidence).
 # -----------------------------------------------------------------------------
 echo "--- test_phase_version_bump_no_op_when_head_is_bump_commit ---"
-_T2="$(mktemp -d /tmp/dso-bump-version-noop.XXXXXX)"
+_T2="$(mktemp -d "${TMPDIR:-/tmp}/dso-bump-version-noop.XXXXXX")"
 _TMPDIRS+=("$_T2")
 
 "$_real_git" init -q -b main "$_T2/repo" >/dev/null 2>&1

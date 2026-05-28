@@ -39,14 +39,14 @@ if [[ ! -x "$MERGE" ]] || [[ ! -x "$VERIFY" ]]; then
     print_summary
 fi
 
-WORK=$(mktemp -d /tmp/sprint-trailer-e2e.XXXXXX)
+WORK=$(mktemp -d "${TMPDIR:-/tmp}/sprint-trailer-e2e.XXXXXX")
 trap '[[ -n "${WORK:-}" ]] && rm -rf "$WORK"' EXIT
 
 # Build the synthetic session repo.
 git init "$WORK" --initial-branch=session --quiet 2>/dev/null \
     || git init "$WORK" --quiet 2>/dev/null
 (
-    cd "$WORK"
+    cd "$WORK" || return
     git config user.email "e2e@test.com"
     git config user.name "E2E"
     echo "init" > README.md
@@ -74,7 +74,7 @@ git init "$WORK" --initial-branch=session --quiet 2>/dev/null \
 # --- Merge divergent story → expect real merge commit + trailer ---
 _snapshot_fail
 (
-    cd "$WORK"
+    cd "$WORK" || return
     bash "$MERGE" "story/e2e-epic/story-divergent" "story-divergent" >/dev/null 2>&1
 )
 _DIV_PARENT_COUNT=$(cd "$WORK" && git log -1 --format=%P HEAD | wc -w | tr -d ' ')
@@ -83,7 +83,7 @@ _DIV_MSG=$(cd "$WORK" && git log -1 --format=%B HEAD)
 assert_contains "e2e_divergent_has_trailer" "DSO-Story-Merge: story-divergent" "$_DIV_MSG"
 _DIV_VERIFY_RC=0
 (
-    cd "$WORK"
+    cd "$WORK" || return
     bash "$VERIFY" "story-divergent" --base=base-ref >/dev/null 2>&1
 ) || _DIV_VERIFY_RC=$?
 assert_eq "e2e_divergent_verify_exits_zero" "0" "$_DIV_VERIFY_RC"
@@ -93,7 +93,7 @@ assert_pass_if_clean "e2e_divergent_story_full_pipeline"
 _snapshot_fail
 _PRE_HEAD=$(cd "$WORK" && git rev-parse HEAD)
 (
-    cd "$WORK"
+    cd "$WORK" || return
     bash "$MERGE" "story/e2e-epic/story-same-tip" "story-same-tip" >/dev/null 2>&1
 )
 _POST_HEAD=$(cd "$WORK" && git rev-parse HEAD)
@@ -102,7 +102,7 @@ _ST_MSG=$(cd "$WORK" && git log -1 --format=%B HEAD)
 assert_contains "e2e_same_tip_has_trailer" "DSO-Story-Merge: story-same-tip" "$_ST_MSG"
 _ST_VERIFY_RC=0
 (
-    cd "$WORK"
+    cd "$WORK" || return
     bash "$VERIFY" "story-same-tip" --base=base-ref >/dev/null 2>&1
 ) || _ST_VERIFY_RC=$?
 assert_eq "e2e_same_tip_verify_exits_zero" "0" "$_ST_VERIFY_RC"
@@ -112,7 +112,7 @@ assert_pass_if_clean "e2e_same_tip_story_full_pipeline"
 _snapshot_fail
 _BYPASS_RC=0
 (
-    cd "$WORK"
+    cd "$WORK" || return
     bash "$VERIFY" "story-bypassed" --base=base-ref >/dev/null 2>&1
 ) || _BYPASS_RC=$?
 assert_ne "e2e_bypassed_verify_exits_nonzero" "0" "$_BYPASS_RC"

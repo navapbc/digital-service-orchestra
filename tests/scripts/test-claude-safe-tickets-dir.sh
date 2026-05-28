@@ -24,7 +24,7 @@ source "$PLUGIN_ROOT/tests/lib/assert.sh"
 echo "=== test-claude-safe-tickets-dir.sh ==="
 
 # ── Setup: shared tmpdir, cleaned on EXIT ─────────────────────────────────────
-TMPDIR_BASE=$(mktemp -d /tmp/test-claude-safe-tickets-dir.XXXXXX)
+TMPDIR_BASE=$(mktemp -d "${TMPDIR:-/tmp}/test-claude-safe-tickets-dir.XXXXXX")
 trap 'rm -rf "$TMPDIR_BASE"' EXIT
 
 # ── Resolve Python with pyyaml for read-config.sh ────────────────────────────
@@ -186,7 +186,7 @@ _test_branch="test-branch-tickets-dirty"
 mkdir -p "$_main_repo"
 (
     set -e
-    cd "$_main_repo"
+    cd "$_main_repo" || return
     git init -q -b main
     git config user.email "test@test.com"
     git config user.name "Test"
@@ -197,13 +197,13 @@ mkdir -p "$_main_repo"
 
 # Ensure we have a 'main' branch
 (
-    cd "$_main_repo"
+    cd "$_main_repo" || return
     _tmp=$(git branch 2>/dev/null); grep -q 'main' <<< "$_tmp" || git branch -m master main 2>/dev/null || true
 ) 2>/dev/null || true
 
 # Add worktree on test branch
 (
-    cd "$_main_repo"
+    cd "$_main_repo" || return
     git worktree add -q "$_wt_path" "$_test_branch" 2>/dev/null || true
 )
 

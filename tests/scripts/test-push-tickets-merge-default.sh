@@ -40,7 +40,7 @@ fi
 #   Both branches diverge from common ancestor A.
 _make_non_ff_fixture() {
     local tmp
-    tmp=$(mktemp -d /tmp/test-push-merge.XXXXXX)
+    tmp=$(mktemp -d "${TMPDIR:-/tmp}/test-push-merge.XXXXXX")
     _CLEANUP_DIRS+=("$tmp")
 
     # Bare remote

@@ -53,7 +53,7 @@ _DEFER_FIXTURE_COMMENTS='[
 
 _make_stub_dir() {
     local stub_dir
-    stub_dir=$(mktemp -d "/tmp/dso-defer-stubs.XXXXXX")
+    stub_dir=$(mktemp -d "${TMPDIR:-/tmp}/dso-defer-stubs.XXXXXX")
     _cleanup_dirs+=("$stub_dir")
 
     # gh stub — records calls to GH_CALL_LOG; routes responses by call type:
@@ -175,11 +175,11 @@ test_defer_creates_ticket_and_writes_ticket_id_before_reply() {
     echo "=== test_defer_creates_ticket_and_writes_ticket_id_before_reply ==="
 
     local stub_dir; stub_dir=$(_make_stub_dir)
-    local out_json; out_json=$(mktemp "/tmp/dso-defer-out.XXXXXX")
+    local out_json; out_json=$(mktemp "${TMPDIR:-/tmp}/dso-defer-out.XXXXXX")
     _cleanup_dirs+=("$out_json")
-    local gh_log; gh_log=$(mktemp "/tmp/dso-defer-gh.XXXXXX")
+    local gh_log; gh_log=$(mktemp "${TMPDIR:-/tmp}/dso-defer-gh.XXXXXX")
     _cleanup_dirs+=("$gh_log")
-    local dso_log; dso_log=$(mktemp "/tmp/dso-defer-dso.XXXXXX")
+    local dso_log; dso_log=$(mktemp "${TMPDIR:-/tmp}/dso-defer-dso.XXXXXX")
     _cleanup_dirs+=("$dso_log")
 
     _make_defer_json null > "$out_json"
@@ -223,11 +223,11 @@ test_defer_reply_includes_ticket_id_and_sentinel() {
     echo "=== test_defer_reply_includes_ticket_id_and_sentinel ==="
 
     local stub_dir; stub_dir=$(_make_stub_dir)
-    local out_json; out_json=$(mktemp "/tmp/dso-defer-out.XXXXXX")
+    local out_json; out_json=$(mktemp "${TMPDIR:-/tmp}/dso-defer-out.XXXXXX")
     _cleanup_dirs+=("$out_json")
-    local gh_log; gh_log=$(mktemp "/tmp/dso-defer-gh.XXXXXX")
+    local gh_log; gh_log=$(mktemp "${TMPDIR:-/tmp}/dso-defer-gh.XXXXXX")
     _cleanup_dirs+=("$gh_log")
-    local dso_log; dso_log=$(mktemp "/tmp/dso-defer-dso.XXXXXX")
+    local dso_log; dso_log=$(mktemp "${TMPDIR:-/tmp}/dso-defer-dso.XXXXXX")
     _cleanup_dirs+=("$dso_log")
 
     _make_defer_json null > "$out_json"
@@ -257,11 +257,11 @@ test_defer_retry_skips_ticket_creation_when_ticket_id_present() {
     echo "=== test_defer_retry_skips_ticket_creation_when_ticket_id_present ==="
 
     local stub_dir; stub_dir=$(_make_stub_dir)
-    local out_json; out_json=$(mktemp "/tmp/dso-defer-out.XXXXXX")
+    local out_json; out_json=$(mktemp "${TMPDIR:-/tmp}/dso-defer-out.XXXXXX")
     _cleanup_dirs+=("$out_json")
-    local gh_log; gh_log=$(mktemp "/tmp/dso-defer-gh.XXXXXX")
+    local gh_log; gh_log=$(mktemp "${TMPDIR:-/tmp}/dso-defer-gh.XXXXXX")
     _cleanup_dirs+=("$gh_log")
-    local dso_log; dso_log=$(mktemp "/tmp/dso-defer-dso.XXXXXX")
+    local dso_log; dso_log=$(mktemp "${TMPDIR:-/tmp}/dso-defer-dso.XXXXXX")
     _cleanup_dirs+=("$dso_log")
 
     # Pre-populate ticket_id (retry case)
@@ -305,11 +305,11 @@ test_defer_ticket_failure_prevents_reply() {
     echo "=== test_defer_ticket_failure_prevents_reply ==="
 
     local stub_dir; stub_dir=$(_make_stub_dir)
-    local out_json; out_json=$(mktemp "/tmp/dso-defer-out.XXXXXX")
+    local out_json; out_json=$(mktemp "${TMPDIR:-/tmp}/dso-defer-out.XXXXXX")
     _cleanup_dirs+=("$out_json")
-    local gh_log; gh_log=$(mktemp "/tmp/dso-defer-gh.XXXXXX")
+    local gh_log; gh_log=$(mktemp "${TMPDIR:-/tmp}/dso-defer-gh.XXXXXX")
     _cleanup_dirs+=("$gh_log")
-    local dso_log; dso_log=$(mktemp "/tmp/dso-defer-dso.XXXXXX")
+    local dso_log; dso_log=$(mktemp "${TMPDIR:-/tmp}/dso-defer-dso.XXXXXX")
     _cleanup_dirs+=("$dso_log")
 
     _make_defer_json null > "$out_json"
@@ -342,11 +342,11 @@ test_defer_title_includes_pr_number_and_slug() {
     echo "=== test_defer_title_includes_pr_number_and_slug ==="
 
     local stub_dir; stub_dir=$(_make_stub_dir)
-    local out_json; out_json=$(mktemp "/tmp/dso-defer-out.XXXXXX")
+    local out_json; out_json=$(mktemp "${TMPDIR:-/tmp}/dso-defer-out.XXXXXX")
     _cleanup_dirs+=("$out_json")
-    local gh_log; gh_log=$(mktemp "/tmp/dso-defer-gh.XXXXXX")
+    local gh_log; gh_log=$(mktemp "${TMPDIR:-/tmp}/dso-defer-gh.XXXXXX")
     _cleanup_dirs+=("$gh_log")
-    local dso_log; dso_log=$(mktemp "/tmp/dso-defer-dso.XXXXXX")
+    local dso_log; dso_log=$(mktemp "${TMPDIR:-/tmp}/dso-defer-dso.XXXXXX")
     _cleanup_dirs+=("$dso_log")
 
     # Defer JSON with a body that begins with whitespace + punctuation —
@@ -403,11 +403,11 @@ test_defer_consolidates_when_existing_ticket_exists() {
     echo "=== test_defer_consolidates_when_existing_ticket_exists ==="
 
     local stub_dir; stub_dir=$(_make_stub_dir)
-    local out_json; out_json=$(mktemp "/tmp/dso-defer-out.XXXXXX")
+    local out_json; out_json=$(mktemp "${TMPDIR:-/tmp}/dso-defer-out.XXXXXX")
     _cleanup_dirs+=("$out_json")
-    local gh_log; gh_log=$(mktemp "/tmp/dso-defer-gh.XXXXXX")
+    local gh_log; gh_log=$(mktemp "${TMPDIR:-/tmp}/dso-defer-gh.XXXXXX")
     _cleanup_dirs+=("$gh_log")
-    local dso_log; dso_log=$(mktemp "/tmp/dso-defer-dso.XXXXXX")
+    local dso_log; dso_log=$(mktemp "${TMPDIR:-/tmp}/dso-defer-dso.XXXXXX")
     _cleanup_dirs+=("$dso_log")
 
     _make_defer_json null > "$out_json"
@@ -462,11 +462,11 @@ test_defer_title_falls_back_on_empty_slug() {
     echo "=== test_defer_title_falls_back_on_empty_slug ==="
 
     local stub_dir; stub_dir=$(_make_stub_dir)
-    local out_json; out_json=$(mktemp "/tmp/dso-defer-out.XXXXXX")
+    local out_json; out_json=$(mktemp "${TMPDIR:-/tmp}/dso-defer-out.XXXXXX")
     _cleanup_dirs+=("$out_json")
-    local gh_log; gh_log=$(mktemp "/tmp/dso-defer-gh.XXXXXX")
+    local gh_log; gh_log=$(mktemp "${TMPDIR:-/tmp}/dso-defer-gh.XXXXXX")
     _cleanup_dirs+=("$gh_log")
-    local dso_log; dso_log=$(mktemp "/tmp/dso-defer-dso.XXXXXX")
+    local dso_log; dso_log=$(mktemp "${TMPDIR:-/tmp}/dso-defer-dso.XXXXXX")
     _cleanup_dirs+=("$dso_log")
 
     # Body that is all whitespace + punctuation -> slug pipeline produces "".
@@ -588,9 +588,9 @@ exit 0
 DSOEOF
     chmod +x "$stub_dir/dso"
 
-    local out_json; out_json=$(mktemp "/tmp/dso-defer-out.XXXXXX")
-    local gh_log; gh_log=$(mktemp "/tmp/dso-defer-gh.XXXXXX")
-    local dso_log; dso_log=$(mktemp "/tmp/dso-defer-dso.XXXXXX")
+    local out_json; out_json=$(mktemp "${TMPDIR:-/tmp}/dso-defer-out.XXXXXX")
+    local gh_log; gh_log=$(mktemp "${TMPDIR:-/tmp}/dso-defer-gh.XXXXXX")
+    local dso_log; dso_log=$(mktemp "${TMPDIR:-/tmp}/dso-defer-dso.XXXXXX")
     # shellcheck disable=SC2064  # paths intentionally expanded at trap-set time
     trap "rm -rf $stub_dir $out_json $gh_log $dso_log" EXIT
 

@@ -15,7 +15,7 @@ DSO_PLUGIN_DIR="$PLUGIN_ROOT/plugins/dso"
 source "$PLUGIN_ROOT/tests/lib/assert.sh"
 
 # Build a disposable git repo on disk where we can flip branches at will.
-TMP_REPO=$(mktemp -d /tmp/test-no-edit-on-main.XXXXXX)
+TMP_REPO=$(mktemp -d "${TMPDIR:-/tmp}/test-no-edit-on-main.XXXXXX")
 trap 'rm -rf "$TMP_REPO"' EXIT
 
 (
@@ -135,7 +135,7 @@ EXIT=$(run_hook "$TMP_REPO" "$INPUT")
 assert_eq "allows_file_outside_repo" "0" "$EXIT"
 
 # --- Linked worktree → falls through to allow (worktree-edit-guard owns it) ---
-WORKTREE_DIR=$(mktemp -d /tmp/test-no-edit-on-main-wt.XXXXXX)
+WORKTREE_DIR=$(mktemp -d "${TMPDIR:-/tmp}/test-no-edit-on-main-wt.XXXXXX")
 rm -rf "$WORKTREE_DIR"
 # shellcheck disable=SC2015  # fallback when 'main' already has a worktree
 (cd "$TMP_REPO" && git worktree add -q "$WORKTREE_DIR" main 2>/dev/null || git worktree add -q -B wt-main "$WORKTREE_DIR")

@@ -56,7 +56,7 @@ STUB
 # test_creates_all_three_when_missing
 # All 3 tickets not found (list-epics returns empty for all). Assert 3 "ticket create" calls.
 test_creates_all_three_when_missing() {
-  local tmp_dir; tmp_dir="$(mktemp -d /tmp/dso-stub.XXXXXX)"
+  local tmp_dir; tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/dso-stub.XXXXXX")"
   # shellcheck disable=SC2064
   trap "rm -rf $tmp_dir" RETURN
   local call_log; call_log="$(make_dso_stub "$tmp_dir" 0 0 0 0)"
@@ -69,7 +69,7 @@ test_creates_all_three_when_missing() {
 # test_no_op_when_all_exist
 # All 3 tickets found (list-epics returns tab-line for all). Assert 0 "ticket create" calls.
 test_no_op_when_all_exist() {
-  local tmp_dir; tmp_dir="$(mktemp -d /tmp/dso-stub.XXXXXX)"
+  local tmp_dir; tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/dso-stub.XXXXXX")"
   # shellcheck disable=SC2064
   trap "rm -rf $tmp_dir" RETURN
   local call_log; call_log="$(make_dso_stub "$tmp_dir" 1 1 1 0)"
@@ -83,7 +83,7 @@ test_no_op_when_all_exist() {
 # health found (list-epics tab-line), mutation/churn not found (empty list-epics).
 # Assert exactly 2 "ticket create" calls, with mutation-history and suite-churn-history in log.
 test_partial_idempotent() {
-  local tmp_dir; tmp_dir="$(mktemp -d /tmp/dso-stub.XXXXXX)"
+  local tmp_dir; tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/dso-stub.XXXXXX")"
   # shellcheck disable=SC2064
   trap "rm -rf $tmp_dir" RETURN
   local call_log; call_log="$(make_dso_stub "$tmp_dir" 1 0 0 0)"
@@ -109,7 +109,7 @@ test_script_is_executable() {
 test_create_failure_aborts_remaining() {
   # Require script to exist before testing error-path behavior
   [ -f "$BOOTSTRAP_SCRIPT" ] || return 1
-  local tmp_dir; tmp_dir="$(mktemp -d /tmp/dso-stub.XXXXXX)"
+  local tmp_dir; tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/dso-stub.XXXXXX")"
   # shellcheck disable=SC2064
   trap "rm -rf $tmp_dir" RETURN
   local call_log; call_log="$(make_dso_stub "$tmp_dir" 0 0 0 1)"
@@ -127,7 +127,7 @@ test_create_failure_aborts_remaining() {
 test_create_failure_aborts() {
   # Require script to exist before testing error-path behavior
   [ -f "$BOOTSTRAP_SCRIPT" ] || return 1
-  local tmp_dir; tmp_dir="$(mktemp -d /tmp/dso-stub.XXXXXX)"
+  local tmp_dir; tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/dso-stub.XXXXXX")"
   # shellcheck disable=SC2064
   trap "rm -rf $tmp_dir" RETURN
   local call_log; call_log="$(make_dso_stub "$tmp_dir" 0 0 0 1)"
@@ -146,7 +146,7 @@ test_create_failure_aborts() {
 # Assert: 0 "ticket create" calls — bootstrap must skip all 3.
 
 test_uses_list_epics_for_idempotency() {
-  local tmp_dir; tmp_dir="$(mktemp -d /tmp/dso-stub.XXXXXX)"
+  local tmp_dir; tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/dso-stub.XXXXXX")"
   # shellcheck disable=SC2064
   trap "rm -rf $tmp_dir" RETURN
   local call_log="$tmp_dir/calls.log"
@@ -174,7 +174,7 @@ STUB
 # Assert: 3 "ticket create epic" calls AND no "--alias=" in any call.
 
 test_creates_epic_type_without_alias_flag() {
-  local tmp_dir; tmp_dir="$(mktemp -d /tmp/dso-stub.XXXXXX)"
+  local tmp_dir; tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/dso-stub.XXXXXX")"
   # shellcheck disable=SC2064
   trap "rm -rf $tmp_dir" RETURN
   local call_log="$tmp_dir/calls.log"

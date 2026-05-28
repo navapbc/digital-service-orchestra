@@ -47,7 +47,7 @@ assert_pass_if_clean "test_no_home_write_passes_temp_override"
 # ── test_no_home_write_respects_suppression ──────────────────────────────────
 # Create a temp fixture with suppression comment
 _snapshot_fail
-TMPFILE=$(mktemp /tmp/test-home-write-XXXXXX)
+TMPFILE=$(mktemp "${TMPDIR:-/tmp}/test-home-write-XXXXXX")
 mv "$TMPFILE" "${TMPFILE}.sh"
 TMPFILE="${TMPFILE}.sh"
 trap 'rm -f "$TMPFILE"' EXIT

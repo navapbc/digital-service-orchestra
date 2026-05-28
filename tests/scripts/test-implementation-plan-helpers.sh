@@ -113,7 +113,7 @@ test_tag_guards_lookup_failure_fails_open() {
     # the fetch silently hung. Matches the pattern used by
     # test_reinvocation_all_lookups_fail_returns_fresh below.
     local _sandbox
-    _sandbox=$(mktemp -d "/tmp/ipl-helpers-sandbox.XXXXXX")
+    _sandbox=$(mktemp -d "${TMPDIR:-/tmp}/ipl-helpers-sandbox.XXXXXX")
     mkdir -p "$_sandbox/.claude/scripts"
     cat > "$_sandbox/.claude/scripts/dso" <<'STUB'
 #!/usr/bin/env bash
@@ -161,7 +161,7 @@ test_reinvocation_lookup_failure_returns_fresh() {
     # (unguarded `git fetch origin tickets`) is never invoked.
     # Bug 5b48-a4b1: see comment on test_tag_guards_lookup_failure_fails_open.
     local _sandbox
-    _sandbox=$(mktemp -d "/tmp/ipl-helpers-sandbox.XXXXXX")
+    _sandbox=$(mktemp -d "${TMPDIR:-/tmp}/ipl-helpers-sandbox.XXXXXX")
     mkdir -p "$_sandbox/.claude/scripts"
     cat > "$_sandbox/.claude/scripts/dso" <<'STUB'
 #!/usr/bin/env bash
@@ -211,7 +211,7 @@ test_reinvocation_missing_arg_errors() {
 # guard at the end of check-reinvocation.sh.
 test_reinvocation_all_lookups_fail_returns_fresh() {
     local _sandbox
-    _sandbox=$(mktemp -d "/tmp/ipl-helpers-sandbox.XXXXXX")
+    _sandbox=$(mktemp -d "${TMPDIR:-/tmp}/ipl-helpers-sandbox.XXXXXX")
     mkdir -p "$_sandbox/.claude/scripts"
     cat > "$_sandbox/.claude/scripts/dso" <<'STUB'
 #!/usr/bin/env bash
@@ -252,7 +252,7 @@ STUB
 #       loop documented in bug 95db-941d-04d8-41d1).
 test_reinvocation_unresolved_replan_trigger_returns_replan_required() {
     local _sandbox _story_id _epic_id _child_id
-    _sandbox=$(mktemp -d "/tmp/ipl-helpers-sandbox.XXXXXX")
+    _sandbox=$(mktemp -d "${TMPDIR:-/tmp}/ipl-helpers-sandbox.XXXXXX")
     _story_id="story-aaaa-1111-2222-3333"
     _epic_id="epic-bbbb-4444-5555-6666"
     _child_id="task-cccc-7777-8888-9999"
@@ -310,7 +310,7 @@ STUB
 #       remediation needed)
 test_reinvocation_resolved_replan_trigger_returns_all_closed() {
     local _sandbox _story_id _epic_id _child_id
-    _sandbox=$(mktemp -d "/tmp/ipl-helpers-sandbox.XXXXXX")
+    _sandbox=$(mktemp -d "${TMPDIR:-/tmp}/ipl-helpers-sandbox.XXXXXX")
     _story_id="story-dddd-1111-2222-3333"
     _epic_id="epic-eeee-4444-5555-6666"
     _child_id="task-ffff-7777-8888-9999"

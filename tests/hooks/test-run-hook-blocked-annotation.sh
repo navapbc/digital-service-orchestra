@@ -14,7 +14,7 @@ RUN_HOOK="$DSO_PLUGIN_DIR/hooks/run-hook.sh"
 
 source "$REPO_ROOT/tests/lib/assert.sh"
 
-TMPDIR_TEST=$(mktemp -d /tmp/test-run-hook-blocked.XXXXXX)
+TMPDIR_TEST=$(mktemp -d "${TMPDIR:-/tmp}/test-run-hook-blocked.XXXXXX")
 trap 'rm -rf "$TMPDIR_TEST"' EXIT
 
 # Set up a minimal plugin-like directory structure so the fallback guard works

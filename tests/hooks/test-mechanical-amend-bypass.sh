@@ -145,7 +145,7 @@ _SENT_RC=0
 (
     # Set enforcement strategy to local for test isolation (enforcement.strategy=ci
     # would cause the sentinel to skip all blocking behavior).
-    _MECH_ISO_DIR=$(mktemp -d /tmp/mech-amend-test-isolation.XXXXXX)
+    _MECH_ISO_DIR=$(mktemp -d "${TMPDIR:-/tmp}/mech-amend-test-isolation.XXXXXX")
     printf 'enforcement.strategy=local\n' > "$_MECH_ISO_DIR/dso-config.conf"
     WORKFLOW_CONFIG_FILE="$_MECH_ISO_DIR/dso-config.conf"
     source "$SENTINEL_LIB" 2>/dev/null
@@ -173,7 +173,7 @@ _snapshot_fail
 _SENT_ALLOW_RC=0
 (
     # Set enforcement strategy to local for test isolation.
-    _MECH_ISO2_DIR=$(mktemp -d /tmp/mech-amend-allow-isolation.XXXXXX)
+    _MECH_ISO2_DIR=$(mktemp -d "${TMPDIR:-/tmp}/mech-amend-allow-isolation.XXXXXX")
     printf 'enforcement.strategy=local\n' > "$_MECH_ISO2_DIR/dso-config.conf"
     WORKFLOW_CONFIG_FILE="$_MECH_ISO2_DIR/dso-config.conf"
     source "$SENTINEL_LIB" 2>/dev/null

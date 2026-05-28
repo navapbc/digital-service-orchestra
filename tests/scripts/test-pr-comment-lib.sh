@@ -55,7 +55,7 @@ trap _cleanup EXIT
 _setup_mock_env() {
     local scenario="${1:-mcp_ok}"
     local tmpdir
-    tmpdir=$(mktemp -d /tmp/pr-comment-lib-test.XXXXXX)
+    tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/pr-comment-lib-test.XXXXXX")
     _TEST_TMPDIRS+=("$tmpdir")
 
     export GH_CALL_LOG="$tmpdir/gh-calls.log"

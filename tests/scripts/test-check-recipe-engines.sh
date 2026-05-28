@@ -52,7 +52,7 @@ assert_pass_if_clean "test_script_exists_and_executable"
 # Then:  the script outputs a line containing "MISSING_ENGINE: rope minimum:1.7.0"
 # AND:   exits non-zero (exit 1)
 _snapshot_fail
-_stub_dir="$(mktemp -d /tmp/test-check-recipe-engines-stub.XXXXXX)"
+_stub_dir="$(mktemp -d "${TMPDIR:-/tmp}/test-check-recipe-engines-stub.XXXXXX")"
 _TMPDIRS+=("$_stub_dir")
 # Stub: python3/rope unavailable — rope import fails
 cat > "$_stub_dir/python3" <<'STUB'
@@ -87,7 +87,7 @@ assert_pass_if_clean "test_missing_engine_detected"
 # When:  check-recipe-engines.sh is invoked
 # Then:  the script outputs "NO_RECIPE_TASKS" and exits 0
 _snapshot_fail
-_no_recipe_file="$(mktemp /tmp/test-check-recipe-engines-no-recipe.XXXXXX.json)"
+_no_recipe_file="$(mktemp "${TMPDIR:-/tmp}/test-check-recipe-engines-no-recipe.XXXXXX".json)"
 _TMPFILES+=("$_no_recipe_file")
 cat > "$_no_recipe_file" <<'JSON'
 [
@@ -116,7 +116,7 @@ assert_pass_if_clean "test_no_recipe_tasks_is_noop"
 # Then:  output contains "OUTDATED_ENGINE: rope found:1.5.0 minimum:1.7.0"
 # AND:   exits non-zero
 _snapshot_fail
-_outdated_stub_dir="$(mktemp -d /tmp/test-check-recipe-engines-outdated.XXXXXX)"
+_outdated_stub_dir="$(mktemp -d "${TMPDIR:-/tmp}/test-check-recipe-engines-outdated.XXXXXX")"
 _TMPDIRS+=("$_outdated_stub_dir")
 # Stub python3 that reports rope version 1.5.0
 cat > "$_outdated_stub_dir/python3" <<'STUB'
@@ -151,7 +151,7 @@ assert_pass_if_clean "test_outdated_engine_detected"
 # When:  check-recipe-engines.sh is invoked
 # Then:  output contains "ENGINES_OK" and exits 0
 _snapshot_fail
-_ok_stub_dir="$(mktemp -d /tmp/test-check-recipe-engines-ok.XXXXXX)"
+_ok_stub_dir="$(mktemp -d "${TMPDIR:-/tmp}/test-check-recipe-engines-ok.XXXXXX")"
 _TMPDIRS+=("$_ok_stub_dir")
 # Stub python3 that reports rope version 1.9.0 (satisfies >=1.7.0)
 cat > "$_ok_stub_dir/python3" <<'STUB'
@@ -187,7 +187,7 @@ assert_pass_if_clean "test_engines_ok_all_present_and_current"
 #        so that S5 fallback logic can parse the env-var-style line
 _snapshot_fail
 # Reuse the _stub_dir from test_missing_engine_detected (rope missing)
-_list_stub_dir="$(mktemp -d /tmp/test-check-recipe-engines-list.XXXXXX)"
+_list_stub_dir="$(mktemp -d "${TMPDIR:-/tmp}/test-check-recipe-engines-list.XXXXXX")"
 _TMPDIRS+=("$_list_stub_dir")
 cat > "$_list_stub_dir/python3" <<'STUB'
 #!/usr/bin/env bash
@@ -223,7 +223,7 @@ _bad_registry="/tmp/missing-registry-${RANDOM}.yaml"
 _reg_stderr=""
 _reg_exit=0
 # Capture stderr separately
-_reg_tmpout="$(mktemp /tmp/test-check-recipe-engines-reg.XXXXXX)"
+_reg_tmpout="$(mktemp "${TMPDIR:-/tmp}/test-check-recipe-engines-reg.XXXXXX")"
 _TMPFILES+=("$_reg_tmpout")
 {
     RECIPE_REGISTRY_PATH="$_bad_registry" \
@@ -251,7 +251,7 @@ assert_pass_if_clean "test_missing_registry_exits_nonzero"
 # Then:  the script outputs "ENGINES_OK" and exits 0
 # (RED: current wildcard case uses 'command -v ts-morph' which always fails)
 _snapshot_fail
-_tsm_ok_reg="$(mktemp /tmp/test-check-recipe-engines-tsm-reg.XXXXXX.yaml)"
+_tsm_ok_reg="$(mktemp "${TMPDIR:-/tmp}/test-check-recipe-engines-tsm-reg.XXXXXX".yaml)"
 _TMPFILES+=("$_tsm_ok_reg")
 cat > "$_tsm_ok_reg" <<'YAML'
 recipes:
@@ -265,14 +265,14 @@ recipes:
     installation_instructions: "npm install ts-morph@>=17"
 YAML
 
-_tsm_ok_tasks="$(mktemp /tmp/test-check-recipe-engines-tsm-tasks.XXXXXX.json)"
+_tsm_ok_tasks="$(mktemp "${TMPDIR:-/tmp}/test-check-recipe-engines-tsm-tasks.XXXXXX".json)"
 _TMPFILES+=("$_tsm_ok_tasks")
 cat > "$_tsm_ok_tasks" <<'JSON'
 [{"id": "task-ts-001", "title": "Refactor TS", "tags": ["recipe:refactor-typescript"], "status": "open"}]
 JSON
 
 # Stub node: ts-morph package present at version 20.0.0
-_tsm_ok_stub="$(mktemp -d /tmp/test-check-recipe-engines-tsm-ok.XXXXXX)"
+_tsm_ok_stub="$(mktemp -d "${TMPDIR:-/tmp}/test-check-recipe-engines-tsm-ok.XXXXXX")"
 _TMPDIRS+=("$_tsm_ok_stub")
 cat > "$_tsm_ok_stub/node" <<'STUB'
 #!/usr/bin/env bash
@@ -305,7 +305,7 @@ assert_pass_if_clean "test_tsmorph_installed_detected_via_node_require"
 # When:  check-recipe-engines.sh is invoked
 # Then:  output contains "MISSING_ENGINE: ts-morph minimum:17.0.0" and exits non-zero
 _snapshot_fail
-_tsm_miss_stub="$(mktemp -d /tmp/test-check-recipe-engines-tsm-miss.XXXXXX)"
+_tsm_miss_stub="$(mktemp -d "${TMPDIR:-/tmp}/test-check-recipe-engines-tsm-miss.XXXXXX")"
 _TMPDIRS+=("$_tsm_miss_stub")
 cat > "$_tsm_miss_stub/node" <<'STUB'
 #!/usr/bin/env bash
@@ -338,7 +338,7 @@ assert_pass_if_clean "test_tsmorph_missing_package_reports_missing_engine"
 # When:  check-recipe-engines.sh is invoked
 # Then:  output contains "OUTDATED_ENGINE: ts-morph found:15.0.0 minimum:17.0.0" and exits non-zero
 _snapshot_fail
-_tsm_old_stub="$(mktemp -d /tmp/test-check-recipe-engines-tsm-old.XXXXXX)"
+_tsm_old_stub="$(mktemp -d "${TMPDIR:-/tmp}/test-check-recipe-engines-tsm-old.XXXXXX")"
 _TMPDIRS+=("$_tsm_old_stub")
 cat > "$_tsm_old_stub/node" <<'STUB'
 #!/usr/bin/env bash
@@ -372,7 +372,7 @@ assert_pass_if_clean "test_tsmorph_outdated_version_detected"
 # Then:  output contains "OUTDATED_ENGINE: isort found:4.3.0 minimum:5.0.0" and exits non-zero
 # (RED: current wildcard case only checks binary presence, never version)
 _snapshot_fail
-_cli_outdated_reg="$(mktemp /tmp/test-check-recipe-engines-cli-reg.XXXXXX.yaml)"
+_cli_outdated_reg="$(mktemp "${TMPDIR:-/tmp}/test-check-recipe-engines-cli-reg.XXXXXX".yaml)"
 _TMPFILES+=("$_cli_outdated_reg")
 cat > "$_cli_outdated_reg" <<'YAML'
 recipes:
@@ -386,14 +386,14 @@ recipes:
     installation_instructions: "pip install isort>=5"
 YAML
 
-_cli_outdated_tasks="$(mktemp /tmp/test-check-recipe-engines-cli-tasks.XXXXXX.json)"
+_cli_outdated_tasks="$(mktemp "${TMPDIR:-/tmp}/test-check-recipe-engines-cli-tasks.XXXXXX".json)"
 _TMPFILES+=("$_cli_outdated_tasks")
 cat > "$_cli_outdated_tasks" <<'JSON'
 [{"id": "task-isort-001", "title": "Sort imports", "tags": ["recipe:sort-imports"], "status": "open"}]
 JSON
 
 # Stub isort binary reporting outdated version 4.3.0
-_cli_outdated_stub="$(mktemp -d /tmp/test-check-recipe-engines-cli-old.XXXXXX)"
+_cli_outdated_stub="$(mktemp -d "${TMPDIR:-/tmp}/test-check-recipe-engines-cli-old.XXXXXX")"
 _TMPDIRS+=("$_cli_outdated_stub")
 cat > "$_cli_outdated_stub/isort" <<'STUB'
 #!/usr/bin/env bash
@@ -426,7 +426,7 @@ assert_pass_if_clean "test_cli_engine_outdated_version_detected"
 # When:  check-recipe-engines.sh is invoked
 # Then:  output contains "ENGINES_OK" and exits 0
 _snapshot_fail
-_cli_ok_stub="$(mktemp -d /tmp/test-check-recipe-engines-cli-ok.XXXXXX)"
+_cli_ok_stub="$(mktemp -d "${TMPDIR:-/tmp}/test-check-recipe-engines-cli-ok.XXXXXX")"
 _TMPDIRS+=("$_cli_ok_stub")
 cat > "$_cli_ok_stub/isort" <<'STUB'
 #!/usr/bin/env bash
@@ -459,7 +459,7 @@ assert_pass_if_clean "test_cli_engine_current_version_passes"
 # When:  check-recipe-engines.sh is invoked
 # Then:  output contains "ENGINES_OK" and exits 0 (no version check needed)
 _snapshot_fail
-_zero_reg="$(mktemp /tmp/test-check-recipe-engines-zero-reg.XXXXXX.yaml)"
+_zero_reg="$(mktemp "${TMPDIR:-/tmp}/test-check-recipe-engines-zero-reg.XXXXXX".yaml)"
 _TMPFILES+=("$_zero_reg")
 cat > "$_zero_reg" <<'YAML'
 recipes:
@@ -473,13 +473,13 @@ recipes:
     installation_instructions: "No external engine required"
 YAML
 
-_zero_tasks="$(mktemp /tmp/test-check-recipe-engines-zero-tasks.XXXXXX.json)"
+_zero_tasks="$(mktemp "${TMPDIR:-/tmp}/test-check-recipe-engines-zero-tasks.XXXXXX".json)"
 _TMPFILES+=("$_zero_tasks")
 cat > "$_zero_tasks" <<'JSON'
 [{"id": "task-scaffold-001", "title": "Scaffold route", "tags": ["recipe:scaffold-route"], "status": "open"}]
 JSON
 
-_zero_stub="$(mktemp -d /tmp/test-check-recipe-engines-zero.XXXXXX)"
+_zero_stub="$(mktemp -d "${TMPDIR:-/tmp}/test-check-recipe-engines-zero.XXXXXX")"
 _TMPDIRS+=("$_zero_stub")
 cat > "$_zero_stub/scaffold" <<'STUB'
 #!/usr/bin/env bash

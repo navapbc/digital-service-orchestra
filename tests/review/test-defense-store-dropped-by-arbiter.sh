@@ -66,8 +66,8 @@ print(json.dumps(ticket))
     # Write a stub ticket-cmd script that returns the pre-built ticket JSON on 'show'.
     # Use a temp file so the function is visible to the subshell without function export.
     local stub_cmd json_file
-    stub_cmd=$(mktemp /tmp/dso-ticket-stub.XXXXXX)
-    json_file=$(mktemp /tmp/dso-ticket-json.XXXXXX)
+    stub_cmd=$(mktemp "${TMPDIR:-/tmp}/dso-ticket-stub.XXXXXX")
+    json_file=$(mktemp "${TMPDIR:-/tmp}/dso-ticket-json.XXXXXX")
     printf '%s\n' "$ticket_json" > "$json_file"
     # shellcheck disable=SC2016
     printf '#!/usr/bin/env bash\nif [[ "${1:-}" == "show" ]]; then cat "%s"; fi\n' "$json_file" > "$stub_cmd"

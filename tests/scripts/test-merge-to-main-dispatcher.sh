@@ -54,7 +54,7 @@ _write_config() {
 # ---------------------------------------------------------------------------
 test_dispatcher_routes_to_direct_script() {
     local _T _ec _out _sentinel_exists
-    _T="$(mktemp -d /tmp/dso-dispatcher-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-dispatcher-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -95,7 +95,7 @@ test_dispatcher_routes_to_direct_script
 # ---------------------------------------------------------------------------
 test_dispatcher_routes_to_pr_script() {
     local _T _ec _out _pr_exists _direct_exists
-    _T="$(mktemp -d /tmp/dso-dispatcher-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-dispatcher-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -151,7 +151,7 @@ test_dispatcher_routes_to_pr_script
 # ---------------------------------------------------------------------------
 test_conflict_data_schema_direct() {
     local _T _out
-    _T="$(mktemp -d /tmp/dso-dispatcher-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-dispatcher-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -229,7 +229,7 @@ test_conflict_data_schema_direct
 # ---------------------------------------------------------------------------
 test_conflict_data_schema_direct_recovery_failed_fallback() {
     local _T _out
-    _T="$(mktemp -d /tmp/dso-dispatcher-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-dispatcher-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -283,7 +283,7 @@ test_conflict_data_schema_direct_recovery_failed_fallback
 # ---------------------------------------------------------------------------
 test_conflict_data_schema_pr_equivalent() {
     local _T _ec _out
-    _T="$(mktemp -d /tmp/dso-dispatcher-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-dispatcher-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -328,7 +328,7 @@ test_conflict_data_schema_pr_equivalent
 # ---------------------------------------------------------------------------
 test_resume_rejects_cross_strategy() {
     local _T _ec _out
-    _T="$(mktemp -d /tmp/dso-dispatcher-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-dispatcher-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -416,7 +416,7 @@ test_resume_rejects_cross_strategy
 # ---------------------------------------------------------------------------
 test_direct_mode_regression_no_network() {
     local _T _ec _out
-    _T="$(mktemp -d /tmp/dso-dispatcher-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-dispatcher-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -449,7 +449,7 @@ test_direct_mode_regression_no_network
 # ---------------------------------------------------------------------------
 test_dispatcher_unknown_workflow_defaults_to_direct() {
     local _T _ec _out _sentinel_direct
-    _T="$(mktemp -d /tmp/dso-dispatcher-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-dispatcher-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -494,7 +494,7 @@ test_dispatcher_unknown_workflow_defaults_to_direct
 # ---------------------------------------------------------------------------
 test_state_init_writes_merge_strategy_from_env() {
     local _T _state_pr _state_default
-    _T="$(mktemp -d /tmp/dso-dispatcher-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-dispatcher-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 

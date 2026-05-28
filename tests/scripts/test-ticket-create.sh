@@ -75,7 +75,7 @@ test_ticket_create_outputs_ticket_id() {
     fi
 
     local stdout_out stderr_out _stderr_tmp
-    _stderr_tmp=$(mktemp /tmp/tc1-stderr.XXXXXX)
+    _stderr_tmp=$(mktemp "${TMPDIR:-/tmp}/tc1-stderr.XXXXXX")
     stdout_out=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "My ticket" 2>"$_stderr_tmp") || true
     stderr_out=$(cat "$_stderr_tmp" 2>/dev/null) || true
     rm -f "$_stderr_tmp"

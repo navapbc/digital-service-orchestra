@@ -37,7 +37,7 @@ fi
 # Use a per-suite mktemp directory as the parent for all snapshot subdirs so
 # parallel-test runs do not collide. Session IDs are mktemp'd too — see
 # always:mktemp-tmp.
-_SUITE_TMP=$(mktemp -d /tmp/test-classifier-pass.XXXXXX)
+_SUITE_TMP=$(mktemp -d "${TMPDIR:-/tmp}/test-classifier-pass.XXXXXX")
 trap 'rm -rf "$_SUITE_TMP"' EXIT
 
 # Synthetic ticket-ids that do not exist in any live tracker. The helper reads
@@ -99,8 +99,8 @@ rm -rf "$DEGRADE_SNAP_DIR"
 
 # Test 5: --apply-from-plan with a synthesized empty plan should succeed without classifier dispatch.
 # Uses mktemp-managed plan/decisions files + a synthetic ticket-id + pre-created snapshot.
-TMP_PLAN=$(mktemp /tmp/test-classifier-plan.XXXXXX.json)
-TMP_DEC=$(mktemp /tmp/test-classifier-dec.XXXXXX.json)
+TMP_PLAN=$(mktemp "${TMPDIR:-/tmp}/test-classifier-plan.XXXXXX".json)
+TMP_DEC=$(mktemp "${TMPDIR:-/tmp}/test-classifier-dec.XXXXXX".json)
 # Note: TMP_PLAN/TMP_DEC are cleaned by the suite-level trap that removes
 # $_SUITE_TMP — but they live outside that dir, so clean them explicitly too.
 trap 'rm -rf "$_SUITE_TMP"; rm -f "$TMP_PLAN" "$TMP_DEC"' EXIT

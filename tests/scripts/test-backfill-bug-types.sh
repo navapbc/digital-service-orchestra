@@ -40,7 +40,7 @@ _ONE_TAGGED_ONE_UNTAGGED='[
 make_mock_ticket_cmd() {
     local json="$1"
     local mock
-    mock=$(mktemp /tmp/mock-ticket-cmd.XXXXXX)
+    mock=$(mktemp "${TMPDIR:-/tmp}/mock-ticket-cmd.XXXXXX")
     cat > "$mock" << EOF
 #!/usr/bin/env bash
 printf '%s\n' '$json'
@@ -97,7 +97,7 @@ test_dry_run_exits_0
 # and that the word "lock" (or "already" or "running") appears in output.
 test_lock_exists_exits_0_with_info() {
     local tmp_root
-    tmp_root=$(mktemp -d /tmp/backfill-lock-test.XXXXXX)
+    tmp_root=$(mktemp -d "${TMPDIR:-/tmp}/backfill-lock-test.XXXXXX")
     _CLEANUP_DIRS+=("$tmp_root")
 
     mkdir -p "$tmp_root/.claude/locks"
@@ -165,7 +165,7 @@ test_already_tagged_tickets_skipped
 # ── Test 6: lock file removed on EXIT ─────────────────────────────────────────
 test_lock_cleaned_up_on_exit() {
     local tmp_root
-    tmp_root=$(mktemp -d /tmp/backfill-lock-cleanup.XXXXXX)
+    tmp_root=$(mktemp -d "${TMPDIR:-/tmp}/backfill-lock-cleanup.XXXXXX")
     _CLEANUP_DIRS+=("$tmp_root")
 
     local mock_cmd
@@ -210,7 +210,7 @@ test_window_days_filters_old_tickets() {
     ]"
 
     local mock_cmd
-    mock_cmd=$(mktemp /tmp/mock-window-ticket.XXXXXX)
+    mock_cmd=$(mktemp "${TMPDIR:-/tmp}/mock-window-ticket.XXXXXX")
     cat > "$mock_cmd" << MOCK_EOF
 #!/usr/bin/env bash
 printf '%s\n' '$window_json'
@@ -234,7 +234,7 @@ test_window_days_filters_old_tickets
 # exit 1 and emit an error message containing "tickets".
 test_tickets_branch_absent_exits_1() {
     local tmp_repo mock_cmd
-    tmp_repo=$(mktemp -d /tmp/backfill-nobranch.XXXXXX)
+    tmp_repo=$(mktemp -d "${TMPDIR:-/tmp}/backfill-nobranch.XXXXXX")
     _CLEANUP_DIRS+=("$tmp_repo")
 
     # Initialize a bare-enough git repo (just needs .git) with no tickets branch

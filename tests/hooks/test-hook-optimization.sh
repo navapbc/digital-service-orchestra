@@ -118,7 +118,7 @@ echo "--- test_pre_edit_still_allows_normal_edits ---"
 _EDIT_PATH=""
 _WRITE_PATH=""
 trap 'rm -f "$_EDIT_PATH" "$_WRITE_PATH"' EXIT
-_EDIT_PATH=$(mktemp /tmp/dso-test-edit.XXXXXX)
+_EDIT_PATH=$(mktemp "${TMPDIR:-/tmp}/dso-test-edit.XXXXXX")
 _INPUT='{"tool_name":"Edit","tool_input":{"file_path":"'"$_EDIT_PATH"'","old_string":"old","new_string":"new"}}'
 _exit_code=0
 printf '%s' "$_INPUT" | bash "$DISPATCHERS_DIR/pre-edit.sh" 2>/dev/null || _exit_code=$?
@@ -128,7 +128,7 @@ assert_eq "pre-edit allows normal edits without validation_gate" "0" "$_exit_cod
 # Behavioral: pre-write still works without validation_gate
 # ============================================================
 echo "--- test_pre_write_still_allows_normal_writes ---"
-_WRITE_PATH=$(mktemp /tmp/dso-test-write.XXXXXX)
+_WRITE_PATH=$(mktemp "${TMPDIR:-/tmp}/dso-test-write.XXXXXX")
 _INPUT='{"tool_name":"Write","tool_input":{"file_path":"'"$_WRITE_PATH"'","content":"print(\"hello\")"}}'
 _exit_code=0
 printf '%s' "$_INPUT" | bash "$DISPATCHERS_DIR/pre-write.sh" 2>/dev/null || _exit_code=$?

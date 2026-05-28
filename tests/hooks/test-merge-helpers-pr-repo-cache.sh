@@ -22,9 +22,9 @@ source "$PLUGIN_ROOT/tests/lib/assert.sh"
 echo "=== test-merge-helpers-pr-repo-cache.sh ==="
 
 # Sandbox: stub `gh` on PATH to deterministically simulate failure / success.
-_TMP_BIN="$(mktemp -d /tmp/pr-repo-cache-bin.XXXXXX)"
-_GH_CALL_LOG="$(mktemp /tmp/pr-repo-cache-calls.XXXXXX)"
-_GH_MODE_FILE="$(mktemp /tmp/pr-repo-cache-mode.XXXXXX)"
+_TMP_BIN="$(mktemp -d "${TMPDIR:-/tmp}/pr-repo-cache-bin.XXXXXX")"
+_GH_CALL_LOG="$(mktemp "${TMPDIR:-/tmp}/pr-repo-cache-calls.XXXXXX")"
+_GH_MODE_FILE="$(mktemp "${TMPDIR:-/tmp}/pr-repo-cache-mode.XXXXXX")"
 
 cleanup() {
     rm -rf "$_TMP_BIN" "$_GH_CALL_LOG" "$_GH_MODE_FILE" 2>/dev/null || true

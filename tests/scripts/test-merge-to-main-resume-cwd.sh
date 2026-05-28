@@ -92,7 +92,7 @@ mkdir -p "$_MERGE_WRONG_CWD"
 git init --bare "$_MERGE_ORIGIN" -b main --quiet 2>/dev/null
 git clone "$_MERGE_ORIGIN" "$_MERGE_MAIN" --quiet 2>/dev/null
 (
-    cd "$_MERGE_MAIN"
+    cd "$_MERGE_MAIN" || return
     git config user.email "test@test.com"
     git config user.name "Test"
     echo "init" > README.md
@@ -117,7 +117,7 @@ git -C "$_MERGE_MAIN" worktree add -q "$_MERGE_WT" feature-cwd-test 2>/dev/null
 _PRE_MERGE_SHA=$(git -C "$_MERGE_MAIN" rev-parse HEAD)
 
 # Source the script in library mode and run _phase_merge from WRONG_CWD
-_MERGE_CWD_WRAPPER=$(mktemp /tmp/merge-cwd.XXXXXX.sh)
+_MERGE_CWD_WRAPPER=$(mktemp "${TMPDIR:-/tmp}/merge-cwd.XXXXXX".sh)
 cat > "$_MERGE_CWD_WRAPPER" << WRAPPER_EOF
 #!/usr/bin/env bash
 export MERGE_TO_MAIN_DIRECT_LIB=1
@@ -185,7 +185,7 @@ export _CWD_PWD_LOG
 
 # Set up MAIN_REPO as a minimal git repo
 (
-    cd "$_CWD_MAIN_REPO"
+    cd "$_CWD_MAIN_REPO" || return
     git init -b main --quiet
     git config user.email "test@test.com"
     git config user.name "Test"
@@ -199,7 +199,7 @@ _CWD_BUMP_BODY=$(_extract_fn "_phase_version_bump" 2>/dev/null || echo "")
 _CWD_TEST_RC=0
 (
     # Start from WORKTREE dir (not MAIN_REPO) — simulates the resume scenario
-    cd "$_CWD_WORKTREE"
+    cd "$_CWD_WORKTREE" || return
     export PATH="$_CWD_MOCK_BIN:$PATH"
     export BUMP_TYPE="patch"
     export VERSION_FILE_PATH="$_CWD_MAIN_REPO/VERSION"
@@ -256,7 +256,7 @@ mkdir -p "$_VAL_MAIN_REPO" "$_VAL_WRONG_CWD"
 touch "$_VAL_EMPTY_CONFIG"
 
 (
-    cd "$_VAL_MAIN_REPO"
+    cd "$_VAL_MAIN_REPO" || return
     git init -b main --quiet
     git config user.email "test@test.com"
     git config user.name "Test"
@@ -265,7 +265,7 @@ touch "$_VAL_EMPTY_CONFIG"
     git commit -m "initial" --quiet
 ) 2>/dev/null
 
-_VAL_WRAPPER=$(mktemp /tmp/validate-cwd.XXXXXX.sh)
+_VAL_WRAPPER=$(mktemp "${TMPDIR:-/tmp}/validate-cwd.XXXXXX".sh)
 cat > "$_VAL_WRAPPER" << WRAPPER_EOF
 #!/usr/bin/env bash
 export MERGE_TO_MAIN_DIRECT_LIB=1
@@ -314,7 +314,7 @@ mkdir -p "$_PUSH_WRONG_CWD"
 git init --bare "$_PUSH_ORIGIN" -b main --quiet 2>/dev/null
 git clone "$_PUSH_ORIGIN" "$_PUSH_MAIN" --quiet 2>/dev/null
 (
-    cd "$_PUSH_MAIN"
+    cd "$_PUSH_MAIN" || return
     git config user.email "test@test.com"
     git config user.name "Test"
     echo "init" > README.md
@@ -323,7 +323,7 @@ git clone "$_PUSH_ORIGIN" "$_PUSH_MAIN" --quiet 2>/dev/null
     git push origin main --quiet 2>/dev/null
 ) 2>/dev/null
 
-_PUSH_WRAPPER=$(mktemp /tmp/push-cwd.XXXXXX.sh)
+_PUSH_WRAPPER=$(mktemp "${TMPDIR:-/tmp}/push-cwd.XXXXXX".sh)
 cat > "$_PUSH_WRAPPER" << WRAPPER_EOF
 #!/usr/bin/env bash
 export MERGE_TO_MAIN_DIRECT_LIB=1

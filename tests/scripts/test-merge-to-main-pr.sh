@@ -216,7 +216,7 @@ GIT_SHIM
 # ---------------------------------------------------------------------------
 t_pr_create_invocation() {
     local _T branch _argv _has_create
-    _T="$(mktemp -d /tmp/dso-pr-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-pr-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -254,7 +254,7 @@ t_pr_create_invocation
 # ---------------------------------------------------------------------------
 t_pr_auto_merge_queued() {
     local _T branch _argv _has_merge_42 _uses_merge_strategy _has_auto
-    _T="$(mktemp -d /tmp/dso-pr-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-pr-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -299,7 +299,7 @@ t_pr_auto_merge_queued
 # ---------------------------------------------------------------------------
 t_pr_state_file_persists_pr_url() {
     local _T branch _state_file _pr_url _pr_number _branch_safe
-    _T="$(mktemp -d /tmp/dso-pr-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-pr-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -352,7 +352,7 @@ t_pr_state_file_persists_pr_url
 # ---------------------------------------------------------------------------
 t_pr_conflict_emits_conflict_data() {
     local _T branch _out _ec _branch_safe _state_file
-    _T="$(mktemp -d /tmp/dso-pr-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-pr-test.XXXXXX")"
     branch="feature-conflict"
     _branch_safe="${branch//\//-}"
     _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
@@ -637,7 +637,7 @@ EOF
 # ---------------------------------------------------------------------------
 t_pr_poll_single_call_per_iteration() {
     local _T branch _argv _checks_count
-    _T="$(mktemp -d /tmp/dso-pr-poll-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-pr-poll-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -668,7 +668,7 @@ t_pr_poll_single_call_per_iteration
 # ---------------------------------------------------------------------------
 t_pr_poll_succeeds_on_merged_state() {
     local _T branch _ec
-    _T="$(mktemp -d /tmp/dso-pr-poll-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-pr-poll-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -676,7 +676,7 @@ t_pr_poll_succeeds_on_merged_state() {
     _build_pr_polling_fixture "$_T" "$branch" "success_after_2"
 
     local _stderr_file
-    _stderr_file="$(mktemp /tmp/pr-poll-success-test.XXXXXX)"
+    _stderr_file="$(mktemp "${TMPDIR:-/tmp}/pr-poll-success-test.XXXXXX")"
     (
         cd "$_T" || exit 1
         PATH="$_T/bin:$PATH" \
@@ -704,7 +704,7 @@ t_pr_poll_succeeds_on_merged_state
 # ---------------------------------------------------------------------------
 t_pr_poll_fails_on_check_failure() {
     local _T branch _stderr _ec _has_url _exits_nonzero
-    _T="$(mktemp -d /tmp/dso-pr-poll-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-pr-poll-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -743,7 +743,7 @@ t_pr_poll_fails_on_check_failure
 # ---------------------------------------------------------------------------
 t_pr_poll_timeout() {
     local _T branch _stderr _ec _has_timeout _has_url _exits_nonzero _cfg
-    _T="$(mktemp -d /tmp/dso-pr-poll-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-pr-poll-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -995,7 +995,7 @@ EOF
 # ---------------------------------------------------------------------------
 t_pr_success_exits_zero() {
     local _T branch _ec _branch_safe _state_file _ci_trigger_complete
-    _T="$(mktemp -d /tmp/dso-pr-success-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-pr-success-test.XXXXXX")"
     branch="feature-success-exit"
     _branch_safe="${branch//\//-}"
     _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
@@ -1051,7 +1051,7 @@ t_pr_success_missing_merge_sha() {
     # rather than exiting with an error. This handles GitHub's API limitation for squash
     # merges where mergeCommit.oid returns the source-branch HEAD instead of the squash commit.
     local _T branch _ec _branch_safe _state_file _out
-    _T="$(mktemp -d /tmp/dso-pr-success-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-pr-success-test.XXXXXX")"
     branch="feature-missing-merge-sha"
     _branch_safe="${branch//\//-}"
     _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
@@ -1105,7 +1105,7 @@ t_pr_success_missing_merge_sha
 # ---------------------------------------------------------------------------
 t_per_thread_resolve_failure_emits_warn() {
     local _T branch _stderr _rc
-    _T="$(mktemp -d /tmp/dso-pr-thread-warn-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-pr-thread-warn-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -1244,7 +1244,7 @@ t_state_record_failed_run_id_writes_to_state
 # ---------------------------------------------------------------------------
 t_phase_poll_records_failed_run_id_on_ci_failure() {
     local _T _branch_safe _state_file _result
-    _T="$(mktemp -d /tmp/dso-poll-runid-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-poll-runid-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
     _branch_safe="test-poll-runid-$$"
@@ -1324,7 +1324,7 @@ t_phase_poll_records_failed_run_id_on_ci_failure
 # ---------------------------------------------------------------------------
 t_phase_poll_run_list_filters_by_branch() {
     local _T _branch_safe _state_file _argv _has_branch_filter
-    _T="$(mktemp -d /tmp/dso-poll-runid-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-poll-runid-test.XXXXXX")"
     _branch_safe="test-runlist-branch-$$"
     _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
     rm -f "$_state_file"
@@ -1390,7 +1390,7 @@ t_phase_poll_run_list_filters_by_branch
 # ---------------------------------------------------------------------------
 t_phase_remediate_redownloads_artifacts_when_run_id_changes() {
     local _T _branch_safe _state_file _download_log _has_new_runid_download
-    _T="$(mktemp -d /tmp/dso-remediate-redl-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-remediate-redl-test.XXXXXX")"
     _branch_safe="test-redownload-$$"
     _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
     _download_log="$_T/gh-download.log"
@@ -1470,7 +1470,7 @@ t_phase_remediate_redownloads_artifacts_when_run_id_changes
 # ---------------------------------------------------------------------------
 t_dispatch_fix_agent_invokes_llm_with_correct_args() {
     local _T _branch_safe _has_dispatch _has_findings
-    _T="$(mktemp -d /tmp/dso-dispatch-fix-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-dispatch-fix-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
     _branch_safe="test-dispatch-$$"
@@ -1522,7 +1522,7 @@ t_dispatch_fix_agent_invokes_llm_with_correct_args
 # ---------------------------------------------------------------------------
 t_phase_remediate_wires_poll_failure_to_fix_push_repoll() {
     local _T _branch_safe _state_file _ec _push_called
-    _T="$(mktemp -d /tmp/dso-remediate-wire-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-remediate-wire-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
     _branch_safe="test-remediate-wire-$$"
@@ -1676,7 +1676,7 @@ t_phase_remediate_wires_poll_failure_to_fix_push_repoll
 # ---------------------------------------------------------------------------
 t_phase_remediate_on_fix_agent_fail_returns_nonzero() {
     local _T _branch_safe _state_file _ec _llm_called _push_called
-    _T="$(mktemp -d /tmp/dso-remediate-fail-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-remediate-fail-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
     _branch_safe="test-remediate-fail-$$"
@@ -1776,7 +1776,7 @@ t_phase_remediate_on_fix_agent_fail_returns_nonzero
 # ---------------------------------------------------------------------------
 t_phase_remediate_on_artifact_missing_returns_nonzero() {
     local _T _branch_safe _state_file _ec _gh_called
-    _T="$(mktemp -d /tmp/dso-remediate-miss-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-remediate-miss-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
     _branch_safe="test-remediate-miss-$$"
@@ -1852,7 +1852,7 @@ t_phase_remediate_on_artifact_missing_returns_nonzero
 # ---------------------------------------------------------------------------
 t_phase_remediate_failure_exits_exactly_2() {
     local _T _branch_safe _state_file _ec _push_called
-    _T="$(mktemp -d /tmp/dso-remediate-ec2-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-remediate-ec2-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
     _branch_safe="test-remediate-ec2-$$"
@@ -1952,7 +1952,7 @@ t_phase_remediate_failure_exits_exactly_2
 # ---------------------------------------------------------------------------
 t_phase_remediate_on_repoll_failure_returns_nonzero() {
     local _T _branch_safe _state_file _ec _push_called
-    _T="$(mktemp -d /tmp/dso-remediate-repoll-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-remediate-repoll-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
     _branch_safe="test-remediate-repoll-$$"
@@ -2088,7 +2088,7 @@ t_phase_remediate_on_repoll_failure_returns_nonzero
 # ---------------------------------------------------------------------------
 t_main_flow_skips_remediate_on_poll_success() {
     local _T _branch_safe _func_defined _fix_agent_called
-    _T="$(mktemp -d /tmp/dso-main-skip-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-main-skip-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
     _branch_safe="test-main-skip-$$"
@@ -2192,7 +2192,7 @@ t_main_flow_skips_remediate_on_poll_success
 # ---------------------------------------------------------------------------
 t_phase_conflict_resolution_dispatches_when_conflicting() {
     local _T _branch_safe _dispatch_called _ec
-    _T="$(mktemp -d /tmp/dso-pcr-dispatch-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-pcr-dispatch-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
     _branch_safe="test-pcr-dispatch-$$"
@@ -2254,7 +2254,7 @@ t_phase_conflict_resolution_dispatches_when_conflicting
 # ---------------------------------------------------------------------------
 t_phase_conflict_resolution_noop_when_not_conflicting() {
     local _T _branch_safe _dispatch_called _ec
-    _T="$(mktemp -d /tmp/dso-pcr-noop-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-pcr-noop-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
     _branch_safe="test-pcr-noop-$$"
@@ -2306,7 +2306,7 @@ t_phase_conflict_resolution_noop_when_not_conflicting
 # ---------------------------------------------------------------------------
 t_phase_conflict_resolution_fails_when_conflicts_remain() {
     local _T _branch_safe _stderr _ec _exits_nonzero _has_escalation
-    _T="$(mktemp -d /tmp/dso-pcr-fail-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-pcr-fail-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
     _branch_safe="test-pcr-fail-$$"
@@ -2387,7 +2387,7 @@ t_phase_remediate_not_called_when_conflict_resolution_fails
 # ---------------------------------------------------------------------------
 t_phase_remediate_tries_tier2_when_tier1_artifact_missing() {
     local _T branch _ec
-    _T="$(mktemp -d /tmp/dso-pr-remediate-t2.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-pr-remediate-t2.XXXXXX")"
     branch="feature-remediate-tier2"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
@@ -2448,7 +2448,7 @@ t_phase_remediate_tries_tier2_when_tier1_artifact_missing
 # ---------------------------------------------------------------------------
 t_phase_remediate_returns_2_when_all_tiers_artifact_missing() {
     local _T branch _ec
-    _T="$(mktemp -d /tmp/dso-pr-remediate-all-miss.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-pr-remediate-all-miss.XXXXXX")"
     branch="feature-remediate-all-missing"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
@@ -2510,7 +2510,7 @@ t_phase_remediate_returns_2_when_all_tiers_artifact_missing
 # ---------------------------------------------------------------------------
 t_phase_remediate_continues_to_tier2_after_tier1_fix_fails_repoll() {
     local _T branch _ec
-    _T="$(mktemp -d /tmp/dso-pr-remediate-repoll.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-pr-remediate-repoll.XXXXXX")"
     branch="feature-remediate-repoll"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
@@ -2909,7 +2909,7 @@ t_state_write_read_remediation_state_round_trip
 # ---------------------------------------------------------------------------
 t_dispatch_fix_agent_injects_budget_pressure_at_attempt_4() {
     local _T _branch_safe _captured_output
-    _T="$(mktemp -d /tmp/dso-dispatch-budget-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-dispatch-budget-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
     _branch_safe="test-budget-pressure-$$"
@@ -2963,7 +2963,7 @@ t_dispatch_fix_agent_injects_budget_pressure_at_attempt_4
 # ---------------------------------------------------------------------------
 t_dispatch_fix_agent_no_budget_pressure_at_attempt_1() {
     local _T _branch_safe _captured_output
-    _T="$(mktemp -d /tmp/dso-dispatch-nobudget-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-dispatch-nobudget-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
     _branch_safe="test-no-budget-$$"
@@ -3025,7 +3025,7 @@ t_dispatch_fix_agent_no_budget_pressure_at_attempt_1
 # ---------------------------------------------------------------------------
 t_phase_remediate_stops_at_tier_ceiling() {
     local _T _branch_safe _state_file _ec _out
-    _T="$(mktemp -d /tmp/dso-remediate-tier-ceil.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-remediate-tier-ceil.XXXXXX")"
     _branch_safe="test-tier-ceiling-$$"
     _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
     # shellcheck disable=SC2064
@@ -3085,7 +3085,7 @@ t_phase_remediate_stops_at_tier_ceiling
 # ---------------------------------------------------------------------------
 t_phase_remediate_stops_at_global_ceiling() {
     local _T _branch_safe _state_file _ec _out
-    _T="$(mktemp -d /tmp/dso-remediate-global-ceil.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-remediate-global-ceil.XXXXXX")"
     _branch_safe="test-global-ceiling-$$"
     _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
     # shellcheck disable=SC2064
@@ -3143,7 +3143,7 @@ t_phase_remediate_stops_at_global_ceiling
 # ---------------------------------------------------------------------------
 t_phase_remediate_stops_on_cannot_proceed() {
     local _T _branch_safe _state_file _ec _out
-    _T="$(mktemp -d /tmp/dso-remediate-cannot.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-remediate-cannot.XXXXXX")"
     _branch_safe="test-cannot-proceed-$$"
     _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
     # shellcheck disable=SC2064
@@ -3203,7 +3203,7 @@ t_phase_remediate_stops_on_cannot_proceed
 # ---------------------------------------------------------------------------
 t_phase_remediate_writes_remediation_state_to_state_file() {
     local _T _branch_safe _state_file _ec _state_contents
-    _T="$(mktemp -d /tmp/dso-remediate-state-write.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-remediate-state-write.XXXXXX")"
     _branch_safe="test-state-write-$$"
     _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
     # shellcheck disable=SC2064
@@ -3275,7 +3275,7 @@ t_phase_remediate_writes_remediation_state_to_state_file
 # ---------------------------------------------------------------------------
 t_phase_remediate_injects_budget_pressure_at_attempt_4() {
     local _T _branch_safe _state_file _ec _dispatch_args_file
-    _T="$(mktemp -d /tmp/dso-remediate-budget4.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-remediate-budget4.XXXXXX")"
     _branch_safe="test-budget4-$$"
     _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
     _dispatch_args_file="$_T/dispatch-args.log"
@@ -3355,7 +3355,7 @@ t_phase_remediate_injects_budget_pressure_at_attempt_4
 # ---------------------------------------------------------------------------
 t_phase_remediate_emits_artifact_missing_when_all_tiers_fail() {
     local _T _branch_safe _state_file _ec _out
-    _T="$(mktemp -d /tmp/dso-remediate-artmiss.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-remediate-artmiss.XXXXXX")"
     _branch_safe="test-artmiss-$$"
     _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
     # shellcheck disable=SC2064
@@ -3413,7 +3413,7 @@ t_phase_remediate_emits_artifact_missing_when_all_tiers_fail
 # ---------------------------------------------------------------------------
 t_phase_remediate_emits_throttle_pause_when_usage_check_paused() {
     local _T _branch_safe _state_file _ec _out _dispatch_called_file
-    _T="$(mktemp -d /tmp/dso-remediate-throttle.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-remediate-throttle.XXXXXX")"
     _branch_safe="test-throttle-$$"
     _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
     _dispatch_called_file="$_T/dispatch-was-called"
@@ -3488,7 +3488,7 @@ t_phase_remediate_emits_throttle_pause_when_usage_check_paused
 # ---------------------------------------------------------------------------
 t_phase_remediate_resets_tier_counter_on_regression() {
     local _T _branch_safe _state_file _ec
-    _T="$(mktemp -d /tmp/dso-remediate-regression-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-remediate-regression-test.XXXXXX")"
     _branch_safe="test-tier-regression-$$"
     _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
     # shellcheck disable=SC2064
@@ -3612,7 +3612,7 @@ t_auto_merge_disabled_does_not_emit_conflict_data() {
     # new behavior treats it as a soft success — no CONFLICT_DATA, no exit-1
     # at this phase (any later non-zero is fine; covered by other tests).
     local _T branch _all_out _has_conflict_data
-    _T="$(mktemp -d /tmp/dso-pr-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-pr-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -3646,7 +3646,7 @@ t_auto_merge_disabled_emits_warning_and_continues() {
     # rather than emitting an ERROR / CONFLICT_DATA pair that previously
     # caused the script to exit 1.
     local _T branch _all_out _has_warning _has_error
-    _T="$(mktemp -d /tmp/dso-pr-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-pr-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -3685,7 +3685,7 @@ t_auto_merge_disabled_invokes_manual_merge_in_poll() {
     # In the poll phase, when auto_merge_disabled is set and all checks pass,
     # the script must invoke `gh pr merge <num> --merge` without --auto.
     local _T branch _argv _has_manual_merge
-    _T="$(mktemp -d /tmp/dso-pr-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-pr-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -3722,7 +3722,7 @@ t_auto_merge_disabled_invokes_manual_merge_in_poll
 t_state_write_read_auto_merge_disabled_round_trip() {
     # Direct unit test of the helpers in merge-helpers.sh.
     local _T _sf _val
-    _T="$(mktemp -d /tmp/dso-pr-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-pr-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -3761,7 +3761,7 @@ t_state_write_read_auto_merge_disabled_round_trip
 # ---------------------------------------------------------------------------
 t_pr_squash_merge_fallback_exits_zero() {
     local _T branch _ec _branch_safe _state_file _out
-    _T="$(mktemp -d /tmp/dso-pr-squash-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-pr-squash-test.XXXXXX")"
     branch="feature-squash-merge"
     _branch_safe="${branch//\//-}"
     _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
@@ -3935,7 +3935,7 @@ STUB
 # and NEVER invoke the LLM stub.
 t_local_guard_dispatch_fix_agent_blocks_llm_when_not_ci() {
     local _T _stub_log _stdout _ec
-    _T="$(mktemp -d /tmp/dso-local-guard-fix.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-local-guard-fix.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
     _stub_log="$_T/llm.log"
@@ -3975,7 +3975,7 @@ t_local_guard_dispatch_fix_agent_blocks_llm_when_not_ci
 # t_local_guard_dispatch_resolve_conflicts_blocks_llm_when_not_ci
 t_local_guard_dispatch_resolve_conflicts_blocks_llm_when_not_ci() {
     local _T _stub_log _stdout _ec
-    _T="$(mktemp -d /tmp/dso-local-guard-conflict.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-local-guard-conflict.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
     _stub_log="$_T/llm.log"
@@ -4014,7 +4014,7 @@ t_local_guard_dispatch_resolve_conflicts_blocks_llm_when_not_ci
 # t_local_guard_pr_dispatch_unresolved_batch_blocks_llm_when_not_ci
 t_local_guard_pr_dispatch_unresolved_batch_blocks_llm_when_not_ci() {
     local _T _stub_log _stdout _ec
-    _T="$(mktemp -d /tmp/dso-local-guard-threads.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-local-guard-threads.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
     _stub_log="$_T/llm.log"
@@ -4114,7 +4114,7 @@ JSON
 # Two comments newer than head — function returns 1 with structured escalation.
 t_check_pr_comments_new_comments_emit_escalation() {
     local _T _stdout _ec
-    _T="$(mktemp -d /tmp/dso-pr-comments-new.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-pr-comments-new.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -4148,7 +4148,7 @@ t_check_pr_comments_new_comments_emit_escalation
 # All comments older than head_date → function returns 0 (no escalation).
 t_check_pr_comments_no_new_returns_zero() {
     local _T _stdout _ec
-    _T="$(mktemp -d /tmp/dso-pr-comments-none.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-pr-comments-none.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -4190,7 +4190,7 @@ t_check_pr_comments_no_new_returns_zero
 # Even with new comments present, CI=true short-circuits the function.
 t_check_pr_comments_skipped_in_ci() {
     local _T _stdout _ec
-    _T="$(mktemp -d /tmp/dso-pr-comments-ci.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-pr-comments-ci.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -4232,7 +4232,7 @@ t_check_pr_comments_skipped_in_ci
 # ---------------------------------------------------------------------------
 t_pr_syncs_origin_main_before_push() {
     local _T branch _ec _branch_head _main_head _merged
-    _T="$(mktemp -d /tmp/dso-pr-sync-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-pr-sync-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -4383,7 +4383,7 @@ t_pr_syncs_origin_main_before_push
 # ---------------------------------------------------------------------------
 t_pr_auto_merge_queued_after_thread_resolution() {
     local _T branch _argv _resolve_line _auto_merge_line _ordered
-    _T="$(mktemp -d /tmp/dso-pr-auto-merge-order.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-pr-auto-merge-order.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -4597,7 +4597,7 @@ GIT_SHIM
 _run_check_duplicate_pr() {
     local tmpdir="$1" pr_list_mode="$2"
     local wrapper
-    wrapper="$(mktemp /tmp/dso-dup-check-wrapper.XXXXXX)"
+    wrapper="$(mktemp "${TMPDIR:-/tmp}/dso-dup-check-wrapper.XXXXXX")"
     cat > "$wrapper" <<WRAPPER_EOF
 #!/usr/bin/env bash
 set +e  # allow _check_duplicate_pr to return non-zero without aborting
@@ -4631,7 +4631,7 @@ WRAPPER_EOF
 # ---------------------------------------------------------------------------
 t_draft_pr_from_active_sprint_allowed() {
     local _T _ec
-    _T="$(mktemp -d /tmp/dso-dup-pr-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-dup-pr-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -4653,7 +4653,7 @@ t_draft_pr_from_active_sprint_allowed
 # ---------------------------------------------------------------------------
 t_stale_draft_pr_allowed() {
     local _T _ec
-    _T="$(mktemp -d /tmp/dso-dup-pr-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-dup-pr-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -4678,7 +4678,7 @@ t_stale_draft_pr_allowed
 # ---------------------------------------------------------------------------
 t_non_draft_release_pr_blocked() {
     local _T _ec
-    _T="$(mktemp -d /tmp/dso-dup-pr-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-dup-pr-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -4702,7 +4702,7 @@ t_non_draft_release_pr_blocked
 # ---------------------------------------------------------------------------
 t_check_duplicate_pr_no_pr_allowed() {
     local _T _ec
-    _T="$(mktemp -d /tmp/dso-dup-pr-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-dup-pr-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -4726,7 +4726,7 @@ t_check_duplicate_pr_no_pr_allowed
 # ---------------------------------------------------------------------------
 t_check_duplicate_pr_gh_failure_passes_through() {
     local _T _ec
-    _T="$(mktemp -d /tmp/dso-dup-pr-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-dup-pr-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -4751,7 +4751,7 @@ t_check_duplicate_pr_gh_failure_passes_through
 # ---------------------------------------------------------------------------
 t_check_duplicate_pr_malformed_json_passes_through() {
     local _T _ec
-    _T="$(mktemp -d /tmp/dso-dup-pr-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-dup-pr-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -4776,7 +4776,7 @@ t_check_duplicate_pr_malformed_json_passes_through
 # ---------------------------------------------------------------------------
 t_check_duplicate_pr_isdraft_filter_returns_empty_not_null() {
     local _T _ec
-    _T="$(mktemp -d /tmp/dso-dup-pr-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-dup-pr-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -4812,7 +4812,7 @@ t_check_duplicate_pr_isdraft_filter_returns_empty_not_null
 # ---------------------------------------------------------------------------
 t_pr_version_bump_pushed_to_origin() {
     local _T _ec _branch_safe _state_file
-    _T="$(mktemp -d /tmp/dso-pr-vbump-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-pr-vbump-test.XXXXXX")"
     local branch="feature-vbump-test-$$"
     _branch_safe="${branch//\//-}"
     _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
@@ -4993,7 +4993,7 @@ t_pr_version_bump_pushed_to_origin
 # ---------------------------------------------------------------------------
 t_pr_version_bump_main_repo_not_on_main() {
     local _T _ec _branch_safe _state_file
-    _T="$(mktemp -d /tmp/dso-pr-vbump-notmain.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-pr-vbump-notmain.XXXXXX")"
     local branch="feature-notmain-test-$$"
     _branch_safe="${branch//\//-}"
     _state_file="/tmp/merge-to-main-state-${_branch_safe}.json"
@@ -5153,7 +5153,7 @@ t_pr_version_bump_main_repo_not_on_main
 # ---------------------------------------------------------------------------
 t_phase_poll_behind_calls_update_branch() {
     local _T _update_branch_called _ec
-    _T="$(mktemp -d /tmp/dso-poll-behind-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-poll-behind-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -5265,7 +5265,7 @@ t_phase_poll_behind_calls_update_branch
 # ---------------------------------------------------------------------------
 t_phase_poll_behind_clean_returns_zero() {
     local _T _ec
-    _T="$(mktemp -d /tmp/dso-poll-behind-clean.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-poll-behind-clean.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -5346,7 +5346,7 @@ t_phase_poll_behind_clean_returns_zero
 # ---------------------------------------------------------------------------
 t_phase_poll_behind_exhausts_update_cap_exits_nonzero() {
     local _T _ec _update_branch_count _exits_nonzero
-    _T="$(mktemp -d /tmp/dso-poll-behind-cap.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-poll-behind-cap.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -5432,7 +5432,7 @@ t_phase_poll_behind_exhausts_update_cap_exits_nonzero
 # ===========================================================================
 t_draft_pr_promoted_on_resume() {
     local _T branch _sf
-    _T="$(mktemp -d /tmp/dso-pr-resume-promote.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-pr-resume-promote.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -5557,7 +5557,7 @@ t_draft_pr_promoted_on_resume
 # ===========================================================================
 t_draft_pr_promoted_to_ready() {
     local _T branch
-    _T="$(mktemp -d /tmp/dso-pr-draft-promote.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-pr-draft-promote.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -5764,7 +5764,7 @@ test_merge_to_main_pr_source_branch_bump() {
     fi
 
     local _T _real_git _branch _branch_safe _state_file
-    _T="$(mktemp -d /tmp/dso-src-branch-bump.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-src-branch-bump.XXXXXX")"
     _real_git="$(command -v git)"
     _branch="session/test-epic-srcbump-$$"
     _branch_safe="${_branch//\//-}"
@@ -5971,7 +5971,7 @@ assert_pass_if_clean "test_merge_to_main_pr_source_branch_bump"
 # ---------------------------------------------------------------------------
 t_pr_body_contains_commit_subjects() {
     local _T branch _argv _body_line
-    _T="$(mktemp -d /tmp/dso-pr-test.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-pr-test.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -6036,7 +6036,7 @@ eval "$_PR_BODY_FN_SRC"
 
 t_pr_body_pure_cleanup_branch_falls_back() {
     local _T body
-    _T="$(mktemp -d /tmp/dso-pr-body-cleanup.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-pr-body-cleanup.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
     (
@@ -6059,7 +6059,7 @@ t_pr_body_pure_cleanup_branch_falls_back
 
 t_pr_body_excludes_merge_commits() {
     local _T body
-    _T="$(mktemp -d /tmp/dso-pr-body-no-merges.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-pr-body-no-merges.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
     (
@@ -6094,7 +6094,7 @@ t_pr_body_excludes_merge_commits
 
 t_pr_body_falls_back_to_origin_base() {
     local _T body
-    _T="$(mktemp -d /tmp/dso-pr-body-origin-fallback.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-pr-body-origin-fallback.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
     (

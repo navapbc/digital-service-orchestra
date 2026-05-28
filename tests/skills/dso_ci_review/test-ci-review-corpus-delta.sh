@@ -95,7 +95,7 @@ assert_contains "test_none_improved: PRESENCE FAIL" "PRESENCE CHECK: FAIL" "$out
 # ---------------------------------------------------------------------------
 CORPUS_JSON="$(mktemp -d)"
 trap 'rm -rf "$CORPUS_JSON"' EXIT
-OUT_JSON="$(mktemp /tmp/delta-summary.XXXXXX.json)"
+OUT_JSON="$(mktemp "${TMPDIR:-/tmp}/delta-summary.XXXXXX".json)"
 trap 'rm -f "$OUT_JSON"' EXIT
 
 _make_fixture "$CORPUS_JSON" "grounded-one" "" \

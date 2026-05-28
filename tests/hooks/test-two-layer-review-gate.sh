@@ -57,7 +57,7 @@ source "$DSO_PLUGIN_DIR/hooks/lib/deps.sh"
 # When enforcement.strategy=ci (as in this repo), hook_review_bypass_sentinel()
 # returns 0 immediately, breaking all block tests. Tests needing ci behavior
 # use their own WORKFLOW_CONFIG_FILE isolation.
-_TEST_TWO_LAYER_ISOLATION_DIR=$(mktemp -d /tmp/two-layer-test-isolation.XXXXXX)
+_TEST_TWO_LAYER_ISOLATION_DIR=$(mktemp -d "${TMPDIR:-/tmp}/two-layer-test-isolation.XXXXXX")
 printf 'enforcement.strategy=local\n' > "$_TEST_TWO_LAYER_ISOLATION_DIR/dso-config.conf"
 WORKFLOW_CONFIG_FILE="$_TEST_TWO_LAYER_ISOLATION_DIR/dso-config.conf"
 source "$DSO_PLUGIN_DIR/hooks/lib/review-gate-bypass-sentinel.sh"
@@ -108,7 +108,7 @@ run_pre_commit_hook() {
     local exit_code=0
     (
         # shellcheck disable=SC2030,SC2031,SC2164
-        cd "$repo_dir"
+        cd "$repo_dir" || return
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$artifacts_dir"
         export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
         bash "$PRE_COMMIT_HOOK" 2>/dev/null
@@ -122,7 +122,7 @@ run_pre_commit_hook_stderr() {
     local artifacts_dir="$2"
     (
         # shellcheck disable=SC2030,SC2031,SC2164,SC2069
-        cd "$repo_dir"
+        cd "$repo_dir" || return
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$artifacts_dir"
         export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
         bash "$PRE_COMMIT_HOOK" 2>&1 >/dev/null
@@ -144,7 +144,7 @@ compute_hash_in_repo() {
     local artifacts_dir="$2"
     (
         # shellcheck disable=SC2030,SC2031,SC2164
-        cd "$repo_dir"
+        cd "$repo_dir" || return
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$artifacts_dir"
         export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
         bash "$DSO_PLUGIN_DIR/hooks/compute-diff-hash.sh" 2>/dev/null
@@ -529,7 +529,7 @@ test_gate_layer1_blocks_commit_without_test_status() {
     local exit_code=0
     (
         # shellcheck disable=SC2031,SC2164
-        cd "$_repo"
+        cd "$_repo" || return
         export WORKFLOW_PLUGIN_ARTIFACTS_DIR="$_artifacts"
         export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
         bash "$PRE_COMMIT_TEST_GATE" 2>/dev/null

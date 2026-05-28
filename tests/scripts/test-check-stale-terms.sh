@@ -14,7 +14,7 @@ SUT="$REPO_ROOT/plugins/dso/scripts/check-stale-terms.sh"
 # ── Test scaffolding ─────────────────────────────────────────────────────────
 TMPDIR_TEST=""
 _setup() {
-    TMPDIR_TEST=$(mktemp -d /tmp/test-check-stale-terms.XXXXXX)
+    TMPDIR_TEST=$(mktemp -d "${TMPDIR:-/tmp}/test-check-stale-terms.XXXXXX")
 }
 _teardown() {
     [[ -n "$TMPDIR_TEST" ]] && rm -rf "$TMPDIR_TEST"

@@ -34,7 +34,7 @@ test_pass_verdict_exits_0() {
     _snapshot_fail
     local rc=0
     local tmpfile
-    tmpfile=$(mktemp /tmp/test-handoff.XXXXXX)
+    tmpfile=$(mktemp "${TMPDIR:-/tmp}/test-handoff.XXXXXX")
     printf '{"schema_version": 2, "P1": "PASS", "story_id": "test-story-001"}' > "$tmpfile"
     bash "$SCRIPT" --predecessor-story-id=test-story-001 --verifier-json="$tmpfile" 2>/dev/null || rc=$?
     rm -f "$tmpfile"
@@ -48,7 +48,7 @@ test_fail_verdict_exits_1_with_json_error() {
     _snapshot_fail
     local rc=0
     local tmpfile
-    tmpfile=$(mktemp /tmp/test-handoff.XXXXXX)
+    tmpfile=$(mktemp "${TMPDIR:-/tmp}/test-handoff.XXXXXX")
     printf '{"schema_version": 2, "P1": "FAIL", "story_id": "test-story-002"}' > "$tmpfile"
     local stderr_out
     stderr_out=$(bash "$SCRIPT" --predecessor-story-id=test-story-002 --verifier-json="$tmpfile" 2>&1) || rc=$?
@@ -71,7 +71,7 @@ test_blocked_verdict_exits_1() {
     _snapshot_fail
     local rc=0
     local tmpfile
-    tmpfile=$(mktemp /tmp/test-handoff.XXXXXX)
+    tmpfile=$(mktemp "${TMPDIR:-/tmp}/test-handoff.XXXXXX")
     printf '{"schema_version": 2, "P1": "BLOCKED", "story_id": "test-story-003"}' > "$tmpfile"
     bash "$SCRIPT" --predecessor-story-id=test-story-003 --verifier-json="$tmpfile" 2>/dev/null || rc=$?
     rm -f "$tmpfile"
@@ -85,7 +85,7 @@ test_inconclusive_verdict_exits_1() {
     _snapshot_fail
     local rc=0
     local tmpfile
-    tmpfile=$(mktemp /tmp/test-handoff.XXXXXX)
+    tmpfile=$(mktemp "${TMPDIR:-/tmp}/test-handoff.XXXXXX")
     printf '{"schema_version": 2, "P1": "INCONCLUSIVE", "story_id": "test-story-004"}' > "$tmpfile"
     bash "$SCRIPT" --predecessor-story-id=test-story-004 --verifier-json="$tmpfile" 2>/dev/null || rc=$?
     rm -f "$tmpfile"
@@ -99,7 +99,7 @@ test_file_absent_exits_2() {
     _snapshot_fail
     local rc=0
     local nonexistent
-    nonexistent=$(mktemp /tmp/test-handoff.XXXXXX)
+    nonexistent=$(mktemp "${TMPDIR:-/tmp}/test-handoff.XXXXXX")
     rm -f "$nonexistent"  # ensure it doesn't exist
     bash "$SCRIPT" --predecessor-story-id=test-story-005 --verifier-json="$nonexistent" 2>/dev/null || rc=$?
     assert_eq "test_file_absent_exits_2: exit code is 2 for absent file" "2" "$rc"
@@ -112,7 +112,7 @@ test_malformed_json_exits_2() {
     _snapshot_fail
     local rc=0
     local tmpfile
-    tmpfile=$(mktemp /tmp/test-handoff.XXXXXX)
+    tmpfile=$(mktemp "${TMPDIR:-/tmp}/test-handoff.XXXXXX")
     printf 'this is not valid json at all' > "$tmpfile"
     bash "$SCRIPT" --predecessor-story-id=test-story-006 --verifier-json="$tmpfile" 2>/dev/null || rc=$?
     rm -f "$tmpfile"

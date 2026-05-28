@@ -129,7 +129,7 @@ GIT_STUB_EOF
 _run_check_dup() {
     local tmpdir="$1" pr_list_mode="$2"
     local wrapper
-    wrapper="$(mktemp /tmp/dso-consumer-compat-wrapper.XXXXXX)"
+    wrapper="$(mktemp "${TMPDIR:-/tmp}/dso-consumer-compat-wrapper.XXXXXX")"
     cat > "$wrapper" <<WRAPPER_EOF
 #!/usr/bin/env bash
 set +e
@@ -170,7 +170,7 @@ _fail() { printf "FAIL: %s\n" "$1" >&2; (( ++FAIL )); }
 # ---------------------------------------------------------------------------
 t_sprint_draft_pr_guard_passes() {
     local _T _ec
-    _T="$(mktemp -d /tmp/dso-consumer-compat.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-consumer-compat.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -197,7 +197,7 @@ t_sprint_draft_pr_guard_passes
 # ---------------------------------------------------------------------------
 t_fixbug_debug_no_pr_guard_passes() {
     local _T _ec
-    _T="$(mktemp -d /tmp/dso-consumer-compat.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-consumer-compat.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
@@ -225,14 +225,14 @@ t_fixbug_debug_no_pr_guard_passes
 # ---------------------------------------------------------------------------
 t_non_draft_pr_guard_blocked() {
     local _T _ec _stderr
-    _T="$(mktemp -d /tmp/dso-consumer-compat.XXXXXX)"
+    _T="$(mktemp -d "${TMPDIR:-/tmp}/dso-consumer-compat.XXXXXX")"
     # shellcheck disable=SC2064
     trap "rm -rf '$_T'" RETURN
 
     _build_consumer_fixture "$_T" "non_draft"
 
     local wrapper
-    wrapper="$(mktemp /tmp/dso-consumer-compat-wrapper2.XXXXXX)"
+    wrapper="$(mktemp "${TMPDIR:-/tmp}/dso-consumer-compat-wrapper2.XXXXXX")"
     cat > "$wrapper" <<WRAPPER2_EOF
 #!/usr/bin/env bash
 set +e
@@ -244,7 +244,7 @@ WRAPPER2_EOF
     chmod +x "$wrapper"
 
     local _err_out
-    _err_out="$(mktemp /tmp/dso-consumer-compat-err.XXXXXX)"
+    _err_out="$(mktemp "${TMPDIR:-/tmp}/dso-consumer-compat-err.XXXXXX")"
     (
         cd "$_T" || exit 1
         PATH="$_T/bin:$PATH" \

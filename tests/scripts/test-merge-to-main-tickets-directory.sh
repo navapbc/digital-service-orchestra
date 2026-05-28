@@ -25,8 +25,8 @@ READ_CONFIG="$REPO_ROOT/plugins/dso/scripts/read-config.sh"
 # ── Scaffolding ──────────────────────────────────────────────────────────────
 TMPDIR_TEST=""
 _setup() {
-    TMPDIR_TEST=$(mktemp -d /tmp/test-merge-tkdir.XXXXXX)
-    cd "$TMPDIR_TEST"
+    TMPDIR_TEST=$(mktemp -d "${TMPDIR:-/tmp}/test-merge-tkdir.XXXXXX")
+    cd "$TMPDIR_TEST" || return
     git init -b main --quiet
     git config user.email "test@test.example"
     git config user.name "Test"
@@ -46,7 +46,7 @@ test_read_config_returns_custom_directory() {
     local _value
     _value=$(bash "$READ_CONFIG" tickets.directory 2>/dev/null)
     assert_eq "custom tickets.directory read from config" ".custom-tickets" "$_value"
-    cd "$REPO_ROOT"
+    cd "$REPO_ROOT" || return
     _teardown
 }
 
@@ -57,7 +57,7 @@ test_read_config_returns_empty_when_unset() {
     _value=$(bash "$READ_CONFIG" tickets.directory 2>/dev/null || true)
     # Either empty or the script's own default — both are acceptable inputs
     # for the _CFG_TKDIR="${_CFG_TKDIR:-.tickets-tracker}" fallback.
-    cd "$REPO_ROOT"
+    cd "$REPO_ROOT" || return
     _teardown
     assert_eq "empty config produces empty or fallback" "1" "1"  # sanity-only
 }
@@ -106,7 +106,7 @@ test_git_pathspec_targets_custom_directory() {
     _staged=$(git ls-files -- "${_CFG_TKDIR}/" 2>/dev/null)
     assert_eq "custom ticket dir file staged after auto-commit add" "${_CFG_TKDIR}/test-0001.json" "$_staged"
 
-    cd "$REPO_ROOT"
+    cd "$REPO_ROOT" || return
     _teardown
 }
 
@@ -140,7 +140,7 @@ test_conflict_case_pattern_matches_custom_directory() {
     esac
     assert_eq "non-ticket path does NOT match conflict pattern" "0" "$_matched"
 
-    cd "$REPO_ROOT"
+    cd "$REPO_ROOT" || return
     _teardown
 }
 
@@ -184,6 +184,7 @@ test_no_hardcoded_literal_at_fixed_sites() {
     PASS=$((PASS + 1))
 
     # Site 5: post-merge tracker dir (was `_TRACKER_DIR="$MAIN_REPO/.tickets-tracker"`)
+    # shellcheck disable=SC2016  # intentional: matching literal text, not expanding
     if grep -nE '_TRACKER_DIR="\$MAIN_REPO/\.tickets-tracker"' "$MERGE_SCRIPT" >/dev/null 2>&1; then
         echo "FAIL: regression — literal _TRACKER_DIR=\$MAIN_REPO/.tickets-tracker" >&2
         FAIL=$((FAIL + 1))

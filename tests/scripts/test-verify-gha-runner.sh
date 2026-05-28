@@ -40,7 +40,7 @@ fi
 assert_pass_if_clean "test_script_exists"
 
 # Set up a shared temp directory for all test stubs
-_TMP=$(mktemp -d /tmp/test-verify-gha-runner.XXXXXX)
+_TMP=$(mktemp -d "${TMPDIR:-/tmp}/test-verify-gha-runner.XXXXXX")
 trap 'rm -rf "$_TMP"' EXIT
 
 # =============================================================================

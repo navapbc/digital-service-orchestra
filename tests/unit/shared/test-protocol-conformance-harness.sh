@@ -177,7 +177,7 @@ test_flag_overrides_config() {
     local output dispatch_count
     # Use a temp config file that sets max_remediation_cycles=5, but override with --max-cycles=2
     local tmp_conf
-    tmp_conf="$(mktemp /tmp/protocol-conformance-config.XXXXXX)"
+    tmp_conf="$(mktemp "${TMPDIR:-/tmp}/protocol-conformance-config.XXXXXX")"
     trap 'rm -f "$tmp_conf"' RETURN
     echo "planning.max_remediation_cycles=5" > "$tmp_conf"
 

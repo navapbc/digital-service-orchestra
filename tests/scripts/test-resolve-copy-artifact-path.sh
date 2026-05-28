@@ -40,7 +40,7 @@ fi
 # Create a temp project root and an optional dso-config.conf
 make_project_root() {
     local root
-    root=$(mktemp -d /tmp/resolve-cap-test.XXXXXX)
+    root=$(mktemp -d "${TMPDIR:-/tmp}/resolve-cap-test.XXXXXX")
     echo "$root"
 }
 

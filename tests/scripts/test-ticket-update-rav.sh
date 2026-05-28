@@ -72,7 +72,7 @@ _run_rav() {
 # Run and capture stderr separately
 _run_rav_stderr() {
     local tmp_err
-    tmp_err=$(mktemp /tmp/rav-test-stderr.XXXXXX)
+    tmp_err=$(mktemp "${TMPDIR:-/tmp}/rav-test-stderr.XXXXXX")
     local exit_code=0
     DSO_TICKET_RAV_TEST=1 bash "$RAV_SCRIPT" "$@" 2>"$tmp_err" || exit_code=$?
     cat "$tmp_err" >&2
@@ -88,7 +88,7 @@ _run_rav_capture() {
     local _out_var="$1"
     shift
     local tmp_err
-    tmp_err=$(mktemp /tmp/rav-test-stderr.XXXXXX)
+    tmp_err=$(mktemp "${TMPDIR:-/tmp}/rav-test-stderr.XXXXXX")
     local exit_code=0
     DSO_TICKET_RAV_TEST=1 bash "$RAV_SCRIPT" "$@" 2>"$tmp_err" || exit_code=$?
     printf -v "$_out_var" '%s' "$(cat "$tmp_err")"

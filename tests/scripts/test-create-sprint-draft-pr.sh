@@ -35,9 +35,9 @@ if [[ ! -f "$SCRIPT_UNDER_TEST" ]]; then
 fi
 
 # ── Sandbox setup ────────────────────────────────────────────────────────────
-_TMP_BIN="$(mktemp -d /tmp/sprint-draft-pr-bin.XXXXXX)"
-_GH_CALL_LOG="$(mktemp /tmp/sprint-draft-pr-calls.XXXXXX)"
-_GH_MODE_FILE="$(mktemp /tmp/sprint-draft-pr-mode.XXXXXX)"
+_TMP_BIN="$(mktemp -d "${TMPDIR:-/tmp}/sprint-draft-pr-bin.XXXXXX")"
+_GH_CALL_LOG="$(mktemp "${TMPDIR:-/tmp}/sprint-draft-pr-calls.XXXXXX")"
+_GH_MODE_FILE="$(mktemp "${TMPDIR:-/tmp}/sprint-draft-pr-mode.XXXXXX")"
 
 cleanup() {
     rm -rf "$_TMP_BIN" "$_GH_CALL_LOG" "$_GH_MODE_FILE" 2>/dev/null || true
@@ -132,7 +132,7 @@ gh_was_called_with() { grep -qF "$1" "$_GH_CALL_LOG" 2>/dev/null; }
 # whether to write a sentinel commit. If tests ran in the actual worktree the
 # sentinel logic would pollute it. Use a temp repo with 1 commit ahead of main
 # so the sentinel block stays inactive for the gh-interaction tests.
-_SHARED_REPO="$(mktemp -d /tmp/sprint-draft-pr-shared.XXXXXX)"
+_SHARED_REPO="$(mktemp -d "${TMPDIR:-/tmp}/sprint-draft-pr-shared.XXXXXX")"
 (
     cd "$_SHARED_REPO" || exit
     git init --quiet --initial-branch=main
@@ -362,7 +362,7 @@ setup_temp_repo() {
     # checked out. Returns the repo path on stdout. The caller is responsible for
     # `cd`ing into it.
     local repo_dir
-    repo_dir=$(mktemp -d /tmp/sprint-draft-pr-repo.XXXXXX)
+    repo_dir=$(mktemp -d "${TMPDIR:-/tmp}/sprint-draft-pr-repo.XXXXXX")
     (
         cd "$repo_dir" || exit
         git init --quiet --initial-branch=main

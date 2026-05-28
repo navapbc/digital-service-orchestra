@@ -461,7 +461,7 @@ if [ -n "$THREAD_PR_NUMBER" ]; then
 fi
 
 # Run merge-to-main-pr.sh with escalation-forcing env vars
-THREAD_MERGE_STDERR=$(mktemp /tmp/dso-thread-merge-stderr.XXXXXX)
+THREAD_MERGE_STDERR=$(mktemp "${TMPDIR:-/tmp}/dso-thread-merge-stderr.XXXXXX")
 PR_THREAD_LOOP_MAX_DISPATCHES=1 PR_THREAD_LOOP_MAX_WAIT_SECONDS=60 \
     bash plugins/dso/scripts/merge-to-main-pr.sh 2>"$THREAD_MERGE_STDERR" || true
 THREAD_MERGE_EXIT=$?

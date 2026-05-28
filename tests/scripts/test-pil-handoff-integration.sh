@@ -113,7 +113,7 @@ test_pil_file_flag_exits_0() {
     _snapshot_fail
     local rc=0
     local tmpfile
-    tmpfile=$(mktemp /tmp/test-pil-handoff.XXXXXX)
+    tmpfile=$(mktemp "${TMPDIR:-/tmp}/test-pil-handoff.XXXXXX")
     printf '{"schema_version":1,"generatedAt":"2026-05-18T17:40:00Z","epicId":"abc-123"}' > "$tmpfile"
     bash "$VALIDATE_SCRIPT" --pil-file="$tmpfile" 2>/dev/null || rc=$?
     rm -f "$tmpfile"

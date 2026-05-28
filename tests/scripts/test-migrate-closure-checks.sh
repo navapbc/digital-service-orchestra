@@ -43,7 +43,7 @@ fi
 # ── Helper: create a fresh temp git repo with ticket system initialized ────────
 _make_test_repo() {
     local tmp
-    tmp=$(mktemp -d /tmp/test-migrate-closure-checks.XXXXXX)
+    tmp=$(mktemp -d "${TMPDIR:-/tmp}/test-migrate-closure-checks.XXXXXX")
     _CLEANUP_DIRS+=("$tmp")
     clone_ticket_repo "$tmp/repo"
     echo "$tmp/repo"
@@ -619,7 +619,7 @@ test_exits_2_when_tracker_missing() {
     fi
 
     local tmp
-    tmp=$(mktemp -d /tmp/test-migrate-no-tracker.XXXXXX)
+    tmp=$(mktemp -d "${TMPDIR:-/tmp}/test-migrate-no-tracker.XXXXXX")
     _CLEANUP_DIRS+=("$tmp")
 
     # A bare git repo with no .tickets-tracker

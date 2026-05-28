@@ -82,7 +82,7 @@ MERGE_PR_SCRIPT="$REPO_ROOT/plugins/dso/scripts/merge-to-main-pr.sh"
 # ---------------------------------------------------------------------------
 _make_stub_dir() {
     local d
-    d=$(mktemp -d "/tmp/dso-pr-thread-stubs.XXXXXX")
+    d=$(mktemp -d "${TMPDIR:-/tmp}/dso-pr-thread-stubs.XXXXXX")
     _TEST_TMPDIRS+=("$d")
 
     cat > "$d/gh" <<'GHEOF'
@@ -890,7 +890,7 @@ test_dispatch_fix_agent_fails_loud_when_llm_dispatch_unset() {
     _snapshot_fail
 
     local _findings_file
-    _findings_file=$(mktemp "/tmp/dso-findings.XXXXXX")
+    _findings_file=$(mktemp "${TMPDIR:-/tmp}/dso-findings.XXXXXX")
     _TEST_TMPDIRS+=("$_findings_file")
 
     local stderr_out rc=0

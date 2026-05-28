@@ -102,7 +102,7 @@ _resolve_tracker_git_dir() {
 #
 _make_preupgrade_fixture() {
     local tmpdir
-    tmpdir=$(mktemp -d /tmp/test-ticket-init-idempotent.XXXXXX)
+    tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/test-ticket-init-idempotent.XXXXXX")
     _CLEANUP_DIRS+=("$tmpdir")
 
     # ── Step 1: Create the main repo ─────────────────────────────────────────
@@ -126,7 +126,7 @@ _make_preupgrade_fixture() {
     # worktree (leaving only the branch). This is the cleanest cross-version
     # approach to create a committed orphan branch without a worktree.
     local bootstrap_dir
-    bootstrap_dir=$(mktemp -d /tmp/test-ticket-init-bootstrap.XXXXXX)
+    bootstrap_dir=$(mktemp -d "${TMPDIR:-/tmp}/test-ticket-init-bootstrap.XXXXXX")
     _CLEANUP_DIRS+=("$bootstrap_dir")
 
     if (( _git_major > 2 || (_git_major == 2 && _git_minor >= 40) )); then

@@ -37,8 +37,8 @@ ROLE_NAME="test-role"
 LOG_GROUP="/aws/lambda/${FUNCTION_NAME}"
 
 # ── Setup: STATE_FILE and SANDBOX ─────────────────────────────────────────────
-SANDBOX="$(mktemp -d /tmp/aws-composition-test.XXXXXX)"
-STATE_FILE="$(mktemp /tmp/mock-state.XXXXXX)"
+SANDBOX="$(mktemp -d "${TMPDIR:-/tmp}/aws-composition-test.XXXXXX")"
+STATE_FILE="$(mktemp "${TMPDIR:-/tmp}/mock-state.XXXXXX")"
 trap 'rm -rf "$SANDBOX"; rm -f "$STATE_FILE"' EXIT
 
 # ── Write the dso (read-config) stub ──────────────────────────────────────────

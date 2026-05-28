@@ -330,7 +330,7 @@ test_bridge_routes_deleted_to_delete_issue() {
 
     # Write the test script to a temp file (avoids heredoc-in-subshell issues)
     local py_script exit_code py_output
-    py_script=$(mktemp /tmp/bridge-routing-test-XXXXXX.py)
+    py_script=$(mktemp "${TMPDIR:-/tmp}/bridge-routing-test-XXXXXX".py)
     cat > "$py_script" << 'PYEOF'
 import sys, os, json, tempfile, shutil
 from unittest.mock import MagicMock

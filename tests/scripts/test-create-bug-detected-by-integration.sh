@@ -96,7 +96,7 @@ trap cleanup_all EXIT
 test_detected_by_channel() {
   local channel="$1"
   local ticket_id show_output
-  local tmp_out; tmp_out="$(mktemp /tmp/dso-test.XXXXXX)"
+  local tmp_out; tmp_out="$(mktemp "${TMPDIR:-/tmp}/dso-test.XXXXXX")"
 
   # 1. Create the ticket with both CLI_user and detected_by:<channel> tags.
   # The --tags flag accepts comma-separated values: CLI_user,detected_by:<channel>

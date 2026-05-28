@@ -34,7 +34,7 @@ AUDIT_SCRIPT="$REPO_ROOT/plugins/dso/scripts/audit-closure-checks-source-consume
 # below is called inside `out=$(_run_audit ...)` — i.e. in a subshell — so a
 # plain global assignment inside the helper does not propagate back. We write
 # the exit code to a sidecar file and read it after the substitution.
-_AUDIT_EXIT_FILE="$(mktemp "/tmp/test-audit-source-consumers-exit.XXXXXX")"
+_AUDIT_EXIT_FILE="$(mktemp "${TMPDIR:-/tmp}/test-audit-source-consumers-exit.XXXXXX")"
 _AUDIT_EXIT=0
 trap 'rm -f "$_AUDIT_EXIT_FILE"' EXIT
 
@@ -60,7 +60,7 @@ fi
 _make_tempdir() {
     local prefix="$1"
     local tmp
-    tmp=$(mktemp -d "/tmp/test-audit-source-consumers-${prefix}.XXXXXX")
+    tmp=$(mktemp -d "${TMPDIR:-/tmp}/test-audit-source-consumers-${prefix}.XXXXXX")
     _CLEANUP_DIRS+=("$tmp")
     echo "$tmp"
 }

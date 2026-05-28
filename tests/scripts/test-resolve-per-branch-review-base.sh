@@ -30,7 +30,7 @@ source "$REPO_ROOT/tests/lib/assert.sh"
 echo "=== test-resolve-per-branch-review-base.sh ==="
 
 # ── Setup ────────────────────────────────────────────────────────────────────
-TMPDIR_TEST="$(mktemp -d /tmp/test-resolve-per-branch.XXXXXX)"
+TMPDIR_TEST="$(mktemp -d "${TMPDIR:-/tmp}/test-resolve-per-branch.XXXXXX")"
 trap 'rm -rf "$TMPDIR_TEST"' EXIT
 
 # Helper: build a stub `gh` and `git ls-remote` binary set that returns

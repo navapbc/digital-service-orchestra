@@ -108,7 +108,7 @@ DIFF
 )
 
     local diff_file
-    diff_file="$(mktemp /tmp/test-flag-check.XXXXXX)"
+    diff_file="$(mktemp "${TMPDIR:-/tmp}/test-flag-check.XXXXXX")"
     echo "$diff_content" > "$diff_file"
 
     local exit_code
@@ -197,7 +197,7 @@ DIFF
 )
 
     local diff_file
-    diff_file="$(mktemp /tmp/test-flag-check.XXXXXX)"
+    diff_file="$(mktemp "${TMPDIR:-/tmp}/test-flag-check.XXXXXX")"
     echo "$diff_content" > "$diff_file"
 
     local exit_code

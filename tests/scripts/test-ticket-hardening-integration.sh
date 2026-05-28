@@ -321,7 +321,7 @@ PYEOF
     # Run the reducer; fork detection should emit PARENT_CHAIN_FORK_RESOLVED to stderr
     # RED: current reducer has no parent_chain fork detection
     local reducer_stderr reducer_stderr_file
-    reducer_stderr_file=$(mktemp /tmp/reducer-stderr.XXXXXX)
+    reducer_stderr_file=$(mktemp "${TMPDIR:-/tmp}/reducer-stderr.XXXXXX")
     python3 "$TICKET_REDUCER_PY" "$tracker_dir/$ticket_id" 2>"$reducer_stderr_file" >/dev/null || true
     reducer_stderr=$(cat "$reducer_stderr_file" 2>/dev/null || true)
     rm -f "$reducer_stderr_file"

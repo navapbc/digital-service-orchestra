@@ -43,7 +43,7 @@ _assert_eq() {
 }
 
 test_shape_only_dds_emit_warning() {
-    local tmp; tmp=$(mktemp /tmp/lint-dd-shape.XXXXXX)
+    local tmp; tmp=$(mktemp "${TMPDIR:-/tmp}/lint-dd-shape.XXXXXX")
     cat > "$tmp" <<'EOF'
 ## What
 shape-only story
@@ -63,7 +63,7 @@ EOF
 }
 
 test_behavior_paired_dds_silent() {
-    local tmp; tmp=$(mktemp /tmp/lint-dd-behav.XXXXXX)
+    local tmp; tmp=$(mktemp "${TMPDIR:-/tmp}/lint-dd-behav.XXXXXX")
     cat > "$tmp" <<'EOF'
 ## What
 behavior-paired story
@@ -82,7 +82,7 @@ EOF
 }
 
 test_missing_dd_section_no_warning() {
-    local tmp; tmp=$(mktemp /tmp/lint-dd-none.XXXXXX)
+    local tmp; tmp=$(mktemp "${TMPDIR:-/tmp}/lint-dd-none.XXXXXX")
     cat > "$tmp" <<'EOF'
 ## What
 story with no Done Definitions section

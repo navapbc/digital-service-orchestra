@@ -91,7 +91,7 @@ echo "Test 4: stdout=bare branch name; stderr=STORY_BRANCH= log line"
 SCRATCH4=$(
     _make_scratch_repo
 )
-t4_stderr_file=$(mktemp /tmp/test-create-story-branch-t4.XXXXXX)
+t4_stderr_file=$(mktemp "${TMPDIR:-/tmp}/test-create-story-branch-t4.XXXXXX")
 t4_stdout=""
 t4_stdout=$( cd "$SCRATCH4" && bash "$SCRIPT" my-epic my-story 2>"$t4_stderr_file" ) || true
 t4_stderr=$(cat "$t4_stderr_file")
@@ -179,7 +179,7 @@ test_create_story_branch_custom_prefix() {
     local _repo
     _repo=$(_make_scratch_repo)
     local _stderr_file
-    _stderr_file=$(mktemp /tmp/test-create-story-branch-cp.XXXXXX)
+    _stderr_file=$(mktemp "${TMPDIR:-/tmp}/test-create-story-branch-cp.XXXXXX")
     local _stdout
     _stdout=$(cd "$_repo" && bash "$SCRIPT" epic-001 story-002 --prefix debug 2>"$_stderr_file")
     local exit_code=$?
@@ -223,7 +223,7 @@ test_create_story_branch_prefix_default() {
     local _repo
     _repo=$(_make_scratch_repo)
     local _stderr_file
-    _stderr_file=$(mktemp /tmp/test-create-story-branch-pd.XXXXXX)
+    _stderr_file=$(mktemp "${TMPDIR:-/tmp}/test-create-story-branch-pd.XXXXXX")
     local _stdout
     _stdout=$(cd "$_repo" && bash "$SCRIPT" epic-001 story-002 2>"$_stderr_file")
     local exit_code=$?
@@ -267,7 +267,7 @@ test_create_story_branch_prefix_anywhere() {
     local _repo
     _repo=$(_make_scratch_repo)
     local _stderr_file
-    _stderr_file=$(mktemp /tmp/test-create-story-branch-pa.XXXXXX)
+    _stderr_file=$(mktemp "${TMPDIR:-/tmp}/test-create-story-branch-pa.XXXXXX")
     local _stdout
     _stdout=$(cd "$_repo" && bash "$SCRIPT" --prefix debug epic-001 story-002 2>"$_stderr_file")
     local exit_code=$?

@@ -53,7 +53,7 @@ trap '_cleanup' EXIT
 # Under delta-aware semantics, the reintroduction is NEW vs BASE → scan blocks.
 _snapshot_fail
 
-REPO1=$(mktemp -d /tmp/scan-red-markers-fixture.XXXXXX)
+REPO1=$(mktemp -d "${TMPDIR:-/tmp}/scan-red-markers-fixture.XXXXXX")
 _WORK_DIRS+=("$REPO1")
 
 (
@@ -111,7 +111,7 @@ assert_pass_if_clean "test_two_subpr_resurfacing_blocks_merge"
 # Cumulative merged-tree state has no marker → scan must exit 0.
 _snapshot_fail
 
-REPO2=$(mktemp -d /tmp/scan-red-markers-fixture.XXXXXX)
+REPO2=$(mktemp -d "${TMPDIR:-/tmp}/scan-red-markers-fixture.XXXXXX")
 _WORK_DIRS+=("$REPO2")
 
 (

@@ -152,7 +152,7 @@ assert_pass_if_clean "test_validate_sh_no_cmd_test_plugin"
 # Expected to FAIL before task 9d97-f2cb adds the implementation.
 _snapshot_fail
 
-_VLT_DIR=$(mktemp -d /tmp/test-validate-lint-XXXXXX)
+_VLT_DIR=$(mktemp -d "${TMPDIR:-/tmp}/test-validate-lint-XXXXXX")
 _VLT_SENTINEL="$_VLT_DIR/lint-called"
 _VLT_LINT="$_VLT_DIR/mock-lint.sh"
 printf '#!/usr/bin/env bash\ntouch "%s"\n' "$_VLT_SENTINEL" > "$_VLT_LINT"
@@ -181,7 +181,7 @@ assert_pass_if_clean "test_validate_reads_commands_lint_from_config"
 # emit a [DSO WARN] to stdout. Expected to FAIL before 9d97-f2cb.
 _snapshot_fail
 
-_VLW_DIR=$(mktemp -d /tmp/test-validate-lint-warn-XXXXXX)
+_VLW_DIR=$(mktemp -d "${TMPDIR:-/tmp}/test-validate-lint-warn-XXXXXX")
 _VLW_CFG="$_VLW_DIR/dso-config-no-lint.conf"
 cat > "$_VLW_CFG" << VLWEOT
 commands.syntax_check=true
@@ -207,7 +207,7 @@ assert_pass_if_clean "test_validate_warns_when_no_lint_configured"
 # still provide coverage. Expected to FAIL before the warn-condition fix.
 _snapshot_fail
 
-_VNW_DIR=$(mktemp -d /tmp/test-validate-no-warn-XXXXXX)
+_VNW_DIR=$(mktemp -d "${TMPDIR:-/tmp}/test-validate-no-warn-XXXXXX")
 _VNW_CFG="$_VNW_DIR/dso-config-legacy-lint.conf"
 cat > "$_VNW_CFG" << VNWEOT
 commands.syntax_check=true

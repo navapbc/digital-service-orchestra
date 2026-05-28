@@ -33,7 +33,7 @@ _fail() {
 }
 
 # Create a temp directory for synthetic fixtures
-TMPDIR_HARNESS="$(mktemp -d /tmp/dogfood-test.XXXXXX)"
+TMPDIR_HARNESS="$(mktemp -d "${TMPDIR:-/tmp}/dogfood-test.XXXXXX")"
 trap 'rm -rf "$TMPDIR_HARNESS"' EXIT
 
 # ---------------------------------------------------------------------------

@@ -80,7 +80,7 @@ EOF
 }
 
 test_past_deadline_files_one_bug() {
-    local tmp; tmp=$(mktemp -d /tmp/check-obl-past.XXXXXX)
+    local tmp; tmp=$(mktemp -d "${TMPDIR:-/tmp}/check-obl-past.XXXXXX")
     _setup_fixture "$tmp" "2020-01-01"
     DSO_TICKET_CLI="$tmp/dso" DSO_TODAY="2026-05-26" bash "$MONITOR" 2>/dev/null
     local count
@@ -96,7 +96,7 @@ test_past_deadline_files_one_bug() {
 }
 
 test_future_deadline_files_no_bug() {
-    local tmp; tmp=$(mktemp -d /tmp/check-obl-future.XXXXXX)
+    local tmp; tmp=$(mktemp -d "${TMPDIR:-/tmp}/check-obl-future.XXXXXX")
     _setup_fixture "$tmp" "2099-12-31"
     DSO_TICKET_CLI="$tmp/dso" DSO_TODAY="2026-05-26" bash "$MONITOR" 2>/dev/null
     local count
@@ -106,7 +106,7 @@ test_future_deadline_files_no_bug() {
 }
 
 test_monitor_always_exits_zero() {
-    local tmp; tmp=$(mktemp -d /tmp/check-obl-exit.XXXXXX)
+    local tmp; tmp=$(mktemp -d "${TMPDIR:-/tmp}/check-obl-exit.XXXXXX")
     _setup_fixture "$tmp" "2020-01-01"
     DSO_TICKET_CLI="$tmp/dso" DSO_TODAY="2026-05-26" bash "$MONITOR" 2>/dev/null
     _assert_eq "monitor exits 0 on past-deadline path" "0" "$?"
@@ -116,7 +116,7 @@ test_monitor_always_exits_zero() {
 test_missing_deadline_skips_silently() {
     # Finding 5 edge case: malformed description (no Deadline: line) must not
     # crash the monitor and must not file a bug.
-    local tmp; tmp=$(mktemp -d /tmp/check-obl-nodate.XXXXXX)
+    local tmp; tmp=$(mktemp -d "${TMPDIR:-/tmp}/check-obl-nodate.XXXXXX")
     _setup_fixture "$tmp" "" "curl -sf https://example/health"
     DSO_TICKET_CLI="$tmp/dso" DSO_TODAY="2026-05-26" bash "$MONITOR" 2>/dev/null
     local exit_code=$?
@@ -134,7 +134,7 @@ test_validation_command_with_metachars_is_sanitized() {
     # the first newline AND JSON-encodes during extraction; the bug body
     # therefore stays on a single line and the metacharacters survive
     # verbatim inside the --description argument.
-    local tmp; tmp=$(mktemp -d /tmp/check-obl-meta.XXXXXX)
+    local tmp; tmp=$(mktemp -d "${TMPDIR:-/tmp}/check-obl-meta.XXXXXX")
     # Validation command containing $(...) and backticks — must NOT execute.
     # shellcheck disable=SC2016
     _setup_fixture "$tmp" "2020-01-01" 'echo $(rm -rf /) `whoami` "quoted"'
@@ -162,7 +162,7 @@ test_ticket_create_failure_does_not_inflate_count() {
     # script must not increment its filed counter. This pins the same
     # invariant — failed creation is observable, not silently swallowed as
     # success — that the verifier spec mandates at agent dispatch time.
-    local tmp; tmp=$(mktemp -d /tmp/check-obl-failrc.XXXXXX)
+    local tmp; tmp=$(mktemp -d "${TMPDIR:-/tmp}/check-obl-failrc.XXXXXX")
     _setup_fixture "$tmp" "2020-01-01"
     # Force the stub `ticket create` to fail.
     printf '7' > "$tmp/create-rc"
@@ -182,7 +182,7 @@ test_validation_command_with_bare_double_quotes_is_literal() {
     # Findings 1 & 2: a validation command containing bare double-quotes
     # (e.g. `echo "hello world"`) must reach the bug --description argv
     # literally, NOT word-split, NOT shell-interpreted, NOT JSON-escaped.
-    local tmp; tmp=$(mktemp -d /tmp/check-obl-dquote.XXXXXX)
+    local tmp; tmp=$(mktemp -d "${TMPDIR:-/tmp}/check-obl-dquote.XXXXXX")
     _setup_fixture "$tmp" "2020-01-01" 'echo "hello world"'
     DSO_TICKET_CLI="$tmp/dso" DSO_TODAY="2026-05-26" bash "$MONITOR" 2>/dev/null
     local count
@@ -219,7 +219,7 @@ test_parent_story_with_invalid_id_is_dropped() {
     # Finding 3 (defense-in-depth): even if parent_id reaches the script
     # with a value containing shell-unsafe characters, it must not be
     # passed as --parent. The regex gate drops malformed IDs.
-    local tmp; tmp=$(mktemp -d /tmp/check-obl-badparent.XXXXXX)
+    local tmp; tmp=$(mktemp -d "${TMPDIR:-/tmp}/check-obl-badparent.XXXXXX")
     _setup_fixture "$tmp" "2020-01-01"
     # Override the stub to emit a malformed parent_id.
     cat > "$tmp/dso" <<'EOF'

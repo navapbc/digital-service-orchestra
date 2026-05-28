@@ -58,7 +58,7 @@ _extract_helper() {
     return 0
 }
 
-_HELPER_FILE=$(mktemp /tmp/dso-stale-vbump-helper.XXXXXX.sh)
+_HELPER_FILE=$(mktemp "${TMPDIR:-/tmp}/dso-stale-vbump-helper.XXXXXX".sh)
 _CLEANUP_DIRS+=("$_HELPER_FILE")
 
 if ! _extract_helper "$_HELPER_FILE"; then

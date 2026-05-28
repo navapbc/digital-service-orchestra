@@ -41,9 +41,9 @@ fi
 # --- Scenario 1+2: trailer absent → exit 1 ---
 _snapshot_fail
 _RC=0
-_STDERR=$(mktemp /tmp/test-fixture-stderr.XXXXXX)
+_STDERR=$(mktemp "${TMPDIR:-/tmp}/test-fixture-stderr.XXXXXX")
 (
-    cd "$FIXTURE"
+    cd "$FIXTURE" || return
     bash "$VERIFY" "fake-story-1" --base=base-ref 2>"$_STDERR"
 ) || _RC=$?
 assert_ne "fixture_verify_exits_nonzero_when_absent" "0" "$_RC"
@@ -58,14 +58,14 @@ assert_pass_if_clean "fixture_no_trailer_blocks_close"
 # --- Scenario 3+4: add empty trailer commit → exit 0 ---
 _snapshot_fail
 (
-    cd "$FIXTURE"
+    cd "$FIXTURE" || return
     git commit --allow-empty -m "Merge story/recovery/fake-story-1
 
 DSO-Story-Merge: fake-story-1" --quiet
 )
 _RC2=0
 (
-    cd "$FIXTURE"
+    cd "$FIXTURE" || return
     bash "$VERIFY" "fake-story-1" --base=base-ref >/dev/null 2>&1
 ) || _RC2=$?
 assert_eq "fixture_verify_exits_zero_after_recovery_commit" "0" "$_RC2"
