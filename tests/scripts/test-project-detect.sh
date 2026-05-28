@@ -1409,4 +1409,148 @@ assert_eq "test_confidence_tagging_installed_deps_confirmed: installed_deps_conf
     "confirmed" "$(get_key "$_conf_deps_out" installed_deps_confidence)"
 assert_pass_if_clean "test_confidence_tagging_installed_deps_confirmed"
 
+# ── Bug 5d92 prep: ci_provider / hook_manager / repo_host detection ───────────
+# These three detection blocks are pure additions that emit new key=value
+# output. No caller consumes them yet — the defect-A/C/D/E/F dispatcher PRs
+# will integrate them. Tests verify the detection logic in isolation against
+# synthetic fixtures.
+
+# ── test_ci_provider_github ─────────────────────────────────────────────────────
+_T=$(mktemp -d); TMPDIRS+=("$_T") 2>/dev/null || true
+mkdir -p "$_T/.github/workflows"
+cat > "$_T/.github/workflows/ci.yml" << 'EOF'
+name: CI
+on: [push]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+EOF
+_out=$(bash "$SCRIPT" "$_T" 2>/dev/null)
+assert_eq "ci_provider github: detected" "github" "$(get_key "$_out" ci_provider)"
+assert_eq "ci_provider github: confidence=high" "high" "$(get_key "$_out" ci_provider_confidence)"
+rm -rf "$_T"
+
+# ── test_ci_provider_gitlab ─────────────────────────────────────────────────────
+_T=$(mktemp -d); TMPDIRS+=("$_T") 2>/dev/null || true
+cat > "$_T/.gitlab-ci.yml" << 'EOF'
+stages: [test]
+test:
+  stage: test
+  script: [echo hi]
+EOF
+_out=$(bash "$SCRIPT" "$_T" 2>/dev/null)
+assert_eq "ci_provider gitlab: detected" "gitlab" "$(get_key "$_out" ci_provider)"
+assert_eq "ci_provider gitlab: confidence=high" "high" "$(get_key "$_out" ci_provider_confidence)"
+rm -rf "$_T"
+
+# ── test_ci_provider_none ───────────────────────────────────────────────────────
+_T=$(mktemp -d); TMPDIRS+=("$_T") 2>/dev/null || true
+_out=$(bash "$SCRIPT" "$_T" 2>/dev/null)
+assert_eq "ci_provider none: empty repo" "none" "$(get_key "$_out" ci_provider)"
+rm -rf "$_T"
+
+# ── test_ci_provider_ambiguous ──────────────────────────────────────────────────
+_T=$(mktemp -d); TMPDIRS+=("$_T") 2>/dev/null || true
+mkdir -p "$_T/.github/workflows"
+echo "name: CI" > "$_T/.github/workflows/ci.yml"
+echo "echo line" >> "$_T/.github/workflows/ci.yml"
+cat > "$_T/.gitlab-ci.yml" << 'EOF'
+stages: [test]
+EOF
+_out=$(bash "$SCRIPT" "$_T" 2>/dev/null)
+assert_eq "ci_provider ambiguous: multi-match" "ambiguous" "$(get_key "$_out" ci_provider)"
+_cands=$(get_key "$_out" ci_provider_candidates)
+# Candidates list must include both github and gitlab (order not guaranteed)
+case "$_cands" in
+    *github*) ;;
+    *) assert_eq "ci_provider ambiguous: candidates include github" "yes" "no" ;;
+esac
+case "$_cands" in
+    *gitlab*) ;;
+    *) assert_eq "ci_provider ambiguous: candidates include gitlab" "yes" "no" ;;
+esac
+rm -rf "$_T"
+
+# ── test_hook_manager_precommit ─────────────────────────────────────────────────
+_T=$(mktemp -d); TMPDIRS+=("$_T") 2>/dev/null || true
+cat > "$_T/.pre-commit-config.yaml" << 'EOF'
+repos:
+  - repo: local
+    hooks:
+      - id: test
+EOF
+_out=$(bash "$SCRIPT" "$_T" 2>/dev/null)
+assert_eq "hook_manager precommit: detected" "precommit" "$(get_key "$_out" hook_manager)"
+assert_eq "hook_manager precommit: confidence=high" "high" "$(get_key "$_out" hook_manager_confidence)"
+rm -rf "$_T"
+
+# ── test_hook_manager_precommit_bare_file_not_matched ──────────────────────────
+# Bug 5d92 review S3: bare .pre-commit-config.yaml without a `- repo:` entry
+# is a weak signal; the content check upgrades the detection to high confidence
+# only when an actual hook config exists.
+_T=$(mktemp -d); TMPDIRS+=("$_T") 2>/dev/null || true
+echo "# abandoned config" > "$_T/.pre-commit-config.yaml"
+_out=$(bash "$SCRIPT" "$_T" 2>/dev/null)
+assert_eq "hook_manager precommit (bare/no-repo): falls back to none" "none" "$(get_key "$_out" hook_manager)"
+rm -rf "$_T"
+
+# ── test_hook_manager_husky ─────────────────────────────────────────────────────
+_T=$(mktemp -d); TMPDIRS+=("$_T") 2>/dev/null || true
+mkdir -p "$_T/.husky"
+echo '#!/bin/sh' > "$_T/.husky/pre-commit"
+chmod +x "$_T/.husky/pre-commit"
+_out=$(bash "$SCRIPT" "$_T" 2>/dev/null)
+assert_eq "hook_manager husky: detected" "husky" "$(get_key "$_out" hook_manager)"
+rm -rf "$_T"
+
+# ── test_hook_manager_lefthook ──────────────────────────────────────────────────
+_T=$(mktemp -d); TMPDIRS+=("$_T") 2>/dev/null || true
+echo "pre-commit: {commands: {echo: {run: echo}}}" > "$_T/lefthook.yml"
+_out=$(bash "$SCRIPT" "$_T" 2>/dev/null)
+assert_eq "hook_manager lefthook: detected" "lefthook" "$(get_key "$_out" hook_manager)"
+rm -rf "$_T"
+
+# ── test_hook_manager_none ──────────────────────────────────────────────────────
+_T=$(mktemp -d); TMPDIRS+=("$_T") 2>/dev/null || true
+_out=$(bash "$SCRIPT" "$_T" 2>/dev/null)
+assert_eq "hook_manager none: empty repo" "none" "$(get_key "$_out" hook_manager)"
+rm -rf "$_T"
+
+# ── test_repo_host_no_remote ────────────────────────────────────────────────────
+# Modal fresh-onboarding case: a `git init` repo has no remote configured.
+# repo_host_confidence=none (not "low") because explicit absence is a known
+# state, not an unknown pattern match.
+_T=$(mktemp -d); TMPDIRS+=("$_T") 2>/dev/null || true
+git -C "$_T" init -q
+_out=$(bash "$SCRIPT" "$_T" 2>/dev/null)
+assert_eq "repo_host no remote: detected as none" "none" "$(get_key "$_out" repo_host)"
+assert_eq "repo_host no remote: confidence=none" "none" "$(get_key "$_out" repo_host_confidence)"
+rm -rf "$_T"
+
+# ── test_repo_host_github ───────────────────────────────────────────────────────
+_T=$(mktemp -d); TMPDIRS+=("$_T") 2>/dev/null || true
+git -C "$_T" init -q
+git -C "$_T" remote add origin https://github.com/example/repo.git
+_out=$(bash "$SCRIPT" "$_T" 2>/dev/null)
+assert_eq "repo_host github: detected" "github" "$(get_key "$_out" repo_host)"
+assert_eq "repo_host github: confidence=high" "high" "$(get_key "$_out" repo_host_confidence)"
+rm -rf "$_T"
+
+# ── test_repo_host_gitlab_dot_com ───────────────────────────────────────────────
+_T=$(mktemp -d); TMPDIRS+=("$_T") 2>/dev/null || true
+git -C "$_T" init -q
+git -C "$_T" remote add origin https://gitlab.com/example/repo.git
+_out=$(bash "$SCRIPT" "$_T" 2>/dev/null)
+assert_eq "repo_host gitlab.com: detected" "gitlab" "$(get_key "$_out" repo_host)"
+assert_eq "repo_host gitlab.com: confidence=high" "high" "$(get_key "$_out" repo_host_confidence)"
+rm -rf "$_T"
+
+# ── test_repo_host_bitbucket ────────────────────────────────────────────────────
+_T=$(mktemp -d); TMPDIRS+=("$_T") 2>/dev/null || true
+git -C "$_T" init -q
+git -C "$_T" remote add origin git@bitbucket.org:example/repo.git
+_out=$(bash "$SCRIPT" "$_T" 2>/dev/null)
+assert_eq "repo_host bitbucket: detected" "bitbucket" "$(get_key "$_out" repo_host)"
+rm -rf "$_T"
+
 print_summary
