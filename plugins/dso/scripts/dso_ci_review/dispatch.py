@@ -30,6 +30,7 @@ from typing import Any
 from dso_ci_review.dispatch_ratelimit import (
     DispatchContext,
     calculate_backoff,
+    extract_anthropic_ratelimit_headers,
     parse_retry_after,
 )
 
@@ -171,6 +172,12 @@ def _write_usage_entry(
             cache_read = None
             cache_creation = None
 
+        rate_limit_headers = (
+            extract_anthropic_ratelimit_headers(response)
+            if response is not None
+            else {}
+        )
+
         entry: dict[str, object] = {
             "agent_id": agent_id,
             "cycle": cycle,
@@ -182,6 +189,8 @@ def _write_usage_entry(
             "cache_creation_input_tokens": cache_creation,
             "timestamp_iso": datetime.now(timezone.utc).isoformat(),
         }
+        if rate_limit_headers:
+            entry["anthropic_ratelimit"] = rate_limit_headers
         if review_outcome is not None:
             entry["review_outcome"] = review_outcome
         if exception_class is not None:

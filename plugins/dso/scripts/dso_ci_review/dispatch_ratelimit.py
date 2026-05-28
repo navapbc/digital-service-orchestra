@@ -39,6 +39,65 @@ HARD_RETRY_AFTER_CEILING_S: float = 600.0
 
 _RETRYABLE_STATUS_CODES: frozenset[int] = frozenset({408, 409, 429, 500, 502, 503, 504})
 
+_ANTHROPIC_RATELIMIT_PREFIX = "anthropic-ratelimit"
+_OBSERVABILITY_HEADER_WARN_EMITTED = False
+
+
+def reset_observability_header_warning_for_testing() -> None:
+    """Test hook: reset the one-time WARNING flag between tests."""
+    global _OBSERVABILITY_HEADER_WARN_EMITTED
+    _OBSERVABILITY_HEADER_WARN_EMITTED = False
+
+
+def extract_anthropic_ratelimit_headers(response: Any) -> dict[str, str]:
+    """Extract anthropic-ratelimit-* headers from a litellm ModelResponse.
+
+    Reads response._hidden_params["additional_headers"]; returns only the
+    Anthropic rate-limit subset (request/token remaining + reset).
+
+    If the expected shape is missing on the first call after process start,
+    emits a one-time WARNING so a future litellm upgrade that renames the
+    access path is visible in CI logs rather than silently degrading
+    observability. Validated against litellm 1.83.7 by
+    tests/skills/dso_ci_review/litellm_contract_spikes/spike_03_response_headers.py.
+    """
+    global _OBSERVABILITY_HEADER_WARN_EMITTED
+
+    hidden = getattr(response, "_hidden_params", None) or {}
+    if not isinstance(hidden, dict):
+        if not _OBSERVABILITY_HEADER_WARN_EMITTED:
+            _OBSERVABILITY_HEADER_WARN_EMITTED = True
+            logger.warning(
+                "litellm header shape changed — observability degraded. "
+                "response._hidden_params has type %s, expected dict.",
+                type(hidden).__name__,
+            )
+        return {}
+
+    additional = hidden.get("additional_headers")
+    if not hasattr(additional, "items"):
+        if not _OBSERVABILITY_HEADER_WARN_EMITTED:
+            _OBSERVABILITY_HEADER_WARN_EMITTED = True
+            logger.warning(
+                "litellm header shape changed — observability degraded. "
+                "additional_headers missing or not a dict-like (got %s).",
+                type(additional).__name__,
+            )
+        return {}
+
+    extracted = {
+        k: v for k, v in additional.items() if _ANTHROPIC_RATELIMIT_PREFIX in k
+    }
+    if not extracted and not _OBSERVABILITY_HEADER_WARN_EMITTED:
+        _OBSERVABILITY_HEADER_WARN_EMITTED = True
+        logger.warning(
+            "litellm header shape changed — observability degraded. "
+            "No %s-* keys in additional_headers; available keys: %s",
+            _ANTHROPIC_RATELIMIT_PREFIX,
+            sorted(additional.keys())[:10],
+        )
+    return extracted
+
 
 def parse_retry_after(headers: dict[str, str] | Any) -> float | None:
     """Parse Retry-After-like headers. Returns seconds or None.
