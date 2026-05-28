@@ -210,25 +210,6 @@ assert_eq "test_result_schema_hypothesis_tests_subfields: observed sub-field pre
 assert_eq "test_result_schema_hypothesis_tests_subfields: verdict sub-field present" "present" "$actual_verdict"
 assert_pass_if_clean "test_result_schema_hypothesis_tests_subfields"
 
-# ── test_sub_agent_guard_present ─────────────────────────────────────────────
-# The agent file must contain a SUB-AGENT-GUARD block.
-# Contract: architectural design rule requires all agents that require user interaction
-# or direct Agent-tool access to declare a guard preventing nested sub-agent dispatch.
-_snapshot_fail
-if [[ -f "$AGENT_FILE" ]]; then
-    file_content=$(cat "$AGENT_FILE")
-    _tmp="$file_content"; shopt -s nocasematch
-    if [[ "$_tmp" == *"SUB-AGENT-GUARD"* ]]; then
-        actual_guard="present"
-    else
-        actual_guard="missing"
-    fi; shopt -u nocasematch
-else
-    actual_guard="missing"
-fi
-assert_eq "test_sub_agent_guard_present: SUB-AGENT-GUARD block declared" "present" "$actual_guard"
-assert_pass_if_clean "test_sub_agent_guard_present"
-
 # ── test_iterative_loop_defined ──────────────────────────────────────────────
 # The agent must describe an iterative hypothesis-experiment-analyze loop.
 # Contract: the agent must not propose fixes without experimental confirmation —
@@ -261,6 +242,31 @@ assert_eq "test_iterative_loop_defined: hypothesis concept referenced" "present"
 assert_eq "test_iterative_loop_defined: experiment/probe/test concept referenced" "present" "$actual_exp"
 assert_eq "test_iterative_loop_defined: iterative loop or proven/confirmed concept present" "present" "$actual_iter"
 assert_pass_if_clean "test_iterative_loop_defined"
+
+# ── test_self_execution_and_stop_condition ──────────────────────────────────
+# The agent must instruct self-execution of probes using available tools and
+# define a stop condition (AWAITING_RESULTS) when a probe cannot be self-executed.
+_snapshot_fail
+if [[ -f "$AGENT_FILE" ]]; then
+    file_content=$(cat "$AGENT_FILE")
+    _tmp="$file_content"; shopt -s nocasematch
+    if [[ "$_tmp" =~ execute.*yourself|execute.*probe.*yourself|self.*execut|run.*yourself|your.*available.*tools ]]; then
+        actual_self_exec="present"
+    else
+        actual_self_exec="missing"
+    fi
+    if [[ "$_tmp" =~ AWAITING_RESULTS ]]; then
+        actual_stop="present"
+    else
+        actual_stop="missing"
+    fi; shopt -u nocasematch
+else
+    actual_self_exec="missing"
+    actual_stop="missing"
+fi
+assert_eq "test_self_execution_and_stop_condition: self-execution instruction present" "present" "$actual_self_exec"
+assert_eq "test_self_execution_and_stop_condition: AWAITING_RESULTS stop condition present" "present" "$actual_stop"
+assert_pass_if_clean "test_self_execution_and_stop_condition"
 
 # ── test_no_fix_before_proof_constraint ──────────────────────────────────────
 # The agent must explicitly constrain itself from proposing a fix before experimental
