@@ -111,8 +111,17 @@ _dr_out="$(DSO_DRY_RUN=1 PATH="$_dr_tmpdir:$PATH" bash "$SCRIPT" \
     2>&1)" || _dr_exit=$?
 
 assert_eq "test_dry_run_stage_outputs: exits 0" "0" "$_dr_exit"
-assert_contains "test_dry_run_stage_outputs: mentions review-sub-pr" \
-    "review-sub-pr" "$_dr_out"
+# The observation-window ruleset targets main, so it stages only MAIN_STAGED_CHECKS
+# (merge-pipeline-checks). review-sub-pr is staged into the sub-PR ruleset directly
+# via --promote-to-required (no observation window for sub-PR checks).
+assert_contains "test_dry_run_stage_outputs: mentions merge-pipeline-checks" \
+    "merge-pipeline-checks" "$_dr_out"
+# Negative assertion: review-sub-pr must NOT appear in the main observation payload,
+# or it will deadlock every PR to main once enforcement promotes.
+_review_subpr_absent="yes"
+if echo "$_dr_out" | grep -q "review-sub-pr"; then _review_subpr_absent="no"; fi
+assert_eq "test_dry_run_stage_outputs: review-sub-pr absent from main observation" \
+    "yes" "$_review_subpr_absent"
 assert_contains "test_dry_run_stage_outputs: mentions evaluate enforcement" \
     "evaluate" "$_dr_out"
 assert_contains "test_dry_run_stage_outputs: no API call note" \
