@@ -224,6 +224,7 @@ assert_pass_if_clean "test_skip_review_check_strategy_ci_bypasses_classification
 # needs file classification to decide which jobs to run. (F6 hardening)
 _snapshot_fail
 unset DSO_FORCE_LOCAL_REVIEW
+unset GITHUB_ACTIONS
 export CI=true
 strategy_ci_in_ci=0
 { printf 'app/src/main.py\n' | bash "$CANONICAL_SCRIPT" 2>/dev/null; test $? -eq 0; } && strategy_ci_in_ci=1
@@ -231,5 +232,20 @@ export DSO_FORCE_LOCAL_REVIEW=1
 unset CI
 assert_eq "test_ci_env_prevents_cipr_short_circuit: exits 1 (reviewable) even with dso.workflow=ci-pr when CI=true" "0" "$strategy_ci_in_ci"
 assert_pass_if_clean "test_ci_env_prevents_cipr_short_circuit"
+
+# ── test_github_actions_env_prevents_cipr_short_circuit ──────────────────────
+# When GITHUB_ACTIONS=true (without CI=true), the ci-pr short-circuit must
+# also not fire. F6 guards on both env vars with OR semantics; both branches
+# need test coverage so a future edit dropping one is caught.
+_snapshot_fail
+unset DSO_FORCE_LOCAL_REVIEW
+unset CI
+export GITHUB_ACTIONS=true
+strategy_gh_actions=0
+{ printf 'app/src/main.py\n' | bash "$CANONICAL_SCRIPT" 2>/dev/null; test $? -eq 0; } && strategy_gh_actions=1
+export DSO_FORCE_LOCAL_REVIEW=1
+unset GITHUB_ACTIONS
+assert_eq "test_github_actions_env_prevents_cipr_short_circuit: exits 1 (reviewable) when GITHUB_ACTIONS=true" "0" "$strategy_gh_actions"
+assert_pass_if_clean "test_github_actions_env_prevents_cipr_short_circuit"
 
 print_summary
