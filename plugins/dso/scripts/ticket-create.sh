@@ -8,7 +8,7 @@ _PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd
 #   title: non-empty string
 #   --parent: optional parent ticket ID (must exist in .tickets-tracker/)
 #   --priority: optional priority (0-4; 0=critical, 4=backlog; default: 2)
-#   --assignee: optional assignee name (defaults to git config user.name)
+#   --assignee: optional assignee name (defaults to unassigned)
 #
 # Outputs the created ticket ID to stdout (only the ID — no other output).
 set -euo pipefail
@@ -30,7 +30,7 @@ _usage() {
     echo "  title: non-empty string" >&2
     echo "  --parent: optional parent ticket ID" >&2
     echo "  --priority, -p: 0-4 (0=critical, 4=backlog; default: 2)" >&2
-    echo "  --assignee: assignee name (default: git config user.name)" >&2
+    echo "  --assignee: assignee name (default: unassigned)" >&2
     echo "  --description, -d: optional description text" >&2
     echo "  --tags: comma-separated list of tags" >&2
     exit 1
@@ -118,10 +118,12 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-# Default assignee to git user.name if not provided
-if [ -z "$assignee" ]; then
-    assignee=$(git config user.name 2>/dev/null || echo "")
-fi
+# Assignee defaults to empty (unassigned) when not provided. The `author`
+# field already records the creator (from `git config user.name`); the
+# `assignee` field is for designated ownership, which is rarely the
+# creator. Defaulting to git user.name conflated the two and caused
+# bridge-side ACLI rejections when the local git user.name doesn't match a
+# valid Jira user.
 
 # Validate ticket_type
 case "$ticket_type" in

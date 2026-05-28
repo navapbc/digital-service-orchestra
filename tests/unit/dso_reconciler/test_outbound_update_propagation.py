@@ -181,6 +181,47 @@ def test_update_one_propagates_comments(applier):
     assert ("DIG-100", "another one") in add_comment_calls
 
 
+def test_mutation_to_batch_dict_extracts_create_fields_from_payload_top_level(applier):
+    """For outbound CREATE mutations, reconcile.py stores fields at the TOP
+    LEVEL of the payload alongside bookkeeping keys (local_id, comments,
+    labels). `_mutation_to_batch_dict` must extract the create fields by
+    stripping bookkeeping keys — NOT pull from a nested `fields` or
+    `changed_fields` key (which doesn't exist for create).
+
+    Regression for the 'title/summary is empty' error introduced when
+    fixing the UPDATE path with an empty-dict default."""
+    mut_mod = applier._load_mutation_module()
+    mutation = mut_mod.Mutation(
+        direction=mut_mod.MutationDirection.outbound,
+        action=mut_mod.MutationAction.create,
+        target="local-id-1",
+        payload={
+            # Create fields at top level (matches reconcile.py:525-535).
+            "summary": "New issue",
+            "description": "desc",
+            "issuetype": "Task",
+            "priority": "Medium",
+            # Bookkeeping keys that must NOT leak into fields.
+            "local_id": "local-id-1",
+            "comments": [],
+            "labels": [{"action": "add", "label": "x"}],
+        },
+        provenance={"source": "test"},
+    )
+
+    result = applier._mutation_to_batch_dict(mutation)
+
+    # All create fields must be in result["fields"].
+    assert result["fields"]["summary"] == "New issue"
+    assert result["fields"]["description"] == "desc"
+    assert result["fields"]["issuetype"] == "Task"
+    assert result["fields"]["priority"] == "Medium"
+    # Bookkeeping keys must NOT leak.
+    assert "local_id" not in result["fields"]
+    assert "comments" not in result["fields"]
+    assert "labels" not in result["fields"]
+
+
 def test_update_one_does_not_pass_bogus_kwargs_to_update_issue(applier):
     """`update_one` must not forward `comments`, `labels`, or
     `changed_fields` keys to `client.update_issue` — those are handled by

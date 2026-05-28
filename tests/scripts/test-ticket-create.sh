@@ -542,6 +542,55 @@ test_ticket_create_with_assignee_writes_assignee_to_create_event() {
 }
 test_ticket_create_with_assignee_writes_assignee_to_create_event
 
+# ── Test 9b: ticket create without --assignee defaults to unassigned ──────────
+echo "Test 9b: ticket create without --assignee defaults to unassigned (empty)"
+test_ticket_create_without_assignee_defaults_to_unassigned() {
+    # Regression for bridge-side bug: the legacy default of git config
+    # user.name conflated 'creator' and 'owner' and caused ACLI to reject
+    # outbound update mutations when the local git user.name was not a
+    # valid Jira user. New default: empty string.
+    local repo
+    repo=$(_make_test_repo)
+
+    if [ ! -f "$TICKET_CREATE_SCRIPT" ]; then
+        assert_eq "ticket-create.sh exists" "exists" "missing"
+        return
+    fi
+
+    local ticket_id
+    ticket_id=$(cd "$repo" && bash "$TICKET_SCRIPT" create task "Default-assignee test" 2>/dev/null) || true
+    ticket_id=$(echo "$ticket_id" | tail -1)
+
+    if [ -z "$ticket_id" ]; then
+        assert_eq "ticket ID returned for default-assignee test" "non-empty" "empty"
+        return
+    fi
+
+    local tracker_dir="$repo/.tickets-tracker"
+    local event_file
+    event_file=$(_find_create_event "$tracker_dir" "$ticket_id")
+
+    if [ -z "$event_file" ]; then
+        assert_eq "CREATE event file found for default-assignee test" "found" "not-found"
+        return
+    fi
+
+    local assignee_val
+    assignee_val=$(_extract_event_field "$event_file" "assignee")
+    # The assignee field must be either missing from the data block or empty
+    # — NOT set to the local git user.name. Both shapes satisfy "unassigned"
+    # from the consumer side (outbound_differ uses .get('assignee', '')).
+    case "$assignee_val" in
+        ""|"MISSING")
+            assert_eq "assignee defaults to unassigned" "unassigned" "unassigned"
+            ;;
+        *)
+            assert_eq "assignee defaults to unassigned" "unassigned" "$assignee_val"
+            ;;
+    esac
+}
+test_ticket_create_without_assignee_defaults_to_unassigned
+
 # ── Test 10: ticket create without --priority defaults to P2 ─────────────────
 echo "Test 10: ticket create without --priority defaults to P2"
 test_ticket_create_default_priority_is_2() {

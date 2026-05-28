@@ -441,6 +441,9 @@ create_ticket() {
     if [ -n "$extra_tags" ]; then
         tags="${tags},${extra_tags}"
     fi
+    # `ticket create` defaults assignee to unassigned (ticket-create.sh
+    # change in this branch). Ticket 5 sets a real assignee in Phase 1
+    # via `ticket edit --assignee=$PROBE_USER` for the assignee test.
     local output
     output=$("$TICKET_CLI" ticket create "$type" "$title" -d "$desc" --priority "$priority" --tags "$tags" 2>&1)
     local id

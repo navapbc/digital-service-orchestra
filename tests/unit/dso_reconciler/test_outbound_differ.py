@@ -152,6 +152,63 @@ def test_bound_ticket_no_changes_emits_nothing(
     assert result == []
 
 
+def test_bound_ticket_none_assignee_does_not_emit_update(
+    outbound_differ: ModuleType,
+) -> None:
+    """Bound ticket with assignee=None matches Jira assignee="" — no update.
+
+    Regression for live-probe finding (field-probe-1779984990): when a
+    ticket is created with the new "unassigned by default" behavior, the
+    ticket reducer stores ``assignee: None``. The outbound differ's
+    ``ticket.get("assignee", "")`` returned None (not the "" default)
+    because .get's default only applies when the key is MISSING — not
+    when it's present with value None. None != "" then flagged the field
+    as changed, and the update payload propagated assignee=None through
+    update_one → client.update_issue(assignee=None) → ACLI received
+    "--assignee None" (literal string) → exit 1, killing the pass.
+
+    Fix: outbound_differ._map_local_to_jira_fields now uses
+    ``.get("assignee") or ""`` which normalises None to "".
+    """
+    ticket = _make_ticket(
+        ticket_id="local-1",
+        title="Fix the widget",
+        description="It is broken",
+        status="open",
+        priority=2,
+        ticket_type="bug",
+    )
+    # Override: simulate the unassigned default (None instead of a string)
+    ticket["assignee"] = None
+    # Same for description: a freshly-created ticket without -d may carry None.
+    ticket["description"] = None
+    store = StubBindingStore({"local-1": "PROJ-100"})
+    jira_snapshot = {
+        "PROJ-100": {
+            "summary": "Fix the widget",
+            "description": "",  # Jira has no description set
+            "issuetype": "Bug",
+            "priority": "Medium",
+            "status": "To Do",
+            "assignee": "",  # Jira is unassigned
+            "labels": [],
+        }
+    }
+
+    result = outbound_differ.compute_outbound_mutations(
+        local_tickets=[ticket],
+        jira_snapshot=jira_snapshot,
+        binding_store=store,
+    )
+
+    assert result == [], (
+        f"None assignee/description must normalise to '' for comparison. "
+        f"Got mutations: {result}. Without the fix, the differ flags "
+        f"None != '' as a field change and propagates None to "
+        f"client.update_issue, which str()'s it to 'None' for ACLI."
+    )
+
+
 def test_bound_ticket_field_change_emits_update(
     outbound_differ: ModuleType,
 ) -> None:
