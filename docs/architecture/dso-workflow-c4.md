@@ -37,7 +37,7 @@ C4Context
 
   System_Ext(llm, "Anthropic LLM API", "Backs orchestrator and all sub-agents (haiku / sonnet / opus tiers).")
   System_Ext(fs, "Repository Filesystem", "Source code, tests, designs, configs; edited by sub-agents.")
-  System_Ext(tickets, "Ticket Store", "Event-sourced log on orphan 'tickets' branch under .tickets-tracker/.")  %% # tickets-boundary-ok
+  System_Ext(tickets, "Ticket Store", "Event-sourced log on orphan tickets branch (under .tickets-tracker).")
   System_Ext(git, "Git / GitHub", "Worktrees, branches, PRs, required-checks.")
   System_Ext(actions, "GitHub Actions", "12 workflows: CI gates, llm-review orchestration, Jira reconciler trio, calibration rollups, ticket lifecycle.")
   System_Ext(jira, "Jira (optional)", "Bidirectional sync via the reconciler bridge (DIG project).")
@@ -597,7 +597,7 @@ flowchart TB
 
   f --> ctx{more tasks<br/>or context<br/>≥70%?}
   ctx -->|more tasks| c
-  ctx -->|context| compact[/compact]
+  ctx -->|context| compact["/compact"]
   compact --> c
   ctx -->|done| g
 
@@ -915,7 +915,7 @@ flowchart TB
   cronB --> rbc
   cronC --> fsck
 
-  rb -.->|writes SYNC events| store[(tickets branch<br/>.tickets-tracker)]  %% # tickets-boundary-ok
+  rb -.->|writes SYNC events| store[(tickets branch)]
   rbc -.->|reads run history| ghapi[(GitHub Actions API)]
   rbc -.->|opens / closes tickets| store
   fsck -.->|reads events| store
