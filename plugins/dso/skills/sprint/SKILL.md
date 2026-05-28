@@ -2819,17 +2819,17 @@ When sub-agents commit directly to the session branch under the `DSO_SPRINT_ACTI
 **Orchestrator substitution**: before executing the block below, substitute `<epic-id>` with the primary-ticket ID currently being processed. This mirrors the convention used elsewhere in this skill (e.g., `ticket ready --epic=<epic-id>` at line 2811) — placeholders in literal angle-brackets are LLM-substituted at execution time, not bash-expanded.
 
 ```bash
+<!-- # precondition-emit-ok: the resolve-default-branch call below is a read-only resolution, not a graceful-degradation gate. -->
 WORKFLOW=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/read-config.sh" dso.workflow 2>/dev/null || echo "local")  # shim-exempt: internal orchestration script
 if [[ "$WORKFLOW" == "ci-pr" ]]; then
-    # Resolve default branch — ci-pr projects don't all use "main" (master/trunk/develop
-    # are valid). Prefer symbolic-ref of origin/HEAD, then env var, then literal "main".
-    # Note: redistribute-session-commits.sh's MAIN_REF logic hardcodes "main" with an
-    # origin/main fallback (no symbolic-ref consultation) — this block is intentionally
-    # more robust because it runs in projects where the default branch may not be "main".
-    # This is a read-only resolution chain, not a graceful-degradation gate that
-    # bypasses an action — no PRECONDITIONS landmark needed. # precondition-emit-ok
-    _DEFAULT_BRANCH=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
-    [[ -z "$_DEFAULT_BRANCH" ]] && _DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
+    # Resolve default branch via the canonical resolver, which handles all four
+    # tiers (dso.default_branch config → git symbolic-ref → gh repo view → "main"
+    # fallback). Re-implementing the precedence chain here would diverge from
+    # the resolver used by every DSO merge script and silently skip detection
+    # on projects whose default branch is master/develop/trunk when origin/HEAD
+    # isn't configured.
+    _default_branch=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/resolve-default-branch.sh" --no-warn 2>/dev/null)
+    [[ -z "$_default_branch" ]] && _default_branch="main"
 
     # Count direct (non-merge) commits on the session branch's FIRST-PARENT history
     # carrying a DSO-Story trailer. The --first-parent flag is critical: without it,
@@ -2842,7 +2842,7 @@ if [[ "$WORKFLOW" == "ci-pr" ]]; then
     # on the first-parent line and are excluded by --no-merges. This assumes the
     # established DSO merge mode (`gh pr merge --merge`, true merge commit — see
     # merge-to-main-pr.sh). Squash-merge mode would invert the semantics.
-    _bypass_count=$(git log --no-merges --first-parent --pretty='%H %(trailers:key=DSO-Story,valueonly=true)' "origin/${_DEFAULT_BRANCH}..HEAD" 2>/dev/null \
+    _bypass_count=$(git log --no-merges --first-parent --pretty='%H %(trailers:key=DSO-Story,valueonly=true)' "origin/${_default_branch}..HEAD" 2>/dev/null \
         | awk 'NF>1 {c++} END {print c+0}')
     if [[ "$_bypass_count" -gt 0 ]]; then
         echo "REDISTRIBUTE-RECOMMENDED: detected ${_bypass_count} direct-to-session commit(s) with DSO-Story trailers (sprint bypass via DSO_SPRINT_ACTIVE=0)."
