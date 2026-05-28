@@ -843,7 +843,26 @@ class AcliClient:
         )
 
     def update_issue(self, jira_key: str, **kwargs: Any) -> dict[str, Any]:
-        """Update a Jira issue via ACLI."""
+        """Update a Jira issue via ACLI.
+
+        Bug 85a1 (Fix D7): assignee=None/empty is routed through
+        ``unassign_issue`` (REST PUT /assignee with ``{"accountId": null}``)
+        rather than passed to ACLI as ``--assignee ""``, which ACLI silently
+        no-ops (the probe Phase 2 verify-assignee-unassigned regression).
+
+        unassign_issue failures are caught and logged so a transient REST
+        error does not abort the entire batch — the rest of the update_one
+        body (label/comment dispatch, field edits) must still run.
+        """
+        if "assignee" in kwargs and kwargs["assignee"] in (None, ""):
+            kwargs.pop("assignee")
+            try:
+                self.unassign_issue(jira_key)
+            except Exception as exc:  # noqa: BLE001
+                print(  # noqa: T201
+                    f"update_issue: unassign_issue({jira_key}) failed: {exc!r}",
+                    file=sys.stderr,
+                )
         return update_issue(jira_key, acli_cmd=self._acli_cmd, **kwargs)
 
     def get_issue(self, jira_key: str) -> dict[str, Any]:

@@ -118,6 +118,9 @@ import importlib.util, sys, json, os
 spec = importlib.util.spec_from_file_location('acli', '${_SCRIPTS_DIR}/acli-integration.py')
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
+adf_spec = importlib.util.spec_from_file_location('adf', '${_SCRIPTS_DIR}/dso_reconciler/adf.py')
+adf_mod = importlib.util.module_from_spec(adf_spec)
+adf_spec.loader.exec_module(adf_mod)
 client = mod.AcliClient(
     jira_url=os.environ['JIRA_URL'],
     user=os.environ['JIRA_USER'],
@@ -126,7 +129,13 @@ client = mod.AcliClient(
 issue = client.get_issue_by_rest('${key}')
 fields = issue.get('fields', issue)
 val = fields.get('${field}', '')
-if isinstance(val, dict):
+# Description is returned as an ADF document, not a string. Decode via adf_to_text
+# so the probe asserts against canonical plain text (bug 85a1 — the probe's prior
+# raw.get('name', ...) returned '' for ADF, producing false-negative description
+# verification failures).
+if '${field}' == 'description' and isinstance(val, dict):
+    val = adf_mod.adf_to_text(val)
+elif isinstance(val, dict):
     val = val.get('name', val.get('displayName', ''))
 if isinstance(val, list):
     print(json.dumps(val))

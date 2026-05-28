@@ -17,8 +17,42 @@ and does not import the concrete class.
 
 from __future__ import annotations
 
+import importlib.util
+import sys
 from dataclasses import dataclass, field as dataclass_field
+from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
+
+
+_ADF_KEY = "plugins.dso.scripts.dso_reconciler.adf"
+_AdfModule = None
+
+
+def _load_adf():
+    """Lazy-load the sibling adf module.
+
+    The differ may be imported either as a normal package module (production)
+    or via ``importlib.util.spec_from_file_location`` (tests). The latter
+    does not establish package context, so ``from . import adf`` fails. Use
+    the canonical dotted sys.modules key (same pattern as applier's
+    _load_mutation_module) so the module is loaded exactly once across all
+    callers.
+    """
+    global _AdfModule
+    if _AdfModule is not None:
+        return _AdfModule
+    if _ADF_KEY in sys.modules:
+        _AdfModule = sys.modules[_ADF_KEY]
+        return _AdfModule
+    adf_path = Path(__file__).parent / "adf.py"
+    spec = importlib.util.spec_from_file_location(_ADF_KEY, adf_path)
+    if spec is None or spec.loader is None:
+        raise FileNotFoundError(f"adf.py not found at {adf_path}")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[_ADF_KEY] = mod
+    spec.loader.exec_module(mod)  # type: ignore[union-attr]
+    _AdfModule = mod
+    return mod
 
 
 # ---------------------------------------------------------------------------
@@ -112,13 +146,33 @@ def _map_local_to_jira_fields(ticket: dict[str, Any]) -> dict[str, Any]:
 def _extract_jira_field(jira_fields: dict[str, Any], field: str) -> Any:
     """Extract a Jira field value, handling nested structures.
 
-    Jira API returns some fields as nested objects (e.g. priority.name,
-    issuetype.name, status.name, assignee.displayName). This helper
-    normalises to the string value the outbound differ uses for comparison.
+    Jira API returns some fields as nested objects (priority.name,
+    issuetype.name, status.name, assignee.displayName), and description is
+    returned as an Atlassian Document Format (ADF) dict, not a plain string.
+
+    Bug 85a1: before this fix, description ADF dicts were extracted as
+    ``""`` because the generic ``raw.get("name", raw.get("displayName", ""))``
+    fallback found neither key on ADF (``{"type": "doc", "version": 1,
+    "content": [...]}``). The differ then reported description as changed on
+    every pass for every bound ticket — the 21-mutation idempotency churn
+    documented in the e2e probe Phase 6.
+
+    Fix: dispatch by field name. Description ADF dicts are decoded via
+    ``adf.adf_to_text``; assignee continues to return ``displayName`` (the
+    canonical form local probe tickets store); priority / status / issuetype
+    use the existing ``.name`` extraction. Plain string values (including
+    legacy snapshots from before ADF migration) pass through unchanged.
     """
     raw = jira_fields.get(field)
     if raw is None:
         return ""
+
+    # Description: ADF dict → plain text via the project's ADF walker.
+    if field == "description":
+        if isinstance(raw, dict):
+            return _load_adf().adf_to_text(raw)
+        return raw  # legacy plain-string snapshot
+
     if isinstance(raw, dict):
         # Jira nested objects: {name: ..., id: ...}
         return raw.get("name", raw.get("displayName", ""))
@@ -150,6 +204,25 @@ def _map_comments_for_create(ticket: dict[str, Any]) -> list[dict[str, Any]]:
     return [{"action": "add", "body": c.get("body", "")} for c in comments]
 
 
+def _normalize_comment_body(body: Any) -> str:
+    """Coerce a comment body to a comparable plain-text string.
+
+    Jira comments are returned with ``body`` as an Atlassian Document Format
+    (ADF) dict (``{"type": "doc", ...}``). Local comments store ``body`` as a
+    plain string. Direct dict-vs-string comparison always reports them as
+    different — driving spurious duplicate pushes (Phase 2 verify-no-
+    duplicate-comments: "found 2 copies") and the dict-as-key crash in
+    ``_diff_comments`` (Phase 3+ "unhashable type: 'dict'" when an ADF body
+    flows into a ``set[str]`` insertion).
+
+    Normalize via ``adf.adf_to_text`` so the canonical comparison is on
+    text. Bug 85a1.
+    """
+    if isinstance(body, dict):
+        return _load_adf().adf_to_text(body)
+    return str(body) if body is not None else ""
+
+
 def _diff_comments(
     ticket: dict[str, Any],
     jira_key: str,
@@ -160,6 +233,8 @@ def _diff_comments(
     Simple strategy: detect local comments not yet mirrored to Jira by
     comparing comment bodies. This is a best-effort approach; PR #402
     (ADF walker + comment binding) will provide exact comment ID binding.
+    Bodies are normalized via :func:`_normalize_comment_body` so a Jira
+    ADF body matches its local plain-text counterpart (bug 85a1).
     """
     local_comments = ticket.get("comments", [])
     jira_issue = jira_snapshot.get(jira_key, {})
@@ -167,12 +242,13 @@ def _diff_comments(
 
     jira_bodies: set[str] = set()
     for c in jira_comments:
-        body = c.get("body", "") if isinstance(c, dict) else str(c)
-        jira_bodies.add(body)
+        raw = c.get("body", "") if isinstance(c, dict) else c
+        jira_bodies.add(_normalize_comment_body(raw))
 
     mutations: list[dict[str, Any]] = []
     for c in local_comments:
-        body = c.get("body", "") if isinstance(c, dict) else str(c)
+        raw = c.get("body", "") if isinstance(c, dict) else c
+        body = _normalize_comment_body(raw)
         if body and body not in jira_bodies:
             mutations.append({"action": "add", "body": body})
     return mutations

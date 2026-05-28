@@ -220,7 +220,27 @@ def run_pass(
         print(f"ERROR: reconcile_once raised: {exc}", file=sys.stderr)
         return 1
 
-    print(f"OK: steady-state pass converged — {result['mutation_count']} mutations")
+    # Bug 85a1: truthful tally. Before this fix, the message printed
+    # mutation_count (computed pre-apply) under the verb "converged", which
+    # was structurally lying when mutations errored out mid-pass. Now:
+    #   - applied > 0       → "OK: applied N (F failed) — pass <id>"
+    #   - applied == 0 and computed == 0 → "OK: steady-state pass converged"
+    #   - applied == 0 and computed > 0  → "OK: applied 0 of N (N failed) — pass <id>"
+    # The "converged" verb is reserved for genuine no-op passes (computed=0).
+    # Legacy callers that read mutation_count from reconcile_once's return
+    # still work; this only changes the human-readable stdout line.
+    computed = result.get("mutation_count", 0)
+    applied = result.get("mutations_applied", computed)
+    failures = result.get("mutation_failures", 0)
+    if computed == 0 and applied == 0:
+        print("OK: steady-state pass converged — 0 mutations")
+    elif failures == 0:
+        print(f"OK: applied {applied} of {computed} mutations")
+    else:
+        print(
+            f"OK: applied {applied} of {computed} mutations "
+            f"({failures} failed)"
+        )
     return 0
 
 

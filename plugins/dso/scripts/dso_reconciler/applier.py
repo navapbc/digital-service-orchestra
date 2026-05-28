@@ -1675,6 +1675,54 @@ def create_one(
                 pass  # alert write failure must not mask original error
             raise write_err
 
+    # Bug 85a1 (PR #87e4 follow-up): propagate user-supplied labels/comments
+    # from the mutation payload after the identity-write block. The fix was
+    # previously applied only to update_one (lines 1744-1779) — the symmetric
+    # gap in create_one caused outbound CREATE to silently drop every user
+    # label and comment, leaving freshly-created Jira issues with only the
+    # dso-id system label (Phase 1 of the e2e field-validation probe).
+    # Failures here are logged but non-fatal — the create + identity write
+    # already succeeded; a downstream label/comment dispatch failure must
+    # not roll back the Jira issue.
+    if jira_key:
+        labels = mutation.get("labels", []) or []
+        if isinstance(labels, list):
+            for entry in labels:
+                if not isinstance(entry, dict):
+                    continue
+                action = entry.get("action")
+                label_name = entry.get("label", "")
+                if not label_name:
+                    continue
+                # remove-action entries are no-ops at CREATE time — a brand-new
+                # issue has no preexisting labels to remove.
+                if action != "add":
+                    continue
+                try:
+                    _call_with_retry(client.add_label, jira_key, label_name)
+                except Exception as exc:  # noqa: BLE001
+                    print(  # noqa: T201
+                        f"create_one: add_label failed for {jira_key} "
+                        f"label={label_name!r}: {exc!r}",
+                        file=sys.stderr,
+                    )
+
+        comments = mutation.get("comments", []) or []
+        if isinstance(comments, list):
+            for entry in comments:
+                if not isinstance(entry, dict):
+                    continue
+                body = entry.get("body", "")
+                if not body:
+                    continue
+                try:
+                    _call_with_retry(client.add_comment, jira_key, body)
+                except Exception as exc:  # noqa: BLE001
+                    print(  # noqa: T201
+                        f"create_one: add_comment failed for {jira_key}: {exc!r}",
+                        file=sys.stderr,
+                    )
+
     return result
 
 
@@ -1711,6 +1759,35 @@ def update_one(mutation: dict, client) -> dict | None:
     fields = mutation.get("fields", {})
     if not isinstance(fields, dict):
         fields = {}
+    # Capture pre-filter status so the comment-fallback path (which reads
+    # ``fields.get("status")`` after the allowlist strips it) can still
+    # report the attempted local status (bug 85a1 follow-up).
+    _attempted_status = fields.get("status")
+    # Bug 85a1: strip fields ACLI does not accept on `jira workitem edit`.
+    # The legacy batch path here was unfiltered, so a local issuetype change
+    # (e.g., probe Phase 2 ticket_type=task→bug) flowed through as
+    # ``--issuetype Bug`` which ACLI rejects with non-zero exit, aborting the
+    # ENTIRE batch loop and silently losing every subsequent outbound update.
+    # The typed leaf ``_apply_outbound_update`` already filters via
+    # ``_OUTBOUND_UPDATE_ALLOWLIST`` — apply the same allowlist here. Stripped
+    # fields (issuetype, type-change in general) are intentional drops mirroring
+    # the typed-leaf contract; outbound issuetype changes are BY_DESIGN
+    # unsupported on the edit endpoint (Atlassian JRASERVER-71292).
+    # status is intentionally absent: outbound status push lives behind the
+    # typed-leaf `_apply_outbound_update` gating (DSO_RECONCILER_STATUS_GATING);
+    # the legacy batch path silently drops status to match the BY_DESIGN
+    # contract documented in the probe matrix.
+    _OUTBOUND_BATCH_ALLOWLIST = frozenset(
+        {"summary", "description", "assignee", "priority"}
+    )
+    _stripped = {k: v for k, v in fields.items() if k not in _OUTBOUND_BATCH_ALLOWLIST}
+    if _stripped:
+        print(  # noqa: T201
+            f"update_one: dropping fields not accepted by ACLI edit "
+            f"for {mutation.get('key')}: {sorted(_stripped.keys())}",
+            file=sys.stderr,
+        )
+    fields = {k: v for k, v in fields.items() if k in _OUTBOUND_BATCH_ALLOWLIST}
     issue_key = mutation.get("key")
     result: dict | None
     try:
@@ -1718,7 +1795,7 @@ def update_one(mutation: dict, client) -> dict | None:
     except JiraAPIError as exc:
         if not _is_illegal_transition_400(exc):
             raise
-        new_status = fields.get("status")
+        new_status = _attempted_status
         comment = f"local status changed to {new_status}"
         try:
             client.add_comment(issue_key, comment)
@@ -1728,7 +1805,7 @@ def update_one(mutation: dict, client) -> dict | None:
             {
                 "action": "comment_fallback",
                 "issue_key": issue_key,
-                "attempted_status": new_status,
+                "attempted_status": _attempted_status,
                 "reason": "400_illegal_transition",
             }
         )
