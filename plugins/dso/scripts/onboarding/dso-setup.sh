@@ -306,8 +306,13 @@ fi
 #      then fall back to `stack=` in $TARGET_REPO/.claude/dso-config.conf
 #   2. If stack matches a file EXAMPLES_ROOT/ci.example.${stack}.yml, use it
 #   3. Otherwise generate a skeleton from dso-config.conf commands.{test,lint,format_check}
-#   4. Last-resort fallback: legacy ci.example.python-poetry.yml (preserves prior
-#      behavior if both stack detection and skeleton generation fail)
+#   4. Return empty (caller skips CI workflow install with a logged reason).
+#      Bug 5d92 defect B: previously fell back to ci.example.python-poetry.yml,
+#      which installed a Python/Poetry GitHub Actions workflow into projects
+#      using other stacks (or no detected stack). The caller at L602 already
+#      handles the empty path by emitting "[skip] No CI example resolved" —
+#      that's now the only path when stack is unknown and no skeleton can be
+#      derived from commands.{test,lint,format_check}.
 _resolve_stack_ci_example() {
     local target_repo="$1"
     local examples_root="$2"
@@ -341,13 +346,11 @@ _resolve_stack_ci_example() {
         fi
     fi
 
-    # Last-resort: legacy python-poetry example (backward compat)
-    if [[ -f "$examples_root/ci.example.python-poetry.yml" ]]; then
-        printf '%s\n' "$examples_root/ci.example.python-poetry.yml"
-        return 0
-    fi
-
-    # No example resolvable — emit empty (caller must guard against empty path).
+    # No example resolvable — emit empty. Caller at the CI install block
+    # detects empty and skips the workflow install with a "[skip] No CI
+    # example resolved for target stack" log line. Bug 5d92 defect B removed
+    # the python-poetry last-resort fallback that previously caused non-Python
+    # projects to receive Python/Poetry workflow scaffolding.
     printf ''
 }
 
@@ -358,8 +361,11 @@ _resolve_stack_ci_example() {
 # Resolution order:
 #   1. Read `stack=` from $DSO_DETECT_OUTPUT then fall back to dso-config.conf
 #   2. If stack matches `pre-commit-config.example.${stack}.yaml`, use it
-#   3. If stack is not python-poetry, use generic (DSO-only, no Python toolchain)
-#   4. Last-resort: legacy pre-commit-config.example.yaml (Python/Poetry, backward compat)
+#   3. Otherwise use the generic (DSO-only, no Python toolchain) template.
+#      Applies to stack=python-poetry (uses the matched template above),
+#      any other named stack, AND empty/unknown stack — bug 5d92 defect B
+#      previously fell through to the python-poetry default when stack was
+#      empty, installing Python/Poetry hooks into non-Python projects.
 _resolve_stack_precommit_example() {
     local target_repo="$1"
     local examples_root="$2"
@@ -378,18 +384,19 @@ _resolve_stack_precommit_example() {
         return 0
     fi
 
-    # Generic (DSO-only, no Python toolchain) for non-Python stacks
-    if [[ -n "$_stack" ]] && [[ "$_stack" != "python-poetry" ]] && [[ -f "$examples_root/pre-commit-config.example.generic.yaml" ]]; then
+    # Generic (DSO-only, no Python toolchain) for any non-matched stack,
+    # including empty/unknown. Bug 5d92 defect B: previously this branch
+    # required `-n "$_stack"`, so empty stack fell through to the python-poetry
+    # last-resort. Removing the guard makes generic the safe default for any
+    # project whose stack lacks a dedicated template.
+    if [[ -f "$examples_root/pre-commit-config.example.generic.yaml" ]]; then
         printf '%s\n' "$examples_root/pre-commit-config.example.generic.yaml"
         return 0
     fi
 
-    # Last-resort: legacy Python/Poetry example (backward compat)
-    if [[ -f "$examples_root/pre-commit-config.example.yaml" ]]; then
-        printf '%s\n' "$examples_root/pre-commit-config.example.yaml"
-        return 0
-    fi
-
+    # No example resolvable — emit empty. Caller handles by emitting a skip
+    # log line. (Reached only when the generic.yaml file is missing from the
+    # plugin install, which would be a packaging defect.)
     printf ''
 }
 
@@ -564,11 +571,16 @@ $_escaped_stamp" "$file_path" && rm -f "${file_path}.bak"
 # Gated on --opt-precommit=yes|no (default yes) per bug 2145-fe0b-99ae-418f.
 TARGET_PRECOMMIT="$TARGET_REPO/.pre-commit-config.yaml"
 _PRECOMMIT_EXAMPLE_RESOLVED=$(_resolve_stack_precommit_example "$TARGET_REPO" "$EXAMPLES_ROOT")
-if [[ -z "$_PRECOMMIT_EXAMPLE_RESOLVED" ]]; then
-    _PRECOMMIT_EXAMPLE_RESOLVED="$EXAMPLES_ROOT/pre-commit-config.example.yaml"
-fi
+# Bug 5d92 defect B: previously fell back to pre-commit-config.example.yaml
+# (the Python/Poetry legacy template) when the resolver returned empty. That
+# silently installed Python/Poetry pre-commit hooks into non-Python projects.
+# The resolver now returns generic.yaml for any non-matched stack; an empty
+# result here means even generic.yaml is absent (a packaging defect) — skip
+# the install rather than fall back to the wrong toolchain.
 if [[ "$_OPT_PRECOMMIT" != 'yes' ]]; then
     echo "Skipping pre-commit config install (--opt-precommit=no)."
+elif [[ -z "$_PRECOMMIT_EXAMPLE_RESOLVED" ]]; then
+    echo "[skip] No pre-commit example resolved for target stack — skipping pre-commit config install"
 elif [[ -z "$DRYRUN" ]]; then
     if [ ! -f "$TARGET_PRECOMMIT" ]; then
         cp "$_PRECOMMIT_EXAMPLE_RESOLVED" "$TARGET_PRECOMMIT"
