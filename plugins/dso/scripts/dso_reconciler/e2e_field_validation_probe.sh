@@ -15,9 +15,20 @@
 #
 # Usage: invoked by reconcile-bridge.yml when mode=field-validate, or manually.
 # Requires: JIRA_URL, JIRA_USER, JIRA_API_TOKEN env vars.
+# Requires: DSO_FIELD_VALIDATION_PROBE=1 to opt in (prevents accidental
+#           inclusion in generic test-discovery sweeps).
 # Working directory: repo root.
 
 set -euo pipefail
+
+# Explicit opt-in gate — prevents accidental invocation by find/glob test
+# discovery. The probe creates real Jira issues against the configured
+# instance, so it must only run when the caller explicitly intends to.
+if [ "${DSO_FIELD_VALIDATION_PROBE:-0}" != "1" ]; then
+    echo "SKIP: e2e_field_validation_probe.sh requires DSO_FIELD_VALIDATION_PROBE=1" >&2
+    echo "      (this probe creates real Jira issues against the configured instance)" >&2
+    exit 0
+fi
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 TICKET_CLI="${REPO_ROOT}/.claude/scripts/dso"
@@ -442,8 +453,12 @@ create_ticket() {
     local id
     id=$(echo "$output" | tail -1)
     if [ -z "$id" ]; then
+        # FATAL: index-aligned arrays (LOCAL_IDS, JIRA_KEYS) cannot tolerate
+        # a gap. Abort the probe immediately rather than corrupt subsequent
+        # phases that iterate by index.
         fail_test "Phase1.create-ticket-${idx}" "ticket create returned no ID: ${output}"
-        return 1
+        echo "FATAL: cannot proceed with gap in LOCAL_IDS — aborting." >&2
+        exit 1
     fi
     LOCAL_IDS+=("$id")
     pass_test "Phase1.create-ticket-${idx} (${id})"

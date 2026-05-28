@@ -132,7 +132,17 @@ class TestMutationMatchesFilter:
 
 class TestReconcileOnceFiltered:
     """Verify that reconcile_once with filter_local_ids only dispatches
-    matching mutations to the applier."""
+    matching mutations to the applier.
+
+    This integration test stubs the I/O-bound dependencies (fetcher, differ,
+    applier, etc.) so it can run hermetically.  The actual filter logic
+    under test — `_build_filter_target_set`, `_mutation_matches_filter`, and
+    the post-filter loop inside `reconcile_once` itself — is REAL code, not
+    stubbed.  The stubs only control the inputs (mutation list, binding
+    store contents) and observe the outputs (which mutations reach
+    applier.apply).  The helper-function-level tests above
+    (TestBuildFilterTargetSet, TestMutationMatchesFilter) cover the filter
+    logic in finer-grained isolation."""
 
     def _stub_modules(self):
         """Register stub modules in sys.modules so reconcile_once's _load()
@@ -180,19 +190,28 @@ class TestReconcileOnceFiltered:
         mut_mod.MutationDirection = real_mut.MutationDirection
         mut_mod.MutationAction = real_mut.MutationAction
         mut_mod.Mutation = real_mut.Mutation
-        mut_mod.Mutation = _make_mutation  # use our helper
 
         def compute_mutations(local_state=None, jira_state=None, **kwargs):
             M = real_mut.Mutation
             D = real_mut.MutationDirection
             A = real_mut.MutationAction
             return [
+                # Match by provenance.local_id (target outside filter set)
                 M(
                     direction=D.inbound, action=A.create,
                     target="DIG-100",
                     payload={"summary": "test"},
                     provenance={"source": "differ", "local_id": "test-id-1"},
                 ),
+                # Match by provenance.jira_key only (target and local_id both
+                # outside filter set — exercises the jira_key match arm)
+                M(
+                    direction=D.outbound, action=A.update,
+                    target="some-unrelated-key",
+                    payload={"changed_fields": {"summary": "via-jira-key"}},
+                    provenance={"source": "differ", "jira_key": "DIG-100"},
+                ),
+                # No match (target/local_id/jira_key all outside filter)
                 M(
                     direction=D.inbound, action=A.create,
                     target="DIG-200",
@@ -293,12 +312,23 @@ class TestReconcileOnceFiltered:
                 repo_root=tmp_path,
                 filter_local_ids={"test-id-1"},
             )
-            # Only the mutation targeting DIG-100 / test-id-1 should reach apply
-            assert result["mutation_count"] == 1
+            # Two mutations should match the filter:
+            #   - one by provenance.local_id="test-id-1"
+            #   - one by provenance.jira_key="DIG-100" (bound to test-id-1)
+            assert result["mutation_count"] == 2, (
+                f"expected 2 filtered mutations, got {result['mutation_count']}"
+            )
             assert result["filtered"] is True
-            assert result["unfiltered_mutation_count"] == 3
-            assert len(applier._applied) == 1
-            assert applier._applied[0].target == "DIG-100"
+            assert result["filter_local_ids"] == ["test-id-1"]
+            assert result["unfiltered_mutation_count"] == 4
+            assert len(applier._applied) == 2
+
+            # Verify both expected mutations made it through, identified by
+            # which provenance field caused the match.
+            targets = {m.target for m in applier._applied}
+            assert targets == {"DIG-100", "some-unrelated-key"}, (
+                f"unexpected targets: {targets}"
+            )
         finally:
             for name, orig in originals.items():
                 if orig is None:
@@ -324,9 +354,11 @@ class TestReconcileOnceFiltered:
                 "test-pass-unfiltered",
                 repo_root=tmp_path,
             )
-            assert result["mutation_count"] == 3
+            assert result["mutation_count"] == 4
             assert "filtered" not in result
-            assert len(applier._applied) == 3
+            assert "filter_local_ids" not in result
+            assert "unfiltered_mutation_count" not in result
+            assert len(applier._applied) == 4
         finally:
             for name, orig in originals.items():
                 if orig is None:
